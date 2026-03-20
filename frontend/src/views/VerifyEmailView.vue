@@ -6,7 +6,7 @@
       <p v-else-if="success" class="success">{{ success }}</p>
       <p v-else class="error">{{ error || 'Verifikation fehlgeschlagen.' }}</p>
 
-      <router-link class="btn" to="/">Zur Anmeldung</router-link>
+      <router-link class="btn btn-primary btn-sm" to="/">Zur Anmeldung</router-link>
     </div>
   </div>
 </template>
@@ -45,5 +45,5 @@ onMounted(async () => {
 .verify-card { max-width: 560px; width: 100%; background: white; border-radius: 12px; border: 1px solid #e5e7eb; padding: 24px; text-align: center; }
 .success { color: #166534; }
 .error { color: #b91c1c; }
-.btn { margin-top: 16px; display: inline-block; padding: 10px 14px; border-radius: 8px; background: #0b7eea; color: white; text-decoration: none; font-weight: 600; }
+.btn { margin-top: 16px; display: inline-flex; text-decoration: none; }
 </style>

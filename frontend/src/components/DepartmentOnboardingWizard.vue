@@ -1041,39 +1041,7 @@ watch(
   gap: 10px;
 }
 
-.btn {
-  border: none;
-  border-radius: 8px;
-  font-weight: 600;
-  font-size: 14px;
-  padding: 10px 14px;
-  cursor: pointer;
-}
-
-.btn-primary {
-  background: #0ea5e9;
-  color: white;
-}
-
-.btn-light {
-  background: #f3f4f6;
-  color: #111827;
-}
-
-.btn-ghost {
-  background: transparent;
-  color: #6b7280;
-}
-
-.btn-success {
-  background: #16a34a;
-  color: white;
-}
-
-.btn:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
-}
+/* Buttons use shared ui/buttons.css */
 
 .muted {
   margin: 4px 0 0 0;
