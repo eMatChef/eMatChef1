@@ -111,6 +111,12 @@ export interface UpdateProfilePayload {
   text_color?: string
 }
 
+export interface ChangePasswordPayload {
+  current_password: string
+  new_password: string
+  confirm_new_password: string
+}
+
 export interface UserDepartmentResponse {
   department_id: string
   role: string
@@ -247,6 +253,14 @@ export async function updateProfile(
   payload: UpdateProfilePayload
 ): Promise<ProfileResponse> {
   const { data } = await apiClient.patch<ProfileResponse>(`/api/profiles/${profileId}`, payload)
+  return data
+}
+
+export async function changePassword(
+  profileId: string,
+  payload: ChangePasswordPayload
+): Promise<{ success: boolean; message: string }> {
+  const { data } = await apiClient.patch<{ success: boolean; message: string }>(`/api/profiles/${profileId}/password`, payload)
   return data
 }
 

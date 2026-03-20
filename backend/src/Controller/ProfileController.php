@@ -13,8 +13,9 @@ use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
-use Symfony\Component\Routing\Annotation\Route;
+use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Http\Attribute\IsGranted;
+use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
 
 #[Route('/api/profiles', name: 'api_profiles_')]
 class ProfileController extends AbstractController
@@ -24,7 +25,8 @@ class ProfileController extends AbstractController
         private UserRepository $userRepository,
         private VerificationEmailService $verificationEmailService,
         private EntityManagerInterface $entityManager,
-        private AuditLogger $auditLogger
+        private AuditLogger $auditLogger,
+        private UserPasswordHasherInterface $passwordHasher
     ) {}
 
     /**
@@ -271,6 +273,79 @@ class ProfileController extends AbstractController
         }
 
         return $this->getProfileData($id);
+    }
+
+    /**
+     * Aendert das Passwort des eigenen Kontos
+     */
+    #[Route('/{id}/password', name: 'change_password', methods: ['PATCH'])]
+    #[IsGranted('ROLE_USER')]
+    public function changePassword(string $id, Request $request): JsonResponse
+    {
+        $profile = $this->profileRepository->find($id);
+        if (!$profile) {
+            return new JsonResponse(['error' => 'Profile not found'], 404);
+        }
+
+        $currentUser = $this->getUser();
+        if (!$currentUser instanceof User) {
+            return new JsonResponse(['error' => 'Unauthorized'], 403);
+        }
+
+        if ($profile->getId() !== $currentUser->getProfileId() && !in_array('ROLE_ADMIN', $currentUser->getRoles(), true)) {
+            return new JsonResponse(['error' => 'Forbidden'], 403);
+        }
+
+        $data = json_decode($request->getContent(), true) ?? [];
+        $currentPassword = (string) ($data['current_password'] ?? '');
+        $newPassword = (string) ($data['new_password'] ?? '');
+        $confirmNewPassword = (string) ($data['confirm_new_password'] ?? '');
+
+        if ($currentPassword === '' || $newPassword === '' || $confirmNewPassword === '') {
+            return new JsonResponse(['error' => 'Aktuelles Passwort, neues Passwort und Passwort-Bestaetigung sind erforderlich'], 400);
+        }
+
+        if ($newPassword !== $confirmNewPassword) {
+            return new JsonResponse(['error' => 'Neues Passwort und Passwort-Bestaetigung stimmen nicht ueberein'], 400);
+        }
+
+        if (strlen($newPassword) < 8) {
+            return new JsonResponse(['error' => 'Das Passwort muss mindestens 8 Zeichen lang sein'], 400);
+        }
+
+        $user = $this->userRepository->findOneBy(['profileId' => $profile->getId()]);
+        if (!$user instanceof User) {
+            return new JsonResponse(['error' => 'User not found for profile'], 404);
+        }
+
+        if (!$this->passwordHasher->isPasswordValid($user, $currentPassword)) {
+            return new JsonResponse(['error' => 'Aktuelles Passwort ist falsch'], 400);
+        }
+
+        if ($this->passwordHasher->isPasswordValid($user, $newPassword)) {
+            return new JsonResponse(['error' => 'Neues Passwort darf nicht dem aktuellen Passwort entsprechen'], 400);
+        }
+
+        $user->setPassword($this->passwordHasher->hashPassword($user, $newPassword));
+        $profile->setUpdatedAt(new \DateTime());
+
+        $this->auditLogger->log(
+            'user',
+            $user->getId(),
+            'user_password_changed',
+            $currentUser,
+            $user,
+            null,
+            [
+                'source' => ['old' => null, 'new' => 'profile_change'],
+            ]
+        );
+        $this->entityManager->flush();
+
+        return new JsonResponse([
+            'success' => true,
+            'message' => 'Passwort wurde erfolgreich geaendert.'
+        ]);
     }
 
 }
