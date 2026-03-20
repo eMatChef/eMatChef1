@@ -1,0 +1,29 @@
+@import './styles/ui/buttons.css';
+@import './styles/ui/page-layout.css';
+@import './styles/ui/forms.css';
+@import './styles/ui/cards.css';
+@import './styles/ui/modals.css';
+@import './styles/ui/history.css';
+@import './styles/ui/storage.css';
+@import './styles/ui/states.css';
+@import './styles/ui/tables.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#app {
+  min-height: 100vh;
+}

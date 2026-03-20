@@ -1,0 +1,532 @@
+<?php
+
+namespace App\Controller;
+
+use App\Entity\User;
+use App\Entity\Membership;
+use App\Entity\Department;
+use App\Repository\UserRepository;
+use App\Service\AuditLogger;
+use Doctrine\ORM\EntityManagerInterface;
+use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
+use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
+use Symfony\Component\HttpFoundation\JsonResponse;
+use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\Routing\Annotation\Route;
+use Symfony\Component\Security\Http\Attribute\IsGranted;
+
+#[Route('/api/users', name: 'api_users_')]
+class UserController extends AbstractController
+{
+    private const MEMBERSHIP_ROLE_HIERARCHY = ['mw', 'dc', 'l1', 'l2', 'l3', 'u'];
+    private const GLOBAL_ADMIN_ROLES = ['ROLE_SUPERADMIN', 'ROLE_ORGANISATIONSCHEF', 'ROLE_SUBORGCHEF'];
+
+    public function __construct(
+        private UserRepository $userRepository,
+        private EntityManagerInterface $entityManager,
+        private AuditLogger $auditLogger
+    ) {}
+
+    private function isGlobalAdmin(User $user): bool
+    {
+        return count(array_intersect(self::GLOBAL_ADMIN_ROLES, $user->getRoles())) > 0;
+    }
+
+    /**
+     * Admin: Alle User mit Membership-Count.
+     */
+    #[Route('/admin/list', name: 'admin_list', methods: ['GET'])]
+    #[IsGranted('ROLE_USER')]
+    public function listForAdmin(Request $request): JsonResponse
+    {
+        $currentUser = $this->getUser();
+        if (!$currentUser instanceof User || !$this->isGlobalAdmin($currentUser)) {
+            return new JsonResponse(['error' => 'Forbidden'], 403);
+        }
+
+        $qb = $this->entityManager->getRepository(User::class)
+            ->createQueryBuilder('u')
+            ->innerJoin('u.profile', 'p')
+            ->leftJoin(Membership::class, 'm', 'WITH', 'm.userId = u.id')
+            ->select('u', 'p')
+            ->addSelect('COUNT(m.departmentId) AS membership_count')
+            ->groupBy('u.id, p.id');
+
+        $search = trim((string) $request->query->get('q', ''));
+        if ($search !== '') {
+            $qb->andWhere('LOWER(p.email) LIKE :q OR LOWER(p.firstName) LIKE :q OR LOWER(p.lastName) LIKE :q OR LOWER(p.nickname) LIKE :q')
+                ->setParameter('q', '%' . mb_strtolower($search) . '%');
+        }
+
+        $allowedSort = [
+            'created_at' => 'u.createdAt',
+            'name' => 'p.lastName',
+            'email' => 'p.email',
+            'departments_count' => 'membership_count',
+        ];
+        $sortBy = strtolower((string) $request->query->get('sortBy', 'created_at'));
+        $sortDir = strtolower((string) $request->query->get('sortDir', 'desc')) === 'asc' ? 'ASC' : 'DESC';
+        $sortColumn = $allowedSort[$sortBy] ?? $allowedSort['created_at'];
+
+        $qb->orderBy($sortColumn, $sortDir);
+        if ($sortBy === 'name') {
+            $qb->addOrderBy('p.firstName', $sortDir);
+        }
+
+        $rows = $qb->getQuery()->getResult();
+        $result = [];
+
+        foreach ($rows as $row) {
+            $user = $row[0] ?? null;
+            $membershipCount = isset($row['membership_count']) ? (int) $row['membership_count'] : 0;
+            if (!$user instanceof User) {
+                continue;
+            }
+            $profile = $user->getProfile();
+            if (!$profile) {
+                continue;
+            }
+
+            $result[] = [
+                'id' => $user->getId(),
+                'profile_id' => $profile->getId(),
+                'name' => $profile->getDisplayName(),
+                'first_name' => $profile->getFirstName(),
+                'last_name' => $profile->getLastName(),
+                'nickname' => $profile->getNickname(),
+                'email' => $profile->getEmail(),
+                'state' => $user->getState(),
+                'created_at' => $user->getCreatedAt()->format(\DateTimeInterface::ATOM),
+                'departments_count' => $membershipCount,
+            ];
+        }
+
+        return new JsonResponse($result);
+    }
+
+    /**
+     * Admin: Detailansicht für User inkl. Memberships.
+     */
+    #[Route('/{id}/admin-detail', name: 'admin_detail', methods: ['GET'])]
+    #[IsGranted('ROLE_USER')]
+    public function getAdminDetail(string $id): JsonResponse
+    {
+        $currentUser = $this->getUser();
+        if (!$currentUser instanceof User || !$this->isGlobalAdmin($currentUser)) {
+            return new JsonResponse(['error' => 'Forbidden'], 403);
+        }
+
+        $user = $this->userRepository->find($id);
+        if (!$user) {
+            return new JsonResponse(['error' => 'User not found'], 404);
+        }
+        $profile = $user->getProfile();
+        if (!$profile) {
+            return new JsonResponse(['error' => 'Profile not found'], 404);
+        }
+
+        $memberships = $this->entityManager->getRepository(Membership::class)
+            ->createQueryBuilder('m')
+            ->innerJoin('m.department', 'd')
+            ->addSelect('d')
+            ->where('m.userId = :userId')
+            ->setParameter('userId', $id)
+            ->orderBy('d.name', 'ASC')
+            ->getQuery()
+            ->getResult();
+
+        $membershipData = [];
+        foreach ($memberships as $m) {
+            $department = $m->getDepartment();
+            $membershipData[] = [
+                'department_id' => $department->getId(),
+                'department_name' => $department->getName(),
+                'role' => $m->getRole(),
+                'is_primary' => $m->getIsPrimary(),
+            ];
+        }
+
+        return new JsonResponse([
+            'id' => $user->getId(),
+            'profile_id' => $profile->getId(),
+            'name' => $profile->getDisplayName(),
+            'first_name' => $profile->getFirstName(),
+            'last_name' => $profile->getLastName(),
+            'nickname' => $profile->getNickname(),
+            'email' => $profile->getEmail(),
+            'state' => $user->getState(),
+            'created_at' => $user->getCreatedAt()->format(\DateTimeInterface::ATOM),
+            'memberships' => $membershipData,
+        ]);
+    }
+
+    /**
+     * Admin: User + Memberships bearbeiten.
+     */
+    #[Route('/{id}/admin', name: 'admin_update', methods: ['PATCH'])]
+    #[IsGranted('ROLE_USER')]
+    public function updateAdminUser(string $id, Request $request): JsonResponse
+    {
+        $currentUser = $this->getUser();
+        if (!$currentUser instanceof User || !$this->isGlobalAdmin($currentUser)) {
+            return new JsonResponse(['error' => 'Forbidden'], 403);
+        }
+
+        $user = $this->userRepository->find($id);
+        if (!$user) {
+            return new JsonResponse(['error' => 'User not found'], 404);
+        }
+
+        $profile = $user->getProfile();
+        if (!$profile) {
+            return new JsonResponse(['error' => 'Profile not found'], 404);
+        }
+
+        $data = json_decode($request->getContent(), true) ?? [];
+        $profileChanges = [];
+
+        if (array_key_exists('email', $data)) {
+            $oldEmail = $profile->getEmail();
+            $email = trim((string) $data['email']);
+            if ($email === '') {
+                return new JsonResponse(['error' => 'E-Mail darf nicht leer sein'], 400);
+            }
+            $profile->setEmail($email);
+            if ($oldEmail !== $email) {
+                $profileChanges['email'] = ['old' => $oldEmail, 'new' => $email];
+            }
+        }
+
+        if (array_key_exists('first_name', $data)) {
+            $oldFirstName = $profile->getFirstName();
+            $newFirstName = ($data['first_name'] ?? '') !== '' ? (string) $data['first_name'] : null;
+            $profile->setFirstName($newFirstName);
+            if ($oldFirstName !== $newFirstName) {
+                $profileChanges['first_name'] = ['old' => $oldFirstName, 'new' => $newFirstName];
+            }
+        }
+        if (array_key_exists('last_name', $data)) {
+            $oldLastName = $profile->getLastName();
+            $newLastName = ($data['last_name'] ?? '') !== '' ? (string) $data['last_name'] : null;
+            $profile->setLastName($newLastName);
+            if ($oldLastName !== $newLastName) {
+                $profileChanges['last_name'] = ['old' => $oldLastName, 'new' => $newLastName];
+            }
+        }
+        if (array_key_exists('nickname', $data)) {
+            $oldNickname = $profile->getNickname();
+            $newNickname = ($data['nickname'] ?? '') !== '' ? (string) $data['nickname'] : null;
+            $profile->setNickname($newNickname);
+            if ($oldNickname !== $newNickname) {
+                $profileChanges['nickname'] = ['old' => $oldNickname, 'new' => $newNickname];
+            }
+        }
+        if (array_key_exists('state', $data)) {
+            $user->setState((string) $data['state']);
+        }
+
+        if (array_key_exists('memberships', $data)) {
+            if (!is_array($data['memberships'])) {
+                return new JsonResponse(['error' => 'memberships muss ein Array sein'], 400);
+            }
+
+            $requestedMemberships = $data['memberships'];
+            $departmentIds = [];
+            foreach ($requestedMemberships as $membershipRow) {
+                if (!is_array($membershipRow) || empty($membershipRow['department_id'])) {
+                    return new JsonResponse(['error' => 'Ungültige memberships-Struktur'], 400);
+                }
+                $departmentIds[] = (string) $membershipRow['department_id'];
+            }
+            if (count($departmentIds) !== count(array_unique($departmentIds))) {
+                return new JsonResponse(['error' => 'Department darf nur einmal zugewiesen werden'], 400);
+            }
+
+            $departments = [];
+            if (!empty($departmentIds)) {
+                $departmentRows = $this->entityManager->getRepository(Department::class)
+                    ->createQueryBuilder('d')
+                    ->where('d.id IN (:ids)')
+                    ->setParameter('ids', $departmentIds)
+                    ->getQuery()
+                    ->getResult();
+
+                foreach ($departmentRows as $department) {
+                    $departments[$department->getId()] = $department;
+                }
+                foreach ($departmentIds as $departmentId) {
+                    if (!isset($departments[$departmentId])) {
+                        return new JsonResponse(['error' => "Department {$departmentId} nicht gefunden"], 404);
+                    }
+                }
+            }
+
+            $existingMemberships = $this->entityManager->getRepository(Membership::class)
+                ->findBy(['userId' => $id]);
+            $existingByDepartment = [];
+            foreach ($existingMemberships as $membership) {
+                $existingByDepartment[$membership->getDepartmentId()] = $membership;
+            }
+
+            $hasPrimary = false;
+            foreach ($requestedMemberships as $membershipRow) {
+                $departmentId = (string) $membershipRow['department_id'];
+                $role = strtolower((string) ($membershipRow['role'] ?? 'u'));
+                if (!in_array($role, self::MEMBERSHIP_ROLE_HIERARCHY, true)) {
+                    return new JsonResponse(['error' => "Ungültige Rolle für Department {$departmentId}"], 400);
+                }
+                $isPrimary = (bool) ($membershipRow['is_primary'] ?? false);
+                if ($isPrimary) {
+                    if ($hasPrimary) {
+                        return new JsonResponse(['error' => 'Nur ein primäres Department ist erlaubt'], 400);
+                    }
+                    $hasPrimary = true;
+                }
+            }
+
+            if (!$hasPrimary && !empty($requestedMemberships)) {
+                $requestedMemberships[0]['is_primary'] = true;
+            }
+
+            $requestedDepartments = array_map(fn(array $m) => (string) $m['department_id'], $requestedMemberships);
+            foreach ($existingByDepartment as $departmentId => $existingMembership) {
+                if (!in_array($departmentId, $requestedDepartments, true)) {
+                    $this->auditLogger->log(
+                        'membership',
+                        AuditLogger::buildMembershipEntityId($existingMembership->getUserId(), $existingMembership->getDepartmentId()),
+                        'membership_removed',
+                        $currentUser,
+                        $user,
+                        $existingMembership->getDepartment(),
+                        [
+                            'role' => ['old' => $existingMembership->getRole(), 'new' => null],
+                            'is_primary' => ['old' => $existingMembership->getIsPrimary(), 'new' => null],
+                        ]
+                    );
+                    $this->entityManager->remove($existingMembership);
+                }
+            }
+
+            foreach ($requestedMemberships as $membershipRow) {
+                $departmentId = (string) $membershipRow['department_id'];
+                $role = strtolower((string) ($membershipRow['role'] ?? 'u'));
+                $isPrimary = (bool) ($membershipRow['is_primary'] ?? false);
+
+                $membership = $existingByDepartment[$departmentId] ?? null;
+                if (!$membership) {
+                    $membership = new Membership();
+                    $membership->setUser($user);
+                    $membership->setDepartment($departments[$departmentId]);
+                    $this->entityManager->persist($membership);
+                    $membership->setRole($role);
+                    $membership->setIsPrimary($isPrimary);
+                    $this->auditLogger->log(
+                        'membership',
+                        AuditLogger::buildMembershipEntityId($user->getId(), $departmentId),
+                        'membership_created',
+                        $currentUser,
+                        $user,
+                        $departments[$departmentId],
+                        [
+                            'role' => ['old' => null, 'new' => $role],
+                            'is_primary' => ['old' => null, 'new' => $isPrimary],
+                        ]
+                    );
+                    continue;
+                }
+                $oldRole = $membership->getRole();
+                $oldIsPrimary = $membership->getIsPrimary();
+
+                $membership->setRole($role);
+                $membership->setIsPrimary($isPrimary);
+
+                if ($oldRole !== $role) {
+                    $this->auditLogger->log(
+                        'membership',
+                        AuditLogger::buildMembershipEntityId($membership->getUserId(), $membership->getDepartmentId()),
+                        'membership_role_changed',
+                        $currentUser,
+                        $user,
+                        $membership->getDepartment(),
+                        [
+                            'role' => ['old' => $oldRole, 'new' => $role],
+                        ]
+                    );
+                }
+
+                if ($oldIsPrimary !== $isPrimary) {
+                    $this->auditLogger->log(
+                        'membership',
+                        AuditLogger::buildMembershipEntityId($membership->getUserId(), $membership->getDepartmentId()),
+                        'membership_primary_changed',
+                        $currentUser,
+                        $user,
+                        $membership->getDepartment(),
+                        [
+                            'is_primary' => ['old' => $oldIsPrimary, 'new' => $isPrimary],
+                        ]
+                    );
+                }
+            }
+        }
+
+        if (!empty($profileChanges)) {
+            $profile->setUpdatedAt(new \DateTime());
+            $this->auditLogger->log(
+                'profile',
+                $profile->getId(),
+                'profile_updated',
+                $currentUser,
+                $user,
+                null,
+                $profileChanges
+            );
+        }
+
+        try {
+            $this->entityManager->flush();
+        } catch (UniqueConstraintViolationException) {
+            return new JsonResponse(['error' => 'E-Mail ist bereits vergeben'], 409);
+        }
+
+        return $this->getAdminDetail($id);
+    }
+
+    /**
+     * Lädt User-Daten
+     */
+    #[Route('/{id}', name: 'get', methods: ['GET'])]
+    #[IsGranted('ROLE_USER')]
+    public function getUserData(string $id): JsonResponse
+    {
+        $user = $this->userRepository->find($id);
+        
+        if (!$user) {
+            return new JsonResponse(['error' => 'User not found'], 404);
+        }
+
+        // Prüfe ob User auf eigenen Account zugreift oder Admin ist
+        $currentUser = $this->getUser();
+        if (!$currentUser instanceof User) {
+            return new JsonResponse(['error' => 'Unauthorized'], 403);
+        }
+
+        // User kann nur eigenen Account sehen, außer er ist Admin
+        if ($user->getId() !== $currentUser->getId() && !in_array('ROLE_ADMIN', $currentUser->getRoles())) {
+            return new JsonResponse(['error' => 'Forbidden'], 403);
+        }
+
+        return new JsonResponse([
+            'id' => $user->getId(),
+            'state' => $user->getState(),
+            'profile_id' => $user->getProfileId()
+        ]);
+    }
+
+    /**
+     * Lädt User Memberships (Departments)
+     */
+    #[Route('/{id}/memberships', name: 'memberships', methods: ['GET'])]
+    #[IsGranted('ROLE_USER')]
+    public function getMemberships(string $id): JsonResponse
+    {
+        $user = $this->userRepository->find($id);
+        
+        if (!$user) {
+            return new JsonResponse(['error' => 'User not found'], 404);
+        }
+
+        // Prüfe ob User auf eigenen Account zugreift oder Admin ist
+        $currentUser = $this->getUser();
+        if (!$currentUser instanceof User) {
+            return new JsonResponse(['error' => 'Unauthorized'], 403);
+        }
+
+        if ($user->getId() !== $currentUser->getId() && !in_array('ROLE_ADMIN', $currentUser->getRoles())) {
+            return new JsonResponse(['error' => 'Forbidden'], 403);
+        }
+
+        // Lade Memberships (mit Department-Relation)
+        $memberships = $this->entityManager->getRepository(Membership::class)
+            ->createQueryBuilder('m')
+            ->innerJoin('m.department', 'd')
+            ->addSelect('d')
+            ->where('m.userId = :userId')
+            ->setParameter('userId', $id)
+            ->getQuery()
+            ->getResult();
+
+        $membershipData = [];
+        foreach ($memberships as $m) {
+            $department = $m->getDepartment();
+            $membershipData[] = [
+                'department_id' => $department->getId(),
+                'role' => $m->getRole(),
+                'is_primary' => $m->getIsPrimary(),
+                'department' => [
+                    'id' => $department->getId(),
+                    'name' => $department->getName(),
+                    'organisation_id' => $department->getOrganisationId()
+                ]
+            ];
+        }
+
+        return new JsonResponse(['memberships' => $membershipData]);
+    }
+
+    /**
+     * Setzt das primäre Department für den User
+     */
+    #[Route('/{id}/set-primary-department', name: 'set_primary_department', methods: ['PUT'])]
+    #[IsGranted('ROLE_USER')]
+    public function setPrimaryDepartment(string $id, Request $request): JsonResponse
+    {
+        $user = $this->userRepository->find($id);
+        
+        if (!$user) {
+            return new JsonResponse(['error' => 'User nicht gefunden'], 404);
+        }
+
+        // Prüfe ob User auf eigenen Account zugreift
+        $currentUser = $this->getUser();
+        if (!$currentUser instanceof User) {
+            return new JsonResponse(['error' => 'Nicht autorisiert'], 403);
+        }
+
+        if ($user->getId() !== $currentUser->getId() && !in_array('ROLE_ADMIN', $currentUser->getRoles())) {
+            return new JsonResponse(['error' => 'Nicht berechtigt'], 403);
+        }
+
+        $data = json_decode($request->getContent(), true);
+        $departmentId = $data['department_id'] ?? null;
+
+        if (!$departmentId) {
+            return new JsonResponse(['error' => 'department_id ist erforderlich'], 400);
+        }
+
+        // Alle Memberships des Users laden
+        $memberships = $this->entityManager->getRepository(Membership::class)
+            ->findBy(['userId' => $id]);
+
+        $found = false;
+        foreach ($memberships as $membership) {
+            if ($membership->getDepartmentId() === $departmentId) {
+                $membership->setIsPrimary(true);
+                $found = true;
+            } else {
+                $membership->setIsPrimary(false);
+            }
+        }
+
+        if (!$found) {
+            return new JsonResponse(['error' => 'Keine Mitgliedschaft in diesem Department'], 404);
+        }
+
+        $this->entityManager->flush();
+
+        return new JsonResponse([
+            'success' => true,
+            'primary_department_id' => $departmentId
+        ]);
+    }
+}

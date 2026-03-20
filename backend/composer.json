@@ -1,0 +1,55 @@
+{
+    "name": "ematchef/backend",
+    "type": "project",
+    "description": "eMatChef Backend API",
+    "license": "proprietary",
+    "minimum-stability": "stable",
+    "prefer-stable": true,
+    "require": {
+        "php": ">=8.1",
+        "ext-ctype": "*",
+        "ext-iconv": "*",
+        "api-platform/core": "^3.2",
+        "doctrine/doctrine-bundle": "^2.11",
+        "doctrine/doctrine-migrations-bundle": "^3.3",
+        "doctrine/orm": "^2.16",
+        "gesdinet/jwt-refresh-token-bundle": "^1.5",
+        "lexik/jwt-authentication-bundle": "^2.20",
+        "nelmio/cors-bundle": "^2.6",
+        "symfony/console": "^6.4",
+        "symfony/dotenv": "^6.4",
+        "symfony/framework-bundle": "^6.4",
+        "symfony/mailer": "^8.0",
+        "symfony/runtime": "^6.4",
+        "symfony/yaml": "^7.4"
+    },
+    "require-dev": {
+        "symfony/maker-bundle": "^1.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "App\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "App\\Tests\\": "tests/"
+        }
+    },
+    "scripts": {
+        "post-install-cmd": [
+            "@auto-scripts"
+        ],
+        "post-update-cmd": [
+            "@auto-scripts"
+        ]
+    },
+    "config": {
+        "allow-plugins": {
+            "php-http/discovery": true,
+            "symfony/flex": true,
+            "symfony/runtime": true
+        },
+        "sort-packages": true
+    }
+}
