@@ -1,0 +1,181 @@
+{
+    "manufacturer": "Tortuga",
+  "templates": [
+    {
+      "id": "tortuga_monza600",
+      "model": "Monza 600",
+      "name": "Tortuga Monza 600",
+      "capacity": 20,
+      "tentType": "gruppenzelt",
+      "reservationMode": "complete_only",
+      "description": "Leichtes und vielseitiges Einsatzzelt, Lagerzelt, Kochzelt. Polyesterhaut, abwaschbar, pflegeleicht. Dimensionen 600x595cm, Mittelhöhe 300cm, Seitenhöhe 195cm.",
+      "components": [
+        {
+          "type": "Zelthaut",
+          "name": "Monza 600 Polyester Haut",
+          "required": 1,
+          "optional": false,
+          "repair_types": ["riss", "loch", "naht"]
+        },
+        {
+          "type": "Gerüst",
+          "name": "TOFLEX 40 Gerüst Monza 600",
+          "required": 1,
+          "optional": false,
+          "repair_types": ["verbogen", "gebrochen", "korrosion"]
+        },
+        {
+          "type": "Fenster",
+          "name": "Tüllfenster mit Klappen",
+          "required": 4,
+          "optional": false,
+          "repair_types": ["riss", "reissverschluss"]
+        },
+        {
+          "type": "Eingang",
+          "name": "Eingang mit Reissverschluss",
+          "required": 2,
+          "optional": false,
+          "repair_types": ["reissverschluss"]
+        },
+        {
+          "type": "Erdstreifen",
+          "name": "PVC beschichteter PES Erdstreifen",
+          "required": 1,
+          "optional": false,
+          "repair_types": ["riss", "loch"]
+        },
+        {
+          "type": "Bodendecke",
+          "name": "PVC beschichtete PES Bodendecke",
+          "required": 0,
+          "optional": true,
+          "repair_types": ["riss", "loch"]
+        },
+        {
+          "type": "tasche",
+          "name": "Transporttasche",
+          "required": 1,
+          "optional": false,
+          "repair_types": ["riss", "reissverschluss"]
+        }
+      ],
+      "isActive": true
+    },
+    {
+      "id": "tortuga_monza800",
+      "model": "Monza 800",
+      "name": "Tortuga Monza 800",
+      "capacity": 30,
+      "tentType": "gruppenzelt",
+      "reservationMode": "complete_only",
+      "description": "Leichtes und vielseitiges Einsatzzelt, Lagerzelt, Kochzelt. Polyesterhaut, abwaschbar, pflegeleicht. Dimensionen 800x595cm, Mittelhöhe 300cm, Seitenhöhe 195cm.",
+      "components": [
+        {
+          "type": "Zelthaut",
+          "name": "Monza 800 Polyester Haut",
+          "required": 1,
+          "optional": false,
+          "repair_types": ["riss", "loch", "naht"]
+        },
+        {
+          "type": "Gerüst",
+          "name": "TOFLEX 40 Gerüst Monza 800",
+          "required": 1,
+          "optional": false,
+          "repair_types": ["verbogen", "gebrochen", "korrosion"]
+        },
+        {
+          "type": "Fenster",
+          "name": "Tüllfenster mit Klappen",
+          "required": 6,
+          "optional": false,
+          "repair_types": ["riss", "reissverschluss"]
+        },
+        {
+          "type": "Eingang",
+          "name": "Eingang mit Reissverschluss",
+          "required": 2,
+          "optional": false,
+          "repair_types": ["reissverschluss"]
+        },
+        {
+          "type": "Erdstreifen",
+          "name": "PVC beschichteter PES Erdstreifen",
+          "required": 1,
+          "optional": false,
+          "repair_types": ["riss", "loch"]
+        },
+        {
+          "type": "Bodendecke",
+          "name": "PVC beschichtete PES Bodendecke",
+          "required": 0,
+          "optional": true,
+          "repair_types": ["riss", "loch"]
+        },
+        {
+          "type": "tasche",
+          "name": "Transporttasche",
+          "required": 1,
+          "optional": false,
+          "repair_types": ["riss", "reissverschluss"]
+        }
+      ],
+      "isActive": true
+    },
+    {
+      "id": "tortuga_monza1000",
+      "model": "Monza 1000",
+      "name": "Tortuga Monza 1000",
+      "capacity": 40,
+      "tentType": "gruppenzelt",
+      "reservationMode": "complete_only",
+      "description": "Leichtes und vielseitiges Einsatzzelt, Lagerzelt, Kochzelt. Polyesterhaut, abwaschbar, pflegeleicht. Dimensionen 1000x595cm, Mittelhöhe 300cm, Seitenhöhe 195cm.",
+      "components": [
+        {
+          "type": "Zelthaut",
+          "name": "Monza 1000 Polyester Haut",
+          "required": 1,
+          "optional": false,
+          "repair_types": ["riss", "loch", "naht"]
+        },
+        {
+          "type": "Gerüst",
+          "name": "TOFLEX 40 Gerüst Monza 1000",
+          "required": 1,
+          "optional": false,
+          "repair_types": ["verbogen", "gebrochen", "korrosion"]
+        },
+        {
+          "type": "Fenster",
+          "name": "Tüllfenster mit Klappen",
+          "required": 8,
+          "optional": false,
+          "repair_types": ["riss", "reissverschluss"]
+        },
+        {
+          "type": "Eingang",
+          "name": "Eingang mit Reissverschluss",
+          "required": 2,
+          "optional": false,
+          "repair_types": ["reissverschluss"]
+        },
+        {
+          "type": "Erdstreifen",
+          "name": "PVC beschichteter PES Erdstreifen",
+          "required": 1,
+          "optional": false,
+          "repair_types": ["riss", "loch"]
+        },
+        {
+          "type": "Bodendecke",
+          "name": "PVC beschichtete PES Bodendecke",
+          "required": 0,
+          "optional": true,
+          "repair_types": ["riss", "loch"]
+        }
+      ],
+      "isActive": true
+    }
+  ]
+}

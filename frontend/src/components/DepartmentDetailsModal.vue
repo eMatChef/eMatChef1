@@ -1,9 +1,9 @@
 <template>
   <div v-if="isOpen" class="modal-overlay">
-    <div class="modal-content">
+    <div class="modal-dialog department-details-dialog">
       <div class="modal-header">
         <h2>Details: {{ department?.name }}</h2>
-        <button @click="close" class="close-button">
+        <button @click="close" class="modal-close">
           <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
             <path d="M15 5L5 15M5 5L15 15" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
           </svg>
@@ -18,7 +18,7 @@
         
         <div v-else-if="error" class="error-state">
           <p class="error-message">{{ error }}</p>
-          <button @click="loadDepartmentDetails" class="retry-button">Erneut versuchen</button>
+          <button @click="loadDepartmentDetails" class="btn-secondary btn-sm">Erneut versuchen</button>
         </div>
         
         <div v-else-if="departmentDetails" class="details-content">
@@ -133,37 +133,12 @@ function close() {
 </script>
 
 <style scoped>
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-}
-
-.modal-content {
-  background: white;
-  border-radius: 12px;
-  width: 100%;
-  max-width: 600px;
-  max-height: 80vh;
+/* Modal overlay/dialog/header/body base uses shared ui/modals.css */
+.department-details-dialog {
+  width: min(600px, calc(100vw - 48px));
+  max-height: calc(100vh - 48px);
+  padding: 0;
   overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
-}
-
-.modal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 20px 24px;
-  border-bottom: 1px solid #e5e7eb;
 }
 
 .modal-header h2 {
@@ -173,57 +148,14 @@ function close() {
   color: #1f2937;
 }
 
-.close-button {
-  background: none;
-  border: none;
-  cursor: pointer;
-  padding: 8px;
-  color: #6b7280;
-  border-radius: 6px;
-  transition: all 0.2s;
-}
-
-.close-button:hover {
-  background: #f3f4f6;
-  color: #1f2937;
-}
-
 .modal-body {
   padding: 24px;
   overflow-y: auto;
 }
 
-.loading-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 16px;
-  padding: 40px;
-}
-
-.error-state {
-  text-align: center;
-  padding: 40px;
-}
-
 .error-message {
   color: #dc2626;
   margin-bottom: 16px;
-}
-
-.retry-button {
-  padding: 8px 16px;
-  background: #3b82f6;
-  color: white;
-  border: none;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 14px;
-  transition: background 0.2s;
-}
-
-.retry-button:hover {
-  background: #2563eb;
 }
 
 .details-content {

@@ -20,7 +20,7 @@
         </div>
       </div>
       <div class="header-actions" v-if="contact">
-        <button class="btn-outline danger" @click="confirmDelete" :disabled="isDeleting">
+        <button class="btn-danger-outline" @click="confirmDelete" :disabled="isDeleting">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <polyline points="3 6 5 6 21 6"/>
             <path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/>
@@ -313,8 +313,8 @@
           Diese Aktion kann nicht rückgängig gemacht werden.
         </p>
         <div class="delete-dialog-actions">
-          <button @click="showDeleteConfirm = false" class="btn-cancel">Abbrechen</button>
-          <button @click="handleDelete" class="btn-delete" :disabled="isDeleting">
+          <button @click="showDeleteConfirm = false" class="btn-secondary">Abbrechen</button>
+          <button @click="handleDelete" class="btn-danger" :disabled="isDeleting">
             {{ isDeleting ? 'Löschen...' : 'Löschen' }}
           </button>
         </div>
@@ -622,35 +622,7 @@ onMounted(() => {
   padding-top: 40px;
 }
 
-.btn-outline {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 18px;
-  background: white;
-  border: 1px solid #d1d5db;
-  border-radius: 8px;
-  font-size: 14px;
-  font-weight: 500;
-  color: #374151;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.btn-outline:hover {
-  background: #f9fafb;
-  border-color: #9ca3af;
-}
-
-.btn-outline.danger {
-  color: #dc2626;
-  border-color: #fecaca;
-}
-
-.btn-outline.danger:hover {
-  background: #fef2f2;
-  border-color: #f87171;
-}
+/* Header actions use shared ui/buttons.css */
 
 /* Loading */
 .loading-container {
@@ -1058,40 +1030,7 @@ onMounted(() => {
   gap: 12px;
 }
 
-.btn-cancel {
-  padding: 10px 20px;
-  background: white;
-  border: 1px solid #d1d5db;
-  border-radius: 8px;
-  font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
-  color: #374151;
-}
-
-.btn-cancel:hover {
-  background: #f9fafb;
-}
-
-.btn-delete {
-  padding: 10px 20px;
-  background: #dc2626;
-  color: white;
-  border: none;
-  border-radius: 8px;
-  font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
-}
-
-.btn-delete:hover {
-  background: #b91c1c;
-}
-
-.btn-delete:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
+/* Delete dialog buttons use shared ui/buttons.css */
 
 /* Responsive */
 @media (max-width: 768px) {
