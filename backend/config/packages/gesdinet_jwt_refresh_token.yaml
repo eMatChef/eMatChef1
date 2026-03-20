@@ -1,0 +1,8 @@
+gesdinet_jwt_refresh_token:
+    ttl: 2592000 # 30 Tage
+    token_parameter_name: refresh_token
+    user_identity_field: username
+    single_use: false
+    refresh_token_class: App\Entity\RefreshToken
+    firewall: login
+    user_provider: app_user_provider

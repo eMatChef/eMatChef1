@@ -1,0 +1,430 @@
+<?php
+
+namespace App\Controller;
+
+use App\Entity\Profile;
+use App\Entity\User;
+use App\Repository\ProfileRepository;
+use App\Repository\UserRepository;
+use App\Service\AuditLogger;
+use App\Service\VerificationEmailService;
+use App\Util\IdGenerator;
+use Doctrine\ORM\EntityManagerInterface;
+use Gesdinet\JWTRefreshTokenBundle\Model\RefreshTokenManagerInterface;
+use Gesdinet\JWTRefreshTokenBundle\Request\Extractor\ExtractorInterface;
+use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
+use Symfony\Component\DependencyInjection\Attribute\Autowire;
+use Symfony\Component\HttpFoundation\JsonResponse;
+use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\Routing\Annotation\Route;
+use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
+
+#[Route('/api/auth', name: 'api_auth_')]
+class AuthController extends AbstractController
+{
+    private const PASSWORD_RESET_CODE_TTL_MINUTES = 10;
+    private const PASSWORD_RESET_REQUEST_COOLDOWN_SECONDS = 60;
+    private const PASSWORD_RESET_MAX_REQUESTS_PER_HOUR = 5;
+    private const PASSWORD_RESET_MAX_ATTEMPTS = 5;
+    private const PASSWORD_RESET_LOCK_MINUTES = 15;
+
+    public function __construct(
+        private EntityManagerInterface $entityManager,
+        private UserPasswordHasherInterface $passwordHasher,
+        private ProfileRepository $profileRepository,
+        private UserRepository $userRepository,
+        private VerificationEmailService $verificationEmailService,
+        private AuditLogger $auditLogger,
+        private RefreshTokenManagerInterface $refreshTokenManager,
+        private ExtractorInterface $refreshTokenExtractor,
+        #[Autowire('%kernel.secret%')]
+        private string $appSecret
+    ) {}
+
+    /**
+     * Login-Endpoint - wird von json_login Firewall abgefangen
+     */
+    #[Route('/login_check', name: 'login_check', methods: ['POST'])]
+    public function login(): void
+    {
+        // Diese Methode sollte niemals erreicht werden!
+        throw new \LogicException('This method should be intercepted by the json_login firewall.');
+    }
+
+    /**
+     * Logout – invalidiert Refresh-Token auf dem Server (da LogoutEvent bei security: false nicht ausgelöst wird)
+     */
+    #[Route('/logout', name: 'logout', methods: ['POST'])]
+    public function logout(Request $request): JsonResponse
+    {
+        $tokenString = $this->refreshTokenExtractor->getRefreshToken($request, 'refresh_token');
+
+        if (null !== $tokenString) {
+            $refreshToken = $this->refreshTokenManager->get($tokenString);
+            if (null !== $refreshToken) {
+                $this->refreshTokenManager->delete($refreshToken);
+            }
+        }
+
+        return new JsonResponse([
+            'message' => 'Erfolgreich abgemeldet'
+        ]);
+    }
+
+    #[Route('/register', name: 'register', methods: ['POST'])]
+    public function register(Request $request): JsonResponse
+    {
+        $data = json_decode($request->getContent(), true);
+
+        $email = strtolower(trim((string) ($data['email'] ?? '')));
+        $password = (string) ($data['password'] ?? '');
+        $firstName = trim((string) ($data['firstName'] ?? ''));
+        $lastName = trim((string) ($data['lastName'] ?? ''));
+        $nickname = trim((string) ($data['nickname'] ?? ''));
+        $language = strtolower(trim((string) ($data['language'] ?? 'de')));
+        $acceptTerms = (bool) ($data['acceptTerms'] ?? false);
+
+        if ($firstName === '' || $lastName === '') {
+            return new JsonResponse(['error' => 'Vorname und Nachname sind erforderlich'], 400);
+        }
+
+        if ($email === '' || $password === '') {
+            return new JsonResponse(['error' => 'E-Mail und Passwort sind erforderlich'], 400);
+        }
+
+        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            return new JsonResponse(['error' => 'Ungueltige E-Mail-Adresse'], 400);
+        }
+
+        if (strlen($password) < 8) {
+            return new JsonResponse(['error' => 'Das Passwort muss mindestens 8 Zeichen lang sein'], 400);
+        }
+
+        if (!$acceptTerms) {
+            return new JsonResponse(['error' => 'Nutzungsbedingungen muessen akzeptiert werden'], 400);
+        }
+
+        $allowedLanguages = ['de', 'fr', 'it', 'en'];
+        if (!in_array($language, $allowedLanguages, true)) {
+            return new JsonResponse(['error' => 'Ungueltige Sprache'], 400);
+        }
+
+        if ($this->profileRepository->findOneBy(['email' => $email])) {
+            return new JsonResponse(['error' => 'Diese E-Mail-Adresse ist bereits registriert'], 409);
+        }
+
+        $profile = new Profile();
+        $profile->setId(IdGenerator::generateUnique($this->entityManager, Profile::class));
+        $profile->setEmail($email);
+        $profile->setFirstName($firstName);
+        $profile->setLastName($lastName);
+        $profile->setNickname($nickname !== '' ? $nickname : null);
+        $profile->setLanguage($language);
+        $profile->setRoles(['ROLE_USER']);
+
+        $user = new User();
+        $user->setId(IdGenerator::generateUnique($this->entityManager, User::class));
+        $user->setProfileId($profile->getId());
+        $user->setProfile($profile);
+        $user->setPassword($this->passwordHasher->hashPassword($user, $password));
+        $user->setState('active');
+        $user->setEmailVerified(false);
+        $user->setEmailVerificationToken(bin2hex(random_bytes(32)));
+        $user->setEmailVerificationExpiresAt((new \DateTime())->modify('+10 days'));
+
+        $this->entityManager->persist($profile);
+        $this->entityManager->persist($user);
+        $this->entityManager->flush();
+        try {
+            $this->verificationEmailService->sendVerificationEmail($user);
+        } catch (\Throwable $e) {
+            // Bei unzustellbarer Mail Registrierung zurueckrollen,
+            // damit kein unbestaetigter "Zombie-Account" bestehen bleibt.
+            $this->entityManager->remove($user);
+            $this->entityManager->remove($profile);
+            $this->entityManager->flush();
+
+            return new JsonResponse([
+                'error' => 'Verifikationsmail konnte nicht zugestellt werden. Bitte E-Mail-Adresse pruefen.'
+            ], 400);
+        }
+
+        $this->auditLogger->log(
+            'user',
+            $user->getId(),
+            'user_created_self',
+            null,
+            $user,
+            null,
+            [
+                'source' => ['old' => null, 'new' => 'self_registration'],
+                'profile_id' => ['old' => null, 'new' => $profile->getId()],
+                'email' => ['old' => null, 'new' => $profile->getEmail()],
+                'state' => ['old' => null, 'new' => $user->getState()],
+                'email_verified' => ['old' => null, 'new' => $user->isEmailVerified()],
+            ]
+        );
+        $this->entityManager->flush();
+
+        return new JsonResponse([
+            'success' => true,
+            'message' => 'Konto erstellt. Bitte bestaetigen Sie Ihre E-Mail-Adresse ueber den Link in der E-Mail (gueltig 10 Tage).'
+        ], 201);
+    }
+
+    #[Route('/verify', name: 'verify', methods: ['GET'])]
+    public function verify(Request $request): JsonResponse
+    {
+        $token = trim((string) $request->query->get('token', ''));
+        if ($token === '') {
+            return new JsonResponse(['error' => 'Token fehlt'], 400);
+        }
+
+        $user = $this->userRepository->findOneBy(['emailVerificationToken' => $token]);
+        if (!$user) {
+            return new JsonResponse(['error' => 'Ungueltiger Verifikationslink'], 400);
+        }
+
+        $expiresAt = $user->getEmailVerificationExpiresAt();
+        if (!$expiresAt || $expiresAt < new \DateTime()) {
+            return new JsonResponse(['error' => 'Verifikationslink ist abgelaufen'], 410);
+        }
+
+        $pendingEmail = trim((string) ($user->getPendingEmail() ?? ''));
+        if ($pendingEmail !== '') {
+            $existing = $this->profileRepository->findOneBy(['email' => strtolower($pendingEmail)]);
+            if ($existing && $existing->getId() !== $user->getProfileId()) {
+                return new JsonResponse(['error' => 'Diese E-Mail-Adresse ist bereits vergeben'], 409);
+            }
+
+            $profile = $user->getProfile();
+            if (!$profile) {
+                return new JsonResponse(['error' => 'Profil nicht gefunden'], 404);
+            }
+
+            $oldEmail = strtolower($profile->getEmail());
+            $profile->setEmail(strtolower($pendingEmail));
+            $profile->setUpdatedAt(new \DateTime());
+            $user->setPendingEmail(null);
+            $user->setEmailVerificationToken(null);
+            $user->setEmailVerificationExpiresAt(null);
+            $this->auditLogger->log(
+                'profile',
+                $profile->getId(),
+                'profile_email_change_confirmed',
+                null,
+                $user,
+                null,
+                [
+                    'email' => ['old' => $oldEmail, 'new' => strtolower($pendingEmail)],
+                ]
+            );
+            $this->entityManager->flush();
+
+            return new JsonResponse([
+                'success' => true,
+                'message' => 'Neue E-Mail-Adresse bestaetigt. Deine Anmeldung bleibt aktiv.'
+            ]);
+        }
+
+        $user->setEmailVerified(true);
+        $user->setEmailVerificationToken(null);
+        $user->setEmailVerificationExpiresAt(null);
+        $this->entityManager->flush();
+
+        return new JsonResponse([
+            'success' => true,
+            'message' => 'E-Mail bestaetigt. Sie koennen sich nun anmelden.'
+        ]);
+    }
+
+    #[Route('/resend-verification', name: 'resend_verification', methods: ['POST'])]
+    public function resendVerification(Request $request): JsonResponse
+    {
+        $data = json_decode($request->getContent(), true);
+        $email = strtolower(trim((string) ($data['email'] ?? '')));
+
+        if ($email === '') {
+            return new JsonResponse(['error' => 'E-Mail ist erforderlich'], 400);
+        }
+
+        $profile = $this->profileRepository->findOneBy(['email' => $email]);
+        if (!$profile) {
+            return new JsonResponse(['success' => true]);
+        }
+
+        $user = $this->userRepository->findOneBy(['profileId' => $profile->getId()]);
+        if (!$user || $user->isEmailVerified()) {
+            return new JsonResponse(['success' => true]);
+        }
+
+        $user->setEmailVerificationToken(bin2hex(random_bytes(32)));
+        $user->setEmailVerificationExpiresAt((new \DateTime())->modify('+10 days'));
+        $this->entityManager->flush();
+        $this->verificationEmailService->sendVerificationEmail($user);
+
+        return new JsonResponse([
+            'success' => true,
+            'message' => 'Neue Verifikationsmail wurde gesendet.'
+        ]);
+    }
+
+    #[Route('/password-reset/request', name: 'password_reset_request', methods: ['POST'])]
+    public function requestPasswordReset(Request $request): JsonResponse
+    {
+        $data = json_decode($request->getContent(), true);
+        $email = strtolower(trim((string) ($data['email'] ?? '')));
+
+        $publicMessage = 'Falls ein Konto mit dieser E-Mail existiert, wurde ein Sicherheitscode gesendet.';
+        if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            return new JsonResponse(['success' => true, 'message' => $publicMessage]);
+        }
+
+        $profile = $this->profileRepository->findOneBy(['email' => $email]);
+        if (!$profile) {
+            return new JsonResponse(['success' => true, 'message' => $publicMessage]);
+        }
+
+        $user = $this->userRepository->findOneBy(['profileId' => $profile->getId()]);
+        if (!$user) {
+            return new JsonResponse(['success' => true, 'message' => $publicMessage]);
+        }
+
+        $now = new \DateTime();
+        $lockedUntil = $user->getPasswordResetLockedUntil();
+        if ($lockedUntil && $lockedUntil > $now) {
+            return new JsonResponse(['success' => true, 'message' => $publicMessage]);
+        }
+
+        $windowStartedAt = $user->getPasswordResetWindowStartedAt();
+        $windowExpired = !$windowStartedAt || $windowStartedAt < (clone $now)->modify('-1 hour');
+        if ($windowExpired) {
+            $user->setPasswordResetWindowStartedAt(clone $now);
+            $user->setPasswordResetRequestCount(0);
+        }
+
+        if ($user->getPasswordResetRequestCount() >= self::PASSWORD_RESET_MAX_REQUESTS_PER_HOUR) {
+            $user->setPasswordResetLockedUntil((clone $now)->modify('+1 hour'));
+            $this->entityManager->flush();
+            return new JsonResponse(['success' => true, 'message' => $publicMessage]);
+        }
+
+        $lastRequestedAt = $user->getPasswordResetLastRequestedAt();
+        if ($lastRequestedAt && $lastRequestedAt > (clone $now)->modify('-' . self::PASSWORD_RESET_REQUEST_COOLDOWN_SECONDS . ' seconds')) {
+            return new JsonResponse(['success' => true, 'message' => $publicMessage]);
+        }
+
+        $code = strtoupper(substr(bin2hex(random_bytes(3)), 0, 6));
+        $expiresAt = (clone $now)->modify('+' . self::PASSWORD_RESET_CODE_TTL_MINUTES . ' minutes');
+
+        $user->setPasswordResetCodeHash($this->hashPasswordResetCode($email, $code));
+        $user->setPasswordResetExpiresAt($expiresAt);
+        $user->setPasswordResetLastRequestedAt(clone $now);
+        $user->setPasswordResetAttemptCount(0);
+        $user->setPasswordResetLockedUntil(null);
+        $user->setPasswordResetRequestCount($user->getPasswordResetRequestCount() + 1);
+        $this->entityManager->flush();
+
+        try {
+            $this->verificationEmailService->sendPasswordResetCode($user, $code, $expiresAt);
+        } catch (\Throwable $e) {
+            // Keine Details an Client geben, um Account-Enumeration zu vermeiden.
+        }
+
+        return new JsonResponse(['success' => true, 'message' => $publicMessage]);
+    }
+
+    #[Route('/password-reset/confirm', name: 'password_reset_confirm', methods: ['POST'])]
+    public function confirmPasswordReset(Request $request): JsonResponse
+    {
+        $data = json_decode($request->getContent(), true);
+        $email = strtolower(trim((string) ($data['email'] ?? '')));
+        $code = strtoupper(trim((string) ($data['code'] ?? '')));
+        $newPassword = (string) ($data['newPassword'] ?? '');
+
+        if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            return new JsonResponse(['error' => 'Ungueltige Anfrage'], 400);
+        }
+        if (!preg_match('/^[0-9A-F]{6}$/', $code)) {
+            return new JsonResponse(['error' => 'Code muss 6-stellig und hexadezimal sein'], 400);
+        }
+        if (strlen($newPassword) < 8) {
+            return new JsonResponse(['error' => 'Das Passwort muss mindestens 8 Zeichen lang sein'], 400);
+        }
+
+        $profile = $this->profileRepository->findOneBy(['email' => $email]);
+        if (!$profile) {
+            return new JsonResponse(['error' => 'Code ungueltig oder abgelaufen'], 400);
+        }
+
+        $user = $this->userRepository->findOneBy(['profileId' => $profile->getId()]);
+        if (!$user) {
+            return new JsonResponse(['error' => 'Code ungueltig oder abgelaufen'], 400);
+        }
+
+        $now = new \DateTime();
+        $lockedUntil = $user->getPasswordResetLockedUntil();
+        if ($lockedUntil && $lockedUntil > $now) {
+            return new JsonResponse(['error' => 'Zu viele Fehlversuche. Bitte spaeter erneut anfordern.'], 429);
+        }
+
+        $expiresAt = $user->getPasswordResetExpiresAt();
+        $storedHash = $user->getPasswordResetCodeHash();
+        if (!$storedHash || !$expiresAt || $expiresAt < $now) {
+            return new JsonResponse(['error' => 'Code ungueltig oder abgelaufen'], 400);
+        }
+
+        if ($user->getPasswordResetAttemptCount() >= self::PASSWORD_RESET_MAX_ATTEMPTS) {
+            $user->setPasswordResetCodeHash(null);
+            $user->setPasswordResetExpiresAt(null);
+            $user->setPasswordResetLockedUntil((clone $now)->modify('+' . self::PASSWORD_RESET_LOCK_MINUTES . ' minutes'));
+            $this->entityManager->flush();
+            return new JsonResponse(['error' => 'Zu viele Fehlversuche. Bitte neuen Code anfordern.'], 429);
+        }
+
+        $providedHash = $this->hashPasswordResetCode($email, $code);
+        if (!hash_equals($storedHash, $providedHash)) {
+            $attempts = $user->getPasswordResetAttemptCount() + 1;
+            $user->setPasswordResetAttemptCount($attempts);
+            if ($attempts >= self::PASSWORD_RESET_MAX_ATTEMPTS) {
+                $user->setPasswordResetCodeHash(null);
+                $user->setPasswordResetExpiresAt(null);
+                $user->setPasswordResetLockedUntil((clone $now)->modify('+' . self::PASSWORD_RESET_LOCK_MINUTES . ' minutes'));
+            }
+            $this->entityManager->flush();
+            return new JsonResponse(['error' => 'Code ungueltig oder abgelaufen'], 400);
+        }
+
+        $user->setPassword($this->passwordHasher->hashPassword($user, $newPassword));
+        $user->setPasswordResetCodeHash(null);
+        $user->setPasswordResetExpiresAt(null);
+        $user->setPasswordResetAttemptCount(0);
+        $user->setPasswordResetLockedUntil(null);
+        $user->setPasswordResetLastRequestedAt(null);
+        $user->setPasswordResetWindowStartedAt(null);
+        $user->setPasswordResetRequestCount(0);
+
+        $this->auditLogger->log(
+            'user',
+            $user->getId(),
+            'user_password_reset',
+            null,
+            $user,
+            null,
+            [
+                'source' => ['old' => null, 'new' => 'password_reset_code'],
+            ]
+        );
+        $this->entityManager->flush();
+
+        return new JsonResponse([
+            'success' => true,
+            'message' => 'Passwort wurde erfolgreich zurueckgesetzt.'
+        ]);
+    }
+
+    private function hashPasswordResetCode(string $email, string $code): string
+    {
+        return hash('sha256', strtolower($email) . '|' . strtoupper($code) . '|' . $this->appSecret);
+    }
+}

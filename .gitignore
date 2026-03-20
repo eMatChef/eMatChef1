@@ -1,0 +1,37 @@
+## Dependencies & build artifacts
+node_modules/
+**/node_modules/
+vendor/
+**/vendor/
+dist/
+**/dist/
+dist-ssr/
+
+## Logs
+*.log
+logs/
+**/logs/
+
+## Environment files (keep examples)
+.env
+.env.*
+**/.env
+**/.env.*
+!.env.example
+!**/.env.example
+docs/
+.cursor/
+
+## Secret key/certificate material
+*.pem
+*.key
+*.crt
+
+## OS / Editor files
+.DS_Store
+Thumbs.db
+Desktop.ini
+.idea/
+.vscode/
+*.swp
+*.swo

@@ -1,0 +1,539 @@
+<?php
+
+namespace App\Entity;
+
+use Doctrine\Common\Collections\ArrayCollection;
+use Doctrine\Common\Collections\Collection;
+use Doctrine\ORM\Mapping as ORM;
+
+/**
+ * Material - Stammdaten (ohne Mengen!)
+ * 
+ * Alle Mengen kommen aus MaterialBatch
+ */
+#[ORM\Entity]
+#[ORM\Table(name: 'material_item')]
+class MaterialItem
+{
+    #[ORM\Id]
+    #[ORM\Column(type: 'string', length: 12, columnDefinition: 'CHARACTER(12) NOT NULL')]
+    #[ORM\GeneratedValue(strategy: 'NONE')]
+    private ?string $id = null;
+
+    #[ORM\Column(name: 'department_id', type: 'string', length: 12, columnDefinition: 'CHARACTER(12) NOT NULL')]
+    private string $departmentId;
+
+    #[ORM\ManyToOne(targetEntity: Department::class)]
+    #[ORM\JoinColumn(name: 'department_id', referencedColumnName: 'id', nullable: false, onDelete: 'CASCADE')]
+    private Department $department;
+
+    #[ORM\Column(type: 'integer', nullable: true)]
+    private ?int $no = null;
+
+    #[ORM\Column(type: 'string', length: 160)]
+    private string $name;
+
+    #[ORM\Column(type: 'text', nullable: true)]
+    private ?string $description = null;
+
+    #[ORM\Column(name: 'category_id', type: 'string', length: 12, nullable: true, columnDefinition: 'CHARACTER(12) NULL')]
+    private ?string $categoryId = null;
+
+    #[ORM\ManyToOne(targetEntity: Category::class, inversedBy: 'materials')]
+    #[ORM\JoinColumn(name: 'category_id', referencedColumnName: 'id', nullable: true, onDelete: 'SET NULL')]
+    private ?Category $category = null;
+
+    #[ORM\Column(name: 'storage_address_id', type: 'string', length: 12, nullable: true, columnDefinition: 'CHARACTER(12) NULL')]
+    private ?string $storageAddressId = null;
+
+    #[ORM\ManyToOne(targetEntity: Address::class)]
+    #[ORM\JoinColumn(name: 'storage_address_id', referencedColumnName: 'id', nullable: true, onDelete: 'SET NULL')]
+    private ?Address $storageAddress = null;
+
+    #[ORM\Column(type: 'string', length: 160, nullable: true)]
+    private ?string $location = null;
+
+    #[ORM\Column(type: 'string', length: 20, options: ['default' => 'ok'])]
+    private string $condition = 'ok'; // ok, defect, repair, lost
+
+    // Details
+    #[ORM\Column(type: 'string', length: 120, nullable: true)]
+    private ?string $color = null;
+
+    #[ORM\Column(type: 'string', length: 120, nullable: true)]
+    private ?string $material = null;
+
+    #[ORM\Column(name: 'size_length', type: 'string', length: 120, nullable: true)]
+    private ?string $sizeLength = null;
+
+    #[ORM\Column(name: 'size_width', type: 'string', length: 120, nullable: true)]
+    private ?string $sizeWidth = null;
+
+    #[ORM\Column(name: 'size_height', type: 'string', length: 120, nullable: true)]
+    private ?string $sizeHeight = null;
+
+    #[ORM\Column(type: 'string', length: 120, nullable: true)]
+    private ?string $weight = null;
+
+    #[ORM\Column(name: 'is_tent', type: 'boolean', options: ['default' => false])]
+    private bool $isTent = false;
+
+    // Zelt-spezifische Felder (nur relevant wenn is_tent = true)
+
+    /** gruppenzelt, sonstiges */
+    #[ORM\Column(name: 'tent_type', type: 'string', length: 40, nullable: true)]
+    private ?string $tentType = null;
+
+    /** Personenkapazität */
+    #[ORM\Column(name: 'tent_capacity', type: 'integer', nullable: true)]
+    private ?int $tentCapacity = null;
+
+    /** complete_only, individual, flexible */
+    #[ORM\Column(name: 'reservation_mode', type: 'string', length: 20, nullable: true)]
+    private ?string $reservationMode = null;
+
+    // Material- und Tracking-Typ
+    #[ORM\Column(name: 'material_type', type: 'string', length: 20, options: ['default' => 'physical'])]
+    private string $materialType = 'physical'; // physical, physical_combo, virtual_combo
+
+    #[ORM\Column(name: 'tracking_type', type: 'string', length: 20, nullable: true)]
+    private ?string $trackingType = null; // serialized, bulk
+
+    // Identifikation
+    #[ORM\Column(type: 'string', length: 13, nullable: true)]
+    private ?string $ean = null;
+
+    #[ORM\Column(name: 'barcode_tag', type: 'string', length: 50, nullable: true)]
+    private ?string $barcodeTag = null;
+
+    #[ORM\Column(type: 'string', length: 255, nullable: true)]
+    private ?string $manufacturer = null;
+
+    #[ORM\Column(type: 'string', length: 100, nullable: true)]
+    private ?string $model = null;
+
+    #[ORM\Column(name: 'warranty_until', type: 'date', nullable: true)]
+    private ?\DateTime $warrantyUntil = null;
+
+    // Verleih
+    #[ORM\Column(name: 'rental_external_allowed', type: 'boolean', options: ['default' => false])]
+    private bool $rentalExternalAllowed = false;
+
+    #[ORM\Column(name: 'rental_scope', type: 'string', length: 32, nullable: true)]
+    private ?string $rentalScope = null; // department, organisation, public
+
+    #[ORM\Column(name: 'rental_requires_approval', type: 'boolean', options: ['default' => false])]
+    private bool $rentalRequiresApproval = false;
+
+    #[ORM\Column(name: 'rental_price_day', type: 'decimal', precision: 10, scale: 2, nullable: true)]
+    private ?string $rentalPriceDay = null;
+
+    #[ORM\Column(name: 'rental_price_week', type: 'decimal', precision: 12, scale: 2, nullable: true)]
+    private ?string $rentalPriceWeek = null;
+
+    #[ORM\Column(name: 'rental_price_month', type: 'decimal', precision: 12, scale: 2, nullable: true)]
+    private ?string $rentalPriceMonth = null;
+
+    #[ORM\Column(name: 'rental_deposit', type: 'decimal', precision: 12, scale: 2, nullable: true)]
+    private ?string $rentalDeposit = null;
+
+    #[ORM\Column(name: 'rental_lead_days', type: 'integer', nullable: true)]
+    private ?int $rentalLeadDays = null;
+
+    #[ORM\Column(name: 'rental_max_days', type: 'integer', nullable: true)]
+    private ?int $rentalMaxDays = null;
+
+    #[ORM\Column(name: 'rental_notes', type: 'text', nullable: true)]
+    private ?string $rentalNotes = null;
+
+    // Globale externe Quelle (z.B. J&S)
+    #[ORM\Column(name: 'is_js_material', type: 'boolean', options: ['default' => false])]
+    private bool $isJsMaterial = false;
+
+    #[ORM\Column(name: 'external_source', type: 'string', length: 50, nullable: true)]
+    private ?string $externalSource = null;
+
+    // Verpackungseinheit (Bündel, Kiste, etc.)
+    #[ORM\Column(name: 'pack_size', type: 'integer', nullable: true)]
+    private ?int $packSize = null;
+
+    #[ORM\Column(name: 'pack_unit', type: 'string', length: 40, nullable: true)]
+    private ?string $packUnit = null;
+
+    // Verbrauchsmaterial
+    #[ORM\Column(name: 'is_consumable', type: 'boolean', options: ['default' => false])]
+    private bool $isConsumable = false;
+
+    // Esswaren
+    #[ORM\Column(name: 'is_food', type: 'boolean', options: ['default' => false])]
+    private bool $isFood = false;
+
+    #[ORM\Column(name: 'sale_price', type: 'decimal', precision: 10, scale: 2, nullable: true)]
+    private ?string $salePrice = null;
+
+    #[ORM\Column(name: 'min_stock', type: 'integer', nullable: true)]
+    private ?int $minStock = null;
+
+    // Timestamps
+    #[ORM\Column(name: 'created_at', type: 'datetime')]
+    private \DateTime $createdAt;
+
+    #[ORM\Column(name: 'updated_at', type: 'datetime')]
+    private \DateTime $updatedAt;
+
+    #[ORM\Column(name: 'deleted_at', type: 'datetime', nullable: true)]
+    private ?\DateTime $deletedAt = null;
+
+    #[ORM\OneToMany(mappedBy: 'materialItem', targetEntity: MaterialBatch::class, cascade: ['persist', 'remove'], orphanRemoval: true)]
+    private Collection $batches;
+
+    public function __construct()
+    {
+        $this->createdAt = new \DateTime();
+        $this->updatedAt = new \DateTime();
+        $this->batches = new ArrayCollection();
+    }
+
+    public function getId(): ?string
+    {
+        return $this->id;
+    }
+
+    public function setId(string $id): self
+    {
+        $this->id = $id;
+        return $this;
+    }
+
+    public function getDepartmentId(): string
+    {
+        return $this->departmentId;
+    }
+
+    public function setDepartmentId(string $departmentId): self
+    {
+        $this->departmentId = $departmentId;
+        return $this;
+    }
+
+    public function getDepartment(): Department
+    {
+        return $this->department;
+    }
+
+    public function setDepartment(Department $department): self
+    {
+        $this->department = $department;
+        $this->departmentId = $department->getId();
+        return $this;
+    }
+
+    public function getNo(): ?int
+    {
+        return $this->no;
+    }
+
+    public function setNo(?int $no): self
+    {
+        $this->no = $no;
+        return $this;
+    }
+
+    public function getName(): string
+    {
+        return $this->name;
+    }
+
+    public function setName(string $name): self
+    {
+        $this->name = $name;
+        return $this;
+    }
+
+    public function getDescription(): ?string
+    {
+        return $this->description;
+    }
+
+    public function setDescription(?string $description): self
+    {
+        $this->description = $description;
+        return $this;
+    }
+
+    public function getCategoryId(): ?string
+    {
+        return $this->categoryId;
+    }
+
+    public function setCategoryId(?string $categoryId): self
+    {
+        $this->categoryId = $categoryId;
+        return $this;
+    }
+
+    public function getCategory(): ?Category
+    {
+        return $this->category;
+    }
+
+    public function setCategory(?Category $category): self
+    {
+        $this->category = $category;
+        $this->categoryId = $category?->getId();
+        return $this;
+    }
+
+    public function getStorageAddressId(): ?string
+    {
+        return $this->storageAddressId;
+    }
+
+    public function setStorageAddressId(?string $storageAddressId): self
+    {
+        $this->storageAddressId = $storageAddressId;
+        return $this;
+    }
+
+    public function getStorageAddress(): ?Address
+    {
+        return $this->storageAddress;
+    }
+
+    public function setStorageAddress(?Address $storageAddress): self
+    {
+        $this->storageAddress = $storageAddress;
+        $this->storageAddressId = $storageAddress?->getId();
+        return $this;
+    }
+
+    public function getLocation(): ?string
+    {
+        return $this->location;
+    }
+
+    public function setLocation(?string $location): self
+    {
+        $this->location = $location;
+        return $this;
+    }
+
+    public function getCondition(): string
+    {
+        return $this->condition;
+    }
+
+    public function setCondition(string $condition): self
+    {
+        $this->condition = $condition;
+        return $this;
+    }
+
+    // Details Getters/Setters
+    public function getColor(): ?string { return $this->color; }
+    public function setColor(?string $color): self { $this->color = $color; return $this; }
+
+    public function getMaterial(): ?string { return $this->material; }
+    public function setMaterial(?string $material): self { $this->material = $material; return $this; }
+
+    public function getSizeLength(): ?string { return $this->sizeLength; }
+    public function setSizeLength(?string $sizeLength): self { $this->sizeLength = $sizeLength; return $this; }
+
+    public function getSizeWidth(): ?string { return $this->sizeWidth; }
+    public function setSizeWidth(?string $sizeWidth): self { $this->sizeWidth = $sizeWidth; return $this; }
+
+    public function getSizeHeight(): ?string { return $this->sizeHeight; }
+    public function setSizeHeight(?string $sizeHeight): self { $this->sizeHeight = $sizeHeight; return $this; }
+
+    public function getWeight(): ?string { return $this->weight; }
+    public function setWeight(?string $weight): self { $this->weight = $weight; return $this; }
+
+    public function getIsTent(): bool { return $this->isTent; }
+    public function setIsTent(bool $isTent): self { $this->isTent = $isTent; return $this; }
+
+    // Zelt-spezifische Getters/Setters
+    public function getTentType(): ?string { return $this->tentType; }
+    public function setTentType(?string $tentType): self { $this->tentType = $tentType; return $this; }
+
+    public function getTentCapacity(): ?int { return $this->tentCapacity; }
+    public function setTentCapacity(?int $tentCapacity): self { $this->tentCapacity = $tentCapacity; return $this; }
+
+    public function getReservationMode(): ?string { return $this->reservationMode; }
+    public function setReservationMode(?string $reservationMode): self { $this->reservationMode = $reservationMode; return $this; }
+
+    // Material- und Tracking-Typ Getters/Setters
+    public function getMaterialType(): string { return $this->materialType; }
+    public function setMaterialType(string $materialType): self { $this->materialType = $materialType; return $this; }
+
+    public function getTrackingType(): ?string { return $this->trackingType; }
+    public function setTrackingType(?string $trackingType): self { $this->trackingType = $trackingType; return $this; }
+
+    // Identifikation Getters/Setters
+    public function getEan(): ?string { return $this->ean; }
+    public function setEan(?string $ean): self { $this->ean = $ean; return $this; }
+
+    public function getBarcodeTag(): ?string { return $this->barcodeTag; }
+    public function setBarcodeTag(?string $barcodeTag): self { $this->barcodeTag = $barcodeTag; return $this; }
+
+    public function getManufacturer(): ?string { return $this->manufacturer; }
+    public function setManufacturer(?string $manufacturer): self { $this->manufacturer = $manufacturer; return $this; }
+
+    public function getModel(): ?string { return $this->model; }
+    public function setModel(?string $model): self { $this->model = $model; return $this; }
+
+    public function getWarrantyUntil(): ?\DateTime { return $this->warrantyUntil; }
+    public function setWarrantyUntil(?\DateTime $warrantyUntil): self { $this->warrantyUntil = $warrantyUntil; return $this; }
+
+    // Verleih Getters/Setters
+    public function getRentalExternalAllowed(): bool { return $this->rentalExternalAllowed; }
+    public function setRentalExternalAllowed(bool $rentalExternalAllowed): self { $this->rentalExternalAllowed = $rentalExternalAllowed; return $this; }
+
+    public function getRentalScope(): ?string { return $this->rentalScope; }
+    public function setRentalScope(?string $rentalScope): self { $this->rentalScope = $rentalScope; return $this; }
+
+    public function getRentalRequiresApproval(): bool { return $this->rentalRequiresApproval; }
+    public function setRentalRequiresApproval(bool $rentalRequiresApproval): self { $this->rentalRequiresApproval = $rentalRequiresApproval; return $this; }
+
+    public function getRentalPriceDay(): ?string { return $this->rentalPriceDay; }
+    public function setRentalPriceDay(?string $rentalPriceDay): self { $this->rentalPriceDay = $rentalPriceDay; return $this; }
+
+    public function getRentalPriceWeek(): ?string { return $this->rentalPriceWeek; }
+    public function setRentalPriceWeek(?string $rentalPriceWeek): self { $this->rentalPriceWeek = $rentalPriceWeek; return $this; }
+
+    public function getRentalPriceMonth(): ?string { return $this->rentalPriceMonth; }
+    public function setRentalPriceMonth(?string $rentalPriceMonth): self { $this->rentalPriceMonth = $rentalPriceMonth; return $this; }
+
+    public function getRentalDeposit(): ?string { return $this->rentalDeposit; }
+    public function setRentalDeposit(?string $rentalDeposit): self { $this->rentalDeposit = $rentalDeposit; return $this; }
+
+    public function getRentalLeadDays(): ?int { return $this->rentalLeadDays; }
+    public function setRentalLeadDays(?int $rentalLeadDays): self { $this->rentalLeadDays = $rentalLeadDays; return $this; }
+
+    public function getRentalMaxDays(): ?int { return $this->rentalMaxDays; }
+    public function setRentalMaxDays(?int $rentalMaxDays): self { $this->rentalMaxDays = $rentalMaxDays; return $this; }
+
+    public function getRentalNotes(): ?string { return $this->rentalNotes; }
+    public function setRentalNotes(?string $rentalNotes): self { $this->rentalNotes = $rentalNotes; return $this; }
+
+    // Externe Quelle Getters/Setters
+    public function getIsJsMaterial(): bool { return $this->isJsMaterial; }
+    public function setIsJsMaterial(bool $isJsMaterial): self { $this->isJsMaterial = $isJsMaterial; return $this; }
+
+    public function getExternalSource(): ?string { return $this->externalSource; }
+    public function setExternalSource(?string $externalSource): self { $this->externalSource = $externalSource; return $this; }
+
+    // Verpackungseinheit Getters/Setters
+    public function getPackSize(): ?int { return $this->packSize; }
+    public function setPackSize(?int $packSize): self { $this->packSize = $packSize; return $this; }
+
+    public function getPackUnit(): ?string { return $this->packUnit; }
+    public function setPackUnit(?string $packUnit): self { $this->packUnit = $packUnit; return $this; }
+
+    /**
+     * Berechnet die Anzahl Verpackungseinheiten aus dem Gesamtbestand
+     * z.B. 80 Stk. bei packSize=10 → 8 Einheiten
+     */
+    public function getPackCount(): ?float
+    {
+        if ($this->packSize === null || $this->packSize <= 0) {
+            return null;
+        }
+        return $this->getTotalStock() / $this->packSize;
+    }
+
+    /**
+     * Formatierte Anzeige: "80 Stk. (8 Bündel à 10)"
+     */
+    public function getStockDisplay(): string
+    {
+        $total = $this->getTotalStock();
+        if ($this->packSize && $this->packUnit) {
+            $packs = floor($total / $this->packSize);
+            $rest = $total % $this->packSize;
+            if ($rest === 0) {
+                return sprintf('%d Stk. (%d %s à %d)', $total, $packs, $this->packUnit, $this->packSize);
+            } else {
+                return sprintf('%d Stk. (%d %s à %d + %d Stk.)', $total, $packs, $this->packUnit, $this->packSize, $rest);
+            }
+        }
+        return $total . ' Stk.';
+    }
+
+    // Verbrauchsmaterial Getters/Setters
+    public function getIsConsumable(): bool { return $this->isConsumable; }
+    public function setIsConsumable(bool $isConsumable): self { $this->isConsumable = $isConsumable; return $this; }
+
+    // Esswaren Getters/Setters
+    public function getIsFood(): bool { return $this->isFood; }
+    public function setIsFood(bool $isFood): self { $this->isFood = $isFood; return $this; }
+
+    public function getSalePrice(): ?string { return $this->salePrice; }
+    public function setSalePrice(?string $salePrice): self { $this->salePrice = $salePrice; return $this; }
+
+    public function getMinStock(): ?int { return $this->minStock; }
+    public function setMinStock(?int $minStock): self { $this->minStock = $minStock; return $this; }
+
+    // Timestamps
+    public function getCreatedAt(): \DateTime
+    {
+        return $this->createdAt;
+    }
+
+    public function getUpdatedAt(): \DateTime
+    {
+        return $this->updatedAt;
+    }
+
+    public function updateTimestamps(): void
+    {
+        $this->updatedAt = new \DateTime();
+    }
+
+    public function getDeletedAt(): ?\DateTime
+    {
+        return $this->deletedAt;
+    }
+
+    public function setDeletedAt(?\DateTime $deletedAt): self
+    {
+        $this->deletedAt = $deletedAt;
+        return $this;
+    }
+
+    /**
+     * @return Collection<int, MaterialBatch>
+     */
+    public function getBatches(): Collection
+    {
+        return $this->batches;
+    }
+
+    public function addBatch(MaterialBatch $batch): self
+    {
+        if (!$this->batches->contains($batch)) {
+            $this->batches->add($batch);
+            $batch->setMaterialItem($this);
+        }
+        return $this;
+    }
+
+    public function removeBatch(MaterialBatch $batch): self
+    {
+        $this->batches->removeElement($batch);
+        return $this;
+    }
+
+    /**
+     * Berechnet den Gesamtbestand aus allen aktiven Batches
+     */
+    public function getTotalStock(): int
+    {
+        $total = 0;
+        foreach ($this->batches as $batch) {
+            if ($batch->getStatus() === 'active') {
+                $total += $batch->getQty();
+            }
+        }
+        return $total;
+    }
+}

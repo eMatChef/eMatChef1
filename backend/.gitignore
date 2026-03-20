@@ -1,0 +1,15 @@
+/.env
+/.env.local
+/.env.local.php
+/.env.*.local
+/config/jwt/*.pem
+/config/secrets/prod/prod.decrypt.private.php
+/public/bundles/
+/var/
+/vendor/
+###> symfony/framework-bundle ###
+/.env
+/.env.local
+/.env.local.php
+/.env.*.local
+###< symfony/framework-bundle ###

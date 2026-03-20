@@ -1,0 +1,145 @@
+/* Shared loading state */
+.loading-state {
+  text-align: center;
+  padding: 80px 20px;
+}
+
+.spinner {
+  width: 48px;
+  height: 48px;
+  border: 4px solid #e5e7eb;
+  border-top-color: #10b981;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin: 0 auto 16px;
+}
+
+/* Small spinner variant for inline loading states */
+.spinner-sm {
+  width: 18px;
+  height: 18px;
+  border: 2px solid #e5e7eb;
+  border-top-color: #10b981;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+/* Keep compatibility for SVG/icon spinners using spinner-small */
+.spinner-small {
+  width: 18px;
+  height: 18px;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.loading-state p {
+  color: #6b7280;
+  font-size: 15px;
+}
+
+/* Shared error state */
+.error-state {
+  text-align: center;
+  padding: 80px 20px;
+  color: #dc2626;
+}
+
+.error-message {
+  margin: 16px 0;
+  font-weight: 500;
+}
+
+.retry-btn,
+.retry-button {
+  padding: 10px 20px;
+  background: #dc2626;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.retry-btn:hover,
+.retry-button:hover {
+  background: #b91c1c;
+}
+
+/* Shared empty state */
+.empty-state {
+  text-align: center;
+  padding: 80px 20px;
+}
+
+.empty-illustration {
+  margin-bottom: 24px;
+}
+
+.empty-state h2 {
+  font-size: 20px;
+  font-weight: 600;
+  color: #374151;
+  margin: 0 0 8px;
+}
+
+.empty-state h3 {
+  font-size: 18px;
+  font-weight: 600;
+  color: #111827;
+  margin: 0 0 8px;
+}
+
+.empty-state p {
+  color: #6b7280;
+  margin: 0 0 20px;
+}
+
+/* Shared status badges inside batch/archive tables */
+.batch-table .status-badge,
+.archive-table .status-badge {
+  display: inline-block;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.batch-table .status-badge.active,
+.archive-table .status-badge.active {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.batch-table .status-badge.defect,
+.archive-table .status-badge.defect {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.batch-table .status-badge.repair,
+.archive-table .status-badge.repair {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.batch-table .status-badge.lost,
+.archive-table .status-badge.lost {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.batch-table .status-badge.disposed,
+.archive-table .status-badge.disposed {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.batch-table .status-badge.split_to_serial,
+.archive-table .status-badge.split_to_serial {
+  background: #e0e7ff;
+  color: #3730a3;
+}
