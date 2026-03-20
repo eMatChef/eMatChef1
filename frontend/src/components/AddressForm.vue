@@ -275,11 +275,7 @@ watch(formData, (newVal) => {
   gap: 16px;
 }
 
-.form-group {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
+/* Form group/input/select/textarea base uses shared ui/forms.css */
 
 .form-group.flex-grow {
   flex: 1;
@@ -296,26 +292,6 @@ watch(formData, (newVal) => {
 
 .required {
   color: #dc2626;
-}
-
-.form-input,
-.form-select,
-.form-textarea {
-  padding: 10px 12px;
-  border: 1px solid #d1d5db;
-  border-radius: 6px;
-  font-size: 14px;
-  color: #1f2937;
-  background: white;
-  transition: border-color 0.2s, box-shadow 0.2s;
-}
-
-.form-input:focus,
-.form-select:focus,
-.form-textarea:focus {
-  outline: none;
-  border-color: #3b82f6;
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
 }
 
 .form-input::placeholder,

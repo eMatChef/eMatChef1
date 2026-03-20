@@ -57,8 +57,8 @@
             <div class="notification-title">{{ invite.source_department_name }} lädt zu {{ invite.activity_type === 'camp' ? 'Camp' : 'Anlass' }} ein</div>
             <div class="notification-subtitle">{{ invite.activity_name }}</div>
             <div class="notification-actions">
-              <button class="btn-accept" @click="decideInvite(invite, 'accepted')">Annehmen</button>
-              <button class="btn-reject" @click="decideInvite(invite, 'rejected')">Ablehnen</button>
+              <button class="btn-success btn-xs" @click="decideInvite(invite, 'accepted')">Annehmen</button>
+              <button class="btn-danger-outline btn-xs" @click="decideInvite(invite, 'rejected')">Ablehnen</button>
             </div>
           </div>
         </div>
@@ -284,8 +284,8 @@
           <div class="profile-status-hint" :class="{ visible: hasUnsavedProfileChanges }">
             <span v-if="hasUnsavedProfileChanges">Ungespeicherte Änderungen</span>
           </div>
-          <button class="btn-secondary" @click="requestCloseEditProfileModal" :disabled="savingProfile">Abbrechen</button>
-          <button class="btn-primary" @click="saveProfile" :disabled="savingProfile">
+          <button class="btn-secondary btn-sm" @click="requestCloseEditProfileModal" :disabled="savingProfile">Abbrechen</button>
+          <button class="btn-primary btn-sm" @click="saveProfile" :disabled="savingProfile">
             {{ savingProfile ? 'Speichert...' : 'Speichern' }}
           </button>
         </div>
@@ -962,24 +962,7 @@ watch(
   gap: 8px;
 }
 
-.btn-accept,
-.btn-reject {
-  border: none;
-  border-radius: 8px;
-  padding: 6px 10px;
-  font-size: 12px;
-  cursor: pointer;
-}
-
-.btn-accept {
-  background: #dcfce7;
-  color: #166534;
-}
-
-.btn-reject {
-  background: #fee2e2;
-  color: #991b1b;
-}
+/* Invite action buttons use shared ui/buttons.css */
 
 .user-info {
   display: flex;
@@ -1291,28 +1274,5 @@ watch(
   opacity: 1;
 }
 
-.btn-secondary,
-.btn-primary {
-  border: none;
-  border-radius: 8px;
-  padding: 8px 12px;
-  font-size: 13px;
-  cursor: pointer;
-}
-
-.btn-secondary {
-  background: #f3f4f6;
-  color: #1f2937;
-}
-
-.btn-primary {
-  background: #2563eb;
-  color: #fff;
-}
-
-.btn-secondary:disabled,
-.btn-primary:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
+/* Profile modal footer buttons use shared ui/buttons.css */
 </style>

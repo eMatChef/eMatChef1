@@ -301,16 +301,8 @@ defineExpose({
 .search-input {
   width: 100%;
   padding: 10px 36px 10px 40px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
+  border-radius: 10px;
   font-size: 14px;
-  background-color: white;
-  transition: border-color 0.2s;
-}
-
-.search-input:focus {
-  outline: none;
-  border-color: #3b82f6;
 }
 
 .search-close-btn {
