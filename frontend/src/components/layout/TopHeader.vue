@@ -140,8 +140,9 @@
           <button class="modal-close-btn" @click="requestCloseEditProfileModal" aria-label="Dialog schließen">×</button>
         </div>
 
-        <div class="profile-modal-content">
-          <div class="profile-top-row">
+        <form class="profile-modal-form" @submit.prevent="saveProfile">
+          <div class="profile-modal-content">
+            <div class="profile-top-row">
             <div class="user-avatar-large profile-avatar-preview" :style="profilePreviewStyle">
               {{ profilePreviewInitials }}
             </div>
@@ -163,6 +164,7 @@
                     v-model="profileForm.email"
                     type="email"
                     maxlength="180"
+                    autocomplete="username"
                     :disabled="!isEmailEditEnabled"
                     :class="{ 'is-readonly': !isEmailEditEnabled }"
                   />
@@ -188,9 +190,9 @@
                 </small>
               </label>
             </div>
-          </div>
+            </div>
 
-          <div class="profile-form-grid">
+            <div class="profile-form-grid">
 
             <label class="form-field">
               <span>Spitzname</span>
@@ -217,6 +219,41 @@
                 <option value="it">Italienisch</option>
               </select>
             </label>
+
+            <div class="form-field form-field-full">
+              <span>Passwort aendern</span>
+              <div class="profile-form-grid">
+                <label class="form-field">
+                  <span>Aktuelles Passwort</span>
+                  <input
+                    v-model="passwordForm.current_password"
+                    type="password"
+                    autocomplete="current-password"
+                    placeholder="Aktuelles Passwort"
+                  />
+                </label>
+                <label class="form-field">
+                  <span>Neues Passwort</span>
+                  <input
+                    v-model="passwordForm.new_password"
+                    type="password"
+                    autocomplete="new-password"
+                    placeholder="Mindestens 8 Zeichen"
+                  />
+                </label>
+                <label class="form-field form-field-full">
+                  <span>Neues Passwort bestaetigen</span>
+                  <input
+                    v-model="passwordForm.confirm_new_password"
+                    type="password"
+                    autocomplete="new-password"
+                    placeholder="Neues Passwort wiederholen"
+                  />
+                </label>
+              </div>
+              <small v-if="passwordInlineError" class="password-inline-error">{{ passwordInlineError }}</small>
+              <small v-else-if="passwordInlineSuccess" class="password-inline-success">Passwort passt.</small>
+            </div>
 
             <div class="form-field form-field-full">
               <span>Farbkombinationen (mit Initialen)</span>
@@ -277,18 +314,19 @@
                 />
               </div>
             </label>
+            </div>
           </div>
-        </div>
 
-        <div class="profile-modal-footer">
-          <div class="profile-status-hint" :class="{ visible: hasUnsavedProfileChanges }">
-            <span v-if="hasUnsavedProfileChanges">Ungespeicherte Änderungen</span>
+          <div class="profile-modal-footer">
+            <div class="profile-status-hint" :class="{ visible: hasUnsavedProfileChanges }">
+              <span v-if="hasUnsavedProfileChanges">Ungespeicherte Änderungen</span>
+            </div>
+            <button type="button" class="btn-secondary btn-sm" @click="requestCloseEditProfileModal" :disabled="savingProfile">Abbrechen</button>
+            <button type="submit" class="btn-primary btn-sm" :disabled="savingProfile || (!hasUnsavedProfileChanges && !hasPasswordInput) || !!passwordInlineError">
+              {{ savingProfile ? 'Speichert...' : 'Speichern' }}
+            </button>
           </div>
-          <button class="btn-secondary btn-sm" @click="requestCloseEditProfileModal" :disabled="savingProfile">Abbrechen</button>
-          <button class="btn-primary btn-sm" @click="saveProfile" :disabled="savingProfile">
-            {{ savingProfile ? 'Speichert...' : 'Speichern' }}
-          </button>
-        </div>
+        </form>
       </div>
     </div>
   </header>
@@ -297,17 +335,18 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { useAuthStore } from '@/stores/auth'
-import { updateProfile } from '@/api/auth'
-import { useToast } from '@/composables/useToast'
-import { useConfirm } from '@/composables/useConfirm'
+import { useAuthStore } from '../../stores/auth'
+import { changePassword, login as apiLogin, updateProfile } from '../../api/auth'
+import { useToast } from '../../composables/useToast'
+import { useConfirm } from '../../composables/useConfirm'
 import {
   getPendingDepartmentActivityInvites,
   decideDepartmentActivityInvite,
   type PendingDepartmentActivityInvite,
-} from '@/api/joinRequests'
-import GlobalSearchInput from '@/components/common/GlobalSearchInput.vue'
-import { useDetailTabsStore } from '@/stores/detailTabs'
+} from '../../api/joinRequests'
+// @ts-ignore Vetur false positive in Vue 3 script-setup import
+import GlobalSearchInput from '../common/GlobalSearchInput.vue'
+import { useDetailTabsStore } from '../../stores/detailTabs'
 
 const router = useRouter()
 const detailTabsStore = useDetailTabsStore()
@@ -341,6 +380,11 @@ const profileForm = ref({
   language: 'de',
   background_color: '#EC4899',
   text_color: '#FFFFFF',
+})
+const passwordForm = ref({
+  current_password: '',
+  new_password: '',
+  confirm_new_password: '',
 })
 const initialProfileFormSnapshot = ref('')
 const avatarPaletteColors = [
@@ -392,6 +436,27 @@ const hasUnsavedProfileChanges = computed(() => {
   if (!initialProfileFormSnapshot.value) return false
   return serializeProfileForm(profileForm.value) !== initialProfileFormSnapshot.value
 })
+const hasPasswordInput = computed(() =>
+  !!passwordForm.value.current_password || !!passwordForm.value.new_password || !!passwordForm.value.confirm_new_password
+)
+const passwordInlineError = computed(() => {
+  if (!hasPasswordInput.value) return ''
+  const currentPassword = passwordForm.value.current_password
+  const newPassword = passwordForm.value.new_password
+  const confirmPassword = passwordForm.value.confirm_new_password
+
+  if (!currentPassword || !newPassword || !confirmPassword) {
+    return 'Bitte alle Passwortfelder ausfuellen.'
+  }
+  if (newPassword.length < 8) {
+    return 'Das neue Passwort muss mindestens 8 Zeichen lang sein.'
+  }
+  if (newPassword !== confirmPassword) {
+    return 'Die neuen Passwoerter stimmen nicht ueberein.'
+  }
+  return ''
+})
+const passwordInlineSuccess = computed(() => hasPasswordInput.value && !passwordInlineError.value)
 const pendingEmailTarget = computed(() =>
   (authStore.profile?.pendingEmail || authStore.profile?.pending_email || '').trim()
 )
@@ -490,6 +555,7 @@ function editProfile() {
     text_color: profile?.textColor || profile?.text_color || '#FFFFFF',
   }
   initialProfileFormSnapshot.value = serializeProfileForm(profileForm.value)
+  resetPasswordForm()
   isEmailEditEnabled.value = false
   showEditProfileModal.value = true
   showUserDropdown.value = false
@@ -516,6 +582,13 @@ function closeEditProfileModal() {
   showEditProfileModal.value = false
   isEmailEditEnabled.value = false
   initialProfileFormSnapshot.value = ''
+  resetPasswordForm()
+}
+
+function resetPasswordForm() {
+  passwordForm.value.current_password = ''
+  passwordForm.value.new_password = ''
+  passwordForm.value.confirm_new_password = ''
 }
 
 async function requestCloseEditProfileModal() {
@@ -605,40 +678,85 @@ async function saveProfile() {
     toast.error('Profil konnte nicht geladen werden.')
     return
   }
-
-  const email = profileForm.value.email.trim()
-  if (!email) {
-    toast.error('Bitte eine E-Mail eingeben.')
+  const shouldUpdateProfile = hasUnsavedProfileChanges.value
+  const shouldChangePassword = hasPasswordInput.value
+  if (!shouldUpdateProfile && !shouldChangePassword) {
+    toast.info('Keine Aenderungen zum Speichern.')
     return
-  }
-
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-  if (!emailRegex.test(email)) {
-    toast.error('Bitte eine gültige E-Mail-Adresse eingeben.')
-    return
-  }
-
-  const payload = {
-    email: isEmailEditEnabled.value ? email : (authStore.profile?.email || email),
-    first_name: profileForm.value.first_name.trim(),
-    last_name: profileForm.value.last_name.trim(),
-    nickname: profileForm.value.nickname.trim(),
-    avatar_initials: profileForm.value.avatar_initials.trim().toUpperCase().slice(0, 2),
-    language: profileForm.value.language,
-    background_color: normalizeHexColor(profileForm.value.background_color, '#EC4899'),
-    text_color: normalizeHexColor(profileForm.value.text_color, '#FFFFFF'),
   }
 
   savingProfile.value = true
   try {
-    const updatedProfile = await updateProfile(profileId, payload)
-    authStore.profile = updatedProfile
-    if (isEmailEditEnabled.value && updatedProfile.pending_email) {
-      toast.info('Bestätigungslink gesendet. Bis zur Bestätigung bleibt die alte E-Mail aktiv.')
-      isEmailEditEnabled.value = false
-      profileForm.value.email = updatedProfile.email || profileForm.value.email
+    if (shouldUpdateProfile) {
+      const email = profileForm.value.email.trim()
+      if (!email) {
+        toast.error('Bitte eine E-Mail eingeben.')
+        return
+      }
+
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+      if (!emailRegex.test(email)) {
+        toast.error('Bitte eine gueltige E-Mail-Adresse eingeben.')
+        return
+      }
+
+      const payload = {
+        email: isEmailEditEnabled.value ? email : (authStore.profile?.email || email),
+        first_name: profileForm.value.first_name.trim(),
+        last_name: profileForm.value.last_name.trim(),
+        nickname: profileForm.value.nickname.trim(),
+        avatar_initials: profileForm.value.avatar_initials.trim().toUpperCase().slice(0, 2),
+        language: profileForm.value.language,
+        background_color: normalizeHexColor(profileForm.value.background_color, '#EC4899'),
+        text_color: normalizeHexColor(profileForm.value.text_color, '#FFFFFF'),
+      }
+
+      const updatedProfile = await updateProfile(profileId, payload)
+      authStore.profile = updatedProfile
+      if (isEmailEditEnabled.value && updatedProfile.pending_email) {
+        toast.info('Bestaetigungslink gesendet. Bis zur Bestaetigung bleibt die alte E-Mail aktiv.')
+        isEmailEditEnabled.value = false
+        profileForm.value.email = updatedProfile.email || profileForm.value.email
+      }
     }
-    toast.success('Profil wurde gespeichert.')
+
+    if (shouldChangePassword) {
+      const currentPassword = passwordForm.value.current_password
+      const newPassword = passwordForm.value.new_password
+      const confirmPassword = passwordForm.value.confirm_new_password
+
+      if (passwordInlineError.value) {
+        toast.error(passwordInlineError.value)
+        return
+      }
+
+      const result = await changePassword(profileId, {
+        current_password: currentPassword,
+        new_password: newPassword,
+        confirm_new_password: confirmPassword,
+      })
+      if (result.message) {
+        toast.success(result.message)
+      }
+      const loginEmail = (authStore.profile?.email || profileForm.value.email || '').trim().toLowerCase()
+      if (loginEmail) {
+        try {
+          await apiLogin(loginEmail, newPassword)
+          await authStore.loadUserSession()
+          toast.success('Re-Login erfolgreich. Deine Sitzung bleibt aktiv.')
+        } catch {
+          // Falls Re-Login fehlschlaegt, bleibt die aktuelle Session bestehen solange der Token gueltig ist.
+        }
+      }
+      resetPasswordForm()
+    }
+
+    if (shouldUpdateProfile && !shouldChangePassword) {
+      toast.success('Profil wurde gespeichert.')
+    } else if (shouldUpdateProfile && shouldChangePassword) {
+      toast.success('Profil und Passwort wurden gespeichert.')
+    }
+
     closeEditProfileModal()
   } catch (error: any) {
     const message = error?.response?.data?.error || 'Profil konnte nicht gespeichert werden.'
@@ -1066,6 +1184,10 @@ watch(
   overflow: auto;
 }
 
+.profile-modal-form {
+  margin: 0;
+}
+
 .profile-modal-header {
   display: flex;
   align-items: center;
@@ -1213,6 +1335,16 @@ watch(
 
 .email-pending-hint {
   color: #1d4ed8;
+  font-size: 11px;
+}
+
+.password-inline-error {
+  color: #b91c1c;
+  font-size: 11px;
+}
+
+.password-inline-success {
+  color: #166534;
   font-size: 11px;
 }
 
