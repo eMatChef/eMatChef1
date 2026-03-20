@@ -1,11 +1,11 @@
 <template>
   <div class="modal-overlay">
-    <div class="edit-dialog">
+    <div class="modal-dialog edit-dialog">
       <!-- Header -->
       <div class="dialog-header">
         <h2>{{ props.readonly ? 'Vorlage ansehen' : (isEditing ? 'Vorlage bearbeiten' : 'Neue Vorlage') }}</h2>
         <span v-if="props.readonly" class="readonly-badge">Nur Lesen</span>
-        <button class="close-btn" @click="$emit('close')">
+        <button class="modal-close" @click="$emit('close')">
           <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
           </svg>
@@ -443,25 +443,16 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.modal-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1100;
-}
+/* Modal overlay base uses shared ui/modals.css */
 
 .edit-dialog {
-  background: white;
-  border-radius: 12px;
   width: 100%;
   max-width: 720px;
   max-height: 90vh;
   display: flex;
   flex-direction: column;
-  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+  padding: 0;
+  overflow: hidden;
 }
 
 /* Header */
@@ -488,20 +479,6 @@ onMounted(() => {
   border-radius: 6px;
   font-size: 12px;
   font-weight: 500;
-}
-
-.close-btn {
-  background: none;
-  border: none;
-  color: #6b7280;
-  cursor: pointer;
-  padding: 4px;
-  border-radius: 4px;
-}
-
-.close-btn:hover {
-  background: #f3f4f6;
-  color: #374151;
 }
 
 /* Body */
@@ -565,11 +542,7 @@ onMounted(() => {
   gap: 16px;
 }
 
-.form-group {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
+/* Form group/input/select/textarea base uses shared ui/forms.css */
 
 .form-group.full {
   grid-column: 1 / -1;
@@ -584,26 +557,6 @@ onMounted(() => {
 .form-label.required::after {
   content: ' *';
   color: #dc2626;
-}
-
-.form-input,
-.form-select,
-.form-textarea {
-  padding: 10px 12px;
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
-  font-size: 14px;
-  color: #111827;
-  transition: all 0.2s;
-  background: white;
-}
-
-.form-input:focus,
-.form-select:focus,
-.form-textarea:focus {
-  outline: none;
-  border-color: #8b5cf6;
-  box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.1);
 }
 
 .form-textarea {
@@ -901,45 +854,5 @@ onMounted(() => {
   color: #dc2626;
 }
 
-.btn-primary {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 20px;
-  background: linear-gradient(135deg, #8b5cf6 0%, #a855f7 100%);
-  color: white;
-  border: none;
-  border-radius: 8px;
-  font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.btn-primary:hover:not(:disabled) {
-  background: linear-gradient(135deg, #7c3aed 0%, #9333ea 100%);
-  box-shadow: 0 4px 12px rgba(139, 92, 246, 0.3);
-}
-
-.btn-primary:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.btn-secondary {
-  padding: 10px 18px;
-  background: white;
-  border: 1px solid #d1d5db;
-  border-radius: 8px;
-  font-size: 14px;
-  font-weight: 500;
-  color: #374151;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.btn-secondary:hover {
-  background: #f9fafb;
-  border-color: #9ca3af;
-}
+/* Buttons use shared ui/buttons.css */
 </style>
