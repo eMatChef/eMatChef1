@@ -2,16 +2,19 @@
 
 namespace App\Service\Public;
 
+use App\Service\Mail\AppMailer;
+use App\Service\Mail\MailOutboundSettingsStore;
+use App\Service\Mail\MailSendLogStore;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
-use Symfony\Component\Mailer\MailerInterface;
 use Symfony\Component\Mime\Email;
 
 class PublicFoundItemContactService
 {
     public function __construct(
         private PublicCodeService $publicCodeService,
-        private MailerInterface $mailer,
-        #[Autowire('%env(MAILER_FROM)%')] private string $fromAddress,
+        private AppMailer $mailer,
+        private MailOutboundSettingsStore $mailOutboundSettings,
+        private MailSendLogStore $mailSendLog,
         #[Autowire('%env(APP_FRONTEND_URL)%')] private string $publicFrontendUrl
     ) {
     }
@@ -109,7 +112,7 @@ class PublicFoundItemContactService
         $body .= $senderEmail !== '' ? "E-Mail: {$senderEmail}\n" : "E-Mail: (nicht angegeben)\n";
 
         $email = (new Email())
-            ->from($this->fromAddress)
+            ->from($this->mailOutboundSettings->getFromAddressObject())
             ->to($to)
             ->subject($subject)
             ->text($body);
@@ -119,6 +122,7 @@ class PublicFoundItemContactService
         }
 
         $this->mailer->send($email);
+        $this->mailSendLog->append('public.found_item_contact', $to, $subject);
 
         return ['ok' => true];
     }

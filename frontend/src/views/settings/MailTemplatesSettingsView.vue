@@ -1,7 +1,7 @@
 <template>
   <div class="mail-templates-view">
     <div class="header">
-      <h1>Mailversandvorlagen</h1>
+      <h2 class="section-head">E-Mail-Vorlagen</h2>
       <p class="subtitle">Uebersicht aller aktuell verwendeten E-Mail-Vorlagen im System.</p>
     </div>
 
@@ -70,9 +70,11 @@ onMounted(() => {
   gap: 14px;
 }
 
-.header h1 {
+.section-head {
   margin: 0 0 6px 0;
-  font-size: 24px;
+  font-size: 18px;
+  font-weight: 600;
+  color: #0f172a;
 }
 
 .subtitle {

@@ -41,39 +41,63 @@
           :department-id="searchDepartmentId"
         />
       </div>
-      <button class="header-icon-btn" @click="toggleNotifications">
-        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+      <button
+        type="button"
+        class="header-icon-btn"
+        title="Benachrichtigungen"
+        aria-label="Benachrichtigungen"
+        :aria-expanded="showNotifications"
+        aria-haspopup="true"
+        @click="toggleNotifications"
+      >
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
           <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
           <path d="M13.73 21a2 2 0 0 1-3.46 0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>
         <span v-if="unreadCount > 0" class="notification-badge">{{ unreadCount }}</span>
       </button>
-      <div v-if="showNotifications" class="notifications-dropdown">
-        <div class="notifications-header">Einladungen</div>
-        <div v-if="isLoadingNotifications" class="notifications-empty">Lade...</div>
-        <div v-else-if="pendingDepartmentInvites.length === 0" class="notifications-empty">Keine offenen Einladungen</div>
-        <div v-else class="notifications-list">
-          <div v-for="invite in pendingDepartmentInvites" :key="`${invite.activity_id}-${invite.source_department_id}`" class="notification-item">
-            <div class="notification-title">{{ invite.source_department_name }} lädt zu {{ invite.activity_type === 'camp' ? 'Camp' : 'Anlass' }} ein</div>
-            <div class="notification-subtitle">{{ invite.activity_name }}</div>
-            <div class="notification-actions">
-              <button class="btn-success btn-xs" @click="decideInvite(invite, 'accepted')">Annehmen</button>
-              <button class="btn-danger-outline btn-xs" @click="decideInvite(invite, 'rejected')">Ablehnen</button>
+      <div v-if="showNotifications" class="notifications-dropdown" role="dialog" aria-label="Benachrichtigungen">
+        <div class="notifications-header">Benachrichtigungen</div>
+        <div class="notifications-dropdown-body">
+          <div v-if="isLoadingNotifications" class="notifications-empty">Lade...</div>
+          <div v-else-if="pendingDepartmentInvites.length === 0" class="notifications-empty">Keine Benachrichtigungen</div>
+          <div v-else class="notifications-list">
+            <div
+              v-for="invite in notificationPreview"
+              :key="`${invite.activity_id}-${invite.source_department_id}`"
+              class="notification-item"
+            >
+              <div class="notification-title">{{ invite.source_department_name }} lädt zu {{ invite.activity_type === 'camp' ? 'Camp' : 'Anlass' }} ein</div>
+              <div class="notification-subtitle">{{ invite.activity_name }}</div>
+              <div class="notification-actions">
+                <button type="button" class="btn-success btn-xs" @click="decideInvite(invite, 'accepted')">Annehmen</button>
+                <button type="button" class="btn-danger-outline btn-xs" @click="decideInvite(invite, 'rejected')">Ablehnen</button>
+              </div>
             </div>
           </div>
         </div>
+        <div v-if="!isLoadingNotifications" class="notifications-dropdown-footer">
+          <button
+            type="button"
+            class="btn btn-secondary btn-sm notifications-more-fullwidth"
+            title="Zur Nachrichtenzentrale (unter Aufgaben in der Navigation)"
+            @click.stop="goToNotificationsCenter"
+          >
+            Alle anzeigen
+          </button>
+        </div>
       </div>
       
-      <button class="header-icon-btn" @click="showHelp">
-        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+      <button type="button" class="header-icon-btn" title="Hilfe" aria-label="Hilfe" @click="showHelp">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
           <circle cx="12" cy="12" r="10" stroke-width="2"/>
           <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
           <path d="M12 17h.01" stroke-width="2" stroke-linecap="round"/>
         </svg>
       </button>
       
-      <button class="header-icon-btn" @click="showInfo">
-        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+      <button type="button" class="header-icon-btn" title="Informationen" aria-label="Informationen" @click="showInfo">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
           <circle cx="12" cy="12" r="10" stroke-width="2"/>
           <path d="M12 16v-4" stroke-width="2" stroke-linecap="round"/>
           <path d="M12 8h.01" stroke-width="2" stroke-linecap="round"/>
@@ -329,6 +353,7 @@
         </form>
       </div>
     </div>
+
   </header>
 </template>
 
@@ -461,6 +486,9 @@ const pendingEmailTarget = computed(() =>
   (authStore.profile?.pendingEmail || authStore.profile?.pending_email || '').trim()
 )
 
+/** Erste fünf Einträge für die Popup-Vorschau (Reihenfolge wie API). */
+const notificationPreview = computed(() => pendingDepartmentInvites.value.slice(0, 5))
+
 function isTabActive(tab: { path: string }) {
   const basePath = tab.path.split('?')[0]
   return route.fullPath === tab.path || route.fullPath === basePath || route.fullPath.startsWith(basePath + '/')
@@ -497,6 +525,14 @@ async function toggleNotifications() {
   showNotifications.value = !showNotifications.value
   if (!showNotifications.value) return
   await loadDepartmentInvites()
+}
+
+function goToNotificationsCenter() {
+  const deptId =
+    (route.params.departmentId as string | undefined) || authStore.activeDepartmentId || ''
+  if (!deptId) return
+  showNotifications.value = false
+  router.push(`/${deptId}/notifications`)
 }
 
 async function loadDepartmentInvites() {
@@ -1032,19 +1068,40 @@ watch(
   right: 150px;
   margin-top: 8px;
   width: 360px;
-  max-height: 420px;
-  overflow: auto;
+  max-height: min(420px, calc(100vh - 100px));
+  display: flex;
+  flex-direction: column;
   background: #fff;
   border-radius: 10px;
   box-shadow: 0 12px 28px rgba(0, 0, 0, 0.18);
   border: 1px solid #e5e7eb;
   z-index: 1200;
+  overflow: hidden;
+}
+
+.notifications-dropdown-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
 }
 
 .notifications-header {
+  flex-shrink: 0;
   padding: 10px 12px;
   font-weight: 700;
   border-bottom: 1px solid #e5e7eb;
+}
+
+.notifications-dropdown-footer {
+  flex-shrink: 0;
+  padding: 8px 12px;
+  border-top: 1px solid #e5e7eb;
+  background: #f9fafb;
+}
+
+.notifications-more-fullwidth {
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .notifications-empty {

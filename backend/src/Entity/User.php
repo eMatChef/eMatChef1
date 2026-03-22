@@ -280,6 +280,14 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
         return $this->profileId;
     }
 
+    /**
+     * System-Superadmin (nur Profil-Rolle) — keine Abteilungs-/Gruppen-Rollenvergabe über die UI.
+     */
+    public function hasSuperAdminProfile(): bool
+    {
+        return $this->profile !== null && $this->profile->hasSuperAdminRole();
+    }
+
     public function getRoles(): array
     {
         $roles = ['ROLE_USER'];

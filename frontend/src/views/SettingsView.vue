@@ -5,11 +5,11 @@
       <aside class="settings-menu">
         <nav class="settings-nav">
           <router-link
-            v-for="item in visibleMenuItems"
+            v-for="item in allMenuItems"
             :key="item.id"
             :to="getSettingsLink(`/${item.id}`)"
             class="settings-nav-item"
-            :class="{ active: $route.path.includes(`/settings/${item.id}`) }"
+            :class="{ active: isSettingsItemActive(item.id) }"
           >
             <component :is="item.icon" class="nav-icon" />
             <span class="nav-label">{{ item.label }}</span>
@@ -42,135 +42,74 @@ import IconMaterials from '@/components/icons/IconMaterials.vue'
 
 const route = useRoute()
 const authStore = useAuthStore()
-const isAdminDashboardRoute = computed(() => route.path.startsWith('/admin-dashboard'))
 
 // Department-ID aus Route oder Store
 const departmentId = computed(() => {
   return (route.params.departmentId as string) || authStore.activeDepartmentId || ''
 })
 
-// Helper-Funktion für Links
+// Helper: /…/settings/<segment>
 function getSettingsLink(path: string): string {
-  if (isAdminDashboardRoute.value) return `/admin-dashboard/settings${path}`
   if (!departmentId.value) return '#'
   return `/${departmentId.value}/settings${path}`
 }
 
-/**
- * Prüft ob der User Zugriff auf Organisations-/Department-Verwaltung hat.
- * Erlaubt für: superadmin (sa), organisationschef (org), suborgchef (sub)
- */
-const canManageOrganisations = computed(() => {
-  // Prüfe currentDepartmentRole (Abkürzung aus membership)
-  const role = authStore.currentDepartmentRole
-  if (role) {
-    const normalizedRole = String(role).toLowerCase().trim()
-    // Erlaubte Rollen: sa, org, sub (superadmin, organisationschef, suborgchef)
-    if (['sa', 'superadmin', 'org', 'organisationschef', 'sub', 'suborgchef'].includes(normalizedRole)) {
-      return true
-    }
+function isSettingsItemActive(itemId: string): boolean {
+  const base = departmentId.value ? `/${departmentId.value}/settings`.replace(/\/$/, '') : ''
+  const p = (route.path || '').replace(/\/$/, '') || '/'
+  if (itemId === 'my-department') {
+    return p === base || p === `${base}/my-department`
   }
-  
-  // Fallback: Prüfe Symfony-Rollen
-  const userRoles = authStore.userRoles || []
-  if (userRoles.includes('ROLE_SUPERADMIN') || 
-      userRoles.includes('ROLE_ORGANISATIONSCHEF') || 
-      userRoles.includes('ROLE_SUBORGCHEF')) {
-    return true
+  if (itemId === 'zeit') {
+    return p === `${base}/zeit`
   }
-  
-  return false
-})
+  return p === `${base}/${itemId}` || p.startsWith(`${base}/${itemId}/`)
+}
 
 // Components mit markRaw markieren, um Vue-Warnungen zu vermeiden
 const allMenuItems = ref([
   {
-    id: 'general',
-    label: 'Allgemein',
-    icon: markRaw(IconSettings),
-    requiresOrgAccess: false
+    id: 'my-department',
+    label: 'Mein Department',
+    icon: markRaw(IconDashboard)
+  },
+  {
+    id: 'zeit',
+    label: 'Zeit/Ort',
+    icon: markRaw(IconSettings)
   },
   {
     id: 'categories',
     label: 'Kategorien',
-    icon: markRaw(IconDashboard),
-    requiresOrgAccess: false
-  },
-  {
-    id: 'my-department',
-    label: 'Mein Department',
-    icon: markRaw(IconDashboard),
-    requiresOrgAccess: false // Für alle Rollen sichtbar
-  },
-  {
-    id: 'organisations',
-    label: 'Organisationen',
-    icon: markRaw(IconDashboard),
-    requiresOrgAccess: true // Nur für sa, org, sub
-  },
-  {
-    id: 'departments',
-    label: 'Alle Departments',
-    icon: markRaw(IconDashboard),
-    requiresOrgAccess: true // Nur für sa, org, sub
+    icon: markRaw(IconDashboard)
   },
   {
     id: 'users',
     label: 'Benutzer',
-    icon: markRaw(IconEmployees),
-    requiresOrgAccess: false
+    icon: markRaw(IconEmployees)
   },
   {
     id: 'groups',
     label: 'Gruppen',
-    icon: markRaw(IconContacts),
-    requiresOrgAccess: false
-  },
-  {
-    id: 'permissions',
-    label: 'Berechtigungen',
-    icon: markRaw(IconSettings),
-    requiresOrgAccess: true // Nur für sa, org, sub
+    icon: markRaw(IconContacts)
   },
   {
     id: 'activities',
     label: 'Aktivitäten',
-    icon: markRaw(IconActivities),
-    requiresOrgAccess: false
+    icon: markRaw(IconActivities)
   },
   {
     id: 'storage',
     label: 'Regale & Fächer',
-    icon: markRaw(IconMaterials),
-    requiresOrgAccess: false
+    icon: markRaw(IconMaterials)
   },
   {
     id: 'templates',
     label: 'Vorlagen',
-    icon: markRaw(IconSettings),
-    requiresOrgAccess: false
-  },
-  {
-    id: 'mail-templates',
-    label: 'Mailvorlagen',
-    icon: markRaw(IconSettings),
-    requiresOrgAccess: true
+    icon: markRaw(IconSettings)
   }
 ])
 
-// Gefilterte Menüpunkte basierend auf Berechtigungen
-const visibleMenuItems = computed(() => {
-  if (isAdminDashboardRoute.value) {
-    return allMenuItems.value.filter(item => ['organisations', 'departments', 'users', 'mail-templates'].includes(item.id))
-  }
-
-  return allMenuItems.value.filter(item => {
-    if (item.requiresOrgAccess) {
-      return canManageOrganisations.value
-    }
-    return true
-  })
-})
 </script>
 
 <style scoped>

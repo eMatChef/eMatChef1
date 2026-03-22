@@ -42,7 +42,8 @@ export function useStorageStructure(departmentId: () => string) {
   })
 
   function getSlots(rackId: string): StorageSlot[] {
-    return slotsByRackId.value[rackId] || []
+    const id = String(rackId ?? '').trim()
+    return slotsByRackId.value[id] || []
   }
 
   async function loadRacks(storageAddressId?: string): Promise<StorageRack[]> {
@@ -71,20 +72,47 @@ export function useStorageStructure(departmentId: () => string) {
   }
 
   async function loadSlots(rackId: string, force = false): Promise<StorageSlot[]> {
-    if (!rackId) return []
-    if (!force && slotsByRackId.value[rackId]) {
-      return slotsByRackId.value[rackId]
+    const id = String(rackId ?? '').trim()
+    if (!id) return []
+    // Wichtig: [] ist in JS truthy — leere Arrays dürfen keinen „Cache-Treffer“ auslösen,
+    // sonst werden Fächer nie nachgeladen (z. B. nach Anlegen des ersten Fachs).
+    const cached = slotsByRackId.value[id]
+    if (!force && cached !== undefined && cached.length > 0) {
+      return cached
     }
-    loadingRackSlots.value = new Set([...loadingRackSlots.value, rackId])
+    loadingRackSlots.value = new Set([...loadingRackSlots.value, id])
     try {
-      const slots = await getStorageSlots(rackId)
-      slotsByRackId.value = { ...slotsByRackId.value, [rackId]: slots }
+      const slots = await getStorageSlots(id)
+      slotsByRackId.value = { ...slotsByRackId.value, [id]: slots }
       return slots
     } finally {
       const next = new Set(loadingRackSlots.value)
-      next.delete(rackId)
+      next.delete(id)
       loadingRackSlots.value = next
     }
+  }
+
+  /**
+   * Lädt Fächer; wenn das Gestell noch keines hat, wird ein Standard-Fach angelegt (wie Material-Wizard).
+   * Verhindert leere Fach-Dropdowns nach Gestell-Auswahl.
+   */
+  async function loadSlotsEnsuringDefault(
+    rackId: string,
+    defaultSlotName = 'Fach 1'
+  ): Promise<StorageSlot[]> {
+    const id = String(rackId ?? '').trim()
+    if (!id) return []
+    let slots = await loadSlots(id)
+    if (slots.length > 0) return slots
+    try {
+      await createStorageSlot({
+        rack_id: id,
+        name: defaultSlotName,
+      })
+    } catch {
+      // z. B. Rechte — dann bleibt die Liste leer
+    }
+    return await loadSlots(id, true)
   }
 
   async function ensureSlotsForRacks(rackIds: string[]): Promise<void> {
@@ -144,6 +172,7 @@ export function useStorageStructure(departmentId: () => string) {
     getSlots,
     loadRacks,
     loadSlots,
+    loadSlotsEnsuringDefault,
     ensureSlotsForRacks,
     createRack,
     createSlot,

@@ -40,12 +40,13 @@
         v-for="org in organisations"
         :key="org.id"
         class="organisation-item"
+        :class="{ 'organisation-item--not-member': !isSuperAdmin && !memberOrganisationIds.has(org.id) }"
       >
         <div class="organisation-info">
           <h3 class="organisation-name">{{ org.name }}</h3>
           <p class="organisation-id">ID: {{ org.id }}</p>
         </div>
-        <div v-if="canManageOrganisations" class="organisation-actions">
+        <div v-if="canManageOrganisations && (isSuperAdmin || memberOrganisationIds.has(org.id))" class="organisation-actions">
           <button @click="editOrganisation(org)" class="edit-button" title="Bearbeiten">
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
               <path

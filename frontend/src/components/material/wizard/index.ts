@@ -5,7 +5,7 @@
 export { default as CreationModeStep } from './CreationModeStep.vue'
 export { default as SelectedModeBanner } from './SelectedModeBanner.vue'
 export { default as TemplatePickerSection } from './TemplatePickerSection.vue'
-export { default as RackContentsPicker } from './RackContentsPicker.vue'
+export { default as ContainerBatchContentsPicker } from './ContainerBatchContentsPicker.vue'
 export { default as WizardStepCard } from './WizardStepCard.vue'
 export { default as WizardFooter } from './WizardFooter.vue'
 export { default as MaterialPreviewSidebar } from './MaterialPreviewSidebar.vue'

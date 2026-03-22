@@ -134,6 +134,11 @@ class Profile
         return $this->roles;
     }
 
+    public function hasSuperAdminRole(): bool
+    {
+        return in_array('ROLE_SUPERADMIN', $this->roles, true);
+    }
+
     public function setRoles(array $roles): self
     {
         $this->roles = $roles;

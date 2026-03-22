@@ -160,6 +160,7 @@
                   </svg>
                 </button>
                 <button 
+                  v-if="!isCurrentUser(member)"
                   class="action-btn action-btn-danger" 
                   title="Aus Department entfernen"
                   @click="handleRemove(member)"
@@ -413,6 +414,11 @@ function getRoleLabel(role: string): string {
   return DEPT_ROLES[role as DeptRoleKey]?.label || role
 }
 
+function isCurrentUser(member: DepartmentMember): boolean {
+  const uid = authStore.userId
+  return uid !== null && member.user_id === uid
+}
+
 // === State ===
 const members = ref<DepartmentMember[]>([])
 const isLoading = ref(false)
@@ -662,6 +668,10 @@ async function handleUpdate() {
 // === Remove Member ===
 
 async function handleRemove(member: DepartmentMember) {
+  if (isCurrentUser(member)) {
+    toast.error('Du kannst dich hier nicht selbst aus dem Department entfernen.')
+    return
+  }
   const ok = await confirm.confirm({
     title: 'Mitglied entfernen?',
     message: `${member.name} wirklich aus dem Department entfernen?`,

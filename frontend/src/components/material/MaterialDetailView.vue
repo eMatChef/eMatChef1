@@ -171,6 +171,22 @@
                   <p class="form-hint" v-else-if="formData.reservation_mode === 'flexible'">Komplett oder Einzelteile, je nach Bedarf</p>
                 </div>
               </div>
+
+              <div
+                v-if="material.material_type === 'physical_combo' && material.linked_container_batch"
+                class="linked-kiste-banner mt-4"
+              >
+                <span class="linked-kiste-label">Referenz-Kiste</span>
+                <p class="linked-kiste-desc">
+                  Diese physische Kombination ist der Kiste zugeordnet (Plan vs. Ist später vergleichbar).
+                </p>
+                <router-link
+                  class="linked-kiste-link"
+                  :to="`/${departmentId}/materials/${material.linked_container_batch.material_id}`"
+                >
+                  {{ material.linked_container_batch.display_label }}
+                </router-link>
+              </div>
             </div>
 
             <div class="section-card">

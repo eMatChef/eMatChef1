@@ -5,6 +5,7 @@
       v-if="mode === 'icon' && !isExpanded"
       type="button"
       class="search-icon-btn"
+      title="Suchen"
       @click="expand"
       aria-label="Suchen"
     >

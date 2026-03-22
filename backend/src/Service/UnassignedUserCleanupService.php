@@ -6,8 +6,20 @@ use App\Entity\Membership;
 use App\Entity\User;
 use Doctrine\ORM\EntityManagerInterface;
 
+/**
+ * Bereinigt Accounts ohne Department-Mitgliedschaft nach einer Frist.
+ * Globale Admin-Konten (ROLE_SUPERADMIN / ORGANISATIONSCHEF / SUBORGCHEF in profile.roles)
+ * werden nie geloescht, auch ohne Membership.
+ */
 class UnassignedUserCleanupService
 {
+    /** @var list<string> */
+    private const PROTECTED_PROFILE_ROLES = [
+        'ROLE_SUPERADMIN',
+        'ROLE_ORGANISATIONSCHEF',
+        'ROLE_SUBORGCHEF',
+    ];
+
     public function __construct(private EntityManagerInterface $entityManager)
     {
     }
@@ -23,7 +35,7 @@ class UnassignedUserCleanupService
 
         $cutoff = (new \DateTimeImmutable())->modify("-{$days} days");
 
-        return $this->entityManager->getRepository(User::class)
+        $users = $this->entityManager->getRepository(User::class)
             ->createQueryBuilder('u')
             ->leftJoin(Membership::class, 'm', 'WITH', 'm.userId = u.id')
             ->where('u.createdAt <= :cutoff')
@@ -32,6 +44,27 @@ class UnassignedUserCleanupService
             ->orderBy('u.createdAt', 'ASC')
             ->getQuery()
             ->getResult();
+
+        return array_values(array_filter(
+            $users,
+            fn (User $u) => !$this->hasProtectedGlobalAdminRole($u)
+        ));
+    }
+
+    private function hasProtectedGlobalAdminRole(User $user): bool
+    {
+        $profile = $user->getProfile();
+        if (!$profile) {
+            return false;
+        }
+        $roles = $profile->getRoles();
+        foreach (self::PROTECTED_PROFILE_ROLES as $role) {
+            if (in_array($role, $roles, true)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     public function preview(int $days): array

@@ -273,6 +273,9 @@ class JoinRequestController extends AbstractController
             if (!$userWithoutDepartment instanceof User) {
                 continue;
             }
+            if ($userWithoutDepartment->hasSuperAdminProfile()) {
+                continue;
+            }
 
             $autoRequest = new AdminJoinRequest();
             $autoRequest->setId(IdGenerator::generateUnique($this->entityManager, AdminJoinRequest::class));
@@ -303,10 +306,12 @@ class JoinRequestController extends AbstractController
         if ($isGlobalAdmin && !$isSuperAdmin) {
             $managedOrgIds = $this->getManagedOrganisationIds($currentUser);
             if (count($managedOrgIds) > 0) {
-                $qb->andWhere('ajr.requestedOrganisationId IN (:managedOrgIds)')
+                // Ohne requested_organisation_id (z. B. Auto-Anfragen) fuer alle Org/Sub-Admins sichtbar
+                $qb->andWhere('(ajr.requestedOrganisationId IS NULL OR ajr.requestedOrganisationId IN (:managedOrgIds))')
                     ->setParameter('managedOrgIds', $managedOrgIds);
             } else {
-                $qb->andWhere('1 = 0');
+                // Kein Department-Membership: nur globale/unzugeordnete Warteschlange (NULL), nicht 1=0
+                $qb->andWhere('ajr.requestedOrganisationId IS NULL');
             }
         }
 
@@ -519,10 +524,10 @@ class JoinRequestController extends AbstractController
         if ($isGlobalAdmin && !$isSuperAdmin) {
             $managedOrgIds = $this->getManagedOrganisationIds($currentUser);
             if (count($managedOrgIds) > 0) {
-                $qb->andWhere('ajr.requestedOrganisationId IN (:managedOrgIds)')
+                $qb->andWhere('(ajr.requestedOrganisationId IS NULL OR ajr.requestedOrganisationId IN (:managedOrgIds))')
                     ->setParameter('managedOrgIds', $managedOrgIds);
             } else {
-                $qb->andWhere('1 = 0');
+                $qb->andWhere('ajr.requestedOrganisationId IS NULL');
             }
         }
 

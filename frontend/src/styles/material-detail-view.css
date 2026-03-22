@@ -839,3 +839,39 @@
 .mt-4 {
   margin-top: 16px;
 }
+
+/* Referenz-Kiste (physische Combo) */
+.linked-kiste-banner {
+  padding: 12px 14px;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+}
+
+.linked-kiste-label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: #1d4ed8;
+  margin-bottom: 4px;
+}
+
+.linked-kiste-desc {
+  font-size: 13px;
+  color: #475569;
+  margin: 0 0 8px 0;
+  line-height: 1.4;
+}
+
+.linked-kiste-link {
+  font-size: 14px;
+  font-weight: 600;
+  color: #2563eb;
+  text-decoration: underline;
+}
+
+.linked-kiste-link:hover {
+  color: #1d4ed8;
+}

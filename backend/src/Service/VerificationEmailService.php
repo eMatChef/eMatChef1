@@ -3,18 +3,20 @@
 namespace App\Service;
 
 use App\Entity\User;
+use App\Service\Mail\AppMailer;
+use App\Service\Mail\MailOutboundSettingsStore;
+use App\Service\Mail\MailSendLogStore;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
-use Symfony\Component\Mailer\MailerInterface;
 use Symfony\Component\Mime\Email;
 
 class VerificationEmailService
 {
     public function __construct(
-        private MailerInterface $mailer,
+        private AppMailer $mailer,
+        private MailOutboundSettingsStore $mailOutboundSettings,
+        private MailSendLogStore $mailSendLog,
         #[Autowire('%env(APP_FRONTEND_URL)%')]
         private string $frontendBaseUrl,
-        #[Autowire('%env(MAILER_FROM)%')]
-        private string $fromAddress,
         #[Autowire('%kernel.project_dir%')]
         private string $projectDir
     ) {
@@ -37,7 +39,7 @@ class VerificationEmailService
         $expiresText = $expiresAt->format('d.m.Y H:i');
 
         $email = (new Email())
-            ->from($this->fromAddress)
+            ->from($this->mailOutboundSettings->getFromAddressObject())
             ->to($profile->getEmail())
             ->subject('Bitte bestaetige deine E-Mail-Adresse')
             ->text(
@@ -49,6 +51,7 @@ class VerificationEmailService
             );
 
         $this->mailer->send($email);
+        $this->mailSendLog->append('auth.verify_email', $profile->getEmail(), (string) $email->getSubject());
     }
 
     public function sendPendingEmailChangeVerification(User $user, string $newEmail, string $token, \DateTime $expiresAt): void
@@ -62,7 +65,7 @@ class VerificationEmailService
         $expiresText = $expiresAt->format('d.m.Y H:i');
 
         $email = (new Email())
-            ->from($this->fromAddress)
+            ->from($this->mailOutboundSettings->getFromAddressObject())
             ->to($newEmail)
             ->subject('Bitte bestaetige deine neue E-Mail-Adresse')
             ->text(
@@ -75,6 +78,7 @@ class VerificationEmailService
             );
 
         $this->mailer->send($email);
+        $this->mailSendLog->append('auth.pending_email_change', $newEmail, (string) $email->getSubject());
     }
 
     public function sendDepartmentInviteEmail(
@@ -89,7 +93,7 @@ class VerificationEmailService
         $subject = 'Einladung zu eMatChef Department: ' . $departmentName;
 
         $email = (new Email())
-            ->from($this->fromAddress)
+            ->from($this->mailOutboundSettings->getFromAddressObject())
             ->to($recipientEmail)
             ->subject($subject)
             ->text(
@@ -110,6 +114,7 @@ class VerificationEmailService
             ]));
 
         $this->mailer->send($email);
+        $this->mailSendLog->append('department.invite', $recipientEmail, $subject);
     }
 
     public function sendPasswordResetCode(User $user, string $code, \DateTime $expiresAt): void
@@ -122,7 +127,7 @@ class VerificationEmailService
         $expiresText = $expiresAt->format('d.m.Y H:i:s');
 
         $email = (new Email())
-            ->from($this->fromAddress)
+            ->from($this->mailOutboundSettings->getFromAddressObject())
             ->to($profile->getEmail())
             ->subject('Passwort zuruecksetzen - eMatChef')
             ->text(
@@ -140,6 +145,7 @@ class VerificationEmailService
             ]));
 
         $this->mailer->send($email);
+        $this->mailSendLog->append('auth.password_reset_code', $profile->getEmail(), (string) $email->getSubject());
     }
 
     private function renderHtmlTemplate(string $templateFile, array $variables): string
@@ -208,6 +214,13 @@ class VerificationEmailService
                     "{{inviter_name}} hat dich zu dem Department \"{{department_name}}\" eingeladen.\n" .
                     "Vorgesehene Rolle: {{role_label}}\n\n" .
                     "Einladungslink:\n{{invite_url}}",
+            ],
+            [
+                'key' => 'public.found_item_contact',
+                'title' => 'Öffentlich - Fund-Hinweis',
+                'subject' => '[eMatChef] Hinweis: Artikel gefunden – {{material_name}}',
+                'description' => 'Wird bei Kontakt über den öffentlichen QR-/Material-Link versendet (an die Abteilungs-Kontaktadresse).',
+                'body_preview' => "Artikel, Abteilung, Public-Link, Nachricht des Absenders (kein vollständiger Text in diesem Katalog).",
             ],
         ];
     }

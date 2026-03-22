@@ -1,6 +1,6 @@
 <template>
   <div class="material-wizard-sidebar">
-    <h3>{{ isAddBatchMode ? 'Bestand hinzufügen' : 'Mein Material' }}</h3>
+    <h3>{{ isAddBatchMode ? 'Charge hinzufügen' : 'Mein Material' }}</h3>
     
     <div class="material-preview" :class="{ 'batch-mode': isAddBatchMode }">
       <div class="preview-image">

@@ -5,7 +5,7 @@
         <!-- Header -->
         <div class="material-wizard-header">
           <div class="material-wizard-header-title">
-            <h2>{{ isAddBatchMode ? 'BESTAND HINZUFÜGEN' : 'MATERIAL ERSTELLEN' }}</h2>
+            <h2>{{ isAddBatchMode ? 'CHARGE HINZUFÜGEN' : 'MATERIAL ERSTELLEN' }}</h2>
             <button class="help-btn" title="Hilfe">
               <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <circle cx="12" cy="12" r="10"/>
@@ -27,7 +27,7 @@
           <!-- Content -->
           <div class="material-wizard-content">
             <!-- Left: Form Steps -->
-            <div ref="wizardFormRef" class="material-wizard-form">
+            <div ref="wizardFormRef" class="material-wizard-form" @focusin="onWizardFormFocusIn">
             
             <!-- Add Batch Mode: Anzeige des ausgewählten Materials -->
             <div v-if="isAddBatchMode && selectedExistingMaterial" class="selected-material-banner">
@@ -38,14 +38,14 @@
                   </svg>
                 </div>
                 <div class="banner-info">
-                  <span class="banner-label">Bestand hinzufügen für:</span>
+                  <span class="banner-label">Neue Charge für:</span>
                   <span class="banner-name">{{ selectedExistingMaterial.name }}</span>
                   <span class="banner-details">
                     {{ selectedExistingMaterial.category?.name || 'Ohne Kategorie' }} • 
                     Aktuell: {{ selectedExistingMaterial.total_stock }} Stk.
                   </span>
                 </div>
-                <button type="button" class="banner-close" @click="exitAddBatchMode" title="Abbrechen">
+                <button type="button" class="banner-close" @click="reloadWizardFromBatchBanner" title="Wizard neu starten (Material neu wählen)">
                   <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <line x1="18" y1="6" x2="6" y2="18"/>
                     <line x1="6" y1="6" x2="18" y2="18"/>
@@ -100,36 +100,7 @@
               </div>
             </div>
 
-            <!-- Modus-Banner (wenn Modus gewählt) -->
-            <SelectedModeBanner
-              v-if="!isAddBatchMode && creationMode"
-              :creation-mode="creationMode"
-              :template-name="selectedTemplate?.name ?? null"
-              :template-manufacturer="selectedTemplate?.manufacturer ?? null"
-              :rack-name="selectedRackContents?.rack_name ?? null"
-              @reset="resetCreationMode"
-            />
-
-            <!-- Template-Auswahl (bei allen Modi möglich, wenn noch kein Template gewählt) -->
-            <TemplatePickerSection
-              v-if="!isAddBatchMode && creationMode && !isFromTemplate && !isFromRackContents"
-              :search="templateSearch"
-              :show-dropdown="showTemplateDropdown"
-              :filtered-templates="filteredTemplateList"
-              :show-rack-picker="creationMode === 'physical_combo' || creationMode === 'virtual_combo'"
-              :rack-id="rackContentsRackId"
-              :storage-racks="storageRacks"
-              :is-loading-rack-contents="isLoadingRackContents"
-              :selected-rack-contents="selectedRackContents"
-              @update:search="templateSearch = $event"
-              @focus="showTemplateDropdown = true; searchTemplates()"
-              @blur="hideTemplateDropdownDelayed"
-              @select="selectTemplate"
-              @update:rack-id="onRackIdChange"
-              @load-rack-contents="loadRackContents"
-            />
-
-            <!-- Step: Allgemeine Informationen (sichtbar wenn Modus gewählt) -->
+            <!-- Step: Allgemeine Informationen (sichtbar wenn Modus gewählt); Banner + Vorlage innerhalb des Schritts -->
             <div v-if="!isAddBatchMode && creationMode" class="step-section" data-step="general">
               <div class="step-header step-header--clickable" @click="toggleStep('general')">
                 <span class="step-title">{{ creationMode === 'virtual_combo' ? 'Kombination definieren' : 'Allgemeine Informationen' }}</span>
@@ -137,6 +108,35 @@
               </div>
               
               <div v-show="isStepOpen('general')" class="step-content">
+                <!-- Modus-Banner (wenn Modus gewählt) -->
+                <SelectedModeBanner
+                  v-if="!isAddBatchMode && creationMode"
+                  :creation-mode="creationMode"
+                  :template-name="selectedTemplate?.name ?? null"
+                  :template-manufacturer="selectedTemplate?.manufacturer ?? null"
+                  :inventory-source-label="selectedContainerBatchContents?.container_label ?? null"
+                  @reset="resetWizardForModeChange"
+                />
+
+                <!-- Template-Auswahl (bei allen Modi möglich, wenn noch kein Template gewählt) -->
+                <TemplatePickerSection
+                  v-if="!isAddBatchMode && creationMode && !isFromTemplate && !isFromContainerBatchContents"
+                  :search="templateSearch"
+                  :show-dropdown="showTemplateDropdown"
+                  :filtered-templates="filteredTemplateList"
+                  :show-container-batch-picker="creationMode === 'physical_combo' || creationMode === 'virtual_combo'"
+                  :container-batch-id="containerContentsBatchId"
+                  :container-batches="containerBatches"
+                  :is-loading-container-contents="isLoadingContainerContents"
+                  :selected-container-contents="selectedContainerBatchContents"
+                  @update:search="templateSearch = $event"
+                  @focus="showTemplateDropdown = true; searchTemplates()"
+                  @blur="hideTemplateDropdownDelayed"
+                  @select="selectTemplate"
+                  @update:container-batch-id="onContainerBatchIdForContentsChange"
+                  @load-container-contents="loadContainerBatchContents"
+                />
+
                 <!-- Virtuelle Kombo: Name + Reservation -->
                 <div v-if="creationMode === 'virtual_combo'" class="virtual-combo-fields">
                   <MaterialNameInput
@@ -204,7 +204,6 @@
                   @blur="handleNameInputBlur"
                   @select-suggestion="selectNameSuggestion"
                 />
-
                 <!-- Slider-Toggles (nicht bei Vorlage) -->
                 <MaterialTypeToggles
                   v-if="!isFromTemplate"
@@ -220,49 +219,47 @@
               </div>
             </div>
 
-            <!-- Kategorie (nur bei Einzelartikel ohne Vorlage, wenn Name eingegeben) -->
-            <div v-if="!isAddBatchMode && !isFromTemplate && creationMode === 'individual' && formData.name && !nameExists" class="step-section" data-step="category">
+            <!-- Kategorie (Einzelartikel ohne Vorlage; sichtbar sobald Name eingegeben — Duplikat-Check läuft parallel) -->
+            <div v-if="!isAddBatchMode && !isFromTemplate && creationMode === 'individual' && formData.name.trim()" class="step-section" data-step="category">
               <div class="step-header step-header--clickable" @click="toggleStep('category')">
                 <span class="step-title">Kategorie</span>
                 <span class="step-chevron" :class="{ open: isStepOpen('category') }">▾</span>
               </div>
               
               <div v-show="isStepOpen('category')" class="step-content">
+                <div
+                  v-if="nameExists && duplicateNameMaterial && !isAddBatchMode"
+                  class="name-duplicate-hint"
+                >
+                  <p class="name-duplicate-hint__text">
+                    Dieser Artikelname existiert bereits. Du kannst beim bestehenden Material <strong>Bestand / eine Charge</strong> erfassen oder die Detailansicht öffnen.
+                  </p>
+                  <div class="name-duplicate-hint__actions">
+                    <button type="button" class="btn-secondary btn-sm" @click="selectNameSuggestion(duplicateNameMaterial)">
+                      Bestand hinzufügen
+                    </button>
+                    <RouterLink
+                      class="btn-secondary btn-sm name-duplicate-hint__link"
+                      :to="`/${departmentId}/materials/${duplicateNameMaterial.id}`"
+                    >
+                      Zum Material
+                    </RouterLink>
+                  </div>
+                </div>
                 <div class="form-group">
                   <label>Kategorie auswählen</label>
-                  <div class="autocomplete-wrapper">
+                  <div ref="categoryAutocompleteRef" class="autocomplete-wrapper">
                     <input 
                       v-model="categorySearch" 
                       type="text" 
                       class="form-input"
                       placeholder="Kategorie suchen oder auswählen..."
                       @input="searchCategories"
-                      @focus="showCategoryDropdown = true; searchCategories()"
+                      @focus="onCategoryInputFocus"
                       @blur="hideCategoryDropdownDelayed"
+                      @keydown="onCategorySearchKeydown"
                     />
                     <button type="button" class="add-inline-btn" @click="openAddCategoryModal" title="Neue Kategorie hinzufügen">+</button>
-                    <div v-if="showCategoryDropdown && categorySearch.length >= 0" class="autocomplete-dropdown category-dropdown">
-                      <div 
-                        v-for="cat in filteredCategories" 
-                        :key="cat.id"
-                        class="autocomplete-item"
-                        :class="{ 'is-child': cat.parent_id }"
-                        @mousedown="selectCategory(cat)"
-                      >
-                        <span class="item-name">
-                          <span v-if="cat.parent_id" class="cat-indent">└ </span>{{ cat.name }}
-                        </span>
-                        <span class="item-count">{{ cat.material_count }} Artikel</span>
-                      </div>
-                      <!-- Keine Ergebnisse → Neu erstellen -->
-                      <div 
-                        v-if="filteredCategories.length === 0 && categorySearch.length >= 2" 
-                        class="autocomplete-item create-new"
-                        @mousedown="openAddCategoryModal"
-                      >
-                        <span class="item-name">+ "{{ categorySearch }}" als Kategorie anlegen</span>
-                      </div>
-                    </div>
                   </div>
                   <p v-if="selectedCategory" class="selected-address">
                     ✓ {{ getCategoryPath(selectedCategory) }}
@@ -272,8 +269,62 @@
               </div>
             </div>
 
+            <!-- Bestandsverfolgung (Einzelartikel ohne Vorlage — direkt nach Kategorie, erst wenn Kategorie gewählt) -->
+            <div
+              v-if="!isAddBatchMode && !isFromTemplate && creationMode === 'individual' && formData.material_type === 'physical' && !formData.is_food && formData.category_id"
+              class="step-section"
+              data-step="tracking"
+            >
+              <div class="step-header step-header--clickable" @click="toggleStep('tracking')">
+                <span class="step-title">Wie wird der Lagerbestand verfolgt?</span>
+                <span class="step-chevron" :class="{ open: isStepOpen('tracking') }">▾</span>
+              </div>
+
+              <div v-show="isStepOpen('tracking')" class="step-content">
+                <div class="tracking-options">
+                  <button
+                    :class="['tracking-option', { active: formData.tracking_type === 'serialized' }]"
+                    :disabled="formData.is_food"
+                    type="button"
+                    @click="selectTrackingType('serialized')"
+                  >
+                    <div class="tracking-icon">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+                        <line x1="16" y1="2" x2="16" y2="6"/>
+                        <line x1="8" y1="2" x2="8" y2="6"/>
+                        <line x1="3" y1="10" x2="21" y2="10"/>
+                      </svg>
+                    </div>
+                    <div class="tracking-text">
+                      <span class="tracking-name">Serialisiert</span>
+                      <span class="tracking-desc">
+                        {{ formData.is_food ? 'Für Esswaren deaktiviert' : 'Einzeln verfolgen (z.B. mit Seriennummern)' }}
+                      </span>
+                    </div>
+                  </button>
+
+                  <button
+                    :class="['tracking-option', { active: formData.tracking_type === 'bulk' }]"
+                    type="button"
+                    @click="selectTrackingType('bulk')"
+                  >
+                    <div class="tracking-icon">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
+                      </svg>
+                    </div>
+                    <div class="tracking-text">
+                      <span class="tracking-name">Massenartikel</span>
+                      <span class="tracking-desc">Nach Gesamtmenge verfolgen</span>
+                    </div>
+                  </button>
+                </div>
+              </div>
+            </div>
+
             <!-- ========== TEMPLATE-MODUS: Komponenten-Eingabe ========== -->
-            <div v-if="((isFromTemplate && selectedTemplate) || (isFromRackContents && selectedRackContents)) && creationMode && (creationMode === 'individual' || (formData.name && !nameExists))" class="step-section" data-step="template_components">
+            <div v-if="((isFromTemplate && selectedTemplate) || (isFromContainerBatchContents && selectedContainerBatchContents)) && creationMode && (creationMode === 'individual' || (formData.name && !nameExists))" class="step-section" data-step="template_components">
               <div class="step-header step-header--clickable" @click="toggleStep('template_components')">
                 <span class="step-title">Komponenten</span>
                 <span class="step-badge">{{ componentInputs.length }} Teile</span>
@@ -574,8 +625,8 @@
               </div>
             </div>
 
-            <!-- ========== TEMPLATE-MODUS: Kauf-Details ========== -->
-            <div v-if="isFromTemplate && selectedTemplate && creationMode && (creationMode === 'individual' || (formData.name && !nameExists))" class="step-section" data-step="template_purchase">
+            <!-- ========== TEMPLATE ODER COMBO AUS KISTE: Kauf & Lagerung (nach Komponenten) ========== -->
+            <div v-if="showTemplatePurchaseStep" class="step-section" data-step="template_purchase">
               <div class="step-header step-header--clickable" @click="toggleStep('template_purchase')">
                 <span class="step-title">Kauf &amp; Lagerung</span>
                 <span class="step-chevron" :class="{ open: isStepOpen('template_purchase') }">▾</span>
@@ -598,42 +649,106 @@
                       </svg>
                     </button>
                   </div>
-                  <div class="autocomplete-wrapper">
-                    <input
-                      v-model="formData.location_rack"
-                      type="text"
-                      class="form-input"
-                      placeholder="Gestell (z.B. Holzgestell)"
-                      @input="searchRackCategories"
-                      @focus="showRackDropdown = true; searchRackCategories()"
-                      @blur="hideRackDropdownDelayed"
-                    />
-                    <button type="button" class="add-inline-btn" @click="addRackCategory" title="Gestell-Kategorie unter Standort hinzufügen">+</button>
-                    <div v-if="showRackDropdown" class="autocomplete-dropdown">
-                      <div
-                        v-for="rack in filteredRackOptions"
-                        :key="rack.id"
-                        class="autocomplete-item"
-                        @mousedown="selectRackCategory(rack)"
-                      >
-                        <span class="item-name">{{ rack.name }}</span>
-                      </div>
-                      <div
-                        v-if="filteredRackOptions.length === 0 && formData.location_rack.trim().length >= 2"
-                        class="autocomplete-item create-new"
-                        @mousedown="addRackCategory"
-                      >
-                        <span class="item-name">+ "{{ formData.location_rack.trim() }}" als Gestell anlegen</span>
+                  <template v-if="creationMode === 'individual'">
+                    <div class="autocomplete-wrapper">
+                      <input
+                        v-model="formData.location_rack"
+                        type="text"
+                        class="form-input"
+                        placeholder="Gestell (z.B. Holzgestell)"
+                        @input="searchRackCategories"
+                        @focus="showRackDropdown = true; searchRackCategories()"
+                        @blur="hideRackDropdownDelayed"
+                      />
+                      <button type="button" class="add-inline-btn" @click="addRackCategory" title="Gestell-Kategorie unter Standort hinzufügen">+</button>
+                      <div v-if="showRackDropdown" class="autocomplete-dropdown">
+                        <div
+                          v-for="rack in filteredRackOptions"
+                          :key="rack.id"
+                          class="autocomplete-item"
+                          @mousedown="selectRackCategory(rack)"
+                        >
+                          <span class="item-name">{{ rack.name }}</span>
+                        </div>
+                        <div
+                          v-if="filteredRackOptions.length === 0 && formData.location_rack.trim().length >= 2"
+                          class="autocomplete-item create-new"
+                          @mousedown="addRackCategory"
+                        >
+                          <span class="item-name">+ "{{ formData.location_rack.trim() }}" als Gestell anlegen</span>
+                        </div>
                       </div>
                     </div>
+                    <input
+                      v-model="formData.location_slot"
+                      type="text"
+                      class="form-input"
+                      placeholder="Platz/Fach (z.B. B3)"
+                    />
+                    <p class="field-hint">Optional: Freitext Gestell/Platz für Start-Batches der Einzelartikel</p>
+                  </template>
+
+                  <div v-if="creationMode === 'physical_combo'" class="form-group physical-combo-main-storage">
+                    <label class="form-label-sm">Hauptlagerplatz der Kombination *</label>
+                    <p class="field-hint">
+                      Physische Kombinationen sind ein konkretes Set – bitte Gestell/Fach <strong>oder</strong> Kiste wählen.
+                    </p>
+                    <div class="stock-location-mode mb-2">
+                      <div class="lagerung-switch" role="tablist">
+                        <button
+                          type="button"
+                          class="lagerung-btn"
+                          :class="{ active: formData.stock_location_mode === 'slot' }"
+                          @click="formData.stock_location_mode = 'slot'; formData.stock_container_batch_id = ''"
+                        >
+                          Gestell/Fach
+                        </button>
+                        <button
+                          type="button"
+                          class="lagerung-btn"
+                          :class="{ active: formData.stock_location_mode === 'kiste' }"
+                          @click="formData.stock_location_mode = 'kiste'; formData.rack_id = ''; formData.slot_id = ''; formData.location_rack = ''; formData.location_slot = ''"
+                        >
+                          Kiste/Tasche
+                        </button>
+                      </div>
+                    </div>
+                    <template v-if="formData.stock_location_mode === 'slot'">
+                      <StorageLocationPicker
+                        variant="compact"
+                        class="material-wizard-storage-picker"
+                        :rack-id="String(formData.rack_id || '')"
+                        :slot-id="String(formData.slot_id || '')"
+                        :racks="storageRacks"
+                        :slot-list="storageSlots"
+                        :show-empty-slot-hint="true"
+                        rack-label="Gestell"
+                        slot-label="Fach"
+                        rack-placeholder="– Gestell wählen –"
+                        slot-placeholder="– Fach wählen –"
+                        @update:rackId="onStorageLocationRackUpdate"
+                        @update:slotId="(v) => (formData.slot_id = String(v ?? ''))"
+                      />
+                    </template>
+                    <template v-else>
+                      <select
+                        v-model="formData.stock_container_batch_id"
+                        class="form-select"
+                        @mouseenter="prefetchContainerPreviews()"
+                        :title="getContainerPreviewTitle(formData.stock_container_batch_id)"
+                      >
+                        <option value="">– Kiste wählen –</option>
+                        <option
+                          v-for="cb in containerBatches"
+                          :key="cb.id"
+                          :value="cb.id"
+                          :title="getContainerPreviewTitle(cb.id)"
+                        >
+                          {{ formatContainerBatchOption(cb) }}
+                        </option>
+                      </select>
+                    </template>
                   </div>
-                  <input
-                    v-model="formData.location_slot"
-                    type="text"
-                    class="form-input"
-                    placeholder="Platz/Fach (z.B. B3)"
-                  />
-                  <p class="field-hint">Optional: strukturierter Lagerplatz pro Start-Batch (Gestell + Platz/Fach)</p>
                 </div>
 
                 <div class="form-row">
@@ -719,116 +834,8 @@
               </div>
             </div>
 
-            <!-- Material-Typ (nur bei Einzelartikel ohne Vorlage, wenn Kategorie gewählt) -->
-            <div v-if="!isAddBatchMode && !isFromTemplate && creationMode === 'individual' && !formData.is_food && formData.name && !nameExists && formData.category_id" class="step-section" data-step="material_type">
-              <div class="step-header step-header--clickable" @click="toggleStep('material_type')">
-                <span class="step-title">Was für ein Material ist das?</span>
-                <span class="step-chevron" :class="{ open: isStepOpen('material_type') }">▾</span>
-              </div>
-              
-              <div v-show="isStepOpen('material_type')" class="step-content">
-                <div class="type-options">
-                  <button 
-                    :class="['type-option', { active: formData.material_type === 'physical' }]"
-                    @click="selectMaterialType('physical')"
-                  >
-                    <div class="type-icon physical">
-                      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
-                      </svg>
-                    </div>
-                    <div class="type-text">
-                      <span class="type-name">Physischer Artikel</span>
-                      <span class="type-desc">Individuelles, eigenständiges Material</span>
-                    </div>
-                  </button>
-
-                  <button 
-                    :class="['type-option', { active: formData.material_type === 'physical_combo' }]"
-                    @click="selectMaterialType('physical_combo')"
-                  >
-                    <div class="type-icon combo">
-                      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <rect x="2" y="7" width="20" height="14" rx="2" ry="2"/>
-                        <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/>
-                      </svg>
-                    </div>
-                    <div class="type-text">
-                      <span class="type-name">Physische Kombination</span>
-                      <span class="type-desc">Kiste mit Inhalt, zusammen vermietet</span>
-                    </div>
-                  </button>
-
-                  <button 
-                    :class="['type-option', { active: formData.material_type === 'virtual_combo' }]"
-                    @click="selectMaterialType('virtual_combo')"
-                  >
-                    <div class="type-icon virtual">
-                      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
-                        <line x1="8" y1="21" x2="16" y2="21"/>
-                        <line x1="12" y1="17" x2="12" y2="21"/>
-                      </svg>
-                    </div>
-                    <div class="type-text">
-                      <span class="type-name">Virtuelle Kombination</span>
-                      <span class="type-desc">Für Planung zusammengefasst, nicht physisch gelagert</span>
-                    </div>
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            <!-- Bestandsverfolgung (nur bei physical Einzelartikel ohne Vorlage) -->
-            <div v-if="!isAddBatchMode && !isFromTemplate && creationMode === 'individual' && formData.material_type === 'physical' && !formData.is_food" class="step-section" data-step="tracking">
-              <div class="step-header step-header--clickable" @click="toggleStep('tracking')">
-                <span class="step-title">Wie wird der Lagerbestand verfolgt?</span>
-                <span class="step-chevron" :class="{ open: isStepOpen('tracking') }">▾</span>
-              </div>
-              
-              <div v-show="isStepOpen('tracking')" class="step-content">
-                <div class="tracking-options">
-                  <button 
-                    :class="['tracking-option', { active: formData.tracking_type === 'serialized' }]"
-                    :disabled="formData.is_food"
-                    @click="!formData.is_food && (formData.tracking_type = 'serialized')"
-                  >
-                    <div class="tracking-icon">
-                      <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
-                        <line x1="16" y1="2" x2="16" y2="6"/>
-                        <line x1="8" y1="2" x2="8" y2="6"/>
-                        <line x1="3" y1="10" x2="21" y2="10"/>
-                      </svg>
-                    </div>
-                    <div class="tracking-text">
-                      <span class="tracking-name">Serialisiert</span>
-                      <span class="tracking-desc">
-                        {{ formData.is_food ? 'Für Esswaren deaktiviert' : 'Einzeln verfolgen (z.B. mit Seriennummern)' }}
-                      </span>
-                    </div>
-                  </button>
-
-                  <button 
-                    :class="['tracking-option', { active: formData.tracking_type === 'bulk' }]"
-                    @click="formData.tracking_type = 'bulk'"
-                  >
-                    <div class="tracking-icon">
-                      <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
-                      </svg>
-                    </div>
-                    <div class="tracking-text">
-                      <span class="tracking-name">Massenartikel</span>
-                      <span class="tracking-desc">Nach Gesamtmenge verfolgen</span>
-                    </div>
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            <!-- Step 4: Kombinations-Artikel (bei physical_combo oder virtual_combo, NICHT im Batch-Modus, NICHT Template) -->
-            <div v-if="!isAddBatchMode && !isFromTemplate && (formData.material_type === 'physical_combo' || formData.material_type === 'virtual_combo') && formData.name && !nameExists" class="step-section" data-step="combo_articles">
+            <!-- Step 4: Kombinations-Artikel — erst sichtbar, wenn der Kombinationsname gesetzt und frei ist (gewollte Reihenfolge) -->
+            <div v-if="!isAddBatchMode && !isFromTemplate && (formData.material_type === 'physical_combo' || formData.material_type === 'virtual_combo') && formData.name.trim() && !nameExists" class="step-section" data-step="combo_articles">
               <div class="step-header step-header--clickable" @click="toggleStep('combo_articles')">
                 <span class="step-title">Welche Artikel enthält diese Kombination?</span>
                 <span class="step-chevron" :class="{ open: isStepOpen('combo_articles') }">▾</span>
@@ -843,10 +850,10 @@
                     v-model="comboMaterialSearch" 
                     type="text" 
                     class="form-input"
-                    placeholder="Material suchen (min. 3 Zeichen)..."
+                    placeholder="Material suchen (min. 1 Zeichen, zentrale Suche)..."
                     @input="searchComboMaterials"
                   />
-                  <div v-if="comboMaterialSearch.length >= 3 && filteredComboMaterials.length > 0" class="combo-dropdown">
+                  <div v-if="comboMaterialSearch.trim().length >= 1 && filteredComboMaterials.length > 0" class="combo-dropdown">
                     <div 
                       v-for="mat in filteredComboMaterials" 
                       :key="mat.id"
@@ -860,7 +867,7 @@
                       <span class="combo-item-stock">{{ mat.total_stock }} Stk.</span>
                     </div>
                   </div>
-                  <div v-else-if="comboMaterialSearch.length >= 3 && filteredComboMaterials.length === 0" class="combo-dropdown">
+                  <div v-else-if="comboMaterialSearch.trim().length >= 1 && filteredComboMaterials.length === 0" class="combo-dropdown">
                     <div class="combo-empty">Keine Materialien gefunden</div>
                   </div>
                 </div>
@@ -902,7 +909,7 @@
             <!-- Batch Formular: Im Batch-Modus ODER bei physical Einzelartikel ohne Vorlage mit tracking -->
             <div v-if="isAddBatchMode || (!isFromTemplate && creationMode === 'individual' && formData.material_type === 'physical' && formData.tracking_type)" class="step-section" data-step="stock">
               <div class="step-header step-header--clickable" @click="toggleStep('stock')">
-                <span class="step-title">{{ isAddBatchMode ? 'Neuer Bestand' : 'Initialer Bestand' }}</span>
+                <span class="step-title">{{ isAddBatchMode ? 'Neue Charge' : 'Initialer Bestand' }}</span>
                 <span class="step-chevron" :class="{ open: isStepOpen('stock') }">▾</span>
               </div>
               
@@ -1044,7 +1051,7 @@
                                 <select
                                   v-model="row.rack_id"
                                   class="form-select form-select--sm"
-                                  @change="row.slot_id = ''; loadSlotsForRack(row.rack_id)"
+                                  @change="row.slot_id = ''; void loadSlotsForRack(String(row.rack_id ?? ''))"
                                   @mouseenter="prefetchRackPreview(row.rack_id)"
                                   :title="getRackPreviewTitle(row.rack_id)"
                                 >
@@ -1052,7 +1059,7 @@
                                   <option
                                     v-for="r in getRacksForAllocationRow(row)"
                                     :key="r.id"
-                                    :value="r.id"
+                                    :value="String(r.id)"
                                     :title="getRackPreviewTitle(r.id)"
                                   >
                                     {{ r.name }}
@@ -1068,9 +1075,9 @@
                                 >
                                   <option value="" disabled>– Fach wählen –</option>
                                   <option
-                                    v-for="s in (row.rack_id ? (slotsByRackId[row.rack_id] || []) : [])"
+                                    v-for="s in (row.rack_id ? (slotsByRackId[String(row.rack_id)] || []) : [])"
                                     :key="s.id"
-                                    :value="s.id"
+                                    :value="String(s.id)"
                                     :title="getSlotPreviewTitle(row.rack_id, s.id)"
                                   >
                                     {{ formatSlotOptionLabel(row.rack_id, s) }}
@@ -1134,17 +1141,19 @@
                     </div>
                     <template v-if="formData.stock_location_mode === 'slot'">
                       <StorageLocationPicker
-                        :rack-id="formData.rack_id"
-                        :slot-id="formData.slot_id"
+                        variant="compact"
+                        class="material-wizard-storage-picker"
+                        :rack-id="String(formData.rack_id || '')"
+                        :slot-id="String(formData.slot_id || '')"
                         :racks="storageRacks"
-                        :slots="storageSlots"
+                        :slot-list="storageSlots"
+                        :show-empty-slot-hint="true"
                         rack-label="Gestell"
                         slot-label="Fach"
                         rack-placeholder="– Gestell wählen –"
                         slot-placeholder="– Fach wählen –"
-                        @update:rackId="formData.rack_id = $event"
-                        @rackChange="onStockRackChange"
-                        @update:slotId="formData.slot_id = $event"
+                        @update:rackId="onStorageLocationRackUpdate"
+                        @update:slotId="(v) => (formData.slot_id = String(v ?? ''))"
                       />
                     </template>
                     <template v-else>
@@ -1302,7 +1311,7 @@
                                 <option
                                   v-for="rack in getRacksForSerialEntry(entry)"
                                   :key="rack.id"
-                                  :value="rack.id"
+                                  :value="String(rack.id)"
                                   :title="getRackPreviewTitle(rack.id)"
                                 >
                                   {{ rack.name }}
@@ -1318,9 +1327,9 @@
                               >
                                 <option value="" disabled>– Fach –</option>
                                 <option
-                                  v-for="slot in (entry.rack_id ? (slotsByRackId[entry.rack_id] || []) : [])"
+                                  v-for="slot in (entry.rack_id ? (slotsByRackId[String(entry.rack_id)] || []) : [])"
                                   :key="slot.id"
-                                  :value="slot.id"
+                                  :value="String(slot.id)"
                                   :title="getSlotPreviewTitle(entry.rack_id, slot.id)"
                                 >
                                   {{ formatSlotOptionLabel(entry.rack_id, slot) }}
@@ -1578,8 +1587,8 @@
               </div>
             </div>
 
-            <!-- Details & Vermietung (optional) – wie in MaterialDetailView -->
-            <div v-if="!isAddBatchMode && !isFromTemplate && creationMode && ((formData.material_type === 'physical' && formData.tracking_type) || formData.material_type === 'physical_combo' || formData.material_type === 'virtual_combo')" class="step-section" data-step="details">
+            <!-- Details & Vermietung (optional) – bei Kombi erst nach gültigem Namen (gleiche Stufe wie Materialwahl) -->
+            <div v-if="!isAddBatchMode && !isFromTemplate && creationMode && ((formData.material_type === 'physical' && formData.tracking_type) || ((formData.material_type === 'physical_combo' || formData.material_type === 'virtual_combo') && formData.name.trim() && !nameExists))" class="step-section" data-step="details">
               <div class="step-header step-header--clickable" @click="toggleStep('details')">
                 <span class="step-title">Details &amp; Vermietung</span>
                 <span class="step-badge optional">Optional</span>
@@ -1771,16 +1780,77 @@
       @close="showCategoryModal = false"
       @saved="handleCategorySaved"
     />
+
+    <!-- Kategorie-Dropdown: zweites Kind desselben Teleports (unter body, nach Overlay), damit nichts abgeschnitten wird -->
+    <div
+      v-if="showDialog && showCategoryDropdown"
+      class="autocomplete-dropdown category-dropdown material-wizard-category-dropdown-portal"
+      :style="categoryDropdownFixedStyle"
+      role="listbox"
+    >
+      <template v-if="allCategories.length === 0">
+        <div class="autocomplete-item autocomplete-empty">
+          <span class="item-name">Noch keine Kategorien – mit „+“ eine anlegen</span>
+        </div>
+      </template>
+      <template v-else>
+        <div
+          v-for="cat in filteredCategories"
+          :key="cat.id"
+          class="autocomplete-item"
+          :class="{ 'is-child': cat.parent_id }"
+          @mousedown.prevent="selectCategory(cat)"
+        >
+          <span class="item-name">
+            <span v-if="cat.parent_id" class="cat-indent">└ </span>{{ cat.name }}
+          </span>
+          <span class="item-count">{{ cat.material_count }} Artikel</span>
+        </div>
+        <div
+          v-if="filteredCategories.length === 0 && categorySearch.trim().length > 0 && categorySearch.trim().length < 2"
+          class="autocomplete-item autocomplete-empty"
+        >
+          <span class="item-name">Weiter tippen (mind. 2 Zeichen) oder unten neue Kategorie…</span>
+        </div>
+        <div
+          v-if="filteredCategories.length === 0 && categorySearch.trim().length >= 2"
+          class="autocomplete-item create-new"
+          @mousedown.prevent="openAddCategoryModal"
+        >
+          <span class="item-name">+ "{{ categorySearch }}" als Kategorie anlegen</span>
+        </div>
+      </template>
+    </div>
   </Teleport>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, watch, onMounted, nextTick } from 'vue'
-import { createMaterial, getMaterials, getMaterial, addBatch, createComboFromRack, type CreateMaterialRequest, type AddBatchRequest } from '@/api/materials'
+import { ref, reactive, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
+import { RouterLink } from 'vue-router'
+import {
+  createMaterial,
+  getMaterials,
+  getMaterial,
+  addBatch,
+  createComboFromContainerBatch,
+  type CreateMaterialRequest,
+  type AddBatchRequest,
+  type CreateComboFromContainerBatchRequest,
+} from '@/api/materials'
 import { getAddresses, type Address } from '@/api/addresses'
 import { getGlobalAddresses } from '@/api/globalAddresses'
 import { createCategory, getCategories, type Category } from '@/api/categories'
-import { createStorageRack, createStorageSlot, getStorageRacks, getStorageSlots, getRackContents, getStorageOverview, getContainerBatches, type StorageRack, type StorageSlot, type StorageOverviewResponse } from '@/api/storageLocations'
+import {
+  createStorageRack,
+  getRackContents,
+  getStorageOverview,
+  getContainerBatchContents,
+  getContainerBatches,
+  type StorageRack,
+  type StorageSlot,
+  type StorageOverviewResponse,
+  type ContainerBatchContentsResponse,
+} from '@/api/storageLocations'
 import { getTemplates, getTemplate, createMaterialFromTemplate, type Template, type TemplateComponent, type CreateMaterialComponentInput } from '@/api/templates'
 import { useToast } from '@/composables/useToast'
 import AddressModal from '@/components/AddressModal.vue'
@@ -1794,12 +1864,23 @@ import MaterialNameInput from '@/components/material/wizard/MaterialNameInput.vu
 import MaterialTypeToggles from '@/components/material/wizard/MaterialTypeToggles.vue'
 import StorageLocationPicker from '@/components/storage/StorageLocationPicker.vue'
 import { createBasicMaterialLookupFetcher } from '@/composables/useMaterialLookup'
+import { useStorageStructure } from '@/composables/useStorageStructure'
 import '@/styles/material-wizard.css'
 
 const props = defineProps<{
   departmentId: string
   modelValue: boolean
 }>()
+
+/** Zentrale Lagerstruktur: Gestelle + Fächer (gleiche Quelle wie BatchModal, Activities, …) */
+const {
+  slotsByRackId,
+  loadSlotsEnsuringDefault,
+  loadRacks,
+  racks: racksFromStructure,
+} = useStorageStructure(
+  () => props.departmentId
+)
 
 const emit = defineEmits<{
   'update:modelValue': [value: boolean]
@@ -1810,6 +1891,17 @@ const toast = useToast()
 const GLOBAL_SUPPLIER_DEPARTMENT_ID = 'GLOBAL000000'
 const articleNameInputRef = ref<HTMLInputElement | null>(null)
 const wizardFormRef = ref<HTMLElement | null>(null)
+const categoryAutocompleteRef = ref<HTMLElement | null>(null)
+/** Fixed-Position unterhalb des Feldes (Teleport zu body), damit nichts vom Wizard-Scroll abgeschnitten wird */
+const categoryDropdownFixedStyle = ref<Record<string, string>>({
+  position: 'fixed',
+  top: '0px',
+  left: '0px',
+  width: '0px',
+  zIndex: '99999',
+})
+let categoryDropdownPositionListenersBound = false
+let categoryPositionHandler: (() => void) | null = null
 let openInitRunId = 0
 
 const showDialog = computed({
@@ -1823,11 +1915,16 @@ const isSubmitting = ref(false)
 const createAnother = ref(false)
 const isCheckingName = ref(false)
 const nameExists = ref(false)
+/** Treffer mit exakt gleichem Namen (für Link + „Bestand hinzufügen“) */
+const duplicateNameMaterial = ref<any | null>(null)
 const nameSuggestions = ref<any[]>([])
 const showNameSuggestions = ref(false)
 const isNameInputFocused = ref(false)
 let nameCheckTimeout: ReturnType<typeof setTimeout> | null = null
 const materialNameLookupFetcher = createBasicMaterialLookupFetcher(() => props.departmentId)
+/** Mindestzeichen, bevor die Artikel-Dropdown-Suche läuft */
+const NAME_SUGGEST_MIN_CHARS = 2
+const NAME_SUGGEST_LIMIT = 10
 
 // Modus: neues Material erstellen oder Batch zu bestehendem hinzufügen
 const isAddBatchMode = ref(false)
@@ -1848,8 +1945,8 @@ const filteredCategories = ref<Category[]>([])
 const selectedCategory = ref<Category | null>(null)
 const showRackDropdown = ref(false)
 const filteredRackOptions = ref<StorageRack[]>([])
+/** Alle Regale der Abteilung (wird aus useStorageStructure.loadRacks gefüllt) */
 const allStorageRacks = ref<StorageRack[]>([])
-const storageRacks = ref<StorageRack[]>([])
 const storageSlots = ref<StorageSlot[]>([])
 const rackPreviewTitles = ref<Record<string, string>>({})
 const slotPreviewTitles = ref<Record<string, string>>({})
@@ -1868,7 +1965,6 @@ interface AllocationRow {
 }
 let allocationIdCounter = 0
 const initialAllocations = ref<AllocationRow[]>([])
-const slotsByRackId = ref<Record<string, StorageSlot[]>>({})
 const containerBatches = ref<import('../api/storageLocations').ContainerBatch[]>([])
 
 function normalizeAllocationRowsToTotal() {
@@ -1885,6 +1981,26 @@ function normalizeAllocationRowsToTotal() {
     ...row,
     qty: Math.max(0, Number(row.qty || 0)),
   }))
+  // Eine Zeile mit Menge < Soll: nicht die erste Zeile auf die volle Sollmenge hochziehen,
+  // sondern eine zweite Zeile mit dem Rest (entspricht „+ Zeile hinzufügen“ mit Restmenge).
+  if (sanitizedRows.length === 1) {
+    const q0 = sanitizedRows[0].qty
+    if (q0 > 0 && q0 < formData.initial_qty) {
+      initialAllocations.value = [
+        sanitizedRows[0],
+        {
+          id: ++allocationIdCounter,
+          mode: 'slot',
+          storage_address_id: getPreferredStorageAddressId(),
+          rack_id: '',
+          slot_id: '',
+          container_batch_id: '',
+          qty: formData.initial_qty - q0,
+        },
+      ]
+      return
+    }
+  }
   const sumBeforeLast = sanitizedRows
     .slice(0, -1)
     .reduce((sum, row) => sum + row.qty, 0)
@@ -1912,22 +2028,28 @@ function removeAllocationRow(id: number) {
   normalizeAllocationRowsToTotal()
 }
 
-async function loadSlotsForRack(rackId: string) {
-  if (!rackId) return
-  if (slotsByRackId.value[rackId]) return
-  let slots = await getStorageSlots(rackId).catch(() => [])
-  if (slots.length === 0) {
-    const created = await createStorageSlot({
-      rack_id: rackId,
-      name: 'Fach 1',
-    }).catch(() => null)
-    if (created) {
-      slots = await getStorageSlots(rackId).catch(() => [])
-    }
+/** API/JSON kann IDs als Zahl liefern; <select> liefert Strings — vereinheitlichen für Vergleiche und v-model. */
+function normalizeStorageSlot(slot: StorageSlot): StorageSlot {
+  return {
+    ...slot,
+    id: String(slot.id),
+    rack_id: String(slot.rack_id),
   }
-  slotsByRackId.value[rackId] = slots
-  slotsByRackId.value = { ...slotsByRackId.value }
-  await prefetchSlotPreviewsForRack(rackId)
+}
+
+function normalizeStorageSlots(slots: StorageSlot[]): StorageSlot[] {
+  return slots.map(normalizeStorageSlot)
+}
+
+async function loadSlotsForRack(rackId: string): Promise<StorageSlot[]> {
+  const id = String(rackId ?? '').trim()
+  if (!id) return []
+  const raw = await loadSlotsEnsuringDefault(id).catch(() => [] as StorageSlot[])
+  const slots = normalizeStorageSlots(raw)
+  // String-IDs für <select>-Vergleiche (API kann Zahlen liefern)
+  slotsByRackId.value = { ...slotsByRackId.value, [id]: slots }
+  await prefetchSlotPreviewsForRack(id)
+  return slots
 }
 
 function getRacksForAllocationRow(row: AllocationRow): StorageRack[] {
@@ -1981,10 +2103,10 @@ const selectedComboMaterials = ref<Array<{ id: string; name: string; category?: 
 
 // ============ Template-Modus ============
 const isFromTemplate = ref(false)
-const isFromRackContents = ref(false)
-const rackContentsRackId = ref('')
-const selectedRackContents = ref<{ rack_id: string; rack_name: string; contents: Array<{ material_id: string; material_name: string; tracking_type: string | null; qty: number }> } | null>(null)
-const isLoadingRackContents = ref(false)
+const isFromContainerBatchContents = ref(false)
+const containerContentsBatchId = ref('')
+const selectedContainerBatchContents = ref<ContainerBatchContentsResponse | null>(null)
+const isLoadingContainerContents = ref(false)
 const selectedTemplate = ref<Template | null>(null)
 
 // Verpackungseinheit Toggle – setzt pack_size/pack_unit zurück wenn deaktiviert
@@ -2035,7 +2157,6 @@ type StepId =
   | 'template_components'
   | 'template_tent'
   | 'template_purchase'
-  | 'material_type'
   | 'tracking'
   | 'combo_articles'
   | 'details'
@@ -2043,6 +2164,8 @@ type StepId =
 
 const activeStep = ref<StepId | ''>('')
 const expandAllVisibleSteps = ref(true)
+/** true: nur ein Schritt aufgeklappt (manuell per Kopfzeile oder Fokus); false: Auto-Sync mit letztem Schritt. */
+const accordionUserControlled = ref(false)
 
 // Erstellungsmodus
 const creationMode = ref<'' | 'individual' | 'physical_combo' | 'virtual_combo'>('')
@@ -2105,6 +2228,22 @@ const formData = reactive({
   split_allocations: false,
   stock_location_mode: 'slot' as 'slot' | 'kiste',
   stock_container_batch_id: '' as string
+})
+
+/** Alle Regale der Abteilung aus der zentralen API aktualisieren */
+async function refreshDepartmentRacks(): Promise<void> {
+  await loadRacks().catch(() => [])
+  allStorageRacks.value = [...racksFromStructure.value]
+}
+
+/** Regale für gewählten Lagerstandort (ohne zweiten API-Call beim Wechsel) */
+const storageRacks = computed(() => {
+  const all = allStorageRacks.value
+  const addr = String(formData.storage_address_id ?? '').trim()
+  if (!addr) return all
+  return all.filter(
+    (rack) => String(rack.storage_address_id ?? '').trim() === addr
+  )
 })
 
 // Seriennummern für serialisierte Artikel
@@ -2182,7 +2321,7 @@ function saveWizardStockPrefs() {
 
 function applyWizardStockPrefs() {
   const prefs = loadWizardStockPrefs()
-  if (prefs.storage_address_id) formData.storage_address_id = prefs.storage_address_id
+  if (prefs.storage_address_id) formData.storage_address_id = String(prefs.storage_address_id)
   if (prefs.stock_location_mode === 'slot' || prefs.stock_location_mode === 'kiste') {
     formData.stock_location_mode = prefs.stock_location_mode
   }
@@ -2265,7 +2404,7 @@ function onSerialEntryStorageAddressChange(entry: SerialNumberEntry) {
 async function onSerialEntryRackChange(entry: SerialNumberEntry) {
   entry.slot_id = ''
   if (entry.rack_id) {
-    await loadSlotsForRack(entry.rack_id)
+    await loadSlotsForRack(String(entry.rack_id))
   }
 }
 
@@ -2412,12 +2551,12 @@ const storageAddressWithLocation = computed(() => {
   const addrName = storageAddressName.value
   if (!addrName) return null
   if (!formData.rack_id) return addrName
-  const rack = storageRacks.value.find((r) => r.id === formData.rack_id)
+  const rack = storageRacks.value.find((r) => String(r.id) === String(formData.rack_id))
   const rackName = rack?.name || ''
   if (!rackName) return addrName
   if (formData.slot_id) {
-    const slots = slotsByRackId.value[formData.rack_id] || []
-    const slot = slots.find((s) => s.id === formData.slot_id)
+    const slots = slotsByRackId.value[String(formData.rack_id)] || []
+    const slot = slots.find((s) => String(s.id) === String(formData.slot_id))
     if (slot?.name) return `${addrName} • ${rackName}, ${slot.name}`
   }
   return `${addrName} • ${rackName}`
@@ -2437,6 +2576,25 @@ const requiresPurchaseDate = computed(() => {
   return formData.initial_qty > 0
 })
 
+/** Nach Komponenten: „Kauf & Lagerung“ – nicht für virtuelle Kombis (nur Planung). */
+const showTemplatePurchaseStep = computed(() => {
+  if (!creationMode.value) return false
+  const nameReady =
+    creationMode.value === 'individual' || (!!formData.name.trim() && !nameExists.value)
+  if (!nameReady) return false
+  if (isFromTemplate.value && selectedTemplate.value) {
+    return creationMode.value === 'individual' || creationMode.value === 'physical_combo'
+  }
+  if (
+    isFromContainerBatchContents.value &&
+    selectedContainerBatchContents.value &&
+    creationMode.value === 'physical_combo'
+  ) {
+    return true
+  }
+  return false
+})
+
 const visibleStepIds = computed<StepId[]>(() => {
   const steps: StepId[] = []
 
@@ -2447,7 +2605,7 @@ const visibleStepIds = computed<StepId[]>(() => {
     steps.push('category')
   }
 
-  if ((isFromTemplate.value && selectedTemplate.value) || (isFromRackContents.value && selectedRackContents.value)) {
+  if ((isFromTemplate.value && selectedTemplate.value) || (isFromContainerBatchContents.value && selectedContainerBatchContents.value)) {
     if (creationMode.value && (creationMode.value === 'individual' || (formData.name && !nameExists.value))) {
       steps.push('template_components')
     }
@@ -2457,35 +2615,42 @@ const visibleStepIds = computed<StepId[]>(() => {
     steps.push('template_tent')
   }
 
-  if (isFromTemplate.value && selectedTemplate.value && creationMode.value && (creationMode.value === 'individual' || (formData.name && !nameExists.value))) {
+  if (showTemplatePurchaseStep.value) {
     steps.push('template_purchase')
-  }
-
-  if (!isAddBatchMode.value && !isFromTemplate.value && creationMode.value === 'individual' && !formData.is_food) {
-    steps.push('material_type')
-  }
-
-  if (!isAddBatchMode.value && !isFromTemplate.value && creationMode.value === 'individual' && formData.material_type === 'physical' && !formData.is_food) {
-    steps.push('tracking')
   }
 
   if (
     !isAddBatchMode.value &&
     !isFromTemplate.value &&
-    !isFromRackContents.value &&
-    (formData.material_type === 'physical_combo' || formData.material_type === 'virtual_combo')
+    creationMode.value === 'individual' &&
+    formData.material_type === 'physical' &&
+    !formData.is_food &&
+    !!formData.category_id
+  ) {
+    steps.push('tracking')
+  }
+
+  const comboNameReady =
+    !!formData.name.trim() && !nameExists.value
+
+  if (
+    !isAddBatchMode.value &&
+    !isFromTemplate.value &&
+    !isFromContainerBatchContents.value &&
+    (formData.material_type === 'physical_combo' || formData.material_type === 'virtual_combo') &&
+    comboNameReady
   ) {
     steps.push('combo_articles')
   }
 
-  // Details & Vermietung (optional) – vor Stock, wenn Material-Typ feststeht
+  // Details & Vermietung (optional) – vor Stock, wenn Material-Typ feststeht; bei Kombi wie Materialwahl erst nach Namen
   if (
     !isAddBatchMode.value &&
     !isFromTemplate.value &&
     creationMode.value &&
     ((formData.material_type === 'physical' && formData.tracking_type) ||
-      formData.material_type === 'physical_combo' ||
-      formData.material_type === 'virtual_combo')
+      ((formData.material_type === 'physical_combo' || formData.material_type === 'virtual_combo') &&
+        comboNameReady))
   ) {
     steps.push('details')
   }
@@ -2497,30 +2662,90 @@ const visibleStepIds = computed<StepId[]>(() => {
   return steps
 })
 
+function nextVisibleStepAfter(from: StepId): StepId | null {
+  const steps = visibleStepIds.value
+  const i = steps.indexOf(from)
+  if (i === -1 || i >= steps.length - 1) return null
+  return steps[i + 1]
+}
+
+/** Nach Wahl der Bestandsverfolgung: Details & Vermietung + Initialer Bestand gleichzeitig sichtbar (nicht nur ein Akkordeon). */
+const isDetailsAndStockPairVisible = computed(() => {
+  if (!formData.tracking_type) return false
+  const steps = visibleStepIds.value
+  return steps.includes('details') && steps.includes('stock')
+})
+
 function isStepOpen(step: StepId): boolean {
   if (expandAllVisibleSteps.value) {
     return visibleStepIds.value.includes(step)
+  }
+  if (isDetailsAndStockPairVisible.value && (step === 'details' || step === 'stock')) {
+    return true
   }
   return activeStep.value === step
 }
 
 function toggleStep(step: StepId): void {
   if (expandAllVisibleSteps.value) {
+    expandAllVisibleSteps.value = false
+    accordionUserControlled.value = true
+    activeStep.value = step
+    return
+  }
+  if (isDetailsAndStockPairVisible.value && (step === 'details' || step === 'stock')) {
+    activeStep.value = step
     return
   }
   activeStep.value = activeStep.value === step ? '' : step
 }
 
+function onWizardFormFocusIn(e: FocusEvent) {
+  if (expandAllVisibleSteps.value) return
+  const el = e.target as HTMLElement | null
+  if (!el?.closest) return
+  const section = el.closest('.step-section[data-step]')
+  if (!section) return
+  const step = section.getAttribute('data-step') as StepId | null
+  if (step && visibleStepIds.value.includes(step)) {
+    activeStep.value = step
+  }
+}
+
+function onCategorySearchKeydown(e: KeyboardEvent) {
+  if (e.key !== 'Tab' || e.shiftKey) return
+  if (expandAllVisibleSteps.value || !accordionUserControlled.value) return
+  const next = nextVisibleStepAfter('category')
+  if (!next) return
+  e.preventDefault()
+  activeStep.value = next
+  void nextTick(() => {
+    const container = document.querySelector(`.material-wizard-form .step-section[data-step="${next}"]`)
+    const focusable = container?.querySelector<HTMLElement>(
+      'input:not([type="hidden"]):not([disabled]), select:not([disabled]), textarea:not([disabled]), button:not([disabled]), [href], [tabindex]:not([tabindex="-1"])'
+    )
+    focusable?.focus()
+  })
+}
+
 function mapMissingToStep(message: string): StepId {
   const msg = message.toLowerCase()
   if (msg.includes('erstellmodus')) return 'creation_mode'
-  if (msg.includes('name')) return 'general'
   if (msg.includes('kategorie')) return 'category'
   if (msg.includes('bestandsverfolgung')) return 'tracking'
-  if (msg.includes('ablaufdatum')) return 'stock'
   if (msg.includes('mindestens 2 artikel')) return 'combo_articles'
+  if (msg.includes('ablaufdatum')) return 'stock'
   if (msg.includes('kaufdatum') || msg.includes('seriennummer') || msg.includes('mindestens 1 stück')) return 'stock'
+  if (
+    msg.includes('gestell') ||
+    msg.includes('fach wählen') ||
+    msg.includes('kiste wählen') ||
+    msg.includes('lagerplätze')
+  ) {
+    return 'stock'
+  }
   if (msg.includes('sn für') || msg.includes('artikel für') || msg.includes('menge für')) return 'template_components'
+  if (msg.includes('name')) return 'general'
   return 'general'
 }
 
@@ -2528,7 +2753,9 @@ async function jumpToMissingStep(message: string): Promise<void> {
   const step = mapMissingToStep(message)
   activeStep.value = step
   await nextTick()
-  const el = document.querySelector(`.step-section[data-step="${step}"], [data-step="${step}"]`)
+  const el = document.querySelector(
+    `.material-wizard-form .step-section[data-step="${step}"], .material-wizard-form [data-step="${step}"]`
+  )
   if (el && 'scrollIntoView' in el) {
     ;(el as HTMLElement).scrollIntoView({ behavior: 'smooth', block: 'start' })
   }
@@ -2547,10 +2774,14 @@ const canSubmit = computed(() => {
   // Erstellungsmodus muss gewählt sein
   if (!creationMode.value) return false
 
-  // ── Combo aus Lagerplatz-Inhalt ──
-  if (isFromRackContents.value && selectedRackContents.value && rackContentsRackId.value) {
+  // ── Combo aus Kisten-Inhalt ──
+  if (isFromContainerBatchContents.value && selectedContainerBatchContents.value && containerContentsBatchId.value) {
     if (!formData.name.trim()) return false
     if (nameExists.value) return false
+    if (formData.material_type === 'physical_combo') {
+      if (formData.stock_location_mode === 'kiste' && !formData.stock_container_batch_id) return false
+      if (formData.stock_location_mode === 'slot' && (!formData.rack_id || !formData.slot_id)) return false
+    }
     return true
   }
 
@@ -2583,13 +2814,17 @@ const canSubmit = computed(() => {
         }
       }
     }
+    if (creationMode.value === 'physical_combo') {
+      if (formData.stock_location_mode === 'kiste' && !formData.stock_container_batch_id) return false
+      if (formData.stock_location_mode === 'slot' && (!formData.rack_id || !formData.slot_id)) return false
+    }
     return true
   }
 
   // ── Einzelartikel ohne Vorlage (manuell) ──
   if (!formData.name.trim()) return false
   if (nameExists.value) return false
-  if (!formData.category_id) return false
+  if (creationMode.value === 'individual' && !formData.category_id) return false
   if (!formData.material_type) return false
   
   if (formData.material_type === 'physical') {
@@ -2649,6 +2884,24 @@ const missingSteps = computed(() => {
     return missing
   }
 
+  // ── Combo aus Kiste (physisch: Lagerplatz Pflicht) ──
+  if (isFromContainerBatchContents.value && selectedContainerBatchContents.value && containerContentsBatchId.value) {
+    if (!formData.name.trim()) {
+      missing.push('Name der Kombination eingeben')
+    } else if (nameExists.value) {
+      missing.push('Name existiert bereits')
+    }
+    if (formData.material_type === 'physical_combo') {
+      if (formData.stock_location_mode === 'kiste' && !formData.stock_container_batch_id) {
+        missing.push('Kiste für die Kombination wählen')
+      }
+      if (formData.stock_location_mode === 'slot' && (!formData.rack_id || !formData.slot_id)) {
+        missing.push('Gestell und Fach für die Kombination wählen')
+      }
+    }
+    return missing
+  }
+
   // ── Virtuelle Kombo ──
   if (creationMode.value === 'virtual_combo') {
     if (!formData.name.trim()) missing.push('Name der Kombination eingeben')
@@ -2683,6 +2936,14 @@ const missingSteps = computed(() => {
         }
       }
     }
+    if (creationMode.value === 'physical_combo') {
+      if (formData.stock_location_mode === 'kiste' && !formData.stock_container_batch_id) {
+        missing.push('Kiste für die Kombination wählen')
+      }
+      if (formData.stock_location_mode === 'slot' && (!formData.rack_id || !formData.slot_id)) {
+        missing.push('Gestell und Fach für die Kombination wählen')
+      }
+    }
     return missing
   }
 
@@ -2693,12 +2954,8 @@ const missingSteps = computed(() => {
     missing.push('Name existiert bereits')
   }
   
-  if (!formData.category_id) {
+  if (creationMode.value === 'individual' && !formData.category_id) {
     missing.push('Kategorie auswählen')
-  }
-  
-  if (!formData.material_type) {
-    missing.push('Material-Typ auswählen')
   }
   
   // Bei physical: Tracking + Menge + Kaufdatum erforderlich
@@ -2815,6 +3072,7 @@ function resetForm() {
   formData.stock_location_mode = 'slot'
   formData.stock_container_batch_id = ''
   nameExists.value = false
+  duplicateNameMaterial.value = null
   nameSuggestions.value = []
   showNameSuggestions.value = false
   isAddBatchMode.value = false
@@ -2841,9 +3099,9 @@ function resetForm() {
   // Template-Modus zurücksetzen
   isFromTemplate.value = false
   selectedTemplate.value = null
-  isFromRackContents.value = false
-  rackContentsRackId.value = ''
-  selectedRackContents.value = null
+  isFromContainerBatchContents.value = false
+  containerContentsBatchId.value = ''
+  selectedContainerBatchContents.value = null
   creationMode.value = ''
   templateSearch.value = ''
   templateComponents.value = []
@@ -2851,6 +3109,10 @@ function resetForm() {
   tentForm.tent_type = ''
   tentForm.tent_capacity = null
   tentForm.reservation_mode = 'complete_only'
+
+  expandAllVisibleSteps.value = true
+  accordionUserControlled.value = false
+  activeStep.value = ''
 
   // Last-used stock/serial preferences per department
   applyWizardStockPrefs()
@@ -2861,50 +3123,116 @@ function handleClose() {
   resetForm()
 }
 
-function selectMaterialType(type: 'physical' | 'physical_combo' | 'virtual_combo') {
-  if (formData.is_food && type !== 'physical') {
-    return
-  }
-  formData.material_type = type
-  if (type !== 'physical') {
-    formData.tracking_type = ''
+function selectTrackingType(type: 'serialized' | 'bulk') {
+  if (type === 'serialized' && formData.is_food) return
+  formData.tracking_type = type
+  void goToStepAfterTrackingSelected()
+}
+
+/** Nach Wahl „Wie wird der Lagerbestand verfolgt?“: zu „Initialer Bestand“ (nicht „Details & Vermietung“, das davor in der Schrittliste steht). */
+async function goToStepAfterTrackingSelected(): Promise<void> {
+  if (isAddBatchMode.value || isFromTemplate.value || creationMode.value !== 'individual') return
+  await nextTick()
+  const steps = visibleStepIds.value
+  const target: StepId | null = steps.includes('stock') ? 'stock' : nextVisibleStepAfter('tracking')
+  if (!target) return
+  expandAllVisibleSteps.value = false
+  accordionUserControlled.value = true
+  activeStep.value = target
+  await nextTick()
+  const el = document.querySelector(
+    `.material-wizard-form .step-section[data-step="${target}"], .material-wizard-form [data-step="${target}"]`
+  )
+  if (el && 'scrollIntoView' in el) {
+    ;(el as HTMLElement).scrollIntoView({ behavior: 'smooth', block: 'start' })
   }
 }
 
-async function checkNameDebounced() {
-  if (nameCheckTimeout) clearTimeout(nameCheckTimeout)
-  
+/** Duplikat-Prüfung (Blur + Debounce); setzt Treffer für Link / Bestand hinzufügen. */
+async function performNameDuplicateCheck(): Promise<void> {
   if (!formData.name.trim()) {
     nameExists.value = false
+    duplicateNameMaterial.value = null
     nameSuggestions.value = []
+    isCheckingName.value = false
     return
   }
-  
   isCheckingName.value = true
-  
-  nameCheckTimeout = setTimeout(async () => {
-    try {
-      const query = formData.name.trim().toLowerCase()
-      const materials = await materialNameLookupFetcher(formData.name.trim())
-      
-      // Exakte Übereinstimmung prüfen
-      nameExists.value = materials.some(m => 
-        m.name.toLowerCase() === query
-      )
-      
-      // Ähnliche Vorschläge (max 5)
-      nameSuggestions.value = materials
-        .filter(m => m.name.toLowerCase().includes(query))
-        .slice(0, 5)
-      
-      showNameSuggestions.value = nameSuggestions.value.length > 0
-    } catch (err) {
-      nameExists.value = false
-      nameSuggestions.value = []
-    } finally {
-      isCheckingName.value = false
-    }
-  }, 400)
+  try {
+    const query = formData.name.trim().toLowerCase()
+    const materials = await materialNameLookupFetcher(formData.name.trim())
+    const exact = materials.find((m) => m.name.toLowerCase() === query)
+    nameExists.value = !!exact
+    duplicateNameMaterial.value = exact ?? null
+    nameSuggestions.value = materials
+      .filter((m) => m.name.toLowerCase().includes(query))
+      .slice(0, NAME_SUGGEST_LIMIT)
+  } catch {
+    nameExists.value = false
+    duplicateNameMaterial.value = null
+    nameSuggestions.value = []
+  } finally {
+    isCheckingName.value = false
+  }
+}
+
+/** Während der Eingabe: passende Artikel für Dropdown (ohne Duplikat-Spinner). */
+async function refreshNameSuggestionsFromQuery(): Promise<void> {
+  const q = formData.name.trim()
+  if (q.length < NAME_SUGGEST_MIN_CHARS) {
+    nameSuggestions.value = []
+    showNameSuggestions.value = false
+    return
+  }
+  try {
+    const materials = await materialNameLookupFetcher(q)
+    const ql = q.toLowerCase()
+    nameSuggestions.value = materials
+      .filter((m) => m.name.toLowerCase().includes(ql))
+      .slice(0, NAME_SUGGEST_LIMIT)
+    showNameSuggestions.value = nameSuggestions.value.length > 0
+  } catch {
+    nameSuggestions.value = []
+    showNameSuggestions.value = false
+  }
+}
+
+function checkNameDebounced() {
+  if (nameCheckTimeout) clearTimeout(nameCheckTimeout)
+  const q = formData.name.trim()
+  if (!q) {
+    nameExists.value = false
+    duplicateNameMaterial.value = null
+    nameSuggestions.value = []
+    showNameSuggestions.value = false
+    return
+  }
+  if (q.length < NAME_SUGGEST_MIN_CHARS) {
+    nameSuggestions.value = []
+    showNameSuggestions.value = false
+    return
+  }
+  nameCheckTimeout = setTimeout(() => {
+    void refreshNameSuggestionsFromQuery()
+  }, 350)
+}
+
+/** Nach Verlassen des Artikelnamens: Kategorie sofort öffnen (Duplikat-Check läuft parallel). */
+async function maybeOpenCategoryAfterNameBlur(): Promise<void> {
+  if (isAddBatchMode.value) return
+  if (creationMode.value !== 'individual' || isFromTemplate.value) return
+  if (!formData.name.trim()) return
+  expandAllVisibleSteps.value = false
+  accordionUserControlled.value = true
+  activeStep.value = 'category'
+  await nextTick()
+  const el = document.querySelector('.material-wizard-form .step-section[data-step="category"]')
+  if (el && 'scrollIntoView' in el) {
+    ;(el as HTMLElement).scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
+  await nextTick()
+  const inp = categoryAutocompleteRef.value?.querySelector<HTMLInputElement>('input')
+  inp?.focus()
 }
 
 function hideNameSuggestionsDelayed() {
@@ -2916,9 +3244,16 @@ function handleNameInputFocus() {
   showNameSuggestions.value = nameSuggestions.value.length > 0
 }
 
-function handleNameInputBlur() {
+async function handleNameInputBlur() {
   isNameInputFocused.value = false
+  showNameSuggestions.value = false
   hideNameSuggestionsDelayed()
+  if (nameCheckTimeout) {
+    clearTimeout(nameCheckTimeout)
+    nameCheckTimeout = null
+  }
+  void performNameDuplicateCheck()
+  await maybeOpenCategoryAfterNameBlur()
 }
 
 function selectNameSuggestion(material: any) {
@@ -2928,9 +3263,10 @@ function selectNameSuggestion(material: any) {
   formData.name = material.name
   showNameSuggestions.value = false
   nameExists.value = false // Im Batch-Modus ist das OK
+  duplicateNameMaterial.value = null
   
   // Setze die Material-Eigenschaften aus dem existierenden Material
-  formData.storage_address_id = material.storage_address?.id || ''
+  formData.storage_address_id = material.storage_address?.id != null ? String(material.storage_address.id) : ''
   const rawLocation = String(material.location || '').trim()
   if (!rawLocation) {
     formData.location_rack = ''
@@ -2958,6 +3294,12 @@ function exitAddBatchMode() {
   selectedExistingMaterial.value = null
   formData.name = ''
   nameExists.value = false
+  duplicateNameMaterial.value = null
+}
+
+/** Grünes Banner (Charge-Modus): Wizard wie beim Öffnen zurücksetzen und Daten neu laden. */
+async function reloadWizardFromBatchBanner(): Promise<void> {
+  await initializeOnOpen()
 }
 
 async function loadData() {
@@ -2969,7 +3311,7 @@ async function loadData() {
       const defaultStorage = storageAddresses.value.find(a => 
         a.name?.toLowerCase().includes('standard') || a.is_primary
       ) || storageAddresses.value[0]
-      formData.storage_address_id = defaultStorage.id
+      formData.storage_address_id = String(defaultStorage.id ?? '')
     }
     const preferredStorageAddressId = getPreferredStorageAddressId()
     initialAllocations.value.forEach((row) => {
@@ -2979,10 +3321,7 @@ async function loadData() {
       if (!entry.storage_address_id) entry.storage_address_id = preferredStorageAddressId
     })
 
-    allStorageRacks.value = await getStorageRacks(props.departmentId).catch(() => [])
-    storageRacks.value = (formData.storage_address_id
-      ? allStorageRacks.value.filter((rack) => rack.storage_address_id === formData.storage_address_id)
-      : allStorageRacks.value)
+    await refreshDepartmentRacks()
     await prefetchVisibleRackPreviews(storageRacks.value)
     containerBatches.value = await getContainerBatches(props.departmentId).catch(() => [])
     await prefetchContainerPreviews()
@@ -3107,6 +3446,50 @@ function hideManufacturerDropdownDelayed() {
   setTimeout(() => { showManufacturerDropdown.value = false }, 200)
 }
 
+function updateCategoryDropdownPosition(retry = 0) {
+  const wrap = categoryAutocompleteRef.value
+  if (!wrap) return
+  const input = wrap.querySelector('input')
+  const r = (input ?? wrap).getBoundingClientRect()
+  if ((r.width < 2 || r.height < 2) && retry < 30) {
+    requestAnimationFrame(() => updateCategoryDropdownPosition(retry + 1))
+    return
+  }
+  const w = Math.max(Math.round(r.width), 240)
+  categoryDropdownFixedStyle.value = {
+    position: 'fixed',
+    top: `${Math.round(r.bottom + 4)}px`,
+    left: `${Math.round(r.left)}px`,
+    width: `${w}px`,
+    zIndex: '99999',
+  }
+}
+
+function bindCategoryDropdownPositionListeners() {
+  if (categoryDropdownPositionListenersBound) return
+  categoryDropdownPositionListenersBound = true
+  categoryPositionHandler = () => updateCategoryDropdownPosition(0)
+  window.addEventListener('resize', categoryPositionHandler)
+  wizardFormRef.value?.addEventListener('scroll', categoryPositionHandler, { passive: true })
+}
+
+function unbindCategoryDropdownPositionListeners() {
+  if (!categoryDropdownPositionListenersBound || !categoryPositionHandler) return
+  categoryDropdownPositionListenersBound = false
+  window.removeEventListener('resize', categoryPositionHandler)
+  wizardFormRef.value?.removeEventListener('scroll', categoryPositionHandler)
+  categoryPositionHandler = null
+}
+
+function onCategoryInputFocus() {
+  showCategoryDropdown.value = true
+  searchCategories()
+  void nextTick(() => {
+    updateCategoryDropdownPosition(0)
+    requestAnimationFrame(() => updateCategoryDropdownPosition(0))
+  })
+}
+
 // Kategorie Suche
 function searchCategories() {
   const query = categorySearch.value.toLowerCase().trim()
@@ -3120,11 +3503,12 @@ function searchCategories() {
       sorted.push(...children)
     })
     filteredCategories.value = sorted.slice(0, 15)
-    return
+  } else {
+    filteredCategories.value = allCategories.value
+      .filter(c => c.name.toLowerCase().includes(query))
+      .slice(0, 15)
   }
-  filteredCategories.value = allCategories.value
-    .filter(c => c.name.toLowerCase().includes(query))
-    .slice(0, 15)
+  nextTick(() => updateCategoryDropdownPosition(0))
 }
 
 function selectCategory(cat: Category) {
@@ -3172,11 +3556,11 @@ function searchRackCategories() {
 
 async function selectRackCategory(rack: StorageRack) {
   formData.location_rack = rack.name
-  formData.rack_id = rack.id
-  await loadSlotsForRack(rack.id)
-  storageSlots.value = slotsByRackId.value[rack.id] || []
+  formData.rack_id = String(rack.id)
+  const slots = await loadSlotsForRack(String(rack.id))
+  storageSlots.value = slots
   const matching = storageSlots.value.find((slot) => normalizeName(slot.name) === normalizeName(formData.location_slot))
-  formData.slot_id = matching?.id || ''
+  formData.slot_id = matching?.id ? String(matching.id) : ''
   showRackDropdown.value = false
 }
 
@@ -3203,6 +3587,18 @@ function formatContainerBatchOption(cb: import('../api/storageLocations').Contai
   const primary = label || serial || name || 'Kiste'
   const secondary = name && name !== primary ? ` - ${name}` : ''
   return `${location} - ${primary}${secondary}`
+}
+
+/** Vorschlag für Artikelnamen der Combo aus Kisten-Daten (Label/Display; Nutzer kann editieren). */
+function suggestedArticleNameFromContainerBatch(cb: import('../api/storageLocations').ContainerBatch | undefined): string {
+  if (!cb) return ''
+  const d = (cb.display_label || '').trim()
+  if (d) return d
+  const label = (cb.label || '').trim()
+  if (label) return label
+  const serial = (cb.serial_number || '').trim()
+  if (serial) return serial
+  return (cb.material_name || '').trim() || 'Kombination'
 }
 
 function getContainerNameFromContent(content: {
@@ -3368,15 +3764,19 @@ function getSlotPreviewTitle(rackId: string, slotId: string): string {
   return slotPreviewTitles.value[`${rackId}:${slotId}`] || 'Hover lädt Inhalt...'
 }
 
-async function onStockRackChange() {
+/** Ein Handler: zuerst rack_id setzen, dann Slots laden (kein zweites rackChange-Event nötig). */
+async function onStorageLocationRackUpdate(rackId: string) {
+  const rid = String(rackId ?? '').trim()
+  formData.rack_id = rid
   formData.slot_id = ''
-  if (!formData.rack_id) {
+  if (!rid) {
     storageSlots.value = []
     return
   }
-  await loadSlotsForRack(formData.rack_id)
-  await prefetchSlotPreviewsForRack(formData.rack_id)
-  storageSlots.value = slotsByRackId.value[formData.rack_id] || []
+  const slots = await loadSlotsForRack(rid)
+  // Verhindert leere Fächer nach parallel Lagerstandort-Wechsel / Typ-Koersion (Zahl vs. String)
+  if (String(formData.rack_id ?? '').trim() !== rid) return
+  storageSlots.value = slots
 }
 
 async function addRackCategory() {
@@ -3396,10 +3796,10 @@ async function addRackCategory() {
     )
     if (existingRack) {
       formData.location_rack = existingRack.name
-      formData.rack_id = existingRack.id
-      await loadSlotsForRack(existingRack.id)
-      storageSlots.value = slotsByRackId.value[existingRack.id] || []
-      formData.slot_id = storageSlots.value[0]?.id || ''
+      formData.rack_id = String(existingRack.id)
+      const slots = await loadSlotsForRack(String(existingRack.id))
+      storageSlots.value = slots
+      formData.slot_id = slots[0]?.id ? String(slots[0].id) : ''
       searchRackCategories()
       toast.success('Gestell ist bereits vorhanden.')
       return
@@ -3411,14 +3811,14 @@ async function addRackCategory() {
       storage_address_id: formData.storage_address_id,
     })
 
-    storageRacks.value = await getStorageRacks(props.departmentId, formData.storage_address_id || undefined).catch(() => [])
+    await refreshDepartmentRacks()
     containerBatches.value = await getContainerBatches(props.departmentId).catch(() => [])
     await prefetchContainerPreviews()
     formData.location_rack = createdRack.name
-    formData.rack_id = createdRack.id
-    await loadSlotsForRack(createdRack.id)
-    storageSlots.value = slotsByRackId.value[createdRack.id] || []
-    formData.slot_id = storageSlots.value[0]?.id || ''
+    formData.rack_id = String(createdRack.id)
+    const createdSlots = await loadSlotsForRack(String(createdRack.id))
+    storageSlots.value = createdSlots
+    formData.slot_id = createdSlots[0]?.id ? String(createdSlots[0].id) : ''
     searchRackCategories()
     toast.success('Gestell wurde erstellt.')
   } catch (err: any) {
@@ -3437,7 +3837,7 @@ async function handleCategorySaved(newCategory: Category) {
   // Kategorien neu laden
   const categoriesResult = await getCategories(props.departmentId).catch(() => [])
   allCategories.value = categoriesResult || []
-  searchRackCategories()
+  searchCategories()
   
   // Neue Kategorie auswählen
   selectCategory(newCategory)
@@ -3473,22 +3873,29 @@ function hideSupplierDropdownDelayed() {
   setTimeout(() => { showSupplierDropdown.value = false }, 200)
 }
 
-// Kombinations-Material Suche
-function searchComboMaterials() {
-  const query = comboMaterialSearch.value.toLowerCase().trim()
-  if (query.length < 3) {
+// Kombinations-Material Suche (zentrale API wie MaterialLookup)
+let comboMaterialSearchToken = 0
+async function searchComboMaterials() {
+  const query = comboMaterialSearch.value.trim()
+  if (query.length < 1) {
     filteredComboMaterials.value = []
     return
   }
-  
-  const selectedIds = selectedComboMaterials.value.map(m => m.id)
-  
-  filteredComboMaterials.value = allMaterials.value
-    .filter(m => 
-      !selectedIds.includes(m.id) &&
-      (m.name.toLowerCase().includes(query) || m.category?.name?.toLowerCase().includes(query))
-    )
-    .slice(0, 10)
+  const token = ++comboMaterialSearchToken
+  try {
+    const materials = await materialNameLookupFetcher(query)
+    if (token !== comboMaterialSearchToken) return
+    const selectedIds = selectedComboMaterials.value.map((m) => m.id)
+    filteredComboMaterials.value = materials
+      .filter(
+        (m: any) =>
+          m.material_type === 'physical' &&
+          !selectedIds.includes(m.id)
+      )
+      .slice(0, 15)
+  } catch {
+    if (token === comboMaterialSearchToken) filteredComboMaterials.value = []
+  }
 }
 
 function addComboMaterial(mat: any) {
@@ -3643,30 +4050,41 @@ async function selectTemplate(template: Template) {
   }
 }
 
-function onRackContentsRackChange() {
-  selectedRackContents.value = null
-  isFromRackContents.value = false
+function onContainerContentsPickerChange() {
+  selectedContainerBatchContents.value = null
+  isFromContainerBatchContents.value = false
   componentInputs.value = []
 }
 
-function onRackIdChange(v: string) {
-  rackContentsRackId.value = v
-  onRackContentsRackChange()
+function onContainerBatchIdForContentsChange(v: string) {
+  containerContentsBatchId.value = v
+  onContainerContentsPickerChange()
+  if (v) {
+    const cb = containerBatches.value.find((b) => String(b.id) === String(v))
+    if (cb) {
+      formData.name = suggestedArticleNameFromContainerBatch(cb)
+    }
+  }
 }
 
-async function loadRackContents() {
-  if (!rackContentsRackId.value) return
-  isLoadingRackContents.value = true
-  selectedRackContents.value = null
+async function loadContainerBatchContents() {
+  if (!containerContentsBatchId.value) return
+  isLoadingContainerContents.value = true
+  selectedContainerBatchContents.value = null
   try {
-    const data = await getRackContents(rackContentsRackId.value)
-    selectedRackContents.value = data
-    isFromRackContents.value = true
+    const data = await getContainerBatchContents(containerContentsBatchId.value)
+    if (!data.contents.length) {
+      toast.error('Diese Kiste enthält keine Materialien (oder der Inhalt ist leer).')
+      return
+    }
+    selectedContainerBatchContents.value = data
+    isFromContainerBatchContents.value = true
     isFromTemplate.value = false
     selectedTemplate.value = null
 
-    const rack = storageRacks.value.find(r => r.id === rackContentsRackId.value)
-    formData.name = (rack?.name || data.rack_name) + ' komplett'
+    const batchFromList = containerBatches.value.find((b) => String(b.id) === String(containerContentsBatchId.value))
+    const labelFromApi = (data.container_label || '').trim()
+    formData.name = labelFromApi || suggestedArticleNameFromContainerBatch(batchFromList)
 
     componentInputs.value = data.contents.map((c) => {
       const isBulk = c.tracking_type !== 'serialized'
@@ -3693,22 +4111,30 @@ async function loadRackContents() {
       } as ComponentInput
     })
 
-    activeStep.value = 'general'
+    await nextTick()
+    if (formData.name.trim() && !nameExists.value) {
+      activeStep.value = 'template_components'
+    } else {
+      activeStep.value = 'general'
+    }
   } catch (err) {
-    console.error('Fehler beim Laden des Lagerplatz-Inhalts:', err)
-    toast.error('Inhalt konnte nicht geladen werden')
+    console.error('Fehler beim Laden des Kisten-Inhalts:', err)
+    toast.error('Kisten-Inhalt konnte nicht geladen werden')
   } finally {
-    isLoadingRackContents.value = false
+    isLoadingContainerContents.value = false
   }
 }
 
 async function selectCreationMode(mode: 'individual' | 'physical_combo' | 'virtual_combo') {
   creationMode.value = mode
-  // Bei Combo-Modus: alle Lagerplätze laden (für "Aus Lagerplatz übernehmen")
+  // Bei Combo-Modus: Gestelle + Kisten-Liste (für „Aus Kiste übernehmen“)
   if (mode === 'physical_combo' || mode === 'virtual_combo') {
-    storageRacks.value = await getStorageRacks(props.departmentId).catch(() => [])
+    await refreshDepartmentRacks()
+    if (!containerBatches.value.length) {
+      containerBatches.value = await getContainerBatches(props.departmentId).catch(() => [])
+    }
   }
-  // Material-Typ automatisch setzen
+  // Material-Typ automatisch setzen (Einzelartikel = physischer Artikel; Kombis über Erstellmodus)
   if (mode === 'individual') {
     formData.material_type = 'physical'
     // Vorherige Auswahlreste entfernen, damit der Wizard bei "Allgemeine Informationen" startet
@@ -3724,7 +4150,9 @@ async function selectCreationMode(mode: 'individual' | 'physical_combo' | 'virtu
     formData.material_type = 'virtual_combo'
   }
 
-  // Nach Moduswahl zuerst mit den allgemeinen Infos starten
+  // Accordion: nur ein Bereich offen; nach unten gehen / Fokus schließt den oberen (über onWizardFormFocusIn + activeStep)
+  expandAllVisibleSteps.value = false
+  accordionUserControlled.value = true
   activeStep.value = 'general'
 
   // Bei Einzelartikel direkt in das Artikelnamen-Feld springen
@@ -3736,12 +4164,12 @@ async function selectCreationMode(mode: 'individual' | 'physical_combo' | 'virtu
   }
 }
 
-function resetCreationMode() {
-  // Gesamten Zustand zurücksetzen wenn Modus geändert wird
-  clearTemplate()
-  creationMode.value = ''
-  formData.material_type = ''
-  formData.name = ''
+/** Vollständiger Formular-Neustart (Erstellmodus erneut wählen) — vermeidet Restzustände beim Moduswechsel. */
+function resetWizardForModeChange() {
+  resetForm()
+  void nextTick(() => {
+    wizardFormRef.value?.scrollTo({ top: 0, behavior: 'smooth' })
+  })
 }
 
 function clearTemplate() {
@@ -3750,6 +4178,9 @@ function clearTemplate() {
   templateSearch.value = ''
   templateComponents.value = []
   componentInputs.value = []
+  isFromContainerBatchContents.value = false
+  containerContentsBatchId.value = ''
+  selectedContainerBatchContents.value = null
   tentForm.tent_type = ''
   tentForm.tent_capacity = null
   tentForm.reservation_mode = 'complete_only'
@@ -3763,21 +4194,24 @@ function hideTemplateDropdownDelayed() {
   setTimeout(() => { showTemplateDropdown.value = false }, 200)
 }
 
-// ============ "Aus Bestand" Funktionen pro Komponente ============
-function searchExistingMaterial(ci: ComponentInput) {
-  const query = (ci._materialSearch || '').toLowerCase().trim()
-  if (query.length < 2) {
+// ============ "Aus Bestand" Funktionen pro Komponente (zentrale API-Suche) ============
+async function searchExistingMaterial(ci: ComponentInput) {
+  const query = (ci._materialSearch || '').trim()
+  if (query.length < 1) {
     ci._filteredMaterials = []
     return
   }
-  // Suche im bereits geladenen Material-Bestand
-  ci._filteredMaterials = allMaterials.value
-    .filter(m =>
-      m.material_type === 'physical' &&
-      (m.total_stock > 0 || m.free_stock > 0) &&
-      (m.name.toLowerCase().includes(query) || m.category?.name?.toLowerCase().includes(query))
-    )
-    .slice(0, 10)
+  const token = Symbol()
+  ;(ci as any)._materialSearchToken = token
+  try {
+    const materials = await materialNameLookupFetcher(query)
+    if ((ci as any)._materialSearchToken !== token) return
+    ci._filteredMaterials = materials
+      .filter((m: any) => m.material_type === 'physical')
+      .slice(0, 15)
+  } catch {
+    if ((ci as any)._materialSearchToken === token) ci._filteredMaterials = []
+  }
 }
 
 async function selectExistingMaterial(ci: ComponentInput, mat: any) {
@@ -3793,7 +4227,7 @@ async function selectExistingMaterial(ci: ComponentInput, mat: any) {
       const fullMaterial = await getMaterial(mat.id)
       // Nur aktive Batches mit SN und Status "ok" anzeigen
       ci._availableBatches = (fullMaterial.batches || []).filter((b: any) =>
-        b.status === 'ok' && b.serial_number
+        b.status === 'active' && b.serial_number
       )
     } catch (err) {
       console.error('Fehler beim Laden der Batches:', err)
@@ -3842,8 +4276,12 @@ function isComponentDone(ci: ComponentInput): boolean {
 }
 
 function buildCombinedLocation(): string | null {
-  const selectedRack = formData.rack_id ? storageRacks.value.find((entry) => entry.id === formData.rack_id)?.name || '' : ''
-  const selectedSlot = formData.slot_id ? storageSlots.value.find((entry) => entry.id === formData.slot_id)?.name || '' : ''
+  const selectedRack = formData.rack_id
+    ? storageRacks.value.find((entry) => String(entry.id) === String(formData.rack_id))?.name || ''
+    : ''
+  const selectedSlot = formData.slot_id
+    ? storageSlots.value.find((entry) => String(entry.id) === String(formData.slot_id))?.name || ''
+    : ''
   const rack = (selectedRack || formData.location_rack).trim()
   const slot = (selectedSlot || formData.location_slot).trim()
   if (!rack && !slot) return null
@@ -3860,14 +4298,18 @@ async function ensureStorageSelection(): Promise<void> {
     return
   }
 
-  storageSlots.value = await getStorageSlots(formData.rack_id).catch(() => [])
-  if (formData.slot_id && !storageSlots.value.some((entry) => entry.id === formData.slot_id)) {
+  storageSlots.value = await loadSlotsForRack(String(formData.rack_id))
+  if (
+    formData.slot_id &&
+    !storageSlots.value.some((entry) => String(entry.id) === String(formData.slot_id))
+  ) {
     formData.slot_id = ''
   }
 
-  const rackName = storageRacks.value.find((entry) => entry.id === formData.rack_id)?.name || ''
+  const rackName =
+    storageRacks.value.find((entry) => String(entry.id) === String(formData.rack_id))?.name || ''
   const slotName = formData.slot_id
-    ? storageSlots.value.find((entry) => entry.id === formData.slot_id)?.name || ''
+    ? storageSlots.value.find((entry) => String(entry.id) === String(formData.slot_id))?.name || ''
     : ''
   formData.location_rack = rackName
   formData.location_slot = slotName
@@ -3918,11 +4360,14 @@ async function handleSubmit() {
         ...selectedExistingMaterial.value, 
         total_stock: selectedExistingMaterial.value.total_stock + formData.initial_qty 
       })
-      successMessage = 'Bestand erfolgreich hinzugefügt'
-    } else if (isFromRackContents.value && rackContentsRackId.value) {
-      // Combo aus Lagerplatz-Inhalt erstellen
-      const result = await createComboFromRack({
-        rack_id: rackContentsRackId.value,
+      successMessage = 'Charge erfolgreich hinzugefügt'
+    } else if (isFromContainerBatchContents.value && containerContentsBatchId.value) {
+      // Combo aus Kisten-Inhalt erstellen
+      if (formData.material_type === 'physical_combo' && formData.stock_location_mode === 'slot') {
+        await ensureStorageSelection()
+      }
+      const comboFromKistePayload: CreateComboFromContainerBatchRequest = {
+        container_batch_id: containerContentsBatchId.value,
         name: formData.name.trim(),
         department_id: props.departmentId,
         material_type: formData.material_type === 'virtual_combo' ? 'virtual_combo' : 'physical_combo',
@@ -3930,9 +4375,18 @@ async function handleSubmit() {
         storage_address_id: formData.storage_address_id || null,
         reservation_mode: tentForm.reservation_mode || 'complete_only',
         purchase_date: formData.purchase_date || undefined,
-      })
+      }
+      if (formData.material_type === 'physical_combo') {
+        if (formData.stock_location_mode === 'kiste' && formData.stock_container_batch_id) {
+          comboFromKistePayload.initial_container_batch_id = formData.stock_container_batch_id
+        } else {
+          comboFromKistePayload.initial_rack_id = formData.rack_id || undefined
+          comboFromKistePayload.initial_slot_id = formData.slot_id || undefined
+        }
+      }
+      const result = await createComboFromContainerBatch(comboFromKistePayload)
       emit('created', result)
-      successMessage = 'Combo aus Lagerplatz erstellt'
+      successMessage = 'Combo aus Kiste erstellt'
     } else if (creationMode.value === 'virtual_combo' && !isFromTemplate.value) {
       // Virtuelle Kombo ohne Vorlage → direkt als Material erstellen
       const payload: CreateMaterialRequest = {
@@ -4028,6 +4482,18 @@ async function handleSubmit() {
       // Reservation-Mode nur bei virtueller Kombo
       if (mode === 'virtual_combo') {
         templatePayload.reservation_mode = tentForm.reservation_mode || undefined
+      }
+
+      if (mode === 'physical_combo') {
+        if (formData.stock_location_mode === 'slot') {
+          await ensureStorageSelection()
+        }
+        if (formData.stock_location_mode === 'kiste' && formData.stock_container_batch_id) {
+          templatePayload.initial_container_batch_id = formData.stock_container_batch_id
+        } else {
+          templatePayload.initial_rack_id = formData.rack_id || undefined
+          templatePayload.initial_slot_id = formData.slot_id || undefined
+        }
       }
 
       const result = await createMaterialFromTemplate(selectedTemplate.value.id, templatePayload)
@@ -4177,7 +4643,7 @@ async function initializeOnOpen(): Promise<void> {
   scrollCreationModeIntoView()
 }
 
-// Accordion: immer den zuletzt verfügbaren Schritt öffnen
+// Accordion: nach Formular-Reset alle Schritte offen; nach Erstellmodus-Wahl oder Klick auf eine Kopfzeile nur noch ein Schritt.
 watch(visibleStepIds, (steps) => {
   if (steps.length === 0) {
     activeStep.value = ''
@@ -4185,7 +4651,19 @@ watch(visibleStepIds, (steps) => {
   }
 
   const lastVisibleStep = steps[steps.length - 1]
-  // Während Name-Eingabe/Suche in "Allgemeine Informationen" nicht automatisch springen.
+
+  if (expandAllVisibleSteps.value) {
+    if (!activeStep.value || !steps.includes(activeStep.value as StepId) || activeStep.value !== lastVisibleStep) {
+      activeStep.value = lastVisibleStep
+    }
+    return
+  }
+
+  if (activeStep.value && !steps.includes(activeStep.value as StepId)) {
+    activeStep.value = lastVisibleStep
+    return
+  }
+
   if (
     activeStep.value === 'general' &&
     steps.includes('general') &&
@@ -4194,11 +4672,53 @@ watch(visibleStepIds, (steps) => {
     return
   }
 
-  // Sonst auf den zuletzt freigeschalteten Schritt springen (Accordion: ein Schritt offen).
+  // Kombi ohne Vorlage: Namen erfüllt → aktiven Schritt auf Materialwahl (nicht auf letzten Schritt „Details“)
+  if (
+    !expandAllVisibleSteps.value &&
+    activeStep.value === 'general' &&
+    steps.includes('combo_articles') &&
+    (formData.material_type === 'physical_combo' || formData.material_type === 'virtual_combo') &&
+    formData.name.trim() &&
+    !nameExists.value
+  ) {
+    activeStep.value = 'combo_articles'
+    return
+  }
+
+  // Vorlage oder Combo aus Kiste: Namen erfüllt → Komponenten
+  if (
+    !expandAllVisibleSteps.value &&
+    activeStep.value === 'general' &&
+    steps.includes('template_components') &&
+    (isFromTemplate.value || isFromContainerBatchContents.value) &&
+    formData.name.trim() &&
+    !nameExists.value
+  ) {
+    activeStep.value = 'template_components'
+    return
+  }
+
+  if (accordionUserControlled.value) {
+    if (activeStep.value && steps.includes(activeStep.value as StepId)) {
+      return
+    }
+    activeStep.value = lastVisibleStep
+    return
+  }
+
   if (!activeStep.value || !steps.includes(activeStep.value as StepId) || activeStep.value !== lastVisibleStep) {
     activeStep.value = lastVisibleStep
   }
 }, { immediate: true })
+
+watch(
+  () => formData.category_id,
+  (id) => {
+    if (!id || expandAllVisibleSteps.value || !accordionUserControlled.value) return
+    const next = nextVisibleStepAfter('category')
+    if (next) activeStep.value = next
+  }
+)
 
 watch(() => formData.is_food, (isFood) => {
   if (!isFood) return
@@ -4222,6 +4742,23 @@ watch(allCategories, () => {
   applyFoodCategoryIfAvailable()
 })
 
+watch(showCategoryDropdown, async (open) => {
+  if (open) {
+    await nextTick()
+    updateCategoryDropdownPosition(0)
+    bindCategoryDropdownPositionListeners()
+  } else {
+    unbindCategoryDropdownPositionListeners()
+  }
+})
+
+watch(showDialog, (open) => {
+  if (!open) {
+    showCategoryDropdown.value = false
+    unbindCategoryDropdownPositionListeners()
+  }
+})
+
 watch(() => formData.split_allocations, (isSplit) => {
   if (isSplit) {
     normalizeAllocationRowsToTotal()
@@ -4234,23 +4771,42 @@ watch(() => formData.initial_qty, () => {
   normalizeAllocationRowsToTotal()
 })
 
+/** Bei Aufteilung: fehlende Menge automatisch als neue Zeile (Restmenge), sobald Summe < Soll. */
+watch(
+  [allocationSum, () => formData.split_allocations, () => formData.initial_qty],
+  () => {
+    if (!formData.split_allocations || formData.initial_qty <= 0) return
+    if (allocationSum.value >= formData.initial_qty) return
+    addAllocationRow()
+  },
+  { flush: 'post' },
+)
+
 watch(stockInputReady, (ready) => {
   if (!ready) {
     formData.split_allocations = false
   }
 })
 
-watch(() => formData.storage_address_id, async () => {
-  storageRacks.value = await getStorageRacks(props.departmentId, formData.storage_address_id || undefined).catch(() => [])
-  await prefetchVisibleRackPreviews(storageRacks.value)
-  formData.rack_id = ''
-  formData.slot_id = ''
-  formData.location_rack = ''
-  formData.location_slot = ''
-  storageSlots.value = []
-  slotsByRackId.value = {}
-  saveWizardStockPrefs()
-})
+/** Gleiche ID als Zahl vs. String darf keinen Reset auslösen (sonst: API liefert Fächer, UI bleibt leer). */
+function normalizeStorageAddressIdForWatch(value: unknown): string {
+  return String(value ?? '').trim()
+}
+
+watch(
+  () => normalizeStorageAddressIdForWatch(formData.storage_address_id),
+  async (newAddr, oldAddr) => {
+    if (newAddr === oldAddr) return
+    formData.rack_id = ''
+    formData.slot_id = ''
+    formData.location_rack = ''
+    formData.location_slot = ''
+    storageSlots.value = []
+    slotsByRackId.value = {}
+    await prefetchVisibleRackPreviews(storageRacks.value)
+    saveWizardStockPrefs()
+  }
+)
 
 watch(
   () => [
@@ -4271,5 +4827,9 @@ onMounted(() => {
   if (props.modelValue) {
     void initializeOnOpen()
   }
+})
+
+onUnmounted(() => {
+  unbindCategoryDropdownPositionListeners()
 })
 </script>

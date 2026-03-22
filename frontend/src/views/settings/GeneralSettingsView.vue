@@ -2,7 +2,7 @@
   <div class="general-settings">
     <div class="settings-header">
       <div>
-        <h1>Allgemeine Einstellungen</h1>
+        <h1>Zeit/Ort</h1>
         <p class="subtitle">Zeitzone und Darstellung konfigurieren</p>
       </div>
     </div>

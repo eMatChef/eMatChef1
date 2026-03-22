@@ -178,6 +178,10 @@ export interface CreateMaterialFromTemplateRequest {
   /** Nur bei virtual_combo relevant */
   reservation_mode?: string
   components?: CreateMaterialComponentInput[]
+  /** Nur physical_combo: Lagerung des Kombi-Sets */
+  initial_rack_id?: string
+  initial_slot_id?: string
+  initial_container_batch_id?: string
 }
 
 export interface CreatedArticleInfo {

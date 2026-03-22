@@ -60,7 +60,7 @@
                     :rack-id="form.rack_id"
                     :slot-id="form.slot_id"
                     :racks="filteredRacks"
-                    :slots="mainSlots"
+                    :slot-list="mainSlots"
                     storage-address-label="Standort"
                     rack-label="Gestell"
                     slot-label="Fach"
@@ -69,8 +69,7 @@
                     slot-placeholder="Fach auswaehlen..."
                     @update:storageAddressId="form.storage_address_id = $event"
                     @storageAddressChange="onStorageAddressChange"
-                    @update:rackId="form.rack_id = $event"
-                    @rackChange="onRackChange"
+                    @update:rackId="onMainRackIdUpdate"
                     @update:slotId="form.slot_id = $event"
                     @slotChange="onSlotChange"
                   />
@@ -226,7 +225,7 @@
                             <option
                               v-for="rack in getRacksForSerialEntry(entry)"
                               :key="rack.id"
-                              :value="rack.id"
+                              :value="String(rack.id)"
                               :title="getRackPreviewTitle(rack.id)"
                             >
                               {{ rack.name }}
@@ -242,9 +241,9 @@
                           >
                             <option value="" disabled>– Fach –</option>
                             <option
-                              v-for="slot in (entry.rack_id ? (slotsByRackId[entry.rack_id] || []) : [])"
+                              v-for="slot in (entry.rack_id ? getSlots(entry.rack_id) : [])"
                               :key="slot.id"
-                              :value="slot.id"
+                              :value="String(slot.id)"
                               :title="getSlotPreviewTitle(entry.rack_id, slot.id)"
                             >
                               {{ formatSlotOptionLabel(entry.rack_id, slot) }}
@@ -465,7 +464,7 @@
                             :rack-id="row.rack_id"
                             :slot-id="row.slot_id"
                             :racks="getAllocationRacks(row)"
-                            :slots="row.rack_id ? (slotsByRackId[row.rack_id] || []) : []"
+                            :slot-list="row.rack_id ? getSlots(row.rack_id) : []"
                             storage-address-label="Standort"
                             rack-label="Gestell"
                             slot-label="Fach"
@@ -474,8 +473,7 @@
                             slot-placeholder="– optional –"
                             @update:storageAddressId="row.storage_address_id = $event"
                             @storageAddressChange="onAllocationStorageAddressChange(row)"
-                            @update:rackId="row.rack_id = $event"
-                            @rackChange="row.slot_id = ''; loadSlotsForAllocationRack(row.rack_id)"
+                            @update:rackId="onAllocationRackIdUpdate(row, $event)"
                             @update:slotId="row.slot_id = $event"
                           />
                         </template>
@@ -516,7 +514,7 @@
                 :rack-id="form.rack_id"
                 :slot-id="form.slot_id"
                 :racks="filteredRacks"
-                :slots="mainSlots"
+                :slot-list="mainSlots"
                 storage-address-label="Standort"
                 rack-label="Gestell"
                 slot-label="Fach"
@@ -525,8 +523,7 @@
                 slot-placeholder="Fach auswaehlen..."
                 @update:storageAddressId="form.storage_address_id = $event"
                 @storageAddressChange="onStorageAddressChange"
-                @update:rackId="form.rack_id = $event"
-                @rackChange="onRackChange"
+                @update:rackId="onMainRackIdUpdate"
                 @update:slotId="form.slot_id = $event"
                 @slotChange="onSlotChange"
               />
@@ -699,9 +696,12 @@ const supplierSearch = ref('')
 const showSupplierDropdown = ref(false)
 const selectedSupplier = ref<Address | null>(null)
 const storageAddresses = ref<Address[]>([])
-const { racks, slotsByRackId, loadRacks, loadSlots: fetchSlotsForRack, getSlots } = useStorageStructure(
-  () => props.departmentId
-)
+const {
+  racks,
+  loadRacks,
+  loadSlotsEnsuringDefault: fetchSlotsEnsuringDefault,
+  getSlots,
+} = useStorageStructure(() => props.departmentId)
 const mainSlots = computed<StorageSlot[]>(() => getSlots(form.rack_id))
 const rackPreviewTitles = ref<Record<string, string>>({})
 const slotPreviewTitles = ref<Record<string, string>>({})
@@ -821,7 +821,7 @@ function onSerialEntryStorageAddressChange(entry: SerialNumberEntry) {
 
 async function onSerialEntryRackChange(entry: SerialNumberEntry) {
   entry.slot_id = ''
-  if (entry.rack_id) await fetchSlotsForRack(entry.rack_id)
+  if (entry.rack_id) await fetchSlotsEnsuringDefault(entry.rack_id)
 }
 
 function getSerialRowTitle(entry: SerialNumberEntry, index: number): string {
@@ -1087,7 +1087,7 @@ function removeAllocationRow(id: number) {
 
 async function loadSlotsForAllocationRack(rackId: string) {
   if (!rackId) return
-  await fetchSlotsForRack(rackId)
+  await fetchSlotsEnsuringDefault(rackId)
   await prefetchSlotPreviewsForRack(rackId)
 }
 
@@ -1258,7 +1258,7 @@ onMounted(async () => {
   }
 
   if (form.rack_id) {
-    await fetchSlotsForRack(form.rack_id)
+    await fetchSlotsEnsuringDefault(form.rack_id)
     await prefetchSlotPreviewsForRack(form.rack_id)
   }
 })
@@ -1276,7 +1276,7 @@ watch(serialLocationSameForAll, async (same) => {
     entry.rack_id = mode === 'slot' ? rack : ''
     entry.slot_id = mode === 'slot' ? slot : ''
     entry.container_batch_id = mode === 'kiste' ? cb : ''
-    if (entry.rack_id) await fetchSlotsForRack(entry.rack_id)
+    if (entry.rack_id) await fetchSlotsEnsuringDefault(entry.rack_id)
   }
 })
 
@@ -1294,18 +1294,25 @@ async function loadSlotsForMainRack(rackId: string) {
     return
   }
   try {
-    await fetchSlotsForRack(rackId)
+    await fetchSlotsEnsuringDefault(rackId)
     await prefetchSlotPreviewsForRack(rackId)
   } catch (err) {
     console.error('Fehler beim Laden der Slots:', err)
   }
 }
 
-async function onRackChange() {
+async function onMainRackIdUpdate(rackId: string) {
+  form.rack_id = rackId
   form.slot_id = ''
-  const selectedRack = racks.value.find((r) => r.id === form.rack_id)
+  const selectedRack = racks.value.find((r) => String(r.id) === String(rackId))
   form.storage_address_id = selectedRack?.storage_address_id || form.storage_address_id
-  await loadSlotsForMainRack(form.rack_id)
+  await loadSlotsForMainRack(rackId)
+}
+
+async function onAllocationRackIdUpdate(row: AllocationRow, rackId: string) {
+  row.rack_id = rackId
+  row.slot_id = ''
+  await loadSlotsForAllocationRack(rackId)
 }
 
 function onStorageAddressChange() {

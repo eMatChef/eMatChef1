@@ -1,46 +1,57 @@
 <template>
-  <div class="tasks-view">
-    <h1>Aufgaben</h1>
-    <p class="tasks-subtitle">Druckkorb für QR-Etiketten (DB-basiert)</p>
-
-    <div class="tasks-actions">
-      <button class="btn-outline btn-sm" :disabled="isLoading || items.length === 0" @click="printAll">
-        Sammeldruck
-      </button>
-      <button class="btn-outline btn-sm" :disabled="isLoading || items.length === 0" @click="markAllAsPrinted">
-        Alle als gedruckt markieren
-      </button>
-      <button class="btn-secondary btn-sm" :disabled="isLoading || items.length === 0" @click="clearAll">
-        Leeren
-      </button>
+  <div class="tasks-print-panel">
+    <div class="page-header header-content print-toolbar">
+      <div class="header-left">
+        <span class="print-panel-label">Drucken</span>
+        <span class="subtitle">Druckkorb für QR-Etiketten (DB-basiert)</span>
+      </div>
+      <div class="header-right">
+        <button class="btn-outline btn-sm" :disabled="isLoading || items.length === 0" @click="printAll">
+          Sammeldruck
+        </button>
+        <button class="btn-outline btn-sm" :disabled="isLoading || items.length === 0" @click="markAllAsPrinted">
+          Alle als gedruckt markieren
+        </button>
+        <button class="btn-secondary btn-sm" :disabled="isLoading || items.length === 0" @click="clearAll">
+          Leeren
+        </button>
+      </div>
     </div>
 
-    <div v-if="isLoading" class="loading">Lade Druckkorb...</div>
-    <div v-else-if="items.length === 0" class="empty">Keine Druckaufgaben vorhanden.</div>
-    <table v-else class="tasks-table">
-      <thead>
-        <tr>
-          <th>Typ</th>
-          <th>Bezeichnung</th>
-          <th>Code</th>
-          <th>Erstellt</th>
-          <th>Aktion</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr v-for="item in items" :key="item.id">
-          <td>{{ item.entity_type }}</td>
-          <td>{{ item.label }}</td>
-          <td><code>{{ item.public_code || '-' }}</code></td>
-          <td>{{ formatDate(item.created_at) }}</td>
-          <td class="actions">
-            <button class="btn-outline btn-sm" @click="printOne(item)">Drucken</button>
-            <button class="btn-outline btn-sm" @click="markPrinted(item.id)">Gedruckt</button>
-            <button class="btn-secondary btn-sm" @click="removeItem(item.id)">Entfernen</button>
-          </td>
-        </tr>
-      </tbody>
-    </table>
+    <div v-if="isLoading" class="loading-state">
+      <div class="spinner"></div>
+      <p>Druckkorb wird geladen...</p>
+    </div>
+    <div v-else-if="items.length === 0" class="empty-state">
+      <h3>Keine Druckaufgaben</h3>
+      <p>Es sind keine Einträge im Druckkorb.</p>
+    </div>
+    <div v-else class="tasks-table-wrapper">
+      <table class="tasks-table">
+        <thead>
+          <tr>
+            <th>Typ</th>
+            <th>Bezeichnung</th>
+            <th>Code</th>
+            <th>Erstellt</th>
+            <th>Aktion</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="item in items" :key="item.id">
+            <td>{{ item.entity_type }}</td>
+            <td>{{ item.label }}</td>
+            <td><code>{{ item.public_code || '-' }}</code></td>
+            <td>{{ formatDate(item.created_at) }}</td>
+            <td class="tasks-actions-cell">
+              <button type="button" class="btn-outline btn-sm" @click="printOne(item)">Drucken</button>
+              <button type="button" class="btn-outline btn-sm" @click="markPrinted(item.id)">Gedruckt</button>
+              <button type="button" class="btn-secondary btn-sm" @click="removeItem(item.id)">Entfernen</button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
   </div>
 </template>
 
@@ -142,46 +153,27 @@ onMounted(load)
 </script>
 
 <style scoped>
-.tasks-view {
-  padding: 24px;
+.print-toolbar {
+  margin-bottom: 20px;
 }
-.tasks-subtitle {
-  margin-top: 4px;
-  color: #6b7280;
+
+.print-panel-label {
+  display: block;
+  font-size: 16px;
+  font-weight: 600;
+  color: #111827;
+  margin-bottom: 2px;
 }
-.tasks-actions {
-  display: flex;
-  gap: 8px;
-  margin: 14px 0 16px;
-  flex-wrap: wrap;
+
+.tasks-actions-cell {
+  white-space: nowrap;
 }
-.loading,.empty {
-  color: #6b7280;
-  padding: 8px 0;
+.tasks-actions-cell .btn-outline,
+.tasks-actions-cell .btn-secondary {
+  margin-right: 4px;
 }
-.tasks-table {
-  width: 100%;
-  border-collapse: collapse;
-  background: #fff;
-  border: 1px solid #e5e7eb;
-  border-radius: 10px;
-  overflow: hidden;
-}
-.tasks-table th,
-.tasks-table td {
-  padding: 10px 12px;
-  border-bottom: 1px solid #f1f5f9;
-  text-align: left;
-  font-size: 14px;
-}
-.tasks-table th {
-  font-size: 12px;
-  color: #6b7280;
-  text-transform: uppercase;
-}
-.actions {
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
+.tasks-actions-cell .btn-outline:last-child,
+.tasks-actions-cell .btn-secondary:last-child {
+  margin-right: 0;
 }
 </style>

@@ -68,6 +68,16 @@ export interface Material {
   condition: 'ok' | 'defect' | 'repair' | 'lost'
   material_type: 'physical' | 'physical_combo' | 'virtual_combo'
   tracking_type: 'serialized' | 'bulk' | null
+  /** Referenz-Kisten-Batch (phys. Combo aus Kiste); für Plan-vs.-Ist */
+  linked_container_batch_id?: string | null
+  linked_container_batch?: {
+    id: string
+    material_id: string
+    label: string | null
+    serial_number: string | null
+    material_name: string
+    display_label: string
+  } | null
   total_stock: number
   defect_stock: number
   repair_stock: number
@@ -307,6 +317,30 @@ export interface CreateComboFromRackRequest {
  */
 export async function createComboFromRack(data: CreateComboFromRackRequest): Promise<Material> {
   const response = await apiClient.post<Material>('/api/materials/create-combo-from-rack', data)
+  return response.data
+}
+
+export interface CreateComboFromContainerBatchRequest {
+  container_batch_id: string
+  name: string
+  department_id: string
+  material_type?: 'physical_combo' | 'virtual_combo'
+  category_id?: string | null
+  storage_address_id?: string | null
+  reservation_mode?: string
+  purchase_date?: string
+  /** Physische Kombi: Lagerung des Sets – Gestell/Fach … */
+  initial_rack_id?: string
+  initial_slot_id?: string
+  /** … oder Kiste/Tasche */
+  initial_container_batch_id?: string
+}
+
+/** Erstellt eine Combo aus dem Inhalt einer Kiste (Container-Batch). */
+export async function createComboFromContainerBatch(
+  data: CreateComboFromContainerBatchRequest
+): Promise<Material> {
+  const response = await apiClient.post<Material>('/api/materials/create-combo-from-container-batch', data)
   return response.data
 }
 

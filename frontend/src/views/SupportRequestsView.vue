@@ -16,6 +16,10 @@
         {{ loading ? 'Lade...' : 'Aktualisieren' }}
       </button>
     </div>
+    <p v-if="activeTab === 'history'" class="tab-hint">
+      Hier erscheinen nur <strong>abgeschlossene</strong> Anfragen (Status <code>assigned</code> oder <code>rejected</code> in der
+      Datenbank). Noch offene Einträge (<code>pending</code>) stehen unter „Offen“.
+    </p>
 
     <div v-if="error" class="error">{{ error }}</div>
 
@@ -520,6 +524,22 @@ watch(activeTab, loadRequests)
 .header h1 { margin: 0 0 6px; }
 .header p { margin: 0; color: #6b7280; }
 .actions { margin: 16px 0; display: flex; gap: 8px; }
+.tab-hint {
+  margin: -8px 0 16px;
+  padding: 10px 12px;
+  font-size: 13px;
+  color: #475569;
+  line-height: 1.45;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+}
+.tab-hint code {
+  font-size: 12px;
+  background: #e2e8f0;
+  padding: 1px 5px;
+  border-radius: 4px;
+}
 /* Buttons use shared ui/buttons.css */
 .support-tab-btn.active { background: #ecfdf5; border-color: #10b981; color: #047857; }
 .error { color: #b91c1c; margin-bottom: 12px; }

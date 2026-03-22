@@ -10,8 +10,31 @@
       </div>
     </header>
 
-    <!-- Schnellaktionen -->
-    <div class="quick-actions">
+    <!-- Offene Join-Requests (über Schnellaktionen, nur mit Department + Daten) -->
+    <section
+      v-if="departmentId && !isLoading && showJoinRequestsWidget && (hasOpenJoinRequests || hasSupportAdminRole)"
+      class="dashboard-section join-requests-above-actions"
+    >
+      <h2 class="section-title">
+        <router-link :to="getLink('/support-requests')" class="section-title-link">
+          Offene Join-Requests
+        </router-link>
+      </h2>
+      <div class="stat-cards">
+        <router-link :to="getLink('/support-requests')" class="stat-card submitted join-request-stat-link">
+          <span class="stat-value">{{ totalOpenJoinRequests }}</span>
+          <span class="stat-label">Offen gesamt</span>
+        </router-link>
+        <div v-if="showAdminJoinRequestsWidget" class="stat-card draft">
+          <span class="stat-value">{{ pendingAdminJoinRequests.length }}</span>
+          <span class="stat-label">Admin-Anfragen</span>
+        </div>
+      </div>
+      <router-link :to="getLink('/support-requests')" class="section-link">Zu Supportanfragen →</router-link>
+    </section>
+
+    <!-- Schnellaktionen (nur mit Department) -->
+    <div v-if="departmentId" class="quick-actions">
       <router-link
         v-if="showNewActivity"
         :to="{ path: getLink('/activities'), query: { new: '1', from: 'dashboard' } }"
@@ -52,6 +75,41 @@
 
     <!-- Content -->
     <div v-else class="dashboard-content">
+      <!-- Superadmin: globale Verwaltungs-Shortcuts -->
+      <section v-if="isSuperAdmin" class="dashboard-section admin-global-shortcuts">
+        <h2 class="section-title">Organisation & Abteilungen</h2>
+        <div class="config-links">
+          <router-link to="/admin-dashboard/verwaltung/organisations" class="config-card">
+            <span class="config-label">Organisationen</span>
+            <span class="config-desc">Organisationen verwalten</span>
+          </router-link>
+          <router-link to="/admin-dashboard/verwaltung/departments" class="config-card">
+            <span class="config-label">Abteilungen</span>
+            <span class="config-desc">Departments verwalten</span>
+          </router-link>
+        </div>
+      </section>
+
+      <!-- Nur ohne Department: globale Admin-Support-Zahlen -->
+      <section v-if="!departmentId && hasSupportAdminRole" class="dashboard-section">
+        <h2 class="section-title">
+          <router-link to="/admin-dashboard/verwaltung/support-requests" class="section-title-link">
+            Supportanfragen
+          </router-link>
+        </h2>
+        <div class="stat-cards">
+          <router-link
+            to="/admin-dashboard/verwaltung/support-requests"
+            class="stat-card submitted join-request-stat-link"
+          >
+            <span class="stat-value">{{ globalAdminPendingCount }}</span>
+            <span class="stat-label">Offene Admin-Anfragen</span>
+          </router-link>
+        </div>
+        <router-link to="/admin-dashboard/verwaltung/support-requests" class="section-link">Zu Supportanfragen →</router-link>
+      </section>
+
+      <template v-if="departmentId">
       <!-- User / L1-L3: Aktive Aktivitäten -->
       <section v-if="showActiveActivities" class="dashboard-section">
         <h2 class="section-title">Meine aktiven Aktivitäten</h2>
@@ -118,25 +176,6 @@
             <span class="stat-label">Ausgegeben</span>
           </div>
         </div>
-      </section>
-
-      <section v-if="showJoinRequestsWidget && hasOpenJoinRequests" class="dashboard-section">
-        <h2 class="section-title">
-          <router-link :to="getLink('/support-requests')" class="section-title-link">
-            Offene Join-Requests
-          </router-link>
-        </h2>
-        <div class="stat-cards">
-          <router-link :to="getLink('/support-requests')" class="stat-card submitted join-request-stat-link">
-            <span class="stat-value">{{ totalOpenJoinRequests }}</span>
-            <span class="stat-label">Offen gesamt</span>
-          </router-link>
-          <div v-if="showAdminJoinRequestsWidget" class="stat-card draft">
-            <span class="stat-value">{{ pendingAdminJoinRequests.length }}</span>
-            <span class="stat-label">Admin-Anfragen</span>
-          </div>
-        </div>
-        <router-link :to="getLink('/support-requests')" class="section-link">Zu Supportanfragen →</router-link>
       </section>
 
       <!-- DC / MW: Werkstatt -->
@@ -221,12 +260,14 @@
           </router-link>
         </div>
       </section>
+      </template>
     </div>
 
     <!-- Schaden-melden-Wizard -->
     <DamageReportWizard
+      v-if="departmentId"
       :is-open="showDamageWizard"
-      :department-id="departmentId || ''"
+      :department-id="departmentId"
       @close="showDamageWizard = false"
       @success="onDamageReportSuccess"
     />
@@ -238,6 +279,7 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { getDashboardData, type DashboardActivity } from '@/api/dashboard'
+import { getPendingAdminJoinRequests } from '@/api/joinRequests'
 import DamageReportWizard from '@/components/DamageReportWizard.vue'
 
 const route = useRoute()
@@ -248,12 +290,23 @@ const dashboardDisplayName = computed(() => {
   return authStore.userDisplayName
 })
 
-const departmentId = computed(() => route.params.departmentId as string)
+/**
+ * Superadmin ohne Department-Mitgliedschaft: kein operatives Department-Dashboard
+ * (keine Schnellaktionen, Aktivitäten, Werkstatt — nur globale Verwaltungsblöcke).
+ */
+const departmentId = computed(() => {
+  const hasNoDeptMembership =
+    authStore.userRoles.includes('ROLE_SUPERADMIN') &&
+    (authStore.departments?.length ?? 0) === 0
+  if (hasNoDeptMembership) return ''
+  return (route.params.departmentId as string) || authStore.activeDepartmentId || ''
+})
 const showDamageWizard = ref(false)
 
 // === State ===
 const isLoading = ref(true)
 const dashboardData = ref<Awaited<ReturnType<typeof getDashboardData>> | null>(null)
+const globalAdminPendingCount = ref(0)
 
 // === Role helpers ===
 // Department-Rollen: nur mw, dc, l1, l2, l3, u (sa/org/sub kommen aus profile.roles)
@@ -270,14 +323,21 @@ const hasSupportAdminRole = computed(() =>
   authStore.userRoles.includes('ROLE_SUBORGCHEF')
 )
 
-const showNewActivity = computed(() => (USER_ROLES.includes(role.value) || LEADER_ROLES.includes(role.value) || MW_DASHBOARD_ROLES.includes(role.value)) && !isSuperAdmin.value)
-const showMaterialCreate = computed(() => MW_DASHBOARD_ROLES.includes(role.value) && !isSuperAdmin.value)
+const showNewActivity = computed(
+  () =>
+    USER_ROLES.includes(role.value) ||
+    LEADER_ROLES.includes(role.value) ||
+    MW_DASHBOARD_ROLES.includes(role.value)
+)
+const showMaterialCreate = computed(() => MW_DASHBOARD_ROLES.includes(role.value))
 const showActiveActivities = computed(() => USER_ROLES.includes(role.value) || LEADER_ROLES.includes(role.value))
 const showDraftsWidget = computed(() => LEADER_ROLES.includes(role.value))
-const showOverviewWidget = computed(() => (DC_ROLES.includes(role.value) || MW_DASHBOARD_ROLES.includes(role.value)) && !isSuperAdmin.value)
-const showWorkshopWidget = computed(() => (DC_ROLES.includes(role.value) || MW_DASHBOARD_ROLES.includes(role.value)) && !isSuperAdmin.value)
-const showPackQueueWidget = computed(() => MW_DASHBOARD_ROLES.includes(role.value) && !isSuperAdmin.value)
-const showJoinRequestsWidget = computed(() => DC_ROLES.includes(role.value) || MW_ROLES.includes(role.value))
+const showOverviewWidget = computed(() => DC_ROLES.includes(role.value) || MW_DASHBOARD_ROLES.includes(role.value))
+const showWorkshopWidget = computed(() => DC_ROLES.includes(role.value) || MW_DASHBOARD_ROLES.includes(role.value))
+const showPackQueueWidget = computed(() => MW_DASHBOARD_ROLES.includes(role.value))
+const showJoinRequestsWidget = computed(
+  () => DC_ROLES.includes(role.value) || MW_ROLES.includes(role.value) || hasSupportAdminRole.value
+)
 const showAdminJoinRequestsWidget = computed(() => hasSupportAdminRole.value)
 
 // === Data ===
@@ -338,8 +398,17 @@ const upcomingActivities = computed(() => {
 
 // === Helpers ===
 function getLink(path: string): string {
-  if (!departmentId.value) return '#'
-  return `/${departmentId.value}${path}`
+  const id = departmentId.value
+  if (!id) {
+    if (path === '/support-requests' || path === '/jobs') {
+      return `/admin-dashboard/verwaltung${path}`
+    }
+    return '#'
+  }
+  if (hasSupportAdminRole.value && (path === '/jobs' || path === '/support-requests')) {
+    return `/${id}/verwaltung${path}`
+  }
+  return `/${id}${path}`
 }
 
 function formatDate(d: Date): string {
@@ -403,10 +472,27 @@ function getStatusLabel(status: string): string {
 
 // === Load ===
 async function load() {
-  if (!departmentId.value) return
+  const id = departmentId.value
+  if (!id) {
+    dashboardData.value = null
+    if (hasSupportAdminRole.value) {
+      isLoading.value = true
+      try {
+        const g = await getPendingAdminJoinRequests('')
+        globalAdminPendingCount.value = g.length
+      } catch (err) {
+        console.error('Globale Admin-Anfragen laden fehlgeschlagen:', err)
+      } finally {
+        isLoading.value = false
+      }
+    } else {
+      isLoading.value = false
+    }
+    return
+  }
   isLoading.value = true
   try {
-    dashboardData.value = await getDashboardData(departmentId.value)
+    dashboardData.value = await getDashboardData(id)
   } catch (err) {
     console.error('Dashboard laden fehlgeschlagen:', err)
   } finally {
@@ -425,6 +511,10 @@ watch(departmentId, () => load())
 }
 
 .dashboard-header {
+  margin-bottom: 24px;
+}
+
+.join-requests-above-actions {
   margin-bottom: 24px;
 }
 
@@ -677,6 +767,45 @@ button.quick-action-btn {
 
 .section-link:hover {
   text-decoration: underline;
+}
+
+.config-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.config-card {
+  display: flex;
+  flex-direction: column;
+  padding: 16px 20px;
+  border-radius: 10px;
+  border: 1px solid #e5e7eb;
+  background: #fff;
+  min-width: 180px;
+  text-decoration: none;
+  color: inherit;
+  transition: all 0.2s;
+}
+
+.config-card:hover {
+  border-color: #c7d2fe;
+  background: #f8fafc;
+}
+
+.config-label {
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.config-desc {
+  font-size: 13px;
+  color: #6b7280;
+  margin-top: 4px;
+}
+
+.admin-global-shortcuts {
+  margin-bottom: 0;
 }
 
 </style>

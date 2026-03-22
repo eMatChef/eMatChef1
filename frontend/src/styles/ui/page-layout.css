@@ -9,6 +9,34 @@
   align-items: flex-start;
 }
 
+/* Abteilungs-Seiten: gleicher Rhythmus wie Aktivitäten-Liste */
+.dept-page {
+  padding: 24px;
+  max-width: 1400px;
+  position: relative;
+}
+
+.dept-page .header-left h1 {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--color-text, #1a1a2e);
+  margin: 0;
+}
+
+.dept-page .subtitle {
+  font-size: 14px;
+  color: var(--color-text-muted, #6b7280);
+  margin-top: 4px;
+  display: block;
+}
+
+.dept-page .header-right {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
 /* Shared filter/search bar */
 .filter-bar {
   display: flex;

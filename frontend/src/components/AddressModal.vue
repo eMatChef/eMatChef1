@@ -623,11 +623,18 @@ function parseAddressText(text: string): {
   return result
 }
 
+function getDefaultCompanyForNewAddress(): string | null {
+  if (isGlobalMode.value) return props.defaultName || null
+  // Lagerplatz: nur Bezeichnung vorfüllen, Firma/Organisation bleibt leer
+  if (props.defaultType === 'storage') return null
+  return props.defaultName || null
+}
+
 // Form-Daten
 const formData = ref<Partial<AddressFormData>>({
   type: isGlobalMode.value ? 'supplier' : props.defaultType,
   name: props.defaultName || '',
-  company: props.defaultName || null,  // Bei Hersteller/Lieferant als Firma vorausfüllen
+  company: getDefaultCompanyForNewAddress(),
   street: '',
   street_number: null,
   postal_code: '',
@@ -690,7 +697,7 @@ function resetForm() {
   formData.value = {
     type: isGlobalMode.value ? 'supplier' : props.defaultType,
     name: props.defaultName || '',
-    company: props.defaultName || null,
+    company: getDefaultCompanyForNewAddress(),
     street: '',
     street_number: null,
     postal_code: '',
@@ -893,6 +900,13 @@ function close() {
   max-height: calc(100vh - 48px);
   padding: 0;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.address-modal-dialog .modal-header {
+  flex-shrink: 0;
 }
 
 .modal-header h2 {
@@ -903,7 +917,10 @@ function close() {
 }
 
 .modal-body {
+  flex: 1;
+  min-height: 0;
   overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
   display: flex;
   flex-direction: column;
   gap: 16px;
@@ -966,6 +983,7 @@ function close() {
 
 /* Adress-Suche (eigener Bereich, nicht scrollbar) */
 .address-search-section {
+  flex-shrink: 0;
   padding: 16px 24px 0;
   overflow: visible;
   position: relative;

@@ -11,7 +11,7 @@
           {{ missingSteps[0] }}
         </button>
       </div>
-      <button class="btn-secondary btn-sm" @click="$emit('close')">Abbrechen</button>
+      <button class="btn-secondary btn-sm" @click="$emit('close')">Verwerfen</button>
       <button 
         class="btn-primary btn-sm" 
         :disabled="!canSubmit || isSubmitting"
@@ -46,7 +46,7 @@ defineEmits<{
 
 const submitButtonText = computed(() => {
   if (props.isSubmitting) return 'Wird gespeichert...'
-  if (props.isAddBatchMode) return 'Bestand hinzufügen'
+  if (props.isAddBatchMode) return 'Charge hinzufügen'
   if (props.isFromTemplate) {
     if (props.creationMode === 'individual') return 'Artikel erstellen'
     if (props.creationMode === 'physical_combo') return 'Kombo erstellen'

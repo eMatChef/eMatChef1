@@ -46,18 +46,18 @@
         </div>
       </div>
     </div>
-    <!-- Aus Lagerplatz übernehmen (nur bei Combo) -->
-    <div v-if="showRackPicker" class="template-picker-divider">
+    <!-- Aus Kiste übernehmen (nur bei Combo; Inhalt = Materialien in dieser Kiste) -->
+    <div v-if="showContainerBatchPicker" class="template-picker-divider">
       <span>oder</span>
     </div>
-    <RackContentsPicker
-      v-if="showRackPicker"
-      :rack-id="rackId"
-      :storage-racks="storageRacks"
-      :is-loading="isLoadingRackContents"
-      :selected-contents="selectedRackContents"
-      @update:rack-id="$emit('update:rackId', $event)"
-      @load="$emit('loadRackContents')"
+    <ContainerBatchContentsPicker
+      v-if="showContainerBatchPicker"
+      :container-batch-id="containerBatchId"
+      :container-batches="containerBatches"
+      :is-loading="isLoadingContainerContents"
+      :selected-contents="selectedContainerContents"
+      @update:container-batch-id="$emit('update:containerBatchId', $event)"
+      @load="$emit('loadContainerContents')"
     />
     <div class="template-picker-divider">
       <span>oder manuell erstellen</span>
@@ -66,27 +66,26 @@
 </template>
 
 <script setup lang="ts">
-import RackContentsPicker from './RackContentsPicker.vue'
+import ContainerBatchContentsPicker from './ContainerBatchContentsPicker.vue'
 import type { Template } from '@/api/templates'
-import type { StorageRack } from '@/api/storageLocations'
-import type { RackContentsResponse } from '@/api/storageLocations'
+import type { ContainerBatch, ContainerBatchContentsResponse } from '@/api/storageLocations'
 
 defineProps<{
   search: string
   showDropdown: boolean
   filteredTemplates: Template[]
-  showRackPicker: boolean
-  rackId: string
-  storageRacks: StorageRack[]
-  isLoadingRackContents: boolean
-  selectedRackContents: RackContentsResponse | null
+  showContainerBatchPicker: boolean
+  containerBatchId: string
+  containerBatches: ContainerBatch[]
+  isLoadingContainerContents: boolean
+  selectedContainerContents: ContainerBatchContentsResponse | null
 }>()
 defineEmits<{
   'update:search': [value: string]
   focus: []
   blur: []
   select: [template: Template]
-  'update:rackId': [value: string]
-  loadRackContents: []
+  'update:containerBatchId': [value: string]
+  loadContainerContents: []
 }>()
 </script>

@@ -4760,7 +4760,7 @@ function handleCloseWizard(returnToDashboard = true) {
   showNewDialog.value = false
   resetWizard()
   if (returnToDashboard && route.query.from === 'dashboard' && departmentId.value) {
-    router.replace(`/${departmentId.value}/dashboard`)
+    router.replace(`/${departmentId.value}`)
   }
 }
 

@@ -72,7 +72,7 @@
                     :rack-id="form.rack_id"
                     :slot-id="form.slot_id"
                     :racks="racks"
-                    :slots="selectedSlots"
+                    :slot-list="selectedSlots"
                     rack-label="Gestell"
                     slot-label="Fach"
                     rack-placeholder="Gestell wählen"
