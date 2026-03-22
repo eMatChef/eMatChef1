@@ -42,16 +42,13 @@ const routes: RouteRecordRaw[] = [
   {
     path: '/',
     name: 'Login',
+    alias: ['/login'],
     component: () => import('@/views/LoginView.vue'),
     meta: {
       requiresAuth: false,
       pageTitle: 'Anmelden · eMatChef',
       pageDescription: PAGE_DESC,
     }
-  },
-  {
-    path: '/login',
-    redirect: '/'
   },
   {
     path: '/verify',
@@ -79,47 +76,73 @@ const routes: RouteRecordRaw[] = [
       }
     ]
   },
+  /** Superadmin ohne Department: Home ohne Verwaltungs-Subnavigation (nicht /admin-dashboard/verwaltung/…) */
+  {
+    path: '/dashboard',
+    component: () => import('@/components/layout/AppLayout.vue'),
+    meta: { requiresAuth: true },
+    children: [
+      {
+        path: '',
+        name: 'SuperadminHomeDashboard',
+        component: () => import('@/views/DashboardView.vue'),
+        meta: {
+          pageTitle: 'Dashboard · eMatChef',
+          pageDescription: PAGE_DESC,
+        }
+      }
+    ]
+  },
   {
     path: '/admin-dashboard',
     component: () => import('@/components/layout/AppLayout.vue'),
     meta: { requiresAuth: true, requiredRoles: ['superadmin', 'organisationschef', 'suborgchef'] },
-    redirect: '/admin-dashboard/dashboard',
     children: [
       {
-        path: 'dashboard',
-        name: 'AdminDashboard',
-        component: () => import('@/views/AdminDashboardView.vue'),
-        meta: {
-          requiredRoles: ['superadmin', 'organisationschef', 'suborgchef'],
-          pageTitle: 'Admin-Dashboard · eMatChef',
-          pageDescription: PAGE_DESC,
-        }
-      },
-      {
-        path: 'support-requests',
-        name: 'AdminSupportRequests',
-        component: () => import('@/views/SupportRequestsView.vue'),
-        meta: {
-          requiredRoles: ['superadmin', 'organisationschef', 'suborgchef'],
-          pageTitle: 'Support-Anfragen · eMatChef',
-          pageDescription: PAGE_DESC,
-        }
-      },
-      {
-        path: 'jobs',
-        name: 'AdminJobs',
-        component: () => import('@/views/JobsView.vue'),
-        meta: {
-          requiredRoles: ['superadmin', 'organisationschef', 'suborgchef'],
-          pageTitle: 'Jobs · eMatChef',
-          pageDescription: PAGE_DESC,
-        }
-      },
-      {
-        path: 'settings',
-        component: () => import('@/views/SettingsView.vue'),
-        redirect: '/admin-dashboard/settings/organisations',
+        path: 'verwaltung',
+        alias: '',
+        component: () => import('@/views/VerwaltungView.vue'),
         children: [
+          {
+            path: '',
+            name: 'AdminGlobalAddresses',
+            component: () => import('@/views/GlobalAddressesView.vue'),
+            meta: {
+              requiredRoles: ['superadmin', 'organisationschef', 'suborgchef'],
+              pageTitle: 'Globale Adressen · eMatChef',
+              pageDescription: PAGE_DESC,
+            }
+          },
+          {
+            path: 'dashboard',
+            name: 'AdminDashboard',
+            component: () => import('@/views/DashboardView.vue'),
+            meta: {
+              requiredRoles: ['superadmin', 'organisationschef', 'suborgchef'],
+              pageTitle: 'Dashboard · eMatChef',
+              pageDescription: PAGE_DESC,
+            }
+          },
+          {
+            path: 'support-requests',
+            name: 'AdminSupportRequests',
+            component: () => import('@/views/SupportRequestsView.vue'),
+            meta: {
+              requiredRoles: ['superadmin', 'organisationschef', 'suborgchef'],
+              pageTitle: 'Support-Anfragen · eMatChef',
+              pageDescription: PAGE_DESC,
+            }
+          },
+          {
+            path: 'jobs',
+            name: 'AdminJobs',
+            component: () => import('@/views/JobsView.vue'),
+            meta: {
+              requiredRoles: ['superadmin'],
+              pageTitle: 'System-Jobs · eMatChef',
+              pageDescription: PAGE_DESC,
+            }
+          },
           {
             path: 'organisations',
             name: 'AdminSettingsOrganisations',
@@ -152,11 +175,57 @@ const routes: RouteRecordRaw[] = [
           },
           {
             path: 'mail-templates',
-            name: 'AdminSettingsMailTemplates',
-            component: () => import('@/views/settings/MailTemplatesSettingsView.vue'),
+            redirect: (to) => ({ path: to.path.replace(/\/mail-templates\/?$/, '/mail/versand') }),
+          },
+          {
+            path: 'mail',
+            component: () => import('@/views/mail/MailVerwaltungLayout.vue'),
+            redirect: { name: 'AdminMailVersand' },
+            meta: {
+              requiredRoles: ['superadmin'],
+              pageTitle: 'E-Mail · eMatChef',
+              pageDescription: PAGE_DESC,
+            },
+            children: [
+              {
+                path: 'versand',
+                name: 'AdminMailVersand',
+                component: () => import('@/views/settings/MailTemplatesSettingsView.vue'),
+                meta: {
+                  requiredRoles: ['superadmin'],
+                  pageTitle: 'E-Mail · Vorlagen · eMatChef',
+                  pageDescription: PAGE_DESC,
+                },
+              },
+              {
+                path: 'einstellungen',
+                name: 'AdminMailEinstellungen',
+                component: () => import('@/views/mail/MailOutboundSettingsView.vue'),
+                meta: {
+                  requiredRoles: ['superadmin'],
+                  pageTitle: 'E-Mail · Einstellungen · eMatChef',
+                  pageDescription: PAGE_DESC,
+                },
+              },
+              {
+                path: 'log',
+                name: 'AdminMailLog',
+                component: () => import('@/views/mail/MailSendLogView.vue'),
+                meta: {
+                  requiredRoles: ['superadmin'],
+                  pageTitle: 'E-Mail · Log · eMatChef',
+                  pageDescription: PAGE_DESC,
+                },
+              },
+            ],
+          },
+          {
+            path: 'permissions',
+            name: 'AdminVerwaltungPermissions',
+            component: () => import('@/views/settings/PermissionsSettingsView.vue'),
             meta: {
               requiredRoles: ['superadmin', 'organisationschef', 'suborgchef'],
-              pageTitle: 'E-Mail-Vorlagen · eMatChef',
+              pageTitle: 'Berechtigungen · eMatChef',
               pageDescription: PAGE_DESC,
             }
           }
@@ -168,10 +237,10 @@ const routes: RouteRecordRaw[] = [
     path: '/:departmentId',
     component: () => import('@/components/layout/AppLayout.vue'),
     meta: { requiresAuth: true },
-    redirect: (to) => `/${to.params.departmentId}/dashboard`,
     children: [
       {
-        path: 'dashboard',
+        path: '',
+        alias: 'dashboard',
         name: 'Dashboard',
         component: () => import('@/views/DashboardView.vue'),
         meta: {
@@ -180,24 +249,116 @@ const routes: RouteRecordRaw[] = [
         }
       },
       {
-        path: 'jobs',
-        name: 'Jobs',
-        component: () => import('@/views/JobsView.vue'),
-        meta: {
-          requiredRoles: ['superadmin', 'organisationschef', 'suborgchef'],
-          pageTitle: 'Jobs · eMatChef',
-          pageDescription: PAGE_DESC,
-        }
-      },
-      {
-        path: 'support-requests',
-        name: 'SupportRequests',
-        component: () => import('@/views/SupportRequestsView.vue'),
-        meta: {
-          requiredRoles: ['superadmin', 'organisationschef', 'suborgchef'],
-          pageTitle: 'Support-Anfragen · eMatChef',
-          pageDescription: PAGE_DESC,
-        }
+        path: 'verwaltung',
+        component: () => import('@/views/VerwaltungView.vue'),
+        children: [
+          {
+            path: '',
+            name: 'DepartmentGlobalAddresses',
+            component: () => import('@/views/GlobalAddressesView.vue'),
+            meta: {
+              requiredRoles: ['superadmin', 'organisationschef', 'suborgchef'],
+              pageTitle: 'Globale Adressen · eMatChef',
+              pageDescription: PAGE_DESC,
+            }
+          },
+          {
+            path: 'jobs',
+            name: 'Jobs',
+            component: () => import('@/views/JobsView.vue'),
+            meta: {
+              requiredRoles: ['superadmin'],
+              pageTitle: 'System-Jobs · eMatChef',
+              pageDescription: PAGE_DESC,
+            }
+          },
+          {
+            path: 'support-requests',
+            name: 'SupportRequests',
+            component: () => import('@/views/SupportRequestsView.vue'),
+            meta: {
+              requiredRoles: ['superadmin', 'organisationschef', 'suborgchef'],
+              pageTitle: 'Support-Anfragen · eMatChef',
+              pageDescription: PAGE_DESC,
+            }
+          },
+          {
+            path: 'organisations',
+            name: 'DepartmentVerwaltungOrganisations',
+            component: () => import('@/views/settings/OrganisationsSettingsView.vue'),
+            meta: {
+              requiredRoles: ['superadmin', 'organisationschef', 'suborgchef'],
+              pageTitle: 'Organisationen · eMatChef',
+              pageDescription: PAGE_DESC,
+            }
+          },
+          {
+            path: 'departments',
+            name: 'DepartmentVerwaltungDepartments',
+            component: () => import('@/views/settings/DepartmentsSettingsView.vue'),
+            meta: {
+              requiredRoles: ['superadmin', 'organisationschef', 'suborgchef'],
+              pageTitle: 'Abteilungen · eMatChef',
+              pageDescription: PAGE_DESC,
+            }
+          },
+          {
+            path: 'mail-templates',
+            redirect: (to) => ({ path: to.path.replace(/\/mail-templates\/?$/, '/mail/versand') }),
+          },
+          {
+            path: 'mail',
+            component: () => import('@/views/mail/MailVerwaltungLayout.vue'),
+            redirect: { name: 'DepartmentMailVersand' },
+            meta: {
+              requiredRoles: ['superadmin'],
+              pageTitle: 'E-Mail · eMatChef',
+              pageDescription: PAGE_DESC,
+            },
+            children: [
+              {
+                path: 'versand',
+                name: 'DepartmentMailVersand',
+                component: () => import('@/views/settings/MailTemplatesSettingsView.vue'),
+                meta: {
+                  requiredRoles: ['superadmin'],
+                  pageTitle: 'E-Mail · Vorlagen · eMatChef',
+                  pageDescription: PAGE_DESC,
+                },
+              },
+              {
+                path: 'einstellungen',
+                name: 'DepartmentMailEinstellungen',
+                component: () => import('@/views/mail/MailOutboundSettingsView.vue'),
+                meta: {
+                  requiredRoles: ['superadmin'],
+                  pageTitle: 'E-Mail · Einstellungen · eMatChef',
+                  pageDescription: PAGE_DESC,
+                },
+              },
+              {
+                path: 'log',
+                name: 'DepartmentMailLog',
+                component: () => import('@/views/mail/MailSendLogView.vue'),
+                meta: {
+                  requiredRoles: ['superadmin'],
+                  pageTitle: 'E-Mail · Log · eMatChef',
+                  pageDescription: PAGE_DESC,
+                },
+              },
+            ],
+          },
+          {
+            path: 'permissions',
+            name: 'DepartmentVerwaltungPermissions',
+            component: () => import('@/views/settings/PermissionsSettingsView.vue'),
+            meta: {
+              requiredRoles: ['superadmin', 'organisationschef', 'suborgchef'],
+              pageTitle: 'Berechtigungen · eMatChef',
+              pageDescription: PAGE_DESC,
+            }
+          }
+        ]
       },
       {
         path: 'activities',
@@ -325,9 +486,39 @@ const routes: RouteRecordRaw[] = [
       {
         path: 'tasks',
         name: 'Tasks',
-        component: () => import('@/views/TasksView.vue'),
+        component: () => import('@/views/TasksShellView.vue'),
+        redirect: { name: 'TasksGeneral' },
         meta: {
           pageTitle: 'Aufgaben · eMatChef',
+          pageDescription: PAGE_DESC,
+        },
+        children: [
+          {
+            path: 'allgemein',
+            name: 'TasksGeneral',
+            component: () => import('@/views/TasksGeneralView.vue'),
+            meta: {
+              pageTitle: 'Aufgaben · Allgemein · eMatChef',
+              pageDescription: PAGE_DESC,
+            },
+          },
+          {
+            path: 'druck',
+            name: 'TasksPrint',
+            component: () => import('@/views/TasksPrintView.vue'),
+            meta: {
+              pageTitle: 'Aufgaben · Drucken · eMatChef',
+              pageDescription: PAGE_DESC,
+            },
+          },
+        ],
+      },
+      {
+        path: 'notifications',
+        name: 'NotificationsCenter',
+        component: () => import('@/views/NotificationsCenterView.vue'),
+        meta: {
+          pageTitle: 'Nachrichtenzentrale · eMatChef',
           pageDescription: PAGE_DESC,
         }
       },
@@ -352,14 +543,21 @@ const routes: RouteRecordRaw[] = [
       {
         path: 'settings',
         component: () => import('@/views/SettingsView.vue'),
-        redirect: (to) => `/${to.params.departmentId}/settings/general`,
         children: [
           {
+            path: '',
+            redirect: { name: 'SettingsMyDepartment' },
+          },
+          {
             path: 'general',
-            name: 'SettingsGeneral',
+            redirect: { name: 'SettingsZeit' },
+          },
+          {
+            path: 'zeit',
+            name: 'SettingsZeit',
             component: () => import('@/views/settings/GeneralSettingsView.vue'),
             meta: {
-              pageTitle: 'Einstellungen · Allgemein · eMatChef',
+              pageTitle: 'Einstellungen · Zeit/Ort · eMatChef',
               pageDescription: PAGE_DESC,
             }
           },
@@ -377,27 +575,7 @@ const routes: RouteRecordRaw[] = [
             name: 'SettingsMyDepartment',
             component: () => import('@/views/settings/MyDepartmentSettingsView.vue'),
             meta: {
-              pageTitle: 'Einstellungen · Meine Abteilung · eMatChef',
-              pageDescription: PAGE_DESC,
-            }
-          },
-          {
-            path: 'departments',
-            name: 'SettingsDepartments',
-            component: () => import('@/views/settings/DepartmentsSettingsView.vue'),
-            meta: {
-              requiredRoles: ['superadmin', 'organisationschef', 'suborgchef'],
-              pageTitle: 'Einstellungen · Abteilungen · eMatChef',
-              pageDescription: PAGE_DESC,
-            }
-          },
-          {
-            path: 'organisations',
-            name: 'SettingsOrganisations',
-            component: () => import('@/views/settings/OrganisationsSettingsView.vue'),
-            meta: {
-              requiredRoles: ['superadmin', 'organisationschef', 'suborgchef'],
-              pageTitle: 'Einstellungen · Organisationen · eMatChef',
+              pageTitle: 'Einstellungen · Mein Department · eMatChef',
               pageDescription: PAGE_DESC,
             }
           },
@@ -416,16 +594,6 @@ const routes: RouteRecordRaw[] = [
             component: () => import('@/views/settings/GroupsSettingsView.vue'),
             meta: {
               pageTitle: 'Einstellungen · Gruppen · eMatChef',
-              pageDescription: PAGE_DESC,
-            }
-          },
-          {
-            path: 'permissions',
-            name: 'SettingsPermissions',
-            component: () => import('@/views/settings/PermissionsSettingsView.vue'),
-            meta: {
-              requiredRoles: ['superadmin', 'organisationschef', 'suborgchef'],
-              pageTitle: 'Einstellungen · Berechtigungen · eMatChef',
               pageDescription: PAGE_DESC,
             }
           },
@@ -453,16 +621,6 @@ const routes: RouteRecordRaw[] = [
             component: () => import('@/views/settings/TemplatesSettingsView.vue'),
             meta: {
               pageTitle: 'Einstellungen · Vorlagen · eMatChef',
-              pageDescription: PAGE_DESC,
-            }
-          },
-          {
-            path: 'mail-templates',
-            name: 'SettingsMailTemplates',
-            component: () => import('@/views/settings/MailTemplatesSettingsView.vue'),
-            meta: {
-              requiredRoles: ['superadmin', 'organisationschef', 'suborgchef'],
-              pageTitle: 'Einstellungen · E-Mail-Vorlagen · eMatChef',
               pageDescription: PAGE_DESC,
             }
           }
@@ -579,10 +737,35 @@ router.beforeEach(async (to, from, next) => {
       }
     }
 
+    // Superadmin-Home nur ohne Department; mit Department immer Abteilungs-Dashboard
+    if (to.path === '/dashboard') {
+      if (!isSuperAdmin()) {
+        if (primaryDepartmentId) {
+          return next(`/${primaryDepartmentId}`)
+        }
+        return next('/pending-assignment')
+      }
+      if (primaryDepartmentId) {
+        return next(`/${primaryDepartmentId}`)
+      }
+    }
+
+    // SA ohne Department: Admin-„Übersicht“ unter /verwaltung/dashboard → schlankes /dashboard
+    if (
+      isSuperAdmin() &&
+      !primaryDepartmentId &&
+      (to.path === '/admin-dashboard' || to.path === '/admin-dashboard/verwaltung/dashboard')
+    ) {
+      return next('/dashboard')
+    }
+
     // User ohne Department werden auf Pending-Seite geleitet
     if (!primaryDepartmentId) {
-      if (isSuperAdmin() && to.path.startsWith('/admin-dashboard')) {
-        // SA darf ohne Department im Admin-Bereich arbeiten
+      if (
+        isSuperAdmin() &&
+        (to.path.startsWith('/admin-dashboard') || to.path === '/dashboard')
+      ) {
+        // SA darf ohne Department im Admin-Bereich bzw. globalem Dashboard arbeiten
       } else if (to.path !== '/pending-assignment') {
         if (to.meta.requiresAuth || to.path === '/') {
           return next('/pending-assignment')
@@ -606,24 +789,27 @@ router.beforeEach(async (to, from, next) => {
       }
     }
 
-    // SA landet immer zuerst im Admin-Dashboard (unabhängig von Department-Mitgliedschaft)
+    // Superadmin: gleiches Dashboard wie alle; mit Department → /{id}
     if (to.path === '/' && isSuperAdmin()) {
-      return next('/admin-dashboard/dashboard')
+      if (primaryDepartmentId) {
+        return next(`/${primaryDepartmentId}`)
+      }
+      return next('/dashboard')
     }
 
     // Andere User: zu Dashboard mit primärer Department-ID
     if (to.path === '/' && primaryDepartmentId) {
-      return next(`/${primaryDepartmentId}/dashboard`)
+      return next(`/${primaryDepartmentId}`)
     }
 
     // Wenn User inzwischen Department hat, Pending-Seite verlassen
     if (to.path === '/pending-assignment' && primaryDepartmentId) {
-      return next(`/${primaryDepartmentId}/dashboard`)
+      return next(`/${primaryDepartmentId}`)
     }
 
-    // SA ohne Department: Pending-Seite in Admin-Bereich umleiten
+    // SA ohne Department: Pending-Seite → globales Dashboard (kein Wartebereich wie neue Nutzer)
     if (to.path === '/pending-assignment' && !primaryDepartmentId && isSuperAdmin()) {
-      return next('/admin-dashboard/dashboard')
+      return next('/dashboard')
     }
   }
 
@@ -635,7 +821,7 @@ router.beforeEach(async (to, from, next) => {
       // Kein Zugriff auf fremdes Department
       const fallbackDept = authStore.activeDepartmentId || authStore.departments[0]?.department_id
       if (fallbackDept) {
-        return next(`/${fallbackDept}/dashboard`)
+        return next(`/${fallbackDept}`)
       }
       return next('/pending-assignment')
     }
@@ -684,10 +870,10 @@ router.beforeEach(async (to, from, next) => {
     })
     
     if (!hasRequiredRole) {
-      // Keine Berechtigung - redirect zu Settings/General
+      // Keine Berechtigung - redirect zu Einstellungen (Standard: Mein Department)
       const deptId = to.params.departmentId || authStore.activeDepartmentId
       if (deptId) {
-        return next(`/${deptId}/settings/general`)
+        return next(`/${deptId}/settings`)
       }
       return next('/')
     }

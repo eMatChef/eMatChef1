@@ -452,15 +452,19 @@ async function handleSubmit() {
     return
   }
 
-  // SA landet immer zuerst im Admin-Dashboard (unabhängig von Department-Mitgliedschaft)
   if (authStore.userRoles.includes('ROLE_SUPERADMIN')) {
-    router.replace('/admin-dashboard/dashboard')
+    const primaryDept =
+      authStore.departments.find(d => d.is_primary) || authStore.departments[0]
+    if (primaryDept?.department_id) {
+      router.replace(`/${primaryDept.department_id}`)
+      return
+    }
+    router.replace('/dashboard')
     return
   }
 
   if (authStore.activeDepartmentId) {
-    const redirect = `/${authStore.activeDepartmentId}/dashboard`
-    router.replace(redirect)
+    router.replace(`/${authStore.activeDepartmentId}`)
     return
   }
 

@@ -73,6 +73,9 @@ class GroupController extends AbstractController
                 $membershipsByGroup[$gid] = [];
             }
             $user = $m->getUser();
+            if ($user->hasSuperAdminProfile()) {
+                continue;
+            }
             $profile = $user->getProfile();
             $membershipsByGroup[$gid][] = [
                 'user_id' => $user->getId(),
@@ -139,6 +142,9 @@ class GroupController extends AbstractController
         $members = [];
         foreach ($memberships as $m) {
             $user = $m->getUser();
+            if ($user->hasSuperAdminProfile()) {
+                continue;
+            }
             $profile = $user->getProfile();
             $members[] = [
                 'user_id' => $user->getId(),
@@ -400,6 +406,11 @@ class GroupController extends AbstractController
         
         if (!$membership) {
             return new JsonResponse(['error' => 'Mitgliedschaft nicht gefunden'], 404);
+        }
+
+        $memberUser = $membership->getUser();
+        if ($memberUser->hasSuperAdminProfile()) {
+            return new JsonResponse(['error' => 'Superadmin-Konten haben keine Gruppenrollen in der Verwaltung'], 403);
         }
 
         $data = json_decode($request->getContent(), true);

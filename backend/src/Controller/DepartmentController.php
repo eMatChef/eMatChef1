@@ -397,6 +397,9 @@ class DepartmentController extends AbstractController
         $result = [];
         foreach ($memberships as $m) {
             $user = $m->getUser();
+            if ($user->hasSuperAdminProfile()) {
+                continue;
+            }
             $profile = $user->getProfile();
             if ($profile) {
                 $result[] = [
@@ -507,6 +510,10 @@ class DepartmentController extends AbstractController
             return new JsonResponse(['error' => 'User nicht gefunden'], 404);
         }
 
+        if ($user->hasSuperAdminProfile()) {
+            return new JsonResponse(['error' => 'Superadmin-Konten sind keiner Abteilung zuordenbar'], 400);
+        }
+
         // Prüfe ob User schon Mitglied ist
         $existing = $this->entityManager->getRepository(Membership::class)
             ->findOneBy(['userId' => $data['user_id'], 'departmentId' => $departmentId]);
@@ -583,6 +590,11 @@ class DepartmentController extends AbstractController
 
         if (!$membership) {
             return new JsonResponse(['error' => 'Mitgliedschaft nicht gefunden'], 404);
+        }
+
+        $targetUser = $membership->getUser();
+        if ($targetUser->hasSuperAdminProfile()) {
+            return new JsonResponse(['error' => 'Superadmin-Konten haben keine Abteilungsrollen in der Verwaltung'], 403);
         }
 
         $data = json_decode($request->getContent(), true);
@@ -668,6 +680,12 @@ class DepartmentController extends AbstractController
             return new JsonResponse(['error' => 'Mitgliedschaft nicht gefunden'], 404);
         }
 
+        if ($currentUser->getId() === $userId) {
+            return new JsonResponse([
+                'error' => 'Du kannst dich hier nicht selbst aus dem Department entfernen.',
+            ], 400);
+        }
+
         $this->auditLogger->log(
             'membership',
             AuditLogger::buildMembershipEntityId($membership->getUserId(), $membership->getDepartmentId()),
@@ -731,6 +749,9 @@ class DepartmentController extends AbstractController
 
         $result = [];
         foreach ($users as $user) {
+            if ($user->hasSuperAdminProfile()) {
+                continue;
+            }
             $profile = $user->getProfile();
             if ($profile) {
                 $result[] = [

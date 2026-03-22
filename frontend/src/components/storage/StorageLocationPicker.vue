@@ -28,7 +28,7 @@
         @change="handleRackChange"
       >
         <option value="">{{ rackPlaceholder }}</option>
-        <option v-for="rack in racks" :key="rack.id" :value="rack.id">
+        <option v-for="rack in racks" :key="rack.id" :value="String(rack.id)">
           {{ rack.name }}
         </option>
       </select>
@@ -39,15 +39,15 @@
       <select
         :value="slotId"
         class="picker-select"
-        :disabled="disabled || !rackId || disableSlotWithoutRack"
+        :disabled="disabled || (disableSlotWithoutRack && !rackId)"
         @change="handleSlotChange"
       >
         <option value="">{{ slotPlaceholder }}</option>
-        <option v-for="slot in slots" :key="slot.id" :value="slot.id">
+        <option v-for="slot in slotList" :key="slot.id" :value="String(slot.id)">
           {{ slot.name }}
         </option>
       </select>
-      <p v-if="showEmptySlotHint && rackId && slots.length === 0" class="picker-hint">
+      <p v-if="showEmptySlotHint && rackId && slotList.length === 0" class="picker-hint">
         {{ emptySlotHint }}
       </p>
     </div>
@@ -68,7 +68,8 @@ const props = withDefaults(defineProps<{
   rackId: string
   slotId?: string
   racks: StorageRack[]
-  slots: StorageSlot[]
+  /** Nicht „slots“ nennen – in Vue-Templates kollidiert das mit dem Slot-System (Dropdown blieb leer trotz API-Daten). */
+  slotList: StorageSlot[]
   showStorageAddress?: boolean
   showSlot?: boolean
   disabled?: boolean
@@ -87,6 +88,7 @@ const props = withDefaults(defineProps<{
   storageAddressOptions: () => [],
   slotId: '',
   showStorageAddress: false,
+  slotList: () => [],
   showSlot: true,
   disabled: false,
   disableSlotWithoutRack: true,

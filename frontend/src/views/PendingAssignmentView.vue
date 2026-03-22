@@ -351,7 +351,7 @@ async function submitRequest() {
       await authStore.loadDepartments()
       const deptId = created.department_id || authStore.activeDepartmentId
       if (deptId) {
-        window.location.href = `/${deptId}/dashboard`
+        window.location.href = `/${deptId}`
         return
       }
       success.value = 'Einladung akzeptiert. Du wurdest direkt dem Department zugeordnet.'

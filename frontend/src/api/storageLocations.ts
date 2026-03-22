@@ -31,6 +31,13 @@ export interface RackContentsResponse {
   contents: RackContentsItem[]
 }
 
+/** Inhalt einer Kiste (Allokationen mit container_batch_id = diese Kiste) */
+export interface ContainerBatchContentsResponse {
+  container_batch_id: string
+  container_label: string
+  contents: RackContentsItem[]
+}
+
 export interface StorageSlotContent {
   material_id: string
   material_name: string
@@ -99,6 +106,13 @@ export async function getRackContents(rackId: string): Promise<RackContentsRespo
   return response.data
 }
 
+export async function getContainerBatchContents(containerBatchId: string): Promise<ContainerBatchContentsResponse> {
+  const response = await apiClient.get<ContainerBatchContentsResponse>(
+    `/api/container-batches/${encodeURIComponent(containerBatchId)}/contents`
+  )
+  return response.data
+}
+
 export async function createStorageRack(data: {
   department_id: string
   storage_address_id: string
@@ -126,8 +140,9 @@ export async function deleteStorageRack(id: string): Promise<void> {
 }
 
 export async function getStorageSlots(rackId: string): Promise<StorageSlot[]> {
-  const response = await apiClient.get<StorageSlot[]>(`/api/storage-slots?rack_id=${encodeURIComponent(rackId)}`)
-  return response.data
+  const response = await apiClient.get<unknown>(`/api/storage-slots?rack_id=${encodeURIComponent(rackId)}`)
+  const raw = response.data
+  return Array.isArray(raw) ? (raw as StorageSlot[]) : []
 }
 
 export async function createStorageSlot(data: {

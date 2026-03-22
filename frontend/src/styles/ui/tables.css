@@ -1,7 +1,9 @@
 /* Shared table wrapper and base */
 .materials-table-wrapper,
 .contacts-table-wrapper,
-.activities-table-wrapper {
+.activities-table-wrapper,
+.tasks-table-wrapper,
+.notifications-table-wrapper {
   background: white;
   border-radius: 12px;
   border: 1px solid #e5e7eb;
@@ -10,21 +12,27 @@
 
 .materials-table,
 .contacts-table,
-.activities-table {
+.activities-table,
+.tasks-table,
+.notifications-table {
   width: 100%;
   border-collapse: collapse;
 }
 
 .materials-table thead,
 .contacts-table thead,
-.activities-table thead {
+.activities-table thead,
+.tasks-table thead,
+.notifications-table thead {
   background: #f9fafb;
   border-bottom: 1px solid #e5e7eb;
 }
 
 .materials-table th,
 .contacts-table th,
-.activities-table th {
+.activities-table th,
+.tasks-table th,
+.notifications-table th {
   padding: 14px 16px;
   text-align: left;
   font-size: 11px;
@@ -36,7 +44,9 @@
 
 .materials-table td,
 .contacts-table td,
-.activities-table td {
+.activities-table td,
+.tasks-table td,
+.notifications-table td {
   padding: 14px 16px;
   font-size: 14px;
   color: #374151;
@@ -60,6 +70,11 @@
 .material-row:last-child td,
 .contact-row:last-child td,
 .activity-row:last-child td {
+  border-bottom: none;
+}
+
+.tasks-table tbody tr:last-child td,
+.notifications-table tbody tr:last-child td {
   border-bottom: none;
 }
 

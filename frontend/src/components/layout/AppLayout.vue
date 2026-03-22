@@ -60,13 +60,36 @@ const departmentId = computed(() => {
 })
 
 const profileId = computed(() => authStore.profileId || '')
+
+function normalizeDeptRole(role: string): string {
+  return String(role || '').toLowerCase().trim()
+}
+
+/** Depchef / Materialchef — Zielgruppe des Einrichtungs-Onboardings */
 const hasOnboardingRole = computed(() => {
-  const role = String(authStore.currentDepartmentRole || '').toLowerCase().trim()
+  const role = normalizeDeptRole(authStore.currentDepartmentRole)
   return ['dc', 'depchef', 'mw', 'matwart'].includes(role)
 })
 
+/** SA / Org / Sub und globaler Superadmin — kein persönliches Department-Onboarding */
+const skipsPersonalDepartmentOnboarding = computed(() => {
+  const role = normalizeDeptRole(authStore.currentDepartmentRole)
+  if (
+    ['sa', 'superadmin', 'org', 'organisationschef', 'sub', 'suborgchef'].includes(role)
+  ) {
+    return true
+  }
+  return authStore.userRoles.includes('ROLE_SUPERADMIN')
+})
+
 const canUseOnboarding = computed(() => {
-  return authStore.isLoggedIn && !!departmentId.value && !!profileId.value && hasOnboardingRole.value
+  return (
+    authStore.isLoggedIn &&
+    !!departmentId.value &&
+    !!profileId.value &&
+    hasOnboardingRole.value &&
+    !skipsPersonalDepartmentOnboarding.value
+  )
 })
 
 const isOnboardingCompleted = computed(() => {
@@ -97,9 +120,21 @@ async function handleOnboardingComplete() {
 }
 
 watch(
-  [departmentId, profileId, () => authStore.isLoggedIn, () => authStore.currentDepartmentRole],
+  [
+    departmentId,
+    profileId,
+    () => authStore.isLoggedIn,
+    () => authStore.currentDepartmentRole,
+    () => authStore.userRoles.join(','),
+  ],
   async ([depId, profId, loggedIn]) => {
-    if (!loggedIn || !depId || !profId || !hasOnboardingRole.value) {
+    if (
+      !loggedIn ||
+      !depId ||
+      !profId ||
+      !hasOnboardingRole.value ||
+      skipsPersonalDepartmentOnboarding.value
+    ) {
       backendOnboardingDone.value = null
       isOnboardingOpen.value = false
       return

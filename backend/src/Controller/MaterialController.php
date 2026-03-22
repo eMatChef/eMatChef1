@@ -666,6 +666,189 @@ class MaterialController extends AbstractController
     }
 
     /**
+     * Combo aus Kisten-Inhalt erstellen (ohne Vorlage)
+     * POST /api/materials/create-combo-from-container-batch
+     * Body: { container_batch_id, name, material_type?, department_id, ... }
+     */
+    #[Route('/create-combo-from-container-batch', name: 'create_combo_from_container_batch', methods: ['POST'])]
+    #[IsGranted('ROLE_USER')]
+    public function createComboFromContainerBatch(Request $request): JsonResponse
+    {
+        $data = json_decode($request->getContent(), true) ?? [];
+        $containerBatchId = (string) ($data['container_batch_id'] ?? '');
+        $name = trim((string) ($data['name'] ?? ''));
+        $departmentId = (string) ($data['department_id'] ?? '');
+        $materialType = $data['material_type'] ?? 'physical_combo';
+
+        if (!$containerBatchId || !$name || !$departmentId) {
+            return new JsonResponse(['error' => 'container_batch_id, name und department_id sind erforderlich'], 400);
+        }
+        if (!in_array($materialType, ['physical_combo', 'virtual_combo'], true)) {
+            $materialType = 'physical_combo';
+        }
+
+        $accessCheck = $this->assertDepartmentAccess($departmentId);
+        if ($accessCheck instanceof JsonResponse) {
+            return $accessCheck;
+        }
+
+        $containerBatch = $this->entityManager->getRepository(MaterialBatch::class)->find($containerBatchId);
+        if (!$containerBatch || $containerBatch->getMaterialItem()->getDepartmentId() !== $departmentId) {
+            return new JsonResponse(['error' => 'Kiste nicht gefunden oder gehört nicht zum Department'], 404);
+        }
+
+        $department = $this->entityManager->getRepository(Department::class)->find($departmentId);
+        if (!$department) {
+            return new JsonResponse(['error' => 'Department nicht gefunden'], 404);
+        }
+
+        $conn = $this->entityManager->getConnection();
+        $sql = "
+            SELECT mi.id AS material_id, mi.name AS material_name, mi.tracking_type,
+                   SUM(a.qty) AS qty
+            FROM batch_storage_allocation a
+            INNER JOIN material_batch b ON a.batch_id = b.id
+            INNER JOIN material_item mi ON b.material_item_id = mi.id
+            WHERE a.container_batch_id = :containerBatchId
+              AND (mi.deleted_at IS NULL)
+              AND b.status = 'active'
+            GROUP BY mi.id, mi.name, mi.tracking_type
+            ORDER BY mi.name
+        ";
+        $rows = $conn->executeQuery($sql, ['containerBatchId' => $containerBatchId])->fetchAllAssociative();
+        if (empty($rows)) {
+            return new JsonResponse(['error' => 'Kiste ist leer – keine Materialien gefunden'], 400);
+        }
+
+        try {
+            $this->entityManager->beginTransaction();
+
+            $comboMaterial = new MaterialItem();
+            $comboMaterial->setId(IdGenerator::generate());
+            $comboMaterial->setDepartment($department);
+            $comboMaterial->setName($name);
+            $comboMaterial->setMaterialType($materialType);
+            $comboMaterial->setTrackingType('serialized');
+            $comboMaterial->setIsTent(false);
+            $comboMaterial->setReservationMode($data['reservation_mode'] ?? 'complete_only');
+
+            if (!empty($data['category_id'])) {
+                $category = $this->entityManager->getRepository(Category::class)->find($data['category_id']);
+                if ($category) {
+                    $comboMaterial->setCategory($category);
+                }
+            }
+            if (!empty($data['storage_address_id'])) {
+                $addr = $this->entityManager->getRepository(Address::class)->find($data['storage_address_id']);
+                if ($addr && $addr->getDepartmentId() === $departmentId) {
+                    $comboMaterial->setStorageAddress($addr);
+                }
+            }
+
+            if ($materialType === 'physical_combo') {
+                $comboMaterial->setLinkedContainerBatch($containerBatch);
+            }
+
+            $this->entityManager->persist($comboMaterial);
+
+            if ($materialType === 'physical_combo') {
+                $comboBatch = new MaterialBatch();
+                $comboBatch->setId(IdGenerator::generate13('ba'));
+                $comboBatch->setMaterialItem($comboMaterial);
+                $comboBatch->setQty(1);
+                $comboBatch->setIsInitial(true);
+                $comboBatch->setBatchType('initial');
+                $comboBatch->setAcquiredOn(new \DateTime($data['purchase_date'] ?? 'now'));
+                $this->entityManager->persist($comboBatch);
+
+                $allocRes = $this->allocateInitialPhysicalComboBatch($comboBatch, $departmentId, $data);
+                if ($allocRes instanceof JsonResponse) {
+                    $this->entityManager->rollBack();
+                    return $allocRes;
+                }
+            }
+
+            $sortOrder = 0;
+            foreach ($rows as $row) {
+                $componentMaterial = $this->entityManager->getRepository(MaterialItem::class)->find($row['material_id']);
+                if (!$componentMaterial) {
+                    continue;
+                }
+
+                $tracking = $row['tracking_type'] ?? 'bulk';
+                $qty = (int) $row['qty'];
+                $assignmentMode = ($tracking === 'serialized') ? 'on_issue' : 'bulk';
+
+                $comp = new MaterialComboComponent();
+                $comp->setId(IdGenerator::generate13('cc'));
+                $comp->setParentMaterial($comboMaterial);
+                $comp->setComponentMaterial($componentMaterial);
+                $comp->setQty($qty);
+                $comp->setAssignmentMode($assignmentMode);
+                $comp->setComponentRole($componentMaterial->getName());
+                $comp->setSortOrder($sortOrder++);
+                $this->entityManager->persist($comp);
+            }
+
+            $this->entityManager->flush();
+            $this->entityManager->commit();
+
+            return new JsonResponse($this->serializeMaterial($comboMaterial, true), 201);
+        } catch (\Exception $e) {
+            $this->entityManager->rollBack();
+            return new JsonResponse(['error' => 'Fehler: ' . $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Physische Kombi: initialen Batch im Gestell/Fach oder in einer Kiste verorten.
+     *
+     * @return JsonResponse|null null bei Erfolg
+     */
+    private function allocateInitialPhysicalComboBatch(MaterialBatch $batch, string $departmentId, array $data): ?JsonResponse
+    {
+        $containerBatchId = !empty($data['initial_container_batch_id']) ? (string) $data['initial_container_batch_id'] : null;
+        $rackId = isset($data['initial_rack_id']) && $data['initial_rack_id'] !== '' ? (string) $data['initial_rack_id'] : null;
+        $slotId = isset($data['initial_slot_id']) && $data['initial_slot_id'] !== '' ? (string) $data['initial_slot_id'] : null;
+
+        if ($containerBatchId) {
+            $containerBatch = $this->entityManager->getRepository(MaterialBatch::class)->find($containerBatchId);
+            if (!$containerBatch || $containerBatch->getMaterialItem()->getDepartmentId() !== $departmentId) {
+                return new JsonResponse(['error' => 'initial_container_batch_id ist ungültig'], 400);
+            }
+            $allocation = new BatchStorageAllocation();
+            $allocation->setId(IdGenerator::generate13Unique($this->entityManager, BatchStorageAllocation::class, 'al'));
+            $allocation->setBatch($batch);
+            $allocation->setContainerBatch($containerBatch);
+            $allocation->setQty(1);
+            $allocation->setDepartmentId($departmentId);
+            $batch->addAllocation($allocation);
+            $this->entityManager->persist($allocation);
+
+            return null;
+        }
+
+        if ($rackId && $slotId) {
+            $rack = $this->entityManager->getRepository(StorageRack::class)->find($rackId);
+            $slot = $this->entityManager->getRepository(StorageSlot::class)->find($slotId);
+            if (!$rack || $rack->getDepartmentId() !== $departmentId) {
+                return new JsonResponse(['error' => 'initial_rack_id ist ungültig'], 400);
+            }
+            if (!$slot || $slot->getRack()->getDepartmentId() !== $departmentId) {
+                return new JsonResponse(['error' => 'initial_slot_id ist ungültig'], 400);
+            }
+            $batch->setRack($rack);
+            $batch->setSlot($slot);
+
+            return null;
+        }
+
+        return new JsonResponse([
+            'error' => 'Für physische Kombination: Gestell/Fach oder Kiste (initial_rack_id + initial_slot_id bzw. initial_container_batch_id) ist erforderlich',
+        ], 400);
+    }
+
+    /**
      * Material aktualisieren
      */
     #[Route('/{id}', name: 'update', methods: ['PATCH'])]
@@ -2265,6 +2448,7 @@ class MaterialController extends AbstractController
             'condition' => $material->getCondition(),
             'material_type' => $material->getMaterialType(),
             'tracking_type' => $material->getTrackingType(),
+            'linked_container_batch_id' => $material->getLinkedContainerBatchId(),
             'is_tent' => $material->getIsTent(),
             'color' => $material->getColor(),
             'size_length' => $material->getSizeLength(),
@@ -2312,6 +2496,29 @@ class MaterialController extends AbstractController
             }
         }
         return $changes;
+    }
+
+    /**
+     * Kisten-Batch für linked_container_batch (physische Combo ↔ Referenz-Kiste).
+     */
+    private function serializeLinkedContainerBatch(?MaterialBatch $batch): ?array
+    {
+        if ($batch === null) {
+            return null;
+        }
+        $mi = $batch->getMaterialItem();
+        $sn = trim((string) ($batch->getSerialNumber() ?: ''));
+        $lb = trim((string) ($batch->getLabel() ?: $mi->getName()));
+        $display = $sn !== '' ? ($sn . ' – ' . $lb) : $lb;
+
+        return [
+            'id' => $batch->getId(),
+            'material_id' => $mi->getId(),
+            'label' => $batch->getLabel(),
+            'serial_number' => $batch->getSerialNumber(),
+            'material_name' => $mi->getName(),
+            'display_label' => $display,
+        ];
     }
 
     /**
@@ -2412,6 +2619,8 @@ class MaterialController extends AbstractController
             'condition' => $material->getCondition(),
             'material_type' => $material->getMaterialType(),
             'tracking_type' => $material->getTrackingType(),
+            'linked_container_batch_id' => $material->getLinkedContainerBatchId(),
+            'linked_container_batch' => $this->serializeLinkedContainerBatch($material->getLinkedContainerBatch()),
             'total_stock' => $totalStock,
             'defect_stock' => $defectStock,
             'repair_stock' => $repairStock,

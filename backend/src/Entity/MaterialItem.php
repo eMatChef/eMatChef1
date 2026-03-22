@@ -92,6 +92,17 @@ class MaterialItem
     #[ORM\Column(name: 'reservation_mode', type: 'string', length: 20, nullable: true)]
     private ?string $reservationMode = null;
 
+    /**
+     * Referenz-Kiste (MaterialBatch): bei physischer Kombination aus Kisten-Inhalt erzeugt –
+     * für späteren Abgleich Plan (Komponenten) vs. Ist (Inhalt der Kiste).
+     */
+    #[ORM\Column(name: 'linked_container_batch_id', type: 'string', length: 13, nullable: true, columnDefinition: 'CHARACTER(13) NULL')]
+    private ?string $linkedContainerBatchId = null;
+
+    #[ORM\ManyToOne(targetEntity: MaterialBatch::class)]
+    #[ORM\JoinColumn(name: 'linked_container_batch_id', referencedColumnName: 'id', nullable: true, onDelete: 'SET NULL')]
+    private ?MaterialBatch $linkedContainerBatch = null;
+
     // Material- und Tracking-Typ
     #[ORM\Column(name: 'material_type', type: 'string', length: 20, options: ['default' => 'physical'])]
     private string $materialType = 'physical'; // physical, physical_combo, virtual_combo
@@ -360,6 +371,29 @@ class MaterialItem
 
     public function getReservationMode(): ?string { return $this->reservationMode; }
     public function setReservationMode(?string $reservationMode): self { $this->reservationMode = $reservationMode; return $this; }
+
+    public function getLinkedContainerBatchId(): ?string
+    {
+        return $this->linkedContainerBatchId;
+    }
+
+    public function setLinkedContainerBatchId(?string $linkedContainerBatchId): self
+    {
+        $this->linkedContainerBatchId = $linkedContainerBatchId;
+        return $this;
+    }
+
+    public function getLinkedContainerBatch(): ?MaterialBatch
+    {
+        return $this->linkedContainerBatch;
+    }
+
+    public function setLinkedContainerBatch(?MaterialBatch $linkedContainerBatch): self
+    {
+        $this->linkedContainerBatch = $linkedContainerBatch;
+        $this->linkedContainerBatchId = $linkedContainerBatch?->getId();
+        return $this;
+    }
 
     // Material- und Tracking-Typ Getters/Setters
     public function getMaterialType(): string { return $this->materialType; }

@@ -84,7 +84,7 @@
                   :rack-id="form.to_rack_id"
                   :slot-id="form.to_slot_id"
                   :racks="targetRacks"
-                  :slots="slotsForTargetRack"
+                  :slot-list="slotsForTargetRack"
                   :show-storage-address="true"
                   :show-empty-slot-hint="true"
                   empty-slot-hint="Im gewählten Regal gibt es noch kein Fach. Bitte zuerst ein Fach anlegen."

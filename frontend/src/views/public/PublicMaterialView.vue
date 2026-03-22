@@ -324,7 +324,7 @@ function goToApp() {
   }
   const deptId = authStore.activeDepartmentId
   if (deptId) {
-    void router.push(`/${deptId}/dashboard`)
+    void router.push(`/${deptId}`)
     return
   }
   void router.push('/pending-assignment')

@@ -3,7 +3,7 @@
     <label>{{ label }}</label>
     <div class="input-with-status">
       <input
-        :ref="(el) => { if (el) inputRef = el as HTMLInputElement }"
+        ref="inputRef"
         :model-value="modelValue"
         type="text"
         class="form-input"
@@ -12,7 +12,7 @@
           'is-invalid': modelValue && !isCheckingName && nameExists
         }"
         :placeholder="placeholder"
-        @input="(e) => { $emit('update:modelValue', (e.target as HTMLInputElement).value); $emit('input') }"
+        @input="onInput"
         @focus="$emit('focus')"
         @blur="$emit('blur')"
       />
@@ -21,15 +21,22 @@
       </span>
       <span v-else-if="modelValue && !nameExists" class="status-icon valid">✓</span>
       <span v-else-if="modelValue && nameExists" class="status-icon invalid">✗</span>
+    </div>
+    <p v-if="nameExists" class="field-error">Dieser Name existiert bereits!</p>
 
-      <div v-if="showSuggestions && nameSuggestions.length > 0" class="name-suggestions">
-        <div class="suggestions-header">Ähnliche Materialien:</div>
+    <Teleport to="body">
+      <div
+        v-if="showDropdown"
+        class="name-suggestions name-suggestions--teleported"
+        :style="dropdownStyle"
+      >
+        <div class="suggestions-header">Passende Artikel</div>
         <div
           v-for="mat in nameSuggestions"
           :key="mat.id"
           class="suggestion-item"
           :class="{ 'is-exact': mat.name.toLowerCase() === (modelValue || '').trim().toLowerCase() }"
-          @mousedown="$emit('selectSuggestion', mat)"
+          @mousedown.prevent="$emit('selectSuggestion', mat)"
         >
           <div class="suggestion-info">
             <span class="suggestion-name">{{ mat.name }}</span>
@@ -38,15 +45,14 @@
           <span class="suggestion-stock">{{ mat.total_stock }} Stk.</span>
         </div>
       </div>
-    </div>
-    <p v-if="nameExists" class="field-error">Dieser Name existiert bereits!</p>
+    </Teleport>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 
-defineProps<{
+const props = defineProps<{
   modelValue: string
   label: string
   placeholder?: string
@@ -56,7 +62,7 @@ defineProps<{
   nameSuggestions: Array<{ id: string; name: string; category?: { name: string }; total_stock: number }>
 }>()
 
-defineEmits<{
+const emit = defineEmits<{
   'update:modelValue': [value: string]
   input: []
   focus: []
@@ -64,6 +70,64 @@ defineEmits<{
   selectSuggestion: [mat: any]
 }>()
 
+function onInput(e: Event) {
+  const t = e.target as HTMLInputElement
+  emit('update:modelValue', t.value)
+  emit('input')
+}
+
 const inputRef = ref<HTMLInputElement | null>(null)
+const dropdownStyle = ref<Record<string, string>>({
+  position: 'fixed',
+  top: '0px',
+  left: '0px',
+  width: '0px',
+  zIndex: '99999',
+})
+
+const showDropdown = computed(
+  () => props.showSuggestions && props.nameSuggestions.length > 0
+)
+
+function updateDropdownPosition() {
+  const el = inputRef.value
+  if (!el) return
+  const r = el.getBoundingClientRect()
+  dropdownStyle.value = {
+    position: 'fixed',
+    top: `${Math.round(r.bottom + 4)}px`,
+    left: `${Math.round(r.left)}px`,
+    width: `${Math.round(r.width)}px`,
+    zIndex: '99999',
+  }
+}
+
+function onScrollOrResize() {
+  if (showDropdown.value) {
+    updateDropdownPosition()
+  }
+}
+
+watch(
+  () => [showDropdown.value, props.nameSuggestions.length, props.modelValue] as const,
+  () => {
+    nextTick(() => {
+      if (showDropdown.value) {
+        updateDropdownPosition()
+      }
+    })
+  }
+)
+
+onMounted(() => {
+  window.addEventListener('scroll', onScrollOrResize, true)
+  window.addEventListener('resize', onScrollOrResize)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('scroll', onScrollOrResize, true)
+  window.removeEventListener('resize', onScrollOrResize)
+})
+
 defineExpose({ focus: () => inputRef.value?.focus(), select: () => inputRef.value?.select() })
 </script>

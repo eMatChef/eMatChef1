@@ -10,6 +10,9 @@ use App\Entity\MaterialComboComponent;
 use App\Entity\Category;
 use App\Entity\Department;
 use App\Entity\Address;
+use App\Entity\BatchStorageAllocation;
+use App\Entity\StorageRack;
+use App\Entity\StorageSlot;
 use App\Util\IdGenerator;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -433,6 +436,12 @@ class TemplateController extends AbstractController
                         $comboBatch->setSupplier($supplier);
                     }
                     $this->entityManager->persist($comboBatch);
+
+                    $allocRes = $this->allocateInitialPhysicalComboBatch($comboBatch, $department->getId(), $data);
+                    if ($allocRes instanceof JsonResponse) {
+                        $this->entityManager->rollback();
+                        return $allocRes;
+                    }
                 }
             }
 
@@ -861,5 +870,53 @@ class TemplateController extends AbstractController
         }
 
         return false;
+    }
+
+    /**
+     * Physische Kombo aus Vorlage: initialen Batch im Gestell/Fach oder in einer Kiste verorten.
+     *
+     * @return JsonResponse|null null bei Erfolg
+     */
+    private function allocateInitialPhysicalComboBatch(MaterialBatch $batch, string $departmentId, array $data): ?JsonResponse
+    {
+        $containerBatchId = !empty($data['initial_container_batch_id']) ? (string) $data['initial_container_batch_id'] : null;
+        $rackId = isset($data['initial_rack_id']) && $data['initial_rack_id'] !== '' ? (string) $data['initial_rack_id'] : null;
+        $slotId = isset($data['initial_slot_id']) && $data['initial_slot_id'] !== '' ? (string) $data['initial_slot_id'] : null;
+
+        if ($containerBatchId) {
+            $containerBatch = $this->entityManager->getRepository(MaterialBatch::class)->find($containerBatchId);
+            if (!$containerBatch || $containerBatch->getMaterialItem()->getDepartmentId() !== $departmentId) {
+                return new JsonResponse(['error' => 'initial_container_batch_id ist ungültig'], 400);
+            }
+            $allocation = new BatchStorageAllocation();
+            $allocation->setId(IdGenerator::generate13Unique($this->entityManager, BatchStorageAllocation::class, 'al'));
+            $allocation->setBatch($batch);
+            $allocation->setContainerBatch($containerBatch);
+            $allocation->setQty(1);
+            $allocation->setDepartmentId($departmentId);
+            $batch->addAllocation($allocation);
+            $this->entityManager->persist($allocation);
+
+            return null;
+        }
+
+        if ($rackId && $slotId) {
+            $rack = $this->entityManager->getRepository(StorageRack::class)->find($rackId);
+            $slot = $this->entityManager->getRepository(StorageSlot::class)->find($slotId);
+            if (!$rack || $rack->getDepartmentId() !== $departmentId) {
+                return new JsonResponse(['error' => 'initial_rack_id ist ungültig'], 400);
+            }
+            if (!$slot || $slot->getRack()->getDepartmentId() !== $departmentId) {
+                return new JsonResponse(['error' => 'initial_slot_id ist ungültig'], 400);
+            }
+            $batch->setRack($rack);
+            $batch->setSlot($slot);
+
+            return null;
+        }
+
+        return new JsonResponse([
+            'error' => 'Für physische Kombination: Gestell/Fach oder Kiste (initial_rack_id + initial_slot_id bzw. initial_container_batch_id) ist erforderlich',
+        ], 400);
     }
 }

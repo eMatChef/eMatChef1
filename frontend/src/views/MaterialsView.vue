@@ -776,7 +776,7 @@ watch(
 // from=dashboard: Bei Schliessen ohne Speichern zurück zum Dashboard
 watch(showCreateWizard, (isOpen) => {
   if (!isOpen && route.query.from === 'dashboard' && currentDepartmentId.value && !materialJustCreated.value) {
-    router.replace(`/${currentDepartmentId.value}/dashboard`)
+    router.replace(`/${currentDepartmentId.value}`)
   }
   if (!isOpen) materialJustCreated.value = false
 })

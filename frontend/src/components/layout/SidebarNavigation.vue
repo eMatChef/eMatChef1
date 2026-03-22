@@ -20,36 +20,32 @@
         <span class="nav-label" :class="{ visible: isHovered }">Neu</span>
       </router-link>
 
-      <!-- Dashboard -->
+      <!-- Home: Übersicht für alle (Department-Dashboard bzw. Admin-Übersicht) -->
       <router-link
         v-if="!isPendingAssignmentRoute"
-        :to="isAdminDashboardRoute ? '/admin-dashboard/dashboard' : getLink('/dashboard')"
+        :to="mainDashboardLink"
         class="nav-item"
-        :class="{ active: $route.path.endsWith('/dashboard') }"
+        :class="{ active: isMainDashboardNavActive }"
       >
         <IconDashboard class="nav-icon" />
         <span class="nav-label" :class="{ visible: isHovered }">Dashboard</span>
       </router-link>
 
+      <!-- Verwaltung der Webseite: Superadmin / Organisationschef / Suborgchef -->
       <router-link
-        v-if="!isPendingAssignmentRoute && showJobsMenu"
-        :to="isAdminDashboardRoute ? '/admin-dashboard/jobs' : getLink('/jobs')"
+        v-if="!isPendingAssignmentRoute && hasGlobalAdminAccess"
+        :to="verwaltungEntryLink"
         class="nav-item"
-        :class="{ active: $route.path.includes('/jobs') }"
+        :class="{ active: isVerwaltungNavActive }"
       >
-        <IconJobs class="nav-icon" />
-        <span class="nav-label" :class="{ visible: isHovered }">Jobs</span>
+        <IconSettings class="nav-icon" />
+        <span class="nav-label" :class="{ visible: isHovered }">Verwaltung der Webseite</span>
       </router-link>
 
-      <router-link
-        v-if="!isPendingAssignmentRoute && showSupportRequestsMenu"
-        :to="isAdminDashboardRoute ? '/admin-dashboard/support-requests' : getLink('/support-requests')"
-        class="nav-item"
-        :class="{ active: $route.path.includes('/support-requests') }"
-      >
-        <IconSupport class="nav-icon" />
-        <span class="nav-label" :class="{ visible: isHovered }">Supportanfragen</span>
-      </router-link>
+      <div
+        v-if="!isPendingAssignmentRoute && hasGlobalAdminAccess && showDeptContextSidebarLinks"
+        class="nav-divider"
+      />
 
       <!-- Aktivitäten -->
       <router-link
@@ -75,7 +71,7 @@
 
       <!-- Kontakte -->
       <router-link
-        v-if="!isPendingAssignmentRoute && !isAdminDashboardRoute"
+        v-if="!isPendingAssignmentRoute && showDeptContextSidebarLinks"
         :to="getLink('/contacts')"
         class="nav-item"
         :class="{ active: $route.path.includes('/contacts') }"
@@ -86,7 +82,7 @@
 
       <!-- Aufgaben -->
       <router-link
-        v-if="!isPendingAssignmentRoute && !isAdminDashboardRoute"
+        v-if="!isPendingAssignmentRoute && showDeptContextSidebarLinks"
         :to="getLink('/tasks')"
         class="nav-item"
         :class="{ active: $route.path.includes('/tasks') }"
@@ -95,8 +91,22 @@
         <span class="nav-label" :class="{ visible: isHovered }">Aufgaben</span>
       </router-link>
 
+      <!-- Nachrichtenzentrale (unter Aufgaben) -->
+      <router-link
+        v-if="!isPendingAssignmentRoute && showDeptContextSidebarLinks"
+        :to="getLink('/notifications')"
+        class="nav-item"
+        :class="{ active: $route.path.includes('/notifications') }"
+      >
+        <IconBell class="nav-icon" />
+        <span class="nav-label" :class="{ visible: isHovered }">Nachrichtenzentrale</span>
+      </router-link>
+
       <!-- Horizontaler Balken (Divider) -->
-      <div v-if="!isPendingAssignmentRoute" class="nav-divider"></div>
+      <div
+        v-if="!isPendingAssignmentRoute && showDeptContextSidebarLinks"
+        class="nav-divider"
+      />
 
       <!-- Werkstatt -->
       <router-link
@@ -111,7 +121,7 @@
 
       <!-- Statistik -->
       <router-link
-        v-if="!isPendingAssignmentRoute && !isAdminDashboardRoute"
+        v-if="!isPendingAssignmentRoute && showDeptContextSidebarLinks"
         :to="getLink('/statistics')"
         class="nav-item"
         :class="{ active: $route.path.includes('/statistics') }"
@@ -120,19 +130,9 @@
         <span class="nav-label" :class="{ visible: isHovered }">Statistik</span>
       </router-link>
 
-      <router-link
-        v-if="isAdminDashboardRoute"
-        to="/admin-dashboard/settings/organisations"
-        class="nav-item"
-        :class="{ active: $route.path.includes('/admin-dashboard/settings') }"
-      >
-        <IconSettings class="nav-icon" />
-        <span class="nav-label" :class="{ visible: isHovered }">Admin-Konfiguration</span>
-      </router-link>
-
       <!-- Konfiguration -->
       <router-link
-        v-if="!isPendingAssignmentRoute && !isAdminDashboardRoute"
+        v-if="!isPendingAssignmentRoute && showDeptContextSidebarLinks"
         :to="getLink('/settings')"
         class="nav-item"
         :class="{ active: $route.path.includes('/settings') }"
@@ -159,11 +159,10 @@ import IconActivities from '@/components/icons/IconActivities.vue'
 import IconMaterials from '@/components/icons/IconMaterials.vue'
 import IconContacts from '@/components/icons/IconContacts.vue'
 import IconTasks from '@/components/icons/IconTasks.vue'
+import IconBell from '@/components/icons/IconBell.vue'
 import IconWorkshop from '@/components/icons/IconWorkshop.vue'
 import IconStatistics from '@/components/icons/IconStatistics.vue'
 import IconSettings from '@/components/icons/IconSettings.vue'
-import IconJobs from '@/components/icons/IconJobs.vue'
-import IconSupport from '@/components/icons/IconTasks.vue'
 
 const route = useRoute()
 const authStore = useAuthStore()
@@ -175,11 +174,49 @@ const departmentId = computed(() => {
 })
 const isPendingAssignmentRoute = computed(() => route.path === '/pending-assignment')
 const isAdminDashboardRoute = computed(() => route.path.startsWith('/admin-dashboard'))
+/** Unter /admin-dashboard ist die zweite Sidebar (Verwaltung) aktiv — Standard-Links würden sonst ausgeblendet. */
+const showAppNavInAdminShell = computed(() => !isAdminDashboardRoute.value || isSuperAdmin.value)
+/** Kontakte/Aufgaben/Statistik/Konfiguration sind Abteilungs-App — Superadmin braucht sie nicht (nur Verwaltung/Dashboard). */
+const showDeptContextSidebarLinks = computed(
+  () => showAppNavInAdminShell.value && !isSuperAdmin.value
+)
+/** Einstieg Verwaltung: Unterbereich (nicht die Übersicht — die ist unter „Dashboard“) */
+const verwaltungEntryLink = computed(() => {
+  if (isAdminDashboardRoute.value) return '/admin-dashboard/verwaltung'
+  if (!departmentId.value && isSuperAdmin.value) return '/admin-dashboard/verwaltung'
+  if (!departmentId.value) return '/pending-assignment'
+  return `/${departmentId.value}/verwaltung`
+})
+
+const isVerwaltungNavActive = computed(() => {
+  const p = route.path
+  if (p === '/admin-dashboard' || p.startsWith('/admin-dashboard/')) return true
+  if (!p.includes('/verwaltung')) return false
+  if (p.endsWith('/verwaltung/dashboard')) return false
+  return true
+})
+
+/** Home = Department-Dashboard; Superadmin ohne Department → /dashboard (ohne Verwaltungs-Sidebar) */
+const mainDashboardLink = computed(() => {
+  if (isPendingAssignmentRoute.value) return '/pending-assignment'
+  const id = departmentId.value || authStore.activeDepartmentId
+  if (id) return `/${id}`
+  if (isSuperAdmin.value) return '/dashboard'
+  if (isAdminDashboardRoute.value) return '/admin-dashboard/verwaltung'
+  return '/pending-assignment'
+})
+
+const isMainDashboardNavActive = computed(() => {
+  const p = route.path
+  const id = departmentId.value || authStore.activeDepartmentId
+  if (id && (p === `/${id}` || p === `/${id}/` || p === `/${id}/dashboard`)) return true
+  if (p === '/dashboard') return true
+  return false
+})
+
 const homeLink = computed(() => {
   if (isPendingAssignmentRoute.value) return '/pending-assignment'
-  if (isAdminDashboardRoute.value) return '/admin-dashboard/dashboard'
-  if (!departmentId.value && isSuperAdmin.value) return '/admin-dashboard/dashboard'
-  return getLink('/dashboard')
+  return mainDashboardLink.value
 })
 // SA/ORG/SUB kommen ausschließlich aus profile.roles, nicht aus Department-Membership
 const isSuperAdmin = computed(() => authStore.userRoles.includes('ROLE_SUPERADMIN'))
@@ -192,20 +229,34 @@ const hasGlobalAdminAccess = computed(() =>
   authStore.currentDepartmentRole === 'sub'
 )
 
-const showJobsMenu = computed(() => hasGlobalAdminAccess.value)
-
-const showSupportRequestsMenu = computed(() => hasGlobalAdminAccess.value)
-
 const showActivitiesMenu = computed(() => !isSuperAdmin.value)
 const showMaterialsMenu = computed(() => !isSuperAdmin.value)
 const showWorkshopMenu = computed(() => !isSuperAdmin.value)
 
-// Helper-Funktion für Links
+// Mit Department-Kontext immer /{id}/… — auch wenn die Route gerade /admin-dashboard ist (Store/Primär-Dept)
 function getLink(path: string): string {
-  if (isAdminDashboardRoute.value) return `/admin-dashboard${path}`
-  if (!departmentId.value && isSuperAdmin.value) return '/admin-dashboard/dashboard'
-  if (!departmentId.value) return '/pending-assignment'
-  return `/${departmentId.value}${path}`
+  let id = (route.params.departmentId as string) || authStore.activeDepartmentId || ''
+  if (!id && authStore.departments?.length) {
+    const d = authStore.departments.find((x) => x.is_primary) || authStore.departments[0]
+    id = d.department_id
+  }
+  if (id) {
+    if (path === '/dashboard') return `/${id}`
+    if (
+      hasGlobalAdminAccess.value &&
+      (path === '/jobs' || path === '/support-requests')
+    ) {
+      return `/${id}/verwaltung${path}`
+    }
+    return `/${id}${path}`
+  }
+  if (isAdminDashboardRoute.value) {
+    if (path === '/dashboard' && isSuperAdmin.value) return '/dashboard'
+    if (path === '/dashboard') return '/admin-dashboard/verwaltung'
+    return `/admin-dashboard/verwaltung${path}`
+  }
+  if (isSuperAdmin.value) return '/dashboard'
+  return '/pending-assignment'
 }
 </script>
 

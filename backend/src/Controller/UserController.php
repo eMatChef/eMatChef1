@@ -87,6 +87,10 @@ class UserController extends AbstractController
                 continue;
             }
 
+            if ($profile->hasSuperAdminRole()) {
+                continue;
+            }
+
             $result[] = [
                 'id' => $user->getId(),
                 'profile_id' => $profile->getId(),
@@ -123,6 +127,10 @@ class UserController extends AbstractController
         $profile = $user->getProfile();
         if (!$profile) {
             return new JsonResponse(['error' => 'Profile not found'], 404);
+        }
+
+        if ($profile->hasSuperAdminRole()) {
+            return new JsonResponse(['error' => 'Superadmin-Konten werden hier nicht verwaltet'], 403);
         }
 
         $memberships = $this->entityManager->getRepository(Membership::class)
@@ -180,6 +188,10 @@ class UserController extends AbstractController
         $profile = $user->getProfile();
         if (!$profile) {
             return new JsonResponse(['error' => 'Profile not found'], 404);
+        }
+
+        if ($profile->hasSuperAdminRole()) {
+            return new JsonResponse(['error' => 'Superadmin-Konten werden hier nicht verwaltet'], 403);
         }
 
         $data = json_decode($request->getContent(), true) ?? [];

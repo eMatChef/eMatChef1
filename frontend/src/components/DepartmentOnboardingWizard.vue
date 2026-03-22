@@ -23,7 +23,10 @@
             <h3>Department-Adresse</h3>
             <p>Lege mindestens eine Department-Adresse an (Typ <strong>Allgemein</strong> oder <strong>Rechnungsadresse</strong>).</p>
             <p class="status" :class="{ done: onboardingState.completed.departmentAddress }">
-              {{ onboardingState.completed.departmentAddress ? 'Erledigt' : 'Noch offen' }}
+              {{ onboardingState.completed.departmentAddress ? 'Vorhanden' : 'Noch offen' }}
+            </p>
+            <p v-if="onboardingState.completed.departmentAddress" class="muted status-hint">
+              Es gibt bereits mindestens eine Allgemein- oder Rechnungsadresse für dieses Department (z.&nbsp;B. früher unter Mein Department angelegt). Der Assistent wertet nur die Daten aus, nicht ob du diesen Schritt gerade geklickt hast.
             </p>
             <div class="step-actions">
               <button class="btn btn-primary" @click="openAddressModal('general')">Jetzt machen</button>
@@ -243,13 +246,20 @@
           </div>
 
           <div v-else-if="currentStep === 7" class="step-content">
-            <h3>Standorte der Lager erfassen</h3>
-            <p>Lege mindestens einen Lagerstandort (Lagerplatz-Adresse) an. Dies ist nötig, bevor du Regale und Fächer anlegen kannst.</p>
+            <h3>Lagerplatzadresse erfassen</h3>
+            <p>
+              Lege mindestens eine <strong>Lagerplatzadresse</strong> (Typ Lagerplatz) mit Standort an.
+              Die Bezeichnung wird beim ersten Formular mit <strong>Hauptlagerplatz</strong> vorgeschlagen – du kannst sie anpassen.
+              Dies ist nötig, bevor du Regale und Fächer anlegen kannst.
+            </p>
             <p class="status" :class="{ done: onboardingState.completed.storageAddress }">
-              {{ onboardingState.completed.storageAddress ? 'Erledigt' : 'Noch offen' }}
+              {{ onboardingState.completed.storageAddress ? 'Vorhanden' : 'Noch offen' }}
+            </p>
+            <p v-if="onboardingState.completed.storageAddress" class="muted status-hint">
+              Es gibt bereits mindestens eine Lagerplatz-Adresse (Typ Lagerplatz) für dieses Department — z.&nbsp;B. aus den Einstellungen oder einem früheren Durchlauf. Deshalb steht hier „Vorhanden“, auch wenn du in diesem Schritt noch nichts geklickt hast.
             </p>
             <div class="step-actions">
-              <button class="btn btn-primary" @click="openAddressModal('storage')">Lagerstandort hinzufügen</button>
+              <button class="btn btn-primary" @click="openAddressModal('storage')">Lagerplatzadresse hinzufügen</button>
               <button class="btn btn-light" @click="goToSettings(`/${departmentId}/settings/my-department`)">Einstellungen öffnen</button>
               <button class="btn btn-light" @click="skipStep">Überspringen</button>
               <button class="btn btn-ghost" @click="handleLater">Später</button>
@@ -311,6 +321,7 @@
         v-if="isAddressModalOpen"
         :department-id="departmentId"
         :default-type="addressModalType"
+        :default-name="addressModalDepartmentPrefill"
         @saved="handleAddressSaved"
         @close="isAddressModalOpen = false"
       />
@@ -321,6 +332,7 @@
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
+import { useAuthStore } from '@/stores/auth'
 import AddressModal from '@/components/AddressModal.vue'
 import { getAddresses } from '@/api/addresses'
 import { createCategory, getCategories, type Category } from '@/api/categories'
@@ -361,12 +373,35 @@ const emit = defineEmits<{
 }>()
 
 const router = useRouter()
+const authStore = useAuthStore()
 const toast = useToast()
 const onboardingState = ref<DepartmentOnboardingState>(createDefaultOnboardingState())
 const currentStep = ref(1)
 const globalError = ref('')
 const isAddressModalOpen = ref(false)
 const addressModalType = ref<'general' | 'storage'>('general')
+
+/** Departmentsname für Vorschlag bei „Allgemein“-Adresse (Bezeichnung + Firma/Organisation) */
+const departmentNameForAddressPrefill = computed(() => {
+  const id = props.departmentId
+  if (!id) return ''
+  const row = authStore.departments.find((d) => d.department_id === id)
+  const fromMembership = (row?.department?.name || '').trim()
+  if (fromMembership) return fromMembership
+  if (authStore.activeDepartmentId === id) {
+    return (authStore.activeDepartmentName || '').trim()
+  }
+  return ''
+})
+
+/** Vorschlag für Bezeichnung bei Lagerplatz-Adresse (Onboarding Schritt „Standorte der Lager“) */
+const STORAGE_ADDRESS_DEFAULT_NAME = 'Hauptlagerplatz'
+
+const addressModalDepartmentPrefill = computed(() => {
+  if (addressModalType.value === 'general') return departmentNameForAddressPrefill.value
+  if (addressModalType.value === 'storage') return STORAGE_ADDRESS_DEFAULT_NAME
+  return ''
+})
 const isSavingSettings = ref(false)
 const showSettingsHelp = ref(false)
 const members = ref<DepartmentMember[]>([])
@@ -1056,6 +1091,11 @@ watch(
 
 .status.done {
   color: #15803d;
+}
+
+.status-hint {
+  margin-top: 6px;
+  line-height: 1.45;
 }
 
 .error-box {

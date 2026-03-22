@@ -138,6 +138,7 @@
                           Speichern
                         </button>
                         <button
+                          v-if="!isCurrentUser(member)"
                           type="button"
                           class="btn-inline btn-inline-danger"
                           :disabled="memberActionLoading"
@@ -237,6 +238,7 @@
 <script setup lang="ts">
 import { ref, watch, computed } from 'vue'
 import { useToast } from '@/composables/useToast'
+import { useAuthStore } from '@/stores/auth'
 import {
   createDepartment,
   updateDepartment,
@@ -271,6 +273,7 @@ const emit = defineEmits<{
 }>()
 
 const toast = useToast()
+const authStore = useAuthStore()
 const isEdit = computed(() => !!props.department)
 const isSubmitting = ref(false)
 const error = ref<string | null>(null)
@@ -332,6 +335,11 @@ function formatMemberName(member: DepartmentMember): string {
   if (legalName) return legalName
   if (nickname) return nickname
   return member.name
+}
+
+function isCurrentUser(member: DepartmentMember): boolean {
+  const uid = authStore.userId
+  return uid !== null && member.user_id === uid
 }
 
 const formData = ref({
@@ -510,6 +518,10 @@ async function saveMember(member: DepartmentMember) {
 
 async function deleteMember(member: DepartmentMember) {
   if (!props.department?.id || memberActionLoading.value) return
+  if (isCurrentUser(member)) {
+    toast.error('Du kannst dich hier nicht selbst aus dem Department entfernen.')
+    return
+  }
   if (!window.confirm(`${member.name} aus dem Department entfernen?`)) return
   memberActionLoading.value = true
   try {

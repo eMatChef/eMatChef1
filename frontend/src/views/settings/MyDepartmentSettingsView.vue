@@ -163,8 +163,8 @@
         <div class="onboarding-admin-row">
           <p class="onboarding-status">
             Status:
-            <strong :class="onboardingDone ? 'status-done' : 'status-open'">
-              {{ onboardingDone ? 'Abgeschlossen' : 'Offen' }}
+            <strong :class="onboardingStatusClass">
+              {{ onboardingStatusLabel }}
             </strong>
           </p>
           <button
@@ -175,7 +175,11 @@
             {{ isResettingOnboarding ? 'Zuruecksetzen...' : 'Onboarding zuruecksetzen' }}
           </button>
         </div>
-        <p class="selector-hint">
+        <p v-if="isExemptFromMemberOnboardingUi" class="selector-hint">
+          Das Einrichtungs-Onboarding richtet sich an Materialchef/Depchef. Für deine Leitungsrolle ist kein eigener
+          Durchlauf nötig — unten kannst du das Onboarding für alle Mitglieder dieses Departments zurücksetzen.
+        </p>
+        <p v-else class="selector-hint">
           Setzt das Department-Onboarding fuer alle Mitglieder dieses Departments auf "offen".
         </p>
       </div>
@@ -471,7 +475,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
-import { useRouter, useRoute } from 'vue-router'
+import { useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useToast } from '@/composables/useToast'
 import { useConfirm } from '@/composables/useConfirm'
@@ -506,7 +510,6 @@ import MapView from '@/components/MapView.vue'
 import AddressModal from '@/components/AddressModal.vue'
 import QRCode from 'qrcode'
 
-const router = useRouter()
 const route = useRoute()
 const authStore = useAuthStore()
 const toast = useToast()
@@ -572,21 +575,46 @@ const canManageJoinCode = computed(() => {
   return ['dc', 'depchef', 'mw', 'matwart', 'sa', 'superadmin', 'org', 'organisationschef', 'sub', 'suborgchef'].includes(normalizedRole)
 })
 
-// Wenn sich das ausgewählte Department ändert – auch global synchronisieren
-function onDepartmentChange() {
-  if (selectedDepartmentId.value) {
-    // Globalen Store aktualisieren
-    authStore.setActiveDepartment(selectedDepartmentId.value)
-    
-    // URL updaten (Department-ID im Pfad tauschen)
-    const oldDeptId = route.params.departmentId as string
-    if (oldDeptId && oldDeptId !== selectedDepartmentId.value) {
-      const newPath = route.path.replace(`/${oldDeptId}`, `/${selectedDepartmentId.value}`)
-      router.replace(newPath)
-    }
-    
-    loadDepartment(selectedDepartmentId.value)
+/** SA / Org / Sub — kein persönliches Onboarding; Anzeige im UI */
+const isHierarchyLeaderDeptRole = computed(() => {
+  const r = String(currentRole.value || '').toLowerCase().trim()
+  return ['sa', 'superadmin', 'org', 'organisationschef', 'sub', 'suborgchef'].includes(r)
+})
+
+const isExemptFromMemberOnboardingUi = computed(() => {
+  return isHierarchyLeaderDeptRole.value || authStore.userRoles.includes('ROLE_SUPERADMIN')
+})
+
+const onboardingStatusLabel = computed(() => {
+  if (isHierarchyLeaderDeptRole.value) {
+    return 'Nicht zutreffend (Leitungsrolle)'
   }
+  if (authStore.userRoles.includes('ROLE_SUPERADMIN')) {
+    return 'Nicht zutreffend (Superadmin)'
+  }
+  return onboardingDone.value ? 'Abgeschlossen' : 'Offen'
+})
+
+const onboardingStatusClass = computed(() => {
+  if (isExemptFromMemberOnboardingUi.value) {
+    return 'status-na'
+  }
+  return onboardingDone.value ? 'status-done' : 'status-open'
+})
+
+// Wenn sich das ausgewählte Department ändert – Store + URL, dann voller Seiten-Reload (frischer State)
+async function onDepartmentChange() {
+  if (!selectedDepartmentId.value) return
+  const newDeptId = selectedDepartmentId.value
+  await authStore.setActiveDepartment(newDeptId)
+
+  const oldDeptId = route.params.departmentId as string | undefined
+  if (oldDeptId && oldDeptId !== newDeptId) {
+    const newPath = route.path.replace(`/${oldDeptId}`, `/${newDeptId}`)
+    window.location.assign(newPath)
+    return
+  }
+  window.location.reload()
 }
 
 // Primäres Department in der DB speichern
@@ -760,7 +788,7 @@ async function resetDepartmentOnboarding() {
       sessionStorage.removeItem(`onboarding_prompted_${profileId}_${departmentId}`)
     }
     toast.success('Department-Onboarding wurde zurueckgesetzt.')
-    window.location.href = `/${departmentId}/dashboard`
+    window.location.href = `/${departmentId}`
   } catch (err: any) {
     toast.error(err.response?.data?.error || 'Onboarding konnte nicht zurueckgesetzt werden.')
   } finally {
@@ -794,7 +822,7 @@ async function resetDepartmentDb() {
     }
     toast.success(result.message || 'Department-Daten wurden zurückgesetzt.')
     // Zur Dashboard weiterleiten, damit Onboarding beim nächsten Laden erscheint
-    window.location.href = `/${departmentId}/dashboard`
+    window.location.href = `/${departmentId}`
   } catch (err: any) {
     toast.error(err.response?.data?.error || 'DB konnte nicht zurückgesetzt werden.')
   } finally {
@@ -1664,6 +1692,11 @@ onMounted(() => {
 
 .status-open {
   color: #b45309;
+}
+
+.status-na {
+  color: #64748b;
+  font-weight: 600;
 }
 
 .onboarding-reset-btn {

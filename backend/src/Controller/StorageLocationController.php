@@ -384,6 +384,59 @@ class StorageLocationController extends AbstractController
         return new JsonResponse($result);
     }
 
+    /**
+     * Inhalt einer Kiste (Material-Batches, die dieser Kiste zugeordnet sind) – für Combo aus Kiste.
+     */
+    #[Route('/container-batches/{id}/contents', name: 'container_batch_contents', methods: ['GET'])]
+    #[IsGranted('ROLE_USER')]
+    public function containerBatchContents(string $id): JsonResponse
+    {
+        $batch = $this->entityManager->getRepository(MaterialBatch::class)->find($id);
+        if (!$batch) {
+            return new JsonResponse(['error' => 'Kiste/Batch nicht gefunden'], 404);
+        }
+
+        $departmentId = $batch->getMaterialItem()->getDepartmentId();
+        $access = $this->assertDepartmentAccess($departmentId);
+        if ($access instanceof JsonResponse) {
+            return $access;
+        }
+
+        $conn = $this->entityManager->getConnection();
+        $sql = "
+            SELECT mi.id AS material_id, mi.name AS material_name, mi.tracking_type,
+                   SUM(a.qty) AS qty
+            FROM batch_storage_allocation a
+            INNER JOIN material_batch b ON a.batch_id = b.id
+            INNER JOIN material_item mi ON b.material_item_id = mi.id
+            WHERE a.container_batch_id = :containerBatchId
+              AND (mi.deleted_at IS NULL)
+              AND b.status = 'active'
+            GROUP BY mi.id, mi.name, mi.tracking_type
+            ORDER BY mi.name
+        ";
+        $rows = $conn->executeQuery($sql, ['containerBatchId' => $id])->fetchAllAssociative();
+
+        $contents = [];
+        foreach ($rows as $row) {
+            $contents[] = [
+                'material_id' => $row['material_id'],
+                'material_name' => $row['material_name'],
+                'tracking_type' => $row['tracking_type'] ?? 'bulk',
+                'qty' => (int) $row['qty'],
+            ];
+        }
+
+        $mi = $batch->getMaterialItem();
+        $label = $batch->getLabel() ?: $batch->getSerialNumber() ?: $mi->getName();
+
+        return new JsonResponse([
+            'container_batch_id' => $id,
+            'container_label' => $label,
+            'contents' => $contents,
+        ]);
+    }
+
     #[Route('/storage-slots', name: 'slots_list', methods: ['GET'])]
     #[IsGranted('ROLE_USER')]
     public function listSlots(Request $request): JsonResponse

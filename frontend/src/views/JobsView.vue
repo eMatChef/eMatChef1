@@ -1,110 +1,19 @@
 <template>
   <div class="jobs-page">
     <header class="jobs-header">
-      <h1>Jobs & Verwaltung</h1>
-      <p>Globale Herstelleradressen verwalten und Wartungsjobs ausfuehren.</p>
+      <h1>System-Jobs</h1>
+      <p>Wartungsjobs (nur Superadmin) — Benutzer ohne Abteilung nach Frist bereinigen.</p>
     </header>
 
-    <div class="tabs">
-      <button
-        class="tab-btn"
-        :class="{ active: activeTab === 'global-addresses' }"
-        @click="activeTab = 'global-addresses'"
-      >
-        Globale Adressen
-      </button>
-      <button
-        v-if="isSuperAdmin"
-        class="tab-btn"
-        :class="{ active: activeTab === 'cleanup' }"
-        @click="activeTab = 'cleanup'"
-      >
-        System Jobs
-      </button>
-    </div>
-
-    <section v-if="activeTab === 'global-addresses'" class="job-card">
-      <div class="job-title-row">
-        <h2>Globale Herstelleradressen</h2>
-        <span class="badge">ROLE_SU / ROLE_ORG / ROLE_SUB</span>
-      </div>
-      <p class="job-description">
-        Diese Liste wird als globale Quelle fuer Hersteller/Lieferanten verwendet und kann hier zentral gepflegt werden.
-      </p>
-
-      <div class="controls">
-        <button class="btn btn-primary" :disabled="globalLoading" @click="openCreateGlobalAddressModal">
-          Neue Adresse
-        </button>
-        <input
-          v-model.trim="globalSearch"
-          class="search-input"
-          type="text"
-          placeholder="Nach Firma oder Name suchen..."
-          @keyup.enter="loadGlobalAddresses"
-        />
-        <button class="btn btn-secondary" :disabled="globalLoading" @click="loadGlobalAddresses">
-          Aktualisieren
-        </button>
-      </div>
-
-      <p v-if="globalError" class="error">{{ globalError }}</p>
-      <p v-if="globalSuccess" class="success">{{ globalSuccess }}</p>
-
-      <div class="preview">
-        <h3>Eintraege</h3>
-        <p v-if="globalLoading">Lade...</p>
-        <p v-else-if="globalAddresses.length === 0">Keine globalen Adressen vorhanden.</p>
-
-        <table v-if="globalAddresses.length > 0">
-          <thead>
-            <tr>
-              <th>Firma</th>
-              <th>Name</th>
-              <th>E-Mail</th>
-              <th>Telefon</th>
-              <th>Ort</th>
-              <th>Status</th>
-              <th>Aktionen</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="address in globalAddresses" :key="address.id">
-              <td>{{ address.company || '-' }}</td>
-              <td>{{ address.name || '-' }}</td>
-              <td>{{ address.email || '-' }}</td>
-              <td>{{ address.phone || '-' }}</td>
-              <td>{{ address.city_line || '-' }}</td>
-              <td>-</td>
-              <td class="actions">
-                <button
-                  class="btn btn-secondary btn-inline"
-                  :disabled="globalLoading"
-                  @click="startGlobalEdit(address)"
-                >
-                  Bearbeiten
-                </button>
-                <button
-                  class="btn btn-danger btn-inline"
-                  :disabled="globalLoading"
-                  @click="removeGlobalAddress(address.id)"
-                >
-                  Loeschen
-                </button>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </section>
-
-    <section v-if="activeTab === 'cleanup' && isSuperAdmin" class="job-card">
+    <section v-if="isSuperAdmin" class="job-card">
       <div class="job-title-row">
         <h2>Unzugeordnete User bereinigen</h2>
         <span class="badge">app:cleanup-unassigned-users</span>
       </div>
       <p class="job-description">
         Loescht Benutzerkonten ohne Department-Zuordnung nach einer Frist (Standard: 21 Tage).
+        Konten mit globalen Admin-Rollen (Superadmin, Organisationschef, Suborgchef in profile.roles)
+        sind ausgeschlossen, auch ohne Membership.
       </p>
 
       <div class="controls">
@@ -158,16 +67,9 @@
       </div>
     </section>
 
-    <AddressModal
-      v-if="isGlobalAddressModalOpen"
-      :department-id="GLOBAL_DEPARTMENT_ID"
-      :address="editingGlobalAddress"
-      :edit-address-id="editingGlobalAddress?.id || null"
-      default-type="supplier"
-      api-mode="global"
-      @close="closeGlobalAddressModal"
-      @saved="handleGlobalAddressSaved"
-    />
+    <section v-else class="job-card muted">
+      <p>Diese Seite ist nur für Superadmin sichtbar.</p>
+    </section>
   </div>
 </template>
 
@@ -179,27 +81,11 @@ import {
   runUnassignedUsersCleanup,
   type UnassignedCleanupItem
 } from '@/api/jobs'
-import {
-  deleteGlobalAddress,
-  getGlobalAddresses,
-  type GlobalAddress
-} from '@/api/globalAddresses'
-import AddressModal from '@/components/AddressModal.vue'
 
 const authStore = useAuthStore()
 const isSuperAdmin = computed(() =>
   authStore.userRoles.includes('ROLE_SUPERADMIN') || authStore.currentDepartmentRole === 'sa'
 )
-const activeTab = ref<'global-addresses' | 'cleanup'>('global-addresses')
-const GLOBAL_DEPARTMENT_ID = 'GLOBAL000000'
-
-const globalLoading = ref(false)
-const globalError = ref<string | null>(null)
-const globalSuccess = ref<string | null>(null)
-const globalAddresses = ref<GlobalAddress[]>([])
-const globalSearch = ref('')
-const isGlobalAddressModalOpen = ref(false)
-const editingGlobalAddress = ref<GlobalAddress | null>(null)
 
 const days = ref(21)
 const loading = ref(false)
@@ -215,65 +101,6 @@ const selectedIds = computed(() =>
 )
 const selectedCount = computed(() => selectedIds.value.length)
 const isAllSelected = computed(() => previewItems.value.length > 0 && selectedCount.value === previewItems.value.length)
-
-async function loadGlobalAddresses() {
-  globalLoading.value = true
-  globalError.value = null
-  try {
-    const response = await getGlobalAddresses(globalSearch.value)
-    globalAddresses.value = response.addresses
-  } catch (err: any) {
-    globalError.value = err?.response?.data?.error || 'Globale Adressen konnten nicht geladen werden'
-  } finally {
-    globalLoading.value = false
-  }
-}
-
-function startGlobalEdit(address: GlobalAddress) {
-  editingGlobalAddress.value = address
-  isGlobalAddressModalOpen.value = true
-  globalSuccess.value = null
-  globalError.value = null
-}
-
-function openCreateGlobalAddressModal() {
-  editingGlobalAddress.value = null
-  isGlobalAddressModalOpen.value = true
-  globalSuccess.value = null
-  globalError.value = null
-}
-
-function closeGlobalAddressModal() {
-  isGlobalAddressModalOpen.value = false
-  editingGlobalAddress.value = null
-}
-
-async function handleGlobalAddressSaved() {
-  closeGlobalAddressModal()
-  await loadGlobalAddresses()
-  globalSuccess.value = 'Globale Adresse wurde gespeichert'
-}
-
-async function removeGlobalAddress(id: string) {
-  const confirmed = window.confirm('Globale Adresse wirklich loeschen?')
-  if (!confirmed) return
-
-  globalLoading.value = true
-  globalError.value = null
-  globalSuccess.value = null
-  try {
-    await deleteGlobalAddress(id)
-    globalSuccess.value = 'Globale Adresse wurde geloescht'
-    if (editingGlobalAddress.value?.id === id) {
-      closeGlobalAddressModal()
-    }
-    await loadGlobalAddresses()
-  } catch (err: any) {
-    globalError.value = err?.response?.data?.error || 'Loeschen fehlgeschlagen'
-  } finally {
-    globalLoading.value = false
-  }
-}
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleString('de-CH')
@@ -352,7 +179,6 @@ async function runCleanup() {
 }
 
 onMounted(async () => {
-  await loadGlobalAddresses()
   if (isSuperAdmin.value) {
     await loadPreview()
   }
@@ -375,34 +201,16 @@ onMounted(async () => {
   margin-top: 8px;
 }
 
-.tabs {
-  display: flex;
-  gap: 8px;
-  margin-top: 16px;
-}
-
-.tab-btn {
-  border: 1px solid #d1d5db;
-  background: #f9fafb;
-  color: #374151;
-  padding: 8px 14px;
-  border-radius: 8px;
-  cursor: pointer;
-  font-weight: 600;
-}
-
-.tab-btn.active {
-  background: #e0f2fe;
-  border-color: #38bdf8;
-  color: #0c4a6e;
-}
-
 .job-card {
   background: #fff;
   border: 1px solid #e5e7eb;
   border-radius: 12px;
   padding: 20px;
   margin-top: 16px;
+}
+
+.job-card.muted {
+  color: #6b7280;
 }
 
 .job-title-row {
@@ -443,14 +251,6 @@ onMounted(async () => {
   border-radius: 8px;
 }
 
-/* Search input base uses shared ui/page-layout.css */
-
-.search-input {
-  width: 280px;
-}
-
-/* Buttons use shared ui/buttons.css */
-
 .btn-inline {
   padding: 6px 10px;
   font-size: 12px;
@@ -479,10 +279,5 @@ td {
   border-bottom: 1px solid #e5e7eb;
   text-align: left;
   padding: 8px;
-}
-
-.actions {
-  display: flex;
-  gap: 8px;
 }
 </style>
