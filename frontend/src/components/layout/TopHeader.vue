@@ -1,5 +1,8 @@
 <template>
   <header class="top-header">
+    <div v-if="isDev" class="dev-env-banner" role="status" aria-live="polite">
+      Entwicklungsumgebung
+    </div>
     <!-- Hauptzeile: Tabs links, Icons rechts -->
     <div class="header-main-row">
     <!-- Left Section: Tabs (offene Detail-Ansichten) -->
@@ -347,6 +350,8 @@ import {
 // @ts-ignore Vetur false positive in Vue 3 script-setup import
 import GlobalSearchInput from '../common/GlobalSearchInput.vue'
 import { useDetailTabsStore } from '../../stores/detailTabs'
+
+const isDev = import.meta.env.DEV
 
 const router = useRouter()
 const detailTabsStore = useDetailTabsStore()
@@ -810,6 +815,18 @@ watch(
   top: 0;
   z-index: 999;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.dev-env-banner {
+  width: 100%;
+  padding: 4px 16px;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: #78350f;
+  background: linear-gradient(180deg, #fde68a 0%, #fcd34d 100%);
+  border-bottom: 1px solid #d97706;
 }
 
 .tabs-scroll {
