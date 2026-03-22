@@ -19,6 +19,23 @@ export interface DepartmentOnboardingStatus {
   doneAll: boolean
 }
 
+export interface PublicSharingSettings {
+  publicContactEmail: string
+  publicContactNote: string
+  /** Sichtbarkeit öffentliche QR-Seite (Standard: true) */
+  publicShowContactForm: boolean
+  publicShowContactEmail: boolean
+  publicShowContactNote: boolean
+}
+
+function parseBoolSetting01(raw: string | undefined, defaultTrue: boolean): boolean {
+  if (raw === undefined || raw === '') return defaultTrue
+  const v = String(raw).toLowerCase().trim()
+  if (['0', 'false', 'no', 'off', 'nein'].includes(v)) return false
+  if (['1', 'true', 'yes', 'on', 'ja'].includes(v)) return true
+  return defaultTrue
+}
+
 /**
  * Alle Settings eines Departments laden
  */
@@ -63,6 +80,36 @@ export async function saveGeneralSettings(departmentId: string, settings: Genera
     'general.timezone': settings.timezone,
     'general.date_format': settings.dateFormat,
     'general.time_format': settings.timeFormat,
+  })
+}
+
+/**
+ * Public-Sharing-Settings laden
+ */
+export async function getPublicSharingSettings(departmentId: string): Promise<PublicSharingSettings> {
+  const raw = await getDepartmentSettingsGroup(departmentId, 'general')
+  return {
+    publicContactEmail: String(raw['general.public_contact_email'] || ''),
+    publicContactNote: String(raw['general.public_contact_note'] || ''),
+    publicShowContactForm: parseBoolSetting01(raw['general.public_show_contact_form'], true),
+    publicShowContactEmail: parseBoolSetting01(raw['general.public_show_contact_email'], true),
+    publicShowContactNote: parseBoolSetting01(raw['general.public_show_contact_note'], true),
+  }
+}
+
+/**
+ * Public-Sharing-Settings speichern
+ */
+export async function savePublicSharingSettings(
+  departmentId: string,
+  settings: PublicSharingSettings
+): Promise<Record<string, string>> {
+  return updateDepartmentSettings(departmentId, {
+    'general.public_contact_email': settings.publicContactEmail,
+    'general.public_contact_note': settings.publicContactNote,
+    'general.public_show_contact_form': settings.publicShowContactForm ? '1' : '0',
+    'general.public_show_contact_email': settings.publicShowContactEmail ? '1' : '0',
+    'general.public_show_contact_note': settings.publicShowContactNote ? '1' : '0',
   })
 }
 

@@ -18,6 +18,23 @@
         </div>
       </div>
       <div class="header-actions">
+        <button
+          v-if="showGenerateQrButton"
+          class="btn-outline btn-sm"
+          :disabled="isGeneratingPublicCode"
+          @click="generateMaterialPublicCode"
+        >
+          {{ isGeneratingPublicCode ? 'Erzeuge...' : 'QR code erzeugen' }}
+        </button>
+        <PublicQrTag
+          v-if="!isLoading && material.tracking_type !== 'serialized'"
+          class="header-qr-tag"
+          :url="material.public_url"
+          :code="material.public_code"
+          :size="64"
+          :clickable="true"
+          @activate="openQrActionModalForMaterial"
+        />
         <button class="btn-outline" @click="handleClose">Schliessen</button>
         <button class="btn-primary" @click="save" :disabled="!hasChanges || isSaving">
           {{ isSaving ? 'Speichern...' : 'Speichern' }}
@@ -524,7 +541,7 @@
                     <line x1="12" y1="5" x2="12" y2="19"/>
                     <line x1="5" y1="12" x2="19" y2="12"/>
                   </svg>
-                  Seriennummer hinzufügen
+                  Charge hinzufügen
                 </button>
               </div>
               
@@ -537,6 +554,7 @@
                   <tr>
                     <th>#</th>
                     <th>Seriennummer</th>
+                    <th>Code</th>
                     <th>Label</th>
                     <th>Erfasst am</th>
                     <th>Lagerplatz</th>
@@ -550,6 +568,15 @@
                     <td class="col-num">{{ index + 1 }}</td>
                     <td class="col-serial">
                       <span class="serial-code">{{ batch.serial_number }}</span>
+                    </td>
+                    <td class="col-qr">
+                      <PublicQrTag
+                        :url="batch.public_url"
+                        :code="batch.public_code"
+                        :size="56"
+                        :clickable="true"
+                        @activate="openQrActionModalForBatch(batch)"
+                      />
                     </td>
                     <td>{{ batch.label || '-' }}</td>
                     <td>{{ formatDate(batch.acquired_on) }}</td>
@@ -592,7 +619,7 @@
               <div v-else class="empty-serials">
                 <p>Noch keine Seriennummern erfasst</p>
                 <button class="btn-outline" @click="openAddBatchModal">
-                  Erste Seriennummer hinzufügen
+                  Erste Charge hinzufügen
                 </button>
               </div>
             </div>
@@ -941,6 +968,9 @@
               </svg>
               <img v-else :src="material.image_url" alt="Material" />
             </div>
+            <button v-if="hasAnyQrForPrint" class="btn-outline btn-sm qr-print-btn" @click="openQrActionModalForAll">
+              QR-Codes drucken
+            </button>
           </div>
 
           <!-- Bestand Quick View -->
@@ -1015,9 +1045,11 @@
     <!-- Batch Modal (Add / Edit) -->
     <BatchModal
       v-if="showBatchModal && material"
+      :key="`${material.id}-${editingBatch?.id ?? 'new'}`"
       :material-id="props.materialId"
       :department-id="props.departmentId"
       :batch="editingBatch"
+      :tracking-type="material.tracking_type ?? null"
       :is-serialized="material?.tracking_type === 'serialized'"
       :material-name="material?.name || ''"
       :existing-batches="batches"
@@ -1108,24 +1140,47 @@
       </div>
     </div>
 
+    <div v-if="showQrActionModal" class="modal-overlay" @click.self="closeQrActionModal">
+      <div class="modal-dialog">
+        <h3>QR-Aktion</h3>
+        <p class="qr-modal-text">{{ qrActionLabel }}</p>
+        <p v-if="qrActionCode" class="qr-modal-meta">Code: {{ qrActionCode }}</p>
+        <p v-else-if="qrActionMode === 'all'" class="qr-modal-meta">
+          Druckt alle verfügbaren QR-Codes dieses Materials.
+        </p>
+        <div class="modal-actions">
+          <button class="btn-secondary btn-sm" @click="closeQrActionModal">Abbrechen</button>
+          <button class="btn-outline btn-sm" @click="handleQrAddToPrintCart">In Druckkorb</button>
+          <button v-if="qrActionUrl" class="btn-outline btn-sm" @click="handleQrOpenLink">Link öffnen</button>
+          <button v-if="qrActionUrl" class="btn-outline btn-sm" @click="handleQrCopyLink">Link kopieren</button>
+          <button v-if="qrActionUrl || qrActionMode === 'all'" class="btn-primary btn-sm" @click="handleQrPrint">Drucken</button>
+        </div>
+      </div>
+    </div>
+
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { getMaterial, getMaterials, updateMaterial, updateBatch, moveBatchQuantity, getMaterialHistory, getMaterialUsedIn, type Material, type MaterialHistoryEntry, type MaterialBatch, type BatchStorageAllocation, type UsedInEntry, type AddBatchMultiResponse } from '@/api/materials'
+import QRCode from 'qrcode'
+import { getMaterial, getMaterials, updateMaterial, updateBatch, moveBatchQuantity, getMaterialHistory, getMaterialUsedIn, ensureMaterialPublicCode, type Material, type MaterialHistoryEntry, type MaterialBatch, type BatchStorageAllocation, type UsedInEntry, type AddBatchMultiResponse } from '@/api/materials'
+import { addPrintCartItem, addPrintCartItemsBulk } from '@/api/tasks'
 import { useDetailTabsStore } from '@/stores/detailTabs'
 import { getCategories, type Category } from '@/api/categories'
 import { getAddresses, type Address } from '@/api/addresses'
 import { getContainerBatches, getStorageOverview, type ContainerBatch, type StorageOverviewResponse } from '@/api/storageLocations'
 import SplitModal from '@/components/material/SplitModal.vue'
 import { useAuthStore } from '@/stores/auth'
+import { usePageHeadStore } from '@/stores/pageHead'
 import { useToast } from '@/composables/useToast'
+import { printHtmlDocument } from '@/utils/printHtml'
 import BatchModal from '@/components/material/BatchModal.vue'
 import MoveQuantityModal from '@/components/material/MoveQuantityModal.vue'
 import StorageTreeView from '@/components/storage/StorageTreeView.vue'
 import MaterialLookupInput from '@/components/common/MaterialLookupInput.vue'
+import PublicQrTag from '@/components/common/PublicQrTag.vue'
 
 interface Props {
   materialId: string
@@ -1137,6 +1192,7 @@ interface Props {
 const props = defineProps<Props>()
 const router = useRouter()
 const route = useRoute()
+const pageHeadStore = usePageHeadStore()
 const authStore = useAuthStore()
 const detailTabsStore = useDetailTabsStore()
 const toast = useToast()
@@ -1169,6 +1225,7 @@ const categories = ref<Category[]>([])
 const storageAddresses = ref<Address[]>([])
 const isLoading = ref(true)
 const isSaving = ref(false)
+const isGeneratingPublicCode = ref(false)
 const activeTab = ref('data')
 const containerContentBatchId = ref('')
 const containerContentSearch = ref('')
@@ -1201,6 +1258,14 @@ const addToContainerSourceAllocationId = ref('')
 const addToContainerQty = ref(1)
 const addToContainerMaterialCatalog = ref<Material[] | null>(null)
 const isLoadingAddToContainerCatalog = ref(false)
+
+type QrActionMode = 'material' | 'batch' | 'all'
+const showQrActionModal = ref(false)
+const qrActionMode = ref<QrActionMode>('material')
+const qrActionLabel = ref('')
+const qrActionCode = ref('')
+const qrActionUrl = ref('')
+const qrActionEntityId = ref('')
 
 // Batch Modal State
 const showBatchModal = ref(false)
@@ -1423,6 +1488,28 @@ const serialBatches = computed(() => {
   return batches.value.filter(b => b.serial_number)
 })
 
+const hasAnyQrForPrint = computed(() => {
+  if (String(material.value?.public_url || '').trim() !== '') return true
+  return serialBatches.value.some((batch: any) => String(batch?.public_url || '').trim() !== '')
+})
+
+const showGenerateQrButton = computed(() => {
+  if (isLoading.value) return false
+
+  const materialMissing = String(material.value?.public_code || '').trim() === ''
+  if (material.value?.tracking_type !== 'serialized') {
+    return materialMissing
+  }
+
+  const missingSerialCount = serialBatches.value.filter((batch: any) => {
+    const serial = String(batch?.serial_number || '').trim()
+    if (!serial) return false
+    return String(batch?.public_code || '').trim() === ''
+  }).length
+
+  return materialMissing || missingSerialCount > 0
+})
+
 const statusLabels: Record<string, string> = {
   active: 'Aktiv',
   defect: 'Defekt',
@@ -1519,6 +1606,22 @@ async function loadMaterial() {
     console.error('Fehler beim Laden:', err)
   } finally {
     isLoading.value = false
+  }
+}
+
+async function generateMaterialPublicCode() {
+  if (!props.materialId || isGeneratingPublicCode.value) return
+  isGeneratingPublicCode.value = true
+  try {
+    await ensureMaterialPublicCode(props.materialId)
+    await loadMaterial()
+    emit('updated', material.value)
+    toast.success('QR-Code wurde erzeugt.')
+  } catch (err: any) {
+    console.error('Fehler beim Erzeugen des QR-Codes:', err)
+    toast.error(err?.response?.data?.error || 'QR-Code konnte nicht erzeugt werden.')
+  } finally {
+    isGeneratingPublicCode.value = false
   }
 }
 
@@ -1899,6 +2002,252 @@ async function openAddToContainerModal() {
 function closeAddToContainerModal() {
   showAddToContainerModal.value = false
   resetAddToContainerState()
+}
+
+function openQrActionModalForMaterial() {
+  qrActionMode.value = 'material'
+  qrActionEntityId.value = String(material.value?.id || '')
+  qrActionLabel.value = material.value?.name || 'Material'
+  qrActionCode.value = String(material.value?.public_code || '')
+  qrActionUrl.value = String(material.value?.public_url || '')
+  showQrActionModal.value = true
+}
+
+function openQrActionModalForBatch(batch: any) {
+  qrActionMode.value = 'batch'
+  qrActionEntityId.value = String(batch?.id || '')
+  const serial = String(batch?.serial_number || '').trim()
+  const label = String(batch?.label || '').trim()
+  qrActionLabel.value = serial || label || `Serie ${String(batch?.id || '').slice(-6)}`
+  qrActionCode.value = String(batch?.public_code || '')
+  qrActionUrl.value = String(batch?.public_url || '')
+  showQrActionModal.value = true
+}
+
+function openQrActionModalForAll() {
+  qrActionMode.value = 'all'
+  qrActionEntityId.value = ''
+  qrActionLabel.value = material.value?.name || 'Material'
+  qrActionCode.value = ''
+  qrActionUrl.value = ''
+  showQrActionModal.value = true
+}
+
+function closeQrActionModal() {
+  showQrActionModal.value = false
+}
+
+async function handleQrAddToPrintCart() {
+  if (!props.departmentId) {
+    toast.error('Kein Department ausgewählt.')
+    return
+  }
+
+  if (qrActionMode.value === 'all') {
+    const payloads: Array<{
+      department_id: string
+      entity_type: string
+      entity_id: string
+      label: string
+      public_code?: string | null
+      public_url: string
+    }> = []
+
+    const materialUrl = String(material.value?.public_url || '').trim()
+    if (materialUrl) {
+      payloads.push({
+        department_id: props.departmentId,
+        entity_type: 'material',
+        entity_id: String(material.value?.id || ''),
+        label: String(material.value?.name || 'Material'),
+        public_code: String(material.value?.public_code || '') || null,
+        public_url: materialUrl,
+      })
+    }
+
+    for (const batch of serialBatches.value) {
+      const url = String(batch?.public_url || '').trim()
+      if (!url) continue
+      const serial = String(batch?.serial_number || '').trim()
+      const label = String(batch?.label || '').trim()
+      payloads.push({
+        department_id: props.departmentId,
+        entity_type: 'batch',
+        entity_id: String(batch?.id || ''),
+        label: serial || label || `Serie ${String(batch?.id || '').slice(-6)}`,
+        public_code: String(batch?.public_code || '') || null,
+        public_url: url,
+      })
+    }
+
+    if (payloads.length === 0) {
+      toast.info('Keine QR-Codes zum Hinzufügen vorhanden.')
+      return
+    }
+
+    try {
+      const result = await addPrintCartItemsBulk(props.departmentId, payloads)
+      toast.success(`Druckkorb aktualisiert: ${result.created_count} neu, ${result.skipped_count} bereits vorhanden.`)
+      closeQrActionModal()
+    } catch (err: any) {
+      toast.error(err?.response?.data?.error || 'Druckkorb konnte nicht aktualisiert werden.')
+    }
+    return
+  }
+
+  const url = qrActionUrl.value.trim()
+  const entityId = qrActionEntityId.value.trim()
+  if (!url || !entityId) {
+    toast.info('Kein gültiger QR-Link vorhanden.')
+    return
+  }
+
+  try {
+    const result = await addPrintCartItem({
+      department_id: props.departmentId,
+      entity_type: qrActionMode.value === 'material' ? 'material' : 'batch',
+      entity_id: entityId,
+      label: qrActionLabel.value || 'QR',
+      public_code: qrActionCode.value || null,
+      public_url: url,
+    })
+    toast.success(result.created ? 'Zum Druckkorb hinzugefügt.' : 'Bereits im Druckkorb vorhanden.')
+    closeQrActionModal()
+  } catch (err: any) {
+    toast.error(err?.response?.data?.error || 'Konnte nicht zum Druckkorb hinzufügen.')
+  }
+}
+
+function handleQrOpenLink() {
+  const url = qrActionUrl.value.trim()
+  if (!url) {
+    toast.info('Kein öffentlicher Link verfügbar.')
+    return
+  }
+  window.open(url, '_blank')
+}
+
+async function handleQrCopyLink() {
+  const url = qrActionUrl.value.trim()
+  if (!url) {
+    toast.info('Kein öffentlicher Link verfügbar.')
+    return
+  }
+  await navigator.clipboard.writeText(url)
+  toast.success('QR-Link kopiert.')
+}
+
+function escapeHtml(raw: string): string {
+  return String(raw || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;')
+}
+
+async function buildPrintRowsForAllQrs(): Promise<Array<{ label: string; code: string; qrDataUrl: string }>> {
+  const rows: Array<{ label: string; code: string; qrDataUrl: string }> = []
+  const tasks: Array<Promise<void>> = []
+
+  const materialUrl = String(material.value?.public_url || '').trim()
+  const materialCode = String(material.value?.public_code || '').trim()
+  if (materialUrl) {
+    tasks.push((async () => {
+      const qrDataUrl = await QRCode.toDataURL(materialUrl, { width: 220, margin: 1 })
+      rows.push({
+        label: material.value?.name || 'Material',
+        code: materialCode,
+        qrDataUrl,
+      })
+    })())
+  }
+
+  for (const batch of serialBatches.value) {
+    const url = String(batch?.public_url || '').trim()
+    if (!url) continue
+    const serial = String(batch?.serial_number || '').trim()
+    const label = String(batch?.label || '').trim()
+    const title = serial || label || `Serie ${String(batch?.id || '').slice(-6)}`
+    const code = String(batch?.public_code || '').trim()
+    tasks.push((async () => {
+      const qrDataUrl = await QRCode.toDataURL(url, { width: 220, margin: 1 })
+      rows.push({ label: title, code, qrDataUrl })
+    })())
+  }
+
+  await Promise.all(tasks)
+  return rows
+}
+
+async function handleQrPrint() {
+  if (qrActionMode.value === 'all') {
+    const rows = await buildPrintRowsForAllQrs()
+    if (rows.length === 0) {
+      toast.info('Keine QR-Codes zum Drucken vorhanden.')
+      return
+    }
+    const cards = rows
+      .map((row) => `
+        <div class="card">
+          <img src="${row.qrDataUrl}" alt="QR" />
+          <div class="title">${escapeHtml(row.label)}</div>
+          <div class="code">${escapeHtml(row.code || '-')}</div>
+        </div>
+      `)
+      .join('')
+    printHtmlDocument(`<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>QR-Codes - ${escapeHtml(material.value?.name || 'Material')}</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 18px; }
+    h1 { margin: 0 0 14px; font-size: 18px; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px; }
+    .card { border: 1px solid #d1d5db; border-radius: 10px; padding: 10px; text-align: center; page-break-inside: avoid; }
+    img { width: 160px; height: 160px; object-fit: contain; }
+    .title { margin-top: 8px; font-weight: 700; font-size: 13px; }
+    .code { margin-top: 4px; font-family: monospace; color: #4b5563; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <h1>${escapeHtml(material.value?.name || 'Material')} - QR-Codes</h1>
+  <div class="grid">${cards}</div>
+</body>
+</html>`)
+    closeQrActionModal()
+    return
+  }
+
+  const url = qrActionUrl.value.trim()
+  if (!url) {
+    toast.info('Kein öffentlicher Link verfügbar.')
+    return
+  }
+  const qrDataUrl = await QRCode.toDataURL(url, { width: 300, margin: 1 })
+  printHtmlDocument(`<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>QR-Code - ${escapeHtml(qrActionLabel.value)}</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    .card { max-width: 360px; border: 1px solid #d1d5db; border-radius: 10px; padding: 14px; text-align: center; }
+    img { width: 240px; height: 240px; object-fit: contain; }
+    .title { margin-top: 10px; font-weight: 700; font-size: 14px; }
+    .code { margin-top: 4px; font-family: monospace; color: #4b5563; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <img src="${qrDataUrl}" alt="QR" />
+    <div class="title">${escapeHtml(qrActionLabel.value)}</div>
+    <div class="code">${escapeHtml(qrActionCode.value || '-')}</div>
+  </div>
+</body>
+</html>`)
+  closeQrActionModal()
 }
 
 async function submitAddToContainer() {
@@ -2356,6 +2705,15 @@ watch(activeTab, (newTab) => {
 watch(hasChanges, (dirty) => {
   detailTabsStore.setTabDirty(props.materialId, 'material', props.departmentId, dirty)
 }, { immediate: true })
+
+watch(
+  () => (!isLoading.value && material.value?.name ? String(material.value.name).trim() : ''),
+  (name) => {
+    if (!name) return
+    pageHeadStore.setDynamic(`${name} · eMatChef`, `${name} – Materialdetails in eMatChef.`)
+  },
+  { immediate: true }
+)
 
 // Bei initialBatchId aus Lagerübersicht: BatchModal öffnen zur Slot-Zuordnung
 const openedInitialBatchFor = ref<string | null>(null)

@@ -78,6 +78,11 @@
 .header-actions {
   display: flex;
   gap: 12px;
+  align-items: center;
+}
+
+.header-qr-tag {
+  margin-right: 2px;
 }
 
 /* Loading */
@@ -479,6 +484,11 @@
   text-decoration: underline;
 }
 
+.qr-print-btn {
+  margin-top: 12px;
+  width: 100%;
+}
+
 .image-slot {
   width: 100%;
   aspect-ratio: 4/3;
@@ -556,6 +566,11 @@
   min-width: 180px;
 }
 
+.serials-table .col-qr {
+  width: 72px;
+  text-align: center;
+}
+
 
 .empty-serials {
   text-align: center;
@@ -569,6 +584,20 @@
   margin: 0 0 16px;
   color: #6b7280;
   font-size: 14px;
+}
+
+.qr-modal-text {
+  margin: 0;
+  font-size: 14px;
+  color: #111827;
+  font-weight: 600;
+}
+
+.qr-modal-meta {
+  margin: 8px 0 16px;
+  font-size: 12px;
+  color: #6b7280;
+  font-family: 'SF Mono', Monaco, monospace;
 }
 
 /* Responsive */

@@ -3,7 +3,7 @@
     <div class="login-container">
       <div class="login-header">
         <div class="logo">
-          <div class="logo-icon">EMC</div>
+          <EmcLogoMark size="lg" />
         </div>
         <h1 class="brand-title">eMatChef</h1>
         <p class="brand-subtitle">Materialverwaltung & Ausleihe</p>
@@ -294,6 +294,7 @@ import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { confirmPasswordReset, register as apiRegister, requestPasswordReset, resendVerification } from '@/api/auth'
 import { useAuthStore } from '@/stores/auth'
+import EmcLogoMark from '@/components/brand/EmcLogoMark.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -635,19 +636,6 @@ watch([forgotEmail, resetCode, resetPassword, resetPasswordConfirm], () => {
   display: flex;
   justify-content: center;
   margin-bottom: 14px;
-}
-
-.logo-icon {
-  width: 68px;
-  height: 68px;
-  background: #fff;
-  color: #10b981;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 14px;
-  font-size: 26px;
-  font-weight: 700;
 }
 
 .brand-title {

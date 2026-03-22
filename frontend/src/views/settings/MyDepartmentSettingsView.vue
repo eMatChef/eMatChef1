@@ -180,6 +180,63 @@
         </p>
       </div>
 
+      <div v-if="canManageJoinCode" class="info-card">
+        <div class="card-header">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" class="card-icon">
+            <path d="M12 3L4 7V12C4 17 7.4 21.7 12 23C16.6 21.7 20 17 20 12V7L12 3Z" fill="#3b82f6"/>
+            <path d="M9 12L11 14L15 10" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <h2>Öffentliche Material-Seite</h2>
+        </div>
+        <div class="db-reset-row">
+          <div class="info-item">
+            <span class="info-label">Öffentliche Kontakt-E-Mail (optional)</span>
+            <input
+              v-model="publicContactEmail"
+              type="email"
+              class="department-select"
+              placeholder="material@dein-department.ch"
+            />
+          </div>
+          <div class="info-item">
+            <span class="info-label">Öffentliche Notiz (optional)</span>
+            <textarea
+              v-model="publicContactNote"
+              class="department-select"
+              rows="3"
+              placeholder="z.B. Bitte Fundgegenstand mit Foto melden."
+            ></textarea>
+          </div>
+          <div class="info-item public-visibility-toggles">
+            <span class="info-label">Anzeige auf der öffentlichen QR-Seite</span>
+            <p class="selector-hint" style="margin: 0 0 10px;">
+              Standard: alles sichtbar. Ausgeschaltete Inhalte werden nicht auf der öffentlichen Seite gezeigt (E-Mail kann
+              trotzdem für das Kontaktformular genutzt werden, wenn hinterlegt).
+            </p>
+            <label class="public-toggle-row">
+              <input v-model="publicShowContactForm" type="checkbox" />
+              <span>Kontaktformular „Materialwart kontaktieren“ anzeigen</span>
+            </label>
+            <label class="public-toggle-row">
+              <input v-model="publicShowContactEmail" type="checkbox" />
+              <span>Kontakt-E-Mail auf der öffentlichen Seite anzeigen</span>
+            </label>
+            <label class="public-toggle-row">
+              <input v-model="publicShowContactNote" type="checkbox" />
+              <span>Öffentliche Notiz anzeigen</span>
+            </label>
+          </div>
+          <div class="onboarding-admin-row">
+            <p class="selector-hint" style="margin: 0;">
+              Fallback für E-Mail: allgemeine Adresse (type=general).
+            </p>
+            <button class="add-storage-btn" :disabled="isSavingPublicSettings" @click="savePublicSettings">
+              {{ isSavingPublicSettings ? 'Speichern...' : 'Speichern' }}
+            </button>
+          </div>
+        </div>
+      </div>
+
       <!-- DB zurücksetzen (nur für Manager) -->
       <div v-if="canManageJoinCode" class="info-card db-reset-card">
         <div class="card-header">
@@ -438,9 +495,11 @@ import {
   type PendingInvite
 } from '@/api/joinRequests'
 import {
+  getPublicSharingSettings,
   getDepartmentOnboardingStatus,
   resetDepartmentOnboardingDone,
   resetDepartmentDb as apiResetDepartmentDb,
+  savePublicSharingSettings,
 } from '@/api/departmentSettings'
 import { buildOnboardingDismissedKey, buildOnboardingDoneKey, buildOnboardingStateKey } from '@/utils/departmentOnboarding'
 import MapView from '@/components/MapView.vue'
@@ -465,6 +524,12 @@ const pendingInvites = ref<PendingInvite[]>([])
 const onboardingDone = ref(false)
 const isResettingOnboarding = ref(false)
 const isResettingDb = ref(false)
+const isSavingPublicSettings = ref(false)
+const publicContactEmail = ref('')
+const publicContactNote = ref('')
+const publicShowContactForm = ref(true)
+const publicShowContactEmail = ref(true)
+const publicShowContactNote = ref(true)
 
 // Primary Department State
 const isSavingPrimary = ref(false)
@@ -616,10 +681,47 @@ async function loadDepartment(departmentId?: string) {
     await loadAddresses(deptId)
     await loadInviteCode(deptId)
     await loadOnboardingStatus(deptId)
+    await loadPublicSettings(deptId)
   } catch (err: any) {
     error.value = err.response?.data?.error || 'Fehler beim Laden des Departments'
   } finally {
     isLoading.value = false
+  }
+}
+
+async function loadPublicSettings(deptId: string) {
+  try {
+    const settings = await getPublicSharingSettings(deptId)
+    publicContactEmail.value = settings.publicContactEmail
+    publicContactNote.value = settings.publicContactNote
+    publicShowContactForm.value = settings.publicShowContactForm
+    publicShowContactEmail.value = settings.publicShowContactEmail
+    publicShowContactNote.value = settings.publicShowContactNote
+  } catch {
+    publicContactEmail.value = ''
+    publicContactNote.value = ''
+    publicShowContactForm.value = true
+    publicShowContactEmail.value = true
+    publicShowContactNote.value = true
+  }
+}
+
+async function savePublicSettings() {
+  if (!selectedDepartmentId.value || isSavingPublicSettings.value) return
+  isSavingPublicSettings.value = true
+  try {
+    await savePublicSharingSettings(selectedDepartmentId.value, {
+      publicContactEmail: publicContactEmail.value.trim(),
+      publicContactNote: publicContactNote.value.trim(),
+      publicShowContactForm: publicShowContactForm.value,
+      publicShowContactEmail: publicShowContactEmail.value,
+      publicShowContactNote: publicShowContactNote.value,
+    })
+    toast.success('Öffentliche Einstellungen gespeichert.')
+  } catch (err: any) {
+    toast.error(err.response?.data?.error || 'Einstellungen konnten nicht gespeichert werden.')
+  } finally {
+    isSavingPublicSettings.value = false
   }
 }
 
@@ -1143,6 +1245,21 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   gap: 4px;
+}
+
+.public-visibility-toggles .public-toggle-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 14px;
+  color: #374151;
+  margin-bottom: 10px;
+  cursor: pointer;
+}
+
+.public-visibility-toggles .public-toggle-row input {
+  margin-top: 3px;
+  flex-shrink: 0;
 }
 
 .info-label {

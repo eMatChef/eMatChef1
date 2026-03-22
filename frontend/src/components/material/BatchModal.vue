@@ -1,7 +1,7 @@
 <template>
   <Teleport to="body">
     <div class="batch-modal-overlay">
-      <div class="batch-modal">
+      <div class="batch-modal" :class="{ 'batch-modal--wide': !isEditMode }">
         <!-- Header -->
         <div class="batch-modal-header">
           <h2>{{ isEditMode ? 'Charge bearbeiten' : 'Charge hinzufügen' }}</h2>
@@ -15,15 +15,348 @@
 
         <!-- Content -->
         <div class="batch-modal-body">
-          <!-- Kaufdatum -->
-          <div class="batch-form-row">
-            <div class="batch-form-group full-width">
+          <!-- Charge hinzufügen serialisiert: gleiches UI wie Material-Erstellwizard -->
+          <div v-if="isSerializedAddMode" class="batch-serial-wizard">
+              <div class="form-row mb-2">
+                <label class="toggle-label">
+                  <span class="toggle-wrapper">
+                    <input v-model="serialLocationSameForAll" type="checkbox" class="toggle-input" />
+                    <span class="toggle-slider toggle-slider--blue"></span>
+                  </span>
+                  <span class="toggle-text">
+                    <span class="toggle-title">Für alle den gleichen Lagerplatz</span>
+                    <span class="toggle-desc">Bei Nein wird der Standort direkt pro Zeile in der Tabelle gewählt</span>
+                  </span>
+                </label>
+              </div>
+
+              <div v-if="serialLocationSameForAll" class="form-group">
+                <div class="stock-location-mode mb-2">
+                  <label class="form-label-sm">Hauptlagerplatz</label>
+                  <div class="lagerung-switch" role="tablist">
+                    <button
+                      type="button"
+                      class="lagerung-btn"
+                      :class="{ active: stockLocationMode === 'slot' }"
+                      @click="setStockLocationMode('slot')"
+                    >
+                      Gestell/Fach
+                    </button>
+                    <button
+                      type="button"
+                      class="lagerung-btn"
+                      :class="{ active: stockLocationMode === 'kiste' }"
+                      @click="setStockLocationMode('kiste')"
+                    >
+                      Kiste/Tasche
+                    </button>
+                  </div>
+                </div>
+                <template v-if="stockLocationMode === 'slot'">
+                  <StorageLocationPicker
+                    :show-storage-address="true"
+                    :storage-address-id="form.storage_address_id"
+                    :storage-address-options="storageAddressOptions"
+                    :rack-id="form.rack_id"
+                    :slot-id="form.slot_id"
+                    :racks="filteredRacks"
+                    :slots="mainSlots"
+                    storage-address-label="Standort"
+                    rack-label="Gestell"
+                    slot-label="Fach"
+                    storage-address-placeholder="Standort auswaehlen..."
+                    rack-placeholder="Gestell auswaehlen..."
+                    slot-placeholder="Fach auswaehlen..."
+                    @update:storageAddressId="form.storage_address_id = $event"
+                    @storageAddressChange="onStorageAddressChange"
+                    @update:rackId="form.rack_id = $event"
+                    @rackChange="onRackChange"
+                    @update:slotId="form.slot_id = $event"
+                    @slotChange="onSlotChange"
+                  />
+                </template>
+                <template v-else>
+                  <label class="form-label-sm">Kiste/Tasche</label>
+                  <select
+                    v-model="form.container_batch_id"
+                    class="batch-form-input form-select--sm"
+                    @mouseenter="prefetchContainerPreviews()"
+                    :title="getContainerPreviewTitle(form.container_batch_id)"
+                  >
+                    <option value="">– Kiste wählen –</option>
+                    <option
+                      v-for="cb in containerBatches"
+                      :key="cb.id"
+                      :value="cb.id"
+                      :title="getContainerPreviewTitle(cb.id)"
+                    >
+                      {{ formatContainerBatchOption(cb) }}
+                    </option>
+                  </select>
+                </template>
+              </div>
+
+              <div class="serial-numbers-section">
+                <div class="serial-header">
+                  <label>Seriennummern ({{ serializedQty }} Stk.)</label>
+                  <div class="serial-header-actions">
+                    <button type="button" class="add-serial-btn" @click="addSerialNumber">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                        <line x1="12" y1="5" x2="12" y2="19"/>
+                        <line x1="5" y1="12" x2="19" y2="12"/>
+                      </svg>
+                      Zeile hinzufügen
+                    </button>
+                    <button type="button" class="add-serial-btn" @click="toggleSerialScanner()">
+                      {{ serialScannerActive ? 'Scanner stoppen' : 'Scannen' }}
+                    </button>
+                  </div>
+                </div>
+                <div class="slider-toggle-group">
+                  <label class="toggle-label">
+                    <span class="toggle-wrapper">
+                      <input v-model="serialAutoGenerateEnabled" type="checkbox" class="toggle-input" />
+                      <span class="toggle-slider toggle-slider--blue"></span>
+                    </span>
+                    <span class="toggle-text">
+                      <span class="toggle-title">Seriennummern automatisch erzeugen</span>
+                      <span class="toggle-desc">Prefix, Startnummer und Stellen waehlen statt alles manuell einzugeben</span>
+                    </span>
+                  </label>
+                  <transition name="slide-down">
+                    <div v-if="serialAutoGenerateEnabled" class="slider-details">
+                      <div class="serial-auto-generate-row">
+                        <div class="serial-auto-field serial-auto-field-prefix">
+                          <label>Prefix</label>
+                          <input
+                            v-model="autoGenPrefix"
+                            type="text"
+                            class="form-input form-input-sm"
+                            :placeholder="suggestedSerialPrefix || ''"
+                          />
+                        </div>
+                        <div class="serial-auto-field">
+                          <label>Startnummer</label>
+                          <input v-model.number="autoGenStart" type="number" min="1" class="form-input form-input-sm" />
+                        </div>
+                        <div class="serial-auto-field">
+                          <label>Stellen</label>
+                          <input v-model.number="autoGenPad" type="number" min="1" max="6" class="form-input form-input-sm" />
+                        </div>
+                        <div class="serial-auto-field">
+                          <label>Anzahl</label>
+                          <input v-model.number="autoGenCount" type="number" min="1" class="form-input form-input-sm" />
+                        </div>
+                        <button type="button" class="add-serial-btn add-serial-btn-secondary" @click="generateSerialNumbers">
+                          Liste erzeugen
+                        </button>
+                        <span class="serial-auto-preview">{{ autoGenPreview }}</span>
+                      </div>
+                    </div>
+                  </transition>
+                </div>
+                <BarcodeScannerPanel
+                  v-if="serialScannerActive"
+                  :active="serialScannerActive"
+                  mode="all"
+                  hint="Barcode oder QR auf Seriennummer richten."
+                  @detected="onSerialDetected"
+                  @error="onSerialScannerError"
+                />
+
+                <div v-if="serialRows.length > 0" class="serial-list">
+                  <div
+                    v-for="(entry, index) in serialRows"
+                    :key="entry.id"
+                    class="serial-row"
+                    :class="{ 'serial-row--shared-location': serialLocationSameForAll }"
+                  >
+                    <div class="serial-block serial-block--identity">
+                      <label class="form-label-sm">{{ getSerialRowTitle(entry, index) }}</label>
+                      <input
+                        v-model="entry.serial_number"
+                        type="text"
+                        class="form-input serial-input"
+                        placeholder="Seriennummer eingeben..."
+                        @keydown.enter.prevent="addSerialNumber"
+                      />
+                      <label class="form-label-sm">Label (optional)</label>
+                      <input
+                        v-model="entry.label"
+                        type="text"
+                        class="form-input notes-input"
+                        placeholder="z.B. Kochkiste Bär"
+                      />
+                    </div>
+
+                    <div v-if="!serialLocationSameForAll" class="serial-block serial-block--art">
+                      <label class="form-label-sm">Art</label>
+                      <select
+                        v-model="entry.location_mode"
+                        class="form-select form-select--sm"
+                        @change="entry.rack_id = ''; entry.slot_id = ''; entry.container_batch_id = ''"
+                      >
+                        <option value="slot">Gestell/Fach</option>
+                        <option value="kiste">Kiste/Tasche</option>
+                      </select>
+                    </div>
+
+                    <div v-if="!serialLocationSameForAll" class="serial-block serial-block--location">
+                      <div class="serial-location-cell">
+                        <template v-if="entry.location_mode === 'slot'">
+                          <label class="form-label-sm">Lagerstandort</label>
+                          <select
+                            v-model="entry.storage_address_id"
+                            class="form-select form-select--sm"
+                            @change="onSerialEntryStorageAddressChange(entry)"
+                          >
+                            <option v-for="addr in storageAddresses" :key="addr.id" :value="addr.id">
+                              {{ addr.name || addr.street_line }}
+                            </option>
+                          </select>
+                          <label class="form-label-sm">Gestell</label>
+                          <select
+                            v-model="entry.rack_id"
+                            class="form-select form-select--sm"
+                            @change="onSerialEntryRackChange(entry)"
+                            @mouseenter="prefetchRackPreview(entry.rack_id)"
+                            :title="getRackPreviewTitle(entry.rack_id)"
+                          >
+                            <option value="" disabled>– Gestell –</option>
+                            <option
+                              v-for="rack in getRacksForSerialEntry(entry)"
+                              :key="rack.id"
+                              :value="rack.id"
+                              :title="getRackPreviewTitle(rack.id)"
+                            >
+                              {{ rack.name }}
+                            </option>
+                          </select>
+                          <label class="form-label-sm">Fach</label>
+                          <select
+                            v-model="entry.slot_id"
+                            class="form-select form-select--sm"
+                            :disabled="!entry.rack_id"
+                            @mouseenter="prefetchSlotPreview(entry.rack_id, entry.slot_id)"
+                            :title="getSlotPreviewTitle(entry.rack_id, entry.slot_id)"
+                          >
+                            <option value="" disabled>– Fach –</option>
+                            <option
+                              v-for="slot in (entry.rack_id ? (slotsByRackId[entry.rack_id] || []) : [])"
+                              :key="slot.id"
+                              :value="slot.id"
+                              :title="getSlotPreviewTitle(entry.rack_id, slot.id)"
+                            >
+                              {{ formatSlotOptionLabel(entry.rack_id, slot) }}
+                            </option>
+                          </select>
+                        </template>
+                        <template v-else>
+                          <label class="form-label-sm">Kiste/Tasche</label>
+                          <select
+                            v-model="entry.container_batch_id"
+                            class="form-select form-select--sm"
+                            @mouseenter="prefetchContainerPreviews()"
+                            :title="getContainerPreviewTitle(entry.container_batch_id)"
+                          >
+                            <option value="">– Kiste waehlen –</option>
+                            <option
+                              v-for="cb in containerBatches"
+                              :key="cb.id"
+                              :value="cb.id"
+                              :title="getContainerPreviewTitle(cb.id)"
+                            >
+                              {{ formatContainerBatchOption(cb) }}
+                            </option>
+                          </select>
+                        </template>
+                      </div>
+                    </div>
+
+                    <div class="serial-block serial-block--notes">
+                      <label class="form-label-sm">Notiz (optional)</label>
+                      <input
+                        v-model="entry.notes"
+                        type="text"
+                        class="form-input notes-input"
+                        placeholder="Optional"
+                      />
+                    </div>
+
+                    <div class="serial-block serial-block--actions">
+                      <button
+                        type="button"
+                        class="remove-serial-btn"
+                        @click="openSerialScannerFor(entry.id)"
+                        title="Seriennummer scannen"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                          <rect x="3" y="5" width="18" height="14" rx="2"/>
+                          <line x1="7" y1="9" x2="17" y2="9"/>
+                          <line x1="7" y1="13" x2="12" y2="13"/>
+                        </svg>
+                      </button>
+                      <button type="button" class="remove-serial-btn" @click="removeSerialNumber(entry.id)" title="Entfernen">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                          <line x1="18" y1="6" x2="6" y2="18"/>
+                          <line x1="6" y1="6" x2="18" y2="18"/>
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+                <div v-else class="empty-serials">
+                  <p>Noch keine Seriennummern hinzugefügt</p>
+                  <button type="button" class="add-first-btn" @click="addSerialNumber">+ Erste Seriennummer hinzufügen</button>
+                </div>
+                <p v-if="!serialLocationSameForAll && hasInvalidSerialLocations" class="field-hint is-invalid">
+                  Bitte pro Seriennummer einen gueltigen Standort (Gestell/Fach oder Kiste) waehlen.
+                </p>
+                <p v-if="serialDuplicateHint" class="field-hint is-invalid">{{ serialDuplicateHint }}</p>
+              </div>
+
+              <div class="form-row mt-3">
+                <div class="form-group">
+                  <label>Kaufdatum <span class="required">*</span></label>
+                  <input
+                    v-model="form.acquired_on"
+                    type="date"
+                    class="batch-form-input"
+                    :class="{ 'is-invalid': submitted && !form.acquired_on }"
+                    required
+                  />
+                </div>
+                <div class="form-group">
+                  <label>Stückpreis (CHF)</label>
+                  <div class="batch-price-input">
+                    <span class="batch-currency">Fr.</span>
+                    <input v-model="form.unit_price" type="text" class="batch-form-input" placeholder="0.00" />
+                  </div>
+                </div>
+              </div>
+          </div>
+
+          <div v-else class="batch-wizard-stock">
+          <!-- Wie Material-Wizard „Initialer Bestand“: Menge, Kaufdatum, Preis in einer Zeile -->
+          <div class="form-row mb-2">
+            <div class="form-group">
+              <label>Menge <span class="required" v-if="!isEditMode">*</span></label>
+              <input
+                v-model.number="form.qty"
+                type="number"
+                min="1"
+                class="form-input"
+                :class="{ 'is-invalid': submitted && form.qty < 1 }"
+                placeholder="1"
+              />
+            </div>
+            <div class="form-group">
               <label>Kaufdatum <span class="required" v-if="!isEditMode">*</span></label>
-              <input 
+              <input
                 v-if="!isEditMode"
-                v-model="form.acquired_on" 
-                type="date" 
-                class="batch-form-input"
+                v-model="form.acquired_on"
+                type="date"
+                class="form-input"
                 :class="{ 'is-invalid': submitted && !form.acquired_on }"
                 required
               />
@@ -32,39 +365,18 @@
                 <span class="batch-readonly-hint">Kaufdatum kann nicht geändert werden (in ID eingebettet)</span>
               </div>
             </div>
-          </div>
-
-          <!-- Menge + Preis -->
-          <div class="batch-form-row">
-            <div class="batch-form-group">
-              <label>Menge <span class="required" v-if="!isEditMode">*</span></label>
-              <input 
-                v-model.number="form.qty" 
-                type="number" 
-                min="1" 
-                class="batch-form-input"
-                :class="{ 'is-invalid': submitted && form.qty < 1 }"
-                placeholder="1"
-              />
-            </div>
-            <div class="batch-form-group">
+            <div class="form-group">
               <label>Stückpreis (CHF)</label>
-              <div class="batch-price-input">
-                <span class="batch-currency">Fr.</span>
-                <input 
-                  v-model="form.unit_price" 
-                  type="text" 
-                  class="batch-form-input"
-                  placeholder="0.00"
-                />
+              <div class="price-input">
+                <span class="currency">Fr.</span>
+                <input v-model="form.unit_price" type="text" class="form-input" placeholder="0.00" />
               </div>
             </div>
           </div>
 
-          <!-- Seriennummer(n) bei serialisierten Materialien -->
-          <template v-if="isSerialized">
-            <!-- qty = 1: Einzelne Seriennummer -->
-            <div v-if="form.qty <= 1" class="batch-form-row">
+          <!-- Seriennummer(n) bei serialisierten Materialien (nur Bearbeiten) -->
+          <template v-if="isSerializedMaterial && isEditMode">
+            <div class="batch-form-row">
               <div class="batch-form-group full-width">
                 <label>Seriennummer</label>
                 <input 
@@ -75,7 +387,7 @@
                 />
               </div>
             </div>
-            <div v-if="form.qty <= 1" class="batch-form-row">
+            <div class="batch-form-row">
               <div class="batch-form-group full-width">
                 <label>Bezeichnung (optional)</label>
                 <input 
@@ -87,81 +399,24 @@
                 <p class="batch-field-hint">Anzeigename in der Lagerübersicht – kann jederzeit geändert werden.</p>
               </div>
             </div>
-            <!-- qty > 1: Mehrere Seriennummern mit Vorschlägen -->
-            <template v-else>
-              <div class="batch-form-row">
-                <div class="batch-form-group">
-                  <label>Prefix (QR-Tag)</label>
-                  <input v-model="form.serial_prefix" type="text" class="batch-form-input" placeholder="z.B. KISTE-" />
-                </div>
-                <div class="batch-form-group">
-                  <label>Startnummer</label>
-                  <input v-model.number="form.start_number" type="number" min="1" class="batch-form-input" />
-                </div>
-                <div class="batch-form-group">
-                  <label>Stellen (Pad)</label>
-                  <input v-model.number="form.pad_length" type="number" min="1" max="6" class="batch-form-input" placeholder="3" />
-                </div>
-              </div>
-              <p class="batch-field-hint">Seriennummern erscheinen auf dem QR-Tag. Änderung erfordert neue Tags.</p>
-              <div class="batch-form-row">
-                <div class="batch-form-group full-width">
-                  <div class="serial-entries-header">
-                    <label>Seriennummern ({{ serialEntries.length }})</label>
-                  </div>
-                  <div class="serial-entries-table-wrap">
-                    <table class="serial-entries-table">
-                      <thead>
-                        <tr>
-                          <th>Seriennummer (QR-Tag)</th>
-                          <th>Label (optional)</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        <tr v-for="(entry, i) in serialEntries" :key="i">
-                          <td>
-                            <input
-                              v-model="entry.serial_number"
-                              type="text"
-                              class="batch-form-input form-input--sm"
-                              placeholder="z.B. KISTE-001"
-                            />
-                          </td>
-                          <td>
-                            <input
-                              v-model="entry.label"
-                              type="text"
-                              class="batch-form-input form-input--sm"
-                              placeholder="z.B. Kochkiste Falk"
-                            />
-                          </td>
-                        </tr>
-                      </tbody>
-                    </table>
-                  </div>
-                  <p v-if="serialDuplicateHint" class="batch-field-hint is-invalid">{{ serialDuplicateHint }}</p>
-                </div>
-              </div>
-              <div class="batch-form-row">
-                <label class="batch-toggle-label">
-                  <input type="checkbox" v-model="form.create_slot_per_serial" class="batch-toggle-input" />
-                  <span>Kisten als Lagerplätze anlegen</span>
-                </label>
-              </div>
-              <p class="batch-field-hint">Nicht alle Kisten müssen Lagerplätze sein – z.B. wenn sie nur zum Packen für Aktivitäten genutzt werden.</p>
-            </template>
           </template>
 
           <!-- Auf mehrere Lagerplätze aufteilen (nur bei Bulk) -->
-          <div v-if="!isSerialized" class="batch-form-row">
-            <label class="batch-toggle-label">
-              <input type="checkbox" v-model="form.split_allocations" class="batch-toggle-input" />
-              <span>Auf mehrere Lagerplätze aufteilen</span>
+          <div v-if="!isSerializedMaterial" class="form-row mb-2">
+            <label class="toggle-label">
+              <span class="toggle-wrapper">
+                <input v-model="form.split_allocations" type="checkbox" class="toggle-input" />
+                <span class="toggle-slider toggle-slider--blue"></span>
+              </span>
+              <span class="toggle-text">
+                <span class="toggle-title">Auf mehrere Lagerplätze aufteilen</span>
+                <span class="toggle-desc">Menge auf verschiedene Gestelle/Fächer verteilen</span>
+              </span>
             </label>
           </div>
 
           <!-- Allokations-Tabelle -->
-          <div v-if="!isSerialized && form.split_allocations" class="batch-form-row">
+          <div v-if="!isSerializedMaterial && form.split_allocations" class="batch-form-row">
             <div class="batch-form-group full-width">
               <div class="allocations-header">
                 <label>Lagerplätze (Summe = {{ form.qty }} Stk.)</label>
@@ -248,8 +503,11 @@
             </div>
           </div>
 
-          <!-- Einzelner Lagerplatz (Bulk ohne Split-Allokationen, oder Serialisiert) -->
-          <div v-if="isSerialized || !form.split_allocations" class="batch-form-row">
+          <!-- Einzelner Lagerplatz (Bulk ohne Split-Allokationen, oder Charge bearbeiten serialisiert) -->
+          <div
+            v-if="!isSerializedAddMode && ((!isSerializedMaterial && !form.split_allocations) || (isSerializedMaterial && isEditMode))"
+            class="batch-form-row"
+          >
             <div class="batch-form-group full-width">
               <StorageLocationPicker
                 :show-storage-address="true"
@@ -258,7 +516,7 @@
                 :rack-id="form.rack_id"
                 :slot-id="form.slot_id"
                 :racks="filteredRacks"
-                :slots="slots"
+                :slots="mainSlots"
                 storage-address-label="Standort"
                 rack-label="Gestell"
                 slot-label="Fach"
@@ -273,6 +531,8 @@
                 @slotChange="onSlotChange"
               />
             </div>
+          </div>
+
           </div>
 
           <!-- Lieferant (Autocomplete) -->
@@ -373,15 +633,21 @@ import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { useToast } from '@/composables/useToast'
 import { addBatch, updateBatch, type MaterialBatch, type AddBatchRequest, type UpdateBatchRequest, type AddBatchMultiResponse } from '@/api/materials'
 import { getAddresses, type Address } from '@/api/addresses'
-import { getStorageRacks, getStorageSlots, getContainerBatches, getStorageOverview, type StorageRack, type StorageSlot, type StorageOverviewResponse } from '@/api/storageLocations'
+import { getContainerBatches, getStorageOverview, type StorageRack, type StorageSlot, type StorageOverviewResponse } from '@/api/storageLocations'
 import AddressModal from '@/components/AddressModal.vue'
 import StorageLocationPicker from '@/components/storage/StorageLocationPicker.vue'
+import BarcodeScannerPanel from '@/components/common/BarcodeScannerPanel.vue'
+import { useStorageStructure } from '@/composables/useStorageStructure'
+import '@/styles/material-wizard.css'
+import type { ContainerBatch } from '@/api/storageLocations'
 
 interface Props {
   materialId: string
   departmentId: string
   batch?: MaterialBatch | null // null = Add-Modus, batch = Edit-Modus
   initialContainerBatchId?: string
+  /** Explizit aus Material.tracking_type setzen – zuverlässiger als nur boolean */
+  trackingType?: string | null
   isSerialized?: boolean
   materialName?: string
   existingBatches?: MaterialBatch[]
@@ -390,6 +656,7 @@ interface Props {
 const props = withDefaults(defineProps<Props>(), {
   batch: null,
   initialContainerBatchId: '',
+  trackingType: undefined,
   isSerialized: false,
   materialName: '',
   existingBatches: () => []
@@ -402,6 +669,25 @@ const emit = defineEmits<{
 
 const toast = useToast()
 const isEditMode = computed(() => !!props.batch)
+
+/** Material ist serialisiert (tracking_type oder Fallback über Chargen mit Seriennummer) */
+const isSerializedMaterial = computed(() => {
+  const raw = props.trackingType
+  if (raw !== undefined && raw !== null && String(raw).trim() !== '') {
+    return String(raw).toLowerCase().trim() === 'serialized'
+  }
+  if (props.isSerialized === true) return true
+  if (props.isSerialized === false) return false
+  // Fallback: API liefert tracking_type manchmal nicht – aktive Chargen haben Seriennummern
+  const active = (props.existingBatches || []).filter((b) => (b.status || 'active') === 'active')
+  if (active.length > 0 && active.every((b) => (b.serial_number || '').trim() !== '')) {
+    return true
+  }
+  return false
+})
+
+/** Serialisiert + Charge hinzufügen: gleiches UI wie Material-Erstellwizard */
+const isSerializedAddMode = computed(() => isSerializedMaterial.value && !isEditMode.value)
 const isSaving = ref(false)
 const submitted = ref(false)
 const errorMsg = ref('')
@@ -413,8 +699,10 @@ const supplierSearch = ref('')
 const showSupplierDropdown = ref(false)
 const selectedSupplier = ref<Address | null>(null)
 const storageAddresses = ref<Address[]>([])
-const racks = ref<StorageRack[]>([])
-const slots = ref<StorageSlot[]>([])
+const { racks, slotsByRackId, loadRacks, loadSlots: fetchSlotsForRack, getSlots } = useStorageStructure(
+  () => props.departmentId
+)
+const mainSlots = computed<StorageSlot[]>(() => getSlots(form.rack_id))
 const rackPreviewTitles = ref<Record<string, string>>({})
 const slotPreviewTitles = ref<Record<string, string>>({})
 const storageOverviewCache = ref<StorageOverviewResponse | null>(null)
@@ -425,17 +713,39 @@ const form = reactive({
   unit_price: '',
   serial_number: '',
   label: '',
-  serial_prefix: 'KISTE-',
-  start_number: 1,
-  pad_length: 3,
-  create_slot_per_serial: false,
   storage_address_id: '',
   rack_id: '',
   slot_id: '',
+  container_batch_id: '',
   supplier_id: '',
   notes: '',
   split_allocations: false
 })
+
+/** Nur „Charge hinzufügen“ serialisiert: gleiche Logik wie Wizard */
+const stockLocationMode = ref<'slot' | 'kiste'>('slot')
+const serialLocationSameForAll = ref(true)
+const serialAutoGenerateEnabled = ref(false)
+const autoGenPrefix = ref('')
+const autoGenStart = ref(1)
+const autoGenPad = ref(3)
+const autoGenCount = ref(5)
+const serialScannerActive = ref(false)
+const serialScannerTargetId = ref<number | null>(null)
+
+interface SerialNumberEntry {
+  id: number
+  serial_number: string
+  label: string
+  notes: string
+  location_mode: 'slot' | 'kiste'
+  storage_address_id: string
+  rack_id: string
+  slot_id: string
+  container_batch_id: string
+}
+const serialRows = ref<SerialNumberEntry[]>([])
+let serialIdCounter = 0
 
 const filteredRacks = computed(() => {
   if (!form.storage_address_id) return racks.value
@@ -449,37 +759,172 @@ const storageAddressOptions = computed(() =>
   }))
 )
 
-// Seriennummern bei qty > 1 (serialisiert)
-interface SerialEntry {
-  serial_number: string
-  label: string
-}
-const serialEntries = ref<SerialEntry[]>([])
+const suggestedSerialPrefix = computed(() => {
+  const name = (props.materialName || '').trim()
+  if (!name) return ''
+  return `${name.replace(/[^a-zA-Z0-9äöüÄÖÜß]/g, '').slice(0, 12)}-`
+})
 
-function buildSerialEntries(): SerialEntry[] {
-  const qty = Math.max(1, form.qty)
-  const prefix = (form.serial_prefix || '').trim() || 'KISTE-'
-  const start = Math.max(1, form.start_number)
-  const pad = Math.max(1, Math.min(6, form.pad_length || 3))
-  const entries: SerialEntry[] = []
-  for (let i = 0; i < qty; i++) {
-    const num = String(start + i)
-    const padded = num.padStart(pad, '0')
-    entries.push({ serial_number: prefix + padded, label: '' })
+const serializedQty = computed(
+  () => serialRows.value.filter((e) => (e.serial_number || '').trim().length > 0).length
+)
+
+const autoGenPreview = computed(() => {
+  const prefix = (autoGenPrefix.value || '').trim() || suggestedSerialPrefix.value || 'SER-'
+  const start = Math.max(1, autoGenStart.value)
+  const pad = Math.max(1, Math.min(6, autoGenPad.value || 3))
+  const count = Math.max(1, Math.min(100, autoGenCount.value || 1))
+  if (count <= 2) {
+    return Array.from({ length: count }, (_, i) => prefix + String(start + i).padStart(pad, '0')).join(', ')
   }
-  return entries
+  const first = prefix + String(start).padStart(pad, '0')
+  const last = prefix + String(start + count - 1).padStart(pad, '0')
+  return `${first} … ${last} (${count} Stk.)`
+})
+
+function getPreferredStorageAddressIdForBatch(): string {
+  return form.storage_address_id || storageAddresses.value[0]?.id || ''
 }
 
-function regenerateSerialEntries() {
-  if (props.isSerialized && form.qty > 1) {
-    serialEntries.value = buildSerialEntries()
+function createEmptySerialRow(): SerialNumberEntry {
+  return {
+    id: ++serialIdCounter,
+    serial_number: '',
+    label: '',
+    notes: '',
+    location_mode: 'slot',
+    storage_address_id: getPreferredStorageAddressIdForBatch(),
+    rack_id: '',
+    slot_id: '',
+    container_batch_id: ''
   }
+}
+
+function addSerialNumber() {
+  serialRows.value.push(createEmptySerialRow())
+}
+
+function removeSerialNumber(id: number) {
+  serialRows.value = serialRows.value.filter((r) => r.id !== id)
+  if (serialScannerTargetId.value === id) serialScannerTargetId.value = null
+}
+
+function getRacksForSerialEntry(entry: SerialNumberEntry): StorageRack[] {
+  if (!entry.storage_address_id) return racks.value
+  return racks.value.filter((rack) => rack.storage_address_id === entry.storage_address_id)
+}
+
+function onSerialEntryStorageAddressChange(entry: SerialNumberEntry) {
+  entry.rack_id = ''
+  entry.slot_id = ''
+}
+
+async function onSerialEntryRackChange(entry: SerialNumberEntry) {
+  entry.slot_id = ''
+  if (entry.rack_id) await fetchSlotsForRack(entry.rack_id)
+}
+
+function getSerialRowTitle(entry: SerialNumberEntry, index: number): string {
+  const sn = (entry.serial_number || '').trim()
+  return sn ? `Seriennummer ${index + 1} · ${sn}` : `Seriennummer ${index + 1}`
+}
+
+function formatContainerBatchOption(cb: ContainerBatch): string {
+  const slotName = (cb.slot?.name || '').trim()
+  const rackName = (cb.rack?.name || '').trim()
+  const location = slotName ? (rackName ? `${rackName} / ${slotName}` : slotName) : rackName || 'Ohne Fach'
+  const label = (cb.label || '').trim()
+  const name = (cb.material_name || '').trim()
+  const serial = (cb.serial_number || '').trim()
+  const primary = label || serial || name || 'Kiste'
+  const secondary = name && name !== primary ? ` - ${name}` : ''
+  return `${location} - ${primary}${secondary}`
+}
+
+async function prefetchContainerPreviews() {
+  await prefetchStorageOverview()
+}
+
+function getContainerPreviewTitle(containerBatchId: string): string {
+  if (!containerBatchId) return ''
+  const cb = containerBatches.value.find((c) => c.id === containerBatchId)
+  return cb ? formatContainerBatchOption(cb) : ''
+}
+
+function formatSlotOptionLabel(_rackId: string, slot: StorageSlot): string {
+  return slot.name
+}
+
+function setStockLocationMode(mode: 'slot' | 'kiste') {
+  stockLocationMode.value = mode
+  if (mode === 'slot') {
+    form.container_batch_id = ''
+  } else {
+    form.rack_id = ''
+    form.slot_id = ''
+  }
+}
+
+function toggleSerialScanner() {
+  if (serialScannerActive.value) {
+    serialScannerActive.value = false
+    return
+  }
+  const firstEmpty = serialRows.value.find((s) => !s.serial_number.trim())
+  serialScannerTargetId.value = firstEmpty?.id ?? serialRows.value[0]?.id ?? null
+  if (!serialScannerTargetId.value) {
+    addSerialNumber()
+    serialScannerTargetId.value = serialRows.value[serialRows.value.length - 1]?.id ?? null
+  }
+  serialScannerActive.value = true
+}
+
+function openSerialScannerFor(id: number) {
+  serialScannerTargetId.value = id
+  serialScannerActive.value = true
+}
+
+function onSerialDetected(payload: { text: string }) {
+  const value = payload.text.trim()
+  if (!value) return
+  let target = serialRows.value.find((s) => s.id === serialScannerTargetId.value)
+  if (!target) target = serialRows.value.find((s) => !s.serial_number.trim())
+  if (!target) {
+    addSerialNumber()
+    target = serialRows.value[serialRows.value.length - 1]
+  }
+  target.serial_number = value
+  const nextEmpty = serialRows.value.find((s) => !s.serial_number.trim())
+  serialScannerTargetId.value = nextEmpty?.id ?? null
+}
+
+function onSerialScannerError() {
+  // optional
+}
+
+function generateSerialNumbers() {
+  const prefix = (autoGenPrefix.value || '').trim() || suggestedSerialPrefix.value || 'SER-'
+  const start = Math.max(1, autoGenStart.value)
+  const pad = Math.max(1, Math.min(6, autoGenPad.value || 3))
+  const count = Math.max(1, Math.min(100, autoGenCount.value || 1))
+  serialRows.value = Array.from({ length: count }, (_, i) => ({
+    id: ++serialIdCounter,
+    serial_number: prefix + String(start + i).padStart(pad, '0'),
+    label: '',
+    notes: '',
+    location_mode: 'slot',
+    storage_address_id: getPreferredStorageAddressIdForBatch(),
+    rack_id: '',
+    slot_id: '',
+    container_batch_id: ''
+  }))
+  form.qty = count
 }
 
 const suggestedStartNumber = computed(() => {
   const existing = (props.existingBatches || [])
-    .filter(b => b.serial_number)
-    .map(b => {
+    .filter((b) => b.serial_number)
+    .map((b) => {
       const sn = b.serial_number || ''
       const match = sn.match(/(\d+)$/)
       return match ? parseInt(match[1], 10) : 0
@@ -488,20 +933,36 @@ const suggestedStartNumber = computed(() => {
   return max + 1
 })
 
+const hasInvalidSerialLocations = computed(
+  () =>
+    isSerializedAddMode.value &&
+    !serialLocationSameForAll.value &&
+    serialRows.value
+      .filter((e) => e.serial_number.trim())
+      .some((e) =>
+        e.location_mode === 'kiste' ? !e.container_batch_id : !e.rack_id || !e.slot_id
+      )
+)
+
 const serialDuplicateHint = computed(() => {
-  if (!props.isSerialized || form.qty <= 1) return ''
-  const existing = new Set((props.existingBatches || []).map(b => (b.serial_number || '').trim()).filter(Boolean))
-  const duplicates = serialEntries.value
-    .map(e => e.serial_number.trim())
-    .filter(sn => sn && existing.has(sn))
-  if (duplicates.length > 0) {
-    return `Seriennummer(n) bereits vergeben: ${duplicates.slice(0, 3).join(', ')}${duplicates.length > 3 ? '…' : ''}`
-  }
-  const seen = new Set<string>()
-  for (const e of serialEntries.value) {
-    const sn = e.serial_number.trim()
-    if (sn && seen.has(sn)) return 'Doppelte Seriennummern in der Liste'
-    if (sn) seen.add(sn)
+  if (!props.isSerialized) return ''
+  if (isSerializedAddMode.value) {
+    const existing = new Set(
+      (props.existingBatches || []).map((b) => (b.serial_number || '').trim()).filter(Boolean)
+    )
+    const duplicates = serialRows.value
+      .map((e) => e.serial_number.trim())
+      .filter((sn) => sn && existing.has(sn))
+    if (duplicates.length > 0) {
+      return `Seriennummer(n) bereits vergeben: ${duplicates.slice(0, 3).join(', ')}${duplicates.length > 3 ? '…' : ''}`
+    }
+    const seen = new Set<string>()
+    for (const e of serialRows.value) {
+      const sn = e.serial_number.trim()
+      if (sn && seen.has(sn)) return 'Doppelte Seriennummern in der Liste'
+      if (sn) seen.add(sn)
+    }
+    return ''
   }
   return ''
 })
@@ -518,9 +979,95 @@ interface AllocationRow {
 }
 let allocationIdCounter = 0
 const allocationRows = ref<AllocationRow[]>([])
-const slotsByRackId = ref<Record<string, StorageSlot[]>>({})
-const containerBatches = ref<import('@/api/storageLocations').ContainerBatch[]>([])
+const containerBatches = ref<ContainerBatch[]>([])
 const prefilledContainerMode = ref(false)
+
+function getTodayIsoDate(): string {
+  const now = new Date()
+  const y = now.getFullYear()
+  const m = String(now.getMonth() + 1).padStart(2, '0')
+  const d = String(now.getDate()).padStart(2, '0')
+  return `${y}-${m}-${d}`
+}
+
+/** Haupt-Lagerplatz nach höchster Bestandsmenge (Slot vs. Kiste/Tasche). */
+function pickPreferredLocation(): void {
+  const slotScores = new Map<string, { qty: number; storageAddressId: string; rackId: string; slotId: string }>()
+  const upsertSlot = (rackId?: string | null, slotId?: string | null, qty = 0) => {
+    const rid = String(rackId || '').trim()
+    if (!rid) return
+    const sid = String(slotId || '').trim()
+    const rack = racks.value.find((r) => r.id === rid)
+    const storageAddressId = rack?.storage_address_id || ''
+    const key = `${rid}::${sid}`
+    const prev = slotScores.get(key)
+    if (prev) {
+      prev.qty += Math.max(0, Number(qty || 0))
+      return
+    }
+    slotScores.set(key, {
+      qty: Math.max(0, Number(qty || 0)),
+      storageAddressId,
+      rackId: rid,
+      slotId: sid,
+    })
+  }
+  const containerScores = new Map<string, number>()
+  const addContainer = (id: string | null | undefined, qty: number) => {
+    const cid = String(id || '').trim()
+    if (!cid) return
+    containerScores.set(cid, (containerScores.get(cid) || 0) + Math.max(0, qty))
+  }
+
+  for (const batch of props.existingBatches || []) {
+    if ((batch.status || '').toLowerCase() !== 'active') continue
+    const batchQty = Math.max(0, Number(batch.qty || 0))
+    if (Array.isArray(batch.allocations) && batch.allocations.length > 0) {
+      for (const alloc of batch.allocations) {
+        const allocQty = Math.max(0, Number(alloc.qty || 0))
+        const cb = alloc.container_batch
+        if (cb?.id) {
+          addContainer(cb.id, allocQty)
+          upsertSlot(cb.rack?.id || null, cb.slot?.id || null, allocQty)
+        } else {
+          upsertSlot(alloc.rack_id, alloc.slot_id, allocQty)
+        }
+      }
+      continue
+    }
+    upsertSlot(batch.rack_id, batch.slot_id, batchQty)
+  }
+
+  let bestSlot: { qty: number; storageAddressId: string; rackId: string; slotId: string } | null = null
+  for (const v of slotScores.values()) {
+    if (!bestSlot || v.qty > bestSlot.qty) bestSlot = v
+  }
+  let bestContainer: { id: string; qty: number } | null = null
+  for (const [id, qty] of containerScores.entries()) {
+    if (!bestContainer || qty > bestContainer.qty) bestContainer = { id, qty }
+  }
+
+  const slotScore = bestSlot?.qty ?? 0
+  const containerScore = bestContainer?.qty ?? 0
+
+  if (!bestSlot && !bestContainer) return
+
+  if (bestContainer && containerScore > slotScore) {
+    stockLocationMode.value = 'kiste'
+    form.container_batch_id = bestContainer.id
+    form.rack_id = ''
+    form.slot_id = ''
+    form.storage_address_id = ''
+    return
+  }
+  if (bestSlot?.rackId) {
+    stockLocationMode.value = 'slot'
+    form.storage_address_id = bestSlot.storageAddressId
+    form.rack_id = bestSlot.rackId
+    form.slot_id = bestSlot.slotId || ''
+    form.container_batch_id = ''
+  }
+}
 
 function addAllocationRow() {
   allocationRows.value.push({
@@ -540,9 +1087,7 @@ function removeAllocationRow(id: number) {
 
 async function loadSlotsForAllocationRack(rackId: string) {
   if (!rackId) return
-  if (slotsByRackId.value[rackId]) return
-  slotsByRackId.value[rackId] = await getStorageSlots(rackId).catch(() => [])
-  slotsByRackId.value = { ...slotsByRackId.value }
+  await fetchSlotsForRack(rackId)
   await prefetchSlotPreviewsForRack(rackId)
 }
 
@@ -658,12 +1203,11 @@ onMounted(async () => {
   }
 
   try {
-    racks.value = await getStorageRacks(props.departmentId)
+    await loadRacks()
     containerBatches.value = await getContainerBatches(props.departmentId).catch(() => [])
     await prefetchVisibleRackPreviews(racks.value)
   } catch (err) {
     console.error('Fehler beim Laden der Gestelle:', err)
-    racks.value = []
   }
 
   if (props.batch) {
@@ -689,9 +1233,15 @@ onMounted(async () => {
         supplierSearch.value = match.name || match.company || ''
       }
     }
-  } else if (props.isSerialized && props.existingBatches?.length) {
-    form.start_number = suggestedStartNumber.value
-    regenerateSerialEntries()
+  } else {
+    form.acquired_on = getTodayIsoDate()
+    pickPreferredLocation()
+  }
+
+  if (isSerializedAddMode.value) {
+    addSerialNumber()
+    serialLocationSameForAll.value = true
+    autoGenStart.value = suggestedStartNumber.value
   } else if (!props.isSerialized && props.initialContainerBatchId) {
     form.split_allocations = true
     const initialQty = Math.max(1, form.qty || 1)
@@ -708,15 +1258,27 @@ onMounted(async () => {
   }
 
   if (form.rack_id) {
-    await loadSlots(form.rack_id)
+    await fetchSlotsForRack(form.rack_id)
+    await prefetchSlotPreviewsForRack(form.rack_id)
   }
 })
 
-watch(
-  () => [form.qty, form.serial_prefix, form.start_number, form.pad_length] as const,
-  () => regenerateSerialEntries(),
-  { immediate: true }
-)
+watch(serialLocationSameForAll, async (same) => {
+  if (same || !isSerializedAddMode.value) return
+  const addr = form.storage_address_id
+  const rack = form.rack_id
+  const slot = form.slot_id
+  const cb = form.container_batch_id
+  const mode = stockLocationMode.value
+  for (const entry of serialRows.value) {
+    entry.location_mode = mode === 'kiste' ? 'kiste' : 'slot'
+    entry.storage_address_id = addr
+    entry.rack_id = mode === 'slot' ? rack : ''
+    entry.slot_id = mode === 'slot' ? slot : ''
+    entry.container_batch_id = mode === 'kiste' ? cb : ''
+    if (entry.rack_id) await fetchSlotsForRack(entry.rack_id)
+  }
+})
 
 watch(() => form.qty, (qty) => {
   if (!prefilledContainerMode.value) return
@@ -726,18 +1288,16 @@ watch(() => form.qty, (qty) => {
   row.qty = Math.max(1, qty || 1)
 })
 
-async function loadSlots(rackId: string) {
+async function loadSlotsForMainRack(rackId: string) {
   if (!rackId) {
-    slots.value = []
     form.slot_id = ''
     return
   }
   try {
-    slots.value = await getStorageSlots(rackId)
+    await fetchSlotsForRack(rackId)
     await prefetchSlotPreviewsForRack(rackId)
   } catch (err) {
     console.error('Fehler beim Laden der Slots:', err)
-    slots.value = []
   }
 }
 
@@ -745,13 +1305,12 @@ async function onRackChange() {
   form.slot_id = ''
   const selectedRack = racks.value.find((r) => r.id === form.rack_id)
   form.storage_address_id = selectedRack?.storage_address_id || form.storage_address_id
-  await loadSlots(form.rack_id)
+  await loadSlotsForMainRack(form.rack_id)
 }
 
 function onStorageAddressChange() {
   form.rack_id = ''
   form.slot_id = ''
-  slots.value = []
 }
 
 function onSlotChange() {
@@ -825,13 +1384,18 @@ const canSubmit = computed(() => {
   if (isEditMode.value) {
     return form.qty >= 1
   }
-  if (form.qty < 1 || !form.acquired_on) return false
-  if (props.isSerialized && form.qty > 1) {
+  if (!form.acquired_on) return false
+  if (isSerializedAddMode.value) {
+    if (serializedQty.value < 1) return false
     if (serialDuplicateHint.value) return false
-    const allFilled = serialEntries.value.every(e => (e.serial_number || '').trim().length > 0)
-    if (!allFilled) return false
-    if (form.create_slot_per_serial && !form.rack_id) return false
+    if (hasInvalidSerialLocations.value) return false
+    if (serialLocationSameForAll.value) {
+      if (stockLocationMode.value === 'kiste') return !!form.container_batch_id
+      return !!(form.rack_id && form.slot_id)
+    }
+    return true
   }
+  if (form.qty < 1) return false
   if (form.split_allocations && (!allocationSumValid.value || allocationRows.value.every((r) => (r.mode === 'slot' ? !r.rack_id : !r.container_batch_id) || r.qty <= 0))) return false
   return true
 })
@@ -841,16 +1405,20 @@ const missingFields = computed(() => {
   if (!isEditMode.value && !form.acquired_on) {
     missing.push('Kaufdatum eingeben')
   }
+  if (isSerializedAddMode.value) {
+    if (serializedQty.value < 1) missing.push('Mindestens eine Seriennummer erfassen')
+    if (serialDuplicateHint.value) missing.push(serialDuplicateHint.value)
+    if (hasInvalidSerialLocations.value) {
+      missing.push('Bitte pro Seriennummer einen gültigen Lagerplatz wählen')
+    }
+    if (serialLocationSameForAll.value) {
+      if (stockLocationMode.value === 'kiste' && !form.container_batch_id) missing.push('Kiste/Tasche wählen')
+      if (stockLocationMode.value === 'slot' && (!form.rack_id || !form.slot_id)) missing.push('Gestell und Fach wählen')
+    }
+    return missing
+  }
   if (form.qty < 1) {
     missing.push('Menge muss mindestens 1 sein')
-  }
-  if (props.isSerialized && form.qty > 1) {
-    if (serialDuplicateHint.value) missing.push(serialDuplicateHint.value)
-    else if (!serialEntries.value.every(e => (e.serial_number || '').trim().length > 0)) {
-      missing.push('Alle Seriennummern müssen ausgefüllt sein')
-    } else if (form.create_slot_per_serial && !form.rack_id) {
-      missing.push('Gestell wählen (für Lagerplätze)')
-    }
   }
   if (form.split_allocations && (!allocationSumValid.value || allocationRows.value.every((r) => (r.mode === 'slot' ? !r.rack_id : !r.container_batch_id) || r.qty <= 0))) {
     missing.push('Lagerplätze: Summe muss ' + form.qty + ' Stk. ergeben')
@@ -889,41 +1457,97 @@ async function handleSubmit() {
       result = await updateBatch(props.materialId, props.batch.id, payload)
     } else {
       // Add
-      const payload: AddBatchRequest = {
-        qty: form.qty,
-        acquired_on: form.acquired_on,
-        unit_price: form.unit_price || null,
-        supplier_id: form.supplier_id || null,
-        notes: form.notes || null,
-        ...(form.split_allocations && allocationRows.value.length > 0 && allocationSumValid.value
-          ? {
-              allocations: allocationRows.value
-                .filter((r) => r.qty > 0 && (r.mode === 'slot' ? r.rack_id : r.container_batch_id))
-                .map((r) =>
-                  r.mode === 'kiste'
-                    ? { container_batch_id: r.container_batch_id, qty: r.qty }
-                    : { rack_id: r.rack_id, slot_id: r.slot_id || undefined, qty: r.qty }
-                )
+      if (isSerializedAddMode.value) {
+        const rows = serialRows.value.filter((e) => (e.serial_number || '').trim())
+        const qty = rows.length
+        const base: Pick<AddBatchRequest, 'acquired_on' | 'unit_price' | 'supplier_id' | 'notes'> = {
+          acquired_on: form.acquired_on,
+          unit_price: form.unit_price || null,
+          supplier_id: form.supplier_id || null,
+          notes: form.notes || null,
+        }
+        const serial_entries = rows.map((e) => ({
+          serial_number: e.serial_number.trim(),
+          label: (e.label || '').trim() || undefined,
+        }))
+
+        if (qty <= 1) {
+          const r = rows[0]
+          const payload: AddBatchRequest = {
+            qty: 1,
+            ...base,
+            serial_numbers: [r.serial_number.trim()],
+          }
+          const lab = (r.label || '').trim()
+          if (lab) payload.label = lab
+          if (serialLocationSameForAll.value) {
+            if (stockLocationMode.value === 'kiste') {
+              payload.allocations = [{ qty: 1, container_batch_id: form.container_batch_id }]
+            } else {
+              payload.rack_id = form.rack_id || null
+              payload.slot_id = form.slot_id || null
             }
-          : {
-              rack_id: form.rack_id || null,
-              slot_id: form.slot_id || null
-            }),
-      }
+          } else {
+            if (r.location_mode === 'kiste') {
+              payload.allocations = [{ qty: 1, container_batch_id: r.container_batch_id }]
+            } else {
+              payload.rack_id = r.rack_id || null
+              payload.slot_id = r.slot_id || null
+            }
+          }
+          result = await addBatch(props.materialId, payload)
+        } else {
+          const payload: AddBatchRequest = {
+            qty,
+            ...base,
+            serial_entries,
+          }
+          if (serialLocationSameForAll.value) {
+            if (stockLocationMode.value === 'kiste') {
+              payload.container_batch_id = form.container_batch_id
+            } else {
+              payload.rack_id = form.rack_id || null
+              payload.slot_id = form.slot_id || null
+            }
+          } else {
+            payload.serial_allocations = rows.map((e) => ({
+              serial_number: e.serial_number.trim(),
+              ...(e.location_mode === 'kiste'
+                ? { container_batch_id: e.container_batch_id || undefined }
+                : { rack_id: e.rack_id || undefined, slot_id: e.slot_id || undefined }),
+            }))
+          }
+          result = await addBatch(props.materialId, payload)
+        }
+      } else {
+        const payload: AddBatchRequest = {
+          qty: form.qty,
+          acquired_on: form.acquired_on,
+          unit_price: form.unit_price || null,
+          supplier_id: form.supplier_id || null,
+          notes: form.notes || null,
+          ...(form.split_allocations && allocationRows.value.length > 0 && allocationSumValid.value
+            ? {
+                allocations: allocationRows.value
+                  .filter((r) => r.qty > 0 && (r.mode === 'slot' ? r.rack_id : r.container_batch_id))
+                  .map((r) =>
+                    r.mode === 'kiste'
+                      ? { container_batch_id: r.container_batch_id, qty: r.qty }
+                      : { rack_id: r.rack_id, slot_id: r.slot_id || undefined, qty: r.qty }
+                  ),
+              }
+            : {
+                rack_id: form.rack_id || null,
+                slot_id: form.slot_id || null,
+              }),
+        }
 
-      if (props.isSerialized && form.qty > 1) {
-        payload.serial_entries = serialEntries.value
-          .filter(e => (e.serial_number || '').trim())
-          .map(e => ({
-            serial_number: e.serial_number.trim(),
-            label: (e.label || '').trim() || undefined
-          }))
-        payload.create_slot_per_serial = form.create_slot_per_serial
-      } else if (props.isSerialized && form.qty === 1 && form.serial_number) {
-        payload.serial_numbers = [form.serial_number.trim()]
-      }
+        if (props.isSerialized && form.qty === 1 && form.serial_number) {
+          payload.serial_numbers = [form.serial_number.trim()]
+        }
 
-      result = await addBatch(props.materialId, payload)
+        result = await addBatch(props.materialId, payload)
+      }
     }
 
     emit('saved', result)
@@ -964,6 +1588,25 @@ async function handleSubmit() {
   flex-direction: column;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
   animation: slideUp 0.2s ease;
+}
+
+.batch-modal--wide {
+  width: min(920px, 96vw);
+  max-width: 96vw;
+}
+
+.batch-serial-wizard .serial-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.batch-serial-wizard .serial-header-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
 }
 
 @keyframes slideUp {

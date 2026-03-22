@@ -16,6 +16,7 @@ use App\Entity\Membership;
 use App\Entity\StorageRack;
 use App\Entity\StorageSlot;
 use App\Entity\User;
+use App\Service\Public\PublicCodeService;
 use App\Util\IdGenerator;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -28,7 +29,8 @@ use Symfony\Component\Security\Http\Attribute\IsGranted;
 class MaterialController extends AbstractController
 {
     public function __construct(
-        private EntityManagerInterface $entityManager
+        private EntityManagerInterface $entityManager,
+        private PublicCodeService $publicCodeService
     ) {}
 
     /**
@@ -144,6 +146,57 @@ class MaterialController extends AbstractController
         $activityStockData = $this->getActivityStockBreakdown($material->getDepartmentId());
         $comboStockData = $this->getComboStockBreakdown($material->getDepartmentId());
         $openLossData = $this->getOpenLossReportBreakdown($material->getDepartmentId());
+        return new JsonResponse($this->serializeMaterial($material, true, $activityStockData, $comboStockData, $openLossData));
+    }
+
+    /**
+     * Erzeugt (Backfill) einen Public-QR-Code für ein Material, falls noch keiner vorhanden ist.
+     */
+    #[Route('/{id}/public-code', name: 'ensure_public_code', methods: ['POST'])]
+    #[IsGranted('ROLE_USER')]
+    public function ensurePublicCode(string $id): JsonResponse
+    {
+        $material = $this->entityManager->getRepository(MaterialItem::class)
+            ->createQueryBuilder('m')
+            ->leftJoin('m.category', 'c')
+            ->leftJoin('m.storageAddress', 's')
+            ->addSelect('c', 's')
+            ->where('m.id = :id')
+            ->setParameter('id', $id)
+            ->getQuery()
+            ->getOneOrNullResult();
+
+        if (!$material) {
+            return new JsonResponse(['error' => 'Material nicht gefunden'], 404);
+        }
+        if ($material->getDeletedAt() !== null) {
+            return new JsonResponse(['error' => 'Material wurde archiviert'], 400);
+        }
+
+        $accessCheck = $this->assertDepartmentAccess($material->getDepartmentId());
+        if ($accessCheck instanceof JsonResponse) {
+            return $accessCheck;
+        }
+
+        $this->publicCodeService->ensureMaterialPublicCode($material, $this->getActorUserId());
+
+        // Bei serialisierten Materialien zusätzlich alle fehlenden Batch-QR-Codes erzeugen.
+        if ($material->getTrackingType() === 'serialized') {
+            foreach ($material->getBatches() as $batch) {
+                $serial = trim((string) $batch->getSerialNumber());
+                if ($serial === '') {
+                    continue;
+                }
+                $this->publicCodeService->ensureBatchPublicCode($batch, $this->getActorUserId());
+            }
+        }
+
+        $this->entityManager->flush();
+
+        $activityStockData = $this->getActivityStockBreakdown($material->getDepartmentId());
+        $comboStockData = $this->getComboStockBreakdown($material->getDepartmentId());
+        $openLossData = $this->getOpenLossReportBreakdown($material->getDepartmentId());
+
         return new JsonResponse($this->serializeMaterial($material, true, $activityStockData, $comboStockData, $openLossData));
     }
 
@@ -390,6 +443,7 @@ class MaterialController extends AbstractController
                     }
                     
                     $this->entityManager->persist($batch);
+                    $this->publicCodeService->ensureBatchPublicCode($batch, $this->getActorUserId());
                 }
                 $this->entityManager->flush();
             }
@@ -481,6 +535,10 @@ class MaterialController extends AbstractController
                 $this->entityManager->persist($batch);
                 $this->entityManager->flush();
             }
+
+            // Beim Erfassen automatisch Public-Code erzeugen (für QR-Labels).
+            $this->publicCodeService->ensureMaterialPublicCode($material, $this->getActorUserId());
+            $this->entityManager->flush();
 
             return new JsonResponse($this->serializeMaterial($material, true), 201);
 
@@ -803,6 +861,9 @@ class MaterialController extends AbstractController
             if (isset($data['notes'])) {
                 $batch->setNotes($data['notes']);
             }
+            if (array_key_exists('label', $data)) {
+                $batch->setLabel($data['label'] ? (string) $data['label'] : null);
+            }
 
             if (isset($data['serial_number'])) {
                 $batch->setSerialNumber($data['serial_number']);
@@ -856,6 +917,9 @@ class MaterialController extends AbstractController
             }
 
             $this->entityManager->persist($batch);
+            if ($material->getTrackingType() === 'serialized') {
+                $this->publicCodeService->ensureBatchPublicCode($batch, $this->getActorUserId());
+            }
 
             // History-Eintrag für Batch-Hinzufügung
             $this->createHistoryEntry($material, 'batch_added', [
@@ -869,6 +933,10 @@ class MaterialController extends AbstractController
             ]);
 
             $this->entityManager->flush();
+
+            $batchPublicCodeEntry = $this->publicCodeService->getActiveBatchPublicCode((string) $batch->getId());
+            $batchPublicCode = $batchPublicCodeEntry?->getPublicCode();
+            $batchPublicUrl = $batchPublicCode ? $this->publicCodeService->buildBatchPublicUrl($batchPublicCode) : null;
 
             $response = [
                 'id' => $batch->getId(),
@@ -884,6 +952,8 @@ class MaterialController extends AbstractController
                 'serial_number' => $batch->getSerialNumber(),
                 'rack_id' => $batch->getRackId(),
                 'slot_id' => $batch->getSlotId(),
+                'public_code' => $batchPublicCode,
+                'public_url' => $batchPublicUrl,
             ];
             $allocations = $batch->getAllocations();
             if ($allocations->count() > 0) {
@@ -1122,6 +1192,10 @@ class MaterialController extends AbstractController
                     'serial_number' => ['old' => null, 'new' => $sn],
                 ]);
 
+                $batchPublicCodeEntry = $this->publicCodeService->getActiveBatchPublicCode((string) $batch->getId());
+                $batchPublicCode = $batchPublicCodeEntry?->getPublicCode();
+                $batchPublicUrl = $batchPublicCode ? $this->publicCodeService->buildBatchPublicUrl($batchPublicCode) : null;
+
                 $created[] = [
                     'id' => $batch->getId(),
                     'qty' => 1,
@@ -1130,7 +1204,11 @@ class MaterialController extends AbstractController
                     'rack_id' => $useContainerBatch ? null : $batch->getRackId(),
                     'slot_id' => $useContainerBatch ? null : $batch->getSlotId(),
                     'container_batch_id' => $useContainerBatch ? $useContainerBatch->getId() : null,
+                    'public_code' => $batchPublicCode,
+                    'public_url' => $batchPublicUrl,
                 ];
+
+                $this->publicCodeService->ensureBatchPublicCode($batch, $this->getActorUserId());
             }
 
             $this->entityManager->flush();
@@ -1244,6 +1322,15 @@ class MaterialController extends AbstractController
                 }
             }
 
+            // Wenn serialisiert und Seriennummer vorhanden/gesetzt ist: Batch-Public-Code sicherstellen.
+            if (
+                $material->getTrackingType() === 'serialized' &&
+                $batch->getSerialNumber() !== null &&
+                trim((string) $batch->getSerialNumber()) !== ''
+            ) {
+                $this->publicCodeService->ensureBatchPublicCode($batch, $this->getActorUserId());
+            }
+
             // Neuen Zustand erfassen und Diff berechnen
             $newValues = [
                 'qty' => $batch->getQty(),
@@ -1275,6 +1362,10 @@ class MaterialController extends AbstractController
 
             $this->entityManager->flush();
 
+            $batchPublicCodeEntry = $this->publicCodeService->getActiveBatchPublicCode((string) $batch->getId());
+            $batchPublicCode = $batchPublicCodeEntry?->getPublicCode();
+            $batchPublicUrl = $batchPublicCode ? $this->publicCodeService->buildBatchPublicUrl($batchPublicCode) : null;
+
             return new JsonResponse([
                 'id' => $batch->getId(),
                 'qty' => $batch->getQty(),
@@ -1289,6 +1380,8 @@ class MaterialController extends AbstractController
                 'serial_number' => $batch->getSerialNumber(),
                 'rack_id' => $batch->getRackId(),
                 'slot_id' => $batch->getSlotId(),
+                'public_code' => $batchPublicCode,
+                'public_url' => $batchPublicUrl,
             ]);
 
         } catch (\Exception $e) {
@@ -1775,6 +1868,8 @@ class MaterialController extends AbstractController
                     'serial_number' => $newBatch->getSerialNumber(),
                     'label' => $newBatch->getLabel(),
                 ];
+
+                $this->publicCodeService->ensureBatchPublicCode($newBatch, $this->getActorUserId());
             }
 
             if ($material->getTrackingType() !== 'serialized') {
@@ -2294,6 +2389,10 @@ class MaterialController extends AbstractController
             $openLossQty = $openLossData[$mid]['qty'] ?? 0;
         }
 
+        $publicCodeEntry = $this->publicCodeService->getActiveMaterialPublicCode((string) $material->getId());
+        $publicCode = $publicCodeEntry?->getPublicCode();
+        $publicUrl = $publicCode ? $this->publicCodeService->buildMaterialPublicUrl($publicCode) : null;
+
         $result = [
             'id' => $material->getId(),
             'department_id' => $material->getDepartmentId(),
@@ -2338,6 +2437,8 @@ class MaterialController extends AbstractController
             'pack_size' => $material->getPackSize(),
             'pack_unit' => $material->getPackUnit(),
             'barcode_tag' => $material->getBarcodeTag(),
+            'public_code' => $publicCode,
+            'public_url' => $publicUrl,
             'created_at' => $material->getCreatedAt()->format('c'),
             'updated_at' => $material->getUpdatedAt()->format('c')
         ];
@@ -2370,6 +2471,10 @@ class MaterialController extends AbstractController
             // Batches
             $result['batches'] = [];
             foreach ($batches as $batch) {
+                $batchPublicCodeEntry = $this->publicCodeService->getActiveBatchPublicCode((string) $batch->getId());
+                $batchPublicCode = $batchPublicCodeEntry?->getPublicCode();
+                $batchPublicUrl = $batchPublicCode ? $this->publicCodeService->buildBatchPublicUrl($batchPublicCode) : null;
+
                 $batchData = [
                     'id' => $batch->getId(),
                     'qty' => $batch->getQty(),
@@ -2394,6 +2499,8 @@ class MaterialController extends AbstractController
                     ] : null,
                     'source_batch_id' => $batch->getSourceBatchId(),
                     'conversion_group_id' => $batch->getConversionGroupId(),
+                    'public_code' => $batchPublicCode,
+                    'public_url' => $batchPublicUrl,
                 ];
                 // Allokationen mitsenden, falls vorhanden (Batch auf mehrere Lagerplätze verteilt)
                 $allocations = $batch->getAllocations();
@@ -2512,6 +2619,14 @@ class MaterialController extends AbstractController
             ];
         }
         return $result;
+    }
+
+    /** Aktueller Benutzer für Metadaten am Public-Code (created_by_user_id). */
+    private function getActorUserId(): ?string
+    {
+        $user = $this->getUser();
+
+        return $user instanceof User ? $user->getId() : null;
     }
 
     private function assertDepartmentAccess(string $departmentId): true|JsonResponse

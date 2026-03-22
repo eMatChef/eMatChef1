@@ -128,6 +128,11 @@ class DepartmentSetting
             'general.timezone' => 'Europe/Zurich',
             'general.date_format' => 'dd.MM.yyyy',
             'general.time_format' => 'HH:mm',
+            'general.public_contact_email' => '',
+            'general.public_contact_note' => '',
+            'general.public_show_contact_form' => '1',
+            'general.public_show_contact_email' => '1',
+            'general.public_show_contact_note' => '1',
         ];
     }
 

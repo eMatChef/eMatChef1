@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="eMatChef">
+  <rect width="32" height="32" rx="8" fill="#10b981"/>
+  <text
+    x="16"
+    y="21"
+    text-anchor="middle"
+    fill="#ffffff"
+    font-family="system-ui, Segoe UI, Arial, sans-serif"
+    font-size="8.5"
+    font-weight="800"
+    letter-spacing="-0.06em"
+  >EMC</text>
+</svg>

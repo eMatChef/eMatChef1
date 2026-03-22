@@ -2,6 +2,7 @@ import { createApp } from 'vue'
 import './style.css'
 import App from './App.vue'
 import router from './router'
+import { syncDocumentHead } from './composables/usePageHead'
 import { createPinia } from 'pinia'
 import { useAuthStore } from './stores/auth'
 import { useToastStore } from './stores/toast'
@@ -47,6 +48,9 @@ async function initApp() {
   
   // App mounten nach Session-Laden
   app.mount('#app')
+
+  await router.isReady()
+  syncDocumentHead(router.currentRoute.value)
 }
 
 initApp()

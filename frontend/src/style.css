@@ -1,3 +1,10 @@
+/**
+ * Zentrales Stylesheet für die gesamte App (alle Routen).
+ * Einbindung: src/main.ts → import './style.css'
+ * Reihenfolge: Marken-Tokens → UI-Module → Tailwind → globale Resets.
+ */
+@import './styles/ui/brand-tokens.css';
+@import './styles/ui/public-brand.css';
 @import './styles/ui/buttons.css';
 @import './styles/ui/page-layout.css';
 @import './styles/ui/forms.css';

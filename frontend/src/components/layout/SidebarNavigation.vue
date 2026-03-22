@@ -3,7 +3,7 @@
     <!-- Logo -->
     <div class="sidebar-logo">
       <router-link :to="homeLink" class="logo-link">
-        <div class="logo-icon">EMC</div>
+        <EmcLogoMark size="sm" />
         <span class="logo-text" :class="{ visible: isHovered }">eMatChef</span>
       </router-link>
     </div>
@@ -153,6 +153,7 @@
 import { ref, computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import EmcLogoMark from '@/components/brand/EmcLogoMark.vue'
 import IconDashboard from '@/components/icons/IconDashboard.vue'
 import IconActivities from '@/components/icons/IconActivities.vue'
 import IconMaterials from '@/components/icons/IconMaterials.vue'

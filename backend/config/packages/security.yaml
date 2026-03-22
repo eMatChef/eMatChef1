@@ -34,6 +34,13 @@ security:
                 success_handler: lexik_jwt_authentication.handler.authentication_success
                 failure_handler: lexik_jwt_authentication.handler.authentication_failure
         
+        # Public API (QR-Lookup etc.): darf niemals durch JWT-Authenticator scheitern,
+        # auch wenn Clients fälschlicherweise einen (ungültigen) Authorization-Header mitschicken.
+        api_public:
+            pattern: ^/api/public
+            stateless: true
+            security: false
+        
         api:
             pattern: ^/api
             stateless: true
@@ -48,4 +55,5 @@ security:
         - { path: ^/api/auth/password-reset/confirm, roles: PUBLIC_ACCESS }
         - { path: ^/api/auth/logout, roles: PUBLIC_ACCESS }
         - { path: ^/api/token/refresh, roles: PUBLIC_ACCESS }
+        - { path: ^/api/public, roles: PUBLIC_ACCESS }
         - { path: .*, roles: [ROLE_USER] }

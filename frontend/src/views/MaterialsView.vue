@@ -3,6 +3,7 @@
     <!-- Detail View (ersetzt Liste wenn Material ausgewählt) -->
     <MaterialDetailView
       v-if="showDetailView && selectedMaterialId"
+      :key="selectedMaterialId"
       :material-id="selectedMaterialId"
       :department-id="currentDepartmentId"
       :initial-batch-id="route.query.batch ? String(route.query.batch) : undefined"
@@ -259,7 +260,10 @@
                     </button>
                   </td>
                   <td class="col-code">
-                    <span class="code-badge">{{ material.barcode_tag || '-' }}</span>
+                    <div class="code-cell">
+                      <span v-if="material.barcode_tag" class="code-badge">{{ material.barcode_tag }}</span>
+                      <PublicQrTag :url="material.public_url" :code="material.public_code" :size="56" />
+                    </div>
                   </td>
                   <td class="col-name">
                     <div class="name-cell">
@@ -419,6 +423,7 @@ import MaterialCreateWizard from '@/components/material/MaterialCreateWizard.vue
 import MaterialDetailView from '@/components/material/MaterialDetailView.vue'
 import StorageTreeView from '@/components/storage/StorageTreeView.vue'
 import GlobalSearchInput from '@/components/common/GlobalSearchInput.vue'
+import PublicQrTag from '@/components/common/PublicQrTag.vue'
 import { useDetailTabsStore } from '@/stores/detailTabs'
 import '@/styles/material-wizard.css'
 

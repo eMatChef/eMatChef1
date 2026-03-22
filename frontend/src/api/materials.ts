@@ -53,6 +53,8 @@ export interface MaterialBatch {
   allocations?: BatchStorageAllocation[]
   source_batch_id?: string | null
   conversion_group_id?: string | null
+  public_code?: string | null
+  public_url?: string | null
 }
 
 export interface Material {
@@ -92,6 +94,8 @@ export interface Material {
   pack_unit: string | null
   created_at: string
   updated_at: string
+  public_code?: string | null
+  public_url?: string | null
   
   // Details (nur bei get mit Details)
   color?: string | null
@@ -315,6 +319,14 @@ export async function updateMaterial(id: string, data: UpdateMaterialRequest): P
 }
 
 /**
+ * Backfill: erzeugt einen Public-Code für ein Material, falls keiner existiert.
+ */
+export async function ensureMaterialPublicCode(id: string): Promise<Material> {
+  const response = await apiClient.post<Material>(`/api/materials/${id}/public-code`)
+  return response.data
+}
+
+/**
  * Löscht ein Material (Soft-Delete)
  */
 export async function deleteMaterial(id: string): Promise<void> {
@@ -357,6 +369,7 @@ export interface AddBatchRequest {
   unit_price?: string | null
   supplier_id?: string | null
   notes?: string | null
+  label?: string | null
   rack_id?: string | null
   slot_id?: string | null
   allocations?: { rack_id?: string; slot_id?: string; container_batch_id?: string; qty: number }[]
@@ -410,7 +423,17 @@ export interface SplitToSerializedResponse {
 
 export interface AddBatchMultiResponse {
   created_count: number
-  created_batches: Array<{ id: string; qty: number; serial_number: string; label?: string | null; rack_id?: string | null; slot_id?: string | null; container_batch_id?: string | null }>
+  created_batches: Array<{
+    id: string
+    qty: number
+    serial_number: string
+    label?: string | null
+    rack_id?: string | null
+    slot_id?: string | null
+    container_batch_id?: string | null
+    public_code?: string | null
+    public_url?: string | null
+  }>
 }
 
 /**
