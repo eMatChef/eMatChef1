@@ -37,10 +37,21 @@ const apiClient = axios.create({
   }
 })
 
+function isPublicApiUrl(url: string): boolean {
+  // Öffentliche Endpoints dürfen NICHT mit einem (ggf. abgelaufenen) JWT "mitgeschickt" werden,
+  // sonst kann Symfony/JWT-Auth vor PUBLIC_ACCESS abbrechen (401) und QR-Links wirken "tot".
+  return url.includes('/api/public/')
+}
+
 // Request Interceptor - fügt Auth-Token hinzu
 apiClient.interceptors.request.use((config) => {
   // Skip Auth-Header für Token Refresh und Login
   if (config.url?.includes('/token/refresh') || config.url?.includes('/login_check')) {
+    return config
+  }
+
+  const requestUrl = String(config.url || '')
+  if (isPublicApiUrl(requestUrl)) {
     return config
   }
 
@@ -61,7 +72,8 @@ apiClient.interceptors.response.use(
       apiSuccessRefreshCallback &&
       lastApiSuccessRefresh > 0 &&
       !url.includes('login') &&
-      !url.includes('token/refresh')
+      !url.includes('token/refresh') &&
+      !isPublicApiUrl(url)
     ) {
       const now = Date.now()
       if (now - lastApiSuccessRefresh > API_SUCCESS_REFRESH_INTERVAL) {
@@ -109,6 +121,11 @@ apiClient.interceptors.response.use(
       requestUrl.includes('/api/auth/resend-verification') ||
       requestUrl.includes('/api/auth/password-reset/')
     ) {
+      return Promise.reject(error)
+    }
+
+    // Public API: kein Refresh/Logout-Flow – Fehler soll sauber an Caller durchgereicht werden
+    if (isPublicApiUrl(requestUrl)) {
       return Promise.reject(error)
     }
 

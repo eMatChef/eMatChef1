@@ -7,6 +7,8 @@ namespace App\Util;
  */
 class IdGenerator
 {
+    public const PUBLIC_CODE_MAX_ATTEMPTS = 20;
+
     /**
      * Generiert eine 12-stellige hexadezimale ID
      * Kollisionswahrscheinlichkeit: 1 zu 2^48 ≈ 281 Billionen
@@ -279,5 +281,39 @@ class IdGenerator
         }
 
         return self::generate();
+    }
+
+    /**
+     * Generiert einen URL-sicheren Public-Code mit hoher Entropie.
+     * Standard: 10 Bytes = 80 Bit Entropie.
+     */
+    public static function generatePublicCode(int $bytes = 10): string
+    {
+        if ($bytes < 10) {
+            throw new \InvalidArgumentException('Public-Code benötigt mindestens 10 Bytes (80 Bit) Entropie.');
+        }
+        $raw = random_bytes($bytes);
+        return rtrim(strtr(base64_encode($raw), '+/', '-_'), '=');
+    }
+
+    /**
+     * Generiert einen eindeutigen Public-Code mit DB-Prüfung.
+     */
+    public static function generateUniquePublicCode(
+        \Doctrine\ORM\EntityManagerInterface $em,
+        string $entityClass = \App\Entity\PublicCode::class,
+        string $field = 'publicCode',
+        ?int $maxAttempts = null
+    ): string {
+        $attemptLimit = max(1, (int) ($maxAttempts ?? self::PUBLIC_CODE_MAX_ATTEMPTS));
+        for ($attempt = 0; $attempt < $attemptLimit; $attempt++) {
+            $code = self::generatePublicCode();
+            $existing = $em->getRepository($entityClass)->findOneBy([$field => $code]);
+            if (!$existing) {
+                return $code;
+            }
+        }
+
+        throw new \RuntimeException('Konnte nach ' . $attemptLimit . ' Versuchen keinen eindeutigen Public-Code generieren');
     }
 }

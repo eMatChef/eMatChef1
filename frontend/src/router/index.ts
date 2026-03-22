@@ -1,14 +1,53 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import type { RouteRecordRaw } from 'vue-router'
+import type { RouteLocationNormalized, RouteRecordRaw } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { usePermissionsStore } from '@/stores/permissions'
+import { usePageHeadStore } from '@/stores/pageHead'
+import { syncDocumentHead } from '@/composables/usePageHead'
+
+/** Standard-Beschreibung für route.meta (SEO / Open Graph) */
+const PAGE_DESC = 'eMatChef – Materialverwaltung für Vermietungen.'
 
 const routes: RouteRecordRaw[] = [
+  {
+    path: '/i/:type/:code',
+    name: 'PublicLookup',
+    component: () => import('@/views/public/PublicMaterialView.vue'),
+    meta: {
+      requiresAuth: false,
+      pageTitle: 'Material-Info · eMatChef',
+      pageDescription: 'Öffentliche Material- und Seriennummern-Informationen in eMatChef.',
+    }
+  },
+  {
+    path: '/impressum',
+    name: 'Impressum',
+    component: () => import('@/views/public/ImpressumView.vue'),
+    meta: {
+      requiresAuth: false,
+      pageTitle: 'Impressum · eMatChef',
+      pageDescription: 'Impressum und Anbieterkennzeichnung für eMatChef – Materialverwaltung.',
+    }
+  },
+  {
+    path: '/datenschutz',
+    name: 'Datenschutz',
+    component: () => import('@/views/public/DatenschutzView.vue'),
+    meta: {
+      requiresAuth: false,
+      pageTitle: 'Datenschutz · eMatChef',
+      pageDescription: 'Datenschutzhinweise für die Nutzung von eMatChef.',
+    }
+  },
   {
     path: '/',
     name: 'Login',
     component: () => import('@/views/LoginView.vue'),
-    meta: { requiresAuth: false }
+    meta: {
+      requiresAuth: false,
+      pageTitle: 'Anmelden · eMatChef',
+      pageDescription: PAGE_DESC,
+    }
   },
   {
     path: '/login',
@@ -18,7 +57,11 @@ const routes: RouteRecordRaw[] = [
     path: '/verify',
     name: 'VerifyEmail',
     component: () => import('@/views/VerifyEmailView.vue'),
-    meta: { requiresAuth: false }
+    meta: {
+      requiresAuth: false,
+      pageTitle: 'E-Mail bestätigen · eMatChef',
+      pageDescription: PAGE_DESC,
+    }
   },
   {
     path: '/pending-assignment',
@@ -28,7 +71,11 @@ const routes: RouteRecordRaw[] = [
       {
         path: '',
         name: 'PendingAssignment',
-        component: () => import('@/views/PendingAssignmentView.vue')
+        component: () => import('@/views/PendingAssignmentView.vue'),
+        meta: {
+          pageTitle: 'Abteilung zuweisen · eMatChef',
+          pageDescription: PAGE_DESC,
+        }
       }
     ]
   },
@@ -42,19 +89,31 @@ const routes: RouteRecordRaw[] = [
         path: 'dashboard',
         name: 'AdminDashboard',
         component: () => import('@/views/AdminDashboardView.vue'),
-        meta: { requiredRoles: ['superadmin', 'organisationschef', 'suborgchef'] }
+        meta: {
+          requiredRoles: ['superadmin', 'organisationschef', 'suborgchef'],
+          pageTitle: 'Admin-Dashboard · eMatChef',
+          pageDescription: PAGE_DESC,
+        }
       },
       {
         path: 'support-requests',
         name: 'AdminSupportRequests',
         component: () => import('@/views/SupportRequestsView.vue'),
-        meta: { requiredRoles: ['superadmin', 'organisationschef', 'suborgchef'] }
+        meta: {
+          requiredRoles: ['superadmin', 'organisationschef', 'suborgchef'],
+          pageTitle: 'Support-Anfragen · eMatChef',
+          pageDescription: PAGE_DESC,
+        }
       },
       {
         path: 'jobs',
         name: 'AdminJobs',
         component: () => import('@/views/JobsView.vue'),
-        meta: { requiredRoles: ['superadmin', 'organisationschef', 'suborgchef'] }
+        meta: {
+          requiredRoles: ['superadmin', 'organisationschef', 'suborgchef'],
+          pageTitle: 'Jobs · eMatChef',
+          pageDescription: PAGE_DESC,
+        }
       },
       {
         path: 'settings',
@@ -65,25 +124,41 @@ const routes: RouteRecordRaw[] = [
             path: 'organisations',
             name: 'AdminSettingsOrganisations',
             component: () => import('@/views/settings/OrganisationsSettingsView.vue'),
-            meta: { requiredRoles: ['superadmin'] }
+            meta: {
+              requiredRoles: ['superadmin'],
+              pageTitle: 'Organisationen · eMatChef',
+              pageDescription: PAGE_DESC,
+            }
           },
           {
             path: 'departments',
             name: 'AdminSettingsDepartments',
             component: () => import('@/views/settings/DepartmentsSettingsView.vue'),
-            meta: { requiredRoles: ['superadmin'] }
+            meta: {
+              requiredRoles: ['superadmin'],
+              pageTitle: 'Abteilungen · eMatChef',
+              pageDescription: PAGE_DESC,
+            }
           },
           {
             path: 'users',
             name: 'AdminSettingsUsers',
             component: () => import('@/views/settings/AdminUsersSettingsView.vue'),
-            meta: { requiredRoles: ['superadmin'] }
+            meta: {
+              requiredRoles: ['superadmin'],
+              pageTitle: 'Benutzer · eMatChef',
+              pageDescription: PAGE_DESC,
+            }
           },
           {
             path: 'mail-templates',
             name: 'AdminSettingsMailTemplates',
             component: () => import('@/views/settings/MailTemplatesSettingsView.vue'),
-            meta: { requiredRoles: ['superadmin', 'organisationschef', 'suborgchef'] }
+            meta: {
+              requiredRoles: ['superadmin', 'organisationschef', 'suborgchef'],
+              pageTitle: 'E-Mail-Vorlagen · eMatChef',
+              pageDescription: PAGE_DESC,
+            }
           }
         ]
       }
@@ -98,34 +173,58 @@ const routes: RouteRecordRaw[] = [
       {
         path: 'dashboard',
         name: 'Dashboard',
-        component: () => import('@/views/DashboardView.vue')
+        component: () => import('@/views/DashboardView.vue'),
+        meta: {
+          pageTitle: 'Dashboard · eMatChef',
+          pageDescription: PAGE_DESC,
+        }
       },
       {
         path: 'jobs',
         name: 'Jobs',
         component: () => import('@/views/JobsView.vue'),
-        meta: { requiredRoles: ['superadmin', 'organisationschef', 'suborgchef'] }
+        meta: {
+          requiredRoles: ['superadmin', 'organisationschef', 'suborgchef'],
+          pageTitle: 'Jobs · eMatChef',
+          pageDescription: PAGE_DESC,
+        }
       },
       {
         path: 'support-requests',
         name: 'SupportRequests',
         component: () => import('@/views/SupportRequestsView.vue'),
-        meta: { requiredRoles: ['superadmin', 'organisationschef', 'suborgchef'] }
+        meta: {
+          requiredRoles: ['superadmin', 'organisationschef', 'suborgchef'],
+          pageTitle: 'Support-Anfragen · eMatChef',
+          pageDescription: PAGE_DESC,
+        }
       },
       {
         path: 'activities',
         name: 'Activities',
         component: () => import('@/views/ActivitiesView.vue'),
+        meta: {
+          pageTitle: 'Aktivitäten · eMatChef',
+          pageDescription: PAGE_DESC,
+        },
         children: [
           {
             path: ':activityId',
             name: 'ActivityDetail',
             component: () => import('@/views/ActivitiesView.vue'),
+            meta: {
+              pageTitle: 'Aktivität · eMatChef',
+              pageDescription: PAGE_DESC,
+            }
           },
           {
             path: ':activityId/:tab',
             name: 'ActivityDetailTab',
             component: () => import('@/views/ActivitiesView.vue'),
+            meta: {
+              pageTitle: 'Aktivität · eMatChef',
+              pageDescription: PAGE_DESC,
+            }
           }
         ]
       },
@@ -133,41 +232,73 @@ const routes: RouteRecordRaw[] = [
         path: 'materials',
         name: 'Materials',
         component: () => import('@/views/MaterialsView.vue'),
+        meta: {
+          pageTitle: 'Materialien · eMatChef',
+          pageDescription: PAGE_DESC,
+        },
         children: [
           {
             path: 'alle',
             name: 'MaterialsTabAll',
-            component: () => import('@/views/MaterialsView.vue')
+            component: () => import('@/views/MaterialsView.vue'),
+            meta: {
+              pageTitle: 'Alle Materialien · eMatChef',
+              pageDescription: PAGE_DESC,
+            }
           },
           {
             path: 'kombos',
             name: 'MaterialsTabCombos',
-            component: () => import('@/views/MaterialsView.vue')
+            component: () => import('@/views/MaterialsView.vue'),
+            meta: {
+              pageTitle: 'Kombos · eMatChef',
+              pageDescription: PAGE_DESC,
+            }
           },
           {
             path: 'virtuelle-kombis',
             name: 'MaterialsTabVirtualCombos',
-            component: () => import('@/views/MaterialsView.vue')
+            component: () => import('@/views/MaterialsView.vue'),
+            meta: {
+              pageTitle: 'Virtuelle Kombis · eMatChef',
+              pageDescription: PAGE_DESC,
+            }
           },
           {
             path: 'verbrauchsmaterial',
             name: 'MaterialsTabConsumables',
-            component: () => import('@/views/MaterialsView.vue')
+            component: () => import('@/views/MaterialsView.vue'),
+            meta: {
+              pageTitle: 'Verbrauchsmaterial · eMatChef',
+              pageDescription: PAGE_DESC,
+            }
           },
           {
             path: 'esswaren',
             name: 'MaterialsTabFood',
-            component: () => import('@/views/MaterialsView.vue')
+            component: () => import('@/views/MaterialsView.vue'),
+            meta: {
+              pageTitle: 'Esswaren · eMatChef',
+              pageDescription: PAGE_DESC,
+            }
           },
           {
             path: 'regale',
             name: 'MaterialsTabStorage',
-            component: () => import('@/views/MaterialsView.vue')
+            component: () => import('@/views/MaterialsView.vue'),
+            meta: {
+              pageTitle: 'Regale · eMatChef',
+              pageDescription: PAGE_DESC,
+            }
           },
           {
             path: ':materialId',
             name: 'MaterialDetail',
-            component: () => import('@/views/MaterialsView.vue')
+            component: () => import('@/views/MaterialsView.vue'),
+            meta: {
+              pageTitle: 'Material · eMatChef',
+              pageDescription: 'Materialdetails in eMatChef.',
+            }
           }
         ]
       },
@@ -175,28 +306,48 @@ const routes: RouteRecordRaw[] = [
         path: 'contacts',
         name: 'Contacts',
         component: () => import('@/views/ContactsView.vue'),
+        meta: {
+          pageTitle: 'Ansprechpartner · eMatChef',
+          pageDescription: PAGE_DESC,
+        },
         children: [
           {
             path: ':contactId',
             name: 'ContactDetail',
-            component: () => import('@/views/ContactsView.vue')
+            component: () => import('@/views/ContactsView.vue'),
+            meta: {
+              pageTitle: 'Kontakt · eMatChef',
+              pageDescription: PAGE_DESC,
+            }
           }
         ]
       },
       {
         path: 'tasks',
         name: 'Tasks',
-        component: () => import('@/views/TasksView.vue')
+        component: () => import('@/views/TasksView.vue'),
+        meta: {
+          pageTitle: 'Aufgaben · eMatChef',
+          pageDescription: PAGE_DESC,
+        }
       },
       {
         path: 'workshop',
         name: 'Workshop',
-        component: () => import('@/views/WorkshopView.vue')
+        component: () => import('@/views/WorkshopView.vue'),
+        meta: {
+          pageTitle: 'Workshop · eMatChef',
+          pageDescription: PAGE_DESC,
+        }
       },
       {
         path: 'statistics',
         name: 'Statistics',
-        component: () => import('@/views/StatisticsView.vue')
+        component: () => import('@/views/StatisticsView.vue'),
+        meta: {
+          pageTitle: 'Statistik · eMatChef',
+          pageDescription: PAGE_DESC,
+        }
       },
       {
         path: 'settings',
@@ -206,66 +357,114 @@ const routes: RouteRecordRaw[] = [
           {
             path: 'general',
             name: 'SettingsGeneral',
-            component: () => import('@/views/settings/GeneralSettingsView.vue')
+            component: () => import('@/views/settings/GeneralSettingsView.vue'),
+            meta: {
+              pageTitle: 'Einstellungen · Allgemein · eMatChef',
+              pageDescription: PAGE_DESC,
+            }
           },
           {
             path: 'categories',
             name: 'SettingsCategories',
-            component: () => import('@/views/settings/CategoriesSettingsView.vue')
+            component: () => import('@/views/settings/CategoriesSettingsView.vue'),
+            meta: {
+              pageTitle: 'Einstellungen · Kategorien · eMatChef',
+              pageDescription: PAGE_DESC,
+            }
           },
           {
             path: 'my-department',
             name: 'SettingsMyDepartment',
-            component: () => import('@/views/settings/MyDepartmentSettingsView.vue')
+            component: () => import('@/views/settings/MyDepartmentSettingsView.vue'),
+            meta: {
+              pageTitle: 'Einstellungen · Meine Abteilung · eMatChef',
+              pageDescription: PAGE_DESC,
+            }
           },
           {
             path: 'departments',
             name: 'SettingsDepartments',
             component: () => import('@/views/settings/DepartmentsSettingsView.vue'),
-            meta: { requiredRoles: ['superadmin', 'organisationschef', 'suborgchef'] }
+            meta: {
+              requiredRoles: ['superadmin', 'organisationschef', 'suborgchef'],
+              pageTitle: 'Einstellungen · Abteilungen · eMatChef',
+              pageDescription: PAGE_DESC,
+            }
           },
           {
             path: 'organisations',
             name: 'SettingsOrganisations',
             component: () => import('@/views/settings/OrganisationsSettingsView.vue'),
-            meta: { requiredRoles: ['superadmin', 'organisationschef', 'suborgchef'] }
+            meta: {
+              requiredRoles: ['superadmin', 'organisationschef', 'suborgchef'],
+              pageTitle: 'Einstellungen · Organisationen · eMatChef',
+              pageDescription: PAGE_DESC,
+            }
           },
           {
             path: 'users',
             name: 'SettingsUsers',
-            component: () => import('@/views/settings/UsersSettingsView.vue')
+            component: () => import('@/views/settings/UsersSettingsView.vue'),
+            meta: {
+              pageTitle: 'Einstellungen · Benutzer · eMatChef',
+              pageDescription: PAGE_DESC,
+            }
           },
           {
             path: 'groups',
             name: 'SettingsGroups',
-            component: () => import('@/views/settings/GroupsSettingsView.vue')
+            component: () => import('@/views/settings/GroupsSettingsView.vue'),
+            meta: {
+              pageTitle: 'Einstellungen · Gruppen · eMatChef',
+              pageDescription: PAGE_DESC,
+            }
           },
           {
             path: 'permissions',
             name: 'SettingsPermissions',
             component: () => import('@/views/settings/PermissionsSettingsView.vue'),
-            meta: { requiredRoles: ['superadmin', 'organisationschef', 'suborgchef'] }
+            meta: {
+              requiredRoles: ['superadmin', 'organisationschef', 'suborgchef'],
+              pageTitle: 'Einstellungen · Berechtigungen · eMatChef',
+              pageDescription: PAGE_DESC,
+            }
           },
           {
             path: 'activities',
             name: 'SettingsActivities',
-            component: () => import('@/views/settings/ActivitySettingsView.vue')
+            component: () => import('@/views/settings/ActivitySettingsView.vue'),
+            meta: {
+              pageTitle: 'Einstellungen · Aktivitäten · eMatChef',
+              pageDescription: PAGE_DESC,
+            }
           },
           {
             path: 'storage',
             name: 'SettingsStorage',
-            component: () => import('@/views/settings/StorageSettingsView.vue')
+            component: () => import('@/views/settings/StorageSettingsView.vue'),
+            meta: {
+              pageTitle: 'Einstellungen · Lager · eMatChef',
+              pageDescription: PAGE_DESC,
+            }
           },
           {
             path: 'templates',
             name: 'SettingsTemplates',
-            component: () => import('@/views/settings/TemplatesSettingsView.vue')
+            component: () => import('@/views/settings/TemplatesSettingsView.vue'),
+            meta: {
+              pageTitle: 'Einstellungen · Vorlagen · eMatChef',
+              pageDescription: PAGE_DESC,
+            }
           },
           {
             path: 'mail-templates',
             name: 'SettingsMailTemplates',
             component: () => import('@/views/settings/MailTemplatesSettingsView.vue'),
-            meta: { requiredRoles: ['superadmin', 'organisationschef', 'suborgchef'] }
+            meta: {
+              requiredRoles: ['superadmin', 'organisationschef', 'suborgchef'],
+              pageTitle: 'Einstellungen · E-Mail-Vorlagen · eMatChef',
+              pageDescription: PAGE_DESC,
+            }
           }
         ]
       }
@@ -278,8 +477,43 @@ const router = createRouter({
   routes
 })
 
+/**
+ * QR-Subdomain: öffentliche Links bleiben unter /i/…, Login & Rechtstexte auf anderen Origins.
+ * Konfiguration: VITE_QR_PUBLIC_HOST, VITE_APP_ORIGIN, VITE_MAIN_SITE_ORIGIN (siehe .env.example).
+ */
+function applyQrHostRedirects(to: RouteLocationNormalized): boolean {
+  const qrHost = (import.meta.env.VITE_QR_PUBLIC_HOST || '').trim().toLowerCase()
+  const appOrigin = (import.meta.env.VITE_APP_ORIGIN || '').trim().replace(/\/$/, '')
+  const mainSite = (import.meta.env.VITE_MAIN_SITE_ORIGIN || 'https://ematchef.ch').trim().replace(/\/$/, '')
+
+  if (!qrHost || typeof window === 'undefined') return false
+
+  const host = window.location.hostname.toLowerCase()
+  if (host !== qrHost) return false
+
+  const path = to.path
+
+  // Login-Start → App-Instanz (Query z. B. ?redirect= bleibt erhalten)
+  if ((path === '/' || path === '/login') && appOrigin) {
+    window.location.replace(`${appOrigin}${to.fullPath}`)
+    return true
+  }
+
+  // Impressum & Datenschutz liegen auf der Hauptdomain (ematchef.ch)
+  if (path === '/impressum' || path === '/datenschutz') {
+    window.location.replace(`${mainSite}${path}`)
+    return true
+  }
+
+  return false
+}
+
 // Navigation Guard
 router.beforeEach(async (to, from, next) => {
+  if (applyQrHostRedirects(to)) {
+    return
+  }
+
   const authStore = useAuthStore()
   const permissionsStore = usePermissionsStore()
   const isSuperAdmin = () => {
@@ -460,6 +694,11 @@ router.beforeEach(async (to, from, next) => {
   }
 
   next()
+})
+
+router.afterEach((to) => {
+  usePageHeadStore().clearDynamic()
+  syncDocumentHead(to)
 })
 
 export default router

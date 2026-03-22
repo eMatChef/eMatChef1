@@ -2572,7 +2572,9 @@ import AddressModal from '@/components/AddressModal.vue'
 import GlobalSearchInput from '@/components/common/GlobalSearchInput.vue'
 import MaterialLookupInput from '@/components/common/MaterialLookupInput.vue'
 import { useAuthStore } from '@/stores/auth'
+import { usePageHeadStore } from '@/stores/pageHead'
 import { useDetailTabsStore } from '@/stores/detailTabs'
+import { syncDocumentHead } from '@/composables/usePageHead'
 import { useToast } from '@/composables/useToast'
 import { useConfirm } from '@/composables/useConfirm'
 import { usePrompt } from '@/composables/usePrompt'
@@ -2582,6 +2584,7 @@ import QRCode from 'qrcode'
 const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
+const pageHeadStore = usePageHeadStore()
 const toast = useToast()
 const confirm = useConfirm()
 const prompt = usePrompt()
@@ -2749,6 +2752,22 @@ const detailItems = ref<any[]>([])
 const isLoadingDetailItems = ref(false)
 const activityHistory = ref<any[]>([])
 const isLoadingHistory = ref(false)
+
+watch(
+  () => {
+    if (!showDetail.value || !selectedActivity.value?.name) return ''
+    return String(selectedActivity.value.name).trim()
+  },
+  (name) => {
+    if (!name) {
+      pageHeadStore.clearDynamic()
+      syncDocumentHead(route)
+      return
+    }
+    pageHeadStore.setDynamic(`${name} · eMatChef`, `${name} – Aktivität in eMatChef.`)
+  },
+  { immediate: true }
+)
 
 // Draft-Edit State
 const isEditingDraft = ref(false)

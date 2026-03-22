@@ -2069,7 +2069,7 @@ const formData = reactive({
   is_food: false,
   is_js_material: false,
   external_source: '' as string,
-  sale_price: '' as string,
+  sale_price: null as number | null,
   min_stock: null as number | null,
   pack_size: null as number | null,
   pack_unit: '' as string,
@@ -2780,7 +2780,7 @@ function resetForm() {
   formData.is_food = false
   formData.is_js_material = false
   formData.external_source = ''
-  formData.sale_price = ''
+  formData.sale_price = null
   formData.min_stock = null
   formData.pack_size = null
   formData.pack_unit = ''
