@@ -6,6 +6,7 @@ import {
   loadSession, 
   loadUserMemberships,
   refreshToken as apiRefreshToken,
+  saveLastUsedDepartment as apiSaveLastUsedDepartment,
   type LoginResponse, 
   type UserResponse, 
   type ProfileResponse, 
@@ -104,7 +105,10 @@ export const useAuthStore = defineStore('auth', () => {
       
       // State aktualisieren
       token.value = response.token
-      user.value = response.user
+      user.value = {
+        ...response.user,
+        last_used_department: response.last_used_department ?? response.user.last_used_department ?? null
+      }
       profile.value = response.profile
 
       // Departments aus Login-Response verwenden
@@ -241,22 +245,35 @@ export const useAuthStore = defineStore('auth', () => {
       const memberships = await loadUserMemberships(userId.value)
       departments.value = memberships.departments
       
-      if (memberships.departments.length > 0) {
-        // Immer das primäre Department aus der DB verwenden
-        const primaryDept = memberships.departments.find(d => d.is_primary)
-        
-        if (primaryDept) {
-          activeDepartmentId.value = primaryDept.department_id
-          localStorage.setItem('active_department_id', primaryDept.department_id)
-        } else if (!activeDepartmentId.value) {
-          // Fallback: erstes Department wenn keins primär markiert ist
-          activeDepartmentId.value = memberships.departments[0].department_id
-          localStorage.setItem('active_department_id', memberships.departments[0].department_id)
-        }
-      } else {
-        // Wichtig: ohne Membership darf kein altes Department aktiv bleiben
+      if (memberships.departments.length === 0) {
         activeDepartmentId.value = null
         localStorage.removeItem('active_department_id')
+        return
+      }
+
+      const ids = new Set(memberships.departments.map(d => d.department_id))
+
+      // Bereits gültige Auswahl (z. B. localStorage nach Reload) beibehalten
+      if (activeDepartmentId.value && ids.has(activeDepartmentId.value)) {
+        localStorage.setItem('active_department_id', activeDepartmentId.value)
+        return
+      }
+
+      // Serverseitig gespeicherte Abteilung (GET /api/users/:id), falls noch Mitglied
+      const lastUsed = user.value?.last_used_department
+      if (lastUsed && ids.has(lastUsed)) {
+        activeDepartmentId.value = lastUsed
+        localStorage.setItem('active_department_id', lastUsed)
+        return
+      }
+
+      const primaryDept = memberships.departments.find(d => d.is_primary)
+      if (primaryDept) {
+        activeDepartmentId.value = primaryDept.department_id
+        localStorage.setItem('active_department_id', primaryDept.department_id)
+      } else {
+        activeDepartmentId.value = memberships.departments[0].department_id
+        localStorage.setItem('active_department_id', memberships.departments[0].department_id)
       }
     } catch (err) {
       console.error('Failed to load departments:', err)
@@ -269,6 +286,13 @@ export const useAuthStore = defineStore('auth', () => {
       localStorage.setItem('active_department_id', departmentId)
       // Timezone des neuen Departments laden
       await loadDepartmentTimezone()
+      if (token.value && userId.value) {
+        try {
+          await apiSaveLastUsedDepartment(departmentId)
+        } catch (e) {
+          console.warn('last_used_department konnte nicht gespeichert werden:', e)
+        }
+      }
     }
   }
 

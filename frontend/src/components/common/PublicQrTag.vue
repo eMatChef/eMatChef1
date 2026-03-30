@@ -6,13 +6,13 @@
     :title="tooltipText"
     @click="handleActivate"
   >
-    <img v-if="url && qrDataUrl" :src="qrDataUrl" alt="QR" />
+    <img v-if="url && qrDisplaySrc" :src="qrDisplaySrc" :alt="imgAlt" />
     <span v-else class="public-qr-empty">-</span>
   </span>
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import QRCode from 'qrcode'
 
 interface Props {
@@ -20,6 +20,9 @@ interface Props {
   code?: string | null
   size?: number
   clickable?: boolean
+  /** Für Dateiname bei „Bild speichern unter“ (Artikelname + ID) */
+  imageLabel?: string | null
+  imageEntityId?: string | number | null
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -27,26 +30,60 @@ const props = withDefaults(defineProps<Props>(), {
   code: null,
   size: 56,
   clickable: false,
+  imageLabel: null,
+  imageEntityId: null,
 })
 const emit = defineEmits<{
   activate: []
 }>()
 
 const qrDataUrl = ref('')
+const qrDisplaySrc = ref('')
+let blobObjectUrl: string | null = null
+
+function revokeBlobUrl() {
+  if (blobObjectUrl) {
+    URL.revokeObjectURL(blobObjectUrl)
+    blobObjectUrl = null
+  }
+}
+
+function buildPngFilename(label: string, entityId: string | number): string {
+  const safeLabel = String(label || 'QR')
+    .trim()
+    .replace(/[/\\?%*:|"<>]/g, '-')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+    .slice(0, 120)
+  const safeId = String(entityId).replace(/[/\\?%*:|"<>]/g, '')
+  return `${safeLabel || 'qr'}-${safeId}.png`
+}
+
 const tagStyle = computed(() => {
   const px = `${Math.max(28, Number(props.size || 56))}px`
   return { width: px, height: px }
 })
 
 const tooltipText = computed(() => {
-  if (!props.url) return 'Kein Public-QR vorhanden'
-  return props.code ? `Public Code: ${props.code}` : 'Public QR'
+  if (!props.url) return 'Kein QR-Code vorhanden'
+  return props.code ? `QR-Code: ${props.code}` : 'Öffentlicher QR-Link'
+})
+
+const imgAlt = computed(() => {
+  if (props.imageLabel != null && props.imageEntityId != null && props.imageEntityId !== '') {
+    return `QR-Code ${props.imageLabel} (${props.imageEntityId})`
+  }
+  if (props.code) return `QR-Code ${props.code}`
+  return 'QR-Code'
 })
 
 watch(
-  () => [props.url, props.size] as const,
-  async ([nextUrl, nextSize]) => {
+  () =>
+    [props.url, props.size, props.imageLabel, props.imageEntityId] as const,
+  async ([nextUrl, nextSize, imageLabel, imageEntityId]) => {
     const normalized = (nextUrl || '').trim()
+    revokeBlobUrl()
+    qrDisplaySrc.value = ''
     if (!normalized) {
       qrDataUrl.value = ''
       return
@@ -56,12 +93,33 @@ watch(
         width: nextSize,
         margin: 1,
       })
+      const hasName =
+        imageLabel != null &&
+        String(imageLabel).trim() !== '' &&
+        imageEntityId != null &&
+        String(imageEntityId).trim() !== ''
+      if (hasName) {
+        const fileName = buildPngFilename(String(imageLabel).trim(), imageEntityId as string | number)
+        const res = await fetch(qrDataUrl.value)
+        const blob = await res.blob()
+        const file = new File([blob], fileName, { type: 'image/png' })
+        const objectUrl = URL.createObjectURL(file)
+        blobObjectUrl = objectUrl
+        qrDisplaySrc.value = objectUrl
+      } else {
+        qrDisplaySrc.value = qrDataUrl.value
+      }
     } catch {
       qrDataUrl.value = ''
+      qrDisplaySrc.value = ''
     }
   },
   { immediate: true }
 )
+
+onBeforeUnmount(() => {
+  revokeBlobUrl()
+})
 
 function handleActivate() {
   if (!props.clickable || !props.url) return

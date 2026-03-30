@@ -15,6 +15,7 @@
           "name": "Monza 600 Polyester Haut",
           "required": 1,
           "optional": false,
+          "tracking": "serialized",
           "repair_types": ["riss", "loch", "naht"]
         },
         {
@@ -76,6 +77,7 @@
           "name": "Monza 800 Polyester Haut",
           "required": 1,
           "optional": false,
+          "tracking": "serialized",
           "repair_types": ["riss", "loch", "naht"]
         },
         {
@@ -137,6 +139,7 @@
           "name": "Monza 1000 Polyester Haut",
           "required": 1,
           "optional": false,
+          "tracking": "serialized",
           "repair_types": ["riss", "loch", "naht"]
         },
         {

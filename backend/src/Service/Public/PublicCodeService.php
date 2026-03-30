@@ -14,10 +14,18 @@ use Symfony\Component\DependencyInjection\Attribute\Autowire;
 
 class PublicCodeService
 {
+    private string $publicQrBaseUrl;
+
     public function __construct(
         private EntityManagerInterface $entityManager,
-        #[Autowire('%env(APP_FRONTEND_URL)%')] private string $publicFrontendUrl
-    ) {}
+        #[Autowire('%env(APP_FRONTEND_URL)%')] private string $appFrontendUrl,
+        #[Autowire('%env(APP_PUBLIC_QR_URL)%')] private string $appPublicQrUrl,
+    ) {
+        $trimmedQr = trim($this->appPublicQrUrl);
+        $this->publicQrBaseUrl = $trimmedQr !== ''
+            ? rtrim($trimmedQr, '/')
+            : rtrim($this->appFrontendUrl, '/');
+    }
 
     public function resolveMaterialByPublicCode(string $publicCode): ?array
     {
@@ -82,7 +90,7 @@ class PublicCodeService
                 'show_contact_form' => $publicSettings['show_contact_form'],
                 'show_contact_email' => $publicSettings['show_contact_email'],
                 'show_contact_note' => $publicSettings['show_contact_note'],
-                'can_deliver_message' => $recipientEmail !== null && $recipientEmail !== '',
+                'can_deliver_message' => $this->canDeliverPublicMessage($department->getId(), $recipientEmail),
             ],
         ];
     }
@@ -159,9 +167,45 @@ class PublicCodeService
                 'show_contact_form' => $publicSettings['show_contact_form'],
                 'show_contact_email' => $publicSettings['show_contact_email'],
                 'show_contact_note' => $publicSettings['show_contact_note'],
-                'can_deliver_message' => $recipientEmail !== null && $recipientEmail !== '',
+                'can_deliver_message' => $this->canDeliverPublicMessage($department->getId(), $recipientEmail),
             ],
         ];
+    }
+
+    /**
+     * Versandart: email | in_app | both.
+     */
+    public function getPublicFoundContactDelivery(string $departmentId): string
+    {
+        /** @var DepartmentSetting[] $settings */
+        $settings = $this->entityManager->getRepository(DepartmentSetting::class)->findBy([
+            'departmentId' => $departmentId,
+        ]);
+        $map = [];
+        foreach ($settings as $setting) {
+            $map[$setting->getSettingKey()] = $setting->getSettingValue();
+        }
+        $defaults = DepartmentSetting::getGeneralDefaults();
+        $raw = strtolower(trim((string) ($map['general.public_found_contact_delivery'] ?? $defaults['general.public_found_contact_delivery'] ?? 'both')));
+        if (!in_array($raw, ['email', 'in_app', 'both'], true)) {
+            return 'both';
+        }
+
+        return $raw;
+    }
+
+    private function canDeliverPublicMessage(string $departmentId, ?string $recipientEmail): bool
+    {
+        $delivery = $this->getPublicFoundContactDelivery($departmentId);
+        $storeInApp = in_array($delivery, ['in_app', 'both'], true);
+        $sendEmail = in_array($delivery, ['email', 'both'], true);
+        $hasEmail = $recipientEmail !== null && trim((string) $recipientEmail) !== '';
+
+        if ($storeInApp) {
+            return true;
+        }
+
+        return $hasEmail && $sendEmail;
     }
 
     /**
@@ -282,8 +326,7 @@ class PublicCodeService
 
     public function buildMaterialPublicUrl(string $publicCode): string
     {
-        $base = rtrim($this->publicFrontendUrl, '/');
-        return $base . '/i/m/' . rawurlencode($publicCode);
+        return $this->publicQrBaseUrl . '/i/m/' . rawurlencode($publicCode);
     }
 
     public function getActiveBatchPublicCode(string $batchId): ?PublicCode
@@ -309,8 +352,7 @@ class PublicCodeService
 
     public function buildBatchPublicUrl(string $publicCode): string
     {
-        $base = rtrim($this->publicFrontendUrl, '/');
-        return $base . '/i/b/' . rawurlencode($publicCode);
+        return $this->publicQrBaseUrl . '/i/b/' . rawurlencode($publicCode);
     }
 
     /**

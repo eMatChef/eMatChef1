@@ -27,14 +27,25 @@
           {{ isGeneratingPublicCode ? 'Erzeuge...' : 'QR code erzeugen' }}
         </button>
         <PublicQrTag
-          v-if="!isLoading && material.tracking_type !== 'serialized'"
+          v-if="headerMaterialHasPublicQr"
           class="header-qr-tag"
           :url="material.public_url"
           :code="material.public_code"
           :size="64"
           :clickable="true"
+          :image-label="material.name"
+          :image-entity-id="material.id"
           @activate="openQrActionModalForMaterial"
         />
+        <button
+          v-else-if="showHeaderSerialQrShortcut"
+          type="button"
+          class="btn-outline btn-sm header-qr-serial-shortcut"
+          title="QR-Codes zu Seriennummern / Chargen öffnen"
+          @click="openQrActionModalForAll"
+        >
+          QR-Codes
+        </button>
         <button class="btn-outline" @click="handleClose">Schliessen</button>
         <button class="btn-primary" @click="save" :disabled="!hasChanges || isSaving">
           {{ isSaving ? 'Speichern...' : 'Speichern' }}
@@ -591,6 +602,8 @@
                         :code="batch.public_code"
                         :size="56"
                         :clickable="true"
+                        :image-label="material.name"
+                        :image-entity-id="batch.id"
                         @activate="openQrActionModalForBatch(batch)"
                       />
                     </td>
@@ -1167,8 +1180,8 @@
         <div class="modal-actions">
           <button class="btn-secondary btn-sm" @click="closeQrActionModal">Abbrechen</button>
           <button class="btn-outline btn-sm" @click="handleQrAddToPrintCart">In Druckkorb</button>
-          <button v-if="qrActionUrl" class="btn-outline btn-sm" @click="handleQrOpenLink">Link öffnen</button>
-          <button v-if="qrActionUrl" class="btn-outline btn-sm" @click="handleQrCopyLink">Link kopieren</button>
+          <button v-if="qrActionUrl" class="btn-outline btn-sm" @click="handleQrOpenLink">QR-Seite öffnen</button>
+          <button v-if="qrActionUrl" class="btn-outline btn-sm" @click="handleQrCopyLink">QR-Link kopieren</button>
           <button v-if="qrActionUrl || qrActionMode === 'all'" class="btn-primary btn-sm" @click="handleQrPrint">Drucken</button>
         </div>
       </div>
@@ -1187,6 +1200,7 @@ import { useDetailTabsStore } from '@/stores/detailTabs'
 import { getCategories, type Category } from '@/api/categories'
 import { getAddresses, type Address } from '@/api/addresses'
 import { getContainerBatches, getStorageOverview, type ContainerBatch, type StorageOverviewResponse } from '@/api/storageLocations'
+import { formatContainerBatchOptionFullLabel } from '@/utils/containerBatchLabel'
 import SplitModal from '@/components/material/SplitModal.vue'
 import { useAuthStore } from '@/stores/auth'
 import { usePageHeadStore } from '@/stores/pageHead'
@@ -1334,50 +1348,9 @@ const formData = reactive({
 // Original data for change detection
 let originalFormData = ''
 
-// Dynamische Tabs basierend auf Material-Typ
-const tabs = computed(() => {
-  const baseTabs = [
-    { id: 'data', label: 'Daten' },
-    { id: 'stock', label: 'Bestand' },
-    { id: 'stored-in', label: 'Gelagert in' }
-  ]
-  const hasContainerContext =
-    !!normalizeQueryString(route.query[DETAIL_QUERY_KEYS.containerBatch]) ||
-    !!normalizeQueryString(route.query[DETAIL_QUERY_KEYS.legacyStoredInContainerBatch])
-  
-  // Seriennummern-Tab nur bei serialisierten Materialien
-  if (material.value.tracking_type === 'serialized') {
-    baseTabs.push({ id: 'serials', label: 'Seriennummern' })
-  }
-
-  // Inhalt-Tab bei serialisierten Materialien oder wenn ein Container-Kontext per URL geöffnet wurde
-  if (material.value.tracking_type === 'serialized' || hasContainerContext) {
-    baseTabs.push({ id: 'container-content', label: 'Inhalt Kiste/Tasche' })
-  }
-  
-  baseTabs.push({ id: 'used-in', label: `Verwendet in${usedInEntries.value.length > 0 ? ' (' + usedInEntries.value.length + ')' : ''}` })
-  baseTabs.push({ id: 'rental', label: 'Vermietung' })
-  baseTabs.push({ id: 'archive', label: `Archiv${archivedBatches.value.length > 0 ? ' (' + archivedBatches.value.length + ')' : ''}` })
-  baseTabs.push({ id: 'history', label: 'History Log' })
-  
-  return baseTabs
-})
-
-const tabIds = computed(() => tabs.value.map((tab) => tab.id))
-
 function normalizeQueryString(value: unknown): string {
   if (Array.isArray(value)) return typeof value[0] === 'string' ? value[0] : ''
   return typeof value === 'string' ? value : ''
-}
-
-function resolveTabId(rawTab: unknown): string {
-  const normalized = normalizeQueryString(rawTab)
-  return tabIds.value.includes(normalized) ? normalized : 'data'
-}
-
-function setActiveTab(tabId: string) {
-  if (!tabIds.value.includes(tabId)) return
-  activeTab.value = tabId
 }
 
 function mergeAndReplaceQuery(updates: Record<string, string | undefined>) {
@@ -1414,21 +1387,54 @@ const storedInContainerOptions = computed(() => {
   })
 
   return filtered
-    .map((batch) => {
-      const slotPrefix = batch.slot?.name ? `${batch.slot.name} · ` : ''
-      const label = (batch.label || '').trim()
-      const serial = (batch.serial_number || '').trim()
-      const materialName = (batch.material_name || '').trim()
-      const lead = label || serial || materialName || 'Kiste/Tasche'
-      const serialSuffix = serial && serial !== lead ? ` · ${serial}` : ''
-      const materialSuffix = materialName && materialName !== lead ? ` · ${materialName}` : ''
-      return {
-        id: batch.id,
-        label: `${slotPrefix}${lead}${serialSuffix}${materialSuffix}`,
-      }
-    })
+    .map((batch) => ({
+      id: batch.id,
+      label: formatContainerBatchOptionFullLabel(batch),
+    }))
     .sort((a, b) => a.label.localeCompare(b.label, 'de'))
 })
+
+/** Tab „Inhalt Kiste/Tasche“ nur bei echten Kisten/Taschen-Artikeln (mind. eine Instanz) oder Deep-Link. */
+const showContainerContentTab = computed(() => {
+  const hasContainerContext =
+    !!normalizeQueryString(route.query[DETAIL_QUERY_KEYS.containerBatch]) ||
+    !!normalizeQueryString(route.query[DETAIL_QUERY_KEYS.legacyStoredInContainerBatch])
+  if (hasContainerContext) return true
+  if (material.value.tracking_type !== 'serialized') return false
+  return storedInContainerOptions.value.length > 0
+})
+
+// Dynamische Tabs basierend auf Material-Typ
+const tabs = computed(() => {
+  const baseTabs = [
+    { id: 'data', label: 'Daten' },
+    { id: 'stock', label: 'Bestand' },
+    { id: 'stored-in', label: 'Gelagert in' }
+  ]
+  if (material.value.tracking_type === 'serialized') {
+    baseTabs.push({ id: 'serials', label: 'Seriennummern' })
+  }
+  if (showContainerContentTab.value) {
+    baseTabs.push({ id: 'container-content', label: 'Inhalt Kiste/Tasche' })
+  }
+  baseTabs.push({ id: 'used-in', label: `Verwendet in${usedInEntries.value.length > 0 ? ' (' + usedInEntries.value.length + ')' : ''}` })
+  baseTabs.push({ id: 'rental', label: 'Vermietung' })
+  baseTabs.push({ id: 'archive', label: `Archiv${archivedBatches.value.length > 0 ? ' (' + archivedBatches.value.length + ')' : ''}` })
+  baseTabs.push({ id: 'history', label: 'History Log' })
+  return baseTabs
+})
+
+const tabIds = computed(() => tabs.value.map((tab) => tab.id))
+
+function resolveTabId(rawTab: unknown): string {
+  const normalized = normalizeQueryString(rawTab)
+  return tabIds.value.includes(normalized) ? normalized : 'data'
+}
+
+function setActiveTab(tabId: string) {
+  if (!tabIds.value.includes(tabId)) return
+  activeTab.value = tabId
+}
 
 const selectedContainerBatch = computed(() => {
   if (!containerContentBatchId.value) return null
@@ -1508,6 +1514,22 @@ const hasAnyQrForPrint = computed(() => {
   if (String(material.value?.public_url || '').trim() !== '') return true
   return serialBatches.value.some((batch: any) => String(batch?.public_url || '').trim() !== '')
 })
+
+/** QR im Header: immer wenn Material einen öffentlichen Link hat (Bulk + Serien mit Material-QR). */
+const headerMaterialHasPublicQr = computed(
+  () => !isLoading.value && String(material.value?.public_url || '').trim() !== ''
+)
+
+/**
+ * Serienartikel ohne Material-QR: QR liegt auf Chargen — kompakter Einstieg wie „QR-Codes drucken“.
+ */
+const showHeaderSerialQrShortcut = computed(
+  () =>
+    !isLoading.value &&
+    material.value?.tracking_type === 'serialized' &&
+    String(material.value?.public_url || '').trim() === '' &&
+    hasAnyQrForPrint.value
+)
 
 const showGenerateQrButton = computed(() => {
   if (isLoading.value) return false
@@ -2564,11 +2586,17 @@ async function handleBatchSaved(result: MaterialBatch | AddBatchMultiResponse) {
     if (idx >= 0) {
       batches.value[idx] = { ...batches.value[idx], ...batch }
     }
-  } else if ('created_batches' in result) {
-    // Add (Mehrfach): Material neu laden um alle Batches zu erhalten
+    if (activeTab.value === 'container-content') {
+      await loadContainerContentOverview()
+    }
+    closeBatchModal()
+    return
+  }
+
+  // Charge hinzufügen: Liste/Bestand aktualisieren (ohne Full-Reload)
+  if ('created_batches' in result) {
     await loadMaterial()
   } else {
-    // Add (Einzel): Neuen Batch zur Liste hinzufügen
     const batch = result as MaterialBatch
     batches.value.push(batch)
     material.value.total_stock = (material.value.total_stock || 0) + batch.qty
@@ -2576,6 +2604,7 @@ async function handleBatchSaved(result: MaterialBatch | AddBatchMultiResponse) {
   if (activeTab.value === 'container-content') {
     await loadContainerContentOverview()
   }
+  toast.success('Charge erfolgreich hinzugefügt')
   closeBatchModal()
 }
 

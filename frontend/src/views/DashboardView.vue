@@ -12,7 +12,7 @@
 
     <!-- Offene Join-Requests (über Schnellaktionen, nur mit Department + Daten) -->
     <section
-      v-if="departmentId && !isLoading && showJoinRequestsWidget && (hasOpenJoinRequests || hasSupportAdminRole)"
+      v-if="departmentId && !isLoading && hasSupportAdminRole"
       class="dashboard-section join-requests-above-actions"
     >
       <h2 class="section-title">
@@ -314,7 +314,6 @@ const role = computed(() => (authStore.currentDepartmentRole || 'u').toLowerCase
 const isSuperAdmin = computed(() => authStore.userRoles.includes('ROLE_SUPERADMIN'))
 const USER_ROLES = ['u', 'user']
 const LEADER_ROLES = ['l1', 'l2', 'l3']
-const MW_ROLES = ['mw']
 const DC_ROLES = ['dc']
 const MW_DASHBOARD_ROLES = ['mw']
 const hasSupportAdminRole = computed(() =>
@@ -335,9 +334,7 @@ const showDraftsWidget = computed(() => LEADER_ROLES.includes(role.value))
 const showOverviewWidget = computed(() => DC_ROLES.includes(role.value) || MW_DASHBOARD_ROLES.includes(role.value))
 const showWorkshopWidget = computed(() => DC_ROLES.includes(role.value) || MW_DASHBOARD_ROLES.includes(role.value))
 const showPackQueueWidget = computed(() => MW_DASHBOARD_ROLES.includes(role.value))
-const showJoinRequestsWidget = computed(
-  () => DC_ROLES.includes(role.value) || MW_ROLES.includes(role.value) || hasSupportAdminRole.value
-)
+/** Join-Requests nur für globale Profil-Rollen SA/OrgChef/SubOrgChef — nicht für reine Abteilungsrollen (mw/dc/…). */
 const showAdminJoinRequestsWidget = computed(() => hasSupportAdminRole.value)
 
 // === Data ===
@@ -492,7 +489,7 @@ async function load() {
   }
   isLoading.value = true
   try {
-    dashboardData.value = await getDashboardData(id)
+    dashboardData.value = await getDashboardData(id, { includeJoinRequests: hasSupportAdminRole.value })
   } catch (err) {
     console.error('Dashboard laden fehlgeschlagen:', err)
   } finally {

@@ -3,6 +3,7 @@
 namespace App\Controller;
 
 use Doctrine\DBAL\Connection;
+use Doctrine\DBAL\Platforms\PostgreSQLPlatform;
 use App\Entity\Activity;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -25,15 +26,50 @@ class MaterialAvailabilityController extends AbstractController
     ) {}
 
     /**
+     * Suchbegriffe (Leerzeichen getrennt): alle müssen als Teilstring vorkommen; Groß-/Kleinschreibung egal (inkl. Umlaute).
+     *
+     * @return array{0: string, 1: array<string, string>}
+     */
+    private function materialNameSearchWhereAndParams(string $search, bool $isPostgres): array
+    {
+        $tokens = array_values(array_filter(
+            array_map('trim', preg_split('/\s+/u', $search) ?: []),
+            static fn (string $t): bool => $t !== ''
+        ));
+        if ($tokens === []) {
+            return ['', []];
+        }
+
+        $parts = [];
+        $params = [];
+        foreach ($tokens as $i => $token) {
+            $needle = mb_strtolower($token, 'UTF-8');
+            $key = 'nm_tok_' . $i;
+            $params[$key] = $needle;
+            if ($isPostgres) {
+                $parts[] = 'strpos(LOWER(COALESCE(avail.name, \'\')), :' . $key . ') > 0';
+            } else {
+                $parts[] = 'LOCATE(:' . $key . ', LOWER(COALESCE(avail.name, \'\'))) > 0';
+            }
+        }
+
+        return [' AND (' . implode(' AND ', $parts) . ')', $params];
+    }
+
+    /**
      * GET /api/materials/available-for-period
      * 
      * Parameter:
      * - departmentId (required)
      * - startDate (optional, ISO 8601 DateTime – ohne Datum wird Gesamtbestand zurückgegeben)
      * - endDate (optional, ISO 8601 DateTime – ohne Datum wird Gesamtbestand zurückgegeben)
-     * - search (optional, min. 2 Zeichen – filtert nach Name)
+     * - search (optional, filtert nach Materialname, ab 1 Zeichen; leer = erste Treffer ohne Namensfilter)
      * - excludeActivityId (optional, um eigene Reservierungen auszuschliessen)
      * - limit (optional, default 20)
+     * - internalScope (optional, nur bei source=internal): own | invited | both | single
+     *   own = nur eigenes Department; invited = nur eingeladene Departments (alle mit Status angenommen);
+     *   both = eigenes + alle eingeladenen (Default, wie bisher);
+     *   single = genau ein Department (Parameter singleDepartmentId, muss eigenes oder angenommenes Einlad-Dept. sein)
      * 
      * Response: Array von Materialien mit Verfügbarkeit im Zeitraum (oder Gesamtbestand ohne Zeitraum)
      */
@@ -54,11 +90,6 @@ class MaterialAvailabilityController extends AbstractController
             return new JsonResponse([
                 'error' => 'Fehlender Parameter: departmentId'
             ], 400);
-        }
-
-        // Wenn search-Parameter vorhanden, muss er mind. 2 Zeichen haben
-        if ($search !== '' && mb_strlen($search) < 2) {
-            return new JsonResponse([]);
         }
 
         if (!in_array($source, ['all', 'internal', 'js'], true)) {
@@ -98,6 +129,13 @@ class MaterialAvailabilityController extends AbstractController
                 }
             }
             $allowedDepartmentIds = array_values(array_unique($allowedDepartmentIds));
+            $invitedOnlyIds = array_values(array_diff($allowedDepartmentIds, [$departmentId]));
+
+            $internalScope = strtolower((string) $request->query->get('internalScope', 'both'));
+            if (!in_array($internalScope, ['own', 'invited', 'both', 'single'], true)) {
+                $internalScope = 'both';
+            }
+
             $deptPlaceholders = [];
             $deptParams = [];
             foreach ($allowedDepartmentIds as $idx => $allowedId) {
@@ -107,15 +145,44 @@ class MaterialAvailabilityController extends AbstractController
             }
             $allowedDeptSql = implode(', ', $deptPlaceholders);
 
-            $scopeWhere = match ($source) {
-                'internal' => "mi.department_id IN ($allowedDeptSql) AND COALESCE(mi.is_js_material, FALSE) = FALSE",
-                'js' => $includeGlobalJs
+            if ($source === 'internal') {
+                if ($internalScope === 'own') {
+                    $scopeWhere = 'mi.department_id = :scope_own_department AND COALESCE(mi.is_js_material, FALSE) = FALSE';
+                    $deptParams = ['scope_own_department' => $departmentId];
+                } elseif ($internalScope === 'invited') {
+                    if ($invitedOnlyIds === []) {
+                        $scopeWhere = 'FALSE';
+                        $deptParams = [];
+                    } else {
+                        $deptParams = [];
+                        $invPlaceholders = [];
+                        foreach ($invitedOnlyIds as $idx => $invId) {
+                            $key = 'invited_dept_' . $idx;
+                            $invPlaceholders[] = ':' . $key;
+                            $deptParams[$key] = $invId;
+                        }
+                        $invSql = implode(', ', $invPlaceholders);
+                        $scopeWhere = "mi.department_id IN ($invSql) AND COALESCE(mi.is_js_material, FALSE) = FALSE";
+                    }
+                } elseif ($internalScope === 'single') {
+                    $singleId = trim((string) $request->query->get('singleDepartmentId', ''));
+                    if ($singleId === '' || !in_array($singleId, $allowedDepartmentIds, true)) {
+                        return new JsonResponse(['error' => 'Ungültiges singleDepartmentId'], 400);
+                    }
+                    $scopeWhere = 'mi.department_id = :scope_single_department AND COALESCE(mi.is_js_material, FALSE) = FALSE';
+                    $deptParams = ['scope_single_department' => $singleId];
+                } else {
+                    $scopeWhere = "mi.department_id IN ($allowedDeptSql) AND COALESCE(mi.is_js_material, FALSE) = FALSE";
+                }
+            } elseif ($source === 'js') {
+                $scopeWhere = $includeGlobalJs
                     ? 'COALESCE(mi.is_js_material, FALSE) = TRUE'
-                    : "mi.department_id IN ($allowedDeptSql) AND COALESCE(mi.is_js_material, FALSE) = TRUE",
-                default => $includeGlobalJs
+                    : "mi.department_id IN ($allowedDeptSql) AND COALESCE(mi.is_js_material, FALSE) = TRUE";
+            } else {
+                $scopeWhere = $includeGlobalJs
                     ? "(mi.department_id IN ($allowedDeptSql) OR COALESCE(mi.is_js_material, FALSE) = TRUE)"
-                    : "mi.department_id IN ($allowedDeptSql)",
-            };
+                    : "mi.department_id IN ($allowedDeptSql)";
+            }
 
             if ($hasPeriod) {
                 // Zeitraum-basierte Verfügbarkeit (Department + globales J&S Material)
@@ -172,11 +239,19 @@ class MaterialAvailabilityController extends AbstractController
                 $params = $deptParams;
             }
 
-            // Such-Filter und Limit wrappen
+            $isPostgres = $this->connection->getDatabasePlatform() instanceof PostgreSQLPlatform;
+
+            // Such-Filter: Teilstrings (z. B. "ze" in "Grünes Zelt"), mehrere Wörter = alle müssen vorkommen; Groß-/Kleinschreibung egal
             if ($search !== '') {
-                $sql = "SELECT * FROM ($sql) AS avail WHERE LOWER(avail.name) LIKE LOWER(:search) ORDER BY avail.name LIMIT :limit";
-                $params['search'] = '%' . $search . '%';
-                $params['limit'] = $limit;
+                [$nameWhere, $nameParams] = $this->materialNameSearchWhereAndParams($search, $isPostgres);
+                if ($nameWhere === '') {
+                    $sql = "SELECT * FROM ($sql) AS avail ORDER BY avail.name LIMIT :limit";
+                    $params['limit'] = $limit;
+                } else {
+                    $sql = "SELECT * FROM ($sql) AS avail WHERE 1=1 {$nameWhere} ORDER BY avail.name LIMIT :limit";
+                    $params = array_merge($params, $nameParams);
+                    $params['limit'] = $limit;
+                }
             } else {
                 $sql = "SELECT * FROM ($sql) AS avail ORDER BY avail.name LIMIT :limit";
                 $params['limit'] = $limit;

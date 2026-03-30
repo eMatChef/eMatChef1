@@ -26,10 +26,16 @@
         class="picker-select"
         :disabled="disabled"
         @change="handleRackChange"
+        @mouseenter="$emit('rackListMouseenter')"
       >
         <option value="">{{ rackPlaceholder }}</option>
-        <option v-for="rack in racks" :key="rack.id" :value="String(rack.id)">
-          {{ rack.name }}
+        <option
+          v-for="rack in racks"
+          :key="rack.id"
+          :value="String(rack.id)"
+          :title="formatRackOptionTitle(rack)"
+        >
+          {{ formatRackLabel(rack) }}
         </option>
       </select>
     </div>
@@ -41,10 +47,16 @@
         class="picker-select"
         :disabled="disabled || (disableSlotWithoutRack && !rackId)"
         @change="handleSlotChange"
+        @mouseenter="$emit('slotListMouseenter')"
       >
         <option value="">{{ slotPlaceholder }}</option>
-        <option v-for="slot in slotList" :key="slot.id" :value="String(slot.id)">
-          {{ slot.name }}
+        <option
+          v-for="slot in slotList"
+          :key="slot.id"
+          :value="String(slot.id)"
+          :title="formatSlotOptionTitle(slot)"
+        >
+          {{ formatSlotLabel(slot) }}
         </option>
       </select>
       <p v-if="showEmptySlotHint && rackId && slotList.length === 0" class="picker-hint">
@@ -83,6 +95,14 @@ const props = withDefaults(defineProps<{
   rackPlaceholder?: string
   slotPlaceholder?: string
   variant?: 'default' | 'compact'
+  /** Optional: z. B. Lagerbestand-Hinweis neben dem Fachnamen */
+  slotLabelFormatter?: (slot: StorageSlot) => string
+  /** Optional: Kurztext in der Gestell-Zeile (z. B. Inhaltsvorschau) */
+  rackLabelFormatter?: (rack: StorageRack) => string
+  /** Tooltip pro Gestell-Option (mehrzeilig möglich) */
+  rackOptionTitleFormatter?: (rack: StorageRack) => string
+  /** Tooltip pro Fach-Option */
+  slotOptionTitleFormatter?: (slot: StorageSlot) => string
 }>(), {
   storageAddressId: '',
   storageAddressOptions: () => [],
@@ -101,7 +121,27 @@ const props = withDefaults(defineProps<{
   rackPlaceholder: 'Gestell wählen...',
   slotPlaceholder: 'Fach wählen...',
   variant: 'default',
+  slotLabelFormatter: undefined,
+  rackLabelFormatter: undefined,
+  rackOptionTitleFormatter: undefined,
+  slotOptionTitleFormatter: undefined,
 })
+
+function formatSlotLabel(slot: StorageSlot): string {
+  return props.slotLabelFormatter ? props.slotLabelFormatter(slot) : slot.name
+}
+
+function formatRackLabel(rack: StorageRack): string {
+  return props.rackLabelFormatter ? props.rackLabelFormatter(rack) : rack.name
+}
+
+function formatRackOptionTitle(rack: StorageRack): string {
+  return props.rackOptionTitleFormatter ? props.rackOptionTitleFormatter(rack) : ''
+}
+
+function formatSlotOptionTitle(slot: StorageSlot): string {
+  return props.slotOptionTitleFormatter ? props.slotOptionTitleFormatter(slot) : ''
+}
 
 const emit = defineEmits<{
   'update:storageAddressId': [value: string]
@@ -110,6 +150,8 @@ const emit = defineEmits<{
   storageAddressChange: [value: string]
   rackChange: [value: string]
   slotChange: [value: string]
+  rackListMouseenter: []
+  slotListMouseenter: []
 }>()
 
 function handleStorageAddressChange(event: Event) {

@@ -622,7 +622,7 @@ watch([forgotEmail, resetCode, resetPassword, resetPasswordConfirm], () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  background: linear-gradient(160deg, #f1f5f9 0%, #e2e8f0 100%);
   padding: 24px;
 }
 
@@ -645,12 +645,12 @@ watch([forgotEmail, resetCode, resetPassword, resetPasswordConfirm], () => {
 .brand-title {
   font-size: 30px;
   font-weight: 700;
-  color: #fff;
+  color: #0f172a;
   margin: 0 0 8px;
 }
 
 .brand-subtitle {
-  color: rgba(255, 255, 255, 0.95);
+  color: #64748b;
   font-size: 15px;
   margin: 0;
 }

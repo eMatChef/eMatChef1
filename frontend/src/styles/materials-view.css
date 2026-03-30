@@ -614,6 +614,8 @@
   background: #f8fafc;
   padding: 12px 16px 12px 56px;
   border-top: 1px solid #e5e7eb;
+  border-left: 3px solid #cbd5e1;
+  margin-left: 12px;
 }
 
 .combo-loading {

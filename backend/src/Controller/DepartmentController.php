@@ -9,6 +9,7 @@ use App\Entity\Organisation;
 use App\Entity\User;
 use App\Entity\Membership;
 use App\Repository\DepartmentRepository;
+use App\Service\Accounting\AccountingCostCenterBootstrapService;
 use App\Service\AuditLogger;
 use App\Service\DepartmentResetService;
 use App\Util\IdGenerator;
@@ -26,7 +27,8 @@ class DepartmentController extends AbstractController
         private DepartmentRepository $departmentRepository,
         private EntityManagerInterface $entityManager,
         private AuditLogger $auditLogger,
-        private DepartmentResetService $departmentResetService
+        private DepartmentResetService $departmentResetService,
+        private AccountingCostCenterBootstrapService $accountingCostCenterBootstrap
     ) {}
 
     /**
@@ -327,6 +329,8 @@ class DepartmentController extends AbstractController
 
             $this->entityManager->persist($department);
             $this->entityManager->flush();
+
+            $this->accountingCostCenterBootstrap->ensureDefaultCostCenters($this->entityManager, $department);
             
             // Prüfe ob ID generiert wurde
             if (!$department->getId()) {

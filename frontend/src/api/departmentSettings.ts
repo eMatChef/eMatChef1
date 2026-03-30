@@ -19,6 +19,9 @@ export interface DepartmentOnboardingStatus {
   doneAll: boolean
 }
 
+/** Hinweise vom QR-Kontaktformular: Versand/Empfang */
+export type PublicFoundContactDelivery = 'email' | 'in_app' | 'both'
+
 export interface PublicSharingSettings {
   publicContactEmail: string
   publicContactNote: string
@@ -26,6 +29,8 @@ export interface PublicSharingSettings {
   publicShowContactForm: boolean
   publicShowContactEmail: boolean
   publicShowContactNote: boolean
+  /** Standard: E-Mail und Nachrichtenzentrale */
+  publicFoundContactDelivery: PublicFoundContactDelivery
 }
 
 function parseBoolSetting01(raw: string | undefined, defaultTrue: boolean): boolean {
@@ -86,6 +91,12 @@ export async function saveGeneralSettings(departmentId: string, settings: Genera
 /**
  * Public-Sharing-Settings laden
  */
+function parsePublicFoundDelivery(raw: string | undefined): PublicFoundContactDelivery {
+  const v = String(raw || 'both').toLowerCase().trim()
+  if (v === 'in_app' || v === 'both' || v === 'email') return v
+  return 'both'
+}
+
 export async function getPublicSharingSettings(departmentId: string): Promise<PublicSharingSettings> {
   const raw = await getDepartmentSettingsGroup(departmentId, 'general')
   return {
@@ -94,6 +105,7 @@ export async function getPublicSharingSettings(departmentId: string): Promise<Pu
     publicShowContactForm: parseBoolSetting01(raw['general.public_show_contact_form'], true),
     publicShowContactEmail: parseBoolSetting01(raw['general.public_show_contact_email'], true),
     publicShowContactNote: parseBoolSetting01(raw['general.public_show_contact_note'], true),
+    publicFoundContactDelivery: parsePublicFoundDelivery(raw['general.public_found_contact_delivery']),
   }
 }
 
@@ -110,6 +122,7 @@ export async function savePublicSharingSettings(
     'general.public_show_contact_form': settings.publicShowContactForm ? '1' : '0',
     'general.public_show_contact_email': settings.publicShowContactEmail ? '1' : '0',
     'general.public_show_contact_note': settings.publicShowContactNote ? '1' : '0',
+    'general.public_found_contact_delivery': settings.publicFoundContactDelivery,
   })
 }
 

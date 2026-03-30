@@ -84,11 +84,13 @@ class MaterialController extends AbstractController
             }
         }
 
-        // Suchfilter (Name, Beschreibung, Seriennummer, Barcode, EAN)
+        // Suchfilter (Name, Beschreibung, Seriennummer, Barcode, EAN) – gross/klein egal
         $search = $request->query->get('search');
-        if ($search) {
-            $qb->andWhere('m.name LIKE :search OR m.description LIKE :search OR m.barcodeTag LIKE :search OR m.ean LIKE :search')
-                ->setParameter('search', '%' . $search . '%');
+        if ($search !== null && $search !== '') {
+            $searchLike = '%' . mb_strtolower((string) $search) . '%';
+            $qb->andWhere(
+                'LOWER(m.name) LIKE :search OR LOWER(COALESCE(m.description, \'\')) LIKE :search OR LOWER(COALESCE(m.barcodeTag, \'\')) LIKE :search OR LOWER(COALESCE(m.ean, \'\')) LIKE :search'
+            )->setParameter('search', $searchLike);
         }
 
         // Kategoriefilter
@@ -2236,6 +2238,162 @@ class MaterialController extends AbstractController
         }
 
         return new JsonResponse($result);
+    }
+
+    /**
+     * Lagerorte eines Materials: direkt (Allokationen / Batch am Platz) sowie über physische Kombinationen
+     * (gleicher physischer Ort wie die Kombi-Einheit – z. B. Heringe liegen beim Zelt-Set).
+     */
+    #[Route('/{id}/storage-locations', name: 'storage_locations', methods: ['GET'])]
+    #[IsGranted('ROLE_USER')]
+    public function storageLocations(string $id, Request $request): JsonResponse
+    {
+        $material = $this->entityManager->getRepository(MaterialItem::class)->find($id);
+        if (!$material) {
+            return new JsonResponse(['error' => 'Material nicht gefunden'], 404);
+        }
+        $departmentId = (string) $request->query->get('department_id', '');
+        if ($departmentId === '' || $material->getDepartmentId() !== $departmentId) {
+            return new JsonResponse(['error' => 'department_id ist erforderlich bzw. passt nicht zum Material'], 400);
+        }
+        $accessCheck = $this->assertDepartmentAccess($departmentId);
+        if ($accessCheck instanceof JsonResponse) {
+            return $accessCheck;
+        }
+
+        $direct = $this->collectFlatStorageLocationsForMaterial($departmentId, $id);
+
+        $viaPhysicalCombo = [];
+        $conn = $this->entityManager->getConnection();
+        $parentSql = "
+            SELECT cc.parent_material_id,
+                   p.name AS parent_name,
+                   SUM(cc.qty) AS component_qty,
+                   MIN(cc.assignment_mode) AS assignment_mode
+            FROM material_combo_component cc
+            INNER JOIN material_item p ON p.id = cc.parent_material_id
+            WHERE cc.component_material_id = :cid
+              AND p.material_type = 'physical_combo'
+              AND p.deleted_at IS NULL
+            GROUP BY cc.parent_material_id, p.name
+            ORDER BY p.name ASC
+        ";
+        $parents = $conn->executeQuery($parentSql, ['cid' => $id])->fetchAllAssociative();
+        foreach ($parents as $row) {
+            $pid = (string) $row['parent_material_id'];
+            $loc = $this->collectFlatStorageLocationsForMaterial($departmentId, $pid);
+            if ($loc === []) {
+                continue;
+            }
+            $viaPhysicalCombo[] = [
+                'parent_material_id' => $pid,
+                'parent_name' => (string) $row['parent_name'],
+                'component_qty' => (int) $row['component_qty'],
+                'assignment_mode' => (string) $row['assignment_mode'],
+                'locations' => $loc,
+            ];
+        }
+
+        return new JsonResponse([
+            'direct' => $direct,
+            'via_physical_combo' => $viaPhysicalCombo,
+        ]);
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function collectFlatStorageLocationsForMaterial(string $departmentId, string $materialId): array
+    {
+        $conn = $this->entityManager->getConnection();
+        $out = [];
+
+        $allocSql = "
+            SELECT COALESCE(cb.rack_id, a.rack_id) AS rack_id,
+                   COALESCE(cb.slot_id, a.slot_id) AS slot_id,
+                   a.qty,
+                   b.id AS batch_id,
+                   r.name AS rack_name,
+                   s.name AS slot_name,
+                   addr.name AS storage_address_name,
+                   COALESCE(NULLIF(TRIM(cb.label), ''), NULLIF(TRIM(cb.serial_number), '')) AS container_caption
+            FROM batch_storage_allocation a
+            INNER JOIN material_batch b ON a.batch_id = b.id
+            INNER JOIN material_item mi ON b.material_item_id = mi.id
+            LEFT JOIN material_batch cb ON a.container_batch_id = cb.id
+            LEFT JOIN storage_rack r ON r.id = COALESCE(cb.rack_id, a.rack_id)
+            LEFT JOIN storage_slot s ON s.id = COALESCE(cb.slot_id, a.slot_id)
+            LEFT JOIN address addr ON addr.id = r.storage_address_id
+            WHERE a.department_id = :departmentId
+              AND mi.id = :materialId
+              AND mi.deleted_at IS NULL
+              AND b.status = 'active'
+        ";
+        $allocRows = $conn->executeQuery($allocSql, [
+            'departmentId' => $departmentId,
+            'materialId' => $materialId,
+        ])->fetchAllAssociative();
+        foreach ($allocRows as $row) {
+            $out[] = $this->normalizeFlatStorageRow($row);
+        }
+
+        $directSql = "
+            SELECT b.rack_id, b.slot_id, b.qty, b.id AS batch_id,
+                   r.name AS rack_name, s.name AS slot_name,
+                   addr.name AS storage_address_name,
+                   NULL AS container_caption
+            FROM material_batch b
+            INNER JOIN material_item mi ON b.material_item_id = mi.id
+            LEFT JOIN storage_rack r ON r.id = b.rack_id
+            LEFT JOIN storage_slot s ON s.id = b.slot_id
+            LEFT JOIN address addr ON addr.id = r.storage_address_id
+            WHERE mi.department_id = :departmentId
+              AND mi.id = :materialId
+              AND mi.deleted_at IS NULL
+              AND b.status = 'active'
+              AND b.rack_id IS NOT NULL
+              AND NOT EXISTS (
+                  SELECT 1 FROM batch_storage_allocation a2 WHERE a2.batch_id = b.id
+              )
+        ";
+        $directRows = $conn->executeQuery($directSql, [
+            'departmentId' => $departmentId,
+            'materialId' => $materialId,
+        ])->fetchAllAssociative();
+        foreach ($directRows as $row) {
+            $out[] = $this->normalizeFlatStorageRow($row);
+        }
+
+        return $out;
+    }
+
+    /**
+     * @param array<string, mixed> $row
+     *
+     * @return array<string, mixed>
+     */
+    private function normalizeFlatStorageRow(array $row): array
+    {
+        $rackName = trim((string) ($row['rack_name'] ?? ''));
+        $slotName = trim((string) ($row['slot_name'] ?? ''));
+        $addr = trim((string) ($row['storage_address_name'] ?? ''));
+        $locLine = $rackName !== '' && $slotName !== ''
+            ? $rackName.' / '.$slotName
+            : ($rackName !== '' ? $rackName : ($slotName !== '' ? $slotName : ''));
+
+        return [
+            'rack_id' => $row['rack_id'] ?? null,
+            'slot_id' => $row['slot_id'] ?? null,
+            'rack_name' => $rackName !== '' ? $rackName : null,
+            'slot_name' => $slotName !== '' ? $slotName : null,
+            'storage_address_name' => $addr !== '' ? $addr : null,
+            'location_label' => $locLine !== '' ? $locLine : null,
+            'qty' => (int) ($row['qty'] ?? 0),
+            'batch_id' => (string) ($row['batch_id'] ?? ''),
+            'container_caption' => isset($row['container_caption']) && trim((string) $row['container_caption']) !== ''
+                ? trim((string) $row['container_caption'])
+                : null,
+        ];
     }
 
     /**

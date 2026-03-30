@@ -129,7 +129,7 @@
                   :container-batches="containerBatches"
                   :is-loading-container-contents="isLoadingContainerContents"
                   :selected-container-contents="selectedContainerBatchContents"
-                  @update:search="templateSearch = $event"
+                  @update:search="onTemplateSearchUpdate"
                   @focus="showTemplateDropdown = true; searchTemplates()"
                   @blur="hideTemplateDropdownDelayed"
                   @select="selectTemplate"
@@ -140,6 +140,7 @@
                 <!-- Virtuelle Kombo: Name + Reservation -->
                 <div v-if="creationMode === 'virtual_combo'" class="virtual-combo-fields">
                   <MaterialNameInput
+                    ref="articleNameInputRef"
                     :model-value="formData.name"
                     label="Name der virtuellen Kombination *"
                     placeholder="z.B. Phoenix Gruppenzelt 8P, Spatz Set..."
@@ -149,6 +150,8 @@
                     :name-suggestions="[]"
                     @update:model-value="formData.name = $event"
                     @input="checkNameDebounced"
+                    @focus="handleNameInputFocus"
+                    @blur="handleNameInputBlur"
                   />
                   <div class="form-group">
                     <label>Reservationsmodus *</label>
@@ -219,8 +222,18 @@
               </div>
             </div>
 
-            <!-- Kategorie (Einzelartikel ohne Vorlage; sichtbar sobald Name eingegeben — Duplikat-Check läuft parallel) -->
-            <div v-if="!isAddBatchMode && !isFromTemplate && creationMode === 'individual' && formData.name.trim()" class="step-section" data-step="category">
+            <!-- Kategorie: Einzelartikel + Kombinationen (mit/ohne Vorlage); wählbar sobald Modus feststeht — bei Vorlage nach Vorlagenwahl -->
+            <div
+              v-if="
+                !isAddBatchMode &&
+                (creationMode === 'individual' ||
+                  creationMode === 'physical_combo' ||
+                  creationMode === 'virtual_combo') &&
+                (!isFromTemplate || selectedTemplate)
+              "
+              class="step-section"
+              data-step="category"
+            >
               <div class="step-header step-header--clickable" @click="toggleStep('category')">
                 <span class="step-title">Kategorie</span>
                 <span class="step-chevron" :class="{ open: isStepOpen('category') }">▾</span>
@@ -344,7 +357,7 @@
                         <span class="comp-card-name">{{ ci.name }}</span>
                         <span class="comp-card-meta">
                           <span v-if="ci.tracking === 'serialized'">Seriennummer</span>
-                          <span v-else>{{ ci.required_qty }}x Stück</span>
+                          <span v-else>{{ templateBulkMetaQty(ci) }}x Stück</span>
                           <span v-if="ci.is_optional" class="comp-optional-badge">Optional</span>
                         </span>
                       </div>
@@ -464,7 +477,7 @@
 
                       <!-- ══════ BULK (Massenartikel) ══════ -->
 
-                      <!-- Bulk: Neu kaufen → Menge + Preis -->
+                      <!-- Bulk: Neu kaufen → nur Menge + Preis (keine SN: die gibt es nur bei serialisierten Artikeln) -->
                       <template v-else-if="creationMode !== 'virtual_combo' && ci.tracking === 'bulk' && ci.mode === 'new'">
                         <div class="form-row">
                           <div class="form-group">
@@ -472,8 +485,9 @@
                             <input
                               v-model.number="ci.qty"
                               type="number"
-                              min="1"
+                              :min="ci.is_optional ? 0 : 1"
                               class="form-input"
+                              @update:modelValue="() => normalizeBulkQty(ci)"
                             />
                           </div>
                           <div class="form-group">
@@ -491,7 +505,10 @@
                             </div>
                           </div>
                         </div>
-                        <p class="comp-bulk-info">Neuer Bestand wird zum Lager hinzugefügt und dem Zelt zugewiesen.</p>
+                        <p v-if="ci.is_optional && !ci.qty" class="form-hint optional-bulk-zero-hint">
+                          Optional weglassen (Menge 0) oder Menge erhöhen für den Einkauf.
+                        </p>
+                        <p v-else-if="ci.qty > 0" class="comp-bulk-info">Neuer Bestand wird zum Lager hinzugefügt und dem Zelt zugewiesen.</p>
                       </template>
 
                       <!-- Bulk: Aus Lager → Material wählen + Menge, kein Batch nötig -->
@@ -540,8 +557,9 @@
                                 <input
                                   v-model.number="ci.qty"
                                   type="number"
-                                  min="1"
+                                  :min="ci.is_optional ? 0 : 1"
                                   class="form-input"
+                                  @update:modelValue="() => normalizeBulkQty(ci)"
                                 />
                               </div>
                               <div class="form-group comp-stock-info">
@@ -720,12 +738,18 @@
                         :rack-id="String(formData.rack_id || '')"
                         :slot-id="String(formData.slot_id || '')"
                         :racks="storageRacks"
-                        :slot-list="storageSlots"
+                        :slot-list="slotsForPhysicalComboGestellFach"
+                        :rack-label-formatter="formatRackOptionLabel"
+                        :rack-option-title-formatter="(r) => rackPreviewTitles[r.id] || ''"
+                        :slot-label-formatter="(slot) => formatSlotOptionLabel(String(formData.rack_id || ''), slot)"
+                        :slot-option-title-formatter="(s) => slotPreviewTitles[`${String(formData.rack_id || '')}:${String(s.id)}`] || ''"
                         :show-empty-slot-hint="true"
                         rack-label="Gestell"
                         slot-label="Fach"
                         rack-placeholder="– Gestell wählen –"
                         slot-placeholder="– Fach wählen –"
+                        @rackListMouseenter="prefetchVisibleRackPreviews(storageRacks)"
+                        @slotListMouseenter="prefetchSlotPreviewsForRack(String(formData.rack_id || ''))"
                         @update:rackId="onStorageLocationRackUpdate"
                         @update:slotId="(v) => (formData.slot_id = String(v ?? ''))"
                       />
@@ -742,9 +766,9 @@
                           v-for="cb in containerBatches"
                           :key="cb.id"
                           :value="cb.id"
-                          :title="getContainerPreviewTitle(cb.id)"
+                          :title="formatContainerBatchOptionFullLabel(cb)"
                         >
-                          {{ formatContainerBatchOption(cb) }}
+                          {{ formatContainerBatchOptionFullLabel(cb) }}
                         </option>
                       </select>
                     </template>
@@ -834,8 +858,20 @@
               </div>
             </div>
 
-            <!-- Step 4: Kombinations-Artikel — erst sichtbar, wenn der Kombinationsname gesetzt und frei ist (gewollte Reihenfolge) -->
-            <div v-if="!isAddBatchMode && !isFromTemplate && (formData.material_type === 'physical_combo' || formData.material_type === 'virtual_combo') && formData.name.trim() && !nameExists" class="step-section" data-step="combo_articles">
+            <!-- Manuelle Kombi (ohne Vorlage/Kiste): Artikel suchen — nicht bei Vorlage/Kisten-Inhalt (das ist „Komponenten“) -->
+            <div
+              v-if="
+                !isAddBatchMode &&
+                !isFromTemplate &&
+                !isFromContainerBatchContents &&
+                (formData.material_type === 'physical_combo' || formData.material_type === 'virtual_combo') &&
+                formData.name.trim() &&
+                !nameExists &&
+                formData.category_id
+              "
+              class="step-section"
+              data-step="combo_articles"
+            >
               <div class="step-header step-header--clickable" @click="toggleStep('combo_articles')">
                 <span class="step-title">Welche Artikel enthält diese Kombination?</span>
                 <span class="step-chevron" :class="{ open: isStepOpen('combo_articles') }">▾</span>
@@ -1097,9 +1133,9 @@
                                     v-for="cb in containerBatches"
                                     :key="cb.id"
                                     :value="cb.id"
-                                    :title="getContainerPreviewTitle(cb.id)"
+                                    :title="formatContainerBatchOptionFullLabel(cb)"
                                   >
-                                    {{ formatContainerBatchOption(cb) }}
+                                    {{ formatContainerBatchOptionFullLabel(cb) }}
                                   </option>
                                 </select>
                               </template>
@@ -1147,11 +1183,17 @@
                         :slot-id="String(formData.slot_id || '')"
                         :racks="storageRacks"
                         :slot-list="storageSlots"
+                        :rack-label-formatter="formatRackOptionLabel"
+                        :rack-option-title-formatter="(r) => rackPreviewTitles[r.id] || ''"
+                        :slot-label-formatter="(slot) => formatSlotOptionLabel(String(formData.rack_id || ''), slot)"
+                        :slot-option-title-formatter="(s) => slotPreviewTitles[`${String(formData.rack_id || '')}:${String(s.id)}`] || ''"
                         :show-empty-slot-hint="true"
                         rack-label="Gestell"
                         slot-label="Fach"
                         rack-placeholder="– Gestell wählen –"
                         slot-placeholder="– Fach wählen –"
+                        @rackListMouseenter="prefetchVisibleRackPreviews(storageRacks)"
+                        @slotListMouseenter="prefetchSlotPreviewsForRack(String(formData.rack_id || ''))"
                         @update:rackId="onStorageLocationRackUpdate"
                         @update:slotId="(v) => (formData.slot_id = String(v ?? ''))"
                       />
@@ -1168,9 +1210,9 @@
                           v-for="cb in containerBatches"
                           :key="cb.id"
                           :value="cb.id"
-                          :title="getContainerPreviewTitle(cb.id)"
+                          :title="formatContainerBatchOptionFullLabel(cb)"
                         >
-                          {{ formatContainerBatchOption(cb) }}
+                          {{ formatContainerBatchOptionFullLabel(cb) }}
                         </option>
                       </select>
                     </template>
@@ -1344,14 +1386,14 @@
                                 @mouseenter="prefetchContainerPreviews()"
                                 :title="getContainerPreviewTitle(entry.container_batch_id)"
                               >
-                                <option value="">– Kiste waehlen –</option>
+                                <option value="">– Kiste wählen –</option>
                                 <option
                                   v-for="cb in containerBatches"
                                   :key="cb.id"
                                   :value="cb.id"
-                                  :title="getContainerPreviewTitle(cb.id)"
+                                  :title="formatContainerBatchOptionFullLabel(cb)"
                                 >
-                                  {{ formatContainerBatchOption(cb) }}
+                                  {{ formatContainerBatchOptionFullLabel(cb) }}
                                 </option>
                               </select>
                             </template>
@@ -1463,20 +1505,6 @@
                         :required="!formData.is_food"
                       />
                     </div>
-                    <div class="form-group">
-                      <label>Stückpreis (CHF)</label>
-                      <div class="price-input">
-                        <span class="currency">Fr.</span>
-                        <input 
-                          v-model.number="formData.unit_price" 
-                          type="number" 
-                          step="0.01"
-                          min="0"
-                          class="form-input"
-                          placeholder="0.00"
-                        />
-                      </div>
-                    </div>
                   </div>
 
                   <div class="form-row">
@@ -1558,21 +1586,76 @@
                     </div>
                   </div>
 
-                  <div class="form-row">
-                    <div v-if="formData.tracking_type !== 'serialized'" class="form-group">
-                      <label>Stückpreis (CHF)</label>
-                      <div class="price-input">
-                        <span class="currency">Fr.</span>
-                        <input 
-                          v-model.number="formData.unit_price" 
-                          type="number" 
-                          step="0.01"
-                          min="0"
-                          class="form-input"
-                          placeholder="0.00"
+                  <div v-if="purchasePriceRequired" class="slider-toggle-group pack-toggle-inline mt-2 mb-2">
+                    <label class="toggle-label">
+                      <span class="toggle-wrapper">
+                        <input
+                          type="checkbox"
+                          class="toggle-input"
+                          :checked="purchasePriceInputMode === 'total'"
+                          @change="onPurchasePriceModeToggle"
                         />
+                        <span class="toggle-slider toggle-slider--blue"></span>
+                      </span>
+                      <span class="toggle-text">
+                        <span class="toggle-title">Gesamtpreis auf Stück verteilen</span>
+                        <span class="toggle-desc">Warenwert plus Lieferung gleichmässig auf alle Stück (pro Einheit)</span>
+                      </span>
+                    </label>
+                    <transition name="slide-down">
+                      <div v-if="purchasePriceInputMode === 'unit'" key="pp-unit" class="form-row mt-2">
+                        <div class="form-group">
+                          <label>Stückpreis (CHF)</label>
+                          <div class="price-input">
+                            <span class="currency">Fr.</span>
+                            <input
+                              v-model.number="formData.unit_price"
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              class="form-input"
+                              placeholder="0.00"
+                            />
+                          </div>
+                        </div>
                       </div>
-                    </div>
+                      <div v-else key="pp-total" class="slider-details pack-details mt-2">
+                        <div class="form-row">
+                          <div class="form-group">
+                            <label>Warenwert (CHF)</label>
+                            <div class="price-input">
+                              <span class="currency">Fr.</span>
+                              <input
+                                v-model="purchaseTotalWaresChf"
+                                type="text"
+                                inputmode="decimal"
+                                class="form-input"
+                                placeholder="0.00"
+                              />
+                            </div>
+                          </div>
+                          <div class="form-group">
+                            <label>Lieferung / Versand (CHF)</label>
+                            <div class="price-input">
+                              <span class="currency">Fr.</span>
+                              <input
+                                v-model="purchaseShippingChf"
+                                type="text"
+                                inputmode="decimal"
+                                class="form-input"
+                                placeholder="0.00"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                        <p v-if="purchasePriceContextQty > 0" class="field-hint">
+                          Errechneter Stückpreis: {{ effectivePurchaseUnitPrice.toFixed(2) }} Fr. ({{ purchasePriceContextQty }} Stk.)
+                        </p>
+                      </div>
+                    </transition>
+                  </div>
+
+                  <div class="form-row">
                     <div class="form-group">
                       <label>Rechnungsnummer</label>
                       <input 
@@ -1587,8 +1670,8 @@
               </div>
             </div>
 
-            <!-- Details & Vermietung (optional) – bei Kombi erst nach gültigem Namen (gleiche Stufe wie Materialwahl) -->
-            <div v-if="!isAddBatchMode && !isFromTemplate && creationMode && ((formData.material_type === 'physical' && formData.tracking_type) || ((formData.material_type === 'physical_combo' || formData.material_type === 'virtual_combo') && formData.name.trim() && !nameExists))" class="step-section" data-step="details">
+            <!-- Details & Vermietung (optional) – bei Kombi erst nach Name + Kategorie (gleiche Stufe wie Materialwahl) -->
+            <div v-if="!isAddBatchMode && !isFromTemplate && creationMode && ((formData.material_type === 'physical' && formData.tracking_type) || ((formData.material_type === 'physical_combo' || formData.material_type === 'virtual_combo') && formData.name.trim() && !nameExists && formData.category_id))" class="step-section" data-step="details">
               <div class="step-header step-header--clickable" @click="toggleStep('details')">
                 <span class="step-title">Details &amp; Vermietung</span>
                 <span class="step-badge optional">Optional</span>
@@ -1733,6 +1816,7 @@
           :pack-unit="formData.pack_unit"
           :external-source="formData.external_source"
           :is-from-template="isFromTemplate"
+          :is-from-container-batch-contents="isFromContainerBatchContents"
           :template-name="selectedTemplate?.name ?? null"
           :tent-capacity="tentForm.tent_capacity"
           :component-inputs="componentInputs"
@@ -1836,6 +1920,8 @@ import {
   type CreateMaterialRequest,
   type AddBatchRequest,
   type CreateComboFromContainerBatchRequest,
+  type MaterialBatch,
+  type AddBatchMultiResponse,
 } from '@/api/materials'
 import { getAddresses, type Address } from '@/api/addresses'
 import { getGlobalAddresses } from '@/api/globalAddresses'
@@ -1851,8 +1937,19 @@ import {
   type StorageOverviewResponse,
   type ContainerBatchContentsResponse,
 } from '@/api/storageLocations'
+import { isContainerNamedStorageSlot } from '@/utils/storageSlotDisplay'
+import {
+  formatFachSelectPreviewLine,
+  formatRackSlotsDirectPreview,
+  summarizeMaterialsForPreview,
+} from '@/utils/storageSlotContentPreview'
+import {
+  formatContainerBatchOptionFullLabel,
+  formatContainerBatchSelectLabel,
+} from '@/utils/containerBatchLabel'
 import { getTemplates, getTemplate, createMaterialFromTemplate, type Template, type TemplateComponent, type CreateMaterialComponentInput } from '@/api/templates'
 import { useToast } from '@/composables/useToast'
+import { enqueuePendingCostBookingAfterPurchase } from '@/composables/useCostBookingFollowUp'
 import AddressModal from '@/components/AddressModal.vue'
 import CategoryModal from '@/components/CategoryModal.vue'
 import BarcodeScannerPanel from '@/components/common/BarcodeScannerPanel.vue'
@@ -1965,7 +2062,7 @@ interface AllocationRow {
 }
 let allocationIdCounter = 0
 const initialAllocations = ref<AllocationRow[]>([])
-const containerBatches = ref<import('../api/storageLocations').ContainerBatch[]>([])
+const containerBatches = ref<import('@/api/storageLocations').ContainerBatch[]>([])
 
 function normalizeAllocationRowsToTotal() {
   if (!formData.split_allocations) return
@@ -2166,6 +2263,8 @@ const activeStep = ref<StepId | ''>('')
 const expandAllVisibleSteps = ref(true)
 /** true: nur ein Schritt aufgeklappt (manuell per Kopfzeile oder Fokus); false: Auto-Sync mit letztem Schritt. */
 const accordionUserControlled = ref(false)
+/** Während Vorlagen-Laden: keine Schritt-Syncs / kein Kategorie-Sprung, bis „Allgemeines“ gesetzt ist */
+const templateLoadInProgress = ref(false)
 
 // Erstellungsmodus
 const creationMode = ref<'' | 'individual' | 'physical_combo' | 'virtual_combo'>('')
@@ -2245,6 +2344,25 @@ const storageRacks = computed(() => {
     (rack) => String(rack.storage_address_id ?? '').trim() === addr
   )
 })
+
+/** Physische Kombo „Gestell/Fach“: Fächer mit Kisten-Namen nur unter „Kiste/Tasche“. */
+const slotsForPhysicalComboGestellFach = computed(() => {
+  if (creationMode.value !== 'physical_combo' || formData.stock_location_mode !== 'slot') {
+    return storageSlots.value
+  }
+  return storageSlots.value.filter((s) => !isContainerNamedStorageSlot(s.name))
+})
+
+watch(
+  () => [slotsForPhysicalComboGestellFach.value, formData.slot_id, creationMode.value, formData.stock_location_mode] as const,
+  () => {
+    if (creationMode.value !== 'physical_combo' || formData.stock_location_mode !== 'slot') return
+    const allowed = new Set(slotsForPhysicalComboGestellFach.value.map((s) => String(s.id)))
+    if (formData.slot_id && !allowed.has(String(formData.slot_id))) {
+      formData.slot_id = ''
+    }
+  }
+)
 
 // Seriennummern für serialisierte Artikel
 interface SerialNumberEntry {
@@ -2512,6 +2630,75 @@ const stockInputReady = computed(() => {
   return formData.initial_qty > 0
 })
 
+/** Stückpreis direkt oder Gesamt (Waren + optional Lieferung) auf Stück verteilen */
+const purchasePriceInputMode = ref<'unit' | 'total'>('unit')
+const purchaseTotalWaresChf = ref('')
+const purchaseShippingChf = ref('')
+
+function parseChfInput(s: string): number {
+  const n = parseFloat(String(s ?? '').replace(/\s/g, '').replace(',', '.'))
+  return Number.isFinite(n) ? n : 0
+}
+
+const purchasePriceContextQty = computed(() => {
+  if (isAddBatchMode.value) return Math.max(0, Math.floor(Number(formData.initial_qty) || 0))
+  if (formData.material_type !== 'physical') return 0
+  if (formData.tracking_type === 'serialized') return serializedQty.value
+  return Math.max(0, Math.floor(Number(formData.initial_qty) || 0))
+})
+
+const purchasePriceRequired = computed(() => {
+  if (isAddBatchMode.value) return formData.initial_qty > 0
+  if (formData.material_type !== 'physical') return false
+  if (!formData.tracking_type) return false
+  if (formData.tracking_type === 'serialized') return serializedQty.value > 0
+  return formData.initial_qty > 0
+})
+
+const effectivePurchaseUnitPrice = computed(() => {
+  const qty = purchasePriceContextQty.value
+  if (qty <= 0) return 0
+  if (purchasePriceInputMode.value === 'unit') {
+    const up = Number(formData.unit_price)
+    return Number.isFinite(up) && up > 0 ? up : 0
+  }
+  const sum = parseChfInput(purchaseTotalWaresChf.value) + parseChfInput(purchaseShippingChf.value)
+  if (sum <= 0) return 0
+  return Math.round((sum / qty) * 100) / 100
+})
+
+watch(
+  [purchasePriceInputMode, purchaseTotalWaresChf, purchaseShippingChf, purchasePriceContextQty],
+  () => {
+    if (purchasePriceInputMode.value !== 'total') return
+    const qty = purchasePriceContextQty.value
+    if (qty <= 0) return
+    const sum = parseChfInput(purchaseTotalWaresChf.value) + parseChfInput(purchaseShippingChf.value)
+    if (sum > 0) {
+      formData.unit_price = Math.round((sum / qty) * 100) / 100
+    }
+  }
+)
+
+watch(purchasePriceInputMode, (m, prev) => {
+  if (m === 'total' && prev === 'unit') {
+    const qty = purchasePriceContextQty.value
+    const up = Number(formData.unit_price)
+    if (qty > 0 && up > 0 && !purchaseTotalWaresChf.value.trim()) {
+      purchaseTotalWaresChf.value = (up * qty).toFixed(2)
+    }
+  }
+  if (m === 'unit' && prev === 'total') {
+    purchaseTotalWaresChf.value = ''
+    purchaseShippingChf.value = ''
+  }
+})
+
+function onPurchasePriceModeToggle(ev: Event) {
+  const el = ev.target as HTMLInputElement | null
+  purchasePriceInputMode.value = el?.checked ? 'total' : 'unit'
+}
+
 watch(
   () => formData.tracking_type,
   (type) => {
@@ -2549,6 +2736,21 @@ const storageAddressName = computed(() => {
 
 const storageAddressWithLocation = computed(() => {
   const addrName = storageAddressName.value
+
+  // Physische Kombi in Kiste/Tasche: Lagerzeile folgt der gewählten Kiste (ändert sich mit Dropdown)
+  if (
+    formData.material_type === 'physical_combo' &&
+    formData.stock_location_mode === 'kiste' &&
+    formData.stock_container_batch_id
+  ) {
+    const cb = containerBatches.value.find(
+      (b) => String(b.id) === String(formData.stock_container_batch_id)
+    )
+    const kisteLine = cb ? formatContainerBatchSelectLabel(cb) : 'Kiste/Tasche'
+    if (addrName) return `${addrName} • ${kisteLine}`
+    return kisteLine
+  }
+
   if (!addrName) return null
   if (!formData.rack_id) return addrName
   const rack = storageRacks.value.find((r) => String(r.id) === String(formData.rack_id))
@@ -2601,7 +2803,13 @@ const visibleStepIds = computed<StepId[]>(() => {
   if (!isAddBatchMode.value && !creationMode.value) steps.push('creation_mode')
   if (!isAddBatchMode.value && !!creationMode.value) steps.push('general')
 
-  if (!isAddBatchMode.value && !isFromTemplate.value && creationMode.value === 'individual') {
+  if (
+    !isAddBatchMode.value &&
+    (creationMode.value === 'individual' ||
+      creationMode.value === 'physical_combo' ||
+      creationMode.value === 'virtual_combo') &&
+    (!isFromTemplate.value || selectedTemplate.value)
+  ) {
     steps.push('category')
   }
 
@@ -2638,7 +2846,8 @@ const visibleStepIds = computed<StepId[]>(() => {
     !isFromTemplate.value &&
     !isFromContainerBatchContents.value &&
     (formData.material_type === 'physical_combo' || formData.material_type === 'virtual_combo') &&
-    comboNameReady
+    comboNameReady &&
+    !!formData.category_id
   ) {
     steps.push('combo_articles')
   }
@@ -2650,7 +2859,8 @@ const visibleStepIds = computed<StepId[]>(() => {
     creationMode.value &&
     ((formData.material_type === 'physical' && formData.tracking_type) ||
       ((formData.material_type === 'physical_combo' || formData.material_type === 'virtual_combo') &&
-        comboNameReady))
+        comboNameReady &&
+        !!formData.category_id))
   ) {
     steps.push('details')
   }
@@ -2735,6 +2945,7 @@ function mapMissingToStep(message: string): StepId {
   if (msg.includes('bestandsverfolgung')) return 'tracking'
   if (msg.includes('mindestens 2 artikel')) return 'combo_articles'
   if (msg.includes('ablaufdatum')) return 'stock'
+  if (msg.includes('anschaffung') || msg.includes('stückpreis') || msg.includes('gesamtpreis')) return 'stock'
   if (msg.includes('kaufdatum') || msg.includes('seriennummer') || msg.includes('mindestens 1 stück')) return 'stock'
   if (
     msg.includes('gestell') ||
@@ -2768,6 +2979,7 @@ const canSubmit = computed(() => {
     if (requiresPurchaseDate.value && !formData.purchase_date) return false
     if (requiresExpiryDate.value && !formData.expiry_date) return false
     if (formData.split_allocations && (!allocationSumValid.value || !hasRelevantAllocationRows.value || hasInvalidAllocationRows.value)) return false
+    if (purchasePriceRequired.value && effectivePurchaseUnitPrice.value <= 0) return false
     return true
   }
   
@@ -2778,6 +2990,7 @@ const canSubmit = computed(() => {
   if (isFromContainerBatchContents.value && selectedContainerBatchContents.value && containerContentsBatchId.value) {
     if (!formData.name.trim()) return false
     if (nameExists.value) return false
+    if (!formData.category_id) return false
     if (formData.material_type === 'physical_combo') {
       if (formData.stock_location_mode === 'kiste' && !formData.stock_container_batch_id) return false
       if (formData.stock_location_mode === 'slot' && (!formData.rack_id || !formData.slot_id)) return false
@@ -2785,15 +2998,18 @@ const canSubmit = computed(() => {
     return true
   }
 
-  // ── Virtuelle Kombo (ohne Vorlage): Name + Reservation reicht ──
+  // ── Virtuelle Kombo (ohne Vorlage): Name + Kategorie + Reservation ──
   if (creationMode.value === 'virtual_combo') {
     if (!formData.name.trim()) return false
     if (nameExists.value) return false
+    if (!formData.category_id) return false
     return true
   }
 
   // ── Mit Vorlage (Einzelartikel oder Physische Kombo) ──
   if (isFromTemplate.value && selectedTemplate.value) {
+    if (!formData.category_id) return false
+
     // Physische Kombo: Name ist Pflicht
     if (creationMode.value === 'physical_combo') {
       if (!formData.name.trim()) return false
@@ -2824,7 +3040,15 @@ const canSubmit = computed(() => {
   // ── Einzelartikel ohne Vorlage (manuell) ──
   if (!formData.name.trim()) return false
   if (nameExists.value) return false
-  if (creationMode.value === 'individual' && !formData.category_id) return false
+  if (
+    !isFromTemplate.value &&
+    (creationMode.value === 'individual' ||
+      creationMode.value === 'physical_combo' ||
+      creationMode.value === 'virtual_combo') &&
+    !formData.category_id
+  ) {
+    return false
+  }
   if (!formData.material_type) return false
   
   if (formData.material_type === 'physical') {
@@ -2846,6 +3070,7 @@ const canSubmit = computed(() => {
       if (!formData.split_allocations && formData.stock_location_mode === 'kiste' && formData.initial_qty > 0 && !formData.stock_container_batch_id) return false
       if (!formData.split_allocations && formData.stock_location_mode === 'slot' && formData.initial_qty > 0 && (!formData.rack_id || !formData.slot_id)) return false
     }
+    if (purchasePriceRequired.value && effectivePurchaseUnitPrice.value <= 0) return false
   }
 
   if (formData.material_type === 'physical_combo' || formData.material_type === 'virtual_combo') {
@@ -2875,6 +3100,9 @@ const missingSteps = computed(() => {
         missing.push('Lagerplätze: Summe muss ' + formData.initial_qty + ' Stk. ergeben')
       }
     }
+    if (purchasePriceRequired.value && effectivePurchaseUnitPrice.value <= 0) {
+      missing.push('Anschaffungspreis eingeben')
+    }
     return missing
   }
   
@@ -2891,6 +3119,9 @@ const missingSteps = computed(() => {
     } else if (nameExists.value) {
       missing.push('Name existiert bereits')
     }
+    if (!formData.category_id) {
+      missing.push('Kategorie auswählen')
+    }
     if (formData.material_type === 'physical_combo') {
       if (formData.stock_location_mode === 'kiste' && !formData.stock_container_batch_id) {
         missing.push('Kiste für die Kombination wählen')
@@ -2906,11 +3137,15 @@ const missingSteps = computed(() => {
   if (creationMode.value === 'virtual_combo') {
     if (!formData.name.trim()) missing.push('Name der Kombination eingeben')
     else if (nameExists.value) missing.push('Name existiert bereits')
+    else if (!formData.category_id) missing.push('Kategorie auswählen')
     return missing
   }
 
   // ── Mit Vorlage (Einzelartikel oder Physische Kombo) ──
   if (isFromTemplate.value && selectedTemplate.value) {
+    if (!formData.category_id) {
+      missing.push('Kategorie auswählen')
+    }
     if (creationMode.value === 'physical_combo' && !formData.name.trim()) {
       missing.push('Name der Kombination eingeben')
     }
@@ -2954,7 +3189,13 @@ const missingSteps = computed(() => {
     missing.push('Name existiert bereits')
   }
   
-  if (creationMode.value === 'individual' && !formData.category_id) {
+  if (
+    !isFromTemplate.value &&
+    (creationMode.value === 'individual' ||
+      creationMode.value === 'physical_combo' ||
+      creationMode.value === 'virtual_combo') &&
+    !formData.category_id
+  ) {
     missing.push('Kategorie auswählen')
   }
   
@@ -3004,6 +3245,9 @@ const missingSteps = computed(() => {
         }
       }
     }
+    if (purchasePriceRequired.value && effectivePurchaseUnitPrice.value <= 0) {
+      missing.push('Anschaffungspreis eingeben')
+    }
   }
   
   // Bei Kombinationen: 2 Artikel
@@ -3048,6 +3292,9 @@ function resetForm() {
   formData.manufacturer = ''
   formData.supplier_id = ''
   formData.unit_price = 0
+  purchasePriceInputMode.value = 'unit'
+  purchaseTotalWaresChf.value = ''
+  purchaseShippingChf.value = ''
   formData.invoice_number = ''
   formData.notes = ''
   formData.barcode_tag = ''
@@ -3110,6 +3357,7 @@ function resetForm() {
   tentForm.tent_capacity = null
   tentForm.reservation_mode = 'complete_only'
 
+  templateLoadInProgress.value = false
   expandAllVisibleSteps.value = true
   accordionUserControlled.value = false
   activeStep.value = ''
@@ -3220,7 +3468,14 @@ function checkNameDebounced() {
 /** Nach Verlassen des Artikelnamens: Kategorie sofort öffnen (Duplikat-Check läuft parallel). */
 async function maybeOpenCategoryAfterNameBlur(): Promise<void> {
   if (isAddBatchMode.value) return
-  if (creationMode.value !== 'individual' || isFromTemplate.value) return
+  if (isFromTemplate.value) return
+  if (
+    creationMode.value !== 'individual' &&
+    creationMode.value !== 'physical_combo' &&
+    creationMode.value !== 'virtual_combo'
+  ) {
+    return
+  }
   if (!formData.name.trim()) return
   expandAllVisibleSteps.value = false
   accordionUserControlled.value = true
@@ -3568,29 +3823,8 @@ function hideRackDropdownDelayed() {
   setTimeout(() => { showRackDropdown.value = false }, 200)
 }
 
-function buildContentPreviewTitle(items: Array<{ material_name: string; qty: number }>): string {
-  if (!items.length) return 'Leer'
-  const lines = items.slice(0, 5).map((item) => `${item.material_name} (${item.qty})`)
-  if (items.length > 5) lines.push(`+${items.length - 5} weitere`)
-  return lines.join('\n')
-}
-
-function formatContainerBatchOption(cb: import('../api/storageLocations').ContainerBatch): string {
-  const slotName = (cb.slot?.name || '').trim()
-  const rackName = (cb.rack?.name || '').trim()
-  const location = slotName
-    ? (rackName ? `${rackName} / ${slotName}` : slotName)
-    : (rackName || 'Ohne Fach')
-  const label = (cb.label || '').trim()
-  const name = (cb.material_name || '').trim()
-  const serial = (cb.serial_number || '').trim()
-  const primary = label || serial || name || 'Kiste'
-  const secondary = name && name !== primary ? ` - ${name}` : ''
-  return `${location} - ${primary}${secondary}`
-}
-
 /** Vorschlag für Artikelnamen der Combo aus Kisten-Daten (Label/Display; Nutzer kann editieren). */
-function suggestedArticleNameFromContainerBatch(cb: import('../api/storageLocations').ContainerBatch | undefined): string {
+function suggestedArticleNameFromContainerBatch(cb: import('@/api/storageLocations').ContainerBatch | undefined): string {
   if (!cb) return ''
   const d = (cb.display_label || '').trim()
   if (d) return d
@@ -3601,38 +3835,28 @@ function suggestedArticleNameFromContainerBatch(cb: import('../api/storageLocati
   return (cb.material_name || '').trim() || 'Kombination'
 }
 
-function getContainerNameFromContent(content: {
-  container_label?: string | null
-  container_batch_id?: string | null
-}): string {
-  const label = (content.container_label || '').trim()
-  if (label) return label
-  const containerId = (content.container_batch_id || '').trim()
-  if (!containerId) return ''
-  const match = containerBatches.value.find((cb) => cb.id === containerId)
-  if (!match) return ''
-  return (match.label || match.serial_number || match.material_name || '').trim()
-}
-
-function getContainerNamesForSlot(rackId: string, slotId: string): string[] {
-  if (!rackId || !slotId || !storageOverviewCache.value) return []
-  const rack = storageOverviewCache.value.racks?.find((r) => r.id === rackId)
-  const slot = rack?.slots?.find((s) => String(s.id) === String(slotId))
-  if (!slot?.contents?.length) return []
-  const unique = new Set<string>()
-  for (const content of slot.contents) {
-    const name = getContainerNameFromContent(content)
-    if (name) unique.add(name)
-  }
-  return Array.from(unique)
+function resolveContainerBatchLabel(containerBatchId: string): string {
+  const cb = containerBatches.value.find((c) => c.id === containerBatchId)
+  if (!cb) return ''
+  return (cb.label || cb.serial_number || cb.display_label || cb.material_name || '').trim()
 }
 
 function formatSlotOptionLabel(rackId: string, slot: StorageSlot): string {
-  const labels = getContainerNamesForSlot(rackId, slot.id)
-  if (!labels.length) return slot.name
-  const preview = labels.slice(0, 2).join(', ')
-  const rest = labels.length > 2 ? ` +${labels.length - 2}` : ''
-  return `${slot.name} · Kisten: ${preview}${rest}`
+  const key = `${rackId}:${String(slot.id)}`
+  const preview = (slotPreviewTitles.value[key] || '').trim()
+  const base = slot.name
+  if (preview) {
+    return `${base} · ${preview}`
+  }
+  return base
+}
+
+function formatRackOptionLabel(rack: StorageRack): string {
+  const preview = (rackPreviewTitles.value[rack.id] || '').trim()
+  if (!preview) return rack.name
+  const oneLine = preview.replace(/\n/g, ' · ')
+  const short = oneLine.length > 72 ? `${oneLine.slice(0, 69)}…` : oneLine
+  return `${rack.name} · ${short}`
 }
 
 async function prefetchRackPreview(rackId: string) {
@@ -3641,40 +3865,25 @@ async function prefetchRackPreview(rackId: string) {
     storageOverviewCache.value = await getStorageOverview(props.departmentId).catch(() => null)
   }
   const overviewRack = storageOverviewCache.value?.racks?.find((r) => r.id === rackId)
-  const containerNames = new Set<string>()
-  const materialTotals = new Map<string, number>()
-  for (const slot of overviewRack?.slots || []) {
-    for (const content of slot.contents || []) {
-      const containerName = getContainerNameFromContent(content)
-      if (containerName) containerNames.add(containerName)
-      const materialName = (content.material_name || 'Material').trim()
-      materialTotals.set(materialName, (materialTotals.get(materialName) || 0) + Number(content.qty || 0))
-    }
+  const resolve = (id: string) => resolveContainerBatchLabel(id)
+
+  let text = ''
+  if (overviewRack?.slots?.length) {
+    text = formatRackSlotsDirectPreview(overviewRack.slots, resolve).trim()
   }
-  const lines: string[] = []
-  const containers = Array.from(containerNames)
-  if (containers.length) {
-    const preview = containers.slice(0, 3).join(', ')
-    const rest = containers.length > 3 ? ` +${containers.length - 3}` : ''
-    lines.push(`Kisten: ${preview}${rest}`)
-  }
-  const materials = Array.from(materialTotals.entries())
-    .slice(0, 4)
-    .map(([name, qty]) => `${name} (${qty})`)
-  if (materials.length) {
-    lines.push(...materials)
-  }
-  if (!lines.length) {
+  if (!text) {
     const data = await getRackContents(rackId).catch(() => null)
-    const items = (data?.contents || []).map((c: any) => ({
+    const items = (data?.contents || []).map((c: { material_name: string; qty: number }) => ({
       material_name: c.material_name || 'Material',
       qty: Number(c.qty || 0),
     }))
-    lines.push(buildContentPreviewTitle(items))
+    text = summarizeMaterialsForPreview(items)
   }
+  if (!text.trim()) text = 'Leer'
+
   rackPreviewTitles.value = {
     ...rackPreviewTitles.value,
-    [rackId]: lines.join('\n'),
+    [rackId]: text,
   }
 }
 
@@ -3687,13 +3896,10 @@ async function prefetchSlotPreview(rackId: string, slotId: string) {
   }
   const rack = storageOverviewCache.value?.racks?.find((r) => r.id === rackId)
   const slot = rack?.slots?.find((s) => String(s.id) === String(slotId))
-  const items = (slot?.contents || []).map((c) => ({
-    material_name: c.material_name || 'Material',
-    qty: Number(c.qty || 0),
-  }))
+  const line = formatFachSelectPreviewLine(slot?.contents || [])
   slotPreviewTitles.value = {
     ...slotPreviewTitles.value,
-    [key]: buildContentPreviewTitle(items),
+    [key]: line,
   }
 }
 
@@ -3713,11 +3919,7 @@ async function prefetchSlotPreviewsForRack(rackId: string) {
   for (const slot of rack.slots) {
     const key = `${rackId}:${String(slot.id)}`
     if (next[key]) continue
-    const items = (slot.contents || []).map((c) => ({
-      material_name: c.material_name || 'Material',
-      qty: Number(c.qty || 0),
-    }))
-    next[key] = buildContentPreviewTitle(items)
+    next[key] = formatFachSelectPreviewLine(slot.contents || [])
   }
   slotPreviewTitles.value = next
 }
@@ -3744,13 +3946,15 @@ async function prefetchContainerPreviews() {
   const next: Record<string, string> = { ...containerPreviewTitles.value }
   for (const cb of containerBatches.value) {
     if (next[cb.id]) continue
-    next[cb.id] = buildContentPreviewTitle(grouped[cb.id] || [])
+    next[cb.id] = summarizeMaterialsForPreview(grouped[cb.id] || [])
   }
   containerPreviewTitles.value = next
 }
 
 function getContainerPreviewTitle(containerBatchId: string): string {
   if (!containerBatchId) return 'Kiste wählen'
+  const cb = containerBatches.value.find((c) => c.id === containerBatchId)
+  if (cb) return formatContainerBatchOptionFullLabel(cb)
   return containerPreviewTitles.value[containerBatchId] || 'Hover lädt Inhalt...'
 }
 
@@ -3960,19 +4164,59 @@ async function handleAddressSaved() {
 }
 
 // ============ Template-Funktionen ============
+function onTemplateSearchUpdate(value: string) {
+  templateSearch.value = value
+  searchTemplates()
+}
+
 function searchTemplates() {
   const query = templateSearch.value.toLowerCase().trim()
   if (!query) {
-    filteredTemplateList.value = availableTemplates.value.slice(0, 10)
+    filteredTemplateList.value = availableTemplates.value.slice(0, 30)
     return
   }
   filteredTemplateList.value = availableTemplates.value
-    .filter(t => 
-      t.name.toLowerCase().includes(query) || 
+    .filter(t =>
+      t.name.toLowerCase().includes(query) ||
       (t.manufacturer?.toLowerCase().includes(query)) ||
       (t.model?.toLowerCase().includes(query))
     )
-    .slice(0, 10)
+    .slice(0, 30)
+}
+
+/** Menge in der Kartenzeile; bei optional + Bulk darf 0× angezeigt werden. */
+function templateBulkMetaQty(ci: ComponentInput): number {
+  if (ci.tracking === 'bulk' && ci.is_optional) {
+    const q = Number(ci.qty)
+    if (!Number.isNaN(q) && q <= 0) return 0
+  }
+  return Math.max(1, Number(ci.qty) || Number(ci.required_qty) || 1)
+}
+
+/** Nur Mengenbegrenzung für Bulk (keine SN — die sind nur bei serialisierten Komponenten). */
+function normalizeBulkQty(ci: ComponentInput) {
+  if (ci.tracking !== 'bulk') return
+  let n = Math.floor(Number(ci.qty))
+  if (Number.isNaN(n)) n = ci.is_optional ? 0 : 1
+  if (!ci.is_optional && n < 1) n = 1
+  if (ci.is_optional && n < 0) n = 0
+  ci.qty = n
+}
+
+/** Optionale Komponente weglassen (kein API-Eintrag), wenn Menge 0 bzw. bei serialisiert ohne SN. */
+function includeTemplateComponentInPayload(ci: ComponentInput): boolean {
+  if (!ci.is_optional) return true
+  if (ci.mode === 'new') {
+    if (ci.tracking === 'serialized') return !!(ci.serial_number || '').trim()
+    if (ci.tracking === 'bulk') return (ci.qty || 0) > 0
+    return true
+  }
+  if (ci.mode === 'existing') {
+    if (!ci.material_id) return false
+    if (ci.tracking === 'bulk') return (ci.qty || 0) > 0
+    return true
+  }
+  return true
 }
 
 async function selectTemplate(template: Template) {
@@ -3980,6 +4224,10 @@ async function selectTemplate(template: Template) {
   showTemplateDropdown.value = false
 
   try {
+    templateLoadInProgress.value = true
+    accordionUserControlled.value = true
+    expandAllVisibleSteps.value = false
+
     // Lade die vollständige Vorlage mit Komponenten
     const fullTemplate = await getTemplate(template.id)
     selectedTemplate.value = fullTemplate
@@ -3988,6 +4236,7 @@ async function selectTemplate(template: Template) {
 
     // Formular vorausfüllen
     formData.material_type = fullTemplate.material_type || 'physical_combo'
+    formData.name = (fullTemplate.name || '').trim()
     if (fullTemplate.category) {
       formData.category_id = fullTemplate.category.id
       selectedCategory.value = { 
@@ -4021,6 +4270,9 @@ async function selectTemplate(template: Template) {
         )
       }
 
+      const rq = Math.max(1, comp.required_qty || 1)
+      const optionalBulkStartZero = comp.is_optional && isBulk
+      const initialQty = optionalBulkStartZero ? 0 : rq
       return {
         component_type: comp.component_type,
         name: comp.name,
@@ -4029,7 +4281,7 @@ async function selectTemplate(template: Template) {
         is_optional: comp.is_optional,
         mode: 'new',
         serial_number: '',
-        qty: comp.required_qty,
+        qty: initialQty,
         unit_price: '',
         material_id: autoMaterial?.id || '',
         batch_id: '',
@@ -4043,9 +4295,16 @@ async function selectTemplate(template: Template) {
       } as ComponentInput
     })
 
-    // Nach Vorlagenwahl immer zuerst Allgemeine Informationen zeigen
+    await performNameDuplicateCheck()
     activeStep.value = 'general'
+    await nextTick()
+    templateLoadInProgress.value = false
+    await scrollWizardStepIntoView('general')
+    await nextTick()
+    const nameEl = articleNameInputRef.value as { focus?: () => void } | null
+    nameEl?.focus?.()
   } catch (err) {
+    templateLoadInProgress.value = false
     console.error('Fehler beim Laden der Vorlage:', err)
   }
 }
@@ -4063,7 +4322,20 @@ function onContainerBatchIdForContentsChange(v: string) {
     const cb = containerBatches.value.find((b) => String(b.id) === String(v))
     if (cb) {
       formData.name = suggestedArticleNameFromContainerBatch(cb)
+      void performNameDuplicateCheck()
     }
+    void loadContainerBatchContents()
+  }
+}
+
+async function scrollWizardStepIntoView(step: StepId | ''): Promise<void> {
+  if (!step) return
+  await nextTick()
+  const el = document.querySelector(
+    `.material-wizard-form .step-section[data-step="${step}"]`
+  ) as HTMLElement | null
+  if (el && 'scrollIntoView' in el) {
+    el.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }
 }
 
@@ -4077,14 +4349,23 @@ async function loadContainerBatchContents() {
       toast.error('Diese Kiste enthält keine Materialien (oder der Inhalt ist leer).')
       return
     }
+    accordionUserControlled.value = true
+    expandAllVisibleSteps.value = false
     selectedContainerBatchContents.value = data
     isFromContainerBatchContents.value = true
     isFromTemplate.value = false
     selectedTemplate.value = null
 
+    await refreshDepartmentRacks()
+
     const batchFromList = containerBatches.value.find((b) => String(b.id) === String(containerContentsBatchId.value))
     const labelFromApi = (data.container_label || '').trim()
-    formData.name = labelFromApi || suggestedArticleNameFromContainerBatch(batchFromList)
+    const labelFromBatch = (batchFromList?.label || batchFromList?.serial_number || '').trim()
+    formData.name =
+      labelFromApi ||
+      labelFromBatch ||
+      suggestedArticleNameFromContainerBatch(batchFromList)
+    await performNameDuplicateCheck()
 
     componentInputs.value = data.contents.map((c) => {
       const isBulk = c.tracking_type !== 'serialized'
@@ -4111,12 +4392,27 @@ async function loadContainerBatchContents() {
       } as ComponentInput
     })
 
-    await nextTick()
-    if (formData.name.trim() && !nameExists.value) {
-      activeStep.value = 'template_components'
-    } else {
-      activeStep.value = 'general'
+    // Vorauswahl Lager: dieselbe Kiste wie die Quelle; Lagerstandort aus dem Gestell der Kiste
+    formData.stock_location_mode = 'kiste'
+    formData.stock_container_batch_id = String(containerContentsBatchId.value)
+    formData.rack_id = ''
+    formData.slot_id = ''
+    formData.location_rack = ''
+    formData.location_slot = ''
+    if (batchFromList?.rack_id) {
+      const rack = allStorageRacks.value.find((r) => String(r.id) === String(batchFromList.rack_id))
+      if (rack?.storage_address_id) {
+        formData.storage_address_id = String(rack.storage_address_id)
+      }
     }
+
+    await nextTick()
+    // Immer zuerst „Allgemeine Informationen“: Artikelname (Kisten-Label) prüfen/anpassen, dann Kategorie & Komponenten
+    activeStep.value = 'general'
+    await scrollWizardStepIntoView('general')
+    await nextTick()
+    const nameEl = articleNameInputRef.value as { focus?: () => void } | null
+    nameEl?.focus?.()
   } catch (err) {
     console.error('Fehler beim Laden des Kisten-Inhalts:', err)
     toast.error('Kisten-Inhalt konnte nicht geladen werden')
@@ -4173,6 +4469,7 @@ function resetWizardForModeChange() {
 }
 
 function clearTemplate() {
+  templateLoadInProgress.value = false
   isFromTemplate.value = false
   selectedTemplate.value = null
   templateSearch.value = ''
@@ -4266,6 +4563,12 @@ function selectBulkMaterial(ci: ComponentInput, mat: any) {
 }
 
 function isComponentDone(ci: ComponentInput): boolean {
+  if (ci.is_optional) {
+    if (ci.mode === 'new' && ci.tracking === 'bulk' && !(ci.qty && ci.qty > 0)) return true
+    if (ci.mode === 'new' && ci.tracking === 'serialized' && !(ci.serial_number || '').trim()) return true
+    if (ci.mode === 'existing' && !ci.material_id) return true
+    if (ci.mode === 'existing' && ci.tracking === 'bulk' && ci.material_id && (!(ci.qty) || ci.qty <= 0)) return true
+  }
   if (ci.mode === 'new') {
     return ci.tracking === 'serialized' ? !!ci.serial_number : ci.qty > 0
   }
@@ -4315,13 +4618,53 @@ async function ensureStorageSelection(): Promise<void> {
   formData.location_slot = slotName
 }
 
+/** CHF-Gesamtbetrag für Buchhaltungs-Hinweis (Stückpreis × Menge bzw. Serienzeilen). */
+function computeWizardPurchaseTotalChf(): number {
+  const up = Number(formData.unit_price)
+  if (!Number.isFinite(up) || up <= 0) return 0
+  if (formData.tracking_type === 'serialized') {
+    const n = serialNumbers.value.filter((s) => (s.serial_number || '').trim()).length
+    return up * n
+  }
+  const q = Number(formData.initial_qty) || 0
+  return up * q
+}
+
+function buildWizardCostReceiptHint(): string {
+  if (isAddBatchMode.value && selectedExistingMaterial.value) {
+    return `Charge: ${selectedExistingMaterial.value.name || 'Material'}`
+  }
+  if (formData.name?.trim()) {
+    return `Anschaffung: ${formData.name.trim()}`
+  }
+  return ''
+}
+
+function batchIdFromAddBatchResult(r: MaterialBatch | AddBatchMultiResponse): string | undefined {
+  if ('created_batches' in r && Array.isArray(r.created_batches) && r.created_batches.length > 0) {
+    return r.created_batches[0].id
+  }
+  if ('id' in r && typeof (r as MaterialBatch).id === 'string') {
+    return (r as MaterialBatch).id
+  }
+  return undefined
+}
+
 async function handleSubmit() {
   if (!canSubmit.value || isSubmitting.value) return
   
   isSubmitting.value = true
   
   try {
+    if (!isAddBatchMode.value && formData.name.trim()) {
+      await performNameDuplicateCheck()
+    }
+    if (!canSubmit.value) {
+      return
+    }
+
     let successMessage = 'Material erstellt'
+    let followUpBatchId: string | undefined
     const combinedLocation = buildCombinedLocation()
     const includeExpiryDate = formData.tracking_type !== 'serialized' && (formData.is_food || showExpiryDateForNonFood.value)
     const expiryDatePayload = includeExpiryDate ? (formData.expiry_date || undefined) : undefined
@@ -4353,8 +4696,9 @@ async function handleSubmit() {
             }),
       }
       
-      await addBatch(selectedExistingMaterial.value.id, batchPayload)
-      
+      const batchRes = await addBatch(selectedExistingMaterial.value.id, batchPayload)
+      followUpBatchId = batchIdFromAddBatchResult(batchRes)
+
       // Material mit neuen Daten emittieren
       emit('created', { 
         ...selectedExistingMaterial.value, 
@@ -4434,7 +4778,9 @@ async function handleSubmit() {
             mode: 'new' as const,
             qty: ci.required_qty,
           }))
-        : componentInputs.value.map(ci => {
+        : componentInputs.value
+            .filter(includeTemplateComponentInPayload)
+            .map((ci) => {
             const comp: CreateMaterialComponentInput = {
               component_type: ci.component_type,
               mode: ci.mode,
@@ -4444,6 +4790,7 @@ async function handleSubmit() {
               if (ci.tracking === 'serialized') {
                 comp.serial_number = ci.serial_number
               } else {
+                normalizeBulkQty(ci)
                 comp.qty = ci.qty
               }
               if (ci.unit_price) {
@@ -4590,12 +4937,28 @@ async function handleSubmit() {
       }
       
       const material = await createMaterial(payload)
+      followUpBatchId =
+        material.batches?.find((b) => b.is_initial)?.id ?? material.batches?.[0]?.id
       emit('created', material)
       successMessage = 'Material erstellt'
     }
 
     toast.success(successMessage)
-    
+
+    if (
+      await enqueuePendingCostBookingAfterPurchase({
+        departmentId: props.departmentId,
+        totalChf: computeWizardPurchaseTotalChf(),
+        purchaseDateIso: formData.purchase_date || undefined,
+        receiptHint: buildWizardCostReceiptHint() || undefined,
+        materialBatchId: followUpBatchId ?? null,
+      })
+    ) {
+      toast.info(
+        'Unter Buchhaltung → Buchungen, Tab „Neue Buchung zuordnen“: Kostenstelle und Details erfassen.'
+      )
+    }
+
     if (createAnother.value) {
       resetForm()
       nextTick(() => {
@@ -4650,6 +5013,10 @@ watch(visibleStepIds, (steps) => {
     return
   }
 
+  if (templateLoadInProgress.value) {
+    return
+  }
+
   const lastVisibleStep = steps[steps.length - 1]
 
   if (expandAllVisibleSteps.value) {
@@ -4672,29 +5039,59 @@ watch(visibleStepIds, (steps) => {
     return
   }
 
-  // Kombi ohne Vorlage: Namen erfüllt → aktiven Schritt auf Materialwahl (nicht auf letzten Schritt „Details“)
+  // Kombi ohne Vorlage: erst Kategorie — nicht erzwingen bei „Combo aus Kiste“ (Name/Label zuerst im Allgemeinen-Block)
+  if (
+    !expandAllVisibleSteps.value &&
+    activeStep.value === 'general' &&
+    steps.includes('category') &&
+    (formData.material_type === 'physical_combo' || formData.material_type === 'virtual_combo') &&
+    formData.name.trim() &&
+    !nameExists.value &&
+    !formData.category_id &&
+    !isFromContainerBatchContents.value &&
+    !isFromTemplate.value
+  ) {
+    activeStep.value = 'category'
+    return
+  }
+
+  // Kombi ohne Vorlage/Kiste: Namen + Kategorie erfüllt → manuelle Artikelwahl
   if (
     !expandAllVisibleSteps.value &&
     activeStep.value === 'general' &&
     steps.includes('combo_articles') &&
     (formData.material_type === 'physical_combo' || formData.material_type === 'virtual_combo') &&
     formData.name.trim() &&
-    !nameExists.value
+    !nameExists.value &&
+    formData.category_id &&
+    !isFromContainerBatchContents.value &&
+    !isFromTemplate.value
   ) {
     activeStep.value = 'combo_articles'
     return
   }
 
-  // Vorlage oder Combo aus Kiste: Namen erfüllt → Komponenten
+  // Combo aus Kiste: erst Kategorie, dann Komponenten (nicht direkt vom Namen weg)
   if (
     !expandAllVisibleSteps.value &&
     activeStep.value === 'general' &&
     steps.includes('template_components') &&
-    (isFromTemplate.value || isFromContainerBatchContents.value) &&
+    isFromContainerBatchContents.value &&
     formData.name.trim() &&
-    !nameExists.value
+    !nameExists.value &&
+    formData.category_id
   ) {
     activeStep.value = 'template_components'
+    return
+  }
+
+  // Nach Kisten-Laden: „Komponenten“ nicht auf letzten Schritt zurücksetzen
+  if (
+    !expandAllVisibleSteps.value &&
+    activeStep.value === 'template_components' &&
+    steps.includes('template_components') &&
+    (isFromTemplate.value || isFromContainerBatchContents.value)
+  ) {
     return
   }
 
@@ -4714,7 +5111,7 @@ watch(visibleStepIds, (steps) => {
 watch(
   () => formData.category_id,
   (id) => {
-    if (!id || expandAllVisibleSteps.value || !accordionUserControlled.value) return
+    if (!id || expandAllVisibleSteps.value || !accordionUserControlled.value || templateLoadInProgress.value) return
     const next = nextVisibleStepAfter('category')
     if (next) activeStep.value = next
   }

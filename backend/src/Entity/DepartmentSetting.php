@@ -133,6 +133,8 @@ class DepartmentSetting
             'general.public_show_contact_form' => '1',
             'general.public_show_contact_email' => '1',
             'general.public_show_contact_note' => '1',
+            // email | in_app | both — Hinweise vom QR-Kontaktformular
+            'general.public_found_contact_delivery' => 'both',
         ];
     }
 

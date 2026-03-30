@@ -7,8 +7,8 @@ use App\Entity\ActivityPackContainer;
 use App\Entity\ActivityPackContainerItem;
 use App\Entity\MaterialBatch;
 use App\Entity\MaterialItem;
-use App\Entity\Membership;
 use App\Entity\User;
+use App\Service\ActivityAccessService;
 use App\Util\IdGenerator;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -21,7 +21,8 @@ use Symfony\Component\Security\Http\Attribute\IsGranted;
 class ActivityPackContainerController extends AbstractController
 {
     public function __construct(
-        private EntityManagerInterface $entityManager
+        private EntityManagerInterface $entityManager,
+        private ActivityAccessService $activityAccess
     ) {}
 
     #[Route('/pack-containers', name: 'list', methods: ['GET'])]
@@ -287,34 +288,20 @@ class ActivityPackContainerController extends AbstractController
     private function findActivityWithAccess(string $activityId): Activity|JsonResponse
     {
         $activity = $this->entityManager->getRepository(Activity::class)->find($activityId);
-        if (!$activity) {
+        if (!$activity || $activity->isDeleted()) {
             return new JsonResponse(['error' => 'Aktivitaet nicht gefunden'], 404);
         }
-        $access = $this->assertDepartmentAccess($activity->getDepartmentId());
-        if ($access instanceof JsonResponse) {
-            return $access;
-        }
 
-        return $activity;
-    }
-
-    private function assertDepartmentAccess(string $departmentId): true|JsonResponse
-    {
         $currentUser = $this->getUser();
         if (!$currentUser instanceof User) {
             return new JsonResponse(['error' => 'Nicht authentifiziert'], 401);
         }
 
-        $membership = $this->entityManager->getRepository(Membership::class)->findOneBy([
-            'userId' => $currentUser->getId(),
-            'departmentId' => $departmentId,
-        ]);
-
-        if (!$membership) {
-            return new JsonResponse(['error' => 'Keine Berechtigung fuer dieses Department'], 403);
+        if (!$this->activityAccess->canUserViewActivity($currentUser, $activity)) {
+            return new JsonResponse(['error' => 'Keine Berechtigung fuer diese Aktivitaet'], 403);
         }
 
-        return true;
+        return $activity;
     }
 }
 

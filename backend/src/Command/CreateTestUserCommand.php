@@ -123,6 +123,7 @@ class CreateTestUserCommand extends Command
         $user->setState('active');
         $hashedPassword = $this->passwordHasher->hashPassword($user, $password);
         $user->setPassword($hashedPassword);
+        $user->setEmailVerified(true);
         // Erster User hat kein createdBy (kann null sein)
         $this->em->persist($user);
 

@@ -9,6 +9,10 @@ export interface MaterialLookupAvailabilityContext {
   startDate?: string
   endDate?: string
   source?: 'all' | 'internal' | 'js'
+  /** Nur bei source=internal: eigenes Dept. | alle eingeladene | beides | genau ein Dept. (singleDepartmentId) */
+  internalScope?: 'own' | 'invited' | 'both' | 'single'
+  /** Bei internalScope=single: Material-Owner-Department (UUID) */
+  singleDepartmentId?: string
   includeGlobalJs?: boolean
   limit?: number
 }
@@ -54,6 +58,10 @@ export function createAvailabilityMaterialLookupFetcher(
       params.endDate = ctx.endDate
     }
     if (ctx.source) params.source = ctx.source
+    if (ctx.source === 'internal' && ctx.internalScope) params.internalScope = ctx.internalScope
+    if (ctx.source === 'internal' && ctx.internalScope === 'single' && ctx.singleDepartmentId) {
+      params.singleDepartmentId = ctx.singleDepartmentId
+    }
     if (ctx.includeGlobalJs !== undefined) params.includeGlobalJs = ctx.includeGlobalJs
 
     const response = await apiClient.get('/api/materials/available-for-period', { params })
@@ -179,7 +187,7 @@ export function useMaterialLookup<T>(options: UseMaterialLookupOptions<T>) {
     if (index < 0 || index >= results.value.length) return null
     const picked = results.value[index]
     closeNow()
-    return picked
+    return picked as T
   }
 
   function onKeydown(event: KeyboardEvent): T | null {

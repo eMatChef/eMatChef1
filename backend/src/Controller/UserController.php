@@ -431,7 +431,56 @@ class UserController extends AbstractController
         return new JsonResponse([
             'id' => $user->getId(),
             'state' => $user->getState(),
-            'profile_id' => $user->getProfileId()
+            'profile_id' => $user->getProfileId(),
+            'last_used_department' => $user->getLastUsedDepartmentId(),
+        ]);
+    }
+
+    /**
+     * Speichert die zuletzt gewählte Abteilung (nur bei bestehender Mitgliedschaft).
+     */
+    #[Route('/{id}/last-used-department', name: 'set_last_used_department', methods: ['PUT'])]
+    #[IsGranted('ROLE_USER')]
+    public function setLastUsedDepartment(string $id, Request $request): JsonResponse
+    {
+        $user = $this->userRepository->find($id);
+
+        if (!$user) {
+            return new JsonResponse(['error' => 'User nicht gefunden'], 404);
+        }
+
+        $currentUser = $this->getUser();
+        if (!$currentUser instanceof User) {
+            return new JsonResponse(['error' => 'Nicht autorisiert'], 403);
+        }
+
+        if ($user->getId() !== $currentUser->getId() && !in_array('ROLE_ADMIN', $currentUser->getRoles(), true)) {
+            return new JsonResponse(['error' => 'Nicht berechtigt'], 403);
+        }
+
+        $data = json_decode($request->getContent(), true) ?? [];
+        $departmentId = isset($data['department_id']) ? trim((string) $data['department_id']) : '';
+
+        if ($departmentId === '') {
+            return new JsonResponse(['error' => 'department_id ist erforderlich'], 400);
+        }
+
+        $membership = $this->entityManager->getRepository(Membership::class)->findOneBy([
+            'userId' => $id,
+            'departmentId' => $departmentId,
+        ]);
+
+        if (!$membership) {
+            return new JsonResponse(['error' => 'Keine Mitgliedschaft in diesem Department'], 404);
+        }
+
+        $user->setLastUsedDepartment($membership->getDepartment());
+        $user->setUpdatedAt(new \DateTime());
+        $this->entityManager->flush();
+
+        return new JsonResponse([
+            'success' => true,
+            'last_used_department' => $department->getId(),
         ]);
     }
 

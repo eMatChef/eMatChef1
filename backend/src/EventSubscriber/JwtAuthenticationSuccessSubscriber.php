@@ -28,7 +28,8 @@ class JwtAuthenticationSuccessSubscriber implements EventSubscriberInterface
     public static function getSubscribedEvents(): array
     {
         return [
-            Events::AUTHENTICATION_SUCCESS => ['onAuthenticationSuccess', 0],
+            // Nach Gesdinet (Refresh-Token anfügen), damit token/user/profile zusammenpassen
+            Events::AUTHENTICATION_SUCCESS => ['onAuthenticationSuccess', -10],
         ];
     }
 
@@ -76,13 +77,14 @@ class JwtAuthenticationSuccessSubscriber implements EventSubscriberInterface
                 return;
             }
 
-            // Response-Daten erweitern
+            // Response-Daten erweitern (JWT muss erhalten bleiben)
             $data = $event->getData();
-            
+            $jwt = $data['token'] ?? null;
+
             $data['user'] = [
                 'id' => $user->getId(),
                 'state' => $user->getState(),
-                'profile_id' => $user->getProfileId()
+                'profile_id' => $user->getProfileId(),
             ];
             
             $data['profile'] = [
@@ -139,8 +141,26 @@ class JwtAuthenticationSuccessSubscriber implements EventSubscriberInterface
 
             $data['departments'] = $departments;
             $data['primary_department'] = $primaryDepartment ? $primaryDepartment['id'] : null;
-            $data['last_used_department'] = null; // TODO: Aus User-Settings laden
-            
+
+            /**
+             * last_used_department: gespeicherte Präferenz nur zurückgeben, wenn Membership besteht.
+             * Sonst Fallback auf primary_department (oder null ohne Memberships).
+             */
+            $allowedIds = array_map(static fn (array $d): string => $d['id'], $departments);
+            $storedLastUsedId = $user->getLastUsedDepartmentId();
+            $lastUsedResolved = null;
+            if ($storedLastUsedId !== null && \in_array($storedLastUsedId, $allowedIds, true)) {
+                $lastUsedResolved = $storedLastUsedId;
+            } elseif ($primaryDepartment !== null) {
+                $lastUsedResolved = $primaryDepartment['id'];
+            }
+            $data['last_used_department'] = $lastUsedResolved;
+            $data['user']['last_used_department'] = $lastUsedResolved;
+
+            if (\is_string($jwt) && $jwt !== '') {
+                $data['token'] = $jwt;
+            }
+
             $event->setData($data);
             $this->log('info', 'Successfully added user/profile data to response');
         } catch (\Exception $e) {

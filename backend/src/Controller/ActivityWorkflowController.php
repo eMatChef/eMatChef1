@@ -11,6 +11,7 @@ use App\Entity\ActivityHistory;
 use App\Entity\MaterialItem;
 use App\Entity\User;
 use App\Controller\WorkshopController;
+use App\Service\ActivityAccessService;
 use App\Util\IdGenerator;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -29,7 +30,8 @@ use Symfony\Component\Security\Http\Attribute\IsGranted;
 class ActivityWorkflowController extends AbstractController
 {
     public function __construct(
-        private EntityManagerInterface $entityManager
+        private EntityManagerInterface $entityManager,
+        private ActivityAccessService $activityAccess
     ) {}
 
     // ═══════════════════════════════════════════════
@@ -43,9 +45,9 @@ class ActivityWorkflowController extends AbstractController
     #[IsGranted('ROLE_USER')]
     public function listPackItems(string $activityId): JsonResponse
     {
-        $activity = $this->findActivity($activityId);
-        if (!$activity) {
-            return new JsonResponse(['error' => 'Aktivität nicht gefunden'], 404);
+        $activity = $this->findActivityForUser($activityId);
+        if ($activity instanceof JsonResponse) {
+            return $activity;
         }
 
         $items = $this->entityManager->getRepository(ActivityPackItem::class)
@@ -76,9 +78,9 @@ class ActivityWorkflowController extends AbstractController
     #[IsGranted('ROLE_USER')]
     public function initPackItems(string $activityId): JsonResponse
     {
-        $activity = $this->findActivity($activityId);
-        if (!$activity) {
-            return new JsonResponse(['error' => 'Aktivität nicht gefunden'], 404);
+        $activity = $this->findActivityForUser($activityId);
+        if ($activity instanceof JsonResponse) {
+            return $activity;
         }
 
         // Nur wenn noch keine Packliste existiert
@@ -126,9 +128,9 @@ class ActivityWorkflowController extends AbstractController
     #[IsGranted('ROLE_USER')]
     public function updatePackItem(string $activityId, string $packItemId, Request $request): JsonResponse
     {
-        $activity = $this->findActivity($activityId);
-        if (!$activity) {
-            return new JsonResponse(['error' => 'Aktivität nicht gefunden'], 404);
+        $activity = $this->findActivityForUser($activityId);
+        if ($activity instanceof JsonResponse) {
+            return $activity;
         }
 
         if (!$activity->isPackListEditable()) {
@@ -182,9 +184,9 @@ class ActivityWorkflowController extends AbstractController
     #[IsGranted('ROLE_USER')]
     public function batchUpdatePackItems(string $activityId, Request $request): JsonResponse
     {
-        $activity = $this->findActivity($activityId);
-        if (!$activity) {
-            return new JsonResponse(['error' => 'Aktivität nicht gefunden'], 404);
+        $activity = $this->findActivityForUser($activityId);
+        if ($activity instanceof JsonResponse) {
+            return $activity;
         }
 
         if (!$activity->isPackListEditable()) {
@@ -237,9 +239,9 @@ class ActivityWorkflowController extends AbstractController
     #[IsGranted('ROLE_USER')]
     public function packProgress(string $activityId): JsonResponse
     {
-        $activity = $this->findActivity($activityId);
-        if (!$activity) {
-            return new JsonResponse(['error' => 'Aktivität nicht gefunden'], 404);
+        $activity = $this->findActivityForUser($activityId);
+        if ($activity instanceof JsonResponse) {
+            return $activity;
         }
 
         $items = $this->entityManager->getRepository(ActivityPackItem::class)
@@ -281,9 +283,9 @@ class ActivityWorkflowController extends AbstractController
     #[IsGranted('ROLE_USER')]
     public function movePackItem(string $activityId, string $packItemId, Request $request): JsonResponse
     {
-        $activity = $this->findActivity($activityId);
-        if (!$activity) {
-            return new JsonResponse(['error' => 'Aktivität nicht gefunden'], 404);
+        $activity = $this->findActivityForUser($activityId);
+        if ($activity instanceof JsonResponse) {
+            return $activity;
         }
 
         $packItem = $this->entityManager->getRepository(ActivityPackItem::class)->find($packItemId);
@@ -352,9 +354,9 @@ class ActivityWorkflowController extends AbstractController
     #[IsGranted('ROLE_USER')]
     public function moveBackPackItem(string $activityId, string $packItemId, Request $request): JsonResponse
     {
-        $activity = $this->findActivity($activityId);
-        if (!$activity) {
-            return new JsonResponse(['error' => 'Aktivität nicht gefunden'], 404);
+        $activity = $this->findActivityForUser($activityId);
+        if ($activity instanceof JsonResponse) {
+            return $activity;
         }
 
         $packItem = $this->entityManager->getRepository(ActivityPackItem::class)->find($packItemId);
@@ -413,9 +415,9 @@ class ActivityWorkflowController extends AbstractController
     #[IsGranted('ROLE_USER')]
     public function moveAllPackItems(string $activityId, Request $request): JsonResponse
     {
-        $activity = $this->findActivity($activityId);
-        if (!$activity) {
-            return new JsonResponse(['error' => 'Aktivität nicht gefunden'], 404);
+        $activity = $this->findActivityForUser($activityId);
+        if ($activity instanceof JsonResponse) {
+            return $activity;
         }
 
         $data = json_decode($request->getContent(), true);
@@ -473,9 +475,9 @@ class ActivityWorkflowController extends AbstractController
     #[IsGranted('ROLE_USER')]
     public function listIssues(string $activityId): JsonResponse
     {
-        $activity = $this->findActivity($activityId);
-        if (!$activity) {
-            return new JsonResponse(['error' => 'Aktivität nicht gefunden'], 404);
+        $activity = $this->findActivityForUser($activityId);
+        if ($activity instanceof JsonResponse) {
+            return $activity;
         }
 
         $reports = $this->entityManager->getRepository(ActivityIssueReport::class)
@@ -506,9 +508,9 @@ class ActivityWorkflowController extends AbstractController
     #[IsGranted('ROLE_USER')]
     public function createIssue(string $activityId, Request $request): JsonResponse
     {
-        $activity = $this->findActivity($activityId);
-        if (!$activity) {
-            return new JsonResponse(['error' => 'Aktivität nicht gefunden'], 404);
+        $activity = $this->findActivityForUser($activityId);
+        if ($activity instanceof JsonResponse) {
+            return $activity;
         }
 
         // Meldungen können ab "issued" bis "returned" erstellt werden
@@ -643,9 +645,9 @@ class ActivityWorkflowController extends AbstractController
     #[IsGranted('ROLE_USER')]
     public function listReturnItems(string $activityId): JsonResponse
     {
-        $activity = $this->findActivity($activityId);
-        if (!$activity) {
-            return new JsonResponse(['error' => 'Aktivität nicht gefunden'], 404);
+        $activity = $this->findActivityForUser($activityId);
+        if ($activity instanceof JsonResponse) {
+            return $activity;
         }
 
         $items = $this->entityManager->getRepository(ActivityReturnItem::class)
@@ -676,9 +678,9 @@ class ActivityWorkflowController extends AbstractController
     #[IsGranted('ROLE_USER')]
     public function initReturnItems(string $activityId): JsonResponse
     {
-        $activity = $this->findActivity($activityId);
-        if (!$activity) {
-            return new JsonResponse(['error' => 'Aktivität nicht gefunden'], 404);
+        $activity = $this->findActivityForUser($activityId);
+        if ($activity instanceof JsonResponse) {
+            return $activity;
         }
 
         // Nur wenn noch keine Rückgabeliste existiert
@@ -752,9 +754,9 @@ class ActivityWorkflowController extends AbstractController
     #[IsGranted('ROLE_USER')]
     public function updateReturnItem(string $activityId, string $returnItemId, Request $request): JsonResponse
     {
-        $activity = $this->findActivity($activityId);
-        if (!$activity) {
-            return new JsonResponse(['error' => 'Aktivität nicht gefunden'], 404);
+        $activity = $this->findActivityForUser($activityId);
+        if ($activity instanceof JsonResponse) {
+            return $activity;
         }
 
         if (!$activity->isReturnEditable()) {
@@ -822,9 +824,9 @@ class ActivityWorkflowController extends AbstractController
     #[IsGranted('ROLE_USER')]
     public function returnSummary(string $activityId): JsonResponse
     {
-        $activity = $this->findActivity($activityId);
-        if (!$activity) {
-            return new JsonResponse(['error' => 'Aktivität nicht gefunden'], 404);
+        $activity = $this->findActivityForUser($activityId);
+        if ($activity instanceof JsonResponse) {
+            return $activity;
         }
 
         // Packliste
@@ -877,12 +879,22 @@ class ActivityWorkflowController extends AbstractController
     // HELPER
     // ═══════════════════════════════════════════════
 
-    private function findActivity(string $id): ?Activity
+    private function findActivityForUser(string $id): Activity|JsonResponse
     {
         $activity = $this->entityManager->getRepository(Activity::class)->find($id);
         if (!$activity || $activity->isDeleted()) {
-            return null;
+            return new JsonResponse(['error' => 'Aktivität nicht gefunden'], 404);
         }
+
+        $currentUser = $this->getUser();
+        if (!$currentUser instanceof User) {
+            return new JsonResponse(['error' => 'Nicht authentifiziert'], 401);
+        }
+
+        if (!$this->activityAccess->canUserViewActivity($currentUser, $activity)) {
+            return new JsonResponse(['error' => 'Keine Berechtigung fuer diese Aktivitaet'], 403);
+        }
+
         return $activity;
     }
 

@@ -16,6 +16,7 @@ use App\Entity\MaterialItem;
 use App\Entity\WorkshopTicket;
 use App\Entity\Address;
 use App\Entity\User;
+use App\Service\ActivityAccessService;
 use App\Util\IdGenerator;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\Security\Core\Exception\AccessDeniedException;
@@ -31,7 +32,8 @@ class ActivityController extends AbstractController
     private const DEPARTMENT_MANAGER_ROLES = ['mw', 'dc', 'org', 'sub', 'sa'];
 
     public function __construct(
-        private EntityManagerInterface $entityManager
+        private EntityManagerInterface $entityManager,
+        private ActivityAccessService $activityAccess
     ) {}
 
     private function normalizeInvitedDepartmentsPayload(array $incoming, array $existing = []): array
@@ -62,7 +64,7 @@ class ActivityController extends AbstractController
                 $status = 'pending';
             }
 
-            $normalized[] = [
+            $row = [
                 'id' => $id,
                 'name' => $name !== '' ? $name : ($existingEntry['name'] ?? ''),
                 'organisation_name' => $orgName !== '' ? $orgName : ($existingEntry['organisation_name'] ?? ''),
@@ -71,9 +73,52 @@ class ActivityController extends AbstractController
                 'decided_at' => $existingEntry['decided_at'] ?? null,
                 'decided_by_user_id' => $existingEntry['decided_by_user_id'] ?? null,
             ];
+
+            $groupId = '';
+            if (array_key_exists('group_id', $entry)) {
+                $groupId = trim((string) ($entry['group_id'] ?? ''));
+            } else {
+                $groupId = trim((string) ($existingEntry['group_id'] ?? ''));
+            }
+            if ($groupId !== '') {
+                $group = $this->entityManager->getRepository(Group::class)->find($groupId);
+                if ($group && $group->getDepartmentId() === $id) {
+                    $row['group_id'] = $groupId;
+                    $row['group_name'] = $group->getName();
+                }
+            }
+
+            $normalized[] = $row;
         }
 
         return $normalized;
+    }
+
+    /**
+     * @param array<int, array<string, mixed>|mixed>|null $rows
+     * @return array<int, array<string, mixed>>
+     */
+    private function enrichInvitedDepartmentsForApi(?array $rows): array
+    {
+        if ($rows === null || $rows === []) {
+            return [];
+        }
+        $out = [];
+        foreach ($rows as $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+            $gid = trim((string) ($entry['group_id'] ?? ''));
+            if ($gid !== '' && ($entry['group_name'] ?? '') === '') {
+                $g = $this->entityManager->getRepository(Group::class)->find($gid);
+                if ($g) {
+                    $entry['group_name'] = $g->getName();
+                }
+            }
+            $out[] = $entry;
+        }
+
+        return $out;
     }
 
     private function assertDepartmentManager(User $user, string $departmentId): void
@@ -236,7 +281,7 @@ class ActivityController extends AbstractController
 
         $invitedCandidates = $invitedQb->getQuery()->getResult();
         foreach ($invitedCandidates as $candidate) {
-            if ($this->isDepartmentInviteAccepted($candidate, (string) $departmentId)) {
+            if ($this->activityAccess->isDepartmentInviteAccepted($candidate, (string) $departmentId)) {
                 $activities[] = $candidate;
             }
         }
@@ -256,6 +301,203 @@ class ActivityController extends AbstractController
     }
 
     /**
+     * Material-Vorschläge basierend auf Nutzungshistorie
+     *
+     * Muss VOR Route /{id} stehen – sonst wird "material-suggestions" als Aktivitäts-ID aufgelöst.
+     *
+     * Drei Ebenen (absteigend nach Priorität):
+     * 1. Gruppe + Wochentag (z.B. "Samstags üblich für Pfadi")
+     * 2. Gruppe allgemein  (z.B. "Häufig für Pfadi")
+     * 3. Persönlich        (z.B. "Zuletzt von dir verwendet")
+     */
+    #[Route('/material-suggestions', name: 'material_suggestions', methods: ['GET'])]
+    #[IsGranted('ROLE_USER')]
+    public function materialSuggestions(Request $request): JsonResponse
+    {
+        $departmentId = $request->query->get('department_id');
+        if (!$departmentId) {
+            return new JsonResponse(['error' => 'department_id ist erforderlich'], 400);
+        }
+
+        $currentUser = $this->getUser();
+        if (!$currentUser instanceof User) {
+            return new JsonResponse(['error' => 'Nicht authentifiziert'], 401);
+        }
+        $membership = $this->entityManager->getRepository(Membership::class)
+            ->findOneBy(['userId' => $currentUser->getId(), 'departmentId' => $departmentId]);
+        if (!$membership) {
+            return new JsonResponse(['error' => 'Keine Berechtigung fuer dieses Department'], 403);
+        }
+
+        $groupId    = $request->query->get('group_id');
+        $dayOfWeek  = $request->query->getInt('day_of_week', 0); // 1=Mo..7=So (ISO-8601)
+        $type       = $request->query->get('type', 'activity');
+        $limit      = min($request->query->getInt('limit', 10), 20);
+        $minUsage   = $request->query->getInt('min_usage', 2);
+
+        $user = $this->getUser();
+        $userId = $user instanceof User ? $user->getId() : null;
+
+        $suggestions = [];
+        $seenMaterials = [];
+
+        // ─── Ebene 1: Gruppe + Wochentag ───
+        if ($groupId && $dayOfWeek >= 1 && $dayOfWeek <= 7) {
+            $qb = $this->entityManager->createQueryBuilder();
+            $qb->select(
+                'ai.materialItemId',
+                'mi.name AS materialName',
+                'COUNT(ai.id) AS usageCount',
+                'ROUND(AVG(ai.quantity)) AS avgQuantity',
+                'MAX(a.usageStart) AS lastUsed'
+            )
+            ->from(ActivityItem::class, 'ai')
+            ->join('ai.activity', 'a')
+            ->join('ai.materialItem', 'mi')
+            ->where('a.groupId = :groupId')
+            ->andWhere('a.departmentId = :departmentId')
+            ->andWhere('DAYOFWEEK(a.usageStart) = :dow')
+            ->andWhere('a.type = :type')
+            ->andWhere('a.status NOT IN (:excludeStatus)')
+            ->andWhere('a.deletedAt IS NULL')
+            ->groupBy('ai.materialItemId, mi.name')
+            ->having('COUNT(ai.id) >= :minUsage')
+            ->orderBy('usageCount', 'DESC')
+            ->setMaxResults($limit)
+            ->setParameter('groupId', $groupId)
+            ->setParameter('departmentId', $departmentId)
+            ->setParameter('dow', $dayOfWeek)
+            ->setParameter('type', $type)
+            ->setParameter('excludeStatus', ['draft', 'cancelled'])
+            ->setParameter('minUsage', $minUsage);
+
+            $rows = $qb->getQuery()->getArrayResult();
+
+            foreach ($rows as $row) {
+                $matId = $row['materialItemId'];
+                $seenMaterials[$matId] = true;
+                $suggestions[] = [
+                    'material_item_id' => $matId,
+                    'name'             => $row['materialName'],
+                    'usage_count'      => (int)$row['usageCount'],
+                    'avg_quantity'     => max(1, (int)$row['avgQuantity']),
+                    'last_used'        => $row['lastUsed'] instanceof \DateTimeInterface ? $row['lastUsed']->format('Y-m-d') : null,
+                    'source'           => 'group_weekday',
+                ];
+            }
+        }
+
+        // ─── Ebene 2: Gruppe allgemein ───
+        if ($groupId && count($suggestions) < $limit) {
+            $remaining = $limit - count($suggestions);
+
+            $qb2 = $this->entityManager->createQueryBuilder();
+            $qb2->select(
+                'ai.materialItemId',
+                'mi.name AS materialName',
+                'COUNT(ai.id) AS usageCount',
+                'ROUND(AVG(ai.quantity)) AS avgQuantity',
+                'MAX(a.usageStart) AS lastUsed'
+            )
+            ->from(ActivityItem::class, 'ai')
+            ->join('ai.activity', 'a')
+            ->join('ai.materialItem', 'mi')
+            ->where('a.groupId = :groupId')
+            ->andWhere('a.departmentId = :departmentId')
+            ->andWhere('a.status NOT IN (:excludeStatus)')
+            ->andWhere('a.deletedAt IS NULL')
+            ->groupBy('ai.materialItemId, mi.name')
+            ->having('COUNT(ai.id) >= :minUsage')
+            ->orderBy('usageCount', 'DESC')
+            ->setMaxResults($remaining + count($seenMaterials)) // Fetch extra to compensate for duplicates
+            ->setParameter('groupId', $groupId)
+            ->setParameter('departmentId', $departmentId)
+            ->setParameter('excludeStatus', ['draft', 'cancelled'])
+            ->setParameter('minUsage', $minUsage);
+
+            $rows2 = $qb2->getQuery()->getArrayResult();
+
+            foreach ($rows2 as $row) {
+                if (count($suggestions) >= $limit) {
+                    break;
+                }
+                $matId = $row['materialItemId'];
+                if (isset($seenMaterials[$matId])) {
+                    continue;
+                }
+                $seenMaterials[$matId] = true;
+                $suggestions[] = [
+                    'material_item_id' => $matId,
+                    'name'             => $row['materialName'],
+                    'usage_count'      => (int)$row['usageCount'],
+                    'avg_quantity'     => max(1, (int)$row['avgQuantity']),
+                    'last_used'        => $row['lastUsed'] instanceof \DateTimeInterface ? $row['lastUsed']->format('Y-m-d') : null,
+                    'source'           => 'group',
+                ];
+            }
+        }
+
+        // ─── Ebene 3: Persönliche Favoriten ───
+        if ($userId && count($suggestions) < $limit) {
+            $remaining = $limit - count($suggestions);
+
+            $qb3 = $this->entityManager->createQueryBuilder();
+            $qb3->select(
+                'ai.materialItemId',
+                'mi.name AS materialName',
+                'COUNT(ai.id) AS usageCount',
+                'ROUND(AVG(ai.quantity)) AS avgQuantity',
+                'MAX(a.usageStart) AS lastUsed'
+            )
+            ->from(ActivityItem::class, 'ai')
+            ->join('ai.activity', 'a')
+            ->join('ai.materialItem', 'mi')
+            ->where('a.createdByUserId = :userId')
+            ->andWhere('a.departmentId = :departmentId')
+            ->andWhere('a.status NOT IN (:excludeStatus)')
+            ->andWhere('a.deletedAt IS NULL')
+            ->groupBy('ai.materialItemId, mi.name')
+            ->orderBy('lastUsed', 'DESC')
+            ->setMaxResults($remaining + count($seenMaterials))
+            ->setParameter('userId', $userId)
+            ->setParameter('departmentId', $departmentId)
+            ->setParameter('excludeStatus', ['draft', 'cancelled']);
+
+            $rows3 = $qb3->getQuery()->getArrayResult();
+
+            foreach ($rows3 as $row) {
+                if (count($suggestions) >= $limit) {
+                    break;
+                }
+                $matId = $row['materialItemId'];
+                if (isset($seenMaterials[$matId])) {
+                    continue;
+                }
+                $seenMaterials[$matId] = true;
+                $suggestions[] = [
+                    'material_item_id' => $matId,
+                    'name'             => $row['materialName'],
+                    'usage_count'      => (int)$row['usageCount'],
+                    'avg_quantity'     => max(1, (int)$row['avgQuantity']),
+                    'last_used'        => $row['lastUsed'] instanceof \DateTimeInterface ? $row['lastUsed']->format('Y-m-d') : null,
+                    'source'           => 'personal',
+                ];
+            }
+        }
+
+        return new JsonResponse([
+            'suggestions' => $suggestions,
+            'meta' => [
+                'department_id' => $departmentId,
+                'group_id'      => $groupId,
+                'day_of_week'   => $dayOfWeek,
+                'type'          => $type,
+                'count'         => count($suggestions),
+            ],
+        ]);
+    }
+
+    /**
      * Einzelne Aktivität laden
      */
     #[Route('/{id}', name: 'get', methods: ['GET'])]
@@ -272,7 +514,7 @@ class ActivityController extends AbstractController
         if (!$currentUser instanceof User) {
             return new JsonResponse(['error' => 'Nicht authentifiziert'], 401);
         }
-        if (!$this->canUserViewActivity($currentUser, $activity)) {
+        if (!$this->activityAccess->canUserViewActivity($currentUser, $activity)) {
             return new JsonResponse(['error' => 'Keine Berechtigung fuer diese Aktivitaet'], 403);
         }
 
@@ -437,7 +679,7 @@ class ActivityController extends AbstractController
         if (!$currentUser instanceof User) {
             return new JsonResponse(['error' => 'Nicht authentifiziert'], 401);
         }
-        if (!$this->canUserAccessActivity($currentUser, $activity)) {
+        if (!$this->activityAccess->canUserEditActivity($currentUser, $activity)) {
             return new JsonResponse(['error' => 'Keine Berechtigung fuer diese Aktivitaet'], 403);
         }
 
@@ -694,7 +936,7 @@ class ActivityController extends AbstractController
         if (!$currentUser instanceof User) {
             return new JsonResponse(['error' => 'Nicht authentifiziert'], 401);
         }
-        if (!$this->canUserAccessActivity($currentUser, $activity)) {
+        if (!$this->activityAccess->canUserAccessActivity($currentUser, $activity)) {
             return new JsonResponse(['error' => 'Keine Berechtigung fuer diese Aktivitaet'], 403);
         }
 
@@ -955,9 +1197,50 @@ class ActivityController extends AbstractController
             }
         }
 
+        // Eingeladene Departments: Gruppenrolle (leader/member) in der pro Einladung festgelegten Gruppe
+        foreach ($activity->getInvitedDepartments() ?? [] as $inv) {
+            if (!is_array($inv) || ($inv['status'] ?? '') !== 'accepted') {
+                continue;
+            }
+            $inviteDeptId = trim((string) ($inv['id'] ?? $inv['department_id'] ?? ''));
+            $inviteGroupId = trim((string) ($inv['group_id'] ?? ''));
+            if ($inviteDeptId === '' || $inviteGroupId === '') {
+                continue;
+            }
+            $deptMem = $this->entityManager->getRepository(Membership::class)
+                ->findOneBy(['userId' => $userId, 'departmentId' => $inviteDeptId]);
+            if (!$deptMem) {
+                continue;
+            }
+            $gMem = $this->entityManager->getRepository(GroupMembership::class)
+                ->findOneBy(['userId' => $userId, 'groupId' => $inviteGroupId]);
+            if ($gMem) {
+                $gr = $gMem->getRole();
+                if (in_array($gr, $requiredRoles, true)) {
+                    return true;
+                }
+            }
+        }
+
         // Ersteller darf eigene Drafts bearbeiten (member-Berechtigung)
         if (in_array('member', $requiredRoles) && $activity->getCreatedByUserId() === $userId) {
             return true;
+        }
+
+        // Eingeladenes Department (angenommen): Department-Rolle im Gast-Department — inkl. MW/DC auch wenn sonst nur Gruppenleiter der Gast-Gruppe Zugriff hätten
+        if ($this->activityAccess->isInvitedAcceptedMember($user, $activity)
+            || $this->activityAccess->isInvitedDepartmentMwOrDc($user, $activity)) {
+            $guestMemberships = $this->entityManager->getRepository(Membership::class)
+                ->findBy(['userId' => $userId]);
+            foreach ($guestMemberships as $gm) {
+                if (!$this->activityAccess->isDepartmentInviteAccepted($activity, $gm->getDepartmentId())) {
+                    continue;
+                }
+                $r = $gm->getRole();
+                if ($r && in_array($r, $requiredRoles, true)) {
+                    return true;
+                }
+            }
         }
 
         $roleLabels = array_map(fn($r) => match($r) {
@@ -1035,7 +1318,7 @@ class ActivityController extends AbstractController
         if (!$currentUser instanceof User) {
             return new JsonResponse(['error' => 'Nicht authentifiziert'], 401);
         }
-        if (!$this->canUserViewActivity($currentUser, $activity)) {
+        if (!$this->activityAccess->canUserViewActivity($currentUser, $activity)) {
             return new JsonResponse(['error' => 'Keine Berechtigung fuer diese Aktivitaet'], 403);
         }
 
@@ -1096,7 +1379,7 @@ class ActivityController extends AbstractController
         if (!$currentUser instanceof User) {
             return new JsonResponse(['error' => 'Nicht authentifiziert'], 401);
         }
-        if (!$this->canUserAccessActivity($currentUser, $activity)) {
+        if (!$this->activityAccess->canUserEditActivity($currentUser, $activity)) {
             return new JsonResponse(['error' => 'Keine Berechtigung fuer diese Aktivitaet'], 403);
         }
 
@@ -1185,7 +1468,7 @@ class ActivityController extends AbstractController
         if (!$currentUser instanceof User) {
             return new JsonResponse(['error' => 'Nicht authentifiziert'], 401);
         }
-        if (!$this->canUserAccessActivity($currentUser, $activity)) {
+        if (!$this->activityAccess->canUserEditActivity($currentUser, $activity)) {
             return new JsonResponse(['error' => 'Keine Berechtigung fuer diese Aktivitaet'], 403);
         }
 
@@ -1274,7 +1557,7 @@ class ActivityController extends AbstractController
         if (!$currentUser instanceof User) {
             return new JsonResponse(['error' => 'Nicht authentifiziert'], 401);
         }
-        if (!$this->canUserAccessActivity($currentUser, $activity)) {
+        if (!$this->activityAccess->canUserEditActivity($currentUser, $activity)) {
             return new JsonResponse(['error' => 'Keine Berechtigung fuer diese Aktivitaet'], 403);
         }
         $this->entityManager->remove($item);
@@ -1309,7 +1592,7 @@ class ActivityController extends AbstractController
         if (!$currentUser instanceof User) {
             return new JsonResponse(['error' => 'Nicht authentifiziert'], 401);
         }
-        if (!$this->canUserViewActivity($currentUser, $activity)) {
+        if (!$this->activityAccess->canUserViewActivity($currentUser, $activity)) {
             return new JsonResponse(['error' => 'Keine Berechtigung fuer diese Aktivitaet'], 403);
         }
 
@@ -1343,193 +1626,6 @@ class ActivityController extends AbstractController
         }
 
         return new JsonResponse($result);
-    }
-
-    /**
-     * Material-Vorschläge basierend auf Nutzungshistorie
-     *
-     * Drei Ebenen (absteigend nach Priorität):
-     * 1. Gruppe + Wochentag (z.B. "Samstags üblich für Pfadi")
-     * 2. Gruppe allgemein  (z.B. "Häufig für Pfadi")
-     * 3. Persönlich        (z.B. "Zuletzt von dir verwendet")
-     */
-    #[Route('/material-suggestions', name: 'material_suggestions', methods: ['GET'])]
-    #[IsGranted('ROLE_USER')]
-    public function materialSuggestions(Request $request): JsonResponse
-    {
-        $departmentId = $request->query->get('department_id');
-        if (!$departmentId) {
-            return new JsonResponse(['error' => 'department_id ist erforderlich'], 400);
-        }
-
-        $currentUser = $this->getUser();
-        if (!$currentUser instanceof User) {
-            return new JsonResponse(['error' => 'Nicht authentifiziert'], 401);
-        }
-        $membership = $this->entityManager->getRepository(Membership::class)
-            ->findOneBy(['userId' => $currentUser->getId(), 'departmentId' => $departmentId]);
-        if (!$membership) {
-            return new JsonResponse(['error' => 'Keine Berechtigung fuer dieses Department'], 403);
-        }
-
-        $groupId    = $request->query->get('group_id');
-        $dayOfWeek  = $request->query->getInt('day_of_week', 0); // 1=Mo..7=So (ISO-8601)
-        $type       = $request->query->get('type', 'activity');
-        $limit      = min($request->query->getInt('limit', 10), 20);
-        $minUsage   = $request->query->getInt('min_usage', 2);
-
-        $user = $this->getUser();
-        $userId = $user instanceof User ? $user->getId() : null;
-
-        $suggestions = [];
-        $seenMaterials = [];
-
-        // ─── Ebene 1: Gruppe + Wochentag ───
-        if ($groupId && $dayOfWeek >= 1 && $dayOfWeek <= 7) {
-            $qb = $this->entityManager->createQueryBuilder();
-            $qb->select(
-                'ai.materialItemId',
-                'mi.name AS materialName',
-                'COUNT(ai.id) AS usageCount',
-                'ROUND(AVG(ai.quantity)) AS avgQuantity',
-                'MAX(a.usageStart) AS lastUsed'
-            )
-            ->from(ActivityItem::class, 'ai')
-            ->join('ai.activity', 'a')
-            ->join('ai.materialItem', 'mi')
-            ->where('a.groupId = :groupId')
-            ->andWhere('a.departmentId = :departmentId')
-            ->andWhere('DAYOFWEEK(a.usageStart) = :dow')
-            ->andWhere('a.type = :type')
-            ->andWhere('a.status NOT IN (:excludeStatus)')
-            ->andWhere('a.deletedAt IS NULL')
-            ->groupBy('ai.materialItemId, mi.name')
-            ->having('COUNT(ai.id) >= :minUsage')
-            ->orderBy('usageCount', 'DESC')
-            ->setMaxResults($limit)
-            ->setParameter('groupId', $groupId)
-            ->setParameter('departmentId', $departmentId)
-            ->setParameter('dow', $dayOfWeek)
-            ->setParameter('type', $type)
-            ->setParameter('excludeStatus', ['draft', 'cancelled'])
-            ->setParameter('minUsage', $minUsage);
-
-            $rows = $qb->getQuery()->getArrayResult();
-
-            foreach ($rows as $row) {
-                $matId = $row['materialItemId'];
-                $seenMaterials[$matId] = true;
-                $suggestions[] = [
-                    'material_item_id' => $matId,
-                    'name'             => $row['materialName'],
-                    'usage_count'      => (int)$row['usageCount'],
-                    'avg_quantity'     => max(1, (int)$row['avgQuantity']),
-                    'last_used'        => $row['lastUsed'] instanceof \DateTimeInterface ? $row['lastUsed']->format('Y-m-d') : null,
-                    'source'           => 'group_weekday',
-                ];
-            }
-        }
-
-        // ─── Ebene 2: Gruppe allgemein ───
-        if ($groupId && count($suggestions) < $limit) {
-            $remaining = $limit - count($suggestions);
-
-            $qb2 = $this->entityManager->createQueryBuilder();
-            $qb2->select(
-                'ai.materialItemId',
-                'mi.name AS materialName',
-                'COUNT(ai.id) AS usageCount',
-                'ROUND(AVG(ai.quantity)) AS avgQuantity',
-                'MAX(a.usageStart) AS lastUsed'
-            )
-            ->from(ActivityItem::class, 'ai')
-            ->join('ai.activity', 'a')
-            ->join('ai.materialItem', 'mi')
-            ->where('a.groupId = :groupId')
-            ->andWhere('a.departmentId = :departmentId')
-            ->andWhere('a.status NOT IN (:excludeStatus)')
-            ->andWhere('a.deletedAt IS NULL')
-            ->groupBy('ai.materialItemId, mi.name')
-            ->having('COUNT(ai.id) >= :minUsage')
-            ->orderBy('usageCount', 'DESC')
-            ->setMaxResults($remaining + count($seenMaterials)) // Fetch extra to compensate for duplicates
-            ->setParameter('groupId', $groupId)
-            ->setParameter('departmentId', $departmentId)
-            ->setParameter('excludeStatus', ['draft', 'cancelled'])
-            ->setParameter('minUsage', $minUsage);
-
-            $rows2 = $qb2->getQuery()->getArrayResult();
-
-            foreach ($rows2 as $row) {
-                if (count($suggestions) >= $limit) break;
-                $matId = $row['materialItemId'];
-                if (isset($seenMaterials[$matId])) continue;
-                $seenMaterials[$matId] = true;
-                $suggestions[] = [
-                    'material_item_id' => $matId,
-                    'name'             => $row['materialName'],
-                    'usage_count'      => (int)$row['usageCount'],
-                    'avg_quantity'     => max(1, (int)$row['avgQuantity']),
-                    'last_used'        => $row['lastUsed'] instanceof \DateTimeInterface ? $row['lastUsed']->format('Y-m-d') : null,
-                    'source'           => 'group',
-                ];
-            }
-        }
-
-        // ─── Ebene 3: Persönliche Favoriten ───
-        if ($userId && count($suggestions) < $limit) {
-            $remaining = $limit - count($suggestions);
-
-            $qb3 = $this->entityManager->createQueryBuilder();
-            $qb3->select(
-                'ai.materialItemId',
-                'mi.name AS materialName',
-                'COUNT(ai.id) AS usageCount',
-                'ROUND(AVG(ai.quantity)) AS avgQuantity',
-                'MAX(a.usageStart) AS lastUsed'
-            )
-            ->from(ActivityItem::class, 'ai')
-            ->join('ai.activity', 'a')
-            ->join('ai.materialItem', 'mi')
-            ->where('a.createdByUserId = :userId')
-            ->andWhere('a.departmentId = :departmentId')
-            ->andWhere('a.status NOT IN (:excludeStatus)')
-            ->andWhere('a.deletedAt IS NULL')
-            ->groupBy('ai.materialItemId, mi.name')
-            ->orderBy('lastUsed', 'DESC')
-            ->setMaxResults($remaining + count($seenMaterials))
-            ->setParameter('userId', $userId)
-            ->setParameter('departmentId', $departmentId)
-            ->setParameter('excludeStatus', ['draft', 'cancelled']);
-
-            $rows3 = $qb3->getQuery()->getArrayResult();
-
-            foreach ($rows3 as $row) {
-                if (count($suggestions) >= $limit) break;
-                $matId = $row['materialItemId'];
-                if (isset($seenMaterials[$matId])) continue;
-                $seenMaterials[$matId] = true;
-                $suggestions[] = [
-                    'material_item_id' => $matId,
-                    'name'             => $row['materialName'],
-                    'usage_count'      => (int)$row['usageCount'],
-                    'avg_quantity'     => max(1, (int)$row['avgQuantity']),
-                    'last_used'        => $row['lastUsed'] instanceof \DateTimeInterface ? $row['lastUsed']->format('Y-m-d') : null,
-                    'source'           => 'personal',
-                ];
-            }
-        }
-
-        return new JsonResponse([
-            'suggestions' => $suggestions,
-            'meta' => [
-                'department_id' => $departmentId,
-                'group_id'      => $groupId,
-                'day_of_week'   => $dayOfWeek,
-                'type'          => $type,
-                'count'         => count($suggestions),
-            ],
-        ]);
     }
 
     /**
@@ -1695,7 +1791,7 @@ class ActivityController extends AbstractController
             'item_count' => $activity->getItemCount(),
             'pricing_mode' => $activity->getPricingMode(),
             'total_price' => $activity->getTotalPrice() ? (float) $activity->getTotalPrice() : null,
-            'invited_departments' => $activity->getInvitedDepartments(),
+            'invited_departments' => $this->enrichInvitedDepartmentsForApi($activity->getInvitedDepartments()),
             'created_at' => $activity->getCreatedAt()->format('c'),
             'updated_at' => $activity->getUpdatedAt()->format('c'),
         ];
@@ -1714,7 +1810,7 @@ class ActivityController extends AbstractController
                 'deposit_paid' => $activity->isDepositPaid(),
                 'is_paid' => $activity->isPaid(),
                 'notes' => $activity->getNotes(),
-                'invited_departments' => $activity->getInvitedDepartments(),
+                'invited_departments' => $this->enrichInvitedDepartmentsForApi($activity->getInvitedDepartments()),
                 'deleted_at' => $activity->getDeletedAt()?->format('c'),
                 // Workflow-Timestamps
                 'submitted_at' => $activity->getSubmittedAt()?->format('c'),
@@ -1733,66 +1829,6 @@ class ActivityController extends AbstractController
         }
 
         return $data;
-    }
-
-    private function isDepartmentInviteAccepted(Activity $activity, string $departmentId): bool
-    {
-        $invites = $activity->getInvitedDepartments() ?? [];
-        foreach ($invites as $invite) {
-            if (!is_array($invite)) {
-                continue;
-            }
-            if (($invite['id'] ?? null) !== $departmentId) {
-                continue;
-            }
-            return ($invite['status'] ?? 'pending') === 'accepted';
-        }
-        return false;
-    }
-
-    private function canUserViewActivity(User $user, Activity $activity): bool
-    {
-        if ($this->canUserAccessActivity($user, $activity)) {
-            return true;
-        }
-
-        $memberships = $this->entityManager->getRepository(Membership::class)
-            ->findBy(['userId' => $user->getId()]);
-        foreach ($memberships as $membership) {
-            if ($this->isDepartmentInviteAccepted($activity, $membership->getDepartmentId())) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    private function canUserAccessActivity(User $user, Activity $activity): bool
-    {
-        $membership = $this->entityManager->getRepository(Membership::class)
-            ->findOneBy(['userId' => $user->getId(), 'departmentId' => $activity->getDepartmentId()]);
-        if (!$membership) {
-            return false;
-        }
-
-        $managerRoles = ['sa', 'org', 'sub', 'mw', 'dc'];
-        if (in_array($membership->getRole(), $managerRoles, true)) {
-            return true;
-        }
-
-        if ($activity->getCreatedByUserId() === $user->getId() || $activity->getResponsibleUserId() === $user->getId()) {
-            return true;
-        }
-
-        $groupId = $activity->getGroupId();
-        if (!$groupId) {
-            return false;
-        }
-
-        $groupMembership = $this->entityManager->getRepository(GroupMembership::class)
-            ->findOneBy(['userId' => $user->getId(), 'groupId' => $groupId]);
-
-        return $groupMembership !== null;
     }
 
     // ═══════════════════════════════════════════════

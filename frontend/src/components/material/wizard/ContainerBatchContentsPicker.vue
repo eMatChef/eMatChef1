@@ -3,14 +3,19 @@
     <label class="rack-contents-label">Aus Kiste übernehmen</label>
     <div class="rack-contents-row">
       <select
-        :model-value="containerBatchId"
+        :value="containerBatchId"
         class="form-select rack-select"
         :disabled="isLoading"
         @change="onBatchChange"
       >
         <option value="">Kiste wählen…</option>
-        <option v-for="cb in containerBatches" :key="cb.id" :value="cb.id">
-          {{ formatOption(cb) }}
+        <option
+          v-for="cb in containerBatches"
+          :key="cb.id"
+          :value="cb.id"
+          :title="formatContainerBatchOptionFullLabel(cb)"
+        >
+          {{ formatContainerBatchOptionFullLabel(cb) }}
         </option>
       </select>
       <button
@@ -18,9 +23,10 @@
         type="button"
         class="btn-outline-small"
         :disabled="isLoading"
+        :title="selectedContents ? 'Kisteninhalt erneut vom Server laden' : undefined"
         @click="emit('load')"
       >
-        {{ isLoading ? 'Laden…' : 'Inhalt übernehmen' }}
+        {{ isLoading ? 'Laden…' : selectedContents ? 'Aktualisieren' : 'Inhalt übernehmen' }}
       </button>
     </div>
     <p v-if="selectedContents && selectedContents.contents.length" class="rack-contents-hint">
@@ -34,6 +40,7 @@
 
 <script setup lang="ts">
 import type { ContainerBatch, ContainerBatchContentsResponse } from '@/api/storageLocations'
+import { formatContainerBatchOptionFullLabel } from '@/utils/containerBatchLabel'
 
 defineProps<{
   containerBatchId: string
@@ -50,14 +57,5 @@ const emit = defineEmits<{
 function onBatchChange(e: Event) {
   const el = e.target as HTMLSelectElement
   emit('update:containerBatchId', el.value)
-}
-
-function formatOption(cb: ContainerBatch): string {
-  const d = (cb.display_label || '').trim()
-  if (d) return d
-  const label = (cb.label || cb.serial_number || '').trim()
-  const name = (cb.material_name || '').trim()
-  if (label && name && label !== name) return `${label} – ${name}`
-  return label || name || 'Kiste'
 }
 </script>

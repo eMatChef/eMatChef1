@@ -230,6 +230,22 @@
               <span>Öffentliche Notiz anzeigen</span>
             </label>
           </div>
+          <div class="info-item">
+            <span class="info-label">Hinweise vom QR-Code (Fund / Kontakt)</span>
+            <p class="selector-hint" style="margin: 0 0 8px;">
+              Wo sollen Nachrichten aus dem öffentlichen Formular ankommen? (Nur für Nutzer mit Zugriff auf die
+              Nachrichtenzentrale sichtbar.)
+            </p>
+            <select v-model="publicFoundContactDelivery" class="department-select">
+              <option value="email">Nur per E-Mail</option>
+              <option value="in_app">Nur in der Nachrichtenzentrale (App)</option>
+              <option value="both">E-Mail und Nachrichtenzentrale</option>
+            </select>
+            <p class="selector-hint" style="margin: 8px 0 0;">
+              Bei „E-Mail“ oder „beides“ muss eine Kontakt-E-Mail hinterlegt sein (oben oder als allgemeine
+              Abteilungsadresse).
+            </p>
+          </div>
           <div class="onboarding-admin-row">
             <p class="selector-hint" style="margin: 0;">
               Fallback für E-Mail: allgemeine Adresse (type=general).
@@ -504,6 +520,7 @@ import {
   resetDepartmentOnboardingDone,
   resetDepartmentDb as apiResetDepartmentDb,
   savePublicSharingSettings,
+  type PublicFoundContactDelivery,
 } from '@/api/departmentSettings'
 import { buildOnboardingDismissedKey, buildOnboardingDoneKey, buildOnboardingStateKey } from '@/utils/departmentOnboarding'
 import MapView from '@/components/MapView.vue'
@@ -533,6 +550,7 @@ const publicContactNote = ref('')
 const publicShowContactForm = ref(true)
 const publicShowContactEmail = ref(true)
 const publicShowContactNote = ref(true)
+const publicFoundContactDelivery = ref<PublicFoundContactDelivery>('both')
 
 // Primary Department State
 const isSavingPrimary = ref(false)
@@ -725,12 +743,14 @@ async function loadPublicSettings(deptId: string) {
     publicShowContactForm.value = settings.publicShowContactForm
     publicShowContactEmail.value = settings.publicShowContactEmail
     publicShowContactNote.value = settings.publicShowContactNote
+    publicFoundContactDelivery.value = settings.publicFoundContactDelivery
   } catch {
     publicContactEmail.value = ''
     publicContactNote.value = ''
     publicShowContactForm.value = true
     publicShowContactEmail.value = true
     publicShowContactNote.value = true
+    publicFoundContactDelivery.value = 'both'
   }
 }
 
@@ -744,6 +764,7 @@ async function savePublicSettings() {
       publicShowContactForm: publicShowContactForm.value,
       publicShowContactEmail: publicShowContactEmail.value,
       publicShowContactNote: publicShowContactNote.value,
+      publicFoundContactDelivery: publicFoundContactDelivery.value,
     })
     toast.success('Öffentliche Einstellungen gespeichert.')
   } catch (err: any) {

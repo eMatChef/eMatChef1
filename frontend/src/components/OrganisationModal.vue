@@ -82,30 +82,36 @@ const formData = ref({
 })
 
 // Watch für Modal-Öffnung und Organisation-Änderungen
-watch(() => [props.isOpen, props.organisation], async ([open, org]) => {
-  if (open) {
-    error.value = null
-    // Stelle sicher, dass formData korrekt gesetzt ist
-    if (org && org.id) {
-      // Bearbeiten: Setze den Namen der Organisation
-      formData.value = {
-        name: org.name || ''
+watch(
+  () => [props.isOpen, props.organisation],
+  async (tuple) => {
+    const open = tuple[0]
+    const org = tuple[1] as Organisation | null | undefined
+    if (open) {
+      error.value = null
+      // Stelle sicher, dass formData korrekt gesetzt ist
+      if (org && org.id) {
+        // Bearbeiten: Setze den Namen der Organisation
+        formData.value = {
+          name: org.name || ''
+        }
+      } else {
+        // Neu erstellen: Leeres Formular
+        formData.value = {
+          name: ''
+        }
       }
-    } else {
-      // Neu erstellen: Leeres Formular
-      formData.value = {
-        name: ''
+      // Fokussiere das Input-Feld nach dem Rendern
+      await nextTick()
+      await nextTick() // Doppeltes nextTick für sicherere DOM-Updates
+      if (nameInput.value) {
+        nameInput.value.focus()
+        nameInput.value.select()
       }
     }
-    // Fokussiere das Input-Feld nach dem Rendern
-    await nextTick()
-    await nextTick() // Doppeltes nextTick für sicherere DOM-Updates
-    if (nameInput.value) {
-      nameInput.value.focus()
-      nameInput.value.select()
-    }
-  }
-}, { immediate: true })
+  },
+  { immediate: true }
+)
 
 async function handleSubmit() {
   if (!formData.value.name) {

@@ -13,7 +13,7 @@
     <div class="template-picker-body">
       <div class="autocomplete-wrapper">
         <input
-          :model-value="search"
+          :value="search"
           type="text"
           class="form-input"
           placeholder="Vorlage suchen (z.B. hajk, Spatz, Phoenix)..."

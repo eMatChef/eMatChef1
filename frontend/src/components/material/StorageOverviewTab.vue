@@ -10,7 +10,10 @@
       <button class="btn-outline" @click="load">Erneut versuchen</button>
     </div>
 
-    <div v-else-if="!filteredOverview || filteredOverview.racks.length === 0" class="storage-empty">
+    <div
+      v-else-if="(!filteredOverview || filteredOverview.racks.length === 0) && !comboViaPhysicalBlocks.length"
+      class="storage-empty"
+    >
       <template v-if="containerBatchId">
         <p>In dieser Kiste wurden keine passenden Inhalte gefunden.</p>
         <p class="hint">Prüfen Sie die Auswahl oder passen Sie den Suchtext an.</p>
@@ -25,7 +28,35 @@
       </template>
     </div>
 
-    <div v-else class="storage-tree">
+    <div v-else class="storage-main">
+      <div v-if="comboViaPhysicalBlocks.length" class="combo-derived-storage">
+        <p class="combo-derived-intro">
+          <strong>Physische Kombination:</strong> Dieser Artikel liegt mit der Kombi-Einheit am gleichen Lagerplatz
+          (keine separate Allokation nur für diesen Artikel).
+        </p>
+        <div
+          v-for="block in comboViaPhysicalBlocks"
+          :key="block.parent_material_id"
+          class="combo-derived-card"
+        >
+          <div class="combo-derived-card-head">
+            <router-link
+              class="combo-derived-parent-link"
+              :to="`/${departmentId}/materials/${block.parent_material_id}`"
+            >
+              {{ block.parent_name }}
+            </router-link>
+            <span class="combo-derived-qty">{{ block.component_qty }} Stk. in dieser Kombi</span>
+          </div>
+          <ul class="combo-derived-loc-list">
+            <li v-for="(loc, idx) in block.locations" :key="`${block.parent_material_id}-${idx}`">
+              {{ formatComboLocationLine(loc) }}
+            </li>
+          </ul>
+        </div>
+      </div>
+
+      <div v-if="filteredOverview && filteredOverview.racks.length > 0" class="storage-tree">
       <div v-if="containerBatchId" class="storage-context-hint">
         Inhalt der gewählten Kiste
       </div>
@@ -88,53 +119,88 @@
                 </div>
                 <ul v-else class="slot-contents">
                   <li
-                    v-for="(item, idx) in slot.contents"
-                    :key="`${item.batch_id}-${item.allocation_id ?? idx}`"
+                    v-for="(row, idx) in slot.displayRows"
+                    :key="slotRowKey(row, idx)"
                     class="content-item"
-                    :class="{ 'content-item--container': isContainerStoredItem(item) }"
+                    :class="{ 'content-item--container': row.type === 'container-group' || (row.type === 'single' && isContainerStoredItem(row.item)) }"
                   >
-                    <div class="content-main">
-                      <template v-if="isContainerStoredItem(item)">
-                        <span class="container-label">{{ getContainerDisplayLabel(item) }}</span>
-                        <span class="container-article">{{ item.material_name }}</span>
-                        <span v-if="getContainerOtherItemsCount(item) > 0" class="container-more">
-                          +{{ getContainerOtherItemsCount(item) }} weitere in der Kiste
+                    <template v-if="row.type === 'container-group'">
+                      <div class="content-main">
+                        <span class="container-label">{{ row.container_label }}</span>
+                        <div
+                          v-for="line in row.previewLines"
+                          :key="line.material_id"
+                          class="container-preview-line"
+                        >
+                          <span class="container-article">{{ line.material_name }}</span>
+                          <span class="container-preview-qty">{{ line.qty }} Stk.</span>
+                        </div>
+                        <span v-if="row.moreCount > 0" class="container-more">
+                          +{{ row.moreCount }} weitere in der Kiste
                         </span>
                         <button
-                          v-if="canOpenContainerMaterial(item)"
+                          v-if="canOpenContainerMaterial(row.representative)"
                           class="container-link-btn"
-                          @click.stop="openContainerMaterialFromStoredItem(item)"
+                          @click.stop="openContainerMaterialFromStoredItem(row.representative)"
                         >
                           Kiste öffnen
                         </button>
-                      </template>
-                      <template v-else>
-                        <template v-if="item.container_label">
-                          <span class="content-label">{{ item.container_label }}</span>
-                          <span class="content-material-name">{{ item.material_name }}</span>
+                      </div>
+                      <span class="content-qty">{{ row.totalQty }} Stk.</span>
+                      <div class="content-actions" v-if="!readonly || allowOpenActions">
+                        <StorageActionButton
+                          v-if="!readonly || allowOpenActions"
+                          title="Material öffnen"
+                          size="sm"
+                          icon="open"
+                          @click.stop="openMaterial(row.representative)"
+                        />
+                      </div>
+                    </template>
+                    <template v-else>
+                      <div class="content-main">
+                        <template v-if="isContainerStoredItem(row.item)">
+                          <span class="container-label">{{ getContainerDisplayLabel(row.item) }}</span>
+                          <span class="container-article">{{ row.item.material_name }}</span>
+                          <span v-if="getContainerOtherItemsCount(row.item) > 0" class="container-more">
+                            +{{ getContainerOtherItemsCount(row.item) }} weitere in der Kiste
+                          </span>
+                          <button
+                            v-if="canOpenContainerMaterial(row.item)"
+                            class="container-link-btn"
+                            @click.stop="openContainerMaterialFromStoredItem(row.item)"
+                          >
+                            Kiste öffnen
+                          </button>
                         </template>
                         <template v-else>
-                          <span class="content-name">{{ item.material_name }}</span>
+                          <template v-if="row.item.container_label">
+                            <span class="content-label">{{ row.item.container_label }}</span>
+                            <span class="content-material-name">{{ row.item.material_name }}</span>
+                          </template>
+                          <template v-else>
+                            <span class="content-name">{{ row.item.material_name }}</span>
+                          </template>
                         </template>
-                      </template>
-                    </div>
-                    <span class="content-qty">{{ item.qty }} Stk.</span>
-                    <div class="content-actions" v-if="!readonly || allowMoveActions || allowOpenActions">
-                      <StorageActionButton
-                        v-if="item.tracking_type !== 'serialized'"
-                        title="Menge verschieben"
-                        size="sm"
-                        icon="move"
-                        @click.stop="openMoveForItem(item, rack, slot)"
-                      />
-                      <StorageActionButton
-                        v-if="!readonly || allowOpenActions"
-                        title="Material öffnen"
-                        size="sm"
-                        icon="open"
-                        @click.stop="openMaterial(item)"
-                      />
-                    </div>
+                      </div>
+                      <span class="content-qty">{{ row.item.qty }} Stk.</span>
+                      <div class="content-actions" v-if="!readonly || allowMoveActions || allowOpenActions">
+                        <StorageActionButton
+                          v-if="row.item.tracking_type !== 'serialized'"
+                          title="Menge verschieben"
+                          size="sm"
+                          icon="move"
+                          @click.stop="openMoveForItem(row.item, rack, slot)"
+                        />
+                        <StorageActionButton
+                          v-if="!readonly || allowOpenActions"
+                          title="Material öffnen"
+                          size="sm"
+                          icon="open"
+                          @click.stop="openMaterial(row.item)"
+                        />
+                      </div>
+                    </template>
                   </li>
                 </ul>
               </div>
@@ -142,6 +208,7 @@
           </div>
         </div>
       </div>
+    </div>
     </div>
 
     <MoveQuantityModal
@@ -230,7 +297,12 @@ import {
   type StorageSlotContent
 } from '@/api/storageLocations'
 import { getAddresses, type Address } from '@/api/addresses'
-import { getMaterial } from '@/api/materials'
+import {
+  getMaterial,
+  getMaterialStorageLocations,
+  type MaterialStorageLocationRow,
+  type MaterialStorageLocationsResponse,
+} from '@/api/materials'
 import MoveQuantityModal from '@/components/material/MoveQuantityModal.vue'
 import { useToast } from '@/composables/useToast'
 import StorageBulkCreateModal from '@/components/storage/StorageBulkCreateModal.vue'
@@ -293,6 +365,8 @@ const showDeleteConfirmModal = ref(false)
 const deleteTarget = ref<{ type: 'rack' | 'slot'; locationId: string; rackId: string; slotId?: string; name: string } | null>(null)
 const isSubmittingAction = ref(false)
 const containerBatches = ref<ContainerBatch[]>([])
+/** Lagerorte inkl. über physische Kombi (Elternmaterial) – nur wenn materialId gesetzt */
+const materialStorageContext = ref<MaterialStorageLocationsResponse | null>(null)
 
 type StorageLocationNode = {
   id: string
@@ -344,6 +418,23 @@ const containerMaterialByBatchId = computed(() => {
   return map
 })
 
+const comboViaPhysicalBlocks = computed(() => {
+  if ((props.containerBatchId || '').trim()) return []
+  return materialStorageContext.value?.via_physical_combo ?? []
+})
+
+function formatComboLocationLine(loc: MaterialStorageLocationRow): string {
+  const parts: string[] = []
+  if (loc.storage_address_name) parts.push(loc.storage_address_name)
+  if (loc.location_label) parts.push(loc.location_label)
+  else if (loc.rack_name) {
+    parts.push(loc.slot_name ? `${loc.rack_name} / ${loc.slot_name}` : loc.rack_name)
+  }
+  if (loc.container_caption) parts.push(`Kiste: ${loc.container_caption}`)
+  if (loc.qty > 0) parts.push(`${loc.qty} Stk.`)
+  return parts.join(' · ')
+}
+
 function matchesSearch(item: StorageSlotContent): boolean {
   const q = normalizedSearchQuery.value
   if (!q) return true
@@ -358,28 +449,163 @@ function matchesSearch(item: StorageSlotContent): boolean {
   return haystack.includes(q)
 }
 
-const filteredOverview = computed<StorageOverviewResponse | null>(() => {
-  const raw = overview.value
-  if (!raw) return null
+type SlotDisplayRow =
+  | {
+      type: 'container-group'
+      container_batch_id: string
+      container_label: string
+      previewLines: { material_id: string; material_name: string; qty: number }[]
+      moreCount: number
+      totalQty: number
+      representative: StorageSlotContent
+    }
+  | { type: 'single'; item: StorageSlotContent }
+
+type StorageOverviewSlotWithRows = StorageOverviewSlot & { displayRows: SlotDisplayRow[] }
+
+function aggregateContainerPreview(items: StorageSlotContent[]): {
+  previewLines: { material_id: string; material_name: string; qty: number }[]
+  moreCount: number
+  totalQty: number
+} {
+  const byMat = new Map<string, { material_id: string; material_name: string; qty: number }>()
+  for (const item of items) {
+    const id = item.material_id
+    const ex = byMat.get(id)
+    if (ex) ex.qty += item.qty
+    else byMat.set(id, { material_id: id, material_name: item.material_name, qty: item.qty })
+  }
+  const sorted = Array.from(byMat.values()).sort((a, b) =>
+    a.material_name.localeCompare(b.material_name, 'de')
+  )
+  const totalQty = sorted.reduce((s, x) => s + x.qty, 0)
+  const previewLines = sorted.slice(0, 2)
+  const moreCount = Math.max(0, sorted.length - 2)
+  return { previewLines, moreCount, totalQty }
+}
+
+/** Eine Zeile pro Kiste (container_batch_id); die physische Kisten-Charge am Platz wird ausgeblendet, wenn Inhalt angezeigt wird. */
+function buildSlotDisplayRows(contents: StorageSlotContent[]): SlotDisplayRow[] {
+  const groups = new Map<string, StorageSlotContent[]>()
+  for (const item of contents) {
+    const cid = (item.container_batch_id || '').trim()
+    if (cid) {
+      if (!groups.has(cid)) groups.set(cid, [])
+      groups.get(cid)!.push(item)
+    }
+  }
+  const hideBatchIds = new Set(groups.keys())
+  const rows: SlotDisplayRow[] = []
+  const emittedContainers = new Set<string>()
+
+  for (const item of contents) {
+    const cid = (item.container_batch_id || '').trim()
+    if (cid) {
+      if (emittedContainers.has(cid)) continue
+      emittedContainers.add(cid)
+      const groupItems = groups.get(cid) || [item]
+      const label =
+        groupItems.find((i) => (i.container_label || '').trim())?.container_label?.trim() ||
+        `Kiste ${cid}`
+      const rep = groupItems[0]
+      const { previewLines, moreCount, totalQty } = aggregateContainerPreview(groupItems)
+      rows.push({
+        type: 'container-group',
+        container_batch_id: cid,
+        container_label: label,
+        previewLines,
+        moreCount,
+        totalQty,
+        representative: rep,
+      })
+      continue
+    }
+    if (hideBatchIds.has(item.batch_id)) continue
+    rows.push({ type: 'single', item })
+  }
+  return rows
+}
+
+function filterSlotContentsForOverview(items: StorageSlotContent[]): StorageSlotContent[] {
   const byContainer = (props.containerBatchId || '').trim()
   const byMaterial = (props.materialId || '').trim()
   const hasSearch = normalizedSearchQuery.value.length > 0
-  if (!byContainer && !byMaterial && !hasSearch) return raw
 
+  const groups = new Map<string, StorageSlotContent[]>()
+  for (const item of items) {
+    const cid = (item.container_batch_id || '').trim()
+    if (cid) {
+      if (!groups.has(cid)) groups.set(cid, [])
+      groups.get(cid)!.push(item)
+    }
+  }
+
+  function groupVisible(groupItems: StorageSlotContent[]): boolean {
+    if (byContainer) {
+      return groupItems.some((i) => (i.container_batch_id || '') === byContainer)
+    }
+    let candidates = groupItems
+    if (byMaterial) {
+      candidates = groupItems.filter((i) => i.material_id === byMaterial)
+    }
+    if (candidates.length === 0) return false
+    if (!hasSearch) return true
+    return candidates.some((i) => matchesSearch(i))
+  }
+
+  function standaloneVisible(item: StorageSlotContent): boolean {
+    if (byContainer) {
+      return (item.container_batch_id || '') === byContainer
+    }
+    if (byMaterial && item.material_id !== byMaterial) {
+      return false
+    }
+    return matchesSearch(item)
+  }
+
+  const hideBatchIds = new Set(groups.keys())
+  const out: StorageSlotContent[] = []
+  const addedGroups = new Set<string>()
+
+  for (const item of items) {
+    const cid = (item.container_batch_id || '').trim()
+    if (cid) {
+      if (addedGroups.has(cid)) continue
+      const grp = groups.get(cid) || []
+      if (groupVisible(grp)) {
+        addedGroups.add(cid)
+        out.push(...grp)
+      }
+      continue
+    }
+    if (hideBatchIds.has(item.batch_id)) continue
+    if (standaloneVisible(item)) out.push(item)
+  }
+  return out
+}
+
+function slotRowKey(row: SlotDisplayRow, idx: number): string {
+  if (row.type === 'container-group') {
+    return `cg-${row.container_batch_id}`
+  }
+  return `${row.item.batch_id}-${row.item.allocation_id ?? idx}`
+}
+
+const filteredOverview = computed<{ racks: Array<StorageOverviewRack & { slots: StorageOverviewSlotWithRows[] }> } | null>(() => {
+  const raw = overview.value
+  if (!raw) return null
   const filteredRacks = raw.racks
     .map((rack) => {
       const filteredSlots = (rack.slots || [])
-        .map((slot) => ({
-          ...slot,
-          contents: (slot.contents || []).filter((item) => {
-            if (byContainer) {
-              if ((item.container_batch_id || '') !== byContainer) return false
-            } else if (byMaterial && item.material_id !== byMaterial) {
-              return false
-            }
-            return matchesSearch(item)
-          }),
-        }))
+        .map((slot) => {
+          const contents = filterSlotContentsForOverview(slot.contents || [])
+          const displayRows = buildSlotDisplayRows(contents)
+          return {
+            ...slot,
+            contents,
+            displayRows,
+          }
+        })
         .filter((slot) => slot.contents.length > 0)
 
       return {
@@ -658,6 +884,19 @@ async function load(
   }
 }
 
+async function loadMaterialStorageContext() {
+  const mid = (props.materialId || '').trim()
+  if (!mid || !props.departmentId || (props.containerBatchId || '').trim()) {
+    materialStorageContext.value = null
+    return
+  }
+  try {
+    materialStorageContext.value = await getMaterialStorageLocations(mid, props.departmentId)
+  } catch {
+    materialStorageContext.value = null
+  }
+}
+
 function canOpenContainerMaterial(item: StorageSlotContent): boolean {
   const containerId = (item.container_batch_id || '').trim()
   if (!containerId) return false
@@ -709,6 +948,7 @@ function openMaterial(item: StorageSlotContent) {
 
 function handleMoveSaved() {
   load()
+  void loadMaterialStorageContext()
 }
 
 function isContainerStoredItem(item: StorageSlotContent): boolean {
@@ -735,11 +975,79 @@ function getContainerOtherItemsCount(item: StorageSlotContent): number {
   return uniqueOtherMaterials.size
 }
 
+watch(
+  () => [props.materialId, props.departmentId, props.containerBatchId],
+  () => {
+    void loadMaterialStorageContext()
+  },
+  { immediate: true }
+)
 watch(() => props.departmentId, () => { load() }, { immediate: true })
 onMounted(() => { load() })
 </script>
 
 <style scoped>
+.storage-main {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.combo-derived-storage {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 16px 18px;
+}
+
+.combo-derived-intro {
+  margin: 0 0 14px;
+  font-size: 14px;
+  color: #475569;
+  line-height: 1.5;
+}
+
+.combo-derived-card {
+  padding: 12px 0 0;
+  border-top: 1px solid #f1f5f9;
+}
+
+.combo-derived-card:first-of-type {
+  border-top: none;
+  padding-top: 0;
+}
+
+.combo-derived-card-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 10px 14px;
+  margin-bottom: 8px;
+}
+
+.combo-derived-parent-link {
+  font-weight: 600;
+  color: #2563eb;
+  text-decoration: none;
+}
+
+.combo-derived-parent-link:hover {
+  text-decoration: underline;
+}
+
+.combo-derived-qty {
+  font-size: 13px;
+  color: #64748b;
+}
+
+.combo-derived-loc-list {
+  margin: 0;
+  padding-left: 1.2rem;
+  font-size: 14px;
+  color: #334155;
+  line-height: 1.55;
+}
+
 .storage-overview-tab {
   padding: 24px;
   background: #f8fafc;
@@ -989,6 +1297,19 @@ onMounted(() => { load() })
 .container-article {
   font-size: 14px;
   color: #111827;
+}
+
+.container-preview-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 10px;
+}
+
+.container-preview-qty {
+  font-size: 12px;
+  color: #6b7280;
+  flex-shrink: 0;
 }
 
 .container-more {

@@ -54,15 +54,22 @@
       </div>
     </div>
 
-    <!-- Template-Komponentenübersicht -->
-    <div v-if="isFromTemplate && componentInputs.length > 0" class="tracking-info">
-      <div class="info-row">
+    <!-- Template- oder Kisten-Komponentenübersicht (Lagerort folgt live der Auswahl im Formular) -->
+    <div
+      v-if="componentInputs.length > 0 && (isFromTemplate || isFromContainerBatchContents)"
+      class="tracking-info"
+    >
+      <div v-if="isFromTemplate" class="info-row">
         <span class="info-label">Vorlage:</span>
         <span class="info-value">{{ templateName }}</span>
       </div>
-      <div v-if="tentCapacity" class="info-row">
+      <div v-if="isFromTemplate && tentCapacity" class="info-row">
         <span class="info-label">Kapazität:</span>
         <span class="info-value">{{ tentCapacity }} Personen</span>
+      </div>
+      <div v-if="isFromContainerBatchContents && !isFromTemplate" class="info-row">
+        <span class="info-label">Quelle:</span>
+        <span class="info-value">Kisteninhalt</span>
       </div>
       <div class="info-row">
         <span class="info-label">Komponenten:</span>
@@ -88,7 +95,10 @@
       </div>
     </div>
 
-    <div v-if="!isFromTemplate && (trackingType || comboArticlesCount > 0)" class="tracking-info">
+    <div
+      v-if="!isFromTemplate && !isFromContainerBatchContents && (trackingType || comboArticlesCount > 0)"
+      class="tracking-info"
+    >
       <div v-if="trackingType" class="info-row">
         <span class="info-label">Bestandsverfolgung:</span>
         <span class="info-value">{{ trackingTypeLabel }}</span>
@@ -137,6 +147,8 @@ const props = defineProps<{
   packUnit?: string | null
   externalSource?: string | null
   isFromTemplate?: boolean
+  /** Combo aus Kiste: gleiche Komponenten-Liste wie Vorlage, Quelle „Kisteninhalt“ */
+  isFromContainerBatchContents?: boolean
   templateName?: string | null
   tentCapacity?: number | null
   componentInputs: ComponentInputForPreview[]

@@ -75,6 +75,7 @@ class RecreateTestUsersCommand extends Command
             $newUser->setState('active');
             $hashedPassword = $this->passwordHasher->hashPassword($newUser, $testUser['password']);
             $newUser->setPassword($hashedPassword);
+            $newUser->setEmailVerified(true);
             $newUser->setId(IdGenerator::generateForEntity($newUser));
             $this->em->persist($newUser);
             $this->em->flush();

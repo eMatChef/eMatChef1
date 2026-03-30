@@ -10,9 +10,21 @@ Es unterstützt den Bestand, Bewegungen und Rollenrechte in einem Vue-Frontend m
 - Node.js 18+ (nur fuer lokale Frontend-Entwicklung)
 
 ### Start
+Damit `backend/vendor` und `frontend/node_modules` auf dem Host **nicht** als `root` angelegt werden (sonst brauchst du später `sudo chown` fuer `composer`/`npm`):
+
 ```bash
-docker-compose up -d
+export HOST_UID=$(id -u) HOST_GID=$(id -g)
+docker compose up -d
 ```
+
+Wenn deine UID/GID dauerhaft 1000 sind (typisch unter WSL/Linux), reicht auch `docker compose up -d` ohne `export`.
+
+### Lokale URLs (App + QR wie in Produktion)
+
+- **App:** http://app.localhost
+- **QR (öffentliche Subdomain):** http://qr.localhost
+
+Moderne Browser lösen `*.localhost` auf `127.0.0.1` auf, **ohne** `/etc/hosts`. Die gleichen Einstellungen kannst du bei Bedarf in `frontend/.env` setzen (siehe `frontend/.env.example`).
 
 ### Frontend lokal entwickeln
 ```bash
@@ -28,8 +40,9 @@ composer install
 ```
 
 ## Services
-- Frontend: http://localhost:5173
-- Backend API: http://localhost:8081
+- App (Nginx, empfohlen): http://app.localhost (auch http://localhost oder http://qr.localhost)
+- Frontend (Vite direkt): http://localhost:5173
+- Backend API: http://localhost:8081 (unter `/api` auch ueber Nginx auf app.localhost / qr.localhost)
 - PostgreSQL: localhost:5432
 - Adminer: http://localhost:8082
 
@@ -55,4 +68,4 @@ docker exec ematchef_v401-backend-1 php bin/console app:org-subset:export --org=
 docker exec ematchef_v401-backend-1 php bin/console app:org-subset:import --file=data/seeds/orgs/org_js000000_and_GLOBALORG001/subset.json --ensure-superadmin
 ```
 
-Weitere Details: `docs/SETUP_ORG_SUBSET_SEED.md`
+Weitere Details: `docs/

@@ -421,21 +421,28 @@ function selectParentDepartment(dept: { id: string }) {
 }
 
 // Watch für Department-Änderungen (Edit-Modus) und vorausgewählte Organisation/Parent
-watch(() => [props.department, props.preselectedOrganisationId, props.preselectedParentId], ([dept, preselOrgId, preselParentId]) => {
-  if (dept) {
-    formData.value = {
-      name: dept.name,
-      organisationId: dept.organisation_id,
-      parentId: dept.parent_id || null
+watch(
+  () => [props.department, props.preselectedOrganisationId, props.preselectedParentId],
+  (tuple) => {
+    const dept = tuple[0] as Department | null | undefined
+    const preselOrgId = tuple[1] as string | null | undefined
+    const preselParentId = tuple[2] as string | null | undefined
+    if (dept) {
+      formData.value = {
+        name: dept.name,
+        organisationId: dept.organisation_id,
+        parentId: dept.parent_id || null
+      }
+    } else {
+      formData.value = {
+        name: '',
+        organisationId: preselOrgId || '',
+        parentId: preselParentId || null
+      }
     }
-  } else {
-    formData.value = {
-      name: '',
-      organisationId: preselOrgId || '',
-      parentId: preselParentId || null
-    }
-  }
-}, { immediate: true })
+  },
+  { immediate: true }
+)
 
 function onOrganisationChange() {
   // Parent zurücksetzen wenn Organisation geändert wird

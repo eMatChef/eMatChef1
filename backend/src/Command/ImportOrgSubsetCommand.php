@@ -8,6 +8,7 @@ use App\Entity\Organisation;
 use App\Entity\Profile;
 use App\Entity\User;
 use App\Enum\DepartmentRole;
+use App\Service\Accounting\AccountingCostCenterBootstrapService;
 use App\Util\IdGenerator;
 use Doctrine\DBAL\Connection;
 use Doctrine\ORM\EntityManagerInterface;
@@ -27,7 +28,8 @@ class ImportOrgSubsetCommand extends Command
 {
     public function __construct(
         private EntityManagerInterface $entityManager,
-        private UserPasswordHasherInterface $passwordHasher
+        private UserPasswordHasherInterface $passwordHasher,
+        private AccountingCostCenterBootstrapService $accountingCostCenterBootstrap
     ) {
         parent::__construct();
     }
@@ -285,6 +287,7 @@ class ImportOrgSubsetCommand extends Command
             $department->setOrganisation($organisation);
             $em->persist($department);
             $em->flush();
+            $this->accountingCostCenterBootstrap->ensureDefaultCostCenters($em, $department);
             $io->warning('Kein Department vorhanden - Standard Department erstellt.');
         }
 
@@ -311,6 +314,7 @@ class ImportOrgSubsetCommand extends Command
         }
 
         $user->setPassword($this->passwordHasher->hashPassword($user, $password));
+        $user->setEmailVerified(true);
 
         $membership = $em->getRepository(Membership::class)->findOneBy([
             'userId' => $user->getId(),

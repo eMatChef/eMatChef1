@@ -4,6 +4,7 @@ import { useAuthStore } from '@/stores/auth'
 import { usePermissionsStore } from '@/stores/permissions'
 import { usePageHeadStore } from '@/stores/pageHead'
 import { syncDocumentHead } from '@/composables/usePageHead'
+import { getMainSiteOrigin, isAppOrigin } from '@/utils/appLoginUrl'
 
 /** Standard-Beschreibung für route.meta (SEO / Open Graph) */
 const PAGE_DESC = 'eMatChef – Materialverwaltung für Vermietungen.'
@@ -20,35 +21,144 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
-    path: '/impressum',
-    name: 'Impressum',
-    component: () => import('@/views/public/ImpressumView.vue'),
+    path: '/open-from-qr',
+    name: 'OpenFromQr',
+    component: () => import('@/views/public/OpenFromQrView.vue'),
     meta: {
       requiresAuth: false,
-      pageTitle: 'Impressum · eMatChef',
-      pageDescription: 'Impressum und Anbieterkennzeichnung für eMatChef – Materialverwaltung.',
-    }
-  },
-  {
-    path: '/datenschutz',
-    name: 'Datenschutz',
-    component: () => import('@/views/public/DatenschutzView.vue'),
-    meta: {
-      requiresAuth: false,
-      pageTitle: 'Datenschutz · eMatChef',
-      pageDescription: 'Datenschutzhinweise für die Nutzung von eMatChef.',
+      pageTitle: 'QR · eMatChef',
+      pageDescription: PAGE_DESC,
     }
   },
   {
     path: '/',
+    component: () => import('@/components/layout/PublicSiteLayout.vue'),
+    meta: { requiresAuth: false },
+    children: [
+      {
+        path: '',
+        name: 'LandingHome',
+        component: () => import('@/views/public/LandingHomeView.vue'),
+        meta: {
+          publicMarketing: true,
+          requiresAuth: false,
+          pageTitle: 'eMatChef · Materialverwaltung',
+          pageDescription: PAGE_DESC,
+        }
+      },
+      {
+        path: 'blog',
+        name: 'Blog',
+        component: () => import('@/views/public/BlogView.vue'),
+        meta: {
+          publicMarketing: true,
+          requiresAuth: false,
+          pageTitle: 'Blog · eMatChef',
+          pageDescription: PAGE_DESC,
+        }
+      },
+      {
+        path: 'faq',
+        name: 'Faq',
+        component: () => import('@/views/public/FaqView.vue'),
+        meta: {
+          publicMarketing: true,
+          requiresAuth: false,
+          pageTitle: 'FAQ · eMatChef',
+          pageDescription: PAGE_DESC,
+        }
+      },
+      {
+        path: 'tos',
+        name: 'Tos',
+        component: () => import('@/views/public/TosView.vue'),
+        meta: {
+          publicMarketing: true,
+          requiresAuth: false,
+          pageTitle: 'Nutzung & Datenschutz · eMatChef',
+          pageDescription: 'Nutzungsbedingungen und Datenschutz bei eMatChef.',
+        }
+      },
+      {
+        path: 'impressum',
+        name: 'Impressum',
+        component: () => import('@/views/public/ImpressumView.vue'),
+        meta: {
+          publicMarketing: true,
+          requiresAuth: false,
+          pageTitle: 'Impressum · eMatChef',
+          pageDescription: 'Impressum und Anbieterkennzeichnung für eMatChef – Materialverwaltung.',
+        }
+      },
+      {
+        path: 'datenschutz',
+        redirect: () => ({ path: '/tos', hash: '#datenschutz' }),
+      },
+    ],
+  },
+  {
+    path: '/login',
     name: 'Login',
-    alias: ['/login'],
     component: () => import('@/views/LoginView.vue'),
     meta: {
       requiresAuth: false,
+      publicMarketing: true,
       pageTitle: 'Anmelden · eMatChef',
       pageDescription: PAGE_DESC,
     }
+  },
+  {
+    path: '/site-inhalt',
+    component: () => import('@/components/layout/AppLayout.vue'),
+    meta: { requiresAuth: true, requiresSiteEditor: true },
+    children: [
+      {
+        path: '',
+        component: () => import('@/views/site/WebsiteContentLayout.vue'),
+        children: [
+          {
+            path: '',
+            redirect: { name: 'SitePageEditor', params: { slug: 'landing' } },
+          },
+          {
+            path: 'allgemein',
+            redirect: { name: 'SiteGeneralEditor', params: { tab: 'faq' } },
+          },
+          {
+            path: 'allgemein/:tab',
+            name: 'SiteGeneralEditor',
+            component: () => import('@/views/site/SiteGeneralEditorView.vue'),
+            meta: {
+              requiresSiteEditor: true,
+              pageTitle: 'Webseite · Allgemein · eMatChef',
+              pageDescription: PAGE_DESC,
+            },
+          },
+          {
+            path: 'faq',
+            redirect: { name: 'SiteGeneralEditor', params: { tab: 'faq' } },
+          },
+          {
+            path: 'tos',
+            redirect: { name: 'SiteGeneralEditor', params: { tab: 'tos' } },
+          },
+          {
+            path: 'impressum',
+            redirect: { name: 'SiteGeneralEditor', params: { tab: 'impressum' } },
+          },
+          {
+            path: ':slug',
+            name: 'SitePageEditor',
+            component: () => import('@/views/site/SitePageEditorView.vue'),
+            meta: {
+              requiresSiteEditor: true,
+              pageTitle: 'Webseite · Inhalt · eMatChef',
+              pageDescription: PAGE_DESC,
+            }
+          },
+        ],
+      },
+    ],
   },
   {
     path: '/verify',
@@ -464,6 +574,57 @@ const routes: RouteRecordRaw[] = [
         ]
       },
       {
+        path: 'accounting',
+        component: () => import('@/views/accounting/AccountingShellView.vue'),
+        meta: {
+          requiredRoles: ['matwart', 'depchef'],
+          pageTitle: 'Buchhaltung · eMatChef',
+          pageDescription: PAGE_DESC,
+        },
+        children: [
+          {
+            path: '',
+            name: 'AccountingOverview',
+            component: () => import('@/views/accounting/AccountingOverviewView.vue'),
+            meta: {
+              requiredRoles: ['matwart', 'depchef'],
+              pageTitle: 'Buchhaltung · eMatChef',
+              pageDescription: PAGE_DESC,
+            },
+          },
+          {
+            path: 'kostenstellen',
+            name: 'AccountingCostCenters',
+            component: () => import('@/views/accounting/AccountingCostCentersView.vue'),
+            meta: {
+              requiredRoles: ['matwart', 'depchef'],
+              pageTitle: 'Kostenstellen · eMatChef',
+              pageDescription: PAGE_DESC,
+            },
+          },
+          {
+            path: 'buchungen',
+            name: 'AccountingBookings',
+            component: () => import('@/views/accounting/AccountingBookingsView.vue'),
+            meta: {
+              requiredRoles: ['matwart', 'depchef'],
+              pageTitle: 'Buchungen · eMatChef',
+              pageDescription: PAGE_DESC,
+            },
+          },
+          {
+            path: 'budget',
+            name: 'AccountingBudget',
+            component: () => import('@/views/accounting/AccountingBudgetView.vue'),
+            meta: {
+              requiredRoles: ['matwart', 'depchef'],
+              pageTitle: 'Budget · eMatChef',
+              pageDescription: PAGE_DESC,
+            },
+          },
+        ],
+      },
+      {
         path: 'contacts',
         name: 'Contacts',
         component: () => import('@/views/ContactsView.vue'),
@@ -632,7 +793,16 @@ const routes: RouteRecordRaw[] = [
 
 const router = createRouter({
   history: createWebHistory(),
-  routes
+  routes,
+  scrollBehavior(to, _from, savedPosition) {
+    if (to.hash) {
+      return { el: to.hash, behavior: 'smooth' }
+    }
+    if (savedPosition) {
+      return savedPosition
+    }
+    return { top: 0 }
+  },
 })
 
 /**
@@ -651,15 +821,36 @@ function applyQrHostRedirects(to: RouteLocationNormalized): boolean {
 
   const path = to.path
 
+  // Öffentlicher /i/m|b/…-Lookup: auf App-Instanz weiterleiten (OpenFromQr-Logik)
+  const parts = path.split('/').filter(Boolean)
+  if (parts[0] === 'i' && (parts[1] === 'm' || parts[1] === 'b') && parts[2] && appOrigin) {
+    const code = parts[2]
+    const type = parts[1]
+    const sp = new URLSearchParams()
+    sp.set('type', type)
+    sp.set('code', code)
+    for (const [key, val] of Object.entries(to.query)) {
+      if (key === 'type' || key === 'code') continue
+      if (Array.isArray(val)) val.forEach((x) => sp.append(key, String(x)))
+      else if (val != null) sp.append(key, String(val))
+    }
+    window.location.replace(`${appOrigin}/open-from-qr?${sp.toString()}`)
+    return true
+  }
+
   // Login-Start → App-Instanz (Query z. B. ?redirect= bleibt erhalten)
   if ((path === '/' || path === '/login') && appOrigin) {
     window.location.replace(`${appOrigin}${to.fullPath}`)
     return true
   }
 
-  // Impressum & Datenschutz liegen auf der Hauptdomain (ematchef.ch)
-  if (path === '/impressum' || path === '/datenschutz') {
-    window.location.replace(`${mainSite}${path}`)
+  // Rechtstexte & Marketing auf der Hauptdomain
+  if (['/impressum', '/tos', '/blog', '/faq'].includes(path)) {
+    window.location.replace(`${mainSite}${path}${to.hash || ''}`)
+    return true
+  }
+  if (path === '/datenschutz') {
+    window.location.replace(`${mainSite}/tos#datenschutz`)
     return true
   }
 
@@ -669,14 +860,34 @@ function applyQrHostRedirects(to: RouteLocationNormalized): boolean {
 // Navigation Guard
 router.beforeEach(async (to, from, next) => {
   if (applyQrHostRedirects(to)) {
-    return
+    return next(false)
   }
 
   const authStore = useAuthStore()
   const permissionsStore = usePermissionsStore()
+  const mainSiteOrigin = getMainSiteOrigin()
   const isSuperAdmin = () => {
     const userRoles = authStore.userRoles || []
     return userRoles.includes('ROLE_SUPERADMIN')
+  }
+  const isWebAdmin = () => {
+    const userRoles = authStore.userRoles || []
+    return userRoles.includes('ROLE_WEBADMIN')
+  }
+  const canEditPublicSite = () => isSuperAdmin() || isWebAdmin()
+
+  // App-Origin: nur Login — Marketing unter Hauptdomain
+  if (isAppOrigin() && mainSiteOrigin) {
+    if (to.meta.publicMarketing && to.path !== '/login') {
+      if (to.path === '/') {
+        if (!authStore.isLoggedIn) {
+          return next({ path: '/login', query: to.query })
+        }
+      } else {
+        window.location.replace(mainSiteOrigin + to.fullPath)
+        return next(false)
+      }
+    }
   }
 
   // Token vorhanden?
@@ -693,8 +904,8 @@ router.beforeEach(async (to, from, next) => {
         const loaded = await authStore.loadUserSession()
         if (!loaded) {
           // Session konnte nicht geladen werden
-          if (to.path !== '/') {
-            return next('/')
+          if (to.path !== '/login') {
+            return next('/login')
           }
         }
       } catch (error) {
@@ -704,8 +915,8 @@ router.beforeEach(async (to, from, next) => {
         localStorage.removeItem('user_id')
         localStorage.removeItem('profile_id')
         // Wenn Session-Laden fehlschlägt, zur Login-Seite
-        if (to.path !== '/') {
-          return next('/')
+        if (to.path !== '/login') {
+          return next('/login')
         }
       }
     }
@@ -713,7 +924,12 @@ router.beforeEach(async (to, from, next) => {
 
   // Auth-Requirement prüfen
   if (to.meta.requiresAuth && !authStore.isLoggedIn) {
-    return next(`/?redirect=${encodeURIComponent(to.fullPath)}`)
+    return next(`/login?redirect=${encodeURIComponent(to.fullPath)}`)
+  }
+
+  if (to.meta.requiresSiteEditor && !canEditPublicSite()) {
+    const id = authStore.activeDepartmentId || authStore.departments[0]?.department_id
+    return next(id ? `/${id}` : '/dashboard')
   }
 
   // Falsche URL: /{departmentId}/admin-dashboard/... → /admin-dashboard/...
@@ -767,7 +983,10 @@ router.beforeEach(async (to, from, next) => {
       ) {
         // SA darf ohne Department im Admin-Bereich bzw. globalem Dashboard arbeiten
       } else if (to.path !== '/pending-assignment') {
-        if (to.meta.requiresAuth || to.path === '/') {
+        const siteEditorRoute = to.matched.some((r) => r.meta.requiresSiteEditor)
+        if (siteEditorRoute && canEditPublicSite()) {
+          /* Webseiten-Editor ohne Abteilung (z. B. Superadmin) */
+        } else if (to.meta.requiresAuth || to.path === '/login') {
           return next('/pending-assignment')
         }
       }
@@ -776,7 +995,12 @@ router.beforeEach(async (to, from, next) => {
     // Wenn Route /app/* ist oder geschützte Department-Route ohne Department-ID: primäre Department-ID verwenden
     // Admin-Dashboard (/admin-dashboard) darf NICHT mit Department-ID versehen werden
     const isAdminPath = to.path.startsWith('/admin-dashboard')
-    if (!isAdminPath && (to.path.startsWith('/app/') || (to.meta.requiresAuth && !to.params.departmentId && to.path !== '/pending-assignment'))) {
+    if (
+      !isAdminPath &&
+      !to.path.startsWith('/site-inhalt') &&
+      (to.path.startsWith('/app/') ||
+        (to.meta.requiresAuth && !to.params.departmentId && to.path !== '/pending-assignment'))
+    ) {
       if (primaryDepartmentId) {
         // Route mit primärer Department-ID ersetzen
         let newPath = to.path
@@ -789,16 +1013,16 @@ router.beforeEach(async (to, from, next) => {
       }
     }
 
-    // Superadmin: gleiches Dashboard wie alle; mit Department → /{id}
-    if (to.path === '/' && isSuperAdmin()) {
+    // App-Login / App-Root: eingeloggt → Abteilung oder Dashboard (Hauptdomain-„/“ bleibt Landing)
+    const appLoginOrRoot = (isAppOrigin() && to.path === '/') || to.path === '/login'
+    if (appLoginOrRoot && isSuperAdmin()) {
       if (primaryDepartmentId) {
         return next(`/${primaryDepartmentId}`)
       }
       return next('/dashboard')
     }
 
-    // Andere User: zu Dashboard mit primärer Department-ID
-    if (to.path === '/' && primaryDepartmentId) {
+    if (appLoginOrRoot && primaryDepartmentId) {
       return next(`/${primaryDepartmentId}`)
     }
 
@@ -875,7 +1099,7 @@ router.beforeEach(async (to, from, next) => {
       if (deptId) {
         return next(`/${deptId}/settings`)
       }
-      return next('/')
+      return next('/login')
     }
   }
 

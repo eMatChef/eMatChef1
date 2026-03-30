@@ -1,4 +1,6 @@
 parameters:
+    # Optional: Basis-URL für öffentliche QR-Links (/i/m/, /i/b/). Leer = APP_FRONTEND_URL (z. B. nur eine Domain).
+    env(APP_PUBLIC_QR_URL): ''
 
 services:
     _defaults:

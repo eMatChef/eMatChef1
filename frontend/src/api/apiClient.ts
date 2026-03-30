@@ -28,8 +28,20 @@ export function setApiSuccessRefreshCallback(cb: () => void) {
   apiSuccessRefreshCallback = cb
 }
 
+function resolveApiBaseURL(): string {
+  const rel = import.meta.env.VITE_RELATIVE_API
+  if (rel === 'true' || rel === '1') {
+    return ''
+  }
+  const base = import.meta.env.VITE_API_BASE
+  if (typeof base === 'string' && base.length > 0) {
+    return base.replace(/\/$/, '')
+  }
+  return 'http://localhost:8081'
+}
+
 const apiClient = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE || 'http://localhost:8081',
+  baseURL: resolveApiBaseURL(),
   timeout: 30000,
   headers: {
     'Content-Type': 'application/json',

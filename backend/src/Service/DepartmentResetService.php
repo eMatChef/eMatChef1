@@ -131,6 +131,12 @@ class DepartmentResetService
                 [$departmentId]
             );
 
+            // 15a. Öffentliche QR-Kontaktnachrichten (In-App)
+            $deleted['public_found_item_message'] = $conn->executeStatement(
+                'DELETE FROM public_found_item_message WHERE department_id = ?',
+                [$departmentId]
+            );
+
             // 15. DepartmentSetting
             $deleted['department_setting'] = $conn->executeStatement(
                 'DELETE FROM department_setting WHERE department_id = ?',

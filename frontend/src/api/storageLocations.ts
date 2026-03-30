@@ -67,6 +67,12 @@ export interface StorageOverviewResponse {
   racks: StorageOverviewRack[]
 }
 
+/** Kurzvorschau Inhalt (GET /container-batches): max. 2 Artikel, Rest über content_preview_more */
+export interface ContainerBatchContentPreviewLine {
+  material_name: string
+  qty: number
+}
+
 export interface ContainerBatch {
   id: string
   material_id?: string
@@ -78,6 +84,8 @@ export interface ContainerBatch {
   slot_id: string | null
   rack: { id: string; name: string } | null
   slot: { id: string; name: string } | null
+  content_preview?: ContainerBatchContentPreviewLine[]
+  content_preview_more?: number
 }
 
 export async function getContainerBatches(departmentId: string): Promise<ContainerBatch[]> {
