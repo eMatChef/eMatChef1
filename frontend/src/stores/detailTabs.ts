@@ -34,13 +34,15 @@ export const useDetailTabsStore = defineStore('detailTabs', () => {
   }
 
   function setTabDirty(tabId: string, type: DetailTabType, departmentId: string, dirty: boolean) {
-    const tab = tabs.value.find(
+    const idx = tabs.value.findIndex(
       (t) => t.id === tabId && t.type === type && t.departmentId === departmentId
     )
-    if (tab) {
-      tab.hasUnsavedChanges = dirty
-      tab.dirtySince = dirty ? (tab.dirtySince ?? Date.now()) : undefined
-    }
+    if (idx === -1) return
+    const tab = tabs.value[idx]
+    const dirtySince = dirty ? (tab.dirtySince ?? Date.now()) : undefined
+    tabs.value = tabs.value.map((t, i) =>
+      i === idx ? { ...t, hasUnsavedChanges: dirty, dirtySince } : t
+    )
   }
 
   function removeTab(tabId: string, type: DetailTabType, departmentId: string) {

@@ -1738,6 +1738,15 @@
                 <!-- Vermietung -->
                 <div class="details-subsection">
                   <h4 class="subsection-title">Vermietung</h4>
+                  <RentalPriceAmortizationCalculator
+                    v-if="formData.material_type === 'physical' && formData.tracking_type"
+                    v-model="formData.rental_calc_params"
+                    :defaults="rentalAmortDefaults"
+                    :historical-basis-chf="wizardRentalHistoricalBasisChf"
+                    :piece-count="wizardRentalPieceCount ?? undefined"
+                    context="wizard"
+                    @apply="onWizardRentalCalculatorApply"
+                  />
                   <div class="form-grid-details">
                     <div class="form-group">
                       <label>Tagespreis</label>
@@ -1950,6 +1959,7 @@ import {
 import { getTemplates, getTemplate, createMaterialFromTemplate, type Template, type TemplateComponent, type CreateMaterialComponentInput } from '@/api/templates'
 import { useToast } from '@/composables/useToast'
 import { enqueuePendingCostBookingAfterPurchase } from '@/composables/useCostBookingFollowUp'
+import { useHeaderNotificationsStore } from '@/stores/headerNotifications'
 import AddressModal from '@/components/AddressModal.vue'
 import CategoryModal from '@/components/CategoryModal.vue'
 import BarcodeScannerPanel from '@/components/common/BarcodeScannerPanel.vue'
@@ -1958,6 +1968,13 @@ import TemplatePickerSection from '@/components/material/wizard/TemplatePickerSe
 import MaterialPreviewSidebar from '@/components/material/wizard/MaterialPreviewSidebar.vue'
 import WizardFooter from '@/components/material/wizard/WizardFooter.vue'
 import MaterialNameInput from '@/components/material/wizard/MaterialNameInput.vue'
+import RentalPriceAmortizationCalculator from '@/components/material/RentalPriceAmortizationCalculator.vue'
+import {
+  getRentalAmortizationDefaults,
+  DEFAULT_RENTAL_AMORTIZATION,
+  type RentalAmortizationDefaults,
+} from '@/api/departmentSettings'
+import type { RentalCalcParams } from '@/utils/rentalPriceAmortization'
 import MaterialTypeToggles from '@/components/material/wizard/MaterialTypeToggles.vue'
 import StorageLocationPicker from '@/components/storage/StorageLocationPicker.vue'
 import { createBasicMaterialLookupFetcher } from '@/composables/useMaterialLookup'
@@ -1985,6 +2002,7 @@ const emit = defineEmits<{
 }>()
 
 const toast = useToast()
+const headerNotificationsStore = useHeaderNotificationsStore()
 const GLOBAL_SUPPLIER_DEPARTMENT_ID = 'GLOBAL000000'
 const articleNameInputRef = ref<HTMLInputElement | null>(null)
 const wizardFormRef = ref<HTMLElement | null>(null)
@@ -2324,10 +2342,13 @@ const formData = reactive({
   rental_external_allowed: false,
   rental_requires_approval: false,
   rental_notes: '' as string,
+  rental_calc_params: null as RentalCalcParams | null,
   split_allocations: false,
   stock_location_mode: 'slot' as 'slot' | 'kiste',
   stock_container_batch_id: '' as string
 })
+
+const rentalAmortDefaults = ref<RentalAmortizationDefaults>({ ...DEFAULT_RENTAL_AMORTIZATION })
 
 /** Alle Regale der Abteilung aus der zentralen API aktualisieren */
 async function refreshDepartmentRacks(): Promise<void> {
@@ -3316,6 +3337,7 @@ function resetForm() {
   formData.rental_external_allowed = false
   formData.rental_requires_approval = false
   formData.rental_notes = ''
+  formData.rental_calc_params = null
   formData.stock_location_mode = 'slot'
   formData.stock_container_batch_id = ''
   nameExists.value = false
@@ -3611,6 +3633,12 @@ async function loadData() {
     // Vorlagen laden
     const templatesResult = await getTemplates(props.departmentId, true).catch(() => [])
     availableTemplates.value = templatesResult || []
+
+    try {
+      rentalAmortDefaults.value = await getRentalAmortizationDefaults(props.departmentId)
+    } catch {
+      rentalAmortDefaults.value = { ...DEFAULT_RENTAL_AMORTIZATION }
+    }
   } catch (err) {
     console.error('Fehler beim Laden:', err)
   }
@@ -4630,6 +4658,33 @@ function computeWizardPurchaseTotalChf(): number {
   return up * q
 }
 
+/** Für Vermiet-Amortisationsrechner: gleiche Basis wie Buchhaltungs-Hinweis (Stückpreis × Menge). */
+const wizardRentalHistoricalBasisChf = computed((): number | null => {
+  const t = computeWizardPurchaseTotalChf()
+  return t > 0 ? t : null
+})
+
+/** Stückzahl für Vermiet-Rechner (wie Stückpreis × Menge). */
+const wizardRentalPieceCount = computed((): number | null => {
+  const q = purchasePriceContextQty.value
+  return q > 0 ? q : null
+})
+
+function onWizardRentalCalculatorApply(p: { day: string; week: string; month: string }) {
+  const rentalChanged =
+    formData.rental_price_day !== p.day ||
+    formData.rental_price_week !== p.week ||
+    formData.rental_price_month !== p.month
+  formData.rental_price_day = p.day
+  formData.rental_price_week = p.week
+  formData.rental_price_month = p.month
+  if (rentalChanged) {
+    toast.success('Vorschlag übernommen. Vor dem Speichern prüfen.')
+  } else {
+    toast.info('Bereits diese Vermietpreise.')
+  }
+}
+
 function buildWizardCostReceiptHint(): string {
   if (isAddBatchMode.value && selectedExistingMaterial.value) {
     return `Charge: ${selectedExistingMaterial.value.name || 'Material'}`
@@ -4761,6 +4816,7 @@ async function handleSubmit() {
         rental_external_allowed: formData.rental_external_allowed,
         rental_requires_approval: formData.rental_requires_approval,
         rental_notes: formData.rental_notes || null,
+        rental_calc_params: formData.rental_calc_params,
         is_js_material: formData.is_js_material,
         external_source: formData.is_js_material ? (formData.external_source || 'js_ch') : null,
       }
@@ -4915,6 +4971,7 @@ async function handleSubmit() {
         rental_external_allowed: formData.rental_external_allowed,
         rental_requires_approval: formData.rental_requires_approval,
         rental_notes: formData.rental_notes || null,
+        rental_calc_params: formData.rental_calc_params,
       }
       
       // Bei serialisierten Artikeln: Seriennummern mitsenden
@@ -4957,6 +5014,7 @@ async function handleSubmit() {
       toast.info(
         'Unter Buchhaltung → Buchungen, Tab „Neue Buchung zuordnen“: Kostenstelle und Details erfassen.'
       )
+      headerNotificationsStore.requestRefresh()
     }
 
     if (createAnother.value) {

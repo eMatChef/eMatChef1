@@ -1,4 +1,5 @@
 import apiClient from './apiClient'
+import type { RentalCalcParams } from '@/utils/rentalPriceAmortization'
 
 // ============== Types ==============
 
@@ -134,6 +135,8 @@ export interface Material {
   rental_lead_days?: number | null
   rental_max_days?: number | null
   rental_notes?: string | null
+  /** Eingaben Amortisationsrechner (optional, JSON) */
+  rental_calc_params?: RentalCalcParams | null
   
   // Batches
   batches?: MaterialBatch[]
@@ -207,6 +210,7 @@ export interface CreateMaterialRequest {
   rental_lead_days?: number | null
   rental_max_days?: number | null
   rental_notes?: string | null
+  rental_calc_params?: RentalCalcParams | null
   is_js_material?: boolean
   external_source?: string | null
 }
@@ -251,6 +255,7 @@ export interface UpdateMaterialRequest {
   rental_lead_days?: number | null
   rental_max_days?: number | null
   rental_notes?: string | null
+  rental_calc_params?: RentalCalcParams | null
   is_js_material?: boolean
   external_source?: string | null
 }

@@ -88,6 +88,7 @@
             <th>Betrag</th>
             <th>Typ</th>
             <th>Kostenstelle</th>
+            <th>Material</th>
             <th>Zahlungsart</th>
             <th>Gruppe</th>
             <th>Beleg</th>
@@ -100,6 +101,7 @@
             <td><strong>CHF {{ formatMoney(row.amount) }}</strong></td>
             <td>{{ entryLabel(row.entry_type) }}</td>
             <td>{{ row.cost_center_name }}</td>
+            <td class="muted">{{ row.material_name || '–' }}</td>
             <td>{{ paymentLabel(row.payment_method) }}</td>
             <td>{{ row.group_name || '–' }}</td>
             <td class="muted">{{ row.receipt_label || '–' }}</td>
@@ -251,6 +253,27 @@
               <input id="b-rec" v-model="form.receipt_label" type="text" maxlength="255" placeholder="z. B. Rechnung Nr. …" />
             </div>
             <div class="acc-field">
+              <label for="b-mat">Material (optional)</label>
+              <p class="acc-field-hint">Für Reparatur/Abschreibung oder manuelle Zuordnung; Einkäufe aus Anschaffung werden beim Speichern automatisch verknüpft.</p>
+              <MaterialLookupInput
+                v-model="materialLookupDisplay"
+                :fetcher="bookingMaterialLookupFetcher"
+                :min-chars="1"
+                :max-suggestions="12"
+                placeholder="Material suchen…"
+                :get-result-key="(item) => item.id"
+                @select="onBookingMaterialSelect"
+              />
+              <button
+                v-if="form.material_item_id"
+                type="button"
+                class="booking-clear-material"
+                @click="clearBookingMaterial"
+              >
+                Materialzuordnung entfernen
+              </button>
+            </div>
+            <div class="acc-field">
               <label for="b-notes">Notizen (optional)</label>
               <textarea id="b-notes" v-model="form.notes" placeholder="Kurztext" />
             </div>
@@ -284,15 +307,45 @@ import {
   type AccountingAcquisitionFollowUp
 } from '@/api/accountingAcquisitionFollowups'
 import { getGroups, type Group } from '@/api/groups'
+import type { Material } from '@/api/materials'
 import { useToast } from '@/composables/useToast'
 import { useConfirm } from '@/composables/useConfirm'
+import { createBasicMaterialLookupFetcher } from '@/composables/useMaterialLookup'
+import MaterialLookupInput from '@/components/common/MaterialLookupInput.vue'
+import { useHeaderNotificationsStore } from '@/stores/headerNotifications'
 
 const route = useRoute()
+const headerNotificationsStore = useHeaderNotificationsStore()
 const router = useRouter()
 const toast = useToast()
 const { confirm: confirmDialog } = useConfirm()
 
 const departmentId = computed(() => String(route.params.departmentId || ''))
+
+const bookingMaterialLookupFetcher = createBasicMaterialLookupFetcher(() => departmentId.value)
+const materialLookupDisplay = ref('')
+
+const form = reactive({
+  amount: '',
+  booked_at: '',
+  cost_center_id: '',
+  entry_type: 'purchase',
+  payment_method: '' as string,
+  group_id: '' as string,
+  receipt_label: '',
+  notes: '',
+  material_item_id: '' as string,
+})
+
+function onBookingMaterialSelect(item: Material) {
+  form.material_item_id = item.id
+  materialLookupDisplay.value = item.name || ''
+}
+
+function clearBookingMaterial() {
+  form.material_item_id = ''
+  materialLookupDisplay.value = ''
+}
 
 const ENTRY_LABELS: Record<string, string> = {
   purchase: 'Einkauf',
@@ -373,6 +426,8 @@ function syncFormFromPending() {
   form.payment_method = ''
   form.group_id = ''
   form.notes = ''
+  form.material_item_id = ''
+  materialLookupDisplay.value = ''
 }
 
 async function openAssignTab() {
@@ -382,18 +437,6 @@ async function openAssignTab() {
     syncFormFromPending()
   }
 }
-
-
-const form = reactive({
-  amount: '',
-  booked_at: '',
-  cost_center_id: '',
-  entry_type: 'purchase',
-  payment_method: '' as string,
-  group_id: '' as string,
-  receipt_label: '',
-  notes: ''
-})
 
 function entryLabel(k: string): string {
   return ENTRY_LABELS[k] || k
@@ -551,6 +594,8 @@ function resetForm() {
   form.group_id = ''
   form.receipt_label = ''
   form.notes = ''
+  form.material_item_id = ''
+  materialLookupDisplay.value = ''
   editingId.value = null
 }
 
@@ -573,6 +618,8 @@ function openEdit(row: AccountingBooking) {
   form.group_id = row.group_id || ''
   form.receipt_label = row.receipt_label || ''
   form.notes = row.notes || ''
+  form.material_item_id = row.material_item_id || ''
+  materialLookupDisplay.value = row.material_name || ''
   modalOpen.value = true
 }
 
@@ -606,7 +653,8 @@ async function save(fromAssignTab = false) {
     payment_method: form.payment_method || null,
     group_id: form.group_id || null,
     receipt_label: form.receipt_label.trim() || null,
-    notes: form.notes.trim() || null
+    notes: form.notes.trim() || null,
+    material_item_id: form.material_item_id || null,
   }
 
   saving.value = true
@@ -615,13 +663,19 @@ async function save(fromAssignTab = false) {
       await updateBooking(departmentId.value, editingId.value, payloadBase)
       toast.success('Buchung gespeichert.')
     } else {
-      await createBooking(departmentId.value, {
-        ...payloadBase,
-        booked_at: form.booked_at,
-        ...(fromAssignTab && activeFollowUpId.value
-          ? { acquisition_follow_up_id: activeFollowUpId.value }
-          : {})
-      })
+      if (fromAssignTab && activeFollowUpId.value) {
+        const { material_item_id: _omitMat, ...withoutMat } = payloadBase
+        await createBooking(departmentId.value, {
+          ...withoutMat,
+          booked_at: form.booked_at,
+          acquisition_follow_up_id: activeFollowUpId.value,
+        })
+      } else {
+        await createBooking(departmentId.value, {
+          ...payloadBase,
+          booked_at: form.booked_at,
+        })
+      }
       toast.success('Buchung erfasst.')
       if (workingFromPending.value) {
         workingFromPending.value = false
@@ -633,6 +687,7 @@ async function save(fromAssignTab = false) {
     closeModal()
     await loadBookingYears()
     await load()
+    headerNotificationsStore.requestRefresh()
   } catch (e: unknown) {
     if (fromAssignTab) {
       workingFromPending.value = false

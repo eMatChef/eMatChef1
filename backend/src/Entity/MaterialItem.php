@@ -157,6 +157,10 @@ class MaterialItem
     #[ORM\Column(name: 'rental_notes', type: 'text', nullable: true)]
     private ?string $rentalNotes = null;
 
+    /** Eingaben Vermiet-Amortisationsrechner (JSON), optional */
+    #[ORM\Column(name: 'rental_calc_params', type: 'json', nullable: true)]
+    private ?array $rentalCalcParams = null;
+
     // Globale externe Quelle (z.B. J&S)
     #[ORM\Column(name: 'is_js_material', type: 'boolean', options: ['default' => false])]
     private bool $isJsMaterial = false;
@@ -448,6 +452,17 @@ class MaterialItem
 
     public function getRentalNotes(): ?string { return $this->rentalNotes; }
     public function setRentalNotes(?string $rentalNotes): self { $this->rentalNotes = $rentalNotes; return $this; }
+
+    public function getRentalCalcParams(): ?array
+    {
+        return $this->rentalCalcParams;
+    }
+
+    public function setRentalCalcParams(?array $rentalCalcParams): self
+    {
+        $this->rentalCalcParams = $rentalCalcParams;
+        return $this;
+    }
 
     // Externe Quelle Getters/Setters
     public function getIsJsMaterial(): bool { return $this->isJsMaterial; }

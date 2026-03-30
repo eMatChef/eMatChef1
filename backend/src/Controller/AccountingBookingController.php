@@ -8,6 +8,7 @@ use App\Entity\AccountingBooking;
 use App\Entity\AccountingCostCenter;
 use App\Entity\Department;
 use App\Entity\Group;
+use App\Entity\MaterialItem;
 use App\Util\IdGenerator;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -155,6 +156,16 @@ class AccountingBookingController extends AbstractController
         $booking->setReceiptLabel($parse['receiptLabel']);
         $booking->setNotes($parse['notes']);
 
+        $materialItem = $this->resolveMaterialItemFromRequest($data, $departmentId);
+        if ($materialItem instanceof JsonResponse) {
+            return $materialItem;
+        }
+        if ($materialItem !== null) {
+            $booking->setMaterialItem($materialItem);
+        } elseif ($followUp !== null && $followUp->getMaterialBatch() !== null) {
+            $booking->setMaterialItem($followUp->getMaterialBatch()->getMaterialItem());
+        }
+
         $this->entityManager->persist($booking);
         $this->entityManager->flush();
 
@@ -240,6 +251,18 @@ class AccountingBookingController extends AbstractController
         if (array_key_exists('notes', $data)) {
             $v = trim((string) $data['notes']);
             $booking->setNotes($v === '' ? null : $v);
+        }
+        if (array_key_exists('material_item_id', $data)) {
+            $raw = $data['material_item_id'];
+            if ($raw === null || $raw === '') {
+                $booking->setMaterialItem(null);
+            } else {
+                $mi = $this->resolveMaterialItemFromRequest(['material_item_id' => $raw], $departmentId);
+                if ($mi instanceof JsonResponse) {
+                    return $mi;
+                }
+                $booking->setMaterialItem($mi);
+            }
         }
 
         $booking->touchUpdatedAt();
@@ -383,6 +406,23 @@ class AccountingBookingController extends AbstractController
         return $cc;
     }
 
+    /**
+     * @return MaterialItem|null|JsonResponse
+     */
+    private function resolveMaterialItemFromRequest(array $data, string $departmentId): MaterialItem|JsonResponse|null
+    {
+        $raw = trim((string) ($data['material_item_id'] ?? ''));
+        if ($raw === '') {
+            return null;
+        }
+        $mi = $this->entityManager->find(MaterialItem::class, $raw);
+        if (!$mi || $mi->getDepartment()->getId() !== $departmentId) {
+            return new JsonResponse(['error' => 'Material nicht gefunden'], 400);
+        }
+
+        return $mi;
+    }
+
     private function resolveGroup(mixed $groupId, string $departmentId): Group|JsonResponse|null
     {
         if ($groupId === null || $groupId === '') {
@@ -403,12 +443,15 @@ class AccountingBookingController extends AbstractController
     private function serialize(AccountingBooking $b): array
     {
         $g = $b->getGroup();
+        $mi = $b->getMaterialItem();
 
         return [
             'id' => $b->getId(),
             'department_id' => $b->getDepartment()->getId(),
             'cost_center_id' => $b->getCostCenter()->getId(),
             'cost_center_name' => $b->getCostCenter()->getName(),
+            'material_item_id' => $mi?->getId(),
+            'material_name' => $mi?->getName(),
             'group_id' => $g?->getId(),
             'group_name' => $g?->getName(),
             'amount' => $b->getAmount(),
