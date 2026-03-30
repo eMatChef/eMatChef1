@@ -15,6 +15,24 @@ export interface ActivityDefaults {
   campMaterialLagDays: number
 }
 
+/** Abteilungs-Standards für den Vermiet-Amortisationsrechner */
+export interface RentalAmortizationDefaults {
+  priceIncreasePercentPerYear: number
+  yearsToReplacement: number
+  internalDaysPerYear: number
+  externalDaysPerYear: number
+  markupPercent: number
+}
+
+/** Typische Planung: ~14 Sommerlager + 4 Pfingsten + 7 Herbst + ~5 Aktivitäten ≈ 30 interne Miettage/Jahr */
+export const DEFAULT_RENTAL_AMORTIZATION: RentalAmortizationDefaults = {
+  priceIncreasePercentPerYear: 0.2,
+  yearsToReplacement: 5,
+  internalDaysPerYear: 30,
+  externalDaysPerYear: 0,
+  markupPercent: 0,
+}
+
 export interface DepartmentOnboardingStatus {
   doneAll: boolean
 }
@@ -152,6 +170,30 @@ export async function saveActivityDefaults(departmentId: string, defaults: Activ
     'activity.material_lag_minutes': String(defaults.materialLagMinutes),
     'activity.camp_material_lead_days': String(defaults.campMaterialLeadDays),
     'activity.camp_material_lag_days': String(defaults.campMaterialLagDays),
+  })
+}
+
+export async function getRentalAmortizationDefaults(departmentId: string): Promise<RentalAmortizationDefaults> {
+  const raw = await getDepartmentSettingsGroup(departmentId, 'rental')
+  return {
+    priceIncreasePercentPerYear: parseFloat(raw['rental.amortization_price_increase_percent_per_year'] || '0.2'),
+    yearsToReplacement: parseInt(raw['rental.amortization_years_to_replacement'] || '5', 10),
+    internalDaysPerYear: parseInt(raw['rental.amortization_internal_days_per_year'] || '30', 10),
+    externalDaysPerYear: parseInt(raw['rental.amortization_external_days_per_year'] || '0', 10),
+    markupPercent: parseFloat(raw['rental.amortization_markup_percent'] || '0'),
+  }
+}
+
+export async function saveRentalAmortizationDefaults(
+  departmentId: string,
+  defaults: RentalAmortizationDefaults
+): Promise<Record<string, string>> {
+  return updateDepartmentSettings(departmentId, {
+    'rental.amortization_price_increase_percent_per_year': String(defaults.priceIncreasePercentPerYear),
+    'rental.amortization_years_to_replacement': String(defaults.yearsToReplacement),
+    'rental.amortization_internal_days_per_year': String(defaults.internalDaysPerYear),
+    'rental.amortization_external_days_per_year': String(defaults.externalDaysPerYear),
+    'rental.amortization_markup_percent': String(defaults.markupPercent),
   })
 }
 

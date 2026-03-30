@@ -5,6 +5,9 @@ export type AccountingBooking = {
   department_id: string
   cost_center_id: string
   cost_center_name: string
+  /** Optional: Zuordnung für Kosten pro Material (Reparatur, manuell; Einkauf oft via Anschaffungs-Follow-up). */
+  material_item_id: string | null
+  material_name: string | null
   group_id: string | null
   group_name: string | null
   amount: string
@@ -50,6 +53,7 @@ export type BookingCreateBody = {
   group_id?: string | null
   receipt_label?: string | null
   notes?: string | null
+  material_item_id?: string | null
   /** Verknüpft die Buchung mit einem offenen Anschaffungs-Auftrag (pending → recorded). */
   acquisition_follow_up_id?: string | null
 }

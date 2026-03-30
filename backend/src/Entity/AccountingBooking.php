@@ -12,6 +12,7 @@ use Doctrine\ORM\Mapping as ORM;
 #[ORM\Table(name: 'accounting_booking')]
 #[ORM\Index(name: 'idx_ab_department_booked', columns: ['department_id', 'booked_at'])]
 #[ORM\Index(name: 'idx_ab_cost_center', columns: ['cost_center_id'])]
+#[ORM\Index(name: 'idx_ab_material_item', columns: ['department_id', 'material_item_id'])]
 class AccountingBooking
 {
     public const ENTRY_PURCHASE = 'purchase';
@@ -60,6 +61,10 @@ class AccountingBooking
     #[ORM\ManyToOne(targetEntity: Group::class)]
     #[ORM\JoinColumn(name: 'group_id', referencedColumnName: 'id', nullable: true, onDelete: 'SET NULL')]
     private ?Group $group = null;
+
+    #[ORM\ManyToOne(targetEntity: MaterialItem::class)]
+    #[ORM\JoinColumn(name: 'material_item_id', referencedColumnName: 'id', nullable: true, onDelete: 'SET NULL')]
+    private ?MaterialItem $materialItem = null;
 
     #[ORM\Column(type: 'decimal', precision: 12, scale: 2)]
     private string $amount = '0.00';
@@ -133,6 +138,18 @@ class AccountingBooking
     public function setGroup(?Group $group): self
     {
         $this->group = $group;
+        return $this;
+    }
+
+    public function getMaterialItem(): ?MaterialItem
+    {
+        return $this->materialItem;
+    }
+
+    public function setMaterialItem(?MaterialItem $materialItem): self
+    {
+        $this->materialItem = $materialItem;
+
         return $this;
     }
 

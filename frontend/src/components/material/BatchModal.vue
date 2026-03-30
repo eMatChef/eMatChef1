@@ -672,6 +672,7 @@ import AddressModal from '@/components/AddressModal.vue'
 import StorageLocationPicker from '@/components/storage/StorageLocationPicker.vue'
 import BarcodeScannerPanel from '@/components/common/BarcodeScannerPanel.vue'
 import { useStorageStructure } from '@/composables/useStorageStructure'
+import { useHeaderNotificationsStore } from '@/stores/headerNotifications'
 import '@/styles/material-wizard.css'
 import type { ContainerBatch } from '@/api/storageLocations'
 
@@ -702,6 +703,7 @@ const emit = defineEmits<{
 }>()
 
 const toast = useToast()
+const headerNotificationsStore = useHeaderNotificationsStore()
 const isEditMode = computed(() => !!props.batch)
 
 /** Material ist serialisiert (tracking_type oder Fallback über Chargen mit Seriennummer) */
@@ -1649,6 +1651,7 @@ async function handleSubmit() {
         toast.info(
           'Unter Buchhaltung → Buchungen, Tab „Neue Buchung zuordnen“: Kostenstelle und Details erfassen.'
         )
+        headerNotificationsStore.requestRefresh()
       }
     }
 

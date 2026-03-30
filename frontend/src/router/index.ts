@@ -613,6 +613,16 @@ const routes: RouteRecordRaw[] = [
             },
           },
           {
+            path: 'materialkosten',
+            name: 'AccountingMaterialCosts',
+            component: () => import('@/views/accounting/AccountingMaterialCostsView.vue'),
+            meta: {
+              requiredRoles: ['matwart', 'depchef'],
+              pageTitle: 'Materialkosten · eMatChef',
+              pageDescription: PAGE_DESC,
+            },
+          },
+          {
             path: 'budget',
             name: 'AccountingBudget',
             component: () => import('@/views/accounting/AccountingBudgetView.vue'),

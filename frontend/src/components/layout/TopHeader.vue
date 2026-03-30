@@ -408,10 +408,12 @@ import { departmentHasAccountingRole } from '@/composables/useCostBookingFollowU
 // @ts-ignore Vetur false positive in Vue 3 script-setup import
 import GlobalSearchInput from '../common/GlobalSearchInput.vue'
 import { useDetailTabsStore } from '../../stores/detailTabs'
+import { useHeaderNotificationsStore } from '@/stores/headerNotifications'
 import { getPostLogoutPath } from '@/utils/appLoginUrl'
 
 const router = useRouter()
 const detailTabsStore = useDetailTabsStore()
+const headerNotificationsStore = useHeaderNotificationsStore()
 const route = useRoute()
 const authStore = useAuthStore()
 const globalSearchRef = ref<InstanceType<typeof GlobalSearchInput> | null>(null)
@@ -629,6 +631,13 @@ async function loadDepartmentInvites() {
     isLoadingNotifications.value = false
   }
 }
+
+watch(
+  () => headerNotificationsStore.refreshNonce,
+  () => {
+    void loadDepartmentInvites()
+  }
+)
 
 async function openFoundMessageFromBell(msg: PublicFoundItemMessage) {
   const deptId = authStore.activeDepartmentId

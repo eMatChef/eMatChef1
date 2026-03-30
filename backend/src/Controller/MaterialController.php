@@ -305,6 +305,7 @@ class MaterialController extends AbstractController
             if (isset($data['rental_lead_days'])) $material->setRentalLeadDays((int)$data['rental_lead_days']);
             if (isset($data['rental_max_days'])) $material->setRentalMaxDays((int)$data['rental_max_days']);
             if (isset($data['rental_notes'])) $material->setRentalNotes($data['rental_notes']);
+            $this->applyRentalCalcParamsFromPayload($data, $material);
             if (isset($data['is_js_material'])) $material->setIsJsMaterial((bool)$data['is_js_material']);
             if (array_key_exists('external_source', $data)) $material->setExternalSource($data['external_source'] ?: null);
 
@@ -938,6 +939,7 @@ class MaterialController extends AbstractController
             if (isset($data['rental_lead_days'])) $material->setRentalLeadDays((int)$data['rental_lead_days']);
             if (isset($data['rental_max_days'])) $material->setRentalMaxDays((int)$data['rental_max_days']);
             if (isset($data['rental_notes'])) $material->setRentalNotes($data['rental_notes']);
+            $this->applyRentalCalcParamsFromPayload($data, $material);
             if (isset($data['is_js_material'])) $material->setIsJsMaterial((bool)$data['is_js_material']);
             if (array_key_exists('external_source', $data)) $material->setExternalSource($data['external_source'] ?: null);
 
@@ -2628,6 +2630,7 @@ class MaterialController extends AbstractController
             'rental_lead_days' => $material->getRentalLeadDays(),
             'rental_max_days' => $material->getRentalMaxDays(),
             'rental_notes' => $material->getRentalNotes(),
+            'rental_calc_params' => $material->getRentalCalcParams(),
             'is_js_material' => $material->getIsJsMaterial(),
             'external_source' => $material->getExternalSource(),
             'is_consumable' => $material->getIsConsumable(),
@@ -2834,6 +2837,7 @@ class MaterialController extends AbstractController
             $result['rental_lead_days'] = $material->getRentalLeadDays();
             $result['rental_max_days'] = $material->getRentalMaxDays();
             $result['rental_notes'] = $material->getRentalNotes();
+            $result['rental_calc_params'] = $material->getRentalCalcParams();
             
             // Batches
             $result['batches'] = [];
@@ -3126,5 +3130,47 @@ class MaterialController extends AbstractController
         }
 
         return $result;
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     */
+    private function applyRentalCalcParamsFromPayload(array $data, MaterialItem $material): void
+    {
+        if (!array_key_exists('rental_calc_params', $data)) {
+            return;
+        }
+        $v = $data['rental_calc_params'];
+        if ($v === null || $v === '') {
+            $material->setRentalCalcParams(null);
+
+            return;
+        }
+        if (!is_array($v)) {
+            return;
+        }
+        $allowed = ['basis_override', 'price_increase_percent_per_year', 'years_to_replacement', 'internal_days_per_year', 'external_days_per_year', 'markup_percent'];
+        $out = [];
+        foreach ($allowed as $k) {
+            if (!array_key_exists($k, $v)) {
+                continue;
+            }
+            $val = $v[$k];
+            if ('basis_override' === $k) {
+                if (null === $val || '' === $val) {
+                    $out[$k] = null;
+                } else {
+                    $out[$k] = trim((string) $val);
+                }
+            } elseif (is_numeric($val)) {
+                $f = (float) $val;
+                if (\in_array($k, ['years_to_replacement', 'internal_days_per_year', 'external_days_per_year'], true)) {
+                    $out[$k] = (int) round($f);
+                } else {
+                    $out[$k] = $f;
+                }
+            }
+        }
+        $material->setRentalCalcParams([] === $out ? null : $out);
     }
 }

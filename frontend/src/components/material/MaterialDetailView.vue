@@ -658,6 +658,15 @@
           <section v-else-if="activeTab === 'rental'" class="tab-content">
             <div class="section-card">
               <h2 class="section-title">Vermietung</h2>
+
+              <RentalPriceAmortizationCalculator
+                v-model="formData.rental_calc_params"
+                :defaults="rentalAmortizationDefaults"
+                :historical-basis-chf="acquisitionBasisChf"
+                :piece-count="acquisitionPieceCount ?? undefined"
+                context="batches"
+                @apply="onRentalCalculatorApply"
+              />
               
               <div class="form-grid">
                 <div class="form-group">
@@ -1191,7 +1200,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted, watch } from 'vue'
+import { ref, reactive, computed, onMounted, watch, nextTick } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import QRCode from 'qrcode'
 import { getMaterial, getMaterials, updateMaterial, updateBatch, moveBatchQuantity, getMaterialHistory, getMaterialUsedIn, ensureMaterialPublicCode, type Material, type MaterialHistoryEntry, type MaterialBatch, type BatchStorageAllocation, type UsedInEntry, type AddBatchMultiResponse } from '@/api/materials'
@@ -1201,6 +1210,17 @@ import { getCategories, type Category } from '@/api/categories'
 import { getAddresses, type Address } from '@/api/addresses'
 import { getContainerBatches, getStorageOverview, type ContainerBatch, type StorageOverviewResponse } from '@/api/storageLocations'
 import { formatContainerBatchOptionFullLabel } from '@/utils/containerBatchLabel'
+import {
+  sumAcquisitionBasisFromBatches,
+  sumAcquisitionPieceCountFromBatches,
+  type RentalCalcParams,
+} from '@/utils/rentalPriceAmortization'
+import {
+  getRentalAmortizationDefaults,
+  DEFAULT_RENTAL_AMORTIZATION,
+  type RentalAmortizationDefaults,
+} from '@/api/departmentSettings'
+import RentalPriceAmortizationCalculator from '@/components/material/RentalPriceAmortizationCalculator.vue'
 import SplitModal from '@/components/material/SplitModal.vue'
 import { useAuthStore } from '@/stores/auth'
 import { usePageHeadStore } from '@/stores/pageHead'
@@ -1250,6 +1270,28 @@ const canManageJsMaterial = computed(() => {
 // State
 const material = ref<Material>({} as Material)
 const batches = ref<any[]>([])
+const rentalAmortizationDefaults = ref<RentalAmortizationDefaults>({ ...DEFAULT_RENTAL_AMORTIZATION })
+
+const acquisitionBasisChf = computed(() => sumAcquisitionBasisFromBatches(batches.value))
+const acquisitionPieceCount = computed(() => sumAcquisitionPieceCountFromBatches(batches.value))
+
+function onRentalCalculatorApply(p: { day: string; week: string; month: string }) {
+  const rentalChanged =
+    formData.rental_price_day !== p.day ||
+    formData.rental_price_week !== p.week ||
+    formData.rental_price_month !== p.month
+  formData.rental_price_day = p.day
+  formData.rental_price_week = p.week
+  formData.rental_price_month = p.month
+  void nextTick(() => {
+    detailTabsStore.setTabDirty(props.materialId, 'material', props.departmentId, hasChanges.value)
+    if (rentalChanged) {
+      toast.success('Vorschlag übernommen. Speichern nicht vergessen.')
+    } else {
+      toast.info('Bereits diese Vermietpreise.')
+    }
+  })
+}
 const containerBatches = ref<ContainerBatch[]>([])
 const categories = ref<Category[]>([])
 const storageAddresses = ref<Address[]>([])
@@ -1338,6 +1380,7 @@ const formData = reactive({
   rental_external_allowed: false,
   rental_requires_approval: false,
   rental_notes: '',
+  rental_calc_params: null as RentalCalcParams | null,
   pack_size: null as number | null,
   pack_unit: '',
   reservation_mode: '' as string,
@@ -1742,6 +1785,7 @@ function populateFormData(m: Material) {
   formData.rental_external_allowed = m.rental_external_allowed || false
   formData.rental_requires_approval = m.rental_requires_approval || false
   formData.rental_notes = m.rental_notes || ''
+  formData.rental_calc_params = m.rental_calc_params ? { ...m.rental_calc_params } : null
   formData.pack_size = m.pack_size || null
   formData.pack_unit = m.pack_unit || ''
   formData.reservation_mode = m.reservation_mode || ''
@@ -2339,6 +2383,7 @@ async function save() {
       rental_external_allowed: formData.rental_external_allowed,
       rental_requires_approval: formData.rental_requires_approval,
       rental_notes: formData.rental_notes || null,
+      rental_calc_params: formData.rental_calc_params,
       pack_size: formData.pack_size || null,
       pack_unit: formData.pack_unit || null,
       reservation_mode: formData.reservation_mode || null,
@@ -2352,6 +2397,9 @@ async function save() {
     const updated = await updateMaterial(props.materialId, payload)
     
     originalFormData = JSON.stringify(formData)
+    void nextTick(() => {
+      detailTabsStore.setTabDirty(props.materialId, 'material', props.departmentId, false)
+    })
     emit('updated', updated)
     
     // History aktualisieren falls Tab aktiv
@@ -2410,6 +2458,7 @@ const fieldLabels: Record<string, string> = {
   rental_lead_days: 'Vorlaufzeit (Tage)',
   rental_max_days: 'Max. Mietdauer (Tage)',
   rental_notes: 'Vermietungs-Hinweise',
+  rental_calc_params: 'Amortisationsrechner (Eingaben)',
   pack_size: 'Stück pro Einheit',
   pack_unit: 'Verpackungseinheit',
   is_js_material: 'J&S-Material',
@@ -2776,12 +2825,16 @@ watch(
   { immediate: true }
 )
 
+async function loadRentalDefaults() {
+  try {
+    rentalAmortizationDefaults.value = await getRentalAmortizationDefaults(props.departmentId)
+  } catch {
+    rentalAmortizationDefaults.value = { ...DEFAULT_RENTAL_AMORTIZATION }
+  }
+}
+
 onMounted(() => {
-  Promise.all([
-    loadMaterial(),
-    loadCategories(),
-    loadStorageAddresses()
-  ])
+  void Promise.all([loadMaterial(), loadCategories(), loadStorageAddresses(), loadRentalDefaults()])
 })
 </script>
 

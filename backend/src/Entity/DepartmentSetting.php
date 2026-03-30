@@ -16,6 +16,7 @@ use Doctrine\ORM\Mapping as ORM;
  * - activity.material_lag_minutes = "60"
  * - activity.camp_material_lead_days = "1"
  * - activity.camp_material_lag_days = "1"
+ * - rental.amortization_* = Standardwerte für den Vermiet-Preisrechner (Abteilung)
  */
 #[ORM\Entity]
 #[ORM\Table(name: 'department_setting')]
@@ -150,6 +151,21 @@ class DepartmentSetting
             'activity.material_lag_minutes' => '60',
             'activity.camp_material_lead_days' => '1',
             'activity.camp_material_lag_days' => '1',
+        ];
+    }
+
+    /**
+     * Standardwerte für Vermietung: Amortisations-/Preisrechner (pro Department)
+     */
+    public static function getRentalAmortizationDefaults(): array
+    {
+        // Erwartete interne Nutzung / Jahr (typisch: ~14 Sommerlager + 4 Pfingsten + 7 Herbst + ~5 Aktivitäten ≈ 30 Tage)
+        return [
+            'rental.amortization_price_increase_percent_per_year' => '0.2',
+            'rental.amortization_years_to_replacement' => '5',
+            'rental.amortization_internal_days_per_year' => '30',
+            'rental.amortization_external_days_per_year' => '0',
+            'rental.amortization_markup_percent' => '0',
         ];
     }
 }

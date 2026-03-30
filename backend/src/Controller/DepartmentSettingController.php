@@ -45,7 +45,8 @@ class DepartmentSettingController extends AbstractController
         // Defaults für fehlende Settings einfügen
         $allDefaults = array_merge(
             DepartmentSetting::getGeneralDefaults(),
-            DepartmentSetting::getActivityDefaults()
+            DepartmentSetting::getActivityDefaults(),
+            DepartmentSetting::getRentalAmortizationDefaults()
         );
         foreach ($allDefaults as $key => $defaultValue) {
             if (!isset($result[$key])) {
@@ -87,7 +88,8 @@ class DepartmentSettingController extends AbstractController
         // Defaults einfügen
         $allDefaults = array_merge(
             DepartmentSetting::getGeneralDefaults(),
-            DepartmentSetting::getActivityDefaults()
+            DepartmentSetting::getActivityDefaults(),
+            DepartmentSetting::getRentalAmortizationDefaults()
         );
         foreach ($allDefaults as $key => $defaultValue) {
             if (str_starts_with($key, $prefix . '.') && !isset($result[$key])) {
@@ -122,7 +124,7 @@ class DepartmentSettingController extends AbstractController
         }
 
         // Erlaubte Setting-Keys validieren
-        $allowedPrefixes = ['activity.', 'material.', 'general.', 'onboarding.'];
+        $allowedPrefixes = ['activity.', 'material.', 'general.', 'onboarding.', 'rental.'];
         $validData = [];
         foreach ($data as $key => $value) {
             $isAllowed = false;
@@ -181,7 +183,8 @@ class DepartmentSettingController extends AbstractController
         // Defaults ergänzen
         $allDefaults = array_merge(
             DepartmentSetting::getGeneralDefaults(),
-            DepartmentSetting::getActivityDefaults()
+            DepartmentSetting::getActivityDefaults(),
+            DepartmentSetting::getRentalAmortizationDefaults()
         );
         foreach ($allDefaults as $k => $v) {
             if (!isset($result[$k])) {

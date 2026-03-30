@@ -3,7 +3,7 @@
     <div class="page-header header-content">
       <div class="header-left">
         <h1>Buchhaltung</h1>
-        <span class="subtitle">Kostenstellen, Buchungen und Budget – unterstützend zum Vereins-Finanztool</span>
+        <span class="subtitle">Kostenstellen, Buchungen, Budget und Materialkosten – unterstützend zum Vereins-Finanztool</span>
       </div>
     </div>
 
@@ -29,6 +29,13 @@
           custom
         >
           <a :href="href" class="filter-tab" :class="{ active: isExactActive }" @click="navigate($event)">Buchungen</a>
+        </router-link>
+        <router-link
+          v-slot="{ isExactActive, navigate, href }"
+          :to="{ name: 'AccountingMaterialCosts', params: { departmentId } }"
+          custom
+        >
+          <a :href="href" class="filter-tab" :class="{ active: isExactActive }" @click="navigate($event)">Materialkosten</a>
         </router-link>
         <router-link
           v-slot="{ isExactActive, navigate, href }"
