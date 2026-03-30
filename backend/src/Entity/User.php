@@ -79,6 +79,14 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     #[ORM\OneToMany(mappedBy: 'user', targetEntity: Membership::class, cascade: ['persist', 'remove'], orphanRemoval: true)]
     private Collection $memberships;
 
+    /**
+     * Zuletzt in der App gewählte Abteilung (Login-Vorschlag / Session-Wiederherstellung).
+     * Wird bei Abteilungswechsel gesetzt; ungültige oder gelöschte Abteilungen → FK SET NULL.
+     */
+    #[ORM\ManyToOne(targetEntity: Department::class)]
+    #[ORM\JoinColumn(name: 'last_used_department_id', referencedColumnName: 'id', nullable: true, onDelete: 'SET NULL')]
+    private ?Department $lastUsedDepartment = null;
+
     public function __construct()
     {
         $this->createdAt = new \DateTime();
@@ -152,6 +160,12 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     public function getUpdatedAt(): \DateTime
     {
         return $this->updatedAt;
+    }
+
+    public function setUpdatedAt(\DateTime $updatedAt): self
+    {
+        $this->updatedAt = $updatedAt;
+        return $this;
     }
 
     public function isEmailVerified(): bool
@@ -374,5 +388,21 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
             // owning side is non-nullable; removal from collection is enough
         }
         return $this;
+    }
+
+    public function getLastUsedDepartment(): ?Department
+    {
+        return $this->lastUsedDepartment;
+    }
+
+    public function setLastUsedDepartment(?Department $lastUsedDepartment): self
+    {
+        $this->lastUsedDepartment = $lastUsedDepartment;
+        return $this;
+    }
+
+    public function getLastUsedDepartmentId(): ?string
+    {
+        return $this->lastUsedDepartment?->getId();
     }
 }

@@ -14,6 +14,11 @@ export interface DepartmentSearchResult {
   id: string
   name: string
   organisation_name: string
+  /** Einladungs-/Antwortstatus (wenn aus Aktivität geladen) */
+  status?: string
+  /** Gast-Department: welche Gruppe an der Aktivität teilnimmt (optional) */
+  group_id?: string | null
+  group_name?: string | null
 }
 
 export interface PendingJoinRequest {

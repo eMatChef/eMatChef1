@@ -22,8 +22,9 @@ setApiSuccessRefreshCallback(() => {
 setSessionExpiredHandler(async () => {
   useToastStore().warning('Deine Sitzung ist abgelaufen. Bitte melde dich erneut an.', 5000)
   await useAuthStore().logout()
-  if (window.location.pathname !== '/') {
-    router.push('/')
+  const requiresAuth = router.currentRoute.value.matched.some((r) => r.meta.requiresAuth)
+  if (requiresAuth && window.location.pathname !== '/login') {
+    await router.push('/login')
   }
 })
 

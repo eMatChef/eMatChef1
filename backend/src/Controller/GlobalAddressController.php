@@ -5,6 +5,7 @@ namespace App\Controller;
 use App\Entity\Address;
 use App\Entity\Department;
 use App\Entity\Organisation;
+use App\Service\Accounting\AccountingCostCenterBootstrapService;
 use App\Util\IdGenerator;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -21,7 +22,8 @@ class GlobalAddressController extends AbstractController
     private const GLOBAL_ADDRESS_TYPE = 'supplier';
 
     public function __construct(
-        private EntityManagerInterface $entityManager
+        private EntityManagerInterface $entityManager,
+        private AccountingCostCenterBootstrapService $accountingCostCenterBootstrap
     ) {
     }
 
@@ -230,14 +232,20 @@ class GlobalAddressController extends AbstractController
         }
 
         $department = $this->entityManager->getRepository(Department::class)->find(self::GLOBAL_DEPARTMENT_ID);
+        $createdGlobalDepartment = false;
         if (!$department) {
             $department = new Department();
             $department->setId(self::GLOBAL_DEPARTMENT_ID);
             $department->setName('Global Suppliers');
             $department->setOrganisation($organisation);
             $this->entityManager->persist($department);
+            $createdGlobalDepartment = true;
         }
 
         $this->entityManager->flush();
+
+        if ($createdGlobalDepartment && $department !== null) {
+            $this->accountingCostCenterBootstrap->ensureDefaultCostCenters($this->entityManager, $department);
+        }
     }
 }

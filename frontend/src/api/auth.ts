@@ -43,6 +43,7 @@ export interface LoginResponse {
     id: string
     state: string
     profile_id: string
+    last_used_department?: string | null
   }
   profile: {
     id: string
@@ -78,6 +79,8 @@ export interface UserResponse {
   id: string
   state: string
   profile_id: string
+  /** Serverseitig gespeicherte Abteilungswahl; nur nutzen wenn noch Membership besteht */
+  last_used_department?: string | null
 }
 
 export interface ProfileResponse {
@@ -132,21 +135,41 @@ export interface UserDepartmentResponse {
  * Login mit E-Mail und Passwort
  */
 export async function login(email: string, password: string): Promise<LoginResponse> {
-  const { data } = await apiClient.post<LoginResponse>('/api/auth/login_check', { email, password })
-  
-  // Validiere Response
-  if (!data.token) {
+  const response = await apiClient.post<LoginResponse>('/api/auth/login_check', { email, password })
+  const raw: unknown = response.data
+
+  if (raw === null || raw === '' || typeof raw !== 'object') {
+    if (import.meta.env.DEV) {
+      console.error('[Auth] Login: unerwarteter Body (kein JSON?)', response.status, raw)
+    }
+    throw new Error('Ungültige Login-Antwort – prüfe ob /api auf das Symfony-Backend zeigt.')
+  }
+
+  const body = raw as LoginResponse & { access_token?: string }
+  const token =
+    typeof body.token === 'string' && body.token.length > 0
+      ? body.token
+      : typeof body.access_token === 'string' && body.access_token.length > 0
+        ? body.access_token
+        : null
+
+  if (!token) {
+    if (import.meta.env.DEV) {
+      console.error('[Auth] Login-Body ohne token:', body)
+    }
     throw new Error('Keine Token in Login-Antwort')
   }
-  if (!data.user?.id) {
-    console.error('Login response missing user:', data)
+  if (!body.user?.id) {
+    console.error('Login response missing user:', body)
     throw new Error('User-Daten fehlen in Login-Antwort')
   }
-  if (!data.profile?.id) {
-    console.error('Login response missing profile:', data)
+  if (!body.profile?.id) {
+    console.error('Login response missing profile:', body)
     throw new Error('Profil-Daten fehlen in Login-Antwort')
   }
-  
+
+  const data: LoginResponse = { ...body, token }
+
   // Token und IDs im localStorage speichern
   localStorage.setItem('auth_token', data.token)
   localStorage.setItem('user_id', data.user.id)
@@ -158,7 +181,7 @@ export async function login(email: string, password: string): Promise<LoginRespo
   } else if (import.meta.env.DEV) {
     console.warn('[Auth] Login-Response enthält keinen refresh_token – Token-Refresh wird bei 401 fehlschlagen!')
   }
-  
+
   return data
 }
 
@@ -316,6 +339,19 @@ export async function setPrimaryDepartment(departmentId: string): Promise<void> 
   }
   
   await apiClient.put(`/api/users/${userId}/set-primary-department`, {
+    department_id: departmentId
+  })
+}
+
+/**
+ * Speichert die zuletzt aktive Abteilung (Login / Session-Wiederherstellung).
+ */
+export async function saveLastUsedDepartment(departmentId: string): Promise<void> {
+  const userId = localStorage.getItem('user_id')
+  if (!userId) {
+    throw new Error('Keine User-ID verfügbar')
+  }
+  await apiClient.put(`/api/users/${userId}/last-used-department`, {
     department_id: departmentId
   })
 }

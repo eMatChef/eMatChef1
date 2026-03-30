@@ -109,8 +109,13 @@
               <label>Ziel-Kiste/Tasche</label>
               <select v-model="form.to_container_batch_id" class="batch-form-input" required>
                 <option value="">– wählen –</option>
-                <option v-for="cb in containerBatches" :key="cb.id" :value="cb.id">
-                  {{ formatContainerBatchOption(cb) }}
+                <option
+                  v-for="cb in containerBatches"
+                  :key="cb.id"
+                  :value="cb.id"
+                  :title="formatContainerBatchOptionFullLabel(cb)"
+                >
+                  {{ formatContainerBatchOptionFullLabel(cb) }}
                 </option>
               </select>
             </div>
@@ -140,6 +145,7 @@
 import { ref, reactive, computed, watch } from 'vue'
 import { moveBatchQuantity, type MaterialBatch, type BatchStorageAllocation } from '@/api/materials'
 import { getContainerBatches, type StorageRack } from '@/api/storageLocations'
+import { formatContainerBatchOptionFullLabel } from '@/utils/containerBatchLabel'
 import { useToast } from '@/composables/useToast'
 import { useStorageStructure } from '@/composables/useStorageStructure'
 import StorageLocationPicker from '@/components/storage/StorageLocationPicker.vue'
@@ -255,15 +261,6 @@ const canSubmit = computed(() => {
   if (form.qty < 1 || form.qty > maxQty.value) return false
   return true
 })
-
-function formatContainerBatchOption(cb: import('@/api/storageLocations').ContainerBatch): string {
-  const slotName = (cb.slot?.name || '').trim()
-  const rackName = (cb.rack?.name || '').trim()
-  const location = slotName ? `${rackName} / ${slotName}` : (rackName || 'Ohne Fach')
-  const main = (cb.label || cb.serial_number || cb.material_name || 'Kiste').trim()
-  const secondary = cb.material_name && cb.material_name !== main ? ` - ${cb.material_name}` : ''
-  return `${location} - ${main}${secondary}`
-}
 
 function formatAllocationLocation(a: BatchStorageAllocation): string {
   const fallbackContainer = a.container_batch_id

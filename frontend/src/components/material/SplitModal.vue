@@ -87,9 +87,14 @@
                 <label>Kiste/Tasche</label>
                 <select v-model="form.container_batch_id" class="form-select" :class="{ 'is-invalid': submitted && !form.container_batch_id }">
                   <option value="">– Kiste/Tasche wählen –</option>
-                  <option v-for="cb in containerBatches" :key="cb.id" :value="cb.id">
-                    {{ (cb.label || cb.serial_number || cb.material_name) }}{{ cb.material_name && cb.material_name !== (cb.label || cb.serial_number) ? ` – ${cb.material_name}` : '' }}{{ cb.rack ? ` (${cb.rack.name}${cb.slot ? ' / ' + cb.slot.name : ''})` : '' }}
-                  </option>
+                <option
+                  v-for="cb in containerBatches"
+                  :key="cb.id"
+                  :value="cb.id"
+                  :title="formatContainerBatchOptionFullLabel(cb)"
+                >
+                  {{ formatContainerBatchOptionFullLabel(cb) }}
+                </option>
                 </select>
               </div>
             </template>
@@ -157,9 +162,14 @@
                         <template v-else>
                           <select v-model="entry.container_batch_id" class="form-select form-select-sm">
                             <option value="">– Kiste/Tasche wählen –</option>
-                            <option v-for="cb in containerBatches" :key="cb.id" :value="cb.id">
-                              {{ (cb.label || cb.serial_number || cb.material_name) }}{{ cb.material_name && cb.material_name !== (cb.label || cb.serial_number) ? ` – ${cb.material_name}` : '' }}{{ cb.rack ? ` (${cb.rack.name}${cb.slot ? ' / ' + cb.slot.name : ''})` : '' }}
-                            </option>
+                <option
+                  v-for="cb in containerBatches"
+                  :key="cb.id"
+                  :value="cb.id"
+                  :title="formatContainerBatchOptionFullLabel(cb)"
+                >
+                  {{ formatContainerBatchOptionFullLabel(cb) }}
+                </option>
                           </select>
                         </template>
                       </div>
@@ -195,6 +205,7 @@
 import { ref, reactive, computed, watch } from 'vue'
 import { splitToSerialized } from '@/api/materials'
 import { getContainerBatches, type StorageSlot } from '@/api/storageLocations'
+import { formatContainerBatchOptionFullLabel } from '@/utils/containerBatchLabel'
 import type { MaterialBatch } from '@/api/materials'
 import { useToast } from '@/composables/useToast'
 import StorageLocationPicker from '@/components/storage/StorageLocationPicker.vue'

@@ -146,9 +146,9 @@ export async function importTemplates(departmentId: string, templatesJson: any):
 export interface CreateMaterialComponentInput {
   component_type: string
   mode: 'new' | 'existing'
-  /** Für mode=new, serialized */
+  /** Für mode=new, nur bei serialisierten Komponenten */
   serial_number?: string
-  /** Für mode=new, bulk */
+  /** Für mode=new, bulk: Stückzahl */
   qty?: number
   /** Für mode=new */
   unit_price?: string

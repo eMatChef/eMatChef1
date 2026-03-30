@@ -160,16 +160,46 @@
             </div>
           </div>
 
-          <!-- Gruppe -->
-          <div v-if="selectedActivity.type !== 'external'" class="detail-card">
+          <!-- Gruppen nach Department (Host + eingeladen) -->
+          <div v-if="selectedActivity.type !== 'external'" class="detail-card detail-card-full">
             <h3 class="detail-card-title">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
-              Gruppe
+              Gruppen nach Department
             </h3>
-            <select v-model="draftEditData.group_id" class="form-input">
-              <option :value="null">– Keine Gruppe –</option>
-              <option v-for="grp in myGroups" :key="grp.id" :value="grp.id">{{ grp.name }}</option>
-            </select>
+            <p class="text-muted draft-group-intro">
+              Pro Department die Gruppe wählen, die an der Aktivität beteiligt ist (Organisator und eingeladene Departments).
+            </p>
+            <div class="draft-group-by-dept">
+              <div class="draft-group-dept-block">
+                <label class="draft-group-dept-label">{{ activityDetail?.department_name || 'Organisator' }} <span class="dept-role-tag">Organisator</span></label>
+                <select v-model="draftEditData.group_id" class="form-input">
+                  <option :value="null">– Keine Gruppe –</option>
+                  <option v-for="grp in myGroups" :key="grp.id" :value="grp.id">{{ grp.name }}</option>
+                </select>
+              </div>
+              <div
+                v-for="inv in draftEditInvitedDepartments"
+                :key="`draft-inv-${inv.id}`"
+                class="draft-group-dept-block"
+              >
+                <label class="draft-group-dept-label">
+                  {{ inv.name || inv.id }}
+                  <span v-if="inv.organisation_name" class="text-muted"> ({{ inv.organisation_name }})</span>
+                  <span class="invite-status-badge invite-status-badge--inline" :class="inv.status === 'accepted' ? 'accepted' : inv.status === 'rejected' ? 'rejected' : 'pending'">
+                    {{ inv.status === 'accepted' ? 'Angenommen' : inv.status === 'rejected' ? 'Abgelehnt' : 'Ausstehend' }}
+                  </span>
+                </label>
+                <select
+                  class="form-input"
+                  :value="inv.group_id || ''"
+                  @focus="loadDraftEditInviteGroups(inv.id)"
+                  @change="setDraftEditInviteGroup(inv.id, ($event.target as HTMLSelectElement).value)"
+                >
+                  <option value="">– Keine Gruppe –</option>
+                  <option v-for="g in (draftEditInviteGroupsById[inv.id] || [])" :key="g.id" :value="g.id">{{ g.name }}</option>
+                </select>
+              </div>
+            </div>
           </div>
 
           <!-- Notizen -->
@@ -212,6 +242,52 @@
                 {{ formatDateTime(activityDetail.planning_start) }} – {{ formatDateTime(activityDetail.planning_end || '') }}
               </span>
             </div>
+          </div>
+
+          <div
+            v-if="selectedActivity.type !== 'external' && (activityDetail?.invited_departments?.length || activityDetail?.department_name)"
+            class="detail-card detail-card-full"
+          >
+            <h3 class="detail-card-title">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+              Departments &amp; Beteiligung
+            </h3>
+            <ul class="dept-participation-list">
+              <li class="dept-participation-row">
+                <span class="dept-participation-name">{{ activityDetail?.department_name || '—' }}</span>
+                <span class="dept-participation-badge host">Organisator</span>
+                <span class="dept-participation-group">
+                  <template v-if="selectedActivity.groupName || activityDetail?.group_name">
+                    Gruppe: {{ selectedActivity.groupName || activityDetail?.group_name }}
+                  </template>
+                  <span v-else class="text-muted">Keine Gruppe zugeordnet</span>
+                </span>
+              </li>
+              <li
+                v-for="inv in (activityDetail?.invited_departments || [])"
+                :key="`part-${inv.id}`"
+                class="dept-participation-row"
+              >
+                <span class="dept-participation-name">
+                  {{ inv.name || inv.id }}
+                  <span v-if="inv.organisation_name" class="text-muted"> ({{ inv.organisation_name }})</span>
+                </span>
+                <span
+                  class="dept-participation-badge invite-status-badge"
+                  :class="inv.status === 'accepted' ? 'accepted' : inv.status === 'rejected' ? 'rejected' : 'pending'"
+                >
+                  {{ inv.status === 'accepted' ? 'Angenommen' : inv.status === 'rejected' ? 'Abgelehnt' : 'Ausstehend' }}
+                </span>
+                <span class="dept-participation-group">
+                  <template v-if="inv.group_name">Gruppe: {{ inv.group_name }}</template>
+                  <span v-else-if="inv.status === 'accepted'" class="text-muted">Gruppe: noch nicht festgelegt</span>
+                  <span v-else class="text-muted">—</span>
+                </span>
+              </li>
+            </ul>
+            <p class="dept-participation-hint text-muted">
+              Gruppenleiter der zugeordneten Gast-Gruppe können nach Annahme der Einladung mitarbeiten (Material, Workflow).
+            </p>
           </div>
 
           <div class="detail-card">
@@ -307,11 +383,15 @@
             <p>Keine Departments eingeladen.</p>
           </div>
           <div v-else class="department-invited-list">
-            <div v-for="dep in invitedDepartmentsDetail" :key="`detail-invited-${dep.id || dep.name}`" class="department-invited-item">
-              <span>{{ dep.name }}<template v-if="dep.organisation_name"> ({{ dep.organisation_name }})</template></span>
-              <span class="invite-status-badge" :class="dep.status || 'pending'">
-                {{ dep.status === 'accepted' ? 'Angenommen' : dep.status === 'rejected' ? 'Abgelehnt' : 'Ausstehend' }}
-              </span>
+            <div v-for="dep in invitedDepartmentsDetail" :key="`detail-invited-${dep.id || dep.name}`" class="department-invited-item department-invited-item-with-group">
+              <div class="department-invited-main">
+                <span>{{ dep.name }}<template v-if="dep.organisation_name"> ({{ dep.organisation_name }})</template></span>
+                <span class="invite-status-badge" :class="dep.status || 'pending'">
+                  {{ dep.status === 'accepted' ? 'Angenommen' : dep.status === 'rejected' ? 'Abgelehnt' : 'Ausstehend' }}
+                </span>
+              </div>
+              <div v-if="dep.group_name" class="department-invited-group text-muted">Gruppe: {{ dep.group_name }}</div>
+              <div v-else-if="dep.status === 'accepted'" class="department-invited-group text-muted">Gruppe: noch nicht festgelegt</div>
             </div>
           </div>
         </div>
@@ -327,8 +407,40 @@
               Material hinzufügen
             </h3>
           </div>
-          <div class="mat-source-switch" role="tablist" aria-label="Materialquelle Detailansicht">
-            <button type="button" class="mat-source-btn" :class="{ active: detailMaterialSource === 'internal' }" @click="setDetailMaterialSource('internal')">Eigenes</button>
+          <div class="mat-source-switch mat-source-switch-wrap" role="tablist" aria-label="Materialquelle Detailansicht">
+            <button
+              type="button"
+              class="mat-source-btn"
+              :class="{ active: detailMaterialSource === 'internal' && detailInternalScope === 'own' }"
+              @click="setDetailMaterialInternalScope('own')"
+            >
+              Eigenes
+            </button>
+            <button
+              v-for="dep in acceptedInvitedDepartmentsForTabs"
+              :key="`mat-tab-inv-${dep.id}`"
+              type="button"
+              class="mat-source-btn mat-source-btn-dept"
+              :class="{
+                active:
+                  detailMaterialSource === 'internal' &&
+                  detailInternalScope === 'single' &&
+                  detailSingleDepartmentId === dep.id,
+              }"
+              :title="dep.organisation_name ? `${dep.name} (${dep.organisation_name})` : dep.name"
+              @click="setDetailInvitedDepartmentTab(dep.id)"
+            >
+              {{ truncateDeptTabLabel(dep.name) }}
+            </button>
+            <button
+              type="button"
+              class="mat-source-btn"
+              :class="{ active: detailMaterialSource === 'internal' && detailInternalScope === 'both' }"
+              title="Eigenes Lager und alle eingeladenen Departments"
+              @click="setDetailMaterialInternalScope('both')"
+            >
+              Alle
+            </button>
             <button
               type="button"
               class="mat-source-btn"
@@ -339,12 +451,15 @@
               J&amp;S
             </button>
           </div>
-          <p v-if="!canUseDetailJsMaterialSource" class="mat-source-hint">J&amp;S-Material ist nur bei Event oder Camp verfügbar.</p>
+          <p v-if="acceptedInvitedDepartmentsForTabs.length > 0" class="mat-source-hint">
+            Pro Reiter ein eingeladenes Department; «Alle» sucht bei dir und bei allen angenommenen Einladungen ({{ acceptedInvitedDepartmentsForTabs.length }}).
+          </p>
+          <p v-else-if="!canUseDetailJsMaterialSource" class="mat-source-hint">J&amp;S-Material ist nur bei Event oder Camp verfügbar.</p>
           <div class="detail-material-search-wrapper">
             <MaterialLookupInput
               v-model="detailMatSearch"
               :fetcher="detailMaterialLookupFetcher"
-              :min-chars="2"
+              :min-chars="1"
               :max-suggestions="20"
               placeholder="Material suchen (z.B. Zelt, Kocher, Blache...)"
               :input-class="'detail-mat-search-input'"
@@ -1732,11 +1847,56 @@
                 <div v-else-if="isLoadingSuggestions" class="suggestion-chips">
                   <div class="suggestion-label suggestion-loading">Vorschläge werden geladen...</div>
                 </div>
-                <div v-if="canUseJsMaterialSource" class="mat-source-switch" role="tablist" aria-label="Materialquelle">
-                  <button type="button" class="mat-source-btn" :class="{ active: materialSource === 'internal' }" @click="setMaterialSource('internal')">Eigenes</button>
-                  <button type="button" class="mat-source-btn" :class="{ active: materialSource === 'js' }" @click="setMaterialSource('js')">J&amp;S</button>
+                <div class="mat-source-switch mat-source-switch-wrap" role="tablist" aria-label="Materialquelle">
+                  <button
+                    type="button"
+                    class="mat-source-btn"
+                    :class="{ active: materialSource === 'internal' && materialInternalScope === 'own' }"
+                    @click="setMaterialInternalScope('own')"
+                  >
+                    Eigenes
+                  </button>
+                  <button
+                    v-for="dep in wizardInvitedDepartmentsForTabs"
+                    :key="`wiz-mat-tab-${dep.id}`"
+                    type="button"
+                    class="mat-source-btn mat-source-btn-dept"
+                    :class="{
+                      active:
+                        materialSource === 'internal' &&
+                        materialInternalScope === 'single' &&
+                        materialSingleDepartmentId === dep.id,
+                    }"
+                    :title="dep.organisation_name ? `${dep.name} (${dep.organisation_name})` : dep.name"
+                    :disabled="!canUseWizardInvitedMaterialSource"
+                    @click="setMaterialInvitedDepartmentTab(dep.id)"
+                  >
+                    {{ truncateDeptTabLabel(dep.name) }}
+                  </button>
+                  <button
+                    type="button"
+                    class="mat-source-btn"
+                    :class="{ active: materialSource === 'internal' && materialInternalScope === 'both' }"
+                    @click="setMaterialInternalScope('both')"
+                  >
+                    Alle
+                  </button>
+                  <button
+                    v-if="canUseJsMaterialSource"
+                    type="button"
+                    class="mat-source-btn"
+                    :class="{ active: materialSource === 'js' }"
+                    @click="setMaterialSource('js')"
+                  >
+                    J&amp;S
+                  </button>
                 </div>
-                <p v-else class="mat-source-hint">J&amp;S-Material ist nur bei Event oder Camp verfügbar.</p>
+                <p v-if="canUseWizardInvitedMaterialSource" class="mat-source-hint">
+                  {{ wizardInvitedDepartmentsForTabs.length }}
+                  {{ wizardInvitedDepartmentsForTabs.length === 1 ? 'eingeladenes Department' : 'eingeladene Departments' }}
+                  – ein Reiter pro Einladung; «Alle» kombiniert dein Lager mit allen (nach Annahme).
+                </p>
+                <p v-if="!canUseJsMaterialSource" class="mat-source-hint">J&amp;S-Material ist nur bei Event oder Camp verfügbar.</p>
                 <div v-if="canUseJsMaterialSource && materialSource === 'js'" class="js-order-card">
                   <div class="js-order-header">
                     <strong>J&amp;S-Bestellformular</strong>
@@ -1794,7 +1954,7 @@
                     ref="materialSearchInput"
                     v-model="materialSearch"
                     :fetcher="activityMaterialLookupFetcher"
-                    :min-chars="2"
+                    :min-chars="1"
                     :max-suggestions="20"
                     placeholder="Material suchen..."
                     :input-class="'mat-search-input'"
@@ -2023,9 +2183,28 @@
                     </div>
                     <div v-if="invitedDepartments.length > 0" class="department-invited-list">
                       <div class="department-invited-title">Eingeladene Departments</div>
-                      <div v-for="dep in invitedDepartments" :key="`invited-${dep.id}`" class="department-invited-item">
-                        <span>{{ dep.name }} ({{ dep.organisation_name }})</span>
-                        <button type="button" class="btn btn-sm btn-secondary" @click="removeInvitedDepartment(dep.id)">Entfernen</button>
+                      <div
+                        v-for="dep in invitedDepartments"
+                        :key="`invited-${dep.id}`"
+                        class="department-invited-item department-invited-item-with-group"
+                      >
+                        <div class="department-invited-main">
+                          <span>{{ dep.name }} ({{ dep.organisation_name }})</span>
+                          <button type="button" class="btn btn-sm btn-secondary" @click="removeInvitedDepartment(dep.id)">Entfernen</button>
+                        </div>
+                        <div class="department-invited-group-select">
+                          <label class="text-muted">Gruppe am Event (optional)</label>
+                          <select
+                            class="form-input"
+                            :value="dep.group_id || ''"
+                            @focus="loadInviteDepartmentGroups(dep.id)"
+                            @change="setInvitedDepartmentGroup(dep.id, ($event.target as HTMLSelectElement).value)"
+                          >
+                            <option value="">— Keine Gruppe —</option>
+                            <option v-for="g in (inviteDeptGroupsById[dep.id] || [])" :key="g.id" :value="g.id">{{ g.name }}</option>
+                          </select>
+                          <span class="text-muted hint-sm">Gruppenleiter dieser Gruppe dürfen nach Annahme mitarbeiten.</span>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -2172,11 +2351,56 @@
                 <div v-else-if="isLoadingSuggestions" class="suggestion-chips">
                   <div class="suggestion-label suggestion-loading">Vorschläge werden geladen...</div>
                 </div>
-                <div v-if="canUseJsMaterialSource" class="mat-source-switch" role="tablist" aria-label="Materialquelle">
-                  <button type="button" class="mat-source-btn" :class="{ active: materialSource === 'internal' }" @click="setMaterialSource('internal')">Eigenes</button>
-                  <button type="button" class="mat-source-btn" :class="{ active: materialSource === 'js' }" @click="setMaterialSource('js')">J&amp;S</button>
+                <div class="mat-source-switch mat-source-switch-wrap" role="tablist" aria-label="Materialquelle">
+                  <button
+                    type="button"
+                    class="mat-source-btn"
+                    :class="{ active: materialSource === 'internal' && materialInternalScope === 'own' }"
+                    @click="setMaterialInternalScope('own')"
+                  >
+                    Eigenes
+                  </button>
+                  <button
+                    v-for="dep in wizardInvitedDepartmentsForTabs"
+                    :key="`wiz-mat-tab-${dep.id}`"
+                    type="button"
+                    class="mat-source-btn mat-source-btn-dept"
+                    :class="{
+                      active:
+                        materialSource === 'internal' &&
+                        materialInternalScope === 'single' &&
+                        materialSingleDepartmentId === dep.id,
+                    }"
+                    :title="dep.organisation_name ? `${dep.name} (${dep.organisation_name})` : dep.name"
+                    :disabled="!canUseWizardInvitedMaterialSource"
+                    @click="setMaterialInvitedDepartmentTab(dep.id)"
+                  >
+                    {{ truncateDeptTabLabel(dep.name) }}
+                  </button>
+                  <button
+                    type="button"
+                    class="mat-source-btn"
+                    :class="{ active: materialSource === 'internal' && materialInternalScope === 'both' }"
+                    @click="setMaterialInternalScope('both')"
+                  >
+                    Alle
+                  </button>
+                  <button
+                    v-if="canUseJsMaterialSource"
+                    type="button"
+                    class="mat-source-btn"
+                    :class="{ active: materialSource === 'js' }"
+                    @click="setMaterialSource('js')"
+                  >
+                    J&amp;S
+                  </button>
                 </div>
-                <p v-else class="mat-source-hint">J&amp;S-Material ist nur bei Event oder Camp verfügbar.</p>
+                <p v-if="canUseWizardInvitedMaterialSource" class="mat-source-hint">
+                  {{ wizardInvitedDepartmentsForTabs.length }}
+                  {{ wizardInvitedDepartmentsForTabs.length === 1 ? 'eingeladenes Department' : 'eingeladene Departments' }}
+                  – ein Reiter pro Einladung; «Alle» kombiniert dein Lager mit allen (nach Annahme).
+                </p>
+                <p v-if="!canUseJsMaterialSource" class="mat-source-hint">J&amp;S-Material ist nur bei Event oder Camp verfügbar.</p>
                 <div v-if="canUseJsMaterialSource && materialSource === 'js'" class="js-order-card">
                   <div class="js-order-header">
                     <strong>J&amp;S-Bestellformular</strong>
@@ -2235,7 +2459,7 @@
                     ref="materialSearchInput"
                     v-model="materialSearch"
                     :fetcher="activityMaterialLookupFetcher"
-                    :min-chars="2"
+                    :min-chars="1"
                     :max-suggestions="20"
                     placeholder="Material suchen (z.B. Zelt, Kocher, Blache...)"
                     :input-class="'mat-search-input'"
@@ -2632,6 +2856,16 @@ const canUseDetailJsMaterialSource = computed(() => {
   return type === 'camp' || type === 'event'
 })
 
+/** Alle angenommenen Einladungen (eine oder mehrere andere Departments) */
+const acceptedInvitedDepartmentIds = computed(() => {
+  const raw = activityDetail.value?.invited_departments
+  if (!Array.isArray(raw)) return []
+  return raw
+    .filter((entry: any) => entry?.id && entry?.status === 'accepted')
+    .map((entry: any) => entry.id as string)
+})
+const canUseDetailInvitedMaterialSource = computed(() => acceptedInvitedDepartmentIds.value.length > 0)
+
 // Doppelklick auf Material-Zeile → Modal öffnen (draft bis issued)
 function onMaterialRowDblClick(item: any) {
   const status = selectedActivity.value?.status || ''
@@ -2671,15 +2905,21 @@ async function openAdjustModal(item: any) {
     const endDate = activityDetail.value?.planning_end || activityDetail.value?.usage_end
     const params: any = {
       departmentId: departmentId.value,
+      activityId: selectedActivity.value?.id,
       search: item.materialName,
-      source: canUseDetailJsMaterialSource.value ? 'all' : 'internal',
-      includeGlobalJs: canUseDetailJsMaterialSource.value,
       limit: 1,
       excludeActivityId: selectedActivity.value?.id,
     }
     if (startDate && endDate) {
       params.startDate = startDate
       params.endDate = endDate
+    }
+    if (canUseDetailJsMaterialSource.value) {
+      params.source = 'all'
+      params.includeGlobalJs = true
+    } else {
+      params.source = 'internal'
+      params.internalScope = 'both'
     }
     const response = await apiClient.get('/api/materials/available-for-period', { params })
     const found = (response.data || []).find((m: any) => m.materialItemId === item.materialItemId)
@@ -2780,6 +3020,9 @@ const draftEditData = ref({
   notes: '',
   group_id: null as string | null,
 })
+/** Bearbeiten-Modus: Eingeladene inkl. Gruppenzuordnung (Kopie von activityDetail.invited_departments) */
+const draftEditInvitedDepartments = ref<DepartmentSearchResult[]>([])
+const draftEditInviteGroupsById = ref<Record<string, { id: string; name: string }[]>>({})
 const showDateChangeWarning = ref(false)
 
 const isDraftEditable = computed(() => {
@@ -2797,17 +3040,60 @@ function startEditDraft() {
     notes: activityDetail.value.notes || '',
     group_id: activityDetail.value.group_id || null,
   }
+  const rawInv = activityDetail.value.invited_departments
+  draftEditInvitedDepartments.value = Array.isArray(rawInv)
+    ? rawInv.map((inv: Record<string, unknown>) => ({
+        id: String(inv.id ?? ''),
+        name: String(inv.name ?? ''),
+        organisation_name: String(inv.organisation_name ?? ''),
+        status: String(inv.status ?? 'pending'),
+        group_id: (inv.group_id as string | null | undefined) ?? null,
+        group_name: (inv.group_name as string | null | undefined) ?? null,
+      }))
+    : []
+  draftEditInviteGroupsById.value = {}
   isEditingDraft.value = true
   showDateChangeWarning.value = false
-  // Gruppen laden für Dropdown
   if (myGroups.value.length === 0) {
     loadMyGroups()
   }
+  for (const inv of draftEditInvitedDepartments.value) {
+    if (inv.id) {
+      void loadDraftEditInviteGroups(inv.id)
+    }
+  }
+}
+
+async function loadDraftEditInviteGroups(deptId: string) {
+  if (draftEditInviteGroupsById.value[deptId]?.length) return
+  try {
+    const res = await apiClient.get('/api/groups', { params: { department_id: deptId } })
+    const raw = res.data || []
+    draftEditInviteGroupsById.value = {
+      ...draftEditInviteGroupsById.value,
+      [deptId]: raw.map((g: { id: string; name: string }) => ({ id: g.id, name: g.name })),
+    }
+  } catch {
+    draftEditInviteGroupsById.value = { ...draftEditInviteGroupsById.value, [deptId]: [] }
+  }
+}
+
+function setDraftEditInviteGroup(deptId: string, groupIdRaw: string) {
+  const gid = groupIdRaw || null
+  const idx = draftEditInvitedDepartments.value.findIndex((d) => d.id === deptId)
+  if (idx < 0) return
+  const row = draftEditInvitedDepartments.value[idx]
+  row.group_id = gid
+  const list = draftEditInviteGroupsById.value[deptId] || []
+  row.group_name = gid ? list.find((x) => x.id === gid)?.name || null : null
+  draftEditInvitedDepartments.value = [...draftEditInvitedDepartments.value]
 }
 
 function cancelEditDraft() {
   isEditingDraft.value = false
   showDateChangeWarning.value = false
+  draftEditInvitedDepartments.value = []
+  draftEditInviteGroupsById.value = {}
 }
 
 function onDraftDateChange() {
@@ -2863,6 +3149,15 @@ async function saveDraftEdit() {
       group_id: draftEditData.value.group_id || null,
     }
 
+    if (draftEditInvitedDepartments.value.length > 0) {
+      payload.invited_departments = draftEditInvitedDepartments.value.map((entry) => ({
+        id: entry.id,
+        name: entry.name,
+        organisation_name: entry.organisation_name,
+        group_id: entry.group_id ?? null,
+      }))
+    }
+
     const response = await apiClient.patch(`/api/activities/${selectedActivity.value.id}`, payload)
     activityDetail.value = response.data
 
@@ -2903,6 +3198,9 @@ const isDetailMatLoading = ref(false)
 const showDetailMatDropdown = ref(false)
 const detailMatActiveIndex = ref(-1)
 const detailMaterialSource = ref<'internal' | 'js'>('internal')
+/** Nur Nicht-J&S: eigenes | ein eingeladenes Dept. (single) | alle erlaubten Depots */
+const detailInternalScope = ref<'own' | 'both' | 'single'>('own')
+const detailSingleDepartmentId = ref<string | null>(null)
 let detailMatSearchTimer: ReturnType<typeof setTimeout> | null = null
 
 // Workflow-State
@@ -3024,7 +3322,15 @@ const filteredDetailItems = computed(() => {
   if (detailMaterialSource.value === 'js') {
     return detailItems.value.filter((item: any) => item.isJsMaterial)
   }
-  return detailItems.value.filter((item: any) => !item.isJsMaterial)
+  const ownId = departmentId.value
+  const nonJs = detailItems.value.filter((item: any) => !item.isJsMaterial)
+  if (detailInternalScope.value === 'own') {
+    return nonJs.filter((item: any) => item.sourceDepartmentId === ownId)
+  }
+  if (detailInternalScope.value === 'single' && detailSingleDepartmentId.value) {
+    return nonJs.filter((item: any) => item.sourceDepartmentId === detailSingleDepartmentId.value)
+  }
+  return nonJs
 })
 const issueMatFiltered = computed(() => {
   const q = issueMatSearch.value.toLowerCase().trim()
@@ -3034,17 +3340,63 @@ const issueMatFiltered = computed(() => {
   )
 })
 
-function setDetailMaterialSource(source: 'internal' | 'js') {
-  if (source === 'js' && !canUseDetailJsMaterialSource.value) {
+function truncateDeptTabLabel(name: string, maxLen = 22): string {
+  const t = (name || '').trim()
+  if (!t.length) return '—'
+  if (t.length <= maxLen) return t
+  return `${t.slice(0, maxLen - 1)}…`
+}
+
+function setDetailMaterialInternalScope(scope: 'own' | 'both') {
+  if (
+    detailMaterialSource.value === 'internal' &&
+    detailInternalScope.value === scope &&
+    detailSingleDepartmentId.value === null
+  ) {
     return
   }
-  if (detailMaterialSource.value === source) return
-  detailMaterialSource.value = source
+  detailMaterialSource.value = 'internal'
+  detailInternalScope.value = scope
+  detailSingleDepartmentId.value = null
   detailMatSearchResults.value = []
   detailMatActiveIndex.value = -1
-  if (detailMatSearch.value.trim().length >= 2) {
+  if (detailMatSearch.value.trim().length >= 1) {
     searchDetailMaterials()
   }
+}
+
+function setDetailInvitedDepartmentTab(deptId: string) {
+  if (!acceptedInvitedDepartmentIds.value.includes(deptId)) return
+  if (
+    detailMaterialSource.value === 'internal' &&
+    detailInternalScope.value === 'single' &&
+    detailSingleDepartmentId.value === deptId
+  ) {
+    return
+  }
+  detailMaterialSource.value = 'internal'
+  detailInternalScope.value = 'single'
+  detailSingleDepartmentId.value = deptId
+  detailMatSearchResults.value = []
+  detailMatActiveIndex.value = -1
+  if (detailMatSearch.value.trim().length >= 1) {
+    searchDetailMaterials()
+  }
+}
+
+function setDetailMaterialSource(source: 'internal' | 'js') {
+  if (source === 'js') {
+    if (!canUseDetailJsMaterialSource.value) return
+    if (detailMaterialSource.value === 'js') return
+    detailMaterialSource.value = 'js'
+    detailMatSearchResults.value = []
+    detailMatActiveIndex.value = -1
+    if (detailMatSearch.value.trim().length >= 1) {
+      searchDetailMaterials()
+    }
+    return
+  }
+  setDetailMaterialInternalScope('own')
 }
 
 // Detail-Tabs dynamisch basierend auf Status
@@ -3097,6 +3449,11 @@ const invitedDepartmentsDetail = computed(() => {
   }))
 })
 
+/** Nur angenommene Einladungen – ein Material-Reiter pro Department */
+const acceptedInvitedDepartmentsForTabs = computed(() =>
+  invitedDepartmentsDetail.value.filter((d) => d.id && d.status === 'accepted'),
+)
+
 const typeFilterChips = [
   { type: 'activity', label: 'Aktivität' },
   { type: 'camp', label: 'Lager' },
@@ -3142,6 +3499,10 @@ const showDepartmentInvitePanel = ref(false)
 const departmentInviteQuery = ref('')
 const departmentInviteResults = ref<DepartmentSearchResult[]>([])
 const invitedDepartments = ref<DepartmentSearchResult[]>([])
+/** Reiter nur für nicht abgelehnte Einladungen (accepted oder noch ohne Status) */
+const wizardInvitedDepartmentsForTabs = computed(() =>
+  invitedDepartments.value.filter((d: any) => !d.status || d.status === 'accepted'),
+)
 const isDepartmentInviteLoading = ref(false)
 let departmentInviteSearchTimer: ReturnType<typeof setTimeout> | null = null
 
@@ -3467,6 +3828,7 @@ async function autoSaveDraft() {
         id: entry.id,
         name: entry.name,
         organisation_name: entry.organisation_name,
+        group_id: entry.group_id ?? null,
       })),
     }
 
@@ -3648,7 +4010,12 @@ const showMaterialDropdown = ref(false)
 const materialSearchActiveIndex = ref(-1)
 const materialSearchInput = ref<{ focus: () => void } | null>(null)
 const materialSource = ref<'all' | 'internal' | 'js'>('internal')
+const materialInternalScope = ref<'own' | 'both' | 'single'>('own')
+const materialSingleDepartmentId = ref<string | null>(null)
 const canUseJsMaterialSource = computed(() => selectedTemplate.value === 'camp' || selectedTemplate.value === 'event')
+const canUseWizardInvitedMaterialSource = computed(
+  () => !!(draftId.value && wizardInvitedDepartmentsForTabs.value.length > 0),
+)
 const showJsOrderForm = ref(false)
 const jsOrderForm = ref({
   courseType: '',
@@ -3664,12 +4031,24 @@ let materialSearchTimer: ReturnType<typeof setTimeout> | null = null
 const activityMaterialLookupFetcher = createAvailabilityMaterialLookupFetcher(() => {
   const dateRange = getMaterialDateRange()
   if (!dateRange) return null
+  const src = canUseJsMaterialSource.value ? materialSource.value : 'internal'
+  const int = materialInternalScope.value
+  let internalScopeParam: 'own' | 'invited' | 'both' | 'single' = 'both'
+  let singleDepartmentId: string | undefined
+  if (int === 'single' && materialSingleDepartmentId.value) {
+    internalScopeParam = 'single'
+    singleDepartmentId = materialSingleDepartmentId.value
+  } else if (int === 'own' || int === 'both') {
+    internalScopeParam = int
+  }
   return {
     departmentId: departmentId.value,
     activityId: draftId.value || undefined,
     startDate: dateRange.startDate,
     endDate: dateRange.endDate,
-    source: canUseJsMaterialSource.value ? materialSource.value : 'internal',
+    source: src,
+    internalScope: src === 'internal' ? internalScopeParam : undefined,
+    singleDepartmentId: src === 'internal' ? singleDepartmentId : undefined,
     includeGlobalJs: canUseJsMaterialSource.value,
     limit: 20,
   }
@@ -3679,28 +4058,83 @@ const detailMaterialLookupFetcher = createAvailabilityMaterialLookupFetcher(() =
   if (!selectedActivity.value?.id) return null
   const startDate = activityDetail.value?.planning_start || activityDetail.value?.usage_start
   const endDate = activityDetail.value?.planning_end || activityDetail.value?.usage_end
+  const src = canUseDetailJsMaterialSource.value ? detailMaterialSource.value : 'internal'
+  const int = detailInternalScope.value
+  let internalScopeParam: 'own' | 'invited' | 'both' | 'single' = 'both'
+  let singleDepartmentId: string | undefined
+  if (int === 'single' && detailSingleDepartmentId.value) {
+    internalScopeParam = 'single'
+    singleDepartmentId = detailSingleDepartmentId.value
+  } else if (int === 'own' || int === 'both') {
+    internalScopeParam = int
+  }
   return {
     departmentId: departmentId.value,
     activityId: selectedActivity.value.id,
     excludeActivityId: selectedActivity.value.id,
     startDate: startDate || undefined,
     endDate: endDate || undefined,
-    source: canUseDetailJsMaterialSource.value ? detailMaterialSource.value : 'internal',
+    source: src,
+    internalScope: src === 'internal' ? internalScopeParam : undefined,
+    singleDepartmentId: src === 'internal' ? singleDepartmentId : undefined,
     includeGlobalJs: canUseDetailJsMaterialSource.value,
     limit: 20,
   }
 })
 
+function setMaterialInternalScope(scope: 'own' | 'both') {
+  if (
+    materialSource.value === 'internal' &&
+    materialInternalScope.value === scope &&
+    materialSingleDepartmentId.value === null
+  ) {
+    return
+  }
+  materialSource.value = 'internal'
+  materialInternalScope.value = scope
+  materialSingleDepartmentId.value = null
+  materialSearchResults.value = []
+  materialSearchActiveIndex.value = -1
+  if (materialSearch.value.trim().length >= 1) {
+    searchMaterials()
+  }
+}
+
+function setMaterialInvitedDepartmentTab(deptId: string) {
+  if (!wizardInvitedDepartmentsForTabs.value.some((d) => d.id === deptId)) return
+  if (
+    materialSource.value === 'internal' &&
+    materialInternalScope.value === 'single' &&
+    materialSingleDepartmentId.value === deptId
+  ) {
+    return
+  }
+  materialSource.value = 'internal'
+  materialInternalScope.value = 'single'
+  materialSingleDepartmentId.value = deptId
+  materialSearchResults.value = []
+  materialSearchActiveIndex.value = -1
+  if (materialSearch.value.trim().length >= 1) {
+    searchMaterials()
+  }
+}
+
 function setMaterialSource(source: 'all' | 'internal' | 'js') {
   if (!canUseJsMaterialSource.value && source !== 'internal') {
     return
   }
-  if (materialSource.value === source) return
-  materialSource.value = source
-  materialSearchResults.value = []
-  materialSearchActiveIndex.value = -1
-  if (materialSearch.value.trim().length >= 2) {
-    searchMaterials()
+  if (source === 'js') {
+    if (materialSource.value === 'js') return
+    materialSource.value = 'js'
+    materialSearchResults.value = []
+    materialSearchActiveIndex.value = -1
+    if (materialSearch.value.trim().length >= 1) {
+      searchMaterials()
+    }
+    return
+  }
+  if (source === 'internal') {
+    setMaterialInternalScope('own')
   }
 }
 
@@ -3838,7 +4272,7 @@ function onMaterialSearchInput() {
   // Debounce: 300ms nach letztem Tastendruck suchen
   if (materialSearchTimer) clearTimeout(materialSearchTimer)
   
-  if (materialSearch.value.length < 2) {
+  if (materialSearch.value.trim().length < 1) {
     materialSearchResults.value = []
     showMaterialDropdown.value = false
     materialSearchActiveIndex.value = -1
@@ -3854,7 +4288,7 @@ function onMaterialSearchInput() {
 
 async function searchMaterials() {
   const query = materialSearch.value.trim()
-  if (query.length < 2) return
+  if (query.length < 1) return
 
   isMaterialLoading.value = true
   try {
@@ -4163,6 +4597,8 @@ watch(canUseJsMaterialSource, (allowed) => {
   if (allowed) return
 
   materialSource.value = 'internal'
+  materialInternalScope.value = 'own'
+  materialSingleDepartmentId.value = null
   showJsOrderForm.value = false
   resetJsOrderForm()
   materialSearchResults.value = []
@@ -4176,16 +4612,63 @@ watch(canUseJsMaterialSource, (allowed) => {
   }
 })
 
+watch(canUseWizardInvitedMaterialSource, (ok) => {
+  if (ok) return
+  materialInternalScope.value = 'own'
+  materialSingleDepartmentId.value = null
+  if (materialSource.value === 'internal' && materialSearch.value.trim().length >= 1) {
+    searchMaterials()
+  }
+})
+
+watch(
+  () => invitedDepartments.value.map((d) => d.id).join(','),
+  () => {
+    if (materialInternalScope.value !== 'single' || !materialSingleDepartmentId.value) return
+    if (!invitedDepartments.value.some((d) => d.id === materialSingleDepartmentId.value)) {
+      materialInternalScope.value = 'own'
+      materialSingleDepartmentId.value = null
+      if (materialSource.value === 'internal' && materialSearch.value.trim().length >= 1) {
+        searchMaterials()
+      }
+    }
+  },
+)
+
 watch(canUseDetailJsMaterialSource, (allowed) => {
   if (allowed) return
   detailMaterialSource.value = 'internal'
-  if (detailMatSearch.value.trim().length >= 2) {
+  detailInternalScope.value = 'own'
+  detailSingleDepartmentId.value = null
+  if (detailMatSearch.value.trim().length >= 1) {
     searchDetailMaterials()
+  }
+})
+
+watch(canUseDetailInvitedMaterialSource, (ok) => {
+  if (ok) return
+  detailInternalScope.value = 'own'
+  detailSingleDepartmentId.value = null
+  if (detailMaterialSource.value === 'internal' && detailMatSearch.value.trim().length >= 1) {
+    searchDetailMaterials()
+  }
+})
+
+watch(acceptedInvitedDepartmentIds, (ids) => {
+  if (detailInternalScope.value !== 'single' || !detailSingleDepartmentId.value) return
+  if (!ids.includes(detailSingleDepartmentId.value)) {
+    detailInternalScope.value = 'own'
+    detailSingleDepartmentId.value = null
+    if (detailMaterialSource.value === 'internal' && detailMatSearch.value.trim().length >= 1) {
+      searchDetailMaterials()
+    }
   }
 })
 
 watch(() => selectedActivity.value?.id, () => {
   detailMaterialSource.value = 'internal'
+  detailInternalScope.value = 'own'
+  detailSingleDepartmentId.value = null
   detailMatSearchResults.value = []
   detailMatActiveIndex.value = -1
 })
@@ -4386,12 +4869,44 @@ function addInvitedDepartment(department: DepartmentSearchResult) {
     toast.info('Department ist bereits in der Einladungsliste.')
     return
   }
-  invitedDepartments.value.push(department)
+  invitedDepartments.value.push({ ...department, group_id: department.group_id ?? null, group_name: department.group_name ?? null })
+  void loadInviteDepartmentGroups(department.id)
   toast.success(`${department.name} zur Einladungsliste hinzugefuegt.`)
 }
 
 function removeInvitedDepartment(departmentIdToRemove: string) {
   invitedDepartments.value = invitedDepartments.value.filter((entry) => entry.id !== departmentIdToRemove)
+  const next = { ...inviteDeptGroupsById.value }
+  delete next[departmentIdToRemove]
+  inviteDeptGroupsById.value = next
+}
+
+/** Gruppenliste pro eingeladenem Department (für Zuordnung: welche Gruppe nimmt teil) */
+const inviteDeptGroupsById = ref<Record<string, { id: string; name: string }[]>>({})
+
+async function loadInviteDepartmentGroups(deptId: string) {
+  if (inviteDeptGroupsById.value[deptId]?.length) return
+  try {
+    const res = await apiClient.get('/api/groups', { params: { department_id: deptId } })
+    const raw = res.data || []
+    inviteDeptGroupsById.value = {
+      ...inviteDeptGroupsById.value,
+      [deptId]: raw.map((g: { id: string; name: string }) => ({ id: g.id, name: g.name })),
+    }
+  } catch {
+    inviteDeptGroupsById.value = { ...inviteDeptGroupsById.value, [deptId]: [] }
+  }
+}
+
+function setInvitedDepartmentGroup(deptId: string, groupIdRaw: string) {
+  const gid = groupIdRaw || null
+  const idx = invitedDepartments.value.findIndex((d) => d.id === deptId)
+  if (idx < 0) return
+  const row = invitedDepartments.value[idx]
+  row.group_id = gid
+  const list = inviteDeptGroupsById.value[deptId] || []
+  row.group_name = gid ? list.find((x) => x.id === gid)?.name || null : null
+  invitedDepartments.value = [...invitedDepartments.value]
 }
 
 function getMaterialSourceLabel(item: any): string {
@@ -4721,6 +5236,7 @@ function resetWizard() {
   departmentInviteQuery.value = ''
   departmentInviteResults.value = []
   invitedDepartments.value = []
+  inviteDeptGroupsById.value = {}
   if (departmentInviteSearchTimer) {
     clearTimeout(departmentInviteSearchTimer)
     departmentInviteSearchTimer = null
@@ -4728,6 +5244,8 @@ function resetWizard() {
   materialSuggestions.value = []
   suggestionsLabel.value = ''
   materialSource.value = 'internal'
+  materialInternalScope.value = 'own'
+  materialSingleDepartmentId.value = null
   showJsOrderForm.value = false
   resetJsOrderForm()
   newActivity.value = {
@@ -4824,6 +5342,8 @@ async function openActivity(activity: Activity) {
   availableTransitions.value = []
   isEditingDraft.value = false
   showDateChangeWarning.value = false
+  draftEditInvitedDepartments.value = []
+  draftEditInviteGroupsById.value = {}
   showDetail.value = true
 
   // URL aktualisieren
@@ -4857,6 +5377,8 @@ function closeDetail() {
   activityDetail.value = null
   isEditingDraft.value = false
   showDateChangeWarning.value = false
+  draftEditInvitedDepartments.value = []
+  draftEditInviteGroupsById.value = {}
   router.replace(`/${departmentId.value}/activities`)
 }
 
@@ -4983,7 +5505,7 @@ watch(
 function onDetailMatSearchInput() {
   if (detailMatSearchTimer) clearTimeout(detailMatSearchTimer)
 
-  if (detailMatSearch.value.length < 2) {
+  if (detailMatSearch.value.trim().length < 1) {
     detailMatSearchResults.value = []
     showDetailMatDropdown.value = false
     detailMatActiveIndex.value = -1
@@ -5000,7 +5522,7 @@ function onDetailMatSearchInput() {
 async function searchDetailMaterials() {
   if (!selectedActivity.value) return
   const query = detailMatSearch.value.trim()
-  if (query.length < 2) return
+  if (query.length < 1) return
 
   isDetailMatLoading.value = true
   try {
@@ -8469,11 +8991,16 @@ select.form-input {
 
 .mat-source-switch {
   display: inline-flex;
+  flex-wrap: wrap;
   gap: 4px;
   padding: 4px;
   margin: 8px 0;
   background: #f3f4f6;
   border-radius: 8px;
+}
+
+.mat-source-switch-wrap {
+  max-width: 100%;
 }
 
 .mat-source-btn {
@@ -8491,6 +9018,13 @@ select.form-input {
   background: #ffffff;
   color: #1f2937;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+}
+
+.mat-source-btn-dept {
+  max-width: 11rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .mat-source-hint {
@@ -9142,6 +9676,120 @@ select.form-input {
   background: #eef2ff;
   font-size: 12px;
   color: #3730a3;
+}
+
+.department-invited-item-with-group {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.department-invited-main {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+}
+
+.department-invited-group {
+  font-size: 12px;
+  margin-top: 4px;
+}
+
+.department-invited-group-select {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+}
+
+.department-invited-group-select .hint-sm {
+  font-size: 11px;
+  line-height: 1.3;
+}
+
+.dept-participation-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.dept-participation-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px 12px;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.dept-participation-name {
+  font-weight: 600;
+  color: var(--color-text, #1a1a2e);
+}
+
+.dept-participation-group {
+  flex: 1 1 200px;
+  min-width: 0;
+}
+
+.dept-participation-badge.host {
+  background: #e0e7ff;
+  color: #3730a3;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.dept-participation-hint {
+  margin: 12px 0 0;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.draft-group-intro {
+  margin: 0 0 12px;
+  font-size: 13px;
+}
+
+.draft-group-by-dept {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.draft-group-dept-block {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.draft-group-dept-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text, #1a1a2e);
+}
+
+.dept-role-tag {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  background: #e0e7ff;
+  color: #3730a3;
+  vertical-align: middle;
+}
+
+.invite-status-badge--inline {
+  margin-left: 8px;
+  vertical-align: middle;
 }
 
 .invite-status-badge {

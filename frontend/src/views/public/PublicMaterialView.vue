@@ -304,7 +304,7 @@ function isMwRole(role: string | null | undefined): boolean {
 
 /** Login mit Rücksprung zu dieser öffentlichen Seite (Artikel-Kontext bleibt in der URL). */
 function goToLogin() {
-  void router.push({ path: '/', query: { redirect: route.fullPath } })
+  void router.push({ path: '/login', query: { redirect: route.fullPath } })
 }
 
 /** Bereits angemeldet: ins Material / Dashboard wechseln. */

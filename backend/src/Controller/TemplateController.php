@@ -13,6 +13,8 @@ use App\Entity\Address;
 use App\Entity\BatchStorageAllocation;
 use App\Entity\StorageRack;
 use App\Entity\StorageSlot;
+use App\Service\Public\PublicCodeService;
+use App\Entity\User;
 use App\Util\IdGenerator;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -25,7 +27,8 @@ use Symfony\Component\Security\Http\Attribute\IsGranted;
 class TemplateController extends AbstractController
 {
     public function __construct(
-        private EntityManagerInterface $entityManager
+        private EntityManagerInterface $entityManager,
+        private PublicCodeService $publicCodeService,
     ) {}
 
     /**
@@ -387,6 +390,12 @@ class TemplateController extends AbstractController
             $this->entityManager->beginTransaction();
 
             $comboMaterial = null;
+            /** @var MaterialBatch|null Haupt-Batch der physischen Kombination (Zelt als Einheit) */
+            $comboMainBatch = null;
+            /** @var array<string, MaterialItem> */
+            $comboComponentMaterialsForPublicCode = [];
+            /** @var array<string, MaterialBatch> */
+            $comboComponentBatchesForPublicCode = [];
 
             // ══════════════════════════════════════════════
             // Combo-Modi: Combo-Material (das Zelt) erstellen
@@ -422,22 +431,22 @@ class TemplateController extends AbstractController
 
                 // Für physical_combo: Eigenen Batch erstellen (das Zelt als Einheit = 1 Stk.)
                 if ($isPhysicalCombo) {
-                    $comboBatch = new MaterialBatch();
-                    $comboBatch->setId(IdGenerator::generate13('ba', $year));
-                    $comboBatch->setMaterialItem($comboMaterial);
-                    $comboBatch->setQty(1);
-                    $comboBatch->setIsInitial(true);
-                    $comboBatch->setBatchType('initial');
-                    $comboBatch->setAcquiredOn($acquiredOn);
+                    $comboMainBatch = new MaterialBatch();
+                    $comboMainBatch->setId(IdGenerator::generate13('ba', $year));
+                    $comboMainBatch->setMaterialItem($comboMaterial);
+                    $comboMainBatch->setQty(1);
+                    $comboMainBatch->setIsInitial(true);
+                    $comboMainBatch->setBatchType('initial');
+                    $comboMainBatch->setAcquiredOn($acquiredOn);
                     if (isset($data['serial_number'])) {
-                        $comboBatch->setSerialNumber($data['serial_number']);
+                        $comboMainBatch->setSerialNumber($data['serial_number']);
                     }
                     if ($supplier) {
-                        $comboBatch->setSupplier($supplier);
+                        $comboMainBatch->setSupplier($supplier);
                     }
-                    $this->entityManager->persist($comboBatch);
+                    $this->entityManager->persist($comboMainBatch);
 
-                    $allocRes = $this->allocateInitialPhysicalComboBatch($comboBatch, $department->getId(), $data);
+                    $allocRes = $this->allocateInitialPhysicalComboBatch($comboMainBatch, $department->getId(), $data);
                     if ($allocRes instanceof JsonResponse) {
                         $this->entityManager->rollback();
                         return $allocRes;
@@ -575,10 +584,12 @@ class TemplateController extends AbstractController
                         $this->entityManager->persist($componentBatch);
                         $qty = 1;
                     } else {
+                        // Bulk: eine Charge mit Menge — keine Seriennummer (SN nur bei serialisierten Artikeln)
+                        $qtyInt = (int) $qty;
                         $componentBatch = new MaterialBatch();
                         $componentBatch->setId(IdGenerator::generate13('ba', $year));
                         $componentBatch->setMaterialItem($componentMaterial);
-                        $componentBatch->setQty((int)$qty);
+                        $componentBatch->setQty($qtyInt);
                         $componentBatch->setIsInitial(true);
                         $componentBatch->setBatchType('initial');
                         $componentBatch->setAcquiredOn($acquiredOn);
@@ -618,6 +629,13 @@ class TemplateController extends AbstractController
                     $this->entityManager->persist($comboComp);
                 }
 
+                if (!$isIndividual && $comboMaterial) {
+                    $comboComponentMaterialsForPublicCode[$componentMaterial->getId()] = $componentMaterial;
+                    if ($componentBatch && !$isVirtualCombo) {
+                        $comboComponentBatchesForPublicCode[$componentBatch->getId()] = $componentBatch;
+                    }
+                }
+
                 $createdArticles[] = [
                     'id' => $componentMaterial->getId(),
                     'name' => $componentMaterial->getName(),
@@ -627,6 +645,20 @@ class TemplateController extends AbstractController
                     'serial_number' => $componentBatch?->getSerialNumber(),
                     'qty' => (int)$qty,
                 ];
+            }
+
+            $actorId = $this->getActorUserId();
+            if (!$isIndividual && $comboMaterial) {
+                $this->publicCodeService->ensureMaterialPublicCode($comboMaterial, $actorId);
+            }
+            if ($isPhysicalCombo && $comboMainBatch) {
+                $this->publicCodeService->ensureBatchPublicCode($comboMainBatch, $actorId);
+            }
+            foreach ($comboComponentMaterialsForPublicCode as $mat) {
+                $this->publicCodeService->ensureMaterialPublicCode($mat, $actorId);
+            }
+            foreach ($comboComponentBatchesForPublicCode as $b) {
+                $this->publicCodeService->ensureBatchPublicCode($b, $actorId);
             }
 
             $this->entityManager->flush();
@@ -742,12 +774,11 @@ class TemplateController extends AbstractController
                         $comp->setIsOptional($compData['optional'] ?? false);
                         $comp->setSortOrder($index);
 
-                        // Tracking: aus JSON oder ableiten
+                        // Tracking: aus JSON oder Standard bulk (Stücklisten; SN nur bei explizit serialized)
                         if (isset($compData['tracking'])) {
                             $comp->setTracking($compData['tracking']);
                         } else {
-                            // Heuristik: 1 Stück = serialized, >1 = bulk
-                            $comp->setTracking($comp->getRequiredQty() <= 1 ? 'serialized' : 'bulk');
+                            $comp->setTracking('bulk');
                         }
 
                         // Repair Types
@@ -918,5 +949,12 @@ class TemplateController extends AbstractController
         return new JsonResponse([
             'error' => 'Für physische Kombination: Gestell/Fach oder Kiste (initial_rack_id + initial_slot_id bzw. initial_container_batch_id) ist erforderlich',
         ], 400);
+    }
+
+    private function getActorUserId(): ?string
+    {
+        $user = $this->getUser();
+
+        return $user instanceof User ? $user->getId() : null;
     }
 }

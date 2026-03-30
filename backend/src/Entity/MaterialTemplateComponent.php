@@ -8,7 +8,7 @@ use Doctrine\ORM\Mapping as ORM;
  * MaterialTemplateComponent - Bauteile einer Zelt-/Kombi-Vorlage
  * 
  * Definiert welche Komponenten eine Vorlage benötigt.
- * z.B. "hajk 6er" braucht: 1x Aussenzelt (serialized), 10x Heringe (bulk), etc.
+ * z.B. "hajk 6er": Außenzelt oft serialisiert (eine SN), Heringe/Zubehör als bulk (Menge).
  */
 #[ORM\Entity]
 #[ORM\Table(name: 'material_template_component')]

@@ -365,9 +365,14 @@ class StorageLocationController extends AbstractController
             ->getQuery()
             ->getResult();
 
+        $batchIds = array_map(static fn (MaterialBatch $b) => $b->getId(), $batches);
+        $conn = $this->entityManager->getConnection();
+        $previewById = $this->buildContainerBatchContentPreviewMap($conn, $batchIds);
+
         $result = [];
         foreach ($batches as $b) {
             $label = $b->getLabel() ?: $b->getSerialNumber() ?: $b->getMaterialItem()->getName();
+            $pv = $previewById[$b->getId()] ?? ['content_preview' => [], 'content_preview_more' => 0];
             $result[] = [
                 'id' => $b->getId(),
                 'material_id' => $b->getMaterialItem()->getId(),
@@ -379,6 +384,8 @@ class StorageLocationController extends AbstractController
                 'slot_id' => $b->getSlotId(),
                 'rack' => $b->getRack() ? ['id' => $b->getRack()->getId(), 'name' => $b->getRack()->getName()] : null,
                 'slot' => $b->getSlot() ? ['id' => $b->getSlot()->getId(), 'name' => $b->getSlot()->getName()] : null,
+                'content_preview' => $pv['content_preview'],
+                'content_preview_more' => $pv['content_preview_more'],
             ];
         }
         return new JsonResponse($result);
@@ -578,6 +585,54 @@ class StorageLocationController extends AbstractController
             'created_at' => $slot->getCreatedAt()->format('c'),
             'updated_at' => $slot->getUpdatedAt()->format('c'),
         ];
+    }
+
+    /**
+     * Pro Kiste: bis zu 2 Artikelpositionen (Name + Menge) und Anzahl weiterer Artikel – eine Abfrage für alle Kisten-IDs.
+     *
+     * @param array<int, string> $batchIds
+     *
+     * @return array<string, array{content_preview: list<array{material_name: string, qty: int}>, content_preview_more: int}>
+     */
+    private function buildContainerBatchContentPreviewMap(\Doctrine\DBAL\Connection $conn, array $batchIds): array
+    {
+        if ($batchIds === []) {
+            return [];
+        }
+        $placeholders = implode(',', array_fill(0, count($batchIds), '?'));
+        $sql = "
+            SELECT a.container_batch_id AS cb_id, mi.name AS material_name, SUM(a.qty) AS qty
+            FROM batch_storage_allocation a
+            INNER JOIN material_batch b ON a.batch_id = b.id
+            INNER JOIN material_item mi ON b.material_item_id = mi.id
+            WHERE a.container_batch_id IN ($placeholders)
+              AND (mi.deleted_at IS NULL)
+              AND b.status = 'active'
+            GROUP BY a.container_batch_id, mi.id, mi.name
+            ORDER BY a.container_batch_id, mi.name
+        ";
+        $rows = $conn->executeQuery($sql, $batchIds)->fetchAllAssociative();
+
+        $byCb = [];
+        foreach ($rows as $row) {
+            $cbId = (string) $row['cb_id'];
+            if (!isset($byCb[$cbId])) {
+                $byCb[$cbId] = [];
+            }
+            $byCb[$cbId][] = [
+                'material_name' => (string) $row['material_name'],
+                'qty' => (int) $row['qty'],
+            ];
+        }
+        $out = [];
+        foreach ($byCb as $cbId => $lines) {
+            $out[$cbId] = [
+                'content_preview' => array_slice($lines, 0, 2),
+                'content_preview_more' => max(0, count($lines) - 2),
+            ];
+        }
+
+        return $out;
     }
 
     private function assertDepartmentAccess(string $departmentId): true|JsonResponse

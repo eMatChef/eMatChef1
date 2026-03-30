@@ -15,6 +15,7 @@
           "name": "Außenzelt",
           "required": 1,
           "optional": false,
+          "tracking": "serialized",
           "repair_types": ["loch", "riss", "abspannung"]
         },
         {
@@ -22,6 +23,7 @@
           "name": "Innenzelt",
           "required": 1,
           "optional": false,
+          "tracking": "serialized",
           "repair_types": ["riss", "reissverschluss"]
         },
         {
@@ -62,6 +64,7 @@
           "name": "Außenzelt",
           "required": 1,
           "optional": false,
+          "tracking": "serialized",
           "repair_types": ["loch", "riss", "abspannung"]
         },
         {
@@ -95,6 +98,7 @@
           "name": "Innenzelt",
           "required": 1,
           "optional": false,
+          "tracking": "serialized",
           "repair_types": ["riss", "reissverschluss"]
         }
       ],

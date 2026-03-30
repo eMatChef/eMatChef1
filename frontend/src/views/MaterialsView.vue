@@ -227,7 +227,7 @@
           <table class="materials-table">
             <thead>
               <tr>
-                <th v-if="showComboColumns" class="col-expand"></th>
+                <th v-if="showComboExpandColumn" class="col-expand"></th>
                 <th class="col-code">Code</th>
                 <th class="col-name">Name</th>
                 <th v-if="showComboColumns" class="col-type">Typ</th>
@@ -247,11 +247,15 @@
                   class="material-row"
                   @dblclick="openMaterialDetail(material)"
                 >
-                  <!-- Expand Button (nur bei Kombos) -->
-                  <td v-if="showComboColumns" class="col-expand">
-                    <button 
+                  <!-- Aufklappen: Komponenten (nur Kombos) -->
+                  <td v-if="showComboExpandColumn" class="col-expand">
+                    <button
+                      v-if="isComboMaterial(material)"
+                      type="button"
                       class="expand-btn"
                       :class="{ expanded: expandedCombos.has(material.id) }"
+                      :aria-expanded="expandedCombos.has(material.id)"
+                      title="Untermaterialien anzeigen"
                       @click.stop="toggleComboExpand(material.id)"
                     >
                       <svg class="table-icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -262,7 +266,13 @@
                   <td class="col-code">
                     <div class="code-cell">
                       <span v-if="material.barcode_tag" class="code-badge">{{ material.barcode_tag }}</span>
-                      <PublicQrTag :url="material.public_url" :code="material.public_code" :size="56" />
+                      <PublicQrTag
+                        :url="material.public_url"
+                        :code="material.public_code"
+                        :size="56"
+                        :image-label="material.name"
+                        :image-entity-id="material.id"
+                      />
                     </div>
                   </td>
                   <td class="col-name">
@@ -339,10 +349,10 @@
 
                 <!-- Expanded Combo Components -->
                 <tr 
-                  v-if="showComboColumns && expandedCombos.has(material.id)"
+                  v-if="showComboExpandColumn && isComboMaterial(material) && expandedCombos.has(material.id)"
                   class="combo-components-row"
                 >
-                  <td :colspan="showComboColumns ? 11 : 8">
+                  <td :colspan="materialTableColspan">
                     <div class="combo-components-container">
                       <div v-if="comboComponentsLoading.has(material.id)" class="combo-loading">
                         <div class="spinner-sm"></div>
@@ -506,10 +516,25 @@ const foodCount = computed(() =>
   materials.value.filter(m => m.is_food).length
 )
 
-// Combo-Spalten anzeigen (Kombos + Virtuelle Kobis)
-const showComboColumns = computed(() => 
+// Combo-Spalten: Typ + Kombo-Bestand (Tabs „Kombos“ / „Virtuelle Kobis“)
+const showComboColumns = computed(() =>
   activeTab.value === 'combos' || activeTab.value === 'virtual_combos'
 )
+
+/** Pfeil zum Aufklappen der Komponenten auch unter „Alle Artikel“. */
+const showComboExpandColumn = computed(() =>
+  activeTab.value === 'all' || activeTab.value === 'combos' || activeTab.value === 'virtual_combos'
+)
+
+const materialTableColspan = computed(() => {
+  if (showComboColumns.value) return 11
+  if (showComboExpandColumn.value) return 9
+  return 8
+})
+
+function isComboMaterial(material: Material): boolean {
+  return material.material_type === 'physical_combo' || material.material_type === 'virtual_combo'
+}
 
 // Computed
 const filteredMaterials = computed(() => {
@@ -599,6 +624,9 @@ function getMaterialIconClass(material: Material): string {
 }
 
 async function toggleComboExpand(materialId: string) {
+  const row = materials.value.find((m) => m.id === materialId)
+  if (!row || !isComboMaterial(row)) return
+
   if (expandedCombos.value.has(materialId)) {
     expandedCombos.value.delete(materialId)
     // Trigger reactivity

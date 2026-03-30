@@ -20,6 +20,9 @@ export interface BatchStorageAllocation {
   container_batch_id?: string | null
   rack_id: string
   slot_id?: string | null
+  /** Fallback, falls API flache Namen statt rack-Objekt liefert */
+  rack_name?: string
+  slot_name?: string
   qty: number
   container_batch?: {
     id: string
@@ -559,6 +562,43 @@ export interface UsedInEntry {
  */
 export async function getMaterialUsedIn(materialId: string): Promise<UsedInEntry[]> {
   const response = await apiClient.get<UsedInEntry[]>(`/api/materials/${materialId}/used-in`)
+  return response.data
+}
+
+/** Ein Lagerort (Gestell/Fach/Kiste) für GET /materials/:id/storage-locations */
+export interface MaterialStorageLocationRow {
+  rack_id: string | null
+  slot_id: string | null
+  rack_name: string | null
+  slot_name: string | null
+  storage_address_name: string | null
+  location_label: string | null
+  qty: number
+  batch_id: string
+  container_caption: string | null
+}
+
+export interface MaterialStorageViaComboBlock {
+  parent_material_id: string
+  parent_name: string
+  component_qty: number
+  assignment_mode: string
+  locations: MaterialStorageLocationRow[]
+}
+
+export interface MaterialStorageLocationsResponse {
+  direct: MaterialStorageLocationRow[]
+  via_physical_combo: MaterialStorageViaComboBlock[]
+}
+
+export async function getMaterialStorageLocations(
+  materialId: string,
+  departmentId: string
+): Promise<MaterialStorageLocationsResponse> {
+  const response = await apiClient.get<MaterialStorageLocationsResponse>(
+    `/api/materials/${encodeURIComponent(materialId)}/storage-locations`,
+    { params: { department_id: departmentId } }
+  )
   return response.data
 }
 

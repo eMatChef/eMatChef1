@@ -4,6 +4,7 @@ namespace App\Command;
 
 use App\Entity\Department;
 use App\Entity\Organisation;
+use App\Service\Accounting\AccountingCostCenterBootstrapService;
 use App\Util\IdGenerator;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\Console\Attribute\AsCommand;
@@ -19,7 +20,8 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 class CreateInitialDataCommand extends Command
 {
     public function __construct(
-        private EntityManagerInterface $entityManager
+        private EntityManagerInterface $entityManager,
+        private AccountingCostCenterBootstrapService $accountingCostCenterBootstrap
     ) {
         parent::__construct();
     }
@@ -53,6 +55,8 @@ class CreateInitialDataCommand extends Command
         
         $this->entityManager->persist($department);
         $this->entityManager->flush();
+
+        $this->accountingCostCenterBootstrap->ensureDefaultCostCenters($this->entityManager, $department);
 
         $io->success('Department erstellt: ' . $department->getName() . ' (ID: ' . $department->getId() . ')');
         $io->info('Organisation ID: ' . $organisation->getId());

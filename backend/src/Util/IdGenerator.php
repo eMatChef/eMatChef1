@@ -169,6 +169,44 @@ class IdGenerator
     }
 
     /**
+     * Wie generate13Unique, aber mit festem Buchungs-/Geschäftsjahr (z. B. Buchungsdatum).
+     */
+    public static function generate13UniqueForYear(
+        \Doctrine\ORM\EntityManagerInterface $em,
+        string $entityClass,
+        string $prefix,
+        string $year,
+        string $field = 'id'
+    ): string {
+        $maxAttempts = 50;
+        $attempt = 0;
+        do {
+            $id = self::generate13($prefix, $year);
+            ++$attempt;
+            $existing = $em->getRepository($entityClass)->findOneBy([$field => $id]);
+            if (!$existing) {
+                return $id;
+            }
+            error_log(sprintf(
+                'ID-Kollision (Jahr %s)! Entity: %s, Prefix: %s, Versuch: %d/%d',
+                $year,
+                $entityClass,
+                $prefix,
+                $attempt,
+                $maxAttempts
+            ));
+        } while ($attempt < $maxAttempts);
+
+        throw new \RuntimeException(sprintf(
+            'Konnte nach %d Versuchen keine eindeutige 13-stellige ID für %s (Prefix: %s, Jahr: %s) generieren.',
+            $maxAttempts,
+            $entityClass,
+            $prefix,
+            $year
+        ));
+    }
+
+    /**
      * Validiert eine 13-stellige ID
      * Format: Prefix(2) + YYYY(4) + HEX7(7)
      */

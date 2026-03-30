@@ -54,17 +54,35 @@
           <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
           <path d="M13.73 21a2 2 0 0 1-3.46 0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>
-        <span v-if="unreadCount > 0" class="notification-badge">{{ unreadCount }}</span>
+        <span v-if="unreadCount > 0" class="notification-badge">{{ unreadCount > 99 ? '99+' : unreadCount }}</span>
       </button>
       <div v-if="showNotifications" class="notifications-dropdown" role="dialog" aria-label="Benachrichtigungen">
         <div class="notifications-header">Benachrichtigungen</div>
         <div class="notifications-dropdown-body">
           <div v-if="isLoadingNotifications" class="notifications-empty">Lade...</div>
-          <div v-else-if="pendingDepartmentInvites.length === 0" class="notifications-empty">Keine Benachrichtigungen</div>
+          <div
+            v-else-if="pendingDepartmentInvites.length === 0 && publicFoundPreview.length === 0 && pendingFollowUpCount === 0"
+            class="notifications-empty"
+          >
+            Keine Benachrichtigungen
+          </div>
           <div v-else class="notifications-list">
+            <button
+              v-if="pendingFollowUpCount > 0"
+              type="button"
+              class="notification-item notification-item--accounting"
+              @click="goToAccountingAssign"
+            >
+              <div class="notification-title">Buchhaltung: Buchung zuordnen</div>
+              <div class="notification-subtitle">
+                {{ pendingFollowUpCount }}
+                ausstehende Anschaffung{{ pendingFollowUpCount === 1 ? '' : 'en' }} (Kostenstelle ergänzen)
+              </div>
+              <div class="notification-hint">Zu Buchungen · Tab „Neue Buchung zuordnen“</div>
+            </button>
             <div
-              v-for="invite in notificationPreview"
-              :key="`${invite.activity_id}-${invite.source_department_id}`"
+              v-for="invite in notificationPreviewInvites"
+              :key="`inv-${invite.activity_id}-${invite.source_department_id}`"
               class="notification-item"
             >
               <div class="notification-title">{{ invite.source_department_name }} lädt zu {{ invite.activity_type === 'camp' ? 'Camp' : 'Anlass' }} ein</div>
@@ -74,6 +92,17 @@
                 <button type="button" class="btn-danger-outline btn-xs" @click="decideInvite(invite, 'rejected')">Ablehnen</button>
               </div>
             </div>
+            <button
+              v-for="msg in notificationPreviewFound"
+              :key="`pf-${msg.id}`"
+              type="button"
+              class="notification-item notification-item--found"
+              @click="openFoundMessageFromBell(msg)"
+            >
+              <div class="notification-title">QR-Kontakt: {{ msg.material_name }}</div>
+              <div class="notification-subtitle">{{ truncateMessage(msg.message) }}</div>
+              <div class="notification-hint">Tippen für Nachrichtenzentrale</div>
+            </button>
           </div>
         </div>
         <div v-if="!isLoadingNotifications" class="notifications-dropdown-footer">
@@ -369,9 +398,17 @@ import {
   decideDepartmentActivityInvite,
   type PendingDepartmentActivityInvite,
 } from '../../api/joinRequests'
+import {
+  getPublicFoundMessages,
+  updatePublicFoundMessageStatus,
+  type PublicFoundItemMessage,
+} from '../../api/publicFoundMessages'
+import { listAcquisitionFollowups } from '@/api/accountingAcquisitionFollowups'
+import { departmentHasAccountingRole } from '@/composables/useCostBookingFollowUp'
 // @ts-ignore Vetur false positive in Vue 3 script-setup import
 import GlobalSearchInput from '../common/GlobalSearchInput.vue'
 import { useDetailTabsStore } from '../../stores/detailTabs'
+import { getPostLogoutPath } from '@/utils/appLoginUrl'
 
 const router = useRouter()
 const detailTabsStore = useDetailTabsStore()
@@ -394,6 +431,9 @@ const unreadCount = ref(0)
 const showNotifications = ref(false)
 const isLoadingNotifications = ref(false)
 const pendingDepartmentInvites = ref<PendingDepartmentActivityInvite[]>([])
+const publicFoundPreview = ref<PublicFoundItemMessage[]>([])
+/** Ausstehende Anschaffungs-Follow-ups (mw/dc): Buchung in der Buchhaltung zuordnen. */
+const pendingFollowUpCount = ref(0)
 const trialDays = ref(29)
 const showTrialWarning = ref(true)
 const profileForm = ref({
@@ -486,8 +526,14 @@ const pendingEmailTarget = computed(() =>
   (authStore.profile?.pendingEmail || authStore.profile?.pending_email || '').trim()
 )
 
-/** Erste fünf Einträge für die Popup-Vorschau (Reihenfolge wie API). */
-const notificationPreview = computed(() => pendingDepartmentInvites.value.slice(0, 5))
+const notificationPreviewInvites = computed(() => pendingDepartmentInvites.value.slice(0, 5))
+const notificationPreviewFound = computed(() => publicFoundPreview.value.slice(0, 5))
+
+function truncateMessage(text: string, max = 100): string {
+  const t = String(text || '').trim()
+  if (t.length <= max) return t
+  return `${t.slice(0, max)}…`
+}
 
 function isTabActive(tab: { path: string }) {
   const basePath = tab.path.split('?')[0]
@@ -535,20 +581,71 @@ function goToNotificationsCenter() {
   router.push(`/${deptId}/notifications`)
 }
 
+function goToAccountingAssign() {
+  const deptId = authStore.activeDepartmentId
+  if (!deptId) return
+  showNotifications.value = false
+  router.push({
+    name: 'AccountingBookings',
+    params: { departmentId: deptId },
+    query: { sub: 'assign' },
+  })
+}
+
 async function loadDepartmentInvites() {
   const deptId = authStore.activeDepartmentId
   if (!deptId) return
   isLoadingNotifications.value = true
   try {
-    const result = await getPendingDepartmentActivityInvites(deptId)
-    pendingDepartmentInvites.value = result.items || []
-    unreadCount.value = result.count || 0
-  } catch (err) {
+    const followUpPromise =
+      departmentHasAccountingRole(deptId)
+        ? listAcquisitionFollowups(deptId, 'pending').catch(() => [])
+        : Promise.resolve([])
+
+    const [inviteResult, foundResult, pendingFollowUps] = await Promise.all([
+      getPendingDepartmentActivityInvites(deptId).catch(() => ({ count: 0, items: [] as PendingDepartmentActivityInvite[] })),
+      getPublicFoundMessages(deptId, { bucket: 'open', limit: 5 }).catch(() => ({
+        unread_count: 0,
+        items: [] as PublicFoundItemMessage[],
+      })),
+      followUpPromise,
+    ])
+    pendingDepartmentInvites.value = inviteResult.items || []
+    publicFoundPreview.value = foundResult.items || []
+    const invC =
+      typeof inviteResult.count === 'number'
+        ? inviteResult.count
+        : pendingDepartmentInvites.value.length
+    const fu = typeof foundResult.unread_count === 'number' ? foundResult.unread_count : 0
+    const ac = Array.isArray(pendingFollowUps) ? pendingFollowUps.length : 0
+    pendingFollowUpCount.value = ac
+    unreadCount.value = invC + fu + ac
+  } catch {
     pendingDepartmentInvites.value = []
+    publicFoundPreview.value = []
+    pendingFollowUpCount.value = 0
     unreadCount.value = 0
   } finally {
     isLoadingNotifications.value = false
   }
+}
+
+async function openFoundMessageFromBell(msg: PublicFoundItemMessage) {
+  const deptId = authStore.activeDepartmentId
+  if (!deptId) return
+  showNotifications.value = false
+  try {
+    if (msg.status === 'open') {
+      await updatePublicFoundMessageStatus(deptId, msg.id, 'in_progress')
+    }
+  } catch (err: any) {
+    toast.error(err?.response?.data?.error || 'Status konnte nicht gespeichert werden')
+  }
+  void router.push({
+    path: `/${deptId}/notifications`,
+    query: { highlight: msg.id },
+  })
+  await loadDepartmentInvites()
 }
 
 async function decideInvite(invite: PendingDepartmentActivityInvite, decision: 'accepted' | 'rejected') {
@@ -563,7 +660,7 @@ async function decideInvite(invite: PendingDepartmentActivityInvite, decision: '
     pendingDepartmentInvites.value = pendingDepartmentInvites.value.filter(
       (entry) => !(entry.activity_id === invite.activity_id && entry.source_department_id === invite.source_department_id)
     )
-    unreadCount.value = Math.max(0, unreadCount.value - 1)
+    await loadDepartmentInvites()
     toast.success(decision === 'accepted' ? 'Einladung angenommen' : 'Einladung abgelehnt')
   } catch (err: any) {
     toast.error(err?.response?.data?.error || 'Entscheid konnte nicht gespeichert werden')
@@ -607,7 +704,7 @@ function switchDepartment() {
 
 async function doLogout() {
   await authStore.logout()
-  router.replace('/')
+  router.replace(getPostLogoutPath())
 }
 
 function activateLicense() {
@@ -831,6 +928,8 @@ watch(
   () => {
     unreadCount.value = 0
     pendingDepartmentInvites.value = []
+    publicFoundPreview.value = []
+    pendingFollowUpCount.value = 0
     loadDepartmentInvites()
   }
 )
@@ -1121,6 +1220,49 @@ watch(
   gap: 6px;
 }
 
+button.notification-item--found {
+  width: 100%;
+  margin: 0;
+  border: none;
+  border-bottom: 1px solid #f3f4f6;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  padding: 10px 12px;
+  display: grid;
+  gap: 6px;
+}
+
+button.notification-item--found:hover {
+  background: #f9fafb;
+}
+
+button.notification-item--accounting {
+  width: 100%;
+  margin: 0;
+  border: none;
+  border-bottom: 1px solid #f3f4f6;
+  background: linear-gradient(90deg, rgba(245, 158, 11, 0.12) 0%, transparent 12px);
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  padding: 10px 12px;
+  display: grid;
+  gap: 6px;
+}
+
+button.notification-item--accounting:hover {
+  background: linear-gradient(90deg, rgba(245, 158, 11, 0.18) 0%, #f9fafb 14px);
+}
+
+.notification-hint {
+  font-size: 11px;
+  color: #9ca3af;
+}
+
 .notification-title {
   font-size: 13px;
   font-weight: 600;
@@ -1134,6 +1276,7 @@ watch(
 
 .notification-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
 }
 

@@ -42,6 +42,16 @@
         <span class="nav-label" :class="{ visible: isHovered }">Verwaltung der Webseite</span>
       </router-link>
 
+      <router-link
+        v-if="!isPendingAssignmentRoute && canEditPublicWebsite"
+        to="/site-inhalt"
+        class="nav-item"
+        :class="{ active: $route.path.startsWith('/site-inhalt') }"
+      >
+        <IconSettings class="nav-icon" />
+        <span class="nav-label" :class="{ visible: isHovered }">Webseite</span>
+      </router-link>
+
       <div
         v-if="!isPendingAssignmentRoute && hasGlobalAdminAccess && showDeptContextSidebarLinks"
         class="nav-divider"
@@ -67,6 +77,17 @@
       >
         <IconMaterials class="nav-icon" />
         <span class="nav-label" :class="{ visible: isHovered }">Materialien</span>
+      </router-link>
+
+      <!-- Buchhaltung (nur Materialchef / Departmentchef) -->
+      <router-link
+        v-if="!isPendingAssignmentRoute && !isAdminDashboardRoute && showAccountingMenu"
+        :to="getLink('/accounting')"
+        class="nav-item"
+        :class="{ active: isAccountingNavActive }"
+      >
+        <IconAccounting class="nav-icon" />
+        <span class="nav-label" :class="{ visible: isHovered }">Buchhaltung</span>
       </router-link>
 
       <!-- Kontakte -->
@@ -157,6 +178,7 @@ import EmcLogoMark from '@/components/brand/EmcLogoMark.vue'
 import IconDashboard from '@/components/icons/IconDashboard.vue'
 import IconActivities from '@/components/icons/IconActivities.vue'
 import IconMaterials from '@/components/icons/IconMaterials.vue'
+import IconAccounting from '@/components/icons/IconAccounting.vue'
 import IconContacts from '@/components/icons/IconContacts.vue'
 import IconTasks from '@/components/icons/IconTasks.vue'
 import IconBell from '@/components/icons/IconBell.vue'
@@ -220,6 +242,11 @@ const homeLink = computed(() => {
 })
 // SA/ORG/SUB kommen ausschließlich aus profile.roles, nicht aus Department-Membership
 const isSuperAdmin = computed(() => authStore.userRoles.includes('ROLE_SUPERADMIN'))
+const canEditPublicWebsite = computed(
+  () =>
+    authStore.userRoles.includes('ROLE_SUPERADMIN') ||
+    authStore.userRoles.includes('ROLE_WEBADMIN')
+)
 const hasGlobalAdminAccess = computed(() =>
   authStore.userRoles.includes('ROLE_SUPERADMIN') ||
   authStore.userRoles.includes('ROLE_ORGANISATIONSCHEF') ||
@@ -232,6 +259,16 @@ const hasGlobalAdminAccess = computed(() =>
 const showActivitiesMenu = computed(() => !isSuperAdmin.value)
 const showMaterialsMenu = computed(() => !isSuperAdmin.value)
 const showWorkshopMenu = computed(() => !isSuperAdmin.value)
+
+/** Buchhaltung: nur Materialchef (mw) oder Departmentchef (dc) im aktuellen Department */
+const showAccountingMenu = computed(() => {
+  if (isSuperAdmin.value) return false
+  const r = String(authStore.currentDepartmentRole || '').toLowerCase().trim()
+  return r === 'mw' || r === 'dc'
+})
+
+/** Sidebar: Buchhaltung aktiv bei allen Unterpfaden /accounting/… */
+const isAccountingNavActive = computed(() => route.path.includes('/accounting'))
 
 // Mit Department-Kontext immer /{id}/… — auch wenn die Route gerade /admin-dashboard ist (Store/Primär-Dept)
 function getLink(path: string): string {

@@ -8,6 +8,7 @@ use App\Entity\Department;
 use App\Entity\Organisation;
 use App\Entity\Membership;
 use App\Enum\DepartmentRole;
+use App\Service\Accounting\AccountingCostCenterBootstrapService;
 use App\Util\IdGenerator;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\Console\Attribute\AsCommand;
@@ -25,7 +26,8 @@ class CreateRoleUsersCommand extends Command
 {
     public function __construct(
         private EntityManagerInterface $em,
-        private UserPasswordHasherInterface $passwordHasher
+        private UserPasswordHasherInterface $passwordHasher,
+        private AccountingCostCenterBootstrapService $accountingCostCenterBootstrap
     ) {
         parent::__construct();
     }
@@ -56,6 +58,7 @@ class CreateRoleUsersCommand extends Command
             $department->setOrganisation($organisation);
             $this->em->persist($department);
             $this->em->flush();
+            $this->accountingCostCenterBootstrap->ensureDefaultCostCenters($this->em, $department);
         }
 
         // Lösche alle bestehenden Test-User (außer dem ersten Superadmin, falls er existiert)
@@ -189,7 +192,8 @@ class CreateRoleUsersCommand extends Command
         $user->setState('active');
         $hashedPassword = $this->passwordHasher->hashPassword($user, 'password');
         $user->setPassword($hashedPassword);
-        
+        $user->setEmailVerified(true);
+
         if ($createdBy) {
             $user->setCreatedBy($createdBy);
         }
@@ -208,7 +212,7 @@ class CreateRoleUsersCommand extends Command
     private function getProfileRolesForRole(DepartmentRole $role): array
     {
         return match ($role) {
-            DepartmentRole::SUPERADMIN => ['ROLE_USER', 'ROLE_SUPERADMIN'],
+            DepartmentRole::SUPERADMIN => ['ROLE_USER', 'ROLE_SUPERADMIN', 'ROLE_WEBADMIN'],
             DepartmentRole::ORGANISATIONSCHEF => ['ROLE_USER', 'ROLE_ORGANISATIONSCHEF'],
             DepartmentRole::SUBORGCHEF => ['ROLE_USER', 'ROLE_SUBORGCHEF'],
             default => ['ROLE_USER'],

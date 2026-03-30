@@ -61,12 +61,18 @@
                     :slot-id="form.slot_id"
                     :racks="filteredRacks"
                     :slot-list="mainSlots"
+                    :rack-label-formatter="formatRackOptionLabel"
+                    :rack-option-title-formatter="(r) => rackPreviewTitles[r.id] || ''"
+                    :slot-label-formatter="(slot) => formatSlotOptionLabel(form.rack_id, slot)"
+                    :slot-option-title-formatter="(s) => slotPreviewTitles[`${String(form.rack_id || '')}:${String(s.id)}`] || ''"
                     storage-address-label="Standort"
                     rack-label="Gestell"
                     slot-label="Fach"
                     storage-address-placeholder="Standort auswaehlen..."
                     rack-placeholder="Gestell auswaehlen..."
                     slot-placeholder="Fach auswaehlen..."
+                    @rackListMouseenter="prefetchVisibleRackPreviews(filteredRacks)"
+                    @slotListMouseenter="prefetchSlotPreviewsForRack(String(form.rack_id || ''))"
                     @update:storageAddressId="form.storage_address_id = $event"
                     @storageAddressChange="onStorageAddressChange"
                     @update:rackId="onMainRackIdUpdate"
@@ -87,9 +93,9 @@
                       v-for="cb in containerBatches"
                       :key="cb.id"
                       :value="cb.id"
-                      :title="getContainerPreviewTitle(cb.id)"
+                      :title="formatContainerBatchOptionFullLabel(cb)"
                     >
-                      {{ formatContainerBatchOption(cb) }}
+                      {{ formatContainerBatchOptionFullLabel(cb) }}
                     </option>
                   </select>
                 </template>
@@ -258,14 +264,14 @@
                             @mouseenter="prefetchContainerPreviews()"
                             :title="getContainerPreviewTitle(entry.container_batch_id)"
                           >
-                            <option value="">– Kiste waehlen –</option>
+                            <option value="">– Kiste wählen –</option>
                             <option
                               v-for="cb in containerBatches"
                               :key="cb.id"
                               :value="cb.id"
-                              :title="getContainerPreviewTitle(cb.id)"
+                              :title="formatContainerBatchOptionFullLabel(cb)"
                             >
-                              {{ formatContainerBatchOption(cb) }}
+                              {{ formatContainerBatchOptionFullLabel(cb) }}
                             </option>
                           </select>
                         </template>
@@ -465,12 +471,18 @@
                             :slot-id="row.slot_id"
                             :racks="getAllocationRacks(row)"
                             :slot-list="row.rack_id ? getSlots(row.rack_id) : []"
+                            :rack-label-formatter="formatRackOptionLabel"
+                            :rack-option-title-formatter="(r) => rackPreviewTitles[r.id] || ''"
+                            :slot-label-formatter="(slot) => formatSlotOptionLabel(row.rack_id, slot)"
+                            :slot-option-title-formatter="(s) => slotPreviewTitles[`${String(row.rack_id || '')}:${String(s.id)}`] || ''"
                             storage-address-label="Standort"
                             rack-label="Gestell"
                             slot-label="Fach"
                             storage-address-placeholder="– Standort –"
                             rack-placeholder="– Gestell –"
                             slot-placeholder="– optional –"
+                            @rackListMouseenter="prefetchVisibleRackPreviews(getAllocationRacks(row))"
+                            @slotListMouseenter="prefetchSlotPreviewsForRack(String(row.rack_id || ''))"
                             @update:storageAddressId="row.storage_address_id = $event"
                             @storageAddressChange="onAllocationStorageAddressChange(row)"
                             @update:rackId="onAllocationRackIdUpdate(row, $event)"
@@ -483,8 +495,13 @@
                           class="batch-form-input form-select--sm"
                         >
                           <option value="">– Kiste wählen –</option>
-                                <option v-for="cb in containerBatches" :key="cb.id" :value="cb.id">
-                                  {{ (cb.label || cb.serial_number || cb.material_name) }}{{ cb.material_name && cb.material_name !== (cb.label || cb.serial_number) ? ` – ${cb.material_name}` : '' }}{{ cb.rack ? ` (${cb.rack.name}${cb.slot ? ' / ' + cb.slot.name : ''})` : '' }}
+                                <option
+                                  v-for="cb in containerBatches"
+                                  :key="cb.id"
+                                  :value="cb.id"
+                                  :title="formatContainerBatchOptionFullLabel(cb)"
+                                >
+                                  {{ formatContainerBatchOptionFullLabel(cb) }}
                                 </option>
                         </select>
                       </td>
@@ -515,12 +532,18 @@
                 :slot-id="form.slot_id"
                 :racks="filteredRacks"
                 :slot-list="mainSlots"
+                :rack-label-formatter="formatRackOptionLabel"
+                :rack-option-title-formatter="(r) => rackPreviewTitles[r.id] || ''"
+                :slot-label-formatter="(slot) => formatSlotOptionLabel(form.rack_id, slot)"
+                :slot-option-title-formatter="(s) => slotPreviewTitles[`${String(form.rack_id || '')}:${String(s.id)}`] || ''"
                 storage-address-label="Standort"
                 rack-label="Gestell"
                 slot-label="Fach"
                 storage-address-placeholder="Standort auswaehlen..."
                 rack-placeholder="Gestell auswaehlen..."
                 slot-placeholder="Fach auswaehlen..."
+                @rackListMouseenter="prefetchVisibleRackPreviews(filteredRacks)"
+                @slotListMouseenter="prefetchSlotPreviewsForRack(String(form.rack_id || ''))"
                 @update:storageAddressId="form.storage_address_id = $event"
                 @storageAddressChange="onStorageAddressChange"
                 @update:rackId="onMainRackIdUpdate"
@@ -628,9 +651,23 @@
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { useToast } from '@/composables/useToast'
+import { enqueuePendingCostBookingAfterPurchase } from '@/composables/useCostBookingFollowUp'
 import { addBatch, updateBatch, type MaterialBatch, type AddBatchRequest, type UpdateBatchRequest, type AddBatchMultiResponse } from '@/api/materials'
 import { getAddresses, type Address } from '@/api/addresses'
-import { getContainerBatches, getStorageOverview, type StorageRack, type StorageSlot, type StorageOverviewResponse } from '@/api/storageLocations'
+import {
+  getContainerBatches,
+  getRackContents,
+  getStorageOverview,
+  type StorageRack,
+  type StorageSlot,
+  type StorageOverviewResponse,
+} from '@/api/storageLocations'
+import { formatContainerBatchOptionFullLabel } from '@/utils/containerBatchLabel'
+import {
+  formatFachSelectPreviewLine,
+  formatRackSlotsDirectPreview,
+  summarizeMaterialsForPreview,
+} from '@/utils/storageSlotContentPreview'
 import AddressModal from '@/components/AddressModal.vue'
 import StorageLocationPicker from '@/components/storage/StorageLocationPicker.vue'
 import BarcodeScannerPanel from '@/components/common/BarcodeScannerPanel.vue'
@@ -821,24 +858,15 @@ function onSerialEntryStorageAddressChange(entry: SerialNumberEntry) {
 
 async function onSerialEntryRackChange(entry: SerialNumberEntry) {
   entry.slot_id = ''
-  if (entry.rack_id) await fetchSlotsEnsuringDefault(entry.rack_id)
+  if (entry.rack_id) {
+    await fetchSlotsEnsuringDefault(entry.rack_id)
+    await prefetchSlotPreviewsForRack(entry.rack_id)
+  }
 }
 
 function getSerialRowTitle(entry: SerialNumberEntry, index: number): string {
   const sn = (entry.serial_number || '').trim()
   return sn ? `Seriennummer ${index + 1} · ${sn}` : `Seriennummer ${index + 1}`
-}
-
-function formatContainerBatchOption(cb: ContainerBatch): string {
-  const slotName = (cb.slot?.name || '').trim()
-  const rackName = (cb.rack?.name || '').trim()
-  const location = slotName ? (rackName ? `${rackName} / ${slotName}` : slotName) : rackName || 'Ohne Fach'
-  const label = (cb.label || '').trim()
-  const name = (cb.material_name || '').trim()
-  const serial = (cb.serial_number || '').trim()
-  const primary = label || serial || name || 'Kiste'
-  const secondary = name && name !== primary ? ` - ${name}` : ''
-  return `${location} - ${primary}${secondary}`
 }
 
 async function prefetchContainerPreviews() {
@@ -848,11 +876,25 @@ async function prefetchContainerPreviews() {
 function getContainerPreviewTitle(containerBatchId: string): string {
   if (!containerBatchId) return ''
   const cb = containerBatches.value.find((c) => c.id === containerBatchId)
-  return cb ? formatContainerBatchOption(cb) : ''
+  return cb ? formatContainerBatchOptionFullLabel(cb) : ''
 }
 
-function formatSlotOptionLabel(_rackId: string, slot: StorageSlot): string {
-  return slot.name
+function formatSlotOptionLabel(rackId: string, slot: StorageSlot): string {
+  const key = `${rackId}:${String(slot.id)}`
+  const preview = (slotPreviewTitles.value[key] || '').trim()
+  const base = slot.name
+  if (preview) {
+    return `${base} · ${preview}`
+  }
+  return base
+}
+
+function formatRackOptionLabel(rack: StorageRack): string {
+  const preview = (rackPreviewTitles.value[rack.id] || '').trim()
+  if (!preview) return rack.name
+  const oneLine = preview.replace(/\n/g, ' · ')
+  const short = oneLine.length > 72 ? `${oneLine.slice(0, 69)}…` : oneLine
+  return `${rack.name} · ${short}`
 }
 
 function setStockLocationMode(mode: 'slot' | 'kiste') {
@@ -1101,11 +1143,10 @@ function onAllocationStorageAddressChange(row: AllocationRow) {
   row.slot_id = ''
 }
 
-function buildContentPreviewTitle(items: Array<{ material_name: string; qty: number }>): string {
-  if (!items.length) return 'Leer'
-  const lines = items.slice(0, 5).map((item) => `${item.material_name} (${item.qty})`)
-  if (items.length > 5) lines.push(`+${items.length - 5} weitere`)
-  return lines.join('\n')
+function resolveContainerBatchLabel(containerBatchId: string): string {
+  const cb = containerBatches.value.find((c) => c.id === containerBatchId)
+  if (!cb) return ''
+  return (cb.label || cb.serial_number || cb.display_label || cb.material_name || '').trim()
 }
 
 async function prefetchStorageOverview() {
@@ -1117,13 +1158,25 @@ async function prefetchRackPreview(rackId: string) {
   if (!rackId || rackPreviewTitles.value[rackId]) return
   await prefetchStorageOverview()
   const rack = storageOverviewCache.value?.racks?.find((r) => r.id === rackId)
-  const items = (rack?.slots || []).flatMap((slot) => slot.contents || []).map((c) => ({
-    material_name: c.material_name || 'Material',
-    qty: Number(c.qty || 0),
-  }))
+  const resolve = (id: string) => resolveContainerBatchLabel(id)
+
+  let text = ''
+  if (rack?.slots?.length) {
+    text = formatRackSlotsDirectPreview(rack.slots, resolve).trim()
+  }
+  if (!text) {
+    const data = await getRackContents(rackId).catch(() => null)
+    const items = (data?.contents || []).map((c: { material_name: string; qty: number }) => ({
+      material_name: c.material_name || 'Material',
+      qty: Number(c.qty || 0),
+    }))
+    text = summarizeMaterialsForPreview(items)
+  }
+  if (!text.trim()) text = 'Leer'
+
   rackPreviewTitles.value = {
     ...rackPreviewTitles.value,
-    [rackId]: buildContentPreviewTitle(items),
+    [rackId]: text,
   }
 }
 
@@ -1134,13 +1187,10 @@ async function prefetchSlotPreview(rackId: string, slotId: string) {
   await prefetchStorageOverview()
   const rack = storageOverviewCache.value?.racks?.find((r) => r.id === rackId)
   const slot = rack?.slots?.find((s) => String(s.id) === String(slotId))
-  const items = (slot?.contents || []).map((c) => ({
-    material_name: c.material_name || 'Material',
-    qty: Number(c.qty || 0),
-  }))
+  const line = formatFachSelectPreviewLine(slot?.contents || [])
   slotPreviewTitles.value = {
     ...slotPreviewTitles.value,
-    [key]: buildContentPreviewTitle(items),
+    [key]: line,
   }
 }
 
@@ -1153,11 +1203,7 @@ async function prefetchSlotPreviewsForRack(rackId: string) {
   for (const slot of rack.slots) {
     const key = `${rackId}:${String(slot.id)}`
     if (next[key]) continue
-    const items = (slot.contents || []).map((c) => ({
-      material_name: c.material_name || 'Material',
-      qty: Number(c.qty || 0),
-    }))
-    next[key] = buildContentPreviewTitle(items)
+    next[key] = formatFachSelectPreviewLine(slot.contents || [])
   }
   slotPreviewTitles.value = next
 }
@@ -1387,10 +1433,17 @@ async function handleAddressSaved() {
   }
 }
 
+function batchAddUnitPricePositive(): boolean {
+  const raw = String(form.unit_price || '').replace(/\s/g, '').replace(',', '.')
+  const up = parseFloat(raw)
+  return Number.isFinite(up) && up > 0
+}
+
 const canSubmit = computed(() => {
   if (isEditMode.value) {
     return form.qty >= 1
   }
+  if (!batchAddUnitPricePositive()) return false
   if (!form.acquired_on) return false
   if (isSerializedAddMode.value) {
     if (serializedQty.value < 1) return false
@@ -1409,6 +1462,9 @@ const canSubmit = computed(() => {
 
 const missingFields = computed(() => {
   const missing: string[] = []
+  if (!isEditMode.value && !batchAddUnitPricePositive()) {
+    missing.push('Stückpreis eingeben')
+  }
   if (!isEditMode.value && !form.acquired_on) {
     missing.push('Kaufdatum eingeben')
   }
@@ -1436,6 +1492,28 @@ const missingFields = computed(() => {
 function formatDate(dateStr: string): string {
   if (!dateStr) return '-'
   return new Date(dateStr).toLocaleDateString('de-CH')
+}
+
+function computeBatchAddPurchaseTotalChf(): number {
+  if (isEditMode.value) return 0
+  const raw = String(form.unit_price || '').replace(/\s/g, '').replace(',', '.')
+  const up = parseFloat(raw)
+  if (!Number.isFinite(up) || up <= 0) return 0
+  if (isSerializedAddMode.value) {
+    const n = serialRows.value.filter((e) => (e.serial_number || '').trim()).length
+    return up * n
+  }
+  return up * (form.qty || 0)
+}
+
+function batchIdFromAddBatchResult(r: MaterialBatch | AddBatchMultiResponse): string | undefined {
+  if ('created_batches' in r && Array.isArray(r.created_batches) && r.created_batches.length > 0) {
+    return r.created_batches[0].id
+  }
+  if ('id' in r && typeof (r as MaterialBatch).id === 'string') {
+    return (r as MaterialBatch).id
+  }
+  return undefined
 }
 
 async function handleSubmit() {
@@ -1554,6 +1632,23 @@ async function handleSubmit() {
         }
 
         result = await addBatch(props.materialId, payload)
+      }
+    }
+
+    if (!isEditMode.value) {
+      const batchId = batchIdFromAddBatchResult(result)
+      if (
+        await enqueuePendingCostBookingAfterPurchase({
+          departmentId: props.departmentId,
+          totalChf: computeBatchAddPurchaseTotalChf(),
+          purchaseDateIso: form.acquired_on || undefined,
+          receiptHint: props.materialName ? `Charge: ${props.materialName}` : undefined,
+          materialBatchId: batchId ?? null,
+        })
+      ) {
+        toast.info(
+          'Unter Buchhaltung → Buchungen, Tab „Neue Buchung zuordnen“: Kostenstelle und Details erfassen.'
+        )
       }
     }
 

@@ -12,8 +12,10 @@ export default defineConfig({
   server: {
     host: '0.0.0.0',
     port: 5173,
+    // Mehrere Hosts (app.localhost / qr.localhost): kein fixes origin – Host kommt vom Nginx-Proxy
+    allowedHosts: ['app.localhost', 'qr.localhost', 'localhost', '127.0.0.1'],
     hmr: {
-      clientPort: 5173,
+      clientPort: Number(process.env.HMR_CLIENT_PORT) || 5173,
     },
     proxy: {
       '/api': {

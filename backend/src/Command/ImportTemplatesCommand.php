@@ -169,11 +169,11 @@ class ImportTemplatesCommand extends Command
                         $comp->setIsOptional($compData['optional'] ?? false);
                         $comp->setSortOrder($index);
 
-                        // Tracking: aus JSON oder Heuristik
+                        // Tracking: aus JSON oder Standard bulk (keine Heuristik „1× = serialisiert“)
                         if (isset($compData['tracking'])) {
                             $comp->setTracking($compData['tracking']);
                         } else {
-                            $comp->setTracking($comp->getRequiredQty() <= 1 ? 'serialized' : 'bulk');
+                            $comp->setTracking('bulk');
                         }
 
                         // Repair Types
