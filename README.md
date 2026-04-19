@@ -19,6 +19,8 @@ docker compose up -d
 
 Wenn deine UID/GID dauerhaft 1000 sind (typisch unter WSL/Linux), reicht auch `docker compose up -d` ohne `export`.
 
+**Postgres auf dem Host (DBeaver, psql von außerhalb Docker):** Vorlage `docker-compose.override.local-ports.example.yml` nach `docker-compose.override.yml` kopieren (ist gitignored), dann Compose neu starten – sonst ist die DB nur intern unter Service `db` erreichbar.
+
 ### Lokale URLs (App + QR wie in Produktion)
 
 - **App:** http://app.localhost
@@ -43,7 +45,7 @@ composer install
 - App (Nginx, empfohlen): http://app.localhost (auch http://localhost oder http://qr.localhost)
 - Frontend (Vite direkt): http://localhost:5173
 - Backend API: http://localhost:8081 (unter `/api` auch ueber Nginx auf app.localhost / qr.localhost)
-- PostgreSQL: localhost:5432
+- PostgreSQL: nur im Docker-Netz (Host-Zugriff optional per `docker-compose.override.local-ports.example.yml`)
 - Adminer: http://localhost:8082
 
 ## Wichtige Hinweise

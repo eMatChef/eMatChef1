@@ -14,9 +14,7 @@
 
 services:
   db:
-    # Postgres nur auf localhost des Servers (nicht öffentlich)
-    ports:
-      - "127.0.0.1:5432:5432"
+    # Kein Host-Port: DB nur im Docker-Netz (Backend → db:5432). Kein Konflikt mit OS-Postgres auf :5432.
     environment:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
 
