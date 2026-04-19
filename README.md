@@ -50,6 +50,9 @@ composer install
 - Keine `.env`-Dateien oder `*.pem`-Keys committen.
 - Lokale/Dev-Daten liegen ausserhalb des Repos (z. B. `backend/data/`).
 
+## API-Server (Production, z. B. DigitalOcean)
+Vorlagen mit Prod-Env (APP, CORS, QR, DB-Passwort via `.env`): `deploy/docker-compose.override.prod.example.yml` und `deploy/docker-compose.prod.env.example` – auf den Server kopieren, siehe Kommentarkopf in der YAML. `docker-compose.override.yml` am Repo-Root ist gitignored.
+
 ## Nützliche Backend-Befehle
 ```bash
 docker exec ematchef_v401-backend-1 php bin/console doctrine:migrations:migrate
