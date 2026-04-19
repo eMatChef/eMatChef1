@@ -53,6 +53,8 @@ composer install
 ## API-Server (Production, z. B. DigitalOcean)
 Vorlagen: `deploy/docker-compose.override.prod.example.yml` → als `docker-compose.override.yml` kopieren; Geheimnisse mit **`bash deploy/init-prod-env.sh`** erzeugen (legt `.env` mit zufälligen Werten an). Manuell: `deploy/docker-compose.prod.env.example`. `docker-compose.override.yml` am Repo-Root ist gitignored.
 
+Auf dem Server (nach SSH ins Repo): **`bash deploy/server-prod-apply.sh`** — holt per `git pull` den neuesten Stand, legt Override/`.env` nur an falls nötig, startet `db`+`backend`.
+
 ## Nützliche Backend-Befehle
 ```bash
 docker exec ematchef_v401-backend-1 php bin/console doctrine:migrations:migrate
