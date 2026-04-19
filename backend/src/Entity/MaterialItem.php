@@ -75,10 +75,11 @@ class MaterialItem
     #[ORM\Column(type: 'string', length: 120, nullable: true)]
     private ?string $weight = null;
 
-    #[ORM\Column(name: 'is_tent', type: 'boolean', options: ['default' => false])]
-    private bool $isTent = false;
+    /** Behälter (Kiste/Tasche/Fass …): kann anderen Lagerinhalt aufnehmen; steuert u.a. Container-Batch-Listen. */
+    #[ORM\Column(name: 'is_container', type: 'boolean', options: ['default' => false])]
+    private bool $isContainer = false;
 
-    // Zelt-spezifische Felder (nur relevant wenn is_tent = true)
+    // Zelt-/Kombi-Felder (u.a. relevant wenn is_container oder Combo)
 
     /** gruppenzelt, sonstiges */
     #[ORM\Column(name: 'tent_type', type: 'string', length: 40, nullable: true)]
@@ -175,6 +176,10 @@ class MaterialItem
     #[ORM\Column(name: 'pack_unit', type: 'string', length: 40, nullable: true)]
     private ?string $packUnit = null;
 
+    /** Optional: Verkaufspreis pro Verpackungseinheit (CHF/VE), z. B. für Aufteilen auf Stückpreis */
+    #[ORM\Column(name: 'pack_sale_price_chf', type: 'decimal', precision: 10, scale: 2, nullable: true)]
+    private ?string $packSalePriceChf = null;
+
     // Verbrauchsmaterial
     #[ORM\Column(name: 'is_consumable', type: 'boolean', options: ['default' => false])]
     private bool $isConsumable = false;
@@ -185,6 +190,10 @@ class MaterialItem
 
     #[ORM\Column(name: 'sale_price', type: 'decimal', precision: 10, scale: 2, nullable: true)]
     private ?string $salePrice = null;
+
+    /** Referenz-Einkaufspreis pro Stück (CHF), Pflicht bei Verbrauchsmaterial/Esswaren */
+    #[ORM\Column(name: 'reference_purchase_unit_chf', type: 'decimal', precision: 10, scale: 2, nullable: true)]
+    private ?string $referencePurchaseUnitChf = null;
 
     #[ORM\Column(name: 'min_stock', type: 'integer', nullable: true)]
     private ?int $minStock = null;
@@ -363,8 +372,8 @@ class MaterialItem
     public function getWeight(): ?string { return $this->weight; }
     public function setWeight(?string $weight): self { $this->weight = $weight; return $this; }
 
-    public function getIsTent(): bool { return $this->isTent; }
-    public function setIsTent(bool $isTent): self { $this->isTent = $isTent; return $this; }
+    public function getIsContainer(): bool { return $this->isContainer; }
+    public function setIsContainer(bool $isContainer): self { $this->isContainer = $isContainer; return $this; }
 
     // Zelt-spezifische Getters/Setters
     public function getTentType(): ?string { return $this->tentType; }
@@ -478,6 +487,13 @@ class MaterialItem
     public function getPackUnit(): ?string { return $this->packUnit; }
     public function setPackUnit(?string $packUnit): self { $this->packUnit = $packUnit; return $this; }
 
+    public function getPackSalePriceChf(): ?string { return $this->packSalePriceChf; }
+    public function setPackSalePriceChf(?string $packSalePriceChf): self
+    {
+        $this->packSalePriceChf = $packSalePriceChf;
+        return $this;
+    }
+
     /**
      * Berechnet die Anzahl Verpackungseinheiten aus dem Gesamtbestand
      * z.B. 80 Stk. bei packSize=10 → 8 Einheiten
@@ -518,6 +534,13 @@ class MaterialItem
 
     public function getSalePrice(): ?string { return $this->salePrice; }
     public function setSalePrice(?string $salePrice): self { $this->salePrice = $salePrice; return $this; }
+
+    public function getReferencePurchaseUnitChf(): ?string { return $this->referencePurchaseUnitChf; }
+    public function setReferencePurchaseUnitChf(?string $referencePurchaseUnitChf): self
+    {
+        $this->referencePurchaseUnitChf = $referencePurchaseUnitChf;
+        return $this;
+    }
 
     public function getMinStock(): ?int { return $this->minStock; }
     public function setMinStock(?int $minStock): self { $this->minStock = $minStock; return $this; }

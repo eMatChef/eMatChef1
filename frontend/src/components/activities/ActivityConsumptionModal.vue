@@ -1,0 +1,506 @@
+<template>
+  <Teleport to="body">
+    <div v-if="isOpen" class="consumption-modal-overlay" @click.self="close">
+      <div class="consumption-modal-dialog" role="dialog" aria-modal="true" aria-labelledby="consumption-modal-title">
+        <div class="consumption-modal-header">
+          <h3 id="consumption-modal-title">Verbrauch erfassen</h3>
+          <button type="button" class="consumption-modal-close" aria-label="Schliessen" @click="close">×</button>
+        </div>
+        <div class="consumption-modal-body">
+          <div v-if="loadingLimits" class="consumption-modal-loading text-muted">Grenzen werden geladen…</div>
+          <div class="consumption-modal-material">
+            {{ displayMaterialLine }}
+          </div>
+          <p v-if="!loadingLimits && preset" class="consumption-modal-limits text-muted">
+            Für diese Aktivität gebucht: <strong>{{ bookedTotal }}</strong> Stk. · Bereits verbraucht:
+            <strong>{{ consumedTotal }}</strong> Stk. · Noch möglich:
+            <strong>{{ maxRemaining }}</strong> Stk.
+          </p>
+          <p v-if="!loadingLimits && maxRemaining < 1" class="consumption-modal-warn">
+            Es kann kein weiterer Verbrauch gebucht werden (Höchstmenge erreicht oder nichts gebucht).
+          </p>
+          <div
+            v-if="!loadingLimits && maxRemaining > 0 && canAddActivityMaterial"
+            class="consumption-modal-nachlieferung"
+          >
+            <button type="button" class="link-btn" @click="emit('requestNachbuchung')">
+              Gebuchte Menge erhöhen (Nachlieferung / Reste)…
+            </button>
+          </div>
+          <template v-if="!loadingLimits && maxRemaining > 0">
+          <div class="consumption-modal-field">
+            <label for="consumption-qty">Gebrauchte Menge</label>
+            <div class="adjust-qty-row">
+              <button
+                type="button"
+                class="btn-qty"
+                :disabled="maxRemaining < 1 || qty <= 1"
+                @click="bumpQty(-1)"
+              >
+                −
+              </button>
+              <input
+                id="consumption-qty"
+                v-model.number="qty"
+                type="number"
+                :min="maxRemaining > 0 ? 1 : 0"
+                :max="maxRemaining > 0 ? maxRemaining : 0"
+                class="form-input adjust-qty-input"
+                @change="clampQtyInput"
+              />
+              <button
+                type="button"
+                class="btn-qty"
+                :disabled="maxRemaining < 1 || qty >= maxRemaining"
+                @click="bumpQty(1)"
+              >
+                +
+              </button>
+            </div>
+            <div
+              v-if="preset?.packSize != null && preset.packSize > 1 && maxRemaining > 0"
+              class="pack-edit-set-btns"
+            >
+              <button
+                type="button"
+                class="mat-quick-btn mat-set-btn"
+                :title="'1 ' + (preset?.packUnit || 'Set')"
+                @click="applySetMultiple(1)"
+              >
+                1 {{ preset?.packUnit || 'Set' }}
+              </button>
+              <button
+                type="button"
+                class="mat-quick-btn mat-set-btn"
+                :title="'2 ' + (preset?.packUnit || 'Sets')"
+                @click="applySetMultiple(2)"
+              >
+                2 {{ preset?.packUnit || 'Sets' }}
+              </button>
+              <button
+                type="button"
+                class="mat-quick-btn mat-set-btn"
+                :title="'5 ' + (preset?.packUnit || 'Sets')"
+                @click="applySetMultiple(5)"
+              >
+                5 {{ preset?.packUnit || 'Sets' }}
+              </button>
+              <span class="pack-edit-set-hint">
+                1 {{ preset?.packUnit || 'Set' }} = {{ preset?.packSize }} Stk.
+              </span>
+            </div>
+          </div>
+          <div class="consumption-modal-field">
+            <label for="consumption-notes">Notiz (optional)</label>
+            <textarea
+              id="consumption-notes"
+              v-model="notes"
+              class="form-input form-textarea"
+              rows="3"
+              placeholder="Optional…"
+            />
+          </div>
+          </template>
+          <div
+            v-if="!loadingLimits && maxRemaining < 1 && canAddActivityMaterial"
+            class="consumption-modal-nachbuchung-actions"
+          >
+            <p class="text-muted text-sm">
+              Wenn du nachgeliefert hast oder Reste dem Event zuordnen willst, erhöhe die gebuchte Aktivitätsmenge.
+            </p>
+            <button type="button" class="btn btn-primary" @click="emit('requestNachbuchung')">
+              Nachlieferung zur Aktivität hinzufügen
+            </button>
+          </div>
+          <p
+            v-else-if="!loadingLimits && maxRemaining < 1 && !canAddActivityMaterial"
+            class="consumption-modal-no-perm text-muted text-sm"
+          >
+            Eine Erhöhung der gebuchten Menge ist nur für Materialwart / Dep.-Chef möglich (Tab «Material»).
+          </p>
+        </div>
+        <div class="consumption-modal-footer">
+          <button type="button" class="btn btn-outline" :disabled="submitting" @click="close">Schliessen</button>
+          <button
+            v-if="maxRemaining > 0"
+            type="button"
+            class="btn btn-success"
+            :disabled="submitting || !canSubmit || loadingLimits"
+            @click="submit"
+          >
+            {{ submitting ? 'Wird gesendet…' : 'Verbrauch buchen' }}
+          </button>
+        </div>
+      </div>
+    </div>
+  </Teleport>
+</template>
+
+<script setup lang="ts">
+import { computed, ref, watch } from 'vue'
+import { createActivityIssue, getActivityIssues, getActivityItems } from '@/api/activities'
+import { useToast } from '@/composables/useToast'
+
+export interface ConsumptionModalPreset {
+  materialItemId: string
+  materialName: string
+  packSize: number | null
+  packUnit: string | null
+  linkedContainerLabel?: string | null
+}
+
+const props = withDefaults(
+  defineProps<{
+    isOpen: boolean
+    activityId: string
+    preset: ConsumptionModalPreset | null
+    /** Nachbuchung / addActivityItem (Materialwart / DC) */
+    canAddActivityMaterial?: boolean
+  }>(),
+  { canAddActivityMaterial: false },
+)
+
+const emit = defineEmits<{
+  close: []
+  success: []
+  requestNachbuchung: []
+}>()
+
+const toast = useToast()
+const qty = ref(1)
+const notes = ref('')
+const submitting = ref(false)
+const loadingLimits = ref(false)
+const bookedTotal = ref(0)
+const consumedTotal = ref(0)
+
+const maxRemaining = computed(() => Math.max(0, bookedTotal.value - consumedTotal.value))
+
+const displayMaterialLine = computed(() => {
+  const p = props.preset
+  if (!p) return ''
+  const serial = p.linkedContainerLabel?.trim()
+  return serial ? `${serial} — ${p.materialName}` : p.materialName
+})
+
+const canSubmit = computed(
+  () =>
+    !!props.preset?.materialItemId &&
+    maxRemaining.value > 0 &&
+    qty.value >= 1 &&
+    qty.value <= maxRemaining.value,
+)
+
+function clampQtyInput() {
+  const m = maxRemaining.value
+  if (m < 1) {
+    qty.value = 0
+    return
+  }
+  let n = Number(qty.value)
+  if (!Number.isFinite(n)) n = 1
+  qty.value = Math.min(m, Math.max(1, Math.floor(n)))
+}
+
+function bumpQty(delta: number) {
+  const m = maxRemaining.value
+  if (m < 1) return
+  let n = Number(qty.value)
+  if (!Number.isFinite(n)) n = 1
+  qty.value = Math.min(m, Math.max(1, Math.floor(n) + delta))
+}
+
+function applySetMultiple(sets: number) {
+  const m = maxRemaining.value
+  const ps = props.preset?.packSize ?? 1
+  if (m < 1 || ps < 1) return
+  qty.value = Math.min(m, sets * ps)
+}
+
+async function loadConsumptionLimits() {
+  const mid = props.preset?.materialItemId
+  if (!mid || !props.activityId) {
+    bookedTotal.value = 0
+    consumedTotal.value = 0
+    return
+  }
+  loadingLimits.value = true
+  try {
+    const [items, issues] = await Promise.all([
+      getActivityItems(props.activityId),
+      getActivityIssues(props.activityId),
+    ])
+    bookedTotal.value = items
+      .filter((i) => i.material_item_id === mid)
+      .reduce((s, i) => s + i.quantity, 0)
+    consumedTotal.value = issues
+      .filter((i) => i.type === 'consumption' && i.material_item_id === mid)
+      .reduce((s, i) => s + i.quantity, 0)
+    const rem = Math.max(0, bookedTotal.value - consumedTotal.value)
+    if (rem < 1) {
+      qty.value = 0
+    } else {
+      qty.value = Math.min(1, rem)
+    }
+  } catch {
+    bookedTotal.value = 0
+    consumedTotal.value = 0
+    toast.error('Gebuchte Mengen konnten nicht geladen werden.')
+  } finally {
+    loadingLimits.value = false
+  }
+}
+
+watch(
+  () => [props.isOpen, props.preset?.materialItemId, props.activityId] as const,
+  async ([open]) => {
+    if (open && props.preset?.materialItemId) {
+      notes.value = ''
+      await loadConsumptionLimits()
+    } else if (!open) {
+      qty.value = 1
+      notes.value = ''
+      bookedTotal.value = 0
+      consumedTotal.value = 0
+    }
+  },
+)
+
+function close() {
+  emit('close')
+}
+
+async function submit() {
+  const p = props.preset
+  if (!p?.materialItemId || submitting.value) return
+  clampQtyInput()
+  if (qty.value < 1 || qty.value > maxRemaining.value) {
+    toast.error(
+      maxRemaining.value < 1
+        ? 'Kein weiterer Verbrauch möglich.'
+        : `Höchstens ${maxRemaining.value} Stk. möglich.`,
+    )
+    return
+  }
+  submitting.value = true
+  try {
+    await createActivityIssue(props.activityId, {
+      material_item_id: p.materialItemId,
+      type: 'consumption',
+      quantity: qty.value,
+      description: notes.value.trim() || null,
+    })
+    emit('success')
+    close()
+  } catch (err: unknown) {
+    const e = err as { response?: { data?: { error?: string } }; message?: string }
+    toast.error(e.response?.data?.error || e.message || 'Verbrauch konnte nicht gebucht werden.')
+  } finally {
+    submitting.value = false
+  }
+}
+</script>
+
+<style scoped>
+.consumption-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2100;
+  background: rgba(15, 23, 42, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.consumption-modal-dialog {
+  width: 100%;
+  max-width: 420px;
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.18);
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.consumption-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 18px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.consumption-modal-header h3 {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.consumption-modal-close {
+  border: none;
+  background: none;
+  font-size: 1.5rem;
+  line-height: 1;
+  color: #64748b;
+  cursor: pointer;
+  padding: 4px 8px;
+}
+
+.consumption-modal-close:hover {
+  color: #0f172a;
+}
+
+.consumption-modal-body {
+  padding: 16px 18px;
+  overflow-y: auto;
+}
+
+.consumption-modal-loading {
+  font-size: 13px;
+  margin-bottom: 10px;
+}
+
+.consumption-modal-material {
+  font-weight: 600;
+  margin-bottom: 10px;
+  line-height: 1.4;
+}
+
+.consumption-modal-limits {
+  font-size: 13px;
+  line-height: 1.45;
+  margin: 0 0 12px;
+}
+
+.consumption-modal-warn {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #991b1b;
+  font-size: 13px;
+}
+
+.consumption-modal-nachlieferung {
+  margin: 0 0 14px;
+}
+
+.link-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  color: #2563eb;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.link-btn:hover {
+  color: #1d4ed8;
+}
+
+.consumption-modal-nachbuchung-actions {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.consumption-modal-no-perm {
+  margin: 8px 0 0;
+}
+
+.consumption-modal-field {
+  margin-bottom: 14px;
+}
+
+.consumption-modal-field label {
+  display: block;
+  font-size: 13px;
+  font-weight: 500;
+  color: #475569;
+  margin-bottom: 6px;
+}
+
+.adjust-qty-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.btn-qty {
+  width: 36px;
+  height: 38px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #f8fafc;
+  font-size: 1.1rem;
+  cursor: pointer;
+}
+
+.btn-qty:hover {
+  background: #e2e8f0;
+}
+
+.adjust-qty-input {
+  width: 5rem;
+  text-align: center;
+}
+
+.pack-edit-set-btns {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.mat-quick-btn.mat-set-btn {
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: 1px solid #86efac;
+  background: #f0fdf4;
+  color: #166534;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.mat-quick-btn.mat-set-btn:hover {
+  background: #dcfce7;
+}
+
+.pack-edit-set-hint {
+  font-size: 12px;
+  color: #64748b;
+  width: 100%;
+}
+
+.form-textarea {
+  width: 100%;
+  resize: vertical;
+  min-height: 72px;
+}
+
+.consumption-modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 12px 18px 16px;
+  border-top: 1px solid #e5e7eb;
+}
+
+.btn-success {
+  background: #16a34a;
+  border-color: #16a34a;
+  color: #fff;
+}
+
+.btn-success:hover:not(:disabled) {
+  background: #15803d;
+}
+</style>

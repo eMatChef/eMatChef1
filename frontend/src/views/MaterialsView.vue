@@ -9,6 +9,7 @@
       :initial-batch-id="route.query.batch ? String(route.query.batch) : undefined"
       @close="closeDetailView"
       @updated="handleMaterialUpdated"
+      @open-create-for-composition="onOpenCreateForComposition"
     />
 
     <!-- Liste View -->
@@ -166,7 +167,10 @@
       <div class="content-area">
         <!-- Tab: Regale (storage-centric view) -->
         <div v-if="activeTab === 'storage'" class="storage-tab-content">
-          <StorageTreeView :department-id="currentDepartmentId" />
+          <StorageTreeView
+            :department-id="currentDepartmentId"
+            :open-material-without-batch-query="true"
+          />
         </div>
 
         <!-- Loading State -->
@@ -278,8 +282,10 @@
                   <td class="col-name">
                     <div class="name-cell">
                       <div class="material-icon" :class="getMaterialIconClass(material)">
-                        <svg v-if="material.is_tent" class="table-icon-md" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                          <path d="M3 21L12 3l9 18H3z"/>
+                        <svg v-if="material.is_container" class="table-icon-md" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                          <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+                          <polyline points="3.27 6.96 12 12.01 20.73 6.96"/>
+                          <line x1="12" y1="22.08" x2="12" y2="12"/>
                         </svg>
                         <svg v-else-if="material.is_food" class="table-icon-md" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                           <path d="M18 8h1a4 4 0 0 1 0 8h-1M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8zM6 1v3M10 1v3M14 1v3"/>
@@ -389,7 +395,7 @@
                             </td>
                             <td>{{ comp.qty }}</td>
                             <td>
-                              <span class="assignment-badge" :class="comp.assignment_mode">
+                              <span class="assignment-badge" :class="comp.assignment_mode === 'fixed' ? 'fix' : comp.assignment_mode">
                                 {{ assignmentLabels[comp.assignment_mode] || comp.assignment_mode }}
                               </span>
                             </td>
@@ -427,7 +433,13 @@
 defineOptions({ name: 'MaterialsView' })
 import { ref, computed, reactive, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { getMaterials, getComboComponents, type Material, type ComboComponent } from '@/api/materials'
+import {
+  getMaterials,
+  getComboComponents,
+  addComboComponent,
+  type Material,
+  type ComboComponent,
+} from '@/api/materials'
 import { getCategories, type Category } from '@/api/categories'
 import MaterialCreateWizard from '@/components/material/MaterialCreateWizard.vue'
 import MaterialDetailView from '@/components/material/MaterialDetailView.vue'
@@ -435,11 +447,13 @@ import StorageTreeView from '@/components/storage/StorageTreeView.vue'
 import GlobalSearchInput from '@/components/common/GlobalSearchInput.vue'
 import PublicQrTag from '@/components/common/PublicQrTag.vue'
 import { useDetailTabsStore } from '@/stores/detailTabs'
+import { useToast } from '@/composables/useToast'
 import '@/styles/material-wizard.css'
 
 const route = useRoute()
 const detailTabsStore = useDetailTabsStore()
 const router = useRouter()
+const toast = useToast()
 const currentDepartmentId = computed(() => route.params.departmentId as string)
 type MaterialTab = 'combos' | 'all' | 'virtual_combos' | 'consumables' | 'food' | 'storage'
 const materialTabRouteNames: Record<MaterialTab, string> = {
@@ -481,6 +495,8 @@ const showCreateWizard = ref(false)
 const wizardOpenNonce = ref(0)
 const wizardOpenKey = computed(() => `${currentDepartmentId.value}-${wizardOpenNonce.value}`)
 const materialJustCreated = ref(false)
+/** Nach Wizard: neuen Artikel als Komponente dieser Kombi verknüpfen */
+const pendingCompositionParentId = ref<string | null>(null)
 
 // Combo Expand State
 const expandedCombos = ref<Set<string>>(new Set())
@@ -617,7 +633,7 @@ function getStockClass(stock: number): string {
 }
 
 function getMaterialIconClass(material: Material): string {
-  if (material.is_tent) return 'tent'
+  if (material.is_container) return 'container'
   if (material.is_food) return 'food'
   if (material.is_consumable) return 'consumable'
   return ''
@@ -684,14 +700,43 @@ function readLastMaterialTab(): MaterialTab {
   return 'all'
 }
 
-function openCreateWizard() {
+function openCreateWizard(opts?: { linkAsComboComponentTo?: string }) {
   wizardOpenNonce.value += 1
+  pendingCompositionParentId.value = opts?.linkAsComboComponentTo ?? null
   showCreateWizard.value = true
 }
 
-async function handleMaterialCreated(_material: Material) {
+function onOpenCreateForComposition(payload: { parentMaterialId: string }) {
+  openCreateWizard({ linkAsComboComponentTo: payload.parentMaterialId })
+}
+
+async function handleMaterialCreated(material: Material) {
   materialJustCreated.value = true
+  const linkParent = pendingCompositionParentId.value
+  pendingCompositionParentId.value = null
+
   await loadData()
+
+  if (linkParent && material?.id) {
+    try {
+      const existing = await getComboComponents(linkParent)
+      const parentRow = materials.value.find((m) => m.id === linkParent)
+      const defaultMode =
+        parentRow?.material_type === 'virtual_combo' ? 'on_issue' : 'bulk'
+      await addComboComponent(linkParent, {
+        component_material_id: material.id,
+        qty: 1,
+        assignment_mode: defaultMode,
+        sort_order: existing.length,
+      })
+      toast.success('Neuer Artikel wurde zur Zusammensetzung hinzugefügt.')
+    } catch (err: unknown) {
+      const ax = err as { response?: { data?: { error?: string } } }
+      console.error(err)
+      toast.error(ax.response?.data?.error || 'Komponente konnte nicht verknüpft werden.')
+    }
+  }
+
   if (route.query.from === 'dashboard') {
     const q = { ...route.query }
     delete q.from

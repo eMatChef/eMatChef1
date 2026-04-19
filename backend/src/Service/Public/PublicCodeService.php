@@ -264,7 +264,10 @@ class PublicCodeService
     }
 
     /**
-     * Für serialisierte Artikel: pro Batch/Einzelstück ein eigener Public-Code.
+     * Massenartikel: öffentlicher QR über {@see ensureMaterialPublicCode} (pro Artikel), nicht pro Charge.
+     *
+     * Hier: QR an einer Batch-Zeile nur für serialisierte Einheiten (Seriennummer gesetzt) oder Sonderfälle
+     * (z. B. Vorlagen/Combo), nicht für normale Massen-Chargen.
      *
      * @param string|null $createdByUserId Symfony-User-ID (12), wenn aus authentifiziertem Request
      */
@@ -283,6 +286,17 @@ class PublicCodeService
         ]);
         if ($existing) {
             return $existing;
+        }
+
+        $material = $batch->getMaterialItem();
+        if (
+            $material !== null
+            && $material->getTrackingType() === 'serialized'
+            && trim((string) $batch->getSerialNumber()) === ''
+        ) {
+            throw new \InvalidArgumentException(
+                'Bei serialisierten Artikeln gibt es einen öffentlichen QR-Code nur pro Seriennummer (Einheit), nicht für eine Charge ohne Seriennummer.'
+            );
         }
 
         $entry = new PublicCode();
@@ -327,6 +341,29 @@ class PublicCodeService
     public function buildMaterialPublicUrl(string $publicCode): string
     {
         return $this->publicQrBaseUrl . '/i/m/' . rawurlencode($publicCode);
+    }
+
+    /**
+     * Ordnet den bestehenden öffentlichen QR (gleicher Code-String) der neuen Batch-ID zu –
+     * z. B. physische Combo aus Kiste: derselbe Aufkleber wie an der Kisten-Charge.
+     */
+    public function reassignBatchPublicCode(string $fromBatchId, string $toBatchId): void
+    {
+        if ($fromBatchId === '' || $toBatchId === '' || $fromBatchId === $toBatchId) {
+            return;
+        }
+
+        /** @var PublicCode|null $entry */
+        $entry = $this->entityManager->getRepository(PublicCode::class)->findOneBy([
+            'entityType' => 'batch',
+            'entityId' => $fromBatchId,
+            'isActive' => true,
+        ]);
+        if (!$entry) {
+            return;
+        }
+
+        $entry->setEntityId($toBatchId);
     }
 
     public function getActiveBatchPublicCode(string $batchId): ?PublicCode

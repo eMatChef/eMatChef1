@@ -117,6 +117,7 @@ apiClient.interceptors.response.use(
         localStorage.removeItem('refresh_token')
         localStorage.removeItem('user_id')
         localStorage.removeItem('profile_id')
+        localStorage.removeItem('session_last_activity_at')
         if (window.location.pathname !== '/') {
           window.location.href = '/'
         }
@@ -199,6 +200,7 @@ apiClient.interceptors.response.use(
           localStorage.removeItem('refresh_token')
           localStorage.removeItem('user_id')
           localStorage.removeItem('profile_id')
+          localStorage.removeItem('session_last_activity_at')
           if (window.location.pathname !== '/') {
             window.location.href = '/'
           }
@@ -221,6 +223,7 @@ apiClient.interceptors.response.use(
         localStorage.removeItem('refresh_token')
         localStorage.removeItem('user_id')
         localStorage.removeItem('profile_id')
+        localStorage.removeItem('session_last_activity_at')
         if (window.location.pathname !== '/') {
           window.location.href = '/'
         }

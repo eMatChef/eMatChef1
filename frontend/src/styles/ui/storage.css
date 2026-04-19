@@ -128,7 +128,8 @@
   font-weight: 500;
 }
 
-.assignment-badge.fixed {
+/* „fix“ statt „fixed“: vermeidet Kollision mit globalen .fixed / position:fixed Utilities */
+.assignment-badge.fix {
   background: #dbeafe;
   color: #1d4ed8;
 }

@@ -1,6 +1,8 @@
 parameters:
     # Optional: Basis-URL für öffentliche QR-Links (/i/m/, /i/b/). Leer = APP_FRONTEND_URL (z. B. nur eine Domain).
     env(APP_PUBLIC_QR_URL): ''
+    # Optional: Fallback für fcal API-Key (Schulferien); bevorzugt zentral in var/app/integration_settings.json (Superadmin).
+    env(FCAL_API_KEY): ''
 
 services:
     _defaults:
@@ -22,3 +24,4 @@ services:
     App\EventListener\IdGeneratorSubscriber:
         tags:
             - { name: doctrine.event_subscriber }
+

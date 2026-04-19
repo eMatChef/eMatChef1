@@ -408,7 +408,7 @@ class TemplateController extends AbstractController
                 $comboMaterial->setDescription($data['description'] ?? $template->getDescription());
                 $comboMaterial->setMaterialType($creationMode); // physical_combo oder virtual_combo
                 $comboMaterial->setTrackingType('serialized');
-                $comboMaterial->setIsTent(true);
+                $comboMaterial->setIsContainer(true);
                 $comboMaterial->setTentType($data['tent_type'] ?? $template->getTentType());
                 $comboMaterial->setTentCapacity($data['tent_capacity'] ?? $template->getCapacity());
                 $comboMaterial->setManufacturer($data['manufacturer'] ?? $template->getManufacturer());
@@ -508,6 +508,19 @@ class TemplateController extends AbstractController
                 }
 
                 $mode = $input['mode'] ?? 'new'; // new oder existing
+
+                // Optionale Komponente mit Menge 0 bzw. ohne SN: nichts anlegen (kein Artikel, keine Charge mit 0)
+                if (!$isVirtualCombo && $isOptional && $input !== null) {
+                    if ($tracking === 'bulk') {
+                        $declaredQty = $input['qty'] ?? null;
+                        if ($declaredQty !== null && (int) $declaredQty <= 0) {
+                            continue;
+                        }
+                    }
+                    if ($tracking === 'serialized' && $mode === 'new' && trim((string) ($input['serial_number'] ?? '')) === '') {
+                        continue;
+                    }
+                }
 
                 // ── Komponenten-MaterialItem suchen oder erstellen ──
                 $componentMaterial = null;
@@ -658,6 +671,10 @@ class TemplateController extends AbstractController
                 $this->publicCodeService->ensureMaterialPublicCode($mat, $actorId);
             }
             foreach ($comboComponentBatchesForPublicCode as $b) {
+                $bm = $b->getMaterialItem();
+                if ($bm && $bm->getTrackingType() === 'serialized' && trim((string) $b->getSerialNumber()) === '') {
+                    continue;
+                }
                 $this->publicCodeService->ensureBatchPublicCode($b, $actorId);
             }
 
@@ -682,7 +699,7 @@ class TemplateController extends AbstractController
                     'id' => $comboMaterial->getId(),
                     'name' => $comboMaterial->getName(),
                     'material_type' => $comboMaterial->getMaterialType(),
-                    'is_tent' => $comboMaterial->getIsTent(),
+                    'is_container' => $comboMaterial->getIsContainer(),
                     'tent_type' => $comboMaterial->getTentType(),
                     'tent_capacity' => $comboMaterial->getTentCapacity(),
                     'reservation_mode' => $comboMaterial->getReservationMode(),

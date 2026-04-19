@@ -135,6 +135,26 @@
             Betrag und Datum stammen aus der Anschaffung. Bitte <strong>Kostenstelle</strong> und ggf. weitere Felder
             zuordnen.
           </p>
+          <div
+            v-if="pendingFollowUps.length > 1"
+            class="bookings-subtabs booking-assign-followup-tabs filter-bar accounting-inner-tabs"
+          >
+            <div class="filter-tabs" role="tablist" aria-label="Ausstehende Buchungen">
+              <button
+                v-for="(fu, idx) in pendingFollowUps"
+                :key="fu.id"
+                type="button"
+                class="filter-tab"
+                role="tab"
+                :aria-selected="assignTabIndex === idx"
+                :class="{ active: assignTabIndex === idx }"
+                @click="selectAssignTab(idx)"
+              >
+                Buchung {{ idx + 1 }}
+                <span class="booking-assign-tab-meta">· CHF {{ formatMoney(fu.amount) }}</span>
+              </button>
+            </div>
+          </div>
           <div class="acc-modal-body booking-assign-form">
             <div class="acc-field-row">
               <div class="acc-field">
@@ -392,8 +412,26 @@ const saving = ref(false)
 const bookingsSubTab = ref<'list' | 'assign'>('list')
 const hasPendingBooking = ref(false)
 const pendingFollowUps = ref<AccountingAcquisitionFollowUp[]>([])
-/** Aktuell im Formular (ältester pending-Eintrag). */
+/** Aktuell im Formular (gewählte ausstehende Anschaffung). */
 const activeFollowUpId = ref<string | null>(null)
+/** Bei mehreren Pending-Follow-ups: welcher Unter-Tab aktiv ist. */
+const assignTabIndex = ref(0)
+/** Entwürfe pro Follow-up-ID, damit beim Tab-Wechsel nichts verloren geht. */
+const assignDrafts = reactive<
+  Record<
+    string,
+    {
+      amount: string
+      booked_at: string
+      cost_center_id: string
+      entry_type: string
+      payment_method: string
+      group_id: string
+      receipt_label: string
+      notes: string
+    }
+  >
+>({})
 /** Letzte Speicherung kam aus Tab „Neue Buchung zuordnen“ (Anschaffung aus Material). */
 const workingFromPending = ref(false)
 
@@ -403,39 +441,84 @@ async function refreshPendingFollowUps() {
     pendingFollowUps.value = await listAcquisitionFollowups(departmentId.value, 'pending')
     hasPendingBooking.value = pendingFollowUps.value.length > 0
     if (pendingFollowUps.value.length > 0) {
-      activeFollowUpId.value = pendingFollowUps.value[0].id
+      const prevId = activeFollowUpId.value
+      const stillExists =
+        prevId && pendingFollowUps.value.some((f) => f.id === prevId)
+      if (stillExists) {
+        assignTabIndex.value = pendingFollowUps.value.findIndex((f) => f.id === prevId)
+      } else {
+        assignTabIndex.value = Math.min(
+          assignTabIndex.value,
+          pendingFollowUps.value.length - 1
+        )
+      }
+      assignTabIndex.value = Math.max(0, assignTabIndex.value)
+      const p = pendingFollowUps.value[assignTabIndex.value]
+      if (p) loadAssignFormForFollowUp(p)
     } else {
       activeFollowUpId.value = null
+      assignTabIndex.value = 0
     }
   } catch {
     pendingFollowUps.value = []
     hasPendingBooking.value = false
     activeFollowUpId.value = null
+    assignTabIndex.value = 0
   }
 }
 
-function syncFormFromPending() {
-  const p = pendingFollowUps.value[0]
-  if (!p) return
+function persistCurrentAssignDraft() {
+  const id = activeFollowUpId.value
+  if (!id) return
+  assignDrafts[id] = {
+    amount: form.amount,
+    booked_at: form.booked_at,
+    cost_center_id: form.cost_center_id,
+    entry_type: form.entry_type,
+    payment_method: form.payment_method,
+    group_id: form.group_id,
+    receipt_label: form.receipt_label,
+    notes: form.notes,
+  }
+}
+
+function loadAssignFormForFollowUp(p: AccountingAcquisitionFollowUp) {
   activeFollowUpId.value = p.id
-  form.amount = p.amount
-  form.booked_at = p.suggested_date
-  form.receipt_label = p.receipt_label || ''
-  form.cost_center_id = ''
-  form.entry_type = 'purchase'
-  form.payment_method = ''
-  form.group_id = ''
-  form.notes = ''
+  const draft = assignDrafts[p.id]
+  if (draft) {
+    form.amount = draft.amount
+    form.booked_at = draft.booked_at
+    form.cost_center_id = draft.cost_center_id
+    form.entry_type = draft.entry_type
+    form.payment_method = draft.payment_method
+    form.group_id = draft.group_id
+    form.receipt_label = draft.receipt_label
+    form.notes = draft.notes
+  } else {
+    form.amount = p.amount
+    form.booked_at = p.suggested_date
+    form.receipt_label = p.receipt_label || ''
+    form.cost_center_id = ''
+    form.entry_type = 'purchase'
+    form.payment_method = ''
+    form.group_id = ''
+    form.notes = ''
+  }
   form.material_item_id = ''
   materialLookupDisplay.value = ''
+}
+
+function selectAssignTab(idx: number) {
+  if (idx < 0 || idx >= pendingFollowUps.value.length || idx === assignTabIndex.value) return
+  persistCurrentAssignDraft()
+  assignTabIndex.value = idx
+  const fu = pendingFollowUps.value[idx]
+  if (fu) loadAssignFormForFollowUp(fu)
 }
 
 async function openAssignTab() {
   bookingsSubTab.value = 'assign'
   await refreshPendingFollowUps()
-  if (hasPendingBooking.value) {
-    syncFormFromPending()
-  }
 }
 
 function entryLabel(k: string): string {
@@ -528,9 +611,6 @@ async function applyAssignTabFromRoute() {
   if (String(route.query.sub || '') !== 'assign') return
   bookingsSubTab.value = 'assign'
   await refreshPendingFollowUps()
-  if (hasPendingBooking.value) {
-    syncFormFromPending()
-  }
   await router.replace({
     name: 'AccountingBookings',
     params: { departmentId: departmentId.value },
@@ -581,6 +661,8 @@ watch(departmentId, (id, prev) => {
   filterCostCenterId.value = ''
   items.value = []
   bookingsSubTab.value = 'list'
+  assignTabIndex.value = 0
+  Object.keys(assignDrafts).forEach((k) => delete assignDrafts[k])
   void bootstrapBookingsView()
 })
 
@@ -678,10 +760,14 @@ async function save(fromAssignTab = false) {
       }
       toast.success('Buchung erfasst.')
       if (workingFromPending.value) {
+        const savedFuId = activeFollowUpId.value
+        if (savedFuId) delete assignDrafts[savedFuId]
         workingFromPending.value = false
         activeFollowUpId.value = null
         await refreshPendingFollowUps()
-        bookingsSubTab.value = 'list'
+        if (!hasPendingBooking.value) {
+          bookingsSubTab.value = 'list'
+        }
       }
     }
     closeModal()
@@ -826,6 +912,17 @@ async function onDelete(row: AccountingBooking) {
   margin-bottom: 16px;
   color: #374151;
   line-height: 1.5;
+}
+
+.booking-assign-followup-tabs {
+  margin-bottom: 12px;
+}
+
+.booking-assign-tab-meta {
+  margin-left: 4px;
+  font-weight: 500;
+  font-size: 12px;
+  color: #6b7280;
 }
 
 .booking-assign-empty {

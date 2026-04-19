@@ -52,6 +52,20 @@ export function sumAcquisitionPieceCountFromBatches(batches: BatchLike[] | undef
 }
 
 /**
+ * Anschaffungsanteil für eine Stücklistenzeile (Kombi): mittlerer Stückpreis aus aktiven Chargen × Menge im Set.
+ */
+export function comboLineAcquisitionChf(batches: BatchLike[] | undefined | null, qtyInSet: number): number | null {
+  const basis = sumAcquisitionBasisFromBatches(batches)
+  const pieces = sumAcquisitionPieceCountFromBatches(batches)
+  if (basis == null || pieces == null || pieces <= 0) return null
+  const perPiece = basis / pieces
+  if (!Number.isFinite(perPiece) || perPiece < 0) return null
+  const q = Number(qtyInSet)
+  if (!Number.isFinite(q) || q < 0) return null
+  return perPiece * q
+}
+
+/**
  * Schweizer 5-Rappen-Rundung (0,05-CHF-Schritte).
  */
 export function roundChfToFiveRappen(n: number): number {

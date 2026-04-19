@@ -1,0 +1,129 @@
+/* Auszug aus detail-workflow.css: Typ-Chips für ActivityCreateWizard (v4.01-Stil) */
+.activity-create-wizard-host .type-chip-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.activity-create-wizard-host .type-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border: 2px solid #e5e7eb;
+  border-radius: 10px;
+  background: white;
+  color: #6b7280;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  justify-content: center;
+  min-width: 0;
+  white-space: normal;
+  line-height: 1.2;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.activity-create-wizard-host .type-chip:hover {
+  border-color: #c7d2fe;
+  background: #f5f3ff;
+  color: #4338ca;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.1);
+}
+
+.activity-create-wizard-host .type-chip:active {
+  transform: scale(0.97);
+}
+
+.activity-create-wizard-host .type-chip.active {
+  border-color: #6366f1;
+  background: #eef2ff;
+  color: #4338ca;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.12);
+}
+
+.activity-create-wizard-host .type-chip-icon {
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.activity-create-wizard-host .type-chip-icon svg {
+  width: 18px;
+  height: 18px;
+}
+
+.activity-create-wizard-host .type-chip.active.activity {
+  border-color: #6366f1;
+  background: #eef2ff;
+  color: #4338ca;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.12);
+}
+
+.activity-create-wizard-host .type-chip.active.camp {
+  border-color: #f59e0b;
+  background: #fffbeb;
+  color: #92400e;
+  box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.12);
+}
+
+.activity-create-wizard-host .type-chip.active.event {
+  border-color: #818cf8;
+  background: #eef2ff;
+  color: #3730a3;
+  box-shadow: 0 0 0 3px rgba(129, 140, 248, 0.15);
+}
+
+.activity-create-wizard-host .type-chip.active.external {
+  border-color: #10b981;
+  background: #ecfdf5;
+  color: #065f46;
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.12);
+}
+
+.activity-create-wizard-host .type-chip .type-chip-icon {
+  color: #9ca3af;
+  transition: color 0.2s;
+}
+
+.activity-create-wizard-host .type-chip:hover .type-chip-icon {
+  color: #6366f1;
+}
+
+.activity-create-wizard-host .type-chip.active.activity .type-chip-icon {
+  color: #6366f1;
+}
+
+.activity-create-wizard-host .type-chip.active.camp .type-chip-icon {
+  color: #d97706;
+}
+
+.activity-create-wizard-host .type-chip.active.event .type-chip-icon {
+  color: #4f46e5;
+}
+
+.activity-create-wizard-host .type-chip.active.external .type-chip-icon {
+  color: #059669;
+}
+
+.activity-create-wizard-host .type-chip-name {
+  font-size: 13px;
+}
+
+@media (max-width: 560px) {
+  .activity-create-wizard-host .type-chip-row {
+    gap: 10px;
+  }
+
+  .activity-create-wizard-host .type-chip {
+    min-height: 44px;
+    padding: 10px 12px;
+  }
+}

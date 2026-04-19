@@ -4,6 +4,8 @@ export interface ActivityPackContainer {
   id: string
   activity_id: string
   container_batch_id: string | null
+  /** Material-ID der zugeordneten Kisten-Charge (wenn container_batch_id gesetzt) */
+  container_material_item_id?: string | null
   label: string
   status: string
 }
@@ -94,5 +96,20 @@ export async function updateActivityPackContainerItem(
 
 export async function deleteActivityPackContainerItem(activityId: string, containerId: string, itemId: string): Promise<void> {
   await apiClient.delete(`/api/activities/${activityId}/pack-containers/${containerId}/items/${itemId}`)
+}
+
+/** Stufe Gepackt → Am Event: alle Positionen im Behälter ausgeben */
+export async function issueAllPackContainerItems(activityId: string, containerId: string): Promise<void> {
+  await apiClient.post(`/api/activities/${activityId}/pack-containers/${containerId}/issue-all`)
+}
+
+/** Stufe Am Event → Retour: alles aus dem Behälter retournieren */
+export async function returnAllPackContainerItems(activityId: string, containerId: string): Promise<void> {
+  await apiClient.post(`/api/activities/${activityId}/pack-containers/${containerId}/return-all`)
+}
+
+/** Ausgabe des ganzen Behälters rückgängig (wieder «Gepackt») */
+export async function unissueAllPackContainerItems(activityId: string, containerId: string): Promise<void> {
+  await apiClient.post(`/api/activities/${activityId}/pack-containers/${containerId}/unissue-all`)
 }
 

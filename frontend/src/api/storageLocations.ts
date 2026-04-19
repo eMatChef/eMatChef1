@@ -86,12 +86,22 @@ export interface ContainerBatch {
   slot: { id: string; name: string } | null
   content_preview?: ContainerBatchContentPreviewLine[]
   content_preview_more?: number
+  /** true = kein Lagerinhalt in der Kiste (bei Packliste mit activity_id) */
+  storage_empty?: boolean
 }
 
-export async function getContainerBatches(departmentId: string): Promise<ContainerBatch[]> {
-  const response = await apiClient.get<ContainerBatch[]>(
-    `/api/container-batches?department_id=${encodeURIComponent(departmentId)}`
-  )
+/**
+ * @param options.activityId — bei Packliste: leere Kisten zuerst; nicht parallel anderer Aktivität (Zeitraum); nicht schon dieser Aktivität zugeordnet
+ */
+export async function getContainerBatches(
+  departmentId: string,
+  options?: { activityId?: string },
+): Promise<ContainerBatch[]> {
+  const params = new URLSearchParams({ department_id: departmentId })
+  if (options?.activityId) {
+    params.append('activity_id', options.activityId)
+  }
+  const response = await apiClient.get<ContainerBatch[]>(`/api/container-batches?${params.toString()}`)
   return response.data
 }
 

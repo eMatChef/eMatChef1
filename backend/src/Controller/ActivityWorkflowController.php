@@ -54,6 +54,10 @@ class ActivityWorkflowController extends AbstractController
             ->createQueryBuilder('pi')
             ->leftJoin('pi.materialItem', 'mi')
             ->addSelect('mi')
+            ->leftJoin('mi.linkedContainerBatch', 'linkCb')
+            ->addSelect('linkCb')
+            ->leftJoin('mi.storageAddress', 'storAddr')
+            ->addSelect('storAddr')
             ->leftJoin('pi.packedByUser', 'u')
             ->addSelect('u')
             ->where('pi.activityId = :activityId')
@@ -62,9 +66,25 @@ class ActivityWorkflowController extends AbstractController
             ->getQuery()
             ->getResult();
 
+        $materialIds = [];
+        foreach ($items as $item) {
+            $materialIds[] = $item->getMaterialItemId();
+        }
+        $rackSlotByMid = $this->loadPrimaryStorageRackSlotByMaterialIds($materialIds);
+
         $result = [];
         foreach ($items as $item) {
-            $result[] = $this->serializePackItem($item);
+            $mid = $item->getMaterialItemId();
+            $rs = $rackSlotByMid[$mid] ?? ['rack_name' => null, 'slot_name' => null];
+            $mi = $item->getMaterialItem();
+            $storAddr = $mi->getStorageAddress();
+            $addrName = $storAddr ? $storAddr->getName() : null;
+            $result[] = $this->serializePackItem(
+                $item,
+                $rs['rack_name'] ?? null,
+                $rs['slot_name'] ?? null,
+                $addrName
+            );
         }
 
         return new JsonResponse($result);
@@ -173,7 +193,9 @@ class ActivityWorkflowController extends AbstractController
 
         $this->entityManager->flush();
 
-        return new JsonResponse($this->serializePackItem($packItem));
+        $d = $this->storageDisplayForPackItem($packItem);
+
+        return new JsonResponse($this->serializePackItem($packItem, $d['rack'], $d['slot'], $d['address']));
     }
 
     /**
@@ -338,7 +360,9 @@ class ActivityWorkflowController extends AbstractController
         $packItem->setUpdatedAt(new \DateTime());
         $this->entityManager->flush();
 
-        return new JsonResponse($this->serializePackItem($packItem));
+        $d = $this->storageDisplayForPackItem($packItem);
+
+        return new JsonResponse($this->serializePackItem($packItem, $d['rack'], $d['slot'], $d['address']));
     }
 
     /**
@@ -404,7 +428,9 @@ class ActivityWorkflowController extends AbstractController
         $packItem->setUpdatedAt(new \DateTime());
         $this->entityManager->flush();
 
-        return new JsonResponse($this->serializePackItem($packItem));
+        $d = $this->storageDisplayForPackItem($packItem);
+
+        return new JsonResponse($this->serializePackItem($packItem, $d['rack'], $d['slot'], $d['address']));
     }
 
     /**
@@ -525,12 +551,25 @@ class ActivityWorkflowController extends AbstractController
             return new JsonResponse(['error' => 'Ungültiger Typ. Erlaubt: ' . implode(', ', ActivityIssueReport::ALL_TYPES)], 400);
         }
 
+        $quantityRequested = max(1, (int) ($data['quantity'] ?? 1));
+
+        if ($type === ActivityIssueReport::TYPE_CONSUMPTION && !empty($data['material_item_id'])) {
+            $consumptionErr = $this->validateConsumptionWithinBooked(
+                $activityId,
+                (string) $data['material_item_id'],
+                $quantityRequested
+            );
+            if ($consumptionErr !== null) {
+                return new JsonResponse(['error' => $consumptionErr], 422);
+            }
+        }
+
         try {
             $report = new ActivityIssueReport();
             $report->setId(IdGenerator::generate13('ir'));
             $report->setActivity($activity);
             $report->setType($type);
-            $report->setQuantity(max(1, (int)($data['quantity'] ?? 1)));
+            $report->setQuantity($quantityRequested);
             $report->setDescription($data['description'] ?? null);
             $report->setPhotoUrl($data['photo_url'] ?? null);
             $report->setNotes($data['notes'] ?? null);
@@ -879,6 +918,52 @@ class ActivityWorkflowController extends AbstractController
     // HELPER
     // ═══════════════════════════════════════════════
 
+    /**
+     * Verbrauch nur bis zur Summe der Aktivitäts-Positionen (gebuchte Menge), abzüglich bereits gebuchtem Verbrauch.
+     *
+     * @return null|string Fehlertext oder null wenn ok
+     */
+    private function validateConsumptionWithinBooked(string $activityId, string $materialItemId, int $requestedQty): ?string
+    {
+        $booked = (int) $this->entityManager->createQueryBuilder()
+            ->select('COALESCE(SUM(ai.quantity), 0)')
+            ->from(ActivityItem::class, 'ai')
+            ->where('ai.activityId = :aid')
+            ->andWhere('ai.materialItemId = :mid')
+            ->setParameter('aid', $activityId)
+            ->setParameter('mid', $materialItemId)
+            ->getQuery()
+            ->getSingleScalarResult();
+
+        if ($booked < 1) {
+            return 'Für dieses Material ist keine Menge auf der Aktivität gebucht.';
+        }
+
+        $consumed = (int) $this->entityManager->createQueryBuilder()
+            ->select('COALESCE(SUM(r.quantity), 0)')
+            ->from(ActivityIssueReport::class, 'r')
+            ->where('r.activityId = :aid')
+            ->andWhere('r.materialItemId = :mid')
+            ->andWhere('r.type = :ctype')
+            ->setParameter('aid', $activityId)
+            ->setParameter('mid', $materialItemId)
+            ->setParameter('ctype', ActivityIssueReport::TYPE_CONSUMPTION)
+            ->getQuery()
+            ->getSingleScalarResult();
+
+        $remaining = $booked - $consumed;
+        if ($requestedQty > $remaining) {
+            return sprintf(
+                'Verbrauch höchstens %d Stk. möglich (%d für diese Aktivität gebucht, %d bereits verbraucht).',
+                max(0, $remaining),
+                $booked,
+                $consumed
+            );
+        }
+
+        return null;
+    }
+
     private function findActivityForUser(string $id): Activity|JsonResponse
     {
         $activity = $this->entityManager->getRepository(Activity::class)->find($id);
@@ -898,17 +983,37 @@ class ActivityWorkflowController extends AbstractController
         return $activity;
     }
 
-    private function serializePackItem(ActivityPackItem $item): array
-    {
+    private function serializePackItem(
+        ActivityPackItem $item,
+        ?string $storageRackName = null,
+        ?string $storageSlotName = null,
+        ?string $storageAddressName = null,
+    ): array {
         $mi = $item->getMaterialItem();
         $user = $item->getPackedByUser();
         $cat = $mi->getCategory();
+
+        $rackDisplay = $storageRackName;
+        if ($rackDisplay === null || trim((string) $rackDisplay) === '') {
+            $loc = $mi->getLocation();
+            $rackDisplay = ($loc !== null && trim($loc) !== '') ? trim($loc) : null;
+        }
+
+        $linkCb = $mi->getLinkedContainerBatch();
+        $linkedContainerLabel = null;
+        if ($linkCb !== null) {
+            $lb = $linkCb->getLabel();
+            $sn = $linkCb->getSerialNumber();
+            $linkedContainerLabel = ($lb !== null && $lb !== '') ? $lb : (($sn !== null && $sn !== '') ? $sn : null);
+        }
 
         return [
             'id' => $item->getId(),
             'activity_id' => $item->getActivityId(),
             'material_item_id' => $item->getMaterialItemId(),
             'material_name' => $mi->getName(),
+            'material_type' => $mi->getMaterialType(),
+            'linked_container_label' => $linkedContainerLabel,
             'category_name' => $cat ? $cat->getName() : null,
             'category_id' => $cat ? $cat->getId() : null,
             'pack_size' => $mi->getPackSize(),
@@ -931,7 +1036,97 @@ class ActivityWorkflowController extends AbstractController
             'is_consumable' => $mi->getIsConsumable(),
             'is_js_material' => $mi->getIsJsMaterial(),
             'external_source' => $mi->getExternalSource(),
+            'storage_rack_name' => $rackDisplay,
+            'storage_slot_name' => $storageSlotName,
+            'storage_address_name' => $storageAddressName,
         ];
+    }
+
+    /**
+     * @return array{rack: ?string, slot: ?string, address: ?string}
+     */
+    private function storageDisplayForPackItem(ActivityPackItem $packItem): array
+    {
+        $mid = $packItem->getMaterialItemId();
+        $map = $this->loadPrimaryStorageRackSlotByMaterialIds([$mid]);
+        $rs = $map[$mid] ?? ['rack_name' => null, 'slot_name' => null];
+        $mi = $packItem->getMaterialItem();
+        $storAddr = $mi->getStorageAddress();
+
+        return [
+            'rack' => $rs['rack_name'] ?? null,
+            'slot' => $rs['slot_name'] ?? null,
+            'address' => $storAddr ? $storAddr->getName() : null,
+        ];
+    }
+
+    /**
+     * Primärer Lagerplatz (Gestell/Fach) pro Material — gleiche Logik wie früher ActivityController::listItems.
+     *
+     * @param list<string> $materialIds
+     *
+     * @return array<string, array{rack_name: ?string, slot_name: ?string}>
+     */
+    private function loadPrimaryStorageRackSlotByMaterialIds(array $materialIds): array
+    {
+        $materialIds = array_values(array_unique(array_filter($materialIds)));
+        if ($materialIds === []) {
+            return [];
+        }
+
+        $conn = $this->entityManager->getConnection();
+        $placeholders = implode(',', array_fill(0, count($materialIds), '?'));
+        $out = [];
+
+        $sql1 = "SELECT mb.material_item_id, r.name AS rack_name, s.name AS slot_name
+FROM material_batch mb
+LEFT JOIN storage_rack r ON r.id = mb.rack_id
+LEFT JOIN storage_slot s ON s.id = mb.slot_id
+WHERE mb.status = 'active'
+AND mb.material_item_id IN ($placeholders)
+AND (mb.rack_id IS NOT NULL OR mb.slot_id IS NOT NULL)
+ORDER BY mb.material_item_id ASC, mb.id ASC";
+        foreach ($conn->executeQuery($sql1, $materialIds)->fetchAllAssociative() as $row) {
+            $mid = $row['material_item_id'];
+            if (!isset($out[$mid])) {
+                $out[$mid] = [
+                    'rack_name' => $row['rack_name'],
+                    'slot_name' => $row['slot_name'],
+                ];
+            }
+        }
+
+        $missing = array_values(array_diff($materialIds, array_keys($out)));
+        if ($missing === []) {
+            return $out;
+        }
+
+        $ph2 = implode(',', array_fill(0, count($missing), '?'));
+        $sql2 = "SELECT DISTINCT ON (mb.material_item_id)
+  mb.material_item_id,
+  r.name AS rack_name,
+  s.name AS slot_name
+FROM material_batch mb
+INNER JOIN batch_storage_allocation a ON a.batch_id = mb.id
+LEFT JOIN material_batch cb ON cb.id = a.container_batch_id
+LEFT JOIN storage_rack r ON r.id = COALESCE(cb.rack_id, a.rack_id)
+LEFT JOIN storage_slot s ON s.id = COALESCE(cb.slot_id, a.slot_id)
+WHERE mb.status = 'active'
+AND mb.material_item_id IN ($ph2)
+AND (COALESCE(cb.rack_id, a.rack_id) IS NOT NULL OR COALESCE(cb.slot_id, a.slot_id) IS NOT NULL)
+ORDER BY mb.material_item_id ASC, mb.id ASC";
+
+        foreach ($conn->executeQuery($sql2, $missing)->fetchAllAssociative() as $row) {
+            $mid = $row['material_item_id'];
+            if (!isset($out[$mid])) {
+                $out[$mid] = [
+                    'rack_name' => $row['rack_name'],
+                    'slot_name' => $row['slot_name'],
+                ];
+            }
+        }
+
+        return $out;
     }
 
     private function serializeIssueReport(ActivityIssueReport $report): array

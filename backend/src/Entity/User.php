@@ -4,6 +4,7 @@ namespace App\Entity;
 
 use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\Common\Collections\Collection;
+use Doctrine\ORM\EntityNotFoundException;
 use Doctrine\ORM\Mapping as ORM;
 use Symfony\Component\Security\Core\User\PasswordAuthenticatedUserInterface;
 use Symfony\Component\Security\Core\User\UserInterface;
@@ -403,6 +404,14 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
 
     public function getLastUsedDepartmentId(): ?string
     {
-        return $this->lastUsedDepartment?->getId();
+        if ($this->lastUsedDepartment === null) {
+            return null;
+        }
+        try {
+            return $this->lastUsedDepartment->getId();
+        } catch (EntityNotFoundException) {
+            // FK zeigt auf gelöschtes Department (z. B. nach manuellem DB-Eingriff) — kein 500 in API
+            return null;
+        }
     }
 }

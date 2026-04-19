@@ -5,6 +5,8 @@ vendor/
 **/vendor/
 dist/
 **/dist/
+# Lokale Hostpoint-Kopien (Upload), nicht versionieren
+deploy/hostpoint/
 dist-ssr/
 
 ## Logs
@@ -19,6 +21,9 @@ logs/
 **/.env.*
 !.env.example
 !**/.env.example
+# Vite: Development vs. Production (keine Secrets, nur öffentliche URLs)
+!frontend/.env.development
+!frontend/.env.production
 # Symfony: committete Basis-Variablen (Secrets in backend/.env.local)
 !backend/.env
 docs/

@@ -108,6 +108,44 @@
       <div v-if="canManageJoinCode" class="info-card">
         <div class="card-header">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" class="card-icon">
+            <rect x="3" y="4" width="18" height="18" rx="2" ry="2" fill="#3b82f6" />
+            <line x1="16" y1="2" x2="16" y2="6" stroke="white" stroke-width="1.5" stroke-linecap="round" />
+            <line x1="8" y1="2" x2="8" y2="6" stroke="white" stroke-width="1.5" stroke-linecap="round" />
+            <line x1="3" y1="10" x2="21" y2="10" stroke="white" stroke-width="1.5" stroke-linecap="round" />
+          </svg>
+          <h2>Kalender (Aktivitäten)</h2>
+        </div>
+        <p class="selector-hint">
+          Schulferien-Marker im Aktivitäts-Dialog (zusätzlich zu den Feiertags-Markern). Optional: Geo-ID (z.&nbsp;B. GeoTree/CH).
+          Der API-Schlüssel wird zentral unter <strong>Verwaltung → Integrationen</strong> gepflegt (Superadmin).
+        </p>
+        <div class="info-item" style="margin-top: 12px;">
+          <span class="info-label">Geo-ID (Feiertagskalender.ch)</span>
+          <input
+            id="dept-fcal-geo"
+            v-model="calendarFcalGeoId"
+            type="text"
+            inputmode="numeric"
+            class="department-select"
+            placeholder="z. B. 3055"
+            autocomplete="off"
+          />
+        </div>
+        <div class="onboarding-admin-row" style="margin-top: 12px;">
+          <button
+            type="button"
+            class="add-storage-btn"
+            :disabled="!calendarDirty || isSavingCalendar"
+            @click="saveCalendarSettingsForDept"
+          >
+            {{ isSavingCalendar ? 'Speichern...' : 'Kalender-Einstellung speichern' }}
+          </button>
+        </div>
+      </div>
+
+      <div v-if="canManageJoinCode" class="info-card">
+        <div class="card-header">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" class="card-icon">
             <path d="M9 7H7C5.9 7 5 7.9 5 9V11C5 12.1 5.9 13 7 13H9V11H7V9H9V7Z" fill="#3b82f6"/>
             <path d="M15 7H17C18.1 7 19 7.9 19 9V11C19 12.1 18.1 13 17 13H15V11H17V9H15V7Z" fill="#3b82f6"/>
             <path d="M10 11H14V13H10V11Z" fill="#2563eb"/>
@@ -516,10 +554,12 @@ import {
 } from '@/api/joinRequests'
 import {
   getPublicSharingSettings,
+  getCalendarSettings,
   getDepartmentOnboardingStatus,
   resetDepartmentOnboardingDone,
   resetDepartmentDb as apiResetDepartmentDb,
   savePublicSharingSettings,
+  saveCalendarSettings as saveCalendarSettingsApi,
   type PublicFoundContactDelivery,
 } from '@/api/departmentSettings'
 import { buildOnboardingDismissedKey, buildOnboardingDoneKey, buildOnboardingStateKey } from '@/utils/departmentOnboarding'
@@ -551,6 +591,12 @@ const publicShowContactForm = ref(true)
 const publicShowContactEmail = ref(true)
 const publicShowContactNote = ref(true)
 const publicFoundContactDelivery = ref<PublicFoundContactDelivery>('both')
+
+const calendarFcalGeoId = ref('')
+const savedCalendarGeoId = ref('')
+const isSavingCalendar = ref(false)
+
+const calendarDirty = computed(() => calendarFcalGeoId.value.trim() !== savedCalendarGeoId.value.trim())
 
 // Primary Department State
 const isSavingPrimary = ref(false)
@@ -728,6 +774,7 @@ async function loadDepartment(departmentId?: string) {
     await loadInviteCode(deptId)
     await loadOnboardingStatus(deptId)
     await loadPublicSettings(deptId)
+    await loadCalendarSettings(deptId)
   } catch (err: any) {
     error.value = err.response?.data?.error || 'Fehler beim Laden des Departments'
   } finally {
@@ -751,6 +798,33 @@ async function loadPublicSettings(deptId: string) {
     publicShowContactEmail.value = true
     publicShowContactNote.value = true
     publicFoundContactDelivery.value = 'both'
+  }
+}
+
+async function loadCalendarSettings(deptId: string) {
+  try {
+    const c = await getCalendarSettings(deptId)
+    calendarFcalGeoId.value = c.fcalGeoId
+    savedCalendarGeoId.value = c.fcalGeoId
+  } catch {
+    calendarFcalGeoId.value = ''
+    savedCalendarGeoId.value = ''
+  }
+}
+
+async function saveCalendarSettingsForDept() {
+  if (!selectedDepartmentId.value || isSavingCalendar.value || !calendarDirty.value) return
+  isSavingCalendar.value = true
+  try {
+    await saveCalendarSettingsApi(selectedDepartmentId.value, {
+      fcalGeoId: calendarFcalGeoId.value,
+    })
+    savedCalendarGeoId.value = calendarFcalGeoId.value.trim()
+    toast.success('Kalender-Einstellung gespeichert.')
+  } catch (err: any) {
+    toast.error(err.response?.data?.error || 'Kalender-Einstellung konnte nicht gespeichert werden.')
+  } finally {
+    isSavingCalendar.value = false
   }
 }
 

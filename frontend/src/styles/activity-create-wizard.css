@@ -1,0 +1,698 @@
+/* ActivityCreateWizard – ergänzt material-wizard.css (Host: .activity-create-wizard-host) */
+
+.activity-create-wizard-host .activity-stepper-meta {
+  margin-bottom: 16px;
+}
+
+.activity-create-wizard-host .activity-stepper-count {
+  font-size: 13px;
+  font-weight: 600;
+  color: #4b5563;
+}
+
+.activity-create-wizard-host .activity-create-section {
+  margin-bottom: 28px;
+}
+
+.activity-create-wizard-host .activity-dates-locked-hint {
+  margin: 0 0 14px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.activity-create-wizard-host .activity-create-section--muted .section-hint {
+  margin: 0;
+  font-size: 13px;
+  color: #6b7280;
+  line-height: 1.5;
+}
+
+.activity-create-wizard-host .activity-create-section--material-note {
+  margin-bottom: 20px;
+}
+
+.activity-create-wizard-host .activity-create-section--material-note .section-hint {
+  font-size: 12px;
+}
+
+.activity-create-wizard-host .activity-group-select {
+  cursor: pointer;
+  appearance: auto;
+  padding: 10px 12px;
+  line-height: 1.4;
+}
+
+.activity-create-wizard-host .activity-create-group-wrap {
+  margin-top: 4px;
+}
+
+.activity-create-wizard-host .activity-external-address-wrap {
+  margin-top: 16px;
+}
+
+.activity-create-wizard-host .activity-external-address-wrap .field-hint {
+  margin: 0 0 8px;
+  font-size: 12px;
+}
+
+.activity-create-wizard-host .activity-address-select-row {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+}
+
+.activity-create-wizard-host .activity-address-select-row .form-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.activity-create-wizard-host .activity-address-autocomplete {
+  flex: 1;
+  min-width: 0;
+}
+
+.activity-create-wizard-host .activity-address-autocomplete-dropdown {
+  right: 0;
+  z-index: 300;
+  max-height: 220px;
+}
+
+.activity-create-wizard-host .activity-address-ac-item {
+  align-items: flex-start;
+}
+
+.activity-create-wizard-host .activity-address-ac-main {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+  flex: 1;
+}
+
+.activity-create-wizard-host .item-address-type-tag {
+  font-size: 11px;
+  font-weight: 600;
+  color: #64748b;
+  flex-shrink: 0;
+}
+
+.activity-create-wizard-host .btn-add-address {
+  flex-shrink: 0;
+  width: 44px;
+  min-height: 44px;
+  padding: 0;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+  background: #fff;
+  font-size: 1.35rem;
+  font-weight: 600;
+  line-height: 1;
+  color: #059669;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.activity-create-wizard-host .btn-add-address:hover {
+  background: #ecfdf5;
+  border-color: #059669;
+}
+
+.activity-create-wizard-host .form-row-dates,
+.activity-create-wizard-host .form-row-datetime {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+@media (max-width: 560px) {
+  .activity-create-wizard-host .form-row-dates,
+  .activity-create-wizard-host .form-row-datetime {
+    grid-template-columns: 1fr;
+  }
+}
+
+.activity-create-wizard-host .zeitraum-intro {
+  font-size: 13px;
+  line-height: 1.45;
+  margin: 0 0 16px;
+}
+
+.activity-create-wizard-host .zeitraum-hint {
+  font-size: 12px;
+  margin: 0 0 12px;
+  line-height: 1.4;
+}
+
+.activity-create-wizard-host .form-subblock-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin: 12px 0 8px;
+}
+
+.activity-create-wizard-host .form-subblock-title:first-child {
+  margin-top: 0;
+}
+
+.activity-create-wizard-host .zeitraum-block {
+  margin-bottom: 20px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.activity-create-wizard-host .zeitraum-block:last-of-type {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.activity-create-wizard-host .zeitraum-block-title {
+  margin: 0 0 10px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #374151;
+}
+
+.activity-create-wizard-host .zeitraum-block-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.activity-create-wizard-host .zeitraum-block-head .zeitraum-block-title {
+  margin: 0;
+}
+
+.activity-create-wizard-host .field-label {
+  display: block;
+  font-size: 13px;
+  font-weight: 500;
+  color: #374151;
+  margin-bottom: 6px;
+}
+
+.activity-create-wizard-host .defaults-hint {
+  font-size: 12px;
+  margin: 0 0 10px;
+  line-height: 1.4;
+}
+
+.activity-create-wizard-host .material-times-microhint {
+  font-size: 11px;
+  line-height: 1.4;
+  margin: 8px 0 0;
+  color: #6b7280;
+}
+
+.activity-create-wizard-host .material-times-microhint--manual {
+  margin-top: 4px;
+}
+
+.activity-create-wizard-host .btn-material-resync {
+  border: none;
+  background: none;
+  padding: 0;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--emc-brand-accent, #059669);
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.activity-create-wizard-host .btn-material-resync:hover {
+  color: #047857;
+}
+
+.activity-create-wizard-host .btn-material-resync:disabled {
+  color: #9ca3af;
+  cursor: not-allowed;
+  text-decoration: none;
+}
+
+/* Pill-Leiste: Datum (+ ggf. Bereich) und zwei Zeiten in einer Zeile (mobil horizontal scrollbar) */
+.activity-create-wizard-host .activity-pill-group {
+  margin-bottom: 12px;
+}
+
+.activity-create-wizard-host .activity-pill-group .field-label {
+  margin-bottom: 8px;
+}
+
+.activity-create-wizard-host .activity-pill-bar {
+  /* Einheitliche Höhe Datum ↔ Stunde/Minute (nichts ragt aus der Pille) */
+  --activity-pill-control-h: 34px;
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: stretch;
+  gap: 0;
+  min-height: calc(10px + 2px + var(--activity-pill-control-h) + 14px);
+  border-radius: 999px;
+  background: #fff;
+  border: 1px solid #e8eaed;
+  box-shadow: 0 4px 16px -4px rgb(15 23 42 / 10%), 0 2px 6px -2px rgb(15 23 42 / 6%);
+  overflow: hidden;
+  max-width: 100%;
+  touch-action: manipulation;
+}
+
+@media (max-width: 520px) {
+  .activity-create-wizard-host .activity-pill-bar {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    border-radius: 22px;
+    scrollbar-width: thin;
+  }
+}
+
+.activity-create-wizard-host .activity-pill-cell {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+  min-width: 0;
+  padding: 8px 8px;
+  border-left: 1px solid #f1f5f9;
+}
+
+/* Datum nicht über die ganze Zeile strecken — weniger Leerraum bis zu den Zeiten */
+.activity-create-wizard-host .activity-pill-cell:first-child {
+  border-left: none;
+  flex: 0 1 auto;
+  min-width: min(200px, 100%);
+  max-width: min(380px, 56vw);
+}
+
+/* Genug Platz für Stunden- + Minuten-Dropdown (sonst Stunden-Select auf ~0px, nur Chevron sichtbar) */
+.activity-create-wizard-host .activity-pill-cell--time {
+  flex: 1 1 158px;
+  min-width: 158px;
+  max-width: min(220px, 34vw);
+}
+
+.activity-create-wizard-host .activity-pill-cell-lbl {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #9ca3af;
+  line-height: 1.2;
+}
+
+/* :deep() wirkt nur in Vue-SFCs — hier echte Nachfahren, sonst greifen diese Regeln nicht. */
+.activity-create-wizard-host .activity-pill-bar .activity-date-field .dp__input_wrap,
+.activity-create-wizard-host .activity-pill-bar .activity-date-range-field .dp__input_wrap,
+.activity-create-wizard-host .activity-pill-bar .activity-time-field .dp__input_wrap {
+  position: relative;
+  --dp-input-icon-padding: 44px;
+  display: flex;
+  align-items: center;
+  box-sizing: border-box;
+  min-height: var(--activity-pill-control-h);
+  max-height: var(--activity-pill-control-h);
+  height: var(--activity-pill-control-h);
+}
+
+.activity-create-wizard-host .activity-pill-bar .activity-date-field .dp__input_icon,
+.activity-create-wizard-host .activity-pill-bar .activity-date-range-field .dp__input_icon,
+.activity-create-wizard-host .activity-pill-bar .activity-time-field .dp__input_icon {
+  padding-inline: 6px 2px;
+  box-sizing: content-box;
+  max-height: var(--activity-pill-control-h);
+}
+
+/* Library: padding: var(--dp-input-padding) — komplett überschreiben, sonst bleibt das Datum höher */
+.activity-create-wizard-host .activity-pill-bar .activity-date-field .dp__input,
+.activity-create-wizard-host .activity-pill-bar .activity-date-range-field .dp__input,
+.activity-create-wizard-host .activity-pill-bar .activity-time-field .dp__input {
+  border: none !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  border-radius: 0 !important;
+  padding: 0 10px 0 0 !important;
+  min-height: var(--activity-pill-control-h) !important;
+  max-height: var(--activity-pill-control-h) !important;
+  height: var(--activity-pill-control-h) !important;
+  line-height: var(--activity-pill-control-h) !important;
+  font-size: 14px;
+  font-weight: 600;
+  color: #111827;
+  box-sizing: border-box !important;
+}
+
+.activity-create-wizard-host .activity-pill-bar .activity-date-field .dp__input,
+.activity-create-wizard-host .activity-pill-bar .activity-date-range-field .dp__input {
+  font-size: 13px;
+}
+
+.activity-create-wizard-host .activity-pill-bar .activity-time-field .dp__input {
+  text-align: start;
+  font-variant-numeric: tabular-nums;
+}
+
+.activity-create-wizard-host .activity-pill-bar .activity-date-field .dp__input.dp__input_icon_pad,
+.activity-create-wizard-host .activity-pill-bar .activity-date-range-field .dp__input.dp__input_icon_pad,
+.activity-create-wizard-host .activity-pill-bar .activity-time-field .dp__input.dp__input_icon_pad {
+  padding: 0 10px 0 44px !important;
+}
+
+.activity-create-wizard-host .activity-pill-bar .activity-date-field .dp__input:focus,
+.activity-create-wizard-host .activity-pill-bar .activity-date-range-field .dp__input:focus,
+.activity-create-wizard-host .activity-pill-bar .activity-time-field .dp__input:focus {
+  outline: none;
+  box-shadow: none !important;
+}
+
+.activity-create-wizard-host .activity-pill-bar .activity-date-field .dp__input_wrap:focus-within,
+.activity-create-wizard-host .activity-pill-bar .activity-date-range-field .dp__input_wrap:focus-within,
+.activity-create-wizard-host .activity-pill-bar .activity-time-field .dp__input_wrap:focus-within {
+  border-radius: 8px;
+  background: rgba(16, 185, 129, 0.09);
+}
+
+/* Native Stunden/Minuten (ActivityTimeField) — gleiche Höhe wie Datumsfeld in der Pille */
+.activity-create-wizard-host .activity-pill-bar .activity-time-quarter-grid {
+  min-height: var(--activity-pill-control-h);
+  align-items: center;
+}
+
+.activity-create-wizard-host .activity-pill-bar .activity-time-quarter-grid .activity-time-part {
+  min-height: var(--activity-pill-control-h);
+  height: var(--activity-pill-control-h);
+  padding-top: 0;
+  padding-bottom: 0;
+  line-height: var(--activity-pill-control-h);
+}
+
+.activity-create-wizard-host .preview-dates-label {
+  display: block;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #9ca3af;
+  margin-bottom: 2px;
+}
+
+.activity-create-wizard-host .preview-dates--secondary {
+  margin-top: 4px;
+}
+
+.activity-create-wizard-host .form-group {
+  margin-bottom: 0;
+}
+
+.activity-create-wizard-host .form-group label {
+  display: block;
+  font-size: 13px;
+  font-weight: 500;
+  color: #374151;
+  margin-bottom: 6px;
+}
+
+.activity-create-wizard-host .req {
+  color: #b45309;
+}
+
+.activity-create-wizard-host .form-input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  font-size: 14px;
+  color: #111827;
+  background: #fff;
+}
+
+.activity-create-wizard-host .form-input:focus {
+  outline: none;
+  border-color: var(--emc-brand-accent, #059669);
+  box-shadow: 0 0 0 3px rgb(5 150 105 / 18%);
+}
+
+.activity-create-wizard-host .text-muted {
+  color: #6b7280;
+}
+
+.activity-create-wizard-host .step-header {
+  margin-bottom: 12px;
+}
+
+.activity-create-wizard-host .step-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #111827;
+}
+
+.activity-create-wizard-host .activity-preview-sidebar .preview-badge {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  width: fit-content;
+}
+
+.activity-create-wizard-host .activity-preview-sidebar .preview-badge.activity {
+  background: #eef2ff;
+  color: #4338ca;
+}
+
+.activity-create-wizard-host .activity-preview-sidebar .preview-badge.camp {
+  background: #fffbeb;
+  color: #92400e;
+}
+
+.activity-create-wizard-host .activity-preview-sidebar .preview-badge.event {
+  background: #eef2ff;
+  color: #3730a3;
+}
+
+.activity-create-wizard-host .activity-preview-sidebar .preview-badge.external {
+  background: #ecfdf5;
+  color: #065f46;
+}
+
+.activity-create-wizard-host .preview-badge--muted {
+  background: #f3f4f6;
+  color: #6b7280;
+}
+
+.activity-create-wizard-host .preview-meta {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: #4b5563;
+  line-height: 1.35;
+}
+
+.activity-create-wizard-host .preview-dates {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: #6b7280;
+}
+
+/* Sidebar: etwas dichter, gleiche Typo */
+.activity-create-wizard-host .activity-preview-sidebar .preview-meta {
+  margin: 6px 0 0;
+}
+
+.activity-create-wizard-host .activity-preview-sidebar .preview-dates {
+  margin: 6px 0 0;
+  line-height: 1.35;
+}
+
+.activity-create-wizard-host .activity-preview-sidebar .preview-dates.preview-dates--secondary {
+  margin-top: 4px;
+}
+
+.activity-create-wizard-host .activity-summary-dl {
+  margin: 0;
+}
+
+.activity-create-wizard-host .activity-summary-row {
+  display: grid;
+  grid-template-columns: 100px 1fr;
+  gap: 8px;
+  padding: 8px 0;
+  border-bottom: 1px solid #f3f4f6;
+  font-size: 14px;
+}
+
+.activity-create-wizard-host .activity-summary-row dt {
+  margin: 0;
+  color: #6b7280;
+  font-weight: 500;
+}
+
+.activity-create-wizard-host .activity-summary-row dd {
+  margin: 0;
+  color: #111827;
+}
+
+.activity-create-wizard-host .activity-create-footer .footer-spacer {
+  min-width: 0;
+  flex: 1;
+}
+
+.activity-create-wizard-host .footer-actions-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  max-width: 100%;
+}
+
+.activity-create-wizard-host .activity-create-submit-error {
+  margin: 0;
+  font-size: 12px;
+  color: #b91c1c;
+  text-align: right;
+  max-width: 420px;
+}
+
+@media (max-width: 900px) {
+  .activity-create-wizard-host .material-wizard-body {
+    grid-template-columns: 1fr;
+    min-height: 0;
+  }
+
+  .activity-create-wizard-host .material-wizard-sidebar {
+    max-height: min(40vh, 280px);
+    border-left: none;
+    border-top: 1px solid #e5e7eb;
+  }
+}
+
+.activity-create-wizard-host .activity-invite-departments-wrap {
+  margin-top: 20px;
+}
+
+.activity-create-wizard-host .activity-invite-departments-wrap .invite-dept-min-hint {
+  margin: 6px 0 0;
+  font-size: 12px;
+}
+
+.activity-create-wizard-host .activity-invited-dept-chips {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.activity-create-wizard-host .activity-invited-dept-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: #f3f4f6;
+  border: 1px solid #e5e7eb;
+  font-size: 13px;
+  max-width: 100%;
+}
+
+.activity-create-wizard-host .activity-invited-dept-chip-label {
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.activity-create-wizard-host .activity-invited-dept-chip-org {
+  font-size: 12px;
+  color: #6b7280;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 160px;
+}
+
+.activity-create-wizard-host .activity-invited-dept-chip-remove {
+  margin-left: 2px;
+  border: none;
+  background: transparent;
+  color: #6b7280;
+  cursor: pointer;
+  font-size: 18px;
+  line-height: 1;
+  padding: 0 2px;
+  border-radius: 4px;
+}
+
+.activity-create-wizard-host .activity-invited-dept-chip-remove:hover {
+  color: #b91c1c;
+  background: #fef2f2;
+}
+
+.activity-create-wizard-host .activity-create-footer-draft {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  min-width: 0;
+  max-width: min(100%, 280px);
+  flex-shrink: 1;
+}
+
+.activity-create-wizard-host .activity-draft-badge {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #b45309;
+  background: #fffbeb;
+  border: 1px solid #fcd34d;
+  padding: 3px 8px;
+  border-radius: 6px;
+}
+
+.activity-create-wizard-host .activity-draft-saved-at {
+  font-size: 12px;
+  color: #6b7280;
+  line-height: 1.35;
+}
+
+.activity-create-wizard-host .activity-wizard-draft-hint {
+  margin: 16px 0 12px;
+  padding: 12px 14px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #4b5563;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+}
+
+.activity-create-wizard-host .activity-wizard-notes-wrap {
+  margin-top: 4px;
+}
+
+.activity-create-wizard-host .activity-wizard-notes-textarea {
+  min-height: 72px;
+  resize: vertical;
+}
+
+.activity-create-wizard-host .group-optional-label {
+  font-weight: 500;
+  font-size: 13px;
+}
+
+.activity-create-wizard-host.material-wizard-overlay {
+  padding: 12px;
+}
+
+@media (min-width: 561px) {
+  .activity-create-wizard-host.material-wizard-overlay {
+    padding: 20px;
+  }
+}

@@ -5,6 +5,7 @@ namespace App\Controller;
 use App\Entity\Activity;
 use App\Entity\ActivityHistory;
 use App\Entity\ActivityItem;
+use App\Entity\ActivityPackContainer;
 use App\Entity\ActivityPackItem;
 use App\Entity\ActivityReturnItem;
 use App\Entity\ActivityIssueReport;
@@ -17,6 +18,7 @@ use App\Entity\WorkshopTicket;
 use App\Entity\Address;
 use App\Entity\User;
 use App\Service\ActivityAccessService;
+use App\Service\ActivityKisteMaterialLinker;
 use App\Util\IdGenerator;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\Security\Core\Exception\AccessDeniedException;
@@ -33,7 +35,8 @@ class ActivityController extends AbstractController
 
     public function __construct(
         private EntityManagerInterface $entityManager,
-        private ActivityAccessService $activityAccess
+        private ActivityAccessService $activityAccess,
+        private ActivityKisteMaterialLinker $kisteMaterialLinker,
     ) {}
 
     private function normalizeInvitedDepartmentsPayload(array $incoming, array $existing = []): array
@@ -182,7 +185,7 @@ class ActivityController extends AbstractController
         // Suchfilter
         $search = $request->query->get('search');
         if ($search) {
-            $qb->andWhere('a.name LIKE :search OR a.customerName LIKE :search')
+            $qb->andWhere('a.name LIKE :search')
                 ->setParameter('search', '%' . $search . '%');
         }
 
@@ -256,7 +259,7 @@ class ActivityController extends AbstractController
         }
 
         if ($search) {
-            $invitedQb->andWhere('a.name LIKE :search OR a.customerName LIKE :search')
+            $invitedQb->andWhere('a.name LIKE :search')
                 ->setParameter('search', '%' . $search . '%');
         }
 
@@ -518,7 +521,17 @@ class ActivityController extends AbstractController
             return new JsonResponse(['error' => 'Keine Berechtigung fuer diese Aktivitaet'], 403);
         }
 
-        return new JsonResponse($this->serializeActivity($activity, true));
+        $data = $this->serializeActivity($activity, true);
+        $draftMat = $this->activityAccess->canUserEditDraftActivityMaterial($currentUser, $activity);
+        $data['can_edit_draft_material'] = $draftMat;
+        $data['can_edit_activity_material'] = $activity->isDraft()
+            ? $draftMat
+            : $this->activityAccess->canHostMwOrDcEditActivityMaterialAfterDraft($currentUser, $activity);
+        $data['can_edit_submitted_activity_content'] = $activity->isDraft()
+            ? false
+            : $this->activityAccess->canUserEditSubmittedActivityDetails($currentUser, $activity);
+
+        return new JsonResponse($data);
     }
 
     /**
@@ -558,6 +571,9 @@ class ActivityController extends AbstractController
             $activity->setName($data['name']);
             $activity->setType($data['type'] ?? 'activity');
             $activity->setStatus($data['status'] ?? 'draft');
+            if ($activity->getStatus() === Activity::STATUS_SUBMITTED) {
+                $activity->applyStatusTimestamp(Activity::STATUS_SUBMITTED);
+            }
 
             // Gruppe (Group-Entity)
             if (isset($data['group_id'])) {
@@ -585,22 +601,19 @@ class ActivityController extends AbstractController
                 $activity->setPlanningEnd(new \DateTime($data['planning_end']));
             }
 
-            // Kunde
-            if (isset($data['customer_name'])) {
-                $activity->setCustomerName($data['customer_name']);
-            }
-            if (isset($data['customer_email'])) {
-                $activity->setCustomerEmail($data['customer_email']);
-            }
-            if (isset($data['customer_phone'])) {
-                $activity->setCustomerPhone($data['customer_phone']);
-            }
-
-            // Adresse
+            // Adresse (Mieter / Kunde)
             if (isset($data['address_id'])) {
                 $address = $this->entityManager->getRepository(Address::class)->find($data['address_id']);
                 if ($address) {
                     $activity->setAddress($address);
+                }
+            }
+
+            // Eventstandort
+            if (isset($data['venue_address_id'])) {
+                $venueAddress = $this->entityManager->getRepository(Address::class)->find($data['venue_address_id']);
+                if ($venueAddress) {
+                    $activity->setVenueAddress($venueAddress);
                 }
             }
 
@@ -617,6 +630,9 @@ class ActivityController extends AbstractController
 
             if (isset($data['notes'])) {
                 $activity->setNotes($data['notes']);
+            }
+            if (array_key_exists('create_wizard_completed', $data)) {
+                $activity->setCreateWizardCompleted((bool) $data['create_wizard_completed']);
             }
             if (array_key_exists('invited_departments', $data)) {
                 $incoming = is_array($data['invited_departments']) ? $data['invited_departments'] : [];
@@ -679,7 +695,11 @@ class ActivityController extends AbstractController
         if (!$currentUser instanceof User) {
             return new JsonResponse(['error' => 'Nicht authentifiziert'], 401);
         }
-        if (!$this->activityAccess->canUserEditActivity($currentUser, $activity)) {
+        if ($activity->isDraft()) {
+            if (!$this->activityAccess->canUserEditActivity($currentUser, $activity)) {
+                return new JsonResponse(['error' => 'Keine Berechtigung fuer diese Aktivitaet'], 403);
+            }
+        } elseif (!$this->activityAccess->canUserEditSubmittedActivityDetails($currentUser, $activity)) {
             return new JsonResponse(['error' => 'Keine Berechtigung fuer diese Aktivitaet'], 403);
         }
 
@@ -722,15 +742,6 @@ class ActivityController extends AbstractController
             if (array_key_exists('planning_end', $data)) {
                 $activity->setPlanningEnd($data['planning_end'] ? new \DateTime($data['planning_end']) : null);
             }
-            if (array_key_exists('customer_name', $data)) {
-                $activity->setCustomerName($data['customer_name']);
-            }
-            if (array_key_exists('customer_email', $data)) {
-                $activity->setCustomerEmail($data['customer_email']);
-            }
-            if (array_key_exists('customer_phone', $data)) {
-                $activity->setCustomerPhone($data['customer_phone']);
-            }
             if (array_key_exists('address_id', $data)) {
                 if ($data['address_id']) {
                     $address = $this->entityManager->getRepository(Address::class)->find($data['address_id']);
@@ -738,6 +749,15 @@ class ActivityController extends AbstractController
                 } else {
                     $activity->setAddress(null);
                     $activity->setAddressId(null);
+                }
+            }
+            if (array_key_exists('venue_address_id', $data)) {
+                if ($data['venue_address_id']) {
+                    $venueAddress = $this->entityManager->getRepository(Address::class)->find($data['venue_address_id']);
+                    $activity->setVenueAddress($venueAddress);
+                } else {
+                    $activity->setVenueAddress(null);
+                    $activity->setVenueAddressId(null);
                 }
             }
             if (array_key_exists('responsible_user_id', $data)) {
@@ -766,6 +786,9 @@ class ActivityController extends AbstractController
             }
             if (array_key_exists('notes', $data)) {
                 $activity->setNotes($data['notes']);
+            }
+            if (array_key_exists('create_wizard_completed', $data)) {
+                $activity->setCreateWizardCompleted((bool) $data['create_wizard_completed']);
             }
             if (array_key_exists('invited_departments', $data)) {
                 $incoming = is_array($data['invited_departments']) ? $data['invited_departments'] : [];
@@ -1184,6 +1207,11 @@ class ActivityController extends AbstractController
             return true;
         }
 
+        // Ersteller der Aktivität (nur wenn in TRANSITION_PERMISSIONS vorgesehen, z. B. submitted→approved)
+        if (in_array('creator', $requiredRoles, true) && $activity->getCreatedByUserId() === $userId) {
+            return true;
+        }
+
         // Gruppen-Rollen prüfen (leader/member)
         if ($groupId) {
             $groupMembership = $this->entityManager->getRepository(GroupMembership::class)
@@ -1247,8 +1275,11 @@ class ActivityController extends AbstractController
             'leader' => 'Gruppenleiter',
             'member' => 'Gruppenmitglied',
             'mw' => 'Materialwart',
+            'dc' => 'Abteilungskoordination',
+            'creator' => 'Ersteller der Aktivität',
             'sa' => 'Super-Admin',
             'org' => 'Organisations-Admin',
+            'sub' => 'Sub-Organisation',
             default => $r,
         }, $requiredRoles);
 
@@ -1289,6 +1320,11 @@ class ActivityController extends AbstractController
             return 'Zurückweisen';
         }
 
+        // Korrektur nach «Gepackt» — nicht «Packen starten» (sonst wie erster Start)
+        if ($fromStatus === Activity::STATUS_PACKED && $targetStatus === Activity::STATUS_PACKING) {
+            return 'Zur Packliste (Korrektur)';
+        }
+
         return match($targetStatus) {
             Activity::STATUS_SUBMITTED => 'Einreichen',
             Activity::STATUS_APPROVED  => 'Bestätigen',
@@ -1322,24 +1358,83 @@ class ActivityController extends AbstractController
             return new JsonResponse(['error' => 'Keine Berechtigung fuer diese Aktivitaet'], 403);
         }
 
+        if ($this->activityAccess->canHostMwOrDcEditActivityMaterialAfterDraft($currentUser, $activity)) {
+            $this->kisteMaterialLinker->syncMissingActivityLinesFromPackContainers($activity, $currentUser);
+        }
+
         $items = $this->entityManager->getRepository(ActivityItem::class)
             ->createQueryBuilder('ai')
             ->leftJoin('ai.materialItem', 'mi')
             ->addSelect('mi')
+            ->leftJoin('mi.linkedContainerBatch', 'linkCb')
+            ->addSelect('linkCb')
             ->where('ai.activityId = :activityId')
             ->setParameter('activityId', $id)
             ->orderBy('mi.name', 'ASC')
             ->getQuery()
             ->getResult();
 
+        /** @var array<string, true> Material-IDs mit mindestens einem Pack-Behälter-Batch (SN oder Kisten-Instanz) */
+        $serializedPackInstanceByMaterialId = [];
+        /** @var array<string, true> Material-IDs mit Pack-Behälter-Batch (is_container auf Charge) */
+        $containerPackBatchByMaterialId = [];
+        $packContainers = $this->entityManager->getRepository(ActivityPackContainer::class)
+            ->createQueryBuilder('pc')
+            ->leftJoin('pc.containerBatch', 'pcb')
+            ->addSelect('pcb')
+            ->where('pc.activityId = :activityId')
+            ->setParameter('activityId', $id)
+            ->getQuery()
+            ->getResult();
+        foreach ($packContainers as $pc) {
+            if (!$pc instanceof ActivityPackContainer) {
+                continue;
+            }
+            $batch = $pc->getContainerBatch();
+            if ($batch === null) {
+                continue;
+            }
+            $mid = $batch->getMaterialItemId();
+            if ($batch->getIsContainer()) {
+                $containerPackBatchByMaterialId[$mid] = true;
+            }
+            $sn = $batch->getSerialNumber();
+            if ($sn !== null && trim((string) $sn) !== '') {
+                $serializedPackInstanceByMaterialId[$mid] = true;
+                continue;
+            }
+            if ($batch->getIsContainer()) {
+                $serializedPackInstanceByMaterialId[$mid] = true;
+            }
+        }
+
         $result = [];
         foreach ($items as $item) {
             $mi = $item->getMaterialItem();
             $sourceDepartment = $mi->getDepartment();
+            $linkCb = $mi->getLinkedContainerBatch();
+            $linkedContainerLabel = null;
+            if ($linkCb !== null) {
+                $lb = $linkCb->getLabel();
+                $sn = $linkCb->getSerialNumber();
+                $linkedContainerLabel = ($lb !== null && $lb !== '') ? $lb : (($sn !== null && $sn !== '') ? $sn : null);
+            }
+            $rawTracking = $mi->getTrackingType();
+            $trackingType = ($rawTracking === 'serialized')
+                ? 'serialized'
+                : (isset($serializedPackInstanceByMaterialId[$mi->getId()]) ? 'serialized' : ($rawTracking ?? 'bulk'));
+            $isContainerPosition = $mi->getIsContainer()
+                || isset($containerPackBatchByMaterialId[$mi->getId()])
+                || ($linkCb !== null && $linkCb->getIsContainer())
+                || ($mi->getMaterialType() === 'physical_combo' && $linkCb !== null);
             $result[] = [
                 'id' => $item->getId(),
                 'material_item_id' => $item->getMaterialItemId(),
                 'material_name' => $mi->getName(),
+                'material_type' => $mi->getMaterialType(),
+                'tracking_type' => $trackingType,
+                'is_container' => $isContainerPosition,
+                'linked_container_label' => $linkedContainerLabel,
                 'source_department_id' => $sourceDepartment->getId(),
                 'source_department_name' => $sourceDepartment->getName(),
                 'quantity' => $item->getQuantity(),
@@ -1379,8 +1474,9 @@ class ActivityController extends AbstractController
         if (!$currentUser instanceof User) {
             return new JsonResponse(['error' => 'Nicht authentifiziert'], 401);
         }
-        if (!$this->activityAccess->canUserEditActivity($currentUser, $activity)) {
-            return new JsonResponse(['error' => 'Keine Berechtigung fuer diese Aktivitaet'], 403);
+        $deny = $this->assertCanModifyActivityMaterialItems($currentUser, $activity);
+        if ($deny !== null) {
+            return $deny;
         }
 
         $data = json_decode($request->getContent(), true);
@@ -1440,6 +1536,16 @@ class ActivityController extends AbstractController
 
             $this->entityManager->flush();
 
+            // Packliste an Materialliste anbinden (PUT ersetzt alle Zeilen — ohne dies fehlen neue Positionen)
+            if (in_array($activity->getStatus(), [
+                Activity::STATUS_PACKING,
+                Activity::STATUS_PACKED,
+                Activity::STATUS_ISSUED,
+            ], true)) {
+                $this->resyncPackListFromActivityItems($activity);
+                $this->entityManager->flush();
+            }
+
             return new JsonResponse([
                 'message' => "$count Material-Positionen gespeichert",
                 'item_count' => $count,
@@ -1468,8 +1574,9 @@ class ActivityController extends AbstractController
         if (!$currentUser instanceof User) {
             return new JsonResponse(['error' => 'Nicht authentifiziert'], 401);
         }
-        if (!$this->activityAccess->canUserEditActivity($currentUser, $activity)) {
-            return new JsonResponse(['error' => 'Keine Berechtigung fuer diese Aktivitaet'], 403);
+        $deny = $this->assertCanModifyActivityMaterialItems($currentUser, $activity);
+        if ($deny !== null) {
+            return $deny;
         }
 
         $data = json_decode($request->getContent(), true);
@@ -1557,9 +1664,11 @@ class ActivityController extends AbstractController
         if (!$currentUser instanceof User) {
             return new JsonResponse(['error' => 'Nicht authentifiziert'], 401);
         }
-        if (!$this->activityAccess->canUserEditActivity($currentUser, $activity)) {
-            return new JsonResponse(['error' => 'Keine Berechtigung fuer diese Aktivitaet'], 403);
+        $deny = $this->assertCanModifyActivityMaterialItems($currentUser, $activity);
+        if ($deny !== null) {
+            return $deny;
         }
+
         $this->entityManager->remove($item);
 
         // Item-Count aktualisieren
@@ -1570,6 +1679,15 @@ class ActivityController extends AbstractController
 
         // total_price neu berechnen (nach flush, damit removed item nicht mehr gezählt wird)
         $this->recalculateTotalPrice($activity);
+
+        if (in_array($activity->getStatus(), [
+            Activity::STATUS_PACKING,
+            Activity::STATUS_PACKED,
+            Activity::STATUS_ISSUED,
+        ], true)) {
+            $this->resyncPackListFromActivityItems($activity);
+        }
+
         $this->entityManager->flush();
 
         return new JsonResponse(['message' => 'Material entfernt', 'total_price' => $activity->getTotalPrice()]);
@@ -1657,6 +1775,37 @@ class ActivityController extends AbstractController
      * Synchronisiert das PackItem wenn Material während der Packphase hinzugefügt/geändert wird.
      * Erstellt ein neues PackItem oder aktualisiert die bestellte Menge.
      */
+    /**
+     * Packliste mit Materialpositionen abgleichen (Summe pro Material, Zeilen ohne Pack-Eintrag anlegen, entfernte Materialien löschen).
+     */
+    private function resyncPackListFromActivityItems(Activity $activity): void
+    {
+        $activityItems = $this->entityManager->getRepository(ActivityItem::class)
+            ->findBy(['activityId' => $activity->getId()]);
+
+        $qtyByMaterialId = [];
+        foreach ($activityItems as $ai) {
+            $mid = $ai->getMaterialItemId();
+            $qtyByMaterialId[$mid] = ($qtyByMaterialId[$mid] ?? 0) + $ai->getQuantity();
+        }
+
+        foreach ($qtyByMaterialId as $mid => $qty) {
+            $materialItem = $this->entityManager->getRepository(MaterialItem::class)->find($mid);
+            if ($materialItem !== null) {
+                $this->syncPackItemForMaterial($activity, $materialItem, $qty);
+            }
+        }
+
+        $packItems = $this->entityManager->getRepository(ActivityPackItem::class)
+            ->findBy(['activityId' => $activity->getId()]);
+
+        foreach ($packItems as $pi) {
+            if (!isset($qtyByMaterialId[$pi->getMaterialItemId()])) {
+                $this->entityManager->remove($pi);
+            }
+        }
+    }
+
     private function syncPackItemForMaterial(Activity $activity, MaterialItem $materialItem, int $newQuantity): void
     {
         $existingPackItem = $this->entityManager->getRepository(ActivityPackItem::class)
@@ -1668,6 +1817,12 @@ class ActivityController extends AbstractController
         if ($existingPackItem) {
             // Bestellte Menge aktualisieren
             $existingPackItem->setQuantityOrdered($newQuantity);
+            if ($existingPackItem->getQuantityPacked() > $newQuantity) {
+                $existingPackItem->setQuantityPacked($newQuantity);
+            }
+            if ($existingPackItem->getQuantityIssued() > $newQuantity) {
+                $existingPackItem->setQuantityIssued($newQuantity);
+            }
             $existingPackItem->setUpdatedAt(new \DateTime());
         } else {
             // Neues PackItem erstellen
@@ -1723,10 +1878,8 @@ class ActivityController extends AbstractController
             'usage_end' => $activity->getUsageEnd()?->format('Y-m-d'),
             'planning_start' => $activity->getPlanningStart()?->format('Y-m-d'),
             'planning_end' => $activity->getPlanningEnd()?->format('Y-m-d'),
-            'customer_name' => $activity->getCustomerName(),
-            'customer_email' => $activity->getCustomerEmail(),
-            'customer_phone' => $activity->getCustomerPhone(),
             'address_id' => $activity->getAddressId(),
+            'venue_address_id' => $activity->getVenueAddressId(),
             'responsible_user_id' => $activity->getResponsibleUserId(),
             'pricing_mode' => $activity->getPricingMode(),
             'total_price' => $activity->getTotalPrice(),
@@ -1753,6 +1906,30 @@ class ActivityController extends AbstractController
             }
         }
         return $changes;
+    }
+
+    /**
+     * Entwurf: wie bisher (isMaterialEditable + breite Draft-Regeln).
+     * Nach Einreichung: nur Host-MW/DC in den Status submitted…packed.
+     */
+    private function assertCanModifyActivityMaterialItems(User $user, Activity $activity): ?JsonResponse
+    {
+        if ($activity->isDraft()) {
+            if (!$activity->isMaterialEditable()) {
+                return new JsonResponse(['error' => 'Material kann nur im Entwurf bearbeitet werden'], 422);
+            }
+            if (!$this->activityAccess->canUserEditDraftActivityMaterial($user, $activity)) {
+                return new JsonResponse(['error' => 'Keine Berechtigung zum Bearbeiten der Materialliste'], 403);
+            }
+
+            return null;
+        }
+
+        if (!$this->activityAccess->canHostMwOrDcEditActivityMaterialAfterDraft($user, $activity)) {
+            return new JsonResponse(['error' => 'Keine Berechtigung zum Bearbeiten der Materialliste'], 403);
+        }
+
+        return null;
     }
 
     /**
@@ -1785,9 +1962,9 @@ class ActivityController extends AbstractController
             'color' => $activity->getColor(),
             'type' => $activity->getType(),
             'status' => $activity->getStatus(),
+            'create_wizard_completed' => $activity->isCreateWizardCompleted(),
             'usage_start' => $activity->getUsageStart()?->format('c'),
             'usage_end' => $activity->getUsageEnd()?->format('c'),
-            'customer_name' => $activity->getCustomerName(),
             'item_count' => $activity->getItemCount(),
             'pricing_mode' => $activity->getPricingMode(),
             'total_price' => $activity->getTotalPrice() ? (float) $activity->getTotalPrice() : null,
@@ -1800,9 +1977,8 @@ class ActivityController extends AbstractController
             $data = array_merge($data, [
                 'planning_start' => $activity->getPlanningStart()?->format('c'),
                 'planning_end' => $activity->getPlanningEnd()?->format('c'),
-                'customer_email' => $activity->getCustomerEmail(),
-                'customer_phone' => $activity->getCustomerPhone(),
                 'address_id' => $activity->getAddressId(),
+                'venue_address_id' => $activity->getVenueAddressId(),
                 'responsible_user_id' => $activity->getResponsibleUserId(),
                 'created_by_user_id' => $activity->getCreatedByUserId(),
                 'pricing_mode' => $activity->getPricingMode(),
@@ -1958,4 +2134,5 @@ class ActivityController extends AbstractController
             ]);
         }
     }
+
 }

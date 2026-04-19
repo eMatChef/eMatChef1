@@ -35,8 +35,8 @@
           (keine separate Allokation nur für diesen Artikel).
         </p>
         <div
-          v-for="block in comboViaPhysicalBlocks"
-          :key="block.parent_material_id"
+          v-for="(block, bi) in comboViaPhysicalBlocks"
+          :key="block.combo_component_id || `${block.parent_material_id}-${bi}`"
           class="combo-derived-card"
         >
           <div class="combo-derived-card-head">
@@ -49,7 +49,7 @@
             <span class="combo-derived-qty">{{ block.component_qty }} Stk. in dieser Kombi</span>
           </div>
           <ul class="combo-derived-loc-list">
-            <li v-for="(loc, idx) in block.locations" :key="`${block.parent_material_id}-${idx}`">
+            <li v-for="(loc, idx) in block.locations" :key="`${block.combo_component_id || block.parent_material_id}-${idx}`">
               {{ formatComboLocationLine(loc) }}
             </li>
           </ul>
@@ -139,7 +139,7 @@
                           +{{ row.moreCount }} weitere in der Kiste
                         </span>
                         <button
-                          v-if="canOpenContainerMaterial(row.representative)"
+                          v-if="canOpenContainerMaterial(row.representative) && !embeddedDetailMaterialId"
                           class="container-link-btn"
                           @click.stop="openContainerMaterialFromStoredItem(row.representative)"
                         >
@@ -147,13 +147,15 @@
                         </button>
                       </div>
                       <span class="content-qty">{{ row.totalQty }} Stk.</span>
-                      <div class="content-actions" v-if="!readonly || allowOpenActions">
+                      <div
+                        class="content-actions"
+                        v-if="canOpenContainerMaterial(row.representative) && showContainerOpenUi()"
+                      >
                         <StorageActionButton
-                          v-if="!readonly || allowOpenActions"
-                          title="Material öffnen"
+                          title="Kiste öffnen"
                           size="sm"
                           icon="open"
-                          @click.stop="openMaterial(row.representative)"
+                          @click.stop="navigateToContainerContentTab(row.container_batch_id)"
                         />
                       </div>
                     </template>
@@ -166,7 +168,7 @@
                             +{{ getContainerOtherItemsCount(row.item) }} weitere in der Kiste
                           </span>
                           <button
-                            v-if="canOpenContainerMaterial(row.item)"
+                            v-if="canOpenContainerMaterial(row.item) && !embeddedDetailMaterialId"
                             class="container-link-btn"
                             @click.stop="openContainerMaterialFromStoredItem(row.item)"
                           >
@@ -184,16 +186,45 @@
                         </template>
                       </div>
                       <span class="content-qty">{{ row.item.qty }} Stk.</span>
-                      <div class="content-actions" v-if="!readonly || allowMoveActions || allowOpenActions">
+                      <div
+                        class="content-actions"
+                        v-if="
+                          !readonly ||
+                          allowMoveActions ||
+                          allowOpenActions ||
+                          (embeddedDetailMaterialId &&
+                            isContainerStoredItem(row.item) &&
+                            canOpenContainerMaterial(row.item))
+                        "
+                      >
                         <StorageActionButton
-                          v-if="row.item.tracking_type !== 'serialized'"
+                          v-if="
+                            rowAllowsMoveForStoredItem(row.item) &&
+                            (!row.mergedSourceCount || row.mergedSourceCount <= 1)
+                          "
                           title="Menge verschieben"
                           size="sm"
                           icon="move"
                           @click.stop="openMoveForItem(row.item, rack, slot)"
                         />
                         <StorageActionButton
-                          v-if="!readonly || allowOpenActions"
+                          v-if="
+                            isContainerStoredItem(row.item) &&
+                            canOpenContainerMaterial(row.item) &&
+                            showContainerOpenUi()
+                          "
+                          title="Kiste öffnen"
+                          size="sm"
+                          icon="open"
+                          @click.stop="navigateToContainerContentTab(row.item.container_batch_id!)"
+                        />
+                        <StorageActionButton
+                          v-else-if="
+                            !isContainerStoredItem(row.item) &&
+                            (!readonly || allowOpenActions) &&
+                            String(row.item.material_id || '').trim() !==
+                              String((embeddedDetailMaterialId || '').trim())
+                          "
                           title="Material öffnen"
                           size="sm"
                           icon="open"
@@ -323,6 +354,10 @@ interface Props {
   readonly?: boolean
   allowMoveActions?: boolean
   allowOpenActions?: boolean
+  /** true: Augen-Icon nur Material öffnen, ohne ?batch= (reine Lagerort-Navigation) */
+  openMaterialWithoutBatchQuery?: boolean
+  /** Material-Detail „Gelagert in“: Kiste öffnen → Tab „Inhalt Kiste/Tasche“ ohne neuen Push */
+  embeddedDetailMaterialId?: string
   containerBatchId?: string
   searchQuery?: string
 }
@@ -331,6 +366,8 @@ const props = withDefaults(defineProps<Props>(), {
   readonly: false,
   allowMoveActions: false,
   allowOpenActions: false,
+  openMaterialWithoutBatchQuery: false,
+  embeddedDetailMaterialId: '',
   containerBatchId: '',
   searchQuery: '',
 })
@@ -459,7 +496,8 @@ type SlotDisplayRow =
       totalQty: number
       representative: StorageSlotContent
     }
-  | { type: 'single'; item: StorageSlotContent }
+  /** mergedSourceCount > 1: Summe mehrerer Chargen am gleichen Fach — Verschieben nur über Materialdetail */
+  | { type: 'single'; item: StorageSlotContent; mergedSourceCount?: number }
 
 type StorageOverviewSlotWithRows = StorageOverviewSlot & { displayRows: SlotDisplayRow[] }
 
@@ -484,7 +522,16 @@ function aggregateContainerPreview(items: StorageSlotContent[]): {
   return { previewLines, moreCount, totalQty }
 }
 
-/** Eine Zeile pro Kiste (container_batch_id); die physische Kisten-Charge am Platz wird ausgeblendet, wenn Inhalt angezeigt wird. */
+/** Schlüssel für Standalone-Zeilen: Bulk nach material_id; serialisiert je Charge/Einheit (eigene Zeile pro Kiste). */
+function standaloneMergeKey(item: StorageSlotContent): string {
+  if (item.tracking_type === 'serialized') {
+    const bid = (item.batch_id || '').trim() || `a:${item.allocation_id ?? ''}`
+    return `${item.material_id}\x1e${bid}`
+  }
+  return item.material_id
+}
+
+/** Eine Zeile pro Kiste (container_batch_id); Standalone-Artikel am gleichen Fach nach material_id (bzw. Charge bei serialisiert) zusammengefasst. */
 function buildSlotDisplayRows(contents: StorageSlotContent[]): SlotDisplayRow[] {
   const groups = new Map<string, StorageSlotContent[]>()
   for (const item of contents) {
@@ -495,8 +542,20 @@ function buildSlotDisplayRows(contents: StorageSlotContent[]): SlotDisplayRow[] 
     }
   }
   const hideBatchIds = new Set(groups.keys())
+
+  const standaloneByKey = new Map<string, StorageSlotContent[]>()
+  for (const item of contents) {
+    const cid = (item.container_batch_id || '').trim()
+    if (cid) continue
+    if (hideBatchIds.has(item.batch_id)) continue
+    const mk = standaloneMergeKey(item)
+    if (!standaloneByKey.has(mk)) standaloneByKey.set(mk, [])
+    standaloneByKey.get(mk)!.push(item)
+  }
+
   const rows: SlotDisplayRow[] = []
   const emittedContainers = new Set<string>()
+  const emittedStandaloneKeys = new Set<string>()
 
   for (const item of contents) {
     const cid = (item.container_batch_id || '').trim()
@@ -521,7 +580,23 @@ function buildSlotDisplayRows(contents: StorageSlotContent[]): SlotDisplayRow[] 
       continue
     }
     if (hideBatchIds.has(item.batch_id)) continue
-    rows.push({ type: 'single', item })
+
+    const mk = standaloneMergeKey(item)
+    if (emittedStandaloneKeys.has(mk)) continue
+    emittedStandaloneKeys.add(mk)
+
+    const matGroup = standaloneByKey.get(mk) || [item]
+    if (matGroup.length === 1) {
+      rows.push({ type: 'single', item: matGroup[0] })
+      continue
+    }
+    const totalQty = matGroup.reduce((s, i) => s + i.qty, 0)
+    const first = matGroup[0]
+    rows.push({
+      type: 'single',
+      item: { ...first, qty: totalQty },
+      mergedSourceCount: matGroup.length,
+    })
   }
   return rows
 }
@@ -544,10 +619,17 @@ function filterSlotContentsForOverview(items: StorageSlotContent[]): StorageSlot
     if (byContainer) {
       return groupItems.some((i) => (i.container_batch_id || '') === byContainer)
     }
-    let candidates = groupItems
-    if (byMaterial) {
-      candidates = groupItems.filter((i) => i.material_id === byMaterial)
+    if (!byMaterial) {
+      if (!hasSearch) return true
+      return groupItems.some((i) => matchesSearch(i))
     }
+    const cid = (groupItems[0]?.container_batch_id || '').trim()
+    const containerOwnerMaterialId = cid ? containerMaterialByBatchId.value.get(cid) : undefined
+    /** Kisten-Artikel: Inhalt hat andere material_ids — Gruppe trotzdem anzeigen, wenn die Charge zur Kiste (diesem Material) gehört. */
+    const candidates =
+      containerOwnerMaterialId === byMaterial
+        ? groupItems
+        : groupItems.filter((i) => i.material_id === byMaterial)
     if (candidates.length === 0) return false
     if (!hasSearch) return true
     return candidates.some((i) => matchesSearch(i))
@@ -588,12 +670,23 @@ function slotRowKey(row: SlotDisplayRow, idx: number): string {
   if (row.type === 'container-group') {
     return `cg-${row.container_batch_id}`
   }
+  if (row.mergedSourceCount && row.mergedSourceCount > 1) {
+    return `agg-${standaloneMergeKey(row.item)}`
+  }
   return `${row.item.batch_id}-${row.item.allocation_id ?? idx}`
 }
+
+/** Nur bei Filterkontext (Material/Kiste/Suche): leere Fächer/Regale ausblenden. In der Materialübersicht ohne Filter volle Struktur wie in den Einstellungen. */
+const hideEmptySlotsAndRacks = computed(() => {
+  const byMaterial = (props.materialId || '').trim()
+  const byContainer = (props.containerBatchId || '').trim()
+  return !!(byMaterial || byContainer || normalizedSearchQuery.value.length > 0)
+})
 
 const filteredOverview = computed<{ racks: Array<StorageOverviewRack & { slots: StorageOverviewSlotWithRows[] }> } | null>(() => {
   const raw = overview.value
   if (!raw) return null
+  const stripEmpty = hideEmptySlotsAndRacks.value
   const filteredRacks = raw.racks
     .map((rack) => {
       const filteredSlots = (rack.slots || [])
@@ -606,14 +699,14 @@ const filteredOverview = computed<{ racks: Array<StorageOverviewRack & { slots: 
             displayRows,
           }
         })
-        .filter((slot) => slot.contents.length > 0)
+        .filter((slot) => (stripEmpty ? slot.contents.length > 0 : true))
 
       return {
         ...rack,
         slots: filteredSlots,
       }
     })
-    .filter((rack) => rack.slots.length > 0)
+    .filter((rack) => (stripEmpty ? rack.slots.length > 0 : true))
 
   return { racks: filteredRacks }
 })
@@ -903,18 +996,46 @@ function canOpenContainerMaterial(item: StorageSlotContent): boolean {
   return containerMaterialByBatchId.value.has(containerId)
 }
 
-function openContainerMaterialFromStoredItem(item: StorageSlotContent) {
-  const containerId = (item.container_batch_id || '').trim()
-  if (!containerId) return
-  const materialId = containerMaterialByBatchId.value.get(containerId)
+function showContainerOpenUi(): boolean {
+  const emb = (props.embeddedDetailMaterialId || '').trim()
+  return !!(emb || !props.readonly || props.allowOpenActions)
+}
+
+function navigateToContainerContentTab(containerBatchId: string) {
+  const cid = containerBatchId.trim()
+  if (!cid) return
+  const materialId = containerMaterialByBatchId.value.get(cid)
   if (!materialId) return
   const deptId = String(router.currentRoute.value.params.departmentId || props.departmentId || '')
   if (!deptId) return
+  const embedded = (props.embeddedDetailMaterialId || '').trim()
   const query: Record<string, string> = {
     tab: 'container-content',
-    containerBatch: containerId,
+    containerBatch: cid,
+  }
+  if (embedded && materialId === embedded) {
+    router.replace({
+      path: router.currentRoute.value.path,
+      query: { ...router.currentRoute.value.query, ...query },
+    })
+    return
   }
   router.push({ path: `/${deptId}/materials/${materialId}`, query })
+}
+
+function openContainerMaterialFromStoredItem(item: StorageSlotContent) {
+  const containerId = (item.container_batch_id || '').trim()
+  if (!containerId) return
+  navigateToContainerContentTab(containerId)
+}
+
+/** Verschieben: Bulk immer; serialisiert nur im Material-Detail für die eigene Einheit (z. B. phys. Kombi). */
+function rowAllowsMoveForStoredItem(item: StorageSlotContent): boolean {
+  if (item.tracking_type !== 'serialized') return true
+  if (!props.allowMoveActions) return false
+  const mid = (props.materialId || '').trim()
+  if (!mid) return false
+  return item.material_id === mid
 }
 
 async function openMoveForItem(item: StorageSlotContent, rack: StorageOverviewRack, slot: StorageOverviewSlot) {
@@ -941,7 +1062,8 @@ async function openMoveForItem(item: StorageSlotContent, rack: StorageOverviewRa
 function openMaterial(item: StorageSlotContent) {
   const deptId = router.currentRoute.value.params.departmentId
   if (deptId) {
-    const query = item.batch_id ? { batch: item.batch_id } : {}
+    const query =
+      props.openMaterialWithoutBatchQuery || !item.batch_id ? {} : { batch: item.batch_id }
     router.push({ path: `/${deptId}/materials/${item.material_id}`, query })
   }
 }

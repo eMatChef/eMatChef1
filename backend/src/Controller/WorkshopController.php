@@ -83,6 +83,13 @@ class WorkshopController extends AbstractController
                 ->setParameter('activityId', $activityId);
         }
 
+        // Material-Filter (z. B. Material-Detail → Werkstatt)
+        $materialItemId = $request->query->get('material_item_id');
+        if ($materialItemId) {
+            $qb->andWhere('t.materialItemId = :materialItemId')
+                ->setParameter('materialItemId', (string) $materialItemId);
+        }
+
         // Suche
         $search = $request->query->get('search');
         if ($search) {

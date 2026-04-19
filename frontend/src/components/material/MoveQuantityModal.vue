@@ -146,6 +146,7 @@ import { ref, reactive, computed, watch } from 'vue'
 import { moveBatchQuantity, type MaterialBatch, type BatchStorageAllocation } from '@/api/materials'
 import { getContainerBatches, type StorageRack } from '@/api/storageLocations'
 import { formatContainerBatchOptionFullLabel } from '@/utils/containerBatchLabel'
+import { usePhysicalComboWarningStore } from '@/stores/physicalComboWarning'
 import { useToast } from '@/composables/useToast'
 import { useStorageStructure } from '@/composables/useStorageStructure'
 import StorageLocationPicker from '@/components/storage/StorageLocationPicker.vue'
@@ -166,6 +167,7 @@ const emit = defineEmits<{
 }>()
 
 const toast = useToast()
+const physicalComboWarningStore = usePhysicalComboWarningStore()
 const { racks, slotsByRackId, loadRacks: loadStorageRacks, loadSlots } = useStorageStructure(() => props.departmentId)
 const containerBatches = ref<import('@/api/storageLocations').ContainerBatch[]>([])
 const isSaving = ref(false)
@@ -402,6 +404,14 @@ async function handleSubmit() {
   submitted.value = true
   errorMsg.value = ''
   if (!canSubmit.value) return
+
+  if (
+    form.target_mode === 'kiste' &&
+    form.to_container_batch_id &&
+    !(await physicalComboWarningStore.confirmContainerMove([form.to_container_batch_id]))
+  ) {
+    return
+  }
 
   isSaving.value = true
   try {

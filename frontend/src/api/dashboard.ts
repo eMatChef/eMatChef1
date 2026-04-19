@@ -7,7 +7,6 @@ export interface DashboardActivity {
   name: string
   type: string
   status: string
-  customer_name?: string | null
   group_name?: string | null
   usage_start?: string | null
   usage_end?: string | null

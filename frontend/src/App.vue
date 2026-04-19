@@ -3,6 +3,7 @@
     <router-view />
     <GlobalToastContainer />
     <GlobalConfirmDialog />
+    <PhysicalComboContainerWarningModal />
     <GlobalPromptDialog />
   </div>
 </template>
@@ -15,6 +16,7 @@ import { syncDocumentHead } from '@/composables/usePageHead'
 import { usePageHeadStore } from '@/stores/pageHead'
 import GlobalToastContainer from '@/components/common/GlobalToastContainer.vue'
 import GlobalConfirmDialog from '@/components/common/GlobalConfirmDialog.vue'
+import PhysicalComboContainerWarningModal from '@/components/common/PhysicalComboContainerWarningModal.vue'
 import GlobalPromptDialog from '@/components/common/GlobalPromptDialog.vue'
 
 // Auto-Logout aktivieren

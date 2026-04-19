@@ -36,17 +36,6 @@
     <!-- Schnellaktionen (nur mit Department) -->
     <div v-if="departmentId" class="quick-actions">
       <router-link
-        v-if="showNewActivity"
-        :to="{ path: getLink('/activities'), query: { new: '1', from: 'dashboard' } }"
-        class="quick-action-btn primary"
-      >
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="24" height="24">
-          <line x1="12" y1="5" x2="12" y2="19"/>
-          <line x1="5" y1="12" x2="19" y2="12"/>
-        </svg>
-        <span>Neue Aktivität</span>
-      </router-link>
-      <router-link
         v-if="showMaterialCreate"
         :to="{ path: getLink('/materials'), query: { new: '1', from: 'dashboard' } }"
         class="quick-action-btn primary"
@@ -55,6 +44,19 @@
           <path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
         </svg>
         <span>Material erstellen</span>
+      </router-link>
+      <router-link
+        v-if="showMaterialCreate"
+        :to="{ path: getLink('/activities'), query: { new: '1', from: 'dashboard' } }"
+        class="quick-action-btn primary"
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="24" height="24" aria-hidden="true">
+          <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+          <line x1="16" y1="2" x2="16" y2="6" />
+          <line x1="8" y1="2" x2="8" y2="6" />
+          <line x1="3" y1="10" x2="21" y2="10" />
+        </svg>
+        <span>Aktivität erstellen</span>
       </router-link>
       <button
         class="quick-action-btn"
@@ -322,12 +324,6 @@ const hasSupportAdminRole = computed(() =>
   authStore.userRoles.includes('ROLE_SUBORGCHEF')
 )
 
-const showNewActivity = computed(
-  () =>
-    USER_ROLES.includes(role.value) ||
-    LEADER_ROLES.includes(role.value) ||
-    MW_DASHBOARD_ROLES.includes(role.value)
-)
 const showMaterialCreate = computed(() => MW_DASHBOARD_ROLES.includes(role.value))
 const showActiveActivities = computed(() => USER_ROLES.includes(role.value) || LEADER_ROLES.includes(role.value))
 const showDraftsWidget = computed(() => LEADER_ROLES.includes(role.value))

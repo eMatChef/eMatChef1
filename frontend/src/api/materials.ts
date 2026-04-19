@@ -21,6 +21,8 @@ export interface BatchStorageAllocation {
   container_batch_id?: string | null
   rack_id: string
   slot_id?: string | null
+  /** Lagerstandort (Adresse), zu dem das Gestell gehört */
+  storage_address_name?: string | null
   /** Fallback, falls API flache Namen statt rack-Objekt liefert */
   rack_name?: string
   slot_name?: string
@@ -31,6 +33,7 @@ export interface BatchStorageAllocation {
     serial_number?: string | null
     label?: string | null
     material_name?: string | null
+    storage_address_name?: string | null
     rack?: { id: string; name: string }
     slot?: { id: string; name: string } | null
   } | null
@@ -50,15 +53,47 @@ export interface MaterialBatch {
   label: string | null
   notes: string | null
   serial_number: string | null
+  /** Pro Instanz: Behälter (kann anderen Lagerinhalt aufnehmen) */
+  is_container?: boolean
   rack_id?: string | null
   slot_id?: string | null
   rack?: { id: string; name: string } | null
   slot?: { id: string; name: string } | null
+  /** Lagerstandort am Batch-Rack (wenn keine Allokationszeilen) */
+  storage_address_name?: string | null
   allocations?: BatchStorageAllocation[]
   source_batch_id?: string | null
   conversion_group_id?: string | null
   public_code?: string | null
   public_url?: string | null
+}
+
+/** Eintrag in der Stückliste einer physischen/virtuellen Kombination */
+export interface ComboComponent {
+  id: string
+  parent_material_id: string
+  component_material: {
+    id: string
+    name: string
+    material_type: string
+    tracking_type: string | null
+    total_stock: number
+  }
+  component_batch: {
+    id: string
+    serial_number: string | null
+    label: string | null
+    status: string
+    qty: number
+  } | null
+  qty: number
+  component_role: string | null
+  assignment_mode: 'fixed' | 'assigned' | 'on_issue' | 'bulk'
+  is_optional: boolean
+  sort_order: number
+  is_assigned: boolean
+  is_awaiting: boolean
+  created_at: string
 }
 
 export interface Material {
@@ -94,7 +129,7 @@ export interface Material {
   open_loss_reports: number
   open_loss_qty: number
   batch_count: number
-  is_tent: boolean
+  is_container: boolean
   tent_type: string | null
   tent_capacity: number | null
   reservation_mode: string | null
@@ -103,9 +138,13 @@ export interface Material {
   is_js_material?: boolean
   external_source?: string | null
   sale_price: string | null
+  /** Referenz-EK/Stk.; bei Verbrauchsmaterial/Esswaren Pflicht */
+  reference_purchase_unit_chf?: string | null
   min_stock: number | null
   pack_size: number | null
   pack_unit: string | null
+  /** Optional: CHF pro Verpackungseinheit (Aufteilen auf Stückpreis) */
+  pack_sale_price_chf?: string | null
   created_at: string
   updated_at: string
   public_code?: string | null
@@ -140,6 +179,10 @@ export interface Material {
   
   // Batches
   batches?: MaterialBatch[]
+
+  /** Nur Kombos (physical_combo / virtual_combo), Detail-GET */
+  combo_components?: ComboComponent[]
+  combo_component_count?: number
 }
 
 // Seriennummer-Eintrag für serialisierte Materialien
@@ -147,6 +190,7 @@ export interface SerialNumberEntry {
   serial_number: string
   label?: string
   notes?: string
+  is_container?: boolean
   rack_id?: string
   slot_id?: string
   container_batch_id?: string
@@ -180,13 +224,15 @@ export interface CreateMaterialRequest {
   serial_numbers?: SerialNumberEntry[]
   
   // Details
-  is_tent?: boolean
+  is_container?: boolean
   is_consumable?: boolean
   is_food?: boolean
   sale_price?: string | null
+  reference_purchase_unit_chf?: string | null
   min_stock?: number | null
   pack_size?: number | null
   pack_unit?: string | null
+  pack_sale_price_chf?: string | null
   color?: string | null
   material?: string | null
   size_length?: string | null
@@ -224,14 +270,16 @@ export interface UpdateMaterialRequest {
   condition?: string
   
   // Details
-  is_tent?: boolean
+  is_container?: boolean
   is_consumable?: boolean
   is_food?: boolean
   reservation_mode?: string | null
   sale_price?: string | null
+  reference_purchase_unit_chf?: string | null
   min_stock?: number | null
   pack_size?: number | null
   pack_unit?: string | null
+  pack_sale_price_chf?: string | null
   color?: string | null
   material?: string | null
   size_length?: string | null
@@ -368,6 +416,16 @@ export async function ensureMaterialPublicCode(id: string): Promise<Material> {
   return response.data
 }
 
+/** Physische Kombi, die diese Kisten-Charge als Referenz nutzt (für Warnung beim Befüllen). */
+export async function getLinkedPhysicalComboForContainerBatch(
+  containerBatchId: string
+): Promise<{ id: string; name: string } | null> {
+  const response = await apiClient.get<{ physical_combo: { id: string; name: string } | null }>(
+    `/api/materials/container-batch/${encodeURIComponent(containerBatchId)}/linked-physical-combo`
+  )
+  return response.data.physical_combo ?? null
+}
+
 /**
  * Löscht ein Material (Soft-Delete)
  */
@@ -414,10 +472,11 @@ export interface AddBatchRequest {
   label?: string | null
   rack_id?: string | null
   slot_id?: string | null
+  is_container?: boolean
   allocations?: { rack_id?: string; slot_id?: string; container_batch_id?: string; qty: number }[]
   // Serialisiert + qty > 1:
   serial_numbers?: string[]
-  serial_entries?: { serial_number: string; label?: string }[]
+  serial_entries?: { serial_number: string; label?: string; is_container?: boolean }[]
   serial_prefix?: string
   start_number?: number
   pad_length?: number
@@ -436,6 +495,7 @@ export interface UpdateBatchRequest {
   supplier_id?: string | null
   rack_id?: string | null
   slot_id?: string | null
+  is_container?: boolean
 }
 
 export interface SplitToSerializedRequest {
@@ -584,8 +644,12 @@ export interface MaterialStorageLocationRow {
 }
 
 export interface MaterialStorageViaComboBlock {
+  /** Stücklisten-Zeile (material_combo_component.id) */
+  combo_component_id?: string
   parent_material_id: string
   parent_name: string
+  /** Wenn gesetzt: gilt nur für diese konkrete Serien-Charge (Komponente fest zugewiesen). */
+  component_batch_id: string | null
   component_qty: number
   assignment_mode: string
   locations: MaterialStorageLocationRow[]
@@ -608,33 +672,6 @@ export async function getMaterialStorageLocations(
 }
 
 // ============== Combo-Component Types ==============
-
-export interface ComboComponent {
-  id: string
-  parent_material_id: string
-  component_material: {
-    id: string
-    name: string
-    material_type: string
-    tracking_type: string | null
-    total_stock: number
-  }
-  component_batch: {
-    id: string
-    serial_number: string | null
-    label: string | null
-    status: string
-    qty: number
-  } | null
-  qty: number
-  component_role: string | null
-  assignment_mode: 'fixed' | 'assigned' | 'on_issue' | 'bulk'
-  is_optional: boolean
-  sort_order: number
-  is_assigned: boolean
-  is_awaiting: boolean
-  created_at: string
-}
 
 export interface AddComboComponentRequest {
   component_material_id: string

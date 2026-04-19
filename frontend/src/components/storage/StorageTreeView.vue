@@ -5,6 +5,8 @@
     :readonly="readonly"
     :allow-move-actions="allowMoveActions"
     :allow-open-actions="allowOpenActions"
+    :open-material-without-batch-query="openMaterialWithoutBatchQuery"
+    :embedded-detail-material-id="embeddedDetailMaterialId"
     :container-batch-id="containerBatchId"
     :search-query="searchQuery"
   />
@@ -19,6 +21,9 @@ withDefaults(defineProps<{
   readonly?: boolean
   allowMoveActions?: boolean
   allowOpenActions?: boolean
+  openMaterialWithoutBatchQuery?: boolean
+  /** Im Material-Detail: Kiste öffnen → Tab „Inhalt Kiste/Tasche“ derselben Ansicht */
+  embeddedDetailMaterialId?: string
   containerBatchId?: string
   searchQuery?: string
 }>(), {
@@ -26,6 +31,8 @@ withDefaults(defineProps<{
   readonly: false,
   allowMoveActions: false,
   allowOpenActions: false,
+  openMaterialWithoutBatchQuery: false,
+  embeddedDetailMaterialId: '',
   containerBatchId: '',
   searchQuery: '',
 })

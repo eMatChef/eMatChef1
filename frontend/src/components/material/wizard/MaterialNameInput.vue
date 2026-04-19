@@ -4,7 +4,7 @@
     <div class="input-with-status">
       <input
         ref="inputRef"
-        :model-value="modelValue"
+        :value="modelValue"
         type="text"
         class="form-input"
         :class="{

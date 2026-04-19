@@ -17,6 +17,7 @@ use Doctrine\ORM\Mapping as ORM;
  * - activity.camp_material_lead_days = "1"
  * - activity.camp_material_lag_days = "1"
  * - rental.amortization_* = Standardwerte für den Vermiet-Preisrechner (Abteilung)
+ * - calendar.fcal_geo_id = Geo-ID (feiertagskalender.ch) für Schulferien im Aktivitäts-Kalender
  */
 #[ORM\Entity]
 #[ORM\Table(name: 'department_setting')]
@@ -157,6 +158,13 @@ class DepartmentSetting
     /**
      * Standardwerte für Vermietung: Amortisations-/Preisrechner (pro Department)
      */
+    public static function getCalendarDefaults(): array
+    {
+        return [
+            'calendar.fcal_geo_id' => '',
+        ];
+    }
+
     public static function getRentalAmortizationDefaults(): array
     {
         // Erwartete interne Nutzung / Jahr (typisch: ~14 Sommerlager + 4 Pfingsten + 7 Herbst + ~5 Aktivitäten ≈ 30 Tage)

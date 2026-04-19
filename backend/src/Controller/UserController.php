@@ -480,7 +480,7 @@ class UserController extends AbstractController
 
         return new JsonResponse([
             'success' => true,
-            'last_used_department' => $department->getId(),
+            'last_used_department' => $membership->getDepartment()->getId(),
         ]);
     }
 
