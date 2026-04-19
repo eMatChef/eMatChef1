@@ -57,6 +57,8 @@ Vorlagen: `deploy/docker-compose.override.prod.example.yml` → als `docker-comp
 
 Auf dem Server (nach SSH ins Repo): **`bash deploy/server-prod-apply.sh`** — holt per `git pull` den neuesten Stand, legt Override/`.env` nur an falls nötig, startet `db`+`backend`.
 
+Falls **`doctrine:migrations:migrate`** auf einer **leeren** DB fehlt (z. B. `relation … does not exist`): einmalig **`bash deploy/bootstrap-empty-postgres.sh`** (löscht die DB-Inhalte und erzeugt das Schema aus den Entities, markiert Migrationen als erledigt). Nur bei **frischem** Volume / ohne wichtige Daten.
+
 ## Nützliche Backend-Befehle
 ```bash
 docker exec ematchef_v401-backend-1 php bin/console doctrine:migrations:migrate
