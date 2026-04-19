@@ -51,7 +51,7 @@ composer install
 - Lokale/Dev-Daten liegen ausserhalb des Repos (z. B. `backend/data/`).
 
 ## API-Server (Production, z. B. DigitalOcean)
-Vorlagen mit Prod-Env (APP, CORS, QR, DB-Passwort via `.env`): `deploy/docker-compose.override.prod.example.yml` und `deploy/docker-compose.prod.env.example` – auf den Server kopieren, siehe Kommentarkopf in der YAML. `docker-compose.override.yml` am Repo-Root ist gitignored.
+Vorlagen: `deploy/docker-compose.override.prod.example.yml` → als `docker-compose.override.yml` kopieren; Geheimnisse mit **`bash deploy/init-prod-env.sh`** erzeugen (legt `.env` mit zufälligen Werten an). Manuell: `deploy/docker-compose.prod.env.example`. `docker-compose.override.yml` am Repo-Root ist gitignored.
 
 ## Nützliche Backend-Befehle
 ```bash

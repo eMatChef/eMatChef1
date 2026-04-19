@@ -2,8 +2,8 @@
 #
 # Nutzung auf dem Server:
 #   cp deploy/docker-compose.override.prod.example.yml docker-compose.override.yml
-#   cp deploy/docker-compose.prod.env.example .env
-#   nano .env   # POSTGRES_PASSWORD, APP_SECRET, JWT_PASSPHRASE setzen
+#   bash deploy/init-prod-env.sh
+#   (Alternative: cp deploy/docker-compose.prod.env.example .env && nano .env)
 #
 # Erster Start mit neuem DB-Passwort: Volume ggf. leeren, sonst Passwort zur bestehenden DB passend wählen:
 #   docker compose -p ematchef-prod down -v   # löscht postgres_data – nur wenn Daten weg dürfen!
