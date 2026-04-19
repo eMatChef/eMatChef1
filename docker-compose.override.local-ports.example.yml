@@ -1,0 +1,6 @@
+# Optional für lokale Entwicklung: Postgres auf dem Host unter localhost:5432 erreichbar.
+# Kopieren nach docker-compose.override.yml (gitignored), dann: docker compose up -d
+services:
+  db:
+    ports:
+      - "5432:5432"

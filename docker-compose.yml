@@ -10,8 +10,8 @@ services:
       POSTGRES_PASSWORD: mvpass
       TZ: UTC
       PGTZ: UTC
-    ports:
-      - "5432:5432"
+    # Kein Host-Port: vermeidet Konflikt mit lokalem/OS-Postgres (5432) und Prod-Droplet.
+    # Für Tools auf dem Host: docker-compose.override.local-ports.example.yml → docker-compose.override.yml
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
