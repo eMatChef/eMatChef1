@@ -150,6 +150,8 @@ export async function getWorkshopTickets(
     search?: string
     assigned_to?: string
     activity_id?: string
+    /** Nur Tickets zu diesem Material (z. B. Material-Detail) */
+    material_item_id?: string
   }
 ): Promise<WorkshopTicket[]> {
   const params = new URLSearchParams({ department_id: departmentId })
@@ -160,6 +162,7 @@ export async function getWorkshopTickets(
   if (options?.search) params.append('search', options.search)
   if (options?.assigned_to) params.append('assigned_to', options.assigned_to)
   if (options?.activity_id) params.append('activity_id', options.activity_id)
+  if (options?.material_item_id) params.append('material_item_id', options.material_item_id)
 
   const response = await apiClient.get<WorkshopTicket[]>(`/api/workshop?${params.toString()}`)
   return response.data

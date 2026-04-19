@@ -202,7 +202,7 @@ export interface CreateMaterialFromTemplateResponse {
     id: string
     name: string
     material_type: string
-    is_tent: boolean
+    is_container: boolean
     tent_type: string | null
     tent_capacity: number | null
     reservation_mode: string | null

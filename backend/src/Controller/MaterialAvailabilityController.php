@@ -22,7 +22,7 @@ class MaterialAvailabilityController extends AbstractController
 {
     public function __construct(
         private Connection $connection,
-        private EntityManagerInterface $entityManager
+        private EntityManagerInterface $entityManager,
     ) {}
 
     /**
@@ -64,6 +64,7 @@ class MaterialAvailabilityController extends AbstractController
      * - startDate (optional, ISO 8601 DateTime – ohne Datum wird Gesamtbestand zurückgegeben)
      * - endDate (optional, ISO 8601 DateTime – ohne Datum wird Gesamtbestand zurückgegeben)
      * - search (optional, filtert nach Materialname, ab 1 Zeichen; leer = erste Treffer ohne Namensfilter)
+     * - materialItemIds (optional, Komma-getrennte UUIDs; max. 50 — Ergebnis auf diese Material-Items begrenzen)
      * - excludeActivityId (optional, um eigene Reservierungen auszuschliessen)
      * - limit (optional, default 20)
      * - internalScope (optional, nur bei source=internal): own | invited | both | single
@@ -81,7 +82,28 @@ class MaterialAvailabilityController extends AbstractController
         $startDateTime = $request->query->get('startDate');
         $endDateTime = $request->query->get('endDate');
         $search = trim($request->query->get('search', ''));
+        /** @var list<string> */
+        $materialItemUuidList = [];
+        $materialItemIdsRaw = (string) $request->query->get('materialItemIds', '');
+        if ($materialItemIdsRaw !== '') {
+            foreach (explode(',', $materialItemIdsRaw) as $part) {
+                $id = trim($part);
+                if ($id === '') {
+                    continue;
+                }
+                if (preg_match('/^[0-9a-fA-F-]{36}$/', $id) === 1) {
+                    $materialItemUuidList[] = $id;
+                }
+            }
+            $materialItemUuidList = array_values(array_unique($materialItemUuidList));
+            if (count($materialItemUuidList) > 50) {
+                $materialItemUuidList = array_slice($materialItemUuidList, 0, 50);
+            }
+        }
         $limit = min(50, max(1, (int) $request->query->get('limit', 20)));
+        if ($materialItemUuidList !== []) {
+            $limit = min(50, max($limit, count($materialItemUuidList)));
+        }
         $source = strtolower((string) $request->query->get('source', 'all'));
         $includeGlobalJs = filter_var($request->query->get('includeGlobalJs', '1'), FILTER_VALIDATE_BOOLEAN);
         $activityId = trim((string) $request->query->get('activityId', ''));
@@ -184,6 +206,18 @@ class MaterialAvailabilityController extends AbstractController
                     : "mi.department_id IN ($allowedDeptSql)";
             }
 
+            $materialIdFilterSql = '';
+            $materialIdFilterParams = [];
+            if ($materialItemUuidList !== []) {
+                $midPh = [];
+                foreach ($materialItemUuidList as $idx => $uuid) {
+                    $k = 'mat_filter_' . $idx;
+                    $midPh[] = ':' . $k;
+                    $materialIdFilterParams[$k] = $uuid;
+                }
+                $materialIdFilterSql = ' AND mi.id IN (' . implode(', ', $midPh) . ')';
+            }
+
             if ($hasPeriod) {
                 // Zeitraum-basierte Verfügbarkeit (Department + globales J&S Material)
                 $sql = "SELECT 
@@ -217,12 +251,12 @@ class MaterialAvailabilityController extends AbstractController
                               )
                         ) reserved ON TRUE
                         WHERE mi.deleted_at IS NULL
-                          AND $scopeWhere";
+                          AND $scopeWhere $materialIdFilterSql";
 
                 $params = array_merge([
                     'start_date' => $startDate->format('Y-m-d H:i:s'),
                     'end_date' => $endDate->format('Y-m-d H:i:s'),
-                ], $deptParams);
+                ], $deptParams, $materialIdFilterParams);
             } else {
                 // Ohne Zeitraum: Gesamtbestand (keine Reservierungsprüfung)
                 $sql = "SELECT mi.id AS material_item_id, mi.name, mi.category_id, mi.department_id AS source_department_id, d.name AS source_department_name,
@@ -233,10 +267,10 @@ class MaterialAvailabilityController extends AbstractController
                         JOIN department d ON d.id = mi.department_id
                         LEFT JOIN material_batch mb ON mb.material_item_id = mi.id AND mb.status = 'active'
                         WHERE mi.deleted_at IS NULL
-                          AND $scopeWhere
+                          AND $scopeWhere $materialIdFilterSql
                         GROUP BY mi.id, mi.name, mi.category_id, mi.department_id, d.name";
 
-                $params = $deptParams;
+                $params = array_merge($deptParams, $materialIdFilterParams);
             }
 
             $isPostgres = $this->connection->getDatabasePlatform() instanceof PostgreSQLPlatform;

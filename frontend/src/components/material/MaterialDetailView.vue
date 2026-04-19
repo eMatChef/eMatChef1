@@ -22,9 +22,10 @@
           v-if="showGenerateQrButton"
           class="btn-outline btn-sm"
           :disabled="isGeneratingPublicCode"
+          :title="qrGenerateButtonTitle"
           @click="generateMaterialPublicCode"
         >
-          {{ isGeneratingPublicCode ? 'Erzeuge...' : 'QR code erzeugen' }}
+          {{ qrGenerateButtonLabel }}
         </button>
         <PublicQrTag
           v-if="headerMaterialHasPublicQr"
@@ -97,22 +98,12 @@
                 
                 <div class="form-group">
                   <label>Kategorie</label>
-                  <select v-model="formData.category_id" class="form-select">
-                    <option value="">Ohne Kategorie</option>
-                    <option v-for="cat in categories" :key="cat.id" :value="cat.id">
-                      {{ getCategoryPathById(cat.id) }}
-                    </option>
-                  </select>
-                </div>
-                
-                <div class="form-group">
-                  <label>Lagerort</label>
-                  <select v-model="formData.storage_address_id" class="form-select">
-                    <option value="">Kein Lagerort</option>
-                    <option v-for="addr in storageAddresses" :key="addr.id" :value="addr.id">
-                      {{ addr.name }}
-                    </option>
-                  </select>
+                  <CategoryAutocompleteInput
+                    v-model="formData.category_id"
+                    :categories="categories"
+                    :department-id="departmentId"
+                    @reload-categories="handleCategoryReloadFromPicker"
+                  />
                 </div>
                 
                 <div class="form-group">
@@ -142,9 +133,17 @@
                   <span class="property-label">Vermietung/Verkauf</span>
                   <span class="property-value">Vermietung</span>
                 </div>
-                <div class="property-item">
-                  <span class="property-label">Kann weitere Inhalte haben</span>
-                  <span class="property-value">{{ material.is_tent ? 'Ja' : 'Nein' }}</span>
+                <div
+                  v-if="material.tracking_type === 'bulk'"
+                  class="property-item property-item--checkbox"
+                >
+                  <label class="checkbox-label property-checkbox-label">
+                    <input type="checkbox" v-model="formData.is_container" />
+                    <span>Behälter (kann Lagerinhalt aufnehmen)</span>
+                  </label>
+                  <p class="form-hint text-muted mt-1">
+                    Erscheint in Kisten-/Container-Auswahllisten.
+                  </p>
                 </div>
                 <div class="property-item">
                   <span class="property-label">Quelle</span>
@@ -168,7 +167,7 @@
               </div>
               
               <!-- Reservation-Modus (bei Zelt/Kombo-Materialien) -->
-              <div v-if="material.is_tent || material.material_type === 'physical_combo' || material.material_type === 'virtual_combo'" class="form-grid mt-4">
+              <div v-if="material.is_container || material.material_type === 'physical_combo' || material.material_type === 'virtual_combo'" class="form-grid mt-4">
                 <div class="form-group span-2">
                   <label>Reservationsmodus</label>
                   <select v-model="formData.reservation_mode" class="form-select">
@@ -240,8 +239,8 @@
               </div>
             </div>
 
-            <!-- Verpackungseinheit -->
-            <div class="section-card">
+            <!-- Verpackungseinheit (bei Verbrauch/Essen siehe Kosten) -->
+            <div v-if="!material.is_consumable && !material.is_food" class="section-card">
               <h2 class="section-title">Verpackungseinheit</h2>
               <p class="section-hint">Wenn das Material in Bündeln, Kisten, Sets oder Rollen gelagert wird</p>
               
@@ -283,6 +282,136 @@
               <p v-if="formData.pack_size && formData.pack_unit" class="pack-preview">
                 Beispiel: {{ material.total_stock || 80 }} Stk. = {{ Math.floor((material.total_stock || 80) / formData.pack_size) }} {{ formData.pack_unit }} à {{ formData.pack_size }} Stk.
                 <span v-if="(material.total_stock || 80) % formData.pack_size !== 0"> + {{ (material.total_stock || 80) % formData.pack_size }} Stk.</span>
+              </p>
+            </div>
+
+            <div v-if="material.is_consumable || material.is_food" class="section-card">
+              <h2 class="section-title">Kosten</h2>
+              <p class="section-hint">Verkaufs- und Referenz-Einkaufspreis pro Stück sind verpflichtend; Verpackung optional.</p>
+              <div v-if="material.is_consumable" class="costs-hint-banner">
+                <span>Wird bei Ausgabe sofort vom Bestand abgezogen.</span>
+              </div>
+              <div v-if="material.is_food" class="costs-hint-banner costs-hint-banner--food">
+                <span>Esswaren – Haltbarkeit pro Charge.</span>
+              </div>
+              <div class="form-grid">
+                <div class="form-group">
+                  <label>Verkaufspreis (CHF/Stk.) <span class="field-required-star">*</span></label>
+                  <div class="input-with-prefix">
+                    <span class="prefix">Fr.</span>
+                    <input
+                      v-model.number="formData.sale_price"
+                      type="number"
+                      step="0.05"
+                      min="0"
+                      class="form-input"
+                      placeholder="0.00"
+                    />
+                  </div>
+                  <p class="form-hint">Verkauf / Abrechnung pro Stück</p>
+                  <div
+                    v-if="packSaleDerivedUnitPrice != null"
+                    class="pack-sale-to-unit"
+                  >
+                    <p class="pack-sale-to-unit__text">
+                      Rechner:
+                      {{ formData.pack_sale_price_chf != null ? Number(formData.pack_sale_price_chf).toFixed(2) : '—' }}&nbsp;CHF
+                      pro {{ formData.pack_unit || 'Einheit' }}
+                      ÷ {{ formData.pack_size }}&nbsp;Stk.
+                      =
+                      <strong>{{ packSaleDerivedUnitPrice.toFixed(2) }}</strong>
+                      CHF/Stk.
+                    </p>
+                    <button
+                      type="button"
+                      class="btn-outline btn-sm pack-sale-to-unit__btn"
+                      @click="applyPackSaleToUnitSalePrice"
+                    >
+                      Als Stückpreis übernehmen
+                    </button>
+                  </div>
+                </div>
+                <div class="form-group">
+                  <label>Einkaufspreis Referenz (CHF/Stk.) <span class="field-required-star">*</span></label>
+                  <div class="input-with-prefix">
+                    <span class="prefix">Fr.</span>
+                    <input
+                      v-model.number="formData.reference_purchase_unit_chf"
+                      type="number"
+                      step="0.05"
+                      min="0"
+                      class="form-input"
+                      placeholder="0.00"
+                    />
+                  </div>
+                  <p class="form-hint">Übersicht und Buchhaltung</p>
+                </div>
+                <div v-if="material.is_consumable" class="form-group">
+                  <label>Mindestbestand <span class="optional">(optional)</span></label>
+                  <input v-model.number="formData.min_stock" type="number" min="0" class="form-input" placeholder="z.B. 10" />
+                </div>
+              </div>
+
+              <h3 class="subsection-heading-kosten">Verpackungseinheit</h3>
+              <p class="section-hint">Optional: Stück pro Einheit; Preis pro Einheit zum Aufteilen auf den Stückpreis</p>
+              <div class="form-grid">
+                <div class="form-group">
+                  <label>Stück pro Einheit</label>
+                  <input
+                    v-model.number="formData.pack_size"
+                    type="number"
+                    min="2"
+                    class="form-input"
+                    placeholder="z.B. 10"
+                  />
+                </div>
+                <div class="form-group">
+                  <label>Bezeichnung</label>
+                  <div class="pack-unit-select">
+                    <select v-model="formData.pack_unit" class="form-select">
+                      <option value="">– keine –</option>
+                      <option value="Bündel">Bündel</option>
+                      <option value="Kiste">Kiste</option>
+                      <option value="Karton">Karton</option>
+                      <option value="Sack">Sack</option>
+                      <option value="Rolle">Rolle</option>
+                      <option value="Palette">Palette</option>
+                      <option value="Set">Set</option>
+                      <option value="Paket">Paket</option>
+                    </select>
+                    <input
+                      v-if="formData.pack_unit && !['Bündel','Kiste','Karton','Sack','Rolle','Palette','Set','Paket',''].includes(formData.pack_unit)"
+                      v-model="formData.pack_unit"
+                      type="text"
+                      class="form-input mt-1"
+                      placeholder="Eigene Bezeichnung..."
+                    />
+                  </div>
+                </div>
+                <div class="form-group">
+                  <label>Verkaufspreis pro Einheit (CHF) <span class="optional">(optional)</span></label>
+                  <div class="input-with-prefix">
+                    <span class="prefix">Fr.</span>
+                    <input
+                      v-model.number="formData.pack_sale_price_chf"
+                      type="number"
+                      step="0.05"
+                      min="0"
+                      class="form-input"
+                      placeholder="0.00"
+                    />
+                  </div>
+                  <p
+                    v-if="formData.pack_size && formData.pack_size >= 2 && formData.pack_sale_price_chf && formData.pack_sale_price_chf > 0"
+                    class="form-hint"
+                  >
+                    Entspricht ca. {{ (formData.pack_sale_price_chf / formData.pack_size).toFixed(2) }} CHF/Stk.
+                  </p>
+                </div>
+              </div>
+              <p v-if="formData.pack_size && formData.pack_unit" class="pack-preview">
+                Beispiel: {{ material.total_stock || 0 }} Stk. = {{ Math.floor((material.total_stock || 0) / formData.pack_size) }} {{ formData.pack_unit }} à {{ formData.pack_size }} Stk.
+                <span v-if="(material.total_stock || 0) % formData.pack_size !== 0"> + {{ (material.total_stock || 0) % formData.pack_size }} Stk.</span>
               </p>
             </div>
           </section>
@@ -352,18 +481,74 @@
               <table class="batch-table" v-if="activeBatches.length > 0">
                 <thead>
                   <tr>
-                    <th>Einkaufsdatum</th>
-                    <th>Menge</th>
-                    <th>Label</th>
-                    <th>Preis/Stk</th>
-                    <th>Lagerplatz</th>
-                    <th>Status</th>
-                    <th>Notiz</th>
+                    <th class="th-sort-cell">
+                      <button type="button" class="detail-th-sort" title="Nach Einkaufsdatum sortieren" @click="toggleStockSort('acquired_on')">
+                        <span>Einkaufsdatum</span>
+                        <span class="detail-th-sort-arrows" aria-hidden="true">
+                          <span class="detail-sort-chev" :class="{ active: stockSortKey === 'acquired_on' && stockSortDir === 'asc' }">▲</span>
+                          <span class="detail-sort-chev" :class="{ active: stockSortKey === 'acquired_on' && stockSortDir === 'desc' }">▼</span>
+                        </span>
+                      </button>
+                    </th>
+                    <th class="th-sort-cell">
+                      <button type="button" class="detail-th-sort" title="Nach Menge sortieren" @click="toggleStockSort('qty')">
+                        <span>Menge</span>
+                        <span class="detail-th-sort-arrows" aria-hidden="true">
+                          <span class="detail-sort-chev" :class="{ active: stockSortKey === 'qty' && stockSortDir === 'asc' }">▲</span>
+                          <span class="detail-sort-chev" :class="{ active: stockSortKey === 'qty' && stockSortDir === 'desc' }">▼</span>
+                        </span>
+                      </button>
+                    </th>
+                    <th class="th-sort-cell">
+                      <button type="button" class="detail-th-sort" title="Nach Label sortieren" @click="toggleStockSort('label')">
+                        <span>Label</span>
+                        <span class="detail-th-sort-arrows" aria-hidden="true">
+                          <span class="detail-sort-chev" :class="{ active: stockSortKey === 'label' && stockSortDir === 'asc' }">▲</span>
+                          <span class="detail-sort-chev" :class="{ active: stockSortKey === 'label' && stockSortDir === 'desc' }">▼</span>
+                        </span>
+                      </button>
+                    </th>
+                    <th class="th-sort-cell">
+                      <button type="button" class="detail-th-sort" title="Nach Preis sortieren" @click="toggleStockSort('unit_price')">
+                        <span>Preis/Stk</span>
+                        <span class="detail-th-sort-arrows" aria-hidden="true">
+                          <span class="detail-sort-chev" :class="{ active: stockSortKey === 'unit_price' && stockSortDir === 'asc' }">▲</span>
+                          <span class="detail-sort-chev" :class="{ active: stockSortKey === 'unit_price' && stockSortDir === 'desc' }">▼</span>
+                        </span>
+                      </button>
+                    </th>
+                    <th class="th-sort-cell">
+                      <button type="button" class="detail-th-sort" title="Nach Lagerplatz sortieren" @click="toggleStockSort('location')">
+                        <span>Lagerplatz</span>
+                        <span class="detail-th-sort-arrows" aria-hidden="true">
+                          <span class="detail-sort-chev" :class="{ active: stockSortKey === 'location' && stockSortDir === 'asc' }">▲</span>
+                          <span class="detail-sort-chev" :class="{ active: stockSortKey === 'location' && stockSortDir === 'desc' }">▼</span>
+                        </span>
+                      </button>
+                    </th>
+                    <th class="th-sort-cell">
+                      <button type="button" class="detail-th-sort" title="Nach Status sortieren" @click="toggleStockSort('status')">
+                        <span>Status</span>
+                        <span class="detail-th-sort-arrows" aria-hidden="true">
+                          <span class="detail-sort-chev" :class="{ active: stockSortKey === 'status' && stockSortDir === 'asc' }">▲</span>
+                          <span class="detail-sort-chev" :class="{ active: stockSortKey === 'status' && stockSortDir === 'desc' }">▼</span>
+                        </span>
+                      </button>
+                    </th>
+                    <th class="th-sort-cell">
+                      <button type="button" class="detail-th-sort" title="Nach Notiz sortieren" @click="toggleStockSort('notes')">
+                        <span>Notiz</span>
+                        <span class="detail-th-sort-arrows" aria-hidden="true">
+                          <span class="detail-sort-chev" :class="{ active: stockSortKey === 'notes' && stockSortDir === 'asc' }">▲</span>
+                          <span class="detail-sort-chev" :class="{ active: stockSortKey === 'notes' && stockSortDir === 'desc' }">▼</span>
+                        </span>
+                      </button>
+                    </th>
                     <th></th>
                   </tr>
                 </thead>
                 <tbody>
-                  <tr v-for="batch in activeBatches" :key="batch.id">
+                  <tr v-for="batch in sortedActiveBatches" :key="batch.id">
                     <td>{{ formatDate(batch.acquired_on) }}</td>
                     <td class="qty-cell">{{ batch.qty }}</td>
                     <td>{{ batch.label || '-' }}</td>
@@ -403,7 +588,7 @@
                           <path d="M5 9l-3 3 3 3M9 5l3-3 3 3M15 19l-3 3-3-3M19 9l3 3-3 3M2 12h20M12 2v20"/>
                         </svg>
                       </button>
-                      <button class="icon-btn" title="Charge bearbeiten" @click="openEditBatchModal(batch)">
+                      <button class="icon-btn" title="Charge bearbeiten" @click.stop="openEditBatchModal(batch)">
                         <svg class="table-icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                           <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
                           <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
@@ -434,8 +619,152 @@
                 :material-id="props.materialId"
                 :readonly="true"
                 :allow-move-actions="true"
-                :allow-open-actions="true"
+                :allow-open-actions="material.material_type === 'physical_combo'"
+                :embedded-detail-material-id="props.materialId"
               />
+            </div>
+          </section>
+
+          <!-- Tab: Zusammensetzung (physische / virtuelle Kombination) -->
+          <section v-else-if="activeTab === 'composition'" class="tab-content">
+            <div class="section-card composition-tab-card">
+              <div class="section-header-row composition-tab-head">
+                <div>
+                  <h2 class="section-title">Zusammensetzung</h2>
+                  <p class="composition-tab-intro">
+                    Welche Artikel und Chargen zu dieser Kombination gehören. Den Status der zugewiesenen Komponenten-Charge
+                    (z.&nbsp;B. defekt) sehen Sie in der Spalte „Charge-Status“. Werkstatt-Tickets zur Kombination finden Sie
+                    unter „Werkstatt“.
+                  </p>
+                </div>
+                <div class="composition-tab-actions">
+                  <button type="button" class="btn-primary btn-sm" @click="openAddCompositionModal">
+                    Aus Bestand hinzufügen
+                  </button>
+                  <button type="button" class="btn-outline-small" @click="emitCreateMaterialForComposition">
+                    Neues Material anlegen
+                  </button>
+                  <button type="button" class="btn-outline-small" :disabled="comboComponentsLoading" @click="loadComboComponentsForTab">
+                    Aktualisieren
+                  </button>
+                </div>
+              </div>
+
+              <div v-if="comboComponentsLoading" class="loading-container composition-loading">
+                <div class="spinner"></div>
+                <p>Zusammensetzung wird geladen…</p>
+              </div>
+              <div v-else-if="comboComponentsList.length === 0" class="empty-used-in">
+                <p>Keine Komponenten zugewiesen.</p>
+                <p class="text-muted composition-hint">
+                  Über „Aus Bestand hinzufügen“ oder „Neues Material anlegen“ können Sie Stücklisten-Einträge ergänzen – auch
+                  wenn die Kombination nicht aus einer Vorlage stammt.
+                </p>
+              </div>
+              <div v-else class="composition-table-wrapper">
+              <table class="used-in-table composition-table">
+                <thead>
+                  <tr>
+                    <th>Komponente</th>
+                    <th>Rolle</th>
+                    <th>Menge</th>
+                    <th>Seriennummer</th>
+                    <th>Charge-Status</th>
+                    <th>Zuordnung</th>
+                    <th aria-label="Status"></th>
+                    <th class="composition-actions-th">Aktionen</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="comp in comboComponentsList" :key="comp.id" class="used-in-row">
+                    <td>
+                      <button type="button" class="link-btn composition-comp-link" @click="openComponentMaterialDetail(comp.component_material.id)">
+                        {{ comp.component_material.name }}
+                      </button>
+                      <span v-if="comp.is_optional" class="composition-optional-badge">optional</span>
+                    </td>
+                    <td>{{ comp.component_role || '–' }}</td>
+                    <td>{{ comp.qty }}</td>
+                    <td>
+                      <span v-if="comp.component_batch?.serial_number" class="serial-code">{{ comp.component_batch.serial_number }}</span>
+                      <span v-else class="text-muted">–</span>
+                    </td>
+                    <td>
+                      <span
+                        v-if="comp.component_batch"
+                        class="status-badge"
+                        :class="comp.component_batch.status"
+                      >
+                        {{ statusLabels[comp.component_batch.status] || comp.component_batch.status }}
+                      </span>
+                      <span v-else class="text-muted">–</span>
+                    </td>
+                    <td class="composition-assignment-cell">
+                      <span
+                        class="assignment-badge"
+                        :class="comp.assignment_mode === 'fixed' ? 'fix' : comp.assignment_mode"
+                        :title="comboAssignmentLabels[comp.assignment_mode] || comp.assignment_mode"
+                      >
+                        {{ comboAssignmentLabelsShort[comp.assignment_mode] || comp.assignment_mode }}
+                      </span>
+                    </td>
+                    <td class="composition-status-cell">
+                      <span v-if="comp.is_awaiting" class="composition-dot composition-dot--await" title="Wartet auf Zuweisung" />
+                      <span v-else-if="comp.is_assigned" class="composition-dot composition-dot--ok" title="Zugewiesen" />
+                      <span v-else class="composition-dot composition-dot--linked" title="Verknüpft" />
+                    </td>
+                    <td class="composition-actions-cell">
+                      <div class="composition-row-actions">
+                        <button
+                          type="button"
+                          class="icon-btn"
+                          title="Bearbeiten"
+                          aria-label="Komponente bearbeiten"
+                          @click="openEditCompositionModal(comp)"
+                        >
+                          <svg class="table-icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                          </svg>
+                        </button>
+                        <button
+                          type="button"
+                          class="icon-btn icon-btn-danger"
+                          title="Aus Kombination entfernen"
+                          aria-label="Komponente löschen"
+                          :disabled="deletingCompositionId === comp.id"
+                          @click="confirmDeleteComposition(comp)"
+                        >
+                          <svg
+                            v-if="deletingCompositionId === comp.id"
+                            class="table-icon-sm composition-icon-spin"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2"
+                          >
+                            <path d="M23 4v6h-6M1 20v-6h6" />
+                            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+                          </svg>
+                          <svg
+                            v-else
+                            class="table-icon-sm"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                          >
+                            <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6M10 11v6M14 11v6" />
+                          </svg>
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+              </div>
             </div>
           </section>
 
@@ -580,18 +909,83 @@
                 <thead>
                   <tr>
                     <th>#</th>
-                    <th>Seriennummer</th>
-                    <th>Code</th>
-                    <th>Label</th>
-                    <th>Erfasst am</th>
-                    <th>Lagerplatz</th>
-                    <th>Status</th>
-                    <th>Notiz</th>
+                    <th class="th-sort-cell">
+                      <button type="button" class="detail-th-sort" title="Nach Seriennummer sortieren" @click="toggleSerialSort('serial_number')">
+                        <span>Seriennummer</span>
+                        <span class="detail-th-sort-arrows" aria-hidden="true">
+                          <span class="detail-sort-chev" :class="{ active: serialSortKey === 'serial_number' && serialSortDir === 'asc' }">▲</span>
+                          <span class="detail-sort-chev" :class="{ active: serialSortKey === 'serial_number' && serialSortDir === 'desc' }">▼</span>
+                        </span>
+                      </button>
+                    </th>
+                    <th class="th-sort-cell">
+                      <button type="button" class="detail-th-sort" title="Nach Code sortieren" @click="toggleSerialSort('public_code')">
+                        <span>Code</span>
+                        <span class="detail-th-sort-arrows" aria-hidden="true">
+                          <span class="detail-sort-chev" :class="{ active: serialSortKey === 'public_code' && serialSortDir === 'asc' }">▲</span>
+                          <span class="detail-sort-chev" :class="{ active: serialSortKey === 'public_code' && serialSortDir === 'desc' }">▼</span>
+                        </span>
+                      </button>
+                    </th>
+                    <th class="th-sort-cell">
+                      <button type="button" class="detail-th-sort" title="Nach Label sortieren" @click="toggleSerialSort('label')">
+                        <span>Label</span>
+                        <span class="detail-th-sort-arrows" aria-hidden="true">
+                          <span class="detail-sort-chev" :class="{ active: serialSortKey === 'label' && serialSortDir === 'asc' }">▲</span>
+                          <span class="detail-sort-chev" :class="{ active: serialSortKey === 'label' && serialSortDir === 'desc' }">▼</span>
+                        </span>
+                      </button>
+                    </th>
+                    <th class="th-sort-cell th-serial-behälter">
+                      <button type="button" class="detail-th-sort" title="Nach Behälter sortieren" @click="toggleSerialSort('is_container')">
+                        <span>Behälter</span>
+                        <span class="detail-th-sort-arrows" aria-hidden="true">
+                          <span class="detail-sort-chev" :class="{ active: serialSortKey === 'is_container' && serialSortDir === 'asc' }">▲</span>
+                          <span class="detail-sort-chev" :class="{ active: serialSortKey === 'is_container' && serialSortDir === 'desc' }">▼</span>
+                        </span>
+                      </button>
+                    </th>
+                    <th class="th-sort-cell">
+                      <button type="button" class="detail-th-sort" title="Nach Erfassungsdatum sortieren" @click="toggleSerialSort('acquired_on')">
+                        <span>Erfasst am</span>
+                        <span class="detail-th-sort-arrows" aria-hidden="true">
+                          <span class="detail-sort-chev" :class="{ active: serialSortKey === 'acquired_on' && serialSortDir === 'asc' }">▲</span>
+                          <span class="detail-sort-chev" :class="{ active: serialSortKey === 'acquired_on' && serialSortDir === 'desc' }">▼</span>
+                        </span>
+                      </button>
+                    </th>
+                    <th class="th-sort-cell">
+                      <button type="button" class="detail-th-sort" title="Nach Lagerplatz sortieren" @click="toggleSerialSort('location')">
+                        <span>Lagerplatz</span>
+                        <span class="detail-th-sort-arrows" aria-hidden="true">
+                          <span class="detail-sort-chev" :class="{ active: serialSortKey === 'location' && serialSortDir === 'asc' }">▲</span>
+                          <span class="detail-sort-chev" :class="{ active: serialSortKey === 'location' && serialSortDir === 'desc' }">▼</span>
+                        </span>
+                      </button>
+                    </th>
+                    <th class="th-sort-cell">
+                      <button type="button" class="detail-th-sort" title="Nach Status sortieren" @click="toggleSerialSort('status')">
+                        <span>Status</span>
+                        <span class="detail-th-sort-arrows" aria-hidden="true">
+                          <span class="detail-sort-chev" :class="{ active: serialSortKey === 'status' && serialSortDir === 'asc' }">▲</span>
+                          <span class="detail-sort-chev" :class="{ active: serialSortKey === 'status' && serialSortDir === 'desc' }">▼</span>
+                        </span>
+                      </button>
+                    </th>
+                    <th class="th-sort-cell">
+                      <button type="button" class="detail-th-sort" title="Nach Notiz sortieren" @click="toggleSerialSort('notes')">
+                        <span>Notiz</span>
+                        <span class="detail-th-sort-arrows" aria-hidden="true">
+                          <span class="detail-sort-chev" :class="{ active: serialSortKey === 'notes' && serialSortDir === 'asc' }">▲</span>
+                          <span class="detail-sort-chev" :class="{ active: serialSortKey === 'notes' && serialSortDir === 'desc' }">▼</span>
+                        </span>
+                      </button>
+                    </th>
                     <th></th>
                   </tr>
                 </thead>
                 <tbody>
-                  <tr v-for="(batch, index) in serialBatches" :key="batch.id">
+                  <tr v-for="(batch, index) in sortedSerialBatches" :key="batch.id">
                     <td class="col-num">{{ index + 1 }}</td>
                     <td class="col-serial">
                       <span class="serial-code">{{ batch.serial_number }}</span>
@@ -608,6 +1002,16 @@
                       />
                     </td>
                     <td>{{ batch.label || '-' }}</td>
+                    <td class="col-serial-container">
+                      <label class="checkbox-label serial-behälter-cell">
+                        <input
+                          type="checkbox"
+                          :checked="!!batch.is_container"
+                          :disabled="!!serialIsContainerSaving[batch.id]"
+                          @change="onSerialBatchIsContainerChange(batch, ($event.target as HTMLInputElement).checked)"
+                        />
+                      </label>
+                    </td>
                     <td>{{ formatDate(batch.acquired_on) }}</td>
                     <td class="location-cell">
                       <div class="location-lines">
@@ -634,7 +1038,7 @@
                     </td>
                     <td class="notes-cell">{{ batch.notes || '-' }}</td>
                     <td class="actions-cell">
-                      <button class="icon-btn" title="Charge bearbeiten" @click="openEditBatchModal(batch)">
+                      <button class="icon-btn" title="Charge bearbeiten" @click.stop="openEditBatchModal(batch)">
                         <svg class="table-icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                           <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
                           <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
@@ -655,16 +1059,157 @@
           </section>
 
           <!-- Tab: Vermietung -->
+          <section v-else-if="activeTab === 'workshop'" class="tab-content">
+            <div class="section-card">
+              <h2 class="section-title">Werkstatt &amp; Reparaturen</h2>
+              <p class="form-hint" style="margin-top: 0">
+                Tickets aus Aktivitäten (Rückgabe defekt, Meldungen) und manuelle Aufträge für dieses Material.
+              </p>
+              <div v-if="workshopTicketsLoading" class="loading-inline">
+                <div class="spinner"></div>
+                <span>Tickets werden geladen…</span>
+              </div>
+              <div v-else-if="workshopTickets.length === 0" class="empty-serials">
+                <p>Keine Werkstatt-Tickets für dieses Material.</p>
+                <div class="workshop-tab-actions">
+                  <router-link
+                    class="btn-primary"
+                    :to="{ path: `/${departmentId}/workshop`, query: { material_id: materialId } }"
+                  >
+                    Zur Werkstatt (Material gefiltert)
+                  </router-link>
+                </div>
+                <p class="form-hint">Dort kannst du ein neues Ticket erfassen; bei aktivem Material-Filter ist die Vorauswahl gesetzt.</p>
+              </div>
+              <div v-else>
+                <table class="batch-table workshop-tickets-mini">
+                  <thead>
+                    <tr>
+                      <th>Ticket</th>
+                      <th>Typ</th>
+                      <th>Status</th>
+                      <th>Aktivität</th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="wt in workshopTickets" :key="wt.id">
+                      <td>{{ wt.title }}</td>
+                      <td>{{ wt.type_label }}</td>
+                      <td>
+                        <span class="status-badge">{{ wt.status_label }}</span>
+                      </td>
+                      <td>
+                        <router-link
+                          v-if="wt.activity_id"
+                          :to="`/${departmentId}/activities/${wt.activity_id}`"
+                          class="link-btn"
+                        >
+                          Öffnen
+                        </router-link>
+                        <span v-else class="muted">—</span>
+                      </td>
+                      <td class="actions-cell">
+                        <router-link
+                          class="btn-outline btn-sm"
+                          :to="{ path: `/${departmentId}/workshop`, query: { material_id: materialId, ticket: wt.id } }"
+                        >
+                          In Werkstatt
+                        </router-link>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+                <div class="workshop-tab-actions mt-3">
+                  <router-link
+                    class="btn-outline btn-sm"
+                    :to="{ path: `/${departmentId}/workshop`, query: { material_id: materialId } }"
+                  >
+                    Alle in der Werkstatt
+                  </router-link>
+                </div>
+              </div>
+            </div>
+          </section>
+
           <section v-else-if="activeTab === 'rental'" class="tab-content">
             <div class="section-card">
               <h2 class="section-title">Vermietung</h2>
 
+              <div
+                v-if="material.material_type === 'physical_combo' || material.material_type === 'virtual_combo'"
+                class="combo-rental-basis-section"
+              >
+                <h3 class="section-subtitle combo-rental-basis-title">Anschaffung aus Zusammensetzung (ein Set)</h3>
+                <p class="form-hint combo-rental-basis-intro">
+                  Pro Komponente: Summe (aktive Chargen mit Stückpreis) geteilt durch die Stückzahl dieser Chargen —
+                  ergibt den durchschnittlichen Anschaffungspreis pro Stück; multipliziert mit der Menge im Set.
+                  Optional: gleiche Logik wie im Amortisationsrechner bei Einzelmaterial.
+                </p>
+                <div v-if="comboRentalLoading" class="loading-inline combo-rental-loading">
+                  <div class="spinner"></div>
+                  <span>Komponenten und Chargen werden geladen…</span>
+                </div>
+                <p v-else-if="comboRentalError" class="form-hint text-warning">{{ comboRentalError }}</p>
+                <p v-else-if="comboRentalRows.length === 0" class="empty-serials combo-rental-empty">
+                  Keine Einträge in der Stückliste. Unter „Zusammensetzung“ Komponenten hinzufügen, damit eine Basis
+                  berechnet werden kann.
+                </p>
+                <template v-else>
+                  <div class="combo-rental-basis-table-wrap">
+                    <table class="batch-table combo-rental-basis-table">
+                      <thead>
+                        <tr>
+                          <th>Komponente</th>
+                          <th class="combo-rental-col-num">Menge im Set</th>
+                          <th class="combo-rental-col-num">Ø Anschaffung / Stk.</th>
+                          <th class="combo-rental-col-num">Zeile</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr v-for="(row, idx) in comboRentalRows" :key="`${row.componentId}-${idx}`">
+                          <td>
+                            <span>{{ row.name }}</span>
+                            <span v-if="row.optional" class="composition-optional-badge">optional</span>
+                          </td>
+                          <td class="combo-rental-col-num">{{ row.qty }}</td>
+                          <td class="combo-rental-col-num">
+                            <template v-if="row.perPieceChf != null">Fr. {{ formatChfFiveRappenString(row.perPieceChf) }}</template>
+                            <span v-else class="muted">—</span>
+                          </td>
+                          <td class="combo-rental-col-num">
+                            <template v-if="row.lineChf != null">Fr. {{ formatChfFiveRappenString(row.lineChf) }}</template>
+                            <span v-else class="muted">—</span>
+                          </td>
+                        </tr>
+                      </tbody>
+                      <tfoot>
+                        <tr class="combo-rental-total-row">
+                          <th colspan="3">Summe (ein Set)</th>
+                          <th class="combo-rental-col-num">
+                            <template v-if="rentalAcquisitionBasisChf != null">
+                              Fr. {{ formatChfFiveRappenString(rentalAcquisitionBasisChf) }}
+                            </template>
+                            <span v-else class="muted">—</span>
+                          </th>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                  <p v-if="comboRentalHasGap" class="form-hint combo-rental-gap-hint">
+                    Mindestens eine Zeile ohne verwertbaren Stückpreis (Chargen). Die Summe enthält nur vollständige
+                    Zeilen; du kannst die Kalkulationsbasis unten manuell setzen.
+                  </p>
+                </template>
+              </div>
+
               <RentalPriceAmortizationCalculator
+                v-if="showRentalAmortizationCalculator"
                 v-model="formData.rental_calc_params"
                 :defaults="rentalAmortizationDefaults"
-                :historical-basis-chf="acquisitionBasisChf"
-                :piece-count="acquisitionPieceCount ?? undefined"
-                context="batches"
+                :historical-basis-chf="rentalAcquisitionBasisChf"
+                :piece-count="rentalAcquisitionPieceCount ?? undefined"
+                :context="rentalAmortizationContext"
                 @apply="onRentalCalculatorApply"
               />
               
@@ -716,6 +1261,17 @@
                   <input type="checkbox" v-model="formData.rental_requires_approval" />
                   <span>Genehmigung erforderlich</span>
                 </label>
+              </div>
+
+              <div v-if="formData.rental_external_allowed" class="form-group span-full mt-2">
+                <label>Externe Vermietung — Reichweite</label>
+                <select v-model="formData.rental_scope" class="form-select">
+                  <option value="">— nicht festgelegt —</option>
+                  <option value="department">Nur eigenes Department</option>
+                  <option value="organisation">Ganze Organisation</option>
+                  <option value="public">Öffentlich / externe Mieter</option>
+                </select>
+                <p class="form-hint">Steuert, wer das Material extern mieten darf (sofern die App dies auswertet).</p>
               </div>
 
               <div class="form-group span-full mt-4">
@@ -844,7 +1400,7 @@
                     </td>
                     <td>{{ entry.qty }}</td>
                     <td>
-                      <span class="assignment-badge" :class="entry.assignment_mode">
+                      <span class="assignment-badge" :class="entry.assignment_mode === 'fixed' ? 'fix' : entry.assignment_mode">
                         {{ usedInAssignmentLabels[entry.assignment_mode] || entry.assignment_mode }}
                       </span>
                     </td>
@@ -1015,7 +1571,15 @@
           <div class="sidebar-card">
             <div class="sidebar-header">
               <h3>Bestand</h3>
-              <button class="link-btn" @click="activeTab = 'stock'">Ändern</button>
+              <button
+                v-if="isComboMaterialView"
+                type="button"
+                class="link-btn"
+                @click="activeTab = 'composition'"
+              >
+                Zusammensetzung
+              </button>
+              <button v-else type="button" class="link-btn" @click="activeTab = 'stock'">Ändern</button>
             </div>
             <div class="stock-quick">
               <div class="stock-row stock-row-total">
@@ -1178,6 +1742,129 @@
       </div>
     </div>
 
+    <div v-if="showAddCompositionModal" class="modal-overlay" @click.self="closeAddCompositionModal">
+      <div class="modal-dialog composition-add-modal">
+        <h3>Komponente hinzufügen</h3>
+        <p class="text-muted composition-add-modal-intro">
+          Wählen Sie einen bestehenden Artikel aus Ihrem Materialbestand. Die Zuordnung (z.&nbsp;B. Mengenware) können Sie
+          bei Bedarf später anpassen.
+        </p>
+        <div class="form-group">
+          <label>Artikel suchen</label>
+          <MaterialLookupInput
+            v-model="addCompositionSearch"
+            :fetcher="compositionMaterialFetcher"
+            :min-chars="1"
+            :max-suggestions="8"
+            placeholder="Name oder Code…"
+            :loading-text="'Suche…'"
+            :empty-text="`Keine Treffer für „${addCompositionSearch || ''}“`"
+            :get-result-label="compositionLookupLabel"
+            :get-result-secondary="formatCompositionLookupSecondary"
+            @select="handleCompositionMaterialSelect"
+          />
+        </div>
+        <div v-if="addCompositionSelected" class="form-group">
+          <label>Ausgewählter Artikel</label>
+          <div class="selected-source-material">
+            <div class="name">{{ addCompositionSelected.name }}</div>
+            <div class="meta">{{ addCompositionSelected.total_stock ?? 0 }} Stk. gesamt</div>
+            <button type="button" class="btn-outline-small" @click="clearAddCompositionSelection">Ändern</button>
+          </div>
+        </div>
+        <div v-if="addCompositionSelected" class="form-group">
+          <label>Menge</label>
+          <input v-model.number="addCompositionQty" type="number" min="1" class="form-input" />
+        </div>
+        <div v-if="addCompositionSelected" class="form-group">
+          <label>Rolle (optional)</label>
+          <input v-model="addCompositionRole" type="text" class="form-input" placeholder="z.&nbsp;B. Aussenzelt, Heringe" />
+        </div>
+        <div v-if="addCompositionSelected" class="form-group">
+          <label class="checkbox-label">
+            <input v-model="addCompositionOptional" type="checkbox" />
+            Optional (nicht zwingend für die Kombination)
+          </label>
+        </div>
+        <div v-if="addCompositionSelected" class="form-group">
+          <label>Zuordnung</label>
+          <select v-model="addCompositionMode" class="form-select">
+            <option value="bulk">{{ comboAssignmentLabels.bulk }}</option>
+            <option value="fixed">{{ comboAssignmentLabels.fixed }}</option>
+            <option value="assigned">{{ comboAssignmentLabels.assigned }}</option>
+            <option value="on_issue">{{ comboAssignmentLabels.on_issue }}</option>
+          </select>
+        </div>
+        <p v-if="addCompositionError" class="error-text">{{ addCompositionError }}</p>
+        <div class="modal-actions">
+          <button type="button" class="btn-secondary btn-sm" @click="closeAddCompositionModal">Abbrechen</button>
+          <button
+            type="button"
+            class="btn-primary btn-sm"
+            :disabled="!canSubmitAddComposition || addCompositionSubmitting"
+            @click="submitAddComposition"
+          >
+            {{ addCompositionSubmitting ? 'Hinzufügen…' : 'Hinzufügen' }}
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div v-if="showEditCompositionModal && editCompositionComp" class="modal-overlay" @click.self="closeEditCompositionModal">
+      <div class="modal-dialog composition-add-modal">
+        <h3>Komponente bearbeiten</h3>
+        <p class="text-muted composition-add-modal-intro">
+          <strong>{{ editCompositionComp.component_material.name }}</strong>
+        </p>
+        <div class="form-group">
+          <label>Menge</label>
+          <input v-model.number="editCompositionQty" type="number" min="1" class="form-input" />
+        </div>
+        <div class="form-group">
+          <label>Rolle (optional)</label>
+          <input v-model="editCompositionRole" type="text" class="form-input" placeholder="z.&nbsp;B. Aussenzelt, Heringe" />
+        </div>
+        <div class="form-group">
+          <label class="checkbox-label">
+            <input v-model="editCompositionOptional" type="checkbox" />
+            Optional (nicht zwingend für die Kombination)
+          </label>
+        </div>
+        <div class="form-group">
+          <label>Zuordnung</label>
+          <select v-model="editCompositionMode" class="form-select">
+            <option value="bulk">{{ comboAssignmentLabels.bulk }}</option>
+            <option value="fixed">{{ comboAssignmentLabels.fixed }}</option>
+            <option value="assigned">{{ comboAssignmentLabels.assigned }}</option>
+            <option value="on_issue">{{ comboAssignmentLabels.on_issue }}</option>
+          </select>
+        </div>
+        <div v-if="editCompositionBatchesLoading" class="form-group text-muted">Chargen werden geladen…</div>
+        <div v-else-if="editCompositionBatches.length > 0" class="form-group">
+          <label>Zugewiesene Charge (optional)</label>
+          <select v-model="editCompositionBatchId" class="form-select">
+            <option value="">– keine Charge –</option>
+            <option v-for="b in editCompositionBatches" :key="b.id" :value="b.id">
+              {{ formatCompositionBatchOption(b) }}
+            </option>
+          </select>
+          <p class="batch-field-hint">Nur bei Seriennummern oder fester Zuweisung relevant.</p>
+        </div>
+        <p v-if="editCompositionError" class="error-text">{{ editCompositionError }}</p>
+        <div class="modal-actions">
+          <button type="button" class="btn-secondary btn-sm" @click="closeEditCompositionModal">Abbrechen</button>
+          <button
+            type="button"
+            class="btn-primary btn-sm"
+            :disabled="editCompositionSubmitting || (editCompositionQty ?? 0) < 1"
+            @click="submitEditComposition"
+          >
+            {{ editCompositionSubmitting ? 'Speichern…' : 'Speichern' }}
+          </button>
+        </div>
+      </div>
+    </div>
+
     <div v-if="showQrActionModal" class="modal-overlay" @click.self="closeQrActionModal">
       <div class="modal-dialog">
         <h3>QR-Aktion</h3>
@@ -1200,19 +1887,46 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted, watch, nextTick } from 'vue'
+import { ref, reactive, computed, onMounted, onDeactivated, watch, nextTick } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import QRCode from 'qrcode'
-import { getMaterial, getMaterials, updateMaterial, updateBatch, moveBatchQuantity, getMaterialHistory, getMaterialUsedIn, ensureMaterialPublicCode, type Material, type MaterialHistoryEntry, type MaterialBatch, type BatchStorageAllocation, type UsedInEntry, type AddBatchMultiResponse } from '@/api/materials'
+import {
+  getMaterial,
+  getMaterials,
+  updateMaterial,
+  updateBatch,
+  moveBatchQuantity,
+  getMaterialHistory,
+  getMaterialUsedIn,
+  ensureMaterialPublicCode,
+  getMaterialStorageLocations,
+  getComboComponents,
+  addComboComponent,
+  updateComboComponent,
+  deleteComboComponent,
+  type Material,
+  type MaterialHistoryEntry,
+  type MaterialBatch,
+  type BatchStorageAllocation,
+  type UsedInEntry,
+  type AddBatchMultiResponse,
+  type MaterialStorageLocationsResponse,
+  type MaterialStorageLocationRow,
+  type ComboComponent,
+  type UpdateComboComponentRequest,
+} from '@/api/materials'
 import { addPrintCartItem, addPrintCartItemsBulk } from '@/api/tasks'
 import { useDetailTabsStore } from '@/stores/detailTabs'
 import { getCategories, type Category } from '@/api/categories'
-import { getAddresses, type Address } from '@/api/addresses'
 import { getContainerBatches, getStorageOverview, type ContainerBatch, type StorageOverviewResponse } from '@/api/storageLocations'
 import { formatContainerBatchOptionFullLabel } from '@/utils/containerBatchLabel'
+import { usePhysicalComboWarningStore } from '@/stores/physicalComboWarning'
 import {
   sumAcquisitionBasisFromBatches,
   sumAcquisitionPieceCountFromBatches,
+  comboLineAcquisitionChf,
+  roundChfToFiveRappen,
+  formatChfFiveRappenString,
   type RentalCalcParams,
 } from '@/utils/rentalPriceAmortization'
 import {
@@ -1220,6 +1934,7 @@ import {
   DEFAULT_RENTAL_AMORTIZATION,
   type RentalAmortizationDefaults,
 } from '@/api/departmentSettings'
+import { getWorkshopTickets, type WorkshopTicket } from '@/api/workshop'
 import RentalPriceAmortizationCalculator from '@/components/material/RentalPriceAmortizationCalculator.vue'
 import SplitModal from '@/components/material/SplitModal.vue'
 import { useAuthStore } from '@/stores/auth'
@@ -1230,7 +1945,10 @@ import BatchModal from '@/components/material/BatchModal.vue'
 import MoveQuantityModal from '@/components/material/MoveQuantityModal.vue'
 import StorageTreeView from '@/components/storage/StorageTreeView.vue'
 import MaterialLookupInput from '@/components/common/MaterialLookupInput.vue'
+import CategoryAutocompleteInput from '@/components/common/CategoryAutocompleteInput.vue'
+import { createBasicMaterialLookupFetcher } from '@/composables/useMaterialLookup'
 import PublicQrTag from '@/components/common/PublicQrTag.vue'
+import { unitPriceFromPackSaleChf } from '@/utils/packPricing'
 
 interface Props {
   materialId: string
@@ -1246,6 +1964,7 @@ const pageHeadStore = usePageHeadStore()
 const authStore = useAuthStore()
 const detailTabsStore = useDetailTabsStore()
 const toast = useToast()
+const physicalComboWarningStore = usePhysicalComboWarningStore()
 
 const DETAIL_QUERY_KEYS = {
   tab: 'tab',
@@ -1259,6 +1978,7 @@ const DETAIL_QUERY_KEYS = {
 const emit = defineEmits<{
   close: []
   updated: [material: Material]
+  'open-create-for-composition': [{ parentMaterialId: string }]
 }>()
 
 const canManageJsMaterial = computed(() => {
@@ -1271,9 +1991,166 @@ const canManageJsMaterial = computed(() => {
 const material = ref<Material>({} as Material)
 const batches = ref<any[]>([])
 const rentalAmortizationDefaults = ref<RentalAmortizationDefaults>({ ...DEFAULT_RENTAL_AMORTIZATION })
+const workshopTickets = ref<WorkshopTicket[]>([])
+const workshopTicketsLoading = ref(false)
+
+/** Stückliste für Kombos (Tab „Zusammensetzung“) */
+const comboComponentsList = ref<ComboComponent[]>([])
+const comboComponentsLoading = ref(false)
+
+const showAddCompositionModal = ref(false)
+const addCompositionSearch = ref('')
+const addCompositionSelected = ref<Material | null>(null)
+const addCompositionQty = ref(1)
+const addCompositionRole = ref('')
+const addCompositionOptional = ref(false)
+const addCompositionMode = ref<'fixed' | 'assigned' | 'on_issue' | 'bulk'>('bulk')
+const addCompositionError = ref('')
+const addCompositionSubmitting = ref(false)
+
+const showEditCompositionModal = ref(false)
+const editCompositionComp = ref<ComboComponent | null>(null)
+const editCompositionQty = ref(1)
+const editCompositionRole = ref('')
+const editCompositionOptional = ref(false)
+const editCompositionMode = ref<'fixed' | 'assigned' | 'on_issue' | 'bulk'>('bulk')
+const editCompositionBatchId = ref('')
+const editCompositionBatches = ref<MaterialBatch[]>([])
+const editCompositionBatchesLoading = ref(false)
+const editCompositionError = ref('')
+const editCompositionSubmitting = ref(false)
+const deletingCompositionId = ref<string | null>(null)
+
+const canSubmitAddComposition = computed(
+  () => !!addCompositionSelected.value && (addCompositionQty.value ?? 0) >= 1
+)
+
+const comboAssignmentLabels: Record<string, string> = {
+  fixed: 'Fest verbaut',
+  assigned: 'Zugewiesen',
+  on_issue: 'Bei Ausgabe',
+  bulk: 'Mengenware',
+}
+
+/** Kurzlabels im Tab Zusammensetzung (voller Text per title) – weniger horizontales Scrollen */
+const comboAssignmentLabelsShort: Record<string, string> = {
+  fixed: 'Fest',
+  assigned: 'Zugew.',
+  on_issue: 'Ausgabe',
+  bulk: 'Menge',
+}
+
+const isComboMaterialView = computed(
+  () =>
+    material.value?.material_type === 'physical_combo' || material.value?.material_type === 'virtual_combo'
+)
+
+/** Zeilen für „Anschaffung aus Zusammensetzung“ (Vermietung-Tab, Kombis) */
+const comboRentalRows = ref<
+  Array<{
+    componentId: string
+    name: string
+    qty: number
+    perPieceChf: number | null
+    lineChf: number | null
+    optional: boolean
+  }>
+>([])
+const comboRentalLoading = ref(false)
+const comboRentalError = ref('')
 
 const acquisitionBasisChf = computed(() => sumAcquisitionBasisFromBatches(batches.value))
 const acquisitionPieceCount = computed(() => sumAcquisitionPieceCountFromBatches(batches.value))
+
+const comboRentalHasGap = computed(() => comboRentalRows.value.some((r) => r.lineChf == null))
+
+const rentalAcquisitionBasisChf = computed((): number | null => {
+  if (isComboMaterialView.value) {
+    let sum = 0
+    let has = false
+    for (const r of comboRentalRows.value) {
+      if (r.lineChf != null) {
+        sum += r.lineChf
+        has = true
+      }
+    }
+    if (!has) return null
+    return roundChfToFiveRappen(sum)
+  }
+  return acquisitionBasisChf.value
+})
+
+const rentalAcquisitionPieceCount = computed(() => {
+  if (isComboMaterialView.value) return 1
+  return acquisitionPieceCount.value
+})
+
+const showRentalAmortizationCalculator = computed(() => {
+  const m = material.value
+  if (!m?.material_type) return false
+  if (m.is_consumable || m.is_food) return false
+  if (m.material_type === 'physical') return !!m.tracking_type
+  if (m.material_type === 'physical_combo' || m.material_type === 'virtual_combo') return true
+  return false
+})
+
+const rentalAmortizationContext = computed<'batches' | 'combo'>(() =>
+  isComboMaterialView.value ? 'combo' : 'batches'
+)
+
+async function loadComboRentalBreakdown() {
+  if (!props.materialId) return
+  const mt = material.value?.material_type
+  if (mt !== 'physical_combo' && mt !== 'virtual_combo') return
+  comboRentalLoading.value = true
+  comboRentalError.value = ''
+  try {
+    const list = await getComboComponents(props.materialId)
+    const sorted = [...list].sort((a, b) => {
+      const o = (a.sort_order ?? 0) - (b.sort_order ?? 0)
+      if (o !== 0) return o
+      return String(a.component_material?.name || '').localeCompare(
+        String(b.component_material?.name || ''),
+        'de-CH'
+      )
+    })
+    const ids = [...new Set(sorted.map((c) => c.component_material.id))]
+    const materialsById = new Map<string, Material>()
+    await Promise.all(
+      ids.map(async (id) => {
+        try {
+          materialsById.set(id, await getMaterial(id))
+        } catch {
+          /* Zeile ohne Chargen/Preis */
+        }
+      })
+    )
+    comboRentalRows.value = sorted.map((comp) => {
+      const m = materialsById.get(comp.component_material.id)
+      const bs = m?.batches
+      const basis = sumAcquisitionBasisFromBatches(bs)
+      const pieces = sumAcquisitionPieceCountFromBatches(bs)
+      let perPieceChf: number | null = null
+      if (basis != null && pieces != null && pieces > 0) {
+        const pp = basis / pieces
+        perPieceChf = Number.isFinite(pp) && pp >= 0 ? pp : null
+      }
+      return {
+        componentId: comp.component_material.id,
+        name: comp.component_material.name,
+        qty: comp.qty,
+        perPieceChf,
+        lineChf: comboLineAcquisitionChf(bs, comp.qty),
+        optional: comp.is_optional,
+      }
+    })
+  } catch {
+    comboRentalError.value = 'Stückliste konnte nicht geladen werden.'
+    comboRentalRows.value = []
+  } finally {
+    comboRentalLoading.value = false
+  }
+}
 
 function onRentalCalculatorApply(p: { day: string; week: string; month: string }) {
   const rentalChanged =
@@ -1293,8 +2170,9 @@ function onRentalCalculatorApply(p: { day: string; week: string; month: string }
   })
 }
 const containerBatches = ref<ContainerBatch[]>([])
+/** Für Lagerplatz-Spalte: direkte Zeilen + physische Kombi (Elternlager) */
+const materialStorageLocations = ref<MaterialStorageLocationsResponse | null>(null)
 const categories = ref<Category[]>([])
-const storageAddresses = ref<Address[]>([])
 const isLoading = ref(true)
 const isSaving = ref(false)
 const isGeneratingPublicCode = ref(false)
@@ -1378,14 +2256,20 @@ const formData = reactive({
   rental_lead_days: null as number | null,
   rental_max_days: null as number | null,
   rental_external_allowed: false,
+  rental_scope: '' as string,
   rental_requires_approval: false,
   rental_notes: '',
   rental_calc_params: null as RentalCalcParams | null,
   pack_size: null as number | null,
   pack_unit: '',
+  is_container: false,
   reservation_mode: '' as string,
   is_js_material: false,
-  external_source: ''
+  external_source: '',
+  sale_price: null as number | null,
+  reference_purchase_unit_chf: null as number | null,
+  min_stock: null as number | null,
+  pack_sale_price_chf: null as number | null,
 })
 
 // Original data for change detection
@@ -1447,12 +2331,29 @@ const showContainerContentTab = computed(() => {
   return storedInContainerOptions.value.length > 0
 })
 
-// Dynamische Tabs basierend auf Material-Typ
+// Dynamische Tabs: Kombos fokussiert auf Stückliste & Lager (ohne Bestand/Serien/Verwendet-in-Kette wie Einzelmaterial)
 const tabs = computed(() => {
+  if (isComboMaterialView.value) {
+    const comboTabs = [
+      { id: 'data', label: 'Daten' },
+      { id: 'stored-in', label: 'Gelagert in' },
+      { id: 'composition', label: 'Zusammensetzung' },
+      { id: 'workshop', label: 'Werkstatt' },
+    ]
+    if (!material.value.is_consumable && !material.value.is_food) {
+      comboTabs.push({ id: 'rental', label: 'Vermietung' })
+    }
+    comboTabs.push(
+      { id: 'archive', label: `Archiv${archivedBatches.value.length > 0 ? ' (' + archivedBatches.value.length + ')' : ''}` },
+      { id: 'history', label: 'History Log' }
+    )
+    return comboTabs
+  }
+
   const baseTabs = [
     { id: 'data', label: 'Daten' },
     { id: 'stock', label: 'Bestand' },
-    { id: 'stored-in', label: 'Gelagert in' }
+    { id: 'stored-in', label: 'Gelagert in' },
   ]
   if (material.value.tracking_type === 'serialized') {
     baseTabs.push({ id: 'serials', label: 'Seriennummern' })
@@ -1461,7 +2362,10 @@ const tabs = computed(() => {
     baseTabs.push({ id: 'container-content', label: 'Inhalt Kiste/Tasche' })
   }
   baseTabs.push({ id: 'used-in', label: `Verwendet in${usedInEntries.value.length > 0 ? ' (' + usedInEntries.value.length + ')' : ''}` })
-  baseTabs.push({ id: 'rental', label: 'Vermietung' })
+  baseTabs.push({ id: 'workshop', label: 'Werkstatt' })
+  if (!material.value.is_consumable && !material.value.is_food) {
+    baseTabs.push({ id: 'rental', label: 'Vermietung' })
+  }
   baseTabs.push({ id: 'archive', label: `Archiv${archivedBatches.value.length > 0 ? ' (' + archivedBatches.value.length + ')' : ''}` })
   baseTabs.push({ id: 'history', label: 'History Log' })
   return baseTabs
@@ -1555,7 +2459,27 @@ const serialBatches = computed(() => {
 
 const hasAnyQrForPrint = computed(() => {
   if (String(material.value?.public_url || '').trim() !== '') return true
-  return serialBatches.value.some((batch: any) => String(batch?.public_url || '').trim() !== '')
+  return (batches.value || []).some((batch: any) => String(batch?.public_url || '').trim() !== '')
+})
+
+/** Physische Combo, die mit einer konkreten Kisten-Charge verknüpft ist (QR von der Kiste übernommen). */
+const isPhysicalComboFromLinkedContainer = computed(
+  () =>
+    material.value?.material_type === 'physical_combo' &&
+    !!(material.value as { linked_container_batch_id?: string | null }).linked_container_batch_id
+)
+
+const qrGenerateButtonLabel = computed(() => {
+  if (isGeneratingPublicCode.value) return 'Erzeuge...'
+  if (isPhysicalComboFromLinkedContainer.value) return 'QR-Code sicherstellen'
+  return 'QR code erzeugen'
+})
+
+const qrGenerateButtonTitle = computed(() => {
+  if (isPhysicalComboFromLinkedContainer.value) {
+    return 'Es wird kein zweites Label erzeugt: gleicher öffentlicher Code wie an der Referenz-Kiste (falls vorhanden).'
+  }
+  return ''
 })
 
 /** QR im Header: immer wenn Material einen öffentlichen Link hat (Bulk + Serien mit Material-QR). */
@@ -1588,8 +2512,31 @@ const showGenerateQrButton = computed(() => {
     return String(batch?.public_code || '').trim() === ''
   }).length
 
-  return materialMissing || missingSerialCount > 0
+  /** Nur physische Combo: Anfangsbatch kann ohne Seriennummer sein – dort ein Batch-QR (z. B. Kisten-Referenz). Sonst: serialisiert = nur QR pro Seriennummer. */
+  const nonSerialBatchMissingQr =
+    material.value?.material_type === 'physical_combo' &&
+    (batches.value || []).some((b: any) => {
+      if (String(b?.serial_number || '').trim() !== '') return false
+      return String(b?.public_code || '').trim() === ''
+    })
+
+  return materialMissing || missingSerialCount > 0 || nonSerialBatchMissingQr
 })
+
+/** Aus Verkaufspreis pro VE ÷ Stück pro VE (wenn beides gesetzt). */
+const packSaleDerivedUnitPrice = computed(() => {
+  const pp = formData.pack_sale_price_chf
+  const ps = formData.pack_size
+  if (pp == null || ps == null) return null
+  return unitPriceFromPackSaleChf(Number(pp), Number(ps))
+})
+
+function applyPackSaleToUnitSalePrice() {
+  const v = packSaleDerivedUnitPrice.value
+  if (v == null) return
+  formData.sale_price = v
+  toast.success('Stückpreis aus Packung übernommen.')
+}
 
 const statusLabels: Record<string, string> = {
   active: 'Aktiv',
@@ -1622,13 +2569,38 @@ const splitSourceBatches = computed(() =>
   activeBatches.value.filter((batch) => !batch.serial_number && batch.status === 'active' && (batch.qty || 0) > 0)
 )
 
+const stockSortKey = ref<string | null>(null)
+const stockSortDir = ref<'asc' | 'desc'>('desc')
+const serialSortKey = ref<string | null>(null)
+const serialSortDir = ref<'asc' | 'desc'>('desc')
+/** batchId → true während PATCH is_container */
+const serialIsContainerSaving = reactive<Record<string, boolean>>({})
+
 // Computed
 const hasChanges = computed(() => {
   return JSON.stringify(formData) !== originalFormData
 })
 
 const propertyBadgeText = computed(() => {
-  return 'Physischer Artikel - Serialisiert'
+  const m = material.value
+  if (!m) return ''
+
+  if (m.is_food) return 'Esswaren'
+  if (m.is_consumable) return 'Verbrauchsmaterial'
+
+  const mt = m.material_type || 'physical'
+
+  if (mt === 'virtual_combo') return 'Virtuelle Kombination'
+  if (mt === 'physical_combo') return 'Physische Kombination'
+
+  if (mt === 'physical') {
+    const tt = m.tracking_type
+    if (tt === 'bulk') return 'Physischer Artikel – Massenartikel'
+    if (tt === 'serialized') return 'Physischer Artikel – Serialisiert'
+    return 'Physischer Artikel'
+  }
+
+  return 'Material'
 })
 
 const availableStock = computed(() => {
@@ -1666,13 +2638,210 @@ const openLossLabel = computed(() => {
 })
 
 // Methods
+async function loadComboComponentsForTab() {
+  if (!props.materialId || !isComboMaterialView.value) return
+  comboComponentsLoading.value = true
+  try {
+    comboComponentsList.value = await getComboComponents(props.materialId)
+  } catch (err) {
+    console.error('Zusammensetzung:', err)
+    toast.error('Zusammensetzung konnte nicht geladen werden.')
+  } finally {
+    comboComponentsLoading.value = false
+  }
+}
+
+async function compositionMaterialFetcher(query: string) {
+  const fetcher = createBasicMaterialLookupFetcher(() => props.departmentId)
+  const items = await fetcher(query)
+  return items.filter((m) => m.id !== props.materialId)
+}
+
+function compositionLookupLabel(item: Record<string, unknown>) {
+  return String(item?.name ?? '')
+}
+
+function formatCompositionLookupSecondary(item: Record<string, unknown>) {
+  const t = item?.tracking_type
+  const mt = item?.material_type
+  if (!t && !mt) return ''
+  return [t, mt].filter(Boolean).join(' · ')
+}
+
+function openAddCompositionModal() {
+  addCompositionSearch.value = ''
+  addCompositionSelected.value = null
+  addCompositionQty.value = 1
+  addCompositionRole.value = ''
+  addCompositionOptional.value = false
+  addCompositionError.value = ''
+  addCompositionMode.value =
+    material.value?.material_type === 'virtual_combo' ? 'on_issue' : 'bulk'
+  showAddCompositionModal.value = true
+}
+
+function closeAddCompositionModal() {
+  showAddCompositionModal.value = false
+}
+
+function clearAddCompositionSelection() {
+  addCompositionSelected.value = null
+  addCompositionSearch.value = ''
+}
+
+function handleCompositionMaterialSelect(item: Record<string, unknown>) {
+  addCompositionSelected.value = item as unknown as Material
+}
+
+function emitCreateMaterialForComposition() {
+  emit('open-create-for-composition', { parentMaterialId: props.materialId })
+}
+
+async function submitAddComposition() {
+  if (!addCompositionSelected.value) return
+  addCompositionSubmitting.value = true
+  addCompositionError.value = ''
+  try {
+    const maxSort = comboComponentsList.value.reduce(
+      (acc, c) => Math.max(acc, c.sort_order ?? 0),
+      -1
+    )
+    await addComboComponent(props.materialId, {
+      component_material_id: addCompositionSelected.value.id,
+      qty: Math.max(1, addCompositionQty.value || 1),
+      component_role: addCompositionRole.value.trim() || undefined,
+      is_optional: addCompositionOptional.value,
+      assignment_mode: addCompositionMode.value,
+      sort_order: maxSort + 1,
+    })
+    toast.success('Komponente hinzugefügt.')
+    showAddCompositionModal.value = false
+    await loadComboComponentsForTab()
+    await loadMaterial()
+    emit('updated', material.value)
+  } catch (e: unknown) {
+    const ax = e as { response?: { data?: { error?: string } } }
+    addCompositionError.value = ax.response?.data?.error || 'Hinzufügen fehlgeschlagen.'
+  } finally {
+    addCompositionSubmitting.value = false
+  }
+}
+
+function formatCompositionBatchOption(b: MaterialBatch) {
+  const sn = (b.serial_number || '').trim()
+  const lb = (b.label || '').trim()
+  if (sn && lb) return `${sn} · ${lb}`
+  if (sn) return sn
+  if (lb) return lb
+  return b.id.slice(0, 8) + '…'
+}
+
+async function openEditCompositionModal(comp: ComboComponent) {
+  editCompositionComp.value = comp
+  editCompositionQty.value = comp.qty
+  editCompositionRole.value = comp.component_role || ''
+  editCompositionOptional.value = comp.is_optional
+  editCompositionMode.value = comp.assignment_mode as 'fixed' | 'assigned' | 'on_issue' | 'bulk'
+  editCompositionBatchId.value = comp.component_batch?.id || ''
+  editCompositionError.value = ''
+  editCompositionBatches.value = []
+  showEditCompositionModal.value = true
+  editCompositionBatchesLoading.value = true
+  try {
+    const m = await getMaterial(comp.component_material.id)
+    editCompositionBatches.value = m.batches || []
+  } catch {
+    editCompositionBatches.value = []
+  } finally {
+    editCompositionBatchesLoading.value = false
+  }
+}
+
+function closeEditCompositionModal() {
+  showEditCompositionModal.value = false
+  editCompositionComp.value = null
+}
+
+async function submitEditComposition() {
+  const comp = editCompositionComp.value
+  if (!comp) return
+  editCompositionSubmitting.value = true
+  editCompositionError.value = ''
+  try {
+    const payload: UpdateComboComponentRequest = {
+      qty: Math.max(1, editCompositionQty.value || 1),
+      component_role: editCompositionRole.value.trim() || undefined,
+      is_optional: editCompositionOptional.value,
+      assignment_mode: editCompositionMode.value,
+    }
+    if (editCompositionBatches.value.length > 0) {
+      const bid = editCompositionBatchId.value
+      payload.component_batch_id =
+        bid && editCompositionBatches.value.some((b) => b.id === bid) ? bid : null
+    }
+    await updateComboComponent(props.materialId, comp.id, payload)
+    toast.success('Komponente gespeichert.')
+    closeEditCompositionModal()
+    await loadComboComponentsForTab()
+    await loadMaterial()
+    emit('updated', material.value)
+  } catch (e: unknown) {
+    const ax = e as { response?: { data?: { error?: string } } }
+    editCompositionError.value = ax.response?.data?.error || 'Speichern fehlgeschlagen.'
+  } finally {
+    editCompositionSubmitting.value = false
+  }
+}
+
+async function confirmDeleteComposition(comp: ComboComponent) {
+  const ok = confirm(
+    `Komponente „${comp.component_material.name}“ aus dieser Kombination entfernen?`
+  )
+  if (!ok) return
+  deletingCompositionId.value = comp.id
+  try {
+    await deleteComboComponent(props.materialId, comp.id)
+    toast.success('Komponente entfernt.')
+    await loadComboComponentsForTab()
+    await loadMaterial()
+    emit('updated', material.value)
+  } catch (e: unknown) {
+    const ax = e as { response?: { data?: { error?: string } } }
+    toast.error(ax.response?.data?.error || 'Löschen fehlgeschlagen.')
+  } finally {
+    deletingCompositionId.value = null
+  }
+}
+
+function openComponentMaterialDetail(componentMaterialId: string) {
+  if (!componentMaterialId) return
+  router.push({ path: `/${props.departmentId}/materials/${componentMaterialId}` })
+}
+
+async function loadMaterialStorageLocations() {
+  if (!props.materialId || !props.departmentId) {
+    materialStorageLocations.value = null
+    return
+  }
+  try {
+    materialStorageLocations.value = await getMaterialStorageLocations(props.materialId, props.departmentId)
+  } catch {
+    materialStorageLocations.value = null
+  }
+}
+
 async function loadMaterial() {
   isLoading.value = true
   try {
     const data = await getMaterial(props.materialId)
     material.value = data
     batches.value = data.batches || []
-    
+    if (data.material_type === 'physical_combo' || data.material_type === 'virtual_combo') {
+      comboComponentsList.value = data.combo_components ?? []
+    } else {
+      comboComponentsList.value = []
+    }
+
     populateFormData(data)
     originalFormData = JSON.stringify(formData)
 
@@ -1683,8 +2852,18 @@ async function loadMaterial() {
       departmentId: props.departmentId,
       path: `/${props.departmentId}/materials/${props.materialId}`,
     })
+    await loadMaterialStorageLocations()
+    void nextTick(() => {
+      if (
+        activeTab.value === 'rental' &&
+        (data.material_type === 'physical_combo' || data.material_type === 'virtual_combo')
+      ) {
+        void loadComboRentalBreakdown()
+      }
+    })
   } catch (err) {
     console.error('Fehler beim Laden:', err)
+    materialStorageLocations.value = null
   } finally {
     isLoading.value = false
   }
@@ -1692,15 +2871,25 @@ async function loadMaterial() {
 
 async function generateMaterialPublicCode() {
   if (!props.materialId || isGeneratingPublicCode.value) return
+  const linkedKisteCombo = isPhysicalComboFromLinkedContainer.value
   isGeneratingPublicCode.value = true
   try {
     await ensureMaterialPublicCode(props.materialId)
     await loadMaterial()
     emit('updated', material.value)
-    toast.success('QR-Code wurde erzeugt.')
+    if (linkedKisteCombo) {
+      toast.success(
+        'Öffentlicher Link ist gesetzt: gleicher QR wie an der Referenz-Kiste – es wird kein zweites Etikett erzeugt.'
+      )
+    } else {
+      toast.success('QR-Code wurde erzeugt.')
+    }
   } catch (err: any) {
-    console.error('Fehler beim Erzeugen des QR-Codes:', err)
-    toast.error(err?.response?.data?.error || 'QR-Code konnte nicht erzeugt werden.')
+    console.error('Fehler beim öffentlichen QR-Code:', err)
+    toast.error(
+      err?.response?.data?.error ||
+        (linkedKisteCombo ? 'QR-Code konnte nicht übernommen werden.' : 'QR-Code konnte nicht erzeugt werden.')
+    )
   } finally {
     isGeneratingPublicCode.value = false
   }
@@ -1714,12 +2903,10 @@ async function loadCategories() {
   }
 }
 
-async function loadStorageAddresses() {
-  try {
-    const result = await getAddresses(props.departmentId, 'storage')
-    storageAddresses.value = result.addresses || []
-  } catch (err) {
-    console.error('Fehler beim Laden der Lagerorte:', err)
+async function handleCategoryReloadFromPicker(saved?: Category) {
+  await loadCategories()
+  if (saved?.id) {
+    formData.category_id = saved.id
   }
 }
 
@@ -1783,14 +2970,25 @@ function populateFormData(m: Material) {
   formData.rental_lead_days = m.rental_lead_days || null
   formData.rental_max_days = m.rental_max_days || null
   formData.rental_external_allowed = m.rental_external_allowed || false
+  formData.rental_scope = m.rental_scope || ''
   formData.rental_requires_approval = m.rental_requires_approval || false
   formData.rental_notes = m.rental_notes || ''
   formData.rental_calc_params = m.rental_calc_params ? { ...m.rental_calc_params } : null
   formData.pack_size = m.pack_size || null
   formData.pack_unit = m.pack_unit || ''
   formData.reservation_mode = m.reservation_mode || ''
+  formData.is_container = m.is_container ?? false
   formData.is_js_material = m.is_js_material || false
   formData.external_source = m.external_source || ''
+  const parsePriceNum = (v: string | null | undefined) => {
+    if (v == null || v === '') return null
+    const n = Number(v)
+    return Number.isFinite(n) ? n : null
+  }
+  formData.sale_price = parsePriceNum(m.sale_price)
+  formData.reference_purchase_unit_chf = parsePriceNum(m.reference_purchase_unit_chf)
+  formData.min_stock = m.min_stock ?? null
+  formData.pack_sale_price_chf = parsePriceNum(m.pack_sale_price_chf)
 }
 
 function getCategoryPath(): string {
@@ -1829,6 +3027,39 @@ type BatchLocationEntry = {
   containerSearchSeed: string
 }
 
+/** Standort · Gestell (Regal) · Fach – aus API-Feldern; fehlende Teile werden weggelassen. */
+function formatAllocationLocationLine(a: {
+  storage_address_name?: string | null
+  rack?: { name?: string } | null
+  slot?: { name?: string } | null
+  rack_name?: string
+  slot_name?: string
+}): string {
+  const standort = (a.storage_address_name || '').trim()
+  const gestell = (a.rack?.name || a.rack_name || '').trim()
+  const fach = (a.slot?.name || a.slot_name || '').trim()
+  const parts: string[] = []
+  if (standort) parts.push(standort)
+  if (gestell) parts.push(gestell)
+  if (fach) parts.push(fach)
+  return parts.length ? parts.join(' · ') : '-'
+}
+
+function formatStorageLocationRow(loc: MaterialStorageLocationRow): string {
+  const line = formatAllocationLocationLine({
+    storage_address_name: loc.storage_address_name,
+    rack: loc.rack_name ? { name: loc.rack_name } : null,
+    slot: loc.slot_name ? { name: loc.slot_name } : null,
+  })
+  if (line !== '-') return line
+  const label = (loc.location_label || '').trim()
+  if (label) {
+    const addr = (loc.storage_address_name || '').trim()
+    return addr ? `${addr} · ${label}` : label
+  }
+  return '-'
+}
+
 const buildBatchLocationEntries = (batch: any): BatchLocationEntry[] => {
   const allocations = batch?.allocations
   if (allocations && Array.isArray(allocations) && allocations.length > 0) {
@@ -1839,9 +3070,7 @@ const buildBatchLocationEntries = (batch: any): BatchLocationEntry[] => {
 
     return allocations
       .map((a: any) => {
-        const rackName = a.rack?.name || ''
-        const slotName = a.slot?.name || ''
-        const loc = slotName ? `${rackName} / ${slotName}` : rackName
+        const loc = formatAllocationLocationLine(a)
         const fallbackContainer = resolveContainerBatch(a.container_batch_id)
         const resolvedContainer = a.container_batch
           ? { ...fallbackContainer, ...a.container_batch }
@@ -1850,9 +3079,13 @@ const buildBatchLocationEntries = (batch: any): BatchLocationEntry[] => {
         const containerMaterial = resolvedContainer?.material_name
         const containerMaterialId = resolvedContainer?.material_id || null
         const containerBatchId = resolvedContainer?.id || a.container_batch_id || null
-        const containerRackName = resolvedContainer?.rack?.name || resolvedContainer?.rack_id || ''
-        const containerSlotName = resolvedContainer?.slot?.name || resolvedContainer?.slot_id || ''
-        const containerLoc = containerSlotName ? `${containerRackName} / ${containerSlotName}` : containerRackName
+        const containerLoc = resolvedContainer
+          ? formatAllocationLocationLine({
+              storage_address_name: resolvedContainer.storage_address_name,
+              rack: resolvedContainer.rack,
+              slot: resolvedContainer.slot,
+            })
+          : ''
         const containerSearchSeed = String(containerLabel || containerMaterial || '').trim()
         if (containerLabel) {
           const materialSuffix = containerMaterial && containerMaterial !== containerLabel ? ` – ${containerMaterial}` : ''
@@ -1881,7 +3114,206 @@ const buildBatchLocationEntries = (batch: any): BatchLocationEntry[] => {
       })
       .filter((entry: BatchLocationEntry | null): entry is BatchLocationEntry => !!entry)
   }
+
+  const ms = materialStorageLocations.value
+  const directRows = ms?.direct?.filter((r) => String(r.batch_id) === String(batch?.id)) ?? []
+  if (directRows.length > 0) {
+    return directRows.map((row) => ({
+      text: `${row.qty} in ${formatStorageLocationRow(row)}`,
+      containerMaterialId: null,
+      containerBatchId: null,
+      containerSearchSeed: '',
+    }))
+  }
+
+  // Nur Felder am Batch (ohne Material-Hauptlager), damit Kombi-Zeilen nicht verdeckt werden
+  const fromBatchOnly = formatAllocationLocationLine({
+    storage_address_name: batch?.storage_address_name ?? null,
+    rack: batch?.rack,
+    slot: batch?.slot,
+    rack_name: batch?.rack_name,
+    slot_name: batch?.slot_name,
+  })
+  if (fromBatchOnly !== '-') {
+    const q = batch?.qty ?? 1
+    return [
+      {
+        text: `${q} in ${fromBatchOnly}`,
+        containerMaterialId: null,
+        containerBatchId: null,
+        containerSearchSeed: '',
+      },
+    ]
+  }
+
+  // Physische Kombi: gleicher realer Ort wie die Kombi-Einheit (API liefert Gestell/Fach).
+  // Nur Stücklisten-Zeilen, die dieser Charge zugeordnet sind (component_batch_id), damit jede
+  // Seriennummer den passenden Eltern-Kombi-Ort sieht — nicht alle Kombis für alle Zeilen.
+  const combos = ms?.via_physical_combo ?? []
+  const bid = batch?.id != null ? String(batch.id) : ''
+  if (combos.length > 0) {
+    const out: BatchLocationEntry[] = []
+    for (const block of combos) {
+      const linked = block.component_batch_id != null && String(block.component_batch_id).trim() !== ''
+      if (linked && String(block.component_batch_id) !== bid) {
+        continue
+      }
+      if (!linked) {
+        // Ohne zugewiesene Serien-Charge: keinen Eltern-Lagerplatz jeder Instanz zuschreiben
+        continue
+      }
+      const parentName = (block.parent_name || '').trim() || 'Kombination'
+      for (const loc of block.locations || []) {
+        const locText = formatStorageLocationRow(loc)
+        if (locText === '-' || !locText.trim()) continue
+        const q = Number(batch?.qty ?? loc.qty ?? 1) || 1
+        out.push({
+          text: `${q} in ${locText} (über ${parentName})`,
+          containerMaterialId: null,
+          containerBatchId: null,
+          containerSearchSeed: '',
+        })
+      }
+    }
+    if (out.length > 0) {
+      return out
+    }
+  }
+
+  // Fallback: Material-Hauptlagerort + ggf. Batch-Rack
+  const fallbackLine = formatAllocationLocationLine({
+    storage_address_name: batch?.storage_address_name ?? material.value?.storage_address?.name,
+    rack: batch?.rack,
+    slot: batch?.slot,
+    rack_name: batch?.rack_name,
+    slot_name: batch?.slot_name,
+  })
+  if (fallbackLine !== '-') {
+    const q = batch?.qty ?? 1
+    return [
+      {
+        text: `${q} in ${fallbackLine}`,
+        containerMaterialId: null,
+        containerBatchId: null,
+        containerSearchSeed: '',
+      },
+    ]
+  }
   return [{ text: '-', containerMaterialId: null, containerBatchId: null, containerSearchSeed: '' }]
+}
+
+function getBatchLocationSortText(batch: any): string {
+  const entries = buildBatchLocationEntries(batch)
+  return (entries[0]?.text || '').trim()
+}
+
+function parseBatchUnitPrice(batch: any): number {
+  const v = batch?.unit_price
+  if (v == null || v === '') return Number.NaN
+  const n = Number(String(v).replace(',', '.'))
+  return Number.isFinite(n) ? n : Number.NaN
+}
+
+function compareStockBatches(a: any, b: any, key: string): number {
+  switch (key) {
+    case 'acquired_on':
+      return (a.acquired_on || '').localeCompare(b.acquired_on || '')
+    case 'qty':
+      return (a.qty || 0) - (b.qty || 0)
+    case 'label':
+      return (a.label || '').localeCompare(b.label || '', 'de-CH', { sensitivity: 'base' })
+    case 'unit_price': {
+      const pa = parseBatchUnitPrice(a)
+      const pb = parseBatchUnitPrice(b)
+      const na = Number.isFinite(pa) ? pa : -Infinity
+      const nb = Number.isFinite(pb) ? pb : -Infinity
+      return na - nb
+    }
+    case 'location':
+      return getBatchLocationSortText(a).localeCompare(getBatchLocationSortText(b), 'de-CH', { sensitivity: 'base' })
+    case 'status':
+      return (a.status || '').localeCompare(b.status || '')
+    case 'notes':
+      return (a.notes || '').localeCompare(b.notes || '', 'de-CH', { sensitivity: 'base' })
+    default:
+      return 0
+  }
+}
+
+function compareSerialBatches(a: any, b: any, key: string): number {
+  switch (key) {
+    case 'serial_number':
+      return (a.serial_number || '').localeCompare(b.serial_number || '', 'de-CH', { sensitivity: 'base', numeric: true })
+    case 'public_code':
+      return (a.public_code || '').localeCompare(b.public_code || '', 'de-CH', { sensitivity: 'base' })
+    case 'label':
+      return (a.label || '').localeCompare(b.label || '', 'de-CH', { sensitivity: 'base' })
+    case 'is_container':
+      return (a.is_container ? 1 : 0) - (b.is_container ? 1 : 0)
+    case 'acquired_on':
+      return (a.acquired_on || '').localeCompare(b.acquired_on || '')
+    case 'location':
+      return getBatchLocationSortText(a).localeCompare(getBatchLocationSortText(b), 'de-CH', { sensitivity: 'base' })
+    case 'status':
+      return (a.status || '').localeCompare(b.status || '')
+    case 'notes':
+      return (a.notes || '').localeCompare(b.notes || '', 'de-CH', { sensitivity: 'base' })
+    default:
+      return 0
+  }
+}
+
+const sortedActiveBatches = computed(() => {
+  const rows = [...activeBatches.value]
+  const key = stockSortKey.value
+  if (!key) return rows
+  const factor = stockSortDir.value === 'asc' ? 1 : -1
+  rows.sort((a, b) => factor * compareStockBatches(a, b, key))
+  return rows
+})
+
+const sortedSerialBatches = computed(() => {
+  const rows = [...serialBatches.value]
+  const key = serialSortKey.value
+  if (!key) return rows
+  const factor = serialSortDir.value === 'asc' ? 1 : -1
+  rows.sort((a, b) => factor * compareSerialBatches(a, b, key))
+  return rows
+})
+
+function toggleStockSort(key: string) {
+  if (stockSortKey.value === key) {
+    stockSortDir.value = stockSortDir.value === 'asc' ? 'desc' : 'asc'
+  } else {
+    stockSortKey.value = key
+    stockSortDir.value = 'desc'
+  }
+}
+
+function toggleSerialSort(key: string) {
+  if (serialSortKey.value === key) {
+    serialSortDir.value = serialSortDir.value === 'asc' ? 'desc' : 'asc'
+  } else {
+    serialSortKey.value = key
+    serialSortDir.value = 'desc'
+  }
+}
+
+async function onSerialBatchIsContainerChange(batch: MaterialBatch, value: boolean) {
+  const id = String(batch.id || '')
+  if (!id || serialIsContainerSaving[id]) return
+  if (!!batch.is_container === value) return
+  serialIsContainerSaving[id] = true
+  try {
+    await updateBatch(props.materialId, id, { is_container: value })
+    await loadMaterial()
+    await ensureContainerBatchesLoaded()
+    emit('updated', material.value)
+  } catch (e: any) {
+    toast.error(e?.response?.data?.error || 'Behälter-Markierung konnte nicht gespeichert werden.')
+  } finally {
+    delete serialIsContainerSaving[id]
+  }
 }
 
 function openContainerMaterial(materialId: string, containerBatchId?: string | null, containerSearchSeed?: string) {
@@ -2334,6 +3766,12 @@ async function handleQrPrint() {
 
 async function submitAddToContainer() {
   if (!canSubmitAddToContainer.value || !selectedAddToContainerBatch.value) return
+  if (
+    containerContentBatchId.value &&
+    !(await physicalComboWarningStore.confirmContainerMove([containerContentBatchId.value]))
+  ) {
+    return
+  }
   isAddingToContainer.value = true
   addToContainerError.value = ''
   try {
@@ -2357,6 +3795,14 @@ async function submitAddToContainer() {
 }
 
 async function save() {
+  if (material.value.is_consumable || material.value.is_food) {
+    const sp = formData.sale_price
+    const rp = formData.reference_purchase_unit_chf
+    if (sp == null || Number(sp) <= 0 || rp == null || Number(rp) <= 0) {
+      toast.error('Bitte Verkaufs- und Referenz-Einkaufspreis (je Stück, größer 0) eintragen.')
+      return
+    }
+  }
   isSaving.value = true
   try {
     const payload: any = {
@@ -2381,17 +3827,37 @@ async function save() {
       rental_lead_days: formData.rental_lead_days,
       rental_max_days: formData.rental_max_days,
       rental_external_allowed: formData.rental_external_allowed,
+      rental_scope: formData.rental_external_allowed ? (formData.rental_scope || null) : null,
       rental_requires_approval: formData.rental_requires_approval,
       rental_notes: formData.rental_notes || null,
       rental_calc_params: formData.rental_calc_params,
       pack_size: formData.pack_size || null,
       pack_unit: formData.pack_unit || null,
+      pack_sale_price_chf:
+        formData.pack_sale_price_chf != null && formData.pack_sale_price_chf > 0
+          ? String(formData.pack_sale_price_chf)
+          : null,
       reservation_mode: formData.reservation_mode || null,
+    }
+    if (material.value.tracking_type === 'bulk') {
+      payload.is_container = formData.is_container
     }
 
     if (canManageJsMaterial.value) {
       payload.is_js_material = formData.is_js_material
       payload.external_source = formData.is_js_material ? (formData.external_source || 'js_ch') : null
+    }
+
+    if (material.value.is_consumable || material.value.is_food) {
+      payload.sale_price =
+        formData.sale_price != null && formData.sale_price > 0 ? String(formData.sale_price) : null
+      payload.reference_purchase_unit_chf =
+        formData.reference_purchase_unit_chf != null && formData.reference_purchase_unit_chf > 0
+          ? String(formData.reference_purchase_unit_chf)
+          : null
+    }
+    if (material.value.is_consumable) {
+      payload.min_stock = formData.min_stock
     }
 
     const updated = await updateMaterial(props.materialId, payload)
@@ -2437,7 +3903,7 @@ const fieldLabels: Record<string, string> = {
   condition: 'Zustand',
   material_type: 'Material-Typ',
   tracking_type: 'Tracking-Typ',
-  is_tent: 'Ist Zelt',
+  is_container: 'Behälter',
   color: 'Farbe',
   size_length: 'Länge',
   size_width: 'Breite',
@@ -2565,6 +4031,13 @@ function getArchivedBatchDisplayQty(batch: any): number {
 }
 
 function openEditBatchModal(batch: any) {
+  if (!batch?.id) return
+  if (showBatchModal.value && editingBatch.value?.id === batch.id) return
+  closeQrActionModal()
+  showAddToContainerModal.value = false
+  showSplitModal.value = false
+  showMoveModal.value = false
+  moveBatch.value = null
   editingBatch.value = batch
   showBatchModal.value = true
 }
@@ -2788,11 +4261,20 @@ watch(activeTab, (newTab) => {
   if (newTab === 'used-in' && usedInEntries.value.length === 0) {
     loadUsedIn()
   }
+  if (newTab === 'composition') {
+    void loadComboComponentsForTab()
+  }
   if (newTab === 'stock' || newTab === 'serials' || newTab === 'stored-in' || newTab === 'container-content') {
     ensureContainerBatchesLoaded()
   }
   if (newTab === 'container-content') {
     loadContainerContentOverview()
+  }
+  if (newTab === 'workshop') {
+    void loadWorkshopTicketsForMaterial()
+  }
+  if (newTab === 'rental' && isComboMaterialView.value) {
+    void loadComboRentalBreakdown()
   }
 }, { immediate: true })
 
@@ -2812,11 +4294,22 @@ watch(
 // Bei initialBatchId aus Lagerübersicht: BatchModal öffnen zur Slot-Zuordnung
 const openedInitialBatchFor = ref<string | null>(null)
 watch(
-  [() => props.initialBatchId, () => batches.value, isLoading],
-  ([batchId, b, loading]) => {
-    if (!batchId || loading || !Array.isArray(b) || b.length === 0) return
+  () => props.initialBatchId,
+  (id) => {
+    if (!id) openedInitialBatchFor.value = null
+  }
+)
+watch(
+  () => ({
+    initialBatchId: props.initialBatchId,
+    loading: isLoading.value,
+    batchIds: batches.value.map((x: any) => x.id).join(','),
+  }),
+  (state) => {
+    const batchId = state.initialBatchId
+    if (!batchId || state.loading) return
     if (openedInitialBatchFor.value === String(batchId)) return
-    const batch = b.find((x: any) => String(x.id) === String(batchId))
+    const batch = batches.value.find((x: any) => String(x.id) === String(batchId))
     if (batch) {
       openedInitialBatchFor.value = String(batchId)
       openEditBatchModal(batch)
@@ -2833,9 +4326,124 @@ async function loadRentalDefaults() {
   }
 }
 
+async function loadWorkshopTicketsForMaterial() {
+  if (!props.materialId || !props.departmentId) return
+  workshopTicketsLoading.value = true
+  try {
+    workshopTickets.value = await getWorkshopTickets(props.departmentId, { material_item_id: props.materialId })
+  } catch {
+    workshopTickets.value = []
+  } finally {
+    workshopTicketsLoading.value = false
+  }
+}
+
+/** keep-alive (AppLayout) + Teleport: Modals hängen sonst im document.body und stapeln sich bei jedem Routenwechsel */
+function closeAllDetailModals() {
+  showBatchModal.value = false
+  showSplitModal.value = false
+  showMoveModal.value = false
+  showAddToContainerModal.value = false
+  showAddCompositionModal.value = false
+  showEditCompositionModal.value = false
+  showQrActionModal.value = false
+  editingBatch.value = null
+  moveBatch.value = null
+}
+
+onDeactivated(() => {
+  closeAllDetailModals()
+})
+
 onMounted(() => {
-  void Promise.all([loadMaterial(), loadCategories(), loadStorageAddresses(), loadRentalDefaults()])
+  void Promise.all([loadMaterial(), loadCategories(), loadRentalDefaults()])
 })
 </script>
 
 <style scoped src="@/styles/material-detail-view.css"></style>
+<style scoped>
+.workshop-tab-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+.workshop-tickets-mini .muted {
+  color: #64748b;
+}
+.field-required-star {
+  color: #b91c1c;
+  font-weight: 600;
+}
+.loading-inline {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* Sortierbare Tabellenköpfe (Bestand / Seriennummern) */
+.th-sort-cell {
+  vertical-align: middle;
+}
+
+.batch-table .detail-th-sort,
+.serials-table .detail-th-sort {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  gap: 6px;
+  padding: 2px 0;
+  margin: 0;
+  border: none;
+  background: transparent;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  text-align: left;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #6b7280;
+  cursor: pointer;
+}
+
+.batch-table .detail-th-sort:hover,
+.serials-table .detail-th-sort:hover {
+  color: #059669;
+}
+
+.detail-th-sort > span:first-child {
+  min-width: 0;
+  text-align: left;
+}
+
+.detail-th-sort-arrows {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  line-height: 1;
+  flex-shrink: 0;
+  margin-left: 2px;
+}
+
+.detail-sort-chev {
+  font-size: 8px;
+  line-height: 1;
+  color: #d1d5db;
+  transition: color 0.15s ease;
+}
+
+.detail-sort-chev.active {
+  color: #059669;
+}
+
+/* Modal „Komponente hinzufügen“: Such-Dropdown über dem Dialog-Inhalt, nicht vom Scroll abgeschnitten */
+.modal-dialog.composition-add-modal {
+  overflow: visible;
+}
+.composition-add-modal :deep(.material-lookup-dropdown) {
+  z-index: 3000;
+}
+</style>

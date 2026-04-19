@@ -26,26 +26,43 @@
     </div>
 
     <div v-if="materialType" class="usage-info">
-      <div class="usage-header">
-        <span v-if="isConsumable">🔥 Verbrauchsmaterial</span>
-        <span v-else-if="isFood">🍽️ Esswaren</span>
-        <span v-else-if="isJsMaterial">🟡 J&amp;S-Material</span>
-        <span v-else>📦 Ausleihmaterial</span>
-      </div>
-      <p v-if="isConsumable" class="usage-desc">Wird bei Ausgabe sofort vom Bestand abgezogen.</p>
-      <p v-else-if="isFood" class="usage-desc">Lebensmittel – wird im Tab "Esswaren" angezeigt.</p>
-      <p v-else-if="isJsMaterial" class="usage-desc">Globale externe Quelle fuer department-uebergreifende Planung.</p>
-      <p v-else class="usage-desc">Das Material wird nach Abschluss des Projekts ins Lager zurückgebracht.</p>
-      <div v-if="isConsumable && salePrice" class="info-row">
+      <template v-if="isConsumable">
+        <p class="usage-lead">Verbrauchsmaterial</p>
+        <p class="usage-desc">Fackeln, Gaskartuschen, Einweggeschirr u. a. — Bestand sinkt bei Ausgabe.</p>
+      </template>
+      <template v-else-if="isFood">
+        <p class="usage-lead">Esswaren</p>
+        <p class="usage-desc">Lebensmittel, Getränke, Snacks — Anzeige unter „Esswaren“.</p>
+      </template>
+      <template v-else-if="isJsMaterial">
+        <p class="usage-lead">J&amp;S-Material (global)</p>
+        <p class="usage-desc">Quelle „J&amp;S / extern“ — standortübergreifend planbar.</p>
+      </template>
+      <template v-else>
+        <p class="usage-lead">Ausleihe</p>
+        <p class="usage-desc">Rückgabe nach Projekt ins Lager · Vermietung optional (Details).</p>
+      </template>
+      <div v-if="(isConsumable || isFood) && salePrice" class="info-row">
         <span class="info-label">Verkaufspreis:</span>
         <span class="info-value">CHF {{ Number(salePrice).toFixed(2) }} / Stk.</span>
       </div>
+      <div v-if="(isConsumable || isFood) && referencePurchaseUnitChf" class="info-row">
+        <span class="info-label">Einkauf (Ref.)</span>
+        <span class="info-value">CHF {{ Number(referencePurchaseUnitChf).toFixed(2) }} / Stk.</span>
+      </div>
+      <div
+        v-if="(isConsumable || isFood) && packSize && packUnit && packSalePriceChf"
+        class="info-row"
+      >
+        <span class="info-label">Preis / {{ packUnit }}:</span>
+        <span class="info-value">CHF {{ Number(packSalePriceChf).toFixed(2) }} ({{ packSize }} Stk.)</span>
+      </div>
       <div v-if="isConsumable && minStock" class="info-row">
-        <span class="info-label">Mindestbestand:</span>
+        <span class="info-label">Min. Bestand</span>
         <span class="info-value">{{ minStock }} Stk.</span>
       </div>
       <div v-if="packSize && packUnit" class="info-row">
-        <span class="info-label">Verpackung:</span>
+        <span class="info-label">VE</span>
         <span class="info-value">{{ packUnit }} à {{ packSize }} Stk.</span>
       </div>
       <div v-if="isJsMaterial && externalSource" class="info-row">
@@ -72,8 +89,8 @@
         <span class="info-value">Kisteninhalt</span>
       </div>
       <div class="info-row">
-        <span class="info-label">Komponenten:</span>
-        <span class="info-value">{{ componentInputs.length }} Teile</span>
+        <span class="info-label">Komponenten</span>
+        <span class="info-value">{{ componentInputs.length }}</span>
       </div>
       <div v-if="storageAddressWithLocation" class="info-row">
         <span class="info-label">Lagerort:</span>
@@ -100,16 +117,16 @@
       class="tracking-info"
     >
       <div v-if="trackingType" class="info-row">
-        <span class="info-label">Bestandsverfolgung:</span>
+        <span class="info-label">Verfolgung</span>
         <span class="info-value">{{ trackingTypeLabel }}</span>
       </div>
       <div v-if="initialQty > 0" class="info-row">
-        <span class="info-label">Initialer Bestand:</span>
-        <span class="info-value">{{ initialQty }} Stück</span>
+        <span class="info-label">Startbestand</span>
+        <span class="info-value">{{ initialQty }} Stk.</span>
       </div>
       <div v-if="comboArticlesCount > 0" class="info-row">
-        <span class="info-label">Enthält:</span>
-        <span class="info-value">{{ comboArticlesCount }} Artikel</span>
+        <span class="info-label">Artikel</span>
+        <span class="info-value">{{ comboArticlesCount }}</span>
       </div>
       <div v-if="storageAddressWithLocation" class="info-row">
         <span class="info-label">Lagerort:</span>
@@ -142,9 +159,11 @@ const props = defineProps<{
   isFood?: boolean
   isJsMaterial?: boolean
   salePrice?: number | string | null
+  referencePurchaseUnitChf?: number | string | null
   minStock?: number | null
   packSize?: number | null
   packUnit?: string | null
+  packSalePriceChf?: number | string | null
   externalSource?: string | null
   isFromTemplate?: boolean
   /** Combo aus Kiste: gleiche Komponenten-Liste wie Vorlage, Quelle „Kisteninhalt“ */

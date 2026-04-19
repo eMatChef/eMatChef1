@@ -28,7 +28,7 @@ class DepartmentController extends AbstractController
         private EntityManagerInterface $entityManager,
         private AuditLogger $auditLogger,
         private DepartmentResetService $departmentResetService,
-        private AccountingCostCenterBootstrapService $accountingCostCenterBootstrap
+        private AccountingCostCenterBootstrapService $accountingCostCenterBootstrap,
     ) {}
 
     /**

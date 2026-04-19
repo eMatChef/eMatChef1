@@ -2,15 +2,20 @@
 
 namespace App\Controller;
 
+use App\Entity\Activity;
 use App\Entity\Address;
 use App\Entity\Department;
 use App\Entity\MaterialBatch;
+use App\Entity\MaterialItem;
 use App\Entity\Membership;
 use App\Entity\StorageRack;
 use App\Entity\StorageSlot;
 use App\Entity\User;
 use App\Util\IdGenerator;
+use Doctrine\DBAL\Connection;
 use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
+use Doctrine\DBAL\ParameterType;
+use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -333,8 +338,14 @@ class StorageLocationController extends AbstractController
     }
 
     /**
-     * Batches mit Lagerort (rack_id) – für Kisten-Auswahl bei Allokationen.
-     * Kiste = MaterialBatch mit Standort (z.B. Lagerkiste-Material).
+     * Batches mit Lagerort (rack_id), die als Behälter gelten.
+     * Stammdaten «Behälter» (material_item.is_container) oder serialisierte Instanz (material_batch.is_container);
+     * keine physischen Kombis;
+     * keine Batches, die bereits als Referenz-Kiste einer physischen Kombi verknüpft sind.
+     *
+     * Optional: activity_id=… → für Packliste: nicht schon dieser Aktivität zugeordnet,
+     * nicht parallel einer anderen Aktivität (Überlappung Planungs- oder Nutzungszeitraum).
+     * Feld storage_empty: true, wenn die Kiste keinen relevanten Lagerinhalt hat (Vorschau leer).
      */
     #[Route('/container-batches', name: 'container_batches_list', methods: ['GET'])]
     #[IsGranted('ROLE_USER')]
@@ -347,6 +358,35 @@ class StorageLocationController extends AbstractController
         $access = $this->assertDepartmentAccess($departmentId);
         if ($access instanceof JsonResponse) return $access;
 
+        $activityIdForPack = trim((string) $request->query->get('activity_id', ''));
+        $busyBatchIds = [];
+        $assignedOnActivityBatchIds = [];
+        $filterForPack = false;
+
+        if ($activityIdForPack !== '') {
+            $activity = $this->entityManager->getRepository(Activity::class)->find($activityIdForPack);
+            if (!$activity || $activity->isDeleted()) {
+                return new JsonResponse(['error' => 'Aktivität nicht gefunden'], 404);
+            }
+            if ($activity->getDepartmentId() !== $departmentId) {
+                return new JsonResponse(['error' => 'department_id passt nicht zur Aktivität'], 400);
+            }
+            $filterForPack = true;
+            $conn = $this->entityManager->getConnection();
+            $assignedOnActivityBatchIds = $this->fetchContainerBatchIdsAssignedToActivity($conn, $activityIdForPack);
+            $rangeStart = $activity->getPlanningStart() ?? $activity->getUsageStart();
+            $rangeEnd = $activity->getPlanningEnd() ?? $activity->getUsageEnd();
+            if ($rangeStart !== null && $rangeEnd !== null) {
+                $busyBatchIds = $this->fetchContainerBatchIdsBusyInOverlappingActivities(
+                    $conn,
+                    $activityIdForPack,
+                    $departmentId,
+                    $rangeStart,
+                    $rangeEnd
+                );
+            }
+        }
+
         $batches = $this->entityManager->getRepository(MaterialBatch::class)
             ->createQueryBuilder('b')
             ->innerJoin('b.materialItem', 'mi')
@@ -357,8 +397,15 @@ class StorageLocationController extends AbstractController
             ->andWhere('b.rackId IS NOT NULL')
             ->andWhere('b.status = :status')
             ->andWhere('mi.deletedAt IS NULL')
+            ->andWhere('(mi.isContainer = true OR b.isContainer = true)')
+            ->andWhere('mi.materialType <> :physicalCombo')
+            ->andWhere('NOT EXISTS (
+                SELECT 1 FROM ' . MaterialItem::class . ' micb
+                WHERE micb.linkedContainerBatchId = b.id
+            )')
             ->setParameter('departmentId', $departmentId)
             ->setParameter('status', 'active')
+            ->setParameter('physicalCombo', 'physical_combo')
             ->orderBy('mi.name', 'ASC')
             ->addOrderBy('b.serialNumber', 'ASC')
             ->addOrderBy('b.label', 'ASC')
@@ -371,10 +418,21 @@ class StorageLocationController extends AbstractController
 
         $result = [];
         foreach ($batches as $b) {
-            $label = $b->getLabel() ?: $b->getSerialNumber() ?: $b->getMaterialItem()->getName();
-            $pv = $previewById[$b->getId()] ?? ['content_preview' => [], 'content_preview_more' => 0];
+            $bid = $b->getId();
+            $pv = $previewById[$bid] ?? ['content_preview' => [], 'content_preview_more' => 0];
+            $storageEmpty = $this->isContainerBatchStorageEmpty($pv);
+
+            if ($filterForPack) {
+                if (in_array($bid, $assignedOnActivityBatchIds, true)) {
+                    continue;
+                }
+                if ($busyBatchIds !== [] && in_array($bid, $busyBatchIds, true)) {
+                    continue;
+                }
+            }
+
             $result[] = [
-                'id' => $b->getId(),
+                'id' => $bid,
                 'material_id' => $b->getMaterialItem()->getId(),
                 'serial_number' => $b->getSerialNumber(),
                 'label' => $b->getLabel(),
@@ -386,8 +444,22 @@ class StorageLocationController extends AbstractController
                 'slot' => $b->getSlot() ? ['id' => $b->getSlot()->getId(), 'name' => $b->getSlot()->getName()] : null,
                 'content_preview' => $pv['content_preview'],
                 'content_preview_more' => $pv['content_preview_more'],
+                'storage_empty' => $storageEmpty,
             ];
         }
+
+        if ($filterForPack && $result !== []) {
+            usort($result, static function (array $a, array $b): int {
+                $ea = $a['storage_empty'] ?? false;
+                $eb = $b['storage_empty'] ?? false;
+                if ($ea === $eb) {
+                    return strcmp((string) ($a['display_label'] ?? ''), (string) ($b['display_label'] ?? ''));
+                }
+
+                return $ea ? -1 : 1;
+            });
+        }
+
         return new JsonResponse($result);
     }
 
@@ -585,6 +657,88 @@ class StorageLocationController extends AbstractController
             'created_at' => $slot->getCreatedAt()->format('c'),
             'updated_at' => $slot->getUpdatedAt()->format('c'),
         ];
+    }
+
+    /**
+     * @param array{content_preview: list<array{material_name: string, qty: int}>, content_preview_more: int} $pv
+     */
+    private function isContainerBatchStorageEmpty(array $pv): bool
+    {
+        if (($pv['content_preview_more'] ?? 0) > 0) {
+            return false;
+        }
+        foreach ($pv['content_preview'] ?? [] as $line) {
+            if (($line['qty'] ?? 0) > 0) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function fetchContainerBatchIdsAssignedToActivity(Connection $conn, string $activityId): array
+    {
+        $sql = <<<'SQL'
+            SELECT DISTINCT container_batch_id
+            FROM activity_pack_container
+            WHERE activity_id = ?
+              AND container_batch_id IS NOT NULL
+        SQL;
+        $rows = $conn->executeQuery($sql, [$activityId])->fetchFirstColumn();
+
+        return array_values(array_filter(array_map(static fn ($id) => (string) $id, $rows)));
+    }
+
+    /**
+     * Kisten-Batches, die in einer anderen Aktivität derselben Abteilung gebucht sind und deren
+     * Zeitraum (Planung oder Nutzung) sich mit dem gegebenen Intervall überschneidet.
+     *
+     * @return list<string>
+     */
+    private function fetchContainerBatchIdsBusyInOverlappingActivities(
+        Connection $conn,
+        string $excludeActivityId,
+        string $departmentId,
+        \DateTimeInterface $rangeStart,
+        \DateTimeInterface $rangeEnd,
+    ): array {
+        $sql = <<<'SQL'
+            SELECT DISTINCT apc.container_batch_id
+            FROM activity_pack_container apc
+            INNER JOIN activity a ON a.id = apc.activity_id
+            WHERE apc.container_batch_id IS NOT NULL
+              AND apc.activity_id <> :excludeId
+              AND a.department_id = :dept
+              AND a.deleted_at IS NULL
+              AND a.status <> :cancelled
+              AND COALESCE(a.planning_start, a.usage_start) IS NOT NULL
+              AND COALESCE(a.planning_end, a.usage_end) IS NOT NULL
+              AND :cStart <= COALESCE(a.planning_end, a.usage_end)
+              AND COALESCE(a.planning_start, a.usage_start) <= :cEnd
+        SQL;
+
+        $rows = $conn->executeQuery($sql, [
+            'excludeId' => $excludeActivityId,
+            'dept' => $departmentId,
+            'cancelled' => Activity::STATUS_CANCELLED,
+            'cStart' => $rangeStart,
+            'cEnd' => $rangeEnd,
+        ], [
+            'excludeId' => ParameterType::STRING,
+            'dept' => ParameterType::STRING,
+            'cancelled' => ParameterType::STRING,
+            'cStart' => $rangeStart instanceof \DateTimeImmutable
+                ? Types::DATETIME_IMMUTABLE
+                : Types::DATETIME_MUTABLE,
+            'cEnd' => $rangeEnd instanceof \DateTimeImmutable
+                ? Types::DATETIME_IMMUTABLE
+                : Types::DATETIME_MUTABLE,
+        ])->fetchFirstColumn();
+
+        return array_values(array_filter(array_map(static fn ($id) => (string) $id, $rows)));
     }
 
     /**

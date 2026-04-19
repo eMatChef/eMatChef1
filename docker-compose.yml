@@ -54,7 +54,9 @@ services:
     depends_on:
       db:
         condition: service_healthy
-    command: php -S 0.0.0.0:8081 -t public
+    # Entrypoint: Migrationen + JWT-Keys (siehe backend/docker-entrypoint.sh)
+    entrypoint: ["/var/www/html/docker-entrypoint.sh"]
+    command: ["php", "-S", "0.0.0.0:8081", "-t", "public"]
 
   frontend:
     # Root nur für Entrypoint (chown node_modules-Volume), danach su-exec auf HOST_UID
@@ -74,6 +76,7 @@ services:
       VITE_RELATIVE_API: "true"
       VITE_QR_PUBLIC_HOST: qr.localhost
       VITE_APP_ORIGIN: http://app.localhost
+      VITE_MAIN_SITE_ORIGIN: http://app.localhost
       HMR_CLIENT_PORT: "80"
     command: npm run dev -- --host 0.0.0.0
 

@@ -110,9 +110,16 @@ const visibleMenuItems = computed((): MenuItem[] => {
       { id: 'departments', label: 'Abteilungen', icon: markRaw(IconDashboard) },
       { id: 'users', label: 'Benutzer', icon: markRaw(IconEmployees) }
     ]
+    const integrations: MenuItem = { id: 'integrations', label: 'Integrationen', icon: markRaw(IconSettings) }
     const mail: MenuItem = { id: 'mail', label: 'E-Mail', icon: markRaw(IconSettings) }
     const perm: MenuItem = { id: 'permissions', label: 'Berechtigungen', icon: markRaw(IconSettings) }
-    return [...core, ...(isSuperAdminUser.value ? sa : []), ...(isSuperAdminUser.value ? [mail] : []), perm]
+    return [
+      ...core,
+      ...(isSuperAdminUser.value ? sa : []),
+      ...(isSuperAdminUser.value ? [integrations] : []),
+      ...(isSuperAdminUser.value ? [mail] : []),
+      perm,
+    ]
   }
 
   const saUsersGlobal: MenuItem = {

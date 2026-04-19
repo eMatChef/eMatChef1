@@ -113,7 +113,7 @@
 }
 
 .tab-btn {
-  padding: 14px 20px;
+  padding: 9px 15px;
   background: none;
   border: none;
   font-size: 15px;
@@ -874,4 +874,237 @@
 
 .linked-kiste-link:hover {
   color: #1d4ed8;
+}
+
+.subsection-heading-kosten {
+  font-size: 15px;
+  font-weight: 600;
+  color: #374151;
+  margin: 1.25rem 0 0.35rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid #e5e7eb;
+}
+
+.costs-hint-banner {
+  display: flex;
+  align-items: center;
+  padding: 8px 12px;
+  border-radius: 8px;
+  margin-bottom: 12px;
+  font-size: 13px;
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.costs-hint-banner--food {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.pack-sale-to-unit {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+}
+
+.pack-sale-to-unit__text {
+  margin: 0 0 8px 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: #475569;
+}
+
+.pack-sale-to-unit__text strong {
+  color: #0f172a;
+}
+
+.pack-sale-to-unit__btn {
+  width: 100%;
+}
+
+/* Tab Zusammensetzung (Kombos) */
+.composition-tab-card .composition-tab-head {
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.composition-tab-intro {
+  margin: 8px 0 0 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: #64748b;
+  max-width: 52rem;
+}
+
+.composition-tab-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.composition-add-modal-intro {
+  font-size: 13px;
+  margin: 0 0 12px 0;
+}
+
+.composition-loading {
+  padding: 32px 24px;
+}
+
+.composition-hint {
+  font-size: 13px;
+  margin-top: 8px;
+}
+
+.composition-comp-link {
+  font-weight: 600;
+  text-align: left;
+  padding: 0;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #2563eb;
+}
+
+.composition-comp-link:hover {
+  text-decoration: underline;
+}
+
+.composition-optional-badge {
+  display: inline-block;
+  margin-left: 8px;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #f1f5f9;
+  color: #64748b;
+}
+
+.composition-status-cell {
+  width: 36px;
+  text-align: center;
+}
+
+.composition-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.composition-dot--await {
+  background: #f59e0b;
+}
+
+.composition-dot--ok {
+  background: #22c55e;
+}
+
+.composition-dot--linked {
+  background: #94a3b8;
+}
+
+/* Wie „Menge“ u. a.: normale Zellen, scrollen gemeinsam mit der Zeile (kein position:sticky) */
+.composition-table-wrapper {
+  overflow-x: auto;
+  max-width: 100%;
+  -webkit-overflow-scrolling: touch;
+}
+
+.composition-table.used-in-table {
+  width: max-content;
+  min-width: 100%;
+}
+
+.composition-table .composition-assignment-cell {
+  white-space: nowrap;
+}
+
+.composition-actions-th,
+.composition-actions-cell {
+  width: 1%;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.composition-row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.composition-row-actions .icon-btn.icon-btn-danger {
+  color: #b91c1c;
+  border-color: #fecaca;
+}
+
+.composition-row-actions .icon-btn.icon-btn-danger:hover:not(:disabled) {
+  background: #fef2f2;
+  color: #991b1b;
+  border-color: #f87171;
+}
+
+.composition-icon-spin {
+  animation: composition-icon-spin 0.75s linear infinite;
+}
+
+@keyframes composition-icon-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Vermietung: Kombi — Anschaffung aus Stückliste */
+.combo-rental-basis-section {
+  margin-bottom: 1.25rem;
+}
+
+.combo-rental-basis-title {
+  margin-top: 0;
+  margin-bottom: 0.35rem;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.combo-rental-basis-intro {
+  margin-top: 0;
+  margin-bottom: 0.75rem;
+}
+
+.combo-rental-loading {
+  margin-bottom: 0.75rem;
+}
+
+.combo-rental-empty {
+  margin: 0 0 0.75rem;
+}
+
+.combo-rental-basis-table-wrap {
+  overflow-x: auto;
+  max-width: 100%;
+  margin-bottom: 0.5rem;
+}
+
+.combo-rental-basis-table {
+  margin-bottom: 0;
+}
+
+.combo-rental-col-num {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.combo-rental-total-row th {
+  font-weight: 600;
+}
+
+.combo-rental-gap-hint {
+  margin-top: 0.5rem;
 }

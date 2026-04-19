@@ -46,7 +46,8 @@ class DepartmentSettingController extends AbstractController
         $allDefaults = array_merge(
             DepartmentSetting::getGeneralDefaults(),
             DepartmentSetting::getActivityDefaults(),
-            DepartmentSetting::getRentalAmortizationDefaults()
+            DepartmentSetting::getRentalAmortizationDefaults(),
+            DepartmentSetting::getCalendarDefaults()
         );
         foreach ($allDefaults as $key => $defaultValue) {
             if (!isset($result[$key])) {
@@ -89,7 +90,8 @@ class DepartmentSettingController extends AbstractController
         $allDefaults = array_merge(
             DepartmentSetting::getGeneralDefaults(),
             DepartmentSetting::getActivityDefaults(),
-            DepartmentSetting::getRentalAmortizationDefaults()
+            DepartmentSetting::getRentalAmortizationDefaults(),
+            DepartmentSetting::getCalendarDefaults()
         );
         foreach ($allDefaults as $key => $defaultValue) {
             if (str_starts_with($key, $prefix . '.') && !isset($result[$key])) {
@@ -124,7 +126,7 @@ class DepartmentSettingController extends AbstractController
         }
 
         // Erlaubte Setting-Keys validieren
-        $allowedPrefixes = ['activity.', 'material.', 'general.', 'onboarding.', 'rental.'];
+        $allowedPrefixes = ['activity.', 'material.', 'general.', 'onboarding.', 'rental.', 'calendar.'];
         $validData = [];
         foreach ($data as $key => $value) {
             $isAllowed = false;
@@ -184,7 +186,8 @@ class DepartmentSettingController extends AbstractController
         $allDefaults = array_merge(
             DepartmentSetting::getGeneralDefaults(),
             DepartmentSetting::getActivityDefaults(),
-            DepartmentSetting::getRentalAmortizationDefaults()
+            DepartmentSetting::getRentalAmortizationDefaults(),
+            DepartmentSetting::getCalendarDefaults()
         );
         foreach ($allDefaults as $k => $v) {
             if (!isset($result[$k])) {

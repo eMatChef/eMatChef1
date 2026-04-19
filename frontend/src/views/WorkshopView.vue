@@ -110,6 +110,20 @@
           ×
         </button>
       </div>
+      <div
+        v-if="materialFilterId"
+        style="display:flex; align-items:center; gap:8px; margin-left:auto; background:#f0fdf4; color:#166534; border:1px solid #bbf7d0; border-radius:999px; padding:6px 10px; font-size:12px; font-weight:600;"
+      >
+        <span>Nur Material: {{ materialFilterLabel || materialFilterId }}</span>
+        <button
+          type="button"
+          style="border:none; background:transparent; color:#166534; cursor:pointer; font-weight:700; font-size:14px; line-height:1;"
+          title="Filter entfernen"
+          @click="clearMaterialFilter"
+        >
+          ×
+        </button>
+      </div>
     </div>
 
     <!-- Loading -->
@@ -834,7 +848,7 @@ import {
   type TicketType,
   type TicketPriority,
 } from '@/api/workshop'
-import { getMaterials, type Material } from '@/api/materials'
+import { getMaterials, getMaterial, type Material } from '@/api/materials'
 import GlobalSearchInput from '@/components/common/GlobalSearchInput.vue'
 import '@/styles/workshop-view.css'
 
@@ -843,6 +857,13 @@ const router = useRouter()
 const authStore = useAuthStore()
 const toast = useToast()
 const currentDepartmentId = computed(() => route.params.departmentId as string)
+
+/** Query ?material_id= — aus Material-Detail (Werkstatt nur für dieses Material) */
+const materialFilterId = computed(() => {
+  const q = route.query.material_id
+  return typeof q === 'string' && q.trim() !== '' ? q.trim() : undefined
+})
+const materialFilterLabel = ref('')
 
 // === State ===
 const tickets = ref<WorkshopTicket[]>([])
@@ -1055,12 +1076,23 @@ async function loadData() {
 
   isLoading.value = true
   try {
+    const listOpts = materialFilterId.value ? { material_item_id: materialFilterId.value } : undefined
     const [ticketsData, statsData] = await Promise.all([
-      getWorkshopTickets(currentDepartmentId.value),
+      getWorkshopTickets(currentDepartmentId.value, listOpts),
       getWorkshopStats(currentDepartmentId.value),
     ])
     tickets.value = ticketsData
     stats.value = statsData
+    if (materialFilterId.value) {
+      try {
+        const m = await getMaterial(materialFilterId.value)
+        materialFilterLabel.value = m.name || ''
+      } catch {
+        materialFilterLabel.value = ''
+      }
+    } else {
+      materialFilterLabel.value = ''
+    }
   } catch (err: any) {
     console.error('Failed to load workshop data:', err)
   } finally {
@@ -1068,6 +1100,12 @@ async function loadData() {
   }
 
   await tryOpenTicketFromQuery()
+}
+
+function clearMaterialFilter() {
+  const nextQuery = { ...route.query }
+  delete (nextQuery as Record<string, unknown>).material_id
+  router.replace({ path: route.path, query: nextQuery })
 }
 
 async function openTicketDetail(ticket: WorkshopTicket) {
@@ -1572,7 +1610,7 @@ function formatDateTime(dateStr: string): string {
 }
 
 // === Lifecycle ===
-watch(currentDepartmentId, () => {
+watch([currentDepartmentId, materialFilterId], () => {
   loadData()
 })
 
@@ -1599,6 +1637,17 @@ watch(
   },
   { immediate: true }
 )
+
+watch(showCreateModal, async (open) => {
+  if (!open || !materialFilterId.value) return
+  createForm.value.material_item_id = materialFilterId.value
+  try {
+    const m = await getMaterial(materialFilterId.value)
+    selectedMaterial.value = m
+  } catch {
+    selectedMaterial.value = null
+  }
+})
 
 onMounted(() => {
   applyQuickFilterFromRoute()

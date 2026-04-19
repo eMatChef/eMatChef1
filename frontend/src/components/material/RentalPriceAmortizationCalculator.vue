@@ -147,7 +147,7 @@ const props = withDefaults(
     /** Stückzahl zur Aufteilung (Anschaffung pro Stück); fehlt → 1 */
     pieceCount?: number | null
     /** `batches` = Detailansicht; `wizard` = Material anlegen */
-    context?: 'batches' | 'wizard'
+    context?: 'batches' | 'wizard' | 'combo'
     /** Abteilungs-Standards (aus Department-Settings) */
     defaults: RentalAmortizationDefaults
     /** Gespeicherte Eingaben pro Material; null = nur Standards anzeigen */
@@ -238,31 +238,39 @@ watch(
   { deep: true }
 )
 
-const contextHint = computed(() =>
-  props.context === 'wizard' ? 'aus diesem Formular (Stückpreis × Menge)' : 'aus den Chargen'
-)
+const contextHint = computed(() => {
+  if (props.context === 'wizard') return 'aus diesem Formular (Stückpreis × Menge)'
+  if (props.context === 'combo')
+    return 'aus der Zusammensetzung (Ø-Anschaffung pro Stück je Komponente × Menge im Set)'
+  return 'aus den Chargen'
+})
 
-const historicalLineLabel = computed(() =>
-  props.context === 'wizard'
-    ? 'Historische Anschaffung (geplanter Erstkauf, Stückpreis × Menge):'
-    : 'Historische Anschaffung (aktive Chargen, Summe Menge × Stückpreis):'
-)
+const historicalLineLabel = computed(() => {
+  if (props.context === 'wizard')
+    return 'Historische Anschaffung (geplanter Erstkauf, Stückpreis × Menge):'
+  if (props.context === 'combo') return 'Historische Anschaffung ein Set (Summe aus Stückliste):'
+  return 'Historische Anschaffung (aktive Chargen, Summe Menge × Stückpreis):'
+})
 
-const manualBasisPlaceholder = computed(() =>
-  props.context === 'wizard' ? 'Leer = Stückpreis × Menge' : 'Leer = historische Chargen-Basis'
-)
+const manualBasisPlaceholder = computed(() => {
+  if (props.context === 'wizard') return 'Leer = Stückpreis × Menge'
+  if (props.context === 'combo') return 'Leer = Summe aus Zusammensetzung'
+  return 'Leer = historische Chargen-Basis'
+})
 
-const estimateEmptyHint = computed(() =>
-  props.context === 'wizard'
-    ? 'Anschaffungsbetrag und Jahre bis Neukauf nötig.'
-    : 'Chargen-Basis und Jahre bis Neukauf nötig.'
-)
+const estimateEmptyHint = computed(() => {
+  if (props.context === 'wizard') return 'Anschaffungsbetrag und Jahre bis Neukauf nötig.'
+  if (props.context === 'combo') return 'Summe aus Zusammensetzung und Jahre bis Neukauf nötig.'
+  return 'Chargen-Basis und Jahre bis Neukauf nötig.'
+})
 
-const invalidPreviewHint = computed(() =>
-  props.context === 'wizard'
-    ? 'Keine gültige Basis: Stückpreis und Menge erfassen oder Basis manuell eintragen; Jahre bis Neukauf > 0 und mindestens ein erwarteter Miettag pro Jahr (intern oder extern).'
-    : 'Keine gültige Basis: Chargen mit Stückpreis erfassen oder Basis manuell eintragen; Jahre bis Neukauf > 0 und mindestens ein erwarteter Miettag pro Jahr (intern oder extern).'
-)
+const invalidPreviewHint = computed(() => {
+  if (props.context === 'wizard')
+    return 'Keine gültige Basis: Stückpreis und Menge erfassen oder Basis manuell eintragen; Jahre bis Neukauf > 0 und mindestens ein erwarteter Miettag pro Jahr (intern oder extern).'
+  if (props.context === 'combo')
+    return 'Keine gültige Basis: Komponenten mit Stückpreisen in den Chargen erfassen oder Basis manuell eintragen; Jahre bis Neukauf > 0 und mindestens ein erwarteter Miettag pro Jahr (intern oder extern).'
+  return 'Keine gültige Basis: Chargen mit Stückpreis erfassen oder Basis manuell eintragen; Jahre bis Neukauf > 0 und mindestens ein erwarteter Miettag pro Jahr (intern oder extern).'
+})
 
 const effectivePieceCount = computed(() => {
   const p = props.pieceCount

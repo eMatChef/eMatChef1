@@ -212,12 +212,8 @@
                   v-if="!isFromTemplate"
                   :is-consumable="formData.is_consumable"
                   :is-food="formData.is_food"
-                  :sale-price="formData.sale_price"
-                  :min-stock="formData.min_stock"
                   @update:is-consumable="formData.is_consumable = $event"
                   @update:is-food="formData.is_food = $event"
-                  @update:sale-price="formData.sale_price = $event"
-                  @update:min-stock="formData.min_stock = $event"
                 />
               </div>
             </div>
@@ -402,7 +398,7 @@
                             />
                           </div>
                           <div class="form-group">
-                            <label>Stückpreis (CHF)</label>
+                            <label>Anschaffungspreis (CHF/Stk.)</label>
                             <div class="price-input">
                               <span class="currency">Fr.</span>
                               <input
@@ -491,7 +487,7 @@
                             />
                           </div>
                           <div class="form-group">
-                            <label>Stückpreis (CHF)</label>
+                            <label>Anschaffungspreis (CHF/Stk.)</label>
                             <div class="price-input">
                               <span class="currency">Fr.</span>
                               <input
@@ -995,6 +991,12 @@
                       </span>
                     </label>
                   </div>
+                  <div v-if="(formData.tracking_type === 'bulk' || isAddBatchMode) && !isFromTemplate" class="form-row mb-2">
+                    <label class="checkbox-label material-wizard-container-flag">
+                      <input type="checkbox" v-model="formData.is_container" />
+                      <span>Behälter – dieser Artikel kann Lagerinhalt aufnehmen (erscheint in Kisten-Auswahllisten)</span>
+                    </label>
+                  </div>
                   <p v-if="(formData.tracking_type === 'bulk' || isAddBatchMode) && !stockInputReady" class="field-hint">
                     Zuerst Menge erfassen, danach Lagerplätze zuweisen.
                   </p>
@@ -1324,6 +1326,10 @@
                             class="form-input notes-input"
                             placeholder="z.B. Kochkiste Bär"
                           />
+                          <label class="checkbox-label serial-is-container-flag mt-2">
+                            <input type="checkbox" v-model="entry.is_container" />
+                            <span>Behälter (diese Instanz kann Inhalt aufnehmen)</span>
+                          </label>
                         </div>
 
                         <div v-if="!serialLocationSameForAll" class="serial-block serial-block--art">
@@ -1446,12 +1452,9 @@
                     <p v-if="serialDuplicateHint" class="field-hint is-invalid">
                       {{ serialDuplicateHint }}
                     </p>
-                  </div>
 
-                  <!-- Massenartikel: Normale Mengen-Eingabe -->
-                  <div v-else>
-                    <!-- Verpackungseinheit – direkt bei der Menge -->
-                    <div class="slider-toggle-group pack-toggle-inline">
+                    <!-- Verpackungseinheit – sobald Menge (Seriennummern) erfasst -->
+                    <div v-if="serializedQty > 0" class="slider-toggle-group pack-toggle-inline mt-3">
                       <label class="toggle-label">
                         <span class="toggle-wrapper">
                           <input type="checkbox" v-model="packUnitEnabled" class="toggle-input" />
@@ -1483,10 +1486,95 @@
                                 <option value="Paket">Paket</option>
                               </select>
                             </div>
+                            <div v-if="formData.is_consumable || formData.is_food" class="form-group">
+                              <label>Verkaufspreis pro Einheit (CHF) <span class="optional-label">(optional)</span></label>
+                              <div class="price-input">
+                                <span class="currency">Fr.</span>
+                                <input
+                                  v-model.number="formData.pack_sale_price_chf"
+                                  type="number"
+                                  step="0.05"
+                                  min="0"
+                                  class="form-input"
+                                  placeholder="0.00"
+                                />
+                              </div>
+                              <p
+                                v-if="formData.pack_size && formData.pack_size >= 2 && formData.pack_sale_price_chf && formData.pack_sale_price_chf > 0"
+                                class="field-hint"
+                              >
+                                Entspricht ca. {{ (formData.pack_sale_price_chf / formData.pack_size).toFixed(2) }} CHF/Stk.
+                              </p>
+                            </div>
                           </div>
                           <p v-if="formData.pack_size && formData.pack_unit" class="pack-preview">
-                            Beispiel: {{ formData.initial_qty || 80 }} Stk. = {{ Math.floor((formData.initial_qty || 80) / formData.pack_size) }} {{ formData.pack_unit }} à {{ formData.pack_size }} Stk.
-                            <span v-if="(formData.initial_qty || 80) % formData.pack_size !== 0"> + {{ (formData.initial_qty || 80) % formData.pack_size }} Stk.</span>
+                            Beispiel: {{ serializedQty }} Stk. = {{ Math.floor(serializedQty / formData.pack_size) }} {{ formData.pack_unit }} à {{ formData.pack_size }} Stk.
+                            <span v-if="serializedQty % formData.pack_size !== 0"> + {{ serializedQty % formData.pack_size }} Stk.</span>
+                          </p>
+                        </div>
+                      </transition>
+                    </div>
+                  </div>
+
+                  <!-- Massenartikel: Normale Mengen-Eingabe -->
+                  <div v-else>
+                    <!-- Verpackungseinheit – sobald eine Anzahl eingetragen wurde -->
+                    <div v-if="formData.initial_qty > 0" class="slider-toggle-group pack-toggle-inline">
+                      <label class="toggle-label">
+                        <span class="toggle-wrapper">
+                          <input type="checkbox" v-model="packUnitEnabled" class="toggle-input" />
+                          <span class="toggle-slider toggle-slider--blue"></span>
+                        </span>
+                        <span class="toggle-text">
+                          <span class="toggle-title">Verpackungseinheit</span>
+                          <span class="toggle-desc">In Bündeln, Kisten oder Rollen gelagert</span>
+                        </span>
+                      </label>
+                      <transition name="slide-down">
+                        <div v-if="packUnitEnabled" class="slider-details pack-details">
+                          <div class="form-row">
+                            <div class="form-group">
+                              <label>Stück pro Einheit</label>
+                              <input v-model.number="formData.pack_size" type="number" min="2" class="form-input" placeholder="z.B. 10" />
+                            </div>
+                            <div class="form-group">
+                              <label>Bezeichnung</label>
+                              <select v-model="formData.pack_unit" class="form-input">
+                                <option value="">– wählen –</option>
+                                <option value="Bündel">Bündel</option>
+                                <option value="Kiste">Kiste</option>
+                                <option value="Karton">Karton</option>
+                                <option value="Sack">Sack</option>
+                                <option value="Rolle">Rolle</option>
+                                <option value="Palette">Palette</option>
+                                <option value="Set">Set</option>
+                                <option value="Paket">Paket</option>
+                              </select>
+                            </div>
+                            <div v-if="formData.is_consumable || formData.is_food" class="form-group">
+                              <label>Verkaufspreis pro Einheit (CHF) <span class="optional-label">(optional)</span></label>
+                              <div class="price-input">
+                                <span class="currency">Fr.</span>
+                                <input
+                                  v-model.number="formData.pack_sale_price_chf"
+                                  type="number"
+                                  step="0.05"
+                                  min="0"
+                                  class="form-input"
+                                  placeholder="0.00"
+                                />
+                              </div>
+                              <p
+                                v-if="formData.pack_size && formData.pack_size >= 2 && formData.pack_sale_price_chf && formData.pack_sale_price_chf > 0"
+                                class="field-hint"
+                              >
+                                Entspricht ca. {{ (formData.pack_sale_price_chf / formData.pack_size).toFixed(2) }} CHF/Stk.
+                              </p>
+                            </div>
+                          </div>
+                          <p v-if="formData.pack_size && formData.pack_unit" class="pack-preview">
+                            Beispiel: {{ formData.initial_qty || 0 }} Stk. = {{ Math.floor((formData.initial_qty || 0) / formData.pack_size) }} {{ formData.pack_unit }} à {{ formData.pack_size }} Stk.
+                            <span v-if="formData.initial_qty && (formData.initial_qty % formData.pack_size) !== 0"> + {{ formData.initial_qty % formData.pack_size }} Stk.</span>
                           </p>
                         </div>
                       </transition>
@@ -1605,7 +1693,7 @@
                     <transition name="slide-down">
                       <div v-if="purchasePriceInputMode === 'unit'" key="pp-unit" class="form-row mt-2">
                         <div class="form-group">
-                          <label>Stückpreis (CHF)</label>
+                          <label>Anschaffungspreis (CHF/Stk.)</label>
                           <div class="price-input">
                             <span class="currency">Fr.</span>
                             <input
@@ -1649,7 +1737,7 @@
                           </div>
                         </div>
                         <p v-if="purchasePriceContextQty > 0" class="field-hint">
-                          Errechneter Stückpreis: {{ effectivePurchaseUnitPrice.toFixed(2) }} Fr. ({{ purchasePriceContextQty }} Stk.)
+                          Errechneter Anschaffungspreis: {{ effectivePurchaseUnitPrice.toFixed(2) }} Fr. ({{ purchasePriceContextQty }} Stk.)
                         </p>
                       </div>
                     </transition>
@@ -1735,11 +1823,89 @@
                   </div>
                 </div>
 
-                <!-- Vermietung -->
-                <div class="details-subsection">
+                <!-- Kosten (Verbrauch / Esswaren): Preise, Verpackung, Preis pro VE -->
+                <div v-if="formData.is_consumable || formData.is_food" class="details-subsection">
+                  <h4 class="subsection-title">Kosten</h4>
+                  <div v-if="formData.is_consumable" class="slider-hint costs-hint-row">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>
+                    </svg>
+                    <span>Wird bei Ausgabe sofort vom Bestand abgezogen.</span>
+                  </div>
+                  <div v-if="formData.is_food" class="slider-hint costs-hint-row">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>
+                    </svg>
+                    <span>Wird im Tab „Esswaren“ angezeigt. Haltbarkeitsdaten können pro Charge erfasst werden.</span>
+                  </div>
+                  <div class="form-grid-details">
+                    <div class="form-group">
+                      <label>Verkaufspreis (CHF/Stk.) <span class="field-required-star">*</span></label>
+                      <div class="price-input">
+                        <span class="currency">Fr.</span>
+                        <input
+                          v-model.number="formData.sale_price"
+                          type="number"
+                          step="0.05"
+                          min="0"
+                          class="form-input"
+                          placeholder="0.00"
+                        />
+                      </div>
+                      <p class="field-hint">Verkauf / Abrechnung pro Stück</p>
+                      <div
+                        v-if="packSaleToUnitSaleChf != null"
+                        class="pack-sale-to-unit"
+                      >
+                        <p class="pack-sale-to-unit__text">
+                          Rechner:
+                          {{ formData.pack_sale_price_chf != null ? Number(formData.pack_sale_price_chf).toFixed(2) : '—' }}&nbsp;CHF
+                          pro {{ formData.pack_unit || 'Einheit' }}
+                          ÷ {{ formData.pack_size }}&nbsp;Stk.
+                          =
+                          <strong>{{ packSaleToUnitSaleChf.toFixed(2) }}</strong>
+                          CHF/Stk.
+                        </p>
+                        <button
+                          type="button"
+                          class="btn-outline btn-sm pack-sale-to-unit__btn"
+                          @click="applyPackSaleToWizardUnitSale"
+                        >
+                          Als Stückpreis übernehmen
+                        </button>
+                      </div>
+                    </div>
+                    <div class="form-group">
+                      <label>Einkaufspreis Referenz (CHF/Stk.) <span class="field-required-star">*</span></label>
+                      <div class="price-input">
+                        <span class="currency">Fr.</span>
+                        <input
+                          v-model.number="formData.reference_purchase_unit_chf"
+                          type="number"
+                          step="0.05"
+                          min="0"
+                          class="form-input"
+                          placeholder="0.00"
+                        />
+                      </div>
+                      <p class="field-hint">Stammbezug für Übersicht und Buchhaltung</p>
+                    </div>
+                    <div v-if="formData.is_consumable" class="form-group">
+                      <label>Mindestbestand <span class="optional-label">(optional)</span></label>
+                      <input v-model.number="formData.min_stock" type="number" min="0" class="form-input" placeholder="z.B. 10" />
+                      <p class="field-hint">Warnung bei Unterschreitung</p>
+                    </div>
+                  </div>
+                  <p class="step-hint mt-2">
+                    Verpackungseinheit tragen Sie bei der <strong>Menge</strong> ein, sobald eine Anzahl erfasst ist.
+                  </p>
+                </div>
+
+                <!-- Vermietung (nicht bei Verbrauch / Esswaren) -->
+                <div v-if="!formData.is_consumable && !formData.is_food" class="details-subsection">
                   <h4 class="subsection-title">Vermietung</h4>
                   <RentalPriceAmortizationCalculator
-                    v-if="formData.material_type === 'physical' && formData.tracking_type"
+                    v-if="formData.material_type === 'physical' && formData.tracking_type && !formData.is_consumable && !formData.is_food"
                     v-model="formData.rental_calc_params"
                     :defaults="rentalAmortDefaults"
                     :historical-basis-chf="wizardRentalHistoricalBasisChf"
@@ -1795,6 +1961,15 @@
                       <span>Genehmigung erforderlich</span>
                     </label>
                   </div>
+                  <div v-if="formData.rental_external_allowed" class="form-group mt-2">
+                    <label>Externe Vermietung — Reichweite</label>
+                    <select v-model="formData.rental_scope" class="form-input">
+                      <option value="">— nicht festgelegt —</option>
+                      <option value="department">Nur eigenes Department</option>
+                      <option value="organisation">Ganze Organisation</option>
+                      <option value="public">Öffentlich / externe Mieter</option>
+                    </select>
+                  </div>
                   <div class="form-group mt-2">
                     <label>Vermietungs-Hinweise</label>
                     <textarea v-model="formData.rental_notes" class="form-textarea" rows="2" placeholder="Besondere Bedingungen, Hinweise..."></textarea>
@@ -1820,9 +1995,11 @@
           :is-food="formData.is_food"
           :is-js-material="formData.is_js_material"
           :sale-price="formData.sale_price"
+          :reference-purchase-unit-chf="formData.reference_purchase_unit_chf"
           :min-stock="formData.min_stock"
           :pack-size="formData.pack_size"
           :pack-unit="formData.pack_unit"
+          :pack-sale-price-chf="formData.pack_sale_price_chf"
           :external-source="formData.external_source"
           :is-from-template="isFromTemplate"
           :is-from-container-batch-contents="isFromContainerBatchContents"
@@ -1979,6 +2156,7 @@ import MaterialTypeToggles from '@/components/material/wizard/MaterialTypeToggle
 import StorageLocationPicker from '@/components/storage/StorageLocationPicker.vue'
 import { createBasicMaterialLookupFetcher } from '@/composables/useMaterialLookup'
 import { useStorageStructure } from '@/composables/useStorageStructure'
+import { unitPriceFromPackSaleChf } from '@/utils/packPricing'
 import '@/styles/material-wizard.css'
 
 const props = defineProps<{
@@ -2231,11 +2409,29 @@ const packUnitEnabled = computed({
     if (!val) {
       formData.pack_size = null
       formData.pack_unit = ''
+      formData.pack_sale_price_chf = null
     } else if (!formData.pack_size) {
       formData.pack_size = 10
     }
   }
 })
+
+/** Stückpreis aus Packungspreis ÷ Stück pro Einheit (Verbrauch/Essen, wenn beides gesetzt). */
+const packSaleToUnitSaleChf = computed(() => {
+  if (!(formData.is_consumable || formData.is_food)) return null
+  const pp = formData.pack_sale_price_chf
+  const ps = formData.pack_size
+  if (pp == null || ps == null) return null
+  return unitPriceFromPackSaleChf(Number(pp), Number(ps))
+})
+
+function applyPackSaleToWizardUnitSale() {
+  const v = packSaleToUnitSaleChf.value
+  if (v == null) return
+  formData.sale_price = v
+  toast.success('Stückpreis aus Packung übernommen.')
+}
+
 const templateSearch = ref('')
 const availableTemplates = ref<Template[]>([])
 const filteredTemplateList = ref<Template[]>([])
@@ -2310,9 +2506,11 @@ const formData = reactive({
   is_js_material: false,
   external_source: '' as string,
   sale_price: null as number | null,
+  reference_purchase_unit_chf: null as number | null,
   min_stock: null as number | null,
   pack_size: null as number | null,
   pack_unit: '' as string,
+  pack_sale_price_chf: null as number | null,
   initial_qty: 0,
   purchase_date: getTodayIso(),
   expiry_date: '',
@@ -2340,12 +2538,15 @@ const formData = reactive({
   rental_lead_days: null as number | null,
   rental_max_days: null as number | null,
   rental_external_allowed: false,
+  rental_scope: '' as string,
   rental_requires_approval: false,
   rental_notes: '' as string,
   rental_calc_params: null as RentalCalcParams | null,
   split_allocations: false,
   stock_location_mode: 'slot' as 'slot' | 'kiste',
-  stock_container_batch_id: '' as string
+  stock_container_batch_id: '' as string,
+  /** Massenartikel: gesamter Artikel ist Behälter; bei serialisiert pro Zeile in serialNumbers */
+  is_container: false
 })
 
 const rentalAmortDefaults = ref<RentalAmortizationDefaults>({ ...DEFAULT_RENTAL_AMORTIZATION })
@@ -2391,6 +2592,8 @@ interface SerialNumberEntry {
   serial_number: string
   label: string
   notes: string
+  /** Diese Instanz ist ein Behälter (erscheint in Container-Listen) */
+  is_container: boolean
   location_mode: 'slot' | 'kiste'
   storage_address_id: string
   rack_id: string
@@ -2498,6 +2701,7 @@ function generateSerialNumbers() {
     serial_number: prefix + String(start + i).padStart(pad, '0'),
     label: '',
     notes: '',
+    is_container: false,
     location_mode: 'slot',
     storage_address_id: getPreferredStorageAddressId(),
     rack_id: '',
@@ -2512,6 +2716,7 @@ function addSerialNumber() {
     serial_number: '',
     label: '',
     notes: '',
+    is_container: false,
     location_mode: 'slot',
     storage_address_id: getPreferredStorageAddressId(),
     rack_id: '',
@@ -2651,7 +2856,7 @@ const stockInputReady = computed(() => {
   return formData.initial_qty > 0
 })
 
-/** Stückpreis direkt oder Gesamt (Waren + optional Lieferung) auf Stück verteilen */
+/** Anschaffung: direkt pro Stück oder Gesamt (Waren + optional Lieferung) auf Stück verteilen */
 const purchasePriceInputMode = ref<'unit' | 'total'>('unit')
 const purchaseTotalWaresChf = ref('')
 const purchaseShippingChf = ref('')
@@ -2687,6 +2892,20 @@ const effectivePurchaseUnitPrice = computed(() => {
   if (sum <= 0) return 0
   return Math.round((sum / qty) * 100) / 100
 })
+
+/** Einkaufspreis Referenz (Kosten) aus Anschaffung vorausfüllen, solange Referenz noch leer */
+watch(
+  () => [effectivePurchaseUnitPrice.value, formData.is_consumable, formData.is_food],
+  () => {
+    if (!(formData.is_consumable || formData.is_food)) return
+    const up = effectivePurchaseUnitPrice.value
+    if (up <= 0) return
+    const ref = formData.reference_purchase_unit_chf
+    if (ref == null || Number(ref) <= 0) {
+      formData.reference_purchase_unit_chf = Math.round(up * 100) / 100
+    }
+  }
+)
 
 watch(
   [purchasePriceInputMode, purchaseTotalWaresChf, purchaseShippingChf, purchasePriceContextQty],
@@ -3092,6 +3311,11 @@ const canSubmit = computed(() => {
       if (!formData.split_allocations && formData.stock_location_mode === 'slot' && formData.initial_qty > 0 && (!formData.rack_id || !formData.slot_id)) return false
     }
     if (purchasePriceRequired.value && effectivePurchaseUnitPrice.value <= 0) return false
+    if (formData.is_consumable || formData.is_food) {
+      const sp = formData.sale_price
+      const rp = formData.reference_purchase_unit_chf
+      if (sp == null || Number(sp) <= 0 || rp == null || Number(rp) <= 0) return false
+    }
   }
 
   if (formData.material_type === 'physical_combo' || formData.material_type === 'virtual_combo') {
@@ -3269,6 +3493,16 @@ const missingSteps = computed(() => {
     if (purchasePriceRequired.value && effectivePurchaseUnitPrice.value <= 0) {
       missing.push('Anschaffungspreis eingeben')
     }
+    if (formData.is_consumable || formData.is_food) {
+      const sp = formData.sale_price
+      const rp = formData.reference_purchase_unit_chf
+      if (sp == null || Number(sp) <= 0) {
+        missing.push('Verkaufspreis (CHF/Stk.) eingeben')
+      }
+      if (rp == null || Number(rp) <= 0) {
+        missing.push('Einkaufspreis Referenz (CHF/Stk.) eingeben')
+      }
+    }
   }
   
   // Bei Kombinationen: 2 Artikel
@@ -3303,9 +3537,11 @@ function resetForm() {
   formData.is_js_material = false
   formData.external_source = ''
   formData.sale_price = null
+  formData.reference_purchase_unit_chf = null
   formData.min_stock = null
   formData.pack_size = null
   formData.pack_unit = ''
+  formData.pack_sale_price_chf = null
   formData.initial_qty = 0
   formData.purchase_date = getTodayIso()
   formData.expiry_date = ''
@@ -3335,11 +3571,13 @@ function resetForm() {
   formData.rental_lead_days = null
   formData.rental_max_days = null
   formData.rental_external_allowed = false
+  formData.rental_scope = ''
   formData.rental_requires_approval = false
   formData.rental_notes = ''
   formData.rental_calc_params = null
   formData.stock_location_mode = 'slot'
   formData.stock_container_batch_id = ''
+  formData.is_container = false
   nameExists.value = false
   duplicateNameMaterial.value = null
   nameSuggestions.value = []
@@ -4236,12 +4474,12 @@ function includeTemplateComponentInPayload(ci: ComponentInput): boolean {
   if (!ci.is_optional) return true
   if (ci.mode === 'new') {
     if (ci.tracking === 'serialized') return !!(ci.serial_number || '').trim()
-    if (ci.tracking === 'bulk') return (ci.qty || 0) > 0
+    if (ci.tracking === 'bulk') return Number(ci.qty) > 0
     return true
   }
   if (ci.mode === 'existing') {
     if (!ci.material_id) return false
-    if (ci.tracking === 'bulk') return (ci.qty || 0) > 0
+    if (ci.tracking === 'bulk') return Number(ci.qty) > 0
     return true
   }
   return true
@@ -4814,6 +5052,7 @@ async function handleSubmit() {
         rental_lead_days: formData.rental_lead_days,
         rental_max_days: formData.rental_max_days,
         rental_external_allowed: formData.rental_external_allowed,
+        rental_scope: formData.rental_external_allowed ? (formData.rental_scope || null) : null,
         rental_requires_approval: formData.rental_requires_approval,
         rental_notes: formData.rental_notes || null,
         rental_calc_params: formData.rental_calc_params,
@@ -4922,14 +5161,22 @@ async function handleSubmit() {
         manufacturer: formData.manufacturer || null,
         material_type: formData.material_type || 'physical',
         tracking_type: formData.tracking_type || null,
+        is_container: formData.is_container,
         is_consumable: formData.is_consumable,
         is_food: formData.is_food,
         is_js_material: formData.is_js_material,
         external_source: formData.is_js_material ? (formData.external_source || 'js_ch') : null,
         sale_price: formData.sale_price ? String(formData.sale_price) : null,
+        reference_purchase_unit_chf: formData.reference_purchase_unit_chf
+          ? String(formData.reference_purchase_unit_chf)
+          : null,
         min_stock: formData.min_stock,
         pack_size: formData.pack_size && formData.pack_size >= 2 ? formData.pack_size : null,
         pack_unit: formData.pack_unit || null,
+        pack_sale_price_chf:
+          formData.pack_sale_price_chf != null && formData.pack_sale_price_chf > 0
+            ? String(formData.pack_sale_price_chf)
+            : null,
         initial_acquired_on: formData.purchase_date,
         initial_expiry_date: expiryDatePayload,
         initial_unit_price: formData.unit_price > 0 ? String(formData.unit_price) : undefined,
@@ -4969,6 +5216,7 @@ async function handleSubmit() {
         rental_lead_days: formData.rental_lead_days,
         rental_max_days: formData.rental_max_days,
         rental_external_allowed: formData.rental_external_allowed,
+        rental_scope: formData.rental_external_allowed ? (formData.rental_scope || null) : null,
         rental_requires_approval: formData.rental_requires_approval,
         rental_notes: formData.rental_notes || null,
         rental_calc_params: formData.rental_calc_params,
@@ -4982,6 +5230,7 @@ async function handleSubmit() {
             serial_number: s.serial_number.trim(),
             label: s.label?.trim() || '',
             notes: s.notes || '',
+            is_container: !!s.is_container,
             ...(serialLocationSameForAll.value
               ? {}
               : (s.location_mode === 'kiste'

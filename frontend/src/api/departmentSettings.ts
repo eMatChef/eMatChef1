@@ -15,6 +15,16 @@ export interface ActivityDefaults {
   campMaterialLagDays: number
 }
 
+/** Fallback, wenn die API-Gruppe „activity“ nicht geladen werden kann */
+export const FALLBACK_ACTIVITY_DEFAULTS: ActivityDefaults = {
+  defaultTimeStart: '14:00',
+  defaultTimeEnd: '17:00',
+  materialLeadMinutes: 60,
+  materialLagMinutes: 60,
+  campMaterialLeadDays: 1,
+  campMaterialLagDays: 1,
+}
+
 /** Abteilungs-Standards für den Vermiet-Amortisationsrechner */
 export interface RentalAmortizationDefaults {
   priceIncreasePercentPerYear: number
@@ -210,6 +220,24 @@ export async function getDepartmentOnboardingStatus(departmentId: string): Promi
 /**
  * Onboarding als abgeschlossen markieren (department-weit)
  */
+export interface CalendarSettings {
+  /** Geo-ID von feiertagskalender.ch (Schulferien im Aktivitäts-Kalender) */
+  fcalGeoId: string
+}
+
+export async function getCalendarSettings(departmentId: string): Promise<CalendarSettings> {
+  const raw = await getDepartmentSettingsGroup(departmentId, 'calendar')
+  return {
+    fcalGeoId: String(raw['calendar.fcal_geo_id'] ?? '').trim(),
+  }
+}
+
+export async function saveCalendarSettings(departmentId: string, settings: CalendarSettings): Promise<Record<string, string>> {
+  return updateDepartmentSettings(departmentId, {
+    'calendar.fcal_geo_id': settings.fcalGeoId.trim(),
+  })
+}
+
 export async function markDepartmentOnboardingDone(departmentId: string): Promise<Record<string, string>> {
   return updateDepartmentSettings(departmentId, {
     'onboarding.done_all': '1',

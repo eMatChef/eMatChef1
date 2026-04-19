@@ -1,0 +1,243 @@
+import apiClient from './apiClient'
+
+export type ActivityApiType = 'activity' | 'camp' | 'event' | 'external'
+
+/** Einladung weiterer Departments zu Lager/Event (Backend normalisiert Status/Zeiten) */
+export interface InvitedDepartmentPayloadRow {
+  id: string
+  name: string
+  organisation_name?: string
+  group_id?: string | null
+}
+
+export interface CreateActivityPayload {
+  department_id: string
+  name: string
+  type?: ActivityApiType
+  status?: string
+  group_id?: string | null
+  /** Kunden-/Mieteradresse (z. B. bei Typ extern) */
+  address_id?: string | null
+  /** Eventstandort (Lager, Event, extern) */
+  venue_address_id?: string | null
+  usage_start?: string
+  usage_end?: string
+  planning_start?: string
+  planning_end?: string
+  invited_departments?: InvitedDepartmentPayloadRow[]
+  /** Freitext-Notizen zur Aktivität */
+  notes?: string
+  /** Stepper: false solange Wizard nicht final abgeschlossen; Detail erst danach */
+  create_wizard_completed?: boolean
+}
+
+export interface ActivityInvitedDepartmentApi {
+  id: string
+  name?: string
+  organisation_name?: string
+  status?: string
+  group_id?: string | null
+  group_name?: string | null
+}
+
+export interface ActivityCreatedResponse {
+  id: string
+  name: string
+  type?: string
+  status?: string
+  department_id?: string
+  usage_start?: string | null
+  usage_end?: string | null
+  no?: number
+  invited_departments?: ActivityInvitedDepartmentApi[]
+}
+
+/** GET /api/activities/:id (serializeActivity detailed) */
+export interface ActivityDetail extends ActivityCreatedResponse {
+  group_id?: string | null
+  department_name?: string
+  color?: string | null
+  item_count?: number
+  pricing_mode?: string | null
+  total_price?: number | null
+  created_at?: string
+  updated_at?: string
+  planning_start?: string | null
+  planning_end?: string | null
+  address_id?: string | null
+  venue_address_id?: string | null
+  responsible_user_id?: string | null
+  deposit_amount?: number | null
+  deposit_paid?: boolean
+  is_paid?: boolean
+  notes?: string | null
+  deleted_at?: string | null
+  submitted_at?: string | null
+  approved_at?: string | null
+  issued_at?: string | null
+  returned_at?: string | null
+  completed_at?: string | null
+  rejection_comment?: string | null
+  is_material_editable?: boolean
+  is_pack_list_editable?: boolean
+  can_report_issues?: boolean
+  is_return_editable?: boolean
+  is_cancellable?: boolean
+  /** GET /api/activities/:id — im Entwurf: darf User Material hinzufügen/entfernen */
+  can_edit_draft_material?: boolean
+  /** Einheitliche Berechtigung für die Material-UI (Entwurf: wie can_edit_draft_material; danach: Host-MW/DC bis packed) */
+  can_edit_activity_material?: boolean
+  /** Nach Einreichung: Host-MW/DC dürfen Texte/Stammdaten per PATCH ändern */
+  can_edit_submitted_activity_content?: boolean
+  /** false = Erstell-Wizard noch nicht abgeschlossen → Detail gesperrt, Wizard fortsetzen */
+  create_wizard_completed?: boolean
+}
+
+export interface ActivityTransitionRow {
+  status: string
+  label: string
+  allowed: boolean
+  reason: string | null
+}
+
+export interface ActivityTransitionsResponse {
+  current_status: string
+  current_label?: string
+  transitions: ActivityTransitionRow[]
+}
+
+export interface ActivityItemRow {
+  id: string
+  material_item_id: string
+  material_name: string
+  /** physical | physical_combo | virtual_combo */
+  material_type?: string | null
+  /** Bei physischer Kombi: Bezugskiste (Label oder Seriennummer) */
+  linked_container_label?: string | null
+  /** Effektiv für Anzeige: serialized | bulk (bei Kiste aus Packliste auch serialized, wenn Stammdaten bulk) */
+  tracking_type?: 'serialized' | 'bulk' | null
+  source_department_id?: string
+  source_department_name?: string
+  quantity: number
+  priority?: string | null
+  status?: string | null
+  notes?: string | null
+  unit_price?: string | number | null
+  line_total?: string | number | null
+  price_type?: string | null
+  is_consumable?: boolean
+  sale_price?: string | number | null
+  pack_size?: number | null
+  pack_unit?: string | null
+  is_js_material?: boolean
+  /** Behälter/Kiste: Stammdaten, Packliste oder physischer Combo mit Bezugskiste */
+  is_container?: boolean
+  external_source?: string | null
+}
+
+export async function getActivity(activityId: string): Promise<ActivityDetail> {
+  const { data } = await apiClient.get<ActivityDetail>(`/api/activities/${activityId}`)
+  return data
+}
+
+export async function getActivityTransitions(activityId: string): Promise<ActivityTransitionsResponse> {
+  const { data } = await apiClient.get<ActivityTransitionsResponse>(`/api/activities/${activityId}/transitions`)
+  return data
+}
+
+export async function getActivityItems(activityId: string): Promise<ActivityItemRow[]> {
+  const { data } = await apiClient.get<ActivityItemRow[]>(`/api/activities/${activityId}/items`)
+  return data
+}
+
+export async function patchActivityStatus(
+  activityId: string,
+  body: { status: string; comment?: string | null },
+): Promise<ActivityDetail> {
+  const { data } = await apiClient.patch<ActivityDetail>(`/api/activities/${activityId}/status`, body)
+  return data
+}
+
+export async function createActivity(payload: CreateActivityPayload): Promise<ActivityCreatedResponse> {
+  const { data } = await apiClient.post<ActivityCreatedResponse>('/api/activities', payload)
+  return data
+}
+
+/** Aktualisieren (Entwurf / wie v4.01 PATCH im Detail) — ohne department_id im Body */
+export type PatchActivityPayload = Partial<Omit<CreateActivityPayload, 'department_id' | 'notes'>> & {
+  /** PATCH erlaubt explizites Leeren (null) wie im Backend setNotes */
+  notes?: string | null
+}
+
+export async function patchActivity(
+  activityId: string,
+  payload: PatchActivityPayload,
+): Promise<ActivityCreatedResponse> {
+  const { data } = await apiClient.patch<ActivityCreatedResponse>(`/api/activities/${activityId}`, payload)
+  return data
+}
+
+export interface SyncActivityItemPayload {
+  material_item_id: string
+  quantity: number
+  priority?: string
+}
+
+/**
+ * Materialpositionen einer Aktivität setzen (ersetzt die Liste).
+ */
+export async function syncActivityItems(
+  activityId: string,
+  payload: { items: SyncActivityItemPayload[] },
+): Promise<{ message?: string; item_count?: number; total_price?: string | null }> {
+  const { data } = await apiClient.put(`/api/activities/${activityId}/items`, payload)
+  return data
+}
+
+export async function addActivityItem(
+  activityId: string,
+  body: { material_item_id: string; quantity?: number },
+): Promise<{ message?: string; total_price?: string | null }> {
+  const { data } = await apiClient.post(`/api/activities/${activityId}/items`, body)
+  return data
+}
+
+export async function removeActivityItem(activityId: string, itemId: string): Promise<{ message?: string; total_price?: string | null }> {
+  const { data } = await apiClient.delete(`/api/activities/${activityId}/items/${itemId}`)
+  return data
+}
+
+/** GET /api/activities/:id/issues */
+export interface ActivityIssueReportRow {
+  id: string
+  activity_id: string
+  material_item_id: string | null
+  material_name?: string | null
+  type: string
+  type_label?: string
+  quantity: number
+  description?: string | null
+  resolved: boolean
+  resolved_at?: string | null
+  reported_at: string
+  is_js_material?: boolean
+}
+
+export async function getActivityIssues(activityId: string): Promise<ActivityIssueReportRow[]> {
+  const { data } = await apiClient.get<ActivityIssueReportRow[]>(`/api/activities/${activityId}/issues`)
+  return data ?? []
+}
+
+/** POST /api/activities/:id/issues — Verlust, Reparatur, Verbrauch, Schaden */
+export async function createActivityIssue(
+  activityId: string,
+  body: {
+    material_item_id: string
+    type: 'damage' | 'repair' | 'loss' | 'consumption'
+    quantity: number
+    description?: string | null
+  },
+): Promise<unknown> {
+  const { data } = await apiClient.post(`/api/activities/${activityId}/issues`, body)
+  return data
+}

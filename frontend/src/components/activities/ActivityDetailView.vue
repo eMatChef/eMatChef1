@@ -1,0 +1,1331 @@
+<template>
+  <div class="material-detail-view activity-detail-view">
+    <header class="detail-header">
+      <div class="header-left">
+        <button type="button" class="back-btn" @click="handleClose">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M19 12H5M12 19l-7-7 7-7" />
+          </svg>
+          Zurück zur Liste
+        </button>
+        <div class="header-title activity-detail-header-title">
+          <span v-if="noLabel" class="material-code">{{ noLabel }}</span>
+          <span v-if="activity" class="type-badge" :class="activity.type">{{ getTypeLabel(activity.type) }}</span>
+          <h1>{{ activity?.name ?? 'Aktivität' }}</h1>
+          <span v-if="activity" class="status-label" :class="activity.status">{{ getStatusLabel(activity.status) }}</span>
+        </div>
+      </div>
+      <div v-if="activity && !loadError" class="header-actions activity-detail-workflow-actions">
+        <button
+          v-for="t in workflowTransitions"
+          :key="t.status"
+          type="button"
+          class="btn-outline btn-sm"
+          :disabled="isTransitioning || !t.allowed"
+          :title="!t.allowed && t.reason ? t.reason : undefined"
+          @click="onTransition(t)"
+        >
+          {{ t.label }}
+        </button>
+        <button
+          v-if="cancelTransition"
+          type="button"
+          class="btn-outline btn-sm activity-danger-outline"
+          :disabled="isTransitioning"
+          @click="onCancelActivity"
+        >
+          {{ cancelTransition.label }}
+        </button>
+        <button
+          v-if="showDamageReportEntry"
+          type="button"
+          class="btn-outline btn-sm"
+          @click="openDamageReport()"
+        >
+          Schaden melden
+        </button>
+        <button type="button" class="btn-outline" @click="handleClose">Schliessen</button>
+      </div>
+    </header>
+
+    <div v-if="isLoading" class="loading-container">
+      <div class="spinner"></div>
+      <p>Aktivität wird geladen...</p>
+    </div>
+
+    <div v-else-if="loadError" class="loading-container activity-detail-error">
+      <p>{{ loadError }}</p>
+      <button type="button" class="btn-primary" @click="reload">Erneut versuchen</button>
+      <button type="button" class="btn-outline" @click="handleClose">Zurück</button>
+    </div>
+
+    <div v-else-if="activity" class="detail-content">
+      <div v-if="activity.status === 'draft'" class="draft-hint-banner">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+          <circle cx="12" cy="12" r="10" />
+          <line x1="12" y1="8" x2="12" y2="12" />
+          <line x1="12" y1="16" x2="12.01" y2="16" />
+        </svg>
+        <span>
+          <strong>Entwurf:</strong>
+          <template v-if="activity.type === 'event' && !activity.group_id">
+            Ohne gewählte Gruppe dürfen alle Department-Mitglieder Material ergänzen.
+          </template>
+          <template v-else>
+            Material dürfen alle Gruppenmitglieder sowie DC und MW ergänzen.
+          </template>
+          <strong>Einreichen</strong> an den Materialwart nur durch Gruppenleiter, DC oder MW.
+        </span>
+      </div>
+
+      <nav class="tab-nav">
+        <button
+          v-for="tab in tabs"
+          :key="tab.id"
+          type="button"
+          class="tab-btn"
+          :class="{ active: activeTab === tab.id }"
+          @click="activeTab = tab.id"
+        >
+          {{ tab.label }}
+        </button>
+      </nav>
+
+      <div class="content-layout activity-detail-content-layout">
+        <main class="content-main">
+          <!-- Übersicht -->
+          <section v-if="activeTab === 'overview'" class="tab-content">
+            <ActivityDraftOverviewForm
+              v-if="showOverviewEditForm && activity"
+              :activity="activity"
+              :department-id="departmentId"
+              :usage-dates-locked="(activity.item_count ?? 0) > 0"
+              @saved="onDraftOverviewSaved"
+            />
+            <template v-else-if="activity">
+              <div class="section-card">
+                <h2 class="section-title">Zeitraum</h2>
+                <div class="form-grid">
+                  <div class="form-group span-2">
+                    <label>Nutzung</label>
+                    <p class="activity-readonly-value">
+                      <template v-if="activity.usage_start">
+                        {{ formatDateTime(activity.usage_start) }}
+                        –
+                        {{ formatDateTime(activity.usage_end || '') }}
+                      </template>
+                      <span v-else class="text-muted">Nicht festgelegt</span>
+                    </p>
+                  </div>
+                  <div v-if="activity.planning_start" class="form-group span-2">
+                    <label>Material Abholung / Rückgabe</label>
+                    <p class="activity-readonly-value">
+                      {{ formatDateTime(activity.planning_start) }} – {{ formatDateTime(activity.planning_end || '') }}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div class="section-card">
+                <h2 class="section-title">Organisation</h2>
+                <div class="form-grid">
+                  <div class="form-group">
+                    <label>Department</label>
+                    <p class="activity-readonly-value">{{ activity.department_name ?? '–' }}</p>
+                  </div>
+                  <div class="form-group">
+                    <label>Gruppe</label>
+                    <p class="activity-readonly-value">{{ activity.group_name || '–' }}</p>
+                  </div>
+                  <div v-if="activity.total_price != null" class="form-group">
+                    <label>Gesamtpreis</label>
+                    <p class="activity-readonly-value">CHF {{ Number(activity.total_price).toFixed(2) }}</p>
+                  </div>
+                </div>
+              </div>
+
+              <div
+                v-if="activity.invited_departments && activity.invited_departments.length > 0"
+                class="section-card"
+              >
+                <h2 class="section-title">Eingeladene Departments</h2>
+                <ul class="activity-invite-list">
+                  <li v-for="(inv, idx) in activity.invited_departments" :key="inv.id || idx" class="activity-invite-row">
+                    <span class="activity-invite-name">{{ inv.name || inv.id }}</span>
+                    <span v-if="inv.organisation_name" class="text-muted">({{ inv.organisation_name }})</span>
+                    <span class="invite-status" :class="inviteStatusClass(inv.status)">{{ inviteStatusLabel(inv.status) }}</span>
+                    <span v-if="inv.group_name" class="text-muted">· {{ inv.group_name }}</span>
+                  </li>
+                </ul>
+              </div>
+
+              <div v-if="activity.notes" class="section-card">
+                <h2 class="section-title">Notizen</h2>
+                <p class="activity-notes">{{ activity.notes }}</p>
+              </div>
+            </template>
+          </section>
+
+          <!-- Material -->
+          <section v-else-if="activeTab === 'material'" class="tab-content">
+            <div v-if="showMaterialLookup" class="section-card">
+              <h2 class="section-title">Material hinzufügen</h2>
+              <ActivityMaterialAvailabilityLookup
+                :department-id="departmentId"
+                :activity-id="activityId"
+                :activity-type="activityTypeForMat"
+                :planning-start-iso="activity.planning_start"
+                :planning-end-iso="activity.planning_end"
+                :quantity-by-material-item-id="quantityByMaterialItemId"
+                :saved-quantity-by-material-item-id="savedQuantityByMaterialItemId"
+                :invited-departments="activity.invited_departments ?? []"
+                :disabled="addingDraftMaterial"
+                hint-variant="draft"
+                @add-quantity="onDraftAddQuantity"
+                @scope-change="onMaterialLookupScopeChange"
+              />
+              <p v-if="addingDraftMaterial" class="activity-inline-loading activity-draft-adding">
+                <span class="spinner spinner-sm"></span>
+                <span>Wird hinzugefügt…</span>
+              </p>
+            </div>
+            <div
+              v-else-if="activity.status === 'draft' && !activity.can_edit_draft_material"
+              class="section-card activity-draft-mat-denied"
+            >
+              <p class="text-muted">
+                Du kannst in diesem Entwurf keine Materialpositionen ändern. Dazu musst du zur Gruppe der
+                Aktivität gehören oder als DC/MW im Department berechtigt sein.
+              </p>
+            </div>
+
+            <div class="section-card">
+              <h2 class="section-title">Materialpositionen</h2>
+              <div v-if="itemsLoading" class="activity-inline-loading">
+                <div class="spinner spinner-sm"></div>
+                <span>Material wird geladen…</span>
+              </div>
+              <div v-else-if="activityItems.length === 0" class="text-muted">Keine Positionen erfasst.</div>
+              <div v-else-if="showMaterialLookup" class="activity-items-table-wrap">
+                <ActivityMaterialLinesTable
+                  :model-value="materialLinesForEditableTable"
+                  :department-id="departmentId"
+                  :activity-id="activityId"
+                  :planning-start-at="planningStartDate"
+                  :planning-end-at="planningEndDate"
+                  :material-scope-tab="materialLookupScopeTab"
+                  :material-scope-has-partners="hasAcceptedPartnerDepts"
+                  :material-scope-single-partner-id="materialLookupSinglePartnerId"
+                  variant="detail-draft"
+                  :show-source-and-totals="true"
+                  :show-line-total="hasLineTotals"
+                  :disabled="syncingQuantities || addingDraftMaterial"
+                  :removing-item-id="removingItemId"
+                  empty-text="Keine Positionen erfasst."
+                  @update:model-value="onDraftLinesTableUpdate"
+                  @remove-line="onDraftTableRemoveLine"
+                />
+                <div v-if="hasDraftQtyChanges" class="activity-qty-save-row">
+                  <button
+                    type="button"
+                    class="btn-primary btn-sm"
+                    :disabled="syncingQuantities"
+                    @click="saveDraftQuantities"
+                  >
+                    {{ syncingQuantities ? 'Speichern…' : 'Mengen speichern' }}
+                  </button>
+                </div>
+              </div>
+              <div v-else class="activity-items-table-wrap">
+                <table class="activity-items-table">
+                  <thead>
+                    <tr>
+                      <th>Material</th>
+                      <th>Menge</th>
+                      <th>Quelle</th>
+                      <th v-if="hasLineTotals">Zeile</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="row in activityItems" :key="row.id">
+                      <td>
+                        <div class="activity-item-name-block">
+                          <span class="activity-item-name">{{ row.material_name }}</span>
+                          <span v-if="row.material_type === 'physical_combo'" class="activity-combo-badge" title="Physische Kombination"
+                            >Phys. Kombi</span
+                          >
+                          <span
+                            v-else-if="row.material_type === 'virtual_combo'"
+                            class="activity-combo-badge activity-combo-badge--virtual"
+                            title="Virtuelle Kombination"
+                            >Virt. Kombi</span
+                          >
+                          <span v-if="row.is_js_material" class="activity-js-tag">J&amp;S</span>
+                          <div v-if="row.linked_container_label" class="activity-combo-kiste text-muted">
+                            Kiste: {{ row.linked_container_label }}
+                          </div>
+                        </div>
+                      </td>
+                      <td>{{ row.quantity }}</td>
+                      <td>
+                        <span class="text-muted">{{ row.source_department_name || '–' }}</span>
+                      </td>
+                      <td v-if="hasLineTotals">
+                        <span v-if="row.line_total != null">CHF {{ formatMoney(row.line_total) }}</span>
+                        <span v-else>–</span>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </section>
+
+          <!-- Packliste -->
+          <section v-else-if="activeTab === 'packs'" class="tab-content">
+            <ActivityPackListTab
+              v-if="activity"
+              :activity-id="activityId"
+              :department-id="departmentId"
+              :status="activity.status"
+              :pack-list-editable="activity.is_pack_list_editable === true"
+              :transitions="workflowTransitions"
+              :can-report-issues="showDamageReportEntry"
+              :reload-token="packListReloadToken"
+              @workflow-next="onTransition"
+              @activity-items-changed="onPackListActivityItemsChanged"
+              @open-issue-wizard="onPackIssueWizard"
+              @open-consumption-modal="onOpenConsumptionModal"
+            />
+          </section>
+
+          <!-- Reparaturen / Verluste (wie v4.01) -->
+          <section v-else-if="activeTab === 'issues'" class="tab-content">
+            <ActivityIssuesTab
+              :activity-id="activityId"
+              :can-create="showDamageReportEntry"
+              :reload-token="issuesReloadToken"
+              @open-wizard="openDamageReport()"
+            />
+          </section>
+
+          <section v-else-if="activeTab === 'consumables'" class="tab-content">
+            <ActivityConsumablesTab
+              :activity-id="activityId"
+              :can-create="showDamageReportEntry"
+              :can-add-activity-material="canAddActivityMaterial"
+              :reload-token="consumablesReloadToken"
+              @request-nachbuchung="openNachbuchungModal"
+            />
+          </section>
+
+          <!-- Verlauf -->
+          <section v-else-if="activeTab === 'history'" class="tab-content">
+            <div class="section-card">
+              <h2 class="section-title">Verlauf</h2>
+              <p class="text-muted">Änderungsverlauf und Historie folgen in einer späteren Ausbaustufe.</p>
+            </div>
+          </section>
+        </main>
+      </div>
+    </div>
+
+    <DamageReportWizard
+      :is-open="damageReportOpen"
+      :department-id="departmentId"
+      :preset-activity-id="activityId"
+      :preset-material-item-id="damageReportPresets.materialItemId ?? null"
+      :preset-issue-type="damageReportPresets.issueType ?? null"
+      @close="onDamageWizardClose"
+      @success="onDamageReportSuccess"
+    />
+    <ActivityConsumptionModal
+      :is-open="consumptionModalOpen"
+      :activity-id="activityId"
+      :preset="consumptionModalPreset"
+      :can-add-activity-material="canAddActivityMaterial"
+      @close="onConsumptionModalClose"
+      @success="onConsumptionModalSuccess"
+      @request-nachbuchung="onConsumptionModalRequestNachbuchung"
+    />
+    <ActivityConsumableNachbuchungModal
+      :is-open="nachbuchungOpen"
+      :activity-id="activityId"
+      :department-id="departmentId"
+      :material-item-id="nachbuchungMaterialId"
+      :material-label="nachbuchungMaterialLabel"
+      :pack-size="nachbuchungPackSize"
+      :pack-unit="nachbuchungPackUnit"
+      @close="onNachbuchungModalClose"
+      @success="onNachbuchungModalSuccess"
+    />
+  </div>
+</template>
+
+<script setup lang="ts">
+defineOptions({ name: 'ActivityDetailView' })
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import {
+  addActivityItem,
+  getActivity,
+  getActivityItems,
+  getActivityTransitions,
+  patchActivityStatus,
+  removeActivityItem,
+  syncActivityItems,
+  type ActivityApiType,
+  type ActivityDetail,
+  type ActivityItemRow,
+  type ActivityTransitionRow,
+} from '@/api/activities'
+import ActivityMaterialAvailabilityLookup from '@/components/activities/ActivityMaterialAvailabilityLookup.vue'
+import ActivityMaterialLinesTable from '@/components/activities/shared/ActivityMaterialLinesTable.vue'
+import ActivityDraftOverviewForm from '@/components/activities/ActivityDraftOverviewForm.vue'
+import ActivityPackListTab from '@/components/activities/ActivityPackListTab.vue'
+import ActivityIssuesTab from '@/components/activities/ActivityIssuesTab.vue'
+import ActivityConsumablesTab from '@/components/activities/ActivityConsumablesTab.vue'
+import ActivityConsumptionModal from '@/components/activities/ActivityConsumptionModal.vue'
+import ActivityConsumableNachbuchungModal from '@/components/activities/ActivityConsumableNachbuchungModal.vue'
+import DamageReportWizard from '@/components/DamageReportWizard.vue'
+import type { ConsumptionModalPreset } from '@/components/activities/ActivityConsumptionModal.vue'
+import type { ActivityMaterialLine } from '@/composables/useActivityCreateWizard'
+import type { MaterialScopeTab } from '@/components/activities/shared/activityMaterialAvailabilityScope'
+import { useConfirm } from '@/composables/useConfirm'
+import { usePageHeadStore } from '@/stores/pageHead'
+import { useToast } from '@/composables/useToast'
+
+const props = defineProps<{
+  departmentId: string
+  activityId: string
+}>()
+
+const route = useRoute()
+const router = useRouter()
+
+const ACTIVITY_TAB_IDS = ['overview', 'material', 'packs', 'issues', 'consumables', 'history'] as const
+type ActivityTabId = (typeof ACTIVITY_TAB_IDS)[number]
+
+function mergeActivityQuery(updates: Record<string, string | undefined>) {
+  const nextQuery = { ...route.query } as Record<string, string | string[] | null | undefined>
+  for (const [k, v] of Object.entries(updates)) {
+    if (v === undefined || v === '') delete nextQuery[k]
+    else nextQuery[k] = v
+  }
+  void router.replace({ path: route.path, query: nextQuery })
+}
+const toast = useToast()
+const { confirm: confirmDialog } = useConfirm()
+const pageHeadStore = usePageHeadStore()
+
+const activity = ref<ActivityDetail | null>(null)
+
+/** Wie v4.01: Packliste erst ab «Wird gepackt», nicht schon bei «Bestätigt». */
+const STATUSES_WITH_PACKS_TAB = [
+  'packing',
+  'packed',
+  'issued',
+  'returned',
+  'completed',
+] as const
+
+const showPacksTab = computed(() => {
+  const s = activity.value?.status
+  if (!s) return false
+  return (STATUSES_WITH_PACKS_TAB as readonly string[]).includes(s)
+})
+
+/** Wie v4.01: Meldungen ab «Ausgegeben» (inkl. completed zur Übersicht) */
+const showIssuesTab = computed(() => {
+  const s = activity.value?.status
+  if (!s) return false
+  return ['issued', 'returned', 'completed'].includes(s)
+})
+
+/** Ohne ?tab=: v4.01 — Packliste als Start nur bei packing…returned (nicht bei completed). */
+function defaultTabWhenNoQuery(status: string | undefined): ActivityTabId {
+  if (status && ['packing', 'packed', 'issued', 'returned'].includes(status)) return 'packs'
+  return 'overview'
+}
+
+const tabs = computed(() => {
+  const out: { id: ActivityTabId; label: string }[] = [
+    { id: 'overview', label: 'Übersicht' },
+    { id: 'material', label: 'Material' },
+  ]
+  if (showPacksTab.value) {
+    out.push({ id: 'packs', label: 'Packliste' })
+  }
+  if (showIssuesTab.value) {
+    out.push({ id: 'issues', label: 'Reparaturen / Verluste' })
+    out.push({ id: 'consumables', label: 'Verbrauchsmaterial' })
+  }
+  out.push({ id: 'history', label: 'Verlauf' })
+  return out
+})
+
+const tabIds = computed(() => tabs.value.map((t) => t.id))
+
+function normalizeActivityTabQuery(value: unknown): ActivityTabId | null {
+  const raw = Array.isArray(value) ? value[0] : value
+  const s = typeof raw === 'string' ? raw.trim() : ''
+  if (!s) return null
+  const ids = tabIds.value as readonly string[]
+  return ids.includes(s) ? (s as ActivityTabId) : null
+}
+
+const transitions = ref<ActivityTransitionRow[]>([])
+const activityItems = ref<ActivityItemRow[]>([])
+const isLoading = ref(true)
+const itemsLoading = ref(false)
+const loadError = ref<string | null>(null)
+const isTransitioning = ref(false)
+const activeTab = ref<ActivityTabId>('overview')
+
+watch(showPacksTab, (show) => {
+  if (!show && activeTab.value === 'packs') {
+    activeTab.value = 'overview'
+    mergeActivityQuery({ tab: undefined })
+  }
+})
+
+watch(showIssuesTab, (show) => {
+  if (!show && (activeTab.value === 'issues' || activeTab.value === 'consumables')) {
+    activeTab.value = 'overview'
+    mergeActivityQuery({ tab: undefined })
+  }
+})
+const addingDraftMaterial = ref(false)
+const removingItemId = ref<string | null>(null)
+const draftQuantities = ref<Record<string, number>>({})
+const syncingQuantities = ref(false)
+
+const noLabel = computed(() => {
+  const n = activity.value?.no
+  if (n == null) return ''
+  return `#${String(n).padStart(3, '0')}`
+})
+
+/**
+ * Workflow-Buttons außer Stornieren.
+ * - Tab «Packliste»: kein Übergang zum Ziel «packing» (Packliste ist schon offen).
+ * - Status «Gepackt»: kein Button zur Korrektur packing in der Kopfzeile (irreführend / nicht gewünscht).
+ */
+const workflowTransitions = computed(() =>
+  transitions.value.filter((t) => {
+    if (t.status === 'cancelled') return false
+    if (activeTab.value === 'packs' && t.status === 'packing') return false
+    if (activity.value?.status === 'packed' && t.status === 'packing') return false
+    return true
+  }),
+)
+
+const activityTypeForMat = computed(
+  (): ActivityApiType => (activity.value?.type || 'activity') as ActivityApiType,
+)
+
+/** Summe aktueller Mengen pro Material-Item (Entwurf: inkl. nicht gespeicherter Änderungen) */
+const quantityByMaterialItemId = computed(() => {
+  const m: Record<string, number> = {}
+  for (const r of activityItems.value) {
+    m[r.material_item_id] = (m[r.material_item_id] ?? 0) + draftQty(r)
+  }
+  return m
+})
+
+/** Gespeicherte Summen pro Material (API) — für Verfügbarkeit in der Suche vs. Entwurf */
+const savedQuantityByMaterialItemId = computed(() => {
+  const m: Record<string, number> = {}
+  for (const r of activityItems.value) {
+    m[r.material_item_id] = (m[r.material_item_id] ?? 0) + r.quantity
+  }
+  return m
+})
+
+function parsePlanningDate(iso: string | undefined | null): Date | null {
+  if (!iso) return null
+  const d = new Date(iso)
+  return Number.isNaN(d.getTime()) ? null : d
+}
+
+const planningStartDate = computed(() => parsePlanningDate(activity.value?.planning_start))
+const planningEndDate = computed(() => parsePlanningDate(activity.value?.planning_end))
+
+/** Gemeinsame Tabellenkomponente (Wizard / Detail-Entwurf) */
+const materialLookupScopeTab = ref<MaterialScopeTab>('own')
+const materialLookupSinglePartnerId = ref<string | null>(null)
+
+function onMaterialLookupScopeChange(payload: {
+  tab: MaterialScopeTab
+  singlePartnerDepartmentId: string | null
+}) {
+  materialLookupScopeTab.value = payload.tab
+  materialLookupSinglePartnerId.value = payload.singlePartnerDepartmentId
+}
+
+const hasAcceptedPartnerDepts = computed(() =>
+  (activity.value?.invited_departments ?? []).some((i) => (i.status ?? 'pending') === 'accepted'),
+)
+
+/** Wie v4.01: Übersicht nur im Entwurf bearbeitbar (kein PATCH-Formular nach Einreichung). */
+const showOverviewEditForm = computed(
+  () => !!activity.value && activity.value.status === 'draft',
+)
+
+/** Entwurf (bestehende Regeln) oder nach Einreichung: Host-MW/DC bis einschliesslich «gepackt». */
+const showMaterialLookup = computed(() => {
+  const a = activity.value
+  if (!a) return false
+  if (a.status === 'draft') return !!a.can_edit_draft_material
+  return !!a.can_edit_activity_material
+})
+
+const materialLinesForEditableTable = computed((): ActivityMaterialLine[] => {
+  if (!showMaterialLookup.value) return []
+  return activityItems.value.map((r) => ({
+    material_item_id: r.material_item_id,
+    material_name: r.material_name,
+    material_type: r.material_type ?? null,
+    linked_container_label: r.linked_container_label ?? null,
+    quantity: draftQty(r),
+    saved_quantity: r.quantity,
+    period_availability_cap: undefined,
+    pack_size: r.pack_size,
+    pack_unit: r.pack_unit,
+    activity_item_id: r.id,
+    source_department_name: r.source_department_name ?? null,
+    line_total: r.line_total,
+    is_js_material: r.is_js_material,
+    tracking_type: r.tracking_type ?? null,
+    is_container: !!r.is_container,
+  }))
+})
+
+const cancelTransition = computed(() => transitions.value.find((t) => t.status === 'cancelled' && t.allowed))
+
+/** Gleicher Meldungsflow wie Dashboard, mit vorgewählter Aktivität (issued/returned, API-konform) */
+const showDamageReportEntry = computed(() => {
+  const a = activity.value
+  if (!a) return false
+  if (a.status === 'completed') return false
+  if (a.can_report_issues === false) return false
+  if (a.can_report_issues === true) return true
+  const s = a.status
+  return !!s && ['issued', 'returned'].includes(s)
+})
+
+/** Nachbuchung zur Aktivität (addActivityItem) — wie Tab «Material» */
+const canAddActivityMaterial = computed(() => activity.value?.can_edit_activity_material === true)
+
+const damageReportOpen = ref(false)
+const damageReportPresets = ref<{
+  materialItemId?: string
+  issueType?: 'damage' | 'repair' | 'loss'
+}>({})
+const issuesReloadToken = ref(0)
+const consumablesReloadToken = ref(0)
+const packListReloadToken = ref(0)
+
+const consumptionModalOpen = ref(false)
+const consumptionModalPreset = ref<ConsumptionModalPreset | null>(null)
+
+const nachbuchungOpen = ref(false)
+const nachbuchungMaterialId = ref('')
+const nachbuchungMaterialLabel = ref('')
+const nachbuchungPackSize = ref<number | null>(null)
+const nachbuchungPackUnit = ref<string | null>(null)
+
+function openDamageReport(opts?: {
+  materialItemId?: string
+  issueType?: 'damage' | 'repair' | 'loss'
+}) {
+  damageReportPresets.value =
+    opts && (opts.materialItemId != null || opts.issueType != null) ? { ...opts } : {}
+  damageReportOpen.value = true
+}
+
+function onDamageWizardClose() {
+  damageReportOpen.value = false
+  damageReportPresets.value = {}
+}
+
+function onOpenConsumptionModal(payload: ConsumptionModalPreset) {
+  consumptionModalPreset.value = payload
+  consumptionModalOpen.value = true
+}
+
+function onConsumptionModalClose() {
+  consumptionModalOpen.value = false
+  consumptionModalPreset.value = null
+}
+
+function openNachbuchungModal(payload: {
+  materialItemId: string
+  materialLabel: string
+  packSize?: number | null
+  packUnit?: string | null
+}) {
+  nachbuchungMaterialId.value = payload.materialItemId
+  nachbuchungMaterialLabel.value = payload.materialLabel
+  nachbuchungPackSize.value = payload.packSize ?? null
+  nachbuchungPackUnit.value = payload.packUnit ?? null
+  nachbuchungOpen.value = true
+}
+
+function onNachbuchungModalClose() {
+  nachbuchungOpen.value = false
+  nachbuchungPackSize.value = null
+  nachbuchungPackUnit.value = null
+}
+
+function onConsumptionModalRequestNachbuchung() {
+  const p = consumptionModalPreset.value
+  if (!p) return
+  consumptionModalOpen.value = false
+  openNachbuchungModal({
+    materialItemId: p.materialItemId,
+    materialLabel: p.linkedContainerLabel?.trim()
+      ? `${p.linkedContainerLabel.trim()} — ${p.materialName}`
+      : p.materialName,
+    packSize: p.packSize ?? null,
+    packUnit: p.packUnit ?? null,
+  })
+}
+
+async function onNachbuchungModalSuccess() {
+  nachbuchungOpen.value = false
+  nachbuchungPackSize.value = null
+  nachbuchungPackUnit.value = null
+  consumablesReloadToken.value += 1
+  packListReloadToken.value += 1
+  toast.success('Menge zur Aktivität hinzugefügt')
+  try {
+    await loadItems()
+    await refreshActivityTotalsFromApi()
+  } catch {
+    /* ignore */
+  }
+}
+
+async function onConsumptionModalSuccess() {
+  issuesReloadToken.value += 1
+  consumablesReloadToken.value += 1
+  packListReloadToken.value += 1
+  toast.success('Verbrauch gebucht')
+  try {
+    await loadItems()
+    await refreshActivityTotalsFromApi()
+  } catch {
+    /* ignore */
+  }
+}
+
+function onPackIssueWizard(payload: { materialItemId: string; issueType: 'loss' | 'repair' }) {
+  openDamageReport({
+    materialItemId: payload.materialItemId,
+    issueType: payload.issueType,
+  })
+}
+
+const hasLineTotals = computed(() => activityItems.value.some((i) => i.line_total != null))
+
+const hasDraftQtyChanges = computed(() =>
+  activityItems.value.some((r) => draftQty(r) !== r.quantity),
+)
+
+function draftQty(row: ActivityItemRow): number {
+  const v = draftQuantities.value[row.id]
+  return v !== undefined ? v : row.quantity
+}
+
+function initDraftQuantitiesFromItems() {
+  const m: Record<string, number> = {}
+  for (const r of activityItems.value) {
+    m[r.id] = r.quantity
+  }
+  draftQuantities.value = m
+}
+
+function onDraftLinesTableUpdate(lines: ActivityMaterialLine[]) {
+  const next = { ...draftQuantities.value }
+  for (const line of lines) {
+    if (line.activity_item_id) {
+      next[line.activity_item_id] = line.quantity
+    }
+  }
+  draftQuantities.value = next
+}
+
+function onDraftTableRemoveLine({ line }: { line: ActivityMaterialLine; index: number }) {
+  const row = activityItems.value.find((r) => r.id === line.activity_item_id)
+  if (row) void onRemoveDraftItem(row)
+}
+
+async function saveDraftQuantities() {
+  const a = activity.value
+  if (!a) return
+  const can =
+    (a.status === 'draft' && a.can_edit_draft_material) ||
+    (a.status !== 'draft' && a.can_edit_activity_material)
+  if (!can) return
+  syncingQuantities.value = true
+  try {
+    await syncActivityItems(props.activityId, {
+      items: activityItems.value.map((r) => ({
+        material_item_id: r.material_item_id,
+        quantity: draftQty(r),
+        priority: r.priority ?? undefined,
+      })),
+    })
+    toast.success('Mengen gespeichert')
+    await loadItems()
+    await refreshActivityTotalsFromApi()
+  } catch (err: unknown) {
+    const e = err as { response?: { data?: { error?: string } }; message?: string }
+    toast.error(e.response?.data?.error || e.message || 'Mengen konnten nicht gespeichert werden.')
+  } finally {
+    syncingQuantities.value = false
+  }
+}
+
+async function onDraftOverviewSaved() {
+  await reload()
+}
+
+function getTypeLabel(type: string): string {
+  const labels: Record<string, string> = {
+    activity: 'Aktivität',
+    camp: 'Lager',
+    event: 'Event',
+    external: 'Extern',
+  }
+  return labels[type] || type
+}
+
+function getStatusLabel(status: string): string {
+  const labels: Record<string, string> = {
+    draft: 'Entwurf',
+    submitted: 'Eingereicht',
+    approved: 'Bestätigt',
+    packing: 'Wird gepackt',
+    packed: 'Gepackt',
+    issued: 'Ausgegeben',
+    returned: 'Retour',
+    completed: 'Abgeschlossen',
+    cancelled: 'Storniert',
+    confirmed: 'Bestätigt',
+    active: 'Aktiv',
+  }
+  return labels[status] || status
+}
+
+function formatDateTime(iso: string): string {
+  if (!iso) return '–'
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return iso
+  return d.toLocaleString('de-CH', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
+
+function formatMoney(v: string | number): string {
+  const n = typeof v === 'string' ? parseFloat(v) : v
+  if (Number.isNaN(n)) return String(v)
+  return n.toFixed(2)
+}
+
+function inviteStatusLabel(status?: string): string {
+  if (status === 'accepted') return 'Angenommen'
+  if (status === 'rejected') return 'Abgelehnt'
+  return 'Ausstehend'
+}
+
+function inviteStatusClass(status?: string): string {
+  if (status === 'accepted') return 'accepted'
+  if (status === 'rejected') return 'rejected'
+  return 'pending'
+}
+
+function handleClose() {
+  void router.push(`/${props.departmentId}/activities`)
+}
+
+async function reload() {
+  loadError.value = null
+  isLoading.value = true
+  activity.value = null
+  transitions.value = []
+  activityItems.value = []
+  draftQuantities.value = {}
+  try {
+    const [detail, tr] = await Promise.all([
+      getActivity(props.activityId),
+      getActivityTransitions(props.activityId),
+    ])
+    activity.value = detail
+    transitions.value = tr.transitions || []
+    pageHeadStore.setDynamic(`${detail.name} · Aktivität`, `${getTypeLabel(detail.type || '')} · ${getStatusLabel(detail.status || '')}`)
+    if (activeTab.value === 'material') {
+      void loadItems()
+    }
+  } catch (err: unknown) {
+    const e = err as { response?: { status?: number; data?: { error?: string } }; message?: string }
+    const msg =
+      e.response?.status === 404
+        ? 'Aktivität nicht gefunden.'
+        : e.response?.data?.error || e.message || 'Aktivität konnte nicht geladen werden.'
+    loadError.value = msg
+    pageHeadStore.setDynamic('Aktivität · eMatChef', msg)
+  } finally {
+    isLoading.value = false
+  }
+}
+
+async function loadItems() {
+  itemsLoading.value = true
+  try {
+    activityItems.value = await getActivityItems(props.activityId)
+    initDraftQuantitiesFromItems()
+  } catch {
+    activityItems.value = []
+    draftQuantities.value = {}
+    toast.error('Materialpositionen konnten nicht geladen werden.')
+  } finally {
+    itemsLoading.value = false
+  }
+}
+
+/** Packliste: Kiste als Behälter gewählt → Backend ergänzt ActivityItem; Materialliste & Summen aktualisieren */
+async function onPackListActivityItemsChanged() {
+  await loadItems()
+  await refreshActivityTotalsFromApi()
+}
+
+async function onDamageReportSuccess() {
+  damageReportOpen.value = false
+  damageReportPresets.value = {}
+  issuesReloadToken.value += 1
+  toast.success('Meldung erfasst')
+  try {
+    await loadItems()
+    await refreshActivityTotalsFromApi()
+  } catch {
+    /* loadItems / refresh bereits mit Toast */
+  }
+}
+
+async function refreshActivityTotalsFromApi() {
+  const d = await getActivity(props.activityId)
+  if (!activity.value) return
+  activity.value.item_count = d.item_count
+  activity.value.total_price = d.total_price
+  activity.value.can_edit_draft_material = d.can_edit_draft_material
+  activity.value.can_edit_activity_material = d.can_edit_activity_material
+  activity.value.can_edit_submitted_activity_content = d.can_edit_submitted_activity_content
+  activity.value.status = d.status
+}
+
+async function onDraftAddQuantity(payload: { material: { materialItemId: string }; quantity: number }) {
+  const mid = payload.material?.materialItemId
+  const a = activity.value
+  if (!mid || !a) return
+  const can =
+    (a.status === 'draft' && a.can_edit_draft_material) ||
+    (a.status !== 'draft' && a.can_edit_activity_material)
+  if (!can) return
+  addingDraftMaterial.value = true
+  try {
+    await addActivityItem(props.activityId, {
+      material_item_id: mid,
+      quantity: payload.quantity,
+    })
+    toast.success('Material hinzugefügt')
+    await loadItems()
+    await refreshActivityTotalsFromApi()
+  } catch (err: unknown) {
+    const e = err as { response?: { data?: { error?: string } }; message?: string }
+    toast.error(e.response?.data?.error || e.message || 'Material konnte nicht hinzugefügt werden.')
+  } finally {
+    addingDraftMaterial.value = false
+  }
+}
+
+async function onRemoveDraftItem(row: ActivityItemRow) {
+  const a = activity.value
+  if (!a) return
+  const can =
+    (a.status === 'draft' && a.can_edit_draft_material) ||
+    (a.status !== 'draft' && a.can_edit_activity_material)
+  if (!can) return
+  removingItemId.value = row.id
+  try {
+    await removeActivityItem(props.activityId, row.id)
+    toast.success('Position entfernt')
+    await loadItems()
+    await refreshActivityTotalsFromApi()
+  } catch (err: unknown) {
+    const e = err as { response?: { data?: { error?: string } }; message?: string }
+    toast.error(e.response?.data?.error || e.message || 'Position konnte nicht entfernt werden.')
+  } finally {
+    removingItemId.value = null
+  }
+}
+
+async function onTransition(t: ActivityTransitionRow) {
+  if (!t.allowed || isTransitioning.value) return
+  isTransitioning.value = true
+  try {
+    await patchActivityStatus(props.activityId, { status: t.status })
+    const detail = await getActivity(props.activityId)
+    activity.value = detail
+    pageHeadStore.setDynamic(`${detail.name} · Aktivität`, `${getTypeLabel(detail.type || '')} · ${getStatusLabel(detail.status || '')}`)
+    toast.success(`Status: ${getStatusLabel(detail.status || '')}`)
+    const tr = await getActivityTransitions(props.activityId)
+    transitions.value = tr.transitions || []
+    if (detail.status === 'packing') {
+      activeTab.value = 'packs'
+      mergeActivityQuery({ tab: 'packs' })
+    }
+    if (activeTab.value === 'material') {
+      await loadItems()
+    }
+  } catch (err: unknown) {
+    const e = err as { response?: { data?: { error?: string } }; message?: string }
+    toast.error(e.response?.data?.error || e.message || 'Statuswechsel fehlgeschlagen.')
+  } finally {
+    isTransitioning.value = false
+  }
+}
+
+async function onCancelActivity() {
+  if (!cancelTransition.value) return
+  const ok = await confirmDialog({
+    title: 'Aktivität stornieren?',
+    message: 'Die Aktivität wird dauerhaft als storniert geführt. Möchtest du fortfahren?',
+    confirmText: 'Stornieren',
+    cancelText: 'Abbrechen',
+    variant: 'danger',
+  })
+  if (!ok) return
+  await onTransition(cancelTransition.value)
+}
+
+watch(
+  () => props.activityId,
+  () => {
+    void reload()
+  },
+  { immediate: true },
+)
+
+/** Tab aus ?tab=; ohne Query: v4.01-Default (Packliste nur ab packing … returned). */
+watch(
+  () => [props.activityId, route.query.tab, tabIds.value.join(','), activity.value?.status] as const,
+  () => {
+    const raw = route.query.tab
+    const normalized = normalizeActivityTabQuery(raw)
+    const resolved =
+      normalized ?? (activity.value ? defaultTabWhenNoQuery(activity.value.status) : 'overview')
+    if (activeTab.value !== resolved) {
+      activeTab.value = resolved
+    }
+    const rawStr = Array.isArray(raw) ? String(raw[0] ?? '') : typeof raw === 'string' ? raw : ''
+    if (rawStr.trim() && normalizeActivityTabQuery(raw) === null) {
+      mergeActivityQuery({ tab: undefined })
+    }
+  },
+  { immediate: true },
+)
+
+watch(activeTab, (newTab) => {
+  const fromQuery = normalizeActivityTabQuery(route.query.tab) ?? 'overview'
+  if (fromQuery !== newTab) {
+    mergeActivityQuery({ tab: newTab === 'overview' ? undefined : newTab })
+  }
+  if (newTab === 'material' && activity.value) {
+    void loadItems()
+  }
+})
+
+onBeforeUnmount(() => {
+  pageHeadStore.clearDynamic()
+})
+</script>
+
+<style scoped src="@/styles/material-detail-view.css"></style>
+<style scoped>
+@import '@/styles/views/activities/detail-panel.css';
+
+.activity-detail-header-title {
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+
+.activity-detail-workflow-actions {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.activity-danger-outline {
+  border-color: #fca5a5;
+  color: #b91c1c;
+}
+
+.activity-danger-outline:hover:not(:disabled) {
+  background: #fef2f2;
+}
+
+.activity-detail-error {
+  gap: 12px;
+}
+
+.activity-readonly-value {
+  margin: 0;
+  font-size: 15px;
+  color: #111827;
+  line-height: 1.5;
+}
+
+.activity-notes {
+  margin: 0;
+  white-space: pre-wrap;
+  line-height: 1.5;
+  color: #374151;
+}
+
+.activity-invite-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.activity-invite-row {
+  padding: 8px 0;
+  border-bottom: 1px solid #f3f4f6;
+  font-size: 14px;
+}
+
+.activity-invite-row:last-child {
+  border-bottom: none;
+}
+
+.activity-invite-name {
+  font-weight: 500;
+}
+
+.invite-status {
+  margin-left: 8px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.invite-status.accepted {
+  color: #059669;
+}
+
+.invite-status.rejected {
+  color: #b91c1c;
+}
+
+.invite-status.pending {
+  color: #6b7280;
+}
+
+.activity-detail-content-layout {
+  padding: 0 24px 32px;
+}
+
+.activity-items-table-wrap {
+  overflow-x: auto;
+}
+
+.activity-items-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.activity-items-table th,
+.activity-items-table td {
+  text-align: left;
+  padding: 10px 12px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.activity-items-table th {
+  font-weight: 600;
+  color: #6b7280;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.activity-item-name {
+  font-weight: 500;
+}
+
+.activity-item-name-block {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+}
+
+.activity-combo-badge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: #ede9fe;
+  color: #5b21b6;
+  flex-shrink: 0;
+}
+
+.activity-combo-badge--virtual {
+  background: #f3e8ff;
+  color: #7c3aed;
+}
+
+.activity-combo-kiste {
+  width: 100%;
+  flex-basis: 100%;
+  font-size: 12px;
+  margin: 0;
+  padding-top: 2px;
+}
+
+.activity-js-tag {
+  margin-left: 6px;
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: #e0f2fe;
+  color: #0369a1;
+}
+
+.activity-storage-cell {
+  font-size: 13px;
+  color: #4b5563;
+  max-width: 180px;
+  white-space: normal;
+  word-break: break-word;
+}
+
+.activity-inline-loading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #6b7280;
+  font-size: 14px;
+}
+
+.spinner-sm {
+  width: 22px;
+  height: 22px;
+  border-width: 2px;
+}
+
+.text-muted {
+  color: #6b7280;
+}
+
+.activity-draft-mat-hint {
+  font-size: 13px;
+  margin: 0 0 12px;
+  line-height: 1.45;
+}
+
+.activity-draft-adding {
+  margin-top: 10px;
+}
+
+.activity-draft-mat-denied p {
+  margin: 0;
+  line-height: 1.5;
+  font-size: 14px;
+}
+
+.col-actions {
+  width: 1%;
+  white-space: nowrap;
+  text-align: right;
+}
+
+.activity-row-remove {
+  padding: 4px 10px;
+  font-size: 13px;
+}
+
+/* Typ-/Status-Badges (wie Aktivitäten-Übersicht, ohne gesamtes overview.css) */
+.type-badge {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 500;
+}
+.type-badge.activity {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+.type-badge.event {
+  background: #fce7f3;
+  color: #be185d;
+}
+.type-badge.camp {
+  background: #d1fae5;
+  color: #065f46;
+}
+.type-badge.external {
+  background: #fef3c7;
+  color: #92400e;
+}
+.status-label {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+}
+.status-label.draft {
+  background: #fef3c7;
+  color: #92400e;
+}
+.status-label.submitted {
+  background: #dbeafe;
+  color: #1e40af;
+}
+.status-label.approved {
+  background: #d1fae5;
+  color: #065f46;
+}
+.status-label.packing {
+  background: #e0e7ff;
+  color: #3730a3;
+}
+.status-label.packed {
+  background: #c7d2fe;
+  color: #4338ca;
+}
+.status-label.issued {
+  background: #fed7aa;
+  color: #9a3412;
+}
+.status-label.returned {
+  background: #fbcfe8;
+  color: #9d174d;
+}
+.status-label.completed {
+  background: #f3f4f6;
+  color: #4b5563;
+}
+.status-label.cancelled {
+  background: #fee2e2;
+  color: #991b1b;
+}
+</style>

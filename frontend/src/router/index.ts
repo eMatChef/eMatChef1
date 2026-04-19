@@ -254,6 +254,16 @@ const routes: RouteRecordRaw[] = [
             }
           },
           {
+            path: 'integrations',
+            name: 'AdminIntegrations',
+            component: () => import('@/views/settings/IntegrationsSettingsView.vue'),
+            meta: {
+              requiredRoles: ['superadmin'],
+              pageTitle: 'Integrationen · eMatChef',
+              pageDescription: PAGE_DESC,
+            }
+          },
+          {
             path: 'organisations',
             name: 'AdminSettingsOrganisations',
             component: () => import('@/views/settings/OrganisationsSettingsView.vue'),
@@ -924,6 +934,7 @@ router.beforeEach(async (to, from, next) => {
         localStorage.removeItem('refresh_token')
         localStorage.removeItem('user_id')
         localStorage.removeItem('profile_id')
+        localStorage.removeItem('session_last_activity_at')
         // Wenn Session-Laden fehlschlägt, zur Login-Seite
         if (to.path !== '/login') {
           return next('/login')

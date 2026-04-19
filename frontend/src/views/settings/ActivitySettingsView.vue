@@ -33,12 +33,12 @@
           <div class="field-row">
             <div class="field-group">
               <label>Standard-Startzeit</label>
-              <input v-model="form.defaultTimeStart" type="time" class="form-input" />
+              <input v-model="form.defaultTimeStart" type="time" step="900" class="form-input" />
               <span class="field-hint">Uhrzeit, die beim Erstellen vorausgefüllt wird</span>
             </div>
             <div class="field-group">
               <label>Standard-Endzeit</label>
-              <input v-model="form.defaultTimeEnd" type="time" class="form-input" />
+              <input v-model="form.defaultTimeEnd" type="time" step="900" class="form-input" />
               <span class="field-hint">Uhrzeit, die als Endzeit vorausgefüllt wird</span>
             </div>
           </div>
@@ -316,6 +316,7 @@ onMounted(() => {
 .section-icon.activity { background: #dbeafe; color: #2563eb; }
 .section-icon.material { background: #fef3c7; color: #d97706; }
 .section-icon.camp { background: #d1fae5; color: #059669; }
+
 
 .section-header h3 {
   font-size: 16px;

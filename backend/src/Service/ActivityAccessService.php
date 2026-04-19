@@ -141,4 +141,144 @@ class ActivityAccessService
     {
         return $this->canUserViewActivity($user, $activity);
     }
+
+    /**
+     * Entwurf: Material hinzufügen/entfernen — Gruppenmitglieder (Host-Gruppe + eingeladene Gruppen),
+     * DC/MW des Host- oder angenommenen Gast-Departments.
+     * Ohne Gruppe: bei Typ «event» jede Host-Department-Mitgliedschaft; sonst Ersteller/Verantwortlich.
+     */
+    public function canUserEditDraftActivityMaterial(User $user, Activity $activity): bool
+    {
+        if (!$activity->isDraft()) {
+            return false;
+        }
+
+        $uid = $user->getId();
+        $hostDeptId = $activity->getDepartmentId();
+
+        $hostMem = $this->entityManager->getRepository(Membership::class)->findOneBy([
+            'userId' => $uid,
+            'departmentId' => $hostDeptId,
+        ]);
+        if ($hostMem) {
+            $role = (string) ($hostMem->getRole() ?? '');
+            if (in_array($role, ['mw', 'dc'], true)) {
+                return true;
+            }
+        }
+
+        $groupId = $activity->getGroupId();
+        if ($groupId) {
+            $gm = $this->entityManager->getRepository(GroupMembership::class)->findOneBy([
+                'userId' => $uid,
+                'groupId' => $groupId,
+            ]);
+            if ($gm !== null) {
+                return true;
+            }
+        } elseif ($activity->isEvent() && $hostMem !== null) {
+            // Event ohne gewählte Gruppe: alle User des Host-Departments
+            return true;
+        } elseif ($activity->getCreatedByUserId() === $uid || $activity->getResponsibleUserId() === $uid) {
+            // Keine Gruppe (nicht Event-Gesamtfall): Ersteller/Verantwortlich dürfen Material erfassen
+            return true;
+        }
+
+        foreach ($activity->getInvitedDepartments() ?? [] as $inv) {
+            if (!is_array($inv) || ($inv['status'] ?? '') !== 'accepted') {
+                continue;
+            }
+            $deptId = trim((string) ($inv['id'] ?? $inv['department_id'] ?? ''));
+            if ($deptId === '') {
+                continue;
+            }
+            $mem = $this->entityManager->getRepository(Membership::class)->findOneBy([
+                'userId' => $uid,
+                'departmentId' => $deptId,
+            ]);
+            if ($mem && in_array((string) ($mem->getRole() ?? ''), ['mw', 'dc'], true)) {
+                return true;
+            }
+            $ig = trim((string) ($inv['group_id'] ?? ''));
+            if ($ig !== '') {
+                $gMem = $this->entityManager->getRepository(GroupMembership::class)->findOneBy([
+                    'userId' => $uid,
+                    'groupId' => $ig,
+                ]);
+                if ($gMem !== null) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Host-Department: Mitgliedschaft mit Rolle MW oder DC.
+     */
+    public function isHostDepartmentMwOrDc(User $user, Activity $activity): bool
+    {
+        $mem = $this->entityManager->getRepository(Membership::class)->findOneBy([
+            'userId' => $user->getId(),
+            'departmentId' => $activity->getDepartmentId(),
+        ]);
+        if (!$mem) {
+            return false;
+        }
+
+        return \in_array((string) ($mem->getRole() ?? ''), ['mw', 'dc'], true);
+    }
+
+    /**
+     * Host-Department: Mitgliedschaft mit Rolle MW (Materialwart).
+     */
+    public function isHostDepartmentMw(User $user, Activity $activity): bool
+    {
+        $mem = $this->entityManager->getRepository(Membership::class)->findOneBy([
+            'userId' => $user->getId(),
+            'departmentId' => $activity->getDepartmentId(),
+        ]);
+        if (!$mem) {
+            return false;
+        }
+
+        return (string) ($mem->getRole() ?? '') === 'mw';
+    }
+
+    /**
+     * Nach Entwurf: Host-MW/DC dürfen Stammdaten/Texte (PATCH) ändern — nicht u/l1/l2/l3/…
+     * (Kein Status-Filter: gilt für alle nicht-Entwurf-Status.)
+     */
+    public function canUserEditSubmittedActivityDetails(User $user, Activity $activity): bool
+    {
+        if ($activity->isDraft()) {
+            return false;
+        }
+
+        return $this->isHostDepartmentMwOrDc($user, $activity);
+    }
+
+    /**
+     * Materialzeilen nach Entwurf: Host-MW in jedem Status; Host-DC nur bis «gepackt» (Buchungs-/Pack-Workflow).
+     */
+    public function canHostMwOrDcEditActivityMaterialAfterDraft(User $user, Activity $activity): bool
+    {
+        if ($activity->isDraft()) {
+            return false;
+        }
+        if ($this->isHostDepartmentMw($user, $activity)) {
+            return true;
+        }
+        if (!$this->isHostDepartmentMwOrDc($user, $activity)) {
+            return false;
+        }
+
+        return \in_array($activity->getStatus(), [
+            Activity::STATUS_SUBMITTED,
+            Activity::STATUS_APPROVED,
+            Activity::STATUS_PACKING,
+            Activity::STATUS_PACKED,
+        ], true);
+    }
 }

@@ -121,6 +121,47 @@ class MaterialController extends AbstractController
     }
 
     /**
+     * Physische Kombi, die diese Kisten-Charge als Referenz nutzt (Warnung beim Befüllen der Kiste).
+     */
+    #[Route('/container-batch/{containerBatchId}/linked-physical-combo', name: 'linked_physical_combo_for_container', methods: ['GET'])]
+    #[IsGranted('ROLE_USER')]
+    public function getLinkedPhysicalComboForContainerBatch(string $containerBatchId): JsonResponse
+    {
+        $batch = $this->entityManager->getRepository(MaterialBatch::class)->find($containerBatchId);
+        if (!$batch) {
+            return new JsonResponse(['error' => 'Charge nicht gefunden'], 404);
+        }
+        $departmentId = $batch->getMaterialItem()->getDepartmentId();
+        $accessCheck = $this->assertDepartmentAccess($departmentId);
+        if ($accessCheck instanceof JsonResponse) {
+            return $accessCheck;
+        }
+
+        $combo = $this->entityManager->createQueryBuilder()
+            ->select('m')
+            ->from(MaterialItem::class, 'm')
+            ->where('m.linkedContainerBatchId = :bid')
+            ->andWhere('m.materialType = :mt')
+            ->andWhere('m.deletedAt IS NULL')
+            ->setParameter('bid', $containerBatchId)
+            ->setParameter('mt', 'physical_combo')
+            ->setMaxResults(1)
+            ->getQuery()
+            ->getOneOrNullResult();
+
+        if (!$combo instanceof MaterialItem) {
+            return new JsonResponse(['physical_combo' => null]);
+        }
+
+        return new JsonResponse([
+            'physical_combo' => [
+                'id' => $combo->getId(),
+                'name' => $combo->getName(),
+            ],
+        ]);
+    }
+
+    /**
      * Einzelnes Material laden
      */
     #[Route('/{id}', name: 'get', methods: ['GET'])]
@@ -180,16 +221,26 @@ class MaterialController extends AbstractController
             return $accessCheck;
         }
 
-        $this->publicCodeService->ensureMaterialPublicCode($material, $this->getActorUserId());
-
-        // Bei serialisierten Materialien zusätzlich alle fehlenden Batch-QR-Codes erzeugen.
-        if ($material->getTrackingType() === 'serialized') {
+        // Physische Combo aus Kiste: ein Label – QR bleibt der Batch-Code (von der Kiste übernommen), kein zweites Material-QR.
+        if ($material->getMaterialType() === 'physical_combo' && $material->getLinkedContainerBatchId()) {
             foreach ($material->getBatches() as $batch) {
-                $serial = trim((string) $batch->getSerialNumber());
-                if ($serial === '') {
+                if ($material->getTrackingType() === 'serialized' && trim((string) $batch->getSerialNumber()) === '') {
                     continue;
                 }
                 $this->publicCodeService->ensureBatchPublicCode($batch, $this->getActorUserId());
+            }
+        } else {
+            $this->publicCodeService->ensureMaterialPublicCode($material, $this->getActorUserId());
+
+            // Bei serialisierten Materialien zusätzlich alle fehlenden Batch-QR-Codes erzeugen.
+            if ($material->getTrackingType() === 'serialized') {
+                foreach ($material->getBatches() as $batch) {
+                    $serial = trim((string) $batch->getSerialNumber());
+                    if ($serial === '') {
+                        continue;
+                    }
+                    $this->publicCodeService->ensureBatchPublicCode($batch, $this->getActorUserId());
+                }
             }
         }
 
@@ -277,7 +328,9 @@ class MaterialController extends AbstractController
             }
 
             // Details
-            if (isset($data['is_tent'])) $material->setIsTent((bool)$data['is_tent']);
+            if (array_key_exists('is_container', $data)) {
+                $material->setIsContainer((bool) $data['is_container']);
+            }
             if (isset($data['color'])) $material->setColor($data['color']);
             if (isset($data['material'])) $material->setMaterial($data['material']);
             if (isset($data['size_length'])) $material->setSizeLength($data['size_length']);
@@ -296,7 +349,10 @@ class MaterialController extends AbstractController
             
             // Verleih
             if (isset($data['rental_external_allowed'])) $material->setRentalExternalAllowed((bool)$data['rental_external_allowed']);
-            if (isset($data['rental_scope'])) $material->setRentalScope($data['rental_scope']);
+            if (array_key_exists('rental_scope', $data)) {
+                $rs = $data['rental_scope'];
+                $material->setRentalScope($rs !== null && $rs !== '' ? (string) $rs : null);
+            }
             if (isset($data['rental_requires_approval'])) $material->setRentalRequiresApproval((bool)$data['rental_requires_approval']);
             if (isset($data['rental_price_day'])) $material->setRentalPriceDay($data['rental_price_day']);
             if (isset($data['rental_price_week'])) $material->setRentalPriceWeek($data['rental_price_week']);
@@ -319,11 +375,24 @@ class MaterialController extends AbstractController
                 $material->setTrackingType($data['tracking_type']);
             }
             if (isset($data['sale_price'])) $material->setSalePrice($data['sale_price']);
+            if (array_key_exists('reference_purchase_unit_chf', $data)) {
+                $rp = $data['reference_purchase_unit_chf'];
+                $material->setReferencePurchaseUnitChf($rp !== null && $rp !== '' ? (string) $rp : null);
+            }
             if (isset($data['min_stock'])) $material->setMinStock((int)$data['min_stock']);
 
             // Verpackungseinheit (Bündel)
             if (isset($data['pack_size'])) $material->setPackSize($data['pack_size'] ? (int)$data['pack_size'] : null);
             if (isset($data['pack_unit'])) $material->setPackUnit($data['pack_unit'] ?: null);
+            if (array_key_exists('pack_sale_price_chf', $data)) {
+                $pp = $data['pack_sale_price_chf'];
+                $material->setPackSalePriceChf($pp !== null && $pp !== '' ? (string) $pp : null);
+            }
+
+            $consumableFoodErr = $this->validateConsumableFoodPrices($material);
+            if ($consumableFoodErr !== null) {
+                return $consumableFoodErr;
+            }
 
             $this->entityManager->persist($material);
             $this->entityManager->flush();
@@ -372,6 +441,11 @@ class MaterialController extends AbstractController
                     if (isset($serialEntry['label']) && trim((string)$serialEntry['label']) !== '') {
                         $batch->setLabel((string) $serialEntry['label']);
                     }
+
+                    $batchIsContainer = array_key_exists('is_container', $serialEntry)
+                        ? (bool) $serialEntry['is_container']
+                        : $material->getIsContainer();
+                    $batch->setIsContainer($batchIsContainer);
 
                     $entryContainerBatchId = $serialEntry['container_batch_id'] ?? null;
                     $entryRackId = $serialEntry['rack_id'] ?? null;
@@ -535,11 +609,13 @@ class MaterialController extends AbstractController
                     }
                 }
 
+                $batch->setIsContainer($material->getIsContainer());
+
                 $this->entityManager->persist($batch);
                 $this->entityManager->flush();
             }
 
-            // Beim Erfassen automatisch Public-Code erzeugen (für QR-Labels).
+            // Beim Erfassen: öffentlicher QR pro Artikel (Material), nicht pro Charge — bei Massenartikeln reicht das.
             $this->publicCodeService->ensureMaterialPublicCode($material, $this->getActorUserId());
             $this->entityManager->flush();
 
@@ -613,7 +689,7 @@ class MaterialController extends AbstractController
             $comboMaterial->setName($name);
             $comboMaterial->setMaterialType($materialType);
             $comboMaterial->setTrackingType('serialized');
-            $comboMaterial->setIsTent(false);
+            $comboMaterial->setIsContainer(false);
             $comboMaterial->setReservationMode($data['reservation_mode'] ?? 'complete_only');
 
             if (!empty($data['category_id'])) {
@@ -732,7 +808,7 @@ class MaterialController extends AbstractController
             $comboMaterial->setName($name);
             $comboMaterial->setMaterialType($materialType);
             $comboMaterial->setTrackingType('serialized');
-            $comboMaterial->setIsTent(false);
+            $comboMaterial->setIsContainer(false);
             $comboMaterial->setReservationMode($data['reservation_mode'] ?? 'complete_only');
 
             if (!empty($data['category_id'])) {
@@ -754,6 +830,7 @@ class MaterialController extends AbstractController
 
             $this->entityManager->persist($comboMaterial);
 
+            $comboBatch = null;
             if ($materialType === 'physical_combo') {
                 $comboBatch = new MaterialBatch();
                 $comboBatch->setId(IdGenerator::generate13('ba'));
@@ -791,6 +868,13 @@ class MaterialController extends AbstractController
                 $comp->setComponentRole($componentMaterial->getName());
                 $comp->setSortOrder($sortOrder++);
                 $this->entityManager->persist($comp);
+            }
+
+            if ($comboBatch !== null) {
+                $this->publicCodeService->reassignBatchPublicCode(
+                    (string) $containerBatch->getId(),
+                    (string) $comboBatch->getId()
+                );
             }
 
             $this->entityManager->flush();
@@ -910,7 +994,9 @@ class MaterialController extends AbstractController
             }
             
             // Details
-            if (isset($data['is_tent'])) $material->setIsTent((bool)$data['is_tent']);
+            if (array_key_exists('is_container', $data)) {
+                $material->setIsContainer((bool) $data['is_container']);
+            }
             if (array_key_exists('reservation_mode', $data)) $material->setReservationMode($data['reservation_mode']);
             if (isset($data['color'])) $material->setColor($data['color']);
             if (isset($data['material'])) $material->setMaterial($data['material']);
@@ -930,7 +1016,10 @@ class MaterialController extends AbstractController
             
             // Verleih
             if (isset($data['rental_external_allowed'])) $material->setRentalExternalAllowed((bool)$data['rental_external_allowed']);
-            if (isset($data['rental_scope'])) $material->setRentalScope($data['rental_scope']);
+            if (array_key_exists('rental_scope', $data)) {
+                $rs = $data['rental_scope'];
+                $material->setRentalScope($rs !== null && $rs !== '' ? (string) $rs : null);
+            }
             if (isset($data['rental_requires_approval'])) $material->setRentalRequiresApproval((bool)$data['rental_requires_approval']);
             if (isset($data['rental_price_day'])) $material->setRentalPriceDay($data['rental_price_day']);
             if (isset($data['rental_price_week'])) $material->setRentalPriceWeek($data['rental_price_week']);
@@ -952,11 +1041,24 @@ class MaterialController extends AbstractController
                 $material->setTrackingType($data['tracking_type']);
             }
             if (array_key_exists('sale_price', $data)) $material->setSalePrice($data['sale_price']);
+            if (array_key_exists('reference_purchase_unit_chf', $data)) {
+                $rp = $data['reference_purchase_unit_chf'];
+                $material->setReferencePurchaseUnitChf($rp !== null && $rp !== '' ? (string) $rp : null);
+            }
             if (array_key_exists('min_stock', $data)) $material->setMinStock($data['min_stock'] !== null ? (int)$data['min_stock'] : null);
 
             // Verpackungseinheit (Bündel)
             if (array_key_exists('pack_size', $data)) $material->setPackSize($data['pack_size'] ? (int)$data['pack_size'] : null);
             if (array_key_exists('pack_unit', $data)) $material->setPackUnit($data['pack_unit'] ?: null);
+            if (array_key_exists('pack_sale_price_chf', $data)) {
+                $pp = $data['pack_sale_price_chf'];
+                $material->setPackSalePriceChf($pp !== null && $pp !== '' ? (string) $pp : null);
+            }
+
+            $consumableFoodErr = $this->validateConsumableFoodPrices($material);
+            if ($consumableFoodErr !== null) {
+                return $consumableFoodErr;
+            }
 
             $material->updateTimestamps();
 
@@ -1052,6 +1154,12 @@ class MaterialController extends AbstractController
                 $batch->setLabel($data['label'] ? (string) $data['label'] : null);
             }
 
+            if (array_key_exists('is_container', $data)) {
+                $batch->setIsContainer((bool) $data['is_container']);
+            } else {
+                $batch->setIsContainer($material->getIsContainer());
+            }
+
             if (isset($data['serial_number'])) {
                 $batch->setSerialNumber($data['serial_number']);
             } elseif (!empty($data['serial_numbers']) && is_array($data['serial_numbers'])) {
@@ -1104,7 +1212,10 @@ class MaterialController extends AbstractController
             }
 
             $this->entityManager->persist($batch);
-            if ($material->getTrackingType() === 'serialized') {
+            // Serialisiert: QR nur pro Einheit (Seriennummer), nicht für „Charge“ ohne SN. Massen: QR bleibt auf Material-Ebene.
+            $tt = $material->getTrackingType();
+            $serial = trim((string) $batch->getSerialNumber());
+            if ($tt === 'serialized' && $serial !== '') {
                 $this->publicCodeService->ensureBatchPublicCode($batch, $this->getActorUserId());
             }
 
@@ -1141,6 +1252,7 @@ class MaterialController extends AbstractController
                 'slot_id' => $batch->getSlotId(),
                 'public_code' => $batchPublicCode,
                 'public_url' => $batchPublicUrl,
+                'is_container' => $batch->getIsContainer(),
             ];
             $allocations = $batch->getAllocations();
             if ($allocations->count() > 0) {
@@ -1169,7 +1281,11 @@ class MaterialController extends AbstractController
                 $sn = trim((string) ($entry['serial_number'] ?? ''));
                 if ($sn !== '') {
                     $label = trim((string) ($entry['label'] ?? ''));
-                    $entries[] = ['serial_number' => $sn, 'label' => $label !== '' ? $label : null];
+                    $row = ['serial_number' => $sn, 'label' => $label !== '' ? $label : null];
+                    if (array_key_exists('is_container', $entry)) {
+                        $row['is_container'] = (bool) $entry['is_container'];
+                    }
+                    $entries[] = $row;
                 }
             }
         }
@@ -1292,6 +1408,12 @@ class MaterialController extends AbstractController
                     $batch->setNotes($data['notes']);
                 }
 
+                if (array_key_exists('is_container', $entry)) {
+                    $batch->setIsContainer((bool) $entry['is_container']);
+                } else {
+                    $batch->setIsContainer($material->getIsContainer());
+                }
+
                 $batchRack = $rack;
                 $batchSlot = null;
                 $useContainerBatch = $defaultContainerBatch;
@@ -1393,6 +1515,7 @@ class MaterialController extends AbstractController
                     'container_batch_id' => $useContainerBatch ? $useContainerBatch->getId() : null,
                     'public_code' => $batchPublicCode,
                     'public_url' => $batchPublicUrl,
+                    'is_container' => $batch->getIsContainer(),
                 ];
 
                 $this->publicCodeService->ensureBatchPublicCode($batch, $this->getActorUserId());
@@ -1441,6 +1564,7 @@ class MaterialController extends AbstractController
                 'rack_id' => $batch->getRackId(),
                 'slot_id' => $batch->getSlotId(),
                 'supplier' => $batch->getSupplier() ? ($batch->getSupplier()->getName() ?: $batch->getSupplier()->getCompany()) : null,
+                'is_container' => $batch->getIsContainer(),
             ];
 
             if (isset($data['qty'])) {
@@ -1509,6 +1633,10 @@ class MaterialController extends AbstractController
                 }
             }
 
+            if (array_key_exists('is_container', $data)) {
+                $batch->setIsContainer((bool) $data['is_container']);
+            }
+
             // Wenn serialisiert und Seriennummer vorhanden/gesetzt ist: Batch-Public-Code sicherstellen.
             if (
                 $material->getTrackingType() === 'serialized' &&
@@ -1529,6 +1657,7 @@ class MaterialController extends AbstractController
                 'rack_id' => $batch->getRackId(),
                 'slot_id' => $batch->getSlotId(),
                 'supplier' => $batch->getSupplier() ? ($batch->getSupplier()->getName() ?: $batch->getSupplier()->getCompany()) : null,
+                'is_container' => $batch->getIsContainer(),
             ];
 
             $batchChanges = [];
@@ -1569,6 +1698,7 @@ class MaterialController extends AbstractController
                 'slot_id' => $batch->getSlotId(),
                 'public_code' => $batchPublicCode,
                 'public_url' => $batchPublicUrl,
+                'is_container' => $batch->getIsContainer(),
             ]);
 
         } catch (\Exception $e) {
@@ -2267,18 +2397,20 @@ class MaterialController extends AbstractController
 
         $viaPhysicalCombo = [];
         $conn = $this->entityManager->getConnection();
+        /** Eine Zeile pro Stücklisten-Eintrag (nicht nach Eltern gruppieren), damit component_batch_id erhalten bleibt. */
         $parentSql = "
-            SELECT cc.parent_material_id,
+            SELECT cc.id AS combo_component_id,
+                   cc.parent_material_id,
                    p.name AS parent_name,
-                   SUM(cc.qty) AS component_qty,
-                   MIN(cc.assignment_mode) AS assignment_mode
+                   cc.component_batch_id,
+                   cc.qty AS component_qty,
+                   cc.assignment_mode
             FROM material_combo_component cc
             INNER JOIN material_item p ON p.id = cc.parent_material_id
             WHERE cc.component_material_id = :cid
               AND p.material_type = 'physical_combo'
               AND p.deleted_at IS NULL
-            GROUP BY cc.parent_material_id, p.name
-            ORDER BY p.name ASC
+            ORDER BY p.name ASC, cc.sort_order ASC, cc.id ASC
         ";
         $parents = $conn->executeQuery($parentSql, ['cid' => $id])->fetchAllAssociative();
         foreach ($parents as $row) {
@@ -2287,9 +2419,12 @@ class MaterialController extends AbstractController
             if ($loc === []) {
                 continue;
             }
+            $cbid = $row['component_batch_id'] ?? null;
             $viaPhysicalCombo[] = [
+                'combo_component_id' => (string) $row['combo_component_id'],
                 'parent_material_id' => $pid,
                 'parent_name' => (string) $row['parent_name'],
+                'component_batch_id' => $cbid !== null && $cbid !== '' ? (string) $cbid : null,
                 'component_qty' => (int) $row['component_qty'],
                 'assignment_mode' => (string) $row['assignment_mode'],
                 'locations' => $loc,
@@ -2424,6 +2559,17 @@ class MaterialController extends AbstractController
             ->find($data['component_material_id']);
         if (!$componentMaterial) {
             return new JsonResponse(['error' => 'Komponenten-Material nicht gefunden'], 404);
+        }
+
+        $accessCheck = $this->assertDepartmentAccess($parentMaterial->getDepartmentId());
+        if ($accessCheck instanceof JsonResponse) {
+            return $accessCheck;
+        }
+        if ($componentMaterial->getId() === $parentMaterial->getId()) {
+            return new JsonResponse(['error' => 'Eine Kombination kann nicht sich selbst als Komponente haben'], 400);
+        }
+        if ($componentMaterial->getDepartmentId() !== $parentMaterial->getDepartmentId()) {
+            return new JsonResponse(['error' => 'Komponenten-Artikel muss zum gleichen Team gehören'], 400);
         }
 
         try {
@@ -2593,6 +2739,28 @@ class MaterialController extends AbstractController
     }
 
     /**
+     * Verbrauchsmaterial und Esswaren: Verkaufs- und Referenz-Einkaufspreis (je Stück) sind Pflicht.
+     */
+    private function validateConsumableFoodPrices(MaterialItem $material): ?JsonResponse
+    {
+        if (!$material->getIsConsumable() && !$material->getIsFood()) {
+            return null;
+        }
+        $sale = $material->getSalePrice();
+        $ref = $material->getReferencePurchaseUnitChf();
+        $saleOk = $sale !== null && $sale !== '' && (float) $sale > 0;
+        $refOk = $ref !== null && $ref !== '' && (float) $ref > 0;
+        if (!$saleOk) {
+            return new JsonResponse(['error' => 'Für Verbrauchsmaterial und Esswaren ist der Verkaufspreis (CHF/Stk.) Pflicht'], 400);
+        }
+        if (!$refOk) {
+            return new JsonResponse(['error' => 'Für Verbrauchsmaterial und Esswaren ist der Einkaufspreis Referenz (CHF/Stk.) Pflicht'], 400);
+        }
+
+        return null;
+    }
+
+    /**
      * Erstellt einen Snapshot des aktuellen Material-Zustands
      */
     private function buildSnapshot(MaterialItem $material): array
@@ -2609,7 +2777,7 @@ class MaterialController extends AbstractController
             'material_type' => $material->getMaterialType(),
             'tracking_type' => $material->getTrackingType(),
             'linked_container_batch_id' => $material->getLinkedContainerBatchId(),
-            'is_tent' => $material->getIsTent(),
+            'is_container' => $material->getIsContainer(),
             'color' => $material->getColor(),
             'size_length' => $material->getSizeLength(),
             'size_width' => $material->getSizeWidth(),
@@ -2635,9 +2803,11 @@ class MaterialController extends AbstractController
             'external_source' => $material->getExternalSource(),
             'is_consumable' => $material->getIsConsumable(),
             'sale_price' => $material->getSalePrice(),
+            'reference_purchase_unit_chf' => $material->getReferencePurchaseUnitChf(),
             'min_stock' => $material->getMinStock(),
             'pack_size' => $material->getPackSize(),
             'pack_unit' => $material->getPackUnit(),
+            'pack_sale_price_chf' => $material->getPackSalePriceChf(),
         ];
     }
 
@@ -2761,6 +2931,23 @@ class MaterialController extends AbstractController
         $publicCode = $publicCodeEntry?->getPublicCode();
         $publicUrl = $publicCode ? $this->publicCodeService->buildMaterialPublicUrl($publicCode) : null;
 
+        // Physische Combo aus Kiste: oft nur Batch-QR (von der Kiste übernommen) – für Listen/QR dieselbe URL zeigen
+        if ($publicUrl === null
+            && $material->getMaterialType() === 'physical_combo'
+            && $material->getLinkedContainerBatchId()) {
+            foreach ($batches as $batch) {
+                if ($batch->getStatus() !== 'active') {
+                    continue;
+                }
+                $bp = $this->publicCodeService->getActiveBatchPublicCode((string) $batch->getId());
+                if ($bp) {
+                    $publicCode = $bp->getPublicCode();
+                    $publicUrl = $this->publicCodeService->buildBatchPublicUrl($publicCode);
+                    break;
+                }
+            }
+        }
+
         $result = [
             'id' => $material->getId(),
             'department_id' => $material->getDepartmentId(),
@@ -2794,7 +2981,7 @@ class MaterialController extends AbstractController
             'open_loss_reports' => $openLossReports,
             'open_loss_qty' => $openLossQty,
             'batch_count' => count($batches),
-            'is_tent' => $material->getIsTent(),
+            'is_container' => $material->getIsContainer(),
             'tent_type' => $material->getTentType(),
             'tent_capacity' => $material->getTentCapacity(),
             'reservation_mode' => $material->getReservationMode(),
@@ -2803,9 +2990,11 @@ class MaterialController extends AbstractController
             'is_js_material' => $material->getIsJsMaterial(),
             'external_source' => $material->getExternalSource(),
             'sale_price' => $material->getSalePrice(),
+            'reference_purchase_unit_chf' => $material->getReferencePurchaseUnitChf(),
             'min_stock' => $material->getMinStock(),
             'pack_size' => $material->getPackSize(),
             'pack_unit' => $material->getPackUnit(),
+            'pack_sale_price_chf' => $material->getPackSalePriceChf(),
             'barcode_tag' => $material->getBarcodeTag(),
             'public_code' => $publicCode,
             'public_url' => $publicUrl,
@@ -2868,10 +3057,12 @@ class MaterialController extends AbstractController
                         'id' => $batch->getSlot()->getId(),
                         'name' => $batch->getSlot()->getName(),
                     ] : null,
+                    'storage_address_name' => $this->storageAddressNameFromRack($batch->getRack()),
                     'source_batch_id' => $batch->getSourceBatchId(),
                     'conversion_group_id' => $batch->getConversionGroupId(),
                     'public_code' => $batchPublicCode,
                     'public_url' => $batchPublicUrl,
+                    'is_container' => $batch->getIsContainer(),
                 ];
                 // Allokationen mitsenden, falls vorhanden (Batch auf mehrere Lagerplätze verteilt)
                 $allocations = $batch->getAllocations();
@@ -2956,6 +3147,23 @@ class MaterialController extends AbstractController
     /**
      * @param \Doctrine\Common\Collections\Collection<int, BatchStorageAllocation> $allocations
      */
+    private function storageAddressNameFromRack(?StorageRack $rack): ?string
+    {
+        if (!$rack) {
+            return null;
+        }
+        $addr = $rack->getStorageAddress();
+        if (!$addr) {
+            return null;
+        }
+        $name = $addr->getName();
+        if ($name === null || trim((string) $name) === '') {
+            return null;
+        }
+
+        return trim((string) $name);
+    }
+
     private function serializeAllocations(\Doctrine\Common\Collections\Collection $allocations): array
     {
         $result = [];
@@ -2965,10 +3173,13 @@ class MaterialController extends AbstractController
             $cb = $alloc->getContainerBatch();
             $rackData = $rack ? ['id' => $rack->getId(), 'name' => $rack->getName()] : null;
             $slotData = $slot ? ['id' => $slot->getId(), 'name' => $slot->getName()] : null;
+            $effectiveRack = $rack;
             if ($cb) {
                 $rackData = $cb->getRack() ? ['id' => $cb->getRackId(), 'name' => $cb->getRack()->getName()] : null;
                 $slotData = $cb->getSlot() ? ['id' => $cb->getSlotId(), 'name' => $cb->getSlot()->getName()] : null;
+                $effectiveRack = $cb->getRack() ?: $rack;
             }
+            $storageAddressName = $this->storageAddressNameFromRack($effectiveRack);
             $result[] = [
                 'id' => $alloc->getId(),
                 'batch_id' => $alloc->getBatchId(),
@@ -2976,6 +3187,7 @@ class MaterialController extends AbstractController
                 'rack_id' => $alloc->getEffectiveRackId(),
                 'slot_id' => $alloc->getEffectiveSlotId(),
                 'qty' => $alloc->getQty(),
+                'storage_address_name' => $storageAddressName,
                 'container_batch' => $cb ? [
                     'id' => $cb->getId(),
                     'material_id' => $cb->getMaterialItemId(),
@@ -2984,6 +3196,7 @@ class MaterialController extends AbstractController
                     'material_name' => $cb->getMaterialItem()->getName(),
                     'rack' => $cb->getRack() ? ['id' => $cb->getRackId(), 'name' => $cb->getRack()->getName()] : null,
                     'slot' => $cb->getSlot() ? ['id' => $cb->getSlotId(), 'name' => $cb->getSlot()->getName()] : null,
+                    'storage_address_name' => $this->storageAddressNameFromRack($cb->getRack()),
                 ] : null,
                 'rack' => $rackData,
                 'slot' => $slotData,

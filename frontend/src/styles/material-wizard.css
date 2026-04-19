@@ -301,6 +301,66 @@
   border-bottom: 1px solid #e5e7eb;
 }
 
+.subsection-title--small {
+  font-size: 12px;
+  margin-top: 4px;
+  padding-bottom: 4px;
+  border-bottom: none;
+}
+
+.costs-hint-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  margin-bottom: 10px;
+  font-size: 12px;
+  background: #f8fafc;
+  color: #475569;
+}
+
+.costs-hint-row svg {
+  flex-shrink: 0;
+  margin-top: 1px;
+  color: #64748b;
+}
+
+.field-required-star {
+  color: #b91c1c;
+  font-weight: 600;
+}
+
+.optional-label {
+  color: #6b7280;
+  font-size: 0.85em;
+  font-weight: 400;
+}
+
+.pack-sale-to-unit {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+}
+
+.pack-sale-to-unit__text {
+  margin: 0 0 8px 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: #475569;
+}
+
+.pack-sale-to-unit__text strong {
+  color: #0f172a;
+}
+
+.pack-sale-to-unit__btn {
+  width: 100%;
+  justify-content: center;
+}
+
 /* Gestell/Fach: volle Breite, untereinander (variant compact) — vermeidet „versteckte“ zweite Spalte */
 .material-wizard-overlay .material-wizard-storage-picker.storage-location-picker {
   width: 100%;

@@ -24,7 +24,7 @@ Wenn deine UID/GID dauerhaft 1000 sind (typisch unter WSL/Linux), reicht auch `d
 - **App:** http://app.localhost
 - **QR (öffentliche Subdomain):** http://qr.localhost
 
-Moderne Browser lösen `*.localhost` auf `127.0.0.1` auf, **ohne** `/etc/hosts`. Die gleichen Einstellungen kannst du bei Bedarf in `frontend/.env` setzen (siehe `frontend/.env.example`).
+Moderne Browser lösen `*.localhost` auf `127.0.0.1` auf, **ohne** `/etc/hosts`. Lokale Vite-Defaults stehen in `frontend/.env.development`; Production-Builds nutzen `frontend/.env.production` (API/ Domains für Live).
 
 ### Frontend lokal entwickeln
 ```bash

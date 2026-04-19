@@ -40,7 +40,7 @@
                 @click="selectActivity(a)"
               >
                 <span class="activity-name">{{ a.name }}</span>
-                <span class="activity-meta">{{ a.group_name || a.customer_name || '–' }} · {{ formatDateShort(a.usage_start) }}</span>
+                <span class="activity-meta">{{ a.group_name || '–' }} · {{ formatDateShort(a.usage_start) }}</span>
               </button>
             </div>
           </div>
@@ -59,7 +59,7 @@
                 <select v-model="form.materialItemId" class="form-select" required>
                   <option value="">– Material wählen –</option>
                   <option v-for="pi in packItems" :key="pi.material_item_id" :value="pi.material_item_id">
-                    {{ pi.material_name }} ({{ pi.quantity_issued ?? pi.quantity_packed }} Stk.)
+                    {{ packItemSelectLabel(pi) }}
                   </option>
                 </select>
               </div>
@@ -139,7 +139,7 @@
         </div>
 
         <div class="wizard-footer">
-          <button v-if="step === 2" class="btn btn-outline" @click="goBack">Zurück</button>
+          <button v-if="step === 2 && !props.presetActivityId" class="btn btn-outline" @click="goBack">Zurück</button>
           <div class="spacer"></div>
           <button v-if="step === 1" class="btn btn-primary" :disabled="!selectedActivity" @click="advanceToStep2">
             Weiter
@@ -161,9 +161,11 @@ import { ref, computed, watch } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { useToast } from '@/composables/useToast'
 import apiClient from '@/api/apiClient'
+import { getActivity, type ActivityDetail } from '@/api/activities'
 import { getGroups, type Group } from '@/api/groups'
 import { getMaterials, type Material } from '@/api/materials'
 import { createWorkshopTicket } from '@/api/workshop'
+import { getActivityPackContainers } from '@/api/activityContainers'
 
 interface ActivityOption {
   id: string
@@ -171,7 +173,6 @@ interface ActivityOption {
   status?: string
   group_id?: string | null
   group_name?: string | null
-  customer_name?: string | null
   usage_start?: string | null
   created_by_user_id?: string | null
 }
@@ -181,11 +182,18 @@ interface PackItem {
   material_name: string
   quantity_packed: number
   quantity_issued?: number
+  /** Aus API: Serien-/Kisten-Label am MaterialItem (linked batch) */
+  linked_container_label?: string | null
 }
 
 const props = defineProps<{
   isOpen: boolean
   departmentId: string
+  /** Wenn gesetzt: Aktivität ist vorgewählt (z. B. aus Aktivitätsdetail), Schritt 1 entfällt */
+  presetActivityId?: string | null
+  /** Optional: Material + Meldungsart aus Packliste vorbefüllen */
+  presetMaterialItemId?: string | null
+  presetIssueType?: 'damage' | 'repair' | 'loss' | null
 }>()
 
 const emit = defineEmits<{
@@ -204,6 +212,8 @@ const groups = ref<Group[]>([])
 const isLoadingActivities = ref(false)
 const selectedActivity = ref<ActivityOption | null>(null)
 const packItems = ref<PackItem[]>([])
+/** Kisten-Label aus Pack-Behältern (z. B. Seriennummer), Schlüssel material_item_id */
+const containerLabelByMaterialItemId = ref<Record<string, string>>({})
 const isLoadingPackItems = ref(false)
 const isSubmitting = ref(false)
 
@@ -282,20 +292,48 @@ async function loadActivities() {
   }
 }
 
+function packItemSelectLabel(pi: PackItem): string {
+  const qty = pi.quantity_issued ?? pi.quantity_packed
+  const instanceLabel =
+    containerLabelByMaterialItemId.value[pi.material_item_id] ||
+    (pi.linked_container_label && String(pi.linked_container_label).trim() !== ''
+      ? String(pi.linked_container_label).trim()
+      : '')
+  const title = instanceLabel ? `${instanceLabel} — ${pi.material_name}` : pi.material_name
+  return `${title} (${qty} Stk.)`
+}
+
 async function loadPackItems() {
   if (!selectedActivity.value) return
   isLoadingPackItems.value = true
   try {
-    const res = await apiClient.get(`/api/activities/${selectedActivity.value.id}/pack-items`)
+    const activityId = selectedActivity.value.id
+    const [res, containers] = await Promise.all([
+      apiClient.get(`/api/activities/${activityId}/pack-items`),
+      getActivityPackContainers(activityId),
+    ])
+    const labelByMid: Record<string, string> = {}
+    for (const c of containers) {
+      const mid = c.container_material_item_id?.trim()
+      if (mid && c.label?.trim()) {
+        labelByMid[mid] = c.label.trim()
+      }
+    }
+    containerLabelByMaterialItemId.value = labelByMid
     packItems.value = (res.data || []).map((pi: any) => ({
       material_item_id: pi.material_item_id,
       material_name: pi.material_name,
       quantity_packed: pi.quantity_packed,
-      quantity_issued: pi.quantity_issued
+      quantity_issued: pi.quantity_issued,
+      linked_container_label:
+        pi.linked_container_label != null && String(pi.linked_container_label).trim() !== ''
+          ? String(pi.linked_container_label).trim()
+          : null,
     }))
   } catch (err) {
     console.error('Packliste laden fehlgeschlagen:', err)
     packItems.value = []
+    containerLabelByMaterialItemId.value = {}
   } finally {
     isLoadingPackItems.value = false
   }
@@ -399,17 +437,65 @@ function reset() {
   selectedActivity.value = null
   selectedMaterial.value = null
   packItems.value = []
+  containerLabelByMaterialItemId.value = {}
   matSearchResults.value = []
-  form.value = { materialItemId: '', type: 'damage', quantity: 1, description: '' }
+  form.value = { materialItemId: '', type: 'damage' as const, quantity: 1, description: '' }
   formNoActivity.value = { matSearch: '', title: '', type: 'repair', description: '' }
 }
 
-watch(() => props.isOpen, (open) => {
-  if (open) {
-    reset()
-    loadActivities()
+async function applyPresetActivity(id: string) {
+  let a: ActivityOption | undefined = activities.value.find((x) => x.id === id)
+  if (!a) {
+    try {
+      const d: ActivityDetail & { group_name?: string | null; created_by_user_id?: string | null } =
+        await getActivity(id)
+      a = {
+        id: d.id,
+        name: d.name,
+        status: d.status,
+        group_id: d.group_id,
+        group_name: d.group_name ?? null,
+        usage_start: d.usage_start,
+        created_by_user_id: d.created_by_user_id,
+      }
+    } catch {
+      toast.error('Aktivität konnte nicht geladen werden.')
+      return
+    }
   }
-})
+  if (!a.status || !['issued', 'returned'].includes(a.status)) {
+    toast.error('Schaden kann nur bei ausgegebenen oder retour Aktivitäten gemeldet werden.')
+    return
+  }
+  selectedActivity.value = a
+  mode.value = 'with_activity'
+  step.value = 2
+  await loadPackItems()
+  applyMaterialAndTypePresets()
+}
+
+function applyMaterialAndTypePresets() {
+  const mid = props.presetMaterialItemId?.trim()
+  const t = props.presetIssueType
+  if (mid) form.value.materialItemId = mid
+  if (t && ['damage', 'repair', 'loss'].includes(t)) {
+    form.value.type = t
+  }
+}
+
+watch(
+  () => props.isOpen,
+  async (open) => {
+    if (open) {
+      reset()
+      await loadActivities()
+      const preset = props.presetActivityId?.trim()
+      if (preset) {
+        await applyPresetActivity(preset)
+      }
+    }
+  },
+)
 </script>
 
 <style scoped>

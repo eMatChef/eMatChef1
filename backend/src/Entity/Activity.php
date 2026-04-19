@@ -58,6 +58,10 @@ class Activity
     #[ORM\Column(type: 'string', length: 20, options: ['default' => 'draft'])]
     private string $status = 'draft';
 
+    /** false = Stepper-Zwischenstand, Detailansicht erst nach finalem Wizard-Schritt */
+    #[ORM\Column(name: 'create_wizard_completed', type: 'boolean', options: ['default' => true])]
+    private bool $createWizardCompleted = true;
+
     // Submitted-Timestamp (wann der Leader freigegeben hat)
     #[ORM\Column(name: 'submitted_at', type: 'datetime', nullable: true)]
     private ?\DateTime $submittedAt = null;
@@ -95,23 +99,21 @@ class Activity
     #[ORM\Column(name: 'usage_end', type: 'datetime', nullable: true)]
     private ?\DateTime $usageEnd = null;
 
-    // Kunde / Kontakt (für externe Vermietungen)
-    #[ORM\Column(name: 'customer_name', type: 'string', length: 255, nullable: true)]
-    private ?string $customerName = null;
-
-    #[ORM\Column(name: 'customer_email', type: 'string', length: 255, nullable: true)]
-    private ?string $customerEmail = null;
-
-    #[ORM\Column(name: 'customer_phone', type: 'string', length: 50, nullable: true)]
-    private ?string $customerPhone = null;
-
-    // Adresse (Event-Ort / Lieferadresse)
+    // Kunden-/Mieteradresse (z. B. bei Typ extern)
     #[ORM\Column(name: 'address_id', type: 'string', length: 12, nullable: true, columnDefinition: 'CHARACTER(12) NULL')]
     private ?string $addressId = null;
 
     #[ORM\ManyToOne(targetEntity: Address::class)]
     #[ORM\JoinColumn(name: 'address_id', referencedColumnName: 'id', nullable: true, onDelete: 'SET NULL')]
     private ?Address $address = null;
+
+    // Eventstandort (Lager, Event, extern)
+    #[ORM\Column(name: 'venue_address_id', type: 'string', length: 12, nullable: true, columnDefinition: 'CHARACTER(12) NULL')]
+    private ?string $venueAddressId = null;
+
+    #[ORM\ManyToOne(targetEntity: Address::class)]
+    #[ORM\JoinColumn(name: 'venue_address_id', referencedColumnName: 'id', nullable: true, onDelete: 'SET NULL')]
+    private ?Address $venueAddress = null;
 
     // Verantwortlicher User
     #[ORM\Column(name: 'responsible_user_id', type: 'string', length: 12, nullable: true, columnDefinition: 'CHARACTER(12) NULL')]
@@ -288,6 +290,17 @@ class Activity
         return $this;
     }
 
+    public function isCreateWizardCompleted(): bool
+    {
+        return $this->createWizardCompleted;
+    }
+
+    public function setCreateWizardCompleted(bool $createWizardCompleted): self
+    {
+        $this->createWizardCompleted = $createWizardCompleted;
+        return $this;
+    }
+
     public function getPlanningStart(): ?\DateTime
     {
         return $this->planningStart;
@@ -332,39 +345,6 @@ class Activity
         return $this;
     }
 
-    public function getCustomerName(): ?string
-    {
-        return $this->customerName;
-    }
-
-    public function setCustomerName(?string $customerName): self
-    {
-        $this->customerName = $customerName;
-        return $this;
-    }
-
-    public function getCustomerEmail(): ?string
-    {
-        return $this->customerEmail;
-    }
-
-    public function setCustomerEmail(?string $customerEmail): self
-    {
-        $this->customerEmail = $customerEmail;
-        return $this;
-    }
-
-    public function getCustomerPhone(): ?string
-    {
-        return $this->customerPhone;
-    }
-
-    public function setCustomerPhone(?string $customerPhone): self
-    {
-        $this->customerPhone = $customerPhone;
-        return $this;
-    }
-
     public function getAddressId(): ?string
     {
         return $this->addressId;
@@ -385,6 +365,29 @@ class Activity
     {
         $this->address = $address;
         $this->addressId = $address?->getId();
+        return $this;
+    }
+
+    public function getVenueAddressId(): ?string
+    {
+        return $this->venueAddressId;
+    }
+
+    public function setVenueAddressId(?string $venueAddressId): self
+    {
+        $this->venueAddressId = $venueAddressId;
+        return $this;
+    }
+
+    public function getVenueAddress(): ?Address
+    {
+        return $this->venueAddress;
+    }
+
+    public function setVenueAddress(?Address $venueAddress): self
+    {
+        $this->venueAddress = $venueAddress;
+        $this->venueAddressId = $venueAddress?->getId();
         return $this;
     }
 
@@ -671,14 +674,18 @@ class Activity
      * - 'member': Gruppenmitglied (GroupMembership role=member)
      * - 'leader': Gruppenleiter (GroupMembership role=leader)
      * - 'mw': Materialwart (Membership role=mw)
+     * - 'dc': Abteilungskoordination (Membership role=dc)
+     * - 'creator': Ersteller der Aktivität (User-Id-Vergleich, nur bei passenden Übergängen)
      * - 'sa': Super-Admin
      * - 'org': Organisations-Admin
      */
     public const TRANSITION_PERMISSIONS = [
-        'draft->submitted'    => ['leader', 'member', 'u', 'l1', 'l2', 'l3', 'dc', 'mw', 'sub', 'org', 'sa'],
+        // Einreichen: Gruppenleiter, DC, MW — nicht reine Gruppenmitglieder (Host- oder eingeladene Gruppe)
+        'draft->submitted'    => ['leader', 'dc', 'mw'],
         'draft->cancelled'    => ['leader', 'member', 'u', 'l1', 'l2', 'l3', 'dc', 'mw', 'sub', 'org', 'sa'],
-        'submitted->approved' => ['mw', 'sa', 'org'],
-        'submitted->packing'  => ['mw', 'sa', 'org'], // Annehmen & direkt Packen
+        // Bestätigen / direkt Packen: MW, DC, Gruppenleiter, Ersteller, Org-Admins
+        'submitted->approved' => ['mw', 'dc', 'leader', 'creator', 'org', 'sa'],
+        'submitted->packing'  => ['mw', 'dc', 'leader', 'creator', 'org', 'sa'], // Annehmen & direkt Packen
         'submitted->cancelled'=> ['leader', 'mw', 'sa', 'org'],
         'approved->packing'   => ['mw', 'sa', 'org'],
         'approved->submitted' => ['mw', 'sa', 'org'], // Zurückweisung
@@ -790,10 +797,11 @@ class Activity
 
     /**
      * Prüft ob Meldungen (Reparatur/Verlust) erstellt werden können
+     * (entspricht POST /activities/.../issues: issued oder returned)
      */
     public function canReportIssues(): bool
     {
-        return $this->status === self::STATUS_ISSUED;
+        return in_array($this->status, [self::STATUS_ISSUED, self::STATUS_RETURNED], true);
     }
 
     /**

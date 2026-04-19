@@ -139,6 +139,7 @@ export const useAuthStore = defineStore('auth', () => {
 
       resetSessionExpiredHandling()
       lastSessionStartTime.value = Date.now()
+      localStorage.setItem('session_last_activity_at', String(Date.now()))
       return true
     } catch (err: any) {
       console.error('Login failed:', err)
@@ -194,6 +195,7 @@ export const useAuthStore = defineStore('auth', () => {
           localStorage.removeItem('refresh_token')
           localStorage.removeItem('user_id')
           localStorage.removeItem('profile_id')
+          localStorage.removeItem('session_last_activity_at')
         }
         return false
       }

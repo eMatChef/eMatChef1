@@ -121,8 +121,13 @@ watch(
     const normalized = value || ''
     if (normalized === internalValue.value) return
     internalValue.value = normalized
-    lookup.query.value = normalized
-  }
+    if (normalized === '') {
+      lookup.reset()
+    } else {
+      lookup.query.value = normalized
+      void lookup.runSearch(normalized)
+    }
+  },
 )
 
 watch(

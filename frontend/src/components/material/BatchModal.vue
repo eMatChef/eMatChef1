@@ -663,6 +663,7 @@ import {
   type StorageOverviewResponse,
 } from '@/api/storageLocations'
 import { formatContainerBatchOptionFullLabel } from '@/utils/containerBatchLabel'
+import { usePhysicalComboWarningStore } from '@/stores/physicalComboWarning'
 import {
   formatFachSelectPreviewLine,
   formatRackSlotsDirectPreview,
@@ -704,6 +705,7 @@ const emit = defineEmits<{
 
 const toast = useToast()
 const headerNotificationsStore = useHeaderNotificationsStore()
+const physicalComboWarningStore = usePhysicalComboWarningStore()
 const isEditMode = computed(() => !!props.batch)
 
 /** Material ist serialisiert (tracking_type oder Fallback über Chargen mit Seriennummer) */
@@ -1518,11 +1520,58 @@ function batchIdFromAddBatchResult(r: MaterialBatch | AddBatchMultiResponse): st
   return undefined
 }
 
+/** Kisten-IDs, in die bei diesem „Charge hinzufügen“ eingelagert wird (für Kombi-Warnung). */
+function collectContainerBatchIdsForPendingAdd(): string[] {
+  const ids: string[] = []
+  if (isEditMode.value) return ids
+  if (isSerializedAddMode.value) {
+    const rows = serialRows.value.filter((e) => (e.serial_number || '').trim())
+    const qty = rows.length
+    if (qty <= 0) return ids
+    if (qty <= 1) {
+      const r = rows[0]
+      if (serialLocationSameForAll.value) {
+        if (stockLocationMode.value === 'kiste' && form.container_batch_id) {
+          ids.push(String(form.container_batch_id))
+        }
+      } else if (r.location_mode === 'kiste' && r.container_batch_id) {
+        ids.push(String(r.container_batch_id))
+      }
+      return ids
+    }
+    if (serialLocationSameForAll.value) {
+      if (stockLocationMode.value === 'kiste' && form.container_batch_id) {
+        ids.push(String(form.container_batch_id))
+      }
+    } else {
+      for (const e of rows) {
+        if (e.location_mode === 'kiste' && e.container_batch_id) {
+          ids.push(String(e.container_batch_id))
+        }
+      }
+    }
+    return ids
+  }
+  if (form.split_allocations && allocationRows.value.length > 0 && allocationSumValid.value) {
+    for (const r of allocationRows.value) {
+      if (r.qty > 0 && r.mode === 'kiste' && r.container_batch_id) {
+        ids.push(String(r.container_batch_id))
+      }
+    }
+  }
+  return ids
+}
+
 async function handleSubmit() {
   submitted.value = true
   errorMsg.value = ''
   
   if (!canSubmit.value) return
+
+  if (!isEditMode.value) {
+    const containerIds = collectContainerBatchIdsForPendingAdd()
+    if (!(await physicalComboWarningStore.confirmContainerMove(containerIds))) return
+  }
   
   isSaving.value = true
   

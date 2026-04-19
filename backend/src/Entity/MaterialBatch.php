@@ -89,6 +89,10 @@ class MaterialBatch
     #[ORM\JoinColumn(name: 'slot_id', referencedColumnName: 'id', nullable: true, onDelete: 'SET NULL')]
     private ?StorageSlot $slot = null;
 
+    /** Pro Instanz (serialisiert): Behälter, der anderen Inhalt aufnehmen kann; ergänzt material_item.is_container. */
+    #[ORM\Column(name: 'is_container', type: 'boolean', options: ['default' => false])]
+    private bool $isContainer = false;
+
     #[ORM\Column(name: 'source_batch_id', type: 'string', length: 13, nullable: true, columnDefinition: 'CHARACTER(13) NULL')]
     private ?string $sourceBatchId = null;
 
@@ -368,6 +372,17 @@ class MaterialBatch
     {
         $this->slot = $slot;
         $this->slotId = $slot?->getId();
+        return $this;
+    }
+
+    public function getIsContainer(): bool
+    {
+        return $this->isContainer;
+    }
+
+    public function setIsContainer(bool $isContainer): self
+    {
+        $this->isContainer = $isContainer;
         return $this;
     }
 

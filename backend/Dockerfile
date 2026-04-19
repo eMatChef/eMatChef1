@@ -26,10 +26,9 @@ RUN curl -1sLf 'https://dl.cloudsmith.io/public/symfony/stable/setup.deb.sh' | b
 
 WORKDIR /var/www/html
 
-# Copy composer files
-COPY composer.json ./
+# Copy composer files (Lockfile für reproduzierbare vendor/)
+COPY composer.json composer.lock ./
 
-# Install PHP dependencies (ohne lock file, da wir neu starten)
 RUN composer install --no-interaction --prefer-dist --no-scripts
 
 # Copy application code
@@ -39,6 +38,10 @@ COPY . .
 RUN chown -R www-data:www-data /var/www/html
 RUN chmod -R 755 /var/www/html
 
+COPY docker-entrypoint.sh /var/www/html/docker-entrypoint.sh
+RUN chmod +x /var/www/html/docker-entrypoint.sh
+
 EXPOSE 8081
 
+ENTRYPOINT ["/var/www/html/docker-entrypoint.sh"]
 CMD ["php", "-S", "0.0.0.0:8081", "-t", "public"]
