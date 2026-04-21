@@ -5,7 +5,7 @@ namespace App\Command;
 use App\Entity\Department;
 use App\Entity\Organisation;
 use App\Service\Accounting\AccountingCostCenterBootstrapService;
-use App\Util\IdGenerator;
+use App\Service\Bootstrap\GlobalSystemSeedDefaults;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
@@ -37,10 +37,10 @@ class CreateInitialDataCommand extends Command
             return Command::SUCCESS;
         }
 
-        // Erstelle Organisation
+        // Erstelle Organisation (gleiche ID/Namen wie org-subset-Seed)
         $organisation = new Organisation();
-        $organisation->setId(IdGenerator::generateUnique($this->entityManager, Organisation::class));
-        $organisation->setName('Standard Organisation');
+        $organisation->setId(GlobalSystemSeedDefaults::ORGANISATION_ID);
+        $organisation->setName(GlobalSystemSeedDefaults::ORGANISATION_NAME);
         
         $this->entityManager->persist($organisation);
         $this->entityManager->flush();
@@ -49,8 +49,8 @@ class CreateInitialDataCommand extends Command
 
         // Erstelle Department
         $department = new Department();
-        $department->setId(IdGenerator::generateUnique($this->entityManager, Department::class));
-        $department->setName('Standard Department');
+        $department->setId(GlobalSystemSeedDefaults::DEPARTMENT_ID);
+        $department->setName(GlobalSystemSeedDefaults::DEPARTMENT_NAME);
         $department->setOrganisation($organisation);
         
         $this->entityManager->persist($department);

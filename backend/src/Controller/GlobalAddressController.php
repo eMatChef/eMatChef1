@@ -6,6 +6,7 @@ use App\Entity\Address;
 use App\Entity\Department;
 use App\Entity\Organisation;
 use App\Service\Accounting\AccountingCostCenterBootstrapService;
+use App\Service\Bootstrap\GlobalSystemSeedDefaults;
 use App\Util\IdGenerator;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -17,8 +18,6 @@ use Symfony\Component\Security\Http\Attribute\IsGranted;
 #[Route('/api/global-addresses', name: 'api_global_addresses_')]
 class GlobalAddressController extends AbstractController
 {
-    private const GLOBAL_ORGANISATION_ID = 'GLOBALORG001';
-    private const GLOBAL_DEPARTMENT_ID = 'GLOBAL000000';
     private const GLOBAL_ADDRESS_TYPE = 'supplier';
 
     public function __construct(
@@ -41,7 +40,7 @@ class GlobalAddressController extends AbstractController
             ->from(Address::class, 'a')
             ->where('a.departmentId = :departmentId')
             ->andWhere('a.type = :type')
-            ->setParameter('departmentId', self::GLOBAL_DEPARTMENT_ID)
+            ->setParameter('departmentId', GlobalSystemSeedDefaults::DEPARTMENT_ID)
             ->setParameter('type', self::GLOBAL_ADDRESS_TYPE)
             ->orderBy('a.company', 'ASC')
             ->addOrderBy('a.name', 'ASC');
@@ -56,7 +55,7 @@ class GlobalAddressController extends AbstractController
         return new JsonResponse([
             'addresses' => array_map(fn (Address $address) => $this->toApiAddress($address), $addresses),
             'meta' => [
-                'department_id' => self::GLOBAL_DEPARTMENT_ID,
+                'department_id' => GlobalSystemSeedDefaults::DEPARTMENT_ID,
                 'type' => self::GLOBAL_ADDRESS_TYPE,
             ],
         ]);
@@ -83,7 +82,7 @@ class GlobalAddressController extends AbstractController
         try {
             $address = new Address();
             $address->setId(IdGenerator::generateUnique($this->entityManager, Address::class));
-            $address->setDepartmentId(self::GLOBAL_DEPARTMENT_ID);
+            $address->setDepartmentId(GlobalSystemSeedDefaults::DEPARTMENT_ID);
             $address->setType(self::GLOBAL_ADDRESS_TYPE);
 
             $this->updateAddressFromData($address, $data);
@@ -170,7 +169,7 @@ class GlobalAddressController extends AbstractController
 
     private function isGlobalSupplierAddress(Address $address): bool
     {
-        return $address->getDepartmentId() === self::GLOBAL_DEPARTMENT_ID
+        return $address->getDepartmentId() === GlobalSystemSeedDefaults::DEPARTMENT_ID
             && $address->getType() === self::GLOBAL_ADDRESS_TYPE;
     }
 
@@ -223,19 +222,19 @@ class GlobalAddressController extends AbstractController
 
     private function ensureGlobalScope(): void
     {
-        $organisation = $this->entityManager->getRepository(Organisation::class)->find(self::GLOBAL_ORGANISATION_ID);
+        $organisation = $this->entityManager->getRepository(Organisation::class)->find(GlobalSystemSeedDefaults::ORGANISATION_ID);
         if (!$organisation) {
             $organisation = new Organisation();
-            $organisation->setId(self::GLOBAL_ORGANISATION_ID);
+            $organisation->setId(GlobalSystemSeedDefaults::ORGANISATION_ID);
             $organisation->setName('Global System');
             $this->entityManager->persist($organisation);
         }
 
-        $department = $this->entityManager->getRepository(Department::class)->find(self::GLOBAL_DEPARTMENT_ID);
+        $department = $this->entityManager->getRepository(Department::class)->find(GlobalSystemSeedDefaults::DEPARTMENT_ID);
         $createdGlobalDepartment = false;
         if (!$department) {
             $department = new Department();
-            $department->setId(self::GLOBAL_DEPARTMENT_ID);
+            $department->setId(GlobalSystemSeedDefaults::DEPARTMENT_ID);
             $department->setName('Global Suppliers');
             $department->setOrganisation($organisation);
             $this->entityManager->persist($department);
