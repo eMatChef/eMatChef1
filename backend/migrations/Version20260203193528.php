@@ -25,9 +25,10 @@ final class Version20260203193528 extends AbstractMigration
         $this->addSql('CREATE INDEX IDX_86FFD285AE80F5DF ON membership (department_id)');
         $this->addSql('ALTER TABLE membership ADD CONSTRAINT FK_86FFD285A76ED395 FOREIGN KEY (user_id) REFERENCES "user" (id) ON DELETE CASCADE NOT DEFERRABLE INITIALLY IMMEDIATE');
         $this->addSql('ALTER TABLE membership ADD CONSTRAINT FK_86FFD285AE80F5DF FOREIGN KEY (department_id) REFERENCES department (id) ON DELETE CASCADE NOT DEFERRABLE INITIALLY IMMEDIATE');
-        
-        // Migriere Daten von user_department nach membership (falls Tabelle existiert)
-        $this->addSql("INSERT INTO membership (user_id, department_id, role, is_primary) 
+
+        // Migriere Daten von user_department nach membership (nur Altbestand; frische DB ohne user_department)
+        if ($this->sm->tablesExist(['user_department'])) {
+            $this->addSql("INSERT INTO membership (user_id, department_id, role, is_primary) 
                        SELECT user_id, department_id, role, is_primary 
                        FROM user_department 
                        WHERE NOT EXISTS (
@@ -35,7 +36,8 @@ final class Version20260203193528 extends AbstractMigration
                            WHERE m.user_id = user_department.user_id 
                            AND m.department_id = user_department.department_id
                        )");
-        
+        }
+
         // Lösche alte Tabelle user_department
         $this->addSql('DROP TABLE IF EXISTS user_department CASCADE');
     }

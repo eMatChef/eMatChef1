@@ -19,10 +19,12 @@ final class Version20260203194220 extends AbstractMigration
 
     public function up(Schema $schema): void
     {
-        // this up() migration is auto-generated, please modify it to your needs
-        $this->addSql('ALTER TABLE user_department DROP CONSTRAINT fk_6a7a2766a76ed395');
-        $this->addSql('ALTER TABLE user_department DROP CONSTRAINT fk_6a7a2766ae80f5df');
-        $this->addSql('DROP TABLE user_department');
+        // user_department kann durch Version20260203193528 bereits entfallen sein.
+        if ($this->sm->tablesExist(['user_department'])) {
+            $this->addSql('ALTER TABLE user_department DROP CONSTRAINT fk_6a7a2766a76ed395');
+            $this->addSql('ALTER TABLE user_department DROP CONSTRAINT fk_6a7a2766ae80f5df');
+            $this->addSql('DROP TABLE user_department');
+        }
         $this->addSql('ALTER TABLE membership ALTER user_id TYPE VARCHAR(12)');
         $this->addSql('ALTER TABLE membership ALTER department_id TYPE VARCHAR(12)');
     }
