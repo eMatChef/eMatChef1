@@ -22,11 +22,13 @@ final class Version20260203193528 extends AbstractMigration
         // Frische DB: Kern-Tabellen fehlen oft (historisch nur Deltas migriert). Muss vor membership-FKs existieren.
         // Duplikat der Logik in Version20260203165000 — bei Deploy ohne diese Datei greift nur dieser Block.
         if (!$this->sm->tablesExist(['user'])) {
-            if ($this->sm->tablesExist(['organisation'])) {
-                throw new \RuntimeException(
-                    'Inkonsistente Datenbank: organisation ohne user. Bitte DB leeren (docker compose down -v) oder manuell reparieren.'
-                );
-            }
+            // Fehlgeschlagene/frühere Versuche können z. B. organisation ohne user hinterlassen — DROP ist auf leerer DB harmlos.
+            $this->addSql('DROP TABLE IF EXISTS membership CASCADE');
+            $this->addSql('DROP TABLE IF EXISTS "user" CASCADE');
+            $this->addSql('DROP TABLE IF EXISTS department CASCADE');
+            $this->addSql('DROP TABLE IF EXISTS profile CASCADE');
+            $this->addSql('DROP TABLE IF EXISTS organisation CASCADE');
+
             $this->addSql('CREATE TABLE organisation (id CHARACTER(12) NOT NULL, name VARCHAR(255) NOT NULL, created_at TIMESTAMP(0) WITHOUT TIME ZONE NOT NULL, updated_at TIMESTAMP(0) WITHOUT TIME ZONE NOT NULL, PRIMARY KEY(id))');
             $this->addSql('CREATE TABLE profile (id CHARACTER(12) NOT NULL, email VARCHAR(180) NOT NULL, first_name VARCHAR(100) DEFAULT NULL, last_name VARCHAR(100) DEFAULT NULL, nickname VARCHAR(50) DEFAULT NULL, language VARCHAR(5) DEFAULT \'de\' NOT NULL, roles JSONB NOT NULL, background_color VARCHAR(7) DEFAULT NULL, text_color VARCHAR(7) DEFAULT NULL, created_at TIMESTAMP(0) WITHOUT TIME ZONE NOT NULL, updated_at TIMESTAMP(0) WITHOUT TIME ZONE NOT NULL, PRIMARY KEY(id))');
             $this->addSql('CREATE UNIQUE INDEX UNIQ_D9CFB71A6AC7E5C5 ON profile (email)');
