@@ -209,6 +209,47 @@
           </div>
 
           <div class="form-group">
+            <label for="requestedOrganisationId" class="form-label">Organisation *</label>
+            <select
+              id="requestedOrganisationId"
+              v-model="requestedOrganisationId"
+              class="form-input"
+              required
+              :disabled="isLoading"
+            >
+              <option value="">Organisation waehlen...</option>
+              <option v-for="org in organisations" :key="org.id" :value="org.id">{{ org.name }}</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="requestedDepartmentName" class="form-label">Deine Abteilung *</label>
+            <input
+              id="requestedDepartmentName"
+              v-model="requestedDepartmentName"
+              type="text"
+              class="form-input"
+              placeholder="z. B. Pfadi Musterstadt"
+              required
+              :disabled="isLoading"
+            />
+          </div>
+
+          <!-- Honeypot: Bots fuellen das oft aus -->
+          <div class="form-group" style="position:absolute; left:-10000px; top:auto; width:1px; height:1px; overflow:hidden;">
+            <label for="website" class="form-label">Website</label>
+            <input
+              id="website"
+              v-model="website"
+              type="text"
+              class="form-input"
+              autocomplete="off"
+              tabindex="-1"
+              :disabled="isLoading"
+            />
+          </div>
+
+          <div class="form-group">
             <label for="registerEmail" class="form-label">E-Mail-Adresse *</label>
             <input
               id="registerEmail"
@@ -267,6 +308,10 @@
             </label>
           </div>
 
+          <div v-if="turnstileSiteKey" class="form-group turnstile-wrap">
+            <div ref="turnstileContainerRef" class="turnstile-box" />
+          </div>
+
           <p class="required-note">* Pflichtfelder</p>
 
           <div v-if="error" class="error-message">{{ error }}</div>
@@ -290,11 +335,14 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, nextTick, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { confirmPasswordReset, register as apiRegister, requestPasswordReset, resendVerification } from '@/api/auth'
 import { useAuthStore } from '@/stores/auth'
 import EmcLogoMark from '@/components/brand/EmcLogoMark.vue'
+import { getOrganisations, type Organisation } from '@/api/organisations'
+
+const turnstileSiteKey = (import.meta.env.VITE_TURNSTILE_SITE_KEY || '').trim()
 
 const router = useRouter()
 const route = useRoute()
@@ -312,6 +360,13 @@ const registerPassword = ref('')
 const registerPasswordConfirm = ref('')
 const language = ref('de')
 const acceptTerms = ref(false)
+const requestedOrganisationId = ref('')
+const requestedDepartmentName = ref('')
+// Honeypot gegen Bots: unsichtbar, muss leer bleiben
+const website = ref('')
+const organisations = ref<Organisation[]>([])
+const turnstileContainerRef = ref<HTMLElement | null>(null)
+const turnstileWidgetId = ref<string | null>(null)
 const forgotStep = ref<'request' | 'confirm'>('request')
 const forgotEmail = ref('')
 const resetCode = ref('')
@@ -412,7 +467,100 @@ function resetRegisterForm() {
   registerPasswordConfirm.value = ''
   language.value = 'de'
   acceptTerms.value = false
+  requestedOrganisationId.value = ''
+  requestedDepartmentName.value = ''
+  website.value = ''
 }
+
+async function loadOrganisationsForRegister() {
+  try {
+    organisations.value = await getOrganisations()
+  } catch (e) {
+    console.error(e)
+    organisations.value = []
+  }
+}
+
+const TURNSTILE_SCRIPT_SRC = 'https://challenges.cloudflare.com/turnstile/v0/api.js'
+
+function loadTurnstileScript(): Promise<void> {
+  if (window.turnstile) {
+    return Promise.resolve()
+  }
+  return new Promise((resolve, reject) => {
+    const existing = document.querySelector(`script[src="${TURNSTILE_SCRIPT_SRC}"]`)
+    if (existing) {
+      existing.addEventListener('load', () => resolve(), { once: true })
+      existing.addEventListener('error', () => reject(new Error('Turnstile')), { once: true })
+      return
+    }
+    const s = document.createElement('script')
+    s.src = TURNSTILE_SCRIPT_SRC
+    s.async = true
+    s.defer = true
+    s.onload = () => resolve()
+    s.onerror = () => reject(new Error('Turnstile script failed'))
+    document.head.appendChild(s)
+  })
+}
+
+function cleanupTurnstile(): void {
+  if (turnstileWidgetId.value && window.turnstile?.remove) {
+    try {
+      window.turnstile.remove(turnstileWidgetId.value)
+    } catch {
+      // ignore
+    }
+  }
+  turnstileWidgetId.value = null
+  if (turnstileContainerRef.value) {
+    turnstileContainerRef.value.innerHTML = ''
+  }
+}
+
+function resetTurnstileWidget(): void {
+  if (turnstileWidgetId.value && window.turnstile?.reset) {
+    window.turnstile.reset(turnstileWidgetId.value)
+  }
+}
+
+async function initTurnstile(): Promise<void> {
+  if (!turnstileSiteKey) {
+    return
+  }
+  await nextTick()
+  if (!turnstileContainerRef.value) {
+    return
+  }
+  cleanupTurnstile()
+  try {
+    await loadTurnstileScript()
+  } catch (e) {
+    console.error(e)
+    return
+  }
+  await nextTick()
+  if (!turnstileContainerRef.value || !window.turnstile) {
+    return
+  }
+  turnstileWidgetId.value = window.turnstile.render(turnstileContainerRef.value, {
+    sitekey: turnstileSiteKey,
+    theme: 'light'
+  })
+}
+
+watch(mode, async (m, prev) => {
+  if (prev === 'register' && m !== 'register') {
+    cleanupTurnstile()
+  }
+  if (m === 'register' && turnstileSiteKey) {
+    await initTurnstile()
+  }
+})
+
+onUnmounted(() => {
+  cleanupTurnstile()
+})
 
 function resetForgotForm() {
   forgotStep.value = 'request'
@@ -427,6 +575,9 @@ function setMode(nextMode: 'login' | 'register' | 'forgot') {
   mode.value = nextMode
   if (previousMode === 'forgot' && nextMode !== 'forgot') {
     resetForgotForm()
+  }
+  if (nextMode === 'register') {
+    loadOrganisationsForRegister()
   }
   clearMessages()
 }
@@ -479,6 +630,15 @@ async function handleRegister() {
     return
   }
 
+  if (!requestedOrganisationId.value) {
+    error.value = 'Bitte eine Organisation waehlen'
+    return
+  }
+  if (!requestedDepartmentName.value.trim()) {
+    error.value = 'Bitte den Namen deiner Abteilung eingeben'
+    return
+  }
+
   if (!registerEmail.value.trim() || !registerPassword.value) {
     error.value = 'Bitte geben Sie E-Mail und Passwort ein'
     return
@@ -499,6 +659,17 @@ async function handleRegister() {
     return
   }
 
+  let turnstileToken: string | undefined
+  if (turnstileSiteKey) {
+    const wid = turnstileWidgetId.value
+    const t = wid && window.turnstile ? window.turnstile.getResponse(wid) : undefined
+    if (!t) {
+      error.value = 'Bitte das Captcha abschliessen.'
+      return
+    }
+    turnstileToken = t
+  }
+
   try {
     registerLoading.value = true
     const response = await apiRegister({
@@ -508,7 +679,11 @@ async function handleRegister() {
       email: registerEmail.value.trim(),
       password: registerPassword.value,
       language: language.value,
-      acceptTerms: acceptTerms.value
+      acceptTerms: acceptTerms.value,
+      requestedOrganisationId: requestedOrganisationId.value,
+      requestedDepartmentName: requestedDepartmentName.value.trim(),
+      website: website.value,
+      turnstileToken
     })
 
     successMessage.value = response.message || 'Konto erfolgreich erstellt'
@@ -518,6 +693,7 @@ async function handleRegister() {
     resetRegisterForm()
   } catch (err: any) {
     error.value = err?.response?.data?.error || 'Registrierung fehlgeschlagen'
+    resetTurnstileWidget()
   } finally {
     registerLoading.value = false
   }
@@ -603,7 +779,7 @@ watch([email, password], () => {
   }
 })
 
-watch([firstName, lastName, nickname, registerEmail, registerPassword, registerPasswordConfirm, language, acceptTerms], () => {
+watch([firstName, lastName, nickname, registerEmail, registerPassword, registerPasswordConfirm, language, acceptTerms, requestedOrganisationId, requestedDepartmentName], () => {
   if (mode.value === 'register' && error.value) {
     error.value = null
   }
@@ -774,6 +950,14 @@ watch([forgotEmail, resetCode, resetPassword, resetPasswordConfirm], () => {
   color: #b91c1c;
   font-size: 14px;
   margin: 0 0 12px;
+}
+
+.turnstile-wrap {
+  margin-top: 4px;
+}
+
+.turnstile-box {
+  min-height: 65px;
 }
 
 .terms-group {

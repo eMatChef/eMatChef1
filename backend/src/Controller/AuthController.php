@@ -4,9 +4,12 @@ namespace App\Controller;
 
 use App\Entity\Profile;
 use App\Entity\User;
+use App\Entity\AdminJoinRequest;
+use App\Entity\Organisation;
 use App\Repository\ProfileRepository;
 use App\Repository\UserRepository;
 use App\Service\AuditLogger;
+use App\Service\TurnstileVerifier;
 use App\Service\VerificationEmailService;
 use App\Util\IdGenerator;
 use Doctrine\ORM\EntityManagerInterface;
@@ -18,6 +21,7 @@ use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Routing\Annotation\Route;
 use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
+use Psr\Cache\CacheItemPoolInterface;
 
 #[Route('/api/auth', name: 'api_auth_')]
 class AuthController extends AbstractController
@@ -37,6 +41,8 @@ class AuthController extends AbstractController
         private AuditLogger $auditLogger,
         private RefreshTokenManagerInterface $refreshTokenManager,
         private ExtractorInterface $refreshTokenExtractor,
+        private CacheItemPoolInterface $cache,
+        private TurnstileVerifier $turnstileVerifier,
         #[Autowire('%kernel.secret%')]
         private string $appSecret
     ) {}
@@ -83,9 +89,36 @@ class AuthController extends AbstractController
         $nickname = trim((string) ($data['nickname'] ?? ''));
         $language = strtolower(trim((string) ($data['language'] ?? 'de')));
         $acceptTerms = (bool) ($data['acceptTerms'] ?? false);
+        $requestedOrganisationId = trim((string) ($data['requestedOrganisationId'] ?? ''));
+        $requestedDepartmentName = trim((string) ($data['requestedDepartmentName'] ?? ''));
+        $honeypotWebsite = trim((string) ($data['website'] ?? ''));
+        $turnstileToken = trim((string) ($data['turnstileToken'] ?? ''));
+
+        // Honeypot: wenn gefüllt -> sehr wahrscheinlich Bot
+        if ($honeypotWebsite !== '') {
+            return new JsonResponse(['error' => 'Ungueltige Anfrage'], 400);
+        }
+
+        $clientIp = (string) ($request->getClientIp() ?? 'unknown');
+
+        // Cloudflare Turnstile (optional: nur wenn TURNSTILE_SECRET_KEY gesetzt)
+        if ($this->turnstileVerifier->isConfigured()) {
+            if ($turnstileToken === '' || !$this->turnstileVerifier->verify($turnstileToken, $clientIp !== 'unknown' ? $clientIp : null)) {
+                return new JsonResponse(['error' => 'Captcha-Verifikation fehlgeschlagen. Bitte erneut versuchen.'], 400);
+            }
+        }
+
+        // Rate limit: pro IP + pro E-Mail (simple Cache-basierte Drosselung)
+        if (!$this->allowRegistrationAttempt($clientIp, $email)) {
+            return new JsonResponse(['error' => 'Zu viele Registrierungen. Bitte spaeter erneut versuchen.'], 429);
+        }
 
         if ($firstName === '' || $lastName === '') {
             return new JsonResponse(['error' => 'Vorname und Nachname sind erforderlich'], 400);
+        }
+
+        if ($requestedOrganisationId === '' || $requestedDepartmentName === '') {
+            return new JsonResponse(['error' => 'Organisation und Abteilungsname sind erforderlich'], 400);
         }
 
         if ($email === '' || $password === '') {
@@ -113,6 +146,12 @@ class AuthController extends AbstractController
             return new JsonResponse(['error' => 'Diese E-Mail-Adresse ist bereits registriert'], 409);
         }
 
+        /** @var Organisation|null $org */
+        $org = $this->entityManager->getRepository(Organisation::class)->find($requestedOrganisationId);
+        if (!$org) {
+            return new JsonResponse(['error' => 'Organisation nicht gefunden'], 404);
+        }
+
         $profile = new Profile();
         $profile->setId(IdGenerator::generateUnique($this->entityManager, Profile::class));
         $profile->setEmail($email);
@@ -134,6 +173,16 @@ class AuthController extends AbstractController
 
         $this->entityManager->persist($profile);
         $this->entityManager->persist($user);
+
+        // Direkt Admin-Join-Request erstellen (damit Admins den Wunsch sehen)
+        $adminRequest = new AdminJoinRequest();
+        $adminRequest->setId(IdGenerator::generateUnique($this->entityManager, AdminJoinRequest::class));
+        $adminRequest->setUser($user);
+        $adminRequest->setRequestedDepartmentName($requestedDepartmentName);
+        $adminRequest->setRequestedOrganisationId($requestedOrganisationId);
+        $adminRequest->setStatus('pending');
+        $this->entityManager->persist($adminRequest);
+
         $this->entityManager->flush();
         try {
             $this->verificationEmailService->sendVerificationEmail($user);
@@ -142,6 +191,7 @@ class AuthController extends AbstractController
             // damit kein unbestaetigter "Zombie-Account" bestehen bleibt.
             $this->entityManager->remove($user);
             $this->entityManager->remove($profile);
+            $this->entityManager->remove($adminRequest);
             $this->entityManager->flush();
 
             return new JsonResponse([
@@ -170,6 +220,44 @@ class AuthController extends AbstractController
             'success' => true,
             'message' => 'Konto erstellt. Bitte bestaetigen Sie Ihre E-Mail-Adresse ueber den Link in der E-Mail (gueltig 10 Tage).'
         ], 201);
+    }
+
+    private function allowRegistrationAttempt(string $clientIp, string $email): bool
+    {
+        // Limits: IP = 10/h, Email = 3/h
+        $ipKey = 'auth_register_ip_' . hash('sha256', $clientIp);
+        $mailKey = 'auth_register_mail_' . hash('sha256', $email);
+
+        $ipCount = $this->incrementRateCounter($ipKey, 3600);
+        if ($ipCount > 10) {
+            return false;
+        }
+
+        if ($email !== '') {
+            $mailCount = $this->incrementRateCounter($mailKey, 3600);
+            if ($mailCount > 3) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private function incrementRateCounter(string $key, int $ttlSeconds): int
+    {
+        $item = $this->cache->getItem($key);
+        $current = 0;
+        if ($item->isHit()) {
+            $val = $item->get();
+            $current = is_numeric($val) ? (int) $val : 0;
+        }
+
+        $next = $current + 1;
+        $item->set($next);
+        $item->expiresAfter($ttlSeconds);
+        $this->cache->save($item);
+
+        return $next;
     }
 
     #[Route('/verify', name: 'verify', methods: ['GET'])]

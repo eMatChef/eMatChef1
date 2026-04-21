@@ -74,6 +74,8 @@ services:
       HOST_GID: "${HOST_GID:-1000}"
       # Gleiche Origin wie aktueller Host (app.localhost / qr.localhost) → /api über Nginx
       VITE_RELATIVE_API: "true"
+      # Vite-Proxy im Container: localhost:8081 zeigt auf den Container selbst → Backend per Service-Name
+      VITE_API_PROXY_TARGET: "http://backend:8081"
       VITE_QR_PUBLIC_HOST: qr.localhost
       VITE_APP_ORIGIN: http://app.localhost
       VITE_MAIN_SITE_ORIGIN: http://app.localhost

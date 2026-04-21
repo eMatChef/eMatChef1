@@ -2,14 +2,8 @@
 
 namespace App\Command;
 
-use App\Entity\Department;
-use App\Entity\Membership;
-use App\Entity\Organisation;
-use App\Entity\Profile;
-use App\Entity\User;
-use App\Enum\DepartmentRole;
 use App\Service\Accounting\AccountingCostCenterBootstrapService;
-use App\Util\IdGenerator;
+use App\Service\Bootstrap\SuperadminBootstrapService;
 use Doctrine\DBAL\Connection;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\Console\Attribute\AsCommand;
@@ -18,7 +12,6 @@ use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
-use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
 
 #[AsCommand(
     name: 'app:org-subset:import',
@@ -28,8 +21,8 @@ class ImportOrgSubsetCommand extends Command
 {
     public function __construct(
         private EntityManagerInterface $entityManager,
-        private UserPasswordHasherInterface $passwordHasher,
-        private AccountingCostCenterBootstrapService $accountingCostCenterBootstrap
+        private AccountingCostCenterBootstrapService $accountingCostCenterBootstrap,
+        private SuperadminBootstrapService $superadminBootstrap,
     ) {
         parent::__construct();
     }
@@ -159,7 +152,7 @@ class ImportOrgSubsetCommand extends Command
             }
 
             if ($ensureSuperadmin) {
-                $superadmin = $this->ensureSuperadmin($superadminEmail, $superadminPassword, $io);
+                $superadmin = $this->superadminBootstrap->ensure($superadminEmail, $superadminPassword);
                 $io->text(' - superadmin ensured: ' . $superadmin->getId());
             }
 
@@ -263,74 +256,6 @@ class ImportOrgSubsetCommand extends Command
         );
 
         $conn->executeStatement($sql, array_values($row));
-    }
-
-    private function ensureSuperadmin(string $email, string $password, SymfonyStyle $io): User
-    {
-        $em = $this->entityManager;
-
-        $organisation = $em->getRepository(Organisation::class)->findOneBy([]);
-        if (!$organisation) {
-            $organisation = new Organisation();
-            $organisation->setId(IdGenerator::generateUnique($em, Organisation::class));
-            $organisation->setName('Standard Organisation');
-            $em->persist($organisation);
-            $em->flush();
-            $io->warning('Keine Organisation vorhanden - Standard Organisation erstellt.');
-        }
-
-        $department = $em->getRepository(Department::class)->findOneBy(['organisationId' => $organisation->getId()]);
-        if (!$department) {
-            $department = new Department();
-            $department->setId(IdGenerator::generateUnique($em, Department::class));
-            $department->setName('Standard Department');
-            $department->setOrganisation($organisation);
-            $em->persist($department);
-            $em->flush();
-            $this->accountingCostCenterBootstrap->ensureDefaultCostCenters($em, $department);
-            $io->warning('Kein Department vorhanden - Standard Department erstellt.');
-        }
-
-        $profile = $em->getRepository(Profile::class)->findOneBy(['email' => $email]);
-        if (!$profile) {
-            $profile = new Profile();
-            $profile->setId(IdGenerator::generateUnique($em, Profile::class));
-            $profile->setEmail($email);
-            $profile->setFirstName('Superadmin');
-            $profile->setLastName('User');
-            $profile->setNickname('Superadmin');
-            $em->persist($profile);
-        }
-        $profile->setRoles(['ROLE_USER', 'ROLE_SUPERADMIN']);
-
-        $user = $em->getRepository(User::class)->findOneBy(['profileId' => $profile->getId()]);
-        if (!$user) {
-            $user = new User();
-            $user->setId(IdGenerator::generateUnique($em, User::class));
-            $user->setProfile($profile);
-            $user->setProfileId($profile->getId());
-            $user->setState('active');
-            $em->persist($user);
-        }
-
-        $user->setPassword($this->passwordHasher->hashPassword($user, $password));
-        $user->setEmailVerified(true);
-
-        $membership = $em->getRepository(Membership::class)->findOneBy([
-            'userId' => $user->getId(),
-            'departmentId' => $department->getId(),
-        ]);
-        if (!$membership) {
-            $membership = new Membership();
-            $membership->setUser($user);
-            $membership->setDepartment($department);
-            $em->persist($membership);
-        }
-        $membership->setRole(DepartmentRole::MATWART->value);
-        $membership->setIsPrimary(true);
-
-        $em->flush();
-        return $user;
     }
 
     private function resolvePath(string $path): string
