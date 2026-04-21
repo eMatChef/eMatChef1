@@ -8,8 +8,10 @@ use App\Entity\Department;
 use App\Entity\DepartmentSetting;
 use App\Entity\JoinRequest;
 use App\Entity\Membership;
+use App\Entity\Organisation;
 use App\Entity\User;
 use App\Service\AuditLogger;
+use App\Service\OrganisationUserPickerFilter;
 use App\Service\VerificationEmailService;
 use App\Util\IdGenerator;
 use Doctrine\ORM\EntityManagerInterface;
@@ -183,6 +185,14 @@ class JoinRequestController extends AbstractController
 
         if ($requestedDepartmentName === '') {
             return new JsonResponse(['error' => 'requested_department_name ist erforderlich'], 400);
+        }
+
+        if ($requestedOrganisationId !== '') {
+            /** @var Organisation|null $pickedOrg */
+            $pickedOrg = $this->entityManager->getRepository(Organisation::class)->find($requestedOrganisationId);
+            if (!$pickedOrg || !OrganisationUserPickerFilter::isVisibleForUserPickers($pickedOrg)) {
+                return new JsonResponse(['error' => 'Ungueltige Organisation'], 400);
+            }
         }
 
         $existingPending = $this->entityManager->getRepository(AdminJoinRequest::class)->findOneBy([
@@ -1115,13 +1125,25 @@ class JoinRequestController extends AbstractController
         $joinCode = $setting->getSettingValue();
         $frontendBase = rtrim($this->frontendUrl, '/');
         $inviteUrl = $frontendBase . '/pending-assignment?join_code=' . urlencode($joinCode);
+        $pendingPath = '/pending-assignment?join_code=' . urlencode($joinCode);
+        $organisationId = $department->getOrganisationId();
+        $departmentName = $department->getName();
+        $registerInviteUrl = $frontendBase . '/login?' . http_build_query([
+            'register' => '1',
+            'org_id' => $organisationId,
+            'dept_name' => $departmentName,
+            'redirect' => $pendingPath,
+        ], '', '&', \PHP_QUERY_RFC3986);
 
         return [
             'department_id' => $department->getId(),
-            'department_name' => $department->getName(),
+            'department_name' => $departmentName,
+            'organisation_id' => $organisationId,
             'join_code' => $joinCode,
             'invite_url' => $inviteUrl,
             'qr_payload' => $inviteUrl,
+            'register_invite_url' => $registerInviteUrl,
+            'register_qr_payload' => $registerInviteUrl,
             'updated_at' => $setting->getUpdatedAt()->format(\DateTimeInterface::ATOM),
         ];
     }

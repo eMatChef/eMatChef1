@@ -36,6 +36,11 @@ export interface DepartmentInviteData {
   join_code: string
   invite_url: string
   qr_payload: string
+  /** Organisation des Departments (für Registrierungs-Einladung) */
+  organisation_id?: string
+  /** Login mit Registrierung: Organisation + Abteilung vorausgefüllt, danach Redirect zur Join-Seite */
+  register_invite_url?: string
+  register_qr_payload?: string
   updated_at: string
 }
 

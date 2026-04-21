@@ -3,6 +3,8 @@ parameters:
     env(APP_PUBLIC_QR_URL): ''
     # Optional: Fallback für fcal API-Key (Schulferien); bevorzugt zentral in var/app/integration_settings.json (Superadmin).
     env(FCAL_API_KEY): ''
+    # 1 = Turnstile bei Registrierung nicht prüfen (nur lokal/Test; Produktion nie)
+    env(TURNSTILE_SKIP_VERIFY): '0'
 
 services:
     _defaults:
@@ -28,4 +30,5 @@ services:
     App\Service\TurnstileVerifier:
         arguments:
             $secretKey: '%env(TURNSTILE_SECRET_KEY)%'
+            $skipVerify: '%env(bool:TURNSTILE_SKIP_VERIFY)%'
 

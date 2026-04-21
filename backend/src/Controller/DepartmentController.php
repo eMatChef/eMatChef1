@@ -11,6 +11,7 @@ use App\Entity\Membership;
 use App\Repository\DepartmentRepository;
 use App\Service\Accounting\AccountingCostCenterBootstrapService;
 use App\Service\AuditLogger;
+use App\Service\OrganisationUserPickerFilter;
 use App\Service\DepartmentResetService;
 use App\Util\IdGenerator;
 use Doctrine\ORM\EntityManagerInterface;
@@ -299,6 +300,9 @@ class DepartmentController extends AbstractController
         
         if (!$organisation) {
             return new JsonResponse(['error' => 'Organisation nicht gefunden'], 404);
+        }
+        if (!OrganisationUserPickerFilter::isVisibleForUserPickers($organisation)) {
+            return new JsonResponse(['error' => 'Organisation nicht verfuegbar'], 400);
         }
 
         // Parent Department prüfen (optional)
@@ -851,6 +855,9 @@ class DepartmentController extends AbstractController
             
             if (!$organisation) {
                 return new JsonResponse(['error' => 'Organisation nicht gefunden'], 404);
+            }
+            if (!OrganisationUserPickerFilter::isVisibleForUserPickers($organisation)) {
+                return new JsonResponse(['error' => 'Organisation nicht verfuegbar'], 400);
             }
 
             $department->setOrganisation($organisation);

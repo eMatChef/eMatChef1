@@ -45,7 +45,7 @@
           <div class="form-group">
             <label class="form-label">Organisation *</label>
             <select v-model="manualOrganisationId" class="form-select">
-              <option value="">Organisation wählen...</option>
+              <option value="" disabled hidden>&nbsp;</option>
               <option v-for="org in organisationsFiltered" :key="org.id" :value="org.id">{{ org.name }}</option>
             </select>
           </div>
@@ -111,7 +111,7 @@
             <div class="form-group">
               <label class="form-label">Organisation *</label>
               <select v-model="adminModalOrganisationId" class="form-select">
-                <option value="">Organisation wählen...</option>
+                <option value="" disabled hidden>&nbsp;</option>
                 <option v-for="org in organisationsFiltered" :key="org.id" :value="org.id">{{ org.name }}</option>
               </select>
             </div>
@@ -214,6 +214,7 @@ import {
   type MyJoinRequest
 } from '@/api/joinRequests'
 import { getOrganisations, type Organisation } from '@/api/organisations'
+import { filterOrganisationsForUserPickers } from '@/utils/organisationUserPicker'
 import BarcodeScannerPanel from '@/components/common/BarcodeScannerPanel.vue'
 
 const route = useRoute()
@@ -245,9 +246,7 @@ const requests = ref<MyJoinRequest[]>([])
 const scannerActive = ref(false)
 const scannerError = ref<string | null>(null)
 const displayedDepartmentResults = computed(() => departmentResults.value.slice(0, 4))
-const organisationsFiltered = computed(() =>
-  organisations.value.filter(org => !org.name.toLowerCase().includes('j&s'))
-)
+const organisationsFiltered = computed(() => filterOrganisationsForUserPickers(organisations.value))
 const showManualAdminRequest = computed(() => {
   return departmentQuery.value.trim().length >= 2 && !departmentLoading.value && departmentResults.value.length === 0
 })
@@ -445,7 +444,7 @@ async function submitAdminRequest() {
 
 async function loadOrganisations() {
   try {
-    organisations.value = await getOrganisations()
+    organisations.value = filterOrganisationsForUserPickers(await getOrganisations())
   } catch (e) {
     console.error(e)
     organisations.value = []

@@ -217,7 +217,7 @@
               required
               :disabled="isLoading"
             >
-              <option value="">Organisation waehlen...</option>
+              <option value="" disabled hidden>&nbsp;</option>
               <option v-for="org in organisations" :key="org.id" :value="org.id">{{ org.name }}</option>
             </select>
           </div>
@@ -335,14 +335,23 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onUnmounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { confirmPasswordReset, register as apiRegister, requestPasswordReset, resendVerification } from '@/api/auth'
 import { useAuthStore } from '@/stores/auth'
 import EmcLogoMark from '@/components/brand/EmcLogoMark.vue'
 import { getOrganisations, type Organisation } from '@/api/organisations'
+import { filterOrganisationsForUserPickers } from '@/utils/organisationUserPicker'
 
-const turnstileSiteKey = (import.meta.env.VITE_TURNSTILE_SITE_KEY || '').trim()
+/** Site-Key nur wenn nicht bewusst per VITE_TURNSTILE_SKIP übersprungen (lokal testen) */
+const turnstileSiteKey = computed(() => {
+  const skip =
+    import.meta.env.VITE_TURNSTILE_SKIP === 'true' || import.meta.env.VITE_TURNSTILE_SKIP === '1'
+  if (skip) {
+    return ''
+  }
+  return (import.meta.env.VITE_TURNSTILE_SITE_KEY || '').trim()
+})
 
 const router = useRouter()
 const route = useRoute()
@@ -443,6 +452,57 @@ watch(
   { immediate: true }
 )
 
+function queryParamFirst(v: unknown): string {
+  if (typeof v === 'string') return v
+  if (Array.isArray(v) && typeof v[0] === 'string') return v[0]
+  return ''
+}
+
+function applyRegisterPrefillFromQuery() {
+  const reg = queryParamFirst(route.query.register)
+  const wantsRegister = reg === '1' || reg.toLowerCase() === 'true'
+  const orgId = queryParamFirst(route.query.org_id).trim()
+  const deptName = queryParamFirst(route.query.dept_name).trim()
+
+  if (!wantsRegister && !orgId && !deptName) {
+    return
+  }
+
+  if (wantsRegister) {
+    mode.value = 'register'
+  }
+
+  const applyFields = () => {
+    if (!wantsRegister) return
+    if (orgId && organisations.value.some((o) => o.id === orgId)) {
+      requestedOrganisationId.value = orgId
+    }
+    if (deptName) {
+      requestedDepartmentName.value = deptName
+    }
+  }
+
+  if (organisations.value.length > 0) {
+    applyFields()
+    return
+  }
+  loadOrganisationsForRegister().then(applyFields)
+}
+
+onMounted(() => {
+  applyRegisterPrefillFromQuery()
+})
+
+watch(
+  () => ({
+    register: route.query.register,
+    org_id: route.query.org_id,
+    dept_name: route.query.dept_name
+  }),
+  () => applyRegisterPrefillFromQuery(),
+  { deep: true }
+)
+
 watch(
   () => authStore.error,
   (err) => {
@@ -474,7 +534,7 @@ function resetRegisterForm() {
 
 async function loadOrganisationsForRegister() {
   try {
-    organisations.value = await getOrganisations()
+    organisations.value = filterOrganisationsForUserPickers(await getOrganisations())
   } catch (e) {
     console.error(e)
     organisations.value = []
@@ -525,7 +585,7 @@ function resetTurnstileWidget(): void {
 }
 
 async function initTurnstile(): Promise<void> {
-  if (!turnstileSiteKey) {
+  if (!turnstileSiteKey.value) {
     return
   }
   await nextTick()
@@ -544,7 +604,7 @@ async function initTurnstile(): Promise<void> {
     return
   }
   turnstileWidgetId.value = window.turnstile.render(turnstileContainerRef.value, {
-    sitekey: turnstileSiteKey,
+    sitekey: turnstileSiteKey.value,
     theme: 'light'
   })
 }
@@ -553,7 +613,7 @@ watch(mode, async (m, prev) => {
   if (prev === 'register' && m !== 'register') {
     cleanupTurnstile()
   }
-  if (m === 'register' && turnstileSiteKey) {
+  if (m === 'register' && turnstileSiteKey.value) {
     await initTurnstile()
   }
 })
@@ -660,7 +720,7 @@ async function handleRegister() {
   }
 
   let turnstileToken: string | undefined
-  if (turnstileSiteKey) {
+  if (turnstileSiteKey.value) {
     const wid = turnstileWidgetId.value
     const t = wid && window.turnstile ? window.turnstile.getResponse(wid) : undefined
     if (!t) {

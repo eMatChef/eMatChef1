@@ -81,6 +81,10 @@ final class SuperadminBootstrapService
         $user->setPassword($this->passwordHasher->hashPassword($user, $plaintextPassword));
         $user->setEmailVerified(true);
 
+        // Technische Anbindung an genau ein Department (JWT/Login-Kontext, last_used_department).
+        // Fachlich ist der Superadmin nur über profile.roles (ROLE_SUPERADMIN) definiert — nicht als „Materialwart“.
+        // Konvention wie CreateRoleUsersCommand: in membership.role wird für globale Admin-Rollen intern „mw“ persistiert;
+        // die API-Liste der Abteilungsmitglieder blendet Superadmins ohnehin aus (DepartmentController).
         $membership = $em->getRepository(Membership::class)->findOneBy([
             'userId' => $user->getId(),
             'departmentId' => $department->getId(),
@@ -93,6 +97,8 @@ final class SuperadminBootstrapService
         }
         $membership->setRole(DepartmentRole::MATWART->value);
         $membership->setIsPrimary(true);
+
+        $user->setLastUsedDepartment($department);
 
         $em->flush();
 
