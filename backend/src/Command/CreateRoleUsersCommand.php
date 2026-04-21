@@ -9,6 +9,7 @@ use App\Entity\Organisation;
 use App\Entity\Membership;
 use App\Enum\DepartmentRole;
 use App\Service\Accounting\AccountingCostCenterBootstrapService;
+use App\Service\Bootstrap\GlobalSystemSeedDefaults;
 use App\Util\IdGenerator;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\Console\Attribute\AsCommand;
@@ -38,23 +39,29 @@ class CreateRoleUsersCommand extends Command
         
         $io->title('Erstelle Benutzer für alle Rollen');
 
-        // Hole oder erstelle Organisation und Department
-        $organisation = $this->em->getRepository(Organisation::class)->findOneBy([]);
+        // Hole oder erstelle Organisation und Department (GLOBALORG001 wie Seed / Superadmin-Bootstrap)
+        $organisation = $this->em->find(Organisation::class, GlobalSystemSeedDefaults::ORGANISATION_ID)
+            ?? $this->em->getRepository(Organisation::class)->findOneBy([]);
         if (!$organisation) {
-            $io->warning('Keine Organisation gefunden. Erstelle Standard-Organisation...');
+            $io->warning('Keine Organisation gefunden. Erstelle globale System-Organisation (GLOBALORG001)...');
             $organisation = new Organisation();
-            $organisation->setId(IdGenerator::generateUnique($this->em, Organisation::class));
-            $organisation->setName('Standard Organisation');
+            $organisation->setId(GlobalSystemSeedDefaults::ORGANISATION_ID);
+            $organisation->setName(GlobalSystemSeedDefaults::ORGANISATION_NAME);
             $this->em->persist($organisation);
             $this->em->flush();
         }
 
-        $department = $this->em->getRepository(Department::class)->findOneBy([]);
+        $department = $this->em->getRepository(Department::class)->findOneBy(['organisationId' => $organisation->getId()]);
         if (!$department) {
             $io->warning('Kein Department gefunden. Erstelle Standard-Department...');
             $department = new Department();
-            $department->setId(IdGenerator::generateUnique($this->em, Department::class));
-            $department->setName('Standard Department');
+            if ($organisation->getId() === GlobalSystemSeedDefaults::ORGANISATION_ID) {
+                $department->setId(GlobalSystemSeedDefaults::DEPARTMENT_ID);
+                $department->setName(GlobalSystemSeedDefaults::DEPARTMENT_NAME);
+            } else {
+                $department->setId(IdGenerator::generateUnique($this->em, Department::class));
+                $department->setName('Standard Department');
+            }
             $department->setOrganisation($organisation);
             $this->em->persist($department);
             $this->em->flush();

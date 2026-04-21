@@ -34,21 +34,27 @@ final class SuperadminBootstrapService
     {
         $em = $this->entityManager;
 
-        $organisation = $em->getRepository(Organisation::class)->findOneBy([]);
+        $organisation = $em->find(Organisation::class, GlobalSystemSeedDefaults::ORGANISATION_ID)
+            ?? $em->getRepository(Organisation::class)->findOneBy([]);
         if (!$organisation) {
             $organisation = new Organisation();
-            $organisation->setId(IdGenerator::generateUnique($em, Organisation::class));
-            $organisation->setName('Standard Organisation');
+            $organisation->setId(GlobalSystemSeedDefaults::ORGANISATION_ID);
+            $organisation->setName(GlobalSystemSeedDefaults::ORGANISATION_NAME);
             $em->persist($organisation);
             $em->flush();
-            $this->logger->warning('Superadmin-Bootstrap: Standard-Organisation angelegt.');
+            $this->logger->warning('Superadmin-Bootstrap: globale System-Organisation (GLOBALORG001) angelegt.');
         }
 
         $department = $em->getRepository(Department::class)->findOneBy(['organisationId' => $organisation->getId()]);
         if (!$department) {
             $department = new Department();
-            $department->setId(IdGenerator::generateUnique($em, Department::class));
-            $department->setName('Standard Department');
+            if ($organisation->getId() === GlobalSystemSeedDefaults::ORGANISATION_ID) {
+                $department->setId(GlobalSystemSeedDefaults::DEPARTMENT_ID);
+                $department->setName(GlobalSystemSeedDefaults::DEPARTMENT_NAME);
+            } else {
+                $department->setId(IdGenerator::generateUnique($em, Department::class));
+                $department->setName('Standard Department');
+            }
             $department->setOrganisation($organisation);
             $em->persist($department);
             $em->flush();
