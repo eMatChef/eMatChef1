@@ -44,6 +44,8 @@ services:
       # Öffentliche QR-URLs (/i/m/, /i/b/) – muss mit VITE_QR_PUBLIC_HOST / Nginx qr.* übereinstimmen
       APP_PUBLIC_QR_URL: "http://qr.localhost"
       CORS_ALLOW_ORIGIN: '^https?://(app\.localhost|qr\.localhost|localhost|127\.0\.0\.1)(:[0-9]+)?$'
+      # Lokal Registrierung ohne Turnstile testen: 1 (Produktion nie)
+      TURNSTILE_SKIP_VERIFY: "${TURNSTILE_SKIP_VERIFY:-0}"
       MAILER_FROM: "${MAILER_FROM:-support@ematchef.ch}"
       MAILER_DSN: "${MAILER_DSN:-null://null}"
       PHP_OPCACHE_ENABLE: "1"

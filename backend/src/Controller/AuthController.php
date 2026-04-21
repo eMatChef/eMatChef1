@@ -9,6 +9,7 @@ use App\Entity\Organisation;
 use App\Repository\ProfileRepository;
 use App\Repository\UserRepository;
 use App\Service\AuditLogger;
+use App\Service\OrganisationUserPickerFilter;
 use App\Service\TurnstileVerifier;
 use App\Service\VerificationEmailService;
 use App\Util\IdGenerator;
@@ -101,8 +102,8 @@ class AuthController extends AbstractController
 
         $clientIp = (string) ($request->getClientIp() ?? 'unknown');
 
-        // Cloudflare Turnstile (optional: nur wenn TURNSTILE_SECRET_KEY gesetzt)
-        if ($this->turnstileVerifier->isConfigured()) {
+        // Cloudflare Turnstile (optional; TURNSTILE_SKIP_VERIFY=1 nur lokal/Test)
+        if ($this->turnstileVerifier->mustValidateCaptcha()) {
             if ($turnstileToken === '' || !$this->turnstileVerifier->verify($turnstileToken, $clientIp !== 'unknown' ? $clientIp : null)) {
                 return new JsonResponse(['error' => 'Captcha-Verifikation fehlgeschlagen. Bitte erneut versuchen.'], 400);
             }
@@ -150,6 +151,9 @@ class AuthController extends AbstractController
         $org = $this->entityManager->getRepository(Organisation::class)->find($requestedOrganisationId);
         if (!$org) {
             return new JsonResponse(['error' => 'Organisation nicht gefunden'], 404);
+        }
+        if (!OrganisationUserPickerFilter::isVisibleForUserPickers($org)) {
+            return new JsonResponse(['error' => 'Organisation nicht verfuegbar'], 400);
         }
 
         $profile = new Profile();

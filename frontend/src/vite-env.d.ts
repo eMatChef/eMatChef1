@@ -2,6 +2,8 @@
 
 interface ImportMetaEnv {
   readonly VITE_TURNSTILE_SITE_KEY?: string
+  /** 1/true = Registrierung ohne Turnstile-Widget (zu TURNSTILE_SKIP_VERIFY im Backend) */
+  readonly VITE_TURNSTILE_SKIP?: string
 }
 
 interface ImportMeta {

@@ -59,7 +59,7 @@
           <span v-if="req.updated_at"> · {{ formatDate(req.updated_at) }}</span>
         </div>
         <div v-if="activeTab === 'pending'" class="row-actions">
-          <template v-if="isSa">
+          <template v-if="canAssignSupportRequests">
             <button
               class="btn btn-success btn-sm"
               :disabled="loading"
@@ -114,6 +114,13 @@
 
           <div v-if="!createDepartmentMode" class="form-group">
             <label class="form-label">Bestehendes Department auswählen</label>
+            <p
+              v-if="selectedRequest?.requested_department_name && selectedRequest.requested_department_name !== 'Unbekannte Abteilung'"
+              class="form-hint assign-dept-hint"
+            >
+              Vorschlagsliste sortiert nach Nähe zu „{{ selectedRequest.requested_department_name }}“
+              <template v-if="selectedRequest.requested_organisation_id"> (nur Departments dieser Organisation)</template>.
+            </p>
           <div class="autocomplete-wrapper">
             <div v-if="selectedDepartment" class="selected-chip">
               <span>{{ selectedDepartment.name }}</span>
@@ -182,7 +189,7 @@
               placeholder="Name neues Department"
             />
             <select v-model="newDepartmentOrganisationId" class="form-select" @change="newDepartmentParentId = ''">
-              <option value="">Organisation wählen...</option>
+              <option value="" disabled hidden>&nbsp;</option>
               <option v-for="org in organisations" :key="org.id" :value="org.id">{{ org.name }}</option>
             </select>
             <div v-if="newDepartmentOrganisationId" class="form-group">
@@ -245,11 +252,13 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
+import { departmentNameMatchScore, levenshtein } from '@/utils/stringSimilarity'
 import { useRoute } from 'vue-router'
 import { useToast } from '@/composables/useToast'
 import { useAuthStore } from '@/stores/auth'
 import { createDepartment, departmentHasManager, getDepartments, type Department } from '@/api/departments'
 import { getOrganisations, type Organisation } from '@/api/organisations'
+import { filterOrganisationsForUserPickers } from '@/utils/organisationUserPicker'
 import {
   assignAdminJoinRequest,
   decideAdminJoinRequest,
@@ -272,8 +281,17 @@ const requests = ref<PendingAdminJoinRequest[]>([])
 const activeTab = ref<'pending' | 'history'>('pending')
 const assignableDepartments = ref<Department[]>([])
 const organisations = ref<Organisation[]>([])
-// SA kommt aus profile.roles, nicht aus Department-Membership
-const isSa = computed(() => authStore.userRoles.includes('ROLE_SUPERADMIN'))
+/** Zuordnen: SA / OrgChef / SubOrgChef oder Materialchef im gewählten Department (wie Backend). */
+const canAssignSupportRequests = computed(() => {
+  if (authStore.userRoles.includes('ROLE_SUPERADMIN')) return true
+  if (
+    authStore.userRoles.includes('ROLE_ORGANISATIONSCHEF') ||
+    authStore.userRoles.includes('ROLE_SUBORGCHEF')
+  ) {
+    return true
+  }
+  return (authStore.currentDepartmentRole || '').toLowerCase() === 'mw' && !!departmentId.value
+})
 const assignModalOpen = ref(false)
 const selectedRequest = ref<PendingAdminJoinRequest | null>(null)
 const selectedAssignmentDepartmentId = ref('')
@@ -322,12 +340,42 @@ const availableParentDepartmentsTree = computed(() => {
   return tree
 })
 
+/** Departments derselben Organisation wie die Anfrage (falls gesetzt), sonst alle. */
+const departmentPoolForAssign = computed(() => {
+  const orgId = selectedRequest.value?.requested_organisation_id
+  if (!orgId) return assignableDepartments.value
+  return assignableDepartments.value.filter((d) => d.organisation_id === orgId)
+})
+
 const filteredAssignableDepartments = computed(() => {
-  const q = departmentSearchQuery.value.trim().toLowerCase()
-  if (!q) return assignableDepartments.value.slice(0, 20)
-  return assignableDepartments.value.filter((d) =>
-    d.name.toLowerCase().includes(q)
-  ).slice(0, 15)
+  const rawReq = selectedRequest.value?.requested_department_name || ''
+  const requestedNeedle = rawReq === 'Unbekannte Abteilung' ? '' : rawReq.trim()
+  const q = departmentSearchQuery.value.trim()
+  const sortNeedle = q || requestedNeedle
+  let list = departmentPoolForAssign.value
+
+  if (q) {
+    const ql = q.toLowerCase()
+    list = list.filter((d) => {
+      const dn = d.name.toLowerCase()
+      if (dn.includes(ql)) return true
+      const maxLen = Math.max(dn.length, ql.length)
+      if (maxLen === 0) return false
+      return levenshtein(dn, ql) <= Math.min(4, Math.ceil(maxLen / 3))
+    })
+  }
+
+  if (sortNeedle) {
+    return [...list]
+      .sort(
+        (a, b) =>
+          departmentNameMatchScore(b.name, sortNeedle) -
+          departmentNameMatchScore(a.name, sortNeedle)
+      )
+      .slice(0, 30)
+  }
+
+  return [...list].sort((a, b) => a.name.localeCompare(b.name, 'de-CH')).slice(0, 25)
 })
 
 function getDepartmentLevel(d: Department): number {
@@ -372,7 +420,7 @@ async function loadAssignableDepartments() {
 
 async function loadOrganisations() {
   try {
-    organisations.value = await getOrganisations()
+    organisations.value = filterOrganisationsForUserPickers(await getOrganisations())
   } catch (err) {
     console.error('Organisationen konnten nicht geladen werden:', err)
     organisations.value = []
@@ -805,6 +853,11 @@ watch(activeTab, loadRequests)
   border: 1px solid #e5e7eb;
   border-top: none;
   border-radius: 0 0 8px 8px;
+}
+
+.assign-dept-hint {
+  margin-top: 0;
+  margin-bottom: 8px;
 }
 
 </style>

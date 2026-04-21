@@ -4,6 +4,7 @@ namespace App\Controller;
 
 use App\Entity\Organisation;
 use App\Repository\OrganisationRepository;
+use App\Service\OrganisationUserPickerFilter;
 use App\Util\IdGenerator;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -31,6 +32,9 @@ class OrganisationController extends AbstractController
 
         $result = [];
         foreach ($organisations as $org) {
+            if (!OrganisationUserPickerFilter::isVisibleForUserPickers($org)) {
+                continue;
+            }
             $result[] = [
                 'id' => $org->getId(),
                 'name' => $org->getName()

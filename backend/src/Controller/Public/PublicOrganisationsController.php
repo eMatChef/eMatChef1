@@ -3,6 +3,7 @@
 namespace App\Controller\Public;
 
 use App\Repository\OrganisationRepository;
+use App\Service\OrganisationUserPickerFilter;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\Routing\Annotation\Route;
@@ -25,6 +26,9 @@ class PublicOrganisationsController extends AbstractController
 
         $result = [];
         foreach ($organisations as $org) {
+            if (!OrganisationUserPickerFilter::isVisibleForUserPickers($org)) {
+                continue;
+            }
             $result[] = [
                 'id' => $org->getId(),
                 'name' => $org->getName(),

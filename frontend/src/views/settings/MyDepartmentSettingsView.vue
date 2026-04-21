@@ -163,14 +163,28 @@
                 Code kopieren
               </button>
               <button class="add-storage-btn" type="button" :disabled="!inviteData" @click="copyInviteLink">
-                Link kopieren
+                Link (mit Konto)
+              </button>
+              <button
+                class="add-storage-btn"
+                type="button"
+                :disabled="!inviteData?.register_invite_url"
+                @click="copyRegisterInviteLink"
+              >
+                Link (Registrierung)
               </button>
               <button class="add-storage-btn" type="button" :disabled="isInviteLoading" @click="regenerateInviteCode">
                 {{ isInviteLoading ? 'Lade...' : 'Neu generieren' }}
               </button>
             </div>
             <p class="join-meta" v-if="inviteData">
-              Teilen: {{ inviteData.invite_url }}
+              QR-Code: Registrierung mit vorausgefüllter Organisation und Abteilung, danach Join zur Abteilung.
+            </p>
+            <p class="join-meta" v-if="inviteData?.invite_url">
+              Mit bestehendem Konto (direkt Join-Seite): {{ inviteData.invite_url }}
+            </p>
+            <p class="join-meta" v-if="inviteData?.register_invite_url">
+              Ohne Konto (Registrierung): {{ inviteData.register_invite_url }}
             </p>
             <div class="pending-invites-block" v-if="pendingInvites.length > 0">
               <p class="join-meta"><strong>Eingeladene Mitglieder</strong></p>
@@ -935,7 +949,10 @@ async function loadInviteCode(deptId: string) {
   isInviteLoading.value = true
   try {
     inviteData.value = await getDepartmentInvite(deptId)
-    inviteQrDataUrl.value = await QRCode.toDataURL(inviteData.value.qr_payload, {
+    const qrPayload =
+      (inviteData.value.register_qr_payload || inviteData.value.qr_payload || '').trim() ||
+      inviteData.value.invite_url
+    inviteQrDataUrl.value = await QRCode.toDataURL(qrPayload, {
       width: 180,
       margin: 1,
     })
@@ -956,7 +973,10 @@ async function regenerateInviteCode() {
   isInviteLoading.value = true
   try {
     inviteData.value = await regenerateDepartmentInvite(selectedDepartmentId.value)
-    inviteQrDataUrl.value = await QRCode.toDataURL(inviteData.value.qr_payload, {
+    const qrPayload =
+      (inviteData.value.register_qr_payload || inviteData.value.qr_payload || '').trim() ||
+      inviteData.value.invite_url
+    inviteQrDataUrl.value = await QRCode.toDataURL(qrPayload, {
       width: 180,
       margin: 1,
     })
@@ -998,7 +1018,14 @@ async function copyJoinCode() {
 async function copyInviteLink() {
   if (!inviteData.value) return
   await navigator.clipboard.writeText(inviteData.value.invite_url)
-  toast.success('Einladungslink kopiert.')
+  toast.success('Link zur Join-Seite kopiert (für angemeldete Nutzer).')
+}
+
+async function copyRegisterInviteLink() {
+  const url = inviteData.value?.register_invite_url?.trim()
+  if (!url) return
+  await navigator.clipboard.writeText(url)
+  toast.success('Registrierungslink kopiert (Organisation und Abteilung vorausgefüllt).')
 }
 
 // === Adressen (Lagerplätze = type='storage', Rechnung = type='billing') ===

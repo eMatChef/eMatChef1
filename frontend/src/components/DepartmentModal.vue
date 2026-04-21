@@ -40,7 +40,7 @@
               required
               @change="onOrganisationChange"
             >
-              <option value="">Bitte wählen...</option>
+              <option value="" disabled hidden>&nbsp;</option>
               <option
                 v-for="org in organisations"
                 :key="org.id"
@@ -253,6 +253,7 @@ import {
   type AvailableUser
 } from '@/api/departments'
 import { getOrganisations, type Organisation } from '@/api/organisations'
+import { filterOrganisationsForUserPickers } from '@/utils/organisationUserPicker'
 
 interface Props {
   isOpen: boolean
@@ -455,8 +456,8 @@ watch(() => props.isOpen, async (open) => {
     error.value = null
     // Organisationen und Departments laden
     try {
-      [organisations.value, allDepartments.value] = await Promise.all([
-        getOrganisations(),
+      ;[organisations.value, allDepartments.value] = await Promise.all([
+        getOrganisations().then(filterOrganisationsForUserPickers),
         getDepartments()
       ])
     } catch (err: any) {
