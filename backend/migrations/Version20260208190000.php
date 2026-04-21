@@ -20,6 +20,11 @@ final class Version20260208190000 extends AbstractMigration
 
     public function up(Schema $schema): void
     {
+        // Historisches Duplikat von Version20260208180000 — auf frischer DB läuft 08180000 zuerst.
+        if ($this->sm->tablesExist(['activity_item'])) {
+            return;
+        }
+
         // === 1. activity_item Tabelle ===
         $this->addSql('CREATE TABLE activity_item (
             id CHAR(13) NOT NULL, 
