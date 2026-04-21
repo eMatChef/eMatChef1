@@ -19,14 +19,18 @@ final class Version20260203193049 extends AbstractMigration
 
     public function up(Schema $schema): void
     {
-        // this up() migration is auto-generated, please modify it to your needs
-        $this->addSql('ALTER TABLE user_department ALTER role TYPE VARCHAR(20)');
+        // Nur bei Altbeständen mit user_department; frische DBs haben die Tabelle erst nach späteren Schritten / nie.
+        if ($this->sm->tablesExist(['user_department'])) {
+            $this->addSql('ALTER TABLE user_department ALTER role TYPE VARCHAR(20)');
+        }
     }
 
     public function down(Schema $schema): void
     {
         // this down() migration is auto-generated, please modify it to your needs
         $this->addSql('CREATE SCHEMA public');
-        $this->addSql('ALTER TABLE user_department ALTER role TYPE VARCHAR(16)');
+        if ($this->sm->tablesExist(['user_department'])) {
+            $this->addSql('ALTER TABLE user_department ALTER role TYPE VARCHAR(16)');
+        }
     }
 }
