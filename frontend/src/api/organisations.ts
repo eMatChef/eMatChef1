@@ -9,7 +9,8 @@ export interface Organisation {
  * Lädt alle Organisationen
  */
 export async function getOrganisations(): Promise<Organisation[]> {
-  const response = await apiClient.get<Organisation[]>('/api/organisations')
+  // Öffentlich unter /api/public/* (kein JWT, gleicher Firewall wie QR-Lookup)
+  const response = await apiClient.get<Organisation[]>('/api/public/organisations')
   return response.data
 }
 

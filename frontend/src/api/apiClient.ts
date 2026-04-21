@@ -52,7 +52,10 @@ const apiClient = axios.create({
 function isPublicApiUrl(url: string): boolean {
   // Öffentliche Endpoints dürfen NICHT mit einem (ggf. abgelaufenen) JWT "mitgeschickt" werden,
   // sonst kann Symfony/JWT-Auth vor PUBLIC_ACCESS abbrechen (401) und QR-Links wirken "tot".
-  return url.includes('/api/public/')
+  if (url.includes('/api/public/')) {
+    return true
+  }
+  return false
 }
 
 // Request Interceptor - fügt Auth-Token hinzu

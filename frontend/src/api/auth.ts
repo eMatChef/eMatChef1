@@ -13,6 +13,12 @@ export interface RegisterRequest {
   password: string
   language: string
   acceptTerms: boolean
+  requestedOrganisationId: string
+  requestedDepartmentName: string
+  /** Cloudflare Turnstile (wenn VITE_TURNSTILE_SITE_KEY gesetzt) */
+  turnstileToken?: string
+  /** Bot-Schutz: muss leer bleiben */
+  website?: string
 }
 
 export interface RegisterResponse {

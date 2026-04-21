@@ -29,4 +29,8 @@ services:
       APP_PUBLIC_QR_URL: "https://qr.ematchef.ch"
       # Nur eure echten HTTPS-Origins (Frontend auf Hostpoint)
       CORS_ALLOW_ORIGIN: '^https://(app\.ematchef\.ch|ematchef\.ch|www\.ematchef\.ch)$'
+      # Hostpoint SMTP (Control Panel): MAILER_DSN in .env setzen, z. B.:
+      # smtp://MAILBOX%40ematchef.ch:PASSWORT@smtp.mail.hostpoint.ch:587
+      # (Sonderzeichen in User/Pass URL-encoden, z. B. @ → %40)
       MAILER_DSN: "${MAILER_DSN:-null://null}"
+      MAILER_FROM: "${MAILER_FROM:-noreply@ematchef.ch}"

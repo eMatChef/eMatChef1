@@ -25,3 +25,7 @@ services:
         tags:
             - { name: doctrine.event_subscriber }
 
+    App\Service\TurnstileVerifier:
+        arguments:
+            $secretKey: '%env(TURNSTILE_SECRET_KEY)%'
+
