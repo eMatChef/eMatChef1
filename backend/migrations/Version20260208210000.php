@@ -29,6 +29,17 @@ final class Version20260208210000 extends AbstractMigration
         // 3. Neue FK auf "group" Tabelle erstellen
         $this->addSql('ALTER TABLE activity ADD CONSTRAINT FK_AC74095AFE54D947 FOREIGN KEY (group_id) REFERENCES "group" (id) ON DELETE SET NULL NOT DEFERRABLE INITIALLY IMMEDIATE');
 
+        // 4.–7. Testdaten nur, wenn die ursprüngliche Dev-/Seed-DB vorhanden ist (frische Prod-DB: überspringen).
+        $seedDepts = (int) $this->connection->fetchOne(
+            "SELECT COUNT(*) FROM department WHERE id IN ('2d2b91b1c181','77028894f790','432a8c08aa75')"
+        );
+        $seedUsers = (int) $this->connection->fetchOne(
+            "SELECT COUNT(*) FROM \"user\" WHERE id IN ('c13aa592c4b5','a4845fd6efd8','5e39323d8498','caedd9ea458c','e02385918add','b3b041813ef4','0f0b24cec2b9','3b592950b9cf','85b04fc68db8')"
+        );
+        if ($seedDepts !== 3 || $seedUsers < 1) {
+            return;
+        }
+
         // 4. Testdaten: Gruppen für "Pfadi Zürich" (department_id = 2d2b91b1c181)
         $this->addSql("INSERT INTO \"group\" (id, department_id, name, parent_id, sort_order, created_at, updated_at) VALUES
             ('g001pzwolfe', '2d2b91b1c181', 'Wölfe', NULL, 1, NOW(), NOW()),
