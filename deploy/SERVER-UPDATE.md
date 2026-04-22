@@ -4,7 +4,7 @@ Für den **API-Server** (z. B. DigitalOcean), Projektverzeichnis z. B. `/opt
 
 ### Schnell: ein Skript statt vieler Zeilen
 
-Im Repo liegt **`deploy/prod-update.sh`**: holt `origin/main` (per `reset` oder `pull`) und startet **`db` + `backend`** neu. Beispiel auf dem Droplet:
+Im Repo liegt **`deploy/prod-update.sh`**: holt `origin/main` (per `reset` oder `pull`) und startet **`db` + `backend`** (ohne langsames `docker compose --build`, außer `EMATCHEF_COMPOSE_BUILD=1`). Beispiel auf dem Droplet:
 
 ```bash
 cd /opt/ematchef/prod
@@ -16,19 +16,33 @@ EMATCHEF_PROD_ROOT=/opt/ematchef/prod ./deploy/prod-update.sh reset
 
 ## 1. Standard: Dienst stoppen → Pull → durchstarten
 
-Container sauber beenden, Repo aktualisieren, Images neu bauen und `db` + `backend` starten:
+Container sauber beenden, Repo aktualisieren, `db` + `backend` starten. **Standard ohne `--build`:** Backend-Code liegt per Volume auf dem Host; ein Rebuild ist nur nötig, wenn sich `backend/Dockerfile` oder die PHP-Base-Layers ändern.
 
 ```bash
 cd /opt/ematchef/prod
 docker compose -p ematchef-prod down
 git pull
 export HOST_UID=$(id -u) HOST_GID=$(id -g)
-docker compose -p ematchef-prod up -d --build db backend
+docker compose -p ematchef-prod up -d db backend
+```
+
+Mit Image-Rebuild (langsam, nur bei Dockerfile-/Image-Änderung):
+
+```bash
+EMATCHEF_COMPOSE_BUILD=1 docker compose -p ematchef-prod up -d --build db backend
 ```
 
 Anschließend Symfony-Prod-Cache (Abschnitt 3) nicht vergessen.
 
 **Hinweis:** `down` **ohne** `-v` lässt die PostgreSQL-Daten auf dem Volume bestehen. Nur bei bewusstem Reset der Datenbank: `docker compose -p ematchef-prod down -v` (siehe `deploy/docker-compose.override.prod.example.yml`).
+
+### DB healthy, Migrationen, kein „Hängen“
+
+- **Reihenfolge:** `docker compose … up -d db` abwarten, bis `docker compose … ps` bei `db` **healthy** zeigt (oder Logs ohne Crash), danach `backend` starten — oder beides in einem Befehl: Compose startet `backend` erst, wenn die DB den Healthcheck besteht.
+- **Entrypoint:** `backend/docker-entrypoint.sh` ruft vor `composer`/`migrate` **`php docker/wait-for-db.php`** auf (PDO `SELECT 1`, mehrere Versuche). So laufen Migrationen nicht gegen eine noch nicht bereite Postgres-Instanz.
+- **Sehr langsames Droplet:** optional `WAIT_FOR_DB_ATTEMPTS=120` `WAIT_FOR_DB_SLEEP=3` in der `backend`-`environment`-Sektion der Compose-Override-Datei setzen.
+- **`composer install` dauert lange:** im Entrypoint ist `COMPOSER_PROCESS_TIMEOUT` standardmäßig **1800** Sekunden — bei extrem langsamer Anbindung ggf. erhöhen.
+- **Container `db` mit Exit `137`:** oft **OOM** (zu wenig RAM). Prüfen: `free -h`, Swap, `dmesg | tail -30` nach „Out of memory“. Ohne genug RAM/Swap kann Postgres gekillt werden — dann bleibt der Backend-Start beim Warten oder bei Migrationen hängen bzw. scheitern.
 
 ### Alternative ohne `down`
 
@@ -38,7 +52,7 @@ Wenn die Container weiterlaufen dürfen und nur Code/Image aktualisiert werden s
 cd /opt/ematchef/prod
 git pull
 export HOST_UID=$(id -u) HOST_GID=$(id -g)
-docker compose -p ematchef-prod up -d --build db backend
+docker compose -p ematchef-prod up -d db backend
 ```
 
 Bei HTTPS-Clone ggf. Personal Access Token oder SSH-Deploy-Key nutzen.
@@ -54,7 +68,7 @@ git pull
 git stash pop
 ```
 
-Bei Konflikten nach `stash pop`: Datei manuell mergen oder deine Produktionswerte aus dem Stash wieder eintragen. Anschließend Deploy wie in Abschnitt 1 (`down` / `up --build` …), falls noch nicht erledigt.
+Bei Konflikten nach `stash pop`: Datei manuell mergen oder deine Produktionswerte aus dem Stash wieder eintragen. Anschließend Deploy wie in Abschnitt 1 (`down` / `up -d` …), falls noch nicht erledigt.
 
 **Alternative:** Kopie sichern, Pull mit Zurücksetzen der Datei, dann Werte aus der Kopie zurücksetzen:
 
