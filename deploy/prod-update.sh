@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Ein Befehl auf dem API-Server: Code aktualisieren + db/backend neu bauen/starten.
+# Ein Befehl auf dem API-Server: Code aktualisieren + db/backend starten (Rebuild nur mit EMATCHEF_COMPOSE_BUILD=1).
 #
 # Nutzung (z. B. /opt/ematchef/prod):
 #   chmod +x deploy/prod-update.sh
@@ -14,6 +14,7 @@
 #   EMATCHEF_PROD_ROOT   Standard: /opt/ematchef/prod
 #   EMATCHEF_GIT_BRANCH  Standard: main
 #   COMPOSE_PROJECT_NAME Standard: ematchef-prod
+#   EMATCHEF_COMPOSE_BUILD=1  — docker compose … --build (langsam; nur bei Dockerfile/PHP-Base-Änderung)
 
 set -euo pipefail
 
@@ -40,10 +41,17 @@ case "$MODE" in
 esac
 
 export HOST_UID="$(id -u)" HOST_GID="$(id -g)"
-docker compose -p "$PROJECT" up -d --build db backend
+compose_up=(docker compose -p "$PROJECT" up -d)
+if [[ "${EMATCHEF_COMPOSE_BUILD:-}" == "1" ]]; then
+  compose_up+=(--build)
+fi
+"${compose_up[@]}" db backend
 
 echo ""
 echo "OK: ${PROJECT} db + backend gestartet."
+if [[ "${EMATCHEF_COMPOSE_BUILD:-}" != "1" ]]; then
+  echo "(Ohne Image-Rebuild. Bei Dockerfile-/Base-Image-Änderung: EMATCHEF_COMPOSE_BUILD=1 $0 ${MODE})"
+fi
 echo "Prod-Cache (bei Code-/Config-Änderungen):"
 echo "  docker compose -p ${PROJECT} exec backend php bin/console cache:clear --env=prod"
 echo "Logs:"

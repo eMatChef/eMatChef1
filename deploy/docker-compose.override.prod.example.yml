@@ -8,9 +8,10 @@
 # Erster Start mit neuem DB-Passwort: Volume ggf. leeren, sonst Passwort zur bestehenden DB passend wählen:
 #   docker compose -p ematchef-prod down -v   # löscht postgres_data – nur wenn Daten weg dürfen!
 #
-# Dann:
+# Dann (ohne --build = schnell; Code per Volume):
 #   export HOST_UID=$(id -u) HOST_GID=$(id -g)
-#   docker compose -p ematchef-prod up -d --build db backend
+#   docker compose -p ematchef-prod up -d db backend
+# Bei Dockerfile-Änderung: EMATCHEF_COMPOSE_BUILD=1 docker compose -p ematchef-prod up -d --build db backend
 
 services:
   db:
