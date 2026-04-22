@@ -23,14 +23,20 @@ final class Version20260324213000 extends AbstractMigration
 
     public function up(Schema $schema): void
     {
-        $this->addSql('CREATE TABLE IF NOT EXISTS public.refresh_tokens (
-            id INT NOT NULL,
-            refresh_token VARCHAR(128) NOT NULL,
-            username VARCHAR(255) NOT NULL,
-            valid TIMESTAMP(0) WITHOUT TIME ZONE NOT NULL,
-            PRIMARY KEY(id)
-        )');
-        $this->addSql('CREATE UNIQUE INDEX IF NOT EXISTS uniq_refresh_tokens_refresh_token ON public.refresh_tokens (refresh_token)');
+        // Direkt auf der Connection ausführen (nicht nur addSql-Queue), damit die Tabelle sicher existiert,
+        // bevor die folgenden addSql-Statements laufen (vermeidet „relation refresh_tokens does not exist“).
+        $this->connection->executeStatement(
+            'CREATE TABLE IF NOT EXISTS public.refresh_tokens ('
+            . 'id INT NOT NULL, '
+            . 'refresh_token VARCHAR(128) NOT NULL, '
+            . 'username VARCHAR(255) NOT NULL, '
+            . 'valid TIMESTAMP(0) WITHOUT TIME ZONE NOT NULL, '
+            . 'PRIMARY KEY(id)'
+            . ')'
+        );
+        $this->connection->executeStatement(
+            'CREATE UNIQUE INDEX IF NOT EXISTS uniq_refresh_tokens_refresh_token ON public.refresh_tokens (refresh_token)'
+        );
 
         $this->addSql('CREATE SEQUENCE IF NOT EXISTS refresh_tokens_id_seq');
         $this->addSql('ALTER TABLE public.refresh_tokens ALTER COLUMN id SET DEFAULT nextval(\'refresh_tokens_id_seq\')');
