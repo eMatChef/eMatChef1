@@ -2,6 +2,18 @@
 
 Für den **API-Server** (z. B. DigitalOcean), Projektverzeichnis z. B. `/opt/ematchef/prod`.
 
+### Schnell: ein Skript statt vieler Zeilen
+
+Im Repo liegt **`deploy/prod-update.sh`**: holt `origin/main` (per `reset` oder `pull`) und startet **`db` + `backend`** neu. Beispiel auf dem Droplet:
+
+```bash
+cd /opt/ematchef/prod
+chmod +x deploy/prod-update.sh
+EMATCHEF_PROD_ROOT=/opt/ematchef/prod ./deploy/prod-update.sh reset
+```
+
+`docker compose down -v` (Datenbank leeren) ist **nur** nötig bei kaputtem DB-Stand oder Erstinstallation – **nicht** bei jedem normalen Update.
+
 ## 1. Standard: Dienst stoppen → Pull → durchstarten
 
 Container sauber beenden, Repo aktualisieren, Images neu bauen und `db` + `backend` starten:
@@ -105,6 +117,81 @@ Bei **neuer, leerer Datenbank** zuerst Migrationen ausführen, dann dieses Comma
 ```bash
 docker compose -p ematchef-prod exec backend php bin/console doctrine:migrations:migrate --no-interaction --env=prod
 ```
+
+## 6. Git per SSH (Deploy-Key, kein Passwort bei jedem `pull`)
+
+So arbeitet der Droplet **ohne** HTTPS-Benutzername/Passwort mit GitHub:
+
+1. **Schlüssel auf dem Server erzeugen** (nur für diesen Server, leer lassen bei „Passphrase“ wenn Skripte ohne Eingabe laufen sollen):
+
+   ```bash
+   ssh-keygen -t ed25519 -C "ematchef-api-prod" -f ~/.ssh/ematchef_deploy_ed25519 -N ""
+   ```
+
+2. **Öffentlichen Schlüssel anzeigen** und kopieren:
+
+   ```bash
+   cat ~/.ssh/ematchef_deploy_ed25519.pub
+   ```
+
+3. **Auf GitHub:** Repository → **Settings** → **Deploy keys** → **Add deploy key** → Titel z. B. `DO API prod`, Key einfügen, bei nur Lesen **Allow write access** **nicht** anhaken (reicht für `git pull` / `fetch`).
+
+4. **SSH-Config** (`~/.ssh/config`) — ausführlich
+
+   **Was passiert ohne Config?** Wenn du `git clone git@github.com:…` oder `git fetch` ausführst, startet der SSH-Client eine Verbindung zu **`github.com`**. Er sucht dann nach einem passenden **privaten Schlüssel** (Standard: `~/.ssh/id_rsa`, `id_ed25519`, …). Auf einem Server gibt es oft **keinen** solchen Standard-Key — oder der falsche Key wird zuerst probiert, und GitHub lehnt ab. Mit einer **Host-Sektion** in `~/.ssh/config` sagst du explizit: *Für Verbindungen zu GitHub nimm genau diesen Key.*
+
+   **Datei:** `~/.ssh/config` (pro Benutzer, z. B. `root` oder `deploy`). Wenn die Datei noch nicht existiert, wird sie angelegt. Existiert sie schon, **hänge** die folgenden Zeilen an (oder füge sie manuell mit einem Editor ein) — achte darauf, dass du keine **doppelte** `Host github.com`-Sektion erzeugst; dann gewinnt die **erste** passende Regel.
+
+   **Bedeutung der Zeilen:**
+
+   | Direktive | Erklärung |
+   |-----------|-----------|
+   | `Host github.com` | Trifft auf alle SSH-Verbindungen zu, bei denen du im Terminal **`github.com`** als Ziel schreibst — also genau bei `git@github.com:USER/REPO.git`. |
+   | `HostName github.com` | Echter DNS-Name des Servers (hier gleich `github.com`; nötig, wenn du später z. B. `Host github-ematchef` als Alias nutzen willst). |
+   | `User git` | GitHub erwartet den Login-Namen **`git`** für Git-over-SSH (nicht deinen GitHub-Benutzernamen). Ohne diese Zeile geht es oft trotzdem, weil die URL `git@github.com` den User schon setzt — explizit ist aber klar und hilft bei Tests mit `ssh github.com`. |
+   | `IdentityFile ~/.ssh/ematchef_deploy_ed25519` | **Genau dieser private Key** wird für diese Verbindung verwendet — dein Deploy-Key. Pfad muss zur **privaten** Datei zeigen (ohne `.pub`). |
+   | `IdentitiesOnly yes` | Wichtig auf Rechnern mit **mehreren** Keys: SSH darf **nur** die hier genannten Keys anbieten, nicht vorher alle Standard-Keys durchprobieren. So vermeidest du „zu viele fehlgeschlagene Versuche“ / den falschen Key. |
+
+   **Rechte:** `~/.ssh` sollte für andere nicht schreibbar sein; `config` idealerweise **`chmod 600`** (nur Besitzer lesen/schreiben).
+
+   **Anlegen (Append, wenn noch keine github-Sektion existiert):**
+
+   ```bash
+   printf '%s\n' \
+     'Host github.com' \
+     '  HostName github.com' \
+     '  User git' \
+     '  IdentityFile ~/.ssh/ematchef_deploy_ed25519' \
+     '  IdentitiesOnly yes' \
+     >> ~/.ssh/config
+   chmod 600 ~/.ssh/config
+   ```
+
+   **Alternative:** Datei mit `nano ~/.ssh/config` bearbeiten und den Block von Hand einfügen.
+
+   **Mehrere GitHub-Repos mit verschiedenen Keys:** Dann nicht alle unter `Host github.com` pflegen, sondern **Alias-Hosts**, z. B. `Host github-ematchef` mit `HostName github.com` und eigenem `IdentityFile`; die Git-URL wird dann `git@github-ematchef:USER/REPO.git`. Siehe GitHub-Doku zu mehreren Konten/Keys.
+
+5. **Test:** `ssh -T git@github.com` — Meldung wie „Hi …! You've successfully authenticated“.
+
+   **Falls `Permission denied (publickey)`:**
+
+   1. **Verbose-Log** (zeigt, welcher Key angeboten wird): `ssh -vT git@github.com` — nach `Offering public key` bzw. `identity file` schauen.
+   2. **Private Key vorhanden?** `ls -la ~/.ssh/ematchef_deploy_ed25519` — Datei muss existieren; Rechte **`chmod 600`** auf die **private** Datei (ohne `.pub`).
+   3. **`~/.ssh/config`:** `grep -A5 'Host github.com' ~/.ssh/config` — `IdentityFile` muss **exakt** zum privaten Key passen (Pfad, Tippfehler). Nach Änderungen: keine doppelten widersprüchlichen `Host github.com`-Blöcke.
+   4. **Öffentlichen Key auf GitHub:** Repo → **Settings** → **Deploy keys** — der Key aus **`*.pub`** muss **diesem** Repository zugeordnet sein (Deploy-Keys gelten nicht global). Alternativ: Key unter **GitHub → Settings → SSH and GPG keys** (Konto) — dann gilt er für alle Repos des Kontos.
+   5. **Richtiger GitHub-User/Org:** Deploy-Key ist an **ein** Repo gebunden; anderes Repo → neuer Deploy-Key oder Konto-SSH-Key.
+   6. **Als root vs. anderer User:** Keys liegen unter **`/root/.ssh`** nur für `root`. Wenn du später als `deploy`-User arbeitest, Key und `config` dort anlegen.
+
+6. **Remote auf SSH umstellen** (im Projektverzeichnis, `USER/REPO` anpassen):
+
+   ```bash
+   cd /opt/ematchef/prod
+   git remote set-url origin git@github.com:USER/REPO.git
+   git remote -v
+   git fetch origin
+   ```
+
+**Hinweis:** Deploy-Keys gelten **pro Repository**. Mehrere Repos brauchen je einen Key oder ein [SSH-Multiplex](https://docs.github.com/en/authentication/connecting-to-github-with-ssh) mit mehreren `Host`-Aliasen.
 
 ---
 
