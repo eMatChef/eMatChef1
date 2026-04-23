@@ -4,7 +4,11 @@
     <p class="hint">
       Absender und optional SMTP werden in <code>var/app/mail_outbound.json</code> gespeichert (nicht in der Datenbank).
       <strong>Versand:</strong> Zuerst <strong>MAILER_DSN</strong> aus der Umgebung (wenn nicht <code>null://</code>), sonst
-      vollständiges SMTP aus dieser JSON-Datei, sonst Datei-Spool (<code>.eml</code>).
+      vollständiges SMTP aus dieser JSON-Datei<template v-if="!mailInternalSpoolRestricted"
+        >, sonst Datei-Spool (<code>.eml</code>)</template
+      ><template v-else
+        >. In <strong>Produktion</strong> ist kein reiner Datei-Spool ohne SMTP/<code>MAILER_DSN</code> möglich</template
+      >.
       <strong>Antworten (Reply-To):</strong> Zuerst <strong>MAILER_REPLY_TO</strong> in der Server-Umgebung, sonst die
       unten konfigurierbare Adresse in JSON.
     </p>
@@ -17,6 +21,24 @@
           Ordner: <code>{{ settings.mail_spool_path }}</code>
         </span>
       </template>
+    </div>
+
+    <div
+      v-if="settings && !isLoading && mailInternalSpoolRestricted && settings.mailer_transport_mode === 'file_spool'"
+      class="smtp-env-override-notice"
+    >
+      Aktuell ist kein SMTP und kein <code>MAILER_DSN</code> aktiv — es gäbe nur den Datei-Spool, der in Produktion
+      gesperrt ist. Bitte SMTP hier ausfüllen und speichern oder <code>MAILER_DSN</code> auf dem Server setzen.
+    </div>
+
+    <div
+      v-if="settings && !isLoading && settings.use_custom_smtp && settings.mailer_transport_mode === 'env'"
+      class="smtp-env-override-notice"
+    >
+      Auf dem Server ist <strong>MAILER_DSN</strong> gesetzt — Versand und Testmail laufen über die
+      <strong>Umgebung</strong>, nicht über die SMTP-Daten in <code>mail_outbound.json</code>. Für die JSON-SMTP-Zugangsdaten
+      <code>MAILER_DSN</code> in der Server-<code>.env</code> leer lassen oder auf <code>null://default</code> setzen und das
+      Backend neu starten.
     </div>
 
     <div v-if="isLoading" class="state">Lade Einstellungen…</div>
@@ -79,8 +101,19 @@
       <h3 class="sub-title">SMTP-Versand (optional)</h3>
       <p class="hint smtp-hint">
         <label class="check-row">
-          <input v-model="form.use_custom_smtp" type="checkbox" :disabled="!canEdit" />
-          <span>Eigene SMTP-Zugangsdaten verwenden (nur wenn MAILER_DSN auf dem Server leer bzw. null:// ist)</span>
+          <input
+            type="checkbox"
+            :checked="form.use_custom_smtp"
+            :disabled="!canEdit"
+            @change="onCustomSmtpCheckboxChange"
+          />
+          <span v-if="!mailInternalSpoolRestricted"
+            >Eigene SMTP-Zugangsdaten verwenden (nur wenn MAILER_DSN auf dem Server leer bzw. null:// ist)</span
+          >
+          <span v-else
+            >Eigene SMTP-Zugangsdaten verwenden (in Produktion erforderlich, wenn kein <code>MAILER_DSN</code> gesetzt
+            ist)</span
+          >
         </label>
       </p>
       <p class="warn">
@@ -152,7 +185,9 @@
       <template v-if="canEdit">
         <h3 class="sub-title">Testmail</h3>
         <p class="hint testmail-hint">
-          Sendet eine kurze Prüfmail über den oben angezeigten Versandweg (SMTP, Umgebung oder Datei-Spool).
+          Sendet eine kurze Prüfmail über den oben angezeigten Versandweg<template v-if="!mailInternalSpoolRestricted"
+            > (SMTP, Umgebung oder Datei-Spool)</template
+          >.
         </p>
         <div class="form-row">
           <label for="test-to">Ziel-E-Mail</label>
@@ -194,6 +229,7 @@ import {
   type MailerTransportMode,
 } from '@/api/mailAdmin'
 import { useToast } from '@/composables/useToast'
+import { apiErrorMessage } from '@/utils/apiErrorMessage'
 
 const route = useRoute()
 const authStore = useAuthStore()
@@ -205,6 +241,16 @@ const departmentId = computed(() => {
 })
 
 const canEdit = computed(() => authStore.userRoles.includes('ROLE_SUPERADMIN'))
+
+/** Backend setzt in Symfony-Umgebung prod auf false */
+const mailInternalSpoolRestricted = computed(
+  () => settings.value?.mail_internal_spool_allowed === false
+)
+
+/** In Prod ohne MAILER_DSN: Checkbox „eigene SMTP“ nicht deaktivieren (sonst nur Datei-Spool) */
+const blockUncheckCustomSmtp = computed(
+  () => mailInternalSpoolRestricted.value && settings.value?.mailer_transport_mode !== 'env'
+)
 
 const isLoading = ref(true)
 const isSaving = ref(false)
@@ -224,6 +270,19 @@ const form = ref({
   smtp_password: '',
   smtp_encryption: 'tls' as 'tls' | 'ssl' | 'none',
 })
+
+function onCustomSmtpCheckboxChange(e: Event) {
+  const el = e.target as HTMLInputElement
+  const next = el.checked
+  if (blockUncheckCustomSmtp.value && !next) {
+    el.checked = true
+    toast.error(
+      'In Produktion ist der lokale Datei-Mailspool deaktiviert. SMTP aktiv lassen oder MAILER_DSN auf dem Server setzen.'
+    )
+    return
+  }
+  form.value.use_custom_smtp = next
+}
 
 function transportModeLabel(mode: MailerTransportMode): string {
   switch (mode) {
@@ -297,8 +356,7 @@ async function save() {
     form.value.smtp_password = ''
     toast.success('E-Mail-Einstellungen gespeichert.')
   } catch (err: any) {
-    const msg = err.response?.data?.error || 'Speichern fehlgeschlagen.'
-    toast.error(msg)
+    toast.error(apiErrorMessage(err, 'Speichern fehlgeschlagen.'))
   } finally {
     isSaving.value = false
   }
@@ -313,10 +371,13 @@ async function sendTest() {
   isTesting.value = true
   try {
     await postMailTestSend(to)
-    toast.success('Testmail wurde ausgelöst. Bei Datei-Spool liegt die Nachricht im Spool-Ordner.')
+    if (settings.value?.uses_file_spool && settings.value?.mail_internal_spool_allowed !== false) {
+      toast.success('Testmail wurde ausgelöst. Bei Datei-Spool liegt die Nachricht im Spool-Ordner.')
+    } else {
+      toast.success('Testmail wurde ausgelöst.')
+    }
   } catch (err: any) {
-    const msg = err.response?.data?.error || 'Testmail fehlgeschlagen.'
-    toast.error(msg)
+    toast.error(apiErrorMessage(err, 'Testmail fehlgeschlagen.'))
   } finally {
     isTesting.value = false
   }
@@ -521,6 +582,17 @@ watch(departmentId, () => {
 .transport-path code {
   font-size: 12px;
   word-break: break-all;
+}
+
+.smtp-env-override-notice {
+  margin: 0 0 20px 0;
+  padding: 12px 14px;
+  background: #fffbeb;
+  border: 1px solid #fcd34d;
+  border-radius: 8px;
+  font-size: 13px;
+  color: #78350f;
+  line-height: 1.55;
 }
 
 .testmail-hint {

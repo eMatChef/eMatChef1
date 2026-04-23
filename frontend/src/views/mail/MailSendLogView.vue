@@ -59,6 +59,7 @@ const KIND_LABELS: Record<string, string> = {
   'department.invite': 'Department-Einladung',
   'public.found_item_contact': 'Öffentlich · Fund-Hinweis',
   'mail.test': 'Testmail (Einstellungen)',
+  'mail.test.failed': 'Testmail fehlgeschlagen',
 }
 
 function kindLabel(kind: string): string {

@@ -22,6 +22,8 @@ export interface MailOutboundSettingsDto {
   mailer_transport_mode: MailerTransportMode
   mail_spool_path: string | null
   uses_file_spool: boolean
+  /** false in Symfony-Umgebung prod: kein lokaler Datei-Spool als Zielkonfiguration */
+  mail_internal_spool_allowed?: boolean
 }
 
 export interface MailOutboundSettingsPatch {
