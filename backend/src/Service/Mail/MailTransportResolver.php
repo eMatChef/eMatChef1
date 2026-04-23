@@ -7,7 +7,7 @@ use Symfony\Component\Mailer\Transport;
 use Symfony\Component\Mailer\Transport\TransportInterface;
 
 /**
- * Transport: SMTP aus JSON, MAILER_DSN aus Umgebung, oder Datei-Spool unter var/app/mail_spool.
+ * Transport: MAILER_DSN aus Umgebung (wenn gesetzt und nicht null://), sonst SMTP aus mail_outbound.json, sonst Datei-Spool unter var/app/mail_spool.
  */
 final class MailTransportResolver
 {

@@ -3,9 +3,10 @@
     <h2 class="section-title">Absender-E-Mail</h2>
     <p class="hint">
       Absender und optional SMTP werden in <code>var/app/mail_outbound.json</code> gespeichert (nicht in der Datenbank).
-      Ist dort kein vollständiger SMTP-Eintrag aktiv, gilt <strong>MAILER_DSN</strong> aus der Umgebung — fehlt oder ist es
-      <code>null://</code>, werden ausgehende Nachrichten als <code>.eml</code> im <strong>lokalen Spool-Ordner</strong> abgelegt
-      (kein SMTP).
+      <strong>Versand:</strong> Zuerst <strong>MAILER_DSN</strong> aus der Umgebung (wenn nicht <code>null://</code>), sonst
+      vollständiges SMTP aus dieser JSON-Datei, sonst Datei-Spool (<code>.eml</code>).
+      <strong>Antworten (Reply-To):</strong> Zuerst <strong>MAILER_REPLY_TO</strong> in der Server-Umgebung, sonst die
+      unten konfigurierbare Adresse in JSON.
     </p>
 
     <div v-if="settings && !isLoading" class="transport-box">
@@ -51,11 +52,35 @@
         <span v-if="settings.uses_file" class="badge">JSON aktiv</span>
       </p>
 
+      <h3 class="sub-title">Antwort-Adresse (Reply-To)</h3>
+      <p class="hint">
+        Bei Absender <code>noreply@…</code> leitet „Antworten“ der Mail-Client hierhin. In der Server-<code>.env</code>
+        kann <code>MAILER_REPLY_TO</code> gesetzt werden (hat Vorrang).
+      </p>
+      <p v-if="settings?.mailer_reply_to_env" class="meta">
+        Aktiv aus Umgebung (MAILER_REPLY_TO): <code>{{ settings.mailer_reply_to_env }}</code>
+      </p>
+      <div class="form-row">
+        <label for="reply-to">Antwort-Adresse in JSON (Fallback)</label>
+        <input
+          id="reply-to"
+          v-model="form.reply_to_address"
+          type="email"
+          class="input"
+          autocomplete="off"
+          placeholder="z. B. support@ematchef.ch"
+          :disabled="!canEdit"
+        />
+      </div>
+      <p v-if="settings?.reply_to_effective" class="meta">
+        Wirksam für neue Mails: <code>{{ settings.reply_to_effective }}</code>
+      </p>
+
       <h3 class="sub-title">SMTP-Versand (optional)</h3>
       <p class="hint smtp-hint">
         <label class="check-row">
           <input v-model="form.use_custom_smtp" type="checkbox" :disabled="!canEdit" />
-          <span>Eigene SMTP-Zugangsdaten verwenden (statt MAILER_DSN)</span>
+          <span>Eigene SMTP-Zugangsdaten verwenden (nur wenn MAILER_DSN auf dem Server leer bzw. null:// ist)</span>
         </label>
       </p>
       <p class="warn">
@@ -191,6 +216,7 @@ const testTo = ref('')
 const form = ref({
   from_address: '',
   from_name: '',
+  reply_to_address: '',
   use_custom_smtp: false,
   smtp_host: '',
   smtp_port: 587 as number | '',
@@ -217,6 +243,7 @@ function applySettings(data: MailOutboundSettingsDto) {
   form.value = {
     from_address: data.from_address,
     from_name: data.from_name || '',
+    reply_to_address: data.reply_to_address || '',
     use_custom_smtp: data.use_custom_smtp,
     smtp_host: data.smtp_host || '',
     smtp_port: data.smtp_port != null && data.smtp_port > 0 ? data.smtp_port : 587,
@@ -251,6 +278,7 @@ async function save() {
     const body: MailOutboundSettingsPatch = {
       from_address: form.value.from_address.trim(),
       from_name: name === '' ? null : name,
+      reply_to_address: form.value.reply_to_address.trim(),
       use_custom_smtp: form.value.use_custom_smtp,
     }
     if (form.value.use_custom_smtp) {

@@ -30,11 +30,15 @@ services:
       APP_PUBLIC_QR_URL: "https://qr.ematchef.ch"
       # Nur eure echten HTTPS-Origins (Frontend auf Hostpoint)
       CORS_ALLOW_ORIGIN: '^https://(app\.ematchef\.ch|ematchef\.ch|www\.ematchef\.ch)$'
-      # Hostpoint SMTP (Control Panel): MAILER_DSN in .env setzen, z. B.:
-      # smtp://MAILBOX%40ematchef.ch:PASSWORT@smtp.mail.hostpoint.ch:587
-      # (Sonderzeichen in User/Pass URL-encoden, z. B. @ → %40)
+      # Hostpoint SMTP (Control Panel → Mailbox → SMTP): in .env auf dem Server:
+      #   MAILER_FROM="noreply@ematchef.ch"
+      #   MAILER_DSN="smtp://MAILBOX%40ematchef.ch:PASSWORT@smtp.mail.hostpoint.ch:587?encryption=tls"
+      # Sonderzeichen in User/Pass URL-encoden (@ → %40, : → %3A). Dann Backend neu starten.
+      # Fallback SMTP: Superadmin → Mail-Einstellungen (nur wenn MAILER_DSN null:// oder leer).
       MAILER_DSN: "${MAILER_DSN:-null://null}"
       MAILER_FROM: "${MAILER_FROM:-noreply@ematchef.ch}"
+      # Optional: echte Antwort-Adresse (Hostpoint „Absender“ ist egal; Reply-To setzt der Server pro Mail)
+      MAILER_REPLY_TO: "${MAILER_REPLY_TO:-}"
       # Cloudflare Turnstile (nur Registrierung /api/auth/register): Secret in .env, nie committen
       TURNSTILE_SECRET_KEY: "${TURNSTILE_SECRET_KEY:-}"
       TURNSTILE_SKIP_VERIFY: "${TURNSTILE_SKIP_VERIFY:-0}"

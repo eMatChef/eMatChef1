@@ -6,7 +6,8 @@ use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\Mime\Address;
 
 /**
- * Persistiert Absender- und optionale SMTP-Einstellungen in var/app/mail_outbound.json (nicht DB).
+ * Absender/SMTP-Metadaten in var/app/mail_outbound.json (nicht DB).
+ * Transport-Reihenfolge: zuerst MAILER_DSN aus der Umgebung (wenn nicht null://), sonst vollständiges SMTP aus der JSON-Datei, sonst Datei-Spool.
  */
 class MailOutboundSettingsStore
 {
@@ -16,7 +17,9 @@ class MailOutboundSettingsStore
         #[Autowire('%kernel.project_dir%')]
         private string $projectDir,
         #[Autowire('%env(MAILER_FROM)%')]
-        private string $envMailerFrom
+        private string $envMailerFrom,
+        #[Autowire('%env(MAILER_REPLY_TO)%')]
+        private string $envMailerReplyTo,
     ) {
         $this->filePath = $this->projectDir . '/var/app/mail_outbound.json';
     }
@@ -60,7 +63,10 @@ class MailOutboundSettingsStore
      *   smtp_port: ?int,
      *   smtp_user: string,
      *   smtp_encryption: string,
-     *   smtp_password_set: bool
+     *   smtp_password_set: bool,
+     *   mailer_reply_to_env: string,
+     *   reply_to_address: string,
+     *   reply_to_effective: string
      * }
      */
     public function getSettingsForApi(): array
@@ -70,6 +76,9 @@ class MailOutboundSettingsStore
 
         $smtpPasswordSet = isset($raw['smtp_password']) && is_string($raw['smtp_password']) && $raw['smtp_password'] !== '';
         $host = isset($raw['smtp_host']) ? trim((string) $raw['smtp_host']) : '';
+        $replyJson = isset($raw['reply_to_address']) ? trim((string) $raw['reply_to_address']) : '';
+        $replyEnv = trim($this->envMailerReplyTo);
+        $replyEffective = $this->getGlobalReplyToAddress();
 
         return array_merge($eff, [
             'use_custom_smtp' => $host !== '',
@@ -78,24 +87,29 @@ class MailOutboundSettingsStore
             'smtp_user' => isset($raw['smtp_user']) ? trim((string) $raw['smtp_user']) : '',
             'smtp_encryption' => $this->normalizeEncryption($raw['smtp_encryption'] ?? 'tls'),
             'smtp_password_set' => $smtpPasswordSet,
+            'mailer_reply_to_env' => ($replyEnv !== '' && filter_var($replyEnv, FILTER_VALIDATE_EMAIL)) ? $replyEnv : '',
+            'reply_to_address' => ($replyJson !== '' && filter_var($replyJson, FILTER_VALIDATE_EMAIL)) ? $replyJson : '',
+            'reply_to_effective' => $replyEffective !== null ? $replyEffective->getAddress() : '',
         ]);
     }
 
     /**
-     * @return array{type: 'dsn', dsn: string, cache_key: string}|array{type: 'file_spool', path: string, cache_key: string}
+     * @return array{type: 'dsn', dsn: string, cache_key: string, source: 'env'|'smtp_json'}|array{type: 'file_spool', path: string, cache_key: string}
      */
     public function resolveMailTransport(string $fallbackDsn): array
     {
+        $fb = trim($fallbackDsn);
+        if ($fb !== '' && stripos($fb, 'null://') !== 0) {
+            return ['type' => 'dsn', 'dsn' => $fb, 'cache_key' => 'env:' . hash('sha256', $fb), 'source' => 'env'];
+        }
+
         $data = $this->readFile();
         if ($data !== null && $this->isCompleteSmtp($data)) {
             $dsn = $this->composeSmtpDsn($data);
 
-            return ['type' => 'dsn', 'dsn' => $dsn, 'cache_key' => 'smtp:' . hash('sha256', $dsn)];
+            return ['type' => 'dsn', 'dsn' => $dsn, 'cache_key' => 'smtp:' . hash('sha256', $dsn), 'source' => 'smtp_json'];
         }
-        $fb = trim($fallbackDsn);
-        if ($fb !== '' && stripos($fb, 'null://') !== 0) {
-            return ['type' => 'dsn', 'dsn' => $fb, 'cache_key' => 'env:' . hash('sha256', $fb)];
-        }
+
         $dir = $this->getMailSpoolDirectory();
 
         return ['type' => 'file_spool', 'path' => $dir, 'cache_key' => 'file:' . $dir];
@@ -124,11 +138,9 @@ class MailOutboundSettingsStore
                 'uses_file_spool' => true,
             ];
         }
-        $data = $this->readFile();
-        $isJsonSmtp = $data !== null && $this->isCompleteSmtp($data);
 
         return [
-            'mailer_transport_mode' => $isJsonSmtp ? 'smtp_json' : 'env',
+            'mailer_transport_mode' => $r['source'],
             'mail_spool_path' => null,
             'uses_file_spool' => false,
         ];
@@ -186,6 +198,17 @@ class MailOutboundSettingsStore
             $payload['smtp_encryption'] = $enc;
         }
 
+        if (array_key_exists('reply_to_address', $data)) {
+            $rt = trim((string) $data['reply_to_address']);
+            if ($rt === '') {
+                unset($payload['reply_to_address']);
+            } elseif (!filter_var($rt, FILTER_VALIDATE_EMAIL)) {
+                throw new \InvalidArgumentException('Antwort-Adresse (reply_to_address) ungueltig.');
+            } else {
+                $payload['reply_to_address'] = $rt;
+            }
+        }
+
         $this->ensureDir();
         $json = json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
         if (file_put_contents($this->filePath, $json, LOCK_EX) === false) {
@@ -203,6 +226,28 @@ class MailOutboundSettingsStore
         }
 
         return new Address($addr);
+    }
+
+    /**
+     * Reply-To für System-Mails: zuerst MAILER_REPLY_TO (Env), sonst reply_to_address in mail_outbound.json.
+     * Wenn eine Mail bereits Reply-To setzt (z. B. Kontaktformular), wird das nicht überschrieben.
+     */
+    public function getGlobalReplyToAddress(): ?Address
+    {
+        $env = trim($this->envMailerReplyTo);
+        if ($env !== '' && filter_var($env, FILTER_VALIDATE_EMAIL)) {
+            return new Address($env);
+        }
+
+        $data = $this->readFile();
+        if ($data !== null && isset($data['reply_to_address']) && is_string($data['reply_to_address'])) {
+            $json = trim($data['reply_to_address']);
+            if ($json !== '' && filter_var($json, FILTER_VALIDATE_EMAIL)) {
+                return new Address($json);
+            }
+        }
+
+        return null;
     }
 
     /**

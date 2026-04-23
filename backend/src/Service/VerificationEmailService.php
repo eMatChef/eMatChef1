@@ -51,7 +51,12 @@ class VerificationEmailService
             );
 
         $this->mailer->send($email);
-        $this->mailSendLog->append('auth.verify_email', $profile->getEmail(), (string) $email->getSubject());
+        $this->mailSendLog->append(
+            'auth.verify_email',
+            $profile->getEmail(),
+            (string) $email->getSubject(),
+            $this->mailOutboundSettings->getFromAddressObject()->getAddress()
+        );
     }
 
     public function sendPendingEmailChangeVerification(User $user, string $newEmail, string $token, \DateTime $expiresAt): void
@@ -78,7 +83,12 @@ class VerificationEmailService
             );
 
         $this->mailer->send($email);
-        $this->mailSendLog->append('auth.pending_email_change', $newEmail, (string) $email->getSubject());
+        $this->mailSendLog->append(
+            'auth.pending_email_change',
+            $newEmail,
+            (string) $email->getSubject(),
+            $this->mailOutboundSettings->getFromAddressObject()->getAddress()
+        );
     }
 
     public function sendDepartmentInviteEmail(
@@ -114,7 +124,12 @@ class VerificationEmailService
             ]));
 
         $this->mailer->send($email);
-        $this->mailSendLog->append('department.invite', $recipientEmail, $subject);
+        $this->mailSendLog->append(
+            'department.invite',
+            $recipientEmail,
+            $subject,
+            $this->mailOutboundSettings->getFromAddressObject()->getAddress()
+        );
     }
 
     public function sendPasswordResetCode(User $user, string $code, \DateTime $expiresAt): void
@@ -145,7 +160,12 @@ class VerificationEmailService
             ]));
 
         $this->mailer->send($email);
-        $this->mailSendLog->append('auth.password_reset_code', $profile->getEmail(), (string) $email->getSubject());
+        $this->mailSendLog->append(
+            'auth.password_reset_code',
+            $profile->getEmail(),
+            (string) $email->getSubject(),
+            $this->mailOutboundSettings->getFromAddressObject()->getAddress()
+        );
     }
 
     private function renderHtmlTemplate(string $templateFile, array $variables): string

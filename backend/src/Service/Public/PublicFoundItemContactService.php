@@ -154,7 +154,12 @@ class PublicFoundItemContactService
             }
 
             $this->mailer->send($email);
-            $this->mailSendLog->append('public.found_item_contact', $to, $subject);
+            $this->mailSendLog->append(
+                'public.found_item_contact',
+                $to,
+                $subject,
+                $this->mailOutboundSettings->getFromAddressObject()->getAddress()
+            );
         }
 
         return ['ok' => true];

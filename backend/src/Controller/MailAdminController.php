@@ -46,6 +46,9 @@ class MailAdminController extends AbstractController
             'from_name' => $s['from_name'],
             'uses_file' => $s['uses_file'],
             'env_fallback_address' => $this->mailOutboundSettingsStore->getEnvDefaultAddress(),
+            'mailer_reply_to_env' => $s['mailer_reply_to_env'],
+            'reply_to_address' => $s['reply_to_address'],
+            'reply_to_effective' => $s['reply_to_effective'],
             'use_custom_smtp' => $s['use_custom_smtp'],
             'smtp_host' => $s['smtp_host'],
             'smtp_port' => $s['smtp_port'],
@@ -76,7 +79,7 @@ class MailAdminController extends AbstractController
         }
 
         try {
-            $this->mailOutboundSettingsStore->save([
+            $savePayload = [
                 'from_address' => (string) ($data['from_address'] ?? ''),
                 'from_name' => $data['from_name'] ?? null,
                 'use_custom_smtp' => !empty($data['use_custom_smtp']),
@@ -85,7 +88,11 @@ class MailAdminController extends AbstractController
                 'smtp_user' => $data['smtp_user'] ?? '',
                 'smtp_password' => $data['smtp_password'] ?? null,
                 'smtp_encryption' => $data['smtp_encryption'] ?? 'tls',
-            ]);
+            ];
+            if (array_key_exists('reply_to_address', $data)) {
+                $savePayload['reply_to_address'] = $data['reply_to_address'];
+            }
+            $this->mailOutboundSettingsStore->save($savePayload);
         } catch (\InvalidArgumentException $e) {
             return new JsonResponse(['error' => $e->getMessage()], 400);
         } catch (\Throwable $e) {
@@ -100,6 +107,9 @@ class MailAdminController extends AbstractController
             'from_name' => $s['from_name'],
             'uses_file' => true,
             'env_fallback_address' => $this->mailOutboundSettingsStore->getEnvDefaultAddress(),
+            'mailer_reply_to_env' => $s['mailer_reply_to_env'],
+            'reply_to_address' => $s['reply_to_address'],
+            'reply_to_effective' => $s['reply_to_effective'],
             'use_custom_smtp' => $s['use_custom_smtp'],
             'smtp_host' => $s['smtp_host'],
             'smtp_port' => $s['smtp_port'],
@@ -164,7 +174,12 @@ class MailAdminController extends AbstractController
             return new JsonResponse(['error' => $e->getMessage()], 500);
         }
 
-        $this->mailSendLogStore->append('mail.test', $to, 'eMatChef – Testmail');
+        $this->mailSendLogStore->append(
+            'mail.test',
+            $to,
+            'eMatChef – Testmail',
+            $this->mailOutboundSettingsStore->getFromAddressObject()->getAddress()
+        );
 
         return new JsonResponse(['ok' => true]);
     }
