@@ -23,6 +23,42 @@
       </template>
     </div>
 
+    <div v-if="settings && !isLoading && settings.mailer_transport_mode === 'env'" class="env-mail-info">
+      <p class="env-mail-info-title">Was aus der Server-<code>.env</code> kommt (hier nicht editierbar)</p>
+      <ul class="env-mail-info-list">
+        <li>
+          <strong>Versand (SMTP):</strong> Variable <code>MAILER_DSN</code> — ist aktiv; der genaue Wert wird aus
+          Sicherheitsgründen <strong>nicht</strong> angezeigt. Änderungen nur in der <code>.env</code> / Compose auf dem
+          Server, danach Backend neu starten.
+        </li>
+        <li>
+          <strong>Absender-Fallback:</strong> <code>MAILER_FROM</code> siehe Zeile unter „Absender-E-Mail“
+          (<code>{{ settings.env_fallback_address }}</code>).
+        </li>
+        <li>
+          <strong>Reply-To:</strong> Wenn <code>MAILER_REPLY_TO</code> in der <code>.env</code> gesetzt ist, gilt diese
+          Adresse (Abschnitt „Reply-To“ unten). Sonst nutzt die App das Reply-To-Feld aus JSON.
+        </li>
+      </ul>
+    </div>
+
+    <div
+      v-else-if="settings && !isLoading && settings.mailer_transport_mode === 'smtp_json'"
+      class="env-mail-info env-mail-info--neutral"
+    >
+      <p class="env-mail-info-title">Server-<code>.env</code> und dieser Screen</p>
+      <ul class="env-mail-info-list">
+        <li>
+          <strong>Versand (SMTP):</strong> über die Zugangsdaten in <code>mail_outbound.json</code> (Felder unten) —
+          <code>MAILER_DSN</code> in der <code>.env</code> ist leer oder <code>null://…</code>.
+        </li>
+        <li>
+          <strong>Absender-Fallback</strong> (<code>MAILER_FROM</code>) und <strong>Reply-To</strong> (
+          <code>MAILER_REPLY_TO</code>) können weiterhin aus der <code>.env</code> kommen — siehe Abschnitte unten.
+        </li>
+      </ul>
+    </div>
+
     <div
       v-if="settings && !isLoading && mailInternalSpoolRestricted && settings.mailer_transport_mode === 'file_spool'"
       class="smtp-env-override-notice"
@@ -33,12 +69,24 @@
 
     <div
       v-if="settings && !isLoading && settings.use_custom_smtp && settings.mailer_transport_mode === 'env'"
-      class="smtp-env-override-notice"
+      class="smtp-env-override-notice smtp-env-override-notice--critical"
+      role="status"
     >
-      Auf dem Server ist <strong>MAILER_DSN</strong> gesetzt — Versand und Testmail laufen über die
-      <strong>Umgebung</strong>, nicht über die SMTP-Daten in <code>mail_outbound.json</code>. Für die JSON-SMTP-Zugangsdaten
-      <code>MAILER_DSN</code> in der Server-<code>.env</code> leer lassen oder auf <code>null://default</code> setzen und das
-      Backend neu starten.
+      <strong>Wichtig:</strong> Auf dem Server ist <strong>MAILER_DSN</strong> gesetzt — <strong>Testmail und Versand</strong>
+      laufen nur über diese Umgebungs-DSN, <em>nicht</em> über die SMTP-Felder unten (die werden nur in JSON gespeichert).
+      Fehler bei der Testmail betreffen daher fast immer die <code>MAILER_DSN</code> in der Docker-<code>.env</code> (Host,
+      Port, <code>?encryption=tls</code> bei Port 587). Willst du stattdessen die Felder hier nutzen:
+      <code>MAILER_DSN</code> leer lassen oder auf <code>null://default</code> setzen und Backend neu starten.
+    </div>
+
+    <div
+      v-if="settings && !isLoading && form.use_custom_smtp && smtpPortEncryptionMismatch"
+      class="smtp-port-mismatch-notice"
+      role="status"
+    >
+      <strong>Hinweis:</strong> Port <strong>587</strong> gehört zu <strong>STARTTLS (TLS)</strong>; Port
+      <strong>465</strong> zu <strong>SSL/SMTPS</strong>. Bitte Kombination anpassen (und speichern), sonst schlägt SMTP oft
+      fehl — sobald Versand über JSON-SMTP aktiv ist.
     </div>
 
     <div v-if="isLoading" class="state">Lade Einstellungen…</div>
@@ -74,28 +122,41 @@
         <span v-if="settings.uses_file" class="badge">JSON aktiv</span>
       </p>
 
-      <h3 class="sub-title">Antwort-Adresse (Reply-To)</h3>
+      <h3 id="reply-to-section" class="sub-title">Reply-To (Antwort-Adresse)</h3>
       <p class="hint">
-        Bei Absender <code>noreply@…</code> leitet „Antworten“ der Mail-Client hierhin. In der Server-<code>.env</code>
-        kann <code>MAILER_REPLY_TO</code> gesetzt werden (hat Vorrang).
+        Wenn Empfänger in der Mail-App auf „Antworten“ tippen, landet die Adresse hier bzw. aus der <code>.env</code>.
       </p>
-      <p v-if="settings?.mailer_reply_to_env" class="meta">
-        Aktiv aus Umgebung (MAILER_REPLY_TO): <code>{{ settings.mailer_reply_to_env }}</code>
-      </p>
+
+      <div v-if="settings?.mailer_reply_to_env" class="env-readonly-block">
+        <span class="env-readonly-label">Aktiv aus Server-<code>.env</code> (<code>MAILER_REPLY_TO</code>)</span>
+        <code class="env-readonly-value">{{ settings.mailer_reply_to_env }}</code>
+        <p class="env-readonly-hint">
+          Dieses Reply-To hat <strong>Vorrang</strong>. Das Feld „Reply-To in JSON“ unten wird dann ignoriert, bis
+          <code>MAILER_REPLY_TO</code> auf dem Server entfernt oder geleert wird.
+        </p>
+      </div>
+      <div v-else class="env-readonly-block env-readonly-block--muted">
+        <span class="env-readonly-label">Server-<code>.env</code> (<code>MAILER_REPLY_TO</code>)</span>
+        <span class="env-readonly-empty">nicht gesetzt — es gilt die Adresse im Feld „Reply-To in JSON“ (falls ausgefüllt).</span>
+      </div>
+
       <div class="form-row">
-        <label for="reply-to">Antwort-Adresse in JSON (Fallback)</label>
+        <label for="reply-to">Reply-To in JSON (<code>mail_outbound.json</code>, Fallback)</label>
         <input
           id="reply-to"
           v-model="form.reply_to_address"
           type="email"
           class="input"
           autocomplete="off"
-          placeholder="z. B. support@ematchef.ch"
-          :disabled="!canEdit"
+          placeholder="z. B. support@ematchef.ch — nur wenn MAILER_REPLY_TO in .env leer ist"
+          :disabled="!canEdit || !!settings?.mailer_reply_to_env"
         />
       </div>
+      <p v-if="settings?.mailer_reply_to_env" class="meta">
+        JSON-Feld ist deaktiviert, solange <code>MAILER_REPLY_TO</code> in der <code>.env</code> gesetzt ist.
+      </p>
       <p v-if="settings?.reply_to_effective" class="meta">
-        Wirksam für neue Mails: <code>{{ settings.reply_to_effective }}</code>
+        <strong>Wirksam für neue Mails (Reply-To):</strong> <code>{{ settings.reply_to_effective }}</code>
       </p>
 
       <h3 class="sub-title">SMTP-Versand (optional)</h3>
@@ -107,7 +168,11 @@
             :disabled="!canEdit"
             @change="onCustomSmtpCheckboxChange"
           />
-          <span v-if="!mailInternalSpoolRestricted"
+          <span v-if="settings?.mailer_transport_mode === 'env'"
+            >Eigene SMTP-Zugangsdaten in JSON speichern — <strong>Versand/Testmail</strong> nutzen derzeit
+            <strong>MAILER_DSN</strong> (gelber Kasten), nicht diese Felder</span
+          >
+          <span v-else-if="!mailInternalSpoolRestricted"
             >Eigene SMTP-Zugangsdaten verwenden (nur wenn MAILER_DSN auf dem Server leer bzw. null:// ist)</span
           >
           <span v-else
@@ -184,6 +249,9 @@
 
       <template v-if="canEdit">
         <h3 class="sub-title">Testmail</h3>
+        <p v-if="settings?.mailer_transport_mode === 'env'" class="testmail-uses-env-hint">
+          Es wird <strong>MAILER_DSN</strong> getestet (siehe gelber Kasten), nicht die SMTP-Felder in diesem Formular.
+        </p>
         <p class="hint testmail-hint">
           Sendet eine kurze Prüfmail über den oben angezeigten Versandweg<template v-if="!mailInternalSpoolRestricted"
             > (SMTP, Umgebung oder Datei-Spool)</template
@@ -252,6 +320,18 @@ const blockUncheckCustomSmtp = computed(
   () => mailInternalSpoolRestricted.value && settings.value?.mailer_transport_mode !== 'env'
 )
 
+/** 587 = STARTTLS (tls), 465 = SMTPS (ssl) — typische Fehlkonfiguration */
+const smtpPortEncryptionMismatch = computed(() => {
+  if (!form.value.use_custom_smtp) return false
+  const raw = form.value.smtp_port
+  const num = raw === '' || raw === null ? NaN : Number(raw)
+  if (Number.isNaN(num) || num <= 0) return false
+  return (
+    (form.value.smtp_encryption === 'ssl' && num === 587) ||
+    (form.value.smtp_encryption === 'tls' && num === 465)
+  )
+})
+
 const isLoading = ref(true)
 const isSaving = ref(false)
 const isTesting = ref(false)
@@ -299,18 +379,27 @@ function transportModeLabel(mode: MailerTransportMode): string {
 
 function applySettings(data: MailOutboundSettingsDto) {
   settings.value = data
+  let smtpPort = data.smtp_port != null && data.smtp_port > 0 ? data.smtp_port : 587
+  let smtpEnc = (['tls', 'ssl', 'none'].includes(data.smtp_encryption)
+    ? data.smtp_encryption
+    : 'tls') as 'tls' | 'ssl' | 'none'
+  // Häufiger Fehler (z. B. Hostpoint): 587 + SSL — 587 ist STARTTLS
+  if (smtpEnc === 'ssl' && smtpPort === 587) {
+    smtpEnc = 'tls'
+  }
+  if (smtpEnc === 'tls' && smtpPort === 465) {
+    smtpEnc = 'ssl'
+  }
   form.value = {
     from_address: data.from_address,
     from_name: data.from_name || '',
     reply_to_address: data.reply_to_address || '',
     use_custom_smtp: data.use_custom_smtp,
     smtp_host: data.smtp_host || '',
-    smtp_port: data.smtp_port != null && data.smtp_port > 0 ? data.smtp_port : 587,
+    smtp_port: smtpPort,
     smtp_user: data.smtp_user || '',
     smtp_password: '',
-    smtp_encryption: (['tls', 'ssl', 'none'].includes(data.smtp_encryption)
-      ? data.smtp_encryption
-      : 'tls') as 'tls' | 'ssl' | 'none',
+    smtp_encryption: smtpEnc,
   }
 }
 
@@ -328,8 +417,17 @@ async function load() {
   }
 }
 
+function validateSmtpPortEncryption(): boolean {
+  if (!smtpPortEncryptionMismatch.value) return true
+  toast.error(
+    'Port und Verschlüsselung passen nicht zusammen: Port 587 → „STARTTLS (TLS)“, Port 465 → „SSL/TLS (SMTPS)“.'
+  )
+  return false
+}
+
 async function save() {
   if (!canEdit.value) return
+  if (!validateSmtpPortEncryption()) return
   isSaving.value = true
   error.value = ''
   try {
@@ -390,6 +488,21 @@ onMounted(() => {
 watch(departmentId, () => {
   load()
 })
+
+watch(
+  () => form.value.smtp_encryption,
+  (enc) => {
+    if (!form.value.use_custom_smtp) return
+    const raw = form.value.smtp_port
+    const n = raw === '' || raw === null ? NaN : Number(raw)
+    if (Number.isNaN(n)) return
+    if (enc === 'ssl' && n === 587) {
+      form.value.smtp_port = 465
+    } else if (enc === 'tls' && n === 465) {
+      form.value.smtp_port = 587
+    }
+  }
+)
 </script>
 
 <style scoped>
@@ -567,6 +680,85 @@ watch(departmentId, () => {
   line-height: 1.5;
 }
 
+.env-mail-info {
+  margin: 0 0 20px 0;
+  padding: 12px 14px;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 8px;
+  font-size: 13px;
+  color: #14532d;
+  line-height: 1.55;
+}
+
+.env-mail-info-title {
+  margin: 0 0 8px 0;
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.env-mail-info-list {
+  margin: 0;
+  padding-left: 1.15rem;
+}
+
+.env-mail-info-list li {
+  margin-bottom: 6px;
+}
+
+.env-mail-info-list li:last-child {
+  margin-bottom: 0;
+}
+
+.env-mail-info--neutral {
+  background: #f8fafc;
+  border-color: #e2e8f0;
+  color: #334155;
+}
+
+.env-readonly-block {
+  margin: 0 0 14px 0;
+  padding: 10px 12px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+}
+
+.env-readonly-block--muted {
+  background: #fafafa;
+  color: #64748b;
+}
+
+.env-readonly-label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: #475569;
+  margin-bottom: 4px;
+}
+
+.env-readonly-value {
+  display: block;
+  font-size: 14px;
+  padding: 6px 8px;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  word-break: break-all;
+}
+
+.env-readonly-empty {
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.env-readonly-hint {
+  margin: 8px 0 0 0;
+  font-size: 12px;
+  color: #64748b;
+  line-height: 1.45;
+}
+
 .transport-label {
   font-weight: 600;
   margin-right: 6px;
@@ -593,6 +785,34 @@ watch(departmentId, () => {
   font-size: 13px;
   color: #78350f;
   line-height: 1.55;
+}
+
+.smtp-env-override-notice--critical {
+  border-color: #f59e0b;
+  background: #fff7ed;
+  border-left: 4px solid #ea580c;
+}
+
+.smtp-port-mismatch-notice {
+  margin: 0 0 16px 0;
+  padding: 10px 12px;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  font-size: 13px;
+  color: #991b1b;
+  line-height: 1.5;
+}
+
+.testmail-uses-env-hint {
+  margin: 0 0 10px 0;
+  padding: 8px 10px;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+  font-size: 13px;
+  color: #1e3a5f;
+  line-height: 1.45;
 }
 
 .testmail-hint {

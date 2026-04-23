@@ -197,6 +197,17 @@ class MailOutboundSettingsStore
                 $port = $enc === 'ssl' ? 465 : ($enc === 'none' ? 25 : 587);
             }
 
+            if ($enc === 'ssl' && $port === 587) {
+                throw new \InvalidArgumentException(
+                    'SMTP: „SSL/SMTPS“ passt nicht zu Port 587. Bitte „STARTTLS (TLS)“ mit Port 587 waehlen oder Port 465 mit SSL/SMTPS.'
+                );
+            }
+            if ($enc === 'tls' && $port === 465) {
+                throw new \InvalidArgumentException(
+                    'SMTP: Port 465 wird ueblicherweise mit SSL/SMTPS (nicht STARTTLS) genutzt. Verschluesselung „SSL/TLS“ waehlen oder Port 587 mit STARTTLS.'
+                );
+            }
+
             $payload['smtp_host'] = $host;
             $payload['smtp_port'] = $port;
             $payload['smtp_user'] = $user;
