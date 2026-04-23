@@ -2,6 +2,13 @@
 
 Für den **API-Server** (z. B. DigitalOcean), Projektverzeichnis z. B. `/opt/ematchef/prod`.
 
+**Git auf dem Droplet:** Per SSH einloggen, ins Repo-Verzeichnis wechseln, dort die Befehle unten ausführen (die IDE führt kein Git auf deinem Server aus).
+
+```bash
+ssh BENUTZER@DROPLET_HOST_ODER_IP
+cd /opt/ematchef/prod   # anpassen, falls dein Pfad anders ist
+```
+
 ### Schnell: ein Skript statt vieler Zeilen
 
 Im Repo liegt **`deploy/prod-update.sh`**: holt `origin/main` (per `reset` oder `pull`) und startet **`db` + `backend`** (ohne langsames `docker compose --build`, außer `EMATCHEF_COMPOSE_BUILD=1`). Beispiel auf dem Droplet:
