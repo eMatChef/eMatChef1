@@ -103,6 +103,24 @@ Alternativ einzeilig:
 docker compose -p ematchef-prod exec backend php bin/console cache:clear --env=prod
 ```
 
+## 3a. E-Mail / SMTP (Prod)
+
+**Reihenfolge im Backend:** Zuerst **`MAILER_DSN`** aus der Umgebung (wenn nicht `null://…`), sonst vollständiges SMTP aus **`var/app/mail_outbound.json`** (Superadmin → Mail-Einstellungen in der App), sonst **Datei-Spool** unter `var/app/mail_spool`.
+
+**`.env` auf dem Server** (Compose lädt sie für `backend`):
+
+- `MAILER_FROM` — sichtbare Absenderadresse, z. B. `noreply@ematchef.ch`.
+- `MAILER_REPLY_TO` — optional: **Antwort-Adresse** (Reply-To), z. B. `support@ematchef.ch`. Hostpoint kann das nicht „global“ für alle Mails setzen — das macht die App pro Versand. Ohne Env: optional `reply_to_address` in `mail_outbound.json` (Superadmin → Mail-Einstellungen, PATCH `reply_to_address`).
+- `MAILER_DSN` — Symfony-Mail-DSN, z. B. Hostpoint STARTTLS:  
+  `smtp://MAILBOX%40ematchef.ch:PASSWORT@smtp.mail.hostpoint.ch:587?encryption=tls`  
+  (Zeichen in User/Pass **URL-encoden**, z. B. `@` → `%40`.) Beispiele: `deploy/docker-compose.prod.env.example`.
+
+**Fallback JSON:** Nur wenn `MAILER_DSN` leer oder `null://null` ist, greift SMTP aus `mail_outbound.json`. Voraussetzung: schreibbares `var/app/` im Container.
+
+Nach Änderung an `.env` oder `mail_outbound.json`: **`cache:clear --env=prod`** (siehe Abschnitt 3) bzw. Backend neu starten.
+
+**Test:** Als Superadmin `POST /api/mail/test-send` mit Body `{"to":"deine@mail.de"}` (oder gleichwertig aus dem Admin-UI, falls vorhanden). Modus prüfen: `GET /api/mail/settings` (`mailer_transport_mode`: `env`, `smtp_json` oder `file_spool`).
+
 ## 4. Kurz prüfen
 
 ```bash

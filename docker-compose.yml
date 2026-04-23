@@ -48,6 +48,8 @@ services:
       # Lokal Registrierung ohne Turnstile testen: 1 (Produktion nie)
       TURNSTILE_SKIP_VERIFY: "${TURNSTILE_SKIP_VERIFY:-0}"
       MAILER_FROM: "${MAILER_FROM:-support@ematchef.ch}"
+      # Optional: Reply-To für System-Mails (z. B. support@…), wenn Absender noreply@… ist
+      MAILER_REPLY_TO: "${MAILER_REPLY_TO:-}"
       MAILER_DSN: "${MAILER_DSN:-null://null}"
       PHP_OPCACHE_ENABLE: "1"
       PHP_OPCACHE_MEMORY_CONSUMPTION: "256"

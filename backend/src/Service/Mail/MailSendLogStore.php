@@ -20,7 +20,10 @@ class MailSendLogStore
         $this->filePath = $this->projectDir . '/var/app/mail_send_log.json';
     }
 
-    public function append(string $kind, string $to, string $subject): void
+    /**
+     * @param string|null $from Absender-Adresse (kein Passwort); optional für Nachvollziehbarkeit.
+     */
+    public function append(string $kind, string $to, string $subject, ?string $from = null): void
     {
         try {
             $to = trim($to);
@@ -28,6 +31,10 @@ class MailSendLogStore
                 $to = '(unbekannt)';
             }
             $subject = mb_substr(trim($subject), 0, 200);
+            $fromLog = trim((string) $from);
+            if ($fromLog !== '') {
+                $fromLog = mb_substr($fromLog, 0, 200);
+            }
 
             $entries = $this->readAll();
             $entries[] = [
@@ -35,6 +42,7 @@ class MailSendLogStore
                 'kind' => $kind,
                 'to' => $to,
                 'subject' => $subject,
+                'from' => $fromLog,
             ];
             if (\count($entries) > self::MAX_ENTRIES) {
                 $entries = \array_slice($entries, -self::MAX_ENTRIES);
@@ -46,7 +54,7 @@ class MailSendLogStore
     }
 
     /**
-     * @return list<array{at: string, kind: string, to: string, subject: string}>
+     * @return list<array{at: string, kind: string, to: string, subject: string, from: string}>
      */
     public function getRecent(int $limit = 100): array
     {
@@ -60,7 +68,7 @@ class MailSendLogStore
     }
 
     /**
-     * @return list<array{at: string, kind: string, to: string, subject: string}>
+     * @return list<array{at: string, kind: string, to: string, subject: string, from: string}>
      */
     private function readAll(): array
     {
@@ -90,6 +98,7 @@ class MailSendLogStore
                 'kind' => (string) ($row['kind'] ?? ''),
                 'to' => (string) ($row['to'] ?? ''),
                 'subject' => (string) ($row['subject'] ?? ''),
+                'from' => (string) ($row['from'] ?? ''),
             ];
         }
 
@@ -97,7 +106,7 @@ class MailSendLogStore
     }
 
     /**
-     * @param list<array{at: string, kind: string, to: string, subject: string}> $entries
+     * @param list<array{at: string, kind: string, to: string, subject: string, from: string}> $entries
      */
     private function writeAll(array $entries): void
     {

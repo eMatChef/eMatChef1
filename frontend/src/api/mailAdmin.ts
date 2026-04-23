@@ -7,6 +7,12 @@ export interface MailOutboundSettingsDto {
   from_name: string | null
   uses_file: boolean
   env_fallback_address: string
+  /** Gesetzt in Server-.env (MAILER_REPLY_TO); hat Vorrang vor reply_to_address in JSON */
+  mailer_reply_to_env: string
+  /** Reply-To nur in mail_outbound.json (Fallback wenn MAILER_REPLY_TO leer) */
+  reply_to_address: string
+  /** Effektive Reply-To-Adresse für ausgehende System-Mails */
+  reply_to_effective: string
   use_custom_smtp: boolean
   smtp_host: string
   smtp_port: number | null
@@ -21,6 +27,8 @@ export interface MailOutboundSettingsDto {
 export interface MailOutboundSettingsPatch {
   from_address: string
   from_name?: string | null
+  /** Leerer String entfernt Reply-To aus JSON (Env MAILER_REPLY_TO bleibt unberührt) */
+  reply_to_address?: string
   use_custom_smtp: boolean
   smtp_host?: string
   smtp_port?: number | null
@@ -33,6 +41,8 @@ export interface MailOutboundSettingsPatch {
 export interface MailSendLogEntry {
   at: string
   kind: string
+  /** Konfigurierter Absender (keine Passwörter, kein Mailtext) */
+  from: string
   to: string
   subject: string
 }

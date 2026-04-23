@@ -2,8 +2,10 @@
   <div class="mail-log">
     <h2 class="section-title">Versandprotokoll</h2>
     <p class="hint">
-      Kurzprotokoll ohne Inhalt: Zeitpunkt, Art des Vorgangs, Empfänger und Betreff. Maximal 500 Einträge werden in
-      <code>var/app/mail_send_log.json</code> gehalten.
+      Kurzprotokoll ohne sensiblen Inhalt: Zeitpunkt, Art, Absender-Adresse, Empfänger, Betreff — keine Passwörter, kein
+      Link-Token, kein Mailtext. Maximal 500 Einträge in <code>var/app/mail_send_log.json</code>. Wer als
+      <strong>Benutzer</strong> eine Mail ausgelöst hat, wird hier nicht automatisch mitgeschrieben (dazu müsste jeder
+      Versandpfad die User-ID mitgeben).
     </p>
 
     <div v-if="isLoading" class="state">Lade Log…</div>
@@ -17,6 +19,7 @@
           <tr>
             <th>Zeit</th>
             <th>Art</th>
+            <th>Von</th>
             <th>An</th>
             <th>Betreff</th>
           </tr>
@@ -27,6 +30,7 @@
             <td class="cell-kind">
               <span class="kind-pill" :title="row.kind">{{ kindLabel(row.kind) }}</span>
             </td>
+            <td class="cell-from">{{ row.from || '—' }}</td>
             <td class="cell-to">{{ row.to }}</td>
             <td class="cell-subject">{{ row.subject }}</td>
           </tr>
