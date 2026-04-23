@@ -19,15 +19,15 @@ final class Version20260404110000 extends AbstractMigration
 
     public function up(Schema $schema): void
     {
-        $this->addSql('ALTER TABLE activity DROP COLUMN customer_name');
-        $this->addSql('ALTER TABLE activity DROP COLUMN customer_email');
-        $this->addSql('ALTER TABLE activity DROP COLUMN customer_phone');
+        $this->addSql('ALTER TABLE activity DROP COLUMN IF EXISTS customer_name');
+        $this->addSql('ALTER TABLE activity DROP COLUMN IF EXISTS customer_email');
+        $this->addSql('ALTER TABLE activity DROP COLUMN IF EXISTS customer_phone');
     }
 
     public function down(Schema $schema): void
     {
-        $this->addSql('ALTER TABLE activity ADD customer_name VARCHAR(255) DEFAULT NULL');
-        $this->addSql('ALTER TABLE activity ADD customer_email VARCHAR(255) DEFAULT NULL');
-        $this->addSql('ALTER TABLE activity ADD customer_phone VARCHAR(50) DEFAULT NULL');
+        $this->addSql('ALTER TABLE activity ADD COLUMN IF NOT EXISTS customer_name VARCHAR(255) DEFAULT NULL');
+        $this->addSql('ALTER TABLE activity ADD COLUMN IF NOT EXISTS customer_email VARCHAR(255) DEFAULT NULL');
+        $this->addSql('ALTER TABLE activity ADD COLUMN IF NOT EXISTS customer_phone VARCHAR(50) DEFAULT NULL');
     }
 }

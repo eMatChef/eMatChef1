@@ -19,11 +19,11 @@ final class Version20260404100000 extends AbstractMigration
 
     public function up(Schema $schema): void
     {
-        $this->addSql('ALTER TABLE material_item ADD pack_sale_price_chf NUMERIC(10, 2) DEFAULT NULL');
+        $this->addSql('ALTER TABLE material_item ADD COLUMN IF NOT EXISTS pack_sale_price_chf NUMERIC(10, 2) DEFAULT NULL');
     }
 
     public function down(Schema $schema): void
     {
-        $this->addSql('ALTER TABLE material_item DROP COLUMN pack_sale_price_chf');
+        $this->addSql('ALTER TABLE material_item DROP COLUMN IF EXISTS pack_sale_price_chf');
     }
 }
