@@ -30,10 +30,12 @@ services:
       APP_PUBLIC_QR_URL: "https://qr.ematchef.ch"
       # Nur eure echten HTTPS-Origins (Frontend auf Hostpoint)
       CORS_ALLOW_ORIGIN: '^https://(app\.ematchef\.ch|ematchef\.ch|www\.ematchef\.ch)$'
-      # Hostpoint SMTP (Control Panel → Mailbox → SMTP): in .env auf dem Server:
+      # SendGrid (API über HTTPS, oft nötig wenn VPS Port 587 blockiert): in .env auf dem Server:
       #   MAILER_FROM="noreply@ematchef.ch"
+      #   MAILER_DSN="sendgrid+api://SG....@default"
+      # Hostpoint SMTP (nur wenn ausgehend 587 erreichbar):
       #   MAILER_DSN="smtp://MAILBOX%40ematchef.ch:PASSWORT@asmtp.mail.hostpoint.ch:587?encryption=tls"
-      # Sonderzeichen in User/Pass URL-encoden (@ → %40, : → %3A). Dann Backend neu starten.
+      # Sonderzeichen in User/Pass/Key URL-encoden (@ → %40, : → %3A). Dann Backend neu starten.
       # Fallback SMTP: Superadmin → Mail-Einstellungen (nur wenn MAILER_DSN null:// oder leer).
       MAILER_DSN: "${MAILER_DSN:-null://null}"
       MAILER_FROM: "${MAILER_FROM:-noreply@ematchef.ch}"

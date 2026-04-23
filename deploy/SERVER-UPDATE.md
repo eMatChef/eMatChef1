@@ -118,15 +118,47 @@ docker compose -p ematchef-prod exec backend php bin/console cache:clear --env=p
 
 - `MAILER_FROM` — sichtbare Absenderadresse, z. B. `noreply@ematchef.ch`.
 - `MAILER_REPLY_TO` — optional: **Antwort-Adresse** (Reply-To), z. B. `support@ematchef.ch`. Hostpoint kann das nicht „global“ für alle Mails setzen — das macht die App pro Versand. Ohne Env: optional `reply_to_address` in `mail_outbound.json` (Superadmin → Mail-Einstellungen, PATCH `reply_to_address`).
-- `MAILER_DSN` — Symfony-Mail-DSN, z. B. Hostpoint STARTTLS:  
-  `smtp://MAILBOX%40ematchef.ch:PASSWORT@asmtp.mail.hostpoint.ch:587?encryption=tls`  
-  (Zeichen in User/Pass **URL-encoden**, z. B. `@` → `%40`.) Beispiele: `deploy/docker-compose.prod.env.example`.
+- `MAILER_DSN` — Symfony-Mail-DSN. Beispiele: `deploy/docker-compose.prod.env.example`.
 
 **Fallback JSON:** Nur wenn `MAILER_DSN` leer oder `null://null` ist, greift SMTP aus `mail_outbound.json`. Voraussetzung: schreibbares `var/app/` im Container.
 
-Nach Änderung an `.env` oder `mail_outbound.json`: **`cache:clear --env=prod`** (siehe Abschnitt 3) bzw. Backend neu starten.
+### SendGrid (API, empfohlen z. B. bei DigitalOcean / blockiertem SMTP 587)
 
-**Test:** Als Superadmin `POST /api/mail/test-send` mit Body `{"to":"deine@mail.de"}` (oder gleichwertig aus dem Admin-UI, falls vorhanden). Modus prüfen: `GET /api/mail/settings` (`mailer_transport_mode`: `env`, `smtp_json` oder `file_spool`).
+Das Backend enthält **`symfony/sendgrid-mailer`**. Versand läuft über **HTTPS** zur SendGrid-API — **kein** ausgehendes TCP zu fremdem Port 587 nötig (umgeht typische VPS-SMTP-Sperren).
+
+1. **SendGrid:** Konto anlegen, unter API Keys einen Key mit Berechtigung **Mail Send** erzeugen.
+2. **Sender Authentication:** Domain (empfohlen) oder **Single Sender Verification** für die Absenderadresse, die in `MAILER_FROM` steht — siehe [Getting started (SendGrid)](https://docs.sendgrid.com/for-developers/sending-email/getting-started-email-api) und [Domain Authentication](https://docs.sendgrid.com/ui/account-and-settings/how-to-set-up-domain-authentication).
+3. **`.env` auf dem API-Server** (von Compose für `backend` geladen):
+
+   ```env
+   MAILER_FROM="noreply@ematchef.ch"
+   MAILER_DSN="sendgrid+api://SG.DEIN_API_KEY_HIER@default"
+   ```
+
+   Den kompletten Key **URL-encoden**, falls er Sonderzeichen enthält, die in einer URL stören (`:`, `@`, …).
+
+4. **Backend neu starten**, danach **`cache:clear --env=prod`** (Abschnitt 3).
+5. **Test im Container:** `docker compose -p ematchef-prod exec backend php bin/console mailer:test deine@mail.de --env=prod`  
+   Oder in der App: Superadmin → E-Mail → Testmail.
+
+**Hostpoint-SMTP** (`smtp://…@asmtp.mail.hostpoint.ch:587?encryption=tls`) bleibt möglich, sobald ausgehend **587** vom Droplet aus wirklich erreichbar ist — siehe Abschnitt „Unable to connect“ unten.
+
+Nach jeder Änderung an `.env` oder `mail_outbound.json`: **`cache:clear --env=prod`** (Abschnitt 3) bzw. Backend neu starten. **API-Check:** `GET /api/mail/settings` zeigt `mailer_transport_mode`: bei SendGrid/Hostpoint-DSN in der Umgebung typischerweise **`env`**. Testmail: Superadmin → E-Mail → Einstellungen, oder `POST /api/mail/test-send` mit `{"to":"…"}`.
+
+### Testmail / Log: „Unable to connect“ zu `asmtp.mail.hostpoint.ch:587`
+
+Wenn Host/Port stimmen (Hostpoint: `asmtp.mail.hostpoint.ch`, **587** mit `?encryption=tls` in der DSN), aber PHP meldet z. B. **„Connection could not be established“** / **„Unable to connect“**, liegt es oft **nicht** an falschem Passwort (dann käme meist AUTH/TLS später), sondern am **Netzweg vom Droplet zum SMTP-Server**.
+
+**Häufige Ursache (z. B. DigitalOcean):** Ausgehende SMTP-Ports **25, 465 und 587** sind für viele Accounts/Droplets **standardmäßig gesperrt** (Spam-Prävention). Siehe z. B. [Why is SMTP blocked? (DigitalOcean)](https://docs.digitalocean.com/support/why-is-smtp-blocked/).
+
+**Kurztest aus dem Backend-Container** (TCP zu Port 587):
+
+```bash
+docker compose -p ematchef-prod exec backend php -r '$e=0;$m="";$s=@stream_socket_client("tcp://asmtp.mail.hostpoint.ch:587",$e,$m,8);var_dump($s!==false?"OK TCP":"FAIL $e $m");'
+```
+
+- Ausgabe **`FAIL …`** trotz erreichbarem Internet woanders → sehr wahrscheinlich **Block am Provider** oder **Firewall** (auch `ufw`/Cloud-Firewall auf dem Droplet prüfen). Häufig: **`FAIL 110 Connection timed out`** — TCP kommt auf Port 587 nicht an (typisch **gesperrtes ausgehendes SMTP**).
+- **Optionen:** Beim Provider **Freischaltung** für transaktionalen Mailversand anfragen; oder einen **E-Mail-Dienst per HTTPS/API** nutzen (z. B. Mailgun, SES, Postmark), statt direktem SMTP vom Droplet; oder SMTP von einer **nicht gesperrten** Umgebung aus betreiben.
 
 ## 4. Kurz prüfen
 

@@ -78,6 +78,9 @@ export async function getMailSendLog(limit: number, departmentId?: string): Prom
   return data.entries
 }
 
+/** Testmail triggert SMTP auf dem Server — 30s reichen oft nicht (langsamer Provider/Firewall). */
+const MAIL_TEST_SEND_TIMEOUT_MS = 120_000
+
 export async function postMailTestSend(to: string): Promise<void> {
-  await apiClient.post('/api/mail/test-send', { to })
+  await apiClient.post('/api/mail/test-send', { to }, { timeout: MAIL_TEST_SEND_TIMEOUT_MS })
 }
