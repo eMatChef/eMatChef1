@@ -41,8 +41,22 @@ final class Version20260324213000 extends AbstractMigration
         $this->addSql('CREATE SEQUENCE IF NOT EXISTS refresh_tokens_id_seq');
         $this->addSql('ALTER TABLE public.refresh_tokens ALTER COLUMN id SET DEFAULT nextval(\'refresh_tokens_id_seq\')');
         $this->addSql('ALTER SEQUENCE refresh_tokens_id_seq OWNED BY public.refresh_tokens.id');
-        // Leere Tabelle: setval(..., 0, true) ist in PG ungültig — mindestens 1, is_called=false wenn noch keine Zeilen.
-        $this->addSql("SELECT setval('refresh_tokens_id_seq', GREATEST(1, (SELECT COALESCE(MAX(id), 0) FROM public.refresh_tokens)), (SELECT EXISTS (SELECT 1 FROM public.refresh_tokens)))");
+        // Leere Tabelle: setval mit Wert 0 ist in PG ungültig — expliziter DO-Block (robust gegen alte Parser-/Bind-Pfade).
+        $this->addSql(<<<'SQL'
+DO $sync$
+DECLARE
+    row_count bigint;
+    max_id int;
+BEGIN
+    SELECT COUNT(*) INTO row_count FROM public.refresh_tokens;
+    IF row_count = 0 THEN
+        PERFORM setval('public.refresh_tokens_id_seq'::regclass, 1, false);
+    ELSE
+        SELECT MAX(id) INTO max_id FROM public.refresh_tokens;
+        PERFORM setval('public.refresh_tokens_id_seq'::regclass, GREATEST(1, COALESCE(max_id, 1)), true);
+    END IF;
+END $sync$;
+SQL);
     }
 
     public function down(Schema $schema): void
