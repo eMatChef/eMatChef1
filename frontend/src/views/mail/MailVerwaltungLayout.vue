@@ -3,8 +3,14 @@
     <header class="mail-verwaltung-head">
       <h1 class="mail-title">E-Mail</h1>
       <p class="mail-sub">
-        Vorlagen, Absender und Versandprotokoll — Versand über SMTP in der JSON-Datei, <code>MAILER_DSN</code> oder bei
-        fehlendem SMTP als Datei-Spool.
+        <template v-if="isProdBuild">
+          Vorlagen, Absender und Versandprotokoll — Versand über <code>MAILER_DSN</code> oder SMTP in der
+          App-Konfiguration.
+        </template>
+        <template v-else>
+          Vorlagen, Absender und Versandprotokoll — Versand über SMTP in der JSON-Datei, <code>MAILER_DSN</code> oder bei
+          fehlendem SMTP als Datei-Spool.
+        </template>
       </p>
       <nav class="mail-subnav" aria-label="Mail-Untermenü">
         <router-link
@@ -33,6 +39,8 @@ import { computed } from 'vue'
 import { useRoute } from 'vue-router'
 
 const route = useRoute()
+
+const isProdBuild = import.meta.env.PROD
 
 const mailBase = computed(() => {
   const raw = route.params.departmentId

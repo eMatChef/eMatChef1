@@ -94,16 +94,18 @@ class MailOutboundSettingsStore
     }
 
     /**
+     * @param array<string, mixed>|null $jsonFileData Inhalt wie in mail_outbound.json; null = aktuelle Datei lesen
+     *
      * @return array{type: 'dsn', dsn: string, cache_key: string, source: 'env'|'smtp_json'}|array{type: 'file_spool', path: string, cache_key: string}
      */
-    public function resolveMailTransport(string $fallbackDsn): array
+    public function resolveMailTransport(string $fallbackDsn, ?array $jsonFileData = null): array
     {
         $fb = trim($fallbackDsn);
         if ($fb !== '' && stripos($fb, 'null://') !== 0) {
             return ['type' => 'dsn', 'dsn' => $fb, 'cache_key' => 'env:' . hash('sha256', $fb), 'source' => 'env'];
         }
 
-        $data = $this->readFile();
+        $data = $jsonFileData ?? $this->readFile();
         if ($data !== null && $this->isCompleteSmtp($data)) {
             $dsn = $this->composeSmtpDsn($data);
 
@@ -147,9 +149,13 @@ class MailOutboundSettingsStore
     }
 
     /**
-     * @param array<string, mixed> $data
+     * Erzeugt den JSON-Payload wie bei Speichern, ohne zu schreiben (für Validierung / Transport-Simulation).
+     *
+     * @param array<string, mixed> $data gleiche Struktur wie bei {@see save()}
+     *
+     * @return array<string, mixed>
      */
-    public function save(array $data): void
+    public function buildOutboundPayloadForSave(array $data): array
     {
         $existing = $this->readFile() ?? [];
 
@@ -208,6 +214,16 @@ class MailOutboundSettingsStore
                 $payload['reply_to_address'] = $rt;
             }
         }
+
+        return $payload;
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     */
+    public function save(array $data): void
+    {
+        $payload = $this->buildOutboundPayloadForSave($data);
 
         $this->ensureDir();
         $json = json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);

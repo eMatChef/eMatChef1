@@ -112,7 +112,7 @@ docker compose -p ematchef-prod exec backend php bin/console cache:clear --env=p
 - `MAILER_FROM` — sichtbare Absenderadresse, z. B. `noreply@ematchef.ch`.
 - `MAILER_REPLY_TO` — optional: **Antwort-Adresse** (Reply-To), z. B. `support@ematchef.ch`. Hostpoint kann das nicht „global“ für alle Mails setzen — das macht die App pro Versand. Ohne Env: optional `reply_to_address` in `mail_outbound.json` (Superadmin → Mail-Einstellungen, PATCH `reply_to_address`).
 - `MAILER_DSN` — Symfony-Mail-DSN, z. B. Hostpoint STARTTLS:  
-  `smtp://MAILBOX%40ematchef.ch:PASSWORT@smtp.mail.hostpoint.ch:587?encryption=tls`  
+  `smtp://MAILBOX%40ematchef.ch:PASSWORT@asmtp.mail.hostpoint.ch:587?encryption=tls`  
   (Zeichen in User/Pass **URL-encoden**, z. B. `@` → `%40`.) Beispiele: `deploy/docker-compose.prod.env.example`.
 
 **Fallback JSON:** Nur wenn `MAILER_DSN` leer oder `null://null` ist, greift SMTP aus `mail_outbound.json`. Voraussetzung: schreibbares `var/app/` im Container.

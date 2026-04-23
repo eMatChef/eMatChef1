@@ -22,7 +22,9 @@ class MailAdminController extends AbstractController
         private MailSendLogStore $mailSendLogStore,
         private AppMailer $appMailer,
         #[Autowire('%env(MAILER_DSN)%')]
-        private string $mailerDsnFromEnv
+        private string $mailerDsnFromEnv,
+        #[Autowire('%kernel.environment%')]
+        private string $kernelEnvironment,
     ) {
     }
 
@@ -58,6 +60,7 @@ class MailAdminController extends AbstractController
             'mailer_transport_mode' => $t['mailer_transport_mode'],
             'mail_spool_path' => $t['mail_spool_path'],
             'uses_file_spool' => $t['uses_file_spool'],
+            'mail_internal_spool_allowed' => $this->kernelEnvironment !== 'prod',
         ]);
     }
 
@@ -92,6 +95,15 @@ class MailAdminController extends AbstractController
             if (array_key_exists('reply_to_address', $data)) {
                 $savePayload['reply_to_address'] = $data['reply_to_address'];
             }
+            $previewPayload = $this->mailOutboundSettingsStore->buildOutboundPayloadForSave($savePayload);
+            if ($this->kernelEnvironment === 'prod') {
+                $resolved = $this->mailOutboundSettingsStore->resolveMailTransport($this->mailerDsnFromEnv, $previewPayload);
+                if ($resolved['type'] === 'file_spool') {
+                    return new JsonResponse([
+                        'error' => 'In Produktion ist der lokale Datei-Mailspool nicht erlaubt. Bitte SMTP hier konfigurieren oder MAILER_DSN auf dem Server setzen.',
+                    ], 400);
+                }
+            }
             $this->mailOutboundSettingsStore->save($savePayload);
         } catch (\InvalidArgumentException $e) {
             return new JsonResponse(['error' => $e->getMessage()], 400);
@@ -119,6 +131,7 @@ class MailAdminController extends AbstractController
             'mailer_transport_mode' => $t['mailer_transport_mode'],
             'mail_spool_path' => $t['mail_spool_path'],
             'uses_file_spool' => $t['uses_file_spool'],
+            'mail_internal_spool_allowed' => $this->kernelEnvironment !== 'prod',
         ]);
     }
 
@@ -158,6 +171,15 @@ class MailAdminController extends AbstractController
             return new JsonResponse(['error' => 'Gueltige Ziel-E-Mail (to) erforderlich'], 400);
         }
 
+        if ($this->kernelEnvironment === 'prod') {
+            $r = $this->mailOutboundSettingsStore->resolveMailTransport($this->mailerDsnFromEnv);
+            if ($r['type'] === 'file_spool') {
+                return new JsonResponse([
+                    'error' => 'In Produktion ist kein Versand ueber den lokalen Datei-Spool moeglich. Bitte MAILER_DSN oder SMTP konfigurieren.',
+                ], 400);
+            }
+        }
+
         $email = (new Email())
             ->from($this->mailOutboundSettingsStore->getFromAddressObject())
             ->to($to)
@@ -168,9 +190,14 @@ class MailAdminController extends AbstractController
                 'Modus: ' . $this->mailOutboundSettingsStore->getTransportSummaryForApi($this->mailerDsnFromEnv)['mailer_transport_mode'] . "\n"
             );
 
+        $fromAddr = $this->mailOutboundSettingsStore->getFromAddressObject()->getAddress();
+
         try {
             $this->appMailer->send($email);
         } catch (\Throwable $e) {
+            $failDetail = 'Fehlgeschlagen: ' . mb_substr($e->getMessage(), 0, 160);
+            $this->mailSendLogStore->append('mail.test.failed', $to, $failDetail, $fromAddr);
+
             return new JsonResponse(['error' => $e->getMessage()], 500);
         }
 
@@ -178,7 +205,7 @@ class MailAdminController extends AbstractController
             'mail.test',
             $to,
             'eMatChef – Testmail',
-            $this->mailOutboundSettingsStore->getFromAddressObject()->getAddress()
+            $fromAddr
         );
 
         return new JsonResponse(['ok' => true]);
