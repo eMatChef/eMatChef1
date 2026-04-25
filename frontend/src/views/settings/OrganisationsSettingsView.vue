@@ -79,12 +79,11 @@
 
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
-import { useRouter } from 'vue-router'
 import OrganisationModal from '@/components/OrganisationModal.vue'
 import { getOrganisations, type Organisation } from '@/api/organisations'
 import { useAuthStore } from '@/stores/auth'
+import { apiErrorMessage } from '@/utils/apiErrorMessage'
 
-const router = useRouter()
 const authStore = useAuthStore()
 const isLoading = ref(false)
 const error = ref<string | null>(null)
@@ -124,6 +123,20 @@ const canManageOrganisations = computed(() => {
   return false
 })
 
+const isSuperAdmin = computed(() =>
+  (authStore.userRoles || []).includes('ROLE_SUPERADMIN')
+)
+
+/** Organisationen, in denen der User mindestens ein Department hat (für Org-Chef-UI) */
+const memberOrganisationIds = computed(() => {
+  const ids = new Set<string>()
+  for (const d of authStore.departments || []) {
+    const oid = d.department?.organisation_id?.trim()
+    if (oid) ids.add(oid)
+  }
+  return ids
+})
+
 /**
  * Lädt Organisationen aus der API
  */
@@ -133,8 +146,8 @@ async function loadOrganisations() {
     error.value = null
 
     organisations.value = await getOrganisations()
-  } catch (err: any) {
-    error.value = err.response?.data?.error || 'Fehler beim Laden der Organisationen'
+  } catch (err: unknown) {
+    error.value = apiErrorMessage(err, 'Fehler beim Laden der Organisationen')
   } finally {
     isLoading.value = false
   }

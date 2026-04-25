@@ -172,8 +172,8 @@ async function load() {
   try {
     const data = await getMailSettings(departmentId.value)
     applySettings(data)
-  } catch (err: any) {
-    error.value = err.response?.data?.error || 'Einstellungen konnten nicht geladen werden.'
+  } catch (err: unknown) {
+    error.value = apiErrorMessage(err, 'Einstellungen konnten nicht geladen werden.')
     settings.value = null
   } finally {
     isLoading.value = false

@@ -86,6 +86,10 @@ git pull
 # Bei Bedarf: diff zur Backup-Datei und fehlende Keys wieder einfügen
 ```
 
+Logs Auslessen
+```bash
+docker compose -p ematchef-prod logs backend --tail 200
+```
 ## 2. Nur neu starten (ohne Rebuild)
 
 Wenn sich am **Backend-Dockerfile** nichts geändert hat:
@@ -114,7 +118,9 @@ docker compose -p ematchef-prod exec backend php bin/console cache:clear --env=p
 
 **Transport im Backend:** Ausschliesslich **`MAILER_DSN` aus der Umgebung** (typisch **SendGrid** über `sendgrid+api://...`). Wenn `MAILER_DSN` leer ist oder `null://…` bleibt, **ist kein Versand moeglich** (Registrierung/Passwort-Reset schlagen fehl) — es gibt keinen SMTP-Fallback in `mail_outbound.json` und keinen lokalen Datei-Spool mehr.
 
-**`mail_outbound.json` (optional, `var/app/`):** betrifft nur **Absender-Anzeige** (From-Name/Adresse in der App) und ggf. **Reply-To (Fallback)**, **nicht** den Transport. Vorrang hat weiterhin `MAILER_REPLY_TO` in der **Server-Env** (siehe unten).
+**`mail_outbound.json` (optional, `var/app/`):** betrifft nur **Absender-Anzeige** (From-Name/Adresse in der App) und ggf. **Reply-To (Fallback)**, **nicht** den Transport. Vorrang hat weiterhin `MAILER_REPLY_TO` in der **Server-Env** (siehe unten). Der PHP-Prozess im `backend` läuft als `HOST_UID` / `HOST_GID` (Compose-Standard oft **1000:1000**). Schreibt das Host-Repo (z. B. per `root`) nach `git pull` als **`root`**, kann **`Permission denied` bei `var/app/mail_outbound.json`** erscheinen. Auf dem **Host** im Klon, UID/GID an eure `HOST_*` in `.env` bzw. Compose anpassen:
+
+`sudo chown -R 1000:1000 backend/var` (oder: `id -u` / `id -g` statt 1000, so wie der `backend`‑Container tatsächlich startet) — danach Speichern in den E‑Mail-Einstellungen erneut testen; **nicht** dauerhaft 777 nötig.
 
 **`.env` auf dem Server** (Compose/Override lädt die Variablen fürs `backend`; siehe `deploy/docker-compose.override.prod.example.yml` + `deploy/docker-compose.prod.env.example`):
 
