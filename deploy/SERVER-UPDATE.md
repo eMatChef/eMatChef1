@@ -110,17 +110,19 @@ Alternativ einzeilig:
 docker compose -p ematchef-prod exec backend php bin/console cache:clear --env=prod
 ```
 
-## 3a. E-Mail / SMTP (Prod)
+## 3a. E-Mail (Prod, SendGrid-only)
 
-**Reihenfolge im Backend:** Zuerst **`MAILER_DSN`** aus der Umgebung (wenn nicht `null://…`), sonst vollständiges SMTP aus **`var/app/mail_outbound.json`** (Superadmin → Mail-Einstellungen in der App), sonst **Datei-Spool** unter `var/app/mail_spool`.
+**Transport im Backend:** Ausschliesslich **`MAILER_DSN` aus der Umgebung** (typisch **SendGrid** über `sendgrid+api://...`). Wenn `MAILER_DSN` leer ist oder `null://…` bleibt, **ist kein Versand moeglich** (Registrierung/Passwort-Reset schlagen fehl) — es gibt keinen SMTP-Fallback in `mail_outbound.json` und keinen lokalen Datei-Spool mehr.
 
-**`.env` auf dem Server** (Compose lädt sie für `backend`):
+**`mail_outbound.json` (optional, `var/app/`):** betrifft nur **Absender-Anzeige** (From-Name/Adresse in der App) und ggf. **Reply-To (Fallback)**, **nicht** den Transport. Vorrang hat weiterhin `MAILER_REPLY_TO` in der **Server-Env** (siehe unten).
 
-- `MAILER_FROM` — sichtbare Absenderadresse, z. B. `noreply@ematchef.ch`.
-- `MAILER_REPLY_TO` — optional: **Antwort-Adresse** (Reply-To), z. B. `support@ematchef.ch`. Hostpoint kann das nicht „global“ für alle Mails setzen — das macht die App pro Versand. Ohne Env: optional `reply_to_address` in `mail_outbound.json` (Superadmin → Mail-Einstellungen, PATCH `reply_to_address`).
-- `MAILER_DSN` — Symfony-Mail-DSN. Beispiele: `deploy/docker-compose.prod.env.example`.
+**`.env` auf dem Server** (Compose/Override lädt die Variablen fürs `backend`; siehe `deploy/docker-compose.override.prod.example.yml` + `deploy/docker-compose.prod.env.example`):
 
-**Fallback JSON:** Nur wenn `MAILER_DSN` leer oder `null://null` ist, greift SMTP aus `mail_outbound.json`. Voraussetzung: schreibbares `var/app/` im Container.
+- `MAILER_DSN` — z. B. `sendgrid+api://…@default` (HTTPS-API; umgeht typische SMTP-Port-Sperren).
+- `MAILER_FROM` — sichtbare Absenderadresse, z. B. `noreply@ematchef.ch` (muss in SendGrid zu eurer Domain/„Single Sender“-Verifikation passen; siehe [Getting started (SendGrid)](https://docs.sendgrid.com/for-developers/sending-email/getting-started-email-api) und [Domain Authentication](https://docs.sendgrid.com/ui/account-and-settings/how-to-set-up-domain-authentication)).
+- `MAILER_REPLY_TO` — optional: **Antwort-Adresse** (Reply-To), z. B. `support@ematchef.ch` (Vorrang vor `reply_to_address` in `mail_outbound.json`).
+
+**Wichtig (Pitfall bei Deployments / Docker):** Wird `MAILER_DSN` in der **Container-Umgebung** noch auf `null://null` gesetzt, gewinnt das **gegen** `backend/.env` / `backend/.env.local` (Prozess-Env > Dotenv-Dateien). Dann muss der Container/Service so neu erstellt werden, dass `MAILER_DSN` wirklich den SendGrid-DSN hat.
 
 ### SendGrid (API, empfohlen z. B. bei DigitalOcean / blockiertem SMTP 587)
 
@@ -128,7 +130,7 @@ Das Backend enthält **`symfony/sendgrid-mailer`**. Versand läuft über **HTTPS
 
 1. **SendGrid:** Konto anlegen, unter API Keys einen Key mit Berechtigung **Mail Send** erzeugen.
 2. **Sender Authentication:** Domain (empfohlen) oder **Single Sender Verification** für die Absenderadresse, die in `MAILER_FROM` steht — siehe [Getting started (SendGrid)](https://docs.sendgrid.com/for-developers/sending-email/getting-started-email-api) und [Domain Authentication](https://docs.sendgrid.com/ui/account-and-settings/how-to-set-up-domain-authentication).
-3. **`.env` auf dem API-Server** (von Compose für `backend` geladen):
+3. **Server-`.env` / Compose-`environment`** fürs `backend` (je nach eurem Deploy-Setup; siehe `deploy/docker-compose.prod.env.example`).
 
    ```env
    MAILER_FROM="noreply@ematchef.ch"
@@ -141,24 +143,56 @@ Das Backend enthält **`symfony/sendgrid-mailer`**. Versand läuft über **HTTPS
 5. **Test im Container:** `docker compose -p ematchef-prod exec backend php bin/console mailer:test deine@mail.de --env=prod`  
    Oder in der App: Superadmin → E-Mail → Testmail.
 
-**Hostpoint-SMTP** (`smtp://…@asmtp.mail.hostpoint.ch:587?encryption=tls`) bleibt möglich, sobald ausgehend **587** vom Droplet aus wirklich erreichbar ist — siehe Abschnitt „Unable to connect“ unten.
+Nach jeder Änderung an **Mail-Env** (`MAILER_DSN`, ggf. `MAILER_FROM`/`MAILER_REPLY_TO`) oder outbounds JSON: **`cache:clear --env=prod`** (Abschnitt 3) bzw. Backend neu starten. **API-Check:** `GET /api/mail/settings` — `mailer_transport_mode` ist typischerweise **`env`**; wenn `MAILER_DSN` fehlt, **`env_missing`**. Testmail: Superadmin → E-Mail → Einstellungen, oder `POST /api/mail/test-send` mit `{"to":"…"}` (Superadmin / JWT je nach eurem Setup).
 
-Nach jeder Änderung an `.env` oder `mail_outbound.json`: **`cache:clear --env=prod`** (Abschnitt 3) bzw. Backend neu starten. **API-Check:** `GET /api/mail/settings` zeigt `mailer_transport_mode`: bei SendGrid/Hostpoint-DSN in der Umgebung typischerweise **`env`**. Testmail: Superadmin → E-Mail → Einstellungen, oder `POST /api/mail/test-send` mit `{"to":"…"}`.
+### Testmail / Log: typische Fehlerbilder (SendGrid, HTTPS-API)
 
-### Testmail / Log: „Unable to connect“ zu `asmtp.mail.hostpoint.ch:587`
+Der Versand laeuft **nicht** über klassisches SMTP zum Provider-Mailserver, sondern per **HTTPS** zu SendGrid (siehe DSN `sendgrid+api://...`). Wenn Mails fehlschlagen, lohnt sich fast immer zuerst:
 
-Wenn Host/Port stimmen (Hostpoint: `asmtp.mail.hostpoint.ch`, **587** mit `?encryption=tls` in der DSN), aber PHP meldet z. B. **„Connection could not be established“** / **„Unable to connect“**, liegt es oft **nicht** an falschem Passwort (dann käme meist AUTH/TLS später), sondern am **Netzweg vom Droplet zum SMTP-Server**.
+- **SendGrid Activity** (Wurde der Request akzeptiert? Bounce/Block/Spam?)  
+- **API-Key** hat **Mail Send** und ist **nicht** deaktiviert/rotiert.  
+- **From/Domain** ist in SendGrid wirklich **authentifiziert/verifiziert** (Domain Authentication / Single Sender) und entspricht dem, was `MAILER_FROM` / eure App-Absender-Settings erwarten.  
+- **`MAILER_DSN` wirklich gesetzt** (siehe Pitfall oben: alte `MAILER_DSN=null://null` in der **Container-Env** kann Dotenv-Dateien ueberstimmen) und danach **`cache:clear --env=prod`**.
 
-**Häufige Ursache (z. B. DigitalOcean):** Ausgehende SMTP-Ports **25, 465 und 587** sind für viele Accounts/Droplets **standardmäßig gesperrt** (Spam-Prävention). Siehe z. B. [Why is SMTP blocked? (DigitalOcean)](https://docs.digitalocean.com/support/why-is-smtp-blocked/).
+Falls es **gar nicht** am SendGrid-Konto liegt: prüft **ausgehendes HTTPS** vom Server (443) und generelle DNS/Proxy/Firewall-Themen — das ist der relevante Netzpfad (nicht SMTP-Port 587).
 
-**Kurztest aus dem Backend-Container** (TCP zu Port 587):
+## 3b. Hostpoint: Frontend bauen und per FTP hochladen
 
-```bash
-docker compose -p ematchef-prod exec backend php -r '$e=0;$m="";$s=@stream_socket_client("tcp://asmtp.mail.hostpoint.ch:587",$e,$m,8);var_dump($s!==false?"OK TCP":"FAIL $e $m");'
-```
+Das **API-Backend** läuft z. B. auf dem Droplet; die **Websites** `ematchef.ch` (Marketing/Landing) und `app.ematchef.ch` (App inkl. QR) sind in der Regel **statische Dateien auf Hostpoint**. Dafür erzeugt das Repo lokal passende Ordner; du lädst **den Inhalt** dieser Ordner in die passenden **Document Roots** hoch (FTP/SFTP).
 
-- Ausgabe **`FAIL …`** trotz erreichbarem Internet woanders → sehr wahrscheinlich **Block am Provider** oder **Firewall** (auch `ufw`/Cloud-Firewall auf dem Droplet prüfen). Häufig: **`FAIL 110 Connection timed out`** — TCP kommt auf Port 587 nicht an (typisch **gesperrtes ausgehendes SMTP**).
-- **Optionen:** Beim Provider **Freischaltung** für transaktionalen Mailversand anfragen; oder einen **E-Mail-Dienst per HTTPS/API** nutzen (z. B. Mailgun, SES, Postmark), statt direktem SMTP vom Droplet; oder SMTP von einer **nicht gesperrten** Umgebung aus betreiben.
+### Was du auf Hostpoint hochladen musst (nach dem Build)
+
+Zuerst lokal bauen (siehe unten) — Script **`scripts/build-hostpoint-deploy.sh`**. Dann entstehen zwei Ordner:
+
+| Lokaler Ordner (nach dem Script) | Typisch ins Hostpoint-Webverzeichnis für |
+|----------------------------------|-----------------------------------------|
+| **`deploy/hostpoint/ematchef.ch/`** (alle Dateien inkl. Unterordner) | die **Hauptdomain** bzw. den VHost für **`ematchef.ch`** (manchmal `public_html`, `htdocs` oder `www` — je nach Hostpoint-Menü) |
+| **`deploy/hostpoint/app.ematchef.ch/`** (alle Dateien inkl. Unterordner) | die **Subdomain** / den VHost für **`app.ematchef.ch`** |
+
+Dazu zählt jeweils **`index.html`**, der Ordner **`assets/`** und die Datei **`.htaccess`** ( Apache-Routing für die SPA). Ohne **`.htaccess` funktionieren direkte URLs** (z. B. Reload auf einer App-Route) **nicht**; beim FTP prüfen, ob versteckte Dateien wirklich mit hochgeladen werden.
+
+### Warum `ematchef.ch` und `app.ematchef.ch` ‚ähnlich viel‘ an Dateien sind
+
+Beide Zielordner stammen von **derselben** Vue-Codebase (`scripts/build-hostpoint-deploy.sh` führt **zweimal** `npm run build` aus, mit leicht unterschiedlichen Umgebungswerten, u. a. **QR-Subdomain** im zweiten Lauf). Es gibt **kein** separates, kleines „nur Marketing“-Bundle — beide Seiten bekommen die **komplette SPA**; Besucher von `ematchef.ch` laden trotzdem im Wesentlichen dieselbe App-Struktur (Nutzung/Links entscheidet, was tatsächlich abgerufen wird, nicht fehlende Dateien). Eine wirklich schlankere Hauptdomain bräuchte ein **eigenes, kleines** Frontprojekt oder statische Seiten (bewusst anders im Repo gepflegt).
+
+**Hinweis:** Ein nacktes `npm run build` in `frontend/` legt nur **`frontend/dist/`** an. Für den Hostpoint-Upload willst du das **Build-Skript** nutzen, weil es **zwei** getrennte Ausgabeordner und die **`.htaccess` aus `scripts/hostpoint-spa.htaccess`** an die richtige Stelle kopiert.
+
+### Build lokal (Node.js 18+)
+
+1. **`frontend/.env.production` prüfen** (API-URL, Domains, ggf. Turnstile) — alles, was da steht, steckt im gebauten JavaScript. Siehe `deploy/TURNSTILE.md`, wenn der Login mit Cloudflare-Widget hängt.
+
+2. Vom **Repo-Root** aus (Beispielpfad `/opt/ematchef/prod` = oft der Server; **auf deinem PC** den Weg zu deinem Klon nehmen, z. B. `~/projekte/eMatChef`):
+
+   ```bash
+   cd /opt/ematchef/prod/frontend
+   npm ci
+   cd /opt/ematchef/prod
+   bash scripts/build-hostpoint-deploy.sh
+   ```
+
+3. Anschließend pro Hostpoint-Account die genannten Ordner **vollständig hoch synchronisieren** (bestehende alte `assets/`-Builds ersetzen). Wenn du nur eins der beiden Produkte änderst, reicht **ein** Zielordner; oft werden aber beide Läufe aus dem Skript frisch gebraucht, damit QR- vs. Main-Site-Build konsistent bleibt.
+
+Nichts davon ersetzt ein Backend-Update auf dem API-Server (Abschnitte 1–3) — **API-Änderung ohne neues Frontend** ist ok, **neues Frontend ohne API** muss in `.env.production` zur API passen, die online ist.
 
 ## 4. Kurz prüfen
 

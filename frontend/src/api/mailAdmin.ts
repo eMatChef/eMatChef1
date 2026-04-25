@@ -1,6 +1,6 @@
 import apiClient from './apiClient'
 
-export type MailerTransportMode = 'smtp_json' | 'env' | 'file_spool'
+export type MailerTransportMode = 'env' | 'env_missing'
 
 export interface MailOutboundSettingsDto {
   from_address: string
@@ -13,17 +13,7 @@ export interface MailOutboundSettingsDto {
   reply_to_address: string
   /** Effektive Reply-To-Adresse für ausgehende System-Mails */
   reply_to_effective: string
-  use_custom_smtp: boolean
-  smtp_host: string
-  smtp_port: number | null
-  smtp_user: string
-  smtp_encryption: string
-  smtp_password_set: boolean
   mailer_transport_mode: MailerTransportMode
-  mail_spool_path: string | null
-  uses_file_spool: boolean
-  /** false in Symfony-Umgebung prod: kein lokaler Datei-Spool als Zielkonfiguration */
-  mail_internal_spool_allowed?: boolean
 }
 
 export interface MailOutboundSettingsPatch {
@@ -31,13 +21,6 @@ export interface MailOutboundSettingsPatch {
   from_name?: string | null
   /** Leerer String entfernt Reply-To aus JSON (Env MAILER_REPLY_TO bleibt unberührt) */
   reply_to_address?: string
-  use_custom_smtp: boolean
-  smtp_host?: string
-  smtp_port?: number | null
-  smtp_user?: string
-  smtp_encryption?: string
-  /** Nur setzen, wenn neu eingegeben — sonst weglassen, Passwort bleibt gespeichert */
-  smtp_password?: string
 }
 
 export interface MailSendLogEntry {
