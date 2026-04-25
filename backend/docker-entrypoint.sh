@@ -2,6 +2,12 @@
 set -e
 cd /var/www/html
 
+# Composer-Cache/Config: im Container als non-root (HOST_UID) schreibbar halten
+# (sonst fällt Composer ggf. auf / und scheitert beim VCS-Clone in ~/.composer)
+export COMPOSER_HOME="${COMPOSER_HOME:-/tmp/composer}"
+export COMPOSER_CACHE_DIR="${COMPOSER_CACHE_DIR:-$COMPOSER_HOME/cache}"
+mkdir -p "$COMPOSER_HOME" "$COMPOSER_CACHE_DIR"
+
 # Compose „healthy“ reicht bei starkem I/O manchmal nicht: kurz per PDO prüfen, damit Migrationen nicht ins Leere laufen.
 echo "[backend] wait for PostgreSQL …"
 php docker/wait-for-db.php

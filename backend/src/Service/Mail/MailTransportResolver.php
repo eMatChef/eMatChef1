@@ -7,7 +7,7 @@ use Symfony\Component\Mailer\Transport;
 use Symfony\Component\Mailer\Transport\TransportInterface;
 
 /**
- * Transport: MAILER_DSN aus Umgebung (wenn gesetzt und nicht null://), sonst SMTP aus mail_outbound.json, sonst Datei-Spool unter var/app/mail_spool.
+ * Transport: ausschliesslich MAILER_DSN aus der Umgebung (SendGrid-only).
  */
 final class MailTransportResolver
 {
@@ -30,11 +30,7 @@ final class MailTransportResolver
             return $this->transport;
         }
         $this->cacheKey = $key;
-        if ($r['type'] === 'file_spool') {
-            $this->transport = new FileSpoolTransport($r['path']);
-        } else {
-            $this->transport = Transport::fromDsn($r['dsn']);
-        }
+        $this->transport = Transport::fromDsn($r['dsn']);
 
         return $this->transport;
     }
