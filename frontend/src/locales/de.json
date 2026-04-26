@@ -1,0 +1,9 @@
+{
+  "app": {
+    "name": "eMatChef"
+  },
+  "common": {
+    "save": "Speichern",
+    "cancel": "Abbrechen"
+  }
+}
