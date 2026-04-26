@@ -1,6 +1,6 @@
 <template>
   <aside class="material-wizard-sidebar activity-preview-sidebar">
-    <h3>Vorschau</h3>
+    <h3>{{ t('activities.wizard.previewSidebarTitle') }}</h3>
     <div class="material-preview">
       <div class="preview-image" aria-hidden="true">
         <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" stroke-width="1.5">
@@ -13,28 +13,28 @@
       <div class="preview-info">
         <h4>{{ previewTitle }}</h4>
         <span v-if="selectedActivityType" class="preview-badge" :class="selectedActivityType">
-          {{ activityTypeLabel(selectedActivityType) }}
+          {{ activityTypeLabel(selectedActivityType, t) }}
         </span>
-        <span v-else class="preview-badge preview-badge--muted">Noch kein Typ</span>
+        <span v-else class="preview-badge preview-badge--muted">{{ t('activities.wizard.previewNoType') }}</span>
         <template v-if="selectedActivityType">
           <p v-if="previewGroupLine" class="preview-meta">
-            <span class="preview-dates-label">Gruppe</span>
+            <span class="preview-dates-label">{{ t('activities.wizard.previewMetaGroup') }}</span>
             {{ previewGroupLine }}
           </p>
           <p v-if="previewVenueLine" class="preview-meta">
-            <span class="preview-dates-label">Eventstandort</span>
+            <span class="preview-dates-label">{{ t('activities.wizard.previewMetaVenue') }}</span>
             {{ previewVenueLine }}
           </p>
           <p v-if="previewMieterLine" class="preview-meta">
-            <span class="preview-dates-label">Mieter</span>
+            <span class="preview-dates-label">{{ t('activities.wizard.previewMetaTenant') }}</span>
             {{ previewMieterLine }}
           </p>
           <p v-if="previewMaterialLine" class="preview-meta">
-            <span class="preview-dates-label">Material</span>
+            <span class="preview-dates-label">{{ t('activities.wizard.previewMetaMaterial') }}</span>
             {{ previewMaterialLine }}
           </p>
           <p v-if="previewInvitedLine" class="preview-meta">
-            <span class="preview-dates-label">Eingeladen</span>
+            <span class="preview-dates-label">{{ t('activities.wizard.previewMetaInvited') }}</span>
             {{ previewInvitedLine }}
           </p>
           <p class="preview-dates">
@@ -51,9 +51,12 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import type { ActivityCreateType } from '@/composables/useActivityCreateWizard'
 import { activityPreviewMaterialLabel, activityPreviewUsageLabel } from './activityPreviewLabels'
 import { activityTypeLabel } from './activityTypeLabels'
+
+const { t } = useI18n()
 
 const props = defineProps<{
   previewTitle: string
@@ -73,9 +76,9 @@ const props = defineProps<{
 }>()
 
 const usageLabel = computed(() =>
-  props.selectedActivityType ? activityPreviewUsageLabel(props.selectedActivityType) : '',
+  props.selectedActivityType ? activityPreviewUsageLabel(props.selectedActivityType, t) : '',
 )
 const materialLabel = computed(() =>
-  props.selectedActivityType ? activityPreviewMaterialLabel(props.selectedActivityType) : '',
+  props.selectedActivityType ? activityPreviewMaterialLabel(props.selectedActivityType, t) : '',
 )
 </script>

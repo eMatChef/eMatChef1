@@ -6,7 +6,7 @@
         type="text"
         class="form-input"
         :disabled="disabled"
-        :placeholder="placeholder"
+        :placeholder="placeholder || t('components.categoryAutocomplete.placeholderDefault')"
         autocomplete="off"
         @input="onSearchInput"
         @focus="onInputFocus"
@@ -17,7 +17,7 @@
         type="button"
         class="add-inline-btn"
         :disabled="disabled"
-        title="Neue Kategorie hinzufügen"
+        :title="t('components.categoryAutocomplete.addCategoryTitle')"
         @click="openAddCategoryModal"
       >
         +
@@ -25,7 +25,14 @@
     </div>
     <p v-if="selectedCategory" class="selected-address category-autocomplete-selected">
       ✓ {{ getCategoryPath(selectedCategory) }}
-      <button type="button" class="clear-selection" title="Kategorie entfernen" @click="clearCategory">×</button>
+      <button
+        type="button"
+        class="clear-selection"
+        :title="t('components.categoryAutocomplete.removeCategoryTitle')"
+        @click="clearCategory"
+      >
+        ×
+      </button>
     </p>
 
     <Teleport to="body">
@@ -37,7 +44,7 @@
       >
         <template v-if="categories.length === 0">
           <div class="autocomplete-item autocomplete-empty">
-            <span class="item-name">Noch keine Kategorien – mit „+“ eine anlegen</span>
+            <span class="item-name">{{ t('components.categoryAutocomplete.emptyHint') }}</span>
           </div>
         </template>
         <template v-else>
@@ -51,20 +58,20 @@
             <span class="item-name">
               <span v-if="cat.parent_id" class="cat-indent">└ </span>{{ cat.name }}
             </span>
-            <span class="item-count">{{ cat.material_count }} Artikel</span>
+            <span class="item-count">{{ t('components.categoryAutocomplete.articleCount', { n: cat.material_count }) }}</span>
           </div>
           <div
             v-if="filteredCategories.length === 0 && categorySearch.trim().length > 0 && categorySearch.trim().length < 2"
             class="autocomplete-item autocomplete-empty"
           >
-            <span class="item-name">Weiter tippen (mind. 2 Zeichen) oder unten neue Kategorie…</span>
+            <span class="item-name">{{ t('components.categoryAutocomplete.typeMoreHint') }}</span>
           </div>
           <div
             v-if="allowCreate && filteredCategories.length === 0 && categorySearch.trim().length >= 2"
             class="autocomplete-item create-new"
             @mousedown.prevent="openAddCategoryModal"
           >
-            <span class="item-name">+ "{{ categorySearch }}" als Kategorie anlegen</span>
+            <span class="item-name">+ {{ t('components.categoryAutocomplete.createNamed', { name: categorySearch }) }}</span>
           </div>
         </template>
       </div>
@@ -82,6 +89,7 @@
 
 <script setup lang="ts">
 import { ref, watch, onUnmounted, nextTick } from 'vue'
+import { useI18n } from 'vue-i18n'
 import CategoryModal from '@/components/CategoryModal.vue'
 import type { Category } from '@/api/categories'
 import '@/styles/material-wizard.css'
@@ -98,9 +106,11 @@ const props = withDefaults(
   {
     disabled: false,
     allowCreate: true,
-    placeholder: 'Kategorie suchen oder auswählen…',
+    placeholder: undefined,
   }
 )
+
+const { t } = useI18n()
 
 const emit = defineEmits<{
   'update:modelValue': [value: string]

@@ -1,13 +1,14 @@
 <template>
   <div class="scanner-panel">
     <video ref="scannerVideo" class="scanner-video" autoplay muted playsinline></video>
-    <p class="hint">{{ hint }}</p>
+    <p class="hint">{{ displayHint }}</p>
     <p v-if="errorMessage" class="error">{{ errorMessage }}</p>
   </div>
 </template>
 
 <script setup lang="ts">
-import { nextTick, onUnmounted, ref, watch } from 'vue'
+import { nextTick, onUnmounted, ref, watch, computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { BrowserMultiFormatReader } from '@zxing/browser'
 import { BarcodeFormat, DecodeHintType } from '@zxing/library'
 
@@ -17,8 +18,12 @@ const props = withDefaults(defineProps<{
   hint?: string
 }>(), {
   mode: 'all',
-  hint: 'Scanner aktiv'
+  hint: undefined,
 })
+
+const { t } = useI18n()
+
+const displayHint = computed(() => props.hint || t('components.barcodeScanner.hintDefault'))
 
 const emit = defineEmits<{
   detected: [payload: { text: string; format: string }]
@@ -80,7 +85,7 @@ async function startScanner() {
       })
     })
   } catch (err: any) {
-    const message = err?.message || 'Kamera konnte nicht gestartet werden.'
+    const message = err?.message || t('components.barcodeScanner.cameraStartError')
     errorMessage.value = message
     emit('error', message)
   }

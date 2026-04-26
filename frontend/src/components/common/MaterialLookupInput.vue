@@ -11,7 +11,7 @@
         type="text"
         class="form-input material-lookup-input"
         :class="inputClass"
-        :placeholder="placeholder"
+        :placeholder="placeholder || t('components.materialLookup.placeholderDefault')"
         @input="handleInput"
         @focus="handleFocus"
         @blur="handleBlur"
@@ -35,8 +35,8 @@
           :select-result="selectResult"
           :close-dropdown="lookup.closeNow"
         >
-          <div v-if="lookup.isLoading.value" class="mat-dropdown-loading">{{ loadingText }}</div>
-          <div v-else-if="lookup.results.value.length === 0" class="mat-dropdown-empty">{{ emptyText }}</div>
+          <div v-if="lookup.isLoading.value" class="mat-dropdown-loading">{{ loadingText || t('components.materialLookup.loading') }}</div>
+          <div v-else-if="lookup.results.value.length === 0" class="mat-dropdown-empty">{{ emptyText || t('components.materialLookup.empty') }}</div>
           <div v-else class="mat-dropdown-list">
             <button
               v-for="(item, index) in lookup.results.value"
@@ -59,7 +59,10 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useMaterialLookup, type UseMaterialLookupOptions } from '@/composables/useMaterialLookup'
+
+const { t } = useI18n()
 
 type GenericItem = Record<string, any>
 
@@ -80,12 +83,12 @@ const props = withDefaults(
     getResultSecondary?: (item: GenericItem) => string
   }>(),
   {
-    placeholder: 'Material suchen...',
+    placeholder: undefined,
     minChars: 1,
     debounceMs: 220,
     maxSuggestions: 5,
-    loadingText: 'Suche...',
-    emptyText: 'Keine Treffer',
+    loadingText: undefined,
+    emptyText: undefined,
     showEmptyWhenNoResults: true,
     inputClass: '',
   }

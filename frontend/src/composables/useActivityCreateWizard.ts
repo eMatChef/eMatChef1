@@ -23,6 +23,18 @@ export type ActivityCreateType = 'activity' | 'camp' | 'event' | 'external'
 
 export type ActivityCreateLayoutMode = 'single' | 'stepper'
 
+/** Stabile Keys für fehlende Schritte — Anzeige nur via i18n, nicht vergleichbarer Klartext */
+export type ActivityMissingStepKey =
+  | 'choose_type'
+  | 'enter_name'
+  | 'choose_group'
+  | 'choose_venue'
+  | 'choose_tenant_address'
+  | 'complete_date_ranges'
+  | 'check_date_range'
+  | 'pickup_outside_usage'
+  | 'choose_material'
+
 export type InvitedDepartmentStatus = 'pending' | 'accepted' | 'rejected'
 
 /** Auswahl im Wizard — wird als invited_departments gespeichert; Status nach API-Antwort */
@@ -236,20 +248,20 @@ export function useActivityCreateWizard() {
       !!planningEndAt.value,
   )
 
-  const missingSteps = computed(() => {
-    const missing: string[] = []
+  const missingSteps = computed((): ActivityMissingStepKey[] => {
+    const missing: ActivityMissingStepKey[] = []
     if (!selectedActivityType.value) {
-      missing.push('Typ wählen')
+      missing.push('choose_type')
       return missing
     }
-    if (!formName.value.trim()) missing.push('Name eingeben')
-    if (needsGroupRequired.value && !selectedGroupId.value) missing.push('Gruppe wählen')
-    if (needsVenue.value && !venueAddressId.value) missing.push('Eventstandort wählen')
-    if (needsCustomerAddress.value && !customerAddressId.value) missing.push('Mieter-Adresse wählen')
-    if (!datesComplete.value) missing.push('Zeiträume ergänzen')
-    if (invalidDateRange.value) missing.push('Zeitraum prüfen')
-    if (planningUsageInvalid.value) missing.push('Abhol/Rückgabe außerhalb der Nutzung')
-    if (materialLines.value.length === 0) missing.push('Material wählen')
+    if (!formName.value.trim()) missing.push('enter_name')
+    if (needsGroupRequired.value && !selectedGroupId.value) missing.push('choose_group')
+    if (needsVenue.value && !venueAddressId.value) missing.push('choose_venue')
+    if (needsCustomerAddress.value && !customerAddressId.value) missing.push('choose_tenant_address')
+    if (!datesComplete.value) missing.push('complete_date_ranges')
+    if (invalidDateRange.value) missing.push('check_date_range')
+    if (planningUsageInvalid.value) missing.push('pickup_outside_usage')
+    if (materialLines.value.length === 0) missing.push('choose_material')
     return missing
   })
 
@@ -472,17 +484,17 @@ export function useActivityCreateWizard() {
     if (wizardStepIndex.value > 0) wizardStepIndex.value -= 1
   }
 
-  function jumpToMissingStep(label: string) {
-    if (label === 'Name eingeben') {
+  function jumpToMissingStep(key: ActivityMissingStepKey) {
+    if (key === 'enter_name') {
       if (layoutMode.value === 'stepper') wizardStepIndex.value = 0
     }
-    if (label === 'Gruppe wählen' || label === 'Eventstandort wählen' || label === 'Mieter-Adresse wählen') {
+    if (key === 'choose_group' || key === 'choose_venue' || key === 'choose_tenant_address') {
       if (layoutMode.value === 'stepper') wizardStepIndex.value = 0
     }
-    if (label === 'Zeiträume ergänzen' || label === 'Zeitraum prüfen') {
+    if (key === 'complete_date_ranges' || key === 'check_date_range' || key === 'pickup_outside_usage') {
       if (layoutMode.value === 'stepper') wizardStepIndex.value = 1
     }
-    if (label === 'Material wählen') {
+    if (key === 'choose_material') {
       if (layoutMode.value === 'stepper') wizardStepIndex.value = 2
     }
   }
