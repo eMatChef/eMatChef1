@@ -9,6 +9,9 @@ parameters:
     env(FCAL_API_KEY): ''
     # 1 = Turnstile bei Registrierung nicht prüfen (nur lokal/Test; Produktion nie)
     env(TURNSTILE_SKIP_VERIFY): '0'
+    # Sprachen: de|fr|it|en|ch-rm = Hauptsprachen; de-pfadi|de-cevi = Untervarianten (Delta zu de) — siehe docs/TRANSLATION.md
+    app.supported_languages: ['de', 'de-pfadi', 'de-cevi', 'en', 'fr', 'it', 'ch-rm']
+    app.default_language: 'de'
 
 services:
     _defaults:
@@ -35,4 +38,9 @@ services:
         arguments:
             $secretKey: '%env(TURNSTILE_SECRET_KEY)%'
             $skipVerify: '%env(bool:TURNSTILE_SKIP_VERIFY)%'
+
+    App\Config\LanguageConfig:
+        arguments:
+            $supportedLanguages: '%app.supported_languages%'
+            $defaultLanguage: '%app.default_language%'
 

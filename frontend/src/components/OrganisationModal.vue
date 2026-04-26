@@ -32,6 +32,17 @@
             />
           </div>
 
+          <div class="form-group">
+            <label class="form-label">Erlaubte Sprachen (optional)</label>
+            <p class="helper-text">Wenn leer, sind alle Sprachen erlaubt.</p>
+            <div class="language-grid">
+              <label v-for="item in supportedLanguages" :key="item.code" class="checkbox-row">
+                <input v-model="formData.allowedLanguages" type="checkbox" :value="item.code" :disabled="isSubmitting" />
+                <span>{{ item.label }}</span>
+              </label>
+            </div>
+          </div>
+
           <!-- Error Message -->
           <div v-if="error" class="error-message">
             {{ error }}
@@ -56,6 +67,7 @@
 import { ref, watch, computed, nextTick } from 'vue'
 import { useToast } from '@/composables/useToast'
 import { createOrganisation, updateOrganisation, type Organisation } from '@/api/organisations'
+import { SUPPORTED_LANGUAGE_CODES } from '@/config/languages'
 
 interface Props {
   isOpen: boolean
@@ -78,8 +90,27 @@ const error = ref<string | null>(null)
 const nameInput = ref<HTMLInputElement | null>(null)
 
 const formData = ref({
-  name: ''
+  name: '',
+  allowedLanguages: [] as string[]
 })
+
+const supportedLanguages = SUPPORTED_LANGUAGE_CODES.map((code) => ({
+  code,
+  label:
+    code === 'de'
+      ? 'Deutsch'
+      : code === 'de-pfadi'
+        ? 'Deutsch (Pfadi)'
+        : code === 'de-cevi'
+          ? 'Deutsch (Cevi)'
+          : code === 'fr'
+            ? 'Franzoesisch'
+            : code === 'it'
+              ? 'Italienisch'
+                : code === 'ch-rm'
+                  ? 'Rumantsch'
+              : 'Englisch'
+}))
 
 // Watch für Modal-Öffnung und Organisation-Änderungen
 watch(
@@ -93,12 +124,14 @@ watch(
       if (org && org.id) {
         // Bearbeiten: Setze den Namen der Organisation
         formData.value = {
-          name: org.name || ''
+          name: org.name || '',
+          allowedLanguages: Array.isArray(org.allowed_languages) ? [...org.allowed_languages] : []
         }
       } else {
         // Neu erstellen: Leeres Formular
         formData.value = {
-          name: ''
+          name: '',
+          allowedLanguages: []
         }
       }
       // Fokussiere das Input-Feld nach dem Rendern
@@ -125,11 +158,13 @@ async function handleSubmit() {
 
     if (isEdit.value && props.organisation && props.organisation.id) {
       await updateOrganisation(props.organisation.id, {
-        name: formData.value.name
+        name: formData.value.name,
+        allowed_languages: formData.value.allowedLanguages.length > 0 ? formData.value.allowedLanguages : null
       })
     } else {
       await createOrganisation({
-        name: formData.value.name
+        name: formData.value.name,
+        allowed_languages: formData.value.allowedLanguages.length > 0 ? formData.value.allowedLanguages : null
       })
     }
 
@@ -146,7 +181,7 @@ async function handleSubmit() {
 
 function close() {
   emit('close')
-  formData.value = { name: '' }
+  formData.value = { name: '', allowedLanguages: [] }
   error.value = null
 }
 </script>
@@ -181,6 +216,26 @@ function close() {
   background-color: #f3f4f6;
   cursor: not-allowed;
   opacity: 0.6;
+}
+
+.helper-text {
+  margin: -4px 0 10px;
+  color: #6b7280;
+  font-size: 12px;
+}
+
+.language-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 12px;
+}
+
+.checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: #374151;
 }
 
 .error-message {

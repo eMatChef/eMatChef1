@@ -1,4 +1,5 @@
 import { createApp } from 'vue'
+import { watch } from 'vue'
 import './style.css'
 import App from './App.vue'
 import router from './router'
@@ -7,11 +8,25 @@ import { createPinia } from 'pinia'
 import { useAuthStore } from './stores/auth'
 import { useToastStore } from './stores/toast'
 import { setSessionExpiredHandler, setApiSuccessRefreshCallback } from './api/apiClient'
+import { i18n, setLocale } from './i18n'
 
 const app = createApp(App)
+const pinia = createPinia()
 
-app.use(createPinia())
+app.use(pinia)
 app.use(router)
+app.use(i18n)
+
+const authStore = useAuthStore()
+watch(
+  () => authStore.profile?.language,
+  (language) => {
+    if (language) {
+      setLocale(language)
+    }
+  },
+  { immediate: true }
+)
 
 // Bei erfolgreichem API-Call: Token proaktiv erneuern (User ist aktiv)
 setApiSuccessRefreshCallback(() => {
@@ -20,7 +35,7 @@ setApiSuccessRefreshCallback(() => {
 
 // 401-Handler: Toast + Auth-Store + Redirect (statt nur localStorage leeren)
 setSessionExpiredHandler(async () => {
-  useToastStore().warning('Deine Sitzung ist abgelaufen. Bitte melde dich erneut an.', 5000)
+  useToastStore().warning(i18n.global.t('errors.sessionExpired'), 5000)
   await useAuthStore().logout()
   const requiresAuth = router.currentRoute.value.matched.some((r) => r.meta.requiresAuth)
   if (requiresAuth && window.location.pathname !== '/login') {
@@ -30,7 +45,6 @@ setSessionExpiredHandler(async () => {
 
 // Session laden VOR dem Mounten (wichtig für Router-Guards!)
 async function initApp() {
-  const authStore = useAuthStore()
   const token = localStorage.getItem('auth_token')
   
   if (token) {

@@ -108,105 +108,6 @@
       <div v-if="canManageJoinCode" class="info-card">
         <div class="card-header">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" class="card-icon">
-            <rect x="3" y="4" width="18" height="18" rx="2" ry="2" fill="#3b82f6" />
-            <line x1="16" y1="2" x2="16" y2="6" stroke="white" stroke-width="1.5" stroke-linecap="round" />
-            <line x1="8" y1="2" x2="8" y2="6" stroke="white" stroke-width="1.5" stroke-linecap="round" />
-            <line x1="3" y1="10" x2="21" y2="10" stroke="white" stroke-width="1.5" stroke-linecap="round" />
-          </svg>
-          <h2>Kalender (Aktivitäten)</h2>
-        </div>
-        <p class="selector-hint">
-          Schulferien-Marker im Aktivitäts-Dialog (zusätzlich zu den Feiertags-Markern). Optional: Geo-ID (z.&nbsp;B. GeoTree/CH).
-          Der API-Schlüssel wird zentral unter <strong>Verwaltung → Integrationen</strong> gepflegt (Superadmin).
-        </p>
-        <div class="info-item" style="margin-top: 12px;">
-          <span class="info-label">Geo-ID (Feiertagskalender.ch)</span>
-          <input
-            id="dept-fcal-geo"
-            v-model="calendarFcalGeoId"
-            type="text"
-            inputmode="numeric"
-            class="department-select"
-            placeholder="z. B. 3055"
-            autocomplete="off"
-          />
-        </div>
-        <div class="onboarding-admin-row" style="margin-top: 12px;">
-          <button
-            type="button"
-            class="add-storage-btn"
-            :disabled="!calendarDirty || isSavingCalendar"
-            @click="saveCalendarSettingsForDept"
-          >
-            {{ isSavingCalendar ? 'Speichern...' : 'Kalender-Einstellung speichern' }}
-          </button>
-        </div>
-      </div>
-
-      <div v-if="canManageJoinCode" class="info-card">
-        <div class="card-header">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" class="card-icon">
-            <path d="M9 7H7C5.9 7 5 7.9 5 9V11C5 12.1 5.9 13 7 13H9V11H7V9H9V7Z" fill="#3b82f6"/>
-            <path d="M15 7H17C18.1 7 19 7.9 19 9V11C19 12.1 18.1 13 17 13H15V11H17V9H15V7Z" fill="#3b82f6"/>
-            <path d="M10 11H14V13H10V11Z" fill="#2563eb"/>
-            <path d="M10 9H14V11H10V9Z" fill="#60a5fa"/>
-            <path d="M10 13H14V15H10V13Z" fill="#1d4ed8"/>
-          </svg>
-          <h2>Join-Code für neue Mitglieder</h2>
-        </div>
-
-        <div class="join-share-card">
-          <div class="join-share-main">
-            <div class="join-code-row">
-              <code class="join-code">{{ inviteData?.join_code || '...' }}</code>
-              <button class="add-storage-btn" type="button" :disabled="!inviteData" @click="copyJoinCode">
-                Code kopieren
-              </button>
-              <button class="add-storage-btn" type="button" :disabled="!inviteData" @click="copyInviteLink">
-                Link (mit Konto)
-              </button>
-              <button
-                class="add-storage-btn"
-                type="button"
-                :disabled="!inviteData?.register_invite_url"
-                @click="copyRegisterInviteLink"
-              >
-                Link (Registrierung)
-              </button>
-              <button class="add-storage-btn" type="button" :disabled="isInviteLoading" @click="regenerateInviteCode">
-                {{ isInviteLoading ? 'Lade...' : 'Neu generieren' }}
-              </button>
-            </div>
-            <p class="join-meta" v-if="inviteData">
-              QR-Code: Registrierung mit vorausgefüllter Organisation und Abteilung, danach Join zur Abteilung.
-            </p>
-            <p class="join-meta" v-if="inviteData?.invite_url">
-              Mit bestehendem Konto (direkt Join-Seite): {{ inviteData.invite_url }}
-            </p>
-            <p class="join-meta" v-if="inviteData?.register_invite_url">
-              Ohne Konto (Registrierung): {{ inviteData.register_invite_url }}
-            </p>
-            <div class="pending-invites-block" v-if="pendingInvites.length > 0">
-              <p class="join-meta"><strong>Eingeladene Mitglieder</strong></p>
-              <div class="pending-invite-item" v-for="invite in pendingInvites" :key="invite.id">
-                <span>{{ invite.email }} ({{ formatRole(invite.role) }})</span>
-                <button class="action-btn delete" @click="removePendingInviteItem(invite.id)" title="Einladung löschen">
-                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                    <path d="M2 4H14M5 4V2H11V4M6 7V12M10 7V12M3 4L4 14H12L13 4H3Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-                  </svg>
-                </button>
-              </div>
-            </div>
-          </div>
-          <div class="join-qr" v-if="inviteQrDataUrl">
-            <img :src="inviteQrDataUrl" alt="Join QR Code" />
-          </div>
-        </div>
-      </div>
-
-      <div v-if="canManageJoinCode" class="info-card">
-        <div class="card-header">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" class="card-icon">
             <path d="M12 2L15 8H21L16 12L18 19L12 15L6 19L8 12L3 8H9L12 2Z" fill="#3b82f6"/>
           </svg>
           <h2>Onboarding</h2>
@@ -234,79 +135,6 @@
         <p v-else class="selector-hint">
           Setzt das Department-Onboarding fuer alle Mitglieder dieses Departments auf "offen".
         </p>
-      </div>
-
-      <div v-if="canManageJoinCode" class="info-card">
-        <div class="card-header">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" class="card-icon">
-            <path d="M12 3L4 7V12C4 17 7.4 21.7 12 23C16.6 21.7 20 17 20 12V7L12 3Z" fill="#3b82f6"/>
-            <path d="M9 12L11 14L15 10" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-          </svg>
-          <h2>Öffentliche Material-Seite</h2>
-        </div>
-        <div class="db-reset-row">
-          <div class="info-item">
-            <span class="info-label">Öffentliche Kontakt-E-Mail (optional)</span>
-            <input
-              v-model="publicContactEmail"
-              type="email"
-              class="department-select"
-              placeholder="material@dein-department.ch"
-            />
-          </div>
-          <div class="info-item">
-            <span class="info-label">Öffentliche Notiz (optional)</span>
-            <textarea
-              v-model="publicContactNote"
-              class="department-select"
-              rows="3"
-              placeholder="z.B. Bitte Fundgegenstand mit Foto melden."
-            ></textarea>
-          </div>
-          <div class="info-item public-visibility-toggles">
-            <span class="info-label">Anzeige auf der öffentlichen QR-Seite</span>
-            <p class="selector-hint" style="margin: 0 0 10px;">
-              Standard: alles sichtbar. Ausgeschaltete Inhalte werden nicht auf der öffentlichen Seite gezeigt (E-Mail kann
-              trotzdem für das Kontaktformular genutzt werden, wenn hinterlegt).
-            </p>
-            <label class="public-toggle-row">
-              <input v-model="publicShowContactForm" type="checkbox" />
-              <span>Kontaktformular „Materialwart kontaktieren“ anzeigen</span>
-            </label>
-            <label class="public-toggle-row">
-              <input v-model="publicShowContactEmail" type="checkbox" />
-              <span>Kontakt-E-Mail auf der öffentlichen Seite anzeigen</span>
-            </label>
-            <label class="public-toggle-row">
-              <input v-model="publicShowContactNote" type="checkbox" />
-              <span>Öffentliche Notiz anzeigen</span>
-            </label>
-          </div>
-          <div class="info-item">
-            <span class="info-label">Hinweise vom QR-Code (Fund / Kontakt)</span>
-            <p class="selector-hint" style="margin: 0 0 8px;">
-              Wo sollen Nachrichten aus dem öffentlichen Formular ankommen? (Nur für Nutzer mit Zugriff auf die
-              Nachrichtenzentrale sichtbar.)
-            </p>
-            <select v-model="publicFoundContactDelivery" class="department-select">
-              <option value="email">Nur per E-Mail</option>
-              <option value="in_app">Nur in der Nachrichtenzentrale (App)</option>
-              <option value="both">E-Mail und Nachrichtenzentrale</option>
-            </select>
-            <p class="selector-hint" style="margin: 8px 0 0;">
-              Bei „E-Mail“ oder „beides“ muss eine Kontakt-E-Mail hinterlegt sein (oben oder als allgemeine
-              Abteilungsadresse).
-            </p>
-          </div>
-          <div class="onboarding-admin-row">
-            <p class="selector-hint" style="margin: 0;">
-              Fallback für E-Mail: allgemeine Adresse (type=general).
-            </p>
-            <button class="add-storage-btn" :disabled="isSavingPublicSettings" @click="savePublicSettings">
-              {{ isSavingPublicSettings ? 'Speichern...' : 'Speichern' }}
-            </button>
-          </div>
-        </div>
       </div>
 
       <!-- DB zurücksetzen (nur für Manager) -->
@@ -785,10 +613,7 @@ async function loadDepartment(departmentId?: string) {
     
     // Lade Adressen (Lagerplätze, Rechnungsadressen, etc.)
     await loadAddresses(deptId)
-    await loadInviteCode(deptId)
     await loadOnboardingStatus(deptId)
-    await loadPublicSettings(deptId)
-    await loadCalendarSettings(deptId)
   } catch (err: any) {
     error.value = err.response?.data?.error || 'Fehler beim Laden des Departments'
   } finally {

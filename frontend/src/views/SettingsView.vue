@@ -63,6 +63,12 @@ function isSettingsItemActive(itemId: string): boolean {
   if (itemId === 'zeit') {
     return p === `${base}/zeit`
   }
+  if (itemId === 'my-department/join-code') {
+    return p === `${base}/my-department/join-code`
+  }
+  if (itemId === 'my-department/public-material-page') {
+    return p === `${base}/my-department/public-material-page`
+  }
   return p === `${base}/${itemId}` || p.startsWith(`${base}/${itemId}/`)
 }
 
@@ -77,6 +83,21 @@ const allMenuItems = ref([
     id: 'zeit',
     label: 'Zeit/Ort',
     icon: markRaw(IconSettings)
+  },
+  {
+    id: 'my-department/join-code',
+    label: 'Join-Code',
+    icon: markRaw(IconEmployees)
+  },
+  {
+    id: 'addons',
+    label: 'Add-ons',
+    icon: markRaw(IconActivities)
+  },
+  {
+    id: 'my-department/public-material-page',
+    label: 'Öffentliche Material-Seite',
+    icon: markRaw(IconMaterials)
   },
   {
     id: 'categories',

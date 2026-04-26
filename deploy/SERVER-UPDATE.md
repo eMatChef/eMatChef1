@@ -99,6 +99,31 @@ export HOST_UID=$(id -u) HOST_GID=$(id -g)
 docker compose -p ematchef-prod up -d db backend
 ```
 
+## 2a. Schritt 1: Security-Basics prüfen (Prod)
+
+Nach dem Start einmal kurz verifizieren:
+
+```bash
+cd /opt/ematchef/prod
+
+# Effektive Compose-Konfiguration (APP_ENV/APP_DEBUG, Port-Bindings)
+docker compose -p ematchef-prod config | rg "APP_ENV|APP_DEBUG|MAILER_DSN|MAILER_FROM|127.0.0.1:8081|8081:8081"
+
+# Laufende Container/Port-Mappings
+docker compose -p ematchef-prod ps
+
+# Offene Host-Ports (sollte 8081 NICHT als 0.0.0.0 zeigen)
+ss -tulpen | rg ":80|:443|:8081|:5432"
+
+# Runtime-Check im Backend-Container
+docker compose -p ematchef-prod exec backend env | rg "^APP_ENV=|^APP_DEBUG=|^MAILER_DSN=|^MAILER_FROM="
+```
+
+Soll-Zustand:
+- `APP_ENV=prod` und `APP_DEBUG=0`
+- Backend-Port nur lokal (`127.0.0.1:8081:8081`) oder gar nicht direkt veröffentlicht
+- Kein öffentlicher Postgres-Port auf dem Host
+
 ## 3. Symfony-Prod-Cache leeren und aufwärmen
 
 Nach Code- oder Config-Änderungen am Backend:

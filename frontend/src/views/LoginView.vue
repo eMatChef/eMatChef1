@@ -6,7 +6,7 @@
           <EmcLogoMark size="lg" />
         </div>
         <h1 class="brand-title">eMatChef</h1>
-        <p class="brand-subtitle">Materialverwaltung & Ausleihe</p>
+        <p class="brand-subtitle">{{ t('login.brandSubtitle') }}</p>
       </div>
 
       <div class="login-card">
@@ -18,9 +18,9 @@
         </div>
 
         <div v-if="inviteFlowActive" class="invite-message">
-          Einladung erkannt
+          {{ t('login.inviteDetected') }}
           <span v-if="inviteJoinCode"> (Code: {{ inviteJoinCode }})</span>.
-          Bitte anmelden oder Konto erstellen. Danach wirst du direkt zur Join-Anfrage gefuehrt.
+          {{ t('login.inviteHint') }}
         </div>
 
         <div v-if="successMessage" class="success-message">
@@ -29,13 +29,13 @@
 
         <form v-if="mode === 'login'" class="login-form" @submit.prevent="handleSubmit">
           <div class="form-group">
-            <label for="email" class="form-label">E-Mail *</label>
+            <label for="email" class="form-label">{{ t('login.emailLabel') }}</label>
             <input
               id="email"
               v-model="email"
               type="email"
               class="form-input"
-              placeholder="ihre.email@beispiel.de"
+              :placeholder="t('login.emailPlaceholder')"
               required
               autocomplete="username"
               :disabled="isLoading"
@@ -43,13 +43,13 @@
           </div>
 
           <div class="form-group">
-            <label for="password" class="form-label">Passwort *</label>
+            <label for="password" class="form-label">{{ t('login.passwordLabel') }}</label>
             <input
               id="password"
               v-model="password"
               type="password"
               class="form-input"
-              placeholder="Ihr Passwort"
+              :placeholder="t('login.passwordPlaceholder')"
               required
               autocomplete="current-password"
               :disabled="isLoading"
@@ -58,26 +58,32 @@
 
           <div class="link-row">
             <button type="button" class="inline-link" :disabled="isLoading" @click="setMode('forgot')">
-              Passwort vergessen?
+              {{ t('login.forgotPassword') }}
             </button>
           </div>
 
           <div v-if="error" class="error-message">{{ error }}</div>
           <div v-if="showResendVerification" class="resend-wrap">
             <button type="button" class="btn-secondary" :disabled="isLoading" @click="handleResendVerification">
-              Verifikationsmail erneut senden
+              {{ t('login.resendVerification') }}
             </button>
           </div>
 
           <button type="submit" class="btn-primary btn-submit" :disabled="isLoading">
-            {{ isRedirecting ? 'Weiterleitung...' : isLoading ? 'Bitte warten...' : 'Anmelden' }}
+            {{
+              isRedirecting
+                ? t('login.redirecting')
+                : isLoading
+                  ? t('common.loading')
+                  : t('login.loginButton')
+            }}
           </button>
 
           <div class="form-footer">
             <p class="help-text">
-              Hast du noch keinen Account?
+              {{ t('login.noAccount') }}
               <button type="button" class="inline-link" :disabled="isLoading" @click="setMode('register')">
-                Jetzt registrieren
+                {{ t('login.registerNow') }}
               </button>
             </p>
           </div>
@@ -85,13 +91,13 @@
 
         <form v-else-if="mode === 'forgot'" class="login-form" @submit.prevent="forgotStep === 'request' ? handleForgotRequest() : handleForgotConfirm()">
           <div class="form-group">
-            <label for="forgotEmail" class="form-label">E-Mail-Adresse *</label>
+            <label for="forgotEmail" class="form-label">{{ t('login.emailAddressLabel') }}</label>
             <input
               id="forgotEmail"
               v-model="forgotEmail"
               type="email"
               class="form-input"
-              placeholder="ihre.email@beispiel.de"
+              :placeholder="t('login.emailPlaceholder')"
               required
               autocomplete="email"
               :disabled="isLoading"
@@ -100,13 +106,13 @@
 
           <template v-if="forgotStep === 'confirm'">
             <div class="form-group">
-              <label for="resetCode" class="form-label">6-stelliger HEX-Code *</label>
+              <label for="resetCode" class="form-label">{{ t('login.hexCodeLabel') }}</label>
               <input
                 id="resetCode"
                 v-model="resetCode"
                 type="text"
                 class="form-input"
-                placeholder="z.B. 1A2B3C"
+                :placeholder="t('login.hexCodePlaceholder')"
                 maxlength="6"
                 required
                 :disabled="isLoading"
@@ -114,13 +120,13 @@
             </div>
 
             <div class="form-group">
-              <label for="resetPassword" class="form-label">Neues Passwort *</label>
+              <label for="resetPassword" class="form-label">{{ t('login.newPasswordLabel') }}</label>
               <input
                 id="resetPassword"
                 v-model="resetPassword"
                 type="password"
                 class="form-input"
-                placeholder="Mindestens 8 Zeichen"
+                :placeholder="t('login.minPasswordPlaceholder')"
                 required
                 autocomplete="new-password"
                 :disabled="isLoading"
@@ -128,13 +134,13 @@
             </div>
 
             <div class="form-group">
-              <label for="resetPasswordConfirm" class="form-label">Neues Passwort bestaetigen *</label>
+              <label for="resetPasswordConfirm" class="form-label">{{ t('login.confirmNewPasswordLabel') }}</label>
               <input
                 id="resetPasswordConfirm"
                 v-model="resetPasswordConfirm"
                 type="password"
                 class="form-input"
-                placeholder="Passwort erneut eingeben"
+                :placeholder="t('login.passwordRepeatPlaceholder')"
                 required
                 autocomplete="new-password"
                 :disabled="isLoading"
@@ -145,7 +151,13 @@
           <div v-if="error" class="error-message">{{ error }}</div>
 
           <button type="submit" class="btn-primary btn-submit" :disabled="isLoading">
-            {{ isLoading ? 'Bitte warten...' : forgotStep === 'request' ? 'Code senden' : 'Passwort zuruecksetzen' }}
+            {{
+              isLoading
+                ? t('common.loading')
+                : forgotStep === 'request'
+                  ? t('login.sendCode')
+                  : t('login.resetPassword')
+            }}
           </button>
 
           <div class="form-footer">
@@ -157,13 +169,13 @@
                 :disabled="isLoading"
                 @click="forgotStep = 'request'"
               >
-                Neuen Code anfordern
+                {{ t('login.requestNewCode') }}
               </button>
             </p>
             <p class="help-text">
-              Zurueck zum Login?
+              {{ t('login.backToLogin') }}
               <button type="button" class="inline-link" :disabled="isLoading" @click="setMode('login')">
-                Anmelden
+                {{ t('login.loginButton') }}
               </button>
             </p>
           </div>
@@ -171,7 +183,7 @@
 
         <form v-else class="login-form" @submit.prevent="handleRegister">
           <div class="form-group">
-            <label for="firstName" class="form-label">Vorname *</label>
+            <label for="firstName" class="form-label">{{ t('login.firstNameLabel') }}</label>
             <input
               id="firstName"
               v-model="firstName"
@@ -184,7 +196,7 @@
           </div>
 
           <div class="form-group">
-            <label for="lastName" class="form-label">Nachname *</label>
+            <label for="lastName" class="form-label">{{ t('login.lastNameLabel') }}</label>
             <input
               id="lastName"
               v-model="lastName"
@@ -197,19 +209,19 @@
           </div>
 
           <div class="form-group">
-            <label for="nickname" class="form-label">Spitzname</label>
+            <label for="nickname" class="form-label">{{ t('login.nicknameLabel') }}</label>
             <input
               id="nickname"
               v-model="nickname"
               type="text"
               class="form-input"
-              placeholder="Optional"
+              :placeholder="t('login.nicknamePlaceholder')"
               :disabled="isLoading"
             />
           </div>
 
           <div v-if="!inviteOrganisationLocked" class="form-group">
-            <label for="requestedOrganisationId" class="form-label">Organisation *</label>
+            <label for="requestedOrganisationId" class="form-label">{{ t('login.organisationLabel') }}</label>
             <select
               id="requestedOrganisationId"
               v-model="requestedOrganisationId"
@@ -222,24 +234,24 @@
             </select>
           </div>
           <div v-else class="form-group">
-            <label class="form-label">Organisation *</label>
+            <label class="form-label">{{ t('login.organisationLabel') }}</label>
             <input
               type="text"
               class="form-input"
               :value="inviteOrganisationName || inviteOrganisationId"
               disabled
             />
-            <p class="required-note">Aus Einladungslink übernommen.</p>
+            <p class="required-note">{{ t('login.organisationFromInvite') }}</p>
           </div>
 
           <div class="form-group">
-            <label for="requestedDepartmentName" class="form-label">Deine Abteilung *</label>
+            <label for="requestedDepartmentName" class="form-label">{{ t('login.departmentLabel') }}</label>
             <input
               id="requestedDepartmentName"
               v-model="requestedDepartmentName"
               type="text"
               class="form-input"
-              placeholder="z. B. Pfadi Musterstadt"
+              :placeholder="t('login.departmentPlaceholder')"
               required
               :disabled="isLoading"
             />
@@ -247,7 +259,7 @@
 
           <!-- Honeypot: Bots fuellen das oft aus -->
           <div class="form-group" style="position:absolute; left:-10000px; top:auto; width:1px; height:1px; overflow:hidden;">
-            <label for="website" class="form-label">Website</label>
+            <label for="website" class="form-label">{{ t('login.websiteLabel') }}</label>
             <input
               id="website"
               v-model="website"
@@ -260,13 +272,13 @@
           </div>
 
           <div class="form-group">
-            <label for="registerEmail" class="form-label">E-Mail-Adresse *</label>
+            <label for="registerEmail" class="form-label">{{ t('login.emailAddressLabel') }}</label>
             <input
               id="registerEmail"
               v-model="registerEmail"
               type="email"
               class="form-input"
-              placeholder="ihre.email@beispiel.de"
+              :placeholder="t('login.emailPlaceholder')"
               required
               autocomplete="email"
               :disabled="isLoading"
@@ -274,13 +286,13 @@
           </div>
 
           <div class="form-group">
-            <label for="registerPassword" class="form-label">Passwort *</label>
+            <label for="registerPassword" class="form-label">{{ t('login.registerPasswordLabel') }}</label>
             <input
               id="registerPassword"
               v-model="registerPassword"
               type="password"
               class="form-input"
-              placeholder="Mindestens 8 Zeichen"
+              :placeholder="t('login.minPasswordPlaceholder')"
               required
               autocomplete="new-password"
               :disabled="isLoading"
@@ -288,13 +300,13 @@
           </div>
 
           <div class="form-group">
-            <label for="registerPasswordConfirm" class="form-label">Passwort erneut eingeben *</label>
+            <label for="registerPasswordConfirm" class="form-label">{{ t('login.registerPasswordConfirmLabel') }}</label>
             <input
               id="registerPasswordConfirm"
               v-model="registerPasswordConfirm"
               type="password"
               class="form-input"
-              placeholder="Passwort bestaetigen"
+              :placeholder="t('login.registerPasswordConfirmPlaceholder')"
               required
               autocomplete="new-password"
               :disabled="isLoading"
@@ -302,19 +314,17 @@
           </div>
 
           <div class="form-group">
-            <label for="language" class="form-label">Sprache *</label>
+            <label for="language" class="form-label">{{ t('login.languageLabel') }}</label>
             <select id="language" v-model="language" class="form-input" :disabled="isLoading">
-              <option value="de">Deutsch</option>
-              <option value="fr">Franzoesisch</option>
-              <option value="it">Italienisch</option>
-              <option value="en">Englisch</option>
+              <option v-for="item in registerLanguageOptions" :key="item.code" :value="item.code">{{ item.label }}</option>
             </select>
+            <p v-if="isRegisterLanguageRestricted" class="required-note">{{ t('login.languageRestrictedHint') }}</p>
           </div>
 
           <div class="form-group terms-group">
             <label class="checkbox-label">
               <input v-model="acceptTerms" type="checkbox" required :disabled="isLoading" />
-              <span>Nutzungsbedingungen akzeptieren *</span>
+              <span>{{ t('login.acceptTerms') }}</span>
             </label>
           </div>
 
@@ -322,19 +332,19 @@
             <div ref="turnstileContainerRef" class="turnstile-box" />
           </div>
 
-          <p class="required-note">* Pflichtfelder</p>
+          <p class="required-note">{{ t('login.requiredFields') }}</p>
 
           <div v-if="error" class="error-message">{{ error }}</div>
 
           <button type="submit" class="btn-primary btn-submit" :disabled="isLoading">
-            {{ isLoading ? 'Bitte warten...' : 'Registrieren' }}
+            {{ isLoading ? t('common.loading') : t('login.registerButton') }}
           </button>
 
           <div class="form-footer">
             <p class="help-text">
-              Hast du bereits ein Konto?
+              {{ t('login.haveAccount') }}
               <button type="button" class="inline-link" :disabled="isLoading" @click="setMode('login')">
-                Anmelden
+                {{ t('login.loginButton') }}
               </button>
             </p>
           </div>
@@ -347,11 +357,13 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { confirmPasswordReset, register as apiRegister, requestPasswordReset, resendVerification } from '@/api/auth'
 import { useAuthStore } from '@/stores/auth'
 import EmcLogoMark from '@/components/brand/EmcLogoMark.vue'
 import { getOrganisations, type Organisation } from '@/api/organisations'
 import { filterOrganisationsForUserPickers } from '@/utils/organisationUserPicker'
+import { setLocale, SUPPORTED_LOCALES } from '@/i18n'
 
 /** Site-Key nur wenn nicht bewusst per VITE_TURNSTILE_SKIP übersprungen (lokal testen) */
 const turnstileSiteKey = computed(() => {
@@ -366,6 +378,8 @@ const turnstileSiteKey = computed(() => {
 const router = useRouter()
 const route = useRoute()
 const authStore = useAuthStore()
+const { t } = useI18n()
+setLocale('de')
 
 const mode = ref<'login' | 'register' | 'forgot'>('login')
 const email = ref('')
@@ -421,22 +435,48 @@ const effectiveRequestedOrganisationId = computed(() => {
   return ''
 })
 const cardTitle = computed(() => {
-  if (mode.value === 'register') return 'Ein Konto erstellen'
-  if (mode.value === 'forgot') return 'Passwort vergessen'
-  return 'Anmelden'
+  if (mode.value === 'register') return t('login.titleRegister')
+  if (mode.value === 'forgot') return t('login.titleForgot')
+  return t('login.titleLogin')
 })
 const cardSubtitle = computed(() => {
   if (mode.value === 'register') {
     if (inviteFlowActive.value) {
-      return 'Registrieren Sie sich. Organisation und Abteilung sind aus der Einladung vorausgefuellt; nach der Registrierung geht es mit dem Join-Code weiter.'
+      return t('login.subtitleRegisterInvite')
     }
-    return 'Registrieren Sie sich. Die Zuordnung zu einer Abteilung erfolgt spaeter durch Admins.'
+    return t('login.subtitleRegister')
   }
   if (mode.value === 'forgot') {
-    return 'Fordern Sie einen 6-stelligen HEX-Code per E-Mail an und setzen Sie Ihr Passwort sicher zurueck.'
+    return t('login.subtitleForgot')
   }
-  return 'Bitte melden Sie sich mit Ihrer E-Mail-Adresse an.'
+  return t('login.subtitleLogin')
 })
+const languageOptions = computed(() =>
+  SUPPORTED_LOCALES.map((code) => ({
+    code,
+    label: t(`languageNames.${code}`)
+  }))
+)
+const registerLanguageCodes = computed(() => {
+  const orgId = effectiveRequestedOrganisationId.value
+  if (!orgId) return [...SUPPORTED_LOCALES]
+  const org = organisations.value.find((o) => o.id === orgId)
+  const allowed = Array.isArray(org?.allowed_languages)
+    ? org.allowed_languages
+        .map((lang) => String(lang).toLowerCase().trim())
+        .filter((lang): lang is (typeof SUPPORTED_LOCALES)[number] =>
+          SUPPORTED_LOCALES.includes(lang as (typeof SUPPORTED_LOCALES)[number])
+        )
+    : []
+  return allowed.length > 0 ? allowed : [...SUPPORTED_LOCALES]
+})
+const registerLanguageOptions = computed(() =>
+  registerLanguageCodes.value.map((code) => ({
+    code,
+    label: t(`languageNames.${code}`)
+  }))
+)
+const isRegisterLanguageRestricted = computed(() => registerLanguageCodes.value.length < SUPPORTED_LOCALES.length)
 
 function parseInternalRedirect(rawRedirect: unknown): string | null {
   if (typeof rawRedirect !== 'string') return null
@@ -672,6 +712,7 @@ function setMode(nextMode: 'login' | 'register' | 'forgot') {
     resetForgotForm()
   }
   if (nextMode === 'register') {
+    language.value = 'de'
     loadOrganisationsForRegister().then(() => {
       applyRegisterPrefillFromQuery()
     })
@@ -683,12 +724,13 @@ async function handleSubmit() {
   clearMessages()
 
   if (!email.value || !password.value) {
-    error.value = 'Bitte geben Sie E-Mail und Passwort ein'
+    error.value = t('login.validationEmailPassword')
     return
   }
 
   const success = await authStore.login(email.value.trim(), password.value)
   if (!success) return
+  setLocale(authStore.profile?.language || 'de')
 
   isRedirecting.value = true // Button bleibt deaktiviert bis Weiterleitung
   const routeRedirect = parseInternalRedirect(route.query.redirect)
@@ -723,48 +765,48 @@ async function handleRegister() {
   clearMessages()
 
   if (!firstName.value.trim() || !lastName.value.trim()) {
-    error.value = 'Vorname und Nachname sind Pflichtfelder'
+    error.value = t('login.validationNameRequired')
     return
   }
 
   if (!effectiveRequestedOrganisationId.value) {
-    error.value = 'Bitte eine Organisation waehlen'
+    error.value = t('login.validationOrganisationRequired')
     return
   }
   if (!requestedDepartmentName.value.trim()) {
-    error.value = 'Bitte den Namen deiner Abteilung eingeben'
+    error.value = t('login.validationDepartmentRequired')
     return
   }
 
   if (!registerEmail.value.trim() || !registerPassword.value) {
-    error.value = 'Bitte geben Sie E-Mail und Passwort ein'
+    error.value = t('login.validationEmailPassword')
     return
   }
 
   if (registerPassword.value.length < 8) {
-    error.value = 'Das Passwort muss mindestens 8 Zeichen lang sein'
+    error.value = t('login.validationPasswordMin')
     return
   }
 
   if (registerPassword.value !== registerPasswordConfirm.value) {
-    error.value = 'Die Passwoerter stimmen nicht ueberein'
+    error.value = t('login.validationPasswordMismatch')
     return
   }
 
   if (!acceptTerms.value) {
-    error.value = 'Bitte akzeptieren Sie die Nutzungsbedingungen'
+    error.value = t('login.validationAcceptTerms')
     return
   }
 
   let turnstileToken: string | undefined
   if (turnstileSiteKey.value) {
     const wid = turnstileWidgetId.value
-    const t = wid && window.turnstile ? window.turnstile.getResponse(wid) : undefined
-    if (!t) {
-      error.value = 'Bitte das Captcha abschliessen.'
+    const captchaToken = wid && window.turnstile ? window.turnstile.getResponse(wid) : undefined
+    if (!captchaToken) {
+      error.value = t('login.validationCaptcha')
       return
     }
-    turnstileToken = t
+    turnstileToken = captchaToken
   }
 
   try {
@@ -783,13 +825,13 @@ async function handleRegister() {
       turnstileToken
     })
 
-    successMessage.value = response.message || 'Konto erfolgreich erstellt'
+    successMessage.value = response.message || t('login.registerSuccessFallback')
     mode.value = 'login'
     email.value = registerEmail.value.trim()
     password.value = ''
     resetRegisterForm()
   } catch (err: any) {
-    error.value = err?.response?.data?.error || 'Registrierung fehlgeschlagen'
+    error.value = err?.response?.data?.error || t('login.registerFailedFallback')
     resetTurnstileWidget()
   } finally {
     registerLoading.value = false
@@ -798,15 +840,15 @@ async function handleRegister() {
 
 async function handleResendVerification() {
   if (!email.value.trim()) {
-    error.value = 'Bitte E-Mail eingeben, um die Verifikationsmail erneut zu senden'
+    error.value = t('login.validationEmailRequiredForResend')
     return
   }
   try {
     const result = await resendVerification(email.value.trim())
-    successMessage.value = result.message || 'Verifikationsmail wurde erneut gesendet.'
+    successMessage.value = result.message || t('login.resendSuccessFallback')
     error.value = null
   } catch (err: any) {
-    error.value = err?.response?.data?.error || 'Verifikationsmail konnte nicht gesendet werden'
+    error.value = err?.response?.data?.error || t('login.resendFailedFallback')
   }
 }
 
@@ -815,7 +857,7 @@ async function handleForgotRequest() {
 
   const normalizedEmail = forgotEmail.value.trim().toLowerCase()
   if (!normalizedEmail) {
-    error.value = 'Bitte E-Mail eingeben'
+    error.value = t('login.validationEmailRequired')
     return
   }
 
@@ -826,7 +868,7 @@ async function handleForgotRequest() {
     forgotEmail.value = normalizedEmail
     forgotStep.value = 'confirm'
   } catch (err: any) {
-    error.value = err?.response?.data?.error || 'Reset-Code konnte nicht angefordert werden'
+    error.value = err?.response?.data?.error || t('login.forgotRequestFailedFallback')
   } finally {
     registerLoading.value = false
   }
@@ -838,32 +880,32 @@ async function handleForgotConfirm() {
   const normalizedEmail = forgotEmail.value.trim().toLowerCase()
   const normalizedCode = resetCode.value.trim().toUpperCase()
   if (!normalizedEmail) {
-    error.value = 'Bitte E-Mail eingeben'
+    error.value = t('login.validationEmailRequired')
     return
   }
   if (!/^[0-9A-F]{6}$/.test(normalizedCode)) {
-    error.value = 'Code muss 6-stellig und hexadezimal sein'
+    error.value = t('login.validationHexCode')
     return
   }
   if (resetPassword.value.length < 8) {
-    error.value = 'Das Passwort muss mindestens 8 Zeichen lang sein'
+    error.value = t('login.validationPasswordMin')
     return
   }
   if (resetPassword.value !== resetPasswordConfirm.value) {
-    error.value = 'Die Passwoerter stimmen nicht ueberein'
+    error.value = t('login.validationPasswordMismatch')
     return
   }
 
   try {
     registerLoading.value = true
     const result = await confirmPasswordReset(normalizedEmail, normalizedCode, resetPassword.value)
-    successMessage.value = result.message || 'Passwort wurde erfolgreich zurueckgesetzt'
+    successMessage.value = result.message || t('login.forgotConfirmSuccessFallback')
     email.value = normalizedEmail
     password.value = ''
     resetForgotForm()
     mode.value = 'login'
   } catch (err: any) {
-    error.value = err?.response?.data?.error || 'Passwort konnte nicht zurueckgesetzt werden'
+    error.value = err?.response?.data?.error || t('login.forgotConfirmFailedFallback')
   } finally {
     registerLoading.value = false
   }
@@ -887,6 +929,18 @@ watch([forgotEmail, resetCode, resetPassword, resetPasswordConfirm], () => {
     error.value = null
   }
 })
+
+watch(
+  registerLanguageCodes,
+  (codes) => {
+    if (codes.length === 0) return
+    if (!codes.includes(language.value as (typeof SUPPORTED_LOCALES)[number])) {
+      language.value = codes[0]
+    }
+  },
+  { immediate: true }
+)
+
 </script>
 
 <style scoped>
