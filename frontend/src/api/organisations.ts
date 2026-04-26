@@ -3,6 +3,7 @@ import apiClient from './apiClient'
 export interface Organisation {
   id: string
   name: string
+  allowed_languages?: string[] | null
 }
 
 /**
@@ -24,10 +25,12 @@ export async function getOrganisation(id: string): Promise<Organisation> {
 
 export interface CreateOrganisationRequest {
   name: string
+  allowed_languages?: string[] | null
 }
 
 export interface UpdateOrganisationRequest {
   name?: string
+  allowed_languages?: string[] | null
 }
 
 /**

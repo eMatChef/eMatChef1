@@ -2,6 +2,7 @@
 
 namespace App\Controller;
 
+use App\Config\LanguageConfig;
 use App\Entity\Profile;
 use App\Entity\User;
 use App\Entity\AdminJoinRequest;
@@ -44,6 +45,7 @@ class AuthController extends AbstractController
         private ExtractorInterface $refreshTokenExtractor,
         private CacheItemPoolInterface $cache,
         private TurnstileVerifier $turnstileVerifier,
+        private LanguageConfig $languageConfig,
         #[Autowire('%kernel.secret%')]
         private string $appSecret
     ) {}
@@ -88,7 +90,7 @@ class AuthController extends AbstractController
         $firstName = trim((string) ($data['firstName'] ?? ''));
         $lastName = trim((string) ($data['lastName'] ?? ''));
         $nickname = trim((string) ($data['nickname'] ?? ''));
-        $language = strtolower(trim((string) ($data['language'] ?? 'de')));
+        $language = $this->languageConfig->normalize((string) ($data['language'] ?? $this->languageConfig->getDefaultLanguage()));
         $acceptTerms = (bool) ($data['acceptTerms'] ?? false);
         $requestedOrganisationId = trim((string) ($data['requestedOrganisationId'] ?? ''));
         $requestedDepartmentName = trim((string) ($data['requestedDepartmentName'] ?? ''));
@@ -138,8 +140,7 @@ class AuthController extends AbstractController
             return new JsonResponse(['error' => 'Nutzungsbedingungen muessen akzeptiert werden'], 400);
         }
 
-        $allowedLanguages = ['de', 'fr', 'it', 'en'];
-        if (!in_array($language, $allowedLanguages, true)) {
+        if (!$this->languageConfig->isSupported($language)) {
             return new JsonResponse(['error' => 'Ungueltige Sprache'], 400);
         }
 
@@ -154,6 +155,10 @@ class AuthController extends AbstractController
         }
         if (!OrganisationUserPickerFilter::isVisibleForUserPickers($org)) {
             return new JsonResponse(['error' => 'Organisation nicht verfuegbar'], 400);
+        }
+        $orgAllowedLanguages = $org->getAllowedLanguages();
+        if (is_array($orgAllowedLanguages) && count($orgAllowedLanguages) > 0 && !in_array($language, $orgAllowedLanguages, true)) {
+            return new JsonResponse(['error' => 'Sprache fuer diese Organisation nicht erlaubt'], 400);
         }
 
         $profile = new Profile();

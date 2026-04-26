@@ -2,6 +2,7 @@
 
 namespace App\Controller;
 
+use App\Config\LanguageConfig;
 use App\Entity\Organisation;
 use App\Repository\OrganisationRepository;
 use App\Service\OrganisationUserPickerFilter;
@@ -18,7 +19,8 @@ class OrganisationController extends AbstractController
 {
     public function __construct(
         private OrganisationRepository $organisationRepository,
-        private EntityManagerInterface $entityManager
+        private EntityManagerInterface $entityManager,
+        private LanguageConfig $languageConfig
     ) {}
 
     /**
@@ -37,7 +39,8 @@ class OrganisationController extends AbstractController
             }
             $result[] = [
                 'id' => $org->getId(),
-                'name' => $org->getName()
+                'name' => $org->getName(),
+                'allowed_languages' => $org->getAllowedLanguages(),
             ];
         }
 
@@ -59,7 +62,8 @@ class OrganisationController extends AbstractController
 
         return new JsonResponse([
             'id' => $organisation->getId(),
-            'name' => $organisation->getName()
+            'name' => $organisation->getName(),
+            'allowed_languages' => $organisation->getAllowedLanguages(),
         ]);
     }
 
@@ -87,6 +91,7 @@ class OrganisationController extends AbstractController
             // ID muss VOR persist() gesetzt werden (GeneratedValue strategy: 'NONE')
             $organisation->setId(IdGenerator::generateUnique($this->entityManager, Organisation::class));
             $organisation->setName($data['name']);
+            $organisation->setAllowedLanguages($this->languageConfig->normalizeAllowedLanguages(isset($data['allowed_languages']) && is_array($data['allowed_languages']) ? $data['allowed_languages'] : null));
 
             $this->entityManager->persist($organisation);
             $this->entityManager->flush();
@@ -98,7 +103,8 @@ class OrganisationController extends AbstractController
 
             return new JsonResponse([
                 'id' => $organisation->getId(),
-                'name' => $organisation->getName()
+                'name' => $organisation->getName(),
+                'allowed_languages' => $organisation->getAllowedLanguages(),
             ], 201);
         } catch (\Exception $e) {
             return new JsonResponse([
@@ -128,14 +134,18 @@ class OrganisationController extends AbstractController
 
         if (isset($data['name']) && !empty($data['name'])) {
             $organisation->setName($data['name']);
-            $organisation->updateTimestamps();
         }
+        if (array_key_exists('allowed_languages', $data)) {
+            $organisation->setAllowedLanguages($this->languageConfig->normalizeAllowedLanguages(is_array($data['allowed_languages']) ? $data['allowed_languages'] : null));
+        }
+        $organisation->updateTimestamps();
 
         $this->entityManager->flush();
 
         return new JsonResponse([
             'id' => $organisation->getId(),
-            'name' => $organisation->getName()
+            'name' => $organisation->getName(),
+            'allowed_languages' => $organisation->getAllowedLanguages(),
         ]);
     }
 }

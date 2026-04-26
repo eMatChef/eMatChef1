@@ -35,12 +35,12 @@
     </div>
 
     <!-- Organisationen Liste -->
-    <div v-else-if="organisations.length > 0" class="organisations-list">
+    <div v-else-if="displayOrganisations.length > 0" class="organisations-list">
       <div
-        v-for="org in organisations"
+        v-for="org in displayOrganisations"
         :key="org.id"
         class="organisation-item"
-        :class="{ 'organisation-item--not-member': !isSuperAdmin && !memberOrganisationIds.has(org.id) }"
+        :class="{ 'organisation-item--not-member': isSuperAdmin && !memberOrganisationIds.has(org.id) }"
       >
         <div class="organisation-info">
           <h3 class="organisation-name">{{ org.name }}</h3>
@@ -83,11 +83,15 @@ import OrganisationModal from '@/components/OrganisationModal.vue'
 import { getOrganisations, type Organisation } from '@/api/organisations'
 import { useAuthStore } from '@/stores/auth'
 import { apiErrorMessage } from '@/utils/apiErrorMessage'
+import {
+  memberOrganisationIdsFromUserDepartments,
+  prepareOrganisationsForOrgSubAdminList
+} from '@/utils/organisationUserPicker'
 
 const authStore = useAuthStore()
 const isLoading = ref(false)
 const error = ref<string | null>(null)
-const organisations = ref<Organisation[]>([])
+const organisationsRaw = ref<Organisation[]>([])
 
 // Modal State
 const isModalOpen = ref(false)
@@ -128,14 +132,17 @@ const isSuperAdmin = computed(() =>
 )
 
 /** Organisationen, in denen der User mindestens ein Department hat (für Org-Chef-UI) */
-const memberOrganisationIds = computed(() => {
-  const ids = new Set<string>()
-  for (const d of authStore.departments || []) {
-    const oid = d.department?.organisation_id?.trim()
-    if (oid) ids.add(oid)
-  }
-  return ids
-})
+const memberOrganisationIds = computed(() =>
+  memberOrganisationIdsFromUserDepartments(authStore.departments)
+)
+
+/** Gefiltert/sortiert: SA alle (Mitglieds-Orgs zuerst), Org-/Suborg-Chef nur eigene Orgs */
+const displayOrganisations = computed(() =>
+  prepareOrganisationsForOrgSubAdminList(organisationsRaw.value, {
+    isSuperAdmin: isSuperAdmin.value,
+    memberOrganisationIds: memberOrganisationIds.value
+  })
+)
 
 /**
  * Lädt Organisationen aus der API
@@ -145,7 +152,7 @@ async function loadOrganisations() {
     isLoading.value = true
     error.value = null
 
-    organisations.value = await getOrganisations()
+    organisationsRaw.value = await getOrganisations()
   } catch (err: unknown) {
     error.value = apiErrorMessage(err, 'Fehler beim Laden der Organisationen')
   } finally {

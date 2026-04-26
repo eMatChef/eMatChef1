@@ -32,6 +32,7 @@ class PublicOrganisationsController extends AbstractController
             $result[] = [
                 'id' => $org->getId(),
                 'name' => $org->getName(),
+                'allowed_languages' => $org->getAllowedLanguages(),
             ];
         }
 

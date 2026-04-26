@@ -18,8 +18,16 @@ services:
     # Kein Host-Port: DB nur im Docker-Netz (Backend → db:5432). Kein Konflikt mit OS-Postgres auf :5432.
     environment:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    restart: unless-stopped
 
   backend:
+    # API-Port nur lokal am Droplet binden; externen Zugriff nur über Host-Nginx/443.
+    # So ist :8081 nicht direkt aus dem Internet erreichbar.
+    ports:
+      - "127.0.0.1:8081:8081"
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
     environment:
       APP_ENV: prod
       APP_DEBUG: "0"

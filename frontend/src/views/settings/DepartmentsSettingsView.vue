@@ -108,6 +108,10 @@ import DepartmentDetailsModal from '@/components/DepartmentDetailsModal.vue'
 import { getDepartments, getDepartment, type Department, type DepartmentUser } from '@/api/departments'
 import { getOrganisations, type Organisation } from '@/api/organisations'
 import { useAuthStore } from '@/stores/auth'
+import {
+  memberOrganisationIdsFromUserDepartments,
+  prepareOrganisationsForOrgSubAdminList
+} from '@/utils/organisationUserPicker'
 
 const authStore = useAuthStore()
 const isDev = computed(() => import.meta.env.DEV)
@@ -135,6 +139,15 @@ const canManageDepartments = computed(() => {
   
   return false
 })
+
+const isSuperAdmin = computed(() =>
+  (authStore.userRoles || []).includes('ROLE_SUPERADMIN')
+)
+
+const memberOrganisationIds = computed(() =>
+  memberOrganisationIdsFromUserDepartments(authStore.departments)
+)
+
 const isLoading = ref(false)
 const error = ref<string | null>(null)
 
@@ -230,16 +243,20 @@ async function loadDepartments() {
     error.value = null
 
     // Lade Organisationen und Departments parallel
-    const [orgs, depts] = await Promise.all([
+    const [orgsRaw, depts] = await Promise.all([
       getOrganisations(),
       getDepartments()
     ])
-    
+
+    const orgs = prepareOrganisationsForOrgSubAdminList(orgsRaw, {
+      isSuperAdmin: isSuperAdmin.value,
+      memberOrganisationIds: memberOrganisationIds.value
+    })
     organisations.value = orgs
-    
+
     // WICHTIG: Leere den User-Cache NICHT, damit User die bereits geladen wurden erhalten bleiben
     // Aber: User werden nur angezeigt, wenn sie im Cache sind (explizit geladen)
-    
+
     // Konvertiere zu TreeItemData (ohne User, außer die die bereits im Cache sind)
     treeItems.value = convertToTreeItems(orgs, depts)
     

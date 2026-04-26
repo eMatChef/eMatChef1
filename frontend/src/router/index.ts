@@ -761,6 +761,33 @@ const routes: RouteRecordRaw[] = [
             }
           },
           {
+            path: 'my-department/join-code',
+            name: 'SettingsMyDepartmentJoinCode',
+            component: () => import('@/views/settings/MyDepartmentJoinCodeView.vue'),
+            meta: {
+              pageTitle: 'Einstellungen · Join-Code · eMatChef',
+              pageDescription: PAGE_DESC,
+            }
+          },
+          {
+            path: 'my-department/public-material-page',
+            name: 'SettingsMyDepartmentPublicMaterialPage',
+            component: () => import('@/views/settings/MyDepartmentPublicMaterialPageView.vue'),
+            meta: {
+              pageTitle: 'Einstellungen · Öffentliche Material-Seite · eMatChef',
+              pageDescription: PAGE_DESC,
+            }
+          },
+          {
+            path: 'addons',
+            name: 'SettingsAddons',
+            component: () => import('@/views/settings/AddonsSettingsView.vue'),
+            meta: {
+              pageTitle: 'Einstellungen · Add-ons · eMatChef',
+              pageDescription: PAGE_DESC,
+            }
+          },
+          {
             path: 'users',
             name: 'SettingsUsers',
             component: () => import('@/views/settings/UsersSettingsView.vue'),

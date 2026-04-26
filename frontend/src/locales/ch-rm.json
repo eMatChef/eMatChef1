@@ -1,0 +1,19 @@
+{
+  "app": {
+    "name": "eMatChef"
+  },
+  "languageNames": {
+    "de": "Tudestg",
+    "de-pfadi": "Tudestg (Pfadi)",
+    "de-cevi": "Tudestg (Cevi)",
+    "en": "Englais",
+    "fr": "Franzos",
+    "it": "Talian",
+    "ch-rm": "Rumantsch"
+  },
+  "common": {
+    "save": "Memorisar",
+    "cancel": "Interrumper",
+    "loading": "Per plaschair spetgar..."
+  }
+}

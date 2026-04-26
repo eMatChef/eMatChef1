@@ -18,6 +18,10 @@ class Organisation
     #[ORM\Column(type: 'string', length: 255)]
     private string $name;
 
+    /** @var list<string>|null */
+    #[ORM\Column(name: 'allowed_languages', type: 'json', nullable: true)]
+    private ?array $allowedLanguages = null;
+
     #[ORM\OneToMany(mappedBy: 'organisation', targetEntity: Department::class)]
     private Collection $departments;
 
@@ -53,6 +57,39 @@ class Organisation
     public function setName(string $name): self
     {
         $this->name = $name;
+        return $this;
+    }
+
+    /**
+     * @return list<string>|null
+     */
+    public function getAllowedLanguages(): ?array
+    {
+        return $this->allowedLanguages;
+    }
+
+    /**
+     * @param list<string>|null $allowedLanguages
+     */
+    public function setAllowedLanguages(?array $allowedLanguages): self
+    {
+        if ($allowedLanguages === null) {
+            $this->allowedLanguages = null;
+            return $this;
+        }
+
+        $normalized = [];
+        foreach ($allowedLanguages as $lang) {
+            $value = strtolower(trim((string) $lang));
+            if ($value === '') {
+                continue;
+            }
+            if (!in_array($value, $normalized, true)) {
+                $normalized[] = $value;
+            }
+        }
+
+        $this->allowedLanguages = count($normalized) > 0 ? $normalized : null;
         return $this;
     }
 

@@ -253,7 +253,12 @@ import {
   type AvailableUser
 } from '@/api/departments'
 import { getOrganisations, type Organisation } from '@/api/organisations'
-import { filterOrganisationsForUserPickers } from '@/utils/organisationUserPicker'
+import {
+  filterOrganisationsForUserPickers,
+  memberOrganisationIdsFromUserDepartments,
+  prepareOrganisationsForOrgSubAdminList,
+  sortOrganisationsMembersFirst
+} from '@/utils/organisationUserPicker'
 
 interface Props {
   isOpen: boolean
@@ -275,6 +280,12 @@ const emit = defineEmits<{
 
 const toast = useToast()
 const authStore = useAuthStore()
+const isSuperAdmin = computed(() =>
+  (authStore.userRoles || []).includes('ROLE_SUPERADMIN')
+)
+const memberOrganisationIds = computed(() =>
+  memberOrganisationIdsFromUserDepartments(authStore.departments)
+)
 const isEdit = computed(() => !!props.department)
 const isSubmitting = ref(false)
 const error = ref<string | null>(null)
@@ -456,10 +467,25 @@ watch(() => props.isOpen, async (open) => {
     error.value = null
     // Organisationen und Departments laden
     try {
-      ;[organisations.value, allDepartments.value] = await Promise.all([
-        getOrganisations().then(filterOrganisationsForUserPickers),
-        getDepartments()
-      ])
+      const [rawOrgs, depts] = await Promise.all([getOrganisations(), getDepartments()])
+      allDepartments.value = depts
+      const picked = filterOrganisationsForUserPickers(rawOrgs)
+      let list = prepareOrganisationsForOrgSubAdminList(picked, {
+        isSuperAdmin: isSuperAdmin.value,
+        memberOrganisationIds: memberOrganisationIds.value
+      })
+      const editOrgId = props.department?.organisation_id
+      if (editOrgId && !list.some((o) => o.id === editOrgId)) {
+        const missing =
+          picked.find((o) => o.id === editOrgId) || rawOrgs.find((o) => o.id === editOrgId)
+        if (missing) {
+          list = sortOrganisationsMembersFirst(
+            [missing, ...list.filter((o) => o.id !== missing.id)],
+            memberOrganisationIds.value
+          )
+        }
+      }
+      organisations.value = list
     } catch (err: any) {
       error.value = 'Fehler beim Laden der Daten'
     }
