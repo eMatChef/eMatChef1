@@ -10,20 +10,19 @@ import {
   DEFAULT_LANGUAGE,
   SUPPORTED_LANGUAGE_CODES,
   type SupportedLanguageCode,
-  normalizeLanguageCode
+  normalizeLanguageCode,
+  buildVariantFallbackLocaleMap
 } from '@/config/languages'
 import type { FallbackLocale } from 'vue-i18n'
 
 const LOCALE_STORAGE_KEY = 'app_locale'
 
 /**
- * Lücken-Fallback pro Locale: Untervarianten zuerst auf die Basis-Locale, dann
- * (bei Bedarf) wie die restliche App. `ch-rm` (Rumantsch) ist keine Untervariante
- * von de — nur eine kleinere locale-Datei, Lücken mit de/en füllen.
+ * Lücken-Fallback: Untervarianten kommen aus `LOCALE_BASE_FOR_VARIANT` (siehe languages.ts).
+ * `ch-rm` ist keine Untervariante von de — eigene Datei, Lücken mit de/en.
  */
 const I18N_FALLBACK_LOCALE: FallbackLocale = {
-  'de-pfadi': [DEFAULT_LANGUAGE],
-  'de-cevi': [DEFAULT_LANGUAGE],
+  ...buildVariantFallbackLocaleMap(),
   'ch-rm': [DEFAULT_LANGUAGE, 'en'],
   en: [DEFAULT_LANGUAGE],
   fr: [DEFAULT_LANGUAGE],

@@ -4,10 +4,12 @@ export const SUPPORTED_LANGUAGE_CODES = ['de', 'de-pfadi', 'de-cevi', 'en', 'fr'
 export type SupportedLanguageCode = (typeof SUPPORTED_LANGUAGE_CODES)[number]
 
 /**
- * Dialekte/Organisationsschreibweisen (z. B. de-pfadi, de-cevi) hängen an genau
- * einer Basis-Locale. In den JSON-Dateien reicht ein Delta: fehlende Keys nutzen
- * in vue-i18n den definierten Fallback (siehe `I18N_FALLBACK_LOCALE` in `i18n.ts`).
- * Später z. B. fr-pfadi → 'fr', it-xyz → 'it'.
+ * Dialekte/Organisationsschreibweisen: jede Variante hängt an genau einer Basis-Locale.
+ * JSON reicht als Delta; fehlende Keys → vue-i18n-Fallback (siehe `buildI18nFallbackLocale()`).
+ *
+ * Beispiele heute: de-pfadi, de-cevi → de.
+ * Geplant: fr-pfadi, fr-cevi → fr; it-pfadi, it-cevi → it (Codes zu `SUPPORTED_LANGUAGE_CODES`
+ * und Backend `app.supported_languages` hinzufügen, dann `fr-pfadi.json` usw. + `i18n.ts`-messages).
  */
 export const LOCALE_BASE_FOR_VARIANT: Partial<Record<SupportedLanguageCode, 'de' | 'fr' | 'it'>> = {
   'de-pfadi': 'de',
@@ -25,6 +27,27 @@ export function getBaseLocaleForLanguageVariant(code: string | null | undefined)
     return LOCALE_BASE_FOR_VARIANT[c]!
   }
   return null
+}
+
+/**
+ * vue-i18n-Fallback-Kette pro Untervariante: zuerst die Basis-Locale, bei Bedarf App-Default.
+ * (de-pfadi → nur `de`; fr-pfadi → `fr` dann `de`.)
+ */
+export function variantFallbackLocaleChain(variantCode: string): string[] {
+  const key = variantCode.trim().toLowerCase()
+  const base = (LOCALE_BASE_FOR_VARIANT as Record<string, 'de' | 'fr' | 'it'>)[key]
+  if (!base) return []
+  if (base === DEFAULT_LANGUAGE) return [DEFAULT_LANGUAGE]
+  return [base, DEFAULT_LANGUAGE]
+}
+
+/** Eintraege fuer `fallbackLocale` (nur Keys aus LOCALE_BASE_FOR_VARIANT). */
+export function buildVariantFallbackLocaleMap(): Record<string, string[]> {
+  const out: Record<string, string[]> = {}
+  for (const variant of Object.keys(LOCALE_BASE_FOR_VARIANT) as Array<keyof typeof LOCALE_BASE_FOR_VARIANT>) {
+    out[variant] = variantFallbackLocaleChain(variant)
+  }
+  return out
 }
 
 export function isSupportedLanguageCode(value: string | null | undefined): value is SupportedLanguageCode {
