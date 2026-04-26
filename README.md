@@ -77,4 +77,10 @@ docker exec ematchef_v401-backend-1 php bin/console app:org-subset:export --org=
 docker exec ematchef_v401-backend-1 php bin/console app:org-subset:import --file=data/seeds/orgs/org_js000000_and_GLOBALORG001/subset.json --ensure-superadmin
 ```
 
-Weitere Details: `docs/
+## Crowdin (i18n)
+
+- In Crowdin: **Settings → Languages → Language mapping** — pro Sprache **Custom code** so setzen, dass die **Dateinamen** zu `frontend/src/locales/` passen, z. B. Englisch → `en` (nicht `en-US`), analog **fr**, **it**. Ohne die Kurzform legt der Export gern `en-US.json` o. a. an und passiert nicht zum i18n-Code.
+- Fuer Ziele wie **Rumantsch** bzw. **de-pfadi** / **de-cevi** dieselben **Codes** wie in `frontend/src/config/languages.ts` waehlen: `ch-rm`, `de-pfadi`, `de-cevi` (nur in Crowdin, sobald die Sprache als Ziel existiert; jeweils **Custom language** bzw. Code-Feld).
+- Im Repo ist `languages_mapping` in `crowdin.yml` ergaenzt (Sicherheitsnetz, falls trotzdem en-US / fr-FR / it-IT in Crowdin gepflegt werden).
+
+Weitere Details: lokal in `docs/` (falls im Arbeitsbaum vorhanden) oder in `deploy/SERVER-UPDATE.md` bei Deployment-Hinweisen.

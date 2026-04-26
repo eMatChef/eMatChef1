@@ -6,3 +6,15 @@ preserve_hierarchy: true
 files:
   - source: /frontend/src/locales/de.json
     translation: /frontend/src/locales/%locale%.json
+    # Sicherheitsnetz: Placeholder %locale% kann sonst en-US / fr-FR / it-IT erzeugen (zusaetzlich
+    # zu eurem UI Language mapping). Doku: https://support.crowdin.com/developer/configuration-file/
+    languages_mapping:
+      locale:
+        "en-US": "en"
+        "en-GB": "en"
+        "fr-FR": "fr"
+        "fr-CA": "fr"
+        "it-IT": "it"
+        "it-CH": "it"
+        # "rm": "ch-rm"
+        # "roh": "ch-rm"
