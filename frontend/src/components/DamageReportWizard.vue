@@ -3,8 +3,8 @@
     <div v-if="isOpen" class="damage-wizard-overlay">
       <div class="damage-wizard-modal">
         <div class="wizard-header">
-          <h2>Schaden melden</h2>
-          <button class="close-btn" @click="close" title="Schliessen">
+          <h2>{{ t('components.damageReportWizard.title') }}</h2>
+          <button class="close-btn" @click="close" :title="t('components.damageReportWizard.closeTitle')">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <line x1="18" y1="6" x2="6" y2="18"/>
               <line x1="6" y1="6" x2="18" y2="18"/>
@@ -15,21 +15,21 @@
         <div class="wizard-body">
           <!-- Step 1: Aktivität wählen -->
           <div v-if="step === 1" class="wizard-step">
-            <h3>1. Aktivität wählen</h3>
-            <p class="step-hint">Wähle eine Aktivität von dir oder deiner Gruppe</p>
+            <h3>{{ t('components.damageReportWizard.step1Title') }}</h3>
+            <p class="step-hint">{{ t('components.damageReportWizard.step1Hint') }}</p>
             <button class="no-activity-btn" @click="startWithoutActivity">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
                 <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
               </svg>
-              Ohne Aktivitätsbezug melden
+              {{ t('components.damageReportWizard.reportWithoutActivity') }}
             </button>
             <div v-if="isLoadingActivities" class="loading-row">
               <div class="spinner"></div>
-              <span>Aktivitäten werden geladen...</span>
+              <span>{{ t('components.damageReportWizard.loadingActivities') }}</span>
             </div>
             <div v-else-if="selectableActivities.length === 0" class="empty-state">
-              <p>Keine Aktivitäten im Status «Ausgegeben» oder «Retour» gefunden.</p>
-              <p class="hint">Schaden kann nur bei ausgegebenen Aktivitäten gemeldet werden.</p>
+              <p>{{ t('components.damageReportWizard.emptyActivities') }}</p>
+              <p class="hint">{{ t('components.damageReportWizard.emptyActivitiesHint') }}</p>
             </div>
             <div v-else class="activity-list">
               <button
@@ -47,48 +47,48 @@
 
           <!-- Step 2a: Mit Aktivität – Material + Details -->
           <div v-else-if="step === 2 && mode === 'with_activity' && selectedActivity" class="wizard-step">
-            <h3>2. Schaden erfassen</h3>
-            <p class="step-hint">Aktivität: {{ selectedActivity.name }}</p>
+            <h3>{{ t('components.damageReportWizard.step2WithActivityTitle') }}</h3>
+            <p class="step-hint">{{ t('components.damageReportWizard.activityPrefix') }} {{ selectedActivity.name }}</p>
             <div v-if="isLoadingPackItems" class="loading-row">
               <div class="spinner"></div>
-              <span>Material wird geladen...</span>
+              <span>{{ t('components.damageReportWizard.loadingMaterial') }}</span>
             </div>
             <div v-else class="form-fields">
               <div class="form-group">
-                <label>Material <span class="required">*</span></label>
+                <label>{{ t('components.damageReportWizard.materialLabel') }} <span class="required">*</span></label>
                 <select v-model="form.materialItemId" class="form-select" required>
-                  <option value="">– Material wählen –</option>
+                  <option value="">{{ t('components.damageReportWizard.selectMaterialOption') }}</option>
                   <option v-for="pi in packItems" :key="pi.material_item_id" :value="pi.material_item_id">
                     {{ packItemSelectLabel(pi) }}
                   </option>
                 </select>
               </div>
               <div class="form-group">
-                <label>Art <span class="required">*</span></label>
+                <label>{{ t('components.damageReportWizard.kindLabel') }} <span class="required">*</span></label>
                 <select v-model="form.type" class="form-select">
-                  <option value="damage">Schaden</option>
-                  <option value="repair">Reparatur</option>
-                  <option value="loss">Verlust</option>
+                  <option value="damage">{{ t('components.damageReportWizard.issueTypeDamage') }}</option>
+                  <option value="repair">{{ t('components.damageReportWizard.issueTypeRepair') }}</option>
+                  <option value="loss">{{ t('components.damageReportWizard.issueTypeLoss') }}</option>
                 </select>
               </div>
               <div class="form-group">
-                <label>Menge</label>
+                <label>{{ t('components.damageReportWizard.quantityLabel') }}</label>
                 <input v-model.number="form.quantity" type="number" min="1" class="form-input" />
               </div>
               <div class="form-group">
-                <label>Beschreibung</label>
-                <textarea v-model="form.description" rows="3" class="form-input" placeholder="Was ist passiert?"></textarea>
+                <label>{{ t('components.damageReportWizard.descriptionLabel') }}</label>
+                <textarea v-model="form.description" rows="3" class="form-input" :placeholder="t('components.damageReportWizard.descriptionPlaceholder')"></textarea>
               </div>
             </div>
           </div>
 
           <!-- Step 2b: Ohne Aktivität – Material + Titel -->
           <div v-else-if="step === 2 && mode === 'no_activity'" class="wizard-step">
-            <h3>Schaden erfassen (ohne Aktivität)</h3>
-            <p class="step-hint">Werkstatt-Ticket wird direkt erstellt</p>
+            <h3>{{ t('components.damageReportWizard.step2NoActivityTitle') }}</h3>
+            <p class="step-hint">{{ t('components.damageReportWizard.step2NoActivityHint') }}</p>
             <div class="form-fields">
               <div class="form-group">
-                <label>Material <span class="required">*</span></label>
+                <label>{{ t('components.damageReportWizard.materialLabel') }} <span class="required">*</span></label>
                 <div class="mat-search-wrap">
                   <div v-if="selectedMaterial" class="mat-selected">
                     <span>{{ selectedMaterial.name }}</span>
@@ -99,7 +99,7 @@
                       v-model="formNoActivity.matSearch"
                       type="text"
                       class="form-input"
-                      placeholder="Material suchen (min. 2 Zeichen)..."
+                      :placeholder="t('components.damageReportWizard.materialSearchPlaceholder')"
                       @input="onMatSearchInput"
                     />
                     <div v-if="formNoActivity.matSearch.length >= 2 && matSearchResults.length > 0" class="mat-dropdown">
@@ -118,37 +118,37 @@
                 </div>
               </div>
               <div class="form-group">
-                <label>Titel / Kurzbeschreibung <span class="required">*</span></label>
-                <input v-model="formNoActivity.title" type="text" class="form-input" placeholder="z.B. Riss im Zeltdach" />
+                <label>{{ t('components.damageReportWizard.titleShortLabel') }} <span class="required">*</span></label>
+                <input v-model="formNoActivity.title" type="text" class="form-input" :placeholder="t('components.damageReportWizard.titlePlaceholder')" />
               </div>
               <div class="form-group">
-                <label>Typ</label>
+                <label>{{ t('components.damageReportWizard.typeLabel') }}</label>
                 <select v-model="formNoActivity.type" class="form-select">
-                  <option value="repair">Reparatur</option>
-                  <option value="inspection">Inspektion</option>
-                  <option value="writeoff">Abschreibung</option>
-                  <option value="cleaning">Reinigung</option>
+                  <option value="repair">{{ t('components.damageReportWizard.workshopTypeRepair') }}</option>
+                  <option value="inspection">{{ t('components.damageReportWizard.workshopTypeInspection') }}</option>
+                  <option value="writeoff">{{ t('components.damageReportWizard.workshopTypeWriteoff') }}</option>
+                  <option value="cleaning">{{ t('components.damageReportWizard.workshopTypeCleaning') }}</option>
                 </select>
               </div>
               <div class="form-group">
-                <label>Beschreibung</label>
-                <textarea v-model="formNoActivity.description" rows="3" class="form-input" placeholder="Details zum Problem..."></textarea>
+                <label>{{ t('components.damageReportWizard.descriptionLabel') }}</label>
+                <textarea v-model="formNoActivity.description" rows="3" class="form-input" :placeholder="t('components.damageReportWizard.descriptionNoActivityPlaceholder')"></textarea>
               </div>
             </div>
           </div>
         </div>
 
         <div class="wizard-footer">
-          <button v-if="step === 2 && !props.presetActivityId" class="btn btn-outline" @click="goBack">Zurück</button>
+          <button v-if="step === 2 && !props.presetActivityId" class="btn btn-outline" @click="goBack">{{ t('components.damageReportWizard.back') }}</button>
           <div class="spacer"></div>
           <button v-if="step === 1" class="btn btn-primary" :disabled="!selectedActivity" @click="advanceToStep2">
-            Weiter
+            {{ t('components.damageReportWizard.next') }}
           </button>
           <button v-else-if="mode === 'no_activity'" class="btn btn-primary" :disabled="!canSubmitNoActivity || isSubmitting" @click="submitNoActivity">
-            {{ isSubmitting ? 'Wird gesendet...' : 'Ticket erstellen' }}
+            {{ isSubmitting ? t('components.damageReportWizard.submitting') : t('components.damageReportWizard.createTicket') }}
           </button>
           <button v-else class="btn btn-primary" :disabled="!canSubmit || isSubmitting" @click="submit">
-            {{ isSubmitting ? 'Wird gesendet...' : 'Schaden melden' }}
+            {{ isSubmitting ? t('components.damageReportWizard.submitting') : t('components.damageReportWizard.reportDamage') }}
           </button>
         </div>
       </div>
@@ -158,6 +158,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'
 import { useToast } from '@/composables/useToast'
 import apiClient from '@/api/apiClient'
@@ -201,6 +202,7 @@ const emit = defineEmits<{
   success: []
 }>()
 
+const { t } = useI18n()
 const authStore = useAuthStore()
 const toast = useToast()
 const userId = computed(() => authStore.userId)
@@ -300,7 +302,7 @@ function packItemSelectLabel(pi: PackItem): string {
       ? String(pi.linked_container_label).trim()
       : '')
   const title = instanceLabel ? `${instanceLabel} — ${pi.material_name}` : pi.material_name
-  return `${title} (${qty} Stk.)`
+  return t('components.damageReportWizard.packItemQty', { title, qty })
 }
 
 async function loadPackItems() {
@@ -388,6 +390,10 @@ function advanceToStep2() {
   }
 }
 
+function errMessage(err: any): string {
+  return err.response?.data?.error || err.message || ''
+}
+
 async function submitNoActivity() {
   if (!selectedMaterial.value || !formNoActivity.value.title.trim() || isSubmitting.value) return
   isSubmitting.value = true
@@ -402,7 +408,7 @@ async function submitNoActivity() {
     emit('success')
     close()
   } catch (err: any) {
-    toast.error('Fehler: ' + (err.response?.data?.error || err.message))
+    toast.error(t('components.damageReportWizard.errorWithMessage', { message: errMessage(err) }))
   } finally {
     isSubmitting.value = false
   }
@@ -421,7 +427,7 @@ async function submit() {
     emit('success')
     close()
   } catch (err: any) {
-    toast.error('Fehler: ' + (err.response?.data?.error || err.message))
+    toast.error(t('components.damageReportWizard.errorWithMessage', { message: errMessage(err) }))
   } finally {
     isSubmitting.value = false
   }
@@ -459,12 +465,12 @@ async function applyPresetActivity(id: string) {
         created_by_user_id: d.created_by_user_id,
       }
     } catch {
-      toast.error('Aktivität konnte nicht geladen werden.')
+      toast.error(t('components.damageReportWizard.toastActivityLoadFailed'))
       return
     }
   }
   if (!a.status || !['issued', 'returned'].includes(a.status)) {
-    toast.error('Schaden kann nur bei ausgegebenen oder retour Aktivitäten gemeldet werden.')
+    toast.error(t('components.damageReportWizard.toastOnlyIssuedReturned'))
     return
   }
   selectedActivity.value = a
@@ -476,10 +482,10 @@ async function applyPresetActivity(id: string) {
 
 function applyMaterialAndTypePresets() {
   const mid = props.presetMaterialItemId?.trim()
-  const t = props.presetIssueType
+  const presetType = props.presetIssueType
   if (mid) form.value.materialItemId = mid
-  if (t && ['damage', 'repair', 'loss'].includes(t)) {
-    form.value.type = t
+  if (presetType && ['damage', 'repair', 'loss'].includes(presetType)) {
+    form.value.type = presetType
   }
 }
 

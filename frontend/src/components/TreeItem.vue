@@ -68,7 +68,7 @@
       <div class="tree-cell actions-cell" @dblclick.stop>
         <!-- Organisationen: Bleistift UND 3-Punkte-Menü -->
         <div v-if="item.type === 'group' && item.id.startsWith('org-')" class="actions-group">
-          <button @click="handleEdit" class="edit-button" title="Bearbeiten">
+          <button @click="handleEdit" class="edit-button" :title="t('components.treeItem.titleEdit')">
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
               <path
                 d="M11.3333 2.00001C11.5084 1.8249 11.7163 1.68601 11.9444 1.59124C12.1726 1.49648 12.4163 1.44775 12.6625 1.44775C12.9087 1.44775 13.1524 1.49648 13.3806 1.59124C13.6087 1.68601 13.8166 1.8249 13.9917 2.00001C14.1668 2.17512 14.3057 2.38301 14.4005 2.61118C14.4952 2.83935 14.544 3.08306 14.544 3.32918C14.544 3.5753 14.4952 3.81901 14.4005 4.04718C14.3057 4.27535 14.1668 4.48324 13.9917 4.65835L5.32499 13.325L2 14L2.67499 10.675L11.3333 2.00001Z"
@@ -80,7 +80,7 @@
             </svg>
           </button>
           <div class="menu-container" :data-menu-id="item.id">
-            <button @click.stop="toggleMenu" class="menu-button" title="Menü">
+            <button @click.stop="toggleMenu" class="menu-button" :title="t('components.treeItem.titleMenu')">
               <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
                 <circle cx="4" cy="8" r="1.5" fill="currentColor"/>
                 <circle cx="8" cy="8" r="1.5" fill="currentColor"/>
@@ -93,20 +93,20 @@
                   <path d="M8 8C10.2091 8 12 6.20914 12 4C12 1.79086 10.2091 0 8 0C5.79086 0 4 1.79086 4 4C4 6.20914 5.79086 8 8 8Z" fill="currentColor"/>
                   <path d="M0 14C0 11.2386 2.23858 9 5 9H11C13.7614 9 16 11.2386 16 14V16H0V14Z" fill="currentColor"/>
                 </svg>
-                <span>Details anzeigen</span>
+                <span>{{ t('components.treeItem.showDetails') }}</span>
               </button>
               <button @click="handleAddDepartment" class="menu-item">
                 <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
                   <path d="M8 4V12M4 8H12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
                 </svg>
-                <span>Department hinzufügen</span>
+                <span>{{ t('components.treeItem.addDepartment') }}</span>
               </button>
             </div>
           </div>
         </div>
         <!-- Departments: Bleistift UND 3-Punkte-Menü -->
         <div v-else-if="item.type === 'group' && item.id.startsWith('dept-')" class="actions-group">
-          <button @click="handleEdit" class="edit-button" title="Bearbeiten">
+          <button @click="handleEdit" class="edit-button" :title="t('components.treeItem.titleEdit')">
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
               <path
                 d="M11.3333 2.00001C11.5084 1.8249 11.7163 1.68601 11.9444 1.59124C12.1726 1.49648 12.4163 1.44775 12.6625 1.44775C12.9087 1.44775 13.1524 1.49648 13.3806 1.59124C13.6087 1.68601 13.8166 1.8249 13.9917 2.00001C14.1668 2.17512 14.3057 2.38301 14.4005 2.61118C14.4952 2.83935 14.544 3.08306 14.544 3.32918C14.544 3.5753 14.4952 3.81901 14.4005 4.04718C14.3057 4.27535 14.1668 4.48324 13.9917 4.65835L5.32499 13.325L2 14L2.67499 10.675L11.3333 2.00001Z"
@@ -118,7 +118,7 @@
             </svg>
           </button>
           <div class="menu-container" :data-menu-id="item.id">
-            <button @click.stop="toggleMenu" class="menu-button" title="Menü">
+            <button @click.stop="toggleMenu" class="menu-button" :title="t('components.treeItem.titleMenu')">
               <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
                 <circle cx="4" cy="8" r="1.5" fill="currentColor"/>
                 <circle cx="8" cy="8" r="1.5" fill="currentColor"/>
@@ -131,19 +131,19 @@
                   <path d="M8 3C4.5 3 1.5 6 1.5 8C1.5 10 4.5 13 8 13C11.5 13 14.5 10 14.5 8C14.5 6 11.5 3 8 3Z" stroke="currentColor" stroke-width="1.5"/>
                   <circle cx="8" cy="8" r="2" fill="currentColor"/>
                 </svg>
-                <span>Details anzeigen</span>
+                <span>{{ t('components.treeItem.showDetails') }}</span>
               </button>
               <button @click="handleAddDepartment" class="menu-item">
                 <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
                   <path d="M8 4V12M4 8H12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
                 </svg>
-                <span>Unter-Department hinzufügen</span>
+                <span>{{ t('components.treeItem.addSubDepartment') }}</span>
               </button>
             </div>
           </div>
         </div>
         <!-- Bearbeiten-Button für User -->
-        <button v-else @click="handleEdit" class="edit-button" title="Bearbeiten">
+        <button v-else @click="handleEdit" class="edit-button" :title="t('components.treeItem.titleEdit')">
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
             <path
               d="M11.3333 2.00001C11.5084 1.8249 11.7163 1.68601 11.9444 1.59124C12.1726 1.49648 12.4163 1.44775 12.6625 1.44775C12.9087 1.44775 13.1524 1.49648 13.3806 1.59124C13.6087 1.68601 13.8166 1.8249 13.9917 2.00001C14.1668 2.17512 14.3057 2.38301 14.4005 2.61118C14.4952 2.83935 14.544 3.08306 14.544 3.32918C14.544 3.5753 14.4952 3.81901 14.4005 4.04718C14.3057 4.27535 14.1668 4.48324 13.9917 4.65835L5.32499 13.325L2 14L2.67499 10.675L11.3333 2.00001Z"
@@ -180,7 +180,10 @@
 
 <script setup lang="ts">
 import { computed, ref, onMounted, onUnmounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import type { TreeItemData } from './TreeList.vue'
+
+const { t } = useI18n()
 
 interface Props {
   item: TreeItemData

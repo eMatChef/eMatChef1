@@ -11,7 +11,7 @@
       >
         <span class="global-toast__icon">{{ iconForType(toast.type) }}</span>
         <span class="global-toast__message">{{ toast.message }}</span>
-        <button class="global-toast__close" @click="toastStore.remove(toast.id)" aria-label="Schließen">
+        <button class="global-toast__close" @click="toastStore.remove(toast.id)" :aria-label="t('common.closeAria')">
           ×
         </button>
         <div
@@ -25,8 +25,10 @@
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n'
 import { useToastStore, type ToastType } from '@/stores/toast'
 
+const { t } = useI18n()
 const toastStore = useToastStore()
 
 function iconForType(type: ToastType): string {

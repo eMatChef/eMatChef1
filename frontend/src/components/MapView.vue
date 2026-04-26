@@ -6,11 +6,11 @@
           <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z" fill="#d1d5db"/>
           <circle cx="12" cy="9" r="2.5" fill="#9ca3af"/>
         </svg>
-        <p>{{ editable ? 'Klicken Sie auf die Karte, um einen Standort zu setzen' : 'Keine Koordinaten verfügbar' }}</p>
+        <p>{{ editable ? t('components.mapView.hintSetLocation') : t('components.mapView.hintNoCoords') }}</p>
       </div>
       <div v-if="isLoading" class="loading-overlay">
         <div class="spinner"></div>
-        <p>Suche Adresse...</p>
+        <p>{{ t('components.mapView.searchingAddress') }}</p>
       </div>
 
       <!-- Layer-Auswahl -->
@@ -19,7 +19,7 @@
           type="button"
           :class="['layer-btn', { active: currentLayer === 'swisstopo' }]"
           @click="setLayer('swisstopo')"
-          title="Swisstopo Landeskarte (CH)"
+          :title="t('components.mapView.layerSwisstopoTitle')"
         >
           🇨🇭
         </button>
@@ -27,7 +27,7 @@
           type="button"
           :class="['layer-btn', { active: currentLayer === 'swissimage' }]"
           @click="setLayer('swissimage')"
-          title="Swisstopo Luftbild (Swissimage)"
+          :title="t('components.mapView.layerSwissimageTitle')"
         >
           📷
         </button>
@@ -35,7 +35,7 @@
           type="button"
           :class="['layer-btn', { active: currentLayer === 'osm' }]"
           @click="setLayer('osm')"
-          title="OpenStreetMap"
+          :title="t('components.mapView.layerOsmTitle')"
         >
           🌍
         </button>
@@ -45,17 +45,17 @@
     <!-- Koordinaten-Anzeige -->
     <div v-if="hasCoordinates && showCoordinates" class="coordinates-display">
       <div class="coord-row">
-        <span class="coord-label">{{ isInSwitzerland ? 'LV95 (CH)' : 'WGS84' }}</span>
+        <span class="coord-label">{{ isInSwitzerland ? t('components.mapView.labelLv95') : t('components.mapView.labelWgs84') }}</span>
         <span class="coord-value">
           {{ isInSwitzerland ? formatSwissCoords(latitude, longitude) : formatWGS84(latitude, longitude) }}
         </span>
       </div>
       <div v-if="isInSwitzerland" class="coord-row secondary">
-        <span class="coord-label">WGS84</span>
+        <span class="coord-label">{{ t('components.mapView.labelWgs84') }}</span>
         <span class="coord-value">{{ formatWGS84(latitude, longitude) }}</span>
       </div>
       <div v-if="foundAddress" class="coord-row address">
-        <span class="coord-label">Adresse</span>
+        <span class="coord-label">{{ t('components.mapView.labelAddress') }}</span>
         <span class="coord-value">{{ foundAddress }}</span>
       </div>
     </div>
@@ -65,6 +65,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
+import { useI18n } from 'vue-i18n'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 
@@ -104,6 +105,8 @@ const props = withDefaults(defineProps<Props>(), {
   showLayerControl: true,
   preferSwissMap: true
 })
+
+const { t } = useI18n()
 
 const emit = defineEmits<{
   'update:latitude': [value: number]
