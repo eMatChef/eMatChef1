@@ -770,6 +770,26 @@ const routes: RouteRecordRaw[] = [
             }
           },
           {
+            path: 'my-department/storage-locations',
+            name: 'SettingsMyDepartmentStorageLocations',
+            component: () => import('@/views/settings/MyDepartmentAddressSettingsView.vue'),
+            meta: {
+              pageTitle: 'Einstellungen · Standorte · eMatChef',
+              pageDescription: PAGE_DESC,
+              addressKind: 'storage',
+            }
+          },
+          {
+            path: 'my-department/billing-address',
+            name: 'SettingsMyDepartmentBillingAddress',
+            component: () => import('@/views/settings/MyDepartmentAddressSettingsView.vue'),
+            meta: {
+              pageTitle: 'Einstellungen · Rechnungsadresse · eMatChef',
+              pageDescription: PAGE_DESC,
+              addressKind: 'billing',
+            }
+          },
+          {
             path: 'my-department/public-material-page',
             name: 'SettingsMyDepartmentPublicMaterialPage',
             component: () => import('@/views/settings/MyDepartmentPublicMaterialPageView.vue'),

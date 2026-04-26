@@ -1,12 +1,12 @@
 <template>
-  <div v-if="!editor" class="tiptap-loading">Editor wird geladen…</div>
+  <div v-if="!editor" class="tiptap-loading">{{ t('tiptap.loading') }}</div>
   <div v-else class="tiptap-wrap" :class="{ 'tiptap-wrap--disabled': disabled }">
-    <div class="tiptap-toolbar" role="toolbar" aria-label="Formatierung">
+    <div class="tiptap-toolbar" role="toolbar" :aria-label="t('tiptap.toolbarAria')">
       <button
         type="button"
         class="tiptap-tb-btn"
         :class="{ 'is-active': editor.isActive('bold') }"
-        title="Fett"
+        :title="t('tiptap.bold')"
         @click="editor.chain().focus().toggleBold().run()"
       >
         B
@@ -15,7 +15,7 @@
         type="button"
         class="tiptap-tb-btn"
         :class="{ 'is-active': editor.isActive('italic') }"
-        title="Kursiv"
+        :title="t('tiptap.italic')"
         @click="editor.chain().focus().toggleItalic().run()"
       >
         <em>I</em>
@@ -25,7 +25,7 @@
         type="button"
         class="tiptap-tb-btn"
         :class="{ 'is-active': editor.isActive('heading', { level: 2 }) }"
-        title="Überschrift 2"
+        :title="t('tiptap.heading2')"
         @click="editor.chain().focus().toggleHeading({ level: 2 }).run()"
       >
         H2
@@ -34,7 +34,7 @@
         type="button"
         class="tiptap-tb-btn"
         :class="{ 'is-active': editor.isActive('heading', { level: 3 }) }"
-        title="Überschrift 3"
+        :title="t('tiptap.heading3')"
         @click="editor.chain().focus().toggleHeading({ level: 3 }).run()"
       >
         H3
@@ -44,7 +44,7 @@
         type="button"
         class="tiptap-tb-btn"
         :class="{ 'is-active': editor.isActive('bulletList') }"
-        title="Liste"
+        :title="t('tiptap.bulletList')"
         @click="editor.chain().focus().toggleBulletList().run()"
       >
         •
@@ -53,7 +53,7 @@
         type="button"
         class="tiptap-tb-btn"
         :class="{ 'is-active': editor.isActive('orderedList') }"
-        title="Nummerierung"
+        :title="t('tiptap.orderedList')"
         @click="editor.chain().focus().toggleOrderedList().run()"
       >
         1.
@@ -63,7 +63,7 @@
         type="button"
         class="tiptap-tb-btn"
         :class="{ 'is-active': editor.isActive('link') }"
-        title="Link"
+        :title="t('tiptap.link')"
         @click="setLink"
       >
         Link
@@ -72,7 +72,7 @@
       <button
         type="button"
         class="tiptap-tb-btn"
-        title="Rückgängig"
+        :title="t('tiptap.undo')"
         @click="editor.chain().focus().undo().run()"
       >
         ↶
@@ -80,7 +80,7 @@
       <button
         type="button"
         class="tiptap-tb-btn"
-        title="Wiederholen"
+        :title="t('tiptap.redo')"
         @click="editor.chain().focus().redo().run()"
       >
         ↷
@@ -96,6 +96,7 @@ import { useEditor, EditorContent } from '@tiptap/vue-3'
 import StarterKit from '@tiptap/starter-kit'
 import Link from '@tiptap/extension-link'
 import Placeholder from '@tiptap/extension-placeholder'
+import { useI18n } from 'vue-i18n'
 
 const props = withDefaults(
   defineProps<{
@@ -103,12 +104,19 @@ const props = withDefaults(
     placeholder?: string
     disabled?: boolean
   }>(),
-  { placeholder: 'Text eingeben…', disabled: false }
+  { placeholder: undefined, disabled: false }
 )
 
 const emit = defineEmits<{
   'update:modelValue': [value: string]
 }>()
+
+const { t } = useI18n()
+
+function placeholderText(): string {
+  const p = props.placeholder?.trim()
+  return p ? p : t('tiptap.placeholderDefault')
+}
 
 const editor = useEditor({
   content: props.modelValue || '<p></p>',
@@ -120,7 +128,7 @@ const editor = useEditor({
       openOnClick: false,
       HTMLAttributes: { rel: 'noopener noreferrer', target: '_blank' },
     }),
-    Placeholder.configure({ placeholder: props.placeholder }),
+    Placeholder.configure({ placeholder: placeholderText() }),
   ],
   editorProps: {
     attributes: {
@@ -155,7 +163,7 @@ function setLink() {
   const ed = editor.value
   if (!ed) return
   const prev = ed.getAttributes('link').href
-  const url = window.prompt('Link-Adresse (URL)', prev || 'https://')
+  const url = window.prompt(t('tiptap.linkPrompt'), prev || t('tiptap.linkDefault'))
   if (url === null) return
   if (url === '') {
     ed.chain().focus().extendMarkRange('link').unsetLink().run()

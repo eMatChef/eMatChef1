@@ -10,8 +10,8 @@
 
     <div v-if="activityRouteId && activityDetailGateLoading" class="loading-state activities-detail-gate">
       <div class="spinner"></div>
-      <p>Aktivität wird geöffnet…</p>
-          </div>
+      <p>{{ t('activities.opening') }}</p>
+    </div>
 
     <div v-else-if="activityRouteId && showActivityDetail" class="dept-page activities-detail-root">
       <ActivityDetailView :department-id="departmentId" :activity-id="activityRouteId" />
@@ -21,15 +21,15 @@
     <template v-else-if="!activityRouteId">
       <div class="activities-header page-header header-content">
         <div class="header-left">
-          <h1>Aktivitäten</h1>
-          <span class="subtitle">Events, Vermietungen & Ausleihen verwalten</span>
+          <h1>{{ t('activities.title') }}</h1>
+          <span class="subtitle">{{ t('activities.subtitle') }}</span>
         </div>
         <div class="header-right">
           <button type="button" class="btn-primary" @click="openCreateActivityWizard">
             <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
               <path d="M10 4V16M4 10H16" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
             </svg>
-            <span>Aktivität erstellen</span>
+            <span>{{ t('activities.create') }}</span>
           </button>
         </div>
       </div>
@@ -37,27 +37,27 @@
       <div v-if="!isLoading && activities.length > 0" class="stats-bar">
         <div class="stat-item">
           <span class="stat-value">{{ activities.length }}</span>
-          <span class="stat-label">Gesamt</span>
+          <span class="stat-label">{{ t('activities.stats.total') }}</span>
         </div>
         <div class="stat-item">
           <span class="stat-value stat-draft">{{ activities.filter((a) => a.status === 'draft').length }}</span>
-          <span class="stat-label">Entwürfe</span>
+          <span class="stat-label">{{ t('activities.stats.drafts') }}</span>
         </div>
         <div class="stat-item">
           <span class="stat-value stat-submitted">{{ activities.filter((a) => a.status === 'submitted').length }}</span>
-          <span class="stat-label">Eingereicht</span>
+          <span class="stat-label">{{ t('activities.stats.submitted') }}</span>
         </div>
         <div class="stat-item">
           <span class="stat-value stat-approved">{{ activities.filter((a) => ['approved', 'packing', 'packed'].includes(a.status)).length }}</span>
-          <span class="stat-label">In Bearbeitung</span>
+          <span class="stat-label">{{ t('activities.stats.inProgress') }}</span>
         </div>
         <div class="stat-item">
           <span class="stat-value stat-issued">{{ activities.filter((a) => a.status === 'issued').length }}</span>
-          <span class="stat-label">Ausgegeben</span>
+          <span class="stat-label">{{ t('activities.stats.issued') }}</span>
         </div>
         <div class="stat-item">
           <span class="stat-value stat-completed">{{ activities.filter((a) => a.status === 'completed').length }}</span>
-          <span class="stat-label">Abgeschlossen</span>
+          <span class="stat-label">{{ t('activities.stats.completed') }}</span>
         </div>
       </div>
 
@@ -94,7 +94,7 @@
               :department-id="departmentId"
               default-type="activity"
               v-model="searchQuery"
-              placeholder="Suchen (material:, aktivität:, reparatur:)"
+              :placeholder="t('activities.searchPlaceholder')"
             />
           </div>
         </div>
@@ -102,7 +102,7 @@
 
       <div v-if="isLoading" class="loading-state">
         <div class="spinner"></div>
-        <p>Aktivitäten werden geladen...</p>
+        <p>{{ t('activities.loadingList') }}</p>
       </div>
 
       <div v-else class="activities-table-wrapper">
@@ -111,22 +111,22 @@
             <tr>
               <th class="col-status"></th>
               <th class="col-name" @click="toggleSort('name')">
-                Name
+                {{ t('activities.table.name') }}
                 <span v-if="sortField === 'name'" class="sort-icon">{{ sortDir === 'asc' ? '↑' : '↓' }}</span>
               </th>
-              <th class="col-type">Typ</th>
-              <th class="col-customer">Gruppe / Kunde</th>
+              <th class="col-type">{{ t('activities.table.type') }}</th>
+              <th class="col-customer">{{ t('activities.table.customerGroup') }}</th>
               <th class="col-period" @click="toggleSort('date')">
-                Zeitraum
+                {{ t('activities.table.period') }}
                 <span v-if="sortField === 'date'" class="sort-icon">{{ sortDir === 'asc' ? '↑' : '↓' }}</span>
               </th>
-              <th class="col-items">Material</th>
+              <th class="col-items">{{ t('activities.table.material') }}</th>
               <th class="col-price" @click="toggleSort('price')">
-                Preis
+                {{ t('activities.table.price') }}
                 <span v-if="sortField === 'price'" class="sort-icon">{{ sortDir === 'asc' ? '↑' : '↓' }}</span>
               </th>
-              <th class="col-progress">Status</th>
-              <th class="col-issues">Meldungen</th>
+              <th class="col-progress">{{ t('activities.table.status') }}</th>
+              <th class="col-issues">{{ t('activities.table.issues') }}</th>
             </tr>
           </thead>
           <tbody>
@@ -139,7 +139,7 @@
                     <line x1="8" y1="2" x2="8" y2="6" />
                     <line x1="3" y1="10" x2="21" y2="10" />
                   </svg>
-                  <p>{{ searchQuery || activeTypeFilter ? 'Keine Treffer' : 'Noch keine Aktivitäten vorhanden' }}</p>
+                  <p>{{ searchQuery || activeTypeFilter ? t('activities.empty.noMatch') : t('activities.empty.noneYet') }}</p>
                 </div>
               </td>
             </tr>
@@ -198,7 +198,7 @@
                   class="activities-list-issues-link"
                   :to="`/${departmentId}/activities/${activity.id}?tab=issues`"
                 >
-                  Meldungen
+                  {{ t('activities.table.issues') }}
                 </router-link>
                 <span v-else class="text-muted">–</span>
               </td>
@@ -206,7 +206,7 @@
           </tbody>
         </table>
         <div v-if="filteredActivities.length > 0" class="table-footer">
-          <span>{{ filteredActivities.length }} von {{ activities.length }} Aktivitäten</span>
+          <span>{{ t('activities.table.footer', { shown: filteredActivities.length, total: activities.length }) }}</span>
         </div>
       </div>
 
@@ -218,6 +218,7 @@
 defineOptions({ name: 'ActivitiesView' })
 import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import apiClient from '@/api/apiClient'
 import { getActivity } from '@/api/activities'
 import GlobalSearchInput from '@/components/common/GlobalSearchInput.vue'
@@ -228,6 +229,7 @@ import { useToast } from '@/composables/useToast'
 
 const route = useRoute()
 const router = useRouter()
+const { t, te, locale } = useI18n()
 const toast = useToast()
 const pageHeadStore = usePageHeadStore()
 
@@ -271,12 +273,22 @@ interface Activity {
   updatedAt: string
 }
 
-const typeFilterChips = [
-  { type: 'activity', label: 'Aktivität' },
-  { type: 'camp', label: 'Lager' },
-  { type: 'event', label: 'Event' },
-  { type: 'external', label: 'Extern' },
-]
+const ACTIVITY_FILTER_TYPES = ['activity', 'camp', 'event', 'external'] as const
+
+const typeFilterChips = computed(() =>
+  ACTIVITY_FILTER_TYPES.map((type) => ({
+    type,
+    label: t(`activities.types.${type}`),
+  })),
+)
+
+function nameSortLocale(): string {
+  const raw = String(locale.value)
+  if (raw.startsWith('de')) return 'de'
+  if (raw.startsWith('fr')) return 'fr'
+  if (raw.startsWith('it')) return 'it'
+  return 'en'
+}
 
 function mapActivityListItem(a: Record<string, unknown>): Activity {
   const no = a.no as number | string | undefined
@@ -310,9 +322,9 @@ async function loadActivities() {
     const e = err as { code?: string; response?: { data?: { error?: string } }; message?: string }
     const msg =
       e?.code === 'ECONNABORTED'
-        ? 'Zeitüberschreitung – Backend antwortet nicht.'
-        : e?.response?.data?.error || e?.message || 'Unbekannter Fehler'
-    toast.error('Aktivitäten konnten nicht geladen werden: ' + msg)
+        ? t('activities.errors.timeout')
+        : e?.response?.data?.error || e?.message || t('activities.errors.unknown')
+    toast.error(t('activities.errors.loadFailed', { msg }))
   } finally {
     isLoading.value = false
   }
@@ -338,10 +350,10 @@ function isPastActivity(a: Activity): boolean {
 }
 
 const tabs = computed(() => [
-  { key: 'upcoming', label: 'Anstehend', count: activities.value.filter(isUpcomingActivity).length },
-  { key: 'past', label: 'Vergangen', count: activities.value.filter(isPastActivity).length },
-  { key: 'all', label: 'Alle', count: activities.value.length },
-  { key: 'cancelled', label: 'Storniert', count: activities.value.filter((a) => a.status === 'cancelled').length },
+  { key: 'upcoming', label: t('activities.tabs.upcoming'), count: activities.value.filter(isUpcomingActivity).length },
+  { key: 'past', label: t('activities.tabs.past'), count: activities.value.filter(isPastActivity).length },
+  { key: 'all', label: t('activities.tabs.all'), count: activities.value.length },
+  { key: 'cancelled', label: t('activities.tabs.cancelled'), count: activities.value.filter((a) => a.status === 'cancelled').length },
 ])
 
 const filteredActivities = computed(() => {
@@ -377,7 +389,7 @@ const filteredActivities = computed(() => {
       return db - da
     }
     if (sortField.value === 'name') {
-      cmp = a.name.localeCompare(b.name, 'de')
+      cmp = a.name.localeCompare(b.name, nameSortLocale())
     } else if (sortField.value === 'date') {
       const da = a.usageStart ? new Date(a.usageStart).getTime() : 0
       const db = b.usageStart ? new Date(b.usageStart).getTime() : 0
@@ -392,35 +404,18 @@ const filteredActivities = computed(() => {
 })
 
 function getTypeLabel(type: string): string {
-  const labels: Record<string, string> = {
-    activity: 'Aktivität',
-    camp: 'Lager',
-    event: 'Event',
-    external: 'Extern',
-  }
-  return labels[type] || type
+  const key = `activities.types.${type}`
+  return te(key) ? t(key) : type
 }
 
 function getStatusLabel(status: string): string {
-  const labels: Record<string, string> = {
-    draft: 'Entwurf',
-    submitted: 'Eingereicht',
-    approved: 'Bestätigt',
-    packing: 'Wird gepackt',
-    packed: 'Gepackt',
-    issued: 'Ausgegeben',
-    returned: 'Retour',
-    completed: 'Abgeschlossen',
-    cancelled: 'Storniert',
-    confirmed: 'Bestätigt',
-    active: 'Aktiv',
-  }
-  return labels[status] || status
+  const key = `activities.status.${status}`
+  return te(key) ? t(key) : status
 }
 
 function getActivityShareHint(activity: Activity): string | null {
   if (activity.departmentId && activity.departmentId !== departmentId.value) {
-    return `Geteilt von: ${activity.departmentName || 'anderem Department'}`
+    return `${t('activities.share.fromPrefix')} ${activity.departmentName || t('activities.share.otherDeptFallback')}`
   }
   const accepted = (activity.invitedDepartments || []).filter((entry) => entry?.status === 'accepted')
   if (accepted.length > 0) {
@@ -428,9 +423,9 @@ function getActivityShareHint(activity: Activity): string | null {
       .map((entry) => entry?.name)
       .filter((name): name is string => !!name)
       .slice(0, 2)
-    if (names.length === 0) return 'Geteilt mit anderen Departments'
-    const suffix = accepted.length > 2 ? ` +${accepted.length - 2}` : ''
-    return `Geteilt mit: ${names.join(', ')}${suffix}`
+    if (names.length === 0) return t('activities.share.withOthers')
+    const suffix = accepted.length > 2 ? t('activities.share.moreSuffix', { n: accepted.length - 2 }) : ''
+    return `${t('activities.share.withPrefix')} ${names.join(', ')}${suffix}`
   }
   return null
 }
@@ -440,19 +435,19 @@ function getActivityShareStatus(activity: Activity): string | null {
   if (activity.departmentId && activity.departmentId !== departmentId.value) {
     const ownInvite = invited.find((entry) => entry?.id === departmentId.value)
     if (!ownInvite) return null
-    if (ownInvite.status === 'accepted') return 'Status: angenommen'
-    if (ownInvite.status === 'rejected') return 'Status: abgelehnt'
-    return 'Status: ausstehend'
+    if (ownInvite.status === 'accepted') return t('activities.share.statusAccepted')
+    if (ownInvite.status === 'rejected') return t('activities.share.statusRejected')
+    return t('activities.share.statusPending')
   }
   if (invited.length === 0) return null
   const accepted = invited.filter((entry) => entry?.status === 'accepted').length
   const pending = invited.filter((entry) => entry?.status === 'pending').length
   const rejected = invited.filter((entry) => entry?.status === 'rejected').length
   const parts: string[] = []
-  if (accepted > 0) parts.push(`${accepted} angenommen`)
-  if (pending > 0) parts.push(`${pending} ausstehend`)
-  if (rejected > 0) parts.push(`${rejected} abgelehnt`)
-  return parts.length > 0 ? `Freigabe: ${parts.join(' · ')}` : null
+  if (accepted > 0) parts.push(t('activities.share.partAccepted', { n: accepted }))
+  if (pending > 0) parts.push(t('activities.share.partPending', { n: pending }))
+  if (rejected > 0) parts.push(t('activities.share.partRejected', { n: rejected }))
+  return parts.length > 0 ? `${t('activities.share.releasePrefix')} ${parts.join(' · ')}` : null
 }
 
 function isSameDay(date1: string, date2: string): boolean {
@@ -464,7 +459,7 @@ function isSameDay(date1: string, date2: string): boolean {
 function formatDateShort(dateStr: string): string {
   if (!dateStr) return ''
   const d = new Date(dateStr)
-  return d.toLocaleDateString('de-CH', { day: '2-digit', month: 'short' })
+  return d.toLocaleDateString(undefined, { day: '2-digit', month: 'short' })
 }
 
 function getRelativeDate(dateStr: string): string {
@@ -472,13 +467,13 @@ function getRelativeDate(dateStr: string): string {
   const d = new Date(dateStr)
   const diffMs = d.getTime() - now.getTime()
   const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24))
-  if (diffDays === 0) return 'heute'
-  if (diffDays === 1) return 'morgen'
-  if (diffDays === -1) return 'gestern'
-  if (diffDays > 0 && diffDays <= 7) return `in ${diffDays} Tagen`
-  if (diffDays < 0 && diffDays >= -7) return `vor ${Math.abs(diffDays)} Tagen`
-  if (diffDays > 7 && diffDays <= 30) return `in ${Math.ceil(diffDays / 7)} Wochen`
-  if (diffDays < -7 && diffDays >= -30) return `vor ${Math.ceil(Math.abs(diffDays) / 7)} Wochen`
+  if (diffDays === 0) return t('activities.relative.today')
+  if (diffDays === 1) return t('activities.relative.tomorrow')
+  if (diffDays === -1) return t('activities.relative.yesterday')
+  if (diffDays > 0 && diffDays <= 7) return t('activities.relative.inDays', { n: diffDays })
+  if (diffDays < 0 && diffDays >= -7) return t('activities.relative.daysAgo', { n: Math.abs(diffDays) })
+  if (diffDays > 7 && diffDays <= 30) return t('activities.relative.inWeeks', { n: Math.ceil(diffDays / 7) })
+  if (diffDays < -7 && diffDays >= -30) return t('activities.relative.weeksAgo', { n: Math.ceil(Math.abs(diffDays) / 7) })
   return ''
 }
 

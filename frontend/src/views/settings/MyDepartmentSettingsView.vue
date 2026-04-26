@@ -2,14 +2,14 @@
   <div class="my-department-settings">
     <div class="header-section">
       <div>
-        <h1>Mein Department</h1>
-        <p class="description">Einstellungen für dein aktuelles Department</p>
+        <h1>{{ t('settings.myDepartment.title') }}</h1>
+        <p class="description">{{ t('settings.myDepartment.subtitle') }}</p>
       </div>
     </div>
 
     <!-- Department Selector (wenn User in mehreren Departments ist) -->
     <div v-if="userDepartments.length > 1" class="department-selector">
-      <label for="department-select" class="selector-label">Department auswählen:</label>
+      <label for="department-select" class="selector-label">{{ t('settings.myDepartment.selectDepartment') }}</label>
       <div class="dept-select-row">
         <div class="select-wrapper">
           <select 
@@ -24,7 +24,7 @@
               :value="dept.department_id"
             >
               {{ dept.department?.name || dept.department_id }} 
-              {{ dept.is_primary ? '⭐ (Primär)' : '' }}
+              {{ dept.is_primary ? `⭐ (${t('settings.myDepartment.primary')})` : '' }}
               - {{ formatRole(dept.role) }}
             </option>
           </select>
@@ -41,28 +41,28 @@
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
             <path d="M8 1L10 5.5L15 6L11.5 9.5L12.5 14.5L8 12L3.5 14.5L4.5 9.5L1 6L6 5.5L8 1Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
           </svg>
-          {{ isSavingPrimary ? 'Speichern...' : 'Als Primär setzen' }}
+          {{ isSavingPrimary ? t('settings.myDepartment.saving') : t('settings.myDepartment.setAsPrimary') }}
         </button>
         <span v-else class="current-primary-badge">
           <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
             <path d="M8 1L10 5.5L15 6L11.5 9.5L12.5 14.5L8 12L3.5 14.5L4.5 9.5L1 6L6 5.5L8 1Z" fill="#f59e0b" stroke="#f59e0b" stroke-width="1"/>
           </svg>
-          Primäres Department
+          {{ t('settings.myDepartment.primaryDepartment') }}
         </span>
       </div>
-      <p class="selector-hint">Du bist Mitglied in {{ userDepartments.length }} Departments. Dein primäres Department wird beim Login automatisch geladen.</p>
+      <p class="selector-hint">{{ t('settings.myDepartment.departmentMembershipHint', { count: userDepartments.length }) }}</p>
     </div>
 
     <!-- Loading State -->
     <div v-if="isLoading" class="loading-state">
       <div class="spinner"></div>
-      <p>Lade Department-Daten...</p>
+      <p>{{ t('settings.myDepartment.loadingDepartmentData') }}</p>
     </div>
 
     <!-- Error State -->
     <div v-else-if="error" class="error-state">
       <p class="error-message">{{ error }}</p>
-      <button @click="loadDepartment" class="retry-button">Erneut versuchen</button>
+      <button @click="loadDepartment" class="retry-button">{{ t('common.retry') }}</button>
     </div>
 
     <!-- Department Info -->
@@ -76,28 +76,28 @@
               fill="#3b82f6"
             />
           </svg>
-          <h2>Department-Informationen</h2>
+          <h2>{{ t('settings.myDepartment.departmentInfoTitle') }}</h2>
         </div>
         
         <div class="info-grid">
           <div class="info-item">
-            <span class="info-label">Name</span>
+            <span class="info-label">{{ t('settings.myDepartment.fields.name') }}</span>
             <span class="info-value">{{ department.name }}</span>
           </div>
           <div class="info-item">
-            <span class="info-label">Department-ID</span>
+            <span class="info-label">{{ t('settings.myDepartment.fields.departmentId') }}</span>
             <span class="info-value mono">{{ department.id }}</span>
           </div>
           <div class="info-item">
-            <span class="info-label">Organisation-ID</span>
+            <span class="info-label">{{ t('settings.myDepartment.fields.organisationId') }}</span>
             <span class="info-value mono">{{ department.organisation_id }}</span>
           </div>
           <div v-if="department.parent_id" class="info-item">
-            <span class="info-label">Übergeordnetes Department</span>
+            <span class="info-label">{{ t('settings.myDepartment.fields.parentDepartment') }}</span>
             <span class="info-value mono">{{ department.parent_id }}</span>
           </div>
           <div class="info-item">
-            <span class="info-label">Deine Rolle</span>
+            <span class="info-label">{{ t('settings.myDepartment.fields.yourRole') }}</span>
             <span class="info-value">
               <span class="role-badge">{{ formatRole(currentRole) }}</span>
             </span>
@@ -110,7 +110,7 @@
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" class="card-icon">
             <path d="M12 2L15 8H21L16 12L18 19L12 15L6 19L8 12L3 8H9L12 2Z" fill="#3b82f6"/>
           </svg>
-          <h2>Onboarding</h2>
+          <h2>{{ t('settings.myDepartment.onboardingTitle') }}</h2>
         </div>
 
         <div class="onboarding-admin-row">
@@ -125,15 +125,14 @@
             :disabled="isResettingOnboarding"
             @click="resetDepartmentOnboarding"
           >
-            {{ isResettingOnboarding ? 'Zuruecksetzen...' : 'Onboarding zuruecksetzen' }}
+            {{ isResettingOnboarding ? t('settings.myDepartment.resetting') : t('settings.myDepartment.resetOnboarding') }}
           </button>
         </div>
         <p v-if="isExemptFromMemberOnboardingUi" class="selector-hint">
-          Das Einrichtungs-Onboarding richtet sich an Materialchef/Depchef. Für deine Leitungsrolle ist kein eigener
-          Durchlauf nötig — unten kannst du das Onboarding für alle Mitglieder dieses Departments zurücksetzen.
+          {{ t('settings.myDepartment.onboardingLeaderHint') }}
         </p>
         <p v-else class="selector-hint">
-          Setzt das Department-Onboarding fuer alle Mitglieder dieses Departments auf "offen".
+          {{ t('settings.myDepartment.onboardingHint') }}
         </p>
       </div>
 
@@ -143,23 +142,23 @@
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" class="card-icon card-icon-danger">
             <path d="M4 7V4H20V7M9 20H15V10H9V20M5 7H19V20H5V7Z" fill="#dc2626"/>
           </svg>
-          <h2>DB zurücksetzen</h2>
+          <h2>{{ t('settings.myDepartment.dbResetTitle') }}</h2>
         </div>
         <div class="db-reset-row">
           <p class="db-reset-desc">
-            Löscht alle Daten dieses Departments: Aktivitäten, Materialien, Adressen, Kategorien, Gruppen, Lagerplätze, etc.
-            <strong>Department und Mitglieder bleiben erhalten.</strong>
+            {{ t('settings.myDepartment.dbResetDescription') }}
+            <strong>{{ t('settings.myDepartment.dbResetDescriptionStrong') }}</strong>
           </p>
           <button
             class="db-reset-btn"
             :disabled="isResettingDb"
             @click="resetDepartmentDb"
           >
-            {{ isResettingDb ? 'Zurücksetzen...' : 'DB zurücksetzen' }}
+            {{ isResettingDb ? t('settings.myDepartment.resetting') : t('settings.myDepartment.resetDb') }}
           </button>
         </div>
         <p class="selector-hint db-reset-warning">
-          Nur für Dev/Test. Diese Aktion kann nicht rückgängig gemacht werden.
+          {{ t('settings.myDepartment.dbResetWarning') }}
         </p>
       </div>
 
@@ -185,7 +184,7 @@
             <span class="user-role-badge">{{ formatRole(user.role) }}</span>
           </div>
         </div>
-        <p v-else class="empty-users">Keine Mitglieder in diesem Department.</p>
+        <p v-else class="empty-users">{{ t('settings.myDepartment.noMembers') }}</p>
       </div>
 
       <!-- Statistiken Card -->
@@ -200,191 +199,66 @@
         <div class="stats-grid">
           <div class="stat-item">
             <span class="stat-value">{{ department.users?.length || 0 }}</span>
-            <span class="stat-label">Mitglieder</span>
+            <span class="stat-label">{{ t('settings.myDepartment.stats.members') }}</span>
           </div>
           <div class="stat-item">
             <span class="stat-value">{{ subDepartmentsCount }}</span>
-            <span class="stat-label">Unter-Departments</span>
+            <span class="stat-label">{{ t('settings.myDepartment.stats.subDepartments') }}</span>
           </div>
           <div class="stat-item">
             <span class="stat-value">{{ storageAddresses.length }}</span>
-            <span class="stat-label">Lagerplätze</span>
+            <span class="stat-label">{{ t('settings.myDepartment.stats.storageLocations') }}</span>
           </div>
           <div class="stat-item">
             <span class="stat-value">{{ addresses.length }}</span>
-            <span class="stat-label">Adressen</span>
+            <span class="stat-label">{{ t('settings.myDepartment.stats.addresses') }}</span>
           </div>
         </div>
       </div>
 
-      <!-- Lagerplätze Card (Adressen mit type='storage') -->
-      <div class="info-card storage-section">
+      <div class="info-card address-pages-card">
         <div class="card-header">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" class="card-icon">
-            <path d="M20 7H4C2.9 7 2 7.9 2 9V19C2 20.1 2.9 21 4 21H20C21.1 21 22 20.1 22 19V9C22 7.9 21.1 7 20 7Z" fill="#3b82f6"/>
-            <path d="M12 3L2 7H22L12 3Z" fill="#60a5fa"/>
+            <path d="M4 4H20V20H4V4ZM7 7H12V12H7V7ZM14 7H17V9H14V7ZM14 10H17V12H14V10ZM7 14H17V16H7V14Z" fill="#3b82f6"/>
           </svg>
-          <h2>Lagerplätze ({{ storageAddresses.length }})</h2>
-          <button @click="openAddressModal(undefined, 'storage')" class="add-storage-btn">
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-              <path d="M8 4V12M4 8H12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-            </svg>
-            Hinzufügen
-          </button>
+          <h2>Standorte & Rechnungsadresse</h2>
         </div>
-        
-        <div v-if="isLoadingAddresses" class="loading-storage">
-          <div class="spinner-sm"></div>
-          <span>Lade Adressen...</span>
+        <p class="selector-hint">
+          Standort- und Rechnungsadressen werden in eigenen Einstellungen verwaltet.
+        </p>
+        <div class="address-page-links">
+          <router-link class="address-page-link" :to="`/${selectedDepartmentId}/settings/my-department/storage-locations`">
+            {{ t('settings.myDepartment.openStorageLocations') }}
+          </router-link>
+          <router-link class="address-page-link" :to="`/${selectedDepartmentId}/settings/my-department/billing-address`">
+            {{ t('settings.myDepartment.openBillingAddress') }}
+          </router-link>
         </div>
-        
-        <div v-else-if="storageAddresses.length > 0" class="storage-list">
-          <div 
-            v-for="addr in storageAddresses" 
-            :key="addr.id" 
-            class="storage-item"
-            :class="{ 'is-primary': addr.is_primary }"
-          >
-            <div class="storage-icon">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-                <path d="M20 7H4C2.9 7 2 7.9 2 9V19C2 20.1 2.9 21 4 21H20C21.1 21 22 20.1 22 19V9C22 7.9 21.1 7 20 7Z" fill="currentColor"/>
-                <path d="M12 3L2 7H22L12 3Z" fill="currentColor" opacity="0.6"/>
-              </svg>
-            </div>
-            <div class="storage-info">
-              <div class="storage-name-row">
-                <span class="storage-name">{{ addr.name || addr.street_line }}</span>
-                <span v-if="addr.is_primary" class="primary-badge">Primär</span>
-              </div>
-              <span class="storage-address">{{ addr.full_address }}</span>
-            </div>
-            <div class="storage-actions">
-              <button v-if="!addr.is_primary" @click="makePrimary(addr)" class="action-btn" title="Als Primär setzen">
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                  <path d="M8 1L10 5.5L15 6L11.5 9.5L12.5 14.5L8 12L3.5 14.5L4.5 9.5L1 6L6 5.5L8 1Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-                </svg>
-              </button>
-              <button @click="openAddressModal(addr)" class="action-btn" title="Bearbeiten">
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                  <path d="M11.3333 2C11.5084 1.82489 11.7163 1.68601 11.9444 1.59124C12.1726 1.49648 12.4163 1.44775 12.6625 1.44775C12.9087 1.44775 13.1524 1.49648 13.3806 1.59124C13.6087 1.68601 13.8166 1.82489 13.9917 2C14.1668 2.17511 14.3057 2.383 14.4005 2.61117C14.4952 2.83934 14.5439 3.08305 14.5439 3.32917C14.5439 3.57529 14.4952 3.819 14.4005 4.04717C14.3057 4.27534 14.1668 4.48323 13.9917 4.65833L5.325 13.325L2 14L2.675 10.675L11.3333 2Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-                </svg>
-              </button>
-              <button 
-                v-if="addr.has_coordinates" 
-                @click="showOnMap(addr)" 
-                class="action-btn" 
-                title="Auf Karte zeigen"
-              >
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                  <path d="M8 2C5.24 2 3 4.24 3 7C3 10.75 8 14 8 14S13 10.75 13 7C13 4.24 10.76 2 8 2ZM8 8.5C7.17 8.5 6.5 7.83 6.5 7C6.5 6.17 7.17 5.5 8 5.5C8.83 5.5 9.5 6.17 9.5 7C9.5 7.83 8.83 8.5 8 8.5Z" fill="currentColor"/>
-                </svg>
-              </button>
-              <button @click="deleteAddressItem(addr)" class="action-btn delete" title="Löschen">
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                  <path d="M2 4H14M5 4V2H11V4M6 7V12M10 7V12M3 4L4 14H12L13 4H3Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-                </svg>
-              </button>
-            </div>
-          </div>
-        </div>
-        
-        <div v-else class="empty-storage">
-          <svg width="48" height="48" viewBox="0 0 24 24" fill="none">
-            <path d="M20 7H4C2.9 7 2 7.9 2 9V19C2 20.1 2.9 21 4 21H20C21.1 21 22 20.1 22 19V9C22 7.9 21.1 7 20 7Z" fill="#d1d5db"/>
-            <path d="M12 3L2 7H22L12 3Z" fill="#e5e7eb"/>
-          </svg>
-          <p>Noch keine Lagerplätze erfasst.</p>
-          <button @click="openAddressModal(undefined, 'storage')" class="add-first-btn">
-            Ersten Lagerplatz hinzufügen
-          </button>
-        </div>
-
-        <!-- Karte für alle Lagerplätze -->
-        <div v-if="storageAddressesWithCoords.length > 0" class="storage-map-section">
-          <h3>Übersichtskarte</h3>
-          <MapView
-            :latitude="storageAddressesWithCoords[0]?.latitude"
-            :longitude="storageAddressesWithCoords[0]?.longitude"
-            :editable="false"
-            height="300px"
-            :zoom="12"
-          />
-        </div>
-      </div>
-
-      <!-- Rechnungsadresse Card (Adressen mit type='billing') -->
-      <div class="info-card">
-        <div class="card-header">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" class="card-icon">
-            <path d="M19 3H5C3.9 3 3 3.9 3 5V19C3 20.1 3.9 21 5 21H19C20.1 21 21 20.1 21 19V5C21 3.9 20.1 3 19 3Z" fill="#3b82f6"/>
-            <path d="M7 7H17V9H7V7ZM7 11H17V13H7V11ZM7 15H13V17H7V15Z" fill="white"/>
-          </svg>
-          <h2>Rechnungsadresse</h2>
-          <button v-if="billingAddresses.length === 0" @click="openAddressModal(undefined, 'billing')" class="add-storage-btn">
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-              <path d="M8 4V12M4 8H12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-            </svg>
-            Hinzufügen
-          </button>
-        </div>
-        
-        <div v-if="billingAddresses.length > 0" class="billing-address">
-          <div v-for="addr in billingAddresses" :key="addr.id" class="address-card">
-            <div class="address-content">
-              <strong v-if="addr.company">{{ addr.company }}</strong>
-              <span>{{ addr.full_address }}</span>
-            </div>
-            <div class="address-actions">
-              <button @click="openAddressModal(addr)" class="action-btn" title="Bearbeiten">
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                  <path d="M11.3333 2C11.5084 1.82489 11.7163 1.68601 11.9444 1.59124C12.1726 1.49648 12.4163 1.44775 12.6625 1.44775C12.9087 1.44775 13.1524 1.49648 13.3806 1.59124C13.6087 1.68601 13.8166 1.82489 13.9917 2C14.1668 2.17511 14.3057 2.383 14.4005 2.61117C14.4952 2.83934 14.5439 3.08305 14.5439 3.32917C14.5439 3.57529 14.4952 3.819 14.4005 4.04717C14.3057 4.27534 14.1668 4.48323 13.9917 4.65833L5.325 13.325L2 14L2.675 10.675L11.3333 2Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-                </svg>
-              </button>
-              <button @click="deleteAddressItem(addr)" class="action-btn delete" title="Löschen">
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                  <path d="M2 4H14M5 4V2H11V4M6 7V12M10 7V12M3 4L4 14H12L13 4H3Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-                </svg>
-              </button>
-            </div>
-          </div>
-        </div>
-        <p v-else class="empty-billing">Noch keine Rechnungsadresse erfasst.</p>
       </div>
     </div>
 
     <!-- No Department -->
     <div v-else class="empty-state">
-      <p>Kein Department ausgewählt.</p>
+      <p>{{ t('settings.myDepartment.noDepartmentSelected') }}</p>
     </div>
 
-    <!-- Address Modal -->
-    <AddressModal
-      v-if="isAddressModalOpen"
-      :department-id="selectedDepartmentId || ''"
-      :address="editingAddress"
-      :default-type="newAddressType"
-      @close="closeAddressModal"
-      @saved="handleAddressSaved"
-    />
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'
 import { useToast } from '@/composables/useToast'
 import { useConfirm } from '@/composables/useConfirm'
 import { getDepartment, getDepartments, type Department } from '@/api/departments'
 import { setPrimaryDepartment as apiSetPrimaryDepartment } from '@/api/auth'
-import { 
-  getAddresses, 
-  createAddress,
-  updateAddress,
+import {
+  getAddresses,
   deleteAddress as apiDeleteAddress,
   setAddressPrimary,
   type Address,
-  ADDRESS_TYPES
 } from '@/api/addresses'
 import {
   deletePendingInvite,
@@ -405,14 +279,18 @@ import {
   type PublicFoundContactDelivery,
 } from '@/api/departmentSettings'
 import { buildOnboardingDismissedKey, buildOnboardingDoneKey, buildOnboardingStateKey } from '@/utils/departmentOnboarding'
-import MapView from '@/components/MapView.vue'
-import AddressModal from '@/components/AddressModal.vue'
 import QRCode from 'qrcode'
 
 const route = useRoute()
 const authStore = useAuthStore()
 const toast = useToast()
 const confirm = useConfirm()
+const { t, te } = useI18n()
+
+function addressTypeLabel(type: string): string {
+  const path = `settings.addressForm.types.${type}` as const
+  return te(path) ? t(path) : type
+}
 
 const isLoading = ref(false)
 const error = ref<string | null>(null)
@@ -493,12 +371,12 @@ const isExemptFromMemberOnboardingUi = computed(() => {
 
 const onboardingStatusLabel = computed(() => {
   if (isHierarchyLeaderDeptRole.value) {
-    return 'Nicht zutreffend (Leitungsrolle)'
+    return t('settings.myDepartment.onboarding.notApplicableLeader')
   }
   if (authStore.userRoles.includes('ROLE_SUPERADMIN')) {
-    return 'Nicht zutreffend (Superadmin)'
+    return t('settings.myDepartment.onboarding.notApplicableSuperadmin')
   }
-  return onboardingDone.value ? 'Abgeschlossen' : 'Offen'
+  return onboardingDone.value ? t('settings.myDepartment.onboarding.done') : t('settings.myDepartment.onboarding.open')
 })
 
 const onboardingStatusClass = computed(() => {
@@ -541,9 +419,9 @@ async function setAsPrimary() {
     // Auch den aktiven Department-ID im Store setzen
     authStore.setActiveDepartment(selectedDepartmentId.value)
     
-    toast.success('Primäres Department erfolgreich gespeichert!')
+    toast.success(t('settings.myDepartment.toastPrimarySaved'))
   } catch (err: any) {
-    toast.error(err.response?.data?.error || 'Fehler beim Speichern des primären Departments')
+    toast.error(err.response?.data?.error || t('settings.myDepartment.toastPrimarySaveError'))
   } finally {
     isSavingPrimary.value = false
   }
@@ -596,7 +474,7 @@ function getAvatarColor(name: string): string {
 async function loadDepartment(departmentId?: string) {
   const deptId = departmentId || selectedDepartmentId.value || authStore.activeDepartmentId
   if (!deptId) {
-    error.value = 'Kein Department ausgewählt'
+    error.value = t('settings.myDepartment.noDepartmentSelected')
     return
   }
 
@@ -615,7 +493,7 @@ async function loadDepartment(departmentId?: string) {
     await loadAddresses(deptId)
     await loadOnboardingStatus(deptId)
   } catch (err: any) {
-    error.value = err.response?.data?.error || 'Fehler beim Laden des Departments'
+    error.value = err.response?.data?.error || t('settings.myDepartment.loadError')
   } finally {
     isLoading.value = false
   }
@@ -659,9 +537,9 @@ async function saveCalendarSettingsForDept() {
       fcalGeoId: calendarFcalGeoId.value,
     })
     savedCalendarGeoId.value = calendarFcalGeoId.value.trim()
-    toast.success('Kalender-Einstellung gespeichert.')
+    toast.success(t('settings.addons.toastSaved'))
   } catch (err: any) {
-    toast.error(err.response?.data?.error || 'Kalender-Einstellung konnte nicht gespeichert werden.')
+    toast.error(err.response?.data?.error || t('settings.addons.toastSaveError'))
   } finally {
     isSavingCalendar.value = false
   }
@@ -679,9 +557,9 @@ async function savePublicSettings() {
       publicShowContactNote: publicShowContactNote.value,
       publicFoundContactDelivery: publicFoundContactDelivery.value,
     })
-    toast.success('Öffentliche Einstellungen gespeichert.')
+    toast.success(t('settings.publicMaterialPage.saveSuccess'))
   } catch (err: any) {
-    toast.error(err.response?.data?.error || 'Einstellungen konnten nicht gespeichert werden.')
+    toast.error(err.response?.data?.error || t('settings.publicMaterialPage.saveError'))
   } finally {
     isSavingPublicSettings.value = false
   }
@@ -692,7 +570,7 @@ async function loadOnboardingStatus(deptId: string) {
     const status = await getDepartmentOnboardingStatus(deptId)
     onboardingDone.value = status.doneAll
   } catch (err) {
-    console.warn('Onboarding-Status konnte nicht geladen werden:', err)
+    console.warn(t('settings.myDepartment.onboarding.loadStatusError'), err)
     onboardingDone.value = false
   }
 }
@@ -701,10 +579,10 @@ async function resetDepartmentOnboarding() {
   if (!selectedDepartmentId.value || isResettingOnboarding.value) return
 
   const ok = await confirm.confirm({
-    title: 'Onboarding zuruecksetzen?',
-    message: 'Das Onboarding wird für dieses Department wieder als offen markiert. Danach wird es erneut angezeigt.',
-    confirmText: 'Zuruecksetzen',
-    cancelText: 'Abbrechen',
+    title: t('settings.myDepartment.onboarding.confirmResetTitle'),
+    message: t('settings.myDepartment.onboarding.confirmResetMessage'),
+    confirmText: t('settings.myDepartment.onboarding.confirmResetAction'),
+    cancelText: t('common.cancel'),
     variant: 'warning',
   })
   if (!ok) return
@@ -721,10 +599,10 @@ async function resetDepartmentOnboarding() {
       localStorage.removeItem(buildOnboardingStateKey(profileId, departmentId))
       sessionStorage.removeItem(`onboarding_prompted_${profileId}_${departmentId}`)
     }
-    toast.success('Department-Onboarding wurde zurueckgesetzt.')
+    toast.success(t('settings.myDepartment.onboarding.toastResetSuccess'))
     window.location.href = `/${departmentId}`
   } catch (err: any) {
-    toast.error(err.response?.data?.error || 'Onboarding konnte nicht zurueckgesetzt werden.')
+    toast.error(err.response?.data?.error || t('settings.myDepartment.onboarding.toastResetError'))
   } finally {
     isResettingOnboarding.value = false
   }
@@ -734,10 +612,10 @@ async function resetDepartmentDb() {
   if (!selectedDepartmentId.value || isResettingDb.value) return
 
   const ok = await confirm.confirm({
-    title: 'DB zurücksetzen?',
-    message: 'Alle Daten dieses Departments werden unwiderruflich gelöscht (Aktivitäten, Materialien, Adressen, etc.). Department und Mitglieder bleiben erhalten.',
-    confirmText: 'DB zurücksetzen',
-    cancelText: 'Abbrechen',
+    title: t('settings.myDepartment.dbReset.confirmTitle'),
+    message: t('settings.myDepartment.dbReset.confirmMessage'),
+    confirmText: t('settings.myDepartment.dbReset.confirmAction'),
+    cancelText: t('common.cancel'),
     variant: 'danger',
   })
   if (!ok) return
@@ -754,11 +632,11 @@ async function resetDepartmentDb() {
       localStorage.removeItem(buildOnboardingStateKey(profileId, departmentId))
       sessionStorage.removeItem(`onboarding_prompted_${profileId}_${departmentId}`)
     }
-    toast.success(result.message || 'Department-Daten wurden zurückgesetzt.')
+    toast.success(result.message || t('settings.myDepartment.dbReset.toastSuccess'))
     // Zur Dashboard weiterleiten, damit Onboarding beim nächsten Laden erscheint
     window.location.href = `/${departmentId}`
   } catch (err: any) {
-    toast.error(err.response?.data?.error || 'DB konnte nicht zurückgesetzt werden.')
+    toast.error(err.response?.data?.error || t('settings.myDepartment.dbReset.toastError'))
   } finally {
     isResettingDb.value = false
   }
@@ -783,7 +661,7 @@ async function loadInviteCode(deptId: string) {
     })
     pendingInvites.value = await getPendingInvites(deptId)
   } catch (err) {
-    console.error('Join-Code konnte nicht geladen werden:', err)
+    console.error(t('settings.joinCode.toastRegenerateError'), err)
     inviteData.value = null
     inviteQrDataUrl.value = ''
     pendingInvites.value = []
@@ -805,10 +683,10 @@ async function regenerateInviteCode() {
       width: 180,
       margin: 1,
     })
-    toast.success('Join-Code wurde neu generiert.')
+    toast.success(t('settings.joinCode.toastRegenerated'))
   } catch (err) {
-    console.error('Join-Code konnte nicht neu erstellt werden:', err)
-    toast.error('Join-Code konnte nicht neu erstellt werden.')
+    console.error(t('settings.joinCode.toastRegenerateError'), err)
+    toast.error(t('settings.joinCode.toastRegenerateError'))
   } finally {
     isInviteLoading.value = false
   }
@@ -817,10 +695,10 @@ async function regenerateInviteCode() {
 async function removePendingInviteItem(inviteId: string) {
   if (!selectedDepartmentId.value) return
   const ok = await confirm.confirm({
-    title: 'Pending Einladung loeschen?',
-    message: 'Die Einladung wird entfernt und der Link ist nicht mehr in der Liste sichtbar.',
-    confirmText: 'Loeschen',
-    cancelText: 'Abbrechen',
+    title: t('settings.joinCode.confirmDeleteTitle'),
+    message: t('settings.joinCode.confirmDeleteMessage'),
+    confirmText: t('settings.joinCode.confirmDeleteAction'),
+    cancelText: t('common.cancel'),
     variant: 'danger',
   })
   if (!ok) return
@@ -828,29 +706,29 @@ async function removePendingInviteItem(inviteId: string) {
   try {
     await deletePendingInvite(selectedDepartmentId.value, inviteId)
     pendingInvites.value = pendingInvites.value.filter((entry) => entry.id !== inviteId)
-    toast.success('Pending Einladung geloescht.')
+    toast.success(t('settings.joinCode.toastPendingDeleted'))
   } catch (err: any) {
-    toast.error(err.response?.data?.error || 'Pending Einladung konnte nicht geloescht werden.')
+    toast.error(err.response?.data?.error || t('settings.joinCode.toastPendingDeleteError'))
   }
 }
 
 async function copyJoinCode() {
   if (!inviteData.value) return
   await navigator.clipboard.writeText(inviteData.value.join_code)
-  toast.success('Join-Code kopiert.')
+  toast.success(t('settings.joinCode.toastCopiedCode'))
 }
 
 async function copyInviteLink() {
   if (!inviteData.value) return
   await navigator.clipboard.writeText(inviteData.value.invite_url)
-  toast.success('Link zur Join-Seite kopiert (für angemeldete Nutzer).')
+  toast.success(t('settings.joinCode.toastCopiedInviteLink'))
 }
 
 async function copyRegisterInviteLink() {
   const url = inviteData.value?.register_invite_url?.trim()
   if (!url) return
   await navigator.clipboard.writeText(url)
-  toast.success('Registrierungslink kopiert (Organisation und Abteilung vorausgefüllt).')
+  toast.success(t('settings.joinCode.toastCopiedRegisterLink'))
 }
 
 // === Adressen (Lagerplätze = type='storage', Rechnung = type='billing') ===
@@ -861,7 +739,7 @@ async function loadAddresses(deptId: string) {
     const result = await getAddresses(deptId)
     addresses.value = result.addresses
   } catch (err: any) {
-    console.error('Fehler beim Laden der Adressen:', err)
+    console.error(t('settings.myDepartment.toastDeleteAddressError'), err)
     addresses.value = []
   } finally {
     isLoadingAddresses.value = false
@@ -888,12 +766,12 @@ async function handleAddressSaved() {
 }
 
 async function deleteAddressItem(address: Address) {
-  const typeLabel = ADDRESS_TYPES[address.type] || address.type
+  const typeLabel = addressTypeLabel(address.type)
   const ok = await confirm.confirm({
-    title: `${typeLabel} löschen?`,
-    message: `"${address.name || address.street_line}" wirklich löschen?`,
-    confirmText: 'Löschen',
-    cancelText: 'Abbrechen',
+    title: t('settings.myDepartment.deleteAddressConfirmTitle', { type: typeLabel }),
+    message: t('settings.myDepartment.deleteAddressConfirmMessage', { name: address.name || address.street_line }),
+    confirmText: t('settings.myDepartment.deleteAction'),
+    cancelText: t('common.cancel'),
     variant: 'danger',
   })
   if (!ok) return
@@ -904,7 +782,7 @@ async function deleteAddressItem(address: Address) {
       await loadAddresses(selectedDepartmentId.value)
     }
   } catch (err: any) {
-    toast.error(err.response?.data?.error || 'Fehler beim Löschen')
+    toast.error(err.response?.data?.error || t('settings.myDepartment.toastDeleteAddressError'))
   }
 }
 
@@ -915,7 +793,7 @@ async function makePrimary(address: Address) {
       await loadAddresses(selectedDepartmentId.value)
     }
   } catch (err: any) {
-    toast.error(err.response?.data?.error || 'Fehler beim Setzen als Primär')
+    toast.error(err.response?.data?.error || t('settings.myDepartment.toastSetPrimaryAddressError'))
   }
 }
 
@@ -1714,5 +1592,28 @@ onMounted(() => {
 .db-reset-warning {
   color: #b91c1c !important;
   margin-top: 12px;
+}
+
+.address-page-links {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+
+.address-page-link {
+  display: inline-flex;
+  align-items: center;
+  padding: 10px 14px;
+  border-radius: 8px;
+  text-decoration: none;
+  color: #1d4ed8;
+  border: 1px solid #bfdbfe;
+  background: #eff6ff;
+  font-weight: 600;
+}
+
+.address-page-link:hover {
+  background: #dbeafe;
 }
 </style>

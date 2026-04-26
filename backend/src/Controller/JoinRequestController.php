@@ -11,6 +11,7 @@ use App\Entity\Membership;
 use App\Entity\Organisation;
 use App\Entity\User;
 use App\Service\AuditLogger;
+use App\Service\Mail\MailTemplateContentStore;
 use App\Service\OrganisationUserPickerFilter;
 use App\Service\VerificationEmailService;
 use App\Util\IdGenerator;
@@ -62,6 +63,7 @@ class JoinRequestController extends AbstractController
         private EntityManagerInterface $entityManager,
         private AuditLogger $auditLogger,
         private VerificationEmailService $verificationEmailService,
+        private MailTemplateContentStore $mailTemplateContent,
         #[Autowire('%env(APP_FRONTEND_URL)%')] private string $frontendUrl
     )
     {
@@ -873,7 +875,8 @@ class JoinRequestController extends AbstractController
             $inviterName = trim((string) ($currentUser->getProfile()?->getEmail() ?? ''));
         }
         if ($inviterName === '') {
-            $inviterName = 'Ein Teammitglied';
+            $dTpl = $this->mailTemplateContent->getTemplate('department.invite', 'de');
+            $inviterName = (string) (is_array($dTpl) ? ($dTpl['inviter_name_fallback'] ?? '') : '');
         }
 
         try {

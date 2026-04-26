@@ -2,14 +2,14 @@
   <div class="integrations-settings">
     <div class="settings-header">
       <div>
-        <h1>Integrationen</h1>
-        <p class="subtitle">Zentrale Schnittstellen für die gesamte Installation (alle Abteilungen)</p>
+        <h1>{{ t('settings.integrations.title') }}</h1>
+        <p class="subtitle">{{ t('settings.integrations.subtitle') }}</p>
       </div>
     </div>
 
     <div v-if="isLoading" class="loading-state">
       <div class="spinner"></div>
-      <p>Laden…</p>
+      <p>{{ t('settings.integrations.loading') }}</p>
     </div>
 
     <div v-else class="settings-form">
@@ -22,31 +22,31 @@
             </svg>
           </div>
           <div>
-            <h3>Feiertagskalender.ch (Schulferien)</h3>
+            <h3>{{ t('settings.integrations.fcalTitle') }}</h3>
             <p>
-              Ein API-Schlüssel gilt für alle Abteilungen. Pro Abteilung wird unter
-              <strong>Aktivitäten</strong> die <strong>Geo-ID</strong> der Gemeinde gesetzt — siehe
+              {{ t('settings.integrations.fcalDescriptionBefore') }}
+              <strong>{{ t('settings.integrations.activitiesStrong') }}</strong> {{ t('settings.integrations.fcalDescriptionMiddle') }} <strong>{{ t('settings.integrations.geoIdStrong') }}</strong> {{ t('settings.integrations.fcalDescriptionAfter') }}
               <a href="https://feiertagskalender.ch/api/openapi.php?hl=de" target="_blank" rel="noopener noreferrer"
-                >API-Dokumentation</a
-              >.
+                >{{ t('settings.integrations.apiDocumentation') }}</a
+              >{{ t('settings.integrations.dot') }}
             </p>
           </div>
         </div>
         <div class="setting-fields">
           <div class="field-group field-group--wide">
-            <label for="fcal-api-key">API-Schlüssel (fcal)</label>
+            <label for="fcal-api-key">{{ t('settings.integrations.apiKeyLabel') }}</label>
             <input
               id="fcal-api-key"
               v-model="fcalApiKeyInput"
               type="password"
               autocomplete="off"
               class="form-input"
-              placeholder="Neuen Schlüssel eintragen …"
+              :placeholder="t('settings.integrations.apiKeyPlaceholder')"
             />
             <span class="field-hint">
-              <template v-if="status?.fcalApiKeyConfigured">Es ist ein Schlüssel hinterlegt.</template>
-              <template v-else>Noch kein Schlüssel gespeichert.</template>
-              Neuen Schlüssel eintragen und speichern — oder unten entfernen.
+              <template v-if="status?.fcalApiKeyConfigured">{{ t('settings.integrations.keyStored') }}</template>
+              <template v-else>{{ t('settings.integrations.keyMissing') }}</template>
+              {{ t('settings.integrations.keyHint') }}
             </span>
             <button
               v-if="status?.fcalApiKeyConfigured"
@@ -55,18 +55,18 @@
               :disabled="isSaving"
               @click="removeKey"
             >
-              Gespeicherten API-Schlüssel entfernen
+              {{ t('settings.integrations.removeStoredKey') }}
             </button>
           </div>
         </div>
       </section>
 
       <div class="save-bar">
-        <div v-if="dirty" class="unsaved-hint">Ungespeicherte Änderungen</div>
+        <div v-if="dirty" class="unsaved-hint">{{ t('settings.integrations.unsavedChanges') }}</div>
         <div class="save-actions">
-          <button type="button" class="btn-secondary" :disabled="!dirty || isSaving" @click="resetInput">Zurücksetzen</button>
+          <button type="button" class="btn-secondary" :disabled="!dirty || isSaving" @click="resetInput">{{ t('settings.integrations.reset') }}</button>
           <button type="button" class="btn-primary" :disabled="!dirty || isSaving" @click="save">
-            {{ isSaving ? 'Wird gespeichert…' : 'Speichern' }}
+            {{ isSaving ? t('settings.integrations.saving') : t('common.save') }}
           </button>
         </div>
       </div>
@@ -76,10 +76,12 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { getFcalIntegration, saveFcalIntegration, type FcalIntegrationStatus } from '@/api/adminIntegrations'
 import { useToast } from '@/composables/useToast'
 
 const toast = useToast()
+const { t } = useI18n()
 const isLoading = ref(true)
 const isSaving = ref(false)
 const status = ref<FcalIntegrationStatus | null>(null)
@@ -96,7 +98,7 @@ async function load() {
     fcalApiKeyInput.value = ''
   } catch (e) {
     console.error(e)
-    toast.error('Integrationen konnten nicht geladen werden')
+    toast.error(t('settings.integrations.toastLoadError'))
   } finally {
     isLoading.value = false
   }
@@ -112,26 +114,26 @@ async function save() {
     status.value = await saveFcalIntegration(fcalApiKeyInput.value)
     initialSnapshot.value = fcalApiKeyInput.value
     fcalApiKeyInput.value = ''
-    toast.success('Gespeichert')
+    toast.success(t('settings.integrations.toastSaved'))
   } catch (e) {
     console.error(e)
-    toast.error('Speichern fehlgeschlagen')
+    toast.error(t('settings.integrations.toastSaveError'))
   } finally {
     isSaving.value = false
   }
 }
 
 async function removeKey() {
-  if (!confirm('Schulferien-Abfrage (fcal) für alle Abteilungen deaktivieren?')) return
+  if (!confirm(t('settings.integrations.confirmDisableFcal'))) return
   isSaving.value = true
   try {
     status.value = await saveFcalIntegration('')
     initialSnapshot.value = ''
     fcalApiKeyInput.value = ''
-    toast.success('API-Schlüssel entfernt')
+    toast.success(t('settings.integrations.toastRemoved'))
   } catch (e) {
     console.error(e)
-    toast.error('Entfernen fehlgeschlagen')
+    toast.error(t('settings.integrations.toastRemoveError'))
   } finally {
     isSaving.value = false
   }

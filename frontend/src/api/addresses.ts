@@ -175,7 +175,7 @@ export const ADDRESS_TYPES: AddressTypes = {
   'billing': 'Rechnungsadresse',
   'delivery': 'Lieferadresse',
   'supplier': 'Hersteller/Lieferant',
-  'storage': 'Lagerplatz',
+  'storage': 'Lagerstandort',
   'customer': 'Kundenadresse',
   'event': 'Eventstandort',
   'meeting': 'Treffpunkt',

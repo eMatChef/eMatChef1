@@ -1,12 +1,12 @@
 <template>
   <div class="settings-page">
     <div class="header">
-      <h1>Join-Code</h1>
-      <p class="description">Einladungen und Links für neue Mitglieder</p>
+      <h1>{{ t('settings.joinCode.title') }}</h1>
+      <p class="description">{{ t('settings.joinCode.description') }}</p>
     </div>
 
     <div v-if="userDepartments.length > 1" class="card">
-      <label class="label" for="department-select">Department auswählen:</label>
+      <label class="label" for="department-select">{{ t('settings.common.selectDepartment') }}:</label>
       <select id="department-select" v-model="selectedDepartmentId" @change="onDepartmentChange" class="input">
         <option v-for="dept in userDepartments" :key="dept.department_id" :value="dept.department_id">
           {{ dept.department?.name || dept.department_id }}
@@ -15,30 +15,30 @@
     </div>
 
     <div v-if="!canManageJoinCode" class="card">
-      <p class="muted">Du hast keine Berechtigung, Join-Codes zu verwalten.</p>
+      <p class="muted">{{ t('settings.joinCode.noPermission') }}</p>
     </div>
 
     <div v-else class="card">
       <div class="join-code-row">
         <code class="join-code">{{ inviteData?.join_code || '...' }}</code>
-        <button class="btn" type="button" :disabled="!inviteData" @click="copyJoinCode">Code kopieren</button>
-        <button class="btn" type="button" :disabled="!inviteData" @click="copyInviteLink">Link (mit Konto)</button>
+        <button class="btn" type="button" :disabled="!inviteData" @click="copyJoinCode">{{ t('settings.joinCode.copyCode') }}</button>
+        <button class="btn" type="button" :disabled="!inviteData" @click="copyInviteLink">{{ t('settings.joinCode.copyInviteLink') }}</button>
         <button class="btn" type="button" :disabled="!inviteData?.register_invite_url" @click="copyRegisterInviteLink">
-          Link (Registrierung)
+          {{ t('settings.joinCode.copyRegisterLink') }}
         </button>
         <button class="btn" type="button" :disabled="isInviteLoading" @click="regenerateInviteCode">
-          {{ isInviteLoading ? 'Lade...' : 'Neu generieren' }}
+          {{ isInviteLoading ? t('settings.joinCode.loading') : t('settings.joinCode.regenerate') }}
         </button>
       </div>
-      <p class="muted" v-if="inviteData?.invite_url">Mit bestehendem Konto: {{ inviteData.invite_url }}</p>
-      <p class="muted" v-if="inviteData?.register_invite_url">Ohne Konto (Registrierung): {{ inviteData.register_invite_url }}</p>
+      <p class="muted" v-if="inviteData?.invite_url">{{ t('settings.joinCode.withAccount') }} {{ inviteData.invite_url }}</p>
+      <p class="muted" v-if="inviteData?.register_invite_url">{{ t('settings.joinCode.withoutAccount') }} {{ inviteData.register_invite_url }}</p>
       <div class="qr" v-if="inviteQrDataUrl"><img :src="inviteQrDataUrl" alt="Join QR Code" /></div>
 
       <div v-if="pendingInvites.length > 0" class="pending-block">
-        <h3>Eingeladene Mitglieder</h3>
+        <h3>{{ t('settings.joinCode.pendingTitle') }}</h3>
         <div class="pending-item" v-for="invite in pendingInvites" :key="invite.id">
           <span>{{ invite.email }} ({{ formatRole(invite.role) }})</span>
-          <button class="btn danger" @click="removePendingInviteItem(invite.id)">Löschen</button>
+          <button class="btn danger" @click="removePendingInviteItem(invite.id)">{{ t('settings.joinCode.delete') }}</button>
         </div>
       </div>
     </div>
@@ -48,6 +48,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'
 import { useToast } from '@/composables/useToast'
 import { useConfirm } from '@/composables/useConfirm'
@@ -58,6 +59,7 @@ const route = useRoute()
 const authStore = useAuthStore()
 const toast = useToast()
 const confirm = useConfirm()
+const { t } = useI18n()
 
 const selectedDepartmentId = ref<string | null>(null)
 const inviteData = ref<DepartmentInviteData | null>(null)
@@ -113,9 +115,9 @@ async function regenerateInviteCode() {
     inviteData.value = await regenerateDepartmentInvite(selectedDepartmentId.value)
     const qrPayload = ((inviteData.value.register_qr_payload || inviteData.value.qr_payload || '').trim()) || inviteData.value.invite_url
     inviteQrDataUrl.value = await QRCode.toDataURL(qrPayload, { width: 180, margin: 1 })
-    toast.success('Join-Code wurde neu generiert.')
+    toast.success(t('settings.joinCode.toastRegenerated'))
   } catch {
-    toast.error('Join-Code konnte nicht neu erstellt werden.')
+    toast.error(t('settings.joinCode.toastRegenerateError'))
   } finally {
     isInviteLoading.value = false
   }
@@ -124,37 +126,37 @@ async function regenerateInviteCode() {
 async function removePendingInviteItem(inviteId: string) {
   if (!selectedDepartmentId.value) return
   const ok = await confirm.confirm({
-    title: 'Pending Einladung loeschen?',
-    message: 'Die Einladung wird entfernt und der Link ist nicht mehr in der Liste sichtbar.',
-    confirmText: 'Loeschen',
-    cancelText: 'Abbrechen',
+    title: t('settings.joinCode.confirmDeleteTitle'),
+    message: t('settings.joinCode.confirmDeleteMessage'),
+    confirmText: t('settings.joinCode.confirmDeleteAction'),
+    cancelText: t('common.cancel'),
     variant: 'danger',
   })
   if (!ok) return
   try {
     await deletePendingInvite(selectedDepartmentId.value, inviteId)
     pendingInvites.value = pendingInvites.value.filter((entry) => entry.id !== inviteId)
-    toast.success('Pending Einladung geloescht.')
+    toast.success(t('settings.joinCode.toastPendingDeleted'))
   } catch (err: any) {
-    toast.error(err.response?.data?.error || 'Pending Einladung konnte nicht geloescht werden.')
+    toast.error(err.response?.data?.error || t('settings.joinCode.toastPendingDeleteError'))
   }
 }
 
 async function copyJoinCode() {
   if (!inviteData.value) return
   await navigator.clipboard.writeText(inviteData.value.join_code)
-  toast.success('Join-Code kopiert.')
+  toast.success(t('settings.joinCode.toastCopiedCode'))
 }
 async function copyInviteLink() {
   if (!inviteData.value) return
   await navigator.clipboard.writeText(inviteData.value.invite_url)
-  toast.success('Link zur Join-Seite kopiert.')
+  toast.success(t('settings.joinCode.toastCopiedInviteLink'))
 }
 async function copyRegisterInviteLink() {
   const url = inviteData.value?.register_invite_url?.trim()
   if (!url) return
   await navigator.clipboard.writeText(url)
-  toast.success('Registrierungslink kopiert.')
+  toast.success(t('settings.joinCode.toastCopiedRegisterLink'))
 }
 
 async function onDepartmentChange() {

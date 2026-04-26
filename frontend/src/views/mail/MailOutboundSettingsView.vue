@@ -1,27 +1,25 @@
 <template>
   <div class="mail-outbound">
-    <h2 class="section-title">Absender-E-Mail</h2>
+    <h2 class="section-title">{{ t('mail.outbound.title') }}</h2>
     <p class="hint">
-      Versand erfolgt ausschliesslich ueber <strong>MAILER_DSN</strong> aus der Server-Umgebung (SendGrid-only).
-      Dieser Screen verwaltet nur Absender und Reply-To.
+      {{ t('mail.outbound.hintIntro') }} <strong>MAILER_DSN</strong> {{ t('mail.outbound.hintOutro') }}
     </p>
 
     <div v-if="settings && !isLoading" class="transport-box">
-      <span class="transport-label">Aktueller Versandweg:</span>
+      <span class="transport-label">{{ t('mail.outbound.currentTransport') }}</span>
       {{ transportModeLabel(settings.mailer_transport_mode) }}
     </div>
 
     <div v-if="settings && !isLoading && settings.mailer_transport_mode === 'env_missing'" class="env-missing-notice">
-      <strong>MAILER_DSN fehlt:</strong> Auf dem Server ist kein gueltiger MAILER_DSN gesetzt. Versand und Testmail
-      sind deaktiviert, bis SendGrid in der Umgebung konfiguriert ist.
+      <strong>{{ t('mail.outbound.mailerMissingTitle') }}</strong> {{ t('mail.outbound.mailerMissingBody') }}
     </div>
 
-    <div v-if="isLoading" class="state">Lade Einstellungen…</div>
+    <div v-if="isLoading" class="state">{{ t('mail.outbound.loading') }}</div>
     <div v-else-if="error" class="state error">{{ error }}</div>
 
     <form v-else class="form" @submit.prevent="save">
       <div class="form-row">
-        <label for="from-address">Absender-E-Mail</label>
+        <label for="from-address">{{ t('mail.outbound.fromAddress') }}</label>
         <input
           id="from-address"
           v-model="form.from_address"
@@ -33,80 +31,78 @@
         />
       </div>
       <div class="form-row">
-        <label for="from-name">Absender-Name (optional)</label>
+        <label for="from-name">{{ t('mail.outbound.fromName') }}</label>
         <input
           id="from-name"
           v-model="form.from_name"
           type="text"
           class="input"
           maxlength="120"
-          placeholder="z. B. eMatChef"
+          :placeholder="t('mail.outbound.fromNamePlaceholder')"
           :disabled="!canEdit"
         />
       </div>
       <p v-if="settings" class="meta">
-        Fallback aus Umgebung (MAILER_FROM): <code>{{ settings.env_fallback_address }}</code>
-        <span v-if="settings.uses_file" class="badge">JSON aktiv</span>
+        {{ t('mail.outbound.envFallback') }} <code>{{ settings.env_fallback_address }}</code>
+        <span v-if="settings.uses_file" class="badge">{{ t('mail.outbound.jsonActive') }}</span>
       </p>
 
-      <h3 id="reply-to-section" class="sub-title">Reply-To (Antwort-Adresse)</h3>
+      <h3 id="reply-to-section" class="sub-title">{{ t('mail.outbound.replyToTitle') }}</h3>
       <p class="hint">
-        Wenn Empfaenger auf "Antworten" tippen, gilt zuerst <code>MAILER_REPLY_TO</code> aus der Umgebung, sonst das
-        Feld unten.
+        {{ t('mail.outbound.replyToHintIntro') }} <code>MAILER_REPLY_TO</code> {{ t('mail.outbound.replyToHintOutro') }}
       </p>
 
       <div v-if="settings?.mailer_reply_to_env" class="env-readonly-block">
-        <span class="env-readonly-label">Aktiv aus Server-<code>.env</code> (<code>MAILER_REPLY_TO</code>)</span>
+        <span class="env-readonly-label">{{ t('mail.outbound.replyToEnvActive') }}</span>
         <code class="env-readonly-value">{{ settings.mailer_reply_to_env }}</code>
         <p class="env-readonly-hint">
-          Dieses Reply-To hat Vorrang. Das JSON-Feld unten wird ignoriert, solange <code>MAILER_REPLY_TO</code> gesetzt
-          ist.
+          {{ t('mail.outbound.replyToEnvHint') }}
         </p>
       </div>
       <div v-else class="env-readonly-block env-readonly-block--muted">
-        <span class="env-readonly-label">Server-<code>.env</code> (<code>MAILER_REPLY_TO</code>)</span>
-        <span class="env-readonly-empty">nicht gesetzt — es gilt die Adresse im Feld "Reply-To in JSON".</span>
+        <span class="env-readonly-label">{{ t('mail.outbound.replyToEnvLabel') }}</span>
+        <span class="env-readonly-empty">{{ t('mail.outbound.replyToEnvNotSet') }}</span>
       </div>
 
       <div class="form-row">
-        <label for="reply-to">Reply-To in JSON (<code>mail_outbound.json</code>, Fallback)</label>
+        <label for="reply-to">{{ t('mail.outbound.replyToJson') }}</label>
         <input
           id="reply-to"
           v-model="form.reply_to_address"
           type="email"
           class="input"
           autocomplete="off"
-          placeholder="z. B. support@ematchef.ch"
+          :placeholder="t('mail.outbound.replyToPlaceholder')"
           :disabled="!canEdit || !!settings?.mailer_reply_to_env"
         />
       </div>
       <p v-if="settings?.reply_to_effective" class="meta">
-        <strong>Wirksam fuer neue Mails (Reply-To):</strong> <code>{{ settings.reply_to_effective }}</code>
+        <strong>{{ t('mail.outbound.replyToEffective') }}</strong> <code>{{ settings.reply_to_effective }}</code>
       </p>
 
       <div v-if="!canEdit" class="notice">
-        Nur Superadmin kann die E-Mail-Einstellungen aendern. Du kannst die aktuellen Werte einsehen.
+        {{ t('mail.outbound.superadminOnly') }}
       </div>
 
       <template v-if="canEdit">
-        <h3 class="sub-title">Testmail</h3>
+        <h3 class="sub-title">{{ t('mail.outbound.testTitle') }}</h3>
         <p class="hint testmail-hint">
-          Sendet eine kurze Pruefmail ueber <strong>MAILER_DSN</strong> (SendGrid) aus der Server-Umgebung.
+          {{ t('mail.outbound.testHintIntro') }} <strong>MAILER_DSN</strong> {{ t('mail.outbound.testHintOutro') }}
         </p>
         <div class="form-row">
-          <label for="test-to">Ziel-E-Mail</label>
-          <input id="test-to" v-model="testTo" type="email" class="input" autocomplete="off" placeholder="deine@adresse.ch" />
+          <label for="test-to">{{ t('mail.outbound.testTarget') }}</label>
+          <input id="test-to" v-model="testTo" type="email" class="input" autocomplete="off" :placeholder="t('mail.outbound.testPlaceholder')" />
         </div>
         <div class="actions test-actions">
           <button type="button" class="btn btn-secondary" :disabled="isTesting" @click="sendTest">
-            {{ isTesting ? 'Senden…' : 'Testmail senden' }}
+            {{ isTesting ? t('mail.outbound.sending') : t('mail.outbound.sendTest') }}
           </button>
         </div>
       </template>
 
       <div class="actions">
         <button v-if="canEdit" type="submit" class="btn btn-primary" :disabled="isSaving">
-          {{ isSaving ? 'Speichern…' : 'Speichern' }}
+          {{ isSaving ? t('mail.outbound.saving') : t('common.save') }}
         </button>
       </div>
     </form>
@@ -116,6 +112,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'
 import {
   getMailSettings,
@@ -131,6 +128,7 @@ import { apiErrorMessage } from '@/utils/apiErrorMessage'
 const route = useRoute()
 const authStore = useAuthStore()
 const toast = useToast()
+const { t } = useI18n()
 
 const departmentId = computed(() => {
   const raw = route.params.departmentId
@@ -153,8 +151,8 @@ const form = ref({
 })
 
 function transportModeLabel(mode: MailerTransportMode): string {
-  if (mode === 'env_missing') return 'MAILER_DSN fehlt oder ist null://'
-  return 'MAILER_DSN (Server-Umgebung)'
+  if (mode === 'env_missing') return t('mail.outbound.transportMissing')
+  return t('mail.outbound.transportEnv')
 }
 
 function applySettings(data: MailOutboundSettingsDto) {
@@ -173,7 +171,7 @@ async function load() {
     const data = await getMailSettings(departmentId.value)
     applySettings(data)
   } catch (err: unknown) {
-    error.value = apiErrorMessage(err, 'Einstellungen konnten nicht geladen werden.')
+    error.value = apiErrorMessage(err, t('mail.outbound.loadError'))
     settings.value = null
   } finally {
     isLoading.value = false
@@ -192,9 +190,9 @@ async function save() {
     }
     const data = await patchMailSettings(body, departmentId.value)
     applySettings(data)
-    toast.success('E-Mail-Einstellungen gespeichert.')
+    toast.success(t('mail.outbound.toastSaved'))
   } catch (err: any) {
-    toast.error(apiErrorMessage(err, 'Speichern fehlgeschlagen.'))
+    toast.error(apiErrorMessage(err, t('mail.outbound.toastSaveError')))
   } finally {
     isSaving.value = false
   }
@@ -203,15 +201,15 @@ async function save() {
 async function sendTest() {
   const to = testTo.value.trim()
   if (!to) {
-    toast.error('Bitte eine Ziel-E-Mail angeben.')
+    toast.error(t('mail.outbound.testTargetRequired'))
     return
   }
   isTesting.value = true
   try {
     await postMailTestSend(to)
-    toast.success('Testmail wurde ausgelost.')
+    toast.success(t('mail.outbound.testSent'))
   } catch (err: any) {
-    toast.error(apiErrorMessage(err, 'Testmail fehlgeschlagen.'))
+    toast.error(apiErrorMessage(err, t('mail.outbound.testFailed')))
   } finally {
     isTesting.value = false
   }

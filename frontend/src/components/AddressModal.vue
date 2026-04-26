@@ -2,7 +2,7 @@
   <div class="modal-overlay">
     <div class="modal-dialog address-modal-dialog">
       <div class="modal-header">
-        <h2>{{ isEditing ? 'Adresse bearbeiten' : typeLabel + ' hinzufügen' }}</h2>
+        <h2>{{ modalTitle }}</h2>
         <button @click="confirmClose" class="modal-close">
           <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
             <path d="M15 5L5 15M5 5L15 15" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
@@ -17,7 +17,7 @@
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
               <path d="M7 12A5 5 0 107 2a5 5 0 000 10zM14 14l-3-3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
             </svg>
-            Adresse suchen
+            {{ t('settings.addressModal.searchLabel') }}
           </label>
           <div class="address-search-row">
             <div class="address-search-wrapper">
@@ -25,7 +25,7 @@
                 v-model="addressSearchQuery"
                 type="text"
                 class="form-input address-search-input"
-                placeholder="Strasse, Ort oder Firma eingeben..."
+                :placeholder="t('settings.addressModal.searchPlaceholder')"
                 @input="onAddressSearchInput"
                 @focus="onSearchFocus"
                 @blur="hideSearchResultsDelayed"
@@ -44,15 +44,15 @@
                 </div>
               </div>
               <div v-if="showSearchResults && addressSearchQuery.length >= 3 && !isSearching && searchResults.length === 0" class="address-search-dropdown">
-                <div class="address-search-item search-empty">Keine Ergebnisse – versuche es bei Google ➜</div>
+                <div class="address-search-item search-empty">{{ t('settings.addressModal.searchEmpty') }}</div>
               </div>
             </div>
             <a
               v-if="addressSearchQuery.length >= 2"
-              :href="'https://www.google.com/search?q=' + encodeURIComponent(addressSearchQuery + ' Adresse')"
+              :href="'https://www.google.com/search?q=' + encodeURIComponent(addressSearchQuery + t('settings.addressModal.googleQuerySuffix'))"
               target="_blank"
               class="google-search-btn"
-              title="Bei Google suchen"
+              :title="t('settings.addressModal.googleTitle')"
             >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
                 <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4"/>
@@ -60,19 +60,19 @@
                 <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18A10.96 10.96 0 001 12c0 1.78.43 3.46 1.18 4.93l3.66-2.84z" fill="#FBBC05"/>
                 <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
               </svg>
-              Google
+              {{ t('settings.addressModal.googleLabel') }}
             </a>
             <button
               type="button"
               class="paste-address-btn"
               @click="pasteAndParseAddress"
-              title="Adresse aus Zwischenablage einfügen"
+              :title="t('settings.addressModal.pasteTitle')"
             >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <rect x="8" y="2" width="8" height="4" rx="1" ry="1"/>
                 <path d="M16 4h2a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h2"/>
               </svg>
-              Einfügen
+              {{ t('settings.addressModal.pasteLabel') }}
             </button>
           </div>
           <div v-if="pasteSuccess" class="paste-success-hint">{{ pasteSuccess }}</div>
@@ -84,19 +84,19 @@
         <!-- Name & Typ -->
         <div class="form-row two-cols">
           <div class="form-group">
-            <label class="form-label">Bezeichnung</label>
-            <input 
-              v-model="formData.name" 
-              type="text" 
-              class="form-input" 
-              placeholder="z.B. Hauptlager, Büro"
+            <label class="form-label">{{ t('settings.addressForm.designation') }}</label>
+            <input
+              v-model="formData.name"
+              type="text"
+              class="form-input"
+              :placeholder="t('settings.addressForm.designationPlaceholder')"
             />
           </div>
           <div class="form-group">
-            <label class="form-label">Typ</label>
+            <label class="form-label">{{ t('settings.addressModal.typeField') }}</label>
             <select v-model="formData.type" class="form-select" :disabled="isGlobalMode">
-              <option v-for="(label, key) in ADDRESS_TYPES" :key="key" :value="key">
-                {{ label }}
+              <option v-for="key in addressTypeKeys" :key="key" :value="key">
+                {{ t(`settings.addressForm.types.${key}`) }}
               </option>
             </select>
           </div>
@@ -105,61 +105,61 @@
         <div v-if="!isGlobalMode && formData.type === 'storage'" class="form-group primary-toggle-group">
           <label class="primary-toggle-label">
             <input v-model="formData.is_primary" type="checkbox" />
-            Als primären Lagerplatz setzen (Standard-Lagerplatz)
+            {{ t('settings.addressModal.primaryStorageHint') }}
           </label>
         </div>
 
         <!-- Firma -->
         <div class="form-group">
-          <label class="form-label">Firma/Organisation</label>
-          <input 
-            v-model="formData.company" 
-            type="text" 
-            class="form-input" 
-            placeholder="Optional"
+          <label class="form-label">{{ t('settings.addressForm.company') }}</label>
+          <input
+            v-model="formData.company"
+            type="text"
+            class="form-input"
+            :placeholder="t('settings.addressForm.optional')"
           />
         </div>
 
         <!-- Strasse + Nr -->
         <div class="form-row two-cols-unequal">
           <div class="form-group flex-grow">
-            <label class="form-label">Strasse</label>
-            <input 
-              v-model="formData.street" 
-              type="text" 
-              class="form-input" 
-              placeholder="Strassenname"
+            <label class="form-label">{{ t('settings.addressForm.street') }}</label>
+            <input
+              v-model="formData.street"
+              type="text"
+              class="form-input"
+              :placeholder="t('settings.addressForm.streetPlaceholder')"
             />
           </div>
-          <div class="form-group" style="width: 100px;">
-            <label class="form-label">Nr.</label>
-            <input 
-              v-model="formData.street_number" 
-              type="text" 
-              class="form-input" 
-              placeholder="123a"
+          <div class="form-group" style="width: 100px">
+            <label class="form-label">{{ t('settings.addressForm.streetNumber') }}</label>
+            <input
+              v-model="formData.street_number"
+              type="text"
+              class="form-input"
+              :placeholder="t('settings.addressForm.streetNumberPlaceholder')"
             />
           </div>
         </div>
 
         <!-- PLZ + Ort -->
         <div class="form-row two-cols-unequal">
-          <div class="form-group" style="width: 120px;">
-            <label class="form-label">PLZ</label>
-            <input 
-              v-model="formData.postal_code" 
-              type="text" 
-              class="form-input" 
-              placeholder="8000"
+          <div class="form-group" style="width: 120px">
+            <label class="form-label">{{ t('settings.addressForm.postalCode') }}</label>
+            <input
+              v-model="formData.postal_code"
+              type="text"
+              class="form-input"
+              :placeholder="t('settings.addressForm.postalPlaceholder')"
             />
           </div>
           <div class="form-group flex-grow">
-            <label class="form-label">Ort</label>
-            <input 
-              v-model="formData.city" 
-              type="text" 
-              class="form-input" 
-              placeholder="Zürich"
+            <label class="form-label">{{ t('settings.addressForm.city') }}</label>
+            <input
+              v-model="formData.city"
+              type="text"
+              class="form-input"
+              :placeholder="t('settings.addressForm.cityPlaceholder')"
             />
           </div>
         </div>
@@ -167,51 +167,47 @@
         <!-- Kanton + Land -->
         <div class="form-row two-cols">
           <div class="form-group">
-            <label class="form-label">Kanton</label>
+            <label class="form-label">{{ t('settings.addressForm.canton') }}</label>
             <select v-model="formData.canton" class="form-select">
-              <option value="">-- Auswählen --</option>
+              <option value="">{{ t('settings.addressForm.selectPlaceholder') }}</option>
               <option v-for="(name, code) in SWISS_CANTONS" :key="code" :value="code">
                 {{ code }} - {{ name }}
               </option>
             </select>
           </div>
           <div class="form-group">
-            <label class="form-label">Land</label>
-            <input 
-              v-model="formData.country" 
-              type="text" 
-              class="form-input"
-            />
+            <label class="form-label">{{ t('settings.addressForm.country') }}</label>
+            <input v-model="formData.country" type="text" class="form-input" />
           </div>
         </div>
 
         <!-- Kontakt: E-Mail, Telefon, Mobil -->
         <div class="form-row three-cols">
           <div class="form-group">
-            <label class="form-label">E-Mail</label>
-            <input 
-              v-model="formData.email" 
-              type="email" 
-              class="form-input" 
-              placeholder="name@firma.ch"
+            <label class="form-label">{{ t('settings.addressForm.email') }}</label>
+            <input
+              v-model="formData.email"
+              type="email"
+              class="form-input"
+              :placeholder="t('settings.addressForm.emailPlaceholder')"
             />
           </div>
           <div class="form-group">
-            <label class="form-label">Telefon</label>
-            <input 
-              v-model="formData.phone" 
-              type="tel" 
-              class="form-input" 
-              placeholder="+41 44 123 45 67"
+            <label class="form-label">{{ t('settings.addressForm.phone') }}</label>
+            <input
+              v-model="formData.phone"
+              type="tel"
+              class="form-input"
+              :placeholder="t('settings.addressForm.phonePlaceholder')"
             />
           </div>
           <div class="form-group">
-            <label class="form-label">Mobil</label>
-            <input 
-              v-model="formData.mobile" 
-              type="tel" 
-              class="form-input" 
-              placeholder="+41 79 123 45 67"
+            <label class="form-label">{{ t('settings.addressForm.mobile') }}</label>
+            <input
+              v-model="formData.mobile"
+              type="tel"
+              class="form-input"
+              :placeholder="t('settings.addressForm.mobilePlaceholder')"
             />
           </div>
         </div>
@@ -225,13 +221,13 @@
                 <line x1="8" y1="2" x2="8" y2="18"/>
                 <line x1="16" y1="6" x2="16" y2="22"/>
               </svg>
-              Standort auf Karte
+              {{ t('settings.addressModal.mapSectionLabel') }}
             </label>
             <button type="button" @click="searchCoordinates" class="search-coords-btn" :disabled="!fullAddress">
               <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
                 <path d="M7 12A5 5 0 107 2a5 5 0 000 10zM14 14l-3-3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
               </svg>
-              Adresse suchen
+              {{ t('settings.addressModal.mapSearchAddress') }}
             </button>
           </div>
           <div class="map-container-wrapper" style="height: 250px; min-height: 250px;">
@@ -250,7 +246,7 @@
               @coordinates-changed="onMapCoordinatesChanged"
             />
           </div>
-          <p class="map-hint">Klicken Sie auf die Karte oder verschieben Sie den Marker, um den Standort zu setzen.</p>
+          <p class="map-hint">{{ t('settings.addressModal.mapHint') }}</p>
           <div v-if="formData.latitude && formData.longitude" class="coordinates-info">
             <span class="coord-badge">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -264,13 +260,13 @@
 
         <!-- Zusätzliche Infos -->
         <div class="form-group">
-          <label class="form-label">Zusätzliche Informationen</label>
-          <textarea 
-            v-model="formData.additional_info" 
-            class="form-textarea" 
+          <label class="form-label">{{ t('settings.addressForm.additionalInfo') }}</label>
+          <textarea
+            v-model="formData.additional_info"
+            class="form-textarea"
             rows="2"
-            placeholder="Anfahrt, Besonderheiten..."
-          ></textarea>
+            :placeholder="t('settings.addressForm.additionalInfoPlaceholder')"
+          />
         </div>
 
         <!-- Error -->
@@ -278,10 +274,10 @@
 
         <!-- Actions -->
         <div class="modal-footer">
-          <button type="button" @click="confirmClose" class="btn-secondary">Abbrechen</button>
+          <button type="button" @click="confirmClose" class="btn-secondary">{{ t('common.cancel') }}</button>
           <button type="submit" class="btn-primary" :disabled="isSaving">
-            <span v-if="isSaving">Speichern...</span>
-            <span v-else>{{ isEditing ? 'Speichern' : 'Erstellen' }}</span>
+            <span v-if="isSaving">{{ t('common.saving') }}</span>
+            <span v-else>{{ isEditing ? t('common.save') : t('common.create') }}</span>
           </button>
         </div>
       </form>
@@ -298,13 +294,15 @@
               <line x1="12" y1="17" x2="12.01" y2="17"/>
             </svg>
           </div>
-          <h3 class="confirm-title">Änderungen verwerfen?</h3>
+          <h3 class="confirm-title">{{ t('settings.addressModal.closeConfirmTitle') }}</h3>
           <p class="confirm-text">
-            Sie haben ungespeicherte Änderungen. Möchten Sie das Formular wirklich schliessen?
+            {{ t('settings.addressModal.closeConfirmText') }}
           </p>
           <div class="confirm-actions">
-            <button class="btn-confirm-cancel" @click="showCloseConfirm = false">Zurück zum Formular</button>
-            <button class="btn-confirm-discard" @click="close">Verwerfen</button>
+            <button class="btn-confirm-cancel" @click="showCloseConfirm = false">
+              {{ t('settings.addressModal.backToForm') }}
+            </button>
+            <button class="btn-confirm-discard" @click="close">{{ t('settings.addressModal.discard') }}</button>
           </div>
         </div>
       </div>
@@ -314,6 +312,7 @@
 
 <script setup lang="ts">
 import { ref, watch, computed, onMounted, nextTick } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useToast } from '@/composables/useToast'
 import MapView from './MapView.vue'
 import { 
@@ -354,13 +353,22 @@ const emit = defineEmits<{
 }>()
 
 const toast = useToast()
+const { t } = useI18n()
 const mapRef = ref<InstanceType<typeof MapView>>()
 const isEditing = computed(() => !!(props.editAddressId || props.address?.id))
 const isGlobalMode = computed(() => props.apiMode === 'global')
 const isSaving = ref(false)
 const error = ref<string | null>(null)
 
-const typeLabel = computed(() => ADDRESS_TYPES[props.defaultType] || 'Adresse')
+const addressTypeKeys = Object.keys(ADDRESS_TYPES) as (keyof typeof ADDRESS_TYPES)[]
+
+const modalTitle = computed(() => {
+  if (isEditing.value) {
+    return t('settings.addressModal.editTitle')
+  }
+  const dk = props.defaultType in ADDRESS_TYPES ? props.defaultType : 'general'
+  return t('settings.addressModal.addTitle', { type: t(`settings.addressForm.types.${dk}`) })
+})
 
 // Adress-Suche
 interface SearchResult {
@@ -423,7 +431,7 @@ async function performAddressSearch(query: string) {
     )
     
     if (!response.ok) {
-      searchError.value = 'Suche fehlgeschlagen'
+      searchError.value = t('settings.addressModal.searchFailed')
       searchResults.value = []
       return
     }
@@ -471,7 +479,7 @@ async function performAddressSearch(query: string) {
     showSearchResults.value = true
   } catch (err) {
     console.error('Adress-Suche Fehler:', err)
-    searchError.value = 'Netzwerkfehler – versuche es bei Google'
+    searchError.value = t('settings.addressModal.searchNetworkError')
     searchResults.value = []
   } finally {
     isSearching.value = false
@@ -525,7 +533,7 @@ async function pasteAndParseAddress() {
   try {
     const text = await navigator.clipboard.readText()
     if (!text || !text.trim()) {
-      searchError.value = 'Zwischenablage ist leer'
+      searchError.value = t('settings.addressModal.clipboardEmpty')
       return
     }
     
@@ -550,15 +558,16 @@ async function pasteAndParseAddress() {
     if (parsed.street) filled.push(parsed.street + (parsed.street_number ? ' ' + parsed.street_number : ''))
     if (parsed.postal_code && parsed.city) filled.push(parsed.postal_code + ' ' + parsed.city)
     
-    pasteSuccess.value = filled.length > 0
-      ? '✓ Eingefügt: ' + filled.join(', ')
-      : '✓ Text eingefügt – bitte Felder prüfen'
+    pasteSuccess.value =
+      filled.length > 0
+        ? t('settings.addressModal.pasteFilled', { list: filled.join(', ') })
+        : t('settings.addressModal.pasteCheckFields')
     
     // Erfolgs-Hinweis nach 5 Sek. ausblenden
     setTimeout(() => { pasteSuccess.value = '' }, 5000)
     
   } catch (err) {
-    searchError.value = 'Zugriff auf Zwischenablage nicht möglich – bitte manuell einfügen'
+    searchError.value = t('settings.addressModal.clipboardDenied')
   }
 }
 
@@ -827,7 +836,7 @@ async function handleSubmit() {
 
     emit('saved', savedAddress)
   } catch (err: any) {
-    const msg = err.response?.data?.error || 'Fehler beim Speichern'
+    const msg = err.response?.data?.error || t('settings.addressModal.saveError')
     error.value = msg
     toast.error(msg)
   } finally {

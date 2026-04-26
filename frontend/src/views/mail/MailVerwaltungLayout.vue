@@ -1,18 +1,16 @@
 <template>
   <div class="mail-verwaltung">
     <header class="mail-verwaltung-head">
-      <h1 class="mail-title">E-Mail</h1>
+      <h1 class="mail-title">{{ t('mail.layout.pageTitle') }}</h1>
       <p class="mail-sub">
         <template v-if="isProdBuild">
-          Vorlagen, Absender und Versandprotokoll — Versand über <code>MAILER_DSN</code> oder SMTP in der
-          App-Konfiguration.
+          {{ t('mail.layout.prodIntro') }} <code>MAILER_DSN</code> {{ t('mail.layout.prodOutro') }}
         </template>
         <template v-else>
-          Vorlagen, Absender und Versandprotokoll — Versand über SMTP in der JSON-Datei, <code>MAILER_DSN</code> oder bei
-          fehlendem SMTP als Datei-Spool.
+          {{ t('mail.layout.devIntro') }} <code>MAILER_DSN</code> {{ t('mail.layout.devOutro') }}
         </template>
       </p>
-      <nav class="mail-subnav" aria-label="Mail-Untermenü">
+      <nav class="mail-subnav" :aria-label="t('mail.layout.subnavAria')">
         <router-link
           v-for="item in subItems"
           :key="item.name"
@@ -37,8 +35,10 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 
 const route = useRoute()
+const { t } = useI18n()
 
 const isProdBuild = import.meta.env.PROD
 
@@ -51,9 +51,9 @@ const mailBase = computed(() => {
 })
 
 const subItems = computed(() => [
-  { label: 'Versand', to: `${mailBase.value}/versand`, name: 'versand' },
-  { label: 'Einstellungen', to: `${mailBase.value}/einstellungen`, name: 'einstellungen' },
-  { label: 'Log', to: `${mailBase.value}/log`, name: 'log' },
+  { label: t('mail.layout.tabs.send'), to: `${mailBase.value}/versand`, name: 'versand' },
+  { label: t('mail.layout.tabs.settings'), to: `${mailBase.value}/einstellungen`, name: 'einstellungen' },
+  { label: t('mail.layout.tabs.log'), to: `${mailBase.value}/log`, name: 'log' },
 ])
 </script>
 

@@ -2,13 +2,13 @@
   <div class="addons-settings">
     <div class="header-section">
       <div>
-        <h1>Add-ons</h1>
-        <p class="description">Optionale Erweiterungen für dein Department</p>
+        <h1>{{ t('settings.addons.title') }}</h1>
+        <p class="description">{{ t('settings.addons.description') }}</p>
       </div>
     </div>
 
     <div v-if="userDepartments.length > 1" class="department-selector">
-      <label for="department-select" class="selector-label">Department auswählen:</label>
+      <label for="department-select" class="selector-label">{{ t('settings.common.selectDepartment') }}:</label>
       <select id="department-select" v-model="selectedDepartmentId" @change="onDepartmentChange" class="department-select">
         <option v-for="dept in userDepartments" :key="dept.department_id" :value="dept.department_id">
           {{ dept.department?.name || dept.department_id }}
@@ -17,31 +17,30 @@
     </div>
 
     <div v-if="!canManageJoinCode" class="info-card">
-      <p class="muted">Du hast keine Berechtigung, Add-on-Einstellungen zu ändern.</p>
+      <p class="muted">{{ t('settings.addons.noPermission') }}</p>
     </div>
 
     <div v-else class="info-card">
       <div class="card-header">
-        <h2>Feiertagskalender (Aktivitäten)</h2>
+        <h2>{{ t('settings.addons.calendarTitle') }}</h2>
       </div>
       <p class="muted">
-        Schulferien-Marker im Aktivitäts-Dialog. Optional: Geo-ID (z.B. GeoTree/CH). Der API-Schlüssel wird zentral unter
-        Verwaltung → Integrationen gepflegt.
+        {{ t('settings.addons.calendarDescription') }}
       </p>
       <div class="field-row">
-        <label class="field-label" for="dept-fcal-geo">Geo-ID (Feiertagskalender.ch)</label>
+        <label class="field-label" for="dept-fcal-geo">{{ t('settings.addons.geoIdLabel') }}</label>
         <input
           id="dept-fcal-geo"
           v-model="calendarFcalGeoId"
           type="text"
           inputmode="numeric"
           class="department-select"
-          placeholder="z.B. 3055"
+          :placeholder="t('settings.addons.geoIdPlaceholder')"
           autocomplete="off"
         />
       </div>
       <button type="button" class="save-btn" :disabled="!calendarDirty || isSavingCalendar" @click="saveCalendarSettingsForDept">
-        {{ isSavingCalendar ? 'Speichern...' : 'Kalender-Einstellung speichern' }}
+        {{ isSavingCalendar ? t('settings.addons.saving') : t('settings.addons.saveCalendar') }}
       </button>
     </div>
   </div>
@@ -50,6 +49,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'
 import { useToast } from '@/composables/useToast'
 import { getCalendarSettings, saveCalendarSettings as saveCalendarSettingsApi } from '@/api/departmentSettings'
@@ -57,6 +57,7 @@ import { getCalendarSettings, saveCalendarSettings as saveCalendarSettingsApi } 
 const route = useRoute()
 const authStore = useAuthStore()
 const toast = useToast()
+const { t } = useI18n()
 
 const selectedDepartmentId = ref<string | null>(null)
 const calendarFcalGeoId = ref('')
@@ -107,9 +108,9 @@ async function saveCalendarSettingsForDept() {
       fcalGeoId: calendarFcalGeoId.value,
     })
     savedCalendarGeoId.value = calendarFcalGeoId.value.trim()
-    toast.success('Kalender-Einstellung gespeichert.')
+    toast.success(t('settings.addons.toastSaved'))
   } catch (err: any) {
-    toast.error(err.response?.data?.error || 'Kalender-Einstellung konnte nicht gespeichert werden.')
+    toast.error(err.response?.data?.error || t('settings.addons.toastSaveError'))
   } finally {
     isSavingCalendar.value = false
   }

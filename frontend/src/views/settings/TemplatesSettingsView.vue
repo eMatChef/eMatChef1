@@ -2,8 +2,8 @@
   <div class="templates-settings">
     <div class="settings-header">
       <div>
-        <h1>Vorlagen</h1>
-        <p class="subtitle">Zelt- und Combo-Vorlagen für die Material-Erstellung verwalten</p>
+        <h1>{{ t('settings.templates.title') }}</h1>
+        <p class="subtitle">{{ t('settings.templates.subtitle') }}</p>
       </div>
       <div class="header-actions">
         <button class="btn-secondary" @click="showImportDialog = true">
@@ -12,14 +12,14 @@
             <polyline points="7 10 12 15 17 10"/>
             <line x1="12" y1="15" x2="12" y2="3"/>
           </svg>
-          JSON Import
+          {{ t('settings.templates.jsonImport') }}
         </button>
         <button class="btn-primary" @click="openCreateDialog">
           <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <line x1="12" y1="5" x2="12" y2="19"/>
             <line x1="5" y1="12" x2="19" y2="12"/>
           </svg>
-          Neue Vorlage
+          {{ t('settings.templates.newTemplate') }}
         </button>
       </div>
     </div>
@@ -34,23 +34,23 @@
         <input
           v-model="searchQuery"
           type="text"
-          placeholder="Vorlagen durchsuchen..."
+          :placeholder="t('settings.templates.searchPlaceholder')"
           class="search-input"
         />
       </div>
       <div class="filter-group">
         <select v-model="filterManufacturer" class="filter-select">
-          <option value="">Alle Hersteller</option>
+          <option value="">{{ t('settings.templates.allManufacturers') }}</option>
           <option v-for="m in manufacturers" :key="m" :value="m">{{ m }}</option>
         </select>
         <select v-model="filterType" class="filter-select">
-          <option value="">Alle Typen</option>
-          <option value="physical_combo">Physische Combo</option>
-          <option value="virtual_combo">Virtuelle Combo</option>
+          <option value="">{{ t('settings.templates.allTypes') }}</option>
+          <option value="physical_combo">{{ t('settings.templates.physicalCombo') }}</option>
+          <option value="virtual_combo">{{ t('settings.templates.virtualCombo') }}</option>
         </select>
       </div>
       <div class="template-count">
-        {{ filteredTemplates.length }} Vorlagen
+        {{ t('settings.templates.count', { count: filteredTemplates.length }) }}
       </div>
     </div>
 
@@ -138,7 +138,7 @@
                     <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
                   </svg>
                 </button>
-                <button v-if="template.can_edit" class="action-btn" @click.stop="openEditDialog(template)" title="Bearbeiten">
+                <button v-if="template.can_edit" class="action-btn" @click.stop="openEditDialog(template)" :title="t('settings.templates.edit')">
                   <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
                     <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
@@ -150,7 +150,7 @@
                     <circle cx="12" cy="12" r="3"/>
                   </svg>
                 </button>
-                <button v-if="template.can_edit" class="action-btn delete" @click.stop="confirmDelete(template)" title="Löschen">
+                <button v-if="template.can_edit" class="action-btn delete" @click.stop="confirmDelete(template)" :title="t('settings.templates.delete')">
                   <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <polyline points="3 6 5 6 21 6"/>
                     <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
@@ -170,11 +170,11 @@
             <polyline points="9 22 9 12 15 12 15 22"/>
           </svg>
         </div>
-        <h3>Keine Vorlagen</h3>
-        <p>Erstellen Sie Ihre erste Vorlage oder importieren Sie bestehende aus einer JSON-Datei.</p>
+        <h3>{{ t('settings.templates.emptyTitle') }}</h3>
+        <p>{{ t('settings.templates.emptyDescription') }}</p>
         <div class="empty-actions">
           <button class="btn-secondary" @click="showImportDialog = true">JSON Import</button>
-          <button class="btn-primary" @click="openCreateDialog">Erste Vorlage erstellen</button>
+          <button class="btn-primary" @click="openCreateDialog">{{ t('settings.templates.firstTemplate') }}</button>
         </div>
       </div>
     </div>
@@ -226,10 +226,10 @@
           <div v-if="importResult" class="import-result" :class="{ success: importResult.success, error: !importResult.success }">
             <template v-if="importResult.success">
               <strong>Import erfolgreich!</strong>
-              {{ importResult.created }} Vorlagen erstellt, {{ importResult.skipped }} übersprungen ({{ importResult.manufacturer }})
+              {{ t('settings.templates.importSuccess', { created: importResult.created, skipped: importResult.skipped, manufacturer: importResult.manufacturer }) }}
             </template>
             <template v-else>
-              <strong>Fehler:</strong> {{ importResult.error }}
+              <strong>{{ t('settings.templates.errorLabel') }}:</strong> {{ importResult.error }}
             </template>
           </div>
         </div>
@@ -245,9 +245,9 @@
     <!-- Lösch-Bestätigung -->
     <div v-if="showDeleteConfirm" class="modal-overlay">
       <div class="confirm-dialog">
-        <h3>Vorlage löschen?</h3>
+        <h3>{{ t('settings.templates.deleteConfirmTitle') }}</h3>
         <p>
-          Möchten Sie die Vorlage <strong>{{ deletingTemplate?.name }}</strong> wirklich löschen?
+          {{ t('settings.templates.deleteConfirmMessage', { name: deletingTemplate?.name }) }}
         </p>
         <p class="warning-hint">
           Bereits erstellte Materialien werden davon nicht betroffen.
@@ -255,7 +255,7 @@
         <div class="confirm-actions">
           <button class="btn-secondary" @click="showDeleteConfirm = false">Abbrechen</button>
           <button class="btn-danger" @click="executeDelete" :disabled="isDeleting">
-            {{ isDeleting ? 'Wird gelöscht...' : 'Löschen' }}
+            {{ isDeleting ? t('settings.templates.deleting') : t('settings.templates.delete') }}
           </button>
         </div>
       </div>
@@ -266,12 +266,14 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { useToast } from '@/composables/useToast'
 import { getTemplates, deleteTemplate, importTemplates, type Template } from '@/api/templates'
 import TemplateEditDialog from '@/components/template/TemplateEditDialog.vue'
 
 const route = useRoute()
 const toast = useToast()
+const { t } = useI18n()
 const departmentId = computed(() => route.params.departmentId as string)
 
 const templates = ref<Template[]>([])
@@ -421,7 +423,7 @@ async function executeDelete() {
     showDeleteConfirm.value = false
     deletingTemplate.value = null
   } catch (err: any) {
-    toast.error(err.response?.data?.error || 'Fehler beim Löschen')
+    toast.error(err.response?.data?.error || t('settings.templates.deleteError'))
   } finally {
     isDeleting.value = false
   }
@@ -460,11 +462,11 @@ async function executeImport() {
     await loadTemplates()
   } catch (err: any) {
     if (err instanceof SyntaxError) {
-      const msg = 'Ungültige JSON-Datei'
+      const msg = t('settings.templates.invalidJson')
       importResult.value = { success: false, error: msg }
       toast.error(msg)
     } else {
-      const msg = (err as any).response?.data?.error || (err as Error).message || 'Import fehlgeschlagen'
+      const msg = (err as any).response?.data?.error || (err as Error).message || t('settings.templates.importFailed')
       importResult.value = { success: false, error: msg }
       toast.error(msg)
     }
@@ -485,7 +487,7 @@ async function loadTemplates() {
       expandedManufacturers.value.add('Ohne Hersteller')
     }
   } catch (err) {
-    console.error('Fehler beim Laden der Vorlagen:', err)
+    console.error(t('settings.templates.loadError'), err)
   } finally {
     isLoading.value = false
   }

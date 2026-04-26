@@ -15,15 +15,25 @@
 
       <!-- Layer-Auswahl -->
       <div v-if="showLayerControl" class="layer-control">
-        <button 
-          :class="['layer-btn', { active: currentLayer === 'swisstopo' }]" 
+        <button
+          type="button"
+          :class="['layer-btn', { active: currentLayer === 'swisstopo' }]"
           @click="setLayer('swisstopo')"
-          title="Swisstopo (CH)"
+          title="Swisstopo Landeskarte (CH)"
         >
           🇨🇭
         </button>
-        <button 
-          :class="['layer-btn', { active: currentLayer === 'osm' }]" 
+        <button
+          type="button"
+          :class="['layer-btn', { active: currentLayer === 'swissimage' }]"
+          @click="setLayer('swissimage')"
+          title="Swisstopo Luftbild (Swissimage)"
+        >
+          📷
+        </button>
+        <button
+          type="button"
+          :class="['layer-btn', { active: currentLayer === 'osm' }]"
           @click="setLayer('osm')"
           title="OpenStreetMap"
         >
@@ -89,7 +99,7 @@ const props = withDefaults(defineProps<Props>(), {
   address: '',
   editable: false,
   height: '300px',
-  zoom: 15,
+  zoom: 17,
   showCoordinates: true,
   showLayerControl: true,
   preferSwissMap: true
@@ -109,13 +119,16 @@ let currentTileLayer: L.TileLayer | null = null
 
 const hasCoordinates = ref(false)
 const isLoading = ref(false)
+type MapBaseLayer = 'swisstopo' | 'swissimage' | 'osm'
+
 const foundAddress = ref<string | null>(null)
-const currentLayer = ref<'swisstopo' | 'osm'>('swisstopo')
+const currentLayer = ref<MapBaseLayer>('swisstopo')
 
 // Schweiz-Zentrum als Fallback
 const DEFAULT_CENTER: [number, number] = [46.8182, 8.2275]
 const DEFAULT_ZOOM = 7
-const SEARCH_RESULT_ZOOM = 16
+const SEARCH_RESULT_ZOOM = 18
+const MAP_MAX_ZOOM = 22
 
 // Schweiz Bounding Box (ungefähr)
 const SWISS_BOUNDS = {
@@ -172,13 +185,26 @@ function formatWGS84(lat: number | null | undefined, lng: number | null | undefi
   return `${lat.toFixed(6)}° N, ${lng.toFixed(6)}° E`
 }
 
-// Tile-Layer definieren
-const tileLayers = {
+// Tile-Layer definieren (maxNativeZoom: echte Kacheln; höheres maxZoom: Leaflet skaliert letzte Kachel)
+const tileLayers: Record<
+  MapBaseLayer,
+  { url: string; options: L.TileLayerOptions }
+> = {
   swisstopo: {
     url: 'https://wmts.geo.admin.ch/1.0.0/ch.swisstopo.pixelkarte-farbe/default/current/3857/{z}/{x}/{y}.jpeg',
     options: {
       attribution: '&copy; <a href="https://www.swisstopo.admin.ch">swisstopo</a>',
-      maxZoom: 18,
+      maxNativeZoom: 18,
+      maxZoom: 20,
+      minZoom: 7
+    }
+  },
+  swissimage: {
+    url: 'https://wmts.geo.admin.ch/1.0.0/ch.swisstopo.swissimage/default/current/3857/{z}/{x}/{y}.jpeg',
+    options: {
+      attribution: '&copy; <a href="https://www.swisstopo.admin.ch">swisstopo</a>',
+      maxNativeZoom: 19,
+      maxZoom: 21,
       minZoom: 7
     }
   },
@@ -186,22 +212,29 @@ const tileLayers = {
     url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
     options: {
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-      maxZoom: 19
+      maxNativeZoom: 19,
+      maxZoom: 20
     }
   }
 }
 
-function setLayer(layerName: 'swisstopo' | 'osm') {
+function setLayer(layerName: MapBaseLayer) {
   if (!map) return
-  
+
   currentLayer.value = layerName
-  
+
   if (currentTileLayer) {
     map.removeLayer(currentTileLayer)
   }
-  
+
   const layer = tileLayers[layerName]
   currentTileLayer = L.tileLayer(layer.url, layer.options).addTo(map)
+
+  const layerMax = layer.options.maxZoom ?? MAP_MAX_ZOOM
+  map.setMaxZoom(Math.min(MAP_MAX_ZOOM, layerMax))
+  if (map.getZoom() > map.getMaxZoom()) {
+    map.setZoom(map.getMaxZoom())
+  }
 }
 
 function initMap() {
@@ -213,7 +246,7 @@ function initMap() {
   
   hasCoordinates.value = props.latitude !== null && props.longitude !== null
   
-  map = L.map(mapContainer.value).setView([lat, lng], zoom)
+  map = L.map(mapContainer.value, { maxZoom: MAP_MAX_ZOOM }).setView([lat, lng], zoom)
   
   // Initial Layer basierend auf Position oder Präferenz
   const useSwiss = props.preferSwissMap && (
@@ -286,11 +319,11 @@ function setMarker(lat: number, lng: number) {
     if (map) map.invalidateSize()
   }, 100)
   
-  // Layer wechseln wenn nötig
+  // Layer wechseln wenn nötig (Luftbild nicht überschreiben; in CH nur von OSM auf Landeskarte)
   const inSwiss = lat >= SWISS_BOUNDS.minLat && lat <= SWISS_BOUNDS.maxLat &&
                   lng >= SWISS_BOUNDS.minLng && lng <= SWISS_BOUNDS.maxLng
   if (props.preferSwissMap) {
-    if (inSwiss && currentLayer.value !== 'swisstopo') {
+    if (inSwiss && currentLayer.value === 'osm') {
       setLayer('swisstopo')
     } else if (!inSwiss && currentLayer.value !== 'osm') {
       setLayer('osm')
@@ -440,12 +473,20 @@ watch([() => props.latitude, () => props.longitude], ([lat, lng]) => {
 // Watch für preferSwissMap-Änderungen (z.B. Länderwechsel im Formular)
 watch(() => props.preferSwissMap, (useSwiss) => {
   if (!map) return
-  if (useSwiss && currentLayer.value !== 'swisstopo') {
+  if (useSwiss && currentLayer.value === 'osm') {
     setLayer('swisstopo')
   } else if (!useSwiss && currentLayer.value !== 'osm') {
     setLayer('osm')
   }
 })
+
+watch(
+  () => props.zoom,
+  (z) => {
+    if (!map || props.latitude == null || props.longitude == null) return
+    map.setView([props.latitude, props.longitude], z)
+  }
+)
 
 onMounted(() => {
   nextTick(() => {

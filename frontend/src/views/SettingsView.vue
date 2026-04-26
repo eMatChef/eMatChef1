@@ -30,8 +30,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, markRaw } from 'vue'
+import { computed, markRaw } from 'vue'
 import { useRoute } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'
 import IconSettings from '@/components/icons/IconSettings.vue'
 import IconContacts from '@/components/icons/IconContacts.vue'
@@ -42,6 +43,7 @@ import IconMaterials from '@/components/icons/IconMaterials.vue'
 
 const route = useRoute()
 const authStore = useAuthStore()
+const { t } = useI18n()
 
 // Department-ID aus Route oder Store
 const departmentId = computed(() => {
@@ -66,69 +68,37 @@ function isSettingsItemActive(itemId: string): boolean {
   if (itemId === 'my-department/join-code') {
     return p === `${base}/my-department/join-code`
   }
+  if (itemId === 'my-department/storage-locations') {
+    return p === `${base}/my-department/storage-locations`
+  }
+  if (itemId === 'my-department/billing-address') {
+    return p === `${base}/my-department/billing-address`
+  }
   if (itemId === 'my-department/public-material-page') {
     return p === `${base}/my-department/public-material-page`
   }
   return p === `${base}/${itemId}` || p.startsWith(`${base}/${itemId}/`)
 }
 
-// Components mit markRaw markieren, um Vue-Warnungen zu vermeiden
-const allMenuItems = ref([
-  {
-    id: 'my-department',
-    label: 'Mein Department',
-    icon: markRaw(IconDashboard)
-  },
-  {
-    id: 'zeit',
-    label: 'Zeit/Ort',
-    icon: markRaw(IconSettings)
-  },
-  {
-    id: 'my-department/join-code',
-    label: 'Join-Code',
-    icon: markRaw(IconEmployees)
-  },
-  {
-    id: 'addons',
-    label: 'Add-ons',
-    icon: markRaw(IconActivities)
-  },
+// Nav-Labels: nur in de.json (Crowdin); andere Locales nutzen i18n-Fallback auf Deutsch.
+const allMenuItems = computed(() => [
+  { id: 'my-department', label: t('settings.nav.myDepartment'), icon: markRaw(IconDashboard) },
+  { id: 'zeit', label: t('settings.nav.timeLocation'), icon: markRaw(IconSettings) },
+  { id: 'my-department/join-code', label: t('settings.nav.joinCode'), icon: markRaw(IconEmployees) },
+  { id: 'my-department/storage-locations', label: t('settings.nav.storageLocations'), icon: markRaw(IconMaterials) },
+  { id: 'my-department/billing-address', label: t('settings.nav.billingAddress'), icon: markRaw(IconContacts) },
+  { id: 'addons', label: t('settings.nav.addons'), icon: markRaw(IconActivities) },
   {
     id: 'my-department/public-material-page',
-    label: 'Öffentliche Material-Seite',
+    label: t('settings.nav.publicMaterialPage'),
     icon: markRaw(IconMaterials)
   },
-  {
-    id: 'categories',
-    label: 'Kategorien',
-    icon: markRaw(IconDashboard)
-  },
-  {
-    id: 'users',
-    label: 'Benutzer',
-    icon: markRaw(IconEmployees)
-  },
-  {
-    id: 'groups',
-    label: 'Gruppen',
-    icon: markRaw(IconContacts)
-  },
-  {
-    id: 'activities',
-    label: 'Aktivitäten',
-    icon: markRaw(IconActivities)
-  },
-  {
-    id: 'storage',
-    label: 'Regale & Fächer',
-    icon: markRaw(IconMaterials)
-  },
-  {
-    id: 'templates',
-    label: 'Vorlagen',
-    icon: markRaw(IconSettings)
-  }
+  { id: 'categories', label: t('settings.nav.categories'), icon: markRaw(IconDashboard) },
+  { id: 'users', label: t('settings.nav.users'), icon: markRaw(IconEmployees) },
+  { id: 'groups', label: t('settings.nav.groups'), icon: markRaw(IconContacts) },
+  { id: 'activities', label: t('settings.nav.activities'), icon: markRaw(IconActivities) },
+  { id: 'storage', label: t('settings.nav.storage'), icon: markRaw(IconMaterials) },
+  { id: 'templates', label: t('settings.nav.templates'), icon: markRaw(IconSettings) }
 ])
 
 </script>
