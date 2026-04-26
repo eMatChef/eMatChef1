@@ -1,9 +1,13 @@
 <template>
   <div>
     <div v-if="layoutMode === 'stepper'" class="activity-stepper-meta">
-      <span class="activity-stepper-count"
-        >Schritt {{ wizardStepIndex + 1 }} von {{ stepKeys.length }}: {{ currentStepProgressLabel }}</span
-      >
+      <span class="activity-stepper-count">{{
+        t('activities.wizard.form.stepCounter', {
+          current: wizardStepIndex + 1,
+          total: stepKeys.length,
+          label: currentStepProgressLabel,
+        })
+      }}</span>
     </div>
 
     <template v-if="layoutMode === 'single'">
@@ -14,7 +18,7 @@
             :value="formName"
             type="text"
             class="form-input"
-            placeholder="z. B. Pfadistufe, Vereinsanlass …"
+            :placeholder="t('activities.wizard.form.namePlaceholder')"
             autocomplete="off"
             :aria-label="stepTitles.grunddaten"
             @input="emit('update:formName', ($event.target as HTMLInputElement).value)"
@@ -25,14 +29,14 @@
           id="activity-create-group"
           class="form-group activity-create-group-wrap"
         >
-          <label for="activity-create-group-select">Gruppe <span class="req">*</span></label>
+          <label for="activity-create-group-select">{{ t('activities.wizard.form.groupLabel') }} <span class="req">*</span></label>
           <select
             id="activity-create-group-select"
             class="form-input activity-group-select"
             :value="selectedGroupId ?? ''"
             @change="onGroupChange"
           >
-            <option value="" disabled>— Gruppe wählen —</option>
+            <option value="" disabled>{{ t('activities.wizard.form.groupChoose') }}</option>
             <option v-for="g in flatGroups" :key="g.id" :value="g.id">
               {{ '↳ '.repeat(g._level) }}{{ g.name }}
             </option>
@@ -42,7 +46,7 @@
 
       <section id="activity-create-zeitraum" class="activity-create-section">
         <p v-if="datesLockedByMaterial" class="activity-dates-locked-hint text-muted">
-          <strong>Nutzung gesperrt:</strong> solange Materialpositionen gewählt sind, können Nutzungsdatum und -zeiten nicht geändert werden. Abhol- und Rückgabezeiten bleiben editierbar; die Materialliste wird gegen die Verfügbarkeit abgeglichen — Zeilen mit zu wenig Bestand erscheinen oben.
+          <strong>{{ t('activities.wizard.form.datesLockedTitle') }}</strong> {{ t('activities.wizard.form.datesLockedBody') }}
         </p>
         <ActivityZeitraumDatetimeFields
           v-model:usage-day="activityUsageDay"
@@ -60,10 +64,10 @@
         >
           <template #usage-before>
             <p v-if="isActivityType" class="zeitraum-hint text-muted">
-              Bei „Aktivität“ ein Kalendertag; Start- und Endzeit. Datum: Schnellauswahl im geöffneten Kalender (links).
+              {{ t('activities.wizard.form.usageHintActivitySingle') }}
             </p>
             <p v-else class="zeitraum-hint text-muted">
-              Zeitraum kann über mehrere Tage gehen; Datum als Bereich, Zeiten getrennt.
+              {{ t('activities.wizard.form.usageHintRange') }}
             </p>
           </template>
           <template #planning-before>
@@ -72,12 +76,12 @@
             </p>
             <p v-if="defaultsHint && !isActivityType" class="defaults-hint text-muted">{{ defaultsHint }}</p>
             <p v-else-if="isActivityType" class="zeitraum-hint text-muted">
-              Vorbelegung aus Aktivität und Abteilung — bei Bedarf anpassen.
+              {{ t('activities.wizard.form.planningPresetFromActivity') }}
             </p>
           </template>
           <template #planning-after>
             <p v-if="defaultsHint && !isActivityType" class="material-times-microhint text-muted">
-              Vorbelegung aus Nutzung und Abteilung — bei Bedarf anpassen.
+              {{ t('activities.wizard.form.planningPresetFromUsage') }}
             </p>
             <p v-if="!planningSynced" class="material-times-microhint material-times-microhint--manual">
               <button
@@ -86,7 +90,7 @@
                 :disabled="!usageStartAt || !usageEndAt"
                 @click="emit('resyncPlanning')"
               >
-                Vorbelegung aus Nutzung neu berechnen
+                {{ t('activities.wizard.form.resyncPlanningFromUsage') }}
               </button>
             </p>
           </template>
@@ -94,7 +98,7 @@
       </section>
 
       <section id="activity-create-material" class="activity-create-section">
-        <ActivityOutlinedSection title="Material" :required="true">
+        <ActivityOutlinedSection :title="t('activities.wizard.previewMetaMaterial')" :required="true">
           <ActivityCreateMaterialStep
             :department-id="departmentId"
             :activity-type="selectedActivityType"
@@ -118,7 +122,7 @@
             :value="formName"
             type="text"
             class="form-input"
-            placeholder="z. B. Pfadistufe, Vereinsanlass …"
+            :placeholder="t('activities.wizard.form.namePlaceholder')"
             autocomplete="off"
             :aria-label="stepTitles.grunddaten"
             @input="emit('update:formName', ($event.target as HTMLInputElement).value)"
@@ -130,9 +134,9 @@
           class="form-group activity-create-group-wrap"
         >
           <label for="activity-create-group-select-s">
-            Gruppe
+            {{ t('activities.wizard.form.groupLabel') }}
             <span v-if="selectedActivityType === 'camp'" class="req">*</span>
-            <span v-else class="text-muted group-optional-label">(optional)</span>
+            <span v-else class="text-muted group-optional-label">{{ t('activities.wizard.form.groupOptional') }}</span>
           </label>
           <select
             id="activity-create-group-select-s"
@@ -140,8 +144,8 @@
             :value="selectedGroupId ?? ''"
             @change="onGroupChange"
           >
-            <option v-if="selectedActivityType === 'event'" value="">Keine Gruppe</option>
-            <option v-else value="" disabled>— Gruppe wählen —</option>
+            <option v-if="selectedActivityType === 'event'" value="">{{ t('activities.wizard.form.groupNoneEvent') }}</option>
+            <option v-else value="" disabled>{{ t('activities.wizard.form.groupChoose') }}</option>
             <option v-for="g in flatGroups" :key="g.id" :value="g.id">
               {{ '↳ '.repeat(g._level) }}{{ g.name }}
             </option>
@@ -152,10 +156,9 @@
           v-if="showVenueOnGrunddatenStep"
           class="form-group activity-external-address-wrap"
         >
-          <label for="activity-venue-address-search">Eventstandort <span class="req">*</span></label>
+          <label for="activity-venue-address-search">{{ t('activities.wizard.form.venueLabel') }} <span class="req">*</span></label>
           <p class="field-hint text-muted">
-            Suche in <strong>allen Adresstypen</strong> (Lager, Kunde, Lieferant …). Mit + wird eine neue
-            <strong>Eventstandort-Adresse</strong> angelegt.
+            {{ t('activities.wizard.form.venueHint') }}
           </p>
           <div class="activity-address-select-row">
             <div class="autocomplete-wrapper activity-address-autocomplete">
@@ -164,7 +167,7 @@
                 v-model="venueAddressSearch"
                 type="text"
                 class="form-input"
-                placeholder="Name, Firma, Ort, Strasse …"
+                :placeholder="t('activities.wizard.form.addressSearchPlaceholder')"
                 autocomplete="off"
                 @input="onVenueAddressSearchInput"
                 @focus="showVenueAddressDropdown = true"
@@ -181,8 +184,10 @@
                   @mousedown.prevent="selectVenueAddress(a)"
                 >
                   <div class="activity-address-ac-main">
-                    <span class="item-name">{{ a.name || a.company || a.street_line || 'Adresse' }}</span>
-                    <span class="item-address-type-tag" :title="'Typ: ' + a.type_label">{{ a.type_label }}</span>
+                    <span class="item-name">{{ a.name || a.company || a.street_line || t('activities.wizard.form.addressFallbackName') }}</span>
+                    <span class="item-address-type-tag" :title="t('activities.wizard.form.addressTypeTitle', { type: a.type_label })">{{
+                      a.type_label
+                    }}</span>
                   </div>
                   <span class="item-city">{{ a.city_line || a.city || '' }}</span>
                 </div>
@@ -197,7 +202,7 @@
                 class="autocomplete-dropdown activity-address-autocomplete-dropdown"
               >
                 <div class="autocomplete-item autocomplete-empty">
-                  <span class="item-name">Keine Treffer</span>
+                  <span class="item-name">{{ t('activities.empty.noMatch') }}</span>
                 </div>
               </div>
               <div
@@ -205,23 +210,23 @@
                 class="autocomplete-dropdown activity-address-autocomplete-dropdown"
               >
                 <div class="autocomplete-item autocomplete-empty">
-                  <span class="item-name">Noch keine Adressen — mit + anlegen</span>
+                  <span class="item-name">{{ t('activities.wizard.form.noAddressesWithAdd') }}</span>
                 </div>
               </div>
             </div>
             <button
               type="button"
               class="btn-add-address"
-              title="Neue Eventstandort-Adresse anlegen"
-              aria-label="Neue Eventstandort-Adresse anlegen"
+              :title="t('activities.wizard.form.addVenueAddressTitle')"
+              :aria-label="t('activities.wizard.form.addVenueAddressTitle')"
               @click="openAddVenueAddressModal"
             >
               +
             </button>
           </div>
           <p v-if="venueAddressId" class="selected-address">
-            Ausgewählt · {{ venueAddressSummary }}
-            <button type="button" class="clear-selection" title="Auswahl aufheben" @click="clearVenueAddress">
+            {{ t('activities.wizard.form.selectedPrefix') }}{{ venueAddressSummary }}
+            <button type="button" class="clear-selection" :title="t('activities.wizard.form.clearSelectionTitle')" @click="clearVenueAddress">
               ×
             </button>
           </p>
@@ -231,10 +236,9 @@
           v-if="selectedActivityType === 'external'"
           class="form-group activity-external-address-wrap"
         >
-          <label for="activity-external-address-search">Adresse (Mieter / Anbieter) <span class="req">*</span></label>
+          <label for="activity-external-address-search">{{ t('activities.wizard.form.externalTenantLabel') }} <span class="req">*</span></label>
           <p class="field-hint text-muted">
-            Suche in <strong>allen Adresstypen</strong> (Lager, Kunde, Lieferant …). Mit + wird eine neue
-            <strong>Kundenadresse</strong> angelegt.
+            {{ t('activities.wizard.form.externalTenantHint') }}
           </p>
           <div class="activity-address-select-row">
             <div class="autocomplete-wrapper activity-address-autocomplete">
@@ -243,7 +247,7 @@
                 v-model="customerAddressSearch"
                 type="text"
                 class="form-input"
-                placeholder="Name, Firma, Ort, Strasse …"
+                :placeholder="t('activities.wizard.form.addressSearchPlaceholder')"
                 autocomplete="off"
                 @input="onCustomerAddressSearchInput"
                 @focus="showCustomerAddressDropdown = true"
@@ -260,8 +264,10 @@
                   @mousedown.prevent="selectCustomerAddress(a)"
                 >
                   <div class="activity-address-ac-main">
-                    <span class="item-name">{{ a.name || a.company || a.street_line || 'Adresse' }}</span>
-                    <span class="item-address-type-tag" :title="'Typ: ' + a.type_label">{{ a.type_label }}</span>
+                    <span class="item-name">{{ a.name || a.company || a.street_line || t('activities.wizard.form.addressFallbackName') }}</span>
+                    <span class="item-address-type-tag" :title="t('activities.wizard.form.addressTypeTitle', { type: a.type_label })">{{
+                      a.type_label
+                    }}</span>
                   </div>
                   <span class="item-city">{{ a.city_line || a.city || '' }}</span>
                 </div>
@@ -276,7 +282,7 @@
                 class="autocomplete-dropdown activity-address-autocomplete-dropdown"
               >
                 <div class="autocomplete-item autocomplete-empty">
-                  <span class="item-name">Keine Treffer</span>
+                  <span class="item-name">{{ t('activities.empty.noMatch') }}</span>
                 </div>
               </div>
               <div
@@ -284,33 +290,32 @@
                 class="autocomplete-dropdown activity-address-autocomplete-dropdown"
               >
                 <div class="autocomplete-item autocomplete-empty">
-                  <span class="item-name">Noch keine Adressen — mit + anlegen</span>
+                  <span class="item-name">{{ t('activities.wizard.form.noAddressesWithAdd') }}</span>
                 </div>
               </div>
             </div>
             <button
               type="button"
               class="btn-add-address"
-              title="Neue Adresse anlegen"
-              aria-label="Neue Adresse anlegen"
+              :title="t('activities.wizard.form.addCustomerAddressTitle')"
+              :aria-label="t('activities.wizard.form.addCustomerAddressTitle')"
               @click="openAddCustomerAddressModal"
             >
               +
             </button>
           </div>
           <p v-if="customerAddressId" class="selected-address">
-            Ausgewählt · {{ customerAddressSummary }}
-            <button type="button" class="clear-selection" title="Auswahl aufheben" @click="clearCustomerAddress">
+            {{ t('activities.wizard.form.selectedPrefix') }}{{ customerAddressSummary }}
+            <button type="button" class="clear-selection" :title="t('activities.wizard.form.clearSelectionTitle')" @click="clearCustomerAddress">
               ×
             </button>
           </p>
         </div>
 
         <div v-if="showInviteDepartmentsStep" class="form-group activity-invite-departments-wrap">
-          <label for="activity-invite-dept-search">Weitere Abteilungen einladen</label>
+          <label for="activity-invite-dept-search">{{ t('activities.wizard.form.inviteDepartmentsLabel') }}</label>
           <p class="field-hint text-muted">
-            Eingeladene Abteilungen erhalten einen Eintrag in der Benachrichtigungsglocke (ausstehend). Nach Annahme können dort Material und
-            Koordination genutzt werden.
+            {{ t('activities.wizard.form.inviteDepartmentsHint') }}
           </p>
           <div class="activity-address-select-row">
             <div class="autocomplete-wrapper activity-address-autocomplete">
@@ -319,7 +324,7 @@
                 v-model="inviteDeptSearch"
                 type="text"
                 class="form-input"
-                placeholder="Abteilung oder Organisation suchen …"
+                :placeholder="t('activities.wizard.form.inviteDeptPlaceholder')"
                 autocomplete="off"
                 @focus="showInviteDeptDropdown = true"
                 @blur="hideInviteDeptDropdownDelayed"
@@ -350,7 +355,7 @@
                 class="autocomplete-dropdown activity-address-autocomplete-dropdown"
               >
                 <div class="autocomplete-item autocomplete-empty">
-                  <span class="item-name">Keine Treffer</span>
+                  <span class="item-name">{{ t('activities.empty.noMatch') }}</span>
                 </div>
               </div>
               <div
@@ -358,22 +363,22 @@
                 class="autocomplete-dropdown activity-address-autocomplete-dropdown"
               >
                 <div class="autocomplete-item autocomplete-empty">
-                  <span class="item-name">Suche…</span>
+                  <span class="item-name">{{ t('activities.wizard.form.inviteSearching') }}</span>
                 </div>
               </div>
             </div>
           </div>
           <p v-if="inviteDeptSearchTrimmed.length > 0 && inviteDeptSearchTrimmed.length < 2" class="field-hint text-muted invite-dept-min-hint">
-            Mindestens 2 Zeichen eingeben.
+            {{ t('activities.wizard.form.inviteMinChars') }}
           </p>
-          <ul v-if="invitedDepartments.length > 0" class="activity-invited-dept-chips" aria-label="Eingeladene Abteilungen">
+          <ul v-if="invitedDepartments.length > 0" class="activity-invited-dept-chips" :aria-label="t('activities.wizard.form.invitedDepartmentsAria')">
             <li v-for="row in invitedDepartments" :key="row.id" class="activity-invited-dept-chip">
               <span class="activity-invited-dept-chip-label">{{ row.name }}</span>
               <span v-if="row.organisation_name" class="activity-invited-dept-chip-org">{{ row.organisation_name }}</span>
               <button
                 type="button"
                 class="activity-invited-dept-chip-remove"
-                :title="'Einladung entfernen: ' + row.name"
+                :title="t('activities.wizard.form.removeInviteTitle', { name: row.name })"
                 @click="removeInvitedDepartment(row.id)"
               >
                 ×
@@ -388,10 +393,11 @@
           <span class="step-title">{{ stepTitles.zeitraum }}</span>
         </div>
         <p v-if="datesLockedByMaterial" class="activity-dates-locked-hint text-muted">
-          <strong>Nutzung gesperrt:</strong> solange Materialpositionen gewählt sind, können Nutzungsdatum und -zeiten nicht geändert werden. Abhol- und Rückgabezeiten bleiben editierbar; die Materialliste wird gegen die Verfügbarkeit abgeglichen — Zeilen mit zu wenig Bestand erscheinen oben.
+          <strong>{{ t('activities.wizard.form.datesLockedTitle') }}</strong> {{ t('activities.wizard.form.datesLockedBody') }}
         </p>
         <p class="zeitraum-intro text-muted">
-          <strong>Aktivität</strong> = Nutzungszeitraum. <strong>Material</strong> = Abholung / Rückgabe (Abteilungs-Standard).
+          <strong>{{ t('activities.wizard.form.usageLabelWord') }}</strong> {{ t('activities.wizard.form.zeitraumIntroUsage') }}
+          <strong>{{ t('activities.wizard.form.materialLabelWord') }}</strong> {{ t('activities.wizard.form.zeitraumIntroMaterial') }}
         </p>
 
         <ActivityZeitraumDatetimeFields
@@ -413,10 +419,10 @@
         >
           <template #usage-before>
             <p v-if="isActivityType" class="zeitraum-hint text-muted">
-              Bei „Aktivität“ gilt ein Tag; Start- und Endzeit am selben Kalendertag.
+              {{ t('activities.wizard.form.usageHintActivityStepper') }}
             </p>
             <p v-else class="zeitraum-hint text-muted">
-              Zeitraum kann über mehrere Tage gehen; Datum als Bereich, Zeiten getrennt.
+              {{ t('activities.wizard.form.usageHintRange') }}
             </p>
           </template>
           <template #planning-before>
@@ -427,7 +433,7 @@
           </template>
           <template #planning-after>
             <p class="material-times-microhint text-muted">
-              Material-Zeiten werden automatisch aus den Department-Einstellungen berechnet und können manuell angepasst werden.
+              {{ t('activities.wizard.form.materialTimesAutoStepper') }}
             </p>
             <p v-if="!planningSynced" class="material-times-microhint material-times-microhint--manual">
               <button
@@ -436,7 +442,7 @@
                 :disabled="!usageStartAt || !usageEndAt"
                 @click="emit('resyncPlanning')"
               >
-                Vorbelegung aus Nutzung neu berechnen
+                {{ t('activities.wizard.form.resyncPlanningFromUsage') }}
               </button>
             </p>
           </template>
@@ -465,26 +471,26 @@
         </div>
         <dl class="activity-summary-dl">
           <div class="activity-summary-row">
-            <dt>Typ</dt>
-            <dd>{{ activityTypeLabel(selectedActivityType) }}</dd>
+            <dt>{{ t('activities.wizard.form.summaryType') }}</dt>
+            <dd>{{ activityTypeLabel(selectedActivityType, t) }}</dd>
           </div>
           <div class="activity-summary-row">
-            <dt>Name</dt>
-            <dd>{{ formName.trim() || '–' }}</dd>
+            <dt>{{ t('activities.wizard.form.summaryName') }}</dt>
+            <dd>{{ formName.trim() || t('activities.wizard.form.summaryEmpty') }}</dd>
           </div>
           <div
             v-if="showVenueOnGrunddatenStep && venueAddressId"
             class="activity-summary-row"
           >
-            <dt>Eventstandort</dt>
+            <dt>{{ t('activities.wizard.form.summaryVenue') }}</dt>
             <dd>{{ venueAddressSummary }}</dd>
           </div>
           <div v-if="selectedActivityType === 'external' && customerAddressId" class="activity-summary-row">
-            <dt>Adresse (Mieter)</dt>
+            <dt>{{ t('activities.wizard.form.summaryTenantAddress') }}</dt>
             <dd>{{ customerAddressSummary }}</dd>
           </div>
           <div v-if="showGroupInSummary" class="activity-summary-row">
-            <dt>Gruppe</dt>
+            <dt>{{ t('activities.wizard.form.summaryGroup') }}</dt>
             <dd>{{ groupSummaryLabel }}</dd>
           </div>
           <div class="activity-summary-row">
@@ -496,28 +502,30 @@
             <dd>{{ formatRange(planningStartAt, planningEndAt) }}</dd>
           </div>
           <div class="activity-summary-row">
-            <dt>Material</dt>
+            <dt>{{ t('activities.wizard.form.summaryMaterialLines') }}</dt>
             <dd>{{ materialSummaryLabel }}</dd>
           </div>
           <div
             v-if="(selectedActivityType === 'camp' || selectedActivityType === 'event') && invitedDepartmentsSummary"
             class="activity-summary-row"
           >
-            <dt>Eingeladene Abteilungen</dt>
+            <dt>{{ t('activities.wizard.form.summaryInvitedDepts') }}</dt>
             <dd>{{ invitedDepartmentsSummary }}</dd>
           </div>
         </dl>
         <p class="wizard-draft-hint activity-wizard-draft-hint">
-          Die Aktivität wird als <strong>Entwurf</strong> gespeichert. Im Anschluss kannst du in der Detailansicht prüfen und
-          <strong>einreichen</strong>, damit der Materialwart sie bearbeiten kann.
+          {{ t('activities.wizard.form.wizardDraftHint') }}
         </p>
         <div class="form-group activity-wizard-notes-wrap">
-          <label for="activity-create-notes-overview">Notizen <span class="text-muted">(optional)</span></label>
+          <label for="activity-create-notes-overview">
+            {{ t('activities.wizard.form.notesLabel') }}
+            <span class="text-muted">{{ t('activities.wizard.form.notesOptional') }}</span>
+          </label>
           <textarea
             id="activity-create-notes-overview"
             class="form-input activity-wizard-notes-textarea"
             rows="3"
-            placeholder="Optionale Anmerkungen für die Planung …"
+            :placeholder="t('activities.wizard.form.notesPlaceholder')"
             :value="activityNotes"
             @input="emit('update:activityNotes', ($event.target as HTMLTextAreaElement).value)"
           />
@@ -538,6 +546,7 @@
 
 <script setup lang="ts">
 import { computed, onUnmounted, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import type { ActivityApiType } from '@/api/activities'
 import { getAddresses, type Address } from '@/api/addresses'
 import { searchJoinableDepartments, type DepartmentSearchResult } from '@/api/joinRequests'
@@ -557,7 +566,6 @@ import {
   getPlanningUsageViolation,
   isInstantInsideClosedUsage,
   nearestAllowedQuarterOnDayOutsideUsage,
-  planningUsageViolationMessage,
 } from '@/utils/activityPlanningUsageConstraint'
 import { useToast } from '@/composables/useToast'
 import { flattenGroupsWithLevel } from '@/utils/groupHierarchy'
@@ -625,6 +633,7 @@ const emit = defineEmits<{
 }>()
 
 const toast = useToast()
+const { t } = useI18n()
 
 /** Materialsucheingabe leeren + Lookup neu mounten (Schritt Material, Typwechsel Ein-Seiten-Layout) */
 const materialSearchResetKey = ref(0)
@@ -641,8 +650,8 @@ watch(
 
 watch(
   () => props.selectedActivityType,
-  (t, oldT) => {
-    if (oldT === undefined || t === oldT) return
+  (typ, oldTyp) => {
+    if (oldTyp === undefined || typ === oldTyp) return
     if (props.layoutMode === 'single') {
       materialSearchResetKey.value += 1
     }
@@ -659,14 +668,16 @@ const invalidUsageOrderLocal = computed(() => {
 const planningUsageConflictMessage = computed(() => {
   if (!props.usageStartAt || !props.usageEndAt || !props.planningStartAt || !props.planningEndAt) return null
   if (invalidUsageOrderLocal.value) return null
-  return planningUsageViolationMessage(
-    getPlanningUsageViolation(
-      props.planningStartAt,
-      props.planningEndAt,
-      props.usageStartAt,
-      props.usageEndAt,
-    ),
+  const v = getPlanningUsageViolation(
+    props.planningStartAt,
+    props.planningEndAt,
+    props.usageStartAt,
+    props.usageEndAt,
   )
+  if (v.pickup && v.return) return t('activities.wizard.form.planningViolationBoth')
+  if (v.pickup) return t('activities.wizard.form.planningViolationPickup')
+  if (v.return) return t('activities.wizard.form.planningViolationReturn')
+  return null
 })
 
 /** Nutzungsintervall für gesperrte Viertelstunden in Abhol-/Rückgabe-Zeitauswahl */
@@ -704,9 +715,7 @@ function resolvePlanningPair(nextStart: Date, nextEnd: Date): { start: Date; end
 function emitPlanningPair(nextStart: Date, nextEnd: Date) {
   const resolved = resolvePlanningPair(nextStart, nextEnd)
   if (!resolved) {
-    toast.error(
-      'Abhol- und Rückgabe passen nicht zur Nutzung (kein erlaubter Zeitpunkt am gewählten Tag oder Ende vor Beginn).',
-    )
+    toast.error(t('activities.wizard.form.toastPlanningViolation'))
     return
   }
   emit('update:planningStartAt', resolved.start)
@@ -735,22 +744,22 @@ const showGroupInSummary = computed(
 )
 
 const groupSummaryLabel = computed(() => {
-  if (!props.selectedGroupId) return '–'
+  if (!props.selectedGroupId) return t('activities.wizard.form.summaryEmpty')
   const g = flatGroups.value.find((x) => x.id === props.selectedGroupId)
   return g?.name ?? props.selectedGroupId
 })
 
 const materialSummaryLabel = computed(() => {
   const lines = props.materialLines
-  if (!lines.length) return '–'
-  if (lines.length > 3) return `${lines.length} Positionen`
+  if (!lines.length) return t('activities.wizard.form.summaryEmpty')
+  if (lines.length > 3) return t('activities.wizard.form.materialLinesCount', { n: lines.length })
   return lines.map((l) => `${l.material_name} ×${l.quantity}`).join(', ')
 })
 
 const invitedDepartmentsSummary = computed(() => {
   const list = props.invitedDepartments
   if (!list.length) return ''
-  if (list.length > 4) return `${list.length} Abteilungen`
+  if (list.length > 4) return t('activities.wizard.form.invitedDeptsCount', { n: list.length })
   return list.map((d) => d.name.trim() || d.id).join(', ')
 })
 
@@ -851,14 +860,14 @@ const customerAddressSearchTrimmed = computed(() => customerAddressSearch.value.
 const venueAddressSearchTrimmed = computed(() => venueAddressSearch.value.trim())
 
 const customerAddressSummary = computed(() => {
-  if (!props.customerAddressId) return '–'
+  if (!props.customerAddressId) return t('activities.wizard.form.summaryEmpty')
   const a = rentalAddresses.value.find((x) => x.id === props.customerAddressId)
   if (!a) return props.customerAddressId
   return (a.full_address && a.full_address.trim()) || formatAddressOption(a)
 })
 
 const venueAddressSummary = computed(() => {
-  if (!props.venueAddressId) return '–'
+  if (!props.venueAddressId) return t('activities.wizard.form.summaryEmpty')
   const a = rentalAddresses.value.find((x) => x.id === props.venueAddressId)
   if (!a) return props.venueAddressId
   return (a.full_address && a.full_address.trim()) || formatAddressOption(a)
@@ -1029,8 +1038,12 @@ function onAddressModalSaved(addr?: Address) {
   })
 }
 
-const summaryUsageLabel = computed(() => activityPreviewUsageLabel(props.selectedActivityType))
-const summaryMaterialLabel = computed(() => activityPreviewMaterialLabel(props.selectedActivityType))
+const summaryUsageLabel = computed(() =>
+  props.selectedActivityType ? activityPreviewUsageLabel(props.selectedActivityType, t) : '',
+)
+const summaryMaterialLabel = computed(() =>
+  props.selectedActivityType ? activityPreviewMaterialLabel(props.selectedActivityType, t) : '',
+)
 
 function onGroupChange(e: Event) {
   const v = (e.target as HTMLSelectElement).value
@@ -1089,9 +1102,9 @@ const defaultsHint = computed(() => {
   const d = props.activityDefaults
   if (!d) return ''
   if (props.selectedActivityType === 'camp') {
-    return `Lager: Material-Vorlauf ${d.campMaterialLeadDays} Tag(e), Nachlauf ${d.campMaterialLagDays} Tag(e) (Abteilung).`
+    return t('activities.wizard.defaultsHintCamp', { lead: d.campMaterialLeadDays, lag: d.campMaterialLagDays })
   }
-  return `Standard: Material ${d.materialLeadMinutes} Min. vor Nutzungsbeginn, ${d.materialLagMinutes} Min. nach Nutzungsende (Abteilung).`
+  return t('activities.wizard.defaultsHintStandard', { lead: d.materialLeadMinutes, lag: d.materialLagMinutes })
 })
 
 /** Ein Kalendertag für Nutzung (activity): beide Enden gleicher Tag */

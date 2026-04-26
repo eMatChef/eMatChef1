@@ -1,7 +1,7 @@
 <template>
   <div class="material-wizard-footer activity-create-footer">
     <div v-if="showDraftStatus" class="activity-create-footer-draft">
-      <span class="activity-draft-badge" aria-hidden="true">Entwurf</span>
+      <span class="activity-draft-badge" aria-hidden="true">{{ t('activities.wizard.draftBadge') }}</span>
       <span v-if="lastSavedAt" class="activity-draft-saved-at">{{ savedAtLabel }}</span>
     </div>
     <div class="footer-spacer" />
@@ -11,17 +11,19 @@
         <div v-if="missingSteps.length > 0" class="missing-steps">
           <span class="missing-icon" aria-hidden="true">⚠️</span>
           <button type="button" class="missing-link" @click="$emit('jumpMissing', missingSteps[0])">
-            {{ missingSteps[0] }}
+            {{ t('activities.wizard.missing.' + missingSteps[0]) }}
           </button>
         </div>
-        <button type="button" class="btn-secondary btn-sm" @click="$emit('close')">Verwerfen</button>
+        <button type="button" class="btn-secondary btn-sm" @click="$emit('close')">
+          {{ t('activities.wizard.footerDiscard') }}
+        </button>
         <button
           v-if="layoutMode === 'stepper' && selectedActivityType && wizardStepIndex > 0"
           type="button"
           class="btn-secondary btn-sm"
           @click="$emit('prev')"
         >
-          Zurück
+          {{ t('activities.wizard.footerBack') }}
         </button>
         <button
           v-if="layoutMode === 'stepper' && selectedActivityType && !isLastStep"
@@ -30,7 +32,7 @@
           :disabled="!canAdvanceFromCurrentStep || isSavingDraft"
           @click="$emit('weiter')"
         >
-          {{ isSavingDraft ? 'Speichern…' : 'Weiter' }}
+          {{ isSavingDraft ? t('activities.wizard.footerSaving') : t('activities.wizard.footerNext') }}
         </button>
         <button
           v-if="showSubmitButton"
@@ -40,7 +42,7 @@
           :title="submitButtonTitle"
           @click="$emit('submit')"
         >
-          {{ isSubmitting ? 'Wird gespeichert…' : submitButtonLabel }}
+          {{ isSubmitting ? t('activities.wizard.footerSubmitting') : (submitButtonLabel || t('activities.wizard.defaultSubmit')) }}
         </button>
       </div>
     </div>
@@ -49,13 +51,19 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import type { ActivityCreateLayoutMode } from '@/composables/useActivityCreateWizard'
-import type { ActivityCreateType } from '@/composables/useActivityCreateWizard'
+import { useI18n } from 'vue-i18n'
+import type {
+  ActivityCreateLayoutMode,
+  ActivityCreateType,
+  ActivityMissingStepKey,
+} from '@/composables/useActivityCreateWizard'
+
+const { t, locale } = useI18n()
 
 const props = withDefaults(
   defineProps<{
     submitError: string
-    missingSteps: string[]
+    missingSteps: ActivityMissingStepKey[]
     layoutMode: ActivityCreateLayoutMode
     selectedActivityType: ActivityCreateType | null
     wizardStepIndex: number
@@ -68,24 +76,27 @@ const props = withDefaults(
     showSubmitButton: boolean
     submitButtonTitle: string
     /** Sichtbarer Text des Absenden-Buttons (je nach Aktivitätstyp) */
-    submitButtonLabel?: string
+    submitButtonLabel?: string | undefined
     /** Stepper: Entwurf-Badge + Zeit nach Speichern / finalem Speichern */
     showDraftStatus?: boolean
     lastSavedAt?: Date | null
   }>(),
-  { isSavingDraft: false, submitButtonLabel: 'Aktivität anlegen', showDraftStatus: false, lastSavedAt: null },
+  { isSavingDraft: false, submitButtonLabel: undefined, showDraftStatus: false, lastSavedAt: null },
 )
 
 const savedAtLabel = computed(() => {
   const d = props.lastSavedAt
   if (!d) return ''
-  return `Zuletzt gespeichert: ${d.toLocaleString('de-CH', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  })}`
+  const locTag = String(locale.value || '').startsWith('en') ? 'en-GB' : 'de-CH'
+  return t('activities.wizard.lastSaved', {
+    datetime: d.toLocaleString(locTag, {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    }),
+  })
 })
 
 defineEmits<{
@@ -93,6 +104,6 @@ defineEmits<{
   prev: []
   weiter: []
   submit: []
-  jumpMissing: [label: string]
+  jumpMissing: [key: ActivityMissingStepKey]
 }>()
 </script>

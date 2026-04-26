@@ -13,7 +13,10 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import QRCode from 'qrcode'
+
+const { t } = useI18n()
 
 interface Props {
   url?: string | null
@@ -65,16 +68,21 @@ const tagStyle = computed(() => {
 })
 
 const tooltipText = computed(() => {
-  if (!props.url) return 'Kein QR-Code vorhanden'
-  return props.code ? `QR-Code: ${props.code}` : 'Öffentlicher QR-Link'
+  if (!props.url) return t('components.publicQr.noQr')
+  return props.code
+    ? t('components.publicQr.tooltipWithCode', { code: props.code })
+    : t('components.publicQr.publicLink')
 })
 
 const imgAlt = computed(() => {
   if (props.imageLabel != null && props.imageEntityId != null && props.imageEntityId !== '') {
-    return `QR-Code ${props.imageLabel} (${props.imageEntityId})`
+    return t('components.publicQr.altWithLabel', {
+      label: props.imageLabel,
+      id: props.imageEntityId,
+    })
   }
-  if (props.code) return `QR-Code ${props.code}`
-  return 'QR-Code'
+  if (props.code) return t('components.publicQr.altWithCode', { code: props.code })
+  return t('components.publicQr.altGeneric')
 })
 
 watch(

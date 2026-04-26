@@ -25,7 +25,7 @@
       :material-scope-has-partners="hasAcceptedPartnerTabs"
       :material-scope-single-partner-id="materialLookupSinglePartnerId"
       variant="wizard"
-      empty-text="Noch keine Position — oben suchen und mit den Buttons hinzufügen."
+      :empty-text="t('activities.wizard.materialEmptyLines')"
       @update:model-value="emit('update:modelValue', $event)"
       @remove-line="onRemoveLine"
     />
@@ -34,6 +34,7 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import type { ActivityApiType } from '@/api/activities'
 import ActivityMaterialAvailabilityLookup from '@/components/activities/ActivityMaterialAvailabilityLookup.vue'
 import ActivityMaterialLinesTable from '@/components/activities/shared/ActivityMaterialLinesTable.vue'
@@ -67,6 +68,8 @@ const props = withDefaults(
     materialSearchResetKey: 0,
   },
 )
+
+const { t } = useI18n()
 
 const emit = defineEmits<{
   'update:modelValue': [value: ActivityMaterialLine[]]

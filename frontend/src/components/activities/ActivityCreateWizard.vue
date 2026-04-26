@@ -4,9 +4,9 @@
       <div class="material-wizard-modal">
         <div class="material-wizard-header">
           <div class="material-wizard-header-title">
-            <h2>AKTIVITÄT ERSTELLEN</h2>
+            <h2>{{ t('activities.wizard.createTitle') }}</h2>
           </div>
-          <button type="button" class="close-btn" title="Schließen" @click="handleClose">
+          <button type="button" class="close-btn" :title="t('activities.wizard.closeTitle')" @click="handleClose">
             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <line x1="18" y1="6" x2="6" y2="18" />
               <line x1="6" y1="6" x2="18" y2="18" />
@@ -102,6 +102,7 @@
 
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import '@/styles/material-wizard.css'
 import '@/styles/activity-type-chips.css'
 import '@/styles/activity-create-wizard.css'
@@ -122,6 +123,7 @@ import {
   useActivityCreateWizard,
   type ActivityCreateType,
   type ActivityMaterialLine,
+  type ActivityMissingStepKey,
   type InvitedDepartmentDraft,
 } from '@/composables/useActivityCreateWizard'
 import { useHeaderNotificationsStore } from '@/stores/headerNotifications'
@@ -145,6 +147,7 @@ const emit = defineEmits<{
   'resume-consumed': []
 }>()
 
+const { t } = useI18n()
 const toast = useToast()
 const headerNotificationsStore = useHeaderNotificationsStore()
 
@@ -262,9 +265,11 @@ const showSubmitButton = computed(() => {
 
 const submitButtonTitle = computed(() => {
   if (!canSubmit.value && missingSteps.value.length === 0 && showSubmitButton.value) {
-    return 'Anlage folgt, sobald alle Pflichtangaben gesetzt sind'
+    return t('activities.wizard.submitTitleWhenBlocked')
   }
-  if (missingSteps.value.length > 0) return missingSteps.value.join(', ')
+  if (missingSteps.value.length > 0) {
+    return missingSteps.value.map((k) => t(`activities.wizard.missing.${k}`)).join(', ')
+  }
   return ''
 })
 
@@ -278,23 +283,23 @@ const showDraftFooterStatus = computed(
 const submitButtonLabel = computed(() => {
   switch (selectedActivityType.value) {
     case 'activity':
-      return 'Aktivität einreichen'
+      return t('activities.wizard.submitActivity')
     case 'camp':
-      return 'Lager einreichen'
+      return t('activities.wizard.submitCamp')
     case 'event':
-      return 'Event einreichen'
+      return t('activities.wizard.submitEvent')
     case 'external':
-      return 'Vermietung an extern erstellen'
+      return t('activities.wizard.submitExternal')
     default:
-      return 'Aktivität anlegen'
+      return t('activities.wizard.defaultSubmit')
   }
 })
 
 const previewTitle = computed(() => {
   const n = formName.value.trim()
   if (n) return n
-  if (selectedActivityType.value) return 'Neue Aktivität'
-  return 'Typ wählen'
+  if (selectedActivityType.value) return t('activities.wizard.previewUnnamed')
+  return t('activities.wizard.previewPickType')
 })
 
 function formatDtLine(a: Date | null, b: Date | null): string {
@@ -397,29 +402,29 @@ function handleClose() {
   showDialog.value = false
 }
 
-function onJumpToMissing(label: string) {
-  jumpToMissingStep(label)
-  if (label === 'Typ wählen' && wizardFormRef.value) {
+function onJumpToMissing(key: ActivityMissingStepKey) {
+  jumpToMissingStep(key)
+  if (key === 'choose_type' && wizardFormRef.value) {
     wizardFormRef.value.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }
-  if (label === 'Name eingeben') {
+  if (key === 'enter_name') {
     document.getElementById('activity-create-grunddaten')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
   }
-  if (label === 'Zeitraum prüfen') {
+  if (key === 'check_date_range') {
     document.getElementById('activity-create-zeitraum')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
   }
-  if (label === 'Gruppe wählen') {
+  if (key === 'choose_group') {
     const g =
       document.getElementById('activity-create-group') ?? document.getElementById('activity-create-group-stepper')
     g?.scrollIntoView({ behavior: 'smooth', block: 'center' })
   }
-  if (label === 'Eventstandort wählen' || label === 'Mieter-Adresse wählen') {
+  if (key === 'choose_venue' || key === 'choose_tenant_address') {
     document.getElementById('activity-create-grunddaten')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
   }
-  if (label === 'Zeiträume ergänzen') {
+  if (key === 'complete_date_ranges' || key === 'pickup_outside_usage') {
     document.getElementById('activity-create-zeitraum')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
   }
-  if (label === 'Material wählen') {
+  if (key === 'choose_material') {
     document.getElementById('activity-create-material')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
   }
 }
@@ -427,7 +432,7 @@ function onJumpToMissing(label: string) {
 async function onWeiter() {
   submitError.value = ''
   if (!canAdvanceFromCurrentStep.value) {
-    toast.error('Bitte fülle die Pflichtfelder aus.')
+    toast.error(t('activities.wizard.toastFillRequired'))
     return
   }
   if (layoutMode.value === 'stepper' && props.departmentId) {
@@ -492,17 +497,13 @@ async function handleSubmit() {
       }
     }
     if (materialSyncFailed) {
-      toast.error('Aktivität angelegt; Material konnte nicht gespeichert werden — bitte in der Aktivität ergänzen.')
+      toast.error(t('activities.wizard.toastActivityCreatedMaterialFailed'))
     } else if (autoSubmitFailed) {
-      toast.error(
-        'Aktivität wurde als Entwurf gespeichert; automatisches Einreichen ist fehlgeschlagen — bitte in der Detailansicht einreichen.',
-      )
+      toast.error(t('activities.wizard.toastAutoSubmitFailed'))
     } else if (wantsAutoSubmit) {
-      toast.success('Aktivität wurde eingereicht.')
+      toast.success(t('activities.wizard.toastSubmitted'))
     } else {
-      toast.success(
-        'Entwurf wurde gespeichert. Du kannst die Aktivität in der Detailansicht prüfen und einreichen.',
-      )
+      toast.success(t('activities.wizard.toastDraftSaved'))
     }
     lastDraftSavedAt.value = new Date()
     if (invitedDepartments.value.length > 0) {
@@ -512,7 +513,7 @@ async function handleSubmit() {
     showDialog.value = false
   } catch (err: unknown) {
     const e = err as { response?: { data?: { error?: string } }; message?: string }
-    const msg = e?.response?.data?.error || e?.message || 'Aktivität konnte nicht angelegt werden.'
+    const msg = e?.response?.data?.error || e?.message || t('activities.wizard.toastCreateFailed')
     submitError.value = msg
     toast.error(msg)
   } finally {
@@ -535,7 +536,7 @@ watch(
       const d = await getActivityDefaults(props.departmentId)
       setActivityDefaults(d)
     } catch {
-      toast.error('Abteilungs-Standards konnten nicht geladen werden. Es werden Standard-Fixzeiten verwendet.')
+      toast.error(t('activities.wizard.toastDefaultsLoadFailed'))
       setActivityDefaults(FALLBACK_ACTIVITY_DEFAULTS)
     }
     try {

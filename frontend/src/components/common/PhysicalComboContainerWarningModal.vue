@@ -10,29 +10,34 @@
               <line x1="12" y1="17" x2="12.01" y2="17"/>
             </svg>
           </div>
-          <h3 id="pcw-title" class="pcw-title">Referenz-Kiste einer Kombination</h3>
+          <h3 id="pcw-title" class="pcw-title">{{ t('components.physicalComboWarning.title') }}</h3>
           <p class="pcw-lead">
-            Betrifft:
+            {{ t('components.physicalComboWarning.affects') }}
             <strong v-for="(c, i) in store.combos" :key="c.id">
               <template v-if="i > 0">, </template>„{{ c.name }}“
             </strong>
           </p>
           <p class="pcw-text">
-            Der Bestand in der Kiste ändert sich. Die <strong>Komponentenliste</strong> der Kombination wird dabei
-            <strong>nicht automatisch</strong> angepasst.
+            {{ t('components.physicalComboWarning.p1a') }}<strong>{{ t('components.physicalComboWarning.p1strong1') }}</strong
+            >{{ t('components.physicalComboWarning.p1b') }}<strong>{{ t('components.physicalComboWarning.p1strong2') }}</strong
+            >{{ t('components.physicalComboWarning.p1c') }}
           </p>
           <p class="pcw-hint">
-            Zum Anpassen der Kombination diese dort öffnen – oder zuerst fortfahren und später bearbeiten.
+            {{ t('components.physicalComboWarning.hintAdjust') }}
           </p>
           <p v-if="store.combos.length > 1" class="pcw-hint">
-            Mehrere Kombinationen betroffen: „Kombination öffnen“ springt zur ersten; die anderen über die Suche öffnen.
+            {{ t('components.physicalComboWarning.hintMultiple') }}
           </p>
           <div class="pcw-actions">
-            <button type="button" class="pcw-btn pcw-btn--ghost" @click="onCancel">Abbrechen</button>
-            <button type="button" class="pcw-btn pcw-btn--secondary" @click="onOpenCombo">
-              Kombination öffnen
+            <button type="button" class="pcw-btn pcw-btn--ghost" @click="onCancel">
+              {{ t('components.physicalComboWarning.cancel') }}
             </button>
-            <button type="button" class="pcw-btn pcw-btn--primary" @click="onProceed">Trotzdem fortfahren</button>
+            <button type="button" class="pcw-btn pcw-btn--secondary" @click="onOpenCombo">
+              {{ t('components.physicalComboWarning.openCombo') }}
+            </button>
+            <button type="button" class="pcw-btn pcw-btn--primary" @click="onProceed">
+              {{ t('components.physicalComboWarning.proceed') }}
+            </button>
           </div>
         </div>
       </div>
@@ -42,9 +47,11 @@
 
 <script setup lang="ts">
 import { onUnmounted, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useRouter, useRoute } from 'vue-router'
 import { usePhysicalComboWarningStore } from '@/stores/physicalComboWarning'
 
+const { t } = useI18n()
 const store = usePhysicalComboWarningStore()
 const router = useRouter()
 const route = useRoute()

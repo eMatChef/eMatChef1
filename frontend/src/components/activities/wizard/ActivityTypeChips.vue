@@ -1,7 +1,7 @@
 <template>
   <div>
     <div class="step-header">
-      <span class="step-title">Art der Aktivität</span>
+      <span class="step-title">{{ t('activities.wizard.typeStepTitle') }}</span>
     </div>
     <div class="type-chip-row">
       <button
@@ -35,6 +35,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import type { ActivityCreateType } from '@/composables/useActivityCreateWizard'
 import { useAuthStore } from '@/stores/auth'
 
@@ -46,19 +47,19 @@ defineEmits<{
   select: [type: ActivityCreateType]
 }>()
 
-const ALL_TYPES: { type: ActivityCreateType; label: string }[] = [
-  { type: 'activity', label: 'Aktivität' },
-  { type: 'camp', label: 'Lager' },
-  { type: 'event', label: 'Event' },
-  { type: 'external', label: 'Extern' },
-]
-
+const { t } = useI18n()
 const auth = useAuthStore()
 
 /** Typ «extern» nur für DC/MW (Wizard-Auswahl); andere Rollen sehen ihn nicht. */
 const options = computed(() => {
+  const all: { type: ActivityCreateType; label: string }[] = [
+    { type: 'activity', label: t('activities.types.activity') },
+    { type: 'camp', label: t('activities.types.camp') },
+    { type: 'event', label: t('activities.types.event') },
+    { type: 'external', label: t('activities.types.external') },
+  ]
   const role = auth.currentDepartmentRole
-  if (role === 'mw' || role === 'dc') return ALL_TYPES
-  return ALL_TYPES.filter((o) => o.type !== 'external')
+  if (role === 'mw' || role === 'dc') return all
+  return all.filter((o) => o.type !== 'external')
 })
 </script>
