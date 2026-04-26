@@ -278,7 +278,7 @@ const showDraftFooterStatus = computed(
 const submitButtonLabel = computed(() => {
   switch (selectedActivityType.value) {
     case 'activity':
-      return 'Entwurf speichern'
+      return 'Aktivität einreichen'
     case 'camp':
       return 'Lager einreichen'
     case 'event':

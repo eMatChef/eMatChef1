@@ -1128,9 +1128,11 @@ class JoinRequestController extends AbstractController
         $pendingPath = '/pending-assignment?join_code=' . urlencode($joinCode);
         $organisationId = $department->getOrganisationId();
         $departmentName = $department->getName();
+        $organisationName = $department->getOrganisation()->getName();
         $registerInviteUrl = $frontendBase . '/login?' . http_build_query([
             'register' => '1',
             'org_id' => $organisationId,
+            'org_name' => $organisationName,
             'dept_name' => $departmentName,
             'redirect' => $pendingPath,
         ], '', '&', \PHP_QUERY_RFC3986);

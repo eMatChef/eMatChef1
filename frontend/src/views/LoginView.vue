@@ -208,7 +208,7 @@
             />
           </div>
 
-          <div class="form-group">
+          <div v-if="!inviteOrganisationLocked" class="form-group">
             <label for="requestedOrganisationId" class="form-label">Organisation *</label>
             <select
               id="requestedOrganisationId"
@@ -220,6 +220,16 @@
               <option value="" disabled hidden>&nbsp;</option>
               <option v-for="org in organisations" :key="org.id" :value="org.id">{{ org.name }}</option>
             </select>
+          </div>
+          <div v-else class="form-group">
+            <label class="form-label">Organisation *</label>
+            <input
+              type="text"
+              class="form-input"
+              :value="inviteOrganisationName || inviteOrganisationId"
+              disabled
+            />
+            <p class="required-note">Aus Einladungslink übernommen.</p>
           </div>
 
           <div class="form-group">
@@ -371,6 +381,8 @@ const language = ref('de')
 const acceptTerms = ref(false)
 const requestedOrganisationId = ref('')
 const requestedDepartmentName = ref('')
+const inviteOrganisationId = ref('')
+const inviteOrganisationName = ref('')
 // Honeypot gegen Bots: unsichtbar, muss leer bleiben
 const website = ref('')
 const organisations = ref<Organisation[]>([])
@@ -394,6 +406,20 @@ const showResendVerification = computed(() =>
 const inviteRedirect = computed(() => parseInternalRedirect(route.query.redirect))
 const inviteFlowActive = computed(() => !!extractJoinCodeFromPath(inviteRedirect.value || ''))
 const inviteJoinCode = computed(() => extractJoinCodeFromPath(inviteRedirect.value || ''))
+const inviteOrganisationLocked = computed(() => {
+  if (mode.value !== 'register' || !inviteFlowActive.value) return false
+  const orgId = inviteOrganisationId.value.trim()
+  if (!orgId) return false
+  return !organisations.value.some((o) => o.id === orgId)
+})
+const effectiveRequestedOrganisationId = computed(() => {
+  const selected = requestedOrganisationId.value.trim()
+  if (selected) return selected
+  if (mode.value === 'register' && inviteFlowActive.value) {
+    return inviteOrganisationId.value.trim()
+  }
+  return ''
+})
 const cardTitle = computed(() => {
   if (mode.value === 'register') return 'Ein Konto erstellen'
   if (mode.value === 'forgot') return 'Passwort vergessen'
@@ -401,6 +427,9 @@ const cardTitle = computed(() => {
 })
 const cardSubtitle = computed(() => {
   if (mode.value === 'register') {
+    if (inviteFlowActive.value) {
+      return 'Registrieren Sie sich. Organisation und Abteilung sind aus der Einladung vorausgefuellt; nach der Registrierung geht es mit dem Join-Code weiter.'
+    }
     return 'Registrieren Sie sich. Die Zuordnung zu einer Abteilung erfolgt spaeter durch Admins.'
   }
   if (mode.value === 'forgot') {
@@ -462,6 +491,7 @@ function applyRegisterPrefillFromQuery() {
   const reg = queryParamFirst(route.query.register)
   const wantsRegister = reg === '1' || reg.toLowerCase() === 'true'
   const orgId = queryParamFirst(route.query.org_id).trim()
+  const orgName = queryParamFirst(route.query.org_name).trim()
   const deptName = queryParamFirst(route.query.dept_name).trim()
 
   if (!wantsRegister && !orgId && !deptName) {
@@ -474,6 +504,8 @@ function applyRegisterPrefillFromQuery() {
 
   const applyFields = () => {
     if (!wantsRegister) return
+    inviteOrganisationId.value = orgId
+    inviteOrganisationName.value = orgName
     if (orgId && organisations.value.some((o) => o.id === orgId)) {
       requestedOrganisationId.value = orgId
     }
@@ -486,7 +518,7 @@ function applyRegisterPrefillFromQuery() {
     applyFields()
     return
   }
-  loadOrganisationsForRegister().then(applyFields)
+  loadOrganisationsForRegister().then(() => applyFields())
 }
 
 onMounted(() => {
@@ -497,6 +529,7 @@ watch(
   () => ({
     register: route.query.register,
     org_id: route.query.org_id,
+    org_name: route.query.org_name,
     dept_name: route.query.dept_name
   }),
   () => applyRegisterPrefillFromQuery(),
@@ -529,6 +562,8 @@ function resetRegisterForm() {
   acceptTerms.value = false
   requestedOrganisationId.value = ''
   requestedDepartmentName.value = ''
+  inviteOrganisationId.value = ''
+  inviteOrganisationName.value = ''
   website.value = ''
 }
 
@@ -637,7 +672,9 @@ function setMode(nextMode: 'login' | 'register' | 'forgot') {
     resetForgotForm()
   }
   if (nextMode === 'register') {
-    loadOrganisationsForRegister()
+    loadOrganisationsForRegister().then(() => {
+      applyRegisterPrefillFromQuery()
+    })
   }
   clearMessages()
 }
@@ -690,7 +727,7 @@ async function handleRegister() {
     return
   }
 
-  if (!requestedOrganisationId.value) {
+  if (!effectiveRequestedOrganisationId.value) {
     error.value = 'Bitte eine Organisation waehlen'
     return
   }
@@ -740,7 +777,7 @@ async function handleRegister() {
       password: registerPassword.value,
       language: language.value,
       acceptTerms: acceptTerms.value,
-      requestedOrganisationId: requestedOrganisationId.value,
+      requestedOrganisationId: effectiveRequestedOrganisationId.value,
       requestedDepartmentName: requestedDepartmentName.value.trim(),
       website: website.value,
       turnstileToken
