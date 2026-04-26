@@ -5,9 +5,9 @@
       v-if="mode === 'icon' && !isExpanded"
       type="button"
       class="search-icon-btn"
-      title="Suchen"
+      :title="t('common.search')"
       @click="expand"
-      aria-label="Suchen"
+      :aria-label="t('common.search')"
     >
       <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
         <circle cx="11" cy="11" r="8" stroke-width="2"/>
@@ -25,7 +25,7 @@
         ref="inputRef"
         v-model="query"
         type="text"
-        :placeholder="placeholder"
+        :placeholder="placeholder || t('components.globalSearch.placeholderDefault')"
         class="search-input"
         :class="{ 'has-clear': mode === 'inline' && query }"
         @input="onInput"
@@ -36,7 +36,7 @@
         v-if="(mode === 'icon') || (mode === 'inline' && query)"
         type="button"
         class="search-close-btn"
-        :aria-label="mode === 'icon' ? 'Suche schließen' : 'Suche löschen'"
+        :aria-label="mode === 'icon' ? t('common.searchClose') : t('common.searchClear')"
         @click="mode === 'icon' ? collapse() : (query = '')"
       >
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -49,7 +49,7 @@
           v-if="showSuggestionsDropdown && (suggestions.length > 0 || isSuggestionsLoading)"
           class="suggestions-dropdown"
         >
-          <div v-if="isSuggestionsLoading" class="suggestions-loading">Suche...</div>
+          <div v-if="isSuggestionsLoading" class="suggestions-loading">{{ t('components.globalSearch.loadingSuggestions') }}</div>
           <div v-else class="suggestions-list">
             <button
               v-for="s in suggestions"
@@ -71,6 +71,7 @@
 <script setup lang="ts">
 import { ref, watch, nextTick, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import {
   useSearchNavigation,
   parseSearchQuery,
@@ -94,9 +95,11 @@ const props = withDefaults(
   }>(),
   {
     mode: 'icon',
-    placeholder: 'Suchen... (material:, aktivität:, reparatur:)',
+    placeholder: undefined,
   }
 )
+
+const { t } = useI18n()
 
 const emit = defineEmits<{
   (e: 'update:modelValue', value: string): void
@@ -131,12 +134,13 @@ watch(
 watch(query, (val) => emit('update:modelValue', val))
 
 function typeLabel(type: SearchTargetType): string {
-  const labels: Record<SearchTargetType, string> = {
-    material: 'Material',
-    activity: 'Aktivität',
-    reparatur: 'Reparatur',
+  const keys: Record<SearchTargetType, string> = {
+    material: 'components.globalSearch.typeMaterial',
+    activity: 'components.globalSearch.typeActivity',
+    reparatur: 'components.globalSearch.typeRepair',
   }
-  return labels[type] ?? type
+  const key = keys[type]
+  return key ? t(key) : type
 }
 
 function onInput() {

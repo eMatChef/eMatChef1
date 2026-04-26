@@ -88,7 +88,11 @@
     "cancel": "Cancel",
     "loading": "Please wait...",
     "saving": "Saving…",
-    "retry": "Try again"
+    "retry": "Try again",
+    "closeAria": "Close",
+    "search": "Search",
+    "searchClose": "Close search",
+    "searchClear": "Clear search"
   },
   "errors": {
     "sessionExpired": "Your session has expired. Please sign in again."
@@ -248,6 +252,141 @@
       "loadFailed": "Could not load activities: {msg}",
       "timeout": "Timeout – the backend did not respond.",
       "unknown": "Unknown error"
+    }
+  },
+  "settings": {
+    "adminUsers": {
+      "roles": {
+        "mw": "MW – materials lead",
+        "dc": "DC – department lead",
+        "l1": "L1 – leader 1",
+        "l2": "L2 – leader 2",
+        "l3": "L3 – leader 3",
+        "u": "U – member"
+      }
+    }
+  },
+  "components": {
+    "damageReportWizard": {
+      "title": "Report damage",
+      "closeTitle": "Close",
+      "step1Title": "1. Choose activity",
+      "step1Hint": "Pick an activity from you or your group",
+      "reportWithoutActivity": "Report without activity link",
+      "loadingActivities": "Loading activities...",
+      "emptyActivities": "No activities in status “Issued” or “Returned”.",
+      "emptyActivitiesHint": "Damage can only be reported for issued activities.",
+      "step2WithActivityTitle": "2. Enter damage",
+      "activityPrefix": "Activity:",
+      "loadingMaterial": "Loading material...",
+      "materialLabel": "Material",
+      "selectMaterialOption": "– Select material –",
+      "kindLabel": "Kind",
+      "issueTypeDamage": "Damage",
+      "issueTypeRepair": "Repair",
+      "issueTypeLoss": "Loss",
+      "quantityLabel": "Quantity",
+      "descriptionLabel": "Description",
+      "descriptionPlaceholder": "What happened?",
+      "step2NoActivityTitle": "Enter damage (no activity)",
+      "step2NoActivityHint": "A workshop ticket will be created directly",
+      "titleShortLabel": "Title / short description",
+      "titlePlaceholder": "e.g. tear in tent roof",
+      "typeLabel": "Type",
+      "workshopTypeRepair": "Repair",
+      "workshopTypeInspection": "Inspection",
+      "workshopTypeWriteoff": "Write-off",
+      "workshopTypeCleaning": "Cleaning",
+      "descriptionNoActivityPlaceholder": "Details about the issue...",
+      "materialSearchPlaceholder": "Search material (min. 2 characters)...",
+      "back": "Back",
+      "next": "Next",
+      "submitting": "Sending...",
+      "createTicket": "Create ticket",
+      "reportDamage": "Report damage",
+      "errorWithMessage": "Error: {message}",
+      "toastActivityLoadFailed": "Could not load activity.",
+      "toastOnlyIssuedReturned": "Damage can only be reported for issued or returned activities.",
+      "packItemQty": "{title} ({qty} pcs.)"
+    },
+    "departmentDetailsModal": {
+      "title": "Details: {name}",
+      "loading": "Loading department details...",
+      "sectionDeptInfo": "Department information",
+      "labelId": "ID:",
+      "labelName": "Name:",
+      "labelOrganisationId": "Organisation ID:",
+      "labelParentDepartmentId": "Parent department ID:",
+      "usersHeading": "Users in this department ({count})",
+      "noUsers": "No users in this department.",
+      "loadErrorFallback": "Could not load department details"
+    },
+    "departmentModal": {
+      "editTitle": "Edit department",
+      "addTitle": "Add new department",
+      "nameLabel": "Name *",
+      "namePlaceholder": "Department name",
+      "organisationLabel": "Organisation *",
+      "parentLabel": "Parent department (optional)",
+      "parentPrompt": "Select a parent department:",
+      "noParent": "No parent (main department)",
+      "parentHint": "Leave empty for a main department. You can also choose a sub-department as parent.",
+      "usersSectionLabel": "Users in this department",
+      "loadingUsers": "Loading users...",
+      "noMembersYet": "No users in this department yet.",
+      "colName": "Name",
+      "colEmail": "Email",
+      "colRole": "Role",
+      "colPrimary": "Primary",
+      "saveMember": "Save",
+      "removeMember": "Remove",
+      "addUserTitle": "Add user",
+      "userSearchPlaceholder": "Search users (name, first name, nickname, email)...",
+      "noSearchResults": "No matches",
+      "primaryCheckbox": "Primary",
+      "addButton": "Add",
+      "saving": "Saving...",
+      "loadDataError": "Could not load data",
+      "loadMembersError": "Could not load department users",
+      "toastMemberUpdated": "User updated",
+      "toastMemberUpdateError": "Could not update",
+      "toastCannotRemoveSelf": "You cannot remove yourself from the department here.",
+      "confirmRemoveMember": "Remove {name} from the department?",
+      "toastMemberRemoved": "User removed",
+      "toastMemberRemoveError": "Could not remove",
+      "toastMemberAdded": "User added",
+      "toastMemberAddError": "Could not add",
+      "validationFillAll": "Please fill in all fields",
+      "saveErrorFallback": "Could not save department"
+    },
+    "globalSearch": {
+      "placeholderDefault": "Search… (material:, activity:, reparatur:)",
+      "loadingSuggestions": "Searching…",
+      "typeMaterial": "Material",
+      "typeActivity": "Activity",
+      "typeRepair": "Repair"
+    },
+    "mapView": {
+      "hintSetLocation": "Click the map to set a location",
+      "hintNoCoords": "No coordinates available",
+      "searchingAddress": "Searching address…",
+      "layerSwisstopoTitle": "Swisstopo national map (CH)",
+      "layerSwissimageTitle": "Swisstopo aerial imagery (Swissimage)",
+      "layerOsmTitle": "OpenStreetMap",
+      "labelLv95": "LV95 (CH)",
+      "labelWgs84": "WGS84",
+      "labelAddress": "Address"
+    },
+    "treeItem": {
+      "titleEdit": "Edit",
+      "titleMenu": "Menu",
+      "showDetails": "Show details",
+      "addDepartment": "Add department",
+      "addSubDepartment": "Add sub-department"
+    },
+    "treeList": {
+      "headerNameDefault": "Name",
+      "actions": "Actions"
     }
   }
 }

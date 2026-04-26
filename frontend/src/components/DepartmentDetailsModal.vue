@@ -2,7 +2,7 @@
   <div v-if="isOpen" class="modal-overlay">
     <div class="modal-dialog department-details-dialog">
       <div class="modal-header">
-        <h2>Details: {{ department?.name }}</h2>
+        <h2>{{ t('components.departmentDetailsModal.title', { name: department?.name ?? '' }) }}</h2>
         <button @click="close" class="modal-close">
           <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
             <path d="M15 5L5 15M5 5L15 15" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
@@ -13,33 +13,33 @@
       <div class="modal-body">
         <div v-if="isLoading" class="loading-state">
           <div class="spinner"></div>
-          <p>Lade Department-Details...</p>
+          <p>{{ t('components.departmentDetailsModal.loading') }}</p>
         </div>
         
         <div v-else-if="error" class="error-state">
           <p class="error-message">{{ error }}</p>
-          <button @click="loadDepartmentDetails" class="btn-secondary btn-sm">Erneut versuchen</button>
+          <button @click="loadDepartmentDetails" class="btn-secondary btn-sm">{{ t('common.retry') }}</button>
         </div>
         
         <div v-else-if="departmentDetails" class="details-content">
           <!-- Department Info -->
           <div class="info-section">
-            <h3>Department-Informationen</h3>
+            <h3>{{ t('components.departmentDetailsModal.sectionDeptInfo') }}</h3>
             <div class="info-grid">
               <div class="info-item">
-                <span class="info-label">ID:</span>
+                <span class="info-label">{{ t('components.departmentDetailsModal.labelId') }}</span>
                 <span class="info-value">{{ departmentDetails.id }}</span>
               </div>
               <div class="info-item">
-                <span class="info-label">Name:</span>
+                <span class="info-label">{{ t('components.departmentDetailsModal.labelName') }}</span>
                 <span class="info-value">{{ departmentDetails.name }}</span>
               </div>
               <div class="info-item">
-                <span class="info-label">Organisation ID:</span>
+                <span class="info-label">{{ t('components.departmentDetailsModal.labelOrganisationId') }}</span>
                 <span class="info-value">{{ departmentDetails.organisation_id }}</span>
               </div>
               <div v-if="departmentDetails.parent_id" class="info-item">
-                <span class="info-label">Parent-Department ID:</span>
+                <span class="info-label">{{ t('components.departmentDetailsModal.labelParentDepartmentId') }}</span>
                 <span class="info-value">{{ departmentDetails.parent_id }}</span>
               </div>
             </div>
@@ -47,7 +47,7 @@
           
           <!-- Users -->
           <div class="users-section">
-            <h3>User in diesem Department ({{ departmentDetails.users?.length || 0 }})</h3>
+            <h3>{{ t('components.departmentDetailsModal.usersHeading', { count: departmentDetails.users?.length || 0 }) }}</h3>
             <div v-if="departmentDetails.users && departmentDetails.users.length > 0" class="users-list">
               <div v-for="user in departmentDetails.users" :key="user.id" class="user-item">
                 <div class="user-avatar">
@@ -60,7 +60,7 @@
                 <span class="user-role">{{ formatRole(user.role) }}</span>
               </div>
             </div>
-            <p v-else class="empty-users">Keine User in diesem Department.</p>
+            <p v-else class="empty-users">{{ t('components.departmentDetailsModal.noUsers') }}</p>
           </div>
         </div>
       </div>
@@ -70,7 +70,10 @@
 
 <script setup lang="ts">
 import { ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { getDepartment, type Department, type DepartmentUser } from '@/api/departments'
+
+const { t } = useI18n()
 
 interface Props {
   isOpen: boolean
@@ -87,14 +90,16 @@ const error = ref<string | null>(null)
 const departmentDetails = ref<Department | null>(null)
 const department = ref<{ name: string } | null>(null)
 
+/** Feste Anzeigenamen zu internen Rollen-Codes (Berechtigung; nicht über i18n/Crowdin). */
+const ROLE_DISPLAY_BY_CODE: Record<string, string> = {
+  sa: 'Superadmin',
+  org: 'Organisationschef',
+  dep: 'Department-Chef',
+  user: 'User',
+}
+
 function formatRole(role: string): string {
-  const roleMap: Record<string, string> = {
-    'sa': 'Superadmin',
-    'org': 'Organisationschef',
-    'dep': 'Department-Chef',
-    'user': 'User'
-  }
-  return roleMap[role] || role
+  return ROLE_DISPLAY_BY_CODE[role] ?? role
 }
 
 async function loadDepartmentDetails() {
@@ -112,7 +117,7 @@ async function loadDepartmentDetails() {
     departmentDetails.value = dept
     department.value = { name: dept.name }
   } catch (err: any) {
-    error.value = err.response?.data?.error || 'Fehler beim Laden der Department-Details'
+    error.value = err.response?.data?.error || t('components.departmentDetailsModal.loadErrorFallback')
   } finally {
     isLoading.value = false
   }
