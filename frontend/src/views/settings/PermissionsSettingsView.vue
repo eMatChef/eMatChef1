@@ -1,16 +1,19 @@
 <template>
   <div class="permissions-settings">
-    <h2 class="settings-title">Berechtigungen</h2>
-    <p class="settings-description">Konfigurieren Sie Berechtigungen und Sichtbarkeiten</p>
+    <h2 class="settings-title">{{ t('settings.permissions.title') }}</h2>
+    <p class="settings-description">{{ t('settings.permissions.description') }}</p>
     
     <div class="settings-section">
-      <h3>Berechtigungen verwalten</h3>
-      <p>Hier werden später Berechtigungen konfiguriert.</p>
+      <h3>{{ t('settings.permissions.manageTitle') }}</h3>
+      <p>{{ t('settings.permissions.comingSoon') }}</p>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n'
+
+const { t } = useI18n()
 </script>
 
 <style scoped>

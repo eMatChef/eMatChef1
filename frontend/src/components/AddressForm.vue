@@ -3,10 +3,10 @@
     <!-- Typ -->
     <div v-if="showType" class="form-row">
       <div class="form-group">
-        <label class="form-label">Adress-Typ</label>
+        <label class="form-label">{{ t('settings.addressForm.type') }}</label>
         <select v-model="formData.type" class="form-select">
-          <option v-for="(label, key) in ADDRESS_TYPES" :key="key" :value="key">
-            {{ label }}
+          <option v-for="key in addressTypeKeys" :key="key" :value="key">
+            {{ t(`settings.addressForm.types.${key}`) }}
           </option>
         </select>
       </div>
@@ -15,21 +15,21 @@
     <!-- Name / Firma -->
     <div class="form-row two-cols">
       <div class="form-group">
-        <label class="form-label">Bezeichnung</label>
-        <input 
-          v-model="formData.name" 
-          type="text" 
-          class="form-input" 
-          placeholder="z.B. Hauptlager, Büro"
+        <label class="form-label">{{ t('settings.addressForm.designation') }}</label>
+        <input
+          v-model="formData.name"
+          type="text"
+          class="form-input"
+          :placeholder="t('settings.addressForm.designationPlaceholder')"
         />
       </div>
       <div class="form-group">
-        <label class="form-label">Firma/Organisation</label>
-        <input 
-          v-model="formData.company" 
-          type="text" 
-          class="form-input" 
-          placeholder="Optional"
+        <label class="form-label">{{ t('settings.addressForm.company') }}</label>
+        <input
+          v-model="formData.company"
+          type="text"
+          class="form-input"
+          :placeholder="t('settings.addressForm.optional')"
         />
       </div>
     </div>
@@ -37,12 +37,12 @@
     <!-- Adresszusatz -->
     <div v-if="showExtended" class="form-row">
       <div class="form-group">
-        <label class="form-label">Adresszusatz</label>
-        <input 
-          v-model="formData.address_line2" 
-          type="text" 
-          class="form-input" 
-          placeholder="c/o, Postfach, Abteilung..."
+        <label class="form-label">{{ t('settings.addressForm.addressExtra') }}</label>
+        <input
+          v-model="formData.address_line2"
+          type="text"
+          class="form-input"
+          :placeholder="t('settings.addressForm.addressExtraPlaceholder')"
         />
       </div>
     </div>
@@ -50,43 +50,43 @@
     <!-- Strasse + Nr -->
     <div class="form-row two-cols-unequal">
       <div class="form-group flex-grow">
-        <label class="form-label">Strasse</label>
-        <input 
-          v-model="formData.street" 
-          type="text" 
-          class="form-input" 
-          placeholder="Strassenname"
+        <label class="form-label">{{ t('settings.addressForm.street') }}</label>
+        <input
+          v-model="formData.street"
+          type="text"
+          class="form-input"
+          :placeholder="t('settings.addressForm.streetPlaceholder')"
         />
       </div>
-      <div class="form-group" style="width: 100px;">
-        <label class="form-label">Nr.</label>
-        <input 
-          v-model="formData.street_number" 
-          type="text" 
-          class="form-input" 
-          placeholder="123a"
+      <div class="form-group" style="width: 100px">
+        <label class="form-label">{{ t('settings.addressForm.streetNumber') }}</label>
+        <input
+          v-model="formData.street_number"
+          type="text"
+          class="form-input"
+          :placeholder="t('settings.addressForm.streetNumberPlaceholder')"
         />
       </div>
     </div>
 
     <!-- PLZ + Ort -->
     <div class="form-row two-cols-unequal">
-      <div class="form-group" style="width: 120px;">
-        <label class="form-label">PLZ</label>
-        <input 
-          v-model="formData.postal_code" 
-          type="text" 
-          class="form-input" 
-          placeholder="8000"
+      <div class="form-group" style="width: 120px">
+        <label class="form-label">{{ t('settings.addressForm.postalCode') }}</label>
+        <input
+          v-model="formData.postal_code"
+          type="text"
+          class="form-input"
+          :placeholder="t('settings.addressForm.postalPlaceholder')"
         />
       </div>
       <div class="form-group flex-grow">
-        <label class="form-label">Ort</label>
-        <input 
-          v-model="formData.city" 
-          type="text" 
-          class="form-input" 
-          placeholder="Zürich"
+        <label class="form-label">{{ t('settings.addressForm.city') }}</label>
+        <input
+          v-model="formData.city"
+          type="text"
+          class="form-input"
+          :placeholder="t('settings.addressForm.cityPlaceholder')"
         />
       </div>
     </div>
@@ -94,51 +94,47 @@
     <!-- Kanton + Land -->
     <div class="form-row two-cols">
       <div class="form-group">
-        <label class="form-label">Kanton</label>
+        <label class="form-label">{{ t('settings.addressForm.canton') }}</label>
         <select v-model="formData.canton" class="form-select">
-          <option value="">-- Auswählen --</option>
+          <option value="">{{ t('settings.addressForm.selectPlaceholder') }}</option>
           <option v-for="(name, code) in SWISS_CANTONS" :key="code" :value="code">
             {{ code }} - {{ name }}
           </option>
         </select>
       </div>
       <div class="form-group">
-        <label class="form-label">Land</label>
-        <input 
-          v-model="formData.country" 
-          type="text" 
-          class="form-input"
-        />
+        <label class="form-label">{{ t('settings.addressForm.country') }}</label>
+        <input v-model="formData.country" type="text" class="form-input" />
       </div>
     </div>
 
     <!-- Kontakt: E-Mail, Telefon, Mobil -->
     <div v-if="showExtended" class="form-row three-cols">
       <div class="form-group">
-        <label class="form-label">E-Mail</label>
-        <input 
-          v-model="formData.email" 
-          type="email" 
-          class="form-input" 
-          placeholder="name@firma.ch"
+        <label class="form-label">{{ t('settings.addressForm.email') }}</label>
+        <input
+          v-model="formData.email"
+          type="email"
+          class="form-input"
+          :placeholder="t('settings.addressForm.emailPlaceholder')"
         />
       </div>
       <div class="form-group">
-        <label class="form-label">Telefon</label>
-        <input 
-          v-model="formData.phone" 
-          type="tel" 
-          class="form-input" 
-          placeholder="+41 44 123 45 67"
+        <label class="form-label">{{ t('settings.addressForm.phone') }}</label>
+        <input
+          v-model="formData.phone"
+          type="tel"
+          class="form-input"
+          :placeholder="t('settings.addressForm.phonePlaceholder')"
         />
       </div>
       <div class="form-group">
-        <label class="form-label">Mobil</label>
-        <input 
-          v-model="formData.mobile" 
-          type="tel" 
-          class="form-input" 
-          placeholder="+41 79 123 45 67"
+        <label class="form-label">{{ t('settings.addressForm.mobile') }}</label>
+        <input
+          v-model="formData.mobile"
+          type="tel"
+          class="form-input"
+          :placeholder="t('settings.addressForm.mobilePlaceholder')"
         />
       </div>
     </div>
@@ -147,12 +143,17 @@
     <div v-if="showMap" class="form-row">
       <div class="form-group">
         <label class="form-label">
-          Standort auf Karte
-          <button type="button" @click="searchCoordinates" class="search-coords-btn">
+          {{ t('settings.addressForm.mapLabel') }}
+          <button type="button" class="search-coords-btn" @click="searchCoordinates">
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
-              <path d="M7 12A5 5 0 107 2a5 5 0 000 10zM14 14l-3-3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+              <path
+                d="M7 12A5 5 0 107 2a5 5 0 000 10zM14 14l-3-3"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+              />
             </svg>
-            Suchen
+            {{ t('settings.addressForm.mapSearch') }}
           </button>
         </label>
         <MapView
@@ -165,20 +166,20 @@
           @update:latitude="formData.latitude = $event"
           @update:longitude="formData.longitude = $event"
         />
-        <p class="form-hint">Klicken Sie auf die Karte oder suchen Sie die Adresse um den Standort zu setzen.</p>
+        <p class="form-hint">{{ t('settings.addressForm.mapHint') }}</p>
       </div>
     </div>
 
     <!-- Zusätzliche Infos -->
     <div v-if="showExtended" class="form-row">
       <div class="form-group">
-        <label class="form-label">Zusätzliche Informationen</label>
-        <textarea 
-          v-model="formData.additional_info" 
-          class="form-textarea" 
+        <label class="form-label">{{ t('settings.addressForm.additionalInfo') }}</label>
+        <textarea
+          v-model="formData.additional_info"
+          class="form-textarea"
           rows="3"
-          placeholder="Anfahrt, Besonderheiten..."
-        ></textarea>
+          :placeholder="t('settings.addressForm.additionalInfoPlaceholder')"
+        />
       </div>
     </div>
   </div>
@@ -186,8 +187,12 @@
 
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import MapView from './MapView.vue'
 import { SWISS_CANTONS, ADDRESS_TYPES, type AddressFormData } from '@/api/addresses'
+
+const { t } = useI18n()
+const addressTypeKeys = Object.keys(ADDRESS_TYPES) as (keyof typeof ADDRESS_TYPES)[]
 
 interface Props {
   modelValue: AddressFormData
@@ -199,7 +204,7 @@ interface Props {
 const props = withDefaults(defineProps<Props>(), {
   showType: false,
   showExtended: true,
-  showMap: true
+  showMap: true,
 })
 
 const emit = defineEmits<{
@@ -208,10 +213,8 @@ const emit = defineEmits<{
 
 const mapRef = ref<InstanceType<typeof MapView>>()
 
-// Lokale Kopie für v-model
 const formData = ref<AddressFormData>({ ...props.modelValue })
 
-// Vollständige Adresse für Geocoding
 const fullAddress = computed(() => {
   const parts = []
   if (formData.value.street) {
@@ -230,20 +233,25 @@ const fullAddress = computed(() => {
   return parts.join(', ')
 })
 
-// Koordinaten suchen
 function searchCoordinates() {
   mapRef.value?.searchAddress()
 }
 
-// Watch für externe Änderungen
-watch(() => props.modelValue, (newVal) => {
-  formData.value = { ...newVal }
-}, { deep: true })
+watch(
+  () => props.modelValue,
+  (newVal) => {
+    formData.value = { ...newVal }
+  },
+  { deep: true }
+)
 
-// Emit bei Änderungen
-watch(formData, (newVal) => {
-  emit('update:modelValue', { ...newVal })
-}, { deep: true })
+watch(
+  formData,
+  (newVal) => {
+    emit('update:modelValue', { ...newVal })
+  },
+  { deep: true }
+)
 </script>
 
 <style scoped>
@@ -274,8 +282,6 @@ watch(formData, (newVal) => {
   display: flex;
   gap: 16px;
 }
-
-/* Form group/input/select/textarea base uses shared ui/forms.css */
 
 .form-group.flex-grow {
   flex: 1;
@@ -336,8 +342,8 @@ watch(formData, (newVal) => {
     grid-template-columns: 1fr;
     flex-direction: column;
   }
-  
-  .form-group[style*="width"] {
+
+  .form-group[style*='width'] {
     width: 100% !important;
   }
 }

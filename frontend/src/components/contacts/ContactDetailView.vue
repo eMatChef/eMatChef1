@@ -7,14 +7,14 @@
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M19 12H5M12 19l-7-7 7-7"/>
           </svg>
-          Zurück zur Liste
+          {{ t('contacts.detail.backToList') }}
         </button>
         <div class="header-title" v-if="contact">
           <div class="contact-avatar-lg" :class="contact.type">
             {{ getInitials(contact) }}
           </div>
           <div>
-            <h1>{{ contact.name || contact.company || 'Ohne Name' }}</h1>
+            <h1>{{ contact.name || contact.company || t('contacts.unnamed') }}</h1>
             <span class="header-subtitle" v-if="contact.company && contact.name">{{ contact.company }}</span>
           </div>
         </div>
@@ -25,14 +25,14 @@
             <polyline points="3 6 5 6 21 6"/>
             <path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/>
           </svg>
-          Löschen
+          {{ t('contacts.detail.delete') }}
         </button>
         <button class="btn-outline" @click="openEditModal">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
             <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
           </svg>
-          Bearbeiten
+          {{ t('contacts.detail.edit') }}
         </button>
       </div>
     </header>
@@ -40,13 +40,13 @@
     <!-- Loading -->
     <div v-if="isLoading" class="loading-container">
       <div class="spinner"></div>
-      <p>Kontakt wird geladen...</p>
+      <p>{{ t('contacts.detail.loading') }}</p>
     </div>
 
     <!-- Error -->
     <div v-else-if="error" class="error-container">
       <p>{{ error }}</p>
-      <button @click="loadContact" class="btn-outline">Erneut versuchen</button>
+      <button @click="loadContact" class="btn-outline">{{ t('common.retry') }}</button>
     </div>
 
     <!-- Content -->
@@ -62,36 +62,36 @@
                   <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/>
                   <circle cx="12" cy="7" r="4"/>
                 </svg>
-                Kontaktdaten
+                {{ t('contacts.detail.sectionContactData') }}
               </h2>
-              <button class="section-edit-btn" @click="openEditModal" title="Bearbeiten">
+              <button class="section-edit-btn" @click="openEditModal" :title="t('contacts.detail.editTitle')">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
                   <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
                 </svg>
-                Bearbeiten
+                {{ t('contacts.detail.edit') }}
               </button>
             </div>
             
             <div class="info-grid">
               <div class="info-item" v-if="contact.name">
-                <span class="info-label">Bezeichnung</span>
+                <span class="info-label">{{ t('settings.addressForm.designation') }}</span>
                 <span class="info-value">{{ contact.name }}</span>
               </div>
               <div class="info-item" v-if="contact.company">
-                <span class="info-label">Firma/Organisation</span>
+                <span class="info-label">{{ t('settings.addressForm.company') }}</span>
                 <span class="info-value">{{ contact.company }}</span>
               </div>
               <div class="info-item">
-                <span class="info-label">Typ</span>
+                <span class="info-label">{{ t('settings.addressForm.type') }}</span>
                 <span class="info-value">
-                  <span class="type-badge" :class="contact.type">{{ contact.type_label }}</span>
+                  <span class="type-badge" :class="contact.type">{{ addressTypeLabel(contact.type) }}</span>
                 </span>
               </div>
               <div class="info-item" v-if="contact.is_primary">
-                <span class="info-label">Status</span>
+                <span class="info-label">{{ t('contacts.detail.statusLabel') }}</span>
                 <span class="info-value">
-                  <span class="primary-badge">Primäre Adresse</span>
+                  <span class="primary-badge">{{ t('contacts.detail.primaryAddress') }}</span>
                 </span>
               </div>
             </div>
@@ -104,14 +104,14 @@
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z"/>
                 </svg>
-                Kommunikation
+                {{ t('contacts.detail.sectionCommunication') }}
               </h2>
-              <button class="section-edit-btn" @click="openEditModal" title="Bearbeiten">
+              <button class="section-edit-btn" @click="openEditModal" :title="t('contacts.detail.editTitle')">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
                   <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
                 </svg>
-                Bearbeiten
+                {{ t('contacts.detail.edit') }}
               </button>
             </div>
 
@@ -124,7 +124,7 @@
                   </svg>
                 </div>
                 <div class="action-info">
-                  <span class="action-label">E-Mail</span>
+                  <span class="action-label">{{ t('settings.addressForm.email') }}</span>
                   <span class="action-value">{{ contact.email }}</span>
                 </div>
               </a>
@@ -136,7 +136,7 @@
                   </svg>
                 </div>
                 <div class="action-info">
-                  <span class="action-label">Telefon</span>
+                  <span class="action-label">{{ t('settings.addressForm.phone') }}</span>
                   <span class="action-value">{{ contact.phone }}</span>
                 </div>
               </a>
@@ -149,19 +149,19 @@
                   </svg>
                 </div>
                 <div class="action-info">
-                  <span class="action-label">Mobil</span>
+                  <span class="action-label">{{ t('settings.addressForm.mobile') }}</span>
                   <span class="action-value">{{ contact.mobile }}</span>
                 </div>
               </a>
             </div>
 
             <div v-else class="empty-section">
-              <p>Keine Kontaktdaten hinterlegt.</p>
+              <p>{{ t('contacts.detail.noCommunication') }}</p>
               <button class="btn-add-data" @click="openEditModal">
                 <svg width="16" height="16" viewBox="0 0 20 20" fill="none">
                   <path d="M10 4V16M4 10H16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
                 </svg>
-                E-Mail / Telefon hinzufügen
+                {{ t('contacts.detail.addCommunicationCta') }}
               </button>
             </div>
           </div>
@@ -174,14 +174,14 @@
                   <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/>
                   <circle cx="12" cy="10" r="3"/>
                 </svg>
-                Adresse
+                {{ t('contacts.detail.sectionAddress') }}
               </h2>
-              <button class="section-edit-btn" @click="openEditModal" title="Bearbeiten">
+              <button class="section-edit-btn" @click="openEditModal" :title="t('contacts.detail.editTitle')">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
                   <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
                 </svg>
-                Bearbeiten
+                {{ t('contacts.detail.edit') }}
               </button>
             </div>
 
@@ -205,14 +205,14 @@
                     <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/>
                     <circle cx="12" cy="10" r="3"/>
                   </svg>
-                  Auf Google Maps öffnen
+                  {{ t('contacts.detail.openGoogleMaps') }}
                 </a>
                 <button @click="copyAddress" class="copy-btn">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
                     <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
                   </svg>
-                  {{ copySuccess ? 'Kopiert!' : 'Adresse kopieren' }}
+                  {{ copySuccess ? t('contacts.detail.copied') : t('contacts.detail.copyAddress') }}
                 </button>
               </div>
             </div>
@@ -227,26 +227,26 @@
                   <line x1="8" y1="2" x2="8" y2="18"/>
                   <line x1="16" y1="6" x2="16" y2="22"/>
                 </svg>
-                Standort
+                {{ t('contacts.detail.sectionLocation') }}
               </h2>
               <div class="section-header-actions">
                 <button 
                   class="section-edit-btn" 
                   @click="searchAndSetLocation" 
                   :disabled="isSearchingLocation"
-                  title="Standort anhand der Adresse suchen"
+                  :title="t('contacts.detail.searchLocationTitle')"
                 >
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <circle cx="11" cy="11" r="8"/>
                     <line x1="21" y1="21" x2="16.65" y2="16.65"/>
                   </svg>
-                  {{ isSearchingLocation ? 'Suche...' : 'Adresse suchen' }}
+                  {{ isSearchingLocation ? t('contacts.detail.searching') : t('contacts.detail.searchLocation') }}
                 </button>
                 <span v-if="coordinatesSaved" class="save-indicator">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <polyline points="20 6 9 17 4 12"/>
                   </svg>
-                  Gespeichert
+                  {{ t('contacts.detail.saved') }}
                 </span>
               </div>
             </div>
@@ -264,7 +264,7 @@
               @update:longitude="onLongitudeChange"
               @coordinates-changed="onCoordinatesChanged"
             />
-            <p class="map-hint">Klicken Sie auf die Karte, um den Standort zu setzen. Marker kann verschoben werden.</p>
+            <p class="map-hint">{{ t('contacts.detail.mapHint') }}</p>
           </div>
 
           <!-- Zusätzliche Informationen -->
@@ -276,19 +276,19 @@
                   <line x1="12" y1="16" x2="12" y2="12"/>
                   <line x1="12" y1="8" x2="12.01" y2="8"/>
                 </svg>
-                Zusätzliche Informationen
+                {{ t('contacts.detail.sectionNotes') }}
               </h2>
-              <button class="section-edit-btn" @click="openEditModal" title="Bearbeiten">
+              <button class="section-edit-btn" @click="openEditModal" :title="t('contacts.detail.editTitle')">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
                   <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
                 </svg>
-                Bearbeiten
+                {{ t('contacts.detail.edit') }}
               </button>
             </div>
             <p v-if="contact.additional_info" class="additional-info-text">{{ contact.additional_info }}</p>
             <div v-else class="empty-section">
-              <p>Keine zusätzlichen Informationen.</p>
+              <p>{{ t('contacts.detail.noAdditionalInfo') }}</p>
             </div>
           </div>
         </main>
@@ -307,15 +307,14 @@
     <!-- Delete Confirmation -->
     <div v-if="showDeleteConfirm" class="delete-overlay">
       <div class="delete-dialog">
-        <h3>Kontakt löschen?</h3>
+        <h3>{{ t('contacts.detail.deleteTitle') }}</h3>
         <p>
-          Möchten Sie <strong>{{ contact?.name || contact?.company || 'diesen Kontakt' }}</strong> wirklich löschen? 
-          Diese Aktion kann nicht rückgängig gemacht werden.
+          {{ t('contacts.detail.deleteMessage', { name: contact?.name || contact?.company || t('contacts.detail.deleteNameFallback') }) }}
         </p>
         <div class="delete-dialog-actions">
-          <button @click="showDeleteConfirm = false" class="btn-secondary">Abbrechen</button>
+          <button @click="showDeleteConfirm = false" class="btn-secondary">{{ t('common.cancel') }}</button>
           <button @click="handleDelete" class="btn-danger" :disabled="isDeleting">
-            {{ isDeleting ? 'Löschen...' : 'Löschen' }}
+            {{ isDeleting ? t('contacts.detail.deleting') : t('contacts.detail.delete') }}
           </button>
         </div>
       </div>
@@ -325,6 +324,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch, nextTick } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useToast } from '@/composables/useToast'
 import { 
   getAddress, 
@@ -351,6 +351,12 @@ const emit = defineEmits<{
 
 // State
 const toast = useToast()
+const { t, te } = useI18n()
+
+function addressTypeLabel(type: string): string {
+  const path = `settings.addressForm.types.${type}` as const
+  return te(path) ? t(path) : type
+}
 const contact = ref<Address | null>(null)
 const isLoading = ref(false)
 const error = ref<string | null>(null)
@@ -397,7 +403,7 @@ async function loadContact() {
       mapRef.value?.invalidateSize()
     }, 600)
   } catch (err: any) {
-    const msg = err.response?.data?.error || 'Fehler beim Laden des Kontakts'
+    const msg = err.response?.data?.error || t('contacts.detail.loadError')
     error.value = msg
     toast.error(msg)
   } finally {
@@ -434,7 +440,7 @@ async function handleDelete() {
     showDeleteConfirm.value = false
     emit('deleted')
   } catch (err: any) {
-    const msg = err.response?.data?.error || 'Fehler beim Löschen'
+    const msg = err.response?.data?.error || t('contacts.detail.deleteError')
     error.value = msg
     toast.error(msg)
   } finally {

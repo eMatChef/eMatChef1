@@ -2,15 +2,15 @@
   <div class="activity-settings">
     <div class="settings-header">
       <div>
-        <h1>Aktivitäten</h1>
-        <p class="subtitle">Standard-Werte für neue Aktivitäten konfigurieren</p>
+        <h1>{{ t('settings.activitySettings.title') }}</h1>
+        <p class="subtitle">{{ t('settings.activitySettings.subtitle') }}</p>
       </div>
     </div>
 
     <!-- Loading -->
     <div v-if="isLoading" class="loading-state">
       <div class="spinner"></div>
-      <p>Einstellungen werden geladen...</p>
+      <p>{{ t('settings.activitySettings.loading') }}</p>
     </div>
 
     <!-- Settings Form -->
@@ -25,26 +25,26 @@
             </svg>
           </div>
           <div>
-            <h3>Aktivität (Einzeltag)</h3>
-            <p>Standard-Uhrzeit für eintägige Aktivitäten</p>
+            <h3>{{ t('settings.activitySettings.sections.singleDay.title') }}</h3>
+            <p>{{ t('settings.activitySettings.sections.singleDay.description') }}</p>
           </div>
         </div>
         <div class="setting-fields">
           <div class="field-row">
             <div class="field-group">
-              <label>Standard-Startzeit</label>
+              <label>{{ t('settings.activitySettings.fields.defaultStart') }}</label>
               <input v-model="form.defaultTimeStart" type="time" step="900" class="form-input" />
-              <span class="field-hint">Uhrzeit, die beim Erstellen vorausgefüllt wird</span>
+              <span class="field-hint">{{ t('settings.activitySettings.hints.defaultStart') }}</span>
             </div>
             <div class="field-group">
-              <label>Standard-Endzeit</label>
+              <label>{{ t('settings.activitySettings.fields.defaultEnd') }}</label>
               <input v-model="form.defaultTimeEnd" type="time" step="900" class="form-input" />
-              <span class="field-hint">Uhrzeit, die als Endzeit vorausgefüllt wird</span>
+              <span class="field-hint">{{ t('settings.activitySettings.hints.defaultEnd') }}</span>
             </div>
           </div>
           <div class="time-preview">
-            <span class="preview-label">Vorschau:</span>
-            <span class="preview-value">Nächster Samstag, {{ form.defaultTimeStart }} – {{ form.defaultTimeEnd }}</span>
+            <span class="preview-label">{{ t('settings.activitySettings.preview.label') }}</span>
+            <span class="preview-value">{{ t('settings.activitySettings.preview.nextSaturday', { start: form.defaultTimeStart, end: form.defaultTimeEnd }) }}</span>
           </div>
         </div>
       </div>
@@ -58,34 +58,33 @@
             </svg>
           </div>
           <div>
-            <h3>Material-Zeiten (Aktivität)</h3>
-            <p>Wie viel Zeit vor/nach der Aktivität wird für Material benötigt?</p>
+            <h3>{{ t('settings.activitySettings.sections.materialMinutes.title') }}</h3>
+            <p>{{ t('settings.activitySettings.sections.materialMinutes.description') }}</p>
           </div>
         </div>
         <div class="setting-fields">
           <div class="field-row">
             <div class="field-group">
-              <label>Materialvorlaufzeit</label>
+              <label>{{ t('settings.activitySettings.fields.materialLeadMinutes') }}</label>
               <div class="input-with-suffix">
                 <input v-model.number="form.materialLeadMinutes" type="number" min="0" max="480" step="15" class="form-input" />
-                <span class="input-suffix">Minuten</span>
+                <span class="input-suffix">{{ t('settings.activitySettings.units.minutes') }}</span>
               </div>
-              <span class="field-hint">Material steht X Minuten VOR Start bereit</span>
+              <span class="field-hint">{{ t('settings.activitySettings.hints.materialLeadMinutes') }}</span>
             </div>
             <div class="field-group">
-              <label>Materialnachlaufzeit</label>
+              <label>{{ t('settings.activitySettings.fields.materialLagMinutes') }}</label>
               <div class="input-with-suffix">
                 <input v-model.number="form.materialLagMinutes" type="number" min="0" max="480" step="15" class="form-input" />
-                <span class="input-suffix">Minuten</span>
+                <span class="input-suffix">{{ t('settings.activitySettings.units.minutes') }}</span>
               </div>
-              <span class="field-hint">Material wird X Minuten NACH Ende zurückgebracht</span>
+              <span class="field-hint">{{ t('settings.activitySettings.hints.materialLagMinutes') }}</span>
             </div>
           </div>
           <div class="time-preview">
-            <span class="preview-label">Beispiel:</span>
+            <span class="preview-label">{{ t('settings.activitySettings.preview.example') }}</span>
             <span class="preview-value">
-              Aktivität {{ form.defaultTimeStart }} – {{ form.defaultTimeEnd }}
-              → Material {{ computeLeadTime }} – {{ computeLagTime }}
+              {{ t('settings.activitySettings.preview.materialWindow', { start: form.defaultTimeStart, end: form.defaultTimeEnd, lead: computeLeadTime, lag: computeLagTime }) }}
             </span>
           </div>
         </div>
@@ -100,34 +99,33 @@
             </svg>
           </div>
           <div>
-            <h3>Material-Zeiten (Lager / Events / Extern)</h3>
-            <p>Wie viele Tage vor/nach dem Event wird Material geholt/zurückgebracht?</p>
+            <h3>{{ t('settings.activitySettings.sections.materialDays.title') }}</h3>
+            <p>{{ t('settings.activitySettings.sections.materialDays.description') }}</p>
           </div>
         </div>
         <div class="setting-fields">
           <div class="field-row">
             <div class="field-group">
-              <label>Material-Vorlauf</label>
+              <label>{{ t('settings.activitySettings.fields.campLeadDays') }}</label>
               <div class="input-with-suffix">
                 <input v-model.number="form.campMaterialLeadDays" type="number" min="0" max="14" step="1" class="form-input" />
-                <span class="input-suffix">Tag(e) vorher</span>
+                <span class="input-suffix">{{ t('settings.activitySettings.units.daysBefore') }}</span>
               </div>
-              <span class="field-hint">Material wird X Tage VOR Event-Start abgeholt</span>
+              <span class="field-hint">{{ t('settings.activitySettings.hints.campLeadDays') }}</span>
             </div>
             <div class="field-group">
-              <label>Material-Nachlauf</label>
+              <label>{{ t('settings.activitySettings.fields.campLagDays') }}</label>
               <div class="input-with-suffix">
                 <input v-model.number="form.campMaterialLagDays" type="number" min="0" max="14" step="1" class="form-input" />
-                <span class="input-suffix">Tag(e) nachher</span>
+                <span class="input-suffix">{{ t('settings.activitySettings.units.daysAfter') }}</span>
               </div>
-              <span class="field-hint">Material wird X Tage NACH Event-Ende zurückgebracht</span>
+              <span class="field-hint">{{ t('settings.activitySettings.hints.campLagDays') }}</span>
             </div>
           </div>
           <div class="time-preview">
-            <span class="preview-label">Beispiel:</span>
+            <span class="preview-label">{{ t('settings.activitySettings.preview.example') }}</span>
             <span class="preview-value">
-              Event 15.03. – 22.03.
-              → Material {{ computeCampLeadExample }} – {{ computeCampLagExample }}
+              {{ t('settings.activitySettings.preview.campWindow', { lead: computeCampLeadExample, lag: computeCampLagExample }) }}
             </span>
           </div>
         </div>
@@ -139,14 +137,14 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
             <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
           </svg>
-          Ungespeicherte Änderungen
+          {{ t('settings.activitySettings.unsavedChanges') }}
         </div>
         <div class="save-actions">
           <button class="btn-secondary" @click="resetForm" :disabled="!hasChanges">
-            Zurücksetzen
+            {{ t('settings.activitySettings.reset') }}
           </button>
           <button class="btn-primary" @click="saveSettings" :disabled="!hasChanges || isSaving">
-            {{ isSaving ? 'Wird gespeichert...' : 'Speichern' }}
+            {{ isSaving ? t('settings.activitySettings.saving') : t('common.save') }}
           </button>
         </div>
       </div>
@@ -158,11 +156,13 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, reactive } from 'vue'
 import { useRoute } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { useToast } from '@/composables/useToast'
 import { getActivityDefaults, saveActivityDefaults, type ActivityDefaults } from '@/api/departmentSettings'
 
 const route = useRoute()
 const toast = useToast()
+const { t } = useI18n()
 const departmentId = computed(() => route.params.departmentId as string)
 
 const isLoading = ref(true)
@@ -246,10 +246,10 @@ async function saveSettings() {
   try {
     await saveActivityDefaults(departmentId.value, { ...form })
     savedForm.value = { ...form }
-    toast.success('Einstellungen gespeichert')
+    toast.success(t('settings.activitySettings.toastSaved'))
   } catch (err) {
     console.error('Fehler beim Speichern:', err)
-    toast.error('Fehler beim Speichern der Einstellungen')
+    toast.error(t('settings.activitySettings.toastSaveError'))
   } finally {
     isSaving.value = false
   }

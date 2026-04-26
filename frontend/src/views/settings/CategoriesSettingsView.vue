@@ -2,15 +2,15 @@
   <div class="categories-settings">
     <div class="settings-header">
       <div>
-        <h1>Kategorien</h1>
-        <p class="subtitle">Material-Kategorien für dieses Department verwalten</p>
+        <h1>{{ t('settings.categories.title') }}</h1>
+        <p class="subtitle">{{ t('settings.categories.subtitle') }}</p>
       </div>
       <button class="btn-primary" @click="openCreateModal">
         <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <line x1="12" y1="5" x2="12" y2="19"/>
           <line x1="5" y1="12" x2="19" y2="12"/>
         </svg>
-        Neue Kategorie
+        {{ t('settings.categories.newCategory') }}
       </button>
     </div>
 
@@ -24,12 +24,12 @@
         <input 
           v-model="searchQuery" 
           type="text" 
-          placeholder="Kategorien durchsuchen..."
+          :placeholder="t('settings.categories.searchPlaceholder')"
           class="search-input"
         />
       </div>
       <div class="category-count">
-        {{ filteredCategories.length }} Kategorien
+        {{ t('settings.categories.count', { count: filteredCategories.length }) }}
       </div>
     </div>
 
@@ -56,27 +56,27 @@
             <div class="category-info">
               <span class="category-name">{{ mainCat.name }}</span>
               <span class="category-meta">
-                {{ mainCat.material_count }} Artikel
+                {{ t('settings.categories.articlesCount', { count: mainCat.material_count }) }}
                 <span v-if="getChildren(mainCat.id).length > 0" class="child-count">
-                  · {{ getChildren(mainCat.id).length }} Unterkategorien
+                  · {{ t('settings.categories.subcategoriesCount', { count: getChildren(mainCat.id).length }) }}
                 </span>
               </span>
             </div>
           </div>
           <div class="category-actions">
-            <button class="action-btn" @click.stop="openEditModal(mainCat)" title="Bearbeiten">
+            <button class="action-btn" @click.stop="openEditModal(mainCat)" :title="t('settings.categories.edit')">
               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
                 <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
               </svg>
             </button>
-            <button class="action-btn add-child" @click.stop="openCreateChildModal(mainCat)" title="Unterkategorie hinzufügen">
+            <button class="action-btn add-child" @click.stop="openCreateChildModal(mainCat)" :title="t('settings.categories.addSubcategory')">
               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <line x1="12" y1="5" x2="12" y2="19"/>
                 <line x1="5" y1="12" x2="19" y2="12"/>
               </svg>
             </button>
-            <button class="action-btn delete" @click.stop="confirmDelete(mainCat)" title="Löschen">
+            <button class="action-btn delete" @click.stop="confirmDelete(mainCat)" :title="t('settings.categories.delete')">
               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <polyline points="3 6 5 6 21 6"/>
                 <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
@@ -102,17 +102,17 @@
                 </div>
                 <div class="category-info">
                   <span class="category-name">{{ subCat.name }}</span>
-                  <span class="category-meta">{{ subCat.material_count }} Artikel</span>
+                  <span class="category-meta">{{ t('settings.categories.articlesCount', { count: subCat.material_count }) }}</span>
                 </div>
               </div>
               <div class="category-actions">
-                <button class="action-btn" @click.stop="openEditModal(subCat)" title="Bearbeiten">
+                <button class="action-btn" @click.stop="openEditModal(subCat)" :title="t('settings.categories.edit')">
                   <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
                     <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
                   </svg>
                 </button>
-                <button class="action-btn delete" @click.stop="confirmDelete(subCat)" title="Löschen">
+                <button class="action-btn delete" @click.stop="confirmDelete(subCat)" :title="t('settings.categories.delete')">
                   <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <polyline points="3 6 5 6 21 6"/>
                     <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
@@ -131,10 +131,10 @@
             <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
           </svg>
         </div>
-        <h3>Keine Kategorien</h3>
-        <p>Erstellen Sie Ihre erste Kategorie, um Materialien zu organisieren.</p>
+        <h3>{{ t('settings.categories.emptyTitle') }}</h3>
+        <p>{{ t('settings.categories.emptyDescription') }}</p>
         <button class="btn-primary" @click="openCreateModal">
-          Erste Kategorie erstellen
+          {{ t('settings.categories.firstCategory') }}
         </button>
       </div>
     </div>
@@ -142,7 +142,7 @@
     <!-- Ladezustand -->
     <div v-else class="loading-state">
       <div class="spinner"></div>
-      <p>Kategorien werden geladen...</p>
+      <p>{{ t('settings.categories.loading') }}</p>
     </div>
 
     <!-- Kategorie Modal -->
@@ -158,17 +158,17 @@
     <!-- Lösch-Bestätigung -->
     <div v-if="showDeleteConfirm" class="modal-overlay">
       <div class="confirm-dialog">
-        <h3>Kategorie löschen?</h3>
+        <h3>{{ t('settings.categories.deleteConfirmTitle') }}</h3>
         <p>
-          Möchten Sie die Kategorie <strong>{{ deletingCategory?.name }}</strong> wirklich löschen?
+          {{ t('settings.categories.deleteConfirmMessage', { name: deletingCategory?.name }) }}
         </p>
         <p v-if="deletingCategory && deletingCategory.material_count > 0" class="warning">
-          ⚠️ Diese Kategorie enthält {{ deletingCategory.material_count }} Materialien.
+          ⚠️ {{ t('settings.categories.deleteWarning', { count: deletingCategory.material_count }) }}
         </p>
         <div class="confirm-actions">
-          <button class="btn-secondary" @click="showDeleteConfirm = false">Abbrechen</button>
+          <button class="btn-secondary" @click="showDeleteConfirm = false">{{ t('common.cancel') }}</button>
           <button class="btn-danger" @click="executeDelete" :disabled="isDeleting">
-            {{ isDeleting ? 'Wird gelöscht...' : 'Löschen' }}
+            {{ isDeleting ? t('settings.categories.deleting') : t('settings.categories.delete') }}
           </button>
         </div>
       </div>
@@ -179,12 +179,14 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { useToast } from '@/composables/useToast'
 import { getCategories, deleteCategory, type Category } from '@/api/categories'
 import CategoryModal from '@/components/CategoryModal.vue'
 
 const route = useRoute()
 const toast = useToast()
+const { t } = useI18n()
 const departmentId = computed(() => route.params.departmentId as string)
 
 const categories = ref<Category[]>([])
@@ -279,7 +281,7 @@ async function executeDelete() {
     showDeleteConfirm.value = false
     deletingCategory.value = null
   } catch (err: any) {
-    toast.error(err.response?.data?.error || 'Fehler beim Löschen')
+    toast.error(err.response?.data?.error || t('settings.categories.deleteError'))
   } finally {
     isDeleting.value = false
   }
@@ -298,7 +300,7 @@ async function loadCategories() {
       }
     })
   } catch (err) {
-    console.error('Fehler beim Laden der Kategorien:', err)
+    console.error(t('settings.categories.loadError'), err)
   } finally {
     isLoading.value = false
   }

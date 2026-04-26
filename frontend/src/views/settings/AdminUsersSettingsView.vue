@@ -2,8 +2,8 @@
   <div class="admin-users-settings">
     <div class="page-header">
       <div>
-        <h2 class="settings-title">Benutzer</h2>
-        <p class="settings-description">Alle Benutzer, Memberships und Rollen zentral verwalten</p>
+        <h2 class="settings-title">{{ t('settings.adminUsers.title') }}</h2>
+        <p class="settings-description">{{ t('settings.adminUsers.subtitle') }}</p>
       </div>
     </div>
 
@@ -17,38 +17,38 @@
           v-model="searchQuery"
           class="search-input"
           type="text"
-          placeholder="Nach Name oder E-Mail suchen..."
+          :placeholder="t('settings.adminUsers.searchPlaceholder')"
         />
       </div>
       <button class="btn btn-secondary" @click="loadUsers" :disabled="isLoading">
-        {{ isLoading ? 'Lädt...' : 'Aktualisieren' }}
+        {{ isLoading ? t('settings.adminUsers.loadingShort') : t('settings.adminUsers.refresh') }}
       </button>
     </div>
 
-    <div v-if="isLoading" class="state-card">Benutzer werden geladen...</div>
+    <div v-if="isLoading" class="state-card">{{ t('settings.adminUsers.loading') }}</div>
     <div v-else-if="error" class="state-card state-error">
       <p>{{ error }}</p>
-      <button class="btn btn-secondary" @click="loadUsers">Erneut versuchen</button>
+      <button class="btn btn-secondary" @click="loadUsers">{{ t('common.retry') }}</button>
     </div>
-    <div v-else-if="filteredUsers.length === 0" class="state-card">Keine Benutzer gefunden.</div>
+    <div v-else-if="filteredUsers.length === 0" class="state-card">{{ t('settings.adminUsers.empty') }}</div>
 
     <div v-else class="table-wrapper">
       <table class="users-table">
         <thead>
           <tr>
             <th class="sortable" @click="toggleSort('name')">
-              Name <span v-if="sortBy === 'name'">{{ sortDir === 'asc' ? '↑' : '↓' }}</span>
+              {{ t('settings.adminUsers.columns.name') }} <span v-if="sortBy === 'name'">{{ sortDir === 'asc' ? '↑' : '↓' }}</span>
             </th>
             <th class="sortable" @click="toggleSort('email')">
-              E-Mail <span v-if="sortBy === 'email'">{{ sortDir === 'asc' ? '↑' : '↓' }}</span>
+              {{ t('settings.adminUsers.columns.email') }} <span v-if="sortBy === 'email'">{{ sortDir === 'asc' ? '↑' : '↓' }}</span>
             </th>
             <th class="sortable" @click="toggleSort('created_at')">
-              Erstellt am <span v-if="sortBy === 'created_at'">{{ sortDir === 'asc' ? '↑' : '↓' }}</span>
+              {{ t('settings.adminUsers.columns.createdAt') }} <span v-if="sortBy === 'created_at'">{{ sortDir === 'asc' ? '↑' : '↓' }}</span>
             </th>
             <th class="sortable dept-col" @click="toggleSort('departments_count')">
-              Anzahl Departments <span v-if="sortBy === 'departments_count'">{{ sortDir === 'asc' ? '↑' : '↓' }}</span>
+              {{ t('settings.adminUsers.columns.departmentsCount') }} <span v-if="sortBy === 'departments_count'">{{ sortDir === 'asc' ? '↑' : '↓' }}</span>
             </th>
-            <th class="actions-col">Aktionen</th>
+            <th class="actions-col">{{ t('settings.adminUsers.columns.actions') }}</th>
           </tr>
         </thead>
         <tbody>
@@ -58,7 +58,7 @@
             <td>{{ formatDate(user.created_at) }}</td>
             <td class="dept-col">{{ user.departments_count }}</td>
             <td class="actions-col">
-              <button class="icon-btn" title="Bearbeiten" @click="openEditModal(user.id)">
+              <button class="icon-btn" :title="t('settings.adminUsers.edit')" @click="openEditModal(user.id)">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
                   <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
@@ -74,30 +74,30 @@
       <div v-if="showEditModal && editForm" class="modal-overlay">
         <div class="modal-container">
           <div class="modal-header">
-            <h3>Benutzer bearbeiten: {{ editForm.display_name }}</h3>
+            <h3>{{ t('settings.adminUsers.editUserTitle', { name: editForm.display_name }) }}</h3>
             <button class="close-btn" @click="closeEditModal">×</button>
           </div>
 
           <div class="modal-body">
             <div class="form-grid">
               <div class="form-group">
-                <label>Vorname</label>
+                <label>{{ t('settings.adminUsers.fields.firstName') }}</label>
                 <input v-model="editForm.first_name" class="form-input" type="text" />
               </div>
               <div class="form-group">
-                <label>Nachname</label>
+                <label>{{ t('settings.adminUsers.fields.lastName') }}</label>
                 <input v-model="editForm.last_name" class="form-input" type="text" />
               </div>
               <div class="form-group">
-                <label>Spitzname</label>
+                <label>{{ t('settings.adminUsers.fields.nickname') }}</label>
                 <input v-model="editForm.nickname" class="form-input" type="text" />
               </div>
               <div class="form-group">
-                <label>E-Mail</label>
+                <label>{{ t('settings.adminUsers.fields.email') }}</label>
                 <input v-model="editForm.email" class="form-input" type="email" />
               </div>
               <div class="form-group">
-                <label>Status</label>
+                <label>{{ t('settings.adminUsers.fields.state') }}</label>
                 <select v-model="editForm.state" class="form-select">
                   <option value="active">active</option>
                   <option value="inactive">inactive</option>
@@ -107,17 +107,17 @@
             </div>
 
             <div class="membership-headline">
-              <h4>Departments und Rollen</h4>
-              <button class="btn btn-secondary btn-sm" @click="addMembershipRow">Department hinzufügen</button>
+              <h4>{{ t('settings.adminUsers.membershipsTitle') }}</h4>
+              <button class="btn btn-secondary btn-sm" @click="addMembershipRow">{{ t('settings.adminUsers.addDepartment') }}</button>
             </div>
 
             <div v-if="editForm.memberships.length === 0" class="inline-hint">
-              Dieser User hat aktuell kein Department.
+              {{ t('settings.adminUsers.noDepartment') }}
             </div>
 
             <div v-for="(membership, index) in editForm.memberships" :key="membership.local_id" class="membership-row">
               <select v-model="membership.department_id" class="form-select">
-                <option value="" disabled>Department wählen</option>
+                <option value="" disabled>{{ t('settings.adminUsers.selectDepartment') }}</option>
                 <option
                   v-for="department in departmentOptionsFor(index)"
                   :key="department.id"
@@ -139,19 +139,19 @@
                   :checked="membership.is_primary"
                   @change="setPrimaryMembership(index)"
                 />
-                Primär
+                {{ t('settings.adminUsers.primary') }}
               </label>
 
-              <button class="icon-btn icon-btn-danger" title="Department entfernen" @click="removeMembershipRow(index)">
+              <button class="icon-btn icon-btn-danger" :title="t('settings.adminUsers.removeDepartment')" @click="removeMembershipRow(index)">
                 ×
               </button>
             </div>
           </div>
 
           <div class="modal-footer">
-            <button class="btn btn-secondary" @click="closeEditModal">Abbrechen</button>
+            <button class="btn btn-secondary" @click="closeEditModal">{{ t('common.cancel') }}</button>
             <button class="btn btn-primary" @click="saveUser" :disabled="isSaving || !canSave">
-              {{ isSaving ? 'Speichert...' : 'Speichern' }}
+              {{ isSaving ? t('settings.adminUsers.saving') : t('common.save') }}
             </button>
           </div>
         </div>
@@ -162,6 +162,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { getDepartments, type Department } from '@/api/departments'
 import {
   getAdminUsers,
@@ -194,6 +195,7 @@ interface EditForm {
 }
 
 const toast = useToast()
+const { t } = useI18n()
 
 const users = ref<AdminUserListItem[]>([])
 const isLoading = ref(false)
@@ -207,12 +209,12 @@ const editForm = ref<EditForm | null>(null)
 const departments = ref<Department[]>([])
 
 const roleOptions: Array<{ value: DepartmentRole; label: string }> = [
-  { value: 'mw', label: 'MW - Materialchef' },
-  { value: 'dc', label: 'DC - Dep.chef' },
-  { value: 'l1', label: 'L1 - Leader 1' },
-  { value: 'l2', label: 'L2 - Leader 2' },
-  { value: 'l3', label: 'L3 - Leader 3' },
-  { value: 'u', label: 'U - Mitglied' },
+  { value: 'mw', label: t('settings.adminUsers.roles.mw') },
+  { value: 'dc', label: t('settings.adminUsers.roles.dc') },
+  { value: 'l1', label: t('settings.adminUsers.roles.l1') },
+  { value: 'l2', label: t('settings.adminUsers.roles.l2') },
+  { value: 'l3', label: t('settings.adminUsers.roles.l3') },
+  { value: 'u', label: t('settings.adminUsers.roles.u') },
 ]
 
 const filteredUsers = computed(() => {
@@ -265,7 +267,7 @@ async function loadUsers() {
       sortDir: sortDir.value,
     })
   } catch (err: any) {
-    error.value = err.response?.data?.error || 'Fehler beim Laden der Benutzer'
+    error.value = err.response?.data?.error || t('settings.adminUsers.loadError')
   } finally {
     isLoading.value = false
   }
@@ -275,7 +277,7 @@ async function loadDepartments() {
   try {
     departments.value = await getDepartments()
   } catch (err) {
-    console.error('Departments konnten nicht geladen werden', err)
+    console.error(t('settings.adminUsers.departmentsLoadError'), err)
   }
 }
 
@@ -299,7 +301,7 @@ async function openEditModal(userId: string) {
     }
     showEditModal.value = true
   } catch (err: any) {
-    toast.error(err.response?.data?.error || 'Benutzerdetails konnten nicht geladen werden')
+    toast.error(err.response?.data?.error || t('settings.adminUsers.detailsLoadError'))
   }
 }
 
@@ -361,11 +363,11 @@ async function saveUser() {
         is_primary: membership.is_primary,
       })),
     })
-    toast.success('Benutzer wurde aktualisiert')
+    toast.success(t('settings.adminUsers.toastUpdated'))
     closeEditModal()
     await loadUsers()
   } catch (err: any) {
-    toast.error(err.response?.data?.error || 'Fehler beim Speichern')
+    toast.error(err.response?.data?.error || t('settings.adminUsers.saveError'))
   } finally {
     isSaving.value = false
   }

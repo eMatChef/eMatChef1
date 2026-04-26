@@ -6,6 +6,7 @@ use App\Entity\User;
 use App\Service\Mail\AppMailer;
 use App\Service\Mail\MailOutboundSettingsStore;
 use App\Service\Mail\MailSendLogStore;
+use App\Service\Mail\MailTemplateContentStore;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -21,21 +22,27 @@ class MailAdminController extends AbstractController
         private MailOutboundSettingsStore $mailOutboundSettingsStore,
         private MailSendLogStore $mailSendLogStore,
         private AppMailer $appMailer,
+        private MailTemplateContentStore $mailTemplateContent,
         #[Autowire('%env(MAILER_DSN)%')]
         private string $mailerDsnFromEnv,
     ) {
     }
 
+    private function loc(Request $request): string
+    {
+        return $this->mailTemplateContent->localeForApiRequest($request);
+    }
+
     #[Route('/settings', name: 'settings_get', methods: ['GET'])]
     #[IsGranted('ROLE_USER')]
-    public function getSettings(): JsonResponse
+    public function getSettings(Request $request): JsonResponse
     {
         $user = $this->getUser();
         if (!$user instanceof User) {
-            return new JsonResponse(['error' => 'Nicht authentifiziert'], 403);
+            return new JsonResponse(['error' => $this->mailTemplateContent->getApiString('ma.unauth', $this->loc($request))], 403);
         }
         if (!$this->isGranted('ROLE_SUPERADMIN')) {
-            return new JsonResponse(['error' => 'Keine Berechtigung'], 403);
+            return new JsonResponse(['error' => $this->mailTemplateContent->getApiString('ma.forbidden', $this->loc($request))], 403);
         }
 
         $s = $this->mailOutboundSettingsStore->getSettingsForApi();
@@ -59,15 +66,15 @@ class MailAdminController extends AbstractController
     {
         $user = $this->getUser();
         if (!$user instanceof User) {
-            return new JsonResponse(['error' => 'Nicht authentifiziert'], 403);
+            return new JsonResponse(['error' => $this->mailTemplateContent->getApiString('ma.unauth', $this->loc($request))], 403);
         }
         if (!$this->isGranted('ROLE_SUPERADMIN')) {
-            return new JsonResponse(['error' => 'Nur Superadmin kann die E-Mail-Einstellungen aendern'], 403);
+            return new JsonResponse(['error' => $this->mailTemplateContent->getApiString('ma.forbidden_settings', $this->loc($request))], 403);
         }
 
         $data = json_decode($request->getContent(), true);
         if (!\is_array($data)) {
-            return new JsonResponse(['error' => 'Ungueltiger JSON-Body'], 400);
+            return new JsonResponse(['error' => $this->mailTemplateContent->getApiString('ma.json_body', $this->loc($request))], 400);
         }
 
         try {
@@ -107,10 +114,10 @@ class MailAdminController extends AbstractController
     {
         $user = $this->getUser();
         if (!$user instanceof User) {
-            return new JsonResponse(['error' => 'Nicht authentifiziert'], 403);
+            return new JsonResponse(['error' => $this->mailTemplateContent->getApiString('ma.unauth', $this->loc($request))], 403);
         }
         if (!$this->isGranted('ROLE_SUPERADMIN')) {
-            return new JsonResponse(['error' => 'Keine Berechtigung'], 403);
+            return new JsonResponse(['error' => $this->mailTemplateContent->getApiString('ma.forbidden', $this->loc($request))], 403);
         }
 
         $limit = (int) $request->query->get('limit', 100);
@@ -125,16 +132,16 @@ class MailAdminController extends AbstractController
     public function testSend(Request $request): JsonResponse
     {
         if (!$this->isGranted('ROLE_SUPERADMIN')) {
-            return new JsonResponse(['error' => 'Keine Berechtigung'], 403);
+            return new JsonResponse(['error' => $this->mailTemplateContent->getApiString('ma.forbidden', $this->loc($request))], 403);
         }
 
         $data = json_decode($request->getContent(), true);
         if (!\is_array($data)) {
-            return new JsonResponse(['error' => 'Ungueltiger JSON-Body'], 400);
+            return new JsonResponse(['error' => $this->mailTemplateContent->getApiString('ma.json_body', $this->loc($request))], 400);
         }
         $to = trim((string) ($data['to'] ?? ''));
         if ($to === '' || !filter_var($to, FILTER_VALIDATE_EMAIL)) {
-            return new JsonResponse(['error' => 'Gueltige Ziel-E-Mail (to) erforderlich'], 400);
+            return new JsonResponse(['error' => $this->mailTemplateContent->getApiString('ma.to_invalid', $this->loc($request))], 400);
         }
 
         try {
@@ -143,22 +150,36 @@ class MailAdminController extends AbstractController
             return new JsonResponse(['error' => $e->getMessage()], 400);
         }
 
+        $loc = $this->loc($request);
+        $ad = $this->mailTemplateContent->getTemplate('admin', $loc) ?? $this->mailTemplateContent->getTemplate('admin', 'de');
+        $tm = is_array($ad) && isset($ad['test_mail']) && is_array($ad['test_mail']) ? $ad['test_mail'] : null;
+        $mode = (string) ($this->mailOutboundSettingsStore->getTransportSummaryForApi($this->mailerDsnFromEnv)['mailer_transport_mode'] ?? '');
+        $subj = $this->mailTemplateContent->interpolate(
+            (string) ($tm['subject'] ?? 'eMatChef – Testmail'),
+            ['transport_mode' => $mode]
+        );
+        $body = $this->mailTemplateContent->interpolate(
+            (string) ($tm['text_body'] ?? ''),
+            ['transport_mode' => $mode]
+        );
+        $logSubj = $this->mailTemplateContent->interpolate(
+            (string) ($tm['log_subject'] ?? $subj),
+            ['transport_mode' => $mode]
+        );
+
         $email = (new Email())
             ->from($this->mailOutboundSettingsStore->getFromAddressObject())
             ->to($to)
-            ->subject('eMatChef – Testmail')
-            ->text(
-                "Dies ist eine Testmail.\n\n" .
-                "Wenn du diese Nachricht erhalten hast, ist der konfigurierte Versandweg aktiv.\n" .
-                'Modus: ' . $this->mailOutboundSettingsStore->getTransportSummaryForApi($this->mailerDsnFromEnv)['mailer_transport_mode'] . "\n"
-            );
+            ->subject($subj)
+            ->text($body);
 
         $fromAddr = $this->mailOutboundSettingsStore->getFromAddressObject()->getAddress();
 
         try {
             $this->appMailer->send($email);
         } catch (\Throwable $e) {
-            $failDetail = 'Fehlgeschlagen: ' . mb_substr($e->getMessage(), 0, 160);
+            $prefix = $this->mailTemplateContent->getApiString('ma.test_log_fail_prefix', $this->loc($request));
+            $failDetail = $prefix . mb_substr($e->getMessage(), 0, 160);
             $this->mailSendLogStore->append('mail.test.failed', $to, $failDetail, $fromAddr);
 
             return new JsonResponse(['error' => $e->getMessage()], 500);
@@ -167,7 +188,7 @@ class MailAdminController extends AbstractController
         $this->mailSendLogStore->append(
             'mail.test',
             $to,
-            'eMatChef – Testmail',
+            $logSubj,
             $fromAddr
         );
 

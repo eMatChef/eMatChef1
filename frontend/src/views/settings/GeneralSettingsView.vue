@@ -2,15 +2,15 @@
   <div class="general-settings">
     <div class="settings-header">
       <div>
-        <h1>Zeit/Ort</h1>
-        <p class="subtitle">Zeitzone und Darstellung konfigurieren</p>
+        <h1>{{ t('settings.generalSettings.title') }}</h1>
+        <p class="subtitle">{{ t('settings.generalSettings.subtitle') }}</p>
       </div>
     </div>
 
     <!-- Loading -->
     <div v-if="isLoading" class="loading-state">
       <div class="spinner"></div>
-      <p>Einstellungen werden geladen...</p>
+      <p>{{ t('settings.generalSettings.loading') }}</p>
     </div>
 
     <!-- Settings Form -->
@@ -25,16 +25,16 @@
             </svg>
           </div>
           <div>
-            <h3>Zeitzone</h3>
-            <p>Alle Datums- und Zeitangaben werden in dieser Zeitzone angezeigt</p>
+            <h3>{{ t('settings.generalSettings.sections.timezone.title') }}</h3>
+            <p>{{ t('settings.generalSettings.sections.timezone.description') }}</p>
           </div>
         </div>
         <div class="setting-fields">
           <div class="field-row">
             <div class="field-group field-wide">
-              <label>Standard-Zeitzone des Departments</label>
+              <label>{{ t('settings.generalSettings.fields.timezone') }}</label>
               <select v-model="form.timezone" class="form-input">
-                <optgroup label="Europa">
+                <optgroup :label="t('settings.generalSettings.groups.europe')">
                   <option value="Europe/Zurich">Europe/Zurich (CET/CEST)</option>
                   <option value="Europe/Berlin">Europe/Berlin (CET/CEST)</option>
                   <option value="Europe/Vienna">Europe/Vienna (CET/CEST)</option>
@@ -52,7 +52,7 @@
                   <option value="Europe/Helsinki">Europe/Helsinki (EET/EEST)</option>
                   <option value="Europe/Moscow">Europe/Moscow (MSK)</option>
                 </optgroup>
-                <optgroup label="Andere">
+                <optgroup :label="t('settings.generalSettings.groups.other')">
                   <option value="UTC">UTC</option>
                   <option value="US/Eastern">US/Eastern (EST/EDT)</option>
                   <option value="US/Central">US/Central (CST/CDT)</option>
@@ -62,13 +62,13 @@
                   <option value="Australia/Sydney">Australia/Sydney (AEST/AEDT)</option>
                 </optgroup>
               </select>
-              <span class="field-hint">Bestimmt, wie Daten und Zeiten angezeigt und gespeichert werden</span>
+              <span class="field-hint">{{ t('settings.generalSettings.hints.timezone') }}</span>
             </div>
           </div>
 
           <!-- Aktuelle-Zeit-Vorschau -->
           <div class="time-preview">
-            <span class="preview-label">Aktuelle Zeit:</span>
+            <span class="preview-label">{{ t('settings.generalSettings.preview.currentTime') }}</span>
             <span class="preview-value">{{ currentTimePreview }}</span>
           </div>
         </div>
@@ -83,33 +83,33 @@
             </svg>
           </div>
           <div>
-            <h3>Zeitnotation</h3>
-            <p>Wie Datum und Uhrzeit angezeigt werden</p>
+            <h3>{{ t('settings.generalSettings.sections.format.title') }}</h3>
+            <p>{{ t('settings.generalSettings.sections.format.description') }}</p>
           </div>
         </div>
         <div class="setting-fields">
           <div class="field-row">
             <div class="field-group">
-              <label>Datumsformat</label>
+              <label>{{ t('settings.generalSettings.fields.dateFormat') }}</label>
               <select v-model="form.dateFormat" class="form-input">
                 <option value="dd.MM.yyyy">10.02.2026 (dd.MM.yyyy)</option>
                 <option value="dd/MM/yyyy">10/02/2026 (dd/MM/yyyy)</option>
                 <option value="yyyy-MM-dd">2026-02-10 (yyyy-MM-dd)</option>
                 <option value="MM/dd/yyyy">02/10/2026 (MM/dd/yyyy)</option>
               </select>
-              <span class="field-hint">Reihenfolge von Tag, Monat und Jahr</span>
+              <span class="field-hint">{{ t('settings.generalSettings.hints.dateFormat') }}</span>
             </div>
             <div class="field-group">
-              <label>Zeitformat</label>
+              <label>{{ t('settings.generalSettings.fields.timeFormat') }}</label>
               <select v-model="form.timeFormat" class="form-input">
                 <option value="HH:mm">14:30 (24-Stunden)</option>
                 <option value="hh:mm a">02:30 PM (12-Stunden)</option>
               </select>
-              <span class="field-hint">24-Stunden oder 12-Stunden Darstellung</span>
+              <span class="field-hint">{{ t('settings.generalSettings.hints.timeFormat') }}</span>
             </div>
           </div>
           <div class="time-preview">
-            <span class="preview-label">Vorschau:</span>
+            <span class="preview-label">{{ t('settings.generalSettings.preview.label') }}</span>
             <span class="preview-value">{{ dateFormatPreview }}, {{ timeFormatPreview }}</span>
           </div>
         </div>
@@ -121,14 +121,14 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
             <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
           </svg>
-          Ungespeicherte Änderungen
+          {{ t('settings.generalSettings.unsavedChanges') }}
         </div>
         <div class="save-actions">
           <button class="btn-secondary" @click="resetForm" :disabled="!hasChanges">
-            Zurücksetzen
+            {{ t('settings.generalSettings.reset') }}
           </button>
           <button class="btn-primary" @click="saveSettings" :disabled="!hasChanges || isSaving">
-            {{ isSaving ? 'Wird gespeichert...' : 'Speichern' }}
+            {{ isSaving ? t('settings.generalSettings.saving') : t('common.save') }}
           </button>
         </div>
       </div>
@@ -140,11 +140,13 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, reactive, onUnmounted } from 'vue'
 import { useRoute } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { useToast } from '@/composables/useToast'
 import { getGeneralSettings, saveGeneralSettings, type GeneralSettings } from '@/api/departmentSettings'
 
 const route = useRoute()
 const toast = useToast()
+const { t } = useI18n()
 const departmentId = computed(() => route.params.departmentId as string)
 
 const isLoading = ref(true)
@@ -245,10 +247,10 @@ async function saveSettings() {
   try {
     await saveGeneralSettings(departmentId.value, { ...form })
     savedForm.value = { ...form }
-    toast.success('Einstellungen gespeichert')
+    toast.success(t('settings.generalSettings.toastSaved'))
   } catch (err) {
     console.error('Fehler beim Speichern:', err)
-    toast.error('Fehler beim Speichern der Einstellungen')
+    toast.error(t('settings.generalSettings.toastSaveError'))
   } finally {
     isSaving.value = false
   }

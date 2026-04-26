@@ -2,14 +2,14 @@
   <div class="organisations-settings">
     <div class="header-section">
       <div>
-        <h1>Organisationen</h1>
-        <p class="description">Verwalten Sie Organisationen</p>
+        <h1>{{ t('settings.organisations.title') }}</h1>
+        <p class="description">{{ t('settings.organisations.description') }}</p>
       </div>
       <button 
         v-if="canManageOrganisations"
         @click="openAddModal" 
         class="add-button" 
-        title="Neue Organisation hinzufügen"
+        :title="t('settings.organisations.addTitle')"
       >
         <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
           <path
@@ -19,19 +19,19 @@
             stroke-linecap="round"
           />
         </svg>
-        <span>Hinzufügen</span>
+        <span>{{ t('settings.organisations.add') }}</span>
       </button>
     </div>
 
     <!-- Loading State -->
     <div v-if="isLoading" class="loading-state">
-      <p>Lade Organisationen...</p>
+      <p>{{ t('settings.organisations.loading') }}</p>
     </div>
 
     <!-- Error State -->
     <div v-else-if="error" class="error-state">
       <p class="error-message">{{ error }}</p>
-      <button @click="loadOrganisations" class="retry-button">Erneut versuchen</button>
+      <button @click="loadOrganisations" class="retry-button">{{ t('common.retry') }}</button>
     </div>
 
     <!-- Organisationen Liste -->
@@ -47,7 +47,7 @@
           <p class="organisation-id">ID: {{ org.id }}</p>
         </div>
         <div v-if="canManageOrganisations && (isSuperAdmin || memberOrganisationIds.has(org.id))" class="organisation-actions">
-          <button @click="editOrganisation(org)" class="edit-button" title="Bearbeiten">
+          <button @click="editOrganisation(org)" class="edit-button" :title="t('settings.organisations.edit')">
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
               <path
                 d="M11.3333 2.00001C11.5084 1.8249 11.7163 1.68601 11.9444 1.59124C12.1726 1.49648 12.4163 1.44775 12.6625 1.44775C12.9087 1.44775 13.1524 1.49648 13.3806 1.59124C13.6087 1.68601 13.8166 1.8249 13.9917 2.00001C14.1668 2.17512 14.3057 2.38301 14.4005 2.61118C14.4952 2.83935 14.544 3.08306 14.544 3.32918C14.544 3.5753 14.4952 3.81901 14.4005 4.04718C14.3057 4.27535 14.1668 4.48324 13.9917 4.65835L5.32499 13.325L2 14L2.67499 10.675L11.3333 2.00001Z"
@@ -64,7 +64,7 @@
 
     <!-- Empty State -->
     <div v-else class="empty-state">
-      <p>Keine Organisationen gefunden.</p>
+      <p>{{ t('settings.organisations.empty') }}</p>
     </div>
 
     <!-- Organisation Modal -->
@@ -79,6 +79,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import OrganisationModal from '@/components/OrganisationModal.vue'
 import { getOrganisations, type Organisation } from '@/api/organisations'
 import { useAuthStore } from '@/stores/auth'
@@ -89,6 +90,7 @@ import {
 } from '@/utils/organisationUserPicker'
 
 const authStore = useAuthStore()
+const { t } = useI18n()
 const isLoading = ref(false)
 const error = ref<string | null>(null)
 const organisationsRaw = ref<Organisation[]>([])
@@ -154,7 +156,7 @@ async function loadOrganisations() {
 
     organisationsRaw.value = await getOrganisations()
   } catch (err: unknown) {
-    error.value = apiErrorMessage(err, 'Fehler beim Laden der Organisationen')
+    error.value = apiErrorMessage(err, t('settings.organisations.loadError'))
   } finally {
     isLoading.value = false
   }

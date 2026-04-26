@@ -12,28 +12,24 @@
             </tr>
             <tr>
               <td style="padding:18px 22px;background:#1d4ed8;color:#ffffff;font-size:18px;font-weight:700;">
-                eMatChef Einladung
+                {{banner_title}}
               </td>
             </tr>
             <tr>
               <td style="padding:22px;">
-                <p style="margin:0 0 12px 0;font-size:15px;line-height:1.5;">Hallo {{recipient_name}},</p>
-                <p style="margin:0 0 12px 0;font-size:15px;line-height:1.5;">
-                  {{inviter_name}} hat dich zu dem Department <strong>{{department_name}}</strong> eingeladen.
-                </p>
-                <p style="margin:0 0 16px 0;font-size:14px;color:#374151;">
-                  Vorgesehene Rolle: <strong>{{role_label}}</strong>
-                </p>
+                <p style="margin:0 0 12px 0;font-size:15px;line-height:1.5;">{{greeting_word}} {{recipient_name}},</p>
+                {{invite_lead_html}}
+                {{role_line_html}}
                 <p style="margin:0 0 20px 0;">
                   <a href="{{invite_url}}" style="display:inline-block;padding:11px 16px;background:#16a34a;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:700;">
-                    Einladung annehmen
+                    {{cta_label}}
                   </a>
                 </p>
-                <p style="margin:0 0 8px 0;font-size:13px;color:#6b7280;">Falls der Button nicht funktioniert, nutze diesen Link:</p>
+                <p style="margin:0 0 8px 0;font-size:13px;color:#6b7280;">{{link_hint}}</p>
                 <p style="margin:0 0 14px 0;font-size:13px;word-break:break-all;">
                   <a href="{{invite_url}}" style="color:#1d4ed8;text-decoration:underline;">{{invite_url}}</a>
                 </p>
-                <p style="margin:0;font-size:12px;color:#9ca3af;">Wenn du diese Einladung nicht erwartest, kannst du diese E-Mail ignorieren.</p>
+                <p style="margin:0;font-size:12px;color:#9ca3af;">{{footer_note}}</p>
               </td>
             </tr>
           </table>

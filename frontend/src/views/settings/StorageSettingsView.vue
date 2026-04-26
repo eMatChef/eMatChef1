@@ -2,8 +2,8 @@
   <div class="storage-settings">
     <div class="settings-header">
       <div>
-        <h1>Regale & Fächer</h1>
-        <p class="subtitle">Regale und Fächer für dieses Department verwalten</p>
+        <h1>{{ t('settings.storage.title') }}</h1>
+        <p class="subtitle">{{ t('settings.storage.subtitle') }}</p>
         <p v-if="primaryStorageLabel" class="subtitle primary-storage-hint">
           Hauptlager: {{ primaryStorageLabel }}
         </p>
@@ -16,7 +16,7 @@
           <line x1="12" y1="5" x2="12" y2="19"/>
           <line x1="5" y1="12" x2="19" y2="12"/>
         </svg>
-        Neues Regal
+        {{ t('settings.storage.newRack') }}
       </button>
     </div>
 
@@ -30,12 +30,12 @@
         <input
           v-model="searchQuery"
           type="text"
-          placeholder="Regale durchsuchen..."
+          :placeholder="t('settings.storage.searchPlaceholder')"
           class="search-input"
         />
       </div>
       <div class="rack-count">
-        {{ filteredRacks.length }} Regal{{ filteredRacks.length !== 1 ? 'e' : '' }}
+        {{ t('settings.storage.rackCount', filteredRacks.length) }}
       </div>
     </div>
 
@@ -50,13 +50,13 @@
           <button class="location-toggle-btn" type="button" @click="toggleLocation(location.id)">
             <span class="location-caret" :class="{ expanded: expandedLocations.has(location.id) }">▶</span>
             <span class="location-title">{{ location.name }}</span>
-            <span v-if="location.isPrimary" class="location-primary-badge">Hauptlager</span>
-            <span class="location-count">{{ location.racks.length }} Regal{{ location.racks.length !== 1 ? 'e' : '' }}</span>
+            <span v-if="location.isPrimary" class="location-primary-badge">{{ t('settings.storage.primaryStorage') }}</span>
+            <span class="location-count">{{ t('settings.storage.rackCount', location.racks.length) }}</span>
           </button>
           <div class="location-actions">
             <StorageActionButton
               v-if="location.addressId"
-              title="Standort bearbeiten"
+              :title="t('settings.storage.editLocation')"
               icon="edit"
               @click="editStorageLocation(location.addressId)"
             />
@@ -73,7 +73,7 @@
               :disabled="settingPrimaryAddressId === location.addressId"
               @click="setPrimaryStorageLocation(location.addressId)"
             >
-              {{ settingPrimaryAddressId === location.addressId ? 'Speichern...' : 'Als Hauptlager setzen' }}
+              {{ settingPrimaryAddressId === location.addressId ? t('settings.storage.saving') : t('settings.storage.saveAsPrimary') }}
             </button>
           </div>
         </div>
@@ -101,7 +101,7 @@
                 <div class="rack-info">
                   <span class="rack-name">{{ rack.name }}</span>
                   <span class="rack-meta">
-                    {{ getSlotCount(rack.id) }} Fach{{ getSlotCount(rack.id) !== 1 ? 'fächer' : '' }} · Standort: {{ getStorageAddressLabel(rack.storage_address_id) }}
+                    {{ t('settings.storage.slotsMeta', getSlotCount(rack.id)) }} · {{ t('settings.storage.locationPrefix') }}: {{ getStorageAddressLabel(rack.storage_address_id) }}
                   </span>
                 </div>
               </div>
@@ -145,9 +145,9 @@
                   </div>
                 </div>
                 <div v-if="getSlots(rack.id).length === 0" class="slots-empty">
-                  <p>Keine Fächer vorhanden.</p>
+                  <p>{{ t('settings.storage.noSlots') }}</p>
                   <button class="btn-link" @click="openSlotModal(rack)">
-                    Erstes Fach anlegen
+                    {{ t('settings.storage.createFirstSlot') }}
                   </button>
                 </div>
               </div>
@@ -164,10 +164,10 @@
             <polyline points="9 22 9 12 15 12 15 22"/>
           </svg>
         </div>
-        <h3>Keine Regale</h3>
-        <p>Legen Sie Ihr erstes Regal an, um Fächer zu organisieren.</p>
+        <h3>{{ t('settings.storage.noRacksTitle') }}</h3>
+        <p>{{ t('settings.storage.noRacksDescription') }}</p>
         <button class="btn-primary" :disabled="storageAddresses.length === 0" @click="openRackModal()">
-          Erstes Regal erstellen
+          {{ t('settings.storage.createFirstRack') }}
         </button>
       </div>
     </div>
@@ -181,11 +181,11 @@
     <!-- Rack Edit Modal -->
     <div v-if="showRackModal && editingRack" class="modal-overlay">
       <div class="modal-dialog">
-        <h3>Regal bearbeiten</h3>
+        <h3>{{ t('settings.storage.editRackTitle') }}</h3>
         <div class="form-group">
           <label>Lagerstandort *</label>
           <select v-model="rackForm.storage_address_id" class="form-input">
-            <option value="">Lagerstandort wählen...</option>
+            <option value="">{{ t('settings.storage.selectStorageLocation') }}</option>
             <option v-for="addr in storageAddresses" :key="addr.id" :value="addr.id">
               {{ addr.name || addr.street_line || addr.full_address || addr.id }}
             </option>
@@ -196,9 +196,9 @@
           <input v-model="rackForm.name" type="text" :placeholder="rackPlaceholder" class="form-input" />
         </div>
         <div class="modal-actions">
-          <button class="btn-secondary" @click="closeRackModal">Abbrechen</button>
+          <button class="btn-secondary" @click="closeRackModal">{{ t('common.cancel') }}</button>
           <button class="btn-primary" @click="saveRack" :disabled="!rackForm.name.trim() || !rackForm.storage_address_id || isSaving">
-            {{ isSaving ? 'Speichern...' : 'Speichern' }}
+            {{ isSaving ? t('settings.storage.saving') : t('common.save') }}
           </button>
         </div>
       </div>
@@ -206,9 +206,9 @@
 
     <StorageBulkCreateModal
       :is-open="showRackModal && !editingRack"
-      title="Neues Regal"
+      :title="t('settings.storage.newRack')"
       select-label="Lagerstandort *"
-      select-placeholder="Lagerstandort wählen..."
+      :select-placeholder="t('settings.storage.selectStorageLocation')"
       :select-options="storageAddressOptions"
       :selected-value="rackForm.storage_address_id"
       base-label="Basisname für Regale"
@@ -216,7 +216,7 @@
       :base-placeholder="rackPlaceholder"
       :suggestions="rackSuggestions"
       pair-field-label="Fach pro Regal *"
-      pair-field-placeholder="z.B. D1"
+      :pair-field-placeholder="t('settings.storage.slotPlaceholder')"
       :pair-items="rackGeneratedSlotPairs"
       count-label="Anzahl Regale"
       :count="rackCreateCount"
@@ -236,16 +236,16 @@
     <!-- Slot Edit Modal -->
     <div v-if="showSlotModal && editingSlot" class="modal-overlay">
       <div class="modal-dialog">
-        <h3>Fach bearbeiten</h3>
-        <p v-if="slotRack" class="modal-context">Regal: {{ slotRack.name }}</p>
+        <h3>{{ t('settings.storage.editSlotTitle') }}</h3>
+        <p v-if="slotRack" class="modal-context">{{ t('settings.storage.rackContext', { name: slotRack.name }) }}</p>
         <div class="form-group">
           <label>Name</label>
           <input v-model="slotForm.name" type="text" :placeholder="slotFachPlaceholder" class="form-input" />
         </div>
         <div class="modal-actions">
-          <button class="btn-secondary" @click="closeSlotModal">Abbrechen</button>
+          <button class="btn-secondary" @click="closeSlotModal">{{ t('common.cancel') }}</button>
           <button class="btn-primary" @click="saveSlot" :disabled="!slotForm.name.trim() || isSaving">
-            {{ isSaving ? 'Speichern...' : 'Speichern' }}
+            {{ isSaving ? t('settings.storage.saving') : t('common.save') }}
           </button>
         </div>
       </div>
@@ -253,8 +253,8 @@
 
     <StorageBulkCreateModal
       :is-open="showSlotModal && !editingSlot"
-      title="Neues Fach"
-      :context-text="slotRack ? `Regal: ${slotRack.name}` : ''"
+      :title="t('settings.storage.newSlot')"
+      :context-text="slotRack ? t('settings.storage.rackContext', { name: slotRack.name }) : ''"
       base-label="Basisname für Fächer"
       :base-name="slotCreateBaseName"
       :base-placeholder="slotFachPlaceholder"
@@ -274,10 +274,10 @@
 
     <StorageConfirmModal
       :is-open="showDeleteRackConfirm"
-      title="Regal löschen?"
+      :title="t('settings.storage.deleteRackTitle')"
       :message="deletingRack
-        ? `Möchten Sie das Regal ${deletingRack.name} wirklich löschen?${getSlotCount(deletingRack.id) > 0 ? ` Es enthält ${getSlotCount(deletingRack.id)} Fach${getSlotCount(deletingRack.id) !== 1 ? 'fächer' : ''}.` : ''}`
-        : 'Möchten Sie dieses Regal wirklich löschen?'"
+        ? t('settings.storage.deleteRackMessage', { name: deletingRack.name, count: getSlotCount(deletingRack.id) })
+        : t('settings.storage.deleteRackFallbackMessage')"
       :is-loading="isDeleting"
       @close="showDeleteRackConfirm = false"
       @confirm="executeDeleteRack"
@@ -285,8 +285,8 @@
 
     <StorageConfirmModal
       :is-open="showDeleteSlotConfirm"
-      title="Fach löschen?"
-      :message="`Möchten Sie das Fach ${deletingSlot?.name || ''} wirklich löschen?`"
+      :title="t('settings.storage.deleteSlotTitle')"
+      :message="deletingSlot?.name ? t('settings.storage.deleteSlotMessage', { name: deletingSlot.name }) : t('settings.storage.deleteSlotFallbackMessage')"
       :is-loading="isDeleting"
       @close="showDeleteSlotConfirm = false"
       @confirm="executeDeleteSlot"
@@ -306,6 +306,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { useToast } from '@/composables/useToast'
 import { getAddresses, setAddressPrimary, type Address } from '@/api/addresses'
 import AddressModal from '@/components/AddressModal.vue'
@@ -335,6 +336,7 @@ import {
 
 const route = useRoute()
 const toast = useToast()
+const { t } = useI18n()
 const departmentId = computed(() => route.params.departmentId as string)
 
 const racks = ref<StorageRack[]>([])
@@ -368,13 +370,13 @@ const racksForSelectedStorageAddress = computed(() => {
 })
 
 const rackPlaceholder = computed(() => {
-  if (racksForSelectedStorageAddress.value.length === 0) return 'z.B. Regal A, Regal B...'
+  if (racksForSelectedStorageAddress.value.length === 0) return t('settings.storage.rackPlaceholderLetters')
   const last = racksForSelectedStorageAddress.value[racksForSelectedStorageAddress.value.length - 1]?.name || ''
   const m = last.match(/^Regal\s+([A-Z])$/i) || last.match(/^([A-Z])$/i)
-  if (m) return 'z.B. Regal A, Regal B...'
+  if (m) return t('settings.storage.rackPlaceholderLetters')
   const m2 = last.match(/(\d+)$/)
-  if (m2) return 'z.B. Regal 01, Regal 02...'
-  return 'z.B. Regal A, Regal B...'
+  if (m2) return t('settings.storage.rackPlaceholderNumbers')
+  return t('settings.storage.rackPlaceholderLetters')
 })
 
 const rackSuggestions = computed(() => {
@@ -401,9 +403,9 @@ const rackGeneratedSlotPairs = computed(() => {
 
 const slotFachPlaceholder = computed(() => {
   const rack = slotRack.value
-  if (!rack) return 'z.B. A1, B2, 1...'
+  if (!rack) return t('settings.storage.slotPlaceholderGeneric')
   const prefix = getSlotPrefix(rack.name)
-  return `z.B. ${prefix}1, ${prefix}2, ${prefix}3...`
+  return t('settings.storage.slotPlaceholderPrefix', { prefix })
 })
 
 const slotFachSuggestions = computed(() => {
@@ -447,7 +449,7 @@ const groupedFilteredRacks = computed(() => {
     const address = rack.storage_address_id
       ? storageAddresses.value.find((addr) => addr.id === rack.storage_address_id)
       : null
-    const name = address ? (address.name || address.street_line || address.full_address || address.id) : 'Nicht gesetzt'
+    const name = address ? (address.name || address.street_line || address.full_address || address.id) : t('settings.storage.notSet')
     const isPrimary = !!address?.is_primary
     const existing = grouped.get(id)
     if (existing) {
@@ -494,9 +496,9 @@ const primaryStorageAddressId = computed(() => {
 })
 
 function getStorageAddressLabel(storageAddressId: string | null): string {
-  if (!storageAddressId) return 'Nicht gesetzt'
+  if (!storageAddressId) return t('settings.storage.notSet')
   const address = storageAddresses.value.find((addr) => addr.id === storageAddressId)
-  if (!address) return 'Unbekannt'
+  if (!address) return t('settings.storage.unknown')
   return address.name || address.street_line || address.full_address || address.id
 }
 
@@ -532,10 +534,10 @@ async function setPrimaryStorageLocation(addressId: string) {
   settingPrimaryAddressId.value = addressId
   try {
     await setAddressPrimary(addressId)
-    toast.success('Hauptlager wurde gesetzt.')
+    toast.success(t('settings.storage.toastPrimarySet'))
     await loadRacks()
   } catch (err: any) {
-    toast.error(err.response?.data?.error || 'Hauptlager konnte nicht gesetzt werden.')
+    toast.error(err.response?.data?.error || t('settings.storage.toastPrimarySetError'))
   } finally {
     settingPrimaryAddressId.value = null
   }
@@ -564,7 +566,7 @@ async function loadSlotsForRack(rackId: string, forceRefresh = false) {
     const slots = await getStorageSlots(rackId)
     slotsByRack.value = { ...slotsByRack.value, [rackId]: slots }
   } catch (err) {
-    console.error('Fehler beim Laden der Plätze:', err)
+    console.error(t('settings.storage.slotsLoadError'), err)
   }
 }
 
@@ -576,7 +578,7 @@ function openRackModal(rack?: StorageRack) {
     storage_address_id: rack?.storage_address_id || defaultStorageAddressId.value
   }
   rackCreateCount.value = 1
-  rackCreateBaseName.value = rack?.name ?? rackSuggestions.value[0] ?? 'Regal '
+  rackCreateBaseName.value = rack?.name ?? rackSuggestions.value[0] ?? t('settings.storage.rackBaseDefault')
   rackSlotNameOverrides.value = {}
   showRackModal.value = true
 }
@@ -595,7 +597,7 @@ function openRackModalForLocation(storageAddressId: string) {
     expandedRacks.value = new Set()
   }
   rackCreateCount.value = 1
-  rackCreateBaseName.value = rackSuggestions.value[0] ?? 'Regal '
+  rackCreateBaseName.value = rackSuggestions.value[0] ?? t('settings.storage.rackBaseDefault')
   rackSlotNameOverrides.value = {}
   showRackModal.value = true
 }
@@ -608,7 +610,7 @@ function closeRackModal() {
 async function saveRack() {
   const storageAddressId = rackForm.value.storage_address_id
   if (!storageAddressId) {
-    toast.error('Bitte einen Lagerstandort wählen.')
+    toast.error(t('settings.storage.selectStorageLocationError'))
     return
   }
   isSaving.value = true
@@ -617,14 +619,14 @@ async function saveRack() {
       const name = rackForm.value.name.trim()
       if (!name) return
       await updateStorageRack(editingRack.value.id, { name, storage_address_id: storageAddressId })
-      toast.success('Regal aktualisiert.')
+      toast.success(t('settings.storage.toastRackUpdated'))
     } else {
       const names = rackGeneratedNames.value
       if (names.length === 0) return
       for (const name of names) {
         const initialSlotNameForRack = (rackSlotNameOverrides.value[name] ?? `${getSlotPrefix(name)}1`).trim()
         if (!initialSlotNameForRack) {
-          toast.error('Bitte für jedes Regal einen Fachnamen angeben.')
+          toast.error(t('settings.storage.slotNameRequired'))
           return
         }
         await createStorageRack({
@@ -634,12 +636,12 @@ async function saveRack() {
           initial_slot_name: initialSlotNameForRack
         })
       }
-      toast.success(`${names.length} Regal${names.length !== 1 ? 'e' : ''} erstellt.`)
+      toast.success(t('settings.storage.toastRacksCreated', { count: names.length }))
     }
     closeRackModal()
     await loadRacks(storageAddressId)
   } catch (err: any) {
-    toast.error(err.response?.data?.error || 'Fehler beim Speichern')
+    toast.error(err.response?.data?.error || t('settings.storage.saveError'))
   } finally {
     isSaving.value = false
   }
@@ -672,12 +674,12 @@ async function executeDeleteRack() {
   isDeleting.value = true
   try {
     await deleteStorageRack(deletingRack.value.id)
-    toast.success('Regal gelöscht.')
+    toast.success(t('settings.storage.toastRackDeleted'))
     showDeleteRackConfirm.value = false
     deletingRack.value = null
     await loadRacks()
   } catch (err: any) {
-    toast.error(err.response?.data?.error || 'Fehler beim Löschen')
+    toast.error(err.response?.data?.error || t('settings.storage.deleteError'))
   } finally {
     isDeleting.value = false
   }
@@ -718,20 +720,20 @@ async function saveSlot() {
       const name = slotForm.value.name.trim()
       if (!name) return
       await updateStorageSlot(editingSlot.value.id, { name })
-      toast.success('Fach aktualisiert.')
+      toast.success(t('settings.storage.toastSlotUpdated'))
     } else {
       const names = slotGeneratedNames.value
       if (names.length === 0) return
       for (const name of names) {
         await createStorageSlot({ rack_id: rackId, name })
       }
-      toast.success(`${names.length} Fach${names.length !== 1 ? 'fächer' : ''} erstellt.`)
+      toast.success(t('settings.storage.toastSlotsCreated', { count: names.length }))
     }
     closeSlotModal()
     await loadSlotsForRack(rackId, true)
     slotsByRack.value = { ...slotsByRack.value }
   } catch (err: any) {
-    toast.error(err.response?.data?.error || 'Fehler beim Speichern')
+    toast.error(err.response?.data?.error || t('settings.storage.saveError'))
   } finally {
     isSaving.value = false
   }
@@ -756,14 +758,14 @@ async function executeDeleteSlot() {
   isDeleting.value = true
   try {
     await deleteStorageSlot(slot.id)
-    toast.success('Fach gelöscht.')
+    toast.success(t('settings.storage.toastSlotDeleted'))
     showDeleteSlotConfirm.value = false
     deletingSlot.value = null
     const rackId = slot.rack_id
     slotsByRack.value[rackId] = (slotsByRack.value[rackId] ?? []).filter(s => s.id !== slot.id)
     slotsByRack.value = { ...slotsByRack.value }
   } catch (err: any) {
-    toast.error(err.response?.data?.error || 'Fehler beim Löschen')
+    toast.error(err.response?.data?.error || t('settings.storage.deleteError'))
   } finally {
     isDeleting.value = false
   }
@@ -791,8 +793,8 @@ async function loadRacks(preferredOpenLocationId?: string) {
     }
     await Promise.all(racks.value.map((r) => loadSlotsForRack(r.id)))
   } catch (err) {
-    console.error('Fehler beim Laden:', err)
-    toast.error('Fehler beim Laden der Regale')
+    console.error(t('settings.storage.loadError'), err)
+    toast.error(t('settings.storage.loadError'))
   } finally {
     isLoading.value = false
   }

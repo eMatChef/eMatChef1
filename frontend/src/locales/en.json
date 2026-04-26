@@ -2,6 +2,77 @@
   "app": {
     "name": "eMatChef"
   },
+  "tiptap": {
+    "loading": "Loading editor…",
+    "placeholderDefault": "Enter text…",
+    "toolbarAria": "Formatting",
+    "bold": "Bold",
+    "italic": "Italic",
+    "heading2": "Heading 2",
+    "heading3": "Heading 3",
+    "bulletList": "Bullet list",
+    "orderedList": "Numbered list",
+    "link": "Link",
+    "undo": "Undo",
+    "redo": "Redo",
+    "linkPrompt": "Link URL",
+    "linkDefault": "https://"
+  },
+  "contacts": {
+    "title": "Contacts",
+    "description": "Manage your address book and contacts",
+    "newContact": "New contact",
+    "searchPlaceholder": "Search contacts (name, company, email, city)…",
+    "allTypes": "All types",
+    "allCantons": "All cantons",
+    "resetFilters": "Reset filters",
+    "loadingList": "Loading contacts…",
+    "loadError": "Could not load contacts",
+    "emptyTitle": "No contacts yet",
+    "emptyText": "Add your first contact to get started.",
+    "emptyCta": "Add first contact",
+    "noResultsTitle": "No matches",
+    "noResultsText": "No contacts match your filters.",
+    "colName": "Name",
+    "colContact": "Contact",
+    "colAddress": "Address",
+    "colType": "Type",
+    "unnamed": "Unnamed",
+    "primaryBadge": "Primary",
+    "openDetailsTitle": "Open details",
+    "tableHint": "Double-click a row to open details",
+    "detail": {
+      "backToList": "Back to list",
+      "delete": "Delete",
+      "edit": "Edit",
+      "editTitle": "Edit",
+      "loading": "Loading contact…",
+      "sectionContactData": "Contact details",
+      "sectionCommunication": "Communication",
+      "sectionAddress": "Address",
+      "sectionLocation": "Location",
+      "sectionNotes": "Additional information",
+      "statusLabel": "Status",
+      "primaryAddress": "Primary address",
+      "noCommunication": "No contact details on file.",
+      "addCommunicationCta": "Add email / phone",
+      "openGoogleMaps": "Open in Google Maps",
+      "copyAddress": "Copy address",
+      "copied": "Copied!",
+      "searchLocationTitle": "Search location from address",
+      "searchLocation": "Search address",
+      "searching": "Searching…",
+      "saved": "Saved",
+      "mapHint": "Click the map to set the location. You can drag the marker.",
+      "noAdditionalInfo": "No additional information.",
+      "deleteTitle": "Delete contact?",
+      "deleteMessage": "Do you really want to delete {name}? This cannot be undone.",
+      "deleteNameFallback": "this contact",
+      "deleting": "Deleting…",
+      "loadError": "Could not load contact",
+      "deleteError": "Could not delete contact"
+    }
+  },
   "languageNames": {
     "de": "German",
     "en": "English",
@@ -13,8 +84,11 @@
   },
   "common": {
     "save": "Save",
+    "create": "Create",
     "cancel": "Cancel",
-    "loading": "Please wait..."
+    "loading": "Please wait...",
+    "saving": "Saving…",
+    "retry": "Try again"
   },
   "errors": {
     "sessionExpired": "Your session has expired. Please sign in again."
@@ -87,6 +161,93 @@
     "forgotRequestFailedFallback": "Reset code could not be requested",
     "forgotConfirmSuccessFallback": "Password has been reset successfully",
     "forgotConfirmFailedFallback": "Password could not be reset",
-    "languageRestrictedHint": "Language selection is limited to this organisation."
+    "languageRestrictedHint": "Language selection is limited to this organisation.",
+    "inviteCodeInParens": " (Code: {code})",
+    "exampleFirstName": "Alex",
+    "exampleLastName": "Sample"
+  },
+  "activities": {
+    "opening": "Opening activity…",
+    "title": "Activities",
+    "subtitle": "Manage events, rentals & loans",
+    "create": "Create activity",
+    "stats": {
+      "total": "Total",
+      "drafts": "Drafts",
+      "submitted": "Submitted",
+      "inProgress": "In progress",
+      "issued": "Issued",
+      "completed": "Completed"
+    },
+    "tabs": {
+      "upcoming": "Upcoming",
+      "past": "Past",
+      "all": "All",
+      "cancelled": "Cancelled"
+    },
+    "searchPlaceholder": "Search (material:, activity:, repair:)",
+    "loadingList": "Loading activities...",
+    "table": {
+      "name": "Name",
+      "type": "Type",
+      "customerGroup": "Group / customer",
+      "period": "Period",
+      "material": "Material",
+      "price": "Price",
+      "status": "Status",
+      "issues": "Reports",
+      "footer": "{shown} of {total} activities"
+    },
+    "empty": {
+      "noMatch": "No matches",
+      "noneYet": "No activities yet"
+    },
+    "types": {
+      "activity": "Activity",
+      "camp": "Camp",
+      "event": "Event",
+      "external": "External"
+    },
+    "status": {
+      "draft": "Draft",
+      "submitted": "Submitted",
+      "approved": "Approved",
+      "packing": "Packing",
+      "packed": "Packed",
+      "issued": "Issued",
+      "returned": "Returned",
+      "completed": "Completed",
+      "cancelled": "Cancelled",
+      "confirmed": "Confirmed",
+      "active": "Active"
+    },
+    "share": {
+      "fromPrefix": "Shared from:",
+      "otherDeptFallback": "another department",
+      "withOthers": "Shared with other departments",
+      "withPrefix": "Shared with:",
+      "moreSuffix": " +{n}",
+      "statusAccepted": "Status: accepted",
+      "statusRejected": "Status: rejected",
+      "statusPending": "Status: pending",
+      "releasePrefix": "Sharing:",
+      "partAccepted": "{n} accepted",
+      "partPending": "{n} pending",
+      "partRejected": "{n} rejected"
+    },
+    "relative": {
+      "today": "today",
+      "tomorrow": "tomorrow",
+      "yesterday": "yesterday",
+      "inDays": "in {n} days",
+      "daysAgo": "{n} days ago",
+      "inWeeks": "in {n} weeks",
+      "weeksAgo": "{n} weeks ago"
+    },
+    "errors": {
+      "loadFailed": "Could not load activities: {msg}",
+      "timeout": "Timeout – the backend did not respond.",
+      "unknown": "Unknown error"
+    }
   }
 }

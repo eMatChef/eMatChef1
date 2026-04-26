@@ -2,7 +2,7 @@
   <div class="verwaltung-view">
     <div class="verwaltung-container">
       <aside class="verwaltung-menu">
-        <h2 class="verwaltung-menu-title">Verwaltung der Webseite</h2>
+        <h2 class="verwaltung-menu-title">{{ t('verwaltung.menuTitle') }}</h2>
         <nav class="verwaltung-nav">
           <router-link
             v-for="item in visibleMenuItems"
@@ -31,6 +31,7 @@
 <script setup lang="ts">
 import { computed, markRaw } from 'vue'
 import { useRoute } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'
 import IconSettings from '@/components/icons/IconSettings.vue'
 import IconDashboard from '@/components/icons/IconDashboard.vue'
@@ -41,6 +42,7 @@ import IconContacts from '@/components/icons/IconContacts.vue'
 
 const route = useRoute()
 const authStore = useAuthStore()
+const { t } = useI18n()
 
 const isAdminDashboardRoute = computed(() => route.path.startsWith('/admin-dashboard'))
 
@@ -99,20 +101,20 @@ type MenuItem = {
 }
 
 const visibleMenuItems = computed((): MenuItem[] => {
-  const start: MenuItem[] = [{ id: 'global-addresses', label: 'Globale Adressen', icon: markRaw(IconContacts) }]
-  const jobsItem: MenuItem = { id: 'jobs', label: 'System-Jobs', icon: markRaw(IconJobs) }
-  const mid: MenuItem[] = [{ id: 'support-requests', label: 'Supportanfragen', icon: markRaw(IconTasks) }]
+  const start: MenuItem[] = [{ id: 'global-addresses', label: t('verwaltung.nav.globalAddresses'), icon: markRaw(IconContacts) }]
+  const jobsItem: MenuItem = { id: 'jobs', label: t('verwaltung.nav.systemJobs'), icon: markRaw(IconJobs) }
+  const mid: MenuItem[] = [{ id: 'support-requests', label: t('verwaltung.nav.supportRequests'), icon: markRaw(IconTasks) }]
   const core: MenuItem[] = isSuperAdminUser.value ? [...start, jobsItem, ...mid] : [...start, ...mid]
 
   if (isAdminDashboardRoute.value) {
     const sa: MenuItem[] = [
-      { id: 'organisations', label: 'Organisationen', icon: markRaw(IconDashboard) },
-      { id: 'departments', label: 'Abteilungen', icon: markRaw(IconDashboard) },
-      { id: 'users', label: 'Benutzer', icon: markRaw(IconEmployees) }
+      { id: 'organisations', label: t('verwaltung.nav.organisations'), icon: markRaw(IconDashboard) },
+      { id: 'departments', label: t('verwaltung.nav.departments'), icon: markRaw(IconDashboard) },
+      { id: 'users', label: t('verwaltung.nav.users'), icon: markRaw(IconEmployees) }
     ]
-    const integrations: MenuItem = { id: 'integrations', label: 'Integrationen', icon: markRaw(IconSettings) }
-    const mail: MenuItem = { id: 'mail', label: 'E-Mail', icon: markRaw(IconSettings) }
-    const perm: MenuItem = { id: 'permissions', label: 'Berechtigungen', icon: markRaw(IconSettings) }
+    const integrations: MenuItem = { id: 'integrations', label: t('verwaltung.nav.integrations'), icon: markRaw(IconSettings) }
+    const mail: MenuItem = { id: 'mail', label: t('verwaltung.nav.mail'), icon: markRaw(IconSettings) }
+    const perm: MenuItem = { id: 'permissions', label: t('verwaltung.nav.permissions'), icon: markRaw(IconSettings) }
     return [
       ...core,
       ...(isSuperAdminUser.value ? sa : []),
@@ -124,7 +126,7 @@ const visibleMenuItems = computed((): MenuItem[] => {
 
   const saUsersGlobal: MenuItem = {
     id: 'users-global',
-    label: 'Benutzer',
+    label: t('verwaltung.nav.users'),
     icon: markRaw(IconEmployees),
     to: '/admin-dashboard/verwaltung/users'
   }
@@ -134,11 +136,11 @@ const visibleMenuItems = computed((): MenuItem[] => {
   }
 
   const orgItems: MenuItem[] = [
-    { id: 'organisations', label: 'Organisationen', icon: markRaw(IconDashboard) },
-    { id: 'departments', label: 'Alle Departments', icon: markRaw(IconDashboard) },
-    { id: 'permissions', label: 'Berechtigungen', icon: markRaw(IconSettings) }
+    { id: 'organisations', label: t('verwaltung.nav.organisations'), icon: markRaw(IconDashboard) },
+    { id: 'departments', label: t('verwaltung.nav.allDepartments'), icon: markRaw(IconDashboard) },
+    { id: 'permissions', label: t('verwaltung.nav.permissions'), icon: markRaw(IconSettings) }
   ]
-  const mailItem: MenuItem = { id: 'mail', label: 'E-Mail', icon: markRaw(IconSettings) }
+  const mailItem: MenuItem = { id: 'mail', label: t('verwaltung.nav.mail'), icon: markRaw(IconSettings) }
   return isSuperAdminUser.value ? [...core, ...orgItems, mailItem, saUsersGlobal] : [...core, ...orgItems]
 })
 </script>

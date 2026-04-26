@@ -2,7 +2,7 @@
   <div class="modal-overlay">
     <div class="modal-dialog category-modal">
       <div class="modal-header">
-        <h2>{{ isEditing ? 'Kategorie bearbeiten' : 'Neue Kategorie' }}</h2>
+        <h2>{{ isEditing ? t('settings.categories.modal.editTitle') : t('settings.categories.modal.newTitle') }}</h2>
         <button @click="close" class="modal-close">
           <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
             <path d="M15 5L5 15M5 5L15 15" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
@@ -13,12 +13,12 @@
       <form @submit.prevent="handleSubmit" class="modal-body">
         <!-- Name -->
         <div class="form-group">
-          <label class="form-label">Name <span class="required">*</span></label>
+          <label class="form-label">{{ t('settings.categories.modal.nameLabel') }} <span class="required">*</span></label>
           <input 
             v-model="formData.name" 
             type="text" 
             class="form-input" 
-            placeholder="z.B. Audio, Licht, Kabel"
+            :placeholder="t('settings.categories.modal.namePlaceholder')"
             required
             ref="nameInput"
           />
@@ -26,9 +26,9 @@
 
         <!-- Übergeordnete Kategorie -->
         <div class="form-group">
-          <label class="form-label">Übergeordnete Kategorie</label>
+          <label class="form-label">{{ t('settings.categories.modal.parentLabel') }}</label>
           <select v-model="formData.parent_id" class="form-select">
-            <option :value="null">-- Hauptkategorie --</option>
+            <option :value="null">{{ t('settings.categories.modal.parentMain') }}</option>
             <option 
               v-for="cat in availableParents" 
               :key="cat.id" 
@@ -37,17 +37,17 @@
               {{ cat.parent_id ? '  └ ' : '' }}{{ cat.name }}
             </option>
           </select>
-          <p class="form-hint">Leer lassen für eine Hauptkategorie</p>
+          <p class="form-hint">{{ t('settings.categories.modal.parentHint') }}</p>
         </div>
 
         <!-- Beschreibung -->
         <div class="form-group">
-          <label class="form-label">Beschreibung</label>
+          <label class="form-label">{{ t('settings.categories.modal.descriptionLabel') }}</label>
           <textarea 
             v-model="formData.description" 
             class="form-textarea" 
             rows="2"
-            placeholder="Optional: Beschreibung der Kategorie..."
+            :placeholder="t('settings.categories.modal.descriptionPlaceholder')"
           ></textarea>
         </div>
 
@@ -59,10 +59,10 @@
         <!-- Buttons -->
         <div class="modal-footer">
           <button type="button" @click="close" class="btn-secondary">
-            Abbrechen
+            {{ t('common.cancel') }}
           </button>
           <button type="submit" class="btn-primary" :disabled="isLoading || !formData.name">
-            {{ isLoading ? 'Speichern...' : (isEditing ? 'Speichern' : 'Erstellen') }}
+            {{ isLoading ? t('common.saving') : (isEditing ? t('common.save') : t('common.create')) }}
           </button>
         </div>
       </form>
@@ -72,6 +72,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, nextTick } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useToast } from '@/composables/useToast'
 import { getCategories, createCategory, updateCategory, type Category, type CreateCategoryRequest, type UpdateCategoryRequest } from '@/api/categories'
 
@@ -93,6 +94,7 @@ const emit = defineEmits<{
   saved: [category: Category]
 }>()
 
+const { t } = useI18n()
 const toast = useToast()
 const nameInput = ref<HTMLInputElement>()
 const isLoading = ref(false)
@@ -145,7 +147,7 @@ async function loadCategories() {
 
 async function handleSubmit() {
   if (!formData.value.name.trim()) {
-    error.value = 'Name ist erforderlich'
+    error.value = t('settings.categories.modal.nameRequired')
     return
   }
 
@@ -176,7 +178,7 @@ async function handleSubmit() {
 
     emit('saved', savedCategory)
   } catch (err: any) {
-    const msg = err.response?.data?.error || 'Fehler beim Speichern'
+    const msg = err.response?.data?.error || t('settings.categories.modal.saveError')
     error.value = msg
     toast.error(msg)
   } finally {

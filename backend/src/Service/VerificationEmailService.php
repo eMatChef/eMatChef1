@@ -6,6 +6,7 @@ use App\Entity\User;
 use App\Service\Mail\AppMailer;
 use App\Service\Mail\MailOutboundSettingsStore;
 use App\Service\Mail\MailSendLogStore;
+use App\Service\Mail\MailTemplateContentStore;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\Mime\Email;
 
@@ -15,6 +16,7 @@ class VerificationEmailService
         private AppMailer $mailer,
         private MailOutboundSettingsStore $mailOutboundSettings,
         private MailSendLogStore $mailSendLog,
+        private MailTemplateContentStore $mailTemplateContent,
         #[Autowire('%env(APP_FRONTEND_URL)%')]
         private string $frontendBaseUrl,
         #[Autowire('%kernel.project_dir%')]
@@ -26,39 +28,53 @@ class VerificationEmailService
     {
         $profile = $user->getProfile();
         if (!$profile) {
-            throw new \RuntimeException('Profil fuer Verifikationsmail fehlt.');
+            throw $this->vex('no_profile', 'de');
         }
 
         $token = $user->getEmailVerificationToken();
         $expiresAt = $user->getEmailVerificationExpiresAt();
         if (!$token || !$expiresAt) {
-            throw new \RuntimeException('Verifikationsdaten fehlen.');
+            throw $this->vex('verify_data', 'de');
         }
 
         $verifyUrl = rtrim($this->frontendBaseUrl, '/') . '/verify?token=' . urlencode($token);
         $expiresText = $expiresAt->format('d.m.Y H:i');
+        $locale = $this->mailTemplateContent->resolveMailLocale($profile->getLanguage());
+
+        $tpl = $this->mailTemplateContent->getTemplate('auth.verify_email', $locale);
+        if ($tpl === null) {
+            throw $this->vex('tpl_auth_verify', $locale);
+        }
+
+        $vars = [
+            'display_name' => $profile->getDisplayName(),
+            'verify_url' => $verifyUrl,
+            'expires_at' => $expiresText,
+        ];
+        $subject = $this->mailTemplateContent->interpolate((string) ($tpl['subject'] ?? ''), $vars);
+        $textBody = $this->mailTemplateContent->interpolate((string) ($tpl['text_body'] ?? ''), $vars);
+        $htmlCfg = is_array($tpl['html'] ?? null) ? $tpl['html'] : [];
+        $extraBlock = (string) ($htmlCfg['extra_block'] ?? '');
 
         $email = (new Email())
             ->from($this->mailOutboundSettings->getFromAddressObject())
             ->to($profile->getEmail())
-            ->subject('Bitte bestaetige deine E-Mail-Adresse')
-            ->text(
-                "Hallo {$profile->getDisplayName()},\n\n" .
-                "bitte bestaetige deine E-Mail-Adresse fuer eMatChef.\n\n" .
-                "Bestaetigungslink:\n{$verifyUrl}\n\n" .
-                "Der Link ist gueltig bis: {$expiresText}\n\n" .
-                "Falls du dich nicht registriert hast, kannst du diese Nachricht ignorieren."
-            )
+            ->subject($subject)
+            ->text($textBody)
             ->html($this->renderHtmlTemplate('verify_email.html', [
-                'brand_header_html' => $this->buildBrandHeaderHtml(),
-                'headline' => 'E-Mail bestaetigen',
+                'brand_header_html' => $this->buildBrandHeaderHtml($locale),
+                'headline' => (string) ($htmlCfg['headline'] ?? ''),
+                'greeting_word' => (string) ($htmlCfg['greeting_word'] ?? ''),
                 'display_name' => $profile->getDisplayName(),
-                'intro' => 'bitte bestaetige deine E-Mail-Adresse fuer eMatChef.',
-                'extra_block' => '',
+                'intro' => (string) ($htmlCfg['intro'] ?? ''),
+                'extra_block' => $extraBlock,
+                'cta_label' => (string) ($htmlCfg['cta_label'] ?? ''),
+                'link_hint' => (string) ($htmlCfg['link_hint'] ?? ''),
+                'expires_intro' => (string) ($htmlCfg['expires_intro'] ?? ''),
                 'verify_url' => $verifyUrl,
                 'expires_at' => $expiresText,
-                'footer_note' => 'Falls du dich nicht registriert hast, kannst du diese Nachricht ignorieren.',
-            ], ['brand_header_html', 'extra_block']));
+                'footer_note' => (string) ($htmlCfg['footer_note'] ?? ''),
+            ], ['brand_header_html', 'extra_block'], $locale));
 
         $this->mailer->send($email);
         $this->mailSendLog->append(
@@ -73,38 +89,47 @@ class VerificationEmailService
     {
         $profile = $user->getProfile();
         if (!$profile) {
-            throw new \RuntimeException('Profil fuer Verifikationsmail fehlt.');
+            throw $this->vex('no_profile', 'de');
         }
 
         $verifyUrl = rtrim($this->frontendBaseUrl, '/') . '/verify?token=' . urlencode($token);
         $expiresText = $expiresAt->format('d.m.Y H:i');
+        $locale = $this->mailTemplateContent->resolveMailLocale($profile->getLanguage());
 
-        $extraBlock =
-            '<p style="margin:0 0 16px 0;font-size:15px;line-height:1.5;color:#374151;">' .
-            'Bis zur Bestaetigung bleibt deine bisherige E-Mail-Adresse gueltig.</p>';
+        $tpl = $this->mailTemplateContent->getTemplate('auth.pending_email_change', $locale);
+        if ($tpl === null) {
+            throw $this->vex('tpl_pending', $locale);
+        }
+
+        $vars = [
+            'display_name' => $profile->getDisplayName(),
+            'verify_url' => $verifyUrl,
+            'expires_at' => $expiresText,
+        ];
+        $subject = $this->mailTemplateContent->interpolate((string) ($tpl['subject'] ?? ''), $vars);
+        $textBody = $this->mailTemplateContent->interpolate((string) ($tpl['text_body'] ?? ''), $vars);
+        $htmlCfg = is_array($tpl['html'] ?? null) ? $tpl['html'] : [];
+        $extraBlock = (string) ($htmlCfg['extra_block'] ?? '');
 
         $email = (new Email())
             ->from($this->mailOutboundSettings->getFromAddressObject())
             ->to($newEmail)
-            ->subject('Bitte bestaetige deine neue E-Mail-Adresse')
-            ->text(
-                "Hallo {$profile->getDisplayName()},\n\n" .
-                "du hast eine Aenderung deiner E-Mail-Adresse fuer eMatChef angefragt.\n\n" .
-                "Neue E-Mail bestaetigen:\n{$verifyUrl}\n\n" .
-                "Bis zur Bestaetigung bleibt deine bisherige E-Mail-Adresse gueltig.\n" .
-                "Der Link ist gueltig bis: {$expiresText}\n\n" .
-                "Falls du diese Aenderung nicht angefragt hast, ignoriere diese Nachricht."
-            )
+            ->subject($subject)
+            ->text($textBody)
             ->html($this->renderHtmlTemplate('verify_email.html', [
-                'brand_header_html' => $this->buildBrandHeaderHtml(),
-                'headline' => 'Neue E-Mail bestaetigen',
+                'brand_header_html' => $this->buildBrandHeaderHtml($locale),
+                'headline' => (string) ($htmlCfg['headline'] ?? ''),
+                'greeting_word' => (string) ($htmlCfg['greeting_word'] ?? ''),
                 'display_name' => $profile->getDisplayName(),
-                'intro' => 'du hast eine Aenderung deiner E-Mail-Adresse fuer eMatChef angefragt.',
+                'intro' => (string) ($htmlCfg['intro'] ?? ''),
                 'extra_block' => $extraBlock,
+                'cta_label' => (string) ($htmlCfg['cta_label'] ?? ''),
+                'link_hint' => (string) ($htmlCfg['link_hint'] ?? ''),
+                'expires_intro' => (string) ($htmlCfg['expires_intro'] ?? ''),
                 'verify_url' => $verifyUrl,
                 'expires_at' => $expiresText,
-                'footer_note' => 'Falls du diese Aenderung nicht angefragt hast, ignoriere diese Nachricht.',
-            ], ['brand_header_html', 'extra_block']));
+                'footer_note' => (string) ($htmlCfg['footer_note'] ?? ''),
+            ], ['brand_header_html', 'extra_block'], $locale));
 
         $this->mailer->send($email);
         $this->mailSendLog->append(
@@ -121,32 +146,53 @@ class VerificationEmailService
         string $inviterName,
         string $departmentName,
         string $inviteUrl,
-        string $roleLabel
+        string $roleLabel,
+        ?string $recipientLocale = null
     ): void {
+        $locale = $this->mailTemplateContent->normalizeLocaleParam(trim((string) ($recipientLocale ?? '')));
+
+        $tpl = $this->mailTemplateContent->getTemplate('department.invite', $locale);
+        if ($tpl === null) {
+            throw $this->vex('tpl_dept', $locale);
+        }
+
         $safeRecipient = trim($recipientName) !== '' ? $recipientName : $recipientEmail;
-        $subject = 'Einladung zu eMatChef Department: ' . $departmentName;
+        $vars = [
+            'recipient_name' => $safeRecipient,
+            'inviter_name' => $inviterName,
+            'department_name' => $departmentName,
+            'role_label' => $roleLabel,
+            'invite_url' => $inviteUrl,
+        ];
+        $subject = $this->mailTemplateContent->interpolate((string) ($tpl['subject'] ?? ''), $vars);
+        $textBody = $this->mailTemplateContent->interpolate((string) ($tpl['text_body'] ?? ''), $vars);
+        $htmlCfg = is_array($tpl['html'] ?? null) ? $tpl['html'] : [];
+
+        $inviteLead = strtr((string) ($htmlCfg['invite_lead_template'] ?? ''), [
+            '{{inviter_name}}' => htmlspecialchars($inviterName, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'),
+            '{{department_name}}' => htmlspecialchars($departmentName, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'),
+        ]);
+        $roleLine = strtr((string) ($htmlCfg['role_line_template'] ?? ''), [
+            '{{role_label}}' => htmlspecialchars($roleLabel, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'),
+        ]);
 
         $email = (new Email())
             ->from($this->mailOutboundSettings->getFromAddressObject())
             ->to($recipientEmail)
             ->subject($subject)
-            ->text(
-                "Hallo {$safeRecipient},\n\n" .
-                "{$inviterName} hat dich zu dem Department \"{$departmentName}\" eingeladen.\n" .
-                "Vorgesehene Rolle: {$roleLabel}\n\n" .
-                "Einladungslink:\n{$inviteUrl}\n\n" .
-                "Falls du noch kein Konto hast, kannst du dich ueber den Link registrieren " .
-                "und wirst danach direkt dem Department zugeordnet.\n\n" .
-                "Wenn du diese Einladung nicht erwartest, kannst du diese E-Mail ignorieren."
-            )
+            ->text($textBody)
             ->html($this->renderHtmlTemplate('department_invite.html', [
-                'brand_header_html' => $this->buildBrandHeaderHtml(),
+                'brand_header_html' => $this->buildBrandHeaderHtml($locale),
                 'recipient_name' => $safeRecipient,
-                'inviter_name' => $inviterName,
-                'department_name' => $departmentName,
-                'role_label' => $roleLabel,
+                'greeting_word' => (string) ($htmlCfg['greeting_word'] ?? ''),
+                'banner_title' => (string) ($htmlCfg['banner_title'] ?? ''),
+                'invite_lead_html' => $inviteLead,
+                'role_line_html' => $roleLine,
+                'cta_label' => (string) ($htmlCfg['cta_label'] ?? ''),
+                'link_hint' => (string) ($htmlCfg['link_hint'] ?? ''),
                 'invite_url' => $inviteUrl,
-            ], ['brand_header_html']));
+                'footer_note' => (string) ($htmlCfg['footer_note'] ?? ''),
+            ], ['brand_header_html', 'invite_lead_html', 'role_line_html'], $locale));
 
         $this->mailer->send($email);
         $this->mailSendLog->append(
@@ -161,29 +207,44 @@ class VerificationEmailService
     {
         $profile = $user->getProfile();
         if (!$profile) {
-            throw new \RuntimeException('Profil fuer Passwort-Reset fehlt.');
+            throw $this->vex('no_profile_pwd', 'de');
         }
 
         $expiresText = $expiresAt->format('d.m.Y H:i:s');
+        $locale = $this->mailTemplateContent->resolveMailLocale($profile->getLanguage());
+
+        $tpl = $this->mailTemplateContent->getTemplate('auth.password_reset_code', $locale);
+        if ($tpl === null) {
+            throw $this->vex('tpl_pwd', $locale);
+        }
+
+        $vars = [
+            'display_name' => $profile->getDisplayName(),
+            'reset_code' => strtoupper($code),
+            'expires_at' => $expiresText,
+        ];
+        $subject = $this->mailTemplateContent->interpolate((string) ($tpl['subject'] ?? ''), $vars);
+        $textBody = $this->mailTemplateContent->interpolate((string) ($tpl['text_body'] ?? ''), $vars);
+        $htmlCfg = is_array($tpl['html'] ?? null) ? $tpl['html'] : [];
 
         $email = (new Email())
             ->from($this->mailOutboundSettings->getFromAddressObject())
             ->to($profile->getEmail())
-            ->subject('Passwort zuruecksetzen - eMatChef')
-            ->text(
-                "Hallo {$profile->getDisplayName()},\n\n" .
-                "du hast ein neues Passwort fuer eMatChef angefordert.\n\n" .
-                "Dein Sicherheitscode lautet: {$code}\n\n" .
-                "Der Code ist gueltig bis: {$expiresText}\n" .
-                "Bitte gib den Code zusammen mit deinem neuen Passwort im Login-Bereich ein.\n\n" .
-                "Falls du diese Anfrage nicht gestellt hast, ignoriere diese E-Mail."
-            )
+            ->subject($subject)
+            ->text($textBody)
             ->html($this->renderHtmlTemplate('password_reset_code.html', [
-                'brand_header_html' => $this->buildBrandHeaderHtml(),
+                'brand_header_html' => $this->buildBrandHeaderHtml($locale),
+                'greeting_word' => (string) ($htmlCfg['greeting_word'] ?? ''),
                 'display_name' => $profile->getDisplayName(),
+                'headline' => (string) ($htmlCfg['headline'] ?? ''),
+                'intro' => (string) ($htmlCfg['intro'] ?? ''),
+                'code_label' => (string) ($htmlCfg['code_label'] ?? ''),
                 'reset_code' => strtoupper($code),
+                'expires_intro' => (string) ($htmlCfg['expires_intro'] ?? ''),
                 'expires_at' => $expiresText,
-            ], ['brand_header_html']));
+                'instruction' => (string) ($htmlCfg['instruction'] ?? ''),
+                'footer_note' => (string) ($htmlCfg['footer_note'] ?? ''),
+            ], ['brand_header_html'], $locale));
 
         $this->mailer->send($email);
         $this->mailSendLog->append(
@@ -194,19 +255,32 @@ class VerificationEmailService
         );
     }
 
+    private function vex(string $key, string $locale): \RuntimeException
+    {
+        return new \RuntimeException($this->mailTemplateContent->getApiString('vex.' . $key, $locale));
+    }
+
     /**
      * @param list<string> $unescapedKeys Platzhalter, die bereits sicheres HTML enthalten (z. B. Logo-Block)
      */
-    private function renderHtmlTemplate(string $templateFile, array $variables, array $unescapedKeys = []): string
+    private function renderHtmlTemplate(string $templateFile, array $variables, array $unescapedKeys = [], string $locale = 'de'): string
     {
         $fullPath = $this->projectDir . '/templates/emails/' . $templateFile;
         if (!is_file($fullPath) || !is_readable($fullPath)) {
-            throw new \RuntimeException(sprintf('Mail-Template nicht gefunden: %s', $templateFile));
+            $msg = $this->mailTemplateContent->interpolate(
+                $this->mailTemplateContent->getApiString('vex.html_not_found', $locale),
+                ['file' => $templateFile]
+            );
+            throw new \RuntimeException($msg);
         }
 
         $template = file_get_contents($fullPath);
         if ($template === false) {
-            throw new \RuntimeException(sprintf('Mail-Template konnte nicht geladen werden: %s', $templateFile));
+            $msg = $this->mailTemplateContent->interpolate(
+                $this->mailTemplateContent->getApiString('vex.html_unreadable', $locale),
+                ['file' => $templateFile]
+            );
+            throw new \RuntimeException($msg);
         }
 
         $raw = array_flip($unescapedKeys);
@@ -224,7 +298,7 @@ class VerificationEmailService
      * Optionales Marken-Logo: absolute HTTPS-URL in Umgebungsvariable MAILER_BRAND_LOGO_URL
      * (z. B. https://ematchef.ch/favicon.svg auf Hostpoint).
      */
-    private function buildBrandHeaderHtml(): string
+    private function buildBrandHeaderHtml(string $locale): string
     {
         $raw = getenv('MAILER_BRAND_LOGO_URL');
         $url = is_string($raw) ? trim($raw) : '';
@@ -235,64 +309,8 @@ class VerificationEmailService
             return '';
         }
         $safe = htmlspecialchars($url, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+        $alt = htmlspecialchars($this->mailTemplateContent->getSharedString('brand_logo_alt', $locale), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 
-        return '<img src="' . $safe . '" alt="eMatChef" width="140" style="max-width:180px;height:auto;display:block;margin:0 auto;border:0;" />';
-    }
-
-    public function getMailTemplateCatalog(): array
-    {
-        return [
-            [
-                'key' => 'auth.verify_email',
-                'title' => 'Registrierung - E-Mail bestaetigen',
-                'subject' => 'Bitte bestaetige deine E-Mail-Adresse',
-                'description' => 'Wird direkt nach der Registrierung versendet. HTML-Layout inkl. Button (templates/emails/verify_email.html). Optional: MAILER_BRAND_LOGO_URL (HTTPS-Bild).',
-                'body_preview' =>
-                    "Hallo {{display_name}},\n\n" .
-                    "bitte bestaetige deine E-Mail-Adresse fuer eMatChef.\n\n" .
-                    "Bestaetigungslink:\n{{verify_url}}\n\n" .
-                    "Der Link ist gueltig bis: {{expires_at}}",
-            ],
-            [
-                'key' => 'auth.pending_email_change',
-                'title' => 'Profil - Neue E-Mail bestaetigen',
-                'subject' => 'Bitte bestaetige deine neue E-Mail-Adresse',
-                'description' => 'Wird bei der Aenderung der E-Mail-Adresse versendet. Gleiches HTML-Layout wie Registrierung (verify_email.html).',
-                'body_preview' =>
-                    "Hallo {{display_name}},\n\n" .
-                    "du hast eine Aenderung deiner E-Mail-Adresse fuer eMatChef angefragt.\n\n" .
-                    "Neue E-Mail bestaetigen:\n{{verify_url}}\n\n" .
-                    "Der Link ist gueltig bis: {{expires_at}}",
-            ],
-            [
-                'key' => 'auth.password_reset_code',
-                'title' => 'Login - Passwort zuruecksetzen',
-                'subject' => 'Passwort zuruecksetzen - eMatChef',
-                'description' => 'Wird bei "Passwort vergessen" versendet.',
-                'body_preview' =>
-                    "Hallo {{display_name}},\n\n" .
-                    "du hast ein neues Passwort fuer eMatChef angefordert.\n\n" .
-                    "Dein Sicherheitscode lautet: {{reset_code}}\n\n" .
-                    "Der Code ist gueltig bis: {{expires_at}}",
-            ],
-            [
-                'key' => 'department.invite',
-                'title' => 'Department - Einladung',
-                'subject' => 'Einladung zu eMatChef Department: {{department_name}}',
-                'description' => 'Wird im Onboarding/Department bei "Einladung senden" versendet.',
-                'body_preview' =>
-                    "Hallo {{recipient_name}},\n\n" .
-                    "{{inviter_name}} hat dich zu dem Department \"{{department_name}}\" eingeladen.\n" .
-                    "Vorgesehene Rolle: {{role_label}}\n\n" .
-                    "Einladungslink:\n{{invite_url}}",
-            ],
-            [
-                'key' => 'public.found_item_contact',
-                'title' => 'Öffentlich - Fund-Hinweis',
-                'subject' => '[eMatChef] Hinweis: Artikel gefunden – {{material_name}}',
-                'description' => 'Wird bei Kontakt über den öffentlichen QR-/Material-Link versendet (an die Abteilungs-Kontaktadresse).',
-                'body_preview' => "Artikel, Abteilung, Public-Link, Nachricht des Absenders (kein vollständiger Text in diesem Katalog).",
-            ],
-        ];
+        return '<img src="' . $safe . '" alt="' . $alt . '" width="140" style="max-width:180px;height:auto;display:block;margin:0 auto;border:0;" />';
     }
 }

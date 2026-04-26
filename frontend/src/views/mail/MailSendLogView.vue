@@ -1,27 +1,24 @@
 <template>
   <div class="mail-log">
-    <h2 class="section-title">Versandprotokoll</h2>
+    <h2 class="section-title">{{ t('mail.log.title') }}</h2>
     <p class="hint">
-      Kurzprotokoll ohne sensiblen Inhalt: Zeitpunkt, Art, Absender-Adresse, Empfänger, Betreff — keine Passwörter, kein
-      Link-Token, kein Mailtext. Maximal 500 Einträge in <code>var/app/mail_send_log.json</code>. Wer als
-      <strong>Benutzer</strong> eine Mail ausgelöst hat, wird hier nicht automatisch mitgeschrieben (dazu müsste jeder
-      Versandpfad die User-ID mitgeben).
+      {{ t('mail.log.hint') }}
     </p>
 
-    <div v-if="isLoading" class="state">Lade Log…</div>
+    <div v-if="isLoading" class="state">{{ t('mail.log.loading') }}</div>
     <div v-else-if="error" class="state error">{{ error }}</div>
 
-    <div v-else-if="entries.length === 0" class="state">Noch keine Einträge.</div>
+    <div v-else-if="entries.length === 0" class="state">{{ t('mail.log.empty') }}</div>
 
     <div v-else class="table-wrap">
       <table class="log-table">
         <thead>
           <tr>
-            <th>Zeit</th>
-            <th>Art</th>
-            <th>Von</th>
-            <th>An</th>
-            <th>Betreff</th>
+            <th>{{ t('mail.log.columns.time') }}</th>
+            <th>{{ t('mail.log.columns.kind') }}</th>
+            <th>{{ t('mail.log.columns.from') }}</th>
+            <th>{{ t('mail.log.columns.to') }}</th>
+            <th>{{ t('mail.log.columns.subject') }}</th>
           </tr>
         </thead>
         <tbody>
@@ -30,7 +27,7 @@
             <td class="cell-kind">
               <span class="kind-pill" :title="row.kind">{{ kindLabel(row.kind) }}</span>
             </td>
-            <td class="cell-from">{{ row.from || '—' }}</td>
+            <td class="cell-from">{{ row.from || t('mail.log.dash') }}</td>
             <td class="cell-to">{{ row.to }}</td>
             <td class="cell-subject">{{ row.subject }}</td>
           </tr>
@@ -43,9 +40,11 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { getMailSendLog, type MailSendLogEntry } from '@/api/mailAdmin'
 
 const route = useRoute()
+const { t } = useI18n()
 
 const departmentId = computed(() => {
   const raw = route.params.departmentId
@@ -53,21 +52,22 @@ const departmentId = computed(() => {
 })
 
 const KIND_LABELS: Record<string, string> = {
-  'auth.verify_email': 'Registrierung · E-Mail bestätigen',
-  'auth.pending_email_change': 'Profil · Neue E-Mail bestätigen',
-  'auth.password_reset_code': 'Passwort zurücksetzen',
-  'department.invite': 'Department-Einladung',
-  'public.found_item_contact': 'Öffentlich · Fund-Hinweis',
-  'mail.test': 'Testmail (Einstellungen)',
-  'mail.test.failed': 'Testmail fehlgeschlagen',
+  'auth.verify_email': 'mail.log.kinds.authVerifyEmail',
+  'auth.pending_email_change': 'mail.log.kinds.authPendingEmailChange',
+  'auth.password_reset_code': 'mail.log.kinds.authPasswordReset',
+  'department.invite': 'mail.log.kinds.departmentInvite',
+  'public.found_item_contact': 'mail.log.kinds.publicFoundItem',
+  'mail.test': 'mail.log.kinds.mailTest',
+  'mail.test.failed': 'mail.log.kinds.mailTestFailed',
 }
 
 function kindLabel(kind: string): string {
-  return KIND_LABELS[kind] || kind
+  const key = KIND_LABELS[kind]
+  return key ? t(key) : kind
 }
 
 function formatAt(iso: string): string {
-  if (!iso) return '—'
+  if (!iso) return t('mail.log.dash')
   const d = new Date(iso)
   if (Number.isNaN(d.getTime())) return iso
   return new Intl.DateTimeFormat('de-CH', {
@@ -86,7 +86,7 @@ async function load() {
   try {
     entries.value = await getMailSendLog(150, departmentId.value)
   } catch (err: any) {
-    error.value = err.response?.data?.error || 'Log konnte nicht geladen werden.'
+    error.value = err.response?.data?.error || t('mail.log.loadError')
     entries.value = []
   } finally {
     isLoading.value = false

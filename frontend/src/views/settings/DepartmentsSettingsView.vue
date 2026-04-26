@@ -2,14 +2,14 @@
   <div class="departments-settings">
     <div class="header-section">
       <div>
-        <h1>Departments</h1>
-        <p class="description">Verwalten Sie Departments und deren Zuordnungen</p>
+        <h1>{{ t('settings.departments.title') }}</h1>
+        <p class="description">{{ t('settings.departments.description') }}</p>
       </div>
       <button 
         v-if="canManageDepartments"
         @click="openAddModal" 
         class="add-button" 
-        title="Neues Department hinzufügen"
+        :title="t('settings.departments.addTitle')"
       >
         <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
           <path
@@ -19,26 +19,26 @@
             stroke-linecap="round"
           />
         </svg>
-        <span>Hinzufügen</span>
+        <span>{{ t('settings.departments.add') }}</span>
       </button>
     </div>
 
     <!-- Loading State -->
     <div v-if="isLoading" class="loading-state">
-      <p>Lade Departments...</p>
+      <p>{{ t('settings.departments.loading') }}</p>
     </div>
 
     <!-- Error State -->
     <div v-else-if="error" class="error-state">
       <p class="error-message">{{ error }}</p>
-      <button @click="loadDepartments" class="retry-button">Erneut versuchen</button>
+      <button @click="loadDepartments" class="retry-button">{{ t('common.retry') }}</button>
     </div>
 
     <!-- Tree List für Departments -->
     <div v-else-if="treeItems.length > 0" class="tree-container">
       <TreeList
         :items="treeItems"
-        header-label="Name"
+        :header-label="t('settings.departments.treeHeader')"
         :selected-items="selectedItems"
         :expanded-items="expandedItems"
         @update:selected-items="selectedItems = $event"
@@ -54,14 +54,14 @@
 
     <!-- Empty State -->
     <div v-else class="empty-state">
-      <p>Keine Departments gefunden.</p>
+      <p>{{ t('settings.departments.empty') }}</p>
     </div>
 
     <!-- Debug Info (temporär) -->
     <div v-if="isDev" class="debug-info">
-      <h3>Debug Info</h3>
-      <p>Ausgewählt: {{ selectedItems.length }} Items</p>
-      <p>Ausgewählte IDs: {{ selectedItems.join(', ') }}</p>
+      <h3>{{ t('settings.departments.debugTitle') }}</h3>
+      <p>{{ t('settings.departments.debugSelected', { n: selectedItems.length }) }}</p>
+      <p>{{ t('settings.departments.debugIds', { ids: selectedItems.join(', ') }) }}</p>
     </div>
 
     <!-- Department Modal -->
@@ -100,6 +100,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import TreeList, { type TreeItemData } from '@/components/TreeList.vue'
 import DepartmentModal from '@/components/DepartmentModal.vue'
 import OrganisationModal from '@/components/OrganisationModal.vue'
@@ -114,6 +115,7 @@ import {
 } from '@/utils/organisationUserPicker'
 
 const authStore = useAuthStore()
+const { t } = useI18n()
 const isDev = computed(() => import.meta.env.DEV)
 
 /**
@@ -264,7 +266,7 @@ async function loadDepartments() {
     expandedItems.value = []
     
   } catch (err: any) {
-    error.value = err.response?.data?.error || 'Fehler beim Laden der Daten'
+    error.value = err.response?.data?.error || t('settings.departments.loadError')
   } finally {
     isLoading.value = false
   }
@@ -295,7 +297,7 @@ async function loadDepartmentUsers(departmentId: string) {
     updateDepartmentWithUsers(departmentId)
     
   } catch (err: any) {
-    error.value = 'Fehler beim Laden der User'
+    error.value = t('settings.departments.loadUsersError')
   }
 }
 
@@ -467,7 +469,7 @@ async function handleAddDepartment(item: TreeItemData) {
       preselectedParentId.value = departmentId // Setze als Parent
       isModalOpen.value = true
     } catch (err: any) {
-      error.value = 'Fehler beim Laden des Departments'
+      error.value = t('settings.departments.loadDepartmentError')
     }
   }
 }
@@ -480,7 +482,7 @@ async function handleEditItem(item: TreeItemData) {
       editingOrganisation.value = org
       isOrganisationModalOpen.value = true
     } else {
-      error.value = 'Organisation nicht gefunden'
+      error.value = t('settings.departments.organisationNotFound')
     }
     return
   }
@@ -494,7 +496,7 @@ async function handleEditItem(item: TreeItemData) {
       editingDepartment.value = department
       isModalOpen.value = true
     } catch (err: any) {
-      error.value = 'Fehler beim Laden des Departments'
+      error.value = t('settings.departments.loadDepartmentError')
     }
   }
 }

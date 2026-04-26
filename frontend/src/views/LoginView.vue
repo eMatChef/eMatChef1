@@ -18,8 +18,7 @@
         </div>
 
         <div v-if="inviteFlowActive" class="invite-message">
-          {{ t('login.inviteDetected') }}
-          <span v-if="inviteJoinCode"> (Code: {{ inviteJoinCode }})</span>.
+          {{ t('login.inviteDetected') }}<span v-if="inviteJoinCode">{{ t('login.inviteCodeInParens', { code: inviteJoinCode }) }}</span>.
           {{ t('login.inviteHint') }}
         </div>
 
@@ -189,7 +188,7 @@
               v-model="firstName"
               type="text"
               class="form-input"
-              placeholder="Max"
+              :placeholder="t('login.exampleFirstName')"
               required
               :disabled="isLoading"
             />
@@ -202,7 +201,7 @@
               v-model="lastName"
               type="text"
               class="form-input"
-              placeholder="Muster"
+              :placeholder="t('login.exampleLastName')"
               required
               :disabled="isLoading"
             />
@@ -379,7 +378,6 @@ const router = useRouter()
 const route = useRoute()
 const authStore = useAuthStore()
 const { t } = useI18n()
-setLocale('de')
 
 const mode = ref<'login' | 'register' | 'forgot'>('login')
 const email = ref('')
@@ -414,8 +412,12 @@ const error = ref<string | null>(null)
 const successMessage = ref<string | null>(null)
 const INVITE_REDIRECT_STORAGE_KEY = 'pending_invite_redirect'
 const isLoading = computed(() => authStore.loadingUser || registerLoading.value || isRedirecting.value)
-const showResendVerification = computed(() =>
-  mode.value === 'login' && !!error.value && error.value.toLowerCase().includes('bestaetige')
+const RESEND_VERIFICATION_ERROR_MARKERS = ['bestaetig', 'confirm your email', 'verify your email', 'verif']
+const showResendVerification = computed(
+  () =>
+    mode.value === 'login' &&
+    !!error.value &&
+    RESEND_VERIFICATION_ERROR_MARKERS.some((m) => error.value!.toLowerCase().includes(m))
 )
 const inviteRedirect = computed(() => parseInternalRedirect(route.query.redirect))
 const inviteFlowActive = computed(() => !!extractJoinCodeFromPath(inviteRedirect.value || ''))

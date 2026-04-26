@@ -16,14 +16,14 @@
       <header class="page-header">
         <div class="header-content">
           <div>
-            <h1>Kontakte</h1>
-            <p class="description">Verwalten Sie Ihr Adress- und Kontaktbuch</p>
+            <h1>{{ t('contacts.title') }}</h1>
+            <p class="description">{{ t('contacts.description') }}</p>
           </div>
           <button @click="openCreateModal" class="btn-primary">
             <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
               <path d="M10 4V16M4 10H16" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
             </svg>
-            <span>Neuer Kontakt</span>
+            <span>{{ t('contacts.newContact') }}</span>
           </button>
         </div>
       </header>
@@ -37,7 +37,7 @@
           <input 
             v-model="searchQuery"
             type="text" 
-            placeholder="Kontakt suchen (Name, Firma, E-Mail, Ort)..." 
+            :placeholder="t('contacts.searchPlaceholder')"
             class="search-input"
           />
           <button v-if="searchQuery" @click="clearSearch" class="clear-btn">
@@ -49,14 +49,14 @@
         
         <div class="filter-group">
           <select v-model="selectedType" class="filter-select">
-            <option value="">Alle Typen</option>
-            <option v-for="(label, key) in ADDRESS_TYPES" :key="key" :value="key">
-              {{ label }}
+            <option value="">{{ t('contacts.allTypes') }}</option>
+            <option v-for="key in addressTypeKeys" :key="key" :value="key">
+              {{ t('settings.addressForm.types.' + key) }}
             </option>
           </select>
           
           <select v-model="selectedCanton" class="filter-select">
-            <option value="">Alle Kantone</option>
+            <option value="">{{ t('contacts.allCantons') }}</option>
             <option v-for="(name, code) in SWISS_CANTONS" :key="code" :value="code">
               {{ code }} - {{ name }}
             </option>
@@ -68,7 +68,7 @@
             :style="{ visibility: hasActiveFilters ? 'visible' : 'hidden' }"
             :aria-hidden="!hasActiveFilters"
           >
-            Filter zurücksetzen
+            {{ t('contacts.resetFilters') }}
           </button>
         </div>
       </div>
@@ -76,7 +76,7 @@
       <!-- Loading State -->
       <div v-if="isLoading" class="loading-state">
         <div class="spinner"></div>
-        <p>Kontakte werden geladen...</p>
+        <p>{{ t('contacts.loadingList') }}</p>
       </div>
 
       <!-- Error State -->
@@ -87,7 +87,7 @@
           <line x1="12" y1="16" x2="12.01" y2="16"/>
         </svg>
         <p class="error-message">{{ error }}</p>
-        <button @click="loadContacts" class="retry-btn">Erneut versuchen</button>
+        <button @click="loadContacts" class="retry-btn">{{ t('common.retry') }}</button>
       </div>
 
       <!-- Empty State -->
@@ -100,13 +100,13 @@
             <path d="M90 75V95M80 85H100" stroke="#10b981" stroke-width="3" stroke-linecap="round"/>
           </svg>
         </div>
-        <h2>Noch keine Kontakte</h2>
-        <p>Erfassen Sie Ihren ersten Kontakt, um Ihr Adressbuch zu starten.</p>
+        <h2>{{ t('contacts.emptyTitle') }}</h2>
+        <p>{{ t('contacts.emptyText') }}</p>
         <button @click="openCreateModal" class="btn-primary btn-large">
           <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
             <path d="M10 4V16M4 10H16" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
           </svg>
-          Ersten Kontakt erfassen
+          {{ t('contacts.emptyCta') }}
         </button>
       </div>
 
@@ -119,9 +119,9 @@
             <line x1="35" y1="45" x2="55" y2="45" stroke="#e5e7eb" stroke-width="3" stroke-linecap="round"/>
           </svg>
         </div>
-        <h2>Keine Treffer</h2>
-        <p>Keine Kontakte entsprechen Ihren Filterkriterien.</p>
-        <button @click="resetFilters" class="btn-secondary">Filter zurücksetzen</button>
+        <h2>{{ t('contacts.noResultsTitle') }}</h2>
+        <p>{{ t('contacts.noResultsText') }}</p>
+        <button @click="resetFilters" class="btn-secondary">{{ t('contacts.resetFilters') }}</button>
       </div>
 
       <!-- Contacts Table -->
@@ -129,10 +129,10 @@
         <table class="contacts-table">
           <thead>
             <tr>
-              <th class="col-name">Name</th>
-              <th class="col-contact">Kontakt</th>
-              <th class="col-address">Adresse</th>
-              <th class="col-type">Typ</th>
+              <th class="col-name">{{ t('contacts.colName') }}</th>
+              <th class="col-contact">{{ t('contacts.colContact') }}</th>
+              <th class="col-address">{{ t('contacts.colAddress') }}</th>
+              <th class="col-type">{{ t('contacts.colType') }}</th>
               <th class="col-actions"></th>
             </tr>
           </thead>
@@ -151,8 +151,8 @@
                   </div>
                   <div class="name-info">
                     <span class="contact-name">
-                      {{ contact.name || contact.company || 'Ohne Name' }}
-                      <span v-if="contact.is_primary" class="primary-badge">Primär</span>
+                      {{ contact.name || contact.company || t('contacts.unnamed') }}
+                      <span v-if="contact.is_primary" class="primary-badge">{{ t('contacts.primaryBadge') }}</span>
                     </span>
                     <span v-if="contact.company && contact.name" class="contact-company">{{ contact.company }}</span>
                   </div>
@@ -196,13 +196,13 @@
 
               <!-- Typ -->
               <td class="col-type">
-                <span class="type-badge" :class="contact.type">{{ contact.type_label }}</span>
+                <span class="type-badge" :class="contact.type">{{ addressTypeLabel(contact.type) }}</span>
               </td>
 
               <!-- Aktionen -->
               <td class="col-actions">
                 <div class="action-buttons">
-                  <button class="action-btn" @click.stop="openContactDetail(contact)" title="Details öffnen">
+                  <button class="action-btn" @click.stop="openContactDetail(contact)" :title="t('contacts.openDetailsTitle')">
                     <svg class="table-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                       <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
                       <circle cx="12" cy="12" r="3"/>
@@ -214,7 +214,7 @@
           </tbody>
         </table>
         
-        <p class="table-hint">Doppelklick auf eine Zeile öffnet die Detailansicht</p>
+        <p class="table-hint">{{ t('contacts.tableHint') }}</p>
       </div>
     </template>
 
@@ -233,6 +233,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { 
   getAddresses, 
   ADDRESS_TYPES, 
@@ -245,7 +246,15 @@ import '@/styles/contacts-view.css'
 
 const route = useRoute()
 const router = useRouter()
+const { t, te } = useI18n()
 const currentDepartmentId = computed(() => route.params.departmentId as string)
+
+const addressTypeKeys = Object.keys(ADDRESS_TYPES) as (keyof typeof ADDRESS_TYPES)[]
+
+function addressTypeLabel(type: string): string {
+  const path = `settings.addressForm.types.${type}` as const
+  return te(path) ? t(path) : type
+}
 
 // State
 const contacts = ref<Address[]>([])
@@ -311,7 +320,7 @@ async function loadContacts() {
     const data = await getAddresses(currentDepartmentId.value)
     contacts.value = data.addresses
   } catch (err: any) {
-    error.value = err.response?.data?.error || 'Fehler beim Laden der Kontakte'
+    error.value = err.response?.data?.error || t('contacts.loadError')
   } finally {
     isLoading.value = false
   }
