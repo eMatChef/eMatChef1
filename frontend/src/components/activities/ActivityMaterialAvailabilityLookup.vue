@@ -467,6 +467,10 @@ function addQty(m: ActivityPeriodAvailabilityMaterial, qty: number) {
   max-height: min(420px, 55vh);
 }
 
+.activity-material-lookup :deep(.activity-mat-lookup-input) {
+  padding-left: 35px;
+}
+
 .activity-mat-result-list {
   display: flex;
   flex-direction: column;

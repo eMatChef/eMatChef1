@@ -48,7 +48,17 @@ class VerificationEmailService
                 "Bestaetigungslink:\n{$verifyUrl}\n\n" .
                 "Der Link ist gueltig bis: {$expiresText}\n\n" .
                 "Falls du dich nicht registriert hast, kannst du diese Nachricht ignorieren."
-            );
+            )
+            ->html($this->renderHtmlTemplate('verify_email.html', [
+                'brand_header_html' => $this->buildBrandHeaderHtml(),
+                'headline' => 'E-Mail bestaetigen',
+                'display_name' => $profile->getDisplayName(),
+                'intro' => 'bitte bestaetige deine E-Mail-Adresse fuer eMatChef.',
+                'extra_block' => '',
+                'verify_url' => $verifyUrl,
+                'expires_at' => $expiresText,
+                'footer_note' => 'Falls du dich nicht registriert hast, kannst du diese Nachricht ignorieren.',
+            ], ['brand_header_html', 'extra_block']));
 
         $this->mailer->send($email);
         $this->mailSendLog->append(
@@ -69,6 +79,10 @@ class VerificationEmailService
         $verifyUrl = rtrim($this->frontendBaseUrl, '/') . '/verify?token=' . urlencode($token);
         $expiresText = $expiresAt->format('d.m.Y H:i');
 
+        $extraBlock =
+            '<p style="margin:0 0 16px 0;font-size:15px;line-height:1.5;color:#374151;">' .
+            'Bis zur Bestaetigung bleibt deine bisherige E-Mail-Adresse gueltig.</p>';
+
         $email = (new Email())
             ->from($this->mailOutboundSettings->getFromAddressObject())
             ->to($newEmail)
@@ -80,7 +94,17 @@ class VerificationEmailService
                 "Bis zur Bestaetigung bleibt deine bisherige E-Mail-Adresse gueltig.\n" .
                 "Der Link ist gueltig bis: {$expiresText}\n\n" .
                 "Falls du diese Aenderung nicht angefragt hast, ignoriere diese Nachricht."
-            );
+            )
+            ->html($this->renderHtmlTemplate('verify_email.html', [
+                'brand_header_html' => $this->buildBrandHeaderHtml(),
+                'headline' => 'Neue E-Mail bestaetigen',
+                'display_name' => $profile->getDisplayName(),
+                'intro' => 'du hast eine Aenderung deiner E-Mail-Adresse fuer eMatChef angefragt.',
+                'extra_block' => $extraBlock,
+                'verify_url' => $verifyUrl,
+                'expires_at' => $expiresText,
+                'footer_note' => 'Falls du diese Aenderung nicht angefragt hast, ignoriere diese Nachricht.',
+            ], ['brand_header_html', 'extra_block']));
 
         $this->mailer->send($email);
         $this->mailSendLog->append(
@@ -116,12 +140,13 @@ class VerificationEmailService
                 "Wenn du diese Einladung nicht erwartest, kannst du diese E-Mail ignorieren."
             )
             ->html($this->renderHtmlTemplate('department_invite.html', [
+                'brand_header_html' => $this->buildBrandHeaderHtml(),
                 'recipient_name' => $safeRecipient,
                 'inviter_name' => $inviterName,
                 'department_name' => $departmentName,
                 'role_label' => $roleLabel,
                 'invite_url' => $inviteUrl,
-            ]));
+            ], ['brand_header_html']));
 
         $this->mailer->send($email);
         $this->mailSendLog->append(
@@ -154,10 +179,11 @@ class VerificationEmailService
                 "Falls du diese Anfrage nicht gestellt hast, ignoriere diese E-Mail."
             )
             ->html($this->renderHtmlTemplate('password_reset_code.html', [
+                'brand_header_html' => $this->buildBrandHeaderHtml(),
                 'display_name' => $profile->getDisplayName(),
                 'reset_code' => strtoupper($code),
                 'expires_at' => $expiresText,
-            ]));
+            ], ['brand_header_html']));
 
         $this->mailer->send($email);
         $this->mailSendLog->append(
@@ -168,7 +194,10 @@ class VerificationEmailService
         );
     }
 
-    private function renderHtmlTemplate(string $templateFile, array $variables): string
+    /**
+     * @param list<string> $unescapedKeys Platzhalter, die bereits sicheres HTML enthalten (z. B. Logo-Block)
+     */
+    private function renderHtmlTemplate(string $templateFile, array $variables, array $unescapedKeys = []): string
     {
         $fullPath = $this->projectDir . '/templates/emails/' . $templateFile;
         if (!is_file($fullPath) || !is_readable($fullPath)) {
@@ -180,12 +209,34 @@ class VerificationEmailService
             throw new \RuntimeException(sprintf('Mail-Template konnte nicht geladen werden: %s', $templateFile));
         }
 
+        $raw = array_flip($unescapedKeys);
         $replace = [];
         foreach ($variables as $key => $value) {
-            $replace['{{' . $key . '}}'] = htmlspecialchars((string) $value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+            $replace['{{' . $key . '}}'] = isset($raw[$key])
+                ? (string) $value
+                : htmlspecialchars((string) $value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
         }
 
         return strtr($template, $replace);
+    }
+
+    /**
+     * Optionales Marken-Logo: absolute HTTPS-URL in Umgebungsvariable MAILER_BRAND_LOGO_URL
+     * (z. B. https://ematchef.ch/favicon.svg auf Hostpoint).
+     */
+    private function buildBrandHeaderHtml(): string
+    {
+        $raw = getenv('MAILER_BRAND_LOGO_URL');
+        $url = is_string($raw) ? trim($raw) : '';
+        if ($url === '' || !filter_var($url, FILTER_VALIDATE_URL)) {
+            return '';
+        }
+        if (!str_starts_with(strtolower($url), 'https://')) {
+            return '';
+        }
+        $safe = htmlspecialchars($url, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+
+        return '<img src="' . $safe . '" alt="eMatChef" width="140" style="max-width:180px;height:auto;display:block;margin:0 auto;border:0;" />';
     }
 
     public function getMailTemplateCatalog(): array
@@ -195,7 +246,7 @@ class VerificationEmailService
                 'key' => 'auth.verify_email',
                 'title' => 'Registrierung - E-Mail bestaetigen',
                 'subject' => 'Bitte bestaetige deine E-Mail-Adresse',
-                'description' => 'Wird direkt nach der Registrierung versendet.',
+                'description' => 'Wird direkt nach der Registrierung versendet. HTML-Layout inkl. Button (templates/emails/verify_email.html). Optional: MAILER_BRAND_LOGO_URL (HTTPS-Bild).',
                 'body_preview' =>
                     "Hallo {{display_name}},\n\n" .
                     "bitte bestaetige deine E-Mail-Adresse fuer eMatChef.\n\n" .
@@ -206,7 +257,7 @@ class VerificationEmailService
                 'key' => 'auth.pending_email_change',
                 'title' => 'Profil - Neue E-Mail bestaetigen',
                 'subject' => 'Bitte bestaetige deine neue E-Mail-Adresse',
-                'description' => 'Wird bei der Aenderung der E-Mail-Adresse versendet.',
+                'description' => 'Wird bei der Aenderung der E-Mail-Adresse versendet. Gleiches HTML-Layout wie Registrierung (verify_email.html).',
                 'body_preview' =>
                     "Hallo {{display_name}},\n\n" .
                     "du hast eine Aenderung deiner E-Mail-Adresse fuer eMatChef angefragt.\n\n" .

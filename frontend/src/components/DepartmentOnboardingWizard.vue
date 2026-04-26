@@ -652,7 +652,10 @@ async function loadInviteStepData() {
     inviteRole.value = 'u'
     inviteData.value = invite
     pendingInvites.value = pending
-    inviteQrDataUrl.value = await QRCode.toDataURL(invite.qr_payload, {
+    const qrPayload =
+      (invite.register_qr_payload || invite.register_invite_url || invite.qr_payload || '').trim() ||
+      invite.invite_url
+    inviteQrDataUrl.value = await QRCode.toDataURL(qrPayload, {
       width: 140,
       margin: 1,
     })

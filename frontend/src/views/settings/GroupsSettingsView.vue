@@ -180,7 +180,7 @@
                 v-model="groupForm.name" 
                 type="text" 
                 class="form-input"
-                placeholder="z.B. Pfadi Tortuga, Trupp Adler..."
+                placeholder="z.B. Stufe Tortuga, Trupp Adler..."
                 ref="groupNameInput"
               />
             </div>
