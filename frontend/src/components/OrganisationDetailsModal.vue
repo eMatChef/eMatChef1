@@ -2,7 +2,7 @@
   <div v-if="isOpen" class="modal-overlay">
     <div class="modal-dialog organisation-details-dialog">
       <div class="modal-header">
-        <h2>Details: {{ organisation?.name }}</h2>
+        <h2>{{ t('components.organisationDetailsModal.title', { name: organisation?.name ?? '' }) }}</h2>
         <button @click="close" class="modal-close">
           <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
             <path d="M15 5L5 15M5 5L15 15" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
@@ -13,33 +13,33 @@
       <div class="modal-body">
         <div v-if="isLoading" class="loading-state">
           <div class="spinner"></div>
-          <p>Lade Organisations-Details...</p>
+          <p>{{ t('components.organisationDetailsModal.loading') }}</p>
         </div>
         
         <div v-else-if="error" class="error-state">
           <p class="error-message">{{ error }}</p>
-          <button @click="loadOrganisationData" class="btn-secondary btn-sm">Erneut versuchen</button>
+          <button @click="loadOrganisationData" class="btn-secondary btn-sm">{{ t('common.retry') }}</button>
         </div>
         
         <div v-else class="details-content">
           <!-- Organisation Info -->
           <div class="info-section">
-            <h3>Organisations-Informationen</h3>
+            <h3>{{ t('components.organisationDetailsModal.sectionOrgInfo') }}</h3>
             <div class="info-grid">
               <div class="info-item">
-                <span class="info-label">ID:</span>
+                <span class="info-label">{{ t('components.organisationDetailsModal.labelId') }}</span>
                 <span class="info-value">{{ organisation?.id }}</span>
               </div>
               <div class="info-item">
-                <span class="info-label">Name:</span>
+                <span class="info-label">{{ t('components.organisationDetailsModal.labelName') }}</span>
                 <span class="info-value">{{ organisation?.name }}</span>
               </div>
               <div class="info-item">
-                <span class="info-label">Haupt-Departments:</span>
+                <span class="info-label">{{ t('components.organisationDetailsModal.labelMainDepartments') }}</span>
                 <span class="info-value">{{ departments.length }}</span>
               </div>
               <div class="info-item">
-                <span class="info-label">Gesamt User:</span>
+                <span class="info-label">{{ t('components.organisationDetailsModal.labelTotalUsers') }}</span>
                 <span class="info-value">{{ totalUsers }}</span>
               </div>
             </div>
@@ -47,7 +47,7 @@
           
           <!-- Departments -->
           <div class="departments-section">
-            <h3>Haupt-Departments ({{ departments.length }})</h3>
+            <h3>{{ t('components.organisationDetailsModal.mainDepartmentsHeading', { count: departments.length }) }}</h3>
             <div v-if="departments.length > 0" class="departments-list">
               <div v-for="dept in departments" :key="dept.id" class="department-item">
                 <div class="department-header">
@@ -58,7 +58,9 @@
                     />
                   </svg>
                   <span class="department-name">{{ dept.name }}</span>
-                  <span class="user-count">{{ dept.users?.length || 0 }} User</span>
+                  <span class="user-count">{{
+                    t('components.organisationDetailsModal.userCountInDept', { count: dept.users?.length || 0 })
+                  }}</span>
                 </div>
                 
                 <!-- User dieses Departments -->
@@ -74,10 +76,10 @@
                     <span class="user-role">{{ formatRole(user.role) }}</span>
                   </div>
                 </div>
-                <p v-else class="empty-users">Keine User in diesem Department.</p>
+                <p v-else class="empty-users">{{ t('components.organisationDetailsModal.noUsersInDepartment') }}</p>
               </div>
             </div>
-            <p v-else class="empty-departments">Keine Haupt-Departments vorhanden.</p>
+            <p v-else class="empty-departments">{{ t('components.organisationDetailsModal.emptyNoMainDepartments') }}</p>
           </div>
         </div>
       </div>
@@ -87,6 +89,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { getDepartments, getDepartment, type Department, type DepartmentUser } from '@/api/departments'
 import type { Organisation } from '@/api/organisations'
 
@@ -96,6 +99,8 @@ interface Props {
 }
 
 const props = defineProps<Props>()
+
+const { t } = useI18n()
 
 const emit = defineEmits<{
   'close': []
@@ -167,7 +172,7 @@ async function loadOrganisationData() {
     })
 
   } catch (err: any) {
-    error.value = err.response?.data?.error || 'Fehler beim Laden der Daten'
+    error.value = err.response?.data?.error || t('components.organisationDetailsModal.loadErrorFallback')
   } finally {
     isLoading.value = false
   }

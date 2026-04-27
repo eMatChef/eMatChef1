@@ -6,7 +6,7 @@
         label=""
         :label-from="usageTimeFromLabel"
         :label-to="usageTimeToLabel"
-        aria-label="Aktivität: Datum, Start- und Endzeit"
+        :aria-label="t('activities.zeitraum.ariaUsageActivityDay')"
       >
         <template #date>
           <ActivityDateField
@@ -26,10 +26,10 @@
     </template>
     <template v-else>
       <ActivityPillDateTimeRow
-        :label="usageRangeRowLabel"
+        :label="usageRangeRowLabelDisplay"
         :label-from="usageTimeFromLabel"
         :label-to="usageTimeToLabel"
-        aria-label="Nutzung: Datumsbereich, Start- und Endzeit"
+        :aria-label="t('activities.zeitraum.ariaUsageRange')"
       >
         <template #date>
           <ActivityDateRangeField
@@ -56,7 +56,7 @@
       label=""
       :label-from="materialTimeFromLabel"
       :label-to="materialTimeToLabel"
-      aria-label="Material: Abhol- und Rückgabedatum sowie Zeiten"
+      :aria-label="t('activities.zeitraum.ariaMaterialRange')"
     >
       <template #date>
         <ActivityDateRangeField
@@ -88,6 +88,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import type { ActivityApiType } from '@/api/activities'
 import ActivityDateField from '@/components/activities/wizard/ActivityDateField.vue'
 import ActivityDateRangeField from '@/components/activities/wizard/ActivityDateRangeField.vue'
@@ -122,9 +123,10 @@ const props = withDefaults(
     materialTimesBlockedUsage: null,
     usageBlockId: 'activity-usage-block',
     planningBlockId: 'activity-planning-block',
-    usageRangeRowLabel: 'Nutzungszeitraum & Zeiten',
   },
 )
+
+const { t } = useI18n()
 
 const usageDay = defineModel<Date | null>('usageDay', { required: true })
 const usageRange = defineModel<[Date, Date] | null>('usageRange', { required: true })
@@ -136,16 +138,23 @@ const matEndTime = defineModel<Date | null>('matEndTime', { required: true })
 
 const isActivityType = computed(() => props.activityType === 'activity')
 
+const usageRangeRowLabelDisplay = computed(() => {
+  const v = props.usageRangeRowLabel
+  if (v === '') return ''
+  if (v != null && v !== '') return v
+  return t('activities.zeitraum.usageRangeDefault')
+})
+
 const usageSectionTitle = computed(() => {
   switch (props.activityType) {
     case 'camp':
-      return 'Lager findet statt'
+      return t('activities.zeitraum.usageCamp')
     case 'event':
-      return 'Event findet statt'
+      return t('activities.zeitraum.usageEvent')
     case 'external':
-      return 'Zeitraum'
+      return t('activities.zeitraum.usageExternal')
     default:
-      return 'Datum und Zeit der Aktivität'
+      return t('activities.zeitraum.usageActivity')
   }
 })
 
@@ -153,16 +162,24 @@ const materialSectionTitle = computed(() => {
   switch (props.activityType) {
     case 'camp':
     case 'event':
-      return 'Material abholen & zurückbringen'
+      return t('activities.zeitraum.materialCampEvent')
     case 'external':
-      return 'Material – Abholung & Rückgabe'
+      return t('activities.zeitraum.materialExternal')
     default:
-      return 'Datum und Zeit der Abholung / Rückgabe'
+      return t('activities.zeitraum.materialActivity')
   }
 })
 
-const usageTimeFromLabel = computed(() => (props.activityType === 'camp' ? 'Start' : 'Von'))
-const usageTimeToLabel = computed(() => (props.activityType === 'camp' ? 'Ende' : 'Bis'))
-const materialTimeFromLabel = computed(() => (props.activityType === 'camp' ? 'Material abholen' : 'Abholung'))
-const materialTimeToLabel = computed(() => (props.activityType === 'camp' ? 'Material zurückbringen' : 'Rückgabe'))
+const usageTimeFromLabel = computed(() =>
+  props.activityType === 'camp' ? t('activities.zeitraum.timeStart') : t('activities.zeitraum.timeFrom'),
+)
+const usageTimeToLabel = computed(() =>
+  props.activityType === 'camp' ? t('activities.zeitraum.timeEnd') : t('activities.zeitraum.timeTo'),
+)
+const materialTimeFromLabel = computed(() =>
+  props.activityType === 'camp' ? t('activities.zeitraum.materialPickup') : t('activities.zeitraum.pickup'),
+)
+const materialTimeToLabel = computed(() =>
+  props.activityType === 'camp' ? t('activities.zeitraum.materialReturnCamp') : t('activities.zeitraum.return'),
+)
 </script>

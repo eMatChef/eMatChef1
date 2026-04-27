@@ -331,6 +331,7 @@
 
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import AddressModal from '@/components/AddressModal.vue'
@@ -372,6 +373,7 @@ const emit = defineEmits<{
   complete: []
 }>()
 
+const { t } = useI18n()
 const router = useRouter()
 const authStore = useAuthStore()
 const toast = useToast()
@@ -394,12 +396,9 @@ const departmentNameForAddressPrefill = computed(() => {
   return ''
 })
 
-/** Vorschlag für Bezeichnung bei Lagerplatz-Adresse (Onboarding Schritt „Standorte der Lager“) */
-const STORAGE_ADDRESS_DEFAULT_NAME = 'Hauptlagerplatz'
-
 const addressModalDepartmentPrefill = computed(() => {
   if (addressModalType.value === 'general') return departmentNameForAddressPrefill.value
-  if (addressModalType.value === 'storage') return STORAGE_ADDRESS_DEFAULT_NAME
+  if (addressModalType.value === 'storage') return t('components.departmentOnboarding.storageDefaultName')
   return ''
 })
 const isSavingSettings = ref(false)
@@ -548,7 +547,7 @@ async function refreshAddressStatus() {
     onboardingState.value.completed.departmentAddress = addresses.some((a) => a.type === 'general' || a.type === 'billing')
     onboardingState.value.completed.storageAddress = addresses.some((a) => a.type === 'storage')
   } catch (err: any) {
-    globalError.value = err.response?.data?.error || 'Adressen konnten nicht geladen werden.'
+    globalError.value = err.response?.data?.error || t('components.departmentOnboarding.errLoadAddresses')
   }
 }
 
@@ -577,7 +576,7 @@ async function refreshSettingsStatus() {
     applySettingsFromRaw(raw)
     onboardingState.value.completed.settingsInitialized = isSettingsInitialized(raw)
   } catch (err: any) {
-    globalError.value = err.response?.data?.error || 'Settings konnten nicht geladen werden.'
+    globalError.value = err.response?.data?.error || t('components.departmentOnboarding.errLoadSettings')
   }
 }
 
@@ -598,11 +597,11 @@ async function saveSettings() {
       'onboarding.phase1_settings_done': '1',
     })
     onboardingState.value.completed.settingsInitialized = true
-    toast.success('Department-Settings gespeichert.')
+    toast.success(t('components.departmentOnboarding.toastSettingsSaved'))
     persistState()
     goNext()
   } catch (err: any) {
-    const msg = err.response?.data?.error || 'Settings konnten nicht gespeichert werden.'
+    const msg = err.response?.data?.error || t('components.departmentOnboarding.errSaveSettings')
     globalError.value = msg
     toast.error(msg)
   } finally {
@@ -660,7 +659,7 @@ async function loadInviteStepData() {
       margin: 1,
     })
   } catch (err: any) {
-    inviteStepError.value = err.response?.data?.error || 'Nutzerdaten konnten nicht geladen werden.'
+    inviteStepError.value = err.response?.data?.error || t('components.departmentOnboarding.errLoadInvite')
   } finally {
     isLoadingInviteStep.value = false
   }
@@ -685,7 +684,7 @@ async function loadGroupCount() {
     persistState()
   } catch (err: any) {
     groupCount.value = 0
-    groupCountError.value = err.response?.data?.error || 'Gruppen konnten nicht geladen werden.'
+    groupCountError.value = err.response?.data?.error || t('components.departmentOnboarding.errLoadGroups')
   } finally {
     isLoadingGroupCount.value = false
   }

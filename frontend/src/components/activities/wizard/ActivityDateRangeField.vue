@@ -3,7 +3,7 @@
     :model-value="modelValue"
     :disabled="disabled"
     class="activity-date-range-field"
-    locale="de"
+    :locale="datepickerLocale"
     range
     :multi-calendars="2"
     :enable-time-picker="false"
@@ -17,13 +17,14 @@
     :clearable="false"
     :teleport="teleportTo"
     :time-config="{ enableTimePicker: false }"
-    placeholder="Zeitraum wählen …"
+    :placeholder="t('activities.dateRangePicker.placeholder')"
     @update:model-value="$emit('update:modelValue', $event)"
   />
 </template>
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import VueDatePicker from '@vuepic/vue-datepicker'
 import type { DatePickerMarker } from '@vuepic/vue-datepicker'
 import '@vuepic/vue-datepicker/dist/main.css'
@@ -54,6 +55,12 @@ const props = withDefaults(
   }>(),
   { showPresetSidebar: true, departmentId: null, disabled: false, teleportTo: '.material-wizard-modal' },
 )
+
+const { t, locale } = useI18n()
+
+const datepickerLocale = computed(() => (String(locale.value ?? '').startsWith('de') ? 'de' : 'en'))
+
+const previewLocaleTag = computed(() => (String(locale.value ?? '').startsWith('de') ? 'de-CH' : 'en-CH'))
 
 defineEmits<{
   'update:modelValue': [value: [Date, Date] | null]
@@ -86,7 +93,7 @@ const holidayMarkers = computed<DatePickerMarker[]>(() => {
     date: m.date,
     type: 'dot',
     color: '#2563eb',
-    tooltip: [{ text: `${m.label} (Schulferien)` }],
+    tooltip: [{ text: t('activities.dateRangePicker.schoolHolidayTooltip', { label: m.label }) }],
   }))
   return [...base, ...school]
 })
@@ -96,11 +103,11 @@ const presetDates = computed(() => {
   const today = startOfToday()
   const sat = startOfLocalDay(nextSaturdayFromToday())
   return [
-    { label: 'Heute', value: [today, today] as [Date, Date] },
-    { label: 'Nächster Samstag', value: [sat, sat] as [Date, Date] },
-    { label: 'Ostern (Karfreitag–Ostermontag)', value: nextFutureHolidayRange(osternLongWeekendRange) },
-    { label: 'Auffahrt (Do–So)', value: nextFutureHolidayRange(auffahrtRange) },
-    { label: 'Pfingsten (So–Mo)', value: nextFutureHolidayRange(pfingstenRange) },
+    { label: t('activities.datePresets.today'), value: [today, today] as [Date, Date] },
+    { label: t('activities.datePresets.nextSaturday'), value: [sat, sat] as [Date, Date] },
+    { label: t('activities.dateRangePicker.presetEaster'), value: nextFutureHolidayRange(osternLongWeekendRange) },
+    { label: t('activities.dateRangePicker.presetAscension'), value: nextFutureHolidayRange(auffahrtRange) },
+    { label: t('activities.dateRangePicker.presetPentecost'), value: nextFutureHolidayRange(pfingstenRange) },
   ]
 })
 
@@ -111,7 +118,8 @@ function previewRangeFormat(dates: Date[]): string {
     month: '2-digit',
     year: 'numeric',
   }
-  return `${dates[0].toLocaleDateString('de-CH', o)} – ${dates[1].toLocaleDateString('de-CH', o)}`
+  const loc = previewLocaleTag.value
+  return `${dates[0].toLocaleDateString(loc, o)} – ${dates[1].toLocaleDateString(loc, o)}`
 }
 </script>
 

@@ -6,26 +6,26 @@
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M19 12H5M12 19l-7-7 7-7" />
           </svg>
-          Zurück zur Liste
+          {{ t('activities.detail.backToList') }}
         </button>
         <div class="header-title activity-detail-header-title">
           <span v-if="noLabel" class="material-code">{{ noLabel }}</span>
-          <span v-if="activity" class="type-badge" :class="activity.type">{{ getTypeLabel(activity.type) }}</span>
-          <h1>{{ activity?.name ?? 'Aktivität' }}</h1>
-          <span v-if="activity" class="status-label" :class="activity.status">{{ getStatusLabel(activity.status) }}</span>
+          <span v-if="activity" class="type-badge" :class="activity.type">{{ activityTypeLabelDetail(activity.type) }}</span>
+          <h1>{{ activity?.name ?? t('activities.detail.fallbackTitle') }}</h1>
+          <span v-if="activity" class="status-label" :class="activity.status">{{ activityStatusLabelDetail(activity.status) }}</span>
         </div>
       </div>
       <div v-if="activity && !loadError" class="header-actions activity-detail-workflow-actions">
         <button
-          v-for="t in workflowTransitions"
-          :key="t.status"
+          v-for="tr in workflowTransitions"
+          :key="tr.status"
           type="button"
           class="btn-outline btn-sm"
-          :disabled="isTransitioning || !t.allowed"
-          :title="!t.allowed && t.reason ? t.reason : undefined"
-          @click="onTransition(t)"
+          :disabled="isTransitioning || !tr.allowed"
+          :title="!tr.allowed && tr.reason ? tr.reason : undefined"
+          @click="onTransition(tr)"
         >
-          {{ t.label }}
+          {{ tr.label }}
         </button>
         <button
           v-if="cancelTransition"
@@ -42,21 +42,21 @@
           class="btn-outline btn-sm"
           @click="openDamageReport()"
         >
-          Schaden melden
+          {{ t('activities.detail.reportDamage') }}
         </button>
-        <button type="button" class="btn-outline" @click="handleClose">Schliessen</button>
+        <button type="button" class="btn-outline" @click="handleClose">{{ t('activities.detail.close') }}</button>
       </div>
     </header>
 
     <div v-if="isLoading" class="loading-container">
       <div class="spinner"></div>
-      <p>Aktivität wird geladen...</p>
+      <p>{{ t('activities.detail.loading') }}</p>
     </div>
 
     <div v-else-if="loadError" class="loading-container activity-detail-error">
       <p>{{ loadError }}</p>
-      <button type="button" class="btn-primary" @click="reload">Erneut versuchen</button>
-      <button type="button" class="btn-outline" @click="handleClose">Zurück</button>
+      <button type="button" class="btn-primary" @click="reload">{{ t('common.retry') }}</button>
+      <button type="button" class="btn-outline" @click="handleClose">{{ t('activities.detail.loadErrorBack') }}</button>
     </div>
 
     <div v-else-if="activity" class="detail-content">
@@ -67,14 +67,14 @@
           <line x1="12" y1="16" x2="12.01" y2="16" />
         </svg>
         <span>
-          <strong>Entwurf:</strong>
+          <strong>{{ t('activities.detail.draftLabel') }}</strong>
           <template v-if="activity.type === 'event' && !activity.group_id">
-            Ohne gewählte Gruppe dürfen alle Department-Mitglieder Material ergänzen.
+            {{ t('activities.detail.draftBannerEventNoGroup') }}
           </template>
           <template v-else>
-            Material dürfen alle Gruppenmitglieder sowie DC und MW ergänzen.
+            {{ t('activities.detail.draftBannerWithGroup') }}
           </template>
-          <strong>Einreichen</strong> an den Materialwart nur durch Gruppenleiter, DC oder MW.
+          {{ t('activities.detail.draftBannerSubmit') }}
         </span>
       </div>
 
@@ -104,21 +104,21 @@
             />
             <template v-else-if="activity">
               <div class="section-card">
-                <h2 class="section-title">Zeitraum</h2>
+                <h2 class="section-title">{{ t('activities.detail.sectionPeriod') }}</h2>
                 <div class="form-grid">
                   <div class="form-group span-2">
-                    <label>Nutzung</label>
+                    <label>{{ t('activities.detail.labelUsage') }}</label>
                     <p class="activity-readonly-value">
                       <template v-if="activity.usage_start">
                         {{ formatDateTime(activity.usage_start) }}
                         –
                         {{ formatDateTime(activity.usage_end || '') }}
                       </template>
-                      <span v-else class="text-muted">Nicht festgelegt</span>
+                      <span v-else class="text-muted">{{ t('activities.detail.usageNotSet') }}</span>
                     </p>
                   </div>
                   <div v-if="activity.planning_start" class="form-group span-2">
-                    <label>Material Abholung / Rückgabe</label>
+                    <label>{{ t('activities.detail.labelMaterialPickupReturn') }}</label>
                     <p class="activity-readonly-value">
                       {{ formatDateTime(activity.planning_start) }} – {{ formatDateTime(activity.planning_end || '') }}
                     </p>
@@ -127,18 +127,18 @@
               </div>
 
               <div class="section-card">
-                <h2 class="section-title">Organisation</h2>
+                <h2 class="section-title">{{ t('activities.detail.sectionOrg') }}</h2>
                 <div class="form-grid">
                   <div class="form-group">
-                    <label>Department</label>
-                    <p class="activity-readonly-value">{{ activity.department_name ?? '–' }}</p>
+                    <label>{{ t('activities.detail.labelDepartment') }}</label>
+                    <p class="activity-readonly-value">{{ activity.department_name ?? t('activities.wizard.form.summaryEmpty') }}</p>
                   </div>
                   <div class="form-group">
-                    <label>Gruppe</label>
-                    <p class="activity-readonly-value">{{ activity.group_name || '–' }}</p>
+                    <label>{{ t('activities.detail.labelGroup') }}</label>
+                    <p class="activity-readonly-value">{{ activity.group_name || t('activities.wizard.form.summaryEmpty') }}</p>
                   </div>
                   <div v-if="activity.total_price != null" class="form-group">
-                    <label>Gesamtpreis</label>
+                    <label>{{ t('activities.detail.labelTotalPrice') }}</label>
                     <p class="activity-readonly-value">CHF {{ Number(activity.total_price).toFixed(2) }}</p>
                   </div>
                 </div>
@@ -148,7 +148,7 @@
                 v-if="activity.invited_departments && activity.invited_departments.length > 0"
                 class="section-card"
               >
-                <h2 class="section-title">Eingeladene Departments</h2>
+                <h2 class="section-title">{{ t('activities.detail.sectionInvitedDepartments') }}</h2>
                 <ul class="activity-invite-list">
                   <li v-for="(inv, idx) in activity.invited_departments" :key="inv.id || idx" class="activity-invite-row">
                     <span class="activity-invite-name">{{ inv.name || inv.id }}</span>
@@ -160,7 +160,7 @@
               </div>
 
               <div v-if="activity.notes" class="section-card">
-                <h2 class="section-title">Notizen</h2>
+                <h2 class="section-title">{{ t('activities.detail.sectionNotes') }}</h2>
                 <p class="activity-notes">{{ activity.notes }}</p>
               </div>
             </template>
@@ -169,7 +169,7 @@
           <!-- Material -->
           <section v-else-if="activeTab === 'material'" class="tab-content">
             <div v-if="showMaterialLookup" class="section-card">
-              <h2 class="section-title">Material hinzufügen</h2>
+              <h2 class="section-title">{{ t('activities.detail.materialAddTitle') }}</h2>
               <ActivityMaterialAvailabilityLookup
                 :department-id="departmentId"
                 :activity-id="activityId"
@@ -186,7 +186,7 @@
               />
               <p v-if="addingDraftMaterial" class="activity-inline-loading activity-draft-adding">
                 <span class="spinner spinner-sm"></span>
-                <span>Wird hinzugefügt…</span>
+                <span>{{ t('activities.detail.addingMaterial') }}</span>
               </p>
             </div>
             <div
@@ -194,18 +194,17 @@
               class="section-card activity-draft-mat-denied"
             >
               <p class="text-muted">
-                Du kannst in diesem Entwurf keine Materialpositionen ändern. Dazu musst du zur Gruppe der
-                Aktivität gehören oder als DC/MW im Department berechtigt sein.
+                {{ t('activities.detail.draftMaterialDenied') }}
               </p>
             </div>
 
             <div class="section-card">
-              <h2 class="section-title">Materialpositionen</h2>
+              <h2 class="section-title">{{ t('activities.detail.materialPositionsTitle') }}</h2>
               <div v-if="itemsLoading" class="activity-inline-loading">
                 <div class="spinner spinner-sm"></div>
-                <span>Material wird geladen…</span>
+                <span>{{ t('activities.detail.itemsLoading') }}</span>
               </div>
-              <div v-else-if="activityItems.length === 0" class="text-muted">Keine Positionen erfasst.</div>
+              <div v-else-if="activityItems.length === 0" class="text-muted">{{ t('activities.detail.noPositions') }}</div>
               <div v-else-if="showMaterialLookup" class="activity-items-table-wrap">
                 <ActivityMaterialLinesTable
                   :model-value="materialLinesForEditableTable"
@@ -221,7 +220,7 @@
                   :show-line-total="hasLineTotals"
                   :disabled="syncingQuantities || addingDraftMaterial"
                   :removing-item-id="removingItemId"
-                  empty-text="Keine Positionen erfasst."
+                  :empty-text="t('activities.detail.noPositions')"
                   @update:model-value="onDraftLinesTableUpdate"
                   @remove-line="onDraftTableRemoveLine"
                 />
@@ -232,7 +231,7 @@
                     :disabled="syncingQuantities"
                     @click="saveDraftQuantities"
                   >
-                    {{ syncingQuantities ? 'Speichern…' : 'Mengen speichern' }}
+                    {{ syncingQuantities ? t('activities.detail.saveQtySaving') : t('activities.detail.saveQty') }}
                   </button>
                 </div>
               </div>
@@ -240,10 +239,10 @@
                 <table class="activity-items-table">
                   <thead>
                     <tr>
-                      <th>Material</th>
-                      <th>Menge</th>
-                      <th>Quelle</th>
-                      <th v-if="hasLineTotals">Zeile</th>
+                      <th>{{ t('activities.detail.tableMaterial') }}</th>
+                      <th>{{ t('activities.detail.tableQty') }}</th>
+                      <th>{{ t('activities.detail.tableSource') }}</th>
+                      <th v-if="hasLineTotals">{{ t('activities.detail.tableLine') }}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -251,28 +250,31 @@
                       <td>
                         <div class="activity-item-name-block">
                           <span class="activity-item-name">{{ row.material_name }}</span>
-                          <span v-if="row.material_type === 'physical_combo'" class="activity-combo-badge" title="Physische Kombination"
-                            >Phys. Kombi</span
+                          <span
+                            v-if="row.material_type === 'physical_combo'"
+                            class="activity-combo-badge"
+                            :title="t('activities.detail.comboPhysicalTitle')"
+                            >{{ t('activities.detail.comboPhysicalShort') }}</span
                           >
                           <span
                             v-else-if="row.material_type === 'virtual_combo'"
                             class="activity-combo-badge activity-combo-badge--virtual"
-                            title="Virtuelle Kombination"
-                            >Virt. Kombi</span
+                            :title="t('activities.detail.comboVirtualTitle')"
+                            >{{ t('activities.detail.comboVirtualShort') }}</span
                           >
                           <span v-if="row.is_js_material" class="activity-js-tag">J&amp;S</span>
                           <div v-if="row.linked_container_label" class="activity-combo-kiste text-muted">
-                            Kiste: {{ row.linked_container_label }}
+                            {{ t('activities.detail.crateLine', { label: row.linked_container_label }) }}
                           </div>
                         </div>
                       </td>
                       <td>{{ row.quantity }}</td>
                       <td>
-                        <span class="text-muted">{{ row.source_department_name || '–' }}</span>
+                        <span class="text-muted">{{ row.source_department_name || t('activities.wizard.form.summaryEmpty') }}</span>
                       </td>
                       <td v-if="hasLineTotals">
                         <span v-if="row.line_total != null">CHF {{ formatMoney(row.line_total) }}</span>
-                        <span v-else>–</span>
+                        <span v-else>{{ t('activities.wizard.form.summaryEmpty') }}</span>
                       </td>
                     </tr>
                   </tbody>
@@ -322,8 +324,8 @@
           <!-- Verlauf -->
           <section v-else-if="activeTab === 'history'" class="tab-content">
             <div class="section-card">
-              <h2 class="section-title">Verlauf</h2>
-              <p class="text-muted">Änderungsverlauf und Historie folgen in einer späteren Ausbaustufe.</p>
+              <h2 class="section-title">{{ t('activities.detail.sectionHistory') }}</h2>
+              <p class="text-muted">{{ t('activities.detail.historyPlaceholder') }}</p>
             </div>
           </section>
         </main>
@@ -365,6 +367,7 @@
 <script setup lang="ts">
 defineOptions({ name: 'ActivityDetailView' })
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import {
   addActivityItem,
@@ -417,6 +420,7 @@ function mergeActivityQuery(updates: Record<string, string | undefined>) {
 const toast = useToast()
 const { confirm: confirmDialog } = useConfirm()
 const pageHeadStore = usePageHeadStore()
+const { t, te, locale } = useI18n()
 
 const activity = ref<ActivityDetail | null>(null)
 
@@ -450,21 +454,21 @@ function defaultTabWhenNoQuery(status: string | undefined): ActivityTabId {
 
 const tabs = computed(() => {
   const out: { id: ActivityTabId; label: string }[] = [
-    { id: 'overview', label: 'Übersicht' },
-    { id: 'material', label: 'Material' },
+    { id: 'overview', label: t('activities.detail.tabOverview') },
+    { id: 'material', label: t('activities.detail.tabMaterial') },
   ]
   if (showPacksTab.value) {
-    out.push({ id: 'packs', label: 'Packliste' })
+    out.push({ id: 'packs', label: t('activities.detail.tabPacks') })
   }
   if (showIssuesTab.value) {
-    out.push({ id: 'issues', label: 'Reparaturen / Verluste' })
-    out.push({ id: 'consumables', label: 'Verbrauchsmaterial' })
+    out.push({ id: 'issues', label: t('activities.detail.tabIssues') })
+    out.push({ id: 'consumables', label: t('activities.detail.tabConsumables') })
   }
-  out.push({ id: 'history', label: 'Verlauf' })
+  out.push({ id: 'history', label: t('activities.detail.tabHistory') })
   return out
 })
 
-const tabIds = computed(() => tabs.value.map((t) => t.id))
+const tabIds = computed(() => tabs.value.map((tab) => tab.id))
 
 function normalizeActivityTabQuery(value: unknown): ActivityTabId | null {
   const raw = Array.isArray(value) ? value[0] : value
@@ -698,7 +702,7 @@ async function onNachbuchungModalSuccess() {
   nachbuchungPackUnit.value = null
   consumablesReloadToken.value += 1
   packListReloadToken.value += 1
-  toast.success('Menge zur Aktivität hinzugefügt')
+  toast.success(t('activities.detail.toastNachbuchungAdded'))
   try {
     await loadItems()
     await refreshActivityTotalsFromApi()
@@ -711,7 +715,7 @@ async function onConsumptionModalSuccess() {
   issuesReloadToken.value += 1
   consumablesReloadToken.value += 1
   packListReloadToken.value += 1
-  toast.success('Verbrauch gebucht')
+  toast.success(t('activities.detail.toastConsumptionBooked'))
   try {
     await loadItems()
     await refreshActivityTotalsFromApi()
@@ -777,12 +781,12 @@ async function saveDraftQuantities() {
         priority: r.priority ?? undefined,
       })),
     })
-    toast.success('Mengen gespeichert')
+    toast.success(t('activities.detail.toastQtySaved'))
     await loadItems()
     await refreshActivityTotalsFromApi()
   } catch (err: unknown) {
     const e = err as { response?: { data?: { error?: string } }; message?: string }
-    toast.error(e.response?.data?.error || e.message || 'Mengen konnten nicht gespeichert werden.')
+    toast.error(e.response?.data?.error || e.message || t('activities.detail.toastQtySaveFailed'))
   } finally {
     syncingQuantities.value = false
   }
@@ -792,38 +796,22 @@ async function onDraftOverviewSaved() {
   await reload()
 }
 
-function getTypeLabel(type: string): string {
-  const labels: Record<string, string> = {
-    activity: 'Aktivität',
-    camp: 'Lager',
-    event: 'Event',
-    external: 'Extern',
-  }
-  return labels[type] || type
+function activityTypeLabelDetail(type: string): string {
+  const key = `activities.types.${type}` as const
+  return te(key) ? t(key) : type
 }
 
-function getStatusLabel(status: string): string {
-  const labels: Record<string, string> = {
-    draft: 'Entwurf',
-    submitted: 'Eingereicht',
-    approved: 'Bestätigt',
-    packing: 'Wird gepackt',
-    packed: 'Gepackt',
-    issued: 'Ausgegeben',
-    returned: 'Retour',
-    completed: 'Abgeschlossen',
-    cancelled: 'Storniert',
-    confirmed: 'Bestätigt',
-    active: 'Aktiv',
-  }
-  return labels[status] || status
+function activityStatusLabelDetail(status: string): string {
+  const key = `activities.status.${status}` as const
+  return te(key) ? t(key) : status
 }
 
 function formatDateTime(iso: string): string {
-  if (!iso) return '–'
+  if (!iso) return t('activities.wizard.form.summaryEmpty')
   const d = new Date(iso)
   if (Number.isNaN(d.getTime())) return iso
-  return d.toLocaleString('de-CH', {
+  const locTag = String(locale.value ?? '').startsWith('de') ? 'de-CH' : 'en-CH'
+  return d.toLocaleString(locTag, {
     day: '2-digit',
     month: 'short',
     year: 'numeric',
@@ -839,9 +827,9 @@ function formatMoney(v: string | number): string {
 }
 
 function inviteStatusLabel(status?: string): string {
-  if (status === 'accepted') return 'Angenommen'
-  if (status === 'rejected') return 'Abgelehnt'
-  return 'Ausstehend'
+  if (status === 'accepted') return t('activities.detail.inviteAccepted')
+  if (status === 'rejected') return t('activities.detail.inviteRejected')
+  return t('activities.detail.invitePending')
 }
 
 function inviteStatusClass(status?: string): string {
@@ -868,7 +856,10 @@ async function reload() {
     ])
     activity.value = detail
     transitions.value = tr.transitions || []
-    pageHeadStore.setDynamic(`${detail.name} · Aktivität`, `${getTypeLabel(detail.type || '')} · ${getStatusLabel(detail.status || '')}`)
+    pageHeadStore.setDynamic(
+      t('activities.detail.pageTitleSuffix', { name: detail.name }),
+      `${activityTypeLabelDetail(detail.type || '')} · ${activityStatusLabelDetail(detail.status || '')}`,
+    )
     if (activeTab.value === 'material') {
       void loadItems()
     }
@@ -876,10 +867,10 @@ async function reload() {
     const e = err as { response?: { status?: number; data?: { error?: string } }; message?: string }
     const msg =
       e.response?.status === 404
-        ? 'Aktivität nicht gefunden.'
-        : e.response?.data?.error || e.message || 'Aktivität konnte nicht geladen werden.'
+        ? t('activities.detail.loadNotFound')
+        : e.response?.data?.error || e.message || t('activities.detail.loadFailed')
     loadError.value = msg
-    pageHeadStore.setDynamic('Aktivität · eMatChef', msg)
+    pageHeadStore.setDynamic(t('activities.detail.pageErrorTitle'), msg)
   } finally {
     isLoading.value = false
   }
@@ -893,7 +884,7 @@ async function loadItems() {
   } catch {
     activityItems.value = []
     draftQuantities.value = {}
-    toast.error('Materialpositionen konnten nicht geladen werden.')
+    toast.error(t('activities.detail.toastItemsLoadFailed'))
   } finally {
     itemsLoading.value = false
   }
@@ -909,7 +900,7 @@ async function onDamageReportSuccess() {
   damageReportOpen.value = false
   damageReportPresets.value = {}
   issuesReloadToken.value += 1
-  toast.success('Meldung erfasst')
+  toast.success(t('activities.detail.toastIssueRecorded'))
   try {
     await loadItems()
     await refreshActivityTotalsFromApi()
@@ -943,12 +934,12 @@ async function onDraftAddQuantity(payload: { material: { materialItemId: string 
       material_item_id: mid,
       quantity: payload.quantity,
     })
-    toast.success('Material hinzugefügt')
+    toast.success(t('activities.detail.toastMaterialAdded'))
     await loadItems()
     await refreshActivityTotalsFromApi()
   } catch (err: unknown) {
     const e = err as { response?: { data?: { error?: string } }; message?: string }
-    toast.error(e.response?.data?.error || e.message || 'Material konnte nicht hinzugefügt werden.')
+    toast.error(e.response?.data?.error || e.message || t('activities.detail.toastMaterialAddFailed'))
   } finally {
     addingDraftMaterial.value = false
   }
@@ -964,28 +955,31 @@ async function onRemoveDraftItem(row: ActivityItemRow) {
   removingItemId.value = row.id
   try {
     await removeActivityItem(props.activityId, row.id)
-    toast.success('Position entfernt')
+    toast.success(t('activities.detail.toastPositionRemoved'))
     await loadItems()
     await refreshActivityTotalsFromApi()
   } catch (err: unknown) {
     const e = err as { response?: { data?: { error?: string } }; message?: string }
-    toast.error(e.response?.data?.error || e.message || 'Position konnte nicht entfernt werden.')
+    toast.error(e.response?.data?.error || e.message || t('activities.detail.toastPositionRemoveFailed'))
   } finally {
     removingItemId.value = null
   }
 }
 
-async function onTransition(t: ActivityTransitionRow) {
-  if (!t.allowed || isTransitioning.value) return
+async function onTransition(transition: ActivityTransitionRow) {
+  if (!transition.allowed || isTransitioning.value) return
   isTransitioning.value = true
   try {
-    await patchActivityStatus(props.activityId, { status: t.status })
+    await patchActivityStatus(props.activityId, { status: transition.status })
     const detail = await getActivity(props.activityId)
     activity.value = detail
-    pageHeadStore.setDynamic(`${detail.name} · Aktivität`, `${getTypeLabel(detail.type || '')} · ${getStatusLabel(detail.status || '')}`)
-    toast.success(`Status: ${getStatusLabel(detail.status || '')}`)
-    const tr = await getActivityTransitions(props.activityId)
-    transitions.value = tr.transitions || []
+    pageHeadStore.setDynamic(
+      t('activities.detail.pageTitleSuffix', { name: detail.name }),
+      `${activityTypeLabelDetail(detail.type || '')} · ${activityStatusLabelDetail(detail.status || '')}`,
+    )
+    toast.success(t('activities.detail.toastStatusChanged', { status: activityStatusLabelDetail(detail.status || '') }))
+    const trNext = await getActivityTransitions(props.activityId)
+    transitions.value = trNext.transitions || []
     if (detail.status === 'packing') {
       activeTab.value = 'packs'
       mergeActivityQuery({ tab: 'packs' })
@@ -995,7 +989,7 @@ async function onTransition(t: ActivityTransitionRow) {
     }
   } catch (err: unknown) {
     const e = err as { response?: { data?: { error?: string } }; message?: string }
-    toast.error(e.response?.data?.error || e.message || 'Statuswechsel fehlgeschlagen.')
+    toast.error(e.response?.data?.error || e.message || t('activities.detail.toastStatusChangeFailed'))
   } finally {
     isTransitioning.value = false
   }
@@ -1004,10 +998,10 @@ async function onTransition(t: ActivityTransitionRow) {
 async function onCancelActivity() {
   if (!cancelTransition.value) return
   const ok = await confirmDialog({
-    title: 'Aktivität stornieren?',
-    message: 'Die Aktivität wird dauerhaft als storniert geführt. Möchtest du fortfahren?',
-    confirmText: 'Stornieren',
-    cancelText: 'Abbrechen',
+    title: t('activities.detail.confirmCancelTitle'),
+    message: t('activities.detail.confirmCancelMessage'),
+    confirmText: t('activities.detail.confirmCancelAction'),
+    cancelText: t('common.cancel'),
     variant: 'danger',
   })
   if (!ok) return

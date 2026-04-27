@@ -1,54 +1,54 @@
 <template>
   <div class="activity-draft-overview-form activity-create-wizard-host activity-detail-datetime-host">
     <div class="section-card">
-      <h2 class="section-title">Grunddaten</h2>
+      <h2 class="section-title">{{ t('activities.draftOverview.sectionBasics') }}</h2>
       <div class="form-grid">
         <div class="form-group">
-          <label>Department</label>
-          <p class="activity-readonly-inline">{{ activity.department_name ?? '–' }}</p>
+          <label>{{ t('activities.detail.labelDepartment') }}</label>
+          <p class="activity-readonly-inline">{{ activity.department_name ?? t('activities.wizard.form.summaryEmpty') }}</p>
         </div>
         <div v-if="activity.total_price != null" class="form-group">
-          <label>Gesamtpreis (aktuell)</label>
+          <label>{{ t('activities.draftOverview.totalPriceCurrent') }}</label>
           <p class="activity-readonly-inline">CHF {{ Number(activity.total_price).toFixed(2) }}</p>
         </div>
         <div class="form-group span-2">
-          <label for="draft-activity-name">Name</label>
+          <label for="draft-activity-name">{{ t('activities.detail.summaryName') }}</label>
           <input
             id="draft-activity-name"
             v-model="form.name"
             type="text"
             class="form-input"
             autocomplete="off"
-            placeholder="Bezeichnung der Aktivität"
+            :placeholder="t('activities.draftOverview.namePlaceholder')"
           />
         </div>
         <div v-if="showGroup" class="form-group span-2">
           <label for="draft-activity-group">
-            Gruppe
+            {{ t('activities.wizard.form.groupLabel') }}
             <span v-if="groupRequired" class="req">*</span>
-            <span v-else-if="activityType === 'event'" class="text-muted">(optional)</span>
+            <span v-else-if="activityType === 'event'" class="text-muted">{{ t('activities.wizard.form.groupOptional') }}</span>
           </label>
           <select id="draft-activity-group" v-model="groupField" class="form-input activity-group-select">
-            <option v-if="activityType === 'event'" value="">Keine Gruppe</option>
-            <option v-else value="" disabled>— Gruppe wählen —</option>
+            <option v-if="activityType === 'event'" value="">{{ t('activities.wizard.form.groupNoneEvent') }}</option>
+            <option v-else value="" disabled>{{ t('activities.wizard.form.groupChoose') }}</option>
             <option v-for="g in flatGroups" :key="g.id" :value="g.id">
               {{ '↳ '.repeat(g._level) }}{{ g.name }}
             </option>
           </select>
         </div>
         <div v-if="showVenue" class="form-group span-2">
-          <label for="draft-venue-address">Eventstandort</label>
+          <label for="draft-venue-address">{{ t('activities.wizard.form.venueLabel') }}</label>
           <select id="draft-venue-address" v-model="form.venue_address_id" class="form-input">
-            <option :value="null">— Keine Auswahl —</option>
+            <option :value="null">{{ t('activities.draftOverview.selectNone') }}</option>
             <option v-for="a in addresses" :key="a.id" :value="a.id">
               {{ addressShort(a) }}
             </option>
           </select>
         </div>
         <div v-if="showCustomerAddress" class="form-group span-2">
-          <label for="draft-customer-address">Kunden-/Mieteradresse</label>
+          <label for="draft-customer-address">{{ t('activities.draftOverview.customerTenantAddress') }}</label>
           <select id="draft-customer-address" v-model="form.address_id" class="form-input">
-            <option :value="null">— Keine Auswahl —</option>
+            <option :value="null">{{ t('activities.draftOverview.selectNone') }}</option>
             <option v-for="a in addresses" :key="a.id" :value="a.id">
               {{ addressShort(a) }}
             </option>
@@ -58,15 +58,12 @@
     </div>
 
     <div class="section-card">
-      <h2 class="section-title">Zeitraum</h2>
+      <h2 class="section-title">{{ t('activities.detail.sectionPeriod') }}</h2>
       <p class="field-hint text-muted draft-time-hint">
-        Wie im Erstell-Wizard: Kalender und Uhrzeiten. Nach dem Speichern im Tab „Material“ den Verfügbarkeitsabgleich
-        ausführen, falls sich Zeiten geändert haben.
+        {{ t('activities.draftOverview.periodHint', { materialTab: t('activities.detail.tabMaterial') }) }}
       </p>
       <p v-if="usageDatesLocked" class="field-hint activity-draft-usage-locked-hint" role="status">
-        <strong>Nutzung gesperrt:</strong> solange Materialpositionen erfasst sind, können Nutzungsdatum und -zeiten nicht
-        geändert werden. Abhol- und Rückgabezeiten bleiben editierbar; die Materialliste wird gegen die Verfügbarkeit
-        abgeglichen.
+        <strong>{{ t('activities.wizard.form.datesLockedTitle') }}</strong> {{ t('activities.draftOverview.datesLockedBodyDraft') }}
       </p>
       <p v-if="planningUsageConflictMessage" class="activity-planning-usage-warn" role="alert">
         {{ planningUsageConflictMessage }}
@@ -92,27 +89,26 @@
     </div>
 
     <div class="section-card">
-      <h2 class="section-title">Notizen</h2>
+      <h2 class="section-title">{{ t('activities.detail.sectionNotes') }}</h2>
       <div class="form-group">
-        <label for="draft-notes" class="sr-only">Notizen</label>
+        <label for="draft-notes" class="sr-only">{{ t('activities.detail.sectionNotes') }}</label>
         <textarea
           id="draft-notes"
           v-model="form.notes"
           class="form-input"
           rows="4"
-          placeholder="Optionale Anmerkungen …"
+          :placeholder="t('activities.wizard.form.notesPlaceholder')"
         />
       </div>
     </div>
 
     <div v-if="showInviteDepartments" class="section-card">
-      <h2 class="section-title">Weitere Abteilungen einladen</h2>
+      <h2 class="section-title">{{ t('activities.wizard.form.inviteDepartmentsLabel') }}</h2>
       <p class="field-hint text-muted">
-        Eingeladene Abteilungen erhalten einen Eintrag in der Benachrichtigungsglocke (ausstehend). Nach Annahme können dort Material und
-        Koordination genutzt werden.
+        {{ t('activities.wizard.form.inviteDepartmentsHint') }}
       </p>
       <div class="form-group activity-invite-departments-wrap">
-        <label for="draft-activity-invite-dept-search">Suche</label>
+        <label for="draft-activity-invite-dept-search">{{ t('activities.draftOverview.inviteSearchLabel') }}</label>
         <div class="activity-address-select-row">
           <div class="autocomplete-wrapper activity-address-autocomplete">
             <input
@@ -120,7 +116,7 @@
               v-model="inviteDeptSearch"
               type="text"
               class="form-input"
-              placeholder="Abteilung oder Organisation suchen …"
+              :placeholder="t('activities.wizard.form.inviteDeptPlaceholder')"
               autocomplete="off"
               @focus="showInviteDeptDropdown = true"
               @blur="hideInviteDeptDropdownDelayed"
@@ -151,7 +147,7 @@
               class="autocomplete-dropdown activity-address-autocomplete-dropdown"
             >
               <div class="autocomplete-item autocomplete-empty">
-                <span class="item-name">Keine Treffer</span>
+                <span class="item-name">{{ t('activities.empty.noMatch') }}</span>
               </div>
             </div>
             <div
@@ -159,15 +155,15 @@
               class="autocomplete-dropdown activity-address-autocomplete-dropdown"
             >
               <div class="autocomplete-item autocomplete-empty">
-                <span class="item-name">Suche…</span>
+                <span class="item-name">{{ t('activities.wizard.form.inviteSearching') }}</span>
               </div>
             </div>
           </div>
         </div>
         <p v-if="inviteDeptSearchTrimmed.length > 0 && inviteDeptSearchTrimmed.length < 2" class="field-hint text-muted invite-dept-min-hint">
-          Mindestens 2 Zeichen eingeben.
+          {{ t('activities.wizard.form.inviteMinChars') }}
         </p>
-        <ul v-if="invitedDraft.length > 0" class="activity-invited-dept-chips" aria-label="Eingeladene Abteilungen">
+        <ul v-if="invitedDraft.length > 0" class="activity-invited-dept-chips" :aria-label="t('activities.wizard.form.invitedDepartmentsAria')">
           <li v-for="row in invitedDraft" :key="row.id" class="activity-invited-dept-chip">
             <span class="activity-invited-dept-chip-label">{{ row.name }}</span>
             <span v-if="row.organisation_name" class="activity-invited-dept-chip-org">{{ row.organisation_name }}</span>
@@ -175,7 +171,7 @@
             <button
               type="button"
               class="activity-invited-dept-chip-remove"
-              :title="'Einladung entfernen: ' + row.name"
+              :title="t('activities.wizard.form.removeInviteTitle', { name: row.name })"
               @click="removeInvitedDepartment(row.id)"
             >
               ×
@@ -192,10 +188,10 @@
         :disabled="saving || !hasChanges || !isValid"
         @click="onSave"
       >
-        {{ saving ? 'Speichern…' : 'Speichern' }}
+        {{ saving ? t('activities.draftOverview.saveSaving') : t('activities.draftOverview.save') }}
       </button>
       <button type="button" class="btn-outline" :disabled="saving || !hasChanges" @click="resetFromActivity">
-        Zurücksetzen
+        {{ t('activities.draftOverview.reset') }}
       </button>
     </div>
   </div>
@@ -203,6 +199,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import {
   patchActivity,
   type ActivityApiType,
@@ -216,10 +213,7 @@ import { getAddresses, type Address } from '@/api/addresses'
 import { getGroups, type Group } from '@/api/groups'
 import { useToast } from '@/composables/useToast'
 import { combineDayAndTime, startOfLocalDay } from '@/utils/activityDateTimeParts'
-import {
-  getPlanningUsageViolation,
-  planningUsageViolationMessage,
-} from '@/utils/activityPlanningUsageConstraint'
+import { getPlanningUsageViolation } from '@/utils/activityPlanningUsageConstraint'
 import { flattenGroupsWithLevel } from '@/utils/groupHierarchy'
 import ActivityZeitraumDatetimeFields from '@/components/activities/shared/ActivityZeitraumDatetimeFields.vue'
 
@@ -240,6 +234,7 @@ const emit = defineEmits<{
 }>()
 
 const toast = useToast()
+const { t } = useI18n()
 const groups = ref<Group[]>([])
 const addresses = ref<Address[]>([])
 const saving = ref(false)
@@ -298,9 +293,9 @@ function hideInviteDeptDropdownDelayed() {
 }
 
 function inviteStatusLabel(status?: string): string {
-  if (status === 'accepted') return 'Angenommen'
-  if (status === 'rejected') return 'Abgelehnt'
-  return 'Ausstehend'
+  if (status === 'accepted') return t('activities.detail.inviteAccepted')
+  if (status === 'rejected') return t('activities.detail.inviteRejected')
+  return t('activities.detail.invitePending')
 }
 
 function inviteStatusClass(status?: string): string {
@@ -399,9 +394,9 @@ const activityTypeForZeitraum = computed((): ActivityApiType => (props.activity.
 const isActivityType = computed(() => activityType.value === 'activity')
 
 const showGroup = computed(() => {
-  const t = activityType.value
-  if (t === 'camp' || t === 'event') return true
-  return t === 'activity' && groups.value.length > 0
+  const typ = activityType.value
+  if (typ === 'camp' || typ === 'event') return true
+  return typ === 'activity' && groups.value.length > 0
 })
 
 const groupRequired = computed(() => activityType.value === 'camp')
@@ -492,7 +487,11 @@ const planningUsageConflictMessage = computed(() => {
   if (ue.getTime() < us.getTime()) return null
   const ps = new Date(p.planning_start)
   const pe = new Date(p.planning_end)
-  return planningUsageViolationMessage(getPlanningUsageViolation(ps, pe, us, ue))
+  const v = getPlanningUsageViolation(ps, pe, us, ue)
+  if (v.pickup && v.return) return t('activities.wizard.form.planningViolationBoth')
+  if (v.pickup) return t('activities.wizard.form.planningViolationPickup')
+  if (v.return) return t('activities.wizard.form.planningViolationReturn')
+  return null
 })
 
 const materialTimesBlockedUsage = computed((): { start: Date; end: Date } | null => {
@@ -574,8 +573,8 @@ const isValid = computed(() => {
 
 function addressShort(a: Address): string {
   const line = a.full_address || a.street_line || a.name || a.id
-  const t = a.type_label ? ` · ${a.type_label}` : ''
-  return `${line}${t}`
+  const typeSuffix = a.type_label ? ` · ${a.type_label}` : ''
+  return `${line}${typeSuffix}`
 }
 
 function buildPayload(): PatchActivityPayload {
@@ -618,11 +617,13 @@ async function onSave() {
   saving.value = true
   try {
     await patchActivity(props.activity.id, payload)
-    toast.success(isSubmittedActivityEdit.value ? 'Änderungen gespeichert' : 'Entwurf gespeichert')
+    toast.success(
+      isSubmittedActivityEdit.value ? t('activities.draftOverview.toastSavedSubmitted') : t('activities.draftOverview.toastSavedDraft'),
+    )
     emit('saved')
   } catch (err: unknown) {
     const e = err as { response?: { data?: { error?: string } }; message?: string }
-    toast.error(e.response?.data?.error || e.message || 'Speichern fehlgeschlagen.')
+    toast.error(e.response?.data?.error || e.message || t('activities.draftOverview.toastSaveFailed'))
   } finally {
     saving.value = false
   }
@@ -634,7 +635,7 @@ onMounted(async () => {
     groups.value = g
     addresses.value = addrRes.addresses
   } catch {
-    toast.error('Gruppen oder Adressen konnten nicht geladen werden.')
+    toast.error(t('activities.draftOverview.toastLoadMetaFailed'))
   }
   resetFromActivity()
 })

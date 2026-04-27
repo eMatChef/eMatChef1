@@ -2,7 +2,7 @@
   <div v-if="isOpen" class="modal-overlay">
     <div class="modal-dialog organisation-modal-dialog">
       <div class="modal-header">
-        <h2>{{ isEdit ? 'Organisation bearbeiten' : 'Neue Organisation hinzufügen' }}</h2>
+        <h2>{{ isEdit ? t('components.organisationModal.editTitle') : t('components.organisationModal.addTitle') }}</h2>
         <button @click="close" class="modal-close">
           <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
             <path
@@ -33,8 +33,8 @@
           </div>
 
           <div class="form-group">
-            <label class="form-label">Erlaubte Sprachen (optional)</label>
-            <p class="helper-text">Wenn leer, sind alle Sprachen erlaubt.</p>
+            <label class="form-label">{{ t('components.organisationModal.allowedLanguagesLabel') }}</label>
+            <p class="helper-text">{{ t('components.organisationModal.allowedLanguagesHint') }}</p>
             <div class="language-grid">
               <label v-for="item in supportedLanguages" :key="item.code" class="checkbox-row">
                 <input v-model="formData.allowedLanguages" type="checkbox" :value="item.code" :disabled="isSubmitting" />
@@ -51,10 +51,14 @@
           <!-- Buttons -->
           <div class="modal-footer">
             <button type="button" @click="close" class="btn-secondary">
-              Abbrechen
+              {{ t('common.cancel') }}
             </button>
             <button type="submit" class="btn-primary" :disabled="isSubmitting">
-              {{ isSubmitting ? 'Wird gespeichert...' : (isEdit ? 'Speichern' : 'Hinzufügen') }}
+              {{
+                isSubmitting
+                  ? t('components.organisationModal.saving')
+                  : (isEdit ? t('common.save') : t('components.organisationModal.addSubmit'))
+              }}
             </button>
           </div>
         </form>
@@ -65,6 +69,7 @@
 
 <script setup lang="ts">
 import { ref, watch, computed, nextTick } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useToast } from '@/composables/useToast'
 import { createOrganisation, updateOrganisation, type Organisation } from '@/api/organisations'
 import { SUPPORTED_LANGUAGE_CODES } from '@/config/languages'
@@ -83,6 +88,7 @@ const emit = defineEmits<{
   'saved': []
 }>()
 
+const { t } = useI18n()
 const toast = useToast()
 const isEdit = computed(() => !!props.organisation)
 const isSubmitting = ref(false)
@@ -94,23 +100,12 @@ const formData = ref({
   allowedLanguages: [] as string[]
 })
 
-const supportedLanguages = SUPPORTED_LANGUAGE_CODES.map((code) => ({
-  code,
-  label:
-    code === 'de'
-      ? 'Deutsch'
-      : code === 'de-pfadi'
-        ? 'Deutsch (Pfadi)'
-        : code === 'de-cevi'
-          ? 'Deutsch (Cevi)'
-          : code === 'fr'
-            ? 'Franzoesisch'
-            : code === 'it'
-              ? 'Italienisch'
-                : code === 'ch-rm'
-                  ? 'Rumantsch'
-              : 'Englisch'
-}))
+const supportedLanguages = computed(() =>
+  SUPPORTED_LANGUAGE_CODES.map((code) => ({
+    code,
+    label: t(`languageNames.${code}` as 'languageNames.de')
+  }))
+)
 
 // Watch für Modal-Öffnung und Organisation-Änderungen
 watch(
@@ -148,7 +143,7 @@ watch(
 
 async function handleSubmit() {
   if (!formData.value.name) {
-    error.value = 'Bitte geben Sie einen Namen ein'
+    error.value = t('components.organisationModal.nameRequired')
     return
   }
 
@@ -171,7 +166,7 @@ async function handleSubmit() {
     emit('saved')
     close()
   } catch (err: any) {
-    const msg = err.response?.data?.error || 'Fehler beim Speichern der Organisation'
+    const msg = err.response?.data?.error || t('components.organisationModal.saveError')
     error.value = msg
     toast.error(msg)
   } finally {

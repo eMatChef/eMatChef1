@@ -1,6 +1,6 @@
 <template>
   <div class="activity-material-availability-lookup">
-    <div class="activity-material-scope-tabs" role="tablist" aria-label="Materialquelle">
+    <div class="activity-material-scope-tabs" role="tablist" :aria-label="t('activities.materialAvailability.tabSourceAria')">
       <button
         type="button"
         class="activity-material-scope-tab"
@@ -9,7 +9,7 @@
         :disabled="disabled"
         @click="setMaterialScope('own')"
       >
-        Eigen
+        {{ t('activities.materialAvailability.tabOwn') }}
       </button>
       <template v-if="showPartnerScopeTabs">
         <button
@@ -20,7 +20,7 @@
           :disabled="disabled"
           @click="setMaterialScope('all')"
         >
-          Alle Dep.
+          {{ t('activities.materialAvailability.tabAllDepts') }}
         </button>
         <button
           v-for="p in partnerDepartments"
@@ -48,23 +48,21 @@
       </button>
     </div>
     <p v-if="hintVariant === 'wizard'" class="field-hint text-muted activity-create-material-hint">
-      Material suchen; pro Zeile Mengen mit den Buttons hinzufügen (Stück oder Bündel gemäss Verpackung).
+      {{ t('activities.materialAvailability.hintWizardIntro') }}
       <span v-if="hasPlanningPeriod" class="activity-create-material-hint-period">
-        «Frei» bezieht sich auf den Zeitraum <strong>Abholung/Rückgabe</strong>; im Backend sind dabei bereits andere
-        Aktivitäten und gebuchte Überschneidungen berücksichtigt (siehe Verfügbarkeits-API).
+        {{ t('activities.materialAvailability.hintWizardPeriod') }}
       </span>
       <span v-else class="activity-create-material-hint-period">
-        Ohne Abhol-/Rückgabezeitraum wird der <strong>Gesamtbestand</strong> angezeigt.
+        {{ t('activities.materialAvailability.hintWizardNoPeriod') }}
       </span>
     </p>
     <p v-else class="field-hint text-muted activity-create-material-hint">
-      Material suchen; Mengen mit den Buttons hinzufügen (Stück oder Bündel gemäss Verpackung).
+      {{ t('activities.materialAvailability.hintDraftIntro') }}
       <span v-if="hasPlanningPeriod" class="activity-create-material-hint-period">
-        «Frei» bezieht sich auf den Zeitraum <strong>Abholung/Rückgabe</strong>; andere Aktivitäten mit Überschneidung sind
-        berücksichtigt.
+        {{ t('activities.materialAvailability.hintDraftPeriod') }}
       </span>
       <span v-else class="activity-create-material-hint-period">
-        Ohne Abhol-/Rückgabezeitraum wird der <strong>Gesamtbestand</strong> angezeigt.
+        {{ t('activities.materialAvailability.hintDraftNoPeriod') }}
       </span>
     </p>
     <div class="activity-material-lookup">
@@ -75,16 +73,16 @@
         :min-chars="1"
         :debounce-ms="240"
         :max-suggestions="25"
-        placeholder="Material suchen (z. B. Zelt, Kocher, Blache …)"
+        :placeholder="t('activities.materialAvailability.searchPlaceholder')"
         input-class="activity-mat-lookup-input form-input"
-        loading-text="Suche…"
+        :loading-text="t('activities.wizard.form.inviteSearching')"
         :empty-text="emptySearchText"
         :show-empty-when-no-results="matSearchTrimmed.length >= 1"
         :get-result-key="(item) => item.materialItemId"
         :get-result-label="(item) => item.name"
       >
         <template #results="{ results, isLoading, activeIndex, setActiveIndex }">
-          <div v-if="isLoading" class="mat-dropdown-loading">Suche…</div>
+          <div v-if="isLoading" class="mat-dropdown-loading">{{ t('activities.wizard.form.inviteSearching') }}</div>
           <div v-else-if="results.length === 0" class="mat-dropdown-empty">
             {{ emptySearchText }}
           </div>
@@ -101,30 +99,32 @@
             >
               <div class="activity-mat-result-info">
                 <span class="activity-mat-result-name">
-                  <span v-if="mat.isConsumable" class="mat-type-icon consumable" title="Verbrauchsmaterial">🔥</span>
-                  <span v-else class="mat-type-icon rental" title="Ausleihmaterial">📦</span>
+                  <span v-if="mat.isConsumable" class="mat-type-icon consumable" :title="t('activities.materialAvailability.titleConsumable')"
+                    >🔥</span
+                  >
+                  <span v-else class="mat-type-icon rental" :title="t('activities.materialAvailability.titleRental')">📦</span>
                   {{ mat.name }}
                   <span
                     v-if="mat.sourceDepartmentId && mat.sourceDepartmentId !== departmentId && mat.sourceDepartmentName"
                     class="mat-dept-badge"
-                    :title="'Material-Department: ' + mat.sourceDepartmentName"
+                    :title="t('activities.materialAvailability.titleSourceDept', { name: mat.sourceDepartmentName })"
                   >
                     {{ mat.sourceDepartmentName }}
                   </span>
                   <span v-if="mat.packSize && mat.packUnit" class="mat-pack-badge">
-                    {{ mat.packSize }}&thinsp;Stk./{{ mat.packUnit }}
+                    {{ t('activities.materialAvailability.packPerShort', { n: mat.packSize, unit: mat.packUnit }) }}
                   </span>
                 </span>
                 <span class="activity-mat-result-meta">
                   <span class="activity-mat-stock">
                     <span :class="effectiveStock(mat) > 0 ? 'text-green' : 'text-red'">{{ effectiveStock(mat) }}</span>
-                    <span class="text-muted"> frei</span>
+                    <span class="text-muted">&nbsp;{{ t('activities.materialAvailability.freeLabel') }}</span>
                   </span>
                 </span>
               </div>
               <div class="activity-mat-result-actions">
                 <template v-if="isAlreadyAdded(mat.materialItemId)">
-                  <span class="mat-already-badge">✓ in Liste</span>
+                  <span class="mat-already-badge">{{ t('activities.materialAvailability.inList') }}</span>
                 </template>
                 <template v-else-if="effectiveStock(mat) > 0">
                   <template v-if="mat.packSize && mat.packSize > 1">
@@ -132,21 +132,29 @@
                       v-if="canAdd(mat, mat.packSize)"
                       type="button"
                       class="activity-mat-quick-btn activity-mat-set-btn"
-                      :title="'1 ' + (mat.packUnit || 'Set')"
+                      :title="
+                        t('activities.materialAvailability.titleAddOnePack', {
+                          unit: mat.packUnit || t('activities.materialAvailability.packUnitSet'),
+                        })
+                      "
                       :disabled="disabled"
                       @mousedown.prevent="addQty(mat, mat.packSize)"
                     >
-                      1 {{ mat.packUnit || 'Set' }}
+                      1 {{ mat.packUnit || t('activities.materialAvailability.packUnitSet') }}
                     </button>
                     <button
                       v-if="canAdd(mat, mat.packSize * 5)"
                       type="button"
                       class="activity-mat-quick-btn activity-mat-set-btn"
-                      :title="'5 ' + (mat.packUnit || 'Sets')"
+                      :title="
+                        t('activities.materialAvailability.titleAddFivePacks', {
+                          units: mat.packUnit || t('activities.materialAvailability.packUnitSets'),
+                        })
+                      "
                       :disabled="disabled"
                       @mousedown.prevent="addQty(mat, mat.packSize * 5)"
                     >
-                      5 {{ mat.packUnit || 'Sets' }}
+                      5 {{ mat.packUnit || t('activities.materialAvailability.packUnitSets') }}
                     </button>
                     <span class="activity-mat-btn-divider" aria-hidden="true">|</span>
                   </template>
@@ -182,7 +190,7 @@
                   </button>
                 </template>
                 <template v-else>
-                  <span class="mat-unavailable-badge">nicht verfügbar</span>
+                  <span class="mat-unavailable-badge">{{ t('activities.materialAvailability.unavailable') }}</span>
                 </template>
               </div>
             </div>
@@ -195,6 +203,7 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import type { ActivityApiType } from '@/api/activities'
 import MaterialLookupInput from '@/components/common/MaterialLookupInput.vue'
 import type { ActivityPeriodAvailabilityMaterial } from '@/components/activities/shared/activityAvailabilityMaterial'
@@ -242,6 +251,8 @@ const props = withDefaults(
     searchResetKey: 0,
   },
 )
+
+const { t, locale } = useI18n()
 
 const emit = defineEmits<{
   'add-quantity': [payload: { material: ActivityPeriodAvailabilityMaterial; quantity: number }]
@@ -295,8 +306,8 @@ watch(
 
 watch(
   () => props.activityType,
-  (t) => {
-    const jsOk = t === 'camp' || t === 'event'
+  (typ) => {
+    const jsOk = typ === 'camp' || typ === 'event'
     if (!jsOk && materialScopeTab.value === 'js') {
       materialScopeTab.value = 'own'
     }
@@ -324,8 +335,8 @@ const hasPlanningPeriod = computed(() => planningStartAt.value != null && planni
 
 const emptySearchText = computed(() =>
   matSearchTrimmed.value.length >= 1
-    ? `Keine Treffer für «${matSearchTrimmed.value}»`
-    : 'Keine Treffer',
+    ? t('activities.materialAvailability.emptyForQuery', { q: matSearchTrimmed.value })
+    : t('activities.empty.noMatch'),
 )
 
 const availabilityContext = computed((): MaterialLookupAvailabilityContext | null => {
@@ -365,7 +376,9 @@ const baseFetcher = createAvailabilityMaterialLookupFetcher(() => availabilityCo
 async function materialLookupFetcher(query: string): Promise<ActivityPeriodAvailabilityMaterial[]> {
   const rows = await baseFetcher(query)
   const list = rows as ActivityPeriodAvailabilityMaterial[]
-  return [...list].sort((a, b) => (a.name || '').localeCompare(b.name || '', 'de'))
+  return [...list].sort((a, b) =>
+    (a.name || '').localeCompare(b.name || '', String(locale.value ?? '').startsWith('de') ? 'de' : 'en'),
+  )
 }
 
 function effectiveStock(m: ActivityPeriodAvailabilityMaterial): number {

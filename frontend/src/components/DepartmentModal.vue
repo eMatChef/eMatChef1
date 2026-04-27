@@ -2,7 +2,7 @@
   <div v-if="isOpen" class="modal-overlay">
     <div class="modal-dialog department-modal-dialog">
       <div class="modal-header">
-        <h2>{{ isEdit ? 'Department bearbeiten' : 'Neues Department hinzufügen' }}</h2>
+        <h2>{{ isEdit ? t('components.departmentModal.editTitle') : t('components.departmentModal.addTitle') }}</h2>
         <button @click="close" class="modal-close">
           <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
             <path
@@ -19,20 +19,20 @@
         <form @submit.prevent="handleSubmit">
           <!-- Department Name -->
           <div class="form-group">
-            <label for="department-name" class="form-label">Name *</label>
+            <label for="department-name" class="form-label">{{ t('components.departmentModal.nameLabel') }}</label>
             <input
               id="department-name"
               v-model="formData.name"
               type="text"
               class="form-input"
-              placeholder="Department Name"
+              :placeholder="t('components.departmentModal.namePlaceholder')"
               required
             />
           </div>
 
           <!-- Organisation Auswahl -->
           <div class="form-group">
-            <label for="organisation" class="form-label">Organisation *</label>
+            <label for="organisation" class="form-label">{{ t('components.departmentModal.organisationLabel') }}</label>
             <select
               id="organisation"
               v-model="formData.organisationId"
@@ -53,17 +53,17 @@
 
           <!-- Parent Department Auswahl (optional, nur wenn Organisation gewählt) -->
           <div v-if="formData.organisationId" class="form-group">
-            <label class="form-label">Übergeordnetes Department (optional)</label>
+            <label class="form-label">{{ t('components.departmentModal.parentLabel') }}</label>
             <div class="tree-select-container">
               <div class="tree-select-header">
-                <span>Wählen Sie ein übergeordnetes Department aus:</span>
+                <span>{{ t('components.departmentModal.parentPrompt') }}</span>
                 <button
                   type="button"
                   @click="formData.parentId = null"
                   class="btn-clear-parent"
                   :class="{ active: formData.parentId === null }"
                 >
-                  Kein Parent (Haupt-Department)
+                  {{ t('components.departmentModal.noParent') }}
                 </button>
               </div>
               <div class="tree-select-content">
@@ -89,28 +89,28 @@
               </div>
             </div>
             <p class="form-hint">
-              Lassen Sie leer für ein Haupt-Department. Sie können auch ein Unter-Department als Parent wählen.
+              {{ t('components.departmentModal.parentHint') }}
             </p>
           </div>
 
           <!-- User-Verwaltung (nur im Edit-Modus) -->
           <div v-if="isEdit && props.department?.id" class="form-group user-management-section">
-            <label class="form-label">User in diesem Department</label>
+            <label class="form-label">{{ t('components.departmentModal.usersSectionLabel') }}</label>
 
-            <div v-if="isMembersLoading" class="user-management-hint">Lade Benutzer...</div>
+            <div v-if="isMembersLoading" class="user-management-hint">{{ t('components.departmentModal.loadingUsers') }}</div>
 
             <template v-else>
               <div v-if="members.length === 0" class="user-management-hint">
-                Noch keine Benutzer im Department.
+                {{ t('components.departmentModal.noMembersYet') }}
               </div>
               <div v-else class="members-table-wrap">
                 <table class="members-table">
                   <thead>
                     <tr>
-                      <th>Name</th>
-                      <th>E-Mail</th>
-                      <th>Rolle</th>
-                      <th>Primär</th>
+                      <th>{{ t('components.departmentModal.colName') }}</th>
+                      <th>{{ t('components.departmentModal.colEmail') }}</th>
+                      <th>{{ t('components.departmentModal.colRole') }}</th>
+                      <th>{{ t('components.departmentModal.colPrimary') }}</th>
                       <th></th>
                     </tr>
                   </thead>
@@ -135,7 +135,7 @@
                           :disabled="memberActionLoading"
                           @click="saveMember(member)"
                         >
-                          Speichern
+                          {{ t('components.departmentModal.saveMember') }}
                         </button>
                         <button
                           v-if="!isCurrentUser(member)"
@@ -144,7 +144,7 @@
                           :disabled="memberActionLoading"
                           @click="deleteMember(member)"
                         >
-                          Entfernen
+                          {{ t('components.departmentModal.removeMember') }}
                         </button>
                       </td>
                     </tr>
@@ -153,7 +153,7 @@
               </div>
 
               <div class="add-member-box">
-                <div class="add-member-title">Benutzer hinzufügen</div>
+                <div class="add-member-title">{{ t('components.departmentModal.addUserTitle') }}</div>
                 <div class="add-member-search-row">
                   <div class="autocomplete-wrapper add-member-search">
                     <div v-if="selectedAvailableUser" class="selected-user-chip">
@@ -165,7 +165,7 @@
                         v-model="newMemberSearchQuery"
                         type="text"
                         class="form-input"
-                        placeholder="Benutzer suchen (Name, Vorname, Spitzname, E-Mail)..."
+                        :placeholder="t('components.departmentModal.userSearchPlaceholder')"
                         @focus="showAvailableDropdown = true"
                         @blur="handleAvailableBlur"
                       />
@@ -187,7 +187,7 @@
                         v-else-if="showAvailableDropdown && newMemberSearchQuery.trim().length >= 2 && filteredAvailableUsers.length === 0"
                         class="autocomplete-dropdown"
                       >
-                        <div class="autocomplete-empty">Kein Treffer</div>
+                        <div class="autocomplete-empty">{{ t('components.departmentModal.noSearchResults') }}</div>
                       </div>
                     </div>
                   </div>
@@ -195,12 +195,12 @@
                 <div class="add-member-controls-row">
                   <select v-model="newMemberRole" class="form-select small-select">
                     <option v-for="role in roleOptions" :key="role.value" :value="role.value">
-                      {{ role.value.toUpperCase() }}
+                      {{ role.label }}
                     </option>
                   </select>
                   <label class="checkbox-inline">
                     <input type="checkbox" v-model="newMemberPrimary" />
-                    Primär
+                    {{ t('components.departmentModal.primaryCheckbox') }}
                   </label>
                   <button
                     type="button"
@@ -208,7 +208,7 @@
                     :disabled="!newMemberUserId || memberActionLoading"
                     @click="addMember"
                   >
-                    Hinzufügen
+                    {{ t('components.departmentModal.addButton') }}
                   </button>
                 </div>
               </div>
@@ -223,10 +223,14 @@
           <!-- Buttons -->
           <div class="modal-footer">
             <button type="button" @click="close" class="btn-secondary">
-              Abbrechen
+              {{ t('common.cancel') }}
             </button>
             <button type="submit" class="btn-primary" :disabled="isSubmitting">
-              {{ isSubmitting ? 'Wird gespeichert...' : (isEdit ? 'Speichern' : 'Hinzufügen') }}
+              {{
+                isSubmitting
+                  ? t('components.departmentModal.saving')
+                  : (isEdit ? t('common.save') : t('components.departmentModal.addSubmit'))
+              }}
             </button>
           </div>
         </form>
@@ -237,6 +241,7 @@
 
 <script setup lang="ts">
 import { ref, watch, computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useToast } from '@/composables/useToast'
 import { useAuthStore } from '@/stores/auth'
 import {
@@ -278,6 +283,7 @@ const emit = defineEmits<{
   'saved': []
 }>()
 
+const { t } = useI18n()
 const toast = useToast()
 const authStore = useAuthStore()
 const isSuperAdmin = computed(() =>
@@ -302,14 +308,13 @@ const newMemberSearchQuery = ref('')
 const showAvailableDropdown = ref(false)
 const selectedAvailableUser = ref<AvailableUser | null>(null)
 
-const roleOptions: Array<{ value: 'mw' | 'dc' | 'l1' | 'l2' | 'l3' | 'u'; label: string }> = [
-  { value: 'mw', label: 'MW - Materialchef' },
-  { value: 'dc', label: 'DC - Dep.chef' },
-  { value: 'l1', label: 'L1 - Leader 1' },
-  { value: 'l2', label: 'L2 - Leader 2' },
-  { value: 'l3', label: 'L3 - Leader 3' },
-  { value: 'u', label: 'U - Mitglied' }
-]
+const roleOrder = ['mw', 'dc', 'l1', 'l2', 'l3', 'u'] as const
+const roleOptions = computed(() =>
+  roleOrder.map((value) => ({
+    value,
+    label: t(`settings.adminUsers.roles.${value}`)
+  }))
+)
 
 const filteredAvailableUsers = computed(() => {
   const query = newMemberSearchQuery.value.trim().toLowerCase()
@@ -487,7 +492,7 @@ watch(() => props.isOpen, async (open) => {
       }
       organisations.value = list
     } catch (err: any) {
-      error.value = 'Fehler beim Laden der Daten'
+      error.value = t('components.departmentModal.loadDataError')
     }
 
     if (isEdit.value && props.department?.id) {
@@ -527,7 +532,7 @@ async function loadMembersData(departmentId: string) {
       }
     }
   } catch (err: any) {
-    toast.error(err.response?.data?.error || 'Fehler beim Laden der Department-Benutzer')
+    toast.error(err.response?.data?.error || t('components.departmentModal.loadMembersError'))
   } finally {
     isMembersLoading.value = false
   }
@@ -541,10 +546,10 @@ async function saveMember(member: DepartmentMember) {
       role: member.role,
       is_primary: member.is_primary
     })
-    toast.success('Benutzer aktualisiert')
+    toast.success(t('components.departmentModal.toastMemberUpdated'))
     await loadMembersData(props.department.id)
   } catch (err: any) {
-    toast.error(err.response?.data?.error || 'Fehler beim Aktualisieren')
+    toast.error(err.response?.data?.error || t('components.departmentModal.toastMemberUpdateError'))
   } finally {
     memberActionLoading.value = false
   }
@@ -553,17 +558,18 @@ async function saveMember(member: DepartmentMember) {
 async function deleteMember(member: DepartmentMember) {
   if (!props.department?.id || memberActionLoading.value) return
   if (isCurrentUser(member)) {
-    toast.error('Du kannst dich hier nicht selbst aus dem Department entfernen.')
+    toast.error(t('components.departmentModal.toastCannotRemoveSelf'))
     return
   }
-  if (!window.confirm(`${member.name} aus dem Department entfernen?`)) return
+  if (!window.confirm(t('components.departmentModal.confirmRemoveMember', { name: member.name })))
+    return
   memberActionLoading.value = true
   try {
     await removeDepartmentMember(props.department.id, member.user_id)
-    toast.success('Benutzer entfernt')
+    toast.success(t('components.departmentModal.toastMemberRemoved'))
     await loadMembersData(props.department.id)
   } catch (err: any) {
-    toast.error(err.response?.data?.error || 'Fehler beim Entfernen')
+    toast.error(err.response?.data?.error || t('components.departmentModal.toastMemberRemoveError'))
   } finally {
     memberActionLoading.value = false
   }
@@ -578,7 +584,7 @@ async function addMember() {
       role: newMemberRole.value,
       is_primary: newMemberPrimary.value
     })
-    toast.success('Benutzer hinzugefügt')
+    toast.success(t('components.departmentModal.toastMemberAdded'))
     newMemberUserId.value = ''
     newMemberRole.value = 'u'
     newMemberPrimary.value = false
@@ -587,7 +593,7 @@ async function addMember() {
     showAvailableDropdown.value = false
     await loadMembersData(props.department.id)
   } catch (err: any) {
-    toast.error(err.response?.data?.error || 'Fehler beim Hinzufügen')
+    toast.error(err.response?.data?.error || t('components.departmentModal.toastMemberAddError'))
   } finally {
     memberActionLoading.value = false
   }
@@ -614,7 +620,7 @@ function handleAvailableBlur() {
 
 async function handleSubmit() {
   if (!formData.value.name || !formData.value.organisationId) {
-    error.value = 'Bitte füllen Sie alle Felder aus'
+    error.value = t('components.departmentModal.validationFillAll')
     return
   }
 
@@ -639,7 +645,7 @@ async function handleSubmit() {
     emit('saved')
     close()
   } catch (err: any) {
-    const msg = err.response?.data?.error || 'Fehler beim Speichern des Departments'
+    const msg = err.response?.data?.error || t('components.departmentModal.saveErrorFallback')
     error.value = msg
     toast.error(msg)
   } finally {
