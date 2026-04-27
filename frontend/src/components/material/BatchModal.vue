@@ -352,7 +352,7 @@
                 min="1"
                 class="form-input"
                 :class="{ 'is-invalid': submitted && form.qty < 1 }"
-                placeholder="1"
+                :placeholder="t('components.batchModal.qtyPlaceholderMin')"
               />
             </div>
             <div class="form-group">
@@ -1009,8 +1009,9 @@ const serialDuplicateHint = computed(() => {
       .map((e) => e.serial_number.trim())
       .filter((sn) => sn && existing.has(sn))
     if (duplicates.length > 0) {
+      const ell = t('components.batchModal.listTruncationEllipsis')
       return t('components.batchModal.serialNumbersTaken', {
-        list: `${duplicates.slice(0, 3).join(', ')}${duplicates.length > 3 ? '…' : ''}`
+        list: `${duplicates.slice(0, 3).join(', ')}${duplicates.length > 3 ? ell : ''}`,
       })
     }
     const seen = new Set<string>()
@@ -1252,14 +1253,14 @@ onMounted(async () => {
     const result = await getAddresses(props.departmentId, 'supplier')
     allSuppliers.value = result.addresses || []
   } catch (err) {
-    console.error('Fehler beim Laden der Lieferanten:', err)
+    console.error(t('components.batchModal.logErrorLoadSuppliers'), err)
   }
 
   try {
     const storageResult = await getAddresses(props.departmentId, 'storage')
     storageAddresses.value = storageResult.addresses || []
   } catch (err) {
-    console.error('Fehler beim Laden der Lagerstandorte:', err)
+    console.error(t('components.batchModal.logErrorLoadStorageAddresses'), err)
     storageAddresses.value = []
   }
 
@@ -1268,7 +1269,7 @@ onMounted(async () => {
     containerBatches.value = await getContainerBatches(props.departmentId).catch(() => [])
     await prefetchVisibleRackPreviews(racks.value)
   } catch (err) {
-    console.error('Fehler beim Laden der Gestelle:', err)
+    console.error(t('components.batchModal.logErrorLoadRacks'), err)
   }
 
   if (props.batch) {
@@ -1358,7 +1359,7 @@ async function loadSlotsForMainRack(rackId: string) {
     await fetchSlotsEnsuringDefault(rackId)
     await prefetchSlotPreviewsForRack(rackId)
   } catch (err) {
-    console.error('Fehler beim Laden der Slots:', err)
+    console.error(t('components.batchModal.logErrorLoadSlots'), err)
   }
 }
 
@@ -1433,7 +1434,7 @@ async function handleAddressSaved() {
     const result = await getAddresses(props.departmentId, 'supplier')
     allSuppliers.value = result.addresses || []
   } catch (err) {
-    console.error('Fehler beim Neuladen der Lieferanten:', err)
+    console.error(t('components.batchModal.logErrorReloadSuppliers'), err)
   }
 
   // Neu erstellten Lieferanten automatisch auswählen

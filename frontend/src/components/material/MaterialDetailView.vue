@@ -235,7 +235,12 @@
 
               <div class="form-group span-full mt-4">
                 <label>{{ t('components.materialDetail.labelDescription') }}</label>
-                <textarea v-model="formData.description" class="form-textarea" rows="3"></textarea>
+                <textarea
+                  v-model="formData.description"
+                  class="form-textarea"
+                  rows="3"
+                  :placeholder="t('components.materialDetail.phDescriptionOptional')"
+                ></textarea>
               </div>
             </div>
 
@@ -305,7 +310,7 @@
                       step="0.05"
                       min="0"
                       class="form-input"
-                      placeholder="0.00"
+                      :placeholder="t('components.materialDetail.phPriceZero')"
                     />
                   </div>
                   <p class="form-hint">{{ t('components.materialDetail.hintSalePerPiece') }}</p>
@@ -333,7 +338,7 @@
                       step="0.05"
                       min="0"
                       class="form-input"
-                      placeholder="0.00"
+                      :placeholder="t('components.materialDetail.phPriceZero')"
                     />
                   </div>
                   <p class="form-hint">{{ t('components.materialDetail.hintRefPurchase') }}</p>
@@ -390,7 +395,7 @@
                       step="0.05"
                       min="0"
                       class="form-input"
-                      placeholder="0.00"
+                      :placeholder="t('components.materialDetail.phPriceZero')"
                     />
                   </div>
                   <p
@@ -1949,8 +1954,19 @@ const pageHeadStore = usePageHeadStore()
 const authStore = useAuthStore()
 const detailTabsStore = useDetailTabsStore()
 const toast = useToast()
-const { t, tm } = useI18n()
+const { t, tm, locale } = useI18n()
 const physicalComboWarningStore = usePhysicalComboWarningStore()
+
+function sortLocale(): string {
+  return String(locale.value || 'de').replace('_', '-')
+}
+
+function dateLocaleForIntl(): string {
+  const s = sortLocale().toLowerCase()
+  if (s.startsWith('de')) return 'de-CH'
+  if (s.startsWith('en')) return 'en-GB'
+  return sortLocale()
+}
 
 const DETAIL_QUERY_KEYS = {
   tab: 'tab',
@@ -2097,7 +2113,7 @@ async function loadComboRentalBreakdown() {
       if (o !== 0) return o
       return String(a.component_material?.name || '').localeCompare(
         String(b.component_material?.name || ''),
-        'de-CH'
+        sortLocale()
       )
     })
     const ids = [...new Set(sorted.map((c) => c.component_material.id))]
@@ -2291,12 +2307,12 @@ function mergeAndReplaceQuery(updates: Record<string, string | undefined>) {
 
 const storedInContainerOptions = computed(() => {
   const currentMaterialId = String(props.materialId || '')
-  const currentMaterialName = String(material.value?.name || '').trim().toLocaleLowerCase('de-CH')
+  const currentMaterialName = String(material.value?.name || '').trim().toLocaleLowerCase(sortLocale())
   const filtered = containerBatches.value.filter((batch) => {
     const batchMaterialId = String(batch.material_id || '')
     if (batchMaterialId) return batchMaterialId === currentMaterialId
     if (!currentMaterialName) return false
-    return String(batch.material_name || '').trim().toLocaleLowerCase('de-CH') === currentMaterialName
+    return String(batch.material_name || '').trim().toLocaleLowerCase(sortLocale()) === currentMaterialName
   })
 
   return filtered
@@ -2304,7 +2320,7 @@ const storedInContainerOptions = computed(() => {
       id: batch.id,
       label: formatContainerBatchOptionFullLabel(batch),
     }))
-    .sort((a, b) => a.label.localeCompare(b.label, 'de'))
+    .sort((a, b) => a.label.localeCompare(b.label, sortLocale()))
 })
 
 /** Tab „Inhalt Kiste/Tasche“ nur bei echten Kisten/Taschen-Artikeln (mind. eine Instanz) oder Deep-Link. */
@@ -2417,7 +2433,7 @@ const containerContentRows = computed(() => {
       }
     }
   }
-  return Array.from(grouped.values()).sort((a, b) => a.materialName.localeCompare(b.materialName, 'de'))
+  return Array.from(grouped.values()).sort((a, b) => a.materialName.localeCompare(b.materialName, sortLocale()))
 })
 
 const containerEditorDirty = computed(() => {
@@ -2574,14 +2590,14 @@ const archivedStatuses = ['lost', 'disposed', 'split_to_serial']
 const activeBatches = computed(() => {
   return batches.value
     .filter(b => !archivedStatuses.includes(b.status) && (b.qty || 0) > 0)
-    .sort((a, b) => (b.acquired_on || '').localeCompare(a.acquired_on || ''))
+    .sort((a, b) => (b.acquired_on || '').localeCompare(a.acquired_on || '', sortLocale()))
 })
 
 // Archivierte Batches (für Archiv-Tab) – sortiert nach Kaufdatum (neueste zuerst)
 const archivedBatches = computed(() => {
   return batches.value
     .filter(b => archivedStatuses.includes(b.status))
-    .sort((a, b) => (b.acquired_on || '').localeCompare(a.acquired_on || ''))
+    .sort((a, b) => (b.acquired_on || '').localeCompare(a.acquired_on || '', sortLocale()))
 })
 
 const splitSourceBatches = computed(() =>
@@ -2663,7 +2679,7 @@ async function loadComboComponentsForTab() {
   try {
     comboComponentsList.value = await getComboComponents(props.materialId)
   } catch (err) {
-    console.error('Zusammensetzung:', err)
+    console.error(t('components.materialDetail.logErrorComposition'), err)
     toast.error(t('components.materialDetail.errCompositionLoad'))
   } finally {
     comboComponentsLoading.value = false
@@ -2879,7 +2895,7 @@ async function loadMaterial() {
       }
     })
   } catch (err) {
-    console.error('Fehler beim Laden:', err)
+    console.error(t('components.materialDetail.logErrorLoadMaterial'), err)
     materialStorageLocations.value = null
   } finally {
     isLoading.value = false
@@ -2900,7 +2916,7 @@ async function generateMaterialPublicCode() {
       toast.success(t('components.materialDetail.toastQrCreated'))
     }
   } catch (err: any) {
-    console.error('Fehler beim öffentlichen QR-Code:', err)
+    console.error(t('components.materialDetail.logErrorPublicQr'), err)
     toast.error(
       err?.response?.data?.error ||
         (linkedKisteCombo ? t('components.materialDetail.errQrCreateLinked') : t('components.materialDetail.errQrCreateGeneric'))
@@ -2914,7 +2930,7 @@ async function loadCategories() {
   try {
     categories.value = await getCategories(props.departmentId)
   } catch (err) {
-    console.error('Fehler beim Laden der Kategorien:', err)
+    console.error(t('components.materialDetail.logErrorLoadCategories'), err)
   }
 }
 
@@ -2932,7 +2948,7 @@ async function loadContainerBatches() {
     containerBatches.value = await getContainerBatches(props.departmentId)
     hasLoadedContainerBatches.value = true
   } catch (err) {
-    console.error('Fehler beim Laden der Kisten-Batches:', err)
+    console.error(t('components.materialDetail.logErrorLoadContainerBatches'), err)
     containerBatches.value = []
     hasLoadedContainerBatches.value = false
   } finally {
@@ -2951,7 +2967,7 @@ async function loadContainerContentOverview() {
   try {
     containerContentOverview.value = await getStorageOverview(props.departmentId)
   } catch (err) {
-    console.error('Fehler beim Laden der Kisteninhalte:', err)
+    console.error(t('components.materialDetail.logErrorLoadContainerContent'), err)
     containerContentOverview.value = { racks: [] }
   } finally {
     isLoadingContainerContentOverview.value = false
@@ -3032,7 +3048,7 @@ function getCategoryPathById(categoryId: string): string {
 
 function formatDate(dateStr: string): string {
   if (!dateStr) return '-'
-  return new Date(dateStr).toLocaleDateString('de-CH')
+  return new Date(dateStr).toLocaleDateString(dateLocaleForIntl())
 }
 
 type BatchLocationEntry = {
@@ -3104,24 +3120,35 @@ const buildBatchLocationEntries = (batch: any): BatchLocationEntry[] => {
         const containerSearchSeed = String(containerLabel || containerMaterial || '').trim()
         if (containerLabel) {
           const materialSuffix = containerMaterial && containerMaterial !== containerLabel ? ` – ${containerMaterial}` : ''
+          const detail = (containerLoc || loc) ? ` (${containerLoc || loc})` : ''
           return {
-            text: `${a.qty} in Kiste ${containerLabel}${materialSuffix}${(containerLoc || loc) ? ` (${containerLoc || loc})` : ''}`,
+            text: t('components.materialDetail.batchLocationInLabelledContainer', {
+              qty: a.qty,
+              label: containerLabel,
+              materialSuffix,
+              detail,
+            }),
             containerMaterialId,
             containerBatchId,
             containerSearchSeed,
           }
         }
         if (a.container_batch_id) {
-          const fallbackName = containerMaterial || 'Kiste'
+          const fallbackName = containerMaterial || t('components.materialDetail.fallbackContainerShort')
+          const detail = (containerLoc || loc) ? ` (${containerLoc || loc})` : ''
           return {
-            text: `${a.qty} in ${fallbackName}${(containerLoc || loc) ? ` (${containerLoc || loc})` : ''}`,
+            text: t('components.materialDetail.batchLocationQtyInNamedPlace', {
+              qty: a.qty,
+              name: fallbackName,
+              detail,
+            }),
             containerMaterialId,
             containerBatchId,
             containerSearchSeed,
           }
         }
         return {
-          text: `${a.qty} in ${loc}`,
+          text: t('components.materialDetail.batchLocationQtyInPlace', { qty: a.qty, place: loc }),
           containerMaterialId: null,
           containerBatchId: null,
           containerSearchSeed: '',
@@ -3134,7 +3161,10 @@ const buildBatchLocationEntries = (batch: any): BatchLocationEntry[] => {
   const directRows = ms?.direct?.filter((r) => String(r.batch_id) === String(batch?.id)) ?? []
   if (directRows.length > 0) {
     return directRows.map((row) => ({
-      text: `${row.qty} in ${formatStorageLocationRow(row)}`,
+      text: t('components.materialDetail.batchLocationQtyInPlace', {
+        qty: row.qty,
+        place: formatStorageLocationRow(row),
+      }),
       containerMaterialId: null,
       containerBatchId: null,
       containerSearchSeed: '',
@@ -3153,7 +3183,7 @@ const buildBatchLocationEntries = (batch: any): BatchLocationEntry[] => {
     const q = batch?.qty ?? 1
     return [
       {
-        text: `${q} in ${fromBatchOnly}`,
+        text: t('components.materialDetail.batchLocationQtyInPlace', { qty: q, place: fromBatchOnly }),
         containerMaterialId: null,
         containerBatchId: null,
         containerSearchSeed: '',
@@ -3177,13 +3207,17 @@ const buildBatchLocationEntries = (batch: any): BatchLocationEntry[] => {
         // Ohne zugewiesene Serien-Charge: keinen Eltern-Lagerplatz jeder Instanz zuschreiben
         continue
       }
-      const parentName = (block.parent_name || '').trim() || 'Kombination'
+      const parentName = (block.parent_name || '').trim() || t('components.materialDetail.fallbackParentComboName')
       for (const loc of block.locations || []) {
         const locText = formatStorageLocationRow(loc)
         if (locText === '-' || !locText.trim()) continue
         const q = Number(batch?.qty ?? loc.qty ?? 1) || 1
         out.push({
-          text: `${q} in ${locText} (über ${parentName})`,
+          text: t('components.materialDetail.batchLocationViaCombo', {
+            qty: q,
+            place: locText,
+            parent: parentName,
+          }),
           containerMaterialId: null,
           containerBatchId: null,
           containerSearchSeed: '',
@@ -3232,11 +3266,11 @@ function parseBatchUnitPrice(batch: any): number {
 function compareStockBatches(a: any, b: any, key: string): number {
   switch (key) {
     case 'acquired_on':
-      return (a.acquired_on || '').localeCompare(b.acquired_on || '')
+      return (a.acquired_on || '').localeCompare(b.acquired_on || '', sortLocale())
     case 'qty':
       return (a.qty || 0) - (b.qty || 0)
     case 'label':
-      return (a.label || '').localeCompare(b.label || '', 'de-CH', { sensitivity: 'base' })
+      return (a.label || '').localeCompare(b.label || '', sortLocale(), { sensitivity: 'base' })
     case 'unit_price': {
       const pa = parseBatchUnitPrice(a)
       const pb = parseBatchUnitPrice(b)
@@ -3245,11 +3279,11 @@ function compareStockBatches(a: any, b: any, key: string): number {
       return na - nb
     }
     case 'location':
-      return getBatchLocationSortText(a).localeCompare(getBatchLocationSortText(b), 'de-CH', { sensitivity: 'base' })
+      return getBatchLocationSortText(a).localeCompare(getBatchLocationSortText(b), sortLocale(), { sensitivity: 'base' })
     case 'status':
-      return (a.status || '').localeCompare(b.status || '')
+      return (a.status || '').localeCompare(b.status || '', sortLocale())
     case 'notes':
-      return (a.notes || '').localeCompare(b.notes || '', 'de-CH', { sensitivity: 'base' })
+      return (a.notes || '').localeCompare(b.notes || '', sortLocale(), { sensitivity: 'base' })
     default:
       return 0
   }
@@ -3258,21 +3292,21 @@ function compareStockBatches(a: any, b: any, key: string): number {
 function compareSerialBatches(a: any, b: any, key: string): number {
   switch (key) {
     case 'serial_number':
-      return (a.serial_number || '').localeCompare(b.serial_number || '', 'de-CH', { sensitivity: 'base', numeric: true })
+      return (a.serial_number || '').localeCompare(b.serial_number || '', sortLocale(), { sensitivity: 'base', numeric: true })
     case 'public_code':
-      return (a.public_code || '').localeCompare(b.public_code || '', 'de-CH', { sensitivity: 'base' })
+      return (a.public_code || '').localeCompare(b.public_code || '', sortLocale(), { sensitivity: 'base' })
     case 'label':
-      return (a.label || '').localeCompare(b.label || '', 'de-CH', { sensitivity: 'base' })
+      return (a.label || '').localeCompare(b.label || '', sortLocale(), { sensitivity: 'base' })
     case 'is_container':
       return (a.is_container ? 1 : 0) - (b.is_container ? 1 : 0)
     case 'acquired_on':
-      return (a.acquired_on || '').localeCompare(b.acquired_on || '')
+      return (a.acquired_on || '').localeCompare(b.acquired_on || '', sortLocale())
     case 'location':
-      return getBatchLocationSortText(a).localeCompare(getBatchLocationSortText(b), 'de-CH', { sensitivity: 'base' })
+      return getBatchLocationSortText(a).localeCompare(getBatchLocationSortText(b), sortLocale(), { sensitivity: 'base' })
     case 'status':
-      return (a.status || '').localeCompare(b.status || '')
+      return (a.status || '').localeCompare(b.status || '', sortLocale())
     case 'notes':
-      return (a.notes || '').localeCompare(b.notes || '', 'de-CH', { sensitivity: 'base' })
+      return (a.notes || '').localeCompare(b.notes || '', sortLocale(), { sensitivity: 'base' })
     default:
       return 0
   }
@@ -3374,7 +3408,7 @@ async function loadContainerEditorForSelectedBatch() {
     containerEditorForm.notes = batch.notes || ''
     containerEditorOriginal.value = JSON.stringify(containerEditorForm)
   } catch (err) {
-    console.error('Fehler beim Laden der Kistendetails:', err)
+    console.error(t('components.materialDetail.logErrorLoadContainerEditor'), err)
   } finally {
     isLoadingContainerEditor.value = false
   }
@@ -3398,7 +3432,7 @@ async function saveContainerEditor() {
     }
     toast.success(t('components.materialDetail.toastContainerSaved'))
   } catch (err: any) {
-    console.error('Fehler beim Speichern der Kiste/Tasche:', err)
+    console.error(t('components.materialDetail.logErrorSaveContainerEditor'), err)
     toast.error(err?.response?.data?.error || t('components.materialDetail.errSaveGeneric'))
   } finally {
     isSavingContainerEditor.value = false
@@ -3422,9 +3456,9 @@ async function ensureAddToContainerMaterialCatalog() {
     const all = await getMaterials(props.departmentId)
     addToContainerMaterialCatalog.value = all
       .filter((m) => (m.total_stock || 0) > 0)
-      .sort((a, b) => (a.name || '').localeCompare(b.name || '', 'de'))
+      .sort((a, b) => (a.name || '').localeCompare(b.name || '', sortLocale()))
   } catch (err) {
-    console.error('Fehler beim Laden der Artikelliste:', err)
+    console.error(t('components.materialDetail.logErrorLoadMaterialCatalog'), err)
     addToContainerMaterialCatalog.value = []
   } finally {
     isLoadingAddToContainerCatalog.value = false
@@ -3432,12 +3466,12 @@ async function ensureAddToContainerMaterialCatalog() {
 }
 
 async function addToContainerMaterialFetcher(rawQuery: string) {
-  const query = String(rawQuery || '').trim().toLocaleLowerCase('de-CH')
+  const query = String(rawQuery || '').trim().toLocaleLowerCase(sortLocale())
   if (!query) return []
   await ensureAddToContainerMaterialCatalog()
   const list = addToContainerMaterialCatalog.value || []
   return list
-    .filter((m) => String(m.name || '').toLocaleLowerCase('de-CH').includes(query))
+    .filter((m) => String(m.name || '').toLocaleLowerCase(sortLocale()).includes(query))
     .slice(0, 5)
 }
 
@@ -3452,7 +3486,7 @@ function handleAddToContainerLookupSelect(mat: any) {
 }
 
 function formatAddToContainerLookupLabel(item: any) {
-  return String(item?.name || '').trim() || 'Unbenannt'
+  return String(item?.name || '').trim() || t('contacts.unnamed')
 }
 
 function formatAddToContainerLookupSecondary(item: any) {
@@ -3493,7 +3527,7 @@ async function loadAddToContainerSourceMaterial() {
     addToContainerSourceAllocationId.value = firstBatch?.allocations?.[0]?.id || ''
     addToContainerQty.value = 1
   } catch (err: any) {
-    console.error('Fehler beim Laden des Quellartikels:', err)
+    console.error(t('components.materialDetail.logErrorLoadSourceForContainer'), err)
     addToContainerError.value = err?.response?.data?.error || t('components.materialDetail.errLoadSourceMaterial')
     addToContainerSourceMaterial.value = null
   } finally {
@@ -3505,20 +3539,27 @@ function formatAllocationLocationInline(a: BatchStorageAllocation): string {
   const cb = a.container_batch
   const containerLabel = cb?.label || cb?.serial_number
   if (containerLabel) {
-    const containerName = cb?.material_name && cb.material_name !== containerLabel ? ` – ${cb.material_name}` : ''
-    return `Kiste ${containerLabel}${containerName}`
+    const materialSuffix =
+      cb?.material_name && cb.material_name !== containerLabel ? ` – ${cb.material_name}` : ''
+    return t('components.materialDetail.allocationLineContainer', { label: containerLabel, extra: materialSuffix })
   }
   const rackName = a.rack?.name || a.rack_id
   const slotName = a.slot?.name || a.slot_id
-  return slotName ? `${rackName} / ${slotName}` : String(rackName || '-')
+  if (slotName) {
+    return t('components.materialDetail.allocationLineRackSlot', { rack: rackName, slot: slotName })
+  }
+  return t('components.materialDetail.allocationLineRackOnly', { rack: String(rackName || '-') })
 }
 
 function formatSourceBatchOption(batch: any): string {
   const serial = (batch.serial_number || '').trim()
   const label = (batch.label || '').trim()
-  const head = label || serial || `Charge ${String(batch.id).slice(-6)}`
+  const head =
+    label ||
+    serial ||
+    t('components.materialDetail.batchOptionUnlabeledLot', { id: String(batch.id).slice(-6) })
   const serialSuffix = serial && serial !== head ? ` · ${serial}` : ''
-  return `${head}${serialSuffix} · ${batch.qty} Stk.`
+  return `${head}${serialSuffix} · ${t('components.materialDetail.qtyPieces', { qty: batch.qty })}`
 }
 
 async function openAddToContainerModal() {
@@ -3536,7 +3577,7 @@ function closeAddToContainerModal() {
 function openQrActionModalForMaterial() {
   qrActionMode.value = 'material'
   qrActionEntityId.value = String(material.value?.id || '')
-  qrActionLabel.value = material.value?.name || 'Material'
+  qrActionLabel.value = material.value?.name || t('components.materialDetail.fallbackMaterialDisplayName')
   qrActionCode.value = String(material.value?.public_code || '')
   qrActionUrl.value = String(material.value?.public_url || '')
   showQrActionModal.value = true
@@ -3559,7 +3600,7 @@ function openQrActionModalForBatch(batch: any) {
 function openQrActionModalForAll() {
   qrActionMode.value = 'all'
   qrActionEntityId.value = ''
-  qrActionLabel.value = material.value?.name || 'Material'
+  qrActionLabel.value = material.value?.name || t('components.materialDetail.fallbackMaterialDisplayName')
   qrActionCode.value = ''
   qrActionUrl.value = ''
   showQrActionModal.value = true
@@ -3698,7 +3739,7 @@ async function buildPrintRowsForAllQrs(): Promise<Array<{ label: string; code: s
     tasks.push((async () => {
       const qrDataUrl = await QRCode.toDataURL(materialUrl, { width: 220, margin: 1 })
       rows.push({
-        label: material.value?.name || 'Material',
+        label: material.value?.name || t('components.materialDetail.fallbackMaterialDisplayName'),
         code: materialCode,
         qrDataUrl,
       })
@@ -3745,7 +3786,11 @@ async function handleQrPrint() {
 <html>
 <head>
   <meta charset="utf-8" />
-  <title>QR-Codes - ${escapeHtml(material.value?.name || 'Material')}</title>
+  <title>${escapeHtml(
+      t('components.materialDetail.qrPrintAllDocTitle', {
+        name: material.value?.name || t('components.materialDetail.fallbackMaterialDisplayName'),
+      })
+    )}</title>
   <style>
     body { font-family: Arial, sans-serif; margin: 18px; }
     h1 { margin: 0 0 14px; font-size: 18px; }
@@ -3757,7 +3802,11 @@ async function handleQrPrint() {
   </style>
 </head>
 <body>
-  <h1>${escapeHtml(material.value?.name || 'Material')} - QR-Codes</h1>
+  <h1>${escapeHtml(
+      t('components.materialDetail.qrPrintAllDocHeading', {
+        name: material.value?.name || t('components.materialDetail.fallbackMaterialDisplayName'),
+      })
+    )}</h1>
   <div class="grid">${cards}</div>
 </body>
 </html>`)
@@ -3775,7 +3824,7 @@ async function handleQrPrint() {
 <html>
 <head>
   <meta charset="utf-8" />
-  <title>QR-Code - ${escapeHtml(qrActionLabel.value)}</title>
+  <title>${escapeHtml(t('components.materialDetail.qrPrintSingleDocTitle', { name: qrActionLabel.value }))}</title>
   <style>
     body { font-family: Arial, sans-serif; margin: 20px; }
     .card { max-width: 360px; border: 1px solid #d1d5db; border-radius: 10px; padding: 14px; text-align: center; }
@@ -3818,7 +3867,7 @@ async function submitAddToContainer() {
     await loadMaterial()
     toast.success(t('components.materialDetail.toastAddedToContainer'))
   } catch (err: any) {
-    console.error('Fehler beim Hinzufügen zur Kiste:', err)
+    console.error(t('components.materialDetail.logErrorAddToContainer'), err)
     addToContainerError.value = err?.response?.data?.error || t('components.materialDetail.errMoveToContainer')
   } finally {
     isAddingToContainer.value = false
@@ -3907,7 +3956,7 @@ async function save() {
       historyEntries.value = []
     }
   } catch (err: any) {
-    console.error('Fehler beim Speichern:', err)
+    console.error(t('components.materialDetail.logErrorSaveMaterial'), err)
     toast.error(err?.response?.data?.error || t('components.materialDetail.errSaveMaterial'))
   } finally {
     isSaving.value = false
@@ -3938,19 +3987,19 @@ const usedInAssignmentLabels = computed((): Record<string, string> => ({
 }))
 
 const filteredUsedInEntries = computed(() => {
-  const q = usedInSearch.value.trim().toLocaleLowerCase('de-CH')
+  const q = usedInSearch.value.trim().toLocaleLowerCase(sortLocale())
   if (!q) return usedInEntries.value
   return usedInEntries.value.filter((entry) => {
     const assignmentLabel = (
       usedInAssignmentLabels.value[entry.assignment_mode] ||
       entry.assignment_mode ||
       ''
-    ).toLocaleLowerCase('de-CH')
+    ).toLocaleLowerCase(sortLocale())
     const typeLabel = (
       entry.material_type === 'physical_combo'
         ? t('components.materialDetail.typePhysicalShort')
         : t('components.materialDetail.typeVirtualShort')
-    ).toLocaleLowerCase('de-CH')
+    ).toLocaleLowerCase(sortLocale())
     const haystack = [
       entry.combo_name,
       entry.component_role || '',
@@ -3959,7 +4008,7 @@ const filteredUsedInEntries = computed(() => {
       typeLabel,
     ]
       .join(' ')
-      .toLocaleLowerCase('de-CH')
+      .toLocaleLowerCase(sortLocale())
     return haystack.includes(q)
   })
 })
@@ -3969,7 +4018,7 @@ async function loadUsedIn() {
   try {
     usedInEntries.value = await getMaterialUsedIn(props.materialId)
   } catch (err) {
-    console.error('Fehler beim Laden der Verwendungen:', err)
+    console.error(t('components.materialDetail.logErrorLoadUsedIn'), err)
     usedInEntries.value = []
   } finally {
     isLoadingUsedIn.value = false
@@ -3986,7 +4035,7 @@ async function loadHistory() {
   try {
     historyEntries.value = await getMaterialHistory(props.materialId)
   } catch (err) {
-    console.error('Fehler beim Laden der Historie:', err)
+    console.error(t('components.materialDetail.logErrorLoadHistory'), err)
     historyEntries.value = []
   } finally {
     isLoadingHistory.value = false
@@ -3995,12 +4044,12 @@ async function loadHistory() {
 
 function formatHistoryDate(dateStr: string): string {
   const d = new Date(dateStr)
-  return d.toLocaleDateString('de-CH', { day: '2-digit', month: '2-digit', year: 'numeric' })
+  return d.toLocaleDateString(dateLocaleForIntl(), { day: '2-digit', month: '2-digit', year: 'numeric' })
 }
 
 function formatHistoryTime(dateStr: string): string {
   const d = new Date(dateStr)
-  return d.toLocaleTimeString('de-CH', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+  return d.toLocaleTimeString(dateLocaleForIntl(), { hour: '2-digit', minute: '2-digit', second: '2-digit' })
 }
 
 function formatChangeValue(val: any): string {
