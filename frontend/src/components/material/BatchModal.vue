@@ -632,7 +632,7 @@
               {{
                 isSaving
                   ? t('common.saving')
-                  : (isEditMode ? t('common.save') : t('components.departmentModal.addSubmit'))
+                  : (isEditMode ? t('common.save') : t('components.batchModal.addSubmit'))
               }}
             </button>
           </div>
@@ -817,7 +817,7 @@ const serializedQty = computed(
 )
 
 const autoGenPreview = computed(() => {
-  const prefix = (autoGenPrefix.value || '').trim() || suggestedSerialPrefix.value || 'SER-'
+  const prefix = (autoGenPrefix.value || '').trim() || suggestedSerialPrefix.value || t('components.batchModal.defaultSerialPrefix')
   const start = Math.max(1, autoGenStart.value)
   const pad = Math.max(1, Math.min(6, autoGenPad.value || 3))
   const count = Math.max(1, Math.min(100, autoGenCount.value || 1))
@@ -958,7 +958,7 @@ function onSerialScannerError() {
 }
 
 function generateSerialNumbers() {
-  const prefix = (autoGenPrefix.value || '').trim() || suggestedSerialPrefix.value || 'SER-'
+  const prefix = (autoGenPrefix.value || '').trim() || suggestedSerialPrefix.value || t('components.batchModal.defaultSerialPrefix')
   const start = Math.max(1, autoGenStart.value)
   const pad = Math.max(1, Math.min(6, autoGenPad.value || 3))
   const count = Math.max(1, Math.min(100, autoGenCount.value || 1))
@@ -1704,7 +1704,7 @@ async function handleSubmit() {
           departmentId: props.departmentId,
           totalChf: computeBatchAddPurchaseTotalChf(),
           purchaseDateIso: form.acquired_on || undefined,
-          receiptHint: props.materialName ? `Charge: ${props.materialName}` : undefined,
+          receiptHint: props.materialName ? t('components.batchModal.receiptHint', { name: props.materialName }) : undefined,
           materialBatchId: batchId ?? null,
         })
       ) {

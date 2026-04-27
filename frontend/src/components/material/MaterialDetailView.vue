@@ -7,13 +7,13 @@
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M19 12H5M12 19l-7-7 7-7"/>
           </svg>
-          Zurück zur Liste
+          {{ t('components.materialDetail.backToList') }}
         </button>
         <div class="header-title">
           <span v-if="material.barcode_tag" class="material-code">{{ material.barcode_tag }}</span>
           <h1>{{ material.name }}</h1>
           <span v-if="material.open_loss_reports > 0" class="loss-report-badge">
-            Verlust gemeldet ({{ openLossLabel }})
+            {{ t('components.materialDetail.lossReportBadge', { detail: openLossLabel }) }}
           </span>
         </div>
       </div>
@@ -42,14 +42,14 @@
           v-else-if="showHeaderSerialQrShortcut"
           type="button"
           class="btn-outline btn-sm header-qr-serial-shortcut"
-          title="QR-Codes zu Seriennummern / Chargen öffnen"
+          :title="t('components.materialDetail.titleOpenSerialQr')"
           @click="openQrActionModalForAll"
         >
-          QR-Codes
+          {{ t('components.materialDetail.qrCodes') }}
         </button>
-        <button class="btn-outline" @click="handleClose">Schliessen</button>
+        <button class="btn-outline" @click="handleClose">{{ t('components.materialDetail.close') }}</button>
         <button class="btn-primary" @click="save" :disabled="!hasChanges || isSaving">
-          {{ isSaving ? 'Speichern...' : 'Speichern' }}
+          {{ isSaving ? t('common.saving') : t('common.save') }}
         </button>
       </div>
     </header>
@@ -57,7 +57,7 @@
     <!-- Loading -->
     <div v-if="isLoading" class="loading-container">
       <div class="spinner"></div>
-      <p>Material wird geladen...</p>
+      <p>{{ t('components.materialDetail.loading') }}</p>
     </div>
 
     <!-- Content -->
@@ -83,21 +83,21 @@
           <!-- Tab: Daten -->
           <section v-if="activeTab === 'data'" class="tab-content">
             <div class="section-card">
-              <h2 class="section-title">Material</h2>
+              <h2 class="section-title">{{ t('components.materialDetail.sectionMaterial') }}</h2>
               
               <div class="form-grid">
                 <div class="form-group span-2">
-                  <label>Name (in der Datenbank)</label>
+                  <label>{{ t('components.materialDetail.labelNameDb') }}</label>
                   <input v-model="formData.name" type="text" class="form-input" />
                 </div>
                 
                 <div class="form-group">
-                  <label>Code <span class="optional">(Optional)</span></label>
-                  <input v-model="formData.barcode_tag" type="text" class="form-input" placeholder="z.B. Material-Code" />
+                  <label>{{ t('components.materialDetail.labelCode') }} <span class="optional">{{ t('components.materialDetail.optionalShort') }}</span></label>
+                  <input v-model="formData.barcode_tag" type="text" class="form-input" :placeholder="t('components.materialDetail.codePlaceholder')" />
                 </div>
                 
                 <div class="form-group">
-                  <label>Kategorie</label>
+                  <label>{{ t('components.materialDetail.labelCategory') }}</label>
                   <CategoryAutocompleteInput
                     v-model="formData.category_id"
                     :categories="categories"
@@ -107,12 +107,12 @@
                 </div>
                 
                 <div class="form-group">
-                  <label>Hersteller</label>
+                  <label>{{ t('components.materialDetail.labelManufacturer') }}</label>
                   <input v-model="formData.manufacturer" type="text" class="form-input" />
                 </div>
                 
                 <div class="form-group">
-                  <label>Modell</label>
+                  <label>{{ t('components.materialDetail.labelModel') }}</label>
                   <input v-model="formData.model" type="text" class="form-input" />
                 </div>
               </div>
@@ -120,18 +120,18 @@
 
             <div class="section-card">
               <div class="section-header-row">
-                <h2 class="section-title">Eigenschaften</h2>
+                <h2 class="section-title">{{ t('components.materialDetail.sectionProperties') }}</h2>
                 <span class="property-badge">{{ propertyBadgeText }}</span>
               </div>
               
               <div class="properties-grid">
                 <div class="property-item">
-                  <span class="property-label">Physisch/Virtuell</span>
-                  <span class="property-value">Physische Materialien</span>
+                  <span class="property-label">{{ t('components.materialDetail.propPhysicalVirtual') }}</span>
+                  <span class="property-value">{{ t('components.materialDetail.propPhysicalMaterials') }}</span>
                 </div>
                 <div class="property-item">
-                  <span class="property-label">Vermietung/Verkauf</span>
-                  <span class="property-value">Vermietung</span>
+                  <span class="property-label">{{ t('components.materialDetail.propRentalSale') }}</span>
+                  <span class="property-value">{{ t('components.materialDetail.propRental') }}</span>
                 </div>
                 <div
                   v-if="material.tracking_type === 'bulk'"
@@ -139,46 +139,46 @@
                 >
                   <label class="checkbox-label property-checkbox-label">
                     <input type="checkbox" v-model="formData.is_container" />
-                    <span>Behälter (kann Lagerinhalt aufnehmen)</span>
+                    <span>{{ t('components.materialDetail.containerCheckbox') }}</span>
                   </label>
                   <p class="form-hint text-muted mt-1">
-                    Erscheint in Kisten-/Container-Auswahllisten.
+                    {{ t('components.materialDetail.containerCheckboxHint') }}
                   </p>
                 </div>
                 <div class="property-item">
-                  <span class="property-label">Quelle</span>
-                  <span class="property-value">{{ formData.is_js_material ? 'J&S / extern' : 'Intern' }}</span>
+                  <span class="property-label">{{ t('components.materialDetail.labelSource') }}</span>
+                  <span class="property-value">{{ formData.is_js_material ? t('components.materialDetail.sourceJs') : t('components.materialDetail.sourceInternal') }}</span>
                 </div>
               </div>
 
               <div v-if="canManageJsMaterial" class="checkbox-group mt-4">
                 <label class="checkbox-label">
                   <input type="checkbox" v-model="formData.is_js_material" />
-                  <span>J&amp;S-Material (global)</span>
+                  <span>{{ t('components.materialDetail.jsMaterialGlobal') }}</span>
                 </label>
                 <div v-if="formData.is_js_material" class="form-group mt-2">
-                  <label>Externe Quelle</label>
-                  <input v-model="formData.external_source" type="text" class="form-input" placeholder="z.B. js_ch" />
+                  <label>{{ t('components.materialDetail.labelExternalSource') }}</label>
+                  <input v-model="formData.external_source" type="text" class="form-input" :placeholder="t('components.materialDetail.externalSourcePlaceholder')" />
                 </div>
               </div>
               <div v-else-if="formData.is_js_material" class="form-group mt-4">
-                <label>Externe Quelle</label>
+                <label>{{ t('components.materialDetail.labelExternalSource') }}</label>
                 <input :value="formData.external_source || 'js_ch'" type="text" class="form-input" disabled />
               </div>
               
               <!-- Reservation-Modus (bei Zelt/Kombo-Materialien) -->
               <div v-if="material.is_container || material.material_type === 'physical_combo' || material.material_type === 'virtual_combo'" class="form-grid mt-4">
                 <div class="form-group span-2">
-                  <label>Reservationsmodus</label>
+                  <label>{{ t('components.materialDetail.labelReservationMode') }}</label>
                   <select v-model="formData.reservation_mode" class="form-select">
-                    <option value="">– nicht festgelegt –</option>
-                    <option value="complete_only">Nur komplett</option>
-                    <option value="individual">Einzelteile</option>
-                    <option value="flexible">Flexibel</option>
+                    <option value="">{{ t('components.materialDetail.reservationUnset') }}</option>
+                    <option value="complete_only">{{ t('components.materialDetail.reservationComplete') }}</option>
+                    <option value="individual">{{ t('components.materialDetail.reservationIndividual') }}</option>
+                    <option value="flexible">{{ t('components.materialDetail.reservationFlexible') }}</option>
                   </select>
-                  <p class="form-hint" v-if="formData.reservation_mode === 'complete_only'">Zelt kann nur als Ganzes reserviert werden</p>
-                  <p class="form-hint" v-else-if="formData.reservation_mode === 'individual'">Komponenten können einzeln reserviert werden</p>
-                  <p class="form-hint" v-else-if="formData.reservation_mode === 'flexible'">Komplett oder Einzelteile, je nach Bedarf</p>
+                  <p class="form-hint" v-if="formData.reservation_mode === 'complete_only'">{{ t('components.materialDetail.hintReservationComplete') }}</p>
+                  <p class="form-hint" v-else-if="formData.reservation_mode === 'individual'">{{ t('components.materialDetail.hintReservationIndividual') }}</p>
+                  <p class="form-hint" v-else-if="formData.reservation_mode === 'flexible'">{{ t('components.materialDetail.hintReservationFlexible') }}</p>
                 </div>
               </div>
 
@@ -186,9 +186,9 @@
                 v-if="material.material_type === 'physical_combo' && material.linked_container_batch"
                 class="linked-kiste-banner mt-4"
               >
-                <span class="linked-kiste-label">Referenz-Kiste</span>
+                <span class="linked-kiste-label">{{ t('components.materialDetail.refKisteLabel') }}</span>
                 <p class="linked-kiste-desc">
-                  Diese physische Kombination ist der Kiste zugeordnet (Plan vs. Ist später vergleichbar).
+                  {{ t('components.materialDetail.refKisteDesc') }}
                 </p>
                 <router-link
                   class="linked-kiste-link"
@@ -200,105 +200,105 @@
             </div>
 
             <div class="section-card">
-              <h2 class="section-title">Details</h2>
+              <h2 class="section-title">{{ t('components.materialDetail.sectionDetails') }}</h2>
               
               <div class="form-grid">
                 <div class="form-group">
-                  <label>EAN / Barcode</label>
+                  <label>{{ t('components.materialDetail.labelEan') }}</label>
                   <input v-model="formData.ean" type="text" class="form-input" />
                 </div>
                 <div class="form-group">
-                  <label>Gewicht (kg)</label>
+                  <label>{{ t('components.materialDetail.labelWeightKg') }}</label>
                   <input v-model="formData.weight" type="text" class="form-input" />
                 </div>
                 <div class="form-group">
-                  <label>Farbe</label>
+                  <label>{{ t('components.materialDetail.labelColor') }}</label>
                   <input v-model="formData.color" type="text" class="form-input" />
                 </div>
                 <div class="form-group">
-                  <label>Länge (cm)</label>
+                  <label>{{ t('components.materialDetail.labelLengthCm') }}</label>
                   <input v-model="formData.size_length" type="text" class="form-input" />
                 </div>
                 <div class="form-group">
-                  <label>Breite (cm)</label>
+                  <label>{{ t('components.materialDetail.labelWidthCm') }}</label>
                   <input v-model="formData.size_width" type="text" class="form-input" />
                 </div>
                 <div class="form-group">
-                  <label>Höhe (cm)</label>
+                  <label>{{ t('components.materialDetail.labelHeightCm') }}</label>
                   <input v-model="formData.size_height" type="text" class="form-input" />
                 </div>
                 <div class="form-group">
-                  <label>Garantie bis</label>
+                  <label>{{ t('components.materialDetail.labelWarranty') }}</label>
                   <input v-model="formData.warranty_until" type="date" class="form-input" />
                 </div>
               </div>
 
               <div class="form-group span-full mt-4">
-                <label>Beschreibung / Notizen</label>
+                <label>{{ t('components.materialDetail.labelDescription') }}</label>
                 <textarea v-model="formData.description" class="form-textarea" rows="3"></textarea>
               </div>
             </div>
 
             <!-- Verpackungseinheit (bei Verbrauch/Essen siehe Kosten) -->
             <div v-if="!material.is_consumable && !material.is_food" class="section-card">
-              <h2 class="section-title">Verpackungseinheit</h2>
-              <p class="section-hint">Wenn das Material in Bündeln, Kisten, Sets oder Rollen gelagert wird</p>
+              <h2 class="section-title">{{ t('components.materialDetail.sectionPackaging') }}</h2>
+              <p class="section-hint">{{ t('components.materialDetail.packagingHint') }}</p>
               
               <div class="form-grid">
                 <div class="form-group">
-                  <label>Stück pro Einheit</label>
+                  <label>{{ t('components.materialDetail.labelPiecesPerUnit') }}</label>
                   <input 
                     v-model.number="formData.pack_size" 
                     type="number" 
                     min="2"
                     class="form-input"
-                    placeholder="z.B. 10"
+                    :placeholder="t('components.materialDetail.packSizePlaceholder')"
                   />
                 </div>
                 <div class="form-group">
-                  <label>Bezeichnung</label>
+                  <label>{{ t('components.materialDetail.labelDesignation') }}</label>
                   <div class="pack-unit-select">
                     <select v-model="formData.pack_unit" class="form-select">
-                      <option value="">– keine –</option>
-                      <option value="Bündel">Bündel</option>
-                      <option value="Kiste">Kiste</option>
-                      <option value="Karton">Karton</option>
-                      <option value="Sack">Sack</option>
-                      <option value="Rolle">Rolle</option>
-                      <option value="Palette">Palette</option>
-                      <option value="Set">Set</option>
-                      <option value="Paket">Paket</option>
+                      <option value="">{{ t('components.materialDetail.packUnitNone') }}</option>
+                      <option value="Bündel">{{ t('components.materialDetail.packUnitBundle') }}</option>
+                      <option value="Kiste">{{ t('components.materialDetail.packUnitKiste') }}</option>
+                      <option value="Karton">{{ t('components.materialDetail.packUnitKarton') }}</option>
+                      <option value="Sack">{{ t('components.materialDetail.packUnitSack') }}</option>
+                      <option value="Rolle">{{ t('components.materialDetail.packUnitRolle') }}</option>
+                      <option value="Palette">{{ t('components.materialDetail.packUnitPalette') }}</option>
+                      <option value="Set">{{ t('components.materialDetail.packUnitSet') }}</option>
+                      <option value="Paket">{{ t('components.materialDetail.packUnitPaket') }}</option>
                     </select>
                     <input
                       v-if="formData.pack_unit && !['Bündel','Kiste','Karton','Sack','Rolle','Palette','Set','Paket',''].includes(formData.pack_unit)"
                       v-model="formData.pack_unit"
                       type="text"
                       class="form-input mt-1"
-                      placeholder="Eigene Bezeichnung..."
+                      :placeholder="t('components.materialDetail.packUnitCustomPlaceholder')"
                     />
                   </div>
                 </div>
               </div>
               <p v-if="formData.pack_size && formData.pack_unit" class="pack-preview">
-                Beispiel: {{ material.total_stock || 80 }} Stk. = {{ Math.floor((material.total_stock || 80) / formData.pack_size) }} {{ formData.pack_unit }} à {{ formData.pack_size }} Stk.
-                <span v-if="(material.total_stock || 80) % formData.pack_size !== 0"> + {{ (material.total_stock || 80) % formData.pack_size }} Stk.</span>
+                {{ t('components.materialDetail.packPreview', { stock: material.total_stock || 80, packs: Math.floor((material.total_stock || 80) / formData.pack_size), unit: formData.pack_unit, per: formData.pack_size }) }}
+                <span v-if="(material.total_stock || 80) % formData.pack_size !== 0">{{ t('components.materialDetail.packPreviewRemain', { rem: (material.total_stock || 80) % formData.pack_size }) }}</span>
               </p>
             </div>
 
             <div v-if="material.is_consumable || material.is_food" class="section-card">
-              <h2 class="section-title">Kosten</h2>
-              <p class="section-hint">Verkaufs- und Referenz-Einkaufspreis pro Stück sind verpflichtend; Verpackung optional.</p>
+              <h2 class="section-title">{{ t('components.materialDetail.sectionCosts') }}</h2>
+              <p class="section-hint">{{ t('components.materialDetail.costsHint') }}</p>
               <div v-if="material.is_consumable" class="costs-hint-banner">
-                <span>Wird bei Ausgabe sofort vom Bestand abgezogen.</span>
+                <span>{{ t('components.materialDetail.costsConsumableBanner') }}</span>
               </div>
               <div v-if="material.is_food" class="costs-hint-banner costs-hint-banner--food">
-                <span>Esswaren – Haltbarkeit pro Charge.</span>
+                <span>{{ t('components.materialDetail.costsFoodBanner') }}</span>
               </div>
               <div class="form-grid">
                 <div class="form-group">
-                  <label>Verkaufspreis (CHF/Stk.) <span class="field-required-star">*</span></label>
+                  <label>{{ t('components.materialDetail.labelSalePrice') }} <span class="field-required-star">*</span></label>
                   <div class="input-with-prefix">
-                    <span class="prefix">Fr.</span>
+                    <span class="prefix">{{ t('components.materialDetail.currencyFr') }}</span>
                     <input
                       v-model.number="formData.sale_price"
                       type="number"
@@ -308,33 +308,25 @@
                       placeholder="0.00"
                     />
                   </div>
-                  <p class="form-hint">Verkauf / Abrechnung pro Stück</p>
+                  <p class="form-hint">{{ t('components.materialDetail.hintSalePerPiece') }}</p>
                   <div
                     v-if="packSaleDerivedUnitPrice != null"
                     class="pack-sale-to-unit"
                   >
-                    <p class="pack-sale-to-unit__text">
-                      Rechner:
-                      {{ formData.pack_sale_price_chf != null ? Number(formData.pack_sale_price_chf).toFixed(2) : '—' }}&nbsp;CHF
-                      pro {{ formData.pack_unit || 'Einheit' }}
-                      ÷ {{ formData.pack_size }}&nbsp;Stk.
-                      =
-                      <strong>{{ packSaleDerivedUnitPrice.toFixed(2) }}</strong>
-                      CHF/Stk.
-                    </p>
+                    <p class="pack-sale-to-unit__text" v-text="packSaleCalcLine" />
                     <button
                       type="button"
                       class="btn-outline btn-sm pack-sale-to-unit__btn"
                       @click="applyPackSaleToUnitSalePrice"
                     >
-                      Als Stückpreis übernehmen
+                      {{ t('components.materialDetail.applyPackToUnit') }}
                     </button>
                   </div>
                 </div>
                 <div class="form-group">
-                  <label>Einkaufspreis Referenz (CHF/Stk.) <span class="field-required-star">*</span></label>
+                  <label>{{ t('components.materialDetail.labelRefPurchase') }} <span class="field-required-star">*</span></label>
                   <div class="input-with-prefix">
-                    <span class="prefix">Fr.</span>
+                    <span class="prefix">{{ t('components.materialDetail.currencyFr') }}</span>
                     <input
                       v-model.number="formData.reference_purchase_unit_chf"
                       type="number"
@@ -344,54 +336,54 @@
                       placeholder="0.00"
                     />
                   </div>
-                  <p class="form-hint">Übersicht und Buchhaltung</p>
+                  <p class="form-hint">{{ t('components.materialDetail.hintRefPurchase') }}</p>
                 </div>
                 <div v-if="material.is_consumable" class="form-group">
-                  <label>Mindestbestand <span class="optional">(optional)</span></label>
-                  <input v-model.number="formData.min_stock" type="number" min="0" class="form-input" placeholder="z.B. 10" />
+                  <label>{{ t('components.materialDetail.labelMinStock') }} <span class="optional">{{ t('components.materialDetail.optionalParen') }}</span></label>
+                  <input v-model.number="formData.min_stock" type="number" min="0" class="form-input" :placeholder="t('components.materialDetail.packSizePlaceholder')" />
                 </div>
               </div>
 
-              <h3 class="subsection-heading-kosten">Verpackungseinheit</h3>
-              <p class="section-hint">Optional: Stück pro Einheit; Preis pro Einheit zum Aufteilen auf den Stückpreis</p>
+              <h3 class="subsection-heading-kosten">{{ t('components.materialDetail.sectionPackaging') }}</h3>
+              <p class="section-hint">{{ t('components.materialDetail.costsPackagingOptionalHint') }}</p>
               <div class="form-grid">
                 <div class="form-group">
-                  <label>Stück pro Einheit</label>
+                  <label>{{ t('components.materialDetail.labelPiecesPerUnit') }}</label>
                   <input
                     v-model.number="formData.pack_size"
                     type="number"
                     min="2"
                     class="form-input"
-                    placeholder="z.B. 10"
+                    :placeholder="t('components.materialDetail.packSizePlaceholder')"
                   />
                 </div>
                 <div class="form-group">
-                  <label>Bezeichnung</label>
+                  <label>{{ t('components.materialDetail.labelDesignation') }}</label>
                   <div class="pack-unit-select">
                     <select v-model="formData.pack_unit" class="form-select">
-                      <option value="">– keine –</option>
-                      <option value="Bündel">Bündel</option>
-                      <option value="Kiste">Kiste</option>
-                      <option value="Karton">Karton</option>
-                      <option value="Sack">Sack</option>
-                      <option value="Rolle">Rolle</option>
-                      <option value="Palette">Palette</option>
-                      <option value="Set">Set</option>
-                      <option value="Paket">Paket</option>
+                      <option value="">{{ t('components.materialDetail.packUnitNone') }}</option>
+                      <option value="Bündel">{{ t('components.materialDetail.packUnitBundle') }}</option>
+                      <option value="Kiste">{{ t('components.materialDetail.packUnitKiste') }}</option>
+                      <option value="Karton">{{ t('components.materialDetail.packUnitKarton') }}</option>
+                      <option value="Sack">{{ t('components.materialDetail.packUnitSack') }}</option>
+                      <option value="Rolle">{{ t('components.materialDetail.packUnitRolle') }}</option>
+                      <option value="Palette">{{ t('components.materialDetail.packUnitPalette') }}</option>
+                      <option value="Set">{{ t('components.materialDetail.packUnitSet') }}</option>
+                      <option value="Paket">{{ t('components.materialDetail.packUnitPaket') }}</option>
                     </select>
                     <input
                       v-if="formData.pack_unit && !['Bündel','Kiste','Karton','Sack','Rolle','Palette','Set','Paket',''].includes(formData.pack_unit)"
                       v-model="formData.pack_unit"
                       type="text"
                       class="form-input mt-1"
-                      placeholder="Eigene Bezeichnung..."
+                      :placeholder="t('components.materialDetail.packUnitCustomPlaceholder')"
                     />
                   </div>
                 </div>
                 <div class="form-group">
-                  <label>Verkaufspreis pro Einheit (CHF) <span class="optional">(optional)</span></label>
+                  <label>{{ t('components.materialDetail.labelPackSalePerUnit') }} <span class="optional">{{ t('components.materialDetail.optionalParen') }}</span></label>
                   <div class="input-with-prefix">
-                    <span class="prefix">Fr.</span>
+                    <span class="prefix">{{ t('components.materialDetail.currencyFr') }}</span>
                     <input
                       v-model.number="formData.pack_sale_price_chf"
                       type="number"
@@ -405,13 +397,13 @@
                     v-if="formData.pack_size && formData.pack_size >= 2 && formData.pack_sale_price_chf && formData.pack_sale_price_chf > 0"
                     class="form-hint"
                   >
-                    Entspricht ca. {{ (formData.pack_sale_price_chf / formData.pack_size).toFixed(2) }} CHF/Stk.
+                    {{ t('components.materialDetail.hintPackEquivPerPiece', { price: (formData.pack_sale_price_chf / formData.pack_size).toFixed(2) }) }}
                   </p>
                 </div>
               </div>
               <p v-if="formData.pack_size && formData.pack_unit" class="pack-preview">
-                Beispiel: {{ material.total_stock || 0 }} Stk. = {{ Math.floor((material.total_stock || 0) / formData.pack_size) }} {{ formData.pack_unit }} à {{ formData.pack_size }} Stk.
-                <span v-if="(material.total_stock || 0) % formData.pack_size !== 0"> + {{ (material.total_stock || 0) % formData.pack_size }} Stk.</span>
+                {{ t('components.materialDetail.packPreview', { stock: material.total_stock || 0, packs: Math.floor((material.total_stock || 0) / formData.pack_size), unit: formData.pack_unit, per: formData.pack_size }) }}
+                <span v-if="(material.total_stock || 0) % formData.pack_size !== 0">{{ t('components.materialDetail.packPreviewRemain', { rem: (material.total_stock || 0) % formData.pack_size }) }}</span>
               </p>
             </div>
           </section>
@@ -1940,6 +1932,7 @@ import SplitModal from '@/components/material/SplitModal.vue'
 import { useAuthStore } from '@/stores/auth'
 import { usePageHeadStore } from '@/stores/pageHead'
 import { useToast } from '@/composables/useToast'
+import { useI18n } from 'vue-i18n'
 import { printHtmlDocument } from '@/utils/printHtml'
 import BatchModal from '@/components/material/BatchModal.vue'
 import MoveQuantityModal from '@/components/material/MoveQuantityModal.vue'
@@ -1964,6 +1957,7 @@ const pageHeadStore = usePageHeadStore()
 const authStore = useAuthStore()
 const detailTabsStore = useDetailTabsStore()
 const toast = useToast()
+const { t } = useI18n()
 const physicalComboWarningStore = usePhysicalComboWarningStore()
 
 const DETAIL_QUERY_KEYS = {
@@ -2335,39 +2329,60 @@ const showContainerContentTab = computed(() => {
 const tabs = computed(() => {
   if (isComboMaterialView.value) {
     const comboTabs = [
-      { id: 'data', label: 'Daten' },
-      { id: 'stored-in', label: 'Gelagert in' },
-      { id: 'composition', label: 'Zusammensetzung' },
-      { id: 'workshop', label: 'Werkstatt' },
+      { id: 'data', label: t('components.materialDetail.tabData') },
+      { id: 'stored-in', label: t('components.materialDetail.tabStoredIn') },
+      { id: 'composition', label: t('components.materialDetail.tabComposition') },
+      { id: 'workshop', label: t('components.materialDetail.tabWorkshop') },
     ]
     if (!material.value.is_consumable && !material.value.is_food) {
-      comboTabs.push({ id: 'rental', label: 'Vermietung' })
+      comboTabs.push({ id: 'rental', label: t('components.materialDetail.tabRental') })
     }
+    const archCount = archivedBatches.value.length
     comboTabs.push(
-      { id: 'archive', label: `Archiv${archivedBatches.value.length > 0 ? ' (' + archivedBatches.value.length + ')' : ''}` },
-      { id: 'history', label: 'History Log' }
+      {
+        id: 'archive',
+        label:
+          archCount > 0
+            ? t('components.materialDetail.tabArchiveCount', { count: archCount })
+            : t('components.materialDetail.tabArchive'),
+      },
+      { id: 'history', label: t('components.materialDetail.tabHistory') }
     )
     return comboTabs
   }
 
   const baseTabs = [
-    { id: 'data', label: 'Daten' },
-    { id: 'stock', label: 'Bestand' },
-    { id: 'stored-in', label: 'Gelagert in' },
+    { id: 'data', label: t('components.materialDetail.tabData') },
+    { id: 'stock', label: t('components.materialDetail.tabStock') },
+    { id: 'stored-in', label: t('components.materialDetail.tabStoredIn') },
   ]
   if (material.value.tracking_type === 'serialized') {
-    baseTabs.push({ id: 'serials', label: 'Seriennummern' })
+    baseTabs.push({ id: 'serials', label: t('components.materialDetail.tabSerials') })
   }
   if (showContainerContentTab.value) {
-    baseTabs.push({ id: 'container-content', label: 'Inhalt Kiste/Tasche' })
+    baseTabs.push({ id: 'container-content', label: t('components.materialDetail.tabContainerContent') })
   }
-  baseTabs.push({ id: 'used-in', label: `Verwendet in${usedInEntries.value.length > 0 ? ' (' + usedInEntries.value.length + ')' : ''}` })
-  baseTabs.push({ id: 'workshop', label: 'Werkstatt' })
+  const usedCount = usedInEntries.value.length
+  baseTabs.push({
+    id: 'used-in',
+    label:
+      usedCount > 0
+        ? t('components.materialDetail.tabUsedInCount', { count: usedCount })
+        : t('components.materialDetail.tabUsedIn'),
+  })
+  baseTabs.push({ id: 'workshop', label: t('components.materialDetail.tabWorkshop') })
   if (!material.value.is_consumable && !material.value.is_food) {
-    baseTabs.push({ id: 'rental', label: 'Vermietung' })
+    baseTabs.push({ id: 'rental', label: t('components.materialDetail.tabRental') })
   }
-  baseTabs.push({ id: 'archive', label: `Archiv${archivedBatches.value.length > 0 ? ' (' + archivedBatches.value.length + ')' : ''}` })
-  baseTabs.push({ id: 'history', label: 'History Log' })
+  const archN = archivedBatches.value.length
+  baseTabs.push({
+    id: 'archive',
+    label:
+      archN > 0
+        ? t('components.materialDetail.tabArchiveCount', { count: archN })
+        : t('components.materialDetail.tabArchive'),
+  })
+  baseTabs.push({ id: 'history', label: t('components.materialDetail.tabHistory') })
   return baseTabs
 })
 
@@ -2470,14 +2485,14 @@ const isPhysicalComboFromLinkedContainer = computed(
 )
 
 const qrGenerateButtonLabel = computed(() => {
-  if (isGeneratingPublicCode.value) return 'Erzeuge...'
-  if (isPhysicalComboFromLinkedContainer.value) return 'QR-Code sicherstellen'
-  return 'QR code erzeugen'
+  if (isGeneratingPublicCode.value) return t('components.materialDetail.qrGenLoading')
+  if (isPhysicalComboFromLinkedContainer.value) return t('components.materialDetail.qrGenEnsure')
+  return t('components.materialDetail.qrGenCreate')
 })
 
 const qrGenerateButtonTitle = computed(() => {
   if (isPhysicalComboFromLinkedContainer.value) {
-    return 'Es wird kein zweites Label erzeugt: gleicher öffentlicher Code wie an der Referenz-Kiste (falls vorhanden).'
+    return t('components.materialDetail.qrTitleLinkedCombo')
   }
   return ''
 })
@@ -2531,21 +2546,33 @@ const packSaleDerivedUnitPrice = computed(() => {
   return unitPriceFromPackSaleChf(Number(pp), Number(ps))
 })
 
+const packSaleCalcLine = computed(() => {
+  const up = packSaleDerivedUnitPrice.value
+  if (up == null) return ''
+  const pp = formData.pack_sale_price_chf
+  return t('components.materialDetail.packSaleCalcLine', {
+    packPrice: pp != null ? Number(pp).toFixed(2) : '—',
+    packUnit: formData.pack_unit?.trim() ? formData.pack_unit : t('components.materialDetail.unitGeneric'),
+    packSize: formData.pack_size != null ? String(formData.pack_size) : '—',
+    unitPrice: up.toFixed(2),
+  })
+})
+
 function applyPackSaleToUnitSalePrice() {
   const v = packSaleDerivedUnitPrice.value
   if (v == null) return
   formData.sale_price = v
-  toast.success('Stückpreis aus Packung übernommen.')
+  toast.success(t('components.materialDetail.toastPackSaleApplied'))
 }
 
-const statusLabels: Record<string, string> = {
-  active: 'Aktiv',
-  defect: 'Defekt',
-  repair: 'Reparatur',
-  lost: 'Verloren',
-  disposed: 'Entsorgt',
-  split_to_serial: 'Batch aufgeteilt in Seriennummern'
-}
+const statusLabels = computed((): Record<string, string> => ({
+  active: t('components.materialDetail.batchStatusActive'),
+  defect: t('components.materialDetail.batchStatusDefect'),
+  repair: t('components.materialDetail.batchStatusRepair'),
+  lost: t('components.materialDetail.batchStatusLost'),
+  disposed: t('components.materialDetail.batchStatusDisposed'),
+  split_to_serial: t('components.materialDetail.batchStatusSplitToSerial'),
+}))
 
 // Archiv-Status: Batches die nicht mehr aktiv im Bestand sind
 const archivedStatuses = ['lost', 'disposed', 'split_to_serial']
@@ -2585,22 +2612,22 @@ const propertyBadgeText = computed(() => {
   const m = material.value
   if (!m) return ''
 
-  if (m.is_food) return 'Esswaren'
-  if (m.is_consumable) return 'Verbrauchsmaterial'
+  if (m.is_food) return t('components.materialDetail.badgeFood')
+  if (m.is_consumable) return t('components.materialDetail.badgeConsumable')
 
   const mt = m.material_type || 'physical'
 
-  if (mt === 'virtual_combo') return 'Virtuelle Kombination'
-  if (mt === 'physical_combo') return 'Physische Kombination'
+  if (mt === 'virtual_combo') return t('components.materialDetail.badgeVirtualCombo')
+  if (mt === 'physical_combo') return t('components.materialDetail.badgePhysicalCombo')
 
   if (mt === 'physical') {
     const tt = m.tracking_type
-    if (tt === 'bulk') return 'Physischer Artikel – Massenartikel'
-    if (tt === 'serialized') return 'Physischer Artikel – Serialisiert'
-    return 'Physischer Artikel'
+    if (tt === 'bulk') return t('components.materialDetail.badgePhysicalBulk')
+    if (tt === 'serialized') return t('components.materialDetail.badgePhysicalSerialized')
+    return t('components.materialDetail.badgePhysical')
   }
 
-  return 'Material'
+  return t('components.materialDetail.badgeMaterial')
 })
 
 const availableStock = computed(() => {
@@ -2634,7 +2661,7 @@ const packLooseCount = computed(() => {
 const openLossLabel = computed(() => {
   const reports = material.value.open_loss_reports || 0
   const qty = material.value.open_loss_qty || 0
-  return `${reports} Meldung${reports === 1 ? '' : 'en'} / ${qty} Stk.`
+  return t('components.materialDetail.openLossLine', { reports, qty })
 })
 
 // Methods

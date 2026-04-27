@@ -19,14 +19,14 @@
         <form @submit.prevent="handleSubmit">
           <!-- Organisation Name -->
           <div class="form-group">
-            <label for="organisation-name" class="form-label">Name *</label>
+            <label for="organisation-name" class="form-label">{{ t('components.organisationModal.nameLabel') }}</label>
             <input
               id="organisation-name"
               ref="nameInput"
               v-model="formData.name"
               type="text"
               class="form-input"
-              placeholder="Organisation Name"
+              :placeholder="t('components.organisationModal.namePlaceholder')"
               required
               :disabled="isSubmitting"
             />

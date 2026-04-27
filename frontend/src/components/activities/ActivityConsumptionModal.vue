@@ -3,33 +3,37 @@
     <div v-if="isOpen" class="consumption-modal-overlay" @click.self="close">
       <div class="consumption-modal-dialog" role="dialog" aria-modal="true" aria-labelledby="consumption-modal-title">
         <div class="consumption-modal-header">
-          <h3 id="consumption-modal-title">Verbrauch erfassen</h3>
-          <button type="button" class="consumption-modal-close" aria-label="Schliessen" @click="close">×</button>
+          <h3 id="consumption-modal-title">{{ t('components.activityConsumptionModal.title') }}</h3>
+          <button type="button" class="consumption-modal-close" :aria-label="t('components.activityConsumptionModal.closeAria')" @click="close">×</button>
         </div>
         <div class="consumption-modal-body">
-          <div v-if="loadingLimits" class="consumption-modal-loading text-muted">Grenzen werden geladen…</div>
+          <div v-if="loadingLimits" class="consumption-modal-loading text-muted">{{ t('components.activityConsumptionModal.loadingLimits') }}</div>
           <div class="consumption-modal-material">
             {{ displayMaterialLine }}
           </div>
           <p v-if="!loadingLimits && preset" class="consumption-modal-limits text-muted">
-            Für diese Aktivität gebucht: <strong>{{ bookedTotal }}</strong> Stk. · Bereits verbraucht:
-            <strong>{{ consumedTotal }}</strong> Stk. · Noch möglich:
-            <strong>{{ maxRemaining }}</strong> Stk.
+            {{
+              t('components.activityConsumptionModal.limitsSummary', {
+                booked: bookedTotal,
+                consumed: consumedTotal,
+                remaining: maxRemaining,
+              })
+            }}
           </p>
           <p v-if="!loadingLimits && maxRemaining < 1" class="consumption-modal-warn">
-            Es kann kein weiterer Verbrauch gebucht werden (Höchstmenge erreicht oder nichts gebucht).
+            {{ t('components.activityConsumptionModal.warnNoMore') }}
           </p>
           <div
             v-if="!loadingLimits && maxRemaining > 0 && canAddActivityMaterial"
             class="consumption-modal-nachlieferung"
           >
             <button type="button" class="link-btn" @click="emit('requestNachbuchung')">
-              Gebuchte Menge erhöhen (Nachlieferung / Reste)…
+              {{ t('components.activityConsumptionModal.requestNachbuchung') }}
             </button>
           </div>
           <template v-if="!loadingLimits && maxRemaining > 0">
           <div class="consumption-modal-field">
-            <label for="consumption-qty">Gebrauchte Menge</label>
+            <label for="consumption-qty">{{ t('components.activityConsumptionModal.labelQty') }}</label>
             <div class="adjust-qty-row">
               <button
                 type="button"
@@ -91,13 +95,13 @@
             </div>
           </div>
           <div class="consumption-modal-field">
-            <label for="consumption-notes">Notiz (optional)</label>
+            <label for="consumption-notes">{{ t('components.activityConsumptionModal.labelNotes') }}</label>
             <textarea
               id="consumption-notes"
               v-model="notes"
               class="form-input form-textarea"
               rows="3"
-              placeholder="Optional…"
+              :placeholder="t('components.activityConsumptionModal.notesPlaceholder')"
             />
           </div>
           </template>
@@ -106,21 +110,21 @@
             class="consumption-modal-nachbuchung-actions"
           >
             <p class="text-muted text-sm">
-              Wenn du nachgeliefert hast oder Reste dem Event zuordnen willst, erhöhe die gebuchte Aktivitätsmenge.
+              {{ t('components.activityConsumptionModal.nachbuchungHint') }}
             </p>
             <button type="button" class="btn btn-primary" @click="emit('requestNachbuchung')">
-              Nachlieferung zur Aktivität hinzufügen
+              {{ t('components.activityConsumptionModal.nachbuchungCta') }}
             </button>
           </div>
           <p
             v-else-if="!loadingLimits && maxRemaining < 1 && !canAddActivityMaterial"
             class="consumption-modal-no-perm text-muted text-sm"
           >
-            Eine Erhöhung der gebuchten Menge ist nur für Materialwart / Dep.-Chef möglich (Tab «Material»).
+            {{ t('components.activityConsumptionModal.noPermissionHint') }}
           </p>
         </div>
         <div class="consumption-modal-footer">
-          <button type="button" class="btn btn-outline" :disabled="submitting" @click="close">Schliessen</button>
+          <button type="button" class="btn btn-outline" :disabled="submitting" @click="close">{{ t('components.activityConsumptionModal.closeFooter') }}</button>
           <button
             v-if="maxRemaining > 0"
             type="button"
@@ -128,7 +132,7 @@
             :disabled="submitting || !canSubmit || loadingLimits"
             @click="submit"
           >
-            {{ submitting ? 'Wird gesendet…' : 'Verbrauch buchen' }}
+            {{ submitting ? t('components.activityConsumptionModal.submitting') : t('components.activityConsumptionModal.submit') }}
           </button>
         </div>
       </div>
@@ -138,6 +142,7 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { createActivityIssue, getActivityIssues, getActivityItems } from '@/api/activities'
 import { useToast } from '@/composables/useToast'
 
@@ -166,6 +171,7 @@ const emit = defineEmits<{
   requestNachbuchung: []
 }>()
 
+const { t } = useI18n()
 const toast = useToast()
 const qty = ref(1)
 const notes = ref('')
@@ -245,7 +251,7 @@ async function loadConsumptionLimits() {
   } catch {
     bookedTotal.value = 0
     consumedTotal.value = 0
-    toast.error('Gebuchte Mengen konnten nicht geladen werden.')
+    toast.error(t('components.activityConsumptionModal.toastLoadLimitsFailed'))
   } finally {
     loadingLimits.value = false
   }
@@ -277,8 +283,8 @@ async function submit() {
   if (qty.value < 1 || qty.value > maxRemaining.value) {
     toast.error(
       maxRemaining.value < 1
-        ? 'Kein weiterer Verbrauch möglich.'
-        : `Höchstens ${maxRemaining.value} Stk. möglich.`,
+        ? t('components.activityConsumptionModal.toastNoConsumptionPossible')
+        : t('components.activityConsumptionModal.toastMaxQty', { max: maxRemaining.value }),
     )
     return
   }
@@ -294,7 +300,7 @@ async function submit() {
     close()
   } catch (err: unknown) {
     const e = err as { response?: { data?: { error?: string } }; message?: string }
-    toast.error(e.response?.data?.error || e.message || 'Verbrauch konnte nicht gebucht werden.')
+    toast.error(e.response?.data?.error || e.message || t('components.activityConsumptionModal.toastBookFailed'))
   } finally {
     submitting.value = false
   }

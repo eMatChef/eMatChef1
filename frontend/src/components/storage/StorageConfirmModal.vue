@@ -4,9 +4,9 @@
       <h3>{{ title }}</h3>
       <p>{{ message }}</p>
       <div class="modal-actions">
-        <button class="btn-secondary" @click="$emit('close')">Abbrechen</button>
+        <button class="btn-secondary" @click="$emit('close')">{{ t('common.cancel') }}</button>
         <button class="btn-danger" :disabled="isLoading" @click="$emit('confirm')">
-          {{ isLoading ? loadingText : confirmText }}
+          {{ isLoading ? loadingLabel : confirmLabel }}
         </button>
       </div>
     </div>
@@ -14,18 +14,27 @@
 </template>
 
 <script setup lang="ts">
-withDefaults(defineProps<{
-  isOpen: boolean
-  title: string
-  message: string
-  confirmText?: string
-  loadingText?: string
-  isLoading?: boolean
-}>(), {
-  confirmText: 'Löschen',
-  loadingText: 'Wird gelöscht...',
-  isLoading: false,
-})
+import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
+
+const { t } = useI18n()
+
+const props = withDefaults(
+  defineProps<{
+    isOpen: boolean
+    title: string
+    message: string
+    confirmText?: string
+    loadingText?: string
+    isLoading?: boolean
+  }>(),
+  {
+    isLoading: false,
+  },
+)
+
+const confirmLabel = computed(() => props.confirmText ?? t('common.delete'))
+const loadingLabel = computed(() => props.loadingText ?? t('common.deleteInProgress'))
 
 defineEmits<{
   close: []
@@ -67,4 +76,3 @@ defineEmits<{
 
 /* Buttons use shared ui/buttons.css */
 </style>
-

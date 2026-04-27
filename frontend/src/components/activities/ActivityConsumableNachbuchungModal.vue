@@ -3,19 +3,22 @@
     <div v-if="isOpen" class="nachbuchung-overlay" @click.self="close">
       <div class="nachbuchung-dialog" role="dialog" aria-modal="true" aria-labelledby="nachbuchung-title">
         <div class="nachbuchung-header">
-          <h3 id="nachbuchung-title">Menge zur Aktivität hinzufügen</h3>
-          <button type="button" class="nachbuchung-close" aria-label="Schliessen" @click="close">×</button>
+          <h3 id="nachbuchung-title">{{ t('components.activityNachbuchungModal.title') }}</h3>
+          <button type="button" class="nachbuchung-close" :aria-label="t('components.activityNachbuchungModal.closeAria')" @click="close">×</button>
         </div>
         <div class="nachbuchung-body">
           <p class="nachbuchung-lead">
-            Zusätzliche Stückzahl für <strong>{{ materialLabel }}</strong> auf diese Aktivität buchen — z.&nbsp;B.
-            Nachlieferung oder Reste, die du dem Event zuordnen willst. Anschliessend kann der Verbrauch wieder bis zu
-            dieser Summe erfasst werden.
+            {{ t('components.activityNachbuchungModal.leadPrefix') }}<strong>{{ materialLabel }}</strong>{{ t('components.activityNachbuchungModal.leadSuffix') }}
           </p>
           <div class="nachbuchung-field">
-            <label for="nachbuchung-qty">Zusätzliche Menge (Stk.)</label>
+            <label for="nachbuchung-qty">{{ t('components.activityNachbuchungModal.labelQty') }}</label>
             <p v-if="effectivePackSize" class="nachbuchung-ve-note text-muted">
-              Voreinstellung: 1 {{ packUnitLabel || 'VE' }} = {{ effectivePackSize }} Stk.
+              {{
+                t('components.activityNachbuchungModal.packPreset', {
+                  unit: packUnitLabel || t('components.activityNachbuchungModal.packUnitFallback'),
+                  pieces: effectivePackSize,
+                })
+              }}
             </p>
             <div class="adjust-qty-row">
               <button type="button" class="btn-qty" :disabled="qty <= 1" @click="qty = Math.max(1, qty - 1)">−</button>
@@ -35,33 +38,40 @@
               <button
                 type="button"
                 class="mat-quick-btn mat-set-btn"
-                :title="'+1 ' + (packUnitLabel || 'VE')"
+                :title="'+1 ' + (packUnitLabel || t('components.activityNachbuchungModal.packUnitFallback'))"
                 @click="bumpByPacks(1)"
               >
-                +1 {{ packUnitLabel || 'VE' }}
+                +1 {{ packUnitLabel || t('components.activityNachbuchungModal.packUnitFallback') }}
               </button>
               <button
                 type="button"
                 class="mat-quick-btn mat-set-btn"
-                :title="'+5 ' + (packUnitLabel || 'VE')"
+                :title="'+5 ' + (packUnitLabel || t('components.activityNachbuchungModal.packUnitFallback'))"
                 @click="bumpByPacks(5)"
               >
-                +5 {{ packUnitLabel || 'VE' }}
+                +5 {{ packUnitLabel || t('components.activityNachbuchungModal.packUnitFallback') }}
               </button>
               <span class="nachbuchung-pack-hint text-muted">
-                1 {{ packUnitLabel || 'VE' }} = {{ effectivePackSize }} Stk.
+                {{
+                  t('components.activityNachbuchungModal.packEquals', {
+                    unit: packUnitLabel || t('components.activityNachbuchungModal.packUnitFallback'),
+                    pieces: effectivePackSize,
+                  })
+                }}
               </span>
             </div>
           </div>
           <p v-if="departmentId && materialItemId" class="nachbuchung-hint text-muted">
-            Neue Charge oder Bestand zuerst im Lager erfassen?
-            <router-link class="nachbuchung-link" :to="materialDetailPath">Material öffnen</router-link>
+            {{ t('components.activityNachbuchungModal.hintWarehouse') }}
+            <router-link class="nachbuchung-link" :to="materialDetailPath">{{
+              t('components.activityNachbuchungModal.openMaterial')
+            }}</router-link>
           </p>
         </div>
         <div class="nachbuchung-footer">
-          <button type="button" class="btn btn-outline" :disabled="submitting" @click="close">Abbrechen</button>
+          <button type="button" class="btn btn-outline" :disabled="submitting" @click="close">{{ t('common.cancel') }}</button>
           <button type="button" class="btn btn-primary" :disabled="submitting || qty < 1" @click="submit">
-            {{ submitting ? 'Wird gespeichert…' : 'Zur Aktivität hinzufügen' }}
+            {{ submitting ? t('components.activityNachbuchungModal.submitting') : t('components.activityNachbuchungModal.submit') }}
           </button>
         </div>
       </div>
@@ -71,6 +81,7 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { addActivityItem } from '@/api/activities'
 import { useToast } from '@/composables/useToast'
 
@@ -90,6 +101,7 @@ const emit = defineEmits<{
   success: []
 }>()
 
+const { t } = useI18n()
 const toast = useToast()
 const qty = ref(1)
 const submitting = ref(false)
@@ -139,7 +151,7 @@ async function submit() {
     close()
   } catch (err: unknown) {
     const e = err as { response?: { data?: { error?: string } }; message?: string }
-    toast.error(e.response?.data?.error || e.message || 'Menge konnte nicht hinzugefügt werden.')
+    toast.error(e.response?.data?.error || e.message || t('components.activityNachbuchungModal.submitError'))
   } finally {
     submitting.value = false
   }
