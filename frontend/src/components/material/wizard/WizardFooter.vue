@@ -2,7 +2,7 @@
   <div class="material-wizard-footer">
     <label class="checkbox-label">
       <input type="checkbox" :checked="createAnother" @change="$emit('update:createAnother', ($event.target as HTMLInputElement).checked)" />
-      <span>Weitere erstellen</span>
+      <span>{{ t('components.materialWizardFooter.createAnother') }}</span>
     </label>
     <div class="footer-actions">
       <div v-if="missingSteps.length > 0" class="missing-steps">
@@ -11,7 +11,9 @@
           {{ missingSteps[0] }}
         </button>
       </div>
-      <button class="btn-secondary btn-sm" @click="$emit('close')">Verwerfen</button>
+      <button class="btn-secondary btn-sm" @click="$emit('close')">{{
+        t('components.materialWizardFooter.discard')
+      }}</button>
       <button 
         class="btn-primary btn-sm" 
         :disabled="!canSubmit || isSubmitting"
@@ -26,6 +28,9 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
+
+const { t } = useI18n()
 
 const props = defineProps<{
   createAnother: boolean
@@ -45,14 +50,14 @@ defineEmits<{
 }>()
 
 const submitButtonText = computed(() => {
-  if (props.isSubmitting) return 'Wird gespeichert...'
-  if (props.isAddBatchMode) return 'Charge hinzufügen'
+  if (props.isSubmitting) return t('components.materialWizardFooter.saving')
+  if (props.isAddBatchMode) return t('components.materialWizardFooter.addBatch')
   if (props.isFromTemplate) {
-    if (props.creationMode === 'individual') return 'Artikel erstellen'
-    if (props.creationMode === 'physical_combo') return 'Kombo erstellen'
-    if (props.creationMode === 'virtual_combo') return 'Virtuelle Kombo erstellen'
-    return 'Erstellen'
+    if (props.creationMode === 'individual') return t('components.materialWizardFooter.createArticle')
+    if (props.creationMode === 'physical_combo') return t('components.materialWizardFooter.createCombo')
+    if (props.creationMode === 'virtual_combo') return t('components.materialWizardFooter.createVirtualCombo')
+    return t('components.materialWizardFooter.create')
   }
-  return 'Material hinzufügen'
+  return t('components.materialWizardFooter.addMaterial')
 })
 </script>

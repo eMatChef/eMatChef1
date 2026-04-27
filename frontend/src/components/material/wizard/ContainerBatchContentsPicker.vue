@@ -1,6 +1,6 @@
 <template>
   <div class="rack-contents-picker">
-    <label class="rack-contents-label">Aus Kiste übernehmen</label>
+    <label class="rack-contents-label">{{ t('components.containerBatchContentsPicker.sectionLabel') }}</label>
     <div class="rack-contents-row">
       <select
         :value="containerBatchId"
@@ -8,7 +8,7 @@
         :disabled="isLoading"
         @change="onBatchChange"
       >
-        <option value="">Kiste wählen…</option>
+        <option value="">{{ t('components.containerBatchContentsPicker.selectPlaceholder') }}</option>
         <option
           v-for="cb in containerBatches"
           :key="cb.id"
@@ -23,23 +23,37 @@
         type="button"
         class="btn-outline-small"
         :disabled="isLoading"
-        :title="selectedContents ? 'Kisteninhalt erneut vom Server laden' : undefined"
+        :title="selectedContents ? t('components.containerBatchContentsPicker.titleReloadFromServer') : undefined"
         @click="emit('load')"
       >
-        {{ isLoading ? 'Laden…' : selectedContents ? 'Aktualisieren' : 'Inhalt übernehmen' }}
+        {{
+          isLoading
+            ? t('components.containerBatchContentsPicker.loading')
+            : selectedContents
+              ? t('components.containerBatchContentsPicker.refresh')
+              : t('components.containerBatchContentsPicker.applyContents')
+        }}
       </button>
     </div>
     <p v-if="selectedContents && selectedContents.contents.length" class="rack-contents-hint">
-      {{ selectedContents.contents.length }} Artikel aus Kiste „{{ selectedContents.container_label }}“ übernommen
+      {{
+        t('components.containerBatchContentsPicker.itemsTakenHint', {
+          count: selectedContents.contents.length,
+          name: selectedContents.container_label
+        })
+      }}
     </p>
     <p v-else-if="selectedContents && !selectedContents.contents.length" class="rack-contents-hint rack-contents-hint--empty">
-      Diese Kiste enthält aktuell keine zugeordneten Materialien.
+      {{ t('components.containerBatchContentsPicker.emptyBoxHint') }}
     </p>
   </div>
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n'
 import type { ContainerBatch, ContainerBatchContentsResponse } from '@/api/storageLocations'
+
+const { t } = useI18n()
 import { formatContainerBatchOptionFullLabel } from '@/utils/containerBatchLabel'
 
 defineProps<{
