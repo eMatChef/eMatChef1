@@ -767,7 +767,7 @@ async function handleSubmit() {
   const hasCoordinates = formData.value.latitude && formData.value.longitude
   
   if (!hasName && !hasAddress && !hasCoordinates) {
-    error.value = 'Mindestens Name, Adresse oder Standort ist erforderlich'
+    error.value = t('settings.addressModal.validationMinFields')
     return
   }
 

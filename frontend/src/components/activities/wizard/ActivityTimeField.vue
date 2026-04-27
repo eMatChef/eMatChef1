@@ -1,8 +1,8 @@
 <template>
   <!-- Explizites 00/15/30/45-Raster — unabhängig vom Browser (manche ignorieren step bei type="time"). -->
   <div class="activity-time-quarter-grid" :class="{ 'is-disabled': !modelValue || locked }">
-    <div class="activity-time-slot" :title="editHint" @dblclick.prevent="openHourEdit">
-      <label class="sr-only" :for="hourEditing ? hourInputId : hourId">Stunde</label>
+    <div class="activity-time-slot" :title="t('activities.timeField.editHint')" @dblclick.prevent="openHourEdit">
+      <label class="sr-only" :for="hourEditing ? hourInputId : hourId">{{ t('activities.timeField.hour') }}</label>
       <select
         v-show="!hourEditing"
         :id="hourId"
@@ -10,7 +10,7 @@
         class="form-input activity-time-part activity-time-hour"
         :disabled="!modelValue || locked"
         :value="hourStr"
-        :aria-label="(ariaLabel ? ariaLabel + ', ' : '') + 'Stunde'"
+        :aria-label="(ariaLabel ? ariaLabel + ', ' : '') + t('activities.timeField.hour')"
         @change="onHourChange"
       >
         <option v-for="h in hourOptions" :key="h" :value="h" :disabled="hourOptionDisabled(h)">{{ h }}</option>
@@ -26,14 +26,14 @@
         maxlength="2"
         class="form-input activity-time-part activity-time-hour activity-time-edit"
         :disabled="!modelValue || locked"
-        :aria-label="(ariaLabel ? ariaLabel + ', ' : '') + 'Stunde (Tastatur)'"
+        :aria-label="(ariaLabel ? ariaLabel + ', ' : '') + t('activities.timeField.hourKeyboard')"
         @blur="commitHourEdit"
         @keydown="onHourEditKeydown"
       />
     </div>
     <span class="activity-time-sep" aria-hidden="true">:</span>
-    <div class="activity-time-slot" :title="editHint" @dblclick.prevent="openMinuteEdit">
-      <label class="sr-only" :for="minuteEditing ? minuteInputId : minuteId">Minute</label>
+    <div class="activity-time-slot" :title="t('activities.timeField.editHint')" @dblclick.prevent="openMinuteEdit">
+      <label class="sr-only" :for="minuteEditing ? minuteInputId : minuteId">{{ t('activities.timeField.minute') }}</label>
       <select
         v-show="!minuteEditing"
         :id="minuteId"
@@ -41,7 +41,7 @@
         class="form-input activity-time-part activity-time-minute"
         :disabled="!modelValue || locked"
         :value="minuteStr"
-        :aria-label="(ariaLabel ? ariaLabel + ', ' : '') + 'Minute (Viertelstunde)'"
+        :aria-label="(ariaLabel ? ariaLabel + ', ' : '') + t('activities.timeField.minuteQuarter')"
         @change="onMinuteChange"
       >
         <option v-for="m in minuteOptions" :key="m" :value="m" :disabled="minuteOptionDisabled(m)">{{ m }}</option>
@@ -57,7 +57,7 @@
         maxlength="2"
         class="form-input activity-time-part activity-time-minute activity-time-edit"
         :disabled="!modelValue || locked"
-        :aria-label="(ariaLabel ? ariaLabel + ', ' : '') + 'Minute (Tastatur, 0–59)'"
+        :aria-label="(ariaLabel ? ariaLabel + ', ' : '') + t('activities.timeField.minuteKeyboard')"
         @blur="commitMinuteEdit"
         @keydown="onMinuteEditKeydown"
       />
@@ -67,6 +67,7 @@
 
 <script setup lang="ts">
 import { computed, nextTick, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { snapDateToQuarterHour } from '@/utils/activityPlanningFromDefaults'
 import { startOfLocalDay } from '@/utils/activityDateTimeParts'
 import {
@@ -90,7 +91,7 @@ const minuteEditing = ref(false)
 const hourDraft = ref('')
 const minuteDraft = ref('')
 
-const editHint = 'Einfachklick: Liste. Doppelklick: Tastatur.'
+const { t } = useI18n()
 
 const props = defineProps<{
   modelValue: Date | null

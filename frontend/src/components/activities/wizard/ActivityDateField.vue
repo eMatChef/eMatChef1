@@ -3,7 +3,7 @@
     :model-value="modelValue"
     :disabled="disabled"
     class="activity-date-field"
-    locale="de"
+    :locale="datepickerLocale"
     format="dd.MM.yyyy"
     :enable-time-picker="false"
     :preset-dates="presetDates"
@@ -20,6 +20,7 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import VueDatePicker from '@vuepic/vue-datepicker'
 import type { DatePickerMarker } from '@vuepic/vue-datepicker'
 import '@vuepic/vue-datepicker/dist/main.css'
@@ -40,6 +41,10 @@ const props = withDefaults(
   { departmentId: null, disabled: false, teleportTo: '.material-wizard-modal' },
 )
 
+const { t, locale } = useI18n()
+
+const datepickerLocale = computed(() => (String(locale.value ?? '').startsWith('de') ? 'de' : 'en'))
+
 const minDate = computed(() => startOfToday())
 
 /** Wie bei Datumsbereich: Schnellauswahl links im Kalender (Typ „Aktivität“ = ein Tag) */
@@ -47,8 +52,8 @@ const presetDates = computed(() => {
   const today = startOfToday()
   const sat = startOfLocalDay(nextSaturdayFromToday())
   return [
-    { label: 'Heute', value: today },
-    { label: 'Nächster Samstag', value: sat },
+    { label: t('activities.datePresets.today'), value: today },
+    { label: t('activities.datePresets.nextSaturday'), value: sat },
   ]
 })
 
@@ -77,7 +82,7 @@ const holidayMarkers = computed<DatePickerMarker[]>(() => {
     date: m.date,
     type: 'dot',
     color: '#2563eb',
-    tooltip: [{ text: `${m.label} (Schulferien)` }],
+    tooltip: [{ text: t('activities.dateRangePicker.schoolHolidayTooltip', { label: m.label }) }],
   }))
   return [...base, ...school]
 })

@@ -9,7 +9,7 @@
       class="activity-mat-avail-shortage-banner text-muted"
       role="status"
     >
-      Im gewählten Abhol-/Rückgabezeitraum reicht der Bestand für mindestens eine Position nicht — betroffene Zeilen stehen oben in der Liste.
+      {{ t('activities.materialLinesTable.shortageBanner') }}
     </p>
     <div
       v-if="
@@ -22,7 +22,7 @@
       class="activity-mat-reconcile-bulk"
     >
       <button type="button" class="btn-outline btn-sm" @click="applyAllSuggestedQuantities">
-        Alle Positionen auf maximal Verfügbares anpassen
+        {{ t('activities.materialLinesTable.applyAllBulk') }}
       </button>
     </div>
 
@@ -32,31 +32,33 @@
           <tr>
             <th scope="col" class="activity-mat-col-name">
               <button type="button" class="activity-mat-th-btn" @click="toggleSort('name')">
-                Material
+                {{ t('activities.materialLinesTable.thMaterial') }}
                 <span class="activity-mat-sort-ind" aria-hidden="true">{{ sortGlyph('name') }}</span>
               </button>
             </th>
-            <th v-if="showSourceAndTotals" scope="col" class="activity-mat-col-source">Quelle</th>
+            <th v-if="showSourceAndTotals" scope="col" class="activity-mat-col-source">{{ t('activities.materialLinesTable.thSource') }}</th>
             <th scope="col" class="activity-mat-col-rest">
               <button
                 type="button"
                 class="activity-mat-th-btn activity-mat-th-btn--narrow"
-                title="Menge / maximal buchbar im Zeitraum (Lager &amp; Überschneidungen)"
+                :title="t('activities.materialLinesTable.thRestTitle')"
                 @click="toggleSort('available')"
               >
-                Rest
+                {{ t('activities.materialLinesTable.thRest') }}
                 <span class="activity-mat-sort-ind" aria-hidden="true">{{ sortGlyph('available') }}</span>
               </button>
             </th>
             <th scope="col" class="activity-mat-col-qty">
               <button type="button" class="activity-mat-th-btn" @click="toggleSort('quantity')">
-                Menge
+                {{ t('activities.materialLinesTable.thQty') }}
                 <span class="activity-mat-sort-ind" aria-hidden="true">{{ sortGlyph('quantity') }}</span>
               </button>
             </th>
-            <th v-if="showSourceAndTotals && showLineTotal" scope="col" class="activity-mat-col-money">Zeile</th>
-            <th scope="col" class="activity-mat-col-warn">Hinweis</th>
-            <th scope="col" class="activity-mat-col-actions"><span class="sr-only">Aktionen</span></th>
+            <th v-if="showSourceAndTotals && showLineTotal" scope="col" class="activity-mat-col-money">{{
+              t('activities.materialLinesTable.thLine')
+            }}</th>
+            <th scope="col" class="activity-mat-col-warn">{{ t('activities.materialLinesTable.thHint') }}</th>
+            <th scope="col" class="activity-mat-col-actions"><span class="sr-only">{{ t('activities.materialLinesTable.thActions') }}</span></th>
           </tr>
         </thead>
         <tbody>
@@ -71,14 +73,17 @@
             <td class="activity-mat-cell-name">
               <div class="activity-mat-name-stack">
                 <span>{{ row.material_name }}</span>
-                <span v-if="row.material_type === 'physical_combo'" class="activity-mat-combo-tag" title="Physische Kombination"
-                  >Phys. Kombi</span
+                <span
+                  v-if="row.material_type === 'physical_combo'"
+                  class="activity-mat-combo-tag"
+                  :title="t('activities.detail.comboPhysicalTitle')"
+                  >{{ t('activities.detail.comboPhysicalShort') }}</span
                 >
                 <span
                   v-else-if="row.material_type === 'virtual_combo'"
                   class="activity-mat-combo-tag activity-mat-combo-tag--virtual"
-                  title="Virtuelle Kombination"
-                  >Virt. Kombi</span
+                  :title="t('activities.detail.comboVirtualTitle')"
+                  >{{ t('activities.detail.comboVirtualShort') }}</span
                 >
                 <span v-if="row.is_js_material" class="activity-mat-js-tag">J&amp;S</span>
                 <button
@@ -86,28 +91,24 @@
                   type="button"
                   class="activity-mat-container-tag"
                   disabled
-                  title="Behälter — kann anderen Lagerinhalt aufnehmen (Kiste, Tasche, Fass …)"
+                  :title="t('activities.materialLinesTable.containerTagTitle')"
                 >
-                  Behälter
+                  {{ t('activities.materialLinesTable.containerTag') }}
                 </button>
                 <span
                   v-if="row.tracking_type === 'serialized' || row.tracking_type === 'bulk'"
                   class="activity-mat-tracking-tag text-muted"
-                  :title="
-                    row.tracking_type === 'serialized'
-                      ? 'Serialisiert (pro Stück / Seriennummer)'
-                      : 'Mengenware (Bestand nach Menge)'
-                  "
+                  :title="row.tracking_type === 'serialized' ? t('activities.materialLinesTable.trackSerializedTitle') : t('activities.materialLinesTable.trackBulkTitle')"
                 >
-                  {{ row.tracking_type === 'serialized' ? 'Serialisiert' : 'Mengenware' }}
+                  {{ row.tracking_type === 'serialized' ? t('activities.materialLinesTable.trackSerialized') : t('activities.materialLinesTable.trackBulk') }}
                 </span>
                 <div v-if="row.linked_container_label" class="activity-mat-combo-kiste text-muted">
-                  Kiste: {{ row.linked_container_label }}
+                  {{ t('activities.materialLinesTable.crateLine', { label: row.linked_container_label }) }}
                 </div>
               </div>
             </td>
             <td v-if="showSourceAndTotals" class="activity-mat-cell-source text-muted">
-              {{ row.source_department_name || '–' }}
+              {{ row.source_department_name || t('activities.wizard.form.summaryEmpty') }}
             </td>
             <td class="activity-mat-cell-num activity-mat-cell-rest">
               <div v-if="variant === 'detail-draft'" class="activity-mat-rest-stack">
@@ -120,7 +121,7 @@
                       class="btn-outline btn-sm activity-mat-rest-adjust"
                       @click="applySuggestedForLine(originalIndex)"
                     >
-                      Anpassen
+                      {{ t('activities.materialLinesTable.adjust') }}
                     </button>
                   </template>
                 </template>
@@ -135,10 +136,10 @@
                 v-if="lineLockedForPackListOnly(row)"
                 class="activity-material-line-qty-block activity-material-line-qty-block--packing-locked"
               >
-                <span class="activity-mat-qty-readonly" title="Menge wird über die Packliste gesteuert">{{
+                <span class="activity-mat-qty-readonly" :title="t('activities.materialLinesTable.qtyReadonlyTitle')">{{
                   row.quantity
                 }}</span>
-                <span class="activity-mat-pack-hint text-muted">Packliste</span>
+                <span class="activity-mat-pack-hint text-muted">{{ t('activities.materialLinesTable.packList') }}</span>
               </div>
               <div
                 v-else
@@ -153,51 +154,51 @@
                     v-if="canDecrementLine(row, row.pack_size)"
                     type="button"
                     class="activity-mat-quick-btn activity-mat-set-btn activity-mat-quick-btn--dec"
-                    :title="'−1 ' + (row.pack_unit || 'Set')"
-                    :aria-label="'Menge um 1 ' + (row.pack_unit || 'Set') + ' verringern'"
+                    :title="'−1 ' + (row.pack_unit || t('activities.materialAvailability.packUnitSet'))"
+                    :aria-label="t('activities.materialLinesTable.ariaDecPack', { unit: row.pack_unit || t('activities.materialAvailability.packUnitSet') })"
                     :disabled="disabled"
                     @mousedown.prevent="decrementLine(originalIndex, row.pack_size)"
                   >
-                    −1 {{ row.pack_unit || 'Set' }}
+                    −1 {{ row.pack_unit || t('activities.materialAvailability.packUnitSet') }}
                   </button>
                   <button
                     v-if="canDecrementLine(row, row.pack_size * 5)"
                     type="button"
                     class="activity-mat-quick-btn activity-mat-set-btn activity-mat-quick-btn--dec"
-                    :title="'−5 ' + (row.pack_unit || 'Sets')"
-                    :aria-label="'Menge um 5 ' + (row.pack_unit || 'Sets') + ' verringern'"
+                    :title="'−5 ' + (row.pack_unit || t('activities.materialAvailability.packUnitSets'))"
+                    :aria-label="t('activities.materialLinesTable.ariaDecPacks5', { units: row.pack_unit || t('activities.materialAvailability.packUnitSets') })"
                     :disabled="disabled"
                     @mousedown.prevent="decrementLine(originalIndex, row.pack_size * 5)"
                   >
-                    −5 {{ row.pack_unit || 'Sets' }}
+                    −5 {{ row.pack_unit || t('activities.materialAvailability.packUnitSets') }}
                   </button>
                   <span v-if="showPackDecDivider(row)" class="activity-mat-btn-divider" aria-hidden="true">|</span>
                   <button
                     v-if="canIncrementLine(row, row.pack_size)"
                     type="button"
                     class="activity-mat-quick-btn activity-mat-set-btn"
-                    :title="'1 ' + (row.pack_unit || 'Set')"
-                    :aria-label="'Menge um 1 ' + (row.pack_unit || 'Set') + ' erhöhen'"
+                    :title="'1 ' + (row.pack_unit || t('activities.materialAvailability.packUnitSet'))"
+                    :aria-label="t('activities.materialLinesTable.ariaIncPack', { unit: row.pack_unit || t('activities.materialAvailability.packUnitSet') })"
                     :disabled="disabled"
                     @mousedown.prevent="incrementLine(originalIndex, row.pack_size)"
                   >
-                    1 {{ row.pack_unit || 'Set' }}
+                    1 {{ row.pack_unit || t('activities.materialAvailability.packUnitSet') }}
                   </button>
                   <button
                     v-if="canIncrementLine(row, row.pack_size * 5)"
                     type="button"
                     class="activity-mat-quick-btn activity-mat-set-btn"
-                    :title="'5 ' + (row.pack_unit || 'Sets')"
-                    :aria-label="'Menge um 5 ' + (row.pack_unit || 'Sets') + ' erhöhen'"
+                    :title="'5 ' + (row.pack_unit || t('activities.materialAvailability.packUnitSets'))"
+                    :aria-label="t('activities.materialLinesTable.ariaIncPacks5', { units: row.pack_unit || t('activities.materialAvailability.packUnitSets') })"
                     :disabled="disabled"
                     @mousedown.prevent="incrementLine(originalIndex, row.pack_size * 5)"
                   >
-                    5 {{ row.pack_unit || 'Sets' }}
+                    5 {{ row.pack_unit || t('activities.materialAvailability.packUnitSets') }}
                   </button>
                 </div>
                 <div class="activity-material-line-row activity-material-line-row--quick">
                   <label class="activity-material-qty">
-                    <span class="sr-only">Menge</span>
+                    <span class="sr-only">{{ t('activities.materialLinesTable.srOnlyQty') }}</span>
                     <input
                       type="number"
                       :min="minQty"
@@ -275,28 +276,30 @@
             </td>
             <td v-if="showSourceAndTotals && showLineTotal" class="activity-mat-cell-money">
               <span v-if="row.line_total != null">{{ formatMoneyCell(row.line_total) }}</span>
-              <span v-else>–</span>
+              <span v-else>{{ t('activities.wizard.form.summaryEmpty') }}</span>
             </td>
             <td class="activity-mat-cell-warn">
               <span
                 v-if="!availabilityLoading && lineHasIssue(row) && variant !== 'detail-draft'"
                 class="activity-mat-warn-badge"
-                title="Menge über verfügbaren Rest"
+                :title="t('activities.materialLinesTable.warnOverRestTitle')"
               >
-                Nur {{ maxQtyForRow(row) }} frei
+                {{ t('activities.materialLinesTable.onlyNFree', { n: maxQtyForRow(row) ?? 0 }) }}
               </span>
             </td>
             <td class="activity-mat-cell-remove">
               <template v-if="lineLockedForPackListOnly(row)">
-                <span class="activity-mat-remove-na text-muted" title="Zuordnung über die Packliste (Behälter)">–</span>
+                <span class="activity-mat-remove-na text-muted" :title="t('activities.materialLinesTable.packListRemoveTitle')">{{
+                  t('activities.wizard.form.summaryEmpty')
+                }}</span>
               </template>
               <template v-else>
                 <button
                   v-if="variant === 'wizard'"
                   type="button"
                   class="activity-material-remove"
-                  title="Position entfernen"
-                  :aria-label="'Position entfernen: ' + row.material_name"
+                  :title="t('activities.materialLinesTable.removeLineTitle')"
+                  :aria-label="t('activities.materialLinesTable.removeLineAria', { name: row.material_name })"
                   :disabled="disabled"
                   @click="emitRemove(originalIndex)"
                 >
@@ -309,7 +312,7 @@
                   :disabled="disabled || removeBusyFor(row)"
                   @click="emitRemove(originalIndex)"
                 >
-                  Entfernen
+                  {{ t('activities.materialLinesTable.removeLineBtn') }}
                 </button>
               </template>
             </td>
@@ -317,12 +320,13 @@
         </tbody>
       </table>
     </div>
-    <p v-else class="text-muted activity-empty-lines">{{ emptyText }}</p>
+    <p v-else class="text-muted activity-empty-lines">{{ emptyTextDisplay }}</p>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { fetchMaterialsAvailableForPeriodByIds } from '@/api/materialAvailabilityPeriod'
 import type { ActivityMaterialLine } from '@/composables/useActivityCreateWizard'
 import { materialLookupContextForScopeTab, type MaterialScopeTab } from './activityMaterialAvailabilityScope'
@@ -357,12 +361,15 @@ const props = withDefaults(
     showLineTotal: false,
     disabled: false,
     removingItemId: null,
-    emptyText: 'Noch keine Positionen.',
     materialScopeTab: 'own',
     materialScopeHasPartners: false,
     materialScopeSinglePartnerId: null,
   },
 )
+
+const { t, locale } = useI18n()
+
+const emptyTextDisplay = computed(() => props.emptyText ?? t('activities.materialLinesTable.defaultEmpty'))
 
 const emit = defineEmits<{
   'update:modelValue': [value: ActivityMaterialLine[]]
@@ -526,7 +533,7 @@ function remainingAfterSelection(row: ActivityMaterialLine): number | null {
 function formatRestCell(row: ActivityMaterialLine): string {
   if (availabilityLoading.value) return '…'
   const max = maxQtyForRow(row)
-  if (max === undefined) return '–'
+  if (max === undefined) return t('activities.wizard.form.summaryEmpty')
   return `${row.quantity} / ${max}`
 }
 
@@ -551,7 +558,10 @@ const orderedLines = computed(() => {
     let c = 0
     switch (sortCol.value) {
       case 'name':
-        c = (x.row.material_name || '').localeCompare(y.row.material_name || '', 'de')
+        c = (x.row.material_name || '').localeCompare(
+          y.row.material_name || '',
+          String(locale.value ?? '').startsWith('de') ? 'de' : 'en',
+        )
         break
       case 'available': {
         const rx = remainingAfterSelection(x.row)
@@ -568,7 +578,10 @@ const orderedLines = computed(() => {
     if (c !== 0) return asc ? c : -c
     const s = shortageForSort(x.row) - shortageForSort(y.row)
     if (s !== 0) return -s
-    const nameCmp = (x.row.material_name || '').localeCompare(y.row.material_name || '', 'de')
+    const nameCmp = (x.row.material_name || '').localeCompare(
+      y.row.material_name || '',
+      String(locale.value ?? '').startsWith('de') ? 'de' : 'en',
+    )
     if (nameCmp !== 0) return nameCmp
     return x.originalIndex - y.originalIndex
   })
@@ -619,7 +632,7 @@ async function refreshLineAvailability() {
     availabilityError.value =
       e && typeof e === 'object' && 'message' in e && typeof (e as Error).message === 'string'
         ? (e as Error).message
-        : 'Verfügbarkeit konnte nicht geladen werden.'
+        : t('activities.materialLinesTable.availabilityLoadFailed')
   } finally {
     if (showLoadingUi) availabilityLoading.value = false
   }

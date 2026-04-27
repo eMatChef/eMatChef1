@@ -4,7 +4,7 @@
       <div class="batch-modal" :class="{ 'batch-modal--wide': !isEditMode }">
         <!-- Header -->
         <div class="batch-modal-header">
-          <h2>{{ isEditMode ? 'Charge bearbeiten' : 'Charge hinzufügen' }}</h2>
+          <h2>{{ isEditMode ? t('components.batchModal.editTitle') : t('components.batchModal.addTitle') }}</h2>
           <button class="batch-modal-close" @click="$emit('close')">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <line x1="18" y1="6" x2="6" y2="18"/>
@@ -24,15 +24,15 @@
                     <span class="toggle-slider toggle-slider--blue"></span>
                   </span>
                   <span class="toggle-text">
-                    <span class="toggle-title">Für alle den gleichen Lagerplatz</span>
-                    <span class="toggle-desc">Bei Nein wird der Standort direkt pro Zeile in der Tabelle gewählt</span>
+                    <span class="toggle-title">{{ t('components.batchModal.sameLocationTitle') }}</span>
+                    <span class="toggle-desc">{{ t('components.batchModal.sameLocationDesc') }}</span>
                   </span>
                 </label>
               </div>
 
               <div v-if="serialLocationSameForAll" class="form-group">
                 <div class="stock-location-mode mb-2">
-                  <label class="form-label-sm">Hauptlagerplatz</label>
+                  <label class="form-label-sm">{{ t('components.batchModal.mainStorageLabel') }}</label>
                   <div class="lagerung-switch" role="tablist">
                     <button
                       type="button"
@@ -40,7 +40,7 @@
                       :class="{ active: stockLocationMode === 'slot' }"
                       @click="setStockLocationMode('slot')"
                     >
-                      Gestell/Fach
+                      {{ t('components.batchModal.storageModeSlot') }}
                     </button>
                     <button
                       type="button"
@@ -48,7 +48,7 @@
                       :class="{ active: stockLocationMode === 'kiste' }"
                       @click="setStockLocationMode('kiste')"
                     >
-                      Kiste/Tasche
+                      {{ t('components.batchModal.storageModeBox') }}
                     </button>
                   </div>
                 </div>
@@ -65,12 +65,12 @@
                     :rack-option-title-formatter="(r) => rackPreviewTitles[r.id] || ''"
                     :slot-label-formatter="(slot) => formatSlotOptionLabel(form.rack_id, slot)"
                     :slot-option-title-formatter="(s) => slotPreviewTitles[`${String(form.rack_id || '')}:${String(s.id)}`] || ''"
-                    storage-address-label="Standort"
-                    rack-label="Gestell"
-                    slot-label="Fach"
-                    storage-address-placeholder="Standort auswaehlen..."
-                    rack-placeholder="Gestell auswaehlen..."
-                    slot-placeholder="Fach auswaehlen..."
+                    :storage-address-label="t('components.batchModal.storageAddressLabel')"
+                    :rack-label="t('components.batchModal.rackLabel')"
+                    :slot-label="t('components.batchModal.slotLabel')"
+                    :storage-address-placeholder="t('components.batchModal.storageAddressPlaceholder')"
+                    :rack-placeholder="t('components.batchModal.rackPlaceholder')"
+                    :slot-placeholder="t('components.batchModal.slotPlaceholder')"
                     @rackListMouseenter="prefetchVisibleRackPreviews(filteredRacks)"
                     @slotListMouseenter="prefetchSlotPreviewsForRack(String(form.rack_id || ''))"
                     @update:storageAddressId="form.storage_address_id = $event"
@@ -81,14 +81,14 @@
                   />
                 </template>
                 <template v-else>
-                  <label class="form-label-sm">Kiste/Tasche</label>
+                  <label class="form-label-sm">{{ t('components.batchModal.storageModeBox') }}</label>
                   <select
                     v-model="form.container_batch_id"
                     class="batch-form-input form-select--sm"
                     @mouseenter="prefetchContainerPreviews()"
                     :title="getContainerPreviewTitle(form.container_batch_id)"
                   >
-                    <option value="">– Kiste wählen –</option>
+                    <option value="">{{ t('components.batchModal.selectBox') }}</option>
                     <option
                       v-for="cb in containerBatches"
                       :key="cb.id"
@@ -103,17 +103,17 @@
 
               <div class="serial-numbers-section">
                 <div class="serial-header">
-                  <label>Seriennummern ({{ serializedQty }} Stk.)</label>
+                  <label>{{ t('components.batchModal.serialNumbersHeading', { count: serializedQty }) }}</label>
                   <div class="serial-header-actions">
                     <button type="button" class="add-serial-btn" @click="addSerialNumber">
                       <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
                         <line x1="12" y1="5" x2="12" y2="19"/>
                         <line x1="5" y1="12" x2="19" y2="12"/>
                       </svg>
-                      Zeile hinzufügen
+                      {{ t('components.batchModal.addRow') }}
                     </button>
                     <button type="button" class="add-serial-btn" @click="toggleSerialScanner()">
-                      {{ serialScannerActive ? 'Scanner stoppen' : 'Scannen' }}
+                      {{ serialScannerActive ? t('components.batchModal.stopScan') : t('components.batchModal.scan') }}
                     </button>
                   </div>
                 </div>
@@ -124,15 +124,15 @@
                       <span class="toggle-slider toggle-slider--blue"></span>
                     </span>
                     <span class="toggle-text">
-                      <span class="toggle-title">Seriennummern automatisch erzeugen</span>
-                      <span class="toggle-desc">Prefix, Startnummer und Stellen waehlen statt alles manuell einzugeben</span>
+                      <span class="toggle-title">{{ t('components.batchModal.autoGenTitle') }}</span>
+                      <span class="toggle-desc">{{ t('components.batchModal.autoGenDesc') }}</span>
                     </span>
                   </label>
                   <transition name="slide-down">
                     <div v-if="serialAutoGenerateEnabled" class="slider-details">
                       <div class="serial-auto-generate-row">
                         <div class="serial-auto-field serial-auto-field-prefix">
-                          <label>Prefix</label>
+                          <label>{{ t('components.batchModal.prefix') }}</label>
                           <input
                             v-model="autoGenPrefix"
                             type="text"
@@ -141,19 +141,19 @@
                           />
                         </div>
                         <div class="serial-auto-field">
-                          <label>Startnummer</label>
+                          <label>{{ t('components.batchModal.startNumber') }}</label>
                           <input v-model.number="autoGenStart" type="number" min="1" class="form-input form-input-sm" />
                         </div>
                         <div class="serial-auto-field">
-                          <label>Stellen</label>
+                          <label>{{ t('components.batchModal.digits') }}</label>
                           <input v-model.number="autoGenPad" type="number" min="1" max="6" class="form-input form-input-sm" />
                         </div>
                         <div class="serial-auto-field">
-                          <label>Anzahl</label>
+                          <label>{{ t('components.batchModal.count') }}</label>
                           <input v-model.number="autoGenCount" type="number" min="1" class="form-input form-input-sm" />
                         </div>
                         <button type="button" class="add-serial-btn add-serial-btn-secondary" @click="generateSerialNumbers">
-                          Liste erzeugen
+                          {{ t('components.batchModal.generateList') }}
                         </button>
                         <span class="serial-auto-preview">{{ autoGenPreview }}</span>
                       </div>
@@ -164,7 +164,7 @@
                   v-if="serialScannerActive"
                   :active="serialScannerActive"
                   mode="all"
-                  hint="Barcode oder QR auf Seriennummer richten."
+                  :hint="t('components.batchModal.scannerHint')"
                   @detected="onSerialDetected"
                   @error="onSerialScannerError"
                 />
@@ -182,34 +182,34 @@
                         v-model="entry.serial_number"
                         type="text"
                         class="form-input serial-input"
-                        placeholder="Seriennummer eingeben..."
+                        :placeholder="t('components.batchModal.serialNumberPlaceholder')"
                         @keydown.enter.prevent="addSerialNumber"
                       />
-                      <label class="form-label-sm">Label (optional)</label>
+                      <label class="form-label-sm">{{ t('components.batchModal.labelField') }}</label>
                       <input
                         v-model="entry.label"
                         type="text"
                         class="form-input notes-input"
-                        placeholder="z.B. Kochkiste Bär"
+                        :placeholder="t('components.batchModal.labelPlaceholder')"
                       />
                     </div>
 
                     <div v-if="!serialLocationSameForAll" class="serial-block serial-block--art">
-                      <label class="form-label-sm">Art</label>
+                      <label class="form-label-sm">{{ t('components.batchModal.kind') }}</label>
                       <select
                         v-model="entry.location_mode"
                         class="form-select form-select--sm"
                         @change="entry.rack_id = ''; entry.slot_id = ''; entry.container_batch_id = ''"
                       >
-                        <option value="slot">Gestell/Fach</option>
-                        <option value="kiste">Kiste/Tasche</option>
+                        <option value="slot">{{ t('components.batchModal.typeSlotRack') }}</option>
+                        <option value="kiste">{{ t('components.batchModal.typeBox') }}</option>
                       </select>
                     </div>
 
                     <div v-if="!serialLocationSameForAll" class="serial-block serial-block--location">
                       <div class="serial-location-cell">
                         <template v-if="entry.location_mode === 'slot'">
-                          <label class="form-label-sm">Lagerstandort</label>
+                          <label class="form-label-sm">{{ t('components.batchModal.storageLocationShort') }}</label>
                           <select
                             v-model="entry.storage_address_id"
                             class="form-select form-select--sm"
@@ -219,7 +219,7 @@
                               {{ addr.name || addr.street_line }}
                             </option>
                           </select>
-                          <label class="form-label-sm">Gestell</label>
+                          <label class="form-label-sm">{{ t('components.batchModal.rackLabel') }}</label>
                           <select
                             v-model="entry.rack_id"
                             class="form-select form-select--sm"
@@ -227,7 +227,7 @@
                             @mouseenter="prefetchRackPreview(entry.rack_id)"
                             :title="getRackPreviewTitle(entry.rack_id)"
                           >
-                            <option value="" disabled>– Gestell –</option>
+                            <option value="" disabled>{{ t('components.batchModal.selectRackOption') }}</option>
                             <option
                               v-for="rack in getRacksForSerialEntry(entry)"
                               :key="rack.id"
@@ -237,7 +237,7 @@
                               {{ rack.name }}
                             </option>
                           </select>
-                          <label class="form-label-sm">Fach</label>
+                          <label class="form-label-sm">{{ t('components.batchModal.slotLabel') }}</label>
                           <select
                             v-model="entry.slot_id"
                             class="form-select form-select--sm"
@@ -245,7 +245,7 @@
                             @mouseenter="prefetchSlotPreview(entry.rack_id, entry.slot_id)"
                             :title="getSlotPreviewTitle(entry.rack_id, entry.slot_id)"
                           >
-                            <option value="" disabled>– Fach –</option>
+                            <option value="" disabled>{{ t('components.batchModal.selectSlotOption') }}</option>
                             <option
                               v-for="slot in (entry.rack_id ? getSlots(entry.rack_id) : [])"
                               :key="slot.id"
@@ -257,14 +257,14 @@
                           </select>
                         </template>
                         <template v-else>
-                          <label class="form-label-sm">Kiste/Tasche</label>
+                          <label class="form-label-sm">{{ t('components.batchModal.boxShort') }}</label>
                           <select
                             v-model="entry.container_batch_id"
                             class="form-select form-select--sm"
                             @mouseenter="prefetchContainerPreviews()"
                             :title="getContainerPreviewTitle(entry.container_batch_id)"
                           >
-                            <option value="">– Kiste wählen –</option>
+                            <option value="">{{ t('components.batchModal.selectBox') }}</option>
                             <option
                               v-for="cb in containerBatches"
                               :key="cb.id"
@@ -279,12 +279,12 @@
                     </div>
 
                     <div class="serial-block serial-block--notes">
-                      <label class="form-label-sm">Notiz (optional)</label>
+                      <label class="form-label-sm">{{ t('components.batchModal.noteRow') }}</label>
                       <input
                         v-model="entry.notes"
                         type="text"
                         class="form-input notes-input"
-                        placeholder="Optional"
+                        :placeholder="t('components.batchModal.noteShortPlaceholder')"
                       />
                     </div>
 
@@ -293,7 +293,7 @@
                         type="button"
                         class="remove-serial-btn"
                         @click="openSerialScannerFor(entry.id)"
-                        title="Seriennummer scannen"
+                        :title="t('components.batchModal.scanSerialTitle')"
                       >
                         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                           <rect x="3" y="5" width="18" height="14" rx="2"/>
@@ -301,7 +301,7 @@
                           <line x1="7" y1="13" x2="12" y2="13"/>
                         </svg>
                       </button>
-                      <button type="button" class="remove-serial-btn" @click="removeSerialNumber(entry.id)" title="Entfernen">
+                      <button type="button" class="remove-serial-btn" @click="removeSerialNumber(entry.id)" :title="t('components.batchModal.removeTitle')">
                         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                           <line x1="18" y1="6" x2="6" y2="18"/>
                           <line x1="6" y1="6" x2="18" y2="18"/>
@@ -311,18 +311,18 @@
                   </div>
                 </div>
                 <div v-else class="empty-serials">
-                  <p>Noch keine Seriennummern hinzugefügt</p>
-                  <button type="button" class="add-first-btn" @click="addSerialNumber">+ Erste Seriennummer hinzufügen</button>
+                  <p>{{ t('components.batchModal.emptySerials') }}</p>
+                  <button type="button" class="add-first-btn" @click="addSerialNumber">{{ t('components.batchModal.addFirstSerial') }}</button>
                 </div>
                 <p v-if="!serialLocationSameForAll && hasInvalidSerialLocations" class="field-hint is-invalid">
-                  Bitte pro Seriennummer einen gueltigen Standort (Gestell/Fach oder Kiste) waehlen.
+                  {{ t('components.batchModal.invalidSerialRowLocations') }}
                 </p>
                 <p v-if="serialDuplicateHint" class="field-hint is-invalid">{{ serialDuplicateHint }}</p>
               </div>
 
               <div class="form-row mt-3">
                 <div class="form-group">
-                  <label>Kaufdatum <span class="required">*</span></label>
+                  <label>{{ t('components.batchModal.purchaseDate') }} <span class="required">*</span></label>
                   <input
                     v-model="form.acquired_on"
                     type="date"
@@ -332,10 +332,10 @@
                   />
                 </div>
                 <div class="form-group">
-                  <label>Stückpreis (CHF)</label>
+                  <label>{{ t('components.batchModal.unitPriceChf') }}</label>
                   <div class="batch-price-input">
-                    <span class="batch-currency">Fr.</span>
-                    <input v-model="form.unit_price" type="text" class="batch-form-input" placeholder="0.00" />
+                    <span class="batch-currency">{{ t('components.batchModal.currency') }}</span>
+                    <input v-model="form.unit_price" type="text" class="batch-form-input" :placeholder="t('components.batchModal.pricePlaceholder')" />
                   </div>
                 </div>
               </div>
@@ -345,7 +345,7 @@
           <!-- Wie Material-Wizard „Initialer Bestand“: Menge, Kaufdatum, Preis in einer Zeile -->
           <div class="form-row mb-2">
             <div class="form-group">
-              <label>Menge <span class="required" v-if="!isEditMode">*</span></label>
+              <label>{{ t('components.batchModal.quantity') }} <span class="required" v-if="!isEditMode">*</span></label>
               <input
                 v-model.number="form.qty"
                 type="number"
@@ -356,7 +356,7 @@
               />
             </div>
             <div class="form-group">
-              <label>Kaufdatum <span class="required" v-if="!isEditMode">*</span></label>
+              <label>{{ t('components.batchModal.purchaseDate') }} <span class="required" v-if="!isEditMode">*</span></label>
               <input
                 v-if="!isEditMode"
                 v-model="form.acquired_on"
@@ -367,14 +367,14 @@
               />
               <div v-else class="batch-readonly-value">
                 {{ formatDate(form.acquired_on) }}
-                <span class="batch-readonly-hint">Kaufdatum kann nicht geändert werden (in ID eingebettet)</span>
+                <span class="batch-readonly-hint">{{ t('components.batchModal.acquiredOnLockedHint') }}</span>
               </div>
             </div>
             <div class="form-group">
-              <label>Stückpreis (CHF)</label>
+              <label>{{ t('components.batchModal.unitPriceChf') }}</label>
               <div class="price-input">
-                <span class="currency">Fr.</span>
-                <input v-model="form.unit_price" type="text" class="form-input" placeholder="0.00" />
+                <span class="currency">{{ t('components.batchModal.currency') }}</span>
+                <input v-model="form.unit_price" type="text" class="form-input" :placeholder="t('components.batchModal.pricePlaceholder')" />
               </div>
             </div>
           </div>
@@ -383,25 +383,25 @@
           <template v-if="isSerializedMaterial && isEditMode">
             <div class="batch-form-row">
               <div class="batch-form-group full-width">
-                <label>Seriennummer</label>
+                <label>{{ t('components.batchModal.serialNumberEdit') }}</label>
                 <input 
                   v-model="form.serial_number" 
                   type="text" 
                   class="batch-form-input"
-                  placeholder="Seriennummer eingeben..."
+                  :placeholder="t('components.batchModal.serialNumberPlaceholder')"
                 />
               </div>
             </div>
             <div class="batch-form-row">
               <div class="batch-form-group full-width">
-                <label>Bezeichnung (optional)</label>
+                <label>{{ t('components.batchModal.labelOptional') }}</label>
                 <input 
                   v-model="form.label" 
                   type="text" 
                   class="batch-form-input"
-                  placeholder="z.B. Kochbox, Kochkiste Falk..."
+                  :placeholder="t('components.batchModal.labelPlaceholderEdit')"
                 />
-                <p class="batch-field-hint">Anzeigename in der Lagerübersicht – kann jederzeit geändert werden.</p>
+                <p class="batch-field-hint">{{ t('components.batchModal.labelFieldHint') }}</p>
               </div>
             </div>
           </template>
@@ -414,8 +414,8 @@
                 <span class="toggle-slider toggle-slider--blue"></span>
               </span>
               <span class="toggle-text">
-                <span class="toggle-title">Auf mehrere Lagerplätze aufteilen</span>
-                <span class="toggle-desc">Menge auf verschiedene Gestelle/Fächer verteilen</span>
+                <span class="toggle-title">{{ t('components.batchModal.splitTitle') }}</span>
+                <span class="toggle-desc">{{ t('components.batchModal.splitDesc') }}</span>
               </span>
             </label>
           </div>
@@ -424,22 +424,22 @@
           <div v-if="!isSerializedMaterial && form.split_allocations" class="batch-form-row">
             <div class="batch-form-group full-width">
               <div class="allocations-header">
-                <label>Lagerplätze (Summe = {{ form.qty }} Stk.)</label>
+                <label>{{ t('components.batchModal.allocationsLabel', { qty: form.qty }) }}</label>
                 <button type="button" class="add-serial-btn" @click="addAllocationRow">
                   <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
                     <line x1="12" y1="5" x2="12" y2="19"/>
                     <line x1="5" y1="12" x2="19" y2="12"/>
                   </svg>
-                  Zeile hinzufügen
+                  {{ t('components.batchModal.addRow') }}
                 </button>
               </div>
               <div class="allocations-table-wrap">
                 <table class="allocations-table">
                   <thead>
                     <tr>
-                      <th>Menge</th>
-                      <th>Art</th>
-                      <th>Lagerort</th>
+                      <th>{{ t('components.batchModal.allocThQty') }}</th>
+                      <th>{{ t('components.batchModal.allocThKind') }}</th>
+                      <th>{{ t('components.batchModal.allocThLocation') }}</th>
                       <th></th>
                     </tr>
                   </thead>
@@ -451,13 +451,13 @@
                           type="number"
                           min="1"
                           class="batch-form-input form-input--sm"
-                          placeholder="0"
+                          :placeholder="t('components.batchModal.allocPlaceholder0')"
                         />
                       </td>
                       <td>
                         <select v-model="row.mode" class="batch-form-input form-select--sm" @change="row.rack_id = ''; row.slot_id = ''; row.container_batch_id = ''">
-                          <option value="slot">Slot</option>
-                          <option value="kiste">Kiste</option>
+                          <option value="slot">{{ t('components.batchModal.allocModeSlot') }}</option>
+                          <option value="kiste">{{ t('components.batchModal.allocModeBox') }}</option>
                         </select>
                       </td>
                       <td>
@@ -475,12 +475,12 @@
                             :rack-option-title-formatter="(r) => rackPreviewTitles[r.id] || ''"
                             :slot-label-formatter="(slot) => formatSlotOptionLabel(row.rack_id, slot)"
                             :slot-option-title-formatter="(s) => slotPreviewTitles[`${String(row.rack_id || '')}:${String(s.id)}`] || ''"
-                            storage-address-label="Standort"
-                            rack-label="Gestell"
-                            slot-label="Fach"
-                            storage-address-placeholder="– Standort –"
-                            rack-placeholder="– Gestell –"
-                            slot-placeholder="– optional –"
+                            :storage-address-label="t('components.batchModal.storageAddressLabel')"
+                            :rack-label="t('components.batchModal.rackLabel')"
+                            :slot-label="t('components.batchModal.slotLabel')"
+                            :storage-address-placeholder="t('components.batchModal.storagePhDash')"
+                            :rack-placeholder="t('components.batchModal.rackPhDash')"
+                            :slot-placeholder="t('components.batchModal.slotPhOptional')"
                             @rackListMouseenter="prefetchVisibleRackPreviews(getAllocationRacks(row))"
                             @slotListMouseenter="prefetchSlotPreviewsForRack(String(row.rack_id || ''))"
                             @update:storageAddressId="row.storage_address_id = $event"
@@ -494,7 +494,7 @@
                           v-model="row.container_batch_id"
                           class="batch-form-input form-select--sm"
                         >
-                          <option value="">– Kiste wählen –</option>
+                          <option value="">{{ t('components.batchModal.selectBox') }}</option>
                                 <option
                                   v-for="cb in containerBatches"
                                   :key="cb.id"
@@ -506,14 +506,14 @@
                         </select>
                       </td>
                       <td>
-                        <button type="button" class="remove-row-btn" @click="removeAllocationRow(row.id)" title="Entfernen">×</button>
+                        <button type="button" class="remove-row-btn" @click="removeAllocationRow(row.id)" :title="t('components.batchModal.removeTitle')">×</button>
                       </td>
                     </tr>
                   </tbody>
                 </table>
               </div>
               <p v-if="allocationRows.length > 0 && !allocationSumValid" class="batch-field-hint is-invalid">
-                Summe muss {{ form.qty }} Stk. ergeben (aktuell: {{ allocationSum }})
+                {{ t('components.batchModal.allocationSumInvalid', { qty: form.qty, current: allocationSum }) }}
               </p>
             </div>
           </div>
@@ -536,12 +536,12 @@
                 :rack-option-title-formatter="(r) => rackPreviewTitles[r.id] || ''"
                 :slot-label-formatter="(slot) => formatSlotOptionLabel(form.rack_id, slot)"
                 :slot-option-title-formatter="(s) => slotPreviewTitles[`${String(form.rack_id || '')}:${String(s.id)}`] || ''"
-                storage-address-label="Standort"
-                rack-label="Gestell"
-                slot-label="Fach"
-                storage-address-placeholder="Standort auswaehlen..."
-                rack-placeholder="Gestell auswaehlen..."
-                slot-placeholder="Fach auswaehlen..."
+                :storage-address-label="t('components.batchModal.storageAddressLabel')"
+                :rack-label="t('components.batchModal.rackLabel')"
+                :slot-label="t('components.batchModal.slotLabel')"
+                :storage-address-placeholder="t('components.batchModal.storageAddressPlaceholder')"
+                :rack-placeholder="t('components.batchModal.rackPlaceholder')"
+                :slot-placeholder="t('components.batchModal.slotPlaceholder')"
                 @rackListMouseenter="prefetchVisibleRackPreviews(filteredRacks)"
                 @slotListMouseenter="prefetchSlotPreviewsForRack(String(form.rack_id || ''))"
                 @update:storageAddressId="form.storage_address_id = $event"
@@ -558,18 +558,18 @@
           <!-- Lieferant (Autocomplete) -->
           <div class="batch-form-row">
             <div class="batch-form-group full-width">
-              <label>Gekauft von (Lieferant)</label>
+              <label>{{ t('components.batchModal.boughtFrom') }}</label>
               <div class="batch-autocomplete-wrapper">
                 <input 
                   v-model="supplierSearch" 
                   type="text" 
                   class="batch-form-input"
-                  placeholder="Lieferant suchen..."
+                  :placeholder="t('components.batchModal.searchSupplier')"
                   @input="filterSuppliers"
                   @focus="showSupplierDropdown = true"
                   @blur="hideSupplierDropdownDelayed"
                 />
-                <button type="button" class="batch-add-inline-btn" @click="openAddSupplierModal" title="Neuen Lieferanten hinzufügen">+</button>
+                <button type="button" class="batch-add-inline-btn" @click="openAddSupplierModal" :title="t('components.batchModal.addNewSupplier')">+</button>
                 <div v-if="showSupplierDropdown && supplierSearch.length >= 1" class="batch-autocomplete-dropdown">
                   <div 
                     v-for="addr in filteredSuppliers" 
@@ -586,7 +586,7 @@
                     class="batch-autocomplete-item batch-ac-create"
                     @mousedown="openAddSupplierModal"
                   >
-                    <span class="batch-ac-name">+ "{{ supplierSearch }}" als Lieferant anlegen</span>
+                    <span class="batch-ac-name">{{ t('components.batchModal.createSupplier', { term: supplierSearch }) }}</span>
                   </div>
                 </div>
               </div>
@@ -600,12 +600,12 @@
           <!-- Notizen -->
           <div class="batch-form-row">
             <div class="batch-form-group full-width">
-              <label>Notiz</label>
+              <label>{{ t('components.batchModal.notes') }}</label>
               <textarea 
                 v-model="form.notes" 
                 class="batch-form-textarea"
                 rows="2"
-                placeholder="Optionale Notiz zur Charge..."
+                :placeholder="t('components.batchModal.notesPlaceholder')"
               ></textarea>
             </div>
           </div>
@@ -623,13 +623,17 @@
             <span>{{ missingFields[0] }}</span>
           </div>
           <div class="batch-footer-actions">
-            <button class="btn-secondary btn-sm" @click="$emit('close')">Abbrechen</button>
+            <button class="btn-secondary btn-sm" @click="$emit('close')">{{ t('common.cancel') }}</button>
             <button 
               class="btn-primary btn-sm" 
               @click="handleSubmit"
               :disabled="!canSubmit || isSaving"
             >
-              {{ isSaving ? 'Speichern...' : (isEditMode ? 'Speichern' : 'Hinzufügen') }}
+              {{
+                isSaving
+                  ? t('common.saving')
+                  : (isEditMode ? t('common.save') : t('components.departmentModal.addSubmit'))
+              }}
             </button>
           </div>
         </div>
@@ -650,6 +654,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useToast } from '@/composables/useToast'
 import { enqueuePendingCostBookingAfterPurchase } from '@/composables/useCostBookingFollowUp'
 import { addBatch, updateBatch, type MaterialBatch, type AddBatchRequest, type UpdateBatchRequest, type AddBatchMultiResponse } from '@/api/materials'
@@ -703,6 +708,7 @@ const emit = defineEmits<{
   saved: [result: MaterialBatch | AddBatchMultiResponse]
 }>()
 
+const { t } = useI18n()
 const toast = useToast()
 const headerNotificationsStore = useHeaderNotificationsStore()
 const physicalComboWarningStore = usePhysicalComboWarningStore()
@@ -820,7 +826,7 @@ const autoGenPreview = computed(() => {
   }
   const first = prefix + String(start).padStart(pad, '0')
   const last = prefix + String(start + count - 1).padStart(pad, '0')
-  return `${first} … ${last} (${count} Stk.)`
+  return t('components.batchModal.autoGenRange', { first, last, count })
 })
 
 function getPreferredStorageAddressIdForBatch(): string {
@@ -870,7 +876,10 @@ async function onSerialEntryRackChange(entry: SerialNumberEntry) {
 
 function getSerialRowTitle(entry: SerialNumberEntry, index: number): string {
   const sn = (entry.serial_number || '').trim()
-  return sn ? `Seriennummer ${index + 1} · ${sn}` : `Seriennummer ${index + 1}`
+  const n = index + 1
+  return sn
+    ? t('components.batchModal.serialRowNWithValue', { n, sn })
+    : t('components.batchModal.serialRowN', { n })
 }
 
 async function prefetchContainerPreviews() {
@@ -1000,12 +1009,14 @@ const serialDuplicateHint = computed(() => {
       .map((e) => e.serial_number.trim())
       .filter((sn) => sn && existing.has(sn))
     if (duplicates.length > 0) {
-      return `Seriennummer(n) bereits vergeben: ${duplicates.slice(0, 3).join(', ')}${duplicates.length > 3 ? '…' : ''}`
+      return t('components.batchModal.serialNumbersTaken', {
+        list: `${duplicates.slice(0, 3).join(', ')}${duplicates.length > 3 ? '…' : ''}`
+      })
     }
     const seen = new Set<string>()
     for (const e of serialRows.value) {
       const sn = e.serial_number.trim()
-      if (sn && seen.has(sn)) return 'Doppelte Seriennummern in der Liste'
+      if (sn && seen.has(sn)) return t('components.batchModal.serialDupInList')
       if (sn) seen.add(sn)
     }
     return ''
@@ -1171,12 +1182,12 @@ async function prefetchRackPreview(rackId: string) {
   if (!text) {
     const data = await getRackContents(rackId).catch(() => null)
     const items = (data?.contents || []).map((c: { material_name: string; qty: number }) => ({
-      material_name: c.material_name || 'Material',
+      material_name: c.material_name || t('components.batchModal.materialGeneric'),
       qty: Number(c.qty || 0),
     }))
     text = summarizeMaterialsForPreview(items)
   }
-  if (!text.trim()) text = 'Leer'
+  if (!text.trim()) text = t('components.batchModal.previewEmpty')
 
   rackPreviewTitles.value = {
     ...rackPreviewTitles.value,
@@ -1214,12 +1225,12 @@ async function prefetchSlotPreviewsForRack(rackId: string) {
 
 function getRackPreviewTitle(rackId: string): string {
   if (!rackId) return ''
-  return rackPreviewTitles.value[rackId] || 'Inhalt wird geladen...'
+  return rackPreviewTitles.value[rackId] || t('components.batchModal.previewLoading')
 }
 
 function getSlotPreviewTitle(rackId: string, slotId: string): string {
   if (!rackId || !slotId) return ''
-  return slotPreviewTitles.value[`${rackId}:${slotId}`] || 'Inhalt wird geladen...'
+  return slotPreviewTitles.value[`${rackId}:${slotId}`] || t('components.batchModal.previewLoading')
 }
 
 async function prefetchVisibleRackPreviews(list: StorageRack[]) {
@@ -1467,28 +1478,28 @@ const canSubmit = computed(() => {
 const missingFields = computed(() => {
   const missing: string[] = []
   if (!isEditMode.value && !batchAddUnitPricePositive()) {
-    missing.push('Stückpreis eingeben')
+    missing.push(t('components.batchModal.valUnitPrice'))
   }
   if (!isEditMode.value && !form.acquired_on) {
-    missing.push('Kaufdatum eingeben')
+    missing.push(t('components.batchModal.valPurchaseDate'))
   }
   if (isSerializedAddMode.value) {
-    if (serializedQty.value < 1) missing.push('Mindestens eine Seriennummer erfassen')
+    if (serializedQty.value < 1) missing.push(t('components.batchModal.valAtLeastOneSerial'))
     if (serialDuplicateHint.value) missing.push(serialDuplicateHint.value)
     if (hasInvalidSerialLocations.value) {
-      missing.push('Bitte pro Seriennummer einen gültigen Lagerplatz wählen')
+      missing.push(t('components.batchModal.valPerSerialLocation'))
     }
     if (serialLocationSameForAll.value) {
-      if (stockLocationMode.value === 'kiste' && !form.container_batch_id) missing.push('Kiste/Tasche wählen')
-      if (stockLocationMode.value === 'slot' && (!form.rack_id || !form.slot_id)) missing.push('Gestell und Fach wählen')
+      if (stockLocationMode.value === 'kiste' && !form.container_batch_id) missing.push(t('components.batchModal.valPickBox'))
+      if (stockLocationMode.value === 'slot' && (!form.rack_id || !form.slot_id)) missing.push(t('components.batchModal.valPickRackSlot'))
     }
     return missing
   }
   if (form.qty < 1) {
-    missing.push('Menge muss mindestens 1 sein')
+    missing.push(t('components.batchModal.valQtyMin'))
   }
   if (form.split_allocations && (!allocationSumValid.value || allocationRows.value.every((r) => (r.mode === 'slot' ? !r.rack_id : !r.container_batch_id) || r.qty <= 0))) {
-    missing.push('Lagerplätze: Summe muss ' + form.qty + ' Stk. ergeben')
+    missing.push(t('components.batchModal.valAllocationsSum', { qty: form.qty }))
   }
   return missing
 })
@@ -1697,16 +1708,14 @@ async function handleSubmit() {
           materialBatchId: batchId ?? null,
         })
       ) {
-        toast.info(
-          'Unter Buchhaltung → Buchungen, Tab „Neue Buchung zuordnen“: Kostenstelle und Details erfassen.'
-        )
+        toast.info(t('components.batchModal.costBookingInfo'))
         headerNotificationsStore.requestRefresh()
       }
     }
 
     emit('saved', result)
   } catch (err: any) {
-    const msg = err.response?.data?.error || 'Fehler beim Speichern der Charge'
+    const msg = err.response?.data?.error || t('components.batchModal.saveError')
     errorMsg.value = msg
     toast.error(msg)
   } finally {
