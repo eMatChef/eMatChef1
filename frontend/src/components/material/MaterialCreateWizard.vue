@@ -359,8 +359,8 @@
             <!-- ========== TEMPLATE-MODUS: Komponenten-Eingabe ========== -->
             <div v-if="((isFromTemplate && selectedTemplate) || (isFromContainerBatchContents && selectedContainerBatchContents)) && creationMode && (creationMode === 'individual' || (formData.name && !nameExists))" class="step-section" data-step="template_components">
               <div class="step-header step-header--clickable" @click="toggleStep('template_components')">
-                <span class="step-title">Komponenten</span>
-                <span class="step-badge">{{ componentInputs.length }} Teile</span>
+                <span class="step-title">{{ t('components.materialCreateWizard.stepComponents') }}</span>
+                <span class="step-badge">{{ t('components.materialCreateWizard.partsBadge', { n: componentInputs.length }) }}</span>
                 <span class="step-chevron" :class="{ open: isStepOpen('template_components') }">▾</span>
               </div>
 
@@ -376,14 +376,20 @@
                       <div class="comp-card-info">
                         <span class="comp-card-name">{{ ci.name }}</span>
                         <span class="comp-card-meta">
-                          <span v-if="ci.tracking === 'serialized'">Seriennummer</span>
-                          <span v-else>{{ templateBulkMetaQty(ci) }}x Stück</span>
-                          <span v-if="ci.is_optional" class="comp-optional-badge">Optional</span>
+                          <span v-if="ci.tracking === 'serialized'">{{
+                            t('components.materialCreateWizard.labelSerialShort')
+                          }}</span>
+                          <span v-else>{{
+                            t('components.materialCreateWizard.compBulkMetaPcs', { n: templateBulkMetaQty(ci) })
+                          }}</span>
+                          <span v-if="ci.is_optional" class="comp-optional-badge">{{
+                            t('components.materialCreateWizard.optionalBadge')
+                          }}</span>
                         </span>
                       </div>
                       <!-- Virtuelle Kombo: Keine Auswahl nötig, wird bei Ausgabe zugewiesen -->
                       <div v-if="creationMode === 'virtual_combo'" class="comp-card-mode">
-                        <span class="comp-mode-info">Bei Ausgabe zuweisen</span>
+                        <span class="comp-mode-info">{{ t('components.materialCreateWizard.compAssignAtIssue') }}</span>
                       </div>
                       <!-- Andere Modi: Neu/Bestand Toggle -->
                       <div v-else class="comp-card-mode">
@@ -391,12 +397,12 @@
                           type="button"
                           :class="['comp-mode-btn', { active: ci.mode === 'new' }]"
                           @click="ci.mode = 'new'"
-                        >Neu kaufen</button>
+                        >{{ t('components.materialCreateWizard.compNewBuy') }}</button>
                         <button
                           type="button"
                           :class="['comp-mode-btn', { active: ci.mode === 'existing' }]"
                           @click="ci.mode = 'existing'"
-                        >Aus Lager</button>
+                        >{{ t('components.materialCreateWizard.compFromStock') }}</button>
                       </div>
                     </div>
 
@@ -404,7 +410,7 @@
 
                       <!-- Virtual Combo: Nur Info, keine Eingabe -->
                       <div v-if="creationMode === 'virtual_combo'" class="comp-virtual-info">
-                        <span class="comp-virtual-text">Wird bei Ausgabe zugewiesen</span>
+                        <span class="comp-virtual-text">{{ t('components.materialCreateWizard.compVirtualAssignDesc') }}</span>
                       </div>
 
                       <!-- ══════ SERIALISIERT ══════ -->
@@ -413,16 +419,20 @@
                       <template v-if="creationMode !== 'virtual_combo' && ci.tracking === 'serialized' && ci.mode === 'new'">
                         <div class="form-row">
                           <div class="form-group">
-                            <label>Seriennummer</label>
+                            <label>{{ t('components.materialCreateWizard.labelSerialNumber') }}</label>
                             <input
                               v-model="ci.serial_number"
                               type="text"
                               class="form-input"
-                              :placeholder="'z.B. ' + ci.component_type.toUpperCase().substring(0, 3) + '-001'"
+                              :placeholder="
+                                t('components.materialCreateWizard.phSerialExample', {
+                                  ex: ci.component_type.toUpperCase().substring(0, 3) + '-001',
+                                })
+                              "
                             />
                           </div>
                           <div class="form-group">
-                            <label>Anschaffungspreis (CHF/Stk.)</label>
+                            <label>{{ t('components.materialCreateWizard.purchasePriceChfPerPc') }}</label>
                             <div class="price-input">
                               <span class="currency">Fr.</span>
                               <input
@@ -431,7 +441,7 @@
                                 step="0.01"
                                 min="0"
                                 class="form-input"
-                                placeholder="0.00"
+                                :placeholder="t('components.materialCreateWizard.phPriceZero')"
                               />
                             </div>
                           </div>
@@ -442,13 +452,13 @@
                       <template v-else-if="creationMode !== 'virtual_combo' && ci.tracking === 'serialized' && ci.mode === 'existing'">
                         <div class="comp-existing-search">
                           <div class="form-group">
-                            <label>Artikel suchen</label>
+                            <label>{{ t('components.materialCreateWizard.searchArticle') }}</label>
                             <div class="autocomplete-wrapper">
                               <input
                                 v-model="ci._materialSearch"
                                 type="text"
                                 class="form-input"
-                                :placeholder="'z.B. ' + ci.name + '...'"
+                                :placeholder="t('components.materialCreateWizard.phSearchNamedArticle', { name: ci.name })"
                                 @input="searchExistingMaterial(ci)"
                                 @focus="ci._showDropdown = true"
                                 @blur="hideCompDropdownDelayed(ci)"
@@ -461,7 +471,9 @@
                                   @mousedown="selectExistingMaterial(ci, mat)"
                                 >
                                   <span class="item-name">{{ mat.name }}</span>
-                                  <span class="item-count">{{ mat.free_stock ?? mat.total_stock }} frei</span>
+                                  <span class="item-count">{{
+                                    t('components.materialCreateWizard.stockFree', { n: mat.free_stock ?? mat.total_stock })
+                                  }}</span>
                                 </div>
                               </div>
                             </div>
@@ -476,20 +488,21 @@
                             </div>
 
                             <div v-if="ci._availableBatches?.length > 0" class="comp-batch-select">
-                              <label>Seriennummer wählen</label>
+                              <label>{{ t('components.materialCreateWizard.labelPickSerial') }}</label>
                               <select v-model="ci.batch_id" class="form-select">
-                                <option value="">– SN auswählen –</option>
+                                <option value="">{{ t('components.materialCreateWizard.selectSerialPlaceholder') }}</option>
                                 <option
                                   v-for="batch in ci._availableBatches"
                                   :key="batch.id"
                                   :value="batch.id"
                                 >
-                                  SN: {{ batch.serial_number || batch.label || batch.id }}
+                                  {{ t('components.materialCreateWizard.snDisplay') }}
+                                  {{ batch.serial_number || batch.label || batch.id }}
                                 </option>
                               </select>
                             </div>
                             <div v-else class="comp-no-batches">
-                              Keine freien Seriennummern im Lager
+                              {{ t('components.materialCreateWizard.noFreeSerialsInStock') }}
                             </div>
                           </div>
                         </div>
@@ -501,7 +514,7 @@
                       <template v-else-if="creationMode !== 'virtual_combo' && ci.tracking === 'bulk' && ci.mode === 'new'">
                         <div class="form-row">
                           <div class="form-group">
-                            <label>Menge (neu kaufen)</label>
+                            <label>{{ t('components.materialCreateWizard.qtyNewPurchase') }}</label>
                             <input
                               v-model.number="ci.qty"
                               type="number"
@@ -511,7 +524,7 @@
                             />
                           </div>
                           <div class="form-group">
-                            <label>Anschaffungspreis (CHF/Stk.)</label>
+                            <label>{{ t('components.materialCreateWizard.purchasePriceChfPerPc') }}</label>
                             <div class="price-input">
                               <span class="currency">Fr.</span>
                               <input
@@ -520,15 +533,17 @@
                                 step="0.01"
                                 min="0"
                                 class="form-input"
-                                placeholder="0.00"
+                                :placeholder="t('components.materialCreateWizard.phPriceZero')"
                               />
                             </div>
                           </div>
                         </div>
                         <p v-if="ci.is_optional && !ci.qty" class="form-hint optional-bulk-zero-hint">
-                          Optional weglassen (Menge 0) oder Menge erhöhen für den Einkauf.
+                          {{ t('components.materialCreateWizard.optionalBulkZeroHint') }}
                         </p>
-                        <p v-else-if="ci.qty > 0" class="comp-bulk-info">Neuer Bestand wird zum Lager hinzugefügt und dem Zelt zugewiesen.</p>
+                        <p v-else-if="ci.qty > 0" class="comp-bulk-info">{{
+                          t('components.materialCreateWizard.bulkInfoAddedToStock')
+                        }}</p>
                       </template>
 
                       <!-- Bulk: Aus Lager → Material wählen + Menge, kein Batch nötig -->
@@ -536,13 +551,13 @@
                         <div class="comp-bulk-existing">
                           <!-- Material auto-gefunden oder manuell suchen -->
                           <div v-if="!ci._selectedMaterial" class="form-group">
-                            <label>Welcher Artikel aus dem Lager?</label>
+                            <label>{{ t('components.materialCreateWizard.labelWhichStockArticle') }}</label>
                             <div class="autocomplete-wrapper">
                               <input
                                 v-model="ci._materialSearch"
                                 type="text"
                                 class="form-input"
-                                :placeholder="ci.name + ' suchen...'"
+                                :placeholder="t('components.materialCreateWizard.phSearchNamed', { name: ci.name })"
                                 @input="searchExistingMaterial(ci)"
                                 @focus="ci._showDropdown = true; autoSearchBulk(ci)"
                                 @blur="hideCompDropdownDelayed(ci)"
@@ -555,7 +570,9 @@
                                   @mousedown="selectBulkMaterial(ci, mat)"
                                 >
                                   <span class="item-name">{{ mat.name }}</span>
-                                  <span class="item-count">{{ mat.free_stock ?? mat.total_stock }} frei</span>
+                                  <span class="item-count">{{
+                                    t('components.materialCreateWizard.stockFree', { n: mat.free_stock ?? mat.total_stock })
+                                  }}</span>
                                 </div>
                               </div>
                             </div>
@@ -567,13 +584,17 @@
                               <div class="comp-selected-header">
                                 <span class="comp-selected-check">✓</span>
                                 <span class="comp-selected-name">{{ ci._selectedMaterial.name }}</span>
-                                <span class="comp-selected-stock">{{ ci._selectedMaterial.free_stock ?? ci._selectedMaterial.total_stock }} frei</span>
+                                <span class="comp-selected-stock">{{
+                                  t('components.materialCreateWizard.stockFree', {
+                                    n: ci._selectedMaterial.free_stock ?? ci._selectedMaterial.total_stock,
+                                  })
+                                }}</span>
                                 <button type="button" class="clear-selection" @click="clearExistingMaterial(ci)">×</button>
                               </div>
                             </div>
                             <div class="form-row" style="margin-top: 8px;">
                               <div class="form-group">
-                                <label>Menge zuweisen</label>
+                                <label>{{ t('components.materialCreateWizard.labelQtyAssign') }}</label>
                                 <input
                                   v-model.number="ci.qty"
                                   type="number"
@@ -586,15 +607,24 @@
                                 <label>&nbsp;</label>
                                 <div class="comp-stock-display">
                                   <span class="comp-stock-value" :class="{ 'is-low': (ci._selectedMaterial.free_stock ?? ci._selectedMaterial.total_stock) < ci.qty }">
-                                    {{ ci._selectedMaterial.free_stock ?? ci._selectedMaterial.total_stock }} frei / {{ ci.qty }} benötigt
+                                    {{
+                                      t('components.materialCreateWizard.stockFreeVsNeeded', {
+                                        free: ci._selectedMaterial.free_stock ?? ci._selectedMaterial.total_stock,
+                                        need: ci.qty,
+                                      })
+                                    }}
                                   </span>
                                 </div>
                               </div>
                             </div>
                             <p v-if="(ci._selectedMaterial.free_stock ?? ci._selectedMaterial.total_stock) < ci.qty" class="comp-stock-warning">
-                              Nicht genug frei – {{ ci.qty - (ci._selectedMaterial.free_stock ?? ci._selectedMaterial.total_stock) }} Stk. fehlen!
+                              {{
+                                t('components.materialCreateWizard.stockShortByPcs', {
+                                  n: ci.qty - (ci._selectedMaterial.free_stock ?? ci._selectedMaterial.total_stock),
+                                })
+                              }}
                             </p>
-                            <p v-else class="comp-bulk-info">Wird aus dem vorhandenen Lagerbestand dem Zelt zugewiesen.</p>
+                            <p v-else class="comp-bulk-info">{{ t('components.materialCreateWizard.bulkInfoFromStockToTent') }}</p>
                           </div>
                         </div>
                       </template>
@@ -608,54 +638,54 @@
             <!-- ========== TEMPLATE-MODUS: Zelt-Details (nur bei Kombo-Modi) ========== -->
             <div v-if="isFromTemplate && selectedTemplate && creationMode && creationMode !== 'individual' && formData.name && !nameExists" class="step-section" data-step="template_tent">
               <div class="step-header step-header--clickable" @click="toggleStep('template_tent')">
-                <span class="step-title">Zelt-Details</span>
+                <span class="step-title">{{ t('components.materialCreateWizard.stepTentDetails') }}</span>
                 <span class="step-chevron" :class="{ open: isStepOpen('template_tent') }">▾</span>
               </div>
 
               <div v-show="isStepOpen('template_tent')" class="step-content">
                 <div class="form-row">
                   <div class="form-group">
-                    <label>Zelt-Typ</label>
+                    <label>{{ t('components.materialCreateWizard.labelTentType') }}</label>
                     <select v-model="tentForm.tent_type" class="form-select">
-                      <option value="">– wählen –</option>
-                      <option value="gruppenzelt">Gruppenzelt</option>
-                      <option value="sonstiges">Sonstiges</option>
+                      <option value="">{{ t('components.materialCreateWizard.selectChooseDash') }}</option>
+                      <option value="gruppenzelt">{{ t('components.materialCreateWizard.tentTypeGroup') }}</option>
+                      <option value="sonstiges">{{ t('components.materialCreateWizard.tentTypeOther') }}</option>
                     </select>
                   </div>
                   <div class="form-group">
-                    <label>Kapazität (Personen)</label>
+                    <label>{{ t('components.materialCreateWizard.labelCapacityPersons') }}</label>
                     <input
                       v-model.number="tentForm.tent_capacity"
                       type="number"
                       min="1"
                       class="form-input"
-                      placeholder="z.B. 6"
+                      :placeholder="t('components.materialCreateWizard.phCapacityExample')"
                     />
                   </div>
                 </div>
 
                 <div class="form-group">
-                  <label>Reservation</label>
+                  <label>{{ t('components.materialCreateWizard.labelReservationShort') }}</label>
                   <div class="reservation-options">
                     <label class="radio-option" :class="{ active: tentForm.reservation_mode === 'complete_only' }">
                       <input type="radio" v-model="tentForm.reservation_mode" value="complete_only" />
                       <div class="radio-text">
-                        <span class="radio-name">Nur komplett</span>
-                        <span class="radio-desc">Zelt kann nur als Ganzes reserviert werden</span>
+                        <span class="radio-name">{{ t('components.materialCreateWizard.tentResOnlyComplete') }}</span>
+                        <span class="radio-desc">{{ t('components.materialCreateWizard.tentResOnlyCompleteDesc') }}</span>
                       </div>
                     </label>
                     <label class="radio-option" :class="{ active: tentForm.reservation_mode === 'individual' }">
                       <input type="radio" v-model="tentForm.reservation_mode" value="individual" />
                       <div class="radio-text">
-                        <span class="radio-name">Einzelteile</span>
-                        <span class="radio-desc">Komponenten können einzeln reserviert werden</span>
+                        <span class="radio-name">{{ t('components.materialCreateWizard.tentResParts') }}</span>
+                        <span class="radio-desc">{{ t('components.materialCreateWizard.tentResPartsDesc') }}</span>
                       </div>
                     </label>
                     <label class="radio-option" :class="{ active: tentForm.reservation_mode === 'flexible' }">
                       <input type="radio" v-model="tentForm.reservation_mode" value="flexible" />
                       <div class="radio-text">
-                        <span class="radio-name">Flexibel</span>
-                        <span class="radio-desc">Komplett oder Einzelteile, je nach Bedarf</span>
+                        <span class="radio-name">{{ t('components.materialCreateWizard.tentResFlexible') }}</span>
+                        <span class="radio-desc">{{ t('components.materialCreateWizard.tentResFlexibleDesc') }}</span>
                       </div>
                     </label>
                   </div>
@@ -666,21 +696,26 @@
             <!-- ========== TEMPLATE ODER COMBO AUS KISTE: Kauf & Lagerung (nach Komponenten) ========== -->
             <div v-if="showTemplatePurchaseStep" class="step-section" data-step="template_purchase">
               <div class="step-header step-header--clickable" @click="toggleStep('template_purchase')">
-                <span class="step-title">Kauf &amp; Lagerung</span>
+                <span class="step-title">{{ t('components.materialCreateWizard.stepPurchaseStorage') }}</span>
                 <span class="step-chevron" :class="{ open: isStepOpen('template_purchase') }">▾</span>
               </div>
 
               <div v-show="isStepOpen('template_purchase')" class="step-content">
                 <div class="form-group">
-                  <label>Lagerstandort</label>
+                  <label>{{ t('components.materialCreateWizard.labelStorageSite') }}</label>
                   <div class="select-with-add">
                     <select v-model="formData.storage_address_id" class="form-select">
-                      <option value="">– Lagerstandort wählen –</option>
+                      <option value="">{{ t('components.materialCreateWizard.selectStorageSite') }}</option>
                       <option v-for="addr in storageAddresses" :key="addr.id" :value="addr.id">
                         {{ addr.name || addr.street_line }}
                       </option>
                     </select>
-                    <button type="button" class="add-btn" @click="openAddStorageModal" title="Neuen Lagerort hinzufügen">
+                    <button
+                      type="button"
+                      class="add-btn"
+                      @click="openAddStorageModal"
+                      :title="t('components.materialCreateWizard.addStorageSiteTitle')"
+                    >
                       <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                         <line x1="12" y1="5" x2="12" y2="19"/>
                         <line x1="5" y1="12" x2="19" y2="12"/>
@@ -693,12 +728,17 @@
                         v-model="formData.location_rack"
                         type="text"
                         class="form-input"
-                        placeholder="Gestell (z.B. Holzgestell)"
+                        :placeholder="t('components.materialCreateWizard.phRackFreestyle')"
                         @input="searchRackCategories"
                         @focus="showRackDropdown = true; searchRackCategories()"
                         @blur="hideRackDropdownDelayed"
                       />
-                      <button type="button" class="add-inline-btn" @click="addRackCategory" title="Gestell-Kategorie unter Standort hinzufügen">+</button>
+                      <button
+                        type="button"
+                        class="add-inline-btn"
+                        @click="addRackCategory"
+                        :title="t('components.materialCreateWizard.addRackUnderSiteTitle')"
+                      >+</button>
                       <div v-if="showRackDropdown" class="autocomplete-dropdown">
                         <div
                           v-for="rack in filteredRackOptions"
@@ -713,7 +753,9 @@
                           class="autocomplete-item create-new"
                           @mousedown="addRackCategory"
                         >
-                          <span class="item-name">+ "{{ formData.location_rack.trim() }}" als Gestell anlegen</span>
+                          <span class="item-name">{{
+                            t('components.materialCreateWizard.createRackNamed', { name: formData.location_rack.trim() })
+                          }}</span>
                         </div>
                       </div>
                     </div>
@@ -721,15 +763,17 @@
                       v-model="formData.location_slot"
                       type="text"
                       class="form-input"
-                      placeholder="Platz/Fach (z.B. B3)"
+                      :placeholder="t('components.materialCreateWizard.phSlotFreestyle')"
                     />
-                    <p class="field-hint">Optional: Freitext Gestell/Platz für Start-Batches der Einzelartikel</p>
+                    <p class="field-hint">{{ t('components.materialCreateWizard.hintRackSlotFreestyle') }}</p>
                   </template>
 
                   <div v-if="creationMode === 'physical_combo'" class="form-group physical-combo-main-storage">
-                    <label class="form-label-sm">Hauptlagerplatz der Kombination *</label>
+                    <label class="form-label-sm">{{ t('components.materialCreateWizard.labelMainStorageCombo') }}</label>
                     <p class="field-hint">
-                      Physische Kombinationen sind ein konkretes Set – bitte Gestell/Fach <strong>oder</strong> Kiste wählen.
+                      {{ t('components.materialCreateWizard.physicalComboStorageHintA') }}<strong>{{
+                        t('components.materialCreateWizard.wordOr')
+                      }}</strong>{{ t('components.materialCreateWizard.physicalComboStorageHintB') }}
                     </p>
                     <div class="stock-location-mode mb-2">
                       <div class="lagerung-switch" role="tablist">
@@ -739,7 +783,7 @@
                           :class="{ active: formData.stock_location_mode === 'slot' }"
                           @click="formData.stock_location_mode = 'slot'; formData.stock_container_batch_id = ''"
                         >
-                          Gestell/Fach
+                          {{ t('components.materialCreateWizard.tabGestellFach') }}
                         </button>
                         <button
                           type="button"
@@ -747,7 +791,7 @@
                           :class="{ active: formData.stock_location_mode === 'kiste' }"
                           @click="formData.stock_location_mode = 'kiste'; formData.rack_id = ''; formData.slot_id = ''; formData.location_rack = ''; formData.location_slot = ''"
                         >
-                          Kiste/Tasche
+                          {{ t('components.materialCreateWizard.tabKisteTasche') }}
                         </button>
                       </div>
                     </div>
@@ -764,10 +808,10 @@
                         :slot-label-formatter="(slot) => formatSlotOptionLabel(String(formData.rack_id || ''), slot)"
                         :slot-option-title-formatter="(s) => slotPreviewTitles[`${String(formData.rack_id || '')}:${String(s.id)}`] || ''"
                         :show-empty-slot-hint="true"
-                        rack-label="Gestell"
-                        slot-label="Fach"
-                        rack-placeholder="– Gestell wählen –"
-                        slot-placeholder="– Fach wählen –"
+                        :rack-label="t('components.materialCreateWizard.rackLabel')"
+                        :slot-label="t('components.materialCreateWizard.slotLabel')"
+                        :rack-placeholder="t('components.materialCreateWizard.rackPlaceholderDash')"
+                        :slot-placeholder="t('components.materialCreateWizard.slotPlaceholderDash')"
                         @rackListMouseenter="prefetchVisibleRackPreviews(storageRacks)"
                         @slotListMouseenter="prefetchSlotPreviewsForRack(String(formData.rack_id || ''))"
                         @update:rackId="onStorageLocationRackUpdate"
@@ -781,7 +825,7 @@
                         @mouseenter="prefetchContainerPreviews()"
                         :title="getContainerPreviewTitle(formData.stock_container_batch_id)"
                       >
-                        <option value="">– Kiste wählen –</option>
+                        <option value="">{{ t('components.materialCreateWizard.selectPickBoxDash') }}</option>
                         <option
                           v-for="cb in containerBatches"
                           :key="cb.id"
@@ -797,7 +841,7 @@
 
                 <div class="form-row">
                   <div class="form-group">
-                    <label>Kaufdatum</label>
+                    <label>{{ t('components.materialCreateWizard.labelPurchaseDate') }}</label>
                     <input
                       v-model="formData.purchase_date"
                       type="date"
@@ -805,25 +849,25 @@
                     />
                   </div>
                   <div class="form-group">
-                    <label>Rechnungsnummer</label>
+                    <label>{{ t('components.materialCreateWizard.labelInvoiceNumber') }}</label>
                     <input
                       v-model="formData.invoice_number"
                       type="text"
                       class="form-input"
-                      placeholder="Optional"
+                      :placeholder="t('components.materialCreateWizard.optionalPlain')"
                     />
                   </div>
                 </div>
 
                 <div class="form-row">
                   <div class="form-group">
-                    <label>Hersteller</label>
+                    <label>{{ t('components.materialCreateWizard.labelManufacturer') }}</label>
                     <div class="autocomplete-wrapper">
                       <input
                         v-model="manufacturerSearch"
                         type="text"
                         class="form-input"
-                        placeholder="Hersteller suchen..."
+                        :placeholder="t('components.materialCreateWizard.phSearchManufacturer')"
                         @input="searchManufacturers"
                         @focus="showManufacturerDropdown = true"
                         @blur="hideManufacturerDropdownDelayed"
@@ -846,13 +890,13 @@
                     </p>
                   </div>
                   <div class="form-group">
-                    <label>Gekauft von</label>
+                    <label>{{ t('components.materialCreateWizard.labelPurchasedFrom') }}</label>
                     <div class="autocomplete-wrapper">
                       <input
                         v-model="supplierSearch"
                         type="text"
                         class="form-input"
-                        placeholder="Lieferant suchen..."
+                        :placeholder="t('components.materialCreateWizard.phSearchSupplier')"
                         @input="searchSuppliers"
                         @focus="showSupplierDropdown = true"
                         @blur="hideSupplierDropdownDelayed"
@@ -893,12 +937,12 @@
               data-step="combo_articles"
             >
               <div class="step-header step-header--clickable" @click="toggleStep('combo_articles')">
-                <span class="step-title">Welche Artikel enthält diese Kombination?</span>
+                <span class="step-title">{{ t('components.materialCreateWizard.stepComboArticlesTitle') }}</span>
                 <span class="step-chevron" :class="{ open: isStepOpen('combo_articles') }">▾</span>
               </div>
               
               <div v-show="isStepOpen('combo_articles')" class="step-content">
-                <p class="step-hint">Mindestens 2 Artikel hinzufügen</p>
+                <p class="step-hint">{{ t('components.materialCreateWizard.comboArticlesMinHint') }}</p>
                 
                 <!-- Material-Suche -->
                 <div class="combo-search">
@@ -906,7 +950,7 @@
                     v-model="comboMaterialSearch" 
                     type="text" 
                     class="form-input"
-                    placeholder="Material suchen (min. 1 Zeichen, zentrale Suche)..."
+                    :placeholder="t('components.materialCreateWizard.comboMaterialSearchPlaceholder')"
                     @input="searchComboMaterials"
                   />
                   <div v-if="comboMaterialSearch.trim().length >= 1 && filteredComboMaterials.length > 0" class="combo-dropdown">
@@ -918,13 +962,17 @@
                     >
                       <div class="combo-item-info">
                         <span class="combo-item-name">{{ mat.name }}</span>
-                        <span class="combo-item-cat">{{ mat.category?.name || 'Ohne Kategorie' }}</span>
+                        <span class="combo-item-cat">{{
+                          mat.category?.name || t('components.materialCreateWizard.noCategory')
+                        }}</span>
                       </div>
-                      <span class="combo-item-stock">{{ mat.total_stock }} Stk.</span>
+                      <span class="combo-item-stock">{{
+                        t('components.materialCreateWizard.comboStockPcs', { n: mat.total_stock })
+                      }}</span>
                     </div>
                   </div>
                   <div v-else-if="comboMaterialSearch.trim().length >= 1 && filteredComboMaterials.length === 0" class="combo-dropdown">
-                    <div class="combo-empty">Keine Materialien gefunden</div>
+                    <div class="combo-empty">{{ t('components.materialCreateWizard.comboNoMaterialsFound') }}</div>
                   </div>
                 </div>
 
@@ -941,7 +989,7 @@
                       <span class="combo-list-cat">{{ mat.category?.name || '' }}</span>
                     </div>
                     <div class="combo-list-qty">
-                      <label>Menge:</label>
+                      <label>{{ t('components.materialCreateWizard.labelQtyShort') }}</label>
                       <input 
                         v-model.number="mat.qty" 
                         type="number" 
@@ -952,10 +1000,10 @@
                     <button type="button" class="combo-remove" @click="removeComboMaterial(index)">×</button>
                   </div>
                 </div>
-                <p v-else class="combo-empty-hint">Noch keine Artikel hinzugefügt</p>
+                <p v-else class="combo-empty-hint">{{ t('components.materialCreateWizard.comboNoArticlesYet') }}</p>
 
                 <p v-if="selectedComboMaterials.length > 0 && selectedComboMaterials.length < 2" class="combo-warning">
-                  ⚠️ Mindestens 2 Artikel erforderlich
+                  ⚠️ {{ t('components.materialCreateWizard.comboMinTwoRequired') }}
                 </p>
               </div>
             </div>
@@ -965,7 +1013,9 @@
             <!-- Batch Formular: Im Batch-Modus ODER bei physical Einzelartikel ohne Vorlage mit tracking -->
             <div v-if="isAddBatchMode || (!isFromTemplate && creationMode === 'individual' && formData.material_type === 'physical' && formData.tracking_type)" class="step-section" data-step="stock">
               <div class="step-header step-header--clickable" @click="toggleStep('stock')">
-                <span class="step-title">{{ isAddBatchMode ? 'Neue Charge' : 'Initialer Bestand' }}</span>
+                <span class="step-title">{{
+                  isAddBatchMode ? t('components.materialCreateWizard.stepNewLot') : t('components.materialCreateWizard.stepInitialStock')
+                }}</span>
                 <span class="step-chevron" :class="{ open: isStepOpen('stock') }">▾</span>
               </div>
               
@@ -973,17 +1023,20 @@
                 <div class="batch-form">
                   <div v-if="formData.tracking_type === 'bulk' || isAddBatchMode" class="form-row mb-2">
                     <div class="form-group">
-                      <label>Menge</label>
+                      <label>{{ t('components.materialCreateWizard.labelQuantity') }}</label>
                       <input
                         v-model.number="formData.initial_qty"
                         type="number"
                         min="0"
                         class="form-input"
-                        placeholder="0"
+                        :placeholder="t('components.materialCreateWizard.phQtyPlaceholder')"
                       />
                     </div>
                     <div class="form-group">
-                      <label>Kaufdatum <span v-if="!formData.is_food" class="required">*</span></label>
+                      <label>
+                        {{ t('components.materialCreateWizard.labelPurchaseDateFoodOptional') }}
+                        <span v-if="!formData.is_food" class="required">*</span>
+                      </label>
                       <input
                         v-model="formData.purchase_date"
                         type="date"
@@ -993,7 +1046,10 @@
                       />
                     </div>
                     <div v-if="formData.is_food || showExpiryDateForNonFood" class="form-group">
-                      <label>Ablaufdatum <span v-if="formData.is_food" class="required">*</span></label>
+                      <label>
+                        {{ t('components.materialCreateWizard.labelExpiryDate') }}
+                        <span v-if="formData.is_food" class="required">*</span>
+                      </label>
                       <input
                         v-model="formData.expiry_date"
                         type="date"
@@ -1010,19 +1066,19 @@
                         <span class="toggle-slider toggle-slider--blue"></span>
                       </span>
                       <span class="toggle-text">
-                        <span class="toggle-title">Auf mehrere Lagerplätze aufteilen</span>
-                        <span class="toggle-desc">Menge auf verschiedene Gestelle/Fächer verteilen</span>
+                        <span class="toggle-title">{{ t('components.materialCreateWizard.toggleSplitLocationsTitle') }}</span>
+                        <span class="toggle-desc">{{ t('components.materialCreateWizard.toggleSplitLocationsDesc') }}</span>
                       </span>
                     </label>
                   </div>
                   <div v-if="(formData.tracking_type === 'bulk' || isAddBatchMode) && !isFromTemplate" class="form-row mb-2">
                     <label class="checkbox-label material-wizard-container-flag">
                       <input type="checkbox" v-model="formData.is_container" />
-                      <span>Behälter – dieser Artikel kann Lagerinhalt aufnehmen (erscheint in Kisten-Auswahllisten)</span>
+                      <span>{{ t('components.materialCreateWizard.checkboxContainerLong') }}</span>
                     </label>
                   </div>
                   <p v-if="(formData.tracking_type === 'bulk' || isAddBatchMode) && !stockInputReady" class="field-hint">
-                    Zuerst Menge erfassen, danach Lagerplätze zuweisen.
+                    {{ t('components.materialCreateWizard.hintQtyBeforeLocations') }}
                   </p>
 
                   <div v-if="formData.tracking_type === 'serialized'" class="form-row mb-2">
@@ -1032,8 +1088,8 @@
                         <span class="toggle-slider toggle-slider--blue"></span>
                       </span>
                       <span class="toggle-text">
-                        <span class="toggle-title">Für alle den gleichen Lagerplatz</span>
-                        <span class="toggle-desc">Bei Nein wird der Standort direkt pro Zeile in der Tabelle gewählt</span>
+                        <span class="toggle-title">{{ t('components.materialCreateWizard.toggleSameSerialLocationTitle') }}</span>
+                        <span class="toggle-desc">{{ t('components.materialCreateWizard.toggleSameSerialLocationDesc') }}</span>
                       </span>
                     </label>
                   </div>
@@ -1041,15 +1097,20 @@
                   <div v-if="formData.tracking_type === 'serialized' || stockInputReady" class="form-group">
                     <template v-if="!(formData.tracking_type === 'serialized' && !serialLocationSameForAll)">
                     <template v-if="!((formData.tracking_type === 'bulk' || isAddBatchMode) && formData.split_allocations)">
-                      <label>Lagerstandort</label>
+                      <label>{{ t('components.materialCreateWizard.labelStorageSite') }}</label>
                       <div class="select-with-add">
                         <select v-model="formData.storage_address_id" class="form-select">
-                          <option value="">– Lagerstandort wählen –</option>
+                          <option value="">{{ t('components.materialCreateWizard.selectStorageSite') }}</option>
                           <option v-for="addr in storageAddresses" :key="addr.id" :value="addr.id">
                             {{ addr.name || addr.street_line }}
                           </option>
                         </select>
-                        <button type="button" class="add-btn" @click="openAddStorageModal" title="Neuen Lagerort hinzufügen">
+                        <button
+                      type="button"
+                      class="add-btn"
+                      @click="openAddStorageModal"
+                      :title="t('components.materialCreateWizard.addStorageSiteTitle')"
+                    >
                           <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                             <line x1="12" y1="5" x2="12" y2="19"/>
                             <line x1="5" y1="12" x2="19" y2="12"/>
@@ -1061,22 +1122,24 @@
                   <!-- Allokations-Tabelle (Bulk, wenn Aufteilung aktiv) -->
                   <div v-if="(formData.tracking_type === 'bulk' || isAddBatchMode) && formData.split_allocations" class="allocations-section">
                     <div class="allocations-header">
-                      <label>Lagerplätze (Summe = {{ formData.initial_qty }} Stk.)</label>
+                      <label>{{
+                        t('components.materialCreateWizard.allocationsSumLabel', { n: formData.initial_qty })
+                      }}</label>
                       <button type="button" class="add-serial-btn" :disabled="!canAddAllocationRow" @click="addAllocationRow">
                         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
                           <line x1="12" y1="5" x2="12" y2="19"/>
                           <line x1="5" y1="12" x2="19" y2="12"/>
                         </svg>
-                        Zeile hinzufügen
+                        {{ t('components.materialCreateWizard.btnAddRow') }}
                       </button>
                     </div>
                     <div class="allocations-table-wrap">
                       <table class="allocations-table">
                         <thead>
                           <tr>
-                            <th>Menge</th>
-                            <th>Art</th>
-                            <th>Lagerort</th>
+                            <th>{{ t('components.materialCreateWizard.thQty') }}</th>
+                            <th>{{ t('components.materialCreateWizard.thKind') }}</th>
+                            <th>{{ t('components.materialCreateWizard.thStorageSiteCol') }}</th>
                             <th></th>
                           </tr>
                         </thead>
@@ -1088,18 +1151,18 @@
                                 type="number"
                                 min="1"
                                 class="form-input form-input--sm"
-                                placeholder="0"
+                                :placeholder="t('components.materialCreateWizard.phQtyPlaceholder')"
                               />
                             </td>
                             <td>
                               <select v-model="row.mode" class="form-select form-select--sm" @change="row.rack_id = ''; row.slot_id = ''; row.container_batch_id = ''">
-                                <option value="slot">Fach</option>
-                                <option value="kiste">Kiste</option>
+                                <option value="slot">{{ t('components.materialCreateWizard.allocModeBinShort') }}</option>
+                                <option value="kiste">{{ t('components.materialCreateWizard.allocModeBoxShort') }}</option>
                               </select>
                             </td>
                             <td>
                               <template v-if="row.mode === 'slot'">
-                                <label class="form-label-sm">Lagerstandort</label>
+                                <label class="form-label-sm">{{ t('components.materialCreateWizard.labelStorageSiteSm') }}</label>
                                 <select
                                   v-model="row.storage_address_id"
                                   class="form-select form-select--sm"
@@ -1109,7 +1172,7 @@
                                     {{ addr.name || addr.street_line }}
                                   </option>
                                 </select>
-                                <label class="form-label-sm">Gestell</label>
+                                <label class="form-label-sm">{{ t('components.materialCreateWizard.labelRackSm') }}</label>
                                 <select
                                   v-model="row.rack_id"
                                   class="form-select form-select--sm"
@@ -1117,7 +1180,7 @@
                                   @mouseenter="prefetchRackPreview(row.rack_id)"
                                   :title="getRackPreviewTitle(row.rack_id)"
                                 >
-                                  <option value="" disabled>– Gestell –</option>
+                                  <option value="" disabled>{{ t('components.materialCreateWizard.selectRackDash') }}</option>
                                   <option
                                     v-for="r in getRacksForAllocationRow(row)"
                                     :key="r.id"
@@ -1127,7 +1190,7 @@
                                     {{ r.name }}
                                   </option>
                                 </select>
-                                <label class="form-label-sm">Fach</label>
+                                <label class="form-label-sm">{{ t('components.materialCreateWizard.labelSlotSm') }}</label>
                                 <select
                                   v-model="row.slot_id"
                                   class="form-select form-select--sm"
@@ -1135,7 +1198,7 @@
                                   @mouseenter="prefetchSlotPreview(row.rack_id, row.slot_id)"
                                   :title="getSlotPreviewTitle(row.rack_id, row.slot_id)"
                                 >
-                                  <option value="" disabled>– Fach wählen –</option>
+                                  <option value="" disabled>{{ t('components.materialCreateWizard.selectPickSlotDash') }}</option>
                                   <option
                                     v-for="s in (row.rack_id ? (slotsByRackId[String(row.rack_id)] || []) : [])"
                                     :key="s.id"
@@ -1147,14 +1210,14 @@
                                 </select>
                               </template>
                               <template v-else>
-                                <label class="form-label-sm">Kiste/Tasche</label>
+                                <label class="form-label-sm">{{ t('components.materialCreateWizard.labelBoxBagSm') }}</label>
                                 <select
                                   v-model="row.container_batch_id"
                                   class="form-select form-select--sm"
                                   @mouseenter="prefetchContainerPreviews()"
                                   :title="getContainerPreviewTitle(row.container_batch_id)"
                                 >
-                                  <option value="">– Kiste wählen –</option>
+                                  <option value="">{{ t('components.materialCreateWizard.selectPickBoxDash') }}</option>
                                   <option
                                     v-for="cb in containerBatches"
                                     :key="cb.id"
@@ -1167,21 +1230,31 @@
                               </template>
                             </td>
                             <td>
-                              <button type="button" class="remove-row-btn" @click="removeAllocationRow(row.id)" title="Entfernen">×</button>
+                              <button
+                                type="button"
+                                class="remove-row-btn"
+                                @click="removeAllocationRow(row.id)"
+                                :title="t('components.materialCreateWizard.btnRemoveRowTitle')"
+                              >×</button>
                             </td>
                           </tr>
                         </tbody>
                       </table>
                     </div>
                     <p v-if="initialAllocations.length > 0 && !allocationSumValid" class="field-hint is-invalid">
-                      Summe muss {{ formData.initial_qty }} Stk. ergeben (aktuell: {{ allocationSum }})
+                      {{
+                        t('components.materialCreateWizard.allocSumMismatch', {
+                          qty: formData.initial_qty,
+                          sum: allocationSum,
+                        })
+                      }}
                     </p>
                   </div>
 
                   <!-- Einzelner Lagerplatz oder Kiste (wenn keine Aufteilung) -->
                   <div v-if="!((formData.tracking_type === 'bulk' || isAddBatchMode) && formData.split_allocations)" class="form-group">
                     <div class="stock-location-mode mb-2">
-                      <label class="form-label-sm">Hauptlagerplatz</label>
+                      <label class="form-label-sm">{{ t('components.materialCreateWizard.labelMainStorage') }}</label>
                       <div class="lagerung-switch" role="tablist">
                         <button
                           type="button"
@@ -1189,7 +1262,7 @@
                           :class="{ active: formData.stock_location_mode === 'slot' }"
                           @click="formData.stock_location_mode = 'slot'; formData.stock_container_batch_id = ''"
                         >
-                          Gestell/Fach
+                          {{ t('components.materialCreateWizard.tabGestellFach') }}
                         </button>
                         <button
                           type="button"
@@ -1197,7 +1270,7 @@
                           :class="{ active: formData.stock_location_mode === 'kiste' }"
                           @click="formData.stock_location_mode = 'kiste'; formData.rack_id = ''; formData.slot_id = ''; formData.location_rack = ''; formData.location_slot = ''"
                         >
-                          Kiste/Tasche
+                          {{ t('components.materialCreateWizard.tabKisteTasche') }}
                         </button>
                       </div>
                     </div>
@@ -1214,10 +1287,10 @@
                         :slot-label-formatter="(slot) => formatSlotOptionLabel(String(formData.rack_id || ''), slot)"
                         :slot-option-title-formatter="(s) => slotPreviewTitles[`${String(formData.rack_id || '')}:${String(s.id)}`] || ''"
                         :show-empty-slot-hint="true"
-                        rack-label="Gestell"
-                        slot-label="Fach"
-                        rack-placeholder="– Gestell wählen –"
-                        slot-placeholder="– Fach wählen –"
+                        :rack-label="t('components.materialCreateWizard.rackLabel')"
+                        :slot-label="t('components.materialCreateWizard.slotLabel')"
+                        :rack-placeholder="t('components.materialCreateWizard.rackPlaceholderDash')"
+                        :slot-placeholder="t('components.materialCreateWizard.slotPlaceholderDash')"
                         @rackListMouseenter="prefetchVisibleRackPreviews(storageRacks)"
                         @slotListMouseenter="prefetchSlotPreviewsForRack(String(formData.rack_id || ''))"
                         @update:rackId="onStorageLocationRackUpdate"
@@ -1231,7 +1304,7 @@
                         @mouseenter="prefetchContainerPreviews()"
                         :title="getContainerPreviewTitle(formData.stock_container_batch_id)"
                       >
-                        <option value="">– Kiste wählen –</option>
+                        <option value="">{{ t('components.materialCreateWizard.selectPickBoxDash') }}</option>
                         <option
                           v-for="cb in containerBatches"
                           :key="cb.id"
@@ -1252,8 +1325,8 @@
                         <span class="toggle-slider toggle-slider--blue"></span>
                       </span>
                       <span class="toggle-text">
-                        <span class="toggle-title">Ablaufdatum anzeigen</span>
-                        <span class="toggle-desc">Optional fuer Nicht-Esswaren (z.B. Haltbarkeit, Prueffrist)</span>
+                        <span class="toggle-title">{{ t('components.materialCreateWizard.toggleShowExpiryTitle') }}</span>
+                        <span class="toggle-desc">{{ t('components.materialCreateWizard.toggleShowExpiryDesc') }}</span>
                       </span>
                     </label>
                   </div>
@@ -1261,17 +1334,23 @@
                   <!-- Serialisiert: Seriennummer-Tabelle -->
                   <div v-if="formData.tracking_type === 'serialized'" class="serial-numbers-section">
                     <div class="serial-header">
-                      <label>Seriennummern ({{ serializedQty }} Stk.)</label>
+                      <label>{{
+                        t('components.materialCreateWizard.serialNumbersWithCount', { count: serializedQty })
+                      }}</label>
                       <div style="display:flex; gap:8px; align-items:center;">
                         <button type="button" class="add-serial-btn" @click="addSerialNumber">
                           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
                             <line x1="12" y1="5" x2="12" y2="19"/>
                             <line x1="5" y1="12" x2="19" y2="12"/>
                           </svg>
-                          Zeile hinzufügen
+                          {{ t('components.materialCreateWizard.btnAddRow') }}
                         </button>
                         <button type="button" class="add-serial-btn" @click="toggleSerialScanner()">
-                          {{ serialScannerActive ? 'Scanner stoppen' : 'Scannen' }}
+                          {{
+                            serialScannerActive
+                              ? t('components.materialCreateWizard.scannerStop')
+                              : t('components.materialCreateWizard.scannerStart')
+                          }}
                         </button>
                       </div>
                     </div>
@@ -1282,15 +1361,15 @@
                           <span class="toggle-slider toggle-slider--blue"></span>
                         </span>
                         <span class="toggle-text">
-                          <span class="toggle-title">Seriennummern automatisch erzeugen</span>
-                          <span class="toggle-desc">Prefix, Startnummer und Stellen waehlen statt alles manuell einzugeben</span>
+                          <span class="toggle-title">{{ t('components.materialCreateWizard.serialAutoGenTitle') }}</span>
+                          <span class="toggle-desc">{{ t('components.materialCreateWizard.serialAutoGenDesc') }}</span>
                         </span>
                       </label>
                       <transition name="slide-down">
                         <div v-if="serialAutoGenerateEnabled" class="slider-details">
                           <div class="serial-auto-generate-row">
                             <div class="serial-auto-field serial-auto-field-prefix">
-                              <label>Prefix</label>
+                              <label>{{ t('components.materialCreateWizard.labelPrefixShort') }}</label>
                               <input
                                 v-model="autoGenPrefix"
                                 type="text"
@@ -1299,19 +1378,19 @@
                               />
                             </div>
                             <div class="serial-auto-field">
-                              <label>Startnummer</label>
+                              <label>{{ t('components.materialCreateWizard.labelStartNumberShort') }}</label>
                               <input v-model.number="autoGenStart" type="number" min="1" class="form-input form-input-sm" />
                             </div>
                             <div class="serial-auto-field">
-                              <label>Stellen</label>
+                              <label>{{ t('components.materialCreateWizard.labelDigitsShort') }}</label>
                               <input v-model.number="autoGenPad" type="number" min="1" max="6" class="form-input form-input-sm" />
                             </div>
                             <div class="serial-auto-field">
-                              <label>Anzahl</label>
+                              <label>{{ t('components.materialCreateWizard.labelCountShort') }}</label>
                               <input v-model.number="autoGenCount" type="number" min="1" class="form-input form-input-sm" />
                             </div>
                             <button type="button" class="add-serial-btn add-serial-btn-secondary" @click="generateSerialNumbers">
-                              Liste erzeugen
+                              {{ t('components.materialCreateWizard.btnGenerateSerialList') }}
                             </button>
                             <span class="serial-auto-preview">{{ autoGenPreview }}</span>
                           </div>
@@ -1322,7 +1401,7 @@
                       v-if="serialScannerActive"
                       :active="serialScannerActive"
                       mode="all"
-                      hint="Barcode oder QR auf Seriennummer richten."
+                      :hint="t('components.materialCreateWizard.serialScannerHint')"
                       @detected="onSerialDetected"
                       @error="onSerialScannerError"
                     />
@@ -1340,38 +1419,38 @@
                             v-model="entry.serial_number"
                             type="text"
                             class="form-input serial-input"
-                            placeholder="Seriennummer eingeben..."
+                            :placeholder="t('components.materialCreateWizard.phEnterSerialNumber')"
                             @keydown.enter.prevent="addSerialNumber"
                           />
-                          <label class="form-label-sm">Label (optional)</label>
+                          <label class="form-label-sm">{{ t('components.materialCreateWizard.labelInstanceLabelOptional') }}</label>
                           <input
                             v-model="entry.label"
                             type="text"
                             class="form-input notes-input"
-                            placeholder="z.B. Kochkiste Bär"
+                            :placeholder="t('components.materialCreateWizard.phInstanceLabelExample')"
                           />
                           <label class="checkbox-label serial-is-container-flag mt-2">
                             <input type="checkbox" v-model="entry.is_container" />
-                            <span>Behälter (diese Instanz kann Inhalt aufnehmen)</span>
+                            <span>{{ t('components.materialCreateWizard.serialIsContainerLong') }}</span>
                           </label>
                         </div>
 
                         <div v-if="!serialLocationSameForAll" class="serial-block serial-block--art">
-                          <label class="form-label-sm">Art</label>
+                          <label class="form-label-sm">{{ t('components.materialCreateWizard.labelLocationKindShort') }}</label>
                           <select v-model="entry.location_mode" class="form-select form-select--sm" @change="entry.rack_id=''; entry.slot_id=''; entry.container_batch_id=''">
-                            <option value="slot">Gestell/Fach</option>
-                            <option value="kiste">Kiste/Tasche</option>
+                            <option value="slot">{{ t('components.materialCreateWizard.tabGestellFach') }}</option>
+                            <option value="kiste">{{ t('components.materialCreateWizard.tabKisteTasche') }}</option>
                           </select>
                         </div>
 
                         <div v-if="!serialLocationSameForAll" class="serial-block serial-block--location">
                           <div class="serial-location-cell">
                             <template v-if="entry.location_mode === 'slot'">
-                              <label class="form-label-sm">Lagerstandort</label>
+                              <label class="form-label-sm">{{ t('components.materialCreateWizard.labelStorageSiteSm') }}</label>
                               <select v-model="entry.storage_address_id" class="form-select form-select--sm" @change="onSerialEntryStorageAddressChange(entry)">
                                 <option v-for="addr in storageAddresses" :key="addr.id" :value="addr.id">{{ addr.name || addr.street_line }}</option>
                               </select>
-                              <label class="form-label-sm">Gestell</label>
+                              <label class="form-label-sm">{{ t('components.materialCreateWizard.labelRackSm') }}</label>
                               <select
                                 v-model="entry.rack_id"
                                 class="form-select form-select--sm"
@@ -1379,7 +1458,7 @@
                                 @mouseenter="prefetchRackPreview(entry.rack_id)"
                                 :title="getRackPreviewTitle(entry.rack_id)"
                               >
-                                <option value="" disabled>– Gestell –</option>
+                                <option value="" disabled>{{ t('components.materialCreateWizard.selectRackDash') }}</option>
                                 <option
                                   v-for="rack in getRacksForSerialEntry(entry)"
                                   :key="rack.id"
@@ -1389,7 +1468,7 @@
                                   {{ rack.name }}
                                 </option>
                               </select>
-                              <label class="form-label-sm">Fach</label>
+                              <label class="form-label-sm">{{ t('components.materialCreateWizard.labelSlotSm') }}</label>
                               <select
                                 v-model="entry.slot_id"
                                 class="form-select form-select--sm"
@@ -1397,7 +1476,7 @@
                                 @mouseenter="prefetchSlotPreview(entry.rack_id, entry.slot_id)"
                                 :title="getSlotPreviewTitle(entry.rack_id, entry.slot_id)"
                               >
-                                <option value="" disabled>– Fach –</option>
+                                <option value="" disabled>{{ t('components.materialCreateWizard.selectPickSlotDash') }}</option>
                                 <option
                                   v-for="slot in (entry.rack_id ? (slotsByRackId[String(entry.rack_id)] || []) : [])"
                                   :key="slot.id"
@@ -1409,14 +1488,14 @@
                               </select>
                             </template>
                             <template v-else>
-                              <label class="form-label-sm">Kiste/Tasche</label>
+                              <label class="form-label-sm">{{ t('components.materialCreateWizard.labelBoxBagSm') }}</label>
                               <select
                                 v-model="entry.container_batch_id"
                                 class="form-select form-select--sm"
                                 @mouseenter="prefetchContainerPreviews()"
                                 :title="getContainerPreviewTitle(entry.container_batch_id)"
                               >
-                                <option value="">– Kiste wählen –</option>
+                                <option value="">{{ t('components.materialCreateWizard.selectPickBoxDash') }}</option>
                                 <option
                                   v-for="cb in containerBatches"
                                   :key="cb.id"
@@ -1431,12 +1510,12 @@
                         </div>
 
                         <div class="serial-block serial-block--notes">
-                          <label class="form-label-sm">Notiz (optional)</label>
+                          <label class="form-label-sm">{{ t('components.materialCreateWizard.serialRowNotesLabelOptional') }}</label>
                           <input
                             v-model="entry.notes"
                             type="text"
                             class="form-input notes-input"
-                            placeholder="Optional"
+                            :placeholder="t('components.materialCreateWizard.optionalPlain')"
                           />
                         </div>
 
@@ -1446,7 +1525,7 @@
                             class="remove-serial-btn"
                             style="margin-right:6px;"
                             @click="openSerialScannerFor(entry.id)"
-                            title="Seriennummer scannen"
+                            :title="t('components.materialCreateWizard.titleScanSerialRow')"
                           >
                             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                               <rect x="3" y="5" width="18" height="14" rx="2"/>
@@ -1454,7 +1533,12 @@
                               <line x1="7" y1="13" x2="12" y2="13"/>
                             </svg>
                           </button>
-                          <button type="button" class="remove-serial-btn" @click="removeSerialNumber(entry.id)" title="Entfernen">
+                          <button
+                            type="button"
+                            class="remove-serial-btn"
+                            @click="removeSerialNumber(entry.id)"
+                            :title="t('components.materialCreateWizard.btnRemoveRowTitle')"
+                          >
                             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                               <line x1="18" y1="6" x2="6" y2="18"/>
                               <line x1="6" y1="6" x2="18" y2="18"/>
@@ -1465,13 +1549,13 @@
                     </div>
                     
                     <div v-else class="empty-serials">
-                      <p>Noch keine Seriennummern hinzugefügt</p>
+                      <p>{{ t('components.materialCreateWizard.emptySerialsHint') }}</p>
                       <button type="button" class="add-first-btn" @click="addSerialNumber">
-                        + Erste Seriennummer hinzufügen
+                        + {{ t('components.materialCreateWizard.btnAddFirstSerial') }}
                       </button>
                     </div>
                     <p v-if="!serialLocationSameForAll && hasInvalidSerialLocations" class="field-hint is-invalid">
-                      Bitte pro Seriennummer einen gueltigen Standort (Gestell/Fach oder Kiste) waehlen.
+                      {{ t('components.materialCreateWizard.invalidSerialLocationHint') }}
                     </p>
                     <p v-if="serialDuplicateHint" class="field-hint is-invalid">
                       {{ serialDuplicateHint }}
@@ -1485,33 +1569,42 @@
                           <span class="toggle-slider toggle-slider--blue"></span>
                         </span>
                         <span class="toggle-text">
-                          <span class="toggle-title">Verpackungseinheit</span>
-                          <span class="toggle-desc">In Bündeln, Kisten oder Rollen gelagert</span>
+                          <span class="toggle-title">{{ t('components.materialDetail.sectionPackaging') }}</span>
+                          <span class="toggle-desc">{{ t('components.materialDetail.packagingHint') }}</span>
                         </span>
                       </label>
                       <transition name="slide-down">
                         <div v-if="packUnitEnabled" class="slider-details pack-details">
                           <div class="form-row">
                             <div class="form-group">
-                              <label>Stück pro Einheit</label>
-                              <input v-model.number="formData.pack_size" type="number" min="2" class="form-input" placeholder="z.B. 10" />
+                              <label>{{ t('components.materialDetail.labelPiecesPerUnit') }}</label>
+                              <input
+                                v-model.number="formData.pack_size"
+                                type="number"
+                                min="2"
+                                class="form-input"
+                                :placeholder="t('components.materialDetail.packSizePlaceholder')"
+                              />
                             </div>
                             <div class="form-group">
-                              <label>Bezeichnung</label>
+                              <label>{{ t('components.materialDetail.labelDesignation') }}</label>
                               <select v-model="formData.pack_unit" class="form-input">
-                                <option value="">– wählen –</option>
-                                <option value="Bündel">Bündel</option>
-                                <option value="Kiste">Kiste</option>
-                                <option value="Karton">Karton</option>
-                                <option value="Sack">Sack</option>
-                                <option value="Rolle">Rolle</option>
-                                <option value="Palette">Palette</option>
-                                <option value="Set">Set</option>
-                                <option value="Paket">Paket</option>
+                                <option value="">{{ t('components.materialDetail.packUnitNone') }}</option>
+                                <option value="Bündel">{{ t('components.materialDetail.packUnitBundle') }}</option>
+                                <option value="Kiste">{{ t('components.materialDetail.packUnitKiste') }}</option>
+                                <option value="Karton">{{ t('components.materialDetail.packUnitKarton') }}</option>
+                                <option value="Sack">{{ t('components.materialDetail.packUnitSack') }}</option>
+                                <option value="Rolle">{{ t('components.materialDetail.packUnitRolle') }}</option>
+                                <option value="Palette">{{ t('components.materialDetail.packUnitPalette') }}</option>
+                                <option value="Set">{{ t('components.materialDetail.packUnitSet') }}</option>
+                                <option value="Paket">{{ t('components.materialDetail.packUnitPaket') }}</option>
                               </select>
                             </div>
                             <div v-if="formData.is_consumable || formData.is_food" class="form-group">
-                              <label>Verkaufspreis pro Einheit (CHF) <span class="optional-label">(optional)</span></label>
+                              <label>
+                                {{ t('components.materialCreateWizard.labelPackSalePriceChf') }}
+                                <span class="optional-label">({{ t('components.materialCreateWizard.optionalPlain') }})</span>
+                              </label>
                               <div class="price-input">
                                 <span class="currency">Fr.</span>
                                 <input
@@ -1520,20 +1613,32 @@
                                   step="0.05"
                                   min="0"
                                   class="form-input"
-                                  placeholder="0.00"
+                                  :placeholder="t('components.materialCreateWizard.phPriceZero')"
                                 />
                               </div>
                               <p
                                 v-if="formData.pack_size && formData.pack_size >= 2 && formData.pack_sale_price_chf && formData.pack_sale_price_chf > 0"
                                 class="field-hint"
                               >
-                                Entspricht ca. {{ (formData.pack_sale_price_chf / formData.pack_size).toFixed(2) }} CHF/Stk.
+                                {{
+                                  t('components.materialCreateWizard.packApproxPerPiece', {
+                                    price: (formData.pack_sale_price_chf / formData.pack_size).toFixed(2),
+                                  })
+                                }}
                               </p>
                             </div>
                           </div>
                           <p v-if="formData.pack_size && formData.pack_unit" class="pack-preview">
-                            Beispiel: {{ serializedQty }} Stk. = {{ Math.floor(serializedQty / formData.pack_size) }} {{ formData.pack_unit }} à {{ formData.pack_size }} Stk.
-                            <span v-if="serializedQty % formData.pack_size !== 0"> + {{ serializedQty % formData.pack_size }} Stk.</span>
+                            {{
+                              t('components.materialDetail.packPreview', {
+                                stock: serializedQty,
+                                packs: Math.floor(serializedQty / formData.pack_size),
+                                unit: formData.pack_unit,
+                                per: formData.pack_size,
+                              })
+                            }}<span v-if="serializedQty % formData.pack_size !== 0">{{
+                              t('components.materialDetail.packPreviewRemain', { rem: serializedQty % formData.pack_size })
+                            }}</span>
                           </p>
                         </div>
                       </transition>
@@ -1550,33 +1655,42 @@
                           <span class="toggle-slider toggle-slider--blue"></span>
                         </span>
                         <span class="toggle-text">
-                          <span class="toggle-title">Verpackungseinheit</span>
-                          <span class="toggle-desc">In Bündeln, Kisten oder Rollen gelagert</span>
+                          <span class="toggle-title">{{ t('components.materialDetail.sectionPackaging') }}</span>
+                          <span class="toggle-desc">{{ t('components.materialDetail.packagingHint') }}</span>
                         </span>
                       </label>
                       <transition name="slide-down">
                         <div v-if="packUnitEnabled" class="slider-details pack-details">
                           <div class="form-row">
                             <div class="form-group">
-                              <label>Stück pro Einheit</label>
-                              <input v-model.number="formData.pack_size" type="number" min="2" class="form-input" placeholder="z.B. 10" />
+                              <label>{{ t('components.materialDetail.labelPiecesPerUnit') }}</label>
+                              <input
+                                v-model.number="formData.pack_size"
+                                type="number"
+                                min="2"
+                                class="form-input"
+                                :placeholder="t('components.materialDetail.packSizePlaceholder')"
+                              />
                             </div>
                             <div class="form-group">
-                              <label>Bezeichnung</label>
+                              <label>{{ t('components.materialDetail.labelDesignation') }}</label>
                               <select v-model="formData.pack_unit" class="form-input">
-                                <option value="">– wählen –</option>
-                                <option value="Bündel">Bündel</option>
-                                <option value="Kiste">Kiste</option>
-                                <option value="Karton">Karton</option>
-                                <option value="Sack">Sack</option>
-                                <option value="Rolle">Rolle</option>
-                                <option value="Palette">Palette</option>
-                                <option value="Set">Set</option>
-                                <option value="Paket">Paket</option>
+                                <option value="">{{ t('components.materialDetail.packUnitNone') }}</option>
+                                <option value="Bündel">{{ t('components.materialDetail.packUnitBundle') }}</option>
+                                <option value="Kiste">{{ t('components.materialDetail.packUnitKiste') }}</option>
+                                <option value="Karton">{{ t('components.materialDetail.packUnitKarton') }}</option>
+                                <option value="Sack">{{ t('components.materialDetail.packUnitSack') }}</option>
+                                <option value="Rolle">{{ t('components.materialDetail.packUnitRolle') }}</option>
+                                <option value="Palette">{{ t('components.materialDetail.packUnitPalette') }}</option>
+                                <option value="Set">{{ t('components.materialDetail.packUnitSet') }}</option>
+                                <option value="Paket">{{ t('components.materialDetail.packUnitPaket') }}</option>
                               </select>
                             </div>
                             <div v-if="formData.is_consumable || formData.is_food" class="form-group">
-                              <label>Verkaufspreis pro Einheit (CHF) <span class="optional-label">(optional)</span></label>
+                              <label>
+                                {{ t('components.materialCreateWizard.labelPackSalePriceChf') }}
+                                <span class="optional-label">({{ t('components.materialCreateWizard.optionalPlain') }})</span>
+                              </label>
                               <div class="price-input">
                                 <span class="currency">Fr.</span>
                                 <input
@@ -1585,20 +1699,34 @@
                                   step="0.05"
                                   min="0"
                                   class="form-input"
-                                  placeholder="0.00"
+                                  :placeholder="t('components.materialCreateWizard.phPriceZero')"
                                 />
                               </div>
                               <p
                                 v-if="formData.pack_size && formData.pack_size >= 2 && formData.pack_sale_price_chf && formData.pack_sale_price_chf > 0"
                                 class="field-hint"
                               >
-                                Entspricht ca. {{ (formData.pack_sale_price_chf / formData.pack_size).toFixed(2) }} CHF/Stk.
+                                {{
+                                  t('components.materialCreateWizard.packApproxPerPiece', {
+                                    price: (formData.pack_sale_price_chf / formData.pack_size).toFixed(2),
+                                  })
+                                }}
                               </p>
                             </div>
                           </div>
                           <p v-if="formData.pack_size && formData.pack_unit" class="pack-preview">
-                            Beispiel: {{ formData.initial_qty || 0 }} Stk. = {{ Math.floor((formData.initial_qty || 0) / formData.pack_size) }} {{ formData.pack_unit }} à {{ formData.pack_size }} Stk.
-                            <span v-if="formData.initial_qty && (formData.initial_qty % formData.pack_size) !== 0"> + {{ formData.initial_qty % formData.pack_size }} Stk.</span>
+                            {{
+                              t('components.materialDetail.packPreview', {
+                                stock: formData.initial_qty || 0,
+                                packs: Math.floor((formData.initial_qty || 0) / formData.pack_size),
+                                unit: formData.pack_unit,
+                                per: formData.pack_size,
+                              })
+                            }}<span v-if="formData.initial_qty && (formData.initial_qty % formData.pack_size) !== 0">{{
+                              t('components.materialDetail.packPreviewRemain', {
+                                rem: formData.initial_qty % formData.pack_size,
+                              })
+                            }}</span>
                           </p>
                         </div>
                       </transition>
@@ -1608,7 +1736,10 @@
                   <!-- Gemeinsame Felder (Kaufdatum bei Serialisiert) -->
                   <div v-if="formData.tracking_type === 'serialized'" class="form-row mt-3">
                     <div class="form-group">
-                      <label>Kaufdatum <span v-if="!formData.is_food" class="required">*</span></label>
+                      <label>
+                        {{ t('components.materialCreateWizard.labelPurchaseDate') }}
+                        <span v-if="!formData.is_food" class="required">*</span>
+                      </label>
                       <input 
                         v-model="formData.purchase_date" 
                         type="date" 
@@ -1621,18 +1752,25 @@
 
                   <div class="form-row">
                     <div class="form-group">
-                      <label>Hersteller</label>
+                      <label>{{ t('components.materialCreateWizard.labelManufacturer') }}</label>
                       <div class="autocomplete-wrapper">
                         <input 
                           v-model="manufacturerSearch" 
                           type="text" 
                           class="form-input"
-                          placeholder="Hersteller suchen..."
+                          :placeholder="t('components.materialCreateWizard.phSearchManufacturer')"
                           @input="searchManufacturers"
                           @focus="showManufacturerDropdown = true"
                           @blur="hideManufacturerDropdownDelayed"
                         />
-                        <button type="button" class="add-inline-btn" @click="openAddManufacturerModal" title="Neuen Hersteller hinzufügen">+</button>
+                        <button
+                          type="button"
+                          class="add-inline-btn"
+                          @click="openAddManufacturerModal"
+                          :title="t('components.materialCreateWizard.addManufacturerInlineTitle')"
+                        >
+                          +
+                        </button>
                         <div v-if="showManufacturerDropdown && manufacturerSearch.length >= 2" class="autocomplete-dropdown">
                           <div 
                             v-for="addr in filteredManufacturers" 
@@ -1643,13 +1781,14 @@
                             <span class="item-name">{{ addr.name || addr.company }}</span>
                             <span class="item-city">{{ addr.city }}</span>
                           </div>
-                          <!-- Keine Ergebnisse → Neu erstellen -->
                           <div 
                             v-if="filteredManufacturers.length === 0" 
                             class="autocomplete-item create-new"
                             @mousedown="openAddManufacturerModal"
                           >
-                            <span class="item-name">+ "{{ manufacturerSearch }}" als Hersteller anlegen</span>
+                            <span class="item-name">{{
+                              t('components.materialCreateWizard.createManufacturerNamed', { name: manufacturerSearch })
+                            }}</span>
                           </div>
                         </div>
                       </div>
@@ -1659,18 +1798,25 @@
                       </p>
                     </div>
                     <div class="form-group">
-                      <label>Gekauft von</label>
+                      <label>{{ t('components.materialCreateWizard.labelPurchasedFrom') }}</label>
                       <div class="autocomplete-wrapper">
                         <input 
                           v-model="supplierSearch" 
                           type="text" 
                           class="form-input"
-                          placeholder="Lieferant suchen..."
+                          :placeholder="t('components.materialCreateWizard.phSearchSupplier')"
                           @input="searchSuppliers"
                           @focus="showSupplierDropdown = true"
                           @blur="hideSupplierDropdownDelayed"
                         />
-                        <button type="button" class="add-inline-btn" @click="openAddSupplierModal" title="Neuen Lieferanten hinzufügen">+</button>
+                        <button
+                          type="button"
+                          class="add-inline-btn"
+                          @click="openAddSupplierModal"
+                          :title="t('components.materialCreateWizard.addSupplierInlineTitle')"
+                        >
+                          +
+                        </button>
                         <div v-if="showSupplierDropdown && supplierSearch.length >= 2" class="autocomplete-dropdown">
                           <div 
                             v-for="addr in filteredSuppliers" 
@@ -1681,13 +1827,14 @@
                             <span class="item-name">{{ addr.name || addr.company }}</span>
                             <span class="item-city">{{ addr.city }}</span>
                           </div>
-                          <!-- Keine Ergebnisse → Neu erstellen -->
                           <div 
                             v-if="filteredSuppliers.length === 0" 
                             class="autocomplete-item create-new"
                             @mousedown="openAddSupplierModal"
                           >
-                            <span class="item-name">+ "{{ supplierSearch }}" als Lieferant anlegen</span>
+                            <span class="item-name">{{
+                              t('components.materialCreateWizard.createSupplierNamed', { name: supplierSearch })
+                            }}</span>
                           </div>
                         </div>
                       </div>
@@ -1710,14 +1857,14 @@
                         <span class="toggle-slider toggle-slider--blue"></span>
                       </span>
                       <span class="toggle-text">
-                        <span class="toggle-title">Gesamtpreis auf Stück verteilen</span>
-                        <span class="toggle-desc">Warenwert plus Lieferung gleichmässig auf alle Stück (pro Einheit)</span>
+                        <span class="toggle-title">{{ t('components.materialCreateWizard.toggleDistributeTotalTitle') }}</span>
+                        <span class="toggle-desc">{{ t('components.materialCreateWizard.toggleDistributeTotalDesc') }}</span>
                       </span>
                     </label>
                     <transition name="slide-down">
                       <div v-if="purchasePriceInputMode === 'unit'" key="pp-unit" class="form-row mt-2">
                         <div class="form-group">
-                          <label>Anschaffungspreis (CHF/Stk.)</label>
+                          <label>{{ t('components.materialCreateWizard.purchasePriceChfPerPc') }}</label>
                           <div class="price-input">
                             <span class="currency">Fr.</span>
                             <input
@@ -1726,7 +1873,7 @@
                               step="0.01"
                               min="0"
                               class="form-input"
-                              placeholder="0.00"
+                              :placeholder="t('components.materialCreateWizard.phPriceZero')"
                             />
                           </div>
                         </div>
@@ -1734,7 +1881,7 @@
                       <div v-else key="pp-total" class="slider-details pack-details mt-2">
                         <div class="form-row">
                           <div class="form-group">
-                            <label>Warenwert (CHF)</label>
+                            <label>{{ t('components.materialCreateWizard.labelPurchaseTotalWaresChf') }}</label>
                             <div class="price-input">
                               <span class="currency">Fr.</span>
                               <input
@@ -1742,12 +1889,12 @@
                                 type="text"
                                 inputmode="decimal"
                                 class="form-input"
-                                placeholder="0.00"
+                                :placeholder="t('components.materialCreateWizard.phPriceZero')"
                               />
                             </div>
                           </div>
                           <div class="form-group">
-                            <label>Lieferung / Versand (CHF)</label>
+                            <label>{{ t('components.materialCreateWizard.labelPurchaseShippingChf') }}</label>
                             <div class="price-input">
                               <span class="currency">Fr.</span>
                               <input
@@ -1755,13 +1902,18 @@
                                 type="text"
                                 inputmode="decimal"
                                 class="form-input"
-                                placeholder="0.00"
+                                :placeholder="t('components.materialCreateWizard.phPriceZero')"
                               />
                             </div>
                           </div>
                         </div>
                         <p v-if="purchasePriceContextQty > 0" class="field-hint">
-                          Errechneter Anschaffungspreis: {{ effectivePurchaseUnitPrice.toFixed(2) }} Fr. ({{ purchasePriceContextQty }} Stk.)
+                          {{
+                            t('components.materialCreateWizard.hintDerivedUnitPrice', {
+                              price: effectivePurchaseUnitPrice.toFixed(2),
+                              qty: purchasePriceContextQty,
+                            })
+                          }}
                         </p>
                       </div>
                     </transition>
@@ -1769,12 +1921,12 @@
 
                   <div class="form-row">
                     <div class="form-group">
-                      <label>Rechnungsnummer</label>
+                      <label>{{ t('components.materialCreateWizard.labelInvoiceNumber') }}</label>
                       <input 
                         v-model="formData.invoice_number" 
                         type="text" 
                         class="form-input"
-                        placeholder="Optional"
+                        :placeholder="t('components.materialCreateWizard.optionalPlain')"
                       />
                     </div>
                   </div>
@@ -1785,28 +1937,36 @@
             <!-- Details & Vermietung (optional) – bei Kombi erst nach Name + Kategorie (gleiche Stufe wie Materialwahl) -->
             <div v-if="!isAddBatchMode && !isFromTemplate && creationMode && ((formData.material_type === 'physical' && formData.tracking_type) || ((formData.material_type === 'physical_combo' || formData.material_type === 'virtual_combo') && formData.name.trim() && !nameExists && formData.category_id))" class="step-section" data-step="details">
               <div class="step-header step-header--clickable" @click="toggleStep('details')">
-                <span class="step-title">Details &amp; Vermietung</span>
-                <span class="step-badge optional">Optional</span>
+                <span class="step-title">{{ t('components.materialCreateWizard.stepDetailsAndRental') }}</span>
+                <span class="step-badge optional">{{ t('components.materialCreateWizard.badgeOptional') }}</span>
                 <span class="step-chevron" :class="{ open: isStepOpen('details') }">▾</span>
               </div>
 
               <div v-show="isStepOpen('details')" class="step-content">
-                <p class="step-hint">Zusätzliche Angaben wie in der Detailansicht – können später ergänzt werden</p>
+                <p class="step-hint">{{ t('components.materialCreateWizard.stepDetailsHint') }}</p>
 
                 <!-- Material-Details -->
                 <div class="details-subsection">
-                  <h4 class="subsection-title">Material</h4>
+                  <h4 class="subsection-title">{{ t('components.materialCreateWizard.subsectionMaterialShort') }}</h4>
                   <div class="form-grid-details">
                     <div class="form-group">
-                      <label>Code <span class="optional">(Optional)</span></label>
-                      <input v-model="formData.barcode_tag" type="text" class="form-input" placeholder="z.B. Material-Code" />
+                      <label>
+                        {{ t('components.materialDetail.labelCode') }}
+                        <span class="optional">{{ t('components.materialDetail.optionalShort') }}</span>
+                      </label>
+                      <input
+                        v-model="formData.barcode_tag"
+                        type="text"
+                        class="form-input"
+                        :placeholder="t('components.materialDetail.codePlaceholder')"
+                      />
                     </div>
                     <div class="form-group">
-                      <label>EAN / Barcode</label>
+                      <label>{{ t('components.materialDetail.labelEan') }}</label>
                       <input v-model="formData.ean" type="text" class="form-input" />
                     </div>
                     <div class="form-group">
-                      <label>Modell</label>
+                      <label>{{ t('components.materialDetail.labelModel') }}</label>
                       <input v-model="formData.model" type="text" class="form-input" />
                     </div>
                   </div>
@@ -1814,57 +1974,65 @@
 
                 <!-- Details (Maße, Gewicht, etc.) -->
                 <div class="details-subsection">
-                  <h4 class="subsection-title">Details</h4>
+                  <h4 class="subsection-title">{{ t('components.materialDetail.sectionDetails') }}</h4>
                   <div class="form-grid-details">
                     <div class="form-group">
-                      <label>Gewicht (kg)</label>
+                      <label>{{ t('components.materialDetail.labelWeightKg') }}</label>
                       <input v-model="formData.weight" type="text" class="form-input" />
                     </div>
                     <div class="form-group">
-                      <label>Farbe</label>
+                      <label>{{ t('components.materialDetail.labelColor') }}</label>
                       <input v-model="formData.color" type="text" class="form-input" />
                     </div>
                     <div class="form-group">
-                      <label>Länge (cm)</label>
+                      <label>{{ t('components.materialDetail.labelLengthCm') }}</label>
                       <input v-model="formData.size_length" type="text" class="form-input" />
                     </div>
                     <div class="form-group">
-                      <label>Breite (cm)</label>
+                      <label>{{ t('components.materialDetail.labelWidthCm') }}</label>
                       <input v-model="formData.size_width" type="text" class="form-input" />
                     </div>
                     <div class="form-group">
-                      <label>Höhe (cm)</label>
+                      <label>{{ t('components.materialDetail.labelHeightCm') }}</label>
                       <input v-model="formData.size_height" type="text" class="form-input" />
                     </div>
                     <div class="form-group">
-                      <label>Garantie bis</label>
+                      <label>{{ t('components.materialDetail.labelWarranty') }}</label>
                       <input v-model="formData.warranty_until" type="date" class="form-input" />
                     </div>
                   </div>
                   <div class="form-group mt-2">
-                    <label>Beschreibung / Notizen</label>
-                    <textarea v-model="formData.description" class="form-textarea" rows="3" placeholder="Optionale Beschreibung..."></textarea>
+                    <label>{{ t('components.materialDetail.labelDescription') }}</label>
+                    <textarea
+                      v-model="formData.description"
+                      class="form-textarea"
+                      rows="3"
+                      :placeholder="t('components.materialCreateWizard.phDescriptionOptional')"
+                    ></textarea>
                   </div>
                 </div>
 
                 <!-- Kosten (Verbrauch / Esswaren): Preise, Verpackung, Preis pro VE -->
                 <div v-if="formData.is_consumable || formData.is_food" class="details-subsection">
-                  <h4 class="subsection-title">Kosten</h4>
+                  <h4 class="subsection-title">{{ t('components.materialDetail.sectionCosts') }}</h4>
                   <div v-if="formData.is_consumable" class="slider-hint costs-hint-row">
                     <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                       <circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>
                     </svg>
-                    <span>Wird bei Ausgabe sofort vom Bestand abgezogen.</span>
+                    <span>{{ t('components.materialDetail.costsConsumableBanner') }}</span>
                   </div>
                   <div v-if="formData.is_food" class="slider-hint costs-hint-row">
                     <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                       <circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>
                     </svg>
-                    <span>Wird im Tab „Esswaren“ angezeigt. Haltbarkeitsdaten können pro Charge erfasst werden.</span>
+                    <span>{{ t('components.materialCreateWizard.costsFoodTabWizardHint') }}</span>
                   </div>
                   <div class="form-grid-details">
                     <div class="form-group">
-                      <label>Verkaufspreis (CHF/Stk.) <span class="field-required-star">*</span></label>
+                      <label>
+                        {{ t('components.materialDetail.labelSalePrice') }}
+                        <span class="field-required-star">*</span>
+                      </label>
                       <div class="price-input">
                         <span class="currency">Fr.</span>
                         <input
@@ -1873,34 +2041,42 @@
                           step="0.05"
                           min="0"
                           class="form-input"
-                          placeholder="0.00"
+                          :placeholder="t('components.materialCreateWizard.phPriceZero')"
                         />
                       </div>
-                      <p class="field-hint">Verkauf / Abrechnung pro Stück</p>
+                      <p class="field-hint">{{ t('components.materialDetail.hintSalePerPiece') }}</p>
                       <div
                         v-if="packSaleToUnitSaleChf != null"
                         class="pack-sale-to-unit"
                       >
                         <p class="pack-sale-to-unit__text">
-                          Rechner:
-                          {{ formData.pack_sale_price_chf != null ? Number(formData.pack_sale_price_chf).toFixed(2) : '—' }}&nbsp;CHF
-                          pro {{ formData.pack_unit || 'Einheit' }}
-                          ÷ {{ formData.pack_size }}&nbsp;Stk.
-                          =
-                          <strong>{{ packSaleToUnitSaleChf.toFixed(2) }}</strong>
-                          CHF/Stk.
+                          {{
+                            t('components.materialDetail.packSaleCalcLine', {
+                              packPrice:
+                                formData.pack_sale_price_chf != null
+                                  ? Number(formData.pack_sale_price_chf).toFixed(2)
+                                  : '—',
+                              packUnit:
+                                formData.pack_unit || t('components.materialCreateWizard.packUnitFallbackGeneric'),
+                              packSize: formData.pack_size,
+                              unitPrice: packSaleToUnitSaleChf.toFixed(2),
+                            })
+                          }}
                         </p>
                         <button
                           type="button"
                           class="btn-outline btn-sm pack-sale-to-unit__btn"
                           @click="applyPackSaleToWizardUnitSale"
                         >
-                          Als Stückpreis übernehmen
+                          {{ t('components.materialDetail.applyPackToUnit') }}
                         </button>
                       </div>
                     </div>
                     <div class="form-group">
-                      <label>Einkaufspreis Referenz (CHF/Stk.) <span class="field-required-star">*</span></label>
+                      <label>
+                        {{ t('components.materialDetail.labelRefPurchase') }}
+                        <span class="field-required-star">*</span>
+                      </label>
                       <div class="price-input">
                         <span class="currency">Fr.</span>
                         <input
@@ -1909,25 +2085,34 @@
                           step="0.05"
                           min="0"
                           class="form-input"
-                          placeholder="0.00"
+                          :placeholder="t('components.materialCreateWizard.phPriceZero')"
                         />
                       </div>
-                      <p class="field-hint">Stammbezug für Übersicht und Buchhaltung</p>
+                      <p class="field-hint">{{ t('components.materialCreateWizard.hintRefPurchaseOverview') }}</p>
                     </div>
                     <div v-if="formData.is_consumable" class="form-group">
-                      <label>Mindestbestand <span class="optional-label">(optional)</span></label>
-                      <input v-model.number="formData.min_stock" type="number" min="0" class="form-input" placeholder="z.B. 10" />
-                      <p class="field-hint">Warnung bei Unterschreitung</p>
+                      <label>
+                        {{ t('components.materialCreateWizard.labelMinStockOptional') }}
+                        <span class="optional-label">({{ t('components.materialCreateWizard.optionalPlain') }})</span>
+                      </label>
+                      <input
+                        v-model.number="formData.min_stock"
+                        type="number"
+                        min="0"
+                        class="form-input"
+                        :placeholder="t('components.materialDetail.packSizePlaceholder')"
+                      />
+                      <p class="field-hint">{{ t('components.materialCreateWizard.hintMinStockUndershoot') }}</p>
                     </div>
                   </div>
                   <p class="step-hint mt-2">
-                    Verpackungseinheit tragen Sie bei der <strong>Menge</strong> ein, sobald eine Anzahl erfasst ist.
+                    {{ t('components.materialCreateWizard.hintPackUnitAtQuantityStep') }}
                   </p>
                 </div>
 
                 <!-- Vermietung (nicht bei Verbrauch / Esswaren) -->
                 <div v-if="!formData.is_consumable && !formData.is_food" class="details-subsection">
-                  <h4 class="subsection-title">Vermietung</h4>
+                  <h4 class="subsection-title">{{ t('components.materialDetail.tabRental') }}</h4>
                   <RentalPriceAmortizationCalculator
                     v-if="formData.material_type === 'physical' && formData.tracking_type && !formData.is_consumable && !formData.is_food"
                     v-model="formData.rental_calc_params"
@@ -1939,64 +2124,99 @@
                   />
                   <div class="form-grid-details">
                     <div class="form-group">
-                      <label>Tagespreis</label>
+                      <label>{{ t('components.materialDetail.historyFields.rental_price_day') }}</label>
                       <div class="price-input">
                         <span class="currency">Fr.</span>
-                        <input v-model="formData.rental_price_day" type="text" class="form-input" placeholder="0.00" />
+                        <input
+                          v-model="formData.rental_price_day"
+                          type="text"
+                          class="form-input"
+                          :placeholder="t('components.materialCreateWizard.phPriceZero')"
+                        />
                       </div>
                     </div>
                     <div class="form-group">
-                      <label>Wochenpreis</label>
+                      <label>{{ t('components.materialDetail.historyFields.rental_price_week') }}</label>
                       <div class="price-input">
                         <span class="currency">Fr.</span>
-                        <input v-model="formData.rental_price_week" type="text" class="form-input" placeholder="0.00" />
+                        <input
+                          v-model="formData.rental_price_week"
+                          type="text"
+                          class="form-input"
+                          :placeholder="t('components.materialCreateWizard.phPriceZero')"
+                        />
                       </div>
                     </div>
                     <div class="form-group">
-                      <label>Monatspreis</label>
+                      <label>{{ t('components.materialDetail.historyFields.rental_price_month') }}</label>
                       <div class="price-input">
                         <span class="currency">Fr.</span>
-                        <input v-model="formData.rental_price_month" type="text" class="form-input" placeholder="0.00" />
+                        <input
+                          v-model="formData.rental_price_month"
+                          type="text"
+                          class="form-input"
+                          :placeholder="t('components.materialCreateWizard.phPriceZero')"
+                        />
                       </div>
                     </div>
                     <div class="form-group">
-                      <label>Kaution</label>
+                      <label>{{ t('components.materialDetail.historyFields.rental_deposit') }}</label>
                       <div class="price-input">
                         <span class="currency">Fr.</span>
-                        <input v-model="formData.rental_deposit" type="text" class="form-input" placeholder="0.00" />
+                        <input
+                          v-model="formData.rental_deposit"
+                          type="text"
+                          class="form-input"
+                          :placeholder="t('components.materialCreateWizard.phPriceZero')"
+                        />
                       </div>
                     </div>
                     <div class="form-group">
-                      <label>Vorlaufzeit (Tage)</label>
-                      <input v-model.number="formData.rental_lead_days" type="number" class="form-input" placeholder="–" />
+                      <label>{{ t('components.materialDetail.historyFields.rental_lead_days') }}</label>
+                      <input
+                        v-model.number="formData.rental_lead_days"
+                        type="number"
+                        class="form-input"
+                        :placeholder="t('components.materialCreateWizard.phDashUnset')"
+                      />
                     </div>
                     <div class="form-group">
-                      <label>Max. Mietdauer (Tage)</label>
-                      <input v-model.number="formData.rental_max_days" type="number" class="form-input" placeholder="–" />
+                      <label>{{ t('components.materialDetail.historyFields.rental_max_days') }}</label>
+                      <input
+                        v-model.number="formData.rental_max_days"
+                        type="number"
+                        class="form-input"
+                        :placeholder="t('components.materialCreateWizard.phDashUnset')"
+                      />
                     </div>
                   </div>
                   <div class="checkbox-group mt-2">
                     <label class="checkbox-label">
                       <input type="checkbox" v-model="formData.rental_external_allowed" />
-                      <span>Externe Vermietung erlaubt</span>
+                      <span>{{ t('components.materialCreateWizard.rentalCheckboxExternalAllowed') }}</span>
                     </label>
                     <label class="checkbox-label">
                       <input type="checkbox" v-model="formData.rental_requires_approval" />
-                      <span>Genehmigung erforderlich</span>
+                      <span>{{ t('components.materialCreateWizard.rentalCheckboxRequiresApproval') }}</span>
                     </label>
                   </div>
                   <div v-if="formData.rental_external_allowed" class="form-group mt-2">
-                    <label>Externe Vermietung — Reichweite</label>
+                    <label>{{ t('components.materialCreateWizard.labelRentalExternalScope') }}</label>
                     <select v-model="formData.rental_scope" class="form-input">
-                      <option value="">— nicht festgelegt —</option>
-                      <option value="department">Nur eigenes Department</option>
-                      <option value="organisation">Ganze Organisation</option>
-                      <option value="public">Öffentlich / externe Mieter</option>
+                      <option value="">{{ t('components.materialDetail.reservationUnset') }}</option>
+                      <option value="department">{{ t('components.materialCreateWizard.rentalScopeOptionDepartment') }}</option>
+                      <option value="organisation">{{ t('components.materialCreateWizard.rentalScopeOptionOrganisation') }}</option>
+                      <option value="public">{{ t('components.materialCreateWizard.rentalScopeOptionPublic') }}</option>
                     </select>
                   </div>
                   <div class="form-group mt-2">
-                    <label>Vermietungs-Hinweise</label>
-                    <textarea v-model="formData.rental_notes" class="form-textarea" rows="2" placeholder="Besondere Bedingungen, Hinweise..."></textarea>
+                    <label>{{ t('components.materialDetail.historyFields.rental_notes') }}</label>
+                    <textarea
+                      v-model="formData.rental_notes"
+                      class="form-textarea"
+                      rows="2"
+                      :placeholder="t('components.materialCreateWizard.phRentalNotes')"
+                    ></textarea>
                   </div>
                 </div>
               </div>
@@ -2084,7 +2304,7 @@
     >
       <template v-if="allCategories.length === 0">
         <div class="autocomplete-item autocomplete-empty">
-          <span class="item-name">Noch keine Kategorien – mit „+“ eine anlegen</span>
+          <span class="item-name">{{ t('components.materialCreateWizard.categoryDropdownEmpty') }}</span>
         </div>
       </template>
       <template v-else>
@@ -2098,20 +2318,24 @@
           <span class="item-name">
             <span v-if="cat.parent_id" class="cat-indent">└ </span>{{ cat.name }}
           </span>
-          <span class="item-count">{{ cat.material_count }} Artikel</span>
+          <span class="item-count">{{
+            t('components.materialCreateWizard.categoryMaterialCount', { n: cat.material_count ?? 0 })
+          }}</span>
         </div>
         <div
           v-if="filteredCategories.length === 0 && categorySearch.trim().length > 0 && categorySearch.trim().length < 2"
           class="autocomplete-item autocomplete-empty"
         >
-          <span class="item-name">Weiter tippen (mind. 2 Zeichen) oder unten neue Kategorie…</span>
+          <span class="item-name">{{ t('components.materialCreateWizard.categoryKeepTypingHint') }}</span>
         </div>
         <div
           v-if="filteredCategories.length === 0 && categorySearch.trim().length >= 2"
           class="autocomplete-item create-new"
           @mousedown.prevent="openAddCategoryModal"
         >
-          <span class="item-name">+ "{{ categorySearch }}" als Kategorie anlegen</span>
+          <span class="item-name">{{
+            t('components.materialCreateWizard.createCategoryNamed', { name: categorySearch })
+          }}</span>
         </div>
       </template>
     </div>
@@ -2808,14 +3032,18 @@ const hasDuplicateSerialNumbers = computed(() => duplicateSerialNumbers.value.le
 
 const serialDuplicateHint = computed(() => {
   if (!hasDuplicateSerialNumbers.value) return ''
+  const m = 'components.materialCreateWizard'
   const list = duplicateSerialNumbers.value.slice(0, 3).join(', ')
-  const rest = duplicateSerialNumbers.value.length > 3 ? ' …' : ''
-  return `Doppelte Seriennummern im Formular: ${list}${rest}`
+  const more =
+    duplicateSerialNumbers.value.length > 3 ? t(`${m}.serialDuplicateMore`) : ''
+  return t(`${m}.serialDuplicateHint`, { list, more })
 })
 
 function getSerialRowTitle(entry: SerialNumberEntry, index: number): string {
+  const m = 'components.materialCreateWizard'
   const sn = (entry.serial_number || '').trim()
-  return sn ? `Seriennummer ${index + 1} · ${sn}` : `Seriennummer ${index + 1}`
+  const n = index + 1
+  return sn ? t(`${m}.serialRowTitleWithSn`, { n, sn }) : t(`${m}.serialRowTitleNumberOnly`, { n })
 }
 
 function removeSerialNumber(id: number) {
@@ -3204,31 +3432,8 @@ function onCategorySearchKeydown(e: KeyboardEvent) {
   })
 }
 
-function mapMissingToStep(message: string): StepId {
-  const msg = message.toLowerCase()
-  if (msg.includes('erstellmodus')) return 'creation_mode'
-  if (msg.includes('kategorie')) return 'category'
-  if (msg.includes('bestandsverfolgung')) return 'tracking'
-  if (msg.includes('mindestens 2 artikel')) return 'combo_articles'
-  if (msg.includes('ablaufdatum')) return 'stock'
-  if (msg.includes('anschaffung') || msg.includes('stückpreis') || msg.includes('gesamtpreis')) return 'stock'
-  if (msg.includes('kaufdatum') || msg.includes('seriennummer') || msg.includes('mindestens 1 stück')) return 'stock'
-  if (
-    msg.includes('gestell') ||
-    msg.includes('fach wählen') ||
-    msg.includes('kiste wählen') ||
-    msg.includes('lagerplätze')
-  ) {
-    return 'stock'
-  }
-  if (msg.includes('sn für') || msg.includes('artikel für') || msg.includes('menge für')) return 'template_components'
-  if (msg.includes('name')) return 'general'
-  return 'general'
-}
-
-async function jumpToMissingStep(message: string): Promise<void> {
-  const step = mapMissingToStep(message)
-  activeStep.value = step
+async function jumpToMissingStep(step: StepId | string): Promise<void> {
+  activeStep.value = step as StepId
   await nextTick()
   const el = document.querySelector(
     `.material-wizard-form .step-section[data-step="${step}"], .material-wizard-form [data-step="${step}"]`
@@ -3351,105 +3556,103 @@ const canSubmit = computed(() => {
   return true
 })
 
-// Zeigt an, was noch fehlt
-const missingSteps = computed(() => {
-  const missing: string[] = []
+/** Fehlende Pflichtfelder: stabiler Schritt + übersetztes Label (Footer / „Springen zu“). */
+const missingSteps = computed((): Array<{ step: StepId; label: string }> => {
+  const missing: Array<{ step: StepId; label: string }> = []
   const m = 'components.materialCreateWizard'
 
-  // Im Batch-Modus
+  const push = (step: StepId, labelKey: string, params?: Record<string, unknown>) => {
+    missing.push({ step, label: params ? t(labelKey, params) : t(labelKey) })
+  }
+
   if (isAddBatchMode.value) {
     if (formData.initial_qty <= 0) {
-      missing.push(t(`${m}.missingEnterQty`))
+      push('stock', `${m}.missingEnterQty`)
     }
     if (requiresPurchaseDate.value && !formData.purchase_date) {
-      missing.push(t(`${m}.missingEnterPurchaseDate`))
+      push('stock', `${m}.missingEnterPurchaseDate`)
     }
     if (requiresExpiryDate.value && !formData.expiry_date) {
-      missing.push(t(`${m}.missingEnterExpiryDate`))
+      push('stock', `${m}.missingEnterExpiryDate`)
     }
     if (formData.split_allocations) {
       if (!allocationSumValid.value || !hasRelevantAllocationRows.value || hasInvalidAllocationRows.value) {
-        missing.push(t(`${m}.missingAllocationsSum`, { qty: formData.initial_qty }))
+        push('stock', `${m}.missingAllocationsSum`, { qty: formData.initial_qty })
       }
     }
     if (purchasePriceRequired.value && effectivePurchaseUnitPrice.value <= 0) {
-      missing.push(t(`${m}.missingEnterPurchasePrice`))
+      push('stock', `${m}.missingEnterPurchasePrice`)
     }
     return missing
   }
 
-  // Erstellmodus muss gewählt sein
   if (!creationMode.value) {
-    missing.push(t(`${m}.missingSelectCreationMode`))
+    push('creation_mode', `${m}.missingSelectCreationMode`)
     return missing
   }
 
-  // ── Combo aus Kiste (physisch: Lagerplatz Pflicht) ──
   if (isFromContainerBatchContents.value && selectedContainerBatchContents.value && containerContentsBatchId.value) {
     if (!formData.name.trim()) {
-      missing.push(t(`${m}.missingEnterComboName`))
+      push('general', `${m}.missingEnterComboName`)
     } else if (nameExists.value) {
-      missing.push(t(`${m}.missingNameExists`))
+      push('general', `${m}.missingNameExists`)
     }
     if (!formData.category_id) {
-      missing.push(t(`${m}.missingSelectCategory`))
+      push('category', `${m}.missingSelectCategory`)
     }
     if (formData.material_type === 'physical_combo') {
       if (formData.stock_location_mode === 'kiste' && !formData.stock_container_batch_id) {
-        missing.push(t(`${m}.missingPickBoxForCombo`))
+        push('template_purchase', `${m}.missingPickBoxForCombo`)
       }
       if (formData.stock_location_mode === 'slot' && (!formData.rack_id || !formData.slot_id)) {
-        missing.push(t(`${m}.missingPickRackSlotForCombo`))
+        push('template_purchase', `${m}.missingPickRackSlotForCombo`)
       }
     }
     return missing
   }
 
-  // ── Virtuelle Kombo ──
   if (creationMode.value === 'virtual_combo') {
-    if (!formData.name.trim()) missing.push(t(`${m}.missingEnterComboName`))
-    else if (nameExists.value) missing.push(t(`${m}.missingNameExists`))
-    else if (!formData.category_id) missing.push(t(`${m}.missingSelectCategory`))
+    if (!formData.name.trim()) push('general', `${m}.missingEnterComboName`)
+    else if (nameExists.value) push('general', `${m}.missingNameExists`)
+    else if (!formData.category_id) push('category', `${m}.missingSelectCategory`)
     return missing
   }
 
-  // ── Mit Vorlage (Einzelartikel oder Physische Kombo) ──
   if (isFromTemplate.value && selectedTemplate.value) {
     if (!formData.category_id) {
-      missing.push(t(`${m}.missingSelectCategory`))
+      push('category', `${m}.missingSelectCategory`)
     }
     if (creationMode.value === 'physical_combo' && !formData.name.trim()) {
-      missing.push(t(`${m}.missingEnterComboName`))
+      push('general', `${m}.missingEnterComboName`)
     }
-    // Pflichtkomponenten prüfen
     for (const ci of componentInputs.value) {
       if (ci.is_optional) continue
       if (ci.mode === 'new') {
         if (ci.tracking === 'serialized' && !ci.serial_number.trim()) {
-          missing.push(t(`${m}.missingEnterSnForComp`, { name: ci.name }))
+          push('template_components', `${m}.missingEnterSnForComp`, { name: ci.name })
           break
         }
         if (ci.tracking === 'bulk' && ci.qty < 1) {
-          missing.push(t(`${m}.missingEnterQtyForComp`, { name: ci.name }))
+          push('template_components', `${m}.missingEnterQtyForComp`, { name: ci.name })
           break
         }
       } else {
         if (ci.tracking === 'serialized') {
           if (!ci.material_id) {
-            missing.push(t(`${m}.missingPickArticleForComp`, { name: ci.name }))
+            push('template_components', `${m}.missingPickArticleForComp`, { name: ci.name })
             break
           }
           if (!ci.batch_id) {
-            missing.push(t(`${m}.missingPickSnForComp`, { name: ci.name }))
+            push('template_components', `${m}.missingPickSnForComp`, { name: ci.name })
             break
           }
         } else {
           if (!ci.material_id) {
-            missing.push(t(`${m}.missingPickArticleForComp`, { name: ci.name }))
+            push('template_components', `${m}.missingPickArticleForComp`, { name: ci.name })
             break
           }
           if (ci.qty < 1) {
-            missing.push(t(`${m}.missingEnterQtyForComp`, { name: ci.name }))
+            push('template_components', `${m}.missingEnterQtyForComp`, { name: ci.name })
             break
           }
         }
@@ -3457,20 +3660,19 @@ const missingSteps = computed(() => {
     }
     if (creationMode.value === 'physical_combo') {
       if (formData.stock_location_mode === 'kiste' && !formData.stock_container_batch_id) {
-        missing.push(t(`${m}.missingPickBoxForCombo`))
+        push('template_purchase', `${m}.missingPickBoxForCombo`)
       }
       if (formData.stock_location_mode === 'slot' && (!formData.rack_id || !formData.slot_id)) {
-        missing.push(t(`${m}.missingPickRackSlotForCombo`))
+        push('template_purchase', `${m}.missingPickRackSlotForCombo`)
       }
     }
     return missing
   }
 
-  // ── Einzelartikel ohne Vorlage (manuell) ──
   if (!formData.name.trim()) {
-    missing.push(t(`${m}.missingEnterArticleName`))
+    push('general', `${m}.missingEnterArticleName`)
   } else if (nameExists.value) {
-    missing.push(t(`${m}.missingNameExists`))
+    push('general', `${m}.missingNameExists`)
   }
 
   if (
@@ -3480,82 +3682,80 @@ const missingSteps = computed(() => {
       creationMode.value === 'virtual_combo') &&
     !formData.category_id
   ) {
-    missing.push(t(`${m}.missingSelectCategory`))
+    push('category', `${m}.missingSelectCategory`)
   }
 
-  // Bei physical: Tracking + Menge + Kaufdatum erforderlich
   if (formData.material_type === 'physical') {
     if (!formData.tracking_type) {
-      missing.push(t(`${m}.missingSelectTracking`))
+      push('tracking', `${m}.missingSelectTracking`)
     } else {
       if (requiresPurchaseDate.value && !formData.purchase_date) {
-        missing.push(t(`${m}.missingEnterPurchaseDate`))
+        push('stock', `${m}.missingEnterPurchaseDate`)
       }
       if (requiresExpiryDate.value && !formData.expiry_date) {
-        missing.push(t(`${m}.missingEnterExpiryDate`))
+        push('stock', `${m}.missingEnterExpiryDate`)
       }
       if (formData.tracking_type === 'serialized') {
         if (serializedQty.value < 1) {
-          missing.push(t(`${m}.missingMinOneSerial`))
+          push('stock', `${m}.missingMinOneSerial`)
         }
         if (hasDuplicateSerialNumbers.value) {
-          missing.push(t(`${m}.missingRemoveDupSerials`))
+          push('stock', `${m}.missingRemoveDupSerials`)
         }
       } else if (formData.initial_qty < 1) {
-        missing.push(t(`${m}.missingMinOnePiece`))
+        push('stock', `${m}.missingMinOnePiece`)
       }
       if (formData.tracking_type === 'serialized') {
         if (!serialLocationSameForAll.value) {
           if (hasInvalidSerialLocations.value) {
-            missing.push(t(`${m}.missingPickLocationPerSerial`))
+            push('stock', `${m}.missingPickLocationPerSerial`)
           }
         } else if (serializedQty.value > 0) {
           if (formData.stock_location_mode === 'kiste' && !formData.stock_container_batch_id) {
-            missing.push(t(`${m}.missingPickBox`))
+            push('stock', `${m}.missingPickBox`)
           }
           if (formData.stock_location_mode === 'slot' && (!formData.rack_id || !formData.slot_id)) {
-            missing.push(t(`${m}.missingPickRackSlot`))
+            push('stock', `${m}.missingPickRackSlot`)
           }
         }
       } else {
         const hasStockInput = formData.initial_qty > 0
         if (hasStockInput && !formData.split_allocations) {
           if (formData.stock_location_mode === 'kiste' && !formData.stock_container_batch_id) {
-            missing.push(t(`${m}.missingPickBox`))
+            push('stock', `${m}.missingPickBox`)
           }
           if (formData.stock_location_mode === 'slot' && (!formData.rack_id || !formData.slot_id)) {
-            missing.push(t(`${m}.missingPickRackSlot`))
+            push('stock', `${m}.missingPickRackSlot`)
           }
         }
       }
     }
     if (purchasePriceRequired.value && effectivePurchaseUnitPrice.value <= 0) {
-      missing.push(t(`${m}.missingEnterPurchasePrice`))
+      push('stock', `${m}.missingEnterPurchasePrice`)
     }
     if (formData.is_consumable || formData.is_food) {
       const sp = formData.sale_price
       const rp = formData.reference_purchase_unit_chf
       if (sp == null || Number(sp) <= 0) {
-        missing.push(t(`${m}.missingEnterSalePrice`))
+        push('details', `${m}.missingEnterSalePrice`)
       }
       if (rp == null || Number(rp) <= 0) {
-        missing.push(t(`${m}.missingEnterRefPurchasePrice`))
+        push('details', `${m}.missingEnterRefPurchasePrice`)
       }
     }
   }
 
-  // Bei Kombinationen: 2 Artikel
   if (
     (formData.material_type === 'physical_combo' || formData.material_type === 'virtual_combo') &&
     selectedComboMaterials.value.length < 2
   ) {
-    missing.push(t(`${m}.missingAddTwoArticles`))
+    push('combo_articles', `${m}.missingAddTwoArticles`)
   }
   return missing
 })
 const shouldRenderCreationMode = computed(() => {
   if (shouldShowCreationMode.value) return true
-  return missingSteps.value[0] === t('components.materialCreateWizard.missingSelectCreationMode')
+  return missingSteps.value[0]?.step === 'creation_mode'
 })
 
 function resetForm() {
@@ -5320,7 +5520,7 @@ async function handleSubmit() {
       handleClose()
     }
   } catch (err: any) {
-    console.error('Fehler beim Erstellen:', err)
+    console.error(t('components.materialCreateWizard.logCreateMaterialError'), err)
     toast.error(
       err?.response?.data?.error ||
         err?.message ||

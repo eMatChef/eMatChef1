@@ -7,8 +7,8 @@
     <div class="footer-actions">
       <div v-if="missingSteps.length > 0" class="missing-steps">
         <span class="missing-icon">⚠️</span>
-        <button type="button" class="missing-link" @click="$emit('jumpToMissing', missingSteps[0])">
-          {{ missingSteps[0] }}
+        <button type="button" class="missing-link" @click="$emit('jumpToMissing', missingSteps[0].step)">
+          {{ missingSteps[0].label }}
         </button>
       </div>
       <button class="btn-secondary btn-sm" @click="$emit('close')">{{
@@ -17,7 +17,7 @@
       <button 
         class="btn-primary btn-sm" 
         :disabled="!canSubmit || isSubmitting"
-        :title="missingSteps.length > 0 ? missingSteps.join(', ') : ''"
+        :title="missingSteps.length > 0 ? missingSteps.map((s) => s.label).join(', ') : ''"
         @click="$emit('submit')"
       >
         {{ submitButtonText }}
@@ -32,9 +32,11 @@ import { useI18n } from 'vue-i18n'
 
 const { t } = useI18n()
 
+export type MaterialWizardMissingHint = { step: string; label: string }
+
 const props = defineProps<{
   createAnother: boolean
-  missingSteps: string[]
+  missingSteps: MaterialWizardMissingHint[]
   canSubmit: boolean
   isSubmitting: boolean
   isAddBatchMode: boolean
