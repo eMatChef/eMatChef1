@@ -17,7 +17,7 @@
         :class="{ active: $route.path === '/pending-assignment' }"
       >
         <IconTasks class="nav-icon" />
-        <span class="nav-label" :class="{ visible: isHovered }">Neu</span>
+        <span class="nav-label" :class="{ visible: isHovered }">{{ t('sidebar.pendingNew') }}</span>
       </router-link>
 
       <!-- Home: Übersicht für alle (Department-Dashboard bzw. Admin-Übersicht) -->
@@ -28,7 +28,7 @@
         :class="{ active: isMainDashboardNavActive }"
       >
         <IconDashboard class="nav-icon" />
-        <span class="nav-label" :class="{ visible: isHovered }">Dashboard</span>
+        <span class="nav-label" :class="{ visible: isHovered }">{{ t('sidebar.dashboard') }}</span>
       </router-link>
 
       <!-- Verwaltung der Webseite: Superadmin / Organisationschef / Suborgchef -->
@@ -39,7 +39,7 @@
         :class="{ active: isVerwaltungNavActive }"
       >
         <IconSettings class="nav-icon" />
-        <span class="nav-label" :class="{ visible: isHovered }">Verwaltung der Webseite</span>
+        <span class="nav-label" :class="{ visible: isHovered }">{{ t('sidebar.siteAdmin') }}</span>
       </router-link>
 
       <router-link
@@ -49,7 +49,7 @@
         :class="{ active: $route.path.startsWith('/site-inhalt') }"
       >
         <IconSettings class="nav-icon" />
-        <span class="nav-label" :class="{ visible: isHovered }">Webseite</span>
+        <span class="nav-label" :class="{ visible: isHovered }">{{ t('sidebar.website') }}</span>
       </router-link>
 
       <div
@@ -65,7 +65,7 @@
         :class="{ active: $route.path.includes('/activities') }"
       >
         <IconActivities class="nav-icon" />
-        <span class="nav-label" :class="{ visible: isHovered }">Aktivitäten</span>
+        <span class="nav-label" :class="{ visible: isHovered }">{{ t('sidebar.activities') }}</span>
       </router-link>
 
       <!-- Materialien -->
@@ -76,7 +76,7 @@
         :class="{ active: $route.path.includes('/materials') }"
       >
         <IconMaterials class="nav-icon" />
-        <span class="nav-label" :class="{ visible: isHovered }">Materialien</span>
+        <span class="nav-label" :class="{ visible: isHovered }">{{ t('sidebar.materials') }}</span>
       </router-link>
 
       <!-- Buchhaltung (nur Materialchef / Departmentchef) -->
@@ -87,7 +87,7 @@
         :class="{ active: isAccountingNavActive }"
       >
         <IconAccounting class="nav-icon" />
-        <span class="nav-label" :class="{ visible: isHovered }">Buchhaltung</span>
+        <span class="nav-label" :class="{ visible: isHovered }">{{ t('sidebar.accounting') }}</span>
       </router-link>
 
       <!-- Kontakte -->
@@ -98,7 +98,7 @@
         :class="{ active: $route.path.includes('/contacts') }"
       >
         <IconContacts class="nav-icon" />
-        <span class="nav-label" :class="{ visible: isHovered }">Kontakte</span>
+        <span class="nav-label" :class="{ visible: isHovered }">{{ t('sidebar.contacts') }}</span>
       </router-link>
 
       <!-- Aufgaben -->
@@ -109,7 +109,7 @@
         :class="{ active: $route.path.includes('/tasks') }"
       >
         <IconTasks class="nav-icon" />
-        <span class="nav-label" :class="{ visible: isHovered }">Aufgaben</span>
+        <span class="nav-label" :class="{ visible: isHovered }">{{ t('sidebar.tasks') }}</span>
       </router-link>
 
       <!-- Nachrichtenzentrale (unter Aufgaben) -->
@@ -120,7 +120,7 @@
         :class="{ active: $route.path.includes('/notifications') }"
       >
         <IconBell class="nav-icon" />
-        <span class="nav-label" :class="{ visible: isHovered }">Nachrichtenzentrale</span>
+        <span class="nav-label" :class="{ visible: isHovered }">{{ t('sidebar.notifications') }}</span>
       </router-link>
 
       <!-- Horizontaler Balken (Divider) -->
@@ -137,7 +137,7 @@
         :class="{ active: $route.path.includes('/workshop') }"
       >
         <IconWorkshop class="nav-icon" />
-        <span class="nav-label" :class="{ visible: isHovered }">Werkstatt</span>
+        <span class="nav-label" :class="{ visible: isHovered }">{{ t('sidebar.workshop') }}</span>
       </router-link>
 
       <!-- Statistik -->
@@ -148,7 +148,7 @@
         :class="{ active: $route.path.includes('/statistics') }"
       >
         <IconStatistics class="nav-icon" />
-        <span class="nav-label" :class="{ visible: isHovered }">Statistik</span>
+        <span class="nav-label" :class="{ visible: isHovered }">{{ t('sidebar.statistics') }}</span>
       </router-link>
 
       <!-- Konfiguration -->
@@ -159,7 +159,7 @@
         :class="{ active: $route.path.includes('/settings') }"
       >
         <IconSettings class="nav-icon" />
-        <span class="nav-label" :class="{ visible: isHovered }">Konfiguration</span>
+        <span class="nav-label" :class="{ visible: isHovered }">{{ t('sidebar.settings') }}</span>
       </router-link>
     </nav>
     
@@ -173,6 +173,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { useRoute } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'
 import EmcLogoMark from '@/components/brand/EmcLogoMark.vue'
 import IconDashboard from '@/components/icons/IconDashboard.vue'
@@ -187,6 +188,7 @@ import IconStatistics from '@/components/icons/IconStatistics.vue'
 import IconSettings from '@/components/icons/IconSettings.vue'
 
 const route = useRoute()
+const { t } = useI18n()
 const authStore = useAuthStore()
 const isHovered = ref(false)
 

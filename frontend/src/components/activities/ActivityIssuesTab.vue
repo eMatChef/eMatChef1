@@ -2,22 +2,22 @@
   <div class="activity-issues-tab">
     <div class="section-card">
       <div class="activity-issues-head">
-        <h2 class="section-title">Reparaturen / Verluste</h2>
+        <h2 class="section-title">{{ t('components.activityIssuesTab.title') }}</h2>
         <button
           v-if="canCreate"
           type="button"
           class="btn-primary btn-sm"
           @click="$emit('open-wizard')"
         >
-          + Meldung erstellen
+          {{ t('components.activityIssuesTab.createReport') }}
         </button>
       </div>
       <p v-if="isLoading" class="activity-inline-loading">
         <span class="spinner spinner-sm"></span>
-        <span>Meldungen werden geladen…</span>
+        <span>{{ t('components.activityIssuesTab.loading') }}</span>
       </p>
       <template v-else>
-        <p v-if="reports.length === 0" class="text-muted">Keine Meldungen erfasst.</p>
+        <p v-if="reports.length === 0" class="text-muted">{{ t('components.activityIssuesTab.empty') }}</p>
         <div v-else class="issues-list">
           <div
             v-for="r in reportsSorted"
@@ -33,7 +33,11 @@
             </div>
             <div v-if="r.description" class="issue-description">{{ r.description }}</div>
             <div v-if="r.resolved" class="issue-footer">
-              <span class="issue-resolved">Erledigt{{ r.resolved_at ? ' ' + formatDateTime(r.resolved_at) : '' }}</span>
+              <span class="issue-resolved">{{
+                r.resolved_at
+                  ? t('components.activityIssuesTab.resolvedWithDate', { at: formatDateTime(r.resolved_at) })
+                  : t('components.activityIssuesTab.resolved')
+              }}</span>
             </div>
           </div>
         </div>
@@ -44,6 +48,7 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { getActivityIssues, type ActivityIssueReportRow } from '@/api/activities'
 import { useToast } from '@/composables/useToast'
 
@@ -60,6 +65,7 @@ defineEmits<{
   'open-wizard': []
 }>()
 
+const { t } = useI18n()
 const toast = useToast()
 const isLoading = ref(false)
 const reports = ref<ActivityIssueReportRow[]>([])
@@ -91,7 +97,7 @@ async function load() {
     reports.value = await getActivityIssues(props.activityId)
   } catch {
     reports.value = []
-    toast.error('Meldungen konnten nicht geladen werden.')
+    toast.error(t('components.activityIssuesTab.loadError'))
   } finally {
     isLoading.value = false
   }

@@ -4,80 +4,100 @@
       <div class="onboarding-modal">
         <header class="wizard-header">
           <div>
-            <h2>Department-Onboarding</h2>
+            <h2>{{ t('components.departmentOnboarding.title') }}</h2>
           </div>
-          <button class="close-btn" @click="handleLater" title="Später fortsetzen">x</button>
+          <button class="close-btn" @click="handleLater" :title="t('components.departmentOnboarding.laterTitle')">x</button>
         </header>
 
         <section class="wizard-progress">
           <div class="progress-track">
             <div class="progress-fill" :style="{ width: `${(currentStep / ONBOARDING_TOTAL_STEPS) * 100}%` }"></div>
           </div>
-          <p class="muted">Schritt {{ currentStep }} von {{ ONBOARDING_TOTAL_STEPS }}</p>
+          <p class="muted">
+            {{ t('components.departmentOnboarding.stepOf', { current: currentStep, total: ONBOARDING_TOTAL_STEPS }) }}
+          </p>
         </section>
 
         <section class="wizard-body">
           <div v-if="globalError" class="error-box">{{ globalError }}</div>
 
           <div v-if="currentStep === 1" class="step-content">
-            <h3>Department-Adresse</h3>
-            <p>Lege mindestens eine Department-Adresse an (Typ <strong>Allgemein</strong> oder <strong>Rechnungsadresse</strong>).</p>
+            <h3>{{ t('components.departmentOnboarding.step1Title') }}</h3>
+            <p>
+              {{ t('components.departmentOnboarding.step1Intro', { general: t('settings.addressForm.types.general'), billing: t('settings.addressForm.types.billing') }) }}
+            </p>
             <p class="status" :class="{ done: onboardingState.completed.departmentAddress }">
-              {{ onboardingState.completed.departmentAddress ? 'Vorhanden' : 'Noch offen' }}
+              {{
+                onboardingState.completed.departmentAddress
+                  ? t('components.departmentOnboarding.statusPresent')
+                  : t('components.departmentOnboarding.statusOpen')
+              }}
             </p>
             <p v-if="onboardingState.completed.departmentAddress" class="muted status-hint">
-              Es gibt bereits mindestens eine Allgemein- oder Rechnungsadresse für dieses Department (z.&nbsp;B. früher unter Mein Department angelegt). Der Assistent wertet nur die Daten aus, nicht ob du diesen Schritt gerade geklickt hast.
+              {{ t('components.departmentOnboarding.step1StatusHint') }}
             </p>
             <div class="step-actions">
-              <button class="btn btn-primary" @click="openAddressModal('general')">Jetzt machen</button>
-              <button class="btn btn-light" @click="skipStep">Überspringen</button>
-              <button class="btn btn-ghost" @click="handleLater">Später</button>
+              <button class="btn btn-primary" @click="openAddressModal('general')">
+                {{ t('components.departmentOnboarding.btnDoNow') }}
+              </button>
+              <button class="btn btn-light" @click="skipStep">{{ t('components.departmentOnboarding.btnSkip') }}</button>
+              <button class="btn btn-ghost" @click="handleLater">{{ t('components.departmentOnboarding.btnLater') }}</button>
             </div>
           </div>
 
           <div v-else-if="currentStep === 2" class="step-content">
             <div class="step-title-row">
-              <h3>Department-Settings initialisieren</h3>
-              <button class="info-btn" type="button" @click="showSettingsHelp = true">Info</button>
+              <h3>{{ t('components.departmentOnboarding.step2Title') }}</h3>
+              <button class="info-btn" type="button" @click="showSettingsHelp = true">
+                {{ t('components.departmentOnboarding.step2Info') }}
+              </button>
             </div>
-            <p>Diese Werte werden per Department Settings API gespeichert.</p>
+            <p>{{ t('components.departmentOnboarding.step2Intro') }}</p>
             <div class="settings-grid" @focusin="showSettingsHelp = false">
-              <label>Timezone <input v-model="settingsForm.timezone" type="text" /></label>
-              <label>Date Format <input v-model="settingsForm.dateFormat" type="text" /></label>
-              <label>Time Format <input v-model="settingsForm.timeFormat" type="text" /></label>
-              <label>Default Start <input v-model="settingsForm.defaultTimeStart" type="time" /></label>
-              <label>Default Ende <input v-model="settingsForm.defaultTimeEnd" type="time" /></label>
-              <label>Material Vorlauf (Min) <input v-model.number="settingsForm.materialLeadMinutes" type="number" min="0" /></label>
-              <label>Material Nachlauf (Min) <input v-model.number="settingsForm.materialLagMinutes" type="number" min="0" /></label>
-              <label>Camp Vorlauf (Tage) <input v-model.number="settingsForm.campMaterialLeadDays" type="number" min="0" /></label>
-              <label>Camp Nachlauf (Tage) <input v-model.number="settingsForm.campMaterialLagDays" type="number" min="0" /></label>
+              <label>{{ t('components.departmentOnboarding.labelTimezone') }} <input v-model="settingsForm.timezone" type="text" /></label>
+              <label>{{ t('components.departmentOnboarding.labelDateFormat') }} <input v-model="settingsForm.dateFormat" type="text" /></label>
+              <label>{{ t('components.departmentOnboarding.labelTimeFormat') }} <input v-model="settingsForm.timeFormat" type="text" /></label>
+              <label>{{ t('components.departmentOnboarding.labelDefaultStart') }} <input v-model="settingsForm.defaultTimeStart" type="time" /></label>
+              <label>{{ t('components.departmentOnboarding.labelDefaultEnd') }} <input v-model="settingsForm.defaultTimeEnd" type="time" /></label>
+              <label>{{ t('components.departmentOnboarding.labelMaterialLead') }} <input v-model.number="settingsForm.materialLeadMinutes" type="number" min="0" /></label>
+              <label>{{ t('components.departmentOnboarding.labelMaterialLag') }} <input v-model.number="settingsForm.materialLagMinutes" type="number" min="0" /></label>
+              <label>{{ t('components.departmentOnboarding.labelCampLead') }} <input v-model.number="settingsForm.campMaterialLeadDays" type="number" min="0" /></label>
+              <label>{{ t('components.departmentOnboarding.labelCampLag') }} <input v-model.number="settingsForm.campMaterialLagDays" type="number" min="0" /></label>
             </div>
             <p class="status" :class="{ done: onboardingState.completed.settingsInitialized }">
-              {{ onboardingState.completed.settingsInitialized ? 'Erledigt' : 'Noch offen' }}
+              {{
+                onboardingState.completed.settingsInitialized
+                  ? t('components.departmentOnboarding.statusDone')
+                  : t('components.departmentOnboarding.statusOpen')
+              }}
             </p>
             <div class="step-actions">
               <button class="btn btn-primary" :disabled="isSavingSettings" @click="saveSettings">
-                {{ isSavingSettings ? 'Speichern...' : 'Werte speichern' }}
+                {{
+                  isSavingSettings
+                    ? t('components.departmentOnboarding.savingSettings')
+                    : t('components.departmentOnboarding.saveSettings')
+                }}
               </button>
-              <button class="btn btn-light" @click="skipStep">Überspringen</button>
-              <button class="btn btn-ghost" @click="handleLater">Später</button>
+              <button class="btn btn-light" @click="skipStep">{{ t('components.departmentOnboarding.btnSkip') }}</button>
+              <button class="btn btn-ghost" @click="handleLater">{{ t('components.departmentOnboarding.btnLater') }}</button>
             </div>
 
             <div v-if="showSettingsHelp" class="info-modal-overlay">
               <div class="info-modal">
                 <div class="info-modal-header">
-                  <h4>Was bedeuten diese Felder?</h4>
+                  <h4>{{ t('components.departmentOnboarding.helpTitle') }}</h4>
                   <button class="info-close" type="button" @click="showSettingsHelp = false">x</button>
                 </div>
                 <div class="info-modal-body">
-                  <p><strong>Timezone</strong>: Zeitzone fuer Datums-/Zeitberechnung im Department.</p>
-                  <p><strong>Date Format</strong>: Anzeigeformat fuer Datum (z.B. `dd.MM.yyyy`).</p>
-                  <p><strong>Time Format</strong>: Anzeigeformat fuer Uhrzeiten (z.B. `HH:mm`).</p>
-                  <p><strong>Default Start / Ende</strong>: Standard-Zeitfenster fuer neue Aktivitaeten.</p>
-                  <p><strong>Material Vorlauf / Nachlauf (Min)</strong>: Minuten fuer Materialbereitstellung vor/nach Aktivitaet.</p>
-                  <p><strong>Camp Vorlauf / Nachlauf (Tage)</strong>: Tagespuffer fuer Camp-Material.</p>
+                  <p>{{ t('components.departmentOnboarding.helpLine1') }}</p>
+                  <p>{{ t('components.departmentOnboarding.helpLine2') }}</p>
+                  <p>{{ t('components.departmentOnboarding.helpLine3') }}</p>
+                  <p>{{ t('components.departmentOnboarding.helpLine4') }}</p>
+                  <p>{{ t('components.departmentOnboarding.helpLine5') }}</p>
+                  <p>{{ t('components.departmentOnboarding.helpLine6') }}</p>
                   <p class="info-note">
-                    Hinweis: Die Werte sind bereits sinnvoll vorausgefuellt und koennen spaeter jederzeit in den Settings angepasst werden.
+                    {{ t('components.departmentOnboarding.helpNote') }}
                   </p>
                 </div>
               </div>
@@ -85,72 +105,78 @@
           </div>
 
           <div v-else-if="currentStep === 4" class="step-content">
-            <h3>Nutzer einladen</h3>
-            <p>Hier siehst du bestehende Mitglieder und Einladedaten fuer dieses Department.</p>
+            <h3>{{ t('components.departmentOnboarding.step4Title') }}</h3>
+            <p>{{ t('components.departmentOnboarding.step4Intro') }}</p>
             <p v-if="inviteStepError" class="error-inline">{{ inviteStepError }}</p>
 
-            <div v-if="isLoadingInviteStep" class="muted">Lade Mitglieder und Einladedaten...</div>
+            <div v-if="isLoadingInviteStep" class="muted">{{ t('components.departmentOnboarding.loadInvite') }}</div>
             <div v-else class="invite-step-grid">
               <div class="invite-block">
-                <h4>Aktuelle Mitglieder ({{ members.length }})</h4>
+                <h4>{{ t('components.departmentOnboarding.currentMembers', { count: members.length }) }}</h4>
                 <ul v-if="members.length > 0" class="simple-list">
                   <li v-for="member in members" :key="member.user_id">
                     {{ member.name }} ({{ member.email }})
                   </li>
                 </ul>
-                <p v-else class="muted">Noch keine Mitglieder vorhanden.</p>
+                <p v-else class="muted">{{ t('components.departmentOnboarding.noMembers') }}</p>
 
                 <div class="invited-section">
-                  <h4>Eingeladene Mitglieder ({{ pendingInvites.length }})</h4>
+                  <h4>{{ t('components.departmentOnboarding.invitedMembers', { count: pendingInvites.length }) }}</h4>
                   <ul v-if="pendingInvites.length > 0" class="simple-list">
                     <li v-for="invite in pendingInvites" :key="invite.id" class="pending-item">
                       <span>{{ invite.email }} ({{ invite.role }})</span>
-                      <button class="btn btn-light" @click="removePendingInvite(invite.id)">Loeschen</button>
+                      <button class="btn btn-light" @click="removePendingInvite(invite.id)">
+                        {{ t('components.departmentOnboarding.deletePending') }}
+                      </button>
                     </li>
                   </ul>
-                  <p v-else class="muted">Keine offenen Einladungen vorhanden.</p>
+                  <p v-else class="muted">{{ t('components.departmentOnboarding.noOpenInvites') }}</p>
                 </div>
               </div>
 
               <div class="invite-block">
-                <h4>Verfuegbare Nutzer zum Hinzufuegen</h4>
+                <h4>{{ t('components.departmentOnboarding.addUsersBlock') }}</h4>
                 <input
                   v-model="userSearchQuery"
                   type="text"
                   class="user-search-input"
-                  placeholder="Nutzer suchen (Name oder E-Mail)..."
+                  :placeholder="t('components.departmentOnboarding.userSearchPh')"
                   @input="onUserSearchInput"
                 />
-                <p v-if="isSearchingUsers" class="muted">Suche laeuft...</p>
-                <p v-else-if="userSearchQuery.trim().length < 2" class="muted">Mindestens 2 Zeichen eingeben, um Nutzer zu suchen.</p>
+                <p v-if="isSearchingUsers" class="muted">{{ t('components.departmentOnboarding.searchRunning') }}</p>
+                <p v-else-if="userSearchQuery.trim().length < 2" class="muted">{{ t('components.departmentOnboarding.typeTwoChars') }}</p>
                 <ul v-else-if="availableUsers.length > 0" class="simple-list">
                   <li v-for="user in availableUsers" :key="user.id">
                     {{ user.name }} ({{ user.email }})
                   </li>
                 </ul>
-                <p v-else class="muted">Keine passenden Nutzer gefunden.</p>
+                <p v-else class="muted">{{ t('components.departmentOnboarding.noMatchingUsers') }}</p>
 
                 <div v-if="userSearchQuery.trim().length >= 2 && availableUsers.length === 0" class="invite-manual-box">
                   <p class="muted">
-                    E-Mail nicht gefunden? Erstelle einen personalisierten Einladungslink mit Rolle.
+                    {{ t('components.departmentOnboarding.manualInviteHint') }}
                   </p>
                   <input
                     v-model="inviteEmail"
                     type="email"
                     class="user-search-input"
-                    placeholder="E-Mail fuer Einladung"
+                    :placeholder="t('components.departmentOnboarding.emailForInvite')"
                   />
                   <select v-model="inviteRole" class="role-select">
-                    <option value="u">Mitglied</option>
-                    <option value="l1">Leiter 1</option>
-                    <option value="l2">Leiter 2</option>
-                    <option value="l3">Leiter 3</option>
-                    <option value="dc">Departmentchef</option>
-                    <option value="mw">Materialchef</option>
+                    <option value="u">{{ t('settings.adminUsers.roles.u') }}</option>
+                    <option value="l1">{{ t('settings.adminUsers.roles.l1') }}</option>
+                    <option value="l2">{{ t('settings.adminUsers.roles.l2') }}</option>
+                    <option value="l3">{{ t('settings.adminUsers.roles.l3') }}</option>
+                    <option value="dc">{{ t('settings.adminUsers.roles.dc') }}</option>
+                    <option value="mw">{{ t('settings.adminUsers.roles.mw') }}</option>
                   </select>
                   <div class="step-actions">
-                    <button class="btn btn-light" @click="copyPersonalInviteLink">Einladungslink kopieren</button>
-                    <button class="btn btn-primary" @click="sendPersonalInvite">Einladung senden</button>
+                    <button class="btn btn-light" @click="copyPersonalInviteLink">
+                      {{ t('components.departmentOnboarding.copyPersonalLink') }}
+                    </button>
+                    <button class="btn btn-primary" @click="sendPersonalInvite">
+                      {{ t('components.departmentOnboarding.sendInvite') }}
+                    </button>
                   </div>
                 </div>
               </div>
@@ -158,57 +184,67 @@
 
             <div v-if="inviteData" class="invite-code-box">
               <div class="invite-code-main">
-                <span>Join-Code: <strong>{{ inviteData.join_code }}</strong></span>
+                <span>{{ t('components.departmentOnboarding.joinCode', { code: inviteData.join_code }) }}</span>
                 <div class="step-actions">
-                  <button class="btn btn-light" @click="copyInviteCode">Code kopieren</button>
-                  <button class="btn btn-light" @click="copyInviteLink">Link kopieren</button>
+                  <button class="btn btn-light" @click="copyInviteCode">
+                    {{ t('components.departmentOnboarding.copyCode') }}
+                  </button>
+                  <button class="btn btn-light" @click="copyInviteLink">
+                    {{ t('components.departmentOnboarding.copyLink') }}
+                  </button>
                 </div>
               </div>
               <div class="invite-code-qr" v-if="inviteQrDataUrl">
-                <img :src="inviteQrDataUrl" alt="Join QR Code" />
-                <p class="muted">QR-Code bleibt allgemein fuer dieses Department.</p>
+                <img :src="inviteQrDataUrl" :alt="t('components.departmentOnboarding.joinQrAlt')" />
+                <p class="muted">{{ t('components.departmentOnboarding.qrGlobalHint') }}</p>
               </div>
             </div>
 
             <div class="step-actions">
-              <button class="btn btn-primary" @click="goToAndComplete(`/${departmentId}/settings/users`, 'inviteUsers')">Jetzt machen</button>
-              <button class="btn btn-light" @click="skipStep">Überspringen</button>
-              <button class="btn btn-ghost" @click="handleLater">Später</button>
+              <button class="btn btn-primary" @click="goToAndComplete(`/${departmentId}/settings/users`, 'inviteUsers')">
+                {{ t('components.departmentOnboarding.btnDoNow') }}
+              </button>
+              <button class="btn btn-light" @click="skipStep">{{ t('components.departmentOnboarding.btnSkip') }}</button>
+              <button class="btn btn-ghost" @click="handleLater">{{ t('components.departmentOnboarding.btnLater') }}</button>
             </div>
           </div>
 
           <div v-else-if="currentStep === 3" class="step-content">
-            <h3>Gruppe erstellen</h3>
-            <p>Lege zuerst eine Gruppe an, damit du neue Nutzer direkt zuordnen kannst.</p>
+            <h3>{{ t('components.departmentOnboarding.step3Title') }}</h3>
+            <p>{{ t('components.departmentOnboarding.step3Intro') }}</p>
             <p v-if="groupCountError" class="error-inline">{{ groupCountError }}</p>
-            <p v-else-if="isLoadingGroupCount" class="muted">Gruppen werden geladen...</p>
+            <p v-else-if="isLoadingGroupCount" class="muted">{{ t('components.departmentOnboarding.loadGroups') }}</p>
             <p v-else class="status" :class="{ done: groupCount > 0 }">
-              Gruppen vorhanden: {{ groupCount }}
+              {{ t('components.departmentOnboarding.groupCount', { count: groupCount }) }}
             </p>
             <div class="step-actions">
-              <button class="btn btn-primary" @click="goToAndComplete(`/${departmentId}/settings/groups`, 'createGroup')">Jetzt machen</button>
-              <button class="btn btn-light" @click="skipStep">Überspringen</button>
-              <button class="btn btn-ghost" @click="handleLater">Später</button>
+              <button class="btn btn-primary" @click="goToAndComplete(`/${departmentId}/settings/groups`, 'createGroup')">
+                {{ t('components.departmentOnboarding.btnDoNow') }}
+              </button>
+              <button class="btn btn-light" @click="skipStep">{{ t('components.departmentOnboarding.btnSkip') }}</button>
+              <button class="btn btn-ghost" @click="handleLater">{{ t('components.departmentOnboarding.btnLater') }}</button>
             </div>
           </div>
 
           <div v-else-if="currentStep === 5" class="step-content">
-            <h3>User zur Gruppe hinzufuegen</h3>
-            <p>Ordne eingeladene Mitglieder einer bestehenden Gruppe zu.</p>
+            <h3>{{ t('components.departmentOnboarding.step5Title') }}</h3>
+            <p>{{ t('components.departmentOnboarding.step5Intro') }}</p>
             <div class="step-actions">
-              <button class="btn btn-primary" @click="goToAndComplete(`/${departmentId}/settings/groups`, 'assignRoles')">Jetzt machen</button>
-              <button class="btn btn-light" @click="skipStep">Überspringen</button>
-              <button class="btn btn-ghost" @click="handleLater">Später</button>
+              <button class="btn btn-primary" @click="goToAndComplete(`/${departmentId}/settings/groups`, 'assignRoles')">
+                {{ t('components.departmentOnboarding.btnDoNow') }}
+              </button>
+              <button class="btn btn-light" @click="skipStep">{{ t('components.departmentOnboarding.btnSkip') }}</button>
+              <button class="btn btn-ghost" @click="handleLater">{{ t('components.departmentOnboarding.btnLater') }}</button>
             </div>
           </div>
 
           <div v-else-if="currentStep === 6" class="step-content">
-            <h3>Kategorien anlegen</h3>
-            <p>Lege Kategorien an oder übernimm Vorlagen. Du kannst die Auswahl jederzeit in den Settings erweitern.</p>
+            <h3>{{ t('components.departmentOnboarding.step6Title') }}</h3>
+            <p>{{ t('components.departmentOnboarding.step6Intro') }}</p>
             <p v-if="categoriesError" class="error-inline">{{ categoriesError }}</p>
-            <p v-else-if="isLoadingCategories" class="muted">Kategorien werden geladen...</p>
+            <p v-else-if="isLoadingCategories" class="muted">{{ t('components.departmentOnboarding.loadCategories') }}</p>
             <p v-else class="status" :class="{ done: categoryCount > 0 }">
-              Kategorien vorhanden: {{ categoryCount }}
+              {{ t('components.departmentOnboarding.categoryCount', { count: categoryCount }) }}
             </p>
 
             <div class="category-preview-table">
@@ -237,82 +273,112 @@
             </div>
             <div class="step-actions">
               <button class="btn btn-primary" :disabled="!hasSelectedCategories || isApplyingCategoryTemplates" @click="applyCategoryTemplates">
-                {{ isApplyingCategoryTemplates ? 'Vorlagen werden erstellt...' : 'Vorlagen erstellen' }}
+                {{
+                  isApplyingCategoryTemplates
+                    ? t('components.departmentOnboarding.applyingTemplates')
+                    : t('components.departmentOnboarding.applyTemplates')
+                }}
               </button>
-              <button class="btn btn-light" @click="goToAndComplete(`/${departmentId}/settings/categories`, 'categoriesConfigured')">Kategorien öffnen</button>
-              <button class="btn btn-light" @click="skipStep">Überspringen</button>
-              <button class="btn btn-ghost" @click="handleLater">Später</button>
+              <button class="btn btn-light" @click="goToAndComplete(`/${departmentId}/settings/categories`, 'categoriesConfigured')">
+                {{ t('components.departmentOnboarding.openCategories') }}
+              </button>
+              <button class="btn btn-light" @click="skipStep">{{ t('components.departmentOnboarding.btnSkip') }}</button>
+              <button class="btn btn-ghost" @click="handleLater">{{ t('components.departmentOnboarding.btnLater') }}</button>
             </div>
           </div>
 
           <div v-else-if="currentStep === 7" class="step-content">
-            <h3>Lagerplatzadresse erfassen</h3>
+            <h3>{{ t('components.departmentOnboarding.step7Title') }}</h3>
             <p>
-              Lege mindestens eine <strong>Lagerplatzadresse</strong> (Typ Lagerplatz) mit Standort an.
-              Die Bezeichnung wird beim ersten Formular mit <strong>Hauptlagerplatz</strong> vorgeschlagen – du kannst sie anpassen.
-              Dies ist nötig, bevor du Regale und Fächer anlegen kannst.
+              {{
+                t('components.departmentOnboarding.step7Body', {
+                  storageAddr: t('components.departmentOnboarding.wmsStorageAddr'),
+                  storageType: t('components.departmentOnboarding.wmsStorageType'),
+                  defaultName: t('components.departmentOnboarding.wmsDefaultStorageName')
+                })
+              }}
             </p>
             <p class="status" :class="{ done: onboardingState.completed.storageAddress }">
-              {{ onboardingState.completed.storageAddress ? 'Vorhanden' : 'Noch offen' }}
+              {{
+                onboardingState.completed.storageAddress
+                  ? t('components.departmentOnboarding.statusPresent')
+                  : t('components.departmentOnboarding.statusOpen')
+              }}
             </p>
             <p v-if="onboardingState.completed.storageAddress" class="muted status-hint">
-              Es gibt bereits mindestens eine Lagerplatz-Adresse (Typ Lagerplatz) für dieses Department — z.&nbsp;B. aus den Einstellungen oder einem früheren Durchlauf. Deshalb steht hier „Vorhanden“, auch wenn du in diesem Schritt noch nichts geklickt hast.
+              {{ t('components.departmentOnboarding.step7StatusHint') }}
             </p>
             <div class="step-actions">
-              <button class="btn btn-primary" @click="openAddressModal('storage')">Lagerplatzadresse hinzufügen</button>
-              <button class="btn btn-light" @click="goToSettings(`/${departmentId}/settings/my-department`)">Einstellungen öffnen</button>
-              <button class="btn btn-light" @click="skipStep">Überspringen</button>
-              <button class="btn btn-ghost" @click="handleLater">Später</button>
+              <button class="btn btn-primary" @click="openAddressModal('storage')">
+                {{ t('components.departmentOnboarding.addStorageAddress') }}
+              </button>
+              <button class="btn btn-light" @click="goToSettings(`/${departmentId}/settings/my-department`)">
+                {{ t('components.departmentOnboarding.openSettings') }}
+              </button>
+              <button class="btn btn-light" @click="skipStep">{{ t('components.departmentOnboarding.btnSkip') }}</button>
+              <button class="btn btn-ghost" @click="handleLater">{{ t('components.departmentOnboarding.btnLater') }}</button>
             </div>
           </div>
 
           <div v-else-if="currentStep === 8" class="step-content">
-            <h3>Regale & Fächer</h3>
-            <p>Lege Regale und Fächer an, um Material sinnvoll zu organisieren.</p>
-            <p v-if="isLoadingStorageCount" class="muted">Regale werden geladen...</p>
+            <h3>{{ t('components.departmentOnboarding.step8Title') }}</h3>
+            <p>{{ t('components.departmentOnboarding.step8Intro') }}</p>
+            <p v-if="isLoadingStorageCount" class="muted">{{ t('components.departmentOnboarding.loadRacks') }}</p>
             <p v-else class="status" :class="{ done: storageRackCount >= 1 }">
-              Regale: {{ storageRackCount }} · Fächer: {{ storageSlotCount }}
+              {{ t('components.departmentOnboarding.rackSlotCount', { racks: storageRackCount, slots: storageSlotCount }) }}
             </p>
             <div class="step-actions">
-              <button class="btn btn-primary" @click="goToAndComplete(`/${departmentId}/settings/storage`, 'storageConfigured')">Regale verwalten</button>
-              <button class="btn btn-light" @click="skipStep">Überspringen</button>
-              <button class="btn btn-ghost" @click="handleLater">Später</button>
+              <button class="btn btn-primary" @click="goToAndComplete(`/${departmentId}/settings/storage`, 'storageConfigured')">
+                {{ t('components.departmentOnboarding.manageRacks') }}
+              </button>
+              <button class="btn btn-light" @click="skipStep">{{ t('components.departmentOnboarding.btnSkip') }}</button>
+              <button class="btn btn-ghost" @click="handleLater">{{ t('components.departmentOnboarding.btnLater') }}</button>
             </div>
           </div>
 
           <div v-else-if="currentStep === 9" class="step-content">
-            <h3>Material erfassen</h3>
-            <p>Erfasse zuerst Material, damit anschliessend eine Mini-Ausleihe (Issue -&gt; Return) sinnvoll getestet werden kann.</p>
+            <h3>{{ t('components.departmentOnboarding.step9Title') }}</h3>
+            <p>{{ t('components.departmentOnboarding.step9Intro') }}</p>
             <p v-if="materialCountError" class="error-inline">{{ materialCountError }}</p>
-            <p v-else-if="isLoadingMaterialCount" class="muted">Materialstand wird geladen...</p>
+            <p v-else-if="isLoadingMaterialCount" class="muted">{{ t('components.departmentOnboarding.loadMaterials') }}</p>
             <p v-else class="status" :class="{ done: materialCount >= 1 }">
-              Material erfasst: {{ materialCount }} / 1 (Empfehlung)
+              {{ t('components.departmentOnboarding.materialProgress', { current: materialCount, need: 1 }) }}
             </p>
-            <p class="muted">Es gibt keine harte Mindestmenge. Fuer einen realistischen Test empfehlen wir mindestens 1 Artikel.</p>
-            <p class="muted">Beim Erfassen bitte Lagerstandort und Lagerplatz angeben, z.B. <strong>Holzgestell / Platz B3</strong>.</p>
+            <p class="muted">{{ t('components.departmentOnboarding.step9Note1') }}</p>
+            <p class="muted">
+              {{ t('components.departmentOnboarding.step9Note2', { example: t('components.departmentOnboarding.exampleRack') }) }}
+            </p>
             <div class="step-actions">
-              <button class="btn btn-primary" @click="goToAndComplete(`/${departmentId}/materials`, 'materialCaptured')">Jetzt machen</button>
-              <button class="btn btn-light" @click="skipStep">Überspringen</button>
-              <button class="btn btn-ghost" @click="handleLater">Später</button>
+              <button class="btn btn-primary" @click="goToAndComplete(`/${departmentId}/materials`, 'materialCaptured')">
+                {{ t('components.departmentOnboarding.btnDoNow') }}
+              </button>
+              <button class="btn btn-light" @click="skipStep">{{ t('components.departmentOnboarding.btnSkip') }}</button>
+              <button class="btn btn-ghost" @click="handleLater">{{ t('components.departmentOnboarding.btnLater') }}</button>
             </div>
           </div>
 
           <div v-else-if="currentStep === 10" class="step-content">
-            <h3>Mini-Ausleihe testen</h3>
-            <p>Fuehre einmal einen einfachen Ablauf Issue -&gt; Return mit erfasstem Material durch.</p>
+            <h3>{{ t('components.departmentOnboarding.step10Title') }}</h3>
+            <p>{{ t('components.departmentOnboarding.step10Intro') }}</p>
             <div class="step-actions">
-              <button class="btn btn-primary" @click="goToAndComplete(`/${departmentId}/activities`, 'miniIssueReturn')">Jetzt machen</button>
-              <button class="btn btn-light" @click="skipStep">Überspringen</button>
-              <button class="btn btn-ghost" @click="finishWizard">Später</button>
+              <button class="btn btn-primary" @click="goToAndComplete(`/${departmentId}/activities`, 'miniIssueReturn')">
+                {{ t('components.departmentOnboarding.btnDoNow') }}
+              </button>
+              <button class="btn btn-light" @click="skipStep">{{ t('components.departmentOnboarding.btnSkip') }}</button>
+              <button class="btn btn-ghost" @click="finishWizard">{{ t('components.departmentOnboarding.btnLater') }}</button>
             </div>
           </div>
         </section>
 
         <footer class="wizard-footer">
-          <button class="btn btn-light" :disabled="currentStep <= 1" @click="goBack">Zurück</button>
-          <button class="btn btn-primary" :disabled="currentStep >= ONBOARDING_TOTAL_STEPS" @click="goNext">Weiter</button>
+          <button class="btn btn-light" :disabled="currentStep <= 1" @click="goBack">
+            {{ t('components.departmentOnboarding.back') }}
+          </button>
+          <button class="btn btn-primary" :disabled="currentStep >= ONBOARDING_TOTAL_STEPS" @click="goNext">
+            {{ t('components.departmentOnboarding.next') }}
+          </button>
           <button class="btn btn-success" @click="currentStep >= ONBOARDING_TOTAL_STEPS ? completeWizard() : finishWizard()">
-            {{ currentStep >= ONBOARDING_TOTAL_STEPS ? 'Onboarding beenden' : 'Schließen' }}
+            {{ currentStep >= ONBOARDING_TOTAL_STEPS ? t('components.departmentOnboarding.finish') : t('components.departmentOnboarding.close') }}
           </button>
         </footer>
       </div>
@@ -700,7 +766,7 @@ async function loadCategoryStatus() {
     persistState()
   } catch (err: any) {
     categoryCount.value = 0
-    categoriesError.value = err.response?.data?.error || 'Kategorien konnten nicht geladen werden.'
+    categoriesError.value = err.response?.data?.error || t('components.departmentOnboarding.errLoadCat')
   } finally {
     isLoadingCategories.value = false
   }
@@ -708,7 +774,7 @@ async function loadCategoryStatus() {
 
 async function applyCategoryTemplates() {
   if (!hasSelectedCategories.value) {
-    toast.error('Bitte mindestens eine Kategorie auswählen.')
+    toast.error(t('components.departmentOnboarding.toastSelectCategory'))
     return
   }
   isApplyingCategoryTemplates.value = true
@@ -757,11 +823,11 @@ async function applyCategoryTemplates() {
     persistState()
     toast.success(
       createdCount > 0
-        ? `Vorlagen erfolgreich erstellt (${createdCount} Kategorien).`
-        : 'Vorlagen erfolgreich uebernommen (bereits vorhanden).'
+        ? t('components.departmentOnboarding.toastTemplatesNew', { count: createdCount })
+        : t('components.departmentOnboarding.toastTemplatesNoNew')
     )
   } catch (err: any) {
-    categoriesError.value = err.response?.data?.error || 'Vorlagen konnten nicht erstellt werden.'
+    categoriesError.value = err.response?.data?.error || t('components.departmentOnboarding.errCreateTemplates')
     toast.error(categoriesError.value)
   } finally {
     isApplyingCategoryTemplates.value = false
@@ -783,7 +849,7 @@ async function loadMaterialCount() {
     }
   } catch (err: any) {
     materialCount.value = 0
-    materialCountError.value = err.response?.data?.error || 'Materialdaten konnten nicht geladen werden.'
+    materialCountError.value = err.response?.data?.error || t('components.departmentOnboarding.errLoadMaterial')
   } finally {
     isLoadingMaterialCount.value = false
   }
@@ -817,16 +883,16 @@ async function copyPersonalInviteLink() {
   if (!personalizedInviteLink.value) return
   try {
     await navigator.clipboard.writeText(personalizedInviteLink.value)
-    toast.success('Personalisierter Einladungslink kopiert.')
+    toast.success(t('components.departmentOnboarding.toastPersonalLink'))
   } catch {
-    toast.error('Einladungslink konnte nicht kopiert werden.')
+    toast.error(t('components.departmentOnboarding.errCopyPersonal'))
   }
 }
 
 async function sendPersonalInvite() {
   const email = inviteEmail.value.trim()
   if (!email || !email.includes('@')) {
-    toast.error('Bitte eine gueltige E-Mail-Adresse eingeben.')
+    toast.error(t('components.departmentOnboarding.errEmail'))
     return
   }
   try {
@@ -841,9 +907,9 @@ async function sendPersonalInvite() {
     availableUsers.value = []
     isSearchingUsers.value = false
     await navigator.clipboard.writeText(created.invite_url)
-    toast.success('Einladung per E-Mail versendet. Link wurde in die Zwischenablage kopiert.')
+    toast.success(t('components.departmentOnboarding.toastInviteCreated'))
   } catch (err: any) {
-    toast.error(err.response?.data?.error || 'Einladung konnte nicht erstellt werden.')
+    toast.error(err.response?.data?.error || t('components.departmentOnboarding.errCreateInvite'))
   }
 }
 
@@ -851,9 +917,9 @@ async function removePendingInvite(inviteId: string) {
   try {
     await deletePendingInvite(props.departmentId, inviteId)
     pendingInvites.value = pendingInvites.value.filter((entry) => entry.id !== inviteId)
-    toast.success('Pending Einladung geloescht.')
+    toast.success(t('components.departmentOnboarding.toastPendingDeleted'))
   } catch (err: any) {
-    toast.error(err.response?.data?.error || 'Pending Einladung konnte nicht geloescht werden.')
+    toast.error(err.response?.data?.error || t('components.departmentOnboarding.errDeletePending'))
   }
 }
 
@@ -861,9 +927,9 @@ async function copyInviteCode() {
   if (!inviteData.value) return
   try {
     await navigator.clipboard.writeText(inviteData.value.join_code)
-    toast.success('Join-Code kopiert.')
+    toast.success(t('components.departmentOnboarding.toastCodeCopied'))
   } catch {
-    toast.error('Code konnte nicht kopiert werden.')
+    toast.error(t('components.departmentOnboarding.errCodeCopy'))
   }
 }
 
@@ -871,9 +937,9 @@ async function copyInviteLink() {
   if (!inviteData.value) return
   try {
     await navigator.clipboard.writeText(inviteData.value.invite_url)
-    toast.success('Einladungslink kopiert.')
+    toast.success(t('components.departmentOnboarding.toastUrlCopied'))
   } catch {
-    toast.error('Link konnte nicht kopiert werden.')
+    toast.error(t('components.departmentOnboarding.errUrlCopy'))
   }
 }
 

@@ -3,7 +3,7 @@
     <div class="batch-modal-overlay">
       <div class="batch-modal move-modal">
         <div class="batch-modal-header">
-          <h2>Menge verschieben</h2>
+          <h2>{{ t('settings.storage.moveQuantity') }}</h2>
           <button class="batch-modal-close" @click="$emit('close')">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <line x1="18" y1="6" x2="6" y2="18"/>
@@ -13,31 +13,35 @@
         </div>
 
         <div class="batch-modal-body">
-          <p class="move-intro">Verschieben Sie eine Menge von einem Lagerplatz zu einem anderen.</p>
+          <p class="move-intro">{{ t('components.moveQuantityModal.intro') }}</p>
 
           <!-- Quelle (bei Allokationen: Auswahl) -->
           <div v-if="sourceAllocations.length > 1 && !isSourceLocked" class="batch-form-row">
             <div class="batch-form-group full-width">
-              <label>Von (Quelle)</label>
+              <label>{{ t('components.moveQuantityModal.labelSource') }}</label>
               <select v-model="form.from_allocation_id" class="batch-form-input" required>
-                <option value="">– wählen –</option>
+                <option value="">{{ t('components.moveQuantityModal.selectPlaceholder') }}</option>
                 <option v-for="a in sourceAllocations" :key="a.id" :value="a.id">
-                  {{ formatAllocationSourceInline(a) }} – {{ a.qty }} Stk.
+                  {{ formatAllocationSourceInline(a) }} – {{ t('settings.storage.overviewLineQty', { qty: a.qty }) }}
                 </option>
               </select>
             </div>
           </div>
           <div v-else-if="sourceAllocations.length > 0" class="batch-form-row">
             <div class="batch-form-group full-width">
-              <label>Von (Quelle)</label>
+              <label>{{ t('components.moveQuantityModal.labelSource') }}</label>
               <div class="batch-readonly-value">
-                {{ selectedSourceAllocation ? `${formatAllocationSourceInline(selectedSourceAllocation)} – ${selectedSourceAllocation.qty} Stk.` : '-' }}
+                {{
+                  selectedSourceAllocation
+                    ? `${formatAllocationSourceInline(selectedSourceAllocation)} – ${t('settings.storage.overviewLineQty', { qty: selectedSourceAllocation.qty })}`
+                    : '-'
+                }}
               </div>
             </div>
           </div>
           <div v-else class="batch-form-row">
             <div class="batch-form-group full-width">
-              <label>Von (Quelle)</label>
+              <label>{{ t('components.moveQuantityModal.labelSource') }}</label>
               <div class="batch-readonly-value">
                 {{ formatDirectLocationSourceInline(batch) }}
               </div>
@@ -47,7 +51,7 @@
           <!-- Zu verschiebende Menge -->
           <div class="batch-form-row">
             <div class="batch-form-group">
-              <label>Zu verschiebende Menge</label>
+              <label>{{ t('components.moveQuantityModal.labelQty') }}</label>
               <input
                 v-model.number="form.qty"
                 type="number"
@@ -56,20 +60,20 @@
                 class="batch-form-input"
                 :class="{ 'is-invalid': submitted && (form.qty < 1 || form.qty > maxQty) }"
               />
-              <p v-if="maxQty > 0" class="batch-field-hint">Max. {{ maxQty }} Stk. verfügbar</p>
+              <p v-if="maxQty > 0" class="batch-field-hint">{{ t('components.moveQuantityModal.hintMaxAvailable', { max: maxQty }) }}</p>
             </div>
           </div>
 
           <!-- Ziel (Schrittweise) -->
           <div class="batch-form-row">
             <div class="batch-form-group full-width">
-              <label>Ziel-Art</label>
+              <label>{{ t('components.moveQuantityModal.labelTargetType') }}</label>
               <div class="move-target-mode">
                 <button type="button" class="move-target-btn" :class="{ active: form.target_mode === 'slot' }" @click="setTargetMode('slot')">
-                  Gestell/Fach
+                  {{ t('components.moveQuantityModal.targetSlot') }}
                 </button>
                 <button type="button" class="move-target-btn" :class="{ active: form.target_mode === 'kiste' }" @click="setTargetMode('kiste')">
-                  Kiste/Tasche
+                  {{ t('components.moveQuantityModal.targetContainer') }}
                 </button>
               </div>
             </div>
@@ -87,13 +91,13 @@
                   :slot-list="slotsForTargetRack"
                   :show-storage-address="true"
                   :show-empty-slot-hint="true"
-                  empty-slot-hint="Im gewählten Regal gibt es noch kein Fach. Bitte zuerst ein Fach anlegen."
-                  storage-address-label="Ziel-Standort"
-                  rack-label="Ziel-Gestell"
-                  slot-label="Ziel-Fach"
-                  storage-address-placeholder="– wählen –"
-                  rack-placeholder="– wählen –"
-                  slot-placeholder="– wählen –"
+                  :empty-slot-hint="t('components.moveQuantityModal.emptySlotHint')"
+                  :storage-address-label="t('components.moveQuantityModal.labelTargetLocation')"
+                  :rack-label="t('components.moveQuantityModal.labelTargetRack')"
+                  :slot-label="t('components.moveQuantityModal.labelTargetSlot')"
+                  :storage-address-placeholder="t('components.moveQuantityModal.selectPlaceholder')"
+                  :rack-placeholder="t('components.moveQuantityModal.selectPlaceholder')"
+                  :slot-placeholder="t('components.moveQuantityModal.selectPlaceholder')"
                   @update:storageAddressId="form.to_location_id = $event"
                   @storageAddressChange="onLocationChange"
                   @update:rackId="form.to_rack_id = $event"
@@ -106,9 +110,9 @@
 
           <div v-else class="batch-form-row">
             <div class="batch-form-group full-width">
-              <label>Ziel-Kiste/Tasche</label>
+              <label>{{ t('components.moveQuantityModal.labelTargetBin') }}</label>
               <select v-model="form.to_container_batch_id" class="batch-form-input" required>
-                <option value="">– wählen –</option>
+                <option value="">{{ t('components.moveQuantityModal.selectPlaceholder') }}</option>
                 <option
                   v-for="cb in containerBatches"
                   :key="cb.id"
@@ -126,13 +130,13 @@
 
         <div class="batch-modal-footer">
           <div class="batch-footer-actions">
-            <button class="btn-secondary btn-sm" @click="$emit('close')">Abbrechen</button>
+            <button class="btn-secondary btn-sm" @click="$emit('close')">{{ t('common.cancel') }}</button>
             <button
               class="btn-primary btn-sm"
               :disabled="!canSubmit || isSaving"
               @click="handleSubmit"
             >
-              {{ isSaving ? 'Verschieben...' : 'Verschieben' }}
+              {{ isSaving ? t('components.moveQuantityModal.moving') : t('components.moveQuantityModal.submit') }}
             </button>
           </div>
         </div>
@@ -143,6 +147,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { moveBatchQuantity, type MaterialBatch, type BatchStorageAllocation } from '@/api/materials'
 import { getContainerBatches, type StorageRack } from '@/api/storageLocations'
 import { formatContainerBatchOptionFullLabel } from '@/utils/containerBatchLabel'
@@ -160,6 +165,7 @@ interface Props {
   sourceSlotId?: string | null
 }
 
+const { t } = useI18n()
 const props = defineProps<Props>()
 const emit = defineEmits<{
   close: []
@@ -188,7 +194,7 @@ const targetLocations = computed(() => {
   const map = new Map<string, string>()
   for (const rack of racks.value) {
     const locationId = rack.storage_address_id || '__unknown__'
-    const locationName = rack.storage_address_name?.trim() || 'Ohne Lagerstandort'
+    const locationName = rack.storage_address_name?.trim() || t('settings.storage.overviewNoStorageAddress')
     if (!map.has(locationId)) map.set(locationId, locationName)
   }
   return Array.from(map.entries())
@@ -283,7 +289,12 @@ function formatAllocationLocation(a: BatchStorageAllocation): string {
     const containerMaterial = cb?.material_name
     const materialSuffix = containerMaterial && containerMaterial !== containerLabel ? ` – ${containerMaterial}` : ''
     const loc = cb?.rack?.name ? (cb?.slot?.name ? `${cb.rack.name} / ${cb.slot.name}` : cb.rack.name) : ''
-    return `Kiste ${containerLabel}${materialSuffix}${loc ? ` (${loc})` : ''}`
+    const locationSuffix = loc ? ` (${loc})` : ''
+    return t('components.moveQuantityModal.containerAllocationInline', {
+      label: containerLabel,
+      materialSuffix,
+      locationSuffix,
+    })
   }
   const rackName = a.rack?.name || a.rack_id
   const slotName = a.slot?.name || a.slot_id
@@ -291,9 +302,9 @@ function formatAllocationLocation(a: BatchStorageAllocation): string {
 }
 
 function getLocationNameForRackId(rackId?: string | null): string {
-  if (!rackId) return 'Ohne Lagerstandort'
+  if (!rackId) return t('settings.storage.overviewNoStorageAddress')
   const rack = racks.value.find((r) => r.id === rackId)
-  return rack?.storage_address_name?.trim() || 'Ohne Lagerstandort'
+  return rack?.storage_address_name?.trim() || t('settings.storage.overviewNoStorageAddress')
 }
 
 function formatAllocationSourceInline(a: BatchStorageAllocation): string {
@@ -429,11 +440,11 @@ async function handleSubmit() {
     }
 
     const result = await moveBatchQuantity(props.materialId, props.batch.id, payload)
-    toast.success('Menge erfolgreich verschoben')
+    toast.success(t('components.moveQuantityModal.toastSuccess'))
     emit('saved', result)
     emit('close')
   } catch (err: any) {
-    errorMsg.value = err?.response?.data?.error || 'Fehler beim Verschieben'
+    errorMsg.value = err?.response?.data?.error || t('components.moveQuantityModal.errorMove')
     toast.error(errorMsg.value)
   } finally {
     isSaving.value = false

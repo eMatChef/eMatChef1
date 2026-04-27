@@ -2,12 +2,12 @@
   <div class="storage-overview-tab">
     <div v-if="isLoading" class="storage-loading">
       <div class="spinner"></div>
-      <p>Regale werden geladen...</p>
+      <p>{{ t('settings.storage.loadingOverview') }}</p>
     </div>
 
     <div v-else-if="error" class="storage-error">
       <p>{{ error }}</p>
-      <button class="btn-outline" @click="load">Erneut versuchen</button>
+      <button class="btn-outline" @click="load">{{ t('common.retry') }}</button>
     </div>
 
     <div
@@ -15,24 +15,24 @@
       class="storage-empty"
     >
       <template v-if="containerBatchId">
-        <p>In dieser Kiste wurden keine passenden Inhalte gefunden.</p>
-        <p class="hint">Prüfen Sie die Auswahl oder passen Sie den Suchtext an.</p>
+        <p>{{ t('settings.storage.overviewEmptyBatchTitle') }}</p>
+        <p class="hint">{{ t('settings.storage.overviewEmptyBatchHint') }}</p>
       </template>
       <template v-else-if="materialId">
-        <p>Dieses Material ist aktuell keinem Lagerort zugewiesen.</p>
-        <p class="hint">Sobald Bestand zugeordnet wird, erscheint er hier gruppiert nach Standort und Lagerplatz.</p>
+        <p>{{ t('settings.storage.overviewEmptyMaterialTitle') }}</p>
+        <p class="hint">{{ t('settings.storage.overviewEmptyMaterialHint') }}</p>
       </template>
       <template v-else>
-        <p>Keine Regale oder Fächer vorhanden.</p>
-        <p class="hint">Legen Sie Regale und Fächer in den Einstellungen an.</p>
+        <p>{{ t('settings.storage.overviewEmptyStructureTitle') }}</p>
+        <p class="hint">{{ t('settings.storage.overviewEmptyStructureHint') }}</p>
       </template>
     </div>
 
     <div v-else class="storage-main">
       <div v-if="comboViaPhysicalBlocks.length" class="combo-derived-storage">
         <p class="combo-derived-intro">
-          <strong>Physische Kombination:</strong> Dieser Artikel liegt mit der Kombi-Einheit am gleichen Lagerplatz
-          (keine separate Allokation nur für diesen Artikel).
+          <strong>{{ t('settings.storage.overviewComboIntroStrong') }}</strong>
+          {{ t('settings.storage.overviewComboIntroRest') }}
         </p>
         <div
           v-for="(block, bi) in comboViaPhysicalBlocks"
@@ -46,7 +46,7 @@
             >
               {{ block.parent_name }}
             </router-link>
-            <span class="combo-derived-qty">{{ block.component_qty }} Stk. in dieser Kombi</span>
+            <span class="combo-derived-qty">{{ t('settings.storage.overviewComboQtyInCombo', { qty: block.component_qty }) }}</span>
           </div>
           <ul class="combo-derived-loc-list">
             <li v-for="(loc, idx) in block.locations" :key="`${block.combo_component_id || block.parent_material_id}-${idx}`">
@@ -58,15 +58,15 @@
 
       <div v-if="filteredOverview && filteredOverview.racks.length > 0" class="storage-tree">
       <div v-if="containerBatchId" class="storage-context-hint">
-        Inhalt der gewählten Kiste
+        {{ t('settings.storage.overviewSelectedBatchHint') }}
       </div>
       <div v-for="location in locationNodes" :key="location.id" class="storage-location">
         <div class="location-header">
           <button class="location-toggle-btn" @click="toggleLocation(location.id)">
             <span class="tree-caret" :class="{ expanded: expandedLocations.has(location.id) }">▶</span>
             <span class="location-name">{{ location.name }}</span>
-            <span v-if="location.isPrimary" class="location-primary-badge">Hauptlager</span>
-            <span class="location-count">{{ location.racks.length }} Regal{{ location.racks.length !== 1 ? 'e' : '' }}</span>
+            <span v-if="location.isPrimary" class="location-primary-badge">{{ t('settings.storage.primaryStorage') }}</span>
+            <span class="location-count">{{ t('settings.storage.rackCount', location.racks.length) }}</span>
           </button>
           <div class="location-actions" v-if="!readonly">
             <StorageCrudActions
@@ -84,7 +84,7 @@
               <button class="rack-toggle-btn" @click="toggleRack(rack.id)">
                 <span class="tree-caret" :class="{ expanded: expandedRacks.has(rack.id) }">▶</span>
                 <span class="rack-name">{{ rack.name }}</span>
-                <span class="rack-slot-count">{{ rack.slots.length }} Fach{{ rack.slots.length !== 1 ? 'fächer' : '' }}</span>
+                <span class="rack-slot-count">{{ t('settings.storage.slotsMeta', rack.slots.length) }}</span>
               </button>
               <div class="rack-actions" v-if="!readonly">
                 <StorageCrudActions
@@ -115,7 +115,7 @@
                   />
                 </div>
                 <div v-if="slot.contents.length === 0" class="slot-empty">
-                  Leer
+                  {{ t('settings.storage.slotEmpty') }}
                 </div>
                 <ul v-else class="slot-contents">
                   <li
@@ -133,26 +133,26 @@
                           class="container-preview-line"
                         >
                           <span class="container-article">{{ line.material_name }}</span>
-                          <span class="container-preview-qty">{{ line.qty }} Stk.</span>
+                          <span class="container-preview-qty">{{ t('settings.storage.overviewLineQty', { qty: line.qty }) }}</span>
                         </div>
                         <span v-if="row.moreCount > 0" class="container-more">
-                          +{{ row.moreCount }} weitere in der Kiste
+                          {{ t('settings.storage.overviewMoreInContainer', { count: row.moreCount }) }}
                         </span>
                         <button
                           v-if="canOpenContainerMaterial(row.representative) && !embeddedDetailMaterialId"
                           class="container-link-btn"
                           @click.stop="openContainerMaterialFromStoredItem(row.representative)"
                         >
-                          Kiste öffnen
+                          {{ t('settings.storage.openContainer') }}
                         </button>
                       </div>
-                      <span class="content-qty">{{ row.totalQty }} Stk.</span>
+                      <span class="content-qty">{{ t('settings.storage.overviewLineQty', { qty: row.totalQty }) }}</span>
                       <div
                         class="content-actions"
                         v-if="canOpenContainerMaterial(row.representative) && showContainerOpenUi()"
                       >
                         <StorageActionButton
-                          title="Kiste öffnen"
+                          :title="t('settings.storage.openContainer')"
                           size="sm"
                           icon="open"
                           @click.stop="navigateToContainerContentTab(row.container_batch_id)"
@@ -165,14 +165,14 @@
                           <span class="container-label">{{ getContainerDisplayLabel(row.item) }}</span>
                           <span class="container-article">{{ row.item.material_name }}</span>
                           <span v-if="getContainerOtherItemsCount(row.item) > 0" class="container-more">
-                            +{{ getContainerOtherItemsCount(row.item) }} weitere in der Kiste
+                            {{ t('settings.storage.overviewMoreInContainer', { count: getContainerOtherItemsCount(row.item) }) }}
                           </span>
                           <button
                             v-if="canOpenContainerMaterial(row.item) && !embeddedDetailMaterialId"
                             class="container-link-btn"
                             @click.stop="openContainerMaterialFromStoredItem(row.item)"
                           >
-                            Kiste öffnen
+                            {{ t('settings.storage.openContainer') }}
                           </button>
                         </template>
                         <template v-else>
@@ -185,7 +185,7 @@
                           </template>
                         </template>
                       </div>
-                      <span class="content-qty">{{ row.item.qty }} Stk.</span>
+                      <span class="content-qty">{{ t('settings.storage.overviewLineQty', { qty: row.item.qty }) }}</span>
                       <div
                         class="content-actions"
                         v-if="
@@ -202,7 +202,7 @@
                             rowAllowsMoveForStoredItem(row.item) &&
                             (!row.mergedSourceCount || row.mergedSourceCount <= 1)
                           "
-                          title="Menge verschieben"
+                          :title="t('settings.storage.moveQuantity')"
                           size="sm"
                           icon="move"
                           @click.stop="openMoveForItem(row.item, rack, slot)"
@@ -213,7 +213,7 @@
                             canOpenContainerMaterial(row.item) &&
                             showContainerOpenUi()
                           "
-                          title="Kiste öffnen"
+                          :title="t('settings.storage.openContainer')"
                           size="sm"
                           icon="open"
                           @click.stop="navigateToContainerContentTab(row.item.container_batch_id!)"
@@ -225,7 +225,7 @@
                             String(row.item.material_id || '').trim() !==
                               String((embeddedDetailMaterialId || '').trim())
                           "
-                          title="Material öffnen"
+                          :title="t('settings.storage.openMaterial')"
                           size="sm"
                           icon="open"
                           @click.stop="openMaterial(row.item)"
@@ -256,18 +256,18 @@
 
     <StorageBulkCreateModal
       :is-open="showRackCreateModal"
-      title="Neues Regal"
-      :context-text="rackCreateLocation ? `Standort: ${rackCreateLocation.name}` : ''"
-      base-label="Basisname für Regale"
-      base-placeholder="z.B. Regal A"
+      :title="t('settings.storage.newRack')"
+      :context-text="rackCreateLocation ? t('settings.storage.overviewLocationContext', { name: rackCreateLocation.name }) : ''"
+      :base-label="t('settings.storage.bulkLabelBaseRacks')"
+      :base-placeholder="t('settings.storage.bulkPlaceholderRackShort')"
       :suggestions="rackCreateSuggestions"
       :base-name="rackCreateBaseName"
-      pair-field-label="Fach pro Regal *"
-      pair-field-placeholder="z.B. D1"
+      :pair-field-label="t('settings.storage.bulkLabelPairPerRack')"
+      :pair-field-placeholder="t('settings.storage.slotPlaceholder')"
       :pair-items="rackGeneratedSlotPairs"
-      count-label="Anzahl Regale"
+      :count-label="t('settings.storage.bulkLabelCountRacks')"
       :count="rackCreateCount"
-      preview-label="Es werden folgende Regale erstellt:"
+      :preview-label="t('settings.storage.bulkPreviewRacks')"
       :generated-names="rackGeneratedNames"
       :save-disabled="rackGeneratedNames.length === 0 || rackGeneratedSlotPairs.some((pair) => !pair.rightValue.trim()) || isSubmittingAction"
       :is-saving="isSubmittingAction"
@@ -281,15 +281,15 @@
 
     <StorageBulkCreateModal
       :is-open="showSlotCreateModal"
-      title="Neues Fach"
-      :context-text="slotCreateRack ? `Regal: ${slotCreateRack.name}` : ''"
-      base-label="Basisname für Fächer"
-      base-placeholder="z.B. A"
+      :title="t('settings.storage.newSlot')"
+      :context-text="slotCreateRack ? t('settings.storage.rackContext', { name: slotCreateRack.name }) : ''"
+      :base-label="t('settings.storage.bulkLabelBaseSlots')"
+      :base-placeholder="t('settings.storage.bulkPlaceholderSlotShort')"
       :suggestions="slotCreateSuggestions"
       :base-name="slotCreateBaseName"
-      count-label="Anzahl Fächer"
+      :count-label="t('settings.storage.bulkLabelCountSlots')"
       :count="slotCreateCount"
-      preview-label="Es werden folgende Fächer erstellt:"
+      :preview-label="t('settings.storage.bulkPreviewSlots')"
       :generated-names="slotGeneratedNames"
       :save-disabled="slotGeneratedNames.length === 0 || isSubmittingAction"
       :is-saving="isSubmittingAction"
@@ -302,8 +302,8 @@
 
     <StorageConfirmModal
       :is-open="showDeleteConfirmModal && !!deleteTarget"
-      :title="deleteTarget?.type === 'rack' ? 'Regal löschen?' : 'Fach löschen?'"
-      :message="`Möchten Sie ${deleteTarget?.name || ''} wirklich löschen?`"
+      :title="deleteModalTitle"
+      :message="deleteModalMessage"
       :is-loading="isSubmittingAction"
       @close="closeDeleteConfirmModal"
       @confirm="executeDeleteTarget"
@@ -314,6 +314,7 @@
 <script setup lang="ts">
 import { computed, ref, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import {
   getStorageOverview,
   getContainerBatches,
@@ -372,6 +373,7 @@ const props = withDefaults(defineProps<Props>(), {
   searchQuery: '',
 })
 const router = useRouter()
+const { t } = useI18n()
 const toast = useToast()
 
 const overview = ref<StorageOverviewResponse | null>(null)
@@ -390,7 +392,7 @@ const moveContext = ref<{
 } | null>(null)
 const showRackCreateModal = ref(false)
 const rackCreateLocation = ref<StorageLocationNode | null>(null)
-const rackCreateBaseName = ref('Regal ')
+const rackCreateBaseName = ref('')
 const rackCreateCount = ref(1)
 const rackSlotNameOverrides = ref<Record<string, string>>({})
 const showSlotCreateModal = ref(false)
@@ -423,7 +425,7 @@ const locationNodes = computed<StorageLocationNode[]>(() => {
       : null
     const locName = address
       ? (address.name || address.street_line || address.full_address || address.id)
-      : (rack.storage_address_name || 'Ohne Lagerstandort')
+      : (rack.storage_address_name || t('settings.storage.overviewNoStorageAddress'))
     const isPrimary = !!address?.is_primary
     const existing = map.get(locId)
     if (existing) {
@@ -443,6 +445,30 @@ const locationNodes = computed<StorageLocationNode[]>(() => {
     if (!a.isPrimary && b.isPrimary) return 1
     return a.name.localeCompare(b.name, 'de')
   })
+})
+
+const deleteModalTitle = computed(() => {
+  const dt = deleteTarget.value
+  if (!dt) return ''
+  return dt.type === 'rack' ? t('settings.storage.deleteRackTitle') : t('settings.storage.deleteSlotTitle')
+})
+
+const deleteModalMessage = computed(() => {
+  const dt = deleteTarget.value
+  if (!dt) return ''
+  if (dt.type === 'slot') {
+    const name = (dt.name || '').trim()
+    return name
+      ? t('settings.storage.deleteSlotMessage', { name })
+      : t('settings.storage.deleteSlotFallbackMessage')
+  }
+  const name = (dt.name || '').trim()
+  const loc = locationNodes.value.find((l) => l.id === dt.locationId)
+  const rack = loc?.racks.find((r) => r.id === dt.rackId)
+  const count = rack?.slots?.length ?? 0
+  return name
+    ? t('settings.storage.deleteRackMessage', { name, count })
+    : t('settings.storage.deleteRackFallbackMessage')
 })
 
 const normalizedSearchQuery = computed(() => (props.searchQuery || '').trim().toLocaleLowerCase('de-CH'))
@@ -467,8 +493,8 @@ function formatComboLocationLine(loc: MaterialStorageLocationRow): string {
   else if (loc.rack_name) {
     parts.push(loc.slot_name ? `${loc.rack_name} / ${loc.slot_name}` : loc.rack_name)
   }
-  if (loc.container_caption) parts.push(`Kiste: ${loc.container_caption}`)
-  if (loc.qty > 0) parts.push(`${loc.qty} Stk.`)
+  if (loc.container_caption) parts.push(t('settings.storage.overviewLineContainer', { caption: loc.container_caption }))
+  if (loc.qty > 0) parts.push(t('settings.storage.overviewLineQty', { qty: loc.qty }))
   return parts.join(' · ')
 }
 
@@ -565,7 +591,7 @@ function buildSlotDisplayRows(contents: StorageSlotContent[]): SlotDisplayRow[] 
       const groupItems = groups.get(cid) || [item]
       const label =
         groupItems.find((i) => (i.container_label || '').trim())?.container_label?.trim() ||
-        `Kiste ${cid}`
+        t('settings.storage.containerBatchLabel', { id: cid })
       const rep = groupItems[0]
       const { previewLines, moreCount, totalQty } = aggregateContainerPreview(groupItems)
       rows.push({
@@ -789,11 +815,11 @@ function canDeleteRack(rack: StorageOverviewRack): boolean {
 
 async function addRackForLocation(location: StorageLocationNode) {
   if (!location.addressId) {
-    toast.error('Für diesen Standort kann kein Regal erstellt werden.')
+    toast.error(t('settings.storage.toastRackCreateForbidden'))
     return
   }
   rackCreateLocation.value = location
-  rackCreateBaseName.value = rackCreateSuggestions.value[0] || 'Regal '
+  rackCreateBaseName.value = rackCreateSuggestions.value[0] || t('settings.storage.rackBaseDefault')
   rackCreateCount.value = 1
   rackSlotNameOverrides.value = {}
   showRackCreateModal.value = true
@@ -837,7 +863,7 @@ async function createRackFromModal() {
     for (const name of names) {
       const initialSlotNameForRack = (rackSlotNameOverrides.value[name] ?? `${getSlotPrefix(name)}1`).trim()
       if (!initialSlotNameForRack) {
-        toast.error('Bitte für jedes Regal einen Fachnamen angeben.')
+        toast.error(t('settings.storage.slotNameRequired'))
         return
       }
       await createStorageRack({
@@ -849,9 +875,9 @@ async function createRackFromModal() {
     }
     await load(rackCreateLocation.value.id, false)
     closeRackCreateModal()
-    toast.success(`${names.length} Regal${names.length !== 1 ? 'e' : ''} erstellt.`)
+    toast.success(t('settings.storage.toastRacksCreated', { count: names.length }))
   } catch (e: any) {
-    toast.error(e?.response?.data?.error || 'Regal konnte nicht erstellt werden.')
+    toast.error(e?.response?.data?.error || t('settings.storage.toastRackCreateFailed'))
   } finally {
     isSubmittingAction.value = false
   }
@@ -880,9 +906,9 @@ async function createSlotFromModal() {
     }
     await load(slotCreateLocationId.value, true, slotCreateRack.value.id)
     closeSlotCreateModal()
-    toast.success(`${names.length} Fach${names.length !== 1 ? 'fächer' : ''} erstellt.`)
+    toast.success(t('settings.storage.toastSlotsCreated', { count: names.length }))
   } catch (e: any) {
-    toast.error(e?.response?.data?.error || 'Fach konnte nicht erstellt werden.')
+    toast.error(e?.response?.data?.error || t('settings.storage.toastSlotCreateFailed'))
   } finally {
     isSubmittingAction.value = false
   }
@@ -923,15 +949,15 @@ async function executeDeleteTarget() {
     if (deleteTarget.value.type === 'rack') {
       await deleteStorageRack(deleteTarget.value.rackId)
       await load(deleteTarget.value.locationId, false)
-      toast.success('Regal gelöscht.')
+      toast.success(t('settings.storage.toastRackDeleted'))
     } else if (deleteTarget.value.slotId) {
       await deleteStorageSlot(deleteTarget.value.slotId)
       await load(deleteTarget.value.locationId, true, deleteTarget.value.rackId)
-      toast.success('Fach gelöscht.')
+      toast.success(t('settings.storage.toastSlotDeleted'))
     }
     closeDeleteConfirmModal()
   } catch (e: any) {
-    toast.error(e?.response?.data?.error || 'Löschen fehlgeschlagen.')
+    toast.error(e?.response?.data?.error || t('settings.storage.deleteError'))
   } finally {
     isSubmittingAction.value = false
   }
@@ -971,7 +997,7 @@ async function load(
       expandedRacks.value = new Set()
     }
   } catch (e: any) {
-    error.value = e?.response?.data?.error || 'Fehler beim Laden der Regale'
+    error.value = e?.response?.data?.error || t('settings.storage.loadError')
   } finally {
     isLoading.value = false
   }
@@ -1043,7 +1069,7 @@ async function openMoveForItem(item: StorageSlotContent, rack: StorageOverviewRa
     const material = await getMaterial(item.material_id)
     const batch = material.batches?.find((b: any) => b.id === item.batch_id)
     if (!batch) {
-      error.value = 'Charge nicht gefunden'
+      error.value = t('settings.storage.overviewOpenMoveBatchNotFound')
       return
     }
     moveContext.value = {
@@ -1055,7 +1081,7 @@ async function openMoveForItem(item: StorageSlotContent, rack: StorageOverviewRa
     }
     showMoveModal.value = true
   } catch (e: any) {
-    error.value = e?.response?.data?.error || 'Fehler beim Laden'
+    error.value = e?.response?.data?.error || t('settings.storage.overviewOpenMoveLoadError')
   }
 }
 
@@ -1079,8 +1105,8 @@ function isContainerStoredItem(item: StorageSlotContent): boolean {
 
 function getContainerDisplayLabel(item: StorageSlotContent): string {
   if (item.container_label) return item.container_label
-  if (item.container_batch_id) return `Kiste ${item.container_batch_id}`
-  return 'Kiste'
+  if (item.container_batch_id) return t('settings.storage.containerBatchLabel', { id: item.container_batch_id })
+  return t('settings.storage.containerGenericLabel')
 }
 
 function getContainerOtherItemsCount(item: StorageSlotContent): number {
