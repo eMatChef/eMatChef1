@@ -412,7 +412,7 @@
           <section v-else-if="activeTab === 'stock'" class="tab-content">
             <div class="section-card">
               <div class="section-header-row">
-                <h2 class="section-title">Bestand</h2>
+                <h2 class="section-title">{{ t('components.materialDetail.sectionStock') }}</h2>
                 <div class="section-actions">
                   <button
                     v-if="material.tracking_type !== 'serialized'"
@@ -420,17 +420,17 @@
                     :disabled="activeBatches.length === 0"
                     @click="openMoveQuantityFromHeader"
                   >
-                    Menge verschieben
+                    {{ t('components.materialDetail.btnMoveQuantity') }}
                   </button>
                   <button class="btn-stock-action btn-stock-action-add" @click="openAddBatchModal">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                       <line x1="12" y1="5" x2="12" y2="19"/>
                       <line x1="5" y1="12" x2="19" y2="12"/>
                     </svg>
-                    Charge hinzufügen
+                    {{ t('components.materialDetail.btnAddBatch') }}
                   </button>
                   <button v-if="splitSourceBatches.length > 0" class="btn-outline-small" @click="openSplitModal">
-                    Bulk in Serien splitten
+                    {{ t('components.materialDetail.btnSplitBulkSerial') }}
                   </button>
                 </div>
               </div>
@@ -438,35 +438,35 @@
               <div class="stock-summary">
                 <div class="stock-stat">
                   <span class="stock-number">{{ material.total_stock }}</span>
-                  <span class="stock-label">Gesamt</span>
+                  <span class="stock-label">{{ t('components.materialDetail.stockLabelTotal') }}</span>
                   <span v-if="material.pack_size && material.pack_unit" class="stock-pack-info">
                     {{ Math.floor(material.total_stock / material.pack_size) }} {{ material.pack_unit }}
-                    <template v-if="material.total_stock % material.pack_size !== 0"> +{{ material.total_stock % material.pack_size }} Stk.</template>
+                    <template v-if="material.total_stock % material.pack_size !== 0">{{ t('components.materialDetail.stockPackRemain', { n: material.total_stock % material.pack_size }) }}</template>
                   </span>
                 </div>
                 <div class="stock-stat warehouse">
                   <span class="stock-number">{{ material.in_warehouse ?? availableStock }}</span>
-                  <span class="stock-label">Im Lager</span>
+                  <span class="stock-label">{{ t('components.materialDetail.stockLabelInWarehouse') }}</span>
                 </div>
                 <div class="stock-stat issued" v-if="material.issued_out > 0">
                   <span class="stock-number">{{ material.issued_out }}</span>
-                  <span class="stock-label">Draussen</span>
+                  <span class="stock-label">{{ t('components.materialDetail.stockLabelOut') }}</span>
                 </div>
                 <div class="stock-stat reserved-stat" v-if="material.reserved > 0">
                   <span class="stock-number">{{ material.reserved }}</span>
-                  <span class="stock-label">Reserviert</span>
+                  <span class="stock-label">{{ t('components.materialDetail.stockLabelReserved') }}</span>
                 </div>
                 <div class="stock-stat repair-stat" v-if="material.repair_stock > 0">
                   <span class="stock-number">{{ material.repair_stock }}</span>
-                  <span class="stock-label">Reparatur</span>
+                  <span class="stock-label">{{ t('components.materialDetail.stockLabelRepair') }}</span>
                 </div>
                 <div class="stock-stat" v-if="(material.defect_stock || defectStock) > 0">
                   <span class="stock-number defect">{{ material.defect_stock || defectStock }}</span>
-                  <span class="stock-label">Defekt</span>
+                  <span class="stock-label">{{ t('components.materialDetail.stockLabelDefect') }}</span>
                 </div>
                 <div class="stock-stat available">
                   <span class="stock-number">{{ material.available ?? availableStock }}</span>
-                  <span class="stock-label">Verfügbar</span>
+                  <span class="stock-label">{{ t('components.materialDetail.stockLabelAvailable') }}</span>
                 </div>
               </div>
 
@@ -474,8 +474,8 @@
                 <thead>
                   <tr>
                     <th class="th-sort-cell">
-                      <button type="button" class="detail-th-sort" title="Nach Einkaufsdatum sortieren" @click="toggleStockSort('acquired_on')">
-                        <span>Einkaufsdatum</span>
+                      <button type="button" class="detail-th-sort" :title="t('components.materialDetail.sortByAcquired')" @click="toggleStockSort('acquired_on')">
+                        <span>{{ t('components.materialDetail.thAcquiredOn') }}</span>
                         <span class="detail-th-sort-arrows" aria-hidden="true">
                           <span class="detail-sort-chev" :class="{ active: stockSortKey === 'acquired_on' && stockSortDir === 'asc' }">▲</span>
                           <span class="detail-sort-chev" :class="{ active: stockSortKey === 'acquired_on' && stockSortDir === 'desc' }">▼</span>
@@ -483,8 +483,8 @@
                       </button>
                     </th>
                     <th class="th-sort-cell">
-                      <button type="button" class="detail-th-sort" title="Nach Menge sortieren" @click="toggleStockSort('qty')">
-                        <span>Menge</span>
+                      <button type="button" class="detail-th-sort" :title="t('components.materialDetail.sortByQty')" @click="toggleStockSort('qty')">
+                        <span>{{ t('components.materialDetail.thQty') }}</span>
                         <span class="detail-th-sort-arrows" aria-hidden="true">
                           <span class="detail-sort-chev" :class="{ active: stockSortKey === 'qty' && stockSortDir === 'asc' }">▲</span>
                           <span class="detail-sort-chev" :class="{ active: stockSortKey === 'qty' && stockSortDir === 'desc' }">▼</span>
@@ -492,8 +492,8 @@
                       </button>
                     </th>
                     <th class="th-sort-cell">
-                      <button type="button" class="detail-th-sort" title="Nach Label sortieren" @click="toggleStockSort('label')">
-                        <span>Label</span>
+                      <button type="button" class="detail-th-sort" :title="t('components.materialDetail.sortByLabel')" @click="toggleStockSort('label')">
+                        <span>{{ t('components.materialDetail.thLabel') }}</span>
                         <span class="detail-th-sort-arrows" aria-hidden="true">
                           <span class="detail-sort-chev" :class="{ active: stockSortKey === 'label' && stockSortDir === 'asc' }">▲</span>
                           <span class="detail-sort-chev" :class="{ active: stockSortKey === 'label' && stockSortDir === 'desc' }">▼</span>
@@ -501,8 +501,8 @@
                       </button>
                     </th>
                     <th class="th-sort-cell">
-                      <button type="button" class="detail-th-sort" title="Nach Preis sortieren" @click="toggleStockSort('unit_price')">
-                        <span>Preis/Stk</span>
+                      <button type="button" class="detail-th-sort" :title="t('components.materialDetail.sortByUnitPrice')" @click="toggleStockSort('unit_price')">
+                        <span>{{ t('components.materialDetail.thPricePerPc') }}</span>
                         <span class="detail-th-sort-arrows" aria-hidden="true">
                           <span class="detail-sort-chev" :class="{ active: stockSortKey === 'unit_price' && stockSortDir === 'asc' }">▲</span>
                           <span class="detail-sort-chev" :class="{ active: stockSortKey === 'unit_price' && stockSortDir === 'desc' }">▼</span>
@@ -510,8 +510,8 @@
                       </button>
                     </th>
                     <th class="th-sort-cell">
-                      <button type="button" class="detail-th-sort" title="Nach Lagerplatz sortieren" @click="toggleStockSort('location')">
-                        <span>Lagerplatz</span>
+                      <button type="button" class="detail-th-sort" :title="t('components.materialDetail.sortByLocation')" @click="toggleStockSort('location')">
+                        <span>{{ t('components.materialDetail.thStorageSlot') }}</span>
                         <span class="detail-th-sort-arrows" aria-hidden="true">
                           <span class="detail-sort-chev" :class="{ active: stockSortKey === 'location' && stockSortDir === 'asc' }">▲</span>
                           <span class="detail-sort-chev" :class="{ active: stockSortKey === 'location' && stockSortDir === 'desc' }">▼</span>
@@ -519,8 +519,8 @@
                       </button>
                     </th>
                     <th class="th-sort-cell">
-                      <button type="button" class="detail-th-sort" title="Nach Status sortieren" @click="toggleStockSort('status')">
-                        <span>Status</span>
+                      <button type="button" class="detail-th-sort" :title="t('components.materialDetail.sortByStatus')" @click="toggleStockSort('status')">
+                        <span>{{ t('components.materialDetail.thStatus') }}</span>
                         <span class="detail-th-sort-arrows" aria-hidden="true">
                           <span class="detail-sort-chev" :class="{ active: stockSortKey === 'status' && stockSortDir === 'asc' }">▲</span>
                           <span class="detail-sort-chev" :class="{ active: stockSortKey === 'status' && stockSortDir === 'desc' }">▼</span>
@@ -528,8 +528,8 @@
                       </button>
                     </th>
                     <th class="th-sort-cell">
-                      <button type="button" class="detail-th-sort" title="Nach Notiz sortieren" @click="toggleStockSort('notes')">
-                        <span>Notiz</span>
+                      <button type="button" class="detail-th-sort" :title="t('components.materialDetail.sortByNotes')" @click="toggleStockSort('notes')">
+                        <span>{{ t('components.materialDetail.thNote') }}</span>
                         <span class="detail-th-sort-arrows" aria-hidden="true">
                           <span class="detail-sort-chev" :class="{ active: stockSortKey === 'notes' && stockSortDir === 'asc' }">▲</span>
                           <span class="detail-sort-chev" :class="{ active: stockSortKey === 'notes' && stockSortDir === 'desc' }">▼</span>
@@ -543,8 +543,8 @@
                   <tr v-for="batch in sortedActiveBatches" :key="batch.id">
                     <td>{{ formatDate(batch.acquired_on) }}</td>
                     <td class="qty-cell">{{ batch.qty }}</td>
-                    <td>{{ batch.label || '-' }}</td>
-                    <td>{{ batch.unit_price ? `Fr. ${batch.unit_price}` : '-' }}</td>
+                    <td>{{ batch.label || t('components.materialDetail.emDash') }}</td>
+                    <td>{{ batch.unit_price ? `${t('components.materialDetail.currencyFr')} ${batch.unit_price}` : t('components.materialDetail.emDash') }}</td>
                     <td class="location-cell">
                       <div class="location-lines">
                         <div
@@ -568,19 +568,19 @@
                         {{ statusLabels[batch.status] }}
                       </span>
                     </td>
-                    <td class="notes-cell">{{ batch.notes || '-' }}</td>
+                    <td class="notes-cell">{{ batch.notes || t('components.materialDetail.emDash') }}</td>
                     <td class="actions-cell">
                       <button
                         v-if="material.tracking_type !== 'serialized'"
                         class="icon-btn"
-                        title="Menge verschieben"
+                        :title="t('components.materialDetail.titleMoveQtyBatch')"
                         @click="openMoveQuantityModal(batch)"
                       >
                         <svg class="table-icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                           <path d="M5 9l-3 3 3 3M9 5l3-3 3 3M15 19l-3 3-3-3M19 9l3 3-3 3M2 12h20M12 2v20"/>
                         </svg>
                       </button>
-                      <button class="icon-btn" title="Charge bearbeiten" @click.stop="openEditBatchModal(batch)">
+                      <button class="icon-btn" :title="t('components.materialDetail.titleEditBatch')" @click.stop="openEditBatchModal(batch)">
                         <svg class="table-icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                           <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
                           <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
@@ -592,9 +592,9 @@
               </table>
               
               <div v-else class="empty-batches">
-                <p>Noch keine Chargen vorhanden</p>
+                <p>{{ t('components.materialDetail.emptyNoBatches') }}</p>
                 <button class="btn-outline" @click="openAddBatchModal">
-                  Erste Charge hinzufügen
+                  {{ t('components.materialDetail.emptyAddFirstBatch') }}
                 </button>
               </div>
             </div>
@@ -604,7 +604,7 @@
           <section v-else-if="activeTab === 'stored-in'" class="tab-content">
             <div class="section-card">
               <div class="section-header-row">
-                <h2 class="section-title">Gelagert in</h2>
+                <h2 class="section-title">{{ t('components.materialDetail.sectionStoredInTitle') }}</h2>
               </div>
               <StorageTreeView
                 :department-id="props.departmentId"
@@ -622,49 +622,46 @@
             <div class="section-card composition-tab-card">
               <div class="section-header-row composition-tab-head">
                 <div>
-                  <h2 class="section-title">Zusammensetzung</h2>
+                  <h2 class="section-title">{{ t('components.materialDetail.tabComposition') }}</h2>
                   <p class="composition-tab-intro">
-                    Welche Artikel und Chargen zu dieser Kombination gehören. Den Status der zugewiesenen Komponenten-Charge
-                    (z.&nbsp;B. defekt) sehen Sie in der Spalte „Charge-Status“. Werkstatt-Tickets zur Kombination finden Sie
-                    unter „Werkstatt“.
+                    {{ t('components.materialDetail.compositionIntro') }}
                   </p>
                 </div>
                 <div class="composition-tab-actions">
                   <button type="button" class="btn-primary btn-sm" @click="openAddCompositionModal">
-                    Aus Bestand hinzufügen
+                    {{ t('components.materialDetail.btnAddFromStock') }}
                   </button>
                   <button type="button" class="btn-outline-small" @click="emitCreateMaterialForComposition">
-                    Neues Material anlegen
+                    {{ t('components.materialDetail.btnCreateNewMaterial') }}
                   </button>
                   <button type="button" class="btn-outline-small" :disabled="comboComponentsLoading" @click="loadComboComponentsForTab">
-                    Aktualisieren
+                    {{ t('components.materialDetail.btnRefresh') }}
                   </button>
                 </div>
               </div>
 
               <div v-if="comboComponentsLoading" class="loading-container composition-loading">
                 <div class="spinner"></div>
-                <p>Zusammensetzung wird geladen…</p>
+                <p>{{ t('components.materialDetail.compositionLoading') }}</p>
               </div>
               <div v-else-if="comboComponentsList.length === 0" class="empty-used-in">
-                <p>Keine Komponenten zugewiesen.</p>
+                <p>{{ t('components.materialDetail.compositionEmpty') }}</p>
                 <p class="text-muted composition-hint">
-                  Über „Aus Bestand hinzufügen“ oder „Neues Material anlegen“ können Sie Stücklisten-Einträge ergänzen – auch
-                  wenn die Kombination nicht aus einer Vorlage stammt.
+                  {{ t('components.materialDetail.compositionEmptyHint') }}
                 </p>
               </div>
               <div v-else class="composition-table-wrapper">
               <table class="used-in-table composition-table">
                 <thead>
                   <tr>
-                    <th>Komponente</th>
-                    <th>Rolle</th>
-                    <th>Menge</th>
-                    <th>Seriennummer</th>
-                    <th>Charge-Status</th>
-                    <th>Zuordnung</th>
-                    <th aria-label="Status"></th>
-                    <th class="composition-actions-th">Aktionen</th>
+                    <th>{{ t('components.materialDetail.thComponent') }}</th>
+                    <th>{{ t('components.materialDetail.thRole') }}</th>
+                    <th>{{ t('components.materialDetail.thQty') }}</th>
+                    <th>{{ t('components.materialDetail.thSerial') }}</th>
+                    <th>{{ t('components.materialDetail.thBatchStatus') }}</th>
+                    <th>{{ t('components.materialDetail.thAssignment') }}</th>
+                    <th :aria-label="t('components.materialDetail.thStatus')"></th>
+                    <th class="composition-actions-th">{{ t('components.materialDetail.thActions') }}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -673,13 +670,13 @@
                       <button type="button" class="link-btn composition-comp-link" @click="openComponentMaterialDetail(comp.component_material.id)">
                         {{ comp.component_material.name }}
                       </button>
-                      <span v-if="comp.is_optional" class="composition-optional-badge">optional</span>
+                      <span v-if="comp.is_optional" class="composition-optional-badge">{{ t('components.materialDetail.optionalShortBadge') }}</span>
                     </td>
-                    <td>{{ comp.component_role || '–' }}</td>
+                    <td>{{ comp.component_role || t('components.materialDetail.emDash') }}</td>
                     <td>{{ comp.qty }}</td>
                     <td>
                       <span v-if="comp.component_batch?.serial_number" class="serial-code">{{ comp.component_batch.serial_number }}</span>
-                      <span v-else class="text-muted">–</span>
+                      <span v-else class="text-muted">{{ t('components.materialDetail.emDash') }}</span>
                     </td>
                     <td>
                       <span
@@ -689,7 +686,7 @@
                       >
                         {{ statusLabels[comp.component_batch.status] || comp.component_batch.status }}
                       </span>
-                      <span v-else class="text-muted">–</span>
+                      <span v-else class="text-muted">{{ t('components.materialDetail.emDash') }}</span>
                     </td>
                     <td class="composition-assignment-cell">
                       <span
@@ -701,17 +698,17 @@
                       </span>
                     </td>
                     <td class="composition-status-cell">
-                      <span v-if="comp.is_awaiting" class="composition-dot composition-dot--await" title="Wartet auf Zuweisung" />
-                      <span v-else-if="comp.is_assigned" class="composition-dot composition-dot--ok" title="Zugewiesen" />
-                      <span v-else class="composition-dot composition-dot--linked" title="Verknüpft" />
+                      <span v-if="comp.is_awaiting" class="composition-dot composition-dot--await" :title="t('components.materialDetail.titleCompositionAwait')" />
+                      <span v-else-if="comp.is_assigned" class="composition-dot composition-dot--ok" :title="t('components.materialDetail.titleCompositionAssigned')" />
+                      <span v-else class="composition-dot composition-dot--linked" :title="t('components.materialDetail.titleCompositionLinked')" />
                     </td>
                     <td class="composition-actions-cell">
                       <div class="composition-row-actions">
                         <button
                           type="button"
                           class="icon-btn"
-                          title="Bearbeiten"
-                          aria-label="Komponente bearbeiten"
+                          :title="t('components.materialDetail.titleEditGeneric')"
+                          :aria-label="t('components.materialDetail.ariaEditComposition')"
                           @click="openEditCompositionModal(comp)"
                         >
                           <svg class="table-icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -722,8 +719,8 @@
                         <button
                           type="button"
                           class="icon-btn icon-btn-danger"
-                          title="Aus Kombination entfernen"
-                          aria-label="Komponente löschen"
+                          :title="t('components.materialDetail.titleRemoveFromCombo')"
+                          :aria-label="t('components.materialDetail.ariaDeleteComposition')"
                           :disabled="deletingCompositionId === comp.id"
                           @click="confirmDeleteComposition(comp)"
                         >
@@ -765,59 +762,59 @@
             <div class="container-content-layout">
               <div class="section-card container-content-main-card">
                 <div class="section-header-row container-content-header-row">
-                  <h2 class="section-title">Inhalt Kiste/Tasche</h2>
+                  <h2 class="section-title">{{ t('components.materialDetail.sectionContainerContentTitle') }}</h2>
                   <br class="container-content-header-break" />
                   <div class="detail-inline-filters">
                     <div v-if="storedInContainerOptions.length > 0" class="detail-inline-field">
-                      <label class="detail-inline-label">Kiste/Tasche</label>
+                      <label class="detail-inline-label">{{ t('components.materialDetail.labelContainerBag') }}</label>
                       <select v-model="containerContentBatchId" class="detail-inline-select">
-                        <option value="">– Kiste/Tasche wählen –</option>
+                        <option value="">{{ t('components.materialDetail.optPickContainerBag') }}</option>
                         <option v-for="option in storedInContainerOptions" :key="option.id" :value="option.id">
                           {{ option.label }}
                         </option>
                       </select>
                     </div>
                     <div v-else class="detail-inline-info-box">
-                      Keine Kisten/Taschen für diesen Artikel.
+                      {{ t('components.materialDetail.noContainersForArticle') }}
                     </div>
                     <button
                       class="btn-outline-small container-add-btn"
                       :disabled="!containerContentBatchId"
                       @click="openAddToContainerModal"
                     >
-                      + Artikel hinzufügen
+                      {{ t('components.materialDetail.btnAddItemPlus') }}
                     </button>
                   </div>
                 </div>
 
                 <div v-if="!containerContentBatchId && storedInContainerOptions.length === 0" class="empty-used-in">
-                  <p>Keine Kisten/Taschen für diesen Artikel vorhanden.</p>
+                  <p>{{ t('components.materialDetail.containerEmptyNoInstances') }}</p>
                 </div>
                 <div v-else-if="!containerContentBatchId" class="empty-used-in">
-                  <p>Bitte zuerst eine Kiste/Tasche auswählen.</p>
+                  <p>{{ t('components.materialDetail.containerSelectFirst') }}</p>
                 </div>
                 <div v-else-if="isLoadingContainerContentOverview" class="loading-container" style="padding: 32px;">
                   <div class="spinner"></div>
-                  <p>Kisteninhalt wird geladen...</p>
+                  <p>{{ t('components.materialDetail.containerLoadingOverview') }}</p>
                 </div>
                 <div v-else-if="containerContentRows.length === 0" class="empty-used-in">
-                  <p>Keine Artikel in dieser Kiste/Tasche gefunden.</p>
+                  <p>{{ t('components.materialDetail.containerEmptyNoContents') }}</p>
                 </div>
                 <table v-else class="used-in-table container-content-table">
                   <thead>
                     <tr>
-                      <th>Artikel</th>
-                      <th>Menge</th>
-                      <th class="action-cell">Aktion</th>
+                      <th>{{ t('components.materialDetail.thArticle') }}</th>
+                      <th>{{ t('components.materialDetail.thQty') }}</th>
+                      <th class="action-cell">{{ t('components.materialDetail.thAction') }}</th>
                     </tr>
                   </thead>
                   <tbody>
                     <tr v-for="row in containerContentRows" :key="row.materialId" class="used-in-row">
                       <td>{{ row.materialName }}</td>
-                      <td>{{ row.qty }} Stk.</td>
+                      <td>{{ t('components.materialDetail.qtyPieces', { qty: row.qty }) }}</td>
                       <td class="action-cell">
                         <button class="btn-outline-small" @click="openMaterialById(row.materialId)">
-                          Artikel öffnen
+                          {{ t('components.materialDetail.btnOpenArticle') }}
                         </button>
                       </td>
                     </tr>
@@ -829,39 +826,39 @@
               <aside class="container-content-sidebar">
                 <div class="section-card">
                   <div class="section-header-row">
-                    <h2 class="section-title">Details zur Kiste/Tasche</h2>
+                    <h2 class="section-title">{{ t('components.materialDetail.sectionContainerDetailsTitle') }}</h2>
                   </div>
                   <div v-if="!containerContentBatchId" class="empty-used-in">
-                    <p>Keine Kiste/Tasche ausgewählt.</p>
+                    <p>{{ t('components.materialDetail.containerNoSelection') }}</p>
                   </div>
                   <div v-else-if="isLoadingContainerEditor" class="loading-container" style="padding: 24px;">
                     <div class="spinner"></div>
-                    <p>Details werden geladen...</p>
+                    <p>{{ t('components.materialDetail.containerLoadingEditor') }}</p>
                   </div>
                   <div v-else-if="!containerEditorBatchId" class="empty-used-in">
-                    <p>Details konnten nicht geladen werden.</p>
+                    <p>{{ t('components.materialDetail.containerEditorLoadFailed') }}</p>
                   </div>
                   <div v-else class="form-grid">
                     <div class="form-group span-full">
-                      <label>Seriennummer</label>
+                      <label>{{ t('components.materialDetail.labelSerialNumber') }}</label>
                       <input v-model="containerEditorForm.serial_number" type="text" class="form-input" />
                     </div>
                     <div class="form-group span-full">
-                      <label>Label</label>
+                      <label>{{ t('components.materialDetail.labelBatchLabel') }}</label>
                       <input v-model="containerEditorForm.label" type="text" class="form-input" />
                     </div>
                     <div class="form-group span-full">
-                      <label>Status</label>
+                      <label>{{ t('components.materialDetail.labelStatus') }}</label>
                       <select v-model="containerEditorForm.status" class="form-select">
-                        <option value="active">Aktiv</option>
-                        <option value="defect">Defekt</option>
-                        <option value="repair">Reparatur</option>
-                        <option value="lost">Verloren</option>
-                        <option value="disposed">Entsorgt</option>
+                        <option value="active">{{ t('components.materialDetail.batchStatusActive') }}</option>
+                        <option value="defect">{{ t('components.materialDetail.batchStatusDefect') }}</option>
+                        <option value="repair">{{ t('components.materialDetail.batchStatusRepair') }}</option>
+                        <option value="lost">{{ t('components.materialDetail.batchStatusLost') }}</option>
+                        <option value="disposed">{{ t('components.materialDetail.batchStatusDisposed') }}</option>
                       </select>
                     </div>
                     <div class="form-group span-full">
-                      <label>Notiz</label>
+                      <label>{{ t('components.materialDetail.labelNote') }}</label>
                       <textarea v-model="containerEditorForm.notes" class="form-textarea" rows="3"></textarea>
                     </div>
                     <div class="form-group span-full">
@@ -870,7 +867,7 @@
                         :disabled="isSavingContainerEditor || !containerEditorDirty"
                         @click="saveContainerEditor"
                       >
-                        {{ isSavingContainerEditor ? 'Speichern...' : 'Speichern' }}
+                        {{ isSavingContainerEditor ? t('common.saving') : t('common.save') }}
                       </button>
                     </div>
                   </div>
@@ -883,27 +880,27 @@
           <section v-else-if="activeTab === 'serials'" class="tab-content">
             <div class="section-card">
               <div class="section-header-row">
-                <h2 class="section-title">Seriennummern</h2>
+                <h2 class="section-title">{{ t('components.materialDetail.sectionSerialsTitle') }}</h2>
                 <button class="btn-outline-small" @click="openAddBatchModal">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <line x1="12" y1="5" x2="12" y2="19"/>
                     <line x1="5" y1="12" x2="19" y2="12"/>
                   </svg>
-                  Charge hinzufügen
+                  {{ t('components.materialDetail.btnAddBatch') }}
                 </button>
               </div>
               
               <div class="serial-summary">
-                <span class="serial-count">{{ serialBatches.length }} Seriennummern registriert</span>
+                <span class="serial-count">{{ t('components.materialDetail.serialCountLine', { count: serialBatches.length }) }}</span>
               </div>
 
               <table class="serials-table" v-if="serialBatches.length > 0">
                 <thead>
                   <tr>
-                    <th>#</th>
+                    <th>{{ t('components.materialDetail.thIndex') }}</th>
                     <th class="th-sort-cell">
-                      <button type="button" class="detail-th-sort" title="Nach Seriennummer sortieren" @click="toggleSerialSort('serial_number')">
-                        <span>Seriennummer</span>
+                      <button type="button" class="detail-th-sort" :title="t('components.materialDetail.sortBySerial')" @click="toggleSerialSort('serial_number')">
+                        <span>{{ t('components.materialDetail.thSerial') }}</span>
                         <span class="detail-th-sort-arrows" aria-hidden="true">
                           <span class="detail-sort-chev" :class="{ active: serialSortKey === 'serial_number' && serialSortDir === 'asc' }">▲</span>
                           <span class="detail-sort-chev" :class="{ active: serialSortKey === 'serial_number' && serialSortDir === 'desc' }">▼</span>
@@ -911,8 +908,8 @@
                       </button>
                     </th>
                     <th class="th-sort-cell">
-                      <button type="button" class="detail-th-sort" title="Nach Code sortieren" @click="toggleSerialSort('public_code')">
-                        <span>Code</span>
+                      <button type="button" class="detail-th-sort" :title="t('components.materialDetail.sortByPublicCode')" @click="toggleSerialSort('public_code')">
+                        <span>{{ t('components.materialDetail.labelCode') }}</span>
                         <span class="detail-th-sort-arrows" aria-hidden="true">
                           <span class="detail-sort-chev" :class="{ active: serialSortKey === 'public_code' && serialSortDir === 'asc' }">▲</span>
                           <span class="detail-sort-chev" :class="{ active: serialSortKey === 'public_code' && serialSortDir === 'desc' }">▼</span>
@@ -920,8 +917,8 @@
                       </button>
                     </th>
                     <th class="th-sort-cell">
-                      <button type="button" class="detail-th-sort" title="Nach Label sortieren" @click="toggleSerialSort('label')">
-                        <span>Label</span>
+                      <button type="button" class="detail-th-sort" :title="t('components.materialDetail.sortByLabel')" @click="toggleSerialSort('label')">
+                        <span>{{ t('components.materialDetail.thLabel') }}</span>
                         <span class="detail-th-sort-arrows" aria-hidden="true">
                           <span class="detail-sort-chev" :class="{ active: serialSortKey === 'label' && serialSortDir === 'asc' }">▲</span>
                           <span class="detail-sort-chev" :class="{ active: serialSortKey === 'label' && serialSortDir === 'desc' }">▼</span>
@@ -929,8 +926,8 @@
                       </button>
                     </th>
                     <th class="th-sort-cell th-serial-behälter">
-                      <button type="button" class="detail-th-sort" title="Nach Behälter sortieren" @click="toggleSerialSort('is_container')">
-                        <span>Behälter</span>
+                      <button type="button" class="detail-th-sort" :title="t('components.materialDetail.sortByContainerFlag')" @click="toggleSerialSort('is_container')">
+                        <span>{{ t('components.materialDetail.thContainer') }}</span>
                         <span class="detail-th-sort-arrows" aria-hidden="true">
                           <span class="detail-sort-chev" :class="{ active: serialSortKey === 'is_container' && serialSortDir === 'asc' }">▲</span>
                           <span class="detail-sort-chev" :class="{ active: serialSortKey === 'is_container' && serialSortDir === 'desc' }">▼</span>
@@ -938,8 +935,8 @@
                       </button>
                     </th>
                     <th class="th-sort-cell">
-                      <button type="button" class="detail-th-sort" title="Nach Erfassungsdatum sortieren" @click="toggleSerialSort('acquired_on')">
-                        <span>Erfasst am</span>
+                      <button type="button" class="detail-th-sort" :title="t('components.materialDetail.sortByRecordedDate')" @click="toggleSerialSort('acquired_on')">
+                        <span>{{ t('components.materialDetail.thRecordedOn') }}</span>
                         <span class="detail-th-sort-arrows" aria-hidden="true">
                           <span class="detail-sort-chev" :class="{ active: serialSortKey === 'acquired_on' && serialSortDir === 'asc' }">▲</span>
                           <span class="detail-sort-chev" :class="{ active: serialSortKey === 'acquired_on' && serialSortDir === 'desc' }">▼</span>
@@ -947,8 +944,8 @@
                       </button>
                     </th>
                     <th class="th-sort-cell">
-                      <button type="button" class="detail-th-sort" title="Nach Lagerplatz sortieren" @click="toggleSerialSort('location')">
-                        <span>Lagerplatz</span>
+                      <button type="button" class="detail-th-sort" :title="t('components.materialDetail.sortByLocation')" @click="toggleSerialSort('location')">
+                        <span>{{ t('components.materialDetail.thStorageSlot') }}</span>
                         <span class="detail-th-sort-arrows" aria-hidden="true">
                           <span class="detail-sort-chev" :class="{ active: serialSortKey === 'location' && serialSortDir === 'asc' }">▲</span>
                           <span class="detail-sort-chev" :class="{ active: serialSortKey === 'location' && serialSortDir === 'desc' }">▼</span>
@@ -956,8 +953,8 @@
                       </button>
                     </th>
                     <th class="th-sort-cell">
-                      <button type="button" class="detail-th-sort" title="Nach Status sortieren" @click="toggleSerialSort('status')">
-                        <span>Status</span>
+                      <button type="button" class="detail-th-sort" :title="t('components.materialDetail.sortByStatus')" @click="toggleSerialSort('status')">
+                        <span>{{ t('components.materialDetail.thStatus') }}</span>
                         <span class="detail-th-sort-arrows" aria-hidden="true">
                           <span class="detail-sort-chev" :class="{ active: serialSortKey === 'status' && serialSortDir === 'asc' }">▲</span>
                           <span class="detail-sort-chev" :class="{ active: serialSortKey === 'status' && serialSortDir === 'desc' }">▼</span>
@@ -965,8 +962,8 @@
                       </button>
                     </th>
                     <th class="th-sort-cell">
-                      <button type="button" class="detail-th-sort" title="Nach Notiz sortieren" @click="toggleSerialSort('notes')">
-                        <span>Notiz</span>
+                      <button type="button" class="detail-th-sort" :title="t('components.materialDetail.sortByNotes')" @click="toggleSerialSort('notes')">
+                        <span>{{ t('components.materialDetail.thNote') }}</span>
                         <span class="detail-th-sort-arrows" aria-hidden="true">
                           <span class="detail-sort-chev" :class="{ active: serialSortKey === 'notes' && serialSortDir === 'asc' }">▲</span>
                           <span class="detail-sort-chev" :class="{ active: serialSortKey === 'notes' && serialSortDir === 'desc' }">▼</span>
@@ -993,7 +990,7 @@
                         @activate="openQrActionModalForBatch(batch)"
                       />
                     </td>
-                    <td>{{ batch.label || '-' }}</td>
+                    <td>{{ batch.label || t('components.materialDetail.emDash') }}</td>
                     <td class="col-serial-container">
                       <label class="checkbox-label serial-behälter-cell">
                         <input
@@ -1028,9 +1025,9 @@
                         {{ statusLabels[batch.status] }}
                       </span>
                     </td>
-                    <td class="notes-cell">{{ batch.notes || '-' }}</td>
+                    <td class="notes-cell">{{ batch.notes || t('components.materialDetail.emDash') }}</td>
                     <td class="actions-cell">
-                      <button class="icon-btn" title="Charge bearbeiten" @click.stop="openEditBatchModal(batch)">
+                      <button class="icon-btn" :title="t('components.materialDetail.titleEditBatch')" @click.stop="openEditBatchModal(batch)">
                         <svg class="table-icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                           <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
                           <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
@@ -1042,9 +1039,9 @@
               </table>
               
               <div v-else class="empty-serials">
-                <p>Noch keine Seriennummern erfasst</p>
+                <p>{{ t('components.materialDetail.emptyNoSerials') }}</p>
                 <button class="btn-outline" @click="openAddBatchModal">
-                  Erste Charge hinzufügen
+                  {{ t('components.materialDetail.emptyAddFirstBatch') }}
                 </button>
               </div>
             </div>
@@ -1053,34 +1050,34 @@
           <!-- Tab: Vermietung -->
           <section v-else-if="activeTab === 'workshop'" class="tab-content">
             <div class="section-card">
-              <h2 class="section-title">Werkstatt &amp; Reparaturen</h2>
+              <h2 class="section-title">{{ t('components.materialDetail.sectionWorkshopTitle') }}</h2>
               <p class="form-hint" style="margin-top: 0">
-                Tickets aus Aktivitäten (Rückgabe defekt, Meldungen) und manuelle Aufträge für dieses Material.
+                {{ t('components.materialDetail.workshopIntro') }}
               </p>
               <div v-if="workshopTicketsLoading" class="loading-inline">
                 <div class="spinner"></div>
-                <span>Tickets werden geladen…</span>
+                <span>{{ t('components.materialDetail.workshopLoadingTickets') }}</span>
               </div>
               <div v-else-if="workshopTickets.length === 0" class="empty-serials">
-                <p>Keine Werkstatt-Tickets für dieses Material.</p>
+                <p>{{ t('components.materialDetail.workshopEmpty') }}</p>
                 <div class="workshop-tab-actions">
                   <router-link
                     class="btn-primary"
                     :to="{ path: `/${departmentId}/workshop`, query: { material_id: materialId } }"
                   >
-                    Zur Werkstatt (Material gefiltert)
+                    {{ t('components.materialDetail.btnWorkshopFiltered') }}
                   </router-link>
                 </div>
-                <p class="form-hint">Dort kannst du ein neues Ticket erfassen; bei aktivem Material-Filter ist die Vorauswahl gesetzt.</p>
+                <p class="form-hint">{{ t('components.materialDetail.workshopHintCreateTicket') }}</p>
               </div>
               <div v-else>
                 <table class="batch-table workshop-tickets-mini">
                   <thead>
                     <tr>
-                      <th>Ticket</th>
-                      <th>Typ</th>
-                      <th>Status</th>
-                      <th>Aktivität</th>
+                      <th>{{ t('components.materialDetail.thTicket') }}</th>
+                      <th>{{ t('components.materialDetail.thType') }}</th>
+                      <th>{{ t('components.materialDetail.thStatus') }}</th>
+                      <th>{{ t('components.materialDetail.thActivity') }}</th>
                       <th></th>
                     </tr>
                   </thead>
@@ -1097,16 +1094,16 @@
                           :to="`/${departmentId}/activities/${wt.activity_id}`"
                           class="link-btn"
                         >
-                          Öffnen
+                          {{ t('components.materialDetail.btnOpen') }}
                         </router-link>
-                        <span v-else class="muted">—</span>
+                        <span v-else class="muted">{{ t('components.materialDetail.emDash') }}</span>
                       </td>
                       <td class="actions-cell">
                         <router-link
                           class="btn-outline btn-sm"
                           :to="{ path: `/${departmentId}/workshop`, query: { material_id: materialId, ticket: wt.id } }"
                         >
-                          In Werkstatt
+                          {{ t('components.materialDetail.btnInWorkshop') }}
                         </router-link>
                       </td>
                     </tr>
@@ -1117,7 +1114,7 @@
                     class="btn-outline btn-sm"
                     :to="{ path: `/${departmentId}/workshop`, query: { material_id: materialId } }"
                   >
-                    Alle in der Werkstatt
+                    {{ t('components.materialDetail.btnAllInWorkshop') }}
                   </router-link>
                 </div>
               </div>
@@ -1126,71 +1123,67 @@
 
           <section v-else-if="activeTab === 'rental'" class="tab-content">
             <div class="section-card">
-              <h2 class="section-title">Vermietung</h2>
+              <h2 class="section-title">{{ t('components.materialDetail.sectionRentalTitle') }}</h2>
 
               <div
                 v-if="material.material_type === 'physical_combo' || material.material_type === 'virtual_combo'"
                 class="combo-rental-basis-section"
               >
-                <h3 class="section-subtitle combo-rental-basis-title">Anschaffung aus Zusammensetzung (ein Set)</h3>
+                <h3 class="section-subtitle combo-rental-basis-title">{{ t('components.materialDetail.rentalComboBasisTitle') }}</h3>
                 <p class="form-hint combo-rental-basis-intro">
-                  Pro Komponente: Summe (aktive Chargen mit Stückpreis) geteilt durch die Stückzahl dieser Chargen —
-                  ergibt den durchschnittlichen Anschaffungspreis pro Stück; multipliziert mit der Menge im Set.
-                  Optional: gleiche Logik wie im Amortisationsrechner bei Einzelmaterial.
+                  {{ t('components.materialDetail.rentalComboBasisIntro') }}
                 </p>
                 <div v-if="comboRentalLoading" class="loading-inline combo-rental-loading">
                   <div class="spinner"></div>
-                  <span>Komponenten und Chargen werden geladen…</span>
+                  <span>{{ t('components.materialDetail.rentalLoadingComponents') }}</span>
                 </div>
                 <p v-else-if="comboRentalError" class="form-hint text-warning">{{ comboRentalError }}</p>
                 <p v-else-if="comboRentalRows.length === 0" class="empty-serials combo-rental-empty">
-                  Keine Einträge in der Stückliste. Unter „Zusammensetzung“ Komponenten hinzufügen, damit eine Basis
-                  berechnet werden kann.
+                  {{ t('components.materialDetail.rentalEmptyBom') }}
                 </p>
                 <template v-else>
                   <div class="combo-rental-basis-table-wrap">
                     <table class="batch-table combo-rental-basis-table">
                       <thead>
                         <tr>
-                          <th>Komponente</th>
-                          <th class="combo-rental-col-num">Menge im Set</th>
-                          <th class="combo-rental-col-num">Ø Anschaffung / Stk.</th>
-                          <th class="combo-rental-col-num">Zeile</th>
+                          <th>{{ t('components.materialDetail.thComponent') }}</th>
+                          <th class="combo-rental-col-num">{{ t('components.materialDetail.thQtyInSet') }}</th>
+                          <th class="combo-rental-col-num">{{ t('components.materialDetail.thAvgPurchasePerPc') }}</th>
+                          <th class="combo-rental-col-num">{{ t('components.materialDetail.thLine') }}</th>
                         </tr>
                       </thead>
                       <tbody>
                         <tr v-for="(row, idx) in comboRentalRows" :key="`${row.componentId}-${idx}`">
                           <td>
                             <span>{{ row.name }}</span>
-                            <span v-if="row.optional" class="composition-optional-badge">optional</span>
+                            <span v-if="row.optional" class="composition-optional-badge">{{ t('components.materialDetail.optionalShortBadge') }}</span>
                           </td>
                           <td class="combo-rental-col-num">{{ row.qty }}</td>
                           <td class="combo-rental-col-num">
-                            <template v-if="row.perPieceChf != null">Fr. {{ formatChfFiveRappenString(row.perPieceChf) }}</template>
-                            <span v-else class="muted">—</span>
+                            <template v-if="row.perPieceChf != null">{{ t('components.materialDetail.currencyFr') }} {{ formatChfFiveRappenString(row.perPieceChf) }}</template>
+                            <span v-else class="muted">{{ t('components.materialDetail.emDash') }}</span>
                           </td>
                           <td class="combo-rental-col-num">
-                            <template v-if="row.lineChf != null">Fr. {{ formatChfFiveRappenString(row.lineChf) }}</template>
-                            <span v-else class="muted">—</span>
+                            <template v-if="row.lineChf != null">{{ t('components.materialDetail.currencyFr') }} {{ formatChfFiveRappenString(row.lineChf) }}</template>
+                            <span v-else class="muted">{{ t('components.materialDetail.emDash') }}</span>
                           </td>
                         </tr>
                       </tbody>
                       <tfoot>
                         <tr class="combo-rental-total-row">
-                          <th colspan="3">Summe (ein Set)</th>
+                          <th colspan="3">{{ t('components.materialDetail.rentalFooterSumOneSet') }}</th>
                           <th class="combo-rental-col-num">
                             <template v-if="rentalAcquisitionBasisChf != null">
-                              Fr. {{ formatChfFiveRappenString(rentalAcquisitionBasisChf) }}
+                              {{ t('components.materialDetail.currencyFr') }} {{ formatChfFiveRappenString(rentalAcquisitionBasisChf) }}
                             </template>
-                            <span v-else class="muted">—</span>
+                            <span v-else class="muted">{{ t('components.materialDetail.emDash') }}</span>
                           </th>
                         </tr>
                       </tfoot>
                     </table>
                   </div>
                   <p v-if="comboRentalHasGap" class="form-hint combo-rental-gap-hint">
-                    Mindestens eine Zeile ohne verwertbaren Stückpreis (Chargen). Die Summe enthält nur vollständige
-                    Zeilen; du kannst die Kalkulationsbasis unten manuell setzen.
+                    {{ t('components.materialDetail.rentalGapHint') }}
                   </p>
                 </template>
               </div>
@@ -1207,39 +1200,39 @@
               
               <div class="form-grid">
                 <div class="form-group">
-                  <label>Tagespreis</label>
+                  <label>{{ t('components.materialDetail.labelDayPrice') }}</label>
                   <div class="input-with-prefix">
-                    <span class="prefix">Fr.</span>
+                    <span class="prefix">{{ t('components.materialDetail.currencyFr') }}</span>
                     <input v-model="formData.rental_price_day" type="text" class="form-input" />
                   </div>
                 </div>
                 <div class="form-group">
-                  <label>Wochenpreis</label>
+                  <label>{{ t('components.materialDetail.labelWeekPrice') }}</label>
                   <div class="input-with-prefix">
-                    <span class="prefix">Fr.</span>
+                    <span class="prefix">{{ t('components.materialDetail.currencyFr') }}</span>
                     <input v-model="formData.rental_price_week" type="text" class="form-input" />
                   </div>
                 </div>
                 <div class="form-group">
-                  <label>Monatspreis</label>
+                  <label>{{ t('components.materialDetail.labelMonthPrice') }}</label>
                   <div class="input-with-prefix">
-                    <span class="prefix">Fr.</span>
+                    <span class="prefix">{{ t('components.materialDetail.currencyFr') }}</span>
                     <input v-model="formData.rental_price_month" type="text" class="form-input" />
                   </div>
                 </div>
                 <div class="form-group">
-                  <label>Kaution</label>
+                  <label>{{ t('components.materialDetail.labelDeposit') }}</label>
                   <div class="input-with-prefix">
-                    <span class="prefix">Fr.</span>
+                    <span class="prefix">{{ t('components.materialDetail.currencyFr') }}</span>
                     <input v-model="formData.rental_deposit" type="text" class="form-input" />
                   </div>
                 </div>
                 <div class="form-group">
-                  <label>Vorlaufzeit (Tage)</label>
+                  <label>{{ t('components.materialDetail.labelLeadDays') }}</label>
                   <input v-model="formData.rental_lead_days" type="number" class="form-input" />
                 </div>
                 <div class="form-group">
-                  <label>Max. Mietdauer (Tage)</label>
+                  <label>{{ t('components.materialDetail.labelMaxRentalDays') }}</label>
                   <input v-model="formData.rental_max_days" type="number" class="form-input" />
                 </div>
               </div>
@@ -1247,28 +1240,28 @@
               <div class="checkbox-group mt-4">
                 <label class="checkbox-label">
                   <input type="checkbox" v-model="formData.rental_external_allowed" />
-                  <span>Externe Vermietung erlaubt</span>
+                  <span>{{ t('components.materialDetail.chkExternalRental') }}</span>
                 </label>
                 <label class="checkbox-label">
                   <input type="checkbox" v-model="formData.rental_requires_approval" />
-                  <span>Genehmigung erforderlich</span>
+                  <span>{{ t('components.materialDetail.chkApprovalRequired') }}</span>
                 </label>
               </div>
 
               <div v-if="formData.rental_external_allowed" class="form-group span-full mt-2">
-                <label>Externe Vermietung — Reichweite</label>
+                <label>{{ t('components.materialDetail.labelExternalRentalScope') }}</label>
                 <select v-model="formData.rental_scope" class="form-select">
-                  <option value="">— nicht festgelegt —</option>
-                  <option value="department">Nur eigenes Department</option>
-                  <option value="organisation">Ganze Organisation</option>
-                  <option value="public">Öffentlich / externe Mieter</option>
+                  <option value="">{{ t('components.materialDetail.rentalScopeUnset') }}</option>
+                  <option value="department">{{ t('components.materialDetail.rentalScopeDepartment') }}</option>
+                  <option value="organisation">{{ t('components.materialDetail.rentalScopeOrganisation') }}</option>
+                  <option value="public">{{ t('components.materialDetail.rentalScopePublic') }}</option>
                 </select>
-                <p class="form-hint">Steuert, wer das Material extern mieten darf (sofern die App dies auswertet).</p>
+                <p class="form-hint">{{ t('components.materialDetail.hintRentalScope') }}</p>
               </div>
 
               <div class="form-group span-full mt-4">
-                <label>Vermietungs-Hinweise</label>
-                <textarea v-model="formData.rental_notes" class="form-textarea" rows="3" placeholder="Besondere Bedingungen, Hinweise..."></textarea>
+                <label>{{ t('components.materialDetail.labelRentalNotes') }}</label>
+                <textarea v-model="formData.rental_notes" class="form-textarea" rows="3" :placeholder="t('components.materialDetail.phRentalNotes')"></textarea>
               </div>
             </div>
           </section>
@@ -1276,25 +1269,25 @@
           <section v-else-if="activeTab === 'archive'" class="tab-content">
             <div class="section-card">
               <div class="section-header-row">
-                <h2 class="section-title">Archiv</h2>
+                <h2 class="section-title">{{ t('components.materialDetail.sectionArchiveTitle') }}</h2>
                 <span class="archive-info-badge">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
                     <circle cx="12" cy="12" r="10"/>
                     <line x1="12" y1="16" x2="12" y2="12"/>
                     <line x1="12" y1="8" x2="12.01" y2="8"/>
                   </svg>
-                  Materialien werden nicht gelöscht – sie gehen verloren oder werden entsorgt
+                  {{ t('components.materialDetail.archiveInfoHint') }}
                 </span>
               </div>
 
               <table class="batch-table archive-table" v-if="archivedBatches.length > 0">
                 <thead>
                   <tr>
-                    <th>Einkaufsdatum</th>
-                    <th>Menge</th>
-                    <th>Preis/Stk</th>
-                    <th>Grund</th>
-                    <th>Notiz</th>
+                    <th>{{ t('components.materialDetail.thAcquiredOn') }}</th>
+                    <th>{{ t('components.materialDetail.thQty') }}</th>
+                    <th>{{ t('components.materialDetail.thPricePerPc') }}</th>
+                    <th>{{ t('components.materialDetail.thReason') }}</th>
+                    <th>{{ t('components.materialDetail.thNote') }}</th>
                     <th></th>
                   </tr>
                 </thead>
@@ -1302,13 +1295,13 @@
                   <tr v-for="batch in archivedBatches" :key="batch.id" class="archived-row">
                     <td>{{ formatDate(batch.acquired_on) }}</td>
                     <td class="qty-cell">{{ getArchivedBatchDisplayQty(batch) }}</td>
-                    <td>{{ batch.unit_price ? `Fr. ${batch.unit_price}` : '-' }}</td>
+                    <td>{{ batch.unit_price ? `${t('components.materialDetail.currencyFr')} ${batch.unit_price}` : t('components.materialDetail.emDash') }}</td>
                     <td>
                       <span class="status-badge" :class="batch.status">
                         {{ statusLabels[batch.status] }}
                       </span>
                     </td>
-                    <td class="notes-cell">{{ batch.notes || '-' }}</td>
+                    <td class="notes-cell">{{ batch.notes || t('components.materialDetail.emDash') }}</td>
                     <td class="actions-cell"></td>
                   </tr>
                 </tbody>
@@ -1322,8 +1315,8 @@
                   <path d="M12 12H7.5a2.5 2.5 0 0 1 0-5C11 7 12 12 12 12z"/>
                   <path d="M12 12h4.5a2.5 2.5 0 0 0 0-5C13 7 12 12 12 12z"/>
                 </svg>
-                <p>Keine archivierten Chargen</p>
-                <span class="empty-archive-hint">Chargen mit Status "Verloren" oder "Entsorgt" erscheinen hier</span>
+                <p>{{ t('components.materialDetail.emptyNoArchivedBatches') }}</p>
+                <span class="empty-archive-hint">{{ t('components.materialDetail.emptyArchiveStatusesHint') }}</span>
               </div>
             </div>
           </section>
@@ -1332,41 +1325,41 @@
           <section v-else-if="activeTab === 'used-in'" class="tab-content">
             <div class="section-card">
               <div class="section-header-row">
-                <h2 class="section-title">Verwendet in Kombos</h2>
+                <h2 class="section-title">{{ t('components.materialDetail.sectionUsedInCombos') }}</h2>
                 <div class="detail-inline-filters">
                   <input
                     v-model="usedInSearch"
                     type="text"
                     class="detail-inline-search"
-                    placeholder="Kombos / Rolle / Seriennummer suchen..."
+                    :placeholder="t('components.materialDetail.usedInSearchPlaceholder')"
                   />
                 </div>
               </div>
 
               <div v-if="isLoadingUsedIn" class="loading-container" style="padding: 40px;">
                 <div class="spinner"></div>
-                <p>Wird geladen...</p>
+                <p>{{ t('components.materialDetail.loadingShort') }}</p>
               </div>
 
               <div v-else-if="usedInEntries.length === 0" class="empty-used-in">
                 <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#d1d5db" stroke-width="1.5">
                   <path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
                 </svg>
-                <p>Dieses Material wird in keiner Kombo verwendet</p>
+                <p>{{ t('components.materialDetail.usedInEmpty') }}</p>
               </div>
               <div v-else-if="filteredUsedInEntries.length === 0" class="empty-used-in">
-                <p>Keine Treffer für diesen Suchbegriff.</p>
+                <p>{{ t('components.materialDetail.usedInNoSearchHits') }}</p>
               </div>
 
               <table v-else class="used-in-table">
                 <thead>
                   <tr>
-                    <th>Kombo</th>
-                    <th>Typ</th>
-                    <th>Rolle</th>
-                    <th>Seriennummer</th>
-                    <th>Menge</th>
-                    <th>Zuordnung</th>
+                    <th>{{ t('components.materialDetail.thCombo') }}</th>
+                    <th>{{ t('components.materialDetail.thComboType') }}</th>
+                    <th>{{ t('components.materialDetail.thRole') }}</th>
+                    <th>{{ t('components.materialDetail.thSerial') }}</th>
+                    <th>{{ t('components.materialDetail.thQty') }}</th>
+                    <th>{{ t('components.materialDetail.thAssignment') }}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1382,13 +1375,13 @@
                     </td>
                     <td>
                       <span class="used-in-type-badge" :class="entry.material_type">
-                        {{ entry.material_type === 'physical_combo' ? 'Physisch' : 'Virtuell' }}
+                        {{ entry.material_type === 'physical_combo' ? t('components.materialDetail.typePhysicalShort') : t('components.materialDetail.typeVirtualShort') }}
                       </span>
                     </td>
-                    <td>{{ entry.component_role || '–' }}</td>
+                    <td>{{ entry.component_role || t('components.materialDetail.emDash') }}</td>
                     <td>
                       <span v-if="entry.batch_serial" class="serial-code">{{ entry.batch_serial }}</span>
-                      <span v-else class="no-serial">–</span>
+                      <span v-else class="no-serial">{{ t('components.materialDetail.emDash') }}</span>
                     </td>
                     <td>{{ entry.qty }}</td>
                     <td>
@@ -1405,11 +1398,11 @@
           <!-- Tab: History Log -->
           <section v-else-if="activeTab === 'history'" class="tab-content">
             <div class="section-card history-card">
-              <h2 class="section-title">Änderungshistorie</h2>
+              <h2 class="section-title">{{ t('components.materialDetail.sectionHistoryTitle') }}</h2>
               
               <div v-if="isLoadingHistory" class="loading-container" style="padding: 40px;">
                 <div class="spinner"></div>
-                <p>Historie wird geladen...</p>
+                <p>{{ t('components.materialDetail.historyLoading') }}</p>
               </div>
 
               <div v-else-if="historyEntries.length === 0" class="empty-history">
@@ -1417,20 +1410,20 @@
                   <circle cx="12" cy="12" r="10"/>
                   <polyline points="12 6 12 12 16 14"/>
                 </svg>
-                <p>Noch keine Änderungen protokolliert</p>
+                <p>{{ t('components.materialDetail.historyEmpty') }}</p>
               </div>
 
               <div v-else class="history-layout">
                 <!-- Linke Seite: Speicherungen (Liste) -->
                 <div class="history-list">
                   <div class="history-list-header">
-                    <span class="history-list-title">Speicherungen</span>
+                    <span class="history-list-title">{{ t('components.materialDetail.historyListSaves') }}</span>
                   </div>
                   <div class="history-list-content">
                     <div class="history-list-table">
                       <div class="history-list-th">
-                        <span class="th-time">Zeitpunkt</span>
-                        <span class="th-user">Erstellt von</span>
+                        <span class="th-time">{{ t('components.materialDetail.historyThTime') }}</span>
+                        <span class="th-user">{{ t('components.materialDetail.historyThUser') }}</span>
                       </div>
                       <div 
                         v-for="entry in historyEntries" 
@@ -1443,7 +1436,7 @@
                           <span class="time-date">{{ formatHistoryDate(entry.created_at) }}</span>
                           <span class="time-clock">{{ formatHistoryTime(entry.created_at) }}</span>
                         </span>
-                        <span class="row-user">{{ entry.user?.name || 'System' }}</span>
+                        <span class="row-user">{{ entry.user?.name || t('components.materialDetail.historyUserSystem') }}</span>
                       </div>
                     </div>
                   </div>
@@ -1452,7 +1445,7 @@
                 <!-- Rechte Seite: Änderungen -->
                 <div class="history-changes">
                   <div class="history-changes-header">
-                    <span class="history-changes-title">Änderungen</span>
+                    <span class="history-changes-title">{{ t('components.materialDetail.historyChangesTitle') }}</span>
                     <div v-if="selectedHistoryEntry" class="history-action-badge" :class="selectedHistoryEntry.action">
                       {{ actionLabels[selectedHistoryEntry.action] || selectedHistoryEntry.action }}
                     </div>
@@ -1465,7 +1458,7 @@
                       <line x1="16" y1="13" x2="8" y2="13"/>
                       <line x1="16" y1="17" x2="8" y2="17"/>
                     </svg>
-                    <p>Wähle einen Speichermoment in der linken Liste aus</p>
+                    <p>{{ t('components.materialDetail.historySelectSaveHint') }}</p>
                   </div>
 
                   <div v-else-if="selectedHistoryEntry.action === 'created'" class="history-created-info">
@@ -1473,9 +1466,9 @@
                       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M12 5v14M5 12h14"/>
                       </svg>
-                      Material erstellt
+                      {{ t('components.materialDetail.historyCreatedBadge') }}
                     </div>
-                    <p class="created-hint">Das Material wurde zu diesem Zeitpunkt erstellt.</p>
+                    <p class="created-hint">{{ t('components.materialDetail.historyCreatedHint') }}</p>
                   </div>
 
                   <div v-else-if="selectedHistoryEntry.action === 'batch_added'" class="history-created-info batch-action">
@@ -1485,7 +1478,7 @@
                         <polyline points="3.27 6.96 12 12.01 20.73 6.96"/>
                         <line x1="12" y1="22.08" x2="12" y2="12"/>
                       </svg>
-                      Charge hinzugefügt
+                      {{ t('components.materialDetail.historyBatchAddedBadge') }}
                     </div>
                     <div v-if="Object.keys(selectedHistoryEntry.changes).length > 0" class="history-changes-list">
                       <div 
@@ -1493,7 +1486,7 @@
                         :key="fieldName"
                         class="history-change-item"
                       >
-                        <div class="change-field">{{ fieldLabels[String(fieldName)] || fieldName }}</div>
+                        <div class="change-field">{{ historyFieldLabel(String(fieldName)) }}</div>
                         <div class="change-values">
                           <div class="change-new-only">
                             <span class="change-value">{{ formatChangeValue(change.new) }}</span>
@@ -1504,7 +1497,7 @@
                   </div>
 
                   <div v-else-if="Object.keys(selectedHistoryEntry.changes).length === 0" class="history-no-changes">
-                    <p>Keine Feldänderungen bei diesem Speichervorgang</p>
+                    <p>{{ t('components.materialDetail.historyNoFieldChanges') }}</p>
                   </div>
 
                   <div v-else class="history-changes-list">
@@ -1513,10 +1506,10 @@
                       :key="fieldName"
                       class="history-change-item"
                     >
-                      <div class="change-field">{{ fieldLabels[String(fieldName)] || fieldName }}</div>
+                      <div class="change-field">{{ historyFieldLabel(String(fieldName)) }}</div>
                       <div class="change-values">
                         <div class="change-old">
-                          <span class="change-label">Vorher</span>
+                          <span class="change-label">{{ t('components.materialDetail.historyLabelBefore') }}</span>
                           <span class="change-value">{{ formatChangeValue(change.old) }}</span>
                         </div>
                         <div class="change-arrow">
@@ -1526,7 +1519,7 @@
                           </svg>
                         </div>
                         <div class="change-new">
-                          <span class="change-label">Nachher</span>
+                          <span class="change-label">{{ t('components.materialDetail.historyLabelAfter') }}</span>
                           <span class="change-value">{{ formatChangeValue(change.new) }}</span>
                         </div>
                       </div>
@@ -1543,8 +1536,8 @@
           <!-- Abbildung -->
           <div class="sidebar-card">
             <div class="sidebar-header">
-              <h3>Abbildung</h3>
-              <button class="link-btn">Mit Google suchen</button>
+              <h3>{{ t('components.materialDetail.sidebarImage') }}</h3>
+              <button class="link-btn">{{ t('components.materialDetail.btnGoogleSearch') }}</button>
             </div>
             <div class="image-slot">
               <svg v-if="!material.image_url" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#d1d5db" stroke-width="1.5">
@@ -1552,30 +1545,30 @@
                 <circle cx="8.5" cy="8.5" r="1.5"/>
                 <polyline points="21 15 16 10 5 21"/>
               </svg>
-              <img v-else :src="material.image_url" alt="Material" />
+              <img v-else :src="material.image_url" :alt="t('components.materialDetail.altMaterialImage')" />
             </div>
             <button v-if="hasAnyQrForPrint" class="btn-outline btn-sm qr-print-btn" @click="openQrActionModalForAll">
-              QR-Codes drucken
+              {{ t('components.materialDetail.btnPrintQrCodes') }}
             </button>
           </div>
 
           <!-- Bestand Quick View -->
           <div class="sidebar-card">
             <div class="sidebar-header">
-              <h3>Bestand</h3>
+              <h3>{{ t('components.materialDetail.sidebarStockQuick') }}</h3>
               <button
                 v-if="isComboMaterialView"
                 type="button"
                 class="link-btn"
                 @click="activeTab = 'composition'"
               >
-                Zusammensetzung
+                {{ t('components.materialDetail.tabComposition') }}
               </button>
-              <button v-else type="button" class="link-btn" @click="activeTab = 'stock'">Ändern</button>
+              <button v-else type="button" class="link-btn" @click="activeTab = 'stock'">{{ t('components.materialDetail.linkChangeStock') }}</button>
             </div>
             <div class="stock-quick">
               <div class="stock-row stock-row-total">
-                <span>Gesamt</span>
+                <span>{{ t('components.materialDetail.stockLabelTotal') }}</span>
                 <span class="stock-val">{{ material.total_stock }}</span>
               </div>
               <div v-if="material.pack_size && material.pack_unit" class="stock-row">
@@ -1583,41 +1576,41 @@
                 <span class="stock-val">{{ packUnitCount }} à {{ material.pack_size }}</span>
               </div>
               <div v-if="material.pack_size && material.pack_unit && packLooseCount > 0" class="stock-row">
-                <span>Einzeln</span>
+                <span>{{ t('components.materialDetail.stockLoosePieces') }}</span>
                 <span class="stock-val">{{ packLooseCount }}</span>
               </div>
               <div class="stock-row-separator"></div>
               <div class="stock-row">
-                <span>Im Lager</span>
+                <span>{{ t('components.materialDetail.stockLabelInWarehouse') }}</span>
                 <span class="stock-val warehouse">{{ material.in_warehouse ?? availableStock }}</span>
               </div>
               <div class="stock-row" v-if="material.issued_out > 0">
-                <span>Draussen</span>
+                <span>{{ t('components.materialDetail.stockLabelOut') }}</span>
                 <span class="stock-val issued">{{ material.issued_out }}</span>
               </div>
               <div class="stock-row" v-if="material.reserved > 0">
-                <span>Reserviert</span>
+                <span>{{ t('components.materialDetail.stockLabelReserved') }}</span>
                 <span class="stock-val reserved">{{ material.reserved }}</span>
               </div>
               <div class="stock-row" v-if="material.repair_stock > 0">
-                <span>Reparatur</span>
+                <span>{{ t('components.materialDetail.stockLabelRepair') }}</span>
                 <span class="stock-val repair">{{ material.repair_stock }}</span>
               </div>
               <div class="stock-row" v-if="material.defect_stock > 0 || defectStock > 0">
-                <span>Defekt</span>
+                <span>{{ t('components.materialDetail.stockLabelDefect') }}</span>
                 <span class="stock-val defect">{{ material.defect_stock || defectStock }}</span>
               </div>
               <div class="stock-row" v-if="archivedStock > 0">
-                <span>Abgeschrieben/Archiv</span>
+                <span>{{ t('components.materialDetail.stockWrittenOffArchive') }}</span>
                 <span class="stock-val archived">{{ archivedStock }}</span>
               </div>
               <div class="stock-row stock-row-loss" v-if="material.open_loss_reports > 0">
-                <span>Verlust gemeldet</span>
+                <span>{{ t('components.materialDetail.sidebarLossReported') }}</span>
                 <span class="stock-val loss">{{ openLossLabel }}</span>
               </div>
               <div class="stock-row-separator"></div>
               <div class="stock-row stock-row-highlight">
-                <span>Verfügbar</span>
+                <span>{{ t('components.materialDetail.stockLabelAvailable') }}</span>
                 <span class="stock-val available">{{ material.available ?? availableStock }}</span>
               </div>
             </div>
@@ -1626,7 +1619,7 @@
           <!-- Kategorie Quick View -->
           <div class="sidebar-card" v-if="material.category">
             <div class="sidebar-header">
-              <h3>Kategorie</h3>
+              <h3>{{ t('components.materialDetail.sidebarCategory') }}</h3>
             </div>
             <div class="category-path">
               {{ getCategoryPath() }}
@@ -1672,17 +1665,17 @@
 
     <div v-if="showAddToContainerModal" class="modal-overlay">
       <div class="modal-dialog">
-        <h3>Artikel zur Kiste/Tasche hinzufügen</h3>
+        <h3>{{ t('components.materialDetail.modalAddToContainerTitle') }}</h3>
         <div class="form-group">
-          <label>Artikel suchen</label>
+          <label>{{ t('components.materialDetail.labelSearchArticle') }}</label>
           <MaterialLookupInput
             v-model="addToContainerSearch"
             :fetcher="addToContainerMaterialFetcher"
             :min-chars="1"
             :max-suggestions="5"
-            placeholder="Material suchen..."
-            :loading-text="'Suche...'"
-            :empty-text="`Keine Treffer für „${addToContainerSearch || ''}“`"
+            :placeholder="t('components.materialDetail.phSearchMaterial')"
+            :loading-text="t('components.materialDetail.lookupLoading')"
+            :empty-text="t('components.materialDetail.lookupEmptyHits', { query: addToContainerSearch || '' })"
             :get-result-label="formatAddToContainerLookupLabel"
             :get-result-secondary="formatAddToContainerLookupSecondary"
             @select="handleAddToContainerLookupSelect"
@@ -1690,18 +1683,18 @@
         </div>
 
         <div v-if="addToContainerSourceMaterial" class="form-group">
-          <label>Ausgewählter Artikel</label>
+          <label>{{ t('components.materialDetail.labelSelectedArticle') }}</label>
           <div class="selected-source-material">
             <div class="name">{{ addToContainerSourceMaterial.name }}</div>
-            <div class="meta">{{ addToContainerSourceMaterial.total_stock || 0 }} Stk. gesamt</div>
-            <button type="button" class="btn-outline-small" @click="clearAddToContainerMaterialSelection">Ändern</button>
+            <div class="meta">{{ t('components.materialDetail.metaTotalStock', { n: addToContainerSourceMaterial.total_stock || 0 }) }}</div>
+            <button type="button" class="btn-outline-small" @click="clearAddToContainerMaterialSelection">{{ t('components.materialDetail.btnChangeSelection') }}</button>
           </div>
         </div>
 
         <div v-if="addToContainerSourceMaterialId" class="form-group">
-          <label>Charge / Serie</label>
+          <label>{{ t('components.materialDetail.labelBatchOrSerial') }}</label>
           <select v-model="addToContainerSourceBatchId" class="form-select" @change="handleAddToContainerBatchChange">
-            <option value="">– Quelle wählen –</option>
+            <option value="">{{ t('components.materialDetail.optSelectSource') }}</option>
             <option v-for="batch in addToContainerSourceBatches" :key="batch.id" :value="batch.id">
               {{ formatSourceBatchOption(batch) }}
             </option>
@@ -1709,26 +1702,26 @@
         </div>
 
         <div v-if="selectedAddToContainerAllocations.length > 0" class="form-group">
-          <label>Von (Quelle / Standort)</label>
+          <label>{{ t('components.materialDetail.labelFromSourceLocation') }}</label>
           <select v-model="addToContainerSourceAllocationId" class="form-select">
-            <option value="">– Quelle wählen –</option>
+            <option value="">{{ t('components.materialDetail.optSelectSource') }}</option>
             <option v-for="alloc in selectedAddToContainerAllocations" :key="alloc.id" :value="alloc.id">
-              {{ formatAllocationLocationInline(alloc) }} – {{ alloc.qty }} Stk.
+              {{ formatAllocationLocationInline(alloc) }} – {{ t('components.materialDetail.qtyPieces', { qty: alloc.qty }) }}
             </option>
           </select>
         </div>
 
         <div v-if="selectedAddToContainerBatch" class="form-group">
-          <label>Menge</label>
+          <label>{{ t('components.materialDetail.thQty') }}</label>
           <input v-model.number="addToContainerQty" type="number" min="1" :max="addToContainerMaxQty" class="form-input" />
-          <p class="batch-field-hint">Max. {{ addToContainerMaxQty }} Stk.</p>
+          <p class="batch-field-hint">{{ t('components.materialDetail.hintMaxQty', { n: addToContainerMaxQty }) }}</p>
         </div>
 
         <p v-if="addToContainerError" class="error-text">{{ addToContainerError }}</p>
         <div class="modal-actions">
-          <button class="btn-secondary btn-sm" @click="closeAddToContainerModal">Abbrechen</button>
+          <button class="btn-secondary btn-sm" @click="closeAddToContainerModal">{{ t('common.cancel') }}</button>
           <button class="btn-primary btn-sm" :disabled="!canSubmitAddToContainer || isAddingToContainer" @click="submitAddToContainer">
-            {{ isAddingToContainer ? 'Hinzufügen...' : 'Hinzufügen' }}
+            {{ isAddingToContainer ? t('components.materialDetail.modalAddToContainerSubmitting') : t('components.materialDetail.modalAddToContainerSubmit') }}
           </button>
         </div>
       </div>
@@ -1736,50 +1729,49 @@
 
     <div v-if="showAddCompositionModal" class="modal-overlay" @click.self="closeAddCompositionModal">
       <div class="modal-dialog composition-add-modal">
-        <h3>Komponente hinzufügen</h3>
+        <h3>{{ t('components.materialDetail.modalAddCompositionTitle') }}</h3>
         <p class="text-muted composition-add-modal-intro">
-          Wählen Sie einen bestehenden Artikel aus Ihrem Materialbestand. Die Zuordnung (z.&nbsp;B. Mengenware) können Sie
-          bei Bedarf später anpassen.
+          {{ t('components.materialDetail.modalAddCompositionIntro') }}
         </p>
         <div class="form-group">
-          <label>Artikel suchen</label>
+          <label>{{ t('components.materialDetail.labelSearchArticle') }}</label>
           <MaterialLookupInput
             v-model="addCompositionSearch"
             :fetcher="compositionMaterialFetcher"
             :min-chars="1"
             :max-suggestions="8"
-            placeholder="Name oder Code…"
-            :loading-text="'Suche…'"
-            :empty-text="`Keine Treffer für „${addCompositionSearch || ''}“`"
+            :placeholder="t('components.materialDetail.phNameOrCode')"
+            :loading-text="t('components.materialDetail.lookupLoadingEllipsis')"
+            :empty-text="t('components.materialDetail.lookupEmptyHits', { query: addCompositionSearch || '' })"
             :get-result-label="compositionLookupLabel"
             :get-result-secondary="formatCompositionLookupSecondary"
             @select="handleCompositionMaterialSelect"
           />
         </div>
         <div v-if="addCompositionSelected" class="form-group">
-          <label>Ausgewählter Artikel</label>
+          <label>{{ t('components.materialDetail.labelSelectedArticle') }}</label>
           <div class="selected-source-material">
             <div class="name">{{ addCompositionSelected.name }}</div>
-            <div class="meta">{{ addCompositionSelected.total_stock ?? 0 }} Stk. gesamt</div>
-            <button type="button" class="btn-outline-small" @click="clearAddCompositionSelection">Ändern</button>
+            <div class="meta">{{ t('components.materialDetail.metaTotalStock', { n: addCompositionSelected.total_stock ?? 0 }) }}</div>
+            <button type="button" class="btn-outline-small" @click="clearAddCompositionSelection">{{ t('components.materialDetail.btnChangeSelection') }}</button>
           </div>
         </div>
         <div v-if="addCompositionSelected" class="form-group">
-          <label>Menge</label>
+          <label>{{ t('components.materialDetail.thQty') }}</label>
           <input v-model.number="addCompositionQty" type="number" min="1" class="form-input" />
         </div>
         <div v-if="addCompositionSelected" class="form-group">
-          <label>Rolle (optional)</label>
-          <input v-model="addCompositionRole" type="text" class="form-input" placeholder="z.&nbsp;B. Aussenzelt, Heringe" />
+          <label>{{ t('components.materialDetail.labelRoleOptional') }}</label>
+          <input v-model="addCompositionRole" type="text" class="form-input" :placeholder="t('components.materialDetail.phRoleExamples')" />
         </div>
         <div v-if="addCompositionSelected" class="form-group">
           <label class="checkbox-label">
             <input v-model="addCompositionOptional" type="checkbox" />
-            Optional (nicht zwingend für die Kombination)
+            {{ t('components.materialDetail.labelOptionalForCombo') }}
           </label>
         </div>
         <div v-if="addCompositionSelected" class="form-group">
-          <label>Zuordnung</label>
+          <label>{{ t('components.materialDetail.labelAssignmentMode') }}</label>
           <select v-model="addCompositionMode" class="form-select">
             <option value="bulk">{{ comboAssignmentLabels.bulk }}</option>
             <option value="fixed">{{ comboAssignmentLabels.fixed }}</option>
@@ -1789,14 +1781,14 @@
         </div>
         <p v-if="addCompositionError" class="error-text">{{ addCompositionError }}</p>
         <div class="modal-actions">
-          <button type="button" class="btn-secondary btn-sm" @click="closeAddCompositionModal">Abbrechen</button>
+          <button type="button" class="btn-secondary btn-sm" @click="closeAddCompositionModal">{{ t('common.cancel') }}</button>
           <button
             type="button"
             class="btn-primary btn-sm"
             :disabled="!canSubmitAddComposition || addCompositionSubmitting"
             @click="submitAddComposition"
           >
-            {{ addCompositionSubmitting ? 'Hinzufügen…' : 'Hinzufügen' }}
+            {{ addCompositionSubmitting ? t('components.materialDetail.modalAddCompositionSubmitting') : t('components.materialDetail.modalAddToContainerSubmit') }}
           </button>
         </div>
       </div>
@@ -1804,26 +1796,26 @@
 
     <div v-if="showEditCompositionModal && editCompositionComp" class="modal-overlay" @click.self="closeEditCompositionModal">
       <div class="modal-dialog composition-add-modal">
-        <h3>Komponente bearbeiten</h3>
+        <h3>{{ t('components.materialDetail.modalEditCompositionTitle') }}</h3>
         <p class="text-muted composition-add-modal-intro">
           <strong>{{ editCompositionComp.component_material.name }}</strong>
         </p>
         <div class="form-group">
-          <label>Menge</label>
+          <label>{{ t('components.materialDetail.thQty') }}</label>
           <input v-model.number="editCompositionQty" type="number" min="1" class="form-input" />
         </div>
         <div class="form-group">
-          <label>Rolle (optional)</label>
-          <input v-model="editCompositionRole" type="text" class="form-input" placeholder="z.&nbsp;B. Aussenzelt, Heringe" />
+          <label>{{ t('components.materialDetail.labelRoleOptional') }}</label>
+          <input v-model="editCompositionRole" type="text" class="form-input" :placeholder="t('components.materialDetail.phRoleExamples')" />
         </div>
         <div class="form-group">
           <label class="checkbox-label">
             <input v-model="editCompositionOptional" type="checkbox" />
-            Optional (nicht zwingend für die Kombination)
+            {{ t('components.materialDetail.labelOptionalForCombo') }}
           </label>
         </div>
         <div class="form-group">
-          <label>Zuordnung</label>
+          <label>{{ t('components.materialDetail.labelAssignmentMode') }}</label>
           <select v-model="editCompositionMode" class="form-select">
             <option value="bulk">{{ comboAssignmentLabels.bulk }}</option>
             <option value="fixed">{{ comboAssignmentLabels.fixed }}</option>
@@ -1831,27 +1823,27 @@
             <option value="on_issue">{{ comboAssignmentLabels.on_issue }}</option>
           </select>
         </div>
-        <div v-if="editCompositionBatchesLoading" class="form-group text-muted">Chargen werden geladen…</div>
+        <div v-if="editCompositionBatchesLoading" class="form-group text-muted">{{ t('components.materialDetail.loadingBatchesEllipsis') }}</div>
         <div v-else-if="editCompositionBatches.length > 0" class="form-group">
-          <label>Zugewiesene Charge (optional)</label>
+          <label>{{ t('components.materialDetail.labelAssignedBatchOptional') }}</label>
           <select v-model="editCompositionBatchId" class="form-select">
-            <option value="">– keine Charge –</option>
+            <option value="">{{ t('components.materialDetail.optNoBatch') }}</option>
             <option v-for="b in editCompositionBatches" :key="b.id" :value="b.id">
               {{ formatCompositionBatchOption(b) }}
             </option>
           </select>
-          <p class="batch-field-hint">Nur bei Seriennummern oder fester Zuweisung relevant.</p>
+          <p class="batch-field-hint">{{ t('components.materialDetail.hintAssignedBatchSerie') }}</p>
         </div>
         <p v-if="editCompositionError" class="error-text">{{ editCompositionError }}</p>
         <div class="modal-actions">
-          <button type="button" class="btn-secondary btn-sm" @click="closeEditCompositionModal">Abbrechen</button>
+          <button type="button" class="btn-secondary btn-sm" @click="closeEditCompositionModal">{{ t('common.cancel') }}</button>
           <button
             type="button"
             class="btn-primary btn-sm"
             :disabled="editCompositionSubmitting || (editCompositionQty ?? 0) < 1"
             @click="submitEditComposition"
           >
-            {{ editCompositionSubmitting ? 'Speichern…' : 'Speichern' }}
+            {{ editCompositionSubmitting ? t('components.materialDetail.modalEditCompositionSaving') : t('common.save') }}
           </button>
         </div>
       </div>
@@ -1859,18 +1851,18 @@
 
     <div v-if="showQrActionModal" class="modal-overlay" @click.self="closeQrActionModal">
       <div class="modal-dialog">
-        <h3>QR-Aktion</h3>
+        <h3>{{ t('components.materialDetail.modalQrActionTitle') }}</h3>
         <p class="qr-modal-text">{{ qrActionLabel }}</p>
-        <p v-if="qrActionCode" class="qr-modal-meta">Code: {{ qrActionCode }}</p>
+        <p v-if="qrActionCode" class="qr-modal-meta">{{ t('components.materialDetail.labelCode') }}: {{ qrActionCode }}</p>
         <p v-else-if="qrActionMode === 'all'" class="qr-modal-meta">
-          Druckt alle verfügbaren QR-Codes dieses Materials.
+          {{ t('components.materialDetail.qrPrintAllHint') }}
         </p>
         <div class="modal-actions">
-          <button class="btn-secondary btn-sm" @click="closeQrActionModal">Abbrechen</button>
-          <button class="btn-outline btn-sm" @click="handleQrAddToPrintCart">In Druckkorb</button>
-          <button v-if="qrActionUrl" class="btn-outline btn-sm" @click="handleQrOpenLink">QR-Seite öffnen</button>
-          <button v-if="qrActionUrl" class="btn-outline btn-sm" @click="handleQrCopyLink">QR-Link kopieren</button>
-          <button v-if="qrActionUrl || qrActionMode === 'all'" class="btn-primary btn-sm" @click="handleQrPrint">Drucken</button>
+          <button class="btn-secondary btn-sm" @click="closeQrActionModal">{{ t('common.cancel') }}</button>
+          <button class="btn-outline btn-sm" @click="handleQrAddToPrintCart">{{ t('components.materialDetail.btnAddToPrintCart') }}</button>
+          <button v-if="qrActionUrl" class="btn-outline btn-sm" @click="handleQrOpenLink">{{ t('components.materialDetail.btnOpenQrPage') }}</button>
+          <button v-if="qrActionUrl" class="btn-outline btn-sm" @click="handleQrCopyLink">{{ t('components.materialDetail.btnCopyQrLink') }}</button>
+          <button v-if="qrActionUrl || qrActionMode === 'all'" class="btn-primary btn-sm" @click="handleQrPrint">{{ t('components.materialDetail.btnPrint') }}</button>
         </div>
       </div>
     </div>
@@ -1957,7 +1949,7 @@ const pageHeadStore = usePageHeadStore()
 const authStore = useAuthStore()
 const detailTabsStore = useDetailTabsStore()
 const toast = useToast()
-const { t } = useI18n()
+const { t, tm } = useI18n()
 const physicalComboWarningStore = usePhysicalComboWarningStore()
 
 const DETAIL_QUERY_KEYS = {
@@ -2019,20 +2011,20 @@ const canSubmitAddComposition = computed(
   () => !!addCompositionSelected.value && (addCompositionQty.value ?? 0) >= 1
 )
 
-const comboAssignmentLabels: Record<string, string> = {
-  fixed: 'Fest verbaut',
-  assigned: 'Zugewiesen',
-  on_issue: 'Bei Ausgabe',
-  bulk: 'Mengenware',
-}
+const comboAssignmentLabels = computed((): Record<string, string> => ({
+  fixed: t('components.materialDetail.assignmentFixed'),
+  assigned: t('components.materialDetail.assignmentAssigned'),
+  on_issue: t('components.materialDetail.assignmentOnIssue'),
+  bulk: t('components.materialDetail.assignmentBulk'),
+}))
 
 /** Kurzlabels im Tab Zusammensetzung (voller Text per title) – weniger horizontales Scrollen */
-const comboAssignmentLabelsShort: Record<string, string> = {
-  fixed: 'Fest',
-  assigned: 'Zugew.',
-  on_issue: 'Ausgabe',
-  bulk: 'Menge',
-}
+const comboAssignmentLabelsShort = computed((): Record<string, string> => ({
+  fixed: t('components.materialDetail.assignmentShortFixed'),
+  assigned: t('components.materialDetail.assignmentShortAssigned'),
+  on_issue: t('components.materialDetail.assignmentShortOnIssue'),
+  bulk: t('components.materialDetail.assignmentShortBulk'),
+}))
 
 const isComboMaterialView = computed(
   () =>
@@ -2139,7 +2131,7 @@ async function loadComboRentalBreakdown() {
       }
     })
   } catch {
-    comboRentalError.value = 'Stückliste konnte nicht geladen werden.'
+    comboRentalError.value = t('components.materialDetail.errComboRentalLoad')
     comboRentalRows.value = []
   } finally {
     comboRentalLoading.value = false
@@ -2157,9 +2149,9 @@ function onRentalCalculatorApply(p: { day: string; week: string; month: string }
   void nextTick(() => {
     detailTabsStore.setTabDirty(props.materialId, 'material', props.departmentId, hasChanges.value)
     if (rentalChanged) {
-      toast.success('Vorschlag übernommen. Speichern nicht vergessen.')
+      toast.success(t('components.materialDetail.toastRentalSuggestionApplied'))
     } else {
-      toast.info('Bereits diese Vermietpreise.')
+      toast.info(t('components.materialDetail.toastRentalPricesUnchanged'))
     }
   })
 }
@@ -2672,7 +2664,7 @@ async function loadComboComponentsForTab() {
     comboComponentsList.value = await getComboComponents(props.materialId)
   } catch (err) {
     console.error('Zusammensetzung:', err)
-    toast.error('Zusammensetzung konnte nicht geladen werden.')
+    toast.error(t('components.materialDetail.errCompositionLoad'))
   } finally {
     comboComponentsLoading.value = false
   }
@@ -2741,14 +2733,14 @@ async function submitAddComposition() {
       assignment_mode: addCompositionMode.value,
       sort_order: maxSort + 1,
     })
-    toast.success('Komponente hinzugefügt.')
+    toast.success(t('components.materialDetail.toastCompositionAdded'))
     showAddCompositionModal.value = false
     await loadComboComponentsForTab()
     await loadMaterial()
     emit('updated', material.value)
   } catch (e: unknown) {
     const ax = e as { response?: { data?: { error?: string } } }
-    addCompositionError.value = ax.response?.data?.error || 'Hinzufügen fehlgeschlagen.'
+    addCompositionError.value = ax.response?.data?.error || t('components.materialDetail.errCompositionAdd')
   } finally {
     addCompositionSubmitting.value = false
   }
@@ -2807,34 +2799,32 @@ async function submitEditComposition() {
         bid && editCompositionBatches.value.some((b) => b.id === bid) ? bid : null
     }
     await updateComboComponent(props.materialId, comp.id, payload)
-    toast.success('Komponente gespeichert.')
+    toast.success(t('components.materialDetail.toastCompositionSaved'))
     closeEditCompositionModal()
     await loadComboComponentsForTab()
     await loadMaterial()
     emit('updated', material.value)
   } catch (e: unknown) {
     const ax = e as { response?: { data?: { error?: string } } }
-    editCompositionError.value = ax.response?.data?.error || 'Speichern fehlgeschlagen.'
+    editCompositionError.value = ax.response?.data?.error || t('components.materialDetail.errCompositionSave')
   } finally {
     editCompositionSubmitting.value = false
   }
 }
 
 async function confirmDeleteComposition(comp: ComboComponent) {
-  const ok = confirm(
-    `Komponente „${comp.component_material.name}“ aus dieser Kombination entfernen?`
-  )
+  const ok = confirm(t('components.materialDetail.confirmRemoveComposition', { name: comp.component_material.name }))
   if (!ok) return
   deletingCompositionId.value = comp.id
   try {
     await deleteComboComponent(props.materialId, comp.id)
-    toast.success('Komponente entfernt.')
+    toast.success(t('components.materialDetail.toastCompositionRemoved'))
     await loadComboComponentsForTab()
     await loadMaterial()
     emit('updated', material.value)
   } catch (e: unknown) {
     const ax = e as { response?: { data?: { error?: string } } }
-    toast.error(ax.response?.data?.error || 'Löschen fehlgeschlagen.')
+    toast.error(ax.response?.data?.error || t('components.materialDetail.errCompositionDelete'))
   } finally {
     deletingCompositionId.value = null
   }
@@ -2875,7 +2865,7 @@ async function loadMaterial() {
     detailTabsStore.addOrUpdateTab({
       id: props.materialId,
       type: 'material',
-      label: data.name || `Material ${props.materialId}`,
+      label: data.name || t('components.materialDetail.tabFallbackMaterialName', { id: props.materialId }),
       departmentId: props.departmentId,
       path: `/${props.departmentId}/materials/${props.materialId}`,
     })
@@ -2905,17 +2895,15 @@ async function generateMaterialPublicCode() {
     await loadMaterial()
     emit('updated', material.value)
     if (linkedKisteCombo) {
-      toast.success(
-        'Öffentlicher Link ist gesetzt: gleicher QR wie an der Referenz-Kiste – es wird kein zweites Etikett erzeugt.'
-      )
+      toast.success(t('components.materialDetail.toastQrLinkedCombo'))
     } else {
-      toast.success('QR-Code wurde erzeugt.')
+      toast.success(t('components.materialDetail.toastQrCreated'))
     }
   } catch (err: any) {
     console.error('Fehler beim öffentlichen QR-Code:', err)
     toast.error(
       err?.response?.data?.error ||
-        (linkedKisteCombo ? 'QR-Code konnte nicht übernommen werden.' : 'QR-Code konnte nicht erzeugt werden.')
+        (linkedKisteCombo ? t('components.materialDetail.errQrCreateLinked') : t('components.materialDetail.errQrCreateGeneric'))
     )
   } finally {
     isGeneratingPublicCode.value = false
@@ -3337,7 +3325,7 @@ async function onSerialBatchIsContainerChange(batch: MaterialBatch, value: boole
     await ensureContainerBatchesLoaded()
     emit('updated', material.value)
   } catch (e: any) {
-    toast.error(e?.response?.data?.error || 'Behälter-Markierung konnte nicht gespeichert werden.')
+    toast.error(e?.response?.data?.error || t('components.materialDetail.errContainerFlagSave'))
   } finally {
     delete serialIsContainerSaving[id]
   }
@@ -3408,10 +3396,10 @@ async function saveContainerEditor() {
     if (containerEditorMaterialId.value === props.materialId) {
       await loadMaterial()
     }
-    toast.success('Kiste/Tasche gespeichert.')
+    toast.success(t('components.materialDetail.toastContainerSaved'))
   } catch (err: any) {
     console.error('Fehler beim Speichern der Kiste/Tasche:', err)
-    toast.error(err?.response?.data?.error || 'Speichern fehlgeschlagen.')
+    toast.error(err?.response?.data?.error || t('components.materialDetail.errSaveGeneric'))
   } finally {
     isSavingContainerEditor.value = false
   }
@@ -3506,7 +3494,7 @@ async function loadAddToContainerSourceMaterial() {
     addToContainerQty.value = 1
   } catch (err: any) {
     console.error('Fehler beim Laden des Quellartikels:', err)
-    addToContainerError.value = err?.response?.data?.error || 'Quellartikel konnte nicht geladen werden.'
+    addToContainerError.value = err?.response?.data?.error || t('components.materialDetail.errLoadSourceMaterial')
     addToContainerSourceMaterial.value = null
   } finally {
     isLoadingSourceMaterial.value = false
@@ -3559,7 +3547,10 @@ function openQrActionModalForBatch(batch: any) {
   qrActionEntityId.value = String(batch?.id || '')
   const serial = String(batch?.serial_number || '').trim()
   const label = String(batch?.label || '').trim()
-  qrActionLabel.value = serial || label || `Serie ${String(batch?.id || '').slice(-6)}`
+  qrActionLabel.value =
+    serial ||
+    label ||
+    t('components.materialDetail.labelSerialFallback', { suffix: String(batch?.id || '').slice(-6) })
   qrActionCode.value = String(batch?.public_code || '')
   qrActionUrl.value = String(batch?.public_url || '')
   showQrActionModal.value = true
@@ -3580,7 +3571,7 @@ function closeQrActionModal() {
 
 async function handleQrAddToPrintCart() {
   if (!props.departmentId) {
-    toast.error('Kein Department ausgewählt.')
+    toast.error(t('components.materialDetail.errNoDepartment'))
     return
   }
 
@@ -3600,7 +3591,7 @@ async function handleQrAddToPrintCart() {
         department_id: props.departmentId,
         entity_type: 'material',
         entity_id: String(material.value?.id || ''),
-        label: String(material.value?.name || 'Material'),
+        label: String(material.value?.name || t('components.materialDetail.badgeMaterial')),
         public_code: String(material.value?.public_code || '') || null,
         public_url: materialUrl,
       })
@@ -3615,23 +3606,31 @@ async function handleQrAddToPrintCart() {
         department_id: props.departmentId,
         entity_type: 'batch',
         entity_id: String(batch?.id || ''),
-        label: serial || label || `Serie ${String(batch?.id || '').slice(-6)}`,
+        label:
+          serial ||
+          label ||
+          t('components.materialDetail.labelSerialFallback', { suffix: String(batch?.id || '').slice(-6) }),
         public_code: String(batch?.public_code || '') || null,
         public_url: url,
       })
     }
 
     if (payloads.length === 0) {
-      toast.info('Keine QR-Codes zum Hinzufügen vorhanden.')
+      toast.info(t('components.materialDetail.toastPrintCartNoCodes'))
       return
     }
 
     try {
       const result = await addPrintCartItemsBulk(props.departmentId, payloads)
-      toast.success(`Druckkorb aktualisiert: ${result.created_count} neu, ${result.skipped_count} bereits vorhanden.`)
+      toast.success(
+        t('components.materialDetail.toastPrintCartUpdated', {
+          created: result.created_count,
+          skipped: result.skipped_count,
+        })
+      )
       closeQrActionModal()
     } catch (err: any) {
-      toast.error(err?.response?.data?.error || 'Druckkorb konnte nicht aktualisiert werden.')
+      toast.error(err?.response?.data?.error || t('components.materialDetail.errPrintCartUpdate'))
     }
     return
   }
@@ -3639,7 +3638,7 @@ async function handleQrAddToPrintCart() {
   const url = qrActionUrl.value.trim()
   const entityId = qrActionEntityId.value.trim()
   if (!url || !entityId) {
-    toast.info('Kein gültiger QR-Link vorhanden.')
+    toast.info(t('components.materialDetail.toastNoValidQrLink'))
     return
   }
 
@@ -3652,17 +3651,19 @@ async function handleQrAddToPrintCart() {
       public_code: qrActionCode.value || null,
       public_url: url,
     })
-    toast.success(result.created ? 'Zum Druckkorb hinzugefügt.' : 'Bereits im Druckkorb vorhanden.')
+    toast.success(
+      result.created ? t('components.materialDetail.toastPrintCartAdded') : t('components.materialDetail.toastPrintCartAlready')
+    )
     closeQrActionModal()
   } catch (err: any) {
-    toast.error(err?.response?.data?.error || 'Konnte nicht zum Druckkorb hinzufügen.')
+    toast.error(err?.response?.data?.error || t('components.materialDetail.errPrintCartAdd'))
   }
 }
 
 function handleQrOpenLink() {
   const url = qrActionUrl.value.trim()
   if (!url) {
-    toast.info('Kein öffentlicher Link verfügbar.')
+    toast.info(t('components.materialDetail.toastNoPublicLink'))
     return
   }
   window.open(url, '_blank')
@@ -3671,11 +3672,11 @@ function handleQrOpenLink() {
 async function handleQrCopyLink() {
   const url = qrActionUrl.value.trim()
   if (!url) {
-    toast.info('Kein öffentlicher Link verfügbar.')
+    toast.info(t('components.materialDetail.toastNoPublicLink'))
     return
   }
   await navigator.clipboard.writeText(url)
-  toast.success('QR-Link kopiert.')
+  toast.success(t('components.materialDetail.toastQrLinkCopied'))
 }
 
 function escapeHtml(raw: string): string {
@@ -3709,7 +3710,10 @@ async function buildPrintRowsForAllQrs(): Promise<Array<{ label: string; code: s
     if (!url) continue
     const serial = String(batch?.serial_number || '').trim()
     const label = String(batch?.label || '').trim()
-    const title = serial || label || `Serie ${String(batch?.id || '').slice(-6)}`
+    const title =
+      serial ||
+      label ||
+      t('components.materialDetail.labelSerialFallback', { suffix: String(batch?.id || '').slice(-6) })
     const code = String(batch?.public_code || '').trim()
     tasks.push((async () => {
       const qrDataUrl = await QRCode.toDataURL(url, { width: 220, margin: 1 })
@@ -3725,7 +3729,7 @@ async function handleQrPrint() {
   if (qrActionMode.value === 'all') {
     const rows = await buildPrintRowsForAllQrs()
     if (rows.length === 0) {
-      toast.info('Keine QR-Codes zum Drucken vorhanden.')
+      toast.info(t('components.materialDetail.toastNoQrToPrint'))
       return
     }
     const cards = rows
@@ -3763,7 +3767,7 @@ async function handleQrPrint() {
 
   const url = qrActionUrl.value.trim()
   if (!url) {
-    toast.info('Kein öffentlicher Link verfügbar.')
+    toast.info(t('components.materialDetail.toastNoPublicLink'))
     return
   }
   const qrDataUrl = await QRCode.toDataURL(url, { width: 300, margin: 1 })
@@ -3812,10 +3816,10 @@ async function submitAddToContainer() {
     await loadContainerEditorForSelectedBatch()
     await loadContainerBatches()
     await loadMaterial()
-    toast.success('Artikel wurde zur Kiste/Tasche hinzugefügt.')
+    toast.success(t('components.materialDetail.toastAddedToContainer'))
   } catch (err: any) {
     console.error('Fehler beim Hinzufügen zur Kiste:', err)
-    addToContainerError.value = err?.response?.data?.error || 'Verschieben fehlgeschlagen.'
+    addToContainerError.value = err?.response?.data?.error || t('components.materialDetail.errMoveToContainer')
   } finally {
     isAddingToContainer.value = false
   }
@@ -3826,7 +3830,7 @@ async function save() {
     const sp = formData.sale_price
     const rp = formData.reference_purchase_unit_chf
     if (sp == null || Number(sp) <= 0 || rp == null || Number(rp) <= 0) {
-      toast.error('Bitte Verkaufs- und Referenz-Einkaufspreis (je Stück, größer 0) eintragen.')
+      toast.error(t('components.materialDetail.errConsumablePricesRequired'))
       return
     }
   }
@@ -3904,88 +3908,49 @@ async function save() {
     }
   } catch (err: any) {
     console.error('Fehler beim Speichern:', err)
-    toast.error(err?.response?.data?.error || 'Fehler beim Speichern des Materials')
+    toast.error(err?.response?.data?.error || t('components.materialDetail.errSaveMaterial'))
   } finally {
     isSaving.value = false
   }
 }
 
 // History Labels
-const actionLabels: Record<string, string> = {
-  created: 'Erstellt',
-  updated: 'Aktualisiert',
-  deleted: 'Gelöscht',
-  batch_added: 'Charge hinzugefügt',
-  batch_updated: 'Bestand geändert'
-}
+const actionLabels = computed((): Record<string, string> => ({
+  created: t('components.materialDetail.historyActionCreated'),
+  updated: t('components.materialDetail.historyActionUpdated'),
+  deleted: t('components.materialDetail.historyActionDeleted'),
+  batch_added: t('components.materialDetail.historyActionBatchAdded'),
+  batch_updated: t('components.materialDetail.historyActionBatchUpdated'),
+}))
 
-const fieldLabels: Record<string, string> = {
-  name: 'Name',
-  description: 'Beschreibung',
-  category: 'Kategorie',
-  category_id: 'Kategorie (ID)',
-  storage_address: 'Lagerort',
-  storage_address_id: 'Lagerort (ID)',
-  location: 'Standort',
-  condition: 'Zustand',
-  material_type: 'Material-Typ',
-  tracking_type: 'Tracking-Typ',
-  is_container: 'Behälter',
-  color: 'Farbe',
-  size_length: 'Länge',
-  size_width: 'Breite',
-  size_height: 'Höhe',
-  weight: 'Gewicht',
-  ean: 'EAN',
-  barcode_tag: 'Code / Barcode',
-  manufacturer: 'Hersteller',
-  model: 'Modell',
-  warranty_until: 'Garantie bis',
-  rental_external_allowed: 'Externe Vermietung',
-  rental_scope: 'Vermietungs-Bereich',
-  rental_requires_approval: 'Genehmigung nötig',
-  rental_price_day: 'Tagespreis',
-  rental_price_week: 'Wochenpreis',
-  rental_price_month: 'Monatspreis',
-  rental_deposit: 'Kaution',
-  rental_lead_days: 'Vorlaufzeit (Tage)',
-  rental_max_days: 'Max. Mietdauer (Tage)',
-  rental_notes: 'Vermietungs-Hinweise',
-  rental_calc_params: 'Amortisationsrechner (Eingaben)',
-  pack_size: 'Stück pro Einheit',
-  pack_unit: 'Verpackungseinheit',
-  is_js_material: 'J&S-Material',
-  external_source: 'Externe Quelle',
-  // Batch-Felder
-  batch_id: 'Chargen-ID',
-  'batch.qty': 'Menge',
-  'batch.unit_price': 'Stückpreis',
-  'batch.status': 'Status',
-  'batch.notes': 'Notiz',
-  'batch.label': 'Label',
-  'batch.serial_number': 'Seriennummer',
-  'batch.rack_id': 'Gestell',
-  'batch.slot_id': 'Platz',
-  'batch.supplier': 'Lieferant',
-  acquired_on: 'Kaufdatum',
-  qty: 'Menge',
-  unit_price: 'Stückpreis'
+function historyFieldLabel(fieldName: string): string {
+  const rows = tm('components.materialDetail.historyFields') as Record<string, string> | undefined
+  if (rows && typeof rows[fieldName] === 'string') return rows[fieldName] as string
+  return fieldName
 }
 
 // Used-In Labels
-const usedInAssignmentLabels: Record<string, string> = {
-  fixed: 'Fest verbaut',
-  assigned: 'Zugewiesen',
-  on_issue: 'Bei Ausgabe',
-  bulk: 'Mengenware'
-}
+const usedInAssignmentLabels = computed((): Record<string, string> => ({
+  fixed: t('components.materialDetail.assignmentFixed'),
+  assigned: t('components.materialDetail.assignmentAssigned'),
+  on_issue: t('components.materialDetail.assignmentOnIssue'),
+  bulk: t('components.materialDetail.assignmentBulk'),
+}))
 
 const filteredUsedInEntries = computed(() => {
   const q = usedInSearch.value.trim().toLocaleLowerCase('de-CH')
   if (!q) return usedInEntries.value
   return usedInEntries.value.filter((entry) => {
-    const assignmentLabel = (usedInAssignmentLabels[entry.assignment_mode] || entry.assignment_mode || '').toLocaleLowerCase('de-CH')
-    const typeLabel = (entry.material_type === 'physical_combo' ? 'physisch' : 'virtuell').toLocaleLowerCase('de-CH')
+    const assignmentLabel = (
+      usedInAssignmentLabels.value[entry.assignment_mode] ||
+      entry.assignment_mode ||
+      ''
+    ).toLocaleLowerCase('de-CH')
+    const typeLabel = (
+      entry.material_type === 'physical_combo'
+        ? t('components.materialDetail.typePhysicalShort')
+        : t('components.materialDetail.typeVirtualShort')
+    ).toLocaleLowerCase('de-CH')
     const haystack = [
       entry.combo_name,
       entry.component_role || '',
@@ -4039,8 +4004,8 @@ function formatHistoryTime(dateStr: string): string {
 }
 
 function formatChangeValue(val: any): string {
-  if (val === null || val === undefined || val === '') return '–'
-  if (typeof val === 'boolean') return val ? 'Ja' : 'Nein'
+  if (val === null || val === undefined || val === '') return t('components.materialDetail.emDash')
+  if (typeof val === 'boolean') return val ? t('components.materialDetail.yes') : t('components.materialDetail.no')
   return String(val)
 }
 
@@ -4078,7 +4043,7 @@ function openMoveQuantityFromHeader() {
   if (material.value.tracking_type === 'serialized') return
   const candidate = activeBatches.value.find((b: any) => (b.qty || 0) > 0)
   if (!candidate) {
-    toast.info('Keine verschiebbare Charge vorhanden.')
+    toast.info(t('components.materialDetail.toastNoMovableBatch'))
     return
   }
   openMoveQuantityModal(candidate)
@@ -4124,7 +4089,7 @@ async function handleSplitSaved() {
   if (activeTab.value === 'history') {
     await loadHistory()
   }
-  toast.success('Bulk wurde in serialisierte Instanzen aufgeteilt.')
+  toast.success(t('components.materialDetail.toastSplitDone'))
 }
 
 async function handleBatchSaved(result: MaterialBatch | AddBatchMultiResponse) {
@@ -4153,7 +4118,7 @@ async function handleBatchSaved(result: MaterialBatch | AddBatchMultiResponse) {
   if (activeTab.value === 'container-content') {
     await loadContainerContentOverview()
   }
-  toast.success('Charge erfolgreich hinzugefügt')
+  toast.success(t('components.materialDetail.toastBatchAdded'))
   closeBatchModal()
 }
 
