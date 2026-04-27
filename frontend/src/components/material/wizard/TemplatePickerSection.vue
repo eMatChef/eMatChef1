@@ -8,7 +8,7 @@
         <line x1="16" y1="17" x2="8" y2="17"/>
         <polyline points="10 9 9 9 8 9"/>
       </svg>
-      <span>Aus Vorlage erstellen (optional)</span>
+      <span>{{ t('components.templatePickerSection.headerTitle') }}</span>
     </div>
     <div class="template-picker-body">
       <div class="autocomplete-wrapper">
@@ -16,7 +16,7 @@
           :value="search"
           type="text"
           class="form-input"
-          placeholder="Vorlage suchen (z.B. hajk, Spatz, Phoenix)..."
+          :placeholder="t('components.templatePickerSection.searchPlaceholder')"
           @input="(e) => $emit('update:search', (e.target as HTMLInputElement).value)"
           @focus="$emit('focus')"
           @blur="$emit('blur')"
@@ -32,23 +32,31 @@
               <span class="template-item-name">{{ tmpl.name }}</span>
               <span class="template-item-meta">
                 <span v-if="tmpl.manufacturer" class="template-item-mfr">{{ tmpl.manufacturer }}</span>
-                <span v-if="tmpl.capacity" class="template-item-cap">{{ tmpl.capacity }} Pers.</span>
-                <span class="template-item-comp">{{ tmpl.component_count }} Teile</span>
+                <span v-if="tmpl.capacity" class="template-item-cap">{{
+                  t('components.templatePickerSection.capacityShort', { n: tmpl.capacity })
+                }}</span>
+                <span class="template-item-comp">{{
+                  t('components.templatePickerSection.componentParts', { n: tmpl.component_count })
+                }}</span>
               </span>
             </div>
             <span class="template-item-type" :class="tmpl.material_type">
-              {{ tmpl.material_type === 'physical_combo' ? 'Physisch' : 'Virtuell' }}
+              {{
+                tmpl.material_type === 'physical_combo'
+                  ? t('components.templatePickerSection.typePhysical')
+                  : t('components.templatePickerSection.typeVirtual')
+              }}
             </span>
           </div>
         </div>
         <div v-else-if="showDropdown && search.length >= 2 && filteredTemplates.length === 0" class="autocomplete-dropdown template-dropdown">
-          <div class="combo-empty">Keine Vorlagen gefunden</div>
+          <div class="combo-empty">{{ t('components.templatePickerSection.noTemplatesFound') }}</div>
         </div>
       </div>
     </div>
     <!-- Aus Kiste übernehmen (nur bei Combo; Inhalt = Materialien in dieser Kiste) -->
     <div v-if="showContainerBatchPicker" class="template-picker-divider">
-      <span>oder</span>
+      <span>{{ t('components.templatePickerSection.dividerOr') }}</span>
     </div>
     <ContainerBatchContentsPicker
       v-if="showContainerBatchPicker"
@@ -60,13 +68,16 @@
       @load="$emit('loadContainerContents')"
     />
     <div class="template-picker-divider">
-      <span>oder manuell erstellen</span>
+      <span>{{ t('components.templatePickerSection.dividerManual') }}</span>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n'
 import ContainerBatchContentsPicker from './ContainerBatchContentsPicker.vue'
+
+const { t } = useI18n()
 import type { Template } from '@/api/templates'
 import type { ContainerBatch, ContainerBatchContentsResponse } from '@/api/storageLocations'
 

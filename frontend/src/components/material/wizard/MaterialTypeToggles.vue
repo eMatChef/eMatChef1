@@ -8,8 +8,8 @@
           <span class="toggle-slider toggle-slider--orange"></span>
         </span>
         <span class="toggle-text">
-          <span class="toggle-title">Verbrauchsmaterial</span>
-          <span class="toggle-desc">Fackeln, Gaskartuschen, Einweggeschirr, Kerzen etc.</span>
+          <span class="toggle-title">{{ t('components.materialTypeToggles.consumableTitle') }}</span>
+          <span class="toggle-desc">{{ t('components.materialTypeToggles.consumableDesc') }}</span>
         </span>
       </label>
     </div>
@@ -22,20 +22,27 @@
           <span class="toggle-slider toggle-slider--green"></span>
         </span>
         <span class="toggle-text">
-          <span class="toggle-title">Esswaren</span>
-          <span class="toggle-desc">Lebensmittel, Getränke, Snacks etc.</span>
+          <span class="toggle-title">{{ t('components.materialTypeToggles.foodTitle') }}</span>
+          <span class="toggle-desc">{{ t('components.materialTypeToggles.foodDesc') }}</span>
         </span>
       </label>
     </div>
 
     <p v-if="isConsumable || isFood" class="costs-hint">
-      Preise im Schritt <strong>Details</strong> unter <strong>Kosten</strong>.
-      <strong>Verpackungseinheit</strong> bei der <strong>Menge</strong>, sobald eine Anzahl eingetragen ist.
+      {{ t('components.materialTypeToggles.costsHintA') }}<strong>{{ t('components.materialTypeToggles.wordDetails') }}</strong
+      >{{ t('components.materialTypeToggles.costsHintB') }}<strong>{{ t('components.materialTypeToggles.wordCosts') }}</strong
+      >{{ t('components.materialTypeToggles.costsHintC') }}<strong>{{ t('components.materialTypeToggles.wordVe') }}</strong
+      >{{ t('components.materialTypeToggles.costsHintD') }}<strong>{{ t('components.materialTypeToggles.wordQty') }}</strong
+      >{{ t('components.materialTypeToggles.costsHintE') }}
     </p>
   </div>
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n'
+
+const { t } = useI18n()
+
 defineProps<{
   isConsumable: boolean
   isFood: boolean

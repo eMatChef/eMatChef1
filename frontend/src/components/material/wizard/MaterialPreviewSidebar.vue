@@ -1,6 +1,6 @@
 <template>
   <div class="material-wizard-sidebar">
-    <h3>{{ isAddBatchMode ? 'Charge hinzufügen' : 'Mein Material' }}</h3>
+    <h3>{{ isAddBatchMode ? t('components.materialPreviewSidebar.titleAddBatch') : t('components.materialPreviewSidebar.titleMyMaterial') }}</h3>
     
     <div class="material-preview" :class="{ 'batch-mode': isAddBatchMode }">
       <div class="preview-image">
@@ -17,7 +17,7 @@
         <h4>{{ displayName }}</h4>
         <p v-if="categoryPath" class="preview-category">{{ categoryPath }}</p>
         <span v-if="isAddBatchMode" class="preview-badge batch">
-          + {{ initialQty || 0 }} Stück
+          {{ t('components.materialPreviewSidebar.batchBadge', { n: initialQty || 0 }) }}
         </span>
         <span v-else-if="materialType" class="preview-badge" :class="materialType">
           {{ materialTypeLabel }}
@@ -27,46 +27,59 @@
 
     <div v-if="materialType" class="usage-info">
       <template v-if="isConsumable">
-        <p class="usage-lead">Verbrauchsmaterial</p>
-        <p class="usage-desc">Fackeln, Gaskartuschen, Einweggeschirr u. a. — Bestand sinkt bei Ausgabe.</p>
+        <p class="usage-lead">{{ t('components.materialPreviewSidebar.usageConsumableLead') }}</p>
+        <p class="usage-desc">{{ t('components.materialPreviewSidebar.usageConsumableDesc') }}</p>
       </template>
       <template v-else-if="isFood">
-        <p class="usage-lead">Esswaren</p>
-        <p class="usage-desc">Lebensmittel, Getränke, Snacks — Anzeige unter „Esswaren“.</p>
+        <p class="usage-lead">{{ t('components.materialPreviewSidebar.usageFoodLead') }}</p>
+        <p class="usage-desc">{{ t('components.materialPreviewSidebar.usageFoodDesc') }}</p>
       </template>
       <template v-else-if="isJsMaterial">
-        <p class="usage-lead">J&amp;S-Material (global)</p>
-        <p class="usage-desc">Quelle „J&amp;S / extern“ — standortübergreifend planbar.</p>
+        <p class="usage-lead">{{ t('components.materialPreviewSidebar.usageJsLead') }}</p>
+        <p class="usage-desc">{{ t('components.materialPreviewSidebar.usageJsDesc') }}</p>
       </template>
       <template v-else>
-        <p class="usage-lead">Ausleihe</p>
-        <p class="usage-desc">Rückgabe nach Projekt ins Lager · Vermietung optional (Details).</p>
+        <p class="usage-lead">{{ t('components.materialPreviewSidebar.usageLoanLead') }}</p>
+        <p class="usage-desc">{{ t('components.materialPreviewSidebar.usageLoanDesc') }}</p>
       </template>
       <div v-if="(isConsumable || isFood) && salePrice" class="info-row">
-        <span class="info-label">Verkaufspreis:</span>
-        <span class="info-value">CHF {{ Number(salePrice).toFixed(2) }} / Stk.</span>
+        <span class="info-label">{{ t('components.materialPreviewSidebar.labelSalePrice') }}</span>
+        <span class="info-value">{{
+          t('components.materialPreviewSidebar.pricePerPiece', { price: Number(salePrice).toFixed(2) })
+        }}</span>
       </div>
       <div v-if="(isConsumable || isFood) && referencePurchaseUnitChf" class="info-row">
-        <span class="info-label">Einkauf (Ref.)</span>
-        <span class="info-value">CHF {{ Number(referencePurchaseUnitChf).toFixed(2) }} / Stk.</span>
+        <span class="info-label">{{ t('components.materialPreviewSidebar.labelRefPurchase') }}</span>
+        <span class="info-value">{{
+          t('components.materialPreviewSidebar.pricePerPiece', { price: Number(referencePurchaseUnitChf).toFixed(2) })
+        }}</span>
       </div>
       <div
         v-if="(isConsumable || isFood) && packSize && packUnit && packSalePriceChf"
         class="info-row"
       >
-        <span class="info-label">Preis / {{ packUnit }}:</span>
-        <span class="info-value">CHF {{ Number(packSalePriceChf).toFixed(2) }} ({{ packSize }} Stk.)</span>
+        <span class="info-label">{{
+          t('components.materialPreviewSidebar.labelPricePerUnit', { unit: packUnit })
+        }}</span>
+        <span class="info-value">{{
+          t('components.materialPreviewSidebar.packPriceLine', {
+            price: Number(packSalePriceChf).toFixed(2),
+            n: packSize
+          })
+        }}</span>
       </div>
       <div v-if="isConsumable && minStock" class="info-row">
-        <span class="info-label">Min. Bestand</span>
-        <span class="info-value">{{ minStock }} Stk.</span>
+        <span class="info-label">{{ t('components.materialPreviewSidebar.labelMinStock') }}</span>
+        <span class="info-value">{{ t('components.materialPreviewSidebar.minStockPcs', { n: minStock }) }}</span>
       </div>
       <div v-if="packSize && packUnit" class="info-row">
-        <span class="info-label">VE</span>
-        <span class="info-value">{{ packUnit }} à {{ packSize }} Stk.</span>
+        <span class="info-label">{{ t('components.materialPreviewSidebar.labelVE') }}</span>
+        <span class="info-value">{{
+          t('components.materialPreviewSidebar.veLine', { unit: packUnit, n: packSize })
+        }}</span>
       </div>
       <div v-if="isJsMaterial && externalSource" class="info-row">
-        <span class="info-label">Quelle:</span>
+        <span class="info-label">{{ t('components.materialPreviewSidebar.labelSource') }}</span>
         <span class="info-value">{{ externalSource }}</span>
       </div>
     </div>
@@ -77,23 +90,25 @@
       class="tracking-info"
     >
       <div v-if="isFromTemplate" class="info-row">
-        <span class="info-label">Vorlage:</span>
+        <span class="info-label">{{ t('components.materialPreviewSidebar.labelTemplate') }}</span>
         <span class="info-value">{{ templateName }}</span>
       </div>
       <div v-if="isFromTemplate && tentCapacity" class="info-row">
-        <span class="info-label">Kapazität:</span>
-        <span class="info-value">{{ tentCapacity }} Personen</span>
+        <span class="info-label">{{ t('components.materialPreviewSidebar.labelCapacity') }}</span>
+        <span class="info-value">{{
+          t('components.materialPreviewSidebar.capacityPersons', { n: tentCapacity })
+        }}</span>
       </div>
       <div v-if="isFromContainerBatchContents && !isFromTemplate" class="info-row">
-        <span class="info-label">Quelle:</span>
-        <span class="info-value">Kisteninhalt</span>
+        <span class="info-label">{{ t('components.materialPreviewSidebar.labelSource') }}</span>
+        <span class="info-value">{{ t('components.materialPreviewSidebar.sourceContainerContent') }}</span>
       </div>
       <div class="info-row">
-        <span class="info-label">Komponenten</span>
+        <span class="info-label">{{ t('components.materialPreviewSidebar.labelComponents') }}</span>
         <span class="info-value">{{ componentInputs.length }}</span>
       </div>
       <div v-if="storageAddressWithLocation" class="info-row">
-        <span class="info-label">Lagerort:</span>
+        <span class="info-label">{{ t('components.materialPreviewSidebar.labelStorage') }}</span>
         <span class="info-value">{{ storageAddressWithLocation }}</span>
       </div>
       <div class="sidebar-components-list">
@@ -105,7 +120,10 @@
         >
           <span class="sidebar-comp-check">{{ isComponentDone(ci) ? '✓' : '○' }}</span>
           <span class="sidebar-comp-name">{{ ci.name }}</span>
-          <span v-if="ci.mode === 'new' && ci.tracking === 'serialized' && ci.serial_number" class="sidebar-comp-sn">SN: {{ ci.serial_number }}</span>
+          <span
+            v-if="ci.mode === 'new' && ci.tracking === 'serialized' && ci.serial_number"
+            class="sidebar-comp-sn"
+          >{{ t('components.materialPreviewSidebar.serialPrefix') }} {{ ci.serial_number }}</span>
           <span v-else-if="ci.mode === 'new' && ci.tracking === 'bulk'" class="sidebar-comp-qty">{{ ci.qty }}x</span>
           <span v-else-if="ci.mode === 'existing' && ci._selectedMaterial" class="sidebar-comp-sn">{{ ci._selectedMaterial.name }}</span>
         </div>
@@ -117,19 +135,21 @@
       class="tracking-info"
     >
       <div v-if="trackingType" class="info-row">
-        <span class="info-label">Verfolgung</span>
+        <span class="info-label">{{ t('components.materialPreviewSidebar.labelTracking') }}</span>
         <span class="info-value">{{ trackingTypeLabel }}</span>
       </div>
       <div v-if="initialQty > 0" class="info-row">
-        <span class="info-label">Startbestand</span>
-        <span class="info-value">{{ initialQty }} Stk.</span>
+        <span class="info-label">{{ t('components.materialPreviewSidebar.labelInitialStock') }}</span>
+        <span class="info-value">{{
+          t('components.materialPreviewSidebar.minStockPcs', { n: initialQty })
+        }}</span>
       </div>
       <div v-if="comboArticlesCount > 0" class="info-row">
-        <span class="info-label">Artikel</span>
+        <span class="info-label">{{ t('components.materialPreviewSidebar.labelArticles') }}</span>
         <span class="info-value">{{ comboArticlesCount }}</span>
       </div>
       <div v-if="storageAddressWithLocation" class="info-row">
-        <span class="info-label">Lagerort:</span>
+        <span class="info-label">{{ t('components.materialPreviewSidebar.labelStorage') }}</span>
         <span class="info-value">{{ storageAddressWithLocation }}</span>
       </div>
     </div>
@@ -138,6 +158,9 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
+
+const { t } = useI18n()
 
 export interface ComponentInputForPreview {
   name: string
@@ -182,7 +205,7 @@ const props = defineProps<{
 const displayName = computed(() =>
   props.isAddBatchMode && props.selectedMaterialName
     ? props.selectedMaterialName
-    : props.materialName || 'Unbenanntes Material'
+    : props.materialName || t('components.materialPreviewSidebar.unnamedMaterial')
 )
 
 const materialTypeLabel = computed(() =>

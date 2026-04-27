@@ -3,7 +3,7 @@
     <div v-if="modelValue" class="split-modal-overlay">
       <div class="split-modal">
         <div class="split-modal-header">
-          <h2>Bulk in Serien splitten</h2>
+          <h2>{{ t('components.splitModal.title') }}</h2>
           <button class="split-modal-close" @click="$emit('update:modelValue', false)">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <line x1="18" y1="6" x2="6" y2="18"/>
@@ -14,31 +14,44 @@
         <div class="split-modal-body">
           <div class="form-grid">
             <div class="form-group">
-              <label>Source-Batch</label>
+              <label>{{ t('components.splitModal.labelSourceBatch') }}</label>
               <select v-model="form.source_batch_id" class="form-select" :class="{ 'is-invalid': submitted && !form.source_batch_id }">
                 <option v-for="batch in sourceBatches" :key="batch.id" :value="batch.id">
-                  {{ formatDate(batch.acquired_on) }} • {{ batch.qty }} Stk. • {{ formatBatchLocation(batch) }}
+                  {{ formatDate(batch.acquired_on) }} • {{ t('components.splitModal.qtyPcs', { n: batch.qty }) }} •
+                  {{ formatBatchLocation(batch) }}
                 </option>
               </select>
             </div>
             <div class="form-group">
-              <label>Anzahl</label>
+              <label>{{ t('components.splitModal.labelQuantity') }}</label>
               <input v-model.number="form.quantity" type="number" min="1" class="form-input" :class="{ 'is-invalid': submitted && form.quantity < 1 }" />
             </div>
             <div class="form-group">
-              <label>Prefix</label>
-              <input v-model="form.serial_prefix" type="text" class="form-input" placeholder="z.B. RAKO-" />
+              <label>{{ t('components.splitModal.labelPrefix') }}</label>
+              <input
+                v-model="form.serial_prefix"
+                type="text"
+                class="form-input"
+                :placeholder="t('components.splitModal.prefixPlaceholder')"
+              />
             </div>
             <div class="form-group">
-              <label>Startnummer</label>
+              <label>{{ t('components.splitModal.labelStartNumber') }}</label>
               <input v-model.number="form.start_number" type="number" min="1" class="form-input" />
             </div>
             <div class="form-group">
-              <label>Stellen (Pad)</label>
-              <input v-model.number="form.pad_length" type="number" min="1" max="6" class="form-input" placeholder="3" />
+              <label>{{ t('components.splitModal.labelPadLength') }}</label>
+              <input
+                v-model.number="form.pad_length"
+                type="number"
+                min="1"
+                max="6"
+                class="form-input"
+                :placeholder="t('components.splitModal.padPlaceholder')"
+              />
             </div>
             <div v-if="locationSuggestions.length > 0" class="form-group form-group-full">
-              <label>Vorschlag aktueller Lagerplatz</label>
+              <label>{{ t('components.splitModal.labelLocationSuggestions') }}</label>
               <div class="location-suggestions">
                 <button
                   v-for="(suggestion, idx) in locationSuggestions"
@@ -54,16 +67,16 @@
             <div class="form-group form-group-full">
               <label class="split-row-checkbox split-row-checkbox--inline">
                 <input type="checkbox" v-model="serialLocationSameForAll" />
-                <span>Für alle den gleichen Lagerplatz</span>
+                <span>{{ t('components.splitModal.sameLocationForAll') }}</span>
               </label>
             </div>
 
             <template v-if="serialLocationSameForAll">
               <div class="form-group">
-                <label>Lagerplatz</label>
+                <label>{{ t('components.splitModal.labelStorageLocation') }}</label>
                 <select v-model="form.location_mode" class="form-select" @change="form.rack_id = ''; form.slot_id = ''; form.container_batch_id = ''">
-                  <option value="slot">Gestell/Fach</option>
-                  <option value="kiste">Kiste/Tasche</option>
+                  <option value="slot">{{ t('components.splitModal.locationModeSlot') }}</option>
+                  <option value="kiste">{{ t('components.splitModal.locationModeBox') }}</option>
                 </select>
               </div>
               <template v-if="form.location_mode === 'slot'">
@@ -73,10 +86,10 @@
                     :slot-id="form.slot_id"
                     :racks="racks"
                     :slot-list="selectedSlots"
-                    rack-label="Gestell"
-                    slot-label="Fach"
-                    rack-placeholder="Gestell wählen"
-                    slot-placeholder="Fach wählen"
+                    :rack-label="t('components.splitModal.rackLabel')"
+                    :slot-label="t('components.splitModal.slotLabel')"
+                    :rack-placeholder="t('components.splitModal.rackPlaceholder')"
+                    :slot-placeholder="t('components.splitModal.slotPlaceholder')"
                     @update:rackId="form.rack_id = $event"
                     @rackChange="handleRackChange"
                     @update:slotId="form.slot_id = $event"
@@ -84,9 +97,9 @@
                 </div>
               </template>
               <div v-else class="form-group">
-                <label>Kiste/Tasche</label>
+                <label>{{ t('components.splitModal.locationModeBox') }}</label>
                 <select v-model="form.container_batch_id" class="form-select" :class="{ 'is-invalid': submitted && !form.container_batch_id }">
-                  <option value="">– Kiste/Tasche wählen –</option>
+                  <option value="">{{ t('components.splitModal.selectBoxPrompt') }}</option>
                 <option
                   v-for="cb in containerBatches"
                   :key="cb.id"
@@ -99,17 +112,19 @@
               </div>
             </template>
           </div>
-          <p class="split-hint">Seriennummern erscheinen auf dem QR-Tag. Änderung erfordert neue Tags.</p>
+          <p class="split-hint">{{ t('components.splitModal.hintQrReprint') }}</p>
           <div class="split-entries-section">
-            <label class="split-entries-label">Seriennummern ({{ serialEntries.length }})</label>
+            <label class="split-entries-label">{{
+              t('components.splitModal.serialNumbersHeading', { count: serialEntries.length })
+            }}</label>
             <div class="split-entries-table-wrap">
               <table class="split-entries-table">
                 <thead>
                   <tr>
-                    <th>Seriennummer (QR-Tag)</th>
-                    <th>Label (optional)</th>
-                    <th v-if="!serialLocationSameForAll" class="col-type">Art</th>
-                    <th v-if="!serialLocationSameForAll">Lagerplatz</th>
+                    <th>{{ t('components.splitModal.thSerialQr') }}</th>
+                    <th>{{ t('components.splitModal.thLabelOptional') }}</th>
+                    <th v-if="!serialLocationSameForAll" class="col-type">{{ t('components.splitModal.thType') }}</th>
+                    <th v-if="!serialLocationSameForAll">{{ t('components.splitModal.thStorageLocation') }}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -120,7 +135,7 @@
                         type="text"
                         class="form-input form-input-sm"
                         :class="{ 'is-invalid': submitted && !(entry.serial_number || '').trim() }"
-                        placeholder="z.B. KISTE-001"
+                        :placeholder="t('components.splitModal.phSerial')"
                       />
                     </td>
                     <td>
@@ -128,7 +143,7 @@
                         v-model="entry.label"
                         type="text"
                         class="form-input form-input-sm"
-                        placeholder="z.B. Kochkiste Falk"
+                        :placeholder="t('components.splitModal.phLabel')"
                       />
                     </td>
                     <td v-if="!serialLocationSameForAll" class="col-type">
@@ -137,8 +152,8 @@
                         class="form-select form-select-sm"
                         @change="entry.rack_id = ''; entry.slot_id = ''; entry.container_batch_id = ''"
                       >
-                        <option value="slot">Gestell/Fach</option>
-                        <option value="kiste">Kiste/Tasche</option>
+                        <option value="slot">{{ t('components.splitModal.locationModeSlot') }}</option>
+                        <option value="kiste">{{ t('components.splitModal.locationModeBox') }}</option>
                       </select>
                     </td>
                     <td v-if="!serialLocationSameForAll">
@@ -150,18 +165,18 @@
                               class="form-select form-select-sm"
                               @change="entry.slot_id = ''; handleRowRackChange(entry)"
                             >
-                              <option value="">Gestell wählen</option>
+                              <option value="">{{ t('components.splitModal.rackPlaceholder') }}</option>
                               <option v-for="rack in racks" :key="rack.id" :value="rack.id">{{ rack.name }}</option>
                             </select>
                             <select v-model="entry.slot_id" class="form-select form-select-sm">
-                              <option value="">Fach wählen</option>
+                              <option value="">{{ t('components.splitModal.slotPlaceholder') }}</option>
                               <option v-for="slot in getSlotsForRack(entry.rack_id)" :key="slot.id" :value="slot.id">{{ slot.name }}</option>
                             </select>
                           </div>
                         </template>
                         <template v-else>
                           <select v-model="entry.container_batch_id" class="form-select form-select-sm">
-                            <option value="">– Kiste/Tasche wählen –</option>
+                            <option value="">{{ t('components.splitModal.selectBoxPrompt') }}</option>
                 <option
                   v-for="cb in containerBatches"
                   :key="cb.id"
@@ -180,9 +195,7 @@
             </div>
             <p v-if="submitted && duplicateHint" class="split-error-hint">{{ duplicateHint }}</p>
           </div>
-          <p class="split-hint">
-            Bei deaktiviertem „Standort für alle gleich“ kann pro Seriennummer ein eigener Lagerplatz gesetzt werden.
-          </p>
+          <p class="split-hint">{{ t('components.splitModal.hintPerRowLocation') }}</p>
         </div>
         <div class="split-modal-actions">
           <div v-if="submitted && missingFields.length > 0" class="split-missing">
@@ -190,9 +203,11 @@
             <span>{{ missingFields[0] }}</span>
           </div>
           <div class="split-footer-actions">
-            <button class="btn-outline btn-sm" @click="$emit('update:modelValue', false)">Abbrechen</button>
+            <button class="btn-outline btn-sm" @click="$emit('update:modelValue', false)">{{
+              t('components.splitModal.cancel')
+            }}</button>
             <button class="btn-primary btn-sm" @click="submit" :disabled="isSplitting">
-              {{ isSplitting ? 'Split läuft...' : 'Split ausführen' }}
+              {{ isSplitting ? t('components.splitModal.splitting') : t('components.splitModal.splitSubmit') }}
             </button>
           </div>
         </div>
@@ -208,6 +223,7 @@ import { getContainerBatches, type StorageSlot } from '@/api/storageLocations'
 import { formatContainerBatchOptionFullLabel } from '@/utils/containerBatchLabel'
 import type { MaterialBatch } from '@/api/materials'
 import { useToast } from '@/composables/useToast'
+import { useI18n } from 'vue-i18n'
 import StorageLocationPicker from '@/components/storage/StorageLocationPicker.vue'
 import { useStorageStructure } from '@/composables/useStorageStructure'
 
@@ -239,6 +255,7 @@ const isSplitting = ref(false)
 const submitted = ref(false)
 const containerBatches = ref<import('@/api/storageLocations').ContainerBatch[]>([])
 const toast = useToast()
+const { t, locale } = useI18n()
 const serialLocationSameForAll = ref(true)
 const { racks, getSlots, loadRacks, loadSlots } = useStorageStructure(() => props.departmentId)
 
@@ -340,14 +357,15 @@ const locationSuggestions = computed<LocationSuggestion[]>(() => {
     for (const allocation of sortedAllocs) {
       const container = allocation.container_batch
       if (container?.id) {
-        const containerLabel = container.label || container.serial_number || 'Kiste/Tasche'
+        const containerLabel = container.label || container.serial_number || t('components.splitModal.fallbackBox')
         const rackName = container.rack?.name
         const slotName = container.slot?.name
-        const locSuffix = rackName ? ` (${rackName}${slotName ? ` / ${slotName}` : ''})` : ''
+        const locInner = rackName ? (slotName ? `${rackName} / ${slotName}` : rackName) : ''
+        const locSuffix = locInner ? t('components.splitModal.allocLocSuffix', { loc: locInner }) : ''
         pushSuggestion({
           kind: 'kiste',
           containerBatchId: container.id,
-          label: `Kiste/Tasche: ${containerLabel}${locSuffix}`,
+          label: t('components.splitModal.suggestionBox', { label: containerLabel, loc: locSuffix }),
         })
         continue
       }
@@ -358,7 +376,9 @@ const locationSuggestions = computed<LocationSuggestion[]>(() => {
           kind: 'slot',
           rackId: allocation.rack_id,
           slotId: allocation.slot_id || undefined,
-          label: slotName ? `Gestell/Fach: ${rackName} / ${slotName}` : `Gestell: ${rackName}`,
+          label: slotName
+            ? t('components.splitModal.suggestionSlot', { rack: rackName, slot: slotName })
+            : t('components.splitModal.suggestionRack', { rack: rackName }),
         })
       }
     }
@@ -369,7 +389,9 @@ const locationSuggestions = computed<LocationSuggestion[]>(() => {
       kind: 'slot',
       rackId: batch.rack_id,
       slotId: batch.slot_id || undefined,
-      label: slotName ? `Gestell/Fach: ${rackName} / ${slotName}` : `Gestell: ${rackName}`,
+      label: slotName
+        ? t('components.splitModal.suggestionSlot', { rack: rackName, slot: slotName })
+        : t('components.splitModal.suggestionRack', { rack: rackName }),
     })
   }
 
@@ -378,14 +400,14 @@ const locationSuggestions = computed<LocationSuggestion[]>(() => {
 
 const missingFields = computed(() => {
   const missing: string[] = []
-  if (!form.source_batch_id) missing.push('Source-Batch wählen')
-  if (form.quantity < 1) missing.push('Anzahl muss mindestens 1 sein')
+  if (!form.source_batch_id) missing.push(t('components.splitModal.valPickSourceBatch'))
+  if (form.quantity < 1) missing.push(t('components.splitModal.valQtyMin1'))
   const emptySerials = serialEntries.value.filter(e => !(e.serial_number || '').trim())
-  if (emptySerials.length > 0) missing.push(`Alle Seriennummern ausfüllen (${emptySerials.length} fehlt)`)
+  if (emptySerials.length > 0) missing.push(t('components.splitModal.valFillSerials', { n: emptySerials.length }))
   if (duplicateHint.value) missing.push(duplicateHint.value)
   if (serialLocationSameForAll.value) {
-    if (form.location_mode === 'slot' && (!form.rack_id || !form.slot_id)) missing.push('Gestell und Fach wählen')
-    if (form.location_mode === 'kiste' && !form.container_batch_id) missing.push('Kiste/Tasche wählen')
+    if (form.location_mode === 'slot' && (!form.rack_id || !form.slot_id)) missing.push(t('components.splitModal.valRackSlot'))
+    if (form.location_mode === 'kiste' && !form.container_batch_id) missing.push(t('components.splitModal.valPickBox'))
   } else {
     const invalidRows = serialEntries.value
       .filter((entry) => (entry.serial_number || '').trim())
@@ -394,7 +416,7 @@ const missingFields = computed(() => {
           ? !entry.container_batch_id
           : (!entry.rack_id || !entry.slot_id)
       )
-    if (invalidRows) missing.push('Für jede Seriennummer Art und Lagerplatz wählen')
+    if (invalidRows) missing.push(t('components.splitModal.valPerSerialLocation'))
   }
   return missing
 })
@@ -410,12 +432,14 @@ const duplicateHint = computed(() => {
     .map(e => e.serial_number.trim())
     .filter(sn => sn && existing.has(sn))
   if (duplicates.length > 0) {
-    return `Seriennummer(n) bereits vergeben: ${duplicates.slice(0, 3).join(', ')}${duplicates.length > 3 ? '…' : ''}`
+    const list =
+      duplicates.slice(0, 3).join(', ') + (duplicates.length > 3 ? '…' : '')
+    return t('components.splitModal.duplicateTaken', { list })
   }
   const seen = new Set<string>()
   for (const e of serialEntries.value) {
     const sn = e.serial_number.trim()
-    if (sn && seen.has(sn)) return 'Doppelte Seriennummern in der Liste'
+    if (sn && seen.has(sn)) return t('components.splitModal.duplicateInList')
     if (sn) seen.add(sn)
   }
   return ''
@@ -424,7 +448,8 @@ const duplicateHint = computed(() => {
 function formatDate(d: string | null | undefined): string {
   if (!d) return '-'
   try {
-    return new Date(d).toLocaleDateString('de-CH', { day: '2-digit', month: '2-digit', year: 'numeric' })
+    const locTag = locale.value?.toString().startsWith('de') ? 'de-CH' : 'en-CH'
+    return new Date(d).toLocaleDateString(locTag, { day: '2-digit', month: '2-digit', year: 'numeric' })
   } catch {
     return String(d)
   }
@@ -438,10 +463,22 @@ function formatBatchLocation(batch: any): string {
       const containerMaterial = cb?.material_name
       if (containerLabel) {
         const loc = cb?.rack?.name ? (cb?.slot?.name ? `${cb.rack.name} / ${cb.slot.name}` : cb.rack.name) : ''
-        const materialSuffix = containerMaterial && containerMaterial !== containerLabel ? ` – ${containerMaterial}` : ''
-        return `Kiste/Tasche ${containerLabel}${materialSuffix}${loc ? ` (${loc})` : ''}: ${a.qty}`
+        const materialSuffix =
+          containerMaterial && containerMaterial !== containerLabel
+            ? t('components.splitModal.allocMaterialSuffix', { name: containerMaterial })
+            : ''
+        const locSuffix = loc ? t('components.splitModal.allocLocSuffix', { loc }) : ''
+        return t('components.splitModal.allocBox', {
+          label: containerLabel,
+          material: materialSuffix,
+          loc: locSuffix,
+          qty: a.qty,
+        })
       }
-      return `${a.rack_name || a.rack?.name || a.rack_id}: ${a.qty}`
+      return t('components.splitModal.allocRack', {
+        rack: a.rack_name || a.rack?.name || a.rack_id,
+        qty: a.qty,
+      })
     }).join(', ')
   }
   if (batch.rack_id && batch.slot_id) return `${batch.rack_name || batch.rack_id} / ${batch.slot_name || batch.slot_id}`
@@ -576,7 +613,7 @@ async function submit() {
   if (missingFields.value.length > 0 || isSplitting.value) return
   const entries = serialEntries.value.filter(e => (e.serial_number || '').trim())
   if (entries.length !== form.quantity) {
-    toast.error('Alle Seriennummern müssen ausgefüllt sein')
+    toast.error(t('components.splitModal.toastFillSerials'))
     return
   }
   isSplitting.value = true
@@ -609,7 +646,7 @@ async function submit() {
     emit('saved')
     emit('update:modelValue', false)
   } catch (err: any) {
-    toast.error(err?.response?.data?.error || 'Split fehlgeschlagen')
+    toast.error(err?.response?.data?.error || t('components.splitModal.toastSplitFailed'))
   } finally {
     isSplitting.value = false
   }
