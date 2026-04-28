@@ -309,10 +309,10 @@
               {{ t('components.departmentOnboarding.step7StatusHint') }}
             </p>
             <div class="step-actions">
-              <button class="btn btn-primary" @click="openAddressModal('storage')">
+              <button type="button" class="btn btn-primary" @click="openAddressModal('storage')">
                 {{ t('components.departmentOnboarding.addStorageAddress') }}
               </button>
-              <button class="btn btn-light" @click="goToSettings(`/${departmentId}/settings/my-department`)">
+              <button type="button" class="btn btn-light" @click="goToSettings(`/${departmentId}/settings/my-department`)">
                 {{ t('components.departmentOnboarding.openSettings') }}
               </button>
               <button class="btn btn-light" @click="skipStep">{{ t('components.departmentOnboarding.btnSkip') }}</button>
@@ -383,14 +383,16 @@
         </footer>
       </div>
 
-      <AddressModal
-        v-if="isAddressModalOpen"
-        :department-id="departmentId"
-        :default-type="addressModalType"
-        :default-name="addressModalDepartmentPrefill"
-        @saved="handleAddressSaved"
-        @close="isAddressModalOpen = false"
-      />
+      <Teleport to="body">
+        <AddressModal
+          v-if="isAddressModalOpen"
+          :department-id="departmentId"
+          :default-type="addressModalType"
+          :default-name="addressModalDepartmentPrefill"
+          @saved="handleAddressSaved"
+          @close="isAddressModalOpen = false"
+        />
+      </Teleport>
     </div>
   </Teleport>
 </template>
