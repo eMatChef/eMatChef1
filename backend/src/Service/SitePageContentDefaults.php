@@ -47,17 +47,37 @@ class SitePageContentDefaults
     /** @return PageContent */
     private function blog(): array
     {
-        return [
+        $de = [
             'title' => 'Blog',
             'introHtml' => '<p>Hier erscheinen Neuigkeiten und Tipps rund um eMatChef.</p>',
             'posts' => [],
+        ];
+        $en = [
+            'title' => 'Blog',
+            'introHtml' => '<p>News and tips about eMatChef appear here.</p>',
+            'posts' => [],
+        ];
+        $fr = [
+            'title' => 'Blog',
+            'introHtml' => '<p>Vous trouverez ici des actualités et des conseils sur eMatChef.</p>',
+            'posts' => [],
+        ];
+
+        return [
+            // Legacy fallback shape kept at top-level (DE), plus explicit per-locale content.
+            ...$de,
+            'locales' => [
+                'de' => $de,
+                'en' => $en,
+                'fr' => $fr,
+            ],
         ];
     }
 
     /** @return PageContent */
     private function faq(): array
     {
-        return [
+        $de = [
             'title' => 'Häufige Fragen',
             'items' => [
                 [
@@ -90,12 +110,39 @@ class SitePageContentDefaults
                 ],
             ],
         ];
+        $en = [
+            'title' => 'Frequently asked questions',
+            'items' => [
+                [
+                    'q' => 'What is eMatChef in one sentence?',
+                    'aHtml' => '<p>eMatChef is your central place for inventory, storage, lending and activities.</p>',
+                ],
+            ],
+        ];
+        $fr = [
+            'title' => 'Questions fréquentes',
+            'items' => [
+                [
+                    'q' => 'Qu’est-ce que eMatChef en une phrase ?',
+                    'aHtml' => '<p>eMatChef est votre espace central pour le matériel, le stockage, les prêts et les activités.</p>',
+                ],
+            ],
+        ];
+
+        return [
+            ...$de,
+            'locales' => [
+                'de' => $de,
+                'en' => $en,
+                'fr' => $fr,
+            ],
+        ];
     }
 
     /** @return PageContent */
     private function tos(): array
     {
-        return [
+        $de = [
             'title' => 'Nutzungsbedingungen & Datenschutz',
             'sections' => [
                 [
@@ -110,12 +157,51 @@ class SitePageContentDefaults
                 ],
             ],
         ];
+        $en = [
+            'title' => 'Terms of use & privacy',
+            'sections' => [
+                [
+                    'id' => 'usage',
+                    'heading' => 'Usage',
+                    'bodyHtml' => '<p>Please add your organization’s terms of use here.</p>',
+                ],
+                [
+                    'id' => 'privacy',
+                    'heading' => 'Privacy',
+                    'bodyHtml' => '<p>Please add your privacy policy here (purpose, legal basis, retention, contact).</p>',
+                ],
+            ],
+        ];
+        $fr = [
+            'title' => "Conditions d'utilisation et confidentialité",
+            'sections' => [
+                [
+                    'id' => 'utilisation',
+                    'heading' => 'Utilisation',
+                    'bodyHtml' => '<p>Veuillez ajouter ici les conditions d’utilisation de votre organisation.</p>',
+                ],
+                [
+                    'id' => 'confidentialite',
+                    'heading' => 'Confidentialité',
+                    'bodyHtml' => '<p>Veuillez ajouter ici votre politique de confidentialité (finalité, base légale, durée de conservation, contact).</p>',
+                ],
+            ],
+        ];
+
+        return [
+            ...$de,
+            'locales' => [
+                'de' => $de,
+                'en' => $en,
+                'fr' => $fr,
+            ],
+        ];
     }
 
     /** @return PageContent */
     private function impressum(): array
     {
-        return [
+        $de = [
             'title' => 'Impressum',
             'sections' => [
                 [
@@ -130,6 +216,49 @@ class SitePageContentDefaults
                     'heading' => 'Haftung für Inhalte',
                     'bodyHtml' => '<p>Die Inhalte dieser Seiten wurden mit Sorgfalt erstellt. Für die Richtigkeit, Vollständigkeit und Aktualität der Inhalte können wir jedoch keine Gewähr übernehmen.</p>',
                 ],
+            ],
+        ];
+        $en = [
+            'title' => 'Imprint',
+            'sections' => [
+                [
+                    'heading' => 'Provider information',
+                    'bodyHtml' => '<p><strong>[Company / Association]</strong><br />[Street no.]<br />[ZIP City]<br />[Country]</p><p><strong>Contact</strong><br />Phone: [optional]<br />Email: [Email]</p>',
+                ],
+                [
+                    'heading' => 'Authorized representative',
+                    'bodyHtml' => '<p>[Name of authorized representative / management]</p>',
+                ],
+                [
+                    'heading' => 'Liability for content',
+                    'bodyHtml' => '<p>The contents of these pages were created with due care. However, we cannot guarantee the accuracy, completeness, or timeliness of the content.</p>',
+                ],
+            ],
+        ];
+        $fr = [
+            'title' => 'Mentions légales',
+            'sections' => [
+                [
+                    'heading' => "Informations de l'éditeur",
+                    'bodyHtml' => '<p><strong>[Entreprise / Association]</strong><br />[Rue n°]<br />[NPA Ville]<br />[Pays]</p><p><strong>Contact</strong><br />Téléphone : [optionnel]<br />E-mail : [E-mail]</p>',
+                ],
+                [
+                    'heading' => 'Représentant habilité',
+                    'bodyHtml' => '<p>[Nom de la personne habilitée / direction]</p>',
+                ],
+                [
+                    'heading' => 'Responsabilité du contenu',
+                    'bodyHtml' => '<p>Le contenu de ces pages a été créé avec soin. Toutefois, nous ne garantissons pas l’exactitude, l’exhaustivité et l’actualité des contenus.</p>',
+                ],
+            ],
+        ];
+
+        return [
+            ...$de,
+            'locales' => [
+                'de' => $de,
+                'en' => $en,
+                'fr' => $fr,
             ],
         ];
     }

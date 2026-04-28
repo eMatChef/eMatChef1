@@ -555,7 +555,7 @@ watch(
         await hydrateFromActivityDetail(detail, items)
         emit('resume-consumed')
       } catch {
-        toast.error('Entwurf konnte nicht geladen werden.')
+        toast.error(t('components.activityCreateWizard.toastDraftLoadFailed'))
       }
     }
   },

@@ -1,34 +1,34 @@
 <template>
   <div class="global-addresses-page">
     <header class="page-header">
-      <h1>Globale Adressen</h1>
+      <h1>{{ t('globalAddressesPage.title') }}</h1>
       <p>
-        Zentrale Hersteller- und Lieferantenadressen (globale Quelle für die Organisation).
+        {{ t('globalAddressesPage.subtitle') }}
       </p>
     </header>
 
     <section class="card">
       <div class="title-row">
-        <h2>Globale Herstelleradressen</h2>
-        <span class="badge">ROLE_SU / ROLE_ORG / ROLE_SUB</span>
+        <h2>{{ t('globalAddressesPage.sectionTitle') }}</h2>
+        <span class="badge">{{ t('globalAddressesPage.roleBadge') }}</span>
       </div>
       <p class="description">
-        Diese Liste wird als globale Quelle fuer Hersteller/Lieferanten verwendet und kann hier zentral gepflegt werden.
+        {{ t('globalAddressesPage.sectionDescription') }}
       </p>
 
       <div class="controls">
         <button class="btn btn-primary" :disabled="globalLoading" @click="openCreateGlobalAddressModal">
-          Neue Adresse
+          {{ t('globalAddressesPage.newAddress') }}
         </button>
         <input
           v-model.trim="globalSearch"
           class="search-input"
           type="text"
-          placeholder="Nach Firma oder Name suchen..."
+          :placeholder="t('globalAddressesPage.searchPlaceholder')"
           @keyup.enter="loadGlobalAddresses"
         />
         <button class="btn btn-secondary" :disabled="globalLoading" @click="loadGlobalAddresses">
-          Aktualisieren
+          {{ t('globalAddressesPage.refresh') }}
         </button>
       </div>
 
@@ -36,20 +36,20 @@
       <p v-if="globalSuccess" class="success">{{ globalSuccess }}</p>
 
       <div class="preview">
-        <h3>Eintraege</h3>
-        <p v-if="globalLoading">Lade...</p>
-        <p v-else-if="globalAddresses.length === 0">Keine globalen Adressen vorhanden.</p>
+        <h3>{{ t('globalAddressesPage.entries') }}</h3>
+        <p v-if="globalLoading">{{ t('globalAddressesPage.loading') }}</p>
+        <p v-else-if="globalAddresses.length === 0">{{ t('globalAddressesPage.empty') }}</p>
 
         <table v-if="globalAddresses.length > 0">
           <thead>
             <tr>
-              <th>Firma</th>
-              <th>Name</th>
-              <th>E-Mail</th>
-              <th>Telefon</th>
-              <th>Ort</th>
-              <th>Status</th>
-              <th>Aktionen</th>
+              <th>{{ t('globalAddressesPage.tableCompany') }}</th>
+              <th>{{ t('globalAddressesPage.tableName') }}</th>
+              <th>{{ t('globalAddressesPage.tableEmail') }}</th>
+              <th>{{ t('globalAddressesPage.tablePhone') }}</th>
+              <th>{{ t('globalAddressesPage.tableCity') }}</th>
+              <th>{{ t('globalAddressesPage.tableStatus') }}</th>
+              <th>{{ t('globalAddressesPage.tableActions') }}</th>
             </tr>
           </thead>
           <tbody>
@@ -66,14 +66,14 @@
                   :disabled="globalLoading"
                   @click="startGlobalEdit(address)"
                 >
-                  Bearbeiten
+                  {{ t('common.edit') }}
                 </button>
                 <button
                   class="btn btn-danger btn-inline"
                   :disabled="globalLoading"
                   @click="removeGlobalAddress(address.id)"
                 >
-                  Loeschen
+                  {{ t('common.delete') }}
                 </button>
               </td>
             </tr>
@@ -97,10 +97,12 @@
 
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { deleteGlobalAddress, getGlobalAddresses, type GlobalAddress } from '@/api/globalAddresses'
 import AddressModal from '@/components/AddressModal.vue'
 
 const GLOBAL_DEPARTMENT_ID = 'GLOBAL000000'
+const { t } = useI18n()
 
 const globalLoading = ref(false)
 const globalError = ref<string | null>(null)
@@ -117,7 +119,7 @@ async function loadGlobalAddresses() {
     const response = await getGlobalAddresses(globalSearch.value)
     globalAddresses.value = response.addresses
   } catch (err: any) {
-    globalError.value = err?.response?.data?.error || 'Globale Adressen konnten nicht geladen werden'
+    globalError.value = err?.response?.data?.error || t('globalAddressesPage.errorLoad')
   } finally {
     globalLoading.value = false
   }
@@ -145,11 +147,11 @@ function closeGlobalAddressModal() {
 async function handleGlobalAddressSaved() {
   closeGlobalAddressModal()
   await loadGlobalAddresses()
-  globalSuccess.value = 'Globale Adresse wurde gespeichert'
+  globalSuccess.value = t('globalAddressesPage.successSaved')
 }
 
 async function removeGlobalAddress(id: string) {
-  const confirmed = window.confirm('Globale Adresse wirklich loeschen?')
+  const confirmed = window.confirm(t('globalAddressesPage.confirmDelete'))
   if (!confirmed) return
 
   globalLoading.value = true
@@ -157,13 +159,13 @@ async function removeGlobalAddress(id: string) {
   globalSuccess.value = null
   try {
     await deleteGlobalAddress(id)
-    globalSuccess.value = 'Globale Adresse wurde geloescht'
+    globalSuccess.value = t('globalAddressesPage.successDeleted')
     if (editingGlobalAddress.value?.id === id) {
       closeGlobalAddressModal()
     }
     await loadGlobalAddresses()
   } catch (err: any) {
-    globalError.value = err?.response?.data?.error || 'Loeschen fehlgeschlagen'
+    globalError.value = err?.response?.data?.error || t('globalAddressesPage.errorDelete')
   } finally {
     globalLoading.value = false
   }

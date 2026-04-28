@@ -4,9 +4,6 @@
   },
   "router": {
     "meta": {
-      "fallbackDocumentTitle": "eMatChef - Gestion du matériel",
-      "fallbackDocumentDescription": "Gestion du matériel pour les locations – eMatChef.",
-      "routeDescriptionDefault": "eMatChef – gestion du matériel pour les locations.",
       "titles": {
         "publicLookup": "Info matériel · eMatChef",
         "openFromQr": "QR · eMatChef",
@@ -77,6 +74,120 @@
         "materialDetail": "Détails de l’article dans eMatChef.",
         "publicLookupError": "Le matériel ou le numéro de série demandé est introuvable ou inactif.",
         "publicLookupNoData": "Information publique sur le matériel dans eMatChef."
+      }
+    }
+  },
+  "public": {
+    "blog": {
+      "titleFallback": "Blog",
+      "untitledPost": "Sans titre",
+      "noPostsYet": "Aucun article pour le moment."
+    },
+    "landing": {
+      "kicker": "Gestion du matériel",
+      "heroTitle": "Le matériel sous contrôle, l'équipe alignée",
+      "heroSubtitle": "eMatChef vous aide pour le stock, les prêts et la vue d'ensemble - pour les locations et les équipes bien organisées.",
+      "primaryCta": "Connexion",
+      "secondaryCta": "Questions & réponses",
+      "intro": {
+        "title": "S'organiser simplement en numérique",
+        "paragraph1": "Vous cherchez une solution numérique claire pour le matériel, le stock et les prêts ? eMatChef s'adresse aux équipes et aux services de location : vous gardez la vue sur les stocks, les emplacements et les mouvements - sans chaos de tableaux ni paperasse.",
+        "paragraph2": "L'application fonctionne dans le navigateur, est basée sur les rôles et s'adapte à chaque organisation. Les infos QR publiques aident à retrouver rapidement le matériel."
+      },
+      "features": {
+        "title": "Ce que eMatChef permet",
+        "items": [
+          {
+            "title": "Tout au même endroit",
+            "text": "Matériel, emplacements, quantités et mouvements - structurés et traçables."
+          },
+          {
+            "title": "QR & infos publiques",
+            "text": "Numéros de série et indications visibles pour tous lorsque c'est pertinent."
+          },
+          {
+            "title": "Rôles & départements",
+            "text": "Qui peut voir et modifier quoi ? Droits par équipe et par organisation."
+          },
+          {
+            "title": "Prêts & stock",
+            "text": "Documenter les réservations et les déplacements sans risque de doublons."
+          },
+          {
+            "title": "Modèles & paramètres",
+            "text": "Modèles et configuration spécifiques à l'organisation - pas de solution unique."
+          },
+          {
+            "title": "Dans le navigateur",
+            "text": "Aucune installation nécessaire : connectez-vous et commencez."
+          }
+        ]
+      },
+      "cta": {
+        "titleSrOnly": "Commencer",
+        "text": "Prêt ? Connectez-vous et travaillez avec votre département dans une interface commune."
+      }
+    },
+    "impressum": {
+      "fallbackProviderHeading": "Informations de l'éditeur",
+      "fallbackRepresentativeHeading": "Représentant habilité",
+      "fallbackLiabilityHeading": "Responsabilité du contenu"
+    }
+  },
+  "components": {
+    "activityCreateWizard": {
+      "toastDraftLoadFailed": "Le brouillon n'a pas pu être chargé."
+    },
+    "materialDetail": {
+      "qrAlt": "Code QR"
+    },
+    "siteEditors": {
+      "lastSaved": "Dernier enregistrement",
+      "pageTitleLabel": "Titre de la page",
+      "saving": "Enregistrement…",
+      "loadFailed": "Échec du chargement",
+      "saveFailed": "Échec de l'enregistrement",
+      "jsonObjectRequired": "Le contenu doit être un objet JSON.",
+      "blog": {
+        "title": "Blog",
+        "introLabel": "Introduction",
+        "introPlaceholder": "Court texte d’introduction…",
+        "postsTitle": "Articles",
+        "postsAria": "Articles par date",
+        "newPost": "Nouvel article",
+        "noPostsHint": "Aucun article pour le moment. « Nouvel article » en crée un.",
+        "postHeadline": "Titre",
+        "contentLabel": "Contenu",
+        "postPlaceholder": "Texte de l’article…",
+        "confirmDeletePost": "Supprimer l’article ?"
+      },
+      "faq": {
+        "title": "FAQ",
+        "itemsTitle": "Questions & réponses",
+        "addItem": "Ajouter une entrée",
+        "questionLabel": "Question",
+        "answerLabel": "Réponse",
+        "answerPlaceholder": "Réponse…",
+        "removeItem": "Supprimer l’entrée"
+      },
+      "tos": {
+        "title": "Conditions & confidentialité",
+        "sectionsTitle": "Sections",
+        "addSection": "Ajouter une section",
+        "anchorIdLabel": "ID d’ancre (optionnel, p. ex. confidentialite)",
+        "headingLabel": "Titre",
+        "contentLabel": "Contenu",
+        "contentPlaceholder": "Texte…",
+        "removeSection": "Supprimer la section"
+      },
+      "impressum": {
+        "title": "Mentions légales",
+        "sectionsTitle": "Sections",
+        "addSection": "Ajouter une section",
+        "headingLabel": "Titre",
+        "contentLabel": "Contenu",
+        "contentPlaceholder": "Texte…",
+        "removeSection": "Supprimer la section"
       }
     }
   },

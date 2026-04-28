@@ -4,9 +4,6 @@
   },
   "router": {
     "meta": {
-      "fallbackDocumentTitle": "eMatChef - Administraziun da materials",
-      "fallbackDocumentDescription": "Administraziun da materials per rentas – eMatChef.",
-      "routeDescriptionDefault": "eMatChef – administraziun da materials per rentas.",
       "titles": {
         "publicLookup": "Inf. material · eMatChef",
         "openFromQr": "QR · eMatChef",
@@ -77,6 +74,58 @@
         "materialDetail": "Detagls material en eMatChef.",
         "publicLookupError": "Il material u il numer da serie dumandà n’è betg chattà u n’è betg activ.",
         "publicLookupNoData": "Infurmaziun publica material en eMatChef."
+      }
+    }
+  },
+  "public": {
+    "blog": {
+      "titleFallback": "Blog",
+      "untitledPost": "Senza titel",
+      "noPostsYet": "Anc nagins posts."
+    },
+    "landing": {
+      "kicker": "Administraziun da materials",
+      "heroTitle": "Material sut controlla, team en vista",
+      "heroSubtitle": "eMatChef sustegna tai cun magazin, emprestaziuns e survista - per rentas e teams bain organisads.",
+      "primaryCta": "S'annunziar",
+      "secondaryCta": "Dumondas & respostas",
+      "intro": {
+        "title": "Organisar digitalmain cun simplicitad",
+        "paragraph1": "Tscherchas ina soluziun digitala clera per material, magazin ed emprestaziuns? eMatChef è fatg per teams e rentas: ti tegnas la survista da stocks, lieus e moviments - senza chaos da tabelas e senza palpiri.",
+        "paragraph2": "L'applicaziun funcziuna en il browser, è basada sin rollas e sa lascha adattar per mintga organisaziun. Infurmaziuns QR publicas gidan da chattar material pli spert."
+      },
+      "features": {
+        "title": "Tge che eMatChef po",
+        "items": [
+          {
+            "title": "Tut en in lieu",
+            "text": "Material, lieus da magazin, quantitads e moviments - structurads e chapibels."
+          },
+          {
+            "title": "QR & infurmaziuns publicas",
+            "text": "Numeros da seria ed indicaziuns visibles per tuts nua che quai ha senn."
+          },
+          {
+            "title": "Rollas & partiziuns",
+            "text": "Tgi po vesair e midar tge? Dretgs per team ed organisaziun."
+          },
+          {
+            "title": "Emprestaziun & stock",
+            "text": "Documentar reservas e spustaments senza ristgar duplicats."
+          },
+          {
+            "title": "Models & parameters",
+            "text": "Models e configuraziun specifics per organisaziun - betg ina soluziun unica per tuts."
+          },
+          {
+            "title": "En il browser",
+            "text": "Nagina installaziun necessaria: annunziar e cumenzar."
+          }
+        ]
+      },
+      "cta": {
+        "titleSrOnly": "Cumenzar",
+        "text": "Pront? S'annunzia e lavura cun tia partiziun en ina surfatscha cuminaivla."
       }
     }
   },

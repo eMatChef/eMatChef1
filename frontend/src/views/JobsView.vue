@@ -1,33 +1,31 @@
 <template>
   <div class="jobs-page">
     <header class="jobs-header">
-      <h1>System-Jobs</h1>
-      <p>Wartungsjobs (nur Superadmin) — Benutzer ohne Abteilung nach Frist bereinigen.</p>
+      <h1>{{ t('jobs.title') }}</h1>
+      <p>{{ t('jobs.subtitle') }}</p>
     </header>
 
     <section v-if="isSuperAdmin" class="job-card">
       <div class="job-title-row">
-        <h2>Unzugeordnete User bereinigen</h2>
-        <span class="badge">app:cleanup-unassigned-users</span>
+        <h2>{{ t('jobs.unassigned.title') }}</h2>
+        <span class="badge">{{ t('jobs.unassigned.badge') }}</span>
       </div>
       <p class="job-description">
-        Loescht Benutzerkonten ohne Department-Zuordnung nach einer Frist (Standard: 21 Tage).
-        Konten mit globalen Admin-Rollen (Superadmin, Organisationschef, Suborgchef in profile.roles)
-        sind ausgeschlossen, auch ohne Membership.
+        {{ t('jobs.unassigned.description') }}
       </p>
 
       <div class="controls">
-        <label for="days">Frist (Tage)</label>
+        <label for="days">{{ t('jobs.unassigned.daysLabel') }}</label>
         <input id="days" v-model.number="days" type="number" min="1" max="365" />
 
         <button class="btn btn-secondary" :disabled="loading" @click="loadPreview">
-          Vorschau laden
+          {{ t('jobs.actions.loadPreview') }}
         </button>
         <button class="btn btn-secondary" :disabled="loading || previewItems.length === 0" @click="downloadCsv">
-          Liste herunterladen
+          {{ t('jobs.actions.downloadList') }}
         </button>
         <button class="btn btn-danger" :disabled="loading || selectedCount === 0" @click="runCleanup">
-          Daten loeschen ({{ selectedCount }})
+          {{ t('jobs.actions.deleteData', { count: selectedCount }) }}
         </button>
       </div>
 
@@ -35,11 +33,11 @@
       <p v-if="success" class="success">{{ success }}</p>
 
       <div class="preview">
-        <h3>Vorschau</h3>
-        <p v-if="loading">Lade...</p>
-        <p v-else-if="previewCount === 0">Keine passenden User gefunden.</p>
+        <h3>{{ t('jobs.preview.title') }}</h3>
+        <p v-if="loading">{{ t('jobs.preview.loading') }}</p>
+        <p v-else-if="previewCount === 0">{{ t('jobs.preview.empty') }}</p>
         <p v-else>
-          {{ previewCount }} User waeren betroffen, {{ selectedCount }} davon sind aktuell markiert.
+          {{ t('jobs.preview.impact', { total: previewCount, selected: selectedCount }) }}
         </p>
 
         <table v-if="previewItems.length > 0">
@@ -48,9 +46,9 @@
               <th>
                 <input type="checkbox" :checked="isAllSelected" @change="toggleSelectAll($event)" />
               </th>
-              <th>User ID</th>
-              <th>E-Mail</th>
-              <th>Erstellt am</th>
+              <th>{{ t('jobs.table.userId') }}</th>
+              <th>{{ t('jobs.table.email') }}</th>
+              <th>{{ t('jobs.table.createdAt') }}</th>
             </tr>
           </thead>
           <tbody>
@@ -68,13 +66,14 @@
     </section>
 
     <section v-else class="job-card muted">
-      <p>Diese Seite ist nur für Superadmin sichtbar.</p>
+      <p>{{ t('jobs.superadminOnly') }}</p>
     </section>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'
 import {
   previewUnassignedUsersCleanup,
@@ -82,6 +81,7 @@ import {
   type UnassignedCleanupItem
 } from '@/api/jobs'
 
+const { t } = useI18n()
 const authStore = useAuthStore()
 const isSuperAdmin = computed(() =>
   authStore.userRoles.includes('ROLE_SUPERADMIN') || authStore.currentDepartmentRole === 'sa'
@@ -120,7 +120,7 @@ async function loadPreview() {
     })
     selectedUserMap.value = nextMap
   } catch (err: any) {
-    error.value = err?.response?.data?.error || 'Vorschau konnte nicht geladen werden'
+    error.value = err?.response?.data?.error || t('jobs.messages.previewLoadFailed')
   } finally {
     loading.value = false
   }
@@ -160,7 +160,7 @@ async function runCleanup() {
   if (selectedCount.value === 0) return
 
   const confirmed = window.confirm(
-    `Wirklich ${selectedCount.value} ausgewaehlte unzugeordnete User loeschen? Dieser Schritt ist nicht rueckgaengig.`
+    t('jobs.messages.confirmCleanup', { count: selectedCount.value })
   )
   if (!confirmed) return
 
@@ -169,10 +169,13 @@ async function runCleanup() {
   success.value = null
   try {
     const result = await runUnassignedUsersCleanup(days.value, false, selectedIds.value)
-    success.value = `Cleanup abgeschlossen: ${result.deleted_users || 0} User und ${result.deleted_profiles || 0} Profile geloescht.`
+    success.value = t('jobs.messages.cleanupSuccess', {
+      users: result.deleted_users || 0,
+      profiles: result.deleted_profiles || 0
+    })
     await loadPreview()
   } catch (err: any) {
-    error.value = err?.response?.data?.error || 'Cleanup konnte nicht ausgefuehrt werden'
+    error.value = err?.response?.data?.error || t('jobs.messages.cleanupFailed')
   } finally {
     loading.value = false
   }

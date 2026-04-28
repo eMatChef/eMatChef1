@@ -3,14 +3,14 @@
     <StorageActionButton
       v-if="showEdit"
       :size="size"
-      title="Bearbeiten"
+      :title="t('common.edit')"
       icon="edit"
       @click="$emit('edit')"
     />
     <StorageActionButton
       v-if="showAdd"
       :size="size"
-      title="Hinzufügen"
+      :title="t('common.add')"
       icon="add"
       variant="add"
       @click="$emit('add')"
@@ -18,7 +18,7 @@
     <StorageActionButton
       v-if="showDelete"
       :size="size"
-      title="Löschen"
+      :title="t('common.delete')"
       icon="delete"
       variant="delete"
       @click="$emit('delete')"
@@ -28,6 +28,9 @@
 
 <script setup lang="ts">
 import StorageActionButton from '@/components/storage/StorageActionButton.vue'
+import { useI18n } from 'vue-i18n'
+
+const { t } = useI18n()
 
 withDefaults(defineProps<{
   showEdit?: boolean

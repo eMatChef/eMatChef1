@@ -3,12 +3,12 @@
   <div v-else class="site-page-editor">
     <header class="editor-head">
       <h1>{{ label }}</h1>
-      <p v-if="updatedAt" class="meta">Zuletzt gespeichert: {{ updatedAtDisplay }}</p>
+      <p v-if="updatedAt" class="meta">{{ t('components.siteEditors.lastSaved') }}: {{ updatedAtDisplay }}</p>
     </header>
     <p v-if="error" class="error">{{ error }}</p>
     <textarea v-model="jsonText" class="json-area" spellcheck="false" rows="22" :disabled="saving" />
     <div class="actions">
-      <button type="button" class="btn btn-primary" :disabled="saving" @click="save">Speichern</button>
+      <button type="button" class="btn btn-primary" :disabled="saving" @click="save">{{ t('common.save') }}</button>
     </div>
   </div>
 </template>
@@ -16,11 +16,13 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import BlogPageEditor from '@/components/site/BlogPageEditor.vue'
 import { SITE_PAGE_LABELS, type SitePageSlug } from '@/config/sitePageEditorFields'
 import { getAdminSitePage, putAdminSitePage } from '@/api/sitePages'
 
 const route = useRoute()
+const { t } = useI18n()
 const slug = computed(() => String(route.params.slug || ''))
 
 const label = computed(() => {
@@ -52,7 +54,7 @@ async function load() {
     jsonText.value = JSON.stringify(data.content, null, 2)
     updatedAt.value = data.updatedAt
   } catch (e) {
-    error.value = e instanceof Error ? e.message : 'Laden fehlgeschlagen'
+    error.value = e instanceof Error ? e.message : t('components.siteEditors.loadFailed')
   }
 }
 
@@ -70,13 +72,13 @@ async function save() {
   try {
     const parsed = JSON.parse(jsonText.value) as Record<string, unknown>
     if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
-      throw new Error('Inhalt muss ein JSON-Objekt sein.')
+      throw new Error(t('components.siteEditors.jsonObjectRequired'))
     }
     const data = await putAdminSitePage(slug.value, parsed)
     jsonText.value = JSON.stringify(data.content, null, 2)
     updatedAt.value = data.updatedAt
   } catch (e) {
-    error.value = e instanceof Error ? e.message : 'Speichern fehlgeschlagen'
+    error.value = e instanceof Error ? e.message : t('components.siteEditors.saveFailed')
   } finally {
     saving.value = false
   }

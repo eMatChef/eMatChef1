@@ -9,8 +9,8 @@
             <span class="logo-text">eMatChef</span>
           </div>
           <nav class="header-nav">
-            <router-link to="/login" class="nav-link">Anmelden</router-link>
-            <button class="btn-primary">Registrieren</button>
+            <router-link to="/login" class="nav-link">{{ t('landingClassic.login') }}</router-link>
+            <button class="btn-primary">{{ t('landingClassic.register') }}</button>
           </nav>
         </div>
       </div>
@@ -20,13 +20,13 @@
     <section class="hero">
       <div class="container">
         <div class="hero-content">
-          <h1 class="hero-title">Materialverwaltung<br />für Vermietungen</h1>
+          <h1 class="hero-title">{{ t('landingClassic.heroTitle') }}<br />{{ t('landingClassic.heroTitleSecond') }}</h1>
           <p class="hero-subtitle">
-            Professionelle Verwaltung Ihrer Vermietartikel – einfach, effizient und übersichtlich
+            {{ t('landingClassic.heroSubtitle') }}
           </p>
           <div class="hero-actions">
-            <router-link to="/login" class="btn-primary btn-large">Jetzt starten</router-link>
-            <button class="btn-secondary btn-large">Mehr erfahren</button>
+            <router-link to="/login" class="btn-primary btn-large">{{ t('landingClassic.startNow') }}</router-link>
+            <button class="btn-secondary btn-large">{{ t('landingClassic.learnMore') }}</button>
           </div>
         </div>
       </div>
@@ -35,34 +35,34 @@
     <!-- Features Section -->
     <section class="features">
       <div class="container">
-        <h2 class="section-title">Warum eMatChef?</h2>
+        <h2 class="section-title">{{ t('landingClassic.whyTitle') }}</h2>
         <div class="features-grid">
           <div class="feature-card">
             <div class="feature-icon">📦</div>
-            <h3 class="feature-title">Materialverwaltung</h3>
+            <h3 class="feature-title">{{ t('landingClassic.featureMaterialTitle') }}</h3>
             <p class="feature-description">
-              Übersichtliche Verwaltung aller Vermietartikel mit detaillierten Informationen
+              {{ t('landingClassic.featureMaterialText') }}
             </p>
           </div>
           <div class="feature-card">
             <div class="feature-icon">📅</div>
-            <h3 class="feature-title">Ausleihverwaltung</h3>
+            <h3 class="feature-title">{{ t('landingClassic.featureRentalTitle') }}</h3>
             <p class="feature-description">
-              Einfache Verwaltung von Ausleihen mit automatischer Verfügbarkeitsprüfung
+              {{ t('landingClassic.featureRentalText') }}
             </p>
           </div>
           <div class="feature-card">
             <div class="feature-icon">📊</div>
-            <h3 class="feature-title">Dashboard & Reports</h3>
+            <h3 class="feature-title">{{ t('landingClassic.featureDashboardTitle') }}</h3>
             <p class="feature-description">
-              Übersichtliche Dashboards und detaillierte Reports für bessere Entscheidungen
+              {{ t('landingClassic.featureDashboardText') }}
             </p>
           </div>
           <div class="feature-card">
             <div class="feature-icon">👥</div>
-            <h3 class="feature-title">Multi-User</h3>
+            <h3 class="feature-title">{{ t('landingClassic.featureMultiUserTitle') }}</h3>
             <p class="feature-description">
-              Unterstützung für mehrere Benutzer mit rollenbasierter Zugriffskontrolle
+              {{ t('landingClassic.featureMultiUserText') }}
             </p>
           </div>
         </div>
@@ -75,22 +75,22 @@
         <div class="footer-content">
           <div class="footer-section">
             <h4 class="footer-title">eMatChef</h4>
-            <p class="footer-text">Materialverwaltung für Vermietungen</p>
+            <p class="footer-text">{{ t('landingClassic.footerTagline') }}</p>
           </div>
           <div class="footer-section">
-            <h4 class="footer-title">Links</h4>
-            <a href="#" class="footer-link">Über uns</a>
-            <a href="#" class="footer-link">Kontakt</a>
-            <a href="#" class="footer-link">Impressum</a>
+            <h4 class="footer-title">{{ t('landingClassic.footerLinksTitle') }}</h4>
+            <a href="#" class="footer-link">{{ t('landingClassic.footerAbout') }}</a>
+            <a href="#" class="footer-link">{{ t('landingClassic.footerContact') }}</a>
+            <a href="#" class="footer-link">{{ t('landingClassic.footerImprint') }}</a>
           </div>
           <div class="footer-section">
-            <h4 class="footer-title">Support</h4>
-            <a href="#" class="footer-link">Hilfe</a>
-            <a href="#" class="footer-link">Dokumentation</a>
+            <h4 class="footer-title">{{ t('landingClassic.footerSupportTitle') }}</h4>
+            <a href="#" class="footer-link">{{ t('landingClassic.footerHelp') }}</a>
+            <a href="#" class="footer-link">{{ t('landingClassic.footerDocs') }}</a>
           </div>
         </div>
         <div class="footer-bottom">
-          <p>&copy; 2025 eMatChef. Alle Rechte vorbehalten.</p>
+          <p>{{ t('landingClassic.footerCopyright') }}</p>
         </div>
       </div>
     </footer>
@@ -98,6 +98,9 @@
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n'
+
+const { t } = useI18n()
 </script>
 
 <style scoped>

@@ -4,9 +4,6 @@
   },
   "router": {
     "meta": {
-      "fallbackDocumentTitle": "eMatChef - Inventory management",
-      "fallbackDocumentDescription": "Inventory management for rentals – eMatChef.",
-      "routeDescriptionDefault": "eMatChef – inventory management for rentals.",
       "titles": {
         "publicLookup": "Item info · eMatChef",
         "openFromQr": "QR · eMatChef",
@@ -77,6 +74,100 @@
         "materialDetail": "Item details in eMatChef.",
         "publicLookupError": "The requested item or serial number was not found or is not active.",
         "publicLookupNoData": "Public material information in eMatChef."
+      }
+    }
+  },
+  "public": {
+    "blog": {
+      "titleFallback": "Blog",
+      "untitledPost": "Untitled",
+      "noPostsYet": "No posts yet."
+    },
+    "lookup": {
+      "brandTitle": "eMatChef",
+      "login": "Sign in",
+      "loggedInAs": "Signed in as {name}",
+      "toApp": "Go to app",
+      "serialInfoTitle": "Serial info",
+      "materialInfoTitle": "Material info",
+      "loading": "Loading data...",
+      "codePrefix": "Code",
+      "serialPrefix": "Serial",
+      "department": "Department",
+      "manufacturer": "Manufacturer",
+      "model": "Model",
+      "contactMaintainer": "Contact material manager",
+      "contactTitle": "Contact",
+      "emailPrefix": "Email",
+      "sendMessageTitle": "Send message",
+      "sendMessageHint": "You found this item or want to contact the material manager? Send a short message.",
+      "websiteHoneyLabel": "Website",
+      "yourName": "Your name",
+      "yourNamePlaceholder": "e.g. first name",
+      "yourEmail": "Your email",
+      "optionalForQuestions": "optional, for follow-up questions",
+      "yourEmailPlaceholder": "name@example.com",
+      "messageLabel": "Message",
+      "messagePlaceholder": "e.g. Where is the item? When did you find it?",
+      "messageSentSuccess": "Message sent. Thank you.",
+      "sending": "Sending…",
+      "sendToMaintainer": "Send to material manager",
+      "deliveryUnavailable": "No contact email is currently stored for this department, so a message cannot be delivered here.",
+      "materialFallback": "Material",
+      "serialOrBatch": "Serial / batch",
+      "errorMessageTooShort": "Please enter a slightly more detailed message.",
+      "errorSendFailed": "Sending failed. Please try again later.",
+      "errorInvalidCode": "Invalid code.",
+      "errorCodeNotFound": "Code not found or inactive."
+    },
+    "impressum": {
+      "fallbackProviderHeading": "Provider information",
+      "fallbackRepresentativeHeading": "Authorized representative",
+      "fallbackLiabilityHeading": "Liability for content"
+    },
+    "landing": {
+      "kicker": "Inventory management",
+      "heroTitle": "Keep inventory clear, keep teams aligned",
+      "heroSubtitle": "eMatChef supports storage, lending and visibility - for rental services and teams that stay organized.",
+      "primaryCta": "Login",
+      "secondaryCta": "Questions & Answers",
+      "intro": {
+        "title": "Organize digitally with ease",
+        "paragraph1": "Looking for a clear digital solution for materials, storage and lending? eMatChef is built for teams and rental operations: keep track of stock, locations and movements - without spreadsheet chaos or paper notes.",
+        "paragraph2": "The app runs in the browser, is role-based and can be customized per organization. Public QR info helps you find items again quickly."
+      },
+      "features": {
+        "title": "What eMatChef can do",
+        "items": [
+          {
+            "title": "Everything in one place",
+            "text": "Materials, storage locations, quantities and movements - structured and traceable."
+          },
+          {
+            "title": "QR & public info",
+            "text": "Serial numbers and notes visible to everyone where it makes sense."
+          },
+          {
+            "title": "Roles & departments",
+            "text": "Who can see and edit what? Permissions per team and organization."
+          },
+          {
+            "title": "Lending & stock",
+            "text": "Document bookings and transfers without risking duplicates."
+          },
+          {
+            "title": "Templates & settings",
+            "text": "Organization-specific templates and configuration - not one size fits all."
+          },
+          {
+            "title": "In the browser",
+            "text": "No installation required: sign in and get started."
+          }
+        ]
+      },
+      "cta": {
+        "titleSrOnly": "Get started",
+        "text": "Ready? Sign in and work with your department in one shared interface."
       }
     }
   },
@@ -383,6 +474,8 @@
       "paletteBlackInitials": "Black initials",
       "backgroundColor": "Background color",
       "textColor": "Text color",
+      "backgroundColorPlaceholder": "#EC4899",
+      "textColorPlaceholder": "#FFFFFF",
       "unsavedChanges": "Unsaved changes",
       "cancel": "Cancel",
       "save": "Save",
@@ -997,9 +1090,18 @@
       "confirmWorkflowTitle": "Warning: only {pct}% complete!",
       "confirmWorkflowMessage": "{count} line(s) are not fully moved yet. Continue anyway?",
       "stages": {
-        "confirmed_packed": { "left": "Confirmed", "right": "Packed" },
-        "packed_issued": { "left": "Packed", "right": "At event" },
-        "issued_returned": { "left": "At event", "right": "Return" }
+        "confirmed_packed": {
+          "left": "Confirmed",
+          "right": "Packed"
+        },
+        "packed_issued": {
+          "left": "Packed",
+          "right": "At event"
+        },
+        "issued_returned": {
+          "left": "At event",
+          "right": "Return"
+        }
       }
     },
     "consumables": {
@@ -2365,6 +2467,7 @@
       "qrPrintAllDocTitle": "QR codes – {name}",
       "qrPrintAllDocHeading": "{name} – QR codes",
       "qrPrintSingleDocTitle": "QR code – {name}",
+      "qrAlt": "QR code",
       "allocationLineContainer": "Box {label}{extra}",
       "allocationLineRackSlot": "{rack} / {slot}",
       "allocationLineRackOnly": "{rack}",
@@ -2951,6 +3054,126 @@
     },
     "internal": {
       "lossResolutionNotes": "Loss report accepted and written off."
+    },
+    "activityCreateWizard": {
+      "toastDraftLoadFailed": "Draft could not be loaded."
+    },
+    "siteEditors": {
+      "lastSaved": "Last saved",
+      "pageTitleLabel": "Page title",
+      "saving": "Saving…",
+      "loadFailed": "Loading failed",
+      "saveFailed": "Saving failed",
+      "jsonObjectRequired": "Content must be a JSON object.",
+      "blog": {
+        "title": "Blog",
+        "introLabel": "Introduction",
+        "introPlaceholder": "Short introduction text…",
+        "postsTitle": "Posts",
+        "postsAria": "Posts by date",
+        "newPost": "New post",
+        "noPostsHint": "No posts yet. “New post” creates one.",
+        "postHeadline": "Headline",
+        "contentLabel": "Content",
+        "postPlaceholder": "Post text…",
+        "confirmDeletePost": "Delete post?"
+      },
+      "faq": {
+        "title": "FAQ",
+        "itemsTitle": "Questions & answers",
+        "addItem": "Add item",
+        "questionLabel": "Question",
+        "answerLabel": "Answer",
+        "answerPlaceholder": "Answer…",
+        "removeItem": "Remove item"
+      },
+      "tos": {
+        "title": "Terms & privacy",
+        "sectionsTitle": "Sections",
+        "addSection": "Add section",
+        "anchorIdLabel": "Anchor ID (optional, e.g. privacy)",
+        "headingLabel": "Heading",
+        "contentLabel": "Content",
+        "contentPlaceholder": "Text…",
+        "removeSection": "Remove section"
+      },
+      "impressum": {
+        "title": "Imprint",
+        "sectionsTitle": "Sections",
+        "addSection": "Add section",
+        "headingLabel": "Heading",
+        "contentLabel": "Content",
+        "contentPlaceholder": "Text…",
+        "removeSection": "Remove section"
+      }
+    },
+    "templateEditDialog": {
+      "titleView": "View template",
+      "titleEdit": "Edit template",
+      "titleCreate": "New template",
+      "readonlyBadge": "Read only",
+      "nameLabel": "Name",
+      "namePlaceholder": "e.g. Spatz tent 6P",
+      "manufacturerLabel": "Manufacturer",
+      "manufacturerPlaceholder": "e.g. Spatz, hajk",
+      "modelLabel": "Model",
+      "modelPlaceholder": "e.g. Group 6",
+      "descriptionLabel": "Description",
+      "descriptionPlaceholder": "Optional description",
+      "materialTypeLabel": "Material type",
+      "materialTypePhysicalCombo": "Physical combo (fixed unit)",
+      "materialTypeVirtualCombo": "Virtual combo (flexible)",
+      "statusLabel": "Status",
+      "statusActive": "Active",
+      "statusInactive": "Inactive",
+      "tentTypeLabel": "Tent type",
+      "noneOption": "– None –",
+      "tentTypeGroupTent": "Group tent",
+      "tentTypeOther": "Other",
+      "capacityLabel": "Capacity (persons)",
+      "capacityPlaceholder": "e.g. 6",
+      "reservationModeLabel": "Reservation mode",
+      "reservationDefaultOption": "– Default –",
+      "reservationCompleteOnly": "Complete only",
+      "reservationIndividual": "Individual",
+      "reservationFlexible": "Flexible",
+      "reservationHintCompleteOnly": "The tent can only be reserved as a complete unit.",
+      "reservationHintIndividual": "Individual components can be reserved separately.",
+      "reservationHintFlexible": "Both are possible – complete or individual.",
+      "sourceLabel": "Source",
+      "sourcePlaceholder": "e.g. manufacturer, internal",
+      "componentsInfo": "Define the components that belong to this template.",
+      "addComponent": "Add component",
+      "emptyComponents": "No components defined yet.",
+      "dragToSortTitle": "Drag to sort",
+      "newComponent": "New component",
+      "trackingShortSn": "SN",
+      "trackingShortBulk": "Bulk",
+      "genericBadgeTitle": "Cross-material component - name stays generic",
+      "optionalBadge": "Optional",
+      "removeTitle": "Remove",
+      "componentNamePlaceholder": "e.g. outer tent",
+      "typeLabel": "Type",
+      "componentTypePlaceholder": "e.g. outer_tent, inner_tent, stakes",
+      "quantityLabel": "Quantity",
+      "trackingLabel": "Tracking",
+      "trackingSerialized": "Serialized (serial number)",
+      "trackingBulk": "Bulk (quantity management)",
+      "optionalHint": "Optional (not mandatory)",
+      "genericHint": "Cross-material component (name stays generic, e.g. \"Stakes\" instead of \"Stakes Phoenix\")",
+      "repairTypesLabel": "Repair types",
+      "repairTypesPlaceholder": "e.g. hole, tear, guyline (comma-separated)",
+      "repairTypesHint": "Comma-separated list of possible repair types",
+      "close": "Close",
+      "saving": "Saving...",
+      "create": "Create",
+      "errorSave": "Error while saving",
+      "errorLoadConsole": "Error loading template:",
+      "tab": {
+        "general": "General",
+        "tent": "Tent details",
+        "components": "Components"
+      }
     }
   }
 }

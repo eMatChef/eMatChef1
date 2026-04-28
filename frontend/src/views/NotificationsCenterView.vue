@@ -2,21 +2,21 @@
   <div class="dept-page notifications-center-view">
     <div class="page-header header-content">
       <div class="header-left">
-        <h1>Nachrichtenzentrale</h1>
+        <h1>{{ t('notificationsCenter.title') }}</h1>
         <span class="subtitle">
-          Einladungen zu Camps und Anlässen anderer Abteilungen sowie Hinweise vom öffentlichen QR-Kontaktformular.
+          {{ t('notificationsCenter.subtitle') }}
         </span>
       </div>
     </div>
 
     <div v-if="isLoading" class="loading-state">
       <div class="spinner"></div>
-      <p>Benachrichtigungen werden geladen...</p>
+      <p>{{ t('notificationsCenter.loading') }}</p>
     </div>
     <template v-else>
       <section class="nc-section">
         <div class="nc-section-head">
-          <h2 class="nc-section-title">QR-Kontakt (öffentliche Seite)</h2>
+          <h2 class="nc-section-title">{{ t('notificationsCenter.qrSectionTitle') }}</h2>
           <div class="nc-found-tabs" role="tablist">
             <button
               type="button"
@@ -26,7 +26,7 @@
               :class="{ active: foundTab === 'active' }"
               @click="setFoundTab('active')"
             >
-              Offen / in Bearbeitung
+              {{ t('notificationsCenter.tabOpenInProgress') }}
             </button>
             <button
               type="button"
@@ -36,23 +36,23 @@
               :class="{ active: foundTab === 'done' }"
               @click="setFoundTab('done')"
             >
-              Erledigt
+              {{ t('notificationsCenter.tabDone') }}
             </button>
           </div>
         </div>
         <p v-if="foundTab === 'active'" class="nc-hint">
-          „Antworten“ öffnet dein E-Mail-Programm mit deinem eigenen Konto; die Nachricht geht an die angegebene Absenderadresse (nicht als Abteilungs-Postfach).
+          {{ t('notificationsCenter.replyHint') }}
         </p>
         <div v-if="foundItems.length > 0" class="notifications-table-wrapper">
           <table class="notifications-table">
             <thead>
               <tr>
-                <th>Material</th>
-                <th>Nachricht</th>
-                <th>Absender</th>
-                <th>Status</th>
-                <th>Datum</th>
-                <th>Aktion</th>
+                <th>{{ t('notificationsCenter.tableMaterial') }}</th>
+                <th>{{ t('notificationsCenter.tableMessage') }}</th>
+                <th>{{ t('notificationsCenter.tableSender') }}</th>
+                <th>{{ t('notificationsCenter.tableStatus') }}</th>
+                <th>{{ t('notificationsCenter.tableDate') }}</th>
+                <th>{{ t('notificationsCenter.tableAction') }}</th>
               </tr>
             </thead>
             <tbody>
@@ -75,22 +75,22 @@
                     :value="msg.status"
                     @change="onFoundStatusSelect(msg, $event)"
                   >
-                    <option value="open">Offen</option>
-                    <option value="in_progress">In Bearbeitung</option>
-                    <option value="done">Erledigt</option>
+                    <option value="open">{{ t('notificationsCenter.statusOpen') }}</option>
+                    <option value="in_progress">{{ t('notificationsCenter.statusInProgress') }}</option>
+                    <option value="done">{{ t('notificationsCenter.statusDone') }}</option>
                   </select>
                 </td>
                 <td>{{ formatDate(msg.created_at) }}</td>
                 <td class="notifications-actions-cell">
-                  <button type="button" class="btn-outline btn-xs" @click="openFoundMaterial(msg)">Material öffnen</button>
+                  <button type="button" class="btn-outline btn-xs" @click="openFoundMaterial(msg)">{{ t('notificationsCenter.openMaterial') }}</button>
                   <button
                     v-if="msg.sender_email && String(msg.sender_email).trim()"
                     type="button"
                     class="btn-outline btn-xs nc-reply-link"
-                    title="Öffnet dein E-Mail-Programm (z. B. Outlook) mit deinem Konto – Antwort an den Finder"
+                    :title="t('notificationsCenter.replyTitle')"
                     @click="openPublicFoundReplyMailto(msg)"
                   >
-                    Antworten
+                    {{ t('notificationsCenter.reply') }}
                   </button>
                   <button
                     v-if="msg.status !== 'done'"
@@ -98,7 +98,7 @@
                     class="btn-success btn-xs"
                     @click="markFoundDone(msg)"
                   >
-                    Erledigt
+                    {{ t('notificationsCenter.markDone') }}
                   </button>
                 </td>
               </tr>
@@ -106,21 +106,21 @@
           </table>
         </div>
         <div v-else class="nc-empty-found">
-          <p v-if="foundTab === 'active'">Keine offenen QR-Kontaktmeldungen.</p>
-          <p v-else>Keine erledigten Einträge.</p>
+          <p v-if="foundTab === 'active'">{{ t('notificationsCenter.emptyActive') }}</p>
+          <p v-else>{{ t('notificationsCenter.emptyDone') }}</p>
         </div>
       </section>
 
       <section v-if="inviteItems.length > 0" class="nc-section">
-        <h2 class="nc-section-title">Einladungen zu Aktivitäten</h2>
+        <h2 class="nc-section-title">{{ t('notificationsCenter.invitesSectionTitle') }}</h2>
         <div class="notifications-table-wrapper">
           <table class="notifications-table">
             <thead>
               <tr>
-                <th>Abteilung</th>
-                <th>Aktivität</th>
-                <th>Typ</th>
-                <th>Aktion</th>
+                <th>{{ t('notificationsCenter.tableDepartment') }}</th>
+                <th>{{ t('notificationsCenter.tableActivity') }}</th>
+                <th>{{ t('notificationsCenter.tableType') }}</th>
+                <th>{{ t('notificationsCenter.tableAction') }}</th>
               </tr>
             </thead>
             <tbody>
@@ -130,13 +130,13 @@
               >
                 <td>{{ invite.source_department_name }}</td>
                 <td>{{ invite.activity_name }}</td>
-                <td>{{ invite.activity_type === 'camp' ? 'Camp' : 'Anlass' }}</td>
+                <td>{{ invite.activity_type === 'camp' ? t('notificationsCenter.typeCamp') : t('notificationsCenter.typeEvent') }}</td>
                 <td class="notifications-actions-cell">
                   <button type="button" class="btn-success btn-xs" @click="decide(invite, 'accepted')">
-                    Annehmen
+                    {{ t('notificationsCenter.accept') }}
                   </button>
                   <button type="button" class="btn-danger-outline btn-xs" @click="decide(invite, 'rejected')">
-                    Ablehnen
+                    {{ t('notificationsCenter.reject') }}
                   </button>
                 </td>
               </tr>
@@ -146,8 +146,8 @@
       </section>
 
       <div v-if="inviteItems.length === 0 && allFoundMessages.length === 0" class="empty-state">
-        <h3>Keine Benachrichtigungen</h3>
-        <p>Es liegen keine offenen Einträge vor.</p>
+        <h3>{{ t('notificationsCenter.emptyTitle') }}</h3>
+        <p>{{ t('notificationsCenter.emptyBody') }}</p>
       </div>
     </template>
   </div>
@@ -156,6 +156,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { useToast } from '@/composables/useToast'
 import {
   getPendingDepartmentActivityInvites,
@@ -173,6 +174,7 @@ import {
 const route = useRoute()
 const router = useRouter()
 const toast = useToast()
+const { t } = useI18n()
 /** true bis erste Ladung fertig (verhindert frühes Entfernen von ?highlight=) */
 const isLoading = ref(true)
 const inviteItems = ref<PendingDepartmentActivityInvite[]>([])
@@ -221,7 +223,7 @@ async function load() {
   } catch {
     inviteItems.value = []
     allFoundMessages.value = []
-    toast.error('Benachrichtigungen konnten nicht geladen werden.')
+    toast.error(t('notificationsCenter.toastLoadFailed'))
   } finally {
     isLoading.value = false
   }
@@ -238,9 +240,9 @@ async function decide(invite: PendingDepartmentActivityInvite, decision: 'accept
     inviteItems.value = inviteItems.value.filter(
       (e) => !(e.activity_id === invite.activity_id && e.source_department_id === invite.source_department_id)
     )
-    toast.success(decision === 'accepted' ? 'Einladung angenommen' : 'Einladung abgelehnt')
+    toast.success(decision === 'accepted' ? t('notificationsCenter.toastInviteAccepted') : t('notificationsCenter.toastInviteRejected'))
   } catch (err: any) {
-    toast.error(err?.response?.data?.error || 'Entscheid konnte nicht gespeichert werden')
+    toast.error(err?.response?.data?.error || t('notificationsCenter.toastDecisionFailed'))
   }
 }
 
@@ -266,9 +268,9 @@ async function onFoundStatusChange(msg: PublicFoundItemMessage, status: PublicFo
     const { item } = await updatePublicFoundMessageStatus(departmentId.value, msg.id, status)
     const i = allFoundMessages.value.findIndex((m) => m.id === msg.id)
     if (i >= 0) allFoundMessages.value[i] = item
-    toast.success('Status gespeichert')
+    toast.success(t('notificationsCenter.toastStatusSaved'))
   } catch (err: any) {
-    toast.error(err?.response?.data?.error || 'Konnte nicht speichern')
+    toast.error(err?.response?.data?.error || t('notificationsCenter.toastSaveFailed'))
     await load()
   }
 }

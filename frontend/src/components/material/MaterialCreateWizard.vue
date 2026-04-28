@@ -1590,7 +1590,7 @@
                               <label>{{ t('components.materialDetail.labelDesignation') }}</label>
                               <select v-model="formData.pack_unit" class="form-input">
                                 <option value="">{{ t('components.materialDetail.packUnitNone') }}</option>
-                                <option value="Bündel">{{ t('components.materialDetail.packUnitBundle') }}</option>
+                                <option :value="PACK_UNIT_BUNDLE">{{ t('components.materialDetail.packUnitBundle') }}</option>
                                 <option value="Kiste">{{ t('components.materialDetail.packUnitKiste') }}</option>
                                 <option value="Karton">{{ t('components.materialDetail.packUnitKarton') }}</option>
                                 <option value="Sack">{{ t('components.materialDetail.packUnitSack') }}</option>
@@ -1676,7 +1676,7 @@
                               <label>{{ t('components.materialDetail.labelDesignation') }}</label>
                               <select v-model="formData.pack_unit" class="form-input">
                                 <option value="">{{ t('components.materialDetail.packUnitNone') }}</option>
-                                <option value="Bündel">{{ t('components.materialDetail.packUnitBundle') }}</option>
+                                <option :value="PACK_UNIT_BUNDLE">{{ t('components.materialDetail.packUnitBundle') }}</option>
                                 <option value="Kiste">{{ t('components.materialDetail.packUnitKiste') }}</option>
                                 <option value="Karton">{{ t('components.materialDetail.packUnitKarton') }}</option>
                                 <option value="Sack">{{ t('components.materialDetail.packUnitSack') }}</option>
@@ -2433,6 +2433,7 @@ const toast = useToast()
 const { t } = useI18n()
 const headerNotificationsStore = useHeaderNotificationsStore()
 const GLOBAL_SUPPLIER_DEPARTMENT_ID = 'GLOBAL000000'
+const PACK_UNIT_BUNDLE = 'Bündel'
 const articleNameInputRef = ref<HTMLInputElement | null>(null)
 const wizardFormRef = ref<HTMLElement | null>(null)
 const categoryAutocompleteRef = ref<HTMLElement | null>(null)
