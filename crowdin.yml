@@ -1,20 +1,5 @@
 project_id_env: CROWDIN_PROJECT_ID
 api_token_env: CROWDIN_PERSONAL_TOKEN
-base_path: .
-preserve_hierarchy: true
-
 files:
-  - source: /frontend/src/locales/de.json
-    translation: /frontend/src/locales/%locale%.json
-  - source: /backend/config/mail_templates/de.json
-    translation: /backend/config/mail_templates/%locale%.json
-    languages_mapping:
-      locale:
-        "en-US": "en"
-        "en-GB": "en"
-        "fr-FR": "fr"
-        "fr-CA": "fr"
-        "it-IT": "it"
-        "it-CH": "it"
-        # "rm": "ch-rm"
-        # "roh": "ch-rm"
+  - source: frontend/src/locales/de.json
+    translation: frontend/src/locales
