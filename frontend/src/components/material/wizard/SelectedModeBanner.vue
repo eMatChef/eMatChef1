@@ -19,14 +19,18 @@
           {{ modeLabel }}
         </span>
         <span v-if="templateName" class="banner-details">
-          Vorlage: {{ templateName }}
-          <span v-if="templateManufacturer"> &bull; {{ templateManufacturer }}</span>
+          {{ t('components.materialCreateWizard.bannerTemplatePrefix') }} {{ templateName }}<span v-if="templateManufacturer"> · {{ templateManufacturer }}</span>
         </span>
         <span v-else-if="inventorySourceLabel" class="banner-details">
-          Aus Kiste: {{ inventorySourceLabel }}
+          {{ t('components.materialCreateWizard.bannerFromBoxPrefix') }} {{ inventorySourceLabel }}
         </span>
       </div>
-      <button type="button" class="banner-close" @click="$emit('reset')" title="Modus wechseln (Formular zurücksetzen)">
+      <button
+        type="button"
+        class="banner-close"
+        @click="$emit('reset')"
+        :title="t('components.materialCreateWizard.titleResetCreationMode')"
+      >
         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <line x1="18" y1="6" x2="6" y2="18"/>
           <line x1="6" y1="6" x2="18" y2="18"/>
@@ -38,6 +42,9 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
+
+const { t } = useI18n()
 
 const props = defineProps<{
   creationMode: 'individual' | 'physical_combo' | 'virtual_combo'
@@ -53,6 +60,8 @@ defineEmits<{
 
 const modeLabel = computed(() => {
   const m = props.creationMode
-  return m === 'individual' ? 'Einzelartikel' : m === 'physical_combo' ? 'Physische Kombination' : 'Virtuelle Kombination'
+  if (m === 'individual') return t('components.materialCreateWizard.modeIndividualTitle')
+  if (m === 'physical_combo') return t('components.materialCreateWizard.modePhysicalComboTitle')
+  return t('components.materialCreateWizard.modeVirtualComboTitle')
 })
 </script>

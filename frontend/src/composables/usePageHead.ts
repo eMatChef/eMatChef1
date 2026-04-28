@@ -1,11 +1,24 @@
 import type { RouteLocationNormalized } from 'vue-router'
+import { i18n } from '@/i18n'
 import { usePageHeadStore } from '@/stores/pageHead'
 
-/** Entspricht `index.html` – Fallback wenn keine route.meta gesetzt ist */
-export const DEFAULT_DOCUMENT_TITLE = 'eMatChef - Materialverwaltung'
+/** vue-i18n-Keys – Fallback wie `index.html`, wenn keine route.meta gesetzt ist */
+export const PAGE_HEAD_KEYS = {
+  defaultTitle: 'router.meta.fallbackDocumentTitle',
+  defaultDescription: 'router.meta.fallbackDocumentDescription',
+} as const
 
-export const DEFAULT_PAGE_DESCRIPTION =
-  'Materialverwaltung für Vermietungen – eMatChef.'
+function t(key: string): string {
+  return i18n.global.t(key)
+}
+
+function defaultDocumentTitle(): string {
+  return t(PAGE_HEAD_KEYS.defaultTitle)
+}
+
+function defaultPageDescription(): string {
+  return t(PAGE_HEAD_KEYS.defaultDescription)
+}
 
 const DYNAMIC_ATTR = 'data-emc-head'
 
@@ -56,16 +69,18 @@ export function resolvePageHead(route: RouteLocationNormalized): { title: string
   }
   for (let i = route.matched.length - 1; i >= 0; i--) {
     const m = route.matched[i]
-    const pt = m.meta.pageTitle
-    if (typeof pt === 'string' && pt.length > 0) {
-      const pd = m.meta.pageDescription
-      return {
-        title: pt,
-        description: typeof pd === 'string' && pd.length > 0 ? pd : pt,
-      }
+    const titleKey = m.meta.pageTitleKey
+    if (typeof titleKey === 'string' && titleKey.length > 0) {
+      const descKey = m.meta.pageDescriptionKey
+      const title = t(titleKey)
+      const description =
+        typeof descKey === 'string' && descKey.length > 0
+          ? t(descKey)
+          : t('router.meta.routeDescriptionDefault')
+      return { title, description }
     }
   }
-  return { title: DEFAULT_DOCUMENT_TITLE, description: DEFAULT_PAGE_DESCRIPTION }
+  return { title: defaultDocumentTitle(), description: defaultPageDescription() }
 }
 
 export function syncDocumentHead(route: RouteLocationNormalized): void {
@@ -75,6 +90,6 @@ export function syncDocumentHead(route: RouteLocationNormalized): void {
 
 /** Nur dynamische og/meta-Tags entfernen und Default-Titel setzen (selten nötig) */
 export function resetPageHeadToDefault(): void {
-  document.title = DEFAULT_DOCUMENT_TITLE
   clearDynamicHead()
+  applyPageHead(defaultDocumentTitle(), defaultPageDescription())
 }

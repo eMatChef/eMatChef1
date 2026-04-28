@@ -5,10 +5,10 @@
         <h1>{{ t('settings.storage.title') }}</h1>
         <p class="subtitle">{{ t('settings.storage.subtitle') }}</p>
         <p v-if="primaryStorageLabel" class="subtitle primary-storage-hint">
-          Hauptlager: {{ primaryStorageLabel }}
+          {{ t('settings.storage.primaryStorageHint', { label: primaryStorageLabel }) }}
         </p>
         <p v-if="!isLoading && storageAddresses.length === 0" class="subtitle warning-text">
-          Bitte zuerst mindestens einen Lagerstandort anlegen.
+          {{ t('settings.storage.needStorageLocationFirst') }}
         </p>
       </div>
       <button class="btn-primary" :disabled="storageAddresses.length === 0" @click="openRackModal()">
@@ -175,7 +175,7 @@
     <!-- Ladezustand -->
     <div v-else class="loading-state">
       <div class="spinner"></div>
-      <p>Regale werden geladen...</p>
+      <p>{{ t('settings.storage.loadingOverview') }}</p>
     </div>
 
     <!-- Rack Edit Modal -->
@@ -183,7 +183,7 @@
       <div class="modal-dialog">
         <h3>{{ t('settings.storage.editRackTitle') }}</h3>
         <div class="form-group">
-          <label>Lagerstandort *</label>
+          <label>{{ t('settings.storage.fieldStorageLocationRequired') }}</label>
           <select v-model="rackForm.storage_address_id" class="form-input">
             <option value="">{{ t('settings.storage.selectStorageLocation') }}</option>
             <option v-for="addr in storageAddresses" :key="addr.id" :value="addr.id">
@@ -192,7 +192,7 @@
           </select>
         </div>
         <div class="form-group">
-          <label>Name</label>
+          <label>{{ t('settings.storage.fieldName') }}</label>
           <input v-model="rackForm.name" type="text" :placeholder="rackPlaceholder" class="form-input" />
         </div>
         <div class="modal-actions">
@@ -239,7 +239,7 @@
         <h3>{{ t('settings.storage.editSlotTitle') }}</h3>
         <p v-if="slotRack" class="modal-context">{{ t('settings.storage.rackContext', { name: slotRack.name }) }}</p>
         <div class="form-group">
-          <label>Name</label>
+          <label>{{ t('settings.storage.fieldName') }}</label>
           <input v-model="slotForm.name" type="text" :placeholder="slotFachPlaceholder" class="form-input" />
         </div>
         <div class="modal-actions">

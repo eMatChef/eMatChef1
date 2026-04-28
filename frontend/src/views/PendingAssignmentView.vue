@@ -1,14 +1,13 @@
 <template>
   <div class="pending-page">
     <div class="pending-card">
-      <h1>Warten auf Abteilungszuordnung</h1>
+      <h1>{{ t('pendingAssignment.title') }}</h1>
       <p>
-        Dein Konto ist bestaetigt, aber noch keiner Abteilung zugeordnet.
-        Du kannst jetzt direkt eine Join-Anfrage senden.
+        {{ t('pendingAssignment.intro') }}
       </p>
 
       <div class="box">
-        <label class="label">Abteilung suchen (Name / Organisation)</label>
+        <label class="label">{{ t('pendingAssignment.searchLabel') }}</label>
         <div class="search-box search-input-wrap">
           <svg class="search-icon" width="20" height="20" viewBox="0 0 20 20" fill="none">
             <path d="M9 17A8 8 0 1 0 9 1a8 8 0 0 0 0 16zM19 19l-4.35-4.35" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -16,9 +15,9 @@
           <input
             v-model="departmentQuery"
             class="search-input"
-            placeholder="z. B. Pfadi Musterstadt"
+            :placeholder="t('pendingAssignment.searchPlaceholder')"
           />
-          <button v-if="departmentQuery" @click="clearDepartmentSearch" class="clear-btn" type="button" aria-label="Suche leeren">
+          <button v-if="departmentQuery" @click="clearDepartmentSearch" class="clear-btn" type="button" :aria-label="t('pendingAssignment.clearSearchAria')">
             <svg width="16" height="16" viewBox="0 0 20 20" fill="none">
               <path d="M15 5L5 15M5 5l10 10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
             </svg>
@@ -35,15 +34,15 @@
               <span class="result-org">{{ d.organisation_name }}</span>
             </button>
             <p v-if="departmentResults.length > 4" class="search-more-hint">
-              Weitere Treffer vorhanden - weiter tippen zum Verfeinern.
+              {{ t('pendingAssignment.searchMoreHint') }}
             </p>
           </div>
         </div>
-        <div v-if="departmentLoading" class="hint">Suche laeuft...</div>
+        <div v-if="departmentLoading" class="hint">{{ t('pendingAssignment.searchLoading') }}</div>
         <div v-if="showManualAdminRequest" class="manual-request-box">
-          <p class="hint">Keine passende Abteilung gefunden. Du kannst einen Antrag an das Admin-Team senden. Wähle die Organisation, damit Org/SubOrg-Chefs deinen Antrag sehen.</p>
+          <p class="hint">{{ t('pendingAssignment.manualHint') }}</p>
           <div class="form-group">
-            <label class="form-label">Organisation *</label>
+            <label class="form-label">{{ t('pendingAssignment.organisationRequired') }}</label>
             <select v-model="manualOrganisationId" class="form-select">
               <option value="" disabled hidden>&nbsp;</option>
               <option v-for="org in organisationsFiltered" :key="org.id" :value="org.id">{{ org.name }}</option>
@@ -53,45 +52,45 @@
             <input
               v-model="manualDepartmentName"
               class="form-input"
-              placeholder="Abteilungsname"
+              :placeholder="t('pendingAssignment.departmentNamePlaceholder')"
             />
             <input
               v-model="manualAffiliation"
               class="form-input"
-              placeholder="Zugehoerigkeit (optional)"
+              :placeholder="t('pendingAssignment.affiliationPlaceholder')"
             />
           </div>
           <div class="form-group">
-            <label class="form-label">Hat es übergeordnete Abteilungen? (optional)</label>
+            <label class="form-label">{{ t('pendingAssignment.parentDepartmentsQuestion') }}</label>
             <input
               v-model="manualParentDepartment"
               class="form-input"
-              placeholder="z. B. Pfadi Kanton XY"
+              :placeholder="t('pendingAssignment.parentDepartmentsPlaceholder')"
             />
           </div>
           <button class="btn btn-secondary" type="button" :disabled="loading || !manualOrganisationId" @click="submitAdminRequest">
-            Antrag beim Admin stellen
+            {{ t('pendingAssignment.submitAdminRequest') }}
           </button>
         </div>
         <p v-if="selectedDepartment" class="success">
-          Ausgewaehlte Abteilung: {{ selectedDepartment.name }} ({{ selectedDepartment.organisation_name }})
+          {{ t('pendingAssignment.selectedDepartment', { name: selectedDepartment.name, org: selectedDepartment.organisation_name }) }}
         </p>
       </div>
 
       <div class="box">
-        <label class="label">Join-Code / Department-Code</label>
-        <input v-model="joinCode" class="form-input" placeholder="z. B. abc123def456" />
+        <label class="label">{{ t('pendingAssignment.joinCodeLabel') }}</label>
+        <input v-model="joinCode" class="form-input" :placeholder="t('pendingAssignment.joinCodePlaceholder')" />
       </div>
 
       <div class="actions">
         <button class="btn btn-primary" :disabled="loading" @click="submitRequest">
-          Join-Request senden
+          {{ t('pendingAssignment.sendJoinRequest') }}
         </button>
         <button class="btn btn-secondary" type="button" @click="toggleScanner">
-          {{ scannerActive ? 'Scanner stoppen' : 'Abteilungs-QR scannen' }}
+          {{ scannerActive ? t('pendingAssignment.scannerStop') : t('pendingAssignment.scannerStart') }}
         </button>
         <button class="btn btn-link" type="button" @click="adminContactModalOpen = true">
-          Admin kontaktieren
+          {{ t('pendingAssignment.contactAdmin') }}
         </button>
       </div>
 
@@ -99,7 +98,7 @@
       <div v-if="adminContactModalOpen" class="modal-overlay">
         <div class="modal-dialog pending-admin-modal-dialog">
           <div class="modal-header">
-            <h2>Admin kontaktieren</h2>
+            <h2>{{ t('pendingAssignment.adminModalTitle') }}</h2>
             <button type="button" class="modal-close" @click="adminContactModalOpen = false">
               <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
                 <path d="M15 5L5 15M5 5L15 15" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
@@ -107,57 +106,57 @@
             </button>
           </div>
           <div class="modal-body">
-            <p class="modal-intro">Gib deine gewünschte Abteilung und Organisation ein. Das Admin-Team erhält dein Ticket und ordnet dich zu.</p>
+            <p class="modal-intro">{{ t('pendingAssignment.adminModalIntro') }}</p>
             <div class="form-group">
-              <label class="form-label">Organisation *</label>
+              <label class="form-label">{{ t('pendingAssignment.organisationRequired') }}</label>
               <select v-model="adminModalOrganisationId" class="form-select">
                 <option value="" disabled hidden>&nbsp;</option>
                 <option v-for="org in organisationsFiltered" :key="org.id" :value="org.id">{{ org.name }}</option>
               </select>
             </div>
             <div class="form-group">
-              <label class="form-label">Abteilungsname *</label>
+              <label class="form-label">{{ t('pendingAssignment.departmentNameRequired') }}</label>
               <input
                 v-model="adminModalDepartmentName"
                 class="form-input"
-                placeholder="z. B. Pfadi Musterstadt"
+                :placeholder="t('pendingAssignment.departmentNameModalPlaceholder')"
               />
             </div>
             <div class="form-group">
-              <label class="form-label">Zugehörigkeit (optional)</label>
+              <label class="form-label">{{ t('pendingAssignment.affiliationModalLabel') }}</label>
               <input
                 v-model="adminModalAffiliation"
                 class="form-input"
-                placeholder="z. B. Stamm, Gruppe"
+                :placeholder="t('pendingAssignment.affiliationModalPlaceholder')"
               />
             </div>
             <div class="form-group">
-              <label class="form-label">Hat es übergeordnete Abteilungen? (optional)</label>
+              <label class="form-label">{{ t('pendingAssignment.parentDepartmentsModalLabel') }}</label>
               <input
                 v-model="adminModalParentDepartment"
                 class="form-input"
-                placeholder="z. B. Pfadi Kanton XY, Stamm Musterstadt"
+                :placeholder="t('pendingAssignment.parentDepartmentsModalPlaceholder')"
               />
             </div>
             <div class="form-group">
-              <label class="form-label">Nachricht an Admin (optional)</label>
+              <label class="form-label">{{ t('pendingAssignment.messageToAdmin') }}</label>
               <textarea
                 v-model="adminModalMessage"
                 class="form-textarea"
                 rows="3"
-                placeholder="Kurze Notiz für den Admin"
+                :placeholder="t('pendingAssignment.messageToAdminPlaceholder')"
               />
             </div>
             <div v-if="adminModalError" class="error-message">{{ adminModalError }}</div>
             <div class="modal-footer">
-              <button type="button" class="btn-secondary" @click="adminContactModalOpen = false">Abbrechen</button>
+              <button type="button" class="btn-secondary" @click="adminContactModalOpen = false">{{ t('common.cancel') }}</button>
               <button
                 type="button"
                 class="btn-primary"
                 :disabled="adminModalLoading || !adminModalOrganisationId || !adminModalDepartmentName.trim()"
                 @click="submitAdminContactModal"
               >
-                {{ adminModalLoading ? 'Wird gesendet...' : 'Ticket senden' }}
+                {{ adminModalLoading ? t('pendingAssignment.sending') : t('pendingAssignment.sendTicket') }}
               </button>
             </div>
           </div>
@@ -168,7 +167,7 @@
         v-if="scannerActive"
         :active="scannerActive"
         mode="qr"
-        hint="Richte den QR-Code ins Kamerabild."
+        :hint="t('pendingAssignment.scannerHint')"
         @detected="onQrDetected"
         @error="onScannerError"
       />
@@ -179,14 +178,14 @@
     </div>
 
     <div class="pending-card">
-      <h2>Meine offenen Anfragen</h2>
-      <p v-if="requests.length === 0">Noch keine Join-Anfragen vorhanden.</p>
+      <h2>{{ t('pendingAssignment.myOpenRequests') }}</h2>
+      <p v-if="requests.length === 0">{{ t('pendingAssignment.noRequestsYet') }}</p>
       <table v-else>
         <thead>
           <tr>
-            <th>Department</th>
-            <th>Status</th>
-            <th>Erstellt</th>
+            <th>{{ t('pendingAssignment.colDepartment') }}</th>
+            <th>{{ t('pendingAssignment.colStatus') }}</th>
+            <th>{{ t('pendingAssignment.colCreated') }}</th>
           </tr>
         </thead>
         <tbody>
@@ -203,6 +202,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import {
@@ -215,9 +215,11 @@ import {
 } from '@/api/joinRequests'
 import { getOrganisations, type Organisation } from '@/api/organisations'
 import { filterOrganisationsForUserPickers } from '@/utils/organisationUserPicker'
+import { localizedBarcodeScannerError } from '@/utils/barcodeScannerErrors'
 import BarcodeScannerPanel from '@/components/common/BarcodeScannerPanel.vue'
 
 const route = useRoute()
+const { t, locale } = useI18n()
 const authStore = useAuthStore()
 const joinCode = ref('')
 const inviteRole = ref('u')
@@ -255,13 +257,13 @@ let searchTimer: ReturnType<typeof setTimeout> | null = null
 let autoJoinTriggered = false
 
 function statusLabel(status: string): string {
-  if (status === 'approved') return 'Genehmigt'
-  if (status === 'rejected') return 'Abgelehnt'
-  return 'Offen'
+  if (status === 'approved') return t('pendingAssignment.statusApproved')
+  if (status === 'rejected') return t('pendingAssignment.statusRejected')
+  return t('pendingAssignment.statusOpen')
 }
 
 function formatDate(iso: string): string {
-  return new Date(iso).toLocaleString('de-CH')
+  return new Date(iso).toLocaleString(locale.value)
 }
 
 function selectDepartment(department: DepartmentSearchResult) {
@@ -298,18 +300,18 @@ function stopScanner() {
 function onQrDetected(payload: { text: string }) {
   const scanned = extractJoinCode(payload.text)
   if (!scanned) {
-    scannerError.value = 'QR-Code erkannt, aber kein gueltiger Join-Code gefunden.'
+    scannerError.value = t('pendingAssignment.qrNoJoinCode')
     return
   }
   scannerError.value = null
   joinCode.value = scanned.toUpperCase()
   selectedDepartment.value = null
-  success.value = 'Join-Code aus QR uebernommen.'
+  success.value = t('pendingAssignment.joinCodeFromQr')
   stopScanner()
 }
 
 function onScannerError(message: string) {
-  scannerError.value = message
+  scannerError.value = localizedBarcodeScannerError(message, t)
 }
 
 function toggleScanner() {
@@ -331,7 +333,7 @@ async function loadMine() {
 
 async function submitRequest() {
   if (!selectedDepartment.value && !joinCode.value.trim()) {
-    error.value = 'Bitte Abteilung auswaehlen oder Join-Code eingeben'
+    error.value = t('pendingAssignment.errorSelectOrCode')
     return
   }
 
@@ -353,9 +355,9 @@ async function submitRequest() {
         window.location.href = `/${deptId}`
         return
       }
-      success.value = 'Einladung akzeptiert. Du wurdest direkt dem Department zugeordnet.'
+      success.value = t('pendingAssignment.successAutoJoined')
     } else {
-      success.value = 'Join-Request gesendet. Das Admin-Team sieht die Anfrage im Dashboard.'
+      success.value = t('pendingAssignment.successRequestSent')
     }
     joinCode.value = ''
     selectedDepartment.value = null
@@ -364,7 +366,7 @@ async function submitRequest() {
     message.value = ''
     await loadMine()
   } catch (err: any) {
-    error.value = err?.response?.data?.error || 'Join-Request konnte nicht gesendet werden'
+    error.value = err?.response?.data?.error || t('pendingAssignment.errorSendFailed')
   } finally {
     loading.value = false
   }
@@ -373,11 +375,11 @@ async function submitRequest() {
 async function submitAdminContactModal() {
   const deptName = adminModalDepartmentName.value.trim()
   if (!deptName) {
-    adminModalError.value = 'Bitte Abteilungsname eingeben'
+    adminModalError.value = t('pendingAssignment.errorDeptName')
     return
   }
   if (!adminModalOrganisationId.value) {
-    adminModalError.value = 'Bitte Organisation wählen'
+    adminModalError.value = t('pendingAssignment.errorPickOrg')
     return
   }
 
@@ -391,7 +393,7 @@ async function submitAdminContactModal() {
       requestedParentDepartmentName: adminModalParentDepartment.value.trim() || undefined,
       message: adminModalMessage.value.trim() || undefined
     })
-    success.value = 'Ticket gesendet. SA sieht alle Anträge, Org/SubOrg-Chefs sehen Anträge ihrer Organisation.'
+    success.value = t('pendingAssignment.successTicketSent')
     adminContactModalOpen.value = false
     adminModalOrganisationId.value = ''
     adminModalDepartmentName.value = ''
@@ -400,7 +402,7 @@ async function submitAdminContactModal() {
     adminModalMessage.value = ''
     await loadMine()
   } catch (err: any) {
-    adminModalError.value = err?.response?.data?.error || 'Ticket konnte nicht gesendet werden'
+    adminModalError.value = err?.response?.data?.error || t('pendingAssignment.errorTicketSend')
   } finally {
     adminModalLoading.value = false
   }
@@ -409,11 +411,11 @@ async function submitAdminContactModal() {
 async function submitAdminRequest() {
   const deptName = (manualDepartmentName.value || departmentQuery.value).trim()
   if (!deptName) {
-    error.value = 'Bitte Abteilungsname eingeben'
+    error.value = t('pendingAssignment.errorDeptName')
     return
   }
   if (!manualOrganisationId.value) {
-    error.value = 'Bitte Organisation wählen'
+    error.value = t('pendingAssignment.errorPickOrg')
     return
   }
 
@@ -428,7 +430,7 @@ async function submitAdminRequest() {
       requestedParentDepartmentName: manualParentDepartment.value.trim() || undefined,
       message: message.value.trim() || undefined
     })
-    success.value = 'Admin-Antrag gesendet. SA sieht alle Anträge, Org/SubOrg-Chefs sehen Anträge ihrer Organisation.'
+    success.value = t('pendingAssignment.successAdminRequest')
     manualOrganisationId.value = ''
     manualDepartmentName.value = ''
     manualAffiliation.value = ''
@@ -436,7 +438,7 @@ async function submitAdminRequest() {
     departmentQuery.value = ''
     departmentResults.value = []
   } catch (err: any) {
-    error.value = err?.response?.data?.error || 'Admin-Antrag konnte nicht gesendet werden'
+    error.value = err?.response?.data?.error || t('pendingAssignment.errorAdminRequest')
   } finally {
     loading.value = false
   }

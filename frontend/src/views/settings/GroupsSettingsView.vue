@@ -3,14 +3,14 @@
     <!-- Header -->
     <div class="page-header">
       <div>
-        <h2 class="settings-title">Gruppen</h2>
-        <p class="settings-description">Gruppen und Leiter verwalten</p>
+        <h2 class="settings-title">{{ t('settings.groups.title') }}</h2>
+        <p class="settings-description">{{ t('settings.groups.subtitle') }}</p>
       </div>
       <button class="btn btn-primary" @click="openCreateModal()">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
         </svg>
-        Neue Gruppe
+        {{ t('settings.groups.newGroup') }}
       </button>
     </div>
 
@@ -18,28 +18,28 @@
     <div v-if="!isLoading && groups.length > 0" class="stats-bar">
       <div class="stat-item">
         <span class="stat-value">{{ groups.length }}</span>
-        <span class="stat-label">Gruppen</span>
+        <span class="stat-label">{{ t('settings.groups.statGroups') }}</span>
       </div>
       <div class="stat-item">
         <span class="stat-value">{{ totalMembers }}</span>
-        <span class="stat-label">Mitglieder</span>
+        <span class="stat-label">{{ t('settings.groups.statMembers') }}</span>
       </div>
       <div class="stat-item">
         <span class="stat-value">{{ totalLeaders }}</span>
-        <span class="stat-label">Leiter</span>
+        <span class="stat-label">{{ t('settings.groups.statLeaders') }}</span>
       </div>
     </div>
 
     <!-- Loading -->
     <div v-if="isLoading" class="loading-state">
       <div class="spinner"></div>
-      <p>Gruppen werden geladen...</p>
+      <p>{{ t('settings.groups.loading') }}</p>
     </div>
 
     <!-- Error -->
     <div v-else-if="error" class="error-state">
       <p class="error-message">{{ error }}</p>
-      <button @click="loadGroups" class="btn btn-secondary">Erneut versuchen</button>
+      <button @click="loadGroups" class="btn btn-secondary">{{ t('settings.groups.retry') }}</button>
     </div>
 
     <!-- Empty State -->
@@ -50,13 +50,13 @@
         <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
         <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
       </svg>
-      <h3>Noch keine Gruppen</h3>
-      <p>Erstellen Sie Ihre erste Gruppe, um Mitglieder zu organisieren.</p>
+      <h3>{{ t('settings.groups.emptyTitle') }}</h3>
+      <p>{{ t('settings.groups.emptyDescription') }}</p>
       <button class="btn btn-primary" @click="openCreateModal()">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
         </svg>
-        Erste Gruppe erstellen
+        {{ t('settings.groups.firstGroup') }}
       </button>
     </div>
 
@@ -65,9 +65,9 @@
       <table class="groups-table">
         <thead>
           <tr>
-            <th class="col-name">Gruppe</th>
-            <th class="col-leaders">Leiter</th>
-            <th class="col-members">Mitglieder</th>
+            <th class="col-name">{{ t('settings.groups.colGroup') }}</th>
+            <th class="col-leaders">{{ t('settings.groups.colLeaders') }}</th>
+            <th class="col-members">{{ t('settings.groups.colMembers') }}</th>
             <th class="col-actions"></th>
           </tr>
         </thead>
@@ -122,7 +122,7 @@
               <div class="action-buttons">
                 <button 
                   class="action-btn" 
-                  title="Mitglieder verwalten"
+                  :title="t('settings.groups.titleManageMembers')"
                   @click="openMembersModal(group)"
                 >
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -133,7 +133,7 @@
                 </button>
                 <button 
                   class="action-btn" 
-                  title="Bearbeiten"
+                  :title="t('settings.groups.titleEdit')"
                   @click="openEditModal(group)"
                 >
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -143,7 +143,7 @@
                 </button>
                 <button 
                   class="action-btn action-btn-danger" 
-                  title="Löschen"
+                  :title="t('settings.groups.titleDelete')"
                   @click="handleDelete(group)"
                 >
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -165,7 +165,7 @@
       <div v-if="showGroupModal" class="modal-overlay">
         <div class="modal-container modal-sm">
           <div class="modal-header">
-            <h3>{{ editingGroup ? 'Gruppe bearbeiten' : 'Neue Gruppe' }}</h3>
+            <h3>{{ editingGroup ? t('settings.groups.modalEditGroup') : t('settings.groups.modalNewGroup') }}</h3>
             <button class="close-btn" @click="closeGroupModal">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
@@ -175,20 +175,20 @@
 
           <div class="modal-body">
             <div class="form-group">
-              <label>Gruppenname *</label>
+              <label>{{ t('settings.groups.groupNameLabel') }}</label>
               <input 
                 v-model="groupForm.name" 
                 type="text" 
                 class="form-input"
-                placeholder="z.B. Stufe Tortuga, Trupp Adler..."
+                :placeholder="t('settings.groups.groupNamePlaceholder')"
                 ref="groupNameInput"
               />
             </div>
 
             <div class="form-group">
-              <label>Übergeordnete Gruppe</label>
+              <label>{{ t('settings.groups.parentGroupLabel') }}</label>
               <select v-model="groupForm.parent_id" class="form-select">
-                <option :value="null">– Keine (Root-Ebene) –</option>
+                <option :value="null">{{ t('settings.groups.parentNone') }}</option>
                 <option 
                   v-for="g in availableParents" 
                   :key="g.id" 
@@ -201,13 +201,13 @@
           </div>
 
           <div class="modal-footer">
-            <button class="btn btn-secondary" @click="closeGroupModal">Abbrechen</button>
+            <button class="btn btn-secondary" @click="closeGroupModal">{{ t('settings.groups.cancel') }}</button>
             <button 
               class="btn btn-primary" 
               :disabled="!groupForm.name.trim() || isSaving"
               @click="saveGroup"
             >
-              {{ isSaving ? 'Speichere...' : (editingGroup ? 'Speichern' : 'Erstellen') }}
+              {{ isSaving ? t('settings.groups.saving') : (editingGroup ? t('settings.groups.save') : t('settings.groups.create')) }}
             </button>
           </div>
         </div>
@@ -222,7 +222,7 @@
         <div class="modal-container modal-lg">
           <div class="modal-header">
             <h3>
-              Mitglieder: <strong>{{ selectedGroup.name }}</strong>
+              {{ t('settings.groups.membersHeading') }} <strong>{{ selectedGroup.name }}</strong>
             </h3>
             <button class="close-btn" @click="closeMembersModal">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -234,13 +234,13 @@
           <div class="modal-body">
             <!-- Bestehendes Mitglieder-Tabelle -->
             <div v-if="selectedGroup.members.length > 0" class="members-section">
-              <h4 class="section-title">Aktuelle Mitglieder ({{ selectedGroup.members.length }})</h4>
+              <h4 class="section-title">{{ t('settings.groups.sectionCurrentMembers', { count: selectedGroup.members.length }) }}</h4>
               <table class="members-table">
                 <thead>
                   <tr>
-                    <th>Name</th>
-                    <th>E-Mail</th>
-                    <th>Rolle</th>
+                    <th>{{ t('settings.groups.memberColName') }}</th>
+                    <th>{{ t('settings.groups.memberColEmail') }}</th>
+                    <th>{{ t('settings.groups.memberColRole') }}</th>
                     <th></th>
                   </tr>
                 </thead>
@@ -248,7 +248,7 @@
                   <tr v-for="member in selectedGroup.members" :key="member.user_id">
                     <td class="member-name">
                       <span class="name-text">{{ member.name }}</span>
-                      <span v-if="member.is_primary" class="primary-badge">★ Hauptgruppe</span>
+                      <span v-if="member.is_primary" class="primary-badge">{{ t('settings.groups.primaryGroupBadge') }}</span>
                     </td>
                     <td class="member-email">{{ member.email }}</td>
                     <td>
@@ -257,14 +257,14 @@
                         class="role-select"
                         @change="handleRoleChange(member, ($event.target as HTMLSelectElement).value)"
                       >
-                        <option value="leader">Gruppenchef</option>
-                        <option value="member">Mitglied</option>
+                        <option value="leader">{{ t('settings.groups.roleLeader') }}</option>
+                        <option value="member">{{ t('settings.groups.roleMember') }}</option>
                       </select>
                     </td>
                     <td>
                       <button 
                         class="action-btn action-btn-danger"
-                        title="Entfernen"
+                        :title="t('settings.groups.titleRemoveMember')"
                         @click="handleRemoveMember(member)"
                       >
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -278,20 +278,20 @@
             </div>
 
             <div v-else class="empty-members">
-              <p>Noch keine Mitglieder in dieser Gruppe.</p>
+              <p>{{ t('settings.groups.emptyNoMembers') }}</p>
             </div>
 
             <!-- Neues Mitglied hinzufügen -->
             <div class="add-member-section">
-              <h4 class="section-title">Mitglied hinzufügen</h4>
+              <h4 class="section-title">{{ t('settings.groups.addMemberHeading') }}</h4>
               
               <div v-if="isLoadingUsers" class="loading-inline">
                 <div class="spinner-sm"></div>
-                <span>Lade verfügbare User...</span>
+                <span>{{ t('settings.groups.loadingUsers') }}</span>
               </div>
 
               <div v-else-if="unassignedUsers.length === 0" class="no-users-hint">
-                <p>Alle User dieses Departments sind bereits zugewiesen.</p>
+                <p>{{ t('settings.groups.allUsersAssigned') }}</p>
               </div>
 
               <div v-else class="add-member-form">
@@ -300,7 +300,7 @@
                   v-model="addMemberForm.user_id"
                   class="form-select user-select"
                 >
-                  <option value="">– User auswählen –</option>
+                  <option value="">{{ t('settings.groups.selectUser') }}</option>
                   <option
                     v-for="user in unassignedUsers"
                     :key="user.user_id"
@@ -335,6 +335,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, nextTick, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useToast } from '@/composables/useToast'
@@ -357,6 +358,7 @@ import {
   type DepartmentMember
 } from '@/api/departments'
 
+const { t } = useI18n()
 const route = useRoute()
 const authStore = useAuthStore()
 const toast = useToast()
@@ -468,7 +470,7 @@ async function loadGroups() {
   try {
     groups.value = await getGroups(departmentId.value)
   } catch (err: any) {
-    error.value = err.response?.data?.error || 'Fehler beim Laden der Gruppen'
+    error.value = err.response?.data?.error || t('settings.groups.errorLoadGroups')
   } finally {
     isLoading.value = false
   }
@@ -532,7 +534,7 @@ async function saveGroup() {
     closeGroupModal()
     await loadGroups()
   } catch (err: any) {
-    toast.error(err.response?.data?.error || 'Fehler beim Speichern')
+    toast.error(err.response?.data?.error || t('settings.groups.errorSave'))
   } finally {
     isSaving.value = false
   }
@@ -540,10 +542,10 @@ async function saveGroup() {
 
 async function handleDelete(group: Group) {
   const ok = await confirm.confirm({
-    title: 'Gruppe löschen?',
-    message: `"${group.name}" wirklich löschen? Alle Mitgliedschaften werden entfernt.`,
-    confirmText: 'Löschen',
-    cancelText: 'Abbrechen',
+    title: t('settings.groups.deleteGroupTitle'),
+    message: t('settings.groups.deleteGroupMessage', { name: group.name }),
+    confirmText: t('settings.groups.delete'),
+    cancelText: t('settings.groups.cancel'),
     variant: 'danger',
   })
   if (!ok) return
@@ -551,7 +553,7 @@ async function handleDelete(group: Group) {
     await apiDeleteGroup(group.id)
     await loadGroups()
   } catch (err: any) {
-    toast.error(err.response?.data?.error || 'Fehler beim Löschen')
+    toast.error(err.response?.data?.error || t('settings.groups.errorDelete'))
   }
 }
 
@@ -584,7 +586,7 @@ async function handleAddMember() {
     // Reset Form
     addMemberForm.value = { user_id: '', role: 'member' }
   } catch (err: any) {
-    toast.error(err.response?.data?.error || 'Fehler beim Hinzufügen')
+    toast.error(err.response?.data?.error || t('settings.groups.errorAddMember'))
   }
 }
 
@@ -596,17 +598,17 @@ async function handleRoleChange(member: GroupMember, newRole: string) {
     const updated = groups.value.find(g => g.id === selectedGroup.value?.id)
     if (updated) selectedGroup.value = updated
   } catch (err: any) {
-    toast.error(err.response?.data?.error || 'Fehler beim Ändern der Rolle')
+    toast.error(err.response?.data?.error || t('settings.groups.errorRoleChange'))
   }
 }
 
 async function handleRemoveMember(member: GroupMember) {
   if (!selectedGroup.value) return
   const ok = await confirm.confirm({
-    title: 'Mitglied entfernen?',
-    message: `${member.name} wirklich aus der Gruppe entfernen?`,
-    confirmText: 'Entfernen',
-    cancelText: 'Abbrechen',
+    title: t('settings.groups.removeMemberTitle'),
+    message: t('settings.groups.removeMemberMessage', { name: member.name }),
+    confirmText: t('settings.groups.remove'),
+    cancelText: t('settings.groups.cancel'),
     variant: 'danger',
   })
   if (!ok) return
@@ -616,7 +618,7 @@ async function handleRemoveMember(member: GroupMember) {
     const updated = groups.value.find(g => g.id === selectedGroup.value?.id)
     if (updated) selectedGroup.value = updated
   } catch (err: any) {
-    toast.error(err.response?.data?.error || 'Fehler beim Entfernen')
+    toast.error(err.response?.data?.error || t('settings.groups.errorRemoveMember'))
   }
 }
 

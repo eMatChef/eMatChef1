@@ -76,8 +76,8 @@
               </svg>
             </div>
             <div class="manufacturer-info">
-              <span class="manufacturer-name">{{ group.manufacturer }}</span>
-              <span class="manufacturer-meta">{{ group.templates.length }} Vorlagen</span>
+              <span class="manufacturer-name">{{ manufacturerDisplayName(group.manufacturer) }}</span>
+              <span class="manufacturer-meta">{{ t('settings.templates.manufacturerTemplateCount', { count: group.templates.length }) }}</span>
             </div>
           </div>
         </div>
@@ -103,9 +103,9 @@
                 <div class="template-info">
                   <div class="template-name-row">
                     <span class="template-name">{{ template.name }}</span>
-                    <span v-if="template.is_global" class="badge global">Zentral</span>
-                    <span v-else class="badge department">Eigene</span>
-                    <span v-if="!template.is_active" class="badge inactive">Inaktiv</span>
+                    <span v-if="template.is_global" class="badge global">{{ t('settings.templates.badgeGlobal') }}</span>
+                    <span v-else class="badge department">{{ t('settings.templates.badgeDepartment') }}</span>
+                    <span v-if="!template.is_active" class="badge inactive">{{ t('settings.templates.badgeInactive') }}</span>
                   </div>
                   <div class="template-meta">
                     <span class="meta-item">
@@ -113,17 +113,17 @@
                         <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
                         <polyline points="14 2 14 8 20 8"/>
                       </svg>
-                      {{ template.component_count }} Komponenten
+                      {{ t('settings.templates.componentCount', { count: template.component_count }) }}
                     </span>
                     <span v-if="template.capacity" class="meta-item">
                       <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
                         <circle cx="9" cy="7" r="4"/>
                       </svg>
-                      {{ template.capacity }} Personen
+                      {{ t('settings.templates.capacityPersons', { count: template.capacity }) }}
                     </span>
                     <span class="meta-item type-badge" :class="template.material_type">
-                      {{ template.material_type === 'physical_combo' ? 'Physisch' : 'Virtuell' }}
+                      {{ template.material_type === 'physical_combo' ? t('settings.templates.typePhysicalShort') : t('settings.templates.typeVirtualShort') }}
                     </span>
                     <span v-if="template.tent_type" class="meta-item">
                       {{ formatTentType(template.tent_type) }}
@@ -132,7 +132,7 @@
                 </div>
               </div>
               <div class="template-actions">
-                <button class="action-btn" @click.stop="duplicateTemplate(template)" title="Als eigene Kopie erstellen">
+                <button class="action-btn" @click.stop="duplicateTemplate(template)" :title="t('settings.templates.duplicateTitle')">
                   <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
                     <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
@@ -144,7 +144,7 @@
                     <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
                   </svg>
                 </button>
-                <button v-else class="action-btn view-only" @click.stop="openEditDialog(template)" title="Ansehen (nur lesen)">
+                <button v-else class="action-btn view-only" @click.stop="openEditDialog(template)" :title="t('settings.templates.viewOnlyTitle')">
                   <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
                     <circle cx="12" cy="12" r="3"/>
@@ -173,7 +173,7 @@
         <h3>{{ t('settings.templates.emptyTitle') }}</h3>
         <p>{{ t('settings.templates.emptyDescription') }}</p>
         <div class="empty-actions">
-          <button class="btn-secondary" @click="showImportDialog = true">JSON Import</button>
+          <button class="btn-secondary" @click="showImportDialog = true">{{ t('settings.templates.jsonImport') }}</button>
           <button class="btn-primary" @click="openCreateDialog">{{ t('settings.templates.firstTemplate') }}</button>
         </div>
       </div>
@@ -182,7 +182,7 @@
     <!-- Ladezustand -->
     <div v-else class="loading-state">
       <div class="spinner"></div>
-      <p>Vorlagen werden geladen...</p>
+      <p>{{ t('settings.templates.loading') }}</p>
     </div>
 
     <!-- Template Edit/Create Dialog -->
@@ -199,7 +199,7 @@
     <div v-if="showImportDialog" class="modal-overlay">
       <div class="import-dialog">
         <div class="dialog-header">
-          <h2>JSON Vorlagen importieren</h2>
+          <h2>{{ t('settings.templates.importDialogTitle') }}</h2>
           <button class="close-btn" @click="showImportDialog = false">
             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
@@ -208,7 +208,7 @@
         </div>
         <div class="dialog-body">
           <p class="import-info">
-            Importieren Sie Vorlagen im v4-Format. Die JSON-Datei muss folgende Struktur haben:
+            {{ t('settings.templates.importInfo') }}
             <code>{{ '{ "manufacturer": "...", "templates": [...] }' }}</code>
           </p>
           <div class="file-upload-area" :class="{ dragging: isDragging }" @dragover.prevent="isDragging = true" @dragleave="isDragging = false" @drop.prevent="handleFileDrop">
@@ -219,13 +219,13 @@
                 <polyline points="17 8 12 3 7 8"/>
                 <line x1="12" y1="3" x2="12" y2="15"/>
               </svg>
-              <p v-if="!importFile">JSON-Datei hierher ziehen oder klicken</p>
+              <p v-if="!importFile">{{ t('settings.templates.importDropzoneHint') }}</p>
               <p v-else class="file-selected">{{ importFile.name }}</p>
             </div>
           </div>
           <div v-if="importResult" class="import-result" :class="{ success: importResult.success, error: !importResult.success }">
             <template v-if="importResult.success">
-              <strong>Import erfolgreich!</strong>
+              <strong>{{ t('settings.templates.importSuccessStrong') }}</strong>
               {{ t('settings.templates.importSuccess', { created: importResult.created, skipped: importResult.skipped, manufacturer: importResult.manufacturer }) }}
             </template>
             <template v-else>
@@ -234,9 +234,9 @@
           </div>
         </div>
         <div class="dialog-footer">
-          <button class="btn-secondary" @click="showImportDialog = false">Schliessen</button>
+          <button class="btn-secondary" @click="showImportDialog = false">{{ t('settings.templates.importClose') }}</button>
           <button class="btn-primary" @click="executeImport" :disabled="!importFile || isImporting">
-            {{ isImporting ? 'Wird importiert...' : 'Importieren' }}
+            {{ isImporting ? t('settings.templates.importSubmitting') : t('settings.templates.importSubmit') }}
           </button>
         </div>
       </div>
@@ -250,10 +250,10 @@
           {{ t('settings.templates.deleteConfirmMessage', { name: deletingTemplate?.name }) }}
         </p>
         <p class="warning-hint">
-          Bereits erstellte Materialien werden davon nicht betroffen.
+          {{ t('settings.templates.deleteConfirmWarning') }}
         </p>
         <div class="confirm-actions">
-          <button class="btn-secondary" @click="showDeleteConfirm = false">Abbrechen</button>
+          <button class="btn-secondary" @click="showDeleteConfirm = false">{{ t('common.cancel') }}</button>
           <button class="btn-danger" @click="executeDelete" :disabled="isDeleting">
             {{ isDeleting ? t('settings.templates.deleting') : t('settings.templates.delete') }}
           </button>
@@ -275,6 +275,9 @@ const route = useRoute()
 const toast = useToast()
 const { t } = useI18n()
 const departmentId = computed(() => route.params.departmentId as string)
+
+/** Internal grouping key when a template has no manufacturer (never shown raw). */
+const NO_MANUFACTURER_KEY = '__NO_MANUFACTURER__'
 
 const templates = ref<Template[]>([])
 const isLoading = ref(true)
@@ -338,17 +341,21 @@ const filteredTemplates = computed(() => {
   return result
 })
 
+function manufacturerDisplayName(key: string): string {
+  return key === NO_MANUFACTURER_KEY ? t('settings.templates.noManufacturer') : key
+}
+
 // Computed: Gruppiert nach Hersteller
 const groupedTemplates = computed(() => {
   const groups: Record<string, Template[]> = {}
   for (const t of filteredTemplates.value) {
-    const key = t.manufacturer || 'Ohne Hersteller'
+    const key = t.manufacturer || NO_MANUFACTURER_KEY
     if (!groups[key]) groups[key] = []
     groups[key].push(t)
   }
   return Object.entries(groups)
     .map(([manufacturer, tpls]) => ({ manufacturer, templates: tpls }))
-    .sort((a, b) => a.manufacturer.localeCompare(b.manufacturer))
+    .sort((a, b) => manufacturerDisplayName(a.manufacturer).localeCompare(manufacturerDisplayName(b.manufacturer)))
 })
 
 // Hersteller-Gruppen expandieren/kollabieren
@@ -362,11 +369,9 @@ function toggleManufacturer(manufacturer: string) {
 
 // Tent-Typ formatieren
 function formatTentType(type: string): string {
-  const map: Record<string, string> = {
-    gruppenzelt: 'Gruppenzelt',
-    sonstiges: 'Sonstiges',
-  }
-  return map[type] || type
+  const key = `settings.templates.tentType.${type}`
+  const translated = t(key)
+  return translated !== key ? translated : type
 }
 
 // Dialog-Funktionen
@@ -398,7 +403,7 @@ async function duplicateTemplate(template: Template) {
   editingTemplate.value = {
     ...template,
     id: '', // Kein ID = neue Vorlage
-    name: `${template.name} (Kopie)`,
+    name: `${template.name} (${t('settings.templates.duplicateNameSuffix')})`,
     scope: 'department',
     is_global: false,
     department_id: departmentId.value,
@@ -482,9 +487,8 @@ async function loadTemplates() {
     templates.value = await getTemplates(departmentId.value)
     // Alle Gruppen expandieren
     manufacturers.value.forEach(m => expandedManufacturers.value.add(m))
-    // Auch "Ohne Hersteller" expandieren falls vorhanden
-    if (templates.value.some(t => !t.manufacturer)) {
-      expandedManufacturers.value.add('Ohne Hersteller')
+    if (templates.value.some((tpl) => !tpl.manufacturer)) {
+      expandedManufacturers.value.add(NO_MANUFACTURER_KEY)
     }
   } catch (err) {
     console.error(t('settings.templates.loadError'), err)

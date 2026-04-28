@@ -1,15 +1,11 @@
 <template>
   <div class="rental-amort-card">
-    <h3 class="rental-amort-title">Preis-Vorschlag (Amortisation)</h3>
+    <h3 class="rental-amort-title">{{ t('components.rentalAmortization.title') }}</h3>
+    <p class="rental-amort-hint">{{ t('components.rentalAmortization.introHint') }}</p>
     <p class="rental-amort-hint">
-      Pro Nutzungsperiode brauchst du <strong>eine</strong> Kalkulationsbasis: meist den
-      <strong>Wiederbeschaffungswert</strong> beim Neukauf (was der Ersatz kosten wird), nicht zwei Anschaffungen addieren.
-      Die historische Anschaffung {{ contextHint }} ist der Startpunkt; wenn du den künftigen Neupreis kennst, trage ihn
-      unten manuell ein. Optional: Schätzung aus alter Anschaffung × Preissteigerung bis zum Neukauf.
-      Die Basis wird linear auf <strong>Jahre bis Neukauf × (interne + externe Miettage/Jahr)</strong> verteilt;
-      bei mehreren Stücken wird die <strong>Gesamtbasis durch die Stückzahl geteilt</strong> – die Vorschlagswerte gelten
-      <strong>pro Stück</strong> (wie in den Vermietfeldern). Woche = 7× Tag, Monat ≈ 30× Tag.
+      {{ t('components.rentalAmortization.midHint', { ctx: contextPhrase }) }}
     </p>
+    <p class="rental-amort-hint">{{ t('components.rentalAmortization.outroHint') }}</p>
     <div class="rental-amort-basis-row">
       <span>
         {{ historicalLineLabel }}
@@ -19,13 +15,13 @@
     </div>
     <div v-if="historicalBasisChf != null" class="rental-amort-basis-row">
       <span>
-        Stück: {{ effectivePieceCount }} · Anschaffung pro Stück:
+        {{ t('components.rentalAmortization.piecesLine', { n: effectivePieceCount }) }}
         <strong>Fr. {{ historicalPerPieceDisplay }}</strong>
       </span>
     </div>
     <div class="rental-amort-replace-estimate">
       <div class="form-group">
-        <label>Preissteigerung / Jahr für Schätzung (%)</label>
+        <label>{{ t('components.rentalAmortization.labelInflationPct') }}</label>
         <input
           v-model.number="rentalReplacementInflationPercent"
           type="number"
@@ -37,10 +33,14 @@
       </div>
       <div class="rental-amort-replace-estimate__text">
         <span v-if="replacementBasisEstimateChf != null">
-          Geschätzter Neupreis bei Neukauf (Anschaffung × (1+r)<sup>n</sup>):
+          <span v-html="t('components.rentalAmortization.estimateLabelHtml')"></span>
           <strong>Fr. {{ formatChfDisplay(replacementBasisEstimateChf) }}</strong>
           <template v-if="effectivePieceCount > 1">
-            <span class="rental-amort-muted"> (Fr. {{ formatChfDisplay(replacementPerPieceChf) }} pro Stück)</span>
+            <span class="rental-amort-muted">{{
+              t('components.rentalAmortization.perPieceMuted', {
+                amount: formatChfDisplay(replacementPerPieceChf),
+              })
+            }}</span>
           </template>
         </span>
         <span v-else class="rental-amort-muted">{{ estimateEmptyHint }}</span>
@@ -50,13 +50,13 @@
           class="btn-outline btn-sm"
           @click="applyReplacementEstimateToBasis"
         >
-          Als Kalkulationsbasis übernehmen
+          {{ t('components.rentalAmortization.btnApplyEstimate') }}
         </button>
       </div>
     </div>
     <div class="rental-amort-grid">
       <div class="form-group">
-        <label>Kalkulationsbasis (manuell)</label>
+        <label>{{ t('components.rentalAmortization.labelManualBasis') }}</label>
         <div class="input-with-prefix">
           <span class="prefix">Fr.</span>
           <input
@@ -66,59 +66,59 @@
             :placeholder="manualBasisPlaceholder"
           />
         </div>
-        <span class="rental-amort-muted rental-amort-field-hint">Erwarteter Neupreis beim Ersatz oder Schätzung übernehmen.</span>
+        <span class="rental-amort-muted rental-amort-field-hint">{{ t('components.rentalAmortization.fieldHintManual') }}</span>
       </div>
       <div class="form-group">
-        <label>Jahre bis Neukauf</label>
+        <label>{{ t('components.rentalAmortization.labelYears') }}</label>
         <input v-model.number="rentalCalcYears" type="number" min="1" step="1" class="form-input" />
       </div>
       <div class="form-group">
-        <label>Erw. interne Miettage / Jahr</label>
+        <label>{{ t('components.rentalAmortization.labelDaysInt') }}</label>
         <input v-model.number="rentalCalcDaysInternalPerYear" type="number" min="0" step="1" class="form-input" />
       </div>
       <div class="form-group">
-        <label>Erw. externe Miettage / Jahr</label>
+        <label>{{ t('components.rentalAmortization.labelDaysExt') }}</label>
         <input v-model.number="rentalCalcDaysExternalPerYear" type="number" min="0" step="1" class="form-input" />
       </div>
       <div class="form-group">
-        <label>Aufschlag auf Tagessatz (%)</label>
+        <label>{{ t('components.rentalAmortization.labelMarkup') }}</label>
         <input v-model.number="rentalCalcMarkupPercent" type="number" min="0" step="5" class="form-input" />
       </div>
     </div>
     <div v-if="rentalPreview" class="rental-amort-preview">
       <dl>
-        <dt>Jahre bis Neukauf</dt>
+        <dt>{{ t('components.rentalAmortization.previewDtYears') }}</dt>
         <dd>{{ rentalPreview.yearsToReplacement }}</dd>
-        <dt>Intern / Jahr</dt>
+        <dt>{{ t('components.rentalAmortization.previewDtInt') }}</dt>
         <dd>{{ rentalPreview.internalDaysPerYear }}</dd>
-        <dt>Extern / Jahr</dt>
+        <dt>{{ t('components.rentalAmortization.previewDtExt') }}</dt>
         <dd>{{ rentalPreview.externalDaysPerYear }}</dd>
-        <dt>Summe / Jahr</dt>
+        <dt>{{ t('components.rentalAmortization.previewDtSum') }}</dt>
         <dd>{{ rentalPreview.totalDaysPerYear }}</dd>
-        <dt>Break-even / Tag (pro Stück, ohne Aufschlag)</dt>
+        <dt>{{ t('components.rentalAmortization.previewDtBreakeven') }}</dt>
         <dd>Fr. {{ rentalPreview.dailyBreakEven }}</dd>
-        <dt>Vorschlag Tag (pro Stück)</dt>
+        <dt>{{ t('components.rentalAmortization.previewDtDay') }}</dt>
         <dd>Fr. {{ rentalPreview.day }}</dd>
-        <dt>Vorschlag Woche (pro Stück)</dt>
+        <dt>{{ t('components.rentalAmortization.previewDtWeek') }}</dt>
         <dd>Fr. {{ rentalPreview.week }}</dd>
-        <dt>Vorschlag Monat (pro Stück)</dt>
+        <dt>{{ t('components.rentalAmortization.previewDtMonth') }}</dt>
         <dd>Fr. {{ rentalPreview.month }}</dd>
         <template v-if="rentalPreview.pieceCountUsed > 1 && rentalPreview.dayTotalAllPieces">
-          <dt>Alle {{ rentalPreview.pieceCountUsed }} Stück gleichzeitig (Tag)</dt>
+          <dt>{{ t('components.rentalAmortization.previewDtAllDay', { n: rentalPreview.pieceCountUsed }) }}</dt>
           <dd>Fr. {{ rentalPreview.dayTotalAllPieces }}</dd>
-          <dt>Woche (Gesamt)</dt>
+          <dt>{{ t('components.rentalAmortization.previewDtWeekTotal') }}</dt>
           <dd>Fr. {{ rentalPreview.weekTotalAllPieces }}</dd>
-          <dt>Monat (Gesamt)</dt>
+          <dt>{{ t('components.rentalAmortization.previewDtMonthTotal') }}</dt>
           <dd>Fr. {{ rentalPreview.monthTotalAllPieces }}</dd>
-          <dt>Break-even / Tag (Gesamt)</dt>
+          <dt>{{ t('components.rentalAmortization.previewDtBreakevenTotal') }}</dt>
           <dd>Fr. {{ rentalPreview.dailyBreakEvenTotalAllPieces }}</dd>
         </template>
-        <dt>Nutzungstage gesamt (Plan)</dt>
+        <dt>{{ t('components.rentalAmortization.previewDtPlanDays') }}</dt>
         <dd>{{ rentalPreview.totalRentalDays }}</dd>
       </dl>
       <div class="rental-amort-actions">
         <button type="button" class="btn-primary btn-sm" @click="applyRentalPriceSuggestion">
-          Vorschlag in Felder übernehmen
+          {{ t('components.rentalAmortization.btnApplySuggestion') }}
         </button>
       </div>
     </div>
@@ -130,6 +130,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, nextTick } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useToast } from '@/composables/useToast'
 import type { RentalAmortizationDefaults } from '@/api/departmentSettings'
 import {
@@ -161,6 +162,7 @@ const emit = defineEmits<{
   'update:modelValue': [value: RentalCalcParams | null]
 }>()
 
+const { t } = useI18n()
 const toast = useToast()
 
 const rentalCalcBasisOverride = ref('')
@@ -190,9 +192,9 @@ function applyFromProps() {
 }
 
 function buildPayload(): RentalCalcParams {
-  const t = rentalCalcBasisOverride.value.trim().replace(',', '.')
+  const basisRaw = rentalCalcBasisOverride.value.trim().replace(',', '.')
   return {
-    basis_override: t !== '' ? t : null,
+    basis_override: basisRaw !== '' ? basisRaw : null,
     price_increase_percent_per_year: Number(rentalReplacementInflationPercent.value),
     years_to_replacement: Math.round(Number(rentalCalcYears.value)),
     internal_days_per_year: Math.round(Number(rentalCalcDaysInternalPerYear.value)),
@@ -238,38 +240,34 @@ watch(
   { deep: true }
 )
 
-const contextHint = computed(() => {
-  if (props.context === 'wizard') return 'aus diesem Formular (Stückpreis × Menge)'
-  if (props.context === 'combo')
-    return 'aus der Zusammensetzung (Ø-Anschaffung pro Stück je Komponente × Menge im Set)'
-  return 'aus den Chargen'
+const contextPhrase = computed(() => {
+  if (props.context === 'wizard') return t('components.rentalAmortization.contextWizard')
+  if (props.context === 'combo') return t('components.rentalAmortization.contextCombo')
+  return t('components.rentalAmortization.contextBatches')
 })
 
 const historicalLineLabel = computed(() => {
-  if (props.context === 'wizard')
-    return 'Historische Anschaffung (geplanter Erstkauf, Stückpreis × Menge):'
-  if (props.context === 'combo') return 'Historische Anschaffung ein Set (Summe aus Stückliste):'
-  return 'Historische Anschaffung (aktive Chargen, Summe Menge × Stückpreis):'
+  if (props.context === 'wizard') return t('components.rentalAmortization.historicalLineWizard')
+  if (props.context === 'combo') return t('components.rentalAmortization.historicalLineCombo')
+  return t('components.rentalAmortization.historicalLineBatches')
 })
 
 const manualBasisPlaceholder = computed(() => {
-  if (props.context === 'wizard') return 'Leer = Stückpreis × Menge'
-  if (props.context === 'combo') return 'Leer = Summe aus Zusammensetzung'
-  return 'Leer = historische Chargen-Basis'
+  if (props.context === 'wizard') return t('components.rentalAmortization.manualPhWizard')
+  if (props.context === 'combo') return t('components.rentalAmortization.manualPhCombo')
+  return t('components.rentalAmortization.manualPhBatches')
 })
 
 const estimateEmptyHint = computed(() => {
-  if (props.context === 'wizard') return 'Anschaffungsbetrag und Jahre bis Neukauf nötig.'
-  if (props.context === 'combo') return 'Summe aus Zusammensetzung und Jahre bis Neukauf nötig.'
-  return 'Chargen-Basis und Jahre bis Neukauf nötig.'
+  if (props.context === 'wizard') return t('components.rentalAmortization.estimateEmptyWizard')
+  if (props.context === 'combo') return t('components.rentalAmortization.estimateEmptyCombo')
+  return t('components.rentalAmortization.estimateEmptyBatches')
 })
 
 const invalidPreviewHint = computed(() => {
-  if (props.context === 'wizard')
-    return 'Keine gültige Basis: Stückpreis und Menge erfassen oder Basis manuell eintragen; Jahre bis Neukauf > 0 und mindestens ein erwarteter Miettag pro Jahr (intern oder extern).'
-  if (props.context === 'combo')
-    return 'Keine gültige Basis: Komponenten mit Stückpreisen in den Chargen erfassen oder Basis manuell eintragen; Jahre bis Neukauf > 0 und mindestens ein erwarteter Miettag pro Jahr (intern oder extern).'
-  return 'Keine gültige Basis: Chargen mit Stückpreis erfassen oder Basis manuell eintragen; Jahre bis Neukauf > 0 und mindestens ein erwarteter Miettag pro Jahr (intern oder extern).'
+  if (props.context === 'wizard') return t('components.rentalAmortization.invalidWizard')
+  if (props.context === 'combo') return t('components.rentalAmortization.invalidCombo')
+  return t('components.rentalAmortization.invalidBatches')
 })
 
 const effectivePieceCount = computed(() => {
@@ -303,9 +301,9 @@ const replacementPerPieceChf = computed((): number | null => {
 })
 
 const effectiveRentalBasisChf = computed((): number | null => {
-  const t = rentalCalcBasisOverride.value.trim().replace(',', '.')
-  if (t !== '') {
-    const n = Number(t)
+  const basisRaw = rentalCalcBasisOverride.value.trim().replace(',', '.')
+  if (basisRaw !== '') {
+    const n = Number(basisRaw)
     if (Number.isFinite(n) && n > 0) return n
   }
   const a = props.historicalBasisChf
@@ -342,13 +340,13 @@ function applyReplacementEstimateToBasis() {
   const v = replacementBasisEstimateChf.value
   if (v == null) return
   rentalCalcBasisOverride.value = v.toFixed(2)
-  toast.success('Kalkulationsbasis aus Neupreis-Schätzung übernommen.')
+  toast.success(t('components.rentalAmortization.toastBasisFromEstimate'))
 }
 
 function applyRentalPriceSuggestion() {
   const p = rentalPreview.value
   if (!p) {
-    toast.warning('Kein gültiger Preisvorschlag.')
+    toast.warning(t('components.rentalAmortization.toastNoValidSuggestion'))
     return
   }
   emit('apply', { day: p.day, week: p.week, month: p.month })

@@ -3,18 +3,18 @@
     <div v-if="loading" class="section-card">
       <p class="activity-inline-loading">
         <span class="spinner spinner-sm"></span>
-        <span>Packliste wird geladen…</span>
+        <span>{{ t('activities.packList.loading') }}</span>
       </p>
     </div>
 
     <div v-else-if="loadError" class="section-card">
       <p class="text-muted">{{ loadError }}</p>
-      <button type="button" class="btn-outline btn-sm" @click="loadAll">Erneut versuchen</button>
+      <button type="button" class="btn-outline btn-sm" @click="loadAll">{{ t('activities.common.retry') }}</button>
     </div>
 
     <div v-else-if="packItems.length === 0" class="section-card">
-      <h2 class="section-title">Packliste</h2>
-      <p class="text-muted">Noch keine Packpositionen.</p>
+      <h2 class="section-title">{{ t('activities.packList.title') }}</h2>
+      <p class="text-muted">{{ t('activities.packList.emptyPositions') }}</p>
       <button
         v-if="canInitPackList"
         type="button"
@@ -22,22 +22,22 @@
         :disabled="initLoading"
         @click="onInitPackList"
       >
-        {{ initLoading ? 'Wird erstellt…' : 'Packliste starten' }}
+        {{ initLoading ? t('activities.packList.initCreating') : t('activities.packList.initStart') }}
       </button>
     </div>
 
     <template v-else>
       <div class="section-card">
-        <h2 class="section-title">Packliste &amp; Workflow</h2>
+        <h2 class="section-title">{{ t('activities.packList.titleWorkflow') }}</h2>
         <p v-if="!packListEditable" class="activity-pack-readonly-hint text-muted">
-          Nur Ansicht — Änderungen sind in diesem Status nicht möglich.
+          {{ t('activities.packList.readonlyHint') }}
         </p>
       </div>
 
       <div class="pack-workflow">
         <div class="pack-stage-tabs">
           <button
-            v-for="st in PACK_STAGES"
+            v-for="st in packStagesForUi"
             :key="st.key"
             type="button"
             class="pack-stage-tab"
@@ -50,7 +50,7 @@
 
         <div class="pack-progress-bar">
           <div class="pack-progress-info">
-            <span>{{ stageProgress }}% {{ activeStageConfig.rightLabel }}</span>
+            <span>{{ t('activities.packList.progressPercent', { pct: stageProgress, stage: activeStageConfig.rightLabel }) }}</span>
             <div class="pack-progress-actions">
               <button
                 v-if="packListEditable && stageLeftHeaderCount > 0"
@@ -59,7 +59,7 @@
                 :disabled="moveAllLoading"
                 @click="moveAllToNextStage"
               >
-                ALLES → {{ activeStageConfig.rightLabel }}
+                {{ t('activities.packList.moveAll', { stage: activeStageConfig.rightLabel }) }}
               </button>
               <button
                 v-if="nextWorkflowTransition"
@@ -88,25 +88,22 @@
           class="pack-return-stock-hint"
           role="note"
         >
-          <p class="pack-return-stock-hint-title">Mehr zurück als erwartet?</p>
+          <p class="pack-return-stock-hint-title">{{ t('activities.packList.returnStockTitle') }}</p>
           <p class="pack-return-stock-hint-body text-muted">
-            Retour hier erfassen (Positionen nach «Retour» verschieben, Mengen anpassen). Kommt physisch mehr an
-            als vorgesehen, den Ist-Wert entsprechend setzen. Wieder ins Lager buchen: im Material eine Charge
-            anlegen oder den Wareneingang erfassen — z. B. Verbrauchsmaterial, Esswaren, Lebensmittel oder
-            andere Artikel mit MHD/Chargen.
+            {{ t('activities.packList.returnStockBody') }}
             <router-link
               v-if="departmentId"
               :to="`/${departmentId}/materials`"
               class="pack-return-stock-hint-link"
-            >Materialliste</router-link>
+            >{{ t('activities.packList.materialsLink') }}</router-link>
           </p>
         </div>
 
         <div v-if="jsWorkflowSummary.items > 0" class="js-workflow-summary">
-          <span class="mat-source-badge">J&amp;S</span>
-          <span>Positionen: <strong>{{ jsWorkflowSummary.items }}</strong></span>
-          <span>Erhalten: <strong>{{ jsWorkflowSummary.received }}</strong></span>
-          <span>Rückgabe: <strong>{{ jsWorkflowSummary.returned }}</strong></span>
+          <span class="mat-source-badge">{{ t('activities.common.jsBadge') }}</span>
+          <span>{{ t('activities.packList.jsSummaryPositions') }} <strong>{{ jsWorkflowSummary.items }}</strong></span>
+          <span>{{ t('activities.packList.jsSummaryReceived') }} <strong>{{ jsWorkflowSummary.received }}</strong></span>
+          <span>{{ t('activities.packList.jsSummaryReturned') }} <strong>{{ jsWorkflowSummary.returned }}</strong></span>
         </div>
 
         <div class="pack-panels">
@@ -120,9 +117,9 @@
               class="pack-panel-empty"
             >
               <template v-if="activePackStage === 'packed_issued' && packedIssueWarehouseOnlyInContainers">
-                Nur in Behältern — unten bei «Kisten» in dieser Spalte.
+                {{ t('activities.packList.warehouseOnlyInContainers') }}
               </template>
-              <template v-else>Alles verschoben!</template>
+              <template v-else>{{ t('activities.packList.allMoved') }}</template>
             </div>
             <div v-for="group in groupsLeft" :key="'l-' + group.categoryName" class="pack-group">
               <div class="pack-group-header" @click="toggleGroup('l-' + group.categoryName)">
@@ -139,46 +136,50 @@
                           <span
                             v-if="pi.materialType === 'physical_combo'"
                             class="pack-combo-badge"
-                            title="Physische Kombination"
-                            >Phys. Kombi</span
+                            :title="t('activities.detail.comboPhysicalTitle')"
+                            >{{ t('activities.detail.comboPhysicalShort') }}</span
                           >
                           <span
                             v-else-if="pi.materialType === 'virtual_combo'"
                             class="pack-combo-badge pack-combo-badge--virtual"
-                            title="Virtuelle Kombination"
-                            >Virt. Kombi</span
+                            :title="t('activities.detail.comboVirtualTitle')"
+                            >{{ t('activities.detail.comboVirtualShort') }}</span
                           >
-                          <span v-if="pi.isJsMaterial" class="mat-source-badge">J&amp;S</span>
+                          <span v-if="pi.isJsMaterial" class="mat-source-badge">{{ t('activities.common.jsBadge') }}</span>
                         </span>
                         <div v-if="pi.linkedContainerLabel" class="pack-card-kiste text-muted">
-                          Kiste: {{ pi.linkedContainerLabel }}
+                          {{ t('activities.packList.kisteLabel', { label: pi.linkedContainerLabel }) }}
                         </div>
                         <div v-if="pi.storageAddressName" class="pack-card-storage text-muted">
-                          Lagerort: {{ pi.storageAddressName }}
+                          {{ t('activities.packList.storageLabel', { name: pi.storageAddressName }) }}
                         </div>
                         <div
                           v-if="activePackStage === 'confirmed_packed' && packRackLabel(pi)"
                           class="pack-card-storage text-muted"
                         >
-                          Gestell: {{ packRackLabel(pi) }}
+                          {{ t('activities.packList.rackLabel', { name: packRackLabel(pi) }) }}
                         </div>
-                        <div v-if="pi.storageSlotName" class="pack-card-storage text-muted">Fach: {{ pi.storageSlotName }}</div>
+                        <div v-if="pi.storageSlotName" class="pack-card-storage text-muted">{{ t('activities.packList.slotLabel', { name: pi.storageSlotName }) }}</div>
                       </div>
                       <span class="pack-card-detail">
                         <template v-if="activePackStage === 'packed_issued' && getStageLeftQty(pi) > 0">
                           <template v-if="looseQtyForPackItem(pi) > 0">
-                            <span>{{ looseQtyForPackItem(pi) }} lose</span>
+                            <span>{{ t('activities.packList.loosePieces', { n: looseQtyForPackItem(pi) }) }}</span>
                             <span v-if="qtyInContainersForItem(pi) > 0" class="text-muted">
-                              · {{ qtyInContainersForItem(pi) }} in Behältern
+                              {{ t('activities.packList.inContainers', { n: qtyInContainersForItem(pi) }) }}
                             </span>
                           </template>
                           <template v-else>
-                            <span class="text-muted">Alles in Behältern</span>
+                            <span class="text-muted">{{ t('activities.packList.allInContainers') }}</span>
                           </template>
                           <span class="text-muted pack-card-detail-fraction">
-                            — {{ getStageLeftQty(pi) }} / {{ getStageTotalQty(pi) }} noch nicht «{{
-                              activeStageConfig.rightLabel
-                            }}»
+                            {{
+                              t('activities.packList.notYetStage', {
+                                left: getStageLeftQty(pi),
+                                total: getStageTotalQty(pi),
+                                stage: activeStageConfig.rightLabel,
+                              })
+                            }}
                           </span>
                         </template>
                         <template v-else>
@@ -195,7 +196,7 @@
                             class="btn-issue-quick btn-issue-consumed"
                             @click.stop="emitConsumptionFromPackItem(pi)"
                           >
-                            Gebraucht
+                            {{ t('activities.common.issueConsumed') }}
                           </button>
                         </template>
                         <template v-else>
@@ -204,14 +205,14 @@
                             class="btn-issue-quick btn-issue-loss"
                             @click.stop="emitIssueWizard(pi, 'loss')"
                           >
-                            Verlust
+                            {{ t('activities.common.issueLoss') }}
                           </button>
                           <button
                             type="button"
                             class="btn-issue-quick btn-issue-repair"
                             @click.stop="emitIssueWizard(pi, 'repair')"
                           >
-                            Reparatur
+                            {{ t('activities.common.issueRepair') }}
                           </button>
                         </template>
                       </div>
@@ -233,7 +234,7 @@
                           type="button"
                           class="btn-move-arrow"
                           :disabled="movingId === pi.id"
-                          :title="'Nach ' + activeStageConfig.rightLabel"
+                          :title="t('activities.packList.titleMoveTo', { stage: activeStageConfig.rightLabel })"
                           @click="moveToNextStage(pi)"
                         >
                           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
@@ -253,12 +254,12 @@
               v-if="activePackStage === 'issued_returned' && packContainersWithReturnableAtEvent.length > 0"
               class="pack-workflow-section pack-workflow-section--kisten pack-workflow-section--event-return-kisten"
             >
-              <div class="pack-workflow-section-title">Kisten</div>
+              <div class="pack-workflow-section-title">{{ t('activities.packList.sectionKisten') }}</div>
               <div class="pack-containers-section">
                 <div class="pack-containers-heading">
-                  <span class="pack-containers-title text-muted">Behälter</span>
+                  <span class="pack-containers-title text-muted">{{ t('activities.packList.sectionContainers') }}</span>
                 </div>
-                <div class="pack-containers-children" role="group" aria-label="Behälter noch am Event">
+                <div class="pack-containers-children" role="group" :aria-label="t('activities.packList.ariaContainersAtEvent')">
                   <div
                     v-for="c in packContainersWithReturnableAtEvent"
                     :id="'pack-container-event-ret-' + c.id"
@@ -270,7 +271,7 @@
                         type="button"
                         class="pack-container-chevron-btn"
                         :aria-expanded="!collapsedPackContainers[c.id]"
-                        aria-label="Behälter auf- oder zuklappen"
+                        :aria-label="t('activities.packList.ariaToggleContainer')"
                         @click.stop="togglePackContainerCollapsed(c.id)"
                       >
                         <span class="pack-container-chevron" aria-hidden="true">{{
@@ -280,7 +281,7 @@
                       <div class="pack-container-header-main">
                         <div class="pack-container-header-title-block">
                           <span class="pack-container-name">{{ c.label }}</span>
-                          <span class="pack-container-chip text-muted">{{ containerItemCount(c.id) }} Pos.</span>
+                          <span class="pack-container-chip text-muted">{{ t('activities.common.itemsUnit', { count: containerItemCount(c.id) }) }}</span>
                         </div>
                       </div>
                       <div
@@ -292,10 +293,10 @@
                           type="button"
                           class="btn btn-xs btn-primary"
                           :disabled="containerBulkLoadingId === c.id"
-                          :title="containerReturnableUnits(c.id) + ' Stk. als Retour erfassen'"
+                          :title="t('activities.packList.stockPiecesTitle', { count: containerReturnableUnits(c.id) })"
                           @click="returnContainerToWarehouse(c)"
                         >
-                          Alles → Retour
+                          {{ t('activities.packList.allToReturn') }}
                         </button>
                       </div>
                     </div>
@@ -304,7 +305,7 @@
                       class="pack-container-kiste-meldung-row"
                       @click.stop
                     >
-                      <span class="pack-container-kiste-meldung-label">Kiste</span>
+                      <span class="pack-container-kiste-meldung-label">{{ t('activities.common.crate') }}</span>
                       <template v-if="isPackMaterialConsumable(String(c.container_material_item_id))">
                         <button
                           type="button"
@@ -315,7 +316,7 @@
                             })
                           "
                         >
-                          Gebraucht
+                          {{ t('activities.common.issueConsumed') }}
                         </button>
                       </template>
                       <template v-else>
@@ -324,14 +325,14 @@
                           class="btn-issue-quick btn-issue-loss"
                           @click="emitIssueWizardByMaterialId(String(c.container_material_item_id), 'loss')"
                         >
-                          Verlust
+                          {{ t('activities.common.issueLoss') }}
                         </button>
                         <button
                           type="button"
                           class="btn-issue-quick btn-issue-repair"
                           @click="emitIssueWizardByMaterialId(String(c.container_material_item_id), 'repair')"
                         >
-                          Reparatur
+                          {{ t('activities.common.issueRepair') }}
                         </button>
                       </template>
                     </div>
@@ -342,12 +343,12 @@
                         class="pack-container-line pack-container-line--stacked"
                       >
                         <div class="pack-container-line-main">
-                          <span class="pack-container-line-name">{{ ci.material_name || 'Material' }}</span>
+                          <span class="pack-container-line-name">{{ ci.material_name || t('activities.common.material') }}</span>
                           <span class="pack-container-line-qty text-muted">
                             <template v-if="containerLineRemainingReturn(ci) > 0">
-                              {{ containerLineRemainingReturn(ci) }} Stk. noch «Am Event»
+                              {{ t('activities.packList.lineStillAtEvent', { n: containerLineRemainingReturn(ci) }) }}
                             </template>
-                            <template v-else> Retour erfasst </template>
+                            <template v-else>{{ t('activities.packList.returnRecorded') }}</template>
                           </span>
                         </div>
                         <div
@@ -370,7 +371,7 @@
                                 })
                               "
                             >
-                              Gebraucht
+                              {{ t('activities.common.issueConsumed') }}
                             </button>
                           </template>
                           <template v-else>
@@ -379,14 +380,14 @@
                               class="btn-issue-quick btn-issue-loss"
                               @click="emitIssueWizardByMaterialId(ci.material_item_id, 'loss')"
                             >
-                              Verlust
+                              {{ t('activities.common.issueLoss') }}
                             </button>
                             <button
                               type="button"
                               class="btn-issue-quick btn-issue-repair"
                               @click="emitIssueWizardByMaterialId(ci.material_item_id, 'repair')"
                             >
-                              Reparatur
+                              {{ t('activities.common.issueRepair') }}
                             </button>
                           </template>
                         </div>
@@ -396,9 +397,9 @@
                         class="pack-container-line pack-container-line--shell pack-container-line--stacked"
                       >
                         <div class="pack-container-line-main">
-                          <span class="pack-container-line-name">Kisten-Material (Behälter)</span>
+                          <span class="pack-container-line-name">{{ t('activities.packList.shellMaterialLine') }}</span>
                           <span class="pack-container-line-qty text-muted">
-                            {{ containerShellStillAtEventQty(c.id) }} Stk. noch «Am Event»
+                            {{ t('activities.packList.shellStillAtEvent', { n: containerShellStillAtEventQty(c.id) }) }}
                           </span>
                         </div>
                         <div
@@ -418,7 +419,7 @@
                                 })
                               "
                             >
-                              Gebraucht
+                              {{ t('activities.common.issueConsumed') }}
                             </button>
                           </template>
                           <template v-else>
@@ -429,7 +430,7 @@
                                 emitIssueWizardByMaterialId(shellMaterialIdForContainer(c.id) || '', 'loss')
                               "
                             >
-                              Verlust
+                              {{ t('activities.common.issueLoss') }}
                             </button>
                             <button
                               type="button"
@@ -438,7 +439,7 @@
                                 emitIssueWizardByMaterialId(shellMaterialIdForContainer(c.id) || '', 'repair')
                               "
                             >
-                              Reparatur
+                              {{ t('activities.common.issueRepair') }}
                             </button>
                           </template>
                         </div>
@@ -450,7 +451,7 @@
                         "
                         class="pack-container-empty text-muted"
                       >
-                        Keine Zeilen
+                        {{ t('activities.packList.noLines') }}
                       </p>
                     </div>
                   </div>
@@ -462,20 +463,20 @@
               v-if="showPackContainersUi && activePackStage === 'packed_issued'"
               class="pack-workflow-section pack-workflow-section--kisten"
             >
-              <div class="pack-workflow-section-title">Kisten</div>
+              <div class="pack-workflow-section-title">{{ t('activities.packList.sectionKisten') }}</div>
               <div class="pack-containers-section">
               <div class="pack-containers-heading">
-                <span class="pack-containers-title text-muted">Behälter</span>
+                <span class="pack-containers-title text-muted">{{ t('activities.packList.sectionContainers') }}</span>
               </div>
-              <div class="pack-containers-children" role="group" aria-label="Behälter dieser Packliste">
+              <div class="pack-containers-children" role="group" :aria-label="t('activities.packList.ariaContainersThisList')">
                 <p v-if="packContainers.length === 0" class="pack-containers-empty-hint text-muted">
-                  Noch keine Behälter. In der Stufe «Bestätigt → Gepackt» mit «Behälter hinzufügen» anlegen.
+                  {{ t('activities.packList.hintNoContainersIssue') }}
                 </p>
                 <p
                   v-else-if="packContainersSortedWarehouseOnly.length === 0"
                   class="pack-containers-empty-hint text-muted"
                 >
-                  Alle Behälter mit Ausgabe ans Event stehen rechts unter «{{ activeStageConfig.rightLabel }}».
+                  {{ t('activities.packList.hintContainersOnRight', { stage: activeStageConfig.rightLabel }) }}
                 </p>
                 <div
                   v-for="c in packContainersSortedWarehouseOnly"
@@ -492,7 +493,7 @@
                       type="button"
                       class="pack-container-chevron-btn"
                       :aria-expanded="!collapsedPackContainers[c.id]"
-                      aria-label="Behälter auf- oder zuklappen"
+                      :aria-label="t('activities.packList.ariaToggleContainer')"
                       @click.stop="togglePackContainerCollapsed(c.id)"
                     >
                       <span class="pack-container-chevron" aria-hidden="true">{{
@@ -511,7 +512,7 @@
                         >
                           <span class="pack-container-name">{{ c.label }}</span>
                         </button>
-                        <span class="pack-container-chip text-muted">{{ containerItemCount(c.id) }} Pos.</span>
+                        <span class="pack-container-chip text-muted">{{ t('activities.common.itemsUnit', { count: containerItemCount(c.id) }) }}</span>
                       </div>
                     </div>
                     <div
@@ -527,11 +528,7 @@
                         type="button"
                         class="btn-moveback-arrow btn-move-arrow--container-header"
                         :disabled="containerBulkLoadingId === c.id"
-                        :title="
-                          'Ausgabe rückgängig — ' +
-                          containerUnissueableUnits(c.id) +
-                          ' Stk. wieder «Gepackt» (inkl. Kiste, falls zutreffend)'
-                        "
+                        :title="t('activities.packList.unissueTitle', { count: containerUnissueableUnits(c.id) })"
                         @click="unissueContainerToPacked(c)"
                       >
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
@@ -545,11 +542,10 @@
                         class="btn-move-arrow btn-move-arrow--container-header"
                         :disabled="containerBulkLoadingId === c.id"
                         :title="
-                          'Rest «' +
-                          activeStageConfig.rightLabel +
-                          '» buchen — ' +
-                          containerIssueableUnits(c.id) +
-                          ' Stk. (inkl. Kiste, falls zutreffend)'
+                          t('activities.packList.issueRestTitle', {
+                            stage: activeStageConfig.rightLabel,
+                            count: containerIssueableUnits(c.id),
+                          })
                         "
                         @click="issueContainerToEvent(c)"
                       >
@@ -565,7 +561,7 @@
                     class="pack-container-kiste-meldung-row"
                     @click.stop
                   >
-                    <span class="pack-container-kiste-meldung-label">Kiste</span>
+                    <span class="pack-container-kiste-meldung-label">{{ t('activities.common.crate') }}</span>
                     <template v-if="isPackMaterialConsumable(String(c.container_material_item_id))">
                       <button
                         type="button"
@@ -576,7 +572,7 @@
                             })
                           "
                       >
-                        Gebraucht
+                              {{ t('activities.common.issueConsumed') }}
                       </button>
                     </template>
                     <template v-else>
@@ -585,14 +581,14 @@
                         class="btn-issue-quick btn-issue-loss"
                         @click="emitIssueWizardByMaterialId(String(c.container_material_item_id), 'loss')"
                       >
-                        Verlust
+                              {{ t('activities.common.issueLoss') }}
                       </button>
                       <button
                         type="button"
                         class="btn-issue-quick btn-issue-repair"
                         @click="emitIssueWizardByMaterialId(String(c.container_material_item_id), 'repair')"
                       >
-                        Reparatur
+                              {{ t('activities.common.issueRepair') }}
                       </button>
                     </template>
                   </div>
@@ -610,7 +606,7 @@
                           type="button"
                           class="btn-moveback-arrow"
                           :disabled="containerMutationLoading"
-                          :title="'Wieder «Gepackt» (max. ' + containerLineUnissueableMax(ci) + ')'"
+                          :title="t('activities.packList.unissueLineTitle', { max: containerLineUnissueableMax(ci) })"
                           @click="unissueContainerLineToPacked(c.id, ci)"
                         >
                           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
@@ -635,7 +631,7 @@
                           type="button"
                           class="btn-moveback-arrow"
                           :disabled="containerMutationLoading"
-                          title="In die lose Gepackt-Menge (nicht «Am Event»)"
+                          :title="t('activities.packList.pullLooseTitle')"
                           @click="pullFromContainer(c.id, ci)"
                         >
                           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
@@ -653,18 +649,28 @@
                         />
                       </div>
                       <div class="pack-container-line-main">
-                        <span class="pack-container-line-name">{{ ci.material_name || 'Material' }}</span>
+                        <span class="pack-container-line-name">{{ ci.material_name || t('activities.common.material') }}</span>
                         <span class="pack-container-line-qty text-muted">
                           <template v-if="containerLineRemainingIssue(ci) > 0">
-                            {{ containerLineRemainingIssue(ci) }} / {{ ci.quantity_packed }} noch nicht «{{
-                              activeStageConfig.rightLabel
-                            }}»
+                            {{
+                              t('activities.packList.lineNotYetIssued', {
+                                rem: containerLineRemainingIssue(ci),
+                                packed: ci.quantity_packed,
+                                stage: activeStageConfig.rightLabel,
+                              })
+                            }}
                           </template>
                           <template v-else-if="containerLinePackRemaining(ci) > 0">
-                            Packliste noch nicht «{{ activeStageConfig.rightLabel }}»
+                            {{ t('activities.packList.packListNotYetAtStage', { stage: activeStageConfig.rightLabel }) }}
                           </template>
                           <template v-else>
-                            {{ ci.quantity_issued ?? 0 }} / {{ ci.quantity_packed }} «{{ activeStageConfig.rightLabel }}»
+                            {{
+                              t('activities.packList.issuedFraction', {
+                                issued: ci.quantity_issued ?? 0,
+                                packed: ci.quantity_packed,
+                                stage: activeStageConfig.rightLabel,
+                              })
+                            }}
                           </template>
                         </span>
                       </div>
@@ -685,7 +691,7 @@
                             type="button"
                             class="btn-move-arrow"
                             :disabled="containerMutationLoading"
-                            :title="'«' + activeStageConfig.rightLabel + '» buchen (Packliste)'"
+                            :title="t('activities.packList.issueLinePackTitle', { stage: activeStageConfig.rightLabel })"
                             @click="issueContainerLineToEvent(c.id, ci)"
                           >
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
@@ -715,7 +721,7 @@
                               })
                             "
                           >
-                            Gebraucht
+                            {{ t('activities.common.issueConsumed') }}
                           </button>
                         </template>
                         <template v-else>
@@ -724,14 +730,14 @@
                             class="btn-issue-quick btn-issue-loss"
                             @click="emitIssueWizardByMaterialId(ci.material_item_id, 'loss')"
                           >
-                            Verlust
+                            {{ t('activities.common.issueLoss') }}
                           </button>
                           <button
                             type="button"
                             class="btn-issue-quick btn-issue-repair"
                             @click="emitIssueWizardByMaterialId(ci.material_item_id, 'repair')"
                           >
-                            Reparatur
+                            {{ t('activities.common.issueRepair') }}
                           </button>
                         </template>
                       </div>
@@ -740,7 +746,7 @@
                       v-if="(containerItemsByContainerId[c.id] ?? []).length === 0"
                       class="pack-container-empty text-muted"
                     >
-                      Noch nichts zugeordnet
+                      {{ t('activities.packList.nothingAssigned') }}
                     </p>
                   </div>
                 </div>
@@ -760,24 +766,24 @@
                   type="button"
                   class="btn btn-xs btn-outline pack-add-container-btn"
                   :disabled="containerMutationLoading"
-                  title="Pack-Behälter anlegen"
+                  :title="t('activities.packList.addContainerTitle')"
                   @click="openAddContainerModal"
                 >
-                  Behälter hinzufügen
+                  {{ t('activities.packList.addContainerButton') }}
                 </button>
                 <button
                   type="button"
                   class="btn btn-xs btn-primary pack-add-container-btn"
                   :disabled="containerMutationLoading"
-                  title="Verfügbare IS-Container / Lager-Kisten suchen und zuordnen"
+                  :title="t('activities.packList.addCrateTitle')"
                   @click="openAddContainerModal"
                 >
-                  Kiste hinzufügen
+                  {{ t('activities.packList.addCrateButton') }}
                 </button>
               </div>
             </div>
             <div v-if="!rightPanelHasEventContent" class="pack-panel-empty">
-              Noch nichts verschoben
+              {{ t('activities.packList.rightPanelEmpty') }}
             </div>
 
             <div
@@ -787,18 +793,18 @@
               "
               class="pack-workflow-section pack-workflow-section--at-event"
             >
-              <div class="pack-workflow-section-title">Bereits ans Event</div>
+              <div class="pack-workflow-section-title">{{ t('activities.packList.sectionAlreadyAtEvent') }}</div>
 
               <div
                 v-if="packContainersWithIssuedAtEvent.length > 0"
                 class="pack-workflow-section pack-workflow-section--kisten pack-workflow-section--at-event-mirror"
               >
-                <div class="pack-workflow-section-title">Kisten</div>
+                <div class="pack-workflow-section-title">{{ t('activities.packList.sectionKisten') }}</div>
                 <div class="pack-containers-section">
                   <div class="pack-containers-heading">
-                    <span class="pack-containers-title text-muted">Behälter</span>
+                    <span class="pack-containers-title text-muted">{{ t('activities.packList.sectionContainers') }}</span>
                   </div>
-                  <div class="pack-containers-children" role="group" aria-label="Behälter ans Event (gleiche Ansicht wie links)">
+                  <div class="pack-containers-children" role="group" :aria-label="t('activities.packList.ariaContainersAtEventMirror')">
                     <div
                       v-for="c in packContainersWithIssuedAtEvent"
                       :id="'pack-container-at-event-' + c.id"
@@ -814,7 +820,7 @@
                           type="button"
                           class="pack-container-chevron-btn"
                           :aria-expanded="!collapsedPackContainers[c.id]"
-                          aria-label="Behälter auf- oder zuklappen"
+                          :aria-label="t('activities.packList.ariaToggleContainer')"
                           @click.stop="togglePackContainerCollapsed(c.id)"
                         >
                           <span class="pack-container-chevron" aria-hidden="true">{{
@@ -833,7 +839,7 @@
                             >
                               <span class="pack-container-name">{{ c.label }}</span>
                             </button>
-                            <span class="pack-container-chip text-muted">{{ containerItemCount(c.id) }} Pos.</span>
+                            <span class="pack-container-chip text-muted">{{ t('activities.common.itemsUnit', { count: containerItemCount(c.id) }) }}</span>
                           </div>
                         </div>
                         <div
@@ -849,11 +855,7 @@
                             type="button"
                             class="btn-moveback-arrow btn-move-arrow--container-header"
                             :disabled="containerBulkLoadingId === c.id"
-                            :title="
-                              'Ausgabe rückgängig — ' +
-                              containerUnissueableUnits(c.id) +
-                              ' Stk. wieder «Gepackt» (inkl. Kiste, falls zutreffend)'
-                            "
+                            :title="t('activities.packList.unissueTitle', { count: containerUnissueableUnits(c.id) })"
                             @click="unissueContainerToPacked(c)"
                           >
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
@@ -867,11 +869,10 @@
                             class="btn-move-arrow btn-move-arrow--container-header"
                             :disabled="containerBulkLoadingId === c.id"
                             :title="
-                              'Rest «' +
-                              activeStageConfig.rightLabel +
-                              '» buchen — ' +
-                              containerIssueableUnits(c.id) +
-                              ' Stk. (inkl. Kiste, falls zutreffend)'
+                              t('activities.packList.issueRestTitle', {
+                                stage: activeStageConfig.rightLabel,
+                                count: containerIssueableUnits(c.id),
+                              })
                             "
                             @click="issueContainerToEvent(c)"
                           >
@@ -887,7 +888,7 @@
                         class="pack-container-kiste-meldung-row"
                         @click.stop
                       >
-                        <span class="pack-container-kiste-meldung-label">Kiste</span>
+                        <span class="pack-container-kiste-meldung-label">{{ t('activities.common.crate') }}</span>
                         <template v-if="isPackMaterialConsumable(String(c.container_material_item_id))">
                           <button
                             type="button"
@@ -898,7 +899,7 @@
                             })
                           "
                           >
-                            Gebraucht
+                            {{ t('activities.common.issueConsumed') }}
                           </button>
                         </template>
                         <template v-else>
@@ -907,14 +908,14 @@
                             class="btn-issue-quick btn-issue-loss"
                             @click="emitIssueWizardByMaterialId(String(c.container_material_item_id), 'loss')"
                           >
-                            Verlust
+                            {{ t('activities.common.issueLoss') }}
                           </button>
                           <button
                             type="button"
                             class="btn-issue-quick btn-issue-repair"
                             @click="emitIssueWizardByMaterialId(String(c.container_material_item_id), 'repair')"
                           >
-                            Reparatur
+                            {{ t('activities.common.issueRepair') }}
                           </button>
                         </template>
                       </div>
@@ -932,7 +933,7 @@
                               type="button"
                               class="btn-moveback-arrow"
                               :disabled="containerMutationLoading"
-                              :title="'Wieder «Gepackt» (max. ' + containerLineUnissueableMax(ci) + ')'"
+                              :title="t('activities.packList.unissueLineTitle', { max: containerLineUnissueableMax(ci) })"
                               @click="unissueContainerLineToPacked(c.id, ci)"
                             >
                               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
@@ -957,7 +958,7 @@
                               type="button"
                               class="btn-moveback-arrow"
                               :disabled="containerMutationLoading"
-                              title="In die lose Gepackt-Menge (nicht «Am Event»)"
+                              :title="t('activities.packList.pullLooseTitle')"
                               @click="pullFromContainer(c.id, ci)"
                             >
                               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
@@ -975,18 +976,28 @@
                             />
                           </div>
                           <div class="pack-container-line-main">
-                            <span class="pack-container-line-name">{{ ci.material_name || 'Material' }}</span>
+                            <span class="pack-container-line-name">{{ ci.material_name || t('activities.common.material') }}</span>
                             <span class="pack-container-line-qty text-muted">
                               <template v-if="containerLineRemainingIssue(ci) > 0">
-                                {{ containerLineRemainingIssue(ci) }} / {{ ci.quantity_packed }} noch nicht «{{
-                                  activeStageConfig.rightLabel
-                                }}»
+                                {{
+                                  t('activities.packList.lineNotYetIssued', {
+                                    rem: containerLineRemainingIssue(ci),
+                                    packed: ci.quantity_packed,
+                                    stage: activeStageConfig.rightLabel,
+                                  })
+                                }}
                               </template>
                               <template v-else-if="containerLinePackRemaining(ci) > 0">
-                                Packliste noch nicht «{{ activeStageConfig.rightLabel }}»
+                                {{ t('activities.packList.packListNotYetAtStage', { stage: activeStageConfig.rightLabel }) }}
                               </template>
                               <template v-else>
-                                {{ ci.quantity_issued ?? 0 }} / {{ ci.quantity_packed }} «{{ activeStageConfig.rightLabel }}»
+                                {{
+                                  t('activities.packList.issuedFraction', {
+                                    issued: ci.quantity_issued ?? 0,
+                                    packed: ci.quantity_packed,
+                                    stage: activeStageConfig.rightLabel,
+                                  })
+                                }}
                               </template>
                             </span>
                           </div>
@@ -1007,7 +1018,7 @@
                                 type="button"
                                 class="btn-move-arrow"
                                 :disabled="containerMutationLoading"
-                                :title="'«' + activeStageConfig.rightLabel + '» buchen (Packliste)'"
+                                :title="t('activities.packList.issueLinePackTitle', { stage: activeStageConfig.rightLabel })"
                                 @click="issueContainerLineToEvent(c.id, ci)"
                               >
                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
@@ -1037,7 +1048,7 @@
                                   })
                                 "
                               >
-                                Gebraucht
+                                {{ t('activities.common.issueConsumed') }}
                               </button>
                             </template>
                             <template v-else>
@@ -1046,14 +1057,14 @@
                                 class="btn-issue-quick btn-issue-loss"
                                 @click="emitIssueWizardByMaterialId(ci.material_item_id, 'loss')"
                               >
-                                Verlust
+                                {{ t('activities.common.issueLoss') }}
                               </button>
                               <button
                                 type="button"
                                 class="btn-issue-quick btn-issue-repair"
                                 @click="emitIssueWizardByMaterialId(ci.material_item_id, 'repair')"
                               >
-                                Reparatur
+                                {{ t('activities.common.issueRepair') }}
                               </button>
                             </template>
                           </div>
@@ -1062,7 +1073,7 @@
                           v-if="(containerItemsByContainerId[c.id] ?? []).length === 0"
                           class="pack-container-empty text-muted"
                         >
-                          Noch nichts zugeordnet
+                          {{ t('activities.packList.nothingAssigned') }}
                         </p>
                       </div>
                     </div>
@@ -1071,7 +1082,7 @@
               </div>
 
               <div v-if="stageRightItemsLooseIssued.length > 0" class="pack-workflow-section pack-workflow-section--at-event-loose">
-                <div class="pack-workflow-section-title">Lose</div>
+                <div class="pack-workflow-section-title">{{ t('activities.packList.sectionLoose') }}</div>
                 <div v-for="g in groupsAtEventLoose" :key="'evt-loose-g-' + g.categoryName" class="pack-group">
                   <div
                     class="pack-group-header pack-group-header-done"
@@ -1088,7 +1099,7 @@
                             type="button"
                             class="btn-moveback-arrow"
                             :disabled="movingId === pi.id"
-                            title="Zurück"
+                            :title="t('activities.common.backTitle')"
                             @click="moveToPrevStage(pi)"
                           >
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
@@ -1112,29 +1123,34 @@
                               <span
                                 v-if="pi.materialType === 'physical_combo'"
                                 class="pack-combo-badge"
-                                title="Physische Kombination"
-                                >Phys. Kombi</span
+                                :title="t('activities.detail.comboPhysicalTitle')"
+                                >{{ t('activities.detail.comboPhysicalShort') }}</span
                               >
                               <span
                                 v-else-if="pi.materialType === 'virtual_combo'"
                                 class="pack-combo-badge pack-combo-badge--virtual"
-                                title="Virtuelle Kombination"
-                                >Virt. Kombi</span
+                                :title="t('activities.detail.comboVirtualTitle')"
+                                >{{ t('activities.detail.comboVirtualShort') }}</span
                               >
-                              <span v-if="pi.isJsMaterial" class="mat-source-badge">J&amp;S</span>
+                              <span v-if="pi.isJsMaterial" class="mat-source-badge">{{ t('activities.common.jsBadge') }}</span>
                             </span>
                             <div v-if="pi.linkedContainerLabel" class="pack-card-kiste text-muted">
-                              Kiste: {{ pi.linkedContainerLabel }}
+                              {{ t('activities.packList.kisteLabel', { label: pi.linkedContainerLabel }) }}
                             </div>
                             <div v-if="pi.storageAddressName" class="pack-card-storage text-muted">
-                              Lagerort: {{ pi.storageAddressName }}
+                              {{ t('activities.packList.storageLabel', { name: pi.storageAddressName }) }}
                             </div>
-                            <div v-if="pi.storageSlotName" class="pack-card-storage text-muted">Fach: {{ pi.storageSlotName }}</div>
+                            <div v-if="pi.storageSlotName" class="pack-card-storage text-muted">{{ t('activities.packList.slotLabel', { name: pi.storageSlotName }) }}</div>
                           </div>
                           <div class="pack-card-detail-stack">
                             <span class="pack-card-detail">
-                              {{ getStageRightQty(pi) }} / {{ getStageTotalQty(pi) }}
-                              «{{ activeStageConfig.rightLabel }}»
+                              {{
+                                t('activities.packList.issuedFraction', {
+                                  issued: getStageRightQty(pi),
+                                  packed: getStageTotalQty(pi),
+                                  stage: activeStageConfig.rightLabel,
+                                })
+                              }}
                             </span>
                           </div>
                           <div
@@ -1147,7 +1163,7 @@
                                 class="btn-issue-quick btn-issue-consumed"
                                 @click.stop="emitConsumptionFromPackItem(pi)"
                               >
-                                Gebraucht
+                                {{ t('activities.common.issueConsumed') }}
                               </button>
                             </template>
                             <template v-else>
@@ -1156,14 +1172,14 @@
                                 class="btn-issue-quick btn-issue-loss"
                                 @click.stop="emitIssueWizard(pi, 'loss')"
                               >
-                                Verlust
+                                {{ t('activities.common.issueLoss') }}
                               </button>
                               <button
                                 type="button"
                                 class="btn-issue-quick btn-issue-repair"
                                 @click.stop="emitIssueWizard(pi, 'repair')"
                               >
-                                Reparatur
+                                {{ t('activities.common.issueRepair') }}
                               </button>
                             </template>
                           </div>
@@ -1184,7 +1200,7 @@
               "
               class="pack-workflow-section pack-workflow-section--lose"
             >
-              <div class="pack-workflow-section-title">Lose</div>
+              <div class="pack-workflow-section-title">{{ t('activities.packList.sectionLoose') }}</div>
 
               <div
                 v-if="ohneBehaelterGroups.length > 0"
@@ -1192,7 +1208,7 @@
                 :class="{ 'pack-group-ohne-outer--loose-target': activePackTarget?.kind === 'loose' }"
               >
                 <div class="pack-group-header pack-group-header-done" @click="toggleGroup('r-ohne-behaelter')">
-                  <span class="pack-group-name">Ohne Behälter</span>
+                  <span class="pack-group-name">{{ t('activities.packList.groupWithoutContainer') }}</span>
                   <span class="pack-group-toggle">{{ collapsedGroups['r-ohne-behaelter'] ? '▶' : '▼' }}</span>
                 </div>
                 <div v-if="!collapsedGroups['r-ohne-behaelter']" class="pack-group-ohne-inner">
@@ -1218,7 +1234,7 @@
                               type="button"
                               class="btn-moveback-arrow"
                               :disabled="movingId === pi.id"
-                              title="Zurück"
+                              :title="t('activities.common.backTitle')"
                               @click="moveToPrevStage(pi)"
                             >
                               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
@@ -1242,45 +1258,50 @@
                                 <span
                                   v-if="pi.materialType === 'physical_combo'"
                                   class="pack-combo-badge"
-                                  title="Physische Kombination"
-                                  >Phys. Kombi</span
+                                  :title="t('activities.detail.comboPhysicalTitle')"
+                                  >{{ t('activities.detail.comboPhysicalShort') }}</span
                                 >
                                 <span
                                   v-else-if="pi.materialType === 'virtual_combo'"
                                   class="pack-combo-badge pack-combo-badge--virtual"
-                                  title="Virtuelle Kombination"
-                                  >Virt. Kombi</span
+                                  :title="t('activities.detail.comboVirtualTitle')"
+                                  >{{ t('activities.detail.comboVirtualShort') }}</span
                                 >
-                                <span v-if="pi.isJsMaterial" class="mat-source-badge">J&amp;S</span>
+                                <span v-if="pi.isJsMaterial" class="mat-source-badge">{{ t('activities.common.jsBadge') }}</span>
                               </span>
                               <div v-if="pi.linkedContainerLabel" class="pack-card-kiste text-muted">
-                                Kiste: {{ pi.linkedContainerLabel }}
+                                {{ t('activities.packList.kisteLabel', { label: pi.linkedContainerLabel }) }}
                               </div>
                               <div v-if="pi.storageAddressName" class="pack-card-storage text-muted">
-                                Lagerort: {{ pi.storageAddressName }}
+                                {{ t('activities.packList.storageLabel', { name: pi.storageAddressName }) }}
                               </div>
                               <div
                                 v-if="activePackStage === 'confirmed_packed' && packRackLabel(pi)"
                                 class="pack-card-storage text-muted"
                               >
-                                Gestell: {{ packRackLabel(pi) }}
+                                {{ t('activities.packList.rackLabel', { name: packRackLabel(pi) }) }}
                               </div>
-                              <div v-if="pi.storageSlotName" class="pack-card-storage text-muted">Fach: {{ pi.storageSlotName }}</div>
+                              <div v-if="pi.storageSlotName" class="pack-card-storage text-muted">{{ t('activities.packList.slotLabel', { name: pi.storageSlotName }) }}</div>
                             </div>
                             <div class="pack-card-detail-stack">
                               <span class="pack-card-detail">
                                 <template v-if="activePackStage === 'confirmed_packed'">
                                   <template v-if="getStageRightQty(pi) > 0">
-                                    <span>{{ looseQtyForPackItem(pi) }} lose</span>
+                                    <span>{{ t('activities.packList.loosePieces', { n: looseQtyForPackItem(pi) }) }}</span>
                                     <span v-if="qtyInContainersForItem(pi) > 0" class="text-muted">
-                                      · {{ qtyInContainersForItem(pi) }} in Behältern
+                                      {{ t('activities.packList.inContainers', { n: qtyInContainersForItem(pi) }) }}
                                     </span>
                                   </template>
-                                  <span v-else class="text-muted">0 Stk.</span>
+                                  <span v-else class="text-muted">{{ t('activities.packList.zeroPieces') }}</span>
                                 </template>
                                 <template v-else>
-                                  {{ looseIssuedAtEvent(pi) }} / {{ getStageTotalQty(pi) }}
-                                  «{{ activeStageConfig.rightLabel }}»
+                                  {{
+                                    t('activities.packList.issuedFraction', {
+                                      issued: looseIssuedAtEvent(pi),
+                                      packed: getStageTotalQty(pi),
+                                      stage: activeStageConfig.rightLabel,
+                                    })
+                                  }}
                                 </template>
                               </span>
                               <button
@@ -1295,7 +1316,7 @@
                                 :disabled="containerMutationLoading"
                                 @click="onAssignButtonClick(pi)"
                               >
-                                In Behälter
+                                {{ t('activities.packList.assignToContainer') }}
                               </button>
                             </div>
                           </div>
@@ -1308,7 +1329,7 @@
 
               <div v-if="loosePackItemsPartial.length > 0" class="pack-group">
                 <div class="pack-group-header pack-group-header-done" @click="toggleGroup('r-loose-partial')">
-                  <span class="pack-group-name">Auch in Behältern</span>
+                  <span class="pack-group-name">{{ t('activities.packList.groupAlsoInContainers') }}</span>
                   <span class="pack-group-toggle">{{ collapsedGroups['r-loose-partial'] ? '▶' : '▼' }}</span>
                 </div>
                 <div v-if="!collapsedGroups['r-loose-partial']" class="pack-group-items">
@@ -1319,7 +1340,7 @@
                           type="button"
                           class="btn-moveback-arrow"
                           :disabled="movingId === pi.id"
-                          title="Zurück"
+                          :title="t('activities.common.backTitle')"
                           @click="moveToPrevStage(pi)"
                         >
                           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
@@ -1343,45 +1364,50 @@
                             <span
                               v-if="pi.materialType === 'physical_combo'"
                               class="pack-combo-badge"
-                              title="Physische Kombination"
-                              >Phys. Kombi</span
+                              :title="t('activities.detail.comboPhysicalTitle')"
+                              >{{ t('activities.detail.comboPhysicalShort') }}</span
                             >
                             <span
                               v-else-if="pi.materialType === 'virtual_combo'"
                               class="pack-combo-badge pack-combo-badge--virtual"
-                              title="Virtuelle Kombination"
-                              >Virt. Kombi</span
+                              :title="t('activities.detail.comboVirtualTitle')"
+                              >{{ t('activities.detail.comboVirtualShort') }}</span
                             >
-                            <span v-if="pi.isJsMaterial" class="mat-source-badge">J&amp;S</span>
+                            <span v-if="pi.isJsMaterial" class="mat-source-badge">{{ t('activities.common.jsBadge') }}</span>
                           </span>
                           <div v-if="pi.linkedContainerLabel" class="pack-card-kiste text-muted">
-                            Kiste: {{ pi.linkedContainerLabel }}
+                            {{ t('activities.packList.kisteLabel', { label: pi.linkedContainerLabel }) }}
                           </div>
                           <div v-if="pi.storageAddressName" class="pack-card-storage text-muted">
-                            Lagerort: {{ pi.storageAddressName }}
+                            {{ t('activities.packList.storageLabel', { name: pi.storageAddressName }) }}
                           </div>
                           <div
                             v-if="activePackStage === 'confirmed_packed' && packRackLabel(pi)"
                             class="pack-card-storage text-muted"
                           >
-                            Gestell: {{ packRackLabel(pi) }}
+                            {{ t('activities.packList.rackLabel', { name: packRackLabel(pi) }) }}
                           </div>
-                          <div v-if="pi.storageSlotName" class="pack-card-storage text-muted">Fach: {{ pi.storageSlotName }}</div>
+                          <div v-if="pi.storageSlotName" class="pack-card-storage text-muted">{{ t('activities.packList.slotLabel', { name: pi.storageSlotName }) }}</div>
                         </div>
                         <div class="pack-card-detail-stack">
                           <span class="pack-card-detail">
                             <template v-if="activePackStage === 'confirmed_packed'">
                               <template v-if="getStageRightQty(pi) > 0">
-                                <span>{{ looseQtyForPackItem(pi) }} lose</span>
+                                <span>{{ t('activities.packList.loosePieces', { n: looseQtyForPackItem(pi) }) }}</span>
                                 <span v-if="qtyInContainersForItem(pi) > 0" class="text-muted">
-                                  · {{ qtyInContainersForItem(pi) }} in Behältern
+                                  {{ t('activities.packList.inContainers', { n: qtyInContainersForItem(pi) }) }}
                                 </span>
                               </template>
-                              <span v-else class="text-muted">0 Stk.</span>
+                              <span v-else class="text-muted">{{ t('activities.packList.zeroPieces') }}</span>
                             </template>
                             <template v-else>
-                              {{ looseIssuedAtEvent(pi) }} / {{ getStageTotalQty(pi) }}
-                              «{{ activeStageConfig.rightLabel }}»
+                              {{
+                                t('activities.packList.issuedFraction', {
+                                  issued: looseIssuedAtEvent(pi),
+                                  packed: getStageTotalQty(pi),
+                                  stage: activeStageConfig.rightLabel,
+                                })
+                              }}
                             </template>
                           </span>
                           <button
@@ -1396,7 +1422,7 @@
                             :disabled="containerMutationLoading"
                             @click="onAssignButtonClick(pi)"
                           >
-                            In Behälter
+                            {{ t('activities.packList.assignToContainer') }}
                           </button>
                         </div>
                         <div
@@ -1409,7 +1435,7 @@
                               class="btn-issue-quick btn-issue-consumed"
                               @click.stop="emitConsumptionFromPackItem(pi)"
                             >
-                              Gebraucht
+                              {{ t('activities.common.issueConsumed') }}
                             </button>
                           </template>
                           <template v-else>
@@ -1418,14 +1444,14 @@
                               class="btn-issue-quick btn-issue-loss"
                               @click.stop="emitIssueWizard(pi, 'loss')"
                             >
-                              Verlust
+                              {{ t('activities.common.issueLoss') }}
                             </button>
                             <button
                               type="button"
                               class="btn-issue-quick btn-issue-repair"
                               @click.stop="emitIssueWizard(pi, 'repair')"
                             >
-                              Reparatur
+                              {{ t('activities.common.issueRepair') }}
                             </button>
                           </template>
                         </div>
@@ -1440,25 +1466,24 @@
               v-if="showPackContainersUi && activePackStage === 'confirmed_packed'"
               class="pack-workflow-section pack-workflow-section--kisten"
             >
-              <div class="pack-workflow-section-title">Kisten</div>
+              <div class="pack-workflow-section-title">{{ t('activities.packList.sectionKisten') }}</div>
               <div class="pack-containers-section">
               <div class="pack-containers-heading">
-                <span class="pack-containers-title text-muted">Behälter</span>
+                <span class="pack-containers-title text-muted">{{ t('activities.packList.sectionContainers') }}</span>
                 <button
                   v-if="packListEditable"
                   type="button"
                   class="pack-target-loose"
                   :class="{ 'pack-target-loose--active': activePackTarget?.kind === 'loose' }"
-                  title="Aktives Ziel: Material aus Behältern mit Pfeil in die lose Menge schieben"
+                  :title="t('activities.packList.targetLooseTitle')"
                   @click="toggleActiveLoose"
                 >
-                  Lose
+                  {{ t('activities.packList.sectionLoose') }}
                 </button>
               </div>
-              <div class="pack-containers-children" role="group" aria-label="Behälter dieser Packliste">
+              <div class="pack-containers-children" role="group" :aria-label="t('activities.packList.ariaContainersThisList')">
                 <p v-if="packContainers.length === 0" class="pack-containers-empty-hint text-muted">
-                  Noch keine Behälter. Oben bei «{{ activeStageConfig.rightLabel }}» auf «Behälter hinzufügen» tippen – die Kiste
-                  erscheint eingerückt hier.
+                  {{ t('activities.packList.hintNoContainersConfirmed', { stage: activeStageConfig.rightLabel }) }}
                 </p>
                 <div
                   v-for="c in packContainersSorted"
@@ -1475,7 +1500,7 @@
                     type="button"
                     class="pack-container-chevron-btn"
                     :aria-expanded="!collapsedPackContainers[c.id]"
-                    aria-label="Behälter auf- oder zuklappen"
+                    :aria-label="t('activities.packList.ariaToggleContainer')"
                     @click.stop="togglePackContainerCollapsed(c.id)"
                   >
                     <span class="pack-container-chevron" aria-hidden="true">{{
@@ -1494,7 +1519,7 @@
                       <span class="pack-container-name">{{ c.label }}</span>
                     </button>
                     <div class="pack-container-header-meta">
-                      <span class="pack-container-chip text-muted">{{ containerItemCount(c.id) }} Pos.</span>
+                      <span class="pack-container-chip text-muted">{{ t('activities.common.itemsUnit', { count: containerItemCount(c.id) }) }}</span>
                     </div>
                   </div>
                 </div>
@@ -1509,7 +1534,7 @@
                         type="button"
                         class="btn-moveback-arrow"
                         :disabled="containerMutationLoading"
-                        title="Menge aus Behälter in die lose Menge nehmen"
+                        :title="t('activities.packList.pullFromContainerTitle')"
                         @click="pullFromContainer(c.id, ci)"
                       >
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
@@ -1527,15 +1552,15 @@
                       />
                     </div>
                     <div class="pack-container-line-main">
-                      <span class="pack-container-line-name">{{ ci.material_name || 'Material' }}</span>
-                      <span class="pack-container-line-qty">{{ ci.quantity_packed }} Stk.</span>
+                      <span class="pack-container-line-name">{{ ci.material_name || t('activities.common.material') }}</span>
+                      <span class="pack-container-line-qty">{{ t('activities.packList.qtyInContainerLine', { n: ci.quantity_packed }) }}</span>
                     </div>
                   </div>
                   <p
                     v-if="(containerItemsByContainerId[c.id] ?? []).length === 0"
                     class="pack-container-empty text-muted"
                   >
-                    Noch nichts zugeordnet
+                    {{ t('activities.packList.nothingAssigned') }}
                   </p>
                   <button
                     v-if="packListEditable"
@@ -1544,7 +1569,7 @@
                     :disabled="containerMutationLoading"
                     @click="confirmDeleteContainer(c)"
                   >
-                    Behälter löschen
+                    {{ t('activities.packList.deleteContainer') }}
                   </button>
                 </div>
                 </div>
@@ -1565,39 +1590,32 @@
         @click.self="showAddContainerModal = false"
       >
         <div class="pack-modal" @click.stop>
-          <h3 id="pack-modal-add-title" class="pack-modal-title">Behälter hinzufügen</h3>
-          <p class="pack-modal-hint pack-modal-hint--sm text-muted">
-            Kisten mit «Behälter» am Material <strong>oder</strong> an der Serien-Instanz (ohne physische Kombi-Referenz).
-            <strong>Leere</strong> Kisten stehen oben in der
-            Liste; andere sind mit «mit Inhalt» gekennzeichnet. Ausgeschlossen: schon dieser Packliste zugeordnet oder parallel
-            in einer anderen Aktivität mit überlappendem Planungs-/Nutzungszeitraum.
-          </p>
-          <div v-if="stockBatchesLoading" class="pack-modal-loading text-muted">Kisten werden geladen…</div>
+          <h3 id="pack-modal-add-title" class="pack-modal-title">{{ t('activities.packList.modalAddTitle') }}</h3>
+          <p class="pack-modal-hint pack-modal-hint--sm text-muted" v-html="t('activities.packList.modalAddHint')"></p>
+          <div v-if="stockBatchesLoading" class="pack-modal-loading text-muted">{{ t('activities.packList.modalLoadingBatches') }}</div>
           <template v-else>
             <label v-if="availableStockBatches.length > 0" class="pack-modal-label">
-              <span>Kiste aus Lager</span>
+              <span>{{ t('activities.packList.modalBatchLabel') }}</span>
               <select v-model="selectedStockBatchId" class="form-select">
-                <option value="">– Bitte wählen –</option>
+                <option value="">{{ t('activities.packList.modalSelectPlaceholder') }}</option>
                 <option v-for="b in availableStockBatches" :key="b.id" :value="b.id">
                   {{ containerBatchOptionLabel(b) }}
                 </option>
               </select>
             </label>
             <p v-else class="pack-modal-empty text-muted">
-              Keine Kiste in der Auswahl: entweder kein passender Bestand (Behälter am Material oder an der Instanz, auf Gestell
-              gebucht), oder alle Kisten sind schon dieser Packliste zugeordnet / im gleichen Zeitraum einer anderen Aktivität
-              zugeordnet.
+              {{ t('activities.packList.modalNoBatch') }}
             </p>
           </template>
           <div class="pack-modal-actions">
-            <button type="button" class="btn-outline btn-sm" @click="showAddContainerModal = false">Abbrechen</button>
+            <button type="button" class="btn-outline btn-sm" @click="showAddContainerModal = false">{{ t('activities.common.cancel') }}</button>
             <button
               type="button"
               class="btn-primary btn-sm"
               :disabled="containerMutationLoading || stockBatchesLoading || !canSubmitAddContainer"
               @click="submitAddContainer"
             >
-              Hinzufügen
+              {{ t('activities.packList.modalAdd') }}
             </button>
           </div>
         </div>
@@ -1613,23 +1631,23 @@
         @click.self="assignModalOpen = false"
       >
         <div class="pack-modal" @click.stop>
-          <h3 id="pack-modal-assign-title" class="pack-modal-title">In Behälter legen</h3>
+          <h3 id="pack-modal-assign-title" class="pack-modal-title">{{ t('activities.packList.modalAssignTitle') }}</h3>
           <p class="pack-modal-material">{{ assignTarget.materialName }}</p>
           <p class="pack-modal-hint text-muted">
-            Max. {{ assignMaxQty }} Stk. (lose im Schritt Gepackt)
+            {{ t('activities.packList.modalAssignMax', { max: assignMaxQty }) }}
           </p>
           <label class="pack-modal-label">
-            <span>Behälter (diese Packliste)</span>
+            <span>{{ t('activities.packList.modalAssignContainerLabel') }}</span>
             <select v-model="assignContainerId" class="form-select">
-              <option value="" disabled>– Behälter wählen –</option>
+              <option value="" disabled>{{ t('activities.packList.modalAssignSelectContainer') }}</option>
               <option v-for="c in packContainers" :key="c.id" :value="c.id">{{ c.label }}</option>
             </select>
           </label>
           <p v-if="packContainers.length === 0" class="text-muted pack-modal-hint">
-            Zuerst oben «Behälter hinzufügen» nutzen, um eine Kiste anzulegen.
+            {{ t('activities.packList.modalAssignNoContainers') }}
           </p>
           <label class="pack-modal-label">
-            <span>Menge</span>
+            <span>{{ t('activities.packList.modalQty') }}</span>
             <input
               v-model.number="assignQty"
               type="number"
@@ -1639,14 +1657,14 @@
             />
           </label>
           <div class="pack-modal-actions">
-            <button type="button" class="btn-outline btn-sm" @click="assignModalOpen = false">Abbrechen</button>
+            <button type="button" class="btn-outline btn-sm" @click="assignModalOpen = false">{{ t('activities.common.cancel') }}</button>
             <button
               type="button"
               class="btn-primary btn-sm"
               :disabled="assignQty < 1 || assignQty > assignMaxQty || !assignContainerId"
               @click="submitAssignToContainer"
             >
-              Zuordnen
+              {{ t('activities.packList.modalAssignSubmit') }}
             </button>
           </div>
         </div>
@@ -1658,6 +1676,7 @@
 <script setup lang="ts">
 defineOptions({ name: 'ActivityPackListTab' })
 import { computed, nextTick, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import type { ActivityTransitionRow } from '@/api/activities'
 import {
   getPackItems,
@@ -1683,15 +1702,19 @@ import {
   type ActivityPackContainerItem,
 } from '@/api/activityContainers'
 import { getContainerBatches, type ContainerBatch } from '@/api/storageLocations'
-
-function containerBatchOptionLabel(b: ContainerBatch): string {
-  const base = (b.display_label || b.label || b.material_name || 'Kiste').trim()
-  if (b.storage_empty === true) return `${base} (leer)`
-  if (b.storage_empty === false) return `${base} (mit Inhalt)`
-  return base
-}
 import { useConfirm } from '@/composables/useConfirm'
 import { useToast } from '@/composables/useToast'
+
+const { t, locale } = useI18n()
+const toast = useToast()
+const { confirm: confirmDialog } = useConfirm()
+
+function containerBatchOptionLabel(b: ContainerBatch): string {
+  const base = (b.display_label || b.label || b.material_name || t('activities.common.crate')).trim()
+  if (b.storage_empty === true) return `${base} ${t('activities.packList.batchEmptySuffix')}`
+  if (b.storage_empty === false) return `${base} ${t('activities.packList.batchWithContentSuffix')}`
+  return base
+}
 
 const props = withDefaults(
   defineProps<{
@@ -1754,7 +1777,7 @@ function emitConsumptionForMaterialId(
   }
   emit('openConsumptionModal', {
     materialItemId,
-    materialName: (hints?.materialName && hints.materialName.trim()) || 'Material',
+    materialName: (hints?.materialName && hints.materialName.trim()) || t('activities.common.material'),
     packSize: null,
     packUnit: null,
     linkedContainerLabel: hints?.linkedContainerLabel ?? null,
@@ -1781,16 +1804,9 @@ function shellMaterialIdForContainer(containerId: string): string | null {
   return id ?? null
 }
 
-const toast = useToast()
-const { confirm: confirmDialog } = useConfirm()
-
 type PackStage = 'confirmed_packed' | 'packed_issued' | 'issued_returned'
 
-const PACK_STAGES: { key: PackStage; leftLabel: string; rightLabel: string }[] = [
-  { key: 'confirmed_packed', leftLabel: 'Bestätigt', rightLabel: 'Gepackt' },
-  { key: 'packed_issued', leftLabel: 'Gepackt', rightLabel: 'Am Event' },
-  { key: 'issued_returned', leftLabel: 'Am Event', rightLabel: 'Retour' },
-]
+const PACK_STAGE_KEYS: PackStage[] = ['confirmed_packed', 'packed_issued', 'issued_returned']
 
 const packItems = ref<ActivityPackItem[]>([])
 const loading = ref(true)
@@ -1800,6 +1816,26 @@ const moveAllLoading = ref(false)
 const movingId = ref<string | null>(null)
 
 const activePackStage = ref<PackStage>('confirmed_packed')
+
+const packStagesForUi = computed(() =>
+  PACK_STAGE_KEYS.map((key) => ({
+    key,
+    leftLabel: t(`activities.packList.stages.${key}.left`),
+    rightLabel: t(`activities.packList.stages.${key}.right`),
+  })),
+)
+
+const activeStageConfig = computed(() => {
+  const key = PACK_STAGE_KEYS.includes(activePackStage.value)
+    ? activePackStage.value
+    : 'confirmed_packed'
+  return {
+    key,
+    leftLabel: t(`activities.packList.stages.${key}.left`),
+    rightLabel: t(`activities.packList.stages.${key}.right`),
+  }
+})
+
 const collapsedGroups = ref<Record<string, boolean>>({})
 const moveQtyInputs = ref<Record<string, number>>({})
 const moveBackQtyInputs = ref<Record<string, number>>({})
@@ -1839,7 +1875,7 @@ const availableStockBatches = computed(() => {
     if (d !== 0) return d
     const la = (a.display_label || a.label || a.material_name || '').toString()
     const lb = (b.display_label || b.label || b.material_name || '').toString()
-    return la.localeCompare(lb, 'de')
+    return la.localeCompare(lb, locale.value)
   })
 })
 
@@ -2072,12 +2108,12 @@ async function issueContainerToEvent(c: ActivityPackContainer) {
   containerBulkLoadingId.value = c.id
   try {
     await issueAllPackContainerItems(props.activityId, c.id)
-    toast.success('Behälter zum Event gebucht')
+    toast.success(t('activities.packList.toastIssueContainer'))
     await loadAll()
     emit('activityItemsChanged')
   } catch (err: unknown) {
     const e = err as { response?: { data?: { error?: string } }; message?: string }
-    toast.error(e.response?.data?.error || e.message || 'Behälter konnte nicht gebucht werden.')
+    toast.error(e.response?.data?.error || e.message || t('activities.packList.toastIssueContainerFailed'))
   } finally {
     containerBulkLoadingId.value = null
   }
@@ -2089,12 +2125,12 @@ async function unissueContainerToPacked(c: ActivityPackContainer) {
   containerBulkLoadingId.value = c.id
   try {
     await unissueAllPackContainerItems(props.activityId, c.id)
-    toast.success('Ausgabe zurückgenommen — wieder «Gepackt»')
+    toast.success(t('activities.packList.toastUnissueContainer'))
     await loadAll()
     emit('activityItemsChanged')
   } catch (err: unknown) {
     const e = err as { response?: { data?: { error?: string } }; message?: string }
-    toast.error(e.response?.data?.error || e.message || 'Zurücknahme fehlgeschlagen.')
+    toast.error(e.response?.data?.error || e.message || t('activities.packList.toastUnissueFailed'))
   } finally {
     containerBulkLoadingId.value = null
   }
@@ -2105,12 +2141,12 @@ async function returnContainerToWarehouse(c: ActivityPackContainer) {
   containerBulkLoadingId.value = c.id
   try {
     await returnAllPackContainerItems(props.activityId, c.id)
-    toast.success('Behälter zur Retour erfasst')
+    toast.success(t('activities.packList.toastReturnContainer'))
     await loadAll()
     emit('activityItemsChanged')
   } catch (err: unknown) {
     const e = err as { response?: { data?: { error?: string } }; message?: string }
-    toast.error(e.response?.data?.error || e.message || 'Retour konnte nicht erfasst werden.')
+    toast.error(e.response?.data?.error || e.message || t('activities.packList.toastReturnFailed'))
   } finally {
     containerBulkLoadingId.value = null
   }
@@ -2166,7 +2202,7 @@ function initContainerUnissueLineInputs(): void {
 async function loadContainersData(): Promise<void> {
   try {
     const list = await getActivityPackContainers(props.activityId)
-    packContainers.value = [...list].sort((a, b) => a.label.localeCompare(b.label, 'de'))
+    packContainers.value = [...list].sort((a, b) => a.label.localeCompare(b.label, locale.value))
     const map: Record<string, ActivityPackContainerItem[]> = {}
     await Promise.all(
       packContainers.value.map(async (c) => {
@@ -2198,7 +2234,7 @@ async function loadStockContainerBatches(): Promise<void> {
     })
   } catch {
     stockContainerBatches.value = []
-    toast.error('Kistenliste konnte nicht geladen werden.')
+    toast.error(t('activities.packList.toastStockBatchesFailed'))
   } finally {
     stockBatchesLoading.value = false
   }
@@ -2222,7 +2258,7 @@ async function submitAddContainer() {
     batch?.display_label?.trim() ||
     [batch?.serial_number, batch?.label || batch?.material_name].filter(Boolean).join(' – ') ||
     batch?.material_name ||
-    'Kiste'
+    t('activities.common.crate')
   const label = raw.slice(0, 120)
 
   containerMutationLoading.value = true
@@ -2252,10 +2288,10 @@ async function submitAddContainer() {
       behavior: 'smooth',
       block: 'nearest',
     })
-    toast.success('Behälter hinzugefügt')
+    toast.success(t('activities.packList.toastContainerAdded'))
   } catch (err: unknown) {
     const e = err as { response?: { data?: { error?: string } }; message?: string }
-    toast.error(e.response?.data?.error || e.message || 'Behälter konnte nicht hinzugefügt werden.')
+    toast.error(e.response?.data?.error || e.message || t('activities.packList.toastContainerAddFailed'))
   } finally {
     containerMutationLoading.value = false
   }
@@ -2279,15 +2315,13 @@ function toggleActiveLoose() {
 
 function onAssignButtonClick(pi: ActivityPackItem) {
   if (!props.packListEditable || packContainers.value.length === 0) return
-  const t = activePackTarget.value
-  if (t?.kind === 'loose') {
-    toast.info(
-      '«Lose» ist aktiv: Material mit Pfeil aus einem Behälter in die lose Menge schieben. Für «In Behälter» einen Behälter anklicken.',
-    )
+  const tgt = activePackTarget.value
+  if (tgt?.kind === 'loose') {
+    toast.info(t('activities.packList.toastAssignLooseActive'))
     return
   }
-  if (t?.kind === 'container') {
-    void assignDirectToActiveContainer(pi, t.containerId)
+  if (tgt?.kind === 'container') {
+    void assignDirectToActiveContainer(pi, tgt.containerId)
     return
   }
   openAssignModal(pi)
@@ -2331,11 +2365,11 @@ async function assignMaterialToContainer(
     }
     await loadContainersData()
     if (opts?.successMessage !== null) {
-      toast.success(opts?.successMessage ?? 'Material im Behälter erfasst')
+      toast.success(opts?.successMessage ?? t('activities.packList.toastMaterialInContainer'))
     }
   } catch (err: unknown) {
     const e = err as { response?: { data?: { error?: string } }; message?: string }
-    toast.error(e.response?.data?.error || e.message || 'Zuordnung fehlgeschlagen.')
+    toast.error(e.response?.data?.error || e.message || t('activities.packList.toastAssignFailed'))
   } finally {
     containerMutationLoading.value = false
   }
@@ -2378,10 +2412,14 @@ async function pullFromContainer(containerId: string, ci: ActivityPackContainerI
       })
     }
     await loadContainersData()
-    toast.success(newQty <= 0 ? 'Zuordnung entfernt' : `${qty} Stk. aus Behälter genommen`)
+    toast.success(
+      newQty <= 0
+        ? t('activities.packList.toastPullRemoved')
+        : t('activities.packList.toastPullPartial', { qty }),
+    )
   } catch (err: unknown) {
     const e = err as { response?: { data?: { error?: string } }; message?: string }
-    toast.error(e.response?.data?.error || e.message || 'Konnte nicht anpassen.')
+    toast.error(e.response?.data?.error || e.message || t('activities.packList.toastAdjustFailed'))
   } finally {
     containerMutationLoading.value = false
   }
@@ -2391,7 +2429,7 @@ async function issueContainerLineToEvent(containerId: string, ci: ActivityPackCo
   if (!props.packListEditable || activePackStage.value !== 'packed_issued') return
   const max = containerLineIssueableMax(ci)
   if (max < 1) {
-    toast.error('Nichts mehr ausgebbar (Pack-Position oder Behälterzeile prüfen).')
+    toast.error(t('activities.packList.toastNothingLeftToIssue'))
     return
   }
   const k = containerIssueLineKey(containerId, ci.id)
@@ -2402,7 +2440,7 @@ async function issueContainerLineToEvent(containerId: string, ci: ActivityPackCo
 
   const pi = packItems.value.find((p) => p.materialItemId === ci.material_item_id)
   if (!pi) {
-    toast.error('Keine Pack-Position für dieses Material.')
+    toast.error(t('activities.packList.toastNoPackLine'))
     return
   }
 
@@ -2418,10 +2456,10 @@ async function issueContainerLineToEvent(containerId: string, ci: ActivityPackCo
     initMoveQtyInputs()
     await loadContainersData()
     emit('activityItemsChanged')
-    toast.success(`${qty} Stk. zum Event gebucht`)
+    toast.success(t('activities.packList.toastIssueLineSuccess', { qty }))
   } catch (err: unknown) {
     const e = err as { response?: { data?: { error?: string } }; message?: string }
-    toast.error(e.response?.data?.error || e.message || 'Ausgabe fehlgeschlagen.')
+    toast.error(e.response?.data?.error || e.message || t('activities.packList.toastIssueLineFailed'))
     try {
       const items = await getPackItems(props.activityId)
       packItems.value = items
@@ -2439,7 +2477,7 @@ async function unissueContainerLineToPacked(containerId: string, ci: ActivityPac
   if (!props.packListEditable || activePackStage.value !== 'packed_issued') return
   const max = containerLineUnissueableMax(ci)
   if (max < 1) {
-    toast.error('Nichts zurücknehmbar (Pack-Position oder Behälterzeile prüfen).')
+    toast.error(t('activities.packList.toastNothingToUnissue'))
     return
   }
   const k = containerIssueLineKey(containerId, ci.id)
@@ -2450,7 +2488,7 @@ async function unissueContainerLineToPacked(containerId: string, ci: ActivityPac
 
   const pi = packItems.value.find((p) => p.materialItemId === ci.material_item_id)
   if (!pi) {
-    toast.error('Keine Pack-Position für dieses Material.')
+    toast.error(t('activities.packList.toastNoPackLine'))
     return
   }
 
@@ -2466,10 +2504,10 @@ async function unissueContainerLineToPacked(containerId: string, ci: ActivityPac
     initMoveQtyInputs()
     await loadContainersData()
     emit('activityItemsChanged')
-    toast.success(`${qty} Stk. wieder «Gepackt»`)
+    toast.success(t('activities.packList.toastUnissueLineSuccess', { qty }))
   } catch (err: unknown) {
     const e = err as { response?: { data?: { error?: string } }; message?: string }
-    toast.error(e.response?.data?.error || e.message || 'Zurücknahme fehlgeschlagen.')
+    toast.error(e.response?.data?.error || e.message || t('activities.packList.toastUnissueFailed'))
     try {
       const items = await getPackItems(props.activityId)
       packItems.value = items
@@ -2485,10 +2523,10 @@ async function unissueContainerLineToPacked(containerId: string, ci: ActivityPac
 
 async function confirmDeleteContainer(c: ActivityPackContainer) {
   const ok = await confirmDialog({
-    title: 'Behälter löschen?',
-    message: `„${c.label}“ und alle Zuordnungen darin werden entfernt.`,
-    confirmText: 'Löschen',
-    cancelText: 'Abbrechen',
+    title: t('activities.packList.confirmDeleteTitle'),
+    message: t('activities.packList.confirmDeleteMessage', { label: c.label }),
+    confirmText: t('activities.common.delete'),
+    cancelText: t('activities.common.cancel'),
     variant: 'danger',
   })
   if (!ok) return
@@ -2496,10 +2534,10 @@ async function confirmDeleteContainer(c: ActivityPackContainer) {
   try {
     await deleteActivityPackContainer(props.activityId, c.id)
     await loadContainersData()
-    toast.success('Behälter gelöscht')
+    toast.success(t('activities.packList.toastContainerDeleted'))
   } catch (err: unknown) {
     const e = err as { response?: { data?: { error?: string } }; message?: string }
-    toast.error(e.response?.data?.error || e.message || 'Löschen fehlgeschlagen.')
+    toast.error(e.response?.data?.error || e.message || t('activities.packList.toastDeleteFailed'))
   } finally {
     containerMutationLoading.value = false
   }
@@ -2514,8 +2552,6 @@ function autoPackStageForStatus(status: string): PackStage {
   if (status === 'issued' || status === 'returned') return 'issued_returned'
   return 'confirmed_packed'
 }
-
-const activeStageConfig = computed(() => PACK_STAGES.find((s) => s.key === activePackStage.value) || PACK_STAGES[0])
 
 function getStageLeftQty(item: ActivityPackItem): number {
   switch (activePackStage.value) {
@@ -2690,22 +2726,26 @@ interface PackGroup {
 }
 
 function groupPackItems(items: ActivityPackItem[]): PackGroup[] {
+  void locale.value
   const groups: Record<string, ActivityPackItem[]> = {}
   for (const item of items) {
-    const cat = item.categoryName || 'Ohne Kategorie'
+    const cat = item.categoryName || t('activities.common.categoryOther')
     if (!groups[cat]) groups[cat] = []
     groups[cat].push(item)
   }
   return Object.entries(groups)
-    .sort(([a], [b]) => a.localeCompare(b))
+    .sort(([a], [b]) => a.localeCompare(b, locale.value))
     .map(([name, items]) => ({ categoryName: name, items }))
 }
 
-const groupsLeft = computed(() => groupPackItems(stageLeftItems.value))
+const groupsLeft = computed(() => {
+  void locale.value
+  return groupPackItems(stageLeftItems.value)
+})
 
 /** Lager-Kisten / Pack-Behälter alphabetisch nach Anzeigename */
 const packContainersSorted = computed(() =>
-  [...packContainers.value].sort((a, b) => a.label.localeCompare(b.label, 'de')),
+  [...packContainers.value].sort((a, b) => a.label.localeCompare(b.label, locale.value)),
 )
 
 function containerHasIssuedAtEvent(containerId: string): boolean {
@@ -2740,10 +2780,14 @@ const stageRightItemsLooseIssued = computed(() =>
   packItems.value.filter((p) => getStageRightQty(p) > 0 && looseIssuedAtEvent(p) > 0),
 )
 
-const groupsAtEventLoose = computed(() => groupPackItems(stageRightItemsLooseIssued.value))
+const groupsAtEventLoose = computed(() => {
+  void locale.value
+  return groupPackItems(stageRightItemsLooseIssued.value)
+})
 
 /** «Ohne Behälter»: nur lose Gepackt-Menge, gruppiert nach Kategorie */
 const ohneBehaelterGroups = computed(() => {
+  void locale.value
   if (!showPackContainersUi.value) return []
   if (activePackStage.value === 'confirmed_packed') {
     const items = stageRightItems.value.filter(
@@ -2852,14 +2896,13 @@ async function moveToNextStage(item: ActivityPackItem, qty?: number) {
       const intoContainer = Math.min(moveQty, looseAfter)
       if (intoContainer >= 1) {
         await assignMaterialToContainer(updated, target.containerId, intoContainer, {
-          successMessage:
-            'Von Bestätigt nach Gepackt — und direkt in den gewählten Behälter gelegt.',
+          successMessage: t('activities.packList.toastMoveToContainerDirect'),
         })
       }
     }
   } catch (err: unknown) {
     const e = err as { response?: { data?: { error?: string } }; message?: string }
-    toast.error(e.response?.data?.error || e.message || 'Verschieben fehlgeschlagen.')
+    toast.error(e.response?.data?.error || e.message || t('activities.packList.toastMoveFailed'))
   } finally {
     movingId.value = null
   }
@@ -2878,7 +2921,7 @@ async function moveToPrevStage(item: ActivityPackItem) {
     applyUpdatedItem(updated)
   } catch (err: unknown) {
     const e = err as { response?: { data?: { error?: string } }; message?: string }
-    toast.error(e.response?.data?.error || e.message || 'Zurücksetzen fehlgeschlagen.')
+    toast.error(e.response?.data?.error || e.message || t('activities.packList.toastMoveBackFailed'))
   } finally {
     movingId.value = null
   }
@@ -2899,26 +2942,26 @@ async function moveAllToNextStage() {
     emit('activityItemsChanged')
   } catch (err: unknown) {
     const e = err as { response?: { data?: { error?: string } }; message?: string }
-    toast.error(e.response?.data?.error || e.message || 'Alle verschieben fehlgeschlagen.')
+    toast.error(e.response?.data?.error || e.message || t('activities.packList.toastMoveAllFailed'))
   } finally {
     moveAllLoading.value = false
   }
 }
 
 async function handleWorkflowTransition() {
-  const t = nextWorkflowTransition.value
-  if (!t || !props.packListEditable) return
+  const transition = nextWorkflowTransition.value
+  if (!transition || !props.packListEditable) return
   if (stageProgress.value < 100) {
     const ok = await confirmDialog({
-      title: `Achtung: ${stageProgress.value}% abgeschlossen!`,
-      message: `${stageLeftItems.value.length} Position(en) sind noch nicht vollständig verschoben. Trotzdem fortfahren?`,
-      confirmText: 'Fortfahren',
-      cancelText: 'Abbrechen',
+      title: t('activities.packList.confirmWorkflowTitle', { pct: stageProgress.value }),
+      message: t('activities.packList.confirmWorkflowMessage', { count: stageLeftItems.value.length }),
+      confirmText: t('activities.common.continue'),
+      cancelText: t('activities.common.cancel'),
       variant: 'warning',
     })
     if (!ok) return
   }
-  emit('workflowNext', t)
+  emit('workflowNext', transition)
 }
 
 async function onInitPackList() {
@@ -2926,10 +2969,10 @@ async function onInitPackList() {
   try {
     await postInitPackItems(props.activityId)
     await loadAll()
-    toast.success('Packliste erstellt')
+    toast.success(t('activities.packList.toastPackListCreated'))
   } catch (err: unknown) {
     const e = err as { response?: { data?: { error?: string } }; message?: string }
-    toast.error(e.response?.data?.error || e.message || 'Packliste konnte nicht erstellt werden.')
+    toast.error(e.response?.data?.error || e.message || t('activities.packList.toastPackListCreateFailed'))
   } finally {
     initLoading.value = false
   }
@@ -2946,7 +2989,7 @@ async function loadAll() {
     await loadContainersData()
   } catch (err: unknown) {
     const e = err as { response?: { data?: { error?: string } }; message?: string }
-    loadError.value = e.response?.data?.error || e.message || 'Packliste konnte nicht geladen werden.'
+    loadError.value = e.response?.data?.error || e.message || t('activities.packList.toastLoadFailed')
     packItems.value = []
   } finally {
     loading.value = false

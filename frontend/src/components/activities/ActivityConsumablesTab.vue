@@ -1,29 +1,28 @@
 <template>
   <div class="activity-consumables-tab">
     <div class="section-card">
-      <h2 class="section-title">Verbrauchsmaterial</h2>
+      <h2 class="section-title">{{ t('activities.consumables.title') }}</h2>
       <p v-if="isLoading" class="activity-inline-loading">
         <span class="spinner spinner-sm"></span>
-        <span>Daten werden geladen…</span>
+        <span>{{ t('activities.consumables.loading') }}</span>
       </p>
       <template v-else>
         <p class="consumable-hint text-muted">
-          Verbrauchtes Material hier abbuchen — höchstens die für diese Aktivität gebuchte Menge. Der Verbrauch wird vom
-          Bestand abgezogen.
+          {{ t('activities.consumables.intro') }}
         </p>
-        <p v-if="consumableAggregated.length === 0" class="text-muted">Kein Verbrauchsmaterial in dieser Aktivität.</p>
+        <p v-if="consumableAggregated.length === 0" class="text-muted">{{ t('activities.consumables.empty') }}</p>
         <div v-else class="consumables-list">
           <div v-for="row in consumableAggregated" :key="row.material_item_id" class="consumable-card">
             <div class="consumable-info">
               <span class="consumable-name">{{ displayNameAgg(row) }}</span>
-              <span class="consumable-ordered text-muted">Gebucht: {{ row.quantity_booked }} Stk.</span>
+              <span class="consumable-ordered text-muted">{{ t('activities.consumables.booked', { n: row.quantity_booked }) }}</span>
               <span v-if="usedQty(row.material_item_id) > 0" class="consumable-used">
-                Verbraucht: {{ usedQty(row.material_item_id) }} Stk.
+                {{ t('activities.consumables.used', { n: usedQty(row.material_item_id) }) }}
               </span>
               <span v-if="remainingQty(row.material_item_id) > 0" class="consumable-remaining text-muted">
-                Noch möglich: {{ remainingQty(row.material_item_id) }} Stk.
+                {{ t('activities.consumables.remaining', { n: remainingQty(row.material_item_id) }) }}
               </span>
-              <span v-else class="consumable-remaining consumable-remaining--zero">Kein Verbrauch mehr möglich</span>
+              <span v-else class="consumable-remaining consumable-remaining--zero">{{ t('activities.consumables.noConsumptionLeft') }}</span>
             </div>
             <div v-if="remainingQty(row.material_item_id) > 0" class="consumable-actions">
               <div class="consumable-qty-row">
@@ -60,25 +59,24 @@
                 :disabled="!canCreate || postingId === row.material_item_id"
                 @click="reportConsumption(row)"
               >
-                {{ postingId === row.material_item_id ? '…' : 'Verbrauch buchen' }}
+                {{ postingId === row.material_item_id ? t('activities.consumables.postingEllipsis') : t('activities.consumables.posting') }}
               </button>
             </div>
             <div v-else class="consumable-actions consumable-actions--blocked">
               <template v-if="canAddActivityMaterial">
                 <p class="consumable-blocked-hint text-muted">
-                  Verbrauchslimit erreicht. Nachlieferung oder Reste dem Event zuordnen:
+                  {{ t('activities.consumables.blockedHintWithNachbuchung') }}
                 </p>
                 <button
                   type="button"
                   class="btn btn-sm btn-primary"
                   @click="emitNachbuchung(row)"
                 >
-                  Nachlieferung zur Aktivität hinzufügen
+                  {{ t('activities.consumables.addNachlieferung') }}
                 </button>
               </template>
               <p v-else class="consumable-blocked-hint text-muted">
-                Kein weiterer Verbrauch möglich. Eine Erhöhung der gebuchten Menge nur durch Materialwart /
-                Dep.-Chef (Tab «Material»).
+                {{ t('activities.consumables.blockedHintNoRights') }}
               </p>
             </div>
             <div
@@ -86,21 +84,21 @@
               class="consumable-nachlieferung"
             >
               <button type="button" class="link-btn" @click="emitNachbuchung(row)">
-                Gebuchte Menge erhöhen (Nachlieferung / Reste)…
+                {{ t('activities.consumables.increaseBooked') }}
               </button>
             </div>
           </div>
         </div>
 
         <div v-if="consumptionHistory.length > 0" class="consumable-history">
-          <h3 class="consumable-history-title">Gebuchter Verbrauch</h3>
+          <h3 class="consumable-history-title">{{ t('activities.consumables.historyTitle') }}</h3>
           <div
             v-for="cr in consumptionHistory"
             :key="cr.id"
             class="consumable-history-item"
           >
-            <span class="consumable-history-name">{{ cr.material_name || 'Material' }}</span>
-            <span class="consumable-history-qty">×{{ cr.quantity }}</span>
+            <span class="consumable-history-name">{{ cr.material_name || t('activities.common.material') }}</span>
+            <span class="consumable-history-qty">{{ t('activities.consumables.historyQty', { n: cr.quantity }) }}</span>
             <span class="consumable-history-time">{{ formatDateTime(cr.reported_at) }}</span>
             <span v-if="cr.description" class="consumable-history-desc">{{ cr.description }}</span>
           </div>
@@ -112,6 +110,7 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import {
   createActivityIssue,
   getActivityIssues,
@@ -122,6 +121,8 @@ import {
 import { useToast } from '@/composables/useToast'
 
 defineOptions({ name: 'ActivityConsumablesTab' })
+
+const { t, locale } = useI18n()
 
 const props = defineProps<{
   activityId: string
@@ -253,7 +254,7 @@ function bumpQty(materialItemId: string, delta: number) {
 }
 
 function formatDateTime(iso: string): string {
-  return new Date(iso).toLocaleString('de-CH', {
+  return new Date(iso).toLocaleString(locale.value, {
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',
@@ -285,7 +286,7 @@ async function load() {
   } catch {
     activityItems.value = []
     issues.value = []
-    toast.error('Verbrauchsmaterial konnte nicht geladen werden.')
+    toast.error(t('activities.consumables.toastLoadFailed'))
   } finally {
     isLoading.value = false
   }
@@ -301,7 +302,7 @@ async function reportConsumption(row: {
   const rem = remainingQty(row.material_item_id)
   const q = qtyInputs.value[row.material_item_id] ?? 1
   if (q < 1 || q > rem) {
-    toast.error(rem < 1 ? 'Kein weiterer Verbrauch möglich.' : `Höchstens ${rem} Stk. möglich.`)
+    toast.error(rem < 1 ? t('activities.consumables.toastNoRemaining') : t('activities.consumables.toastMaxPieces', { n: rem }))
     return
   }
   postingId.value = row.material_item_id
@@ -312,12 +313,12 @@ async function reportConsumption(row: {
       quantity: q,
       description: null,
     })
-    toast.success('Verbrauch gebucht')
+    toast.success(t('activities.consumables.toastBooked'))
     qtyInputs.value[row.material_item_id] = 1
     await load()
   } catch (err: unknown) {
     const e = err as { response?: { data?: { error?: string } }; message?: string }
-    toast.error(e.response?.data?.error || e.message || 'Verbrauch konnte nicht gebucht werden.')
+    toast.error(e.response?.data?.error || e.message || t('activities.consumables.toastBookFailed'))
   } finally {
     postingId.value = null
   }

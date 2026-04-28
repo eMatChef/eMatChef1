@@ -165,12 +165,14 @@ import {
   type PublicLookupBatchResponse,
   type PublicLookupMaterialResponse,
 } from '../../api/public/publicLookup'
+import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '../../stores/auth'
 import EmcLogoMark from '../../components/brand/EmcLogoMark.vue'
 import PublicSiteFooter from '../../components/public/PublicSiteFooter.vue'
-import { DEFAULT_DOCUMENT_TITLE } from '../../composables/usePageHead'
+import { PAGE_HEAD_KEYS } from '../../composables/usePageHead'
 import { usePageHeadStore } from '../../stores/pageHead'
 
+const { t } = useI18n()
 const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
@@ -190,9 +192,9 @@ const publicAvatarStyle = computed(() => ({
 }))
 
 const pageTitle = computed(() => {
-  if (loading.value) return DEFAULT_DOCUMENT_TITLE
-  if (error.value) return 'Material-Info · eMatChef'
-  if (!data.value) return DEFAULT_DOCUMENT_TITLE
+  if (loading.value) return t(PAGE_HEAD_KEYS.defaultTitle)
+  if (error.value) return t('router.meta.titles.publicLookup')
+  if (!data.value) return t(PAGE_HEAD_KEYS.defaultTitle)
   const d = data.value
   const name = d.material?.name?.trim() || 'Material'
   if (routeType.value === 'b' && d.entity_type === 'batch' && d.batch) {
@@ -204,13 +206,13 @@ const pageTitle = computed(() => {
 
 const pageDescription = computed(() => {
   if (loading.value) {
-    return 'Öffentliche Material- und Seriennummern-Informationen in eMatChef.'
+    return t('router.meta.descriptions.publicLookup')
   }
   if (error.value) {
-    return 'Die angeforderte Material- oder Seriennummer wurde nicht gefunden oder ist nicht aktiv.'
+    return t('router.meta.descriptions.publicLookupError')
   }
   if (!data.value) {
-    return 'Öffentliche Material-Information in eMatChef.'
+    return t('router.meta.descriptions.publicLookupNoData')
   }
   const d = data.value
   const mat = d.material.name
