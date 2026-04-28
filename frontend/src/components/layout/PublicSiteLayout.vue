@@ -16,7 +16,16 @@
             <option value="fr">FR</option>
           </select>
         </nav>
-        <AppLoginLink class="plt-nav-cta btn btn-primary plt-btn-lg">{{ t('publicNav.login') }}</AppLoginLink>
+        <a
+          v-if="isPublicLoggedIn"
+          :href="appEntryHref"
+          class="public-user-link"
+          :title="t('public.lookup.toApp')"
+        >
+          <span class="public-user-avatar" :style="avatarStyle">{{ publicInitials }}</span>
+          <span class="public-user-name">{{ publicDisplayName }}</span>
+        </a>
+        <AppLoginLink v-else class="plt-nav-cta btn btn-primary plt-btn-lg">{{ t('publicNav.login') }}</AppLoginLink>
       </div>
     </header>
     <main class="plt-main">
@@ -27,14 +36,21 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import EmcLogoMark from '@/components/brand/EmcLogoMark.vue'
 import AppLoginLink from '@/components/public/AppLoginLink.vue'
 import PublicSiteFooter from '@/components/public/PublicSiteFooter.vue'
 import { setLocale } from '@/i18n'
+import { getAppEntryTarget } from '@/utils/appLoginUrl'
+import { useAuthStore } from '@/stores/auth'
 
 const { t, locale } = useI18n()
+const authStore = useAuthStore()
+
+onMounted(() => {
+  void authStore.loadUserSessionFromCookie()
+})
 
 function toPublicLocale(value: string): 'de' | 'en' | 'fr' {
   const v = String(value || '').toLowerCase()
@@ -49,6 +65,22 @@ const publicLocale = computed({
     setLocale(toPublicLocale(v))
   },
 })
+
+const isPublicLoggedIn = computed(() => authStore.isLoggedIn)
+const publicDisplayName = computed(() =>
+  authStore.userDisplayName || t('public.lookup.userFallback')
+)
+const publicInitials = computed(() =>
+  authStore.userInitials || '??'
+)
+const avatarStyle = computed(() => {
+  const colors = authStore.userColors
+  return {
+    backgroundColor: colors.background,
+    color: colors.text,
+  }
+})
+const appEntryHref = computed(() => getAppEntryTarget())
 </script>
 
 <style scoped>
@@ -61,5 +93,39 @@ const publicLocale = computed({
   font-size: 0.82rem;
   font-weight: 600;
   padding: 0.3rem 0.45rem;
+}
+
+.public-user-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  text-decoration: none;
+  color: #0f172a;
+  padding: 0.25rem 0.4rem;
+  border-radius: 999px;
+  transition: background-color 0.15s ease, transform 0.15s ease;
+}
+
+.public-user-link:hover {
+  background: rgba(15, 23, 42, 0.08);
+}
+
+.public-user-link:active {
+  transform: translateY(1px);
+}
+
+.public-user-avatar {
+  width: 2rem;
+  height: 2rem;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 0.75rem;
+}
+
+.public-user-name {
+  font-weight: 600;
 }
 </style>

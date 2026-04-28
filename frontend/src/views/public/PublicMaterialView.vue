@@ -7,32 +7,28 @@
       </RouterLink>
       <div class="public-header-actions">
         <button
-          v-if="!authStore.isLoggedIn"
+          v-if="!isPublicLoggedIn"
           type="button"
           class="public-login-btn"
           @click="goToLogin"
         >
-          {{ t('public.lookup.login') }}
+          {{ t('public.lookup.toApp') }}
         </button>
-        <div v-else class="public-header-logged-in">
-          <div
-            class="public-user-chip"
-            :title="authStore.userEmail || undefined"
-            :aria-label="t('public.lookup.loggedInAs', { name: authStore.userDisplayName })"
-          >
+        <button
+          v-else
+          type="button"
+          class="public-user-link"
+          :title="t('public.lookup.toApp')"
+          :aria-label="t('public.lookup.loggedInAs', { name: publicGreetingName })"
+          @click="goToApp"
+        >
+          <span class="public-user-chip">
             <span class="public-user-avatar" :style="publicAvatarStyle">
-              {{ authStore.userInitials }}
+              {{ publicInitials }}
             </span>
-            <span class="public-user-name">{{ authStore.userDisplayName }}</span>
-          </div>
-          <button
-            type="button"
-            class="public-login-btn public-login-btn--primary"
-            @click="goToApp"
-          >
-            {{ t('public.lookup.toApp') }}
-          </button>
-        </div>
+            <span class="public-user-name">{{ publicGreetingName }}</span>
+          </span>
+        </button>
       </div>
     </header>
 
@@ -68,6 +64,16 @@
             <dd>{{ data.material.model }}</dd>
           </div>
         </dl>
+
+        <div v-if="isPublicLoggedIn" class="public-material-app-link">
+          <button
+            type="button"
+            class="public-login-btn public-login-btn--primary"
+            @click="goToApp"
+          >
+            {{ t('public.lookup.toApp') }}
+          </button>
+        </div>
 
         <div v-if="showPublicContactForm" class="contact-collapsible">
           <button
@@ -170,6 +176,7 @@ import EmcLogoMark from '../../components/brand/EmcLogoMark.vue'
 import PublicSiteFooter from '../../components/public/PublicSiteFooter.vue'
 import { PAGE_HEAD_KEYS } from '../../composables/usePageHead'
 import { usePageHeadStore } from '../../stores/pageHead'
+import { getAppEntryTarget } from '../../utils/appLoginUrl'
 
 const { t } = useI18n()
 const route = useRoute()
@@ -185,10 +192,15 @@ const error = ref<string | null>(null)
 type PublicLookupViewData = PublicLookupMaterialResponse | PublicLookupBatchResponse
 const data = ref<PublicLookupViewData | null>(null)
 
+const isPublicLoggedIn = computed(() => authStore.isLoggedIn)
 const publicAvatarStyle = computed(() => ({
   backgroundColor: authStore.userColors.background,
   color: authStore.userColors.text,
 }))
+const publicGreetingName = computed(() =>
+  authStore.userDisplayName || t('public.lookup.materialFallback')
+)
+const publicInitials = computed(() => authStore.userInitials || '??')
 
 const pageTitle = computed(() => {
   if (loading.value) return t(PAGE_HEAD_KEYS.defaultTitle)
@@ -298,11 +310,6 @@ async function submitFoundContact() {
   }
 }
 
-function isMwRole(role: string | null | undefined): boolean {
-  const normalized = String(role || '').toLowerCase().trim()
-  return normalized === 'mw' || normalized === 'matwart'
-}
-
 /** Login mit Rücksprung zu dieser öffentlichen Seite (Artikel-Kontext bleibt in der URL). */
 function goToLogin() {
   void router.push({ path: '/login', query: { redirect: route.fullPath } })
@@ -310,6 +317,10 @@ function goToLogin() {
 
 /** Bereits angemeldet: ins Material / Dashboard wechseln. */
 function goToApp() {
+  if (!authStore.isLoggedIn && isPublicLoggedIn.value) {
+    window.location.href = getAppEntryTarget()
+    return
+  }
   if (!authStore.isLoggedIn) {
     goToLogin()
     return
@@ -331,25 +342,6 @@ function goToApp() {
   void router.push('/pending-assignment')
 }
 
-async function maybeRedirectToInternalDetail(lookupData: PublicLookupViewData): Promise<void> {
-  if (!authStore.isLoggedIn) return
-
-  const departmentId = lookupData.department.id
-  const membership = authStore.departments.find((d) => d.department_id === departmentId)
-  if (!membership || !isMwRole(membership.role)) return
-
-  const materialId = lookupData.material.id
-  const query: Record<string, string> = {}
-  if (lookupData.entity_type === 'batch' && lookupData.batch?.id) {
-    query.batch = lookupData.batch.id
-  }
-
-  await router.replace({
-    path: `/${departmentId}/materials/${materialId}`,
-    query,
-  })
-}
-
 async function loadData() {
   if (!routeCode.value) {
     error.value = t('public.lookup.errorInvalidCode')
@@ -366,9 +358,6 @@ async function loadData() {
     } else {
       data.value = await getPublicMaterialByCode(routeCode.value)
     }
-    if (data.value) {
-      await maybeRedirectToInternalDetail(data.value)
-    }
   } catch {
     error.value = t('public.lookup.errorCodeNotFound')
     data.value = null
@@ -377,20 +366,16 @@ async function loadData() {
   }
 }
 
-onMounted(loadData)
+onMounted(() => {
+  void authStore.loadUserSessionFromCookie()
+  void loadData()
+})
 watch([routeType, routeCode], loadData)
 </script>
 
 <style scoped>
 .public-header-actions {
   flex-shrink: 0;
-}
-
-.public-header-logged-in {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  min-width: 0;
 }
 
 .public-user-chip {
@@ -411,6 +396,29 @@ watch([routeType, routeCode], loadData)
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+.public-user-link {
+  border: none;
+  background: transparent;
+  padding: 6px 8px;
+  cursor: pointer;
+  border-radius: 10px;
+  transition: background-color 0.15s ease, transform 0.12s ease;
+}
+
+.public-user-link:hover {
+  background: var(--public-btn-outline-bg-hover);
+}
+
+.public-user-link:active {
+  transform: translateY(1px);
+}
+
+.public-user-link:focus-visible {
+  outline: 2px solid var(--public-btn-focus-ring);
+  outline-offset: 2px;
+  border-radius: 10px;
 }
 
 .public-user-name {
@@ -527,6 +535,10 @@ watch([routeType, routeCode], loadData)
 }
 
 .contact-collapsible {
+  margin-top: 16px;
+}
+
+.public-material-app-link {
   margin-top: 16px;
 }
 

@@ -824,21 +824,10 @@ function applyQrHostRedirects(to: RouteLocationNormalized): boolean {
 
   const path = to.path
 
-  // Öffentlicher /i/m|b/…-Lookup: auf App-Instanz weiterleiten (OpenFromQr-Logik)
+  // Öffentlicher /i/m|b/…-Lookup bleibt auf der QR-Domain (kein automatischer Sprung zur App).
   const parts = path.split('/').filter(Boolean)
-  if (parts[0] === 'i' && (parts[1] === 'm' || parts[1] === 'b') && parts[2] && appOrigin) {
-    const code = parts[2]
-    const type = parts[1]
-    const sp = new URLSearchParams()
-    sp.set('type', type)
-    sp.set('code', code)
-    for (const [key, val] of Object.entries(to.query)) {
-      if (key === 'type' || key === 'code') continue
-      if (Array.isArray(val)) val.forEach((x) => sp.append(key, String(x)))
-      else if (val != null) sp.append(key, String(val))
-    }
-    window.location.replace(`${appOrigin}/open-from-qr?${sp.toString()}`)
-    return true
+  if (parts[0] === 'i' && (parts[1] === 'm' || parts[1] === 'b') && parts[2]) {
+    return false
   }
 
   // Login-Start → App-Instanz (Query z. B. ?redirect= bleibt erhalten)

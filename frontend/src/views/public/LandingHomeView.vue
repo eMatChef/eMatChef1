@@ -6,7 +6,7 @@
         <h1 id="landing-title">{{ heroTitle }}</h1>
         <p class="plt-lead">{{ heroSubtitle }}</p>
         <div class="plt-hero__actions">
-          <AppLoginLink class="btn btn-primary plt-btn-lg">{{ primaryCta }}</AppLoginLink>
+          <a :href="primaryHref" class="btn btn-primary plt-btn-lg">{{ primaryCta }}</a>
           <RouterLink to="/faq" class="btn btn-outline plt-btn-lg">{{ secondaryCta }}</RouterLink>
         </div>
       </div>
@@ -39,7 +39,7 @@
       <div class="plt-container">
         <h2 id="section-cta" class="sr-only">{{ t('public.landing.cta.titleSrOnly') }}</h2>
         <p>{{ t('public.landing.cta.text') }}</p>
-        <AppLoginLink class="btn btn-primary plt-btn-lg">{{ primaryCta }}</AppLoginLink>
+        <a :href="primaryHref" class="btn btn-primary plt-btn-lg">{{ primaryCta }}</a>
       </div>
     </section>
   </div>
@@ -49,13 +49,16 @@
 import { computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useSiteContentStore } from '@/stores/siteContent'
-import AppLoginLink from '@/components/public/AppLoginLink.vue'
+import { getAppEntryTarget, getAppLoginTarget } from '@/utils/appLoginUrl'
+import { useAuthStore } from '@/stores/auth'
 
 const site = useSiteContentStore()
 const { t } = useI18n()
+const authStore = useAuthStore()
 
 onMounted(() => {
   void site.ensureLoaded()
+  void authStore.loadUserSessionFromCookie()
 })
 
 const heroTitle = computed(() =>
@@ -67,7 +70,15 @@ const heroSubtitle = computed(() =>
       t('public.landing.heroSubtitle')
   )
 )
-const primaryCta = computed(() => String(site.getContent('landing').primaryCta ?? t('public.landing.primaryCta')))
+const isPublicLoggedIn = computed(() => authStore.isLoggedIn)
+const primaryCta = computed(() =>
+  isPublicLoggedIn.value
+    ? t('public.lookup.toApp')
+    : String(site.getContent('landing').primaryCta ?? t('public.landing.primaryCta'))
+)
+const primaryHref = computed(() =>
+  isPublicLoggedIn.value ? getAppEntryTarget() : getAppLoginTarget()
+)
 const secondaryCta = computed(() =>
   String(site.getContent('landing').secondaryCta ?? t('public.landing.secondaryCta'))
 )

@@ -4,13 +4,14 @@ import {
   login as apiLogin, 
   logout as apiLogout, 
   loadSession, 
+  loadSessionFromServer,
   loadUserMemberships,
   refreshToken as apiRefreshToken,
   saveLastUsedDepartment as apiSaveLastUsedDepartment,
   type LoginResponse, 
   type UserResponse, 
   type ProfileResponse, 
-  type UserDepartmentResponse 
+  type UserDepartmentResponse
 } from '@/api/auth'
 import { getGeneralSettings } from '@/api/departmentSettings'
 import { resetSessionExpiredHandling } from '@/api/apiClient'
@@ -28,7 +29,8 @@ export const useAuthStore = defineStore('auth', () => {
   
   // Getters
   const isLoggedIn = computed(() => {
-    return !!token.value && !!user.value && !!profile.value
+    // Cookie-basierte Session (Public-Seiten) hat absichtlich keinen localStorage-Token.
+    return !!user.value && !!profile.value
   })
 
   const userId = computed(() => user.value?.id || null)
@@ -240,6 +242,49 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
+  async function loadUserSessionFromCookie(): Promise<boolean> {
+    if (isLoggedIn.value) return true
+    try {
+      loadingUser.value = true
+      const session = await loadSessionFromServer()
+
+      user.value = {
+        ...session.user,
+        last_used_department:
+          session.last_used_department ?? session.user.last_used_department ?? null,
+      }
+      profile.value = session.profile
+      departments.value = (session.departments || []).map((d) => ({
+        department_id: d.id,
+        role: d.role,
+        is_primary: d.is_primary,
+        department: {
+          id: d.id,
+          name: d.name,
+          organisation_id: d.organisation_id || '',
+        },
+      }))
+
+      const preferredDept =
+        session.last_used_department ||
+        session.primary_department ||
+        session.departments?.[0]?.id ||
+        null
+      activeDepartmentId.value = preferredDept
+      if (preferredDept) {
+        localStorage.setItem('active_department_id', preferredDept)
+      }
+
+      resetSessionExpiredHandling()
+      lastSessionStartTime.value = Date.now()
+      return true
+    } catch {
+      return false
+    } finally {
+      loadingUser.value = false
+    }
+  }
+
   async function loadDepartments(): Promise<void> {
     try {
       if (!userId.value) return
@@ -350,6 +395,7 @@ export const useAuthStore = defineStore('auth', () => {
     login,
     logout,
     loadUserSession,
+    loadUserSessionFromCookie,
     loadDepartments,
     setActiveDepartment,
     loadDepartmentTimezone,

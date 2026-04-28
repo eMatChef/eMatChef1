@@ -6,6 +6,7 @@ use App\Config\LanguageConfig;
 use App\Entity\Profile;
 use App\Entity\User;
 use App\Entity\AdminJoinRequest;
+use App\Entity\Membership;
 use App\Entity\Organisation;
 use App\Repository\ProfileRepository;
 use App\Repository\UserRepository;
@@ -24,6 +25,7 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Routing\Annotation\Route;
 use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
 use Psr\Cache\CacheItemPoolInterface;
+use Symfony\Component\Security\Core\User\UserInterface;
 
 #[Route('/api/auth', name: 'api_auth_')]
 class AuthController extends AbstractController
@@ -78,6 +80,118 @@ class AuthController extends AbstractController
         return new JsonResponse([
             'message' => 'Erfolgreich abgemeldet'
         ]);
+    }
+
+    #[Route('/session', name: 'session', methods: ['GET'])]
+    public function session(): JsonResponse
+    {
+        $user = $this->resolveAuthenticatedUser();
+        if (!$user instanceof User) {
+            return new JsonResponse(['error' => 'Nicht angemeldet'], 401);
+        }
+
+        $profile = $user->getProfile();
+        if (!$profile) {
+            return new JsonResponse(['error' => 'Profil nicht gefunden'], 404);
+        }
+
+        $memberships = $this->entityManager->getRepository(Membership::class)
+            ->createQueryBuilder('m')
+            ->innerJoin('m.department', 'd')
+            ->addSelect('d')
+            ->where('m.userId = :userId')
+            ->setParameter('userId', $user->getId())
+            ->getQuery()
+            ->getResult();
+
+        $departments = [];
+        $primaryDepartment = null;
+        foreach ($memberships as $m) {
+            $department = $m->getDepartment();
+            $deptData = [
+                'id' => $department->getId(),
+                'name' => $department->getName(),
+                'organisation_id' => $department->getOrganisationId(),
+                'role' => $m->getRole(),
+                'is_primary' => $m->getIsPrimary(),
+            ];
+            $departments[] = $deptData;
+            if ($m->getIsPrimary() || !$primaryDepartment) {
+                $primaryDepartment = $deptData;
+            }
+        }
+
+        if (!$primaryDepartment && \count($departments) > 0) {
+            $primaryDepartment = $departments[0];
+        }
+
+        $allowedIds = array_map(static fn (array $d): string => $d['id'], $departments);
+        $storedLastUsedId = $user->getLastUsedDepartmentId();
+        $lastUsedResolved = null;
+        if ($storedLastUsedId !== null && \in_array($storedLastUsedId, $allowedIds, true)) {
+            $lastUsedResolved = $storedLastUsedId;
+        } elseif ($primaryDepartment !== null) {
+            $lastUsedResolved = $primaryDepartment['id'];
+        }
+
+        return new JsonResponse([
+            'user' => [
+                'id' => $user->getId(),
+                'state' => $user->getState(),
+                'profile_id' => $user->getProfileId(),
+                'last_used_department' => $lastUsedResolved,
+            ],
+            'profile' => [
+                'id' => $profile->getId(),
+                'email' => $profile->getEmail(),
+                'first_name' => $profile->getFirstName() ?? null,
+                'last_name' => $profile->getLastName() ?? null,
+                'nickname' => $profile->getNickname() ?? null,
+                'avatar_initials' => $profile->getAvatarInitials() ?? null,
+                'pending_email' => $user->getPendingEmail() ?? null,
+                'language' => $profile->getLanguage(),
+                'roles' => $profile->getRoles(),
+                'background_color' => $profile->getBackgroundColor() ?? null,
+                'text_color' => $profile->getTextColor() ?? null,
+            ],
+            'departments' => $departments,
+            'primary_department' => $primaryDepartment ? $primaryDepartment['id'] : null,
+            'last_used_department' => $lastUsedResolved,
+        ]);
+    }
+
+    private function resolveAuthenticatedUser(): ?User
+    {
+        $securityUser = $this->getUser();
+        if ($securityUser instanceof User) {
+            return $securityUser;
+        }
+        if (!$securityUser instanceof UserInterface) {
+            return null;
+        }
+
+        // Fallback: bei manchen Firewalls ist das Security-Objekt nicht direkt die Entity.
+        if (method_exists($securityUser, 'getProfileId')) {
+            $profileId = (string) $securityUser->getProfileId();
+            if ($profileId !== '') {
+                $resolved = $this->userRepository->findOneBy(['profileId' => $profileId]);
+                if ($resolved instanceof User) {
+                    return $resolved;
+                }
+            }
+        }
+
+        $identifier = trim((string) $securityUser->getUserIdentifier());
+        if ($identifier === '') {
+            return null;
+        }
+
+        $resolved = $this->userRepository->findOneByProfileId($identifier);
+        if ($resolved instanceof User) {
+            return $resolved;
+        }
+
+        return $this->userRepository->findOneBy(['id' => $identifier]);
     }
 
     #[Route('/register', name: 'register', methods: ['POST'])]
