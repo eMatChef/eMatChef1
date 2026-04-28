@@ -42,6 +42,7 @@ function resolveApiBaseURL(): string {
 
 const apiClient = axios.create({
   baseURL: resolveApiBaseURL(),
+  withCredentials: true,
   timeout: 30000,
   headers: {
     'Content-Type': 'application/json',
@@ -56,6 +57,10 @@ function isPublicApiUrl(url: string): boolean {
     return true
   }
   return false
+}
+
+function isSessionProbeUrl(url: string): boolean {
+  return url.includes('/api/auth/session')
 }
 
 // Request Interceptor - fügt Auth-Token hinzu
@@ -141,7 +146,7 @@ apiClient.interceptors.response.use(
     }
 
     // Public API: kein Refresh/Logout-Flow – Fehler soll sauber an Caller durchgereicht werden
-    if (isPublicApiUrl(requestUrl)) {
+    if (isPublicApiUrl(requestUrl) || isSessionProbeUrl(requestUrl)) {
       return Promise.reject(error)
     }
 

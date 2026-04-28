@@ -87,6 +87,7 @@
       "brandTitle": "eMatChef",
       "login": "Sign in",
       "loggedInAs": "Signed in as {name}",
+      "heyName": "Hey {name}",
       "toApp": "Go to app",
       "serialInfoTitle": "Serial info",
       "materialInfoTitle": "Material info",

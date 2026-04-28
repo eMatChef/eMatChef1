@@ -81,6 +81,14 @@ export interface LoginResponse {
   last_used_department: string | null
 }
 
+export interface ServerSessionResponse {
+  user: LoginResponse['user']
+  profile: LoginResponse['profile']
+  departments: LoginResponse['departments']
+  primary_department: string | null
+  last_used_department: string | null
+}
+
 export interface UserResponse {
   id: string
   state: string
@@ -242,6 +250,12 @@ export async function logout(): Promise<void> {
     } catch (error) {
       console.warn('Logout auf Server fehlgeschlagen, lokale Daten werden trotzdem gelöscht:', error)
     }
+  } else {
+    try {
+      await apiClient.post('/api/auth/logout')
+    } catch (error) {
+      console.warn('Logout auf Server fehlgeschlagen, lokale Daten werden trotzdem gelöscht:', error)
+    }
   }
   
   // Lokale Auth-Daten entfernen
@@ -314,6 +328,14 @@ export async function loadSession(): Promise<{ user: UserResponse; profile: Prof
     user: userRes.data,
     profile: profileRes.data
   }
+}
+
+/**
+ * Lädt Session rein über serverseitige Auth-Cookies (ohne localStorage IDs).
+ */
+export async function loadSessionFromServer(): Promise<ServerSessionResponse> {
+  const { data } = await apiClient.get<ServerSessionResponse>('/api/auth/session')
+  return data
 }
 
 /**

@@ -18,6 +18,19 @@ export function getAppLoginTarget(): string {
   return '/login'
 }
 
+export function getAppEntryTarget(): string {
+  const appOrigin = (import.meta.env.VITE_APP_ORIGIN || '').trim().replace(/\/$/, '')
+  if (appOrigin && typeof window !== 'undefined') {
+    try {
+      const u = new URL(appOrigin)
+      return `${u.origin}/`
+    } catch {
+      /* ignore */
+    }
+  }
+  return '/'
+}
+
 export function getMainSiteOrigin(): string {
   return (import.meta.env.VITE_MAIN_SITE_ORIGIN || '').trim().replace(/\/$/, '')
 }
