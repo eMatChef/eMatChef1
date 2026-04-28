@@ -357,7 +357,7 @@
                   v-model="profileForm.background_color"
                   type="text"
                   maxlength="7"
-                  placeholder="#EC4899"
+                  :placeholder="t('layout.profileModal.backgroundColorPlaceholder')"
                 />
               </div>
             </label>
@@ -370,7 +370,7 @@
                   v-model="profileForm.text_color"
                   type="text"
                   maxlength="7"
-                  placeholder="#FFFFFF"
+                  :placeholder="t('layout.profileModal.textColorPlaceholder')"
                 />
               </div>
             </label>

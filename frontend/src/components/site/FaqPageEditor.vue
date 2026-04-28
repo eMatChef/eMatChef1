@@ -1,37 +1,52 @@
 <template>
   <div class="page-ed">
     <header class="page-ed-head">
-      <h1>FAQ</h1>
-      <p v-if="updatedAt" class="meta">Zuletzt gespeichert: {{ formatDe(updatedAt) }}</p>
+      <h1>{{ t('components.siteEditors.faq.title') }}</h1>
+      <p v-if="updatedAt" class="meta">{{ t('components.siteEditors.lastSaved') }}: {{ formatDe(updatedAt) }}</p>
     </header>
     <p v-if="error" class="error">{{ error }}</p>
 
-    <label class="lbl" for="faq-title">Seitentitel</label>
+    <div class="locale-tabs" role="tablist" :aria-label="t('publicNav.language')">
+      <button
+        v-for="loc in LOCALES"
+        :key="loc"
+        type="button"
+        class="locale-tab"
+        :class="{ active: activeLocale === loc }"
+        :aria-selected="activeLocale === loc"
+        @click="activeLocale = loc"
+      >
+        {{ loc.toUpperCase() }}
+      </button>
+    </div>
+
+    <label class="lbl" for="faq-title">{{ t('components.siteEditors.pageTitleLabel') }}</label>
     <input id="faq-title" v-model="title" type="text" class="inp" :disabled="saving" />
 
     <div class="block-head">
-      <h2 class="h2">Fragen &amp; Antworten</h2>
-      <button type="button" class="btn btn-secondary btn-sm" :disabled="saving" @click="addItem">Eintrag hinzufügen</button>
+      <h2 class="h2">{{ t('components.siteEditors.faq.itemsTitle') }}</h2>
+      <button type="button" class="btn btn-secondary btn-sm" :disabled="saving" @click="addItem">{{ t('components.siteEditors.faq.addItem') }}</button>
     </div>
 
     <div v-for="(it, idx) in items" :key="idx" class="faq-item">
-      <label class="lbl" :for="'faq-q-' + idx">Frage</label>
+      <label class="lbl" :for="'faq-q-' + idx">{{ t('components.siteEditors.faq.questionLabel') }}</label>
       <input :id="'faq-q-' + idx" v-model="it.q" type="text" class="inp" :disabled="saving" />
-      <span class="lbl">Antwort</span>
-      <TiptapEditor v-model="it.aHtml" placeholder="Antwort…" :disabled="saving" />
-      <button type="button" class="btn-remove" :disabled="saving" @click="removeItem(idx)">Eintrag entfernen</button>
+      <span class="lbl">{{ t('components.siteEditors.faq.answerLabel') }}</span>
+      <TiptapEditor v-model="it.aHtml" :placeholder="t('components.siteEditors.faq.answerPlaceholder')" :disabled="saving" />
+      <button type="button" class="btn-remove" :disabled="saving" @click="removeItem(idx)">{{ t('components.siteEditors.faq.removeItem') }}</button>
     </div>
 
     <div class="actions">
       <button type="button" class="btn btn-primary" :disabled="saving" @click="save">
-        {{ saving ? 'Speichern…' : 'Speichern' }}
+        {{ saving ? t('components.siteEditors.saving') : t('common.save') }}
       </button>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import TiptapEditor from '@/components/site/TiptapEditor.vue'
 import { useSiteContentStore } from '@/stores/siteContent'
 import { getAdminSitePage, putAdminSitePage } from '@/api/sitePages'
@@ -41,15 +56,26 @@ interface FaqItem {
   q: string
   aHtml: string
 }
+type PageLocale = 'de' | 'en' | 'fr'
+interface FaqLocaleContent {
+  title: string
+  items: FaqItem[]
+}
+const LOCALES: PageLocale[] = ['de', 'en', 'fr']
 
 const siteContent = useSiteContentStore()
-const title = ref('FAQ')
-const items = ref<FaqItem[]>([])
+const { t } = useI18n()
+const activeLocale = ref<PageLocale>('de')
+const localeContent = ref<Record<PageLocale, FaqLocaleContent>>({
+  de: { title: 'FAQ', items: [{ q: '', aHtml: '<p></p>' }] },
+  en: { title: 'FAQ', items: [{ q: '', aHtml: '<p></p>' }] },
+  fr: { title: 'FAQ', items: [{ q: '', aHtml: '<p></p>' }] },
+})
 const updatedAt = ref<string | null>(null)
 const error = ref<string | null>(null)
 const saving = ref(false)
 
-function normalize(raw: Record<string, unknown>): { title: string; items: FaqItem[] } {
+function normalizeLocale(raw: Record<string, unknown>): FaqLocaleContent {
   const t = String(raw.title ?? 'FAQ')
   const rawItems = Array.isArray(raw.items) ? raw.items : []
   const list: FaqItem[] = rawItems.map((row) => {
@@ -61,7 +87,26 @@ function normalize(raw: Record<string, unknown>): { title: string; items: FaqIte
     if (!aHtml) aHtml = '<p></p>'
     return { q, aHtml }
   })
-  return { title: t, items: list }
+  return { title: t, items: list.length ? list : [{ q: '', aHtml: '<p></p>' }] }
+}
+
+function normalize(raw: Record<string, unknown>): Record<PageLocale, FaqLocaleContent> {
+  const legacy = normalizeLocale(raw)
+  const out: Record<PageLocale, FaqLocaleContent> = {
+    de: legacy,
+    en: { title: 'FAQ', items: [{ q: '', aHtml: '<p></p>' }] },
+    fr: { title: 'FAQ', items: [{ q: '', aHtml: '<p></p>' }] },
+  }
+  const localesRaw = raw.locales
+  if (!localesRaw || typeof localesRaw !== 'object') return out
+  const localesObj = localesRaw as Record<string, unknown>
+  for (const loc of LOCALES) {
+    const entry = localesObj[loc]
+    if (entry && typeof entry === 'object') {
+      out[loc] = normalizeLocale(entry as Record<string, unknown>)
+    }
+  }
+  return out
 }
 
 function formatDe(iso: string): string {
@@ -76,12 +121,10 @@ async function load() {
   error.value = null
   try {
     const data = await getAdminSitePage('faq')
-    const n = normalize(data.content as Record<string, unknown>)
-    title.value = n.title
-    items.value = n.items.length ? n.items : [{ q: '', aHtml: '<p></p>' }]
+    localeContent.value = normalize(data.content as Record<string, unknown>)
     updatedAt.value = data.updatedAt
   } catch (e) {
-    error.value = e instanceof Error ? e.message : 'Laden fehlgeschlagen'
+    error.value = e instanceof Error ? e.message : t('components.siteEditors.loadFailed')
   }
 }
 
@@ -89,31 +132,57 @@ async function save() {
   error.value = null
   saving.value = true
   try {
+    const de = localeContent.value.de
     const content = {
-      title: title.value,
-      items: items.value.map((it) => ({ q: it.q, aHtml: it.aHtml })),
+      // Legacy fallback remains DE at top-level.
+      title: de.title,
+      items: de.items.map((it) => ({ q: it.q, aHtml: it.aHtml })),
+      locales: Object.fromEntries(
+        LOCALES.map((loc) => [
+          loc,
+          {
+            title: localeContent.value[loc].title,
+            items: localeContent.value[loc].items.map((it) => ({ q: it.q, aHtml: it.aHtml })),
+          },
+        ])
+      ),
     }
     const data = await putAdminSitePage('faq', content)
     updatedAt.value = data.updatedAt
     void siteContent.refresh()
   } catch (e) {
-    error.value = e instanceof Error ? e.message : 'Speichern fehlgeschlagen'
+    error.value = e instanceof Error ? e.message : t('components.siteEditors.saveFailed')
   } finally {
     saving.value = false
   }
 }
 
 function addItem() {
-  items.value.push({ q: '', aHtml: '<p></p>' })
+  localeContent.value[activeLocale.value].items.push({ q: '', aHtml: '<p></p>' })
 }
 
 function removeItem(idx: number) {
-  if (items.value.length <= 1) {
-    items.value = [{ q: '', aHtml: '<p></p>' }]
+  const list = localeContent.value[activeLocale.value].items
+  if (list.length <= 1) {
+    localeContent.value[activeLocale.value].items = [{ q: '', aHtml: '<p></p>' }]
     return
   }
-  items.value.splice(idx, 1)
+  list.splice(idx, 1)
 }
+
+const title = computed({
+  get: () => localeContent.value[activeLocale.value].title,
+  set: (v: string) => {
+    localeContent.value[activeLocale.value].title = v
+  },
+})
+
+const items = computed({
+  get: () => localeContent.value[activeLocale.value].items,
+  set: (v: FaqItem[]) => {
+    localeContent.value[activeLocale.value].items = v
+  },
+})
 
 onMounted(() => {
   void load()
@@ -139,6 +208,33 @@ onMounted(() => {
 .error {
   color: #b91c1c;
   margin-bottom: 0.75rem;
+}
+
+.locale-tabs {
+  display: inline-flex;
+  gap: 0.35rem;
+  padding: 0.2rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 999px;
+  background: #f8fafc;
+  margin-bottom: 0.75rem;
+}
+
+.locale-tab {
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: #475569;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  padding: 0.28rem 0.62rem;
+  cursor: pointer;
+}
+
+.locale-tab.active {
+  background: #0f172a;
+  color: #fff;
 }
 
 .lbl {

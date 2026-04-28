@@ -2,7 +2,7 @@
   <div class="plt-page">
     <section class="plt-hero" aria-labelledby="landing-title">
       <div class="plt-hero__inner">
-        <p class="plt-kicker">Materialverwaltung</p>
+        <p class="plt-kicker">{{ t('public.landing.kicker') }}</p>
         <h1 id="landing-title">{{ heroTitle }}</h1>
         <p class="plt-lead">{{ heroSubtitle }}</p>
         <div class="plt-hero__actions">
@@ -14,24 +14,17 @@
 
     <section class="plt-section plt-section--alt" aria-labelledby="section-intro">
       <div class="plt-container">
-        <h2 id="section-intro">Einfach digital organisieren</h2>
+        <h2 id="section-intro">{{ t('public.landing.intro.title') }}</h2>
         <div class="plt-prose">
-          <p>
-            Suchst du eine klare, digitale Lösung für Material, Lager und Ausleihen? eMatChef richtet sich an
-            Teams und Vermietungen: Du behältst Übersicht über Bestände, Orte und Bewegungen – ohne
-            Tabellenchaos und ohne Zettelwirtschaft.
-          </p>
-          <p>
-            Die Anwendung läuft im Browser, ist rollenbasiert aufgebaut und lässt sich pro Organisation
-            anpassen. Öffentliche QR-Infos helfen dabei, Material schnell wiederzufinden.
-          </p>
+          <p>{{ t('public.landing.intro.paragraph1') }}</p>
+          <p>{{ t('public.landing.intro.paragraph2') }}</p>
         </div>
       </div>
     </section>
 
     <section class="plt-section" aria-labelledby="section-features">
       <div class="plt-container">
-        <h2 id="section-features">Was eMatChef kann</h2>
+        <h2 id="section-features">{{ t('public.landing.features.title') }}</h2>
         <div class="plt-features">
           <article v-for="(f, i) in features" :key="i" class="plt-feature-card">
             <div class="plt-feature-card__icon" aria-hidden="true">{{ f.icon }}</div>
@@ -44,8 +37,8 @@
 
     <section class="plt-cta" aria-labelledby="section-cta">
       <div class="plt-container">
-        <h2 id="section-cta" class="sr-only">Loslegen</h2>
-        <p>Bereit? Melde dich an und arbeite mit deiner Abteilung in einer gemeinsamen Oberfläche.</p>
+        <h2 id="section-cta" class="sr-only">{{ t('public.landing.cta.titleSrOnly') }}</h2>
+        <p>{{ t('public.landing.cta.text') }}</p>
         <AppLoginLink class="btn btn-primary plt-btn-lg">{{ primaryCta }}</AppLoginLink>
       </div>
     </section>
@@ -54,35 +47,39 @@
 
 <script setup lang="ts">
 import { computed, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useSiteContentStore } from '@/stores/siteContent'
 import AppLoginLink from '@/components/public/AppLoginLink.vue'
 
 const site = useSiteContentStore()
+const { t } = useI18n()
 
 onMounted(() => {
   void site.ensureLoaded()
 })
 
 const heroTitle = computed(() =>
-  String(site.getContent('landing').heroTitle ?? 'Material im Griff, Team im Blick')
+  String(site.getContent('landing').heroTitle ?? t('public.landing.heroTitle'))
 )
 const heroSubtitle = computed(() =>
   String(
     site.getContent('landing').heroSubtitle ??
-      'eMatChef unterstützt dich bei Lager, Ausleihe und Übersicht – für Vermietungen und Teams, die mitdenken.'
+      t('public.landing.heroSubtitle')
   )
 )
-const primaryCta = computed(() => String(site.getContent('landing').primaryCta ?? 'Login'))
-const secondaryCta = computed(() => String(site.getContent('landing').secondaryCta ?? 'Fragen & Antworten'))
+const primaryCta = computed(() => String(site.getContent('landing').primaryCta ?? t('public.landing.primaryCta')))
+const secondaryCta = computed(() =>
+  String(site.getContent('landing').secondaryCta ?? t('public.landing.secondaryCta'))
+)
 
-const features = [
-  { icon: '⊙', title: 'Alles an einem Ort', text: 'Material, Lagerorte, Mengen und Bewegungen – strukturiert und nachvollziehbar.' },
-  { icon: '⌗', title: 'QR & öffentliche Infos', text: 'Seriennummern und Hinweise für alle sichtbar, wo es sinnvoll ist.' },
-  { icon: '◎', title: 'Rollen & Abteilungen', text: 'Wer darf was sehen und bearbeiten? Rechte pro Team und Organisation.' },
-  { icon: '⇄', title: 'Ausleihe & Bestand', text: 'Buchungen und Verschiebungen dokumentieren, ohne Doppelungen zu riskieren.' },
-  { icon: '◇', title: 'Vorlagen & Einstellungen', text: 'Organisationsspezifische Vorlagen und Konfiguration – nicht „One size fits all“.' },
-  { icon: '○', title: 'Im Browser', text: 'Keine Installation nötig: einfach anmelden und loslegen.' },
-] as const
+const featureIcons = ['⊙', '⌗', '◎', '⇄', '◇', '○'] as const
+const features = computed(() =>
+  featureIcons.map((icon, index) => ({
+    icon,
+    title: t(`public.landing.features.items.${index}.title`),
+    text: t(`public.landing.features.items.${index}.text`),
+  }))
+)
 </script>
 
 <style scoped>

@@ -14,17 +14,43 @@
 
 <script setup lang="ts">
 import { computed, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useSiteContentStore } from '@/stores/siteContent'
 import { sanitizePublicHtml } from '@/utils/sanitizeHtml'
 import { plainToP } from '@/utils/siteHtmlMigrate'
 
 const site = useSiteContentStore()
+const { locale } = useI18n()
 onMounted(() => {
   void site.ensureLoaded()
 })
 
 const c = computed(() => site.getContent('faq'))
-const pageTitle = computed(() => String(c.value.title ?? 'FAQ'))
+type PageLocale = 'de' | 'en' | 'fr'
+
+function preferredLocale(): PageLocale {
+  const lc = String(locale.value || 'de').toLowerCase()
+  if (lc.startsWith('en')) return 'en'
+  if (lc.startsWith('fr')) return 'fr'
+  return 'de'
+}
+
+function localizedContent(raw: Record<string, unknown>): Record<string, unknown> {
+  const localesRaw = raw.locales
+  if (!localesRaw || typeof localesRaw !== 'object') return raw
+  const locales = localesRaw as Record<string, unknown>
+  const order: PageLocale[] = [preferredLocale(), 'de', 'en', 'fr']
+  for (const loc of order) {
+    const entry = locales[loc]
+    if (entry && typeof entry === 'object') {
+      return entry as Record<string, unknown>
+    }
+  }
+  return raw
+}
+
+const localized = computed(() => localizedContent(c.value))
+const pageTitle = computed(() => String(localized.value.title ?? c.value.title ?? 'FAQ'))
 
 interface ItemRow {
   q: string
@@ -33,7 +59,7 @@ interface ItemRow {
 }
 
 const items = computed((): ItemRow[] => {
-  const raw = c.value.items
+  const raw = localized.value.items ?? c.value.items
   if (!Array.isArray(raw)) return []
   return raw.map((row) => {
     if (typeof row !== 'object' || !row) return { q: '' }

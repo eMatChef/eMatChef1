@@ -3,8 +3,8 @@
     <div class="modal-dialog edit-dialog">
       <!-- Header -->
       <div class="dialog-header">
-        <h2>{{ props.readonly ? 'Vorlage ansehen' : (isEditing ? 'Vorlage bearbeiten' : 'Neue Vorlage') }}</h2>
-        <span v-if="props.readonly" class="readonly-badge">Nur Lesen</span>
+        <h2>{{ props.readonly ? t('components.templateEditDialog.titleView') : (isEditing ? t('components.templateEditDialog.titleEdit') : t('components.templateEditDialog.titleCreate')) }}</h2>
+        <span v-if="props.readonly" class="readonly-badge">{{ t('components.templateEditDialog.readonlyBadge') }}</span>
         <button class="modal-close" @click="$emit('close')">
           <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
@@ -34,41 +34,41 @@
         <div v-show="activeTab === 'general'" class="tab-content">
           <div class="form-grid">
             <div class="form-group full">
-              <label class="form-label required">Name</label>
-              <input v-model="form.name" type="text" class="form-input" placeholder="z.B. Spatz Zelt 6P" :disabled="props.readonly" />
+              <label class="form-label required">{{ t('components.templateEditDialog.nameLabel') }}</label>
+              <input v-model="form.name" type="text" class="form-input" :placeholder="t('components.templateEditDialog.namePlaceholder')" :disabled="props.readonly" />
             </div>
 
             <div class="form-group">
-              <label class="form-label">Hersteller</label>
-              <input v-model="form.manufacturer" type="text" class="form-input" placeholder="z.B. Spatz, hajk" :disabled="props.readonly" />
+              <label class="form-label">{{ t('components.templateEditDialog.manufacturerLabel') }}</label>
+              <input v-model="form.manufacturer" type="text" class="form-input" :placeholder="t('components.templateEditDialog.manufacturerPlaceholder')" :disabled="props.readonly" />
             </div>
 
             <div class="form-group">
-              <label class="form-label">Modell</label>
-              <input v-model="form.model" type="text" class="form-input" placeholder="z.B. Group 6" :disabled="props.readonly" />
+              <label class="form-label">{{ t('components.templateEditDialog.modelLabel') }}</label>
+              <input v-model="form.model" type="text" class="form-input" :placeholder="t('components.templateEditDialog.modelPlaceholder')" :disabled="props.readonly" />
             </div>
 
             <div class="form-group full">
-              <label class="form-label">Beschreibung</label>
-              <textarea v-model="form.description" class="form-textarea" rows="2" placeholder="Optionale Beschreibung" :disabled="props.readonly"></textarea>
+              <label class="form-label">{{ t('components.templateEditDialog.descriptionLabel') }}</label>
+              <textarea v-model="form.description" class="form-textarea" rows="2" :placeholder="t('components.templateEditDialog.descriptionPlaceholder')" :disabled="props.readonly"></textarea>
             </div>
 
             <div class="form-group">
-              <label class="form-label">Material-Typ</label>
+              <label class="form-label">{{ t('components.templateEditDialog.materialTypeLabel') }}</label>
               <select v-model="form.material_type" class="form-select" :disabled="props.readonly">
-                <option value="physical_combo">Physische Combo (Feste Einheit)</option>
-                <option value="virtual_combo">Virtuelle Combo (Flexibel)</option>
+                <option value="physical_combo">{{ t('components.templateEditDialog.materialTypePhysicalCombo') }}</option>
+                <option value="virtual_combo">{{ t('components.templateEditDialog.materialTypeVirtualCombo') }}</option>
               </select>
             </div>
 
             <div class="form-group">
-              <label class="form-label">Status</label>
+              <label class="form-label">{{ t('components.templateEditDialog.statusLabel') }}</label>
               <div class="toggle-group">
                 <label class="toggle">
                   <input type="checkbox" v-model="form.is_active" :disabled="props.readonly" />
                   <span class="toggle-slider"></span>
                 </label>
-                <span class="toggle-label">{{ form.is_active ? 'Aktiv' : 'Inaktiv' }}</span>
+                <span class="toggle-label">{{ form.is_active ? t('components.templateEditDialog.statusActive') : t('components.templateEditDialog.statusInactive') }}</span>
               </div>
             </div>
           </div>
@@ -78,37 +78,37 @@
         <div v-show="activeTab === 'tent'" class="tab-content">
           <div class="form-grid">
             <div class="form-group">
-              <label class="form-label">Zelttyp</label>
+              <label class="form-label">{{ t('components.templateEditDialog.tentTypeLabel') }}</label>
               <select v-model="form.tent_type" class="form-select">
-                <option :value="null">– Keiner –</option>
-                <option value="gruppenzelt">Gruppenzelt</option>
-                <option value="sonstiges">Sonstiges</option>
+                <option :value="null">{{ t('components.templateEditDialog.noneOption') }}</option>
+                <option value="gruppenzelt">{{ t('components.templateEditDialog.tentTypeGroupTent') }}</option>
+                <option value="sonstiges">{{ t('components.templateEditDialog.tentTypeOther') }}</option>
               </select>
             </div>
 
             <div class="form-group">
-              <label class="form-label">Kapazität (Personen)</label>
-              <input v-model.number="form.capacity" type="number" class="form-input" placeholder="z.B. 6" min="1" />
+              <label class="form-label">{{ t('components.templateEditDialog.capacityLabel') }}</label>
+              <input v-model.number="form.capacity" type="number" class="form-input" :placeholder="t('components.templateEditDialog.capacityPlaceholder')" min="1" />
             </div>
 
             <div class="form-group">
-              <label class="form-label">Reservierungsmodus</label>
+              <label class="form-label">{{ t('components.templateEditDialog.reservationModeLabel') }}</label>
               <select v-model="form.reservation_mode" class="form-select">
-                <option :value="null">– Standard –</option>
-                <option value="complete_only">Nur komplett</option>
-                <option value="individual">Einzeln</option>
-                <option value="flexible">Flexibel</option>
+                <option :value="null">{{ t('components.templateEditDialog.reservationDefaultOption') }}</option>
+                <option value="complete_only">{{ t('components.templateEditDialog.reservationCompleteOnly') }}</option>
+                <option value="individual">{{ t('components.templateEditDialog.reservationIndividual') }}</option>
+                <option value="flexible">{{ t('components.templateEditDialog.reservationFlexible') }}</option>
               </select>
               <span class="form-hint">
-                <template v-if="form.reservation_mode === 'complete_only'">Das Zelt kann nur als Ganzes reserviert werden.</template>
-                <template v-else-if="form.reservation_mode === 'individual'">Einzelkomponenten können separat reserviert werden.</template>
-                <template v-else-if="form.reservation_mode === 'flexible'">Beides möglich – komplett oder einzeln.</template>
+                <template v-if="form.reservation_mode === 'complete_only'">{{ t('components.templateEditDialog.reservationHintCompleteOnly') }}</template>
+                <template v-else-if="form.reservation_mode === 'individual'">{{ t('components.templateEditDialog.reservationHintIndividual') }}</template>
+                <template v-else-if="form.reservation_mode === 'flexible'">{{ t('components.templateEditDialog.reservationHintFlexible') }}</template>
               </span>
             </div>
 
             <div class="form-group">
-              <label class="form-label">Quelle</label>
-              <input v-model="form.source" type="text" class="form-input" placeholder="z.B. Hersteller, Intern" />
+              <label class="form-label">{{ t('components.templateEditDialog.sourceLabel') }}</label>
+              <input v-model="form.source" type="text" class="form-input" :placeholder="t('components.templateEditDialog.sourcePlaceholder')" />
             </div>
           </div>
         </div>
@@ -117,18 +117,18 @@
         <div v-show="activeTab === 'components'" class="tab-content">
           <div class="components-header">
             <p class="components-info">
-              Definieren Sie die Komponenten, die zu dieser Vorlage gehören.
+              {{ t('components.templateEditDialog.componentsInfo') }}
             </p>
             <button v-if="!props.readonly" class="btn-add-component" @click="addComponent">
               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
               </svg>
-              Komponente hinzufügen
+              {{ t('components.templateEditDialog.addComponent') }}
             </button>
           </div>
 
           <div v-if="form.components.length === 0" class="empty-components">
-            <p>Noch keine Komponenten definiert.</p>
+            <p>{{ t('components.templateEditDialog.emptyComponents') }}</p>
           </div>
 
           <draggable
@@ -142,24 +142,24 @@
             <template #item="{ element, index }">
               <div class="component-card">
                 <div class="component-header">
-                  <button class="drag-handle" title="Ziehen zum Sortieren">
+                  <button class="drag-handle" :title="t('components.templateEditDialog.dragToSortTitle')">
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                       <line x1="8" y1="6" x2="16" y2="6"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="8" y1="18" x2="16" y2="18"/>
                     </svg>
                   </button>
                   <span class="component-number">#{{ index + 1 }}</span>
-                  <span class="component-title">{{ element.name || 'Neue Komponente' }}</span>
+                  <span class="component-title">{{ element.name || t('components.templateEditDialog.newComponent') }}</span>
                   <div class="component-badges">
-                    <span class="comp-badge" :class="element.tracking">{{ element.tracking === 'serialized' ? 'SN' : 'Bulk' }}</span>
-                    <span v-if="element.is_generic" class="comp-badge generic" title="Übergreifendes Material – Name bleibt generisch">🌐</span>
-                    <span v-if="element.is_optional" class="comp-badge optional">Optional</span>
+                    <span class="comp-badge" :class="element.tracking">{{ element.tracking === 'serialized' ? t('components.templateEditDialog.trackingShortSn') : t('components.templateEditDialog.trackingShortBulk') }}</span>
+                    <span v-if="element.is_generic" class="comp-badge generic" :title="t('components.templateEditDialog.genericBadgeTitle')">🌐</span>
+                    <span v-if="element.is_optional" class="comp-badge optional">{{ t('components.templateEditDialog.optionalBadge') }}</span>
                   </div>
                   <button class="component-toggle" :class="{ expanded: expandedComponents.has(index) }" @click="toggleComponent(index)">
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                       <polyline points="6 9 12 15 18 9"/>
                     </svg>
                   </button>
-                  <button v-if="!props.readonly" class="btn-remove-component" @click="removeComponent(index)" title="Entfernen">
+                  <button v-if="!props.readonly" class="btn-remove-component" @click="removeComponent(index)" :title="t('components.templateEditDialog.removeTitle')">
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                       <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
                     </svg>
@@ -170,40 +170,40 @@
                   <div v-if="expandedComponents.has(index)" class="component-body">
                     <div class="comp-form-grid">
                       <div class="form-group">
-                        <label class="form-label required">Name</label>
-                        <input v-model="element.name" type="text" class="form-input" placeholder="z.B. Aussenzelt" />
+                        <label class="form-label required">{{ t('components.templateEditDialog.nameLabel') }}</label>
+                        <input v-model="element.name" type="text" class="form-input" :placeholder="t('components.templateEditDialog.componentNamePlaceholder')" />
                       </div>
                       <div class="form-group">
-                        <label class="form-label">Typ</label>
-                        <input v-model="element.component_type" type="text" class="form-input" placeholder="z.B. aussenzelt, innenzelt, heringe" />
+                        <label class="form-label">{{ t('components.templateEditDialog.typeLabel') }}</label>
+                        <input v-model="element.component_type" type="text" class="form-input" :placeholder="t('components.templateEditDialog.componentTypePlaceholder')" />
                       </div>
                       <div class="form-group">
-                        <label class="form-label">Anzahl</label>
+                        <label class="form-label">{{ t('components.templateEditDialog.quantityLabel') }}</label>
                         <input v-model.number="element.required_qty" type="number" class="form-input" min="1" />
                       </div>
                       <div class="form-group">
-                        <label class="form-label">Tracking</label>
+                        <label class="form-label">{{ t('components.templateEditDialog.trackingLabel') }}</label>
                         <select v-model="element.tracking" class="form-select">
-                          <option value="serialized">Serialisiert (Seriennummer)</option>
-                          <option value="bulk">Bulk (Mengenverwaltung)</option>
+                          <option value="serialized">{{ t('components.templateEditDialog.trackingSerialized') }}</option>
+                          <option value="bulk">{{ t('components.templateEditDialog.trackingBulk') }}</option>
                         </select>
                       </div>
                       <div class="form-group checkbox-group">
                         <label class="checkbox-label">
                           <input type="checkbox" v-model="element.is_optional" />
-                          <span>Optional (nicht zwingend erforderlich)</span>
+                          <span>{{ t('components.templateEditDialog.optionalHint') }}</span>
                         </label>
                       </div>
                       <div class="form-group checkbox-group">
                         <label class="checkbox-label">
                           <input type="checkbox" v-model="element.is_generic" />
-                          <span>Übergreifendes Material (Name bleibt generisch, z.B. "Heringe" statt "Heringe Phoenix")</span>
+                          <span>{{ t('components.templateEditDialog.genericHint') }}</span>
                         </label>
                       </div>
                       <div class="form-group full">
-                        <label class="form-label">Reparaturtypen</label>
-                        <input v-model="element._repairTypesStr" type="text" class="form-input" placeholder="z.B. loch, riss, abspannung (kommagetrennt)" />
-                        <span class="form-hint">Kommagetrennte Liste möglicher Reparaturtypen</span>
+                        <label class="form-label">{{ t('components.templateEditDialog.repairTypesLabel') }}</label>
+                        <input v-model="element._repairTypesStr" type="text" class="form-input" :placeholder="t('components.templateEditDialog.repairTypesPlaceholder')" />
+                        <span class="form-hint">{{ t('components.templateEditDialog.repairTypesHint') }}</span>
                       </div>
                     </div>
                   </div>
@@ -217,9 +217,9 @@
       <!-- Footer -->
       <div class="dialog-footer">
         <div v-if="saveError" class="save-error">{{ saveError }}</div>
-        <button class="btn-secondary" @click="$emit('close')">{{ props.readonly ? 'Schliessen' : 'Abbrechen' }}</button>
+        <button class="btn-secondary" @click="$emit('close')">{{ props.readonly ? t('components.templateEditDialog.close') : t('common.cancel') }}</button>
         <button v-if="!props.readonly" class="btn-primary" @click="save" :disabled="isSaving || !isValid">
-          {{ isSaving ? 'Wird gespeichert...' : (isEditing ? 'Speichern' : 'Erstellen') }}
+          {{ isSaving ? t('components.templateEditDialog.saving') : (isEditing ? t('common.save') : t('components.templateEditDialog.create')) }}
         </button>
       </div>
     </div>
@@ -229,6 +229,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, reactive } from 'vue'
 import { useToast } from '@/composables/useToast'
+import { useI18n } from 'vue-i18n'
 import draggable from 'vuedraggable'
 import {
   getTemplate,
@@ -265,6 +266,7 @@ const emit = defineEmits<{
 }>()
 
 const toast = useToast()
+const { t } = useI18n()
 const isEditing = computed(() => !!props.template && !!props.template.id)
 const activeTab = ref('general')
 const isSaving = ref(false)
@@ -272,11 +274,10 @@ const saveError = ref('')
 const expandedComponents = ref(new Set<number>())
 let keyCounter = 0
 
-const tabs = [
-  { id: 'general', label: 'Allgemein' },
-  { id: 'tent', label: 'Zelt-Details' },
-  { id: 'components', label: 'Komponenten' },
-]
+const tabs = ['general', 'tent', 'components'].map((id) => ({
+  id,
+  label: t(`components.templateEditDialog.tab.${id}`),
+}))
 
 // Form-Daten
 const form = reactive({
@@ -389,7 +390,7 @@ async function save() {
 
     emit('saved')
   } catch (err: any) {
-    const msg = err.response?.data?.error || err.message || 'Fehler beim Speichern'
+    const msg = err.response?.data?.error || err.message || t('components.templateEditDialog.errorSave')
     saveError.value = msg
     toast.error(msg)
   } finally {
@@ -432,7 +433,7 @@ async function loadTemplate() {
         }))
       }
     } catch (err) {
-      console.error('Fehler beim Laden der Vorlage:', err)
+      console.error(t('components.templateEditDialog.errorLoadConsole'), err)
     }
   }
 }

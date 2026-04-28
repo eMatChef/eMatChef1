@@ -4,9 +4,6 @@
   },
   "router": {
     "meta": {
-      "fallbackDocumentTitle": "eMatChef - Gestione materiali",
-      "fallbackDocumentDescription": "Gestione materiali per noleggi – eMatChef.",
-      "routeDescriptionDefault": "eMatChef – gestione materiali per i noleggi.",
       "titles": {
         "publicLookup": "Info materiale · eMatChef",
         "openFromQr": "QR · eMatChef",
@@ -77,6 +74,58 @@
         "materialDetail": "Dettagli del materiale in eMatChef.",
         "publicLookupError": "Il materiale o il numero di serie richiesto non è stato trovato o non è attivo.",
         "publicLookupNoData": "Informazione pubblica sul materiale in eMatChef."
+      }
+    }
+  },
+  "public": {
+    "blog": {
+      "titleFallback": "Blog",
+      "untitledPost": "Senza titolo",
+      "noPostsYet": "Nessun post ancora."
+    },
+    "landing": {
+      "kicker": "Gestione materiali",
+      "heroTitle": "Materiale sotto controllo, team allineato",
+      "heroSubtitle": "eMatChef ti supporta con magazzino, prestiti e visione d'insieme - per noleggi e team ben organizzati.",
+      "primaryCta": "Accedi",
+      "secondaryCta": "Domande e risposte",
+      "intro": {
+        "title": "Organizzare in digitale con semplicità",
+        "paragraph1": "Cerchi una soluzione digitale chiara per materiali, magazzino e prestiti? eMatChef è pensato per team e noleggi: mantieni la panoramica di scorte, sedi e movimenti - senza caos da fogli di calcolo e senza carta.",
+        "paragraph2": "L'applicazione gira nel browser, è basata sui ruoli e può essere adattata per ogni organizzazione. Le info QR pubbliche aiutano a ritrovare rapidamente il materiale."
+      },
+      "features": {
+        "title": "Cosa può fare eMatChef",
+        "items": [
+          {
+            "title": "Tutto in un unico posto",
+            "text": "Materiali, ubicazioni, quantità e movimenti - strutturati e tracciabili."
+          },
+          {
+            "title": "QR e info pubbliche",
+            "text": "Numeri di serie e note visibili a tutti dove ha senso."
+          },
+          {
+            "title": "Ruoli e reparti",
+            "text": "Chi può vedere e modificare cosa? Permessi per team e organizzazione."
+          },
+          {
+            "title": "Prestiti e stock",
+            "text": "Documenta prenotazioni e spostamenti senza rischiare duplicati."
+          },
+          {
+            "title": "Modelli e impostazioni",
+            "text": "Modelli e configurazioni specifici per organizzazione - non una soluzione unica per tutti."
+          },
+          {
+            "title": "Nel browser",
+            "text": "Nessuna installazione necessaria: accedi e inizia."
+          }
+        ]
+      },
+      "cta": {
+        "titleSrOnly": "Iniziare",
+        "text": "Pronto? Accedi e lavora con il tuo reparto in un'interfaccia condivisa."
       }
     }
   },

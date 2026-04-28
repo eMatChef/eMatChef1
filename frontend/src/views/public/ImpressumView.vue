@@ -11,16 +11,16 @@
       </template>
       <template v-else>
         <section class="block">
-          <h2>Angaben gemäß TMG / Schweiz: Anbieterkennzeichnung</h2>
+          <h2>{{ fallbackProviderHeading }}</h2>
           <div class="pre">{{ company }}</div>
           <div class="pre contact">{{ contact }}</div>
         </section>
         <section class="block">
-          <h2>Vertretungsberechtigt</h2>
+          <h2>{{ fallbackRepresentativeHeading }}</h2>
           <p>{{ representative }}</p>
         </section>
         <section class="block">
-          <h2>Haftung für Inhalte</h2>
+          <h2>{{ fallbackLiabilityHeading }}</h2>
           <p>{{ liability }}</p>
         </section>
       </template>
@@ -30,16 +30,42 @@
 
 <script setup lang="ts">
 import { computed, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useSiteContentStore } from '@/stores/siteContent'
 import { sanitizePublicHtml } from '@/utils/sanitizeHtml'
 
 const site = useSiteContentStore()
+const { locale, t } = useI18n()
 onMounted(() => {
   void site.ensureLoaded()
 })
 
 const c = computed(() => site.getContent('impressum'))
-const pageTitle = computed(() => String(c.value.title ?? 'Impressum'))
+type PageLocale = 'de' | 'en' | 'fr'
+
+function preferredLocale(): PageLocale {
+  const lc = String(locale.value || 'de').toLowerCase()
+  if (lc.startsWith('en')) return 'en'
+  if (lc.startsWith('fr')) return 'fr'
+  return 'de'
+}
+
+function localizedContent(raw: Record<string, unknown>): Record<string, unknown> {
+  const localesRaw = raw.locales
+  if (!localesRaw || typeof localesRaw !== 'object') return raw
+  const locales = localesRaw as Record<string, unknown>
+  const order: PageLocale[] = [preferredLocale(), 'de', 'en', 'fr']
+  for (const loc of order) {
+    const entry = locales[loc]
+    if (entry && typeof entry === 'object') {
+      return entry as Record<string, unknown>
+    }
+  }
+  return raw
+}
+
+const localized = computed(() => localizedContent(c.value))
+const pageTitle = computed(() => String(localized.value.title ?? c.value.title ?? t('publicNav.impressum')))
 
 interface ImpSec {
   heading: string
@@ -47,7 +73,7 @@ interface ImpSec {
 }
 
 const sections = computed((): ImpSec[] => {
-  const raw = c.value.sections
+  const raw = localized.value.sections ?? c.value.sections
   if (!Array.isArray(raw)) return []
   return raw
     .map((row) => {
@@ -61,10 +87,13 @@ const sections = computed((): ImpSec[] => {
     .filter((x): x is ImpSec => x !== null)
 })
 
-const company = computed(() => String(c.value.company ?? '') + '\n' + String(c.value.address ?? ''))
-const contact = computed(() => String(c.value.contact ?? ''))
-const representative = computed(() => String(c.value.representative ?? ''))
-const liability = computed(() => String(c.value.liability ?? ''))
+const company = computed(() => String(localized.value.company ?? c.value.company ?? '') + '\n' + String(localized.value.address ?? c.value.address ?? ''))
+const contact = computed(() => String(localized.value.contact ?? c.value.contact ?? ''))
+const representative = computed(() => String(localized.value.representative ?? c.value.representative ?? ''))
+const liability = computed(() => String(localized.value.liability ?? c.value.liability ?? ''))
+const fallbackProviderHeading = computed(() => String(localized.value.fallbackProviderHeading ?? t('public.impressum.fallbackProviderHeading')))
+const fallbackRepresentativeHeading = computed(() => String(localized.value.fallbackRepresentativeHeading ?? t('public.impressum.fallbackRepresentativeHeading')))
+const fallbackLiabilityHeading = computed(() => String(localized.value.fallbackLiabilityHeading ?? t('public.impressum.fallbackLiabilityHeading')))
 </script>
 
 <style scoped>

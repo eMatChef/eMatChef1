@@ -1,14 +1,30 @@
 <template>
   <div class="blog-editor">
     <header class="blog-editor-head">
-      <h1>Blog</h1>
-      <p v-if="updatedAt" class="meta">Zuletzt gespeichert: {{ formatDe(updatedAt) }}</p>
+      <h1>{{ t('components.siteEditors.blog.title') }}</h1>
+      <p v-if="updatedAt" class="meta">{{ t('components.siteEditors.lastSaved') }}: {{ formatDe(updatedAt) }}</p>
     </header>
 
     <p v-if="error" class="error">{{ error }}</p>
 
     <section class="blog-block">
-      <label class="lbl" for="blog-page-title">Seitentitel</label>
+      <div class="locale-tabs" role="tablist" :aria-label="t('publicNav.language')">
+        <button
+          v-for="loc in BLOG_LOCALES"
+          :key="loc"
+          type="button"
+          class="locale-tab"
+          :class="{ active: activeLocale === loc }"
+          :aria-selected="activeLocale === loc"
+          @click="activeLocale = loc"
+        >
+          {{ loc.toUpperCase() }}
+        </button>
+      </div>
+    </section>
+
+    <section class="blog-block">
+      <label class="lbl" for="blog-page-title">{{ t('components.siteEditors.pageTitleLabel') }}</label>
       <input
         id="blog-page-title"
         v-model="pageTitle"
@@ -20,21 +36,21 @@
     </section>
 
     <section class="blog-block">
-      <span class="lbl">Einleitung</span>
-      <TiptapEditor v-model="introHtml" placeholder="Kurzer Einleitungstext…" :disabled="saving" />
+      <span class="lbl">{{ t('components.siteEditors.blog.introLabel') }}</span>
+      <TiptapEditor v-model="introHtml" :placeholder="t('components.siteEditors.blog.introPlaceholder')" :disabled="saving" />
     </section>
 
     <section class="blog-block">
       <div class="blog-posts-head">
-        <h2 class="h2">Beiträge</h2>
+        <h2 class="h2">{{ t('components.siteEditors.blog.postsTitle') }}</h2>
         <button type="button" class="btn btn-secondary btn-sm" :disabled="saving" @click="addPost">
-          Neuer Beitrag
+          {{ t('components.siteEditors.blog.newPost') }}
         </button>
       </div>
 
-      <p v-if="!sortedPosts.length" class="hint">Noch keine Beiträge. „Neuer Beitrag“ legt einen an.</p>
+      <p v-if="!sortedPosts.length" class="hint">{{ t('components.siteEditors.blog.noPostsHint') }}</p>
 
-      <ul v-else class="post-index" aria-label="Beiträge nach Datum">
+      <ul v-else class="post-index" :aria-label="t('components.siteEditors.blog.postsAria')">
         <li v-for="p in sortedPosts" :key="p.id" class="post-index-row">
           <div class="post-index-main">
             <span class="post-index-title">{{ p.title || '(ohne Titel)' }}</span>
@@ -52,7 +68,7 @@
       </ul>
 
       <div v-if="editingPost" class="post-edit">
-        <label class="lbl" :for="'post-title-' + editingPost.id">Überschrift</label>
+        <label class="lbl" :for="'post-title-' + editingPost.id">{{ t('components.siteEditors.blog.postHeadline') }}</label>
         <input
           :id="'post-title-' + editingPost.id"
           v-model="editingPost.title"
@@ -60,11 +76,11 @@
           class="inp"
           :disabled="saving"
         />
-        <span class="lbl">Inhalt</span>
+        <span class="lbl">{{ t('components.siteEditors.blog.contentLabel') }}</span>
         <TiptapEditor
           :key="editingPost.id"
           v-model="editingPost.bodyHtml"
-          placeholder="Beitragstext…"
+          :placeholder="t('components.siteEditors.blog.postPlaceholder')"
           :disabled="saving"
         />
       </div>
@@ -72,7 +88,7 @@
 
     <div class="actions">
       <button type="button" class="btn btn-primary" :disabled="saving" @click="save">
-        {{ saving ? 'Speichern…' : 'Speichern' }}
+        {{ saving ? t('components.siteEditors.saving') : t('common.save') }}
       </button>
     </div>
   </div>
@@ -81,6 +97,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import TiptapEditor from '@/components/site/TiptapEditor.vue'
 import { useSiteContentStore } from '@/stores/siteContent'
 import { getAdminSitePage, putAdminSitePage } from '@/api/sitePages'
@@ -90,6 +107,15 @@ export interface BlogPostRow {
   title: string
   bodyHtml: string
   createdAt: string
+}
+
+type BlogLocale = 'de' | 'en' | 'fr'
+const BLOG_LOCALES: BlogLocale[] = ['de', 'en', 'fr']
+
+interface BlogLocaleContent {
+  title: string
+  introHtml: string
+  posts: BlogPostRow[]
 }
 
 function escapeHtml(s: string): string {
@@ -102,7 +128,7 @@ function newId(): string {
     : `p-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
 }
 
-function normalizeContent(raw: Record<string, unknown>): { title: string; introHtml: string; posts: BlogPostRow[] } {
+function normalizeBlogLocaleContent(raw: Record<string, unknown>): BlogLocaleContent {
   const title = String(raw.title ?? 'Blog')
   let introHtml = ''
   if (typeof raw.introHtml === 'string') introHtml = raw.introHtml
@@ -125,6 +151,31 @@ function normalizeContent(raw: Record<string, unknown>): { title: string; introH
   return { title, introHtml, posts }
 }
 
+function emptyLocaleContent(): BlogLocaleContent {
+  return { title: 'Blog', introHtml: '<p></p>', posts: [] }
+}
+
+function normalizeContent(raw: Record<string, unknown>): Record<BlogLocale, BlogLocaleContent> {
+  const legacy = normalizeBlogLocaleContent(raw)
+  const out: Record<BlogLocale, BlogLocaleContent> = {
+    de: legacy,
+    en: emptyLocaleContent(),
+    fr: emptyLocaleContent(),
+  }
+  const localesRaw = raw.locales
+  if (!localesRaw || typeof localesRaw !== 'object') {
+    return out
+  }
+  const localesObj = localesRaw as Record<string, unknown>
+  for (const loc of BLOG_LOCALES) {
+    const entry = localesObj[loc]
+    if (entry && typeof entry === 'object') {
+      out[loc] = normalizeBlogLocaleContent(entry as Record<string, unknown>)
+    }
+  }
+  return out
+}
+
 function formatDe(iso: string): string {
   try {
     return new Intl.DateTimeFormat('de-CH', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(iso))
@@ -135,14 +186,39 @@ function formatDe(iso: string): string {
 
 const route = useRoute()
 const siteContent = useSiteContentStore()
+const { t } = useI18n()
+const activeLocale = ref<BlogLocale>('de')
 
-const pageTitle = ref('')
-const introHtml = ref('<p></p>')
-const posts = ref<BlogPostRow[]>([])
+const localeContent = ref<Record<BlogLocale, BlogLocaleContent>>({
+  de: emptyLocaleContent(),
+  en: emptyLocaleContent(),
+  fr: emptyLocaleContent(),
+})
 const updatedAt = ref<string | null>(null)
 const error = ref<string | null>(null)
 const saving = ref(false)
 const editingId = ref<string | null>(null)
+
+const pageTitle = computed({
+  get: () => localeContent.value[activeLocale.value].title,
+  set: (v: string) => {
+    localeContent.value[activeLocale.value].title = v
+  },
+})
+
+const introHtml = computed({
+  get: () => localeContent.value[activeLocale.value].introHtml,
+  set: (v: string) => {
+    localeContent.value[activeLocale.value].introHtml = v
+  },
+})
+
+const posts = computed({
+  get: () => localeContent.value[activeLocale.value].posts,
+  set: (v: BlogPostRow[]) => {
+    localeContent.value[activeLocale.value].posts = v
+  },
+})
 
 const sortedPosts = computed(() =>
   [...posts.value].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
@@ -154,14 +230,11 @@ async function load() {
   error.value = null
   try {
     const data = await getAdminSitePage('blog')
-    const n = normalizeContent(data.content as Record<string, unknown>)
-    pageTitle.value = n.title
-    introHtml.value = n.introHtml
-    posts.value = n.posts
+    localeContent.value = normalizeContent(data.content as Record<string, unknown>)
     updatedAt.value = data.updatedAt
     editingId.value = null
   } catch (e) {
-    error.value = e instanceof Error ? e.message : 'Laden fehlgeschlagen'
+    error.value = e instanceof Error ? e.message : t('components.siteEditors.loadFailed')
   }
 }
 
@@ -169,21 +242,38 @@ async function save() {
   error.value = null
   saving.value = true
   try {
+    const deContent = localeContent.value.de
     const content = {
-      title: pageTitle.value,
-      introHtml: introHtml.value,
-      posts: posts.value.map((p) => ({
+      // Legacy fallback shape remains populated from DE.
+      title: deContent.title,
+      introHtml: deContent.introHtml,
+      posts: deContent.posts.map((p) => ({
         id: p.id,
         title: p.title,
         bodyHtml: p.bodyHtml,
         createdAt: p.createdAt,
       })),
+      locales: Object.fromEntries(
+        BLOG_LOCALES.map((loc) => [
+          loc,
+          {
+            title: localeContent.value[loc].title,
+            introHtml: localeContent.value[loc].introHtml,
+            posts: localeContent.value[loc].posts.map((p) => ({
+              id: p.id,
+              title: p.title,
+              bodyHtml: p.bodyHtml,
+              createdAt: p.createdAt,
+            })),
+          },
+        ])
+      ),
     }
     const data = await putAdminSitePage('blog', content)
     updatedAt.value = data.updatedAt
     void siteContent.refresh()
   } catch (e) {
-    error.value = e instanceof Error ? e.message : 'Speichern fehlgeschlagen'
+    error.value = e instanceof Error ? e.message : t('components.siteEditors.saveFailed')
   } finally {
     saving.value = false
   }
@@ -201,7 +291,7 @@ function addPost() {
 }
 
 function removePost(id: string) {
-  if (!confirm('Beitrag wirklich löschen?')) return
+  if (!confirm(t('components.siteEditors.blog.confirmDeletePost'))) return
   posts.value = posts.value.filter((p) => p.id !== id)
   if (editingId.value === id) editingId.value = null
 }
@@ -245,6 +335,32 @@ watch(
 
 .blog-block {
   margin-bottom: 1.5rem;
+}
+
+.locale-tabs {
+  display: inline-flex;
+  gap: 0.35rem;
+  padding: 0.2rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 999px;
+  background: #f8fafc;
+}
+
+.locale-tab {
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: #475569;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  padding: 0.28rem 0.62rem;
+  cursor: pointer;
+}
+
+.locale-tab.active {
+  background: #0f172a;
+  color: #fff;
 }
 
 .lbl {

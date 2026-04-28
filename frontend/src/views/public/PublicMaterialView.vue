@@ -1,7 +1,7 @@
 <template>
   <div class="public-layout">
     <header class="public-header" role="banner">
-      <RouterLink to="/" class="public-brand" title="eMatChef">
+      <RouterLink to="/" class="public-brand" :title="t('public.lookup.brandTitle')">
         <EmcLogoMark size="sm" />
         <span class="public-brand-text">eMatChef</span>
       </RouterLink>
@@ -12,13 +12,13 @@
           class="public-login-btn"
           @click="goToLogin"
         >
-          Anmelden
+          {{ t('public.lookup.login') }}
         </button>
         <div v-else class="public-header-logged-in">
           <div
             class="public-user-chip"
             :title="authStore.userEmail || undefined"
-            :aria-label="`Angemeldet als ${authStore.userDisplayName}`"
+            :aria-label="t('public.lookup.loggedInAs', { name: authStore.userDisplayName })"
           >
             <span class="public-user-avatar" :style="publicAvatarStyle">
               {{ authStore.userInitials }}
@@ -30,7 +30,7 @@
             class="public-login-btn public-login-btn--primary"
             @click="goToApp"
           >
-            Zur App
+            {{ t('public.lookup.toApp') }}
           </button>
         </div>
       </div>
@@ -38,15 +38,15 @@
 
     <main class="public-page">
     <section class="public-card">
-      <h1 class="public-title">{{ routeType === 'b' ? 'Seriennummer-Info' : 'Material-Info' }}</h1>
+      <h1 class="public-title">{{ routeType === 'b' ? t('public.lookup.serialInfoTitle') : t('public.lookup.materialInfoTitle') }}</h1>
 
-      <p v-if="loading" class="muted">Lade Daten...</p>
+      <p v-if="loading" class="muted">{{ t('public.lookup.loading') }}</p>
       <p v-else-if="error" class="error">{{ error }}</p>
 
       <template v-else-if="data">
-        <p class="public-code">Code: {{ routeCode }}</p>
+        <p class="public-code">{{ t('public.lookup.codePrefix') }}: {{ routeCode }}</p>
         <p v-if="routeType === 'b'" class="public-code">
-          Serie: {{ data.batch?.serial_number || data.batch?.label || data.batch?.id }}
+          {{ t('public.lookup.serialPrefix') }}: {{ data.batch?.serial_number || data.batch?.label || data.batch?.id }}
         </p>
         <h2 class="material-name">{{ data.material.name }}</h2>
 
@@ -56,15 +56,15 @@
 
         <dl class="info-grid">
           <div>
-            <dt>Abteilung</dt>
+            <dt>{{ t('public.lookup.department') }}</dt>
             <dd>{{ data.department.name }}</dd>
           </div>
           <div v-if="data.material.manufacturer">
-            <dt>Hersteller</dt>
+            <dt>{{ t('public.lookup.manufacturer') }}</dt>
             <dd>{{ data.material.manufacturer }}</dd>
           </div>
           <div v-if="data.material.model">
-            <dt>Modell</dt>
+            <dt>{{ t('public.lookup.model') }}</dt>
             <dd>{{ data.material.model }}</dd>
           </div>
         </dl>
@@ -78,7 +78,7 @@
             id="public-contact-toggle"
             @click="contactExpanded = !contactExpanded"
           >
-            <span class="contact-toggle-label">Materialwart kontaktieren</span>
+            <span class="contact-toggle-label">{{ t('public.lookup.contactMaintainer') }}</span>
             <span class="contact-toggle-chevron" :class="{ 'is-open': contactExpanded }" aria-hidden="true">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <polyline points="6 9 12 15 18 9" />
@@ -94,55 +94,54 @@
             aria-labelledby="public-contact-toggle"
           >
             <div v-if="data.contact || data.contact_note" class="contact-box contact-box--in-panel">
-              <h3>Kontakt</h3>
-              <p v-if="data.contact?.email">E-Mail: {{ data.contact.email }}</p>
+              <h3>{{ t('public.lookup.contactTitle') }}</h3>
+              <p v-if="data.contact?.email">{{ t('public.lookup.emailPrefix') }}: {{ data.contact.email }}</p>
               <p v-if="data.contact_note" class="contact-note">{{ data.contact_note }}</p>
             </div>
 
             <div v-if="canDeliverPublicMessage" class="found-form-box">
-              <h3 class="found-form-title">Nachricht senden</h3>
+              <h3 class="found-form-title">{{ t('public.lookup.sendMessageTitle') }}</h3>
               <p class="found-form-hint">
-                Du hast diesen Artikel gefunden oder möchtest den Materialwart erreichen? Sende eine kurze Nachricht.
+                {{ t('public.lookup.sendMessageHint') }}
               </p>
               <form class="found-form" @submit.prevent="submitFoundContact">
                 <label class="found-label hp" aria-hidden="true">
-                  Website
+                  {{ t('public.lookup.websiteHoneyLabel') }}
                   <input v-model="foundForm.website" type="text" name="website" tabindex="-1" autocomplete="off" />
                 </label>
                 <label class="found-label">
-                  Dein Name <span class="optional">(optional)</span>
-                  <input v-model="foundForm.sender_name" type="text" maxlength="120" placeholder="z. B. Vorname" />
+                  {{ t('public.lookup.yourName') }} <span class="optional">({{ t('common.optional') }})</span>
+                  <input v-model="foundForm.sender_name" type="text" maxlength="120" :placeholder="t('public.lookup.yourNamePlaceholder')" />
                 </label>
                 <label class="found-label">
-                  Deine E-Mail <span class="optional">(optional, für Rückfragen)</span>
+                  {{ t('public.lookup.yourEmail') }} <span class="optional">({{ t('public.lookup.optionalForQuestions') }})</span>
                   <input
                     v-model="foundForm.sender_email"
                     type="email"
                     maxlength="200"
-                    placeholder="name@beispiel.ch"
+                    :placeholder="t('public.lookup.yourEmailPlaceholder')"
                   />
                 </label>
                 <label class="found-label">
-                  Nachricht <span class="req">*</span>
+                  {{ t('public.lookup.messageLabel') }} <span class="req">*</span>
                   <textarea
                     v-model="foundForm.message"
                     rows="4"
                     maxlength="4000"
                     required
-                    placeholder="z. B. Wo liegt der Artikel? Wann hast du ihn gefunden?"
+                    :placeholder="t('public.lookup.messagePlaceholder')"
                   />
                 </label>
                 <p v-if="foundFormError" class="error found-form-msg">{{ foundFormError }}</p>
-                <p v-else-if="foundFormSuccess" class="found-form-msg success">Nachricht wurde gesendet. Vielen Dank.</p>
+                <p v-else-if="foundFormSuccess" class="found-form-msg success">{{ t('public.lookup.messageSentSuccess') }}</p>
                 <button type="submit" class="found-submit" :disabled="foundFormSubmitting">
-                  {{ foundFormSubmitting ? 'Wird gesendet…' : 'An Materialwart senden' }}
+                  {{ foundFormSubmitting ? t('public.lookup.sending') : t('public.lookup.sendToMaintainer') }}
                 </button>
               </form>
             </div>
             <div v-else class="found-form-box found-form-unavailable">
               <p class="muted">
-                Für diese Abteilung ist aktuell keine Kontakt-E-Mail hinterlegt – eine Nachricht kann hier nicht
-                zugestellt werden.
+                {{ t('public.lookup.deliveryUnavailable') }}
               </p>
             </div>
           </div>
@@ -196,7 +195,7 @@ const pageTitle = computed(() => {
   if (error.value) return t('router.meta.titles.publicLookup')
   if (!data.value) return t(PAGE_HEAD_KEYS.defaultTitle)
   const d = data.value
-  const name = d.material?.name?.trim() || 'Material'
+  const name = d.material?.name?.trim() || t('public.lookup.materialFallback')
   if (routeType.value === 'b' && d.entity_type === 'batch' && d.batch) {
     const serial = String(d.batch.serial_number || d.batch.label || '').trim()
     return serial ? `${serial} · ${name} · eMatChef` : `${name} · eMatChef`
@@ -217,7 +216,7 @@ const pageDescription = computed(() => {
   const d = data.value
   const mat = d.material.name
   const dept = d.department?.name
-  const bit = routeType.value === 'b' ? 'Seriennummer / Charge' : 'Material'
+  const bit = routeType.value === 'b' ? t('public.lookup.serialOrBatch') : t('public.lookup.materialFallback')
   return `${[mat, dept, bit].filter(Boolean).join(' · ')}. eMatChef.`
 })
 
@@ -274,7 +273,7 @@ async function submitFoundContact() {
   foundFormSuccess.value = false
   const msg = foundForm.value.message.trim()
   if (msg.length < 5) {
-    foundFormError.value = 'Bitte eine etwas ausführlichere Nachricht eingeben.'
+    foundFormError.value = t('public.lookup.errorMessageTooShort')
     return
   }
 
@@ -293,7 +292,7 @@ async function submitFoundContact() {
     foundForm.value.website = ''
   } catch (e: any) {
     foundFormError.value =
-      e?.response?.data?.error || 'Senden fehlgeschlagen. Bitte später erneut versuchen.'
+      e?.response?.data?.error || t('public.lookup.errorSendFailed')
   } finally {
     foundFormSubmitting.value = false
   }
@@ -353,7 +352,7 @@ async function maybeRedirectToInternalDetail(lookupData: PublicLookupViewData): 
 
 async function loadData() {
   if (!routeCode.value) {
-    error.value = 'Ungültiger Code.'
+    error.value = t('public.lookup.errorInvalidCode')
     return
   }
 
@@ -371,7 +370,7 @@ async function loadData() {
       await maybeRedirectToInternalDetail(data.value)
     }
   } catch {
-    error.value = 'Code nicht gefunden oder nicht aktiv.'
+    error.value = t('public.lookup.errorCodeNotFound')
     data.value = null
   } finally {
     loading.value = false

@@ -265,17 +265,17 @@
                   <div class="pack-unit-select">
                     <select v-model="formData.pack_unit" class="form-select">
                       <option value="">{{ t('components.materialDetail.packUnitNone') }}</option>
-                      <option value="Bündel">{{ t('components.materialDetail.packUnitBundle') }}</option>
-                      <option value="Kiste">{{ t('components.materialDetail.packUnitKiste') }}</option>
-                      <option value="Karton">{{ t('components.materialDetail.packUnitKarton') }}</option>
-                      <option value="Sack">{{ t('components.materialDetail.packUnitSack') }}</option>
-                      <option value="Rolle">{{ t('components.materialDetail.packUnitRolle') }}</option>
-                      <option value="Palette">{{ t('components.materialDetail.packUnitPalette') }}</option>
-                      <option value="Set">{{ t('components.materialDetail.packUnitSet') }}</option>
-                      <option value="Paket">{{ t('components.materialDetail.packUnitPaket') }}</option>
+                      <option :value="PACK_UNIT_BUNDLE">{{ t('components.materialDetail.packUnitBundle') }}</option>
+                      <option :value="PACK_UNIT_KISTE">{{ t('components.materialDetail.packUnitKiste') }}</option>
+                      <option :value="PACK_UNIT_KARTON">{{ t('components.materialDetail.packUnitKarton') }}</option>
+                      <option :value="PACK_UNIT_SACK">{{ t('components.materialDetail.packUnitSack') }}</option>
+                      <option :value="PACK_UNIT_ROLLE">{{ t('components.materialDetail.packUnitRolle') }}</option>
+                      <option :value="PACK_UNIT_PALETTE">{{ t('components.materialDetail.packUnitPalette') }}</option>
+                      <option :value="PACK_UNIT_SET">{{ t('components.materialDetail.packUnitSet') }}</option>
+                      <option :value="PACK_UNIT_PAKET">{{ t('components.materialDetail.packUnitPaket') }}</option>
                     </select>
                     <input
-                      v-if="formData.pack_unit && !['Bündel','Kiste','Karton','Sack','Rolle','Palette','Set','Paket',''].includes(formData.pack_unit)"
+                      v-if="formData.pack_unit && !PACK_UNIT_VALUES.includes(formData.pack_unit)"
                       v-model="formData.pack_unit"
                       type="text"
                       class="form-input mt-1"
@@ -367,17 +367,17 @@
                   <div class="pack-unit-select">
                     <select v-model="formData.pack_unit" class="form-select">
                       <option value="">{{ t('components.materialDetail.packUnitNone') }}</option>
-                      <option value="Bündel">{{ t('components.materialDetail.packUnitBundle') }}</option>
-                      <option value="Kiste">{{ t('components.materialDetail.packUnitKiste') }}</option>
-                      <option value="Karton">{{ t('components.materialDetail.packUnitKarton') }}</option>
-                      <option value="Sack">{{ t('components.materialDetail.packUnitSack') }}</option>
-                      <option value="Rolle">{{ t('components.materialDetail.packUnitRolle') }}</option>
-                      <option value="Palette">{{ t('components.materialDetail.packUnitPalette') }}</option>
-                      <option value="Set">{{ t('components.materialDetail.packUnitSet') }}</option>
-                      <option value="Paket">{{ t('components.materialDetail.packUnitPaket') }}</option>
+                      <option :value="PACK_UNIT_BUNDLE">{{ t('components.materialDetail.packUnitBundle') }}</option>
+                      <option :value="PACK_UNIT_KISTE">{{ t('components.materialDetail.packUnitKiste') }}</option>
+                      <option :value="PACK_UNIT_KARTON">{{ t('components.materialDetail.packUnitKarton') }}</option>
+                      <option :value="PACK_UNIT_SACK">{{ t('components.materialDetail.packUnitSack') }}</option>
+                      <option :value="PACK_UNIT_ROLLE">{{ t('components.materialDetail.packUnitRolle') }}</option>
+                      <option :value="PACK_UNIT_PALETTE">{{ t('components.materialDetail.packUnitPalette') }}</option>
+                      <option :value="PACK_UNIT_SET">{{ t('components.materialDetail.packUnitSet') }}</option>
+                      <option :value="PACK_UNIT_PAKET">{{ t('components.materialDetail.packUnitPaket') }}</option>
                     </select>
                     <input
-                      v-if="formData.pack_unit && !['Bündel','Kiste','Karton','Sack','Rolle','Palette','Set','Paket',''].includes(formData.pack_unit)"
+                      v-if="formData.pack_unit && !PACK_UNIT_VALUES.includes(formData.pack_unit)"
                       v-model="formData.pack_unit"
                       type="text"
                       class="form-input mt-1"
@@ -1956,6 +1956,25 @@ const detailTabsStore = useDetailTabsStore()
 const toast = useToast()
 const { t, tm, locale } = useI18n()
 const physicalComboWarningStore = usePhysicalComboWarningStore()
+const PACK_UNIT_BUNDLE = 'Bündel'
+const PACK_UNIT_KISTE = 'Kiste'
+const PACK_UNIT_KARTON = 'Karton'
+const PACK_UNIT_SACK = 'Sack'
+const PACK_UNIT_ROLLE = 'Rolle'
+const PACK_UNIT_PALETTE = 'Palette'
+const PACK_UNIT_SET = 'Set'
+const PACK_UNIT_PAKET = 'Paket'
+const PACK_UNIT_VALUES = [
+  PACK_UNIT_BUNDLE,
+  PACK_UNIT_KISTE,
+  PACK_UNIT_KARTON,
+  PACK_UNIT_SACK,
+  PACK_UNIT_ROLLE,
+  PACK_UNIT_PALETTE,
+  PACK_UNIT_SET,
+  PACK_UNIT_PAKET,
+  '',
+]
 
 function sortLocale(): string {
   return String(locale.value || 'de').replace('_', '-')
@@ -3776,7 +3795,7 @@ async function handleQrPrint() {
     const cards = rows
       .map((row) => `
         <div class="card">
-          <img src="${row.qrDataUrl}" alt="QR" />
+          <img src="${row.qrDataUrl}" alt="${escapeHtml(t('components.materialDetail.qrAlt'))}" />
           <div class="title">${escapeHtml(row.label)}</div>
           <div class="code">${escapeHtml(row.code || '-')}</div>
         </div>
@@ -3835,7 +3854,7 @@ async function handleQrPrint() {
 </head>
 <body>
   <div class="card">
-    <img src="${qrDataUrl}" alt="QR" />
+    <img src="${qrDataUrl}" alt="${escapeHtml(t('components.materialDetail.qrAlt'))}" />
     <div class="title">${escapeHtml(qrActionLabel.value)}</div>
     <div class="code">${escapeHtml(qrActionCode.value || '-')}</div>
   </div>
