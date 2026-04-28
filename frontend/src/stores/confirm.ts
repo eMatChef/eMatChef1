@@ -1,4 +1,5 @@
 import { defineStore } from 'pinia'
+import { i18n } from '@/i18n'
 
 export type ConfirmVariant = 'info' | 'warning' | 'danger'
 
@@ -31,8 +32,8 @@ export const useConfirmStore = defineStore('confirm', {
 
       return new Promise((resolve) => {
         this.options = {
-          confirmText: 'Bestätigen',
-          cancelText: 'Abbrechen',
+          confirmText: i18n.global.t('common.confirm'),
+          cancelText: i18n.global.t('common.cancel'),
           variant: 'warning',
           ...opts,
         }

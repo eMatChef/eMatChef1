@@ -674,6 +674,7 @@ import {
   formatRackSlotsDirectPreview,
   summarizeMaterialsForPreview,
 } from '@/utils/storageSlotContentPreview'
+import { localizedBarcodeScannerError } from '@/utils/barcodeScannerErrors'
 import AddressModal from '@/components/AddressModal.vue'
 import StorageLocationPicker from '@/components/storage/StorageLocationPicker.vue'
 import BarcodeScannerPanel from '@/components/common/BarcodeScannerPanel.vue'
@@ -953,8 +954,8 @@ function onSerialDetected(payload: { text: string }) {
   serialScannerTargetId.value = nextEmpty?.id ?? null
 }
 
-function onSerialScannerError() {
-  // optional
+function onSerialScannerError(message: string) {
+  toast.error(localizedBarcodeScannerError(message, t))
 }
 
 function generateSerialNumbers() {

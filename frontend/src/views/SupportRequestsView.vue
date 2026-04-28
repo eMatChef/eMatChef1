@@ -1,30 +1,29 @@
 <template>
   <div class="support-requests-page">
     <div class="header">
-      <h1>Supportanfragen</h1>
-      <p>Offene Anfragen von neuen Benutzern ohne gefundene Abteilung.</p>
+      <h1>{{ t('supportRequests.title') }}</h1>
+      <p>{{ t('supportRequests.subtitle') }}</p>
     </div>
 
     <div class="actions">
       <button class="btn btn-sm support-tab-btn" :class="{ active: activeTab === 'pending' }" @click="activeTab = 'pending'">
-        Offen
+        {{ t('supportRequests.tabOpen') }}
       </button>
       <button class="btn btn-sm support-tab-btn" :class="{ active: activeTab === 'history' }" @click="activeTab = 'history'">
-        History
+        {{ t('supportRequests.tabHistory') }}
       </button>
       <button class="btn btn-sm" :disabled="loading" @click="loadRequests">
-        {{ loading ? 'Lade...' : 'Aktualisieren' }}
+        {{ loading ? t('supportRequests.loading') : t('supportRequests.refresh') }}
       </button>
     </div>
     <p v-if="activeTab === 'history'" class="tab-hint">
-      Hier erscheinen nur <strong>abgeschlossene</strong> Anfragen (Status <code>assigned</code> oder <code>rejected</code> in der
-      Datenbank). Noch offene Einträge (<code>pending</code>) stehen unter „Offen“.
+      {{ t('supportRequests.tabHistoryHint') }}
     </p>
 
     <div v-if="error" class="error">{{ error }}</div>
 
     <div v-if="!loading && requests.length === 0" class="empty">
-      {{ activeTab === 'pending' ? 'Keine offenen Supportanfragen.' : 'Keine bearbeiteten Supportanfragen.' }}
+      {{ activeTab === 'pending' ? t('supportRequests.emptyPending') : t('supportRequests.emptyHistory') }}
     </div>
 
     <div v-else class="list">
@@ -35,27 +34,27 @@
           <span v-if="req.email"> · {{ req.email }}</span>
         </div>
         <div v-if="req.requested_organisation_id" class="meta">
-          Organisation: {{ organisations.find(o => o.id === req.requested_organisation_id)?.name || req.requested_organisation_id }}
+          {{ t('supportRequests.organisation', { name: organisations.find(o => o.id === req.requested_organisation_id)?.name || req.requested_organisation_id }) }}
         </div>
         <div v-if="req.requested_affiliation" class="meta">
-          Zugehörigkeit: {{ req.requested_affiliation }}
+          {{ t('supportRequests.affiliation', { value: req.requested_affiliation }) }}
         </div>
         <div v-if="req.requested_parent_department_name" class="meta">
-          Übergeordnete Abteilung: {{ req.requested_parent_department_name }}
+          {{ t('supportRequests.parentDepartment', { name: req.requested_parent_department_name }) }}
         </div>
         <div v-if="req.message" class="message">{{ req.message }}</div>
-        <div class="meta">Anfrage am {{ formatDate(req.created_at) }}</div>
+        <div class="meta">{{ t('supportRequests.requestedAt', { date: formatDate(req.created_at) }) }}</div>
         <div v-if="activeTab === 'history'" class="meta">
-          Status:
+          {{ t('pendingAssignment.colStatus') }}:
           {{
             req.status === 'assigned'
-              ? 'An Department zugeordnet'
+              ? t('supportRequests.statusAssigned')
               : req.status === 'rejected'
-                ? 'Abgelehnt'
-                : 'Offen'
+                ? t('supportRequests.statusRejected')
+                : t('supportRequests.statusOpen')
           }}
-          <span v-if="req.assigned_department_name"> · Ziel: {{ req.assigned_department_name }}</span>
-          <span v-if="req.reviewed_by_name"> · durch {{ req.reviewed_by_name }}</span>
+          <span v-if="req.assigned_department_name">{{ t('supportRequests.target', { name: req.assigned_department_name }) }}</span>
+          <span v-if="req.reviewed_by_name">{{ t('supportRequests.reviewedBy', { name: req.reviewed_by_name }) }}</span>
           <span v-if="req.updated_at"> · {{ formatDate(req.updated_at) }}</span>
         </div>
         <div v-if="activeTab === 'pending'" class="row-actions">
@@ -65,10 +64,10 @@
               :disabled="loading"
               @click="openAssignModal(req)"
             >
-              Zuordnen...
+              {{ t('supportRequests.assign') }}
             </button>
           </template>
-          <button class="btn btn-danger btn-sm" :disabled="loading" @click="decide(req.id, 'rejected')">Ablehnen</button>
+          <button class="btn btn-danger btn-sm" :disabled="loading" @click="decide(req.id, 'rejected')">{{ t('supportRequests.reject') }}</button>
         </div>
       </div>
     </div>
@@ -76,7 +75,7 @@
     <div v-if="assignModalOpen" class="modal-overlay">
       <div class="modal-dialog support-modal-dialog">
         <div class="modal-header">
-          <h2>Supportanfrage zuordnen</h2>
+          <h2>{{ t('supportRequests.modalTitle') }}</h2>
           <button type="button" class="modal-close" @click="closeAssignModal">
             <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
               <path d="M15 5L5 15M5 5L15 15" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
@@ -86,8 +85,8 @@
 
         <div class="modal-body">
           <div class="form-group">
-            <div class="meta"><strong>User:</strong> {{ selectedRequest?.name || '-' }}</div>
-            <div class="meta"><strong>Gesucht:</strong> {{ selectedRequest?.requested_department_name || '-' }}</div>
+            <div class="meta"><strong>{{ t('supportRequests.userLabel') }}</strong> {{ selectedRequest?.name || '-' }}</div>
+            <div class="meta"><strong>{{ t('supportRequests.searchedLabel') }}</strong> {{ selectedRequest?.requested_department_name || '-' }}</div>
           </div>
 
           <!-- Toggle: Bestehendes Department ODER Neues erstellen -->
@@ -99,7 +98,7 @@
               :class="{ active: !createDepartmentMode }"
               @click="switchToSearchMode"
             >
-              Department suchen
+              {{ t('supportRequests.modeSearchDept') }}
             </button>
             <button
               type="button"
@@ -107,24 +106,23 @@
               :class="{ active: createDepartmentMode }"
               @click="switchToCreateMode"
             >
-              Neues Department
+              {{ t('supportRequests.modeNewDept') }}
             </button>
           </div>
           </div>
 
           <div v-if="!createDepartmentMode" class="form-group">
-            <label class="form-label">Bestehendes Department auswählen</label>
+            <label class="form-label">{{ t('supportRequests.selectExistingDept') }}</label>
             <p
-              v-if="selectedRequest?.requested_department_name && selectedRequest.requested_department_name !== 'Unbekannte Abteilung'"
+              v-if="selectedRequest?.requested_department_name && selectedRequest.requested_department_name !== unknownDepartmentName"
               class="form-hint assign-dept-hint"
             >
-              Vorschlagsliste sortiert nach Nähe zu „{{ selectedRequest.requested_department_name }}“
-              <template v-if="selectedRequest.requested_organisation_id"> (nur Departments dieser Organisation)</template>.
+              {{ t('supportRequests.hintSortedNear', { name: selectedRequest.requested_department_name }) }}<template v-if="selectedRequest.requested_organisation_id">{{ t('supportRequests.hintSortedNearOrgOnly') }}</template>
             </p>
           <div class="autocomplete-wrapper">
             <div v-if="selectedDepartment" class="selected-chip">
               <span>{{ selectedDepartment.name }}</span>
-              <span v-if="selectedDepartment.parent_id" class="chip-meta"> (Unterabteilung)</span>
+              <span v-if="selectedDepartment.parent_id" class="chip-meta">{{ t('supportRequests.subDepartment') }}</span>
               <button class="chip-remove" type="button" @click="clearSelectedDepartment">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
@@ -136,7 +134,7 @@
               v-model="departmentSearchQuery"
               type="text"
               class="form-input"
-              placeholder="Department suchen oder auswählen..."
+              :placeholder="t('supportRequests.deptSearchPlaceholder')"
               @focus="showDepartmentDropdown = true"
               @input="showDepartmentDropdown = true"
               @blur="handleDepartmentBlur"
@@ -155,55 +153,55 @@
                 <span v-if="d.parent_id" class="ac-meta">› {{ getParentPath(d) }}</span>
               </div>
               <div v-if="filteredAssignableDepartments.length === 0" class="autocomplete-empty">
-                Kein Treffer
+                {{ t('supportRequests.noResults') }}
               </div>
             </div>
           </div>
           <div v-if="selectedDepartment" class="form-group">
-            <label class="form-label">Rolle im Department</label>
+            <label class="form-label">{{ t('supportRequests.roleInDept') }}</label>
             <select v-model="assignRole" class="form-select">
-              <option v-for="r in ASSIGN_ROLES" :key="r.value" :value="r.value">{{ r.label }}</option>
+              <option v-for="r in assignRoles" :key="r.value" :value="r.value">{{ r.label }}</option>
             </select>
-            <p class="form-hint">Standard: Benutzer. Wenn kein mw/dc im Department existiert, wird automatisch mw zugewiesen.</p>
+            <p class="form-hint">{{ t('supportRequests.roleHintExisting') }}</p>
           </div>
           <div v-if="assignError" class="error-message">{{ assignError }}</div>
           <div class="modal-footer">
-            <button type="button" class="btn-secondary" @click="closeAssignModal">Abbrechen</button>
+            <button type="button" class="btn-secondary" @click="closeAssignModal">{{ t('supportRequests.cancel') }}</button>
             <button
               type="button"
               class="btn-primary"
               :disabled="assignLoading || !selectedDepartment || !selectedAssignmentDepartmentId || !selectedRequest"
               @click="assignSelectedDepartment"
             >
-              {{ assignLoading ? 'Wird zugeordnet...' : 'Zuordnen' }}
+              {{ assignLoading ? t('supportRequests.assigning') : t('supportRequests.assignConfirm') }}
             </button>
           </div>
           </div>
 
           <div v-else class="form-group">
-          <label class="form-label">Neues Department erstellen</label>
+          <label class="form-label">{{ t('supportRequests.createNewDept') }}</label>
           <div class="create-form">
             <input
               v-model="newDepartmentName"
               class="form-input"
-              placeholder="Name neues Department"
+              :placeholder="t('supportRequests.newDeptNamePlaceholder')"
             />
             <select v-model="newDepartmentOrganisationId" class="form-select" @change="newDepartmentParentId = ''">
               <option value="" disabled hidden>&nbsp;</option>
               <option v-for="org in organisations" :key="org.id" :value="org.id">{{ org.name }}</option>
             </select>
             <div v-if="newDepartmentOrganisationId" class="form-group">
-              <label class="form-label">Übergeordnetes Department (optional)</label>
+              <label class="form-label">{{ t('supportRequests.parentDeptOptional') }}</label>
               <div class="tree-select-container">
                 <div class="tree-select-header">
-                  <span>Wählen Sie ein übergeordnetes Department aus:</span>
+                  <span>{{ t('supportRequests.parentDeptPrompt') }}</span>
                   <button
                     type="button"
                     class="btn-clear-parent"
                     :class="{ active: !newDepartmentParentId }"
                     @click="newDepartmentParentId = ''"
                   >
-                    Kein Parent (Haupt-Department)
+                    {{ t('supportRequests.noParentMain') }}
                   </button>
                 </div>
                 <div class="tree-select-content">
@@ -221,25 +219,25 @@
                     <span>{{ dept.name }}</span>
                   </div>
                 </div>
-                <p class="form-hint">Lassen Sie leer für ein Haupt-Department.</p>
+                <p class="form-hint">{{ t('supportRequests.parentDeptFooterHint') }}</p>
               </div>
             </div>
             <div class="form-group">
-              <label class="form-label">Rolle im Department</label>
+              <label class="form-label">{{ t('supportRequests.roleInDept') }}</label>
               <select v-model="assignRole" class="form-select">
-                <option v-for="r in ASSIGN_ROLES" :key="r.value" :value="r.value">{{ r.label }}</option>
+                <option v-for="r in assignRoles" :key="r.value" :value="r.value">{{ r.label }}</option>
               </select>
-              <p class="form-hint">Standard: Benutzer. Bei neuem Department ohne mw/dc wird automatisch mw zugewiesen.</p>
+              <p class="form-hint">{{ t('supportRequests.roleHintNew') }}</p>
             </div>
             <div class="modal-footer">
-              <button type="button" class="btn-secondary" @click="closeAssignModal">Abbrechen</button>
+              <button type="button" class="btn-secondary" @click="closeAssignModal">{{ t('supportRequests.cancel') }}</button>
               <button
                 type="button"
                 class="btn-primary"
                 :disabled="loading || !newDepartmentName.trim() || !newDepartmentOrganisationId || !selectedRequest"
                 @click="createAndAssignDepartment"
               >
-                Department erstellen + zuordnen
+                {{ t('supportRequests.createAndAssign') }}
               </button>
             </div>
           </div>
@@ -252,6 +250,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { departmentNameMatchScore, levenshtein } from '@/utils/stringSimilarity'
 import { useRoute } from 'vue-router'
 import { useToast } from '@/composables/useToast'
@@ -268,8 +267,12 @@ import {
 } from '@/api/joinRequests'
 
 const route = useRoute()
+const { t, locale } = useI18n()
 const toast = useToast()
 const authStore = useAuthStore()
+
+/** Backend liefert diesen Platzhalter für fehlende Abteilung (Sprache API). */
+const unknownDepartmentName = 'Unbekannte Abteilung'
 // Im Admin-Bereich (/admin-dashboard) keine departmentId – API akzeptiert '' für globale Admins
 const isAdminRoute = computed(() => route.path.startsWith('/admin-dashboard'))
 const departmentId = computed(() =>
@@ -307,14 +310,14 @@ const newDepartmentOrganisationId = ref('')
 const newDepartmentParentId = ref('')
 const assignRole = ref<'u' | 'l1' | 'l2' | 'l3' | 'dc' | 'mw'>('u')
 
-const ASSIGN_ROLES: { value: string; label: string }[] = [
-  { value: 'u', label: 'Benutzer (u)' },
-  { value: 'l3', label: 'Leiter Stufe 3 (l3)' },
-  { value: 'l2', label: 'Leiter Stufe 2 (l2)' },
-  { value: 'l1', label: 'Leiter Stufe 1 (l1)' },
-  { value: 'dc', label: 'Departmentchef (dc)' },
-  { value: 'mw', label: 'Materialchef (mw)' }
-]
+const assignRoles = computed(() => [
+  { value: 'u', label: t('supportRequests.roles.u') },
+  { value: 'l3', label: t('supportRequests.roles.l3') },
+  { value: 'l2', label: t('supportRequests.roles.l2') },
+  { value: 'l1', label: t('supportRequests.roles.l1') },
+  { value: 'dc', label: t('supportRequests.roles.dc') },
+  { value: 'mw', label: t('supportRequests.roles.mw') }
+])
 
 // Verfügbare Parent-Departments als Tree (nur aus gewählter Organisation)
 const availableParentDepartmentsTree = computed(() => {
@@ -349,7 +352,7 @@ const departmentPoolForAssign = computed(() => {
 
 const filteredAssignableDepartments = computed(() => {
   const rawReq = selectedRequest.value?.requested_department_name || ''
-  const requestedNeedle = rawReq === 'Unbekannte Abteilung' ? '' : rawReq.trim()
+  const requestedNeedle = rawReq === unknownDepartmentName ? '' : rawReq.trim()
   const q = departmentSearchQuery.value.trim()
   const sortNeedle = q || requestedNeedle
   let list = departmentPoolForAssign.value
@@ -375,7 +378,7 @@ const filteredAssignableDepartments = computed(() => {
       .slice(0, 30)
   }
 
-  return [...list].sort((a, b) => a.name.localeCompare(b.name, 'de-CH')).slice(0, 25)
+  return [...list].sort((a, b) => a.name.localeCompare(b.name, locale.value)).slice(0, 25)
 })
 
 function getDepartmentLevel(d: Department): number {
@@ -391,7 +394,7 @@ function getParentPath(d: Department): string {
 }
 
 function formatDate(iso: string): string {
-  return new Date(iso).toLocaleString('de-CH')
+  return new Date(iso).toLocaleString(locale.value)
 }
 
 async function loadRequests() {
@@ -403,7 +406,7 @@ async function loadRequests() {
       ? await getPendingAdminJoinRequests(departmentId.value)
       : await getAdminJoinRequestHistory(departmentId.value)
   } catch (err: any) {
-    error.value = err?.response?.data?.error || 'Supportanfragen konnten nicht geladen werden'
+    error.value = err?.response?.data?.error || t('supportRequests.errors.loadFailed')
   } finally {
     loading.value = false
   }
@@ -434,7 +437,7 @@ async function decide(id: string, status: 'rejected') {
     await decideAdminJoinRequest(departmentId.value, id, status)
     await loadRequests()
   } catch (err: any) {
-    error.value = err?.response?.data?.error || 'Anfrage konnte nicht bearbeitet werden'
+    error.value = err?.response?.data?.error || t('supportRequests.errors.decideFailed')
   } finally {
     loading.value = false
   }
@@ -450,7 +453,7 @@ async function openAssignModal(req: PendingAdminJoinRequest) {
   createDepartmentMode.value = false
   newDepartmentOrganisationId.value = ''
   newDepartmentParentId.value = ''
-  newDepartmentName.value = req.requested_department_name === 'Unbekannte Abteilung'
+  newDepartmentName.value = req.requested_department_name === unknownDepartmentName
     ? ''
     : req.requested_department_name
   assignModalOpen.value = true
@@ -516,14 +519,14 @@ async function assignToDepartment(id: string, targetDepartmentId: string, role?:
       targetDepartmentId,
       role || assignRole.value
     )
-    toast.success(`Benutzer wurde dem Department zugeordnet (Rolle: ${res.assigned_role}).`)
+    toast.success(t('supportRequests.toastAssigned', { role: res.assigned_role }))
     if (res.role_forced_to_mw_warning) {
       toast.warning(res.role_forced_to_mw_warning)
     }
     closeAssignModal()
     await loadRequests()
   } catch (err: any) {
-    const msg = err?.response?.data?.error || 'Zuordnung konnte nicht gespeichert werden'
+    const msg = err?.response?.data?.error || t('supportRequests.errors.assignFailed')
     assignError.value = msg
     toast.error(msg)
   } finally {
@@ -553,7 +556,7 @@ async function createAndAssignDepartment() {
     await loadAssignableDepartments()
     await assignToDepartment(selectedRequest.value.id, created.id, assignRole.value)
   } catch (err: any) {
-    const msg = err?.response?.data?.error || 'Department konnte nicht erstellt werden'
+    const msg = err?.response?.data?.error || t('supportRequests.errors.createDeptFailed')
     error.value = msg
     toast.error(msg)
   } finally {

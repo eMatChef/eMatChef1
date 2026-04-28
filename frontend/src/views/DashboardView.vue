@@ -3,9 +3,9 @@
     <!-- Header -->
     <header class="dashboard-header">
       <div class="header-content">
-        <h1>Dashboard</h1>
+        <h1>{{ t('dashboard.title') }}</h1>
         <p class="welcome-text">
-          Willkommen, {{ dashboardDisplayName }} – {{ formatDate(new Date()) }}
+          {{ t('dashboard.welcome', { name: dashboardDisplayName, date: formatDate(new Date()) }) }}
         </p>
       </div>
     </header>
@@ -17,20 +17,20 @@
     >
       <h2 class="section-title">
         <router-link :to="getLink('/support-requests')" class="section-title-link">
-          Offene Join-Requests
+          {{ t('dashboard.openJoinRequests') }}
         </router-link>
       </h2>
       <div class="stat-cards">
         <router-link :to="getLink('/support-requests')" class="stat-card submitted join-request-stat-link">
           <span class="stat-value">{{ totalOpenJoinRequests }}</span>
-          <span class="stat-label">Offen gesamt</span>
+          <span class="stat-label">{{ t('dashboard.openTotal') }}</span>
         </router-link>
         <div v-if="showAdminJoinRequestsWidget" class="stat-card draft">
           <span class="stat-value">{{ pendingAdminJoinRequests.length }}</span>
-          <span class="stat-label">Admin-Anfragen</span>
+          <span class="stat-label">{{ t('dashboard.adminRequests') }}</span>
         </div>
       </div>
-      <router-link :to="getLink('/support-requests')" class="section-link">Zu Supportanfragen →</router-link>
+      <router-link :to="getLink('/support-requests')" class="section-link">{{ t('dashboard.toSupportRequests') }}</router-link>
     </section>
 
     <!-- Schnellaktionen (nur mit Department) -->
@@ -43,7 +43,7 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="24" height="24">
           <path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
         </svg>
-        <span>Material erstellen</span>
+        <span>{{ t('dashboard.createMaterial') }}</span>
       </router-link>
       <router-link
         v-if="showMaterialCreate"
@@ -56,7 +56,7 @@
           <line x1="8" y1="2" x2="8" y2="6" />
           <line x1="3" y1="10" x2="21" y2="10" />
         </svg>
-        <span>Aktivität erstellen</span>
+        <span>{{ t('dashboard.createActivity') }}</span>
       </router-link>
       <button
         class="quick-action-btn"
@@ -65,29 +65,29 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="24" height="24">
           <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
         </svg>
-        <span>Schaden melden</span>
+        <span>{{ t('dashboard.reportDamage') }}</span>
       </button>
     </div>
 
     <!-- Loading -->
     <div v-if="isLoading" class="dashboard-loading">
       <div class="spinner"></div>
-      <p>Dashboard wird geladen...</p>
+      <p>{{ t('dashboard.loading') }}</p>
     </div>
 
     <!-- Content -->
     <div v-else class="dashboard-content">
       <!-- Superadmin: globale Verwaltungs-Shortcuts -->
       <section v-if="isSuperAdmin" class="dashboard-section admin-global-shortcuts">
-        <h2 class="section-title">Organisation & Abteilungen</h2>
+        <h2 class="section-title">{{ t('dashboard.orgAndDepartments') }}</h2>
         <div class="config-links">
           <router-link to="/admin-dashboard/verwaltung/organisations" class="config-card">
-            <span class="config-label">Organisationen</span>
-            <span class="config-desc">Organisationen verwalten</span>
+            <span class="config-label">{{ t('dashboard.organisations') }}</span>
+            <span class="config-desc">{{ t('dashboard.organisationsDesc') }}</span>
           </router-link>
           <router-link to="/admin-dashboard/verwaltung/departments" class="config-card">
-            <span class="config-label">Abteilungen</span>
-            <span class="config-desc">Departments verwalten</span>
+            <span class="config-label">{{ t('dashboard.departments') }}</span>
+            <span class="config-desc">{{ t('dashboard.departmentsDesc') }}</span>
           </router-link>
         </div>
       </section>
@@ -96,7 +96,7 @@
       <section v-if="!departmentId && hasSupportAdminRole" class="dashboard-section">
         <h2 class="section-title">
           <router-link to="/admin-dashboard/verwaltung/support-requests" class="section-title-link">
-            Supportanfragen
+            {{ t('dashboard.supportRequests') }}
           </router-link>
         </h2>
         <div class="stat-cards">
@@ -105,19 +105,19 @@
             class="stat-card submitted join-request-stat-link"
           >
             <span class="stat-value">{{ globalAdminPendingCount }}</span>
-            <span class="stat-label">Offene Admin-Anfragen</span>
+            <span class="stat-label">{{ t('dashboard.openAdminRequests') }}</span>
           </router-link>
         </div>
-        <router-link to="/admin-dashboard/verwaltung/support-requests" class="section-link">Zu Supportanfragen →</router-link>
+        <router-link to="/admin-dashboard/verwaltung/support-requests" class="section-link">{{ t('dashboard.toSupportRequests') }}</router-link>
       </section>
 
       <template v-if="departmentId">
       <!-- User / L1-L3: Aktive Aktivitäten -->
       <section v-if="showActiveActivities" class="dashboard-section">
-        <h2 class="section-title">Meine aktiven Aktivitäten</h2>
+        <h2 class="section-title">{{ t('dashboard.myActiveActivities') }}</h2>
         <div v-if="activeActivities.length === 0" class="widget-empty">
-          <p>Keine aktiven Aktivitäten</p>
-          <router-link :to="getLink('/activities')" class="btn-link">Aktivitäten anzeigen</router-link>
+          <p>{{ t('dashboard.noActiveActivities') }}</p>
+          <router-link :to="getLink('/activities')" class="btn-link">{{ t('dashboard.showActivities') }}</router-link>
         </div>
         <div v-else class="activity-list">
           <router-link
@@ -137,90 +137,90 @@
           </router-link>
         </div>
         <router-link v-if="activeActivities.length > 0" :to="getLink('/activities')" class="section-link">
-          Alle Aktivitäten anzeigen →
+          {{ t('dashboard.showAllActivities') }}
         </router-link>
       </section>
 
       <!-- L1-L3: Entwürfe -->
       <section v-if="showDraftsWidget && draftCount > 0" class="dashboard-section">
-        <h2 class="section-title">Entwürfe zur Prüfung</h2>
+        <h2 class="section-title">{{ t('dashboard.draftsForReview') }}</h2>
         <div class="stat-cards">
           <div class="stat-card draft">
             <span class="stat-value">{{ draftCount }}</span>
-            <span class="stat-label">Entwürfe</span>
+            <span class="stat-label">{{ t('dashboard.drafts') }}</span>
           </div>
           <div class="stat-card submitted">
             <span class="stat-value">{{ submittedCount }}</span>
-            <span class="stat-label">Eingereicht</span>
+            <span class="stat-label">{{ t('dashboard.submitted') }}</span>
           </div>
         </div>
-        <router-link :to="getLink('/activities')" class="section-link">Aktivitäten prüfen →</router-link>
+        <router-link :to="getLink('/activities')" class="section-link">{{ t('dashboard.reviewActivities') }}</router-link>
       </section>
 
       <!-- DC / MW: Übersicht -->
       <section v-if="showOverviewWidget" class="dashboard-section">
-        <h2 class="section-title">Aktivitäten-Übersicht</h2>
+        <h2 class="section-title">{{ t('dashboard.activitiesOverview') }}</h2>
         <div class="stat-cards overview">
           <div class="stat-card draft">
             <span class="stat-value">{{ draftCount }}</span>
-            <span class="stat-label">Entwürfe</span>
+            <span class="stat-label">{{ t('dashboard.drafts') }}</span>
           </div>
           <div class="stat-card submitted">
             <span class="stat-value">{{ submittedCount }}</span>
-            <span class="stat-label">Eingereicht</span>
+            <span class="stat-label">{{ t('dashboard.submitted') }}</span>
           </div>
           <div class="stat-card approved">
             <span class="stat-value">{{ inProgressCount }}</span>
-            <span class="stat-label">In Bearbeitung</span>
+            <span class="stat-label">{{ t('dashboard.inProgress') }}</span>
           </div>
           <div class="stat-card issued">
             <span class="stat-value">{{ issuedCount }}</span>
-            <span class="stat-label">Ausgegeben</span>
+            <span class="stat-label">{{ t('dashboard.issued') }}</span>
           </div>
         </div>
       </section>
 
       <!-- DC / MW: Werkstatt -->
       <section v-if="showWorkshopWidget && workshopStats" class="dashboard-section">
-        <h2 class="section-title">Werkstatt</h2>
+        <h2 class="section-title">{{ t('dashboard.workshop') }}</h2>
         <div class="stat-cards workshop">
           <div class="stat-card open">
             <span class="stat-value">{{ workshopStats.status_counts?.open || 0 }}</span>
-            <span class="stat-label">Offen</span>
+            <span class="stat-label">{{ t('dashboard.open') }}</span>
           </div>
           <div class="stat-card in-progress">
             <span class="stat-value">{{ workshopStats.status_counts?.in_progress || 0 }}</span>
-            <span class="stat-label">In Arbeit</span>
+            <span class="stat-label">{{ t('dashboard.inWork') }}</span>
           </div>
           <div class="stat-card waiting">
             <span class="stat-value">{{ workshopStats.status_counts?.waiting_parts || 0 }}</span>
-            <span class="stat-label">Wartet auf Teile</span>
+            <span class="stat-label">{{ t('dashboard.waitingForParts') }}</span>
           </div>
           <router-link
             class="stat-card warning"
             :to="{ path: getLink('/workshop'), query: { qf: 'waiting_quote' } }"
             style="text-decoration:none; color:inherit;"
-            title="Offerten offen in Werkstatt anzeigen"
+            :title="t('dashboard.tooltipQuotesOpen')"
           >
             <span class="stat-value">{{ workshopStats.pending_cost_tasks?.waiting_quote || 0 }}</span>
-            <span class="stat-label">Offerten offen</span>
+            <span class="stat-label">{{ t('dashboard.quotesOpen') }}</span>
           </router-link>
           <router-link
             class="stat-card warning"
             :to="{ path: getLink('/workshop'), query: { qf: 'missing_estimated_cost' } }"
             style="text-decoration:none; color:inherit;"
-            title="Tickets ohne Preisschätzung anzeigen"
+            :title="t('dashboard.tooltipMissingPrice')"
           >
             <span class="stat-value">{{ workshopStats.pending_cost_tasks?.missing_estimated_cost || 0 }}</span>
-            <span class="stat-label">Preis fehlt</span>
+            <span class="stat-label">{{ t('dashboard.priceMissing') }}</span>
           </router-link>
         </div>
-        <router-link :to="getLink('/workshop')" class="section-link">Zur Werkstatt →</router-link>
+        <router-link :to="getLink('/workshop')" class="section-link">{{ t('dashboard.toWorkshop') }}</router-link>
       </section>
 
       <!-- MW: Pack-Queue heute -->
       <section v-if="showPackQueueWidget && todayActivities.length > 0" class="dashboard-section">
-        <h2 class="section-title">Heute relevant</h2>
+        <h2 class="section-title">{{ t('dashboard.relevantToday') }}</h2>
         <div class="activity-list">
           <router-link
             v-for="a in todayActivities.slice(0, 5)"
@@ -238,12 +238,12 @@
             </svg>
           </router-link>
         </div>
-        <router-link :to="getLink('/activities')" class="section-link">Alle Aktivitäten →</router-link>
+        <router-link :to="getLink('/activities')" class="section-link">{{ t('dashboard.allActivitiesArrow') }}</router-link>
       </section>
 
       <!-- Kommende Termine (alle Rollen) -->
       <section v-if="upcomingActivities.length > 0" class="dashboard-section">
-        <h2 class="section-title">Kommende Termine</h2>
+        <h2 class="section-title">{{ t('dashboard.upcomingDates') }}</h2>
         <div class="activity-list compact">
           <router-link
             v-for="a in upcomingActivities.slice(0, 5)"
@@ -279,13 +279,30 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'
 import { getDashboardData, type DashboardActivity } from '@/api/dashboard'
 import { getPendingAdminJoinRequests } from '@/api/joinRequests'
 import DamageReportWizard from '@/components/DamageReportWizard.vue'
 
 const route = useRoute()
+const { t, locale } = useI18n()
 const authStore = useAuthStore()
+
+/** BCP-47-Tag für `Intl` passend zur UI-Sprache (CH-Kontext). */
+const intlLocale = computed(() => {
+  const loc = String(locale.value)
+  const map: Record<string, string> = {
+    de: 'de-CH',
+    'de-pfadi': 'de-CH',
+    'de-cevi': 'de-CH',
+    en: 'en-GB',
+    fr: 'fr-CH',
+    it: 'it-CH',
+    'ch-rm': 'rm-CH'
+  }
+  return map[loc] ?? 'de-CH'
+})
 const dashboardDisplayName = computed(() => {
   const nickname = authStore.profile?.nickname?.trim()
   if (nickname) return nickname
@@ -405,7 +422,7 @@ function getLink(path: string): string {
 }
 
 function formatDate(d: Date): string {
-  return d.toLocaleDateString('de-CH', {
+  return d.toLocaleDateString(intlLocale.value, {
     weekday: 'long',
     day: 'numeric',
     month: 'long',
@@ -414,8 +431,8 @@ function formatDate(d: Date): string {
 }
 
 function formatDateShort(iso?: string | null): string {
-  if (!iso) return '–'
-  return new Date(iso).toLocaleDateString('de-CH', {
+  if (!iso) return t('dashboard.datePlaceholder')
+  return new Date(iso).toLocaleDateString(intlLocale.value, {
     day: '2-digit',
     month: '2-digit',
     year: 'numeric'
@@ -427,10 +444,10 @@ function getRelativeDate(iso?: string | null): string {
   const d = new Date(iso)
   const now = new Date()
   const diff = Math.ceil((d.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
-  if (diff < 0) return '(vergangen)'
-  if (diff === 0) return '(heute)'
-  if (diff === 1) return '(morgen)'
-  if (diff <= 7) return `(in ${diff} Tagen)`
+  if (diff < 0) return t('dashboard.relative.past')
+  if (diff === 0) return t('dashboard.relative.today')
+  if (diff === 1) return t('dashboard.relative.tomorrow')
+  if (diff <= 7) return t('dashboard.relative.inDays', { count: diff })
   return ''
 }
 
@@ -440,8 +457,10 @@ function getPlanningLabel(a: DashboardActivity): string {
   const d = new Date(start)
   const today = new Date()
   const isToday = d.toDateString() === today.toDateString()
-  const timeStr = d.toLocaleTimeString('de-CH', { hour: '2-digit', minute: '2-digit' })
-  return isToday ? `Heute ${timeStr}` : formatDateShort(start) + ' ' + timeStr
+  const timeStr = d.toLocaleTimeString(intlLocale.value, { hour: '2-digit', minute: '2-digit' })
+  return isToday
+    ? t('dashboard.todayWithTime', { time: timeStr })
+    : formatDateShort(start) + ' ' + timeStr
 }
 
 function onDamageReportSuccess() {
@@ -449,18 +468,9 @@ function onDamageReportSuccess() {
 }
 
 function getStatusLabel(status: string): string {
-  const labels: Record<string, string> = {
-    draft: 'Entwurf',
-    submitted: 'Eingereicht',
-    approved: 'Genehmigt',
-    packing: 'Packen',
-    packed: 'Gepackt',
-    issued: 'Ausgegeben',
-    returned: 'Zurück',
-    completed: 'Abgeschlossen',
-    cancelled: 'Storniert'
-  }
-  return labels[status] || status
+  const key = `dashboard.status.${status}`
+  const translated = t(key)
+  return translated === key ? status : translated
 }
 
 // === Load ===
@@ -474,7 +484,7 @@ async function load() {
         const g = await getPendingAdminJoinRequests('')
         globalAdminPendingCount.value = g.length
       } catch (err) {
-        console.error('Globale Admin-Anfragen laden fehlgeschlagen:', err)
+        console.error(t('dashboard.errors.loadGlobalAdmin'), err)
       } finally {
         isLoading.value = false
       }
@@ -487,7 +497,7 @@ async function load() {
   try {
     dashboardData.value = await getDashboardData(id, { includeJoinRequests: hasSupportAdminRole.value })
   } catch (err) {
-    console.error('Dashboard laden fehlgeschlagen:', err)
+    console.error(t('dashboard.errors.load'), err)
   } finally {
     isLoading.value = false
   }

@@ -17,11 +17,11 @@
           @keydown.space.prevent="navigateToTab(tab)"
         >
           <span class="tab-label">{{ tab.label }}</span>
-          <span v-if="tab.hasUnsavedChanges" class="tab-dirty" title="Ungespeicherte Änderungen">●</span>
+          <span v-if="tab.hasUnsavedChanges" class="tab-dirty" :title="t('layout.tabs.unsavedChangesTooltip')">●</span>
           <button
             type="button"
             class="tab-close"
-            aria-label="Tab schließen"
+            :aria-label="t('layout.tabs.closeAria')"
             @click.stop="closeTab(tab)"
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -44,8 +44,8 @@
       <button
         type="button"
         class="header-icon-btn"
-        title="Benachrichtigungen"
-        aria-label="Benachrichtigungen"
+        :title="t('layout.notifications.title')"
+        :aria-label="t('layout.notifications.title')"
         :aria-expanded="showNotifications"
         aria-haspopup="true"
         @click="toggleNotifications"
@@ -56,15 +56,15 @@
         </svg>
         <span v-if="unreadCount > 0" class="notification-badge">{{ unreadCount > 99 ? '99+' : unreadCount }}</span>
       </button>
-      <div v-if="showNotifications" class="notifications-dropdown" role="dialog" aria-label="Benachrichtigungen">
-        <div class="notifications-header">Benachrichtigungen</div>
+      <div v-if="showNotifications" class="notifications-dropdown" role="dialog" :aria-label="t('layout.notifications.title')">
+        <div class="notifications-header">{{ t('layout.notifications.title') }}</div>
         <div class="notifications-dropdown-body">
-          <div v-if="isLoadingNotifications" class="notifications-empty">Lade...</div>
+          <div v-if="isLoadingNotifications" class="notifications-empty">{{ t('layout.notifications.loading') }}</div>
           <div
             v-else-if="pendingDepartmentInvites.length === 0 && publicFoundPreview.length === 0 && pendingFollowUpCount === 0"
             class="notifications-empty"
           >
-            Keine Benachrichtigungen
+            {{ t('layout.notifications.empty') }}
           </div>
           <div v-else class="notifications-list">
             <button
@@ -73,23 +73,26 @@
               class="notification-item notification-item--accounting"
               @click="goToAccountingAssign"
             >
-              <div class="notification-title">Buchhaltung: Buchung zuordnen</div>
+              <div class="notification-title">{{ t('layout.notifications.accountingTitle') }}</div>
               <div class="notification-subtitle">
-                {{ pendingFollowUpCount }}
-                ausstehende Anschaffung{{ pendingFollowUpCount === 1 ? '' : 'en' }} (Kostenstelle ergänzen)
+                {{
+                  pendingFollowUpCount === 1
+                    ? t('layout.notifications.accountingFollowUpOne', { count: pendingFollowUpCount })
+                    : t('layout.notifications.accountingFollowUpMany', { count: pendingFollowUpCount })
+                }}
               </div>
-              <div class="notification-hint">Zu Buchungen · Tab „Neue Buchung zuordnen“</div>
+              <div class="notification-hint">{{ t('layout.notifications.accountingHint') }}</div>
             </button>
             <div
               v-for="invite in notificationPreviewInvites"
               :key="`inv-${invite.activity_id}-${invite.source_department_id}`"
               class="notification-item"
             >
-              <div class="notification-title">{{ invite.source_department_name }} lädt zu {{ invite.activity_type === 'camp' ? 'Camp' : 'Anlass' }} ein</div>
+              <div class="notification-title">{{ notificationInviteTitle(invite) }}</div>
               <div class="notification-subtitle">{{ invite.activity_name }}</div>
               <div class="notification-actions">
-                <button type="button" class="btn-success btn-xs" @click="decideInvite(invite, 'accepted')">Annehmen</button>
-                <button type="button" class="btn-danger-outline btn-xs" @click="decideInvite(invite, 'rejected')">Ablehnen</button>
+                <button type="button" class="btn-success btn-xs" @click="decideInvite(invite, 'accepted')">{{ t('layout.notifications.accept') }}</button>
+                <button type="button" class="btn-danger-outline btn-xs" @click="decideInvite(invite, 'rejected')">{{ t('layout.notifications.reject') }}</button>
               </div>
             </div>
             <button
@@ -99,9 +102,9 @@
               class="notification-item notification-item--found"
               @click="openFoundMessageFromBell(msg)"
             >
-              <div class="notification-title">QR-Kontakt: {{ msg.material_name }}</div>
+              <div class="notification-title">{{ t('layout.notifications.qrContactTitle', { name: msg.material_name }) }}</div>
               <div class="notification-subtitle">{{ truncateMessage(msg.message) }}</div>
-              <div class="notification-hint">Tippen für Nachrichtenzentrale</div>
+              <div class="notification-hint">{{ t('layout.notifications.foundHint') }}</div>
             </button>
           </div>
         </div>
@@ -109,15 +112,15 @@
           <button
             type="button"
             class="btn btn-secondary btn-sm notifications-more-fullwidth"
-            title="Zur Nachrichtenzentrale (unter Aufgaben in der Navigation)"
+            :title="t('layout.notifications.showAllFooterTitle')"
             @click.stop="goToNotificationsCenter"
           >
-            Alle anzeigen
+            {{ t('layout.notifications.showAll') }}
           </button>
         </div>
       </div>
       
-      <button type="button" class="header-icon-btn" title="Hilfe" aria-label="Hilfe" @click="showHelp">
+      <button type="button" class="header-icon-btn" :title="t('layout.header.helpTitle')" :aria-label="t('layout.header.helpAria')" @click="showHelp">
         <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
           <circle cx="12" cy="12" r="10" stroke-width="2"/>
           <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -125,7 +128,7 @@
         </svg>
       </button>
       
-      <button type="button" class="header-icon-btn" title="Informationen" aria-label="Informationen" @click="showInfo">
+      <button type="button" class="header-icon-btn" :title="t('layout.header.infoTitle')" :aria-label="t('layout.header.infoAria')" @click="showInfo">
         <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
           <circle cx="12" cy="12" r="10" stroke-width="2"/>
           <path d="M12 16v-4" stroke-width="2" stroke-linecap="round"/>
@@ -161,7 +164,7 @@
             <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
             <circle cx="12" cy="7" r="4" stroke-width="2"/>
           </svg>
-          Profil bearbeiten
+          {{ t('layout.userMenu.editProfile') }}
         </button>
         <button v-if="authStore.departments.length > 1" class="dropdown-item" @click="switchDepartment">
           <svg class="item-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
@@ -169,7 +172,7 @@
             <path d="M8 13h8M12 9v8" stroke-width="1.5" stroke-linecap="round"/>
           </svg>
           <span class="dept-switch-text">
-            Department wechseln
+            {{ t('layout.userMenu.switchDepartment') }}
             <span class="dept-switch-hint">{{ authStore.activeDepartmentName }}</span>
           </span>
         </button>
@@ -180,7 +183,7 @@
             <polyline points="16 17 21 12 16 7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
             <line x1="21" y1="12" x2="9" y2="12" stroke-width="2" stroke-linecap="round"/>
           </svg>
-          Abmelden
+          {{ t('layout.userMenu.logout') }}
         </button>
       </div>
     </div>
@@ -189,8 +192,8 @@
     <div v-if="showEditProfileModal" class="profile-modal-overlay">
       <div class="profile-modal">
         <div class="profile-modal-header">
-          <h3>Profil bearbeiten</h3>
-          <button class="modal-close-btn" @click="requestCloseEditProfileModal" aria-label="Dialog schließen">×</button>
+          <h3>{{ t('layout.profileModal.title') }}</h3>
+          <button class="modal-close-btn" @click="requestCloseEditProfileModal" :aria-label="t('layout.profileModal.closeAria')">×</button>
         </div>
 
         <form class="profile-modal-form" @submit.prevent="saveProfile">
@@ -201,17 +204,17 @@
             </div>
             <div class="profile-top-fields">
               <label class="form-field">
-                <span>Nachname</span>
+                <span>{{ t('layout.profileModal.lastName') }}</span>
                 <input v-model="profileForm.last_name" type="text" maxlength="100" />
               </label>
 
               <label class="form-field">
-                <span>Vorname</span>
+                <span>{{ t('layout.profileModal.firstName') }}</span>
                 <input v-model="profileForm.first_name" type="text" maxlength="100" />
               </label>
 
               <label class="form-field">
-                <span>E-Mail</span>
+                <span>{{ t('layout.profileModal.email') }}</span>
                 <div class="email-edit-row">
                   <input
                     v-model="profileForm.email"
@@ -226,7 +229,7 @@
                     class="email-edit-btn"
                     :class="{ active: isEmailEditEnabled }"
                     @click="toggleEmailEdit"
-                    title="E-Mail bearbeiten"
+                    :title="t('layout.profileModal.editEmailTitle')"
                   >
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
                       <path d="M12 20h9" stroke-width="2" stroke-linecap="round" />
@@ -235,11 +238,15 @@
                   </button>
                 </div>
                 <small v-if="isEmailEditEnabled" class="email-edit-hint">
-                  Neue E-Mail muss bestätigt werden. Bis zur Bestätigung bleibt die alte E-Mail gültig.
+                  {{ t('layout.profileModal.emailNewMustVerify') }}
                 </small>
                 <small v-if="pendingEmailTarget" class="email-pending-hint">
-                  Bestätigungslink für neue Adresse gesendet: {{ pendingEmailTarget }}.
-                  Bis zur Bestätigung bleibt {{ authStore.profile?.email || profileForm.email }} aktiv.
+                  {{
+                    t('layout.profileModal.emailPendingSent', {
+                      pending: pendingEmailTarget,
+                      current: authStore.profile?.email || profileForm.email,
+                    })
+                  }}
                 </small>
               </label>
             </div>
@@ -248,12 +255,12 @@
             <div class="profile-form-grid">
 
             <label class="form-field">
-              <span>Spitzname</span>
-              <input v-model="profileForm.nickname" type="text" maxlength="50" placeholder="z. B. Matze" />
+              <span>{{ t('layout.profileModal.nickname') }}</span>
+              <input v-model="profileForm.nickname" type="text" maxlength="50" :placeholder="t('layout.profileModal.nicknamePlaceholder')" />
             </label>
 
             <label class="form-field">
-              <span>Initialen (max. 2)</span>
+              <span>{{ t('layout.profileModal.initialsMax2') }}</span>
               <input
                 v-model="profileForm.avatar_initials"
                 type="text"
@@ -264,54 +271,54 @@
             </label>
 
             <label class="form-field">
-              <span>Sprache</span>
+              <span>{{ t('layout.profileModal.language') }}</span>
               <select v-model="profileForm.language">
-                <option value="de">Deutsch</option>
-                <option value="en">Englisch</option>
-                <option value="fr">Französisch</option>
-                <option value="it">Italienisch</option>
+                <option value="de">{{ t('languageNames.de') }}</option>
+                <option value="en">{{ t('languageNames.en') }}</option>
+                <option value="fr">{{ t('languageNames.fr') }}</option>
+                <option value="it">{{ t('languageNames.it') }}</option>
               </select>
             </label>
 
             <div class="form-field form-field-full">
-              <span>Passwort aendern</span>
+              <span>{{ t('layout.profileModal.passwordSection') }}</span>
               <div class="profile-form-grid">
                 <label class="form-field">
-                  <span>Aktuelles Passwort</span>
+                  <span>{{ t('layout.profileModal.currentPassword') }}</span>
                   <input
                     v-model="passwordForm.current_password"
                     type="password"
                     autocomplete="current-password"
-                    placeholder="Aktuelles Passwort"
+                    :placeholder="t('layout.profileModal.currentPasswordPlaceholder')"
                   />
                 </label>
                 <label class="form-field">
-                  <span>Neues Passwort</span>
+                  <span>{{ t('layout.profileModal.newPassword') }}</span>
                   <input
                     v-model="passwordForm.new_password"
                     type="password"
                     autocomplete="new-password"
-                    placeholder="Mindestens 8 Zeichen"
+                    :placeholder="t('layout.profileModal.newPasswordPlaceholder')"
                   />
                 </label>
                 <label class="form-field form-field-full">
-                  <span>Neues Passwort bestaetigen</span>
+                  <span>{{ t('layout.profileModal.confirmNewPassword') }}</span>
                   <input
                     v-model="passwordForm.confirm_new_password"
                     type="password"
                     autocomplete="new-password"
-                    placeholder="Neues Passwort wiederholen"
+                    :placeholder="t('layout.profileModal.confirmNewPasswordPlaceholder')"
                   />
                 </label>
               </div>
               <small v-if="passwordInlineError" class="password-inline-error">{{ passwordInlineError }}</small>
-              <small v-else-if="passwordInlineSuccess" class="password-inline-success">Passwort passt.</small>
+              <small v-else-if="passwordInlineSuccess" class="password-inline-success">{{ t('layout.profileModal.passwordOk') }}</small>
             </div>
 
             <div class="form-field form-field-full">
-              <span>Farbkombinationen (mit Initialen)</span>
+              <span>{{ t('layout.profileModal.colorCombinations') }}</span>
               <div class="avatar-palette-wrap">
-                <div class="palette-row-label">Weiße Initialen</div>
+                <div class="palette-row-label">{{ t('layout.profileModal.paletteWhiteInitials') }}</div>
                 <div class="avatar-palette-row">
                   <button
                     v-for="color in avatarPaletteColors"
@@ -325,7 +332,7 @@
                     {{ profilePreviewInitials }}
                   </button>
                 </div>
-                <div class="palette-row-label">Schwarze Initialen</div>
+                <div class="palette-row-label">{{ t('layout.profileModal.paletteBlackInitials') }}</div>
                 <div class="avatar-palette-row">
                   <button
                     v-for="color in avatarPaletteColors"
@@ -343,7 +350,7 @@
             </div>
 
             <label class="form-field">
-              <span>Hintergrundfarbe</span>
+              <span>{{ t('layout.profileModal.backgroundColor') }}</span>
               <div class="color-field">
                 <input v-model="profileForm.background_color" type="color" />
                 <input
@@ -356,7 +363,7 @@
             </label>
 
             <label class="form-field">
-              <span>Schriftfarbe</span>
+              <span>{{ t('layout.profileModal.textColor') }}</span>
               <div class="color-field">
                 <input v-model="profileForm.text_color" type="color" />
                 <input
@@ -370,13 +377,13 @@
             </div>
           </div>
 
-          <div class="profile-modal-footer">
+            <div class="profile-modal-footer">
             <div class="profile-status-hint" :class="{ visible: hasUnsavedProfileChanges }">
-              <span v-if="hasUnsavedProfileChanges">Ungespeicherte Änderungen</span>
+              <span v-if="hasUnsavedProfileChanges">{{ t('layout.profileModal.unsavedChanges') }}</span>
             </div>
-            <button type="button" class="btn-secondary btn-sm" @click="requestCloseEditProfileModal" :disabled="savingProfile">Abbrechen</button>
+            <button type="button" class="btn-secondary btn-sm" @click="requestCloseEditProfileModal" :disabled="savingProfile">{{ t('layout.profileModal.cancel') }}</button>
             <button type="submit" class="btn-primary btn-sm" :disabled="savingProfile || (!hasUnsavedProfileChanges && !hasPasswordInput) || !!passwordInlineError">
-              {{ savingProfile ? 'Speichert...' : 'Speichern' }}
+              {{ savingProfile ? t('layout.profileModal.saving') : t('layout.profileModal.save') }}
             </button>
           </div>
         </form>
@@ -388,6 +395,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '../../stores/auth'
 import { changePassword, login as apiLogin, updateProfile } from '../../api/auth'
@@ -411,6 +419,7 @@ import { useDetailTabsStore } from '../../stores/detailTabs'
 import { useHeaderNotificationsStore } from '@/stores/headerNotifications'
 import { getPostLogoutPath } from '@/utils/appLoginUrl'
 
+const { t } = useI18n()
 const router = useRouter()
 const detailTabsStore = useDetailTabsStore()
 const headerNotificationsStore = useHeaderNotificationsStore()
@@ -469,8 +478,8 @@ const avatarPaletteColors = [
 
 const userInitials = computed(() => authStore.userInitials)
 const userName = computed(() => {
-  if (!authStore.profile) return 'Benutzer'
-  return authStore.profile.nickname || authStore.profile.firstName || authStore.profile.first_name || 'Benutzer'
+  if (!authStore.profile) return t('layout.userFallback')
+  return authStore.profile.nickname || authStore.profile.firstName || authStore.profile.first_name || t('layout.userFallback')
 })
 const userFullName = computed(() => {
   const first = authStore.profile?.firstName || authStore.profile?.first_name || ''
@@ -513,13 +522,13 @@ const passwordInlineError = computed(() => {
   const confirmPassword = passwordForm.value.confirm_new_password
 
   if (!currentPassword || !newPassword || !confirmPassword) {
-    return 'Bitte alle Passwortfelder ausfuellen.'
+    return t('layout.passwordValidation.fillAll')
   }
   if (newPassword.length < 8) {
-    return 'Das neue Passwort muss mindestens 8 Zeichen lang sein.'
+    return t('layout.passwordValidation.minLength')
   }
   if (newPassword !== confirmPassword) {
-    return 'Die neuen Passwoerter stimmen nicht ueberein.'
+    return t('layout.passwordValidation.mismatch')
   }
   return ''
 })
@@ -531,10 +540,21 @@ const pendingEmailTarget = computed(() =>
 const notificationPreviewInvites = computed(() => pendingDepartmentInvites.value.slice(0, 5))
 const notificationPreviewFound = computed(() => publicFoundPreview.value.slice(0, 5))
 
+function notificationInviteTitle(invite: PendingDepartmentActivityInvite): string {
+  const activityType =
+    invite.activity_type === 'camp'
+      ? t('layout.notifications.activityCamp')
+      : t('layout.notifications.activityEvent')
+  return t('layout.notifications.inviteTitle', {
+    department: invite.source_department_name,
+    activityType,
+  })
+}
+
 function truncateMessage(text: string, max = 100): string {
-  const t = String(text || '').trim()
-  if (t.length <= max) return t
-  return `${t.slice(0, max)}…`
+  const trimmed = String(text || '').trim()
+  if (trimmed.length <= max) return trimmed
+  return `${trimmed.slice(0, max)}…`
 }
 
 function isTabActive(tab: { path: string }) {
@@ -549,10 +569,10 @@ function navigateToTab(tab: { path: string }) {
 async function closeTab(tab: { id: string; type: 'material' | 'activity'; departmentId: string; path: string; hasUnsavedChanges: boolean }) {
   if (tab.hasUnsavedChanges) {
     const ok = await confirm.confirm({
-      title: 'Ungespeicherte Änderungen',
-      message: 'Du hast ungespeicherte Änderungen. Wirklich schließen?',
-      confirmText: 'Schließen',
-      cancelText: 'Zurück',
+      title: t('layout.confirm.unsavedTitle'),
+      message: t('layout.confirm.unsavedMessage'),
+      confirmText: t('layout.confirm.close'),
+      cancelText: t('layout.confirm.back'),
       variant: 'warning',
     })
     if (!ok) return
@@ -648,7 +668,7 @@ async function openFoundMessageFromBell(msg: PublicFoundItemMessage) {
       await updatePublicFoundMessageStatus(deptId, msg.id, 'in_progress')
     }
   } catch (err: any) {
-    toast.error(err?.response?.data?.error || 'Status konnte nicht gespeichert werden')
+    toast.error(err?.response?.data?.error || t('layout.toast.statusSaveFailed'))
   }
   void router.push({
     path: `/${deptId}/notifications`,
@@ -670,9 +690,11 @@ async function decideInvite(invite: PendingDepartmentActivityInvite, decision: '
       (entry) => !(entry.activity_id === invite.activity_id && entry.source_department_id === invite.source_department_id)
     )
     await loadDepartmentInvites()
-    toast.success(decision === 'accepted' ? 'Einladung angenommen' : 'Einladung abgelehnt')
+    toast.success(
+      decision === 'accepted' ? t('layout.toast.inviteAccepted') : t('layout.toast.inviteRejected')
+    )
   } catch (err: any) {
-    toast.error(err?.response?.data?.error || 'Entscheid konnte nicht gespeichert werden')
+    toast.error(err?.response?.data?.error || t('layout.toast.decisionSaveFailed'))
   }
 }
 
@@ -737,10 +759,10 @@ async function requestCloseEditProfileModal() {
   if (savingProfile.value) return
   if (hasUnsavedProfileChanges.value) {
     const shouldClose = await confirm.confirm({
-      title: 'Ungespeicherte Änderungen',
-      message: 'Du hast ungespeicherte Änderungen. Wirklich schließen?',
-      confirmText: 'Schließen',
-      cancelText: 'Zurück',
+      title: t('layout.confirm.unsavedTitle'),
+      message: t('layout.confirm.unsavedMessage'),
+      confirmText: t('layout.confirm.close'),
+      cancelText: t('layout.confirm.back'),
       variant: 'warning',
     })
     if (!shouldClose) return
@@ -763,10 +785,10 @@ async function toggleEmailEdit() {
   }
 
   const confirmed = await confirm.confirm({
-    title: 'E-Mail-Adresse ändern',
-    message: 'Du erhältst einen Bestätigungslink an die neue Adresse. Bis zur Bestätigung bleibt deine aktuelle E-Mail gültig.',
-    confirmText: 'Bearbeitung aktivieren',
-    cancelText: 'Abbrechen',
+    title: t('layout.confirm.changeEmailTitle'),
+    message: t('layout.confirm.changeEmailMessage'),
+    confirmText: t('layout.confirm.enableEmailEdit'),
+    cancelText: t('common.cancel'),
     variant: 'warning',
   })
   if (!confirmed) return
@@ -817,13 +839,13 @@ function buildAvatarInitials(explicitInitials: string, nickname: string, firstNa
 async function saveProfile() {
   const profileId = authStore.profileId
   if (!profileId) {
-    toast.error('Profil konnte nicht geladen werden.')
+    toast.error(t('layout.toast.profileLoadFailed'))
     return
   }
   const shouldUpdateProfile = hasUnsavedProfileChanges.value
   const shouldChangePassword = hasPasswordInput.value
   if (!shouldUpdateProfile && !shouldChangePassword) {
-    toast.info('Keine Aenderungen zum Speichern.')
+    toast.info(t('layout.toast.noChanges'))
     return
   }
 
@@ -832,13 +854,13 @@ async function saveProfile() {
     if (shouldUpdateProfile) {
       const email = profileForm.value.email.trim()
       if (!email) {
-        toast.error('Bitte eine E-Mail eingeben.')
+        toast.error(t('layout.toast.enterEmail'))
         return
       }
 
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
       if (!emailRegex.test(email)) {
-        toast.error('Bitte eine gueltige E-Mail-Adresse eingeben.')
+        toast.error(t('layout.toast.invalidEmail'))
         return
       }
 
@@ -856,7 +878,7 @@ async function saveProfile() {
       const updatedProfile = await updateProfile(profileId, payload)
       authStore.profile = updatedProfile
       if (isEmailEditEnabled.value && updatedProfile.pending_email) {
-        toast.info('Bestaetigungslink gesendet. Bis zur Bestaetigung bleibt die alte E-Mail aktiv.')
+        toast.info(t('layout.toast.confirmationLinkSent'))
         isEmailEditEnabled.value = false
         profileForm.value.email = updatedProfile.email || profileForm.value.email
       }
@@ -885,7 +907,7 @@ async function saveProfile() {
         try {
           await apiLogin(loginEmail, newPassword)
           await authStore.loadUserSession()
-          toast.success('Re-Login erfolgreich. Deine Sitzung bleibt aktiv.')
+          toast.success(t('layout.toast.reloginSuccess'))
         } catch {
           // Falls Re-Login fehlschlaegt, bleibt die aktuelle Session bestehen solange der Token gueltig ist.
         }
@@ -894,14 +916,14 @@ async function saveProfile() {
     }
 
     if (shouldUpdateProfile && !shouldChangePassword) {
-      toast.success('Profil wurde gespeichert.')
+      toast.success(t('layout.toast.profileSaved'))
     } else if (shouldUpdateProfile && shouldChangePassword) {
-      toast.success('Profil und Passwort wurden gespeichert.')
+      toast.success(t('layout.toast.profileAndPasswordSaved'))
     }
 
     closeEditProfileModal()
   } catch (error: any) {
-    const message = error?.response?.data?.error || 'Profil konnte nicht gespeichert werden.'
+    const message = error?.response?.data?.error || t('layout.toast.profileSaveFailed')
     toast.error(message)
   } finally {
     savingProfile.value = false

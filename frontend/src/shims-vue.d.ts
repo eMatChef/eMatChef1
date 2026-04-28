@@ -8,8 +8,10 @@ declare module '*.vue' {
 
 declare module 'vue-router' {
   interface RouteMeta {
-    pageTitle?: string
-    pageDescription?: string
+    /** vue-i18n-Key, z. B. `router.meta.titles.login` */
+    pageTitleKey?: string
+    /** vue-i18n-Key; fehlt → `router.meta.routeDescriptionDefault` */
+    pageDescriptionKey?: string
     requiresAuth?: boolean
     /** Öffentliche Start-/Infoseiten (Hauptdomain); auf App-Origin ggf. zur Hauptdomain oder Login umleiten */
     publicMarketing?: boolean

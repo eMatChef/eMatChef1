@@ -18,14 +18,14 @@
       <header class="page-header">
         <div class="header-content">
           <div>
-            <h1>Materialien</h1>
-            <p class="description">Verwalten Sie Ihr gesamtes Material-Inventar</p>
+            <h1>{{ t('materialsView.title') }}</h1>
+            <p class="description">{{ t('materialsView.description') }}</p>
           </div>
           <button @click="openCreateWizard" class="btn-primary">
             <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
               <path d="M10 4V16M4 10H16" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
             </svg>
-            <span>Neues Material</span>
+            <span>{{ t('materialsView.newMaterial') }}</span>
           </button>
         </div>
       </header>
@@ -40,7 +40,7 @@
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M3 21L12 3l9 18H3z"/>
           </svg>
-          Kombos
+          {{ t('materialsView.tabCombos') }}
           <span class="tab-count">{{ comboCount }}</span>
         </button>
         <button 
@@ -51,7 +51,7 @@
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
           </svg>
-          Alle Artikel
+          {{ t('materialsView.tabAll') }}
           <span class="tab-count">{{ allCount }}</span>
         </button>
         <button 
@@ -62,7 +62,7 @@
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M3 21L12 3l9 18H3z"/>
           </svg>
-          Virtuelle Kobis
+          {{ t('materialsView.tabVirtualCombos') }}
           <span class="tab-count">{{ virtualComboCount }}</span>
         </button>
         <button 
@@ -73,7 +73,7 @@
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <circle cx="12" cy="12" r="10"/><path d="M8 12h8"/>
           </svg>
-          Verbrauchsmaterial
+          {{ t('materialsView.tabConsumables') }}
           <span class="tab-count">{{ consumableCount }}</span>
         </button>
         <button 
@@ -84,7 +84,7 @@
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M18 8h1a4 4 0 0 1 0 8h-1M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8zM6 1v3M10 1v3M14 1v3"/>
           </svg>
-          Esswaren
+          {{ t('materialsView.tabFood') }}
           <span class="tab-count">{{ foodCount }}</span>
         </button>
         <button 
@@ -96,7 +96,7 @@
             <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
             <polyline points="9 22 9 12 15 12 15 22"/>
           </svg>
-          Regale
+          {{ t('materialsView.tabStorage') }}
         </button>
       </div>
 
@@ -108,7 +108,7 @@
             :department-id="currentDepartmentId"
             default-type="material"
             v-model="searchQuery"
-            placeholder="Material suchen (material:, aktivität:, reparatur:)"
+            :placeholder="t('materialsView.searchPlaceholder')"
           />
         </div>
         
@@ -120,36 +120,36 @@
               :class="{ active: comboFilter === 'all' }" 
               @click="comboFilter = 'all'"
             >
-              Beide
+              {{ t('materialsView.comboFilterBoth') }}
             </button>
             <button 
               class="filter-chip" 
               :class="{ active: comboFilter === 'physical' }" 
               @click="comboFilter = 'physical'"
             >
-              Physisch
+              {{ t('materialsView.comboFilterPhysical') }}
             </button>
             <button 
               class="filter-chip" 
               :class="{ active: comboFilter === 'virtual' }" 
               @click="comboFilter = 'virtual'"
             >
-              Virtuell
+              {{ t('materialsView.comboFilterVirtual') }}
             </button>
           </div>
           <select v-model="selectedCategory" class="filter-select">
-            <option value="">Alle Kategorien</option>
+            <option value="">{{ t('materialsView.filterAllCategories') }}</option>
             <option v-for="cat in categories" :key="cat.id" :value="cat.id">
               {{ cat.parent_id ? '↳ ' : '' }}{{ cat.name }} ({{ cat.material_count }})
             </option>
           </select>
           
           <select v-model="selectedCondition" class="filter-select">
-            <option value="">Alle Zustände</option>
-            <option value="ok">OK</option>
-            <option value="defect">Defekt</option>
-            <option value="repair">Reparatur</option>
-            <option value="lost">Verloren</option>
+            <option value="">{{ t('materialsView.filterAllConditions') }}</option>
+            <option value="ok">{{ t('materialsView.conditionOk') }}</option>
+            <option value="defect">{{ t('materialsView.conditionDefect') }}</option>
+            <option value="repair">{{ t('materialsView.conditionRepair') }}</option>
+            <option value="lost">{{ t('materialsView.conditionLost') }}</option>
           </select>
           
           <button
@@ -158,7 +158,7 @@
             :style="{ visibility: hasActiveFilters ? 'visible' : 'hidden' }"
             :aria-hidden="!hasActiveFilters"
           >
-            Filter zurücksetzen
+            {{ t('materialsView.resetFilters') }}
           </button>
         </div>
       </div>
@@ -176,7 +176,7 @@
         <!-- Loading State -->
         <div v-else-if="isLoading" class="loading-state">
         <div class="spinner"></div>
-        <p>Materialien werden geladen...</p>
+        <p>{{ t('materialsView.loading') }}</p>
       </div>
 
       <!-- Error State -->
@@ -187,7 +187,7 @@
           <line x1="12" y1="16" x2="12.01" y2="16"/>
         </svg>
         <p class="error-message">{{ error }}</p>
-        <button @click="loadData" class="retry-btn">Erneut versuchen</button>
+        <button @click="loadData" class="retry-btn">{{ t('materialsView.retry') }}</button>
       </div>
 
       <!-- Empty State -->
@@ -202,13 +202,13 @@
             <path d="M90 75V95M80 85H100" stroke="#10b981" stroke-width="3" stroke-linecap="round"/>
           </svg>
         </div>
-        <h2>Noch keine Materialien</h2>
-        <p>Erfassen Sie Ihr erstes Material, um Ihr Inventar zu starten.</p>
+        <h2>{{ t('materialsView.emptyTitle') }}</h2>
+        <p>{{ t('materialsView.emptyDescription') }}</p>
         <button @click="openCreateWizard" class="btn-primary btn-large">
           <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
             <path d="M10 4V16M4 10H16" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
           </svg>
-          Erstes Material erfassen
+          {{ t('materialsView.emptyCta') }}
         </button>
       </div>
 
@@ -221,9 +221,9 @@
             <line x1="35" y1="45" x2="55" y2="45" stroke="#e5e7eb" stroke-width="3" stroke-linecap="round"/>
           </svg>
         </div>
-        <h2>Keine Treffer</h2>
-        <p>Keine Materialien entsprechen Ihren Filterkriterien.</p>
-        <button @click="resetFilters" class="btn-secondary">Filter zurücksetzen</button>
+        <h2>{{ t('materialsView.noResultsTitle') }}</h2>
+        <p>{{ t('materialsView.noResultsDescription') }}</p>
+        <button @click="resetFilters" class="btn-secondary">{{ t('materialsView.resetFilters') }}</button>
       </div>
 
       <!-- Materials Table -->
@@ -232,15 +232,15 @@
             <thead>
               <tr>
                 <th v-if="showComboExpandColumn" class="col-expand"></th>
-                <th class="col-code">Code</th>
-                <th class="col-name">Name</th>
-                <th v-if="showComboColumns" class="col-type">Typ</th>
-                <th class="col-category">Kategorie</th>
-                <th class="col-stock">Total</th>
-                <th v-if="showComboColumns" class="col-stock-sm">Kombo</th>
-                <th class="col-stock-sm">Draussen</th>
-                <th class="col-stock-sm">Reparatur</th>
-                <th class="col-stock-sm">Verfügbar</th>
+                <th class="col-code">{{ t('materialsView.colCode') }}</th>
+                <th class="col-name">{{ t('materialsView.colName') }}</th>
+                <th v-if="showComboColumns" class="col-type">{{ t('materialsView.colType') }}</th>
+                <th class="col-category">{{ t('materialsView.colCategory') }}</th>
+                <th class="col-stock">{{ t('materialsView.colTotal') }}</th>
+                <th v-if="showComboColumns" class="col-stock-sm">{{ t('materialsView.colCombo') }}</th>
+                <th class="col-stock-sm">{{ t('materialsView.colIssuedOut') }}</th>
+                <th class="col-stock-sm">{{ t('materialsView.colRepair') }}</th>
+                <th class="col-stock-sm">{{ t('materialsView.colAvailable') }}</th>
                 <th class="col-actions"></th>
               </tr>
             </thead>
@@ -259,7 +259,7 @@
                       class="expand-btn"
                       :class="{ expanded: expandedCombos.has(material.id) }"
                       :aria-expanded="expandedCombos.has(material.id)"
-                      title="Untermaterialien anzeigen"
+                      :title="t('materialsView.expandComboTitle')"
                       @click.stop="toggleComboExpand(material.id)"
                     >
                       <svg class="table-icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -304,14 +304,18 @@
                         </span>
                         <span v-if="material.manufacturer" class="material-manufacturer">{{ material.manufacturer }}</span>
                         <span v-if="material.open_loss_reports > 0" class="loss-reported-badge">
-                          Verlust gemeldet ({{ material.open_loss_qty }} Stk.)
+                          {{ t('materialsView.lossReported', { qty: material.open_loss_qty }) }}
                         </span>
                       </div>
                     </div>
                   </td>
                   <td v-if="showComboColumns" class="col-type">
                     <span class="combo-type-badge" :class="material.material_type">
-                      {{ material.material_type === 'physical_combo' ? 'Physisch' : 'Virtuell' }}
+                      {{
+                        material.material_type === 'physical_combo'
+                          ? t('components.materialDetail.typePhysicalShort')
+                          : t('components.materialDetail.typeVirtualShort')
+                      }}
                     </span>
                   </td>
                   <td class="col-category">
@@ -344,7 +348,7 @@
                     </span>
                   </td>
                   <td class="col-actions">
-                    <button class="action-btn" @click.stop="openMaterialDetail(material)" title="Details öffnen">
+                    <button class="action-btn" @click.stop="openMaterialDetail(material)" :title="t('materialsView.titleOpenDetails')">
                       <svg class="table-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
                         <circle cx="12" cy="12" r="3"/>
@@ -362,19 +366,19 @@
                     <div class="combo-components-container">
                       <div v-if="comboComponentsLoading.has(material.id)" class="combo-loading">
                         <div class="spinner-sm"></div>
-                        Komponenten werden geladen...
+                        {{ t('materialsView.comboComponentsLoading') }}
                       </div>
                       <div v-else-if="(comboComponentsCache.get(material.id) || []).length === 0" class="combo-empty">
-                        Keine Komponenten zugewiesen
+                        {{ t('materialsView.comboComponentsEmpty') }}
                       </div>
                       <table v-else class="combo-sub-table">
                         <thead>
                           <tr>
-                            <th>Komponente</th>
-                            <th>Seriennummer</th>
-                            <th>Menge</th>
-                            <th>Zuordnung</th>
-                            <th>Status</th>
+                            <th>{{ t('materialsView.subColComponent') }}</th>
+                            <th>{{ t('materialsView.subColSerial') }}</th>
+                            <th>{{ t('materialsView.subColQty') }}</th>
+                            <th>{{ t('materialsView.subColAssignment') }}</th>
+                            <th>{{ t('materialsView.subColStatus') }}</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -400,9 +404,9 @@
                               </span>
                             </td>
                             <td>
-                              <span v-if="comp.is_awaiting" class="status-dot awaiting" title="Wartet auf Zuweisung"></span>
-                              <span v-else-if="comp.is_assigned" class="status-dot assigned" title="Zugewiesen"></span>
-                              <span v-else class="status-dot linked" title="Verknüpft"></span>
+                              <span v-if="comp.is_awaiting" class="status-dot awaiting" :title="t('materialsView.statusAwaitingTitle')"></span>
+                              <span v-else-if="comp.is_assigned" class="status-dot assigned" :title="t('materialsView.statusAssignedTitle')"></span>
+                              <span v-else class="status-dot linked" :title="t('materialsView.statusLinkedTitle')"></span>
                             </td>
                           </tr>
                         </tbody>
@@ -414,7 +418,7 @@
             </tbody>
           </table>
           
-          <p class="table-hint">Doppelklick auf eine Zeile öffnet die Detailansicht</p>
+          <p class="table-hint">{{ t('materialsView.tableHint') }}</p>
         </div>
       </div>
     </div>
@@ -431,7 +435,8 @@
 
 <script setup lang="ts">
 defineOptions({ name: 'MaterialsView' })
-import { ref, computed, reactive, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import {
   getMaterials,
@@ -451,6 +456,7 @@ import { useToast } from '@/composables/useToast'
 import '@/styles/material-wizard.css'
 
 const route = useRoute()
+const { t } = useI18n()
 const detailTabsStore = useDetailTabsStore()
 const router = useRouter()
 const toast = useToast()
@@ -507,13 +513,12 @@ const comboComponentsLoading = ref<Set<string>>(new Set())
 const selectedMaterialId = computed(() => route.params.materialId as string | undefined || null)
 const showDetailView = computed(() => !!selectedMaterialId.value)
 
-// Assignment Mode Labels
-const assignmentLabels: Record<string, string> = {
-  fixed: 'Fest verbaut',
-  assigned: 'Zugewiesen',
-  on_issue: 'Bei Ausgabe',
-  bulk: 'Mengenware'
-}
+const assignmentLabels = computed((): Record<string, string> => ({
+  fixed: t('components.materialDetail.assignmentFixed'),
+  assigned: t('components.materialDetail.assignmentAssigned'),
+  on_issue: t('components.materialDetail.assignmentOnIssue'),
+  bulk: t('components.materialDetail.assignmentBulk'),
+}))
 
 // Tab Counts
 const comboCount = computed(() => 
@@ -620,7 +625,7 @@ async function loadData() {
     materials.value = materialsData
     categories.value = categoriesData
   } catch (err: any) {
-    error.value = err.response?.data?.error || 'Fehler beim Laden der Materialien'
+    error.value = err.response?.data?.error || t('materialsView.errLoadList')
   } finally {
     isLoading.value = false
   }
@@ -662,7 +667,7 @@ async function toggleComboExpand(materialId: string) {
       comboComponentsCache.value.set(materialId, components)
       comboComponentsCache.value = new Map(comboComponentsCache.value)
     } catch (err) {
-      console.error('Fehler beim Laden der Komponenten:', err)
+      console.error(t('materialsView.logErrorLoadComponents'), err)
       comboComponentsCache.value.set(materialId, [])
       comboComponentsCache.value = new Map(comboComponentsCache.value)
     } finally {
@@ -729,11 +734,11 @@ async function handleMaterialCreated(material: Material) {
         assignment_mode: defaultMode,
         sort_order: existing.length,
       })
-      toast.success('Neuer Artikel wurde zur Zusammensetzung hinzugefügt.')
+      toast.success(t('materialsView.toastAddedToComposition'))
     } catch (err: unknown) {
       const ax = err as { response?: { data?: { error?: string } } }
       console.error(err)
-      toast.error(ax.response?.data?.error || 'Komponente konnte nicht verknüpft werden.')
+      toast.error(ax.response?.data?.error || t('materialsView.errLinkComponent'))
     }
   }
 
@@ -779,7 +784,7 @@ watch(
     detailTabsStore.addOrUpdateTab({
       id: matId,
       type: 'material',
-      label: m?.name || `Material ${matId}`,
+      label: m?.name || t('materialsView.fallbackTabLabel', { id: matId }),
       departmentId: deptId,
       path: `/${deptId}/materials/${matId}`,
     })

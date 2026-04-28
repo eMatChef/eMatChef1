@@ -356,7 +356,7 @@ async function loadRacks() {
       form.to_location_id = targetLocations.value[0].id
     }
   } catch (e) {
-    console.error('Racks laden fehlgeschlagen:', e)
+    console.error(t('components.moveQuantityModal.logErrorLoadRacks'), e)
   }
 }
 
@@ -365,7 +365,7 @@ async function loadSlotsForRack(rackId: string) {
   try {
     await loadSlots(rackId)
   } catch (e) {
-    console.error('Slots laden fehlgeschlagen:', e)
+    console.error(t('components.moveQuantityModal.logErrorLoadSlots'), e)
   }
 }
 

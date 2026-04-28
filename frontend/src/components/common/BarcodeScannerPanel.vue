@@ -10,6 +10,7 @@
 import { nextTick, onUnmounted, ref, watch, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { BrowserMultiFormatReader } from '@zxing/browser'
+import { localizedBarcodeScannerError } from '@/utils/barcodeScannerErrors'
 import { BarcodeFormat, DecodeHintType } from '@zxing/library'
 
 const props = withDefaults(defineProps<{
@@ -85,7 +86,8 @@ async function startScanner() {
       })
     })
   } catch (err: any) {
-    const message = err?.message || t('components.barcodeScanner.cameraStartError')
+    const raw = typeof err?.message === 'string' ? err.message.trim() : ''
+    const message = localizedBarcodeScannerError(raw, t)
     errorMessage.value = message
     emit('error', message)
   }

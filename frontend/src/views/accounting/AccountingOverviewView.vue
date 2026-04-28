@@ -1,15 +1,15 @@
 <template>
   <div class="accounting-subpage accounting-overview">
     <p class="description intro">
-      Ist-Kosten aus erfassten Buchungen (CHF). Budget-Soll und Exporte folgen später.
+      {{ t('accounting.overview.intro') }}
     </p>
 
     <div v-if="loadError" class="overview-error">{{ loadError }}</div>
-    <div v-else-if="loading" class="loading-inline">Laden…</div>
+    <div v-else-if="loading" class="loading-inline">{{ t('accounting.common.loading') }}</div>
     <template v-else-if="overview">
       <div class="overview-toolbar">
         <label class="overview-year-label">
-          Jahr für Detailauswertung
+          {{ t('accounting.overview.yearDetailLabel') }}
           <select v-model.number="selectedYear" class="filter-select" @change="reload">
             <option v-for="y in yearOptions" :key="y" :value="y">{{ y }}</option>
           </select>
@@ -18,41 +18,41 @@
 
       <div class="acc-kpi-grid">
         <div class="acc-kpi-card">
-          <div class="acc-kpi-label">Kosten (Ist) {{ overview.selected_year }}</div>
+          <div class="acc-kpi-label">{{ t('accounting.overview.kpiCostsActual', { year: overview.selected_year }) }}</div>
           <div class="acc-kpi-value">CHF {{ formatMoney(overview.selected_year_total_chf) }}</div>
-          <div class="acc-kpi-meta">{{ overview.selected_year_booking_count }} Buchungen</div>
+          <div class="acc-kpi-meta">{{ t('accounting.overview.kpiBookingsMeta', { count: overview.selected_year_booking_count }) }}</div>
         </div>
         <div class="acc-kpi-card">
-          <div class="acc-kpi-label">Kostenstellen</div>
+          <div class="acc-kpi-label">{{ t('accounting.overview.kpiCostCenters') }}</div>
           <div class="acc-kpi-value">{{ overview.cost_center_count }}</div>
           <div class="acc-kpi-meta">
-            <router-link :to="{ name: 'AccountingCostCenters', params: { departmentId } }">Verwalten</router-link>
+            <router-link :to="{ name: 'AccountingCostCenters', params: { departmentId } }">{{ t('accounting.common.manage') }}</router-link>
           </div>
         </div>
         <div class="acc-kpi-card" :class="{ 'acc-kpi-card--warn': overview.pending_followup_count > 0 }">
-          <div class="acc-kpi-label">Offene Anschaffungen</div>
+          <div class="acc-kpi-label">{{ t('accounting.overview.kpiPending') }}</div>
           <div class="acc-kpi-value">{{ overview.pending_followup_count }}</div>
           <div class="acc-kpi-meta">
             <router-link
               v-if="overview.pending_followup_count > 0"
               :to="{ name: 'AccountingBookings', params: { departmentId }, query: { sub: 'assign' } }"
             >
-              Zuordnen
+              {{ t('accounting.common.assign') }}
             </router-link>
-            <span v-else>—</span>
+            <span v-else>{{ t('accounting.common.emDash') }}</span>
           </div>
         </div>
       </div>
 
       <section v-if="overview.years.length" class="overview-section">
-        <h2 class="overview-section-title">Summen nach Jahr</h2>
+        <h2 class="overview-section-title">{{ t('accounting.overview.sectionByYear') }}</h2>
         <div class="cost-centers-table-wrap">
           <table class="cost-centers-table overview-table">
             <thead>
               <tr>
-                <th>Jahr</th>
-                <th>Buchungen</th>
-                <th class="col-num">Summe CHF</th>
+                <th>{{ t('accounting.overview.colYear') }}</th>
+                <th>{{ t('accounting.overview.colBookings') }}</th>
+                <th class="col-num">{{ t('accounting.overview.colSumChf') }}</th>
               </tr>
             </thead>
             <tbody>
@@ -71,15 +71,15 @@
       </section>
 
       <section class="overview-section">
-        <h2 class="overview-section-title">Summen nach Kostenstelle ({{ overview.selected_year }})</h2>
-        <div v-if="!overview.by_cost_center.length" class="empty-hint">Noch keine Kostenstellen angelegt.</div>
+        <h2 class="overview-section-title">{{ t('accounting.overview.sectionByCc', { year: overview.selected_year }) }}</h2>
+        <div v-if="!overview.by_cost_center.length" class="empty-hint">{{ t('accounting.overview.emptyNoCenters') }}</div>
         <div v-else class="cost-centers-table-wrap">
           <table class="cost-centers-table overview-table">
             <thead>
               <tr>
-                <th>Kostenstelle</th>
-                <th>Buchungen</th>
-                <th class="col-num">Summe CHF</th>
+                <th>{{ t('accounting.overview.colCostCenter') }}</th>
+                <th>{{ t('accounting.overview.colBookings') }}</th>
+                <th class="col-num">{{ t('accounting.overview.colSumChf') }}</th>
               </tr>
             </thead>
             <tbody>
@@ -94,14 +94,14 @@
       </section>
 
       <section v-if="overview.by_entry_type.length" class="overview-section">
-        <h2 class="overview-section-title">Summen nach Buchungstyp ({{ overview.selected_year }})</h2>
+        <h2 class="overview-section-title">{{ t('accounting.overview.sectionByEntryType', { year: overview.selected_year }) }}</h2>
         <div class="cost-centers-table-wrap">
           <table class="cost-centers-table overview-table">
             <thead>
               <tr>
-                <th>Typ</th>
-                <th>Buchungen</th>
-                <th class="col-num">Summe CHF</th>
+                <th>{{ t('accounting.common.type') }}</th>
+                <th>{{ t('accounting.overview.colBookings') }}</th>
+                <th class="col-num">{{ t('accounting.overview.colSumChf') }}</th>
               </tr>
             </thead>
             <tbody>
@@ -116,7 +116,7 @@
       </section>
 
       <p class="overview-footnote">
-        <router-link :to="{ name: 'AccountingBookings', params: { departmentId } }">Zu Buchungen</router-link>
+        <router-link :to="{ name: 'AccountingBookings', params: { departmentId } }">{{ t('accounting.common.linkToBookings') }}</router-link>
       </p>
     </template>
   </div>
@@ -125,21 +125,16 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { getAccountingOverview, type AccountingOverview } from '@/api/accountingOverview'
 
 const route = useRoute()
+const { t, te } = useI18n()
 const departmentId = computed(() => String(route.params.departmentId || ''))
 
-const ENTRY_LABELS: Record<string, string> = {
-  purchase: 'Einkauf',
-  repair_external: 'Reparatur (extern)',
-  repair_internal: 'Reparatur (intern)',
-  amortization: 'Abschreibung',
-  other: 'Sonstiges',
-}
-
 function entryLabel(k: string): string {
-  return ENTRY_LABELS[k] || k
+  const key = `accounting.entryType.${k}`
+  return te(key) ? t(key) : k
 }
 
 const loading = ref(true)
@@ -175,7 +170,7 @@ async function load() {
       e && typeof e === 'object' && 'response' in e
         ? (e as { response?: { data?: { error?: string } } }).response?.data?.error
         : null
-    loadError.value = msg || 'Übersicht konnte nicht geladen werden.'
+    loadError.value = msg || t('accounting.overview.loadError')
     overview.value = null
   } finally {
     loading.value = false

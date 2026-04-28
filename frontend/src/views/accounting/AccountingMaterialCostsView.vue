@@ -1,13 +1,12 @@
 <template>
   <div class="accounting-subpage accounting-material-costs">
     <p class="description intro">
-      Summierte <strong>Ist-Kosten</strong> (CHF) pro Material aus Buchungen: mit direkt zugeordnetem Material oder über
-      erfasste Anschaffungen (Charge → Material). Jahr = Kalenderjahr des Buchungsdatums.
+      {{ t('accounting.materialCosts.intro') }}
     </p>
 
     <div class="mc-toolbar">
       <label class="mc-year-label">
-        Jahr
+        {{ t('accounting.common.year') }}
         <select v-model.number="year" class="filter-select" @change="reload">
           <option v-for="y in yearOptions" :key="y" :value="y">{{ y }}</option>
         </select>
@@ -16,33 +15,32 @@
         class="btn btn-secondary btn-sm"
         :to="{ name: 'AccountingBookings', params: { departmentId } }"
       >
-        Zu Buchungen
+        {{ t('accounting.common.linkToBookings') }}
       </router-link>
     </div>
 
     <div v-if="loadError" class="mc-error">{{ loadError }}</div>
-    <div v-else-if="loading" class="loading-inline">Laden…</div>
+    <div v-else-if="loading" class="loading-inline">{{ t('accounting.common.loading') }}</div>
     <template v-else-if="data">
       <div v-if="data.rows.length === 0" class="empty-hint">
-        Keine Buchungen mit Materialbezug für {{ year }}. Ordne in der Buchung ein Material zu (z. B. Reparatur) oder
-        erfasse Anschaffungen über „Neue Buchung zuordnen“.
+        {{ t('accounting.materialCosts.empty', { year }) }}
       </div>
       <template v-else>
         <div class="acc-kpi-grid mc-kpis">
           <div class="acc-kpi-card">
-            <div class="acc-kpi-label">Summe Ist ({{ year }})</div>
+            <div class="acc-kpi-label">{{ t('accounting.materialCosts.kpiSumLabel', { year }) }}</div>
             <div class="acc-kpi-value">CHF {{ formatMoney(data.totals.total_chf) }}</div>
-            <div class="acc-kpi-meta">{{ data.totals.booking_count }} Buchungen (mit Materialbezug)</div>
+            <div class="acc-kpi-meta">{{ t('accounting.materialCosts.kpiMeta', { count: data.totals.booking_count }) }}</div>
           </div>
         </div>
         <div class="cost-centers-table-wrap">
           <table class="cost-centers-table mc-table">
             <thead>
               <tr>
-                <th>Material</th>
-                <th class="col-num">Buchungen</th>
-                <th class="col-num">Summe CHF</th>
-                <th class="col-actions">Aktion</th>
+                <th>{{ t('accounting.materialCosts.colMaterial') }}</th>
+                <th class="col-num">{{ t('accounting.materialCosts.colBookings') }}</th>
+                <th class="col-num">{{ t('accounting.materialCosts.colSumChf') }}</th>
+                <th class="col-actions">{{ t('accounting.common.action') }}</th>
               </tr>
             </thead>
             <tbody>
@@ -55,7 +53,7 @@
                     class="btn-outline btn-xs"
                     :to="materialLink(row.material_id)"
                   >
-                    Material öffnen
+                    {{ t('accounting.materialCosts.openMaterial') }}
                   </router-link>
                 </td>
               </tr>
@@ -70,9 +68,11 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { getMaterialCosts, type MaterialCostsResponse } from '@/api/accountingMaterialCosts'
 
 const route = useRoute()
+const { t } = useI18n()
 const departmentId = computed(() => String(route.params.departmentId || ''))
 
 const year = ref(new Date().getFullYear())
@@ -112,7 +112,7 @@ async function load() {
       e && typeof e === 'object' && 'response' in e
         ? (e as { response?: { data?: { error?: string } } }).response?.data?.error
         : null
-    loadError.value = msg || 'Auswertung konnte nicht geladen werden.'
+    loadError.value = msg || t('accounting.materialCosts.loadError')
     data.value = null
   } finally {
     loading.value = false

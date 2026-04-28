@@ -3,8 +3,8 @@
     <!-- Header -->
     <div class="page-header">
       <div>
-        <h2 class="settings-title">Benutzer</h2>
-        <p class="settings-description">Benutzer verwalten und Rollen zuweisen</p>
+        <h2 class="settings-title">{{ t('settings.departmentUsers.title') }}</h2>
+        <p class="settings-description">{{ t('settings.departmentUsers.subtitle') }}</p>
       </div>
       <button class="btn btn-primary" @click="openAddModal()">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -12,7 +12,7 @@
           <circle cx="8.5" cy="7" r="4"/>
           <line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/>
         </svg>
-        Benutzer hinzufügen
+        {{ t('settings.departmentUsers.addUser') }}
       </button>
     </div>
 
@@ -20,15 +20,15 @@
     <div v-if="!isLoading && members.length > 0" class="stats-bar">
       <div class="stat-item">
         <span class="stat-value">{{ members.length }}</span>
-        <span class="stat-label">Benutzer</span>
+        <span class="stat-label">{{ t('settings.departmentUsers.statsUsers') }}</span>
       </div>
       <div class="stat-item">
         <span class="stat-value">{{ leaderCount }}</span>
-        <span class="stat-label">Leiter/Admins</span>
+        <span class="stat-label">{{ t('settings.departmentUsers.statsLeaders') }}</span>
       </div>
       <div class="stat-item">
         <span class="stat-value">{{ memberCount }}</span>
-        <span class="stat-label">Mitglieder</span>
+        <span class="stat-label">{{ t('settings.departmentUsers.statsMembers') }}</span>
       </div>
     </div>
 
@@ -40,37 +40,37 @@
       <input 
         v-model="searchQuery" 
         type="text" 
-        placeholder="Benutzer suchen (Name, Spitzname, Vorname, Nachname, E-Mail)..."
+        :placeholder="t('settings.departmentUsers.searchPlaceholder')"
         class="search-input"
       />
     </div>
 
     <div v-if="canManagePendingInvites && !isLoading" class="pending-invites-card">
       <div class="pending-head">
-        <h3>Eingeladene Mitglieder</h3>
+        <h3>{{ t('settings.departmentUsers.pendingInvitesTitle') }}</h3>
         <span class="pending-count">{{ pendingInvites.length }}</span>
       </div>
       <p v-if="pendingInvitesError" class="pending-error">{{ pendingInvitesError }}</p>
-      <p v-else-if="isLoadingPendingInvites" class="pending-muted">Einladungen werden geladen...</p>
+      <p v-else-if="isLoadingPendingInvites" class="pending-muted">{{ t('settings.departmentUsers.pendingLoading') }}</p>
       <ul v-else-if="pendingInvites.length > 0" class="pending-list">
         <li v-for="invite in pendingInvites" :key="invite.id" class="pending-item">
           <span>{{ invite.email }} ({{ getRoleLabel(invite.role) }})</span>
-          <button class="btn btn-secondary btn-sm" @click="removePendingInviteItem(invite.id)">Loeschen</button>
+          <button class="btn btn-secondary btn-sm" @click="removePendingInviteItem(invite.id)">{{ t('settings.departmentUsers.pendingDelete') }}</button>
         </li>
       </ul>
-      <p v-else class="pending-muted">Keine offenen Einladungen vorhanden.</p>
+      <p v-else class="pending-muted">{{ t('settings.departmentUsers.pendingNone') }}</p>
     </div>
 
     <!-- Loading -->
     <div v-if="isLoading" class="loading-state">
       <div class="spinner"></div>
-      <p>Benutzer werden geladen...</p>
+      <p>{{ t('settings.departmentUsers.loading') }}</p>
     </div>
 
     <!-- Error -->
     <div v-else-if="error" class="error-state">
       <p class="error-message">{{ error }}</p>
-      <button @click="loadMembers" class="btn btn-secondary">Erneut versuchen</button>
+      <button @click="loadMembers" class="btn btn-secondary">{{ t('settings.departmentUsers.retry') }}</button>
     </div>
 
     <!-- Empty State -->
@@ -80,10 +80,10 @@
         <circle cx="8.5" cy="7" r="4"/>
         <line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/>
       </svg>
-      <h3>Noch keine Benutzer</h3>
-      <p>Fügen Sie Benutzer zu diesem Department hinzu.</p>
+      <h3>{{ t('settings.departmentUsers.emptyTitle') }}</h3>
+      <p>{{ t('settings.departmentUsers.emptyText') }}</p>
       <button class="btn btn-primary" @click="openAddModal()">
-        Ersten Benutzer hinzufügen
+        {{ t('settings.departmentUsers.emptyCta') }}
       </button>
     </div>
 
@@ -93,15 +93,15 @@
         <thead>
           <tr>
             <th class="col-name" @click="toggleSort('name')">
-              Name
+              {{ t('settings.departmentUsers.colName') }}
               <span v-if="sortBy === 'name'" class="sort-indicator">{{ sortDir === 'asc' ? '↑' : '↓' }}</span>
             </th>
-            <th class="col-email">E-Mail</th>
+            <th class="col-email">{{ t('settings.departmentUsers.colEmail') }}</th>
             <th class="col-role" @click="toggleSort('role')">
-              Rolle
+              {{ t('settings.departmentUsers.colRole') }}
               <span v-if="sortBy === 'role'" class="sort-indicator">{{ sortDir === 'asc' ? '↑' : '↓' }}</span>
             </th>
-            <th class="col-primary">Primär</th>
+            <th class="col-primary">{{ t('settings.departmentUsers.colPrimary') }}</th>
             <th class="col-actions"></th>
           </tr>
         </thead>
@@ -142,7 +142,7 @@
 
             <!-- Primär -->
             <td class="col-primary">
-              <span v-if="member.is_primary" class="primary-star" title="Primäres Department">★</span>
+              <span v-if="member.is_primary" class="primary-star" :title="t('settings.departmentUsers.primaryStarTitle')">★</span>
               <span v-else class="text-muted">–</span>
             </td>
 
@@ -151,7 +151,7 @@
               <div class="action-buttons">
                 <button 
                   class="action-btn" 
-                  title="Rolle bearbeiten"
+                  :title="t('settings.departmentUsers.titleEditRole')"
                   @click="openEditModal(member)"
                 >
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -162,7 +162,7 @@
                 <button 
                   v-if="!isCurrentUser(member)"
                   class="action-btn action-btn-danger" 
-                  title="Aus Department entfernen"
+                  :title="t('settings.departmentUsers.titleRemoveFromDept')"
                   @click="handleRemove(member)"
                 >
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -185,7 +185,7 @@
       <div v-if="showAddModal" class="modal-overlay">
         <div class="modal-container modal-sm">
           <div class="modal-header">
-            <h3>Benutzer hinzufügen</h3>
+            <h3>{{ t('settings.departmentUsers.modalAddTitle') }}</h3>
             <button class="close-btn" @click="closeAddModal">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
@@ -196,16 +196,16 @@
           <div class="modal-body">
             <div v-if="isLoadingAvailable" class="loading-inline">
               <div class="spinner-sm"></div>
-              <span>Lade verfügbare Benutzer...</span>
+              <span>{{ t('settings.departmentUsers.modalLoadingAvailable') }}</span>
             </div>
 
             <div v-else-if="availableUsers.length === 0" class="no-users-hint">
-              <p>Keine weiteren Benutzer verfügbar. Alle User sind bereits diesem Department zugewiesen.</p>
+              <p>{{ t('settings.departmentUsers.modalNoAvailableUsers') }}</p>
             </div>
 
             <template v-else>
               <div class="form-group">
-                <label>Benutzer *</label>
+                <label>{{ t('settings.departmentUsers.labelUserRequired') }}</label>
                 <div class="autocomplete-wrapper">
                   <div v-if="selectedAvailableUser" class="selected-user-chip">
                     <span>{{ selectedAvailableUser.name }} ({{ selectedAvailableUser.email }})</span>
@@ -220,7 +220,7 @@
                     v-model="userSearchQuery"
                     type="text"
                     class="form-input"
-                    placeholder="Name oder E-Mail eingeben (mind. 3 Zeichen)..."
+                    :placeholder="t('settings.departmentUsers.userSearchPlaceholder')"
                     @focus="showUserDropdown = true"
                     @blur="handleUserSearchBlur"
                     ref="userSearchInput"
@@ -237,19 +237,19 @@
                     </div>
                   </div>
                   <div v-if="showUserDropdown && userSearchQuery.length >= 3 && filteredAvailableUsers.length === 0" class="autocomplete-dropdown">
-                    <div class="autocomplete-empty">Kein Treffer</div>
+                    <div class="autocomplete-empty">{{ t('settings.departmentUsers.autocompleteEmpty') }}</div>
                   </div>
                   <div v-if="showUserDropdown && userSearchQuery.length > 0 && userSearchQuery.length < 3" class="autocomplete-hint">
-                    Noch {{ 3 - userSearchQuery.length }} Zeichen...
+                    {{ t('settings.departmentUsers.autocompleteCharsHint', { n: Math.max(0, 3 - userSearchQuery.length) }) }}
                   </div>
                 </div>
               </div>
 
               <div class="form-group">
-                <label>Rolle</label>
+                <label>{{ t('settings.departmentUsers.labelRole') }}</label>
                 <select v-model="addForm.role" class="form-select">
                   <option v-for="(cfg, key) in assignableRoles" :key="key" :value="key">
-                    {{ cfg.short }} – {{ cfg.label }}
+                    {{ cfg.short }} – {{ getRoleLabel(String(key)) }}
                   </option>
                 </select>
               </div>
@@ -257,20 +257,20 @@
               <div class="form-group">
                 <label class="checkbox-label">
                   <input type="checkbox" v-model="addForm.is_primary" />
-                  Primäres Department
+                  {{ t('settings.departmentUsers.primaryDepartment') }}
                 </label>
               </div>
             </template>
           </div>
 
           <div class="modal-footer">
-            <button class="btn btn-secondary" @click="closeAddModal">Abbrechen</button>
+            <button class="btn btn-secondary" @click="closeAddModal">{{ t('settings.departmentUsers.cancel') }}</button>
             <button 
               class="btn btn-primary" 
               :disabled="!addForm.user_id || isSaving"
               @click="handleAdd"
             >
-              {{ isSaving ? 'Speichere...' : 'Hinzufügen' }}
+              {{ isSaving ? t('settings.departmentUsers.saving') : t('settings.departmentUsers.add') }}
             </button>
           </div>
         </div>
@@ -284,7 +284,7 @@
       <div v-if="showEditModal && editingMember" class="modal-overlay">
         <div class="modal-container modal-sm">
           <div class="modal-header">
-            <h3>Rolle bearbeiten: {{ editingMember.name }}</h3>
+            <h3>{{ t('settings.departmentUsers.modalEditTitle', { name: editingMember.name }) }}</h3>
             <button class="close-btn" @click="closeEditModal">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
@@ -294,10 +294,10 @@
 
           <div class="modal-body">
             <div class="form-group">
-              <label>Rolle</label>
+              <label>{{ t('settings.departmentUsers.labelRole') }}</label>
               <select v-model="editForm.role" class="form-select">
                 <option v-for="(cfg, key) in assignableRoles" :key="key" :value="key">
-                  {{ cfg.short }} – {{ cfg.label }}
+                  {{ cfg.short }} – {{ getRoleLabel(String(key)) }}
                 </option>
               </select>
             </div>
@@ -305,19 +305,19 @@
             <div class="form-group">
               <label class="checkbox-label">
                 <input type="checkbox" v-model="editForm.is_primary" />
-                Primäres Department
+                {{ t('settings.departmentUsers.primaryDepartment') }}
               </label>
             </div>
           </div>
 
           <div class="modal-footer">
-            <button class="btn btn-secondary" @click="closeEditModal">Abbrechen</button>
+            <button class="btn btn-secondary" @click="closeEditModal">{{ t('settings.departmentUsers.cancel') }}</button>
             <button 
               class="btn btn-primary" 
               :disabled="isSaving"
               @click="handleUpdate"
             >
-              {{ isSaving ? 'Speichere...' : 'Speichern' }}
+              {{ isSaving ? t('settings.departmentUsers.saving') : t('settings.departmentUsers.save') }}
             </button>
           </div>
         </div>
@@ -328,6 +328,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useToast } from '@/composables/useToast'
@@ -344,6 +345,7 @@ import {
 } from '@/api/departments'
 
 const route = useRoute()
+const { t } = useI18n()
 const authStore = useAuthStore()
 const toast = useToast()
 const confirm = useConfirm()
@@ -352,12 +354,12 @@ const departmentId = computed(() => (route.params.departmentId as string) || aut
 // === Department Rollen-Konfiguration ===
 
 const DEPT_ROLES = {
-  mw:  { label: 'Materialchef', short: 'MW', color: '#2563eb' },
-  dc:  { label: 'Dep.chef', short: 'DC', color: '#0891b2' },
-  l1:  { label: 'Leader 1', short: 'L1', color: '#10b981' },
-  l2:  { label: 'Leader 2', short: 'L2', color: '#f59e0b' },
-  l3:  { label: 'Leader 3', short: 'L3', color: '#ef4444' },
-  u:   { label: 'Mitglied', short: 'U', color: '#6b7280' },
+  mw: { short: 'MW', color: '#2563eb' },
+  dc: { short: 'DC', color: '#0891b2' },
+  l1: { short: 'L1', color: '#10b981' },
+  l2: { short: 'L2', color: '#f59e0b' },
+  l3: { short: 'L3', color: '#ef4444' },
+  u: { short: 'U', color: '#6b7280' },
 } as const
 
 type DeptRoleKey = keyof typeof DEPT_ROLES
@@ -411,7 +413,9 @@ function getRoleShort(role: string): string {
 }
 
 function getRoleLabel(role: string): string {
-  return DEPT_ROLES[role as DeptRoleKey]?.label || role
+  const key = role as DeptRoleKey
+  if (key in DEPT_ROLES) return t(`settings.departmentUsers.roles.${key}`)
+  return role
 }
 
 function isCurrentUser(member: DepartmentMember): boolean {
@@ -528,7 +532,7 @@ async function loadMembers() {
   try {
     members.value = await getDepartmentMembers(departmentId.value)
   } catch (err: any) {
-    error.value = err.response?.data?.error || 'Fehler beim Laden der Benutzer'
+    error.value = err.response?.data?.error || t('settings.departmentUsers.errLoadMembers')
   } finally {
     isLoading.value = false
   }
@@ -546,7 +550,7 @@ async function loadPendingInvites() {
     pendingInvites.value = await getPendingInvites(departmentId.value)
   } catch (err: any) {
     pendingInvites.value = []
-    pendingInvitesError.value = err.response?.data?.error || 'Pending Einladungen konnten nicht geladen werden.'
+    pendingInvitesError.value = err.response?.data?.error || t('settings.departmentUsers.errLoadPendingInvites')
   } finally {
     isLoadingPendingInvites.value = false
   }
@@ -558,7 +562,7 @@ async function loadAvailableUsers(query?: string) {
   try {
     availableUsers.value = await getAvailableUsersForDepartment(departmentId.value, query)
   } catch (err: any) {
-    console.error('Fehler beim Laden verfügbarer User:', err)
+    console.error(t('settings.departmentUsers.logErrorLoadAvailable'), err)
   } finally {
     isLoadingAvailable.value = false
   }
@@ -626,7 +630,7 @@ async function handleAdd() {
     closeAddModal()
     await loadMembers()
   } catch (err: any) {
-    toast.error(err.response?.data?.error || 'Fehler beim Hinzufügen')
+    toast.error(err.response?.data?.error || t('settings.departmentUsers.errAddMember'))
   } finally {
     isSaving.value = false
   }
@@ -659,7 +663,7 @@ async function handleUpdate() {
     closeEditModal()
     await loadMembers()
   } catch (err: any) {
-    toast.error(err.response?.data?.error || 'Fehler beim Aktualisieren')
+    toast.error(err.response?.data?.error || t('settings.departmentUsers.errUpdateMember'))
   } finally {
     isSaving.value = false
   }
@@ -669,14 +673,14 @@ async function handleUpdate() {
 
 async function handleRemove(member: DepartmentMember) {
   if (isCurrentUser(member)) {
-    toast.error('Du kannst dich hier nicht selbst aus dem Department entfernen.')
+    toast.error(t('settings.departmentUsers.errCannotRemoveSelf'))
     return
   }
   const ok = await confirm.confirm({
-    title: 'Mitglied entfernen?',
-    message: `${member.name} wirklich aus dem Department entfernen?`,
-    confirmText: 'Entfernen',
-    cancelText: 'Abbrechen',
+    title: t('settings.departmentUsers.confirmRemoveTitle'),
+    message: t('settings.departmentUsers.confirmRemoveMessage', { name: member.name }),
+    confirmText: t('settings.departmentUsers.confirmRemove'),
+    cancelText: t('settings.departmentUsers.cancel'),
     variant: 'danger',
   })
   if (!ok) return
@@ -684,17 +688,17 @@ async function handleRemove(member: DepartmentMember) {
     await removeDepartmentMember(departmentId.value, member.user_id)
     await loadMembers()
   } catch (err: any) {
-    toast.error(err.response?.data?.error || 'Fehler beim Entfernen')
+    toast.error(err.response?.data?.error || t('settings.departmentUsers.errRemoveMember'))
   }
 }
 
 async function removePendingInviteItem(inviteId: string) {
   if (!departmentId.value) return
   const ok = await confirm.confirm({
-    title: 'Pending Einladung loeschen?',
-    message: 'Die Einladung wird entfernt und ist nicht mehr sichtbar.',
-    confirmText: 'Loeschen',
-    cancelText: 'Abbrechen',
+    title: t('settings.departmentUsers.confirmDeleteInviteTitle'),
+    message: t('settings.departmentUsers.confirmDeleteInviteMessage'),
+    confirmText: t('settings.departmentUsers.confirmDelete'),
+    cancelText: t('settings.departmentUsers.cancel'),
     variant: 'danger',
   })
   if (!ok) return
@@ -702,9 +706,9 @@ async function removePendingInviteItem(inviteId: string) {
   try {
     await deletePendingInvite(departmentId.value, inviteId)
     pendingInvites.value = pendingInvites.value.filter((entry) => entry.id !== inviteId)
-    toast.success('Pending Einladung geloescht.')
+    toast.success(t('settings.departmentUsers.toastInviteDeleted'))
   } catch (err: any) {
-    toast.error(err.response?.data?.error || 'Pending Einladung konnte nicht geloescht werden.')
+    toast.error(err.response?.data?.error || t('settings.departmentUsers.errDeleteInvite'))
   }
 }
 

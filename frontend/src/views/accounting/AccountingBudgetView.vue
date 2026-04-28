@@ -1,79 +1,78 @@
 <template>
   <div class="accounting-subpage accounting-budget">
     <p class="description intro">
-      Geplantes Budget (Soll) in CHF pro Kostenstelle und Kalenderjahr, Vergleich mit erfassten Buchungen (Ist). Export als CSV
-      für Abgleich mit dem Vereins-Finanztool.
+      {{ t('accounting.budget.intro') }}
     </p>
 
     <div class="budget-toolbar">
       <label class="budget-year-label">
-        Jahr
+        {{ t('accounting.common.year') }}
         <select v-model.number="year" class="filter-select" @change="reload">
           <option v-for="y in yearOptions" :key="y" :value="y">{{ y }}</option>
         </select>
       </label>
       <div class="budget-toolbar-actions">
         <button type="button" class="btn btn-secondary btn-sm" :disabled="loading || !comparison" @click="exportCsv">
-          CSV exportieren
+          {{ t('accounting.budget.exportCsv') }}
         </button>
         <button type="button" class="btn btn-primary btn-sm" :disabled="!costCenters.length" @click="openCreateModal">
-          Soll erfassen
+          {{ t('accounting.budget.recordTarget') }}
         </button>
       </div>
     </div>
 
     <div v-if="loadError" class="budget-error">{{ loadError }}</div>
-    <div v-else-if="loading" class="loading-inline">Laden…</div>
+    <div v-else-if="loading" class="loading-inline">{{ t('accounting.common.loading') }}</div>
     <template v-else-if="comparison">
       <div v-if="comparison.totals.budget_chf" class="acc-kpi-grid budget-kpis">
         <div class="acc-kpi-card">
-          <div class="acc-kpi-label">Soll (Summe)</div>
+          <div class="acc-kpi-label">{{ t('accounting.budget.kpiTargetSum') }}</div>
           <div class="acc-kpi-value">CHF {{ formatMoney(comparison.totals.budget_chf) }}</div>
         </div>
         <div class="acc-kpi-card">
-          <div class="acc-kpi-label">Ist (Summe)</div>
+          <div class="acc-kpi-label">{{ t('accounting.budget.kpiActualSum') }}</div>
           <div class="acc-kpi-value">CHF {{ formatMoney(comparison.totals.ist_chf) }}</div>
         </div>
         <div class="acc-kpi-card" :class="{ 'acc-kpi-card--warn': parseFloat(comparison.totals.remaining_chf || '0') < 0 }">
-          <div class="acc-kpi-label">Rest (Soll − Ist)</div>
+          <div class="acc-kpi-label">{{ t('accounting.budget.kpiRemaining') }}</div>
           <div class="acc-kpi-value">CHF {{ formatMoney(comparison.totals.remaining_chf || '0') }}</div>
         </div>
       </div>
       <p v-else class="muted-hint">
-        Noch kein Budget-Soll für {{ year }} erfasst. Kostenstellen zeigen nur Ist-Werte.
+        {{ t('accounting.budget.noBudgetYet', { year }) }}
       </p>
 
       <div class="cost-centers-table-wrap">
         <table class="cost-centers-table budget-table">
           <thead>
             <tr>
-              <th>Kostenstelle</th>
-              <th class="col-num">Soll CHF</th>
-              <th class="col-num">Ist CHF</th>
-              <th class="col-num">Rest</th>
-              <th>Buchungen</th>
-              <th class="col-actions">Aktionen</th>
+              <th>{{ t('accounting.budget.colCostCenter') }}</th>
+              <th class="col-num">{{ t('accounting.budget.colTargetChf') }}</th>
+              <th class="col-num">{{ t('accounting.budget.colActualChf') }}</th>
+              <th class="col-num">{{ t('accounting.budget.colRemaining') }}</th>
+              <th>{{ t('accounting.budget.colBookings') }}</th>
+              <th class="col-actions">{{ t('accounting.common.actions') }}</th>
             </tr>
           </thead>
           <tbody>
             <tr v-for="row in comparison.rows" :key="row.cost_center_id">
               <td>{{ row.cost_center_name }}</td>
-              <td class="col-num">{{ row.budget_amount_chf != null ? 'CHF ' + formatMoney(row.budget_amount_chf) : '–' }}</td>
+              <td class="col-num">{{ row.budget_amount_chf != null ? 'CHF ' + formatMoney(row.budget_amount_chf) : t('accounting.common.dash') }}</td>
               <td class="col-num">CHF {{ formatMoney(row.ist_amount_chf) }}</td>
               <td class="col-num">
                 <span v-if="row.remaining_chf !== null">CHF {{ formatMoney(row.remaining_chf) }}</span>
-                <span v-else class="muted">–</span>
+                <span v-else class="muted">{{ t('accounting.common.dash') }}</span>
               </td>
               <td>{{ row.booking_count }}</td>
               <td class="col-actions">
                 <template v-if="row.budget_line_id">
-                  <button type="button" class="acc-icon-btn" title="Bearbeiten" @click="openEditModal(row)">
+                  <button type="button" class="acc-icon-btn" :title="t('accounting.common.edit')" @click="openEditModal(row)">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                       <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
                       <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
                     </svg>
                   </button>
-                  <button type="button" class="acc-icon-btn danger" title="Löschen" @click="onDeleteLine(row)">
+                  <button type="button" class="acc-icon-btn danger" :title="t('accounting.common.delete')" @click="onDeleteLine(row)">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                       <polyline points="3 6 5 6 21 6" />
                       <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
@@ -86,7 +85,7 @@
                   class="btn-outline btn-xs"
                   @click="openCreateModalForRow(row)"
                 >
-                  Soll setzen
+                  {{ t('accounting.budget.setTarget') }}
                 </button>
               </td>
             </tr>
@@ -98,32 +97,32 @@
     <div v-if="modalOpen" class="acc-modal-overlay" @click.self="modalOpen = false">
       <div class="acc-modal budget-modal">
         <div class="acc-modal-body">
-          <h3 class="acc-modal-title">{{ editingLineId ? 'Budget-Soll bearbeiten' : 'Budget-Soll erfassen' }}</h3>
+          <h3 class="acc-modal-title">{{ editingLineId ? t('accounting.budget.modalEditTitle') : t('accounting.budget.modalCreateTitle') }}</h3>
           <label class="acc-field">
-            <span>Kostenstelle</span>
+            <span>{{ t('accounting.budget.fieldCostCenter') }}</span>
             <select v-model="form.cost_center_id" class="filter-select" :disabled="!!editingLineId">
-              <option value="">– wählen –</option>
+              <option value="">{{ t('accounting.budget.choosePlaceholder') }}</option>
               <option v-for="c in costCenters" :key="c.id" :value="c.id">{{ c.name }}</option>
             </select>
           </label>
           <label class="acc-field">
-            <span>Jahr</span>
+            <span>{{ t('accounting.budget.fieldYear') }}</span>
             <input v-model.number="form.calendar_year" type="number" min="2000" max="2100" class="filter-select" :disabled="!!editingLineId" />
           </label>
           <label class="acc-field">
-            <span>Soll (CHF)</span>
-            <input v-model="form.amount_chf" type="text" inputmode="decimal" placeholder="z. B. 1500.00" class="filter-select" />
+            <span>{{ t('accounting.budget.fieldTargetChf') }}</span>
+            <input v-model="form.amount_chf" type="text" inputmode="decimal" :placeholder="t('accounting.budget.amountPlaceholder')" class="filter-select" />
           </label>
           <label class="acc-field">
-            <span>Notiz (optional)</span>
-            <textarea v-model="form.notes" rows="2" class="filter-select" placeholder="Interne Hinweise" />
+            <span>{{ t('accounting.budget.fieldNoteOptional') }}</span>
+            <textarea v-model="form.notes" rows="2" class="filter-select" :placeholder="t('accounting.budget.notesPlaceholder')" />
           </label>
           <p v-if="modalError" class="budget-error">{{ modalError }}</p>
         </div>
         <div class="acc-modal-footer">
-          <button type="button" class="btn btn-secondary btn-sm" @click="modalOpen = false">Abbrechen</button>
+          <button type="button" class="btn btn-secondary btn-sm" @click="modalOpen = false">{{ t('accounting.common.cancel') }}</button>
           <button type="button" class="btn btn-primary btn-sm" :disabled="saving" @click="submitModal">
-            {{ saving ? 'Speichert…' : 'Speichern' }}
+            {{ saving ? t('accounting.common.savingAlt') : t('accounting.common.save') }}
           </button>
         </div>
       </div>
@@ -133,6 +132,7 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
 import {
   getBudgetComparison,
@@ -147,6 +147,7 @@ import { listCostCenters, type AccountingCostCenter } from '@/api/accountingCost
 import { useToast } from '@/composables/useToast'
 import { useConfirm } from '@/composables/useConfirm'
 
+const { t } = useI18n()
 const route = useRoute()
 const toast = useToast()
 const { confirm: confirmDialog } = useConfirm()
@@ -205,7 +206,7 @@ async function loadComparison() {
       e && typeof e === 'object' && 'response' in e
         ? (e as { response?: { data?: { error?: string } } }).response?.data?.error
         : null
-    loadError.value = msg || 'Budget konnte nicht geladen werden.'
+    loadError.value = msg || t('accounting.budget.loadError')
     comparison.value = null
   } finally {
     loading.value = false
@@ -221,9 +222,9 @@ async function exportCsv() {
   if (!id) return
   try {
     await downloadBudgetCsv(id, year.value)
-    toast.success('CSV heruntergeladen')
+    toast.success(t('accounting.budget.csvDownloaded'))
   } catch {
-    toast.error('Export fehlgeschlagen')
+    toast.error(t('accounting.budget.exportFailed'))
   }
 }
 
@@ -269,7 +270,7 @@ async function submitModal() {
   if (!id) return
   const amt = String(form.value.amount_chf || '').trim()
   if (!amt) {
-    modalError.value = 'Betrag erforderlich'
+    modalError.value = t('accounting.budget.modalAmountRequired')
     return
   }
   modalError.value = ''
@@ -280,10 +281,10 @@ async function submitModal() {
         amount_chf: amt,
         notes: form.value.notes.trim() || null,
       })
-      toast.success('Budget-Soll gespeichert')
+      toast.success(t('accounting.budget.toastTargetSaved'))
     } else {
       if (!form.value.cost_center_id) {
-        modalError.value = 'Kostenstelle wählen'
+        modalError.value = t('accounting.budget.modalCostCenterRequired')
         saving.value = false
         return
       }
@@ -293,7 +294,7 @@ async function submitModal() {
         amount_chf: amt,
         notes: form.value.notes.trim() || null,
       })
-      toast.success('Budget-Soll erfasst')
+      toast.success(t('accounting.budget.toastTargetCreated'))
     }
     modalOpen.value = false
     await loadComparison()
@@ -302,7 +303,7 @@ async function submitModal() {
       e && typeof e === 'object' && 'response' in e
         ? (e as { response?: { data?: { error?: string } } }).response?.data?.error
         : null
-    modalError.value = msg || 'Speichern fehlgeschlagen'
+    modalError.value = msg || t('accounting.common.saveFailed')
   } finally {
     saving.value = false
   }
@@ -311,10 +312,10 @@ async function submitModal() {
 async function onDeleteLine(row: BudgetComparisonRow) {
   if (!row.budget_line_id) return
   const ok = await confirmDialog({
-    title: 'Budget-Soll löschen',
-    message: 'Soll-Wert für diese Kostenstelle wirklich entfernen?',
-    confirmText: 'Löschen',
-    cancelText: 'Abbrechen',
+    title: t('accounting.budget.deleteTitle'),
+    message: t('accounting.budget.deleteMessage'),
+    confirmText: t('accounting.common.delete'),
+    cancelText: t('accounting.common.cancel'),
     variant: 'danger',
   })
   if (!ok) return
@@ -322,14 +323,14 @@ async function onDeleteLine(row: BudgetComparisonRow) {
   if (!id) return
   try {
     await deleteBudgetLine(id, row.budget_line_id)
-    toast.success('Gelöscht')
+    toast.success(t('accounting.common.deleted'))
     await loadComparison()
   } catch (e: unknown) {
     const msg =
       e && typeof e === 'object' && 'response' in e
         ? (e as { response?: { data?: { error?: string } } }).response?.data?.error
         : null
-    toast.error(msg || 'Löschen fehlgeschlagen')
+    toast.error(msg || t('accounting.common.deleteFailed'))
   }
 }
 

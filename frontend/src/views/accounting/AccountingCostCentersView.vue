@@ -1,8 +1,7 @@
 <template>
   <div class="accounting-subpage cost-centers-page">
     <p class="description" style="margin-bottom: 20px">
-      Kostenstellen bündeln Ausgaben für Budget und Auswertung. Optional: <strong>Kontocode</strong> für den Abgleich mit dem
-      Vereins-Finanztool (keine Doppelbuch).
+      {{ t('accounting.costCenters.introBefore') }}<strong>{{ t('accounting.costCenters.introStrong') }}</strong>{{ t('accounting.costCenters.introAfter') }}
     </p>
 
     <div class="page-toolbar">
@@ -11,18 +10,18 @@
           <line x1="12" y1="5" x2="12" y2="19" />
           <line x1="5" y1="12" x2="19" y2="12" />
         </svg>
-        Neue Kostenstelle
+        {{ t('accounting.costCenters.newButton') }}
       </button>
     </div>
 
-    <div v-if="isLoading" class="loading-inline">Laden…</div>
+    <div v-if="isLoading" class="loading-inline">{{ t('accounting.common.loading') }}</div>
     <div v-else-if="loadError" class="error-inline">{{ loadError }}</div>
 
     <div v-else-if="items.length === 0" class="empty-hint empty-hint--cc">
-      <p>Noch keine Kostenstellen. Lege die erste an oder übernimm die Standard-Vorschläge für typische Vereinskosten.</p>
+      <p>{{ t('accounting.costCenters.emptyText') }}</p>
       <div class="empty-hint-actions">
         <button type="button" class="btn btn-primary" :disabled="isLoading" @click="openCreate">
-          Kostenstelle anlegen
+          {{ t('accounting.costCenters.createButton') }}
         </button>
         <button
           type="button"
@@ -30,7 +29,7 @@
           :disabled="isLoading || isApplyingStandardSeeds"
           @click="createStandardCostCenters"
         >
-          {{ isApplyingStandardSeeds ? 'Wird angelegt…' : 'Standard-Vorschläge übernehmen' }}
+          {{ isApplyingStandardSeeds ? t('accounting.common.loadingEllipsis') : t('accounting.costCenters.applySeeds') }}
         </button>
       </div>
     </div>
@@ -39,10 +38,10 @@
       <table class="cost-centers-table">
         <thead>
           <tr>
-            <th>Name</th>
-            <th>Kontocode</th>
-            <th>Sortierung</th>
-            <th class="col-actions">Aktionen</th>
+            <th>{{ t('accounting.common.name') }}</th>
+            <th>{{ t('accounting.common.accountCode') }}</th>
+            <th>{{ t('accounting.common.sortOrder') }}</th>
+            <th class="col-actions">{{ t('accounting.common.actions') }}</th>
           </tr>
         </thead>
         <tbody>
@@ -51,16 +50,16 @@
               <strong>{{ row.name }}</strong>
               <div v-if="row.description" class="muted" style="font-size: 13px; margin-top: 4px">{{ row.description }}</div>
             </td>
-            <td>{{ row.account_code || '–' }}</td>
+            <td>{{ row.account_code || t('accounting.common.dash') }}</td>
             <td>{{ row.sort_order }}</td>
             <td class="col-actions">
-              <button type="button" class="acc-icon-btn" title="Bearbeiten" @click="openEdit(row)">
+              <button type="button" class="acc-icon-btn" :title="t('accounting.common.edit')" @click="openEdit(row)">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
                   <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
                 </svg>
               </button>
-              <button type="button" class="acc-icon-btn danger" title="Löschen" @click="onDelete(row)">
+              <button type="button" class="acc-icon-btn danger" :title="t('accounting.common.delete')" @click="onDelete(row)">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <polyline points="3 6 5 6 21 6" />
                   <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
@@ -76,8 +75,8 @@
       <div v-if="modalOpen" class="acc-modal-backdrop" @click.self="closeModal">
         <div class="acc-modal" role="dialog" aria-modal="true">
           <div class="acc-modal-header">
-            <h2>{{ editingId ? 'Kostenstelle bearbeiten' : 'Neue Kostenstelle' }}</h2>
-            <button type="button" class="acc-icon-btn" aria-label="Schließen" @click="closeModal">
+            <h2>{{ editingId ? t('accounting.costCenters.modalEditTitle') : t('accounting.costCenters.modalCreateTitle') }}</h2>
+            <button type="button" class="acc-icon-btn" :aria-label="t('accounting.common.close')" @click="closeModal">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <line x1="18" y1="6" x2="6" y2="18" />
                 <line x1="6" y1="6" x2="18" y2="18" />
@@ -86,25 +85,25 @@
           </div>
           <div class="acc-modal-body">
             <div class="acc-field">
-              <label for="cc-name">Name *</label>
-              <input id="cc-name" v-model="form.name" type="text" maxlength="255" placeholder="z. B. Zeltpflege, Transport" />
+              <label for="cc-name">{{ t('accounting.costCenters.labelNameStar') }}</label>
+              <input id="cc-name" v-model="form.name" type="text" maxlength="255" :placeholder="t('accounting.costCenters.placeholderName')" />
             </div>
             <div class="acc-field">
-              <label for="cc-code">Kontocode (optional)</label>
-              <input id="cc-code" v-model="form.account_code" type="text" maxlength="32" placeholder="z. B. 6200" />
+              <label for="cc-code">{{ t('accounting.costCenters.labelAccountOptional') }}</label>
+              <input id="cc-code" v-model="form.account_code" type="text" maxlength="32" :placeholder="t('accounting.costCenters.placeholderCode')" />
             </div>
             <div class="acc-field">
-              <label for="cc-sort">Sortierung</label>
+              <label for="cc-sort">{{ t('accounting.costCenters.labelSort') }}</label>
               <input id="cc-sort" v-model.number="form.sort_order" type="number" />
             </div>
             <div class="acc-field">
-              <label for="cc-desc">Beschreibung (optional)</label>
-              <textarea id="cc-desc" v-model="form.description" placeholder="Kurznotiz" />
+              <label for="cc-desc">{{ t('accounting.costCenters.labelDescriptionOptional') }}</label>
+              <textarea id="cc-desc" v-model="form.description" :placeholder="t('accounting.costCenters.placeholderDescription')" />
             </div>
             <div class="acc-modal-actions">
-              <button type="button" class="btn btn-secondary" @click="closeModal">Abbrechen</button>
+              <button type="button" class="btn btn-secondary" @click="closeModal">{{ t('accounting.common.cancel') }}</button>
               <button type="button" class="btn btn-primary" :disabled="saving" @click="save">
-                {{ saving ? 'Speichern…' : 'Speichern' }}
+                {{ saving ? t('accounting.common.saving') : t('accounting.common.save') }}
               </button>
             </div>
           </div>
@@ -116,6 +115,7 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onMounted, reactive, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import {
   listCostCenters,
@@ -127,6 +127,7 @@ import {
 import { useToast } from '@/composables/useToast'
 import { useConfirm } from '@/composables/useConfirm'
 
+const { t } = useI18n()
 const route = useRoute()
 const router = useRouter()
 const toast = useToast()
@@ -143,10 +144,10 @@ const saving = ref(false)
 /** Standard-Vorschläge-Button (expliziter Name für Template/HMR mit KeepAlive). */
 const isApplyingStandardSeeds = ref(false)
 
-const STANDARD_COST_CENTER_SEEDS: ReadonlyArray<{ name: string; description: string | null; sort_order: number }> = [
-  { name: 'Material & Ausstattung', description: 'Anschaffungen aus der Lagerverwaltung', sort_order: 10 },
-  { name: 'Allgemeiner Bedarf', description: 'Sonstige laufende Kosten', sort_order: 20 },
-  { name: 'Events / Verpflegung', description: 'Anlässe, Bewirtung', sort_order: 30 },
+const SEED_KEYS = [
+  { key: 'material' as const, sort_order: 10 },
+  { key: 'general' as const, sort_order: 20 },
+  { key: 'events' as const, sort_order: 30 },
 ]
 
 const form = reactive({
@@ -171,7 +172,7 @@ async function load() {
     items.value = await listCostCenters(departmentId.value)
   } catch (e: unknown) {
     const msg = e && typeof e === 'object' && 'response' in e ? (e as { response?: { data?: { error?: string } } }).response?.data?.error : null
-    loadError.value = msg || 'Kostenstellen konnten nicht geladen werden.'
+    loadError.value = msg || t('accounting.costCenters.loadError')
     items.value = []
   } finally {
     isLoading.value = false
@@ -182,17 +183,17 @@ async function createStandardCostCenters() {
   if (items.value.length > 0 || !departmentId.value) return
   isApplyingStandardSeeds.value = true
   try {
-    for (const row of STANDARD_COST_CENTER_SEEDS) {
+    for (const row of SEED_KEYS) {
       await createCostCenter(departmentId.value, {
-        name: row.name,
-        description: row.description,
+        name: t(`accounting.costCenters.seeds.${row.key}.name`),
+        description: t(`accounting.costCenters.seeds.${row.key}.description`),
         sort_order: row.sort_order,
       })
     }
-    toast.success('Standard-Kostenstellen angelegt.')
+    toast.success(t('accounting.costCenters.toastSeedsOk'))
     await load()
   } catch {
-    toast.error('Standard-Vorschläge konnten nicht vollständig angelegt werden.')
+    toast.error(t('accounting.costCenters.toastSeedsFail'))
     await load()
   } finally {
     isApplyingStandardSeeds.value = false
@@ -233,7 +234,7 @@ function closeModal() {
 async function save() {
   const name = form.name.trim()
   if (!name) {
-    toast.error('Bitte einen Namen eingeben.')
+    toast.error(t('accounting.costCenters.toastNameRequired'))
     return
   }
   saving.value = true
@@ -246,15 +247,15 @@ async function save() {
     }
     if (editingId.value) {
       await updateCostCenter(departmentId.value, editingId.value, payload)
-      toast.success('Kostenstelle gespeichert.')
+      toast.success(t('accounting.costCenters.toastSaved'))
     } else {
       await createCostCenter(departmentId.value, payload)
-      toast.success('Kostenstelle angelegt.')
+      toast.success(t('accounting.costCenters.toastCreated'))
     }
     closeModal()
     await load()
   } catch {
-    toast.error('Speichern fehlgeschlagen.')
+    toast.error(t('accounting.common.saveFailed'))
   } finally {
     saving.value = false
   }
@@ -262,18 +263,19 @@ async function save() {
 
 async function onDelete(row: AccountingCostCenter) {
   const ok = await confirmDialog({
-    title: 'Kostenstelle löschen?',
-    message: `«${row.name}» wirklich löschen?`,
-    confirmText: 'Löschen',
-    variant: 'danger'
+    title: t('accounting.costCenters.deleteTitle'),
+    message: t('accounting.costCenters.deleteMessage', { name: row.name }),
+    confirmText: t('accounting.common.delete'),
+    cancelText: t('accounting.common.cancel'),
+    variant: 'danger',
   })
   if (!ok) return
   try {
     await deleteCostCenter(departmentId.value, row.id)
-    toast.success('Gelöscht.')
+    toast.success(t('accounting.common.deleted'))
     await load()
   } catch {
-    toast.error('Löschen fehlgeschlagen.')
+    toast.error(t('accounting.common.deleteFailed'))
   }
 }
 </script>

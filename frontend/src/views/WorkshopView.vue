@@ -4,15 +4,15 @@
     <header class="workshop-header">
       <div class="header-content">
         <div>
-    <h1>Werkstatt</h1>
-          <p class="description">Reparaturen, Inspektionen, Wartung und Abschreibung</p>
+    <h1>{{ t('workshop.title') }}</h1>
+          <p class="description">{{ t('workshop.description') }}</p>
         </div>
         <div class="header-actions">
           <button @click="showCreateModal = true" class="btn-primary">
             <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
               <path d="M10 4V16M4 10H16" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
             </svg>
-            <span>Neues Ticket</span>
+            <span>{{ t('workshop.newTicket') }}</span>
           </button>
         </div>
       </div>
@@ -22,23 +22,23 @@
     <div class="workshop-stats" v-if="stats">
       <div class="stat-card open">
         <div class="stat-value">{{ stats.status_counts.open || 0 }}</div>
-        <div class="stat-label">Offen</div>
+        <div class="stat-label">{{ t('workshop.statOpen') }}</div>
       </div>
       <div class="stat-card in-progress">
         <div class="stat-value">{{ stats.status_counts.in_progress || 0 }}</div>
-        <div class="stat-label">In Arbeit</div>
+        <div class="stat-label">{{ t('workshop.statInProgress') }}</div>
       </div>
       <div class="stat-card waiting">
         <div class="stat-value">{{ stats.status_counts.waiting_parts || 0 }}</div>
-        <div class="stat-label">Wartet auf Teile</div>
+        <div class="stat-label">{{ t('workshop.statWaitingParts') }}</div>
       </div>
       <div class="stat-card completed">
         <div class="stat-value">{{ stats.status_counts.completed || 0 }}</div>
-        <div class="stat-label">Erledigt</div>
+        <div class="stat-label">{{ t('workshop.statCompleted') }}</div>
       </div>
       <div class="stat-card cancelled">
         <div class="stat-value">{{ stats.status_counts.cancelled || 0 }}</div>
-        <div class="stat-label">Storniert</div>
+        <div class="stat-label">{{ t('workshop.statCancelled') }}</div>
       </div>
     </div>
 
@@ -51,7 +51,7 @@
             <rect x="10" y="3" width="5" height="12" rx="1"/>
             <rect x="17" y="3" width="5" height="15" rx="1"/>
           </svg>
-          Kanban
+          {{ t('workshop.viewKanban') }}
         </button>
         <button :class="{ active: viewMode === 'table' }" @click="viewMode = 'table'">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -59,7 +59,7 @@
             <line x1="3" y1="12" x2="21" y2="12"/>
             <line x1="3" y1="18" x2="21" y2="18"/>
           </svg>
-          Tabelle
+          {{ t('workshop.viewTable') }}
         </button>
       </div>
 
@@ -69,43 +69,43 @@
           :department-id="currentDepartmentId"
           default-type="reparatur"
           v-model="searchQuery"
-          placeholder="Ticket suchen (material:, aktivität:, reparatur:)"
+          :placeholder="t('workshop.searchPlaceholder')"
         />
       </div>
 
       <div class="toolbar-filters">
         <select v-model="filterType">
-          <option value="">Alle Typen</option>
-          <option value="repair">Reparatur</option>
-          <option value="inspection">Inspektion</option>
-          <option value="writeoff">Abschreibung</option>
-          <option value="cleaning">Reinigung</option>
+          <option value="">{{ t('workshop.filterAllTypes') }}</option>
+          <option value="repair">{{ t('workshop.typeRepair') }}</option>
+          <option value="inspection">{{ t('workshop.typeInspection') }}</option>
+          <option value="writeoff">{{ t('workshop.typeWriteoff') }}</option>
+          <option value="cleaning">{{ t('workshop.typeCleaning') }}</option>
         </select>
         <select v-model="filterOriginIssueType">
-          <option value="">Alle Quellen</option>
-          <option value="loss">Nur Verlustmeldungen</option>
-          <option value="repair">Nur Reparaturmeldungen</option>
-          <option value="damage">Nur Schadensmeldungen</option>
-          <option value="consumption">Nur Verbrauchsmeldungen</option>
-          <option value="manual">Nur manuell erstellte Tickets</option>
+          <option value="">{{ t('workshop.filterAllSources') }}</option>
+          <option value="loss">{{ t('workshop.originLossOnly') }}</option>
+          <option value="repair">{{ t('workshop.originRepairOnly') }}</option>
+          <option value="damage">{{ t('workshop.originDamageOnly') }}</option>
+          <option value="consumption">{{ t('workshop.originConsumptionOnly') }}</option>
+          <option value="manual">{{ t('workshop.originManualOnly') }}</option>
         </select>
         <select v-model="filterPriority">
-          <option value="">Alle Prioritäten</option>
-          <option value="urgent">Dringend</option>
-          <option value="high">Hoch</option>
-          <option value="normal">Normal</option>
-          <option value="low">Niedrig</option>
+          <option value="">{{ t('workshop.filterAllPriorities') }}</option>
+          <option value="urgent">{{ t('workshop.priorityUrgent') }}</option>
+          <option value="high">{{ t('workshop.priorityHigh') }}</option>
+          <option value="normal">{{ t('workshop.priorityNormal') }}</option>
+          <option value="low">{{ t('workshop.priorityLow') }}</option>
         </select>
       </div>
       <div
         v-if="quickFilter"
         style="display:flex; align-items:center; gap:8px; margin-left:auto; background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe; border-radius:999px; padding:6px 10px; font-size:12px; font-weight:600;"
       >
-        <span>{{ quickFilter === 'waiting_quote' ? 'Schnellfilter: Offerten offen' : 'Schnellfilter: Preis fehlt' }}</span>
+        <span>{{ quickFilter === 'waiting_quote' ? t('workshop.quickFilterQuotes') : t('workshop.quickFilterPrice') }}</span>
         <button
           style="border:none; background:transparent; color:#1d4ed8; cursor:pointer; font-weight:700; font-size:14px; line-height:1;"
           @click="router.replace({ path: route.path, query: { ...route.query, qf: undefined } })"
-          title="Filter entfernen"
+          :title="t('workshop.removeFilterTitle')"
         >
           ×
         </button>
@@ -114,11 +114,11 @@
         v-if="materialFilterId"
         style="display:flex; align-items:center; gap:8px; margin-left:auto; background:#f0fdf4; color:#166534; border:1px solid #bbf7d0; border-radius:999px; padding:6px 10px; font-size:12px; font-weight:600;"
       >
-        <span>Nur Material: {{ materialFilterLabel || materialFilterId }}</span>
+        <span>{{ t('workshop.materialOnly', { label: materialFilterLabel || materialFilterId }) }}</span>
         <button
           type="button"
           style="border:none; background:transparent; color:#166534; cursor:pointer; font-weight:700; font-size:14px; line-height:1;"
-          title="Filter entfernen"
+          :title="t('workshop.removeFilterTitle')"
           @click="clearMaterialFilter"
         >
           ×
@@ -129,7 +129,7 @@
     <!-- Loading -->
     <div v-if="isLoading" class="workshop-loading">
       <div class="spinner"></div>
-      <p style="margin-top: 12px; color: #6b7280; font-size: 14px;">Tickets werden geladen...</p>
+      <p style="margin-top: 12px; color: #6b7280; font-size: 14px;">{{ t('workshop.loadingTickets') }}</p>
     </div>
 
     <!-- Empty State -->
@@ -138,13 +138,13 @@
         <rect x="20" y="25" width="60" height="50" rx="6" stroke="currentColor" stroke-width="2" stroke-dasharray="4 4"/>
         <path d="M40 50L47 57L62 42" stroke="#10b981" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
       </svg>
-      <h2>Keine Werkstatt-Tickets</h2>
-      <p>Aktuell gibt es keine offenen Reparaturen, Inspektionen oder Abschreibungen.</p>
+      <h2>{{ t('workshop.emptyTitle') }}</h2>
+      <p>{{ t('workshop.emptyText') }}</p>
       <button @click="showCreateModal = true" class="btn-primary">
         <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
           <path d="M10 4V16M4 10H16" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
         </svg>
-        Erstes Ticket erstellen
+        {{ t('workshop.createFirstTicket') }}
       </button>
     </div>
 
@@ -186,7 +186,7 @@
                   v-if="ticket.origin_issue_type"
                   class="origin-badge"
                   :class="getIssueOriginBadgeClass(ticket.origin_issue_type)"
-                  :title="'Aus ' + getIssueOriginBadgeLabel(ticket.origin_issue_type) + ' erstellt'"
+                  :title="t('workshop.issueOriginCreatedTitle', { origin: getIssueOriginBadgeLabel(ticket.origin_issue_type) })"
                 >
                   {{ getIssueOriginBadgeLabel(ticket.origin_issue_type) }}
                 </span>
@@ -202,14 +202,14 @@
 
           <!-- Leere Spalte -->
           <div v-if="getColumnTickets(col.status).length === 0" style="text-align: center; padding: 24px 8px; color: #9ca3af; font-size: 12px;">
-            Keine Tickets
+            {{ t('workshop.noTicketsInColumn') }}
           </div>
         </div>
       </div>
     </div>
     <div v-if="viewMode === 'kanban' && cancelledTickets.length > 0" class="cancelled-section">
       <div class="cancelled-section-header">
-        <span>Stornierte Tickets</span>
+        <span>{{ t('workshop.cancelledSection') }}</span>
         <span class="cancelled-count">{{ cancelledTickets.length }}</span>
       </div>
       <div class="cancelled-list">
@@ -230,13 +230,13 @@
       <table class="workshop-table">
         <thead>
           <tr>
-            <th>Status</th>
-            <th>Priorität</th>
-            <th>Titel</th>
-            <th>Material</th>
-            <th>Typ</th>
-            <th>Zugewiesen</th>
-            <th>Erstellt</th>
+            <th>{{ t('workshop.tableStatus') }}</th>
+            <th>{{ t('workshop.tablePriority') }}</th>
+            <th>{{ t('workshop.tableTitle') }}</th>
+            <th>{{ t('workshop.tableMaterial') }}</th>
+            <th>{{ t('workshop.tableType') }}</th>
+            <th>{{ t('workshop.tableAssigned') }}</th>
+            <th>{{ t('workshop.tableCreated') }}</th>
           </tr>
         </thead>
         <tbody>
@@ -267,7 +267,7 @@
                 class="origin-badge"
                 :class="getIssueOriginBadgeClass(ticket.origin_issue_type)"
                 style="margin-left: 8px;"
-                :title="'Aus ' + getIssueOriginBadgeLabel(ticket.origin_issue_type) + ' erstellt'"
+                :title="t('workshop.issueOriginCreatedTitle', { origin: getIssueOriginBadgeLabel(ticket.origin_issue_type) })"
               >
                 {{ getIssueOriginBadgeLabel(ticket.origin_issue_type) }}
               </span>
@@ -277,7 +277,7 @@
                 <span class="assigned-avatar">{{ getInitials(ticket.assigned_to.name) }}</span>
                 {{ ticket.assigned_to.name }}
               </span>
-              <span v-else style="color: #9ca3af;">—</span>
+              <span v-else style="color: #9ca3af;">{{ t('workshop.dash') }}</span>
             </td>
             <td>{{ formatDateShort(ticket.created_at) }}</td>
           </tr>
@@ -314,7 +314,7 @@
         <div class="modal-body">
           <!-- Material Info -->
           <div class="modal-section">
-            <div class="modal-section-title">Material</div>
+            <div class="modal-section-title">{{ t('workshop.sectionMaterial') }}</div>
             <div class="material-info-block">
               <div class="mat-icon-box">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -324,9 +324,9 @@
               <div class="mat-details">
                 <div class="mat-name">{{ selectedTicket.material_item.name }}</div>
                 <div class="mat-meta">
-                  <span v-if="selectedTicket.material_item.barcode_tag">Tag: {{ selectedTicket.material_item.barcode_tag }}</span>
+                  <span v-if="selectedTicket.material_item.barcode_tag">{{ t('workshop.tagPrefix') }} {{ selectedTicket.material_item.barcode_tag }}</span>
                   <span v-if="selectedTicket.material_item.category">{{ selectedTicket.material_item.category.name }}</span>
-                  <span>Zustand: {{ conditionLabels[selectedTicket.material_item.condition] || selectedTicket.material_item.condition }}</span>
+                  <span>{{ t('workshop.conditionPrefix') }} {{ conditionLabels[selectedTicket.material_item.condition] || selectedTicket.material_item.condition }}</span>
                 </div>
               </div>
             </div>
@@ -334,19 +334,19 @@
 
           <!-- Beschreibung -->
           <div v-if="selectedTicket.description" class="modal-section">
-            <div class="modal-section-title">Beschreibung</div>
+            <div class="modal-section-title">{{ t('workshop.sectionDescription') }}</div>
             <p style="font-size: 14px; color: #374151; line-height: 1.6; margin: 0; white-space: pre-wrap;">{{ selectedTicket.description }}</p>
           </div>
 
           <!-- Herkunft (Origin) -->
           <div v-if="selectedTicket.activity || selectedTicket.issue_report" class="modal-section">
-            <div class="modal-section-title">Herkunft</div>
+            <div class="modal-section-title">{{ t('workshop.sectionOrigin') }}</div>
             <div class="origin-block">
               <!-- Aktivitäts-Info -->
               <div v-if="selectedTicket.activity" class="origin-item">
                 <div class="origin-icon">📋</div>
                 <div class="origin-details">
-                  <div class="origin-label">Aktivität</div>
+                  <div class="origin-label">{{ t('workshop.originActivity') }}</div>
                   <div class="origin-value">{{ selectedTicket.activity.name }}</div>
                   <div class="origin-meta">
                     <span class="type-badge" :class="selectedTicket.activity.type" style="font-size: 10px;">
@@ -362,11 +362,11 @@
               <div v-if="selectedTicket.issue_report" class="origin-item">
                 <div class="origin-icon">⚠️</div>
                 <div class="origin-details">
-                  <div class="origin-label">Schadensmeldung</div>
+                  <div class="origin-label">{{ t('workshop.originDamageReport') }}</div>
                   <div class="origin-value">
                     {{ selectedTicket.issue_report.type_label }}
                     <span v-if="selectedTicket.issue_report.quantity && selectedTicket.issue_report.quantity > 1">
-                      ({{ selectedTicket.issue_report.quantity }} Stk.)
+                      ({{ selectedTicket.issue_report.quantity }} {{ t('workshop.stockUnit') }})
                     </span>
                   </div>
                   <div v-if="selectedTicket.issue_report.description" class="origin-description">
@@ -377,8 +377,8 @@
                       👤 {{ selectedTicket.issue_report.reported_by.name }}
                     </span>
                     <span>{{ formatDateTime(selectedTicket.issue_report.reported_at) }}</span>
-                    <span v-if="selectedTicket.issue_report.resolved" class="resolved-badge">✓ Gelöst</span>
-                    <span v-else class="unresolved-badge">Offen</span>
+                    <span v-if="selectedTicket.issue_report.resolved" class="resolved-badge">{{ t('workshop.issueResolved') }}</span>
+                    <span v-else class="unresolved-badge">{{ t('workshop.issueOpen') }}</span>
                   </div>
                 </div>
               </div>
@@ -387,38 +387,38 @@
 
           <!-- Details Grid -->
           <div class="modal-section">
-            <div class="modal-section-title">Details</div>
+            <div class="modal-section-title">{{ t('workshop.sectionDetails') }}</div>
             <div class="detail-grid">
               <div class="detail-item">
-                <span class="detail-label">Erstellt von</span>
-                <span class="detail-value">{{ selectedTicket.created_by?.name || '—' }}</span>
+                <span class="detail-label">{{ t('workshop.detailCreatedBy') }}</span>
+                <span class="detail-value">{{ selectedTicket.created_by?.name || t('workshop.dash') }}</span>
               </div>
               <div class="detail-item">
-                <span class="detail-label">Zugewiesen an</span>
-                <span class="detail-value">{{ selectedTicket.assigned_to?.name || '— nicht zugewiesen —' }}</span>
+                <span class="detail-label">{{ t('workshop.detailAssignedTo') }}</span>
+                <span class="detail-value">{{ selectedTicket.assigned_to?.name || t('workshop.notAssigned') }}</span>
               </div>
               <div class="detail-item">
-                <span class="detail-label">Geschätzte Kosten</span>
-                <span class="detail-value">{{ selectedTicket.estimated_cost ? selectedTicket.estimated_cost + ' CHF' : '—' }}</span>
+                <span class="detail-label">{{ t('workshop.detailEstimatedCost') }}</span>
+                <span class="detail-value">{{ selectedTicket.estimated_cost ? selectedTicket.estimated_cost + t('workshop.chfSuffix') : t('workshop.dash') }}</span>
               </div>
               <div class="detail-item">
-                <span class="detail-label">Tatsächliche Kosten</span>
-                <span class="detail-value">{{ selectedTicket.actual_cost ? selectedTicket.actual_cost + ' CHF' : '—' }}</span>
+                <span class="detail-label">{{ t('workshop.detailActualCost') }}</span>
+                <span class="detail-value">{{ selectedTicket.actual_cost ? selectedTicket.actual_cost + t('workshop.chfSuffix') : t('workshop.dash') }}</span>
               </div>
               <div class="detail-item">
-                <span class="detail-label">Erstellt am</span>
+                <span class="detail-label">{{ t('workshop.detailCreatedAt') }}</span>
                 <span class="detail-value">{{ formatDateTime(selectedTicket.created_at) }}</span>
               </div>
               <div v-if="selectedTicket.started_at" class="detail-item">
-                <span class="detail-label">Gestartet am</span>
+                <span class="detail-label">{{ t('workshop.detailStartedAt') }}</span>
                 <span class="detail-value">{{ formatDateTime(selectedTicket.started_at) }}</span>
               </div>
               <div v-if="selectedTicket.completed_at" class="detail-item">
-                <span class="detail-label">Abgeschlossen am</span>
+                <span class="detail-label">{{ t('workshop.detailCompletedAt') }}</span>
                 <span class="detail-value">{{ formatDateTime(selectedTicket.completed_at) }}</span>
               </div>
               <div v-if="selectedTicket.resolution_action" class="detail-item">
-                <span class="detail-label">Ergebnis</span>
+                <span class="detail-label">{{ t('workshop.detailOutcome') }}</span>
                 <span class="detail-value">{{ resolutionLabels[selectedTicket.resolution_action] || selectedTicket.resolution_action }}</span>
               </div>
             </div>
@@ -426,9 +426,9 @@
 
           <!-- History Timeline (dynamisch aus API) -->
           <div class="modal-section">
-            <div class="modal-section-title">Verlauf</div>
+            <div class="modal-section-title">{{ t('workshop.sectionHistory') }}</div>
             <div v-if="isLoadingHistory" style="text-align: center; padding: 16px; color: #9ca3af; font-size: 13px;">
-              Verlauf wird geladen...
+              {{ t('workshop.loadingHistory') }}
             </div>
             <div v-else-if="ticketHistory.length > 0" class="status-timeline">
               <div
@@ -457,21 +457,21 @@
               <div class="timeline-item">
                 <div class="timeline-dot created"></div>
                 <div class="timeline-content">
-                  <div class="timeline-label">Erstellt</div>
+                  <div class="timeline-label">{{ t('workshop.timelineCreated') }}</div>
                   <div class="timeline-date">{{ formatDateTime(selectedTicket.created_at) }}</div>
                 </div>
               </div>
               <div v-if="selectedTicket.started_at" class="timeline-item">
                 <div class="timeline-dot active"></div>
                 <div class="timeline-content">
-                  <div class="timeline-label">Gestartet</div>
+                  <div class="timeline-label">{{ t('workshop.timelineStarted') }}</div>
                   <div class="timeline-date">{{ formatDateTime(selectedTicket.started_at) }}</div>
                 </div>
               </div>
               <div v-if="selectedTicket.completed_at" class="timeline-item">
                 <div class="timeline-dot completed"></div>
                 <div class="timeline-content">
-                  <div class="timeline-label">Abgeschlossen</div>
+                  <div class="timeline-label">{{ t('workshop.timelineCompleted') }}</div>
                   <div class="timeline-date">{{ formatDateTime(selectedTicket.completed_at) }}</div>
                 </div>
               </div>
@@ -480,7 +480,7 @@
 
           <!-- Resolution Notes -->
           <div v-if="selectedTicket.resolution_notes" class="modal-section">
-            <div class="modal-section-title">Abschluss-Notizen</div>
+            <div class="modal-section-title">{{ t('workshop.sectionResolutionNotes') }}</div>
             <p style="font-size: 14px; color: #374151; line-height: 1.6; margin: 0; background: #f0fdf4; padding: 10px 14px; border-radius: 8px; white-space: pre-wrap;">{{ selectedTicket.resolution_notes }}</p>
           </div>
         </div>
@@ -493,52 +493,52 @@
             class="btn-primary"
             @click="transitionTicket(selectedTicket.id, 'in_progress')"
           >
-            ▶ Arbeit starten
+            {{ t('workshop.btnStartWork') }}
           </button>
           <button
             v-if="selectedTicket.status === 'open' && isLossOriginTicket(selectedTicket)"
             class="btn-danger"
             @click="openLossAcceptModal()"
           >
-            ✓ Verlust annehmen
+            {{ t('workshop.btnAcceptLoss') }}
           </button>
           <button
             v-if="selectedTicket.status === 'in_progress'"
             class="btn-warning"
             @click="openQuoteModal()"
           >
-            ⏸ Wartet auf Teile
+            {{ t('workshop.btnWaitingParts') }}
           </button>
           <button
             v-if="selectedTicket.status === 'waiting_parts'"
             class="btn-primary"
             @click="transitionTicket(selectedTicket.id, 'in_progress')"
           >
-            ▶ Weiterarbeiten
+            {{ t('workshop.btnResumeWork') }}
           </button>
           <button
             v-if="selectedTicket.status === 'in_progress'"
             class="btn-success"
             @click="showCompleteModal = true"
           >
-            ✓ Abschließen
+            {{ t('workshop.btnComplete') }}
           </button>
           <button
             class="btn-danger"
             @click="cancelSelectedTicket()"
           >
-            ✕ Ticket stornieren
+            {{ t('workshop.btnCancelTicket') }}
           </button>
           <button
             class="btn-ghost"
             @click="closeSelectedTicketDetail"
           >
-            Schließen
+            {{ t('workshop.btnClose') }}
           </button>
         </div>
         <div class="modal-footer" v-else-if="selectedTicket.status === 'cancelled'">
           <button class="btn-secondary" @click="transitionTicket(selectedTicket.id, 'open')">
-            ↺ Wiedereröffnen
+            {{ t('workshop.btnReopen') }}
           </button>
         </div>
       </div>
@@ -549,7 +549,7 @@
       <div class="workshop-modal" style="max-width: 520px;">
         <div class="modal-header">
           <div class="modal-title-group">
-            <h2 class="modal-title">Ticket abschließen</h2>
+            <h2 class="modal-title">{{ t('workshop.completeTitle') }}</h2>
             <div class="modal-subtitle">{{ selectedTicket.title }}</div>
           </div>
           <button class="modal-close" @click="showCompleteModal = false">
@@ -561,7 +561,7 @@
         <div class="modal-body">
           <div class="complete-form">
             <div class="form-group">
-              <label>Ergebnis</label>
+              <label>{{ t('workshop.completeOutcome') }}</label>
               <div class="resolution-options">
                 <div
                   class="resolution-option"
@@ -569,8 +569,8 @@
                   @click="completeForm.resolution_action = 'repaired'"
                 >
                   <div class="option-icon">🔧</div>
-                  <div class="option-label">Repariert</div>
-                  <div class="option-desc">Material wieder OK</div>
+                  <div class="option-label">{{ t('workshop.resolutionRepaired') }}</div>
+                  <div class="option-desc">{{ t('workshop.resolutionRepairedDesc') }}</div>
                 </div>
                 <div
                   class="resolution-option"
@@ -578,8 +578,8 @@
                   @click="completeForm.resolution_action = 'ok'"
                 >
                   <div class="option-icon">✅</div>
-                  <div class="option-label">In Ordnung</div>
-                  <div class="option-desc">Kein Defekt gefunden</div>
+                  <div class="option-label">{{ t('workshop.resolutionOk') }}</div>
+                  <div class="option-desc">{{ t('workshop.resolutionOkDesc') }}</div>
                 </div>
                 <div
                   class="resolution-option"
@@ -587,25 +587,25 @@
                   @click="completeForm.resolution_action = 'writeoff'"
                 >
                   <div class="option-icon">🗑️</div>
-                  <div class="option-label">Abschreibung</div>
-                  <div class="option-desc">Nicht reparierbar</div>
+                  <div class="option-label">{{ t('workshop.resolutionWriteoff') }}</div>
+                  <div class="option-desc">{{ t('workshop.resolutionWriteoffDesc') }}</div>
                 </div>
               </div>
             </div>
             <div class="form-group">
-              <label>Tatsächliche Kosten (CHF)</label>
+              <label>{{ t('workshop.labelActualCostChf') }}</label>
               <input v-model="completeForm.actual_cost" type="number" step="0.01" min="0" placeholder="0.00" />
             </div>
             <div class="form-group">
-              <label>Abschluss-Notizen</label>
-              <textarea v-model="completeForm.resolution_notes" rows="3" placeholder="Was wurde gemacht?"></textarea>
+              <label>{{ t('workshop.completeNotesLabel') }}</label>
+              <textarea v-model="completeForm.resolution_notes" rows="3" :placeholder="t('workshop.completeNotesPlaceholder')"></textarea>
             </div>
           </div>
         </div>
         <div class="modal-footer">
-          <button class="btn-secondary" @click="showCompleteModal = false">Abbrechen</button>
+          <button class="btn-secondary" @click="showCompleteModal = false">{{ t('common.cancel') }}</button>
           <button class="btn-success" @click="completeTicket" :disabled="!completeForm.resolution_action || completionCostMissing">
-            ✓ Abschließen
+            {{ t('workshop.btnFinishComplete') }}
           </button>
         </div>
       </div>
@@ -616,7 +616,7 @@
       <div class="workshop-modal" style="max-width: 520px;">
         <div class="modal-header">
           <div class="modal-title-group">
-            <h2 class="modal-title">Verlust annehmen</h2>
+            <h2 class="modal-title">{{ t('workshop.lossTitle') }}</h2>
             <div class="modal-subtitle">{{ selectedTicket.title }}</div>
           </div>
           <button class="modal-close" @click="closeLossAcceptModal">
@@ -627,30 +627,30 @@
         </div>
         <div class="modal-body">
           <div class="form-group">
-            <label>Abzuschreibende Menge</label>
+            <label>{{ t('workshop.lossQtyLabel') }}</label>
             <input v-model.number="lossAcceptQty" type="number" min="1" step="1" />
           </div>
           <div class="form-group">
             <label>
-              Tatsächliche Kosten (CHF)
+              {{ t('workshop.labelActualCostChf') }}
               <span v-if="isExternalSelectedTicket" style="color: #b91c1c;">*</span>
             </label>
             <input v-model="lossAcceptActualCost" type="number" min="0" step="0.01" placeholder="0.00" />
             <p style="margin-top: 6px; color: #6b7280; font-size: 12px;">
-              Vorschlag: {{ lossCostSuggestionLabel }}
+              {{ lossCostSuggestionLabel }}
             </p>
           </div>
           <p style="margin-top: 8px; color: #6b7280; font-size: 13px;">
-            Das Ticket wird als <strong>abgeschlossen</strong> markiert und die Menge wird direkt abgeschrieben.
+            {{ t('workshop.lossExplanation') }}
           </p>
           <p v-if="lossAcceptError" style="margin-top: 10px; color: #b91c1c; font-size: 13px;">
             {{ lossAcceptError }}
           </p>
         </div>
         <div class="modal-footer">
-          <button class="btn-secondary" @click="closeLossAcceptModal" :disabled="isAcceptingLoss">Abbrechen</button>
+          <button class="btn-secondary" @click="closeLossAcceptModal" :disabled="isAcceptingLoss">{{ t('common.cancel') }}</button>
           <button class="btn-danger" @click="acceptLossTicket" :disabled="isAcceptingLoss || lossAcceptQty < 1 || (isExternalSelectedTicket && !lossAcceptActualCost)">
-            {{ isAcceptingLoss ? 'Wird übernommen...' : '✓ Verlust annehmen' }}
+            {{ isAcceptingLoss ? t('workshop.lossAccepting') : t('workshop.lossBtnAccept') }}
           </button>
         </div>
       </div>
@@ -661,7 +661,7 @@
       <div class="workshop-modal" style="max-width: 520px;">
         <div class="modal-header">
           <div class="modal-title-group">
-            <h2 class="modal-title">Offerte / Teile ausstehend</h2>
+            <h2 class="modal-title">{{ t('workshop.quoteTitle') }}</h2>
             <div class="modal-subtitle">{{ selectedTicket.title }}</div>
           </div>
           <button class="modal-close" @click="closeQuoteModal">
@@ -673,23 +673,23 @@
         <div class="modal-body">
           <div class="form-group">
             <label>
-              Geschätzte Kosten / Offerte (CHF)
+              {{ t('workshop.quoteEstimatedLabel') }}
               <span v-if="isExternalSelectedTicket" style="color: #b91c1c;">*</span>
             </label>
             <input v-model="quoteEstimatedCost" type="number" min="0" step="0.01" placeholder="0.00" />
           </div>
           <div class="form-group">
-            <label>Notiz (optional)</label>
-            <textarea v-model="quoteNotes" rows="3" placeholder="z.B. Offerte beim Lieferanten angefragt"></textarea>
+            <label>{{ t('workshop.quoteNoteLabel') }}</label>
+            <textarea v-model="quoteNotes" rows="3" :placeholder="t('workshop.quoteNotePlaceholder')"></textarea>
           </div>
           <p v-if="quoteError" style="margin-top: 10px; color: #b91c1c; font-size: 13px;">
             {{ quoteError }}
           </p>
         </div>
         <div class="modal-footer">
-          <button class="btn-secondary" @click="closeQuoteModal" :disabled="isSubmittingQuote">Abbrechen</button>
+          <button class="btn-secondary" @click="closeQuoteModal" :disabled="isSubmittingQuote">{{ t('common.cancel') }}</button>
           <button class="btn-warning" @click="submitQuoteTransition" :disabled="isSubmittingQuote || (isExternalSelectedTicket && !quoteEstimatedCost)">
-            {{ isSubmittingQuote ? 'Wird gespeichert...' : '⏸ Wartet auf Teile setzen' }}
+            {{ isSubmittingQuote ? t('workshop.quoteSaving') : t('workshop.quoteSetWaiting') }}
           </button>
         </div>
       </div>
@@ -700,7 +700,7 @@
       <div class="workshop-modal" style="max-width: 580px;">
         <div class="modal-header">
           <div class="modal-title-group">
-            <h2 class="modal-title">Neues Werkstatt-Ticket</h2>
+            <h2 class="modal-title">{{ t('workshop.createTitle') }}</h2>
           </div>
           <button class="modal-close" @click="showCreateModal = false">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -711,11 +711,11 @@
         <div class="modal-body">
           <div class="create-form">
             <div class="form-group">
-              <label>Titel *</label>
-              <input v-model="createForm.title" type="text" placeholder="z.B. Zeltstange gebrochen" />
+              <label>{{ t('workshop.createTitleLabel') }}</label>
+              <input v-model="createForm.title" type="text" :placeholder="t('workshop.createTitlePlaceholder')" />
             </div>
             <div class="form-group">
-              <label>Material *</label>
+              <label>{{ t('workshop.createMaterialLabel') }}</label>
               <!-- Ausgewähltes Material anzeigen -->
               <div v-if="selectedMaterial" class="ws-selected-material">
                 <span class="ws-mat-type-icon" :title="materialTypeLabel(selectedMaterial.material_type)">
@@ -729,7 +729,7 @@
                     <span :class="'condition-' + selectedMaterial.condition">{{ conditionLabels[selectedMaterial.condition] || selectedMaterial.condition }}</span>
                   </span>
                 </div>
-                <button type="button" class="ws-selected-clear" @click="clearSelectedMaterial" title="Material ändern">
+                <button type="button" class="ws-selected-clear" @click="clearSelectedMaterial" :title="t('workshop.createChangeMaterialTitle')">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
                 </button>
               </div>
@@ -743,7 +743,7 @@
                     ref="matSearchInputRef"
                     v-model="matSearchQuery"
                     type="text"
-                    placeholder="Material suchen (mind. 2 Zeichen)..."
+                    :placeholder="t('workshop.createSearchPlaceholder')"
                     @input="onMatSearchInput"
                     @focus="showMatDropdown = true"
                     @blur="hideMatDropdownDelayed"
@@ -754,10 +754,10 @@
                 <!-- Dropdown-Vorschlagsliste -->
                 <div v-if="showMatDropdown && matSearchQuery.length >= 2" class="ws-mat-dropdown">
                   <div v-if="isMatSearching" class="ws-mat-dropdown-msg">
-                    Suche...
+                    {{ t('workshop.createSearching') }}
                   </div>
                   <div v-else-if="matSearchResults.length === 0" class="ws-mat-dropdown-msg">
-                    Keine Treffer für «{{ matSearchQuery }}»
+                    {{ t('workshop.createNoMatches', { query: matSearchQuery }) }}
                   </div>
                   <div v-else class="ws-mat-dropdown-list">
                     <div
@@ -774,7 +774,7 @@
                         <span class="ws-mat-item-meta">
                           <span v-if="mat.category" class="ws-mat-item-cat">{{ mat.category.name }}</span>
                           <span v-if="mat.barcode_tag" class="ws-mat-item-sn">🏷️ {{ mat.barcode_tag }}</span>
-                          <span class="ws-mat-item-stock">{{ mat.total_stock }} Stk.</span>
+                          <span class="ws-mat-item-stock">{{ mat.total_stock }} {{ t('workshop.stockUnit') }}</span>
                           <span :class="'condition-dot ' + mat.condition">{{ conditionLabels[mat.condition] || mat.condition }}</span>
                         </span>
                       </div>
@@ -785,42 +785,42 @@
             </div>
             <div class="form-row">
               <div class="form-group">
-                <label>Typ</label>
+                <label>{{ t('workshop.createType') }}</label>
                 <select v-model="createForm.type">
-                  <option value="repair">Reparatur</option>
-                  <option value="inspection">Inspektion</option>
-                  <option value="writeoff">Abschreibung</option>
-                  <option value="cleaning">Reinigung</option>
+                  <option value="repair">{{ t('workshop.typeRepair') }}</option>
+                  <option value="inspection">{{ t('workshop.typeInspection') }}</option>
+                  <option value="writeoff">{{ t('workshop.typeWriteoff') }}</option>
+                  <option value="cleaning">{{ t('workshop.typeCleaning') }}</option>
                 </select>
               </div>
               <div class="form-group">
-                <label>Priorität</label>
+                <label>{{ t('workshop.createPriority') }}</label>
                 <select v-model="createForm.priority">
-                  <option value="low">Niedrig</option>
-                  <option value="normal">Normal</option>
-                  <option value="high">Hoch</option>
-                  <option value="urgent">Dringend</option>
+                  <option value="low">{{ t('workshop.priorityLow') }}</option>
+                  <option value="normal">{{ t('workshop.priorityNormal') }}</option>
+                  <option value="high">{{ t('workshop.priorityHigh') }}</option>
+                  <option value="urgent">{{ t('workshop.priorityUrgent') }}</option>
                 </select>
               </div>
             </div>
             <div class="form-group">
-              <label>Beschreibung</label>
-              <textarea v-model="createForm.description" rows="3" placeholder="Details zum Problem..."></textarea>
+              <label>{{ t('workshop.createDescription') }}</label>
+              <textarea v-model="createForm.description" rows="3" :placeholder="t('workshop.createDescriptionPlaceholder')"></textarea>
             </div>
             <div class="form-group">
-              <label>Geschätzte Kosten (CHF)</label>
+              <label>{{ t('workshop.createEstimatedCost') }}</label>
               <input v-model="createForm.estimated_cost" type="number" step="0.01" min="0" placeholder="0.00" />
             </div>
           </div>
         </div>
         <div class="modal-footer">
-          <button class="btn-secondary" @click="showCreateModal = false">Abbrechen</button>
+          <button class="btn-secondary" @click="showCreateModal = false">{{ t('common.cancel') }}</button>
           <button
             class="btn-primary"
             @click="handleCreateTicket"
             :disabled="!createForm.title || !createForm.material_item_id"
           >
-            Ticket erstellen
+            {{ t('workshop.createSubmit') }}
           </button>
         </div>
       </div>
@@ -830,6 +830,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch, nextTick } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useToast } from '@/composables/useToast'
@@ -854,6 +855,7 @@ import '@/styles/workshop-view.css'
 
 const route = useRoute()
 const router = useRouter()
+const { t, locale } = useI18n()
 const authStore = useAuthStore()
 const toast = useToast()
 const currentDepartmentId = computed(() => route.params.departmentId as string)
@@ -919,57 +921,57 @@ const selectedMaterial = ref<Material | null>(null)
 const matSearchInputRef = ref<HTMLInputElement | null>(null)
 let matSearchTimer: ReturnType<typeof setTimeout> | null = null
 
-// === Labels ===
-const statusLabels: Record<string, string> = {
-  open: 'Offen',
-  in_progress: 'In Arbeit',
-  waiting_parts: 'Wartet auf Teile',
-  completed: 'Erledigt',
-  cancelled: 'Storniert',
-}
+// === Labels (vue-i18n) ===
+const statusLabels = computed(() => ({
+  open: t('workshop.status.open'),
+  in_progress: t('workshop.status.in_progress'),
+  waiting_parts: t('workshop.status.waiting_parts'),
+  completed: t('workshop.status.completed'),
+  cancelled: t('workshop.status.cancelled'),
+}))
 
-const priorityLabels: Record<string, string> = {
-  low: 'Niedrig',
-  normal: 'Normal',
-  high: 'Hoch',
-  urgent: 'Dringend',
-}
+const priorityLabels = computed(() => ({
+  low: t('workshop.priority.low'),
+  normal: t('workshop.priority.normal'),
+  high: t('workshop.priority.high'),
+  urgent: t('workshop.priority.urgent'),
+}))
 
-const typeLabels: Record<string, string> = {
-  repair: 'Reparatur',
-  inspection: 'Inspektion',
-  writeoff: 'Abschreibung',
-  cleaning: 'Reinigung',
-}
+const typeLabels = computed(() => ({
+  repair: t('workshop.ticketType.repair'),
+  inspection: t('workshop.ticketType.inspection'),
+  writeoff: t('workshop.ticketType.writeoff'),
+  cleaning: t('workshop.ticketType.cleaning'),
+}))
 
-const conditionLabels: Record<string, string> = {
-  ok: 'OK',
-  defect: 'Defekt',
-  repair: 'Reparatur',
-  lost: 'Verloren',
-}
+const conditionLabels = computed(() => ({
+  ok: t('workshop.condition.ok'),
+  defect: t('workshop.condition.defect'),
+  repair: t('workshop.condition.repair'),
+  lost: t('workshop.condition.lost'),
+}))
 
-const resolutionLabels: Record<string, string> = {
-  repaired: 'Repariert',
-  ok: 'In Ordnung',
-  writeoff: 'Abgeschrieben',
-}
+const resolutionLabels = computed(() => ({
+  repaired: t('workshop.resolution.repaired'),
+  ok: t('workshop.resolution.ok'),
+  writeoff: t('workshop.resolution.writeoff'),
+}))
 
-const issueTypeLabels: Record<string, string> = {
-  repair: 'Reparatur',
-  damage: 'Schaden',
-  loss: 'Verlust',
-  consumption: 'Verbrauch',
-}
+const issueTypeLabels = computed(() => ({
+  repair: t('workshop.simpleIssue.repair'),
+  damage: t('workshop.simpleIssue.damage'),
+  loss: t('workshop.simpleIssue.loss'),
+  consumption: t('workshop.simpleIssue.consumption'),
+}))
 
 function getIssueOriginBadgeLabel(issueType: string): string {
   const map: Record<string, string> = {
-    repair: 'Reparaturmeldung',
-    damage: 'Schadensmeldung',
-    loss: 'Verlustmeldung',
-    consumption: 'Verbrauchsmeldung',
+    repair: t('workshop.issueOrigin.repair'),
+    damage: t('workshop.issueOrigin.damage'),
+    loss: t('workshop.issueOrigin.loss'),
+    consumption: t('workshop.issueOrigin.consumption'),
   }
-  return map[issueType] || 'Meldung'
+  return map[issueType] || t('workshop.issueOrigin.fallback')
 }
 
 function getIssueOriginBadgeClass(issueType: string): string {
@@ -987,12 +989,12 @@ function isLossOriginTicket(ticket: WorkshopTicket): boolean {
 }
 
 // === Kanban Columns ===
-const kanbanColumns = [
-  { status: 'open' as TicketStatus, label: 'Offen' },
-  { status: 'in_progress' as TicketStatus, label: 'In Arbeit' },
-  { status: 'waiting_parts' as TicketStatus, label: 'Wartet auf Teile' },
-  { status: 'completed' as TicketStatus, label: 'Erledigt' },
-]
+const kanbanColumns = computed(() => [
+  { status: 'open' as TicketStatus, label: t('workshop.status.open') },
+  { status: 'in_progress' as TicketStatus, label: t('workshop.status.in_progress') },
+  { status: 'waiting_parts' as TicketStatus, label: t('workshop.status.waiting_parts') },
+  { status: 'completed' as TicketStatus, label: t('workshop.status.completed') },
+])
 
 // === Computed ===
 const filteredTickets = computed(() => {
@@ -1061,7 +1063,7 @@ const lossCostSuggestion = computed(() => {
 
 const lossCostSuggestionLabel = computed(() => {
   const amount = Number(lossCostSuggestion.value || 0)
-  return `CHF ${amount.toFixed(2)}`
+  return t('workshop.lossCostSuggestion', { amount: `CHF ${amount.toFixed(2)}` })
 })
 
 const completionCostMissing = computed(() => {
@@ -1196,10 +1198,10 @@ async function handleCreateTicket() {
     matSearchQuery.value = ''
     showCreateModal.value = false
     await loadData()
-    toast.success('Werkstatt-Ticket erstellt')
+    toast.success(t('workshop.toast.created'))
   } catch (err: any) {
     console.error('Failed to create ticket:', err)
-    toast.error('Fehler beim Erstellen: ' + (err.response?.data?.error || err.message))
+    toast.error(t('workshop.toast.createError') + ' ' + (err.response?.data?.error || err.message))
   }
 }
 
@@ -1229,7 +1231,7 @@ async function transitionTicket(ticketId: string, newStatus: TicketStatus) {
     }
   } catch (err: any) {
     console.error('Transition failed:', err)
-    toast.error('Fehler: ' + (err.response?.data?.error || err.message))
+    toast.error(t('workshop.toast.transitionError') + ' ' + (err.response?.data?.error || err.message))
   }
 }
 
@@ -1259,10 +1261,10 @@ async function completeTicket() {
       selectedTicket.value = detailed
       ticketHistory.value = history
     }
-    toast.success('Ticket erfolgreich abgeschlossen')
+    toast.success(t('workshop.toast.completed'))
   } catch (err: any) {
     console.error('Complete failed:', err)
-    toast.error('Fehler beim Abschließen: ' + (err.response?.data?.error || err.message))
+    toast.error(t('workshop.toast.completeError') + ' ' + (err.response?.data?.error || err.message))
   }
 }
 
@@ -1274,10 +1276,10 @@ async function cancelSelectedTicket() {
     await transitionWorkshopTicket(ticketId, { status: 'cancelled' })
     closeSelectedTicketDetail()
     await loadData()
-    toast.info('Ticket storniert und geschlossen')
+    toast.info(t('workshop.toast.cancelled'))
   } catch (err: any) {
     console.error('Cancel failed:', err)
-    toast.error('Fehler beim Stornieren: ' + (err.response?.data?.error || err.message))
+    toast.error(t('workshop.toast.cancelError') + ' ' + (err.response?.data?.error || err.message))
   }
 }
 
@@ -1312,7 +1314,7 @@ async function submitQuoteTransition() {
   const ticketId = selectedTicket.value.id
 
   if (isExternalSelectedTicket.value && !quoteEstimatedCost.value) {
-    quoteError.value = 'Für externe Fälle ist ein geschätzter Preis erforderlich.'
+    quoteError.value = t('workshop.toast.quoteNeedEstimate')
     return
   }
 
@@ -1343,11 +1345,11 @@ async function submitQuoteTransition() {
     ])
     selectedTicket.value = detailed
     ticketHistory.value = history
-    toast.info('Ticket auf "Wartet auf Teile" gesetzt')
+    toast.info(t('workshop.toast.quoteSetWaiting'))
   } catch (err: any) {
     console.error('Quote transition failed:', err)
-    quoteError.value = err.response?.data?.error || err.message || 'Unbekannter Fehler'
-    toast.error('Fehler: ' + quoteError.value)
+    quoteError.value = err.response?.data?.error || err.message || ''
+    toast.error(t('workshop.toast.quoteError') + ' ' + quoteError.value)
   } finally {
     isSubmittingQuote.value = false
   }
@@ -1375,7 +1377,7 @@ async function acceptLossTicket() {
       resolution_action: 'writeoff',
       writeoff_qty: writeoffQty,
       actual_cost: lossAcceptActualCost.value || undefined,
-      resolution_notes: 'Verlustmeldung angenommen und abgeschrieben.',
+      resolution_notes: t('workshop.internal.lossResolutionNotes'),
     })
 
     closeLossAcceptModal()
@@ -1387,11 +1389,11 @@ async function acceptLossTicket() {
     ])
     selectedTicket.value = detailed
     ticketHistory.value = history
-    toast.success(`Verlust angenommen und ${writeoffQty} Stk. abgeschrieben`)
+    toast.success(t('workshop.toast.lossAccepted', { qty: String(writeoffQty) }))
   } catch (err: any) {
     console.error('Loss acceptance failed:', err)
-    lossAcceptError.value = err.response?.data?.error || err.message || 'Unbekannter Fehler'
-    toast.error('Fehler beim Annehmen des Verlusts: ' + lossAcceptError.value)
+    lossAcceptError.value = err.response?.data?.error || err.message || ''
+    toast.error(t('workshop.toast.lossError') + ' ' + lossAcceptError.value)
   } finally {
     isAcceptingLoss.value = false
   }
@@ -1460,69 +1462,73 @@ function hideMatDropdownDelayed() {
 function getHistoryDescription(entry: WorkshopHistoryEntry): string {
   const changes = entry.changes
   const parts: string[] = []
+  const sl = statusLabels.value as Record<string, string>
+  const pl = priorityLabels.value as Record<string, string>
+  const rl = resolutionLabels.value as Record<string, string>
+  const cl = conditionLabels.value as Record<string, string>
+  const il = issueTypeLabels.value as Record<string, string>
 
   if (changes.status) {
-    const oldLabel = statusLabels[changes.status.old] || changes.status.old
-    const newLabel = statusLabels[changes.status.new] || changes.status.new
-    parts.push(`Status: ${oldLabel} → ${newLabel}`)
+    const oldLabel = sl[String(changes.status.old)] || changes.status.old
+    const newLabel = sl[String(changes.status.new)] || changes.status.new
+    parts.push(t('workshop.history.statusChange', { old: oldLabel, new: newLabel }))
   }
 
   if (changes.priority) {
     if (typeof changes.priority === 'object' && changes.priority.old) {
-      const oldLabel = priorityLabels[changes.priority.old] || changes.priority.old
-      const newLabel = priorityLabels[changes.priority.new] || changes.priority.new
-      parts.push(`Priorität: ${oldLabel} → ${newLabel}`)
+      const oldLabel = pl[String(changes.priority.old)] || changes.priority.old
+      const newLabel = pl[String(changes.priority.new)] || changes.priority.new
+      parts.push(t('workshop.history.priorityChange', { old: oldLabel, new: newLabel }))
     }
   }
 
   if (changes.title && typeof changes.title === 'object') {
-    parts.push(`Titel geändert`)
+    parts.push(t('workshop.history.titleChanged'))
   }
 
   if (changes.assigned_to_user_id) {
-    parts.push(changes.assigned_to_user_id.new ? 'Zugewiesen' : 'Zuweisung entfernt')
+    parts.push(changes.assigned_to_user_id.new ? t('workshop.history.assigned') : t('workshop.history.assignmentRemoved'))
   }
 
   if (changes.resolution_action) {
-    const label = resolutionLabels[changes.resolution_action] || changes.resolution_action
-    parts.push(`Ergebnis: ${label}`)
+    const label = rl[String(changes.resolution_action)] || changes.resolution_action
+    parts.push(t('workshop.history.outcome', { label }))
   }
 
   if (changes.material_condition) {
-    const oldLabel = conditionLabels[changes.material_condition.old] || changes.material_condition.old
-    const newLabel = conditionLabels[changes.material_condition.new] || changes.material_condition.new
-    parts.push(`Material: ${oldLabel} → ${newLabel}`)
+    const oldLabel = cl[String(changes.material_condition.old)] || changes.material_condition.old
+    const newLabel = cl[String(changes.material_condition.new)] || changes.material_condition.new
+    parts.push(t('workshop.history.materialCondition', { old: oldLabel, new: newLabel }))
   }
 
   if (changes.actual_cost) {
-    parts.push(`Kosten: ${changes.actual_cost} CHF`)
+    parts.push(t('workshop.history.cost', { amount: String(changes.actual_cost) }))
   }
 
   if (changes.writeoff_qty) {
-    parts.push(`Abgeschrieben: ${changes.writeoff_qty} Stk.`)
+    parts.push(t('workshop.history.writeoffQty', { qty: String(changes.writeoff_qty) }))
   }
 
   if (changes.issue_report_resolved) {
-    parts.push('Schadensmeldung als gelöst markiert')
+    parts.push(t('workshop.history.issueResolved'))
   }
 
-  // Auto-Erstellung Quellen
   if (changes.source === 'issue_report') {
-    parts.push(`Aus Aktivität „${changes.activity_name || '?'}"`)
+    parts.push(t('workshop.history.fromActivity', { name: changes.activity_name || '?' }))
     if (changes.issue_report_type) {
-      const typeLabel = issueTypeLabels[changes.issue_report_type] || changes.issue_report_type
-      parts.push(`Meldungstyp: ${typeLabel}`)
+      const typeLabel = il[String(changes.issue_report_type)] || changes.issue_report_type
+      parts.push(t('workshop.history.reportType', { type: typeLabel }))
     }
   }
   if (changes.source === 'return_item') {
-    parts.push(`Aus Rückgabe Aktivität „${changes.activity_name || '?'}"`)
+    parts.push(t('workshop.history.fromReturnActivity', { name: changes.activity_name || '?' }))
     if (changes.condition_in) {
-      parts.push(`Zustand bei Rückgabe: ${changes.condition_in}`)
+      parts.push(t('workshop.history.conditionReturn', { condition: changes.condition_in }))
     }
   }
 
   if (changes.resolution_notes && typeof changes.resolution_notes === 'string') {
-    parts.push(`Notiz: ${changes.resolution_notes}`)
+    parts.push(t('workshop.history.note', { text: changes.resolution_notes }))
   }
 
   return parts.join(' · ')
@@ -1576,10 +1582,10 @@ function materialTypeIcon(type: string): string {
 
 function materialTypeLabel(type: string): string {
   switch (type) {
-    case 'physical': return 'Einzelmaterial'
-    case 'physical_combo': return 'Kombination (physisch)'
-    case 'virtual_combo': return 'Kombination (virtuell)'
-    default: return 'Material'
+    case 'physical': return t('workshop.materialTypePhysical')
+    case 'physical_combo': return t('workshop.materialTypePhysicalCombo')
+    case 'virtual_combo': return t('workshop.materialTypeVirtualCombo')
+    default: return t('workshop.materialTypeFallback')
   }
 }
 
@@ -1593,13 +1599,13 @@ function getInitials(name: string): string {
 
 function formatDateShort(dateStr: string): string {
   const date = new Date(dateStr)
-  return date.toLocaleDateString('de-CH', { day: '2-digit', month: '2-digit' })
+  return date.toLocaleDateString(locale.value, { day: '2-digit', month: '2-digit' })
 }
 
 function formatDateTime(dateStr: string): string {
   const date = new Date(dateStr)
   const tz = authStore.departmentTimezone || 'Europe/Zurich'
-  return date.toLocaleDateString('de-CH', {
+  return date.toLocaleString(locale.value, {
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',

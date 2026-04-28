@@ -73,69 +73,70 @@
       <div class="preview-card">
         <h3>{{ t('settings.publicMaterialPage.previewTitle') }}</h3>
         <p class="preview-hint">{{ t('settings.publicMaterialPage.previewHint') }}</p>
+        <!-- Demo-only copy for the static preview; mimics the real public page layout, not live data. -->
         <div class="preview-public-card">
-          <p class="preview-code">Code: M-EXAMPLE</p>
-          <h4 class="preview-material-name">Beispielmaterial</h4>
-          <p class="preview-material-desc">Statische Vorschau der öffentlichen Materialseite.</p>
+          <p class="preview-code">{{ t('settings.publicMaterialPage.previewCodeLine', { code: t('settings.publicMaterialPage.previewSampleCode') }) }}</p>
+          <h4 class="preview-material-name">{{ t('settings.publicMaterialPage.previewSampleMaterialTitle') }}</h4>
+          <p class="preview-material-desc">{{ t('settings.publicMaterialPage.previewSampleMaterialDesc') }}</p>
 
           <div class="preview-info-grid">
             <div>
-              <dt>Abteilung</dt>
+              <dt>{{ t('settings.publicMaterialPage.previewLabelDepartment') }}</dt>
               <dd>{{ userDepartments.find((d) => d.department_id === selectedDepartmentId)?.department?.name || '-' }}</dd>
             </div>
             <div>
-              <dt>Hersteller</dt>
-              <dd>Beispiel Hersteller</dd>
+              <dt>{{ t('settings.publicMaterialPage.previewLabelManufacturer') }}</dt>
+              <dd>{{ t('settings.publicMaterialPage.previewSampleManufacturer') }}</dd>
             </div>
           </div>
 
           <div v-if="publicShowContactForm" class="preview-contact-collapsible">
             <button type="button" class="preview-contact-toggle" disabled>
-              <span class="preview-contact-toggle-label">Materialwart kontaktieren</span>
+              <span class="preview-contact-toggle-label">{{ t('settings.publicMaterialPage.previewContactMaterialKeeper') }}</span>
               <span aria-hidden="true">⌄</span>
             </button>
             <div class="preview-contact-panel">
               <div v-if="publicShowContactEmail || publicShowContactNote" class="preview-contact-box">
-                <h5>Kontakt</h5>
-                <p v-if="publicShowContactEmail">E-Mail: {{ publicContactEmail || '-' }}</p>
+                <h5>{{ t('settings.publicMaterialPage.previewContactHeading') }}</h5>
+                <p v-if="publicShowContactEmail">{{ t('settings.publicMaterialPage.previewEmailLine', { email: publicContactEmail || '-' }) }}</p>
                 <p v-if="publicShowContactNote" class="preview-contact-note">{{ publicContactNote || '-' }}</p>
               </div>
 
               <div v-if="previewCanDeliverMessage" class="preview-found-form-box">
-                <h5 class="preview-found-form-title">Nachricht senden</h5>
+                <h5 class="preview-found-form-title">{{ t('settings.publicMaterialPage.previewSendMessageTitle') }}</h5>
                 <p class="preview-found-form-hint">
-                  Du hast diesen Artikel gefunden oder möchtest den Materialwart erreichen? Sende eine kurze Nachricht.
+                  {{ t('settings.publicMaterialPage.previewSendMessageHint') }}
                 </p>
                 <form class="preview-found-form" @submit.prevent>
                   <label class="preview-found-label">
-                    Dein Name <span class="optional">(optional)</span>
-                    <input type="text" maxlength="120" placeholder="z. B. Vorname" disabled />
+                    {{ t('settings.publicMaterialPage.previewYourName') }} <span class="optional">{{ t('settings.publicMaterialPage.previewOptionalParen') }}</span>
+                    <input type="text" maxlength="120" :placeholder="t('settings.publicMaterialPage.previewNamePlaceholder')" disabled />
                   </label>
                   <label class="preview-found-label">
-                    Deine E-Mail <span class="optional">(optional, für Rückfragen)</span>
-                    <input type="email" maxlength="200" placeholder="name@beispiel.ch" disabled />
+                    {{ t('settings.publicMaterialPage.previewYourEmail') }} <span class="optional">{{ t('settings.publicMaterialPage.previewOptionalRepliesParen') }}</span>
+                    <input type="email" maxlength="200" :placeholder="t('settings.publicMaterialPage.previewEmailPlaceholder')" disabled />
                   </label>
                   <label class="preview-found-label">
-                    Nachricht <span class="req">*</span>
+                    {{ t('settings.publicMaterialPage.previewMessageLabel') }} <span class="req">{{ t('settings.publicMaterialPage.previewRequiredStar') }}</span>
                     <textarea
                       rows="4"
                       maxlength="4000"
                       required
-                      placeholder="z. B. Wo liegt der Artikel? Wann hast du ihn gefunden?"
+                      :placeholder="t('settings.publicMaterialPage.previewMessagePlaceholder')"
                       disabled
                     />
                   </label>
-                  <button type="button" class="preview-found-submit" disabled>An Materialwart senden</button>
+                  <button type="button" class="preview-found-submit" disabled>{{ t('settings.publicMaterialPage.previewSubmitToKeeper') }}</button>
                 </form>
               </div>
               <div v-else class="preview-found-form-box preview-found-form-unavailable">
                 <p class="muted">
-                  Für diese Abteilung ist aktuell keine Kontaktmöglichkeit für Nachrichten aktiv.
+                  {{ t('settings.publicMaterialPage.previewNoMessageDelivery') }}
                 </p>
               </div>
             </div>
           </div>
-          <p v-else class="muted">Kontaktbereich ist deaktiviert.</p>
+          <p v-else class="muted">{{ t('settings.publicMaterialPage.previewContactSectionOff') }}</p>
         </div>
       </div>
 

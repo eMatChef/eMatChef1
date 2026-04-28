@@ -434,7 +434,7 @@
                           <div class="form-group">
                             <label>{{ t('components.materialCreateWizard.purchasePriceChfPerPc') }}</label>
                             <div class="price-input">
-                              <span class="currency">Fr.</span>
+                              <span class="currency">{{ t('components.materialDetail.currencyFr') }}</span>
                               <input
                                 v-model="ci.unit_price"
                                 type="number"
@@ -526,7 +526,7 @@
                           <div class="form-group">
                             <label>{{ t('components.materialCreateWizard.purchasePriceChfPerPc') }}</label>
                             <div class="price-input">
-                              <span class="currency">Fr.</span>
+                              <span class="currency">{{ t('components.materialDetail.currencyFr') }}</span>
                               <input
                                 v-model="ci.unit_price"
                                 type="number"
@@ -1606,7 +1606,7 @@
                                 <span class="optional-label">({{ t('components.materialCreateWizard.optionalPlain') }})</span>
                               </label>
                               <div class="price-input">
-                                <span class="currency">Fr.</span>
+                                <span class="currency">{{ t('components.materialDetail.currencyFr') }}</span>
                                 <input
                                   v-model.number="formData.pack_sale_price_chf"
                                   type="number"
@@ -1692,7 +1692,7 @@
                                 <span class="optional-label">({{ t('components.materialCreateWizard.optionalPlain') }})</span>
                               </label>
                               <div class="price-input">
-                                <span class="currency">Fr.</span>
+                                <span class="currency">{{ t('components.materialDetail.currencyFr') }}</span>
                                 <input
                                   v-model.number="formData.pack_sale_price_chf"
                                   type="number"
@@ -1866,7 +1866,7 @@
                         <div class="form-group">
                           <label>{{ t('components.materialCreateWizard.purchasePriceChfPerPc') }}</label>
                           <div class="price-input">
-                            <span class="currency">Fr.</span>
+                            <span class="currency">{{ t('components.materialDetail.currencyFr') }}</span>
                             <input
                               v-model.number="formData.unit_price"
                               type="number"
@@ -1883,7 +1883,7 @@
                           <div class="form-group">
                             <label>{{ t('components.materialCreateWizard.labelPurchaseTotalWaresChf') }}</label>
                             <div class="price-input">
-                              <span class="currency">Fr.</span>
+                              <span class="currency">{{ t('components.materialDetail.currencyFr') }}</span>
                               <input
                                 v-model="purchaseTotalWaresChf"
                                 type="text"
@@ -1896,7 +1896,7 @@
                           <div class="form-group">
                             <label>{{ t('components.materialCreateWizard.labelPurchaseShippingChf') }}</label>
                             <div class="price-input">
-                              <span class="currency">Fr.</span>
+                              <span class="currency">{{ t('components.materialDetail.currencyFr') }}</span>
                               <input
                                 v-model="purchaseShippingChf"
                                 type="text"
@@ -2034,7 +2034,7 @@
                         <span class="field-required-star">*</span>
                       </label>
                       <div class="price-input">
-                        <span class="currency">Fr.</span>
+                        <span class="currency">{{ t('components.materialDetail.currencyFr') }}</span>
                         <input
                           v-model.number="formData.sale_price"
                           type="number"
@@ -2078,7 +2078,7 @@
                         <span class="field-required-star">*</span>
                       </label>
                       <div class="price-input">
-                        <span class="currency">Fr.</span>
+                        <span class="currency">{{ t('components.materialDetail.currencyFr') }}</span>
                         <input
                           v-model.number="formData.reference_purchase_unit_chf"
                           type="number"
@@ -2126,7 +2126,7 @@
                     <div class="form-group">
                       <label>{{ t('components.materialDetail.historyFields.rental_price_day') }}</label>
                       <div class="price-input">
-                        <span class="currency">Fr.</span>
+                        <span class="currency">{{ t('components.materialDetail.currencyFr') }}</span>
                         <input
                           v-model="formData.rental_price_day"
                           type="text"
@@ -2138,7 +2138,7 @@
                     <div class="form-group">
                       <label>{{ t('components.materialDetail.historyFields.rental_price_week') }}</label>
                       <div class="price-input">
-                        <span class="currency">Fr.</span>
+                        <span class="currency">{{ t('components.materialDetail.currencyFr') }}</span>
                         <input
                           v-model="formData.rental_price_week"
                           type="text"
@@ -2150,7 +2150,7 @@
                     <div class="form-group">
                       <label>{{ t('components.materialDetail.historyFields.rental_price_month') }}</label>
                       <div class="price-input">
-                        <span class="currency">Fr.</span>
+                        <span class="currency">{{ t('components.materialDetail.currencyFr') }}</span>
                         <input
                           v-model="formData.rental_price_month"
                           type="text"
@@ -2162,7 +2162,7 @@
                     <div class="form-group">
                       <label>{{ t('components.materialDetail.historyFields.rental_deposit') }}</label>
                       <div class="price-input">
-                        <span class="currency">Fr.</span>
+                        <span class="currency">{{ t('components.materialDetail.currencyFr') }}</span>
                         <input
                           v-model="formData.rental_deposit"
                           type="text"
@@ -2406,6 +2406,7 @@ import StorageLocationPicker from '@/components/storage/StorageLocationPicker.vu
 import { createBasicMaterialLookupFetcher } from '@/composables/useMaterialLookup'
 import { useStorageStructure } from '@/composables/useStorageStructure'
 import { unitPriceFromPackSaleChf } from '@/utils/packPricing'
+import { localizedBarcodeScannerError } from '@/utils/barcodeScannerErrors'
 import '@/styles/material-wizard.css'
 
 const props = defineProps<{
@@ -3100,7 +3101,7 @@ function onSerialDetected(payload: { text: string }) {
 }
 
 function onSerialScannerError(message: string) {
-  toast.error(message)
+  toast.error(localizedBarcodeScannerError(message, t))
 }
 
 // Automatisch initial_qty bei Seriennummern aktualisieren
@@ -4119,7 +4120,7 @@ async function loadData() {
       rentalAmortDefaults.value = { ...DEFAULT_RENTAL_AMORTIZATION }
     }
   } catch (err) {
-    console.error('Fehler beim Laden:', err)
+    console.error(t('components.materialCreateWizard.logErrorInitLoad'), err)
   }
 }
 
@@ -4812,7 +4813,7 @@ async function selectTemplate(template: Template) {
     nameEl?.focus?.()
   } catch (err) {
     templateLoadInProgress.value = false
-    console.error('Fehler beim Laden der Vorlage:', err)
+    console.error(t('components.materialCreateWizard.logErrorLoadTemplate'), err)
   }
 }
 
@@ -4921,7 +4922,7 @@ async function loadContainerBatchContents() {
     const nameEl = articleNameInputRef.value as { focus?: () => void } | null
     nameEl?.focus?.()
   } catch (err) {
-    console.error('Fehler beim Laden des Kisten-Inhalts:', err)
+    console.error(t('components.materialCreateWizard.logErrorLoadContainerContents'), err)
     toast.error(t('components.materialCreateWizard.toastContainerLoadFailed'))
   } finally {
     isLoadingContainerContents.value = false
@@ -5034,7 +5035,7 @@ async function selectExistingMaterial(ci: ComponentInput, mat: any) {
         b.status === 'active' && b.serial_number
       )
     } catch (err) {
-      console.error('Fehler beim Laden der Batches:', err)
+      console.error(t('components.materialCreateWizard.logErrorLoadBatches'), err)
       ci._availableBatches = []
     }
   }

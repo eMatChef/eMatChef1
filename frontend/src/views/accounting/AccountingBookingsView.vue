@@ -1,8 +1,7 @@
 <template>
   <div class="accounting-subpage bookings-page">
     <p class="description" style="margin-bottom: 16px">
-      Ausgaben und Kostenfälle in CHF, Zuordnung zu Kostenstellen und optional zu Gruppen. Keine MwSt.-Ausweisung.
-      Die Buchungs-ID (Präfix kb) enthält das Jahr des Buchungsdatums – wie bei Material-Batches; das Datum ist nach dem Erfassen nicht mehr änderbar.
+      {{ t('accounting.bookings.intro') }}
     </p>
 
     <div class="bookings-subtabs filter-bar accounting-inner-tabs">
@@ -13,7 +12,7 @@
           :class="{ active: bookingsSubTab === 'list' }"
           @click="bookingsSubTab = 'list'"
         >
-          Buchungsliste
+          {{ t('accounting.bookings.tabList') }}
         </button>
         <button
           type="button"
@@ -21,11 +20,11 @@
           :class="{ active: bookingsSubTab === 'assign' }"
           @click="openAssignTab"
         >
-          Neue Buchung zuordnen
+          {{ t('accounting.bookings.tabAssign') }}
           <span
             v-if="hasPendingBooking"
             class="bookings-pending-badge"
-            title="Anschaffung aus Material erfasst"
+            :title="t('accounting.bookings.badgePendingTitle')"
           >{{ pendingFollowUps.length }}</span>
         </button>
       </div>
@@ -33,18 +32,17 @@
 
     <div v-if="!costCenters.length && !ccLoading && !ccError" class="empty-hint empty-hint--cost-centers">
       <p>
-        Ohne Kostenstelle kannst du keine Buchungen erfassen. Ausstehende Anschaffungen aus dem Material-Wizard erscheinen
-        trotzdem unter <strong>Neue Buchung zuordnen</strong>, sobald Kostenstellen existieren.
+        {{ t('accounting.bookings.emptyNoCcBefore') }}<strong>{{ t('accounting.bookings.tabAssign') }}</strong>{{ t('accounting.bookings.emptyNoCcAfter') }}
       </p>
       <div class="empty-hint-actions">
         <router-link
           class="btn btn-primary"
           :to="{ name: 'AccountingCostCenters', params: { departmentId }, query: { openCreate: '1' } }"
         >
-          Kostenstelle anlegen
+          {{ t('accounting.bookings.createCostCenter') }}
         </router-link>
         <router-link class="btn btn-secondary" :to="{ name: 'AccountingCostCenters', params: { departmentId } }">
-          Zu Kostenstellen
+          {{ t('accounting.bookings.goToCostCenters') }}
         </router-link>
       </div>
     </div>
@@ -54,16 +52,16 @@
         <div class="bookings-toolbar">
           <div class="bookings-filters">
             <label class="filter-label">
-              Jahr
+              {{ t('accounting.bookings.filterYear') }}
               <select v-model="filterYear" class="filter-select" @change="load">
-                <option value="">Alle Jahre</option>
+                <option value="">{{ t('accounting.common.allYears') }}</option>
                 <option v-for="y in bookingYears" :key="y" :value="String(y)">{{ y }}</option>
               </select>
             </label>
             <label class="filter-label">
-              Kostenstelle
+              {{ t('accounting.bookings.filterCostCenter') }}
               <select v-model="filterCostCenterId" class="filter-select" @change="load">
-                <option value="">Alle</option>
+                <option value="">{{ t('accounting.common.all') }}</option>
                 <option v-for="c in costCenters" :key="c.id" :value="c.id">{{ c.name }}</option>
               </select>
             </label>
@@ -73,26 +71,26 @@
               <line x1="12" y1="5" x2="12" y2="19" />
               <line x1="5" y1="12" x2="19" y2="12" />
             </svg>
-            Neue Buchung
+            {{ t('accounting.bookings.newBooking') }}
           </button>
         </div>
 
-        <div v-if="isLoading" class="loading-inline">Laden…</div>
+        <div v-if="isLoading" class="loading-inline">{{ t('accounting.common.loading') }}</div>
         <div v-else-if="loadError" class="error-inline">{{ loadError }}</div>
-        <div v-else-if="items.length === 0" class="empty-hint">Noch keine Buchungen für die gewählten Filter.</div>
+        <div v-else-if="items.length === 0" class="empty-hint">{{ t('accounting.bookings.emptyFiltered') }}</div>
         <div v-else class="bookings-table-wrap">
       <table class="cost-centers-table bookings-table">
         <thead>
           <tr>
-            <th>Datum</th>
-            <th>Betrag</th>
-            <th>Typ</th>
-            <th>Kostenstelle</th>
-            <th>Material</th>
-            <th>Zahlungsart</th>
-            <th>Gruppe</th>
-            <th>Beleg</th>
-            <th class="col-actions">Aktionen</th>
+            <th>{{ t('accounting.common.date') }}</th>
+            <th>{{ t('accounting.common.amount') }}</th>
+            <th>{{ t('accounting.common.type') }}</th>
+            <th>{{ t('accounting.common.costCenter') }}</th>
+            <th>{{ t('accounting.common.material') }}</th>
+            <th>{{ t('accounting.common.paymentMethod') }}</th>
+            <th>{{ t('accounting.common.group') }}</th>
+            <th>{{ t('accounting.common.receipt') }}</th>
+            <th class="col-actions">{{ t('accounting.common.actions') }}</th>
           </tr>
         </thead>
         <tbody>
@@ -101,18 +99,18 @@
             <td><strong>CHF {{ formatMoney(row.amount) }}</strong></td>
             <td>{{ entryLabel(row.entry_type) }}</td>
             <td>{{ row.cost_center_name }}</td>
-            <td class="muted">{{ row.material_name || '–' }}</td>
+            <td class="muted">{{ row.material_name || t('accounting.common.dash') }}</td>
             <td>{{ paymentLabel(row.payment_method) }}</td>
-            <td>{{ row.group_name || '–' }}</td>
-            <td class="muted">{{ row.receipt_label || '–' }}</td>
+            <td>{{ row.group_name || t('accounting.common.dash') }}</td>
+            <td class="muted">{{ row.receipt_label || t('accounting.common.dash') }}</td>
             <td class="col-actions">
-              <button type="button" class="acc-icon-btn" title="Bearbeiten" @click="openEdit(row)">
+              <button type="button" class="acc-icon-btn" :title="t('accounting.common.edit')" @click="openEdit(row)">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
                   <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
                 </svg>
               </button>
-              <button type="button" class="acc-icon-btn danger" title="Löschen" @click="onDelete(row)">
+              <button type="button" class="acc-icon-btn danger" :title="t('accounting.common.delete')" @click="onDelete(row)">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <polyline points="3 6 5 6 21 6" />
                   <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
@@ -127,19 +125,17 @@
 
       <div v-show="bookingsSubTab === 'assign'" class="booking-assign-panel">
         <p v-if="!hasPendingBooking" class="empty-hint booking-assign-empty">
-          Keine ausstehende Anschaffung. Wenn du Material mit Anschaffungspreis erfasst hast, erscheint der Betrag hier
-          – dann wählst du die <strong>Kostenstelle</strong> und ergänzt Typ, Zahlungsart usw., bevor du speicherst.
+          {{ t('accounting.bookings.assignEmptyBefore') }}<strong>{{ t('accounting.common.costCenter') }}</strong>{{ t('accounting.bookings.assignEmptyAfter') }}
         </p>
         <template v-else>
           <p class="booking-assign-lead">
-            Betrag und Datum stammen aus der Anschaffung. Bitte <strong>Kostenstelle</strong> und ggf. weitere Felder
-            zuordnen.
+            {{ t('accounting.bookings.assignLeadBefore') }}<strong>{{ t('accounting.common.costCenter') }}</strong>{{ t('accounting.bookings.assignLeadAfter') }}
           </p>
           <div
             v-if="pendingFollowUps.length > 1"
             class="bookings-subtabs booking-assign-followup-tabs filter-bar accounting-inner-tabs"
           >
-            <div class="filter-tabs" role="tablist" aria-label="Ausstehende Buchungen">
+            <div class="filter-tabs" role="tablist" :aria-label="t('accounting.bookings.pendingTabsAria')">
               <button
                 v-for="(fu, idx) in pendingFollowUps"
                 :key="fu.id"
@@ -150,7 +146,7 @@
                 :class="{ active: assignTabIndex === idx }"
                 @click="selectAssignTab(idx)"
               >
-                Buchung {{ idx + 1 }}
+                {{ t('accounting.bookings.assignTabBooking', { n: idx + 1 }) }}
                 <span class="booking-assign-tab-meta">· CHF {{ formatMoney(fu.amount) }}</span>
               </button>
             </div>
@@ -158,52 +154,52 @@
           <div class="acc-modal-body booking-assign-form">
             <div class="acc-field-row">
               <div class="acc-field">
-                <label for="ba-amt">Betrag (CHF) *</label>
-                <input id="ba-amt" v-model="form.amount" type="text" inputmode="decimal" placeholder="z. B. 149.50" />
+                <label for="ba-amt">{{ t('accounting.bookings.labelAmountChf') }}</label>
+                <input id="ba-amt" v-model="form.amount" type="text" inputmode="decimal" :placeholder="t('accounting.bookings.placeholderAmount')" />
               </div>
               <div class="acc-field">
-                <label for="ba-date">Buchungsdatum *</label>
+                <label for="ba-date">{{ t('accounting.bookings.labelBookingDate') }}</label>
                 <input id="ba-date" v-model="form.booked_at" type="date" />
               </div>
             </div>
             <div class="acc-field">
-              <label for="ba-cc">Kostenstelle *</label>
+              <label for="ba-cc">{{ t('accounting.bookings.labelCostCenterStar') }}</label>
               <select id="ba-cc" v-model="form.cost_center_id">
-                <option disabled value="">Bitte wählen</option>
+                <option disabled value="">{{ t('accounting.common.pleaseSelect') }}</option>
                 <option v-for="c in costCenters" :key="c.id" :value="c.id">{{ c.name }}</option>
               </select>
             </div>
             <div class="acc-field">
-              <label for="ba-type">Buchungstyp *</label>
+              <label for="ba-type">{{ t('accounting.bookings.labelEntryTypeStar') }}</label>
               <select id="ba-type" v-model="form.entry_type">
                 <option v-for="opt in entryOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
               </select>
             </div>
             <div class="acc-field">
-              <label for="ba-pay">Zahlungsart (optional)</label>
+              <label for="ba-pay">{{ t('accounting.bookings.labelPaymentOptional') }}</label>
               <select id="ba-pay" v-model="form.payment_method">
-                <option value="">–</option>
+                <option value="">{{ t('accounting.common.dash') }}</option>
                 <option v-for="opt in paymentOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
               </select>
             </div>
             <div class="acc-field">
-              <label for="ba-grp">Gruppe (optional)</label>
+              <label for="ba-grp">{{ t('accounting.bookings.labelGroupOptional') }}</label>
               <select id="ba-grp" v-model="form.group_id">
-                <option value="">–</option>
+                <option value="">{{ t('accounting.common.dash') }}</option>
                 <option v-for="g in groups" :key="g.id" :value="g.id">{{ g.name }}</option>
               </select>
             </div>
             <div class="acc-field">
-              <label for="ba-rec">Beleg / Referenz (optional)</label>
-              <input id="ba-rec" v-model="form.receipt_label" type="text" maxlength="255" placeholder="z. B. Rechnung Nr. …" />
+              <label for="ba-rec">{{ t('accounting.bookings.labelReceiptOptional') }}</label>
+              <input id="ba-rec" v-model="form.receipt_label" type="text" maxlength="255" :placeholder="t('accounting.bookings.placeholderReceipt')" />
             </div>
             <div class="acc-field">
-              <label for="ba-notes">Notizen (optional)</label>
-              <textarea id="ba-notes" v-model="form.notes" placeholder="Kurztext" />
+              <label for="ba-notes">{{ t('accounting.bookings.labelNotesOptional') }}</label>
+              <textarea id="ba-notes" v-model="form.notes" :placeholder="t('accounting.bookings.placeholderNotesShort')" />
             </div>
             <div class="booking-assign-actions">
               <button type="button" class="btn btn-primary" :disabled="saving" @click="save(true)">
-                {{ saving ? 'Speichern…' : 'Buchung speichern' }}
+                {{ saving ? t('accounting.bookings.saveAssignSaving') : t('accounting.bookings.saveAssign') }}
               </button>
             </div>
           </div>
@@ -215,8 +211,8 @@
       <div v-if="modalOpen" class="acc-modal-backdrop" @click.self="closeModal">
         <div class="acc-modal acc-modal-wide" role="dialog" aria-modal="true">
           <div class="acc-modal-header">
-            <h2>{{ editingId ? 'Buchung bearbeiten' : 'Neue Buchung' }}</h2>
-            <button type="button" class="acc-icon-btn" aria-label="Schließen" @click="closeModal">
+            <h2>{{ editingId ? t('accounting.bookings.modalEditTitle') : t('accounting.bookings.modalCreateTitle') }}</h2>
+            <button type="button" class="acc-icon-btn" :aria-label="t('accounting.common.close')" @click="closeModal">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <line x1="18" y1="6" x2="6" y2="18" />
                 <line x1="6" y1="6" x2="18" y2="18" />
@@ -226,61 +222,61 @@
           <div class="acc-modal-body">
             <div class="acc-field-row">
               <div class="acc-field">
-                <label for="b-amt">Betrag (CHF) *</label>
-                <input id="b-amt" v-model="form.amount" type="text" inputmode="decimal" placeholder="z. B. 149.50" />
+                <label for="b-amt">{{ t('accounting.bookings.labelAmountChf') }}</label>
+                <input id="b-amt" v-model="form.amount" type="text" inputmode="decimal" :placeholder="t('accounting.bookings.placeholderAmount')" />
               </div>
               <div class="acc-field">
-                <label for="b-date">Buchungsdatum *</label>
+                <label for="b-date">{{ t('accounting.bookings.labelBookingDate') }}</label>
                 <input
                   id="b-date"
                   v-model="form.booked_at"
                   type="date"
                   :disabled="!!editingId"
-                  :title="editingId ? 'Nach dem Erfassen nicht änderbar (Jahr in der ID)' : ''"
+                  :title="editingId ? t('accounting.bookings.dateDisabledHint') : ''"
                 />
-                <p v-if="editingId" class="acc-field-hint">Buchungsdatum ist fest (Jahr steckt in der ID).</p>
+                <p v-if="editingId" class="acc-field-hint">{{ t('accounting.bookings.dateFixedHint') }}</p>
               </div>
             </div>
             <div class="acc-field">
-              <label for="b-cc">Kostenstelle *</label>
+              <label for="b-cc">{{ t('accounting.bookings.labelCostCenterStar') }}</label>
               <select id="b-cc" v-model="form.cost_center_id">
-                <option disabled value="">Bitte wählen</option>
+                <option disabled value="">{{ t('accounting.common.pleaseSelect') }}</option>
                 <option v-for="c in costCenters" :key="c.id" :value="c.id">{{ c.name }}</option>
               </select>
             </div>
             <div class="acc-field">
-              <label for="b-type">Buchungstyp *</label>
+              <label for="b-type">{{ t('accounting.bookings.labelEntryTypeStar') }}</label>
               <select id="b-type" v-model="form.entry_type">
                 <option v-for="opt in entryOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
               </select>
             </div>
             <div class="acc-field">
-              <label for="b-pay">Zahlungsart (optional)</label>
+              <label for="b-pay">{{ t('accounting.bookings.labelPaymentOptional') }}</label>
               <select id="b-pay" v-model="form.payment_method">
-                <option value="">–</option>
+                <option value="">{{ t('accounting.common.dash') }}</option>
                 <option v-for="opt in paymentOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
               </select>
             </div>
             <div class="acc-field">
-              <label for="b-grp">Gruppe (optional)</label>
+              <label for="b-grp">{{ t('accounting.bookings.labelGroupOptional') }}</label>
               <select id="b-grp" v-model="form.group_id">
-                <option value="">–</option>
+                <option value="">{{ t('accounting.common.dash') }}</option>
                 <option v-for="g in groups" :key="g.id" :value="g.id">{{ g.name }}</option>
               </select>
             </div>
             <div class="acc-field">
-              <label for="b-rec">Beleg / Referenz (optional)</label>
-              <input id="b-rec" v-model="form.receipt_label" type="text" maxlength="255" placeholder="z. B. Rechnung Nr. …" />
+              <label for="b-rec">{{ t('accounting.bookings.labelReceiptOptional') }}</label>
+              <input id="b-rec" v-model="form.receipt_label" type="text" maxlength="255" :placeholder="t('accounting.bookings.placeholderReceipt')" />
             </div>
             <div class="acc-field">
-              <label for="b-mat">Material (optional)</label>
-              <p class="acc-field-hint">Für Reparatur/Abschreibung oder manuelle Zuordnung; Einkäufe aus Anschaffung werden beim Speichern automatisch verknüpft.</p>
+              <label for="b-mat">{{ t('accounting.bookings.labelMaterialOptional') }}</label>
+              <p class="acc-field-hint">{{ t('accounting.bookings.materialFieldHint') }}</p>
               <MaterialLookupInput
                 v-model="materialLookupDisplay"
                 :fetcher="bookingMaterialLookupFetcher"
                 :min-chars="1"
                 :max-suggestions="12"
-                placeholder="Material suchen…"
+                :placeholder="t('accounting.bookings.placeholderMaterialSearch')"
                 :get-result-key="(item) => item.id"
                 @select="onBookingMaterialSelect"
               />
@@ -290,17 +286,17 @@
                 class="booking-clear-material"
                 @click="clearBookingMaterial"
               >
-                Materialzuordnung entfernen
+                {{ t('accounting.bookings.clearMaterialLink') }}
               </button>
             </div>
             <div class="acc-field">
-              <label for="b-notes">Notizen (optional)</label>
-              <textarea id="b-notes" v-model="form.notes" placeholder="Kurztext" />
+              <label for="b-notes">{{ t('accounting.bookings.labelNotesOptional') }}</label>
+              <textarea id="b-notes" v-model="form.notes" :placeholder="t('accounting.bookings.placeholderNotesShort')" />
             </div>
             <div class="acc-modal-actions">
-              <button type="button" class="btn btn-secondary" @click="closeModal">Abbrechen</button>
+              <button type="button" class="btn btn-secondary" @click="closeModal">{{ t('accounting.common.cancel') }}</button>
               <button type="button" class="btn btn-primary" :disabled="saving" @click="save(false)">
-                {{ saving ? 'Speichern…' : 'Speichern' }}
+                {{ saving ? t('accounting.common.saving') : t('accounting.common.save') }}
               </button>
             </div>
           </div>
@@ -312,6 +308,7 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { listCostCenters, type AccountingCostCenter } from '@/api/accountingCostCenters'
 import {
@@ -337,6 +334,7 @@ import { useHeaderNotificationsStore } from '@/stores/headerNotifications'
 const route = useRoute()
 const headerNotificationsStore = useHeaderNotificationsStore()
 const router = useRouter()
+const { t, te, locale } = useI18n()
 const toast = useToast()
 const { confirm: confirmDialog } = useConfirm()
 
@@ -367,24 +365,21 @@ function clearBookingMaterial() {
   materialLookupDisplay.value = ''
 }
 
-const ENTRY_LABELS: Record<string, string> = {
-  purchase: 'Einkauf',
-  repair_external: 'Reparatur (extern)',
-  repair_internal: 'Reparatur (intern)',
-  amortization: 'Abschreibung',
-  other: 'Sonstiges'
-}
+const ENTRY_KEYS = ['purchase', 'repair_external', 'repair_internal', 'amortization', 'other'] as const
+const PAYMENT_KEYS = ['advance_mw', 'cash_group', 'supplier_invoice', 'association', 'other'] as const
 
-const PAYMENT_LABELS: Record<string, string> = {
-  advance_mw: 'Vorzahlung (MW)',
-  cash_group: 'Kasse / Gruppe',
-  supplier_invoice: 'Lieferantenrechnung',
-  association: 'Verein / Zentral',
-  other: 'Sonstiges'
-}
-
-const entryOptions = Object.entries(ENTRY_LABELS).map(([value, label]) => ({ value, label }))
-const paymentOptions = Object.entries(PAYMENT_LABELS).map(([value, label]) => ({ value, label }))
+const entryOptions = computed(() =>
+  ENTRY_KEYS.map((value) => ({
+    value,
+    label: t(`accounting.entryType.${value}`),
+  }))
+)
+const paymentOptions = computed(() =>
+  PAYMENT_KEYS.map((value) => ({
+    value,
+    label: t(`accounting.paymentMethod.${value}`),
+  }))
+)
 
 /** Jahre, in denen es bereits Buchungen gibt (pro Department). */
 const bookingYears = ref<number[]>([])
@@ -522,18 +517,28 @@ async function openAssignTab() {
 }
 
 function entryLabel(k: string): string {
-  return ENTRY_LABELS[k] || k
+  const key = `accounting.entryType.${k}`
+  return te(key) ? t(key) : k
 }
 
 function paymentLabel(k: string | null): string {
-  if (!k) return '–'
-  return PAYMENT_LABELS[k] || k
+  if (!k) return t('accounting.common.dash')
+  const key = `accounting.paymentMethod.${k}`
+  return te(key) ? t(key) : k
+}
+
+function bookingDateFormatLocale(): string {
+  const l = locale.value
+  if (l === 'en') return 'en-GB'
+  if (l === 'fr') return 'fr-CH'
+  if (l === 'it') return 'it-CH'
+  return 'de-CH'
 }
 
 function formatDate(iso: string): string {
-  if (!iso) return '–'
+  if (!iso) return t('accounting.common.dash')
   const d = new Date(iso + 'T12:00:00')
-  return d.toLocaleDateString('de-CH')
+  return d.toLocaleDateString(bookingDateFormatLocale())
 }
 
 function formatMoney(s: string): string {
@@ -548,7 +553,7 @@ async function loadCostCenters() {
   try {
     costCenters.value = await listCostCenters(departmentId.value)
   } catch {
-    ccError.value = 'Kostenstellen konnten nicht geladen werden.'
+    ccError.value = t('accounting.bookings.ccLoadError')
     costCenters.value = []
   } finally {
     ccLoading.value = false
@@ -591,7 +596,7 @@ async function load() {
       e && typeof e === 'object' && 'response' in e
         ? (e as { response?: { data?: { error?: string } } }).response?.data?.error
         : null
-    loadError.value = msg || 'Buchungen konnten nicht geladen werden.'
+    loadError.value = msg || t('accounting.bookings.listLoadError')
     items.value = []
   } finally {
     isLoading.value = false
@@ -712,15 +717,15 @@ function closeModal() {
 async function save(fromAssignTab = false) {
   const amount = form.amount.trim()
   if (!amount) {
-    toast.error('Bitte einen Betrag eingeben.')
+    toast.error(t('accounting.bookings.toastAmountRequired'))
     return
   }
   if (!form.booked_at) {
-    toast.error('Bitte ein Buchungsdatum wählen.')
+    toast.error(t('accounting.bookings.toastDateRequired'))
     return
   }
   if (!form.cost_center_id) {
-    toast.error('Bitte eine Kostenstelle wählen.')
+    toast.error(t('accounting.bookings.toastCostCenterRequired'))
     return
   }
 
@@ -743,7 +748,7 @@ async function save(fromAssignTab = false) {
   try {
     if (editingId.value) {
       await updateBooking(departmentId.value, editingId.value, payloadBase)
-      toast.success('Buchung gespeichert.')
+      toast.success(t('accounting.bookings.toastSaved'))
     } else {
       if (fromAssignTab && activeFollowUpId.value) {
         const { material_item_id: _omitMat, ...withoutMat } = payloadBase
@@ -758,7 +763,7 @@ async function save(fromAssignTab = false) {
           booked_at: form.booked_at,
         })
       }
-      toast.success('Buchung erfasst.')
+      toast.success(t('accounting.bookings.toastCreated'))
       if (workingFromPending.value) {
         const savedFuId = activeFollowUpId.value
         if (savedFuId) delete assignDrafts[savedFuId]
@@ -782,7 +787,7 @@ async function save(fromAssignTab = false) {
       e && typeof e === 'object' && 'response' in e
         ? (e as { response?: { data?: { error?: string } } }).response?.data?.error
         : null
-    toast.error(msg || 'Speichern fehlgeschlagen.')
+    toast.error(msg || t('accounting.common.saveFailed'))
   } finally {
     saving.value = false
   }
@@ -790,19 +795,23 @@ async function save(fromAssignTab = false) {
 
 async function onDelete(row: AccountingBooking) {
   const ok = await confirmDialog({
-    title: 'Buchung löschen?',
-    message: `Eintrag vom ${formatDate(row.booked_at)} über CHF ${formatMoney(row.amount)} wirklich löschen?`,
-    confirmText: 'Löschen',
-    variant: 'danger'
+    title: t('accounting.bookings.deleteConfirmTitle'),
+    message: t('accounting.bookings.deleteConfirmMessage', {
+      date: formatDate(row.booked_at),
+      amount: formatMoney(row.amount),
+    }),
+    confirmText: t('accounting.bookings.confirmDelete'),
+    cancelText: t('accounting.common.cancel'),
+    variant: 'danger',
   })
   if (!ok) return
   try {
     await deleteBooking(departmentId.value, row.id)
-    toast.success('Gelöscht.')
+    toast.success(t('accounting.common.deleted'))
     await loadBookingYears()
     await load()
   } catch {
-    toast.error('Löschen fehlgeschlagen.')
+    toast.error(t('accounting.common.deleteFailed'))
   }
 }
 </script>

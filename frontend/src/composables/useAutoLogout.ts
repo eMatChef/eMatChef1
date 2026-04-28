@@ -1,4 +1,5 @@
 import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useConfirm } from '@/composables/useConfirm'
@@ -17,6 +18,7 @@ function readLastActivityMs(): number {
 }
 
 export function useAutoLogout() {
+  const { t } = useI18n()
   const router = useRouter()
   const authStore = useAuthStore()
   const confirm = useConfirm()
@@ -100,11 +102,11 @@ export function useAutoLogout() {
       if (!isLoggedIn.value) return
 
       const verlängern = await confirm.confirm({
-        title: 'Session läuft bald ab',
-        message: 'Deine Sitzung läuft in wenigen Minuten ab. Möchtest du angemeldet bleiben?',
-        confirmText: 'Verlängern',
-        cancelText: 'Abmelden',
-        variant: 'warning'
+        title: t('errors.sessionExpiringTitle'),
+        message: t('errors.sessionExpiringMessage'),
+        confirmText: t('errors.extendSession'),
+        cancelText: t('layout.userMenu.logout'),
+        variant: 'warning',
       })
 
       if (verlängern) {

@@ -1,7 +1,7 @@
 <template>
   <div class="step-section creation-mode-step" data-step="creation_mode">
     <div class="step-header step-header--clickable" @click="$emit('toggle')">
-      <span class="step-title">Was möchtest du erstellen?</span>
+      <span class="step-title">{{ t('components.materialCreateWizard.creationPrompt') }}</span>
       <span class="step-chevron" :class="{ open: isOpen }">▾</span>
     </div>
     <div v-show="isOpen" class="step-content">
@@ -13,10 +13,8 @@
             </svg>
           </div>
           <div class="mode-card-content">
-            <span class="mode-card-title">Einzelartikel erstellen</span>
-            <span class="mode-card-desc">
-              Eigenständiges Material anlegen oder aus Vorlage erstellen.
-            </span>
+            <span class="mode-card-title">{{ t('components.materialCreateWizard.modeIndividualTitle') }}</span>
+            <span class="mode-card-desc">{{ t('components.materialCreateWizard.modeIndividualDesc') }}</span>
           </div>
         </div>
         <div class="creation-mode-card" @click="$emit('select', 'physical_combo')">
@@ -27,11 +25,8 @@
             </svg>
           </div>
           <div class="mode-card-content">
-            <span class="mode-card-title">Physische Kombination</span>
-            <span class="mode-card-desc">
-              Feste Einheit (mit oder ohne Vorlage, z.B. "Zelt Braun").
-              Wird als Ganzes gelagert und vermietet.
-            </span>
+            <span class="mode-card-title">{{ t('components.materialCreateWizard.modePhysicalComboTitle') }}</span>
+            <span class="mode-card-desc">{{ t('components.materialCreateWizard.modePhysicalComboDesc') }}</span>
           </div>
         </div>
         <div class="creation-mode-card" @click="$emit('select', 'virtual_combo')">
@@ -42,11 +37,8 @@
             </svg>
           </div>
           <div class="mode-card-content">
-            <span class="mode-card-title">Virtuelle Kombination</span>
-            <span class="mode-card-desc">
-              Planungsgruppe für Reservationen.
-              Teile bleiben einzeln verfügbar.
-            </span>
+            <span class="mode-card-title">{{ t('components.materialCreateWizard.modeVirtualComboTitle') }}</span>
+            <span class="mode-card-desc">{{ t('components.materialCreateWizard.modeVirtualComboDesc') }}</span>
           </div>
         </div>
       </div>
@@ -55,6 +47,10 @@
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n'
+
+const { t } = useI18n()
+
 defineProps<{
   isOpen: boolean
 }>()
