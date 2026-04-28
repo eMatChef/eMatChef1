@@ -19,6 +19,12 @@ chmod +x deploy/prod-update.sh
 EMATCHEF_PROD_ROOT=/opt/ematchef/prod ./deploy/prod-update.sh reset
 ```
 
+Migration ausführen
+```bash
+docker compose -p ematchef-prod exec backend php bin/console doctrine:migrations:migrate --no-interaction
+docker compose -p ematchef-prod exec backend php bin/console doctrine:migrations:status
+```
+
 `docker compose down -v` (Datenbank leeren) ist **nur** nötig bei kaputtem DB-Stand oder Erstinstallation – **nicht** bei jedem normalen Update.
 
 ## 1. Standard: Dienst stoppen → Pull → durchstarten
