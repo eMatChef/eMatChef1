@@ -2490,6 +2490,7 @@ const filteredCategories = ref<Category[]>([])
 const selectedCategory = ref<Category | null>(null)
 const showRackDropdown = ref(false)
 const filteredRackOptions = ref<StorageRack[]>([])
+const isCreatingRack = ref(false)
 /** Alle Regale der Abteilung (wird aus useStorageStructure.loadRacks gefüllt) */
 const allStorageRacks = ref<StorageRack[]>([])
 const storageSlots = ref<StorageSlot[]>([])
@@ -4493,6 +4494,7 @@ async function onStorageLocationRackUpdate(rackId: string) {
 }
 
 async function addRackCategory() {
+  if (isCreatingRack.value) return
   const rackName = formData.location_rack.trim()
   if (rackName.length < 2) {
     toast.error(t('components.materialCreateWizard.toastEnterRackNameFirst'))
@@ -4504,6 +4506,7 @@ async function addRackCategory() {
   }
 
   try {
+    isCreatingRack.value = true
     const existingRack = storageRacks.value.find((rack) =>
       normalizeName(rack.name) === normalizeName(rackName)
     )
@@ -4524,18 +4527,62 @@ async function addRackCategory() {
       storage_address_id: formData.storage_address_id,
     })
 
+    // Sofortige UI-Synchronisierung: neu erstelltes Regal direkt lokal sichtbar machen.
+    // API-Responses enthalten je nach Endpoint nicht immer konsistente Typen/Felder.
+    const normalizedCreatedRack: StorageRack = {
+      ...createdRack,
+      id: String((createdRack as any).id),
+      storage_address_id: String(
+        (createdRack as any).storage_address_id ?? formData.storage_address_id ?? ''
+      ),
+    }
+    const existsLocally = allStorageRacks.value.some(
+      (rack) => String(rack.id) === String(normalizedCreatedRack.id)
+    )
+    if (!existsLocally) {
+      allStorageRacks.value = [...allStorageRacks.value, normalizedCreatedRack]
+    }
+    searchRackCategories()
+
     await refreshDepartmentRacks()
     containerBatches.value = await getContainerBatches(props.departmentId).catch(() => [])
     await prefetchContainerPreviews()
-    formData.location_rack = createdRack.name
-    formData.rack_id = String(createdRack.id)
-    const createdSlots = await loadSlotsForRack(String(createdRack.id))
+    formData.location_rack = normalizedCreatedRack.name
+    formData.rack_id = String(normalizedCreatedRack.id)
+    const createdSlots = await loadSlotsForRack(String(normalizedCreatedRack.id))
     storageSlots.value = createdSlots
     formData.slot_id = createdSlots[0]?.id ? String(createdSlots[0].id) : ''
     searchRackCategories()
     toast.success(t('components.materialCreateWizard.toastRackCreated'))
   } catch (err: any) {
-    toast.error(err?.response?.data?.error || t('components.materialCreateWizard.toastRackCreateFailed'))
+    const apiError = String(err?.response?.data?.error || '')
+    const conflict =
+      err?.response?.status === 409 ||
+      /namenskonflikt|name.*exist|already exists|duplicate/i.test(apiError)
+
+    if (conflict) {
+      // Falls der Request serverseitig bereits erfolgreich war (Doppelklick/Race), Rack neu laden und übernehmen.
+      await refreshDepartmentRacks()
+      const recoveredRack = storageRacks.value.find(
+        (rack) =>
+          normalizeName(rack.name) === normalizeName(rackName) &&
+          String(rack.storage_address_id || '') === String(formData.storage_address_id || '')
+      )
+      if (recoveredRack) {
+        formData.location_rack = recoveredRack.name
+        formData.rack_id = String(recoveredRack.id)
+        const slots = await loadSlotsForRack(String(recoveredRack.id))
+        storageSlots.value = slots
+        formData.slot_id = slots[0]?.id ? String(slots[0].id) : ''
+        searchRackCategories()
+        toast.success(t('components.materialCreateWizard.toastRackAlreadyExists'))
+        return
+      }
+    }
+
+    toast.error(apiError || t('components.materialCreateWizard.toastRackCreateFailed'))
+  } finally {
+    isCreatingRack.value = false
   }
 }
 

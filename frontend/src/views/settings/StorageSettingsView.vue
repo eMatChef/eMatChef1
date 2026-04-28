@@ -276,7 +276,7 @@
       :is-open="showDeleteRackConfirm"
       :title="t('settings.storage.deleteRackTitle')"
       :message="deletingRack
-        ? t('settings.storage.deleteRackMessage', { name: deletingRack.name, count: getSlotCount(deletingRack.id) })
+        ? getDeleteRackMessage(deletingRack)
         : t('settings.storage.deleteRackFallbackMessage')"
       :is-loading="isDeleting"
       @close="showDeleteRackConfirm = false"
@@ -478,6 +478,15 @@ function getSlots(rackId: string): StorageSlot[] {
 
 function getSlotCount(rackId: string): number {
   return getSlots(rackId).length
+}
+
+function getDeleteRackMessage(rack: StorageRack): string {
+  const count = getSlotCount(rack.id)
+  const key =
+    count === 1
+      ? 'settings.storage.deleteRackMessageOne'
+      : 'settings.storage.deleteRackMessageMany'
+  return t(key, { name: rack.name, count })
 }
 
 const defaultStorageAddressId = computed(() => {
