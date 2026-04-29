@@ -36,8 +36,11 @@ services:
       JWT_PASSPHRASE: ${JWT_PASSPHRASE}
       APP_FRONTEND_URL: "https://app.ematchef.ch"
       APP_PUBLIC_QR_URL: "https://qr.ematchef.ch"
-      # Nur eure echten HTTPS-Origins (Frontend auf Hostpoint)
-      CORS_ALLOW_ORIGIN: '^https://(app\.ematchef\.ch|ematchef\.ch|www\.ematchef\.ch)$'
+      # HttpOnly JWT/Refresh für alle *.ematchef.ch-Frontends; Secure=1 nur mit HTTPS
+      AUTH_COOKIE_DOMAIN: ".ematchef.ch"
+      AUTH_COOKIE_SECURE: "1"
+      # Nur eure echten HTTPS-Origins (kein * bei credentials) — qr.* für öffentliche QR-Seite
+      CORS_ALLOW_ORIGIN: '^https://(app\.ematchef\.ch|qr\.ematchef\.ch|ematchef\.ch|www\.ematchef\.ch)$'
       # SendGrid (API über HTTPS, oft nötig wenn VPS Port 587 blockiert): in .env auf dem Server:
       #   MAILER_FROM="noreply@ematchef.ch"
       #   Optional: Logo in HTML-Mails (absolute HTTPS-URL, z. B. Favicon auf Hostpoint)

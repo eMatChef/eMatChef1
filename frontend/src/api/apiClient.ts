@@ -75,6 +75,13 @@ apiClient.interceptors.request.use((config) => {
     return config
   }
 
+  // Session-Probe: nur HttpOnly-Cookies — ein abgelaufener Authorization-Header
+  // könnte sonst vor dem Cookie-Extractor ausgewertet werden.
+  if (isSessionProbeUrl(requestUrl)) {
+    delete (config.headers as Record<string, unknown>).Authorization
+    return config
+  }
+
   const token = localStorage.getItem('auth_token')
   if (token) {
     config.headers.Authorization = `Bearer ${token}`

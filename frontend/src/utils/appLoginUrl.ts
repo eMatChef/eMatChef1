@@ -35,6 +35,14 @@ export function getMainSiteOrigin(): string {
   return (import.meta.env.VITE_MAIN_SITE_ORIGIN || '').trim().replace(/\/$/, '')
 }
 
+const qrPublicHost = (import.meta.env.VITE_QR_PUBLIC_HOST || '').trim().toLowerCase()
+
+/** Öffentliche QR-/Info-Hostnames (z. B. qr.localhost, qr.ematchef.ch). */
+export function isQrPublicHost(): boolean {
+  if (!qrPublicHost || typeof window === 'undefined') return false
+  return window.location.hostname.toLowerCase() === qrPublicHost
+}
+
 export function isAppOrigin(): boolean {
   const appOrigin = (import.meta.env.VITE_APP_ORIGIN || '').trim().replace(/\/$/, '')
   if (!appOrigin || typeof window === 'undefined') return false

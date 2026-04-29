@@ -79,8 +79,10 @@ docker exec ematchef_v401-backend-1 php bin/console app:org-subset:import --file
 
 ## Crowdin (i18n)
 
-- In Crowdin: **Settings → Languages → Language mapping** — pro Sprache **Custom code** so setzen, dass die **Dateinamen** zu `frontend/src/locales/` passen, z. B. Englisch → `en` (nicht `en-US`), analog **fr**, **it**. Ohne die Kurzform legt der Export gern `en-US.json` o. a. an und passiert nicht zum i18n-Code.
+- **Git → Crowdin automatisch:** Bei jedem Push auf **`main`**, der `frontend/src/locales/**` oder `crowdin.yml` ändert, läuft die Action **Translations (Crowdin)** mit `crowdin upload sources` und `crowdin upload translations` (Repo-Stand wird in Crowdin gespiegelt). Kein manueller Upload nötig. Die Action checkt **immer `main` aus** (auch bei manuellem Workflow-Run), damit nicht versehentlich ein anderer Git-Branch nach Crowdin geschoben wird.
+- **`crowdin.yml` → `branch: main`:** bezieht sich auf **Crowdin-Versions-/Projekt-Branches**, nicht auf Git. Wenn euer Crowdin-Projekt **keine** Branches nutzt und die CLI damit fehlschlägt, die Zeile `branch: main` in `crowdin.yml` entfernen oder in Crowdin einen Branch `main` anlegen.
+- **Crowdin → Git:** wie bisher per Zeitplan oder manuell **download** (PR `chore/crowdin-translations`). `pull_request_title` / `commit_message` stehen in `crowdin.yml` (analog [ecamp/ecamp3 crowdin.yml](https://github.com/ecamp/ecamp3/blob/devel/crowdin.yml); dort ist **en** die Quelle, bei uns bleibt **de** die Quelle, Ziele sind `%locale%.json`).
+- In Crowdin: **Settings → Languages → Language mapping** — pro Sprache **Custom code** so setzen, dass die **Dateinamen** zu `frontend/src/locales/` passen, z. B. Englisch → `en` (nicht `en-US`), analog **fr**, **it**. Zusaetzlich ist in `crowdin.yml` unter `languages_mapping.locale` ein Mapping fuer `en-US`/`fr-FR`/`it-IT` → kurze Dateinamen.
 - Fuer Ziele wie **Rumantsch** bzw. **de-pfadi** / **de-cevi** dieselben **Codes** wie in `frontend/src/config/languages.ts` waehlen: `ch-rm`, `de-pfadi`, `de-cevi` (nur in Crowdin, sobald die Sprache als Ziel existiert; jeweils **Custom language** bzw. Code-Feld).
-- Im Repo ist `languages_mapping` in `crowdin.yml` ergaenzt (Sicherheitsnetz, falls trotzdem en-US / fr-FR / it-IT in Crowdin gepflegt werden).
 
 Weitere Details: lokal in `docs/` (falls im Arbeitsbaum vorhanden) oder in `deploy/SERVER-UPDATE.md` bei Deployment-Hinweisen.

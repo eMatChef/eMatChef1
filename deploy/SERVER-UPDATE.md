@@ -339,6 +339,7 @@ So arbeitet der Droplet **ohne** HTTPS-Benutzername/Passwort mit GitHub:
 
 **Hinweise**
 
+- **Login über mehrere Subdomains (JWT/Refresh-Cookies, Session-API):** siehe `deploy/CROSS-SUBDOMAIN-LOGIN.md` (inkl. Textblock für einen neuen Chat).
 - `docker-compose.override.yml` und `.env` mit Geheimnissen liegen **nur auf dem Server**, nicht im Git (siehe `.gitignore`).
 - Neue **Console-Commands** erscheinen unter `APP_ENV=prod` erst nach **Cache-Warmup** (siehe Abschnitt 3).
 - **Nginx** auf dem Host (443 → 8081) ist unabhängig von Docker; bei reinen PHP-Änderungen meist kein `systemctl reload nginx` nötig.

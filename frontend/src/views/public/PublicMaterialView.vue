@@ -18,7 +18,7 @@
           v-else
           type="button"
           class="public-user-link"
-          :title="t('public.lookup.toApp')"
+          :title="lookupLoggedInActionTitle"
           :aria-label="t('public.lookup.loggedInAs', { name: publicGreetingName })"
           @click="goToApp"
         >
@@ -71,7 +71,7 @@
             class="public-login-btn public-login-btn--primary"
             @click="goToApp"
           >
-            {{ t('public.lookup.toApp') }}
+            {{ lookupLoggedInActionLabel }}
           </button>
         </div>
 
@@ -176,7 +176,7 @@ import EmcLogoMark from '../../components/brand/EmcLogoMark.vue'
 import PublicSiteFooter from '../../components/public/PublicSiteFooter.vue'
 import { PAGE_HEAD_KEYS } from '../../composables/usePageHead'
 import { usePageHeadStore } from '../../stores/pageHead'
-import { getAppEntryTarget } from '../../utils/appLoginUrl'
+import { getAppEntryTarget, isQrPublicHost } from '../../utils/appLoginUrl'
 
 const { t } = useI18n()
 const route = useRoute()
@@ -201,6 +201,13 @@ const publicGreetingName = computed(() =>
   authStore.userDisplayName || t('public.lookup.materialFallback')
 )
 const publicInitials = computed(() => authStore.userInitials || '??')
+
+const lookupLoggedInActionLabel = computed(() =>
+  isQrPublicHost() ? t('public.lookup.toMaterial') : t('public.lookup.toApp')
+)
+const lookupLoggedInActionTitle = computed(() =>
+  isQrPublicHost() ? t('public.lookup.toMaterialTitle') : t('public.lookup.toApp')
+)
 
 const pageTitle = computed(() => {
   if (loading.value) return t(PAGE_HEAD_KEYS.defaultTitle)
@@ -317,10 +324,6 @@ function goToLogin() {
 
 /** Bereits angemeldet: ins Material / Dashboard wechseln. */
 function goToApp() {
-  if (!authStore.isLoggedIn && isPublicLoggedIn.value) {
-    window.location.href = getAppEntryTarget()
-    return
-  }
   if (!authStore.isLoggedIn) {
     goToLogin()
     return
