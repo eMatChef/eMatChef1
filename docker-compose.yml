@@ -44,6 +44,9 @@ services:
       APP_FRONTEND_URL: "http://app.localhost"
       # Öffentliche QR-URLs (/i/m/, /i/b/) – muss mit VITE_QR_PUBLIC_HOST / Nginx qr.* übereinstimmen
       APP_PUBLIC_QR_URL: "http://qr.localhost"
+      # Überschreibt backend/.env — gleiche Werte wie CROSS-SUBDOMAIN-LOGIN.md
+      AUTH_COOKIE_DOMAIN: ".localhost"
+      AUTH_COOKIE_SECURE: "0"
       CORS_ALLOW_ORIGIN: '^https?://(app\.localhost|qr\.localhost|localhost|127\.0\.0\.1)(:[0-9]+)?$'
       # Lokal Registrierung ohne Turnstile testen: 1 (Produktion nie)
       TURNSTILE_SKIP_VERIFY: "${TURNSTILE_SKIP_VERIFY:-0}"

@@ -1,6 +1,12 @@
 name: Translations (Crowdin)
 
 on:
+  push:
+    branches:
+      - main
+    paths:
+      - "frontend/src/locales/**"
+      - "crowdin.yml"
   workflow_dispatch:
     inputs:
       command:
@@ -10,6 +16,7 @@ on:
         type: choice
         options:
           - upload-sources
+          - upload-translations
           - download
   schedule:
     - cron: "17 3 * * *"
@@ -24,6 +31,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          # Immer Inhalt von main für Crowdin (nicht den gerade gewählten Branch bei manuellem Run).
+          ref: main
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -33,12 +43,29 @@ jobs:
       - name: Install Crowdin CLI
         run: npm install -g @crowdin/cli
 
+      # Bei jedem relevanten Push: Git ist die Wahrheit → Crowdin nachziehen (ohne manuellen Upload).
+      - name: Sync Git → Crowdin (sources + existing translations)
+        if: github.event_name == 'push'
+        env:
+          CROWDIN_PROJECT_ID: ${{ secrets.CROWDIN_PROJECT_ID }}
+          CROWDIN_PERSONAL_TOKEN: ${{ secrets.CROWDIN_PERSONAL_TOKEN }}
+        run: |
+          crowdin upload sources
+          crowdin upload translations
+
       - name: Upload source strings
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.command == 'upload-sources' }}
         env:
           CROWDIN_PROJECT_ID: ${{ secrets.CROWDIN_PROJECT_ID }}
           CROWDIN_PERSONAL_TOKEN: ${{ secrets.CROWDIN_PERSONAL_TOKEN }}
         run: crowdin upload sources
+
+      - name: Upload existing translations (from repo → Crowdin)
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.command == 'upload-translations' }}
+        env:
+          CROWDIN_PROJECT_ID: ${{ secrets.CROWDIN_PROJECT_ID }}
+          CROWDIN_PERSONAL_TOKEN: ${{ secrets.CROWDIN_PERSONAL_TOKEN }}
+        run: crowdin upload translations
 
       - name: Download translations
         if: ${{ github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.command == 'download') }}

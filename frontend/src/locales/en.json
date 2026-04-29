@@ -89,6 +89,8 @@
       "loggedInAs": "Signed in as {name}",
       "heyName": "Hey {name}",
       "toApp": "Go to app",
+      "toMaterial": "Open material",
+      "toMaterialTitle": "Open this material in the app",
       "serialInfoTitle": "Serial info",
       "materialInfoTitle": "Material info",
       "loading": "Loading data...",

@@ -92,6 +92,8 @@
       "loggedInAs": "Angemeldet als {name}",
       "heyName": "Hey {name}",
       "toApp": "Zur App",
+      "toMaterial": "Zum Material",
+      "toMaterialTitle": "Dieses Material in der App öffnen",
       "serialInfoTitle": "Seriennummer-Info",
       "materialInfoTitle": "Material-Info",
       "loading": "Lade Daten...",

@@ -83,7 +83,7 @@ export const useAuthStore = defineStore('auth', () => {
   const departmentTimezone = ref<string>(localStorage.getItem('department_timezone') || 'Europe/Zurich')
 
   async function loadDepartmentTimezone() {
-    if (!activeDepartmentId.value || !token.value) return
+    if (!activeDepartmentId.value || !userId.value) return
     try {
       const settings = await getGeneralSettings(activeDepartmentId.value)
       departmentTimezone.value = settings.timezone || 'Europe/Zurich'
@@ -277,6 +277,12 @@ export const useAuthStore = defineStore('auth', () => {
 
       resetSessionExpiredHandling()
       lastSessionStartTime.value = Date.now()
+      // IDs auf dieser Origin (z. B. qr.*) — JWT bleibt nur im HttpOnly-Cookie
+      localStorage.setItem('user_id', session.user.id)
+      localStorage.setItem(
+        'profile_id',
+        session.profile.id ?? session.user.profile_id ?? ''
+      )
       return true
     } catch {
       return false
@@ -333,7 +339,7 @@ export const useAuthStore = defineStore('auth', () => {
       localStorage.setItem('active_department_id', departmentId)
       // Timezone des neuen Departments laden
       await loadDepartmentTimezone()
-      if (token.value && userId.value) {
+      if (userId.value) {
         try {
           await apiSaveLastUsedDepartment(departmentId)
         } catch (e) {
