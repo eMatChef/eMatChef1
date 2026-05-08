@@ -6,7 +6,14 @@
         <h1 id="landing-title">{{ heroTitle }}</h1>
         <p class="plt-lead">{{ heroSubtitle }}</p>
         <div class="plt-hero__actions">
-          <a :href="primaryHref" class="btn btn-primary plt-btn-lg">{{ primaryCta }}</a>
+          <a
+            :href="primaryHref"
+            :target="openPrimaryInNewTab ? '_blank' : undefined"
+            :rel="openPrimaryInNewTab ? 'noopener noreferrer' : undefined"
+            class="btn btn-primary plt-btn-lg"
+          >
+            {{ primaryCta }}
+          </a>
           <RouterLink to="/faq" class="btn btn-outline plt-btn-lg">{{ secondaryCta }}</RouterLink>
         </div>
       </div>
@@ -39,7 +46,14 @@
       <div class="plt-container">
         <h2 id="section-cta" class="sr-only">{{ t('public.landing.cta.titleSrOnly') }}</h2>
         <p>{{ t('public.landing.cta.text') }}</p>
-        <a :href="primaryHref" class="btn btn-primary plt-btn-lg">{{ primaryCta }}</a>
+        <a
+          :href="primaryHref"
+          :target="openPrimaryInNewTab ? '_blank' : undefined"
+          :rel="openPrimaryInNewTab ? 'noopener noreferrer' : undefined"
+          class="btn btn-primary plt-btn-lg"
+        >
+          {{ primaryCta }}
+        </a>
       </div>
     </section>
   </div>
@@ -79,6 +93,14 @@ const primaryCta = computed(() =>
 const primaryHref = computed(() =>
   isPublicLoggedIn.value ? getAppEntryTarget() : getAppLoginTarget()
 )
+const openPrimaryInNewTab = computed(() => {
+  if (typeof window === 'undefined') return false
+  try {
+    return new URL(primaryHref.value).origin !== window.location.origin
+  } catch {
+    return false
+  }
+})
 const secondaryCta = computed(() =>
   String(site.getContent('landing').secondaryCta ?? t('public.landing.secondaryCta'))
 )

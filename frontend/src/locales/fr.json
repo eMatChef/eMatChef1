@@ -81,7 +81,11 @@
     "blog": {
       "titleFallback": "Blog",
       "untitledPost": "Sans titre",
-      "noPostsYet": "Aucun article pour le moment."
+      "noPostsYet": "Aucun article pour le moment.",
+      "readMore": "Lire la suite",
+      "backToList": "Retour au blog",
+      "notFoundTitle": "Article introuvable",
+      "notFoundBody": "L'article demandé n'existe pas ou a été supprimé."
     },
     "landing": {
       "kicker": "Gestion du matériel",
@@ -159,7 +163,16 @@
         "postHeadline": "Titre",
         "contentLabel": "Contenu",
         "postPlaceholder": "Texte de l’article…",
-        "confirmDeletePost": "Supprimer l’article ?"
+        "confirmDeletePost": "Supprimer l’article ?",
+        "workflowHint": "Sélectionnez un article dans la liste ou créez-en un nouveau et écrivez directement dans l'éditeur.",
+        "untitledPost": "(sans titre)",
+        "createdLabel": "Créé le",
+        "collapse": "Réduire",
+        "edit": "Modifier",
+        "delete": "Supprimer",
+        "editorEmptyHint": "Sélectionnez un article ou cliquez sur « Nouvel article » pour commencer à écrire.",
+        "pageAccordionTitle": "Titre de page et contenu",
+        "postAccordionTitle": "Articles de blog"
       },
       "faq": {
         "title": "FAQ",

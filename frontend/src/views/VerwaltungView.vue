@@ -74,6 +74,7 @@ function resolveItemTo(item: MenuItem): string {
   if (item.to) return item.to
   if (item.id === 'global-addresses') return getVerwaltungLink('')
   if (item.id === 'mail') return getVerwaltungLink('/mail/versand')
+  if (item.id === 'security-monitoring') return getVerwaltungLink('/security-monitoring')
   return getVerwaltungLink(`/${item.id}`)
 }
 
@@ -113,12 +114,14 @@ const visibleMenuItems = computed((): MenuItem[] => {
       { id: 'users', label: t('verwaltung.nav.users'), icon: markRaw(IconEmployees) }
     ]
     const integrations: MenuItem = { id: 'integrations', label: t('verwaltung.nav.integrations'), icon: markRaw(IconSettings) }
+    const securityMonitoring: MenuItem = { id: 'security-monitoring', label: t('verwaltung.nav.securityMonitoring'), icon: markRaw(IconSettings) }
     const mail: MenuItem = { id: 'mail', label: t('verwaltung.nav.mail'), icon: markRaw(IconSettings) }
     const perm: MenuItem = { id: 'permissions', label: t('verwaltung.nav.permissions'), icon: markRaw(IconSettings) }
     return [
       ...core,
       ...(isSuperAdminUser.value ? sa : []),
       ...(isSuperAdminUser.value ? [integrations] : []),
+      ...(canManageOrganisations.value ? [securityMonitoring] : []),
       ...(isSuperAdminUser.value ? [mail] : []),
       perm,
     ]
@@ -138,6 +141,7 @@ const visibleMenuItems = computed((): MenuItem[] => {
   const orgItems: MenuItem[] = [
     { id: 'organisations', label: t('verwaltung.nav.organisations'), icon: markRaw(IconDashboard) },
     { id: 'departments', label: t('verwaltung.nav.allDepartments'), icon: markRaw(IconDashboard) },
+    { id: 'security-monitoring', label: t('verwaltung.nav.securityMonitoring'), icon: markRaw(IconSettings) },
     { id: 'permissions', label: t('verwaltung.nav.permissions'), icon: markRaw(IconSettings) }
   ]
   const mailItem: MenuItem = { id: 'mail', label: t('verwaltung.nav.mail'), icon: markRaw(IconSettings) }

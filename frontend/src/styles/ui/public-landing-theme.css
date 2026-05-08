@@ -279,6 +279,11 @@
   justify-content: space-between;
 }
 
+.plt-footer-inner.is-compact {
+  justify-content: center;
+  text-align: center;
+}
+
 .plt-footer-nav {
   display: flex;
   flex-wrap: wrap;

@@ -7,9 +7,10 @@
 
       <template v-if="posts.length">
         <article v-for="p in posts" :key="p.id" class="blog-post">
-          <h2 class="blog-post-title">{{ p.title || t('public.blog.untitledPost') }}</h2>
           <time v-if="p.createdAt" class="blog-post-date" :datetime="p.createdAt">{{ formatDate(p.createdAt) }}</time>
-          <div class="blog-post-body plt-prose-public" v-html="sanitizePublicHtml(p.bodyHtml)" />
+          <h2 class="blog-post-title">{{ p.title || t('public.blog.untitledPost') }}</h2>
+          <p class="blog-post-excerpt">{{ p.excerpt }}</p>
+          <RouterLink class="blog-post-link" :to="`/blog/${p.slug}`">{{ t('public.blog.readMore') }}</RouterLink>
         </article>
       </template>
       <p v-else class="muted">{{ t('public.blog.noPostsYet') }}</p>
@@ -22,6 +23,7 @@ import { computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useSiteContentStore } from '@/stores/siteContent'
 import { sanitizePublicHtml } from '@/utils/sanitizeHtml'
+import { localizedBlogContent, normalizePublicPosts } from '@/utils/publicBlog'
 
 const { t, locale } = useI18n()
 const site = useSiteContentStore()
@@ -30,30 +32,7 @@ onMounted(() => {
 })
 
 const c = computed(() => site.getContent('blog'))
-type BlogLocale = 'de' | 'en' | 'fr'
-
-function preferredBlogLocale(): BlogLocale {
-  const lc = String(locale.value || 'de').toLowerCase()
-  if (lc.startsWith('en')) return 'en'
-  if (lc.startsWith('fr')) return 'fr'
-  return 'de'
-}
-
-function localizedBlogContent(raw: Record<string, unknown>): Record<string, unknown> {
-  const localesRaw = raw.locales
-  if (!localesRaw || typeof localesRaw !== 'object') return raw
-  const locales = localesRaw as Record<string, unknown>
-  const order: BlogLocale[] = [preferredBlogLocale(), 'de', 'en', 'fr']
-  for (const loc of order) {
-    const entry = locales[loc]
-    if (entry && typeof entry === 'object') {
-      return entry as Record<string, unknown>
-    }
-  }
-  return raw
-}
-
-const localized = computed(() => localizedBlogContent(c.value))
+const localized = computed(() => localizedBlogContent(c.value, String(locale.value)))
 const title = computed(() => String(localized.value.title ?? c.value.title ?? t('public.blog.titleFallback')))
 
 const introHtml = computed(() => {
@@ -67,40 +46,9 @@ const introPlain = computed(() => {
   return typeof raw === 'string' ? raw : ''
 })
 
-function escapeHtml(s: string): string {
-  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
-}
-
-interface PublicPost {
-  id: string
-  title: string
-  bodyHtml: string
-  createdAt: string
-}
-
-function newId(i: number): string {
-  return `legacy-${i}`
-}
-
-const posts = computed((): PublicPost[] => {
-  const raw = localized.value.posts ?? c.value.posts
-  if (!Array.isArray(raw)) return []
-  return raw.map((p, i) => {
-    if (typeof p !== 'object' || !p) {
-      return { id: newId(i), title: '', bodyHtml: '<p></p>', createdAt: '' }
-    }
-    const o = p as Record<string, unknown>
-    const id = typeof o.id === 'string' && o.id ? o.id : newId(i)
-    const title = String(o.title ?? '')
-    let bodyHtml = typeof o.bodyHtml === 'string' ? o.bodyHtml : ''
-    if (!bodyHtml && typeof o.excerpt === 'string' && o.excerpt.trim()) {
-      bodyHtml = `<p>${escapeHtml(o.excerpt)}</p>`
-    }
-    if (!bodyHtml) bodyHtml = '<p></p>'
-    const createdAt = typeof o.createdAt === 'string' ? o.createdAt : ''
-    return { id, title, bodyHtml, createdAt }
-  })
-})
+const posts = computed(() =>
+  normalizePublicPosts(localized.value, c.value, t('public.blog.untitledPost'))
+)
 
 function formatDate(iso: string): string {
   if (!iso) return ''
@@ -115,7 +63,7 @@ function formatDate(iso: string): string {
 
 <style scoped>
 .max-w-content {
-  max-width: 42rem;
+  max-width: 52rem;
   margin: 0 auto;
 }
 
@@ -140,7 +88,7 @@ function formatDate(iso: string): string {
 }
 
 .blog-post {
-  padding: 1.5rem 0;
+  padding: 1.75rem 0;
   border-bottom: 1px solid #e2e8f0;
 }
 
@@ -149,9 +97,10 @@ function formatDate(iso: string): string {
 }
 
 .blog-post-title {
-  font-size: 1.2rem;
-  margin: 0 0 0.35rem;
+  font-size: 1.25rem;
+  margin: 0 0 0.5rem;
   color: #0f172a;
+  line-height: 1.35;
 }
 
 .blog-post-date {
@@ -161,22 +110,20 @@ function formatDate(iso: string): string {
   margin-bottom: 0.75rem;
 }
 
-.blog-post-body {
-  line-height: 1.65;
+.blog-post-excerpt {
+  margin: 0 0 0.75rem;
+  line-height: 1.72;
   color: #334155;
+  font-size: 1.02rem;
 }
 
-.blog-post-body :deep(p) {
-  margin: 0 0 0.65rem;
+.blog-post-link {
+  color: #0f766e;
+  text-decoration: none;
+  font-weight: 600;
 }
 
-.blog-post-body :deep(ul),
-.blog-post-body :deep(ol) {
-  margin: 0 0 0.65rem;
-  padding-left: 1.25rem;
-}
-
-.blog-post-body :deep(a) {
-  color: #059669;
+.blog-post-link:hover {
+  text-decoration: underline;
 }
 </style>

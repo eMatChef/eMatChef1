@@ -26,6 +26,7 @@ export const useAuthStore = defineStore('auth', () => {
   const loadingUser = ref(false)
   const error = ref<string | null>(null)
   const lastSessionStartTime = ref<number>(0)
+  let cookieSessionPromise: Promise<boolean> | null = null
   
   // Getters
   const isLoggedIn = computed(() => {
@@ -242,51 +243,70 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  async function loadUserSessionFromCookie(): Promise<boolean> {
-    if (isLoggedIn.value) return true
+  function clearAuthState(): void {
+    user.value = null
+    profile.value = null
+    departments.value = []
+    activeDepartmentId.value = null
+    token.value = null
+    lastSessionStartTime.value = 0
+    localStorage.removeItem('active_department_id')
+    localStorage.removeItem('user_id')
+    localStorage.removeItem('profile_id')
+  }
+
+  async function loadUserSessionFromCookie(force = false): Promise<boolean> {
+    if (!force && isLoggedIn.value) return true
+    if (cookieSessionPromise) return cookieSessionPromise
     try {
       loadingUser.value = true
-      const session = await loadSessionFromServer()
+      cookieSessionPromise = (async () => {
+        const session = await loadSessionFromServer()
 
-      user.value = {
-        ...session.user,
-        last_used_department:
-          session.last_used_department ?? session.user.last_used_department ?? null,
-      }
-      profile.value = session.profile
-      departments.value = (session.departments || []).map((d) => ({
-        department_id: d.id,
-        role: d.role,
-        is_primary: d.is_primary,
-        department: {
-          id: d.id,
-          name: d.name,
-          organisation_id: d.organisation_id || '',
-        },
-      }))
+        user.value = {
+          ...session.user,
+          last_used_department:
+            session.last_used_department ?? session.user.last_used_department ?? null,
+        }
+        profile.value = session.profile
+        departments.value = (session.departments || []).map((d) => ({
+          department_id: d.id,
+          role: d.role,
+          is_primary: d.is_primary,
+          department: {
+            id: d.id,
+            name: d.name,
+            organisation_id: d.organisation_id || '',
+          },
+        }))
 
-      const preferredDept =
-        session.last_used_department ||
-        session.primary_department ||
-        session.departments?.[0]?.id ||
-        null
-      activeDepartmentId.value = preferredDept
-      if (preferredDept) {
-        localStorage.setItem('active_department_id', preferredDept)
-      }
+        const preferredDept =
+          session.last_used_department ||
+          session.primary_department ||
+          session.departments?.[0]?.id ||
+          null
+        activeDepartmentId.value = preferredDept
+        if (preferredDept) {
+          localStorage.setItem('active_department_id', preferredDept)
+        }
 
-      resetSessionExpiredHandling()
-      lastSessionStartTime.value = Date.now()
-      // IDs auf dieser Origin (z. B. qr.*) — JWT bleibt nur im HttpOnly-Cookie
-      localStorage.setItem('user_id', session.user.id)
-      localStorage.setItem(
-        'profile_id',
-        session.profile.id ?? session.user.profile_id ?? ''
-      )
-      return true
+        resetSessionExpiredHandling()
+        lastSessionStartTime.value = Date.now()
+        // IDs auf dieser Origin (z. B. qr.*) — JWT bleibt nur im HttpOnly-Cookie
+        localStorage.setItem('user_id', session.user.id)
+        localStorage.setItem(
+          'profile_id',
+          session.profile.id ?? session.user.profile_id ?? ''
+        )
+        return true
+      })()
+      return await cookieSessionPromise
     } catch {
+      // Session ist nicht mehr gültig (z. B. Cookie abgelaufen): Public-UI sofort auf ausgeloggten Zustand setzen.
+      clearAuthState()
       return false
     } finally {
+      cookieSessionPromise = null
       loadingUser.value = false
     }
   }

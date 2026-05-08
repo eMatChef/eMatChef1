@@ -1,10 +1,10 @@
 <template>
   <div class="public-layout">
     <header class="public-header" role="banner">
-      <RouterLink to="/" class="public-brand" :title="t('public.lookup.brandTitle')">
+      <a :href="publicHomeUrl" class="public-brand" :title="t('public.lookup.brandTitle')">
         <EmcLogoMark size="sm" />
         <span class="public-brand-text">eMatChef</span>
-      </RouterLink>
+      </a>
       <div class="public-header-actions">
         <button
           v-if="!isPublicLoggedIn"
@@ -22,12 +22,12 @@
           :aria-label="t('public.lookup.loggedInAs', { name: publicGreetingName })"
           @click="goToApp"
         >
-          <span class="public-user-chip">
-            <span class="public-user-avatar" :style="publicAvatarStyle">
-              {{ publicInitials }}
-            </span>
-            <span class="public-user-name">{{ publicGreetingName }}</span>
-          </span>
+          <PublicUserIdentityChip
+            :display-name="publicGreetingName"
+            :initials="publicInitials"
+            :background-color="publicAvatarStyle.backgroundColor"
+            :text-color="publicAvatarStyle.color"
+          />
         </button>
       </div>
     </header>
@@ -156,13 +156,13 @@
     </section>
     </main>
 
-    <PublicSiteFooter />
+    <PublicSiteFooter :compact="true" />
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
-import { RouterLink, useRoute, useRouter } from 'vue-router'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import {
   getPublicBatchByCode,
   getPublicMaterialByCode,
@@ -174,15 +174,18 @@ import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '../../stores/auth'
 import EmcLogoMark from '../../components/brand/EmcLogoMark.vue'
 import PublicSiteFooter from '../../components/public/PublicSiteFooter.vue'
+import PublicUserIdentityChip from '../../components/public/PublicUserIdentityChip.vue'
 import { PAGE_HEAD_KEYS } from '../../composables/usePageHead'
 import { usePageHeadStore } from '../../stores/pageHead'
-import { getAppEntryTarget, isQrPublicHost } from '../../utils/appLoginUrl'
+import { isQrPublicHost, navigateToAppMaterialDetail } from '../../utils/qrAppNavigation'
 
 const { t } = useI18n()
 const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
 const pageHeadStore = usePageHeadStore()
+const PUBLIC_SESSION_POLL_MS = 60_000
+let sessionPollTimer: number | null = null
 
 const routeType = computed(() => String(route.params.type || 'm').trim().toLowerCase())
 const routeCode = computed(() => String(route.params.code || '').trim())
@@ -201,13 +204,16 @@ const publicGreetingName = computed(() =>
   authStore.userDisplayName || t('public.lookup.materialFallback')
 )
 const publicInitials = computed(() => authStore.userInitials || '??')
+const publicHomeUrl = computed(() => {
+  const host = window.location.hostname.toLowerCase()
+  if (host.includes('localhost') || host.includes('127.0.0.1')) {
+    return window.location.origin
+  }
+  return 'https://ematchef.ch'
+})
 
-const lookupLoggedInActionLabel = computed(() =>
-  isQrPublicHost() ? t('public.lookup.toMaterial') : t('public.lookup.toApp')
-)
-const lookupLoggedInActionTitle = computed(() =>
-  isQrPublicHost() ? t('public.lookup.toMaterialTitle') : t('public.lookup.toApp')
-)
+const lookupLoggedInActionLabel = computed(() => t('public.lookup.toMaterial'))
+const lookupLoggedInActionTitle = computed(() => t('public.lookup.toMaterialTitle'))
 
 const pageTitle = computed(() => {
   if (loading.value) return t(PAGE_HEAD_KEYS.defaultTitle)
@@ -251,6 +257,7 @@ watch(
 const showPublicContactForm = computed(() => {
   const d = data.value
   if (!d) return false
+  if (isPublicLoggedIn.value) return false
   return d.public_ui?.show_contact_form !== false
 })
 
@@ -319,6 +326,14 @@ async function submitFoundContact() {
 
 /** Login mit Rücksprung zu dieser öffentlichen Seite (Artikel-Kontext bleibt in der URL). */
 function goToLogin() {
+  const appOrigin = (import.meta.env.VITE_APP_ORIGIN || '').trim().replace(/\/$/, '')
+  const host = window.location.hostname.toLowerCase()
+  const shouldOpenInNewTab = isQrPublicHost() || host === 'ematchef.test'
+  if (appOrigin && shouldOpenInNewTab) {
+    const target = `${appOrigin}/login?redirect=${encodeURIComponent(route.fullPath)}`
+    window.open(target, '_blank', 'noopener,noreferrer')
+    return
+  }
   void router.push({ path: '/login', query: { redirect: route.fullPath } })
 }
 
@@ -328,18 +343,49 @@ function goToApp() {
     goToLogin()
     return
   }
+  const appOrigin = (import.meta.env.VITE_APP_ORIGIN || '').trim().replace(/\/$/, '')
+  const onQrHost = isQrPublicHost()
+  const shouldOpenInNewTab = onQrHost || window.location.hostname.toLowerCase() === 'ematchef.test'
+  const openAppPath = (path: string) => {
+    if (!appOrigin) return false
+    const href = `${appOrigin}${path}`
+    if (shouldOpenInNewTab) {
+      window.open(href, '_blank', 'noopener,noreferrer')
+    } else {
+      window.location.assign(href)
+    }
+    return true
+  }
   const d = data.value
   if (d?.department?.id && d?.material?.id) {
-    const q: Record<string, string> = {}
-    if (d.entity_type === 'batch' && d.batch?.id) {
-      q.batch = d.batch.id
+    if (shouldOpenInNewTab && appOrigin) {
+      const params = new URLSearchParams()
+      if (d.entity_type === 'batch' && d.batch?.id) {
+        params.set('batch', d.batch.id)
+      }
+      const qs = params.toString()
+      openAppPath(`/${d.department.id}/materials/${d.material.id}${qs ? `?${qs}` : ''}`)
+      return
     }
-    void router.push({ path: `/${d.department.id}/materials/${d.material.id}`, query: q })
+    navigateToAppMaterialDetail(
+      router,
+      d.department.id,
+      d.material.id,
+      d.entity_type === 'batch' ? (d.batch?.id || null) : null
+    )
     return
   }
   const deptId = authStore.activeDepartmentId
   if (deptId) {
+    if ((onQrHost || shouldOpenInNewTab) && appOrigin) {
+      openAppPath(`/${deptId}`)
+      return
+    }
     void router.push(`/${deptId}`)
+    return
+  }
+  if ((onQrHost || shouldOpenInNewTab) && appOrigin) {
+    openAppPath('/pending-assignment')
     return
   }
   void router.push('/pending-assignment')
@@ -370,35 +416,41 @@ async function loadData() {
 }
 
 onMounted(() => {
-  void authStore.loadUserSessionFromCookie()
+  void authStore.loadUserSessionFromCookie(true)
   void loadData()
+  window.addEventListener('focus', refreshPublicSession)
+  document.addEventListener('visibilitychange', onVisibilityChange)
+  sessionPollTimer = window.setInterval(() => {
+    if (document.visibilityState === 'visible') {
+      refreshPublicSession()
+    }
+  }, PUBLIC_SESSION_POLL_MS)
 })
+
+onBeforeUnmount(() => {
+  window.removeEventListener('focus', refreshPublicSession)
+  document.removeEventListener('visibilitychange', onVisibilityChange)
+  if (sessionPollTimer !== null) {
+    window.clearInterval(sessionPollTimer)
+    sessionPollTimer = null
+  }
+})
+
+function refreshPublicSession() {
+  void authStore.loadUserSessionFromCookie(true)
+}
+
+function onVisibilityChange() {
+  if (document.visibilityState === 'visible') {
+    refreshPublicSession()
+  }
+}
 watch([routeType, routeCode], loadData)
 </script>
 
 <style scoped>
 .public-header-actions {
   flex-shrink: 0;
-}
-
-.public-user-chip {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-  max-width: min(200px, 42vw);
-}
-
-.public-user-avatar {
-  flex-shrink: 0;
-  width: 32px;
-  height: 32px;
-  border-radius: 8px;
-  font-size: 0.7rem;
-  font-weight: 700;
-  display: flex;
-  align-items: center;
-  justify-content: center;
 }
 
 .public-user-link {
@@ -422,21 +474,6 @@ watch([routeType, routeCode], loadData)
   outline: 2px solid var(--public-btn-focus-ring);
   outline-offset: 2px;
   border-radius: 10px;
-}
-
-.public-user-name {
-  font-size: 0.9rem;
-  font-weight: 600;
-  color: var(--public-brand-title);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-@media (max-width: 380px) {
-  .public-user-name {
-    display: none;
-  }
 }
 
 .public-login-btn {

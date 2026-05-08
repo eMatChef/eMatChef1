@@ -1,88 +1,104 @@
 <template>
   <div class="blog-editor">
     <header class="blog-editor-head">
-      <h1>{{ t('components.siteEditors.blog.title') }}</h1>
-      <p v-if="updatedAt" class="meta">{{ t('components.siteEditors.lastSaved') }}: {{ formatDe(updatedAt) }}</p>
+      <div class="blog-editor-head-row">
+        <h1>{{ t('components.siteEditors.blog.title') }}</h1>
+        <button type="button" class="btn btn-secondary btn-sm" :disabled="saving" @click="addPost">
+          {{ t('components.siteEditors.blog.newPost') }}
+        </button>
+      </div>
+      <div class="blog-editor-head-row">
+        <div class="locale-tabs" role="tablist" :aria-label="t('publicNav.language')">
+          <button
+            v-for="loc in BLOG_LOCALES"
+            :key="loc"
+            type="button"
+            class="locale-tab"
+            :class="{ active: activeLocale === loc }"
+            :aria-selected="activeLocale === loc"
+            @click="activeLocale = loc"
+          >
+            {{ loc.toUpperCase() }}
+          </button>
+        </div>
+        <p v-if="updatedAt" class="meta">{{ t('components.siteEditors.lastSaved') }}: {{ formatDe(updatedAt) }}</p>
+      </div>
     </header>
 
     <p v-if="error" class="error">{{ error }}</p>
 
     <section class="blog-block">
-      <div class="locale-tabs" role="tablist" :aria-label="t('publicNav.language')">
-        <button
-          v-for="loc in BLOG_LOCALES"
-          :key="loc"
-          type="button"
-          class="locale-tab"
-          :class="{ active: activeLocale === loc }"
-          :aria-selected="activeLocale === loc"
-          @click="activeLocale = loc"
-        >
-          {{ loc.toUpperCase() }}
-        </button>
-      </div>
-    </section>
-
-    <section class="blog-block">
-      <label class="lbl" for="blog-page-title">{{ t('components.siteEditors.pageTitleLabel') }}</label>
-      <input
-        id="blog-page-title"
-        v-model="pageTitle"
-        type="text"
-        class="inp"
-        :disabled="saving"
-        autocomplete="off"
-      />
-    </section>
-
-    <section class="blog-block">
-      <span class="lbl">{{ t('components.siteEditors.blog.introLabel') }}</span>
-      <TiptapEditor v-model="introHtml" :placeholder="t('components.siteEditors.blog.introPlaceholder')" :disabled="saving" />
-    </section>
-
-    <section class="blog-block">
-      <div class="blog-posts-head">
-        <h2 class="h2">{{ t('components.siteEditors.blog.postsTitle') }}</h2>
-        <button type="button" class="btn btn-secondary btn-sm" :disabled="saving" @click="addPost">
-          {{ t('components.siteEditors.blog.newPost') }}
-        </button>
-      </div>
-
-      <p v-if="!sortedPosts.length" class="hint">{{ t('components.siteEditors.blog.noPostsHint') }}</p>
-
-      <ul v-else class="post-index" :aria-label="t('components.siteEditors.blog.postsAria')">
-        <li v-for="p in sortedPosts" :key="p.id" class="post-index-row">
-          <div class="post-index-main">
-            <span class="post-index-title">{{ p.title || '(ohne Titel)' }}</span>
-            <time class="post-index-date" :datetime="p.createdAt">Erstellt: {{ formatDe(p.createdAt) }}</time>
-          </div>
-          <div class="post-index-actions">
-            <button type="button" class="btn-ghost" @click="editPost(p.id)">
-              {{ editingId === p.id ? 'Zuklappen' : 'Bearbeiten' }}
-            </button>
-            <button type="button" class="btn-ghost danger" :disabled="saving" @click="removePost(p.id)">
-              Löschen
-            </button>
-          </div>
-        </li>
-      </ul>
-
-      <div v-if="editingPost" class="post-edit">
-        <label class="lbl" :for="'post-title-' + editingPost.id">{{ t('components.siteEditors.blog.postHeadline') }}</label>
+      <button type="button" class="accordion-toggle" @click="showPageContent = !showPageContent">
+        <span>{{ t('components.siteEditors.blog.pageAccordionTitle') }}</span>
+        <span>{{ showPageContent ? '−' : '+' }}</span>
+      </button>
+      <div v-show="showPageContent" class="accordion-content">
+        <label class="lbl" for="blog-page-title">{{ t('components.siteEditors.pageTitleLabel') }}</label>
         <input
-          :id="'post-title-' + editingPost.id"
-          v-model="editingPost.title"
+          id="blog-page-title"
+          v-model="pageTitle"
           type="text"
           class="inp"
           :disabled="saving"
+          autocomplete="off"
         />
-        <span class="lbl">{{ t('components.siteEditors.blog.contentLabel') }}</span>
-        <TiptapEditor
-          :key="editingPost.id"
-          v-model="editingPost.bodyHtml"
-          :placeholder="t('components.siteEditors.blog.postPlaceholder')"
-          :disabled="saving"
-        />
+        <span class="lbl">{{ t('components.siteEditors.blog.introLabel') }}</span>
+        <TiptapEditor v-model="introHtml" :placeholder="t('components.siteEditors.blog.introPlaceholder')" :disabled="saving" />
+      </div>
+    </section>
+
+    <section class="blog-block">
+      <button type="button" class="accordion-toggle" @click="showPostEditor = !showPostEditor">
+        <span>{{ t('components.siteEditors.blog.postAccordionTitle') }}</span>
+        <span>{{ showPostEditor ? '−' : '+' }}</span>
+      </button>
+      <div v-show="showPostEditor" class="accordion-content">
+        <div class="blog-posts-head">
+          <div>
+            <h2 class="h2">{{ t('components.siteEditors.blog.postsTitle') }}</h2>
+            <p class="hint">{{ t('components.siteEditors.blog.workflowHint') }}</p>
+          </div>
+        </div>
+
+        <p v-if="!sortedPosts.length" class="hint">{{ t('components.siteEditors.blog.noPostsHint') }}</p>
+
+        <ul v-else class="post-index" :aria-label="t('components.siteEditors.blog.postsAria')">
+          <li v-for="p in sortedPosts" :key="p.id" class="post-index-row" :class="{ active: editingId === p.id }" @click="editPost(p.id)">
+            <div class="post-index-main">
+              <span class="post-index-title">{{ p.title || t('components.siteEditors.blog.untitledPost') }}</span>
+              <time class="post-index-date" :datetime="p.createdAt">
+                {{ t('components.siteEditors.blog.createdLabel') }}: {{ formatDe(p.createdAt) }}
+              </time>
+            </div>
+            <div class="post-index-actions">
+              <button type="button" class="btn-ghost" @click.stop="editPost(p.id)">
+                {{ editingId === p.id ? t('components.siteEditors.blog.collapse') : t('components.siteEditors.blog.edit') }}
+              </button>
+              <button type="button" class="btn-ghost danger" :disabled="saving" @click.stop="removePost(p.id)">
+                {{ t('components.siteEditors.blog.delete') }}
+              </button>
+            </div>
+          </li>
+        </ul>
+
+        <div v-if="editingPost" class="post-edit">
+          <label class="lbl" :for="'post-title-' + editingPost.id">{{ t('components.siteEditors.blog.postHeadline') }}</label>
+          <input
+            :id="'post-title-' + editingPost.id"
+            v-model="editingPost.title"
+            type="text"
+            class="inp"
+            :disabled="saving"
+          />
+          <span class="lbl">{{ t('components.siteEditors.blog.contentLabel') }}</span>
+          <TiptapEditor
+            :key="editingPost.id"
+            v-model="editingPost.bodyHtml"
+            :placeholder="t('components.siteEditors.blog.postPlaceholder')"
+            :disabled="saving"
+          />
+        </div>
+        <div v-else class="post-edit-empty">{{ t('components.siteEditors.blog.editorEmptyHint') }}</div>
       </div>
     </section>
 
@@ -198,6 +214,8 @@ const updatedAt = ref<string | null>(null)
 const error = ref<string | null>(null)
 const saving = ref(false)
 const editingId = ref<string | null>(null)
+const showPageContent = ref(true)
+const showPostEditor = ref(true)
 
 const pageTitle = computed({
   get: () => localeContent.value[activeLocale.value].title,
@@ -226,13 +244,24 @@ const sortedPosts = computed(() =>
 
 const editingPost = computed(() => posts.value.find((p) => p.id === editingId.value) ?? null)
 
+function ensureEditingPost() {
+  if (!posts.value.length) {
+    editingId.value = null
+    return
+  }
+  const exists = posts.value.some((p) => p.id === editingId.value)
+  if (!exists) {
+    editingId.value = sortedPosts.value[0]?.id ?? posts.value[0].id
+  }
+}
+
 async function load() {
   error.value = null
   try {
     const data = await getAdminSitePage('blog')
     localeContent.value = normalizeContent(data.content as Record<string, unknown>)
     updatedAt.value = data.updatedAt
-    editingId.value = null
+    ensureEditingPost()
   } catch (e) {
     error.value = e instanceof Error ? e.message : t('components.siteEditors.loadFailed')
   }
@@ -288,12 +317,13 @@ function addPost() {
     createdAt: new Date().toISOString(),
   })
   editingId.value = id
+  showPostEditor.value = true
 }
 
 function removePost(id: string) {
   if (!confirm(t('components.siteEditors.blog.confirmDeletePost'))) return
   posts.value = posts.value.filter((p) => p.id !== id)
-  if (editingId.value === id) editingId.value = null
+  if (editingId.value === id) ensureEditingPost()
 }
 
 function editPost(id: string) {
@@ -310,6 +340,10 @@ watch(
     if (s === 'blog') void load()
   }
 )
+
+watch(posts, () => {
+  ensureEditingPost()
+})
 </script>
 
 <style scoped>
@@ -320,6 +354,14 @@ watch(
 .blog-editor-head h1 {
   font-size: 1.35rem;
   margin: 0 0 0.25rem;
+}
+
+.blog-editor-head-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
 }
 
 .meta {
@@ -335,6 +377,25 @@ watch(
 
 .blog-block {
   margin-bottom: 1.5rem;
+}
+
+.accordion-toggle {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #f8fafc;
+  color: #0f172a;
+  font-size: 0.95rem;
+  font-weight: 600;
+  padding: 0.7rem 0.9rem;
+  cursor: pointer;
+}
+
+.accordion-content {
+  margin-top: 0.75rem;
 }
 
 .locale-tabs {
@@ -402,7 +463,7 @@ watch(
 .hint {
   font-size: 0.9rem;
   color: #64748b;
-  margin: 0 0 0.5rem;
+  margin: 0.2rem 0 0;
 }
 
 .post-index {
@@ -423,10 +484,15 @@ watch(
   padding: 0.75rem 1rem;
   border-bottom: 1px solid #f1f5f9;
   background: #fff;
+  cursor: pointer;
 }
 
 .post-index-row:last-child {
   border-bottom: none;
+}
+
+.post-index-row.active {
+  background: #f0fdf4;
 }
 
 .post-index-main {
@@ -480,6 +546,15 @@ watch(
   border: 1px solid #d1fae5;
   border-radius: 10px;
   background: #f8fafc;
+}
+
+.post-edit-empty {
+  padding: 0.9rem 1rem;
+  border: 1px dashed #cbd5e1;
+  border-radius: 10px;
+  background: #f8fafc;
+  color: #64748b;
+  font-size: 0.9rem;
 }
 
 .post-edit .lbl {

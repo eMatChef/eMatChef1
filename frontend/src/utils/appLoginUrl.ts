@@ -5,8 +5,38 @@ export function getAppLoginPath(): string {
   return '/login'
 }
 
-export function getAppLoginTarget(): string {
+function inferAppOriginFromCurrentHost(): string {
+  if (typeof window === 'undefined') return ''
+  const protocol = window.location.protocol || 'http:'
+  const host = window.location.hostname.toLowerCase()
+
+  // Fallback NUR lokal: Produktion soll strikt über VITE_APP_ORIGIN laufen.
+  if (host === 'localhost' || host === '127.0.0.1') {
+    return `${protocol}//app.ematchef.test`
+  }
+  if (host === 'ematchef.test') {
+    return `${protocol}//app.ematchef.test`
+  }
+  if (!host.endsWith('.test') && !host.endsWith('.localhost')) {
+    return ''
+  }
+  if (host.startsWith('app.')) {
+    return `${protocol}//${host}`
+  }
+  if (host.startsWith('qr.')) {
+    return `${protocol}//app.${host.slice(3)}`
+  }
+  return `${protocol}//app.${host}`
+}
+
+function resolveAppOrigin(): string {
   const appOrigin = (import.meta.env.VITE_APP_ORIGIN || '').trim().replace(/\/$/, '')
+  if (appOrigin) return appOrigin
+  return inferAppOriginFromCurrentHost()
+}
+
+export function getAppLoginTarget(): string {
+  const appOrigin = resolveAppOrigin()
   if (appOrigin && typeof window !== 'undefined') {
     try {
       const u = new URL(appOrigin)
@@ -19,7 +49,7 @@ export function getAppLoginTarget(): string {
 }
 
 export function getAppEntryTarget(): string {
-  const appOrigin = (import.meta.env.VITE_APP_ORIGIN || '').trim().replace(/\/$/, '')
+  const appOrigin = resolveAppOrigin()
   if (appOrigin && typeof window !== 'undefined') {
     try {
       const u = new URL(appOrigin)
@@ -44,7 +74,7 @@ export function isQrPublicHost(): boolean {
 }
 
 export function isAppOrigin(): boolean {
-  const appOrigin = (import.meta.env.VITE_APP_ORIGIN || '').trim().replace(/\/$/, '')
+  const appOrigin = resolveAppOrigin()
   if (!appOrigin || typeof window === 'undefined') return false
   try {
     const u = new URL(appOrigin)

@@ -68,6 +68,14 @@
       >
         Link
       </button>
+      <button
+        type="button"
+        class="tiptap-tb-btn"
+        :title="t('tiptap.image')"
+        @click="openImagePicker"
+      >
+        {{ t('tiptap.image') }}
+      </button>
       <span class="tiptap-tb-sep" />
       <button
         type="button"
@@ -86,12 +94,22 @@
         ↷
       </button>
     </div>
+    <input
+      ref="imageInput"
+      type="file"
+      class="tiptap-file-input"
+      accept="image/*"
+      @change="onImageSelected"
+    />
     <EditorContent :editor="editor" class="tiptap-content" />
+    <div v-if="isDraggingImage" class="tiptap-drop-overlay">
+      {{ t('tiptap.dropImageHint') }}
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { onBeforeUnmount, watch } from 'vue'
+import { onBeforeUnmount, ref, watch } from 'vue'
 import { useEditor, EditorContent } from '@tiptap/vue-3'
 import StarterKit from '@tiptap/starter-kit'
 import Link from '@tiptap/extension-link'
@@ -112,6 +130,9 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
+const imageInput = ref<HTMLInputElement | null>(null)
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024
+const isDraggingImage = ref(false)
 
 function placeholderText(): string {
   const p = props.placeholder?.trim()
@@ -172,9 +193,123 @@ function setLink() {
   ed.chain().focus().extendMarkRange('link').setLink({ href: url }).run()
 }
 
+function openImagePicker() {
+  imageInput.value?.click()
+}
+
+async function onImageSelected(event: Event) {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = ''
+  if (!file) return
+  const dataUrl = await fileToDataUrl(file)
+  if (!dataUrl) return
+  const ed = editor.value
+  if (!ed) return
+  ed.chain().focus().insertContent(`<p><img src="${dataUrl}" alt="" /></p>`).run()
+}
+
+async function insertImageFromFile(file: File): Promise<void> {
+  const dataUrl = await fileToDataUrl(file)
+  if (!dataUrl) return
+  const ed = editor.value
+  if (!ed) return
+  ed.chain().focus().insertContent(`<p><img src="${dataUrl}" alt="" /></p>`).run()
+}
+
+async function fileToDataUrl(file: File): Promise<string | null> {
+  if (!file.type.startsWith('image/')) {
+    window.alert(t('tiptap.imageUploadError'))
+    return null
+  }
+  if (file.size > MAX_IMAGE_BYTES) {
+    window.alert(t('tiptap.imageTooLarge'))
+    return null
+  }
+  return readFileAsDataUrl(file)
+}
+
+function readFileAsDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(String(reader.result || ''))
+    reader.onerror = () => reject(reader.error ?? new Error('file-read-failed'))
+    reader.readAsDataURL(file)
+  })
+}
+
 onBeforeUnmount(() => {
+  editor.value?.view.dom.removeEventListener('dragenter', onDragEnter)
+  editor.value?.view.dom.removeEventListener('dragover', onDragOver)
+  editor.value?.view.dom.removeEventListener('dragleave', onDragLeave)
+  editor.value?.view.dom.removeEventListener('drop', onDropEvent)
+  editor.value?.view.dom.removeEventListener('paste', onPasteEvent)
   editor.value?.destroy()
 })
+
+watch(
+  () => editor.value,
+  (ed) => {
+    const dom = ed?.view.dom
+    if (!dom) return
+    dom.addEventListener('dragenter', onDragEnter)
+    dom.addEventListener('dragover', onDragOver)
+    dom.addEventListener('dragleave', onDragLeave)
+    dom.addEventListener('drop', onDropEvent)
+    dom.addEventListener('paste', onPasteEvent)
+  }
+)
+
+function onDragEnter(event: Event) {
+  const e = event as DragEvent
+  if (!e.dataTransfer?.types?.includes('Files')) return
+  isDraggingImage.value = true
+}
+
+function onDragOver(event: Event) {
+  const e = event as DragEvent
+  if (!e.dataTransfer?.types?.includes('Files')) return
+  e.preventDefault()
+  isDraggingImage.value = true
+}
+
+function onDragLeave(event: Event) {
+  const e = event as DragEvent
+  const target = e.currentTarget as HTMLElement | null
+  if (!target) {
+    isDraggingImage.value = false
+    return
+  }
+  const related = e.relatedTarget as Node | null
+  if (!related || !target.contains(related)) {
+    isDraggingImage.value = false
+  }
+}
+
+function onDragEnd() {
+  isDraggingImage.value = false
+}
+
+function onDropEvent(event: Event) {
+  const e = event as DragEvent
+  onDragEnd()
+  const files = e.dataTransfer?.files
+  if (!files || files.length === 0) return
+  const file = files[0]
+  if (!file.type.startsWith('image/')) return
+  e.preventDefault()
+  void insertImageFromFile(file)
+}
+
+function onPasteEvent(event: Event) {
+  const e = event as ClipboardEvent
+  const files = e.clipboardData?.files
+  if (!files || files.length === 0) return
+  const file = files[0]
+  if (!file.type.startsWith('image/')) return
+  e.preventDefault()
+  void insertImageFromFile(file)
+}
 </script>
 
 <style scoped>
@@ -279,5 +414,31 @@ onBeforeUnmount(() => {
 .tiptap-content :deep(.tiptap-prose a) {
   color: #059669;
   text-decoration: underline;
+}
+
+.tiptap-content :deep(.tiptap-prose img) {
+  max-width: 100%;
+  height: auto;
+  border-radius: 8px;
+}
+
+.tiptap-file-input {
+  display: none;
+}
+
+.tiptap-drop-overlay {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgba(15, 23, 42, 0.08);
+  border: 2px dashed #0f766e;
+  color: #0f766e;
+  font-weight: 700;
+  pointer-events: none;
+}
+
+.tiptap-wrap {
+  position: relative;
 }
 </style>

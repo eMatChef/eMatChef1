@@ -65,6 +65,16 @@ const routes: RouteRecordRaw[] = [
         }
       },
       {
+        path: 'blog/:slug',
+        name: 'BlogPost',
+        component: () => import('@/views/public/BlogPostView.vue'),
+        meta: {
+          publicMarketing: true,
+          requiresAuth: false,
+          ...routeHead('blog'),
+        }
+      },
+      {
         path: 'faq',
         name: 'Faq',
         component: () => import('@/views/public/FaqView.vue'),
@@ -254,6 +264,33 @@ const routes: RouteRecordRaw[] = [
             meta: {
               requiredRoles: ['superadmin'],
               ...routeHead('integrations'),
+            }
+          },
+          {
+            path: 'security-monitoring',
+            name: 'AdminSecurityMonitoring',
+            component: () => import('@/views/settings/SecurityMonitoringView.vue'),
+            meta: {
+              requiredRoles: ['superadmin', 'organisationschef', 'suborgchef'],
+              ...routeHead('securityMonitoring'),
+            }
+          },
+          {
+            path: 'security-monitoring/alerts',
+            name: 'AdminSecurityMonitoringAlerts',
+            component: () => import('@/views/settings/SecurityMonitoringView.vue'),
+            meta: {
+              requiredRoles: ['superadmin', 'organisationschef', 'suborgchef'],
+              ...routeHead('securityMonitoring'),
+            }
+          },
+          {
+            path: 'security-monitoring/settings',
+            name: 'AdminSecurityMonitoringSettings',
+            component: () => import('@/views/settings/SecurityMonitoringView.vue'),
+            meta: {
+              requiredRoles: ['superadmin', 'organisationschef', 'suborgchef'],
+              ...routeHead('securityMonitoring'),
             }
           },
           {
