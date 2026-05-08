@@ -3,7 +3,7 @@ name: Translations (Crowdin)
 on:
   push:
     branches:
-      - main
+      - prod
     paths:
       - "frontend/src/locales/**"
       - "crowdin.yml"
@@ -32,8 +32,8 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          # Immer Inhalt von main für Crowdin (nicht den gerade gewählten Branch bei manuellem Run).
-          ref: main
+          # Immer Inhalt von prod für Crowdin (nicht den gerade gewählten Branch bei manuellem Run).
+          ref: prod
 
       - name: Setup Node
         uses: actions/setup-node@v4

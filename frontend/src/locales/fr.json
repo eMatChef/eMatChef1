@@ -161,6 +161,11 @@
         "newPost": "Nouvel article",
         "noPostsHint": "Aucun article pour le moment. « Nouvel article » en crée un.",
         "postHeadline": "Titre",
+        "summaryLabel": "Texte d’aperçu",
+        "summaryPlaceholder": "Court teaser visible dans la liste du blog…",
+        "coverImageLabel": "Image de l’article",
+        "coverImagePlaceholder": "URL de l’image ou utiliser l’upload…",
+        "coverImageUpload": "Téléverser une image",
         "contentLabel": "Contenu",
         "postPlaceholder": "Texte de l’article…",
         "confirmDeletePost": "Supprimer l’article ?",
@@ -171,8 +176,26 @@
         "edit": "Modifier",
         "delete": "Supprimer",
         "editorEmptyHint": "Sélectionnez un article ou cliquez sur « Nouvel article » pour commencer à écrire.",
-        "pageAccordionTitle": "Titre de page et contenu",
-        "postAccordionTitle": "Articles de blog"
+        "pageAccordionTitle": "Titre et contenu de page",
+        "postAccordionTitle": "Articles de blog",
+        "statusDraft": "Brouillon",
+        "statusPublished": "Publié",
+        "previewTitle": "Modifier l'article et aperçu",
+        "saveDraft": "Enregistrer comme brouillon",
+        "savePost": "Enregistrer l'article",
+        "filterAria": "Filtre des articles",
+        "filterAll": "Tous",
+        "filterDraft": "Brouillons",
+        "filterPublished": "Publiés",
+        "editDraft": "Continuer le brouillon",
+        "editPost": "Modifier l'article",
+        "backToOverview": "Retour à la vue d'ensemble",
+        "discardDraft": "Supprimer le brouillon",
+        "confirmDiscardDraft": "Supprimer ce brouillon ?",
+        "updatePublished": "Mettre à jour l'article",
+        "toastPublished": "Article enregistré avec succès.",
+        "toastUpdated": "Article mis à jour avec succès.",
+        "toastSaveError": "L'article n'a pas pu être enregistré."
       },
       "faq": {
         "title": "FAQ",
@@ -1117,5 +1140,25 @@
     "internal": {
       "lossResolutionNotes": "Signalement de perte accepté et radié."
     }
+  },
+  "tiptap": {
+    "loading": "Chargement de l'éditeur…",
+    "placeholderDefault": "Saisir le texte…",
+    "toolbarAria": "Mise en forme",
+    "bold": "Gras",
+    "italic": "Italique",
+    "heading2": "Titre 2",
+    "heading3": "Titre 3",
+    "bulletList": "Liste à puces",
+    "orderedList": "Liste numérotée",
+    "link": "Lien",
+    "undo": "Annuler",
+    "redo": "Rétablir",
+    "linkPrompt": "Adresse du lien",
+    "linkDefault": "https://",
+    "image": "Image",
+    "imageUploadError": "Impossible de charger l'image.",
+    "imageTooLarge": "L'image est trop volumineuse (max. 5 Mo).",
+    "dropImageHint": "Déposez ou collez une image ici"
   }
 }

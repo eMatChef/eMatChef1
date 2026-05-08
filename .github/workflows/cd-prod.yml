@@ -1,0 +1,33 @@
+name: CD Prod
+
+on:
+  push:
+    branches:
+      - prod
+  workflow_dispatch:
+
+concurrency:
+  group: cd-prod
+  cancel-in-progress: false
+
+jobs:
+  deploy-prod:
+    name: Deploy to production server
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.PROD_SSH_HOST }}
+          username: ${{ secrets.PROD_SSH_USER }}
+          key: ${{ secrets.PROD_SSH_KEY }}
+          port: ${{ secrets.PROD_SSH_PORT }}
+          script_stop: true
+          script: |
+            set -euo pipefail
+            cd "${{ secrets.PROD_DEPLOY_PATH }}"
+            EMATCHEF_PROD_ROOT="${{ secrets.PROD_DEPLOY_PATH }}" \
+            EMATCHEF_GIT_BRANCH=prod \
+            COMPOSE_PROJECT_NAME=ematchef-prod \
+            ./deploy/prod-update.sh reset

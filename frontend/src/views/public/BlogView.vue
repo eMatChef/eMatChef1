@@ -1,16 +1,20 @@
 <template>
   <div class="public-page public-page--legal blog-public">
     <article class="public-card public-card--legal max-w-content">
-      <h1>{{ title }}</h1>
+      <h1 class="blog-page-title">{{ title }}</h1>
       <div v-if="introHtml" class="blog-intro" v-html="sanitizePublicHtml(introHtml)" />
       <p v-else-if="introPlain" class="intro">{{ introPlain }}</p>
 
       <template v-if="posts.length">
         <article v-for="p in posts" :key="p.id" class="blog-post">
           <time v-if="p.createdAt" class="blog-post-date" :datetime="p.createdAt">{{ formatDate(p.createdAt) }}</time>
-          <h2 class="blog-post-title">{{ p.title || t('public.blog.untitledPost') }}</h2>
+          <h2 class="blog-post-title">
+            <RouterLink class="blog-post-title-link" :to="`/blog/${p.slug}`">
+              {{ p.title || t('public.blog.untitledPost') }}
+            </RouterLink>
+          </h2>
+          <img v-if="p.coverImage" :src="p.coverImage" class="blog-post-cover" alt="" />
           <p class="blog-post-excerpt">{{ p.excerpt }}</p>
-          <RouterLink class="blog-post-link" :to="`/blog/${p.slug}`">{{ t('public.blog.readMore') }}</RouterLink>
         </article>
       </template>
       <p v-else class="muted">{{ t('public.blog.noPostsYet') }}</p>
@@ -54,7 +58,7 @@ function formatDate(iso: string): string {
   if (!iso) return ''
   try {
     const dateLocale = locale.value ? locale.value.replace('_', '-') : 'de-CH'
-    return new Intl.DateTimeFormat(dateLocale, { dateStyle: 'long', timeStyle: 'short' }).format(new Date(iso))
+    return new Intl.DateTimeFormat(dateLocale, { dateStyle: 'long' }).format(new Date(iso))
   } catch {
     return iso
   }
@@ -65,6 +69,13 @@ function formatDate(iso: string): string {
 .max-w-content {
   max-width: 52rem;
   margin: 0 auto;
+}
+
+.blog-page-title {
+  text-align: center;
+  font-size: clamp(2.2rem, 5vw, 3.2rem);
+  margin: 0 0 1.1rem;
+  line-height: 1.15;
 }
 
 .intro {
@@ -103,6 +114,18 @@ function formatDate(iso: string): string {
   line-height: 1.35;
 }
 
+.blog-post-title-link {
+  color: var(--plt-text);
+  text-decoration: none;
+  border-bottom: 2px solid transparent;
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+
+.blog-post-title-link:hover {
+  color: var(--plt-accent);
+  border-bottom-color: var(--plt-accent-soft);
+}
+
 .blog-post-date {
   display: block;
   font-size: 0.85rem;
@@ -117,13 +140,12 @@ function formatDate(iso: string): string {
   font-size: 1.02rem;
 }
 
-.blog-post-link {
-  color: #0f766e;
-  text-decoration: none;
-  font-weight: 600;
+.blog-post-cover {
+  width: 100%;
+  max-height: 22rem;
+  object-fit: cover;
+  border-radius: 12px;
+  margin: 0.25rem 0 0.9rem;
 }
 
-.blog-post-link:hover {
-  text-decoration: underline;
-}
 </style>

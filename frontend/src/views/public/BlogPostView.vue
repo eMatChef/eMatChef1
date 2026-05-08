@@ -6,6 +6,7 @@
       <template v-if="post">
         <time v-if="post.createdAt" class="post-date" :datetime="post.createdAt">{{ formatDate(post.createdAt) }}</time>
         <h1>{{ post.title || t('public.blog.untitledPost') }}</h1>
+        <img v-if="post.coverImage" :src="post.coverImage" class="post-cover" alt="" />
         <div class="post-body plt-prose-public" v-html="sanitizePublicHtml(post.bodyHtml)" />
       </template>
 
@@ -88,6 +89,14 @@ h1 {
   color: #334155;
   line-height: 1.8;
   font-size: 1.05rem;
+}
+
+.post-cover {
+  width: 100%;
+  max-height: 30rem;
+  object-fit: cover;
+  border-radius: 14px;
+  margin: 0 0 1.2rem;
 }
 
 .post-body :deep(p) {
