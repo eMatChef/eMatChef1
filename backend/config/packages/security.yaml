@@ -33,6 +33,9 @@ security:
                 password_path: password
                 success_handler: lexik_jwt_authentication.handler.authentication_success
                 failure_handler: lexik_jwt_authentication.handler.authentication_failure
+            login_throttling:
+                max_attempts: 5
+                interval: '15 minutes'
         
         # Public API (QR-Lookup etc.): darf niemals durch JWT-Authenticator scheitern,
         # auch wenn Clients fälschlicherweise einen (ungültigen) Authorization-Header mitschicken.

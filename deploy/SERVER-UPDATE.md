@@ -337,6 +337,40 @@ So arbeitet der Droplet **ohne** HTTPS-Benutzername/Passwort mit GitHub:
 
 ---
 
+## Hardening-Checklist (Cross-Subdomain Login)
+
+1. **Security-Header aktiv (Backend)**
+   - CSP aktiv (inkl. `frame-ancestors 'none'`, `object-src 'none'`)
+   - `X-Content-Type-Options: nosniff`
+   - `X-Frame-Options: DENY`
+   - `Referrer-Policy: strict-origin-when-cross-origin`
+   - `Permissions-Policy` ohne Kamera/Mikro/Geo
+   - HSTS nur über HTTPS
+
+2. **Rate-Limits auf Auth-Endpunkten**
+   - Login-Throttling auf `/api/auth/login_check`
+   - Session-Limit auf `/api/auth/session`
+   - Refresh-Limit auf `/api/token/refresh`
+   - Bei Überschreitung: `429` + `Retry-After`
+
+3. **Refresh-Token-Rotation**
+   - `gesdinet_jwt_refresh_token.single_use: true`
+   - Ein Refresh-Token kann nur einmal verwendet werden
+
+4. **Monitoring/Alerting**
+   - 401/429 in Backend-/Proxy-Logs überwachen
+   - Alert bei ungewöhnlichen Peaks (Brute-Force, kaputte Clients)
+   - Metriken: Requests/min, 401-Rate, 429-Rate pro Endpoint
+
+5. **E2E-Smoketest vor Deploy**
+   - Auf `app.ematchef.ch` einloggen
+   - `ematchef.ch` öffnen → Avatar sichtbar
+   - `qr.ematchef.ch/i/m/<code>` öffnen → Avatar sichtbar
+   - Auf QR „Zum Material“ klicken → Ziel unter `app.ematchef.ch/...`
+   - Logout auf App → Main + QR zeigen nicht eingeloggt
+
+---
+
 **Hinweise**
 
 - **Login über mehrere Subdomains (JWT/Refresh-Cookies, Session-API):** siehe `deploy/CROSS-SUBDOMAIN-LOGIN.md` (inkl. Textblock für einen neuen Chat).

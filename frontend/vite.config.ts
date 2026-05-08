@@ -1,7 +1,7 @@
 import { defineConfig, loadEnv } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import { resolve } from 'path'
-import { redirectLocalhostToAppLocalhost } from './vite-plugin-redirect-localhost'
+import { canonicalizeLocalhostMain } from './vite-plugin-canonical-localhost'
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
@@ -12,7 +12,7 @@ export default defineConfig(({ mode }) => {
     'http://127.0.0.1:8081'
 
   return {
-    plugins: [redirectLocalhostToAppLocalhost(), vue()],
+    plugins: [canonicalizeLocalhostMain(), vue()],
     resolve: {
       alias: {
         '@': resolve(__dirname, 'src'),
@@ -21,8 +21,14 @@ export default defineConfig(({ mode }) => {
     server: {
       host: '0.0.0.0',
       port: 5173,
-      // Mehrere Hosts (app.localhost / qr.localhost): kein fixes origin – Host kommt vom Nginx-Proxy
-      allowedHosts: ['app.localhost', 'qr.localhost', 'localhost', '127.0.0.1'],
+      // Lokal wie Produktion: Apex + Subdomains auf derselben Basisdomain.
+      allowedHosts: [
+        'ematchef.test',
+        'app.ematchef.test',
+        'qr.ematchef.test',
+        'localhost',
+        '127.0.0.1',
+      ],
       hmr: {
         clientPort: Number(process.env.HMR_CLIENT_PORT) || 5173,
       },

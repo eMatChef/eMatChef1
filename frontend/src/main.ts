@@ -60,6 +60,14 @@ async function initApp() {
       localStorage.removeItem('profile_id')
       localStorage.removeItem('session_last_activity_at')
     }
+  } else {
+    // Cookie-SSO Bootstrap: auf jeder Origin frühzeitig Session aus HttpOnly-Cookies laden
+    // (Avatar/Name im Header ohne zusätzlichen Klick/Navigation verfügbar).
+    try {
+      await authStore.loadUserSessionFromCookie()
+    } catch {
+      // Öffentlich nicht eingeloggt ist ein normaler Zustand.
+    }
   }
   
   // App mounten nach Session-Laden

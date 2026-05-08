@@ -88,7 +88,9 @@ const status = ref<FcalIntegrationStatus | null>(null)
 const fcalApiKeyInput = ref('')
 const initialSnapshot = ref('')
 
-const dirty = computed(() => fcalApiKeyInput.value !== initialSnapshot.value)
+const dirty = computed(() =>
+  fcalApiKeyInput.value !== initialSnapshot.value
+)
 
 async function load() {
   isLoading.value = true
@@ -111,7 +113,16 @@ function resetInput() {
 async function save() {
   isSaving.value = true
   try {
-    status.value = await saveFcalIntegration(fcalApiKeyInput.value)
+    const current = status.value
+    if (!current) {
+      throw new Error('Integration status not loaded')
+    }
+    status.value = await saveFcalIntegration(
+      fcalApiKeyInput.value,
+      current.authSessionLimitPerMinute,
+      current.authRefreshLimitPerMinute,
+      current.autologout
+    )
     initialSnapshot.value = fcalApiKeyInput.value
     fcalApiKeyInput.value = ''
     toast.success(t('settings.integrations.toastSaved'))
@@ -127,7 +138,18 @@ async function removeKey() {
   if (!confirm(t('settings.integrations.confirmDisableFcal'))) return
   isSaving.value = true
   try {
-    status.value = await saveFcalIntegration('')
+    status.value = await saveFcalIntegration(
+      '',
+      status.value?.authSessionLimitPerMinute ?? 120,
+      status.value?.authRefreshLimitPerMinute ?? 30,
+      status.value?.autologout ?? {
+        timeoutMs: 3600000,
+        warningMs: 300000,
+        activityThrottleMs: 5000,
+        refreshIntervalMs: 1500000,
+        activityEvents: 'click,keydown,scroll',
+      }
+    )
     initialSnapshot.value = ''
     fcalApiKeyInput.value = ''
     toast.success(t('settings.integrations.toastRemoved'))

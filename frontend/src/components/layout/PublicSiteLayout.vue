@@ -19,11 +19,17 @@
         <a
           v-if="isPublicLoggedIn"
           :href="appEntryHref"
+          :target="openAppInNewTab ? '_blank' : undefined"
+          :rel="openAppInNewTab ? 'noopener noreferrer' : undefined"
           class="public-user-link"
           :title="t('public.lookup.toApp')"
         >
-          <span class="public-user-avatar" :style="avatarStyle">{{ publicInitials }}</span>
-          <span class="public-user-name">{{ publicDisplayName }}</span>
+          <PublicUserIdentityChip
+            :display-name="publicDisplayName"
+            :initials="publicInitials"
+            :background-color="avatarStyle.backgroundColor"
+            :text-color="avatarStyle.color"
+          />
         </a>
         <AppLoginLink v-else class="plt-nav-cta btn btn-primary plt-btn-lg">{{ t('publicNav.login') }}</AppLoginLink>
       </div>
@@ -36,21 +42,50 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import EmcLogoMark from '@/components/brand/EmcLogoMark.vue'
 import AppLoginLink from '@/components/public/AppLoginLink.vue'
 import PublicSiteFooter from '@/components/public/PublicSiteFooter.vue'
+import PublicUserIdentityChip from '@/components/public/PublicUserIdentityChip.vue'
 import { setLocale } from '@/i18n'
 import { getAppEntryTarget } from '@/utils/appLoginUrl'
 import { useAuthStore } from '@/stores/auth'
 
 const { t, locale } = useI18n()
 const authStore = useAuthStore()
+const PUBLIC_SESSION_POLL_MS = 60_000
+const sessionPollTimer = ref<number | null>(null)
 
 onMounted(() => {
-  void authStore.loadUserSessionFromCookie()
+  void authStore.loadUserSessionFromCookie(true)
+  window.addEventListener('focus', refreshPublicSession)
+  document.addEventListener('visibilitychange', onVisibilityChange)
+  sessionPollTimer.value = window.setInterval(() => {
+    if (document.visibilityState === 'visible') {
+      refreshPublicSession()
+    }
+  }, PUBLIC_SESSION_POLL_MS)
 })
+
+onBeforeUnmount(() => {
+  window.removeEventListener('focus', refreshPublicSession)
+  document.removeEventListener('visibilitychange', onVisibilityChange)
+  if (sessionPollTimer.value !== null) {
+    window.clearInterval(sessionPollTimer.value)
+    sessionPollTimer.value = null
+  }
+})
+
+function refreshPublicSession() {
+  void authStore.loadUserSessionFromCookie(true)
+}
+
+function onVisibilityChange() {
+  if (document.visibilityState === 'visible') {
+    refreshPublicSession()
+  }
+}
 
 function toPublicLocale(value: string): 'de' | 'en' | 'fr' {
   const v = String(value || '').toLowerCase()
@@ -81,6 +116,14 @@ const avatarStyle = computed(() => {
   }
 })
 const appEntryHref = computed(() => getAppEntryTarget())
+const openAppInNewTab = computed(() => {
+  if (typeof window === 'undefined') return false
+  try {
+    return new URL(appEntryHref.value).origin !== window.location.origin
+  } catch {
+    return false
+  }
+})
 </script>
 
 <style scoped>
@@ -114,18 +157,4 @@ const appEntryHref = computed(() => getAppEntryTarget())
   transform: translateY(1px);
 }
 
-.public-user-avatar {
-  width: 2rem;
-  height: 2rem;
-  border-radius: 999px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 700;
-  font-size: 0.75rem;
-}
-
-.public-user-name {
-  font-weight: 600;
-}
 </style>

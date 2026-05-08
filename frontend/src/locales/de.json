@@ -25,6 +25,7 @@
         "supportRequests": "Support-Anfragen · eMatChef",
         "systemJobs": "System-Jobs · eMatChef",
         "integrations": "Integrationen · eMatChef",
+        "securityMonitoring": "Security Monitoring · eMatChef",
         "organisations": "Organisationen · eMatChef",
         "departments": "Abteilungen · eMatChef",
         "usersAdmin": "Benutzer · eMatChef",
@@ -84,7 +85,11 @@
     "blog": {
       "titleFallback": "Blog",
       "untitledPost": "Ohne Titel",
-      "noPostsYet": "Noch keine Beiträge."
+      "noPostsYet": "Noch keine Beiträge.",
+      "readMore": "Weiterlesen",
+      "backToList": "Zurück zum Blog",
+      "notFoundTitle": "Beitrag nicht gefunden",
+      "notFoundBody": "Der gewünschte Blogbeitrag ist nicht vorhanden oder wurde entfernt."
     },
     "lookup": {
       "brandTitle": "eMatChef",
@@ -267,7 +272,11 @@
     "undo": "Rückgängig",
     "redo": "Wiederholen",
     "linkPrompt": "Link-Adresse (URL)",
-    "linkDefault": "https://"
+    "linkDefault": "https://",
+    "image": "Bild",
+    "imageUploadError": "Bild konnte nicht geladen werden.",
+    "imageTooLarge": "Bild ist zu gross (max. 5 MB).",
+    "dropImageHint": "Bild hier hineinziehen oder einfügen"
   },
   "contacts": {
     "title": "Kontakte",
@@ -1894,8 +1903,57 @@
       "allDepartments": "Alle Departments",
       "users": "Benutzer",
       "integrations": "Integrationen",
+      "securityMonitoring": "Security Monitoring",
       "mail": "E-Mail",
       "permissions": "Berechtigungen"
+    }
+  },
+  "securityMonitoring": {
+    "title": "Security Monitoring",
+    "subtitle": "API-Status 401/429/5xx im gewählten Zeitfenster.",
+    "windowMinutesLabel": "Fenster (Min)",
+    "refresh": "Aktualisieren",
+    "tabs": {
+      "overview": "Übersicht",
+      "alertHistory": "Alert-History",
+      "settings": "Einstellungen"
+    },
+    "infoLiveOnly": "Das Monitoring zeigt Daten ab jetzt laufend (kein historischer Import alter Logs).",
+    "infoRestart": "Nach Deploy/Restart vom Backend siehst du direkt neue Events auf der Seite.",
+    "loginAlertTitle": "Login-Bruteforce-Alert",
+    "loginAlertThresholdPrefix": "Schwelle:",
+    "loginAlertThresholdMiddle": "Fehlversuche in",
+    "loginAlertHistoryHits": "Treffer in History:",
+    "minutesUnit": "Minuten",
+    "noMatches": "Keine Treffer im Zeitfenster.",
+    "alertHistoryTitle": "Alert History (DB)",
+    "loadError": "Monitoring konnte nicht geladen werden",
+    "columns": {
+      "time": "Zeit",
+      "type": "Typ",
+      "attempts": "Versuche",
+      "window": "Fenster",
+      "status": "Status"
+    },
+    "noAlertsHistory": "Noch keine Security-Alerts in der DB-History.",
+    "settings": {
+      "title": "Security Einstellungen",
+      "subtitle": "Auth-Limits und Auto-Logout zentral verwalten.",
+      "authSessionLimitLabel": "Auth Session Limit / Minute",
+      "authSessionLimitHint": "GET /api/auth/session pro IP und Minute (10-1200)",
+      "authRefreshLimitLabel": "Auth Refresh Limit / Minute",
+      "authRefreshLimitHint": "POST /api/token/refresh pro IP und Minute (5-600)",
+      "autologoutTimeoutLabel": "Auto-Logout Timeout (ms)",
+      "autologoutWarningLabel": "Auto-Logout Warnung vorher (ms)",
+      "autologoutThrottleLabel": "Activity Throttle (ms)",
+      "autologoutRefreshLabel": "Refresh-Intervall (ms)",
+      "autologoutEventsLabel": "Activity Events (CSV)",
+      "autologoutEventsHint": "Erlaubt: click, keydown, scroll, mousemove, wheel, touchmove",
+      "reset": "Zurücksetzen",
+      "save": "Speichern",
+      "saving": "Speichere...",
+      "saved": "Security-Einstellungen gespeichert.",
+      "saveError": "Security-Einstellungen konnten nicht gespeichert werden."
     }
   },
   "mail": {
@@ -3482,7 +3540,14 @@
         "postHeadline": "Überschrift",
         "contentLabel": "Inhalt",
         "postPlaceholder": "Beitragstext…",
-        "confirmDeletePost": "Beitrag wirklich löschen?"
+        "confirmDeletePost": "Beitrag wirklich löschen?",
+        "workflowHint": "Wähle einen Beitrag aus der Liste oder lege einen neuen an und schreibe direkt im Editor.",
+        "untitledPost": "(ohne Titel)",
+        "createdLabel": "Erstellt",
+        "collapse": "Zuklappen",
+        "edit": "Bearbeiten",
+        "delete": "Löschen",
+        "editorEmptyHint": "Wähle einen Beitrag aus oder klicke auf „Neuer Beitrag“, um loszuschreiben."
       },
       "faq": {
         "title": "FAQ",
@@ -3664,7 +3729,16 @@
       "postHeadline": "Überschrift",
       "contentLabel": "Inhalt",
       "postPlaceholder": "Beitragstext…",
-      "confirmDeletePost": "Beitrag wirklich löschen?"
+      "confirmDeletePost": "Beitrag wirklich löschen?",
+      "workflowHint": "Wähle einen Beitrag aus der Liste oder lege einen neuen an und schreibe direkt im Editor.",
+      "untitledPost": "(ohne Titel)",
+      "createdLabel": "Erstellt",
+      "collapse": "Zuklappen",
+      "edit": "Bearbeiten",
+      "delete": "Löschen",
+      "editorEmptyHint": "Wähle einen Beitrag aus oder klicke auf „Neuer Beitrag“, um loszuschreiben.",
+      "pageAccordionTitle": "Seitentitel & Seiteninhalt",
+      "postAccordionTitle": "Blogbeiträge"
     },
     "faq": {
       "title": "FAQ",

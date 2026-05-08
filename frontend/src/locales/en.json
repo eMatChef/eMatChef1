@@ -22,6 +22,7 @@
         "supportRequests": "Support requests · eMatChef",
         "systemJobs": "System jobs · eMatChef",
         "integrations": "Integrations · eMatChef",
+        "securityMonitoring": "Security monitoring · eMatChef",
         "organisations": "Organisations · eMatChef",
         "departments": "Departments · eMatChef",
         "usersAdmin": "Users · eMatChef",
@@ -81,7 +82,11 @@
     "blog": {
       "titleFallback": "Blog",
       "untitledPost": "Untitled",
-      "noPostsYet": "No posts yet."
+      "noPostsYet": "No posts yet.",
+      "readMore": "Read more",
+      "backToList": "Back to blog",
+      "notFoundTitle": "Post not found",
+      "notFoundBody": "The requested blog post does not exist or was removed."
     },
     "lookup": {
       "brandTitle": "eMatChef",
@@ -253,7 +258,11 @@
     "undo": "Undo",
     "redo": "Redo",
     "linkPrompt": "Link URL",
-    "linkDefault": "https://"
+    "linkDefault": "https://",
+    "image": "Image",
+    "imageUploadError": "Image could not be loaded.",
+    "imageTooLarge": "Image is too large (max 5 MB).",
+    "dropImageHint": "Drop or paste image here"
   },
   "contacts": {
     "title": "Contacts",
@@ -3080,7 +3089,16 @@
         "postHeadline": "Headline",
         "contentLabel": "Content",
         "postPlaceholder": "Post text…",
-        "confirmDeletePost": "Delete post?"
+        "confirmDeletePost": "Delete post?",
+        "workflowHint": "Select a post from the list or create a new one and write directly in the editor.",
+        "untitledPost": "(untitled)",
+        "createdLabel": "Created",
+        "collapse": "Collapse",
+        "edit": "Edit",
+        "delete": "Delete",
+        "editorEmptyHint": "Select a post or click “New post” to start writing.",
+        "pageAccordionTitle": "Page title & page content",
+        "postAccordionTitle": "Blog posts"
       },
       "faq": {
         "title": "FAQ",
@@ -3178,6 +3196,54 @@
         "tent": "Tent details",
         "components": "Components"
       }
+    }
+  },
+  "securityMonitoring": {
+    "title": "Security Monitoring",
+    "subtitle": "API status 401/429/5xx in the selected time window.",
+    "windowMinutesLabel": "Window (min)",
+    "refresh": "Refresh",
+    "tabs": {
+      "overview": "Overview",
+      "alertHistory": "Alert history",
+      "settings": "Settings"
+    },
+    "infoLiveOnly": "Monitoring shows data from now on (no historical import of old logs).",
+    "infoRestart": "After deploy/restart of the backend, you will directly see new events on this page.",
+    "loginAlertTitle": "Login brute-force alert",
+    "loginAlertThresholdPrefix": "Threshold:",
+    "loginAlertThresholdMiddle": "failed attempts within",
+    "loginAlertHistoryHits": "Hits in history:",
+    "minutesUnit": "minutes",
+    "noMatches": "No matches in the selected window.",
+    "alertHistoryTitle": "Alert history (DB)",
+    "loadError": "Monitoring could not be loaded",
+    "columns": {
+      "time": "Time",
+      "type": "Type",
+      "attempts": "Attempts",
+      "window": "Window",
+      "status": "Status"
+    },
+    "noAlertsHistory": "No security alerts in DB history yet.",
+    "settings": {
+      "title": "Security settings",
+      "subtitle": "Manage auth limits and auto-logout centrally.",
+      "authSessionLimitLabel": "Auth session limit / minute",
+      "authSessionLimitHint": "GET /api/auth/session per IP and minute (10-1200)",
+      "authRefreshLimitLabel": "Auth refresh limit / minute",
+      "authRefreshLimitHint": "POST /api/token/refresh per IP and minute (5-600)",
+      "autologoutTimeoutLabel": "Auto-logout timeout (ms)",
+      "autologoutWarningLabel": "Auto-logout warning before (ms)",
+      "autologoutThrottleLabel": "Activity throttle (ms)",
+      "autologoutRefreshLabel": "Refresh interval (ms)",
+      "autologoutEventsLabel": "Activity events (CSV)",
+      "autologoutEventsHint": "Allowed: click, keydown, scroll, mousemove, wheel, touchmove",
+      "reset": "Reset",
+      "save": "Save",
+      "saving": "Saving...",
+      "saved": "Security settings saved.",
+      "saveError": "Security settings could not be saved."
     }
   }
 }

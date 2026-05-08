@@ -5,8 +5,29 @@ import { useAuthStore } from '@/stores/auth'
 import { useConfirm } from '@/composables/useConfirm'
 import { useConfirmStore } from '@/stores/confirm'
 import { useToastStore } from '@/stores/toast'
+import { getPublicRuntimeConfig } from '@/api/publicRuntimeConfig'
 
 const LAST_ACTIVITY_KEY = 'session_last_activity_at'
+const DEFAULT_ACTIVITY_EVENTS = ['click', 'keydown', 'scroll'] as const
+const ALLOWED_ACTIVITY_EVENTS = ['click', 'keydown', 'scroll', 'mousemove', 'wheel', 'touchmove'] as const
+
+function readEnvMs(name: string, fallbackMs: number, minMs: number): number {
+  const raw = Number((import.meta.env as Record<string, string | undefined>)[name] || '')
+  if (!Number.isFinite(raw) || raw <= 0) return fallbackMs
+  return Math.max(minMs, Math.trunc(raw))
+}
+
+function readEnvEvents(): string[] {
+  const raw = String((import.meta.env as Record<string, string | undefined>).VITE_AUTOLOGOUT_ACTIVITY_EVENTS || '')
+    .trim()
+    .toLowerCase()
+  if (!raw) return [...DEFAULT_ACTIVITY_EVENTS]
+  const parsed = raw
+    .split(',')
+    .map((v) => v.trim())
+    .filter((v): v is string => Boolean(v) && (ALLOWED_ACTIVITY_EVENTS as readonly string[]).includes(v))
+  return parsed.length > 0 ? parsed : [...DEFAULT_ACTIVITY_EVENTS]
+}
 
 function readLastActivityMs(): number {
   const raw = localStorage.getItem(LAST_ACTIVITY_KEY)
@@ -29,10 +50,16 @@ export function useAutoLogout() {
   /** Letzte echte Nutzeraktivität (Klick/Tastatur/Scroll), persistiert für Reload & Tab-Rückkehr */
   const lastActivity = ref(readLastActivityMs())
 
-  const INACTIVITY_TIMEOUT = 60 * 60 * 1000 // 60 Minuten
-  const WARNING_BEFORE_LOGOUT = 5 * 60 * 1000 // 5 Minuten Vorwarnung
-  const ACTIVITY_THROTTLE = 5000 // Nur alle 5 Sekunden prüfen (Performance)
-  const PERIODIC_REFRESH_INTERVAL = 25 * 60 * 1000 // 25 Min – zeitbasiert, unabhängig von Klicks
+  const INACTIVITY_TIMEOUT = readEnvMs('VITE_AUTOLOGOUT_TIMEOUT_MS', 60 * 60 * 1000, 60 * 1000)
+  const WARNING_BEFORE_LOGOUT = readEnvMs('VITE_AUTOLOGOUT_WARNING_MS', 5 * 60 * 1000, 15 * 1000)
+  const ACTIVITY_THROTTLE = readEnvMs('VITE_AUTOLOGOUT_ACTIVITY_THROTTLE_MS', 5000, 500)
+  const PERIODIC_REFRESH_INTERVAL = readEnvMs('VITE_AUTOLOGOUT_REFRESH_INTERVAL_MS', 25 * 60 * 1000, 60 * 1000)
+  const ACTIVITY_EVENTS = readEnvEvents()
+  const inactivityTimeoutMs = ref(INACTIVITY_TIMEOUT)
+  const warningBeforeLogoutMs = ref(WARNING_BEFORE_LOGOUT)
+  const activityThrottleMs = ref(ACTIVITY_THROTTLE)
+  const periodicRefreshIntervalMs = ref(PERIODIC_REFRESH_INTERVAL)
+  const activityEvents = ref<string[]>([...ACTIVITY_EVENTS])
 
   const isLoggedIn = computed(() => authStore.isLoggedIn)
   let periodicRefreshIntervalId: ReturnType<typeof setInterval> | null = null
@@ -86,7 +113,7 @@ export function useAutoLogout() {
    * „über Nacht offen“ weiter nutzbar.
    */
   function isIdleSessionExpired(): boolean {
-    return Date.now() - lastActivity.value >= INACTIVITY_TIMEOUT
+    return Date.now() - lastActivity.value >= inactivityTimeoutMs.value
   }
 
   function resetInactivityTimer() {
@@ -97,6 +124,7 @@ export function useAutoLogout() {
     clearInactivityTimers()
 
     // Vorwarnung 5 Min vor Ablauf
+    const warningDelay = Math.max(0, inactivityTimeoutMs.value - warningBeforeLogoutMs.value)
     warningTimer.value = setTimeout(async () => {
       warningTimer.value = null
       if (!isLoggedIn.value) return
@@ -114,13 +142,13 @@ export function useAutoLogout() {
       } else {
         await doLogout()
       }
-    }, INACTIVITY_TIMEOUT - WARNING_BEFORE_LOGOUT)
+    }, warningDelay)
 
     // Logout nach 60 Min Inaktivität
     inactivityTimer.value = setTimeout(async () => {
       inactivityTimer.value = null
       await logoutDueToInactivity()
-    }, INACTIVITY_TIMEOUT)
+    }, inactivityTimeoutMs.value)
   }
 
   function trackActivity() {
@@ -130,7 +158,7 @@ export function useAutoLogout() {
 
     const now = Date.now()
 
-    if (now - lastActivity.value < ACTIVITY_THROTTLE) {
+    if (now - lastActivity.value < activityThrottleMs.value) {
       return
     }
 
@@ -151,7 +179,53 @@ export function useAutoLogout() {
         return
       }
       authStore.refreshTokenProactively()
-    }, PERIODIC_REFRESH_INTERVAL)
+    }, periodicRefreshIntervalMs.value)
+  }
+
+  function bindActivityListeners() {
+    activityEvents.value.forEach((event) => {
+      if (event === 'scroll' || event === 'wheel' || event === 'touchmove' || event === 'mousemove') {
+        document.addEventListener(event, trackActivity, { passive: true, capture: true })
+      } else {
+        document.addEventListener(event, trackActivity, { capture: true })
+      }
+    })
+  }
+
+  function unbindActivityListeners() {
+    activityEvents.value.forEach((event) => {
+      document.removeEventListener(event, trackActivity, { capture: true } as EventListenerOptions)
+    })
+  }
+
+  async function loadRuntimeAutologoutConfig() {
+    try {
+      const cfg = await getPublicRuntimeConfig()
+      if (!cfg.autologout) return
+      inactivityTimeoutMs.value = Math.max(60 * 1000, cfg.autologout.timeoutMs || inactivityTimeoutMs.value)
+      warningBeforeLogoutMs.value = Math.max(15 * 1000, cfg.autologout.warningMs || warningBeforeLogoutMs.value)
+      activityThrottleMs.value = Math.max(500, cfg.autologout.activityThrottleMs || activityThrottleMs.value)
+      periodicRefreshIntervalMs.value = Math.max(60 * 1000, cfg.autologout.refreshIntervalMs || periodicRefreshIntervalMs.value)
+      const csv = String(cfg.autologout.activityEvents || '').trim().toLowerCase()
+      if (csv) {
+        const parsed = csv
+          .split(',')
+          .map((v) => v.trim())
+          .filter((v): v is string => Boolean(v) && (ALLOWED_ACTIVITY_EVENTS as readonly string[]).includes(v))
+        if (parsed.length > 0) {
+          unbindActivityListeners()
+          activityEvents.value = parsed
+          bindActivityListeners()
+        }
+      }
+      if (isLoggedIn.value) {
+        clearAllTimers()
+        resetInactivityTimer()
+        startPeriodicRefresh()
+      }
+    } catch {
+      // Öffentliche Runtime-Config optional; ENV bleibt Fallback.
+    }
   }
 
   function onVisibilityChange() {
@@ -168,11 +242,8 @@ export function useAutoLogout() {
   }
 
   onMounted(() => {
-    // Event Listener für User-Aktivität – Klicks, Tastatur, Scroll (auch bei Leaflet-Karte etc.)
-    ;['click', 'keydown'].forEach(event => {
-      document.addEventListener(event, trackActivity, { capture: true })
-    })
-    document.addEventListener('scroll', trackActivity, { passive: true, capture: true })
+    // Event Listener für User-Aktivität (per ENV konfigurierbar, z. B. click-only).
+    bindActivityListeners()
 
     document.addEventListener('visibilitychange', onVisibilityChange)
 
@@ -186,6 +257,7 @@ export function useAutoLogout() {
     if (isLoggedIn.value) {
       startPeriodicRefresh()
     }
+    void loadRuntimeAutologoutConfig()
   })
 
   watch(isLoggedIn, (newValue, oldValue) => {
@@ -204,10 +276,7 @@ export function useAutoLogout() {
     clearAllTimers()
     document.removeEventListener('visibilitychange', onVisibilityChange)
 
-    ;['click', 'keydown'].forEach(event => {
-      document.removeEventListener(event, trackActivity, { capture: true } as EventListenerOptions)
-    })
-    document.removeEventListener('scroll', trackActivity, { passive: true, capture: true } as EventListenerOptions)
+    unbindActivityListeners()
   })
 
   return {
