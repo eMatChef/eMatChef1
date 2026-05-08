@@ -1,0 +1,60 @@
+# Production-Override für den API-Server (DigitalOcean o. Ä.).
+#
+# Nutzung auf dem Server:
+#   cp deploy/docker-compose.override.prod.example.yml docker-compose.override.yml
+#   bash deploy/init-prod-env.sh
+#   (Alternative: cp deploy/docker-compose.prod.env.example .env && nano .env)
+#
+# Erster Start mit neuem DB-Passwort: Volume ggf. leeren, sonst Passwort zur bestehenden DB passend wählen:
+#   docker compose -p ematchef-prod down -v   # löscht postgres_data – nur wenn Daten weg dürfen!
+#
+# Dann (ohne --build = schnell; Code per Volume):
+#   export HOST_UID=$(id -u) HOST_GID=$(id -g)
+#   docker compose -p ematchef-prod up -d db backend
+# Bei Dockerfile-Änderung: EMATCHEF_COMPOSE_BUILD=1 docker compose -p ematchef-prod up -d --build db backend
+
+services:
+  db:
+    # Kein Host-Port: DB nur im Docker-Netz (Backend → db:5432). Kein Konflikt mit OS-Postgres auf :5432.
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    restart: unless-stopped
+
+  backend:
+    # API-Port nur lokal am Droplet binden; externen Zugriff nur über Host-Nginx/443.
+    # So ist :8081 nicht direkt aus dem Internet erreichbar.
+    ports:
+      - "127.0.0.1:8081:8081"
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      APP_ENV: prod
+      APP_DEBUG: "0"
+      APP_SECRET: ${APP_SECRET}
+      DATABASE_URL: "postgresql://mvuser:${POSTGRES_PASSWORD}@db:5432/mvdb?serverVersion=16&charset=utf8"
+      JWT_PASSPHRASE: ${JWT_PASSPHRASE}
+      APP_FRONTEND_URL: "https://app.ematchef.ch"
+      APP_PUBLIC_QR_URL: "https://qr.ematchef.ch"
+      # HttpOnly JWT/Refresh für alle *.ematchef.ch-Frontends; Secure=1 nur mit HTTPS
+      AUTH_COOKIE_DOMAIN: ".ematchef.ch"
+      AUTH_COOKIE_SECURE: "1"
+      # Nur eure echten HTTPS-Origins (kein * bei credentials) — qr.* für öffentliche QR-Seite
+      CORS_ALLOW_ORIGIN: '^https://(app\.ematchef\.ch|qr\.ematchef\.ch|ematchef\.ch|www\.ematchef\.ch)$'
+      # SendGrid (API über HTTPS, oft nötig wenn VPS Port 587 blockiert): in .env auf dem Server:
+      #   MAILER_FROM="noreply@ematchef.ch"
+      #   Optional: Logo in HTML-Mails (absolute HTTPS-URL, z. B. Favicon auf Hostpoint)
+      #   MAILER_BRAND_LOGO_URL="https://ematchef.ch/favicon.svg"
+      #   MAILER_DSN="sendgrid+api://SG....@default"
+      # Hostpoint SMTP (nur wenn ausgehend 587 erreichbar):
+      #   MAILER_DSN="smtp://MAILBOX%40ematchef.ch:PASSWORT@asmtp.mail.hostpoint.ch:587?encryption=tls"
+      # Sonderzeichen in User/Pass/Key URL-encoden (@ → %40, : → %3A). Dann Backend neu starten.
+      # Fallback SMTP: Superadmin → Mail-Einstellungen (nur wenn MAILER_DSN null:// oder leer).
+      MAILER_DSN: "${MAILER_DSN:-null://null}"
+      MAILER_FROM: "${MAILER_FROM:-noreply@ematchef.ch}"
+      MAILER_BRAND_LOGO_URL: "${MAILER_BRAND_LOGO_URL:-}"
+      # Optional: echte Antwort-Adresse (Hostpoint „Absender“ ist egal; Reply-To setzt der Server pro Mail)
+      MAILER_REPLY_TO: "${MAILER_REPLY_TO:-}"
+      # Cloudflare Turnstile (nur Registrierung /api/auth/register): Secret in .env, nie committen
+      TURNSTILE_SECRET_KEY: "${TURNSTILE_SECRET_KEY:-}"
+      TURNSTILE_SKIP_VERIFY: "${TURNSTILE_SKIP_VERIFY:-0}"

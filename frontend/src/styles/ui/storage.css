@@ -1,0 +1,222 @@
+/* Shared storage/location cells */
+.location-cell {
+  vertical-align: top;
+}
+
+.location-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.location-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.location-link-btn {
+  width: fit-content;
+  border: none;
+  background: transparent;
+  color: #2563eb;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 0;
+  cursor: pointer;
+}
+
+.location-link-btn:hover {
+  color: #1d4ed8;
+  text-decoration: underline;
+}
+
+.location-link-text {
+  border: none;
+  background: transparent;
+  color: #2563eb;
+  font-size: 14px;
+  text-align: left;
+  padding: 0;
+  cursor: pointer;
+}
+
+.location-link-text:hover {
+  color: #1d4ed8;
+  text-decoration: underline;
+}
+
+.actions-cell {
+  width: 40px;
+}
+
+/* Shared stock quick sidebar */
+.stock-quick {
+  background: #f9fafb;
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.stock-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 0;
+  font-size: 14px;
+  color: #6b7280;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.stock-row:last-child {
+  border-bottom: none;
+}
+
+.stock-row-loss {
+  color: #92400e;
+}
+
+.stock-row-total {
+  font-weight: 600;
+}
+
+.stock-row-separator {
+  height: 1px;
+  background: #e5e7eb;
+  margin: 6px 0;
+}
+
+.stock-row-highlight {
+  padding-top: 4px;
+  font-weight: 600;
+}
+
+.stock-val {
+  font-weight: 600;
+  color: #111827;
+}
+
+.stock-val.available { color: #059669; }
+.stock-val.warehouse { color: #166534; }
+.stock-val.issued { color: #7c3aed; }
+.stock-val.reserved { color: #2563eb; }
+.stock-val.repair { color: #d97706; }
+.stock-val.defect { color: #dc2626; }
+.stock-val.archived { color: #6b7280; }
+.stock-val.loss { color: #b45309; font-weight: 700; }
+
+/* Shared serial and assignment badges */
+.serial-code {
+  display: inline-block;
+  padding: 4px 10px;
+  background: #e0f2fe;
+  color: #0369a1;
+  border-radius: 4px;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: 'SF Mono', Monaco, Consolas, monospace;
+}
+
+.no-serial {
+  color: #d1d5db;
+}
+
+.assignment-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+/* „fix“ statt „fixed“: vermeidet Kollision mit globalen .fixed / position:fixed Utilities */
+.assignment-badge.fix {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.assignment-badge.assigned {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.assignment-badge.on_issue {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.assignment-badge.bulk {
+  background: #f3f4f6;
+  color: #6b7280;
+}
+
+/* Shared "used in" table */
+.empty-used-in {
+  text-align: center;
+  padding: 40px 20px;
+  color: #9ca3af;
+}
+
+.empty-used-in svg {
+  margin-bottom: 12px;
+}
+
+.empty-used-in p {
+  font-size: 14px;
+}
+
+.used-in-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.used-in-table thead th {
+  padding: 10px 14px;
+  text-align: left;
+  font-size: 11px;
+  font-weight: 600;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  border-bottom: 1px solid #e5e7eb;
+  background: #f9fafb;
+}
+
+.used-in-table tbody td {
+  padding: 12px 14px;
+  font-size: 14px;
+  color: #374151;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.used-in-row:last-child td {
+  border-bottom: none;
+}
+
+.used-in-link {
+  color: #2563eb;
+  cursor: pointer;
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.used-in-link:hover {
+  text-decoration: underline;
+}
+
+.used-in-type-badge {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.used-in-type-badge.physical_combo {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.used-in-type-badge.virtual_combo {
+  background: #ede9fe;
+  color: #6d28d9;
+}

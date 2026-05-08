@@ -1,0 +1,238 @@
+{
+    "de": {
+        "auth.verify_email": {
+            "subject": "Bitte bestaetige deine E-Mail-Adresse",
+            "text": "Hallo {{display_name}},\n\nbitte bestaetige deine E-Mail-Adresse fuer eMatChef.\n\nBestaetigungslink:\n{{verify_url}}\n\nDer Link ist gueltig bis: {{expires_at}}\n\n{{footer_note}}",
+            "html_headline": "E-Mail bestaetigen",
+            "html_intro": "bitte bestaetige deine E-Mail-Adresse fuer eMatChef.",
+            "html_footer_note": "Falls du dich nicht registriert hast, kannst du diese Nachricht ignorieren.",
+            "html_greeting_word": "Hallo",
+            "html_cta_button": "E-Mail bestaetigen",
+            "html_cta_fallback": "Falls der Button nicht funktioniert, nutze diesen Link:",
+            "html_expires_intro": "Der Link ist gueltig bis:"
+        },
+        "auth.pending_email_change": {
+            "subject": "Bitte bestaetige deine neue E-Mail-Adresse",
+            "text": "Hallo {{display_name}},\n\ndu hast eine Aenderung deiner E-Mail-Adresse fuer eMatChef angefragt.\n\nNeue E-Mail bestaetigen:\n{{verify_url}}\n\nBis zur Bestaetigung bleibt deine bisherige E-Mail-Adresse gueltig.\nDer Link ist gueltig bis: {{expires_at}}\n\n{{footer_note}}",
+            "html_headline": "Neue E-Mail bestaetigen",
+            "html_intro": "du hast eine Aenderung deiner E-Mail-Adresse fuer eMatChef angefragt.",
+            "html_footer_note": "Falls du diese Aenderung nicht angefragt hast, ignoriere diese Nachricht.",
+            "html_greeting_word": "Hallo",
+            "html_cta_button": "E-Mail bestaetigen",
+            "html_cta_fallback": "Falls der Button nicht funktioniert, nutze diesen Link:",
+            "html_expires_intro": "Der Link ist gueltig bis:",
+            "html_extra_block": "<p style=\"margin:0 0 16px 0;font-size:15px;line-height:1.5;color:#374151;\">Bis zur Bestaetigung bleibt deine bisherige E-Mail-Adresse gueltig.</p>"
+        },
+        "auth.password_reset_code": {
+            "subject": "Passwort zuruecksetzen - eMatChef",
+            "text": "Hallo {{display_name}},\n\ndu hast ein neues Passwort fuer eMatChef angefordert.\n\nDein Sicherheitscode lautet: {{reset_code}}\n\nDer Code ist gueltig bis: {{expires_at}}\nBitte gib den Code zusammen mit deinem neuen Passwort im Login-Bereich ein.\n\n{{footer_note}}",
+            "html_headline": "Passwort zuruecksetzen",
+            "html_greeting_word": "Hallo",
+            "html_intro": "du hast ein neues Passwort fuer eMatChef angefordert.",
+            "html_code_caption": "Dein Sicherheitscode:",
+            "html_valid_until": "Gueltig bis:",
+            "html_instructions": "Bitte gib den Code zusammen mit deinem neuen Passwort im Login-Bereich ein.",
+            "html_footer_note": "Falls du diese Anfrage nicht gestellt hast, ignoriere diese E-Mail."
+        },
+        "department.invite": {
+            "subject": "Einladung zu eMatChef Department: {{department_name}}",
+            "text": "Hallo {{recipient_name}},\n\n{{inviter_name}} hat dich zu dem Department \"{{department_name}}\" eingeladen.\nVorgesehene Rolle: {{role_label}}\n\nEinladungslink:\n{{invite_url}}\n\n{{paragraph_no_account}}\n\n{{paragraph_ignore}}",
+            "inviter_fallback": "Ein Teammitglied",
+            "html_mail_headline": "eMatChef Einladung",
+            "html_greeting_word": "Hallo",
+            "html_invite_sentence": "{{inviter_name}} hat dich zu dem Department <strong>{{department_name}}</strong> eingeladen.",
+            "html_role_intro": "Vorgesehene Rolle:",
+            "html_cta_button": "Einladung annehmen",
+            "html_cta_fallback": "Falls der Button nicht funktioniert, nutze diesen Link:",
+            "html_disclaimer": "Wenn du diese Einladung nicht erwartest, kannst du diese E-Mail ignorieren.",
+            "paragraph_no_account": "Falls du noch kein Konto hast, kannst du dich ueber den Link registrieren und wirst danach direkt dem Department zugeordnet.",
+            "paragraph_ignore": "Wenn du diese Einladung nicht erwartest, kannst du diese E-Mail ignorieren."
+        },
+        "public.found_item_contact": {
+            "subject": "[eMatChef] Hinweis: Artikel gefunden – {{material_name}}",
+            "text": "{{intro}}\n\nArtikel: {{material_name}}\nAbteilung: {{dept_name}}\n{{serial_block}}Public-Link: {{public_url}}\nPublic-Code: {{public_code}}\n\nNachricht:\n{{message}}\n\nAbsender:\n{{sender_name_line}}\n{{sender_email_line}}",
+            "intro": "Jemand hat ueber den oeffentlichen QR-Link einen Hinweis gesendet.",
+            "sender_name_label": "Name:",
+            "sender_email_label": "E-Mail:",
+            "sender_not_given": "(nicht angegeben)",
+            "line_serial_prefix": "Serie: "
+        }
+    },
+    "en": {
+        "auth.verify_email": {
+            "subject": "Please confirm your email address",
+            "text": "Hello {{display_name}},\n\nplease confirm your email address for eMatChef.\n\nConfirmation link:\n{{verify_url}}\n\nThe link is valid until: {{expires_at}}\n\n{{footer_note}}",
+            "html_headline": "Confirm email",
+            "html_intro": "please confirm your email address for eMatChef.",
+            "html_footer_note": "If you did not register, you can ignore this message.",
+            "html_greeting_word": "Hello",
+            "html_cta_button": "Confirm email",
+            "html_cta_fallback": "If the button does not work, use this link:",
+            "html_expires_intro": "The link is valid until:"
+        },
+        "auth.pending_email_change": {
+            "subject": "Please confirm your new email address",
+            "text": "Hello {{display_name}},\n\nyou requested to change your email address for eMatChef.\n\nConfirm new email:\n{{verify_url}}\n\nUntil you confirm, your previous email address remains valid.\nThe link is valid until: {{expires_at}}\n\n{{footer_note}}",
+            "html_headline": "Confirm new email",
+            "html_intro": "you requested to change your email address for eMatChef.",
+            "html_footer_note": "If you did not request this change, please ignore this message.",
+            "html_greeting_word": "Hello",
+            "html_cta_button": "Confirm email",
+            "html_cta_fallback": "If the button does not work, use this link:",
+            "html_expires_intro": "The link is valid until:",
+            "html_extra_block": "<p style=\"margin:0 0 16px 0;font-size:15px;line-height:1.5;color:#374151;\">Until you confirm, your previous email address remains valid.</p>"
+        },
+        "auth.password_reset_code": {
+            "subject": "Reset your password – eMatChef",
+            "text": "Hello {{display_name}},\n\nyou requested a new password for eMatChef.\n\nYour security code is: {{reset_code}}\n\nThe code is valid until: {{expires_at}}\nPlease enter the code together with your new password in the login area.\n\n{{footer_note}}",
+            "html_headline": "Reset password",
+            "html_greeting_word": "Hello",
+            "html_intro": "you requested a new password for eMatChef.",
+            "html_code_caption": "Your security code:",
+            "html_valid_until": "Valid until:",
+            "html_instructions": "Please enter the code together with your new password in the login area.",
+            "html_footer_note": "If you did not request this, please ignore this email."
+        },
+        "department.invite": {
+            "subject": "Invitation to eMatChef department: {{department_name}}",
+            "text": "Hello {{recipient_name}},\n\n{{inviter_name}} has invited you to the department \"{{department_name}}\".\nPlanned role: {{role_label}}\n\nInvitation link:\n{{invite_url}}\n\n{{paragraph_no_account}}\n\n{{paragraph_ignore}}",
+            "inviter_fallback": "A team member",
+            "html_mail_headline": "eMatChef invitation",
+            "html_greeting_word": "Hello",
+            "html_invite_sentence": "{{inviter_name}} has invited you to the department <strong>{{department_name}}</strong>.",
+            "html_role_intro": "Planned role:",
+            "html_cta_button": "Accept invitation",
+            "html_cta_fallback": "If the button does not work, use this link:",
+            "html_disclaimer": "If you did not expect this invitation, you can ignore this email.",
+            "paragraph_no_account": "If you do not have an account yet, you can register via the link and will then be assigned to the department.",
+            "paragraph_ignore": "If you did not expect this invitation, you can ignore this email."
+        },
+        "public.found_item_contact": {
+            "subject": "[eMatChef] Notice: item found – {{material_name}}",
+            "text": "{{intro}}\n\nItem: {{material_name}}\nDepartment: {{dept_name}}\n{{serial_block}}Public link: {{public_url}}\nPublic code: {{public_code}}\n\nMessage:\n{{message}}\n\nSender:\n{{sender_name_line}}\n{{sender_email_line}}",
+            "intro": "Someone sent a notice via the public QR link.",
+            "sender_name_label": "Name:",
+            "sender_email_label": "Email:",
+            "sender_not_given": "(not provided)",
+            "line_serial_prefix": "Batch: "
+        }
+    },
+    "fr": {
+        "auth.verify_email": {
+            "subject": "Veuillez confirmer votre adresse e-mail",
+            "text": "Bonjour {{display_name}},\n\nveuillez confirmer votre adresse e-mail pour eMatChef.\n\nLien de confirmation :\n{{verify_url}}\n\nLe lien est valable jusqu’au : {{expires_at}}\n\n{{footer_note}}",
+            "html_headline": "Confirmer l’e-mail",
+            "html_intro": "veuillez confirmer votre adresse e-mail pour eMatChef.",
+            "html_footer_note": "Si vous ne vous êtes pas inscrit, vous pouvez ignorer ce message.",
+            "html_greeting_word": "Bonjour",
+            "html_cta_button": "Confirmer l’e-mail",
+            "html_cta_fallback": "Si le bouton ne fonctionne pas, utilisez ce lien :",
+            "html_expires_intro": "Le lien est valable jusqu’au :"
+        },
+        "auth.pending_email_change": {
+            "subject": "Veuillez confirmer votre nouvelle adresse e-mail",
+            "text": "Bonjour {{display_name}},\n\nvous avez demandé de modifier votre adresse e-mail pour eMatChef.\n\nConfirmer la nouvelle e-mail :\n{{verify_url}}\n\nJusqu’à confirmation, votre ancienne adresse e-mail reste valide.\nLe lien est valable jusqu’au : {{expires_at}}\n\n{{footer_note}}",
+            "html_headline": "Confirmer la nouvelle e-mail",
+            "html_intro": "vous avez demandé de modifier votre adresse e-mail pour eMatChef.",
+            "html_footer_note": "Si vous n’avez pas demandé ce changement, ignorez ce message.",
+            "html_greeting_word": "Bonjour",
+            "html_cta_button": "Confirmer l’e-mail",
+            "html_cta_fallback": "Si le bouton ne fonctionne pas, utilisez ce lien :",
+            "html_expires_intro": "Le lien est valable jusqu’au :",
+            "html_extra_block": "<p style=\"margin:0 0 16px 0;font-size:15px;line-height:1.5;color:#374151;\">Jusqu’à confirmation, votre ancienne adresse e-mail reste valide.</p>"
+        },
+        "auth.password_reset_code": {
+            "subject": "Réinitialiser votre mot de passe – eMatChef",
+            "text": "Bonjour {{display_name}},\n\nvous avez demandé un nouveau mot de passe pour eMatChef.\n\nVotre code de sécurité est : {{reset_code}}\n\nLe code est valable jusqu’au : {{expires_at}}\nVeuillez saisir le code avec votre nouveau mot de passe dans la zone de connexion.\n\n{{footer_note}}",
+            "html_headline": "Réinitialiser le mot de passe",
+            "html_greeting_word": "Bonjour",
+            "html_intro": "vous avez demandé un nouveau mot de passe pour eMatChef.",
+            "html_code_caption": "Votre code de sécurité :",
+            "html_valid_until": "Valable jusqu’au :",
+            "html_instructions": "Veuillez saisir le code avec votre nouveau mot de passe dans la zone de connexion.",
+            "html_footer_note": "Si vous n’avez pas demandé ceci, ignorez cet e-mail."
+        },
+        "department.invite": {
+            "subject": "Invitation au département eMatChef : {{department_name}}",
+            "text": "Bonjour {{recipient_name}},\n\n{{inviter_name}} vous a invité au département « {{department_name}} ».\nRôle prévu : {{role_label}}\n\nLien d’invitation :\n{{invite_url}}\n\n{{paragraph_no_account}}\n\n{{paragraph_ignore}}",
+            "inviter_fallback": "Un membre de l’équipe",
+            "html_mail_headline": "Invitation eMatChef",
+            "html_greeting_word": "Bonjour",
+            "html_invite_sentence": "{{inviter_name}} vous a invité au département <strong>{{department_name}}</strong>.",
+            "html_role_intro": "Rôle prévu :",
+            "html_cta_button": "Accepter l’invitation",
+            "html_cta_fallback": "Si le bouton ne fonctionne pas, utilisez ce lien :",
+            "html_disclaimer": "Si vous n’attendiez pas cette invitation, vous pouvez ignorer cet e-mail.",
+            "paragraph_no_account": "Si vous n’avez pas encore de compte, vous pouvez vous inscrire via le lien et serez ensuite affecté au département.",
+            "paragraph_ignore": "Si vous n’attendiez pas cette invitation, vous pouvez ignorer cet e-mail."
+        },
+        "public.found_item_contact": {
+            "subject": "[eMatChef] Avis : article trouvé – {{material_name}}",
+            "text": "{{intro}}\n\nArticle : {{material_name}}\nDépartement : {{dept_name}}\n{{serial_block}}Lien public : {{public_url}}\nCode public : {{public_code}}\n\nMessage :\n{{message}}\n\nExpéditeur :\n{{sender_name_line}}\n{{sender_email_line}}",
+            "intro": "Quelqu’un a envoyé un avis via le lien QR public.",
+            "sender_name_label": "Nom :",
+            "sender_email_label": "E-mail :",
+            "sender_not_given": "(non communiqué)",
+            "line_serial_prefix": "Lot : "
+        }
+    },
+    "it": {
+        "auth.verify_email": {
+            "subject": "Conferma il tuo indirizzo e-mail",
+            "text": "Ciao {{display_name}},\n\nconferma il tuo indirizzo e-mail per eMatChef.\n\nLink di conferma:\n{{verify_url}}\n\nIl link è valido fino al: {{expires_at}}\n\n{{footer_note}}",
+            "html_headline": "Conferma e-mail",
+            "html_intro": "conferma il tuo indirizzo e-mail per eMatChef.",
+            "html_footer_note": "Se non ti sei registrato, puoi ignorare questo messaggio.",
+            "html_greeting_word": "Ciao",
+            "html_cta_button": "Conferma e-mail",
+            "html_cta_fallback": "Se il pulsante non funziona, usa questo link:",
+            "html_expires_intro": "Il link è valido fino al:"
+        },
+        "auth.pending_email_change": {
+            "subject": "Conferma il tuo nuovo indirizzo e-mail",
+            "text": "Ciao {{display_name}},\n\nhai richiesto di modificare il tuo indirizzo e-mail per eMatChef.\n\nConferma la nuova e-mail:\n{{verify_url}}\n\nFino alla conferma, il tuo indirizzo e-mail precedente resta valido.\nIl link è valido fino al: {{expires_at}}\n\n{{footer_note}}",
+            "html_headline": "Conferma nuova e-mail",
+            "html_intro": "hai richiesto di modificare il tuo indirizzo e-mail per eMatChef.",
+            "html_footer_note": "Se non hai richiesto questa modifica, ignora questo messaggio.",
+            "html_greeting_word": "Ciao",
+            "html_cta_button": "Conferma e-mail",
+            "html_cta_fallback": "Se il pulsante non funziona, usa questo link:",
+            "html_expires_intro": "Il link è valido fino al:",
+            "html_extra_block": "<p style=\"margin:0 0 16px 0;font-size:15px;line-height:1.5;color:#374151;\">Fino alla conferma, il tuo indirizzo e-mail precedente resta valido.</p>"
+        },
+        "auth.password_reset_code": {
+            "subject": "Reimposta la password – eMatChef",
+            "text": "Ciao {{display_name}},\n\nhai richiesto una nuova password per eMatChef.\n\nIl tuo codice di sicurezza è: {{reset_code}}\n\nIl codice è valido fino al: {{expires_at}}\nInserisci il codice insieme alla nuova password nell’area di accesso.\n\n{{footer_note}}",
+            "html_headline": "Reimposta password",
+            "html_greeting_word": "Ciao",
+            "html_intro": "hai richiesto una nuova password per eMatChef.",
+            "html_code_caption": "Il tuo codice di sicurezza:",
+            "html_valid_until": "Valido fino al:",
+            "html_instructions": "Inserisci il codice insieme alla nuova password nell’area di accesso.",
+            "html_footer_note": "Se non hai richiesto questo, ignora questa e-mail."
+        },
+        "department.invite": {
+            "subject": "Invito al dipartimento eMatChef: {{department_name}}",
+            "text": "Ciao {{recipient_name}},\n\n{{inviter_name}} ti ha invitato al dipartimento « {{department_name}} ».\nRuolo previsto: {{role_label}}\n\nLink d’invito:\n{{invite_url}}\n\n{{paragraph_no_account}}\n\n{{paragraph_ignore}}",
+            "inviter_fallback": "Un membro del team",
+            "html_mail_headline": "Invito eMatChef",
+            "html_greeting_word": "Ciao",
+            "html_invite_sentence": "{{inviter_name}} ti ha invitato al dipartimento <strong>{{department_name}}</strong>.",
+            "html_role_intro": "Ruolo previsto:",
+            "html_cta_button": "Accetta invito",
+            "html_cta_fallback": "Se il pulsante non funziona, usa questo link:",
+            "html_disclaimer": "Se non ti aspettavi questo invito, puoi ignorare questa e-mail.",
+            "paragraph_no_account": "Se non hai ancora un account, puoi registrarti tramite il link e verrai poi assegnato al dipartimento.",
+            "paragraph_ignore": "Se non ti aspettavi questo invito, puoi ignorare questa e-mail."
+        },
+        "public.found_item_contact": {
+            "subject": "[eMatChef] Avviso: articolo trovato – {{material_name}}",
+            "text": "{{intro}}\n\nArticolo: {{material_name}}\nDipartimento: {{dept_name}}\n{{serial_block}}Link pubblico: {{public_url}}\nCodice pubblico: {{public_code}}\n\nMessaggio:\n{{message}}\n\nMittente:\n{{sender_name_line}}\n{{sender_email_line}}",
+            "intro": "Qualcuno ha inviato un avviso tramite il link QR pubblico.",
+            "sender_name_label": "Nome:",
+            "sender_email_label": "E-mail:",
+            "sender_not_given": "(non indicato)",
+            "line_serial_prefix": "Serie: "
+        }
+    }
+}

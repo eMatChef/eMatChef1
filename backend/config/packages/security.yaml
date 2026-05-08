@@ -1,0 +1,62 @@
+security:
+    password_hashers:
+        App\Entity\User:
+            algorithm: auto
+
+    providers:
+        app_user_provider:
+            id: App\Security\UserProvider
+
+    firewalls:
+        dev:
+            pattern: ^/(_(profiler|wdt)|css|images|js)/
+            security: false
+        
+        refresh:
+            pattern: ^/api/token/refresh
+            stateless: true
+            provider: app_user_provider
+            refresh_jwt:
+                check_path: /api/token/refresh
+        
+        logout:
+            pattern: ^/api/auth/logout
+            stateless: true
+            security: false
+        
+        login:
+            pattern: ^/api/auth/login_check
+            stateless: true
+            json_login:
+                check_path: /api/auth/login_check
+                username_path: email
+                password_path: password
+                success_handler: lexik_jwt_authentication.handler.authentication_success
+                failure_handler: lexik_jwt_authentication.handler.authentication_failure
+            login_throttling:
+                max_attempts: 5
+                interval: '15 minutes'
+        
+        # Public API (QR-Lookup etc.): darf niemals durch JWT-Authenticator scheitern,
+        # auch wenn Clients fälschlicherweise einen (ungültigen) Authorization-Header mitschicken.
+        api_public:
+            pattern: ^/api/public
+            stateless: true
+            security: false
+        
+        api:
+            pattern: ^/api
+            stateless: true
+            jwt: ~
+
+    access_control:
+        - { path: ^/api/auth/login_check, roles: PUBLIC_ACCESS }
+        - { path: ^/api/auth/register, roles: PUBLIC_ACCESS }
+        - { path: ^/api/auth/verify, roles: PUBLIC_ACCESS }
+        - { path: ^/api/auth/resend-verification, roles: PUBLIC_ACCESS }
+        - { path: ^/api/auth/password-reset/request, roles: PUBLIC_ACCESS }
+        - { path: ^/api/auth/password-reset/confirm, roles: PUBLIC_ACCESS }
+        - { path: ^/api/auth/logout, roles: PUBLIC_ACCESS }
+        - { path: ^/api/token/refresh, roles: PUBLIC_ACCESS }
+        - { path: ^/api/public, roles: PUBLIC_ACCESS }
+        - { path: .*, roles: [ROLE_USER] }
