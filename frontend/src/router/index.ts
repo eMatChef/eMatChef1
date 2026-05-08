@@ -226,7 +226,7 @@ const routes: RouteRecordRaw[] = [
             name: 'AdminGlobalAddresses',
             component: () => import('@/views/GlobalAddressesView.vue'),
             meta: {
-              requiredRoles: ['superadmin', 'organisationschef', 'suborgchef'],
+              requiredRoles: ['superadmin'],
               ...routeHead('globalAddresses'),
             }
           },
@@ -398,7 +398,7 @@ const routes: RouteRecordRaw[] = [
             name: 'DepartmentGlobalAddresses',
             component: () => import('@/views/GlobalAddressesView.vue'),
             meta: {
-              requiredRoles: ['superadmin', 'organisationschef', 'suborgchef'],
+              requiredRoles: ['superadmin'],
               ...routeHead('globalAddresses'),
             }
           },

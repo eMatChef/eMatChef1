@@ -2,6 +2,16 @@
 
 Für den **API-Server** (z. B. DigitalOcean), Projektverzeichnis z. B. `/opt/ematchef/prod`.
 
+## Branch- und Domain-Zuordnung
+
+- `prod` -> Produktion (`ematchef.ch`, `app.ematchef.ch`, `qr.ematchef.ch`)
+- `develop` -> Entwicklungsumgebung (`dev.ematchef.ch`)
+
+Empfohlene Verzeichnisse auf dem Server:
+
+- `/opt/ematchef/prod` (tracked auf Branch `prod`)
+- `/opt/ematchef/develop` (tracked auf Branch `develop`)
+
 **Git auf dem Droplet:** Per SSH einloggen, ins Repo-Verzeichnis wechseln, dort die Befehle unten ausführen (die IDE führt kein Git auf deinem Server aus).
 
 ```bash
@@ -11,12 +21,25 @@ cd /opt/ematchef/prod   # anpassen, falls dein Pfad anders ist
 
 ### Schnell: ein Skript statt vieler Zeilen
 
-Im Repo liegt **`deploy/prod-update.sh`**: holt `origin/main` (per `reset` oder `pull`) und startet **`db` + `backend`** (ohne langsames `docker compose --build`, außer `EMATCHEF_COMPOSE_BUILD=1`). Beispiel auf dem Droplet:
+Im Repo liegt **`deploy/prod-update.sh`**: holt den konfigurierten Ziel-Branch (Standard `origin/prod`, per `EMATCHEF_GIT_BRANCH` ueberschreibbar) und startet **`db` + `backend`** (ohne langsames `docker compose --build`, außer `EMATCHEF_COMPOSE_BUILD=1`).
+
+Beispiel Produktion:
 
 ```bash
 cd /opt/ematchef/prod
 chmod +x deploy/prod-update.sh
 EMATCHEF_PROD_ROOT=/opt/ematchef/prod ./deploy/prod-update.sh reset
+```
+
+Beispiel Entwicklung (`develop` -> `dev.ematchef.ch`):
+
+```bash
+cd /opt/ematchef/develop
+chmod +x deploy/prod-update.sh
+EMATCHEF_PROD_ROOT=/opt/ematchef/develop \
+EMATCHEF_GIT_BRANCH=develop \
+COMPOSE_PROJECT_NAME=ematchef-develop \
+./deploy/prod-update.sh reset
 ```
 
 Migration ausführen
@@ -193,38 +216,67 @@ Der Versand laeuft **nicht** über klassisches SMTP zum Provider-Mailserver, son
 
 Falls es **gar nicht** am SendGrid-Konto liegt: prüft **ausgehendes HTTPS** vom Server (443) und generelle DNS/Proxy/Firewall-Themen — das ist der relevante Netzpfad (nicht SMTP-Port 587).
 
-## 3b. Hostpoint: Frontend bauen und per FTP hochladen
+## 3b. Hostpoint: Frontend bauen und per FTP hochladen (prod + dev)
 
-Das **API-Backend** läuft z. B. auf dem Droplet; die **Websites** `ematchef.ch` (Marketing/Landing) und `app.ematchef.ch` (App inkl. QR) sind in der Regel **statische Dateien auf Hostpoint**. Dafür erzeugt das Repo lokal passende Ordner; du lädst **den Inhalt** dieser Ordner in die passenden **Document Roots** hoch (FTP/SFTP).
+Das **API-Backend** läuft z. B. auf dem Droplet; die Websites auf Hostpoint sind in der Regel **statische Dateien**.
+Dafuer erzeugt das Repo lokal passende Ordner; du laedst **den Inhalt** dieser Ordner in die passenden **Document Roots** hoch (FTP/SFTP).
 
 ### Was du auf Hostpoint hochladen musst (nach dem Build)
 
-Zuerst lokal bauen (siehe unten) — Script **`scripts/build-hostpoint-deploy.sh`**. Dann entstehen zwei Ordner:
+Fuer Produktion:
+
+- Script: **`scripts/build-hostpoint-deploy-prod.sh`**
+- Legacy-Alias (gleiches Ergebnis): **`scripts/build-hostpoint-deploy.sh`**
+- Ausgabeordner:
+  - `deploy/hostpoint/ematchef.ch/`
+  - `deploy/hostpoint/app.ematchef.ch/`
+
+Fuer Development:
+
+- Script: **`scripts/build-hostpoint-deploy-dev.sh`**
+- Ausgabeordner:
+  - `deploy/hostpoint/dev.ematchef.ch/`
+  - `deploy/hostpoint/app-dev.ematchef.ch/`
+
+### Was du auf Hostpoint hochladen musst (nach dem Build)
+
+Produktion:
 
 | Lokaler Ordner (nach dem Script) | Typisch ins Hostpoint-Webverzeichnis für |
 |----------------------------------|-----------------------------------------|
 | **`deploy/hostpoint/ematchef.ch/`** (alle Dateien inkl. Unterordner) | die **Hauptdomain** bzw. den VHost für **`ematchef.ch`** (manchmal `public_html`, `htdocs` oder `www` — je nach Hostpoint-Menü) |
 | **`deploy/hostpoint/app.ematchef.ch/`** (alle Dateien inkl. Unterordner) | die **Subdomain** / den VHost für **`app.ematchef.ch`** |
 
+Development:
+
+| Lokaler Ordner (nach dem Script) | Typisch ins Hostpoint-Webverzeichnis für |
+|----------------------------------|-----------------------------------------|
+| **`deploy/hostpoint/dev.ematchef.ch/`** (alle Dateien inkl. Unterordner) | die **Dev-Hauptdomain** / den VHost für **`dev.ematchef.ch`** |
+| **`deploy/hostpoint/app-dev.ematchef.ch/`** (alle Dateien inkl. Unterordner) | die **Dev-App-Subdomain** / den VHost für **`app-dev.ematchef.ch`** |
+
 Dazu zählt jeweils **`index.html`**, der Ordner **`assets/`** und die Datei **`.htaccess`** ( Apache-Routing für die SPA). Ohne **`.htaccess` funktionieren direkte URLs** (z. B. Reload auf einer App-Route) **nicht**; beim FTP prüfen, ob versteckte Dateien wirklich mit hochgeladen werden.
 
 ### Warum `ematchef.ch` und `app.ematchef.ch` ‚ähnlich viel‘ an Dateien sind
 
-Beide Zielordner stammen von **derselben** Vue-Codebase (`scripts/build-hostpoint-deploy.sh` führt **zweimal** `npm run build` aus, mit leicht unterschiedlichen Umgebungswerten, u. a. **QR-Subdomain** im zweiten Lauf). Es gibt **kein** separates, kleines „nur Marketing“-Bundle — beide Seiten bekommen die **komplette SPA**; Besucher von `ematchef.ch` laden trotzdem im Wesentlichen dieselbe App-Struktur (Nutzung/Links entscheidet, was tatsächlich abgerufen wird, nicht fehlende Dateien). Eine wirklich schlankere Hauptdomain bräuchte ein **eigenes, kleines** Frontprojekt oder statische Seiten (bewusst anders im Repo gepflegt).
+Beide Zielordner stammen von **derselben** Vue-Codebase (die Scripts fuehren jeweils **zweimal** `npm run build` aus, mit leicht unterschiedlichen Umgebungswerten, u. a. fuer die QR-/App-Domain). Es gibt **kein** separates, kleines „nur Marketing“-Bundle — beide Seiten bekommen die **komplette SPA**; Besucher von `ematchef.ch` laden trotzdem im Wesentlichen dieselbe App-Struktur (Nutzung/Links entscheidet, was tatsächlich abgerufen wird, nicht fehlende Dateien). Eine wirklich schlankere Hauptdomain braeuchte ein **eigenes, kleines** Frontprojekt oder statische Seiten (bewusst anders im Repo gepflegt).
 
-**Hinweis:** Ein nacktes `npm run build` in `frontend/` legt nur **`frontend/dist/`** an. Für den Hostpoint-Upload willst du das **Build-Skript** nutzen, weil es **zwei** getrennte Ausgabeordner und die **`.htaccess` aus `scripts/hostpoint-spa.htaccess`** an die richtige Stelle kopiert.
+**Hinweis:** Ein nacktes `npm run build` in `frontend/` legt nur **`frontend/dist/`** an. Fuer den Hostpoint-Upload willst du die Build-Skripte nutzen, weil sie getrennte Ausgabeordner erzeugen und die **`.htaccess` aus `scripts/hostpoint-spa.htaccess`** an die richtige Stelle kopieren.
 
 ### Build lokal (Node.js 18+)
 
 1. **`frontend/.env.production` prüfen** (API-URL, Domains, ggf. Turnstile) — alles, was da steht, steckt im gebauten JavaScript. Siehe `deploy/TURNSTILE.md`, wenn der Login mit Cloudflare-Widget hängt.
 
-2. Vom **Repo-Root** aus (Beispielpfad `/opt/ematchef/prod` = oft der Server; **auf deinem PC** den Weg zu deinem Klon nehmen, z. B. `~/projekte/eMatChef`):
+2. Vom **Repo-Root** aus (Beispielpfad `/opt/ematchef/prod` = oft der Server; **auf deinem PC** den Weg zu deinem Klon nehmen, z. B. `~/projekte/eMatChef`):
 
    ```bash
    cd /opt/ematchef/prod/frontend
    npm ci
    cd /opt/ematchef/prod
-   bash scripts/build-hostpoint-deploy.sh
+   # Produktion
+   bash scripts/build-hostpoint-deploy-prod.sh
+
+   # Development
+   bash scripts/build-hostpoint-deploy-dev.sh
    ```
 
 3. Anschließend pro Hostpoint-Account die genannten Ordner **vollständig hoch synchronisieren** (bestehende alte `assets/`-Builds ersetzen). Wenn du nur eins der beiden Produkte änderst, reicht **ein** Zielordner; oft werden aber beide Läufe aus dem Skript frisch gebraucht, damit QR- vs. Main-Site-Build konsistent bleibt.

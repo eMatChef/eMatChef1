@@ -30,7 +30,11 @@ class GlobalAddressController extends AbstractController
     #[IsGranted('ROLE_USER')]
     public function list(Request $request): JsonResponse
     {
-        // Lesezugriff für alle eingeloggten User (z.B. Material-Wizard Hersteller/Lieferant)
+        $accessCheck = $this->ensureGlobalAddressAdmin();
+        if ($accessCheck instanceof JsonResponse) {
+            return $accessCheck;
+        }
+
         $this->ensureGlobalScope();
 
         $query = trim((string) $request->query->get('q', ''));
@@ -156,11 +160,7 @@ class GlobalAddressController extends AbstractController
 
     private function ensureGlobalAddressAdmin(): JsonResponse|true
     {
-        if (
-            !$this->isGranted('ROLE_SUPERADMIN') &&
-            !$this->isGranted('ROLE_ORGANISATIONSCHEF') &&
-            !$this->isGranted('ROLE_SUBORGCHEF')
-        ) {
+        if (!$this->isGranted('ROLE_SUPERADMIN')) {
             return new JsonResponse(['error' => 'Zugriff verweigert'], 403);
         }
 
