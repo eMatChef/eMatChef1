@@ -115,6 +115,7 @@ import StarterKit from '@tiptap/starter-kit'
 import Link from '@tiptap/extension-link'
 import Placeholder from '@tiptap/extension-placeholder'
 import { useI18n } from 'vue-i18n'
+import type { Editor } from '@tiptap/core'
 
 const props = withDefaults(
   defineProps<{
@@ -144,6 +145,7 @@ const editor = useEditor({
   extensions: [
     StarterKit.configure({
       heading: { levels: [2, 3] },
+      link: false,
     }),
     Link.configure({
       openOnClick: false,
@@ -238,25 +240,52 @@ function readFileAsDataUrl(file: File): Promise<string> {
   })
 }
 
+let editorDom: HTMLElement | null = null
+
+function getEditorDom(ed: Editor | null | undefined): HTMLElement | null {
+  if (!ed) return null
+  try {
+    const dom = ed.view?.dom
+    return dom instanceof HTMLElement ? dom : null
+  } catch {
+    return null
+  }
+}
+
+function attachEditorDomListeners(dom: HTMLElement) {
+  dom.addEventListener('dragenter', onDragEnter)
+  dom.addEventListener('dragover', onDragOver)
+  dom.addEventListener('dragleave', onDragLeave)
+  dom.addEventListener('drop', onDropEvent)
+  dom.addEventListener('paste', onPasteEvent)
+}
+
+function detachEditorDomListeners(dom: HTMLElement | null) {
+  if (!dom) return
+  dom.removeEventListener('dragenter', onDragEnter)
+  dom.removeEventListener('dragover', onDragOver)
+  dom.removeEventListener('dragleave', onDragLeave)
+  dom.removeEventListener('drop', onDropEvent)
+  dom.removeEventListener('paste', onPasteEvent)
+}
+
 onBeforeUnmount(() => {
-  editor.value?.view.dom.removeEventListener('dragenter', onDragEnter)
-  editor.value?.view.dom.removeEventListener('dragover', onDragOver)
-  editor.value?.view.dom.removeEventListener('dragleave', onDragLeave)
-  editor.value?.view.dom.removeEventListener('drop', onDropEvent)
-  editor.value?.view.dom.removeEventListener('paste', onPasteEvent)
-  editor.value?.destroy()
+  detachEditorDomListeners(editorDom)
+  editorDom = null
+  try {
+    editor.value?.destroy()
+  } catch {
+    // Ignore teardown races when view is already gone.
+  }
 })
 
 watch(
   () => editor.value,
   (ed) => {
-    const dom = ed?.view.dom
-    if (!dom) return
-    dom.addEventListener('dragenter', onDragEnter)
-    dom.addEventListener('dragover', onDragOver)
-    dom.addEventListener('dragleave', onDragLeave)
-    dom.addEventListener('drop', onDropEvent)
-    dom.addEventListener('paste', onPasteEvent)
+    detachEditorDomListeners(editorDom)
+    editorDom = getEditorDom(ed)
+    if (!editorDom) return
+    attachEditorDomListeners(editorDom)
   }
 )
 

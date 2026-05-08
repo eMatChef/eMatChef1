@@ -12,14 +12,14 @@
 #
 # Umgebungsvariablen (optional):
 #   EMATCHEF_PROD_ROOT   Standard: /opt/ematchef/prod
-#   EMATCHEF_GIT_BRANCH  Standard: main
+#   EMATCHEF_GIT_BRANCH  Standard: prod
 #   COMPOSE_PROJECT_NAME Standard: ematchef-prod
 #   EMATCHEF_COMPOSE_BUILD=1  — docker compose … --build (langsam; nur bei Dockerfile/PHP-Base-Änderung)
 
 set -euo pipefail
 
 ROOT="${EMATCHEF_PROD_ROOT:-/opt/ematchef/prod}"
-BRANCH="${EMATCHEF_GIT_BRANCH:-main}"
+BRANCH="${EMATCHEF_GIT_BRANCH:-prod}"
 PROJECT="${COMPOSE_PROJECT_NAME:-ematchef-prod}"
 MODE="${1:-reset}"
 

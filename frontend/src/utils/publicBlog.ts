@@ -3,8 +3,11 @@ export type BlogLocale = 'de' | 'en' | 'fr'
 export interface PublicBlogPost {
   id: string
   title: string
+  summary: string
+  coverImage: string
   bodyHtml: string
   createdAt: string
+  status: 'draft' | 'published'
   slug: string
   excerpt: string
 }
@@ -82,7 +85,7 @@ export function normalizePublicPosts(
   const posts = raw.map((p, i) => {
     if (typeof p !== 'object' || !p) {
       const id = newId(i)
-      return { id, title: '', bodyHtml: '<p></p>', createdAt: '' }
+      return { id, title: '', summary: '', coverImage: '', bodyHtml: '<p></p>', createdAt: '', status: 'published' as const }
     }
     const o = p as Record<string, unknown>
     const id = typeof o.id === 'string' && o.id ? o.id : newId(i)
@@ -93,10 +96,14 @@ export function normalizePublicPosts(
     }
     if (!bodyHtml) bodyHtml = '<p></p>'
     const createdAt = typeof o.createdAt === 'string' ? o.createdAt : ''
-    return { id, title, bodyHtml, createdAt }
+    const status: 'draft' | 'published' = o.status === 'draft' ? 'draft' : 'published'
+    const summary = typeof o.summary === 'string' ? o.summary : ''
+    const coverImage = typeof o.coverImage === 'string' ? o.coverImage : ''
+    return { id, title, summary, coverImage, bodyHtml, createdAt, status }
   })
 
-  const sorted = [...posts].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+  const visible = posts.filter((p) => p.status === 'published')
+  const sorted = [...visible].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
   return sorted.map((p) => {
     const safeTitle = p.title.trim() || untitledFallback
     const base = [datePrefix(p.createdAt), slugify(safeTitle)].filter(Boolean).join('-') || p.id
@@ -110,7 +117,7 @@ export function normalizePublicPosts(
     return {
       ...p,
       slug,
-      excerpt: makeExcerpt(p.bodyHtml),
+      excerpt: p.summary.trim() ? p.summary.trim() : makeExcerpt(p.bodyHtml),
     }
   })
 }
