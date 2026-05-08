@@ -1,0 +1,921 @@
+<?php
+
+namespace App\Controller;
+
+use App\Entity\Department;
+use App\Entity\Group;
+use App\Entity\GroupMembership;
+use App\Entity\Organisation;
+use App\Entity\User;
+use App\Entity\Membership;
+use App\Repository\DepartmentRepository;
+use App\Service\Accounting\AccountingCostCenterBootstrapService;
+use App\Service\AuditLogger;
+use App\Service\OrganisationUserPickerFilter;
+use App\Service\DepartmentResetService;
+use App\Util\IdGenerator;
+use Doctrine\ORM\EntityManagerInterface;
+use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
+use Symfony\Component\HttpFoundation\JsonResponse;
+use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\Routing\Annotation\Route;
+use Symfony\Component\Security\Http\Attribute\IsGranted;
+
+#[Route('/api/departments', name: 'api_departments_')]
+class DepartmentController extends AbstractController
+{
+    public function __construct(
+        private DepartmentRepository $departmentRepository,
+        private EntityManagerInterface $entityManager,
+        private AuditLogger $auditLogger,
+        private DepartmentResetService $departmentResetService,
+        private AccountingCostCenterBootstrapService $accountingCostCenterBootstrap,
+    ) {}
+
+    /**
+     * Lädt alle Departments OHNE User (für Performance bei vielen Departments)
+     * User werden erst bei Bedarf über /api/departments/{id} geladen
+     * Sortiert hierarchisch: Haupt-Departments zuerst, dann Unter-Departments
+     */
+    #[Route('', name: 'list', methods: ['GET'])]
+    #[IsGranted('ROLE_USER')]
+    public function list(): JsonResponse
+    {
+        $currentUser = $this->getUser();
+        if (!$currentUser instanceof User) {
+            return new JsonResponse(['error' => 'Unauthorized'], 403);
+        }
+
+        // Lade alle Departments OHNE User (später: gefiltert nach Organisation/Rechten)
+        $departments = $this->departmentRepository->findAll();
+
+        // Sortiere hierarchisch: Haupt-Departments zuerst, dann nach Hierarchie-Ebene, dann alphabetisch
+        // Erstelle Map für schnellen Zugriff auf Parent-Beziehungen
+        $deptMap = [];
+        foreach ($departments as $dept) {
+            $deptMap[$dept->getId()] = $dept;
+        }
+        
+        // Funktion um Hierarchie-Ebene zu berechnen (0 = Root, 1 = Kind von Root, etc.)
+        $getLevel = function($dept) use (&$getLevel, $deptMap): int {
+            if ($dept->getParentId() === null) {
+                return 0;
+            }
+            $parent = $deptMap[$dept->getParentId()] ?? null;
+            if (!$parent) {
+                return 0; // Fallback wenn Parent nicht gefunden
+            }
+            return 1 + $getLevel($parent);
+        };
+        
+        usort($departments, function($a, $b) use ($getLevel) {
+            $levelA = $getLevel($a);
+            $levelB = $getLevel($b);
+            
+            // Nach Hierarchie-Ebene sortieren (tiefere Ebenen zuerst)
+            if ($levelA !== $levelB) {
+                return $levelA <=> $levelB;
+            }
+            
+            // Innerhalb der gleichen Ebene: alphabetisch nach Name
+            return strcmp($a->getName(), $b->getName());
+        });
+
+        $result = [];
+        foreach ($departments as $department) {
+            // KEINE User laden - nur Department-Info
+            $result[] = [
+                'id' => $department->getId(),
+                'name' => $department->getName(),
+                'organisation_id' => $department->getOrganisationId(),
+                'parent_id' => $department->getParentId(),
+                'users' => [] // Leer - wird erst bei Bedarf geladen
+            ];
+        }
+
+        return new JsonResponse($result);
+    }
+
+    /**
+     * Gibt ALLE Gruppen des Departments zurück.
+     * 
+     * Gruppen wo der User member/leader ist → selectable: true, role: 'leader'/'member'
+     * Gruppen wo der User KEIN Mitglied ist → selectable: false, role: null
+     * Admins (globale Profilrollen oder Department-Rolle mw) → alle selectable: true
+     * 
+     * Response: Hierarchisch sortierte Liste mit { id, name, parent_id, level, role, selectable, is_direct_member, member_count }
+     */
+    #[Route('/{departmentId}/my-groups', name: 'my_groups', methods: ['GET'])]
+    #[IsGranted('ROLE_USER')]
+    public function myGroups(string $departmentId): JsonResponse
+    {
+        $currentUser = $this->getUser();
+        if (!$currentUser instanceof User) {
+            return new JsonResponse(['error' => 'Unauthorized'], 403);
+        }
+
+        // Department-Kontext prüfen
+        $contextDepartment = $this->departmentRepository->find($departmentId);
+        if (!$contextDepartment) {
+            return new JsonResponse(['error' => 'Department nicht gefunden'], 404);
+        }
+
+        // 1. ALLE Gruppen dieses Departments laden (sortiert nach sort_order, dann name)
+        $allGroups = $this->entityManager->getRepository(Group::class)
+            ->createQueryBuilder('g')
+            ->where('g.departmentId = :departmentId')
+            ->setParameter('departmentId', $departmentId)
+            ->orderBy('g.sortOrder', 'ASC')
+            ->addOrderBy('g.name', 'ASC')
+            ->getQuery()
+            ->getResult();
+
+        if (empty($allGroups)) {
+            return new JsonResponse([]);
+        }
+
+        // Group-Map aufbauen
+        $groupMap = [];
+        foreach ($allGroups as $grp) {
+            $groupMap[$grp->getId()] = $grp;
+        }
+
+        // 2. Prüfen ob User Admin ist (globale Profilrolle oder local mw)
+        $deptMembership = $this->entityManager->getRepository(Membership::class)
+            ->findOneBy(['userId' => $currentUser->getId(), 'departmentId' => $departmentId]);
+
+        $isGlobalAdmin = count(array_intersect(self::GLOBAL_ADMIN_ROLES, $currentUser->getRoles())) > 0;
+        $isDepartmentAdmin = $deptMembership && $deptMembership->getRole() === 'mw';
+        $isAdmin = $isGlobalAdmin || $isDepartmentAdmin;
+
+        // 3. Group-Memberships des Users laden (für ALLE seine Gruppen in diesem Department)
+        $groupIds = array_map(fn(Group $g) => $g->getId(), $allGroups);
+        $groupMemberships = $this->entityManager->getRepository(GroupMembership::class)
+            ->createQueryBuilder('gm')
+            ->where('gm.userId = :userId')
+            ->andWhere('gm.groupId IN (:groupIds)')
+            ->setParameter('userId', $currentUser->getId())
+            ->setParameter('groupIds', $groupIds)
+            ->getQuery()
+            ->getResult();
+
+        $memberRoles = [];
+        foreach ($groupMemberships as $gm) {
+            $memberRoles[$gm->getGroupId()] = $gm->getRole();
+        }
+
+        // 4. Mitglieder-Anzahl pro Gruppe laden (für Anzeige)
+        $memberCounts = [];
+        $countResult = $this->entityManager->getRepository(GroupMembership::class)
+            ->createQueryBuilder('gm')
+            ->select('gm.groupId, COUNT(gm.userId) as cnt')
+            ->where('gm.groupId IN (:groupIds)')
+            ->setParameter('groupIds', $groupIds)
+            ->groupBy('gm.groupId')
+            ->getQuery()
+            ->getResult();
+        foreach ($countResult as $row) {
+            $memberCounts[$row['groupId']] = (int) $row['cnt'];
+        }
+
+        // 5. Hierarchische Ebene berechnen
+        $getLevel = function(string $groupId) use (&$getLevel, $groupMap): int {
+            $grp = $groupMap[$groupId] ?? null;
+            if (!$grp || !$grp->getParentId()) {
+                return 0;
+            }
+            if (!isset($groupMap[$grp->getParentId()])) {
+                return 0;
+            }
+            return 1 + $getLevel($grp->getParentId());
+        };
+
+        // 6. Ergebnis: ALLE Gruppen, aber mit selectable-Flag
+        $result = [];
+        foreach ($allGroups as $grp) {
+            $gid = $grp->getId();
+            $role = $memberRoles[$gid] ?? null;
+            $isDirectMember = $role !== null;
+
+            // Selectable: User ist Mitglied/Leader dieser Gruppe ODER ist Admin
+            $selectable = $isAdmin || $isDirectMember;
+
+            $result[] = [
+                'id' => $gid,
+                'name' => $grp->getName(),
+                'parent_id' => $grp->getParentId(),
+                'level' => $getLevel($gid),
+                'role' => $role,                    // 'leader', 'member', oder null
+                'selectable' => $selectable,        // true = auswählbar, false = ausgegraut
+                'is_direct_member' => $isDirectMember,
+                'member_count' => $memberCounts[$gid] ?? 0,
+            ];
+        }
+
+        // Sortieren: nach Level, dann nach sort_order (schon vorsortiert), dann alphabetisch
+        usort($result, function($a, $b) {
+            if ($a['level'] !== $b['level']) {
+                return $a['level'] <=> $b['level'];
+            }
+            return strcmp($a['name'], $b['name']);
+        });
+
+        return new JsonResponse($result);
+    }
+
+    /**
+     * Lädt ein einzelnes Department mit Details
+     */
+    #[Route('/{id}', name: 'get', methods: ['GET'])]
+    #[IsGranted('ROLE_USER')]
+    public function get(string $id): JsonResponse
+    {
+        $department = $this->departmentRepository->find($id);
+        
+        if (!$department) {
+            return new JsonResponse(['error' => 'Department not found'], 404);
+        }
+
+        // Lade Memberships
+        $memberships = $this->entityManager->getRepository(Membership::class)
+            ->createQueryBuilder('m')
+            ->innerJoin('m.user', 'u')
+            ->innerJoin('u.profile', 'p')
+            ->addSelect('u', 'p')
+            ->where('m.departmentId = :departmentId')
+            ->setParameter('departmentId', $id)
+            ->getQuery()
+            ->getResult();
+
+        $users = [];
+        foreach ($memberships as $m) {
+            $user = $m->getUser();
+            $profile = $user->getProfile();
+            if ($profile) {
+                $users[] = [
+                    'id' => $user->getId(),
+                    'profile_id' => $profile->getId(),
+                    'name' => $profile->getDisplayName(),
+                    'email' => $profile->getEmail(),
+                    'role' => $m->getRole(),
+                    'is_primary' => $m->getIsPrimary()
+                ];
+            }
+        }
+
+        return new JsonResponse([
+            'id' => $department->getId(),
+            'name' => $department->getName(),
+            'organisation_id' => $department->getOrganisationId(),
+            'parent_id' => $department->getParentId(),
+            'users' => $users
+        ]);
+    }
+
+    /**
+     * Erstellt ein neues Department
+     */
+    #[Route('', name: 'create', methods: ['POST'])]
+    #[IsGranted('ROLE_USER')]
+    public function create(Request $request): JsonResponse
+    {
+        // Erlaubt: SUPERADMIN, ORGANISATIONSCHEF, SUBORGCHEF
+        if (
+            !$this->isGranted('ROLE_SUPERADMIN') &&
+            !$this->isGranted('ROLE_ORGANISATIONSCHEF') &&
+            !$this->isGranted('ROLE_SUBORGCHEF')
+        ) {
+            return new JsonResponse(['error' => 'Zugriff verweigert'], 403);
+        }
+
+        $data = json_decode($request->getContent(), true);
+        
+        if (!isset($data['name']) || !isset($data['organisation_id'])) {
+            return new JsonResponse(['error' => 'Name und organisation_id sind erforderlich'], 400);
+        }
+
+        // Organisation prüfen
+        $organisation = $this->entityManager->getRepository(Organisation::class)
+            ->find($data['organisation_id']);
+        
+        if (!$organisation) {
+            return new JsonResponse(['error' => 'Organisation nicht gefunden'], 404);
+        }
+        if (!OrganisationUserPickerFilter::isVisibleForUserPickers($organisation)) {
+            return new JsonResponse(['error' => 'Organisation nicht verfuegbar'], 400);
+        }
+
+        // Parent Department prüfen (optional)
+        $parent = null;
+        if (isset($data['parent_id']) && !empty($data['parent_id'])) {
+            $parent = $this->departmentRepository->find($data['parent_id']);
+            if (!$parent) {
+                return new JsonResponse(['error' => 'Parent Department nicht gefunden'], 404);
+            }
+            // Prüfe ob Parent zur gleichen Organisation gehört
+            if ($parent->getOrganisationId() !== $organisation->getId()) {
+                return new JsonResponse(['error' => 'Parent Department muss zur gleichen Organisation gehören'], 400);
+            }
+        }
+
+        try {
+            // Neues Department erstellen
+            $department = new Department();
+            
+            // ID muss VOR persist() gesetzt werden (GeneratedValue strategy: 'NONE')
+            $department->setId(IdGenerator::generateUnique($this->entityManager, Department::class));
+            $department->setName($data['name']);
+            $department->setOrganisation($organisation);
+            
+            if ($parent) {
+                $department->setParent($parent);
+            }
+
+            $this->entityManager->persist($department);
+            $this->entityManager->flush();
+
+            $this->accountingCostCenterBootstrap->ensureDefaultCostCenters($this->entityManager, $department);
+            
+            // Prüfe ob ID generiert wurde
+            if (!$department->getId()) {
+                return new JsonResponse(['error' => 'ID konnte nicht generiert werden'], 500);
+            }
+        } catch (\Exception $e) {
+            return new JsonResponse([
+                'error' => 'Fehler beim Erstellen des Departments: ' . $e->getMessage()
+            ], 500);
+        }
+
+        return new JsonResponse([
+            'id' => $department->getId(),
+            'name' => $department->getName(),
+            'organisation_id' => $department->getOrganisationId(),
+            'parent_id' => $department->getParentId(),
+            'users' => []
+        ], 201);
+    }
+
+    /**
+     * Prüft ob das Department bereits mw oder dc hat (für Support-Zuordnung)
+     */
+    #[Route('/{departmentId}/has-manager', name: 'has_manager', methods: ['GET'])]
+    #[IsGranted('ROLE_USER')]
+    public function hasManager(string $departmentId): JsonResponse
+    {
+        $department = $this->departmentRepository->find($departmentId);
+        if (!$department) {
+            return new JsonResponse(['error' => 'Department nicht gefunden'], 404);
+        }
+
+        $count = (int) $this->entityManager->createQuery(
+            'SELECT COUNT(m.userId) FROM App\Entity\Membership m WHERE m.departmentId = :deptId AND (m.role = :mw OR m.role = :dc)'
+        )->setParameter('deptId', $departmentId)
+            ->setParameter('mw', 'mw')
+            ->setParameter('dc', 'dc')
+            ->getSingleScalarResult();
+
+        return new JsonResponse(['has_mw_or_dc' => $count > 0]);
+    }
+
+    /**
+     * Listet alle Mitglieder eines Departments
+     * Für die Benutzer-Verwaltung in den Settings
+     */
+    #[Route('/{departmentId}/members', name: 'list_members', methods: ['GET'])]
+    #[IsGranted('ROLE_USER')]
+    public function listMembers(string $departmentId): JsonResponse
+    {
+        $department = $this->departmentRepository->find($departmentId);
+        if (!$department) {
+            return new JsonResponse(['error' => 'Department nicht gefunden'], 404);
+        }
+
+        $memberships = $this->entityManager->getRepository(Membership::class)
+            ->createQueryBuilder('m')
+            ->innerJoin('m.user', 'u')
+            ->innerJoin('u.profile', 'p')
+            ->addSelect('u', 'p')
+            ->where('m.departmentId = :departmentId')
+            ->setParameter('departmentId', $departmentId)
+            ->orderBy('m.role', 'ASC')
+            ->addOrderBy('p.lastName', 'ASC')
+            ->getQuery()
+            ->getResult();
+
+        $result = [];
+        foreach ($memberships as $m) {
+            $user = $m->getUser();
+            if ($user->hasSuperAdminProfile()) {
+                continue;
+            }
+            $profile = $user->getProfile();
+            if ($profile) {
+                $result[] = [
+                    'user_id' => $user->getId(),
+                    'profile_id' => $profile->getId(),
+                    'name' => $profile->getDisplayName(),
+                    'first_name' => $profile->getFirstName(),
+                    'last_name' => $profile->getLastName(),
+                    'nickname' => $profile->getNickname(),
+                    'email' => $profile->getEmail(),
+                    'role' => $m->getRole(),
+                    'is_primary' => $m->getIsPrimary(),
+                    'state' => $user->getState(),
+                ];
+            }
+        }
+
+        return new JsonResponse($result);
+    }
+
+    /**
+     * Rollen-Hierarchie: Index 0 = höchste Berechtigung
+     */
+    private const MEMBERSHIP_ROLE_HIERARCHY = ['mw', 'dc', 'l1', 'l2', 'l3', 'u'];
+    private const GLOBAL_ADMIN_ROLES = ['ROLE_SUPERADMIN', 'ROLE_ORGANISATIONSCHEF', 'ROLE_SUBORGCHEF'];
+
+    /**
+     * Prüft ob der aktuelle User die Ziellolle vergeben darf (eigene Rolle oder darunter)
+     */
+    private function canAssignRole(string $departmentId, string $targetRole): bool|JsonResponse
+    {
+        $currentUser = $this->getUser();
+        if (!$currentUser instanceof User) {
+            return new JsonResponse(['error' => 'Unauthorized'], 403);
+        }
+
+        $existingMemberCount = (int) $this->entityManager->getRepository(Membership::class)
+            ->createQueryBuilder('m')
+            ->select('COUNT(m.userId)')
+            ->where('m.departmentId = :departmentId')
+            ->setParameter('departmentId', $departmentId)
+            ->getQuery()
+            ->getSingleScalarResult();
+
+        $bootstrapRoles = ['mw', 'dc'];
+        $hasBootstrapPrivilege = count(array_intersect(self::GLOBAL_ADMIN_ROLES, $currentUser->getRoles())) > 0;
+
+        // Bootstrap-Sonderfall: leeres Department darf initial mit MW/DC besetzt werden.
+        if ($existingMemberCount === 0 && in_array($targetRole, $bootstrapRoles, true) && $hasBootstrapPrivilege) {
+            return true;
+        }
+
+        // Globale Admins dürfen Department-Rollen ohne eigene Membership vergeben.
+        if ($hasBootstrapPrivilege) {
+            return true;
+        }
+
+        $myMembership = $this->entityManager->getRepository(Membership::class)
+            ->findOneBy(['userId' => $currentUser->getId(), 'departmentId' => $departmentId]);
+
+        if (!$myMembership) {
+            return new JsonResponse(['error' => 'Du bist kein Mitglied dieses Departments'], 403);
+        }
+
+        $myRole = $myMembership->getRole();
+        $myIndex = array_search($myRole, self::MEMBERSHIP_ROLE_HIERARCHY);
+        $targetIndex = array_search($targetRole, self::MEMBERSHIP_ROLE_HIERARCHY);
+
+        if ($myIndex === false || $targetIndex === false) {
+            return new JsonResponse(['error' => 'Ungültige Rolle'], 400);
+        }
+
+        // Eigene Rolle oder darunter = erlaubt (höherer Index = niedrigere Rolle)
+        if ($targetIndex < $myIndex) {
+            return new JsonResponse([
+                'error' => 'Du kannst keine Rolle vergeben, die über deiner eigenen liegt'
+            ], 403);
+        }
+
+        return true;
+    }
+
+    /**
+     * Fügt einen bestehenden User zu einem Department hinzu (erstellt Membership)
+     */
+    #[Route('/{departmentId}/members', name: 'add_member', methods: ['POST'])]
+    #[IsGranted('ROLE_USER')]
+    public function addMember(string $departmentId, Request $request): JsonResponse
+    {
+        $currentUser = $this->getUser();
+        if (!$currentUser instanceof User) {
+            return new JsonResponse(['error' => 'Unauthorized'], 403);
+        }
+
+        $department = $this->departmentRepository->find($departmentId);
+        if (!$department) {
+            return new JsonResponse(['error' => 'Department nicht gefunden'], 404);
+        }
+
+        $data = json_decode($request->getContent(), true);
+
+        if (!isset($data['user_id'])) {
+            return new JsonResponse(['error' => 'user_id ist erforderlich'], 400);
+        }
+
+        $user = $this->entityManager->getRepository(User::class)->find($data['user_id']);
+        if (!$user) {
+            return new JsonResponse(['error' => 'User nicht gefunden'], 404);
+        }
+
+        if ($user->hasSuperAdminProfile()) {
+            return new JsonResponse(['error' => 'Superadmin-Konten sind keiner Abteilung zuordenbar'], 400);
+        }
+
+        // Prüfe ob User schon Mitglied ist
+        $existing = $this->entityManager->getRepository(Membership::class)
+            ->findOneBy(['userId' => $data['user_id'], 'departmentId' => $departmentId]);
+        if ($existing) {
+            return new JsonResponse(['error' => 'User ist bereits Mitglied dieses Departments'], 409);
+        }
+
+        // Rolle validieren
+        $role = $data['role'] ?? 'u';
+        if (!in_array($role, self::MEMBERSHIP_ROLE_HIERARCHY, true)) {
+            return new JsonResponse(['error' => 'Ungültige Rolle'], 400);
+        }
+
+        // Rollen-Hierarchie prüfen: darf der aktuelle User diese Rolle vergeben?
+        $roleCheck = $this->canAssignRole($departmentId, $role);
+        if ($roleCheck instanceof JsonResponse) {
+            return $roleCheck;
+        }
+
+        try {
+            $membership = new Membership();
+            $membership->setUser($user);
+            $membership->setDepartment($department);
+            $membership->setRole($role);
+            $membership->setIsPrimary($data['is_primary'] ?? false);
+
+            $this->auditLogger->log(
+                'membership',
+                AuditLogger::buildMembershipEntityId($user->getId(), $department->getId()),
+                'membership_created',
+                $currentUser,
+                $user,
+                $department,
+                [
+                    'role' => ['old' => null, 'new' => $membership->getRole()],
+                    'is_primary' => ['old' => null, 'new' => $membership->getIsPrimary()],
+                ]
+            );
+
+            $this->entityManager->persist($membership);
+            $this->entityManager->flush();
+        } catch (\Exception $e) {
+            return new JsonResponse([
+                'error' => 'Fehler beim Hinzufügen: ' . $e->getMessage()
+            ], 500);
+        }
+
+        $profile = $user->getProfile();
+
+        return new JsonResponse([
+            'user_id' => $user->getId(),
+            'profile_id' => $profile ? $profile->getId() : null,
+            'name' => $profile ? $profile->getDisplayName() : 'Unbekannt',
+            'email' => $profile ? $profile->getEmail() : '',
+            'role' => $membership->getRole(),
+            'is_primary' => $membership->getIsPrimary(),
+        ], 201);
+    }
+
+    /**
+     * Aktualisiert die Rolle eines Mitglieds in einem Department
+     */
+    #[Route('/{departmentId}/members/{userId}', name: 'update_member', methods: ['PATCH'])]
+    #[IsGranted('ROLE_USER')]
+    public function updateMember(string $departmentId, string $userId, Request $request): JsonResponse
+    {
+        $currentUser = $this->getUser();
+        if (!$currentUser instanceof User) {
+            return new JsonResponse(['error' => 'Unauthorized'], 403);
+        }
+
+        $membership = $this->entityManager->getRepository(Membership::class)
+            ->findOneBy(['userId' => $userId, 'departmentId' => $departmentId]);
+
+        if (!$membership) {
+            return new JsonResponse(['error' => 'Mitgliedschaft nicht gefunden'], 404);
+        }
+
+        $targetUser = $membership->getUser();
+        if ($targetUser->hasSuperAdminProfile()) {
+            return new JsonResponse(['error' => 'Superadmin-Konten haben keine Abteilungsrollen in der Verwaltung'], 403);
+        }
+
+        $data = json_decode($request->getContent(), true);
+        $oldRole = $membership->getRole();
+        $oldIsPrimary = $membership->getIsPrimary();
+
+        if (isset($data['role'])) {
+            if (!in_array($data['role'], self::MEMBERSHIP_ROLE_HIERARCHY, true)) {
+                return new JsonResponse(['error' => 'Ungültige Rolle'], 400);
+            }
+
+            // Rollen-Hierarchie prüfen: darf der aktuelle User diese Rolle vergeben?
+            $roleCheck = $this->canAssignRole($departmentId, $data['role']);
+            if ($roleCheck instanceof JsonResponse) {
+                return $roleCheck;
+            }
+
+            $membership->setRole($data['role']);
+        }
+
+        if (isset($data['is_primary'])) {
+            $membership->setIsPrimary((bool) $data['is_primary']);
+        }
+
+        if ($oldRole !== $membership->getRole()) {
+            $this->auditLogger->log(
+                'membership',
+                AuditLogger::buildMembershipEntityId($membership->getUserId(), $membership->getDepartmentId()),
+                'membership_role_changed',
+                $currentUser,
+                $membership->getUser(),
+                $membership->getDepartment(),
+                [
+                    'role' => ['old' => $oldRole, 'new' => $membership->getRole()],
+                ]
+            );
+        }
+
+        if ($oldIsPrimary !== $membership->getIsPrimary()) {
+            $this->auditLogger->log(
+                'membership',
+                AuditLogger::buildMembershipEntityId($membership->getUserId(), $membership->getDepartmentId()),
+                'membership_primary_changed',
+                $currentUser,
+                $membership->getUser(),
+                $membership->getDepartment(),
+                [
+                    'is_primary' => ['old' => $oldIsPrimary, 'new' => $membership->getIsPrimary()],
+                ]
+            );
+        }
+
+        $this->entityManager->flush();
+
+        $user = $membership->getUser();
+        $profile = $user->getProfile();
+
+        return new JsonResponse([
+            'user_id' => $user->getId(),
+            'name' => $profile ? $profile->getDisplayName() : 'Unbekannt',
+            'email' => $profile ? $profile->getEmail() : '',
+            'role' => $membership->getRole(),
+            'is_primary' => $membership->getIsPrimary(),
+        ]);
+    }
+
+    /**
+     * Entfernt ein Mitglied aus einem Department
+     */
+    #[Route('/{departmentId}/members/{userId}', name: 'remove_member', methods: ['DELETE'])]
+    #[IsGranted('ROLE_USER')]
+    public function removeMember(string $departmentId, string $userId): JsonResponse
+    {
+        $currentUser = $this->getUser();
+        if (!$currentUser instanceof User) {
+            return new JsonResponse(['error' => 'Unauthorized'], 403);
+        }
+
+        $membership = $this->entityManager->getRepository(Membership::class)
+            ->findOneBy(['userId' => $userId, 'departmentId' => $departmentId]);
+
+        if (!$membership) {
+            return new JsonResponse(['error' => 'Mitgliedschaft nicht gefunden'], 404);
+        }
+
+        if ($currentUser->getId() === $userId) {
+            return new JsonResponse([
+                'error' => 'Du kannst dich hier nicht selbst aus dem Department entfernen.',
+            ], 400);
+        }
+
+        $this->auditLogger->log(
+            'membership',
+            AuditLogger::buildMembershipEntityId($membership->getUserId(), $membership->getDepartmentId()),
+            'membership_removed',
+            $currentUser,
+            $membership->getUser(),
+            $membership->getDepartment(),
+            [
+                'role' => ['old' => $membership->getRole(), 'new' => null],
+                'is_primary' => ['old' => $membership->getIsPrimary(), 'new' => null],
+            ]
+        );
+
+        $this->entityManager->remove($membership);
+        $this->entityManager->flush();
+
+        return new JsonResponse(['success' => true]);
+    }
+
+    /**
+     * Listet alle User die NICHT im Department sind (für Hinzufügen-Dialog)
+     */
+    #[Route('/{departmentId}/available-users', name: 'available_users', methods: ['GET'])]
+    #[IsGranted('ROLE_USER')]
+    public function availableUsers(string $departmentId, Request $request): JsonResponse
+    {
+        $department = $this->departmentRepository->find($departmentId);
+        if (!$department) {
+            return new JsonResponse(['error' => 'Department nicht gefunden'], 404);
+        }
+
+        // Alle User-IDs die schon im Department sind
+        $existingMemberships = $this->entityManager->getRepository(Membership::class)
+            ->findBy(['departmentId' => $departmentId]);
+        $existingUserIds = array_map(fn($m) => $m->getUserId(), $existingMemberships);
+
+        // Alle User laden die NICHT im Department sind
+        $qb = $this->entityManager->getRepository(User::class)
+            ->createQueryBuilder('u')
+            ->innerJoin('u.profile', 'p')
+            ->addSelect('p')
+            ->where('u.state = :state')
+            ->setParameter('state', 'active');
+
+        if (!empty($existingUserIds)) {
+            $qb->andWhere('u.id NOT IN (:existingIds)')
+                ->setParameter('existingIds', $existingUserIds);
+        }
+
+        $search = trim((string) $request->query->get('q', ''));
+        if ($search !== '') {
+            $qb->andWhere('LOWER(p.email) LIKE :q OR LOWER(p.firstName) LIKE :q OR LOWER(p.lastName) LIKE :q OR LOWER(p.nickname) LIKE :q')
+                ->setParameter('q', '%' . mb_strtolower($search) . '%');
+        }
+
+        $users = $qb->orderBy('p.lastName', 'ASC')
+            ->addOrderBy('p.firstName', 'ASC')
+            ->setMaxResults(50)
+            ->getQuery()
+            ->getResult();
+
+        $result = [];
+        foreach ($users as $user) {
+            if ($user->hasSuperAdminProfile()) {
+                continue;
+            }
+            $profile = $user->getProfile();
+            if ($profile) {
+                $result[] = [
+                    'id' => $user->getId(),
+                    'name' => $profile->getDisplayName(),
+                    'email' => $profile->getEmail(),
+                    'first_name' => $profile->getFirstName(),
+                    'last_name' => $profile->getLastName(),
+                    'nickname' => $profile->getNickname(),
+                ];
+            }
+        }
+
+        return new JsonResponse($result);
+    }
+
+    /**
+     * DB zurücksetzen – löscht alle Daten des Departments (Aktivitäten, Materialien, Adressen, etc.)
+     * Nur für Dev/Test. Erfordert Superadmin oder Department-Manager.
+     */
+    #[Route('/{departmentId}/reset-db', name: 'reset_db', methods: ['POST'])]
+    #[IsGranted('ROLE_USER')]
+    public function resetDb(string $departmentId): JsonResponse
+    {
+        $currentUser = $this->getUser();
+        if (!$currentUser instanceof User) {
+            return new JsonResponse(['error' => 'Unauthorized'], 403);
+        }
+
+        $department = $this->departmentRepository->find($departmentId);
+        if (!$department) {
+            return new JsonResponse(['error' => 'Department nicht gefunden'], 404);
+        }
+
+        // Nur Superadmin oder Department-Manager (dc, mw, org, sub)
+        $isSuperadmin = $this->isGranted('ROLE_SUPERADMIN');
+        $membership = $this->entityManager->getRepository(Membership::class)
+            ->findOneBy(['departmentId' => $departmentId, 'userId' => $currentUser->getId()]);
+        $role = $membership?->getRole() ?? '';
+        $managerRoles = ['sa', 'superadmin', 'org', 'organisationschef', 'sub', 'suborgchef', 'mw', 'matwart', 'dc', 'depchef'];
+        $isManager = in_array(strtolower($role), array_map('strtolower', $managerRoles));
+
+        if (!$isSuperadmin && !$isManager) {
+            return new JsonResponse(['error' => 'Keine Berechtigung für DB-Reset'], 403);
+        }
+
+        try {
+            $deleted = $this->departmentResetService->resetDepartment($departmentId);
+            $total = array_sum($deleted);
+            return new JsonResponse([
+                'success' => true,
+                'message' => "Department-Daten zurückgesetzt. $total Datensätze gelöscht.",
+                'deleted' => $deleted,
+            ]);
+        } catch (\InvalidArgumentException $e) {
+            return new JsonResponse(['error' => $e->getMessage()], 404);
+        } catch (\Throwable $e) {
+            return new JsonResponse(['error' => 'Fehler beim Zurücksetzen: ' . $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Aktualisiert ein Department
+     */
+    #[Route('/{id}', name: 'update', methods: ['PATCH'])]
+    #[IsGranted('ROLE_USER')]
+    public function update(string $id, Request $request): JsonResponse
+    {
+        // Erlaubt: SUPERADMIN, ORGANISATIONSCHEF, SUBORGCHEF
+        if (
+            !$this->isGranted('ROLE_SUPERADMIN') &&
+            !$this->isGranted('ROLE_ORGANISATIONSCHEF') &&
+            !$this->isGranted('ROLE_SUBORGCHEF')
+        ) {
+            return new JsonResponse(['error' => 'Zugriff verweigert'], 403);
+        }
+
+        $department = $this->departmentRepository->find($id);
+        
+        if (!$department) {
+            return new JsonResponse(['error' => 'Department not found'], 404);
+        }
+
+        $data = json_decode($request->getContent(), true);
+
+        if (isset($data['name'])) {
+            $department->setName($data['name']);
+        }
+
+        if (isset($data['organisation_id'])) {
+            $organisation = $this->entityManager->getRepository(Organisation::class)
+                ->find($data['organisation_id']);
+            
+            if (!$organisation) {
+                return new JsonResponse(['error' => 'Organisation nicht gefunden'], 404);
+            }
+            if (!OrganisationUserPickerFilter::isVisibleForUserPickers($organisation)) {
+                return new JsonResponse(['error' => 'Organisation nicht verfuegbar'], 400);
+            }
+
+            $department->setOrganisation($organisation);
+        }
+
+        if (isset($data['parent_id'])) {
+            if (empty($data['parent_id'])) {
+                // Parent entfernen (wird zu Haupt-Department)
+                $department->setParent(null);
+            } else {
+                $parent = $this->departmentRepository->find($data['parent_id']);
+                if (!$parent) {
+                    return new JsonResponse(['error' => 'Parent Department nicht gefunden'], 404);
+                }
+                // Prüfe ob Parent zur gleichen Organisation gehört
+                if ($parent->getOrganisationId() !== $department->getOrganisationId()) {
+                    return new JsonResponse(['error' => 'Parent Department muss zur gleichen Organisation gehören'], 400);
+                }
+                $department->setParent($parent);
+            }
+        }
+
+        $department->updateTimestamps();
+        $this->entityManager->flush();
+
+        // Memberships laden für Response
+        $memberships = $this->entityManager->getRepository(Membership::class)
+            ->createQueryBuilder('m')
+            ->innerJoin('m.user', 'u')
+            ->innerJoin('u.profile', 'p')
+            ->addSelect('u', 'p')
+            ->where('m.departmentId = :departmentId')
+            ->setParameter('departmentId', $id)
+            ->getQuery()
+            ->getResult();
+
+        $users = [];
+        foreach ($memberships as $m) {
+            $user = $m->getUser();
+            $profile = $user->getProfile();
+            if ($profile) {
+                $users[] = [
+                    'id' => $user->getId(),
+                    'profile_id' => $profile->getId(),
+                    'name' => $profile->getDisplayName(),
+                    'email' => $profile->getEmail(),
+                    'role' => $m->getRole(),
+                    'is_primary' => $m->getIsPrimary()
+                ];
+            }
+        }
+
+        return new JsonResponse([
+            'id' => $department->getId(),
+            'name' => $department->getName(),
+            'organisation_id' => $department->getOrganisationId(),
+            'parent_id' => $department->getParentId(),
+            'users' => $users
+        ]);
+    }
+}

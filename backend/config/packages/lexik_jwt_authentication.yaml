@@ -1,0 +1,23 @@
+lexik_jwt_authentication:
+    secret_key: '%kernel.project_dir%/config/jwt/private.pem'
+    public_key: '%kernel.project_dir%/config/jwt/public.pem'
+    pass_phrase: '%env(JWT_PASSPHRASE)%'
+    token_ttl: 3600 # 1 Stunde – weniger 401 bei aktiver Nutzung
+    # JWT weiterhin auch im JSON-Body (Bestands-Clients), aber zusaetzlich als HttpOnly-Cookie.
+    remove_token_from_body_when_cookies_used: false
+    token_extractors:
+        authorization_header:
+            enabled: true
+            prefix: Bearer
+            name: Authorization
+        cookie:
+            enabled: true
+            name: BEARER
+    set_cookies:
+        BEARER:
+            lifetime: null
+            samesite: lax
+            path: /
+            domain: '%env(default::AUTH_COOKIE_DOMAIN)%'
+            secure: '%env(bool:AUTH_COOKIE_SECURE)%'
+            httpOnly: true

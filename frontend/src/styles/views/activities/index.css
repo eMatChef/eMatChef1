@@ -1,0 +1,11 @@
+/**
+ * Aktivitäten-Ansicht – Styles wie bei Material aufgeteilt:
+ *   overview        → Liste, Filter, Tabelle
+ *   detail-panel    → Detail-Header, Tabs, Karten, Material-/Preisblöcke
+ *   detail-workflow → Packliste, Meldungen, Rückgabe, Kosten
+ *
+ * Nur in ActivitiesView.vue per <style scoped> @import – nicht global in main.ts.
+ */
+@import './overview.css';
+@import './detail-panel.css';
+@import './detail-workflow.css';

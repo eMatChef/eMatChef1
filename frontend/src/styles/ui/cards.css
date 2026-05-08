@@ -1,0 +1,62 @@
+/* Shared card containers */
+.section-card {
+  background: white;
+  border-radius: 12px;
+  border: 1px solid #e5e7eb;
+  padding: 24px;
+  margin-bottom: 20px;
+}
+
+.sidebar-card {
+  background: white;
+  border-radius: 12px;
+  border: 1px solid #e5e7eb;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+/* Shared stock summary cards */
+.stock-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 24px;
+  padding: 20px;
+  background: #f8fafc;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  margin-bottom: 20px;
+}
+
+.stock-stat {
+  display: flex;
+  flex-direction: column;
+}
+
+.stock-number {
+  font-size: 28px;
+  font-weight: 700;
+  color: #059669;
+}
+
+.stock-stat.warehouse .stock-number { color: #166534; }
+.stock-stat.issued .stock-number { color: #7c3aed; }
+.stock-stat.reserved-stat .stock-number { color: #2563eb; }
+.stock-stat.repair-stat .stock-number { color: #d97706; }
+
+.stock-number.defect {
+  color: #dc2626;
+}
+
+.stock-label {
+  font-size: 12px;
+  color: #6b7280;
+  text-transform: uppercase;
+}
+
+.stock-pack-info {
+  display: block;
+  font-size: 11px;
+  color: #6b7280;
+  font-weight: 400;
+  margin-top: 2px;
+}

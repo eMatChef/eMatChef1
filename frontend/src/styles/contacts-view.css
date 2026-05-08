@@ -1,0 +1,346 @@
+.contacts-view {
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.page-header h1 {
+  font-size: 28px;
+  font-weight: 700;
+  color: #111827;
+  margin: 0 0 4px;
+}
+
+.page-header .description {
+  color: #6b7280;
+  font-size: 15px;
+  margin: 0;
+}
+
+.search-icon {
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #9ca3af;
+}
+
+.clear-btn {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  color: #9ca3af;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+}
+
+.clear-btn:hover {
+  background: #f3f4f6;
+  color: #6b7280;
+}
+
+.filter-group {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+
+/* Stats Bar */
+.stats-bar {
+  display: flex;
+  gap: 32px;
+  padding: 16px 24px;
+  background: linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%);
+  border-radius: 12px;
+  margin-bottom: 24px;
+  border: 1px solid #d1fae5;
+}
+
+.stat-item {
+  display: flex;
+  flex-direction: column;
+}
+
+.stat-value {
+  font-size: 24px;
+  font-weight: 700;
+  color: #059669;
+}
+
+.stat-label {
+  font-size: 12px;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Column widths */
+.col-name { min-width: 220px; }
+.col-contact { min-width: 200px; }
+.col-address { min-width: 200px; }
+.col-type { width: 140px; }
+.col-actions { width: 120px; text-align: right; }
+
+/* Name Cell */
+.name-cell {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.contact-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+  font-weight: 700;
+  flex-shrink: 0;
+  text-transform: uppercase;
+}
+
+.contact-avatar.customer { background: #dbeafe; color: #1d4ed8; }
+.contact-avatar.billing { background: #fef3c7; color: #92400e; }
+.contact-avatar.delivery { background: #d1fae5; color: #065f46; }
+.contact-avatar.storage { background: #e0e7ff; color: #4338ca; }
+.contact-avatar.event { background: #fce7f3; color: #be185d; }
+.contact-avatar.meeting { background: #ede9fe; color: #6d28d9; }
+.contact-avatar.office { background: #f3f4f6; color: #374151; }
+.contact-avatar.private { background: #fef2f2; color: #991b1b; }
+.contact-avatar.general { background: #e5e7eb; color: #6b7280; }
+.contact-avatar.postal { background: #ccfbf1; color: #0f766e; }
+
+.name-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.contact-name {
+  font-weight: 600;
+  color: #111827;
+}
+
+.contact-company {
+  font-size: 12px;
+  color: #9ca3af;
+}
+
+/* Contact Info Cell */
+.contact-info-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.contact-detail {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: #6b7280;
+}
+
+.contact-detail svg {
+  flex-shrink: 0;
+  color: #9ca3af;
+}
+
+.contact-detail a {
+  color: #3b82f6;
+  text-decoration: none;
+}
+
+.contact-detail a:hover {
+  text-decoration: underline;
+}
+
+.no-contact {
+  color: #d1d5db;
+  font-size: 13px;
+}
+
+/* Address Cell */
+.address-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.address-street {
+  color: #374151;
+  font-size: 13px;
+}
+
+.address-city {
+  font-size: 12px;
+  color: #9ca3af;
+}
+
+/* Type Badge */
+.type-badge {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.type-badge.customer { background: #dbeafe; color: #1d4ed8; }
+.type-badge.billing { background: #fef3c7; color: #92400e; }
+.type-badge.delivery { background: #d1fae5; color: #065f46; }
+.type-badge.storage { background: #e0e7ff; color: #4338ca; }
+.type-badge.event { background: #fce7f3; color: #be185d; }
+.type-badge.meeting { background: #ede9fe; color: #6d28d9; }
+.type-badge.office { background: #f3f4f6; color: #374151; }
+.type-badge.private { background: #fef2f2; color: #991b1b; }
+.type-badge.general { background: #e5e7eb; color: #6b7280; }
+.type-badge.postal { background: #ccfbf1; color: #0f766e; }
+
+/* Action Buttons */
+.action-buttons {
+  display: flex;
+  gap: 4px;
+  justify-content: flex-end;
+}
+
+.action-btn.delete:hover {
+  background: #fef2f2;
+  color: #dc2626;
+  border-color: #fecaca;
+}
+
+/* Delete Confirmation */
+.delete-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1100;
+  padding: 20px;
+}
+
+.delete-dialog {
+  background: white;
+  border-radius: 12px;
+  padding: 24px;
+  max-width: 400px;
+  width: 100%;
+}
+
+.delete-dialog h3 {
+  margin: 0 0 8px;
+  font-size: 18px;
+  font-weight: 600;
+  color: #111827;
+}
+
+.delete-dialog p {
+  color: #6b7280;
+  margin: 0 0 20px;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.delete-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.btn-cancel {
+  padding: 10px 20px;
+  background: white;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  color: #374151;
+}
+
+.btn-cancel:hover {
+  background: #f9fafb;
+}
+
+.btn-delete {
+  padding: 10px 20px;
+  background: #dc2626;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.btn-delete:hover {
+  background: #b91c1c;
+}
+
+.btn-delete:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Primary Badge */
+.primary-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  background: #dcfce7;
+  color: #166534;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 600;
+  margin-left: 6px;
+}
+
+/* Responsive */
+@media (max-width: 1024px) {
+  .contacts-table-wrapper {
+    overflow-x: auto;
+  }
+  
+  .contacts-table {
+    min-width: 800px;
+  }
+}
+
+@media (max-width: 768px) {
+  .header-content {
+    flex-direction: column;
+    gap: 16px;
+  }
+  
+  .filter-bar {
+    flex-direction: column;
+  }
+  
+  .search-box {
+    min-width: 100%;
+  }
+  
+  .filter-group {
+    width: 100%;
+  }
+  
+  .filter-select {
+    flex: 1;
+    min-width: 0;
+  }
+  
+  .stats-bar {
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+}

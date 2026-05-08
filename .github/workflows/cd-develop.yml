@@ -1,0 +1,33 @@
+name: CD Develop
+
+on:
+  push:
+    branches:
+      - develop
+  workflow_dispatch:
+
+concurrency:
+  group: cd-develop
+  cancel-in-progress: true
+
+jobs:
+  deploy-develop:
+    name: Deploy to develop server
+    runs-on: ubuntu-latest
+    environment: develop
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.DEVELOP_SSH_HOST }}
+          username: ${{ secrets.DEVELOP_SSH_USER }}
+          key: ${{ secrets.DEVELOP_SSH_KEY }}
+          port: ${{ secrets.DEVELOP_SSH_PORT }}
+          script_stop: true
+          script: |
+            set -euo pipefail
+            cd "${{ secrets.DEVELOP_DEPLOY_PATH }}"
+            EMATCHEF_PROD_ROOT="${{ secrets.DEVELOP_DEPLOY_PATH }}" \
+            EMATCHEF_GIT_BRANCH=develop \
+            COMPOSE_PROJECT_NAME=ematchef-develop \
+            ./deploy/prod-update.sh reset
