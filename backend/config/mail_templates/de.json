@@ -1,0 +1,148 @@
+{
+  "_shared": {
+    "brand_logo_alt": "eMatChef"
+  },
+  "_api": {
+    "mt": {
+      "unauth": "Nicht authentifiziert",
+      "forbidden": "Keine Berechtigung",
+      "json_body": "Ungueltiger JSON-Body",
+      "messages_shape": "messages fehlt oder ist kein Objekt",
+      "no_valid_template_keys": "Keine gueltigen Vorlagen-Schluessel"
+    },
+    "ma": {
+      "unauth": "Nicht authentifiziert",
+      "forbidden": "Keine Berechtigung",
+      "forbidden_settings": "Nur Superadmin kann die E-Mail-Einstellungen aendern",
+      "json_body": "Ungueltiger JSON-Body",
+      "to_invalid": "Gueltige Ziel-E-Mail (to) erforderlich",
+      "test_log_fail_prefix": "Fehlgeschlagen: "
+    },
+    "pfd": {
+      "json_invalid": "Ungueltiges JSON",
+      "generic": "Fehler",
+      "public_code": "public_code fehlt",
+      "entity_type": "entity_type ungueltig",
+      "message_empty": "Nachricht fehlt",
+      "message_short": "Nachricht ist zu kurz",
+      "message_long": "Nachricht ist zu lang",
+      "name_long": "Name ist zu lang",
+      "email_invalid": "E-Mail-Adresse ungueltig",
+      "code_not_found": "Public-Code nicht gefunden oder nicht aktiv",
+      "form_disabled": "Kontaktformular ist fuer diese Abteilung deaktiviert.",
+      "department": "Department ungueltig",
+      "not_configured": "Kontaktformular ist nicht konfiguriert.",
+      "to_required": "Fuer E-Mail-Versand ist eine Kontakt-E-Mail erforderlich.",
+      "template_missing": "Mailvorlage public.found_item_contact fehlt"
+    },
+    "vex": {
+      "no_profile": "Profil fuer Verifikationsmail fehlt.",
+      "verify_data": "Verifikationsdaten fehlen.",
+      "no_profile_pwd": "Profil fuer Passwort-Reset fehlt.",
+      "tpl_auth_verify": "Mailvorlage auth.verify_email fehlt.",
+      "tpl_pending": "Mailvorlage auth.pending_email_change fehlt.",
+      "tpl_dept": "Mailvorlage department.invite fehlt.",
+      "tpl_pwd": "Mailvorlage auth.password_reset_code fehlt.",
+      "html_not_found": "Mail-Template nicht gefunden: {{file}}",
+      "html_unreadable": "Mail-Template konnte nicht geladen werden: {{file}}"
+    }
+  },
+  "admin": {
+    "test_mail": {
+      "subject": "eMatChef – Testmail",
+      "text_body": "Dies ist eine Testmail.\n\nWenn du diese Nachricht erhalten hast, ist der konfigurierte Versandweg aktiv.\nModus: {{transport_mode}}\n",
+      "log_subject": "eMatChef – Testmail"
+    }
+  },
+  "_catalog": {
+    "auth.verify_email": {
+      "title": "Registrierung - E-Mail bestaetigen",
+      "description": "Wird direkt nach der Registrierung versendet. HTML-Layout inkl. Button (templates/emails/verify_email.html). Optional: MAILER_BRAND_LOGO_URL (HTTPS-Bild).",
+      "body_preview": "Hallo {{display_name}},\n\nbitte bestaetige deine E-Mail-Adresse fuer eMatChef.\n\nBestaetigungslink:\n{{verify_url}}\n\nDer Link ist gueltig bis: {{expires_at}}"
+    },
+    "auth.pending_email_change": {
+      "title": "Profil - Neue E-Mail bestaetigen",
+      "description": "Wird bei der Aenderung der E-Mail-Adresse versendet. Gleiches HTML-Layout wie Registrierung (verify_email.html).",
+      "body_preview": "Hallo {{display_name}},\n\ndu hast eine Aenderung deiner E-Mail-Adresse fuer eMatChef angefragt.\n\nNeue E-Mail bestaetigen:\n{{verify_url}}\n\nDer Link ist gueltig bis: {{expires_at}}"
+    },
+    "auth.password_reset_code": {
+      "title": "Login - Passwort zuruecksetzen",
+      "description": "Wird bei \"Passwort vergessen\" versendet.",
+      "body_preview": "Hallo {{display_name}},\n\ndu hast ein neues Passwort fuer eMatChef angefordert.\n\nDein Sicherheitscode lautet: {{reset_code}}\n\nDer Code ist gueltig bis: {{expires_at}}"
+    },
+    "department.invite": {
+      "title": "Department - Einladung",
+      "description": "Wird im Onboarding/Department bei \"Einladung senden\" versendet.",
+      "body_preview": "Hallo {{recipient_name}},\n\n{{inviter_name}} hat dich zu dem Department \"{{department_name}}\" eingeladen.\nVorgesehene Rolle: {{role_label}}\n\nEinladungslink:\n{{invite_url}}"
+    },
+    "public.found_item_contact": {
+      "title": "Oeffentlich - Fund-Hinweis",
+      "description": "Wird bei Kontakt ueber den oeffentlichen QR-/Material-Link versendet (an die Abteilungs-Kontaktadresse).",
+      "body_preview": "Artikel, Abteilung, Public-Link, Nachricht des Absenders (Platzhalter: {{material_name}}, {{message}}, …)."
+    }
+  },
+  "auth.verify_email": {
+    "subject": "Bitte bestaetige deine E-Mail-Adresse",
+    "text_body": "Hallo {{display_name}},\n\nbitte bestaetige deine E-Mail-Adresse fuer eMatChef.\n\nBestaetigungslink:\n{{verify_url}}\n\nDer Link ist gueltig bis: {{expires_at}}\n\nFalls du dich nicht registriert hast, kannst du diese Nachricht ignorieren.",
+    "html": {
+      "greeting_word": "Hallo",
+      "headline": "E-Mail bestaetigen",
+      "intro": "bitte bestaetige deine E-Mail-Adresse fuer eMatChef.",
+      "extra_block": "",
+      "cta_label": "E-Mail bestaetigen",
+      "link_hint": "Falls der Button nicht funktioniert, nutze diesen Link:",
+      "expires_intro": "Der Link ist gueltig bis:",
+      "footer_note": "Falls du dich nicht registriert hast, kannst du diese Nachricht ignorieren."
+    }
+  },
+  "auth.pending_email_change": {
+    "subject": "Bitte bestaetige deine neue E-Mail-Adresse",
+    "text_body": "Hallo {{display_name}},\n\ndu hast eine Aenderung deiner E-Mail-Adresse fuer eMatChef angefragt.\n\nNeue E-Mail bestaetigen:\n{{verify_url}}\n\nBis zur Bestaetigung bleibt deine bisherige E-Mail-Adresse gueltig.\nDer Link ist gueltig bis: {{expires_at}}\n\nFalls du diese Aenderung nicht angefragt hast, ignoriere diese Nachricht.",
+    "html": {
+      "greeting_word": "Hallo",
+      "headline": "Neue E-Mail bestaetigen",
+      "intro": "du hast eine Aenderung deiner E-Mail-Adresse fuer eMatChef angefragt.",
+      "extra_block": "<p style=\"margin:0 0 16px 0;font-size:15px;line-height:1.5;color:#374151;\">Bis zur Bestaetigung bleibt deine bisherige E-Mail-Adresse gueltig.</p>",
+      "cta_label": "E-Mail bestaetigen",
+      "link_hint": "Falls der Button nicht funktioniert, nutze diesen Link:",
+      "expires_intro": "Der Link ist gueltig bis:",
+      "footer_note": "Falls du diese Aenderung nicht angefragt hast, ignoriere diese Nachricht."
+    }
+  },
+  "auth.password_reset_code": {
+    "subject": "Passwort zuruecksetzen - eMatChef",
+    "text_body": "Hallo {{display_name}},\n\ndu hast ein neues Passwort fuer eMatChef angefordert.\n\nDein Sicherheitscode lautet: {{reset_code}}\n\nDer Code ist gueltig bis: {{expires_at}}\nBitte gib den Code zusammen mit deinem neuen Passwort im Login-Bereich ein.\n\nFalls du diese Anfrage nicht gestellt hast, ignoriere diese E-Mail.",
+    "html": {
+      "greeting_word": "Hallo",
+      "headline": "Passwort zuruecksetzen",
+      "intro": "du hast ein neues Passwort fuer eMatChef angefordert.",
+      "code_label": "Dein Sicherheitscode:",
+      "expires_intro": "Gueltig bis:",
+      "instruction": "Bitte gib den Code zusammen mit deinem neuen Passwort im Login-Bereich ein.",
+      "footer_note": "Falls du diese Anfrage nicht gestellt hast, ignoriere diese E-Mail."
+    }
+  },
+  "department.invite": {
+    "inviter_name_fallback": "Ein Teammitglied",
+    "subject": "Einladung zu eMatChef Department: {{department_name}}",
+    "text_body": "Hallo {{recipient_name}},\n\n{{inviter_name}} hat dich zu dem Department \"{{department_name}}\" eingeladen.\nVorgesehene Rolle: {{role_label}}\n\nEinladungslink:\n{{invite_url}}\n\nFalls du noch kein Konto hast, kannst du dich ueber den Link registrieren und wirst danach direkt dem Department zugeordnet.\n\nWenn du diese Einladung nicht erwartest, kannst du diese E-Mail ignorieren.",
+    "html": {
+      "greeting_word": "Hallo",
+      "banner_title": "eMatChef Einladung",
+      "invite_lead_template": "<p style=\"margin:0 0 12px 0;font-size:15px;line-height:1.5;\">{{inviter_name}} hat dich zu dem Department <strong>{{department_name}}</strong> eingeladen.</p>",
+      "role_line_template": "<p style=\"margin:0 0 16px 0;font-size:14px;color:#374151;\">Vorgesehene Rolle: <strong>{{role_label}}</strong></p>",
+      "cta_label": "Einladung annehmen",
+      "link_hint": "Falls der Button nicht funktioniert, nutze diesen Link:",
+      "footer_note": "Wenn du diese Einladung nicht erwartest, kannst du diese E-Mail ignorieren."
+    }
+  },
+  "public.found_item_contact": {
+    "line_serial": "Serie: {{serial_value}}\n",
+    "sender_name_line": "Name: {{value}}\n",
+    "sender_email_line": "E-Mail: {{value}}\n",
+    "sender_value_empty": "(nicht angegeben)",
+    "subject": "[eMatChef] Hinweis: Artikel gefunden – {{material_name}}",
+    "text_body": "Jemand hat ueber den oeffentlichen QR-Link einen Hinweis gesendet.\n\nArtikel: {{material_name}}\nAbteilung: {{department_name}}\n{{serial_block}}Public-Link: {{public_url}}\nPublic-Code: {{public_code}}\n\nNachricht:\n{{message}}\n\nAbsender:\n{{sender_lines}}",
+    "html": {}
+  }
+}

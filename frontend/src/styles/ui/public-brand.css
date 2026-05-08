@@ -1,0 +1,134 @@
+/**
+ * Öffentliche Seiten (z. B. QR / Material-Info ohne App-Header).
+ * EMC-Badge: siehe brand-tokens.css (--emc-logo-*).
+ */
+:root {
+  /* Shell / Typo (EMC-Badge: Komponente EmcLogoMark + brand-tokens.css) */
+  --public-page-bg: #f8fafc;
+  --public-header-bg: #ffffff;
+  --public-header-border: #e2e8f0;
+  --public-brand-title: #0f172a;
+  --public-brand-title-hover: var(--emc-brand-accent);
+
+  /* Sekundär-Button (Anmelden) */
+  --public-btn-outline-border: #cbd5e1;
+  --public-btn-outline-bg: #ffffff;
+  --public-btn-outline-fg: #0f172a;
+  --public-btn-outline-bg-hover: #f8fafc;
+  --public-btn-outline-border-hover: #94a3b8;
+  --public-btn-focus-ring: var(--emc-logo-bg);
+
+  /* Primär-Button (Zur App) */
+  --public-btn-primary-bg: #0f172a;
+  --public-btn-primary-fg: #ffffff;
+  --public-btn-primary-border: #0f172a;
+  --public-btn-primary-bg-hover: #1e293b;
+  --public-btn-primary-border-hover: #1e293b;
+
+  --public-footer-muted: #64748b;
+}
+
+/* Shell: öffentliche Seiten (Material-Info, Impressum, …) */
+.public-layout {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--public-page-bg);
+}
+
+.public-header {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 20px;
+  background: var(--public-header-bg);
+  border-bottom: 1px solid var(--public-header-border);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.public-header--minimal {
+  justify-content: flex-start;
+}
+
+.public-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+  color: inherit;
+}
+
+.public-brand:hover .public-brand-text {
+  color: var(--public-brand-title-hover);
+}
+
+.public-brand-text {
+  font-weight: 700;
+  font-size: 1.05rem;
+  color: var(--public-brand-title);
+}
+
+.public-page {
+  flex: 1;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+}
+
+.public-page--legal {
+  place-items: start;
+  justify-items: center;
+  align-content: start;
+  padding-top: 28px;
+  padding-bottom: 28px;
+}
+
+.public-card {
+  width: min(720px, 100%);
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  padding: 20px;
+}
+
+.public-card--legal {
+  width: min(720px, 100%);
+}
+
+.legal-article h1 {
+  margin: 0 0 16px;
+  font-size: 1.5rem;
+  color: var(--public-brand-title);
+}
+
+.legal-article h2 {
+  margin: 24px 0 8px;
+  font-size: 1.05rem;
+  color: var(--public-brand-title);
+}
+
+.legal-article p,
+.legal-article li {
+  margin: 0 0 10px;
+  line-height: 1.55;
+  color: #334155;
+  font-size: 0.95rem;
+}
+
+.legal-article ul {
+  margin: 0 0 12px 1.1rem;
+  padding: 0;
+}
+
+.legal-hint {
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: #f1f5f9;
+  border: 1px solid var(--public-header-border);
+  color: #475569 !important;
+  font-size: 0.9rem !important;
+}

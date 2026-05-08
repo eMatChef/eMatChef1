@@ -1,0 +1,141 @@
+{
+  "manufacturer": "Wico",
+  "templates": [
+    {
+      "id": "wico_standard_ganz",
+      "model": "Standard",
+      "name": "Wico Standard, ganzes Zelt",
+      "capacity": 8,
+      "tentType": "gruppenzelt",
+      "reservationMode": "complete_only",
+      "description": "Komplettes Wico Standard Zelt.",
+      "components": [
+        {
+          "type": "aussenzelt",
+          "name": "Außenzelt",
+          "required": 1,
+          "optional": false,
+          "tracking": "serialized",
+          "repair_types": ["loch", "riss", "abspannung"]
+        },
+        {
+          "type": "innenzelt",
+          "name": "Innenzelt",
+          "required": 1,
+          "optional": false,
+          "tracking": "serialized",
+          "repair_types": ["riss", "reissverschluss"]
+        },
+        {
+          "type": "gestaenge",
+          "name": "Gestänge",
+          "required": 1,
+          "optional": false,
+          "repair_types": ["verbogen", "gebrochen", "korrosion"]
+        },
+        {
+          "type": "heringe",
+          "name": "Heringe",
+          "required": 12,
+          "optional": false,
+          "repair_types": ["verloren", "verbogen"]
+        },
+        {
+          "type": "tasche",
+          "name": "Transporttasche",
+          "required": 1,
+          "optional": false,
+          "repair_types": ["riss", "reissverschluss"]
+        }
+      ],
+      "isActive": true
+    },
+    {
+      "id": "wico_standard_aussen",
+      "model": "Standard",
+      "name": "Wico Standard, Aussenzelt",
+      "capacity": 8,
+      "tentType": "gruppenzelt",
+      "reservationMode": "individual",
+      "description": "Nur das Außenzelt vom Wico Standard.",
+      "components": [
+        {
+          "type": "aussenzelt",
+          "name": "Außenzelt",
+          "required": 1,
+          "optional": false,
+          "tracking": "serialized",
+          "repair_types": ["loch", "riss", "abspannung"]
+        },
+        {
+          "type": "gestaenge",
+          "name": "Gestänge",
+          "required": 1,
+          "optional": false,
+          "repair_types": ["verbogen", "gebrochen", "korrosion"]
+        },
+        {
+          "type": "heringe",
+          "name": "Heringe",
+          "required": 12,
+          "optional": false,
+          "repair_types": ["verloren", "verbogen"]
+        }
+      ],
+      "isActive": true
+    },
+    {
+      "id": "wico_standard_innen",
+      "model": "Standard",
+      "name": "Wico Standard, Innenzelt",
+      "capacity": 8,
+      "tentType": "gruppenzelt",
+      "reservationMode": "individual",
+      "description": "Nur das Innenzelt vom Wico Standard.",
+      "components": [
+        {
+          "type": "innenzelt",
+          "name": "Innenzelt",
+          "required": 1,
+          "optional": false,
+          "tracking": "serialized",
+          "repair_types": ["riss", "reissverschluss"]
+        }
+      ],
+      "isActive": true
+    },
+    {
+      "id": "wico_vordach",
+      "model": "Vordach",
+      "name": "Wico Vordach",
+      "capacity": 0,
+      "tentType": "sonstiges",
+      "reservationMode": "individual",
+      "description": "Vordach für Wico-Zelte. Zubehör.",
+      "components": [
+        {
+          "type": "vordach",
+          "name": "Vordach",
+          "required": 1,
+          "optional": false,
+          "repair_types": ["loch", "riss", "abspannung"]
+        },
+        {
+          "type": "gestaenge",
+          "name": "Gestänge",
+          "required": 1,
+          "optional": false,
+          "repair_types": ["verbogen", "gebrochen", "korrosion"]
+        },
+        {
+          "type": "heringe",
+          "name": "Heringe",
+          "required": 4,
+          "optional": false,
+          "repair_types": ["verloren", "verbogen"]
+        }
+      ],
+      "isActive": true
+    }
+  ]
+}

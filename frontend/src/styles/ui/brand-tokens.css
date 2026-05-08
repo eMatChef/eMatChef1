@@ -1,0 +1,13 @@
+/**
+ * Markenfarben – EMC-Logo (grünes Badge, weiße Schrift).
+ * Überall dasselbe: öffentliche Seiten, Favicon, Sidebar, Login.
+ */
+:root {
+  --emc-logo-bg: #10b981;
+  --emc-logo-fg: #ffffff;
+  --emc-logo-radius: 10px;
+  --emc-logo-font-weight: 800;
+  --emc-logo-letter-spacing: -0.03em;
+  /* Hover/Akzent im eMatChef-Grün (statt Blau) */
+  --emc-brand-accent: #059669;
+}

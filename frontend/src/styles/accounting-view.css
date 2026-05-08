@@ -1,0 +1,181 @@
+/* Buchhaltung: Shell + Unterseiten (ergänzt dept-page / filter-tab aus page-layout.css) */
+
+.accounting-shell-tabs {
+  margin-bottom: 20px;
+  border-bottom: 1px solid #e5e7eb;
+  padding-bottom: 0;
+}
+
+.accounting-subpage {
+  max-width: 960px;
+}
+
+.accounting-subpage .description {
+  color: #6b7280;
+  font-size: 15px;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.accounting-subpage a {
+  color: #2563eb;
+  text-decoration: none;
+}
+
+.accounting-subpage a:hover {
+  text-decoration: underline;
+}
+
+/* Kostenstellen */
+.cost-centers-page .page-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 16px;
+}
+
+.cost-centers-table-wrap {
+  background: #fff;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+  overflow: hidden;
+}
+
+.cost-centers-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.cost-centers-table th,
+.cost-centers-table td {
+  padding: 12px 16px;
+  text-align: left;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.cost-centers-table th {
+  background: #f9fafb;
+  font-weight: 600;
+  color: #374151;
+}
+
+.cost-centers-table tr:last-child td {
+  border-bottom: none;
+}
+
+.cost-centers-table .col-actions {
+  width: 120px;
+  text-align: right;
+}
+
+.cost-centers-table .muted {
+  color: #9ca3af;
+}
+
+.acc-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: #6b7280;
+  cursor: pointer;
+}
+
+.acc-icon-btn:hover {
+  background: #f3f4f6;
+  color: #111827;
+}
+
+.acc-icon-btn.danger:hover {
+  background: #fef2f2;
+  color: #b91c1c;
+}
+
+/* Leichtes Modal */
+.acc-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 80;
+  padding: 16px;
+}
+
+.acc-modal {
+  background: #fff;
+  border-radius: 10px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.12);
+  width: 100%;
+  max-width: 440px;
+  max-height: 90vh;
+  overflow: auto;
+}
+
+.acc-modal-wide {
+  max-width: 520px;
+}
+
+.acc-field-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.acc-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.acc-modal-header h2 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: #111827;
+}
+
+.acc-modal-body {
+  padding: 20px;
+}
+
+.acc-field {
+  margin-bottom: 14px;
+}
+
+.acc-field label {
+  display: block;
+  font-size: 13px;
+  font-weight: 500;
+  color: #374151;
+  margin-bottom: 6px;
+}
+
+.acc-field input,
+.acc-field textarea {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 14px;
+}
+
+.acc-field textarea {
+  min-height: 72px;
+  resize: vertical;
+}
+
+.acc-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 8px;
+}

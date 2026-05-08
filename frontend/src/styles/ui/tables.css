@@ -1,0 +1,173 @@
+/* Shared table wrapper and base */
+.materials-table-wrapper,
+.contacts-table-wrapper,
+.activities-table-wrapper,
+.tasks-table-wrapper,
+.notifications-table-wrapper {
+  background: white;
+  border-radius: 12px;
+  border: 1px solid #e5e7eb;
+  overflow: hidden;
+}
+
+.materials-table,
+.contacts-table,
+.activities-table,
+.tasks-table,
+.notifications-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.materials-table thead,
+.contacts-table thead,
+.activities-table thead,
+.tasks-table thead,
+.notifications-table thead {
+  background: #f9fafb;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.materials-table th,
+.contacts-table th,
+.activities-table th,
+.tasks-table th,
+.notifications-table th {
+  padding: 14px 16px;
+  text-align: left;
+  font-size: 11px;
+  font-weight: 600;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.materials-table td,
+.contacts-table td,
+.activities-table td,
+.tasks-table td,
+.notifications-table td {
+  padding: 14px 16px;
+  font-size: 14px;
+  color: #374151;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+/* Shared interactive table rows */
+.material-row,
+.contact-row,
+.activity-row {
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.material-row:hover,
+.contact-row:hover,
+.activity-row:hover {
+  background: #f9fafb;
+}
+
+.material-row:last-child td,
+.contact-row:last-child td,
+.activity-row:last-child td {
+  border-bottom: none;
+}
+
+.tasks-table tbody tr:last-child td,
+.notifications-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+/* Shared table action button */
+.action-btn {
+  width: 32px;
+  height: 32px;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  background: white;
+  color: #6b7280;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.action-btn:hover {
+  background: #f3f4f6;
+  color: #374151;
+  border-color: #d1d5db;
+}
+
+.icon-btn {
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 4px;
+  color: #6b7280;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.icon-btn:hover {
+  background: #f3f4f6;
+  color: #374151;
+}
+
+/* Shared table hint/footer */
+.table-hint {
+  padding: 12px 16px;
+  font-size: 12px;
+  color: #9ca3af;
+  background: #f9fafb;
+  border-top: 1px solid #f3f4f6;
+  text-align: center;
+}
+
+/* Shared table icon sizes */
+.table-icon {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
+.table-icon-sm {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+
+.table-icon-md {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+
+/* Shared detail batch tables */
+.batch-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.batch-table th {
+  text-align: left;
+  padding: 10px 12px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  background: #f9fafb;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.batch-table td {
+  padding: 12px;
+  font-size: 14px;
+  color: #374151;
+  border-bottom: 1px solid #f3f4f6;
+}

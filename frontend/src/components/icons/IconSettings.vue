@@ -1,0 +1,16 @@
+<template>
+  <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+    <circle cx="12" cy="12" r="3" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M12 1v6m0 6v6M5.64 5.64l4.24 4.24m4.24 4.24l4.24 4.24M1 12h6m6 0h6M5.64 18.36l4.24-4.24m4.24-4.24l4.24-4.24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  </svg>
+</template>
+
+<script setup lang="ts">
+</script>
+
+<style scoped>
+.icon {
+  width: 20px;
+  height: 20px;
+}
+</style>

@@ -1,0 +1,51 @@
+## Dependencies & build artifacts
+node_modules/
+**/node_modules/
+vendor/
+**/vendor/
+dist/
+**/dist/
+# Lokale Hostpoint-Kopien (Upload), nicht versionieren
+deploy/hostpoint/
+deploy
+
+# Server: Production-Override mit ggf. angepassten Werten (Vorlage: deploy/docker-compose.override.prod.example.yml)
+/docker-compose.override.yml
+dist-ssr/
+
+## Logs
+*.log
+logs/
+**/logs/
+
+## Environment files (keep examples)
+.env
+.env.*
+**/.env
+**/.env.*
+!.env.example
+!**/.env.example
+# Vite: Development vs. Production (keine Secrets, nur öffentliche URLs)
+!frontend/.env.development
+!frontend/.env.production
+# Symfony: committete Basis-Variablen (Secrets in backend/.env.local)
+!backend/.env
+docs/
+doku/
+.cursor/
+
+## Secret key/certificate material
+*.pem
+*.key
+*.crt
+
+## OS / Editor files
+.DS_Store
+Thumbs.db
+Desktop.ini
+.idea/
+.vscode/
+*.swp
+*.swo
+.docs
+.scripts

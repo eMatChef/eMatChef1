@@ -1,0 +1,16 @@
+gesdinet_jwt_refresh_token:
+    ttl: 2592000 # 30 Tage
+    token_parameter_name: refresh_token
+    user_identity_field: username
+    single_use: true
+    refresh_token_class: App\Entity\RefreshToken
+    firewall: login
+    user_provider: app_user_provider
+    cookie:
+        enabled: true
+        same_site: lax
+        path: /
+        domain: '%env(default::AUTH_COOKIE_DOMAIN)%'
+        http_only: true
+        secure: '%env(bool:AUTH_COOKIE_SECURE)%'
+        remove_token_from_body: false
