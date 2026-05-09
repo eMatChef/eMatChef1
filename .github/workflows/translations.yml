@@ -79,7 +79,7 @@ jobs:
         uses: peter-evans/create-pull-request@v8
         with:
           commit-message: "chore(i18n): update translations from Crowdin"
-          branch: "chore/crowdin-translations"
+          branch: chore/crowdin-translations
           delete-branch: true
           title: "chore(i18n): update translations from Crowdin"
           body: |
