@@ -228,37 +228,37 @@ Fuer Produktion:
 - Script: **`scripts/build-hostpoint-deploy-prod.sh`**
 - Legacy-Alias (gleiches Ergebnis): **`scripts/build-hostpoint-deploy.sh`**
 - Ausgabeordner:
-  - `deploy/hostpoint/ematchef.ch/`
-  - `deploy/hostpoint/app.ematchef.ch/`
+  - `deploy/hostpoint/prod/home/` (**ematchef.ch**)
+  - `deploy/hostpoint/prod/app/` (**app.ematchef.ch**)
 
 Fuer Development:
 
 - Script: **`scripts/build-hostpoint-deploy-dev.sh`**
 - Ausgabeordner:
-  - `deploy/hostpoint/dev.ematchef.ch/`
-  - `deploy/hostpoint/app-dev.ematchef.ch/`
+  - `deploy/hostpoint/dev/home/` (**dev.ematchef.ch**)
+  - `deploy/hostpoint/dev/app/` (**app-dev.ematchef.ch**)
 
-### Was du auf Hostpoint hochladen musst (nach dem Build)
+**GitHub Actions FTP:** Secrets `FTP_PATH_MAIN_*` und `FTP_PATH_APP_*` muessen **zwei verschiedene Document Roots** sein (Hauptdomain vs. App-Subdomain). Wenn `FTP_PATH_APP_*` fehlt, auf die Hauptdomain zeigt oder in dieselbe Verzeichnisstruktur wie MAIN zeigt, wirkt die App-Seite leer oder falsch — trotz erfolgreichem Build von `prod/app` bzw. `dev/app`.
 
 Produktion:
 
 | Lokaler Ordner (nach dem Script) | Typisch ins Hostpoint-Webverzeichnis für |
 |----------------------------------|-----------------------------------------|
-| **`deploy/hostpoint/ematchef.ch/`** (alle Dateien inkl. Unterordner) | die **Hauptdomain** bzw. den VHost für **`ematchef.ch`** (manchmal `public_html`, `htdocs` oder `www` — je nach Hostpoint-Menü) |
-| **`deploy/hostpoint/app.ematchef.ch/`** (alle Dateien inkl. Unterordner) | die **Subdomain** / den VHost für **`app.ematchef.ch`** |
+| **`deploy/hostpoint/prod/home/`** (Inhalt inkl. Unterordner) | die **Hauptdomain** bzw. den VHost fuer **`ematchef.ch`** |
+| **`deploy/hostpoint/prod/app/`** (Inhalt inkl. Unterordner) | die **Subdomain** / den VHost fuer **`app.ematchef.ch`** |
 
 Development:
 
 | Lokaler Ordner (nach dem Script) | Typisch ins Hostpoint-Webverzeichnis für |
 |----------------------------------|-----------------------------------------|
-| **`deploy/hostpoint/dev.ematchef.ch/`** (alle Dateien inkl. Unterordner) | die **Dev-Hauptdomain** / den VHost für **`dev.ematchef.ch`** |
-| **`deploy/hostpoint/app-dev.ematchef.ch/`** (alle Dateien inkl. Unterordner) | die **Dev-App-Subdomain** / den VHost für **`app-dev.ematchef.ch`** |
+| **`deploy/hostpoint/dev/home/`** (Inhalt inkl. Unterordner) | die **Dev-Hauptdomain** / den VHost fuer **`dev.ematchef.ch`** |
+| **`deploy/hostpoint/dev/app/`** (Inhalt inkl. Unterordner) | die **Dev-App-Subdomain** / den VHost fuer **`app-dev.ematchef.ch`** |
 
 Dazu zählt jeweils **`index.html`**, der Ordner **`assets/`** und die Datei **`.htaccess`** ( Apache-Routing für die SPA). Ohne **`.htaccess` funktionieren direkte URLs** (z. B. Reload auf einer App-Route) **nicht**; beim FTP prüfen, ob versteckte Dateien wirklich mit hochgeladen werden.
 
-### Warum `ematchef.ch` und `app.ematchef.ch` ‚ähnlich viel‘ an Dateien sind
+### Warum `home` und `app` ‚ähnlich viel‘ an Dateien sind
 
-Beide Zielordner stammen von **derselben** Vue-Codebase (die Scripts fuehren jeweils **zweimal** `npm run build` aus, mit leicht unterschiedlichen Umgebungswerten, u. a. fuer die QR-/App-Domain). Es gibt **kein** separates, kleines „nur Marketing“-Bundle — beide Seiten bekommen die **komplette SPA**; Besucher von `ematchef.ch` laden trotzdem im Wesentlichen dieselbe App-Struktur (Nutzung/Links entscheidet, was tatsächlich abgerufen wird, nicht fehlende Dateien). Eine wirklich schlankere Hauptdomain braeuchte ein **eigenes, kleines** Frontprojekt oder statische Seiten (bewusst anders im Repo gepflegt).
+Beide Zielordner (`home` und `app`) stammen von **derselben** Vue-Codebase (die Scripts fuehren jeweils **zweimal** `npm run build` aus, mit leicht unterschiedlichen Umgebungswerten, u. a. fuer die QR-/App-Domain). Es gibt **kein** separates, kleines „nur Marketing“-Bundle — beide Seiten bekommen die **komplette SPA**; Besucher der Hauptdomain laden trotzdem im Wesentlichen dieselbe App-Struktur (Nutzung/Links entscheidet, was tatsächlich abgerufen wird, nicht fehlende Dateien). Eine wirklich schlankere Hauptdomain braeuchte ein **eigenes, kleines** Frontprojekt oder statische Seiten (bewusst anders im Repo gepflegt).
 
 **Hinweis:** Ein nacktes `npm run build` in `frontend/` legt nur **`frontend/dist/`** an. Fuer den Hostpoint-Upload willst du die Build-Skripte nutzen, weil sie getrennte Ausgabeordner erzeugen und die **`.htaccess` aus `scripts/hostpoint-spa.htaccess`** an die richtige Stelle kopieren.
 
