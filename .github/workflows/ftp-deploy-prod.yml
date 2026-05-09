@@ -1,0 +1,62 @@
+name: FTP Deploy Prod (Hostpoint)
+
+on:
+  push:
+    branches:
+      - prod
+    paths:
+      - "frontend/**"
+      - "scripts/build-hostpoint-deploy-prod.sh"
+      - "scripts/build-hostpoint-deploy.sh"
+      - "scripts/hostpoint-spa.htaccess"
+      - ".github/workflows/ftp-deploy-prod.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: ftp-deploy-prod
+  cancel-in-progress: false
+
+jobs:
+  deploy-prod-hostpoint:
+    name: Build and upload prod frontend
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        run: npm ci
+        working-directory: frontend
+
+      - name: Build prod hostpoint artifacts
+        working-directory: ${{ github.workspace }}
+        env:
+          EMATCHEF_REPO_ROOT: ${{ github.workspace }}
+        run: bash scripts/build-hostpoint-deploy-prod.sh
+
+      - name: Upload prod home
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.FTP_HOST }}
+          username: ${{ secrets.FTP_USER }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          port: ${{ secrets.FTP_PORT }}
+          local-dir: deploy/hostpoint/prod/home/
+          server-dir: ${{ secrets.FTP_PATH_MAIN_PROD }}
+
+      - name: Upload prod app
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.FTP_HOST }}
+          username: ${{ secrets.FTP_USER }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          port: ${{ secrets.FTP_PORT }}
+          local-dir: deploy/hostpoint/prod/app/
+          server-dir: ${{ secrets.FTP_PATH_APP_PROD }}
