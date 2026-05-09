@@ -11,9 +11,3 @@ branch: prod
 files:
   - source: frontend/src/locales/de.json
     translation: frontend/src/locales/%locale%.json
-    # Wenn Crowdin z. B. en-US liefert, Dateiname soll trotzdem en.json bleiben (vue-i18n).
-    languages_mapping:
-      locale:
-        en-US: en
-        fr-FR: fr
-        it-IT: it
