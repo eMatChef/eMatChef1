@@ -14,7 +14,7 @@ on:
 
 concurrency:
   group: ftp-deploy-prod
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   deploy-prod-hostpoint:
@@ -50,6 +50,8 @@ jobs:
           port: ${{ secrets.FTP_PORT }}
           local-dir: deploy/hostpoint/prod/home/
           server-dir: ${{ secrets.FTP_PATH_MAIN_PROD }}
+          # Entfernt auf dem Server alles, was nicht im aktuellen Build liegt (verhindert doppelte Alt-Dateien / Case-Duplikate).
+          dangerous-clean-slate: true
 
       - name: Upload prod app
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
@@ -60,3 +62,4 @@ jobs:
           port: ${{ secrets.FTP_PORT }}
           local-dir: deploy/hostpoint/prod/app/
           server-dir: ${{ secrets.FTP_PATH_APP_PROD }}
+          dangerous-clean-slate: true
