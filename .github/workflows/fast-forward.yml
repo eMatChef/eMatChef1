@@ -18,7 +18,7 @@ jobs:
   fast_forward:
     name: Fast-forward merge
     runs-on: ubuntu-latest
-    if: github.event.issue.pull_request && github.event.comment.body.trim() == '/fast-forward'
+    if: github.event.issue.pull_request && github.event.comment.body == '/fast-forward'
 
     steps:
       - name: Check permission (Core-Team)
