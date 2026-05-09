@@ -31,4 +31,11 @@ npm --prefix "$FRONTEND" run build -- --outDir "$OUT_BASE/app" --emptyOutDir
 cp "$ROOT/scripts/hostpoint-spa.htaccess" "$OUT_BASE/home/.htaccess"
 cp "$ROOT/scripts/hostpoint-spa.htaccess" "$OUT_BASE/app/.htaccess"
 
+for d in home app; do
+  if [[ ! -f "$OUT_BASE/$d/index.html" ]]; then
+    echo "Build unvollstaendig: fehlt $OUT_BASE/$d/index.html" >&2
+    exit 1
+  fi
+done
+
 echo "Fertig (prod): $OUT_BASE/home und $OUT_BASE/app"

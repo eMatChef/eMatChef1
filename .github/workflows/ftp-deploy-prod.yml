@@ -41,6 +41,12 @@ jobs:
           EMATCHEF_REPO_ROOT: ${{ github.workspace }}
         run: bash scripts/build-hostpoint-deploy-prod.sh
 
+      - name: Verify prod hostpoint output (home + app)
+        run: |
+          test -f deploy/hostpoint/prod/home/index.html
+          test -f deploy/hostpoint/prod/app/index.html
+          du -sh deploy/hostpoint/prod/home deploy/hostpoint/prod/app
+
       - name: Upload prod home
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
         with:
