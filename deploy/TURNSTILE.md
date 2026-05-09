@@ -32,7 +32,10 @@ Upload des Ordners `deploy/hostpoint/app.ematchef.ch/` wie gewohnt.
 
 ## 3. Backend (API-Droplet)
 
-Secret **nicht** ins Git; auf dem Server in **`/opt/ematchef/prod/.env`** (oder wie bei euch üblich):
+Secret **nicht** ins Git; auf dem Server in der jeweiligen `.env` (je Umgebung):
+
+- Prod: `/opt/ematchef/prod/.env`
+- Develop: `/opt/ematchef/develop/.env`
 
 ```env
 TURNSTILE_SECRET_KEY=<Secret Key aus Cloudflare>
@@ -52,6 +55,14 @@ Backend neu starten:
 cd /opt/ematchef/prod
 docker compose -p ematchef-prod up -d backend
 docker compose -p ematchef-prod exec backend php bin/console cache:warmup --env=prod
+```
+
+Fuer Develop entsprechend:
+
+```bash
+cd /opt/ematchef/develop
+docker compose -p ematchef-develop up -d backend
+docker compose -p ematchef-develop exec backend php bin/console cache:warmup --env=prod
 ```
 
 ## 4. Verhalten
