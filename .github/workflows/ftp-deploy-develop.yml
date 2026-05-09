@@ -35,6 +35,7 @@ jobs:
         working-directory: frontend
 
       - name: Build dev hostpoint artifacts
+        working-directory: ${{ github.workspace }}
         run: bash scripts/build-hostpoint-deploy-dev.sh
 
       - name: Upload dev home
