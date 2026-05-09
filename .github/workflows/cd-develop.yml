@@ -14,7 +14,6 @@ jobs:
   deploy-develop:
     name: Deploy to develop server
     runs-on: ubuntu-latest
-    environment: develop
     steps:
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1.2.0

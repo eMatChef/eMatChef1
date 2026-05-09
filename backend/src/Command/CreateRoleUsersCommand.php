@@ -74,7 +74,7 @@ class CreateRoleUsersCommand extends Command
         $deletedCount = 0;
         foreach ($allUsers as $user) {
             $profile = $user->getProfile();
-            if ($profile && str_ends_with($profile->getEmail(), '@example.com')) {
+            if ($profile && str_ends_with($profile->getEmail(), '@ematchef.ch')) {
                 // Lösche Membership-Zuordnungen
                 $memberships = $this->em->getRepository(Membership::class)
                     ->findBy(['userId' => $user->getId()]);
@@ -93,7 +93,7 @@ class CreateRoleUsersCommand extends Command
         // Erstelle einen Superadmin als Erstes (wird als createdBy verwendet)
         $io->section('Erstelle Superadmin...');
         $superadminUser = $this->createUser(
-            'superadmin@example.com',
+            'superadmin@ematchef.ch',
             'Superadmin',
             'User',
             'Superadmin',
@@ -102,7 +102,7 @@ class CreateRoleUsersCommand extends Command
             true
         );
         $this->em->flush();
-        $io->success('Superadmin erstellt: superadmin@example.com / password');
+        $io->success('Superadmin erstellt: superadmin@ematchef.ch / test');
 
         // Erstelle für jede andere Rolle einen Benutzer
         $io->section('Erstelle Benutzer für alle Rollen...');
@@ -120,7 +120,7 @@ class CreateRoleUsersCommand extends Command
         foreach ($roles as $role) {
             // Verwende den vollständigen Namen für Email und Anzeige
             $fullName = $role->getFullName();
-            $email = $fullName . '@example.com';
+            $email = $fullName . '@ematchef.ch';
             $firstName = ucfirst($fullName);
             $lastName = 'User';
             $nickname = ucfirst($fullName);
@@ -135,24 +135,24 @@ class CreateRoleUsersCommand extends Command
                 false,
                 $superadminUser
             );
-            $io->text("✓ {$role->getLabel()}: $email / password");
+            $io->text("✓ {$role->getLabel()}: $email / test");
         }
 
         $this->em->flush();
         $io->success('Alle Benutzer erfolgreich erstellt!');
 
         $io->note([
-            'Alle Benutzer haben das Passwort: password',
+            'Alle Benutzer haben das Passwort: test',
             'Login-Emails:',
-            '  - superadmin@example.com (Superadmin)',
-            '  - organisationschef@example.com (Organisationschef)',
-            '  - suborgchef@example.com (Suborgchef)',
-            '  - matwart@example.com (Materialchef)',
-            '  - depchef@example.com (Departmentchef)',
-            '  - leader1@example.com (Leader 1)',
-            '  - leader2@example.com (Leader 2)',
-            '  - leader3@example.com (Leader 3)',
-            '  - user@example.com (User)',
+            '  - superadmin@ematchef.ch (Superadmin)',
+            '  - organisationschef@ematchef.ch (Organisationschef)',
+            '  - suborgchef@ematchef.ch (Suborgchef)',
+            '  - matwart@ematchef.ch (Materialchef)',
+            '  - depchef@ematchef.ch (Departmentchef)',
+            '  - leader1@ematchef.ch (Leader 1)',
+            '  - leader2@ematchef.ch (Leader 2)',
+            '  - leader3@ematchef.ch (Leader 3)',
+            '  - user@ematchef.ch (User)',
         ]);
 
         return Command::SUCCESS;
@@ -197,7 +197,7 @@ class CreateRoleUsersCommand extends Command
         $user->setProfileId($profile->getId());
         $user->setProfile($profile);
         $user->setState('active');
-        $hashedPassword = $this->passwordHasher->hashPassword($user, 'password');
+        $hashedPassword = $this->passwordHasher->hashPassword($user, 'test');
         $user->setPassword($hashedPassword);
         $user->setEmailVerified(true);
 
