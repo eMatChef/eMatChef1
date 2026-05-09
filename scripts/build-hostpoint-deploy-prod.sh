@@ -5,8 +5,14 @@
 #   deploy/hostpoint/prod/app   (app.ematchef.ch)
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+ROOT="${EMATCHEF_REPO_ROOT:-}"
+if [[ -z "$ROOT" ]]; then
+  ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" || true
+fi
+if [[ -z "$ROOT" || ! -d "$ROOT/frontend" ]]; then
+  echo "Konnte Repo-Wurzel nicht finden (frontend/ fehlt). Im Repo ausfuehren oder EMATCHEF_REPO_ROOT setzen." >&2
+  exit 1
+fi
 OUT_BASE="$ROOT/deploy/hostpoint/prod"
 
 cd "$ROOT/frontend"
