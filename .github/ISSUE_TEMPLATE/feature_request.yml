@@ -1,0 +1,36 @@
+name: Feature Request
+description: Neue Funktion oder Verbesserung vorschlagen
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem / Ziel
+      description: Welches Problem soll geloest werden?
+      placeholder: Als ... moechte ich ..., damit ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Vorschlag
+      description: Was soll gebaut oder geaendert werden?
+      placeholder: Konkrete Loesungsidee
+    validations:
+      required: true
+
+  - type: textarea
+    id: scope
+    attributes:
+      label: Abgrenzung
+      description: Was ist explizit nicht Teil dieses Issues?
+      placeholder: Out of scope ...
+
+  - type: input
+    id: branch
+    attributes:
+      label: Geplanter Branch-Name
+      description: feature/<issue>-kurze-beschreibung
+      placeholder: feature/123-neues-dashboard-widget
