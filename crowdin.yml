@@ -1,3 +1,7 @@
+# Grundsprache ist Deutsch: die `source`-Dateien liefern die Referenz-Strings in Crowdin.
+# Im Crowdin-Webprojekt unter Settings → Languages muss die Quellsprache „German“ sein,
+# damit die UI zu diesen Uploads passt.
+
 pull_request_title: "chore(i18n): Update translations from Crowdin"
 commit_message: "chore(i18n): Update %language% translations from Crowdin"
 
