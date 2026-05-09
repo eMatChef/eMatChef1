@@ -1,0 +1,80 @@
+# Nach Review und gruenen Checks setzt das Core-Team auf dem Release-PR den Kommentar /fast-forward.
+# Kein separater Bot-Account: Merge per github.token (siehe docs/SETUP-GITHUB.md: Branch-Regeln + Bypass fuer GitHub Actions).
+name: Fast forward (develop → prod)
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: fast-forward-prod
+  cancel-in-progress: false
+
+jobs:
+  fast_forward:
+    name: Fast-forward merge
+    runs-on: ubuntu-latest
+    if: github.event.issue.pull_request && github.event.comment.body.trim() == '/fast-forward'
+
+    steps:
+      - name: Check permission (Core-Team)
+        id: permission
+        uses: actions-cool/check-user-permission@v2
+        with:
+          require: maintain
+          username: ${{ github.event.comment.user.login }}
+
+      - name: Comment on permission denied
+        if: steps.permission.outputs.require-result != 'true'
+        uses: thollander/actions-comment-pull-request@v3
+        with:
+          pr-number: ${{ github.event.issue.number }}
+          message: |
+            `/fast-forward` darf nur von Personen mit **Maintain**- oder **Admin**-Rolle in diesem Repository ausgeloest werden.
+
+      - name: Exit if insufficient permission
+        if: steps.permission.outputs.require-result != 'true'
+        run: exit 1
+
+      - name: Validate PR (prod ← develop, ff-faehig)
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { data: pr } = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number,
+            });
+            if (pr.draft) {
+              core.setFailed('Fast-forward nicht fuer Draft-PRs.');
+              return;
+            }
+            if (pr.base.ref !== 'prod' || pr.head.ref !== 'develop') {
+              core.setFailed(
+                `Nur PRs **prod** <- **develop**. Dieser PR: **${pr.base.ref}** <- **${pr.head.ref}**.`
+              );
+              return;
+            }
+            if (pr.mergeable_state !== 'clean') {
+              core.setFailed(
+                `Kein sauberer Fast-forward (mergeable_state: **${pr.mergeable_state}**). ` +
+                'Ist `develop` mit `prod` zusammengefuehrt / Konflikte geloest?'
+              );
+              return;
+            }
+
+      - name: Fast-forward merge
+        uses: endre-spotlab/fast-forward-js-action@2.1
+        with:
+          GITHUB_TOKEN: ${{ github.token }}
+          success_message: |
+            Erfolg: **prod** wurde per Fast-forward auf **develop** gesetzt.
+
+            ```bash
+            git checkout prod && git merge develop --ff-only
+            ```
+          failure_message: 'Fast-forward fehlgeschlagen (Branch-Historie erlaubt kein FF).'

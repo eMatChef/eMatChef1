@@ -1,5 +1,6 @@
 <template>
   <div>
+    <DevEnvironmentBanner />
     <router-view />
     <GlobalToastContainer />
     <GlobalConfirmDialog />
@@ -14,6 +15,7 @@ import { useRoute } from 'vue-router'
 import { useAutoLogout } from '@/composables/useAutoLogout'
 import { syncDocumentHead } from '@/composables/usePageHead'
 import { usePageHeadStore } from '@/stores/pageHead'
+import DevEnvironmentBanner from '@/components/common/DevEnvironmentBanner.vue'
 import GlobalToastContainer from '@/components/common/GlobalToastContainer.vue'
 import GlobalConfirmDialog from '@/components/common/GlobalConfirmDialog.vue'
 import PhysicalComboContainerWarningModal from '@/components/common/PhysicalComboContainerWarningModal.vue'
