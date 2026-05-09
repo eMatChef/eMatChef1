@@ -49,6 +49,8 @@ jobs:
           port: ${{ secrets.FTP_PORT }}
           local-dir: deploy/hostpoint/dev/home/
           server-dir: ${{ secrets.FTP_PATH_MAIN_DEV }}
+          # Entfernt auf dem Server alles, was nicht im aktuellen Build liegt (verhindert doppelte Alt-Dateien / Case-Duplikate).
+          dangerous-clean-slate: true
 
       - name: Upload dev app
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
@@ -59,3 +61,4 @@ jobs:
           port: ${{ secrets.FTP_PORT }}
           local-dir: deploy/hostpoint/dev/app/
           server-dir: ${{ secrets.FTP_PATH_APP_DEV }}
+          dangerous-clean-slate: true
