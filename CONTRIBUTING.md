@@ -12,6 +12,14 @@ Dieses Dokument beschreibt unseren Git-Workflow mit `develop` als Arbeits-Branch
 - `hotfix/*`: dringende Korrekturen fuer produktionsnahe Probleme
 - `chore/*`: Wartung, Infrastruktur, Tooling
 
+### Benennung mit Issue-Nummer (empfohlen)
+
+- Feature-Branch: `feature/<issue>-kurze-beschreibung` (z. B. `feature/123-login-banner`)
+- Bugfix-Branch: `fix/<issue>-kurze-beschreibung` (z. B. `fix/145-cors-dev`)
+- Chore-Branch: `chore/<issue>-kurze-beschreibung` (z. B. `chore/172-update-docs`)
+- PR-Titel: `feat: ... (#<issue>)`, `fix: ... (#<issue>)`, `chore: ... (#<issue>)`
+- PR-Beschreibung: `Closes #<issue>` (oder `Refs #<issue>`)
+
 ## Grundregeln
 
 - Nie direkt auf `prod` committen oder pushen.
@@ -52,6 +60,7 @@ Wenn ein Entwicklungsstand bereit ist:
 ## Pull-Request-Richtlinien
 
 - PR-Titel beschreibt den Zweck klar (z. B. `Add rental return validation`).
+- Verwende den Prefix `feat:`, `fix:` oder `chore:` und haenge die Issue-Nummer an (`(#123)`).
 - Beschreibe kurz, warum die Aenderung noetig ist.
 - Fasse zusammen, was getestet wurde.
 - Wenn moeglich, verlinke Issues oder Aufgaben.
