@@ -42,6 +42,8 @@ COMPOSE_PROJECT_NAME=ematchef-develop \
 ./deploy/prod-update.sh reset
 ```
 
+**Develop-API / CORS:** Wenn der Browser von `https://app-dev.ematchef.ch` aus `https://api-dev.ematchef.ch` blockiert („No Access-Control-Allow-Origin“), muss auf dem Develop-Server `CORS_ALLOW_ORIGIN` u. a. **`app-dev.ematchef.ch`** erlauben (siehe `deploy/CROSS-SUBDOMAIN-LOGIN.md` und `deploy/docker-compose.override.develop.example.yml`).
+
 Migration ausführen
 ```bash
 docker compose -p ematchef-prod exec backend php bin/console doctrine:migrations:migrate --no-interaction
