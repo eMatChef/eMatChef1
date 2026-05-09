@@ -10,3 +10,11 @@ branch: prod
 files:
   - source: frontend/src/locales/de.json
     translation: frontend/src/locales/%locale%.json
+  # Zusätzliche Sprachvarianten als eigene Quellen in Crowdin anzeigen.
+  # Eigene Zielpfade vermeiden Kollisionen mit en.json/fr.json/it.json.
+  - source: frontend/src/locales/de-pfadi.json
+    translation: frontend/src/locales/%locale%-pfadi.json
+  - source: frontend/src/locales/de-cevi.json
+    translation: frontend/src/locales/%locale%-cevi.json
+  - source: frontend/src/locales/ch-rm.json
+    translation: frontend/src/locales/%locale%-ch-rm.json
