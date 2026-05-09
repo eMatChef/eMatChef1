@@ -4,8 +4,7 @@ commit_message: "chore(i18n): Update %language% translations from Crowdin"
 project_id_env: CROWDIN_PROJECT_ID
 api_token_env: CROWDIN_PERSONAL_TOKEN
 
-# Crowdin „Version / Branch“ im Projekt (nicht Git). Nur relevant, wenn ihr Branches in Crowdin nutzt;
-# dann sollte dort ein Branch `prod` existieren. Ohne Crowdin-Branches: diese Zeile wieder entfernen.
+# Wenn ihr Crowdin-Branches nutzt:
 branch: prod
 
 files:
