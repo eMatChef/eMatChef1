@@ -5,7 +5,9 @@
 #   deploy/hostpoint/dev/app   (app-dev.ematchef.ch)
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+# Unabhaengig vom aktuellen Arbeitsverzeichnis (z. B. CI mit working-directory: frontend)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 OUT_BASE="$ROOT/deploy/hostpoint/dev"
 
 cd "$ROOT/frontend"

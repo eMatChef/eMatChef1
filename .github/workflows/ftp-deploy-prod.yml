@@ -36,6 +36,7 @@ jobs:
         working-directory: frontend
 
       - name: Build prod hostpoint artifacts
+        working-directory: ${{ github.workspace }}
         run: bash scripts/build-hostpoint-deploy-prod.sh
 
       - name: Upload prod home
