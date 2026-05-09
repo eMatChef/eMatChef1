@@ -12,12 +12,20 @@ Dieses Dokument beschreibt unseren Git-Workflow mit `develop` als Arbeits-Branch
 - `hotfix/*`: dringende Korrekturen fuer produktionsnahe Probleme
 - `chore/*`: Wartung, Infrastruktur, Tooling
 
+### Benennung mit Issue-Nummer (empfohlen)
+
+- Feature-Branch: `feature/<issue>-kurze-beschreibung` (z. B. `feature/123-login-banner`)
+- Bugfix-Branch: `fix/<issue>-kurze-beschreibung` (z. B. `fix/145-cors-dev`)
+- Chore-Branch: `chore/<issue>-kurze-beschreibung` (z. B. `chore/172-update-docs`)
+- PR-Titel: `feat: ... (#<issue>)`, `fix: ... (#<issue>)`, `chore: ... (#<issue>)`
+- PR-Beschreibung: `Closes #<issue>` (oder `Refs #<issue>`)
+
 ## Grundregeln
 
 - Nie direkt auf `prod` committen oder pushen.
 - Neue Arbeit immer von `develop` abzweigen.
 - Jede Aenderung geht per Pull Request (PR) zurueck nach `develop`.
-- `prod` wird nur ueber PR aus `develop` aktualisiert.
+- `prod` wird nur ueber einen Release-PR aus `develop` aktualisiert und per Kommentar **`/fast-forward`** (kein normaler Merge-Button auf `prod`).
 - Kleine, klare PRs bevorzugen (ein Thema pro PR).
 
 ## Lokaler Ablauf fuer Features und Fixes
@@ -39,18 +47,20 @@ Anschliessend auf GitHub einen PR erstellen:
 - Basis-Branch: `develop`
 - Compare-Branch: dein `feature/*` oder `fix/*`
 
-## Release-Ablauf
+## Release-Ablauf (Fast-forward)
 
 Wenn ein Entwicklungsstand bereit ist:
 
 1. PR von `develop` nach `prod` erstellen
-2. Tests und Review abschliessen
-3. PR mergen
-4. Optional ein Release-Tag setzen (z. B. `v1.0.0`)
+2. Tests und Review abschliessen (CI und Regeln aus dem `prod`-Ruleset)
+3. **Nicht** den GitHub-Merge-Button auf `prod` nutzen; stattdessen auf dem PR den Kommentar **`/fast-forward`** setzen (nur **Maintain**/**Admin** im Repository; siehe `docs/SETUP-GITHUB.md`)
+4. Der Workflow **Fast forward** setzt `prod` per Fast-forward auf den Stand von `develop`; anschliessend startet **CD Prod** automatisch
+5. Optional ein Release-Tag setzen (z. B. `v1.0.0`)
 
 ## Pull-Request-Richtlinien
 
 - PR-Titel beschreibt den Zweck klar (z. B. `Add rental return validation`).
+- Verwende den Prefix `feat:`, `fix:` oder `chore:` und haenge die Issue-Nummer an (`(#123)`).
 - Beschreibe kurz, warum die Aenderung noetig ist.
 - Fasse zusammen, was getestet wurde.
 - Wenn moeglich, verlinke Issues oder Aufgaben.
@@ -87,7 +97,10 @@ Wenn ein Entwicklungsstand bereit ist:
   - Deploy auf Develop-Server per SSH
 - `CD Prod` in `.github/workflows/cd-prod.yml`
   - Trigger: Push auf `prod` (zusaetzlich manuell startbar)
-  - Deploy auf Produktions-Server per SSH (Environment `production`)
+  - Deploy auf Produktions-Server per SSH
+- `Fast forward` in `.github/workflows/fast-forward.yml`
+  - Kommentar **`/fast-forward`** auf dem Release-PR (`develop` -> `prod`)
+  - Nur Personen mit **Maintain** oder **Admin**; kein separater Bot-Token (nutzt `GITHUB_TOKEN` + Ruleset-Bypass fuer GitHub Actions auf `prod`)
 - `Translations (Crowdin)` in `.github/workflows/translations.yml`
   - Trigger: relevante Pushes auf `prod`, Zeitplan oder manueller Run
 

@@ -1,0 +1,48 @@
+name: Bug Report
+description: Fehler melden
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: Zusammenfassung
+      description: Was ist kaputt?
+      placeholder: Kurze Fehlerbeschreibung
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Schritte zum Reproduzieren
+      description: Wie kann man den Fehler reproduzieren?
+      placeholder: |
+        1. ...
+        2. ...
+        3. ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Erwartetes Verhalten
+      placeholder: Was sollte passieren?
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Tatsaechliches Verhalten
+      placeholder: Was ist stattdessen passiert?
+    validations:
+      required: true
+
+  - type: input
+    id: branch
+    attributes:
+      label: Geplanter Branch-Name
+      description: fix/<issue>-kurze-beschreibung
+      placeholder: fix/123-login-fehler

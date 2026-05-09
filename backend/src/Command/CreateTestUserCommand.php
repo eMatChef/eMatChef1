@@ -36,12 +36,12 @@ class CreateTestUserCommand extends Command
             return Command::FAILURE;
         }
 
-        // Test-User: admin@example.com
+        // Test-User: admin@ematchef.ch
         $adminUser = $this->createUser(
             IdGenerator::generateUnique($this->em, User::class),
             IdGenerator::generateUnique($this->em, Profile::class),
-            'admin@example.com',
-            'password',
+            'admin@ematchef.ch',
+            'test',
             'Admin',
             'User',
             'Admin',
@@ -49,12 +49,12 @@ class CreateTestUserCommand extends Command
         );
         $this->assignToDepartment($adminUser, $department, 'admin', true);
 
-        // Test-User: manager@example.com
+        // Test-User: manager@ematchef.ch
         $managerUser = $this->createUser(
             IdGenerator::generateUnique($this->em, User::class),
             IdGenerator::generateUnique($this->em, Profile::class),
-            'manager@example.com',
-            'password',
+            'manager@ematchef.ch',
+            'test',
             'Manager',
             'User',
             'Manager',
@@ -62,12 +62,12 @@ class CreateTestUserCommand extends Command
         );
         $this->assignToDepartment($managerUser, $department, 'manager', false);
 
-        // Test-User: user@example.com
+        // Test-User: user@ematchef.ch
         $normalUser = $this->createUser(
             IdGenerator::generateUnique($this->em, User::class),
             IdGenerator::generateUnique($this->em, Profile::class),
-            'user@example.com',
-            'password',
+            'user@ematchef.ch',
+            'test',
             'Test',
             'User',
             'User',
@@ -78,9 +78,9 @@ class CreateTestUserCommand extends Command
         $this->em->flush();
 
         $output->writeln('Test-User erstellt:');
-        $output->writeln('  - admin@example.com / password (Admin, Primary)');
-        $output->writeln('  - manager@example.com / password (Manager)');
-        $output->writeln('  - user@example.com / password (User)');
+        $output->writeln('  - admin@ematchef.ch / test (Admin, Primary)');
+        $output->writeln('  - manager@ematchef.ch / test (Manager)');
+        $output->writeln('  - user@ematchef.ch / test (User)');
         $output->writeln('Alle User sind dem Department "' . $department->getName() . '" zugeordnet.');
 
         return Command::SUCCESS;
