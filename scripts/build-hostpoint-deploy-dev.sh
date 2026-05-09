@@ -14,17 +14,17 @@ if [[ -z "$ROOT" || ! -d "$ROOT/frontend" ]]; then
   exit 1
 fi
 OUT_BASE="$ROOT/deploy/hostpoint/dev"
+FRONTEND="$ROOT/frontend"
 
-cd "$ROOT/frontend"
 mkdir -p "$OUT_BASE/home" "$OUT_BASE/app"
 
-# Dev-Hauptdomain (dev.ematchef.ch)
+# Dev-Hauptdomain (dev.ematchef.ch) — npm --prefix: kein cd (vermeidet cwd/frontend/frontend in CI)
 VITE_API_BASE=https://api-dev.ematchef.ch \
 VITE_MAIN_SITE_ORIGIN=https://dev.ematchef.ch \
 VITE_APP_ORIGIN=https://app-dev.ematchef.ch \
 VITE_QR_PUBLIC_HOST=qr-dev.ematchef.ch \
 VITE_SHOW_DEV_BANNER=1 \
-npm run build -- --outDir "$OUT_BASE/home" --emptyOutDir
+npm --prefix "$FRONTEND" run build -- --outDir "$OUT_BASE/home" --emptyOutDir
 
 # Dev-App-Subdomain (app-dev.ematchef.ch)
 VITE_API_BASE=https://api-dev.ematchef.ch \
@@ -32,7 +32,7 @@ VITE_MAIN_SITE_ORIGIN=https://dev.ematchef.ch \
 VITE_APP_ORIGIN=https://app-dev.ematchef.ch \
 VITE_QR_PUBLIC_HOST=qr-dev.ematchef.ch \
 VITE_SHOW_DEV_BANNER=1 \
-npm run build -- --outDir "$OUT_BASE/app" --emptyOutDir
+npm --prefix "$FRONTEND" run build -- --outDir "$OUT_BASE/app" --emptyOutDir
 
 cp "$ROOT/scripts/hostpoint-spa.htaccess" "$OUT_BASE/home/.htaccess"
 cp "$ROOT/scripts/hostpoint-spa.htaccess" "$OUT_BASE/app/.htaccess"

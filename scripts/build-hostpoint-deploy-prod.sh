@@ -13,16 +13,16 @@ if [[ -z "$ROOT" || ! -d "$ROOT/frontend" ]]; then
   exit 1
 fi
 OUT_BASE="$ROOT/deploy/hostpoint/prod"
+FRONTEND="$ROOT/frontend"
 
-cd "$ROOT/frontend"
 mkdir -p "$OUT_BASE/home" "$OUT_BASE/app"
 
 # Hauptdomain (ematchef.ch)
-npm run build -- --outDir "$OUT_BASE/home" --emptyOutDir
+npm --prefix "$FRONTEND" run build -- --outDir "$OUT_BASE/home" --emptyOutDir
 
 # App-Subdomain (app.ematchef.ch), inkl. QR-Host
 VITE_QR_PUBLIC_HOST=qr.ematchef.ch \
-npm run build -- --outDir "$OUT_BASE/app" --emptyOutDir
+npm --prefix "$FRONTEND" run build -- --outDir "$OUT_BASE/app" --emptyOutDir
 
 cp "$ROOT/scripts/hostpoint-spa.htaccess" "$OUT_BASE/home/.htaccess"
 cp "$ROOT/scripts/hostpoint-spa.htaccess" "$OUT_BASE/app/.htaccess"
