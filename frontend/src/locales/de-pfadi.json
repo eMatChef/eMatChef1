@@ -1,6 +1,7 @@
 {
   "app": {
-    "name": "eMatChef"
+    "name": "eMatChef",
+    "devEnvironmentBanner": "Testumgebung – keine Produktionsdaten."
   },
   "router": {
     "meta": {

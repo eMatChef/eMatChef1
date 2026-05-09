@@ -12,6 +12,7 @@ VITE_API_BASE=https://api-dev.ematchef.ch \
 VITE_MAIN_SITE_ORIGIN=https://dev.ematchef.ch \
 VITE_APP_ORIGIN=https://app-dev.ematchef.ch \
 VITE_QR_PUBLIC_HOST=qr-dev.ematchef.ch \
+VITE_SHOW_DEV_BANNER=1 \
 npm run build -- --outDir "$ROOT/deploy/hostpoint/dev.ematchef.ch" --emptyOutDir
 
 # Build fuer app-dev.ematchef.ch (App auf Dev)
@@ -19,6 +20,7 @@ VITE_API_BASE=https://api-dev.ematchef.ch \
 VITE_MAIN_SITE_ORIGIN=https://dev.ematchef.ch \
 VITE_APP_ORIGIN=https://app-dev.ematchef.ch \
 VITE_QR_PUBLIC_HOST=qr-dev.ematchef.ch \
+VITE_SHOW_DEV_BANNER=1 \
 npm run build -- --outDir "$ROOT/deploy/hostpoint/app-dev.ematchef.ch" --emptyOutDir
 
 cp "$ROOT/scripts/hostpoint-spa.htaccess" "$ROOT/deploy/hostpoint/dev.ematchef.ch/.htaccess"
