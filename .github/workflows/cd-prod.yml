@@ -25,6 +25,8 @@ jobs:
           script_stop: true
           script: |
             set -euo pipefail
+            # Expliziter Deploy-Key für git fetch (sonst: Permission denied (publickey) bei non-interactive SSH)
+            export EMATCHEF_GIT_SSH_IDENTITY="${HOME}/.ssh/ematchef_deploy_ed25519"
             cd "${{ secrets.PROD_DEPLOY_PATH }}"
             EMATCHEF_PROD_ROOT="${{ secrets.PROD_DEPLOY_PATH }}" \
             EMATCHEF_GIT_BRANCH=prod \
