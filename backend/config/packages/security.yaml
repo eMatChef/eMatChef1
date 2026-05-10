@@ -51,6 +51,8 @@ security:
 
     access_control:
         - { path: ^/api/auth/login_check, roles: PUBLIC_ACCESS }
+        # Session-Check liefert 401 JSON ohne Login — darf nicht hinter ROLE_USER haengen (sonst CORS/Preflight wirkt „kaputt“ im Browser).
+        - { path: ^/api/auth/session, roles: PUBLIC_ACCESS }
         - { path: ^/api/auth/register, roles: PUBLIC_ACCESS }
         - { path: ^/api/auth/verify, roles: PUBLIC_ACCESS }
         - { path: ^/api/auth/resend-verification, roles: PUBLIC_ACCESS }
@@ -59,4 +61,6 @@ security:
         - { path: ^/api/auth/logout, roles: PUBLIC_ACCESS }
         - { path: ^/api/token/refresh, roles: PUBLIC_ACCESS }
         - { path: ^/api/public, roles: PUBLIC_ACCESS }
+        # CORS-Preflight (OPTIONS) muss Security passieren, bevor Nelmio antwortet — sonst fehlen Access-Control-* Header.
+        - { path: ^/api, roles: PUBLIC_ACCESS, methods: [OPTIONS] }
         - { path: .*, roles: [ROLE_USER] }

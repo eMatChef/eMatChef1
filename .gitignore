@@ -7,7 +7,6 @@ dist/
 **/dist/
 # Lokale Hostpoint-Kopien (Upload), nicht versionieren
 deploy/hostpoint/
-deploy
 
 # Server: Production-Override mit ggf. angepassten Werten (Vorlage: deploy/docker-compose.override.prod.example.yml)
 /docker-compose.override.yml
