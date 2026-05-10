@@ -15,6 +15,8 @@
 #   EMATCHEF_GIT_BRANCH  Standard: prod
 #   COMPOSE_PROJECT_NAME Standard: ematchef-prod
 #   EMATCHEF_COMPOSE_BUILD=1  — docker compose … --build (langsam; nur bei Dockerfile/PHP-Base-Änderung)
+#   EMATCHEF_GIT_SSH_IDENTITY — privater Deploy-Key für git@github.com (Pfad, ~ erlaubt). Z. B. für GitHub
+#     Actions (non-interactive SSH): sonst „Permission denied (publickey)“ bei git fetch.
 
 set -euo pipefail
 
@@ -24,6 +26,15 @@ PROJECT="${COMPOSE_PROJECT_NAME:-ematchef-prod}"
 MODE="${1:-reset}"
 
 cd "$ROOT"
+
+if [[ -n "${EMATCHEF_GIT_SSH_IDENTITY:-}" ]]; then
+  _git_ssh_id="${EMATCHEF_GIT_SSH_IDENTITY/#\~/$HOME}"
+  if [[ ! -f "$_git_ssh_id" ]]; then
+    echo "Fehler: EMATCHEF_GIT_SSH_IDENTITY gesetzt, aber Datei fehlt: ${_git_ssh_id}" >&2
+    exit 1
+  fi
+  export GIT_SSH_COMMAND="ssh -i ${_git_ssh_id} -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new"
+fi
 
 case "$MODE" in
   reset)

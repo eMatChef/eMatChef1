@@ -64,7 +64,7 @@ COMPOSE_PROJECT_NAME=ematchef-develop \
 | **`docker-compose.yml`** (getrackt) | u. a. Default-CORS/JWT — deshalb Droplet-Werte in **`.env`** / **Override** |
 | **`backend/.env`** (getrackt!) | Server-Anpassungen hier sind **falsch** — Geheimnisse in **`.env.local`** oder Compose-Env |
 
-**JWT:** Die **Passphrase** muss zu den **bestehenden PEM-Dateien** passen. Nach Reset auf einen Default in Compose ohne passende Keys → Login bricht; Lösung: stabile `JWT_PASSPHRASE` in der **Root-`.env`** (Develop) bzw. in der **Prod-`.env`** setzen, die zum Keypair auf dem Volume passt — oder Keys neu erzeugen (bestehende Tokens ungültig).
+**JWT:** Die **Passphrase** muss zu den **bestehenden PEM-Dateien** passen. Nach Reset auf einen Default in Compose ohne passende Keys → Login bricht; Lösung: stabile `JWT_PASSPHRASE` in der **Root-`.env`** (Develop) bzw. in der **Prod-`.env`** setzen, die zum Keypair auf dem Volume passt — oder Keys neu erzeugen (bestehende Tokens ungültig). **Automatisch (nur nicht-Prod empfohlen):** `bash deploy/regenerate-droplet-jwt.sh --yes` im Repo-Root (siehe Skriptkopf; auf **Produktion** alle Nutzer ausloggen).
 
 **SendGrid / Mailer:** In **Produktion** kommt `MAILER_DSN` (und ggf. `MAILER_FROM`) aus der **Server-`.env`** und dem **Override** (`docker-compose.override.prod.example.yml`). Wenn du es nur in einer **getrackten** Datei hattest, war es nach Deploy weg — dauerhaft in **`.env`** (und bei Bedarf `docker-compose.override.yml`) pflegen.
 
@@ -423,16 +423,122 @@ So arbeitet der Droplet **ohne** HTTPS-Benutzername/Passwort mit GitHub:
    5. **Richtiger GitHub-User/Org:** Deploy-Key ist an **ein** Repo gebunden; anderes Repo → neuer Deploy-Key oder Konto-SSH-Key.
    6. **Als root vs. anderer User:** Keys liegen unter **`/root/.ssh`** nur für `root`. Wenn du später als `deploy`-User arbeitest, Key und `config` dort anlegen.
 
-6. **Remote auf SSH umstellen** (im Projektverzeichnis, `USER/REPO` anpassen):
+6. **Remote auf SSH umstellen** (im Projektverzeichnis — **keine** Platzhalter `USER/REPO` verwenden; echte Org/Repo-URL, z. B.):
 
    ```bash
    cd /opt/ematchef/prod
-   git remote set-url origin git@github.com:USER/REPO.git
+   git remote set-url origin git@github.com:eMatChef/eMatChef1.git
    git remote -v
    git fetch origin
    ```
 
+   Repo heißt anders? In der URL `git@github.com:ORG/REPO.git` ersetzen (exakt wie in der Browser-Adresse auf GitHub).
+
 **Hinweis:** Deploy-Keys gelten **pro Repository**. Mehrere Repos brauchen je einen Key oder ein [SSH-Multiplex](https://docs.github.com/en/authentication/connecting-to-github-with-ssh) mit mehreren `Host`-Aliasen.
+
+### 6a. Checkliste: Prod-Droplet, dann Develop-Droplet (je eigener Deploy-Key)
+
+Gleiches GitHub-Repository (z. B. `eMatChef/eMatChef1`), **zwei Server** → **zwei Schlüsselpaare** (nie denselben privaten Key auf zwei Maschinen kopieren). Unter **Deploy keys** dürfen **mehrere** Keys eingetragen sein (z. B. `DO API prod` und `DO API develop`).
+
+**Auf GitHub (einmal pro Server-Key, Repo-Admin):** `https://github.com/eMatChef/eMatChef1` → **Settings** → **Deploy keys** → **Add deploy key** → öffentlichen Key einfügen → **Allow write access** nur anhaken, wenn dieser Server **pushen** soll (für `git fetch` / `pull` nicht nötig).
+
+---
+
+**A) Prod-Droplet** (`/opt/ematchef/prod`, Branch `prod`)
+
+1. Per SSH auf den **Prod-Server** (z. B. als `root`).
+2. Schlüssel **nur hier** erzeugen:
+
+   ```bash
+   ssh-keygen -t ed25519 -C "ematchef-api-prod" -f ~/.ssh/ematchef_deploy_ed25519 -N ""
+   cat ~/.ssh/ematchef_deploy_ed25519.pub
+   ```
+
+3. Inhalt der **`.pub`-Datei** bei GitHub unter **Deploy keys** eintragen, Titel z. B. `DO API prod`.
+4. SSH-Config (nur anhängen, wenn noch **kein** passender `Host github.com`-Block existiert — sonst siehe Hinweis zu doppelten Blöcken in Schritt 4 oben):
+
+   ```bash
+   printf '%s\n' \
+     'Host github.com' \
+     '  HostName github.com' \
+     '  User git' \
+     '  IdentityFile ~/.ssh/ematchef_deploy_ed25519' \
+     '  IdentitiesOnly yes' \
+     >> ~/.ssh/config
+   chmod 600 ~/.ssh/config ~/.ssh/ematchef_deploy_ed25519
+   ```
+
+5. Remote, `safe.directory`, Test:
+
+   ```bash
+   cd /opt/ematchef/prod
+   git config --global --add safe.directory /opt/ematchef/prod
+   git remote set-url origin git@github.com:eMatChef/eMatChef1.git
+   git remote -v
+   ssh -T git@github.com
+   git fetch origin
+   ```
+
+---
+
+**B) Develop-Droplet** (`/opt/ematchef/develop`, Branch `develop`)
+
+Wie **A)**, aber **eigenes** Schlüsselpaar auf dem **Develop-Server** und **zweiter** Eintrag unter **Deploy keys**:
+
+1. Auf dem **Develop-Server**:
+
+   ```bash
+   ssh-keygen -t ed25519 -C "ematchef-api-develop" -f ~/.ssh/ematchef_deploy_develop_ed25519 -N ""
+   cat ~/.ssh/ematchef_deploy_develop_ed25519.pub
+   ```
+
+2. Öffentlichen Key bei GitHub → **Deploy keys** → **Add deploy key**, Titel z. B. `DO API develop`.
+3. SSH-Config auf **diesem** Server (`IdentityFile` zeigt auf den Develop-Key):
+
+   ```bash
+   printf '%s\n' \
+     'Host github.com' \
+     '  HostName github.com' \
+     '  User git' \
+     '  IdentityFile ~/.ssh/ematchef_deploy_develop_ed25519' \
+     '  IdentitiesOnly yes' \
+     >> ~/.ssh/config
+   chmod 600 ~/.ssh/config ~/.ssh/ematchef_deploy_develop_ed25519
+   ```
+
+4. Remote, `safe.directory`, Test:
+
+   ```bash
+   cd /opt/ematchef/develop
+   git config --global --add safe.directory /opt/ematchef/develop
+   git remote set-url origin git@github.com:eMatChef/eMatChef1.git
+   git remote -v
+   ssh -T git@github.com
+   git fetch origin
+   ```
+
+---
+
+**Konflikt:** Existiert auf einem Server **schon** ein `Host github.com`-Block mit anderem `IdentityFile`, nicht einfach zweimal anhängen. Entweder Block anpassen oder **Alias** nutzen (`Host github-ematchef`, `HostName github.com`, …) und `git remote set-url origin git@github.com-ematchef:eMatChef/eMatChef1.git`.
+
+---
+
+## 6b. GitHub Actions → Droplet (CD) und `Permission denied (publickey)` bei `git fetch`
+
+Die Workflows **`.github/workflows/cd-prod.yml`** und **`cd-develop.yml`** verbinden sich per **SSH** auf den Server und rufen **`deploy/prod-update.sh reset`** auf. Dabei läuft `git fetch` **auf dem Droplet** — dafür braucht der **SSH-Login-User** (z. B. `root`, Wert aus `PROD_SSH_USER`) einen **Deploy-Key** für GitHub, der unter **`$HOME/.ssh/…`** liegt:
+
+| Workflow | Erwarteter private Key auf dem Server |
+|----------|----------------------------------------|
+| CD Prod | `$HOME/.ssh/ematchef_deploy_ed25519` |
+| CD Develop | `$HOME/.ssh/ematchef_deploy_develop_ed25519` |
+
+Das Skript setzt intern **`GIT_SSH_COMMAND`** über die Umgebungsvariable **`EMATCHEF_GIT_SSH_IDENTITY`** (siehe `deploy/prod-update.sh`). Ohne passende Datei: Fehlermeldung beim Deploy; ohne Variable (manuelles SSH als root mit `~/.ssh/config`) wie bisher.
+
+**GitHub Secrets (Repository → Settings → Secrets → Actions):** `PROD_SSH_HOST`, `PROD_SSH_USER`, `PROD_SSH_KEY`, `PROD_SSH_PORT` (z. B. `22`), `PROD_DEPLOY_PATH` (`/opt/ematchef/prod`); für Develop analog `DEVELOP_*`.
+
+**Wichtig:** `PROD_SSH_KEY` ist der Key für **GitHub Actions → Droplet** (`authorized_keys`). Der **Deploy-Key** für **Droplet → GitHub** ist eine **andere** Datei — muss für denselben User existieren wie oben in der Tabelle.
+
+**Pfad anders?** In den YAML-Workflows die Zeile `export EMATCHEF_GIT_SSH_IDENTITY=…` an euren echten Key-Pfad anpassen (oder denselben Dateinamen auf dem Server verwenden).
 
 ---
 
