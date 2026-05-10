@@ -24,8 +24,10 @@ POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
 APP_SECRET=${APP_SECRET}
 JWT_PASSPHRASE=${JWT_PASSPHRASE}
 
-# Optional: Hostpoint SMTP
-# MAILER_DSN=null://null
+# Optional (von Hand; siehe deploy/docker-compose.prod.env.example):
+# MAILER_DSN="sendgrid+api://SG....@default"
+# MAILER_FROM="noreply@ematchef.ch"
+# TURNSTILE_SECRET_KEY="..."
 EOF
 
 chmod 600 "$ENV_FILE"
