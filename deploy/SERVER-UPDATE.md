@@ -42,6 +42,53 @@ COMPOSE_PROJECT_NAME=ematchef-develop \
 ./deploy/prod-update.sh reset
 ```
 
+**Develop-API / CORS:** Wenn der Browser von `https://app-dev.ematchef.ch` aus `https://api-dev.ematchef.ch` blockiert („No Access-Control-Allow-Origin“), muss auf dem Develop-Server `CORS_ALLOW_ORIGIN` u. a. **`app-dev.ematchef.ch`** erlauben (siehe `deploy/CROSS-SUBDOMAIN-LOGIN.md`, `deploy/develop-droplet.env.example` und optional `deploy/docker-compose.override.develop.example.yml`).
+
+### Einmalig: Geheimnisse & URLs (überleben `git reset --hard`)
+
+`./deploy/prod-update.sh reset` macht **`git fetch` + `git reset --hard`** auf den Server-Klon. **Nur Dateien, die Git trackt**, werden dabei wieder exakt wie auf GitHub — lokale Änderungen daran sind weg.
+
+**Bleibt in der Regel erhalten** (liegt nicht im Repo bzw. ist gitignored):
+
+| Ort | Zweck |
+|-----|--------|
+| **Repo-Root `.env`** | Compose-Substitution (`JWT_PASSPHRASE`, `CORS_*`, `APP_*`, …); `init-prod-env.sh` legt sie für Prod an |
+| **`docker-compose.override.yml`** im Repo-Root | Prod-Konfiguration (siehe `deploy/docker-compose.override.prod.example.yml`) |
+| **`backend/.env.local`** | Symfony-Secrets (Mailer, Turnstile, …); **nicht** versioniert |
+| **`config/jwt/*.pem`** unter `backend/` | Lexik-JWT-Schlüssel (gitignored); `--skip-if-exists` im Entrypoint |
+
+**Wird bei jedem Reset überschrieben**, wenn du es nur auf dem Server geändert hast:
+
+| Ort | Konsequenz |
+|-----|----------------|
+| **`docker-compose.yml`** (getrackt) | u. a. Default-CORS/JWT — deshalb Droplet-Werte in **`.env`** / **Override** |
+| **`backend/.env`** (getrackt!) | Server-Anpassungen hier sind **falsch** — Geheimnisse in **`.env.local`** oder Compose-Env |
+
+**JWT:** Die **Passphrase** muss zu den **bestehenden PEM-Dateien** passen. Nach Reset auf einen Default in Compose ohne passende Keys → Login bricht; Lösung: stabile `JWT_PASSPHRASE` in der **Root-`.env`** (Develop) bzw. in der **Prod-`.env`** setzen, die zum Keypair auf dem Volume passt — oder Keys neu erzeugen (bestehende Tokens ungültig).
+
+**SendGrid / Mailer:** In **Produktion** kommt `MAILER_DSN` (und ggf. `MAILER_FROM`) aus der **Server-`.env`** und dem **Override** (`docker-compose.override.prod.example.yml`). Wenn du es nur in einer **getrackten** Datei hattest, war es nach Deploy weg — dauerhaft in **`.env`** (und bei Bedarf `docker-compose.override.yml`) pflegen.
+
+**Develop-Droplet:** Vorlage kopieren und ausfüllen:
+
+```bash
+cd /opt/ematchef/develop
+cp deploy/develop-droplet.env.example .env
+nano .env   # Domains, CORS, JWT_PASSPHRASE, optional Turnstile/Mailer
+chmod 600 .env
+EMATCHEF_PROD_ROOT=/opt/ematchef/develop EMATCHEF_GIT_BRANCH=develop COMPOSE_PROJECT_NAME=ematchef-develop ./deploy/prod-update.sh up
+```
+
+**Prod-Droplet** (Reihenfolge wie in den Kommentaren der Beispieldateien):
+
+```bash
+cd /opt/ematchef/prod
+cp deploy/docker-compose.override.prod.example.yml docker-compose.override.yml
+bash deploy/init-prod-env.sh    # erzeugt .env mit DB-App-JWT-Geheimnissen, sofern noch keine .env
+nano .env                       # MAILER_DSN, TURNSTILE_SECRET_KEY, …
+chmod 600 .env
+EMATCHEF_PROD_ROOT=/opt/ematchef/prod ./deploy/prod-update.sh reset
+```
+
 Migration ausführen
 ```bash
 docker compose -p ematchef-prod exec backend php bin/console doctrine:migrations:migrate --no-interaction
@@ -425,7 +472,7 @@ So arbeitet der Droplet **ohne** HTTPS-Benutzername/Passwort mit GitHub:
 
 **Hinweise**
 
-- **Login über mehrere Subdomains (JWT/Refresh-Cookies, Session-API):** siehe `deploy/CROSS-SUBDOMAIN-LOGIN.md` (inkl. Textblock für einen neuen Chat).
+- **Login über mehrere Subdomains (JWT/Refresh-Cookies, CORS, Cookies):** Abschnitt *Einmalig: Geheimnisse & URLs* oben; Compose-Variablen in `docker-compose.yml` + `deploy/develop-droplet.env.example` / Prod-Override.
 - `docker-compose.override.yml` und `.env` mit Geheimnissen liegen **nur auf dem Server**, nicht im Git (siehe `.gitignore`).
 - Neue **Console-Commands** erscheinen unter `APP_ENV=prod` erst nach **Cache-Warmup** (siehe Abschnitt 3).
 - **Nginx** auf dem Host (443 → 8081) ist unabhängig von Docker; bei reinen PHP-Änderungen meist kein `systemctl reload nginx` nötig.

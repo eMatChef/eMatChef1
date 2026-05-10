@@ -1,4 +1,6 @@
 # Production-Override für den API-Server (DigitalOcean o. Ä.).
+# Liegt als docker-compose.override.yml NUR auf dem Server (gitignored) — bleibt
+# bei `git reset --hard` / deploy erhalten, solange der Dateiname unverändert bleibt.
 #
 # Nutzung auf dem Server:
 #   cp deploy/docker-compose.override.prod.example.yml docker-compose.override.yml
