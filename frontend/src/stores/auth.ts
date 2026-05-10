@@ -149,11 +149,12 @@ export const useAuthStore = defineStore('auth', () => {
       if (err?.code === 'ECONNABORTED') {
         error.value = 'Backend antwortet nicht rechtzeitig. Bitte erneut versuchen.'
       } else {
-        error.value =
+        const fromApi =
           err?.response?.data?.error?.message ||
           err?.response?.data?.error ||
-          err?.response?.data?.message ||
-          'Login fehlgeschlagen'
+          err?.response?.data?.message
+        const fromThrown = typeof err?.message === 'string' && err.message.length > 0 ? err.message : null
+        error.value = fromApi || fromThrown || 'Login fehlgeschlagen'
       }
       return false
     } finally {

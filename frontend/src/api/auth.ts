@@ -152,11 +152,28 @@ export async function login(email: string, password: string): Promise<LoginRespo
   const response = await apiClient.post<LoginResponse>('/api/auth/login_check', { email, password })
   const raw: unknown = response.data
 
+  if (typeof raw === 'string') {
+    const head = raw.slice(0, 120).toLowerCase()
+    if (head.includes('<!doctype') || head.includes('<html')) {
+      throw new Error(
+        `Login: API lieferte HTML statt JSON (HTTP ${response.status}). Häufig Nginx/502 oder falscher Proxy — prüfe api-dev → Backend :8081 und Container-Logs.`
+      )
+    }
+    if (import.meta.env.DEV) {
+      console.error('[Auth] Login: Text-Body statt JSON', response.status, raw.slice(0, 200))
+    }
+    throw new Error(
+      `Ungültige Login-Antwort (HTTP ${response.status}) — Body ist kein JSON. Prüfe, ob /api auf das Symfony-Backend zeigt.`
+    )
+  }
+
   if (raw === null || raw === '' || typeof raw !== 'object') {
     if (import.meta.env.DEV) {
       console.error('[Auth] Login: unerwarteter Body (kein JSON?)', response.status, raw)
     }
-    throw new Error('Ungültige Login-Antwort – prüfe ob /api auf das Symfony-Backend zeigt.')
+    throw new Error(
+      `Ungültige Login-Antwort (HTTP ${response.status}) — prüfe ob /api auf das Symfony-Backend zeigt.`
+    )
   }
 
   const body = raw as LoginResponse & { access_token?: string }
