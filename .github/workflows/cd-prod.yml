@@ -25,8 +25,11 @@ jobs:
           script_stop: true
           script: |
             set -euo pipefail
-            # Expliziter Deploy-Key für git fetch (sonst: Permission denied (publickey) bei non-interactive SSH)
-            export EMATCHEF_GIT_SSH_IDENTITY="${HOME}/.ssh/ematchef_deploy_ed25519"
+            # Fester Pfad (kein $HOME): non-login-SSH von Actions setzt HOME oft nicht; ${{ secrets.PROD_SSH_USER }} kann in Org/Env leer sein.
+            # SSH-Login-User bleibt secrets.PROD_SSH_USER — dieser Block betrifft nur den GitHub-Repo-Deploy-Key auf dem Server.
+            GIT_DEPLOY_KEY="/home/deploy-prod/.ssh/ematchef_deploy_ed25519"
+            test -f "$GIT_DEPLOY_KEY" || { echo "::error::Datei fehlt (git fetch): $GIT_DEPLOY_KEY — auf dem Droplet anlegen (siehe deploy/SERVER-UPDATE.md 6b)"; exit 1; }
+            export EMATCHEF_GIT_SSH_IDENTITY="$GIT_DEPLOY_KEY"
             cd "${{ secrets.PROD_DEPLOY_PATH }}"
             EMATCHEF_PROD_ROOT="${{ secrets.PROD_DEPLOY_PATH }}" \
             EMATCHEF_GIT_BRANCH=prod \
