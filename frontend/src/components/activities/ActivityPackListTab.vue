@@ -127,7 +127,17 @@
                 <span class="pack-group-toggle">{{ collapsedGroups['l-' + group.categoryName] ? '▶' : '▼' }}</span>
               </div>
               <div v-if="!collapsedGroups['l-' + group.categoryName]" class="pack-group-items">
-                <div v-for="pi in group.items" :key="pi.id" class="pack-card">
+                <template v-for="pi in group.items" :key="pi.id">
+                <PackCrateShellPackItemRow
+                  v-if="
+                    activePackStage === 'packed_issued' &&
+                    showPackContainersUi &&
+                    isCrateShellPackItem(pi, packContainers)
+                  "
+                  :shell-pack-item="pi"
+                  :stage-right-label="activeStageConfig.rightLabel"
+                />
+                <div v-else class="pack-card">
                   <div class="pack-card-main">
                     <div class="pack-card-info">
                       <div class="pack-card-name-block">
@@ -246,6 +256,7 @@
                     </div>
                   </div>
                 </div>
+                </template>
               </div>
             </div>
 
@@ -473,288 +484,17 @@
                   {{ t('activities.packList.hintNoContainersIssue') }}
                 </p>
                 <p
-                  v-else-if="packContainersSortedWarehouseOnly.length === 0"
+                  v-else-if="packContainersSortedWarehouseOnlyVisible.length === 0"
                   class="pack-containers-empty-hint text-muted"
                 >
                   {{ t('activities.packList.hintContainersOnRight', { stage: activeStageConfig.rightLabel }) }}
                 </p>
-                <div
-                  v-for="c in packContainersSortedWarehouseOnly"
-                  :id="'pack-container-issue-' + c.id"
+                <PackWarehouseIssueContainerCard
+                  v-for="c in packContainersSortedWarehouseOnlyVisible"
                   :key="'issue-' + c.id"
-                  class="pack-container-card"
-                  :class="{
-                    'pack-container-card--target':
-                      activePackTarget?.kind === 'container' && activePackTarget.containerId === c.id,
-                  }"
-                >
-                  <div class="pack-container-header-row">
-                    <button
-                      type="button"
-                      class="pack-container-chevron-btn"
-                      :aria-expanded="!collapsedPackContainers[c.id]"
-                      :aria-label="t('activities.packList.ariaToggleContainer')"
-                      @click.stop="togglePackContainerCollapsed(c.id)"
-                    >
-                      <span class="pack-container-chevron" aria-hidden="true">{{
-                        collapsedPackContainers[c.id] ? '▶' : '▼'
-                      }}</span>
-                    </button>
-                    <div class="pack-container-header-main">
-                      <div class="pack-container-header-title-block">
-                        <button
-                          type="button"
-                          class="pack-container-select-main"
-                          :aria-pressed="
-                            activePackTarget?.kind === 'container' && activePackTarget.containerId === c.id
-                          "
-                          @click="toggleActiveContainer(c.id)"
-                        >
-                          <span class="pack-container-name">{{ c.label }}</span>
-                        </button>
-                        <span class="pack-container-chip text-muted">{{ t('activities.common.itemsUnit', { count: containerItemCount(c.id) }) }}</span>
-                      </div>
-                    </div>
-                    <div
-                      v-if="
-                        packListEditable &&
-                        (containerUnissueableUnits(c.id) > 0 || containerIssueableUnits(c.id) > 0)
-                      "
-                      class="pack-container-header-actions"
-                      @click.stop
-                    >
-                      <button
-                        v-if="containerUnissueableUnits(c.id) > 0"
-                        type="button"
-                        class="btn-moveback-arrow btn-move-arrow--container-header"
-                        :disabled="containerBulkLoadingId === c.id"
-                        :title="t('activities.packList.unissueTitle', { count: containerUnissueableUnits(c.id) })"
-                        @click="unissueContainerToPacked(c)"
-                      >
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                          <path d="M19 12H5" />
-                          <polyline points="12 19 5 12 12 5" />
-                        </svg>
-                      </button>
-                      <button
-                        v-if="containerIssueableUnits(c.id) > 0"
-                        type="button"
-                        class="btn-move-arrow btn-move-arrow--container-header"
-                        :disabled="containerBulkLoadingId === c.id"
-                        :title="
-                          t('activities.packList.issueRestTitle', {
-                            stage: activeStageConfig.rightLabel,
-                            count: containerIssueableUnits(c.id),
-                          })
-                        "
-                        @click="issueContainerToEvent(c)"
-                      >
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                          <path d="M5 12h14" />
-                          <polyline points="12 5 19 12 12 19" />
-                        </svg>
-                      </button>
-                    </div>
-                  </div>
-                  <div
-                    v-if="canReportIssues && c.container_material_item_id"
-                    class="pack-container-kiste-meldung-row"
-                    @click.stop
-                  >
-                    <span class="pack-container-kiste-meldung-label">{{ t('activities.common.crate') }}</span>
-                    <template v-if="isPackMaterialConsumable(String(c.container_material_item_id))">
-                      <button
-                        type="button"
-                        class="btn-issue-quick btn-issue-consumed"
-                        @click="
-                            emitConsumptionForMaterialId(String(c.container_material_item_id), {
-                              linkedContainerLabel: c.label,
-                            })
-                          "
-                      >
-                              {{ t('activities.common.issueConsumed') }}
-                      </button>
-                    </template>
-                    <template v-else>
-                      <button
-                        type="button"
-                        class="btn-issue-quick btn-issue-loss"
-                        @click="emitIssueWizardByMaterialId(String(c.container_material_item_id), 'loss')"
-                      >
-                              {{ t('activities.common.issueLoss') }}
-                      </button>
-                      <button
-                        type="button"
-                        class="btn-issue-quick btn-issue-repair"
-                        @click="emitIssueWizardByMaterialId(String(c.container_material_item_id), 'repair')"
-                      >
-                              {{ t('activities.common.issueRepair') }}
-                      </button>
-                    </template>
-                  </div>
-                  <div v-show="!collapsedPackContainers[c.id]" class="pack-container-inner">
-                    <div
-                      v-for="ci in containerItemsByContainerId[c.id] ?? []"
-                      :key="'issue-' + ci.id"
-                      class="pack-container-line pack-container-line--issue-row pack-container-line--stacked"
-                    >
-                      <div
-                        v-if="packListEditable && containerLineUnissueableMax(ci) > 0"
-                        class="pack-card-actions pack-card-actions-left"
-                      >
-                        <button
-                          type="button"
-                          class="btn-moveback-arrow"
-                          :disabled="containerMutationLoading"
-                          :title="t('activities.packList.unissueLineTitle', { max: containerLineUnissueableMax(ci) })"
-                          @click="unissueContainerLineToPacked(c.id, ci)"
-                        >
-                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                            <path d="M19 12H5" />
-                            <polyline points="12 19 5 12 12 5" />
-                          </svg>
-                        </button>
-                        <input
-                          v-model.number="containerUnissueLineInputs[containerIssueLineKey(c.id, ci.id)]"
-                          type="number"
-                          min="1"
-                          :max="containerLineUnissueableMax(ci)"
-                          class="pack-moveback-input"
-                          @keyup.enter="unissueContainerLineToPacked(c.id, ci)"
-                        />
-                      </div>
-                      <div
-                        v-if="packListEditable && activePackTarget?.kind === 'loose'"
-                        class="pack-card-actions pack-card-actions-left"
-                      >
-                        <button
-                          type="button"
-                          class="btn-moveback-arrow"
-                          :disabled="containerMutationLoading"
-                          :title="t('activities.packList.pullLooseTitle')"
-                          @click="pullFromContainer(c.id, ci)"
-                        >
-                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                            <path d="M19 12H5" />
-                            <polyline points="12 19 5 12 12 5" />
-                          </svg>
-                        </button>
-                        <input
-                          v-model.number="containerPullQtyInputs[containerPullKey(c.id, ci.id)]"
-                          type="number"
-                          min="1"
-                          :max="ci.quantity_packed"
-                          class="pack-moveback-input"
-                          @keyup.enter="pullFromContainer(c.id, ci)"
-                        />
-                      </div>
-                      <div class="pack-container-line-main">
-                        <span class="pack-container-line-name">{{ ci.material_name || t('activities.common.material') }}</span>
-                        <span class="pack-container-line-qty text-muted">
-                          <template v-if="containerLineRemainingIssue(ci) > 0">
-                            {{
-                              t('activities.packList.lineNotYetIssued', {
-                                rem: containerLineRemainingIssue(ci),
-                                packed: ci.quantity_packed,
-                                stage: activeStageConfig.rightLabel,
-                              })
-                            }}
-                          </template>
-                          <template v-else-if="containerLinePackRemaining(ci) > 0">
-                            {{ t('activities.packList.packListNotYetAtStage', { stage: activeStageConfig.rightLabel }) }}
-                          </template>
-                          <template v-else>
-                            {{
-                              t('activities.packList.issuedFraction', {
-                                issued: ci.quantity_issued ?? 0,
-                                packed: ci.quantity_packed,
-                                stage: activeStageConfig.rightLabel,
-                              })
-                            }}
-                          </template>
-                        </span>
-                      </div>
-                      <div
-                        v-if="packListEditable && containerLineIssueableMax(ci) > 0"
-                        class="pack-card-actions"
-                      >
-                        <div class="pack-move-inline">
-                          <input
-                            v-model.number="containerIssueLineInputs[containerIssueLineKey(c.id, ci.id)]"
-                            type="number"
-                            min="1"
-                            :max="containerLineIssueableMax(ci)"
-                            class="pack-move-input"
-                            @keyup.enter="issueContainerLineToEvent(c.id, ci)"
-                          />
-                          <button
-                            type="button"
-                            class="btn-move-arrow"
-                            :disabled="containerMutationLoading"
-                            :title="t('activities.packList.issueLinePackTitle', { stage: activeStageConfig.rightLabel })"
-                            @click="issueContainerLineToEvent(c.id, ci)"
-                          >
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                              <path d="M5 12h14" />
-                              <polyline points="12 5 19 12 12 19" />
-                            </svg>
-                          </button>
-                        </div>
-                      </div>
-                      <div
-                        v-if="
-                          canReportIssues &&
-                          ci.material_item_id &&
-                          (ci.quantity_issued ?? 0) > 0
-                        "
-                        class="pack-container-line-issue-quick"
-                        @click.stop
-                      >
-                        <template v-if="isPackMaterialConsumable(ci.material_item_id)">
-                          <button
-                            type="button"
-                            class="btn-issue-quick btn-issue-consumed"
-                            @click="
-                              emitConsumptionForMaterialId(ci.material_item_id, {
-                                materialName: ci.material_name,
-                                linkedContainerLabel: ci.batch_label || ci.serial_number || null,
-                              })
-                            "
-                          >
-                            {{ t('activities.common.issueConsumed') }}
-                          </button>
-                        </template>
-                        <template v-else>
-                          <button
-                            type="button"
-                            class="btn-issue-quick btn-issue-loss"
-                            @click="emitIssueWizardByMaterialId(ci.material_item_id, 'loss')"
-                          >
-                            {{ t('activities.common.issueLoss') }}
-                          </button>
-                          <button
-                            type="button"
-                            class="btn-issue-quick btn-issue-repair"
-                            @click="emitIssueWizardByMaterialId(ci.material_item_id, 'repair')"
-                          >
-                            {{ t('activities.common.issueRepair') }}
-                          </button>
-                        </template>
-                      </div>
-                    </div>
-                    <p
-                      v-if="(containerItemsByContainerId[c.id] ?? []).length === 0"
-                      class="pack-container-empty text-muted"
-                    >
-                      {{ t('activities.packList.nothingAssigned') }}
-                    </p>
-                  </div>
-                </div>
-              </div>
-              </div>
-            </div>
-          </div>
-
+                  :container="c"
+                  :stage-right-label="activeStageConfig.rightLabel"
+                />
           <div class="pack-panel pack-panel-right">
             <div class="pack-panel-header pack-panel-header-done pack-panel-header--split">
               <div class="pack-panel-header-main">
@@ -1309,7 +1049,8 @@
                                   packListEditable &&
                                   activePackStage === 'confirmed_packed' &&
                                   looseQtyForPackItem(pi) > 0 &&
-                                  packContainers.length > 0
+                                  packContainers.length > 0 &&
+                                  !isCrateShellPackItem(pi, packContainers)
                                 "
                                 type="button"
                                 class="btn btn-xs btn-outline pack-assign-btn"
@@ -1321,11 +1062,10 @@
                             </div>
                           </div>
                         </div>
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              </div>
 
               <div v-if="loosePackItemsPartial.length > 0" class="pack-group">
                 <div class="pack-group-header pack-group-header-done" @click="toggleGroup('r-loose-partial')">
@@ -1415,7 +1155,8 @@
                               packListEditable &&
                               activePackStage === 'confirmed_packed' &&
                               looseQtyForPackItem(pi) > 0 &&
-                              packContainers.length > 0
+                              packContainers.length > 0 &&
+                              !isCrateShellPackItem(pi, packContainers)
                             "
                             type="button"
                             class="btn btn-xs btn-outline pack-assign-btn"
@@ -1692,12 +1433,30 @@
       @submit="onShellForwardSubmit"
       @set-repack-review="onShellForwardRepackReview"
     />
+
+    <PackCrateShellBackModal
+      v-if="shellBackItem"
+      :open="shellBackModalOpen"
+      :shell-pack-item="shellBackItem"
+      :move-qty="shellBackMoveQty"
+      :from-stage-label="shellBackFromLabel"
+      :to-stage-label="shellBackToLabel"
+      :label="shellBackLabel"
+      :peek-sections="shellBackPeekSections"
+      :deviations="shellBackDeviations"
+      :last-check-date-label="shellBackLastCheckDateLabel"
+      :acknowledged="shellBackAcknowledged"
+      :submitting="shellBackSubmitting"
+      @update:acknowledged="shellBackAcknowledged = $event"
+      @cancel="closeShellBackModal"
+      @confirm="onShellBackConfirm"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
 defineOptions({ name: 'ActivityPackListTab' })
-import { computed, nextTick, ref, watch } from 'vue'
+import { computed, nextTick, provide, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { ActivityIssueReportRow, ActivityTransitionRow } from '@/api/activities'
 import { getActivityHistory, getActivityIssues } from '@/api/activities'
@@ -1706,14 +1465,26 @@ import {
   postPackCrateCheck,
   type PackCrateCheckRequest,
 } from '@/api/activityPackCrateCheck'
+import PackCrateShellBackModal from '@/components/activities/PackCrateShellBackModal.vue'
 import PackCrateShellForwardModal from '@/components/activities/PackCrateShellForwardModal.vue'
+import PackCrateShellPackItemRow from '@/components/activities/PackCrateShellPackItemRow.vue'
+import PackWarehouseIssueContainerCard from '@/components/activities/PackWarehouseIssueContainerCard.vue'
+import { PACK_WAREHOUSE_ISSUE_INJECT_KEY } from '@/components/activities/packWarehouseIssueInjectKey'
 import {
+  buildShellCrateBackDeviations,
   crateShellForwardPeekSections,
+  crateShellPeekSectionsForPackItem,
   isCrateShellPackItem,
+  isPackContainerMergedIntoStageLeftRow,
+  packContainerItemSections,
   packShellContainerForPackItem,
+  peekSectionsForShellContainer,
 } from '@/components/activities/packShellCrateHelpers'
 import type { PackCrateShellPeekSection } from '@/components/activities/PackCrateShellInlinePanel.vue'
-import { indexLatestCrateCheckByPackItemId } from '@/components/activities/packCrateCheckReality'
+import {
+  indexLatestCrateCheckByPackItemId,
+  type CrateCheckSnapshot,
+} from '@/components/activities/packCrateCheckReality'
 import {
   getPackItems,
   postInitPackItems,
@@ -1737,7 +1508,11 @@ import {
   type ActivityPackContainer,
   type ActivityPackContainerItem,
 } from '@/api/activityContainers'
-import { getContainerBatches, type ContainerBatch } from '@/api/storageLocations'
+import {
+  getContainerBatchContents,
+  getContainerBatches,
+  type ContainerBatch,
+} from '@/api/storageLocations'
 import { useConfirm } from '@/composables/useConfirm'
 import { useToast } from '@/composables/useToast'
 
@@ -1880,6 +1655,12 @@ const moveBackQtyInputs = ref<Record<string, number>>({})
 const packContainers = ref<ActivityPackContainer[]>([])
 const containerItemsByContainerId = ref<Record<string, ActivityPackContainerItem[]>>({})
 const collapsedPackContainers = ref<Record<string, boolean>>({})
+/** true/undefined = Unterabschnitt zu */
+const collapsedPackContainerSubsections = ref<Record<string, boolean>>({})
+/** Lager-Vorlage pro Pack-Behälter (material_id aus Kisteninhalt) */
+const containerWarehouseTemplateByContainerId = ref<Record<string, Set<string>>>({})
+const activityCrateCheckSnapshots = ref<Record<string, CrateCheckSnapshot>>({})
+const useCrateRealityByPackItemId = ref<Record<string, boolean>>({})
 /** Menge zum Herausnehmen aus Behälter (Pfeil + Eingabe), Schlüssel containerId:itemId */
 const containerPullQtyInputs = ref<Record<string, number>>({})
 /** Gepackt → Am Event: Teilmenge aus Behälterzeile ins Event (Schlüssel wie pull) */
@@ -1972,9 +1753,17 @@ function peekSectionTitles() {
   }
 }
 
+function shellCrateCheckDoneForPackItem(packItemId: string): boolean {
+  return Boolean(activityCrateCheckSnapshots.value[packItemId])
+}
+
+/** Kistencheck einmal pro Aktivität: bei «Bestätigt → Gepackt» oder «Gepackt → Am Event». */
 function needsShellCratePresenceConfirm(pi: ActivityPackItem): boolean {
-  if (activePackStage.value !== 'packed_issued') return false
-  return isCrateShellPackItem(pi, packContainers.value)
+  const stage = activePackStage.value
+  if (stage !== 'confirmed_packed' && stage !== 'packed_issued') return false
+  if (!isCrateShellPackItem(pi, packContainers.value)) return false
+  if (shellCrateCheckDoneForPackItem(pi.id)) return false
+  return true
 }
 
 function closeShellForwardModal() {
@@ -1985,11 +1774,15 @@ function closeShellForwardModal() {
 async function openShellCrateForwardModal(item: ActivityPackItem, moveQty: number) {
   shellForwardItem.value = item
   shellForwardMoveQty.value = moveQty
+  const shellC = packShellContainerForPackItem(item, packContainers.value)
+  const warehouseMids = shellC
+    ? containerWarehouseTemplateByContainerId.value[shellC.id]
+    : undefined
   shellForwardSections.value = crateShellForwardPeekSections(
     item,
     packContainers.value,
     containerItemsByContainerId.value,
-    undefined,
+    warehouseMids,
     peekSectionTitles(),
     t('activities.common.material'),
   )
@@ -2047,6 +1840,7 @@ async function onShellForwardSubmit(payload: PackCrateCheckRequest) {
       toast.error(t('activities.packList.shellForwardCheckFailed'))
       return
     }
+    await refreshCrateCheckSnapshots()
     closeShellForwardModal()
     await executeMoveToNextStage(item, qty)
     if (payload.result === 'ok') {
@@ -2075,6 +1869,184 @@ function onShellForwardRepackReview(issueId: string, status: 'ok' | 'problem') {
     ...shellForwardRepackIssueReviews.value,
     [issueId]: status,
   }
+}
+
+/** Retour: Kisten-Shell zurück (Gepackt ← Am Event) */
+const shellBackModalOpen = ref(false)
+const shellBackItem = ref<ActivityPackItem | null>(null)
+const shellBackMoveQty = ref(0)
+const shellBackAcknowledged = ref(false)
+const shellBackSubmitting = ref(false)
+
+const shellBackLabel = computed(() => {
+  const pi = shellBackItem.value
+  if (!pi) return ''
+  const c = packShellContainerForPackItem(pi, packContainers.value)
+  return (c?.label ?? pi.materialName).trim() || pi.materialName
+})
+
+const shellBackFromLabel = computed(() => activeStageConfig.value.leftLabel)
+const shellBackToLabel = computed(() => {
+  if (activePackStage.value === 'packed_issued') {
+    return t('activities.packList.stages.confirmed_packed.left')
+  }
+  return activeStageConfig.value.rightLabel
+})
+
+const shellBackPeekSections = computed((): PackCrateShellPeekSection[] => {
+  const pi = shellBackItem.value
+  if (!pi) return []
+  return crateShellPeekSectionsForPackItem(
+    pi,
+    packContainers.value,
+    containerItemsByContainerId.value,
+    containerWarehouseTemplateByContainerId.value,
+    peekSectionTitles(),
+    t('activities.common.material'),
+    activityCrateCheckSnapshots.value,
+    true,
+  )
+})
+
+const shellBackDeviations = computed(() => {
+  const pi = shellBackItem.value
+  if (!pi) return []
+  return buildShellCrateBackDeviations(activityCrateCheckSnapshots.value[pi.id], t)
+})
+
+const shellBackLastCheckDateLabel = computed(() => {
+  const pi = shellBackItem.value
+  if (!pi) return null
+  const snap = activityCrateCheckSnapshots.value[pi.id]
+  if (!snap?.created_at) return null
+  return new Date(snap.created_at).toLocaleString(locale.value)
+})
+
+function isPackContainerCollapsed(containerId: string): boolean {
+  return Boolean(collapsedPackContainers.value[containerId])
+}
+
+function useCrateRealityForPackItem(packItemId: string): boolean {
+  return useCrateRealityByPackItemId.value[packItemId] !== false
+}
+
+function peekSectionsForShellContainerCtx(c: ActivityPackContainer): PackCrateShellPeekSection[] {
+  return peekSectionsForShellContainer(
+    c,
+    containerItemsByContainerId.value,
+    containerWarehouseTemplateByContainerId.value,
+    peekSectionTitles(),
+    t('activities.common.material'),
+  )
+}
+
+function isPackContainerSubsectionCollapsed(containerId: string, subsectionKey: string): boolean {
+  const k = `${containerId}:${subsectionKey}`
+  return collapsedPackContainerSubsections.value[k] !== false
+}
+
+function togglePackContainerSubsection(containerId: string, subsectionKey: string) {
+  const k = `${containerId}:${subsectionKey}`
+  collapsedPackContainerSubsections.value = {
+    ...collapsedPackContainerSubsections.value,
+    [k]: !isPackContainerSubsectionCollapsed(containerId, subsectionKey),
+  }
+}
+
+function packContainerItemSectionsForContainer(c: ActivityPackContainer) {
+  return packContainerItemSections(
+    c.id,
+    containerItemsByContainerId.value,
+    containerWarehouseTemplateByContainerId.value[c.id],
+    peekSectionTitles(),
+  )
+}
+
+function peekSectionsForShellPackItem(pi: ActivityPackItem): PackCrateShellPeekSection[] {
+  return crateShellPeekSectionsForPackItem(
+    pi,
+    packContainers.value,
+    containerItemsByContainerId.value,
+    containerWarehouseTemplateByContainerId.value,
+    peekSectionTitles(),
+    t('activities.common.material'),
+    activityCrateCheckSnapshots.value,
+    useCrateRealityByPackItemId.value[pi.id] !== false,
+  )
+}
+
+function crateShellPeekEmptyHint(pi: ActivityPackItem): string {
+  if (packShellContainerForPackItem(pi, packContainers.value)) {
+    return t('activities.packList.cratePeekEmptyLinkedCrate')
+  }
+  return t('activities.packList.cratePeekNoShellYet')
+}
+
+function showCrateTemplateToggle(pi: ActivityPackItem): boolean {
+  return Boolean(activityCrateCheckSnapshots.value[pi.id])
+}
+
+function crateRealityBannerForPackItem(pi: ActivityPackItem): string | null {
+  if (!showCrateTemplateToggle(pi)) return null
+  if (useCrateRealityByPackItemId.value[pi.id] === false) {
+    return t('activities.packList.cratePeekTemplateViewBanner')
+  }
+  return t('activities.packList.cratePeekRealityViewBanner')
+}
+
+function toggleCrateRealityView(pi: ActivityPackItem) {
+  const cur = useCrateRealityByPackItemId.value[pi.id] !== false
+  useCrateRealityByPackItemId.value = { ...useCrateRealityByPackItemId.value, [pi.id]: !cur }
+}
+
+function needsShellCrateBackConfirm(pi: ActivityPackItem): boolean {
+  if (activePackStage.value !== 'packed_issued') return false
+  return isCrateShellPackItem(pi, packContainers.value)
+}
+
+function closeShellBackModal() {
+  shellBackModalOpen.value = false
+  shellBackItem.value = null
+  shellBackAcknowledged.value = false
+}
+
+async function refreshCrateCheckSnapshots() {
+  try {
+    const history = await getActivityHistory(props.activityId)
+    activityCrateCheckSnapshots.value = indexLatestCrateCheckByPackItemId(history)
+  } catch {
+    activityCrateCheckSnapshots.value = {}
+  }
+}
+
+async function openShellCrateBackModal(item: ActivityPackItem, moveQty: number) {
+  await refreshCrateCheckSnapshots()
+  shellBackItem.value = item
+  shellBackMoveQty.value = moveQty
+  shellBackAcknowledged.value = false
+  shellBackModalOpen.value = true
+}
+
+async function onShellBackConfirm() {
+  const item = shellBackItem.value
+  const qty = shellBackMoveQty.value
+  if (!item || qty < 1) return
+  shellBackSubmitting.value = true
+  try {
+    closeShellBackModal()
+    await executeMoveToPrevStage(item, qty)
+  } finally {
+    shellBackSubmitting.value = false
+  }
+}
+
+function isPackContainerMerged(c: ActivityPackContainer): boolean {
+  return isPackContainerMergedIntoStageLeftRow(
+    c,
+    packContainers.value,
+    stageLeftItems.value,
+    activePackStage.value,
+  )
 }
 
 /** Behälter & lose/in-Behälter-Aufteilung auch bei «Gepackt → Am Event» (linkes «Gepackt» wie zuvor rechts) */
@@ -2137,6 +2109,15 @@ function containerItemCount(containerId: string): number {
   return (containerItemsByContainerId.value[containerId] ?? []).length
 }
 
+/** Kisten-Shell-Zeile im Behälter — nicht als lose Zeile ziehen */
+function isVirtualWarehouseContainerLine(ci: ActivityPackContainerItem): boolean {
+  for (const c of packContainers.value) {
+    const mid = (c.container_material_item_id ?? '').trim()
+    if (mid && ci.material_item_id === mid) return true
+  }
+  return false
+}
+
 /** Pack-Position der zugeordneten Kisten-Charge (Holzharassen o. ä.) — nicht in container_items, aber mitziehen */
 function shellPackItemForContainer(containerId: string): ActivityPackItem | undefined {
   const c = packContainers.value.find((x) => x.id === containerId)
@@ -2171,7 +2152,12 @@ function looseIssuedAtEvent(pi: ActivityPackItem): number {
 }
 
 function rightQtyForMoveBack(pi: ActivityPackItem): number {
-  if (activePackStage.value === 'packed_issued') return looseIssuedAtEvent(pi)
+  if (activePackStage.value === 'packed_issued') {
+    if (isCrateShellPackItem(pi, packContainers.value)) {
+      return getStageRightQty(pi)
+    }
+    return looseIssuedAtEvent(pi)
+  }
   return getStageRightQty(pi)
 }
 
@@ -2293,6 +2279,14 @@ function looseQtyStillAtEventForReturn(pi: ActivityPackItem): number {
 
 async function issueContainerToEvent(c: ActivityPackContainer) {
   if (containerBulkLoadingId.value) return
+  const shell = shellPackItemForContainer(c.id)
+  if (shell && needsShellCratePresenceConfirm(shell)) {
+    const max = packIssueForwardMax(shell)
+    if (max >= 1) {
+      await openShellCrateForwardModal(shell, max)
+    }
+    return
+  }
   containerBulkLoadingId.value = c.id
   try {
     await issueAllPackContainerItems(props.activityId, c.id)
@@ -2387,6 +2381,28 @@ function initContainerUnissueLineInputs(): void {
   containerUnissueLineInputs.value = next
 }
 
+async function loadWarehouseTemplatesForContainers(): Promise<void> {
+  const next: Record<string, Set<string>> = {}
+  await Promise.all(
+    packContainers.value.map(async (c) => {
+      const batchId = (c.container_batch_id ?? '').trim()
+      if (!batchId) return
+      try {
+        const data = await getContainerBatchContents(batchId)
+        const mids = new Set<string>()
+        for (const row of data.contents ?? []) {
+          const mid = (row.material_id ?? '').trim()
+          if (mid) mids.add(mid)
+        }
+        next[c.id] = mids
+      } catch {
+        /* Lager-Vorlage optional */
+      }
+    }),
+  )
+  containerWarehouseTemplateByContainerId.value = next
+}
+
 async function loadContainersData(): Promise<void> {
   try {
     const list = await getActivityPackContainers(props.activityId)
@@ -2398,12 +2414,14 @@ async function loadContainersData(): Promise<void> {
       }),
     )
     containerItemsByContainerId.value = map
+    await loadWarehouseTemplatesForContainers()
     initContainerPullQtyInputs()
     initContainerIssueLineInputs()
     initContainerUnissueLineInputs()
   } catch {
     packContainers.value = []
     containerItemsByContainerId.value = {}
+    containerWarehouseTemplateByContainerId.value = {}
     containerPullQtyInputs.value = {}
     containerIssueLineInputs.value = {}
     containerUnissueLineInputs.value = {}
@@ -2783,6 +2801,9 @@ function getStageTotalQty(item: ActivityPackItem): number {
 /** Max. Stück die links per Pfeil buchbar sind (nur lose bei Gepackt→Event / Event→Retour) */
 function packIssueForwardMax(pi: ActivityPackItem): number {
   if (activePackStage.value === 'packed_issued') {
+    if (isCrateShellPackItem(pi, packContainers.value)) {
+      return getStageLeftQty(pi)
+    }
     return Math.min(looseQtyForPackItem(pi), getStageLeftQty(pi))
   }
   if (activePackStage.value === 'issued_returned') {
@@ -2825,7 +2846,8 @@ const stageLeftItems = computed(() =>
       activePackStage.value === 'packed_issued' &&
       showPackContainersUi.value &&
       getStageLeftQty(p) > 0 &&
-      looseQtyForPackItem(p) <= 0
+      looseQtyForPackItem(p) <= 0 &&
+      !isCrateShellPackItem(p, packContainers.value)
     ) {
       return false
     }
@@ -2840,9 +2862,13 @@ const stageLeftItems = computed(() =>
   }),
 )
 
+const packContainersSortedWarehouseOnlyVisible = computed(() =>
+  packContainersSortedWarehouseOnly.value.filter((c) => !isPackContainerMerged(c)),
+)
+
 const stageLeftHeaderCount = computed(() => {
   if (activePackStage.value === 'packed_issued' && showPackContainersUi.value) {
-    return stageLeftItems.value.length + packContainersSortedWarehouseOnly.value.length
+    return stageLeftItems.value.length + packContainersSortedWarehouseOnlyVisible.value.length
   }
   if (activePackStage.value === 'issued_returned' && packContainers.value.length > 0) {
     return stageLeftItems.value.length + packContainersWithReturnableAtEvent.value.length
@@ -3104,10 +3130,21 @@ async function executeMoveToNextStage(item: ActivityPackItem, moveQty: number) {
   }
 }
 
-async function moveToPrevStage(item: ActivityPackItem) {
+async function moveToPrevStage(item: ActivityPackItem, qty?: number) {
   if (!props.packListEditable) return
-  const moveQty = moveBackQtyInputs.value[item.id] ?? rightQtyForMoveBack(item)
+  const moveQty = Math.min(
+    rightQtyForMoveBack(item),
+    qty ?? moveBackQtyInputs.value[item.id] ?? rightQtyForMoveBack(item),
+  )
   if (moveQty <= 0) return
+  if (needsShellCrateBackConfirm(item)) {
+    await openShellCrateBackModal(item, moveQty)
+    return
+  }
+  await executeMoveToPrevStage(item, moveQty)
+}
+
+async function executeMoveToPrevStage(item: ActivityPackItem, moveQty: number) {
   movingId.value = item.id
   try {
     const updated = await postMoveBackPackItem(props.activityId, item.id, {
@@ -3183,6 +3220,7 @@ async function loadAll() {
     activePackStage.value = autoPackStageForStatus(props.status)
     initMoveQtyInputs()
     await loadContainersData()
+    await refreshCrateCheckSnapshots()
   } catch (err: unknown) {
     const e = err as { response?: { data?: { error?: string } }; message?: string }
     loadError.value = e.response?.data?.error || e.message || t('activities.packList.toastLoadFailed')
@@ -3191,6 +3229,52 @@ async function loadAll() {
     loading.value = false
   }
 }
+
+provide(PACK_WAREHOUSE_ISSUE_INJECT_KEY, {
+  packListEditable: computed(() => props.packListEditable),
+  canReportIssues: computed(() => props.canReportIssues),
+  activePackTarget,
+  movingId,
+  containerBulkLoadingId,
+  containerMutationLoading,
+  containerItemsByContainerId,
+  containerPullQtyInputs,
+  containerIssueLineInputs,
+  containerUnissueLineInputs,
+  isPackContainerCollapsed,
+  isPackContainerSubsectionCollapsed,
+  togglePackContainerCollapsed,
+  togglePackContainerSubsection,
+  peekSectionsForShellPackItem,
+  peekSectionsForShellContainer: peekSectionsForShellContainerCtx,
+  crateShellPeekEmptyHint,
+  packIssueForwardMax,
+  moveToNextStage,
+  toggleActiveContainer,
+  containerItemCount,
+  containerUnissueableUnits,
+  containerIssueableUnits,
+  unissueContainerToPacked,
+  issueContainerToEvent,
+  isPackMaterialConsumable,
+  emitConsumptionForMaterialId,
+  emitIssueWizardByMaterialId,
+  packContainerItemSections: packContainerItemSectionsForContainer,
+  containerLineUnissueableMax,
+  containerLineIssueableMax,
+  unissueContainerLineToPacked,
+  containerIssueLineKey,
+  pullFromContainer,
+  containerPullKey,
+  isVirtualWarehouseContainerLine,
+  containerLineRemainingIssue,
+  containerLinePackRemaining,
+  issueContainerLineToEvent,
+  crateRealityBannerForPackItem,
+  showCrateTemplateToggle,
+  useCrateRealityForPackItem,
+  toggleCrateRealityView,
+})
 
 watch(
   () => [props.activityId, props.status] as const,
