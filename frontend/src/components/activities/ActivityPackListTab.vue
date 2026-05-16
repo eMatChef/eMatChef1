@@ -137,125 +137,43 @@
                   :shell-pack-item="pi"
                   :stage-right-label="activeStageConfig.rightLabel"
                 />
-                <div v-else class="pack-card">
-                  <div class="pack-card-main">
-                    <div class="pack-card-info">
-                      <div class="pack-card-name-block">
-                        <span class="pack-card-name">
-                          {{ pi.materialName }}
-                          <span
-                            v-if="pi.materialType === 'physical_combo'"
-                            class="pack-combo-badge"
-                            :title="t('activities.detail.comboPhysicalTitle')"
-                            >{{ t('activities.detail.comboPhysicalShort') }}</span
-                          >
-                          <span
-                            v-else-if="pi.materialType === 'virtual_combo'"
-                            class="pack-combo-badge pack-combo-badge--virtual"
-                            :title="t('activities.detail.comboVirtualTitle')"
-                            >{{ t('activities.detail.comboVirtualShort') }}</span
-                          >
-                          <span v-if="pi.isJsMaterial" class="mat-source-badge">{{ t('activities.common.jsBadge') }}</span>
-                        </span>
-                        <div v-if="pi.linkedContainerLabel" class="pack-card-kiste text-muted">
-                          {{ t('activities.packList.kisteLabel', { label: pi.linkedContainerLabel }) }}
-                        </div>
-                        <div v-if="pi.storageAddressName" class="pack-card-storage text-muted">
-                          {{ t('activities.packList.storageLabel', { name: pi.storageAddressName }) }}
-                        </div>
-                        <div
-                          v-if="activePackStage === 'confirmed_packed' && packRackLabel(pi)"
-                          class="pack-card-storage text-muted"
-                        >
-                          {{ t('activities.packList.rackLabel', { name: packRackLabel(pi) }) }}
-                        </div>
-                        <div v-if="pi.storageSlotName" class="pack-card-storage text-muted">{{ t('activities.packList.slotLabel', { name: pi.storageSlotName }) }}</div>
-                      </div>
-                      <span class="pack-card-detail">
-                        <template v-if="activePackStage === 'packed_issued' && getStageLeftQty(pi) > 0">
-                          <template v-if="looseQtyForPackItem(pi) > 0">
-                            <span>{{ t('activities.packList.loosePieces', { n: looseQtyForPackItem(pi) }) }}</span>
-                            <span v-if="qtyInContainersForItem(pi) > 0" class="text-muted">
-                              {{ t('activities.packList.inContainers', { n: qtyInContainersForItem(pi) }) }}
-                            </span>
-                          </template>
-                          <template v-else>
-                            <span class="text-muted">{{ t('activities.packList.allInContainers') }}</span>
-                          </template>
-                          <span class="text-muted pack-card-detail-fraction">
-                            {{
-                              t('activities.packList.notYetStage', {
-                                left: getStageLeftQty(pi),
-                                total: getStageTotalQty(pi),
-                                stage: activeStageConfig.rightLabel,
-                              })
-                            }}
-                          </span>
-                        </template>
-                        <template v-else>
-                          {{ getStageLeftQty(pi) }} / {{ getStageTotalQty(pi) }}
-                        </template>
-                      </span>
-                      <div
-                        v-if="canReportIssues && activePackStage === 'issued_returned'"
-                        class="pack-card-issue-quick-row"
-                      >
-                        <template v-if="pi.isConsumable">
-                          <button
-                            type="button"
-                            class="btn-issue-quick btn-issue-consumed"
-                            @click.stop="emitConsumptionFromPackItem(pi)"
-                          >
-                            {{ t('activities.common.issueConsumed') }}
-                          </button>
-                        </template>
-                        <template v-else>
-                          <button
-                            type="button"
-                            class="btn-issue-quick btn-issue-loss"
-                            @click.stop="emitIssueWizard(pi, 'loss')"
-                          >
-                            {{ t('activities.common.issueLoss') }}
-                          </button>
-                          <button
-                            type="button"
-                            class="btn-issue-quick btn-issue-repair"
-                            @click.stop="emitIssueWizard(pi, 'repair')"
-                          >
-                            {{ t('activities.common.issueRepair') }}
-                          </button>
-                        </template>
-                      </div>
-                    </div>
-                    <div
+                <PackMaterialRow
+                  v-else
+                  :item="pi"
+                  :show-rack="activePackStage === 'confirmed_packed'"
+                >
+                  <template #detail>
+                    <PackMaterialRowDetail
+                      :item="pi"
+                      :stage="activePackStage"
+                      :stage-right-label="activeStageConfig.rightLabel"
+                      side="left"
+                      :loose-qty="looseQtyForPackItem(pi)"
+                      :qty-in-containers="qtyInContainersForItem(pi)"
+                    />
+                  </template>
+                  <template #info-extra>
+                    <PackIssueQuickActions
+                      v-if="canReportIssues && activePackStage === 'issued_returned'"
+                      :is-consumable="pi.isConsumable"
+                      @consumed="emitConsumptionFromPackItem(pi)"
+                      @loss="emitIssueWizard(pi, 'loss')"
+                      @repair="emitIssueWizard(pi, 'repair')"
+                    />
+                  </template>
+                  <template #trailing>
+                    <PackMoveControls
                       v-if="packListEditable && (activePackStage !== 'packed_issued' || packIssueForwardMax(pi) > 0)"
-                      class="pack-card-actions"
-                    >
-                      <div class="pack-move-inline">
-                        <input
-                          v-model.number="moveQtyInputs[pi.id]"
-                          type="number"
-                          min="1"
-                          :max="packIssueForwardMax(pi)"
-                          class="pack-move-input"
-                          @keyup.enter="moveToNextStage(pi)"
-                        />
-                        <button
-                          type="button"
-                          class="btn-move-arrow"
-                          :disabled="movingId === pi.id"
-                          :title="t('activities.packList.titleMoveTo', { stage: activeStageConfig.rightLabel })"
-                          @click="moveToNextStage(pi)"
-                        >
-                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                            <path d="M5 12h14" />
-                            <polyline points="12 5 19 12 12 19" />
-                          </svg>
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
+                      direction="forward"
+                      :qty="moveQtyInputs[pi.id] ?? 0"
+                      :max="packIssueForwardMax(pi)"
+                      :disabled="movingId === pi.id"
+                      :forward-title="t('activities.packList.titleMoveTo', { stage: activeStageConfig.rightLabel })"
+                      @update:qty="setMoveQtyForItem(pi.id, $event)"
+                      @move="moveToNextStage(pi)"
+                    />
+                  </template>
+                </PackMaterialRow>
                 </template>
               </div>
             </div>
@@ -832,100 +750,42 @@
                     <span class="pack-group-toggle">{{ collapsedGroups['evt-loose-cat-' + g.categoryName] ? '▶' : '▼' }}</span>
                   </div>
                   <div v-if="!collapsedGroups['evt-loose-cat-' + g.categoryName]" class="pack-group-items">
-                    <div v-for="pi in g.items" :key="'evt-pi-' + pi.id" class="pack-card">
-                      <div class="pack-card-main">
-                        <div v-if="packListEditable" class="pack-card-actions pack-card-actions-left">
-                          <button
-                            type="button"
-                            class="btn-moveback-arrow"
-                            :disabled="movingId === pi.id"
-                            :title="t('activities.common.backTitle')"
-                            @click="moveToPrevStage(pi)"
-                          >
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                              <path d="M19 12H5" />
-                              <polyline points="12 19 5 12 12 5" />
-                            </svg>
-                          </button>
-                          <input
-                            v-model.number="moveBackQtyInputs[pi.id]"
-                            type="number"
-                            min="1"
-                            :max="rightQtyForMoveBack(pi)"
-                            class="pack-moveback-input"
-                            @keyup.enter="moveToPrevStage(pi)"
-                          />
-                        </div>
-                        <div class="pack-card-info">
-                          <div class="pack-card-name-block">
-                            <span class="pack-card-name">
-                              {{ pi.materialName }}
-                              <span
-                                v-if="pi.materialType === 'physical_combo'"
-                                class="pack-combo-badge"
-                                :title="t('activities.detail.comboPhysicalTitle')"
-                                >{{ t('activities.detail.comboPhysicalShort') }}</span
-                              >
-                              <span
-                                v-else-if="pi.materialType === 'virtual_combo'"
-                                class="pack-combo-badge pack-combo-badge--virtual"
-                                :title="t('activities.detail.comboVirtualTitle')"
-                                >{{ t('activities.detail.comboVirtualShort') }}</span
-                              >
-                              <span v-if="pi.isJsMaterial" class="mat-source-badge">{{ t('activities.common.jsBadge') }}</span>
-                            </span>
-                            <div v-if="pi.linkedContainerLabel" class="pack-card-kiste text-muted">
-                              {{ t('activities.packList.kisteLabel', { label: pi.linkedContainerLabel }) }}
-                            </div>
-                            <div v-if="pi.storageAddressName" class="pack-card-storage text-muted">
-                              {{ t('activities.packList.storageLabel', { name: pi.storageAddressName }) }}
-                            </div>
-                            <div v-if="pi.storageSlotName" class="pack-card-storage text-muted">{{ t('activities.packList.slotLabel', { name: pi.storageSlotName }) }}</div>
-                          </div>
-                          <div class="pack-card-detail-stack">
-                            <span class="pack-card-detail">
-                              {{
-                                t('activities.packList.issuedFraction', {
-                                  issued: getStageRightQty(pi),
-                                  packed: getStageTotalQty(pi),
-                                  stage: activeStageConfig.rightLabel,
-                                })
-                              }}
-                            </span>
-                          </div>
-                          <div
-                            v-if="canReportIssues && activePackStage === 'packed_issued'"
-                            class="pack-card-issue-quick-row"
-                          >
-                            <template v-if="pi.isConsumable">
-                              <button
-                                type="button"
-                                class="btn-issue-quick btn-issue-consumed"
-                                @click.stop="emitConsumptionFromPackItem(pi)"
-                              >
-                                {{ t('activities.common.issueConsumed') }}
-                              </button>
-                            </template>
-                            <template v-else>
-                              <button
-                                type="button"
-                                class="btn-issue-quick btn-issue-loss"
-                                @click.stop="emitIssueWizard(pi, 'loss')"
-                              >
-                                {{ t('activities.common.issueLoss') }}
-                              </button>
-                              <button
-                                type="button"
-                                class="btn-issue-quick btn-issue-repair"
-                                @click.stop="emitIssueWizard(pi, 'repair')"
-                              >
-                                {{ t('activities.common.issueRepair') }}
-                              </button>
-                            </template>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
+                    <PackMaterialRow
+                      v-for="pi in g.items"
+                      :key="'evt-pi-' + pi.id"
+                      :item="pi"
+                    >
+                      <template #leading>
+                        <PackMoveControls
+                          v-if="packListEditable"
+                          direction="back"
+                          :qty="moveBackQtyInputs[pi.id] ?? 0"
+                          :max="rightQtyForMoveBack(pi)"
+                          :disabled="movingId === pi.id"
+                          :back-title="t('activities.common.backTitle')"
+                          @update:qty="setMoveBackQtyForItem(pi.id, $event)"
+                          @move="moveToPrevStage(pi)"
+                        />
+                      </template>
+                      <template #detail>
+                        <PackMaterialRowDetail
+                          :item="pi"
+                          :stage="activePackStage"
+                          :stage-right-label="activeStageConfig.rightLabel"
+                          side="right"
+                          use-detail-stack
+                        />
+                      </template>
+                      <template #info-extra>
+                        <PackIssueQuickActions
+                          v-if="canReportIssues && activePackStage === 'packed_issued'"
+                          :is-consumable="pi.isConsumable"
+                          @consumed="emitConsumptionFromPackItem(pi)"
+                          @loss="emitIssueWizard(pi, 'loss')"
+                          @repair="emitIssueWizard(pi, 'repair')"
+                        />
+                      </template>
+                    </PackMaterialRow>
                   </div>
                 </div>
               </div>
@@ -967,105 +827,66 @@
                       }}</span>
                     </div>
                     <div v-if="!collapsedGroups[ohneCatCollapseKey(cat.categoryName)]" class="pack-group-items">
-                      <div v-for="pi in cat.items" :key="pi.id" class="pack-card">
-                        <div class="pack-card-main">
-                          <div v-if="packListEditable" class="pack-card-actions pack-card-actions-left">
-                            <button
-                              type="button"
-                              class="btn-moveback-arrow"
-                              :disabled="movingId === pi.id"
-                              :title="t('activities.common.backTitle')"
-                              @click="moveToPrevStage(pi)"
-                            >
-                              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                                <path d="M19 12H5" />
-                                <polyline points="12 19 5 12 12 5" />
-                              </svg>
-                            </button>
-                            <input
-                              v-model.number="moveBackQtyInputs[pi.id]"
-                              type="number"
-                              min="1"
-                              :max="rightQtyForMoveBack(pi)"
-                              class="pack-moveback-input"
-                              @keyup.enter="moveToPrevStage(pi)"
-                            />
-                          </div>
-                          <div class="pack-card-info">
-                            <div class="pack-card-name-block">
-                              <span class="pack-card-name">
-                                {{ pi.materialName }}
-                                <span
-                                  v-if="pi.materialType === 'physical_combo'"
-                                  class="pack-combo-badge"
-                                  :title="t('activities.detail.comboPhysicalTitle')"
-                                  >{{ t('activities.detail.comboPhysicalShort') }}</span
-                                >
-                                <span
-                                  v-else-if="pi.materialType === 'virtual_combo'"
-                                  class="pack-combo-badge pack-combo-badge--virtual"
-                                  :title="t('activities.detail.comboVirtualTitle')"
-                                  >{{ t('activities.detail.comboVirtualShort') }}</span
-                                >
-                                <span v-if="pi.isJsMaterial" class="mat-source-badge">{{ t('activities.common.jsBadge') }}</span>
-                              </span>
-                              <div v-if="pi.linkedContainerLabel" class="pack-card-kiste text-muted">
-                                {{ t('activities.packList.kisteLabel', { label: pi.linkedContainerLabel }) }}
-                              </div>
-                              <div v-if="pi.storageAddressName" class="pack-card-storage text-muted">
-                                {{ t('activities.packList.storageLabel', { name: pi.storageAddressName }) }}
-                              </div>
-                              <div
-                                v-if="activePackStage === 'confirmed_packed' && packRackLabel(pi)"
-                                class="pack-card-storage text-muted"
-                              >
-                                {{ t('activities.packList.rackLabel', { name: packRackLabel(pi) }) }}
-                              </div>
-                              <div v-if="pi.storageSlotName" class="pack-card-storage text-muted">{{ t('activities.packList.slotLabel', { name: pi.storageSlotName }) }}</div>
-                            </div>
-                            <div class="pack-card-detail-stack">
-                              <span class="pack-card-detail">
-                                <template v-if="activePackStage === 'confirmed_packed'">
-                                  <template v-if="getStageRightQty(pi) > 0">
-                                    <span>{{ t('activities.packList.loosePieces', { n: looseQtyForPackItem(pi) }) }}</span>
-                                    <span v-if="qtyInContainersForItem(pi) > 0" class="text-muted">
-                                      {{ t('activities.packList.inContainers', { n: qtyInContainersForItem(pi) }) }}
-                                    </span>
-                                  </template>
-                                  <span v-else class="text-muted">{{ t('activities.packList.zeroPieces') }}</span>
-                                </template>
-                                <template v-else>
-                                  {{
-                                    t('activities.packList.issuedFraction', {
-                                      issued: looseIssuedAtEvent(pi),
-                                      packed: getStageTotalQty(pi),
-                                      stage: activeStageConfig.rightLabel,
-                                    })
-                                  }}
-                                </template>
-                              </span>
-                              <button
-                                v-if="
-                                  packListEditable &&
-                                  activePackStage === 'confirmed_packed' &&
-                                  looseQtyForPackItem(pi) > 0 &&
-                                  packContainers.length > 0 &&
-                                  !isCrateShellPackItem(pi, packContainers)
-                                "
-                                type="button"
-                                class="btn btn-xs btn-outline pack-assign-btn"
-                                :disabled="containerMutationLoading"
-                                @click="onAssignButtonClick(pi)"
-                              >
-                                {{ t('activities.packList.assignToContainer') }}
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                        </div>
-                      </div>
+                      <PackMaterialRow
+                        v-for="pi in cat.items"
+                        :key="pi.id"
+                        :item="pi"
+                                            :show-rack="activePackStage === 'confirmed_packed'"
+                                          >
+                                            <template #leading>
+                                              <PackMoveControls
+                                                v-if="packListEditable"
+                                                direction="back"
+                                                :qty="moveBackQtyInputs[pi.id] ?? 0"
+                                                :max="rightQtyForMoveBack(pi)"
+                                                :disabled="movingId === pi.id"
+                                                :back-title="t('activities.common.backTitle')"
+                                                @update:qty="setMoveBackQtyForItem(pi.id, $event)"
+                                                @move="moveToPrevStage(pi)"
+                                              />
+                                            </template>
+                                            <template #detail>
+                                              <PackMaterialRowDetail
+                                                :item="pi"
+                                                :stage="activePackStage"
+                                                :stage-right-label="activeStageConfig.rightLabel"
+                                                side="right"
+                                                :loose-qty="looseQtyForPackItem(pi)"
+                                                :qty-in-containers="qtyInContainersForItem(pi)"
+                                                :loose-issued-at-event="looseIssuedAtEvent(pi)"
+                                                use-detail-stack
+                                              >
+                                                <button
+                                                  v-if="
+                                                    packListEditable &&
+                                                    activePackStage === 'confirmed_packed' &&
+                                                    looseQtyForPackItem(pi) > 0 &&
+                                                    packContainers.length > 0 &&
+                                                    !isCrateShellPackItem(pi, packContainers)
+                                                  "
+                                                  type="button"
+                                                  class="btn btn-xs btn-outline pack-assign-btn"
+                                                  :disabled="containerMutationLoading"
+                                                  @click="onAssignButtonClick(pi)"
+                                                >
+                                                  {{ t('activities.packList.assignToContainer') }}
+                                                </button>
+                                              </PackMaterialRowDetail>
+                                            </template>
+                                            <template #info-extra>
+                                              <PackIssueQuickActions
+                                                v-if="canReportIssues && activePackStage === 'packed_issued'"
+                                                :is-consumable="pi.isConsumable"
+                                                @consumed="emitConsumptionFromPackItem(pi)"
+                                                @loss="emitIssueWizard(pi, 'loss')"
+                                                @repair="emitIssueWizard(pi, 'repair')"
+                                              />
+                                            </template>
+                      </PackMaterialRow>
                     </div>
                   </div>
+                </div>
+              </div>
 
               <div v-if="loosePackItemsPartial.length > 0" class="pack-group">
                 <div class="pack-group-header pack-group-header-done" @click="toggleGroup('r-loose-partial')">
@@ -1073,132 +894,62 @@
                   <span class="pack-group-toggle">{{ collapsedGroups['r-loose-partial'] ? '▶' : '▼' }}</span>
                 </div>
                 <div v-if="!collapsedGroups['r-loose-partial']" class="pack-group-items">
-                  <div v-for="pi in loosePackItemsPartial" :key="'lp-' + pi.id" class="pack-card">
-                    <div class="pack-card-main">
-                      <div v-if="packListEditable" class="pack-card-actions pack-card-actions-left">
-                        <button
-                          type="button"
-                          class="btn-moveback-arrow"
-                          :disabled="movingId === pi.id"
-                          :title="t('activities.common.backTitle')"
-                          @click="moveToPrevStage(pi)"
-                        >
-                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                            <path d="M19 12H5" />
-                            <polyline points="12 19 5 12 12 5" />
-                          </svg>
-                        </button>
-                        <input
-                          v-model.number="moveBackQtyInputs[pi.id]"
-                          type="number"
-                          min="1"
-                          :max="rightQtyForMoveBack(pi)"
-                          class="pack-moveback-input"
-                          @keyup.enter="moveToPrevStage(pi)"
-                        />
-                      </div>
-                      <div class="pack-card-info">
-                        <div class="pack-card-name-block">
-                          <span class="pack-card-name">
-                            {{ pi.materialName }}
-                            <span
-                              v-if="pi.materialType === 'physical_combo'"
-                              class="pack-combo-badge"
-                              :title="t('activities.detail.comboPhysicalTitle')"
-                              >{{ t('activities.detail.comboPhysicalShort') }}</span
-                            >
-                            <span
-                              v-else-if="pi.materialType === 'virtual_combo'"
-                              class="pack-combo-badge pack-combo-badge--virtual"
-                              :title="t('activities.detail.comboVirtualTitle')"
-                              >{{ t('activities.detail.comboVirtualShort') }}</span
-                            >
-                            <span v-if="pi.isJsMaterial" class="mat-source-badge">{{ t('activities.common.jsBadge') }}</span>
-                          </span>
-                          <div v-if="pi.linkedContainerLabel" class="pack-card-kiste text-muted">
-                            {{ t('activities.packList.kisteLabel', { label: pi.linkedContainerLabel }) }}
-                          </div>
-                          <div v-if="pi.storageAddressName" class="pack-card-storage text-muted">
-                            {{ t('activities.packList.storageLabel', { name: pi.storageAddressName }) }}
-                          </div>
-                          <div
-                            v-if="activePackStage === 'confirmed_packed' && packRackLabel(pi)"
-                            class="pack-card-storage text-muted"
-                          >
-                            {{ t('activities.packList.rackLabel', { name: packRackLabel(pi) }) }}
-                          </div>
-                          <div v-if="pi.storageSlotName" class="pack-card-storage text-muted">{{ t('activities.packList.slotLabel', { name: pi.storageSlotName }) }}</div>
-                        </div>
-                        <div class="pack-card-detail-stack">
-                          <span class="pack-card-detail">
-                            <template v-if="activePackStage === 'confirmed_packed'">
-                              <template v-if="getStageRightQty(pi) > 0">
-                                <span>{{ t('activities.packList.loosePieces', { n: looseQtyForPackItem(pi) }) }}</span>
-                                <span v-if="qtyInContainersForItem(pi) > 0" class="text-muted">
-                                  {{ t('activities.packList.inContainers', { n: qtyInContainersForItem(pi) }) }}
-                                </span>
-                              </template>
-                              <span v-else class="text-muted">{{ t('activities.packList.zeroPieces') }}</span>
-                            </template>
-                            <template v-else>
-                              {{
-                                t('activities.packList.issuedFraction', {
-                                  issued: looseIssuedAtEvent(pi),
-                                  packed: getStageTotalQty(pi),
-                                  stage: activeStageConfig.rightLabel,
-                                })
-                              }}
-                            </template>
-                          </span>
-                          <button
-                            v-if="
-                              packListEditable &&
-                              activePackStage === 'confirmed_packed' &&
-                              looseQtyForPackItem(pi) > 0 &&
-                              packContainers.length > 0 &&
-                              !isCrateShellPackItem(pi, packContainers)
-                            "
-                            type="button"
-                            class="btn btn-xs btn-outline pack-assign-btn"
-                            :disabled="containerMutationLoading"
-                            @click="onAssignButtonClick(pi)"
-                          >
-                            {{ t('activities.packList.assignToContainer') }}
-                          </button>
-                        </div>
-                        <div
-                          v-if="canReportIssues && activePackStage === 'packed_issued'"
-                          class="pack-card-issue-quick-row"
-                        >
-                          <template v-if="pi.isConsumable">
-                            <button
-                              type="button"
-                              class="btn-issue-quick btn-issue-consumed"
-                              @click.stop="emitConsumptionFromPackItem(pi)"
-                            >
-                              {{ t('activities.common.issueConsumed') }}
-                            </button>
-                          </template>
-                          <template v-else>
-                            <button
-                              type="button"
-                              class="btn-issue-quick btn-issue-loss"
-                              @click.stop="emitIssueWizard(pi, 'loss')"
-                            >
-                              {{ t('activities.common.issueLoss') }}
-                            </button>
-                            <button
-                              type="button"
-                              class="btn-issue-quick btn-issue-repair"
-                              @click.stop="emitIssueWizard(pi, 'repair')"
-                            >
-                              {{ t('activities.common.issueRepair') }}
-                            </button>
-                          </template>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
+                  <PackMaterialRow
+                    v-for="pi in loosePackItemsPartial"
+                    :key="'lp-' + pi.id"
+                    :item="pi"
+                    :show-rack="activePackStage === 'confirmed_packed'"
+                  >
+                                        <template #leading>
+                                          <PackMoveControls
+                                            v-if="packListEditable"
+                                            direction="back"
+                                            :qty="moveBackQtyInputs[pi.id] ?? 0"
+                                            :max="rightQtyForMoveBack(pi)"
+                                            :disabled="movingId === pi.id"
+                                            :back-title="t('activities.common.backTitle')"
+                                            @update:qty="setMoveBackQtyForItem(pi.id, $event)"
+                                            @move="moveToPrevStage(pi)"
+                                          />
+                                        </template>
+                                        <template #detail>
+                                          <PackMaterialRowDetail
+                                            :item="pi"
+                                            :stage="activePackStage"
+                                            :stage-right-label="activeStageConfig.rightLabel"
+                                            side="right"
+                                            :loose-qty="looseQtyForPackItem(pi)"
+                                            :qty-in-containers="qtyInContainersForItem(pi)"
+                                            :loose-issued-at-event="looseIssuedAtEvent(pi)"
+                                            use-detail-stack
+                                          >
+                                            <button
+                                              v-if="
+                                                packListEditable &&
+                                                activePackStage === 'confirmed_packed' &&
+                                                looseQtyForPackItem(pi) > 0 &&
+                                                packContainers.length > 0 &&
+                                                !isCrateShellPackItem(pi, packContainers)
+                                              "
+                                              type="button"
+                                              class="btn btn-xs btn-outline pack-assign-btn"
+                                              :disabled="containerMutationLoading"
+                                              @click="onAssignButtonClick(pi)"
+                                            >
+                                              {{ t('activities.packList.assignToContainer') }}
+                                            </button>
+                                          </PackMaterialRowDetail>
+                                        </template>
+                                        <template #info-extra>
+                                          <PackIssueQuickActions
+                                            v-if="canReportIssues && activePackStage === 'packed_issued'"
+                                            :is-consumable="pi.isConsumable"
+                                            @consumed="emitConsumptionFromPackItem(pi)"
+                                            @loss="emitIssueWizard(pi, 'loss')"
+                                            @repair="emitIssueWizard(pi, 'repair')"
+                                          />
+                                        </template>
+                  </PackMaterialRow>
                 </div>
               </div>
             </div>
@@ -1466,6 +1217,21 @@ import {
   type PackCrateCheckRequest,
 } from '@/api/activityPackCrateCheck'
 import PackCrateShellBackModal from '@/components/activities/PackCrateShellBackModal.vue'
+import PackIssueQuickActions from '@/components/activities/PackIssueQuickActions.vue'
+import PackMaterialRow from '@/components/activities/PackMaterialRow.vue'
+import PackMaterialRowDetail from '@/components/activities/PackMaterialRowDetail.vue'
+import PackMoveControls from '@/components/activities/PackMoveControls.vue'
+import {
+  type PackStage,
+  PACK_STAGE_KEYS,
+  autoPackStageForStatus,
+  getBackendStage as computeBackendStage,
+  getStageLeftQty as computeStageLeftQty,
+  getStageRightQty as computeStageRightQty,
+  getStageTotalQty as computeStageTotalQty,
+  groupActivityPackItemsByCategory,
+  workflowTargetStatusForStage,
+} from '@/components/activities/packStageQuantities'
 import PackCrateShellForwardModal from '@/components/activities/PackCrateShellForwardModal.vue'
 import PackCrateShellPackItemRow from '@/components/activities/PackCrateShellPackItemRow.vue'
 import PackWarehouseIssueContainerCard from '@/components/activities/PackWarehouseIssueContainerCard.vue'
@@ -1614,10 +1380,6 @@ function shellMaterialIdForContainer(containerId: string): string | null {
   const id = shellPackItemForContainer(containerId)?.materialItemId
   return id ?? null
 }
-
-type PackStage = 'confirmed_packed' | 'packed_issued' | 'issued_returned'
-
-const PACK_STAGE_KEYS: PackStage[] = ['confirmed_packed', 'packed_issued', 'issued_returned']
 
 const packItems = ref<ActivityPackItem[]>([])
 const loading = ref(true)
@@ -2753,49 +2515,16 @@ const canInitPackList = computed(
   () => props.packListEditable && props.status === 'packing' && packItems.value.length === 0,
 )
 
-function autoPackStageForStatus(status: string): PackStage {
-  if (status === 'packed') return 'packed_issued'
-  if (status === 'issued' || status === 'returned') return 'issued_returned'
-  return 'confirmed_packed'
-}
-
 function getStageLeftQty(item: ActivityPackItem): number {
-  switch (activePackStage.value) {
-    case 'confirmed_packed':
-      return item.quantityOrdered - item.quantityPacked
-    case 'packed_issued':
-      return item.quantityPacked - item.quantityIssued
-    case 'issued_returned':
-      return item.quantityIssued - item.quantityReturned
-    default:
-      return 0
-  }
+  return computeStageLeftQty(item, activePackStage.value)
 }
 
 function getStageRightQty(item: ActivityPackItem): number {
-  switch (activePackStage.value) {
-    case 'confirmed_packed':
-      return item.quantityPacked
-    case 'packed_issued':
-      return item.quantityIssued
-    case 'issued_returned':
-      return item.quantityReturned
-    default:
-      return 0
-  }
+  return computeStageRightQty(item, activePackStage.value)
 }
 
 function getStageTotalQty(item: ActivityPackItem): number {
-  switch (activePackStage.value) {
-    case 'confirmed_packed':
-      return item.quantityOrdered
-    case 'packed_issued':
-      return item.quantityPacked
-    case 'issued_returned':
-      return item.quantityIssued
-    default:
-      return 0
-  }
+  return computeStageTotalQty(item, activePackStage.value)
 }
 
 /** Max. Stück die links per Pfeil buchbar sind (nur lose bei Gepackt→Event / Event→Retour) */
@@ -2918,38 +2647,16 @@ const jsWorkflowSummary = computed(() => {
   }
 })
 
-function workflowTargetStatusForStage(stage: PackStage, activityStatus: string): string | null {
-  if (stage === 'confirmed_packed') return 'packed'
-  if (stage === 'packed_issued') return 'issued'
-  if (stage === 'issued_returned') {
-    if (activityStatus === 'issued') return 'returned'
-    if (activityStatus === 'returned') return 'completed'
-  }
-  return null
-}
-
 const nextWorkflowTransition = computed(() => {
   const target = workflowTargetStatusForStage(activePackStage.value, props.status)
   if (!target) return null
   return props.transitions.find((t) => t.status === target && t.allowed) ?? null
 })
 
-interface PackGroup {
-  categoryName: string
-  items: ActivityPackItem[]
-}
-
-function groupPackItems(items: ActivityPackItem[]): PackGroup[] {
+function groupPackItems(items: ActivityPackItem[]) {
   void locale.value
-  const groups: Record<string, ActivityPackItem[]> = {}
-  for (const item of items) {
-    const cat = item.categoryName || t('activities.common.categoryOther')
-    if (!groups[cat]) groups[cat] = []
-    groups[cat].push(item)
-  }
-  return Object.entries(groups)
-    .sort(([a], [b]) => a.localeCompare(b, locale.value))
-    .map(([name, items]) => ({ categoryName: name, items }))
+  const grouped = groupActivityPackItemsByCategory(items, t('activities.common.categoryOther'))
+  return [...grouped].sort((a, b) => a.categoryName.localeCompare(b.categoryName, locale.value))
 }
 
 const groupsLeft = computed(() => {
@@ -3054,22 +2761,16 @@ function setStage(key: PackStage) {
   initMoveQtyInputs()
 }
 
-/** Gestell in der Packliste nur auf der Stufe «Bestätigt → Gepackt» */
-function packRackLabel(pi: ActivityPackItem): string {
-  return pi.storageRackName?.trim() || ''
+function getBackendStage(): PackMoveStage {
+  return computeBackendStage(activePackStage.value)
 }
 
-function getBackendStage(): PackMoveStage {
-  switch (activePackStage.value) {
-    case 'confirmed_packed':
-      return 'packed'
-    case 'packed_issued':
-      return 'issued'
-    case 'issued_returned':
-      return 'returned'
-    default:
-      return 'packed'
-  }
+function setMoveQtyForItem(itemId: string, qty: number) {
+  moveQtyInputs.value = { ...moveQtyInputs.value, [itemId]: qty }
+}
+
+function setMoveBackQtyForItem(itemId: string, qty: number) {
+  moveBackQtyInputs.value = { ...moveBackQtyInputs.value, [itemId]: qty }
 }
 
 function initMoveQtyInputs() {
