@@ -13,6 +13,7 @@ use App\Entity\User;
 use App\Controller\WorkshopController;
 use App\Service\ActivityAccessService;
 use App\Service\ActivityPackCrateCheckService;
+use App\Service\PackPipelineService;
 use App\Util\IdGenerator;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -34,6 +35,7 @@ class ActivityWorkflowController extends AbstractController
         private EntityManagerInterface $entityManager,
         private ActivityAccessService $activityAccess,
         private ActivityPackCrateCheckService $packCrateCheckService,
+        private PackPipelineService $packPipeline,
     ) {}
 
     // ═══════════════════════════════════════════════
@@ -296,12 +298,7 @@ class ActivityWorkflowController extends AbstractController
 
     /**
      * Pack-Position zur nächsten Stufe verschieben (Teilmenge möglich)
-     * Body: { "stage": "packed"|"issued"|"returned", "quantity": 5 }
-     * 
-     * Stufen-Logik:
-     * - "packed": quantity_packed += qty (max: quantity_ordered - quantity_packed)
-     * - "issued": quantity_issued += qty (max: quantity_packed - quantity_issued)
-     * - "returned": quantity_returned += qty (max: quantity_issued - quantity_returned)
+     * Body: { "stage": "packed"|"transport_to"|"at_event"|"issued"|"transport_back"|"returned", "quantity": 5 }
      */
     #[Route('/pack-items/{packItemId}/move', name: 'pack_items_move', methods: ['POST'])]
     #[IsGranted('ROLE_USER')]
@@ -318,45 +315,31 @@ class ActivityWorkflowController extends AbstractController
         }
 
         $data = json_decode($request->getContent(), true);
-        $stage = $data['stage'] ?? '';
+        $stage = $this->packPipeline->normalizeStage((string) ($data['stage'] ?? ''));
         $qty = max(0, (int)($data['quantity'] ?? 0));
+        $profile = $this->packPipeline->profileForActivityType($activity->getType());
 
         if ($qty === 0) {
             return new JsonResponse(['error' => 'Menge muss grösser als 0 sein'], 400);
         }
 
-        switch ($stage) {
-            case 'packed':
-                $maxAllowed = $packItem->getQuantityOrdered() - $packItem->getQuantityPacked();
-                if ($qty > $maxAllowed) {
-                    return new JsonResponse(['error' => "Maximal $maxAllowed verfügbar zum Packen"], 422);
-                }
-                $packItem->setQuantityPacked($packItem->getQuantityPacked() + $qty);
-                $packItem->setPackedAt(new \DateTime());
-                $user = $this->getUser();
-                if ($user instanceof User) {
-                    $packItem->setPackedByUser($user);
-                }
-                break;
+        if (!in_array($stage, PackPipelineService::allForwardStages(), true)) {
+            return new JsonResponse(['error' => 'Ungültige Stufe'], 400);
+        }
 
-            case 'issued':
-                $maxAllowed = $packItem->getQuantityPacked() - $packItem->getQuantityIssued();
-                if ($qty > $maxAllowed) {
-                    return new JsonResponse(['error' => "Maximal $maxAllowed verfügbar zur Ausgabe"], 422);
-                }
-                $packItem->setQuantityIssued($packItem->getQuantityIssued() + $qty);
-                break;
+        $maxAllowed = $this->packPipeline->maxForwardQty($packItem, $stage, $profile);
+        if ($qty > $maxAllowed) {
+            return new JsonResponse(['error' => "Maximal $maxAllowed verfügbar"], 422);
+        }
 
-            case 'returned':
-                $maxAllowed = $packItem->getQuantityIssued() - $packItem->getQuantityReturned();
-                if ($qty > $maxAllowed) {
-                    return new JsonResponse(['error' => "Maximal $maxAllowed verfügbar zur Rückgabe"], 422);
-                }
-                $packItem->setQuantityReturned($packItem->getQuantityReturned() + $qty);
-                break;
+        $this->packPipeline->applyForward($packItem, $stage, $qty, $profile);
 
-            default:
-                return new JsonResponse(['error' => 'Ungültige Stufe. Erlaubt: packed, issued, returned'], 400);
+        if ($stage === PackPipelineService::STAGE_PACKED) {
+            $packItem->setPackedAt(new \DateTime());
+            $user = $this->getUser();
+            if ($user instanceof User) {
+                $packItem->setPackedByUser($user);
+            }
         }
 
         $packItem->setUpdatedAt(new \DateTime());
@@ -369,12 +352,7 @@ class ActivityWorkflowController extends AbstractController
 
     /**
      * Pack-Position zur vorherigen Stufe zurückverschieben (Teilmenge möglich)
-     * Body: { "stage": "packed"|"issued"|"returned", "quantity": 5 }
-     * 
-     * Rückwärts-Logik:
-     * - "packed": quantity_packed -= qty (min: quantity_issued, da bereits ausgegebene nicht zurückgenommen werden können)
-     * - "issued": quantity_issued -= qty (min: quantity_returned)
-     * - "returned": quantity_returned -= qty (min: 0)
+     * Body: { "stage": "packed"|"transport_to"|"at_event"|"issued"|"transport_back"|"returned", "quantity": 5 }
      */
     #[Route('/pack-items/{packItemId}/moveback', name: 'pack_items_moveback', methods: ['POST'])]
     #[IsGranted('ROLE_USER')]
@@ -391,41 +369,23 @@ class ActivityWorkflowController extends AbstractController
         }
 
         $data = json_decode($request->getContent(), true);
-        $stage = $data['stage'] ?? '';
+        $stage = $this->packPipeline->normalizeStage((string) ($data['stage'] ?? ''));
         $qty = max(0, (int)($data['quantity'] ?? 0));
 
         if ($qty === 0) {
             return new JsonResponse(['error' => 'Menge muss grösser als 0 sein'], 400);
         }
 
-        switch ($stage) {
-            case 'packed':
-                $canRemove = $packItem->getQuantityPacked() - $packItem->getQuantityIssued();
-                if ($qty > $canRemove) {
-                    return new JsonResponse(['error' => "Maximal $canRemove können zurückgenommen werden (bereits $canRemove ausgegeben)"], 422);
-                }
-                $packItem->setQuantityPacked($packItem->getQuantityPacked() - $qty);
-                break;
-
-            case 'issued':
-                $canRemove = $packItem->getQuantityIssued() - $packItem->getQuantityReturned();
-                if ($qty > $canRemove) {
-                    return new JsonResponse(['error' => "Maximal $canRemove können zurückgenommen werden"], 422);
-                }
-                $packItem->setQuantityIssued($packItem->getQuantityIssued() - $qty);
-                break;
-
-            case 'returned':
-                $canRemove = $packItem->getQuantityReturned();
-                if ($qty > $canRemove) {
-                    return new JsonResponse(['error' => "Maximal $canRemove können zurückgenommen werden"], 422);
-                }
-                $packItem->setQuantityReturned($packItem->getQuantityReturned() - $qty);
-                break;
-
-            default:
-                return new JsonResponse(['error' => 'Ungültige Stufe. Erlaubt: packed, issued, returned'], 400);
+        if (!in_array($stage, PackPipelineService::allForwardStages(), true)) {
+            return new JsonResponse(['error' => 'Ungültige Stufe'], 400);
         }
+
+        $canRemove = $this->packPipeline->maxBackwardQty($packItem, $stage);
+        if ($qty > $canRemove) {
+            return new JsonResponse(['error' => "Maximal $canRemove können zurückgenommen werden"], 422);
+        }
+
+        $this->packPipeline->applyBackward($packItem, $stage, $qty);
 
         $packItem->setUpdatedAt(new \DateTime());
         $this->entityManager->flush();
@@ -517,10 +477,11 @@ class ActivityWorkflowController extends AbstractController
         }
 
         $data = json_decode($request->getContent(), true);
-        $stage = $data['stage'] ?? '';
+        $stage = $this->packPipeline->normalizeStage((string) ($data['stage'] ?? ''));
+        $profile = $this->packPipeline->profileForActivityType($activity->getType());
 
-        if (!in_array($stage, ['packed', 'issued', 'returned'])) {
-            return new JsonResponse(['error' => 'Ungültige Stufe. Erlaubt: packed, issued, returned'], 400);
+        if (!in_array($stage, PackPipelineService::allForwardStages(), true)) {
+            return new JsonResponse(['error' => 'Ungültige Stufe'], 400);
         }
 
         $packItems = $this->entityManager->getRepository(ActivityPackItem::class)
@@ -530,21 +491,14 @@ class ActivityWorkflowController extends AbstractController
         $moved = 0;
 
         foreach ($packItems as $packItem) {
-            $remaining = match ($stage) {
-                'packed' => $packItem->getQuantityOrdered() - $packItem->getQuantityPacked(),
-                'issued' => $packItem->getQuantityPacked() - $packItem->getQuantityIssued(),
-                'returned' => $packItem->getQuantityIssued() - $packItem->getQuantityReturned(),
-            };
+            $remaining = $this->packPipeline->maxForwardQty($packItem, $stage, $profile);
+            if ($remaining <= 0) {
+                continue;
+            }
 
-            if ($remaining <= 0) continue;
+            $this->packPipeline->applyForward($packItem, $stage, $remaining, $profile);
 
-            match ($stage) {
-                'packed' => $packItem->setQuantityPacked($packItem->getQuantityOrdered()),
-                'issued' => $packItem->setQuantityIssued($packItem->getQuantityPacked()),
-                'returned' => $packItem->setQuantityReturned($packItem->getQuantityIssued()),
-            };
-
-            if ($stage === 'packed') {
+            if ($stage === PackPipelineService::STAGE_PACKED) {
                 $packItem->setPackedAt(new \DateTime());
                 if ($user instanceof User) {
                     $packItem->setPackedByUser($user);
@@ -610,7 +564,7 @@ class ActivityWorkflowController extends AbstractController
         }
 
         // Meldungen können ab "issued" bis "returned" erstellt werden
-        if (!in_array($activity->getStatus(), [Activity::STATUS_ISSUED, Activity::STATUS_RETURNED])) {
+        if (!$activity->canReportIssues()) {
             return new JsonResponse(['error' => 'Meldungen können nur im Status "Ausgegeben" oder "Retour" erstellt werden'], 422);
         }
 
@@ -1091,7 +1045,9 @@ class ActivityWorkflowController extends AbstractController
             'pack_unit' => $mi->getPackUnit(),
             'quantity_ordered' => $item->getQuantityOrdered(),
             'quantity_packed' => $item->getQuantityPacked(),
+            'quantity_transport_to' => $item->getQuantityTransportTo(),
             'quantity_issued' => $item->getQuantityIssued(),
+            'quantity_transport_back' => $item->getQuantityTransportBack(),
             'quantity_returned' => $item->getQuantityReturned(),
             'condition_out' => $item->getConditionOut(),
             'batch_numbers' => $item->getBatchNumbers(),

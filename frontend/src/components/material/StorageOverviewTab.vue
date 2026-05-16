@@ -1912,14 +1912,23 @@ onMounted(() => { load() })
 .container-preview-line {
   display: flex;
   flex-wrap: wrap;
-  align-items: baseline;
-  gap: 6px 10px;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 4px 12px;
 }
 
 .container-preview-qty {
-  font-size: 12px;
-  color: #6b7280;
-  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  font-size: 13px;
+  color: #374151;
+  text-align: right;
+}
+
+.container-preview-qty .container-stored-tag {
+  display: block;
 }
 
 .container-more {

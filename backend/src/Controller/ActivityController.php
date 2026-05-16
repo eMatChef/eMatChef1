@@ -202,7 +202,7 @@ class ActivityController extends AbstractController
                     Activity::STATUS_APPROVED,
                     Activity::STATUS_PACKING,
                     Activity::STATUS_PACKED,
-                    Activity::STATUS_ISSUED,
+                    Activity::STATUS_AT_EVENT,
                     Activity::STATUS_RETURNED,
                 ]);
         } elseif ($tab === 'past') {
@@ -273,7 +273,7 @@ class ActivityController extends AbstractController
                     Activity::STATUS_APPROVED,
                     Activity::STATUS_PACKING,
                     Activity::STATUS_PACKED,
-                    Activity::STATUS_ISSUED,
+                    Activity::STATUS_AT_EVENT,
                     Activity::STATUS_RETURNED,
                 ]);
         } elseif ($tab === 'past') {
@@ -992,10 +992,13 @@ class ActivityController extends AbstractController
 
         $data = json_decode($request->getContent(), true);
         $newStatus = $data['status'] ?? null;
+        if ($newStatus === Activity::STATUS_ISSUED) {
+            $newStatus = Activity::STATUS_AT_EVENT;
+        }
         $comment = $data['comment'] ?? null;
 
         // 1. Gültiger Status?
-        if (!$newStatus || !in_array($newStatus, Activity::ALL_STATUSES)) {
+        if (!$newStatus || !in_array($newStatus, Activity::ALL_STATUSES, true)) {
             return new JsonResponse([
                 'error' => 'Ungültiger Status. Erlaubt: ' . implode(', ', Activity::ALL_STATUSES)
             ], 400);
@@ -1299,7 +1302,8 @@ class ActivityController extends AbstractController
             Activity::STATUS_APPROVED  => 'Bestätigt',
             Activity::STATUS_PACKING   => 'Wird gepackt',
             Activity::STATUS_PACKED    => 'Gepackt',
-            Activity::STATUS_ISSUED    => 'Ausgegeben',
+            Activity::STATUS_AT_EVENT  => 'Am Event',
+            Activity::STATUS_ISSUED    => 'Am Event',
             Activity::STATUS_RETURNED  => 'Retour',
             Activity::STATUS_COMPLETED => 'Abgeschlossen',
             Activity::STATUS_CANCELLED => 'Storniert',
@@ -1332,7 +1336,8 @@ class ActivityController extends AbstractController
             Activity::STATUS_APPROVED  => 'Bestätigen',
             Activity::STATUS_PACKING   => 'Packen starten',
             Activity::STATUS_PACKED    => 'Gepackt markieren',
-            Activity::STATUS_ISSUED    => 'Ausgeben',
+            Activity::STATUS_AT_EVENT  => 'Am Event buchen',
+            Activity::STATUS_ISSUED    => 'Am Event buchen',
             Activity::STATUS_RETURNED  => 'Retour erfassen',
             Activity::STATUS_COMPLETED => 'Abschliessen',
             Activity::STATUS_CANCELLED => 'Stornieren',
@@ -1544,7 +1549,7 @@ class ActivityController extends AbstractController
             if (in_array($activity->getStatus(), [
                 Activity::STATUS_PACKING,
                 Activity::STATUS_PACKED,
-                Activity::STATUS_ISSUED,
+                Activity::STATUS_AT_EVENT,
                 Activity::STATUS_RETURNED,
                 Activity::STATUS_COMPLETED,
             ], true)) {
@@ -1683,7 +1688,7 @@ class ActivityController extends AbstractController
             if (in_array($activity->getStatus(), [
                 Activity::STATUS_PACKING,
                 Activity::STATUS_PACKED,
-                Activity::STATUS_ISSUED,
+                Activity::STATUS_AT_EVENT,
                 Activity::STATUS_RETURNED,
                 Activity::STATUS_COMPLETED,
             ], true)) {
@@ -1746,7 +1751,7 @@ class ActivityController extends AbstractController
         if (in_array($activity->getStatus(), [
             Activity::STATUS_PACKING,
             Activity::STATUS_PACKED,
-            Activity::STATUS_ISSUED,
+            Activity::STATUS_AT_EVENT,
             Activity::STATUS_RETURNED,
             Activity::STATUS_COMPLETED,
         ], true)) {
@@ -2108,7 +2113,7 @@ class ActivityController extends AbstractController
                         min($newQuantity, $existingPackItem->getQuantityPacked() + $delta)
                     );
                 } elseif (in_array($st, [
-                    Activity::STATUS_ISSUED,
+                    Activity::STATUS_AT_EVENT,
                     Activity::STATUS_RETURNED,
                     Activity::STATUS_COMPLETED,
                 ], true)) {
@@ -2129,7 +2134,7 @@ class ActivityController extends AbstractController
                         min($newQuantity, $existingPackItem->getQuantityPacked() + $delta)
                     );
                 } elseif (in_array($st, [
-                    Activity::STATUS_ISSUED,
+                    Activity::STATUS_AT_EVENT,
                     Activity::STATUS_RETURNED,
                     Activity::STATUS_COMPLETED,
                 ], true)) {
@@ -2154,7 +2159,7 @@ class ActivityController extends AbstractController
             if ($stNew === Activity::STATUS_PACKED) {
                 $packItem->setQuantityPacked($newQuantity);
             } elseif (in_array($stNew, [
-                Activity::STATUS_ISSUED,
+                Activity::STATUS_AT_EVENT,
                 Activity::STATUS_RETURNED,
                 Activity::STATUS_COMPLETED,
             ], true)) {

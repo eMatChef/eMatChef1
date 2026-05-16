@@ -60,7 +60,7 @@ class ActivityKisteMaterialLinker
         if (in_array($activity->getStatus(), [
             Activity::STATUS_PACKING,
             Activity::STATUS_PACKED,
-            Activity::STATUS_ISSUED,
+            Activity::STATUS_AT_EVENT,
             Activity::STATUS_RETURNED,
             Activity::STATUS_COMPLETED,
         ], true)) {
@@ -132,7 +132,7 @@ class ActivityKisteMaterialLinker
             if (in_array($activity->getStatus(), [
                 Activity::STATUS_PACKING,
                 Activity::STATUS_PACKED,
-                Activity::STATUS_ISSUED,
+                Activity::STATUS_AT_EVENT,
                 Activity::STATUS_RETURNED,
                 Activity::STATUS_COMPLETED,
             ], true)) {
@@ -172,7 +172,7 @@ class ActivityKisteMaterialLinker
                         min($newQuantity, $existingPackItem->getQuantityPacked() + $delta)
                     );
                 } elseif (in_array($st, [
-                    Activity::STATUS_ISSUED,
+                    Activity::STATUS_AT_EVENT,
                     Activity::STATUS_RETURNED,
                     Activity::STATUS_COMPLETED,
                 ], true)) {

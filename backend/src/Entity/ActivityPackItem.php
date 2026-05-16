@@ -47,9 +47,17 @@ class ActivityPackItem
     #[ORM\Column(name: 'quantity_packed', type: 'integer', options: ['default' => 0])]
     private int $quantityPacked = 0;
 
-    /** Tatsächlich ausgegebene Menge (Am Event) */
+    /** Transport zum Event */
+    #[ORM\Column(name: 'quantity_transport_to', type: 'integer', options: ['default' => 0])]
+    private int $quantityTransportTo = 0;
+
+    /** Tatsächlich am Event / ausgegeben */
     #[ORM\Column(name: 'quantity_issued', type: 'integer', options: ['default' => 0])]
     private int $quantityIssued = 0;
+
+    /** Transport zurück ins Lager */
+    #[ORM\Column(name: 'quantity_transport_back', type: 'integer', options: ['default' => 0])]
+    private int $quantityTransportBack = 0;
 
     /** Retournierte Menge */
     #[ORM\Column(name: 'quantity_returned', type: 'integer', options: ['default' => 0])]
@@ -124,8 +132,14 @@ class ActivityPackItem
     public function getQuantityPacked(): int { return $this->quantityPacked; }
     public function setQuantityPacked(int $quantityPacked): self { $this->quantityPacked = $quantityPacked; return $this; }
 
+    public function getQuantityTransportTo(): int { return $this->quantityTransportTo; }
+    public function setQuantityTransportTo(int $quantityTransportTo): self { $this->quantityTransportTo = $quantityTransportTo; return $this; }
+
     public function getQuantityIssued(): int { return $this->quantityIssued; }
     public function setQuantityIssued(int $quantityIssued): self { $this->quantityIssued = $quantityIssued; return $this; }
+
+    public function getQuantityTransportBack(): int { return $this->quantityTransportBack; }
+    public function setQuantityTransportBack(int $quantityTransportBack): self { $this->quantityTransportBack = $quantityTransportBack; return $this; }
 
     public function getQuantityReturned(): int { return $this->quantityReturned; }
     public function setQuantityReturned(int $quantityReturned): self { $this->quantityReturned = $quantityReturned; return $this; }
@@ -167,16 +181,16 @@ class ActivityPackItem
         return $this->quantityPacked >= $this->quantityOrdered;
     }
 
-    /** Ist die Menge vollständig ausgegeben? */
+    /** Ist die Menge vollständig am Event? */
     public function isFullyIssued(): bool
     {
-        return $this->quantityIssued >= $this->quantityPacked;
+        return $this->quantityIssued >= $this->quantityPacked && $this->quantityPacked > 0;
     }
 
     /** Ist die Menge vollständig retourniert? */
     public function isFullyReturned(): bool
     {
-        return $this->quantityReturned >= $this->quantityIssued;
+        return $this->quantityReturned >= $this->quantityIssued && $this->quantityIssued > 0;
     }
 
     /** Gibt die Differenz zwischen bestellt und gepackt zurück */

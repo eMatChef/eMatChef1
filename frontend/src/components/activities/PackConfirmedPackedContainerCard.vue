@@ -3,6 +3,7 @@ import { computed, inject } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { ActivityPackContainer, ActivityPackContainerItem } from '@/api/activityContainers'
 import { IconArrowLeft } from '@/components/icons'
+import PackContainerSubsectionsList from '@/components/activities/PackContainerSubsectionsList.vue'
 import { PACK_WAREHOUSE_ISSUE_INJECT_KEY } from '@/components/activities/packWarehouseIssueInjectKey'
 
 defineOptions({ name: 'PackConfirmedPackedContainerCard' })
@@ -12,28 +13,50 @@ const props = defineProps<{
 }>()
 
 const { t } = useI18n()
-const ctx = inject(PACK_WAREHOUSE_ISSUE_INJECT_KEY) as unknown as Record<string, unknown>
+const ctx = inject(PACK_WAREHOUSE_ISSUE_INJECT_KEY) as Record<string, (...args: unknown[]) => unknown>
 
 const innerVisible = computed(
   () => !(ctx.isPackContainerCollapsed as (id: string) => boolean)(props.container.id),
 )
 
-const isTarget = computed(() => {
-  const tgt = ctx.activePackTarget as { kind: string; containerId?: string } | null
-  return tgt?.kind === 'container' && tgt.containerId === props.container.id
-})
+const activePackTarget = computed(
+  () => ctx.activePackTarget as unknown as { kind: string; containerId?: string } | null,
+)
 
-const lines = computed((): ActivityPackContainerItem[] => {
-  const map = ctx.containerItemsByContainerId as Record<string, ActivityPackContainerItem[]>
-  return map[props.container.id] ?? []
-})
+const isTarget = computed(
+  () =>
+    activePackTarget.value?.kind === 'container' &&
+    activePackTarget.value.containerId === props.container.id,
+)
+
+const packListEditable = computed(() => Boolean(ctx.packListEditable))
+
+function isNonActionable(ci: ActivityPackContainerItem): boolean {
+  return (ctx.isVirtualWarehouseContainerLine as (row: ActivityPackContainerItem) => boolean)(ci)
+}
+
+function selectCrate() {
+  if (!packListEditable.value) return
+  ;(ctx.toggleActiveContainer as (id: string) => void)(props.container.id)
+}
+
+function onCardClick(event: MouseEvent) {
+  if (!packListEditable.value) return
+  const el = event.target as HTMLElement
+  if (el.closest('button, input, a, select, textarea, label')) return
+  selectCrate()
+}
 </script>
 
 <template>
   <div
     :id="'pack-container-' + container.id"
     class="pack-container-card"
-    :class="{ 'pack-container-card--target': isTarget }"
+    :class="{
+      'pack-container-card--target': isTarget,
+      'pack-container-card--selectable': packListEditable,
+    }"
+    @click="onCardClick"
   >
     <div class="pack-container-header-row">
       <button
@@ -50,9 +73,13 @@ const lines = computed((): ActivityPackContainerItem[] => {
           type="button"
           class="pack-container-select-main"
           :aria-pressed="isTarget"
-          @click="(ctx.toggleActiveContainer as (id: string) => void)(container.id)"
+          :title="t('activities.packList.targetCrateSelectTitle')"
+          @click.stop="selectCrate"
         >
           <span class="pack-container-name">{{ container.label }}</span>
+          <span v-if="isTarget" class="pack-container-target-badge">{{
+            t('activities.packList.crateTargetBadge')
+          }}</span>
         </button>
         <div class="pack-container-header-meta">
           <span class="pack-container-chip text-muted">{{
@@ -64,40 +91,42 @@ const lines = computed((): ActivityPackContainerItem[] => {
       </div>
     </div>
     <div v-show="innerVisible" class="pack-container-inner">
-      <div
-        v-for="ci in lines"
-        :key="ci.id"
-        class="pack-container-line"
-      >
-        <div v-if="ctx.packListEditable" class="pack-card-actions pack-card-actions-left">
-          <button
-            type="button"
-            class="btn-moveback-arrow"
-            :disabled="ctx.containerMutationLoading"
-            :title="t('activities.packList.pullFromContainerTitle')"
-            @click="(ctx.pullFromContainer as (cid: string, row: ActivityPackContainerItem) => void)(container.id, ci)"
-          >
-            <IconArrowLeft />
-          </button>
-          <input
-            v-model.number="ctx.containerPullQtyInputs[(ctx.containerPullKey as (a: string, b: string) => string)(container.id, ci.id)]"
-            type="number"
-            min="1"
-            :max="ci.quantity_packed"
-            class="pack-moveback-input"
-            @keyup.enter="(ctx.pullFromContainer as (cid: string, row: ActivityPackContainerItem) => void)(container.id, ci)"
-          />
-        </div>
-        <div class="pack-container-line-main">
-          <span class="pack-container-line-name">{{ ci.material_name || t('activities.common.material') }}</span>
-          <span class="pack-container-line-qty">{{
-            t('activities.packList.qtyInContainerLine', { n: ci.quantity_packed })
-          }}</span>
-        </div>
-      </div>
-      <p v-if="lines.length === 0" class="pack-container-empty text-muted">
-        {{ t('activities.packList.nothingAssigned') }}
-      </p>
+      <PackContainerSubsectionsList :container="container">
+        <template #line="{ ci }">
+          <div class="pack-container-line">
+            <div v-if="ctx.packListEditable && !isNonActionable(ci)" class="pack-card-actions pack-card-actions-left">
+              <button
+                type="button"
+                class="btn-moveback-arrow"
+                :disabled="ctx.containerMutationLoading"
+                :title="t('activities.packList.pullFromContainerTitle')"
+                @click="(ctx.pullFromContainer as (cid: string, row: ActivityPackContainerItem) => void)(container.id, ci)"
+              >
+                <IconArrowLeft />
+              </button>
+              <input
+                v-model.number="ctx.containerPullQtyInputs[(ctx.containerPullKey as (a: string, b: string) => string)(container.id, ci.id)]"
+                type="number"
+                min="1"
+                :max="ci.quantity_packed"
+                class="pack-moveback-input"
+                @keyup.enter="(ctx.pullFromContainer as (cid: string, row: ActivityPackContainerItem) => void)(container.id, ci)"
+              />
+            </div>
+            <div class="pack-container-line-main">
+              <span class="pack-container-line-name">{{ ci.material_name || t('activities.common.material') }}</span>
+              <span class="pack-container-line-qty">{{
+                t('activities.packList.qtyInContainerLine', { n: ci.quantity_packed })
+              }}</span>
+            </div>
+          </div>
+        </template>
+        <template #empty>
+          <p class="pack-container-empty text-muted">
+            {{ t('activities.packList.nothingAssigned') }}
+          </p>
+        </template>
+      </PackContainerSubsectionsList>
       <button
         v-if="ctx.packListEditable"
         type="button"

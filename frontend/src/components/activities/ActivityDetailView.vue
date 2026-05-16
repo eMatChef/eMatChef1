@@ -168,7 +168,7 @@
 
           <!-- Material -->
           <section v-else-if="activeTab === 'material'" class="tab-content">
-            <div v-if="showMaterialLookup" class="section-card">
+            <div v-if="showMaterialAddOnMaterialTab" class="section-card">
               <h2 class="section-title">{{ t('activities.detail.materialAddTitle') }}</h2>
               <ActivityMaterialAvailabilityLookup
                 :department-id="departmentId"
@@ -219,12 +219,13 @@
                   :show-source-and-totals="true"
                   :show-line-total="hasLineTotals"
                   :disabled="syncingQuantities || addingDraftMaterial"
+                  :packing-stage-quantity-readonly="materialTabPackingQtyLocked"
                   :removing-item-id="removingItemId"
                   :empty-text="t('activities.detail.noPositions')"
                   @update:model-value="onDraftLinesTableUpdate"
                   @remove-line="onDraftTableRemoveLine"
                 />
-                <div v-if="hasDraftQtyChanges" class="activity-qty-save-row">
+                <div v-if="hasDraftQtyChanges && !materialTabPackingQtyLocked" class="activity-qty-save-row">
                   <button
                     type="button"
                     class="btn-primary btn-sm"
@@ -290,14 +291,27 @@
               :activity-id="activityId"
               :department-id="departmentId"
               :status="activity.status"
+              :activity-type="activity.type"
               :pack-list-editable="activity.is_pack_list_editable === true"
               :transitions="workflowTransitions"
               :can-report-issues="showDamageReportEntry"
               :reload-token="packListReloadToken"
+              :can-add-activity-material="
+                canAddActivityMaterial && (activity.status === 'packing' || activity.status === 'packed')
+              "
+              :activity-type-for-material-add="activityTypeForMat"
+              :planning-start-iso="activity.planning_start ?? null"
+              :planning-end-iso="activity.planning_end ?? null"
+              :quantity-by-material-item-id-for-add="quantityByMaterialItemId"
+              :saved-quantity-by-material-item-id-for-add="savedQuantityByMaterialItemId"
+              :invited-departments-for-add="activity.invited_departments ?? []"
+              :adding-activity-material="addingDraftMaterial"
               @workflow-next="onTransition"
               @activity-items-changed="onPackListActivityItemsChanged"
               @open-issue-wizard="onPackIssueWizard"
               @open-consumption-modal="onOpenConsumptionModal"
+              @add-activity-material="onDraftAddQuantity"
+              @material-scope-change="onMaterialLookupScopeChange"
             />
           </section>
 
@@ -323,10 +337,7 @@
 
           <!-- Verlauf -->
           <section v-else-if="activeTab === 'history'" class="tab-content">
-            <div class="section-card">
-              <h2 class="section-title">{{ t('activities.detail.sectionHistory') }}</h2>
-              <p class="text-muted">{{ t('activities.detail.historyPlaceholder') }}</p>
-            </div>
+            <ActivityHistoryTab :activity-id="activityId" />
           </section>
         </main>
       </div>
@@ -388,6 +399,7 @@ import ActivityDraftOverviewForm from '@/components/activities/ActivityDraftOver
 import ActivityPackListTab from '@/components/activities/ActivityPackListTab.vue'
 import ActivityIssuesTab from '@/components/activities/ActivityIssuesTab.vue'
 import ActivityConsumablesTab from '@/components/activities/ActivityConsumablesTab.vue'
+import ActivityHistoryTab from '@/components/activities/ActivityHistoryTab.vue'
 import ActivityConsumptionModal from '@/components/activities/ActivityConsumptionModal.vue'
 import ActivityConsumableNachbuchungModal from '@/components/activities/ActivityConsumableNachbuchungModal.vue'
 import DamageReportWizard from '@/components/DamageReportWizard.vue'
@@ -428,6 +440,7 @@ const activity = ref<ActivityDetail | null>(null)
 const STATUSES_WITH_PACKS_TAB = [
   'packing',
   'packed',
+  'at_event',
   'issued',
   'returned',
   'completed',
@@ -443,12 +456,12 @@ const showPacksTab = computed(() => {
 const showIssuesTab = computed(() => {
   const s = activity.value?.status
   if (!s) return false
-  return ['issued', 'returned', 'completed'].includes(s)
+  return ['at_event', 'issued', 'returned', 'completed'].includes(s)
 })
 
 /** Ohne ?tab=: v4.01 — Packliste als Start nur bei packing…returned (nicht bei completed). */
 function defaultTabWhenNoQuery(status: string | undefined): ActivityTabId {
-  if (status && ['packing', 'packed', 'issued', 'returned'].includes(status)) return 'packs'
+  if (status && ['packing', 'packed', 'at_event', 'issued', 'returned'].includes(status)) return 'packs'
   return 'overview'
 }
 
@@ -584,6 +597,20 @@ const showMaterialLookup = computed(() => {
   return !!a.can_edit_activity_material
 })
 
+/** «Material hinzufügen» im Material-Tab: bei Packen mit Nachbuch-Recht nur in der Packliste (eingeklappt). */
+const showMaterialAddOnMaterialTab = computed(() => {
+  if (!showMaterialLookup.value) return false
+  const a = activity.value
+  if (a?.status === 'packing' && a.can_edit_activity_material) return false
+  return true
+})
+
+/** Tab Material: Mengen/Entfernen aus — Steuerung über Packliste + Packlisten-Hinzufügen */
+const materialTabPackingQtyLocked = computed(() => {
+  const a = activity.value
+  return a?.status === 'packing' && !!a.can_edit_activity_material
+})
+
 const materialLinesForEditableTable = computed((): ActivityMaterialLine[] => {
   if (!showMaterialLookup.value) return []
   return activityItems.value.map((r) => ({
@@ -615,7 +642,7 @@ const showDamageReportEntry = computed(() => {
   if (a.can_report_issues === false) return false
   if (a.can_report_issues === true) return true
   const s = a.status
-  return !!s && ['issued', 'returned'].includes(s)
+  return !!s && ['at_event', 'issued', 'returned'].includes(s)
 })
 
 /** Nachbuchung zur Aktivität (addActivityItem) — wie Tab «Material» */
@@ -937,6 +964,9 @@ async function onDraftAddQuantity(payload: { material: { materialItemId: string 
     toast.success(t('activities.detail.toastMaterialAdded'))
     await loadItems()
     await refreshActivityTotalsFromApi()
+    if (a.status === 'packing' || a.status === 'packed') {
+      packListReloadToken.value += 1
+    }
   } catch (err: unknown) {
     const e = err as { response?: { data?: { error?: string } }; message?: string }
     toast.error(e.response?.data?.error || e.message || t('activities.detail.toastMaterialAddFailed'))

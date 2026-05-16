@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n'
 import type { ActivityPackContainer, ActivityPackContainerItem } from '@/api/activityContainers'
 import PackContainerKisteMeldungRow from '@/components/activities/PackContainerKisteMeldungRow.vue'
 import PackContainerLineIssueQuick from '@/components/activities/PackContainerLineIssueQuick.vue'
+import PackContainerSubsectionsList from '@/components/activities/PackContainerSubsectionsList.vue'
 import { PACK_WAREHOUSE_ISSUE_INJECT_KEY } from '@/components/activities/packWarehouseIssueInjectKey'
 
 defineOptions({ name: 'PackEventReturnContainerCard' })
@@ -13,16 +14,11 @@ const props = defineProps<{
 }>()
 
 const { t } = useI18n()
-const ctx = inject(PACK_WAREHOUSE_ISSUE_INJECT_KEY) as unknown as Record<string, unknown>
+const ctx = inject(PACK_WAREHOUSE_ISSUE_INJECT_KEY) as Record<string, (...args: unknown[]) => unknown>
 
 const innerVisible = computed(
   () => !(ctx.isPackContainerCollapsed as (id: string) => boolean)(props.container.id),
 )
-
-const lines = computed((): ActivityPackContainerItem[] => {
-  const map = ctx.containerItemsByContainerId as Record<string, ActivityPackContainerItem[]>
-  return map[props.container.id] ?? []
-})
 
 const shellQty = computed(() =>
   (ctx.containerShellStillAtEventQty as (id: string) => number)(props.container.id),
@@ -34,6 +30,11 @@ const shellMid = computed(() =>
 
 function lineRemainingReturn(ci: ActivityPackContainerItem): number {
   return (ctx.containerLineRemainingReturn as (row: ActivityPackContainerItem) => number)(ci)
+}
+
+function showIssueQuick(ci: ActivityPackContainerItem): boolean {
+  if ((ctx.isVirtualWarehouseContainerLine as (row: ActivityPackContainerItem) => boolean)(ci)) return false
+  return lineRemainingReturn(ci) > 0
 }
 </script>
 
@@ -88,22 +89,22 @@ function lineRemainingReturn(ci: ActivityPackContainerItem): number {
       :linked-container-label="container.label"
     />
     <div v-show="innerVisible" class="pack-container-inner">
-      <div
-        v-for="ci in lines"
-        :key="'ev-ret-ci-' + ci.id"
-        class="pack-container-line pack-container-line--stacked"
-      >
-        <div class="pack-container-line-main">
-          <span class="pack-container-line-name">{{ ci.material_name || t('activities.common.material') }}</span>
-          <span class="pack-container-line-qty text-muted">
-            <template v-if="lineRemainingReturn(ci) > 0">
-              {{ t('activities.packList.lineStillAtEvent', { n: lineRemainingReturn(ci) }) }}
-            </template>
-            <template v-else>{{ t('activities.packList.returnRecorded') }}</template>
-          </span>
-        </div>
-        <PackContainerLineIssueQuick :line="ci" :visible="lineRemainingReturn(ci) > 0" />
-      </div>
+      <PackContainerSubsectionsList :container="container">
+        <template #line="{ ci }">
+          <div class="pack-container-line pack-container-line--stacked">
+            <div class="pack-container-line-main">
+              <span class="pack-container-line-name">{{ ci.material_name || t('activities.common.material') }}</span>
+              <span class="pack-container-line-qty text-muted">
+                <template v-if="lineRemainingReturn(ci) > 0">
+                  {{ t('activities.packList.lineStillAtEvent', { n: lineRemainingReturn(ci) }) }}
+                </template>
+                <template v-else>{{ t('activities.packList.returnRecorded') }}</template>
+              </span>
+            </div>
+            <PackContainerLineIssueQuick :line="ci" :visible="showIssueQuick(ci)" />
+          </div>
+        </template>
+      </PackContainerSubsectionsList>
       <div
         v-if="shellQty > 0"
         class="pack-container-line pack-container-line--shell pack-container-line--stacked"
@@ -146,7 +147,10 @@ function lineRemainingReturn(ci: ActivityPackContainerItem): number {
           </template>
         </div>
       </div>
-      <p v-if="lines.length === 0 && shellQty <= 0" class="pack-container-empty text-muted">
+      <p
+        v-if="(ctx.containerItemCount as (id: string) => number)(container.id) === 0 && shellQty <= 0"
+        class="pack-container-empty text-muted"
+      >
         {{ t('activities.packList.noLines') }}
       </p>
     </div>

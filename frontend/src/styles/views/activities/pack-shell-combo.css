@@ -1,0 +1,88 @@
+/* Phys.-Kombi-Shell: gleiches Erscheinungsbild wie Pack-Behälter-Karten */
+
+.pack-container-card--shell {
+  margin-bottom: 8px;
+}
+
+.pack-container-card--shell .pack-container-header-title-block--shell {
+  padding: 10px 8px 10px 4px;
+}
+
+.pack-container-card--shell .pack-container-inner--shell {
+  padding: 0 10px 10px 42px;
+  border-top: 1px solid #e5e7eb;
+  background: #fff;
+}
+
+.pack-shell-storage {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  font-size: 11px;
+  line-height: 1.4;
+  margin: 0 0 10px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+}
+
+.pack-shell-storage__item {
+  margin: 0;
+}
+
+.pack-combo-crate-inline--container-style {
+  width: 100%;
+}
+
+.pack-combo-crate-inline__empty {
+  margin: 6px 0 0;
+  padding: 8px 10px;
+  font-size: 12px;
+  line-height: 1.45;
+  border-radius: 8px;
+  background: #f8fafc;
+  border: 1px dashed #cbd5e1;
+}
+
+.pack-combo-crate-inline__flat-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 4px 0;
+}
+
+.pack-combo-crate-inline__subsection-block {
+  margin-top: 6px;
+}
+
+.pack-combo-crate-inline__subsection-block:first-child {
+  margin-top: 0;
+}
+
+.pack-combo-crate-inline__list--nested {
+  margin: 0;
+  padding: 0 0 4px;
+  list-style: none;
+}
+
+.pack-combo-crate-inline__check-li {
+  list-style: none;
+}
+
+.pack-crate-shell-check-line {
+  padding: 10px 8px;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+  background: #fff;
+  margin-bottom: 6px;
+}
+
+.pack-crate-shell-check-line:last-child {
+  margin-bottom: 0;
+}
+
+.pack-crate-shell-check-line--ok {
+  border-color: #86efac;
+  background: #f0fdf4;
+}

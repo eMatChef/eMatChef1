@@ -1,6 +1,10 @@
 <script setup lang="ts">
-import { computed, reactive, ref } from 'vue'
+import { computed, inject, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import PackCrateShellCheckLineActions from '@/components/activities/PackCrateShellCheckLineActions.vue'
+import { shellForwardLineKey } from '@/components/activities/packCrateForwardCheck'
+import { PACK_WAREHOUSE_ISSUE_INJECT_KEY } from '@/components/activities/packWarehouseIssueInjectKey'
+import type { ActivityPackItem } from '@/api/activityPackItems'
 
 defineOptions({ name: 'PackCrateShellInlinePanel' })
 
@@ -38,8 +42,17 @@ const props = withDefaults(
     realityBanner?: string | null
     showTemplateToggle?: boolean
     useRealityView?: boolean
+    /** Phys.-Kombi: Inhaltcheck mit − / Zähler / + / ✓ */
+    checkPackItem?: ActivityPackItem | null
   }>(),
-  { defaultExpanded: false, separateSectionRows: false, realityBanner: null, showTemplateToggle: false, useRealityView: true },
+  {
+    defaultExpanded: false,
+    separateSectionRows: false,
+    realityBanner: null,
+    showTemplateToggle: false,
+    useRealityView: true,
+    checkPackItem: null,
+  },
 )
 
 const emit = defineEmits<{
@@ -47,6 +60,65 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
+
+const ctx = inject(PACK_WAREHOUSE_ISSUE_INJECT_KEY, null) as Record<string, unknown> | null
+
+const interactiveShellCheck = computed(() => {
+  const pi = props.checkPackItem
+  if (!pi || !ctx) return false
+  const fn = ctx.shellCheckPendingForPackItem as ((p: ActivityPackItem) => boolean) | undefined
+  return fn ? fn(pi) : false
+})
+
+function lineCheckKey(subsectionKey: string, lineId: string): string {
+  return shellForwardLineKey(subsectionKey, lineId)
+}
+
+function reviewForLine(subsectionKey: string, line: PackCrateShellPeekLine) {
+  const pi = props.checkPackItem
+  const fn = ctx?.shellCheckReviewForLine as
+    | ((packItemId: string, key: string, expectedQty: number) => unknown)
+    | undefined
+  const key = lineCheckKey(subsectionKey, line.id)
+  const expected = line.quantity
+  if (!pi || !fn) return { countedQty: expected, status: null }
+  return fn(pi.id, key, expected) as import('@/components/activities/packCrateForwardCheck').ShellForwardLineReview
+}
+
+function historyReplenishForLine(subsectionKey: string, lineId: string): boolean {
+  const pi = props.checkPackItem
+  const fn = ctx?.shellCheckHistoryReplenishForKey as
+    | ((packItemId: string, key: string) => boolean)
+    | undefined
+  if (!pi || !fn) return false
+  return fn(pi.id, lineCheckKey(subsectionKey, lineId))
+}
+
+function onCountedChange(subsectionKey: string, line: PackCrateShellPeekLine, raw: number) {
+  const pi = props.checkPackItem
+  const fn = ctx?.shellCheckPatchLine as
+    | ((
+        packItemId: string,
+        key: string,
+        expectedQty: number,
+        isExtra: boolean,
+        patch: { countedQty: number },
+      ) => void)
+    | undefined
+  if (!pi || !fn) return
+  fn(pi.id, lineCheckKey(subsectionKey, line.id), line.quantity, subsectionKey === 'extra', {
+    countedQty: raw,
+  })
+}
+
+function onLineOk(subsectionKey: string, line: PackCrateShellPeekLine) {
+  const pi = props.checkPackItem
+  const fn = ctx?.shellCheckSetLineOk as
+    | ((packItemId: string, key: string, expectedQty: number, isExtra: boolean) => void)
+    | undefined
+  if (!pi || !fn) return
+  fn(pi.id, lineCheckKey(subsectionKey, line.id), line.quantity, subsectionKey === 'extra')
+}
 
 /** Pro Unterabschnitt (extra / fixed / all): true = aufgeklappt */
 const expandedByKey = reactive<Record<string, boolean>>({})
@@ -85,10 +157,69 @@ function statusBadgeKey(line: PackCrateShellPeekLine): string | null {
   if (!st || st === 'ok') return null
   return st
 }
+
+const totalLines = computed(() =>
+  props.sections.reduce((n, sec) => n + sec.lines.length, 0),
+)
+
+const flatLines = computed(() => props.sections.flatMap((sec) => sec.lines))
+
+/** Phys.-Kombi: Fix zu, Zusatz offen — wie im Kisten-Picker */
+const subsectionCollapsed = reactive<Record<string, boolean>>({})
+
+function subCollapseKey(subsectionKey: string): string {
+  const pi = props.checkPackItem?.id ?? 'peek'
+  return `${pi}:${subsectionKey}`
+}
+
+function defaultSubCollapsed(subsectionKey: string): boolean {
+  if (totalLines.value <= 1) return false
+  if (subsectionKey === 'fixed') return true
+  if (subsectionKey === 'extra') return false
+  if (subsectionKey === 'all') {
+    const hasFixExtra = props.sections.some(
+      (s) => s.subsectionKey === 'fixed' || s.subsectionKey === 'extra',
+    )
+    return hasFixExtra
+  }
+  return true
+}
+
+function isSubCollapsed(subsectionKey: string): boolean {
+  const k = subCollapseKey(subsectionKey)
+  return k in subsectionCollapsed ? subsectionCollapsed[k] : defaultSubCollapsed(subsectionKey)
+}
+
+function toggleSub(subsectionKey: string) {
+  subsectionCollapsed[subCollapseKey(subsectionKey)] = !isSubCollapsed(subsectionKey)
+}
+
+function applySubsectionDefaults() {
+  for (const sec of props.sections) {
+    subsectionCollapsed[subCollapseKey(sec.subsectionKey)] = defaultSubCollapsed(sec.subsectionKey)
+  }
+}
+
+watch(
+  () => props.defaultExpanded,
+  (exp) => {
+    if (exp) applySubsectionDefaults()
+  },
+)
+
+watch(
+  () => props.sections,
+  () => {
+    if (props.defaultExpanded) applySubsectionDefaults()
+  },
+)
 </script>
 
 <template>
-  <div class="pack-combo-crate-inline">
+  <div
+    class="pack-combo-crate-inline"
+    :class="{ 'pack-combo-crate-inline--container-style': separateSectionRows }"
+  >
     <div v-if="realityBanner" class="pack-crate-reality-banner" role="status">
       <p class="pack-crate-reality-banner__text">{{ realityBanner }}</p>
       <button
@@ -160,46 +291,137 @@ function statusBadgeKey(line: PackCrateShellPeekLine): string | null {
       </div>
     </template>
     <template v-else-if="separateSectionRows">
-      <div
-        v-for="sec in displaySections"
-        :key="'flat-' + sec.subsectionKey"
-        class="pack-combo-crate-inline__subsection pack-combo-crate-inline__subsection--flat"
-      >
-        <div class="pack-container-subsection-title">{{ sec.title }}</div>
-        <ul v-if="sec.lines.length > 0" class="pack-combo-crate-inline__list pack-combo-crate-inline__list--flat">
-          <li
-            v-for="line in sec.lines"
-            :key="sec.subsectionKey + '-' + line.id"
-            class="pack-container-line"
+      <template v-if="totalLines <= 1">
+        <div v-if="flatLines.length > 0" class="pack-combo-crate-inline__flat-lines">
+          <template v-for="sec in displaySections" :key="'flat-one-' + sec.subsectionKey">
+            <template v-for="line in sec.lines" :key="sec.subsectionKey + '-' + line.id">
+              <PackCrateShellCheckLineActions
+                v-if="interactiveShellCheck"
+                :material-name="line.materialName"
+                :expected-qty="line.quantity"
+                :review="reviewForLine(sec.subsectionKey, line)"
+                :is-extra="sec.subsectionKey === 'extra'"
+                :minus-disabled="historyReplenishForLine(sec.subsectionKey, line.id) || sec.subsectionKey === 'extra'"
+                :plus-disabled="historyReplenishForLine(sec.subsectionKey, line.id)"
+                :input-disabled="historyReplenishForLine(sec.subsectionKey, line.id)"
+                :check-disabled="historyReplenishForLine(sec.subsectionKey, line.id)"
+                @update:counted-qty="onCountedChange(sec.subsectionKey, line, $event)"
+                @ok="onLineOk(sec.subsectionKey, line)"
+              />
+              <div v-else class="pack-container-line">
+                <div class="pack-container-line-main">
+                  <span class="pack-container-line-name">{{ line.materialName }}</span>
+                  <span class="pack-container-line-qty text-muted">{{
+                    t('activities.common.piecesShort', { count: line.quantity })
+                  }}</span>
+                </div>
+              </div>
+            </template>
+          </template>
+        </div>
+      </template>
+      <template v-else>
+        <div
+          v-for="sec in displaySections"
+          :key="'flat-' + sec.subsectionKey"
+          class="pack-combo-crate-inline__subsection-block"
+        >
+          <button
+            type="button"
+            class="pack-container-subsection-toggle"
+            :aria-expanded="!isSubCollapsed(sec.subsectionKey)"
+            :aria-label="`${sec.title} — ${t('activities.packList.cratePeekRowToggleAria')}`"
+            @click.stop="toggleSub(sec.subsectionKey)"
           >
-            <div class="pack-container-line-main">
-              <span class="pack-container-line-name">{{ line.materialName }}</span>
-              <span class="pack-container-line-qty text-muted">
-                {{ t('activities.common.piecesShort', { count: line.quantity }) }}
-                <span
-                  v-if="line.sollQty != null && line.sollQty !== line.quantity"
-                  class="pack-combo-crate-inline__soll-hint"
-                >
-                  {{ t('activities.packList.crateCheckWasSoll', { n: line.sollQty }) }}
+            <span class="pack-container-chevron pack-container-chevron--subsection" aria-hidden="true">
+              <svg
+                v-if="isSubCollapsed(sec.subsectionKey)"
+                class="pack-container-subsection-chevron-svg"
+                width="12"
+                height="12"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2.3"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <polyline points="9 18 15 12 9 6" />
+              </svg>
+              <svg
+                v-else
+                class="pack-container-subsection-chevron-svg"
+                width="12"
+                height="12"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2.3"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <polyline points="6 9 12 15 18 9" />
+              </svg>
+            </span>
+            <span class="pack-container-subsection-toggle-label">{{ sec.title }}</span>
+            <span
+              v-if="sec.lines.length > 0"
+              class="pack-container-chip pack-container-chip--subsection text-muted"
+              >{{ t('activities.common.itemsUnit', { count: sec.lines.length }) }}</span
+            >
+          </button>
+          <ul
+            v-show="!isSubCollapsed(sec.subsectionKey)"
+            v-if="sec.lines.length > 0"
+            class="pack-combo-crate-inline__list pack-combo-crate-inline__list--nested"
+          >
+            <li
+              v-for="line in sec.lines"
+              :key="sec.subsectionKey + '-' + line.id"
+              :class="interactiveShellCheck ? 'pack-combo-crate-inline__check-li' : 'pack-container-line'"
+            >
+              <PackCrateShellCheckLineActions
+                v-if="interactiveShellCheck"
+                :material-name="line.materialName"
+                :expected-qty="line.quantity"
+                :review="reviewForLine(sec.subsectionKey, line)"
+                :is-extra="sec.subsectionKey === 'extra'"
+                :minus-disabled="historyReplenishForLine(sec.subsectionKey, line.id) || sec.subsectionKey === 'extra'"
+                :plus-disabled="historyReplenishForLine(sec.subsectionKey, line.id)"
+                :input-disabled="historyReplenishForLine(sec.subsectionKey, line.id)"
+                :check-disabled="historyReplenishForLine(sec.subsectionKey, line.id)"
+                @update:counted-qty="onCountedChange(sec.subsectionKey, line, $event)"
+                @ok="onLineOk(sec.subsectionKey, line)"
+              />
+              <div v-else class="pack-container-line-main">
+                <span class="pack-container-line-name">{{ line.materialName }}</span>
+                <span class="pack-container-line-qty text-muted">
+                  {{ t('activities.common.piecesShort', { count: line.quantity }) }}
+                  <span
+                    v-if="line.sollQty != null && line.sollQty !== line.quantity"
+                    class="pack-combo-crate-inline__soll-hint"
+                  >
+                    {{ t('activities.packList.crateCheckWasSoll', { n: line.sollQty }) }}
+                  </span>
+                  <span
+                    v-if="(line.replenishQty ?? 0) > 0"
+                    class="pack-combo-crate-inline__check-badge pack-combo-crate-inline__check-badge--replenish"
+                  >
+                    {{
+                      t('activities.packList.crateCheckReplenishedBadge', {
+                        n: line.replenishQty,
+                      })
+                    }}
+                  </span>
+                  <span v-if="statusBadgeKey(line)" class="pack-combo-crate-inline__check-badge">
+                    {{ t(`activities.packList.crateCheckStatus_${statusBadgeKey(line)}`) }}
+                  </span>
                 </span>
-                <span
-                  v-if="(line.replenishQty ?? 0) > 0"
-                  class="pack-combo-crate-inline__check-badge pack-combo-crate-inline__check-badge--replenish"
-                >
-                  {{
-                    t('activities.packList.crateCheckReplenishedBadge', {
-                      n: line.replenishQty,
-                    })
-                  }}
-                </span>
-                <span v-if="statusBadgeKey(line)" class="pack-combo-crate-inline__check-badge">
-                  {{ t(`activities.packList.crateCheckStatus_${statusBadgeKey(line)}`) }}
-                </span>
-              </span>
-            </div>
-          </li>
-        </ul>
-      </div>
+              </div>
+            </li>
+          </ul>
+        </div>
+      </template>
     </template>
     <template v-else>
       <div
@@ -257,6 +479,8 @@ function statusBadgeKey(line: PackCrateShellPeekLine): string | null {
   </div>
 </template>
 
+<style src="@/styles/views/activities/pack-container-card.css"></style>
+<style src="@/styles/views/activities/pack-shell-combo.css"></style>
 <style scoped>
 .pack-combo-crate-inline {
   margin-top: 8px;
@@ -417,6 +641,15 @@ function statusBadgeKey(line: PackCrateShellPeekLine): string | null {
   padding: 0;
   list-style: none;
 }
-</style>
 
-<style src="@/styles/views/activities/pack-container-card.css"></style>
+.pack-combo-crate-inline__list--check {
+  padding: 4px 8px 8px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #fafafa;
+}
+
+.pack-combo-crate-inline__check-li {
+  list-style: none;
+}
+</style>

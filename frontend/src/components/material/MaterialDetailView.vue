@@ -834,8 +834,9 @@
                       {{ t('components.materialDetail.noContainersForArticle') }}
                     </div>
                     <button
+                      v-if="canAddItemsToSelectedContainer"
+                      type="button"
                       class="btn-outline-small container-add-btn"
-                      :disabled="!containerContentBatchId"
                       @click="openAddToContainerModal"
                     >
                       {{ t('components.materialDetail.btnAddItemPlus') }}
@@ -853,6 +854,39 @@
                   <div class="spinner"></div>
                   <p>{{ t('components.materialDetail.containerLoadingOverview') }}</p>
                 </div>
+                <template v-else-if="selectedContainerPhysicalCombo">
+                  <div class="container-combo-linked-banner">
+                    <p class="container-combo-linked-hint">
+                      {{ t('components.materialDetail.containerContentPhysicalComboHint') }}
+                    </p>
+                    <router-link
+                      class="combo-allocation-link container-combo-linked-link"
+                      :to="`/${departmentId}/materials/${selectedContainerPhysicalCombo.id}?tab=composition`"
+                    >
+                      {{ selectedContainerPhysicalCombo.name }}
+                      <span class="container-combo-linked-link-suffix">
+                        → {{ t('components.materialDetail.containerContentOpenCombo') }}
+                      </span>
+                    </router-link>
+                  </div>
+                  <p v-if="containerContentRows.length === 0" class="empty-used-in">
+                    {{ t('components.materialDetail.containerEmptyNoContents') }}
+                  </p>
+                  <table v-else class="used-in-table container-content-table container-content-table--readonly">
+                    <thead>
+                      <tr>
+                        <th>{{ t('components.materialDetail.thArticle') }}</th>
+                        <th>{{ t('components.materialDetail.thQty') }}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr v-for="row in containerContentRows" :key="row.materialId" class="used-in-row">
+                        <td>{{ row.materialName }}</td>
+                        <td>{{ t('components.materialDetail.qtyPieces', { qty: row.qty }) }}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </template>
                 <div v-else-if="containerContentRows.length === 0" class="empty-used-in">
                   <p>{{ t('components.materialDetail.containerEmptyNoContents') }}</p>
                 </div>
@@ -879,7 +913,7 @@
 
               </div>
 
-              <aside class="container-content-sidebar">
+              <aside v-if="!selectedContainerPhysicalCombo" class="container-content-sidebar">
                 <div class="section-card">
                   <div class="section-header-row">
                     <h2 class="section-title">{{ t('components.materialDetail.sectionContainerDetailsTitle') }}</h2>
@@ -1981,16 +2015,18 @@
             {{ t('components.materialDetail.labelOptionalForCombo') }}
           </label>
         </div>
-        <div v-if="addCompositionSelected" class="form-group">
-          <label>{{ t('components.materialDetail.labelAssignmentMode') }}</label>
-          <select v-model="addCompositionMode" class="form-select">
-            <option value="bulk">{{ comboAssignmentLabels.bulk }}</option>
-            <option value="fixed">{{ comboAssignmentLabels.fixed }}</option>
-            <option value="assigned">{{ comboAssignmentLabels.assigned }}</option>
-            <option value="on_issue">{{ comboAssignmentLabels.on_issue }}</option>
-          </select>
-        </div>
         <p v-if="addCompositionError" class="error-text">{{ addCompositionError }}</p>
+        </div>
+        <div v-if="addCompositionSelected" class="composition-add-modal-selects">
+          <div class="form-group">
+            <label>{{ t('components.materialDetail.labelAssignmentMode') }}</label>
+            <select v-model="addCompositionMode" class="form-select">
+              <option value="bulk">{{ comboAssignmentLabels.bulk }}</option>
+              <option value="fixed">{{ comboAssignmentLabels.fixed }}</option>
+              <option value="assigned">{{ comboAssignmentLabels.assigned }}</option>
+              <option value="on_issue">{{ comboAssignmentLabels.on_issue }}</option>
+            </select>
+          </div>
         </div>
         <div class="modal-actions composition-add-modal-footer">
           <button type="button" class="btn-secondary btn-sm" @click="closeAddCompositionModal">{{ t('common.cancel') }}</button>
@@ -2032,6 +2068,43 @@
           <p v-if="addCompositionAllocatesToLinkedCrate" class="batch-field-hint">
             {{ t('components.materialDetail.hintEditCompositionToCrate') }}
           </p>
+          <p v-if="addCompositionAllocatesToLinkedCrate" class="batch-field-hint">
+            {{
+              t('components.materialDetail.editCompositionFreeStockHint', {
+                n: editCompositionMaterialFreeStock,
+              })
+            }}
+          </p>
+          <div
+            v-if="addCompositionAllocatesToLinkedCrate && editCompositionStockLocationRows.length > 0"
+            class="composition-stock-preview"
+          >
+            <p class="composition-stock-preview-title">{{ t('components.materialDetail.addCompositionStockWhereTitle') }}</p>
+            <ul class="composition-stock-preview-list">
+              <li v-for="(row, idx) in editCompositionStockLocationRows" :key="`edit-loc-${idx}`">
+                {{ formatStorageRowLabel(row) }}
+                <span class="composition-stock-preview-qty">{{ t('components.materialDetail.qtyPieces', { qty: row.qty }) }}</span>
+              </li>
+            </ul>
+          </div>
+          <div
+            v-if="addCompositionAllocatesToLinkedCrate && editCompositionTakePreview && editCompositionTakePreview.lines.length > 0"
+            class="composition-stock-preview composition-stock-preview--move"
+          >
+            <p class="composition-stock-preview-title">{{ t('components.materialDetail.editCompositionTakePreviewTitle') }}</p>
+            <ul class="composition-stock-preview-list">
+              <li v-for="(line, idx) in editCompositionTakePreview.lines" :key="`edit-take-${idx}`">
+                {{ line.label }}
+                <span class="composition-stock-preview-qty">→ {{ t('components.materialDetail.qtyPieces', { qty: line.qty }) }}</span>
+              </li>
+            </ul>
+            <p class="batch-field-hint">
+              {{ t('components.materialDetail.addCompositionTakePreviewTo', { target: editCompositionTakePreview.toLabel }) }}
+            </p>
+            <p v-if="editCompositionTakePreview.remaining > 0" class="error-text">
+              {{ t('components.materialDetail.addCompositionTakePreviewShort', { n: editCompositionTakePreview.remaining }) }}
+            </p>
+          </div>
         </div>
         <div class="form-group">
           <label>{{ t('components.materialDetail.labelRoleOptional') }}</label>
@@ -2044,35 +2117,37 @@
             {{ t('components.materialDetail.labelOptionalForCombo') }}
           </label>
         </div>
-        <div class="form-group">
-          <label>{{ t('components.materialDetail.labelAssignmentMode') }}</label>
-          <select v-model="editCompositionMode" class="form-select">
+        <p v-if="editCompositionError" class="error-text">{{ editCompositionError }}</p>
+        </div>
+        <div class="composition-add-modal-selects">
+          <div class="form-group">
+            <label>{{ t('components.materialDetail.labelAssignmentMode') }}</label>
+            <select v-model="editCompositionMode" class="form-select">
             <option value="bulk">{{ comboAssignmentLabels.bulk }}</option>
             <option value="fixed">{{ comboAssignmentLabels.fixed }}</option>
             <option value="assigned">{{ comboAssignmentLabels.assigned }}</option>
             <option value="on_issue">{{ comboAssignmentLabels.on_issue }}</option>
-          </select>
-        </div>
-        <div v-if="editCompositionBatchesLoading" class="form-group text-muted">{{ t('components.materialDetail.loadingBatchesEllipsis') }}</div>
-        <div v-else-if="editCompositionBatches.length > 0" class="form-group">
-          <label>{{ t('components.materialDetail.labelAssignedBatchOptional') }}</label>
-          <select v-model="editCompositionBatchId" class="form-select">
-            <option value="">{{ t('components.materialDetail.optNoBatch') }}</option>
-            <option v-for="b in editCompositionBatches" :key="b.id" :value="b.id">
-              {{ formatCompositionBatchOption(b) }}
-            </option>
-          </select>
-          <p class="batch-field-hint">{{ t('components.materialDetail.hintAssignedBatchSerie') }}</p>
-          <p class="batch-field-hint">{{ t('components.materialDetail.hintAssignedBatchInCombo') }}</p>
-        </div>
-        <p v-if="editCompositionError" class="error-text">{{ editCompositionError }}</p>
+            </select>
+          </div>
+          <div v-if="editCompositionBatchesLoading" class="form-group text-muted">{{ t('components.materialDetail.loadingBatchesEllipsis') }}</div>
+          <div v-else-if="editCompositionBatches.length > 0" class="form-group">
+            <label>{{ t('components.materialDetail.labelAssignedBatchOptional') }}</label>
+            <select v-model="editCompositionBatchId" class="form-select">
+              <option value="">{{ t('components.materialDetail.optNoBatch') }}</option>
+              <option v-for="b in editCompositionBatches" :key="b.id" :value="b.id">
+                {{ formatCompositionBatchOption(b) }}
+              </option>
+            </select>
+            <p class="batch-field-hint">{{ t('components.materialDetail.hintAssignedBatchSerie') }}</p>
+            <p class="batch-field-hint">{{ t('components.materialDetail.hintAssignedBatchInCombo') }}</p>
+          </div>
         </div>
         <div class="modal-actions composition-add-modal-footer">
           <button type="button" class="btn-secondary btn-sm" @click="closeEditCompositionModal">{{ t('common.cancel') }}</button>
           <button
             type="button"
             class="btn-primary btn-sm"
-            :disabled="editCompositionSubmitting || (editCompositionQty ?? 0) < 1"
+            :disabled="editCompositionSubmitting || !canSubmitEditComposition"
             @click="submitEditComposition"
           >
             {{ editCompositionSubmitting ? t('components.materialDetail.modalEditCompositionSaving') : t('common.save') }}
@@ -2138,7 +2213,11 @@ import { addPrintCartItem, addPrintCartItemsBulk } from '@/api/tasks'
 import { useDetailTabsStore } from '@/stores/detailTabs'
 import { getCategories, type Category } from '@/api/categories'
 import { getContainerBatches, getStorageOverview, type ContainerBatch, type StorageOverviewResponse } from '@/api/storageLocations'
-import { formatContainerBatchOptionFullLabel } from '@/utils/containerBatchLabel'
+import {
+  containerBatchFromLinkedRef,
+  formatContainerBatchOptionFullLabel,
+  formatPhysicalComboLinkedContainerLabel,
+} from '@/utils/containerBatchLabel'
 import { usePhysicalComboWarningStore } from '@/stores/physicalComboWarning'
 import {
   sumAcquisitionBasisFromBatches,
@@ -2284,6 +2363,8 @@ const editCompositionBatches = ref<MaterialBatch[]>([])
 const editCompositionBatchesLoading = ref(false)
 const editCompositionBaseQty = ref(1)
 const editCompositionMaterialFreeStock = ref(0)
+const editCompositionSourceDetail = ref<Material | null>(null)
+const editCompositionStockLocations = ref<MaterialStorageLocationsResponse | null>(null)
 const editCompositionError = ref('')
 const editCompositionSubmitting = ref(false)
 const deletingCompositionId = ref<string | null>(null)
@@ -2345,6 +2426,30 @@ const editCompositionStockCap = computed((): number | null => {
   return Math.max(1, editCompositionBaseQty.value + Math.max(0, editCompositionMaterialFreeStock.value))
 })
 
+const editCompositionQtyIncrease = computed(() =>
+  Math.max(0, (editCompositionQty.value || 0) - editCompositionBaseQty.value),
+)
+
+const editCompositionStockLocationRows = computed((): MaterialStorageLocationRow[] => {
+  const rows = editCompositionStockLocations.value?.direct ?? []
+  return rows.filter((r) => (r.qty || 0) > 0)
+})
+
+const editCompositionTakePreview = computed(() => {
+  if (!addCompositionAllocatesToLinkedCrate.value || !editCompositionSourceDetail.value) return null
+  const delta = editCompositionQtyIncrease.value
+  if (delta <= 0) return null
+  const targetId = linkedContainerBatchIdForRelease.value
+  if (!targetId) return null
+  return previewTakeForLinkedCrate(
+    editCompositionSourceDetail.value,
+    targetId,
+    linkedContainerLabelForRelease.value,
+    delta,
+    containerBatches.value,
+  )
+})
+
 function clampEditCompositionQty() {
   const cap = editCompositionStockCap.value
   if (cap === null) return
@@ -2360,6 +2465,17 @@ const canSubmitAddComposition = computed(() => {
   const cap = addCompositionStockCap.value
   if (cap === 0) return false
   if (cap !== null && q > cap) return false
+  if (addCompositionTakePreview.value && addCompositionTakePreview.value.remaining > 0) return false
+  return true
+})
+
+const canSubmitEditComposition = computed(() => {
+  if (!editCompositionComp.value) return false
+  const q = editCompositionQty.value ?? 0
+  if (q < 1) return false
+  const cap = editCompositionStockCap.value
+  if (cap !== null && q > cap) return false
+  if (editCompositionTakePreview.value && editCompositionTakePreview.value.remaining > 0) return false
   return true
 })
 
@@ -2702,32 +2818,86 @@ function mergeAndReplaceQuery(updates: Record<string, string | undefined>) {
   router.replace({ path: route.path, query: nextQuery })
 }
 
-const storedInContainerOptions = computed(() => {
-  const currentMaterialId = String(props.materialId || '')
-  const currentMaterialName = String(material.value?.name || '').trim().toLocaleLowerCase(sortLocale())
-  const filtered = containerBatches.value.filter((batch) => {
-    const batchMaterialId = String(batch.material_id || '')
-    if (batchMaterialId) return batchMaterialId === currentMaterialId
-    if (!currentMaterialName) return false
-    return String(batch.material_name || '').trim().toLocaleLowerCase(sortLocale()) === currentMaterialName
-  })
+function resolveContainerBatchById(batchId: string): ContainerBatch | null {
+  const id = batchId.trim()
+  if (!id) return null
+  const fromList = containerBatches.value.find((b) => b.id === id)
+  if (fromList) return fromList
+  const linked = material.value?.linked_container_batch
+  if (linked?.id === id) return containerBatchFromLinkedRef(linked)
+  return null
+}
 
-  return filtered
+function labelForContainerBatchOption(batch: ContainerBatch): string {
+  const comboFromApi = (batch.physical_combo_name || '').trim()
+  if (comboFromApi) {
+    return formatPhysicalComboLinkedContainerLabel(comboFromApi, batch)
+  }
+  const m = material.value
+  const linkedId = (m?.linked_container_batch_id || m?.linked_container_batch?.id || '').trim()
+  if (m?.material_type === 'physical_combo' && linkedId && batch.id === linkedId) {
+    return formatPhysicalComboLinkedContainerLabel(m.name || '', batch)
+  }
+  return formatContainerBatchOptionFullLabel(batch)
+}
+
+const storedInContainerOptions = computed(() =>
+  containerBatches.value
     .map((batch) => ({
       id: batch.id,
-      label: formatContainerBatchOptionFullLabel(batch),
+      label: labelForContainerBatchOption(batch),
     }))
-    .sort((a, b) => a.label.localeCompare(b.label, sortLocale()))
+    .sort((a, b) => a.label.localeCompare(b.label, sortLocale())),
+)
+
+/** Physische Kombo, deren Referenz-Kiste gerade gewählt ist (Inhalt nur lesen). */
+const selectedContainerPhysicalCombo = computed((): { id: string; name: string } | null => {
+  const batchId = (containerContentBatchId.value || '').trim()
+  if (!batchId) return null
+  const batch = containerBatches.value.find((b) => b.id === batchId)
+  if (batch?.physical_combo_id && batch.physical_combo_name) {
+    return { id: batch.physical_combo_id, name: batch.physical_combo_name }
+  }
+  const m = material.value
+  if (
+    m?.material_type === 'physical_combo' &&
+    linkedContainerBatchIdForRelease.value === batchId
+  ) {
+    return { id: props.materialId, name: m.name || '' }
+  }
+  return null
 })
 
-/** Tab „Inhalt Kiste/Tasche“ nur bei echten Kisten/Taschen-Artikeln (mind. eine Instanz) oder Deep-Link. */
+const canAddItemsToSelectedContainer = computed(
+  () => !!containerContentBatchId.value && !selectedContainerPhysicalCombo.value,
+)
+
+const hasMaterialContainerContext = computed(() => {
+  const ms = materialStorageLocations.value
+  if (ms?.direct?.some((r) => (r.container_batch_id || '').trim() !== '')) return true
+  if (ms?.via_physical_combo?.some((v) => (v.parent_linked_container_batch_id || '').trim() !== '')) {
+    return true
+  }
+  if (
+    material.value?.material_type === 'physical_combo' &&
+    !!(material.value.linked_container_batch_id || material.value.linked_container_batch?.id)
+  ) {
+    return true
+  }
+  return false
+})
+
+/** Tab „Inhalt Kiste/Tasche“ wenn Kistenbezug (eigene Kiste, Lager in Kiste) oder Deep-Link – nicht bei phys. Kombi (Inhalt = Stückliste). */
 const showContainerContentTab = computed(() => {
+  if (material.value?.material_type === 'physical_combo') return false
   const hasContainerContext =
     !!normalizeQueryString(route.query[DETAIL_QUERY_KEYS.containerBatch]) ||
     !!normalizeQueryString(route.query[DETAIL_QUERY_KEYS.legacyStoredInContainerBatch])
   if (hasContainerContext) return true
+  if (hasMaterialContainerContext.value) return true
+  if (storedInContainerOptions.value.length > 0) return true
   if (material.value.tracking_type !== 'serialized') return false
-  return storedInContainerOptions.value.length > 0
+  return false
 })
 
 // Dynamische Tabs: Kombos fokussiert auf Stückliste & Lager (ohne Bestand/Serien/Verwendet-in-Kette wie Einzelmaterial)
@@ -2739,6 +2909,12 @@ const tabs = computed(() => {
       { id: 'composition', label: t('components.materialDetail.tabComposition') },
       { id: 'workshop', label: t('components.materialDetail.tabWorkshop') },
     ]
+    if (showContainerContentTab.value) {
+      comboTabs.splice(3, 0, {
+        id: 'container-content',
+        label: t('components.materialDetail.tabContainerContent'),
+      })
+    }
     if (!material.value.is_consumable && !material.value.is_food) {
       comboTabs.push({ id: 'rental', label: t('components.materialDetail.tabRental') })
     }
@@ -2805,7 +2981,7 @@ function setActiveTab(tabId: string) {
 
 const selectedContainerBatch = computed(() => {
   if (!containerContentBatchId.value) return null
-  return containerBatches.value.find((batch) => batch.id === containerContentBatchId.value) || null
+  return resolveContainerBatchById(containerContentBatchId.value)
 })
 
 const containerContentRows = computed(() => {
@@ -3236,17 +3412,32 @@ async function openEditCompositionModal(comp: ComboComponent) {
   editCompositionBatchId.value = comp.component_batch?.id || ''
   editCompositionError.value = ''
   editCompositionBatches.value = []
+  editCompositionSourceDetail.value = null
+  editCompositionStockLocations.value = null
   showEditCompositionModal.value = true
   editCompositionBatchesLoading.value = true
   try {
     const m = await getMaterial(comp.component_material.id)
+    editCompositionSourceDetail.value = m
     editCompositionMaterialFreeStock.value = Math.max(0, m.free_stock ?? 0)
     editCompositionBatches.value = [...(m.batches || [])].sort((a, b) =>
       (b.acquired_on || '').localeCompare(a.acquired_on || '', sortLocale()),
     )
+    if (addCompositionAllocatesToLinkedCrate.value) {
+      try {
+        editCompositionStockLocations.value = await getMaterialStorageLocations(
+          comp.component_material.id,
+          props.departmentId,
+        )
+      } catch {
+        editCompositionStockLocations.value = null
+      }
+    }
   } catch {
     editCompositionMaterialFreeStock.value = 0
     editCompositionBatches.value = []
+    editCompositionSourceDetail.value = null
+    editCompositionStockLocations.value = null
   } finally {
     editCompositionBatchesLoading.value = false
   }
@@ -3373,6 +3564,15 @@ async function loadMaterialStorageLocations() {
   }
 }
 
+watch(
+  () => props.materialId,
+  () => {
+    hasLoadedContainerBatches.value = false
+    containerBatches.value = []
+    containerContentBatchId.value = ''
+  },
+)
+
 async function loadMaterial(opts?: { preserveComboComponents?: boolean }) {
   isLoading.value = true
   try {
@@ -3457,7 +3657,9 @@ async function loadContainerBatches() {
   if (isLoadingContainerBatches.value) return
   isLoadingContainerBatches.value = true
   try {
-    containerBatches.value = await getContainerBatches(props.departmentId)
+    containerBatches.value = await getContainerBatches(props.departmentId, {
+      forMaterialId: props.materialId || undefined,
+    })
     hasLoadedContainerBatches.value = true
   } catch (err) {
     console.error(t('components.materialDetail.logErrorLoadContainerBatches'), err)
@@ -4762,6 +4964,37 @@ watch(containerContentSearch, (value) => {
   })
 })
 
+function preferredContainerBatchIdForMaterial(): string | null {
+  const linkedId = linkedContainerBatchIdForRelease.value
+  if (linkedId && storedInContainerOptions.value.some((o) => o.id === linkedId)) {
+    return linkedId
+  }
+  const ms = materialStorageLocations.value
+  for (const block of ms?.via_physical_combo ?? []) {
+    const cid = (block.parent_linked_container_batch_id || '').trim()
+    if (cid && storedInContainerOptions.value.some((o) => o.id === cid)) return cid
+  }
+  for (const row of ms?.direct ?? []) {
+    const cid = (row.container_batch_id || '').trim()
+    if (cid && storedInContainerOptions.value.some((o) => o.id === cid)) return cid
+  }
+  return storedInContainerOptions.value[0]?.id ?? null
+}
+
+watch(
+  () => [
+    material.value?.id,
+    storedInContainerOptions.value.map((o) => o.id).join(','),
+    materialStorageLocations.value,
+  ],
+  () => {
+    if (containerContentBatchId.value) return
+    const preferred = preferredContainerBatchIdForMaterial()
+    if (preferred) containerContentBatchId.value = preferred
+  },
+  { immediate: true },
+)
+
 watch([activeTab, containerContentBatchId], ([tab, batchId]) => {
   if (tab !== 'container-content') return
   if (!batchId) {
@@ -4993,11 +5226,6 @@ onMounted(() => {
 
 .detail-sort-chev.active {
   color: #059669;
-}
-
-/* Such-Dropdown über scrollbarem Modal-Inhalt */
-.composition-add-modal :deep(.material-lookup-dropdown) {
-  z-index: 3000;
 }
 
 .combo-allocation-breakdown {

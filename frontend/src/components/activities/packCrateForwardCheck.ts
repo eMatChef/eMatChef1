@@ -138,10 +138,48 @@ export function defaultLineReview(expectedQty: number): ShellForwardLineReview {
   }
 }
 
+/** Übertrag-Modal: leer starten (0 gezählt, nichts bestätigt). */
+export function emptyShellForwardLineReview(): ShellForwardLineReview {
+  return {
+    status: null,
+    resolution: null,
+    note: '',
+    missingQty: null,
+    countedQty: 0,
+    doReplenishAfterLoss: false,
+    replenishQty: null,
+    inventoryPhase: 'none',
+    inventoryLocationReviews: {},
+    inventoryLocations: [],
+  }
+}
+
+export function buildEmptyShellForwardLineReviews(
+  lines: ShellForwardCheckLine[],
+): Record<string, ShellForwardLineReview> {
+  const out: Record<string, ShellForwardLineReview> = {}
+  for (const line of lines) {
+    out[line.key] = emptyShellForwardLineReview()
+  }
+  return out
+}
+
+/** Übertrag-Modal: Ist = Soll vorfüllen, Bestätigung per ✓. */
+export function buildDefaultShellForwardLineReviews(
+  lines: ShellForwardCheckLine[],
+): Record<string, ShellForwardLineReview> {
+  const out: Record<string, ShellForwardLineReview> = {}
+  for (const line of lines) {
+    out[line.key] = defaultLineReview(line.quantity)
+  }
+  return out
+}
+
 export function applyCountedQtyToReview(
   review: ShellForwardLineReview,
   expectedQty: number,
   isExtra: boolean,
+  options?: { explicitOkOnly?: boolean },
 ): ShellForwardLineReview {
   const counted = Math.max(0, Math.floor(Number(review.countedQty) || 0))
   if (isExtra) {
@@ -149,10 +187,11 @@ export function applyCountedQtyToReview(
       return { ...review, countedQty: counted, status: null, resolution: null }
     }
     if (counted === expectedQty) {
+      const keepExplicitOk = options?.explicitOkOnly && review.status === 'ok'
       return {
         ...review,
         countedQty: counted,
-        status: 'ok',
+        status: keepExplicitOk ? 'ok' : options?.explicitOkOnly ? null : 'ok',
         resolution: null,
         missingQty: null,
         inventoryPhase: 'none',
@@ -168,10 +207,11 @@ export function applyCountedQtyToReview(
     }
   }
   if (counted === expectedQty) {
+    const keepExplicitOk = options?.explicitOkOnly && review.status === 'ok'
     return {
       ...review,
       countedQty: counted,
-      status: 'ok',
+      status: keepExplicitOk ? 'ok' : options?.explicitOkOnly ? null : 'ok',
       resolution: null,
       missingQty: null,
       doReplenishAfterLoss: false,
@@ -294,7 +334,18 @@ export function buildPackCrateCheckLinesPayload(
       noteParts.push(`Ist ${review.countedQty} / Soll ${line.quantity}`)
     }
     if (review?.inventoryPhase === 'done' && allInventoryLocationsSettled(review)) {
-      noteParts.push('Mini-Inventur: Plätze geprüft')
+      const locNotes: string[] = []
+      for (const loc of review.inventoryLocations) {
+        const key = storageLocationRowKey(loc)
+        const lr = review.inventoryLocationReviews[key]
+        if (!lr) continue
+        locNotes.push(`${formatStorageLocationPlaceLabel(loc)}: Ist ${lr.countedQty}/${loc.qty}`)
+      }
+      noteParts.push(
+        locNotes.length > 0
+          ? `Mini-Inventur: ${locNotes.join('; ')}`
+          : 'Mini-Inventur: Plätze geprüft',
+      )
     }
     const countedQty =
       review && review.countedQty != null ? Math.max(0, Math.floor(review.countedQty)) : line.quantity

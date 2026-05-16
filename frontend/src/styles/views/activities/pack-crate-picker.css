@@ -1,0 +1,91 @@
+.pack-crate-picker-block {
+  padding: 0;
+}
+
+.pack-crate-picker-head {
+  margin-bottom: 10px;
+}
+
+.pack-crate-picker-title {
+  margin: 0 0 4px;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #334155;
+}
+
+.pack-crate-picker-hint {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.pack-crate-picker-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-width: 520px;
+}
+
+.pack-crate-picker-loose {
+  align-self: flex-start;
+  margin-bottom: 4px;
+}
+
+.pack-crate-picker-loose.pack-target-loose--active {
+  border-color: var(--color-primary, #4f46e5);
+  background: #fff;
+  color: var(--color-primary, #4f46e5);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-primary, #4f46e5) 22%, transparent);
+}
+
+/* Auswahl: nur Border, kein Vollflächen-Blau wie pack-container-card--target */
+.pack-crate-picker-card.pack-container-card--target {
+  border-color: var(--color-primary, #4f46e5);
+  background: #fafafa;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-primary, #4f46e5) 22%, transparent);
+}
+
+.pack-crate-picker-card .pack-container-chevron {
+  color: var(--color-text-muted, #9ca3af);
+}
+
+.pack-crate-picker-card.pack-container-card--target .pack-container-chevron {
+  color: var(--color-primary, #4f46e5);
+}
+
+.pack-crate-picker-card .pack-container-chevron-btn:hover .pack-container-chevron {
+  color: var(--color-primary, #4f46e5);
+}
+
+.pack-crate-picker-card .pack-container-select-main:hover {
+  background: transparent;
+}
+
+.pack-crate-picker-inner {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.pack-crate-picker-inner-footer {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 4px;
+  padding-top: 4px;
+}
+
+.pack-crate-picker-inner-footer .pack-container-delete {
+  margin-top: 0;
+}
+
+.pack-crate-picker-line .pack-container-line-main {
+  width: 100%;
+}
+
+.pack-crate-picker-empty {
+  margin: 8px 0 0;
+  font-size: 12px;
+  line-height: 1.45;
+}

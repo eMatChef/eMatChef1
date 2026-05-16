@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import type { ActivityPackItem } from '@/api/activityPackItems'
 import type { PackStage } from '@/components/activities/packStageQuantities'
+import type { PackWorkflowProfile } from '@/components/activities/packWorkflowProfile'
 import {
   getStageLeftQty,
   getStageRightQty,
   getStageTotalQty,
+  isPackForwardToEventStage,
 } from '@/components/activities/packStageQuantities'
 import { useI18n } from 'vue-i18n'
 
@@ -13,6 +15,7 @@ defineOptions({ name: 'PackMaterialRowDetail' })
 const props = defineProps<{
   item: ActivityPackItem
   stage: PackStage
+  workflowProfile: PackWorkflowProfile
   stageRightLabel: string
   side: 'left' | 'right'
   looseQty?: number
@@ -23,16 +26,16 @@ const props = defineProps<{
 
 const { t } = useI18n()
 
-const leftQty = () => getStageLeftQty(props.item, props.stage)
-const rightQty = () => getStageRightQty(props.item, props.stage)
-const totalQty = () => getStageTotalQty(props.item, props.stage)
+const leftQty = () => getStageLeftQty(props.item, props.stage, props.workflowProfile)
+const rightQty = () => getStageRightQty(props.item, props.stage, props.workflowProfile)
+const totalQty = () => getStageTotalQty(props.item, props.stage, props.workflowProfile)
 </script>
 
 <template>
   <div :class="useDetailStack ? 'pack-card-detail-stack' : undefined">
     <span class="pack-card-detail">
       <template v-if="side === 'left'">
-        <template v-if="stage === 'packed_issued' && leftQty() > 0">
+        <template v-if="isPackForwardToEventStage(stage) && leftQty() > 0">
           <template v-if="(looseQty ?? 0) > 0">
             <span>{{ t('activities.packList.loosePieces', { n: looseQty }) }}</span>
             <span v-if="(qtyInContainers ?? 0) > 0" class="text-muted">

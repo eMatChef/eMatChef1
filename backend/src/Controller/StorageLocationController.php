@@ -388,42 +388,78 @@ class StorageLocationController extends AbstractController
             }
         }
 
-        $batches = $this->entityManager->getRepository(MaterialBatch::class)
-            ->createQueryBuilder('b')
-            ->innerJoin('b.materialItem', 'mi')
-            ->leftJoin('b.rack', 'r')
-            ->leftJoin('b.slot', 's')
-            ->addSelect('mi', 'r', 's')
-            ->where('mi.departmentId = :departmentId')
-            ->andWhere('b.rackId IS NOT NULL')
-            ->andWhere('b.status = :status')
-            ->andWhere('mi.deletedAt IS NULL')
-            ->andWhere('(mi.isContainer = true OR b.isContainer = true)')
-            ->andWhere('mi.materialType <> :physicalCombo')
-            ->andWhere('NOT EXISTS (
-                SELECT 1 FROM ' . MaterialItem::class . ' micb
-                WHERE micb.linkedContainerBatchId = b.id
-            )')
-            ->setParameter('departmentId', $departmentId)
-            ->setParameter('status', 'active')
-            ->setParameter('physicalCombo', 'physical_combo')
-            ->orderBy('mi.name', 'ASC')
-            ->addOrderBy('b.serialNumber', 'ASC')
-            ->addOrderBy('b.label', 'ASC')
-            ->getQuery()
-            ->getResult();
+        $forMaterialId = $filterForPack ? '' : trim((string) $request->query->get('for_material_id', ''));
+        $materialScopedList = $forMaterialId !== '';
 
-        $batchIds = array_map(static fn (MaterialBatch $b) => $b->getId(), $batches);
+        if ($materialScopedList) {
+            $scopedBatchIds = $this->fetchContainerBatchIdsRelevantForMaterial($departmentId, $forMaterialId);
+            if ($scopedBatchIds === []) {
+                return new JsonResponse([]);
+            }
+            $batches = $this->entityManager->getRepository(MaterialBatch::class)
+                ->createQueryBuilder('b')
+                ->innerJoin('b.materialItem', 'mi')
+                ->leftJoin('b.rack', 'r')
+                ->leftJoin('b.slot', 's')
+                ->addSelect('mi', 'r', 's')
+                ->where('b.id IN (:ids)')
+                ->andWhere('mi.departmentId = :departmentId')
+                ->andWhere('b.status = :status')
+                ->andWhere('mi.deletedAt IS NULL')
+                ->setParameter('ids', $scopedBatchIds)
+                ->setParameter('departmentId', $departmentId)
+                ->setParameter('status', 'active')
+                ->orderBy('mi.name', 'ASC')
+                ->addOrderBy('b.serialNumber', 'ASC')
+                ->addOrderBy('b.label', 'ASC')
+                ->getQuery()
+                ->getResult();
+            $standardBatchIds = [];
+        } else {
+            $batches = $this->entityManager->getRepository(MaterialBatch::class)
+                ->createQueryBuilder('b')
+                ->innerJoin('b.materialItem', 'mi')
+                ->leftJoin('b.rack', 'r')
+                ->leftJoin('b.slot', 's')
+                ->addSelect('mi', 'r', 's')
+                ->where('mi.departmentId = :departmentId')
+                ->andWhere('b.rackId IS NOT NULL')
+                ->andWhere('b.status = :status')
+                ->andWhere('mi.deletedAt IS NULL')
+                ->andWhere('(mi.isContainer = true OR b.isContainer = true)')
+                ->andWhere('mi.materialType <> :physicalCombo')
+                ->andWhere('NOT EXISTS (
+                    SELECT 1 FROM ' . MaterialItem::class . ' micb
+                    WHERE micb.linkedContainerBatchId = b.id
+                )')
+                ->setParameter('departmentId', $departmentId)
+                ->setParameter('status', 'active')
+                ->setParameter('physicalCombo', 'physical_combo')
+                ->orderBy('mi.name', 'ASC')
+                ->addOrderBy('b.serialNumber', 'ASC')
+                ->addOrderBy('b.label', 'ASC')
+                ->getQuery()
+                ->getResult();
+            $standardBatchIds = array_map(static fn (MaterialBatch $b) => $b->getId(), $batches);
+        }
+
+        $batchById = [];
+        foreach ($batches as $b) {
+            $batchById[$b->getId()] = $b;
+        }
+
+        $allBatchIds = array_keys($batchById);
         $conn = $this->entityManager->getConnection();
-        $previewById = $this->buildContainerBatchContentPreviewMap($conn, $batchIds);
+        $previewById = $this->buildContainerBatchContentPreviewMap($conn, $allBatchIds);
+        $comboInfoByBatchId = $this->fetchPhysicalComboInfoByLinkedContainerBatchIds($conn, $allBatchIds);
 
         $result = [];
-        foreach ($batches as $b) {
-            $bid = $b->getId();
+        foreach ($batchById as $bid => $b) {
             $pv = $previewById[$bid] ?? ['content_preview' => [], 'content_preview_more' => 0];
             $storageEmpty = $this->isContainerBatchStorageEmpty($pv);
+            $isStandardList = in_array($bid, $standardBatchIds, true);
 
-            if ($filterForPack) {
+            if ($filterForPack && $isStandardList) {
                 if (in_array($bid, $assignedOnActivityBatchIds, true)) {
                     continue;
                 }
@@ -436,7 +472,7 @@ class StorageLocationController extends AbstractController
                 }
             }
 
-            $result[] = [
+            $row = [
                 'id' => $bid,
                 'material_id' => $b->getMaterialItem()->getId(),
                 'serial_number' => $b->getSerialNumber(),
@@ -451,6 +487,12 @@ class StorageLocationController extends AbstractController
                 'content_preview_more' => $pv['content_preview_more'],
                 'storage_empty' => $storageEmpty,
             ];
+            $comboInfo = $comboInfoByBatchId[$bid] ?? null;
+            if ($comboInfo !== null) {
+                $row['physical_combo_id'] = $comboInfo['id'];
+                $row['physical_combo_name'] = $comboInfo['name'];
+            }
+            $result[] = $row;
         }
 
         if ($filterForPack && $result !== []) {
@@ -792,6 +834,101 @@ class StorageLocationController extends AbstractController
         }
 
         return $out;
+    }
+
+    /**
+     * Kisten-Chargen, die für ein Material relevant sind (Tab „Inhalt Kiste/Tasche“):
+     * eigene Kisten-Instanzen, Lager in Kisten, verknüpfte Referenz-Kiste der physischen Kombo, Kisten physischer Kombos als Komponente.
+     *
+     * @return list<string>
+     */
+    private function fetchContainerBatchIdsRelevantForMaterial(string $departmentId, string $materialId): array
+    {
+        $material = $this->entityManager->getRepository(MaterialItem::class)->find($materialId);
+        if (!$material || $material->getDepartmentId() !== $departmentId || $material->getDeletedAt() !== null) {
+            return [];
+        }
+
+        $conn = $this->entityManager->getConnection();
+        $ids = [];
+
+        if ($material->getLinkedContainerBatchId()) {
+            $ids[] = $material->getLinkedContainerBatchId();
+        }
+
+        $ownContainerRows = $conn->executeQuery(
+            'SELECT b.id FROM material_batch b
+             INNER JOIN material_item mi ON mi.id = b.material_item_id
+             WHERE b.material_item_id = :mid
+               AND mi.department_id = :dept
+               AND b.status = :status
+               AND b.rack_id IS NOT NULL
+               AND (mi.is_container = true OR b.is_container = true)',
+            ['mid' => $materialId, 'dept' => $departmentId, 'status' => 'active'],
+        )->fetchFirstColumn();
+        foreach ($ownContainerRows as $row) {
+            $ids[] = (string) $row;
+        }
+
+        $allocRows = $conn->executeQuery(
+            'SELECT DISTINCT a.container_batch_id FROM batch_storage_allocation a
+             INNER JOIN material_batch b ON a.batch_id = b.id
+             INNER JOIN material_item mi ON b.material_item_id = mi.id
+             WHERE b.material_item_id = :mid
+               AND mi.department_id = :dept
+               AND b.status = :status
+               AND a.container_batch_id IS NOT NULL',
+            ['mid' => $materialId, 'dept' => $departmentId, 'status' => 'active'],
+        )->fetchFirstColumn();
+        foreach ($allocRows as $row) {
+            $ids[] = (string) $row;
+        }
+
+        $comboLinkedRows = $conn->executeQuery(
+            'SELECT DISTINCT p.linked_container_batch_id FROM material_combo_component cc
+             INNER JOIN material_item p ON p.id = cc.parent_material_id
+             WHERE cc.component_material_id = :mid
+               AND p.department_id = :dept
+               AND p.material_type = :ptype
+               AND p.linked_container_batch_id IS NOT NULL
+               AND p.deleted_at IS NULL',
+            ['mid' => $materialId, 'dept' => $departmentId, 'ptype' => 'physical_combo'],
+        )->fetchFirstColumn();
+        foreach ($comboLinkedRows as $row) {
+            $ids[] = (string) $row;
+        }
+
+        return array_values(array_unique(array_filter($ids, static fn ($id) => $id !== '')));
+    }
+
+    /**
+     * @param array<int, string> $containerBatchIds
+     *
+     * @return array<string, array{id: string, name: string}> batch_id => physical combo
+     */
+    private function fetchPhysicalComboInfoByLinkedContainerBatchIds(Connection $conn, array $containerBatchIds): array
+    {
+        if ($containerBatchIds === []) {
+            return [];
+        }
+        $placeholders = implode(',', array_fill(0, count($containerBatchIds), '?'));
+        $sql = "
+            SELECT linked_container_batch_id AS batch_id, id, name
+            FROM material_item
+            WHERE linked_container_batch_id IN ($placeholders)
+              AND material_type = 'physical_combo'
+              AND deleted_at IS NULL
+        ";
+        $rows = $conn->executeQuery($sql, $containerBatchIds)->fetchAllAssociative();
+        $map = [];
+        foreach ($rows as $row) {
+            $map[(string) $row['batch_id']] = [
+                'id' => (string) $row['id'],
+                'name' => (string) $row['name'],
+            ];
+        }
+
+        return $map;
     }
 
     private function assertDepartmentAccess(string $departmentId): true|JsonResponse

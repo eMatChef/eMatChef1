@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { IconArrowRight } from '@/components/icons'
-import { computed, inject } from 'vue'
+import { computed, inject, unref, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { ActivityPackItem } from '@/api/activityPackItems'
+import PackMoveControls from '@/components/activities/PackMoveControls.vue'
+import { isPackConfirmedStage } from '@/components/activities/packStageQuantities'
 import PackCrateShellInlinePanel, {
   type PackCrateShellPeekSection,
 } from '@/components/activities/PackCrateShellInlinePanel.vue'
@@ -35,9 +37,36 @@ const shellPeekEmptyHint = computed(() => {
   return fn ? fn(props.shellPackItem) : ''
 })
 
+const shellLineCount = computed(() =>
+  shellPeekSections.value.reduce((n, sec) => n + sec.lines.length, 0),
+)
+
+function onToggleExpand() {
+  const wasOpen = innerVisible.value
+  ;(ctx.togglePackContainerCollapsed as (id: string) => void)(collapseKey.value)
+  if (!wasOpen && shellLineCount.value > 0) {
+    // Subsection defaults applied via defaultExpanded on inline panel
+  }
+}
+
+const activePackStage = computed(() => {
+  const raw = ctx.activePackStage as unknown
+  if (raw == null) return ''
+  return String(unref(raw as Ref<string> | string))
+})
+
+const useQtyMoveControls = computed(() => isPackConfirmedStage(activePackStage.value as import('@/components/activities/packStageQuantities').PackStage))
+
 const shellCanMoveForward = computed(() => {
   const fn = ctx.packIssueForwardMax as ((p: ActivityPackItem) => number) | undefined
   return fn ? fn(props.shellPackItem) > 0 : false
+})
+
+const shellMoveQty = computed(() => {
+  const inputs = ctx.moveQtyInputs as unknown
+  const map =
+    inputs != null ? (unref(inputs as Ref<Record<string, number>> | Record<string, number>) as Record<string, number>) : {}
+  return map[props.shellPackItem.id] ?? 0
 })
 
 function moveShellCrateForward() {
@@ -61,7 +90,7 @@ function moveShellCrateForward() {
         class="pack-container-chevron-btn"
         :aria-expanded="innerVisible"
         :aria-label="t('activities.packList.ariaToggleContainer')"
-        @click.stop="(ctx.togglePackContainerCollapsed as (id: string) => void)(collapseKey)"
+        @click.stop="onToggleExpand"
       >
         <span class="pack-container-chevron" aria-hidden="true">{{ innerVisible ? '▼' : '▶' }}</span>
       </button>
@@ -71,10 +100,26 @@ function moveShellCrateForward() {
           <span class="pack-combo-badge" :title="t('activities.detail.comboPhysicalTitle')">{{
             t('activities.detail.comboPhysicalShort')
           }}</span>
+          <span v-if="shellLineCount > 0" class="pack-container-chip text-muted">{{
+            t('activities.common.itemsUnit', { count: shellLineCount })
+          }}</span>
         </div>
       </div>
       <div v-if="ctx.packListEditable && shellCanMoveForward" class="pack-container-header-actions" @click.stop>
+        <PackMoveControls
+          v-if="useQtyMoveControls"
+          direction="forward"
+          :qty="shellMoveQty"
+          :max="(ctx.packIssueForwardMax as (p: ActivityPackItem) => number)(shellPackItem)"
+          :disabled="ctx.movingId === shellPackItem.id"
+          :forward-title="
+            (ctx.forwardMoveTitleForItem as (p: ActivityPackItem) => string | undefined)?.(shellPackItem) ?? ''
+          "
+          @update:qty="(ctx.setMoveQtyForItem as (id: string, n: number) => void)(shellPackItem.id, $event)"
+          @move="moveShellCrateForward"
+        />
         <button
+          v-else
           type="button"
           class="btn-move-arrow btn-move-arrow--container-header"
           :disabled="ctx.movingId === shellPackItem.id"
@@ -107,8 +152,24 @@ function moveShellCrateForward() {
       <PackCrateShellInlinePanel
         :sections="shellPeekSections"
         :empty-hint="shellPeekEmptyHint"
+        :reality-banner="
+          (ctx.crateRealityBannerForPackItem as ((p: ActivityPackItem) => string | null) | undefined)?.(
+            shellPackItem,
+          ) ?? null
+        "
+        :show-template-toggle="
+          (ctx.showCrateTemplateToggle as ((p: ActivityPackItem) => boolean) | undefined)?.(shellPackItem) ??
+          false
+        "
+        :use-reality-view="
+          (ctx.useCrateRealityForPackItem as ((id: string) => boolean) | undefined)?.(shellPackItem.id) ??
+          true
+        "
         separate-section-rows
         :default-expanded="innerVisible"
+        @toggle-reality-view="
+          (ctx.toggleCrateRealityView as ((p: ActivityPackItem) => void) | undefined)?.(shellPackItem)
+        "
       />
     </div>
   </div>
@@ -116,25 +177,8 @@ function moveShellCrateForward() {
 
 <style src="@/styles/views/activities/detail-workflow.css"></style>
 <style src="@/styles/views/activities/pack-container-card.css"></style>
+<style src="@/styles/views/activities/pack-shell-combo.css"></style>
 <style scoped>
-.pack-container-card--shell {
-  margin-bottom: 0;
-}
-
-.pack-container-header-title-block--shell {
-  padding: 10px 8px 10px 4px;
-}
-
-.pack-container-inner--shell {
-  padding-top: 8px;
-}
-
-.pack-shell-storage {
-  font-size: 12px;
-  line-height: 1.45;
-  margin: 0 0 8px;
-}
-
 .pack-combo-badge {
   font-size: 10px;
   font-weight: 600;

@@ -69,6 +69,7 @@
         :show-empty-when-no-results="matSearchTrimmed.length >= 1"
         :get-result-key="(item) => item.materialItemId"
         :get-result-label="(item) => item.name"
+        dropdown-max-height="min(420px, 55vh)"
       >
         <template #results="{ results, isLoading, activeIndex, setActiveIndex }">
           <div v-if="isLoading" class="mat-dropdown-loading">{{ t('activities.wizard.form.inviteSearching') }}</div>
@@ -499,10 +500,6 @@ function addQty(m: ActivityPeriodAvailabilityMaterial, qty: number) {
 
 .activity-material-lookup {
   margin-bottom: 14px;
-}
-
-.activity-material-lookup :deep(.material-lookup-dropdown) {
-  max-height: min(420px, 55vh);
 }
 
 .activity-material-lookup :deep(.activity-mat-lookup-input) {

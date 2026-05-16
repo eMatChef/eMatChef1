@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, inject, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import PackWorkflowModal from '@/components/activities/PackWorkflowModal.vue'
 import PackShellCheckToggle from '@/components/activities/PackShellCheckToggle.vue'
@@ -12,6 +12,7 @@ import { getMaterialStorageLocations } from '@/api/materials'
 import {
   applyCountedQtyToReview,
   buildPackCrateCheckLinesPayload,
+  buildDefaultShellForwardLineReviews,
   defaultLineReview,
   allInventoryLocationsSettled,
   applyInventoryLocationCounted,
@@ -29,6 +30,7 @@ import {
   type ShellForwardLineReview,
 } from '@/components/activities/packCrateForwardCheck'
 import type { PackCrateCheckRequest } from '@/api/activityPackCrateCheck'
+import { PACK_WAREHOUSE_ISSUE_INJECT_KEY } from '@/components/activities/packWarehouseIssueInjectKey'
 
 const props = defineProps<{
   open: boolean
@@ -47,6 +49,9 @@ const props = defineProps<{
   embeddedIssuesByLineKey: Record<string, ActivityIssueReportRow[]>
   repackIssueReviews: Record<string, 'ok' | 'problem' | null>
   orphanIssues: ActivityIssueReportRow[]
+  /** Aus letztem Kistencheck — sonst Standard-Reviews */
+  initialLineReviews?: Record<string, ShellForwardLineReview> | null
+  packItemId?: string | null
 }>()
 
 const emit = defineEmits<{
@@ -56,6 +61,8 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
+
+const ctx = inject(PACK_WAREHOUSE_ISSUE_INJECT_KEY, null) as Record<string, unknown> | null
 
 const lineReviews = ref<Record<string, ShellForwardLineReview>>({})
 const locationsLoadingByMid = ref<Record<string, boolean>>({})
@@ -92,9 +99,10 @@ function patchReview(key: string, expectedQty: number, isExtra: boolean, patch: 
   const touchesLineCount =
     patch.countedQty !== undefined || patch.status !== undefined || patch.resolution !== undefined
   const merged = touchesLineCount
-    ? applyCountedQtyToReview({ ...cur, ...patch }, expectedQty, isExtra)
+    ? applyCountedQtyToReview({ ...cur, ...patch }, expectedQty, isExtra, { explicitOkOnly: true })
     : { ...cur, ...patch }
   lineReviews.value = { ...lineReviews.value, [key]: merged }
+  const packItemId = props.packItemId
 }
 
 function onCountedChange(line: ShellForwardCheckLine, raw: number) {
@@ -248,10 +256,12 @@ function skipInventory(line: ShellForwardCheckLine) {
 }
 
 function setLineOk(line: ShellForwardCheckLine) {
+  const cur = reviewFor(line.key, line.quantity)
   patchReview(line.key, line.quantity, line.isExtra, {
-    countedQty: line.quantity,
+    countedQty: cur.countedQty,
     status: 'ok',
     resolution: null,
+    missingQty: null,
     inventoryPhase: 'none',
   })
 }
@@ -311,17 +321,14 @@ const submitLabel = computed(() => {
 })
 
 function initReviews() {
-  const next: Record<string, ShellForwardLineReview> = {}
-  for (const line of checkLines.value) {
-    next[line.key] = defaultLineReview(line.quantity)
-  }
-  lineReviews.value = next
+  lineReviews.value = buildDefaultShellForwardLineReviews(checkLines.value)
 }
 
 watch(
   () => props.open,
   (isOpen) => {
-    if (isOpen) initReviews()
+    if (!isOpen) return
+    initReviews()
   },
 )
 
@@ -345,9 +352,11 @@ function onPrimarySubmit() {
 function varianceKind(line: ShellForwardCheckLine): 'ok' | 'short' | 'surplus' | 'unset' {
   const r = lineReviews.value[line.key]
   if (!r) return 'unset'
-  if (r.countedQty === line.quantity) return 'ok'
-  if (r.countedQty < line.quantity) return 'short'
-  if (r.countedQty > line.quantity) return 'surplus'
+  if (r.status === 'ok' && r.countedQty === line.quantity) return 'ok'
+  if (r.status === 'problem') {
+    if (r.countedQty > line.quantity) return 'surplus'
+    if (r.countedQty < line.quantity) return 'short'
+  }
   return 'unset'
 }
 
@@ -402,6 +411,9 @@ function asCheckLine(sec: PackCrateShellPeekSection, line: PackCrateShellPeekSec
               'pack-shell-forward-li--ok': varianceKind(asCheckLine(sec, line)) === 'ok',
               'pack-shell-forward-li--short': varianceKind(asCheckLine(sec, line)) === 'short',
               'pack-shell-forward-li--surplus': varianceKind(asCheckLine(sec, line)) === 'surplus',
+              'pack-shell-forward-li--pending':
+                varianceKind(asCheckLine(sec, line)) === 'unset' &&
+                reviewFor(asCheckLine(sec, line).key, line.quantity).countedQty === line.quantity,
             }"
           >
             <template v-for="cl in [asCheckLine(sec, line)]" :key="cl.key">
@@ -471,7 +483,7 @@ function asCheckLine(sec: PackCrateShellPeekSection, line: PackCrateShellPeekSec
                   </button>
                   <PackShellCheckToggle
                     ok-only
-                    :ok-active="varianceKind(cl) === 'ok'"
+                    :ok-active="reviewFor(cl.key, cl.quantity).status === 'ok'"
                     :ok-title="t('activities.packList.shellForwardLineOkTitle')"
                     :ok-aria-label="t('activities.packList.shellForwardLineOkAria', { name: line.materialName })"
                     @ok="setLineOk(cl)"
@@ -915,5 +927,9 @@ function asCheckLine(sec: PackCrateShellPeekSection, line: PackCrateShellPeekSec
 
 .pack-shell-forward-li--ok {
   border-left: 3px solid #16a34a;
+}
+
+.pack-shell-forward-li--pending {
+  border-left: 3px solid #cbd5e1;
 }
 </style>

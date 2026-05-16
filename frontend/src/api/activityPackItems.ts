@@ -1,6 +1,6 @@
 import apiClient from './apiClient'
 
-export type PackMoveStage = 'packed' | 'issued' | 'returned'
+export type PackMoveStage = 'packed' | 'transport_to' | 'at_event' | 'transport_back' | 'returned'
 
 export interface ActivityPackItem {
   id: string
@@ -13,7 +13,9 @@ export interface ActivityPackItem {
   packUnit: string | null
   quantityOrdered: number
   quantityPacked: number
+  quantityTransportTo: number
   quantityIssued: number
+  quantityTransportBack: number
   quantityReturned: number
   conditionOut: string | null
   notes: string | null
@@ -63,7 +65,9 @@ function mapPackItem(raw: Record<string, unknown>): ActivityPackItem {
     packUnit: raw.pack_unit != null ? String(raw.pack_unit) : null,
     quantityOrdered: num(raw.quantity_ordered),
     quantityPacked: num(raw.quantity_packed),
+    quantityTransportTo: num(raw.quantity_transport_to),
     quantityIssued: num(raw.quantity_issued),
+    quantityTransportBack: num(raw.quantity_transport_back),
     quantityReturned: num(raw.quantity_returned),
     conditionOut: raw.condition_out != null ? String(raw.condition_out) : null,
     notes: raw.notes != null ? String(raw.notes) : null,

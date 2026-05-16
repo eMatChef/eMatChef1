@@ -633,6 +633,9 @@ class Activity
     public const STATUS_APPROVED = 'approved';
     public const STATUS_PACKING = 'packing';
     public const STATUS_PACKED = 'packed';
+    /** Material am Event / bei der Gruppe */
+    public const STATUS_AT_EVENT = 'at_event';
+    /** @deprecated Alias — Migration auf at_event */
     public const STATUS_ISSUED = 'issued';
     public const STATUS_RETURNED = 'returned';
     public const STATUS_COMPLETED = 'completed';
@@ -644,7 +647,7 @@ class Activity
         self::STATUS_APPROVED,
         self::STATUS_PACKING,
         self::STATUS_PACKED,
-        self::STATUS_ISSUED,
+        self::STATUS_AT_EVENT,
         self::STATUS_RETURNED,
         self::STATUS_COMPLETED,
         self::STATUS_CANCELLED,
@@ -659,8 +662,8 @@ class Activity
         self::STATUS_SUBMITTED => [self::STATUS_APPROVED, self::STATUS_PACKING, self::STATUS_CANCELLED],
         self::STATUS_APPROVED  => [self::STATUS_PACKING, self::STATUS_SUBMITTED, self::STATUS_CANCELLED], // zurück zu submitted = Zurückweisung
         self::STATUS_PACKING   => [self::STATUS_PACKED, self::STATUS_CANCELLED],
-        self::STATUS_PACKED    => [self::STATUS_ISSUED, self::STATUS_PACKING, self::STATUS_CANCELLED], // zurück zu packing = Korrektur
-        self::STATUS_ISSUED    => [self::STATUS_RETURNED],
+        self::STATUS_PACKED    => [self::STATUS_AT_EVENT, self::STATUS_PACKING, self::STATUS_CANCELLED],
+        self::STATUS_AT_EVENT  => [self::STATUS_RETURNED],
         self::STATUS_RETURNED  => [self::STATUS_COMPLETED],
         self::STATUS_COMPLETED => [],
         self::STATUS_CANCELLED => [],
@@ -692,10 +695,12 @@ class Activity
         'approved->cancelled' => ['mw', 'sa', 'org'],
         'packing->packed'     => ['mw', 'sa', 'org'],
         'packing->cancelled'  => ['mw', 'sa', 'org'],
-        'packed->issued'      => ['mw', 'sa', 'org'],
-        'packed->packing'     => ['mw', 'sa', 'org'], // Korrektur
+        'packed->at_event'    => ['mw', 'sa', 'org'],
+        'packed->issued'      => ['mw', 'sa', 'org'], // Legacy-Alias
+        'packed->packing'     => ['mw', 'sa', 'org'],
         'packed->cancelled'   => ['mw', 'sa', 'org'],
-        'issued->returned'    => ['mw', 'sa', 'org'],
+        'at_event->returned'  => ['mw', 'sa', 'org'],
+        'issued->returned'    => ['mw', 'sa', 'org'], // Legacy-Alias
         'returned->completed' => ['mw', 'sa', 'org'],
     ];
 
@@ -704,8 +709,12 @@ class Activity
      */
     public function canTransitionTo(string $newStatus): bool
     {
-        $allowed = self::STATUS_TRANSITIONS[$this->status] ?? [];
-        return in_array($newStatus, $allowed);
+        if ($newStatus === self::STATUS_ISSUED) {
+            $newStatus = self::STATUS_AT_EVENT;
+        }
+        $from = $this->status === self::STATUS_ISSUED ? self::STATUS_AT_EVENT : $this->status;
+        $allowed = self::STATUS_TRANSITIONS[$from] ?? self::STATUS_TRANSITIONS[$this->status] ?? [];
+        return in_array($newStatus, $allowed, true);
     }
 
     /**
@@ -746,7 +755,12 @@ class Activity
 
     public function isIssued(): bool
     {
-        return $this->status === self::STATUS_ISSUED;
+        return $this->status === self::STATUS_AT_EVENT || $this->status === self::STATUS_ISSUED;
+    }
+
+    public function isAtEvent(): bool
+    {
+        return $this->isIssued();
     }
 
     public function isReturned(): bool
@@ -792,7 +806,7 @@ class Activity
      */
     public function isPackListEditable(): bool
     {
-        return in_array($this->status, [self::STATUS_PACKING, self::STATUS_PACKED, self::STATUS_ISSUED]);
+        return in_array($this->status, [self::STATUS_PACKING, self::STATUS_PACKED, self::STATUS_AT_EVENT, self::STATUS_ISSUED]);
     }
 
     /**
@@ -801,7 +815,7 @@ class Activity
      */
     public function canReportIssues(): bool
     {
-        return in_array($this->status, [self::STATUS_ISSUED, self::STATUS_RETURNED], true);
+        return in_array($this->status, [self::STATUS_AT_EVENT, self::STATUS_ISSUED, self::STATUS_RETURNED], true);
     }
 
     /**
@@ -821,6 +835,7 @@ class Activity
         match ($newStatus) {
             self::STATUS_SUBMITTED => $this->submittedAt = $now,
             self::STATUS_APPROVED  => $this->approvedAt = $now,
+            self::STATUS_AT_EVENT,
             self::STATUS_ISSUED    => $this->issuedAt = $now,
             self::STATUS_RETURNED  => $this->returnedAt = $now,
             self::STATUS_COMPLETED => $this->completedAt = $now,
