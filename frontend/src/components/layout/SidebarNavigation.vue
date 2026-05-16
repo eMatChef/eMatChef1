@@ -176,16 +176,18 @@ import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'
 import EmcLogoMark from '@/components/brand/EmcLogoMark.vue'
-import IconDashboard from '@/components/icons/IconDashboard.vue'
-import IconActivities from '@/components/icons/IconActivities.vue'
-import IconMaterials from '@/components/icons/IconMaterials.vue'
-import IconAccounting from '@/components/icons/IconAccounting.vue'
-import IconContacts from '@/components/icons/IconContacts.vue'
-import IconTasks from '@/components/icons/IconTasks.vue'
-import IconBell from '@/components/icons/IconBell.vue'
-import IconWorkshop from '@/components/icons/IconWorkshop.vue'
-import IconStatistics from '@/components/icons/IconStatistics.vue'
-import IconSettings from '@/components/icons/IconSettings.vue'
+import {
+  IconDashboard,
+  IconActivities,
+  IconMaterials,
+  IconAccounting,
+  IconContacts,
+  IconTasks,
+  IconBell,
+  IconWorkshop,
+  IconStatistics,
+  IconSettings,
+} from '@/components/icons'
 
 const route = useRoute()
 const { t } = useI18n()

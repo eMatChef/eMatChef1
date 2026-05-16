@@ -141,6 +141,8 @@ const emit = defineEmits<{
       packUnit?: string | null
     },
   ]
+  /** Nach erfolgreicher Verbrauchsmeldung: Parent lädt Meldungen neu (Kosten-Tab, Reparaturen/Verluste). */
+  consumptionBooked: []
 }>()
 
 const toast = useToast()
@@ -315,6 +317,7 @@ async function reportConsumption(row: {
     })
     toast.success(t('activities.consumables.toastBooked'))
     qtyInputs.value[row.material_item_id] = 1
+    emit('consumptionBooked')
     await load()
   } catch (err: unknown) {
     const e = err as { response?: { data?: { error?: string } }; message?: string }

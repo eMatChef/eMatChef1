@@ -2330,6 +2330,129 @@ class MaterialController extends AbstractController
     }
 
     /**
+     * Aktivitäten (inkl. Entwurf), auf denen dieses Material gebucht ist (reserviert oder ausgeliehen).
+     */
+    #[Route('/{id}/activity-bookings', name: 'activity_bookings', methods: ['GET'])]
+    #[IsGranted('ROLE_USER')]
+    public function activityBookings(string $id, Request $request): JsonResponse
+    {
+        $material = $this->entityManager->getRepository(MaterialItem::class)->find($id);
+        if (!$material) {
+            return new JsonResponse(['error' => 'Material nicht gefunden'], 404);
+        }
+
+        $departmentId = (string) $request->query->get('department_id', '');
+        if ($departmentId === '' || $material->getDepartmentId() !== $departmentId) {
+            return new JsonResponse(['error' => 'department_id ist erforderlich bzw. passt nicht zum Material'], 400);
+        }
+        $accessCheck = $this->assertDepartmentAccess($departmentId);
+        if ($accessCheck instanceof JsonResponse) {
+            return $accessCheck;
+        }
+
+        $conn = $this->entityManager->getConnection();
+        // Direkt auf die Aktivität gebucht + indirekt über eine Kombo (Parent steht in activity_item).
+        $sql = "
+            WITH direct_lines AS (
+                SELECT
+                    a.id AS activity_id,
+                    a.no AS activity_no,
+                    a.name AS activity_name,
+                    a.status AS activity_status,
+                    a.type AS activity_type,
+                    a.usage_start,
+                    a.usage_end,
+                    SUM(ai.quantity) AS contrib_qty,
+                    CASE
+                        WHEN a.status = 'issued' THEN 'issued'
+                        WHEN a.status = 'draft' THEN 'draft'
+                        ELSE 'reserved'
+                    END AS booking_kind
+                FROM activity_item ai
+                INNER JOIN activity a ON a.id = ai.activity_id
+                WHERE ai.material_item_id = :materialId
+                  AND a.department_id = :departmentId
+                  AND a.deleted_at IS NULL
+                  AND a.status NOT IN ('cancelled', 'completed', 'returned')
+                GROUP BY a.id, a.no, a.name, a.status, a.type, a.usage_start, a.usage_end
+            ),
+            combo_lines AS (
+                SELECT
+                    a.id AS activity_id,
+                    a.no AS activity_no,
+                    a.name AS activity_name,
+                    a.status AS activity_status,
+                    a.type AS activity_type,
+                    a.usage_start,
+                    a.usage_end,
+                    SUM(ai.quantity * cc.qty) AS contrib_qty,
+                    CASE
+                        WHEN a.status = 'issued' THEN 'issued'
+                        WHEN a.status = 'draft' THEN 'draft'
+                        ELSE 'reserved'
+                    END AS booking_kind,
+                    string_agg(DISTINCT combo_parent.name, ', ' ORDER BY combo_parent.name) AS via_combo_material_names
+                FROM activity_item ai
+                INNER JOIN activity a ON a.id = ai.activity_id
+                INNER JOIN material_combo_component cc ON cc.parent_material_id = ai.material_item_id
+                    AND cc.component_material_id = :materialId
+                INNER JOIN material_item combo_parent ON combo_parent.id = cc.parent_material_id
+                WHERE a.department_id = :departmentId
+                  AND a.deleted_at IS NULL
+                  AND a.status NOT IN ('cancelled', 'completed', 'returned')
+                GROUP BY a.id, a.no, a.name, a.status, a.type, a.usage_start, a.usage_end
+            )
+            SELECT
+                COALESCE(d.activity_id, c.activity_id) AS activity_id,
+                COALESCE(d.activity_no, c.activity_no) AS activity_no,
+                COALESCE(d.activity_name, c.activity_name) AS activity_name,
+                COALESCE(d.activity_status, c.activity_status) AS activity_status,
+                COALESCE(d.activity_type, c.activity_type) AS activity_type,
+                COALESCE(d.usage_start, c.usage_start) AS usage_start,
+                COALESCE(d.usage_end, c.usage_end) AS usage_end,
+                (COALESCE(d.contrib_qty, 0) + COALESCE(c.contrib_qty, 0))::int AS qty,
+                COALESCE(d.booking_kind, c.booking_kind) AS booking_kind,
+                c.via_combo_material_names AS via_combo_material_names
+            FROM direct_lines d
+            FULL OUTER JOIN combo_lines c ON d.activity_id = c.activity_id
+            ORDER BY COALESCE(d.usage_start, c.usage_start) ASC NULLS LAST,
+                     COALESCE(d.activity_name, c.activity_name) ASC
+        ";
+
+        $rows = $conn->executeQuery($sql, [
+            'materialId' => $id,
+            'departmentId' => $departmentId,
+        ])->fetchAllAssociative();
+
+        $result = [];
+        foreach ($rows as $row) {
+            $usageStart = $row['usage_start'] ?? null;
+            $usageEnd = $row['usage_end'] ?? null;
+            $viaCombo = $row['via_combo_material_names'] ?? null;
+            $result[] = [
+                'activity_id' => (string) $row['activity_id'],
+                'activity_no' => $row['activity_no'] !== null ? (int) $row['activity_no'] : null,
+                'activity_name' => (string) $row['activity_name'],
+                'activity_status' => (string) $row['activity_status'],
+                'activity_type' => (string) $row['activity_type'],
+                'usage_start' => $usageStart instanceof \DateTimeInterface
+                    ? $usageStart->format('c')
+                    : ($usageStart ? (string) $usageStart : null),
+                'usage_end' => $usageEnd instanceof \DateTimeInterface
+                    ? $usageEnd->format('c')
+                    : ($usageEnd ? (string) $usageEnd : null),
+                'qty' => (int) $row['qty'],
+                'booking_kind' => (string) $row['booking_kind'],
+                'via_combo_material_names' => $viaCombo !== null && $viaCombo !== ''
+                    ? (string) $viaCombo
+                    : null,
+            ];
+        }
+
+        return new JsonResponse($result);
+    }
+
+    /**
      * Reverse Lookup: In welchen Kombos wird dieses Material als Komponente verwendet?
      */
     #[Route('/{id}/used-in', name: 'used_in', methods: ['GET'])]
@@ -2420,12 +2543,32 @@ class MaterialController extends AbstractController
                 continue;
             }
             $cbid = $row['component_batch_id'] ?? null;
+            $parentMaterial = $this->entityManager->getRepository(MaterialItem::class)->find($pid);
+            $linkedContainerBatchId = $parentMaterial?->getLinkedContainerBatchId();
+            $storedQtyInContainer = 0;
+            if ($linkedContainerBatchId !== null && $linkedContainerBatchId !== '') {
+                $storedQtyInContainer = (int) $conn->fetchOne(
+                    'SELECT COALESCE(SUM(a.qty), 0)
+                     FROM batch_storage_allocation a
+                     INNER JOIN material_batch b ON a.batch_id = b.id
+                     WHERE a.container_batch_id = :containerBatchId
+                       AND b.material_item_id = :materialId
+                       AND b.status = :status',
+                    [
+                        'containerBatchId' => $linkedContainerBatchId,
+                        'materialId' => $id,
+                        'status' => 'active',
+                    ]
+                );
+            }
             $viaPhysicalCombo[] = [
                 'combo_component_id' => (string) $row['combo_component_id'],
                 'parent_material_id' => $pid,
                 'parent_name' => (string) $row['parent_name'],
+                'parent_linked_container_batch_id' => $linkedContainerBatchId,
                 'component_batch_id' => $cbid !== null && $cbid !== '' ? (string) $cbid : null,
                 'component_qty' => (int) $row['component_qty'],
+                'stored_qty_in_container' => $storedQtyInContainer,
                 'assignment_mode' => (string) $row['assignment_mode'],
                 'locations' => $loc,
             ];
@@ -2450,6 +2593,7 @@ class MaterialController extends AbstractController
                    COALESCE(cb.slot_id, a.slot_id) AS slot_id,
                    a.qty,
                    b.id AS batch_id,
+                   a.container_batch_id,
                    r.name AS rack_name,
                    s.name AS slot_name,
                    addr.name AS storage_address_name,
@@ -2527,6 +2671,9 @@ class MaterialController extends AbstractController
             'location_label' => $locLine !== '' ? $locLine : null,
             'qty' => (int) ($row['qty'] ?? 0),
             'batch_id' => (string) ($row['batch_id'] ?? ''),
+            'container_batch_id' => isset($row['container_batch_id']) && $row['container_batch_id'] !== null && $row['container_batch_id'] !== ''
+                ? (string) $row['container_batch_id']
+                : null,
             'container_caption' => isset($row['container_caption']) && trim((string) $row['container_caption']) !== ''
                 ? trim((string) $row['container_caption'])
                 : null,
@@ -2572,12 +2719,15 @@ class MaterialController extends AbstractController
             return new JsonResponse(['error' => 'Komponenten-Artikel muss zum gleichen Team gehören'], 400);
         }
 
+        $allocateToContainer = ($data['allocate_to_linked_container'] ?? true) !== false;
+
+        $this->entityManager->beginTransaction();
         try {
             $comp = new MaterialComboComponent();
             $comp->setId(IdGenerator::generate13('cc'));
             $comp->setParentMaterial($parentMaterial);
             $comp->setComponentMaterial($componentMaterial);
-            $comp->setQty(isset($data['qty']) ? (int)$data['qty'] : 1);
+            $comp->setQty(isset($data['qty']) ? (int) $data['qty'] : 1);
             $comp->setComponentRole($data['component_role'] ?? null);
             $comp->setAssignmentMode($data['assignment_mode'] ?? 'bulk');
             $comp->setIsOptional($data['is_optional'] ?? false);
@@ -2593,13 +2743,42 @@ class MaterialController extends AbstractController
             }
 
             $this->entityManager->persist($comp);
+
+            if (
+                $allocateToContainer
+                && $parentMaterial->getMaterialType() === 'physical_combo'
+                && $parentMaterial->getLinkedContainerBatchId()
+            ) {
+                $containerBatch = $this->entityManager->getRepository(MaterialBatch::class)
+                    ->find($parentMaterial->getLinkedContainerBatchId());
+                if (!$containerBatch) {
+                    throw new \RuntimeException('Verknüpfte Kiste nicht gefunden');
+                }
+                $firstMovedBatchId = $this->allocateComponentStockToLinkedContainer(
+                    $componentMaterial,
+                    $containerBatch,
+                    $comp->getQty(),
+                    $parentMaterial->getDepartmentId(),
+                );
+                if ($firstMovedBatchId !== null && $comp->getComponentBatchId() === null) {
+                    $movedBatch = $this->entityManager->getRepository(MaterialBatch::class)->find($firstMovedBatchId);
+                    if ($movedBatch && $movedBatch->getMaterialItemId() === $componentMaterial->getId()) {
+                        $comp->setComponentBatch($movedBatch);
+                    }
+                }
+            }
+
             $this->entityManager->flush();
+            $this->entityManager->commit();
 
             return new JsonResponse($this->serializeComboComponent($comp), 201);
-
+        } catch (\RuntimeException $e) {
+            $this->entityManager->rollback();
+            return new JsonResponse(['error' => $e->getMessage()], 400);
         } catch (\Exception $e) {
+            $this->entityManager->rollback();
             return new JsonResponse([
-                'error' => 'Fehler beim Hinzufügen der Komponente: ' . $e->getMessage()
+                'error' => 'Fehler beim Hinzufügen der Komponente: ' . $e->getMessage(),
             ], 500);
         }
     }
@@ -2616,23 +2795,34 @@ class MaterialController extends AbstractController
             return new JsonResponse(['error' => 'Komponente nicht gefunden'], 404);
         }
 
-        $data = json_decode($request->getContent(), true);
-
         try {
-            if (isset($data['qty'])) {
-                $comp->setQty((int)$data['qty']);
+            $data = $request->toArray();
+        } catch (\JsonException) {
+            return new JsonResponse(['error' => 'Ungültiger JSON-Body'], 400);
+        }
+
+        $allocateToContainer = ($data['allocate_to_linked_container'] ?? true) !== false;
+        $oldQty = $comp->getQty();
+
+        $this->entityManager->beginTransaction();
+        try {
+            if (array_key_exists('qty', $data)) {
+                $comp->setQty((int) $data['qty']);
             }
-            if (isset($data['assignment_mode'])) {
-                $comp->setAssignmentMode($data['assignment_mode']);
+            if (array_key_exists('assignment_mode', $data)) {
+                $comp->setAssignmentMode((string) $data['assignment_mode']);
             }
-            if (isset($data['component_role'])) {
-                $comp->setComponentRole($data['component_role']);
+            if (array_key_exists('component_role', $data)) {
+                $role = $data['component_role'];
+                $comp->setComponentRole(
+                    is_string($role) && trim($role) !== '' ? trim($role) : null
+                );
             }
-            if (isset($data['is_optional'])) {
-                $comp->setIsOptional((bool)$data['is_optional']);
+            if (array_key_exists('is_optional', $data)) {
+                $comp->setIsOptional((bool) $data['is_optional']);
             }
-            if (isset($data['sort_order'])) {
-                $comp->setSortOrder((int)$data['sort_order']);
+            if (array_key_exists('sort_order', $data)) {
+                $comp->setSortOrder((int) $data['sort_order']);
             }
 
             // Batch zuweisen/ändern/entfernen
@@ -2648,13 +2838,38 @@ class MaterialController extends AbstractController
                 }
             }
 
+            $parentMaterial = $comp->getParentMaterial();
+            $qtyDelta = $comp->getQty() - $oldQty;
+            if (
+                $allocateToContainer
+                && $qtyDelta > 0
+                && $parentMaterial->getMaterialType() === 'physical_combo'
+                && $parentMaterial->getLinkedContainerBatchId()
+            ) {
+                $containerBatch = $this->entityManager->getRepository(MaterialBatch::class)
+                    ->find($parentMaterial->getLinkedContainerBatchId());
+                if (!$containerBatch) {
+                    throw new \RuntimeException('Verknüpfte Kiste nicht gefunden');
+                }
+                $this->allocateComponentStockToLinkedContainer(
+                    $comp->getComponentMaterial(),
+                    $containerBatch,
+                    $qtyDelta,
+                    $parentMaterial->getDepartmentId(),
+                );
+            }
+
             $this->entityManager->flush();
+            $this->entityManager->commit();
 
             return new JsonResponse($this->serializeComboComponent($comp));
-
+        } catch (\RuntimeException $e) {
+            $this->entityManager->rollback();
+            return new JsonResponse(['error' => $e->getMessage()], 400);
         } catch (\Exception $e) {
+            $this->entityManager->rollback();
             return new JsonResponse([
-                'error' => 'Fehler beim Aktualisieren der Komponente: ' . $e->getMessage()
+                'error' => 'Fehler beim Aktualisieren der Komponente: ' . $e->getMessage(),
             ], 500);
         }
     }
@@ -2664,17 +2879,75 @@ class MaterialController extends AbstractController
      */
     #[Route('/{materialId}/components/{compId}', name: 'components_delete', methods: ['DELETE'])]
     #[IsGranted('ROLE_USER')]
-    public function deleteComponent(string $materialId, string $compId): JsonResponse
+    public function deleteComponent(string $materialId, string $compId, Request $request): JsonResponse
     {
         $comp = $this->entityManager->getRepository(MaterialComboComponent::class)->find($compId);
         if (!$comp || $comp->getParentMaterialId() !== $materialId) {
             return new JsonResponse(['error' => 'Komponente nicht gefunden'], 404);
         }
 
-        $this->entityManager->remove($comp);
-        $this->entityManager->flush();
+        $parentMaterial = $comp->getParentMaterial();
+        $accessCheck = $this->assertDepartmentAccess($parentMaterial->getDepartmentId());
+        if ($accessCheck instanceof JsonResponse) {
+            return $accessCheck;
+        }
 
-        return new JsonResponse(['success' => true]);
+        $data = json_decode($request->getContent(), true) ?? [];
+        $toContainerBatchId = isset($data['release_to_container_batch_id']) && $data['release_to_container_batch_id'] !== ''
+            ? (string) $data['release_to_container_batch_id']
+            : null;
+        $toRackId = isset($data['release_to_rack_id']) && $data['release_to_rack_id'] !== ''
+            ? (string) $data['release_to_rack_id']
+            : null;
+        $toSlotId = isset($data['release_to_slot_id']) && $data['release_to_slot_id'] !== ''
+            ? (string) $data['release_to_slot_id']
+            : null;
+
+        $this->entityManager->beginTransaction();
+        try {
+            if (
+                $parentMaterial->getMaterialType() === 'physical_combo'
+                && $parentMaterial->getLinkedContainerBatchId()
+            ) {
+                $containerBatch = $this->entityManager->getRepository(MaterialBatch::class)
+                    ->find($parentMaterial->getLinkedContainerBatchId());
+                if ($containerBatch) {
+                    $qtyInContainer = $this->getQtyInContainer(
+                        $comp->getComponentMaterialId(),
+                        $containerBatch->getId(),
+                    );
+                    if ($qtyInContainer > 0) {
+                        if ($toContainerBatchId === null && $toRackId === null) {
+                            throw new \RuntimeException('Bitte Ziel-Lagerplatz oder Ziel-Kiste angeben.');
+                        }
+                        if ($toContainerBatchId === $containerBatch->getId()) {
+                            throw new \RuntimeException('Ziel-Kiste darf nicht die verknüpfte Quell-Kiste sein.');
+                        }
+                        $this->deallocateComponentStockFromLinkedContainer(
+                            $comp->getComponentMaterial(),
+                            $containerBatch,
+                            $comp->getQty(),
+                            $parentMaterial->getDepartmentId(),
+                            $toContainerBatchId,
+                            $toRackId,
+                            $toSlotId,
+                        );
+                    }
+                }
+            }
+
+            $this->entityManager->remove($comp);
+            $this->entityManager->flush();
+            $this->entityManager->commit();
+
+            return new JsonResponse(['success' => true]);
+        } catch (\RuntimeException $e) {
+            $this->entityManager->rollback();
+            return new JsonResponse(['error' => $e->getMessage()], 400);
+        } catch (\Exception $e) {
+            $this->entityManager->rollback();
+            return new JsonResponse(['error' => 'Fehler beim Entfernen der Komponente: ' . $e->getMessage()], 500);
+        }
     }
 
     // ==========================================
@@ -2862,11 +3135,26 @@ class MaterialController extends AbstractController
         $totalStock = 0;
         $defectStock = 0;
         $repairStockFromBatches = 0;
+        $stockOutsideContainers = 0;
+        $stockInContainers = 0;
         $batches = $material->getBatches();
         foreach ($batches as $batch) {
             $status = $batch->getStatus();
             if ($status === 'active') {
                 $totalStock += $batch->getQty();
+                $allocs = $batch->getAllocations();
+                if ($allocs->count() > 0) {
+                    foreach ($allocs as $alloc) {
+                        $aq = $alloc->getQty();
+                        if ($alloc->getContainerBatchId()) {
+                            $stockInContainers += $aq;
+                        } else {
+                            $stockOutsideContainers += $aq;
+                        }
+                    }
+                } elseif ($batch->getRackId() !== null) {
+                    $stockOutsideContainers += $batch->getQty();
+                }
             } elseif ($status === 'defect') {
                 $defectStock += $batch->getQty();
             } elseif ($status === 'repair') {
@@ -2908,11 +3196,13 @@ class MaterialController extends AbstractController
             $reserved = $activityStockData[$mid]['reserved'] ?? 0;
         }
 
-        // Combo-Allokation: Wie viel ist in Combos gebunden?
+        // Combo-Allokation: Wie viel ist in Combos gebunden (Stückliste)?
         $comboAllocated = 0;
+        $comboAllocations = [];
         if ($comboStockData !== null) {
             $mid = $material->getId();
-            $comboAllocated = $comboStockData[$mid] ?? 0;
+            $comboAllocated = $comboStockData['totals'][$mid] ?? 0;
+            $comboAllocations = $comboStockData['by_material'][$mid] ?? [];
         }
 
         $freeStock = max(0, $totalStock - $comboAllocated);
@@ -2973,7 +3263,10 @@ class MaterialController extends AbstractController
             'defect_stock' => $defectStock,
             'repair_stock' => $repairStock,
             'combo_allocated' => $comboAllocated,
+            'combo_allocations' => $comboAllocations,
             'free_stock' => $freeStock,
+            'stock_outside_containers' => $stockOutsideContainers,
+            'stock_in_containers' => $stockInContainers,
             'issued_out' => $issuedOut,
             'reserved' => $reserved,
             'in_warehouse' => max(0, $inWarehouse),
@@ -3271,37 +3564,440 @@ class MaterialController extends AbstractController
     }
 
     /**
-     * Lädt die Combo-Allokation für alle Materialien eines Departments.
-     * Berechnet, wie viel von jedem Artikel in Combos gebunden ist.
+     * Stücklisten-Mengen pro Komponenten-Material und pro Kombi-Elternartikel.
      *
-     * Für Bulk-Komponenten: Summe der qty
-     * Für serialisierte Komponenten (mit component_batch_id): Anzahl zugewiesene Batches
-     *
-     * Gibt ein Array zurück: [material_item_id => allocated_qty]
+     * @return array{totals: array<string, int>, by_material: array<string, list<array{parent_material_id: string, parent_name: string, qty: int}>>}
      */
     private function getComboStockBreakdown(string $departmentId): array
     {
         $conn = $this->entityManager->getConnection();
 
         $sql = "
-            SELECT 
+            SELECT
                 cc.component_material_id,
-                SUM(cc.qty) AS allocated
+                cc.parent_material_id,
+                parent.name AS parent_name,
+                SUM(cc.qty) AS qty
             FROM material_combo_component cc
             INNER JOIN material_item parent ON parent.id = cc.parent_material_id
             WHERE parent.department_id = :department_id
               AND parent.deleted_at IS NULL
-            GROUP BY cc.component_material_id
+            GROUP BY cc.component_material_id, cc.parent_material_id, parent.name
+            ORDER BY parent.name ASC
         ";
 
         $rows = $conn->executeQuery($sql, ['department_id' => $departmentId])->fetchAllAssociative();
 
-        $result = [];
+        $totals = [];
+        $byMaterial = [];
         foreach ($rows as $row) {
-            $result[$row['component_material_id']] = (int) $row['allocated'];
+            $componentId = (string) $row['component_material_id'];
+            $qty = (int) $row['qty'];
+            $totals[$componentId] = ($totals[$componentId] ?? 0) + $qty;
+            if (!isset($byMaterial[$componentId])) {
+                $byMaterial[$componentId] = [];
+            }
+            $byMaterial[$componentId][] = [
+                'parent_material_id' => (string) $row['parent_material_id'],
+                'parent_name' => (string) $row['parent_name'],
+                'qty' => $qty,
+            ];
         }
 
-        return $result;
+        return ['totals' => $totals, 'by_material' => $byMaterial];
+    }
+
+    /**
+     * Lagert freien Bestand (nicht in einer Kiste) in die verknüpfte Referenz-Kiste der physischen Kombi.
+     *
+     * @return string|null Erste bewegte batch_id (für optionale Charge-Zuweisung)
+     */
+    private function getQtyInContainer(string $materialItemId, string $containerBatchId): int
+    {
+        $conn = $this->entityManager->getConnection();
+        $sql = "
+            SELECT COALESCE(SUM(a.qty), 0) AS qty
+            FROM batch_storage_allocation a
+            INNER JOIN material_batch b ON a.batch_id = b.id
+            WHERE b.material_item_id = :materialId
+              AND b.status = 'active'
+              AND a.container_batch_id = :containerId
+        ";
+
+        return (int) $conn->executeQuery($sql, [
+            'materialId' => $materialItemId,
+            'containerId' => $containerBatchId,
+        ])->fetchOne();
+    }
+
+    private function allocateComponentStockToLinkedContainer(
+        MaterialItem $componentMaterial,
+        MaterialBatch $containerBatch,
+        int $qtyNeeded,
+        string $departmentId,
+    ): ?string {
+        if ($qtyNeeded <= 0) {
+            return null;
+        }
+        if ($containerBatch->getRackId() === null) {
+            throw new \RuntimeException('Die verknüpfte Kiste hat keinen Lagerplatz – zuerst Kiste einlagern');
+        }
+
+        $containerId = $containerBatch->getId();
+        $alreadyInContainer = $this->getQtyInContainer($componentMaterial->getId(), $containerId);
+        $remaining = max(0, $qtyNeeded - $alreadyInContainer);
+        if ($remaining === 0) {
+            return null;
+        }
+
+        $firstBatchId = null;
+
+        $batches = $this->entityManager->getRepository(MaterialBatch::class)
+            ->createQueryBuilder('b')
+            ->where('b.materialItemId = :materialId')
+            ->andWhere('b.status = :status')
+            ->andWhere('b.qty > 0')
+            ->setParameter('materialId', $componentMaterial->getId())
+            ->setParameter('status', 'active')
+            ->orderBy('b.acquiredOn', 'ASC')
+            ->addOrderBy('b.id', 'ASC')
+            ->getQuery()
+            ->getResult();
+
+        foreach ($batches as $batch) {
+            if ($remaining <= 0) {
+                break;
+            }
+            $moved = $this->moveLooseStockFromBatchToContainer($batch, $containerBatch, $remaining, $departmentId);
+            if ($moved > 0 && $firstBatchId === null) {
+                $firstBatchId = $batch->getId();
+            }
+            $remaining -= $moved;
+        }
+
+        if ($remaining > 0) {
+            $remaining -= $this->moveStockFromOtherContainersToContainer(
+                $componentMaterial,
+                $containerBatch,
+                $remaining,
+                $departmentId,
+            );
+        }
+
+        if ($remaining > 0) {
+            $bookedNow = $qtyNeeded - $alreadyInContainer - $remaining;
+            throw new \RuntimeException(
+                'Es konnten nur ' . $bookedNow . ' von ' . $qtyNeeded . ' Stk. in die verknüpfte Kiste gebucht werden'
+                . ($alreadyInContainer > 0 ? ' (' . $alreadyInContainer . ' lagen bereits in der Kiste)' : '')
+                . '. Fehlend: ' . $remaining . ' Stk. – Bestand zuerst ins Lager buchen oder aus anderem Fach/Kiste verschieben.'
+            );
+        }
+
+        return $firstBatchId;
+    }
+
+    /**
+     * Umbuchen aus anderen Kisten in die Ziel-Kiste (wenn kein loses Regal-Fach-Bestand reicht).
+     */
+    private function moveStockFromOtherContainersToContainer(
+        MaterialItem $componentMaterial,
+        MaterialBatch $containerBatch,
+        int $maxQty,
+        string $departmentId,
+    ): int {
+        if ($maxQty <= 0) {
+            return 0;
+        }
+
+        $targetId = $containerBatch->getId();
+        $moved = 0;
+        $material = $componentMaterial;
+
+        $batches = $this->entityManager->getRepository(MaterialBatch::class)
+            ->createQueryBuilder('b')
+            ->where('b.materialItemId = :materialId')
+            ->andWhere('b.status = :status')
+            ->andWhere('b.qty > 0')
+            ->setParameter('materialId', $componentMaterial->getId())
+            ->setParameter('status', 'active')
+            ->orderBy('b.acquiredOn', 'ASC')
+            ->addOrderBy('b.id', 'ASC')
+            ->getQuery()
+            ->getResult();
+
+        foreach ($batches as $batch) {
+            if ($moved >= $maxQty) {
+                break;
+            }
+            foreach ($batch->getAllocations() as $fromAlloc) {
+                if ($moved >= $maxQty) {
+                    break;
+                }
+                $sourceContainerId = $fromAlloc->getContainerBatchId();
+                if (!$sourceContainerId || $sourceContainerId === $targetId) {
+                    continue;
+                }
+                $take = min($fromAlloc->getQty(), $maxQty - $moved);
+                $this->transferAllocationQtyToContainer($fromAlloc, $containerBatch, $take, $material, $batch);
+                $moved += $take;
+            }
+        }
+
+        return $moved;
+    }
+
+    /**
+     * Verschiebt Menge aus «losem» Lager (rack/slot, nicht in Kiste) in die Ziel-Kiste.
+     */
+    private function moveLooseStockFromBatchToContainer(
+        MaterialBatch $batch,
+        MaterialBatch $containerBatch,
+        int $maxQty,
+        string $departmentId,
+    ): int {
+        if ($maxQty <= 0 || $batch->getStatus() !== 'active') {
+            return 0;
+        }
+
+        $moved = 0;
+        $material = $batch->getMaterialItem();
+        $allocations = $batch->getAllocations();
+        $containerId = $containerBatch->getId();
+
+        if ($allocations->count() > 0) {
+            foreach ($allocations as $fromAlloc) {
+                if ($moved >= $maxQty) {
+                    break;
+                }
+                if ($fromAlloc->getContainerBatchId() !== null) {
+                    continue;
+                }
+                $take = min($fromAlloc->getQty(), $maxQty - $moved);
+                $this->transferAllocationQtyToContainer($fromAlloc, $containerBatch, $take, $material, $batch);
+                $moved += $take;
+            }
+
+            return $moved;
+        }
+
+        if ($batch->getRackId() === null) {
+            return 0;
+        }
+
+        $take = min($batch->getQty(), $maxQty);
+        $fromRack = $batch->getRack();
+        $fromSlot = $batch->getSlot();
+        $remainQty = $batch->getQty() - $take;
+
+        if ($remainQty > 0) {
+            $allocStay = new BatchStorageAllocation();
+            $allocStay->setId(IdGenerator::generate13Unique($this->entityManager, BatchStorageAllocation::class, 'al'));
+            $allocStay->setBatch($batch);
+            $allocStay->setRack($fromRack);
+            $allocStay->setSlot($fromSlot);
+            $allocStay->setQty($remainQty);
+            $allocStay->setDepartmentId($departmentId);
+            $batch->addAllocation($allocStay);
+            $this->entityManager->persist($allocStay);
+        }
+
+        $allocNew = new BatchStorageAllocation();
+        $allocNew->setId(IdGenerator::generate13Unique($this->entityManager, BatchStorageAllocation::class, 'al'));
+        $allocNew->setBatch($batch);
+        $allocNew->setContainerBatch($containerBatch);
+        $allocNew->setRack(null);
+        $allocNew->setSlot(null);
+        $allocNew->setQty($take);
+        $allocNew->setDepartmentId($departmentId);
+        $batch->addAllocation($allocNew);
+        $this->entityManager->persist($allocNew);
+
+        $batch->setRack(null);
+        $batch->setSlot(null);
+
+        return $take;
+    }
+
+    /**
+     * Entfernt Komponenten-Bestand aus der verknüpften Kiste (max. Stücklisten-Menge) ins gewählte Ziel.
+     */
+    private function deallocateComponentStockFromLinkedContainer(
+        MaterialItem $componentMaterial,
+        MaterialBatch $sourceContainerBatch,
+        int $qtyLimit,
+        string $departmentId,
+        ?string $toContainerBatchId,
+        ?string $toRackId,
+        ?string $toSlotId,
+    ): void {
+        if ($qtyLimit <= 0) {
+            return;
+        }
+
+        $containerId = $sourceContainerBatch->getId();
+        $remaining = $qtyLimit;
+        $material = $componentMaterial;
+
+        $toContainerBatch = null;
+        $toRack = null;
+        $toSlot = null;
+
+        if ($toContainerBatchId !== null) {
+            $toContainerBatch = $this->entityManager->getRepository(MaterialBatch::class)->find($toContainerBatchId);
+            if (!$toContainerBatch || !$toContainerBatch->getMaterialItem() || $toContainerBatch->getMaterialItem()->getDepartmentId() !== $departmentId) {
+                throw new \RuntimeException('Ziel-Kiste ungültig oder gehört nicht zum Material-Department');
+            }
+            if ($toContainerBatch->getRackId() === null) {
+                throw new \RuntimeException('Ziel-Kiste hat keinen Lagerplatz');
+            }
+        } else {
+            if ($toRackId === null || $toRackId === '') {
+                throw new \RuntimeException('Ziel-Regal ist erforderlich');
+            }
+            $toRack = $this->entityManager->getRepository(StorageRack::class)->find($toRackId);
+            if (!$toRack || $toRack->getDepartmentId() !== $departmentId) {
+                throw new \RuntimeException('Ziel-Gestell ungültig oder gehört nicht zum Material-Department');
+            }
+            if ($toSlotId !== null && $toSlotId !== '') {
+                $toSlot = $this->entityManager->getRepository(StorageSlot::class)->find($toSlotId);
+                if (!$toSlot || $toSlot->getRackId() !== $toRackId) {
+                    throw new \RuntimeException('Ziel-Platz ungültig oder gehört nicht zum Gestell');
+                }
+            }
+        }
+
+        $batches = $this->entityManager->getRepository(MaterialBatch::class)
+            ->createQueryBuilder('b')
+            ->where('b.materialItemId = :materialId')
+            ->andWhere('b.status = :status')
+            ->andWhere('b.qty > 0')
+            ->setParameter('materialId', $componentMaterial->getId())
+            ->setParameter('status', 'active')
+            ->orderBy('b.acquiredOn', 'ASC')
+            ->addOrderBy('b.id', 'ASC')
+            ->getQuery()
+            ->getResult();
+
+        foreach ($batches as $batch) {
+            if ($remaining <= 0) {
+                break;
+            }
+            foreach ($batch->getAllocations() as $fromAlloc) {
+                if ($remaining <= 0) {
+                    break;
+                }
+                if ($fromAlloc->getContainerBatchId() !== $containerId) {
+                    continue;
+                }
+                $take = min($fromAlloc->getQty(), $remaining);
+                if ($toContainerBatch !== null) {
+                    $this->transferAllocationQtyToContainer($fromAlloc, $toContainerBatch, $take, $material, $batch);
+                } else {
+                    $this->transferAllocationQtyFromContainerToRack($fromAlloc, $toRack, $toSlot, $take, $material, $batch);
+                }
+                $remaining -= $take;
+            }
+        }
+    }
+
+    private function transferAllocationQtyFromContainerToRack(
+        BatchStorageAllocation $fromAlloc,
+        StorageRack $rack,
+        ?StorageSlot $slot,
+        int $moveQty,
+        MaterialItem $material,
+        MaterialBatch $batch,
+    ): void {
+        if ($moveQty <= 0) {
+            return;
+        }
+
+        $sourceQty = $fromAlloc->getQty();
+        if ($moveQty > $sourceQty) {
+            throw new \RuntimeException('Interner Fehler: Menge grösser als Kisten-Allokation');
+        }
+
+        $rackId = $rack->getId();
+        $slotId = $slot?->getId();
+
+        $fromAlloc->setQty($sourceQty - $moveQty);
+        if ($fromAlloc->getQty() <= 0) {
+            $batch->removeAllocation($fromAlloc);
+            $this->entityManager->remove($fromAlloc);
+        }
+
+        $existingLoose = null;
+        foreach ($batch->getAllocations() as $a) {
+            if ($a->getContainerBatchId() !== null) {
+                continue;
+            }
+            if ($a->getEffectiveRackId() === $rackId && ($a->getEffectiveSlotId() ?? '') === ($slotId ?? '')) {
+                $existingLoose = $a;
+                break;
+            }
+        }
+
+        if ($existingLoose) {
+            $existingLoose->setQty($existingLoose->getQty() + $moveQty);
+        } else {
+            $newAlloc = new BatchStorageAllocation();
+            $newAlloc->setId(IdGenerator::generate13Unique($this->entityManager, BatchStorageAllocation::class, 'al'));
+            $newAlloc->setBatch($batch);
+            $newAlloc->setContainerBatch(null);
+            $newAlloc->setRack($rack);
+            $newAlloc->setSlot($slot);
+            $newAlloc->setQty($moveQty);
+            $newAlloc->setDepartmentId($material->getDepartmentId());
+            $batch->addAllocation($newAlloc);
+            $this->entityManager->persist($newAlloc);
+        }
+    }
+
+    private function transferAllocationQtyToContainer(
+        BatchStorageAllocation $fromAlloc,
+        MaterialBatch $containerBatch,
+        int $moveQty,
+        MaterialItem $material,
+        MaterialBatch $batch,
+    ): void {
+        if ($moveQty <= 0) {
+            return;
+        }
+
+        $containerId = $containerBatch->getId();
+        $sourceQty = $fromAlloc->getQty();
+        if ($moveQty > $sourceQty) {
+            throw new \RuntimeException('Interner Fehler: Menge grösser als Allokation');
+        }
+
+        $fromAlloc->setQty($sourceQty - $moveQty);
+        if ($fromAlloc->getQty() <= 0) {
+            $batch->removeAllocation($fromAlloc);
+            $this->entityManager->remove($fromAlloc);
+        }
+
+        $existingTarget = null;
+        foreach ($batch->getAllocations() as $a) {
+            if ($a->getContainerBatchId() !== null && $a->getContainerBatchId() === $containerId) {
+                $existingTarget = $a;
+                break;
+            }
+        }
+
+        if ($existingTarget) {
+            $existingTarget->setQty($existingTarget->getQty() + $moveQty);
+        } else {
+            $newAlloc = new BatchStorageAllocation();
+            $newAlloc->setId(IdGenerator::generate13Unique($this->entityManager, BatchStorageAllocation::class, 'al'));
+            $newAlloc->setBatch($batch);
+            $newAlloc->setContainerBatch($containerBatch);
+            $newAlloc->setRack(null);
+            $newAlloc->setSlot(null);
+            $newAlloc->setQty($moveQty);
+            $newAlloc->setDepartmentId($material->getDepartmentId());
+            $batch->addAllocation($newAlloc);
+            $this->entityManager->persist($newAlloc);
+        }
     }
 
     /**

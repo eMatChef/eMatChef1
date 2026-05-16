@@ -91,7 +91,8 @@ export interface ContainerBatch {
 }
 
 /**
- * @param options.activityId — bei Packliste: leere Kisten zuerst; nicht parallel anderer Aktivität (Zeitraum); nicht schon dieser Aktivität zugeordnet
+ * @param options.activityId — Packliste: nur leere Kisten (Lagerinhalt), nicht schon dieser Aktivität zugeordnet;
+ *   mit Planungs-/Nutzungszeitraum zusätzlich keine, die parallel anderer Aktivität gebucht sind (leer und frei, nicht «oder»).
  */
 export async function getContainerBatches(
   departmentId: string,

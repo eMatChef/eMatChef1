@@ -930,6 +930,8 @@
 .history-dot.updated { background: #3b82f6; }
 .history-dot.deleted { background: #ef4444; }
 .history-dot.status_changed { background: #f59e0b; }
+.history-dot.pack_crate_check { background: #6366f1; }
+.history-dot.issue_reported { background: #8b5cf6; }
 
 .history-content {
   flex: 1;

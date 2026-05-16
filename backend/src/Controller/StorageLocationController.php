@@ -63,7 +63,6 @@ class StorageLocationController extends AbstractController
                    COALESCE(cb.slot_id, a.slot_id) AS slot_id,
                    a.qty,
                    mi.id AS material_id, mi.name AS material_name, mi.tracking_type,
-                   cb.id AS container_batch_id,
                    cb.serial_number AS container_serial,
                    cb.label AS container_label,
                    cb.rack_id AS container_rack_id,
@@ -343,8 +342,8 @@ class StorageLocationController extends AbstractController
      * keine physischen Kombis;
      * keine Batches, die bereits als Referenz-Kiste einer physischen Kombi verknüpft sind.
      *
-     * Optional: activity_id=… → für Packliste: nicht schon dieser Aktivität zugeordnet,
-     * nicht parallel einer anderen Aktivität (Überlappung Planungs- oder Nutzungszeitraum).
+     * Optional: activity_id=… → für Packliste: nur leere Kisten (storage_empty), nicht schon dieser Aktivität zugeordnet;
+     * mit Planungs-/Nutzungszeitraum: zusätzlich keine, die parallel anderer Aktivität gebucht sind (kein «leer oder frei»).
      * Feld storage_empty: true, wenn die Kiste keinen relevanten Lagerinhalt hat (Vorschau leer).
      */
     #[Route('/container-batches', name: 'container_batches_list', methods: ['GET'])]
@@ -362,6 +361,8 @@ class StorageLocationController extends AbstractController
         $busyBatchIds = [];
         $assignedOnActivityBatchIds = [];
         $filterForPack = false;
+        $rangeStart = null;
+        $rangeEnd = null;
 
         if ($activityIdForPack !== '') {
             $activity = $this->entityManager->getRepository(Activity::class)->find($activityIdForPack);
@@ -426,7 +427,11 @@ class StorageLocationController extends AbstractController
                 if (in_array($bid, $assignedOnActivityBatchIds, true)) {
                     continue;
                 }
-                if ($busyBatchIds !== [] && in_array($bid, $busyBatchIds, true)) {
+                if (!$storageEmpty) {
+                    continue;
+                }
+                $periodKnown = $rangeStart !== null && $rangeEnd !== null;
+                if ($periodKnown && $busyBatchIds !== [] && in_array($bid, $busyBatchIds, true)) {
                     continue;
                 }
             }

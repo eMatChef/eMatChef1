@@ -1976,26 +1976,30 @@
                 <div class="details-subsection">
                   <h4 class="subsection-title">{{ t('components.materialDetail.sectionDetails') }}</h4>
                   <div class="form-grid-details">
-                    <div class="form-group">
-                      <label>{{ t('components.materialDetail.labelWeightKg') }}</label>
-                      <input v-model="formData.weight" type="text" class="form-input" />
-                    </div>
+                    <MaterialMetricInput
+                      v-model="formData.weight"
+                      :label="t('components.materialDetail.labelWeightKg')"
+                      unit="kg"
+                    />
                     <div class="form-group">
                       <label>{{ t('components.materialDetail.labelColor') }}</label>
                       <input v-model="formData.color" type="text" class="form-input" />
                     </div>
-                    <div class="form-group">
-                      <label>{{ t('components.materialDetail.labelLengthCm') }}</label>
-                      <input v-model="formData.size_length" type="text" class="form-input" />
-                    </div>
-                    <div class="form-group">
-                      <label>{{ t('components.materialDetail.labelWidthCm') }}</label>
-                      <input v-model="formData.size_width" type="text" class="form-input" />
-                    </div>
-                    <div class="form-group">
-                      <label>{{ t('components.materialDetail.labelHeightCm') }}</label>
-                      <input v-model="formData.size_height" type="text" class="form-input" />
-                    </div>
+                    <MaterialMetricInput
+                      v-model="formData.size_length"
+                      :label="t('components.materialDetail.labelLengthCm')"
+                      unit="cm"
+                    />
+                    <MaterialMetricInput
+                      v-model="formData.size_width"
+                      :label="t('components.materialDetail.labelWidthCm')"
+                      unit="cm"
+                    />
+                    <MaterialMetricInput
+                      v-model="formData.size_height"
+                      :label="t('components.materialDetail.labelHeightCm')"
+                      unit="cm"
+                    />
                     <div class="form-group">
                       <label>{{ t('components.materialDetail.labelWarranty') }}</label>
                       <input v-model="formData.warranty_until" type="date" class="form-input" />
@@ -2395,6 +2399,8 @@ import MaterialPreviewSidebar from '@/components/material/wizard/MaterialPreview
 import WizardFooter from '@/components/material/wizard/WizardFooter.vue'
 import MaterialNameInput from '@/components/material/wizard/MaterialNameInput.vue'
 import RentalPriceAmortizationCalculator from '@/components/material/RentalPriceAmortizationCalculator.vue'
+import MaterialMetricInput from '@/components/material/MaterialMetricInput.vue'
+import { normalizeMaterialMetricInput } from '@/utils/materialMetricUnits'
 import {
   getRentalAmortizationDefaults,
   DEFAULT_RENTAL_AMORTIZATION,
@@ -5331,11 +5337,11 @@ async function handleSubmit() {
         manufacturer: formData.manufacturer || null,
         model: formData.model || null,
         ean: formData.ean || null,
-        weight: formData.weight || null,
+        weight: normalizeMaterialMetricInput(formData.weight, 'kg'),
         color: formData.color || null,
-        size_length: formData.size_length || null,
-        size_width: formData.size_width || null,
-        size_height: formData.size_height || null,
+        size_length: normalizeMaterialMetricInput(formData.size_length, 'cm'),
+        size_width: normalizeMaterialMetricInput(formData.size_width, 'cm'),
+        size_height: normalizeMaterialMetricInput(formData.size_height, 'cm'),
         warranty_until: formData.warranty_until || null,
         rental_price_day: formData.rental_price_day || null,
         rental_price_week: formData.rental_price_week || null,
@@ -5498,11 +5504,11 @@ async function handleSubmit() {
         barcode_tag: formData.barcode_tag || null,
         model: formData.model || null,
         ean: formData.ean || null,
-        weight: formData.weight || null,
+        weight: normalizeMaterialMetricInput(formData.weight, 'kg'),
         color: formData.color || null,
-        size_length: formData.size_length || null,
-        size_width: formData.size_width || null,
-        size_height: formData.size_height || null,
+        size_length: normalizeMaterialMetricInput(formData.size_length, 'cm'),
+        size_width: normalizeMaterialMetricInput(formData.size_width, 'cm'),
+        size_height: normalizeMaterialMetricInput(formData.size_height, 'cm'),
         warranty_until: formData.warranty_until || null,
         // Vermietung
         rental_price_day: formData.rental_price_day || null,

@@ -675,6 +675,19 @@ function close() {
   max-height: calc(100vh - 48px);
   padding: 0;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.department-modal-dialog .modal-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.department-modal-dialog .modal-header {
+  flex-shrink: 0;
 }
 
 .modal-header h2 {

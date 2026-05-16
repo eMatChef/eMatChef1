@@ -52,7 +52,7 @@
           <span class="stat-label">{{ t('activities.stats.inProgress') }}</span>
         </div>
         <div class="stat-item">
-          <span class="stat-value stat-issued">{{ activities.filter((a) => a.status === 'issued').length }}</span>
+          <span class="stat-value stat-issued">{{ activities.filter((a) => a.status === 'at_event').length }}</span>
           <span class="stat-label">{{ t('activities.stats.issued') }}</span>
         </div>
         <div class="stat-item">
@@ -194,7 +194,7 @@
               </td>
               <td class="col-issues" @click.stop>
                 <router-link
-                  v-if="['issued', 'returned', 'completed'].includes(activity.status)"
+                  v-if="['at_event', 'returned', 'completed'].includes(activity.status)"
                   class="activities-list-issues-link"
                   :to="`/${departmentId}/activities/${activity.id}?tab=issues`"
                 >
@@ -262,7 +262,7 @@ interface Activity {
   departmentId?: string
   departmentName?: string
   type: 'activity' | 'camp' | 'event' | 'external'
-  status: 'draft' | 'submitted' | 'approved' | 'packing' | 'packed' | 'issued' | 'returned' | 'completed' | 'cancelled'
+  status: 'draft' | 'submitted' | 'approved' | 'packing' | 'packed' | 'at_event' | 'returned' | 'completed' | 'cancelled'
   invitedDepartments?: Array<{ id?: string; name?: string; organisation_name?: string; status?: string }>
   groupName?: string
   usageStart?: string
@@ -331,7 +331,7 @@ async function loadActivities() {
 }
 
 function isUpcomingActivity(a: Activity): boolean {
-  if (!['draft', 'submitted', 'approved', 'packing', 'packed', 'issued', 'returned'].includes(a.status)) return false
+  if (!['draft', 'submitted', 'approved', 'packing', 'packed', 'at_event', 'returned'].includes(a.status)) return false
   if (!a.usageEnd) return true
   const endDate = new Date(a.usageEnd)
   const todayStart = new Date()

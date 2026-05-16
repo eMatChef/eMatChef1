@@ -423,6 +423,56 @@
       </div>
     </div>
 
+    <div v-if="showPostCreateCompositionModal && postCreateCompositionContext" class="modal-overlay">
+      <div class="modal-dialog">
+        <h3>{{ t('materialsView.modalPostCreateCompositionTitle') }}</h3>
+        <p class="text-muted">
+          {{
+            t('materialsView.modalPostCreateCompositionIntro', {
+              combo: postCreateCompositionComboName,
+              article: postCreateCompositionContext.material.name,
+            })
+          }}
+        </p>
+        <div class="form-group">
+          <label>{{ t('materialsView.labelQtyInCombo') }}</label>
+          <input
+            v-model.number="postCreateCompositionQty"
+            type="number"
+            min="1"
+            :max="postCreateCompositionMaxQty ?? undefined"
+            class="form-input"
+            @input="clampPostCreateCompositionQty"
+            @blur="clampPostCreateCompositionQty"
+          />
+          <p v-if="postCreateCompositionMaxQty !== null && postCreateCompositionMaxQty > 0" class="batch-field-hint">
+            {{ t('components.materialDetail.hintMaxQty', { n: postCreateCompositionMaxQty }) }}
+          </p>
+          <p v-else-if="postCreateCompositionMaxQty === 0" class="error-text">
+            {{ t('components.materialDetail.errAddCompositionNoStock') }}
+          </p>
+        </div>
+        <p v-if="postCreateCompositionError" class="error-text">{{ postCreateCompositionError }}</p>
+        <div class="modal-actions">
+          <button type="button" class="btn-secondary btn-sm" @click="closePostCreateCompositionModal">
+            {{ t('materialsView.btnPostCreateCompositionSkip') }}
+          </button>
+          <button
+            type="button"
+            class="btn-primary btn-sm"
+            :disabled="!canSubmitPostCreateComposition || postCreateCompositionSubmitting"
+            @click="submitPostCreateComposition"
+          >
+            {{
+              postCreateCompositionSubmitting
+                ? t('materialsView.postCreateCompositionSubmitting')
+                : t('materialsView.btnPostCreateCompositionAdd')
+            }}
+          </button>
+        </div>
+      </div>
+    </div>
+
     <!-- Material Create Wizard -->
     <MaterialCreateWizard
       :key="wizardOpenKey"
@@ -435,7 +485,7 @@
 
 <script setup lang="ts">
 defineOptions({ name: 'MaterialsView' })
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, watch, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import {
@@ -503,6 +553,77 @@ const wizardOpenKey = computed(() => `${currentDepartmentId.value}-${wizardOpenN
 const materialJustCreated = ref(false)
 /** Nach Wizard: neuen Artikel als Komponente dieser Kombi verknüpfen */
 const pendingCompositionParentId = ref<string | null>(null)
+
+const showPostCreateCompositionModal = ref(false)
+const postCreateCompositionContext = ref<{
+  parentId: string
+  material: Material
+  existing: ComboComponent[]
+  defaultMode: 'fixed' | 'assigned' | 'on_issue' | 'bulk'
+} | null>(null)
+const postCreateCompositionQty = ref(1)
+const postCreateCompositionSubmitting = ref(false)
+const postCreateCompositionError = ref('')
+
+const postCreateCompositionComboName = computed(() => {
+  const pid = postCreateCompositionContext.value?.parentId
+  if (!pid) return ''
+  return materials.value.find((m) => m.id === pid)?.name || pid
+})
+
+const postCreateCompositionMaxQty = computed((): number | null => {
+  const m = postCreateCompositionContext.value?.material
+  if (!m) return null
+  const n = m.total_stock
+  if (typeof n !== 'number' || !Number.isFinite(n)) return null
+  return Math.max(0, Math.floor(n))
+})
+
+const canSubmitPostCreateComposition = computed(() => {
+  const q = postCreateCompositionQty.value ?? 0
+  if (q < 1) return false
+  const cap = postCreateCompositionMaxQty.value
+  if (cap === 0) return false
+  if (cap !== null && q > cap) return false
+  return true
+})
+
+function clampPostCreateCompositionQty() {
+  const cap = postCreateCompositionMaxQty.value
+  if (cap === null) return
+  if ((postCreateCompositionQty.value ?? 0) > cap) postCreateCompositionQty.value = Math.max(0, cap)
+  if (cap > 0 && (postCreateCompositionQty.value ?? 0) < 1) postCreateCompositionQty.value = 1
+}
+
+function closePostCreateCompositionModal() {
+  showPostCreateCompositionModal.value = false
+  postCreateCompositionContext.value = null
+  postCreateCompositionQty.value = 1
+  postCreateCompositionError.value = ''
+}
+
+async function submitPostCreateComposition() {
+  const ctx = postCreateCompositionContext.value
+  if (!ctx || !canSubmitPostCreateComposition.value) return
+  postCreateCompositionSubmitting.value = true
+  postCreateCompositionError.value = ''
+  try {
+    await addComboComponent(ctx.parentId, {
+      component_material_id: ctx.material.id,
+      qty: Math.max(1, postCreateCompositionQty.value || 1),
+      assignment_mode: ctx.defaultMode,
+      sort_order: ctx.existing.length,
+    })
+    toast.success(t('materialsView.toastAddedToComposition'))
+    closePostCreateCompositionModal()
+    await loadData()
+  } catch (err: unknown) {
+    const ax = err as { response?: { data?: { error?: string } } }
+    postCreateCompositionError.value = ax.response?.data?.error || t('materialsView.errLinkComponent')
+  } finally {
+    postCreateCompositionSubmitting.value = false
+  }
+}
 
 // Combo Expand State
 const expandedCombos = ref<Set<string>>(new Set())
@@ -728,13 +849,18 @@ async function handleMaterialCreated(material: Material) {
       const parentRow = materials.value.find((m) => m.id === linkParent)
       const defaultMode =
         parentRow?.material_type === 'virtual_combo' ? 'on_issue' : 'bulk'
-      await addComboComponent(linkParent, {
-        component_material_id: material.id,
-        qty: 1,
-        assignment_mode: defaultMode,
-        sort_order: existing.length,
-      })
-      toast.success(t('materialsView.toastAddedToComposition'))
+      const mergedMaterial =
+        materials.value.find((m) => m.id === material.id) || material
+      postCreateCompositionContext.value = {
+        parentId: linkParent,
+        material: mergedMaterial,
+        existing,
+        defaultMode,
+      }
+      postCreateCompositionQty.value = 1
+      postCreateCompositionError.value = ''
+      showPostCreateCompositionModal.value = true
+      void nextTick(() => clampPostCreateCompositionQty())
     } catch (err: unknown) {
       const ax = err as { response?: { data?: { error?: string } } }
       console.error(err)

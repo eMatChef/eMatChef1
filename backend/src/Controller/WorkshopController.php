@@ -969,7 +969,7 @@ class WorkshopController extends AbstractController
      * Erstellt automatisch ein Workshop-Ticket aus einem IssueReport
      * 
      * Wird aufgerufen von ActivityWorkflowController::createIssue()
-     * wenn type = 'repair', 'damage' oder 'loss'
+     * sowie ActivityPackCrateCheckService bei repair, damage, loss und not_taken (letzteres: Inspektion, kein Lagerverlust).
      */
     public static function autoCreateFromIssueReport(
         EntityManagerInterface $em,
@@ -1001,6 +1001,7 @@ class WorkshopController extends AbstractController
             ActivityIssueReport::TYPE_REPAIR => WorkshopTicket::TYPE_REPAIR,
             ActivityIssueReport::TYPE_DAMAGE => WorkshopTicket::TYPE_REPAIR,
             ActivityIssueReport::TYPE_LOSS => WorkshopTicket::TYPE_WRITEOFF,
+            ActivityIssueReport::TYPE_NOT_TAKEN => WorkshopTicket::TYPE_INSPECTION,
             default => WorkshopTicket::TYPE_INSPECTION,
         };
         $ticket->setType($type);
@@ -1030,12 +1031,15 @@ class WorkshopController extends AbstractController
             $ticket->setCreatedByUser($currentUser);
         }
 
-        // Material-Zustand setzen: bei Verlust 'lost', sonst 'repair'
+        // Material-Zustand: nur bei Verlust / Reparatur-Pfaden; not_taken & Verbrauch unverändert lassen
         if ($materialItem->getCondition() === 'ok') {
-            $materialItem->setCondition(
-                $issueReport->getType() === ActivityIssueReport::TYPE_LOSS ? 'lost' : 'repair'
-            );
-            $materialItem->updateTimestamps();
+            if ($issueReport->getType() === ActivityIssueReport::TYPE_LOSS) {
+                $materialItem->setCondition('lost');
+                $materialItem->updateTimestamps();
+            } elseif (in_array($issueReport->getType(), [ActivityIssueReport::TYPE_REPAIR, ActivityIssueReport::TYPE_DAMAGE], true)) {
+                $materialItem->setCondition('repair');
+                $materialItem->updateTimestamps();
+            }
         }
 
         $em->persist($ticket);

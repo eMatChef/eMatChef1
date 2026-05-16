@@ -207,26 +207,30 @@
                   <label>{{ t('components.materialDetail.labelEan') }}</label>
                   <input v-model="formData.ean" type="text" class="form-input" />
                 </div>
-                <div class="form-group">
-                  <label>{{ t('components.materialDetail.labelWeightKg') }}</label>
-                  <input v-model="formData.weight" type="text" class="form-input" />
-                </div>
+                <MaterialMetricInput
+                  v-model="formData.weight"
+                  :label="t('components.materialDetail.labelWeightKg')"
+                  unit="kg"
+                />
                 <div class="form-group">
                   <label>{{ t('components.materialDetail.labelColor') }}</label>
                   <input v-model="formData.color" type="text" class="form-input" />
                 </div>
-                <div class="form-group">
-                  <label>{{ t('components.materialDetail.labelLengthCm') }}</label>
-                  <input v-model="formData.size_length" type="text" class="form-input" />
-                </div>
-                <div class="form-group">
-                  <label>{{ t('components.materialDetail.labelWidthCm') }}</label>
-                  <input v-model="formData.size_width" type="text" class="form-input" />
-                </div>
-                <div class="form-group">
-                  <label>{{ t('components.materialDetail.labelHeightCm') }}</label>
-                  <input v-model="formData.size_height" type="text" class="form-input" />
-                </div>
+                <MaterialMetricInput
+                  v-model="formData.size_length"
+                  :label="t('components.materialDetail.labelLengthCm')"
+                  unit="cm"
+                />
+                <MaterialMetricInput
+                  v-model="formData.size_width"
+                  :label="t('components.materialDetail.labelWidthCm')"
+                  unit="cm"
+                />
+                <MaterialMetricInput
+                  v-model="formData.size_height"
+                  :label="t('components.materialDetail.labelHeightCm')"
+                  unit="cm"
+                />
                 <div class="form-group">
                   <label>{{ t('components.materialDetail.labelWarranty') }}</label>
                   <input v-model="formData.warranty_until" type="date" class="form-input" />
@@ -473,7 +477,45 @@
                   <span class="stock-number">{{ material.available ?? availableStock }}</span>
                   <span class="stock-label">{{ t('components.materialDetail.stockLabelAvailable') }}</span>
                 </div>
+                <div v-if="(material.combo_allocated || 0) > 0" class="stock-stat combo-alloc-stat">
+                  <span class="stock-number">{{ material.combo_allocated }}</span>
+                  <span class="stock-label">{{ t('components.materialDetail.stockLabelInCombos') }}</span>
+                </div>
               </div>
+              <div
+                v-if="material.combo_allocations && material.combo_allocations.length > 0"
+                class="combo-allocation-breakdown"
+              >
+                <p class="combo-allocation-breakdown-title">{{ t('components.materialDetail.stockComboBreakdownTitle') }}</p>
+                <p class="combo-allocation-breakdown-explain">{{ t('components.materialDetail.stockComboBreakdownExplain') }}</p>
+                <ul class="combo-allocation-breakdown-list">
+                  <li v-for="row in material.combo_allocations" :key="row.parent_material_id">
+                    <router-link
+                      class="combo-allocation-link"
+                      :to="`/${departmentId}/materials/${row.parent_material_id}`"
+                    >
+                      {{ row.parent_name }}
+                    </router-link>
+                    <span class="combo-allocation-qty">{{ t('settings.storage.overviewLineQty', { qty: row.qty }) }}</span>
+                  </li>
+                </ul>
+                <p v-if="(material.free_stock ?? 0) > 0" class="combo-allocation-free">
+                  {{ t('components.materialDetail.stockComboBreakdownFree', { n: material.free_stock }) }}
+                </p>
+              </div>
+
+              <p
+                v-if="(material.issued_out ?? 0) > 0 && activeBatches.length > 0"
+                class="stock-location-issued-hint"
+              >
+                {{
+                  t('components.materialDetail.stockLocationIssuedHint', {
+                    booked: material.total_stock ?? 0,
+                    issued: material.issued_out ?? 0,
+                    inWarehouse: material.in_warehouse ?? 0,
+                  })
+                }}
+              </p>
 
               <table class="batch-table" v-if="activeBatches.length > 0">
                 <thead>
@@ -612,6 +654,7 @@
                 <h2 class="section-title">{{ t('components.materialDetail.sectionStoredInTitle') }}</h2>
               </div>
               <StorageTreeView
+                :key="storageTreeRefreshKey"
                 :department-id="props.departmentId"
                 :material-id="props.materialId"
                 :readonly="true"
@@ -629,7 +672,13 @@
                 <div>
                   <h2 class="section-title">{{ t('components.materialDetail.tabComposition') }}</h2>
                   <p class="composition-tab-intro">
-                    {{ t('components.materialDetail.compositionIntro') }}
+                    {{
+                      material.material_type === 'physical_combo'
+                        ? t('components.materialDetail.compositionIntroPhysical')
+                        : material.material_type === 'virtual_combo'
+                          ? t('components.materialDetail.compositionIntroVirtual')
+                          : t('components.materialDetail.compositionIntro')
+                    }}
                   </p>
                 </div>
                 <div class="composition-tab-actions">
@@ -665,7 +714,9 @@
                     <th>{{ t('components.materialDetail.thSerial') }}</th>
                     <th>{{ t('components.materialDetail.thBatchStatus') }}</th>
                     <th>{{ t('components.materialDetail.thAssignment') }}</th>
-                    <th :aria-label="t('components.materialDetail.thStatus')"></th>
+                    <th class="composition-state-th" :title="t('components.materialDetail.thCompositionStateHint')">
+                      {{ t('components.materialDetail.thCompositionState') }}
+                    </th>
                     <th class="composition-actions-th">{{ t('components.materialDetail.thActions') }}</th>
                   </tr>
                 </thead>
@@ -1130,6 +1181,98 @@
             <div class="section-card">
               <h2 class="section-title">{{ t('components.materialDetail.sectionRentalTitle') }}</h2>
 
+              <div class="rental-accordion-item">
+                <button
+                  type="button"
+                  class="rental-accordion-trigger"
+                  :aria-expanded="rentalActivitiesOpen"
+                  @click="rentalActivitiesOpen = !rentalActivitiesOpen"
+                >
+                  <span class="rental-accordion-chevron" aria-hidden="true">{{ rentalActivitiesOpen ? '▼' : '▶' }}</span>
+                  <span class="rental-accordion-title">{{ t('components.materialDetail.rentalAccordionActivitiesTitle') }}</span>
+                  <span v-if="rentalActivityBookingsTotalQty > 0" class="rental-accordion-badge">
+                    {{ t('settings.storage.overviewLineQty', { qty: rentalActivityBookingsTotalQty }) }}
+                  </span>
+                </button>
+                <div v-show="rentalActivitiesOpen" class="rental-accordion-body">
+                  <p class="rental-accordion-intro">{{ t('components.materialDetail.rentalAccordionActivitiesIntro') }}</p>
+                  <div v-if="rentalActivityBookingsLoading" class="loading-inline combo-rental-loading">
+                    <div class="spinner"></div>
+                    <span>{{ t('components.materialDetail.rentalActivityBookingsLoading') }}</span>
+                  </div>
+                  <p v-else-if="rentalActivityBookingsError" class="form-hint text-warning">{{ rentalActivityBookingsError }}</p>
+                  <p v-else-if="rentalActivityBookings.length === 0" class="empty-serials combo-rental-empty">
+                    {{ t('components.materialDetail.rentalActivityBookingsEmpty') }}
+                  </p>
+                  <div v-else class="combo-rental-basis-table-wrap">
+                    <table class="batch-table combo-rental-basis-table rental-activity-bookings-table">
+                      <thead>
+                        <tr>
+                          <th>{{ t('components.materialDetail.rentalActivityBookingsThNo') }}</th>
+                          <th>{{ t('components.materialDetail.rentalActivityBookingsThActivity') }}</th>
+                          <th>{{ t('components.materialDetail.rentalActivityBookingsThPeriod') }}</th>
+                          <th>{{ t('components.materialDetail.rentalActivityBookingsThStatus') }}</th>
+                          <th class="combo-rental-col-num">{{ t('components.materialDetail.rentalActivityBookingsThQty') }}</th>
+                          <th>{{ t('components.materialDetail.rentalActivityBookingsThKind') }}</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr v-for="row in rentalActivityBookings" :key="row.activity_id">
+                          <td>{{ row.activity_no != null ? `#${row.activity_no}` : t('components.materialDetail.emDash') }}</td>
+                          <td>
+                            <div class="rental-activity-cell">
+                              <router-link
+                                class="combo-allocation-link"
+                                :to="`/${departmentId}/activities/${row.activity_id}`"
+                              >
+                                {{ row.activity_name }}
+                              </router-link>
+                              <div
+                                v-if="row.via_combo_material_names"
+                                class="rental-booking-via-combo"
+                              >
+                                {{
+                                  t('components.materialDetail.rentalActivityBookingsViaCombo', {
+                                    names: row.via_combo_material_names,
+                                  })
+                                }}
+                              </div>
+                            </div>
+                          </td>
+                          <td class="rental-activity-period">{{ formatRentalActivityPeriod(row) }}</td>
+                          <td>
+                            <span class="status-badge rental-activity-status" :class="row.activity_status">
+                              {{ rentalActivityStatusLabel(row.activity_status) }}
+                            </span>
+                          </td>
+                          <td class="combo-rental-col-num">{{ row.qty }}</td>
+                          <td>
+                            <span
+                              class="rental-booking-kind"
+                              :class="rentalBookingKindClass(row.booking_kind)"
+                            >
+                              {{ rentalBookingKindLabel(row.booking_kind) }}
+                            </span>
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+
+              <div class="rental-accordion-item">
+                <button
+                  type="button"
+                  class="rental-accordion-trigger"
+                  :aria-expanded="rentalPricingOpen"
+                  @click="rentalPricingOpen = !rentalPricingOpen"
+                >
+                  <span class="rental-accordion-chevron" aria-hidden="true">{{ rentalPricingOpen ? '▼' : '▶' }}</span>
+                  <span class="rental-accordion-title">{{ t('components.materialDetail.rentalAccordionPricingTitle') }}</span>
+                </button>
+                <div v-show="rentalPricingOpen" class="rental-accordion-body">
+
               <div
                 v-if="material.material_type === 'physical_combo' || material.material_type === 'virtual_combo'"
                 class="combo-rental-basis-section"
@@ -1267,6 +1410,8 @@
               <div class="form-group span-full mt-4">
                 <label>{{ t('components.materialDetail.labelRentalNotes') }}</label>
                 <textarea v-model="formData.rental_notes" class="form-textarea" rows="3" :placeholder="t('components.materialDetail.phRentalNotes')"></textarea>
+              </div>
+                </div>
               </div>
             </div>
           </section>
@@ -1667,6 +1812,18 @@
       @close="showMoveModal = false; moveBatch = null"
       @saved="handleMoveSaved"
     />
+    <RemoveCompositionReleaseModal
+      v-if="pendingRemoveComposition && linkedContainerBatchIdForRelease"
+      :department-id="departmentId"
+      :component-material-id="pendingRemoveComposition.component_material.id"
+      :component-name="pendingRemoveComposition.component_material.name"
+      :qty="pendingRemoveComposition.qty"
+      :source-container-batch-id="linkedContainerBatchIdForRelease"
+      :source-container-label="linkedContainerLabelForRelease"
+      :submitting="deletingCompositionId === pendingRemoveComposition.id"
+      @cancel="cancelRemoveCompositionRelease"
+      @confirm="executeRemoveCompositionWithRelease"
+    />
 
     <div v-if="showAddToContainerModal" class="modal-overlay">
       <div class="modal-dialog">
@@ -1732,12 +1889,15 @@
       </div>
     </div>
 
-    <div v-if="showAddCompositionModal" class="modal-overlay" @click.self="closeAddCompositionModal">
+    <div v-if="showAddCompositionModal" class="modal-overlay">
       <div class="modal-dialog composition-add-modal">
-        <h3>{{ t('components.materialDetail.modalAddCompositionTitle') }}</h3>
-        <p class="text-muted composition-add-modal-intro">
-          {{ t('components.materialDetail.modalAddCompositionIntro') }}
-        </p>
+        <div class="composition-add-modal-header">
+          <h3>{{ t('components.materialDetail.modalAddCompositionTitle') }}</h3>
+          <p class="text-muted composition-add-modal-intro">
+            {{ t('components.materialDetail.modalAddCompositionIntro') }}
+          </p>
+        </div>
+        <div class="composition-add-modal-body">
         <div class="form-group">
           <label>{{ t('components.materialDetail.labelSearchArticle') }}</label>
           <MaterialLookupInput
@@ -1763,11 +1923,57 @@
         </div>
         <div v-if="addCompositionSelected" class="form-group">
           <label>{{ t('components.materialDetail.thQty') }}</label>
-          <input v-model.number="addCompositionQty" type="number" min="1" class="form-input" />
+          <input
+            v-model.number="addCompositionQty"
+            type="number"
+            min="1"
+            :max="addCompositionStockCap ?? undefined"
+            class="form-input"
+            @input="clampAddCompositionQty"
+            @blur="clampAddCompositionQty"
+          />
+          <p v-if="addCompositionStockCap !== null && addCompositionStockCap > 0" class="batch-field-hint">
+            {{ t('components.materialDetail.hintMaxQty', { n: addCompositionStockCap }) }}
+          </p>
+          <p v-else-if="addCompositionStockCap === 0" class="error-text">{{ t('components.materialDetail.errAddCompositionNoStock') }}</p>
+          <p v-if="addCompositionAllocatesToLinkedCrate" class="batch-field-hint">
+            {{ t('components.materialDetail.hintAddCompositionToCrate') }}
+          </p>
+          <div
+            v-if="addCompositionAllocatesToLinkedCrate && addCompositionStockLocationRows.length > 0"
+            class="composition-stock-preview"
+          >
+            <p class="composition-stock-preview-title">{{ t('components.materialDetail.addCompositionStockWhereTitle') }}</p>
+            <ul class="composition-stock-preview-list">
+              <li v-for="(row, idx) in addCompositionStockLocationRows" :key="`loc-${idx}`">
+                {{ formatStorageRowLabel(row) }}
+                <span class="composition-stock-preview-qty">{{ t('components.materialDetail.qtyPieces', { qty: row.qty }) }}</span>
+              </li>
+            </ul>
+          </div>
+          <div
+            v-if="addCompositionAllocatesToLinkedCrate && addCompositionTakePreview && addCompositionTakePreview.lines.length > 0"
+            class="composition-stock-preview composition-stock-preview--move"
+          >
+            <p class="composition-stock-preview-title">{{ t('components.materialDetail.addCompositionTakePreviewTitle') }}</p>
+            <ul class="composition-stock-preview-list">
+              <li v-for="(line, idx) in addCompositionTakePreview.lines" :key="`take-${idx}`">
+                {{ line.label }}
+                <span class="composition-stock-preview-qty">→ {{ t('components.materialDetail.qtyPieces', { qty: line.qty }) }}</span>
+              </li>
+            </ul>
+            <p class="batch-field-hint">
+              {{ t('components.materialDetail.addCompositionTakePreviewTo', { target: addCompositionTakePreview.toLabel }) }}
+            </p>
+            <p v-if="addCompositionTakePreview.remaining > 0" class="error-text">
+              {{ t('components.materialDetail.addCompositionTakePreviewShort', { n: addCompositionTakePreview.remaining }) }}
+            </p>
+          </div>
         </div>
         <div v-if="addCompositionSelected" class="form-group">
           <label>{{ t('components.materialDetail.labelRoleOptional') }}</label>
           <input v-model="addCompositionRole" type="text" class="form-input" :placeholder="t('components.materialDetail.phRoleExamples')" />
+          <p class="batch-field-hint">{{ t('components.materialDetail.hintRoleInCombo') }}</p>
         </div>
         <div v-if="addCompositionSelected" class="form-group">
           <label class="checkbox-label">
@@ -1785,7 +1991,8 @@
           </select>
         </div>
         <p v-if="addCompositionError" class="error-text">{{ addCompositionError }}</p>
-        <div class="modal-actions">
+        </div>
+        <div class="modal-actions composition-add-modal-footer">
           <button type="button" class="btn-secondary btn-sm" @click="closeAddCompositionModal">{{ t('common.cancel') }}</button>
           <button
             type="button"
@@ -1799,19 +2006,37 @@
       </div>
     </div>
 
-    <div v-if="showEditCompositionModal && editCompositionComp" class="modal-overlay" @click.self="closeEditCompositionModal">
+    <div v-if="showEditCompositionModal && editCompositionComp" class="modal-overlay">
       <div class="modal-dialog composition-add-modal">
-        <h3>{{ t('components.materialDetail.modalEditCompositionTitle') }}</h3>
-        <p class="text-muted composition-add-modal-intro">
-          <strong>{{ editCompositionComp.component_material.name }}</strong>
-        </p>
+        <div class="composition-add-modal-header">
+          <h3>{{ t('components.materialDetail.modalEditCompositionTitle') }}</h3>
+          <p class="text-muted composition-add-modal-intro">
+            <strong>{{ editCompositionComp.component_material.name }}</strong>
+          </p>
+        </div>
+        <div class="composition-add-modal-body">
         <div class="form-group">
           <label>{{ t('components.materialDetail.thQty') }}</label>
-          <input v-model.number="editCompositionQty" type="number" min="1" class="form-input" />
+          <input
+            v-model.number="editCompositionQty"
+            type="number"
+            min="1"
+            :max="editCompositionStockCap ?? undefined"
+            class="form-input"
+            @input="clampEditCompositionQty"
+            @blur="clampEditCompositionQty"
+          />
+          <p v-if="editCompositionStockCap !== null && editCompositionStockCap > 0" class="batch-field-hint">
+            {{ t('components.materialDetail.hintMaxQty', { n: editCompositionStockCap }) }}
+          </p>
+          <p v-if="addCompositionAllocatesToLinkedCrate" class="batch-field-hint">
+            {{ t('components.materialDetail.hintEditCompositionToCrate') }}
+          </p>
         </div>
         <div class="form-group">
           <label>{{ t('components.materialDetail.labelRoleOptional') }}</label>
           <input v-model="editCompositionRole" type="text" class="form-input" :placeholder="t('components.materialDetail.phRoleExamples')" />
+          <p class="batch-field-hint">{{ t('components.materialDetail.hintRoleInCombo') }}</p>
         </div>
         <div class="form-group">
           <label class="checkbox-label">
@@ -1838,9 +2063,11 @@
             </option>
           </select>
           <p class="batch-field-hint">{{ t('components.materialDetail.hintAssignedBatchSerie') }}</p>
+          <p class="batch-field-hint">{{ t('components.materialDetail.hintAssignedBatchInCombo') }}</p>
         </div>
         <p v-if="editCompositionError" class="error-text">{{ editCompositionError }}</p>
-        <div class="modal-actions">
+        </div>
+        <div class="modal-actions composition-add-modal-footer">
           <button type="button" class="btn-secondary btn-sm" @click="closeEditCompositionModal">{{ t('common.cancel') }}</button>
           <button
             type="button"
@@ -1854,7 +2081,7 @@
       </div>
     </div>
 
-    <div v-if="showQrActionModal" class="modal-overlay" @click.self="closeQrActionModal">
+    <div v-if="showQrActionModal" class="modal-overlay">
       <div class="modal-dialog">
         <h3>{{ t('components.materialDetail.modalQrActionTitle') }}</h3>
         <p class="qr-modal-text">{{ qrActionLabel }}</p>
@@ -1887,12 +2114,15 @@ import {
   moveBatchQuantity,
   getMaterialHistory,
   getMaterialUsedIn,
+  getMaterialActivityBookings,
+  type MaterialActivityBookingRow,
   ensureMaterialPublicCode,
   getMaterialStorageLocations,
   getComboComponents,
   addComboComponent,
   updateComboComponent,
   deleteComboComponent,
+  type DeleteComboComponentRequest,
   type Material,
   type MaterialHistoryEntry,
   type MaterialBatch,
@@ -1925,14 +2155,22 @@ import {
 } from '@/api/departmentSettings'
 import { getWorkshopTickets, type WorkshopTicket } from '@/api/workshop'
 import RentalPriceAmortizationCalculator from '@/components/material/RentalPriceAmortizationCalculator.vue'
+import MaterialMetricInput from '@/components/material/MaterialMetricInput.vue'
+import { normalizeMaterialMetricInput } from '@/utils/materialMetricUnits'
 import SplitModal from '@/components/material/SplitModal.vue'
 import { useAuthStore } from '@/stores/auth'
 import { usePageHeadStore } from '@/stores/pageHead'
 import { useToast } from '@/composables/useToast'
+import { useConfirm } from '@/composables/useConfirm'
 import { useI18n } from 'vue-i18n'
 import { printHtmlDocument } from '@/utils/printHtml'
 import BatchModal from '@/components/material/BatchModal.vue'
 import MoveQuantityModal from '@/components/material/MoveQuantityModal.vue'
+import RemoveCompositionReleaseModal from '@/components/material/RemoveCompositionReleaseModal.vue'
+import {
+  formatStorageRowLabel,
+  previewTakeForLinkedCrate,
+} from '@/utils/compositionStockLocations'
 import StorageTreeView from '@/components/storage/StorageTreeView.vue'
 import MaterialLookupInput from '@/components/common/MaterialLookupInput.vue'
 import CategoryAutocompleteInput from '@/components/common/CategoryAutocompleteInput.vue'
@@ -1954,7 +2192,8 @@ const pageHeadStore = usePageHeadStore()
 const authStore = useAuthStore()
 const detailTabsStore = useDetailTabsStore()
 const toast = useToast()
-const { t, tm, locale } = useI18n()
+const { confirm: confirmDialog } = useConfirm()
+const { t, tm, locale, te } = useI18n()
 const physicalComboWarningStore = usePhysicalComboWarningStore()
 const PACK_UNIT_BUNDLE = 'Bündel'
 const PACK_UNIT_KISTE = 'Kiste'
@@ -2018,10 +2257,15 @@ const workshopTicketsLoading = ref(false)
 /** Stückliste für Kombos (Tab „Zusammensetzung“) */
 const comboComponentsList = ref<ComboComponent[]>([])
 const comboComponentsLoading = ref(false)
+/** Lagerbaum nach Zusammensetzung+Einlagerung neu laden */
+const storageTreeRefreshKey = ref(0)
 
 const showAddCompositionModal = ref(false)
 const addCompositionSearch = ref('')
 const addCompositionSelected = ref<Material | null>(null)
+/** Detail-GET mit Lager-Aufteilung für Kappen im Hinzufügen-Dialog */
+const addCompositionSourceDetail = ref<Material | null>(null)
+const addCompositionStockLocations = ref<MaterialStorageLocationsResponse | null>(null)
 const addCompositionQty = ref(1)
 const addCompositionRole = ref('')
 const addCompositionOptional = ref(false)
@@ -2038,13 +2282,86 @@ const editCompositionMode = ref<'fixed' | 'assigned' | 'on_issue' | 'bulk'>('bul
 const editCompositionBatchId = ref('')
 const editCompositionBatches = ref<MaterialBatch[]>([])
 const editCompositionBatchesLoading = ref(false)
+const editCompositionBaseQty = ref(1)
+const editCompositionMaterialFreeStock = ref(0)
 const editCompositionError = ref('')
 const editCompositionSubmitting = ref(false)
 const deletingCompositionId = ref<string | null>(null)
+const pendingRemoveComposition = ref<ComboComponent | null>(null)
 
-const canSubmitAddComposition = computed(
-  () => !!addCompositionSelected.value && (addCompositionQty.value ?? 0) >= 1
+const linkedContainerBatchIdForRelease = computed(() => {
+  const m = material.value
+  if (!m) return null
+  return m.linked_container_batch_id || m.linked_container_batch?.id || null
+})
+
+const linkedContainerLabelForRelease = computed(() => {
+  const m = material.value
+  return m?.linked_container_batch?.display_label || m?.name || '–'
+})
+
+const addCompositionStockCap = computed((): number | null => {
+  const m = addCompositionSourceDetail.value || addCompositionSelected.value
+  if (!m) return null
+  if (addCompositionAllocatesToLinkedCrate.value) {
+    const outside = Math.max(0, m.stock_outside_containers ?? 0)
+    const inContainers = Math.max(0, m.stock_in_containers ?? 0)
+    const movable = outside + inContainers
+    if (movable > 0) return movable
+    return Math.max(0, Math.floor(m.total_stock ?? 0))
+  }
+  const loose = typeof m.free_stock === 'number' && Number.isFinite(m.free_stock) ? m.free_stock : m.total_stock
+  if (typeof loose !== 'number' || !Number.isFinite(loose)) return null
+  return Math.max(0, Math.floor(loose))
+})
+
+const addCompositionAllocatesToLinkedCrate = computed(
+  () =>
+    material.value?.material_type === 'physical_combo' &&
+    !!(material.value?.linked_container_batch_id || material.value?.linked_container_batch?.id),
 )
+
+const addCompositionStockLocationRows = computed((): MaterialStorageLocationRow[] => {
+  const rows = addCompositionStockLocations.value?.direct ?? []
+  return rows.filter((r) => (r.qty || 0) > 0)
+})
+
+const addCompositionTakePreview = computed(() => {
+  if (!addCompositionAllocatesToLinkedCrate.value || !addCompositionSourceDetail.value) return null
+  const targetId = linkedContainerBatchIdForRelease.value
+  if (!targetId) return null
+  const qty = Math.max(1, addCompositionQty.value || 1)
+  return previewTakeForLinkedCrate(
+    addCompositionSourceDetail.value,
+    targetId,
+    linkedContainerLabelForRelease.value,
+    qty,
+    containerBatches.value,
+  )
+})
+
+const editCompositionStockCap = computed((): number | null => {
+  if (!editCompositionComp.value || !addCompositionAllocatesToLinkedCrate.value) return null
+  return Math.max(1, editCompositionBaseQty.value + Math.max(0, editCompositionMaterialFreeStock.value))
+})
+
+function clampEditCompositionQty() {
+  const cap = editCompositionStockCap.value
+  if (cap === null) return
+  const q = editCompositionQty.value ?? 0
+  if (q > cap) editCompositionQty.value = cap
+  if (q < 1) editCompositionQty.value = 1
+}
+
+const canSubmitAddComposition = computed(() => {
+  if (!addCompositionSelected.value) return false
+  const q = addCompositionQty.value ?? 0
+  if (q < 1) return false
+  const cap = addCompositionStockCap.value
+  if (cap === 0) return false
+  if (cap !== null && q > cap) return false
+  return true
+})
 
 const comboAssignmentLabels = computed((): Record<string, string> => ({
   fixed: t('components.materialDetail.assignmentFixed'),
@@ -2079,6 +2396,14 @@ const comboRentalRows = ref<
 >([])
 const comboRentalLoading = ref(false)
 const comboRentalError = ref('')
+const rentalActivitiesOpen = ref(true)
+const rentalPricingOpen = ref(false)
+const rentalActivityBookings = ref<MaterialActivityBookingRow[]>([])
+const rentalActivityBookingsLoading = ref(false)
+const rentalActivityBookingsError = ref('')
+const rentalActivityBookingsTotalQty = computed(() =>
+  rentalActivityBookings.value.reduce((sum, row) => sum + (row.qty || 0), 0),
+)
 
 const acquisitionBasisChf = computed(() => sumAcquisitionBasisFromBatches(batches.value))
 const acquisitionPieceCount = computed(() => sumAcquisitionPieceCountFromBatches(batches.value))
@@ -2118,6 +2443,59 @@ const showRentalAmortizationCalculator = computed(() => {
 const rentalAmortizationContext = computed<'batches' | 'combo'>(() =>
   isComboMaterialView.value ? 'combo' : 'batches'
 )
+
+function rentalActivityStatusLabel(status: string): string {
+  const key = `activities.status.${status}` as const
+  return te(key) ? t(key) : status
+}
+
+function rentalBookingKindClass(kind: MaterialActivityBookingRow['booking_kind']): string {
+  if (kind === 'issued') return 'rental-booking-kind--issued'
+  if (kind === 'draft') return 'rental-booking-kind--draft'
+  return 'rental-booking-kind--reserved'
+}
+
+function rentalBookingKindLabel(kind: MaterialActivityBookingRow['booking_kind']): string {
+  if (kind === 'issued') return t('components.materialDetail.rentalActivityBookingsKindIssued')
+  if (kind === 'draft') return t('components.materialDetail.rentalActivityBookingsKindDraft')
+  return t('components.materialDetail.rentalActivityBookingsKindReserved')
+}
+
+function formatRentalActivityPeriod(row: MaterialActivityBookingRow): string {
+  const start = row.usage_start ? formatRentalDateTime(row.usage_start) : ''
+  const end = row.usage_end ? formatRentalDateTime(row.usage_end) : ''
+  if (start && end) return `${start} – ${end}`
+  if (start) return start
+  if (end) return end
+  return t('components.materialDetail.emDash')
+}
+
+function formatRentalDateTime(iso: string): string {
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return iso
+  const locTag = String(locale.value ?? '').startsWith('de') ? 'de-CH' : 'en-CH'
+  return d.toLocaleString(locTag, {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
+
+async function loadRentalActivityBookings() {
+  if (!props.materialId) return
+  rentalActivityBookingsLoading.value = true
+  rentalActivityBookingsError.value = ''
+  try {
+    rentalActivityBookings.value = await getMaterialActivityBookings(props.materialId, props.departmentId)
+  } catch {
+    rentalActivityBookingsError.value = t('components.materialDetail.rentalActivityBookingsError')
+    rentalActivityBookings.value = []
+  } finally {
+    rentalActivityBookingsLoading.value = false
+  }
+}
 
 async function loadComboRentalBreakdown() {
   if (!props.materialId) return
@@ -2708,11 +3086,20 @@ async function loadComboComponentsForTab() {
 async function compositionMaterialFetcher(query: string) {
   const fetcher = createBasicMaterialLookupFetcher(() => props.departmentId)
   const items = await fetcher(query)
-  return items.filter((m) => m.id !== props.materialId)
+  return items
+    .filter((m) => m.id !== props.materialId)
+    .map((m) => {
+      const existing = comboComponentsList.value.find((c) => c.component_material.id === m.id)
+      return existing ? { ...m, _alreadyInCompositionCompId: existing.id } : m
+    })
 }
 
 function compositionLookupLabel(item: Record<string, unknown>) {
-  return String(item?.name ?? '')
+  const name = String(item?.name ?? '')
+  if (item?._alreadyInCompositionCompId) {
+    return `${name} (${t('components.materialDetail.badgeAlreadyInComposition')})`
+  }
+  return name
 }
 
 function formatCompositionLookupSecondary(item: Record<string, unknown>) {
@@ -2725,6 +3112,8 @@ function formatCompositionLookupSecondary(item: Record<string, unknown>) {
 function openAddCompositionModal() {
   addCompositionSearch.value = ''
   addCompositionSelected.value = null
+  addCompositionSourceDetail.value = null
+  addCompositionStockLocations.value = null
   addCompositionQty.value = 1
   addCompositionRole.value = ''
   addCompositionOptional.value = false
@@ -2734,17 +3123,55 @@ function openAddCompositionModal() {
   showAddCompositionModal.value = true
 }
 
+function clampAddCompositionQty() {
+  const cap = addCompositionStockCap.value
+  if (cap === null) return
+  const q = addCompositionQty.value ?? 0
+  if (q > cap) addCompositionQty.value = Math.max(0, cap)
+  if (cap > 0 && (addCompositionQty.value ?? 0) < 1) addCompositionQty.value = 1
+}
+
 function closeAddCompositionModal() {
   showAddCompositionModal.value = false
 }
 
 function clearAddCompositionSelection() {
   addCompositionSelected.value = null
+  addCompositionSourceDetail.value = null
+  addCompositionStockLocations.value = null
   addCompositionSearch.value = ''
 }
 
-function handleCompositionMaterialSelect(item: Record<string, unknown>) {
-  addCompositionSelected.value = item as unknown as Material
+async function handleCompositionMaterialSelect(item: Record<string, unknown>) {
+  const existingCompId = item?._alreadyInCompositionCompId as string | undefined
+  if (existingCompId) {
+    const comp = comboComponentsList.value.find((c) => c.id === existingCompId)
+    if (comp) {
+      showAddCompositionModal.value = false
+      addCompositionSearch.value = ''
+      addCompositionSelected.value = null
+      openEditCompositionModal(comp)
+      return
+    }
+  }
+  const { _alreadyInCompositionCompId: _a, ...rest } = item as Record<string, unknown>
+  void _a
+  addCompositionSelected.value = rest as unknown as Material
+  addCompositionSourceDetail.value = null
+  addCompositionStockLocations.value = null
+  try {
+    addCompositionSourceDetail.value = await getMaterial(String(rest.id))
+  } catch {
+    addCompositionSourceDetail.value = addCompositionSelected.value
+  }
+  if (addCompositionAllocatesToLinkedCrate.value) {
+    try {
+      addCompositionStockLocations.value = await getMaterialStorageLocations(String(rest.id), props.departmentId)
+    } catch {
+      addCompositionStockLocations.value = null
+    }
+  }
+  void nextTick(() => clampAddCompositionQty())
 }
 
 function emitCreateMaterialForComposition() {
@@ -2760,18 +3187,21 @@ async function submitAddComposition() {
       (acc, c) => Math.max(acc, c.sort_order ?? 0),
       -1
     )
+    const addRole = addCompositionRole.value.trim()
     await addComboComponent(props.materialId, {
       component_material_id: addCompositionSelected.value.id,
       qty: Math.max(1, addCompositionQty.value || 1),
-      component_role: addCompositionRole.value.trim() || undefined,
+      component_role: addRole === '' ? null : addRole,
       is_optional: addCompositionOptional.value,
       assignment_mode: addCompositionMode.value,
       sort_order: maxSort + 1,
+      allocate_to_linked_container: addCompositionAllocatesToLinkedCrate.value,
     })
     toast.success(t('components.materialDetail.toastCompositionAdded'))
     showAddCompositionModal.value = false
     await loadComboComponentsForTab()
     await loadMaterial()
+    storageTreeRefreshKey.value += 1
     emit('updated', material.value)
   } catch (e: unknown) {
     const ax = e as { response?: { data?: { error?: string } } }
@@ -2784,14 +3214,21 @@ async function submitAddComposition() {
 function formatCompositionBatchOption(b: MaterialBatch) {
   const sn = (b.serial_number || '').trim()
   const lb = (b.label || '').trim()
-  if (sn && lb) return `${sn} · ${lb}`
-  if (sn) return sn
-  if (lb) return lb
-  return b.id.slice(0, 8) + '…'
+  const qty = typeof b.qty === 'number' && Number.isFinite(b.qty) ? b.qty : 0
+  const datePart = (b.acquired_on || '').trim()
+    ? formatDate(b.acquired_on)
+    : t('components.materialDetail.batchOptionNoDate')
+  let head: string
+  if (sn && lb) head = `${sn} · ${lb}`
+  else if (sn) head = sn
+  else if (lb) head = lb
+  else head = t('components.materialDetail.batchOptionUnlabeledLot', { id: b.id.slice(0, 8) })
+  return t('components.materialDetail.batchOptionWithDateQty', { date: datePart, label: head, qty })
 }
 
 async function openEditCompositionModal(comp: ComboComponent) {
   editCompositionComp.value = comp
+  editCompositionBaseQty.value = comp.qty
   editCompositionQty.value = comp.qty
   editCompositionRole.value = comp.component_role || ''
   editCompositionOptional.value = comp.is_optional
@@ -2803,8 +3240,12 @@ async function openEditCompositionModal(comp: ComboComponent) {
   editCompositionBatchesLoading.value = true
   try {
     const m = await getMaterial(comp.component_material.id)
-    editCompositionBatches.value = m.batches || []
+    editCompositionMaterialFreeStock.value = Math.max(0, m.free_stock ?? 0)
+    editCompositionBatches.value = [...(m.batches || [])].sort((a, b) =>
+      (b.acquired_on || '').localeCompare(a.acquired_on || '', sortLocale()),
+    )
   } catch {
+    editCompositionMaterialFreeStock.value = 0
     editCompositionBatches.value = []
   } finally {
     editCompositionBatchesLoading.value = false
@@ -2816,15 +3257,20 @@ function closeEditCompositionModal() {
   editCompositionComp.value = null
 }
 
+function mergeComboComponentInList(updated: ComboComponent) {
+  comboComponentsList.value = comboComponentsList.value.map((c) => (c.id === updated.id ? updated : c))
+}
+
 async function submitEditComposition() {
   const comp = editCompositionComp.value
   if (!comp) return
   editCompositionSubmitting.value = true
   editCompositionError.value = ''
   try {
+    const roleTrimmed = editCompositionRole.value.trim()
     const payload: UpdateComboComponentRequest = {
       qty: Math.max(1, editCompositionQty.value || 1),
-      component_role: editCompositionRole.value.trim() || undefined,
+      component_role: roleTrimmed === '' ? null : roleTrimmed,
       is_optional: editCompositionOptional.value,
       assignment_mode: editCompositionMode.value,
     }
@@ -2833,11 +3279,14 @@ async function submitEditComposition() {
       payload.component_batch_id =
         bid && editCompositionBatches.value.some((b) => b.id === bid) ? bid : null
     }
-    await updateComboComponent(props.materialId, comp.id, payload)
+    payload.allocate_to_linked_container = addCompositionAllocatesToLinkedCrate.value
+    const updated = await updateComboComponent(props.materialId, comp.id, payload)
+    mergeComboComponentInList(updated)
     toast.success(t('components.materialDetail.toastCompositionSaved'))
     closeEditCompositionModal()
     await loadComboComponentsForTab()
-    await loadMaterial()
+    await loadMaterial({ preserveComboComponents: true })
+    storageTreeRefreshKey.value += 1
     emit('updated', material.value)
   } catch (e: unknown) {
     const ax = e as { response?: { data?: { error?: string } } }
@@ -2848,18 +3297,60 @@ async function submitEditComposition() {
 }
 
 async function confirmDeleteComposition(comp: ComboComponent) {
-  const ok = confirm(t('components.materialDetail.confirmRemoveComposition', { name: comp.component_material.name }))
+  if (addCompositionAllocatesToLinkedCrate.value && linkedContainerBatchIdForRelease.value) {
+    pendingRemoveComposition.value = comp
+    return
+  }
+  const name = comp.component_material.name
+  const qty = comp.qty
+  const ok = await confirmDialog({
+    title: t('components.materialDetail.confirmRemoveCompositionTitle'),
+    message: t('components.materialDetail.confirmRemoveCompositionMessageVirtual', { name, qty }),
+    confirmText: t('components.materialDetail.confirmRemoveCompositionAction'),
+    cancelText: t('common.cancel'),
+    variant: 'danger',
+  })
   if (!ok) return
+  await executeRemoveComposition(comp)
+}
+
+function cancelRemoveCompositionRelease() {
+  pendingRemoveComposition.value = null
+}
+
+async function executeRemoveCompositionWithRelease(payload: DeleteComboComponentRequest) {
+  const comp = pendingRemoveComposition.value
+  if (!comp) return
+  const ok = await executeRemoveComposition(comp, payload)
+  if (ok) {
+    pendingRemoveComposition.value = null
+  }
+}
+
+async function executeRemoveComposition(
+  comp: ComboComponent,
+  releasePayload?: DeleteComboComponentRequest,
+): Promise<boolean> {
+  const name = comp.component_material.name
+  const qty = comp.qty
+  const isPhysicalCrate = !!releasePayload
   deletingCompositionId.value = comp.id
   try {
-    await deleteComboComponent(props.materialId, comp.id)
-    toast.success(t('components.materialDetail.toastCompositionRemoved'))
+    await deleteComboComponent(props.materialId, comp.id, releasePayload)
+    toast.success(
+      isPhysicalCrate
+        ? t('components.materialDetail.toastCompositionRemoved', { name, qty })
+        : t('components.materialDetail.toastCompositionRemovedVirtual', { name, qty }),
+    )
     await loadComboComponentsForTab()
     await loadMaterial()
+    storageTreeRefreshKey.value += 1
     emit('updated', material.value)
+    return true
   } catch (e: unknown) {
     const ax = e as { response?: { data?: { error?: string } } }
     toast.error(ax.response?.data?.error || t('components.materialDetail.errCompositionDelete'))
+    return false
   } finally {
     deletingCompositionId.value = null
   }
@@ -2882,16 +3373,18 @@ async function loadMaterialStorageLocations() {
   }
 }
 
-async function loadMaterial() {
+async function loadMaterial(opts?: { preserveComboComponents?: boolean }) {
   isLoading.value = true
   try {
     const data = await getMaterial(props.materialId)
     material.value = data
     batches.value = data.batches || []
-    if (data.material_type === 'physical_combo' || data.material_type === 'virtual_combo') {
-      comboComponentsList.value = data.combo_components ?? []
-    } else {
-      comboComponentsList.value = []
+    if (!opts?.preserveComboComponents) {
+      if (data.material_type === 'physical_combo' || data.material_type === 'virtual_combo') {
+        comboComponentsList.value = data.combo_components ?? []
+      } else {
+        comboComponentsList.value = []
+      }
     }
 
     populateFormData(data)
@@ -3007,11 +3500,11 @@ function populateFormData(m: Material) {
   formData.manufacturer = m.manufacturer || ''
   formData.model = m.model || ''
   formData.ean = m.ean || ''
-  formData.weight = m.weight || ''
+  formData.weight = normalizeMaterialMetricInput(m.weight, 'kg') ?? ''
   formData.color = m.color || ''
-  formData.size_length = m.size_length || ''
-  formData.size_width = m.size_width || ''
-  formData.size_height = m.size_height || ''
+  formData.size_length = normalizeMaterialMetricInput(m.size_length, 'cm') ?? ''
+  formData.size_width = normalizeMaterialMetricInput(m.size_width, 'cm') ?? ''
+  formData.size_height = normalizeMaterialMetricInput(m.size_height, 'cm') ?? ''
   formData.warranty_until = m.warranty_until || ''
   formData.rental_price_day = m.rental_price_day || ''
   formData.rental_price_week = m.rental_price_week || ''
@@ -3913,11 +4406,11 @@ async function save() {
       manufacturer: formData.manufacturer || null,
       model: formData.model || null,
       ean: formData.ean || null,
-      weight: formData.weight || null,
+      weight: normalizeMaterialMetricInput(formData.weight, 'kg'),
       color: formData.color || null,
-      size_length: formData.size_length || null,
-      size_width: formData.size_width || null,
-      size_height: formData.size_height || null,
+      size_length: normalizeMaterialMetricInput(formData.size_length, 'cm'),
+      size_width: normalizeMaterialMetricInput(formData.size_width, 'cm'),
+      size_height: normalizeMaterialMetricInput(formData.size_height, 'cm'),
       warranty_until: formData.warranty_until || null,
       rental_price_day: formData.rental_price_day || null,
       rental_price_week: formData.rental_price_week || null,
@@ -4333,8 +4826,11 @@ watch(activeTab, (newTab) => {
   if (newTab === 'workshop') {
     void loadWorkshopTicketsForMaterial()
   }
-  if (newTab === 'rental' && isComboMaterialView.value) {
-    void loadComboRentalBreakdown()
+  if (newTab === 'rental') {
+    void loadRentalActivityBookings()
+    if (isComboMaterialView.value) {
+      void loadComboRentalBreakdown()
+    }
   }
 }, { immediate: true })
 
@@ -4499,11 +4995,95 @@ onMounted(() => {
   color: #059669;
 }
 
-/* Modal „Komponente hinzufügen“: Such-Dropdown über dem Dialog-Inhalt, nicht vom Scroll abgeschnitten */
-.modal-dialog.composition-add-modal {
-  overflow: visible;
-}
+/* Such-Dropdown über scrollbarem Modal-Inhalt */
 .composition-add-modal :deep(.material-lookup-dropdown) {
   z-index: 3000;
+}
+
+.combo-allocation-breakdown {
+  margin: 12px 0 16px;
+  padding: 10px 12px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+}
+
+.combo-allocation-breakdown-explain {
+  margin: -4px 0 8px;
+  font-size: 11px;
+  color: #6b7280;
+  line-height: 1.35;
+}
+
+.stock-location-issued-hint {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: #92400e;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  border-radius: 8px;
+}
+
+.combo-allocation-breakdown-title {
+  margin: 0 0 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #475569;
+}
+
+.combo-allocation-breakdown-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.combo-allocation-breakdown-list li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.combo-allocation-link {
+  color: #2563eb;
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.combo-allocation-link:hover {
+  text-decoration: underline;
+}
+
+.combo-allocation-qty {
+  color: #6b7280;
+  font-size: 12px;
+}
+
+.combo-allocation-free {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.stock-stat.combo-alloc-stat .stock-number {
+  color: #7c3aed;
+}
+
+.composition-state-th {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #6b7280;
+  white-space: normal;
+  max-width: 6rem;
+  line-height: 1.2;
 }
 </style>

@@ -219,14 +219,11 @@ export function useActivityCreateWizard() {
     )
   })
 
-  /**
-   * Gruppe Pflicht: interne Aktivität + Lager (wenn Gruppen existieren).
-   * Event: optional (v4.01) — hier kein Pflicht-Flag.
-   */
+  /** Gruppe Pflicht nur bei interner Aktivität (wenn Gruppen existieren). */
   const needsGroupRequired = computed(
     () =>
       !!selectedActivityType.value &&
-      (selectedActivityType.value === 'activity' || selectedActivityType.value === 'camp') &&
+      selectedActivityType.value === 'activity' &&
       groupsForWizard.value.length > 0,
   )
 
@@ -303,10 +300,7 @@ export function useActivityCreateWizard() {
     const auth = useAuthStore()
     const uid = auth.userId ?? null
     const t = selectedActivityType.value
-    if (
-      (t === 'activity' || t === 'camp' || t === 'event') &&
-      selectedGroupId.value === null
-    ) {
+    if (t === 'activity' && selectedGroupId.value === null) {
       selectedGroupId.value = pickDefaultGroupForLeader(groups, uid)
     }
   }
@@ -377,7 +371,7 @@ export function useActivityCreateWizard() {
       formName.value = ''
     }
     const auth = useAuthStore()
-    if (t === 'activity' || t === 'camp' || t === 'event') {
+    if (t === 'activity') {
       selectedGroupId.value = pickDefaultGroupForLeader(groupsForWizard.value, auth.userId ?? null)
     } else {
       selectedGroupId.value = null
@@ -488,7 +482,11 @@ export function useActivityCreateWizard() {
     if (key === 'enter_name') {
       if (layoutMode.value === 'stepper') wizardStepIndex.value = 0
     }
-    if (key === 'choose_group' || key === 'choose_venue' || key === 'choose_tenant_address') {
+    if (
+      key === 'choose_group' ||
+      key === 'choose_venue' ||
+      key === 'choose_tenant_address'
+    ) {
       if (layoutMode.value === 'stepper') wizardStepIndex.value = 0
     }
     if (key === 'complete_date_ranges' || key === 'check_date_range' || key === 'pickup_outside_usage') {
@@ -526,12 +524,7 @@ export function useActivityCreateWizard() {
       /** Immer Entwurf: Material ist nur bei status=draft per API/Detail bearbeitbar; Einreichen erfolgt in der Detailansicht. */
       status: 'draft',
     }
-    if (
-      (selectedActivityType.value === 'activity' ||
-        selectedActivityType.value === 'camp' ||
-        selectedActivityType.value === 'event') &&
-      selectedGroupId.value
-    ) {
+    if (selectedGroupId.value) {
       payload.group_id = selectedGroupId.value
     }
     // Vollständige ISO-8601-Zeitstempel in UTC (z. B. 2026-04-04T12:15:00.000Z)

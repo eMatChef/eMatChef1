@@ -129,7 +129,7 @@
           />
         </ActivityOutlinedSection>
         <div
-          v-if="showGroupOnGrunddatenStep && groups.length > 0"
+          v-if="showGroupOnGrunddatenStep"
           id="activity-create-group-stepper"
           class="form-group activity-create-group-wrap"
         >
@@ -144,8 +144,7 @@
             :value="selectedGroupId ?? ''"
             @change="onGroupChange"
           >
-            <option v-if="selectedActivityType === 'event'" value="">{{ t('activities.wizard.form.groupNoneEvent') }}</option>
-            <option v-else value="" disabled>{{ t('activities.wizard.form.groupChoose') }}</option>
+            <option value="">{{ departmentName }}</option>
             <option v-for="g in flatGroups" :key="g.id" :value="g.id">
               {{ '↳ '.repeat(g._level) }}{{ g.name }}
             </option>
@@ -568,7 +567,7 @@ import {
   nearestAllowedQuarterOnDayOutsideUsage,
 } from '@/utils/activityPlanningUsageConstraint'
 import { useToast } from '@/composables/useToast'
-import { flattenGroupsWithLevel } from '@/utils/groupHierarchy'
+import { flattenGroupsWithLevel, resolveActivityGroupPickerLabel } from '@/utils/groupHierarchy'
 import { activityPreviewMaterialLabel, activityPreviewUsageLabel } from './activityPreviewLabels'
 import { activityTypeLabel } from './activityTypeLabels'
 import ActivityOutlinedSection from './ActivityOutlinedSection.vue'
@@ -598,6 +597,8 @@ const props = withDefaults(
     venueAddressId: string | null
     /** Für Schulferien-Marker (fcal) im Datumsfeld */
     departmentId: string
+    /** Oberste Option im Gruppen-Dropdown (Lager/Event) */
+    departmentName: string
     materialLines: ActivityMaterialLine[]
     /** Gesetzt nach erstem „Weiter“ (Stepper): Server-Entwurf für Material-API */
     draftActivityId?: string | null
@@ -614,6 +615,7 @@ const props = withDefaults(
     draftActivityId: null,
     invitedDepartments: () => [],
     activityNotes: '',
+    departmentName: '',
   },
 )
 
@@ -722,7 +724,7 @@ function emitPlanningPair(nextStart: Date, nextEnd: Date) {
   emit('update:planningEndAt', resolved.end)
 }
 
-/** Gruppe in Schritt 1 (Stepper) nur bei Lager & Event */
+/** Gruppe in Schritt 1 (Stepper) bei Lager & Event — Abteilung als oberste Option */
 const showGroupOnGrunddatenStep = computed(
   () => props.selectedActivityType === 'camp' || props.selectedActivityType === 'event',
 )
@@ -737,17 +739,14 @@ const showVenueOnGrunddatenStep = computed(
 
 const showGroupInSummary = computed(
   () =>
-    (props.selectedActivityType === 'activity' ||
-      props.selectedActivityType === 'camp' ||
-      props.selectedActivityType === 'event') &&
-    props.groups.length > 0,
+    props.selectedActivityType === 'camp' ||
+    props.selectedActivityType === 'event' ||
+    (props.selectedActivityType === 'activity' && props.groups.length > 0),
 )
 
-const groupSummaryLabel = computed(() => {
-  if (!props.selectedGroupId) return t('activities.wizard.form.summaryEmpty')
-  const g = flatGroups.value.find((x) => x.id === props.selectedGroupId)
-  return g?.name ?? props.selectedGroupId
-})
+const groupSummaryLabel = computed(() =>
+  resolveActivityGroupPickerLabel(props.selectedGroupId, props.departmentName, props.groups),
+)
 
 const materialSummaryLabel = computed(() => {
   const lines = props.materialLines

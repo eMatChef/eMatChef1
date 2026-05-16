@@ -22,6 +22,7 @@
               <ActivityCreateWizardForm
                 v-if="selectedActivityType"
                 :department-id="departmentId"
+                :department-name="wizardDepartmentName"
                 :layout-mode="layoutMode"
                 :wizard-step-index="wizardStepIndex"
                 :step-keys="stepKeys"
@@ -117,7 +118,8 @@ import {
 import { getAddresses, type Address } from '@/api/addresses'
 import { FALLBACK_ACTIVITY_DEFAULTS, getActivityDefaults } from '@/api/departmentSettings'
 import { getGroups } from '@/api/groups'
-import { flattenGroupsWithLevel } from '@/utils/groupHierarchy'
+import { resolveActivityGroupPickerLabel } from '@/utils/groupHierarchy'
+import { useAuthStore } from '@/stores/auth'
 import { useToast } from '@/composables/useToast'
 import {
   useActivityCreateWizard,
@@ -149,6 +151,7 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 const toast = useToast()
+const authStore = useAuthStore()
 const headerNotificationsStore = useHeaderNotificationsStore()
 
 const showDialog = computed({
@@ -222,6 +225,11 @@ function onSelectActivityType(t: ActivityCreateType) {
 function onUpdateFormName(v: string) {
   formName.value = v
 }
+const wizardDepartmentName = computed(() => {
+  const row = authStore.departments.find((d) => d.department_id === props.departmentId)
+  return row?.department?.name?.trim() || ''
+})
+
 function onSelectedGroupId(v: string | null) {
   selectedGroupId.value = v
 }
@@ -359,11 +367,15 @@ async function loadPreviewAddresses() {
 }
 
 const previewGroupLine = computed(() => {
-  const t = selectedActivityType.value
-  if (!t || (t !== 'activity' && t !== 'camp' && t !== 'event')) return null
-  if (!selectedGroupId.value || groupsForWizard.value.length === 0) return null
-  const g = flattenGroupsWithLevel(groupsForWizard.value).find((x) => x.id === selectedGroupId.value)
-  return g?.name?.trim() || null
+  const typ = selectedActivityType.value
+  if (!typ || typ === 'external') return null
+  if (typ === 'activity' && (!selectedGroupId.value || groupsForWizard.value.length === 0)) return null
+  const label = resolveActivityGroupPickerLabel(
+    selectedGroupId.value,
+    wizardDepartmentName.value,
+    groupsForWizard.value,
+  )
+  return label === '–' ? null : label
 })
 
 const previewVenueLine = computed(() => {
@@ -571,4 +583,5 @@ watch(
     if (missing) void loadPreviewAddresses()
   },
 )
+
 </script>

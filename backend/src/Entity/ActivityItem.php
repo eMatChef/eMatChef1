@@ -53,6 +53,10 @@ class ActivityItem
     #[ORM\Column(name: 'is_consumable', type: 'boolean', options: ['default' => false])]
     private bool $isConsumable = false;
 
+    /** Nachbuchung / Bestandserhöhung während der Ausleihe (eigene Aktivitätszeile, nicht mit Ursprungsmenge zusammenführen) */
+    #[ORM\Column(name: 'is_replenishment', type: 'boolean', options: ['default' => false])]
+    private bool $isReplenishment = false;
+
     #[ORM\Column(name: 'unit_price', type: 'decimal', precision: 10, scale: 2, nullable: true)]
     private ?string $unitPrice = null;
 
@@ -181,6 +185,9 @@ class ActivityItem
     // Verbrauchsmaterial & Preise Getters/Setters
     public function getIsConsumable(): bool { return $this->isConsumable; }
     public function setIsConsumable(bool $isConsumable): self { $this->isConsumable = $isConsumable; return $this; }
+
+    public function getIsReplenishment(): bool { return $this->isReplenishment; }
+    public function setIsReplenishment(bool $isReplenishment): self { $this->isReplenishment = $isReplenishment; return $this; }
 
     public function getUnitPrice(): ?string { return $this->unitPrice; }
     public function setUnitPrice(?string $unitPrice): self { $this->unitPrice = $unitPrice; return $this; }

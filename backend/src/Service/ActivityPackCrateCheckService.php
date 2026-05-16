@@ -1,0 +1,318 @@
+<?php
+
+namespace App\Service;
+
+use App\Controller\WorkshopController;
+use App\Entity\Activity;
+use App\Entity\ActivityHistory;
+use App\Entity\ActivityIssueReport;
+use App\Entity\ActivityPackItem;
+use App\Entity\MaterialItem;
+use App\Entity\User;
+use App\Util\IdGenerator;
+use Doctrine\ORM\EntityManagerInterface;
+
+/**
+ * Sichtkontrolle Phys.-Kombi-Kiste vor Weiterbuchen: History, Nachlegen, Meldungen.
+ */
+class ActivityPackCrateCheckService
+{
+    public function __construct(
+        private EntityManagerInterface $entityManager,
+        private BatchStorageMoveService $batchStorageMoveService,
+    ) {}
+
+    /**
+     * @param array{
+     *   container_batch_id?: string|null,
+     *   result: string,
+     *   lines: list<array{
+     *     line_key: string,
+     *     material_item_id?: string|null,
+     *     material_name?: string|null,
+     *     expected_qty?: int,
+     *     status: string,
+     *     missing_qty?: int|null,
+     *     note?: string|null,
+     *     replenish_qty?: int|null
+     *   }>
+     * } $payload
+     *
+     * @return array<string, mixed>
+     */
+    public function apply(Activity $activity, ActivityPackItem $shellPackItem, array $payload, ?User $user): array
+    {
+        $departmentId = $activity->getDepartmentId();
+        $containerBatchId = isset($payload['container_batch_id']) && $payload['container_batch_id'] !== ''
+            ? (string) $payload['container_batch_id']
+            : null;
+        if ($containerBatchId === null) {
+            $mi = $shellPackItem->getMaterialItem();
+            $containerBatchId = $mi?->getLinkedContainerBatchId();
+        }
+
+        $lines = $payload['lines'] ?? [];
+        $result = (string) ($payload['result'] ?? 'incomplete');
+        $actionsApplied = [];
+        $errors = [];
+
+        foreach ($lines as $line) {
+            $status = (string) ($line['status'] ?? '');
+            $materialItemId = isset($line['material_item_id']) && $line['material_item_id'] !== ''
+                ? (string) $line['material_item_id']
+                : null;
+            $materialName = (string) ($line['material_name'] ?? 'Material');
+            $note = trim((string) ($line['note'] ?? ''));
+            $missingQty = isset($line['missing_qty']) ? max(0, (int) $line['missing_qty']) : 0;
+            $replenishQty = isset($line['replenish_qty']) ? max(0, (int) $line['replenish_qty']) : 0;
+
+            if ($status === 'ok') {
+                continue;
+            }
+
+            if ($materialItemId === null || $materialItemId === '') {
+                $actionsApplied[] = [
+                    'line_key' => $line['line_key'] ?? '',
+                    'status' => $status,
+                    'skipped' => true,
+                    'reason' => 'no_material_id',
+                ];
+                continue;
+            }
+
+            try {
+                if ($status === 'replenish' && $containerBatchId !== null) {
+                    $qty = $replenishQty > 0 ? $replenishQty : ($missingQty > 0 ? $missingQty : 1);
+                    $move = $this->batchStorageMoveService->moveLooseQtyToContainer(
+                        $materialItemId,
+                        $departmentId,
+                        $containerBatchId,
+                        $qty,
+                    );
+                    $actionsApplied[] = [
+                        'line_key' => $line['line_key'] ?? '',
+                        'status' => 'replenish',
+                        'material_item_id' => $materialItemId,
+                        'qty_moved' => $move['qty_moved'],
+                    ];
+                    continue;
+                }
+
+                if ($status === 'loss' || $status === 'repair') {
+                    $lossQty = $missingQty > 0 ? $missingQty : 1;
+                    $report = $this->createIssueReport(
+                        $activity,
+                        $materialItemId,
+                        $status === 'loss' ? ActivityIssueReport::TYPE_LOSS : ActivityIssueReport::TYPE_REPAIR,
+                        $lossQty,
+                        $note !== '' ? $note : sprintf(
+                            'Kistencheck %s: %s',
+                            $shellPackItem->getMaterialItem()?->getName() ?? 'Kiste',
+                            $materialName
+                        ),
+                        $user,
+                    );
+                    $actionsApplied[] = [
+                        'line_key' => $line['line_key'] ?? '',
+                        'status' => $status,
+                        'material_item_id' => $materialItemId,
+                        'issue_report_id' => $report['id'],
+                        'workshop_ticket_id' => $report['workshop_ticket_id'] ?? null,
+                        'missing_qty' => $lossQty,
+                    ];
+                    if ($status === 'loss' && $containerBatchId !== null && $replenishQty > 0) {
+                        $move = $this->batchStorageMoveService->moveLooseQtyToContainer(
+                            $materialItemId,
+                            $departmentId,
+                            $containerBatchId,
+                            $replenishQty,
+                        );
+                        $actionsApplied[] = [
+                            'line_key' => $line['line_key'] ?? '',
+                            'status' => 'replenish_after_loss',
+                            'material_item_id' => $materialItemId,
+                            'qty_moved' => $move['qty_moved'],
+                        ];
+                    }
+                    continue;
+                }
+
+                if ($status === 'not_taken') {
+                    $qty = $missingQty > 0 ? $missingQty : 1;
+                    $report = $this->createIssueReport(
+                        $activity,
+                        $materialItemId,
+                        ActivityIssueReport::TYPE_NOT_TAKEN,
+                        $qty,
+                        $note !== '' ? $note : sprintf(
+                            'Nicht mitgegeben — Kistencheck %s: %s (%d Stk.)',
+                            $shellPackItem->getMaterialItem()?->getName() ?? 'Kiste',
+                            $materialName,
+                            $qty
+                        ),
+                        $user,
+                    );
+                    $actionsApplied[] = [
+                        'line_key' => $line['line_key'] ?? '',
+                        'status' => 'not_taken',
+                        'material_item_id' => $materialItemId,
+                        'missing_qty' => $missingQty,
+                        'note' => $note,
+                        'issue_report_id' => $report['id'],
+                        'workshop_ticket_id' => $report['workshop_ticket_id'] ?? null,
+                    ];
+                    continue;
+                }
+
+                if ($status === 'extra') {
+                    $actionsApplied[] = [
+                        'line_key' => $line['line_key'] ?? '',
+                        'status' => 'extra',
+                        'material_item_id' => $materialItemId,
+                        'note' => $note,
+                    ];
+                    continue;
+                }
+
+                // problem / other: nur dokumentieren
+                $actionsApplied[] = [
+                    'line_key' => $line['line_key'] ?? '',
+                    'status' => $status,
+                    'material_item_id' => $materialItemId,
+                    'missing_qty' => $missingQty,
+                    'note' => $note,
+                ];
+            } catch (\Throwable $e) {
+                $errors[] = [
+                    'line_key' => $line['line_key'] ?? '',
+                    'material_item_id' => $materialItemId,
+                    'error' => $e->getMessage(),
+                ];
+            }
+        }
+
+        $this->createActivityHistory($activity, 'pack_crate_check', [
+            'pack_item_id' => $shellPackItem->getId(),
+            'shell_material_item_id' => $shellPackItem->getMaterialItemId(),
+            'container_batch_id' => $containerBatchId,
+            'result' => $result,
+            'lines' => $lines,
+            'actions_applied' => $actionsApplied,
+            'errors' => $errors,
+        ], $user);
+
+        if ($errors !== []) {
+            $this->entityManager->flush();
+
+            return [
+                'ok' => false,
+                'errors' => $errors,
+                'actions_applied' => $actionsApplied,
+            ];
+        }
+
+        $this->entityManager->flush();
+
+        return [
+            'ok' => true,
+            'actions_applied' => $actionsApplied,
+        ];
+    }
+
+    /**
+     * @return array<string, int>
+     */
+    public function looseStockByMaterialIds(string $departmentId, array $materialItemIds): array
+    {
+        $out = [];
+        foreach ($materialItemIds as $mid) {
+            $mid = trim((string) $mid);
+            if ($mid === '') {
+                continue;
+            }
+            $out[$mid] = $this->batchStorageMoveService->sumLooseQty($mid, $departmentId);
+        }
+
+        return $out;
+    }
+
+    /**
+     * @return array{id: string, workshop_ticket_id?: string}
+     */
+    private function createIssueReport(
+        Activity $activity,
+        string $materialItemId,
+        string $type,
+        int $quantity,
+        string $description,
+        ?User $user,
+    ): array {
+        $materialItem = $this->entityManager->getRepository(MaterialItem::class)->find($materialItemId);
+
+        $report = new ActivityIssueReport();
+        $report->setId(IdGenerator::generate13('ir'));
+        $report->setActivity($activity);
+        $report->setType($type);
+        $report->setQuantity($quantity);
+        $report->setDescription($description);
+        if ($materialItem) {
+            $report->setMaterialItem($materialItem);
+        }
+        if ($user) {
+            $report->setReportedByUser($user);
+        }
+
+        $this->entityManager->persist($report);
+
+        if ($type === ActivityIssueReport::TYPE_LOSS) {
+            $packItem = $this->entityManager->getRepository(ActivityPackItem::class)->findOneBy([
+                'activityId' => $activity->getId(),
+                'materialItemId' => $materialItemId,
+            ]);
+            if ($packItem) {
+                $newIssued = max(0, $packItem->getQuantityIssued() - $quantity);
+                $packItem->setQuantityIssued($newIssued);
+                if ($packItem->getQuantityReturned() > $newIssued) {
+                    $packItem->setQuantityReturned($newIssued);
+                }
+            }
+        }
+
+        $workshopTicketId = null;
+        if (in_array($type, [
+            ActivityIssueReport::TYPE_REPAIR,
+            ActivityIssueReport::TYPE_DAMAGE,
+            ActivityIssueReport::TYPE_LOSS,
+            ActivityIssueReport::TYPE_NOT_TAKEN,
+        ], true)) {
+            $ticket = WorkshopController::autoCreateFromIssueReport(
+                $this->entityManager,
+                $report,
+                $activity,
+                $user,
+            );
+            if ($ticket) {
+                $workshopTicketId = $ticket->getId();
+            }
+        }
+
+        return [
+            'id' => $report->getId(),
+            'workshop_ticket_id' => $workshopTicketId,
+        ];
+    }
+
+    private function createActivityHistory(Activity $activity, string $action, array $changes, ?User $user): void
+    {
+        $history = new ActivityHistory();
+        $history->setId(IdGenerator::generate13('ah'));
+        $history->setActivity($activity);
+        $history->setAction($action);
+        $history->setSnapshot([]);
+        $history->setChanges($changes);
+        if ($user) {
+            $history->setUser($user);
+        }
+        $this->entityManager->persist($history);
+    }
+}

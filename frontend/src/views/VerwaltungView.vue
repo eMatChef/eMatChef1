@@ -33,12 +33,7 @@ import { computed, markRaw } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'
-import IconSettings from '@/components/icons/IconSettings.vue'
-import IconDashboard from '@/components/icons/IconDashboard.vue'
-import IconJobs from '@/components/icons/IconJobs.vue'
-import IconTasks from '@/components/icons/IconTasks.vue'
-import IconEmployees from '@/components/icons/IconEmployees.vue'
-import IconContacts from '@/components/icons/IconContacts.vue'
+import { IconSettings, IconDashboard, IconJobs, IconTasks, IconEmployees, IconContacts } from '@/components/icons'
 
 const route = useRoute()
 const authStore = useAuthStore()

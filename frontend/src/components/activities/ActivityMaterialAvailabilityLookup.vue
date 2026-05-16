@@ -35,17 +35,6 @@
           {{ p.name }}
         </button>
       </template>
-      <button
-        v-if="showJsTab"
-        type="button"
-        class="activity-material-scope-tab"
-        role="tab"
-        :aria-selected="materialScopeTab === 'js'"
-        :disabled="disabled"
-        @click="setMaterialScope('js')"
-      >
-        J&amp;S
-      </button>
     </div>
     <p v-if="hintVariant === 'wizard'" class="field-hint text-muted activity-create-material-hint">
       {{ t('activities.materialAvailability.hintWizardIntro') }}
@@ -119,14 +108,49 @@
                   <span class="activity-mat-stock">
                     <span :class="effectiveStock(mat) > 0 ? 'text-green' : 'text-red'">{{ effectiveStock(mat) }}</span>
                     <span class="text-muted">&nbsp;{{ t('activities.materialAvailability.freeLabel') }}</span>
+                    <span
+                      v-if="mat.materialType === 'physical_combo' && effectiveStock(mat) > 0"
+                      class="text-muted activity-mat-stock-in-crates"
+                    >
+                      {{
+                        t('activities.materialAvailability.physicalComboCrateHint', {
+                          n: effectiveStock(mat),
+                        })
+                      }}
+                    </span>
+                    <span
+                      v-else-if="(mat.stockInStorageContainers ?? 0) > 0"
+                      class="text-muted activity-mat-stock-in-crates"
+                    >
+                      {{
+                        t('activities.materialAvailability.inStorageContainersHint', {
+                          n: mat.stockInStorageContainers,
+                        })
+                      }}
+                    </span>
+                    <span
+                      v-else-if="(mat.stockInPhysComboKisten ?? mat.stockInContainers ?? 0) > 0"
+                      class="text-muted activity-mat-stock-in-crates"
+                    >
+                      {{
+                        t('activities.materialAvailability.inPhysComboKistenHint', {
+                          n: mat.stockInPhysComboKisten ?? mat.stockInContainers,
+                        })
+                      }}
+                    </span>
                   </span>
                 </span>
               </div>
               <div class="activity-mat-result-actions">
-                <template v-if="isAlreadyAdded(mat.materialItemId)">
-                  <span class="mat-already-badge">{{ t('activities.materialAvailability.inList') }}</span>
-                </template>
-                <template v-else-if="effectiveStock(mat) > 0">
+                <template
+                  v-if="
+                    effectiveStock(mat) > 0 &&
+                    (!isAlreadyAdded(mat.materialItemId) || repeatAddFromSearch)
+                  "
+                >
+                  <span v-if="isAlreadyAdded(mat.materialItemId)" class="mat-already-badge">{{
+                    t('activities.materialAvailability.inList')
+                  }}</span>
                   <template v-if="mat.packSize && mat.packSize > 1">
                     <button
                       v-if="canAdd(mat, mat.packSize)"
@@ -189,6 +213,9 @@
                     +10
                   </button>
                 </template>
+                <template v-else-if="isAlreadyAdded(mat.materialItemId)">
+                  <span class="mat-already-badge">{{ t('activities.materialAvailability.inList') }}</span>
+                </template>
                 <template v-else>
                   <span class="mat-unavailable-badge">{{ t('activities.materialAvailability.unavailable') }}</span>
                 </template>
@@ -239,6 +266,11 @@ const props = withDefaults(
      * Bei Erhöhung: Sucheingabe leeren und Lookup neu mounten (z. B. Material-Schritt im Stepper).
      */
     searchResetKey?: number
+    /**
+     * Wenn true: bei Treffern, die schon auf der Aktivität stehen, trotzdem +1/+5/… anbieten (Detail/Packliste).
+     * Wizard: false, damit „bereits in Liste“ klar bleibt.
+     */
+    repeatAddFromSearch?: boolean
   }>(),
   {
     activityId: '',
@@ -249,6 +281,7 @@ const props = withDefaults(
     disabled: false,
     hintVariant: 'draft',
     searchResetKey: 0,
+    repeatAddFromSearch: false,
   },
 )
 
@@ -270,8 +303,6 @@ const showPartnerScopeTabs = computed(() => partnerDepartments.value.length > 0)
 
 const materialScopeTab = ref<'own' | 'all' | 'single' | 'js'>('own')
 const singlePartnerDepartmentId = ref<string | null>(null)
-
-const showJsTab = computed(() => props.activityType === 'camp' || props.activityType === 'event')
 
 const planningStartAt = computed(() => {
   const s = props.planningStartIso
@@ -304,16 +335,6 @@ watch(
   { deep: true },
 )
 
-watch(
-  () => props.activityType,
-  (typ) => {
-    const jsOk = typ === 'camp' || typ === 'event'
-    if (!jsOk && materialScopeTab.value === 'js') {
-      materialScopeTab.value = 'own'
-    }
-  },
-)
-
 function setMaterialScope(mode: 'own' | 'all' | 'single' | 'js', partnerId?: string): void {
   materialScopeTab.value = mode
   singlePartnerDepartmentId.value = mode === 'single' && partnerId ? partnerId : null
@@ -341,12 +362,16 @@ const emptySearchText = computed(() =>
 
 const availabilityContext = computed((): MaterialLookupAvailabilityContext | null => {
   if (!props.departmentId) return null
-  const base: Pick<MaterialLookupAvailabilityContext, 'departmentId' | 'activityId' | 'startDate' | 'endDate' | 'limit'> = {
+  const base: Pick<
+    MaterialLookupAvailabilityContext,
+    'departmentId' | 'activityId' | 'excludeActivityId' | 'startDate' | 'endDate' | 'limit'
+  > = {
     departmentId: props.departmentId,
     limit: 25,
   }
   if (props.activityId) {
     base.activityId = props.activityId
+    base.excludeActivityId = props.activityId
   }
   if (planningStartAt.value && planningEndAt.value) {
     base.startDate = planningStartAt.value.toISOString()
@@ -375,7 +400,7 @@ const baseFetcher = createAvailabilityMaterialLookupFetcher(() => availabilityCo
 
 async function materialLookupFetcher(query: string): Promise<ActivityPeriodAvailabilityMaterial[]> {
   const rows = await baseFetcher(query)
-  const list = rows as ActivityPeriodAvailabilityMaterial[]
+  const list = (rows as ActivityPeriodAvailabilityMaterial[]).filter((m) => !m.isJsMaterial)
   return [...list].sort((a, b) =>
     (a.name || '').localeCompare(b.name || '', String(locale.value ?? '').startsWith('de') ? 'de' : 'en'),
   )

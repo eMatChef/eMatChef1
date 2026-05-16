@@ -30,8 +30,11 @@ class ActivityKisteMaterialLinker
         $materialItem = $batch->getMaterialItem();
         $mid = $materialItem->getId();
 
-        $existing = $this->entityManager->getRepository(ActivityItem::class)
-            ->findOneBy(['activityId' => $activity->getId(), 'materialItemId' => $mid]);
+        $existingList = $this->entityManager->getRepository(ActivityItem::class)->findBy(
+            ['activityId' => $activity->getId(), 'materialItemId' => $mid],
+            ['isReplenishment' => 'ASC', 'createdAt' => 'ASC'],
+        );
+        $existing = $existingList[0] ?? null;
         if ($existing !== null) {
             $existing->setQuantity($existing->getQuantity() + 1);
             $existing->setUpdatedAt(new \DateTime());
@@ -43,6 +46,7 @@ class ActivityKisteMaterialLinker
             $activityItem->setQuantity(1);
             $activityItem->setPriority('normal');
             $activityItem->setIsConsumable($materialItem->getIsConsumable());
+            $activityItem->setIsReplenishment(false);
 
             $this->entityManager->persist($activityItem);
 
@@ -57,11 +61,19 @@ class ActivityKisteMaterialLinker
             Activity::STATUS_PACKING,
             Activity::STATUS_PACKED,
             Activity::STATUS_ISSUED,
+            Activity::STATUS_RETURNED,
+            Activity::STATUS_COMPLETED,
         ], true)) {
-            $row = $this->entityManager->getRepository(ActivityItem::class)
-                ->findOneBy(['activityId' => $activity->getId(), 'materialItemId' => $mid]);
-            $qty = $row !== null ? $row->getQuantity() : 1;
-            $this->syncPackItemForMaterial($activity, $materialItem, $qty, $user);
+            $sumQty = (int) $this->entityManager->createQueryBuilder()
+                ->select('COALESCE(SUM(ai.quantity), 0)')
+                ->from(ActivityItem::class, 'ai')
+                ->where('ai.activityId = :aid')
+                ->andWhere('ai.materialItemId = :mid')
+                ->setParameter('aid', $activity->getId())
+                ->setParameter('mid', $mid)
+                ->getQuery()
+                ->getSingleScalarResult();
+            $this->syncPackItemForMaterial($activity, $materialItem, max(1, $sumQty), $user);
         }
     }
 
@@ -94,9 +106,11 @@ class ActivityKisteMaterialLinker
             if ($materialItem === null) {
                 continue;
             }
-            $existing = $this->entityManager->getRepository(ActivityItem::class)
-                ->findOneBy(['activityId' => $activity->getId(), 'materialItemId' => $mid]);
-            if ($existing !== null) {
+            $anyLine = $this->entityManager->getRepository(ActivityItem::class)->count([
+                'activityId' => $activity->getId(),
+                'materialItemId' => $mid,
+            ]);
+            if ($anyLine > 0) {
                 continue;
             }
 
@@ -107,6 +121,7 @@ class ActivityKisteMaterialLinker
             $activityItem->setQuantity(max(1, $needContainers));
             $activityItem->setPriority('normal');
             $activityItem->setIsConsumable($materialItem->getIsConsumable());
+            $activityItem->setIsReplenishment(false);
             $this->entityManager->persist($activityItem);
             $activity->setItemCount($activity->getItemCount() + 1);
             $changed = true;
@@ -118,6 +133,8 @@ class ActivityKisteMaterialLinker
                 Activity::STATUS_PACKING,
                 Activity::STATUS_PACKED,
                 Activity::STATUS_ISSUED,
+                Activity::STATUS_RETURNED,
+                Activity::STATUS_COMPLETED,
             ], true)) {
                 $this->syncPackItemForMaterial($activity, $materialItem, max(1, $needContainers), $user);
             }
@@ -137,6 +154,9 @@ class ActivityKisteMaterialLinker
             ]);
 
         if ($existingPackItem) {
+            $oldOrdered = $existingPackItem->getQuantityOrdered();
+            $delta = max(0, $newQuantity - $oldOrdered);
+
             $existingPackItem->setQuantityOrdered($newQuantity);
             if ($existingPackItem->getQuantityPacked() > $newQuantity) {
                 $existingPackItem->setQuantityPacked($newQuantity);
@@ -144,6 +164,27 @@ class ActivityKisteMaterialLinker
             if ($existingPackItem->getQuantityIssued() > $newQuantity) {
                 $existingPackItem->setQuantityIssued($newQuantity);
             }
+
+            if ($materialItem->getIsConsumable() && $delta > 0) {
+                $st = $activity->getStatus();
+                if ($st === Activity::STATUS_PACKED) {
+                    $existingPackItem->setQuantityPacked(
+                        min($newQuantity, $existingPackItem->getQuantityPacked() + $delta)
+                    );
+                } elseif (in_array($st, [
+                    Activity::STATUS_ISSUED,
+                    Activity::STATUS_RETURNED,
+                    Activity::STATUS_COMPLETED,
+                ], true)) {
+                    $existingPackItem->setQuantityPacked(
+                        min($newQuantity, $existingPackItem->getQuantityPacked() + $delta)
+                    );
+                    $existingPackItem->setQuantityIssued(
+                        min($newQuantity, $existingPackItem->getQuantityIssued() + $delta)
+                    );
+                }
+            }
+
             $existingPackItem->setUpdatedAt(new \DateTime());
         } else {
             $packItem = new ActivityPackItem();

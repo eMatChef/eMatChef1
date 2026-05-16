@@ -146,6 +146,7 @@ async function submit() {
     await addActivityItem(props.activityId, {
       material_item_id: props.materialItemId,
       quantity: qty.value,
+      replenishment: true,
     })
     emit('success')
     close()

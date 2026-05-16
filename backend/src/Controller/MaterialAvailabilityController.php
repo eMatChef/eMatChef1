@@ -107,6 +107,7 @@ class MaterialAvailabilityController extends AbstractController
         $source = strtolower((string) $request->query->get('source', 'all'));
         $includeGlobalJs = filter_var($request->query->get('includeGlobalJs', '1'), FILTER_VALIDATE_BOOLEAN);
         $activityId = trim((string) $request->query->get('activityId', ''));
+        $excludeActivityId = trim((string) $request->query->get('excludeActivityId', ''));
 
         if (!$departmentId) {
             return new JsonResponse([
@@ -218,17 +219,30 @@ class MaterialAvailabilityController extends AbstractController
                 $materialIdFilterSql = ' AND mi.id IN (' . implode(', ', $midPh) . ')';
             }
 
+            $reservedExcludeSql = $excludeActivityId !== ''
+                ? ' AND a.id != :exclude_activity_id'
+                : '';
+
             if ($hasPeriod) {
                 // Zeitraum-basierte Verfügbarkeit (Department + globales J&S Material)
                 $sql = "SELECT 
                         mi.id AS material_item_id,
                         mi.name,
                         mi.category_id,
+                        mi.material_type,
                         mi.department_id AS source_department_id,
                         d.name AS source_department_name,
                         COALESCE(batch_totals.total_qty, 0)::INT AS total_stock,
+                        COALESCE(stock_in_phys_combo.qty_in_phys_combo, 0)::INT AS stock_in_phys_combo_kisten,
+                        COALESCE(stock_in_storage.qty_in_storage, 0)::INT AS stock_in_storage_containers,
                         COALESCE(reserved.reserved_qty, 0)::INT AS reserved_in_activities,
-                        GREATEST(0, COALESCE(batch_totals.total_qty, 0) - COALESCE(reserved.reserved_qty, 0))::INT AS available_for_period
+                        GREATEST(0,
+                            CASE WHEN mi.material_type = 'physical_combo' THEN
+                                COALESCE(batch_totals.total_qty, 0) - COALESCE(reserved.reserved_qty, 0)
+                            ELSE
+                                COALESCE(batch_totals.total_qty, 0) - COALESCE(stock_in_phys_combo.qty_in_phys_combo, 0) - COALESCE(reserved.reserved_qty, 0)
+                            END
+                        )::INT AS available_for_period
                         FROM material_item mi
                         JOIN department d ON d.id = mi.department_id
                         LEFT JOIN (
@@ -237,6 +251,28 @@ class MaterialAvailabilityController extends AbstractController
                             WHERE status = 'active'
                             GROUP BY material_item_id
                         ) batch_totals ON batch_totals.mid = mi.id
+                        LEFT JOIN (
+                            SELECT b.material_item_id AS mid, SUM(a.qty) AS qty_in_phys_combo
+                            FROM batch_storage_allocation a
+                            INNER JOIN material_batch b ON a.batch_id = b.id AND b.status = 'active'
+                            INNER JOIN material_item combo_kiste ON combo_kiste.linked_container_batch_id = a.container_batch_id
+                                AND combo_kiste.material_type = 'physical_combo'
+                                AND combo_kiste.deleted_at IS NULL
+                            GROUP BY b.material_item_id
+                        ) stock_in_phys_combo ON stock_in_phys_combo.mid = mi.id
+                        LEFT JOIN (
+                            SELECT b.material_item_id AS mid, SUM(a.qty) AS qty_in_storage
+                            FROM batch_storage_allocation a
+                            INNER JOIN material_batch b ON a.batch_id = b.id AND b.status = 'active'
+                            WHERE a.container_batch_id IS NOT NULL
+                              AND NOT EXISTS (
+                                  SELECT 1 FROM material_item combo_kiste
+                                  WHERE combo_kiste.linked_container_batch_id = a.container_batch_id
+                                    AND combo_kiste.material_type = 'physical_combo'
+                                    AND combo_kiste.deleted_at IS NULL
+                              )
+                            GROUP BY b.material_item_id
+                        ) stock_in_storage ON stock_in_storage.mid = mi.id
                         LEFT JOIN LATERAL (
                             SELECT COALESCE(SUM(ai.quantity), 0) AS reserved_qty
                             FROM activity_item ai
@@ -249,6 +285,7 @@ class MaterialAvailabilityController extends AbstractController
                                   AND
                                   (COALESCE(a.planning_end, a.usage_end) > :start_date)
                               )
+                              {$reservedExcludeSql}
                         ) reserved ON TRUE
                         WHERE mi.deleted_at IS NULL
                           AND $scopeWhere $materialIdFilterSql";
@@ -257,18 +294,51 @@ class MaterialAvailabilityController extends AbstractController
                     'start_date' => $startDate->format('Y-m-d H:i:s'),
                     'end_date' => $endDate->format('Y-m-d H:i:s'),
                 ], $deptParams, $materialIdFilterParams);
+                if ($excludeActivityId !== '') {
+                    $params['exclude_activity_id'] = $excludeActivityId;
+                }
             } else {
                 // Ohne Zeitraum: Gesamtbestand (keine Reservierungsprüfung)
-                $sql = "SELECT mi.id AS material_item_id, mi.name, mi.category_id, mi.department_id AS source_department_id, d.name AS source_department_name,
-                        COALESCE(SUM(mb.quantity), 0) AS total_stock,
+                $sql = "SELECT mi.id AS material_item_id, mi.name, mi.category_id, mi.material_type, mi.department_id AS source_department_id, d.name AS source_department_name,
+                        COALESCE(SUM(mb.qty), 0) AS total_stock,
+                        COALESCE(MAX(stock_in_phys_combo.qty_in_phys_combo), 0) AS stock_in_phys_combo_kisten,
+                        COALESCE(MAX(stock_in_storage.qty_in_storage), 0) AS stock_in_storage_containers,
                         0 AS reserved_in_activities,
-                        COALESCE(SUM(mb.quantity), 0) AS available_for_period
+                        GREATEST(0,
+                            CASE WHEN mi.material_type = 'physical_combo' THEN
+                                COALESCE(SUM(mb.qty), 0)
+                            ELSE
+                                COALESCE(SUM(mb.qty), 0) - COALESCE(MAX(stock_in_phys_combo.qty_in_phys_combo), 0)
+                            END
+                        ) AS available_for_period
                         FROM material_item mi
                         JOIN department d ON d.id = mi.department_id
                         LEFT JOIN material_batch mb ON mb.material_item_id = mi.id AND mb.status = 'active'
+                        LEFT JOIN (
+                            SELECT b.material_item_id AS mid, SUM(a.qty) AS qty_in_phys_combo
+                            FROM batch_storage_allocation a
+                            INNER JOIN material_batch b ON a.batch_id = b.id AND b.status = 'active'
+                            INNER JOIN material_item combo_kiste ON combo_kiste.linked_container_batch_id = a.container_batch_id
+                                AND combo_kiste.material_type = 'physical_combo'
+                                AND combo_kiste.deleted_at IS NULL
+                            GROUP BY b.material_item_id
+                        ) stock_in_phys_combo ON stock_in_phys_combo.mid = mi.id
+                        LEFT JOIN (
+                            SELECT b.material_item_id AS mid, SUM(a.qty) AS qty_in_storage
+                            FROM batch_storage_allocation a
+                            INNER JOIN material_batch b ON a.batch_id = b.id AND b.status = 'active'
+                            WHERE a.container_batch_id IS NOT NULL
+                              AND NOT EXISTS (
+                                  SELECT 1 FROM material_item combo_kiste
+                                  WHERE combo_kiste.linked_container_batch_id = a.container_batch_id
+                                    AND combo_kiste.material_type = 'physical_combo'
+                                    AND combo_kiste.deleted_at IS NULL
+                              )
+                            GROUP BY b.material_item_id
+                        ) stock_in_storage ON stock_in_storage.mid = mi.id
                         WHERE mi.deleted_at IS NULL
                           AND $scopeWhere $materialIdFilterSql
-                        GROUP BY mi.id, mi.name, mi.category_id, mi.department_id, d.name";
+                        GROUP BY mi.id, mi.name, mi.category_id, mi.material_type, mi.department_id, d.name";
 
                 $params = array_merge($deptParams, $materialIdFilterParams);
             }
@@ -301,7 +371,7 @@ class MaterialAvailabilityController extends AbstractController
             $priceMap = [];
             if (!empty($materialIds)) {
                 $placeholders = implode(',', array_map(fn($i) => ':mid' . $i, array_keys($materialIds)));
-                $priceSql = "SELECT id, is_consumable, sale_price, rental_price_day, rental_price_week, rental_price_month, pack_size, pack_unit, is_js_material, external_source FROM material_item WHERE id IN ($placeholders)";
+                $priceSql = "SELECT id, material_type, is_consumable, sale_price, rental_price_day, rental_price_week, rental_price_month, pack_size, pack_unit, is_js_material, external_source FROM material_item WHERE id IN ($placeholders)";
                 $priceParams = [];
                 foreach ($materialIds as $i => $mid) {
                     $priceParams['mid' . $i] = $mid;
@@ -323,8 +393,13 @@ class MaterialAvailabilityController extends AbstractController
                     'sourceDepartmentId' => $item['source_department_id'] ?? null,
                     'sourceDepartmentName' => $item['source_department_name'] ?? null,
                     'totalStock' => (int) $item['total_stock'],
+                    'stockInPhysComboKisten' => (int) ($item['stock_in_phys_combo_kisten'] ?? 0),
+                    'stockInStorageContainers' => (int) ($item['stock_in_storage_containers'] ?? 0),
+                    /** @deprecated use stockInPhysComboKisten / stockInStorageContainers */
+                    'stockInContainers' => (int) ($item['stock_in_phys_combo_kisten'] ?? 0),
                     'reservedInActivities' => (int) $item['reserved_in_activities'],
                     'availableForPeriod' => (int) $item['available_for_period'],
+                    'materialType' => $item['material_type'] ?? ($priceInfo['material_type'] ?? 'physical'),
                     'isConsumable' => (bool) ($priceInfo['is_consumable'] ?? false),
                     'salePrice' => $priceInfo['sale_price'] ?? null,
                     'rentalPriceDay' => $priceInfo['rental_price_day'] ?? null,

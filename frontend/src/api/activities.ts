@@ -132,6 +132,8 @@ export interface ActivityItemRow {
   is_js_material?: boolean
   /** Behälter/Kiste: Stammdaten, Packliste oder physischer Combo mit Bezugskiste */
   is_container?: boolean
+  /** Lager-Kisten-Charge der Bezugskiste (physisch. Kombi / verknüpfte Kiste) — für Pack-Behälter anlegen */
+  linked_container_batch_id?: string | null
   external_source?: string | null
 }
 
@@ -196,7 +198,7 @@ export async function syncActivityItems(
 
 export async function addActivityItem(
   activityId: string,
-  body: { material_item_id: string; quantity?: number },
+  body: { material_item_id: string; quantity?: number; replenishment?: boolean },
 ): Promise<{ message?: string; total_price?: string | null }> {
   const { data } = await apiClient.post(`/api/activities/${activityId}/items`, body)
   return data
@@ -228,12 +230,29 @@ export async function getActivityIssues(activityId: string): Promise<ActivityIss
   return data ?? []
 }
 
+/** GET /api/activities/:id/history */
+export interface ActivityHistoryEntryRow {
+  id: string
+  action: string
+  snapshot: Record<string, unknown>
+  changes: Record<string, unknown>
+  created_at: string
+  user: { id: string; name: string } | null
+}
+
+export async function getActivityHistory(activityId: string): Promise<ActivityHistoryEntryRow[]> {
+  const { data } = await apiClient.get<ActivityHistoryEntryRow[]>(
+    `/api/activities/${activityId}/history`,
+  )
+  return data ?? []
+}
+
 /** POST /api/activities/:id/issues — Verlust, Reparatur, Verbrauch, Schaden */
 export async function createActivityIssue(
   activityId: string,
   body: {
     material_item_id: string
-    type: 'damage' | 'repair' | 'loss' | 'consumption'
+    type: 'damage' | 'repair' | 'loss' | 'consumption' | 'not_taken'
     quantity: number
     description?: string | null
   },

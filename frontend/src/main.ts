@@ -8,6 +8,7 @@ import { createPinia } from 'pinia'
 import { useAuthStore } from './stores/auth'
 import { useToastStore } from './stores/toast'
 import { setSessionExpiredHandler, setApiSuccessRefreshCallback } from './api/apiClient'
+import { isAuthFormPath, loginRedirectUrl } from './api/unauthorizedRedirect'
 import { i18n, setLocale } from './i18n'
 
 const app = createApp(App)
@@ -33,13 +34,18 @@ setApiSuccessRefreshCallback(() => {
   useAuthStore().refreshTokenProactively()
 })
 
-// 401-Handler: Toast + Auth-Store + Redirect (statt nur localStorage leeren)
+// 401-Handler: Toast + Auth-Store + Redirect zum Login (von jeder Seite)
 setSessionExpiredHandler(async () => {
   useToastStore().warning(i18n.global.t('errors.sessionExpired'), 5000)
   await useAuthStore().logout()
-  const requiresAuth = router.currentRoute.value.matched.some((r) => r.meta.requiresAuth)
-  if (requiresAuth && window.location.pathname !== '/login') {
-    await router.push('/login')
+  const path = window.location.pathname
+  if (isAuthFormPath(path)) return
+  const fullPath = router.currentRoute.value?.fullPath || path + window.location.search
+  const target = loginRedirectUrl(fullPath)
+  try {
+    await router.replace(target)
+  } catch {
+    window.location.assign(target)
   }
 })
 

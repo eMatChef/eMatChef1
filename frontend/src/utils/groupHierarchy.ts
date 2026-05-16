@@ -21,3 +21,14 @@ export function flattenGroupsWithLevel(groups: Group[]): GroupWithLevel[] {
 
   return flatten(rootGroups, 0)
 }
+
+/** Anzeigename in Gruppen-Dropdown: ohne group_id = Abteilung (oberste Ebene). */
+export function resolveActivityGroupPickerLabel(
+  groupId: string | null | undefined,
+  departmentName: string,
+  groups: Group[],
+): string {
+  if (!groupId) return departmentName.trim() || '–'
+  const g = flattenGroupsWithLevel(groups).find((x) => x.id === groupId)
+  return g?.name?.trim() || groupId
+}

@@ -121,7 +121,13 @@ export interface Material {
   defect_stock: number
   repair_stock: number
   combo_allocated: number
+  /** Aufteilung pro Kombi-Elternartikel (Stückliste) */
+  combo_allocations?: ComboAllocationBreakdown[]
   free_stock: number
+  /** Aktiver Bestand am Regal/Fach (ohne Kisten-Allokation) */
+  stock_outside_containers?: number
+  /** Aktiver Bestand in Kisten/Taschen gebucht */
+  stock_in_containers?: number
   issued_out: number
   reserved: number
   in_warehouse: number
@@ -630,6 +636,31 @@ export async function getMaterialUsedIn(materialId: string): Promise<UsedInEntry
   return response.data
 }
 
+export interface MaterialActivityBookingRow {
+  activity_id: string
+  activity_no: number | null
+  activity_name: string
+  activity_status: string
+  activity_type: string
+  usage_start: string | null
+  usage_end: string | null
+  qty: number
+  booking_kind: 'issued' | 'reserved' | 'draft'
+  /** Komma-getrennte Kombi-Namen, wenn die Menge über eine gebuchte Kombo entsteht */
+  via_combo_material_names?: string | null
+}
+
+export async function getMaterialActivityBookings(
+  materialId: string,
+  departmentId: string,
+): Promise<MaterialActivityBookingRow[]> {
+  const response = await apiClient.get<MaterialActivityBookingRow[]>(
+    `/api/materials/${encodeURIComponent(materialId)}/activity-bookings`,
+    { params: { department_id: departmentId } },
+  )
+  return response.data
+}
+
 /** Ein Lagerort (Gestell/Fach/Kiste) für GET /materials/:id/storage-locations */
 export interface MaterialStorageLocationRow {
   rack_id: string | null
@@ -640,6 +671,7 @@ export interface MaterialStorageLocationRow {
   location_label: string | null
   qty: number
   batch_id: string
+  container_batch_id?: string | null
   container_caption: string | null
 }
 
@@ -648,9 +680,14 @@ export interface MaterialStorageViaComboBlock {
   combo_component_id?: string
   parent_material_id: string
   parent_name: string
+  /** Referenz-Kiste der physischen Kombi (material_item.linked_container_batch_id). */
+  parent_linked_container_batch_id?: string | null
   /** Wenn gesetzt: gilt nur für diese konkrete Serien-Charge (Komponente fest zugewiesen). */
   component_batch_id: string | null
+  /** Soll-Menge laut Stückliste (Tab Zusammensetzung). */
   component_qty: number
+  /** Physisch in der verknüpften Kiste gebucht (Summe Allokationen). */
+  stored_qty_in_container?: number
   assignment_mode: string
   locations: MaterialStorageLocationRow[]
 }
@@ -673,23 +710,33 @@ export async function getMaterialStorageLocations(
 
 // ============== Combo-Component Types ==============
 
+export interface ComboAllocationBreakdown {
+  parent_material_id: string
+  parent_name: string
+  qty: number
+}
+
 export interface AddComboComponentRequest {
   component_material_id: string
   component_batch_id?: string | null
   qty?: number
-  component_role?: string
+  component_role?: string | null
   assignment_mode?: 'fixed' | 'assigned' | 'on_issue' | 'bulk'
   is_optional?: boolean
   sort_order?: number
+  /** Phys. Kombi: Bestand in verknüpfte Kiste buchen (Standard: true) */
+  allocate_to_linked_container?: boolean
 }
 
 export interface UpdateComboComponentRequest {
   component_batch_id?: string | null
   qty?: number
   assignment_mode?: string
-  component_role?: string
+  component_role?: string | null
   is_optional?: boolean
   sort_order?: number
+  /** Phys. Kombi: Mehr-Menge in verknüpfte Kiste buchen (Standard: true) */
+  allocate_to_linked_container?: boolean
 }
 
 // ============== Combo-Component API Functions ==============
@@ -725,9 +772,19 @@ export async function updateComboComponent(
   return response.data
 }
 
+export interface DeleteComboComponentRequest {
+  release_to_rack_id?: string | null
+  release_to_slot_id?: string | null
+  release_to_container_batch_id?: string | null
+}
+
 /**
- * Entfernt eine Combo-Komponente
+ * Entfernt eine Combo-Komponente (optional mit Ziel für Bestand aus verknüpfter Kiste)
  */
-export async function deleteComboComponent(materialId: string, componentId: string): Promise<void> {
-  await apiClient.delete(`/api/materials/${materialId}/components/${componentId}`)
+export async function deleteComboComponent(
+  materialId: string,
+  componentId: string,
+  data?: DeleteComboComponentRequest,
+): Promise<void> {
+  await apiClient.delete(`/api/materials/${materialId}/components/${componentId}`, { data })
 }

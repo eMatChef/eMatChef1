@@ -187,7 +187,7 @@
 .pack-card-main {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
   gap: 12px;
 }
 
@@ -1229,6 +1229,7 @@
 .issue-type-badge.repair { background: #fed7aa; color: #9a3412; }
 .issue-type-badge.loss { background: #fef3c7; color: #92400e; }
 .issue-type-badge.consumption { background: #dbeafe; color: #1e40af; }
+.issue-type-badge.not_taken { background: #f3e8ff; color: #6b21a8; }
 
 .issue-material {
   font-weight: 500;

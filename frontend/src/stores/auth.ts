@@ -258,7 +258,14 @@ export const useAuthStore = defineStore('auth', () => {
 
   async function loadUserSessionFromCookie(force = false): Promise<boolean> {
     if (!force && isLoggedIn.value) return true
-    if (cookieSessionPromise) return cookieSessionPromise
+    if (cookieSessionPromise) {
+      try {
+        return await cookieSessionPromise
+      } catch {
+        clearAuthState()
+        return false
+      }
+    }
     try {
       loadingUser.value = true
       cookieSessionPromise = (async () => {

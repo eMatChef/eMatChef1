@@ -6,6 +6,7 @@ use App\Entity\Activity;
 use App\Entity\ActivityHistory;
 use App\Entity\ActivityItem;
 use App\Entity\ActivityPackContainer;
+use App\Entity\ActivityPackContainerItem;
 use App\Entity\ActivityPackItem;
 use App\Entity\ActivityReturnItem;
 use App\Entity\ActivityIssueReport;
@@ -13,6 +14,7 @@ use App\Entity\Department;
 use App\Entity\Group;
 use App\Entity\GroupMembership;
 use App\Entity\Membership;
+use App\Entity\MaterialBatch;
 use App\Entity\MaterialItem;
 use App\Entity\WorkshopTicket;
 use App\Entity\Address;
@@ -1435,6 +1437,7 @@ class ActivityController extends AbstractController
                 'tracking_type' => $trackingType,
                 'is_container' => $isContainerPosition,
                 'linked_container_label' => $linkedContainerLabel,
+                'linked_container_batch_id' => $linkCb !== null ? $linkCb->getId() : null,
                 'source_department_id' => $sourceDepartment->getId(),
                 'source_department_name' => $sourceDepartment->getName(),
                 'quantity' => $item->getQuantity(),
@@ -1510,6 +1513,7 @@ class ActivityController extends AbstractController
 
                 // Verbrauchsmaterial + Preisfelder
                 $activityItem->setIsConsumable($materialItem->getIsConsumable());
+                $activityItem->setIsReplenishment(false);
                 if (isset($itemData['unit_price'])) {
                     $activityItem->setUnitPrice($itemData['unit_price']);
                 }
@@ -1541,6 +1545,8 @@ class ActivityController extends AbstractController
                 Activity::STATUS_PACKING,
                 Activity::STATUS_PACKED,
                 Activity::STATUS_ISSUED,
+                Activity::STATUS_RETURNED,
+                Activity::STATUS_COMPLETED,
             ], true)) {
                 $this->resyncPackListFromActivityItems($activity);
                 $this->entityManager->flush();
@@ -1559,7 +1565,8 @@ class ActivityController extends AbstractController
     /**
      * Einzelnes Material zu einer Aktivität hinzufügen
      * 
-     * Body: { "material_item_id": "...", "quantity": 2, "priority": "normal" }
+     * Body: { "material_item_id": "...", "quantity": 2, "priority": "normal", "replenishment": true }
+     * — replenishment: Verbrauchsmaterial-Nachbuchung (eigene Zeile + Packliste bleibt in aktueller Workflow-Stufe).
      */
     #[Route('/{id}/items', name: 'items_add', methods: ['POST'])]
     #[IsGranted('ROLE_USER')]
@@ -1591,18 +1598,50 @@ class ActivityController extends AbstractController
         }
 
         try {
-            // Prüfen ob Material schon in dieser Aktivität ist
-            $existing = $this->entityManager->getRepository(ActivityItem::class)
-                ->findOneBy(['activityId' => $id, 'materialItemId' => $data['material_item_id']]);
+            $replenishment = filter_var($data['replenishment'] ?? false, FILTER_VALIDATE_BOOLEAN);
 
-            if ($existing) {
+            // Erste Zeile pro Material (Hauptbuchung vor Nachbuchungs-Zeilen) — es können mehrere activity_item-Zeilen existieren
+            $existing = $this->primaryActivityItemForMaterial($id, (string) $data['material_item_id']);
+
+            $isConsumableMat = $materialItem->getIsConsumable();
+            $createReplenishmentLine = $existing && $replenishment && $isConsumableMat;
+
+            if ($createReplenishmentLine) {
+                // Eigene Zeile: Packliste kann Ursprung (Materiallager) vs. Nachbuchung ausweisen
+                $addQty = max(1, (int) ($data['quantity'] ?? 1));
+                $activityItem = new ActivityItem();
+                $activityItem->setId(IdGenerator::generate13('ai'));
+                $activityItem->setActivity($activity);
+                $activityItem->setMaterialItem($materialItem);
+                $activityItem->setQuantity($addQty);
+                $activityItem->setPriority($data['priority'] ?? $existing->getPriority());
+                $activityItem->setNotes($data['notes'] ?? null);
+                $activityItem->setIsConsumable(true);
+                $activityItem->setIsReplenishment(true);
+                if (isset($data['unit_price'])) {
+                    $activityItem->setUnitPrice($data['unit_price']);
+                }
+                if (isset($data['line_total'])) {
+                    $activityItem->setLineTotal($data['line_total']);
+                }
+                if (isset($data['price_type'])) {
+                    $activityItem->setPriceType($data['price_type']);
+                }
+                $this->entityManager->persist($activityItem);
+            } elseif ($existing) {
                 // Menge erhöhen
                 $existing->setQuantity($existing->getQuantity() + max(1, (int)($data['quantity'] ?? 1)));
                 $existing->setUpdatedAt(new \DateTime());
                 // Preis-Felder aktualisieren
-                if (isset($data['unit_price'])) $existing->setUnitPrice($data['unit_price']);
-                if (isset($data['line_total'])) $existing->setLineTotal($data['line_total']);
-                if (isset($data['price_type'])) $existing->setPriceType($data['price_type']);
+                if (isset($data['unit_price'])) {
+                    $existing->setUnitPrice($data['unit_price']);
+                }
+                if (isset($data['line_total'])) {
+                    $existing->setLineTotal($data['line_total']);
+                }
+                if (isset($data['price_type'])) {
+                    $existing->setPriceType($data['price_type']);
+                }
             } else {
                 // Neues Item
                 $activityItem = new ActivityItem();
@@ -1614,29 +1653,50 @@ class ActivityController extends AbstractController
                 $activityItem->setNotes($data['notes'] ?? null);
                 // Verbrauchsmaterial + Preisfelder
                 $activityItem->setIsConsumable($materialItem->getIsConsumable());
-                if (isset($data['unit_price'])) $activityItem->setUnitPrice($data['unit_price']);
-                if (isset($data['line_total'])) $activityItem->setLineTotal($data['line_total']);
-                if (isset($data['price_type'])) $activityItem->setPriceType($data['price_type']);
+                $activityItem->setIsReplenishment(false);
+                if (isset($data['unit_price'])) {
+                    $activityItem->setUnitPrice($data['unit_price']);
+                }
+                if (isset($data['line_total'])) {
+                    $activityItem->setLineTotal($data['line_total']);
+                }
+                if (isset($data['price_type'])) {
+                    $activityItem->setPriceType($data['price_type']);
+                }
                 $this->entityManager->persist($activityItem);
             }
 
-            // Item-Count aktualisieren
-            $itemCount = $this->entityManager->getRepository(ActivityItem::class)
-                ->count(['activityId' => $id]);
-            $activity->setItemCount($existing ? $itemCount : $itemCount + 1);
+            // ActivityItem zuerst schreiben: COUNT/SUM/recalculate lesen aus der DB —
+            // vor flush() sieht die DB neue/geänderte Zeilen nicht → Packliste quantity_ordered=0, Preis falsch.
+            $this->entityManager->flush();
+
+            $activity->setItemCount(
+                (int) $this->entityManager->getRepository(ActivityItem::class)
+                    ->count(['activityId' => $id])
+            );
 
             // total_price neu berechnen
             $this->recalculateTotalPrice($activity);
             $activity->setUpdatedAt(new \DateTime());
 
-            // Wenn Packliste existiert (Status packing+), PackItem synchronisieren
+            // PackItem synchronisieren (Summe aller ActivityItem-Zeilen pro Material)
             if (in_array($activity->getStatus(), [
-                Activity::STATUS_PACKING, Activity::STATUS_PACKED, Activity::STATUS_ISSUED
-            ])) {
-                $this->syncPackItemForMaterial($activity, $materialItem, $existing
-                    ? $existing->getQuantity()
-                    : max(1, (int)($data['quantity'] ?? 1))
-                );
+                Activity::STATUS_PACKING,
+                Activity::STATUS_PACKED,
+                Activity::STATUS_ISSUED,
+                Activity::STATUS_RETURNED,
+                Activity::STATUS_COMPLETED,
+            ], true)) {
+                $sumQty = (int) $this->entityManager->createQueryBuilder()
+                    ->select('COALESCE(SUM(ai.quantity), 0)')
+                    ->from(ActivityItem::class, 'ai')
+                    ->where('ai.activityId = :aid')
+                    ->andWhere('ai.materialItemId = :mid')
+                    ->setParameter('aid', $id)
+                    ->setParameter('mid', $materialItem->getId())
+                    ->getQuery()
+                    ->getSingleScalarResult();
+                $this->syncPackItemForMaterial($activity, $materialItem, $sumQty);
             }
 
             $this->entityManager->flush();
@@ -1669,6 +1729,9 @@ class ActivityController extends AbstractController
             return $deny;
         }
 
+        $removedMaterial = $item->getMaterialItem();
+        $removedMaterialId = $item->getMaterialItemId();
+
         $this->entityManager->remove($item);
 
         // Item-Count aktualisieren
@@ -1684,7 +1747,13 @@ class ActivityController extends AbstractController
             Activity::STATUS_PACKING,
             Activity::STATUS_PACKED,
             Activity::STATUS_ISSUED,
+            Activity::STATUS_RETURNED,
+            Activity::STATUS_COMPLETED,
         ], true)) {
+            if ($removedMaterial->getMaterialType() === 'physical_combo') {
+                $this->dissolvePackContainersForRemovedMaterial($activity, $removedMaterialId);
+                $this->removeOrphanKisteActivityLinesAfterComboDissolve($activity, $removedMaterial);
+            }
             $this->resyncPackListFromActivityItems($activity);
         }
 
@@ -1789,6 +1858,22 @@ class ActivityController extends AbstractController
             $qtyByMaterialId[$mid] = ($qtyByMaterialId[$mid] ?? 0) + $ai->getQuantity();
         }
 
+        $packItemsBefore = $this->entityManager->getRepository(ActivityPackItem::class)
+            ->findBy(['activityId' => $activity->getId()]);
+        foreach ($packItemsBefore as $pi) {
+            if (!isset($qtyByMaterialId[$pi->getMaterialItemId()])) {
+                $this->dissolvePackContainersForRemovedMaterial($activity, $pi->getMaterialItemId());
+            }
+        }
+
+        $activityItems = $this->entityManager->getRepository(ActivityItem::class)
+            ->findBy(['activityId' => $activity->getId()]);
+        $qtyByMaterialId = [];
+        foreach ($activityItems as $ai) {
+            $mid = $ai->getMaterialItemId();
+            $qtyByMaterialId[$mid] = ($qtyByMaterialId[$mid] ?? 0) + $ai->getQuantity();
+        }
+
         foreach ($qtyByMaterialId as $mid => $qty) {
             $materialItem = $this->entityManager->getRepository(MaterialItem::class)->find($mid);
             if ($materialItem !== null) {
@@ -1806,6 +1891,193 @@ class ActivityController extends AbstractController
         }
     }
 
+    /**
+     * Phys.-Kombi / Kisten-Shell aus Materialliste entfernt: Pack-Behälter auflösen, Inhalt als lose Positionen.
+     */
+    private function dissolvePackContainersForRemovedMaterial(Activity $activity, string $removedMaterialItemId): void
+    {
+        $material = $this->entityManager->getRepository(MaterialItem::class)->find($removedMaterialItemId);
+        if ($material === null) {
+            return;
+        }
+
+        $linkedBatchId = $material->getLinkedContainerBatchId();
+        $activityId = $activity->getId();
+
+        $qb = $this->entityManager->createQueryBuilder()
+            ->select('pc')
+            ->from(ActivityPackContainer::class, 'pc')
+            ->leftJoin('pc.containerBatch', 'b')
+            ->where('pc.activityId = :aid')
+            ->setParameter('aid', $activityId);
+
+        $orExpr = $qb->expr()->orX('b.materialItemId = :rmid');
+        $qb->setParameter('rmid', $removedMaterialItemId);
+        if ($linkedBatchId !== null && $linkedBatchId !== '') {
+            $orExpr->add('pc.containerBatchId = :lbid');
+            $qb->setParameter('lbid', $linkedBatchId);
+        }
+        $qb->andWhere($orExpr);
+
+        /** @var ActivityPackContainer[] $toDissolve */
+        $toDissolve = $qb->getQuery()->getResult();
+
+        foreach ($toDissolve as $container) {
+            $this->releasePackContainerContentsToLooseActivityLines($activity, $container, $removedMaterialItemId);
+            $this->entityManager->remove($container);
+        }
+    }
+
+    /**
+     * Durch linkKisteOnContainerBatchAssigned angelegte Kisten-Zeile entfernen, wenn die Phys.-Kombi gelöscht wurde.
+     */
+    private function removeOrphanKisteActivityLinesAfterComboDissolve(Activity $activity, MaterialItem $comboMaterial): void
+    {
+        $linkedBatchId = $comboMaterial->getLinkedContainerBatchId();
+        if ($linkedBatchId === null || $linkedBatchId === '') {
+            return;
+        }
+
+        $batch = $this->entityManager->getRepository(MaterialBatch::class)->find($linkedBatchId);
+        if ($batch === null) {
+            return;
+        }
+
+        $kisteMaterialId = $batch->getMaterialItemId();
+        if ($kisteMaterialId === $comboMaterial->getId()) {
+            return;
+        }
+
+        $stillLinked = (int) $this->entityManager->createQueryBuilder()
+            ->select('COUNT(pc.id)')
+            ->from(ActivityPackContainer::class, 'pc')
+            ->where('pc.activityId = :aid')
+            ->andWhere('pc.containerBatchId = :bid')
+            ->setParameter('aid', $activity->getId())
+            ->setParameter('bid', $linkedBatchId)
+            ->getQuery()
+            ->getSingleScalarResult();
+
+        if ($stillLinked > 0) {
+            return;
+        }
+
+        $orphanItems = $this->entityManager->getRepository(ActivityItem::class)->findBy([
+            'activityId' => $activity->getId(),
+            'materialItemId' => $kisteMaterialId,
+        ]);
+        foreach ($orphanItems as $ai) {
+            $this->entityManager->remove($ai);
+            $activity->setItemCount(max(0, $activity->getItemCount() - 1));
+        }
+    }
+
+    /**
+     * Pack-Behälterzeilen in Materialliste + Packliste überführen (vor Löschen des Behälters).
+     */
+    private function releasePackContainerContentsToLooseActivityLines(
+        Activity $activity,
+        ActivityPackContainer $container,
+        string $excludeShellMaterialId,
+    ): void {
+        $items = $this->entityManager->getRepository(ActivityPackContainerItem::class)
+            ->findBy(['packContainerId' => $container->getId()]);
+
+        foreach ($items as $ci) {
+            if (!$ci instanceof ActivityPackContainerItem) {
+                continue;
+            }
+            $mid = $ci->getMaterialItemId();
+            if ($mid === $excludeShellMaterialId) {
+                $this->entityManager->remove($ci);
+                continue;
+            }
+
+            $qty = max(0, $ci->getQuantityPacked());
+            if ($qty < 1) {
+                $this->entityManager->remove($ci);
+                continue;
+            }
+
+            $materialItem = $ci->getMaterialItem();
+            $this->addActivityItemQuantity($activity, $materialItem, $qty);
+
+            $sumQty = (int) $this->entityManager->createQueryBuilder()
+                ->select('COALESCE(SUM(ai.quantity), 0)')
+                ->from(ActivityItem::class, 'ai')
+                ->where('ai.activityId = :aid')
+                ->andWhere('ai.materialItemId = :mid')
+                ->setParameter('aid', $activity->getId())
+                ->setParameter('mid', $mid)
+                ->getQuery()
+                ->getSingleScalarResult();
+
+            $this->syncPackItemForMaterial($activity, $materialItem, max(1, $sumQty));
+
+            $packItem = $this->entityManager->getRepository(ActivityPackItem::class)->findOneBy([
+                'activityId' => $activity->getId(),
+                'materialItemId' => $mid,
+            ]);
+            if ($packItem !== null) {
+                $packItem->setQuantityPacked(max($packItem->getQuantityPacked(), $ci->getQuantityPacked()));
+                $packItem->setQuantityIssued(max($packItem->getQuantityIssued(), $ci->getQuantityIssued()));
+                $packItem->setQuantityReturned(max($packItem->getQuantityReturned(), $ci->getQuantityReturned()));
+                $packItem->setUpdatedAt(new \DateTime());
+            }
+
+            $this->entityManager->remove($ci);
+        }
+    }
+
+    private function addActivityItemQuantity(Activity $activity, MaterialItem $materialItem, int $addQty): void
+    {
+        if ($addQty < 1) {
+            return;
+        }
+
+        $existingList = $this->entityManager->getRepository(ActivityItem::class)->findBy(
+            ['activityId' => $activity->getId(), 'materialItemId' => $materialItem->getId()],
+            ['isReplenishment' => 'ASC', 'createdAt' => 'ASC'],
+        );
+        $existing = $existingList[0] ?? null;
+        if ($existing !== null) {
+            $existing->setQuantity($existing->getQuantity() + $addQty);
+            $existing->setUpdatedAt(new \DateTime());
+            return;
+        }
+
+        $activityItem = new ActivityItem();
+        $activityItem->setId(IdGenerator::generate13('ai'));
+        $activityItem->setActivity($activity);
+        $activityItem->setMaterialItem($materialItem);
+        $activityItem->setQuantity($addQty);
+        $activityItem->setPriority('normal');
+        $activityItem->setIsConsumable($materialItem->getIsConsumable());
+        $activityItem->setIsReplenishment(false);
+        $this->entityManager->persist($activityItem);
+        $activity->setItemCount($activity->getItemCount() + 1);
+        $activity->setUpdatedAt(new \DateTime());
+    }
+
+    /**
+     * Erste ActivityItem-Zeile für dieses Material (is_replenishment = false zuerst, dann älteste).
+     */
+    private function primaryActivityItemForMaterial(string $activityId, string $materialItemId): ?ActivityItem
+    {
+        return $this->entityManager->createQueryBuilder()
+            ->select('ai')
+            ->from(ActivityItem::class, 'ai')
+            ->where('ai.activityId = :aid')
+            ->andWhere('ai.materialItemId = :mid')
+            ->orderBy('ai.isReplenishment', 'ASC')
+            ->addOrderBy('ai.createdAt', 'ASC')
+            ->setParameter('aid', $activityId)
+            ->setParameter('mid', $materialItemId)
+            ->setMaxResults(1)
+            ->getQuery()
+            ->getOneOrNullResult();
+    }
+
     private function syncPackItemForMaterial(Activity $activity, MaterialItem $materialItem, int $newQuantity): void
     {
         $existingPackItem = $this->entityManager->getRepository(ActivityPackItem::class)
@@ -1815,6 +2087,9 @@ class ActivityController extends AbstractController
             ]);
 
         if ($existingPackItem) {
+            $oldOrdered = $existingPackItem->getQuantityOrdered();
+            $delta = max(0, $newQuantity - $oldOrdered);
+
             // Bestellte Menge aktualisieren
             $existingPackItem->setQuantityOrdered($newQuantity);
             if ($existingPackItem->getQuantityPacked() > $newQuantity) {
@@ -1823,6 +2098,50 @@ class ActivityController extends AbstractController
             if ($existingPackItem->getQuantityIssued() > $newQuantity) {
                 $existingPackItem->setQuantityIssued($newQuantity);
             }
+
+            // Verbrauchsmaterial: Mengenzuwachs während gepackt/ausgegeben/retour nicht in «Bestätigt→Gepackt» parken,
+            // sondern dort buchen, wo das Material faktisch steht (gepackt bzw. am Event).
+            if ($materialItem->getIsConsumable() && $delta > 0) {
+                $st = $activity->getStatus();
+                if ($st === Activity::STATUS_PACKED) {
+                    $existingPackItem->setQuantityPacked(
+                        min($newQuantity, $existingPackItem->getQuantityPacked() + $delta)
+                    );
+                } elseif (in_array($st, [
+                    Activity::STATUS_ISSUED,
+                    Activity::STATUS_RETURNED,
+                    Activity::STATUS_COMPLETED,
+                ], true)) {
+                    $existingPackItem->setQuantityPacked(
+                        min($newQuantity, $existingPackItem->getQuantityPacked() + $delta)
+                    );
+                    $existingPackItem->setQuantityIssued(
+                        min($newQuantity, $existingPackItem->getQuantityIssued() + $delta)
+                    );
+                }
+            }
+
+            // Leihmaterial: Mengenzuwachs wie physisch gepackt bzw. am Event (sonst Packliste-UI 0/0).
+            if (!$materialItem->getIsConsumable() && $delta > 0) {
+                $st = $activity->getStatus();
+                if ($st === Activity::STATUS_PACKED) {
+                    $existingPackItem->setQuantityPacked(
+                        min($newQuantity, $existingPackItem->getQuantityPacked() + $delta)
+                    );
+                } elseif (in_array($st, [
+                    Activity::STATUS_ISSUED,
+                    Activity::STATUS_RETURNED,
+                    Activity::STATUS_COMPLETED,
+                ], true)) {
+                    $existingPackItem->setQuantityPacked(
+                        min($newQuantity, $existingPackItem->getQuantityPacked() + $delta)
+                    );
+                    $existingPackItem->setQuantityIssued(
+                        min($newQuantity, $existingPackItem->getQuantityIssued() + $delta)
+                    );
+                }
+            }
+
             $existingPackItem->setUpdatedAt(new \DateTime());
         } else {
             // Neues PackItem erstellen
@@ -1831,7 +2150,19 @@ class ActivityController extends AbstractController
             $packItem->setActivity($activity);
             $packItem->setMaterialItem($materialItem);
             $packItem->setQuantityOrdered($newQuantity);
-            $packItem->setQuantityPacked(0);
+            $stNew = $activity->getStatus();
+            if ($stNew === Activity::STATUS_PACKED) {
+                $packItem->setQuantityPacked($newQuantity);
+            } elseif (in_array($stNew, [
+                Activity::STATUS_ISSUED,
+                Activity::STATUS_RETURNED,
+                Activity::STATUS_COMPLETED,
+            ], true)) {
+                $packItem->setQuantityPacked($newQuantity);
+                $packItem->setQuantityIssued($newQuantity);
+            } else {
+                $packItem->setQuantityPacked(0);
+            }
             $packItem->setConditionOut('ok');
 
             $user = $this->getUser();

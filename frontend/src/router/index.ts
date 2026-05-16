@@ -954,12 +954,21 @@ router.beforeEach(async (to, from, next) => {
 
   // Subdomain / zweite Origin: kein localStorage-Token, aber HttpOnly-Session-Cookies
   if (to.meta.requiresAuth && !authStore.isLoggedIn && !localStorage.getItem('auth_token')) {
-    await authStore.loadUserSessionFromCookie()
+    try {
+      await authStore.loadUserSessionFromCookie()
+    } catch {
+      if (to.path !== '/login') {
+        return next({ path: '/login', query: { redirect: to.fullPath } })
+      }
+    }
   }
 
   // Auth-Requirement prüfen
   if (to.meta.requiresAuth && !authStore.isLoggedIn) {
-    return next(`/login?redirect=${encodeURIComponent(to.fullPath)}`)
+    if (to.path !== '/login') {
+      return next({ path: '/login', query: { redirect: to.fullPath } })
+    }
+    return next()
   }
 
   if (to.meta.requiresSiteEditor && !canEditPublicSite()) {

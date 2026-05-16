@@ -251,7 +251,7 @@ const selectableActivities = computed(() => {
   const uid = userId.value
   const myGroupIds = userGroupIds.value
   return activities.value.filter(a => {
-    if (!a.status || !['issued', 'returned'].includes(a.status)) return false
+    if (!a.status || !['at_event', 'returned'].includes(a.status)) return false
     if (a.created_by_user_id === uid) return true
     if (a.group_id && myGroupIds.includes(a.group_id)) return true
     return false
@@ -469,7 +469,7 @@ async function applyPresetActivity(id: string) {
       return
     }
   }
-  if (!a.status || !['issued', 'returned'].includes(a.status)) {
+  if (!a.status || !['at_event', 'returned'].includes(a.status)) {
     toast.error(t('components.damageReportWizard.toastOnlyIssuedReturned'))
     return
   }

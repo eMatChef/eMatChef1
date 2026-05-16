@@ -360,7 +360,7 @@ const totalOpenJoinRequests = computed(() => pendingJoinRequests.value.length + 
 const hasOpenJoinRequests = computed(() => pendingJoinRequests.value.length > 0 || pendingAdminJoinRequests.value.length > 0)
 
 const activeActivities = computed(() => {
-  const statuses = ['draft', 'submitted', 'approved', 'packing', 'packed', 'issued', 'returned']
+  const statuses = ['draft', 'submitted', 'approved', 'packing', 'packed', 'at_event', 'returned']
   return activitiesUpcoming.value.filter(a => statuses.includes(a.status))
 })
 
@@ -374,7 +374,7 @@ const inProgressCount = computed(() => {
   return dashboardActivities.value.filter(a => ['approved', 'packing', 'packed'].includes(a.status)).length
 })
 const issuedCount = computed(() => {
-  return dashboardActivities.value.filter(a => a.status === 'issued').length
+  return dashboardActivities.value.filter(a => a.status === 'at_event').length
 })
 
 const todayActivities = computed(() => {
@@ -388,7 +388,7 @@ const todayActivities = computed(() => {
 })
 
 const upcomingActivities = computed(() => {
-  const statuses = ['submitted', 'approved', 'packing', 'packed', 'issued']
+  const statuses = ['submitted', 'approved', 'packing', 'packed', 'at_event']
   const now = new Date()
   const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()
   return activitiesUpcoming.value

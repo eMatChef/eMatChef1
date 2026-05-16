@@ -29,7 +29,9 @@
             <span v-else-if="activityType === 'event'" class="text-muted">{{ t('activities.wizard.form.groupOptional') }}</span>
           </label>
           <select id="draft-activity-group" v-model="groupField" class="form-input activity-group-select">
-            <option v-if="activityType === 'event'" value="">{{ t('activities.wizard.form.groupNoneEvent') }}</option>
+            <option v-if="activityType === 'camp' || activityType === 'event'" value="">
+              {{ activity.department_name || t('activities.wizard.form.summaryEmpty') }}
+            </option>
             <option v-else value="" disabled>{{ t('activities.wizard.form.groupChoose') }}</option>
             <option v-for="g in flatGroups" :key="g.id" :value="g.id">
               {{ '↳ '.repeat(g._level) }}{{ g.name }}
@@ -399,7 +401,7 @@ const showGroup = computed(() => {
   return typ === 'activity' && groups.value.length > 0
 })
 
-const groupRequired = computed(() => activityType.value === 'camp')
+const groupRequired = computed(() => activityType.value === 'activity' && groups.value.length > 0)
 
 const showVenue = computed(() => ['camp', 'event', 'external'].includes(activityType.value))
 
@@ -566,7 +568,7 @@ const hasChanges = computed(() => {
 })
 
 const isValid = computed(() => {
-  if (groupRequired.value && !form.value.group_id) return false
+  if (showGroup.value && groupRequired.value && !form.value.group_id) return false
   if (planningUsageConflictMessage.value) return false
   return true
 })
