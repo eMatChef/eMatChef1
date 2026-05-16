@@ -189,201 +189,11 @@
                   <span class="pack-containers-title text-muted">{{ t('activities.packList.sectionContainers') }}</span>
                 </div>
                 <div class="pack-containers-children" role="group" :aria-label="t('activities.packList.ariaContainersAtEvent')">
-                  <div
+                  <PackEventReturnContainerCard
                     v-for="c in packContainersWithReturnableAtEvent"
-                    :id="'pack-container-event-ret-' + c.id"
                     :key="'ev-ret-' + c.id"
-                    class="pack-container-card"
-                  >
-                    <div class="pack-container-header-row">
-                      <button
-                        type="button"
-                        class="pack-container-chevron-btn"
-                        :aria-expanded="!collapsedPackContainers[c.id]"
-                        :aria-label="t('activities.packList.ariaToggleContainer')"
-                        @click.stop="togglePackContainerCollapsed(c.id)"
-                      >
-                        <span class="pack-container-chevron" aria-hidden="true">{{
-                          collapsedPackContainers[c.id] ? '▶' : '▼'
-                        }}</span>
-                      </button>
-                      <div class="pack-container-header-main">
-                        <div class="pack-container-header-title-block">
-                          <span class="pack-container-name">{{ c.label }}</span>
-                          <span class="pack-container-chip text-muted">{{ t('activities.common.itemsUnit', { count: containerItemCount(c.id) }) }}</span>
-                        </div>
-                      </div>
-                      <div
-                        v-if="packListEditable && containerReturnableUnits(c.id) > 0"
-                        class="pack-container-header-actions"
-                        @click.stop
-                      >
-                        <button
-                          type="button"
-                          class="btn btn-xs btn-primary"
-                          :disabled="containerBulkLoadingId === c.id"
-                          :title="t('activities.packList.stockPiecesTitle', { count: containerReturnableUnits(c.id) })"
-                          @click="returnContainerToWarehouse(c)"
-                        >
-                          {{ t('activities.packList.allToReturn') }}
-                        </button>
-                      </div>
-                    </div>
-                    <div
-                      v-if="canReportIssues && c.container_material_item_id"
-                      class="pack-container-kiste-meldung-row"
-                      @click.stop
-                    >
-                      <span class="pack-container-kiste-meldung-label">{{ t('activities.common.crate') }}</span>
-                      <template v-if="isPackMaterialConsumable(String(c.container_material_item_id))">
-                        <button
-                          type="button"
-                          class="btn-issue-quick btn-issue-consumed"
-                          @click="
-                            emitConsumptionForMaterialId(String(c.container_material_item_id), {
-                              linkedContainerLabel: c.label,
-                            })
-                          "
-                        >
-                          {{ t('activities.common.issueConsumed') }}
-                        </button>
-                      </template>
-                      <template v-else>
-                        <button
-                          type="button"
-                          class="btn-issue-quick btn-issue-loss"
-                          @click="emitIssueWizardByMaterialId(String(c.container_material_item_id), 'loss')"
-                        >
-                          {{ t('activities.common.issueLoss') }}
-                        </button>
-                        <button
-                          type="button"
-                          class="btn-issue-quick btn-issue-repair"
-                          @click="emitIssueWizardByMaterialId(String(c.container_material_item_id), 'repair')"
-                        >
-                          {{ t('activities.common.issueRepair') }}
-                        </button>
-                      </template>
-                    </div>
-                    <div v-show="!collapsedPackContainers[c.id]" class="pack-container-inner">
-                      <div
-                        v-for="ci in containerItemsByContainerId[c.id] ?? []"
-                        :key="'ev-ret-ci-' + ci.id"
-                        class="pack-container-line pack-container-line--stacked"
-                      >
-                        <div class="pack-container-line-main">
-                          <span class="pack-container-line-name">{{ ci.material_name || t('activities.common.material') }}</span>
-                          <span class="pack-container-line-qty text-muted">
-                            <template v-if="containerLineRemainingReturn(ci) > 0">
-                              {{ t('activities.packList.lineStillAtEvent', { n: containerLineRemainingReturn(ci) }) }}
-                            </template>
-                            <template v-else>{{ t('activities.packList.returnRecorded') }}</template>
-                          </span>
-                        </div>
-                        <div
-                          v-if="
-                            canReportIssues &&
-                            ci.material_item_id &&
-                            containerLineRemainingReturn(ci) > 0
-                          "
-                          class="pack-container-line-issue-quick"
-                          @click.stop
-                        >
-                          <template v-if="isPackMaterialConsumable(ci.material_item_id)">
-                            <button
-                              type="button"
-                              class="btn-issue-quick btn-issue-consumed"
-                              @click="
-                                emitConsumptionForMaterialId(ci.material_item_id, {
-                                  materialName: ci.material_name,
-                                  linkedContainerLabel: ci.batch_label || ci.serial_number || null,
-                                })
-                              "
-                            >
-                              {{ t('activities.common.issueConsumed') }}
-                            </button>
-                          </template>
-                          <template v-else>
-                            <button
-                              type="button"
-                              class="btn-issue-quick btn-issue-loss"
-                              @click="emitIssueWizardByMaterialId(ci.material_item_id, 'loss')"
-                            >
-                              {{ t('activities.common.issueLoss') }}
-                            </button>
-                            <button
-                              type="button"
-                              class="btn-issue-quick btn-issue-repair"
-                              @click="emitIssueWizardByMaterialId(ci.material_item_id, 'repair')"
-                            >
-                              {{ t('activities.common.issueRepair') }}
-                            </button>
-                          </template>
-                        </div>
-                      </div>
-                      <div
-                        v-if="containerShellStillAtEventQty(c.id) > 0"
-                        class="pack-container-line pack-container-line--shell pack-container-line--stacked"
-                      >
-                        <div class="pack-container-line-main">
-                          <span class="pack-container-line-name">{{ t('activities.packList.shellMaterialLine') }}</span>
-                          <span class="pack-container-line-qty text-muted">
-                            {{ t('activities.packList.shellStillAtEvent', { n: containerShellStillAtEventQty(c.id) }) }}
-                          </span>
-                        </div>
-                        <div
-                          v-if="canReportIssues && shellMaterialIdForContainer(c.id)"
-                          class="pack-container-line-issue-quick"
-                          @click.stop
-                        >
-                          <template
-                            v-if="isPackMaterialConsumable(shellMaterialIdForContainer(c.id) || '')"
-                          >
-                            <button
-                              type="button"
-                              class="btn-issue-quick btn-issue-consumed"
-                              @click="
-                                emitConsumptionForMaterialId(shellMaterialIdForContainer(c.id) || '', {
-                                  linkedContainerLabel: c.label,
-                                })
-                              "
-                            >
-                              {{ t('activities.common.issueConsumed') }}
-                            </button>
-                          </template>
-                          <template v-else>
-                            <button
-                              type="button"
-                              class="btn-issue-quick btn-issue-loss"
-                              @click="
-                                emitIssueWizardByMaterialId(shellMaterialIdForContainer(c.id) || '', 'loss')
-                              "
-                            >
-                              {{ t('activities.common.issueLoss') }}
-                            </button>
-                            <button
-                              type="button"
-                              class="btn-issue-quick btn-issue-repair"
-                              @click="
-                                emitIssueWizardByMaterialId(shellMaterialIdForContainer(c.id) || '', 'repair')
-                              "
-                            >
-                              {{ t('activities.common.issueRepair') }}
-                            </button>
-                          </template>
-                        </div>
-                      </div>
-                      <p
-                        v-if="
-                          (containerItemsByContainerId[c.id] ?? []).length === 0 &&
-                          containerShellStillAtEventQty(c.id) <= 0
-                        "
-                        class="pack-container-empty text-muted"
-                      >
-                        {{ t('activities.packList.noLines') }}
-                      </p>
-                    </div>
-                  </div>
+                    :container="c"
+                  />
                 </div>
               </div>
             </div>
@@ -462,282 +272,18 @@
                   <div class="pack-containers-heading">
                     <span class="pack-containers-title text-muted">{{ t('activities.packList.sectionContainers') }}</span>
                   </div>
-                  <div class="pack-containers-children" role="group" :aria-label="t('activities.packList.ariaContainersAtEventMirror')">
-                    <div
-                      v-for="c in packContainersWithIssuedAtEvent"
-                      :id="'pack-container-at-event-' + c.id"
-                      :key="'at-ev-' + c.id"
-                      class="pack-container-card"
-                      :class="{
-                        'pack-container-card--target':
-                          activePackTarget?.kind === 'container' && activePackTarget.containerId === c.id,
-                      }"
-                    >
-                      <div class="pack-container-header-row">
-                        <button
-                          type="button"
-                          class="pack-container-chevron-btn"
-                          :aria-expanded="!collapsedPackContainers[c.id]"
-                          :aria-label="t('activities.packList.ariaToggleContainer')"
-                          @click.stop="togglePackContainerCollapsed(c.id)"
-                        >
-                          <span class="pack-container-chevron" aria-hidden="true">{{
-                            collapsedPackContainers[c.id] ? '▶' : '▼'
-                          }}</span>
-                        </button>
-                        <div class="pack-container-header-main">
-                          <div class="pack-container-header-title-block">
-                            <button
-                              type="button"
-                              class="pack-container-select-main"
-                              :aria-pressed="
-                                activePackTarget?.kind === 'container' && activePackTarget.containerId === c.id
-                              "
-                              @click="toggleActiveContainer(c.id)"
-                            >
-                              <span class="pack-container-name">{{ c.label }}</span>
-                            </button>
-                            <span class="pack-container-chip text-muted">{{ t('activities.common.itemsUnit', { count: containerItemCount(c.id) }) }}</span>
-                          </div>
-                        </div>
-                        <div
-                          v-if="
-                            packListEditable &&
-                            (containerUnissueableUnits(c.id) > 0 || containerIssueableUnits(c.id) > 0)
-                          "
-                          class="pack-container-header-actions"
-                          @click.stop
-                        >
-                          <button
-                            v-if="containerUnissueableUnits(c.id) > 0"
-                            type="button"
-                            class="btn-moveback-arrow btn-move-arrow--container-header"
-                            :disabled="containerBulkLoadingId === c.id"
-                            :title="t('activities.packList.unissueTitle', { count: containerUnissueableUnits(c.id) })"
-                            @click="unissueContainerToPacked(c)"
-                          >
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                              <path d="M19 12H5" />
-                              <polyline points="12 19 5 12 12 5" />
-                            </svg>
-                          </button>
-                          <button
-                            v-if="containerIssueableUnits(c.id) > 0"
-                            type="button"
-                            class="btn-move-arrow btn-move-arrow--container-header"
-                            :disabled="containerBulkLoadingId === c.id"
-                            :title="
-                              t('activities.packList.issueRestTitle', {
-                                stage: activeStageConfig.rightLabel,
-                                count: containerIssueableUnits(c.id),
-                              })
-                            "
-                            @click="issueContainerToEvent(c)"
-                          >
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                              <path d="M5 12h14" />
-                              <polyline points="12 5 19 12 12 19" />
-                            </svg>
-                          </button>
-                        </div>
-                      </div>
-                      <div
-                        v-if="canReportIssues && c.container_material_item_id"
-                        class="pack-container-kiste-meldung-row"
-                        @click.stop
-                      >
-                        <span class="pack-container-kiste-meldung-label">{{ t('activities.common.crate') }}</span>
-                        <template v-if="isPackMaterialConsumable(String(c.container_material_item_id))">
-                          <button
-                            type="button"
-                            class="btn-issue-quick btn-issue-consumed"
-                            @click="
-                            emitConsumptionForMaterialId(String(c.container_material_item_id), {
-                              linkedContainerLabel: c.label,
-                            })
-                          "
-                          >
-                            {{ t('activities.common.issueConsumed') }}
-                          </button>
-                        </template>
-                        <template v-else>
-                          <button
-                            type="button"
-                            class="btn-issue-quick btn-issue-loss"
-                            @click="emitIssueWizardByMaterialId(String(c.container_material_item_id), 'loss')"
-                          >
-                            {{ t('activities.common.issueLoss') }}
-                          </button>
-                          <button
-                            type="button"
-                            class="btn-issue-quick btn-issue-repair"
-                            @click="emitIssueWizardByMaterialId(String(c.container_material_item_id), 'repair')"
-                          >
-                            {{ t('activities.common.issueRepair') }}
-                          </button>
-                        </template>
-                      </div>
-                      <div v-show="!collapsedPackContainers[c.id]" class="pack-container-inner">
-                        <div
-                          v-for="ci in containerItemsByContainerId[c.id] ?? []"
-                          :key="'at-ev-ci-' + ci.id"
-                          class="pack-container-line pack-container-line--issue-row pack-container-line--stacked"
-                        >
-                          <div
-                            v-if="packListEditable && containerLineUnissueableMax(ci) > 0"
-                            class="pack-card-actions pack-card-actions-left"
-                          >
-                            <button
-                              type="button"
-                              class="btn-moveback-arrow"
-                              :disabled="containerMutationLoading"
-                              :title="t('activities.packList.unissueLineTitle', { max: containerLineUnissueableMax(ci) })"
-                              @click="unissueContainerLineToPacked(c.id, ci)"
-                            >
-                              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                                <path d="M19 12H5" />
-                                <polyline points="12 19 5 12 12 5" />
-                              </svg>
-                            </button>
-                            <input
-                              v-model.number="containerUnissueLineInputs[containerIssueLineKey(c.id, ci.id)]"
-                              type="number"
-                              min="1"
-                              :max="containerLineUnissueableMax(ci)"
-                              class="pack-moveback-input"
-                              @keyup.enter="unissueContainerLineToPacked(c.id, ci)"
-                            />
-                          </div>
-                          <div
-                            v-if="packListEditable && activePackTarget?.kind === 'loose'"
-                            class="pack-card-actions pack-card-actions-left"
-                          >
-                            <button
-                              type="button"
-                              class="btn-moveback-arrow"
-                              :disabled="containerMutationLoading"
-                              :title="t('activities.packList.pullLooseTitle')"
-                              @click="pullFromContainer(c.id, ci)"
-                            >
-                              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                                <path d="M19 12H5" />
-                                <polyline points="12 19 5 12 12 5" />
-                              </svg>
-                            </button>
-                            <input
-                              v-model.number="containerPullQtyInputs[containerPullKey(c.id, ci.id)]"
-                              type="number"
-                              min="1"
-                              :max="ci.quantity_packed"
-                              class="pack-moveback-input"
-                              @keyup.enter="pullFromContainer(c.id, ci)"
-                            />
-                          </div>
-                          <div class="pack-container-line-main">
-                            <span class="pack-container-line-name">{{ ci.material_name || t('activities.common.material') }}</span>
-                            <span class="pack-container-line-qty text-muted">
-                              <template v-if="containerLineRemainingIssue(ci) > 0">
-                                {{
-                                  t('activities.packList.lineNotYetIssued', {
-                                    rem: containerLineRemainingIssue(ci),
-                                    packed: ci.quantity_packed,
-                                    stage: activeStageConfig.rightLabel,
-                                  })
-                                }}
-                              </template>
-                              <template v-else-if="containerLinePackRemaining(ci) > 0">
-                                {{ t('activities.packList.packListNotYetAtStage', { stage: activeStageConfig.rightLabel }) }}
-                              </template>
-                              <template v-else>
-                                {{
-                                  t('activities.packList.issuedFraction', {
-                                    issued: ci.quantity_issued ?? 0,
-                                    packed: ci.quantity_packed,
-                                    stage: activeStageConfig.rightLabel,
-                                  })
-                                }}
-                              </template>
-                            </span>
-                          </div>
-                          <div
-                            v-if="packListEditable && containerLineIssueableMax(ci) > 0"
-                            class="pack-card-actions"
-                          >
-                            <div class="pack-move-inline">
-                              <input
-                                v-model.number="containerIssueLineInputs[containerIssueLineKey(c.id, ci.id)]"
-                                type="number"
-                                min="1"
-                                :max="containerLineIssueableMax(ci)"
-                                class="pack-move-input"
-                                @keyup.enter="issueContainerLineToEvent(c.id, ci)"
-                              />
-                              <button
-                                type="button"
-                                class="btn-move-arrow"
-                                :disabled="containerMutationLoading"
-                                :title="t('activities.packList.issueLinePackTitle', { stage: activeStageConfig.rightLabel })"
-                                @click="issueContainerLineToEvent(c.id, ci)"
-                              >
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                                  <path d="M5 12h14" />
-                                  <polyline points="12 5 19 12 12 19" />
-                                </svg>
-                              </button>
-                            </div>
-                          </div>
-                          <div
-                            v-if="
-                              canReportIssues &&
-                              ci.material_item_id &&
-                              (ci.quantity_issued ?? 0) > 0
-                            "
-                            class="pack-container-line-issue-quick"
-                            @click.stop
-                          >
-                            <template v-if="isPackMaterialConsumable(ci.material_item_id)">
-                              <button
-                                type="button"
-                                class="btn-issue-quick btn-issue-consumed"
-                                @click="
-                                  emitConsumptionForMaterialId(ci.material_item_id, {
-                                    materialName: ci.material_name,
-                                    linkedContainerLabel: ci.batch_label || ci.serial_number || null,
-                                  })
-                                "
-                              >
-                                {{ t('activities.common.issueConsumed') }}
-                              </button>
-                            </template>
-                            <template v-else>
-                              <button
-                                type="button"
-                                class="btn-issue-quick btn-issue-loss"
-                                @click="emitIssueWizardByMaterialId(ci.material_item_id, 'loss')"
-                              >
-                                {{ t('activities.common.issueLoss') }}
-                              </button>
-                              <button
-                                type="button"
-                                class="btn-issue-quick btn-issue-repair"
-                                @click="emitIssueWizardByMaterialId(ci.material_item_id, 'repair')"
-                              >
-                                {{ t('activities.common.issueRepair') }}
-                              </button>
-                            </template>
-                          </div>
-                        </div>
-                        <p
-                          v-if="(containerItemsByContainerId[c.id] ?? []).length === 0"
-                          class="pack-container-empty text-muted"
-                        >
-                          {{ t('activities.packList.nothingAssigned') }}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
+                                  <div class="pack-containers-children" role="group" :aria-label="t('activities.packList.ariaContainersAtEventMirror')">
+                  <PackWarehouseIssueContainerCard
+                    v-for="c in packContainersWithIssuedAtEvent"
+                    :key="'at-ev-' + c.id"
+                    :container="c"
+                    :stage-right-label="activeStageConfig.rightLabel"
+                    container-dom-id-prefix="pack-container-at-event-"
+                    :use-subsections="false"
+                  />
                 </div>
               </div>
+            </div>
 
               <div v-if="stageRightItemsLooseIssued.length > 0" class="pack-workflow-section pack-workflow-section--at-event-loose">
                 <div class="pack-workflow-section-title">{{ t('activities.packList.sectionLoose') }}</div>
@@ -977,93 +523,11 @@
                 <p v-if="packContainers.length === 0" class="pack-containers-empty-hint text-muted">
                   {{ t('activities.packList.hintNoContainersConfirmed', { stage: activeStageConfig.rightLabel }) }}
                 </p>
-                <div
+                <PackConfirmedPackedContainerCard
                   v-for="c in packContainersSorted"
-                  :id="'pack-container-' + c.id"
                   :key="c.id"
-                  class="pack-container-card"
-                  :class="{
-                    'pack-container-card--target':
-                      activePackTarget?.kind === 'container' && activePackTarget.containerId === c.id,
-                  }"
-                >
-                <div class="pack-container-header-row">
-                  <button
-                    type="button"
-                    class="pack-container-chevron-btn"
-                    :aria-expanded="!collapsedPackContainers[c.id]"
-                    :aria-label="t('activities.packList.ariaToggleContainer')"
-                    @click.stop="togglePackContainerCollapsed(c.id)"
-                  >
-                    <span class="pack-container-chevron" aria-hidden="true">{{
-                      collapsedPackContainers[c.id] ? '▶' : '▼'
-                    }}</span>
-                  </button>
-                  <div class="pack-container-header-main">
-                    <button
-                      type="button"
-                      class="pack-container-select-main"
-                      :aria-pressed="
-                        activePackTarget?.kind === 'container' && activePackTarget.containerId === c.id
-                      "
-                      @click="toggleActiveContainer(c.id)"
-                    >
-                      <span class="pack-container-name">{{ c.label }}</span>
-                    </button>
-                    <div class="pack-container-header-meta">
-                      <span class="pack-container-chip text-muted">{{ t('activities.common.itemsUnit', { count: containerItemCount(c.id) }) }}</span>
-                    </div>
-                  </div>
-                </div>
-                <div v-show="!collapsedPackContainers[c.id]" class="pack-container-inner">
-                  <div
-                    v-for="ci in containerItemsByContainerId[c.id] ?? []"
-                    :key="ci.id"
-                    class="pack-container-line"
-                  >
-                    <div v-if="packListEditable" class="pack-card-actions pack-card-actions-left">
-                      <button
-                        type="button"
-                        class="btn-moveback-arrow"
-                        :disabled="containerMutationLoading"
-                        :title="t('activities.packList.pullFromContainerTitle')"
-                        @click="pullFromContainer(c.id, ci)"
-                      >
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                          <path d="M19 12H5" />
-                          <polyline points="12 19 5 12 12 5" />
-                        </svg>
-                      </button>
-                      <input
-                        v-model.number="containerPullQtyInputs[containerPullKey(c.id, ci.id)]"
-                        type="number"
-                        min="1"
-                        :max="ci.quantity_packed"
-                        class="pack-moveback-input"
-                        @keyup.enter="pullFromContainer(c.id, ci)"
-                      />
-                    </div>
-                    <div class="pack-container-line-main">
-                      <span class="pack-container-line-name">{{ ci.material_name || t('activities.common.material') }}</span>
-                      <span class="pack-container-line-qty">{{ t('activities.packList.qtyInContainerLine', { n: ci.quantity_packed }) }}</span>
-                    </div>
-                  </div>
-                  <p
-                    v-if="(containerItemsByContainerId[c.id] ?? []).length === 0"
-                    class="pack-container-empty text-muted"
-                  >
-                    {{ t('activities.packList.nothingAssigned') }}
-                  </p>
-                  <button
-                    v-if="packListEditable"
-                    type="button"
-                    class="pack-container-delete"
-                    :disabled="containerMutationLoading"
-                    @click="confirmDeleteContainer(c)"
-                  >
-                    {{ t('activities.packList.deleteContainer') }}
-                  </button>
-                </div>
+                  :container="c"
+                />
                 </div>
               </div>
               </div>
@@ -1180,6 +644,7 @@
       :embedded-issues-by-line-key="shellForwardEmbeddedIssuesByLineKey"
       :repack-issue-reviews="shellForwardRepackIssueReviews"
       :orphan-issues="shellForwardOrphanIssues"
+      :initial-line-reviews="shellForwardInitialLineReviews"
       @cancel="closeShellForwardModal"
       @submit="onShellForwardSubmit"
       @set-repack-review="onShellForwardRepackReview"
@@ -1234,18 +699,29 @@ import {
 } from '@/components/activities/packStageQuantities'
 import PackCrateShellForwardModal from '@/components/activities/PackCrateShellForwardModal.vue'
 import PackCrateShellPackItemRow from '@/components/activities/PackCrateShellPackItemRow.vue'
+import PackConfirmedPackedContainerCard from '@/components/activities/PackConfirmedPackedContainerCard.vue'
+import PackEventReturnContainerCard from '@/components/activities/PackEventReturnContainerCard.vue'
 import PackWarehouseIssueContainerCard from '@/components/activities/PackWarehouseIssueContainerCard.vue'
 import { PACK_WAREHOUSE_ISSUE_INJECT_KEY } from '@/components/activities/packWarehouseIssueInjectKey'
+import {
+  buildHistoryReplenishByKeyFromSnapshot,
+  buildPrefillLineReviewsFromSnapshot,
+} from '@/components/activities/packCrateCheckPrefill'
+import { shellForwardLineKey, type ShellForwardCheckLine } from '@/components/activities/packCrateForwardCheck'
 import {
   buildShellCrateBackDeviations,
   crateShellForwardPeekSections,
   crateShellPeekSectionsForPackItem,
   isCrateShellPackItem,
+  isNonActionableContainerLine,
   isPackContainerMergedIntoStageLeftRow,
-  packContainerItemSections,
+  packContainerItemSectionsWithReality,
   packShellContainerForPackItem,
   peekSectionsForShellContainer,
 } from '@/components/activities/packShellCrateHelpers'
+import type { ComboComponent } from '@/api/materials'
+import { getComboComponents } from '@/api/materials'
+import type { RackContentsItem } from '@/api/storageLocations'
 import type { PackCrateShellPeekSection } from '@/components/activities/PackCrateShellInlinePanel.vue'
 import {
   indexLatestCrateCheckByPackItemId,
@@ -1421,6 +897,8 @@ const collapsedPackContainers = ref<Record<string, boolean>>({})
 const collapsedPackContainerSubsections = ref<Record<string, boolean>>({})
 /** Lager-Vorlage pro Pack-Behälter (material_id aus Kisteninhalt) */
 const containerWarehouseTemplateByContainerId = ref<Record<string, Set<string>>>({})
+const containerWarehouseContentsByContainerId = ref<Record<string, RackContentsItem[]>>({})
+const comboComponentsByMaterialId = ref<Record<string, ComboComponent[]>>({})
 const activityCrateCheckSnapshots = ref<Record<string, CrateCheckSnapshot>>({})
 const useCrateRealityByPackItemId = ref<Record<string, boolean>>({})
 /** Menge zum Herausnehmen aus Behälter (Pfeil + Eingabe), Schlüssel containerId:itemId */
@@ -1481,6 +959,7 @@ const shellForwardHistoryPrefillHint = ref<string | null>(null)
 const shellForwardRepackIssueReviews = ref<Record<string, 'ok' | 'problem' | null>>({})
 const shellForwardEmbeddedIssuesByLineKey = ref<Record<string, ActivityIssueReportRow[]>>({})
 const shellForwardOrphanIssues = ref<ActivityIssueReportRow[]>([])
+const shellForwardInitialLineReviews = ref<Record<string, import('@/components/activities/packCrateForwardCheck').ShellForwardLineReview> | null>(null)
 
 const departmentId = computed(() => (props.departmentId ?? '').trim())
 
@@ -1540,16 +1019,24 @@ async function openShellCrateForwardModal(item: ActivityPackItem, moveQty: numbe
   const warehouseMids = shellC
     ? containerWarehouseTemplateByContainerId.value[shellC.id]
     : undefined
+  const warehouseContents = shellC
+    ? containerWarehouseContentsByContainerId.value[shellC.id]
+    : undefined
+  const comboComponents = comboComponentsByMaterialId.value[item.materialItemId] ?? []
+
   shellForwardSections.value = crateShellForwardPeekSections(
     item,
     packContainers.value,
     containerItemsByContainerId.value,
     warehouseMids,
+    warehouseContents,
+    comboComponents,
     peekSectionTitles(),
     t('activities.common.material'),
   )
   shellForwardHistoryReplenishByKey.value = {}
   shellForwardHistoryPrefillHint.value = null
+  shellForwardInitialLineReviews.value = null
   shellForwardRepackIssueReviews.value = {}
   shellForwardEmbeddedIssuesByLineKey.value = {}
   shellForwardOrphanIssues.value = []
@@ -1580,6 +1067,27 @@ async function openShellCrateForwardModal(item: ActivityPackItem, moveQty: numbe
       shellForwardHistoryPrefillHint.value = t('activities.packList.shellForwardHistoryPrefillHint', {
         date: new Date(snap.created_at).toLocaleString(locale.value),
       })
+      const replenishKeys = buildHistoryReplenishByKeyFromSnapshot(snap)
+      shellForwardHistoryReplenishByKey.value = replenishKeys
+      const checkLines: ShellForwardCheckLine[] = []
+      for (const sec of shellForwardSections.value) {
+        const isExtra = sec.subsectionKey === 'extra'
+        for (const line of sec.lines) {
+          checkLines.push({
+            key: shellForwardLineKey(sec.subsectionKey, line.id),
+            subsectionKey: sec.subsectionKey,
+            materialName: line.materialName,
+            quantity: line.quantity,
+            materialItemId: (line.materialItemId ?? '').trim() || null,
+            isExtra,
+          })
+        }
+      }
+      shellForwardInitialLineReviews.value = buildPrefillLineReviewsFromSnapshot(
+        checkLines,
+        snap,
+        replenishKeys,
+      )
     }
     if (props.canReportIssues && issues.length > 0) {
       shellForwardOrphanIssues.value = issues.filter((r) => !r.resolved)
@@ -1663,6 +1171,8 @@ const shellBackPeekSections = computed((): PackCrateShellPeekSection[] => {
     packContainers.value,
     containerItemsByContainerId.value,
     containerWarehouseTemplateByContainerId.value,
+    containerWarehouseContentsByContainerId.value,
+    comboComponentsByMaterialId.value,
     peekSectionTitles(),
     t('activities.common.material'),
     activityCrateCheckSnapshots.value,
@@ -1693,12 +1203,20 @@ function useCrateRealityForPackItem(packItemId: string): boolean {
 }
 
 function peekSectionsForShellContainerCtx(c: ActivityPackContainer): PackCrateShellPeekSection[] {
+  const shellPi = shellPackItemForContainer(c.id)
+  const combo =
+    shellPi != null ? comboComponentsByMaterialId.value[shellPi.materialItemId] ?? [] : []
   return peekSectionsForShellContainer(
     c,
     containerItemsByContainerId.value,
     containerWarehouseTemplateByContainerId.value,
+    containerWarehouseContentsByContainerId.value,
+    combo,
     peekSectionTitles(),
     t('activities.common.material'),
+    shellPi?.id,
+    activityCrateCheckSnapshots.value,
+    shellPi ? useCrateRealityForPackItem(shellPi.id) : false,
   )
 }
 
@@ -1716,11 +1234,20 @@ function togglePackContainerSubsection(containerId: string, subsectionKey: strin
 }
 
 function packContainerItemSectionsForContainer(c: ActivityPackContainer) {
-  return packContainerItemSections(
-    c.id,
+  const shellPi = shellPackItemForContainer(c.id)
+  const combo =
+    shellPi != null ? comboComponentsByMaterialId.value[shellPi.materialItemId] ?? [] : []
+  return packContainerItemSectionsWithReality(
+    c,
     containerItemsByContainerId.value,
     containerWarehouseTemplateByContainerId.value[c.id],
+    containerWarehouseContentsByContainerId.value[c.id],
+    combo,
     peekSectionTitles(),
+    t('activities.common.material'),
+    shellPi?.id,
+    activityCrateCheckSnapshots.value,
+    shellPi ? useCrateRealityForPackItem(shellPi.id) : false,
   )
 }
 
@@ -1730,6 +1257,8 @@ function peekSectionsForShellPackItem(pi: ActivityPackItem): PackCrateShellPeekS
     packContainers.value,
     containerItemsByContainerId.value,
     containerWarehouseTemplateByContainerId.value,
+    containerWarehouseContentsByContainerId.value,
+    comboComponentsByMaterialId.value,
     peekSectionTitles(),
     t('activities.common.material'),
     activityCrateCheckSnapshots.value,
@@ -1868,11 +1397,14 @@ const assignMaxQty = computed(() => {
 })
 
 function containerItemCount(containerId: string): number {
-  return (containerItemsByContainerId.value[containerId] ?? []).length
+  const c = packContainers.value.find((x) => x.id === containerId)
+  if (!c) return (containerItemsByContainerId.value[containerId] ?? []).length
+  return packContainerItemSectionsForContainer(c).reduce((n, s) => n + s.lines.length, 0)
 }
 
-/** Kisten-Shell-Zeile im Behälter — nicht als lose Zeile ziehen */
+/** Vorschau- / Check-Zeilen — nicht aus Behälter ziehen */
 function isVirtualWarehouseContainerLine(ci: ActivityPackContainerItem): boolean {
+  if (isNonActionableContainerLine(ci)) return true
   for (const c of packContainers.value) {
     const mid = (c.container_material_item_id ?? '').trim()
     if (mid && ci.material_item_id === mid) return true
@@ -2144,7 +1676,8 @@ function initContainerUnissueLineInputs(): void {
 }
 
 async function loadWarehouseTemplatesForContainers(): Promise<void> {
-  const next: Record<string, Set<string>> = {}
+  const templateNext: Record<string, Set<string>> = {}
+  const contentsNext: Record<string, RackContentsItem[]> = {}
   await Promise.all(
     packContainers.value.map(async (c) => {
       const batchId = (c.container_batch_id ?? '').trim()
@@ -2152,17 +1685,44 @@ async function loadWarehouseTemplatesForContainers(): Promise<void> {
       try {
         const data = await getContainerBatchContents(batchId)
         const mids = new Set<string>()
+        const contents: RackContentsItem[] = []
         for (const row of data.contents ?? []) {
           const mid = (row.material_id ?? '').trim()
           if (mid) mids.add(mid)
+          contents.push(row)
         }
-        next[c.id] = mids
+        templateNext[c.id] = mids
+        contentsNext[c.id] = contents
       } catch {
         /* Lager-Vorlage optional */
       }
     }),
   )
-  containerWarehouseTemplateByContainerId.value = next
+  containerWarehouseTemplateByContainerId.value = templateNext
+  containerWarehouseContentsByContainerId.value = contentsNext
+}
+
+async function loadComboComponentsForShellPackItems(): Promise<void> {
+  const mids = [
+    ...new Set(
+      packItems.value.filter((p) => p.materialType === 'physical_combo').map((p) => p.materialItemId),
+    ),
+  ].filter(Boolean)
+  if (mids.length === 0) {
+    comboComponentsByMaterialId.value = {}
+    return
+  }
+  const next: Record<string, ComboComponent[]> = {}
+  await Promise.all(
+    mids.map(async (mid) => {
+      try {
+        next[mid] = await getComboComponents(mid)
+      } catch {
+        next[mid] = []
+      }
+    }),
+  )
+  comboComponentsByMaterialId.value = next
 }
 
 async function loadContainersData(): Promise<void> {
@@ -2920,6 +2480,7 @@ async function loadAll() {
     packItems.value = items
     activePackStage.value = autoPackStageForStatus(props.status)
     initMoveQtyInputs()
+    await loadComboComponentsForShellPackItems()
     await loadContainersData()
     await refreshCrateCheckSnapshots()
   } catch (err: unknown) {
@@ -2975,6 +2536,12 @@ provide(PACK_WAREHOUSE_ISSUE_INJECT_KEY, {
   showCrateTemplateToggle,
   useCrateRealityForPackItem,
   toggleCrateRealityView,
+  returnContainerToWarehouse,
+  containerReturnableUnits,
+  containerLineRemainingReturn,
+  containerShellStillAtEventQty,
+  shellMaterialIdForContainer,
+  confirmDeleteContainer,
 })
 
 watch(
@@ -3589,3 +3156,4 @@ watch(
   }
 }
 </style>
+
