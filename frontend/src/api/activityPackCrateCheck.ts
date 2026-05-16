@@ -7,6 +7,7 @@ export type PackCrateCheckLineStatus =
   | 'loss'
   | 'repair'
   | 'extra'
+  | 'return_surplus'
   | 'problem'
 
 export interface PackCrateCheckLinePayload {
@@ -19,6 +20,7 @@ export interface PackCrateCheckLinePayload {
   missing_qty?: number | null
   note?: string | null
   replenish_qty?: number | null
+  create_inspection_task?: boolean | null
 }
 
 export interface PackCrateCheckRequest {

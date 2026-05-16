@@ -91,6 +91,86 @@ class BatchStorageMoveService
         ];
     }
 
+    /**
+     * Bestand aus Kisten-Charge zurück ins lose Lager (gleicher Batch, Regal der Kiste).
+     *
+     * @return array{allocation_id: string, batch_id: string, qty_moved: int}
+     */
+    public function moveContainerQtyToLoose(
+        string $materialItemId,
+        string $departmentId,
+        string $fromContainerBatchId,
+        int $qty,
+    ): array {
+        if ($qty <= 0) {
+            throw new \InvalidArgumentException('Menge muss größer als 0 sein');
+        }
+
+        $material = $this->entityManager->getRepository(MaterialItem::class)->find($materialItemId);
+        if (!$material || $material->getDepartmentId() !== $departmentId) {
+            throw new \InvalidArgumentException('Material nicht gefunden');
+        }
+
+        $fromContainerBatch = $this->entityManager->getRepository(MaterialBatch::class)->find($fromContainerBatchId);
+        if (!$fromContainerBatch || !$fromContainerBatch->getMaterialItem()
+            || $fromContainerBatch->getMaterialItem()->getDepartmentId() !== $departmentId) {
+            throw new \InvalidArgumentException('Quell-Kiste ungültig');
+        }
+        if ($fromContainerBatch->getRackId() === null) {
+            throw new \InvalidArgumentException('Quell-Kiste hat keinen Lagerplatz');
+        }
+
+        $fromAlloc = $this->findContainerAllocation($materialItemId, $departmentId, $fromContainerBatchId, $qty);
+        if ($fromAlloc === null) {
+            throw new \InvalidArgumentException('Nicht genug Bestand in der Kiste');
+        }
+
+        $batch = $fromAlloc->getBatch();
+        $fromAllocId = $fromAlloc->getId() ?? '';
+        $moveQty = min($qty, $fromAlloc->getQty());
+        $sourceQty = $fromAlloc->getQty();
+
+        $fromAlloc->setQty($sourceQty - $moveQty);
+        if ($fromAlloc->getQty() <= 0) {
+            $batch->removeAllocation($fromAlloc);
+            $this->entityManager->remove($fromAlloc);
+        }
+
+        $rack = $fromContainerBatch->getRack();
+        $slot = $fromContainerBatch->getSlot();
+        $existingLoose = null;
+        foreach ($batch->getAllocations() as $a) {
+            if ($a->getContainerBatchId() !== null) {
+                continue;
+            }
+            if ($a->getRackId() === $fromContainerBatch->getRackId()
+                && ($a->getSlotId() ?? '') === ($fromContainerBatch->getSlotId() ?? '')) {
+                $existingLoose = $a;
+                break;
+            }
+        }
+        if ($existingLoose) {
+            $existingLoose->setQty($existingLoose->getQty() + $moveQty);
+        } else {
+            $newAlloc = new BatchStorageAllocation();
+            $newAlloc->setId(IdGenerator::generate13Unique($this->entityManager, BatchStorageAllocation::class, 'al'));
+            $newAlloc->setBatch($batch);
+            $newAlloc->setContainerBatch(null);
+            $newAlloc->setRack($rack);
+            $newAlloc->setSlot($slot);
+            $newAlloc->setQty($moveQty);
+            $newAlloc->setDepartmentId($departmentId);
+            $batch->addAllocation($newAlloc);
+            $this->entityManager->persist($newAlloc);
+        }
+
+        return [
+            'allocation_id' => $fromAllocId,
+            'batch_id' => $batch->getId(),
+            'qty_moved' => $moveQty,
+        ];
+    }
+
     /** Summe lose (nicht in Kisten) für ein Material. */
     public function sumLooseQty(string $materialItemId, string $departmentId): int
     {
@@ -128,6 +208,35 @@ class BatchStorageMoveService
             ->andWhere('a.qty >= :minQty')
             ->setParameter('mid', $materialItemId)
             ->setParameter('did', $departmentId)
+            ->setParameter('status', 'active')
+            ->setParameter('minQty', max(1, $minQty))
+            ->orderBy('a.qty', 'DESC')
+            ->setMaxResults(1);
+
+        $result = $qb->getQuery()->getOneOrNullResult();
+
+        return $result instanceof BatchStorageAllocation ? $result : null;
+    }
+
+    private function findContainerAllocation(
+        string $materialItemId,
+        string $departmentId,
+        string $containerBatchId,
+        int $minQty,
+    ): ?BatchStorageAllocation {
+        $qb = $this->entityManager->createQueryBuilder();
+        $qb->select('a')
+            ->from(BatchStorageAllocation::class, 'a')
+            ->innerJoin('a.batch', 'b')
+            ->innerJoin('b.materialItem', 'mi')
+            ->where('mi.id = :mid')
+            ->andWhere('a.departmentId = :did')
+            ->andWhere('a.containerBatchId = :cid')
+            ->andWhere('b.status = :status')
+            ->andWhere('a.qty >= :minQty')
+            ->setParameter('mid', $materialItemId)
+            ->setParameter('did', $departmentId)
+            ->setParameter('cid', $containerBatchId)
             ->setParameter('status', 'active')
             ->setParameter('minQty', max(1, $minQty))
             ->orderBy('a.qty', 'DESC')

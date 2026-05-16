@@ -1073,6 +1073,62 @@ class WorkshopController extends AbstractController
     }
 
     /**
+     * Inspektions-Aufgabe nach Kistencheck-Überschuss (Lager-Kontrolle).
+     */
+    public static function autoCreateInspectionForCrateCheckSurplus(
+        EntityManagerInterface $em,
+        Activity $activity,
+        MaterialItem $materialItem,
+        int $qty,
+        string $shellLabel,
+        ?User $currentUser,
+    ): ?WorkshopTicket {
+        $ticket = new WorkshopTicket();
+        $ticket->setId(IdGenerator::generate13('wt'));
+        $ticket->setDepartment($activity->getDepartment());
+        $ticket->setMaterialItem($materialItem);
+        $ticket->setActivity($activity);
+        $ticket->setType(WorkshopTicket::TYPE_INSPECTION);
+        $ticket->setPriority(WorkshopTicket::PRIORITY_NORMAL);
+        $ticket->setTitle(sprintf('Inventur/Kontrolle: %s', $materialItem->getName()));
+        $ticket->setDescription(sprintf(
+            'Kistencheck «%s» (Aktivität «%s»): %d Stk. Überschuss — Lagerstand und Einlagerung prüfen.',
+            $shellLabel,
+            $activity->getName(),
+            max(1, $qty),
+        ));
+        if ($currentUser instanceof User) {
+            $ticket->setCreatedByUser($currentUser);
+        }
+        $em->persist($ticket);
+
+        $history = new WorkshopTicketHistory();
+        $history->setId(IdGenerator::generate13('wh'));
+        $history->setWorkshopTicket($ticket);
+        $history->setAction(WorkshopTicketHistory::ACTION_AUTO_CREATED_ISSUE);
+        $history->setSnapshot([
+            'status' => $ticket->getStatus(),
+            'type' => $ticket->getType(),
+            'priority' => $ticket->getPriority(),
+        ]);
+        $history->setChanges([
+            'source' => 'pack_crate_check_surplus',
+            'activity_id' => $activity->getId(),
+            'activity_name' => $activity->getName(),
+            'material_id' => $materialItem->getId(),
+            'material_name' => $materialItem->getName(),
+            'surplus_qty' => max(1, $qty),
+            'shell_label' => $shellLabel,
+        ]);
+        if ($currentUser instanceof User) {
+            $history->setUser($currentUser);
+        }
+        $em->persist($history);
+
+        return $ticket;
+    }
+
+    /**
      * Erstellt automatisch ein Workshop-Ticket aus einer Rückgabe-Position
      * 
      * Wird aufgerufen von ActivityWorkflowController::updateReturnItem()

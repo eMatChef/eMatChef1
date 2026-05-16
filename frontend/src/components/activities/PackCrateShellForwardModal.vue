@@ -19,6 +19,9 @@ import {
   buildInitialInventoryLocationReviews,
   buildMiniInventoryLocations,
   formatStorageLocationPlaceLabel,
+  inventoryCoversShortfall,
+  inventoryFoundQtyFromReviews,
+  inventorySurplusAtLocation,
   miniInventoryContainerLocations,
   miniInventoryLooseLocations,
   storageLocationRowKey,
@@ -94,13 +97,21 @@ function looseStock(mid: string | null): number {
   return props.looseStockByMid[mid] ?? 0
 }
 
+function lineCountedQty(key: string, expectedQty: number): number {
+  return Math.max(0, Math.floor(Number(reviewFor(key, expectedQty).countedQty)) || 0)
+}
+
 function patchReview(key: string, expectedQty: number, isExtra: boolean, patch: Partial<ShellForwardLineReview>) {
   const cur = reviewFor(key, expectedQty)
   const touchesLineCount =
     patch.countedQty !== undefined || patch.status !== undefined || patch.resolution !== undefined
+  const mergedInput = { ...cur, ...patch }
+  if (patch.countedQty !== undefined && patch.status === undefined && cur.status === 'ok') {
+    mergedInput.status = null
+  }
   const merged = touchesLineCount
-    ? applyCountedQtyToReview({ ...cur, ...patch }, expectedQty, isExtra, { explicitOkOnly: true })
-    : { ...cur, ...patch }
+    ? applyCountedQtyToReview(mergedInput, expectedQty, isExtra, { explicitOkOnly: true })
+    : mergedInput
   lineReviews.value = { ...lineReviews.value, [key]: merged }
   const packItemId = props.packItemId
 }
@@ -192,19 +203,50 @@ function locationReviewFor(
   )
 }
 
+function crateShortfallFor(line: ShellForwardCheckLine): number {
+  return shortfallQty(line.quantity, reviewFor(line.key, line.quantity).countedQty)
+}
+
+function inventoryFoundFor(line: ShellForwardCheckLine): number {
+  const r = reviewFor(line.key, line.quantity)
+  return inventoryFoundQtyFromReviews(r.inventoryLocations, r.inventoryLocationReviews)
+}
+
+function inventoryCoversFor(line: ShellForwardCheckLine): boolean {
+  const r = reviewFor(line.key, line.quantity)
+  return inventoryCoversShortfall(crateShortfallFor(line), r.inventoryLocations, r.inventoryLocationReviews)
+}
+
 function syncInventoryCompletion(line: ShellForwardCheckLine) {
   const r = reviewFor(line.key, line.quantity)
-  const merged = { ...r }
-  const allDone = allInventoryLocationsSettled(merged)
+  const miss = crateShortfallFor(line)
+  const found = inventoryFoundFor(line)
+  const allDone = allInventoryLocationsSettled(r)
+  const covers = inventoryCoversFor(line)
+
+  if (allDone && covers) {
+    patchReview(line.key, line.quantity, line.isExtra, {
+      inventoryPhase: 'done',
+      resolution: 'found_elsewhere',
+      missingQty: miss,
+      note:
+        r.note ||
+        t('activities.packList.shellForwardInventoryFoundNote', { found, miss }),
+      doReplenishAfterLoss: false,
+      replenishQty: null,
+    })
+    return
+  }
+
   patchReview(line.key, line.quantity, line.isExtra, {
     inventoryPhase: allDone ? 'done' : 'active',
-    resolution: allDone ? 'loss' : r.resolution,
-    missingQty: shortfallQty(line.quantity, r.countedQty),
-    note: allDone ? r.note || t('activities.packList.shellForwardPreEventLossNote') : r.note,
-    doReplenishAfterLoss: allDone && looseStock(line.materialItemId) > 0,
+    resolution: allDone ? 'loss' : r.resolution === 'found_elsewhere' ? null : r.resolution,
+    missingQty: miss,
+    note: allDone && !covers ? r.note || t('activities.packList.shellForwardPreEventLossNote') : r.note,
+    doReplenishAfterLoss: allDone && !covers && looseStock(line.materialItemId) > 0,
     replenishQty:
-      allDone && looseStock(line.materialItemId) > 0
-        ? Math.min(shortfallQty(line.quantity, r.countedQty), looseStock(line.materialItemId))
+      allDone && !covers && looseStock(line.materialItemId) > 0
+        ? Math.min(miss, looseStock(line.materialItemId))
         : r.replenishQty,
   })
 }
@@ -276,6 +318,11 @@ function lineSettled(line: ShellForwardCheckLine): boolean {
   if (r.resolution === 'extra') {
     return r.note.trim() !== '' || (r.missingQty != null && r.missingQty >= 1)
   }
+  if (r.resolution === 'return_surplus') {
+    const max = surplusQty(line.quantity, r.countedQty)
+    const q = r.returnSurplusQty ?? r.missingQty ?? max
+    return q >= 1 && q <= max
+  }
   if (r.resolution === 'not_taken') {
     return (r.missingQty != null && r.missingQty >= 1) || r.note.trim() !== ''
   }
@@ -292,6 +339,13 @@ function lineSettled(line: ShellForwardCheckLine): boolean {
   if (r.resolution === 'replenish') {
     const need = r.missingQty != null && r.missingQty >= 1 ? r.missingQty : 1
     return looseStock(line.materialItemId) >= need
+  }
+  if (r.resolution === 'found_elsewhere') {
+    return (
+      r.inventoryPhase === 'done' &&
+      allInventoryLocationsSettled(r) &&
+      inventoryCoversFor(line)
+    )
   }
   if (r.resolution === 'repair') {
     return (r.missingQty != null && r.missingQty >= 1) || r.note.trim() !== ''
@@ -441,7 +495,7 @@ function asCheckLine(sec: PackCrateShellPeekSection, line: PackCrateShellPeekSec
                     :disabled="historyReplenishByKey[cl.key] || cl.isExtra"
                     @click="
                       (() => {
-                        const next = Math.max(0, reviewFor(cl.key, cl.quantity).countedQty - 1)
+                        const next = Math.max(0, lineCountedQty(cl.key, cl.quantity) - 1)
                         patchReview(cl.key, cl.quantity, cl.isExtra, { countedQty: next })
                         onCountedChange(cl, next)
                       })()
@@ -473,7 +527,7 @@ function asCheckLine(sec: PackCrateShellPeekSection, line: PackCrateShellPeekSec
                     :disabled="historyReplenishByKey[cl.key]"
                     @click="
                       (() => {
-                        const next = reviewFor(cl.key, cl.quantity).countedQty + 1
+                        const next = lineCountedQty(cl.key, cl.quantity) + 1
                         patchReview(cl.key, cl.quantity, cl.isExtra, { countedQty: next })
                         onCountedChange(cl, next)
                       })()
@@ -507,7 +561,7 @@ function asCheckLine(sec: PackCrateShellPeekSection, line: PackCrateShellPeekSec
                 @set-review="(st) => emit('set-repack-review', em.id, st)"
               />
 
-              <!-- Surplus note -->
+              <!-- Surplus: zurück ins Lager oder dokumentieren -->
               <div
                 v-if="varianceKind(cl) === 'surplus' && reviewFor(cl.key, cl.quantity).status === 'problem'"
                 class="pack-shell-forward-li-problem"
@@ -519,6 +573,71 @@ function asCheckLine(sec: PackCrateShellPeekSection, line: PackCrateShellPeekSec
                     })
                   }}
                 </p>
+                <div v-if="containerBatchId && !cl.isExtra" class="pack-shell-forward-surplus-actions">
+                  <label class="pack-modal-label pack-shell-forward-surplus-qty">
+                    <span>{{ t('activities.packList.shellForwardReturnSurplusQty') }}</span>
+                    <input
+                      :value="
+                        reviewFor(cl.key, cl.quantity).returnSurplusQty ??
+                        surplusQty(cl.quantity, reviewFor(cl.key, cl.quantity).countedQty)
+                      "
+                      type="number"
+                      min="1"
+                      :max="surplusQty(cl.quantity, reviewFor(cl.key, cl.quantity).countedQty)"
+                      class="form-input pack-shell-forward-count-input"
+                      @input="
+                        patchReview(cl.key, cl.quantity, cl.isExtra, {
+                          returnSurplusQty: Math.min(
+                            surplusQty(cl.quantity, reviewFor(cl.key, cl.quantity).countedQty),
+                            Math.max(
+                              1,
+                              parseInt(($event.target as HTMLInputElement).value, 10) || 1,
+                            ),
+                          ),
+                          missingQty: surplusQty(cl.quantity, reviewFor(cl.key, cl.quantity).countedQty),
+                        })
+                      "
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    class="btn-outline btn-xs"
+                    :class="{
+                      'btn-primary': reviewFor(cl.key, cl.quantity).resolution === 'return_surplus',
+                    }"
+                    @click="
+                      patchReview(cl.key, cl.quantity, cl.isExtra, {
+                        resolution: 'return_surplus',
+                        missingQty: surplusQty(cl.quantity, reviewFor(cl.key, cl.quantity).countedQty),
+                        returnSurplusQty:
+                          reviewFor(cl.key, cl.quantity).returnSurplusQty ??
+                          surplusQty(cl.quantity, reviewFor(cl.key, cl.quantity).countedQty),
+                        createSurplusInspectionTask:
+                          reviewFor(cl.key, cl.quantity).createSurplusInspectionTask,
+                      })
+                    "
+                  >
+                    {{
+                      t('activities.packList.shellForwardResolutionReturnSurplus', {
+                        n:
+                          reviewFor(cl.key, cl.quantity).returnSurplusQty ??
+                          surplusQty(cl.quantity, reviewFor(cl.key, cl.quantity).countedQty),
+                      })
+                    }}
+                  </button>
+                  <label class="pack-shell-forward-inventory-check">
+                    <input
+                      type="checkbox"
+                      :checked="reviewFor(cl.key, cl.quantity).createSurplusInspectionTask"
+                      @change="
+                        patchReview(cl.key, cl.quantity, cl.isExtra, {
+                          createSurplusInspectionTask: ($event.target as HTMLInputElement).checked,
+                        })
+                      "
+                    />
+                    <span>{{ t('activities.packList.shellForwardSurplusInspectionTask') }}</span>
+                  </label>
+                </div>
                 <label class="pack-modal-label">
                   <span>{{ t('activities.packList.shellForwardLineNote') }}</span>
                   <input
@@ -528,12 +647,28 @@ function asCheckLine(sec: PackCrateShellPeekSection, line: PackCrateShellPeekSec
                     @input="
                       patchReview(cl.key, cl.quantity, cl.isExtra, {
                         note: ($event.target as HTMLInputElement).value,
-                        resolution: 'extra',
+                        resolution:
+                          reviewFor(cl.key, cl.quantity).resolution === 'return_surplus'
+                            ? 'return_surplus'
+                            : 'extra',
                         missingQty: surplusQty(cl.quantity, reviewFor(cl.key, cl.quantity).countedQty),
                       })
                     "
                   />
                 </label>
+                <button
+                  v-if="!containerBatchId || cl.isExtra"
+                  type="button"
+                  class="btn-outline btn-xs"
+                  @click="
+                    patchReview(cl.key, cl.quantity, cl.isExtra, {
+                      resolution: 'extra',
+                      missingQty: surplusQty(cl.quantity, reviewFor(cl.key, cl.quantity).countedQty),
+                    })
+                  "
+                >
+                  {{ t('activities.packList.shellForwardResolutionSurplus') }}
+                </button>
               </div>
 
               <!-- Shortfall: mini inventory + loss + replenish -->
@@ -559,6 +694,23 @@ function asCheckLine(sec: PackCrateShellPeekSection, line: PackCrateShellPeekSec
                   <p class="pack-shell-forward-inventory-intro text-muted">
                     {{ t('activities.packList.shellForwardInventoryIntro') }}
                   </p>
+                  <p
+                    v-if="inventoryFoundFor(cl) > 0 || crateShortfallFor(cl) > 0"
+                    class="pack-shell-forward-inventory-progress"
+                    :class="{ 'pack-shell-forward-inventory-progress--ok': inventoryCoversFor(cl) }"
+                  >
+                    {{
+                      inventoryCoversFor(cl)
+                        ? t('activities.packList.shellForwardInventoryFoundOk', {
+                            found: inventoryFoundFor(cl),
+                            miss: crateShortfallFor(cl),
+                          })
+                        : t('activities.packList.shellForwardInventoryFoundProgress', {
+                            found: inventoryFoundFor(cl),
+                            miss: crateShortfallFor(cl),
+                          })
+                    }}
+                  </p>
 
                   <template v-if="inventoryLooseFor(cl.key, cl.quantity).length > 0">
                     <p class="pack-shell-forward-inventory-group-title">
@@ -578,7 +730,6 @@ function asCheckLine(sec: PackCrateShellPeekSection, line: PackCrateShellPeekSec
                           locationReviewFor(cl.key, cl.quantity, storageLocationRowKey(loc), loc.qty)
                             .status
                         "
-                        :disabled="reviewFor(cl.key, cl.quantity).inventoryPhase === 'done'"
                         :minus-title="t('activities.packList.shellForwardMinusTitle')"
                         :plus-title="t('activities.packList.shellForwardPlusTitle')"
                         :ok-title="t('activities.packList.shellForwardLineOkTitle')"
@@ -613,7 +764,6 @@ function asCheckLine(sec: PackCrateShellPeekSection, line: PackCrateShellPeekSec
                           locationReviewFor(cl.key, cl.quantity, storageLocationRowKey(loc), loc.qty)
                             .status
                         "
-                        :disabled="reviewFor(cl.key, cl.quantity).inventoryPhase === 'done'"
                         :minus-title="t('activities.packList.shellForwardMinusTitle')"
                         :plus-title="t('activities.packList.shellForwardPlusTitle')"
                         :ok-title="t('activities.packList.shellForwardLineOkTitle')"
@@ -637,9 +787,10 @@ function asCheckLine(sec: PackCrateShellPeekSection, line: PackCrateShellPeekSec
 
                 <div
                   v-if="
-                    ['done', 'skipped'].includes(reviewFor(cl.key, cl.quantity).inventoryPhase) ||
-                    (reviewFor(cl.key, cl.quantity).inventoryPhase === 'active' &&
-                      reviewFor(cl.key, cl.quantity).inventoryLocations.length === 0)
+                    reviewFor(cl.key, cl.quantity).resolution !== 'found_elsewhere' &&
+                    (['done', 'skipped'].includes(reviewFor(cl.key, cl.quantity).inventoryPhase) ||
+                      (reviewFor(cl.key, cl.quantity).inventoryPhase === 'active' &&
+                        reviewFor(cl.key, cl.quantity).inventoryLocations.length === 0))
                   "
                   class="pack-shell-forward-loss-block"
                 >
@@ -830,11 +981,6 @@ function asCheckLine(sec: PackCrateShellPeekSection, line: PackCrateShellPeekSec
   color: #c2410c;
 }
 
-.pack-shell-forward-count-input {
-  width: 3.5rem;
-  text-align: center;
-  padding: 4px 6px;
-}
 
 .pack-shell-forward-variance-msg {
   font-size: 13px;
@@ -848,6 +994,18 @@ function asCheckLine(sec: PackCrateShellPeekSection, line: PackCrateShellPeekSec
 
 .pack-shell-forward-variance-msg--surplus {
   color: #c2410c;
+}
+
+.pack-shell-forward-surplus-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 10px 14px;
+  margin-bottom: 10px;
+}
+
+.pack-shell-forward-surplus-qty {
+  margin: 0;
 }
 
 .pack-shell-forward-inventory {
@@ -886,6 +1044,18 @@ function asCheckLine(sec: PackCrateShellPeekSection, line: PackCrateShellPeekSec
   font-size: 13px;
   padding: 4px 0;
   cursor: pointer;
+}
+
+.pack-shell-forward-inventory-progress {
+  margin: 0 0 10px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #475569;
+}
+
+.pack-shell-forward-inventory-progress--ok {
+  color: #15803d;
+  font-weight: 600;
 }
 
 .pack-shell-forward-loss-block {

@@ -32,8 +32,16 @@ const varianceKind = computed((): 'ok' | 'short' | 'surplus' | 'unset' => {
   return 'unset'
 })
 
+function currentCounted(): number {
+  return Math.max(0, Math.floor(Number(props.review.countedQty)) || 0)
+}
+
 function setCounted(next: number) {
-  emit('update:countedQty', Math.max(0, Math.floor(next) || 0))
+  emit('update:countedQty', Math.max(0, Math.floor(Number(next)) || 0))
+}
+
+function stepCounted(delta: number) {
+  setCounted(currentCounted() + delta)
 }
 </script>
 
@@ -60,7 +68,7 @@ function setCounted(next: number) {
         :class="{ 'shell-forward-variance-btn--active': varianceKind === 'short' }"
         :title="t('activities.packList.shellForwardMinusTitle')"
         :disabled="minusDisabled"
-        @click="setCounted(review.countedQty - 1)"
+        @click="stepCounted(-1)"
       >
         −
       </button>
@@ -81,7 +89,7 @@ function setCounted(next: number) {
         :class="{ 'shell-forward-variance-btn--active': varianceKind === 'surplus' }"
         :title="t('activities.packList.shellForwardPlusTitle')"
         :disabled="plusDisabled"
-        @click="setCounted(review.countedQty + 1)"
+        @click="stepCounted(1)"
       >
         +
       </button>
@@ -173,9 +181,4 @@ function setCounted(next: number) {
   color: #c2410c;
 }
 
-.pack-shell-forward-count-input {
-  width: 3.5rem;
-  text-align: center;
-  padding: 4px 6px;
-}
 </style>

@@ -8,6 +8,8 @@ export type ShellForwardResolution =
   | 'loss'
   | 'repair'
   | 'extra'
+  | 'return_surplus'
+  | 'found_elsewhere'
 
 export type ShellForwardLineReviewStatus = 'ok' | 'problem' | null
 
@@ -28,6 +30,10 @@ export type ShellForwardLineReview = {
   /** Nach Verlust: Ersatz aus Lager in Kiste. */
   doReplenishAfterLoss: boolean
   replenishQty: number | null
+  /** Überschuss: Stk. zurück ins Lager */
+  returnSurplusQty: number | null
+  /** Werkstatt-Aufgabe (Inspektion) für Lager-Kontrolle */
+  createSurplusInspectionTask: boolean
   inventoryPhase: ShellForwardInventoryPhase
   inventoryLocationReviews: Record<string, InventoryLocationReview>
   inventoryLocations: MiniInventoryLocationRow[]
@@ -85,13 +91,45 @@ export function applyInventoryLocationCounted(
   expectedQty: number,
 ): InventoryLocationReview {
   const counted = Math.max(0, Math.floor(Number(review.countedQty)) || 0)
-  if (review.status === 'ok' && counted === expectedQty) {
+  if (review.status === 'ok' && counted >= expectedQty) {
     return { countedQty: counted, status: 'ok' }
   }
-  if (counted === expectedQty) {
+  if (review.status === 'ok' && counted < expectedQty) {
+    return { countedQty: counted, status: 'problem' }
+  }
+  if (counted >= expectedQty) {
     return { countedQty: counted, status: null }
   }
   return { countedQty: counted, status: 'problem' }
+}
+
+/** Überschuss an bestätigtem Ort (Ist > Soll) — erklärt fehlende Menge in der Kiste. */
+export function inventorySurplusAtLocation(countedQty: number, locationSoll: number): number {
+  const counted = Math.max(0, Math.floor(Number(countedQty)) || 0)
+  return Math.max(0, counted - locationSoll)
+}
+
+export function inventoryFoundQtyFromReviews(
+  locations: MiniInventoryLocationRow[],
+  reviews: Record<string, InventoryLocationReview>,
+): number {
+  let found = 0
+  for (const loc of locations) {
+    const lr = reviews[storageLocationRowKey(loc)]
+    if (lr?.status !== 'ok') continue
+    found += inventorySurplusAtLocation(lr.countedQty, loc.qty)
+  }
+  return found
+}
+
+export function inventoryCoversShortfall(
+  crateShortfall: number,
+  locations: MiniInventoryLocationRow[],
+  reviews: Record<string, InventoryLocationReview>,
+): boolean {
+  const miss = Math.max(0, Math.floor(crateShortfall) || 0)
+  if (miss < 1) return false
+  return inventoryFoundQtyFromReviews(locations, reviews) >= miss
 }
 
 export function inventoryLocationSettled(review: InventoryLocationReview | undefined): boolean {
@@ -132,6 +170,8 @@ export function defaultLineReview(expectedQty: number): ShellForwardLineReview {
     countedQty: expectedQty,
     doReplenishAfterLoss: false,
     replenishQty: null,
+    returnSurplusQty: null,
+    createSurplusInspectionTask: true,
     inventoryPhase: 'none',
     inventoryLocationReviews: {},
     inventoryLocations: [],
@@ -148,6 +188,8 @@ export function emptyShellForwardLineReview(): ShellForwardLineReview {
     countedQty: 0,
     doReplenishAfterLoss: false,
     replenishQty: null,
+    returnSurplusQty: null,
+    createSurplusInspectionTask: true,
     inventoryPhase: 'none',
     inventoryLocationReviews: {},
     inventoryLocations: [],
@@ -201,8 +243,12 @@ export function applyCountedQtyToReview(
       ...review,
       countedQty: counted,
       status: 'problem',
-      resolution: 'extra',
+      resolution: review.resolution === 'return_surplus' ? 'return_surplus' : null,
       missingQty: surplusQty(expectedQty, counted) || 1,
+      returnSurplusQty:
+        review.returnSurplusQty != null && review.returnSurplusQty >= 1
+          ? review.returnSurplusQty
+          : surplusQty(expectedQty, counted) || 1,
       inventoryPhase: 'none',
     }
   }
@@ -224,8 +270,10 @@ export function applyCountedQtyToReview(
       ...review,
       countedQty: counted,
       status: 'problem',
-      resolution: 'extra',
+      resolution: review.resolution === 'return_surplus' ? 'return_surplus' : null,
       missingQty: sur,
+      returnSurplusQty:
+        review.returnSurplusQty != null && review.returnSurplusQty >= 1 ? review.returnSurplusQty : sur,
       note: review.note,
       inventoryPhase: 'none',
     }
@@ -314,6 +362,8 @@ export function buildPackCrateCheckLinesPayload(
     let status: PackCrateCheckLineStatus = 'ok'
     if (historyReplenishByKey[line.key]) {
       status = 'ok'
+    } else if (review?.resolution === 'found_elsewhere') {
+      status = 'ok'
     } else if (review?.status === 'problem' && review.resolution) {
       status = review.resolution
     }
@@ -327,6 +377,13 @@ export function buildPackCrateCheckLinesPayload(
       (review.replenishQty ?? 0) >= 1
     ) {
       replenishQty = review.replenishQty
+    } else if (status === 'return_surplus') {
+      replenishQty =
+        review?.returnSurplusQty != null && review.returnSurplusQty >= 1
+          ? review.returnSurplusQty
+          : missingQty != null && missingQty >= 1
+            ? missingQty
+            : 1
     }
     const noteParts: string[] = []
     if (review?.note?.trim()) noteParts.push(review.note.trim())
@@ -339,12 +396,28 @@ export function buildPackCrateCheckLinesPayload(
         const key = storageLocationRowKey(loc)
         const lr = review.inventoryLocationReviews[key]
         if (!lr) continue
-        locNotes.push(`${formatStorageLocationPlaceLabel(loc)}: Ist ${lr.countedQty}/${loc.qty}`)
+        const sur = inventorySurplusAtLocation(lr.countedQty, loc.qty)
+        const place = formatStorageLocationPlaceLabel(loc)
+        if (lr.status === 'ok' && sur > 0) {
+          locNotes.push(`${place}: +${sur} Stk. (Ist ${lr.countedQty}, Soll ${loc.qty})`)
+        } else {
+          locNotes.push(`${place}: Ist ${lr.countedQty}/${loc.qty}`)
+        }
       }
+      const found = inventoryFoundQtyFromReviews(
+        review.inventoryLocations,
+        review.inventoryLocationReviews,
+      )
+      const invPrefix =
+        review.resolution === 'found_elsewhere'
+          ? `Mini-Inventur: fehlende Menge woanders gefunden (${found} Stk.) — `
+          : 'Mini-Inventur: '
       noteParts.push(
         locNotes.length > 0
-          ? `Mini-Inventur: ${locNotes.join('; ')}`
-          : 'Mini-Inventur: Plätze geprüft',
+          ? `${invPrefix}${locNotes.join('; ')}`
+          : review.resolution === 'found_elsewhere'
+            ? `${invPrefix}Plätze geprüft`
+            : 'Mini-Inventur: Plätze geprüft',
       )
     }
     const countedQty =
@@ -360,6 +433,8 @@ export function buildPackCrateCheckLinesPayload(
       missing_qty: missingQty,
       note: noteParts.length > 0 ? noteParts.join(' — ') : null,
       replenish_qty: replenishQty,
+      create_inspection_task:
+        status === 'return_surplus' ? review?.createSurplusInspectionTask !== false : null,
     }
   })
 }

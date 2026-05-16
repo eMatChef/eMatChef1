@@ -23,14 +23,22 @@ const emit = defineEmits<{
 }>()
 
 function varianceKind(): 'ok' | 'short' | 'surplus' | 'unset' {
-  if (props.countedQty === props.expectedQty) return 'ok'
+  if (props.reviewStatus === 'ok') return 'ok'
   if (props.countedQty < props.expectedQty) return 'short'
   if (props.countedQty > props.expectedQty) return 'surplus'
   return 'unset'
 }
 
+function currentCounted(): number {
+  return Math.max(0, Math.floor(Number(props.countedQty)) || 0)
+}
+
 function setCounted(next: number) {
-  emit('update:countedQty', Math.max(0, next))
+  emit('update:countedQty', Math.max(0, Math.floor(Number(next)) || 0))
+}
+
+function stepCounted(delta: number) {
+  setCounted(currentCounted() + delta)
 }
 </script>
 
@@ -50,6 +58,26 @@ function setCounted(next: number) {
       <span class="pack-shell-mini-count-row__soll text-muted">
         {{ $t('activities.packList.shellForwardInventoryLocationSoll', { n: expectedQty }) }}
       </span>
+      <p
+        v-if="reviewStatus === 'ok' && currentCounted() > expectedQty"
+        class="pack-shell-mini-count-row__found-hint"
+      >
+        {{
+          $t('activities.packList.shellForwardInventoryLocationSurplusOk', {
+            n: currentCounted() - expectedQty,
+          })
+        }}
+      </p>
+      <p
+        v-else-if="reviewStatus === null && currentCounted() > expectedQty"
+        class="pack-shell-mini-count-row__found-hint pack-shell-mini-count-row__found-hint--pending"
+      >
+        {{
+          $t('activities.packList.shellForwardInventoryLocationSurplusPending', {
+            n: currentCounted() - expectedQty,
+          })
+        }}
+      </p>
     </div>
     <div class="pack-shell-mini-count-row__controls">
       <button
@@ -58,7 +86,7 @@ function setCounted(next: number) {
         :class="{ 'shell-forward-variance-btn--active': varianceKind() === 'short' }"
         :title="minusTitle"
         :disabled="disabled"
-        @click="setCounted(countedQty - 1)"
+        @click="stepCounted(-1)"
       >
         −
       </button>
@@ -79,7 +107,7 @@ function setCounted(next: number) {
         :class="{ 'shell-forward-variance-btn--active': varianceKind() === 'surplus' }"
         :title="plusTitle"
         :disabled="disabled"
-        @click="setCounted(countedQty + 1)"
+        @click="stepCounted(1)"
       >
         +
       </button>
@@ -95,6 +123,7 @@ function setCounted(next: number) {
   </li>
 </template>
 
+<style src="@/styles/views/activities/pack-workflow-modals.css"></style>
 <style scoped>
 .pack-shell-mini-count-row {
   display: flex;
@@ -143,6 +172,18 @@ function setCounted(next: number) {
   font-size: 12px;
 }
 
+.pack-shell-mini-count-row__found-hint {
+  margin: 4px 0 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: #15803d;
+}
+
+.pack-shell-mini-count-row__found-hint--pending {
+  color: #c2410c;
+  font-weight: 500;
+}
+
 .pack-shell-mini-count-row__controls {
   display: flex;
   flex-wrap: wrap;
@@ -180,9 +221,6 @@ function setCounted(next: number) {
   cursor: not-allowed;
 }
 
-.pack-shell-forward-count-input--mini {
-  width: 3rem;
-}
 
 .sr-only {
   position: absolute;

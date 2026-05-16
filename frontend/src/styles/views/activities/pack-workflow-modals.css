@@ -182,6 +182,17 @@
   flex-shrink: 0;
 }
 
+/* Ist-Zähler: bis 999 (3 Stellen) sichtbar */
+.pack-shell-forward-count-input {
+  width: 5ch;
+  min-width: 4.25rem;
+  max-width: 5.5rem;
+  text-align: center;
+  padding: 4px 8px;
+  box-sizing: border-box;
+  font-variant-numeric: tabular-nums;
+}
+
 .pack-repack-issue-inline {
   display: flex;
   flex-wrap: wrap;

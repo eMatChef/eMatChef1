@@ -34,7 +34,8 @@ class ActivityPackCrateCheckService
      *     status: string,
      *     missing_qty?: int|null,
      *     note?: string|null,
-     *     replenish_qty?: int|null
+     *     replenish_qty?: int|null,
+     *     create_inspection_task?: bool|null
      *   }>
      * } $payload
      *
@@ -65,6 +66,7 @@ class ActivityPackCrateCheckService
             $note = trim((string) ($line['note'] ?? ''));
             $missingQty = isset($line['missing_qty']) ? max(0, (int) $line['missing_qty']) : 0;
             $replenishQty = isset($line['replenish_qty']) ? max(0, (int) $line['replenish_qty']) : 0;
+            $createInspection = !empty($line['create_inspection_task']);
 
             if ($status === 'ok') {
                 continue;
@@ -170,6 +172,40 @@ class ActivityPackCrateCheckService
                         'status' => 'extra',
                         'material_item_id' => $materialItemId,
                         'note' => $note,
+                    ];
+                    continue;
+                }
+
+                if ($status === 'return_surplus' && $containerBatchId !== null) {
+                    $returnQty = $replenishQty > 0 ? $replenishQty : ($missingQty > 0 ? $missingQty : 1);
+                    $move = $this->batchStorageMoveService->moveContainerQtyToLoose(
+                        $materialItemId,
+                        $departmentId,
+                        $containerBatchId,
+                        $returnQty,
+                    );
+                    $workshopTicketId = null;
+                    $materialItem = $this->entityManager->getRepository(MaterialItem::class)->find($materialItemId);
+                    if ($createInspection && $materialItem instanceof MaterialItem) {
+                        $ticket = WorkshopController::autoCreateInspectionForCrateCheckSurplus(
+                            $this->entityManager,
+                            $activity,
+                            $materialItem,
+                            $returnQty,
+                            $shellPackItem->getMaterialItem()?->getName() ?? 'Kiste',
+                            $user,
+                        );
+                        if ($ticket) {
+                            $workshopTicketId = $ticket->getId();
+                        }
+                    }
+                    $actionsApplied[] = [
+                        'line_key' => $line['line_key'] ?? '',
+                        'status' => 'return_surplus',
+                        'material_item_id' => $materialItemId,
+                        'qty_moved' => $move['qty_moved'],
+                        'note' => $note,
+                        'workshop_ticket_id' => $workshopTicketId,
                     ];
                     continue;
                 }
