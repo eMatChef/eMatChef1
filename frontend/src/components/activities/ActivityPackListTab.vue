@@ -1670,6 +1670,28 @@
         </div>
       </div>
     </template>
+
+    <PackCrateShellForwardModal
+      :open="shellForwardModalOpen"
+      :label="shellForwardLabel"
+      :move-qty="shellForwardMoveQty"
+      :sections="shellForwardSections"
+      :department-id="departmentId"
+      :container-batch-id="shellForwardContainerBatchId"
+      :loose-stock-by-mid="shellForwardLooseStock"
+      :stock-loading="shellForwardStockLoading"
+      :history-replenish-by-key="shellForwardHistoryReplenishByKey"
+      :history-prefill-hint="shellForwardHistoryPrefillHint"
+      :can-report-issues="canReportIssues"
+      :submitting="shellForwardSubmitting"
+      :empty-hint="shellForwardEmptyHint"
+      :embedded-issues-by-line-key="shellForwardEmbeddedIssuesByLineKey"
+      :repack-issue-reviews="shellForwardRepackIssueReviews"
+      :orphan-issues="shellForwardOrphanIssues"
+      @cancel="closeShellForwardModal"
+      @submit="onShellForwardSubmit"
+      @set-repack-review="onShellForwardRepackReview"
+    />
   </div>
 </template>
 
@@ -1677,7 +1699,21 @@
 defineOptions({ name: 'ActivityPackListTab' })
 import { computed, nextTick, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import type { ActivityTransitionRow } from '@/api/activities'
+import type { ActivityIssueReportRow, ActivityTransitionRow } from '@/api/activities'
+import { getActivityHistory, getActivityIssues } from '@/api/activities'
+import {
+  getPackCrateCheckLooseStock,
+  postPackCrateCheck,
+  type PackCrateCheckRequest,
+} from '@/api/activityPackCrateCheck'
+import PackCrateShellForwardModal from '@/components/activities/PackCrateShellForwardModal.vue'
+import {
+  crateShellForwardPeekSections,
+  isCrateShellPackItem,
+  packShellContainerForPackItem,
+} from '@/components/activities/packShellCrateHelpers'
+import type { PackCrateShellPeekSection } from '@/components/activities/PackCrateShellInlinePanel.vue'
+import { indexLatestCrateCheckByPackItemId } from '@/components/activities/packCrateCheckReality'
 import {
   getPackItems,
   postInitPackItems,
@@ -1888,6 +1924,158 @@ const assignModalOpen = ref(false)
 const assignTarget = ref<ActivityPackItem | null>(null)
 const assignContainerId = ref('')
 const assignQty = ref(1)
+
+/** Kistencheck vor «Gepackt → Am Event» (Phys.-Kombi-Shell) */
+const shellForwardModalOpen = ref(false)
+const shellForwardItem = ref<ActivityPackItem | null>(null)
+const shellForwardMoveQty = ref(0)
+const shellForwardSections = ref<PackCrateShellPeekSection[]>([])
+const shellForwardLooseStock = ref<Record<string, number>>({})
+const shellForwardStockLoading = ref(false)
+const shellForwardSubmitting = ref(false)
+const shellForwardHistoryReplenishByKey = ref<Record<string, boolean>>({})
+const shellForwardHistoryPrefillHint = ref<string | null>(null)
+const shellForwardRepackIssueReviews = ref<Record<string, 'ok' | 'problem' | null>>({})
+const shellForwardEmbeddedIssuesByLineKey = ref<Record<string, ActivityIssueReportRow[]>>({})
+const shellForwardOrphanIssues = ref<ActivityIssueReportRow[]>([])
+
+const departmentId = computed(() => (props.departmentId ?? '').trim())
+
+const shellForwardLabel = computed(() => {
+  const pi = shellForwardItem.value
+  if (!pi) return ''
+  const c = packShellContainerForPackItem(pi, packContainers.value)
+  return (c?.label ?? pi.materialName).trim() || pi.materialName
+})
+
+const shellForwardContainerBatchId = computed(() => {
+  const pi = shellForwardItem.value
+  if (!pi) return null
+  const c = packShellContainerForPackItem(pi, packContainers.value)
+  return c?.container_batch_id ?? pi.linkedContainerBatchId ?? null
+})
+
+const shellForwardEmptyHint = computed(() => {
+  const pi = shellForwardItem.value
+  if (!pi) return ''
+  if (packShellContainerForPackItem(pi, packContainers.value)) {
+    return t('activities.packList.cratePeekEmptyLinkedCrate')
+  }
+  return t('activities.packList.cratePeekNoShellYet')
+})
+
+function peekSectionTitles() {
+  return {
+    all: t('activities.packList.shellForwardSectionAll'),
+    fixed: t('activities.packList.shellForwardSectionFixed'),
+    extra: t('activities.packList.shellForwardSectionExtra'),
+  }
+}
+
+function needsShellCratePresenceConfirm(pi: ActivityPackItem): boolean {
+  if (activePackStage.value !== 'packed_issued') return false
+  return isCrateShellPackItem(pi, packContainers.value)
+}
+
+function closeShellForwardModal() {
+  shellForwardModalOpen.value = false
+  shellForwardItem.value = null
+}
+
+async function openShellCrateForwardModal(item: ActivityPackItem, moveQty: number) {
+  shellForwardItem.value = item
+  shellForwardMoveQty.value = moveQty
+  shellForwardSections.value = crateShellForwardPeekSections(
+    item,
+    packContainers.value,
+    containerItemsByContainerId.value,
+    undefined,
+    peekSectionTitles(),
+    t('activities.common.material'),
+  )
+  shellForwardHistoryReplenishByKey.value = {}
+  shellForwardHistoryPrefillHint.value = null
+  shellForwardRepackIssueReviews.value = {}
+  shellForwardEmbeddedIssuesByLineKey.value = {}
+  shellForwardOrphanIssues.value = []
+  shellForwardLooseStock.value = {}
+  shellForwardModalOpen.value = true
+
+  const mids = new Set<string>()
+  for (const sec of shellForwardSections.value) {
+    for (const line of sec.lines) {
+      const mid = (line.materialItemId ?? '').trim()
+      if (mid) mids.add(mid)
+    }
+  }
+
+  shellForwardStockLoading.value = true
+  try {
+    const [stock, history, issues] = await Promise.all([
+      mids.size > 0
+        ? getPackCrateCheckLooseStock(props.activityId, item.id, [...mids])
+        : Promise.resolve({} as Record<string, number>),
+      getActivityHistory(props.activityId),
+      props.canReportIssues ? getActivityIssues(props.activityId) : Promise.resolve([]),
+    ])
+    shellForwardLooseStock.value = stock
+    const snaps = indexLatestCrateCheckByPackItemId(history)
+    const snap = snaps[item.id]
+    if (snap?.created_at) {
+      shellForwardHistoryPrefillHint.value = t('activities.packList.shellForwardHistoryPrefillHint', {
+        date: new Date(snap.created_at).toLocaleString(locale.value),
+      })
+    }
+    if (props.canReportIssues && issues.length > 0) {
+      shellForwardOrphanIssues.value = issues.filter((r) => !r.resolved)
+    }
+  } catch {
+    shellForwardLooseStock.value = {}
+  } finally {
+    shellForwardStockLoading.value = false
+  }
+}
+
+async function onShellForwardSubmit(payload: PackCrateCheckRequest) {
+  const item = shellForwardItem.value
+  const qty = shellForwardMoveQty.value
+  if (!item || qty < 1) return
+  shellForwardSubmitting.value = true
+  try {
+    const res = await postPackCrateCheck(props.activityId, item.id, payload)
+    if (!res.ok) {
+      toast.error(t('activities.packList.shellForwardCheckFailed'))
+      return
+    }
+    closeShellForwardModal()
+    await executeMoveToNextStage(item, qty)
+    if (payload.result === 'ok') {
+      toast.success(t('activities.packList.shellForwardCheckOkToast'))
+    } else {
+      toast.info(
+        t('activities.packList.shellForwardIncompleteToast', {
+          label: shellForwardLabel.value,
+          missing: '—',
+          note: '—',
+        }),
+      )
+    }
+  } catch (err: unknown) {
+    const e = err as { response?: { data?: { error?: string } }; message?: string }
+    toast.error(
+      e.response?.data?.error || e.message || t('activities.packList.shellForwardCheckFailed'),
+    )
+  } finally {
+    shellForwardSubmitting.value = false
+  }
+}
+
+function onShellForwardRepackReview(issueId: string, status: 'ok' | 'problem') {
+  shellForwardRepackIssueReviews.value = {
+    ...shellForwardRepackIssueReviews.value,
+    [issueId]: status,
+  }
+}
 
 /** Behälter & lose/in-Behälter-Aufteilung auch bei «Gepackt → Am Event» (linkes «Gepackt» wie zuvor rechts) */
 const showPackContainersUi = computed(
@@ -2881,6 +3069,14 @@ async function moveToNextStage(item: ActivityPackItem, qty?: number) {
     qty ?? moveQtyInputs.value[item.id] ?? maxMove,
   )
   if (moveQty <= 0) return
+  if (needsShellCratePresenceConfirm(item)) {
+    await openShellCrateForwardModal(item, moveQty)
+    return
+  }
+  await executeMoveToNextStage(item, moveQty)
+}
+
+async function executeMoveToNextStage(item: ActivityPackItem, moveQty: number) {
   movingId.value = item.id
   try {
     const updated = await postMovePackItem(props.activityId, item.id, {

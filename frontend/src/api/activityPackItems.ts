@@ -34,6 +34,7 @@ export interface ActivityPackItem {
   /** physical | physical_combo | virtual_combo */
   materialType: string
   linkedContainerLabel: string | null
+  linkedContainerBatchId: string | null
 }
 
 export interface PackProgress {
@@ -92,6 +93,10 @@ function mapPackItem(raw: Record<string, unknown>): ActivityPackItem {
     linkedContainerLabel:
       raw.linked_container_label != null && String(raw.linked_container_label).trim() !== ''
         ? String(raw.linked_container_label).trim()
+        : null,
+    linkedContainerBatchId:
+      raw.linked_container_batch_id != null && String(raw.linked_container_batch_id).trim() !== ''
+        ? String(raw.linked_container_batch_id).trim()
         : null,
   }
 }

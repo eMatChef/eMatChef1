@@ -12,6 +12,7 @@ use App\Entity\MaterialItem;
 use App\Entity\User;
 use App\Controller\WorkshopController;
 use App\Service\ActivityAccessService;
+use App\Service\ActivityPackCrateCheckService;
 use App\Util\IdGenerator;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -31,7 +32,8 @@ class ActivityWorkflowController extends AbstractController
 {
     public function __construct(
         private EntityManagerInterface $entityManager,
-        private ActivityAccessService $activityAccess
+        private ActivityAccessService $activityAccess,
+        private ActivityPackCrateCheckService $packCrateCheckService,
     ) {}
 
     // ═══════════════════════════════════════════════
@@ -431,6 +433,74 @@ class ActivityWorkflowController extends AbstractController
         $d = $this->storageDisplayForPackItem($packItem);
 
         return new JsonResponse($this->serializePackItem($packItem, $d['rack'], $d['slot'], $d['address']));
+    }
+
+    /**
+     * Lose Bestände für Kistencheck (Nachlegen) — mehrere Material-IDs.
+     * Query: material_item_ids=id1,id2,…
+     */
+    #[Route('/pack-items/{packItemId}/crate-check-stock', name: 'pack_items_crate_check_stock', methods: ['GET'])]
+    #[IsGranted('ROLE_USER')]
+    public function packItemCrateCheckStock(string $activityId, string $packItemId, Request $request): JsonResponse
+    {
+        $activity = $this->findActivityForUser($activityId);
+        if ($activity instanceof JsonResponse) {
+            return $activity;
+        }
+
+        $packItem = $this->entityManager->getRepository(ActivityPackItem::class)->find($packItemId);
+        if (!$packItem || $packItem->getActivityId() !== $activityId) {
+            return new JsonResponse(['error' => 'Pack-Position nicht gefunden'], 404);
+        }
+
+        $raw = (string) $request->query->get('material_item_ids', '');
+        $ids = array_values(array_filter(array_map('trim', explode(',', $raw))));
+        $stock = $this->packCrateCheckService->looseStockByMaterialIds($activity->getDepartmentId(), $ids);
+
+        return new JsonResponse(['loose_stock_by_material_id' => $stock]);
+    }
+
+    /**
+     * Sichtkontrolle Phys.-Kombi-Kiste vor Weiterbuchen (History, Nachlegen, Meldungen).
+     * Body: siehe ActivityPackCrateCheckService::apply
+     */
+    #[Route('/pack-items/{packItemId}/crate-check', name: 'pack_items_crate_check', methods: ['POST'])]
+    #[IsGranted('ROLE_USER')]
+    public function packItemCrateCheck(string $activityId, string $packItemId, Request $request): JsonResponse
+    {
+        $activity = $this->findActivityForUser($activityId);
+        if ($activity instanceof JsonResponse) {
+            return $activity;
+        }
+
+        if (!$activity->isPackListEditable()) {
+            return new JsonResponse(['error' => 'Packliste kann in Status "' . $activity->getStatus() . '" nicht bearbeitet werden'], 422);
+        }
+
+        $packItem = $this->entityManager->getRepository(ActivityPackItem::class)->find($packItemId);
+        if (!$packItem || $packItem->getActivityId() !== $activityId) {
+            return new JsonResponse(['error' => 'Pack-Position nicht gefunden'], 404);
+        }
+
+        $mi = $packItem->getMaterialItem();
+        if ($mi === null || $mi->getMaterialType() !== 'physical_combo') {
+            return new JsonResponse(['error' => 'Kistencheck nur für physische Kombi-Packzeilen'], 422);
+        }
+
+        $data = json_decode($request->getContent(), true);
+        if (!is_array($data)) {
+            return new JsonResponse(['error' => 'Ungültiger JSON-Body'], 400);
+        }
+
+        $user = $this->getUser();
+        $result = $this->packCrateCheckService->apply(
+            $activity,
+            $packItem,
+            $data,
+            $user instanceof User ? $user : null,
+        );
+
+        return new JsonResponse($result, ($result['ok'] ?? false) ? 200 : 422);
     }
 
     /**
@@ -1014,6 +1084,7 @@ class ActivityWorkflowController extends AbstractController
             'material_name' => $mi->getName(),
             'material_type' => $mi->getMaterialType(),
             'linked_container_label' => $linkedContainerLabel,
+            'linked_container_batch_id' => $linkCb?->getId(),
             'category_name' => $cat ? $cat->getName() : null,
             'category_id' => $cat ? $cat->getId() : null,
             'pack_size' => $mi->getPackSize(),
