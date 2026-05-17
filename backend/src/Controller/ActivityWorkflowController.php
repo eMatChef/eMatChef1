@@ -12,6 +12,7 @@ use App\Entity\MaterialItem;
 use App\Entity\User;
 use App\Controller\WorkshopController;
 use App\Service\ActivityAccessService;
+use App\Service\ActivityAccountingCostService;
 use App\Service\ActivityPackCrateCheckService;
 use App\Service\PackPipelineService;
 use App\Util\IdGenerator;
@@ -36,6 +37,7 @@ class ActivityWorkflowController extends AbstractController
         private ActivityAccessService $activityAccess,
         private ActivityPackCrateCheckService $packCrateCheckService,
         private PackPipelineService $packPipeline,
+        private ActivityAccountingCostService $activityAccountingCost,
     ) {}
 
     // ═══════════════════════════════════════════════
@@ -653,6 +655,11 @@ class ActivityWorkflowController extends AbstractController
             }
 
             $this->entityManager->flush();
+
+            if ($type === ActivityIssueReport::TYPE_CONSUMPTION) {
+                $this->activityAccountingCost->enqueueFromConsumption($activity, $report);
+            }
+            // Verlust/Reparatur: Kosten in der Werkstatt (Ist-Preis) — Follow-up bei Ticket-Abschluss
 
             $response = $this->serializeIssueReport($report);
             if ($workshopTicket) {

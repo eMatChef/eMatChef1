@@ -13,9 +13,9 @@
 }
 
 .pack-container-card--target {
-  border-color: #2563eb;
-  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.35);
-  background: #dbeafe;
+  border-color: var(--color-primary-light);
+  box-shadow: 0 0 0 2px var(--color-primary-ring);
+  background: var(--color-primary-muted-bg);
 }
 
 .pack-container-card--target .pack-container-select-main {
@@ -31,9 +31,9 @@
   font-weight: 700;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  color: #1d4ed8;
-  background: #bfdbfe;
-  border: 1px solid #93c5fd;
+  color: var(--color-primary-dark);
+  background: var(--color-primary-subtle-bg);
+  border: 1px solid var(--color-primary-muted-border);
 }
 
 .pack-container-header-row {

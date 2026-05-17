@@ -121,6 +121,12 @@ class Address
     #[ORM\Column(name: 'updated_at', type: 'datetime')]
     private \DateTime $updatedAt;
 
+    #[ORM\Column(name: 'deleted_at', type: 'datetime', nullable: true)]
+    private ?\DateTime $deletedAt = null;
+
+    #[ORM\Column(name: 'deleted_by_user_id', type: 'string', length: 12, nullable: true)]
+    private ?string $deletedByUserId = null;
+
     public function __construct()
     {
         $this->createdAt = new \DateTime();
@@ -381,6 +387,33 @@ class Address
         $this->updatedAt = new \DateTime();
     }
 
+    public function getDeletedAt(): ?\DateTime
+    {
+        return $this->deletedAt;
+    }
+
+    public function setDeletedAt(?\DateTime $deletedAt): self
+    {
+        $this->deletedAt = $deletedAt;
+        return $this;
+    }
+
+    public function getDeletedByUserId(): ?string
+    {
+        return $this->deletedByUserId;
+    }
+
+    public function setDeletedByUserId(?string $deletedByUserId): self
+    {
+        $this->deletedByUserId = $deletedByUserId;
+        return $this;
+    }
+
+    public function isDeleted(): bool
+    {
+        return $this->deletedAt !== null;
+    }
+
     /**
      * Gibt die vollständige Adresse als String zurück
      */
@@ -476,6 +509,8 @@ class Address
             'additional_info' => $this->additionalInfo,
             'is_primary' => $this->isPrimary,
             'full_address' => $this->getFullAddress(),
+            'deleted_at' => $this->deletedAt?->format('c'),
+            'is_deleted' => $this->isDeleted(),
         ];
     }
 

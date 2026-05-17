@@ -4,9 +4,11 @@
     <div class="page-header">
       <div>
         <h2 class="settings-title">{{ t('settings.groups.title') }}</h2>
-        <p class="settings-description">{{ t('settings.groups.subtitle') }}</p>
+        <p class="settings-description">
+          {{ isUserRole ? t('settings.groups.subtitleReadOnly') : t('settings.groups.subtitle') }}
+        </p>
       </div>
-      <button class="btn btn-primary" @click="openCreateModal()">
+      <button v-if="!isUserRole" class="btn btn-primary" @click="openCreateModal()">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
         </svg>
@@ -52,7 +54,7 @@
       </svg>
       <h3>{{ t('settings.groups.emptyTitle') }}</h3>
       <p>{{ t('settings.groups.emptyDescription') }}</p>
-      <button class="btn btn-primary" @click="openCreateModal()">
+      <button v-if="!isUserRole" class="btn btn-primary" @click="openCreateModal()">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
         </svg>
@@ -66,9 +68,8 @@
         <thead>
           <tr>
             <th class="col-name">{{ t('settings.groups.colGroup') }}</th>
-            <th class="col-leaders">{{ t('settings.groups.colLeaders') }}</th>
-            <th class="col-members">{{ t('settings.groups.colMembers') }}</th>
-            <th class="col-actions"></th>
+            <th class="col-members">{{ t('settings.groups.colMembersAndLeaders') }}</th>
+            <th v-if="!isUserRole" class="col-actions"></th>
           </tr>
         </thead>
         <tbody>
@@ -94,31 +95,23 @@
               </div>
             </td>
 
-            <!-- Leiter -->
-            <td class="col-leaders">
-              <div v-if="group.leaders.length > 0" class="leaders-list">
-                <span 
-                  v-for="leader in group.leaders" 
-                  :key="leader.user_id"
-                  class="role-badge"
-                  :style="{ background: getRoleColor(leader.role) + '18', color: getRoleColor(leader.role) }"
-                >
-                  <span class="role-short">{{ getRoleShort(leader.role) }}</span>
-                  {{ leader.name }}
-                </span>
-              </div>
-              <span v-else class="text-muted">–</span>
-            </td>
-
-            <!-- Mitglieder-Anzahl -->
+            <!-- Mitglieder & Gruppenchefs (★ = Gruppenchef) -->
             <td class="col-members">
-              <span class="member-count" :class="{ empty: group.member_count === 0 }">
-                {{ group.member_count }}
-              </span>
+              <div class="user-avatar-badge-list">
+                <template v-if="getGroupMembersForDisplay(group).length > 0">
+                  <UserAvatarBadge
+                    v-for="member in getGroupMembersForDisplay(group)"
+                    :key="member.user_id"
+                    :user="member"
+                    :show-leader-star="member.is_leader"
+                  />
+                </template>
+                <span v-else class="text-muted">–</span>
+              </div>
             </td>
 
             <!-- Aktionen -->
-            <td class="col-actions">
+            <td v-if="!isUserRole" class="col-actions">
               <div class="action-buttons">
                 <button 
                   class="action-btn" 
@@ -310,22 +303,22 @@
                   </option>
                 </select>
                 <select v-model="addMemberForm.role" class="form-select role-select-sm">
-                  <option value="member">Mitglied</option>
-                  <option value="leader">Gruppenchef</option>
+                  <option value="member">{{ t('settings.groups.roleMember') }}</option>
+                  <option value="leader">{{ t('settings.groups.roleLeader') }}</option>
                 </select>
                 <button 
                   class="btn btn-primary btn-sm"
                   :disabled="!addMemberForm.user_id"
                   @click="handleAddMember"
                 >
-                  Hinzufügen
+                  {{ t('settings.groups.add') }}
                 </button>
               </div>
             </div>
           </div>
 
           <div class="modal-footer">
-            <button class="btn btn-secondary" @click="closeMembersModal">Schliessen</button>
+            <button class="btn btn-secondary" @click="closeMembersModal">{{ t('settings.groups.close') }}</button>
           </div>
         </div>
       </div>
@@ -340,6 +333,8 @@ import { useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useToast } from '@/composables/useToast'
 import { useConfirm } from '@/composables/useConfirm'
+import { useDepartmentMemberRole } from '@/composables/useDepartmentMemberRole'
+import UserAvatarBadge from '@/components/user/UserAvatarBadge.vue'
 import {
   getGroups,
   createGroup,
@@ -348,10 +343,8 @@ import {
   addGroupMember,
   updateGroupMember,
   removeGroupMember,
-  GROUP_ROLES,
   type Group,
   type GroupMember,
-  type GroupRoleKey
 } from '@/api/groups'
 import {
   getDepartmentMembers,
@@ -363,6 +356,7 @@ const route = useRoute()
 const authStore = useAuthStore()
 const toast = useToast()
 const confirm = useConfirm()
+const { isUserRole } = useDepartmentMemberRole()
 const departmentId = computed(() => (route.params.departmentId as string) || authStore.activeDepartmentId || '')
 
 // === State ===
@@ -453,12 +447,10 @@ const availableParents = computed(() => {
 
 // === Helpers ===
 
-function getRoleColor(role: string): string {
-  return GROUP_ROLES[role as GroupRoleKey]?.color || '#6b7280'
-}
-
-function getRoleShort(role: string): string {
-  return GROUP_ROLES[role as GroupRoleKey]?.short || role.toUpperCase()
+function getGroupMembersForDisplay(group: Group): GroupMember[] {
+  const leaders = group.members.filter((m) => m.is_leader)
+  const members = group.members.filter((m) => !m.is_leader)
+  return [...leaders, ...members]
 }
 
 // === Data Loading ===
@@ -710,7 +702,7 @@ onMounted(() => {
   background: white;
   border: 1px solid #e5e7eb;
   border-radius: 10px;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .groups-table {
@@ -811,24 +803,8 @@ onMounted(() => {
   letter-spacing: 0.5px;
 }
 
-/* Members count */
-.member-count {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 28px;
-  height: 28px;
-  padding: 0 8px;
-  border-radius: 14px;
-  background: #f0f9ff;
-  color: #0369a1;
-  font-weight: 600;
-  font-size: 13px;
-}
-
-.member-count.empty {
-  background: #f3f4f6;
-  color: #9ca3af;
+.col-members {
+  min-width: 120px;
 }
 
 /* Actions */

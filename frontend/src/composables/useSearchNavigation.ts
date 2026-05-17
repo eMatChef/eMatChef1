@@ -105,20 +105,14 @@ export interface SearchSuggestion {
 
 const MAX_SUGGESTIONS = 4
 
-function buildSuggestionPath(
-  base: string,
-  type: SearchTargetType,
-  id: string,
-  searchTerm: string
-): string {
-  const q = searchTerm ? `q=${encodeURIComponent(searchTerm)}` : ''
+function buildSuggestionPath(base: string, type: SearchTargetType, id: string): string {
   switch (type) {
     case 'material':
-      return q ? `${base}/materials/${id}?${q}` : `${base}/materials/${id}`
+      return `${base}/materials/${id}`
     case 'activity':
-      return q ? `${base}/activities/${id}?${q}` : `${base}/activities/${id}`
+      return `${base}/activities/${id}`
     case 'reparatur':
-      return q ? `${base}/workshop?ticket=${id}&${q}` : `${base}/workshop?ticket=${id}`
+      return `${base}/workshop?ticket=${id}`
     default:
       return `${base}/materials/${id}`
   }
@@ -126,7 +120,7 @@ function buildSuggestionPath(
 
 /**
  * Lädt bis zu 4 Suchvorschläge (Material, Aktivität oder Workshop) die den Begriff enthalten.
- * Die path-URL enthält den Suchbegriff (?q=...) für Share/Bookmark.
+ * Detail-Vorschläge öffnen ohne ?q= (Suche bleibt Listen-Thema; ?q= nur bei Enter/Liste).
  */
 export async function fetchSearchSuggestions(
   raw: string,
@@ -147,7 +141,7 @@ export async function fetchSearchSuggestions(
           id: m.id,
           label: m.name,
           type: 'material' as const,
-          path: buildSuggestionPath(base, 'material', m.id, term),
+          path: buildSuggestionPath(base, 'material', m.id),
         }))
       }
       case 'activity': {
@@ -159,7 +153,7 @@ export async function fetchSearchSuggestions(
           id: a.id,
           label: a.name || a.no || 'Aktivität',
           type: 'activity' as const,
-          path: buildSuggestionPath(base, 'activity', a.id, term),
+          path: buildSuggestionPath(base, 'activity', a.id),
         }))
       }
       case 'reparatur': {
@@ -168,7 +162,7 @@ export async function fetchSearchSuggestions(
           id: t.id,
           label: t.title,
           type: 'reparatur' as const,
-          path: buildSuggestionPath(base, 'reparatur', t.id, term),
+          path: buildSuggestionPath(base, 'reparatur', t.id),
         }))
       }
       default:

@@ -38,6 +38,8 @@ class AccountingAcquisitionFollowUpController extends AbstractController
             $status = AccountingAcquisitionFollowUp::STATUS_PENDING;
         }
 
+        $activityIdFilter = trim((string) $request->query->get('activity_id', ''));
+
         $deptRef = $this->entityManager->getReference(Department::class, $departmentId);
 
         $qb = $this->entityManager->createQueryBuilder()
@@ -48,6 +50,11 @@ class AccountingAcquisitionFollowUpController extends AbstractController
             ->setParameter('d', $deptRef)
             ->setParameter('st', $status)
             ->orderBy('f.createdAt', 'ASC');
+
+        if ($activityIdFilter !== '') {
+            $qb->andWhere('f.activity = :act')
+                ->setParameter('act', $activityIdFilter);
+        }
 
         try {
             $rows = $qb->getQuery()->getResult();
@@ -119,6 +126,7 @@ class AccountingAcquisitionFollowUpController extends AbstractController
 
             if ($materialBatch !== null) {
                 $followUp->setMaterialBatch($materialBatch);
+                $followUp->setSourceKind(AccountingAcquisitionFollowUp::SOURCE_BATCH);
             }
 
             $this->entityManager->persist($followUp);
@@ -202,11 +210,21 @@ class AccountingAcquisitionFollowUpController extends AbstractController
     {
         $batch = $f->getMaterialBatch();
         $booking = $f->getAccountingBooking();
+        $activity = $f->getActivity();
+        $material = $f->getMaterialItem();
 
         return [
             'id' => $f->getId(),
             'department_id' => $f->getDepartment()->getId(),
             'material_batch_id' => $batch?->getId(),
+            'activity_id' => $activity?->getId(),
+            'activity_name' => $activity?->getName(),
+            'activity_group_id' => $activity?->getGroupId(),
+            'activity_type' => $activity?->getType(),
+            'source_kind' => $f->getSourceKind(),
+            'source_ref_id' => $f->getSourceRefId(),
+            'material_item_id' => $material?->getId(),
+            'material_name' => $material?->getName(),
             'amount' => $f->getAmount(),
             'suggested_date' => $f->getSuggestedDate()->format('Y-m-d'),
             'receipt_label' => $f->getReceiptLabel(),

@@ -19,23 +19,45 @@
           </div>
         </div>
       </div>
-      <div class="header-actions" v-if="contact">
-        <button class="btn-danger-outline" @click="confirmDelete" :disabled="isDeleting">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <polyline points="3 6 5 6 21 6"/>
-            <path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/>
-          </svg>
-          {{ t('contacts.detail.delete') }}
+      <div v-if="contact?.is_deleted && canManageDeletedContacts" class="header-actions contact-detail-header-actions">
+        <button type="button" class="btn-primary btn-sm" @click="handleRestore" :disabled="isRestoring">
+          {{ isRestoring ? t('contacts.detail.loading') : t('contacts.restore') }}
         </button>
-        <button class="btn-outline" @click="openEditModal">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <button
+          type="button"
+          class="btn-ghost btn-sm contact-detail-delete-btn"
+          @click="confirmPermanentDelete"
+          :disabled="isPermanentDeleting"
+        >
+          {{ isPermanentDeleting ? t('contacts.permanentDeleting') : t('contacts.permanentDelete') }}
+        </button>
+      </div>
+      <div v-else-if="contact && !isReadOnly" class="header-actions contact-detail-header-actions">
+        <button type="button" class="btn-primary btn-sm" @click="openEditModal">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
             <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
             <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
           </svg>
           {{ t('contacts.detail.edit') }}
         </button>
+        <button
+          type="button"
+          class="btn-ghost btn-sm contact-detail-delete-btn"
+          @click="confirmDelete"
+          :disabled="isDeleting"
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <polyline points="3 6 5 6 21 6"/>
+            <path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/>
+          </svg>
+          {{ isDeleting ? t('contacts.detail.deleting') : t('contacts.detail.delete') }}
+        </button>
       </div>
     </header>
+
+    <div v-if="contact?.is_deleted" class="deleted-banner" role="status">
+      {{ t('contacts.detail.deletedBanner') }}
+    </div>
 
     <!-- Loading -->
     <div v-if="isLoading" class="loading-container">
@@ -64,7 +86,7 @@
                 </svg>
                 {{ t('contacts.detail.sectionContactData') }}
               </h2>
-              <button class="section-edit-btn" @click="openEditModal" :title="t('contacts.detail.editTitle')">
+              <button v-if="!isReadOnly" class="section-edit-btn" @click="openEditModal" :title="t('contacts.detail.editTitle')">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
                   <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
@@ -106,7 +128,7 @@
                 </svg>
                 {{ t('contacts.detail.sectionCommunication') }}
               </h2>
-              <button class="section-edit-btn" @click="openEditModal" :title="t('contacts.detail.editTitle')">
+              <button v-if="!isReadOnly" class="section-edit-btn" @click="openEditModal" :title="t('contacts.detail.editTitle')">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
                   <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
@@ -157,7 +179,7 @@
 
             <div v-else class="empty-section">
               <p>{{ t('contacts.detail.noCommunication') }}</p>
-              <button class="btn-add-data" @click="openEditModal">
+              <button v-if="!isReadOnly" class="btn-add-data" @click="openEditModal">
                 <svg width="16" height="16" viewBox="0 0 20 20" fill="none">
                   <path d="M10 4V16M4 10H16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
                 </svg>
@@ -176,7 +198,7 @@
                 </svg>
                 {{ t('contacts.detail.sectionAddress') }}
               </h2>
-              <button class="section-edit-btn" @click="openEditModal" :title="t('contacts.detail.editTitle')">
+              <button v-if="!isReadOnly" class="section-edit-btn" @click="openEditModal" :title="t('contacts.detail.editTitle')">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
                   <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
@@ -219,7 +241,7 @@
           </div>
 
           <!-- Karte -->
-          <div class="section-card">
+          <div class="section-card section-card--location">
             <div class="section-header-row">
               <h2 class="section-title">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -229,42 +251,22 @@
                 </svg>
                 {{ t('contacts.detail.sectionLocation') }}
               </h2>
-              <div class="section-header-actions">
-                <button 
-                  class="section-edit-btn" 
-                  @click="searchAndSetLocation" 
-                  :disabled="isSearchingLocation"
-                  :title="t('contacts.detail.searchLocationTitle')"
-                >
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <circle cx="11" cy="11" r="8"/>
-                    <line x1="21" y1="21" x2="16.65" y2="16.65"/>
-                  </svg>
-                  {{ isSearchingLocation ? t('contacts.detail.searching') : t('contacts.detail.searchLocation') }}
-                </button>
-                <span v-if="coordinatesSaved" class="save-indicator">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <polyline points="20 6 9 17 4 12"/>
-                  </svg>
-                  {{ t('contacts.detail.saved') }}
-                </span>
-              </div>
             </div>
             <MapView
+              v-if="contact.latitude != null && contact.longitude != null"
               ref="mapRef"
               :latitude="contact.latitude"
               :longitude="contact.longitude"
               :address="contact.full_address"
-              :editable="true"
+              :editable="false"
+              :interactive="false"
               :prefer-swiss-map="isSwiss"
               :show-coordinates="true"
-              :show-layer-control="true"
+              :show-layer-control="false"
+              :show-external-map-links="true"
               height="350px"
-              @update:latitude="onLatitudeChange"
-              @update:longitude="onLongitudeChange"
-              @coordinates-changed="onCoordinatesChanged"
             />
-            <p class="map-hint">{{ t('contacts.detail.mapHint') }}</p>
+            <p v-else class="map-no-coords">{{ t('contacts.detail.noCoordinates') }}</p>
           </div>
 
           <!-- Zusätzliche Informationen -->
@@ -278,7 +280,7 @@
                 </svg>
                 {{ t('contacts.detail.sectionNotes') }}
               </h2>
-              <button class="section-edit-btn" @click="openEditModal" :title="t('contacts.detail.editTitle')">
+              <button v-if="!isReadOnly" class="section-edit-btn" @click="openEditModal" :title="t('contacts.detail.editTitle')">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
                   <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
@@ -300,9 +302,26 @@
       v-if="showEditModal"
       :department-id="departmentId"
       :address="contact"
+      :allowed-types="editAllowedTypes"
       @close="showEditModal = false"
       @saved="handleEdited"
     />
+
+    <!-- Permanent delete confirmation -->
+    <div v-if="showPermanentDeleteConfirm" class="delete-overlay">
+      <div class="delete-dialog">
+        <h3>{{ t('contacts.permanentDeleteTitle') }}</h3>
+        <p>
+          {{ t('contacts.permanentDeleteMessage', { name: contact?.name || contact?.company || t('contacts.detail.deleteNameFallback') }) }}
+        </p>
+        <div class="delete-dialog-actions">
+          <button @click="showPermanentDeleteConfirm = false" class="btn-secondary">{{ t('common.cancel') }}</button>
+          <button @click="handlePermanentDelete" class="btn-danger" :disabled="isPermanentDeleting">
+            {{ isPermanentDeleting ? t('contacts.permanentDeleting') : t('contacts.permanentDelete') }}
+          </button>
+        </div>
+      </div>
+    </div>
 
     <!-- Delete Confirmation -->
     <div v-if="showDeleteConfirm" class="delete-overlay">
@@ -326,15 +345,21 @@
 import { ref, computed, onMounted, watch, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useToast } from '@/composables/useToast'
-import { 
-  getAddress, 
-  updateAddress,
-  deleteAddress, 
-  SWISS_CANTONS, 
-  type Address 
+import {
+  getAddress,
+  deleteAddress,
+  restoreAddress,
+  permanentDeleteAddress,
+  SWISS_CANTONS,
+  type Address,
 } from '@/api/addresses'
 import MapView from '@/components/MapView.vue'
 import AddressModal from '@/components/AddressModal.vue'
+import {
+  useDepartmentMemberRole,
+  canUserManageContactType,
+  USER_CONTACT_CREATE_TYPES,
+} from '@/composables/useDepartmentMemberRole'
 
 interface Props {
   contactId: string
@@ -342,6 +367,7 @@ interface Props {
 }
 
 const props = defineProps<Props>()
+const { isUserRole, canManageDeletedContacts } = useDepartmentMemberRole()
 
 const emit = defineEmits<{
   close: []
@@ -364,20 +390,18 @@ const error = ref<string | null>(null)
 // Edit
 const showEditModal = ref(false)
 
-// Delete
+// Delete / restore
 const showDeleteConfirm = ref(false)
+const showPermanentDeleteConfirm = ref(false)
 const isDeleting = ref(false)
+const isRestoring = ref(false)
+const isPermanentDeleting = ref(false)
 
 // Copy
 const copySuccess = ref(false)
 
-// Map
+// Map (nur Anzeige; Bearbeitung über AddressModal)
 const mapRef = ref<InstanceType<typeof MapView>>()
-const isSearchingLocation = ref(false)
-const coordinatesSaved = ref(false)
-let saveTimeout: ReturnType<typeof setTimeout> | null = null
-let pendingLat: number | null = null
-let pendingLng: number | null = null
 
 // Computed: Ist der Kontakt in der Schweiz?
 const isSwiss = computed(() => {
@@ -385,6 +409,16 @@ const isSwiss = computed(() => {
   const country = contact.value.country?.toLowerCase() || ''
   return country === 'schweiz' || country === 'switzerland' || country === 'suisse' || country === 'ch' || country === ''
 })
+
+const isReadOnly = computed(() => {
+  if (!contact.value) return true
+  if (contact.value.is_deleted) return true
+  return !canUserManageContactType(contact.value.type, isUserRole.value)
+})
+
+const editAllowedTypes = computed(() =>
+  isUserRole.value ? [...USER_CONTACT_CREATE_TYPES] : null
+)
 
 // Methods
 async function loadContact() {
@@ -438,6 +472,7 @@ async function handleDelete() {
   try {
     await deleteAddress(contact.value.id)
     showDeleteConfirm.value = false
+    toast.success(t('contacts.detail.deleteSuccess'))
     emit('deleted')
   } catch (err: any) {
     const msg = err.response?.data?.error || t('contacts.detail.deleteError')
@@ -445,6 +480,41 @@ async function handleDelete() {
     toast.error(msg)
   } finally {
     isDeleting.value = false
+  }
+}
+
+function confirmPermanentDelete() {
+  showPermanentDeleteConfirm.value = true
+}
+
+async function handlePermanentDelete() {
+  if (!contact.value) return
+  isPermanentDeleting.value = true
+  try {
+    await permanentDeleteAddress(contact.value.id)
+    showPermanentDeleteConfirm.value = false
+    emit('deleted')
+  } catch (err: any) {
+    const msg = err.response?.data?.error || t('contacts.permanentDeleteError')
+    toast.error(msg)
+  } finally {
+    isPermanentDeleting.value = false
+  }
+}
+
+async function handleRestore() {
+  if (!contact.value) return
+  isRestoring.value = true
+  try {
+    const { address } = await restoreAddress(contact.value.id)
+    contact.value = address
+    toast.success(t('contacts.restoreSuccess'))
+    emit('updated')
+  } catch (err: any) {
+    const msg = err.response?.data?.error || t('contacts.restoreError')
+    toast.error(msg)
+  } finally {
+    isRestoring.value = false
   }
 }
 
@@ -456,74 +526,6 @@ async function copyAddress() {
     setTimeout(() => { copySuccess.value = false }, 2000)
   } catch {
     // Fallback: nichts tun
-  }
-}
-
-// === Map Functions ===
-
-// Adresse auf der Karte suchen
-async function searchAndSetLocation() {
-  if (!mapRef.value || !contact.value) return
-  isSearchingLocation.value = true
-  
-  try {
-    await mapRef.value.searchAddress()
-    // Karte nochmal neu berechnen nach Suche
-    setTimeout(() => {
-      mapRef.value?.invalidateSize()
-    }, 300)
-  } catch (err) {
-    console.error('Location search failed:', err)
-  } finally {
-    isSearchingLocation.value = false
-  }
-}
-
-// Koordinaten-Updates von der Karte
-function onLatitudeChange(lat: number) {
-  pendingLat = lat
-}
-
-function onLongitudeChange(lng: number) {
-  pendingLng = lng
-}
-
-function onCoordinatesChanged(lat: number, lng: number) {
-  pendingLat = lat
-  pendingLng = lng
-  
-  // Debounced speichern (1.5 Sek nach letzter Aenderung)
-  if (saveTimeout) clearTimeout(saveTimeout)
-  coordinatesSaved.value = false
-  
-  saveTimeout = setTimeout(() => {
-    saveCoordinates()
-  }, 1500)
-}
-
-// Koordinaten im Backend speichern
-async function saveCoordinates() {
-  if (!contact.value || pendingLat === null || pendingLng === null) return
-  
-  try {
-    await updateAddress(contact.value.id, {
-      latitude: pendingLat,
-      longitude: pendingLng
-    })
-    
-    // Lokalen State aktualisieren
-    if (contact.value) {
-      contact.value.latitude = pendingLat
-      contact.value.longitude = pendingLng
-      contact.value.has_coordinates = true
-    }
-    
-    coordinatesSaved.value = true
-    setTimeout(() => { coordinatesSaved.value = false }, 3000)
-    
-    emit('updated')
-  } catch (err) {
-    console.error('Failed to save coordinates:', err)
   }
 }
 
@@ -541,7 +543,19 @@ onMounted(() => {
 <style scoped>
 .contact-detail-view {
   max-width: 900px;
+  width: 100%;
+  min-width: 0;
   margin: 0 auto;
+  box-sizing: border-box;
+}
+
+.deleted-banner {
+  margin: -16px 0 24px;
+  padding: 12px 16px;
+  border-radius: 8px;
+  background: #fef3c7;
+  color: #92400e;
+  font-size: 0.9rem;
 }
 
 /* Header */
@@ -549,6 +563,7 @@ onMounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
+  flex-wrap: wrap;
   margin-bottom: 32px;
   gap: 16px;
 }
@@ -557,6 +572,8 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   gap: 16px;
+  flex: 1 1 220px;
+  min-width: 0;
 }
 
 .back-btn {
@@ -581,6 +598,11 @@ onMounted(() => {
   display: flex;
   align-items: center;
   gap: 16px;
+  min-width: 0;
+}
+
+.header-title > div:last-child {
+  min-width: 0;
 }
 
 .header-title h1 {
@@ -588,6 +610,8 @@ onMounted(() => {
   font-weight: 700;
   color: #111827;
   margin: 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .header-subtitle {
@@ -623,12 +647,32 @@ onMounted(() => {
 
 .header-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 10px;
-  flex-shrink: 0;
-  padding-top: 40px;
+  flex: 0 1 auto;
+  justify-content: flex-end;
+  align-items: center;
+  max-width: 100%;
 }
 
-/* Header actions use shared ui/buttons.css */
+.contact-detail-header-actions {
+  gap: 8px;
+}
+
+.contact-detail-delete-btn {
+  color: #6b7280;
+}
+
+.contact-detail-delete-btn:hover:not(:disabled) {
+  background: #fef2f2;
+  color: #dc2626;
+  border-color: transparent;
+}
+
+.contact-detail-delete-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
 
 /* Loading */
 .loading-container {
@@ -663,6 +707,7 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   gap: 24px;
+  min-width: 0;
 }
 
 /* Section Card */
@@ -671,6 +716,17 @@ onMounted(() => {
   border: 1px solid #e5e7eb;
   border-radius: 12px;
   padding: 24px;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.section-card--location :deep(.map-wrapper) {
+  max-width: 100%;
+}
+
+.section-card--location :deep(.map-container) {
+  overflow: hidden;
 }
 
 .section-header-row {
@@ -779,11 +835,15 @@ onMounted(() => {
 }
 
 /* Map Hint */
-.map-hint {
-  font-size: 12px;
-  color: #9ca3af;
-  margin: 8px 0 0;
+.map-no-coords {
+  font-size: 14px;
+  color: #6b7280;
+  margin: 0;
   text-align: center;
+  padding: 24px 16px;
+  background: #f9fafb;
+  border: 1px dashed #e5e7eb;
+  border-radius: 8px;
 }
 
 /* Info Grid */
@@ -1045,7 +1105,13 @@ onMounted(() => {
   }
 
   .header-actions {
-    padding-top: 0;
+    width: 100%;
+    justify-content: stretch;
+  }
+
+  .contact-detail-header-actions .btn {
+    flex: 1 1 auto;
+    min-width: 0;
   }
 
   .info-grid {

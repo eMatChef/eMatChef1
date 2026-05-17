@@ -63,6 +63,16 @@ export function isPackReturnStage(stage: PackStage): boolean {
   return stage === 'at_event_returned' || stage === 'transport_back_returned'
 }
 
+/**
+ * Lagerort / Regal / Fach nur, solange Material noch im Lager liegt (Bestätigt links).
+ * Ab «Gepackt» bzw. unterwegs/am Event ausblenden — wieder anzeigen ab Retour.
+ */
+export function showPackStorageLocation(stage: PackStage, side: 'left' | 'right'): boolean {
+  if (isPackReturnStage(stage)) return true
+  if (isPackConfirmedStage(stage)) return side === 'left'
+  return false
+}
+
 export function isPackCrateCheckStage(stage: PackStage): boolean {
   return isPackConfirmedStage(stage) || isPackForwardToEventStage(stage)
 }

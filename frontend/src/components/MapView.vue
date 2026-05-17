@@ -14,7 +14,7 @@
       </div>
 
       <!-- Layer-Auswahl -->
-      <div v-if="showLayerControl" class="layer-control">
+      <div v-if="interactive && showLayerControl" class="layer-control">
         <button
           type="button"
           :class="['layer-btn', { active: currentLayer === 'swisstopo' }]"
@@ -59,6 +59,28 @@
         <span class="coord-value">{{ foundAddress }}</span>
       </div>
     </div>
+
+    <div
+      v-if="!interactive && showExternalMapLinks && hasCoordinates && latitude != null && longitude != null"
+      class="external-map-links"
+    >
+      <a
+        :href="swisstopoMapLink"
+        target="_blank"
+        rel="noopener noreferrer"
+        class="btn btn-outline btn-sm"
+      >
+        {{ t('components.mapView.openSwisstopoMap') }}
+      </a>
+      <a
+        :href="googleMapsLink"
+        target="_blank"
+        rel="noopener noreferrer"
+        class="btn btn-outline btn-sm"
+      >
+        {{ t('components.mapView.openGoogleMaps') }}
+      </a>
+    </div>
     
   </div>
 </template>
@@ -67,6 +89,7 @@
 import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import L from 'leaflet'
+import { googleMapsCoordinatesUrl, swisstopoMapUrl } from '@/utils/mapExternalLinks'
 import 'leaflet/dist/leaflet.css'
 
 // Fix für Leaflet Marker Icons
@@ -92,6 +115,10 @@ interface Props {
   showCoordinates?: boolean
   showLayerControl?: boolean
   preferSwissMap?: boolean
+  /** Zoom/Pan/Scroll deaktivieren (z. B. Kontakt-Detailansicht). */
+  interactive?: boolean
+  /** Links zu map.geo.admin.ch und Google Maps unter der Karte. */
+  showExternalMapLinks?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -103,10 +130,12 @@ const props = withDefaults(defineProps<Props>(), {
   zoom: 17,
   showCoordinates: true,
   showLayerControl: true,
-  preferSwissMap: true
+  preferSwissMap: true,
+  interactive: true,
+  showExternalMapLinks: false,
 })
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 
 const emit = defineEmits<{
   'update:latitude': [value: number]
@@ -118,7 +147,22 @@ const emit = defineEmits<{
 const mapContainer = ref<HTMLDivElement>()
 let map: L.Map | null = null
 let marker: L.Marker | null = null
-let currentTileLayer: L.TileLayer | null = null
+let currentTileLayer: L.Layer | null = null
+let tileLayerInstances: Record<MapBaseLayer, L.Layer> | null = null
+
+const WMTS_BASE = 'https://wmts.geo.admin.ch/1.0.0'
+const SWISSTOPO_ATTRIBUTION =
+  '&copy; <a href="https://www.swisstopo.admin.ch">swisstopo</a>'
+const MAP_MAX_ZOOM = 22
+
+/** Zoom-Stufen für gestaffelte Landeskarten (EPSG:3857, geo.admin.ch). */
+const SWISSTOPO_SCALE_ZOOM = {
+  overview: { min: 7, max: 13 },
+  pk50: { min: 14, max: 16 },
+  pk25: { min: 17, max: 18 },
+  /** Landeskarte 1:10'000 – native Kacheln bis Zoom 19, darüber skaliert Leaflet. */
+  lk10: { min: 19, max: MAP_MAX_ZOOM },
+} as const
 
 const hasCoordinates = ref(false)
 const isLoading = ref(false)
@@ -130,8 +174,11 @@ const currentLayer = ref<MapBaseLayer>('swisstopo')
 // Schweiz-Zentrum als Fallback
 const DEFAULT_CENTER: [number, number] = [46.8182, 8.2275]
 const DEFAULT_ZOOM = 7
-const SEARCH_RESULT_ZOOM = 18
-const MAP_MAX_ZOOM = 22
+/** Kartenansicht ohne Koordinaten im Bearbeitungsmodus (regional, nicht ganze CH). */
+const DEFAULT_ZOOM_EDITABLE = 11
+/** Ab dieser Zoomstufe gilt die Karte als «nah genug» – darunter nach Treffer ranzoomen. */
+const MIN_LOCATION_ZOOM = 14
+const SEARCH_RESULT_ZOOM = 17
 
 // Schweiz Bounding Box (ungefähr)
 const SWISS_BOUNDS = {
@@ -148,6 +195,18 @@ const isInSwitzerland = computed(() => {
   if (!lat || !lng) return false
   return lat >= SWISS_BOUNDS.minLat && lat <= SWISS_BOUNDS.maxLat &&
          lng >= SWISS_BOUNDS.minLng && lng <= SWISS_BOUNDS.maxLng
+})
+
+const mapLang = computed(() => (String(locale.value).startsWith('en') ? 'en' : 'de'))
+
+const swisstopoMapLink = computed(() => {
+  if (props.latitude == null || props.longitude == null) return '#'
+  return swisstopoMapUrl(props.latitude, props.longitude, mapLang.value)
+})
+
+const googleMapsLink = computed(() => {
+  if (props.latitude == null || props.longitude == null) return '#'
+  return googleMapsCoordinatesUrl(props.latitude, props.longitude)
 })
 
 // WGS84 zu LV95 (Schweizer Koordinaten) Umrechnung
@@ -188,55 +247,114 @@ function formatWGS84(lat: number | null | undefined, lng: number | null | undefi
   return `${lat.toFixed(6)}° N, ${lng.toFixed(6)}° E`
 }
 
-// Tile-Layer definieren (maxNativeZoom: echte Kacheln; höheres maxZoom: Leaflet skaliert letzte Kachel)
+// Karten-Limits pro Modus (maxNativeZoom: echte Kacheln; höheres maxZoom: Leaflet skaliert letzte Kachel)
 const tileLayers: Record<
   MapBaseLayer,
-  { url: string; options: L.TileLayerOptions }
+  { options: L.TileLayerOptions }
 > = {
   swisstopo: {
-    url: 'https://wmts.geo.admin.ch/1.0.0/ch.swisstopo.pixelkarte-farbe/default/current/3857/{z}/{x}/{y}.jpeg',
     options: {
-      attribution: '&copy; <a href="https://www.swisstopo.admin.ch">swisstopo</a>',
-      maxNativeZoom: 18,
-      maxZoom: 20,
-      minZoom: 7
-    }
+      attribution: SWISSTOPO_ATTRIBUTION,
+      maxNativeZoom: 19,
+      maxZoom: MAP_MAX_ZOOM,
+      minZoom: SWISSTOPO_SCALE_ZOOM.overview.min,
+    },
   },
   swissimage: {
-    url: 'https://wmts.geo.admin.ch/1.0.0/ch.swisstopo.swissimage/default/current/3857/{z}/{x}/{y}.jpeg',
     options: {
-      attribution: '&copy; <a href="https://www.swisstopo.admin.ch">swisstopo</a>',
-      maxNativeZoom: 19,
+      attribution: SWISSTOPO_ATTRIBUTION,
+      // Orthophoto bis ca. 0,5 m (Zoom 18); kein separates 1:25k/1:50k-WMTS
+      maxNativeZoom: 18,
       maxZoom: 21,
-      minZoom: 7
-    }
+      minZoom: 7,
+    },
   },
   osm: {
-    url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
     options: {
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
       maxNativeZoom: 19,
-      maxZoom: 20
-    }
+      maxZoom: 20,
+    },
+  },
+}
+
+function wmtsUrl(layerId: string, format: 'jpeg' | 'png' = 'jpeg'): string {
+  return `${WMTS_BASE}/${layerId}/default/current/3857/{z}/{x}/{y}.${format}`
+}
+
+function buildSwisstopoLayerGroup(): L.LayerGroup {
+  const overview = L.tileLayer(wmtsUrl('ch.swisstopo.pixelkarte-farbe'), {
+    attribution: SWISSTOPO_ATTRIBUTION,
+    minZoom: SWISSTOPO_SCALE_ZOOM.overview.min,
+    maxZoom: SWISSTOPO_SCALE_ZOOM.overview.max,
+    maxNativeZoom: 18,
+  })
+  const pk50 = L.tileLayer(wmtsUrl('ch.swisstopo.pixelkarte-farbe-pk50.noscale'), {
+    attribution: SWISSTOPO_ATTRIBUTION,
+    minZoom: SWISSTOPO_SCALE_ZOOM.pk50.min,
+    maxZoom: SWISSTOPO_SCALE_ZOOM.pk50.max,
+    maxNativeZoom: SWISSTOPO_SCALE_ZOOM.pk50.max,
+  })
+  const pk25 = L.tileLayer(wmtsUrl('ch.swisstopo.pixelkarte-farbe-pk25.noscale'), {
+    attribution: SWISSTOPO_ATTRIBUTION,
+    minZoom: SWISSTOPO_SCALE_ZOOM.pk25.min,
+    maxZoom: SWISSTOPO_SCALE_ZOOM.pk25.max,
+    maxNativeZoom: SWISSTOPO_SCALE_ZOOM.pk25.max,
+  })
+  const lk10 = L.tileLayer(wmtsUrl('ch.swisstopo.landeskarte-farbe-10', 'png'), {
+    attribution: SWISSTOPO_ATTRIBUTION,
+    minZoom: SWISSTOPO_SCALE_ZOOM.lk10.min,
+    maxZoom: SWISSTOPO_SCALE_ZOOM.lk10.max,
+    maxNativeZoom: 19,
+  })
+  return L.layerGroup([overview, pk50, pk25, lk10])
+}
+
+function buildTileLayerInstances(): Record<MapBaseLayer, L.Layer> {
+  return {
+    swisstopo: buildSwisstopoLayerGroup(),
+    swissimage: L.tileLayer(wmtsUrl('ch.swisstopo.swissimage'), tileLayers.swissimage.options),
+    osm: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', tileLayers.osm.options),
   }
 }
 
-function setLayer(layerName: MapBaseLayer) {
+function applyMapZoomLimitsForLayer(layerName: MapBaseLayer) {
   if (!map) return
+  const opts = tileLayers[layerName].options
+  const layerMax = opts.maxZoom ?? MAP_MAX_ZOOM
+  const layerMin = opts.minZoom ?? 1
+  map.setMaxZoom(Math.min(MAP_MAX_ZOOM, layerMax))
+  map.setMinZoom(layerMin)
+}
+
+function setLayer(layerName: MapBaseLayer) {
+  if (!map || !tileLayerInstances) return
+  if (currentLayer.value === layerName && currentTileLayer) return
+
+  const center = map.getCenter()
+  const zoom = map.getZoom()
 
   currentLayer.value = layerName
+  currentTileLayer = tileLayerInstances[layerName]
 
-  if (currentTileLayer) {
-    map.removeLayer(currentTileLayer)
+  for (const [name, layer] of Object.entries(tileLayerInstances) as [MapBaseLayer, L.Layer][]) {
+    if (name === layerName) {
+      if (!map.hasLayer(layer)) layer.addTo(map)
+    } else if (map.hasLayer(layer)) {
+      map.removeLayer(layer)
+    }
   }
 
-  const layer = tileLayers[layerName]
-  currentTileLayer = L.tileLayer(layer.url, layer.options).addTo(map)
+  applyMapZoomLimitsForLayer(layerName)
 
-  const layerMax = layer.options.maxZoom ?? MAP_MAX_ZOOM
-  map.setMaxZoom(Math.min(MAP_MAX_ZOOM, layerMax))
-  if (map.getZoom() > map.getMaxZoom()) {
-    map.setZoom(map.getMaxZoom())
+  let targetZoom = zoom
+  if (targetZoom > map.getMaxZoom()) targetZoom = map.getMaxZoom()
+  if (targetZoom < map.getMinZoom()) targetZoom = map.getMinZoom()
+
+  map.setView(center, targetZoom, { animate: false })
+
+  if (marker) {
+    marker.addTo(map)
   }
 }
 
@@ -245,17 +363,34 @@ function initMap() {
   
   const lat = props.latitude ?? DEFAULT_CENTER[0]
   const lng = props.longitude ?? DEFAULT_CENTER[1]
-  const zoom = props.latitude && props.longitude ? props.zoom : DEFAULT_ZOOM
+  const zoom =
+    props.latitude && props.longitude
+      ? props.zoom
+      : props.editable
+        ? DEFAULT_ZOOM_EDITABLE
+        : DEFAULT_ZOOM
   
   hasCoordinates.value = props.latitude !== null && props.longitude !== null
   
-  map = L.map(mapContainer.value, { maxZoom: MAP_MAX_ZOOM }).setView([lat, lng], zoom)
-  
+  map = L.map(mapContainer.value, {
+    maxZoom: MAP_MAX_ZOOM,
+    zoomControl: props.interactive,
+    scrollWheelZoom: props.interactive,
+    touchZoom: props.interactive,
+    doubleClickZoom: props.interactive,
+    boxZoom: props.interactive,
+    keyboard: props.interactive,
+    dragging: props.interactive,
+  }).setView([lat, lng], zoom)
+
+  tileLayerInstances = buildTileLayerInstances()
+
   // Initial Layer basierend auf Position oder Präferenz
   const useSwiss = props.preferSwissMap && (
     !props.latitude || !props.longitude || isInSwitzerland.value
   )
   setLayer(useSwiss ? 'swisstopo' : 'osm')
+  applyMapInteractivity()
   
   // Marker setzen wenn Koordinaten vorhanden
   if (props.latitude && props.longitude) {
@@ -264,8 +399,8 @@ function initMap() {
     reverseGeocode(props.latitude, props.longitude)
   }
   
-  // Klick-Handler für editierbare Karte
-  if (props.editable) {
+  // Klick-Handler nur bei interaktiver, editierbarer Karte
+  if (props.interactive && props.editable) {
     map.on('click', async (e: L.LeafletMouseEvent) => {
       const { lat, lng } = e.latlng
       setMarker(lat, lng)
@@ -294,17 +429,17 @@ function invalidateSize() {
   }
 }
 
-function setMarker(lat: number, lng: number) {
+function setMarker(lat: number, lng: number, zoomLevel?: number) {
   if (!map) return
   
   if (marker) {
     marker.setLatLng([lat, lng])
   } else {
     marker = L.marker([lat, lng], {
-      draggable: props.editable
+      draggable: props.interactive && props.editable,
     }).addTo(map)
     
-    if (props.editable) {
+    if (props.interactive && props.editable) {
       marker.on('dragend', async () => {
         const pos = marker!.getLatLng()
         emit('update:latitude', pos.lat)
@@ -314,8 +449,10 @@ function setMarker(lat: number, lng: number) {
       })
     }
   }
-  
-  map.setView([lat, lng], map.getZoom())
+
+  const targetZoom =
+    zoomLevel ?? (map.getZoom() < MIN_LOCATION_ZOOM ? SEARCH_RESULT_ZOOM : map.getZoom())
+  map.setView([lat, lng], targetZoom)
   
   // Tiles neu laden falls nötig
   setTimeout(() => {
@@ -424,10 +561,7 @@ async function searchAddress() {
       const lat = result.lat
       const lng = result.lon
       
-      setMarker(lat, lng)
-      if (map) {
-        map.setView([lat, lng], Math.max(map.getZoom(), SEARCH_RESULT_ZOOM))
-      }
+      setMarker(lat, lng, SEARCH_RESULT_ZOOM)
       emit('update:latitude', lat)
       emit('update:longitude', lng)
       emit('coordinates-changed', lat, lng)
@@ -448,10 +582,7 @@ async function searchAddress() {
       const latitude = parseFloat(lat)
       const longitude = parseFloat(lon)
       
-      setMarker(latitude, longitude)
-      if (map) {
-        map.setView([latitude, longitude], Math.max(map.getZoom(), SEARCH_RESULT_ZOOM))
-      }
+      setMarker(latitude, longitude, SEARCH_RESULT_ZOOM)
       emit('update:latitude', latitude)
       emit('update:longitude', longitude)
       emit('coordinates-changed', latitude, longitude)
@@ -491,6 +622,30 @@ watch(
   }
 )
 
+function applyMapInteractivity() {
+  if (!map) return
+  const on = props.interactive
+  if (on) {
+    map.scrollWheelZoom.enable()
+    map.touchZoom.enable()
+    map.doubleClickZoom.enable()
+    map.boxZoom.enable()
+    map.keyboard.enable()
+    map.dragging.enable()
+  } else {
+    map.scrollWheelZoom.disable()
+    map.touchZoom.disable()
+    map.doubleClickZoom.disable()
+    map.boxZoom.disable()
+    map.keyboard.disable()
+    map.dragging.disable()
+  }
+}
+
+watch(() => props.interactive, () => {
+  applyMapInteractivity()
+})
+
 onMounted(() => {
   nextTick(() => {
     initMap()
@@ -508,6 +663,8 @@ onUnmounted(() => {
     map.remove()
     map = null
   }
+  tileLayerInstances = null
+  currentTileLayer = null
 })
 
 // Expose für Parent-Komponente
@@ -526,7 +683,10 @@ defineExpose({
   flex-direction: column;
   gap: 8px;
   width: 100%;
+  min-width: 0;
+  max-width: 100%;
   height: 100%;
+  box-sizing: border-box;
 }
 
 .map-container {
@@ -581,13 +741,17 @@ defineExpose({
   border-radius: 6px;
   padding: 10px 12px;
   font-size: 13px;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .coord-row {
   display: flex;
   justify-content: space-between;
-  align-items: center;
-  gap: 16px;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 4px 12px;
 }
 
 .coord-row + .coord-row {
@@ -617,11 +781,18 @@ defineExpose({
   color: #1f2937;
   font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
   font-size: 12px;
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  text-align: right;
 }
 
 .coord-row.address .coord-value {
   font-family: inherit;
   font-size: 13px;
+  text-align: left;
+  width: 100%;
 }
 
 /* Layer Control */
@@ -674,5 +845,23 @@ defineExpose({
 
 :deep(.leaflet-control-attribution a) {
   color: #3b82f6;
+}
+
+.external-map-links {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+  margin-top: 12px;
+  min-width: 0;
+  max-width: 100%;
+  padding-bottom: 2px;
+}
+
+.external-map-links .btn {
+  width: 100%;
+  justify-content: center;
+  white-space: normal;
+  text-align: center;
 }
 </style>

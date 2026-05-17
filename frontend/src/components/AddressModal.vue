@@ -95,7 +95,7 @@
           <div class="form-group">
             <label class="form-label">{{ t('settings.addressModal.typeField') }}</label>
             <select v-model="formData.type" class="form-select" :disabled="isGlobalMode">
-              <option v-for="key in addressTypeKeys" :key="key" :value="key">
+              <option v-for="key in visibleAddressTypeKeys" :key="key" :value="key">
                 {{ t(`settings.addressForm.types.${key}`) }}
               </option>
             </select>
@@ -337,6 +337,8 @@ interface Props {
   defaultType?: string
   defaultName?: string
   apiMode?: 'department' | 'global'
+  /** Wenn gesetzt: nur diese Adresstypen im Dropdown (z. B. User-Rolle). */
+  allowedTypes?: string[] | null
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -360,7 +362,14 @@ const isGlobalMode = computed(() => props.apiMode === 'global')
 const isSaving = ref(false)
 const error = ref<string | null>(null)
 
-const addressTypeKeys = Object.keys(ADDRESS_TYPES) as (keyof typeof ADDRESS_TYPES)[]
+const allAddressTypeKeys = Object.keys(ADDRESS_TYPES) as (keyof typeof ADDRESS_TYPES)[]
+
+const visibleAddressTypeKeys = computed(() => {
+  if (props.allowedTypes?.length) {
+    return allAddressTypeKeys.filter((key) => props.allowedTypes!.includes(key))
+  }
+  return allAddressTypeKeys
+})
 
 const modalTitle = computed(() => {
   if (isEditing.value) {
@@ -517,6 +526,12 @@ function selectSearchResult(result: SearchResult) {
   if (result.company && !formData.value.company) formData.value.company = result.company
   if (result.latitude) formData.value.latitude = result.latitude
   if (result.longitude) formData.value.longitude = result.longitude
+
+  if (result.latitude && result.longitude) {
+    nextTick(() => {
+      mapRef.value?.setMarker(result.latitude!, result.longitude!, 17)
+    })
+  }
 }
 
 function hideSearchResultsDelayed() {

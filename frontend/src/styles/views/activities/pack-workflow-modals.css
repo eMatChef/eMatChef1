@@ -159,6 +159,43 @@
   background: #fafafa;
 }
 
+.pack-shell-forward-li--wizard {
+  margin-bottom: 6px;
+  padding: 7px 10px;
+}
+
+.pack-shell-forward-li-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  flex: 1;
+}
+
+.pack-shell-forward-li-name {
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.25;
+  color: #334155;
+}
+
+.pack-shell-forward-li-sub {
+  font-size: 11px;
+  line-height: 1.35;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: 8px;
+  row-gap: 0;
+}
+
+.pack-shell-forward-li-serial {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 10.5px;
+  letter-spacing: -0.02em;
+  white-space: nowrap;
+}
+
 .pack-shell-forward-li--ok {
   border-color: #bbf7d0;
   background: #f0fdf4;

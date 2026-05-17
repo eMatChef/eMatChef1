@@ -52,6 +52,19 @@ export type ShellForwardCheckLine = {
   quantity: number
   materialItemId: string | null
   isExtra: boolean
+  /** Erwartete Seriennummer(n) in der Kiste — zur Sichtprüfung */
+  serialHint?: string | null
+}
+
+/** Anzeigetext für Seriennummer / Batch-Label (Kistencheck, Mini-Inventur). */
+export function formatBatchSerialHint(
+  serialNumber?: string | null,
+  batchLabel?: string | null,
+): string | null {
+  const sn = (serialNumber ?? '').trim()
+  const label = (batchLabel ?? '').trim()
+  if (sn && label && label !== sn) return `${sn} – ${label}`
+  return sn || label || null
 }
 
 export function shellForwardLineKey(subsectionKey: string, lineId: string): string {
@@ -68,8 +81,7 @@ export function storageLocationRowKey(loc: MaterialStorageLocationRow): string {
   ].join('\x1e')
 }
 
-/** Ortsbezeichnung ohne Stückzahl (Soll steht an den Mini-Zählern). */
-export function formatStorageLocationPlaceLabel(loc: MiniInventoryLocationRow): string {
+function storageLocationPlaceWithoutSerial(loc: MiniInventoryLocationRow): string {
   if (loc.location_kind === 'combo') {
     const name = (loc.container_caption || '').trim() || 'Kombi'
     return `In Kombi-Kiste «${name}»`
@@ -80,6 +92,14 @@ export function formatStorageLocationPlaceLabel(loc: MiniInventoryLocationRow): 
   if (loc.storage_address_name) parts.push(loc.storage_address_name)
   if (loc.location_label) parts.push(loc.location_label)
   return parts.join(' · ') || '—'
+}
+
+/** Ortsbezeichnung ohne Stückzahl (Soll steht an den Mini-Zählern); inkl. Seriennummer wenn vorhanden. */
+export function formatStorageLocationPlaceLabel(loc: MiniInventoryLocationRow): string {
+  const place = storageLocationPlaceWithoutSerial(loc)
+  const serial = formatBatchSerialHint(loc.serial_number, loc.batch_label)
+  if (!serial) return place
+  return place !== '—' ? `SN ${serial} · ${place}` : `SN ${serial}`
 }
 
 export function defaultInventoryLocationReview(expectedQty: number): InventoryLocationReview {
@@ -387,6 +407,9 @@ export function buildPackCrateCheckLinesPayload(
     }
     const noteParts: string[] = []
     if (review?.note?.trim()) noteParts.push(review.note.trim())
+    if (line.serialHint?.trim()) {
+      noteParts.push(`Seriennummer: ${line.serialHint.trim()}`)
+    }
     if (review && review.countedQty !== line.quantity) {
       noteParts.push(`Ist ${review.countedQty} / Soll ${line.quantity}`)
     }

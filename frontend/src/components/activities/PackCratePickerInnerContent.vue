@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { computed, inject, reactive, watch } from 'vue'
+import { computed, inject, reactive, watch, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { IconArrowLeft } from '@/components/icons'
 import type { ActivityPackContainer, ActivityPackContainerItem } from '@/api/activityContainers'
 import type { PackContainerItemSection } from '@/components/activities/packShellCrateHelpers'
 import { PACK_WAREHOUSE_ISSUE_INJECT_KEY } from '@/components/activities/packWarehouseIssueInjectKey'
@@ -66,12 +67,84 @@ function applyPickerDefaults() {
   }
 }
 
+function pullQtyInputsRef(): Ref<Record<string, number>> {
+  return ctx.containerPullQtyInputs as Ref<Record<string, number>>
+}
+
+function allPickerLines(): ActivityPackContainerItem[] {
+  return sections.value.flatMap((sec) => sec.lines)
+}
+
+function ensurePullQtyDefaults(): void {
+  const ref = pullQtyInputsRef()
+  const next = { ...ref.value }
+  let changed = false
+  for (const ci of allPickerLines()) {
+    if (isNonActionable(ci)) continue
+    const k = pullKey(ci)
+    const packed = Math.max(0, Math.floor(ci.quantity_packed ?? 0) || 0)
+    if (packed < 1) continue
+    if (next[k] == null || !Number.isFinite(Number(next[k])) || Number(next[k]) < 1) {
+      next[k] = packed
+      changed = true
+    }
+  }
+  if (changed) ref.value = next
+}
+
 watch(
   () => props.expanded,
   (exp) => {
-    if (exp) applyPickerDefaults()
+    if (exp) {
+      applyPickerDefaults()
+      ensurePullQtyDefaults()
+    }
   },
 )
+
+watch(
+  () => allPickerLines().map((ci) => `${ci.id}:${ci.quantity_packed}`).join('|'),
+  () => {
+    if (props.expanded) ensurePullQtyDefaults()
+  },
+)
+
+function isNonActionable(ci: ActivityPackContainerItem): boolean {
+  return (ctx.isVirtualWarehouseContainerLine as (row: ActivityPackContainerItem) => boolean)(ci)
+}
+
+function pullKey(ci: ActivityPackContainerItem): string {
+  return (ctx.containerPullKey as (containerId: string, itemId: string) => string)(
+    props.container.id,
+    ci.id,
+  )
+}
+
+function pullFromContainer(ci: ActivityPackContainerItem): void {
+  ;(ctx.pullFromContainer as (containerId: string, row: ActivityPackContainerItem) => void)(
+    props.container.id,
+    ci,
+  )
+}
+
+function pullQtyFor(ci: ActivityPackContainerItem): number {
+  const packed = Math.max(1, Math.floor(ci.quantity_packed ?? 0) || 0)
+  const k = pullKey(ci)
+  const stored = pullQtyInputsRef().value[k]
+  if (stored != null && Number.isFinite(Number(stored)) && Number(stored) >= 1) {
+    return Math.min(Math.floor(Number(stored)), packed)
+  }
+  return packed
+}
+
+function setPullQty(ci: ActivityPackContainerItem, raw: string | number): void {
+  const packed = Math.max(1, Math.floor(ci.quantity_packed ?? 0) || 0)
+  let qty = Math.floor(Number(raw)) || 0
+  if (qty < 1) qty = 1
+  qty = Math.min(qty, packed)
+  const ref = pullQtyInputsRef()
+  ref.value = { ...ref.value, [pullKey(ci)]: qty }
+}
 </script>
 
 <template>
@@ -81,8 +154,32 @@ watch(
         <div
           v-for="ci in flatLines"
           :key="ci.id"
-          class="pack-container-line pack-crate-picker-line"
+          class="pack-container-line pack-crate-picker-line pack-container-line--stacked"
         >
+          <div
+            v-if="packListEditable && !isNonActionable(ci) && (ci.quantity_packed ?? 0) > 0"
+            class="pack-card-actions pack-card-actions-left"
+            @click.stop
+          >
+            <button
+              type="button"
+              class="btn-moveback-arrow"
+              :disabled="Boolean(ctx.containerMutationLoading)"
+              :title="t('activities.packList.pullFromContainerTitle')"
+              @click="pullFromContainer(ci)"
+            >
+              <IconArrowLeft />
+            </button>
+            <input
+              :value="pullQtyFor(ci)"
+              type="number"
+              min="1"
+              :max="ci.quantity_packed"
+              class="pack-moveback-input"
+              @input="setPullQty(ci, ($event.target as HTMLInputElement).value)"
+              @keyup.enter="pullFromContainer(ci)"
+            />
+          </div>
           <div class="pack-container-line-main">
             <span class="pack-container-line-name">{{
               ci.material_name || t('activities.common.material')
@@ -148,11 +245,41 @@ watch(
           v-show="!isSubCollapsed(sec.subsectionKey)"
           class="pack-container-subsection-lines"
         >
+          <p
+            v-if="sec.lines.length === 0 && sec.subsectionKey === 'extra'"
+            class="pack-container-empty text-muted"
+          >
+            {{ t('activities.packList.cratePickerExtraEmpty') }}
+          </p>
           <div
             v-for="ci in sec.lines"
             :key="sec.subsectionKey + '-' + ci.id"
-            class="pack-container-line pack-crate-picker-line"
+            class="pack-container-line pack-crate-picker-line pack-container-line--stacked"
           >
+            <div
+              v-if="packListEditable && !isNonActionable(ci) && (ci.quantity_packed ?? 0) > 0"
+              class="pack-card-actions pack-card-actions-left"
+              @click.stop
+            >
+              <button
+                type="button"
+                class="btn-moveback-arrow"
+                :disabled="Boolean(ctx.containerMutationLoading)"
+                :title="t('activities.packList.pullFromContainerTitle')"
+                @click="pullFromContainer(ci)"
+              >
+                <IconArrowLeft />
+              </button>
+              <input
+                :value="pullQtyFor(ci)"
+                type="number"
+                min="1"
+                :max="ci.quantity_packed"
+                class="pack-moveback-input"
+                @input="setPullQty(ci, ($event.target as HTMLInputElement).value)"
+                @keyup.enter="pullFromContainer(ci)"
+              />
+            </div>
             <div class="pack-container-line-main">
               <span class="pack-container-line-name">{{
                 ci.material_name || t('activities.common.material')
@@ -182,5 +309,6 @@ watch(
   </div>
 </template>
 
+<style src="@/styles/views/activities/detail-workflow.css"></style>
 <style src="@/styles/views/activities/pack-container-card.css"></style>
 <style scoped src="@/styles/views/activities/pack-crate-picker.css"></style>

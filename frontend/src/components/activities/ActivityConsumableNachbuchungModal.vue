@@ -61,6 +61,35 @@
               </span>
             </div>
           </div>
+          <div class="nachbuchung-field">
+            <label for="nachbuchung-purchase-total">
+              {{ t('components.activityNachbuchungModal.labelPurchaseTotal') }}
+              <span class="required" aria-hidden="true">*</span>
+            </label>
+            <p class="nachbuchung-ve-note text-muted">{{ t('components.activityNachbuchungModal.purchaseHint') }}</p>
+            <input
+              id="nachbuchung-purchase-total"
+              v-model.number="purchaseTotalChf"
+              type="number"
+              min="0.01"
+              step="0.05"
+              required
+              class="form-input"
+              :class="{ 'form-input-invalid': purchaseError && !purchaseValid }"
+              :placeholder="t('components.activityNachbuchungModal.purchasePlaceholder')"
+              @input="purchaseError = false"
+            />
+            <p v-if="purchaseError && !purchaseValid" class="nachbuchung-field-error" role="alert">
+              {{ t('components.activityNachbuchungModal.purchaseRequired') }}
+            </p>
+            <p v-if="purchaseTotalChf != null && purchaseTotalChf > 0 && qty > 0" class="nachbuchung-purchase-unit text-muted">
+              {{
+                t('components.activityNachbuchungModal.purchasePerPiece', {
+                  amount: (purchaseTotalChf / qty).toFixed(2),
+                })
+              }}
+            </p>
+          </div>
           <p v-if="departmentId && materialItemId" class="nachbuchung-hint text-muted">
             {{ t('components.activityNachbuchungModal.hintWarehouse') }}
             <router-link class="nachbuchung-link" :to="materialDetailPath">{{
@@ -70,7 +99,12 @@
         </div>
         <div class="nachbuchung-footer">
           <button type="button" class="btn btn-outline" :disabled="submitting" @click="close">{{ t('common.cancel') }}</button>
-          <button type="button" class="btn btn-primary" :disabled="submitting || qty < 1" @click="submit">
+          <button
+            type="button"
+            class="btn btn-primary"
+            :disabled="submitting || qty < 1 || !purchaseValid"
+            @click="submit"
+          >
             {{ submitting ? t('components.activityNachbuchungModal.submitting') : t('components.activityNachbuchungModal.submit') }}
           </button>
         </div>
@@ -104,7 +138,14 @@ const emit = defineEmits<{
 const { t } = useI18n()
 const toast = useToast()
 const qty = ref(1)
+const purchaseTotalChf = ref<number | null>(null)
+const purchaseError = ref(false)
 const submitting = ref(false)
+
+const purchaseValid = computed(() => {
+  const total = purchaseTotalChf.value
+  return total != null && Number.isFinite(total) && total > 0
+})
 
 const materialDetailPath = computed(() => `/${props.departmentId}/materials/${props.materialItemId}`)
 
@@ -124,6 +165,8 @@ watch(
     // Einkauf/Lager oft pro VE (Sack, Bündel …): Standard = Stückzahl einer VE, nicht 1 Stk.
     const ps = effectivePackSize.value
     qty.value = ps != null ? ps : 1
+    purchaseTotalChf.value = null
+    purchaseError.value = false
   },
 )
 
@@ -141,13 +184,23 @@ function close() {
 
 async function submit() {
   if (qty.value < 1 || submitting.value || !props.materialItemId) return
+  if (!purchaseValid.value) {
+    purchaseError.value = true
+    toast.error(t('components.activityNachbuchungModal.purchaseRequired'))
+    return
+  }
+  const total = purchaseTotalChf.value!
   submitting.value = true
   try {
-    await addActivityItem(props.activityId, {
+    const body: Parameters<typeof addActivityItem>[1] = {
       material_item_id: props.materialItemId,
       quantity: qty.value,
       replenishment: true,
-    })
+      line_total: total.toFixed(2),
+      unit_price: (total / qty.value).toFixed(2),
+      price_type: 'sale',
+    }
+    await addActivityItem(props.activityId, body)
     emit('success')
     close()
   } catch (err: unknown) {
@@ -222,6 +275,21 @@ async function submit() {
   margin-bottom: 8px;
 }
 
+.nachbuchung-field .required {
+  color: #dc2626;
+  margin-left: 2px;
+}
+
+.nachbuchung-field-error {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: #dc2626;
+}
+
+.form-input-invalid {
+  border-color: #dc2626;
+}
+
 .nachbuchung-ve-note {
   margin: 0 0 10px;
   font-size: 12px;
@@ -275,6 +343,11 @@ async function submit() {
 .nachbuchung-pack-hint {
   font-size: 12px;
   width: 100%;
+}
+
+.nachbuchung-purchase-unit {
+  margin: 6px 0 0;
+  font-size: 12px;
 }
 
 .nachbuchung-hint {

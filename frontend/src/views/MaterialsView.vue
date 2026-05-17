@@ -19,9 +19,9 @@
         <div class="header-content">
           <div>
             <h1>{{ t('materialsView.title') }}</h1>
-            <p class="description">{{ t('materialsView.description') }}</p>
+            <p v-if="!isUserMaterialsBrowseOnly" class="description">{{ t('materialsView.description') }}</p>
           </div>
-          <button @click="openCreateWizard" class="btn-primary">
+          <button v-if="canManageMaterials" @click="openCreateWizard" class="btn-primary">
             <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
               <path d="M10 4V16M4 10H16" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
             </svg>
@@ -30,8 +30,8 @@
         </div>
       </header>
 
-      <!-- Tab Navigation -->
-      <div class="material-tabs">
+      <!-- Tab Navigation (User: nur «Alle Artikel» — Tabs ausgeblendet) -->
+      <div v-if="!isUserMaterialsBrowseOnly" class="material-tabs">
         <button 
           class="material-tab" 
           :class="{ active: activeTab === 'combos' }" 
@@ -108,7 +108,7 @@
             :department-id="currentDepartmentId"
             default-type="material"
             v-model="searchQuery"
-            :placeholder="t('materialsView.searchPlaceholder')"
+            :placeholder="t('materialsView.searchListPlaceholder')"
           />
         </div>
         
@@ -137,14 +137,14 @@
               {{ t('materialsView.comboFilterVirtual') }}
             </button>
           </div>
-          <select v-model="selectedCategory" class="filter-select">
+          <select v-if="!isUserMaterialsBrowseOnly" v-model="selectedCategory" class="filter-select">
             <option value="">{{ t('materialsView.filterAllCategories') }}</option>
             <option v-for="cat in categories" :key="cat.id" :value="cat.id">
               {{ cat.parent_id ? '↳ ' : '' }}{{ cat.name }} ({{ cat.material_count }})
             </option>
           </select>
           
-          <select v-model="selectedCondition" class="filter-select">
+          <select v-if="!isUserMaterialsBrowseOnly" v-model="selectedCondition" class="filter-select">
             <option value="">{{ t('materialsView.filterAllConditions') }}</option>
             <option value="ok">{{ t('materialsView.conditionOk') }}</option>
             <option value="defect">{{ t('materialsView.conditionDefect') }}</option>
@@ -204,7 +204,7 @@
         </div>
         <h2>{{ t('materialsView.emptyTitle') }}</h2>
         <p>{{ t('materialsView.emptyDescription') }}</p>
-        <button @click="openCreateWizard" class="btn-primary btn-large">
+        <button v-if="canManageMaterials" @click="openCreateWizard" class="btn-primary btn-large">
           <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
             <path d="M10 4V16M4 10H16" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
           </svg>
@@ -232,15 +232,15 @@
             <thead>
               <tr>
                 <th v-if="showComboExpandColumn" class="col-expand"></th>
-                <th class="col-code">{{ t('materialsView.colCode') }}</th>
+                <th v-if="showCodeColumn" class="col-code">{{ t('materialsView.colCode') }}</th>
                 <th class="col-name">{{ t('materialsView.colName') }}</th>
                 <th v-if="showComboColumns" class="col-type">{{ t('materialsView.colType') }}</th>
                 <th class="col-category">{{ t('materialsView.colCategory') }}</th>
                 <th class="col-stock">{{ t('materialsView.colTotal') }}</th>
                 <th v-if="showComboColumns" class="col-stock-sm">{{ t('materialsView.colCombo') }}</th>
-                <th class="col-stock-sm">{{ t('materialsView.colIssuedOut') }}</th>
-                <th class="col-stock-sm">{{ t('materialsView.colRepair') }}</th>
-                <th class="col-stock-sm">{{ t('materialsView.colAvailable') }}</th>
+                <th v-if="showStockDetailColumns" class="col-stock-sm">{{ t('materialsView.colIssuedOut') }}</th>
+                <th v-if="showStockDetailColumns" class="col-stock-sm">{{ t('materialsView.colRepair') }}</th>
+                <th v-if="showStockDetailColumns" class="col-stock-sm">{{ t('materialsView.colAvailable') }}</th>
                 <th class="col-actions"></th>
               </tr>
             </thead>
@@ -267,7 +267,7 @@
                       </svg>
                     </button>
                   </td>
-                  <td class="col-code">
+                  <td v-if="showCodeColumn" class="col-code">
                     <div class="code-cell">
                       <span v-if="material.barcode_tag" class="code-badge">{{ material.barcode_tag }}</span>
                       <PublicQrTag
@@ -334,15 +334,15 @@
                     <span v-if="material.combo_allocated > 0" class="stock-badge combo">{{ material.combo_allocated }}</span>
                     <span v-else class="stock-zero">–</span>
                   </td>
-                  <td class="col-stock-sm">
+                  <td v-if="showStockDetailColumns" class="col-stock-sm">
                     <span v-if="material.issued_out > 0" class="stock-badge issued">{{ material.issued_out }}</span>
                     <span v-else class="stock-zero">–</span>
                   </td>
-                  <td class="col-stock-sm">
+                  <td v-if="showStockDetailColumns" class="col-stock-sm">
                     <span v-if="material.repair_stock > 0" class="stock-badge repair">{{ material.repair_stock }}</span>
                     <span v-else class="stock-zero">–</span>
                   </td>
-                  <td class="col-stock-sm">
+                  <td v-if="showStockDetailColumns" class="col-stock-sm">
                     <span class="stock-badge available" :class="{ low: material.available < 3 && material.total_stock > 0, empty: material.available <= 0 && material.total_stock > 0 }">
                       {{ material.available }}
                     </span>
@@ -503,14 +503,25 @@ import GlobalSearchInput from '@/components/common/GlobalSearchInput.vue'
 import PublicQrTag from '@/components/common/PublicQrTag.vue'
 import { useDetailTabsStore } from '@/stores/detailTabs'
 import { useToast } from '@/composables/useToast'
+import { useListSearchQueryRoute } from '@/composables/useListSearchQueryRoute'
+import { useAuthStore } from '@/stores/auth'
 import '@/styles/material-wizard.css'
 
 const route = useRoute()
+const authStore = useAuthStore()
 const { t } = useI18n()
 const detailTabsStore = useDetailTabsStore()
 const router = useRouter()
 const toast = useToast()
 const currentDepartmentId = computed(() => route.params.departmentId as string)
+
+/** Department-Rolle «User»: eingeschränkte Material-Liste (nur Tab «Alle Artikel», lesen). */
+const departmentRole = computed(() => (authStore.currentDepartmentRole || 'u').toLowerCase())
+const isUserMaterialsBrowseOnly = computed(() => ['u', 'user'].includes(departmentRole.value))
+const canManageMaterials = computed(() => ['mw', 'dc', 'matwart', 'depchef'].includes(departmentRole.value))
+const showCodeColumn = computed(() => !isUserMaterialsBrowseOnly.value)
+const showStockDetailColumns = computed(() => !isUserMaterialsBrowseOnly.value)
+
 type MaterialTab = 'combos' | 'all' | 'virtual_combos' | 'consumables' | 'food' | 'storage'
 const materialTabRouteNames: Record<MaterialTab, string> = {
   all: 'MaterialsTabAll',
@@ -669,6 +680,12 @@ const showComboExpandColumn = computed(() =>
 )
 
 const materialTableColspan = computed(() => {
+  if (isUserMaterialsBrowseOnly.value) {
+    let cols = 3 // name, category, total
+    if (showComboExpandColumn.value) cols += 1
+    cols += 1 // actions
+    return cols
+  }
   if (showComboColumns.value) return 11
   if (showComboExpandColumn.value) return 9
   return 8
@@ -725,7 +742,9 @@ const filteredMaterials = computed(() => {
 })
 
 const hasActiveFilters = computed(() => {
-  const baseFilters = searchQuery.value || selectedCategory.value || selectedCondition.value
+  const baseFilters = searchQuery.value
+    || (!isUserMaterialsBrowseOnly.value && selectedCategory.value)
+    || (!isUserMaterialsBrowseOnly.value && selectedCondition.value)
   const comboTypeFilter = activeTab.value === 'combos' && comboFilter.value !== 'all'
   return baseFilters || comboTypeFilter
 })
@@ -798,14 +817,24 @@ async function toggleComboExpand(materialId: string) {
   }
 }
 
+const { clearSearchFromRoute, stripQueryFromDetailRoute } = useListSearchQueryRoute({
+  searchQuery,
+  route,
+  router,
+  pathIncludes: '/materials',
+  isListView: () => !selectedMaterialId.value,
+  isSearchActive: () => activeTab.value !== 'storage',
+})
+
 function resetFilters() {
-  searchQuery.value = ''
+  clearSearchFromRoute()
   selectedCategory.value = ''
   selectedCondition.value = ''
   comboFilter.value = 'physical'
 }
 
 function selectTab(tab: MaterialTab) {
+  if (isUserMaterialsBrowseOnly.value && tab !== 'all') return
   activeTab.value = tab
   if (selectedMaterialId.value) return
   const routeName = materialTabRouteNames[tab]
@@ -819,11 +848,26 @@ function selectTab(tab: MaterialTab) {
 }
 
 function readLastMaterialTab(): MaterialTab {
+  if (isUserMaterialsBrowseOnly.value) return 'all'
   const raw = localStorage.getItem(lastTabStorageKey.value)
   if (raw && raw in materialTabRouteNames) {
     return raw as MaterialTab
   }
   return 'all'
+}
+
+function enforceUserMaterialsListRoute(): void {
+  if (!isUserMaterialsBrowseOnly.value) return
+  activeTab.value = 'all'
+  if (selectedMaterialId.value) return
+  const name = String(route.name || '')
+  if (name !== 'MaterialsTabAll' && name !== 'Materials') return
+  if (name === 'MaterialsTabAll') return
+  router.replace({
+    name: 'MaterialsTabAll',
+    params: { departmentId: currentDepartmentId.value },
+    query: route.query,
+  })
 }
 
 function openCreateWizard(opts?: { linkAsComboComponentTo?: string }) {
@@ -933,6 +977,20 @@ watch(
   () => route.name,
   (name) => {
     if (!name) return
+    if (isUserMaterialsBrowseOnly.value) {
+      const tab = routeNameToMaterialTab[String(name)]
+      if (tab && tab !== 'all' && !selectedMaterialId.value) {
+        router.replace({
+          name: 'MaterialsTabAll',
+          params: { departmentId: currentDepartmentId.value },
+          query: route.query,
+        })
+        return
+      }
+      activeTab.value = 'all'
+      enforceUserMaterialsListRoute()
+      return
+    }
     const tab = routeNameToMaterialTab[String(name)]
     if (tab) {
       activeTab.value = tab
@@ -953,25 +1011,21 @@ watch(
   { immediate: true }
 )
 
-watch(
-  () => route.query.q,
-  (q) => {
-    if (route.path.includes('/materials')) {
-      searchQuery.value = (q as string) ?? ''
-    }
-  },
-  { immediate: true }
-)
+watch(selectedMaterialId, (id) => {
+  if (id) stripQueryFromDetailRoute()
+})
 
 // Query ?new=1: Wizard direkt öffnen (z.B. vom Dashboard)
 watch(
   () => route.query.new,
   (val) => {
-    if (val === '1' && !showCreateWizard.value) {
-      openCreateWizard()
+    if (val === '1') {
       const q = { ...route.query }
       delete q.new
       router.replace({ path: route.path, query: q })
+      if (canManageMaterials.value && !showCreateWizard.value) {
+        openCreateWizard()
+      }
     }
   },
   { immediate: true }

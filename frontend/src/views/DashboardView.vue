@@ -46,7 +46,7 @@
         <span>{{ t('dashboard.createMaterial') }}</span>
       </router-link>
       <router-link
-        v-if="showMaterialCreate"
+        v-if="showCreateActivity"
         :to="{ path: getLink('/activities'), query: { new: '1', from: 'dashboard' } }"
         class="quick-action-btn primary"
       >
@@ -129,7 +129,11 @@
             <span class="status-dot" :class="a.status"></span>
             <div class="activity-info">
               <span class="activity-name">{{ a.name }}</span>
-              <span class="activity-meta">{{ formatDateShort(a.usage_start) }} · {{ getStatusLabel(a.status) }}</span>
+              <span class="activity-meta">
+                {{ formatDateShort(a.usage_start) }}
+                <template v-if="a.group_name"> · {{ a.group_name }}</template>
+                · {{ getStatusLabel(a.status) }}
+              </span>
             </div>
             <svg class="arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
               <polyline points="9 18 15 12 9 6"/>
@@ -342,6 +346,12 @@ const hasSupportAdminRole = computed(() =>
 )
 
 const showMaterialCreate = computed(() => MW_DASHBOARD_ROLES.includes(role.value))
+const showCreateActivity = computed(() =>
+  USER_ROLES.includes(role.value) ||
+  LEADER_ROLES.includes(role.value) ||
+  DC_ROLES.includes(role.value) ||
+  MW_DASHBOARD_ROLES.includes(role.value)
+)
 const showActiveActivities = computed(() => USER_ROLES.includes(role.value) || LEADER_ROLES.includes(role.value))
 const showDraftsWidget = computed(() => LEADER_ROLES.includes(role.value))
 const showOverviewWidget = computed(() => DC_ROLES.includes(role.value) || MW_DASHBOARD_ROLES.includes(role.value))

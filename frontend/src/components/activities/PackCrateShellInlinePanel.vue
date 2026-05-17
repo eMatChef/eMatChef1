@@ -14,6 +14,8 @@ export interface PackCrateShellPeekLine {
   quantity: number
   /** material_item.id für Kistencheck / Lager / Meldungen */
   materialItemId?: string | null
+  /** Seriennummer / Label der erwarteten Charge (Sichtprüfung) */
+  serialHint?: string | null
   /** Nach Kistencheck: Status der Zeile (ok, loss, extra, …) */
   checkStatus?: string | null
   /** Soll zum Zeitpunkt des Checks */
@@ -262,6 +264,13 @@ watch(
                 class="pack-combo-crate-inline__line"
               >
                 <span class="pack-combo-crate-inline__name">{{ line.materialName }}</span>
+                <span
+                  v-if="line.serialHint"
+                  class="pack-combo-crate-inline__serial text-muted"
+                  :title="t('activities.packList.shellForwardSerialCheckTitle')"
+                >
+                  {{ t('activities.packList.shellForwardSerialSn', { serial: line.serialHint }) }}
+                </span>
                 <span class="pack-combo-crate-inline__qty text-muted">
                   {{ line.quantity }}×
                   <span
@@ -299,6 +308,7 @@ watch(
                 v-if="interactiveShellCheck"
                 :material-name="line.materialName"
                 :expected-qty="line.quantity"
+                :serial-hint="line.serialHint"
                 :review="reviewForLine(sec.subsectionKey, line)"
                 :is-extra="sec.subsectionKey === 'extra'"
                 :minus-disabled="historyReplenishForLine(sec.subsectionKey, line.id) || sec.subsectionKey === 'extra'"
@@ -311,6 +321,9 @@ watch(
               <div v-else class="pack-container-line">
                 <div class="pack-container-line-main">
                   <span class="pack-container-line-name">{{ line.materialName }}</span>
+                  <span v-if="line.serialHint" class="pack-combo-crate-inline__serial text-muted">
+                    {{ t('activities.packList.shellForwardSerialSn', { serial: line.serialHint }) }}
+                  </span>
                   <span class="pack-container-line-qty text-muted">{{
                     t('activities.common.piecesShort', { count: line.quantity })
                   }}</span>
@@ -384,6 +397,7 @@ watch(
                 v-if="interactiveShellCheck"
                 :material-name="line.materialName"
                 :expected-qty="line.quantity"
+                :serial-hint="line.serialHint"
                 :review="reviewForLine(sec.subsectionKey, line)"
                 :is-extra="sec.subsectionKey === 'extra'"
                 :minus-disabled="historyReplenishForLine(sec.subsectionKey, line.id) || sec.subsectionKey === 'extra'"
@@ -395,6 +409,13 @@ watch(
               />
               <div v-else class="pack-container-line-main">
                 <span class="pack-container-line-name">{{ line.materialName }}</span>
+                <span
+                  v-if="line.serialHint"
+                  class="pack-combo-crate-inline__serial text-muted"
+                  :title="t('activities.packList.shellForwardSerialCheckTitle')"
+                >
+                  {{ t('activities.packList.shellForwardSerialSn', { serial: line.serialHint }) }}
+                </span>
                 <span class="pack-container-line-qty text-muted">
                   {{ t('activities.common.piecesShort', { count: line.quantity }) }}
                   <span
@@ -449,6 +470,13 @@ watch(
               class="pack-combo-crate-inline__line"
             >
               <span class="pack-combo-crate-inline__name">{{ line.materialName }}</span>
+              <span
+                v-if="line.serialHint"
+                class="pack-combo-crate-inline__serial text-muted"
+                :title="t('activities.packList.shellForwardSerialCheckTitle')"
+              >
+                {{ t('activities.packList.shellForwardSerialSn', { serial: line.serialHint }) }}
+              </span>
               <span class="pack-combo-crate-inline__qty text-muted">
                 {{ line.quantity }}×
                 <span
@@ -609,6 +637,15 @@ watch(
 
 .pack-crate-reality-banner__toggle {
   margin: 0;
+}
+
+.pack-combo-crate-inline__serial {
+  display: block;
+  margin-top: 1px;
+  font-size: 10.5px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  letter-spacing: -0.02em;
+  line-height: 1.3;
 }
 
 .pack-combo-crate-inline__check-badge {

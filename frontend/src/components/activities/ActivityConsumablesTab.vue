@@ -1,7 +1,7 @@
 <template>
   <div class="activity-consumables-tab">
-    <div class="section-card">
-      <h2 class="section-title">{{ t('activities.consumables.title') }}</h2>
+    <ActivityTabHeader :title="t('activities.consumables.title')" />
+    <div class="section-card activity-tab-panel-card">
       <p v-if="isLoading" class="activity-inline-loading">
         <span class="spinner spinner-sm"></span>
         <span>{{ t('activities.consumables.loading') }}</span>
@@ -81,6 +81,26 @@
             </div>
             <div
               v-if="canAddActivityMaterial && remainingQty(row.material_item_id) > 0"
+              class="consumable-surplus-row"
+            >
+              <p class="consumable-surplus-hint text-muted">
+                {{ t('activities.consumables.surplusHint', { n: remainingQty(row.material_item_id) }) }}
+              </p>
+              <button
+                type="button"
+                class="btn btn-sm btn-outline"
+                :disabled="releasingId === row.material_item_id"
+                @click="releaseSurplus(row)"
+              >
+                {{
+                  releasingId === row.material_item_id
+                    ? t('activities.consumables.surplusReleasing')
+                    : t('activities.consumables.surplusRelease', { n: remainingQty(row.material_item_id) })
+                }}
+              </button>
+            </div>
+            <div
+              v-if="canAddActivityMaterial"
               class="consumable-nachlieferung"
             >
               <button type="button" class="link-btn" @click="emitNachbuchung(row)">
@@ -89,6 +109,34 @@
             </div>
           </div>
         </div>
+
+        <section v-if="consumableAggregated.length > 0" class="costs-section consumable-costs-section">
+          <h3 class="costs-section-title">{{ t('activities.consumables.costsTitle') }}</h3>
+          <p class="consumable-costs-hint text-muted">{{ t('activities.consumables.costsHint') }}</p>
+          <div class="costs-table">
+            <div class="costs-row costs-row-header">
+              <span class="costs-col-name">{{ t('activities.consumables.costsColMaterial') }}</span>
+              <span class="costs-col-qty">{{ t('activities.consumables.costsColBooked') }}</span>
+              <span class="costs-col-used">{{ t('activities.consumables.costsColUsed') }}</span>
+              <span class="costs-col-price">{{ t('activities.consumables.costsColUnitPrice') }}</span>
+              <span class="costs-col-total">{{ t('activities.consumables.costsColAmount') }}</span>
+            </div>
+            <div v-for="row in consumableAggregated" :key="'cost-' + row.material_item_id" class="costs-row">
+              <span class="costs-col-name">{{ displayNameAgg(row) }}</span>
+              <span class="costs-col-qty">{{ row.quantity_booked }}</span>
+              <span class="costs-col-used">{{ usedQty(row.material_item_id) || '–' }}</span>
+              <span class="costs-col-price">{{ formatUnitPrice(row.sale_price) }}</span>
+              <span class="costs-col-total">{{ formatLineAmount(row) }}</span>
+            </div>
+          </div>
+          <div class="costs-subtotal">
+            <span>{{ t('activities.consumables.costsTotal') }}</span>
+            <strong>CHF {{ formatChf(consumableCostTotalValue) }}</strong>
+          </div>
+          <p v-if="consumableCostTotalValue <= 0" class="consumable-costs-none text-muted">
+            {{ t('activities.consumables.costsNoneYet') }}
+          </p>
+        </section>
 
         <div v-if="consumptionHistory.length > 0" class="consumable-history">
           <h3 class="consumable-history-title">{{ t('activities.consumables.historyTitle') }}</h3>
@@ -115,10 +163,20 @@ import {
   createActivityIssue,
   getActivityIssues,
   getActivityItems,
+  releaseConsumableSurplus,
   type ActivityIssueReportRow,
   type ActivityItemRow,
 } from '@/api/activities'
+import {
+  consumableChargeableCost,
+  consumableCostTotal,
+  consumableDisplayName,
+  formatChf,
+  formatChfLabel,
+  parseMoney,
+} from '@/components/activities/activityCosts'
 import { useToast } from '@/composables/useToast'
+import ActivityTabHeader from '@/components/activities/ActivityTabHeader.vue'
 
 defineOptions({ name: 'ActivityConsumablesTab' })
 
@@ -163,15 +221,20 @@ const consumableAggregated = computed(() => {
       quantity_booked: number
       pack_size?: number | null
       pack_unit?: string | null
+      sale_price: number | null
     }
   >()
   for (const r of activityItems.value.filter((x) => x.is_consumable === true)) {
     const ex = map.get(r.material_item_id)
+    const price = parseMoney(r.sale_price)
     if (ex) {
       ex.quantity_booked += r.quantity
       if (!ex.pack_size && r.pack_size) {
         ex.pack_size = r.pack_size
         ex.pack_unit = r.pack_unit ?? null
+      }
+      if (ex.sale_price == null && price != null) {
+        ex.sale_price = price
       }
     } else {
       map.set(r.material_item_id, {
@@ -181,11 +244,27 @@ const consumableAggregated = computed(() => {
         quantity_booked: r.quantity,
         pack_size: r.pack_size ?? null,
         pack_unit: r.pack_unit ?? null,
+        sale_price: price,
       })
     }
   }
   return [...map.values()]
 })
+
+const consumableCostTotalValue = computed(() =>
+  consumableCostTotal(activityItems.value, issues.value),
+)
+
+function formatUnitPrice(price: number | null): string {
+  return formatChfLabel(price)
+}
+
+function formatLineAmount(row: { material_item_id: string; sale_price: number | null }): string {
+  const amount = consumableChargeableCost(row.material_item_id, activityItems.value, issues.value)
+  return formatChfLabel(amount)
+}
+
+const releasingId = ref<string | null>(null)
 
 const consumptionReports = computed(() => issues.value.filter((i) => i.type === 'consumption'))
 
@@ -291,6 +370,26 @@ async function load() {
     toast.error(t('activities.consumables.toastLoadFailed'))
   } finally {
     isLoading.value = false
+  }
+}
+
+async function releaseSurplus(row: { material_item_id: string }) {
+  const rem = remainingQty(row.material_item_id)
+  if (rem < 1 || releasingId.value) return
+  releasingId.value = row.material_item_id
+  try {
+    await releaseConsumableSurplus(props.activityId, {
+      material_item_id: row.material_item_id,
+      quantity: rem,
+    })
+    toast.success(t('activities.consumables.toastSurplusReleased', { n: rem }))
+    emit('consumptionBooked')
+    await load()
+  } catch (err: unknown) {
+    const e = err as { response?: { data?: { error?: string } }; message?: string }
+    toast.error(e.response?.data?.error || e.message || t('activities.consumables.toastSurplusFailed'))
+  } finally {
+    releasingId.value = null
   }
 }
 
@@ -434,6 +533,18 @@ watch(
   max-width: 36rem;
 }
 
+.consumable-surplus-row {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed #e5e7eb;
+}
+
+.consumable-surplus-hint {
+  margin: 0 0 8px;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
 .consumable-nachlieferung {
   margin-top: 10px;
   padding-top: 8px;
@@ -453,6 +564,21 @@ watch(
 
 .link-btn:hover {
   color: #1d4ed8;
+}
+
+.consumable-costs-section {
+  margin-top: 20px;
+}
+
+.consumable-costs-hint {
+  margin: 0 0 12px;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.consumable-costs-none {
+  margin: 8px 0 0;
+  font-size: 12px;
 }
 
 .consumable-history {

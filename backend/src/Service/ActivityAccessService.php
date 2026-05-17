@@ -13,9 +13,53 @@ use Doctrine\ORM\EntityManagerInterface;
  */
 class ActivityAccessService
 {
+    private const DEPARTMENT_WIDE_MANAGER_ROLES = ['sa', 'org', 'sub', 'mw', 'dc'];
+
     public function __construct(
-        private EntityManagerInterface $entityManager
+        private EntityManagerInterface $entityManager,
+        private GroupHierarchyService $groupHierarchy
     ) {}
+
+    public function isDepartmentWideManager(string $role): bool
+    {
+        return in_array($role, self::DEPARTMENT_WIDE_MANAGER_ROLES, true);
+    }
+
+    public function canUserSeeExternalActivities(string $role): bool
+    {
+        return $this->isDepartmentWideManager($role);
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function getUserRootGroupIdsInDepartment(User $user, string $departmentId): array
+    {
+        $groupMemberships = $this->entityManager->getRepository(GroupMembership::class)
+            ->findBy(['userId' => $user->getId()]);
+        $ids = [];
+        foreach ($groupMemberships as $groupMembership) {
+            $group = $groupMembership->getGroup();
+            if ($group->getDepartmentId() === $departmentId) {
+                $ids[] = $groupMembership->getGroupId();
+            }
+        }
+
+        return array_values(array_unique($ids));
+    }
+
+    /**
+     * Sichtbare Gruppen-IDs inkl. aller Untergruppen (User in Parent sieht Child-Aktivitäten).
+     *
+     * @return list<string>
+     */
+    public function getExpandedVisibleGroupIds(User $user, string $departmentId): array
+    {
+        return $this->groupHierarchy->expandWithDescendants(
+            $departmentId,
+            $this->getUserRootGroupIdsInDepartment($user, $departmentId)
+        );
+    }
 
     public function isDepartmentInviteAccepted(Activity $activity, string $departmentId): bool
     {
@@ -91,8 +135,7 @@ class ActivityAccessService
             return false;
         }
 
-        $managerRoles = ['sa', 'org', 'sub', 'mw', 'dc'];
-        if (in_array($membership->getRole(), $managerRoles, true)) {
+        if ($this->isDepartmentWideManager((string) $membership->getRole())) {
             return true;
         }
 
@@ -100,15 +143,22 @@ class ActivityAccessService
             return true;
         }
 
+        if (!$this->canUserSeeExternalActivities((string) $membership->getRole()) && $activity->isExternal()) {
+            return false;
+        }
+
         $groupId = $activity->getGroupId();
         if (!$groupId) {
             return false;
         }
 
-        $groupMembership = $this->entityManager->getRepository(GroupMembership::class)
-            ->findOneBy(['userId' => $user->getId(), 'groupId' => $groupId]);
+        $userRootGroupIds = $this->getUserRootGroupIdsInDepartment($user, $activity->getDepartmentId());
 
-        return $groupMembership !== null;
+        return $this->groupHierarchy->isActivityGroupUnderUserGroups(
+            $activity->getDepartmentId(),
+            $groupId,
+            $userRootGroupIds
+        );
     }
 
     /**
@@ -169,11 +219,8 @@ class ActivityAccessService
 
         $groupId = $activity->getGroupId();
         if ($groupId) {
-            $gm = $this->entityManager->getRepository(GroupMembership::class)->findOneBy([
-                'userId' => $uid,
-                'groupId' => $groupId,
-            ]);
-            if ($gm !== null) {
+            $userRootGroupIds = $this->getUserRootGroupIdsInDepartment($user, $hostDeptId);
+            if ($this->groupHierarchy->isActivityGroupUnderUserGroups($hostDeptId, $groupId, $userRootGroupIds)) {
                 return true;
             }
         } elseif ($activity->isEvent() && $hostMem !== null) {

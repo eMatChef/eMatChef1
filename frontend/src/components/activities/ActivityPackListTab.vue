@@ -13,27 +13,28 @@
     </div>
 
     <template v-else>
-      <div v-if="packItems.length === 0" class="section-card">
-      <h2 class="section-title">{{ t('activities.packList.title') }}</h2>
-      <p class="text-muted">{{ t('activities.packList.emptyPositions') }}</p>
-      <button
-        v-if="canInitPackList"
-        type="button"
-        class="btn-primary btn-sm"
-        :disabled="initLoading"
-        @click="onInitPackList"
-      >
-        {{ initLoading ? t('activities.packList.initCreating') : t('activities.packList.initStart') }}
-      </button>
-      </div>
+      <template v-if="packItems.length === 0">
+        <ActivityTabHeader :title="t('activities.packList.title')" />
+        <div class="section-card activity-tab-panel-card">
+          <p class="text-muted">{{ t('activities.packList.emptyPositions') }}</p>
+          <button
+            v-if="canInitPackList"
+            type="button"
+            class="btn-primary btn-sm"
+            :disabled="initLoading"
+            @click="onInitPackList"
+          >
+            {{ initLoading ? t('activities.packList.initCreating') : t('activities.packList.initStart') }}
+          </button>
+        </div>
+      </template>
 
-      <template v-if="packItems.length > 0">
-        <div class="section-card">
-          <h2 class="section-title">{{ t('activities.packList.titleWorkflow') }}</h2>
+      <template v-else>
+        <ActivityTabHeader :title="t('activities.packList.titleWorkflow')">
           <p v-if="!packListEditable" class="activity-pack-readonly-hint text-muted">
             {{ t('activities.packList.readonlyHint') }}
           </p>
-        </div>
+        </ActivityTabHeader>
 
         <div v-if="showPackMaterialAddPanel" class="section-card pack-add-material-card">
           <button
@@ -45,8 +46,8 @@
             <span class="pack-add-material-chevron" aria-hidden="true">{{ packAddMaterialExpanded ? '▼' : '▶' }}</span>
             <span class="pack-add-material-toggle-title">{{ t('activities.packList.addMaterialToggleTitle') }}</span>
           </button>
-          <p class="pack-add-material-summary text-muted">{{ t('activities.packList.addMaterialToggleSummary') }}</p>
           <div v-show="packAddMaterialExpanded" class="pack-add-material-body">
+            <p class="pack-add-material-summary text-muted">{{ t('activities.packList.addMaterialToggleSummary') }}</p>
             <p class="field-hint text-muted pack-add-material-hint">{{ t('activities.packList.addMaterialHint') }}</p>
             <div v-if="showPackMaterialAddTarget" class="pack-add-material-target">
               <label class="pack-add-material-target-label">
@@ -101,10 +102,10 @@
               <span>{{ t('activities.detail.addingMaterial') }}</span>
             </p>
           </div>
-          </div>
+        </div>
 
 
-      <div class="pack-workflow">
+      <div class="pack-workflow pack-workflow--compact">
         <div class="pack-stage-tabs">
           <button
             v-for="st in packStagesForUi"
@@ -202,11 +203,13 @@
                   v-if="showPackContainersUi && pi.materialType === 'physical_combo'"
                   :shell-pack-item="pi"
                   :stage-right-label="activeStageConfig.rightLabel"
+                  :show-storage-location="showPackStorageLocation(activePackStage, 'left')"
                 />
                 <PackMaterialRow
                   v-else
                   :item="pi"
-                  :show-rack="activePackStage === 'confirmed_packed'"
+                  :show-storage-location="showPackStorageLocation(activePackStage, 'left')"
+                  :show-linked-kiste="showPackStorageLocation(activePackStage, 'left')"
                 >
                   <template #detail>
                     <PackMaterialRowDetail
@@ -289,6 +292,7 @@
                   :key="'issue-' + c.id"
                   :container="c"
                   :stage-right-label="activeStageConfig.rightLabel"
+                  :show-storage-location="showPackStorageLocation(activePackStage, 'left')"
                 />
               </div>
               </div>
@@ -335,7 +339,13 @@
                   <span class="pack-group-toggle">{{ collapsedGroups['ret-cat-' + g.categoryName] ? '▶' : '▼' }}</span>
                 </div>
                 <div v-if="!collapsedGroups['ret-cat-' + g.categoryName]" class="pack-group-items">
-                  <PackMaterialRow v-for="pi in g.items" :key="'ret-pi-' + pi.id" :item="pi">
+                  <PackMaterialRow
+                    v-for="pi in g.items"
+                    :key="'ret-pi-' + pi.id"
+                    :item="pi"
+                    :show-storage-location="showPackStorageLocation(activePackStage, 'right')"
+                    :show-linked-kiste="showPackStorageLocation(activePackStage, 'right')"
+                  >
                     <template #leading>
                       <PackMoveControls
                         v-if="packListEditable"
@@ -398,6 +408,7 @@
                     :stage-right-label="activeStageConfig.rightLabel"
                     container-dom-id-prefix="pack-container-at-event-"
                     :use-subsections="false"
+                    :show-storage-location="showPackStorageLocation(activePackStage, 'right')"
                   />
                 </div>
               </div>
@@ -418,6 +429,8 @@
                       v-for="pi in g.items"
                       :key="'evt-pi-' + pi.id"
                       :item="pi"
+                      :show-storage-location="showPackStorageLocation(activePackStage, 'right')"
+                      :show-linked-kiste="showPackStorageLocation(activePackStage, 'right')"
                     >
                       <template #leading>
                         <PackMoveControls
@@ -496,8 +509,9 @@
                         v-for="pi in cat.items"
                         :key="pi.id"
                         :item="pi"
-                                            :show-rack="activePackStage === 'confirmed_packed'"
-                                          >
+                        :show-storage-location="showPackStorageLocation(activePackStage, 'right')"
+                        :show-linked-kiste="showPackStorageLocation(activePackStage, 'right')"
+                      >
                                             <template #leading>
                                               <PackMoveControls
                                                 v-if="packListEditable"
@@ -548,7 +562,8 @@
                     v-for="pi in loosePackItemsPartial"
                     :key="'lp-' + pi.id"
                     :item="pi"
-                    :show-rack="activePackStage === 'confirmed_packed'"
+                    :show-storage-location="showPackStorageLocation(activePackStage, 'right')"
+                    :show-linked-kiste="showPackStorageLocation(activePackStage, 'right')"
                   >
                                         <template #leading>
                                           <PackMoveControls
@@ -592,14 +607,6 @@
 
           </div>
         </div>
-
-        <section
-          v-if="showPackContainersUi && activePackStage === 'confirmed_packed'"
-          class="pack-crate-picker-section"
-          :aria-label="t('activities.packList.sectionKisten')"
-        >
-          <PackCrateTargetPicker />
-        </section>
       </div>
       </template>
 
@@ -744,6 +751,7 @@ import { computed, nextTick, provide, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { ActivityApiType, ActivityIssueReportRow, ActivityTransitionRow } from '@/api/activities'
 import ActivityMaterialAvailabilityLookup from '@/components/activities/ActivityMaterialAvailabilityLookup.vue'
+import ActivityTabHeader from '@/components/activities/ActivityTabHeader.vue'
 import type { MaterialScopeTab } from '@/components/activities/shared/activityMaterialAvailabilityScope'
 import { getActivityHistory, getActivityIssues } from '@/api/activities'
 import {
@@ -767,6 +775,7 @@ import {
   isPackCrateCheckStage,
   isPackForwardToEventStage,
   isPackReturnStage,
+  showPackStorageLocation,
   workflowTargetStatusForStage,
 } from '@/components/activities/packStageQuantities'
 import {
@@ -1040,6 +1049,15 @@ function onPackTabAddMaterialQuantity(payload: { material: { materialItemId: str
     pendingMaterialAssignToContainer.value = null
   }
   emit('addActivityMaterial', payload)
+}
+
+/** Behälter-ID fürs Einbuchen: Pack-Kiste oder Phys.-Kombi-Ziel */
+async function resolveContainerIdForActiveTarget(): Promise<string | null> {
+  const tgt = activePackTarget.value
+  if (!tgt) return null
+  if (tgt.kind === 'container') return tgt.containerId
+  if (tgt.kind === 'combo') return ensurePackContainerForShellCombo(tgt.packItemId)
+  return null
 }
 
 async function ensurePackContainerForShellCombo(packItemId: string): Promise<string | null> {
@@ -1389,6 +1407,7 @@ function shellCheckLinesFromSections(sections: PackCrateShellPeekSection[]): She
         quantity: line.quantity,
         materialItemId: (line.materialItemId ?? '').trim() || null,
         isExtra,
+        serialHint: (line.serialHint ?? '').trim() || null,
       })
     }
   }
@@ -2325,19 +2344,38 @@ function selectActiveLoose() {
   activePackTarget.value = { kind: 'loose' }
 }
 
+function selectActiveCombo(packItemId: string) {
+  const pi = packItems.value.find((p) => p.id === packItemId)
+  const linked = pi ? packShellContainerForPackItem(pi, packContainers.value) : undefined
+  if (linked) {
+    activePackTarget.value = { kind: 'container', containerId: linked.id }
+    return
+  }
+  activePackTarget.value = { kind: 'combo', packItemId }
+}
+
 function toggleActiveLoose() {
   selectActiveLoose()
 }
 
 const activePackTargetCrateLabel = computed(() => {
   const tgt = activePackTarget.value
-  if (tgt?.kind !== 'container') return ''
-  return packContainers.value.find((c) => c.id === tgt.containerId)?.label ?? ''
+  if (tgt?.kind === 'container') {
+    return packContainers.value.find((c) => c.id === tgt.containerId)?.label ?? ''
+  }
+  if (tgt?.kind === 'combo') {
+    const pi = packItems.value.find((p) => p.id === tgt.packItemId)
+    return pi ? physicalComboAddTargetLabel(pi) : ''
+  }
+  return ''
 })
 
 function forwardMoveTitleForItem(_pi: ActivityPackItem): string {
   const tgt = activePackTarget.value
-  if (activePackStage.value === 'confirmed_packed' && tgt?.kind === 'container') {
+  if (
+    activePackStage.value === 'confirmed_packed' &&
+    (tgt?.kind === 'container' || tgt?.kind === 'combo')
+  ) {
     const label = activePackTargetCrateLabel.value
     if (label) {
       return t('activities.packList.titleMoveToCrate', {
@@ -2350,7 +2388,7 @@ function forwardMoveTitleForItem(_pi: ActivityPackItem): string {
 }
 
 function onAssignButtonClick(pi: ActivityPackItem) {
-  if (!props.packListEditable || packContainers.value.length === 0) return
+  if (!props.packListEditable) return
   const tgt = activePackTarget.value
   if (tgt?.kind === 'loose') {
     toast.info(t('activities.packList.toastAssignLooseActive'))
@@ -2360,7 +2398,18 @@ function onAssignButtonClick(pi: ActivityPackItem) {
     void assignDirectToActiveContainer(pi, tgt.containerId)
     return
   }
+  if (tgt?.kind === 'combo') {
+    void assignDirectToActiveCombo(pi, tgt.packItemId)
+    return
+  }
   openAssignModal(pi)
+}
+
+async function assignDirectToActiveCombo(pi: ActivityPackItem, comboPackItemId: string) {
+  const containerId = await ensurePackContainerForShellCombo(comboPackItemId)
+  if (!containerId) return
+  activePackTarget.value = { kind: 'container', containerId }
+  await assignDirectToActiveContainer(pi, containerId)
 }
 
 function openAssignModal(pi: ActivityPackItem) {
@@ -2755,6 +2804,15 @@ function groupPackItems(items: ActivityPackItem[]) {
   return [...grouped].sort((a, b) => a.categoryName.localeCompare(b.categoryName, locale.value))
 }
 
+/** Phys.-Kombi-Kiste rechts unter «Gepackt» — im Kisten-Picker, nicht in «Lose» */
+const stageRightCrateShellItems = computed(() =>
+  stageRightItems.value.filter((p) => isCrateShellPackItem(p, packContainers.value)),
+)
+
+function isRightLooseListPackItem(p: ActivityPackItem): boolean {
+  return !isCrateShellPackItem(p, packContainers.value)
+}
+
 const groupsLeft = computed(() => {
   void locale.value
   return groupPackItems(stageLeftItems.value)
@@ -2817,7 +2875,8 @@ const ohneBehaelterGroups = computed(() => {
   if (!showPackContainersUi.value) return []
   if (activePackStage.value === 'confirmed_packed') {
     const items = stageRightItems.value.filter(
-      (p) => getStageRightQty(p) > 0 && qtyInContainersForItem(p) === 0,
+      (p) =>
+        isRightLooseListPackItem(p) && getStageRightQty(p) > 0 && qtyInContainersForItem(p) === 0,
     )
     return groupPackItems(items)
   }
@@ -2836,7 +2895,8 @@ const loosePackItemsPartial = computed(() => {
   if (!showPackContainersUi.value) return []
   if (activePackStage.value === 'confirmed_packed') {
     return stageRightItems.value.filter(
-      (p) => looseQtyForPackItem(p) > 0 && qtyInContainersForItem(p) > 0,
+      (p) =>
+        isRightLooseListPackItem(p) && looseQtyForPackItem(p) > 0 && qtyInContainersForItem(p) > 0,
     )
   }
   if (isPackForwardToEventStage(activePackStage.value)) {
@@ -2917,15 +2977,20 @@ async function executeMoveToNextStage(item: ActivityPackItem, moveQty: number) {
     })
     applyUpdatedItem(updated)
 
-    /** Aktiver Behälter: dieselbe Menge nicht nur «lose» in Gepackt, sondern gleich in die Kiste legen */
-    const target = activePackTarget.value
-    if (activePackStage.value === 'confirmed_packed' && target?.kind === 'container' && moveQty > 0) {
-      const looseAfter = looseQtyForPackItem(updated)
-      const intoContainer = Math.min(moveQty, looseAfter)
-      if (intoContainer >= 1) {
-        await assignMaterialToContainer(updated, target.containerId, intoContainer, {
-          successMessage: t('activities.packList.toastMoveToContainerDirect'),
-        })
+    /** Aktives Kisten-Ziel: Menge nicht nur lose in Gepackt, sondern gleich in die Kiste legen */
+    if (activePackStage.value === 'confirmed_packed' && moveQty > 0) {
+      const containerId = await resolveContainerIdForActiveTarget()
+      if (containerId) {
+        const looseAfter = looseQtyForPackItem(updated)
+        const intoContainer = Math.min(moveQty, looseAfter)
+        if (intoContainer >= 1) {
+          if (activePackTarget.value?.kind === 'combo') {
+            activePackTarget.value = { kind: 'container', containerId }
+          }
+          await assignMaterialToContainer(updated, containerId, intoContainer, {
+            successMessage: t('activities.packList.toastMoveToContainerDirect'),
+          })
+        }
       }
     }
   } catch (err: unknown) {
@@ -3051,7 +3116,10 @@ provide(PACK_WAREHOUSE_ISSUE_INJECT_KEY, {
   packContainers,
   activePackTarget,
   selectActiveContainer,
+  selectActiveCombo,
   selectActiveLoose,
+  stageRightCrateShellItems,
+  shellPackItemForContainer,
   movingId,
   containerBulkLoadingId,
   containerMutationLoading,
@@ -3126,6 +3194,15 @@ watch(
 )
 
 watch(
+  () => props.addingActivityMaterial,
+  async (adding, wasAdding) => {
+    if (wasAdding && !adding && pendingMaterialAssignToContainer.value) {
+      await fulfillPendingMaterialAssignToContainer()
+    }
+  },
+)
+
+watch(
   packContainers,
   (list) => {
     const tgt = activePackTarget.value
@@ -3158,7 +3235,7 @@ watch(packItems, (items) => {
 @import '@/styles/views/activities/detail-workflow.css';
 
 .activity-pack-readonly-hint {
-  margin: 0 0 8px;
+  margin: 6px 0 0;
   font-size: 14px;
 }
 
@@ -3721,6 +3798,323 @@ watch(packItems, (items) => {
   color: #2563eb;
   font-weight: 500;
   white-space: nowrap;
+}
+
+/* Kompakte Packliste — mehr Inhalt auf dem Bildschirm */
+.activity-pack-list-tab:has(.pack-workflow--compact) .pack-list-header-card {
+  padding: 8px 12px;
+  margin-bottom: 6px;
+}
+
+.activity-pack-list-tab:has(.pack-workflow--compact) .pack-add-material-card {
+  padding: 6px 8px 8px;
+  margin-bottom: 6px;
+}
+
+.activity-pack-list-tab:has(.pack-workflow--compact) .pack-add-material-toggle {
+  padding: 4px 6px;
+  margin-bottom: 0;
+}
+
+.activity-pack-list-tab:has(.pack-workflow--compact) .pack-add-material-toggle-title {
+  font-size: 12px;
+}
+
+.activity-pack-list-tab:has(.pack-workflow--compact) .pack-add-material-body {
+  padding-top: 4px;
+}
+
+.activity-pack-list-tab:has(.pack-workflow--compact) .pack-add-material-summary,
+.activity-pack-list-tab:has(.pack-workflow--compact) .pack-add-material-hint {
+  margin-bottom: 6px;
+  font-size: 11px;
+}
+
+.activity-pack-list-tab:has(.pack-workflow--compact) .section-title {
+  font-size: 0.95rem;
+  margin-bottom: 4px;
+}
+
+.activity-pack-list-tab:has(.pack-workflow--compact) .activity-tab-header-card .section-title {
+  margin-bottom: 0;
+}
+
+.pack-workflow--compact {
+  gap: 6px;
+}
+
+.pack-workflow--compact .pack-stage-tabs {
+  padding: 2px;
+  gap: 2px;
+  border-radius: 6px;
+}
+
+.pack-workflow--compact .pack-stage-tab {
+  padding: 4px 6px;
+  font-size: 10px;
+  border-radius: 5px;
+}
+
+.pack-workflow--compact .pack-progress-bar {
+  margin-bottom: 6px;
+  padding: 6px 8px;
+}
+
+.pack-workflow--compact .pack-progress-info {
+  font-size: 11px;
+  margin-bottom: 3px;
+}
+
+.pack-workflow--compact .pack-progress-track {
+  height: 4px;
+}
+
+.pack-workflow--compact .pack-panels {
+  gap: 8px;
+  min-height: 100px;
+}
+
+.pack-workflow--compact .pack-panel {
+  border-radius: 6px;
+}
+
+.pack-workflow--compact .pack-panel-header {
+  padding: 5px 8px;
+  font-size: 11px;
+}
+
+.pack-workflow--compact .pack-panel-title {
+  font-size: 10px;
+}
+
+.pack-workflow--compact .pack-panel-count {
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  font-size: 10px;
+}
+
+.pack-workflow--compact .pack-panel-empty {
+  padding: 10px 8px;
+  font-size: 11px;
+}
+
+.pack-workflow--compact .pack-group-header {
+  padding: 4px 8px;
+}
+
+.pack-workflow--compact .pack-group-name {
+  font-size: 10px;
+}
+
+.pack-workflow--compact .pack-group-header-sub {
+  padding: 3px 6px;
+  font-size: 11px;
+}
+
+.pack-workflow--compact .pack-card {
+  padding: 4px 8px;
+}
+
+.pack-workflow--compact .pack-card-main {
+  gap: 6px;
+  align-items: center;
+}
+
+.pack-workflow--compact .pack-card-name {
+  font-size: 11px;
+  line-height: 1.25;
+}
+
+.pack-workflow--compact :deep(.pack-card-name-block) {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: 0.4em;
+  row-gap: 0;
+  gap: 0;
+}
+
+.pack-workflow--compact :deep(.pack-card-name) {
+  flex: 1 1 100%;
+}
+
+.pack-workflow--compact :deep(.pack-card-kiste),
+.pack-workflow--compact :deep(.pack-card-storage) {
+  flex: 0 1 auto;
+}
+
+.pack-workflow--compact .pack-card-detail,
+.pack-workflow--compact .pack-card-kiste,
+.pack-workflow--compact .pack-card-storage {
+  font-size: 10px;
+  line-height: 1.25;
+  margin: 0;
+}
+
+.pack-workflow--compact .pack-card-detail-stack {
+  gap: 1px;
+}
+
+.pack-workflow--compact .pack-card-detail {
+  font-size: 10px;
+}
+
+.pack-workflow--compact .pack-combo-badge {
+  font-size: 9px;
+  padding: 1px 4px;
+  margin-left: 2px;
+}
+
+.pack-workflow--compact .mat-source-badge {
+  font-size: 9px;
+  padding: 1px 4px;
+}
+
+.pack-workflow--compact .pack-move-input,
+.pack-workflow--compact .pack-moveback-input {
+  width: 34px;
+  height: 22px;
+  font-size: 11px;
+}
+
+.pack-workflow--compact .btn-move-arrow,
+.pack-workflow--compact .btn-moveback-arrow {
+  width: 24px;
+  height: 22px;
+}
+
+.pack-workflow--compact .btn-move-arrow svg,
+.pack-workflow--compact .btn-moveback-arrow svg {
+  width: 12px;
+  height: 12px;
+}
+
+.pack-workflow--compact .pack-workflow-section {
+  margin-top: 4px;
+}
+
+.pack-workflow--compact .pack-workflow-section-title {
+  margin: 0 0 2px;
+  font-size: 9px;
+}
+
+.pack-workflow--compact .pack-containers-section {
+  margin-top: 4px;
+  padding-top: 4px;
+}
+
+.pack-workflow--compact .pack-containers-children {
+  padding-left: 8px;
+}
+
+.pack-workflow--compact .pack-container-card {
+  margin-bottom: 4px;
+  border-radius: 6px;
+}
+
+.pack-workflow--compact .pack-container-chevron-btn {
+  width: 1.5rem;
+  padding: 4px 0 4px 4px;
+}
+
+.pack-workflow--compact .pack-container-select-main {
+  padding: 4px 4px 4px 2px;
+}
+
+.pack-workflow--compact .pack-container-name {
+  font-size: 11px;
+}
+
+.pack-workflow--compact .pack-container-chip {
+  font-size: 10px;
+}
+
+.pack-workflow--compact .pack-container-inner {
+  padding: 0 6px 6px 1.5rem;
+}
+
+.pack-workflow--compact .pack-container-line {
+  padding: 3px 0;
+  font-size: 11px;
+  gap: 4px;
+}
+
+.pack-workflow--compact .pack-container-subsection-toggle {
+  padding: 2px 0;
+  font-size: 11px;
+}
+
+.pack-workflow--compact .pack-crate-picker-head {
+  margin-bottom: 4px;
+}
+
+.pack-workflow--compact .pack-crate-picker-title {
+  font-size: 10px;
+  margin-bottom: 1px;
+}
+
+.pack-workflow--compact .pack-crate-picker-hint {
+  font-size: 10px;
+  line-height: 1.3;
+}
+
+.pack-workflow--compact .pack-crate-picker-list {
+  gap: 3px;
+}
+
+.pack-workflow--compact .pack-target-loose {
+  font-size: 9px;
+  padding: 2px 6px;
+}
+
+.pack-workflow--compact .pack-group-ohne-inner {
+  margin-top: 2px;
+  padding-left: 6px;
+}
+
+.pack-workflow--compact .js-workflow-summary {
+  margin: -2px 0 6px;
+  padding: 5px 8px;
+  font-size: 11px;
+  gap: 6px;
+}
+
+.pack-workflow--compact .pack-add-container-btn {
+  font-size: 11px;
+  padding: 2px 8px;
+}
+
+.pack-workflow--compact :deep(.pack-combo-crate-inline__name) {
+  font-size: 11px;
+}
+
+.pack-workflow--compact :deep(.pack-combo-crate-inline__qty),
+.pack-workflow--compact :deep(.pack-combo-crate-inline__serial) {
+  font-size: 9px;
+}
+
+.pack-workflow--compact :deep(.pack-crate-shell-check-line__name) {
+  font-size: 11px;
+}
+
+.pack-workflow--compact :deep(.pack-crate-shell-check-line__soll),
+.pack-workflow--compact :deep(.pack-crate-shell-check-line__serial) {
+  font-size: 10px;
+}
+
+.pack-workflow--compact :deep(.shell-forward-variance-btn) {
+  width: 22px;
+  height: 22px;
+  font-size: 13px;
+}
+
+.pack-workflow--compact :deep(.pack-shell-forward-count-input) {
+  width: 3.5ch;
+  min-width: 2.75rem;
+  max-width: 4rem;
+  padding: 1px 3px;
+  font-size: 11px;
 }
 
 @media (max-width: 768px) {

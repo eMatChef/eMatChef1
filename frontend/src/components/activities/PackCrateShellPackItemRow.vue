@@ -15,6 +15,8 @@ defineOptions({ name: 'PackCrateShellPackItemRow' })
 const props = defineProps<{
   shellPackItem: ActivityPackItem
   stageRightLabel: string
+  /** Lagerort/Kiste — nur solange Material noch im Lager (Bestätigt links) */
+  showStorageLocation?: boolean
 }>()
 
 const { t } = useI18n()
@@ -136,7 +138,12 @@ function moveShellCrateForward() {
     </div>
     <div v-show="innerVisible" class="pack-container-inner pack-container-inner--shell">
       <div
-        v-if="shellPackItem.storageAddressName || shellPackItem.storageSlotName || shellPackItem.linkedContainerLabel"
+        v-if="
+          showStorageLocation &&
+          (shellPackItem.storageAddressName ||
+            shellPackItem.storageSlotName ||
+            shellPackItem.linkedContainerLabel)
+        "
         class="pack-shell-storage text-muted"
       >
         <div v-if="shellPackItem.linkedContainerLabel">

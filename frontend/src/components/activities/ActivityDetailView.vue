@@ -103,8 +103,9 @@
               @saved="onDraftOverviewSaved"
             />
             <template v-else-if="activity">
-              <div class="section-card">
-                <h2 class="section-title">{{ t('activities.detail.sectionPeriod') }}</h2>
+              <ActivityTabHeader :title="t('activities.detail.tabOverview')" />
+              <div class="section-card activity-tab-panel-card">
+                <h2 class="section-title activity-tab-subsection-title">{{ t('activities.detail.sectionPeriod') }}</h2>
                 <div class="form-grid">
                   <div class="form-group span-2">
                     <label>{{ t('activities.detail.labelUsage') }}</label>
@@ -126,8 +127,8 @@
                 </div>
               </div>
 
-              <div class="section-card">
-                <h2 class="section-title">{{ t('activities.detail.sectionOrg') }}</h2>
+              <div class="section-card activity-tab-panel-card">
+                <h2 class="section-title activity-tab-subsection-title">{{ t('activities.detail.sectionOrg') }}</h2>
                 <div class="form-grid">
                   <div class="form-group">
                     <label>{{ t('activities.detail.labelDepartment') }}</label>
@@ -146,9 +147,9 @@
 
               <div
                 v-if="activity.invited_departments && activity.invited_departments.length > 0"
-                class="section-card"
+                class="section-card activity-tab-panel-card"
               >
-                <h2 class="section-title">{{ t('activities.detail.sectionInvitedDepartments') }}</h2>
+                <h2 class="section-title activity-tab-subsection-title">{{ t('activities.detail.sectionInvitedDepartments') }}</h2>
                 <ul class="activity-invite-list">
                   <li v-for="(inv, idx) in activity.invited_departments" :key="inv.id || idx" class="activity-invite-row">
                     <span class="activity-invite-name">{{ inv.name || inv.id }}</span>
@@ -159,8 +160,8 @@
                 </ul>
               </div>
 
-              <div v-if="activity.notes" class="section-card">
-                <h2 class="section-title">{{ t('activities.detail.sectionNotes') }}</h2>
+              <div v-if="activity.notes" class="section-card activity-tab-panel-card">
+                <h2 class="section-title activity-tab-subsection-title">{{ t('activities.detail.sectionNotes') }}</h2>
                 <p class="activity-notes">{{ activity.notes }}</p>
               </div>
             </template>
@@ -168,8 +169,9 @@
 
           <!-- Material -->
           <section v-else-if="activeTab === 'material'" class="tab-content">
-            <div v-if="showMaterialAddOnMaterialTab" class="section-card">
-              <h2 class="section-title">{{ t('activities.detail.materialAddTitle') }}</h2>
+            <ActivityTabHeader :title="t('activities.detail.tabMaterial')" />
+            <div v-if="showMaterialAddOnMaterialTab" class="section-card activity-tab-panel-card">
+              <h2 class="section-title activity-tab-subsection-title">{{ t('activities.detail.materialAddTitle') }}</h2>
               <ActivityMaterialAvailabilityLookup
                 :department-id="departmentId"
                 :activity-id="activityId"
@@ -191,15 +193,15 @@
             </div>
             <div
               v-else-if="activity.status === 'draft' && !activity.can_edit_draft_material"
-              class="section-card activity-draft-mat-denied"
+              class="section-card activity-tab-panel-card activity-draft-mat-denied"
             >
               <p class="text-muted">
                 {{ t('activities.detail.draftMaterialDenied') }}
               </p>
             </div>
 
-            <div class="section-card">
-              <h2 class="section-title">{{ t('activities.detail.materialPositionsTitle') }}</h2>
+            <div class="section-card activity-tab-panel-card">
+              <h2 class="section-title activity-tab-subsection-title">{{ t('activities.detail.materialPositionsTitle') }}</h2>
               <div v-if="itemsLoading" class="activity-inline-loading">
                 <div class="spinner spinner-sm"></div>
                 <span>{{ t('activities.detail.itemsLoading') }}</span>
@@ -332,6 +334,18 @@
               :can-add-activity-material="canAddActivityMaterial"
               :reload-token="consumablesReloadToken"
               @request-nachbuchung="openNachbuchungModal"
+              @consumption-booked="onConsumableBooked"
+            />
+          </section>
+
+          <section v-else-if="activeTab === 'costs'" class="tab-content">
+            <ActivityCostsTab
+              v-if="activity"
+              :activity-id="activityId"
+              :department-id="departmentId"
+              :activity-type="activity.type"
+              :activity-status="activity.status"
+              :reload-token="costsReloadToken"
             />
           </section>
 
@@ -396,6 +410,8 @@ import {
 import ActivityMaterialAvailabilityLookup from '@/components/activities/ActivityMaterialAvailabilityLookup.vue'
 import ActivityMaterialLinesTable from '@/components/activities/shared/ActivityMaterialLinesTable.vue'
 import ActivityDraftOverviewForm from '@/components/activities/ActivityDraftOverviewForm.vue'
+import ActivityTabHeader from '@/components/activities/ActivityTabHeader.vue'
+import ActivityCostsTab from '@/components/activities/ActivityCostsTab.vue'
 import ActivityPackListTab from '@/components/activities/ActivityPackListTab.vue'
 import ActivityIssuesTab from '@/components/activities/ActivityIssuesTab.vue'
 import ActivityConsumablesTab from '@/components/activities/ActivityConsumablesTab.vue'
@@ -418,7 +434,7 @@ const props = defineProps<{
 const route = useRoute()
 const router = useRouter()
 
-const ACTIVITY_TAB_IDS = ['overview', 'material', 'packs', 'issues', 'consumables', 'history'] as const
+const ACTIVITY_TAB_IDS = ['overview', 'material', 'packs', 'issues', 'consumables', 'costs', 'history'] as const
 type ActivityTabId = (typeof ACTIVITY_TAB_IDS)[number]
 
 function mergeActivityQuery(updates: Record<string, string | undefined>) {
@@ -452,12 +468,23 @@ const showPacksTab = computed(() => {
   return (STATUSES_WITH_PACKS_TAB as readonly string[]).includes(s)
 })
 
-/** Wie v4.01: Meldungen ab «Ausgegeben» (inkl. completed zur Übersicht) */
+/** Reparaturen / Verluste: ab «Gepackt» (Leader-Phase bis Transport/Retour) — für Gruppe sichtbar */
+const STATUSES_WITH_ISSUES_TAB = ['packed', 'at_event', 'issued', 'returned', 'completed'] as const
+
 const showIssuesTab = computed(() => {
   const s = activity.value?.status
   if (!s) return false
-  return ['at_event', 'issued', 'returned', 'completed'].includes(s)
+  return (STATUSES_WITH_ISSUES_TAB as readonly string[]).includes(s)
 })
+
+const hasConsumableItems = computed(() =>
+  activityItems.value.some((row) => row.is_consumable === true),
+)
+
+const showConsumablesTab = computed(() => hasConsumableItems.value)
+
+/** Kosten: ab «Wird gepackt» (wie v4.01), sobald Material zugeordnet ist */
+const showCostsTab = computed(() => showPacksTab.value)
 
 /** Ohne ?tab=: v4.01 — Packliste als Start nur bei packing…returned (nicht bei completed). */
 function defaultTabWhenNoQuery(status: string | undefined): ActivityTabId {
@@ -473,9 +500,14 @@ const tabs = computed(() => {
   if (showPacksTab.value) {
     out.push({ id: 'packs', label: t('activities.detail.tabPacks') })
   }
+  if (showConsumablesTab.value) {
+    out.push({ id: 'consumables', label: t('activities.detail.tabConsumables') })
+  }
   if (showIssuesTab.value) {
     out.push({ id: 'issues', label: t('activities.detail.tabIssues') })
-    out.push({ id: 'consumables', label: t('activities.detail.tabConsumables') })
+  }
+  if (showCostsTab.value) {
+    out.push({ id: 'costs', label: t('activities.detail.tabCosts') })
   }
   out.push({ id: 'history', label: t('activities.detail.tabHistory') })
   return out
@@ -502,14 +534,28 @@ const activeTab = ref<ActivityTabId>('overview')
 watch(showPacksTab, (show) => {
   if (!show && activeTab.value === 'packs') {
     activeTab.value = 'overview'
-    mergeActivityQuery({ tab: undefined })
+    mergeActivityQuery({ tab: 'overview' })
   }
 })
 
 watch(showIssuesTab, (show) => {
-  if (!show && (activeTab.value === 'issues' || activeTab.value === 'consumables')) {
+  if (!show && activeTab.value === 'issues') {
     activeTab.value = 'overview'
-    mergeActivityQuery({ tab: undefined })
+    mergeActivityQuery({ tab: 'overview' })
+  }
+})
+
+watch(showConsumablesTab, (show) => {
+  if (!show && activeTab.value === 'consumables') {
+    activeTab.value = 'overview'
+    mergeActivityQuery({ tab: 'overview' })
+  }
+})
+
+watch(showCostsTab, (show) => {
+  if (!show && activeTab.value === 'costs') {
+    activeTab.value = 'overview'
+    mergeActivityQuery({ tab: 'overview' })
   }
 })
 const addingDraftMaterial = ref(false)
@@ -655,6 +701,7 @@ const damageReportPresets = ref<{
 }>({})
 const issuesReloadToken = ref(0)
 const consumablesReloadToken = ref(0)
+const costsReloadToken = ref(0)
 const packListReloadToken = ref(0)
 
 const consumptionModalOpen = ref(false)
@@ -728,6 +775,7 @@ async function onNachbuchungModalSuccess() {
   nachbuchungPackSize.value = null
   nachbuchungPackUnit.value = null
   consumablesReloadToken.value += 1
+  costsReloadToken.value += 1
   packListReloadToken.value += 1
   toast.success(t('activities.detail.toastNachbuchungAdded'))
   try {
@@ -738,9 +786,15 @@ async function onNachbuchungModalSuccess() {
   }
 }
 
+function onConsumableBooked() {
+  issuesReloadToken.value += 1
+  costsReloadToken.value += 1
+}
+
 async function onConsumptionModalSuccess() {
   issuesReloadToken.value += 1
   consumablesReloadToken.value += 1
+  costsReloadToken.value += 1
   packListReloadToken.value += 1
   toast.success(t('activities.detail.toastConsumptionBooked'))
   try {
@@ -877,12 +931,17 @@ async function reload() {
   activityItems.value = []
   draftQuantities.value = {}
   try {
-    const [detail, tr] = await Promise.all([
+    const [detail, tr, items] = await Promise.all([
       getActivity(props.activityId),
       getActivityTransitions(props.activityId),
+      getActivityItems(props.activityId).catch(() => [] as ActivityItemRow[]),
     ])
     activity.value = detail
     transitions.value = tr.transitions || []
+    activityItems.value = items
+    if (activeTab.value === 'material') {
+      initDraftQuantitiesFromItems()
+    }
     pageHeadStore.setDynamic(
       t('activities.detail.pageTitleSuffix', { name: detail.name }),
       `${activityTypeLabelDetail(detail.type || '')} · ${activityStatusLabelDetail(detail.status || '')}`,
@@ -927,6 +986,7 @@ async function onDamageReportSuccess() {
   damageReportOpen.value = false
   damageReportPresets.value = {}
   issuesReloadToken.value += 1
+  costsReloadToken.value += 1
   toast.success(t('activities.detail.toastIssueRecorded'))
   try {
     await loadItems()
@@ -1051,14 +1111,16 @@ watch(
   () => [props.activityId, route.query.tab, tabIds.value.join(','), activity.value?.status] as const,
   () => {
     const raw = route.query.tab
+    const rawStr = Array.isArray(raw) ? String(raw[0] ?? '') : typeof raw === 'string' ? raw : ''
+    const hasTabInQuery = rawStr.trim().length > 0
     const normalized = normalizeActivityTabQuery(raw)
     const resolved =
-      normalized ?? (activity.value ? defaultTabWhenNoQuery(activity.value.status) : 'overview')
+      normalized ??
+      (!hasTabInQuery && activity.value ? defaultTabWhenNoQuery(activity.value.status) : 'overview')
     if (activeTab.value !== resolved) {
       activeTab.value = resolved
     }
-    const rawStr = Array.isArray(raw) ? String(raw[0] ?? '') : typeof raw === 'string' ? raw : ''
-    if (rawStr.trim() && normalizeActivityTabQuery(raw) === null) {
+    if (hasTabInQuery && normalizeActivityTabQuery(raw) === null) {
       mergeActivityQuery({ tab: undefined })
     }
   },
@@ -1066,9 +1128,9 @@ watch(
 )
 
 watch(activeTab, (newTab) => {
-  const fromQuery = normalizeActivityTabQuery(route.query.tab) ?? 'overview'
+  const fromQuery = normalizeActivityTabQuery(route.query.tab)
   if (fromQuery !== newTab) {
-    mergeActivityQuery({ tab: newTab === 'overview' ? undefined : newTab })
+    mergeActivityQuery({ tab: newTab })
   }
   if (newTab === 'material' && activity.value) {
     void loadItems()
@@ -1083,6 +1145,7 @@ onBeforeUnmount(() => {
 <style scoped src="@/styles/material-detail-view.css"></style>
 <style scoped>
 @import '@/styles/views/activities/detail-panel.css';
+@import '@/styles/views/activities/detail-workflow.css';
 
 .activity-detail-header-title {
   flex-wrap: wrap;

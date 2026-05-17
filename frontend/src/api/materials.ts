@@ -671,6 +671,8 @@ export interface MaterialStorageLocationRow {
   location_label: string | null
   qty: number
   batch_id: string
+  serial_number?: string | null
+  batch_label?: string | null
   container_batch_id?: string | null
   container_caption: string | null
 }

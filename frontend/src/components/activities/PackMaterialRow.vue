@@ -7,12 +7,15 @@ defineOptions({ name: 'PackMaterialRow' })
 withDefaults(
   defineProps<{
     item: ActivityPackItem
-    showRack?: boolean
+    showStorageLocation?: boolean
     showLinkedKiste?: boolean
+    /** @deprecated — Regal/Fach hängen an showStorageLocation */
+    showRack?: boolean
   }>(),
   {
-    showRack: false,
-    showLinkedKiste: true,
+    showStorageLocation: false,
+    showLinkedKiste: false,
+    showRack: true,
   },
 )
 </script>
@@ -22,7 +25,12 @@ withDefaults(
     <div class="pack-card-main">
       <slot name="leading" />
       <div class="pack-card-info">
-        <PackMaterialMeta :item="item" :show-rack="showRack" :show-linked-kiste="showLinkedKiste" />
+        <PackMaterialMeta
+          :item="item"
+          :show-storage-location="showStorageLocation"
+          :show-linked-kiste="showLinkedKiste"
+          :show-rack="showRack"
+        />
         <slot name="detail" />
         <slot name="info-extra" />
       </div>

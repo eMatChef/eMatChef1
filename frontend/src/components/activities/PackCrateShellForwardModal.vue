@@ -82,6 +82,7 @@ const checkLines = computed((): ShellForwardCheckLine[] => {
         quantity: line.quantity,
         materialItemId: (line.materialItemId ?? '').trim() || null,
         isExtra,
+        serialHint: (line.serialHint ?? '').trim() || null,
       })
     }
   }
@@ -434,6 +435,7 @@ function asCheckLine(sec: PackCrateShellPeekSection, line: PackCrateShellPeekSec
     quantity: line.quantity,
     materialItemId: (line.materialItemId ?? '').trim() || null,
     isExtra: sec.subsectionKey === 'extra',
+    serialHint: (line.serialHint ?? '').trim() || null,
   }
 }
 </script>
@@ -473,11 +475,18 @@ function asCheckLine(sec: PackCrateShellPeekSection, line: PackCrateShellPeekSec
             <template v-for="cl in [asCheckLine(sec, line)]" :key="cl.key">
               <div class="pack-shell-forward-li-row">
                 <div class="pack-shell-forward-li-main pack-shell-forward-li-main--stacked">
-                  <div class="pack-shell-forward-li-name-qty">
-                    <span class="pack-shell-forward-li-name">{{ line.materialName }}</span>
-                    <span class="text-muted pack-shell-forward-soll">
-                      {{ t('activities.packList.shellForwardExpectedQty', { n: line.quantity }) }}
-                    </span>
+                  <div class="pack-shell-forward-li-meta">
+                    <div class="pack-shell-forward-li-name">{{ line.materialName }}</div>
+                    <div class="pack-shell-forward-li-sub text-muted">
+                      <span>{{ t('activities.packList.shellForwardExpectedQty', { n: line.quantity }) }}</span>
+                      <span
+                        v-if="line.serialHint"
+                        class="pack-shell-forward-li-serial"
+                        :title="t('activities.packList.shellForwardSerialCheckTitle')"
+                      >
+                        {{ t('activities.packList.shellForwardSerialSn', { serial: line.serialHint }) }}
+                      </span>
+                    </div>
                   </div>
                   <p
                     v-if="historyReplenishByKey[cl.key]"
@@ -947,10 +956,6 @@ function asCheckLine(sec: PackCrateShellPeekSection, line: PackCrateShellPeekSec
   font-size: 13px;
 }
 
-.pack-shell-forward-soll {
-  font-size: 12px;
-  margin-left: 6px;
-}
 
 .pack-shell-forward-variance-actions {
   flex-wrap: wrap;

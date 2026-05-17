@@ -142,7 +142,7 @@
 
       <!-- Statistik -->
       <router-link
-        v-if="!isPendingAssignmentRoute && showDeptContextSidebarLinks"
+        v-if="!isPendingAssignmentRoute && showDeptContextSidebarLinks && showStatisticsMenu"
         :to="getLink('/statistics')"
         class="nav-item"
         :class="{ active: $route.path.includes('/statistics') }"
@@ -262,7 +262,18 @@ const hasGlobalAdminAccess = computed(() =>
 
 const showActivitiesMenu = computed(() => !isSuperAdmin.value)
 const showMaterialsMenu = computed(() => !isSuperAdmin.value)
-const showWorkshopMenu = computed(() => !isSuperAdmin.value)
+/** Werkstatt: nicht für reine User-Rolle (u) — nur MW/DC/L1–L3 und andere Dept-Rollen */
+const showWorkshopMenu = computed(() => {
+  if (isSuperAdmin.value) return false
+  const r = String(authStore.currentDepartmentRole || '').toLowerCase().trim()
+  return r !== 'u' && r !== 'user'
+})
+
+/** Statistik: wie Werkstatt — nicht für User (u) */
+const showStatisticsMenu = computed(() => {
+  const r = String(authStore.currentDepartmentRole || '').toLowerCase().trim()
+  return r !== 'u' && r !== 'user'
+})
 
 /** Buchhaltung: nur Materialchef (mw) oder Departmentchef (dc) im aktuellen Department */
 const showAccountingMenu = computed(() => {

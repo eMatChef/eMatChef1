@@ -61,12 +61,28 @@
         <div class="notifications-dropdown-body">
           <div v-if="isLoadingNotifications" class="notifications-empty">{{ t('layout.notifications.loading') }}</div>
           <div
-            v-else-if="pendingDepartmentInvites.length === 0 && publicFoundPreview.length === 0 && pendingFollowUpCount === 0"
+            v-else-if="isUserRole ? userActivityPreview.length === 0 : departmentNotificationsEmpty"
             class="notifications-empty"
           >
-            {{ t('layout.notifications.empty') }}
+            {{ isUserRole ? t('layout.notifications.emptyUser') : t('layout.notifications.empty') }}
           </div>
           <div v-else class="notifications-list">
+            <template v-if="isUserRole">
+            <button
+              v-for="activity in userActivityPreview"
+              :key="`act-${activity.id}`"
+              type="button"
+              class="notification-item notification-item--activity"
+              @click="openUserActivityFromBell(activity)"
+            >
+              <div class="notification-title">{{ activity.name }}</div>
+              <div class="notification-subtitle">
+                {{ formatUserActivitySubtitle(activity) }}
+              </div>
+              <div class="notification-hint">{{ t('layout.notifications.activityHint') }}</div>
+            </button>
+            </template>
+            <template v-else>
             <button
               v-if="pendingFollowUpCount > 0"
               type="button"
@@ -106,13 +122,14 @@
               <div class="notification-subtitle">{{ truncateMessage(msg.message) }}</div>
               <div class="notification-hint">{{ t('layout.notifications.foundHint') }}</div>
             </button>
+            </template>
           </div>
         </div>
         <div v-if="!isLoadingNotifications" class="notifications-dropdown-footer">
           <button
             type="button"
             class="btn btn-secondary btn-sm notifications-more-fullwidth"
-            :title="t('layout.notifications.showAllFooterTitle')"
+            :title="notificationsShowAllTitle"
             @click.stop="goToNotificationsCenter"
           >
             {{ t('layout.notifications.showAll') }}
@@ -418,6 +435,9 @@ import GlobalSearchInput from '../common/GlobalSearchInput.vue'
 import { useDetailTabsStore } from '../../stores/detailTabs'
 import { useHeaderNotificationsStore } from '@/stores/headerNotifications'
 import { getPostLogoutPath } from '@/utils/appLoginUrl'
+import { useDepartmentMemberRole } from '@/composables/useDepartmentMemberRole'
+import apiClient from '../../api/apiClient'
+import type { DashboardActivity } from '@/api/dashboard'
 
 const { t } = useI18n()
 const router = useRouter()
@@ -425,6 +445,17 @@ const detailTabsStore = useDetailTabsStore()
 const headerNotificationsStore = useHeaderNotificationsStore()
 const route = useRoute()
 const authStore = useAuthStore()
+const { isUserRole, canManageQrContact } = useDepartmentMemberRole()
+
+const USER_BELL_ACTIVITY_STATUSES = [
+  'draft',
+  'submitted',
+  'approved',
+  'packing',
+  'packed',
+  'at_event',
+  'returned',
+] as const
 const globalSearchRef = ref<InstanceType<typeof GlobalSearchInput> | null>(null)
 const toast = useToast()
 const confirm = useConfirm()
@@ -443,6 +474,7 @@ const showNotifications = ref(false)
 const isLoadingNotifications = ref(false)
 const pendingDepartmentInvites = ref<PendingDepartmentActivityInvite[]>([])
 const publicFoundPreview = ref<PublicFoundItemMessage[]>([])
+const userActivityPreview = ref<DashboardActivity[]>([])
 /** Ausstehende Anschaffungs-Follow-ups (mw/dc): Buchung in der Buchhaltung zuordnen. */
 const pendingFollowUpCount = ref(0)
 const trialDays = ref(29)
@@ -538,7 +570,22 @@ const pendingEmailTarget = computed(() =>
 )
 
 const notificationPreviewInvites = computed(() => pendingDepartmentInvites.value.slice(0, 5))
-const notificationPreviewFound = computed(() => publicFoundPreview.value.slice(0, 5))
+const notificationPreviewFound = computed(() =>
+  canManageQrContact.value ? publicFoundPreview.value.slice(0, 5) : []
+)
+
+const departmentNotificationsEmpty = computed(
+  () =>
+    pendingDepartmentInvites.value.length === 0 &&
+    notificationPreviewFound.value.length === 0 &&
+    pendingFollowUpCount.value === 0
+)
+
+const notificationsShowAllTitle = computed(() =>
+  isUserRole.value
+    ? t('layout.notifications.showAllActivitiesFooterTitle')
+    : t('layout.notifications.showAllFooterTitle')
+)
 
 function notificationInviteTitle(invite: PendingDepartmentActivityInvite): string {
   const activityType =
@@ -600,7 +647,40 @@ function goToNotificationsCenter() {
     (route.params.departmentId as string | undefined) || authStore.activeDepartmentId || ''
   if (!deptId) return
   showNotifications.value = false
+  if (isUserRole.value) {
+    router.push(`/${deptId}/activities`)
+    return
+  }
   router.push(`/${deptId}/notifications`)
+}
+
+function formatUserActivitySubtitle(activity: DashboardActivity): string {
+  const parts: string[] = []
+  if (activity.group_name) parts.push(activity.group_name)
+  const statusKey = `dashboard.status.${activity.status}`
+  const statusLabel = t(statusKey)
+  parts.push(statusLabel === statusKey ? activity.status : statusLabel)
+  if (activity.usage_start) {
+    try {
+      parts.unshift(
+        new Date(activity.usage_start).toLocaleDateString('de-CH', {
+          day: '2-digit',
+          month: '2-digit',
+          year: '2-digit',
+        })
+      )
+    } catch {
+      /* ignore */
+    }
+  }
+  return parts.join(' · ')
+}
+
+function openUserActivityFromBell(activity: DashboardActivity) {
+  const deptId = authStore.activeDepartmentId
+  if (!deptId || !activity.id) return
+  showNotifications.value = false
+  void router.push(`/${deptId}/activities/${activity.id}`)
 }
 
 function goToAccountingAssign() {
@@ -619,17 +699,37 @@ async function loadDepartmentInvites() {
   if (!deptId) return
   isLoadingNotifications.value = true
   try {
+    if (isUserRole.value) {
+      const res = await apiClient.get<DashboardActivity[]>('/api/activities', {
+        params: { department_id: deptId, tab: 'upcoming' },
+      })
+      userActivityPreview.value = (res.data || [])
+        .filter((a) => (USER_BELL_ACTIVITY_STATUSES as readonly string[]).includes(a.status))
+        .slice(0, 5)
+      pendingDepartmentInvites.value = []
+      publicFoundPreview.value = []
+      pendingFollowUpCount.value = 0
+      unreadCount.value = userActivityPreview.value.length
+      return
+    }
+
+    userActivityPreview.value = []
+
     const followUpPromise =
       departmentHasAccountingRole(deptId)
         ? listAcquisitionFollowups(deptId, 'pending').catch(() => [])
         : Promise.resolve([])
 
+    const foundPromise = canManageQrContact.value
+      ? getPublicFoundMessages(deptId, { bucket: 'open', limit: 5 }).catch(() => ({
+          unread_count: 0,
+          items: [] as PublicFoundItemMessage[],
+        }))
+      : Promise.resolve({ unread_count: 0, items: [] as PublicFoundItemMessage[] })
+
     const [inviteResult, foundResult, pendingFollowUps] = await Promise.all([
       getPendingDepartmentActivityInvites(deptId).catch(() => ({ count: 0, items: [] as PendingDepartmentActivityInvite[] })),
-      getPublicFoundMessages(deptId, { bucket: 'open', limit: 5 }).catch(() => ({
-        unread_count: 0,
-        items: [] as PublicFoundItemMessage[],
-      })),
+      foundPromise,
       followUpPromise,
     ])
     pendingDepartmentInvites.value = inviteResult.items || []
@@ -638,13 +738,18 @@ async function loadDepartmentInvites() {
       typeof inviteResult.count === 'number'
         ? inviteResult.count
         : pendingDepartmentInvites.value.length
-    const fu = typeof foundResult.unread_count === 'number' ? foundResult.unread_count : 0
+    const fu = canManageQrContact.value
+      ? typeof foundResult.unread_count === 'number'
+        ? foundResult.unread_count
+        : 0
+      : 0
     const ac = Array.isArray(pendingFollowUps) ? pendingFollowUps.length : 0
     pendingFollowUpCount.value = ac
     unreadCount.value = invC + fu + ac
   } catch {
     pendingDepartmentInvites.value = []
     publicFoundPreview.value = []
+    userActivityPreview.value = []
     pendingFollowUpCount.value = 0
     unreadCount.value = 0
   } finally {
@@ -1267,6 +1372,25 @@ button.notification-item--found {
 }
 
 button.notification-item--found:hover {
+  background: #f9fafb;
+}
+
+button.notification-item--activity {
+  width: 100%;
+  margin: 0;
+  border: none;
+  border-bottom: 1px solid #f3f4f6;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  padding: 10px 12px;
+  display: grid;
+  gap: 6px;
+}
+
+button.notification-item--activity:hover {
   background: #f9fafb;
 }
 

@@ -1,0 +1,417 @@
+<script setup lang="ts">
+import { computed, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
+import {
+  getActivityIssues,
+  getActivityItems,
+  type ActivityIssueReportRow,
+  type ActivityItemRow,
+} from '@/api/activities'
+import type { ActivityApiType } from '@/api/activities'
+import ActivityTabHeader from '@/components/activities/ActivityTabHeader.vue'
+import {
+  aggregateConsumableRows,
+  aggregateRentalRows,
+  consumableCostTotal,
+  consumableDisplayName,
+  consumableLineCost,
+  consumableUsedQty,
+  formatChf,
+  formatChfLabel,
+  replenishmentPurchaseRows,
+  replenishmentPurchaseTotal,
+  rentalCostTotal,
+} from '@/components/activities/activityCosts'
+import { getWorkshopTickets, type WorkshopTicket } from '@/api/workshop'
+import { listAcquisitionFollowups, type AccountingAcquisitionFollowUp } from '@/api/accountingAcquisitionFollowups'
+import { departmentHasAccountingRole } from '@/composables/useCostBookingFollowUp'
+
+defineOptions({ name: 'ActivityCostsTab' })
+
+const props = defineProps<{
+  activityId: string
+  departmentId: string
+  activityType: ActivityApiType
+  activityStatus: string
+  reloadToken?: number
+}>()
+
+const { t } = useI18n()
+const isLoading = ref(false)
+const activityItems = ref<ActivityItemRow[]>([])
+const issues = ref<ActivityIssueReportRow[]>([])
+const workshopTickets = ref<WorkshopTicket[]>([])
+const pendingAccounting = ref<AccountingAcquisitionFollowUp[]>([])
+const showAccountingLink = computed(() => departmentHasAccountingRole(props.departmentId))
+
+const consumableRows = computed(() => aggregateConsumableRows(activityItems.value))
+const rentalRows = computed(() => aggregateRentalRows(activityItems.value))
+const lossIssues = computed(() => issues.value.filter((i) => i.type === 'loss'))
+
+const replenishmentRows = computed(() => replenishmentPurchaseRows(activityItems.value))
+const replenishmentTotal = computed(() => replenishmentPurchaseTotal(replenishmentRows.value))
+const consumableTotal = computed(() => consumableCostTotal(activityItems.value, issues.value))
+const rentalTotal = computed(() => rentalCostTotal(rentalRows.value))
+
+const workshopResolved = computed(() =>
+  workshopTickets.value.filter(
+    (t) => t.status === 'completed' && (t.resolution_action === 'repaired' || t.resolution_action === 'writeoff'),
+  ),
+)
+
+const repairTickets = computed(() => workshopResolved.value.filter((t) => t.resolution_action === 'repaired'))
+const writeoffTickets = computed(() => workshopResolved.value.filter((t) => t.resolution_action === 'writeoff'))
+
+const repairTotal = computed(() =>
+  repairTickets.value.reduce((s, t) => s + (parseFloat(t.actual_cost || '0') || 0), 0),
+)
+const writeoffTotal = computed(() =>
+  writeoffTickets.value.reduce((s, t) => s + (parseFloat(t.actual_cost || '0') || 0), 0),
+)
+
+const openWorkshopTickets = computed(() =>
+  workshopTickets.value.filter((t) => t.status !== 'completed' && t.status !== 'cancelled'),
+)
+
+const isExternal = computed(() => props.activityType === 'external')
+const isFinalBilling = computed(() => ['returned', 'completed'].includes(props.activityStatus))
+
+const internalGrandTotal = computed(
+  () => consumableTotal.value + repairTotal.value + writeoffTotal.value,
+)
+const externalGrandTotal = computed(
+  () => consumableTotal.value + rentalTotal.value + repairTotal.value + writeoffTotal.value,
+)
+const grandTotal = computed(() => (isExternal.value ? externalGrandTotal.value : internalGrandTotal.value))
+
+function usedFor(materialItemId: string): number {
+  return consumableUsedQty(materialItemId, issues.value)
+}
+
+function lineAmount(row: (typeof consumableRows.value)[number]): string {
+  const amount = consumableLineCost(row, usedFor(row.material_item_id), activityItems.value, issues.value)
+  if (amount <= 0 && usedFor(row.material_item_id) <= 0) return 'CHF 0.00'
+  return formatChfLabel(amount)
+}
+
+async function load() {
+  isLoading.value = true
+  try {
+    const [items, iss, tickets] = await Promise.all([
+      getActivityItems(props.activityId),
+      getActivityIssues(props.activityId),
+      getWorkshopTickets(props.departmentId, { activity_id: props.activityId }),
+    ])
+    activityItems.value = items
+    issues.value = iss
+    workshopTickets.value = tickets
+    if (showAccountingLink.value) {
+      try {
+        pendingAccounting.value = await listAcquisitionFollowups(
+          props.departmentId,
+          'pending',
+          props.activityId,
+        )
+      } catch {
+        pendingAccounting.value = []
+      }
+    } else {
+      pendingAccounting.value = []
+    }
+  } catch {
+    activityItems.value = []
+    issues.value = []
+    workshopTickets.value = []
+    pendingAccounting.value = []
+  } finally {
+    isLoading.value = false
+  }
+}
+
+watch(
+  () => [props.activityId, props.reloadToken ?? 0] as const,
+  () => {
+    void load()
+  },
+  { immediate: true },
+)
+</script>
+
+<template>
+  <div class="activity-costs-tab">
+    <ActivityTabHeader :title="t('activities.detail.tabCosts')" />
+    <div class="section-card activity-tab-panel-card">
+      <p v-if="isLoading" class="activity-inline-loading text-muted">
+        <span class="spinner spinner-sm"></span>
+        {{ t('activities.costs.loading') }}
+      </p>
+      <div v-else class="costs-overview">
+        <p
+          v-if="showAccountingLink && pendingAccounting.length > 0"
+          class="costs-accounting-banner"
+        >
+          {{ t('activities.costs.accountingPending', { n: pendingAccounting.length }) }}
+          <router-link
+            class="costs-accounting-link"
+            :to="{
+              name: 'AccountingBookings',
+              params: { departmentId },
+              query: { sub: 'assign' },
+            }"
+          >
+            {{ t('activities.costs.accountingLink') }}
+          </router-link>
+        </p>
+
+        <!-- Verbrauchsmaterial -->
+        <section class="costs-section">
+          <h3 class="costs-section-title">
+            <span class="costs-icon" aria-hidden="true">🔥</span>
+            {{ t('activities.costs.sectionConsumables') }}
+          </h3>
+          <p v-if="consumableRows.length === 0" class="costs-empty">{{ t('activities.costs.emptyConsumables') }}</p>
+          <template v-else>
+            <div class="costs-table">
+              <div class="costs-row costs-row-header">
+                <span class="costs-col-name">{{ t('activities.costs.colMaterial') }}</span>
+                <span class="costs-col-qty">{{ t('activities.costs.colBooked') }}</span>
+                <span class="costs-col-used">{{ t('activities.costs.colUsed') }}</span>
+                <span class="costs-col-price">{{ t('activities.costs.colUnitPrice') }}</span>
+                <span class="costs-col-total">{{ t('activities.costs.colAmount') }}</span>
+              </div>
+              <div v-for="row in consumableRows" :key="row.material_item_id" class="costs-row">
+                <span class="costs-col-name">{{ consumableDisplayName(row) }}</span>
+                <span class="costs-col-qty">{{ row.quantity_booked }}</span>
+                <span class="costs-col-used">{{ usedFor(row.material_item_id) || '–' }}</span>
+                <span class="costs-col-price">{{ formatChfLabel(row.sale_price) }}</span>
+                <span class="costs-col-total">{{ lineAmount(row) }}</span>
+              </div>
+            </div>
+            <div class="costs-subtotal">
+              <span>{{ t('activities.costs.subtotalConsumables') }}</span>
+              <strong>CHF {{ formatChf(consumableTotal) }}</strong>
+            </div>
+          </template>
+        </section>
+
+        <section v-if="replenishmentRows.length > 0" class="costs-section">
+          <h3 class="costs-section-title">
+            <span class="costs-icon" aria-hidden="true">🛒</span>
+            {{ t('activities.costs.sectionPurchases') }}
+          </h3>
+          <div class="costs-table">
+            <div class="costs-row costs-row-header">
+              <span class="costs-col-name">{{ t('activities.costs.colMaterial') }}</span>
+              <span class="costs-col-qty">{{ t('activities.costs.colQty') }}</span>
+              <span class="costs-col-used"></span>
+              <span class="costs-col-price">{{ t('activities.costs.colUnitPrice') }}</span>
+              <span class="costs-col-total">{{ t('activities.costs.colAmount') }}</span>
+            </div>
+            <div v-for="row in replenishmentRows" :key="row.id" class="costs-row">
+              <span class="costs-col-name">{{ row.material_name }}</span>
+              <span class="costs-col-qty">{{ row.quantity }}</span>
+              <span class="costs-col-used"></span>
+              <span class="costs-col-price">{{ formatChfLabel(row.unit_purchase) }}</span>
+              <span class="costs-col-total">{{ formatChfLabel(row.line_total ?? (row.unit_purchase ?? 0) * row.quantity) }}</span>
+            </div>
+          </div>
+          <p class="costs-purchase-note text-muted">{{ t('activities.costs.purchasesNote') }}</p>
+        </section>
+
+        <!-- Ausleihmaterial (extern) -->
+        <section v-if="isExternal" class="costs-section">
+          <h3 class="costs-section-title">
+            <span class="costs-icon" aria-hidden="true">📦</span>
+            {{ t('activities.costs.sectionRental') }}
+          </h3>
+          <p v-if="rentalRows.length === 0" class="costs-empty">{{ t('activities.costs.emptyRental') }}</p>
+          <template v-else>
+            <div class="costs-table">
+              <div class="costs-row costs-row-header">
+                <span class="costs-col-name">{{ t('activities.costs.colMaterial') }}</span>
+                <span class="costs-col-qty">{{ t('activities.costs.colQty') }}</span>
+                <span class="costs-col-used"></span>
+                <span class="costs-col-price">{{ t('activities.costs.colUnitPrice') }}</span>
+                <span class="costs-col-total">{{ t('activities.costs.colAmount') }}</span>
+              </div>
+              <div v-for="row in rentalRows" :key="row.material_item_id" class="costs-row">
+                <span class="costs-col-name">{{ row.material_name }}</span>
+                <span class="costs-col-qty">{{ row.quantity }}</span>
+                <span class="costs-col-used"></span>
+                <span class="costs-col-price">{{ formatChfLabel(row.unit_price) }}</span>
+                <span class="costs-col-total">{{ formatChfLabel(row.line_total) }}</span>
+              </div>
+            </div>
+            <div class="costs-subtotal">
+              <span>{{ t('activities.costs.subtotalRental') }}</span>
+              <strong>CHF {{ formatChf(rentalTotal) }}</strong>
+            </div>
+          </template>
+        </section>
+
+        <!-- Verluste -->
+        <section v-if="lossIssues.length > 0" class="costs-section costs-section-warn">
+          <h3 class="costs-section-title">
+            <span class="costs-icon" aria-hidden="true">⚠️</span>
+            {{ t('activities.costs.sectionLosses') }}
+          </h3>
+          <div class="costs-table">
+            <div class="costs-row costs-row-header">
+              <span class="costs-col-name">{{ t('activities.costs.colMaterial') }}</span>
+              <span class="costs-col-qty">{{ t('activities.costs.colQty') }}</span>
+              <span class="costs-col-used"></span>
+              <span class="costs-col-price"></span>
+              <span class="costs-col-total">{{ t('activities.costs.colDescription') }}</span>
+            </div>
+            <div v-for="loss in lossIssues" :key="loss.id" class="costs-row">
+              <span class="costs-col-name">{{ loss.material_name || '–' }}</span>
+              <span class="costs-col-qty">{{ loss.quantity }}</span>
+              <span class="costs-col-used"></span>
+              <span class="costs-col-price"></span>
+              <span class="costs-col-total costs-loss-desc">{{ loss.description || '–' }}</span>
+            </div>
+          </div>
+          <p class="costs-purchase-note text-muted">{{ t('activities.costs.lossWorkshopHint') }}</p>
+        </section>
+
+        <section v-if="openWorkshopTickets.length > 0" class="costs-section costs-section-warn">
+          <h3 class="costs-section-title">
+            <span class="costs-icon" aria-hidden="true">🔧</span>
+            {{ t('activities.costs.sectionWorkshopOpen') }}
+          </h3>
+          <div class="costs-table">
+            <div v-for="ticket in openWorkshopTickets" :key="ticket.id" class="costs-row">
+              <span class="costs-col-name">{{ ticket.title }}</span>
+              <span class="costs-col-qty">{{ ticket.status_label }}</span>
+              <span class="costs-col-used"></span>
+              <span class="costs-col-price"></span>
+              <span class="costs-col-total costs-loss-desc">{{ t('activities.costs.workshopOpenPending') }}</span>
+            </div>
+          </div>
+        </section>
+
+        <!-- Werkstatt Reparatur -->
+        <section v-if="repairTickets.length > 0" class="costs-section">
+          <h3 class="costs-section-title">
+            <span class="costs-icon" aria-hidden="true">🔧</span>
+            {{ t('activities.costs.sectionWorkshopRepair') }}
+          </h3>
+          <div class="costs-table">
+            <div class="costs-row costs-row-header">
+              <span class="costs-col-name">{{ t('activities.costs.colTicket') }}</span>
+              <span class="costs-col-qty">{{ t('activities.costs.colStatus') }}</span>
+              <span class="costs-col-used"></span>
+              <span class="costs-col-price"></span>
+              <span class="costs-col-total">{{ t('activities.costs.colCost') }}</span>
+            </div>
+            <div v-for="ticket in repairTickets" :key="ticket.id" class="costs-row">
+              <span class="costs-col-name">{{ ticket.title }}</span>
+              <span class="costs-col-qty">{{ ticket.status_label }}</span>
+              <span class="costs-col-used"></span>
+              <span class="costs-col-price"></span>
+              <span class="costs-col-total">{{ formatChfLabel(parseFloat(ticket.actual_cost || '0') || 0) }}</span>
+            </div>
+          </div>
+          <div class="costs-subtotal">
+            <span>{{ t('activities.costs.subtotalRepair') }}</span>
+            <strong>CHF {{ formatChf(repairTotal) }}</strong>
+          </div>
+        </section>
+
+        <!-- Werkstatt Abschreibung -->
+        <section v-if="writeoffTickets.length > 0" class="costs-section costs-section-warn">
+          <h3 class="costs-section-title">
+            <span class="costs-icon" aria-hidden="true">🗑️</span>
+            {{ t('activities.costs.sectionWorkshopWriteoff') }}
+          </h3>
+          <div class="costs-table">
+            <div class="costs-row costs-row-header">
+              <span class="costs-col-name">{{ t('activities.costs.colTicket') }}</span>
+              <span class="costs-col-qty">{{ t('activities.costs.colStatus') }}</span>
+              <span class="costs-col-used"></span>
+              <span class="costs-col-price"></span>
+              <span class="costs-col-total">{{ t('activities.costs.colCost') }}</span>
+            </div>
+            <div v-for="ticket in writeoffTickets" :key="ticket.id" class="costs-row">
+              <span class="costs-col-name">{{ ticket.title }}</span>
+              <span class="costs-col-qty">{{ ticket.status_label }}</span>
+              <span class="costs-col-used"></span>
+              <span class="costs-col-price"></span>
+              <span class="costs-col-total">{{ formatChfLabel(parseFloat(ticket.actual_cost || '0') || 0) }}</span>
+            </div>
+          </div>
+          <div class="costs-subtotal">
+            <span>{{ t('activities.costs.subtotalWriteoff') }}</span>
+            <strong>CHF {{ formatChf(writeoffTotal) }}</strong>
+          </div>
+        </section>
+
+        <!-- Gesamt -->
+        <section class="costs-total-section" :class="{ 'costs-final': isFinalBilling }">
+          <div class="costs-total-label">
+            <strong v-if="isFinalBilling">{{ t('activities.costs.finalBilling') }}</strong>
+            <template v-else>
+              <strong>{{ t('activities.costs.interimTotal') }}</strong>
+              <span class="costs-total-hint">{{ t('activities.costs.interimHint') }}</span>
+            </template>
+          </div>
+          <div class="costs-total-rows">
+            <div v-if="consumableTotal > 0" class="costs-total-row">
+              <span>{{ t('activities.costs.sectionConsumables') }}</span>
+              <span>CHF {{ formatChf(consumableTotal) }}</span>
+            </div>
+            <div v-if="isExternal && rentalTotal > 0" class="costs-total-row">
+              <span>{{ t('activities.costs.sectionRental') }}</span>
+              <span>CHF {{ formatChf(rentalTotal) }}</span>
+            </div>
+            <div v-if="repairTotal > 0" class="costs-total-row">
+              <span>{{ t('activities.costs.rowWorkshopRepair') }}</span>
+              <span>CHF {{ formatChf(repairTotal) }}</span>
+            </div>
+            <div v-if="writeoffTotal > 0" class="costs-total-row">
+              <span>{{ t('activities.costs.rowWorkshopWriteoff') }}</span>
+              <span>CHF {{ formatChf(writeoffTotal) }}</span>
+            </div>
+            <div class="costs-total-row costs-grand-total">
+              <span>{{
+                isExternal ? t('activities.costs.grandTotalExternal') : t('activities.costs.grandTotalInternal')
+              }}</span>
+              <span>CHF {{ formatChf(grandTotal) }}</span>
+            </div>
+          </div>
+        </section>
+      </div>
+    </div>
+  </div>
+</template>
+
+<style scoped>
+@import '@/styles/views/activities/detail-workflow.css';
+
+.activity-costs-tab {
+  max-width: 900px;
+}
+
+.costs-overview {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.costs-accounting-banner {
+  margin: 0 0 4px;
+  padding: 10px 12px;
+  font-size: 13px;
+  line-height: 1.45;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+  color: #1e3a5f;
+}
+
+.costs-accounting-link {
+  margin-left: 6px;
+  font-weight: 600;
+  color: #2563eb;
+}
+</style>

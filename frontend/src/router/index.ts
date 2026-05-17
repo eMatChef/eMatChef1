@@ -679,6 +679,8 @@ const routes: RouteRecordRaw[] = [
             component: () => import('@/views/TasksPrintView.vue'),
             meta: {
               ...routeHead('tasksPrint'),
+              denyDepartmentRoles: ['u', 'user'],
+              denyRedirectTo: { name: 'TasksGeneral' },
             },
           },
         ],
@@ -697,6 +699,7 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/views/WorkshopView.vue'),
         meta: {
           ...routeHead('workshop'),
+          denyDepartmentRoles: ['u', 'user'],
         }
       },
       {
@@ -705,6 +708,7 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/views/StatisticsView.vue'),
         meta: {
           ...routeHead('statistics'),
+          denyDepartmentRoles: ['u', 'user'],
         }
       },
       {
@@ -725,6 +729,8 @@ const routes: RouteRecordRaw[] = [
             component: () => import('@/views/settings/GeneralSettingsView.vue'),
             meta: {
               ...routeHead('settingsTime'),
+              denyDepartmentRoles: ['u', 'user'],
+              denyRedirectTo: { name: 'SettingsMyDepartment' },
             }
           },
           {
@@ -733,6 +739,8 @@ const routes: RouteRecordRaw[] = [
             component: () => import('@/views/settings/CategoriesSettingsView.vue'),
             meta: {
               ...routeHead('settingsCategories'),
+              denyDepartmentRoles: ['u', 'user'],
+              denyRedirectTo: { name: 'SettingsMyDepartment' },
             }
           },
           {
@@ -749,6 +757,8 @@ const routes: RouteRecordRaw[] = [
             component: () => import('@/views/settings/MyDepartmentJoinCodeView.vue'),
             meta: {
               ...routeHead('settingsJoinCode'),
+              denyDepartmentRoles: ['u', 'user'],
+              denyRedirectTo: { name: 'SettingsMyDepartment' },
             }
           },
           {
@@ -758,6 +768,8 @@ const routes: RouteRecordRaw[] = [
             meta: {
               ...routeHead('settingsStorageLocations'),
               addressKind: 'storage',
+              denyDepartmentRoles: ['u', 'user'],
+              denyRedirectTo: { name: 'SettingsMyDepartment' },
             }
           },
           {
@@ -767,6 +779,8 @@ const routes: RouteRecordRaw[] = [
             meta: {
               ...routeHead('settingsBillingAddress'),
               addressKind: 'billing',
+              denyDepartmentRoles: ['u', 'user'],
+              denyRedirectTo: { name: 'SettingsMyDepartment' },
             }
           },
           {
@@ -775,6 +789,8 @@ const routes: RouteRecordRaw[] = [
             component: () => import('@/views/settings/MyDepartmentPublicMaterialPageView.vue'),
             meta: {
               ...routeHead('settingsPublicMaterialPage'),
+              denyDepartmentRoles: ['u', 'user'],
+              denyRedirectTo: { name: 'SettingsMyDepartment' },
             }
           },
           {
@@ -783,6 +799,8 @@ const routes: RouteRecordRaw[] = [
             component: () => import('@/views/settings/AddonsSettingsView.vue'),
             meta: {
               ...routeHead('settingsAddons'),
+              denyDepartmentRoles: ['u', 'user'],
+              denyRedirectTo: { name: 'SettingsMyDepartment' },
             }
           },
           {
@@ -791,6 +809,8 @@ const routes: RouteRecordRaw[] = [
             component: () => import('@/views/settings/UsersSettingsView.vue'),
             meta: {
               ...routeHead('settingsUsers'),
+              denyDepartmentRoles: ['u', 'user'],
+              denyRedirectTo: { name: 'SettingsMyDepartment' },
             }
           },
           {
@@ -807,6 +827,8 @@ const routes: RouteRecordRaw[] = [
             component: () => import('@/views/settings/ActivitySettingsView.vue'),
             meta: {
               ...routeHead('settingsActivities'),
+              denyDepartmentRoles: ['u', 'user'],
+              denyRedirectTo: { name: 'SettingsMyDepartment' },
             }
           },
           {
@@ -815,6 +837,8 @@ const routes: RouteRecordRaw[] = [
             component: () => import('@/views/settings/StorageSettingsView.vue'),
             meta: {
               ...routeHead('settingsStorage'),
+              denyDepartmentRoles: ['u', 'user'],
+              denyRedirectTo: { name: 'SettingsMyDepartment' },
             }
           },
           {
@@ -823,6 +847,8 @@ const routes: RouteRecordRaw[] = [
             component: () => import('@/views/settings/TemplatesSettingsView.vue'),
             meta: {
               ...routeHead('settingsTemplates'),
+              denyDepartmentRoles: ['u', 'user'],
+              denyRedirectTo: { name: 'SettingsMyDepartment' },
             }
           }
         ]
@@ -1106,6 +1132,29 @@ router.beforeEach(async (to, from, next) => {
   } else if (authStore.isLoggedIn && authStore.activeDepartmentId) {
     // Visibility für aktives Department laden
     permissionsStore.loadVisibility(authStore.activeDepartmentId)
+  }
+
+  // Department-Rollen, die diese Route nicht öffnen dürfen (z. B. Werkstatt für User)
+  if (to.meta.denyDepartmentRoles && Array.isArray(to.meta.denyDepartmentRoles)) {
+    const deniedRoles = to.meta.denyDepartmentRoles as string[]
+    const currentRole = String(authStore.currentDepartmentRole || '').toLowerCase().trim()
+    const isDenied = deniedRoles.some((role) => {
+      const r = role.toLowerCase()
+      if (currentRole === r) return true
+      if ((r === 'u' || r === 'user') && (currentRole === 'u' || currentRole === 'user')) return true
+      return false
+    })
+    if (isDenied) {
+      const deptId = to.params.departmentId || authStore.activeDepartmentId
+      const denyRedirectTo = to.meta.denyRedirectTo as { name?: string } | undefined
+      if (denyRedirectTo?.name && deptId) {
+        return next({ name: denyRedirectTo.name, params: { departmentId: String(deptId) } })
+      }
+      if (deptId) {
+        return next(`/${deptId}`)
+      }
+      return next('/login')
+    }
   }
 
   // Rollen-basierte Zugriffskontrolle

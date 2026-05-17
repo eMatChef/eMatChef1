@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import { IconArrowRight, IconArrowLeft } from '@/components/icons'
-import { computed, inject } from 'vue'
+import { computed, inject, unref, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { ActivityPackContainer } from '@/api/activityContainers'
 import type { ActivityPackContainerItem } from '@/api/activityContainers'
 import type { ActivityPackItem } from '@/api/activityPackItems'
+import PackMoveControls from '@/components/activities/PackMoveControls.vue'
 import PackContainerKisteMeldungRow from '@/components/activities/PackContainerKisteMeldungRow.vue'
+import { isPackConfirmedStage } from '@/components/activities/packStageQuantities'
 import PackCrateShellInlinePanel, {
   type PackCrateShellPeekSection,
 } from '@/components/activities/PackCrateShellInlinePanel.vue'
@@ -25,8 +27,16 @@ const props = withDefaults(
     containerDomIdPrefix?: string
     /** Fix/Zusatz-Unterabschnitte (links Gepackt→Event); rechts Spiegel flach */
     useSubsections?: boolean
+    /** Lagerort/Fach — nur solange Behälter noch im Lager */
+    showStorageLocation?: boolean
   }>(),
-  { variant: 'list', shellPackItem: null, containerDomIdPrefix: 'pack-container-issue-', useSubsections: true },
+  {
+    variant: 'list',
+    shellPackItem: null,
+    containerDomIdPrefix: 'pack-container-issue-',
+    useSubsections: true,
+    showStorageLocation: false,
+  },
 )
 
 const { t } = useI18n()
@@ -67,6 +77,27 @@ function moveShellCrateForward() {
   if (max < 1) return
   void moveFn(pi, max)
 }
+
+const activePackStage = computed(() => {
+  const raw = ctx.activePackStage as unknown
+  if (raw == null) return ''
+  return String(unref(raw as Ref<string> | string))
+})
+
+const shellUseQtyMoveControls = computed(() =>
+  isPackConfirmedStage(activePackStage.value as import('@/components/activities/packStageQuantities').PackStage),
+)
+
+const shellMoveQty = computed(() => {
+  const pi = props.shellPackItem
+  if (!pi) return 0
+  const inputs = ctx.moveQtyInputs as unknown
+  const map =
+    inputs != null
+      ? (unref(inputs as Ref<Record<string, number>> | Record<string, number>) as Record<string, number>)
+      : {}
+  return map[pi.id] ?? 0
+})
 
 </script>
 
@@ -113,7 +144,20 @@ function moveShellCrateForward() {
           class="pack-container-header-actions"
           @click.stop
         >
+          <PackMoveControls
+            v-if="shellUseQtyMoveControls"
+            direction="forward"
+            :qty="shellMoveQty"
+            :max="(ctx.packIssueForwardMax as (p: ActivityPackItem) => number)(shellPackItem)"
+            :disabled="ctx.movingId === shellPackItem.id"
+            :forward-title="
+              (ctx.forwardMoveTitleForItem as (p: ActivityPackItem) => string | undefined)?.(shellPackItem) ?? ''
+            "
+            @update:qty="(ctx.setMoveQtyForItem as (id: string, n: number) => void)(shellPackItem.id, $event)"
+            @move="moveShellCrateForward"
+          />
           <button
+            v-else
             type="button"
             class="btn-move-arrow btn-move-arrow--container-header"
             :disabled="ctx.movingId === shellPackItem.id"
@@ -130,7 +174,10 @@ function moveShellCrateForward() {
       </div>
       <div v-show="innerVisible" class="pack-container-inner pack-container-inner--shell">
         <div
-          v-if="shellPackItem.storageAddressName || shellPackItem.storageSlotName"
+          v-if="
+            showStorageLocation &&
+            (shellPackItem.storageAddressName || shellPackItem.storageSlotName)
+          "
           class="pack-shell-storage text-muted"
         >
           <div v-if="shellPackItem.storageAddressName">
@@ -140,7 +187,175 @@ function moveShellCrateForward() {
             {{ t('activities.packList.slotLabel', { name: shellPackItem.storageSlotName }) }}
           </div>
         </div>
+        <template v-if="useSubsections">
+          <template
+            v-for="sec in (ctx.packContainerItemSections as (c: ActivityPackContainer) => { subsectionKey: string; title: string; lines: ActivityPackContainerItem[] }[])(container)"
+            :key="'shell-issue-sec-' + container.id + '-' + sec.subsectionKey"
+          >
+            <button
+              type="button"
+              class="pack-container-subsection-toggle"
+              :aria-expanded="!(ctx.isPackContainerSubsectionCollapsed as (cid: string, sk: string) => boolean)(container.id, sec.subsectionKey)"
+              :aria-label="`${sec.title} — ${t('activities.packList.cratePeekRowToggleAria')}`"
+              @click.stop="
+                (ctx.togglePackContainerSubsection as (cid: string, sk: string) => void)(container.id, sec.subsectionKey)
+              "
+            >
+              <span class="pack-container-chevron pack-container-chevron--subsection" aria-hidden="true">
+                <svg
+                  v-if="
+                    (ctx.isPackContainerSubsectionCollapsed as (cid: string, sk: string) => boolean)(
+                      container.id,
+                      sec.subsectionKey,
+                    )
+                  "
+                  class="pack-container-subsection-chevron-svg"
+                  width="12"
+                  height="12"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2.3"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <polyline points="9 18 15 12 9 6" />
+                </svg>
+                <svg
+                  v-else
+                  class="pack-container-subsection-chevron-svg"
+                  width="12"
+                  height="12"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2.3"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <polyline points="6 9 12 15 18 9" />
+                </svg>
+              </span>
+              <span class="pack-container-subsection-toggle-label">{{ sec.title }}</span>
+              <span
+                v-if="sec.lines.length > 0"
+                class="pack-container-chip pack-container-chip--subsection text-muted"
+                >{{ t('activities.common.itemsUnit', { count: sec.lines.length }) }}</span
+              >
+            </button>
+            <div
+              v-show="!(ctx.isPackContainerSubsectionCollapsed as (cid: string, sk: string) => boolean)(container.id, sec.subsectionKey)"
+              class="pack-container-subsection-lines"
+            >
+              <div
+                v-for="ci in sec.lines"
+                :key="'shell-issue-' + sec.subsectionKey + '-' + ci.id"
+                class="pack-container-line pack-container-line--issue-row pack-container-line--stacked"
+              >
+                <div
+                  v-if="ctx.packListEditable && (ctx.containerLineUnissueableMax as (ci: ActivityPackContainerItem) => number)(ci) > 0"
+                  class="pack-card-actions pack-card-actions-left"
+                >
+                  <button
+                    type="button"
+                    class="btn-moveback-arrow"
+                    :disabled="ctx.containerMutationLoading"
+                    @click="(ctx.unissueContainerLineToPacked as (cid: string, ci: ActivityPackContainerItem) => void)(container.id, ci)"
+                  >
+                    <IconArrowLeft />
+                  </button>
+                  <input
+                    v-model.number="ctx.containerUnissueLineInputs[(ctx.containerIssueLineKey as (a: string, b: string) => string)(container.id, ci.id)]"
+                    type="number"
+                    min="1"
+                    :max="(ctx.containerLineUnissueableMax as (ci: ActivityPackContainerItem) => number)(ci)"
+                    class="pack-moveback-input"
+                  />
+                </div>
+                <div
+                  v-if="
+                    ctx.packListEditable &&
+                    (ctx.activePackTarget as { kind: string } | null)?.kind === 'loose' &&
+                    !(ctx.isVirtualWarehouseContainerLine as (ci: ActivityPackContainerItem) => boolean)(ci)
+                  "
+                  class="pack-card-actions pack-card-actions-left"
+                >
+                  <button
+                    type="button"
+                    class="btn-moveback-arrow"
+                    :disabled="ctx.containerMutationLoading"
+                    @click="(ctx.pullFromContainer as (cid: string, ci: ActivityPackContainerItem) => void)(container.id, ci)"
+                  >
+                    <IconArrowLeft />
+                  </button>
+                  <input
+                    v-model.number="ctx.containerPullQtyInputs[(ctx.containerPullKey as (a: string, b: string) => string)(container.id, ci.id)]"
+                    type="number"
+                    min="1"
+                    :max="ci.quantity_packed"
+                    class="pack-moveback-input"
+                  />
+                </div>
+                <div class="pack-container-line-main">
+                  <span class="pack-container-line-name">{{ ci.material_name || t('activities.common.material') }}</span>
+                  <span class="pack-container-line-qty text-muted">
+                    <template v-if="(ctx.containerLineRemainingIssue as (ci: ActivityPackContainerItem) => number)(ci) > 0">
+                      {{
+                        t('activities.packList.lineNotYetIssued', {
+                          rem: (ctx.containerLineRemainingIssue as (ci: ActivityPackContainerItem) => number)(ci),
+                          packed: ci.quantity_packed,
+                          stage: stageRightLabel,
+                        })
+                      }}
+                    </template>
+                    <template v-else-if="(ctx.containerLinePackRemaining as (ci: ActivityPackContainerItem) => number)(ci) > 0">
+                      {{ t('activities.packList.packListNotYetAtStage', { stage: stageRightLabel }) }}
+                    </template>
+                    <template v-else>
+                      {{
+                        t('activities.packList.issuedFraction', {
+                          issued: ci.quantity_issued ?? 0,
+                          packed: ci.quantity_packed,
+                          stage: stageRightLabel,
+                        })
+                      }}
+                    </template>
+                  </span>
+                </div>
+                <div
+                  v-if="ctx.packListEditable && (ctx.containerLineIssueableMax as (ci: ActivityPackContainerItem) => number)(ci) > 0"
+                  class="pack-card-actions"
+                >
+                  <div class="pack-move-inline">
+                    <input
+                      v-model.number="ctx.containerIssueLineInputs[(ctx.containerIssueLineKey as (a: string, b: string) => string)(container.id, ci.id)]"
+                      type="number"
+                      min="1"
+                      :max="(ctx.containerLineIssueableMax as (ci: ActivityPackContainerItem) => number)(ci)"
+                      class="pack-move-input"
+                      @keyup.enter="(ctx.issueContainerLineToEvent as (cid: string, ci: ActivityPackContainerItem) => void)(container.id, ci)"
+                    />
+                    <button
+                      type="button"
+                      class="btn-move-arrow"
+                      :disabled="ctx.containerMutationLoading"
+                      @click="(ctx.issueContainerLineToEvent as (cid: string, ci: ActivityPackContainerItem) => void)(container.id, ci)"
+                    >
+                      <IconArrowRight />
+                    </button>
+                  </div>
+                </div>
+                <PackContainerLineIssueQuick
+                  v-if="!(ctx.isVirtualWarehouseContainerLine as (ci: ActivityPackContainerItem) => boolean)(ci)"
+                  :line="ci"
+                  :visible="(ci.quantity_issued ?? 0) > 0"
+                />
+              </div>
+            </div>
+          </template>
+        </template>
         <PackCrateShellInlinePanel
+          v-else
           :sections="shellPeekSections"
           :empty-hint="shellPeekEmptyHint"
           :reality-banner="

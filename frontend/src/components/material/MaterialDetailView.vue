@@ -10,7 +10,7 @@
           {{ t('components.materialDetail.backToList') }}
         </button>
         <div class="header-title">
-          <span v-if="material.barcode_tag" class="material-code">{{ material.barcode_tag }}</span>
+          <span v-if="!isUserMaterialsBrowseOnly && material.barcode_tag" class="material-code">{{ material.barcode_tag }}</span>
           <h1>{{ material.name }}</h1>
           <span v-if="material.open_loss_reports > 0" class="loss-report-badge">
             {{ t('components.materialDetail.lossReportBadge', { detail: openLossLabel }) }}
@@ -18,39 +18,41 @@
         </div>
       </div>
       <div class="header-actions">
-        <button
-          v-if="showGenerateQrButton"
-          class="btn-outline btn-sm"
-          :disabled="isGeneratingPublicCode"
-          :title="qrGenerateButtonTitle"
-          @click="generateMaterialPublicCode"
-        >
-          {{ qrGenerateButtonLabel }}
-        </button>
-        <PublicQrTag
-          v-if="headerMaterialHasPublicQr"
-          class="header-qr-tag"
-          :url="material.public_url"
-          :code="material.public_code"
-          :size="64"
-          :clickable="true"
-          :image-label="material.name"
-          :image-entity-id="material.id"
-          @activate="openQrActionModalForMaterial"
-        />
-        <button
-          v-else-if="showHeaderSerialQrShortcut"
-          type="button"
-          class="btn-outline btn-sm header-qr-serial-shortcut"
-          :title="t('components.materialDetail.titleOpenSerialQr')"
-          @click="openQrActionModalForAll"
-        >
-          {{ t('components.materialDetail.qrCodes') }}
-        </button>
-        <button class="btn-outline" @click="handleClose">{{ t('components.materialDetail.close') }}</button>
-        <button class="btn-primary" @click="save" :disabled="!hasChanges || isSaving">
-          {{ isSaving ? t('common.saving') : t('common.save') }}
-        </button>
+        <template v-if="canManageMaterials">
+          <button
+            v-if="showGenerateQrButton"
+            class="btn-outline btn-sm"
+            :disabled="isGeneratingPublicCode"
+            :title="qrGenerateButtonTitle"
+            @click="generateMaterialPublicCode"
+          >
+            {{ qrGenerateButtonLabel }}
+          </button>
+          <PublicQrTag
+            v-if="headerMaterialHasPublicQr"
+            class="header-qr-tag"
+            :url="material.public_url"
+            :code="material.public_code"
+            :size="64"
+            :clickable="true"
+            :image-label="material.name"
+            :image-entity-id="material.id"
+            @activate="openQrActionModalForMaterial"
+          />
+          <button
+            v-else-if="showHeaderSerialQrShortcut"
+            type="button"
+            class="btn-outline btn-sm header-qr-serial-shortcut"
+            :title="t('components.materialDetail.titleOpenSerialQr')"
+            @click="openQrActionModalForAll"
+          >
+            {{ t('components.materialDetail.qrCodes') }}
+          </button>
+          <button class="btn-outline" @click="handleClose">{{ t('components.materialDetail.close') }}</button>
+          <button class="btn-primary" @click="save" :disabled="!hasChanges || isSaving">
+            {{ isSaving ? t('common.saving') : t('common.save') }}
+          </button>
+        </template>
       </div>
     </header>
 
@@ -62,8 +64,8 @@
 
     <!-- Content -->
     <div v-else class="detail-content">
-      <!-- Tab Navigation -->
-      <nav class="tab-nav">
+      <!-- Tab Navigation (User: nur Tab «Daten», ohne Leiste) -->
+      <nav v-if="!isUserMaterialsBrowseOnly" class="tab-nav">
         <button 
           v-for="tab in tabs" 
           :key="tab.id"
@@ -80,8 +82,44 @@
       <div class="content-layout">
         <!-- Main Content (Left) -->
         <main class="content-main">
-          <!-- Tab: Daten -->
-          <section v-if="activeTab === 'data'" class="tab-content">
+          <!-- Tab: Daten (User: nur Anzeige, Felder mit Wert) -->
+          <section v-if="activeTab === 'data' && isUserMaterialsBrowseOnly" class="tab-content">
+            <div
+              v-for="section in userReadOnlySections"
+              :key="section.title"
+              class="section-card"
+            >
+              <h2 class="section-title">{{ section.title }}</h2>
+              <dl class="user-readonly-fields">
+                <div
+                  v-for="field in section.fields"
+                  :key="field.label"
+                  class="user-readonly-row"
+                >
+                  <dt>{{ field.label }}</dt>
+                  <dd>{{ field.value }}</dd>
+                </div>
+              </dl>
+            </div>
+            <div
+              v-if="material.material_type === 'physical_combo' && material.linked_container_batch"
+              class="section-card"
+            >
+              <h2 class="section-title">{{ t('components.materialDetail.refKisteLabel') }}</h2>
+              <router-link
+                class="linked-kiste-link"
+                :to="`/${departmentId}/materials/${material.linked_container_batch.material_id}`"
+              >
+                {{ material.linked_container_batch.display_label }}
+              </router-link>
+            </div>
+            <p v-if="userReadOnlySections.length === 0" class="user-readonly-empty">
+              {{ t('components.materialDetail.userReadOnlyNoFields') }}
+            </p>
+          </section>
+
+          <!-- Tab: Daten (Bearbeitung) -->
+          <section v-else-if="activeTab === 'data'" class="tab-content">
             <div class="section-card">
               <h2 class="section-title">{{ t('components.materialDetail.sectionMaterial') }}</h2>
               
@@ -1721,7 +1759,7 @@
           <div class="sidebar-card">
             <div class="sidebar-header">
               <h3>{{ t('components.materialDetail.sidebarImage') }}</h3>
-              <button class="link-btn">{{ t('components.materialDetail.btnGoogleSearch') }}</button>
+              <button v-if="canManageMaterials" class="link-btn">{{ t('components.materialDetail.btnGoogleSearch') }}</button>
             </div>
             <div class="image-slot">
               <svg v-if="!material.image_url" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#d1d5db" stroke-width="1.5">
@@ -1731,7 +1769,11 @@
               </svg>
               <img v-else :src="material.image_url" :alt="t('components.materialDetail.altMaterialImage')" />
             </div>
-            <button v-if="hasAnyQrForPrint" class="btn-outline btn-sm qr-print-btn" @click="openQrActionModalForAll">
+            <button
+              v-if="canManageMaterials && hasAnyQrForPrint"
+              class="btn-outline btn-sm qr-print-btn"
+              @click="openQrActionModalForAll"
+            >
               {{ t('components.materialDetail.btnPrintQrCodes') }}
             </button>
           </div>
@@ -1741,20 +1783,28 @@
             <div class="sidebar-header">
               <h3>{{ t('components.materialDetail.sidebarStockQuick') }}</h3>
               <button
-                v-if="isComboMaterialView"
+                v-if="canManageMaterials && isComboMaterialView"
                 type="button"
                 class="link-btn"
                 @click="activeTab = 'composition'"
               >
                 {{ t('components.materialDetail.tabComposition') }}
               </button>
-              <button v-else type="button" class="link-btn" @click="activeTab = 'stock'">{{ t('components.materialDetail.linkChangeStock') }}</button>
+              <button
+                v-else-if="canManageMaterials"
+                type="button"
+                class="link-btn"
+                @click="activeTab = 'stock'"
+              >
+                {{ t('components.materialDetail.linkChangeStock') }}
+              </button>
             </div>
             <div class="stock-quick">
               <div class="stock-row stock-row-total">
                 <span>{{ t('components.materialDetail.stockLabelTotal') }}</span>
                 <span class="stock-val">{{ material.total_stock }}</span>
               </div>
+              <template v-if="!isUserMaterialsBrowseOnly">
               <div v-if="material.pack_size && material.pack_unit" class="stock-row">
                 <span>{{ material.pack_unit }}</span>
                 <span class="stock-val">{{ packUnitCount }} à {{ material.pack_size }}</span>
@@ -1797,6 +1847,7 @@
                 <span>{{ t('components.materialDetail.stockLabelAvailable') }}</span>
                 <span class="stock-val available">{{ material.available ?? availableStock }}</span>
               </div>
+              </template>
             </div>
           </div>
 
@@ -2325,6 +2376,12 @@ const canManageJsMaterial = computed(() => {
   if (role === 'sa' || role === 'superadmin') return true
   return (authStore.userRoles || []).some((r: string) => r.toLowerCase() === 'role_superadmin')
 })
+
+const departmentRole = computed(() => String(authStore.currentDepartmentRole || 'u').toLowerCase())
+const isUserMaterialsBrowseOnly = computed(() => ['u', 'user'].includes(departmentRole.value))
+const canManageMaterials = computed(() =>
+  ['mw', 'dc', 'matwart', 'depchef'].includes(departmentRole.value)
+)
 
 // State
 const material = ref<Material>({} as Material)
@@ -2902,6 +2959,9 @@ const showContainerContentTab = computed(() => {
 
 // Dynamische Tabs: Kombos fokussiert auf Stückliste & Lager (ohne Bestand/Serien/Verwendet-in-Kette wie Einzelmaterial)
 const tabs = computed(() => {
+  if (isUserMaterialsBrowseOnly.value) {
+    return [{ id: 'data', label: t('components.materialDetail.tabData') }]
+  }
   if (isComboMaterialView.value) {
     const comboTabs = [
       { id: 'data', label: t('components.materialDetail.tabData') },
@@ -3759,6 +3819,118 @@ function getCategoryPathById(categoryId: string): string {
 
   return parts.reverse().join(' → ')
 }
+
+type ReadOnlyField = { label: string; value: string }
+type ReadOnlySection = { title: string; fields: ReadOnlyField[] }
+
+function hasReadOnlyValue(value: unknown): boolean {
+  if (value === null || value === undefined) return false
+  if (typeof value === 'string') return value.trim() !== ''
+  if (typeof value === 'number') return !Number.isNaN(value)
+  if (typeof value === 'boolean') return value
+  return true
+}
+
+function pushReadOnlyField(
+  fields: ReadOnlyField[],
+  label: string,
+  value: unknown,
+  format?: (v: unknown) => string
+) {
+  if (!hasReadOnlyValue(value)) return
+  fields.push({ label, value: format ? format(value) : String(value) })
+}
+
+function formatReservationModeLabel(mode: string): string {
+  if (mode === 'complete_only') return t('components.materialDetail.reservationComplete')
+  if (mode === 'individual') return t('components.materialDetail.reservationIndividual')
+  if (mode === 'flexible') return t('components.materialDetail.reservationFlexible')
+  return mode
+}
+
+const userReadOnlySections = computed((): ReadOnlySection[] => {
+  const m = material.value
+  const sections: ReadOnlySection[] = []
+
+  const materialFields: ReadOnlyField[] = []
+  pushReadOnlyField(materialFields, t('components.materialDetail.labelNameDb'), m?.name)
+  pushReadOnlyField(materialFields, t('components.materialDetail.labelCode'), m?.barcode_tag)
+  pushReadOnlyField(materialFields, t('components.materialDetail.labelCategory'), getCategoryPath())
+  pushReadOnlyField(materialFields, t('components.materialDetail.labelManufacturer'), m?.manufacturer)
+  pushReadOnlyField(materialFields, t('components.materialDetail.labelModel'), m?.model)
+  if (materialFields.length > 0) {
+    sections.push({ title: t('components.materialDetail.sectionMaterial'), fields: materialFields })
+  }
+
+  const propertyFields: ReadOnlyField[] = []
+  pushReadOnlyField(propertyFields, t('components.materialDetail.propPhysicalVirtual'), propertyBadgeText.value)
+  if (m?.is_js_material) {
+    pushReadOnlyField(
+      propertyFields,
+      t('components.materialDetail.labelSource'),
+      t('components.materialDetail.sourceJs')
+    )
+    pushReadOnlyField(propertyFields, t('components.materialDetail.labelExternalSource'), m?.external_source)
+  }
+  if (m?.reservation_mode) {
+    pushReadOnlyField(
+      propertyFields,
+      t('components.materialDetail.labelReservationMode'),
+      formatReservationModeLabel(String(m.reservation_mode))
+    )
+  }
+  if (propertyFields.length > 0) {
+    sections.push({ title: t('components.materialDetail.sectionProperties'), fields: propertyFields })
+  }
+
+  const detailFields: ReadOnlyField[] = []
+  pushReadOnlyField(detailFields, t('components.materialDetail.labelEan'), m?.ean)
+  pushReadOnlyField(detailFields, t('components.materialDetail.labelWeightKg'), m?.weight, (v) => `${v} kg`)
+  pushReadOnlyField(detailFields, t('components.materialDetail.labelColor'), m?.color)
+  pushReadOnlyField(detailFields, t('components.materialDetail.labelLengthCm'), m?.size_length, (v) => `${v} cm`)
+  pushReadOnlyField(detailFields, t('components.materialDetail.labelWidthCm'), m?.size_width, (v) => `${v} cm`)
+  pushReadOnlyField(detailFields, t('components.materialDetail.labelHeightCm'), m?.size_height, (v) => `${v} cm`)
+  pushReadOnlyField(detailFields, t('components.materialDetail.labelWarranty'), m?.warranty_until)
+  pushReadOnlyField(detailFields, t('components.materialDetail.labelDescription'), m?.description)
+  if (detailFields.length > 0) {
+    sections.push({ title: t('components.materialDetail.sectionDetails'), fields: detailFields })
+  }
+
+  if (!m?.is_consumable && !m?.is_food && m?.pack_size && m?.pack_unit) {
+    const packFields: ReadOnlyField[] = []
+    pushReadOnlyField(packFields, t('components.materialDetail.labelPiecesPerUnit'), m.pack_size)
+    pushReadOnlyField(packFields, t('components.materialDetail.labelDesignation'), m.pack_unit)
+    sections.push({ title: t('components.materialDetail.sectionPackaging'), fields: packFields })
+  }
+
+  if (m?.is_consumable || m?.is_food) {
+    const costFields: ReadOnlyField[] = []
+    pushReadOnlyField(
+      costFields,
+      t('components.materialDetail.labelSalePrice'),
+      m?.sale_price,
+      (v) => `${v} ${t('components.materialDetail.currencyFr')}`
+    )
+    pushReadOnlyField(
+      costFields,
+      t('components.materialDetail.labelRefPurchase'),
+      m?.reference_purchase_unit_chf,
+      (v) => `${v} ${t('components.materialDetail.currencyFr')}`
+    )
+    if (m?.min_stock != null && m.min_stock > 0) {
+      pushReadOnlyField(costFields, t('components.materialDetail.labelMinStock'), m.min_stock)
+    }
+    if (costFields.length > 0) {
+      sections.push({ title: t('components.materialDetail.sectionCosts'), fields: costFields })
+    }
+  }
+
+  return sections
+})
+
+watch(isUserMaterialsBrowseOnly, (browseOnly) => {
+  if (browseOnly) activeTab.value = 'data'
+}, { immediate: true })
 
 function formatDate(dateStr: string): string {
   if (!dateStr) return '-'
@@ -5313,5 +5485,39 @@ onMounted(() => {
   white-space: normal;
   max-width: 6rem;
   line-height: 1.2;
+}
+
+.user-readonly-fields {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.user-readonly-row {
+  display: grid;
+  grid-template-columns: minmax(8rem, 11rem) 1fr;
+  gap: 0.75rem 1rem;
+  align-items: baseline;
+}
+
+.user-readonly-row dt {
+  margin: 0;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: #6b7280;
+}
+
+.user-readonly-row dd {
+  margin: 0;
+  font-size: 0.9375rem;
+  color: #111827;
+  white-space: pre-wrap;
+}
+
+.user-readonly-empty {
+  margin: 0;
+  color: #6b7280;
+  font-size: 0.9375rem;
 }
 </style>

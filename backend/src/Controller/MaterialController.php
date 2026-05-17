@@ -2595,6 +2595,8 @@ class MaterialController extends AbstractController
                    COALESCE(cb.slot_id, a.slot_id) AS slot_id,
                    a.qty,
                    b.id AS batch_id,
+                   NULLIF(TRIM(b.serial_number), '') AS serial_number,
+                   NULLIF(TRIM(b.label), '') AS batch_label,
                    a.container_batch_id,
                    r.name AS rack_name,
                    s.name AS slot_name,
@@ -2622,6 +2624,8 @@ class MaterialController extends AbstractController
 
         $directSql = "
             SELECT b.rack_id, b.slot_id, b.qty, b.id AS batch_id,
+                   NULLIF(TRIM(b.serial_number), '') AS serial_number,
+                   NULLIF(TRIM(b.label), '') AS batch_label,
                    r.name AS rack_name, s.name AS slot_name,
                    addr.name AS storage_address_name,
                    NULL AS container_caption
@@ -2673,6 +2677,12 @@ class MaterialController extends AbstractController
             'location_label' => $locLine !== '' ? $locLine : null,
             'qty' => (int) ($row['qty'] ?? 0),
             'batch_id' => (string) ($row['batch_id'] ?? ''),
+            'serial_number' => isset($row['serial_number']) && trim((string) $row['serial_number']) !== ''
+                ? trim((string) $row['serial_number'])
+                : null,
+            'batch_label' => isset($row['batch_label']) && trim((string) $row['batch_label']) !== ''
+                ? trim((string) $row['batch_label'])
+                : null,
             'container_batch_id' => isset($row['container_batch_id']) && $row['container_batch_id'] !== null && $row['container_batch_id'] !== ''
                 ? (string) $row['container_batch_id']
                 : null,

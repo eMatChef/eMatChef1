@@ -1,18 +1,28 @@
 <template>
   <div class="tasks-general-panel">
     <div class="general-card">
-      <h2 class="panel-heading">Allgemein</h2>
+      <h2 class="panel-heading">{{ t('tasksGeneral.heading') }}</h2>
       <p class="panel-text">
-        Hier können später übergreifende Aufgaben und Hinweise für deine Abteilung erscheinen.
+        {{ t('tasksGeneral.intro') }}
       </p>
-      <p class="panel-text panel-text-muted">
-        QR-Etiketten und Sammeldruck findest du unter dem Reiter <strong>Drucken</strong>.
+      <p v-if="canManagePrintTasks" class="panel-text panel-text-muted">
+        {{ t('tasksGeneral.printHint') }}
       </p>
     </div>
   </div>
 </template>
 
-<script setup lang="ts"></script>
+<script setup lang="ts">
+import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
+import { useAuthStore } from '@/stores/auth'
+
+const { t } = useI18n()
+const authStore = useAuthStore()
+
+const departmentRole = computed(() => String(authStore.currentDepartmentRole || 'u').toLowerCase().trim())
+const canManagePrintTasks = computed(() => !['u', 'user'].includes(departmentRole.value))
+</script>
 
 <style scoped>
 .tasks-general-panel {

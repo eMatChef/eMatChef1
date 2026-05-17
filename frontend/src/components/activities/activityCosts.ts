@@ -1,0 +1,220 @@
+import type { ActivityIssueReportRow, ActivityItemRow } from '@/api/activities'
+
+export interface ConsumableCostRow {
+  material_item_id: string
+  material_name: string
+  linked_container_label?: string | null
+  quantity_booked: number
+  quantity_warehouse: number
+  quantity_replenishment: number
+  sale_price: number | null
+}
+
+export interface ReplenishmentPurchaseRow {
+  id: string
+  material_item_id: string
+  material_name: string
+  quantity: number
+  unit_purchase: number | null
+  line_total: number | null
+}
+
+export interface RentalCostRow {
+  material_item_id: string
+  material_name: string
+  quantity: number
+  unit_price: number | null
+  line_total: number | null
+}
+
+export function parseMoney(v: string | number | null | undefined): number | null {
+  if (v == null || v === '') return null
+  const n = typeof v === 'string' ? parseFloat(v) : v
+  return Number.isFinite(n) ? n : null
+}
+
+export function formatChf(amount: number): string {
+  return amount.toFixed(2)
+}
+
+export function formatChfLabel(amount: number | null | undefined): string {
+  if (amount == null) return '–'
+  return `CHF ${formatChf(amount)}`
+}
+
+export function consumableDisplayName(row: {
+  material_name: string
+  linked_container_label?: string | null
+}): string {
+  const l = row.linked_container_label?.trim()
+  return l ? `${l} — ${row.material_name}` : row.material_name
+}
+
+export function aggregateConsumableRows(items: ActivityItemRow[]): ConsumableCostRow[] {
+  const map = new Map<string, ConsumableCostRow>()
+  for (const r of items.filter((x) => x.is_consumable === true)) {
+    const salePrice = parseMoney(r.sale_price)
+    const isReplen = r.is_replenishment === true
+    const ex = map.get(r.material_item_id)
+    if (ex) {
+      ex.quantity_booked += r.quantity
+      if (isReplen) ex.quantity_replenishment += r.quantity
+      else ex.quantity_warehouse += r.quantity
+      if (ex.sale_price == null && salePrice != null) ex.sale_price = salePrice
+    } else {
+      map.set(r.material_item_id, {
+        material_item_id: r.material_item_id,
+        material_name: r.material_name,
+        linked_container_label: r.linked_container_label,
+        quantity_booked: r.quantity,
+        quantity_warehouse: isReplen ? 0 : r.quantity,
+        quantity_replenishment: isReplen ? r.quantity : 0,
+        sale_price: salePrice,
+      })
+    }
+  }
+  return [...map.values()]
+}
+
+export function replenishmentPurchaseRows(items: ActivityItemRow[]): ReplenishmentPurchaseRow[] {
+  return items
+    .filter((r) => r.is_consumable === true && r.is_replenishment === true)
+    .map((r) => {
+      const lineTotal = parseMoney(r.line_total)
+      const unitFromLine = parseMoney(r.unit_price)
+      const unit =
+        unitFromLine ??
+        (lineTotal != null && r.quantity > 0 ? lineTotal / r.quantity : null)
+      return {
+        id: r.id,
+        material_item_id: r.material_item_id,
+        material_name: r.material_name,
+        quantity: r.quantity,
+        unit_purchase: unit,
+        line_total: lineTotal,
+      }
+    })
+}
+
+export function consumableUsedQty(materialItemId: string, issues: ActivityIssueReportRow[]): number {
+  return issues
+    .filter((i) => i.type === 'consumption' && i.material_item_id === materialItemId)
+    .reduce((s, i) => s + i.quantity, 0)
+}
+
+/** Verrechneter Betrag: Verbrauch aus Lager zu Verkaufspreis, aus Nachkauf zu Einkaufspreis. */
+export function consumableChargeableCost(
+  materialItemId: string,
+  items: ActivityItemRow[],
+  issues: ActivityIssueReportRow[],
+): number {
+  const lines = items.filter((i) => i.is_consumable && i.material_item_id === materialItemId)
+  if (lines.length === 0) return 0
+
+  const used = consumableUsedQty(materialItemId, issues)
+  if (used <= 0) return 0
+
+  let warehouseQty = 0
+  let salePrice: number | null = null
+  const replenLines: { qty: number; unit: number | null }[] = []
+
+  for (const r of lines) {
+    if (!salePrice) salePrice = parseMoney(r.sale_price)
+    if (r.is_replenishment) {
+      const lineTotal = parseMoney(r.line_total)
+      const unit =
+        parseMoney(r.unit_price) ??
+        (lineTotal != null && r.quantity > 0 ? lineTotal / r.quantity : null)
+      replenLines.push({ qty: r.quantity, unit })
+    } else {
+      warehouseQty += r.quantity
+    }
+  }
+
+  const fromWarehouse = Math.min(used, warehouseQty)
+  let fromReplen = used - fromWarehouse
+  let cost = fromWarehouse * (salePrice ?? 0)
+
+  for (const line of replenLines) {
+    if (fromReplen <= 0) break
+    const take = Math.min(fromReplen, line.qty)
+    fromReplen -= take
+    if (line.unit != null) {
+      cost += take * line.unit
+    } else if (salePrice != null) {
+      cost += take * salePrice
+    }
+  }
+
+  return cost
+}
+
+export function consumableLineCost(
+  row: ConsumableCostRow,
+  usedQty: number,
+  items: ActivityItemRow[],
+  issues: ActivityIssueReportRow[],
+): number {
+  return consumableChargeableCost(row.material_item_id, items, issues)
+}
+
+export function consumableCostTotal(items: ActivityItemRow[], issues: ActivityIssueReportRow[]): number {
+  const ids = new Set(
+    items.filter((i) => i.is_consumable).map((i) => i.material_item_id),
+  )
+  let sum = 0
+  for (const id of ids) {
+    sum += consumableChargeableCost(id, items, issues)
+  }
+  return sum
+}
+
+export function aggregateRentalRows(items: ActivityItemRow[]): RentalCostRow[] {
+  return items
+    .filter((x) => !x.is_consumable)
+    .map((r) => ({
+      material_item_id: r.material_item_id,
+      material_name: r.material_name,
+      quantity: r.quantity,
+      unit_price: parseMoney(r.unit_price),
+      line_total: parseMoney(r.line_total),
+    }))
+}
+
+export function rentalCostTotal(rows: RentalCostRow[]): number {
+  return rows.reduce((sum, r) => sum + (r.line_total ?? 0), 0)
+}
+
+export function replenishmentPurchaseTotal(rows: ReplenishmentPurchaseRow[]): number {
+  return rows.reduce((sum, r) => sum + (r.line_total ?? (r.unit_purchase ?? 0) * r.quantity), 0)
+}
+
+export function lossIssueUnitPrice(
+  materialItemId: string | null | undefined,
+  items: ActivityItemRow[],
+): number | null {
+  if (!materialItemId) return null
+  for (const r of items) {
+    if (r.material_item_id === materialItemId) {
+      const p = parseMoney(r.sale_price)
+      if (p != null) return p
+    }
+  }
+  return null
+}
+
+export function lossIssueCost(
+  issue: { material_item_id?: string | null; quantity: number },
+  items: ActivityItemRow[],
+): number {
+  const unit = lossIssueUnitPrice(issue.material_item_id, items)
+  if (unit == null) return 0
+  return unit * issue.quantity
+}
+
+export function lossCostTotal(
+  lossIssues: { material_item_id?: string | null; quantity: number }[],
+  items: ActivityItemRow[],
+): number {
+  return lossIssues.reduce((sum, i) => sum + lossIssueCost(i, items), 0)
+}

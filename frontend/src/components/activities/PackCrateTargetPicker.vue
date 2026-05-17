@@ -2,12 +2,19 @@
 import { computed, inject, reactive, unref, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { ActivityPackContainer } from '@/api/activityContainers'
+import type { ActivityPackItem } from '@/api/activityPackItems'
 import PackCratePickerInnerContent from '@/components/activities/PackCratePickerInnerContent.vue'
+import PackCratePickerShellInnerContent from '@/components/activities/PackCratePickerShellInnerContent.vue'
+import { packShellContainerForPackItem } from '@/components/activities/packShellCrateHelpers'
 import { PACK_WAREHOUSE_ISSUE_INJECT_KEY } from '@/components/activities/packWarehouseIssueInjectKey'
 
 defineOptions({ name: 'PackCrateTargetPicker' })
 
-type ActivePackTarget = { kind: 'loose' } | { kind: 'container'; containerId: string } | null
+type ActivePackTarget =
+  | { kind: 'loose' }
+  | { kind: 'container'; containerId: string }
+  | { kind: 'combo'; packItemId: string }
+  | null
 
 const { t } = useI18n()
 const ctx = inject(PACK_WAREHOUSE_ISSUE_INJECT_KEY) as Record<string, unknown>
@@ -21,21 +28,60 @@ const packContainers = computed(() => {
   const list = injectRef<ActivityPackContainer[] | undefined>(ctx.packContainers)
   return Array.isArray(list) ? list : []
 })
+const stageRightCrateShellItems = computed(() => {
+  const list = injectRef<ActivityPackItem[] | undefined>(ctx.stageRightCrateShellItems)
+  return Array.isArray(list) ? list : []
+})
 const activePackTarget = computed(() => injectRef<ActivePackTarget>(ctx.activePackTarget))
 
 const expandedByCrateId = reactive<Record<string, boolean>>({})
+const expandedByShellId = reactive<Record<string, boolean>>({})
 
 const sortedCrates = computed(() =>
-  [...packContainers.value].sort((a, b) => a.label.localeCompare(b.label, 'de')),
+  [...packContainers.value].sort((a, b) => crateDisplayLabel(a).localeCompare(crateDisplayLabel(b), 'de')),
 )
+
+/** Phys.-Kombi rechts «Gepackt», noch ohne Pack-Behälter-Zeile */
+const shellOnlyPackItems = computed(() =>
+  stageRightCrateShellItems.value.filter(
+    (pi) => packShellContainerForPackItem(pi, packContainers.value) == null,
+  ),
+)
+
+const shellPackItemForContainer = computed(
+  () => ctx.shellPackItemForContainer as ((containerId: string) => ActivityPackItem | undefined) | undefined,
+)
+
+function crateDisplayLabel(c: ActivityPackContainer): string {
+  const fn = shellPackItemForContainer.value
+  const sh = fn ? fn(c.id) : undefined
+  if (sh?.materialName?.trim()) return sh.materialName.trim()
+  return c.label
+}
+
+function isShellLinkedContainer(c: ActivityPackContainer): boolean {
+  const fn = shellPackItemForContainer.value
+  return fn ? fn(c.id) != null : false
+}
 
 function itemCount(containerId: string): number {
   return (ctx.containerItemCount as (id: string) => number)(containerId)
 }
 
+function shellItemCount(pi: ActivityPackItem): number {
+  const fn = ctx.peekSectionsForShellPackItem as ((p: ActivityPackItem) => { lines: unknown[] }[]) | undefined
+  if (!fn) return 0
+  return fn(pi).reduce((n, sec) => n + sec.lines.length, 0)
+}
+
 function isCrateSelected(id: string): boolean {
   const tgt = activePackTarget.value
   return tgt?.kind === 'container' && tgt.containerId === id
+}
+
+function isComboSelected(packItemId: string): boolean {
+  const tgt = activePackTarget.value
+  return tgt?.kind === 'combo' && tgt.packItemId === packItemId
 }
 
 function isLooseSelected(): boolean {
@@ -46,8 +92,16 @@ function isCrateExpanded(id: string): boolean {
   return expandedByCrateId[id] === true
 }
 
+function isShellExpanded(packItemId: string): boolean {
+  return expandedByShellId[packItemId] === true
+}
+
 function toggleCrateExpanded(id: string) {
   expandedByCrateId[id] = !isCrateExpanded(id)
+}
+
+function toggleShellExpanded(packItemId: string) {
+  expandedByShellId[packItemId] = !isShellExpanded(packItemId)
 }
 
 function selectLoose() {
@@ -59,6 +113,15 @@ function selectCrate(id: string) {
   if (!packListEditable.value) return
   ;(ctx.selectActiveContainer as (containerId: string) => void)(id)
 }
+
+function selectCombo(packItemId: string) {
+  if (!packListEditable.value) return
+  ;(ctx.selectActiveCombo as (packItemId: string) => void)(packItemId)
+}
+
+const pickerHasEntries = computed(
+  () => sortedCrates.value.length > 0 || shellOnlyPackItems.value.length > 0,
+)
 </script>
 
 <template>
@@ -83,12 +146,13 @@ function selectCrate(id: string) {
         {{ t('activities.packList.sectionLoose') }}
       </button>
 
+      <!-- Phys.-Kombi ohne Behälter-Zeile (z. B. Kochkiste frisch gepackt) -->
       <div
-        v-for="c in sortedCrates"
-        :key="c.id"
-        class="pack-container-card pack-crate-picker-card"
+        v-for="pi in shellOnlyPackItems"
+        :key="'shell-picker-' + pi.id"
+        class="pack-container-card pack-crate-picker-card pack-container-card--shell"
         :class="{
-          'pack-container-card--target': isCrateSelected(c.id),
+          'pack-container-card--target': isComboSelected(pi.id),
           'pack-container-card--selectable': packListEditable,
         }"
       >
@@ -96,8 +160,59 @@ function selectCrate(id: string) {
           <button
             type="button"
             class="pack-container-chevron-btn"
+            :aria-expanded="isShellExpanded(pi.id)"
+            :aria-label="t('activities.packList.cratePickerExpandAria', { label: pi.materialName })"
+            @click.stop="toggleShellExpanded(pi.id)"
+          >
+            <span class="pack-container-chevron" aria-hidden="true">{{
+              isShellExpanded(pi.id) ? '▼' : '▶'
+            }}</span>
+          </button>
+          <div class="pack-container-header-main">
+            <button
+              type="button"
+              role="option"
+              class="pack-container-select-main"
+              :aria-selected="isComboSelected(pi.id)"
+              :title="t('activities.packList.targetCrateSelectTitle')"
+              :disabled="!packListEditable"
+              @click.stop="selectCombo(pi.id)"
+            >
+              <span class="pack-container-name">{{ pi.materialName }}</span>
+              <span
+                class="pack-combo-badge"
+                :title="t('activities.detail.comboPhysicalTitle')"
+                >{{ t('activities.detail.comboPhysicalShort') }}</span
+              >
+            </button>
+            <div class="pack-container-header-meta">
+              <span class="pack-container-chip text-muted">{{
+                t('activities.common.itemsUnit', { count: shellItemCount(pi) })
+              }}</span>
+            </div>
+          </div>
+        </div>
+        <div v-show="isShellExpanded(pi.id)" class="pack-container-inner pack-crate-picker-inner">
+          <PackCratePickerShellInnerContent :shell-pack-item="pi" :expanded="isShellExpanded(pi.id)" />
+        </div>
+      </div>
+
+      <div
+        v-for="c in sortedCrates"
+        :key="c.id"
+        class="pack-container-card pack-crate-picker-card"
+        :class="{
+          'pack-container-card--target': isCrateSelected(c.id),
+          'pack-container-card--selectable': packListEditable,
+          'pack-container-card--shell': isShellLinkedContainer(c),
+        }"
+      >
+        <div class="pack-container-header-row">
+          <button
+            type="button"
+            class="pack-container-chevron-btn"
             :aria-expanded="isCrateExpanded(c.id)"
-            :aria-label="t('activities.packList.cratePickerExpandAria', { label: c.label })"
+            :aria-label="t('activities.packList.cratePickerExpandAria', { label: crateDisplayLabel(c) })"
             @click.stop="toggleCrateExpanded(c.id)"
           >
             <span class="pack-container-chevron" aria-hidden="true">{{
@@ -114,7 +229,13 @@ function selectCrate(id: string) {
               :disabled="!packListEditable"
               @click.stop="selectCrate(c.id)"
             >
-              <span class="pack-container-name">{{ c.label }}</span>
+              <span class="pack-container-name">{{ crateDisplayLabel(c) }}</span>
+              <span
+                v-if="isShellLinkedContainer(c)"
+                class="pack-combo-badge"
+                :title="t('activities.detail.comboPhysicalTitle')"
+                >{{ t('activities.detail.comboPhysicalShort') }}</span
+              >
             </button>
             <div class="pack-container-header-meta">
               <span class="pack-container-chip text-muted">{{
@@ -128,7 +249,7 @@ function selectCrate(id: string) {
         </div>
       </div>
     </div>
-    <p v-if="sortedCrates.length === 0" class="pack-crate-picker-empty text-muted">
+    <p v-if="!pickerHasEntries" class="pack-crate-picker-empty text-muted">
       {{ t('activities.packList.hintNoCratesPicker') }}
     </p>
   </div>
@@ -137,3 +258,15 @@ function selectCrate(id: string) {
 <style src="@/styles/views/activities/detail-workflow.css"></style>
 <style src="@/styles/views/activities/pack-container-card.css"></style>
 <style scoped src="@/styles/views/activities/pack-crate-picker.css"></style>
+<style scoped>
+.pack-combo-badge {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: #ede9fe;
+  color: #5b21b6;
+  flex-shrink: 0;
+  margin-left: 4px;
+}
+</style>

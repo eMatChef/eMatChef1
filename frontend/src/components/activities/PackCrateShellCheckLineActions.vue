@@ -9,6 +9,8 @@ defineOptions({ name: 'PackCrateShellCheckLineActions' })
 const props = defineProps<{
   materialName: string
   expectedQty: number
+  /** Erwartete Seriennummer zur Sichtprüfung in der Kiste */
+  serialHint?: string | null
   review: ShellForwardLineReview
   isExtra?: boolean
   minusDisabled?: boolean
@@ -55,11 +57,18 @@ function stepCounted(delta: number) {
       'pack-crate-shell-check-line--pending': review.status === null && varianceKind === 'unset',
     }"
   >
-    <div class="pack-crate-shell-check-line__main">
-      <span class="pack-crate-shell-check-line__name">{{ materialName }}</span>
-      <span class="pack-crate-shell-check-line__soll text-muted">
-        {{ t('activities.packList.shellForwardExpectedQty', { n: expectedQty }) }}
-      </span>
+    <div class="pack-crate-shell-check-line__main pack-shell-forward-li-meta">
+      <div class="pack-shell-forward-li-name">{{ materialName }}</div>
+      <div class="pack-shell-forward-li-sub text-muted">
+        <span>{{ t('activities.packList.shellForwardExpectedQty', { n: expectedQty }) }}</span>
+        <span
+          v-if="serialHint"
+          class="pack-shell-forward-li-serial"
+          :title="t('activities.packList.shellForwardSerialCheckTitle')"
+        >
+          {{ t('activities.packList.shellForwardSerialSn', { serial: serialHint }) }}
+        </span>
+      </div>
     </div>
     <div class="pack-crate-shell-check-line__actions pack-shell-forward-variance-actions">
       <button
@@ -113,16 +122,6 @@ function stepCounted(delta: number) {
   min-width: 0;
 }
 
-.pack-crate-shell-check-line__name {
-  display: block;
-  font-size: 13px;
-  font-weight: 600;
-  color: #334155;
-}
-
-.pack-crate-shell-check-line__soll {
-  font-size: 12px;
-}
 
 .pack-crate-shell-check-line__actions {
   flex: 0 0 auto;

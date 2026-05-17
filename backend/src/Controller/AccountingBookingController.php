@@ -162,6 +162,8 @@ class AccountingBookingController extends AbstractController
         }
         if ($materialItem !== null) {
             $booking->setMaterialItem($materialItem);
+        } elseif ($followUp !== null && $followUp->getMaterialItem() !== null) {
+            $booking->setMaterialItem($followUp->getMaterialItem());
         } elseif ($followUp !== null && $followUp->getMaterialBatch() !== null) {
             $booking->setMaterialItem($followUp->getMaterialBatch()->getMaterialItem());
         }

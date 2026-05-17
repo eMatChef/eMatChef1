@@ -282,7 +282,7 @@
   "contacts": {
     "title": "Kontakte",
     "description": "Verwalten Sie Ihr Adress- und Kontaktbuch",
-    "newContact": "Neuer Kontakt",
+    "newAddress": "Nuovo indirizzo",
     "searchPlaceholder": "Kontakt suchen (Name, Firma, E-Mail, Ort)…",
     "allTypes": "Alle Typen",
     "allCantons": "Alle Kantone",
@@ -291,7 +291,7 @@
     "loadError": "Fehler beim Laden der Kontakte",
     "emptyTitle": "Noch keine Kontakte",
     "emptyText": "Erfassen Sie Ihren ersten Kontakt, um Ihr Adressbuch zu starten.",
-    "emptyCta": "Ersten Kontakt erfassen",
+    "emptyCta": "Aggiungi il primo indirizzo",
     "noResultsTitle": "Keine Treffer",
     "noResultsText": "Keine Kontakte entsprechen Ihren Filterkriterien.",
     "colName": "Name",

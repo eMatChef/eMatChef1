@@ -126,6 +126,7 @@ export interface ActivityItemRow {
   line_total?: string | number | null
   price_type?: string | null
   is_consumable?: boolean
+  is_replenishment?: boolean
   sale_price?: string | number | null
   pack_size?: number | null
   pack_unit?: string | null
@@ -198,9 +199,24 @@ export async function syncActivityItems(
 
 export async function addActivityItem(
   activityId: string,
-  body: { material_item_id: string; quantity?: number; replenishment?: boolean },
+  body: {
+    material_item_id: string
+    quantity?: number
+    replenishment?: boolean
+    unit_price?: number | string
+    line_total?: number | string
+    price_type?: string
+  },
 ): Promise<{ message?: string; total_price?: string | null }> {
   const { data } = await apiClient.post(`/api/activities/${activityId}/items`, body)
+  return data
+}
+
+export async function releaseConsumableSurplus(
+  activityId: string,
+  body: { material_item_id: string; quantity: number },
+): Promise<{ message?: string; released?: number; total_price?: string | null }> {
+  const { data } = await apiClient.post(`/api/activities/${activityId}/items/release-surplus`, body)
   return data
 }
 

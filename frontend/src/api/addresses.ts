@@ -25,6 +25,8 @@ export interface Address {
   additional_info: string | null
   is_primary: boolean
   full_address: string
+  deleted_at?: string | null
+  is_deleted?: boolean
 }
 
 export interface AddressFormData {
@@ -60,13 +62,21 @@ export interface SwissCantons {
  * Alle Adressen eines Departments laden (optional gefiltert nach Typ)
  * WICHTIG: department_id ist erforderlich für Multi-Tenant!
  */
-export async function getAddresses(departmentId: string, type?: string): Promise<{
+export async function getAddresses(
+  departmentId: string,
+  typeOrOptions?: string | { type?: string; includeDeleted?: boolean }
+): Promise<{
   addresses: Address[]
   types: AddressTypes
   cantons: SwissCantons
 }> {
   const params: Record<string, string> = { department_id: departmentId }
-  if (type) params.type = type
+  if (typeof typeOrOptions === 'string') {
+    params.type = typeOrOptions
+  } else {
+    if (typeOrOptions?.type) params.type = typeOrOptions.type
+    if (typeOrOptions?.includeDeleted) params.include_deleted = '1'
+  }
   const { data } = await apiClient.get('/api/addresses', { params })
   return data
 }
@@ -105,11 +115,21 @@ export async function updateAddress(id: string, formData: Partial<AddressFormDat
   return data
 }
 
-/**
- * Adresse löschen
- */
-export async function deleteAddress(id: string): Promise<{ message: string }> {
+/** Adresse in den Papierkorb verschieben (Soft-Delete). */
+export async function deleteAddress(id: string): Promise<{ message: string; address?: Address }> {
   const { data } = await apiClient.delete(`/api/addresses/${id}`)
+  return data
+}
+
+/** Gelöschte Adresse wiederherstellen (nur MW/DC). */
+export async function restoreAddress(id: string): Promise<{ message: string; address: Address }> {
+  const { data } = await apiClient.post(`/api/addresses/${id}/restore`)
+  return data
+}
+
+/** Adresse endgültig löschen (nur MW/DC, nur aus dem Papierkorb). */
+export async function permanentDeleteAddress(id: string): Promise<{ message: string }> {
+  const { data } = await apiClient.delete(`/api/addresses/${id}/permanent`)
   return data
 }
 

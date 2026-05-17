@@ -404,6 +404,7 @@ class PublicCodeService
             'departmentId' => $department->getId(),
             'type' => 'general',
             'isPrimary' => true,
+            'deletedAt' => null,
         ]);
         $generalPrimaryEmail = $generalPrimary?->getEmail();
         if ($generalPrimaryEmail && trim($generalPrimaryEmail) !== '') {
@@ -414,6 +415,7 @@ class PublicCodeService
         $generalAny = $this->entityManager->getRepository(Address::class)->findOneBy([
             'departmentId' => $department->getId(),
             'type' => 'general',
+            'deletedAt' => null,
         ]);
         $generalAnyEmail = $generalAny?->getEmail();
         if ($generalAnyEmail && trim($generalAnyEmail) !== '') {

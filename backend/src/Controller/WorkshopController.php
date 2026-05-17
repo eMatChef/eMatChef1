@@ -11,6 +11,7 @@ use App\Entity\Activity;
 use App\Entity\ActivityIssueReport;
 use App\Entity\Department;
 use App\Entity\User;
+use App\Service\ActivityAccountingCostService;
 use App\Util\IdGenerator;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -23,7 +24,8 @@ use Symfony\Component\Security\Http\Attribute\IsGranted;
 class WorkshopController extends AbstractController
 {
     public function __construct(
-        private EntityManagerInterface $entityManager
+        private EntityManagerInterface $entityManager,
+        private ActivityAccountingCostService $activityAccountingCost,
     ) {}
 
     // ═══════════════════════════════════════════════
@@ -578,6 +580,10 @@ class WorkshopController extends AbstractController
             $this->createHistoryEntry($ticket, $historyAction, [], $historyChanges);
 
             $this->entityManager->flush();
+
+            if ($newStatus === WorkshopTicket::STATUS_COMPLETED) {
+                $this->activityAccountingCost->enqueueFromWorkshopTicket($ticket);
+            }
 
             return new JsonResponse($this->serializeTicket($ticket));
 

@@ -131,6 +131,12 @@
           <p class="booking-assign-lead">
             {{ t('accounting.bookings.assignLeadBefore') }}<strong>{{ t('accounting.common.costCenter') }}</strong>{{ t('accounting.bookings.assignLeadAfter') }}
           </p>
+          <p
+            v-if="pendingFollowUps[assignTabIndex]?.activity_name"
+            class="booking-assign-activity-hint text-muted"
+          >
+            {{ t('accounting.bookings.assignFromActivity', { name: pendingFollowUps[assignTabIndex].activity_name }) }}
+          </p>
           <div
             v-if="pendingFollowUps.length > 1"
             class="bookings-subtabs booking-assign-followup-tabs filter-bar accounting-inner-tabs"
@@ -313,7 +319,6 @@ import { useRoute, useRouter } from 'vue-router'
 import { listCostCenters, type AccountingCostCenter } from '@/api/accountingCostCenters'
 import {
   listBookings,
-  getBookingYears,
   createBooking,
   updateBooking,
   deleteBooking,
@@ -327,6 +332,7 @@ import { getGroups, type Group } from '@/api/groups'
 import type { Material } from '@/api/materials'
 import { useToast } from '@/composables/useToast'
 import { useConfirm } from '@/composables/useConfirm'
+import { useAccountingBookingYears } from '@/composables/useAccountingBookingYears'
 import { createBasicMaterialLookupFetcher } from '@/composables/useMaterialLookup'
 import MaterialLookupInput from '@/components/common/MaterialLookupInput.vue'
 import { useHeaderNotificationsStore } from '@/stores/headerNotifications'
@@ -381,8 +387,7 @@ const paymentOptions = computed(() =>
   }))
 )
 
-/** Jahre, in denen es bereits Buchungen gibt (pro Department). */
-const bookingYears = ref<number[]>([])
+const { years: bookingYears, refreshYears: loadBookingYears } = useAccountingBookingYears(departmentId)
 
 /** Einmalig: Standardfilter Kalenderjahr, falls Buchungen in diesem Jahr existieren. */
 const defaultYearFilterApplied = ref(false)
@@ -477,6 +482,15 @@ function persistCurrentAssignDraft() {
   }
 }
 
+function defaultEntryTypeForFollowUp(p: AccountingAcquisitionFollowUp): string {
+  const sk = p.source_kind || (p.material_batch_id ? 'batch' : '')
+  if (sk === 'activity_replenishment' || sk === 'batch') return 'purchase'
+  if (sk === 'activity_workshop') {
+    return p.activity_type === 'external' ? 'repair_external' : 'repair_internal'
+  }
+  return 'other'
+}
+
 function loadAssignFormForFollowUp(p: AccountingAcquisitionFollowUp) {
   activeFollowUpId.value = p.id
   const draft = assignDrafts[p.id]
@@ -494,13 +508,18 @@ function loadAssignFormForFollowUp(p: AccountingAcquisitionFollowUp) {
     form.booked_at = p.suggested_date
     form.receipt_label = p.receipt_label || ''
     form.cost_center_id = ''
-    form.entry_type = 'purchase'
+    form.entry_type = defaultEntryTypeForFollowUp(p)
     form.payment_method = ''
-    form.group_id = ''
-    form.notes = ''
+    form.group_id = p.activity_group_id || ''
+    form.notes = p.activity_id ? `Aktivität: ${p.activity_name || p.activity_id}` : ''
   }
-  form.material_item_id = ''
-  materialLookupDisplay.value = ''
+  if (p.material_item_id) {
+    form.material_item_id = p.material_item_id
+    materialLookupDisplay.value = p.material_name || ''
+  } else {
+    form.material_item_id = ''
+    materialLookupDisplay.value = ''
+  }
 }
 
 function selectAssignTab(idx: number) {
@@ -568,12 +587,8 @@ async function loadGroups() {
   }
 }
 
-async function loadBookingYears() {
-  try {
-    bookingYears.value = await getBookingYears(departmentId.value)
-  } catch {
-    bookingYears.value = []
-  }
+async function applyBookingYearsFilter() {
+  await loadBookingYears()
   if (!defaultYearFilterApplied.value) {
     const cy = new Date().getFullYear()
     filterYear.value = bookingYears.value.includes(cy) ? String(cy) : ''
@@ -613,7 +628,8 @@ async function bootstrapBookingsView() {
 
 /** Query `sub=assign`: Tab „Neue Buchung zuordnen“ (ausstehende Anschaffungen). */
 async function applyAssignTabFromRoute() {
-  if (String(route.query.sub || '') !== 'assign') return
+  const q = route.query
+  if (String(q.sub || '') !== 'assign' && String(q.assign || '') !== '1') return
   bookingsSubTab.value = 'assign'
   await refreshPendingFollowUps()
   await router.replace({

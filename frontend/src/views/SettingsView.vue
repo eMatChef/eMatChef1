@@ -5,7 +5,7 @@
       <aside class="settings-menu">
         <nav class="settings-nav">
           <router-link
-            v-for="item in allMenuItems"
+            v-for="item in visibleMenuItems"
             :key="item.id"
             :to="getSettingsLink(`/${item.id}`)"
             class="settings-nav-item"
@@ -34,11 +34,13 @@ import { computed, markRaw } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'
+import { useDepartmentMemberRole } from '@/composables/useDepartmentMemberRole'
 import { IconSettings, IconContacts, IconEmployees, IconDashboard, IconActivities, IconMaterials } from '@/components/icons'
 
 const route = useRoute()
 const authStore = useAuthStore()
 const { t } = useI18n()
+const { isUserRole } = useDepartmentMemberRole()
 
 // Department-ID aus Route oder Store
 const departmentId = computed(() => {
@@ -95,6 +97,14 @@ const allMenuItems = computed(() => [
   { id: 'zeit', label: t('settings.nav.timeLocation'), icon: markRaw(IconSettings) },
   { id: 'addons', label: t('settings.nav.addons'), icon: markRaw(IconActivities) }
 ])
+
+const USER_ALLOWED_MENU_IDS = new Set(['my-department', 'groups'])
+
+const visibleMenuItems = computed(() =>
+  isUserRole.value
+    ? allMenuItems.value.filter((item) => USER_ALLOWED_MENU_IDS.has(item.id))
+    : allMenuItems.value
+)
 
 </script>
 

@@ -4,7 +4,7 @@
       <div class="header-left">
         <h1>{{ t('notificationsCenter.title') }}</h1>
         <span class="subtitle">
-          {{ t('notificationsCenter.subtitle') }}
+          {{ subtitleText }}
         </span>
       </div>
     </div>
@@ -14,7 +14,7 @@
       <p>{{ t('notificationsCenter.loading') }}</p>
     </div>
     <template v-else>
-      <section class="nc-section">
+      <section v-if="canManageQrContact" class="nc-section">
         <div class="nc-section-head">
           <h2 class="nc-section-title">{{ t('notificationsCenter.qrSectionTitle') }}</h2>
           <div class="nc-found-tabs" role="tablist">
@@ -145,9 +145,9 @@
         </div>
       </section>
 
-      <div v-if="inviteItems.length === 0 && allFoundMessages.length === 0" class="empty-state">
+      <div v-if="showGlobalEmpty" class="empty-state">
         <h3>{{ t('notificationsCenter.emptyTitle') }}</h3>
-        <p>{{ t('notificationsCenter.emptyBody') }}</p>
+        <p>{{ emptyBodyText }}</p>
       </div>
     </template>
   </div>
@@ -170,6 +170,7 @@ import {
   type PublicFoundItemMessage,
   type PublicFoundMessageStatus,
 } from '@/api/publicFoundMessages'
+import { useDepartmentMemberRole } from '@/composables/useDepartmentMemberRole'
 
 const route = useRoute()
 const router = useRouter()
@@ -184,6 +185,21 @@ const foundTab = ref<'active' | 'done'>('active')
 const flashRowId = ref('')
 
 const departmentId = computed(() => String(route.params.departmentId || ''))
+const { isUserRole, canManageQrContact } = useDepartmentMemberRole()
+
+const subtitleText = computed(() =>
+  isUserRole.value ? t('notificationsCenter.subtitleUser') : t('notificationsCenter.subtitle')
+)
+
+const showGlobalEmpty = computed(() => {
+  if (inviteItems.value.length > 0) return false
+  if (canManageQrContact.value && allFoundMessages.value.length > 0) return false
+  return true
+})
+
+const emptyBodyText = computed(() =>
+  isUserRole.value ? t('notificationsCenter.emptyBodyUser') : t('notificationsCenter.emptyBody')
+)
 
 const foundItems = computed(() => {
   if (foundTab.value === 'active') {
@@ -212,12 +228,17 @@ async function load() {
   }
   isLoading.value = true
   try {
-    const [inv, found] = await Promise.all([
-      getPendingDepartmentActivityInvites(departmentId.value).catch(() => ({ count: 0, items: [] })),
-      getPublicFoundMessages(departmentId.value, { bucket: 'all', limit: 200 }).catch(() => ({
-        items: [] as PublicFoundItemMessage[],
-      })),
-    ])
+    const invPromise = getPendingDepartmentActivityInvites(departmentId.value).catch(() => ({
+      count: 0,
+      items: [] as PendingDepartmentActivityInvite[],
+    }))
+    const foundPromise = canManageQrContact.value
+      ? getPublicFoundMessages(departmentId.value, { bucket: 'all', limit: 200 }).catch(() => ({
+          items: [] as PublicFoundItemMessage[],
+        }))
+      : Promise.resolve({ items: [] as PublicFoundItemMessage[] })
+
+    const [inv, found] = await Promise.all([invPromise, foundPromise])
     inviteItems.value = inv.items || []
     allFoundMessages.value = found.items || []
   } catch {

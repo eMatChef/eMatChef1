@@ -76,16 +76,7 @@ class GroupController extends AbstractController
             if ($user->hasSuperAdminProfile()) {
                 continue;
             }
-            $profile = $user->getProfile();
-            $membershipsByGroup[$gid][] = [
-                'user_id' => $user->getId(),
-                'name' => $profile ? $profile->getDisplayName() : 'Unbekannt',
-                'email' => $profile ? $profile->getEmail() : '',
-                'role' => $m->getRole(),
-                'role_label' => $m->getRoleLabel(),
-                'is_leader' => $m->isLeader(),
-                'is_primary' => $m->getIsPrimary(),
-            ];
+            $membershipsByGroup[$gid][] = $this->serializeGroupMember($m);
         }
 
         // Response bauen
@@ -145,16 +136,7 @@ class GroupController extends AbstractController
             if ($user->hasSuperAdminProfile()) {
                 continue;
             }
-            $profile = $user->getProfile();
-            $members[] = [
-                'user_id' => $user->getId(),
-                'name' => $profile ? $profile->getDisplayName() : 'Unbekannt',
-                'email' => $profile ? $profile->getEmail() : '',
-                'role' => $m->getRole(),
-                'role_label' => $m->getRoleLabel(),
-                'is_leader' => $m->isLeader(),
-                'is_primary' => $m->getIsPrimary(),
-            ];
+            $members[] = $this->serializeGroupMember($m);
         }
 
         $leaders = array_values(array_filter($members, fn($m) => $m['is_leader']));
@@ -380,18 +362,10 @@ class GroupController extends AbstractController
             ], 500);
         }
 
-        $profile = $user->getProfile();
-
-        return new JsonResponse([
-            'user_id' => $user->getId(),
-            'group_id' => $groupId,
-            'name' => $profile ? $profile->getDisplayName() : 'Unbekannt',
-            'email' => $profile ? $profile->getEmail() : '',
-            'role' => $membership->getRole(),
-            'role_label' => $membership->getRoleLabel(),
-            'is_leader' => $membership->isLeader(),
-            'is_primary' => $membership->getIsPrimary(),
-        ], 201);
+        return new JsonResponse(array_merge(
+            $this->serializeGroupMember($membership),
+            ['group_id' => $groupId]
+        ), 201);
     }
 
     /**
@@ -429,19 +403,10 @@ class GroupController extends AbstractController
 
         $this->entityManager->flush();
 
-        $user = $membership->getUser();
-        $profile = $user->getProfile();
-
-        return new JsonResponse([
-            'user_id' => $user->getId(),
-            'group_id' => $groupId,
-            'name' => $profile ? $profile->getDisplayName() : 'Unbekannt',
-            'email' => $profile ? $profile->getEmail() : '',
-            'role' => $membership->getRole(),
-            'role_label' => $membership->getRoleLabel(),
-            'is_leader' => $membership->isLeader(),
-            'is_primary' => $membership->getIsPrimary(),
-        ]);
+        return new JsonResponse(array_merge(
+            $this->serializeGroupMember($membership),
+            ['group_id' => $groupId]
+        ));
     }
 
     /**
@@ -462,6 +427,31 @@ class GroupController extends AbstractController
         $this->entityManager->flush();
 
         return new JsonResponse(['success' => true]);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function serializeGroupMember(GroupMembership $membership): array
+    {
+        $user = $membership->getUser();
+        $profile = $user->getProfile();
+
+        return [
+            'user_id' => $user->getId(),
+            'name' => $profile ? $profile->getDisplayName() : 'Unbekannt',
+            'first_name' => $profile?->getFirstName(),
+            'last_name' => $profile?->getLastName(),
+            'nickname' => $profile?->getNickname(),
+            'email' => $profile ? $profile->getEmail() : '',
+            'avatar_initials' => $profile?->getAvatarInitials(),
+            'background_color' => $profile?->getBackgroundColor(),
+            'text_color' => $profile?->getTextColor(),
+            'role' => $membership->getRole(),
+            'role_label' => $membership->getRoleLabel(),
+            'is_leader' => $membership->isLeader(),
+            'is_primary' => $membership->getIsPrimary(),
+        ];
     }
 
 }

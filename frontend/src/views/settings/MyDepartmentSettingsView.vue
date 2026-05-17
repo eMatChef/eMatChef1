@@ -187,8 +187,8 @@
         <p v-else class="empty-users">{{ t('settings.myDepartment.noMembers') }}</p>
       </div>
 
-      <!-- Statistiken Card -->
-      <div class="info-card">
+      <!-- Statistiken Card (nicht für User-Rolle u) -->
+      <div v-if="!isUserRole" class="info-card">
         <div class="card-header">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" class="card-icon">
             <path d="M4 20V10H8V20H4ZM10 20V4H14V20H10ZM16 20V14H20V20H16Z" fill="#3b82f6"/>
@@ -216,7 +216,7 @@
         </div>
       </div>
 
-      <div class="info-card address-pages-card">
+      <div v-if="!isUserRole" class="info-card address-pages-card">
         <div class="card-header">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" class="card-icon">
             <path d="M4 4H20V20H4V4ZM7 7H12V12H7V7ZM14 7H17V9H14V7ZM14 10H17V12H14V10ZM7 14H17V16H7V14Z" fill="#3b82f6"/>
@@ -252,6 +252,7 @@ import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'
 import { useToast } from '@/composables/useToast'
 import { useConfirm } from '@/composables/useConfirm'
+import { useDepartmentMemberRole } from '@/composables/useDepartmentMemberRole'
 import { getDepartment, getDepartments, type Department } from '@/api/departments'
 import { setPrimaryDepartment as apiSetPrimaryDepartment } from '@/api/auth'
 import {
@@ -286,6 +287,7 @@ const authStore = useAuthStore()
 const toast = useToast()
 const confirm = useConfirm()
 const { t, te } = useI18n()
+const { isUserRole } = useDepartmentMemberRole()
 
 function addressTypeLabel(type: string): string {
   const path = `settings.addressForm.types.${type}` as const

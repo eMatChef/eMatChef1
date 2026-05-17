@@ -3,6 +3,7 @@ import type { ActivityPackItem } from '@/api/activityPackItems'
 import type { ComboComponent } from '@/api/materials'
 import type { RackContentsItem } from '@/api/storageLocations'
 import type { PackCrateShellPeekSection } from '@/components/activities/PackCrateShellInlinePanel.vue'
+import { formatBatchSerialHint } from '@/components/activities/packCrateForwardCheck'
 import {
   buildLineOverlaysFromCrateCheck,
   containerSectionsFromCheckOverlaysOnly,
@@ -164,8 +165,31 @@ export function packContainerItemSections(
     return [{ subsectionKey: 'all', title: titles.all, lines }]
   }
 
+  const shellMid = (options?.crateShellMaterialItemId ?? '').trim()
+  const useShellFixExtraSplit = comboComponents.length > 0 || shellMid !== ''
+
   const fixed: ActivityPackContainerItem[] = []
   const extra: ActivityPackContainerItem[] = []
+
+  if (useShellFixExtraSplit) {
+    const packIds = new Set(packLines.map((p) => p.id))
+    for (const ci of lines) {
+      const mid = (ci.material_item_id ?? '').trim()
+      if (shellMid && mid === shellMid && packIds.has(ci.id)) {
+        continue
+      }
+      if (isWarehousePreviewContainerLine(ci) || !packIds.has(ci.id)) {
+        fixed.push(ci)
+      } else {
+        extra.push(ci)
+      }
+    }
+    return [
+      { subsectionKey: 'fixed', title: titles.fixed, lines: fixed },
+      { subsectionKey: 'extra', title: titles.extra, lines: extra },
+    ]
+  }
+
   for (const ci of lines) {
     const mid = (ci.material_item_id ?? '').trim()
     if (mid && whSet.has(mid)) fixed.push(ci)
@@ -197,6 +221,7 @@ function containerSectionsToPeek(
       materialName: (ci.material_name && String(ci.material_name).trim()) || materialFallback,
       quantity: ci.quantity_packed ?? 0,
       materialItemId: ci.material_item_id ?? null,
+      serialHint: formatBatchSerialHint(ci.serial_number, ci.batch_label),
     })),
   }))
 }
@@ -225,6 +250,7 @@ function containerSectionsToPeekForCheck(
         materialName: (ci.material_name && String(ci.material_name).trim()) || materialFallback,
         quantity: ci.quantity_packed ?? 0,
         materialItemId: ci.material_item_id ?? null,
+        serialHint: formatBatchSerialHint(ci.serial_number, ci.batch_label),
       }
     }),
   }))
@@ -303,6 +329,10 @@ export function peekSectionsFromComboComponents(
       materialName: (cc.component_material?.name ?? '').trim() || materialFallback,
       quantity: Math.max(0, Math.floor(Number(cc.qty)) || 0),
       materialItemId: (cc.component_material?.id ?? '').trim() || null,
+      serialHint: formatBatchSerialHint(
+        cc.component_batch?.serial_number,
+        cc.component_batch?.label,
+      ),
     }
     if (cc.is_optional) extra.push(line)
     else fixed.push(line)
