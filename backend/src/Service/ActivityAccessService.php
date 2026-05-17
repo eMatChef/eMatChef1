@@ -366,26 +366,34 @@ class ActivityAccessService
     }
 
     /**
-     * Materialzeilen nach Entwurf: Host-MW in jedem Status; Host-DC nur bis «gepackt» (Buchungs-/Pack-Workflow).
+     * Materialzeilen nach Entwurf: Host-MW/DC bis einschliesslich «Am Event» (danach nur noch Packliste/Retour).
+     *
+     * @return list<string>
      */
+    private function statusesAllowingHostMaterialEditAfterDraft(): array
+    {
+        return [
+            Activity::STATUS_SUBMITTED,
+            Activity::STATUS_APPROVED,
+            Activity::STATUS_PACKING,
+            Activity::STATUS_PACKED,
+            Activity::STATUS_AT_EVENT,
+        ];
+    }
+
     public function canHostMwOrDcEditActivityMaterialAfterDraft(User $user, Activity $activity): bool
     {
         if ($activity->isDraft()) {
             return false;
         }
+        if (!\in_array($activity->getStatus(), $this->statusesAllowingHostMaterialEditAfterDraft(), true)) {
+            return false;
+        }
         if ($this->isHostDepartmentMw($user, $activity)) {
             return true;
         }
-        if (!$this->isHostDepartmentMwOrDc($user, $activity)) {
-            return false;
-        }
 
-        return \in_array($activity->getStatus(), [
-            Activity::STATUS_SUBMITTED,
-            Activity::STATUS_APPROVED,
-            Activity::STATUS_PACKING,
-            Activity::STATUS_PACKED,
-        ], true);
+        return $this->isHostDepartmentMwOrDc($user, $activity);
     }
 
     /**

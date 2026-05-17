@@ -31,7 +31,10 @@
 
       <template v-else>
         <ActivityTabHeader :title="t('activities.packList.titleWorkflow')">
-          <p v-if="!packListEditable && !memberAwaitingMwPack" class="activity-pack-readonly-hint text-muted">
+          <p
+            v-if="!packListEditable && !memberAwaitingMwPack"
+            class="activity-pack-readonly-hint text-muted"
+          >
             {{ t('activities.packList.readonlyHint') }}
           </p>
         </ActivityTabHeader>
@@ -105,8 +108,15 @@
         </div>
 
 
-      <div class="pack-workflow pack-workflow--compact">
-        <div class="pack-stage-tabs">
+      <div
+        v-if="memberAwaitingMwPack"
+        class="section-card activity-tab-panel-card pack-member-awaiting-card"
+      >
+        <p class="text-muted">{{ t('activities.packList.memberAwaitingPackEmpty') }}</p>
+      </div>
+
+      <div v-else class="pack-workflow pack-workflow--compact">
+        <div v-if="packStageKeys.length > 1" class="pack-stage-tabs">
           <button
             v-for="st in packStagesForUi"
             :key="st.key"
@@ -119,13 +129,13 @@
           </button>
         </div>
 
-        <div v-if="!memberAwaitingMwPack" class="pack-progress-bar">
+        <div class="pack-progress-bar">
           <div class="pack-progress-info">
             <span>{{ t('activities.packList.progressPercent', { pct: stageProgress, stage: activeStageConfig.rightLabel }) }}</span>
             <div class="pack-progress-actions">
               <button
                 v-if="
-                  packListEditable &&
+                  showPackOperateControls &&
                   !isPackUnpackStage(activePackStage) &&
                   stageLeftHeaderCount > 0
                 "
@@ -141,7 +151,7 @@
                 type="button"
                 class="btn btn-sm btn-progress-action btn-outline"
                 :class="{ 'btn-progress-warn': stageProgress < 100 }"
-                :disabled="!packListEditable"
+                :disabled="!showPackOperateControls"
                 @click="handleWorkflowTransition"
               >
                 {{ nextWorkflowTransition.label }}
@@ -191,10 +201,7 @@
               v-if="stageLeftItems.length === 0 && !leftPanelHasKistenEventReturn"
               class="pack-panel-empty"
             >
-              <template v-if="memberAwaitingMwPack">
-                {{ t('activities.packList.memberAwaitingPackEmpty') }}
-              </template>
-              <template v-else-if="isPackForwardToEventStage(activePackStage) && packedIssueWarehouseOnlyInContainers">
+              <template v-if="isPackForwardToEventStage(activePackStage) && packedIssueWarehouseOnlyInContainers">
                 {{ t('activities.packList.warehouseOnlyInContainers') }}
               </template>
               <template v-else>{{ t('activities.packList.allMoved') }}</template>
@@ -207,7 +214,7 @@
               <div v-if="!collapsedGroups['l-' + group.categoryName]" class="pack-group-items">
                 <template v-for="pi in group.items" :key="pi.id">
                 <PackCrateShellPackItemRow
-                  v-if="showPackContainersUi && pi.materialType === 'physical_combo'"
+                  v-if="showPackContainersUi && pi.materialType === 'physical_combo' && !isOrphanShellWithoutPackContainer(pi)"
                   :shell-pack-item="pi"
                   :stage-right-label="activeStageConfig.rightLabel"
                   :show-storage-location="showPackStorageLocation(activePackStage, 'left')"
@@ -231,7 +238,7 @@
                   </template>
                   <template #info-extra>
                     <PackIssueQuickActions
-                      v-if="canReportIssues && isPackReturnStage(activePackStage)"
+                      v-if="showPackIssueActions && isPackReturnStage(activePackStage)"
                       :is-consumable="pi.isConsumable"
                       @consumed="emitConsumptionFromPackItem(pi)"
                       @loss="emitIssueWizard(pi, 'loss')"
@@ -250,7 +257,7 @@
                     </button>
                     <PackMoveControls
                       v-if="
-                        packListEditable &&
+                        showPackOperateControls &&
                         !isPackUnpackStage(activePackStage) &&
                         (!isPackForwardToEventStage(activePackStage) || packIssueForwardMax(pi) > 0)
                       "
@@ -342,7 +349,7 @@
                 <span class="pack-panel-title">{{ activeStageConfig.rightLabel }}</span>
                 <span class="pack-panel-count">{{ stageRightItems.length }}</span>
               </div>
-              <div v-if="showPackContainersUi && packListEditable && activePackStage === 'confirmed_packed'" class="pack-panel-header-actions">
+              <div v-if="showPackContainersUi && showPackOperateControls && activePackStage === 'confirmed_packed'" class="pack-panel-header-actions">
                 <button
                   type="button"
                   class="btn btn-xs btn-primary pack-add-container-btn"
@@ -359,11 +366,7 @@
             />
 
             <div v-if="!rightPanelHasEventContent" class="pack-panel-empty">
-              {{
-                memberAwaitingMwPack
-                  ? t('activities.packList.memberAwaitingPackEmpty')
-                  : t('activities.packList.rightPanelEmpty')
-              }}
+              {{ t('activities.packList.rightPanelEmpty') }}
             </div>
 
             <div
@@ -389,7 +392,7 @@
                   >
                     <template #leading>
                       <PackMoveControls
-                        v-if="packListEditable && !isPackUnpackStage(activePackStage)"
+                        v-if="showPackOperateControls && !isPackUnpackStage(activePackStage)"
                         direction="back"
                         :qty="moveBackQtyInputs[pi.id] ?? 0"
                         :max="rightQtyForMoveBack(pi)"
@@ -411,7 +414,7 @@
                     </template>
                     <template #info-extra>
                       <PackIssueQuickActions
-                        v-if="canReportIssues"
+                        v-if="showPackIssueActions"
                         :is-consumable="pi.isConsumable"
                         @consumed="emitConsumptionFromPackItem(pi)"
                         @loss="emitIssueWizard(pi, 'loss')"
@@ -475,7 +478,7 @@
                     >
                       <template #leading>
                         <PackMoveControls
-                          v-if="packListEditable && !isPackUnpackStage(activePackStage)"
+                          v-if="showPackOperateControls && !isPackUnpackStage(activePackStage)"
                           direction="back"
                           :qty="moveBackQtyInputs[pi.id] ?? 0"
                           :max="rightQtyForMoveBack(pi)"
@@ -497,7 +500,7 @@
                       </template>
                       <template #info-extra>
                         <PackIssueQuickActions
-                          v-if="canReportIssues && isPackForwardToEventStage(activePackStage)"
+                          v-if="showPackIssueActions && isPackForwardToEventStage(activePackStage)"
                           :is-consumable="pi.isConsumable"
                           @consumed="emitConsumptionFromPackItem(pi)"
                           @loss="emitIssueWizard(pi, 'loss')"
@@ -556,7 +559,7 @@
                                             <template #leading>
                                               <PackMoveControls
                                                 v-if="
-                                                  packListEditable &&
+                                                  showPackOperateControls &&
                                                   !isPackUnpackStage(activePackStage) &&
                                                   !showCrateAssignUpControls(pi)
                                                 "
@@ -584,7 +587,7 @@
                                             </template>
                                             <template #info-extra>
                                               <PackIssueQuickActions
-                                                v-if="canReportIssues && isPackForwardToEventStage(activePackStage)"
+                                                v-if="showPackIssueActions && isPackForwardToEventStage(activePackStage)"
                                                 :is-consumable="pi.isConsumable"
                                                 @consumed="emitConsumptionFromPackItem(pi)"
                                                 @loss="emitIssueWizard(pi, 'loss')"
@@ -626,7 +629,7 @@
                                         <template #leading>
                                           <PackMoveControls
                                             v-if="
-                                              packListEditable &&
+                                              showPackOperateControls &&
                                               !isPackUnpackStage(activePackStage) &&
                                               !showCrateAssignUpControls(pi)
                                             "
@@ -654,7 +657,7 @@
                                         </template>
                                         <template #info-extra>
                                           <PackIssueQuickActions
-                                            v-if="canReportIssues && isPackForwardToEventStage(activePackStage)"
+                                            v-if="showPackIssueActions && isPackForwardToEventStage(activePackStage)"
                                             :is-consumable="pi.isConsumable"
                                             @consumed="emitConsumptionFromPackItem(pi)"
                                             @loss="emitIssueWizard(pi, 'loss')"
@@ -979,12 +982,21 @@ const props = withDefaults(
 
 const packWorkflowProfile = computed(() => packWorkflowProfileForActivityType(props.activityType ?? 'activity'))
 
-/** Gruppenmitglied: bis MW «Gepackt» markiert hat, keine irreführende «Gepackt»-Spalte. */
+/**
+ * Gruppenmitglied/User: Packliste erst ab «gepackt» — nicht während MW packt
+ * (submitted / approved / packing).
+ */
 const memberAwaitingMwPack = computed(
   () =>
     !canManageMaterials.value &&
     packWorkflowProfile.value === 'quick' &&
     ['submitted', 'approved', 'packing'].includes(props.status),
+)
+
+const showPackOperateControls = computed(() => props.packListEditable)
+
+const showPackIssueActions = computed(
+  () => Boolean(props.canReportIssues) && showPackOperateControls.value,
 )
 
 const emit = defineEmits<{
@@ -2003,7 +2015,7 @@ function crateAssignUpMax(pi: ActivityPackItem): number {
 }
 
 function showCrateAssignUpControls(pi: ActivityPackItem): boolean {
-  if (!props.packListEditable) return false
+  if (!showPackOperateControls.value) return false
   if (activePackStage.value !== 'confirmed_packed') return false
   if (!hasActiveCrateTarget.value) return false
   if (isPhysicalComboPackItem(pi)) return false
@@ -2011,7 +2023,7 @@ function showCrateAssignUpControls(pi: ActivityPackItem): boolean {
 }
 
 function showAssignToContainerButton(pi: ActivityPackItem): boolean {
-  if (!props.packListEditable) return false
+  if (!showPackOperateControls.value) return false
   if (!showPackContainersUi.value) return false
   if (activePackStage.value !== 'confirmed_packed') return false
   if (hasActiveCrateTarget.value) return false
@@ -2842,6 +2854,7 @@ async function confirmDeleteContainer(c: ActivityPackContainer) {
   })
   if (!ok) return
   const deletedId = c.id
+  const shellPackItemId = shellPackItemForContainer(deletedId)?.id
   containerMutationLoading.value = true
   try {
     await deleteActivityPackContainer(props.activityId, deletedId)
@@ -2850,6 +2863,11 @@ async function confirmDeleteContainer(c: ActivityPackContainer) {
       activePackTarget.value.containerId === deletedId
     ) {
       activePackTarget.value = null
+    }
+    if (shellPackItemId) {
+      const nextVirtual = { ...shellComboVirtualContainerByPackItemId.value }
+      delete nextVirtual[shellPackItemId]
+      shellComboVirtualContainerByPackItemId.value = nextVirtual
     }
     await loadAll()
     emit('activityItemsChanged')
@@ -2904,6 +2922,17 @@ const packContainerBatchCountByMaterialItemId = computed(() => {
   return m
 })
 
+/**
+ * Phys.-Kombi ohne Pack-Behälter (z. B. nach Kisten-Löschen): nicht links anzeigen —
+ * linkedContainerLabel kommt vom Stammartikel, nicht vom gelöschten Behälter.
+ */
+function isOrphanShellWithoutPackContainer(pi: ActivityPackItem): boolean {
+  if (activePackStage.value !== 'confirmed_packed') return false
+  if (pi.materialType !== 'physical_combo') return false
+  if (!isCrateShellPackItem(pi, packContainers.value)) return false
+  return packShellContainerForPackItem(pi, packContainers.value) == null
+}
+
 /** Sichtbare Restmenge links: Roh-Rest minus Einheiten, die bereits als Kisten-Batch am Behälter hängen. */
 function effectiveStageLeftQty(p: ActivityPackItem): number {
   if (activePackStage.value !== 'confirmed_packed') {
@@ -2921,6 +2950,7 @@ function effectiveStageLeftQty(p: ActivityPackItem): number {
  */
 const stageLeftItems = computed(() =>
   packItems.value.filter((p) => {
+    if (isOrphanShellWithoutPackContainer(p)) return false
     if (effectiveStageLeftQty(p) <= 0) return false
     if (
       isPackForwardToEventStage(activePackStage.value) &&
@@ -3325,9 +3355,10 @@ async function loadAll() {
 }
 
 provide(PACK_WAREHOUSE_ISSUE_INJECT_KEY, {
-  packListEditable: computed(() => props.packListEditable),
+  packListEditable: showPackOperateControls,
+  memberAwaitingMwPack,
   canManageMaterials,
-  canReportIssues: computed(() => props.canReportIssues),
+  canReportIssues: showPackIssueActions,
   activePackStage,
   moveQtyInputs,
   setMoveQtyForItem,

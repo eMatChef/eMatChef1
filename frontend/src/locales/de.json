@@ -1121,6 +1121,8 @@
       "initStart": "Packliste starten",
       "readonlyHint": "Nur Ansicht — Änderungen sind in diesem Status nicht möglich.",
       "memberAwaitingPackEmpty": "Noch nicht gepackt — der Materialwart packt noch.",
+      "memberPackPreviewHint": "Der Materialwart packt noch. Rechts siehst du, was bereits gepackt wurde — Aktionen folgen, sobald «Gepackt» markiert ist.",
+      "memberPackPreviewLeftEmpty": "Noch nichts zu buchen — rechts der aktuelle Packstand.",
       "moveAll": "ALLES → {stage}",
       "progressPercent": "{pct}% {stage}",
       "returnStockTitle": "Mehr zurück als erwartet?",

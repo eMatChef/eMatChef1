@@ -158,7 +158,16 @@ class ActivityPackContainerController extends AbstractController
             return new JsonResponse(['error' => 'Container nicht gefunden'], 404);
         }
 
+        $user = $this->getUser();
+        if (!$user instanceof User) {
+            return new JsonResponse(['error' => 'Nicht authentifiziert'], 401);
+        }
+
+        $batch = $container->getContainerBatch();
         $this->dissolveContainerPackQuantitiesBeforeDelete($activity, $container);
+        if ($batch !== null) {
+            $this->kisteMaterialLinker->unlinkKisteOnContainerRemoved($activity, $batch, $user);
+        }
         $this->entityManager->remove($container);
         $this->entityManager->flush();
 

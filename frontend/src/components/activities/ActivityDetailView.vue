@@ -231,13 +231,13 @@
                   :show-source-and-totals="true"
                   :show-line-total="hasLineTotals"
                   :disabled="syncingQuantities || addingDraftMaterial"
-                  :packing-stage-quantity-readonly="materialTabPackingQtyLocked"
+                  :packing-stage-quantity-readonly="false"
                   :removing-item-id="removingItemId"
                   :empty-text="t('activities.detail.noPositions')"
                   @update:model-value="onDraftLinesTableUpdate"
                   @remove-line="onDraftTableRemoveLine"
                 />
-                <div v-if="hasDraftQtyChanges && !materialTabPackingQtyLocked" class="activity-qty-save-row">
+                <div v-if="hasDraftQtyChanges" class="activity-qty-save-row">
                   <button
                     type="button"
                     class="btn-primary btn-sm"
@@ -703,19 +703,8 @@ const showMaterialLookup = computed(() => {
   return !!a.can_edit_activity_material
 })
 
-/** «Material hinzufügen» im Material-Tab: bei Packen mit Nachbuch-Recht nur in der Packliste (eingeklappt). */
-const showMaterialAddOnMaterialTab = computed(() => {
-  if (!showMaterialLookup.value) return false
-  const a = activity.value
-  if (a?.status === 'packing' && a.can_edit_activity_material) return false
-  return true
-})
-
-/** Tab Material: Mengen/Entfernen aus — Steuerung über Packliste + Packlisten-Hinzufügen */
-const materialTabPackingQtyLocked = computed(() => {
-  const a = activity.value
-  return a?.status === 'packing' && !!a.can_edit_activity_material
-})
+/** «Material hinzufügen» im Material-Tab (MW/DC mit Bearbeitungsrecht, bis «Am Event»). */
+const showMaterialAddOnMaterialTab = computed(() => showMaterialLookup.value)
 
 const materialLinesForEditableTable = computed((): ActivityMaterialLine[] => {
   if (!showMaterialLookup.value) return []

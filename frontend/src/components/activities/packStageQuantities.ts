@@ -111,7 +111,10 @@ export function autoPackStageForStatus(
       return canManageMaterials ? 'returned_unpack' : 'at_event_returned'
     }
     if (s === 'at_event') return 'at_event_returned'
-    if (s === 'packed' || s === 'packing') {
+    if (s === 'packing') {
+      return canManageMaterials ? 'confirmed_packed' : 'packed_at_event'
+    }
+    if (s === 'packed') {
       return canManageMaterials ? 'confirmed_packed' : 'packed_at_event'
     }
     if (canManageMaterials && (s === 'approved' || s === 'submitted')) {

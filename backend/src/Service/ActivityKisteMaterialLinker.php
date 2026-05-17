@@ -78,6 +78,59 @@ class ActivityKisteMaterialLinker
     }
 
     /**
+     * Gegenstück zu linkKisteOnContainerBatchAssigned: eine Pack-Kiste entfernt → Materialliste −1, Packliste anpassen.
+     */
+    public function unlinkKisteOnContainerRemoved(
+        Activity $activity,
+        MaterialBatch $batch,
+        User $user,
+    ): void {
+        $materialItem = $batch->getMaterialItem();
+        $mid = $materialItem->getId();
+
+        $existingList = $this->entityManager->getRepository(ActivityItem::class)->findBy(
+            ['activityId' => $activity->getId(), 'materialItemId' => $mid],
+            ['isReplenishment' => 'ASC', 'createdAt' => 'ASC'],
+        );
+        $existing = $existingList[0] ?? null;
+        if ($existing !== null) {
+            $newQty = max(0, $existing->getQuantity() - 1);
+            if ($newQty === 0) {
+                $this->entityManager->remove($existing);
+                $activity->setItemCount(max(0, $activity->getItemCount() - 1));
+            } else {
+                $existing->setQuantity($newQty);
+                $existing->setUpdatedAt(new \DateTime());
+            }
+
+            $activity->setUpdatedAt(new \DateTime());
+            $this->recalculateTotalPrice($activity);
+        }
+
+        if (!in_array($activity->getStatus(), [
+            Activity::STATUS_PACKING,
+            Activity::STATUS_PACKED,
+            Activity::STATUS_AT_EVENT,
+            Activity::STATUS_RETURNED,
+            Activity::STATUS_COMPLETED,
+        ], true)) {
+            return;
+        }
+
+        $sumQty = (int) $this->entityManager->createQueryBuilder()
+            ->select('COALESCE(SUM(ai.quantity), 0)')
+            ->from(ActivityItem::class, 'ai')
+            ->where('ai.activityId = :aid')
+            ->andWhere('ai.materialItemId = :mid')
+            ->setParameter('aid', $activity->getId())
+            ->setParameter('mid', $mid)
+            ->getQuery()
+            ->getSingleScalarResult();
+
+        $this->syncPackItemQuantityAfterActivityItemChange($activity, $materialItem, $sumQty, $user);
+    }
+
+    /**
      * Fehlende Kisten-Zeilen nachziehen (einmalig nachziehbar, idempotent: keine doppelte Mengenerhöhung bei jedem GET).
      */
     public function syncMissingActivityLinesFromPackContainers(Activity $activity, User $user): void
@@ -143,6 +196,28 @@ class ActivityKisteMaterialLinker
         if ($changed) {
             $this->entityManager->flush();
         }
+    }
+
+    private function syncPackItemQuantityAfterActivityItemChange(
+        Activity $activity,
+        MaterialItem $materialItem,
+        int $sumQty,
+        User $user,
+    ): void {
+        $existingPackItem = $this->entityManager->getRepository(ActivityPackItem::class)
+            ->findOneBy([
+                'activityId' => $activity->getId(),
+                'materialItemId' => $materialItem->getId(),
+            ]);
+
+        if ($sumQty < 1) {
+            if ($existingPackItem instanceof ActivityPackItem) {
+                $this->entityManager->remove($existingPackItem);
+            }
+            return;
+        }
+
+        $this->syncPackItemForMaterial($activity, $materialItem, $sumQty, $user);
     }
 
     private function syncPackItemForMaterial(Activity $activity, MaterialItem $materialItem, int $newQuantity, User $user): void
