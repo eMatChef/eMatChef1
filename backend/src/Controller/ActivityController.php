@@ -23,6 +23,8 @@ use App\Entity\User;
 use App\Service\ActivityAccessService;
 use App\Service\ActivityAccountingCostService;
 use App\Service\ActivityKisteMaterialLinker;
+use App\Service\ActivityMwNotificationService;
+use App\Service\ActivityUserNotificationService;
 use App\Util\IdGenerator;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\Security\Core\Exception\AccessDeniedException;
@@ -42,6 +44,8 @@ class ActivityController extends AbstractController
         private ActivityAccessService $activityAccess,
         private ActivityKisteMaterialLinker $kisteMaterialLinker,
         private ActivityAccountingCostService $activityAccountingCost,
+        private ActivityMwNotificationService $activityMwNotifications,
+        private ActivityUserNotificationService $activityUserNotifications,
     ) {}
 
     private function normalizeInvitedDepartmentsPayload(array $incoming, array $existing = []): array
@@ -219,7 +223,26 @@ class ActivityController extends AbstractController
         // Sichtbarkeit: MW/DC/SA/Org sehen alles; User/Leader nur eigene/verantwortete oder Gruppen-Hierarchie.
         // Externe Ausleihen nur für MW/DC.
         $membershipRole = (string) $membership->getRole();
-        if (!$this->activityAccess->isDepartmentWideManager($membershipRole)) {
+        $isRestrictedMember = $this->activityAccess->isRestrictedGroupMember($currentUser, (string) $departmentId);
+
+        if ($isRestrictedMember) {
+            $visibleGroupIds = $this->activityAccess->getExpandedVisibleGroupIds($currentUser, (string) $departmentId);
+            $qb->setParameter('currentUserId', $currentUser->getId());
+
+            if ($visibleGroupIds === []) {
+                $qb->andWhere('a.createdByUserId = :currentUserId');
+            } else {
+                $expr = $qb->expr()->orX(
+                    'a.createdByUserId = :currentUserId',
+                    'a.groupId IN (:visibleGroupIds)'
+                );
+                $qb->setParameter('visibleGroupIds', $visibleGroupIds);
+                $qb->andWhere($expr);
+            }
+
+            $qb->andWhere('a.type != :externalType')
+                ->setParameter('externalType', 'external');
+        } elseif (!$this->activityAccess->isDepartmentWideManager($membershipRole)) {
             $visibleGroupIds = $this->activityAccess->getExpandedVisibleGroupIds($currentUser, (string) $departmentId);
 
             $expr = $qb->expr()->orX(
@@ -285,15 +308,17 @@ class ActivityController extends AbstractController
         }
 
         $invitedCandidates = $invitedQb->getQuery()->getResult();
-        foreach ($invitedCandidates as $candidate) {
-            if (!$this->activityAccess->isDepartmentInviteAccepted($candidate, (string) $departmentId)) {
-                continue;
+        if (!$isRestrictedMember) {
+            foreach ($invitedCandidates as $candidate) {
+                if (!$this->activityAccess->isDepartmentInviteAccepted($candidate, (string) $departmentId)) {
+                    continue;
+                }
+                if (!$this->activityAccess->isDepartmentWideManager($membershipRole)
+                    && $candidate->isExternal()) {
+                    continue;
+                }
+                $activities[] = $candidate;
             }
-            if (!$this->activityAccess->isDepartmentWideManager($membershipRole)
-                && $candidate->isExternal()) {
-                continue;
-            }
-            $activities[] = $candidate;
         }
 
         $result = [];
@@ -571,6 +596,15 @@ class ActivityController extends AbstractController
             return new JsonResponse(['error' => 'Keine Berechtigung fuer dieses Department'], 403);
         }
 
+        if ($this->activityAccess->isRestrictedGroupMember($currentUser, (string) $data['department_id'])) {
+            $requestedType = (string) ($data['type'] ?? 'activity');
+            if ($requestedType !== 'activity') {
+                return new JsonResponse([
+                    'error' => 'Als Gruppenmitglied dürfen Sie nur Aktivitäten vom Typ «Aktivität» anlegen.',
+                ], 403);
+            }
+        }
+
         try {
             $activity = new Activity();
             $activity->setId(IdGenerator::generate());
@@ -586,6 +620,17 @@ class ActivityController extends AbstractController
             if (isset($data['group_id'])) {
                 $group = $this->entityManager->getRepository(Group::class)->find($data['group_id']);
                 if ($group) {
+                    if ($this->activityAccess->isRestrictedGroupMember($currentUser, (string) $data['department_id'])) {
+                        $visibleGroupIds = $this->activityAccess->getExpandedVisibleGroupIds(
+                            $currentUser,
+                            (string) $data['department_id']
+                        );
+                        if ($visibleGroupIds === [] || !in_array($group->getId(), $visibleGroupIds, true)) {
+                            return new JsonResponse([
+                                'error' => 'Die gewählte Gruppe gehört nicht zu Ihren Gruppen.',
+                            ], 403);
+                        }
+                    }
                     $activity->setGroup($group);
                 }
             }
@@ -678,6 +723,10 @@ class ActivityController extends AbstractController
             // History-Eintrag: Erstellung
             $this->createHistoryEntry($activity, 'created');
             $this->entityManager->flush();
+
+            if ($activity->getStatus() === Activity::STATUS_SUBMITTED && $currentUser instanceof User) {
+                $this->activityMwNotifications->notifyActivitySubmitted($activity, $currentUser);
+            }
 
             return new JsonResponse($this->serializeActivity($activity), 201);
         } catch (\Exception $e) {
@@ -1080,7 +1129,102 @@ class ActivityController extends AbstractController
 
         $this->entityManager->flush();
 
+        if (
+            $newStatus === Activity::STATUS_SUBMITTED
+            && $oldStatus !== Activity::STATUS_SUBMITTED
+        ) {
+            $this->activityMwNotifications->notifyActivitySubmitted($activity, $user);
+        }
+
+        if ($newStatus === Activity::STATUS_APPROVED && $oldStatus !== Activity::STATUS_APPROVED) {
+            $this->activityUserNotifications->notifyStatus($activity, $user, 'activity_approved');
+        }
+
+        if ($newStatus === Activity::STATUS_RETURNED && $oldStatus !== Activity::STATUS_RETURNED) {
+            $this->activityUserNotifications->notifyStatus($activity, $user, 'activity_returned');
+        }
+
+        if ($oldStatus === Activity::STATUS_APPROVED && $newStatus === Activity::STATUS_SUBMITTED) {
+            $this->activityUserNotifications->notifyStatus($activity, $user, 'activity_rejected');
+        }
+
         return new JsonResponse($this->serializeActivity($activity));
+    }
+
+    /**
+     * Benachrichtigungen für MW/DC: neue eingereichte Aktivitäten.
+     */
+    #[Route('/mw-notifications', name: 'mw_notifications_list', methods: ['GET'])]
+    #[IsGranted('ROLE_USER')]
+    public function listMwNotifications(Request $request): JsonResponse
+    {
+        $departmentId = trim((string) $request->query->get('department_id', ''));
+        if ($departmentId === '') {
+            return new JsonResponse(['error' => 'department_id Parameter erforderlich'], 400);
+        }
+
+        $user = $this->getUser();
+        if (!$user instanceof User) {
+            return new JsonResponse(['error' => 'Nicht authentifiziert'], 401);
+        }
+
+        if (!$this->canAccessMwNotifications($user, $departmentId)) {
+            return new JsonResponse(['error' => 'Keine Berechtigung'], 403);
+        }
+
+        $bucket = strtolower(trim((string) $request->query->get('bucket', 'unread')));
+        if (!in_array($bucket, ['unread', 'read', 'all'], true)) {
+            $bucket = 'unread';
+        }
+        $limit = min(200, max(1, (int) $request->query->get('limit', 100)));
+
+        $items = $this->activityMwNotifications->listInbox($departmentId, $bucket, $limit);
+        $unreadCount = $this->activityMwNotifications->countUnread($departmentId);
+
+        return new JsonResponse([
+            'unread_count' => $unreadCount,
+            'items' => $items,
+        ]);
+    }
+
+    #[Route('/mw-notifications/{notificationId}/read', name: 'mw_notification_read', methods: ['PATCH'])]
+    #[IsGranted('ROLE_USER')]
+    public function markMwNotificationRead(string $notificationId, Request $request): JsonResponse
+    {
+        $departmentId = trim((string) $request->query->get('department_id', ''));
+        if ($departmentId === '') {
+            return new JsonResponse(['error' => 'department_id Parameter erforderlich'], 400);
+        }
+
+        $user = $this->getUser();
+        if (!$user instanceof User) {
+            return new JsonResponse(['error' => 'Nicht authentifiziert'], 401);
+        }
+
+        if (!$this->canAccessMwNotifications($user, $departmentId)) {
+            return new JsonResponse(['error' => 'Keine Berechtigung'], 403);
+        }
+
+        if (!$this->activityMwNotifications->markRead($departmentId, $notificationId)) {
+            return new JsonResponse(['error' => 'Benachrichtigung nicht gefunden'], 404);
+        }
+
+        return new JsonResponse(['ok' => true]);
+    }
+
+    private function canAccessMwNotifications(User $user, string $departmentId): bool
+    {
+        if (count(array_intersect(['ROLE_SUPERADMIN', 'ROLE_ORGANISATIONSCHEF', 'ROLE_SUBORGCHEF'], $user->getRoles())) > 0) {
+            return true;
+        }
+
+        $membership = $this->entityManager->getRepository(Membership::class)
+            ->findOneBy(['userId' => $user->getId(), 'departmentId' => $departmentId]);
+        if (!$membership) {
+            return false;
+        }
+
+        return in_array((string) ($membership->getRole() ?? ''), ['mw', 'dc'], true);
     }
 
     /**
@@ -1263,6 +1407,17 @@ class ActivityController extends AbstractController
         $userId = $user->getId();
         $departmentId = $activity->getDepartmentId();
         $groupId = $activity->getGroupId();
+
+        // Gruppenmitglied (u, kein Gruppenchef): nur Typ «activity» einreichen — nicht Lager/extern
+        if ($fromStatus === Activity::STATUS_DRAFT && $toStatus === Activity::STATUS_SUBMITTED) {
+            if ($this->activityAccess->isRestrictedGroupMember($user, (string) $departmentId)) {
+                $actType = (string) ($activity->getType() ?? 'activity');
+                if ($actType === 'camp' || $actType === 'external') {
+                    return 'Als Gruppenmitglied dürfen Sie Lager und externe Ausleihen nicht einreichen. '
+                        . 'Bitte wende dich an Gruppenchef, MW oder DC.';
+                }
+            }
+        }
 
         // Department-Rolle des Users prüfen
         $membership = $this->entityManager->getRepository(Membership::class)

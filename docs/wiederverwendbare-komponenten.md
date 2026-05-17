@@ -47,7 +47,100 @@ Tooltip wird per Teleport im `body` gerendert (`z-index: 10000`), damit er nicht
 **Styles:** `frontend/src/styles/components/user-avatar-badge.css`  
 **Logik:** `frontend/src/utils/userAvatar.ts` (`UserAvatarFields`, `getUserAvatarStyle`, `getMemberHoverTooltip`, …)
 
-**Geplant / sinnvoll einsetzbar in:** Aktivitäten (Historie, Kommentare), Aufgaben, Nachrichten, Reparaturen/Workshop — sobald die API die Profilfelder mitliefert.
+**Geplant / sinnvoll einsetzbar in:** Aktivitäten (Historie, Kommentare), Reparaturen/Workshop — sobald die API die Profilfelder mitliefert.
+
+**Hinweis:** In der Nachrichtenzentrale und Glocke nicht direkt `UserAvatarBadge` für alle Einträge nutzen, sondern `NotificationSenderBlock` (siehe unten) — dort gibt es auch System- und Aufgaben-Quellen ohne App-Benutzer.
+
+---
+
+### Benachrichtigungen / Posteingang
+
+
+| Baustein                     | Pfad                                                                   | Verwendung                                                                 |
+| ---------------------------- | ---------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| **NotificationSenderBlock**  | `frontend/src/components/notifications/NotificationSenderBlock.vue`    | Linkes Icon/Avatar in Posteingangszeilen (Glocke, Nachrichtenzentrale)     |
+| **notificationSender** (Util)| `frontend/src/utils/notificationSender.ts`                             | Deskriptoren, Factories, `getSenderPrimaryLine`                            |
+| **useNotificationSender**    | `frontend/src/composables/useNotificationSender.ts`                      | Factories mit i18n-Labels (`notificationsCenter.sender*`)                |
+
+
+**Quellen-Typen (`NotificationSenderKind`)**
+
+
+| `kind`       | Bedeutung                         | Darstellung                                      | Typische Quelle                          |
+| ------------ | --------------------------------- | ------------------------------------------------ | ---------------------------------------- |
+| `user`       | App-Benutzer                      | `UserAvatarBadge`                                | Department-Einladung (eingeladen von …)  |
+| `system`     | System-/Workflow-Kanal            | Blaues Layer-Icon, optional kleiner User-Overlay | Neue Aktivität eingereicht (MW/DC)       |
+| `task`       | Aufgabe, kein App-Benutzer        | Oranges Clipboard-Icon                           | QR-Kontakt von öffentlicher Material-Seite |
+| `department` | Abteilung als Absender            | Abteilungs-Avatar (Initialen)                    | Einladung zu Camp/Anlass                 |
+
+
+**Import & Verwendung**
+
+```vue
+<script setup lang="ts">
+import { NotificationSenderBlock } from '@/components/notifications'
+import { useNotificationSender } from '@/composables/useNotificationSender'
+import { getSenderPrimaryLine } from '@/utils/notificationSender'
+
+const { fromActivityMw, fromPublicFound, fromDepartmentInvite, fromActivityInvite } =
+  useNotificationSender()
+</script>
+
+<template>
+  <!-- Nur das linke Bild/Icon -->
+  <NotificationSenderBlock :sender="fromActivityMw(entry)" size="md" />
+
+  <!-- „Von“-Zeile daneben im Eltern-Layout -->
+  <span class="nc-inbox-row__from">
+    {{ getSenderPrimaryLine(fromActivityMw(entry)) }}
+  </span>
+</template>
+```
+
+**Factories (`useNotificationSender`)**
+
+
+| Methode                 | API-Typ                              | Ergebnis                                                                 |
+| ----------------------- | ------------------------------------ | ------------------------------------------------------------------------ |
+| `fromActivityMw`        | `ActivityMwNotification`             | `system` + Label „Aktivitäten“, `sublabel` = Ersteller, Overlay-Avatar   |
+| `fromPublicFound`       | `PublicFoundItemMessage`               | `task` / `qr_contact`, Label = Materialname, `sublabel` = Finder (falls vorhanden) |
+| `fromDepartmentInvite`  | `ReceivedDepartmentInviteNotification` | `user`, Profil des Einladenden                                         |
+| `fromActivityInvite`    | `PendingDepartmentActivityInvite`      | `department`, Name der einladenden Abteilung                             |
+
+
+**`NotificationSenderBlock` — Props**
+
+- `sender` — `NotificationSenderDescriptor` (Pflicht)
+- `size` — `'sm' | 'md' | 'lg'` (Standard: `sm`)
+- `showTooltip` — boolean (Standard: `false`); bei `user` wird an `UserAvatarBadge` durchgereicht
+
+**Textzeilen in der Inbox (Konvention)**
+
+
+| Quelle        | `getSenderPrimaryLine`     | Betreff (Beispiel)              | Vorschau (Beispiel)        |
+| ------------- | -------------------------- | ------------------------------- | -------------------------- |
+| Aktivität     | `Aktivitäten · Max Muster` | `«Sommerlager»`                 | Typ · Gruppe · #001        |
+| QR-Aufgabe    | `Zelt · finder@mail.ch`    | `Kontaktanfrage (QR)`           | Nachrichtentext            |
+| Dept-Einladung| `Anna Beispiel`            | `Einladung: Abteilung XY`       | `Rolle: Materialwart`      |
+
+
+**i18n** (`notificationsCenter` in `de.json` u. a.):
+
+- `senderSystemDefault`, `senderSystemActivity`, `senderTaskQr`
+- `qrTaskSubject` — Betreffzeile für QR-Einträge (Aufgabe, keine Personen-Nachricht)
+
+**Styles:** `frontend/src/styles/components/notification-sender-block.css`
+
+**Eingebunden in:** `NotificationsCenterView.vue`, `TopHeader.vue` (Glocke)
+
+**Architektur (Erzeugung, Speicher, APIs):** [nachrichtenzentrale.md](./nachrichtenzentrale.md)
+
+**Neue System-Meldung hinzufügen:**
+
+1. In `notificationSender.ts`: Factory + ggf. `systemVariant` erweitern
+2. Label in `useNotificationSender` / `de.json` ergänzen
+3. In `NotificationSenderBlock.vue`: optional eigenes Icon für die Variante
+4. Posteingangs-View: `NotificationSenderBlock` + `getSenderPrimaryLine` wie oben
 
 ---
 
@@ -95,6 +188,7 @@ SVG-Icons als Vue-Komponenten (`IconDashboard`, `IconMaterials`, `IconActivities
 | `useActivityCreateWizard`            | Aktivität anlegen (Wizard-State)                                              |
 | `useStorageStructure`                | Lager-Struktur                                                                |
 | `useAutoLogout`                      | Session-Timeout                                                               |
+| `useNotificationSender`              | Factories für `NotificationSenderBlock` (Posteingang/Glocke, inkl. i18n)      |
 
 
 ---
@@ -116,6 +210,7 @@ Ausführlich: `[docs/Archiv/HANDOUT_CSS_ZENTRALISIERUNG.md](Archiv/HANDOUT_CSS_Z
 | History         | `styles/ui/history.css`                   | Änderungs-Historie                          |
 | Storage         | `styles/ui/storage.css`                   | Lager/Regale                                |
 | **User-Avatar** | `styles/components/user-avatar-badge.css` | Avatar-Badge + Liste                        |
+| **Sender (Inbox)** | `styles/components/notification-sender-block.css` | System-/Aufgaben-Icons, Actor-Overlay |
 
 
 **Faustregel:** Kommt ein Style in 2+ Screens vor → zentral in `styles/ui/`* oder `styles/components/*`. Domain-spezifisch bleibt in der View (`styles/views/…`).

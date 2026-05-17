@@ -14,141 +14,245 @@
       <p>{{ t('notificationsCenter.loading') }}</p>
     </div>
     <template v-else>
-      <section v-if="canManageQrContact" class="nc-section">
-        <div class="nc-section-head">
-          <h2 class="nc-section-title">{{ t('notificationsCenter.qrSectionTitle') }}</h2>
-          <div class="nc-found-tabs" role="tablist">
-            <button
-              type="button"
-              role="tab"
-              :aria-selected="foundTab === 'active'"
-              class="nc-tab"
-              :class="{ active: foundTab === 'active' }"
-              @click="setFoundTab('active')"
-            >
-              {{ t('notificationsCenter.tabOpenInProgress') }}
-            </button>
-            <button
-              type="button"
-              role="tab"
-              :aria-selected="foundTab === 'done'"
-              class="nc-tab"
-              :class="{ active: foundTab === 'done' }"
-              @click="setFoundTab('done')"
-            >
-              {{ t('notificationsCenter.tabDone') }}
+      <section class="nc-mail-inbox">
+        <div class="nc-mail-toolbar">
+          <p class="nc-mail-toolbar__hint">{{ t('notificationsCenter.inboxUnifiedHint') }}</p>
+          <div class="nc-mail-toolbar__right">
+            <button type="button" class="btn-outline btn-sm" @click="showCompose = true">
+              {{ t('notificationsCenter.composeButton') }}
             </button>
           </div>
         </div>
-        <p v-if="foundTab === 'active'" class="nc-hint">
-          {{ t('notificationsCenter.replyHint') }}
-        </p>
-        <div v-if="foundItems.length > 0" class="notifications-table-wrapper">
-          <table class="notifications-table">
-            <thead>
-              <tr>
-                <th>{{ t('notificationsCenter.tableMaterial') }}</th>
-                <th>{{ t('notificationsCenter.tableMessage') }}</th>
-                <th>{{ t('notificationsCenter.tableSender') }}</th>
-                <th>{{ t('notificationsCenter.tableStatus') }}</th>
-                <th>{{ t('notificationsCenter.tableDate') }}</th>
-                <th>{{ t('notificationsCenter.tableAction') }}</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr
-                v-for="msg in foundItems"
-                :id="'nc-found-' + msg.id"
-                :key="msg.id"
-                :class="{ 'nc-row-flash': flashRowId === msg.id }"
+
+        <div class="nc-mail-tabs" role="tablist">
+          <button
+            type="button"
+            role="tab"
+            class="nc-mail-tab"
+            :class="{ 'nc-mail-tab--active': mailTab === 'inbox' }"
+            :aria-selected="mailTab === 'inbox'"
+            @click="mailTab = 'inbox'"
+          >
+            {{ t('notificationsCenter.mailTabInbox') }}
+          </button>
+          <button
+            type="button"
+            role="tab"
+            class="nc-mail-tab"
+            :class="{ 'nc-mail-tab--active': mailTab === 'sent' }"
+            :aria-selected="mailTab === 'sent'"
+            @click="mailTab = 'sent'"
+          >
+            {{ t('notificationsCenter.mailTabSent') }}
+          </button>
+        </div>
+
+        <template v-if="mailTab === 'sent'">
+          <section class="nc-inbox-section">
+            <div v-if="userMessagesSent.length > 0" class="nc-inbox-list" role="list">
+              <button
+                v-for="msg in userMessagesSent"
+                :key="`sent-${msg.id}`"
+                type="button"
+                role="listitem"
+                class="nc-inbox-row"
+                @click="openSentMessage(msg)"
               >
-                <td>{{ msg.material_name }}</td>
-                <td class="nc-msg-cell">{{ msg.message }}</td>
-                <td>
-                  <span v-if="msg.sender_name">{{ msg.sender_name }}</span>
-                  <span v-if="msg.sender_email"><br /><span class="nc-email">{{ msg.sender_email }}</span></span>
-                  <span v-if="!msg.sender_name && !msg.sender_email">–</span>
-                </td>
-                <td>
-                  <select
-                    class="nc-status-select"
-                    :value="msg.status"
-                    @change="onFoundStatusSelect(msg, $event)"
-                  >
-                    <option value="open">{{ t('notificationsCenter.statusOpen') }}</option>
-                    <option value="in_progress">{{ t('notificationsCenter.statusInProgress') }}</option>
-                    <option value="done">{{ t('notificationsCenter.statusDone') }}</option>
-                  </select>
-                </td>
-                <td>{{ formatDate(msg.created_at) }}</td>
-                <td class="notifications-actions-cell">
-                  <button type="button" class="btn-outline btn-xs" @click="openFoundMaterial(msg)">{{ t('notificationsCenter.openMaterial') }}</button>
-                  <button
-                    v-if="msg.sender_email && String(msg.sender_email).trim()"
-                    type="button"
-                    class="btn-outline btn-xs nc-reply-link"
-                    :title="t('notificationsCenter.replyTitle')"
-                    @click="openPublicFoundReplyMailto(msg)"
-                  >
-                    {{ t('notificationsCenter.reply') }}
-                  </button>
-                  <button
-                    v-if="msg.status !== 'done'"
-                    type="button"
-                    class="btn-success btn-xs"
-                    @click="markFoundDone(msg)"
-                  >
-                    {{ t('notificationsCenter.markDone') }}
-                  </button>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-        <div v-else class="nc-empty-found">
-          <p v-if="foundTab === 'active'">{{ t('notificationsCenter.emptyActive') }}</p>
-          <p v-else>{{ t('notificationsCenter.emptyDone') }}</p>
-        </div>
+                <div class="nc-inbox-row__body">
+                  <div class="nc-inbox-row__top">
+                    <span class="nc-inbox-row__from">
+                      {{ t('notificationsCenter.sentTo', { name: msg.recipient_name }) }}
+                    </span>
+                    <time class="nc-inbox-row__date">{{ formatDate(msg.created_at) }}</time>
+                  </div>
+                  <div class="nc-inbox-row__meta">
+                    <span class="nc-inbox-category nc-inbox-category--message">{{ t('notificationsCenter.inboxCategoryMessage') }}</span>
+                  </div>
+                  <div class="nc-inbox-row__subject">{{ msg.subject }}</div>
+                  <div class="nc-inbox-row__preview">{{ msg.message }}</div>
+                </div>
+              </button>
+            </div>
+            <div v-else class="nc-empty-found">
+              <p>{{ t('notificationsCenter.sentEmpty') }}</p>
+            </div>
+          </section>
+        </template>
+
+        <template v-else v-for="section in inboxSections" :key="section.key">
+          <section class="nc-inbox-section">
+            <h2 class="nc-inbox-section__title">
+              {{ section.title }}
+              <span v-if="section.items.length > 0" class="nc-inbox-section__count">({{ section.items.length }})</span>
+            </h2>
+            <div v-if="section.items.length > 0" class="nc-inbox-list" role="list">
+              <template v-for="item in section.items" :key="item.id">
+            <button
+              v-if="item.kind === 'activity_mw' || item.kind === 'activity_status'"
+              :id="inboxItemDomId(item)"
+              type="button"
+              role="listitem"
+              class="nc-inbox-row"
+              :class="{ 'nc-inbox-row--unread': item.unread, 'nc-row-flash': flashRowId === item.activityMw!.id }"
+              @click="openActivityMw(item.activityMw!, item.kind === 'activity_status')"
+            >
+              <NotificationSenderBlock :sender="fromActivityMw(item.activityMw!)" size="md" />
+              <div class="nc-inbox-row__body">
+                <div class="nc-inbox-row__top">
+                  <span class="nc-inbox-row__from">{{ senderLine(fromActivityMw(item.activityMw!)) }}</span>
+                  <time class="nc-inbox-row__date">{{ formatDate(item.createdAt) }}</time>
+                </div>
+                <div class="nc-inbox-row__meta">
+                  <span class="nc-inbox-category nc-inbox-category--activity">{{ inboxCategoryLabel(item) }}</span>
+                </div>
+                <div class="nc-inbox-row__subject">{{ activityInboxSubject(item.activityMw!) }}</div>
+                <div class="nc-inbox-row__preview">{{ activityInboxPreview(item.activityMw!) }}</div>
+              </div>
+              <span v-if="item.unread" class="nc-inbox-unread-dot" :title="t('notificationsCenter.unreadLabel')" />
+            </button>
+
+
+            <button
+              v-else-if="item.kind === 'user_message'"
+              :id="inboxItemDomId(item)"
+              type="button"
+              role="listitem"
+              class="nc-inbox-row"
+              :class="{ 'nc-inbox-row--unread': item.unread, 'nc-row-flash': flashRowId === item.userMessage!.id }"
+              @click="openUserMessage(item.userMessage!)"
+            >
+              <NotificationSenderBlock :sender="fromUserMessage(item.userMessage!)" size="md" />
+              <div class="nc-inbox-row__body">
+                <div class="nc-inbox-row__top">
+                  <span class="nc-inbox-row__from">{{ senderLine(fromUserMessage(item.userMessage!)) }}</span>
+                  <time class="nc-inbox-row__date">{{ formatDate(item.createdAt) }}</time>
+                </div>
+                <div class="nc-inbox-row__meta">
+                  <span class="nc-inbox-category nc-inbox-category--message">{{ inboxCategoryLabel(item) }}</span>
+                </div>
+                <div class="nc-inbox-row__subject">{{ item.userMessage!.subject }}</div>
+                <div class="nc-inbox-row__preview">{{ item.userMessage!.message }}</div>
+              </div>
+              <span v-if="item.unread" class="nc-inbox-unread-dot" :title="t('notificationsCenter.unreadLabel')" />
+            </button>
+
+            <article
+              v-else-if="item.kind === 'department_invite'"
+              :id="inboxItemDomId(item)"
+              role="listitem"
+              class="nc-inbox-row nc-inbox-row--with-actions"
+              :class="{ 'nc-inbox-row--unread': item.unread }"
+            >
+              <NotificationSenderBlock :sender="fromDepartmentInvite(item.departmentInvite!)" size="md" />
+              <div class="nc-inbox-row__body">
+                <div class="nc-inbox-row__top">
+                  <span class="nc-inbox-row__from">{{ senderLine(fromDepartmentInvite(item.departmentInvite!)) }}</span>
+                  <time class="nc-inbox-row__date">{{ formatDate(item.createdAt) }}</time>
+                </div>
+                <div class="nc-inbox-row__meta">
+                  <span class="nc-inbox-category nc-inbox-category--invite">{{ inboxCategoryLabel(item) }}</span>
+                </div>
+                <div class="nc-inbox-row__subject">
+                  {{ t('layout.notifications.departmentInviteTitle', { department: item.departmentInvite!.department_name }) }}
+                </div>
+                <div class="nc-inbox-row__preview">
+                  {{ t('notificationsCenter.departmentInvitePreview', { role: departmentInviteRoleLabel(item.departmentInvite!.role) }) }}
+                </div>
+              </div>
+              <span v-if="item.unread" class="nc-inbox-unread-dot" :title="t('notificationsCenter.unreadLabel')" />
+              <div class="nc-inbox-row__actions">
+                <button type="button" class="btn-success btn-xs" @click="acceptDepartmentInviteItem(item.departmentInvite!)">
+                  {{ t('notificationsCenter.accept') }}
+                </button>
+                <button type="button" class="btn-danger-outline btn-xs" @click="declineDepartmentInviteItem(item.departmentInvite!)">
+                  {{ t('notificationsCenter.reject') }}
+                </button>
+              </div>
+            </article>
+
+            <button
+              v-else-if="item.kind === 'qr_found'"
+              :id="inboxItemDomId(item)"
+              type="button"
+              role="listitem"
+              class="nc-inbox-row"
+              :class="{ 'nc-inbox-row--unread': item.unread, 'nc-row-flash': flashRowId === item.qrFound!.id }"
+              @click="openQrMessage(item.qrFound!)"
+            >
+              <NotificationSenderBlock :sender="fromPublicFound(item.qrFound!)" size="md" />
+              <div class="nc-inbox-row__body">
+                <div class="nc-inbox-row__top">
+                  <span class="nc-inbox-row__from">{{ senderLine(fromPublicFound(item.qrFound!)) }}</span>
+                  <time class="nc-inbox-row__date">{{ formatDate(item.createdAt) }}</time>
+                </div>
+                <div class="nc-inbox-row__meta">
+                  <span class="nc-inbox-category nc-inbox-category--task">{{ inboxCategoryLabel(item) }}</span>
+                </div>
+                <div class="nc-inbox-row__subject">{{ qrInboxSubject() }}</div>
+                <div class="nc-inbox-row__preview">{{ item.qrFound!.message }}</div>
+              </div>
+              <span v-if="item.unread" class="nc-inbox-unread-dot" :title="t('notificationsCenter.unreadLabel')" />
+            </button>
+
+            <article
+              v-else-if="item.kind === 'activity_invite'"
+              role="listitem"
+              class="nc-inbox-row nc-inbox-row--with-actions nc-inbox-row--unread"
+            >
+              <NotificationSenderBlock :sender="fromActivityInvite(item.activityInvite!)" size="md" />
+              <div class="nc-inbox-row__body">
+                <div class="nc-inbox-row__top">
+                  <span class="nc-inbox-row__from">{{ senderLine(fromActivityInvite(item.activityInvite!)) }}</span>
+                  <time v-if="item.createdAt" class="nc-inbox-row__date">{{ formatDate(item.createdAt) }}</time>
+                </div>
+                <div class="nc-inbox-row__meta">
+                  <span class="nc-inbox-category nc-inbox-category--invite">{{ inboxCategoryLabel(item) }}</span>
+                </div>
+                <div class="nc-inbox-row__subject">{{ item.activityInvite!.activity_name }}</div>
+                <div class="nc-inbox-row__preview">
+                  {{
+                    item.activityInvite!.activity_type === 'camp'
+                      ? t('notificationsCenter.typeCamp')
+                      : t('notificationsCenter.typeEvent')
+                  }}
+                </div>
+              </div>
+              <span class="nc-inbox-unread-dot" :title="t('notificationsCenter.unreadLabel')" />
+              <div class="nc-inbox-row__actions">
+                <button type="button" class="btn-success btn-xs" @click="decide(item.activityInvite!, 'accepted')">
+                  {{ t('notificationsCenter.accept') }}
+                </button>
+                <button type="button" class="btn-danger-outline btn-xs" @click="decide(item.activityInvite!, 'rejected')">
+                  {{ t('notificationsCenter.reject') }}
+                </button>
+              </div>
+            </article>
+              </template>
+            </div>
+            <div v-else class="nc-empty-found">
+              <p>{{ section.emptyText }}</p>
+            </div>
+          </section>
+        </template>
       </section>
 
-      <section v-if="inviteItems.length > 0" class="nc-section">
-        <h2 class="nc-section-title">{{ t('notificationsCenter.invitesSectionTitle') }}</h2>
-        <div class="notifications-table-wrapper">
-          <table class="notifications-table">
-            <thead>
-              <tr>
-                <th>{{ t('notificationsCenter.tableDepartment') }}</th>
-                <th>{{ t('notificationsCenter.tableActivity') }}</th>
-                <th>{{ t('notificationsCenter.tableType') }}</th>
-                <th>{{ t('notificationsCenter.tableAction') }}</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr
-                v-for="invite in inviteItems"
-                :key="`${invite.activity_id}-${invite.source_department_id}`"
-              >
-                <td>{{ invite.source_department_name }}</td>
-                <td>{{ invite.activity_name }}</td>
-                <td>{{ invite.activity_type === 'camp' ? t('notificationsCenter.typeCamp') : t('notificationsCenter.typeEvent') }}</td>
-                <td class="notifications-actions-cell">
-                  <button type="button" class="btn-success btn-xs" @click="decide(invite, 'accepted')">
-                    {{ t('notificationsCenter.accept') }}
-                  </button>
-                  <button type="button" class="btn-danger-outline btn-xs" @click="decide(invite, 'rejected')">
-                    {{ t('notificationsCenter.reject') }}
-                  </button>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </section>
-
-      <div v-if="showGlobalEmpty" class="empty-state">
-        <h3>{{ t('notificationsCenter.emptyTitle') }}</h3>
-        <p>{{ emptyBodyText }}</p>
-      </div>
+      <InboxComposeModal
+        v-model="showCompose"
+        :department-id="departmentId"
+        :members="composeMembers"
+        @sent="onComposeSent"
+      />
+      <InboxMessageDetailModal
+        :message="detailMessage"
+        :mode="detailMessageMode"
+        @close="closeDetailMessage"
+      />
+      <InboxQrDetailModal
+        :message="detailQr"
+        @close="detailQr = null"
+        @open-material="openFoundMaterial"
+        @status-change="onQrDetailStatusChange"
+      />
     </template>
   </div>
 </template>
@@ -161,8 +265,13 @@ import { useToast } from '@/composables/useToast'
 import {
   getPendingDepartmentActivityInvites,
   decideDepartmentActivityInvite,
+  getReceivedDepartmentInvites,
+  acceptDepartmentInvite,
+  declineDepartmentInvite,
   type PendingDepartmentActivityInvite,
+  type ReceivedDepartmentInviteNotification,
 } from '@/api/joinRequests'
+import { useAuthStore } from '@/stores/auth'
 import {
   getPublicFoundMessages,
   updatePublicFoundMessageStatus,
@@ -170,43 +279,199 @@ import {
   type PublicFoundItemMessage,
   type PublicFoundMessageStatus,
 } from '@/api/publicFoundMessages'
+import {
+  getActivityMwNotifications,
+  markActivityMwNotificationRead,
+  type ActivityMwNotification,
+} from '@/api/activityNotifications'
+import {
+  getUserActivityStatusNotifications,
+  markUserActivityStatusNotificationRead,
+} from '@/api/activityUserNotifications'
+import { useActivityNotificationText } from '@/composables/useActivityNotificationText'
+import {
+  getUserDirectMessages,
+  getUserDirectMessagesSent,
+  markUserDirectMessageRead,
+  type UserDirectMessage,
+  type UserDirectMessageSent,
+} from '@/api/inboxMessages'
+import { getDepartmentMembers, type DepartmentMember } from '@/api/departments'
+import {
+  InboxComposeModal,
+  InboxMessageDetailModal,
+  InboxQrDetailModal,
+  NotificationSenderBlock,
+} from '@/components/notifications'
+import { useNotificationSender } from '@/composables/useNotificationSender'
 import { useDepartmentMemberRole } from '@/composables/useDepartmentMemberRole'
+import { useHeaderNotificationsStore } from '@/stores/headerNotifications'
+import { getSenderPrimaryLine, type NotificationSenderDescriptor } from '@/utils/notificationSender'
+
+const headerNotificationsStore = useHeaderNotificationsStore()
 
 const route = useRoute()
 const router = useRouter()
+const authStore = useAuthStore()
 const toast = useToast()
 const { t } = useI18n()
-/** true bis erste Ladung fertig (verhindert frühes Entfernen von ?highlight=) */
+const { fromActivityMw, fromDepartmentInvite, fromPublicFound, fromActivityInvite, fromUserMessage } =
+  useNotificationSender()
+const { inboxSubject: activityInboxSubject, inboxPreview: activityInboxPreview } =
+  useActivityNotificationText()
 const isLoading = ref(true)
+const mailTab = ref<'inbox' | 'sent'>('inbox')
+const userMessagesAll = ref<UserDirectMessage[]>([])
+const userMessagesSent = ref<UserDirectMessageSent[]>([])
+const departmentMembers = ref<DepartmentMember[]>([])
+const showCompose = ref(false)
+const detailMessage = ref<UserDirectMessage | UserDirectMessageSent | null>(null)
+const detailMessageMode = ref<'inbox' | 'sent'>('inbox')
+const detailQr = ref<PublicFoundItemMessage | null>(null)
 const inviteItems = ref<PendingDepartmentActivityInvite[]>([])
+const departmentInviteAll = ref<ReceivedDepartmentInviteNotification[]>([])
+const departmentInviteUnreadCount = ref(0)
+const activityMwAll = ref<ActivityMwNotification[]>([])
+const activityMwUnreadCount = ref(0)
+const activityUserStatusAll = ref<ActivityMwNotification[]>([])
 const allFoundMessages = ref<PublicFoundItemMessage[]>([])
-const foundTab = ref<'active' | 'done'>('active')
-/** Kurz hervorheben nach Sprung von der Glocke (?highlight=) */
 const flashRowId = ref('')
 
+type InboxItemKind =
+  | 'activity_mw'
+  | 'activity_status'
+  | 'department_invite'
+  | 'qr_found'
+  | 'activity_invite'
+  | 'user_message'
+
+interface UnifiedInboxItem {
+  id: string
+  kind: InboxItemKind
+  createdAt: string
+  unread: boolean
+  activityMw?: ActivityMwNotification
+  activityStatusUser?: boolean
+  departmentInvite?: ReceivedDepartmentInviteNotification
+  qrFound?: PublicFoundItemMessage
+  activityInvite?: PendingDepartmentActivityInvite
+  userMessage?: UserDirectMessage
+}
+
 const departmentId = computed(() => String(route.params.departmentId || ''))
-const { isUserRole, canManageQrContact } = useDepartmentMemberRole()
+const { isUserRole, canManageQrContact, canManageMaterials } = useDepartmentMemberRole()
 
 const subtitleText = computed(() =>
-  isUserRole.value ? t('notificationsCenter.subtitleUser') : t('notificationsCenter.subtitle')
+  isUserRole.value ? t('notificationsCenter.subtitleUser') : t('notificationsCenter.subtitle'),
 )
 
-const showGlobalEmpty = computed(() => {
-  if (inviteItems.value.length > 0) return false
-  if (canManageQrContact.value && allFoundMessages.value.length > 0) return false
-  return true
+const showDepartmentInviteSection = computed(
+  () => isUserRole.value || departmentInviteAll.value.length > 0 || departmentInviteUnreadCount.value > 0,
+)
+
+const composeMembers = computed(() => {
+  const selfId = authStore.userId
+  return departmentMembers.value.filter((m) => m.user_id && m.user_id !== selfId)
 })
 
-const emptyBodyText = computed(() =>
-  isUserRole.value ? t('notificationsCenter.emptyBodyUser') : t('notificationsCenter.emptyBody')
+const unreadInboxItems = computed(() =>
+  allInboxItems.value.filter((item) => item.unread),
 )
 
-const foundItems = computed(() => {
-  if (foundTab.value === 'active') {
-    return allFoundMessages.value.filter((m) => m.status === 'open' || m.status === 'in_progress')
+const readInboxItems = computed(() =>
+  allInboxItems.value.filter((item) => !item.unread),
+)
+
+const inboxSections = computed(() => [
+  {
+    key: 'unread',
+    title: t('notificationsCenter.inboxSectionUnread'),
+    items: unreadInboxItems.value,
+    emptyText: t('notificationsCenter.inboxEmptyUnread'),
+  },
+  {
+    key: 'read',
+    title: t('notificationsCenter.inboxSectionRead'),
+    items: readInboxItems.value,
+    emptyText: t('notificationsCenter.inboxEmptyRead'),
+  },
+])
+
+const allInboxItems = computed((): UnifiedInboxItem[] => {
+  const items: UnifiedInboxItem[] = []
+
+  for (const msg of userMessagesAll.value) {
+    items.push({
+      id: `um-${msg.id}`,
+      kind: 'user_message',
+      createdAt: msg.created_at,
+      unread: !msg.read,
+      userMessage: msg,
+    })
   }
-  return allFoundMessages.value.filter((m) => m.status === 'done')
+
+  for (const entry of activityUserStatusAll.value) {
+    items.push({
+      id: `act-st-${entry.id}`,
+      kind: 'activity_status',
+      createdAt: entry.created_at,
+      unread: !entry.read,
+      activityMw: entry,
+      activityStatusUser: true,
+    })
+  }
+
+  if (canManageMaterials.value) {
+    for (const entry of activityMwAll.value) {
+      items.push({
+        id: `act-mw-${entry.id}`,
+        kind: 'activity_mw',
+        createdAt: entry.created_at,
+        unread: !entry.read,
+        activityMw: entry,
+        activityStatusUser: false,
+      })
+    }
+  }
+
+  if (showDepartmentInviteSection.value) {
+    for (const inv of departmentInviteAll.value) {
+      items.push({
+        id: `dept-inv-${inv.id}`,
+        kind: 'department_invite',
+        createdAt: inv.created_at,
+        unread: !inv.read,
+        departmentInvite: inv,
+      })
+    }
+  }
+
+  if (canManageQrContact.value) {
+    for (const msg of allFoundMessages.value) {
+      items.push({
+        id: `qr-${msg.id}`,
+        kind: 'qr_found',
+        createdAt: msg.created_at,
+        unread: msg.status === 'open',
+        qrFound: msg,
+      })
+    }
+  }
+
+  for (const invite of inviteItems.value) {
+    items.push({
+      id: `act-inv-${invite.activity_id}-${invite.source_department_id}`,
+      kind: 'activity_invite',
+      createdAt: invite.invited_at || '',
+      unread: true,
+      activityInvite: invite,
+    })
+  }
+
+  return items.sort((a, b) => b.createdAt.localeCompare(a.createdAt))
 })
+
+const totalUnreadCount = computed(() => unreadInboxItems.value.length)
 
 function formatDate(iso: string): string {
   try {
@@ -217,8 +482,70 @@ function formatDate(iso: string): string {
   }
 }
 
-function setFoundTab(tab: 'active' | 'done') {
-  foundTab.value = tab
+function inboxItemDomId(item: UnifiedInboxItem): string {
+  if (item.kind === 'activity_mw' && item.activityMw) return `nc-activity-${item.activityMw.id}`
+  if (item.kind === 'qr_found' && item.qrFound) return `nc-found-${item.qrFound.id}`
+  return `nc-item-${item.id}`
+}
+
+function inboxCategoryLabel(item: UnifiedInboxItem): string {
+  switch (item.kind) {
+    case 'activity_mw':
+      return t('notificationsCenter.inboxCategoryActivity')
+    case 'activity_status':
+      return t('notificationsCenter.inboxCategoryActivityStatus')
+    case 'qr_found':
+      return t('notificationsCenter.inboxCategoryQr')
+    case 'department_invite':
+      return t('notificationsCenter.inboxCategoryDeptInvite')
+    case 'activity_invite':
+      return t('notificationsCenter.inboxCategoryActivityInvite')
+    case 'user_message':
+      return t('notificationsCenter.inboxCategoryMessage')
+    default:
+      return ''
+  }
+}
+
+async function onComposeSent() {
+  mailTab.value = 'sent'
+  await load()
+  headerNotificationsStore.requestRefresh()
+}
+
+function closeDetailMessage() {
+  detailMessage.value = null
+  detailMessageMode.value = 'inbox'
+}
+
+function openSentMessage(msg: UserDirectMessageSent) {
+  detailMessageMode.value = 'sent'
+  detailMessage.value = msg
+}
+
+async function openUserMessage(msg: UserDirectMessage) {
+  if (!departmentId.value) return
+  let current = msg
+  if (!msg.read) {
+    try {
+      await markUserDirectMessageRead(departmentId.value, msg.id)
+      current = { ...msg, read: true }
+      userMessagesAll.value = userMessagesAll.value.map((m) => (m.id === msg.id ? current : m))
+      headerNotificationsStore.requestRefresh()
+    } catch {
+      /* keep open */
+    }
+  }
+  detailMessageMode.value = 'inbox'
+  detailMessage.value = current
+}
+
+function senderLine(sender: NotificationSenderDescriptor): string {
+  return getSenderPrimaryLine(sender)
+}
+
+function qrInboxSubject(): string {
+  return t('notificationsCenter.qrTaskSubject')
 }
 
 async function load() {
@@ -232,21 +559,152 @@ async function load() {
       count: 0,
       items: [] as PendingDepartmentActivityInvite[],
     }))
+    const deptInvPromise = getReceivedDepartmentInvites({ bucket: 'all', limit: 200 }).catch(() => ({
+      count: 0,
+      unread_count: 0,
+      items: [] as ReceivedDepartmentInviteNotification[],
+    }))
     const foundPromise = canManageQrContact.value
       ? getPublicFoundMessages(departmentId.value, { bucket: 'all', limit: 200 }).catch(() => ({
           items: [] as PublicFoundItemMessage[],
         }))
       : Promise.resolve({ items: [] as PublicFoundItemMessage[] })
 
-    const [inv, found] = await Promise.all([invPromise, foundPromise])
+    const activityMwPromise = canManageMaterials.value
+      ? getActivityMwNotifications(departmentId.value, { bucket: 'all', limit: 200 }).catch(() => ({
+          unread_count: 0,
+          items: [] as ActivityMwNotification[],
+        }))
+      : Promise.resolve({ unread_count: 0, items: [] as ActivityMwNotification[] })
+
+    const userMsgPromise = getUserDirectMessages(departmentId.value, { bucket: 'all', limit: 200 }).catch(() => ({
+      unread_count: 0,
+      items: [] as UserDirectMessage[],
+    }))
+    const userSentPromise = getUserDirectMessagesSent(departmentId.value, { limit: 200 }).catch(() => ({
+      count: 0,
+      items: [] as UserDirectMessageSent[],
+    }))
+    const activityUserPromise = getUserActivityStatusNotifications(departmentId.value, {
+      bucket: 'all',
+      limit: 200,
+    }).catch(() => ({ unread_count: 0, items: [] as ActivityMwNotification[] }))
+    const membersPromise = getDepartmentMembers(departmentId.value).catch(() => [] as DepartmentMember[])
+
+    const [inv, found, activityMw, deptInv, userMsg, userSent, activityUser, members] = await Promise.all([
+      invPromise,
+      foundPromise,
+      activityMwPromise,
+      deptInvPromise,
+      userMsgPromise,
+      userSentPromise,
+      activityUserPromise,
+      membersPromise,
+    ])
     inviteItems.value = inv.items || []
+    departmentInviteAll.value = deptInv.items || []
+    departmentInviteUnreadCount.value =
+      typeof deptInv.unread_count === 'number' ? deptInv.unread_count : 0
     allFoundMessages.value = found.items || []
+    activityMwAll.value = activityMw.items || []
+    activityMwUnreadCount.value =
+      typeof activityMw.unread_count === 'number' ? activityMw.unread_count : 0
+    userMessagesAll.value = userMsg.items || []
+    userMessagesSent.value = userSent.items || []
+    activityUserStatusAll.value = activityUser.items || []
+    departmentMembers.value = members || []
   } catch {
     inviteItems.value = []
+    departmentInviteAll.value = []
+    departmentInviteUnreadCount.value = 0
     allFoundMessages.value = []
+    activityMwAll.value = []
+    activityMwUnreadCount.value = 0
+    userMessagesAll.value = []
+    userMessagesSent.value = []
+    activityUserStatusAll.value = []
+    departmentMembers.value = []
     toast.error(t('notificationsCenter.toastLoadFailed'))
   } finally {
     isLoading.value = false
+  }
+}
+
+async function openActivityMw(entry: ActivityMwNotification, forUserStatus = false) {
+  if (!departmentId.value || !entry.activity_id) return
+  if (String(entry.activity_id).startsWith('demo-')) {
+    toast.info(t('notificationsCenter.toastDemoActivity'))
+    return
+  }
+  if (!entry.read) {
+    try {
+      if (forUserStatus) {
+        await markUserActivityStatusNotificationRead(departmentId.value, entry.id)
+        activityUserStatusAll.value = activityUserStatusAll.value.map((e) =>
+          e.id === entry.id ? { ...e, read: true } : e,
+        )
+      } else {
+        await markActivityMwNotificationRead(departmentId.value, entry.id)
+        activityMwAll.value = activityMwAll.value.map((e) =>
+          e.id === entry.id ? { ...e, read: true } : e,
+        )
+        activityMwUnreadCount.value = Math.max(0, activityMwUnreadCount.value - 1)
+      }
+      headerNotificationsStore.requestRefresh()
+    } catch {
+      /* navigate anyway */
+    }
+  }
+  void router.push(`/${departmentId.value}/activities/${entry.activity_id}`)
+}
+
+const DEPT_INVITE_ROLE_KEYS: Record<string, string> = {
+  mw: 'settings.departmentUsers.roles.mw',
+  dc: 'settings.departmentUsers.roles.dc',
+  l1: 'settings.departmentUsers.roles.l1',
+  l2: 'settings.departmentUsers.roles.l2',
+  l3: 'settings.departmentUsers.roles.l3',
+  u: 'settings.departmentUsers.roles.u',
+}
+
+function departmentInviteRoleLabel(role: string): string {
+  const key = DEPT_INVITE_ROLE_KEYS[role]
+  return key ? t(key) : role
+}
+
+async function acceptDepartmentInviteItem(inv: ReceivedDepartmentInviteNotification) {
+  try {
+    const result = await acceptDepartmentInvite({
+      notificationId: inv.id,
+      departmentId: inv.department_id,
+      inviteId: inv.invite_id,
+    })
+    departmentInviteAll.value = departmentInviteAll.value.filter((e) => e.id !== inv.id)
+    departmentInviteUnreadCount.value = Math.max(0, departmentInviteUnreadCount.value - 1)
+    headerNotificationsStore.requestRefresh()
+    await authStore.loadDepartments()
+    toast.success(t('notificationsCenter.toastDeptInviteAccepted', { department: result.department_name }))
+    if (result.department_id) {
+      void router.push(`/${result.department_id}`)
+    }
+  } catch (err: any) {
+    toast.error(err?.response?.data?.error || t('notificationsCenter.toastDeptInviteAcceptFailed'))
+  }
+}
+
+async function declineDepartmentInviteItem(inv: ReceivedDepartmentInviteNotification) {
+  try {
+    await declineDepartmentInvite({
+      notificationId: inv.id,
+      departmentId: inv.department_id,
+      inviteId: inv.invite_id,
+    })
+    departmentInviteAll.value = departmentInviteAll.value.filter((e) => e.id !== inv.id)
+    departmentInviteUnreadCount.value = Math.max(0, departmentInviteUnreadCount.value - 1)
+    headerNotificationsStore.requestRefresh()
+    toast.success(t('notificationsCenter.toastDeptInviteDeclined'))
+  } catch (err: any) {
+    toast.error(err?.response?.data?.error || t('notificationsCenter.toastDeptInviteDeclineFailed'))
   }
 }
 
@@ -259,9 +717,14 @@ async function decide(invite: PendingDepartmentActivityInvite, decision: 'accept
       decision,
     })
     inviteItems.value = inviteItems.value.filter(
-      (e) => !(e.activity_id === invite.activity_id && e.source_department_id === invite.source_department_id)
+      (e) => !(e.activity_id === invite.activity_id && e.source_department_id === invite.source_department_id),
     )
-    toast.success(decision === 'accepted' ? t('notificationsCenter.toastInviteAccepted') : t('notificationsCenter.toastInviteRejected'))
+    toast.success(
+      decision === 'accepted'
+        ? t('notificationsCenter.toastInviteAccepted')
+        : t('notificationsCenter.toastInviteRejected'),
+    )
+    headerNotificationsStore.requestRefresh()
   } catch (err: any) {
     toast.error(err?.response?.data?.error || t('notificationsCenter.toastDecisionFailed'))
   }
@@ -277,6 +740,21 @@ function openFoundMaterial(msg: PublicFoundItemMessage) {
   })
 }
 
+async function openQrMessage(msg: PublicFoundItemMessage) {
+  if (msg.status === 'open' && departmentId.value) {
+    await onFoundStatusChange(msg, 'in_progress')
+  }
+  const current = allFoundMessages.value.find((m) => m.id === msg.id) ?? msg
+  detailQr.value = current
+}
+
+async function onQrDetailStatusChange(msg: PublicFoundItemMessage, status: PublicFoundMessageStatus) {
+  await onFoundStatusChange(msg, status)
+  if (detailQr.value?.id === msg.id) {
+    detailQr.value = allFoundMessages.value.find((m) => m.id === msg.id) ?? detailQr.value
+  }
+}
+
 function onFoundStatusSelect(msg: PublicFoundItemMessage, ev: Event) {
   const el = ev.target as HTMLSelectElement
   const status = el.value as PublicFoundMessageStatus
@@ -289,15 +767,11 @@ async function onFoundStatusChange(msg: PublicFoundItemMessage, status: PublicFo
     const { item } = await updatePublicFoundMessageStatus(departmentId.value, msg.id, status)
     const i = allFoundMessages.value.findIndex((m) => m.id === msg.id)
     if (i >= 0) allFoundMessages.value[i] = item
-    toast.success(t('notificationsCenter.toastStatusSaved'))
+    headerNotificationsStore.requestRefresh()
   } catch (err: any) {
     toast.error(err?.response?.data?.error || t('notificationsCenter.toastSaveFailed'))
     await load()
   }
-}
-
-async function markFoundDone(msg: PublicFoundItemMessage) {
-  await onFoundStatusChange(msg, 'done')
 }
 
 onMounted(load)
@@ -310,14 +784,47 @@ function parseHighlightId(raw: unknown): string {
 }
 
 watch(
-  () => [route.query.highlight, isLoading.value, allFoundMessages.value] as const,
-  async ([hl, loading, msgs]) => {
+  () => [route.query.openMessage, isLoading.value, userMessagesAll.value] as const,
+  async ([raw, loading, msgs]) => {
+    if (loading) return
+    const id = parseHighlightId(raw)
+    if (!id) return
+    const msg = msgs.find((m) => m.id === id)
+    if (!msg) return
+    mailTab.value = 'inbox'
+    await openUserMessage(msg)
+    const q = { ...route.query }
+    delete q.openMessage
+    void router.replace({ path: route.path, query: q })
+  },
+  { flush: 'post' },
+)
+
+watch(
+  () =>
+    [route.query.highlight, isLoading.value, allFoundMessages.value, activityMwAll.value] as const,
+  async ([hl, loading, msgs, activityMsgs]) => {
     if (loading) return
     const hid = parseHighlightId(hl)
     if (!hid) return
+
+    const activityEntry = activityMsgs.find((m) => m.id === hid)
+    if (activityEntry) {
+      await nextTick()
+      await nextTick()
+      document.getElementById(`nc-activity-${hid}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      flashRowId.value = hid
+      window.setTimeout(() => {
+        flashRowId.value = ''
+      }, 2200)
+      const q = { ...route.query }
+      delete q.highlight
+      void router.replace({ path: route.path, query: q })
+      return
+    }
+
     const msg = msgs.find((m) => m.id === hid)
     if (!msg) {
-      if (loading) return
       const q = { ...route.query }
       if (q.highlight !== undefined) {
         delete q.highlight
@@ -325,44 +832,139 @@ watch(
       }
       return
     }
-    if (msg.status === 'done') foundTab.value = 'done'
-    else foundTab.value = 'active'
-    await nextTick()
-    await nextTick()
-    const el = document.getElementById(`nc-found-${hid}`)
-    el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-    flashRowId.value = hid
-    window.setTimeout(() => {
-      flashRowId.value = ''
-    }, 2200)
+    mailTab.value = 'inbox'
+    await openQrMessage(msg)
     const q = { ...route.query }
     delete q.highlight
     void router.replace({ path: route.path, query: q })
   },
-  { flush: 'post' }
+  { flush: 'post' },
 )
 </script>
 
 <style scoped>
-.notifications-actions-cell {
-  white-space: nowrap;
+.nc-mail-inbox {
+  max-width: 52rem;
 }
-.notifications-actions-cell .btn-xs + .btn-xs {
-  margin-left: 8px;
+
+.nc-mail-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
 }
+
+.nc-mail-toolbar__hint {
+  margin: 0;
+  font-size: 0.85rem;
+  color: #6b7280;
+  line-height: 1.4;
+  flex: 1;
+  min-width: 12rem;
+}
+
+.nc-mail-toolbar__right {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.nc-mail-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 14px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.nc-mail-tab {
+  margin: 0;
+  padding: 8px 14px;
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: #6b7280;
+  cursor: pointer;
+}
+
+.nc-mail-tab:hover {
+  color: #111827;
+}
+
+.nc-mail-tab--active {
+  color: #1d4ed8;
+  border-bottom-color: #3b82f6;
+}
+
+.nc-inbox-section {
+  margin-bottom: 1.75rem;
+}
+
+.nc-inbox-section__title {
+  margin: 0 0 10px;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #374151;
+}
+
+.nc-inbox-section__count {
+  margin-left: 6px;
+  font-weight: 500;
+  color: #6b7280;
+  font-size: 0.9rem;
+}
+
+.nc-inbox-category--message {
+  background: #fce7f3;
+  color: #9d174d;
+}
+
+.nc-inbox-row__meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.nc-inbox-category {
+  display: inline-block;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding: 2px 6px;
+  border-radius: 4px;
+  line-height: 1.2;
+}
+
+.nc-inbox-category--activity {
+  background: #e0e7ff;
+  color: #3730a3;
+}
+
+.nc-inbox-category--task {
+  background: #ffedd5;
+  color: #9a3412;
+}
+
+.nc-inbox-category--invite {
+  background: #d1fae5;
+  color: #065f46;
+}
+
 .nc-section {
   margin-bottom: 2rem;
 }
 .nc-section-title {
   font-size: 1.1rem;
   font-weight: 600;
-  margin: 0 0 12px;
+  margin: 0;
   color: #374151;
-}
-.nc-msg-cell {
-  max-width: 320px;
-  white-space: pre-wrap;
-  word-break: break-word;
 }
 .nc-section-head {
   display: flex;
@@ -398,22 +1000,12 @@ watch(
   max-width: 52rem;
   line-height: 1.4;
 }
-.nc-email {
-  font-size: 0.9rem;
-  color: #374151;
-}
 .nc-status-select {
   font-size: 0.85rem;
   padding: 4px 8px;
   border-radius: 4px;
   border: 1px solid #d1d5db;
   max-width: 11rem;
-}
-.nc-reply-link {
-  display: inline-block;
-  text-decoration: none;
-  text-align: center;
-  line-height: 1.25;
 }
 .nc-empty-found {
   padding: 12px 0;
@@ -424,7 +1016,7 @@ watch(
   margin: 0;
 }
 
-tr.nc-row-flash {
+.nc-inbox-row.nc-row-flash {
   animation: nc-flash-bg 1.1s ease-out 2;
 }
 @keyframes nc-flash-bg {
@@ -435,5 +1027,152 @@ tr.nc-row-flash {
   35% {
     background: #dbeafe;
   }
+}
+
+.nc-inbox-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.25rem;
+  height: 1.25rem;
+  margin-left: 8px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: #2563eb;
+  color: #fff;
+  font-size: 0.75rem;
+  font-weight: 700;
+  vertical-align: middle;
+}
+
+.nc-tab-count {
+  margin-left: 4px;
+  font-weight: 600;
+}
+
+.nc-inbox-list {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.nc-inbox-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  width: 100%;
+  margin: 0;
+  padding: 12px 14px;
+  border: none;
+  border-bottom: 1px solid #f3f4f6;
+  background: #fff;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  position: relative;
+}
+
+.nc-inbox-row:last-child {
+  border-bottom: none;
+}
+
+button.nc-inbox-row {
+  cursor: pointer;
+}
+
+button.nc-inbox-row:hover {
+  background: #f9fafb;
+}
+
+.nc-inbox-row--unread {
+  background: #eff6ff;
+}
+
+.nc-inbox-row--unread:hover,
+button.nc-inbox-row--unread:hover {
+  background: #dbeafe;
+}
+
+.nc-inbox-row--with-actions {
+  flex-wrap: wrap;
+  align-items: flex-start;
+}
+
+.nc-inbox-row__body {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.nc-inbox-row__body--clickable {
+  cursor: pointer;
+}
+
+.nc-inbox-row__top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.nc-inbox-row__from {
+  font-weight: 600;
+  color: #111827;
+  font-size: 0.9rem;
+}
+
+.nc-inbox-row--unread .nc-inbox-row__from {
+  font-weight: 700;
+}
+
+.nc-inbox-row__date {
+  flex-shrink: 0;
+  font-size: 0.75rem;
+  color: #6b7280;
+}
+
+.nc-inbox-row__subject {
+  font-size: 0.9rem;
+  color: #374151;
+}
+
+.nc-inbox-row--unread .nc-inbox-row__subject {
+  font-weight: 600;
+  color: #111827;
+}
+
+.nc-inbox-row__preview {
+  font-size: 0.85rem;
+  color: #6b7280;
+  line-height: 1.35;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.nc-inbox-unread-dot {
+  flex-shrink: 0;
+  width: 10px;
+  height: 10px;
+  margin-top: 6px;
+  border-radius: 50%;
+  background: #2563eb;
+}
+
+.nc-inbox-row__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding-left: 52px;
+  margin-top: 4px;
+}
+
+.nc-inbox-row__actions .btn-xs + .btn-xs {
+  margin-left: 0;
 }
 </style>

@@ -721,12 +721,33 @@ onMounted(() => {
   box-sizing: border-box;
 }
 
+.section-card--location {
+  overflow: visible;
+}
+
 .section-card--location :deep(.map-wrapper) {
   max-width: 100%;
+  height: auto;
+  overflow: visible;
 }
 
 .section-card--location :deep(.map-container) {
   overflow: hidden;
+}
+
+.section-card--location :deep(.external-map-links) {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-top: 12px;
+  padding-bottom: 4px;
+}
+
+.section-card--location :deep(.external-map-links .btn) {
+  flex: 1 1 0;
+  min-width: min(12rem, 100%);
+  width: auto;
 }
 
 .section-header-row {

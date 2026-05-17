@@ -48,14 +48,53 @@
     <div v-if="canManagePendingInvites && !isLoading" class="pending-invites-card">
       <div class="pending-head">
         <h3>{{ t('settings.departmentUsers.pendingInvitesTitle') }}</h3>
-        <span class="pending-count">{{ pendingInvites.length }}</span>
+        <span v-if="openPendingInviteCount > 0" class="pending-count">{{ openPendingInviteCount }}</span>
       </div>
       <p v-if="pendingInvitesError" class="pending-error">{{ pendingInvitesError }}</p>
       <p v-else-if="isLoadingPendingInvites" class="pending-muted">{{ t('settings.departmentUsers.pendingLoading') }}</p>
       <ul v-else-if="pendingInvites.length > 0" class="pending-list">
         <li v-for="invite in pendingInvites" :key="invite.id" class="pending-item">
-          <span>{{ invite.email }} ({{ getRoleLabel(invite.role) }})</span>
-          <button class="btn btn-secondary btn-sm" @click="removePendingInviteItem(invite.id)">{{ t('settings.departmentUsers.pendingDelete') }}</button>
+          <div class="pending-item-main">
+            <span class="pending-email">{{ invite.email }}</span>
+            <span v-if="invite.user_name" class="pending-user-name">{{ invite.user_name }}</span>
+            <span
+              class="invite-status-badge"
+              :class="{
+                'invite-status-badge--accepted': isInviteAccepted(invite),
+                'invite-status-badge--pending': isInviteOpen(invite),
+                'invite-status-badge--declined': isInviteDeclined(invite),
+              }"
+            >
+              {{
+                isInviteAccepted(invite)
+                  ? t('settings.departmentUsers.inviteStatusAccepted')
+                  : isInviteDeclined(invite)
+                    ? t('settings.departmentUsers.inviteStatusDeclined')
+                    : t('settings.departmentUsers.inviteStatusPending')
+              }}
+            </span>
+            <span v-if="invite.user_registered && isInviteOpen(invite)" class="invite-registered-hint">
+              {{ t('settings.departmentUsers.inviteUserRegistered') }}
+            </span>
+            <span class="pending-role">{{ getRoleLabel(invite.role) }}</span>
+            <span v-if="isInviteAccepted(invite) && invite.accepted_at" class="invite-accepted-at">
+              {{ t('settings.departmentUsers.inviteAcceptedAt', { date: formatInviteDate(invite.accepted_at) }) }}
+            </span>
+          </div>
+          <button
+            v-if="isInviteOpen(invite)"
+            class="btn btn-secondary btn-sm"
+            @click.stop="removePendingInviteItem(invite.id)"
+          >
+            {{ t('settings.departmentUsers.pendingDelete') }}
+          </button>
+          <button
+            v-else
+            class="btn btn-secondary btn-sm"
+            @click.stop="removePendingInviteItem(invite.id)"
+          >
+            {{ t('settings.departmentUsers.inviteDismiss') }}
+          </button>
         </li>
       </ul>
       <p v-else class="pending-muted">{{ t('settings.departmentUsers.pendingNone') }}</p>
@@ -114,9 +153,7 @@
             <!-- Name -->
             <td class="col-name">
               <div class="name-cell">
-                <div class="user-avatar" :style="{ background: getAvatarColor(member.name) }">
-                  {{ getInitials(member.name) }}
-                </div>
+                <UserAvatarBadge :user="member" size="md" :show-tooltip="false" />
                 <div class="name-info">
                   <span class="user-name">{{ member.name }}</span>
                   <span v-if="member.state !== 'active'" class="state-badge inactive">{{ member.state }}</span>
@@ -183,7 +220,7 @@
     <!-- ======================================== -->
     <Teleport to="body">
       <div v-if="showAddModal" class="modal-overlay">
-        <div class="modal-container modal-sm">
+        <div class="modal-container modal-sm modal-add-user modal-add-user-wide">
           <div class="modal-header">
             <h3>{{ t('settings.departmentUsers.modalAddTitle') }}</h3>
             <button class="close-btn" @click="closeAddModal">
@@ -193,20 +230,20 @@
             </button>
           </div>
 
-          <div class="modal-body">
-            <div v-if="isLoadingAvailable" class="loading-inline">
-              <div class="spinner-sm"></div>
-              <span>{{ t('settings.departmentUsers.modalLoadingAvailable') }}</span>
-            </div>
+          <div class="modal-body add-user-modal-body">
+            <p
+              v-if="!isLoadingAvailable && availableUsers.length === 0 && userSearchQuery.trim().length < 3"
+              class="no-users-hint"
+            >
+              {{ t('settings.departmentUsers.modalNoAvailableUsers') }}
+            </p>
 
-            <div v-else-if="availableUsers.length === 0" class="no-users-hint">
-              <p>{{ t('settings.departmentUsers.modalNoAvailableUsers') }}</p>
-            </div>
-
-            <template v-else>
-              <div class="form-group">
-                <label>{{ t('settings.departmentUsers.labelUserRequired') }}</label>
-                <div class="autocomplete-wrapper">
+            <div class="form-group form-group-user-search">
+              <label>{{ t('settings.departmentUsers.labelUserRequired') }}</label>
+              <div
+                class="autocomplete-wrapper"
+                :class="{ 'is-dropdown-open': showUserDropdown && !selectedAvailableUser }"
+              >
                   <div v-if="selectedAvailableUser" class="selected-user-chip">
                     <span>{{ selectedAvailableUser.name }} ({{ selectedAvailableUser.email }})</span>
                     <button class="chip-remove" @click="clearAvailableUser">
@@ -215,7 +252,7 @@
                       </svg>
                     </button>
                   </div>
-                  <input 
+                  <input
                     v-else
                     v-model="userSearchQuery"
                     type="text"
@@ -225,7 +262,11 @@
                     @blur="handleUserSearchBlur"
                     ref="userSearchInput"
                   />
-                  <div v-if="showUserDropdown && userSearchQuery.length >= 3 && filteredAvailableUsers.length > 0" class="autocomplete-dropdown">
+                  <div v-if="isLoadingAvailable && userSearchQuery.trim().length >= 3" class="autocomplete-hint loading-hint">
+                    <div class="spinner-sm"></div>
+                    <span>{{ t('settings.departmentUsers.modalLoadingAvailable') }}</span>
+                  </div>
+                  <div v-if="showUserDropdown && userSearchQuery.length >= 3 && !isLoadingAvailable && filteredAvailableUsers.length > 0" class="autocomplete-dropdown">
                     <div 
                       v-for="user in filteredAvailableUsers" 
                       :key="user.id"
@@ -236,16 +277,40 @@
                       <span class="ac-email">{{ user.email }}</span>
                     </div>
                   </div>
-                  <div v-if="showUserDropdown && userSearchQuery.length >= 3 && filteredAvailableUsers.length === 0" class="autocomplete-dropdown">
+                  <div v-if="showUserDropdown && userSearchQuery.length >= 3 && !isLoadingAvailable && filteredAvailableUsers.length === 0" class="autocomplete-dropdown">
                     <div class="autocomplete-empty">{{ t('settings.departmentUsers.autocompleteEmpty') }}</div>
                   </div>
                   <div v-if="showUserDropdown && userSearchQuery.length > 0 && userSearchQuery.length < 3" class="autocomplete-hint">
                     {{ t('settings.departmentUsers.autocompleteCharsHint', { n: Math.max(0, 3 - userSearchQuery.length) }) }}
                   </div>
-                </div>
               </div>
+            </div>
 
+            <div v-if="showInviteByEmail" class="invite-by-email-box">
+              <p class="invite-by-email-lead">{{ t('settings.departmentUsers.inviteNoUserFound') }}</p>
+              <p class="groups-hint">{{ t('settings.departmentUsers.inviteByEmailHint') }}</p>
               <div class="form-group">
+                <label>{{ t('settings.departmentUsers.inviteEmailLabel') }}</label>
+                <input
+                  v-model="inviteEmail"
+                  type="email"
+                  class="form-input"
+                  :placeholder="t('settings.departmentUsers.inviteEmailPlaceholder')"
+                />
+              </div>
+              <div class="form-group form-group-role">
+                <label>{{ t('settings.departmentUsers.labelRole') }}</label>
+                <select v-model="addForm.role" class="form-select">
+                  <option v-for="(cfg, key) in assignableRoles" :key="key" :value="key">
+                    {{ cfg.short }} – {{ getRoleLabel(String(key)) }}
+                  </option>
+                </select>
+              </div>
+            </div>
+
+            <template v-if="selectedAvailableUser">
+              <p class="groups-hint">{{ t('settings.departmentUsers.inviteExistingUserHint') }}</p>
+              <div class="form-group form-group-role">
                 <label>{{ t('settings.departmentUsers.labelRole') }}</label>
                 <select v-model="addForm.role" class="form-select">
                   <option v-for="(cfg, key) in assignableRoles" :key="key" :value="key">
@@ -260,17 +325,54 @@
                   {{ t('settings.departmentUsers.primaryDepartment') }}
                 </label>
               </div>
+
+              <div class="form-group form-group-groups">
+                <label>{{ t('settings.departmentUsers.labelGroups') }}</label>
+                <p class="groups-hint">{{ t('settings.departmentUsers.groupsHint') }}</p>
+                <div v-if="isLoadingGroups" class="loading-inline">
+                  <div class="spinner-sm"></div>
+                  <span>{{ t('settings.departmentUsers.loadingGroups') }}</span>
+                </div>
+                <p v-else-if="hierarchicalGroupsForAdd.length === 0" class="groups-empty">
+                  {{ t('settings.departmentUsers.noGroups') }}
+                </p>
+                <div v-else class="group-picker">
+                  <label
+                    v-for="group in hierarchicalGroupsForAdd"
+                    :key="group.id"
+                    class="group-picker-item"
+                    :style="{ paddingLeft: (12 + group._level * 20) + 'px' }"
+                  >
+                    <input
+                      type="checkbox"
+                      :value="group.id"
+                      :checked="selectedGroupIds.includes(group.id)"
+                      @change="toggleGroupSelection(group.id)"
+                    />
+                    <span>{{ group.name }}</span>
+                  </label>
+                </div>
+              </div>
             </template>
           </div>
 
           <div class="modal-footer">
             <button class="btn btn-secondary" @click="closeAddModal">{{ t('settings.departmentUsers.cancel') }}</button>
-            <button 
-              class="btn btn-primary" 
+            <button
+              v-if="showInviteByEmail"
+              class="btn btn-primary"
+              :disabled="!isInviteEmailValid || isSendingInvite"
+              @click="sendEmailInvite"
+            >
+              {{ isSendingInvite ? t('settings.departmentUsers.sendingInvite') : t('settings.departmentUsers.sendInvite') }}
+            </button>
+            <button
+              v-else
+              class="btn btn-primary"
               :disabled="!addForm.user_id || isSaving"
               @click="handleAdd"
             >
-              {{ isSaving ? t('settings.departmentUsers.saving') : t('settings.departmentUsers.add') }}
+              {{ isSaving ? t('settings.departmentUsers.sendingInvite') : t('settings.departmentUsers.sendInvite') }}
             </button>
           </div>
         </div>
@@ -333,16 +435,22 @@ import { useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useToast } from '@/composables/useToast'
 import { useConfirm } from '@/composables/useConfirm'
-import { deletePendingInvite, getPendingInvites, type PendingInvite } from '@/api/joinRequests'
+import {
+  createPendingInvite,
+  deletePendingInvite,
+  getPendingInvites,
+  type PendingInvite,
+} from '@/api/joinRequests'
 import {
   getDepartmentMembers,
-  addDepartmentMember,
   updateDepartmentMember,
   removeDepartmentMember,
   getAvailableUsersForDepartment,
   type DepartmentMember,
   type AvailableUser
 } from '@/api/departments'
+import { getGroups, type Group } from '@/api/groups'
+import UserAvatarBadge from '@/components/user/UserAvatarBadge.vue'
 
 const route = useRoute()
 const { t } = useI18n()
@@ -452,6 +560,12 @@ const selectedAvailableUser = ref<AvailableUser | null>(null)
 const userSearchInput = ref<HTMLInputElement | null>(null)
 let availableSearchTimer: ReturnType<typeof setTimeout> | null = null
 
+const departmentGroups = ref<Group[]>([])
+const isLoadingGroups = ref(false)
+const selectedGroupIds = ref<string[]>([])
+const inviteEmail = ref('')
+const isSendingInvite = ref(false)
+
 // Edit Modal
 const showEditModal = ref(false)
 const editingMember = ref<DepartmentMember | null>(null)
@@ -464,6 +578,41 @@ const editForm = ref({
 
 const leaderCount = computed(() => members.value.filter(m => !['u'].includes(m.role)).length)
 const memberCount = computed(() => members.value.filter(m => m.role === 'u').length)
+
+const openPendingInviteCount = computed(() =>
+  pendingInvites.value.filter((inv) => isInviteOpen(inv)).length
+)
+
+function isInviteAccepted(invite: PendingInvite): boolean {
+  return invite.status === 'accepted'
+}
+
+function isInviteDeclined(invite: PendingInvite): boolean {
+  return invite.status === 'declined'
+}
+
+function isInviteOpen(invite: PendingInvite): boolean {
+  return (invite.status ?? 'pending') === 'pending'
+}
+
+const hierarchicalGroupsForAdd = computed(() => {
+  const all = departmentGroups.value
+  const rootGroups = all.filter((g) => !g.parent_id)
+
+  function flatten(nodes: Group[], level: number): (Group & { _level: number })[] {
+    const result: (Group & { _level: number })[] = []
+    for (const node of nodes) {
+      result.push({ ...node, _level: level })
+      const children = all.filter((g) => g.parent_id === node.id)
+      if (children.length > 0) {
+        result.push(...flatten(children, level + 1))
+      }
+    }
+    return result
+  }
+
+  return flatten(rootGroups, 0)
+})
 
 const filteredMembers = computed(() => {
   let result = [...members.value]
@@ -506,23 +655,6 @@ function toggleSort(field: 'name' | 'role') {
   }
 }
 
-function getInitials(name: string): string {
-  const parts = name.split(' ')
-  if (parts.length >= 2) {
-    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
-  }
-  return name.substring(0, 2).toUpperCase()
-}
-
-function getAvatarColor(name: string): string {
-  const colors = ['#4f46e5', '#7c3aed', '#0891b2', '#059669', '#d97706', '#dc2626', '#db2777', '#2563eb']
-  let hash = 0
-  for (let i = 0; i < name.length; i++) {
-    hash = name.charCodeAt(i) + ((hash << 5) - hash)
-  }
-  return colors[Math.abs(hash) % colors.length]
-}
-
 // === Data Loading ===
 
 async function loadMembers() {
@@ -538,6 +670,21 @@ async function loadMembers() {
   }
 }
 
+function formatInviteDate(iso: string): string {
+  if (!iso) return ''
+  try {
+    return new Date(iso).toLocaleString(undefined, {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    })
+  } catch {
+    return iso
+  }
+}
+
 async function loadPendingInvites() {
   if (!departmentId.value || !canManagePendingInvites.value) {
     pendingInvites.value = []
@@ -548,6 +695,7 @@ async function loadPendingInvites() {
   pendingInvitesError.value = ''
   try {
     pendingInvites.value = await getPendingInvites(departmentId.value)
+    await loadMembers()
   } catch (err: any) {
     pendingInvites.value = []
     pendingInvitesError.value = err.response?.data?.error || t('settings.departmentUsers.errLoadPendingInvites')
@@ -556,11 +704,20 @@ async function loadPendingInvites() {
   }
 }
 
+const existingMemberUserIds = computed(() => new Set(members.value.map((m) => m.user_id)))
+
+function excludeExistingDepartmentMembers(users: AvailableUser[]): AvailableUser[] {
+  const ids = existingMemberUserIds.value
+  if (ids.size === 0) return users
+  return users.filter((u) => !ids.has(u.id))
+}
+
 async function loadAvailableUsers(query?: string) {
   if (!departmentId.value) return
   isLoadingAvailable.value = true
   try {
-    availableUsers.value = await getAvailableUsersForDepartment(departmentId.value, query)
+    const results = await getAvailableUsersForDepartment(departmentId.value, query)
+    availableUsers.value = excludeExistingDepartmentMembers(results)
   } catch (err: any) {
     console.error(t('settings.departmentUsers.logErrorLoadAvailable'), err)
   } finally {
@@ -572,7 +729,7 @@ async function loadAvailableUsers(query?: string) {
 const filteredAvailableUsers = computed(() => {
   if (userSearchQuery.value.length < 3) return []
   const q = userSearchQuery.value.toLowerCase()
-  return availableUsers.value.filter(u =>
+  return excludeExistingDepartmentMembers(availableUsers.value).filter(u =>
     u.name.toLowerCase().includes(q) ||
     (u.nickname || '').toLowerCase().includes(q) ||
     (u.first_name || '').toLowerCase().includes(q) ||
@@ -580,6 +737,19 @@ const filteredAvailableUsers = computed(() => {
     u.email.toLowerCase().includes(q)
   ).slice(0, 8)
 })
+
+const showInviteByEmail = computed(() => {
+  if (selectedAvailableUser.value) return false
+  if (userSearchQuery.value.trim().length < 3) return false
+  if (isLoadingAvailable.value) return false
+  return filteredAvailableUsers.value.length === 0
+})
+
+const isInviteEmailValid = computed(() => isValidEmail(inviteEmail.value))
+
+function isValidEmail(value: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim())
+}
 
 function selectAvailableUser(user: AvailableUser) {
   selectedAvailableUser.value = user
@@ -592,7 +762,29 @@ function clearAvailableUser() {
   selectedAvailableUser.value = null
   addForm.value.user_id = ''
   userSearchQuery.value = ''
+  selectedGroupIds.value = []
   nextTick(() => userSearchInput.value?.focus())
+}
+
+function toggleGroupSelection(groupId: string) {
+  const idx = selectedGroupIds.value.indexOf(groupId)
+  if (idx >= 0) {
+    selectedGroupIds.value = selectedGroupIds.value.filter((id) => id !== groupId)
+  } else {
+    selectedGroupIds.value = [...selectedGroupIds.value, groupId]
+  }
+}
+
+async function loadDepartmentGroups() {
+  if (!departmentId.value) return
+  isLoadingGroups.value = true
+  try {
+    departmentGroups.value = await getGroups(departmentId.value)
+  } catch {
+    departmentGroups.value = []
+  } finally {
+    isLoadingGroups.value = false
+  }
 }
 
 function handleUserSearchBlur() {
@@ -610,27 +802,51 @@ function openAddModal() {
   addForm.value = { user_id: '', role: defaultRole, is_primary: false }
   selectedAvailableUser.value = null
   userSearchQuery.value = ''
+  inviteEmail.value = ''
+  selectedGroupIds.value = []
   showAddModal.value = true
   loadAvailableUsers()
+  loadDepartmentGroups()
 }
 
 function closeAddModal() {
   showAddModal.value = false
 }
 
+async function sendDepartmentInvite(email: string) {
+  if (!departmentId.value || isSendingInvite.value) return
+  isSendingInvite.value = true
+  const userName = selectedAvailableUser.value?.name || email
+  try {
+    await createPendingInvite({
+      departmentId: departmentId.value,
+      email,
+      userId: selectedAvailableUser.value?.id,
+      role: addForm.value.role,
+      groupIds: [...selectedGroupIds.value],
+      isPrimary: addForm.value.is_primary,
+    })
+    await loadPendingInvites()
+    toast.success(t('settings.departmentUsers.toastInviteSent', { name: userName }))
+    closeAddModal()
+  } catch (err: any) {
+    toast.error(err.response?.data?.error || t('settings.departmentUsers.errSendInvite'))
+  } finally {
+    isSendingInvite.value = false
+  }
+}
+
+async function sendEmailInvite() {
+  const email = inviteEmail.value.trim().toLowerCase()
+  if (!isValidEmail(email)) return
+  await sendDepartmentInvite(email)
+}
+
 async function handleAdd() {
-  if (!addForm.value.user_id || isSaving.value) return
+  if (!selectedAvailableUser.value?.email || isSaving.value) return
   isSaving.value = true
   try {
-    await addDepartmentMember(departmentId.value, {
-      user_id: addForm.value.user_id,
-      role: addForm.value.role,
-      is_primary: addForm.value.is_primary,
-    })
-    closeAddModal()
-    await loadMembers()
-  } catch (err: any) {
-    toast.error(err.response?.data?.error || t('settings.departmentUsers.errAddMember'))
+    await sendDepartmentInvite(selectedAvailableUser.value.email.trim().toLowerCase())
   } finally {
     isSaving.value = false
   }
@@ -720,12 +936,15 @@ watch(departmentId, () => {
 })
 watch(userSearchQuery, (value) => {
   if (!showAddModal.value || selectedAvailableUser.value) return
+  const trimmed = value.trim()
+  if (isValidEmail(trimmed)) {
+    inviteEmail.value = trimmed.toLowerCase()
+  }
   if (availableSearchTimer) clearTimeout(availableSearchTimer)
-  const q = value.trim()
-  if (q.length > 0 && q.length < 2) return
+  if (trimmed.length < 3) return
   availableSearchTimer = setTimeout(() => {
-    loadAvailableUsers(q || undefined)
-  }, 220)
+    loadAvailableUsers(trimmed)
+  }, 300)
 })
 
 onMounted(() => {
@@ -884,6 +1103,110 @@ onUnmounted(() => {
   padding: 8px 10px;
 }
 
+.pending-item-main {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  min-width: 0;
+}
+
+.pending-email {
+  font-weight: 500;
+  color: #1e293b;
+  word-break: break-all;
+}
+
+.invite-status-badge {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 999px;
+  padding: 2px 8px;
+}
+
+.invite-status-badge--pending {
+  color: #1d4ed8;
+  background: #dbeafe;
+}
+
+.invite-status-badge--accepted {
+  color: #166534;
+  background: #dcfce7;
+}
+
+.invite-status-badge--declined {
+  color: #991b1b;
+  background: #fee2e2;
+}
+
+.pending-user-name {
+  font-size: 12px;
+  color: #64748b;
+}
+
+.invite-registered-hint {
+  font-size: 11px;
+  color: #64748b;
+  font-style: italic;
+}
+
+.invite-accepted-at {
+  font-size: 11px;
+  color: #166534;
+}
+
+.pending-role {
+  font-size: 12px;
+  color: #64748b;
+}
+
+.invite-notifications {
+  margin-bottom: 14px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.invite-notifications-title {
+  margin: 0 0 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.notification-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.notification-item {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 8px 10px;
+  cursor: pointer;
+}
+
+.notification-item.unread {
+  border-color: #93c5fd;
+  background: #eff6ff;
+}
+
+.notification-text {
+  margin: 0 0 4px;
+  font-size: 13px;
+  color: #334155;
+}
+
+.notification-time {
+  font-size: 11px;
+  color: #94a3b8;
+}
+
 .pending-muted {
   margin: 0;
   color: #64748b;
@@ -972,19 +1295,6 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 12px;
-}
-
-.user-avatar {
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: white;
-  font-size: 13px;
-  font-weight: 600;
-  flex-shrink: 0;
 }
 
 .name-info {
@@ -1137,7 +1447,96 @@ onUnmounted(() => {
   overflow-y: auto;
 }
 
+.modal-add-user {
+  overflow: visible;
+}
+
+.modal-add-user-wide {
+  max-width: 520px;
+}
+
+.groups-hint {
+  margin: 0 0 10px;
+  font-size: 12px;
+  color: #64748b;
+}
+
+.groups-empty {
+  margin: 0;
+  font-size: 13px;
+  color: #94a3b8;
+}
+
+.group-picker {
+  max-height: 200px;
+  overflow-y: auto;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #f9fafb;
+}
+
+.group-picker-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  cursor: pointer;
+  font-size: 14px;
+  color: #1e293b;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.group-picker-item:last-child {
+  border-bottom: none;
+}
+
+.group-picker-item:hover {
+  background: #f0f4ff;
+}
+
+.group-picker-item input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--color-primary, #4f46e5);
+  flex-shrink: 0;
+}
+
+.invite-by-email-box {
+  margin-top: 4px;
+  padding: 14px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+}
+
+.invite-by-email-lead {
+  margin: 0 0 6px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #1e293b;
+}
+
+.add-user-modal-body {
+  overflow: visible;
+}
+
+.form-group-user-search {
+  position: relative;
+  z-index: 20;
+}
+
+.form-group-user-search .autocomplete-wrapper.is-dropdown-open {
+  z-index: 30;
+}
+
+.form-group-role {
+  position: relative;
+  z-index: 1;
+}
+
 .modal-footer {
+  position: relative;
+  z-index: 1;
   display: flex;
   justify-content: flex-end;
   gap: 12px;
@@ -1189,15 +1588,14 @@ onUnmounted(() => {
 
 .autocomplete-dropdown {
   position: absolute;
-  top: 100%;
+  top: calc(100% + 2px);
   left: 0;
   right: 0;
   background: white;
   border: 1px solid #e5e7eb;
-  border-top: none;
-  border-radius: 0 0 8px 8px;
-  box-shadow: 0 8px 25px -5px rgba(0, 0, 0, 0.15);
-  z-index: 50;
+  border-radius: 8px;
+  box-shadow: 0 12px 28px -6px rgba(0, 0, 0, 0.18);
+  z-index: 200;
   max-height: 240px;
   overflow-y: auto;
 }
@@ -1235,9 +1633,21 @@ onUnmounted(() => {
   text-align: center;
 }
 
+.loading-hint {
+  display: flex;
+  position: absolute;
+  top: calc(100% + 2px);
+  left: 0;
+  right: 0;
+  z-index: 200;
+  align-items: center;
+  gap: 8px;
+}
+
 .autocomplete-hint {
   position: absolute;
-  top: 100%;
+  top: calc(100% + 2px);
+  z-index: 200;
   left: 0;
   right: 0;
   padding: 6px 14px;

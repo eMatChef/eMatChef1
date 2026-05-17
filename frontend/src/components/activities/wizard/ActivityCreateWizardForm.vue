@@ -25,7 +25,15 @@
           />
         </ActivityOutlinedSection>
         <div
-          v-if="isActivityType && groups.length > 0"
+          v-if="showFixedMemberGroup"
+          id="activity-create-group-fixed"
+          class="form-group activity-create-group-wrap"
+        >
+          <label>{{ t('activities.wizard.form.groupLabel') }} <span class="req">*</span></label>
+          <p class="activity-readonly-value">{{ fixedMemberGroupLabel }}</p>
+        </div>
+        <div
+          v-else-if="showMemberGroupPicker"
           id="activity-create-group"
           class="form-group activity-create-group-wrap"
         >
@@ -567,6 +575,7 @@ import {
   nearestAllowedQuarterOnDayOutsideUsage,
 } from '@/utils/activityPlanningUsageConstraint'
 import { useToast } from '@/composables/useToast'
+import { useActivityGroupMemberScope } from '@/composables/useActivityGroupMemberScope'
 import { flattenGroupsWithLevel, resolveActivityGroupPickerLabel } from '@/utils/groupHierarchy'
 import { activityPreviewMaterialLabel, activityPreviewUsageLabel } from './activityPreviewLabels'
 import { activityTypeLabel } from './activityTypeLabels'
@@ -636,6 +645,7 @@ const emit = defineEmits<{
 
 const toast = useToast()
 const { t } = useI18n()
+const { isRestrictedGroupMember } = useActivityGroupMemberScope()
 
 /** Materialsucheingabe leeren + Lookup neu mounten (Schritt Material, Typwechsel Ein-Seiten-Layout) */
 const materialSearchResetKey = ref(0)
@@ -661,6 +671,18 @@ watch(
 )
 
 const flatGroups = computed(() => flattenGroupsWithLevel(props.groups))
+
+const fixedMemberGroupLabel = computed(() =>
+  resolveActivityGroupPickerLabel(props.selectedGroupId, props.departmentName, props.groups),
+)
+
+const showFixedMemberGroup = computed(
+  () => isRestrictedGroupMember.value && isActivityType.value && flatGroups.value.length <= 1,
+)
+
+const showMemberGroupPicker = computed(
+  () => isActivityType.value && props.groups.length > 0 && !showFixedMemberGroup.value,
+)
 
 const invalidUsageOrderLocal = computed(() => {
   if (!props.usageStartAt || !props.usageEndAt) return false

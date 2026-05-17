@@ -17,7 +17,11 @@
         <div class="material-wizard-body">
           <div class="material-wizard-content">
             <div ref="wizardFormRef" class="material-wizard-form">
-              <ActivityTypeChips :selected="selectedActivityType" @select="onSelectActivityType" />
+              <ActivityTypeChips
+                v-if="!isRestrictedGroupMember"
+                :selected="selectedActivityType"
+                @select="onSelectActivityType"
+              />
 
               <ActivityCreateWizardForm
                 v-if="selectedActivityType"
@@ -117,7 +121,6 @@ import {
 } from '@/api/activities'
 import { getAddresses, type Address } from '@/api/addresses'
 import { FALLBACK_ACTIVITY_DEFAULTS, getActivityDefaults } from '@/api/departmentSettings'
-import { getGroups } from '@/api/groups'
 import { resolveActivityGroupPickerLabel } from '@/utils/groupHierarchy'
 import { useAuthStore } from '@/stores/auth'
 import { useToast } from '@/composables/useToast'
@@ -129,6 +132,7 @@ import {
   type InvitedDepartmentDraft,
 } from '@/composables/useActivityCreateWizard'
 import { useHeaderNotificationsStore } from '@/stores/headerNotifications'
+import { useActivityGroupMemberScope } from '@/composables/useActivityGroupMemberScope'
 import {
   ActivityCreateWizardForm,
   ActivityPreviewSidebar,
@@ -153,6 +157,13 @@ const { t } = useI18n()
 const toast = useToast()
 const authStore = useAuthStore()
 const headerNotificationsStore = useHeaderNotificationsStore()
+const {
+  isRestrictedGroupMember,
+  loadGroupsForDepartment,
+  setGroups: setScopeGroups,
+  groups: scopeGroups,
+  wizardGroupsForUser,
+} = useActivityGroupMemberScope()
 
 const showDialog = computed({
   get: () => props.modelValue,
@@ -501,17 +512,20 @@ async function handleSubmit() {
     }
     const wantsAutoSubmit = shouldAutoSubmitAfterWizard()
     let autoSubmitFailed = false
+    let autoSubmitError = ''
     if (id && !materialSyncFailed && wantsAutoSubmit) {
       try {
         await patchActivityStatus(id, { status: 'submitted' })
-      } catch {
+      } catch (err: unknown) {
         autoSubmitFailed = true
+        const e = err as { response?: { data?: { error?: string } }; message?: string }
+        autoSubmitError = e?.response?.data?.error || e?.message || ''
       }
     }
     if (materialSyncFailed) {
       toast.error(t('activities.wizard.toastActivityCreatedMaterialFailed'))
     } else if (autoSubmitFailed) {
-      toast.error(t('activities.wizard.toastAutoSubmitFailed'))
+      toast.error(autoSubmitError || t('activities.wizard.toastAutoSubmitFailed'))
     } else if (wantsAutoSubmit) {
       toast.success(t('activities.wizard.toastSubmitted'))
     } else {
@@ -552,10 +566,15 @@ watch(
       setActivityDefaults(FALLBACK_ACTIVITY_DEFAULTS)
     }
     try {
-      const groups = await getGroups(props.departmentId)
-      setWizardGroups(groups)
+      await loadGroupsForDepartment(props.departmentId)
+      const wizardGroups = wizardGroupsForUser(scopeGroups.value)
+      if (isRestrictedGroupMember.value && !props.resumeActivityId && !selectedActivityType.value) {
+        onSelectActivityType('activity')
+      }
+      setWizardGroups(wizardGroups)
     } catch {
       setWizardGroups([])
+      setScopeGroups([])
     }
     void loadPreviewAddresses()
     if (props.resumeActivityId) {

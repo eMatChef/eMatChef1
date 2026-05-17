@@ -683,12 +683,12 @@ class Activity
      * - 'org': Organisations-Admin
      */
     public const TRANSITION_PERMISSIONS = [
-        // Einreichen: Gruppenleiter, DC, MW — nicht reine Gruppenmitglieder (Host- oder eingeladene Gruppe)
-        'draft->submitted'    => ['leader', 'dc', 'mw'],
+        // Einreichen: Ersteller, Gruppenleiter, DC, MW (Gruppenmitglied darf eigene Aktivität einreichen)
+        'draft->submitted'    => ['creator', 'leader', 'dc', 'mw'],
         'draft->cancelled'    => ['leader', 'member', 'u', 'l1', 'l2', 'l3', 'dc', 'mw', 'sub', 'org', 'sa'],
-        // Bestätigen / direkt Packen: MW, DC, Gruppenleiter, Ersteller, Org-Admins
-        'submitted->approved' => ['mw', 'dc', 'leader', 'creator', 'org', 'sa'],
-        'submitted->packing'  => ['mw', 'dc', 'leader', 'creator', 'org', 'sa'], // Annehmen & direkt Packen
+        // Bestätigen / direkt Packen: MW, DC, Gruppenleiter, Org-Admins (nicht reines Gruppenmitglied)
+        'submitted->approved' => ['mw', 'dc', 'leader', 'org', 'sa'],
+        'submitted->packing'  => ['mw', 'dc', 'leader', 'org', 'sa'], // Annehmen & direkt Packen
         'submitted->cancelled'=> ['leader', 'mw', 'sa', 'org'],
         'approved->packing'   => ['mw', 'sa', 'org'],
         'approved->submitted' => ['mw', 'sa', 'org'], // Zurückweisung

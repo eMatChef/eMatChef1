@@ -5,7 +5,9 @@ export type GroupWithLevel = Group & { _level: number }
 /** Gruppen hierarchisch sortiert (Root zuerst, Kinder eingerückt) */
 export function flattenGroupsWithLevel(groups: Group[]): GroupWithLevel[] {
   const all = groups
-  const rootGroups = all.filter((g) => !g.parent_id)
+  const ids = new Set(all.map((g) => g.id))
+  /** Auch Untergruppen ohne Parent in der Liste als Root (z. B. Member-Picker). */
+  const rootGroups = all.filter((g) => !g.parent_id || !ids.has(g.parent_id))
 
   function flatten(nodes: Group[], level: number): GroupWithLevel[] {
     const result: GroupWithLevel[] = []
@@ -20,6 +22,31 @@ export function flattenGroupsWithLevel(groups: Group[]): GroupWithLevel[] {
   }
 
   return flatten(rootGroups, 0)
+}
+
+/**
+ * Gruppen für Member-Picker: eigene Gruppe(n) plus alle Untergruppen.
+ */
+export function expandGroupsForMemberPicker(allGroups: Group[], userId: string): Group[] {
+  if (!userId || allGroups.length === 0) return []
+
+  const memberRootIds = allGroups
+    .filter((g) => g.members?.some((m) => m.user_id === userId))
+    .map((g) => g.id)
+
+  if (memberRootIds.length === 0) return []
+
+  const idSet = new Set<string>()
+  const addWithDescendants = (groupId: string) => {
+    if (idSet.has(groupId)) return
+    idSet.add(groupId)
+    for (const g of allGroups) {
+      if (g.parent_id === groupId) addWithDescendants(g.id)
+    }
+  }
+  for (const id of memberRootIds) addWithDescendants(id)
+
+  return allGroups.filter((g) => idSet.has(g.id))
 }
 
 export type GroupPathLine = { label: string; level: number }

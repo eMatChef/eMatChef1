@@ -31,6 +31,43 @@ class ActivityAccessService
     }
 
     /**
+     * Department-Rolle «u»/«user» ohne Gruppenchef in diesem Department.
+     * Nur Gruppen-Hierarchie + eigene Aktivitäten; Anlegen nur Typ «activity».
+     */
+    public function isRestrictedGroupMember(User $user, string $departmentId): bool
+    {
+        $membership = $this->entityManager->getRepository(Membership::class)
+            ->findOneBy(['userId' => $user->getId(), 'departmentId' => $departmentId]);
+        if (!$membership) {
+            return false;
+        }
+
+        $role = strtolower(trim((string) ($membership->getRole() ?? '')));
+        if (!in_array($role, ['u', 'user'], true)) {
+            return false;
+        }
+
+        return !$this->isGroupLeaderInDepartment($user, $departmentId);
+    }
+
+    public function isGroupLeaderInDepartment(User $user, string $departmentId): bool
+    {
+        $groupMemberships = $this->entityManager->getRepository(GroupMembership::class)
+            ->findBy(['userId' => $user->getId()]);
+        foreach ($groupMemberships as $groupMembership) {
+            $group = $groupMembership->getGroup();
+            if ($group->getDepartmentId() !== $departmentId) {
+                continue;
+            }
+            if ($groupMembership->getRole() === 'leader') {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
      * @return list<string>
      */
     public function getUserRootGroupIdsInDepartment(User $user, string $departmentId): array
@@ -139,6 +176,28 @@ class ActivityAccessService
             return true;
         }
 
+        $departmentId = $activity->getDepartmentId();
+
+        if ($this->isRestrictedGroupMember($user, $departmentId)) {
+            if (!$this->canUserSeeExternalActivities((string) $membership->getRole()) && $activity->isExternal()) {
+                return false;
+            }
+            if ($activity->getCreatedByUserId() === $user->getId()) {
+                return true;
+            }
+            $groupId = $activity->getGroupId();
+            if (!$groupId) {
+                return false;
+            }
+            $userRootGroupIds = $this->getUserRootGroupIdsInDepartment($user, $departmentId);
+
+            return $this->groupHierarchy->isActivityGroupUnderUserGroups(
+                $departmentId,
+                $groupId,
+                $userRootGroupIds
+            );
+        }
+
         if ($activity->getCreatedByUserId() === $user->getId() || $activity->getResponsibleUserId() === $user->getId()) {
             return true;
         }
@@ -152,10 +211,10 @@ class ActivityAccessService
             return false;
         }
 
-        $userRootGroupIds = $this->getUserRootGroupIdsInDepartment($user, $activity->getDepartmentId());
+        $userRootGroupIds = $this->getUserRootGroupIdsInDepartment($user, $departmentId);
 
         return $this->groupHierarchy->isActivityGroupUnderUserGroups(
-            $activity->getDepartmentId(),
+            $departmentId,
             $groupId,
             $userRootGroupIds
         );

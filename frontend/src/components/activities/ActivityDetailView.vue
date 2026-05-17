@@ -74,7 +74,17 @@
           <template v-else>
             {{ t('activities.detail.draftBannerWithGroup') }}
           </template>
-          {{ t('activities.detail.draftBannerSubmit') }}
+          <template
+            v-if="
+              isRestrictedGroupMember &&
+              (activity.type === 'camp' || activity.type === 'external')
+            "
+          >
+            {{ t('activities.detail.draftBannerSubmitMemberCamp') }}
+          </template>
+          <template v-else>
+            {{ t('activities.detail.draftBannerSubmit') }}
+          </template>
         </span>
       </div>
 
@@ -422,9 +432,24 @@ import DamageReportWizard from '@/components/DamageReportWizard.vue'
 import type { ConsumptionModalPreset } from '@/components/activities/ActivityConsumptionModal.vue'
 import type { ActivityMaterialLine } from '@/composables/useActivityCreateWizard'
 import type { MaterialScopeTab } from '@/components/activities/shared/activityMaterialAvailabilityScope'
+import { useActivityGroupMemberScope } from '@/composables/useActivityGroupMemberScope'
 import { useConfirm } from '@/composables/useConfirm'
 import { usePageHeadStore } from '@/stores/pageHead'
 import { useToast } from '@/composables/useToast'
+
+/** Workflow-Schritte ab Einreichung — nur MW/DC/Gruppenchef (nicht u + Gruppenmitglied). */
+const MANAGER_WORKFLOW_TRANSITION_STATUSES = new Set([
+  'approved',
+  'packing',
+  'packed',
+  'at_event',
+  'issued',
+  'returned',
+  'completed',
+])
+
+const { isRestrictedGroupMember, canSubmitActivityType, loadGroupsForDepartment } =
+  useActivityGroupMemberScope()
 
 const props = defineProps<{
   departmentId: string
@@ -577,6 +602,19 @@ const noLabel = computed(() => {
 const workflowTransitions = computed(() =>
   transitions.value.filter((t) => {
     if (t.status === 'cancelled') return false
+    if (
+      isRestrictedGroupMember.value &&
+      MANAGER_WORKFLOW_TRANSITION_STATUSES.has(t.status)
+    ) {
+      return false
+    }
+    if (
+      t.status === 'submitted' &&
+      activity.value &&
+      !canSubmitActivityType(activity.value.type || 'activity')
+    ) {
+      return false
+    }
     if (activeTab.value === 'packs' && t.status === 'packing') return false
     if (activity.value?.status === 'packed' && t.status === 'packing') return false
     return true
@@ -935,6 +973,7 @@ async function reload() {
       getActivity(props.activityId),
       getActivityTransitions(props.activityId),
       getActivityItems(props.activityId).catch(() => [] as ActivityItemRow[]),
+      loadGroupsForDepartment(props.departmentId),
     ])
     activity.value = detail
     transitions.value = tr.transitions || []

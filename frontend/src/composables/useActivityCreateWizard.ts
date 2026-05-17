@@ -89,6 +89,41 @@ function pickDefaultGroupForLeader(groups: Group[], userId: string | null): stri
   return (primary ?? rows[0]).g.id
 }
 
+/** Standard-Gruppe für Gruppenmitglied (ohne Gruppenchef-Rolle). */
+function pickDefaultGroupForMember(groups: Group[], userId: string | null): string | null {
+  if (!userId || !groups.length) return null
+  type Row = { g: Group; mem: GroupMember }
+  const rows: Row[] = []
+  for (const g of groups) {
+    const mem = g.members?.find((m) => m.user_id === userId)
+    if (mem) rows.push({ g, mem })
+  }
+  if (rows.length === 0) return null
+  const primary = rows.find(({ mem }) => mem.is_primary)
+  return (primary ?? rows[0]).g.id
+}
+
+function pickFirstRootGroup(groups: Group[]): string | null {
+  if (!groups.length) return null
+  const ids = new Set(groups.map((g) => g.id))
+  const roots = groups.filter((g) => !g.parent_id || !ids.has(g.parent_id))
+  const sorted = [...(roots.length > 0 ? roots : groups)].sort(
+    (a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name, 'de'),
+  )
+  return sorted[0]?.id ?? null
+}
+
+function pickDefaultGroup(groups: Group[], userId: string | null): string | null {
+  const fromMembership =
+    pickDefaultGroupForLeader(groups, userId) ?? pickDefaultGroupForMember(groups, userId)
+  if (fromMembership) return fromMembership
+  const role = String(useAuthStore().currentDepartmentRole || '').toLowerCase()
+  if (['mw', 'dc', 'matwart', 'depchef'].includes(role)) {
+    return pickFirstRootGroup(groups)
+  }
+  return null
+}
+
 const STATIC_STEP_TITLES: Record<'zeitraum' | 'material' | 'uebersicht', string> = {
   zeitraum: 'Zeitraum',
   material: 'Material',
@@ -300,8 +335,12 @@ export function useActivityCreateWizard() {
     const auth = useAuthStore()
     const uid = auth.userId ?? null
     const t = selectedActivityType.value
-    if (t === 'activity' && selectedGroupId.value === null) {
-      selectedGroupId.value = pickDefaultGroupForLeader(groups, uid)
+    if (t === 'activity' && groups.length > 0) {
+      const current = selectedGroupId.value
+      const valid = current != null && groups.some((g) => g.id === current)
+      if (!valid) {
+        selectedGroupId.value = pickDefaultGroup(groups, uid)
+      }
     }
   }
 
@@ -372,7 +411,7 @@ export function useActivityCreateWizard() {
     }
     const auth = useAuthStore()
     if (t === 'activity') {
-      selectedGroupId.value = pickDefaultGroupForLeader(groupsForWizard.value, auth.userId ?? null)
+      selectedGroupId.value = pickDefaultGroup(groupsForWizard.value, auth.userId ?? null)
     } else {
       selectedGroupId.value = null
     }
