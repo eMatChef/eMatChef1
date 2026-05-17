@@ -164,6 +164,36 @@ class InboxMessageService
         $this->entityManager->flush();
     }
 
+    /** Storno durch MW/DC: persönliche Meldung an den Ersteller (bleibt nach purgeByActivity erhalten). */
+    public function notifyActivityCancelled(Activity $activity, User $actor): void
+    {
+        $recipient = $activity->getCreatedByUser();
+        if (!$recipient || $recipient->getId() === $actor->getId()) {
+            return;
+        }
+
+        $department = $activity->getDepartment();
+        $this->removeUnreadActivityDuplicate(
+            $department->getId(),
+            $activity->getId(),
+            'activity_cancelled',
+            InboxMessage::CATEGORY_ACTIVITY_USER,
+            InboxMessage::RECIPIENT_USER,
+            $recipient->getId(),
+        );
+
+        $row = $this->buildActivityRow(
+            $activity,
+            $actor,
+            'activity_cancelled',
+            InboxMessage::CATEGORY_ACTIVITY_USER,
+            InboxMessage::RECIPIENT_USER,
+            $recipient->getId(),
+        );
+        $this->entityManager->persist($row);
+        $this->entityManager->flush();
+    }
+
     /**
      * @return list<array<string, mixed>>
      */
@@ -289,9 +319,12 @@ class InboxMessageService
             ->where('IDENTITY(m.department) = :deptId')
             ->andWhere('m.activityId = :activityId')
             ->andWhere('m.category IN (:categories)')
+            ->andWhere('NOT (m.category = :userCat AND m.type = :cancelledType)')
             ->setParameter('deptId', $department->getId())
             ->setParameter('activityId', $activityId)
             ->setParameter('categories', InboxMessage::CATEGORIES_PURGE_ON_ACTIVITY_TERMINAL)
+            ->setParameter('userCat', InboxMessage::CATEGORY_ACTIVITY_USER)
+            ->setParameter('cancelledType', 'activity_cancelled')
             ->getQuery()
             ->execute();
     }

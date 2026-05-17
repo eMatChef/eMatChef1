@@ -435,6 +435,7 @@ import type { MaterialScopeTab } from '@/components/activities/shared/activityMa
 import { useActivityGroupMemberScope } from '@/composables/useActivityGroupMemberScope'
 import { useConfirm } from '@/composables/useConfirm'
 import { usePageHeadStore } from '@/stores/pageHead'
+import { useHeaderNotificationsStore } from '@/stores/headerNotifications'
 import { useToast } from '@/composables/useToast'
 
 /** Workflow-Schritte ab Einreichung — nur MW/DC/Gruppenchef (nicht u + Gruppenmitglied). */
@@ -473,6 +474,7 @@ function mergeActivityQuery(updates: Record<string, string | undefined>) {
 const toast = useToast()
 const { confirm: confirmDialog } = useConfirm()
 const pageHeadStore = usePageHeadStore()
+const headerNotificationsStore = useHeaderNotificationsStore()
 const { t, te, locale } = useI18n()
 
 const activity = ref<ActivityDetail | null>(null)
@@ -1107,6 +1109,7 @@ async function onTransition(transition: ActivityTransitionRow) {
       `${activityTypeLabelDetail(detail.type || '')} · ${activityStatusLabelDetail(detail.status || '')}`,
     )
     toast.success(t('activities.detail.toastStatusChanged', { status: activityStatusLabelDetail(detail.status || '') }))
+    headerNotificationsStore.requestRefresh()
     const trNext = await getActivityTransitions(props.activityId)
     transitions.value = trNext.transitions || []
     if (detail.status === 'packing') {

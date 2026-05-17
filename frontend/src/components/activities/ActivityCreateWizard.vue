@@ -532,9 +532,7 @@ async function handleSubmit() {
       toast.success(t('activities.wizard.toastDraftSaved'))
     }
     lastDraftSavedAt.value = new Date()
-    if (invitedDepartments.value.length > 0) {
-      headerNotificationsStore.requestRefresh()
-    }
+    headerNotificationsStore.requestRefresh()
     emit('created', id)
     showDialog.value = false
   } catch (err: unknown) {

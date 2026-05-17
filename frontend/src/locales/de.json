@@ -4996,7 +4996,8 @@
       "activity_submitted": "Neu eingereicht",
       "activity_approved": "Bestätigt",
       "activity_returned": "Retour eingetroffen",
-      "activity_rejected": "Zurückgewiesen"
+      "activity_rejected": "Zurückgewiesen",
+      "activity_cancelled": "Storniert"
     },
     "inboxCategoryActivityStatus": "Aktivitäts-Status",
     "activitiesEmptyUnread": "Keine ungelesenen Aktivitäts-Meldungen.",

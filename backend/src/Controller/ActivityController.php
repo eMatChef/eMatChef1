@@ -535,6 +535,83 @@ class ActivityController extends AbstractController
     }
 
     /**
+     * Benachrichtigungen für MW/DC: neue eingereichte Aktivitäten.
+     * Route muss vor /{id} stehen, sonst wird „mw-notifications“ als Aktivitäts-ID interpretiert.
+     */
+    #[Route('/mw-notifications', name: 'mw_notifications_list', methods: ['GET'])]
+    #[IsGranted('ROLE_USER')]
+    public function listMwNotifications(Request $request): JsonResponse
+    {
+        $departmentId = trim((string) $request->query->get('department_id', ''));
+        if ($departmentId === '') {
+            return new JsonResponse(['error' => 'department_id Parameter erforderlich'], 400);
+        }
+
+        $user = $this->getUser();
+        if (!$user instanceof User) {
+            return new JsonResponse(['error' => 'Nicht authentifiziert'], 401);
+        }
+
+        if (!$this->canAccessMwNotifications($user, $departmentId)) {
+            return new JsonResponse(['error' => 'Keine Berechtigung'], 403);
+        }
+
+        $bucket = strtolower(trim((string) $request->query->get('bucket', 'unread')));
+        if (!in_array($bucket, ['unread', 'read', 'all'], true)) {
+            $bucket = 'unread';
+        }
+        $limit = min(200, max(1, (int) $request->query->get('limit', 100)));
+
+        $items = $this->activityMwNotifications->listInbox($departmentId, $bucket, $limit);
+        $unreadCount = $this->activityMwNotifications->countUnread($departmentId);
+
+        return new JsonResponse([
+            'unread_count' => $unreadCount,
+            'items' => $items,
+        ]);
+    }
+
+    #[Route('/mw-notifications/{notificationId}/read', name: 'mw_notification_read', methods: ['PATCH'])]
+    #[IsGranted('ROLE_USER')]
+    public function markMwNotificationRead(string $notificationId, Request $request): JsonResponse
+    {
+        $departmentId = trim((string) $request->query->get('department_id', ''));
+        if ($departmentId === '') {
+            return new JsonResponse(['error' => 'department_id Parameter erforderlich'], 400);
+        }
+
+        $user = $this->getUser();
+        if (!$user instanceof User) {
+            return new JsonResponse(['error' => 'Nicht authentifiziert'], 401);
+        }
+
+        if (!$this->canAccessMwNotifications($user, $departmentId)) {
+            return new JsonResponse(['error' => 'Keine Berechtigung'], 403);
+        }
+
+        if (!$this->activityMwNotifications->markRead($departmentId, $notificationId)) {
+            return new JsonResponse(['error' => 'Benachrichtigung nicht gefunden'], 404);
+        }
+
+        return new JsonResponse(['ok' => true]);
+    }
+
+    private function canAccessMwNotifications(User $user, string $departmentId): bool
+    {
+        if (count(array_intersect(['ROLE_SUPERADMIN', 'ROLE_ORGANISATIONSCHEF', 'ROLE_SUBORGCHEF'], $user->getRoles())) > 0) {
+            return true;
+        }
+
+        $membership = $this->entityManager->getRepository(Membership::class)
+            ->findOneBy(['userId' => $user->getId(), 'departmentId' => $departmentId]);
+        if (!$membership) {
+            return false;
+        }
+
+        return in_array((string) ($membership->getRole() ?? ''), ['mw', 'dc'], true);
+    }
+
+    /**
      * Einzelne Aktivität laden
      */
     #[Route('/{id}', name: 'get', methods: ['GET'])]
@@ -1119,6 +1196,10 @@ class ActivityController extends AbstractController
             $this->activityUserNotifications->notifyStatus($activity, $user, 'activity_rejected');
         }
 
+        if ($newStatus === Activity::STATUS_CANCELLED && $oldStatus !== Activity::STATUS_CANCELLED) {
+            $this->activityUserNotifications->notifyCancelled($activity, $user);
+        }
+
         if (
             in_array($newStatus, [Activity::STATUS_COMPLETED, Activity::STATUS_CANCELLED], true)
             && !in_array($oldStatus, [Activity::STATUS_COMPLETED, Activity::STATUS_CANCELLED], true)
@@ -1127,82 +1208,6 @@ class ActivityController extends AbstractController
         }
 
         return new JsonResponse($this->serializeActivity($activity));
-    }
-
-    /**
-     * Benachrichtigungen für MW/DC: neue eingereichte Aktivitäten.
-     */
-    #[Route('/mw-notifications', name: 'mw_notifications_list', methods: ['GET'])]
-    #[IsGranted('ROLE_USER')]
-    public function listMwNotifications(Request $request): JsonResponse
-    {
-        $departmentId = trim((string) $request->query->get('department_id', ''));
-        if ($departmentId === '') {
-            return new JsonResponse(['error' => 'department_id Parameter erforderlich'], 400);
-        }
-
-        $user = $this->getUser();
-        if (!$user instanceof User) {
-            return new JsonResponse(['error' => 'Nicht authentifiziert'], 401);
-        }
-
-        if (!$this->canAccessMwNotifications($user, $departmentId)) {
-            return new JsonResponse(['error' => 'Keine Berechtigung'], 403);
-        }
-
-        $bucket = strtolower(trim((string) $request->query->get('bucket', 'unread')));
-        if (!in_array($bucket, ['unread', 'read', 'all'], true)) {
-            $bucket = 'unread';
-        }
-        $limit = min(200, max(1, (int) $request->query->get('limit', 100)));
-
-        $items = $this->activityMwNotifications->listInbox($departmentId, $bucket, $limit);
-        $unreadCount = $this->activityMwNotifications->countUnread($departmentId);
-
-        return new JsonResponse([
-            'unread_count' => $unreadCount,
-            'items' => $items,
-        ]);
-    }
-
-    #[Route('/mw-notifications/{notificationId}/read', name: 'mw_notification_read', methods: ['PATCH'])]
-    #[IsGranted('ROLE_USER')]
-    public function markMwNotificationRead(string $notificationId, Request $request): JsonResponse
-    {
-        $departmentId = trim((string) $request->query->get('department_id', ''));
-        if ($departmentId === '') {
-            return new JsonResponse(['error' => 'department_id Parameter erforderlich'], 400);
-        }
-
-        $user = $this->getUser();
-        if (!$user instanceof User) {
-            return new JsonResponse(['error' => 'Nicht authentifiziert'], 401);
-        }
-
-        if (!$this->canAccessMwNotifications($user, $departmentId)) {
-            return new JsonResponse(['error' => 'Keine Berechtigung'], 403);
-        }
-
-        if (!$this->activityMwNotifications->markRead($departmentId, $notificationId)) {
-            return new JsonResponse(['error' => 'Benachrichtigung nicht gefunden'], 404);
-        }
-
-        return new JsonResponse(['ok' => true]);
-    }
-
-    private function canAccessMwNotifications(User $user, string $departmentId): bool
-    {
-        if (count(array_intersect(['ROLE_SUPERADMIN', 'ROLE_ORGANISATIONSCHEF', 'ROLE_SUBORGCHEF'], $user->getRoles())) > 0) {
-            return true;
-        }
-
-        $membership = $this->entityManager->getRepository(Membership::class)
-            ->findOneBy(['userId' => $user->getId(), 'departmentId' => $departmentId]);
-        if (!$membership) {
-            return false;
-        }
-
-        return in_array((string) ($membership->getRole() ?? ''), ['mw', 'dc'], true);
     }
 
     /**
