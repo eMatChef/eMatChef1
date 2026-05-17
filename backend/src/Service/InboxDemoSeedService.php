@@ -3,6 +3,7 @@
 namespace App\Service;
 
 use App\Entity\Department;
+use App\Entity\InboxMessage;
 use App\Entity\PublicFoundItemMessage;
 use App\Entity\User;
 use App\Util\IdGenerator;
@@ -15,8 +16,6 @@ class InboxDemoSeedService
 {
     public function __construct(
         private EntityManagerInterface $entityManager,
-        private UserDirectMessageService $directMessages,
-        private ActivityMwNotificationService $activityMwNotifications,
     ) {}
 
     /**
@@ -29,8 +28,7 @@ class InboxDemoSeedService
         $now = new \DateTime();
 
         $userMessages = $this->buildSampleUserMessages($now);
-        $this->directMessages->replaceEntries($department, $recipientId, $userMessages);
-        $counts = ['user_messages' => count($userMessages)];
+        $counts = ['user_messages' => $this->seedUserMessages($department, $recipientId, $userMessages)];
 
         if ($includeMw) {
             $counts['activity_mw'] = $this->seedActivityMw($department, $now);
@@ -149,8 +147,68 @@ class InboxDemoSeedService
             ],
         ];
 
-        $settingKey = ActivityMwNotificationService::SETTING_KEY;
-        $this->writeDepartmentJsonSetting($department, $settingKey, $entries);
+        foreach ($entries as $entry) {
+            $row = new InboxMessage();
+            $row->setId((string) $entry['id']);
+            $row->setDepartment($department);
+            $row->setCategory(InboxMessage::CATEGORY_ACTIVITY_MW);
+            $row->setType((string) $entry['type']);
+            $row->setRecipientScope(InboxMessage::RECIPIENT_DEPARTMENT_MW);
+            $row->setActivityId((string) ($entry['activity_id'] ?? ''));
+            $row->setSenderUserId((string) ($entry['creator_user_id'] ?? ''));
+            $row->setPayload($entry);
+            $createdAt = isset($entry['created_at']) ? new \DateTime((string) $entry['created_at']) : $now;
+            $row->setCreatedAt($createdAt);
+            if (!empty($entry['read'])) {
+                $row->setReadAt(isset($entry['read_at']) ? new \DateTime((string) $entry['read_at']) : $createdAt);
+            }
+            $existing = $this->entityManager->find(InboxMessage::class, $row->getId());
+            if ($existing) {
+                $this->entityManager->remove($existing);
+            }
+            $this->entityManager->persist($row);
+        }
+        $this->entityManager->flush();
+
+        return count($entries);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     */
+    private function seedUserMessages(Department $department, string $recipientUserId, array $entries): int
+    {
+        foreach ($entries as $entry) {
+            $row = new InboxMessage();
+            $row->setId((string) $entry['id']);
+            $row->setDepartment($department);
+            $row->setCategory(InboxMessage::CATEGORY_USER_MESSAGE);
+            $row->setType('user_message');
+            $row->setRecipientScope(InboxMessage::RECIPIENT_USER);
+            $row->setRecipientUserId($recipientUserId);
+            $row->setSenderUserId((string) ($entry['sender_user_id'] ?? ''));
+            $row->setSubject((string) ($entry['subject'] ?? ''));
+            $row->setBody((string) ($entry['message'] ?? ''));
+            $row->setPayload([
+                'sender_name' => $entry['sender_name'] ?? 'Unbekannt',
+                'sender_first_name' => $entry['sender_first_name'] ?? null,
+                'sender_last_name' => $entry['sender_last_name'] ?? null,
+                'sender_nickname' => $entry['sender_nickname'] ?? null,
+                'sender_avatar_initials' => $entry['sender_avatar_initials'] ?? null,
+                'sender_background_color' => $entry['sender_background_color'] ?? null,
+                'sender_text_color' => $entry['sender_text_color'] ?? null,
+            ]);
+            $row->setCreatedAt(new \DateTime((string) ($entry['created_at'] ?? 'now')));
+            if (!empty($entry['read'])) {
+                $row->setReadAt(new \DateTime((string) ($entry['read_at'] ?? 'now')));
+            }
+            $existing = $this->entityManager->find(InboxMessage::class, $row->getId());
+            if ($existing) {
+                $this->entityManager->remove($existing);
+            }
+            $this->entityManager->persist($row);
+        }
+        $this->entityManager->flush();
 
         return count($entries);
     }
@@ -214,26 +272,4 @@ class InboxDemoSeedService
         return $count;
     }
 
-    /**
-     * @param list<array<string, mixed>> $entries
-     */
-    private function writeDepartmentJsonSetting(Department $department, string $settingKey, array $entries): void
-    {
-        $setting = $this->entityManager->getRepository(\App\Entity\DepartmentSetting::class)->findOneBy([
-            'departmentId' => $department->getId(),
-            'settingKey' => $settingKey,
-        ]);
-
-        if (!$setting) {
-            $setting = new \App\Entity\DepartmentSetting();
-            $setting->setId(IdGenerator::generateUnique($this->entityManager, \App\Entity\DepartmentSetting::class));
-            $setting->setDepartment($department);
-            $setting->setSettingKey($settingKey);
-            $this->entityManager->persist($setting);
-        }
-
-        $setting->setSettingValue(json_encode(array_values($entries), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?: '[]');
-        $setting->setUpdatedAt(new \DateTime());
-        $this->entityManager->flush();
-    }
 }

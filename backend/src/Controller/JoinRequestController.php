@@ -16,6 +16,7 @@ use App\Entity\User;
 use App\Service\AuditLogger;
 use App\Service\Mail\MailTemplateContentStore;
 use App\Service\OrganisationUserPickerFilter;
+use App\Service\InboxMessageService;
 use App\Service\UserDepartmentInviteNotificationService;
 use App\Service\VerificationEmailService;
 use App\Util\IdGenerator;
@@ -35,8 +36,6 @@ class JoinRequestController extends AbstractController
     private const INVITE_CODE_SETTING_KEY = 'join.invite_code';
     private const VALID_MEMBER_ROLES = ['mw', 'dc', 'l1', 'l2', 'l3', 'u'];
     private const PENDING_INVITES_SETTING_KEY = 'join.pending_invites';
-    private const INVITE_NOTIFICATIONS_SETTING_KEY = 'join.invite_notifications';
-
     private function hasGlobalAdminRole(User $user): bool
     {
         return count(array_intersect(self::GLOBAL_ADMIN_ROLES, $user->getRoles())) > 0;
@@ -70,6 +69,7 @@ class JoinRequestController extends AbstractController
         private VerificationEmailService $verificationEmailService,
         private MailTemplateContentStore $mailTemplateContent,
         private UserDepartmentInviteNotificationService $userDepartmentInviteNotifications,
+        private InboxMessageService $inboxMessages,
         #[Autowire('%env(APP_FRONTEND_URL)%')] private string $frontendUrl
     )
     {
@@ -1088,13 +1088,15 @@ class JoinRequestController extends AbstractController
             return new JsonResponse(['error' => 'Keine Berechtigung'], 403);
         }
 
-        $notifications = array_values(array_filter(
-            $this->readInviteNotifications($departmentId),
-            fn (array $entry): bool => (string) ($entry['invited_by_user_id'] ?? '') === $currentUser->getId()
-        ));
-        usort($notifications, fn ($a, $b) => strcmp((string) ($b['accepted_at'] ?? ''), (string) ($a['accepted_at'] ?? '')));
+        $bucket = trim((string) $request->query->get('bucket', 'all'));
+        if (!in_array($bucket, ['unread', 'read', 'all'], true)) {
+            $bucket = 'all';
+        }
+        $limit = max(1, min(100, (int) $request->query->get('limit', 50)));
 
-        return new JsonResponse($notifications);
+        return new JsonResponse(
+            $this->inboxMessages->listInviteAcceptedForInviter($departmentId, $currentUser->getId(), $bucket, $limit),
+        );
     }
 
     #[Route('/invite/notifications/{notificationId}/read', name: 'invite_notification_read', methods: ['PATCH'])]
@@ -1120,22 +1122,9 @@ class JoinRequestController extends AbstractController
             return new JsonResponse(['error' => 'Keine Berechtigung'], 403);
         }
 
-        $notifications = $this->readInviteNotifications($departmentId);
-        $found = false;
-        foreach ($notifications as &$entry) {
-            if ((string) ($entry['id'] ?? '') === $notificationId) {
-                $entry['read'] = true;
-                $found = true;
-                break;
-            }
-        }
-        unset($entry);
-
-        if (!$found) {
+        if (!$this->inboxMessages->markInviteAcceptedRead($departmentId, $currentUser->getId(), $notificationId)) {
             return new JsonResponse(['error' => 'Benachrichtigung nicht gefunden'], 404);
         }
-
-        $this->writeInviteNotifications($department, $notifications);
 
         return new JsonResponse(['success' => true]);
     }
@@ -1684,70 +1673,6 @@ class JoinRequestController extends AbstractController
 
     private function appendInviteAcceptedNotification(Department $department, array $invite, User $joinedUser): void
     {
-        $profile = $joinedUser->getProfile();
-        $notifications = $this->readInviteNotifications($department->getId());
-        $notifications[] = [
-            'id' => IdGenerator::generateUnique($this->entityManager, DepartmentSetting::class),
-            'type' => 'invite_accepted',
-            'email' => (string) ($invite['email'] ?? ''),
-            'user_id' => $joinedUser->getId(),
-            'user_name' => $profile ? $profile->getDisplayName() : '',
-            'invited_by_user_id' => (string) ($invite['created_by_user_id'] ?? ''),
-            'invited_by_name' => (string) ($invite['created_by_name'] ?? ''),
-            'role' => (string) ($invite['role'] ?? 'u'),
-            'accepted_at' => (new \DateTime())->format(\DateTimeInterface::ATOM),
-            'read' => false,
-        ];
-        $this->writeInviteNotifications($department, $notifications);
-    }
-
-    /**
-     * @return list<array<string, mixed>>
-     */
-    private function readInviteNotifications(string $departmentId): array
-    {
-        $setting = $this->entityManager->getRepository(DepartmentSetting::class)->findOneBy([
-            'departmentId' => $departmentId,
-            'settingKey' => self::INVITE_NOTIFICATIONS_SETTING_KEY,
-        ]);
-        if (!$setting) {
-            return [];
-        }
-
-        $raw = trim((string) $setting->getSettingValue());
-        if ($raw === '') {
-            return [];
-        }
-
-        try {
-            $decoded = json_decode($raw, true, 512, JSON_THROW_ON_ERROR);
-
-            return is_array($decoded) ? array_values($decoded) : [];
-        } catch (\Throwable) {
-            return [];
-        }
-    }
-
-    /**
-     * @param list<array<string, mixed>> $entries
-     */
-    private function writeInviteNotifications(Department $department, array $entries): void
-    {
-        $setting = $this->entityManager->getRepository(DepartmentSetting::class)->findOneBy([
-            'departmentId' => $department->getId(),
-            'settingKey' => self::INVITE_NOTIFICATIONS_SETTING_KEY,
-        ]);
-
-        if (!$setting) {
-            $setting = new DepartmentSetting();
-            $setting->setId(IdGenerator::generateUnique($this->entityManager, DepartmentSetting::class));
-            $setting->setDepartment($department);
-            $setting->setSettingKey(self::INVITE_NOTIFICATIONS_SETTING_KEY);
-            $this->entityManager->persist($setting);
-        }
-
-        $setting->setSettingValue(json_encode(array_values($entries), JSON_UNESCAPED_SLASHES) ?: '[]');
-        $setting->setUpdatedAt(new \DateTime());
-        $this->entityManager->flush();
+        $this->inboxMessages->notifyInviteAccepted($department, $invite, $joinedUser);
     }
 }

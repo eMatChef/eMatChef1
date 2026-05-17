@@ -136,12 +136,43 @@
               <span v-if="item.unread" class="nc-inbox-unread-dot" :title="t('notificationsCenter.unreadLabel')" />
             </button>
 
-            <article
+            <button
+              v-else-if="item.kind === 'invite_accepted'"
+              :id="inboxItemDomId(item)"
+              type="button"
+              role="listitem"
+              class="nc-inbox-row"
+              :class="{ 'nc-inbox-row--unread': item.unread }"
+              @click="openInviteAcceptedItem(item.inviteAccepted!)"
+            >
+              <div class="nc-inbox-row__body nc-inbox-row__body--indent">
+                <div class="nc-inbox-row__top">
+                  <span class="nc-inbox-row__from">{{ item.inviteAccepted!.user_name || item.inviteAccepted!.email }}</span>
+                  <time class="nc-inbox-row__date">{{ formatDate(item.createdAt) }}</time>
+                </div>
+                <div class="nc-inbox-row__meta">
+                  <span class="nc-inbox-category nc-inbox-category--message">{{ inboxCategoryLabel(item) }}</span>
+                </div>
+                <div class="nc-inbox-row__preview">
+                  {{
+                    t('settings.departmentUsers.inviteAcceptedMessage', {
+                      name: item.inviteAccepted!.user_name || item.inviteAccepted!.email,
+                      role: departmentInviteRoleLabel(item.inviteAccepted!.role),
+                    })
+                  }}
+                </div>
+              </div>
+              <span v-if="item.unread" class="nc-inbox-unread-dot" :title="t('notificationsCenter.unreadLabel')" />
+            </button>
+
+            <button
               v-else-if="item.kind === 'department_invite'"
               :id="inboxItemDomId(item)"
+              type="button"
               role="listitem"
-              class="nc-inbox-row nc-inbox-row--with-actions"
+              class="nc-inbox-row"
               :class="{ 'nc-inbox-row--unread': item.unread }"
+              @click="openDepartmentInvite(item.departmentInvite!)"
             >
               <NotificationSenderBlock :sender="fromDepartmentInvite(item.departmentInvite!)" size="md" />
               <div class="nc-inbox-row__body">
@@ -150,7 +181,14 @@
                   <time class="nc-inbox-row__date">{{ formatDate(item.createdAt) }}</time>
                 </div>
                 <div class="nc-inbox-row__meta">
-                  <span class="nc-inbox-category nc-inbox-category--invite">{{ inboxCategoryLabel(item) }}</span>
+                  <span
+                    v-for="(badge, bi) in inboxBadges(item)"
+                    :key="bi"
+                    class="nc-inbox-category"
+                    :class="badge === t('notificationsCenter.inboxCategoryTask') ? 'nc-inbox-category--task' : 'nc-inbox-category--message'"
+                  >
+                    {{ badge }}
+                  </span>
                 </div>
                 <div class="nc-inbox-row__subject">
                   {{ t('layout.notifications.departmentInviteTitle', { department: item.departmentInvite!.department_name }) }}
@@ -160,15 +198,7 @@
                 </div>
               </div>
               <span v-if="item.unread" class="nc-inbox-unread-dot" :title="t('notificationsCenter.unreadLabel')" />
-              <div class="nc-inbox-row__actions">
-                <button type="button" class="btn-success btn-xs" @click="acceptDepartmentInviteItem(item.departmentInvite!)">
-                  {{ t('notificationsCenter.accept') }}
-                </button>
-                <button type="button" class="btn-danger-outline btn-xs" @click="declineDepartmentInviteItem(item.departmentInvite!)">
-                  {{ t('notificationsCenter.reject') }}
-                </button>
-              </div>
-            </article>
+            </button>
 
             <button
               v-else-if="item.kind === 'qr_found'"
@@ -186,18 +216,27 @@
                   <time class="nc-inbox-row__date">{{ formatDate(item.createdAt) }}</time>
                 </div>
                 <div class="nc-inbox-row__meta">
-                  <span class="nc-inbox-category nc-inbox-category--task">{{ inboxCategoryLabel(item) }}</span>
+                  <span
+                    v-for="(badge, bi) in inboxBadges(item)"
+                    :key="bi"
+                    class="nc-inbox-category"
+                    :class="badge === t('notificationsCenter.inboxCategoryTask') ? 'nc-inbox-category--task' : 'nc-inbox-category--message'"
+                  >
+                    {{ badge }}
+                  </span>
                 </div>
-                <div class="nc-inbox-row__subject">{{ qrInboxSubject() }}</div>
+                <div class="nc-inbox-row__subject">{{ item.qrFound!.material_name }}</div>
                 <div class="nc-inbox-row__preview">{{ item.qrFound!.message }}</div>
               </div>
               <span v-if="item.unread" class="nc-inbox-unread-dot" :title="t('notificationsCenter.unreadLabel')" />
             </button>
 
-            <article
+            <button
               v-else-if="item.kind === 'activity_invite'"
+              type="button"
               role="listitem"
-              class="nc-inbox-row nc-inbox-row--with-actions nc-inbox-row--unread"
+              class="nc-inbox-row nc-inbox-row--unread"
+              @click="openActivityInvite(item.activityInvite!)"
             >
               <NotificationSenderBlock :sender="fromActivityInvite(item.activityInvite!)" size="md" />
               <div class="nc-inbox-row__body">
@@ -206,7 +245,14 @@
                   <time v-if="item.createdAt" class="nc-inbox-row__date">{{ formatDate(item.createdAt) }}</time>
                 </div>
                 <div class="nc-inbox-row__meta">
-                  <span class="nc-inbox-category nc-inbox-category--invite">{{ inboxCategoryLabel(item) }}</span>
+                  <span
+                    v-for="(badge, bi) in inboxBadges(item)"
+                    :key="bi"
+                    class="nc-inbox-category"
+                    :class="badge === t('notificationsCenter.inboxCategoryTask') ? 'nc-inbox-category--task' : 'nc-inbox-category--message'"
+                  >
+                    {{ badge }}
+                  </span>
                 </div>
                 <div class="nc-inbox-row__subject">{{ item.activityInvite!.activity_name }}</div>
                 <div class="nc-inbox-row__preview">
@@ -218,15 +264,7 @@
                 </div>
               </div>
               <span class="nc-inbox-unread-dot" :title="t('notificationsCenter.unreadLabel')" />
-              <div class="nc-inbox-row__actions">
-                <button type="button" class="btn-success btn-xs" @click="decide(item.activityInvite!, 'accepted')">
-                  {{ t('notificationsCenter.accept') }}
-                </button>
-                <button type="button" class="btn-danger-outline btn-xs" @click="decide(item.activityInvite!, 'rejected')">
-                  {{ t('notificationsCenter.reject') }}
-                </button>
-              </div>
-            </article>
+            </button>
               </template>
             </div>
             <div v-else class="nc-empty-found">
@@ -249,11 +287,38 @@
       />
       <InboxQrDetailModal
         :message="detailQr"
+        navigate-on-proceed
         @close="detailQr = null"
         @open-material="openFoundMaterial"
         @status-change="onQrDetailStatusChange"
+        @open-task="goToTaskForQr"
+      />
+
+      <InboxInviteDetailModal
+        :visible="!!detailDepartmentInvite"
+        :title="t('notificationsCenter.deptInviteDetailTitle')"
+        :subject="detailDepartmentInvite ? t('layout.notifications.departmentInviteTitle', { department: detailDepartmentInvite.department_name }) : ''"
+        :preview="detailDepartmentInvite ? t('notificationsCenter.departmentInvitePreview', { role: departmentInviteRoleLabel(detailDepartmentInvite.role) }) : ''"
+        :sender="detailDepartmentInvite ? fromDepartmentInvite(detailDepartmentInvite) : null"
+        :created-at="detailDepartmentInvite?.created_at"
+        navigate-on-proceed
+        @close="detailDepartmentInvite = null"
+        @open-task="goToTaskForDeptInvite"
+      />
+
+      <InboxInviteDetailModal
+        :visible="!!detailActivityInvite"
+        :title="t('notificationsCenter.activityInviteDetailTitle')"
+        :subject="detailActivityInvite?.activity_name ?? ''"
+        :preview="detailActivityInvite ? (detailActivityInvite.activity_type === 'camp' ? t('notificationsCenter.typeCamp') : t('notificationsCenter.typeEvent')) : ''"
+        :sender="detailActivityInvite ? fromActivityInvite(detailActivityInvite) : null"
+        :created-at="detailActivityInvite?.invited_at ?? undefined"
+        navigate-on-proceed
+        @close="detailActivityInvite = null"
+        @open-task="goToTaskForCampInvite"
       />
     </template>
+
   </div>
 </template>
 
@@ -266,8 +331,12 @@ import {
   getPendingDepartmentActivityInvites,
   decideDepartmentActivityInvite,
   getReceivedDepartmentInvites,
+  markReceivedDepartmentInviteRead,
   acceptDepartmentInvite,
   declineDepartmentInvite,
+  getInviteNotifications,
+  markInviteNotificationRead,
+  type InviteAcceptedNotification,
   type PendingDepartmentActivityInvite,
   type ReceivedDepartmentInviteNotification,
 } from '@/api/joinRequests'
@@ -301,8 +370,10 @@ import {
   InboxComposeModal,
   InboxMessageDetailModal,
   InboxQrDetailModal,
+  InboxInviteDetailModal,
   NotificationSenderBlock,
 } from '@/components/notifications'
+import { taskOpenQuery } from '@/composables/useDepartmentTasks'
 import { useNotificationSender } from '@/composables/useNotificationSender'
 import { useDepartmentMemberRole } from '@/composables/useDepartmentMemberRole'
 import { useHeaderNotificationsStore } from '@/stores/headerNotifications'
@@ -328,12 +399,15 @@ const showCompose = ref(false)
 const detailMessage = ref<UserDirectMessage | UserDirectMessageSent | null>(null)
 const detailMessageMode = ref<'inbox' | 'sent'>('inbox')
 const detailQr = ref<PublicFoundItemMessage | null>(null)
+const detailDepartmentInvite = ref<ReceivedDepartmentInviteNotification | null>(null)
+const detailActivityInvite = ref<PendingDepartmentActivityInvite | null>(null)
 const inviteItems = ref<PendingDepartmentActivityInvite[]>([])
 const departmentInviteAll = ref<ReceivedDepartmentInviteNotification[]>([])
 const departmentInviteUnreadCount = ref(0)
 const activityMwAll = ref<ActivityMwNotification[]>([])
 const activityMwUnreadCount = ref(0)
 const activityUserStatusAll = ref<ActivityMwNotification[]>([])
+const inviteAcceptedAll = ref<InviteAcceptedNotification[]>([])
 const allFoundMessages = ref<PublicFoundItemMessage[]>([])
 const flashRowId = ref('')
 
@@ -341,6 +415,7 @@ type InboxItemKind =
   | 'activity_mw'
   | 'activity_status'
   | 'department_invite'
+  | 'invite_accepted'
   | 'qr_found'
   | 'activity_invite'
   | 'user_message'
@@ -355,6 +430,7 @@ interface UnifiedInboxItem {
   departmentInvite?: ReceivedDepartmentInviteNotification
   qrFound?: PublicFoundItemMessage
   activityInvite?: PendingDepartmentActivityInvite
+  inviteAccepted?: InviteAcceptedNotification
   userMessage?: UserDirectMessage
 }
 
@@ -434,6 +510,16 @@ const allInboxItems = computed((): UnifiedInboxItem[] => {
     }
   }
 
+  for (const note of inviteAcceptedAll.value) {
+    items.push({
+      id: `inv-acc-${note.id}`,
+      kind: 'invite_accepted',
+      createdAt: note.accepted_at,
+      unread: !note.read,
+      inviteAccepted: note,
+    })
+  }
+
   if (showDepartmentInviteSection.value) {
     for (const inv of departmentInviteAll.value) {
       items.push({
@@ -495,16 +581,80 @@ function inboxCategoryLabel(item: UnifiedInboxItem): string {
     case 'activity_status':
       return t('notificationsCenter.inboxCategoryActivityStatus')
     case 'qr_found':
-      return t('notificationsCenter.inboxCategoryQr')
+      return t('notificationsCenter.inboxCategoryMessage')
     case 'department_invite':
-      return t('notificationsCenter.inboxCategoryDeptInvite')
+      return t('notificationsCenter.inboxCategoryMessage')
+    case 'invite_accepted':
+      return t('notificationsCenter.inboxCategoryInviteAccepted')
     case 'activity_invite':
-      return t('notificationsCenter.inboxCategoryActivityInvite')
+      return t('notificationsCenter.inboxCategoryMessage')
     case 'user_message':
       return t('notificationsCenter.inboxCategoryMessage')
     default:
       return ''
   }
+}
+
+function inboxBadges(item: UnifiedInboxItem): string[] {
+  const message = t('notificationsCenter.inboxCategoryMessage')
+  const task = t('notificationsCenter.inboxCategoryTask')
+  switch (item.kind) {
+    case 'qr_found':
+      return item.qrFound?.status !== 'done' ? [message, task] : [message]
+    case 'department_invite':
+    case 'activity_invite':
+      return [message, task]
+    default:
+      return [inboxCategoryLabel(item)].filter(Boolean)
+  }
+}
+
+async function openDepartmentInvite(inv: ReceivedDepartmentInviteNotification) {
+  if (!inv.read) {
+    try {
+      await markReceivedDepartmentInviteRead(inv.id)
+      departmentInviteAll.value = departmentInviteAll.value.map((e) =>
+        e.id === inv.id ? { ...e, read: true } : e,
+      )
+      headerNotificationsStore.requestRefresh()
+    } catch {
+      /* open anyway */
+    }
+  }
+  detailDepartmentInvite.value = inv
+}
+
+function openActivityInvite(invite: PendingDepartmentActivityInvite) {
+  detailActivityInvite.value = invite
+}
+
+function goToTasksPage(query?: Record<string, string>) {
+  if (!departmentId.value) return
+  void router.push({
+    path: `/${departmentId.value}/tasks`,
+    query,
+  })
+}
+
+function goToTaskForQr(msg: PublicFoundItemMessage) {
+  detailQr.value = null
+  goToTasksPage({ open: taskOpenQuery('qr_found', msg.id) })
+}
+
+function goToTaskForDeptInvite() {
+  const inv = detailDepartmentInvite.value
+  detailDepartmentInvite.value = null
+  if (!inv) return
+  goToTasksPage({ open: taskOpenQuery('department_invite', inv.id) })
+}
+
+function goToTaskForCampInvite() {
+  const inv = detailActivityInvite.value
+  detailActivityInvite.value = null
+  if (!inv) return
+  goToTasksPage({
+    open: taskOpenQuery('activity_invite', `${inv.activity_id}:${inv.source_department_id}`),
+  })
 }
 
 async function onComposeSent() {
@@ -591,7 +741,14 @@ async function load() {
     }).catch(() => ({ unread_count: 0, items: [] as ActivityMwNotification[] }))
     const membersPromise = getDepartmentMembers(departmentId.value).catch(() => [] as DepartmentMember[])
 
-    const [inv, found, activityMw, deptInv, userMsg, userSent, activityUser, members] = await Promise.all([
+    const inviteAcceptedPromise = !isUserRole.value
+      ? getInviteNotifications(departmentId.value, { bucket: 'all', limit: 200 }).catch(
+          () => [] as InviteAcceptedNotification[],
+        )
+      : Promise.resolve([] as InviteAcceptedNotification[])
+
+    const [inv, found, activityMw, deptInv, userMsg, userSent, activityUser, members, inviteAccepted] =
+      await Promise.all([
       invPromise,
       foundPromise,
       activityMwPromise,
@@ -600,6 +757,7 @@ async function load() {
       userSentPromise,
       activityUserPromise,
       membersPromise,
+      inviteAcceptedPromise,
     ])
     inviteItems.value = inv.items || []
     departmentInviteAll.value = deptInv.items || []
@@ -612,9 +770,11 @@ async function load() {
     userMessagesAll.value = userMsg.items || []
     userMessagesSent.value = userSent.items || []
     activityUserStatusAll.value = activityUser.items || []
+    inviteAcceptedAll.value = inviteAccepted || []
     departmentMembers.value = members || []
   } catch {
     inviteItems.value = []
+    inviteAcceptedAll.value = []
     departmentInviteAll.value = []
     departmentInviteUnreadCount.value = 0
     allFoundMessages.value = []
@@ -672,7 +832,21 @@ function departmentInviteRoleLabel(role: string): string {
   return key ? t(key) : role
 }
 
+async function openInviteAcceptedItem(note: InviteAcceptedNotification) {
+  if (!departmentId.value || note.read) return
+  try {
+    await markInviteNotificationRead(departmentId.value, note.id)
+    inviteAcceptedAll.value = inviteAcceptedAll.value.map((n) =>
+      n.id === note.id ? { ...n, read: true } : n,
+    )
+    headerNotificationsStore.requestRefresh()
+  } catch {
+    /* ignore */
+  }
+}
+
 async function acceptDepartmentInviteItem(inv: ReceivedDepartmentInviteNotification) {
+  detailDepartmentInvite.value = null
   try {
     const result = await acceptDepartmentInvite({
       notificationId: inv.id,
@@ -693,6 +867,7 @@ async function acceptDepartmentInviteItem(inv: ReceivedDepartmentInviteNotificat
 }
 
 async function declineDepartmentInviteItem(inv: ReceivedDepartmentInviteNotification) {
+  detailDepartmentInvite.value = null
   try {
     await declineDepartmentInvite({
       notificationId: inv.id,
@@ -710,6 +885,7 @@ async function declineDepartmentInviteItem(inv: ReceivedDepartmentInviteNotifica
 
 async function decide(invite: PendingDepartmentActivityInvite, decision: 'accepted' | 'rejected') {
   if (!departmentId.value) return
+  detailActivityInvite.value = null
   try {
     await decideDepartmentActivityInvite({
       activityId: invite.activity_id,
@@ -741,9 +917,6 @@ function openFoundMaterial(msg: PublicFoundItemMessage) {
 }
 
 async function openQrMessage(msg: PublicFoundItemMessage) {
-  if (msg.status === 'open' && departmentId.value) {
-    await onFoundStatusChange(msg, 'in_progress')
-  }
   const current = allFoundMessages.value.find((m) => m.id === msg.id) ?? msg
   detailQr.value = current
 }
@@ -801,6 +974,41 @@ watch(
 )
 
 watch(
+  () => [route.query.openDeptInvite, isLoading.value, departmentInviteAll.value] as const,
+  async ([raw, loading, items]) => {
+    if (loading) return
+    const id = parseHighlightId(raw)
+    if (!id) return
+    const inv = items.find((e) => e.id === id)
+    if (!inv) return
+    mailTab.value = 'inbox'
+    await openDepartmentInvite(inv)
+    const q = { ...route.query }
+    delete q.openDeptInvite
+    void router.replace({ path: route.path, query: q })
+  },
+  { flush: 'post' },
+)
+
+watch(
+  () => [route.query.openCampInvite, isLoading.value, inviteItems.value] as const,
+  async ([raw, loading, items]) => {
+    if (loading) return
+    const key = parseHighlightId(raw)
+    if (!key) return
+    const [actId, srcId] = key.split(':')
+    const inv = items.find((e) => e.activity_id === actId && e.source_department_id === srcId)
+    if (!inv) return
+    mailTab.value = 'inbox'
+    openActivityInvite(inv)
+    const q = { ...route.query }
+    delete q.openCampInvite
+    void router.replace({ path: route.path, query: q })
+  },
+  { flush: 'post' },
+)
+
+watch(
   () =>
     [route.query.highlight, isLoading.value, allFoundMessages.value, activityMwAll.value] as const,
   async ([hl, loading, msgs, activityMsgs]) => {
@@ -845,6 +1053,15 @@ watch(
 <style scoped>
 .nc-mail-inbox {
   max-width: 52rem;
+}
+
+.nc-tasks-section {
+  max-width: 52rem;
+  margin-top: 2rem;
+}
+
+.nc-inbox-row--task-only {
+  cursor: pointer;
 }
 
 .nc-mail-toolbar {

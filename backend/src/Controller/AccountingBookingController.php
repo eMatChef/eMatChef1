@@ -9,6 +9,7 @@ use App\Entity\AccountingCostCenter;
 use App\Entity\Department;
 use App\Entity\Group;
 use App\Entity\MaterialItem;
+use App\Service\InboxMessageService;
 use App\Util\IdGenerator;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -24,7 +25,8 @@ class AccountingBookingController extends AbstractController
     use AccountingMwOrDcTrait;
 
     public function __construct(
-        private EntityManagerInterface $entityManager
+        private EntityManagerInterface $entityManager,
+        private InboxMessageService $inboxMessages,
     ) {
     }
 
@@ -177,6 +179,7 @@ class AccountingBookingController extends AbstractController
                 $followUp->setStatus(AccountingAcquisitionFollowUp::STATUS_RECORDED);
                 $followUp->touchUpdatedAt();
                 $this->entityManager->flush();
+                $this->inboxMessages->removeAccountingFollowUpInbox($followUp->getId());
             } catch (\Throwable) {
                 // Buchung ist gespeichert; Verknüpfung fehlgeschlagen (z. B. Schema)
             }

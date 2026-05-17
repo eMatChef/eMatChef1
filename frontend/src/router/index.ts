@@ -877,7 +877,6 @@ const router = createRouter({
  */
 function applyQrHostRedirects(to: RouteLocationNormalized): boolean {
   const qrHost = (import.meta.env.VITE_QR_PUBLIC_HOST || '').trim().toLowerCase()
-  const appOrigin = (import.meta.env.VITE_APP_ORIGIN || '').trim().replace(/\/$/, '')
   const mainSite = (import.meta.env.VITE_MAIN_SITE_ORIGIN || 'https://ematchef.ch').trim().replace(/\/$/, '')
 
   if (!qrHost || typeof window === 'undefined') return false
@@ -893,9 +892,9 @@ function applyQrHostRedirects(to: RouteLocationNormalized): boolean {
     return false
   }
 
-  // Login-Start → App-Instanz (Query z. B. ?redirect= bleibt erhalten)
-  if ((path === '/' || path === '/login') && appOrigin) {
-    window.location.replace(`${appOrigin}${to.fullPath}`)
+  // Start & Login → Hauptdomain (ematchef.*), nicht app.*
+  if ((path === '/' || path === '/login') && mainSite) {
+    window.location.replace(`${mainSite}${to.fullPath}`)
     return true
   }
 

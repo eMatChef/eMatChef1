@@ -117,6 +117,21 @@ export interface ProfileResponse {
   text_color?: string
 }
 
+/** API liefert snake_case; Store/UI nutzen beides – einheitlich normalisieren. */
+export function normalizeProfile(
+  raw: LoginResponse['profile'] | ProfileResponse
+): ProfileResponse {
+  return {
+    ...raw,
+    firstName: raw.firstName ?? raw.first_name ?? undefined,
+    lastName: raw.lastName ?? raw.last_name ?? undefined,
+    avatarInitials: raw.avatarInitials ?? raw.avatar_initials ?? undefined,
+    pendingEmail: raw.pendingEmail ?? raw.pending_email ?? undefined,
+    backgroundColor: raw.backgroundColor ?? raw.background_color ?? undefined,
+    textColor: raw.textColor ?? raw.text_color ?? undefined,
+  }
+}
+
 export interface UpdateProfilePayload {
   email?: string
   first_name?: string

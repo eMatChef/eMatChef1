@@ -43,19 +43,16 @@ services:
       AUTH_COOKIE_SECURE: "1"
       # Nur eure echten HTTPS-Origins (kein * bei credentials) — qr.* für öffentliche QR-Seite
       CORS_ALLOW_ORIGIN: '^https://(app\.ematchef\.ch|qr\.ematchef\.ch|ematchef\.ch|www\.ematchef\.ch)$'
-      # SendGrid (API über HTTPS, oft nötig wenn VPS Port 587 blockiert): in .env auf dem Server:
+      # SendGrid (HTTPS-API): in Repo-Root-.env auf dem Server, z. B.:
       #   MAILER_FROM="noreply@ematchef.ch"
-      #   Optional: Logo in HTML-Mails (absolute HTTPS-URL, z. B. Favicon auf Hostpoint)
-      #   MAILER_BRAND_LOGO_URL="https://ematchef.ch/favicon.svg"
       #   MAILER_DSN="sendgrid+api://SG....@default"
-      # Hostpoint SMTP (nur wenn ausgehend 587 erreichbar):
-      #   MAILER_DSN="smtp://MAILBOX%40ematchef.ch:PASSWORT@asmtp.mail.hostpoint.ch:587?encryption=tls"
-      # Sonderzeichen in User/Pass/Key URL-encoden (@ → %40, : → %3A). Dann Backend neu starten.
-      # Fallback SMTP: Superadmin → Mail-Einstellungen (nur wenn MAILER_DSN null:// oder leer).
+      #   Optional: MAILER_BRAND_LOGO_URL="https://ematchef.ch/favicon.svg"
+      # Sonderzeichen im API-Key URL-encoden (@ → %40, : → %3A). Dann Backend neu starten.
+      # Absender/Reply-To in der App: Superadmin → E-Mail → Einstellungen (mail_outbound.json).
       MAILER_DSN: "${MAILER_DSN:-null://null}"
       MAILER_FROM: "${MAILER_FROM:-noreply@ematchef.ch}"
       MAILER_BRAND_LOGO_URL: "${MAILER_BRAND_LOGO_URL:-}"
-      # Optional: echte Antwort-Adresse (Hostpoint „Absender“ ist egal; Reply-To setzt der Server pro Mail)
+      # Optional: Reply-To für System-Mails (Vorrang vor mail_outbound.json)
       MAILER_REPLY_TO: "${MAILER_REPLY_TO:-}"
       # Cloudflare Turnstile (nur Registrierung /api/auth/register): Secret in .env, nie committen
       TURNSTILE_SECRET_KEY: "${TURNSTILE_SECRET_KEY:-}"

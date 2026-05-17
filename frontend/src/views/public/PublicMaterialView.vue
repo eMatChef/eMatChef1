@@ -10,7 +10,7 @@
           v-if="!isPublicLoggedIn"
           type="button"
           class="public-login-btn"
-          @click="goToLogin"
+          @click="goToMainSite"
         >
           {{ t('public.lookup.toApp') }}
         </button>
@@ -177,6 +177,7 @@ import PublicSiteFooter from '../../components/public/PublicSiteFooter.vue'
 import PublicUserIdentityChip from '../../components/public/PublicUserIdentityChip.vue'
 import { PAGE_HEAD_KEYS } from '../../composables/usePageHead'
 import { usePageHeadStore } from '../../stores/pageHead'
+import { getAppEntryTarget, resolvePublicLinkOrigin } from '../../utils/appLoginUrl'
 import { isQrPublicHost, navigateToAppMaterialDetail } from '../../utils/qrAppNavigation'
 
 const { t } = useI18n()
@@ -184,7 +185,7 @@ const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
 const pageHeadStore = usePageHeadStore()
-const PUBLIC_SESSION_POLL_MS = 60_000
+const PUBLIC_SESSION_POLL_MS = 10_000
 let sessionPollTimer: number | null = null
 
 const routeType = computed(() => String(route.params.type || 'm').trim().toLowerCase())
@@ -324,31 +325,30 @@ async function submitFoundContact() {
   }
 }
 
-/** Login mit Rücksprung zu dieser öffentlichen Seite (Artikel-Kontext bleibt in der URL). */
-function goToLogin() {
-  const appOrigin = (import.meta.env.VITE_APP_ORIGIN || '').trim().replace(/\/$/, '')
+/** Zur Hauptseite (ematchef.*), nicht Login. */
+function goToMainSite() {
   const host = window.location.hostname.toLowerCase()
   const shouldOpenInNewTab = isQrPublicHost() || host === 'ematchef.test'
-  if (appOrigin && shouldOpenInNewTab) {
-    const target = `${appOrigin}/login?redirect=${encodeURIComponent(route.fullPath)}`
+  const target = getAppEntryTarget()
+  if (shouldOpenInNewTab && target.startsWith('http')) {
     window.open(target, '_blank', 'noopener,noreferrer')
     return
   }
-  void router.push({ path: '/login', query: { redirect: route.fullPath } })
+  void router.push('/')
 }
 
 /** Bereits angemeldet: ins Material / Dashboard wechseln. */
 function goToApp() {
   if (!authStore.isLoggedIn) {
-    goToLogin()
+    goToMainSite()
     return
   }
-  const appOrigin = (import.meta.env.VITE_APP_ORIGIN || '').trim().replace(/\/$/, '')
+  const linkOrigin = resolvePublicLinkOrigin()
   const onQrHost = isQrPublicHost()
   const shouldOpenInNewTab = onQrHost || window.location.hostname.toLowerCase() === 'ematchef.test'
   const openAppPath = (path: string) => {
-    if (!appOrigin) return false
-    const href = `${appOrigin}${path}`
+    if (!linkOrigin) return false
+    const href = `${linkOrigin}${path}`
     if (shouldOpenInNewTab) {
       window.open(href, '_blank', 'noopener,noreferrer')
     } else {
@@ -358,7 +358,7 @@ function goToApp() {
   }
   const d = data.value
   if (d?.department?.id && d?.material?.id) {
-    if (shouldOpenInNewTab && appOrigin) {
+    if (shouldOpenInNewTab && linkOrigin) {
       const params = new URLSearchParams()
       if (d.entity_type === 'batch' && d.batch?.id) {
         params.set('batch', d.batch.id)
@@ -377,14 +377,14 @@ function goToApp() {
   }
   const deptId = authStore.activeDepartmentId
   if (deptId) {
-    if ((onQrHost || shouldOpenInNewTab) && appOrigin) {
+    if ((onQrHost || shouldOpenInNewTab) && linkOrigin) {
       openAppPath(`/${deptId}`)
       return
     }
     void router.push(`/${deptId}`)
     return
   }
-  if ((onQrHost || shouldOpenInNewTab) && appOrigin) {
+  if ((onQrHost || shouldOpenInNewTab) && linkOrigin) {
     openAppPath('/pending-assignment')
     return
   }

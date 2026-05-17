@@ -483,6 +483,7 @@
       "accountingFollowUpOne": "{count} pending acquisition (add cost center)",
       "accountingFollowUpMany": "{count} pending acquisitions (add cost center)",
       "accountingHint": "Go to bookings · tab “Assign new booking”",
+      "inviteAcceptedTitle": "{name} joined",
       "inviteTitle": "{department} invites you to {activityType}",
       "activityCamp": "a camp",
       "activityEvent": "an event",

@@ -9,7 +9,7 @@ Verwandt: UI-Bausteine in [wiederverwendbare-komponenten.md](./wiederverwendbare
 ## Überblick
 
 ```text
-Ereignis (Backend)  →  Service baut JSON-Eintrag  →  DepartmentSetting (JSON-Liste)
+Ereignis (Backend)  →  InboxMessageService  →  Tabelle inbox_message
                               ↓
                          REST-API
                               ↓
@@ -18,7 +18,12 @@ Ereignis (Backend)  →  Service baut JSON-Eintrag  →  DepartmentSetting (JSON
          NotificationSenderBlock + Betreff/Vorschau (i18n)
 ```
 
-Nachrichten sind **keine eigenen Datenbank-Tabellen**, sondern **strukturierte JSON-Arrays** in `DepartmentSetting` (bzw. userbezogene Settings bei Einladungen). Das Frontend formatiert die Anzeige aus diesen Feldern und Übersetzungen.
+Alle Benachrichtigungstypen für Glocke und Nachrichtenzentrale liegen in der Tabelle **`inbox_message`** (siehe Tabelle unten).
+
+Bei **Abschluss oder Storno** einer Aktivität (`completed` / `cancelled`) werden aktivitätsbezogene Einträge in `inbox_message` **gelöscht**; der Verlauf bleibt in `activity_history`.
+
+**Migration alter JSON-Daten:** nach `doctrine:migrations:migrate` einmal  
+`php bin/console app:migrate-inbox-legacy`
 
 Die Nachrichtenzentrale (`NotificationsCenterView`) führt alle Typen in **einem Posteingang** zusammen:
 
@@ -30,13 +35,30 @@ Die Nachrichtenzentrale (`NotificationsCenterView`) führt alle Typen in **einem
 
 ## Nachrichtentypen
 
-| Art | Service (Backend) | Speicher-Schlüssel | API (Auszug) | Wer sieht |
+| Art | Service | Speicher | API (unverändert) | Retention |
 | --- | --- | --- | --- | --- |
-| Aktivität (MW) | `ActivityMwNotificationService` | `activity.mw_notifications` | `GET /api/activities/mw-notifications` | MW/DC (`canManageMaterials`) |
-| Direktnachricht | `UserDirectMessageService` | `inbox.direct_messages.{empfängerUserId}` | `GET/POST …/inbox/messages` | Empfänger (pro User) |
-| Dept-Einladung | `UserDepartmentInviteNotificationService` | userbezogen | `GET …/department-invites/received` | eingeladener User |
-| QR-Kontakt | (öffentliche Finder-Meldungen) | eigene Logik | `GET …/public-found-messages` | `canManageQrContact` |
-| Camp/Anlass-Einladung | Join-Requests | Pending-Liste | `GET …/activity-invites/pending` | berechtigte User |
+| Direktnachricht | `InboxMessageService` | `inbox_message` `user_message` | `…/inbox/messages` | dauerhaft |
+| Aktivität MW | `InboxMessageService` | `activity_mw` | `…/mw-notifications` | löschen bei Aktivität completed/cancelled |
+| Aktivität User | `InboxMessageService` | `activity_user` | `…/inbox/activity-status` | löschen bei Aktivität completed/cancelled |
+| Dept-Einladung | `InboxMessageService` | `department_invite` | `…/invite/received` | löschen bei Annahme/Ablehnung |
+| Camp/Anlass-Einladung | `InboxMessageService` | `activity_department_invite` | `…/department-invites/pending` | löschen bei Entscheidung / Aktivität abgeschlossen |
+| QR-Kontakt | `InboxMessageService` | `qr_found` | `…/public-found-messages` | Status open/in_progress/done |
+| Buchhaltung | `InboxMessageService` + `accounting_acquisition_follow_up` | `accounting_followup` (Spiegel) | `…/acquisition-followups` | Inbox-Zeile weg bei „erfasst“ |
+| Einladung angenommen (für Einladende) | `InboxMessageService` | `invite_accepted` | `…/invite/notifications` | dauerhaft, nur gelesen markieren |
+
+**Hinweis:** `join.pending_invites` bleibt die fachliche Quelle für Einladungs-Workflow (Annahme/Ablehnung). Die Inbox zeigt nur die Benachrichtigung. Buchhaltungs-Fachdaten bleiben in `accounting_acquisition_follow_up`, die Glocke liest zusätzlich `inbox_message`.
+
+### Nachricht vs. Aufgabe (UI)
+
+Alles liegt in `inbox_message`. In der **Nachrichtenzentrale** gilt:
+
+| Typ | Beispiel | Ablauf |
+| --- | --- | --- |
+| **Nachricht** | Direktnachricht, Aktivitäts-Info, `invite_accepted` | Lesen, fertig |
+| **Nachricht + Aufgabe** | QR-Kontakt, Dept-Einladung, Camp/Anlass-Einladung | Zuerst Nachricht lesen → Button **„Aufgabe bearbeiten“** → Status / Annehmen-Ablehnen / Antwort |
+| **Reine Aufgabe** | Buchhaltung (`accounting_followup`) | Seite **Aufgaben** (`/{departmentId}/tasks`) |
+
+**Nachricht lesen** → Nachrichtenzentrale. **Aufgabe bearbeiten** → Button leitet zur Aufgaben-Seite (`?open=kind:id`). In der **Glocke**: Nachrichten oben, Buchhaltung unter **Aufgaben** (Link zur Aufgaben-Seite).
 
 ---
 
@@ -70,7 +92,7 @@ Jeder Eintrag enthält u. a.:
 
 Duplikate: Vor dem Anlegen wird eine **ungelesene** Meldung derselben Aktivität mit gleichem `type` entfernt (max. eine offene „eingereicht“-Meldung pro Aktivität).
 
-Limit: maximal **200** Einträge pro Department (älteste werden abgeschnitten).
+Aktivitäts-Meldungen werden bei **completed** oder **cancelled** der zugehörigen Aktivität aus der Inbox entfernt (siehe `InboxMessageService::purgeByActivity` in `ActivityController::changeStatus`).
 
 ### Anzeige im Frontend
 

@@ -1,6 +1,6 @@
 import axios from 'axios'
 import { logSessionEvent } from '@/utils/sessionDiagnostics'
-import { isAuthFormPath, loginRedirectUrl } from '@/api/unauthorizedRedirect'
+import { shouldSkipLoginRedirect, loginRedirectUrl } from '@/api/unauthorizedRedirect'
 
 /** Handler für abgelaufene Session (401) – wird in main.ts registriert */
 let sessionExpiredHandler: (() => void | Promise<void>) | null = null
@@ -24,12 +24,12 @@ async function triggerSessionExpired(reason: string): Promise<void> {
     localStorage.removeItem('user_id')
     localStorage.removeItem('profile_id')
     localStorage.removeItem('session_last_activity_at')
-    if (!isAuthFormPath(window.location.pathname)) {
+    if (!shouldSkipLoginRedirect(window.location.pathname)) {
       window.location.assign(loginRedirectUrl(window.location.pathname + window.location.search))
     }
   } finally {
     refreshPromise = null
-    if (isAuthFormPath(window.location.pathname)) {
+    if (shouldSkipLoginRedirect(window.location.pathname)) {
       isHandlingSessionExpiry = false
     }
   }
@@ -166,11 +166,9 @@ apiClient.interceptors.response.use(
       return Promise.reject(error)
     }
 
-    // Session-Probe / Cookie-SSO: kein Token-Refresh, bei 401 sofort Login
+    // Session-Probe: 401 = nicht eingeloggt (normal auf öffentlichen QR-Seiten / Inkognito).
+    // Kein Login-Redirect — Caller (auth store, Router) entscheidet.
     if (isSessionProbeUrl(requestUrl)) {
-      if (error?.response?.status === 401) {
-        await triggerSessionExpired('Session-Endpoint 401')
-      }
       return Promise.reject(error)
     }
 

@@ -8,7 +8,7 @@ import { createPinia } from 'pinia'
 import { useAuthStore } from './stores/auth'
 import { useToastStore } from './stores/toast'
 import { setSessionExpiredHandler, setApiSuccessRefreshCallback } from './api/apiClient'
-import { isAuthFormPath, loginRedirectUrl } from './api/unauthorizedRedirect'
+import { shouldSkipLoginRedirect, loginRedirectUrl } from './api/unauthorizedRedirect'
 import { i18n, setLocale } from './i18n'
 
 const app = createApp(App)
@@ -39,7 +39,7 @@ setSessionExpiredHandler(async () => {
   useToastStore().warning(i18n.global.t('errors.sessionExpired'), 5000)
   await useAuthStore().logout()
   const path = window.location.pathname
-  if (isAuthFormPath(path)) return
+  if (shouldSkipLoginRedirect(path)) return
   const fullPath = router.currentRoute.value?.fullPath || path + window.location.search
   const target = loginRedirectUrl(fullPath)
   try {

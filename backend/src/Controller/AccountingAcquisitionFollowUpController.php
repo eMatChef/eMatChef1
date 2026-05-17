@@ -4,6 +4,7 @@ namespace App\Controller;
 
 use App\Controller\Trait\AccountingMwOrDcTrait;
 use App\Entity\AccountingAcquisitionFollowUp;
+use App\Service\InboxMessageService;
 use App\Entity\Department;
 use App\Entity\MaterialBatch;
 use App\Util\IdGenerator;
@@ -20,7 +21,8 @@ class AccountingAcquisitionFollowUpController extends AbstractController
     use AccountingMwOrDcTrait;
 
     public function __construct(
-        private EntityManagerInterface $entityManager
+        private EntityManagerInterface $entityManager,
+        private InboxMessageService $inboxMessages,
     ) {
     }
 
@@ -131,6 +133,7 @@ class AccountingAcquisitionFollowUpController extends AbstractController
 
             $this->entityManager->persist($followUp);
             $this->entityManager->flush();
+            $this->inboxMessages->syncAccountingFollowUp($followUp);
 
             return new JsonResponse($this->serialize($followUp), 201);
         } catch (\Throwable $e) {

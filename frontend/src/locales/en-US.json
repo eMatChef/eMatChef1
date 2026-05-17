@@ -1998,10 +1998,10 @@
   },
   "mail": {
     "layout": {
-      "prodIntro": "Vorlagen, Absender und Versandprotokoll — Versand über",
-      "prodOutro": "oder SMTP in der App-Konfiguration.",
-      "devIntro": "Vorlagen, Absender und Versandprotokoll — Versand über SMTP in der JSON-Datei,",
-      "devOutro": "oder bei fehlendem SMTP als Datei-Spool.",
+      "prodIntro": "Templates, sender and send log — delivery via",
+      "prodOutro": "(SendGrid) from the server environment.",
+      "devIntro": "Templates, sender and send log — delivery via",
+      "devOutro": "from backend/.env.local (e.g. SendGrid; null://null = no delivery).",
       "subnavAria": "Mail-Untermenü",
       "tabs": {
         "send": "Versand",

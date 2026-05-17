@@ -35,11 +35,51 @@ function resolveAppOrigin(): string {
   return inferAppOriginFromCurrentHost()
 }
 
+function inferMainSiteOriginFromCurrentHost(): string {
+  if (typeof window === 'undefined') return ''
+  const protocol = window.location.protocol || 'http:'
+  const host = window.location.hostname.toLowerCase()
+
+  if (host === 'localhost' || host === '127.0.0.1') {
+    return `${protocol}//ematchef.test`
+  }
+  if (host.startsWith('qr.')) {
+    return `${protocol}//${host.slice(3)}`
+  }
+  if (host.startsWith('app.')) {
+    return `${protocol}//${host.slice(4)}`
+  }
+  if (host === 'ematchef.test' || host.endsWith('.ematchef.test')) {
+    return `${protocol}//ematchef.test`
+  }
+  if (host === 'ematchef.ch' || host === 'www.ematchef.ch') {
+    return `${protocol}//ematchef.ch`
+  }
+  return ''
+}
+
+function resolveMainSiteOrigin(): string {
+  const configured = getMainSiteOrigin()
+  if (configured) return configured
+  return inferMainSiteOriginFromCurrentHost()
+}
+
+/**
+ * Ziel-Origin für Login/App von der QR-Subdomain: Hauptdomain (ematchef.*), nicht app.*.
+ * Sonst wie bisher die App-Instanz (app.*).
+ */
+export function resolvePublicLinkOrigin(): string {
+  if (isQrPublicHost()) {
+    return resolveMainSiteOrigin()
+  }
+  return resolveAppOrigin()
+}
+
 export function getAppLoginTarget(): string {
-  const appOrigin = resolveAppOrigin()
-  if (appOrigin && typeof window !== 'undefined') {
+  const origin = resolvePublicLinkOrigin()
+  if (origin && typeof window !== 'undefined') {
     try {
-      const u = new URL(appOrigin)
+      const u = new URL(origin)
       return `${u.origin}/login`
     } catch {
       /* ignore */
@@ -49,10 +89,10 @@ export function getAppLoginTarget(): string {
 }
 
 export function getAppEntryTarget(): string {
-  const appOrigin = resolveAppOrigin()
-  if (appOrigin && typeof window !== 'undefined') {
+  const origin = resolvePublicLinkOrigin()
+  if (origin && typeof window !== 'undefined') {
     try {
-      const u = new URL(appOrigin)
+      const u = new URL(origin)
       return `${u.origin}/`
     } catch {
       /* ignore */

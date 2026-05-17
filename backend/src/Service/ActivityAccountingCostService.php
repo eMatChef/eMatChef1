@@ -20,6 +20,7 @@ class ActivityAccountingCostService
 {
     public function __construct(
         private EntityManagerInterface $entityManager,
+        private InboxMessageService $inboxMessages,
     ) {
     }
 
@@ -190,6 +191,7 @@ class ActivityAccountingCostService
                 }
                 $existing->touchUpdatedAt();
                 $this->entityManager->flush();
+                $this->inboxMessages->syncAccountingFollowUp($existing);
 
                 return;
             }
@@ -210,6 +212,7 @@ class ActivityAccountingCostService
 
             $this->entityManager->persist($followUp);
             $this->entityManager->flush();
+            $this->inboxMessages->syncAccountingFollowUp($followUp);
         } catch (\Throwable) {
             // Schema/Migration fehlt oder DB-Fehler — Aktivitäts-Workflow darf nicht abbrechen
         }

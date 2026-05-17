@@ -20,6 +20,7 @@ use Gesdinet\JWTRefreshTokenBundle\Model\RefreshTokenManagerInterface;
 use Gesdinet\JWTRefreshTokenBundle\Request\Extractor\ExtractorInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
+use Symfony\Component\HttpFoundation\Cookie;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Routing\Annotation\Route;
@@ -49,7 +50,11 @@ class AuthController extends AbstractController
         private TurnstileVerifier $turnstileVerifier,
         private LanguageConfig $languageConfig,
         #[Autowire('%kernel.secret%')]
-        private string $appSecret
+        private string $appSecret,
+        #[Autowire('%env(default::AUTH_COOKIE_DOMAIN)%')]
+        private string $authCookieDomain = '',
+        #[Autowire('%env(bool:AUTH_COOKIE_SECURE)%')]
+        private bool $authCookieSecure = false,
     ) {}
 
     /**
@@ -77,9 +82,28 @@ class AuthController extends AbstractController
             }
         }
 
-        return new JsonResponse([
-            'message' => 'Erfolgreich abgemeldet'
+        $response = new JsonResponse([
+            'message' => 'Erfolgreich abgemeldet',
         ]);
+
+        $this->clearAuthCookies($response);
+
+        return $response;
+    }
+
+    private function clearAuthCookies(JsonResponse $response): void
+    {
+        $domain = '' !== trim($this->authCookieDomain) ? trim($this->authCookieDomain) : null;
+        foreach (['BEARER', 'refresh_token'] as $cookieName) {
+            $response->headers->clearCookie(
+                $cookieName,
+                '/',
+                $domain,
+                $this->authCookieSecure,
+                true,
+                Cookie::SAMESITE_LAX
+            );
+        }
     }
 
     #[Route('/session', name: 'session', methods: ['GET'])]

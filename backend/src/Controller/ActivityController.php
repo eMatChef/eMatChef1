@@ -25,6 +25,7 @@ use App\Service\ActivityAccountingCostService;
 use App\Service\ActivityKisteMaterialLinker;
 use App\Service\ActivityMwNotificationService;
 use App\Service\ActivityUserNotificationService;
+use App\Service\InboxMessageService;
 use App\Util\IdGenerator;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\Security\Core\Exception\AccessDeniedException;
@@ -46,6 +47,7 @@ class ActivityController extends AbstractController
         private ActivityAccountingCostService $activityAccountingCost,
         private ActivityMwNotificationService $activityMwNotifications,
         private ActivityUserNotificationService $activityUserNotifications,
+        private InboxMessageService $inboxMessageService,
     ) {}
 
     private function normalizeInvitedDepartmentsPayload(array $incoming, array $existing = []): array
@@ -728,6 +730,10 @@ class ActivityController extends AbstractController
                 $this->activityMwNotifications->notifyActivitySubmitted($activity, $currentUser);
             }
 
+            if (array_key_exists('invited_departments', $data)) {
+                $this->inboxMessageService->syncActivityDepartmentInvites($activity);
+            }
+
             return new JsonResponse($this->serializeActivity($activity), 201);
         } catch (\Exception $e) {
             return new JsonResponse(['error' => 'Fehler beim Erstellen: ' . $e->getMessage()], 500);
@@ -863,6 +869,10 @@ class ActivityController extends AbstractController
 
             $this->entityManager->flush();
 
+            if (array_key_exists('invited_departments', $data)) {
+                $this->inboxMessageService->syncActivityDepartmentInvites($activity);
+            }
+
             return new JsonResponse($this->serializeActivity($activity));
         } catch (\Exception $e) {
             return new JsonResponse(['error' => 'Fehler beim Aktualisieren: ' . $e->getMessage()], 500);
@@ -889,48 +899,7 @@ class ActivityController extends AbstractController
             return new JsonResponse(['error' => $e->getMessage()], 403);
         }
 
-        $activities = $this->entityManager->createQueryBuilder()
-            ->select('a')
-            ->from(Activity::class, 'a')
-            ->where('a.deletedAt IS NULL')
-            ->andWhere('a.type IN (:types)')
-            ->andWhere('a.status != :cancelled')
-            ->andWhere('a.departmentId != :departmentId')
-            ->andWhere('a.invitedDepartments IS NOT NULL')
-            ->setParameter('types', ['camp', 'event'])
-            ->setParameter('cancelled', Activity::STATUS_CANCELLED)
-            ->setParameter('departmentId', $departmentId)
-            ->orderBy('a.updatedAt', 'DESC')
-            ->setMaxResults(200)
-            ->getQuery()
-            ->getResult();
-
-        $pending = [];
-        foreach ($activities as $activity) {
-            $invites = $activity->getInvitedDepartments() ?? [];
-            foreach ($invites as $invite) {
-                if (!is_array($invite)) {
-                    continue;
-                }
-                if (($invite['id'] ?? null) !== $departmentId) {
-                    continue;
-                }
-                if (($invite['status'] ?? 'pending') !== 'pending') {
-                    continue;
-                }
-                $pending[] = [
-                    'activity_id' => $activity->getId(),
-                    'activity_name' => $activity->getName(),
-                    'activity_type' => $activity->getType(),
-                    'usage_start' => $activity->getUsageStart()?->format(\DateTimeInterface::ATOM),
-                    'usage_end' => $activity->getUsageEnd()?->format(\DateTimeInterface::ATOM),
-                    'source_department_id' => $activity->getDepartmentId(),
-                    'source_department_name' => $activity->getDepartment()->getName(),
-                    'invited_at' => $invite['invited_at'] ?? null,
-                ];
-                break;
-            }
-        }
+        $pending = $this->inboxMessageService->listPendingActivityDepartmentInvites($departmentId);
 
         return new JsonResponse([
             'count' => count($pending),
@@ -989,6 +958,8 @@ class ActivityController extends AbstractController
         $activity->setInvitedDepartments($invites);
         $activity->setUpdatedAt(new \DateTime());
         $this->entityManager->flush();
+
+        $this->inboxMessageService->removeActivityDepartmentInvite($activity->getId(), $departmentId);
 
         return new JsonResponse([
             'success' => true,
@@ -1146,6 +1117,13 @@ class ActivityController extends AbstractController
 
         if ($oldStatus === Activity::STATUS_APPROVED && $newStatus === Activity::STATUS_SUBMITTED) {
             $this->activityUserNotifications->notifyStatus($activity, $user, 'activity_rejected');
+        }
+
+        if (
+            in_array($newStatus, [Activity::STATUS_COMPLETED, Activity::STATUS_CANCELLED], true)
+            && !in_array($oldStatus, [Activity::STATUS_COMPLETED, Activity::STATUS_CANCELLED], true)
+        ) {
+            $this->inboxMessageService->purgeByActivity($activity->getDepartment(), $activity->getId());
         }
 
         return new JsonResponse($this->serializeActivity($activity));

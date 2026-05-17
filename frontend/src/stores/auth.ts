@@ -8,6 +8,7 @@ import {
   loadUserMemberships,
   refreshToken as apiRefreshToken,
   saveLastUsedDepartment as apiSaveLastUsedDepartment,
+  normalizeProfile,
   type LoginResponse, 
   type UserResponse, 
   type ProfileResponse, 
@@ -41,10 +42,12 @@ export const useAuthStore = defineStore('auth', () => {
   const userDisplayName = computed(() => {
     if (!profile.value) return ''
     if (profile.value.nickname) return profile.value.nickname
-    if (profile.value.firstName && profile.value.lastName) {
-      return `${profile.value.firstName} ${profile.value.lastName}`
-    }
-    if (profile.value.firstName) return profile.value.firstName
+    const first = profile.value.firstName || profile.value.first_name || ''
+    const last = profile.value.lastName || profile.value.last_name || ''
+    if (first && last) return `${first} ${last}`.trim()
+    if (first) return first
+    if (last) return last
+    if (profile.value.email) return profile.value.email
     return 'Unbekannt'
   })
 
@@ -112,7 +115,7 @@ export const useAuthStore = defineStore('auth', () => {
         ...response.user,
         last_used_department: response.last_used_department ?? response.user.last_used_department ?? null
       }
-      profile.value = response.profile
+      profile.value = normalizeProfile(response.profile)
 
       // Departments aus Login-Response verwenden
       if (response.departments && response.departments.length > 0) {
@@ -168,16 +171,8 @@ export const useAuthStore = defineStore('auth', () => {
     } catch (err) {
       console.error('Backend logout failed:', err)
     }
-    
-    // State zurücksetzen
-    user.value = null
-    profile.value = null
-    departments.value = []
-    activeDepartmentId.value = null
-    token.value = null
+    clearAuthState()
     error.value = null
-    lastSessionStartTime.value = 0
-    localStorage.removeItem('active_department_id')
   }
 
   async function loadUserSession(): Promise<boolean> {
@@ -211,7 +206,7 @@ export const useAuthStore = defineStore('auth', () => {
       
       // State aktualisieren
       user.value = session.user
-      profile.value = session.profile
+      profile.value = normalizeProfile(session.profile)
       token.value = localStorage.getItem('auth_token') // Nochmal sicherstellen
 
       // Departments laden
@@ -251,9 +246,12 @@ export const useAuthStore = defineStore('auth', () => {
     activeDepartmentId.value = null
     token.value = null
     lastSessionStartTime.value = 0
+    localStorage.removeItem('auth_token')
+    localStorage.removeItem('refresh_token')
     localStorage.removeItem('active_department_id')
     localStorage.removeItem('user_id')
     localStorage.removeItem('profile_id')
+    localStorage.removeItem('session_last_activity_at')
   }
 
   async function loadUserSessionFromCookie(force = false): Promise<boolean> {
@@ -276,7 +274,7 @@ export const useAuthStore = defineStore('auth', () => {
           last_used_department:
             session.last_used_department ?? session.user.last_used_department ?? null,
         }
-        profile.value = session.profile
+        profile.value = normalizeProfile(session.profile)
         departments.value = (session.departments || []).map((d) => ({
           department_id: d.id,
           role: d.role,

@@ -252,9 +252,16 @@ export async function deletePendingInvite(departmentId: string, inviteId: string
   })
 }
 
-export async function getInviteNotifications(departmentId: string): Promise<InviteAcceptedNotification[]> {
+export async function getInviteNotifications(
+  departmentId: string,
+  options?: { bucket?: 'unread' | 'read' | 'all'; limit?: number },
+): Promise<InviteAcceptedNotification[]> {
   const { data } = await apiClient.get<InviteAcceptedNotification[]>('/api/join-requests/invite/notifications', {
-    params: { department_id: departmentId }
+    params: {
+      department_id: departmentId,
+      bucket: options?.bucket,
+      limit: options?.limit,
+    },
   })
   return data
 }

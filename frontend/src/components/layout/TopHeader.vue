@@ -105,10 +105,19 @@
                   <div class="notification-subtitle">{{ bellSubtitle(entry) }}</div>
                 </div>
               </button>
-            </template>
-
-            <template v-if="hasBellTasks">
-              <p class="notifications-section-label">{{ t('layout.notifications.sectionTasks') }}</p>
+              <button
+                v-for="note in inviteAcceptedPreview"
+                :key="`inv-acc-${note.id}`"
+                type="button"
+                class="notification-item notification-item--invite-accepted"
+                :class="{ 'notification-item--unread': !note.read }"
+                @click="openInviteAcceptedFromBell(note)"
+              >
+                <div class="notification-item__body notification-item__body--full">
+                  <div class="notification-title">{{ inviteAcceptedBellTitle(note) }}</div>
+                  <div class="notification-subtitle">{{ inviteAcceptedBellSubtitle(note) }}</div>
+                </div>
+              </button>
               <button
                 v-for="msg in notificationPreviewFound"
                 :key="`pf-${msg.id}`"
@@ -127,15 +136,13 @@
                   <div class="notification-subtitle">{{ truncateMessage(msg.message) }}</div>
                 </div>
               </button>
-              <div
+              <button
                 v-for="inv in receivedDepartmentInvitePreview"
                 :key="`dept-inv-${inv.id}`"
-                class="notification-item notification-item--dept-invite notification-item--clickable"
+                type="button"
+                class="notification-item notification-item--dept-invite"
                 :class="{ 'notification-item--unread': !inv.read }"
-                role="button"
-                tabindex="0"
                 @click="openDepartmentInviteFromBell(inv)"
-                @keydown.enter="openDepartmentInviteFromBell(inv)"
               >
                 <NotificationSenderBlock
                   :sender="fromDepartmentInvite(inv)"
@@ -153,32 +160,24 @@
                       role: departmentInviteRoleLabel(inv.role),
                     })) }}
                   </div>
-                  <div class="notification-actions" @click.stop>
-                    <button type="button" class="btn-success btn-xs" @click.stop="acceptDepartmentInviteFromBell(inv)">
-                      {{ t('layout.notifications.accept') }}
-                    </button>
-                    <button type="button" class="btn-danger-outline btn-xs" @click.stop="declineDepartmentInviteFromBell(inv)">
-                      {{ t('layout.notifications.reject') }}
-                    </button>
-                  </div>
                 </div>
-              </div>
-              <div
+              </button>
+              <button
                 v-for="invite in notificationPreviewInvites"
                 :key="`inv-${invite.activity_id}-${invite.source_department_id}`"
-                class="notification-item notification-item--clickable"
-                role="button"
-                tabindex="0"
+                type="button"
+                class="notification-item notification-item--activity-invite"
                 @click="openCampInviteFromBell(invite)"
-                @keydown.enter="openCampInviteFromBell(invite)"
               >
-                <div class="notification-title">{{ notificationInviteTitle(invite) }}</div>
-                <div class="notification-subtitle">{{ truncateMessage(invite.activity_name) }}</div>
-                <div class="notification-actions" @click.stop>
-                  <button type="button" class="btn-success btn-xs" @click.stop="decideInvite(invite, 'accepted')">{{ t('layout.notifications.accept') }}</button>
-                  <button type="button" class="btn-danger-outline btn-xs" @click.stop="decideInvite(invite, 'rejected')">{{ t('layout.notifications.reject') }}</button>
+                <div class="notification-item__body notification-item__body--full">
+                  <div class="notification-title">{{ notificationInviteTitle(invite) }}</div>
+                  <div class="notification-subtitle">{{ truncateMessage(invite.activity_name) }}</div>
                 </div>
-              </div>
+              </button>
+            </template>
+
+            <template v-if="hasBellTasks">
+              <p class="notifications-section-label">{{ t('layout.notifications.sectionTasks') }}</p>
               <button
                 v-if="showAccountingInBell"
                 type="button"
@@ -497,6 +496,9 @@ import {
   markReceivedDepartmentInviteRead,
   acceptDepartmentInvite,
   declineDepartmentInvite,
+  getInviteNotifications,
+  markInviteNotificationRead,
+  type InviteAcceptedNotification,
   type PendingDepartmentActivityInvite,
   type ReceivedDepartmentInviteNotification,
 } from '../../api/joinRequests'
@@ -573,6 +575,8 @@ const pendingFollowUpCount = ref(0)
 const accountingBellDismissed = ref(false)
 const userMessagePreview = ref<UserDirectMessage[]>([])
 const userMessageUnreadCount = ref(0)
+const inviteAcceptedPreview = ref<InviteAcceptedNotification[]>([])
+const inviteAcceptedUnreadCount = ref(0)
 
 useUnreadDocumentTitleAlert(unreadCount)
 
@@ -686,16 +690,16 @@ const bellActivityMessages = computed((): BellActivityEntry[] => {
 })
 
 const hasBellMessages = computed(
-  () => userMessagePreview.value.length > 0 || bellActivityMessages.value.length > 0,
-)
-
-const hasBellTasks = computed(
   () =>
+    userMessagePreview.value.length > 0 ||
+    bellActivityMessages.value.length > 0 ||
+    inviteAcceptedPreview.value.length > 0 ||
     notificationPreviewFound.value.length > 0 ||
     receivedDepartmentInvitePreview.value.length > 0 ||
-    notificationPreviewInvites.value.length > 0 ||
-    showAccountingInBell.value,
+    notificationPreviewInvites.value.length > 0,
 )
+
+const hasBellTasks = computed(() => showAccountingInBell.value)
 
 const bellEmpty = computed(() => !hasBellMessages.value && !hasBellTasks.value)
 
@@ -863,10 +867,9 @@ function goToAccountingAssign() {
   accountingBellDismissed.value = true
   const n = pendingFollowUpCount.value
   if (n > 0) decrementUnreadCount(n)
-  router.push({
-    name: 'AccountingBookings',
-    params: { departmentId: deptId },
-    query: { sub: 'assign' },
+  void router.push({
+    path: `/${deptId}/tasks`,
+    query: { open: 'accounting_followup:all' },
   })
 }
 
@@ -892,6 +895,35 @@ function openCampInviteFromBell(invite: PendingDepartmentActivityInvite) {
   const deptId = authStore.activeDepartmentId
   if (!deptId) return
   showNotifications.value = false
+  void router.push({ path: `/${deptId}/notifications` })
+}
+
+function inviteAcceptedBellTitle(note: InviteAcceptedNotification): string {
+  return t('layout.notifications.inviteAcceptedTitle', { name: note.user_name || note.email })
+}
+
+function inviteAcceptedBellSubtitle(note: InviteAcceptedNotification): string {
+  return t('settings.departmentUsers.inviteAcceptedMessage', {
+    name: note.user_name || note.email,
+    role: departmentInviteRoleLabel(note.role),
+  })
+}
+
+async function openInviteAcceptedFromBell(note: InviteAcceptedNotification) {
+  const deptId = authStore.activeDepartmentId
+  if (!deptId) return
+  showNotifications.value = false
+  inviteAcceptedPreview.value = inviteAcceptedPreview.value.filter((n) => n.id !== note.id)
+  if (!note.read) {
+    inviteAcceptedUnreadCount.value = Math.max(0, inviteAcceptedUnreadCount.value - 1)
+    decrementUnreadCount()
+    try {
+      await markInviteNotificationRead(deptId, note.id)
+      syncBellBadge()
+    } catch {
+      /* navigate anyway */
+    }
+  }
   void router.push({ path: `/${deptId}/notifications` })
 }
 
@@ -944,16 +976,29 @@ async function loadDepartmentInvites() {
         ? listAcquisitionFollowups(deptId, 'pending').catch(() => [])
         : Promise.resolve([])
 
-    const [receivedInvites, userMsg, inviteResult, foundResult, activityMwResult, activityUserResult, pendingFollowUps] =
-      await Promise.all([
-        receivedInvitesPromise,
-        userMsgPromise,
-        campInvitesPromise,
-        foundPromise,
-        activityMwPromise,
-        activityUserPromise,
-        followUpPromise,
-      ])
+    const inviteAcceptedPromise = !isUserRole.value
+      ? getInviteNotifications(deptId, { bucket: 'unread', limit: 5 }).catch(() => [] as InviteAcceptedNotification[])
+      : Promise.resolve([] as InviteAcceptedNotification[])
+
+    const [
+      receivedInvites,
+      userMsg,
+      inviteResult,
+      foundResult,
+      activityMwResult,
+      activityUserResult,
+      pendingFollowUps,
+      inviteAcceptedItems,
+    ] = await Promise.all([
+      receivedInvitesPromise,
+      userMsgPromise,
+      campInvitesPromise,
+      foundPromise,
+      activityMwPromise,
+      activityUserPromise,
+      followUpPromise,
+      inviteAcceptedPromise,
+    ])
 
     userMessagePreview.value = userMsg.items || []
     userMessageUnreadCount.value =
@@ -983,6 +1028,9 @@ async function loadDepartmentInvites() {
         ? activityUserResult.unread_count
         : activityUserPreview.value.length
 
+    inviteAcceptedPreview.value = (inviteAcceptedItems || []).slice(0, 5)
+    inviteAcceptedUnreadCount.value = inviteAcceptedPreview.value.filter((n) => !n.read).length
+
     const followUpLen = Array.isArray(pendingFollowUps) ? pendingFollowUps.length : 0
     if (followUpLen === 0) {
       accountingBellDismissed.value = false
@@ -992,18 +1040,23 @@ async function loadDepartmentInvites() {
     const accountingInBell =
       pendingFollowUpCount.value > 0 && !accountingBellDismissed.value ? pendingFollowUpCount.value : 0
 
-    const taskCount =
-      pendingDepartmentInvites.value.length +
-      receivedDepartmentInviteUnread.value +
-      accountingInBell +
-      (!isUserRole.value && canManageQrContact.value
+    const taskCount = accountingInBell
+
+    const qrUnread =
+      !isUserRole.value && canManageQrContact.value
         ? typeof foundResult.unread_count === 'number'
           ? foundResult.unread_count
           : publicFoundPreview.value.filter((m) => m.status === 'open').length
-        : 0)
+        : 0
 
     const messageCount =
-      userMessageUnreadCount.value + activityMwUnreadCount.value + activityUserUnreadCount.value
+      userMessageUnreadCount.value +
+      activityMwUnreadCount.value +
+      activityUserUnreadCount.value +
+      inviteAcceptedUnreadCount.value +
+      qrUnread +
+      receivedDepartmentInviteUnread.value +
+      pendingDepartmentInvites.value.length
     unreadCount.value = taskCount + messageCount
   } catch {
     pendingDepartmentInvites.value = []
@@ -1014,6 +1067,8 @@ async function loadDepartmentInvites() {
     activityMwUnreadCount.value = 0
     activityUserPreview.value = []
     activityUserUnreadCount.value = 0
+    inviteAcceptedPreview.value = []
+    inviteAcceptedUnreadCount.value = 0
     pendingFollowUpCount.value = 0
     userMessagePreview.value = []
     userMessageUnreadCount.value = 0
@@ -1057,16 +1112,6 @@ async function openFoundMessageFromBell(msg: PublicFoundItemMessage) {
   const deptId = authStore.activeDepartmentId
   if (!deptId) return
   showNotifications.value = false
-  publicFoundPreview.value = publicFoundPreview.value.filter((m) => m.id !== msg.id)
-  decrementUnreadCount()
-  try {
-    if (msg.status === 'open') {
-      await updatePublicFoundMessageStatus(deptId, msg.id, 'in_progress')
-      syncBellBadge()
-    }
-  } catch (err: any) {
-    toast.error(err?.response?.data?.error || t('layout.toast.statusSaveFailed'))
-  }
   void router.push({
     path: `/${deptId}/notifications`,
     query: { highlight: msg.id },
@@ -1791,6 +1836,31 @@ button.notification-item--user-message .notification-item__avatar {
 }
 
 button.notification-item--user-message .notification-item__body {
+  flex: 1;
+  min-width: 0;
+}
+
+button.notification-item--invite-accepted {
+  width: 100%;
+  padding: 10px 12px;
+  border: none;
+  border-bottom: 1px solid #f3f4f6;
+  background: #fff;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+button.notification-item--invite-accepted:hover {
+  background: #f9fafb;
+}
+
+button.notification-item--invite-accepted.notification-item--unread {
+  background: #eff6ff;
+}
+
+.notification-item__body--full {
   flex: 1;
   min-width: 0;
 }

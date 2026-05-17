@@ -54,7 +54,7 @@ import { useAuthStore } from '@/stores/auth'
 
 const { t, locale } = useI18n()
 const authStore = useAuthStore()
-const PUBLIC_SESSION_POLL_MS = 60_000
+const PUBLIC_SESSION_POLL_MS = 10_000
 const sessionPollTimer = ref<number | null>(null)
 
 onMounted(() => {
