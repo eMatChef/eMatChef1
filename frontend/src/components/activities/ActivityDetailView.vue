@@ -449,6 +449,9 @@ const MANAGER_WORKFLOW_TRANSITION_STATUSES = new Set([
   'completed',
 ])
 
+/** Typ «activity»: Gruppenmitglied darf nur Material am Event / Retour bestätigen. */
+const MEMBER_ACTIVITY_PACK_HANDOFF_STATUSES = new Set(['at_event', 'returned'])
+
 const { isRestrictedGroupMember, canSubmitActivityType, loadGroupsForDepartment } =
   useActivityGroupMemberScope()
 
@@ -604,8 +607,25 @@ const noLabel = computed(() => {
 const workflowTransitions = computed(() =>
   transitions.value.filter((t) => {
     if (t.status === 'cancelled') return false
+    // approved → submitted = «Zurückweisen» (nicht Entwurf einreichen)
     if (
       isRestrictedGroupMember.value &&
+      t.status === 'submitted' &&
+      activity.value?.status !== 'draft'
+    ) {
+      return false
+    }
+    if (
+      isRestrictedGroupMember.value &&
+      activity.value?.type === 'activity' &&
+      activity.value.status !== 'draft' &&
+      !MEMBER_ACTIVITY_PACK_HANDOFF_STATUSES.has(t.status)
+    ) {
+      return false
+    }
+    if (
+      isRestrictedGroupMember.value &&
+      activity.value?.type !== 'activity' &&
       MANAGER_WORKFLOW_TRANSITION_STATUSES.has(t.status)
     ) {
       return false

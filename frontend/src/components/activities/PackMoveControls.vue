@@ -1,11 +1,11 @@
 <script setup lang="ts">
-import { IconArrowLeft, IconArrowRight } from '@/components/icons'
+import { IconArrowLeft, IconArrowRight, IconArrowUp } from '@/components/icons'
 
 defineOptions({ name: 'PackMoveControls' })
 
 withDefaults(
   defineProps<{
-    direction: 'forward' | 'back'
+    direction: 'forward' | 'back' | 'assign-up'
     qty: number
     max: number
     disabled?: boolean
@@ -33,7 +33,11 @@ function onInput(event: Event) {
 <template>
   <div
     class="pack-card-actions"
-    :class="[direction === 'back' ? 'pack-card-actions-left' : '', actionsClass]"
+    :class="[
+      direction === 'back' ? 'pack-card-actions-left' : '',
+      direction === 'assign-up' ? 'pack-card-actions-assign-up' : '',
+      actionsClass,
+    ]"
   >
     <div class="pack-move-inline">
       <template v-if="direction === 'back'">
@@ -55,6 +59,26 @@ function onInput(event: Event) {
           @input="onInput"
           @keyup.enter="emit('move')"
         />
+      </template>
+      <template v-else-if="direction === 'assign-up'">
+        <input
+          :value="qty"
+          type="number"
+          min="1"
+          :max="max"
+          class="pack-move-input"
+          @input="onInput"
+          @keyup.enter="emit('move')"
+        />
+        <button
+          type="button"
+          class="btn-move-arrow btn-move-arrow--up"
+          :disabled="disabled"
+          :title="forwardTitle"
+          @click="emit('move')"
+        >
+          <IconArrowUp />
+        </button>
       </template>
       <template v-else>
         <input

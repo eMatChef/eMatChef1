@@ -329,6 +329,14 @@ class ActivityWorkflowController extends AbstractController
             return new JsonResponse(['error' => 'Ungültige Stufe'], 400);
         }
 
+        $user = $this->getUser();
+        if ($user instanceof User) {
+            $allowedStages = $this->activityAccess->allowedPackMoveStagesForUser($user, $activity);
+            if ($allowedStages !== null && !\in_array($stage, $allowedStages, true)) {
+                return new JsonResponse(['error' => 'Keine Berechtigung für diese Pack-Stufe'], 403);
+            }
+        }
+
         $maxAllowed = $this->packPipeline->maxForwardQty($packItem, $stage, $profile);
         if ($qty > $maxAllowed) {
             return new JsonResponse(['error' => "Maximal $maxAllowed verfügbar"], 422);
@@ -486,10 +494,17 @@ class ActivityWorkflowController extends AbstractController
             return new JsonResponse(['error' => 'Ungültige Stufe'], 400);
         }
 
+        $user = $this->getUser();
+        if ($user instanceof User) {
+            $allowedStages = $this->activityAccess->allowedPackMoveStagesForUser($user, $activity);
+            if ($allowedStages !== null && !\in_array($stage, $allowedStages, true)) {
+                return new JsonResponse(['error' => 'Keine Berechtigung für diese Pack-Stufe'], 403);
+            }
+        }
+
         $packItems = $this->entityManager->getRepository(ActivityPackItem::class)
             ->findBy(['activityId' => $activityId]);
 
-        $user = $this->getUser();
         $moved = 0;
 
         foreach ($packItems as $packItem) {

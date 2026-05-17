@@ -2,6 +2,7 @@ import type { PackStage } from '@/components/activities/packStageQuantities'
 import {
   autoPackStageForStatus,
   packStageKeysForProfile,
+  packStageKeysForProfileAndRole,
 } from '@/components/activities/packStageQuantities'
 
 export type PackWorkflowProfile = 'quick' | 'external' | 'logistics'
@@ -13,16 +14,22 @@ export function packWorkflowProfileForActivityType(activityType: string): PackWo
   return 'logistics'
 }
 
-export { packStageKeysForProfile }
+export { packStageKeysForProfile, packStageKeysForProfileAndRole }
 
 export function showPackContainersForProfile(profile: PackWorkflowProfile, stage: PackStage): boolean {
-  if (profile === 'quick') return false
+  if (profile === 'quick') {
+    return stage === 'confirmed_packed' || stage === 'packed_at_event'
+  }
   if (profile === 'external') {
     return stage === 'confirmed_packed' || stage === 'packed_at_event'
   }
   return stage === 'confirmed_packed' || stage === 'packed_transport_to'
 }
 
-export function autoPackStageForProfile(profile: PackWorkflowProfile, status: string): PackStage {
-  return autoPackStageForStatus(status, profile)
+export function autoPackStageForProfile(
+  profile: PackWorkflowProfile,
+  status: string,
+  canManageMaterials = false,
+): PackStage {
+  return autoPackStageForStatus(status, profile, canManageMaterials)
 }

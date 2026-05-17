@@ -1120,6 +1120,7 @@
       "initCreating": "Wird erstellt…",
       "initStart": "Packliste starten",
       "readonlyHint": "Nur Ansicht — Änderungen sind in diesem Status nicht möglich.",
+      "memberAwaitingPackEmpty": "Noch nicht gepackt — der Materialwart packt noch.",
       "moveAll": "ALLES → {stage}",
       "progressPercent": "{pct}% {stage}",
       "returnStockTitle": "Mehr zurück als erwartet?",
@@ -1140,6 +1141,8 @@
       "notYetStage": "— {left} / {total} noch nicht «{stage}»",
       "titleMoveTo": "Nach {stage}",
       "titleMoveToCrate": "Nach «{stage}» in «{label}»",
+      "titleAssignQtyToCrate": "{qty} Stk. in Kiste «{label}»",
+      "crateTargetFallback": "Kiste",
       "packCrateWorkflowHint": "Rechts eine Kiste anklicken (blau markiert), dann links mit dem Pfeil nach «Gepackt» verschieben — das Material landet in dieser Kiste.",
       "activeCrateMoveHint": "Ziel-Kiste: «{label}» — links mit Pfeil nach «Gepackt» verschieben.",
       "selectCrateHint": "Kiste wählen (blau), dann links mit Pfeil nach «Gepackt» — ohne «In Kiste» an jeder Zeile.",
@@ -1375,6 +1378,10 @@
         "at_event_returned": {
           "left": "Am Event",
           "right": "Retour"
+        },
+        "returned_unpack": {
+          "left": "Retour",
+          "right": "Ausgepackt"
         }
       }
     },
@@ -4994,6 +5001,7 @@
     "activitiesInboxHint": "Meldungen, wenn jemand eine Aktivität einreicht — Absender links, Betreff = Aktivitätsname. Tippen öffnet die Aktivität.",
     "activityNotificationType": {
       "activity_submitted": "Neu eingereicht",
+      "activity_packed": "Material gepackt",
       "activity_approved": "Bestätigt",
       "activity_returned": "Retour eingetroffen",
       "activity_rejected": "Zurückgewiesen",

@@ -4,7 +4,10 @@ import { useI18n } from 'vue-i18n'
 import type { ActivityPackContainer, ActivityPackContainerItem } from '@/api/activityContainers'
 import { IconArrowLeft } from '@/components/icons'
 import PackContainerSubsectionsList from '@/components/activities/PackContainerSubsectionsList.vue'
-import { PACK_WAREHOUSE_ISSUE_INJECT_KEY } from '@/components/activities/packWarehouseIssueInjectKey'
+import {
+  injectPackCtxBool,
+  PACK_WAREHOUSE_ISSUE_INJECT_KEY,
+} from '@/components/activities/packWarehouseIssueInjectKey'
 
 defineOptions({ name: 'PackConfirmedPackedContainerCard' })
 
@@ -29,7 +32,8 @@ const isTarget = computed(
     activePackTarget.value.containerId === props.container.id,
 )
 
-const packListEditable = computed(() => Boolean(ctx.packListEditable))
+const packListEditable = computed(() => injectPackCtxBool(ctx, 'packListEditable'))
+const containerMutationLoading = computed(() => injectPackCtxBool(ctx, 'containerMutationLoading'))
 
 function isNonActionable(ci: ActivityPackContainerItem): boolean {
   return (ctx.isVirtualWarehouseContainerLine as (row: ActivityPackContainerItem) => boolean)(ci)
@@ -98,7 +102,7 @@ function onCardClick(event: MouseEvent) {
               <button
                 type="button"
                 class="btn-moveback-arrow"
-                :disabled="ctx.containerMutationLoading"
+                :disabled="containerMutationLoading"
                 :title="t('activities.packList.pullFromContainerTitle')"
                 @click="(ctx.pullFromContainer as (cid: string, row: ActivityPackContainerItem) => void)(container.id, ci)"
               >
@@ -131,7 +135,7 @@ function onCardClick(event: MouseEvent) {
         v-if="ctx.packListEditable"
         type="button"
         class="pack-container-delete"
-        :disabled="ctx.containerMutationLoading"
+        :disabled="containerMutationLoading"
         @click="(ctx.confirmDeleteContainer as (c: ActivityPackContainer) => void | Promise<void>)(container)"
       >
         {{ t('activities.packList.deleteContainer') }}

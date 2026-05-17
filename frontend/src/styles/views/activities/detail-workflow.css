@@ -511,6 +511,23 @@
 }
 
 /* Rechte Seite: Zurück-Button + Input */
+.pack-card-actions-assign-up {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  width: 100%;
+}
+
+.btn-move-arrow--up {
+  background: #16a34a;
+  border-color: #15803d;
+}
+
+.btn-move-arrow--up:hover {
+  background: #15803d;
+}
+
 .pack-card-actions-left {
   display: flex;
   align-items: center;

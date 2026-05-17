@@ -1119,6 +1119,8 @@
       "pipelineNotYetPackedShort": "Not yet packed — record the quantity in the «Confirmed → Packed» stage.",
       "notYetStage": "— {left} / {total} not yet “{stage}”",
       "titleMoveTo": "To {stage}",
+      "titleAssignQtyToCrate": "{qty} pcs into container «{label}»",
+      "crateTargetFallback": "container",
       "sectionKisten": "Crates",
       "sectionContainers": "Crate = container (stock link)",
       "containerSubheadingContents": "Contents",

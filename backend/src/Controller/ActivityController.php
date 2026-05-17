@@ -632,7 +632,7 @@ class ActivityController extends AbstractController
             return new JsonResponse(['error' => 'Keine Berechtigung fuer diese Aktivitaet'], 403);
         }
 
-        $data = $this->serializeActivity($activity, true);
+        $data = $this->serializeActivity($activity, true, $currentUser);
         $draftMat = $this->activityAccess->canUserEditDraftActivityMaterial($currentUser, $activity);
         $data['can_edit_draft_material'] = $draftMat;
         $data['can_edit_activity_material'] = $activity->isDraft()
@@ -1188,6 +1188,10 @@ class ActivityController extends AbstractController
             $this->activityUserNotifications->notifyStatus($activity, $user, 'activity_approved');
         }
 
+        if ($newStatus === Activity::STATUS_PACKED && $oldStatus !== Activity::STATUS_PACKED) {
+            $this->activityUserNotifications->notifyStatus($activity, $user, 'activity_packed');
+        }
+
         if ($newStatus === Activity::STATUS_RETURNED && $oldStatus !== Activity::STATUS_RETURNED) {
             $this->activityUserNotifications->notifyStatus($activity, $user, 'activity_returned');
         }
@@ -1399,6 +1403,15 @@ class ActivityController extends AbstractController
                     return 'Als Gruppenmitglied dürfen Sie Lager und externe Ausleihen nicht einreichen. '
                         . 'Bitte wende dich an Gruppenchef, MW oder DC.';
                 }
+            }
+        }
+
+        // Typ «activity»: Ersteller/Gruppenmitglied nur «gepackt → am Event» und «am Event → Retour»
+        $handoffKey = $fromStatus . '->' . $toStatus;
+        if (\in_array($handoffKey, ['packed->at_event', 'packed->issued', 'at_event->returned', 'issued->returned'], true)) {
+            if ($activity->getType() === 'activity'
+                && $this->activityAccess->canUserOperateActivityPackHandoff($user, $activity)) {
+                return true;
             }
         }
 
@@ -2658,7 +2671,7 @@ class ActivityController extends AbstractController
     /**
      * Aktivität serialisieren
      */
-    private function serializeActivity(Activity $activity, bool $detailed = false): array
+    private function serializeActivity(Activity $activity, bool $detailed = false, ?User $viewer = null): array
     {
         // Gruppenname ggf. laden
         $groupName = null;
@@ -2720,7 +2733,9 @@ class ActivityController extends AbstractController
                 'rejection_comment' => $activity->getRejectionComment(),
                 // Workflow-Flags
                 'is_material_editable' => $activity->isMaterialEditable(),
-                'is_pack_list_editable' => $activity->isPackListEditable(),
+                'is_pack_list_editable' => $viewer instanceof User
+                    ? $this->activityAccess->canUserEditPackList($viewer, $activity)
+                    : $activity->isPackListEditable(),
                 'can_report_issues' => $activity->canReportIssues(),
                 'is_return_editable' => $activity->isReturnEditable(),
                 'is_cancellable' => $activity->isCancellable(),

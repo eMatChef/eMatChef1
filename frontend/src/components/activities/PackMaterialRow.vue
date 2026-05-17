@@ -36,5 +36,6 @@ withDefaults(
       </div>
       <slot name="trailing" />
     </div>
+    <slot name="footer" />
   </div>
 </template>

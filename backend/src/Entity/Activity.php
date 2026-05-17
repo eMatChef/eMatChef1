@@ -695,12 +695,12 @@ class Activity
         'approved->cancelled' => ['mw', 'sa', 'org'],
         'packing->packed'     => ['mw', 'sa', 'org'],
         'packing->cancelled'  => ['mw', 'sa', 'org'],
-        'packed->at_event'    => ['mw', 'sa', 'org'],
-        'packed->issued'      => ['mw', 'sa', 'org'], // Legacy-Alias
+        'packed->at_event'    => ['mw', 'sa', 'org', 'creator', 'member'],
+        'packed->issued'      => ['mw', 'sa', 'org', 'creator', 'member'], // Legacy-Alias
         'packed->packing'     => ['mw', 'sa', 'org'],
         'packed->cancelled'   => ['mw', 'sa', 'org'],
-        'at_event->returned'  => ['mw', 'sa', 'org'],
-        'issued->returned'    => ['mw', 'sa', 'org'], // Legacy-Alias
+        'at_event->returned'  => ['mw', 'sa', 'org', 'creator', 'member'],
+        'issued->returned'    => ['mw', 'sa', 'org', 'creator', 'member'], // Legacy-Alias
         'returned->completed' => ['mw', 'sa', 'org'],
     ];
 
@@ -806,7 +806,13 @@ class Activity
      */
     public function isPackListEditable(): bool
     {
-        return in_array($this->status, [self::STATUS_PACKING, self::STATUS_PACKED, self::STATUS_AT_EVENT, self::STATUS_ISSUED]);
+        return in_array($this->status, [
+            self::STATUS_PACKING,
+            self::STATUS_PACKED,
+            self::STATUS_AT_EVENT,
+            self::STATUS_ISSUED,
+            self::STATUS_RETURNED,
+        ], true);
     }
 
     /**

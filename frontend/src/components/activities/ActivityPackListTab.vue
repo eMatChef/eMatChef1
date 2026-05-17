@@ -31,7 +31,7 @@
 
       <template v-else>
         <ActivityTabHeader :title="t('activities.packList.titleWorkflow')">
-          <p v-if="!packListEditable" class="activity-pack-readonly-hint text-muted">
+          <p v-if="!packListEditable && !memberAwaitingMwPack" class="activity-pack-readonly-hint text-muted">
             {{ t('activities.packList.readonlyHint') }}
           </p>
         </ActivityTabHeader>
@@ -119,12 +119,16 @@
           </button>
         </div>
 
-        <div class="pack-progress-bar">
+        <div v-if="!memberAwaitingMwPack" class="pack-progress-bar">
           <div class="pack-progress-info">
             <span>{{ t('activities.packList.progressPercent', { pct: stageProgress, stage: activeStageConfig.rightLabel }) }}</span>
             <div class="pack-progress-actions">
               <button
-                v-if="packListEditable && stageLeftHeaderCount > 0"
+                v-if="
+                  packListEditable &&
+                  !isPackUnpackStage(activePackStage) &&
+                  stageLeftHeaderCount > 0
+                "
                 type="button"
                 class="btn btn-xs btn-outline btn-move-all"
                 :disabled="moveAllLoading"
@@ -187,7 +191,10 @@
               v-if="stageLeftItems.length === 0 && !leftPanelHasKistenEventReturn"
               class="pack-panel-empty"
             >
-              <template v-if="isPackForwardToEventStage(activePackStage) && packedIssueWarehouseOnlyInContainers">
+              <template v-if="memberAwaitingMwPack">
+                {{ t('activities.packList.memberAwaitingPackEmpty') }}
+              </template>
+              <template v-else-if="isPackForwardToEventStage(activePackStage) && packedIssueWarehouseOnlyInContainers">
                 {{ t('activities.packList.warehouseOnlyInContainers') }}
               </template>
               <template v-else>{{ t('activities.packList.allMoved') }}</template>
@@ -231,9 +238,22 @@
                       @repair="emitIssueWizard(pi, 'repair')"
                     />
                   </template>
-                  <template #trailing>
+                  <template v-if="!showCrateAssignUpControls(pi)" #trailing>
+                    <button
+                      v-if="showAssignToContainerButton(pi)"
+                      type="button"
+                      class="btn-outline btn-sm pack-assign-btn"
+                      :disabled="containerMutationLoading"
+                      @click="onAssignButtonClick(pi)"
+                    >
+                      {{ t('activities.packList.assignToContainer') }}
+                    </button>
                     <PackMoveControls
-                      v-if="packListEditable && (!isPackForwardToEventStage(activePackStage) || packIssueForwardMax(pi) > 0)"
+                      v-if="
+                        packListEditable &&
+                        !isPackUnpackStage(activePackStage) &&
+                        (!isPackForwardToEventStage(activePackStage) || packIssueForwardMax(pi) > 0)
+                      "
                       direction="forward"
                       :qty="moveQtyInputs[pi.id] ?? 0"
                       :max="packIssueForwardMax(pi)"
@@ -242,6 +262,19 @@
                       @update:qty="setMoveQtyForItem(pi.id, $event)"
                       @move="moveToNextStage(pi)"
                     />
+                  </template>
+                  <template v-if="showCrateAssignUpControls(pi)" #footer>
+                    <div class="pack-card-footer">
+                      <PackMoveControls
+                        direction="assign-up"
+                        :qty="moveQtyInputs[pi.id] ?? crateAssignUpMax(pi)"
+                        :max="crateAssignUpMax(pi)"
+                        :disabled="movingId === pi.id || containerMutationLoading"
+                        :forward-title="assignUpTitleForItem(pi)"
+                        @update:qty="setMoveQtyForItem(pi.id, $event)"
+                        @move="onCrateAssignUpClick(pi)"
+                      />
+                    </div>
                   </template>
                 </PackMaterialRow>
                 </template>
@@ -269,7 +302,11 @@
             </div>
 
             <div
-              v-if="showPackContainersUi && isPackForwardToEventStage(activePackStage)"
+              v-if="
+                showPackContainersUi &&
+                isPackForwardToEventStage(activePackStage) &&
+                (packContainers.length > 0 || canManageMaterials)
+              "
               class="pack-workflow-section pack-workflow-section--kisten"
             >
               <div class="pack-workflow-section-title">{{ t('activities.packList.sectionKisten') }}</div>
@@ -322,7 +359,11 @@
             />
 
             <div v-if="!rightPanelHasEventContent" class="pack-panel-empty">
-              {{ t('activities.packList.rightPanelEmpty') }}
+              {{
+                memberAwaitingMwPack
+                  ? t('activities.packList.memberAwaitingPackEmpty')
+                  : t('activities.packList.rightPanelEmpty')
+              }}
             </div>
 
             <div
@@ -348,7 +389,7 @@
                   >
                     <template #leading>
                       <PackMoveControls
-                        v-if="packListEditable"
+                        v-if="packListEditable && !isPackUnpackStage(activePackStage)"
                         direction="back"
                         :qty="moveBackQtyInputs[pi.id] ?? 0"
                         :max="rightQtyForMoveBack(pi)"
@@ -434,7 +475,7 @@
                     >
                       <template #leading>
                         <PackMoveControls
-                          v-if="packListEditable"
+                          v-if="packListEditable && !isPackUnpackStage(activePackStage)"
                           direction="back"
                           :qty="moveBackQtyInputs[pi.id] ?? 0"
                           :max="rightQtyForMoveBack(pi)"
@@ -514,7 +555,11 @@
                       >
                                             <template #leading>
                                               <PackMoveControls
-                                                v-if="packListEditable"
+                                                v-if="
+                                                  packListEditable &&
+                                                  !isPackUnpackStage(activePackStage) &&
+                                                  !showCrateAssignUpControls(pi)
+                                                "
                                                 direction="back"
                                                 :qty="moveBackQtyInputs[pi.id] ?? 0"
                                                 :max="rightQtyForMoveBack(pi)"
@@ -546,6 +591,19 @@
                                                 @repair="emitIssueWizard(pi, 'repair')"
                                               />
                                             </template>
+                                            <template v-if="showCrateAssignUpControls(pi)" #footer>
+                                              <div class="pack-card-footer">
+                                                <PackMoveControls
+                                                  direction="assign-up"
+                                                  :qty="moveQtyInputs[pi.id] ?? crateAssignUpMax(pi)"
+                                                  :max="crateAssignUpMax(pi)"
+                                                  :disabled="movingId === pi.id || containerMutationLoading"
+                                                  :forward-title="assignUpTitleForItem(pi)"
+                                                  @update:qty="setMoveQtyForItem(pi.id, $event)"
+                                                  @move="onCrateAssignUpClick(pi)"
+                                                />
+                                              </div>
+                                            </template>
                       </PackMaterialRow>
                     </div>
                   </div>
@@ -567,7 +625,11 @@
                   >
                                         <template #leading>
                                           <PackMoveControls
-                                            v-if="packListEditable"
+                                            v-if="
+                                              packListEditable &&
+                                              !isPackUnpackStage(activePackStage) &&
+                                              !showCrateAssignUpControls(pi)
+                                            "
                                             direction="back"
                                             :qty="moveBackQtyInputs[pi.id] ?? 0"
                                             :max="rightQtyForMoveBack(pi)"
@@ -598,6 +660,19 @@
                                             @loss="emitIssueWizard(pi, 'loss')"
                                             @repair="emitIssueWizard(pi, 'repair')"
                                           />
+                                        </template>
+                                        <template v-if="showCrateAssignUpControls(pi)" #footer>
+                                          <div class="pack-card-footer">
+                                            <PackMoveControls
+                                              direction="assign-up"
+                                              :qty="moveQtyInputs[pi.id] ?? crateAssignUpMax(pi)"
+                                              :max="crateAssignUpMax(pi)"
+                                              :disabled="movingId === pi.id || containerMutationLoading"
+                                              :forward-title="assignUpTitleForItem(pi)"
+                                              @update:qty="setMoveQtyForItem(pi.id, $event)"
+                                              @move="onCrateAssignUpClick(pi)"
+                                            />
+                                          </div>
                                         </template>
                   </PackMaterialRow>
                 </div>
@@ -775,12 +850,13 @@ import {
   isPackCrateCheckStage,
   isPackForwardToEventStage,
   isPackReturnStage,
+  isPackUnpackStage,
+  packStageKeysForProfileAndRole,
   showPackStorageLocation,
   workflowTargetStatusForStage,
 } from '@/components/activities/packStageQuantities'
 import {
   autoPackStageForProfile,
-  packStageKeysForProfile,
   packWorkflowProfileForActivityType,
   showPackContainersForProfile,
 } from '@/components/activities/packWorkflowProfile'
@@ -808,6 +884,7 @@ import {
   packShellContainerForPackItem,
   peekSectionsForShellContainer,
 } from '@/components/activities/packShellCrateHelpers'
+import { isPhysicalComboPackItem } from '@/components/activities/packMaterialDisplay'
 import type { ComboComponent } from '@/api/materials'
 import { getComboComponents } from '@/api/materials'
 import type { RackContentsItem } from '@/api/storageLocations'
@@ -845,11 +922,13 @@ import {
   type ContainerBatch,
 } from '@/api/storageLocations'
 import { useConfirm } from '@/composables/useConfirm'
+import { useDepartmentMemberRole } from '@/composables/useDepartmentMemberRole'
 import { useToast } from '@/composables/useToast'
 
 const { t, locale } = useI18n()
 const toast = useToast()
 const { confirm: confirmDialog } = useConfirm()
+const { canManageMaterials } = useDepartmentMemberRole()
 
 function containerBatchOptionLabel(b: ContainerBatch): string {
   const base = (b.display_label || b.label || b.material_name || t('activities.common.crate')).trim()
@@ -899,6 +978,14 @@ const props = withDefaults(
 )
 
 const packWorkflowProfile = computed(() => packWorkflowProfileForActivityType(props.activityType ?? 'activity'))
+
+/** Gruppenmitglied: bis MW «Gepackt» markiert hat, keine irreführende «Gepackt»-Spalte. */
+const memberAwaitingMwPack = computed(
+  () =>
+    !canManageMaterials.value &&
+    packWorkflowProfile.value === 'quick' &&
+    ['submitted', 'approved', 'packing'].includes(props.status),
+)
 
 const emit = defineEmits<{
   workflowNext: [transition: ActivityTransitionRow]
@@ -1238,8 +1325,12 @@ const movingId = ref<string | null>(null)
 
 const activePackStage = ref<PackStage>('confirmed_packed')
 
+const packStageKeys = computed(() =>
+  packStageKeysForProfileAndRole(packWorkflowProfile.value, canManageMaterials.value),
+)
+
 const packStagesForUi = computed(() =>
-  packStageKeysForProfile(packWorkflowProfile.value).map((key) => ({
+  packStageKeys.value.map((key) => ({
     key,
     leftLabel: t(`activities.packList.stages.${key}.left`),
     rightLabel: t(`activities.packList.stages.${key}.right`),
@@ -1247,7 +1338,7 @@ const packStagesForUi = computed(() =>
 )
 
 const activeStageConfig = computed(() => {
-  const keys = packStageKeysForProfile(packWorkflowProfile.value)
+  const keys = packStageKeys.value
   const key = keys.includes(activePackStage.value) ? activePackStage.value : keys[0] ?? 'confirmed_packed'
   return {
     key,
@@ -1879,20 +1970,98 @@ function isVirtualWarehouseContainerLine(ci: ActivityPackContainerItem): boolean
   return false
 }
 
-/** Pack-Position der zugeordneten Kisten-Charge — per material_item_id oder linkedContainerBatchId */
+/** Phys.-Kombi-Pack-Position zur Kisten-Charge — nur Inventar-Typ physical_combo */
 function shellPackItemForContainer(containerId: string): ActivityPackItem | undefined {
   const c = packContainers.value.find((x) => x.id === containerId)
   if (!c) return undefined
   const mid = (c.container_material_item_id ?? '').trim()
   if (mid) {
     const byMid = packItems.value.find((p) => p.materialItemId === mid)
-    if (byMid) return byMid
+    if (byMid && isPhysicalComboPackItem(byMid)) return byMid
   }
   const bid = (c.container_batch_id ?? '').trim()
   if (bid) {
-    return packItems.value.find((p) => (p.linkedContainerBatchId ?? '').trim() === bid)
+    const byBatch = packItems.value.find((p) => (p.linkedContainerBatchId ?? '').trim() === bid)
+    if (byBatch && isPhysicalComboPackItem(byBatch)) return byBatch
   }
   return undefined
+}
+
+const hasActiveCrateTarget = computed(() => {
+  const tgt = activePackTarget.value
+  return tgt?.kind === 'container' || tgt?.kind === 'combo'
+})
+
+/** Max. Stück für Pfeil-nach-oben: links «noch bestätigt» oder rechts lose «gepackt» */
+function crateAssignUpMax(pi: ActivityPackItem): number {
+  const fwd = packIssueForwardMax(pi)
+  if (fwd >= 1) return fwd
+  if (activePackStage.value === 'confirmed_packed') {
+    return looseQtyForPackItem(pi)
+  }
+  return 0
+}
+
+function showCrateAssignUpControls(pi: ActivityPackItem): boolean {
+  if (!props.packListEditable) return false
+  if (activePackStage.value !== 'confirmed_packed') return false
+  if (!hasActiveCrateTarget.value) return false
+  if (isPhysicalComboPackItem(pi)) return false
+  return crateAssignUpMax(pi) >= 1
+}
+
+function showAssignToContainerButton(pi: ActivityPackItem): boolean {
+  if (!props.packListEditable) return false
+  if (!showPackContainersUi.value) return false
+  if (activePackStage.value !== 'confirmed_packed') return false
+  if (hasActiveCrateTarget.value) return false
+  if (isPhysicalComboPackItem(pi)) return false
+  if (packContainers.value.length === 0) return false
+  return looseQtyForPackItem(pi) >= 1
+}
+
+function assignUpTitleForItem(pi: ActivityPackItem): string {
+  const max = crateAssignUpMax(pi)
+  const qty = resolveCrateAssignQty(pi, max)
+  const label = activePackTargetCrateLabel.value || t('activities.packList.crateTargetFallback')
+  return t('activities.packList.titleAssignQtyToCrate', { qty: qty > 0 ? qty : max, label })
+}
+
+function resolveCrateAssignQty(pi: ActivityPackItem, max: number): number {
+  if (max < 1) return 0
+  const raw = moveQtyInputs.value[pi.id]
+  const parsed = Number(raw)
+  if (Number.isFinite(parsed) && parsed > 0) {
+    return Math.min(max, Math.floor(parsed))
+  }
+  return max
+}
+
+async function onCrateAssignUpClick(pi: ActivityPackItem) {
+  const tgt = activePackTarget.value
+  if (!tgt || (tgt.kind !== 'container' && tgt.kind !== 'combo')) return
+
+  const maxForward = packIssueForwardMax(pi)
+  if (maxForward >= 1) {
+    const moveQty = resolveForwardMoveQty(pi)
+    if (moveQty < 1) return
+    await moveToNextStage(pi, moveQty)
+    return
+  }
+
+  const maxLoose = looseQtyForPackItem(pi)
+  if (maxLoose < 1) return
+  const assignQty = resolveCrateAssignQty(pi, maxLoose)
+  if (assignQty < 1) return
+
+  if (tgt.kind === 'container') {
+    await assignDirectToActiveContainer(pi, tgt.containerId, assignQty)
+    return
+  }
+  const containerId = await ensurePackContainerForShellCombo(tgt.packItemId)
+  if (!containerId) return
+  activePackTarget.value = { kind: 'container', containerId }
+  await assignDirectToActiveContainer(pi, containerId, assignQty)
 }
 
 /** Summe «Am Event» über Behälterzeilen + Kisten-Shell (pro Material) — Aufteilung lose vs. Behälter rechts */
@@ -2337,6 +2506,11 @@ function selectActiveContainer(containerId: string) {
 }
 
 function toggleActiveContainer(containerId: string) {
+  const tgt = activePackTarget.value
+  if (tgt?.kind === 'container' && tgt.containerId === containerId) {
+    activePackTarget.value = null
+    return
+  }
   selectActiveContainer(containerId)
 }
 
@@ -2355,7 +2529,26 @@ function selectActiveCombo(packItemId: string) {
 }
 
 function toggleActiveLoose() {
+  if (activePackTarget.value?.kind === 'loose') {
+    activePackTarget.value = null
+    return
+  }
   selectActiveLoose()
+}
+
+function toggleActiveCombo(packItemId: string) {
+  const pi = packItems.value.find((p) => p.id === packItemId)
+  const linked = pi ? packShellContainerForPackItem(pi, packContainers.value) : undefined
+  if (linked) {
+    toggleActiveContainer(linked.id)
+    return
+  }
+  const tgt = activePackTarget.value
+  if (tgt?.kind === 'combo' && tgt.packItemId === packItemId) {
+    activePackTarget.value = null
+    return
+  }
+  selectActiveCombo(packItemId)
 }
 
 const activePackTargetCrateLabel = computed(() => {
@@ -2460,10 +2653,18 @@ async function assignMaterialToContainer(
   }
 }
 
-async function assignDirectToActiveContainer(pi: ActivityPackItem, containerId: string) {
+async function assignDirectToActiveContainer(
+  pi: ActivityPackItem,
+  containerId: string,
+  qty?: number,
+) {
   const max = looseQtyForPackItem(pi)
   if (max < 1) return
-  await assignMaterialToContainer(pi, containerId, max)
+  const q =
+    qty != null && qty > 0 ? Math.min(max, Math.max(1, Math.floor(qty))) : max
+  await assignMaterialToContainer(pi, containerId, q, {
+    successMessage: t('activities.packList.toastMoveToContainerDirect'),
+  })
 }
 
 async function submitAssignToContainer() {
@@ -2640,10 +2841,18 @@ async function confirmDeleteContainer(c: ActivityPackContainer) {
     variant: 'danger',
   })
   if (!ok) return
+  const deletedId = c.id
   containerMutationLoading.value = true
   try {
-    await deleteActivityPackContainer(props.activityId, c.id)
-    await loadContainersData()
+    await deleteActivityPackContainer(props.activityId, deletedId)
+    if (
+      activePackTarget.value?.kind === 'container' &&
+      activePackTarget.value.containerId === deletedId
+    ) {
+      activePackTarget.value = null
+    }
+    await loadAll()
+    emit('activityItemsChanged')
     toast.success(t('activities.packList.toastContainerDeleted'))
   } catch (err: unknown) {
     const e = err as { response?: { data?: { error?: string } }; message?: string }
@@ -2941,10 +3150,19 @@ function setMoveBackQtyForItem(itemId: string, qty: number) {
 function initMoveQtyInputs() {
   for (const item of packItems.value) {
     const leftQty = packIssueForwardMax(item)
-    moveQtyInputs.value[item.id] = Math.max(0, leftQty)
+    const looseQty =
+      activePackStage.value === 'confirmed_packed' ? looseQtyForPackItem(item) : 0
+    moveQtyInputs.value[item.id] = Math.max(0, leftQty > 0 ? leftQty : looseQty)
     const rightQty = rightQtyForMoveBack(item)
     moveBackQtyInputs.value[item.id] = Math.max(0, rightQty)
   }
+}
+
+function resolveForwardMoveQty(item: ActivityPackItem, qty?: number): number {
+  const maxMove = packIssueForwardMax(item)
+  if (maxMove < 1) return 0
+  if (qty != null && qty > 0) return Math.min(maxMove, Math.floor(qty))
+  return resolveCrateAssignQty(item, maxMove)
 }
 
 function applyUpdatedItem(updated: ActivityPackItem) {
@@ -2955,11 +3173,7 @@ function applyUpdatedItem(updated: ActivityPackItem) {
 
 async function moveToNextStage(item: ActivityPackItem, qty?: number) {
   if (!props.packListEditable) return
-  const maxMove = packIssueForwardMax(item)
-  const moveQty = Math.min(
-    maxMove,
-    qty ?? moveQtyInputs.value[item.id] ?? maxMove,
-  )
+  const moveQty = resolveForwardMoveQty(item, qty)
   if (moveQty <= 0) return
   if (needsShellCratePresenceConfirm(item)) {
     await openShellCrateForwardModal(item, moveQty)
@@ -3088,8 +3302,12 @@ async function loadAll() {
   try {
     const items = await getPackItems(props.activityId)
     packItems.value = items
-    activePackStage.value = autoPackStageForProfile(packWorkflowProfile.value, props.status)
-    const keys = packStageKeysForProfile(packWorkflowProfile.value)
+    activePackStage.value = autoPackStageForProfile(
+      packWorkflowProfile.value,
+      props.status,
+      canManageMaterials.value,
+    )
+    const keys = packStageKeys.value
     if (!keys.includes(activePackStage.value)) {
       activePackStage.value = keys[0] ?? 'confirmed_packed'
     }
@@ -3108,6 +3326,7 @@ async function loadAll() {
 
 provide(PACK_WAREHOUSE_ISSUE_INJECT_KEY, {
   packListEditable: computed(() => props.packListEditable),
+  canManageMaterials,
   canReportIssues: computed(() => props.canReportIssues),
   activePackStage,
   moveQtyInputs,
@@ -3118,6 +3337,8 @@ provide(PACK_WAREHOUSE_ISSUE_INJECT_KEY, {
   selectActiveContainer,
   selectActiveCombo,
   selectActiveLoose,
+  toggleActiveLoose,
+  toggleActiveCombo,
   stageRightCrateShellItems,
   shellPackItemForContainer,
   movingId,
@@ -3425,6 +3646,18 @@ watch(packItems, (items) => {
 
 .pack-assign-btn {
   flex-shrink: 0;
+}
+
+.pack-card-footer {
+  display: flex;
+  justify-content: center;
+  padding-top: 8px;
+  margin-top: 6px;
+  border-top: 1px dashed #e2e8f0;
+}
+
+.pack-card-footer :deep(.pack-card-actions-assign-up) {
+  justify-content: center;
 }
 
 .pack-containers-section {

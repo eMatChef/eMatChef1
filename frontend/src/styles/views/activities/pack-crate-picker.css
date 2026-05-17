@@ -56,11 +56,11 @@
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-primary) 22%, transparent);
 }
 
-/* Auswahl: nur Border, kein Vollflächen-Blau wie pack-container-card--target */
+/* Aktive Ziel-Kiste: grüner Rahmen */
 .pack-crate-picker-card.pack-container-card--target {
-  border-color: var(--color-primary);
-  background: #fafafa;
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-primary) 22%, transparent);
+  border-color: #16a34a;
+  background: #f0fdf4;
+  box-shadow: 0 0 0 2px color-mix(in srgb, #16a34a 28%, transparent);
 }
 
 .pack-crate-picker-card .pack-container-chevron {
@@ -68,7 +68,7 @@
 }
 
 .pack-crate-picker-card.pack-container-card--target .pack-container-chevron {
-  color: var(--color-primary);
+  color: #15803d;
 }
 
 .pack-crate-picker-card .pack-container-chevron-btn:hover .pack-container-chevron {

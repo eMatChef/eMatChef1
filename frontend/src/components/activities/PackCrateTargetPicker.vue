@@ -5,6 +5,7 @@ import type { ActivityPackContainer } from '@/api/activityContainers'
 import type { ActivityPackItem } from '@/api/activityPackItems'
 import PackCratePickerInnerContent from '@/components/activities/PackCratePickerInnerContent.vue'
 import PackCratePickerShellInnerContent from '@/components/activities/PackCratePickerShellInnerContent.vue'
+import { isPhysicalComboPackItem } from '@/components/activities/packMaterialDisplay'
 import { packShellContainerForPackItem } from '@/components/activities/packShellCrateHelpers'
 import { PACK_WAREHOUSE_ISSUE_INJECT_KEY } from '@/components/activities/packWarehouseIssueInjectKey'
 
@@ -24,6 +25,7 @@ function injectRef<T>(raw: unknown): T {
 }
 
 const packListEditable = computed(() => Boolean(injectRef(ctx.packListEditable)))
+const canManageMaterials = computed(() => Boolean(injectRef(ctx.canManageMaterials)))
 const packContainers = computed(() => {
   const list = injectRef<ActivityPackContainer[] | undefined>(ctx.packContainers)
   return Array.isArray(list) ? list : []
@@ -61,7 +63,8 @@ function crateDisplayLabel(c: ActivityPackContainer): string {
 
 function isShellLinkedContainer(c: ActivityPackContainer): boolean {
   const fn = shellPackItemForContainer.value
-  return fn ? fn(c.id) != null : false
+  const sh = fn ? fn(c.id) : undefined
+  return sh != null && isPhysicalComboPackItem(sh)
 }
 
 function itemCount(containerId: string): number {
@@ -106,17 +109,17 @@ function toggleShellExpanded(packItemId: string) {
 
 function selectLoose() {
   if (!packListEditable.value) return
-  ;(ctx.selectActiveLoose as () => void)()
+  ;(ctx.toggleActiveLoose as () => void)()
 }
 
 function selectCrate(id: string) {
   if (!packListEditable.value) return
-  ;(ctx.selectActiveContainer as (containerId: string) => void)(id)
+  ;(ctx.toggleActiveContainer as (containerId: string) => void)(id)
 }
 
 function selectCombo(packItemId: string) {
   if (!packListEditable.value) return
-  ;(ctx.selectActiveCombo as (packItemId: string) => void)(packItemId)
+  ;(ctx.toggleActiveCombo as (packItemId: string) => void)(packItemId)
 }
 
 const pickerHasEntries = computed(
@@ -249,7 +252,10 @@ const pickerHasEntries = computed(
         </div>
       </div>
     </div>
-    <p v-if="!pickerHasEntries" class="pack-crate-picker-empty text-muted">
+    <p
+      v-if="!pickerHasEntries && canManageMaterials"
+      class="pack-crate-picker-empty text-muted"
+    >
       {{ t('activities.packList.hintNoCratesPicker') }}
     </p>
   </div>

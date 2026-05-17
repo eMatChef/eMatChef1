@@ -4,7 +4,10 @@ import { useI18n } from 'vue-i18n'
 import { IconArrowLeft } from '@/components/icons'
 import type { ActivityPackContainer, ActivityPackContainerItem } from '@/api/activityContainers'
 import type { PackContainerItemSection } from '@/components/activities/packShellCrateHelpers'
-import { PACK_WAREHOUSE_ISSUE_INJECT_KEY } from '@/components/activities/packWarehouseIssueInjectKey'
+import {
+  injectPackCtxBool,
+  PACK_WAREHOUSE_ISSUE_INJECT_KEY,
+} from '@/components/activities/packWarehouseIssueInjectKey'
 
 defineOptions({ name: 'PackCratePickerInnerContent' })
 
@@ -16,7 +19,8 @@ const props = defineProps<{
 const { t } = useI18n()
 const ctx = inject(PACK_WAREHOUSE_ISSUE_INJECT_KEY) as Record<string, unknown>
 
-const packListEditable = computed(() => Boolean(ctx.packListEditable))
+const packListEditable = computed(() => injectPackCtxBool(ctx, 'packListEditable'))
+const containerMutationLoading = computed(() => injectPackCtxBool(ctx, 'containerMutationLoading'))
 
 const sections = computed((): PackContainerItemSection[] => {
   const fn = ctx.packContainerItemSections as ((c: ActivityPackContainer) => PackContainerItemSection[]) | undefined
@@ -164,7 +168,7 @@ function setPullQty(ci: ActivityPackContainerItem, raw: string | number): void {
             <button
               type="button"
               class="btn-moveback-arrow"
-              :disabled="Boolean(ctx.containerMutationLoading)"
+              :disabled="containerMutationLoading"
               :title="t('activities.packList.pullFromContainerTitle')"
               @click="pullFromContainer(ci)"
             >
@@ -264,7 +268,7 @@ function setPullQty(ci: ActivityPackContainerItem, raw: string | number): void {
               <button
                 type="button"
                 class="btn-moveback-arrow"
-                :disabled="Boolean(ctx.containerMutationLoading)"
+                :disabled="containerMutationLoading"
                 :title="t('activities.packList.pullFromContainerTitle')"
                 @click="pullFromContainer(ci)"
               >
@@ -300,7 +304,7 @@ function setPullQty(ci: ActivityPackContainerItem, raw: string | number): void {
       <button
         type="button"
         class="pack-container-delete"
-        :disabled="Boolean(ctx.containerMutationLoading)"
+        :disabled="containerMutationLoading"
         @click.stop="(ctx.confirmDeleteContainer as (container: ActivityPackContainer) => void)(container)"
       >
         {{ t('activities.packList.deleteContainer') }}

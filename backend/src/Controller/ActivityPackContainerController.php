@@ -11,6 +11,7 @@ use App\Entity\MaterialItem;
 use App\Entity\User;
 use App\Service\ActivityAccessService;
 use App\Service\ActivityKisteMaterialLinker;
+use App\Service\PackPipelineService;
 use App\Util\IdGenerator;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -26,6 +27,7 @@ class ActivityPackContainerController extends AbstractController
         private EntityManagerInterface $entityManager,
         private ActivityAccessService $activityAccess,
         private ActivityKisteMaterialLinker $kisteMaterialLinker,
+        private PackPipelineService $packPipeline,
     ) {}
 
     #[Route('/pack-containers', name: 'list', methods: ['GET'])]
@@ -156,9 +158,113 @@ class ActivityPackContainerController extends AbstractController
             return new JsonResponse(['error' => 'Container nicht gefunden'], 404);
         }
 
+        $this->dissolveContainerPackQuantitiesBeforeDelete($activity, $container);
         $this->entityManager->remove($container);
         $this->entityManager->flush();
+
         return new JsonResponse(['success' => true]);
+    }
+
+    /**
+     * Beim Löschen einer Kiste in «Bestätigt → Gepackt»: eingepackte Mengen aus dem Behälter
+     * wieder auf die linke Spalte (quantity_packed reduzieren), nicht als lose «Gepackt» stehen lassen.
+     */
+    private function dissolveContainerPackQuantitiesBeforeDelete(Activity $activity, ActivityPackContainer $container): void
+    {
+        if (!in_array($activity->getStatus(), [
+            Activity::STATUS_PACKING,
+            Activity::STATUS_PACKED,
+            Activity::STATUS_AT_EVENT,
+            Activity::STATUS_RETURNED,
+        ], true)) {
+            return;
+        }
+
+        $items = $this->entityManager->getRepository(ActivityPackContainerItem::class)
+            ->findBy(['packContainerId' => $container->getId()]);
+
+        $shellMaterialId = null;
+        $batch = $container->getContainerBatch();
+        if ($batch !== null) {
+            $batchMaterial = $batch->getMaterialItem();
+            if ($batchMaterial->getMaterialType() === 'physical_combo') {
+                $shellMaterialId = $batchMaterial->getId();
+            }
+        }
+
+        foreach ($items as $ci) {
+            if (!$ci instanceof ActivityPackContainerItem) {
+                continue;
+            }
+            if ($shellMaterialId !== null && $ci->getMaterialItemId() === $shellMaterialId) {
+                continue;
+            }
+            $this->movePackItemBackForContainerLine($activity, $ci);
+        }
+
+        if ($shellMaterialId !== null && $this->countOtherShellContainers($activity, $container, $shellMaterialId) === 0) {
+            $shellPack = $this->entityManager->getRepository(ActivityPackItem::class)->findOneBy([
+                'activityId' => $activity->getId(),
+                'materialItemId' => $shellMaterialId,
+            ]);
+            if ($shellPack instanceof ActivityPackItem) {
+                $max = $this->packPipeline->maxBackwardQty($shellPack, PackPipelineService::STAGE_PACKED);
+                if ($max > 0) {
+                    $this->packPipeline->applyBackward($shellPack, PackPipelineService::STAGE_PACKED, $max);
+                    $shellPack->setUpdatedAt(new \DateTime());
+                }
+            }
+        }
+    }
+
+    private function movePackItemBackForContainerLine(Activity $activity, ActivityPackContainerItem $ci): void
+    {
+        $qty = max(0, $ci->getQuantityPacked());
+        if ($qty < 1) {
+            return;
+        }
+
+        $packItem = $this->entityManager->getRepository(ActivityPackItem::class)->findOneBy([
+            'activityId' => $activity->getId(),
+            'materialItemId' => $ci->getMaterialItemId(),
+        ]);
+        if (!$packItem instanceof ActivityPackItem) {
+            return;
+        }
+
+        $moveBack = min($qty, $this->packPipeline->maxBackwardQty($packItem, PackPipelineService::STAGE_PACKED));
+        if ($moveBack < 1) {
+            return;
+        }
+
+        $this->packPipeline->applyBackward($packItem, PackPipelineService::STAGE_PACKED, $moveBack);
+        $packItem->setUpdatedAt(new \DateTime());
+    }
+
+    private function countOtherShellContainers(
+        Activity $activity,
+        ActivityPackContainer $exclude,
+        string $shellMaterialId,
+    ): int {
+        $others = $this->entityManager->getRepository(ActivityPackContainer::class)->findBy([
+            'activityId' => $activity->getId(),
+        ]);
+        $count = 0;
+        foreach ($others as $pc) {
+            if (!$pc instanceof ActivityPackContainer || $pc->getId() === $exclude->getId()) {
+                continue;
+            }
+            $bid = $pc->getContainerBatchId();
+            if ($bid === null || $bid === '') {
+                continue;
+            }
+            $batch = $pc->getContainerBatch();
+            if ($batch !== null && $batch->getMaterialItemId() === $shellMaterialId) {
+                ++$count;
+            }
+        }
+
+        return $count;
     }
 
     #[Route('/pack-containers/{containerId}/items', name: 'items_list', methods: ['GET'])]

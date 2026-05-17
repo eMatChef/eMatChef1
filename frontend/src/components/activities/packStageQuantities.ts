@@ -18,8 +18,12 @@ export type PackStageExternal =
   | 'packed_at_event'
   | 'at_event_returned'
 
-/** Aktivität: schnell raus / zurück */
-export type PackStageQuick = 'packed_at_event' | 'at_event_returned'
+/** Aktivität: schnell raus / zurück (+ MW: Bestätigt→Gepackt, Retour→Auspacken) */
+export type PackStageQuick =
+  | PackStageConfirmed
+  | 'packed_at_event'
+  | 'at_event_returned'
+  | 'returned_unpack'
 
 export type PackStage = PackStageLogistics | PackStageExternal | PackStageQuick
 
@@ -37,12 +41,31 @@ export const PACK_STAGE_KEYS_EXTERNAL: PackStageExternal[] = [
   'at_event_returned',
 ]
 
-export const PACK_STAGE_KEYS_QUICK: PackStageQuick[] = ['packed_at_event', 'at_event_returned']
+/** Gruppenmitglied / User: nur Material am Event bewegen */
+export const PACK_STAGE_KEYS_QUICK_MEMBER: PackStageQuick[] = ['packed_at_event', 'at_event_returned']
+
+/** MW: volle Aktivitäten-Pipeline in der Packliste */
+export const PACK_STAGE_KEYS_QUICK_MW: PackStageQuick[] = [
+  'confirmed_packed',
+  'packed_at_event',
+  'at_event_returned',
+  'returned_unpack',
+]
 
 export function packStageKeysForProfile(profile: PackWorkflowProfile): PackStage[] {
-  if (profile === 'quick') return PACK_STAGE_KEYS_QUICK
+  if (profile === 'quick') return PACK_STAGE_KEYS_QUICK_MEMBER
   if (profile === 'external') return PACK_STAGE_KEYS_EXTERNAL
   return PACK_STAGE_KEYS_LOGISTICS
+}
+
+export function packStageKeysForProfileAndRole(
+  profile: PackWorkflowProfile,
+  canManageMaterials: boolean,
+): PackStage[] {
+  if (profile === 'quick' && canManageMaterials) {
+    return PACK_STAGE_KEYS_QUICK_MW
+  }
+  return packStageKeysForProfile(profile)
 }
 
 export function isPackConfirmedStage(stage: PackStage): boolean {
@@ -77,10 +100,23 @@ export function isPackCrateCheckStage(stage: PackStage): boolean {
   return isPackConfirmedStage(stage) || isPackForwardToEventStage(stage)
 }
 
-export function autoPackStageForStatus(status: string, profile: PackWorkflowProfile): PackStage {
+export function autoPackStageForStatus(
+  status: string,
+  profile: PackWorkflowProfile,
+  canManageMaterials = false,
+): PackStage {
   const s = status === 'issued' ? 'at_event' : status
   if (profile === 'quick') {
-    if (s === 'at_event' || s === 'returned') return 'at_event_returned'
+    if (s === 'returned') {
+      return canManageMaterials ? 'returned_unpack' : 'at_event_returned'
+    }
+    if (s === 'at_event') return 'at_event_returned'
+    if (s === 'packed' || s === 'packing') {
+      return canManageMaterials ? 'confirmed_packed' : 'packed_at_event'
+    }
+    if (canManageMaterials && (s === 'approved' || s === 'submitted')) {
+      return 'confirmed_packed'
+    }
     return 'packed_at_event'
   }
   if (profile === 'external') {
@@ -107,13 +143,17 @@ export function getStageLeftQty(
     case 'transport_to_at_event':
       return item.quantityTransportTo - item.quantityIssued
     case 'packed_at_event':
-      if (profile === 'quick') return item.quantityOrdered - item.quantityIssued
+      if (profile === 'quick') {
+        return Math.max(0, item.quantityPacked - item.quantityIssued)
+      }
       return item.quantityPacked - item.quantityIssued
     case 'at_event_transport_back':
       return item.quantityIssued - item.quantityTransportBack
     case 'at_event_returned':
     case 'transport_back_returned':
       return item.quantityIssued - item.quantityReturned
+    case 'returned_unpack':
+      return 0
     default:
       return 0
   }
@@ -138,6 +178,8 @@ export function getStageRightQty(
     case 'at_event_returned':
     case 'transport_back_returned':
       return item.quantityReturned
+    case 'returned_unpack':
+      return item.quantityReturned
     default:
       return 0
   }
@@ -152,15 +194,21 @@ export function getStageTotalQty(item: ActivityPackItem, stage: PackStage, profi
     case 'transport_to_at_event':
       return item.quantityTransportTo
     case 'packed_at_event':
-      return profile === 'quick' ? item.quantityOrdered : item.quantityPacked
+      return profile === 'quick' ? item.quantityPacked : item.quantityPacked
     case 'at_event_transport_back':
       return item.quantityIssued
     case 'at_event_returned':
     case 'transport_back_returned':
       return item.quantityIssued
+    case 'returned_unpack':
+      return item.quantityReturned
     default:
       return 0
   }
+}
+
+export function isPackUnpackStage(stage: PackStage): boolean {
+  return stage === 'returned_unpack'
 }
 
 export function getBackendStage(stage: PackStage): PackMoveStage {
@@ -177,6 +225,8 @@ export function getBackendStage(stage: PackStage): PackMoveStage {
     case 'at_event_returned':
     case 'transport_back_returned':
       return 'returned'
+    case 'returned_unpack':
+      return 'returned'
     default:
       return 'packed'
   }
@@ -188,10 +238,10 @@ export function workflowTargetStatusForStage(
 ): string | null {
   const s = activityStatus === 'issued' ? 'at_event' : activityStatus
   if (stage === 'confirmed_packed') return 'packed'
+  if (stage === 'returned_unpack' && s === 'returned') return 'completed'
   if (isPackForwardToEventStage(stage)) return 'at_event'
   if (isPackReturnStage(stage)) {
     if (s === 'at_event') return 'returned'
-    if (s === 'returned') return 'completed'
   }
   return null
 }

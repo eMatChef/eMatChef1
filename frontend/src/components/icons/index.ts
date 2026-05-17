@@ -3,6 +3,7 @@ export { default as IconSvg } from './IconSvg.vue'
 
 export { default as IconArrowRight } from './IconArrowRight.vue'
 export { default as IconArrowLeft } from './IconArrowLeft.vue'
+export { default as IconArrowUp } from './IconArrowUp.vue'
 export { default as IconChevronRight } from './IconChevronRight.vue'
 export { default as IconChevronDown } from './IconChevronDown.vue'
 export { default as IconClose } from './IconClose.vue'

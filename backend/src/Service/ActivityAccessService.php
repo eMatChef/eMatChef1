@@ -387,4 +387,81 @@ class ActivityAccessService
             Activity::STATUS_PACKED,
         ], true);
     }
+
+    /**
+     * Typ «activity»: Ersteller oder Gruppenmitglied darf Material am Event / Retour buchen.
+     */
+    public function canUserOperateActivityPackHandoff(User $user, Activity $activity): bool
+    {
+        if (($activity->getType() ?? '') !== 'activity') {
+            return false;
+        }
+
+        if ($activity->getCreatedByUserId() === $user->getId()) {
+            return true;
+        }
+
+        $groupId = $activity->getGroupId();
+        if ($groupId === null || $groupId === '') {
+            return false;
+        }
+
+        $groupMembership = $this->entityManager->getRepository(GroupMembership::class)
+            ->findOneBy(['userId' => $user->getId(), 'groupId' => $groupId]);
+
+        return $groupMembership !== null;
+    }
+
+    /**
+     * Packliste bearbeiten: MW/DC immer (packing…returned); bei Typ «activity» auch Ersteller/Gruppenmitglied ab «gepackt».
+     */
+    public function canUserEditPackList(User $user, Activity $activity): bool
+    {
+        $status = $activity->getStatus();
+        $editableStatuses = [
+            Activity::STATUS_PACKING,
+            Activity::STATUS_PACKED,
+            Activity::STATUS_AT_EVENT,
+            Activity::STATUS_ISSUED,
+            Activity::STATUS_RETURNED,
+        ];
+        if (!\in_array($status, $editableStatuses, true)) {
+            return false;
+        }
+
+        if ($this->isHostDepartmentMwOrDc($user, $activity)) {
+            return true;
+        }
+
+        if (!$this->canUserOperateActivityPackHandoff($user, $activity)) {
+            return false;
+        }
+
+        return \in_array($status, [
+            Activity::STATUS_PACKED,
+            Activity::STATUS_AT_EVENT,
+            Activity::STATUS_ISSUED,
+            Activity::STATUS_RETURNED,
+        ], true);
+    }
+
+    /**
+     * Erlaubte Pack-Pipeline-Stufen für Nicht-MW bei Typ «activity» (issued / returned).
+     *
+     * @return list<string>|null null = keine Einschränkung
+     */
+    public function allowedPackMoveStagesForUser(User $user, Activity $activity): ?array
+    {
+        if ($this->isHostDepartmentMwOrDc($user, $activity)) {
+            return null;
+        }
+        if (!$this->canUserOperateActivityPackHandoff($user, $activity)) {
+            return [];
+        }
+
+        return [
+            \App\Service\PackPipelineService::STAGE_AT_EVENT,
+            \App\Service\PackPipelineService::STAGE_RETURNED,
+        ];
+    }
 }
