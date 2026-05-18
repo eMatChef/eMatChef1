@@ -87,6 +87,7 @@ import { useI18n } from 'vue-i18n'
 import { useToast } from '@/composables/useToast'
 import { useDepartmentMemberRole } from '@/composables/useDepartmentMemberRole'
 import { useHeaderNotificationsStore } from '@/stores/headerNotifications'
+import { useAuthStore } from '@/stores/auth'
 import {
   acceptDepartmentInvite,
   declineDepartmentInvite,
@@ -112,6 +113,7 @@ const route = useRoute()
 const router = useRouter()
 const { t } = useI18n()
 const toast = useToast()
+const authStore = useAuthStore()
 const headerNotificationsStore = useHeaderNotificationsStore()
 const { isUserRole, canManageQrContact } = useDepartmentMemberRole()
 
@@ -244,9 +246,12 @@ async function acceptDeptInvite(inv: ReceivedDepartmentInviteNotification) {
       departmentId: inv.department_id,
       inviteId: inv.invite_id,
     })
-    await reload()
     headerNotificationsStore.requestRefresh()
     toast.success(t('notificationsCenter.toastDeptInviteAccepted', { department: result.department_name }))
+    if (result.department_id) {
+      await authStore.refreshAfterInviteAccepted(result.department_id)
+      return
+    }
   } catch (err: unknown) {
     const e = err as { response?: { data?: { error?: string } } }
     toast.error(e?.response?.data?.error || t('notificationsCenter.toastDeptInviteAcceptFailed'))

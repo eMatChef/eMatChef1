@@ -93,7 +93,12 @@ class ActivityPackContainerController extends AbstractController
 
         $this->entityManager->persist($container);
         if ($batch !== null) {
-            $this->kisteMaterialLinker->linkKisteOnContainerBatchAssigned($activity, $batch, $user);
+            $this->kisteMaterialLinker->linkKisteOnContainerBatchAssigned(
+                $activity,
+                $batch,
+                $user,
+                $container->getId(),
+            );
         }
         $this->entityManager->flush();
 
@@ -135,7 +140,12 @@ class ActivityPackContainerController extends AbstractController
                     return $deny;
                 }
                 $container->setContainerBatch($batch);
-                $this->kisteMaterialLinker->linkKisteOnContainerBatchAssigned($activity, $batch, $user);
+                $this->kisteMaterialLinker->linkKisteOnContainerBatchAssigned(
+                    $activity,
+                    $batch,
+                    $user,
+                    $container->getId(),
+                );
             } else {
                 $container->setContainerBatch(null);
             }
@@ -163,11 +173,20 @@ class ActivityPackContainerController extends AbstractController
             return new JsonResponse(['error' => 'Nicht authentifiziert'], 401);
         }
 
-        $batch = $container->getContainerBatch();
-        $this->dissolveContainerPackQuantitiesBeforeDelete($activity, $container);
-        if ($batch !== null) {
-            $this->kisteMaterialLinker->unlinkKisteOnContainerRemoved($activity, $batch, $user);
+        if (!$this->activityAccess->canUserEditPackList($user, $activity)) {
+            return new JsonResponse(['error' => 'Keine Berechtigung zum Bearbeiten der Packliste'], 403);
         }
+
+        $batch = $container->getContainerBatch();
+        if ($batch !== null) {
+            $this->kisteMaterialLinker->unlinkKisteOnContainerRemoved(
+                $activity,
+                $batch,
+                $user,
+                $container->getId(),
+            );
+        }
+        $this->dissolveContainerPackQuantitiesBeforeDelete($activity, $container);
         $this->entityManager->remove($container);
         $this->entityManager->flush();
 
@@ -211,7 +230,12 @@ class ActivityPackContainerController extends AbstractController
             $this->movePackItemBackForContainerLine($activity, $ci);
         }
 
-        if ($shellMaterialId !== null && $this->countOtherShellContainers($activity, $container, $shellMaterialId) === 0) {
+        // Lager-Kiste: unlink entfernt Activity-/Pack-Zeile — kein applyBackward (sonst taucht die Kiste links wieder auf).
+        if (
+            $batch === null
+            && $shellMaterialId !== null
+            && $this->countOtherShellContainers($activity, $container, $shellMaterialId) === 0
+        ) {
             $shellPack = $this->entityManager->getRepository(ActivityPackItem::class)->findOneBy([
                 'activityId' => $activity->getId(),
                 'materialItemId' => $shellMaterialId,

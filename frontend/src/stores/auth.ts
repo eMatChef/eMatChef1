@@ -256,7 +256,7 @@ export const useAuthStore = defineStore('auth', () => {
 
   async function loadUserSessionFromCookie(force = false): Promise<boolean> {
     if (!force && isLoggedIn.value) return true
-    if (cookieSessionPromise) {
+    if (cookieSessionPromise && !force) {
       try {
         return await cookieSessionPromise
       } catch {
@@ -375,6 +375,30 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
+  /**
+   * Nach Einladungs-Annahme: Mitgliedschaften neu laden und Seite vollständig neu laden,
+   * damit Menü «Department wechseln» und Dropdown auf «Mein Department» erscheinen.
+   */
+  async function refreshAfterInviteAccepted(targetDepartmentId: string): Promise<void> {
+    const cookieReloaded = await loadUserSessionFromCookie(true)
+    if (!cookieReloaded) {
+      await loadDepartments()
+    }
+
+    const deptId =
+      targetDepartmentId && departments.value.some((d) => d.department_id === targetDepartmentId)
+        ? targetDepartmentId
+        : departments.value[0]?.department_id
+
+    if (!deptId) {
+      window.location.reload()
+      return
+    }
+
+    await setActiveDepartment(deptId)
+    window.location.assign(`/${deptId}/settings/my-department`)
+  }
+
   // Getter: Name des aktiven Departments
   const activeDepartmentName = computed(() => {
     if (!activeDepartmentId.value) return ''
@@ -430,6 +454,7 @@ export const useAuthStore = defineStore('auth', () => {
     loadUserSessionFromCookie,
     loadDepartments,
     setActiveDepartment,
+    refreshAfterInviteAccepted,
     loadDepartmentTimezone,
     clearError,
     refreshTokenProactively

@@ -730,10 +730,10 @@ async function acceptDepartmentInviteFromBell(inv: ReceivedDepartmentInviteNotif
       departmentId: inv.department_id,
       inviteId: inv.invite_id,
     })
-    await authStore.loadDepartments()
     toast.success(t('layout.notifications.departmentInviteAccepted', { department: result.department_name }))
     if (result.department_id) {
-      void router.push(`/${result.department_id}`)
+      await authStore.refreshAfterInviteAccepted(result.department_id)
+      return
     }
   } catch (err: any) {
     toast.error(err?.response?.data?.error || t('layout.notifications.departmentInviteAcceptFailed'))

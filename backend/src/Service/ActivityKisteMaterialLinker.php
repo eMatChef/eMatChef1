@@ -25,7 +25,12 @@ class ActivityKisteMaterialLinker
     /**
      * Beim Zuordnen einer Kiste zu einem Pack-Behälter: Zeile in der Materialliste, ggf. Menge +1 bei zweiter gleicher Kiste.
      */
-    public function linkKisteOnContainerBatchAssigned(Activity $activity, MaterialBatch $batch, User $user): void
+    public function linkKisteOnContainerBatchAssigned(
+        Activity $activity,
+        MaterialBatch $batch,
+        User $user,
+        ?string $excludePackContainerId = null,
+    ): void
     {
         $materialItem = $batch->getMaterialItem();
         $mid = $materialItem->getId();
@@ -35,9 +40,17 @@ class ActivityKisteMaterialLinker
             ['isReplenishment' => 'ASC', 'createdAt' => 'ASC'],
         );
         $existing = $existingList[0] ?? null;
+        $otherContainersWithBatch = $this->countPackContainersWithBatch(
+            $activity,
+            $batch->getId(),
+            $excludePackContainerId,
+        );
         if ($existing !== null) {
-            $existing->setQuantity($existing->getQuantity() + 1);
-            $existing->setUpdatedAt(new \DateTime());
+            // Erste Pack-Kiste zu bereits geplanter Materialliste: nicht nochmals +1 (sonst bleibt nach Löschen eine Zeile links).
+            if ($otherContainersWithBatch > 0) {
+                $existing->setQuantity($existing->getQuantity() + 1);
+                $existing->setUpdatedAt(new \DateTime());
+            }
         } else {
             $activityItem = new ActivityItem();
             $activityItem->setId(IdGenerator::generate13('ai'));
@@ -84,6 +97,7 @@ class ActivityKisteMaterialLinker
         Activity $activity,
         MaterialBatch $batch,
         User $user,
+        ?string $removedPackContainerId = null,
     ): void {
         $materialItem = $batch->getMaterialItem();
         $mid = $materialItem->getId();
@@ -93,13 +107,26 @@ class ActivityKisteMaterialLinker
             ['isReplenishment' => 'ASC', 'createdAt' => 'ASC'],
         );
         $existing = $existingList[0] ?? null;
+        $otherContainersWithBatch = $this->countPackContainersWithBatch(
+            $activity,
+            $batch->getId(),
+            $removedPackContainerId,
+        );
         if ($existing !== null) {
-            $newQty = max(0, $existing->getQuantity() - 1);
-            if ($newQty === 0) {
+            if ($otherContainersWithBatch > 0) {
+                $newQty = max(0, $existing->getQuantity() - 1);
+                if ($newQty === 0) {
+                    $this->entityManager->remove($existing);
+                    $activity->setItemCount(max(0, $activity->getItemCount() - 1));
+                } else {
+                    $existing->setQuantity($newQty);
+                    $existing->setUpdatedAt(new \DateTime());
+                }
+            } elseif ($existing->getQuantity() <= 1) {
                 $this->entityManager->remove($existing);
                 $activity->setItemCount(max(0, $activity->getItemCount() - 1));
             } else {
-                $existing->setQuantity($newQty);
+                $existing->setQuantity($existing->getQuantity() - 1);
                 $existing->setUpdatedAt(new \DateTime());
             }
 
@@ -272,6 +299,29 @@ class ActivityKisteMaterialLinker
             $packItem->setPackedByUser($user);
             $this->entityManager->persist($packItem);
         }
+    }
+
+    private function countPackContainersWithBatch(
+        Activity $activity,
+        string $batchId,
+        ?string $excludePackContainerId = null,
+    ): int {
+        $containers = $this->entityManager->getRepository(ActivityPackContainer::class)
+            ->findBy(['activityId' => $activity->getId()]);
+        $count = 0;
+        foreach ($containers as $pc) {
+            if (!$pc instanceof ActivityPackContainer) {
+                continue;
+            }
+            if ($excludePackContainerId !== null && $pc->getId() === $excludePackContainerId) {
+                continue;
+            }
+            if ($pc->getContainerBatchId() === $batchId) {
+                ++$count;
+            }
+        }
+
+        return $count;
     }
 
     private function recalculateTotalPrice(Activity $activity): void

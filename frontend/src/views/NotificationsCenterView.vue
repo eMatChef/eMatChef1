@@ -856,10 +856,10 @@ async function acceptDepartmentInviteItem(inv: ReceivedDepartmentInviteNotificat
     departmentInviteAll.value = departmentInviteAll.value.filter((e) => e.id !== inv.id)
     departmentInviteUnreadCount.value = Math.max(0, departmentInviteUnreadCount.value - 1)
     headerNotificationsStore.requestRefresh()
-    await authStore.loadDepartments()
     toast.success(t('notificationsCenter.toastDeptInviteAccepted', { department: result.department_name }))
     if (result.department_id) {
-      void router.push(`/${result.department_id}`)
+      await authStore.refreshAfterInviteAccepted(result.department_id)
+      return
     }
   } catch (err: any) {
     toast.error(err?.response?.data?.error || t('notificationsCenter.toastDeptInviteAcceptFailed'))
