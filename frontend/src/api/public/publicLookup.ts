@@ -40,6 +40,9 @@ export async function getPublicMaterialByCode(code: string): Promise<PublicLooku
 export interface PublicLookupBatchResponse {
   code: string
   entity_type: 'batch'
+  material_code?: string
+  batch_code?: string
+  public_url?: string
   batch: {
     id: string
     serial_number?: string | null
@@ -71,9 +74,79 @@ export async function getPublicBatchByCode(code: string): Promise<PublicLookupBa
   return response.data
 }
 
+export interface PublicLookupActivityResponse {
+  code: string
+  entity_type: 'activity'
+  public_url?: string
+  activity: {
+    id: string
+    name: string
+    type: string
+    usage_start?: string | null
+    usage_end?: string | null
+    planning_start?: string | null
+    planning_end?: string | null
+  }
+  department: {
+    id: string
+    name: string
+  }
+  contact?: {
+    email?: string | null
+  } | null
+  contact_note?: string | null
+  public_ui?: PublicQrPageUi
+}
+
+export async function getPublicActivityByCode(code: string): Promise<PublicLookupActivityResponse> {
+  const response = await apiClient.get<PublicLookupActivityResponse>(
+    `/api/public/lookup/a/${encodeURIComponent(code)}`
+  )
+  return response.data
+}
+
+export interface PublicLookupWorkshopResponse {
+  code: string
+  entity_type: 'workshop'
+  public_url?: string
+  workshop: {
+    id: string
+    title: string
+    type: string
+    status: string
+    material_name: string
+  }
+  department: {
+    id: string
+    name: string
+  }
+  contact?: {
+    email?: string | null
+  } | null
+  contact_note?: string | null
+  public_ui?: PublicQrPageUi
+}
+
+export async function getPublicWorkshopByCode(code: string): Promise<PublicLookupWorkshopResponse> {
+  const response = await apiClient.get<PublicLookupWorkshopResponse>(
+    `/api/public/lookup/w/${encodeURIComponent(code)}`
+  )
+  return response.data
+}
+
+export async function getPublicMaterialBatchByCodes(
+  materialCode: string,
+  batchCode: string
+): Promise<PublicLookupBatchResponse> {
+  const response = await apiClient.get<PublicLookupBatchResponse>(
+    `/api/public/lookup/m/${encodeURIComponent(materialCode)}/b/${encodeURIComponent(batchCode)}`
+  )
+  return response.data
+}
+
 /** Öffentliches Kontaktformular „Artikel gefunden“ (ohne Login). */
 export interface PublicFoundItemContactPayload {
-  entity_type: 'material' | 'batch'
+  entity_type: 'material' | 'batch' | 'activity' | 'workshop'
   public_code: string
   message: string
   sender_name?: string

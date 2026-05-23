@@ -91,6 +91,8 @@ export interface ActivityDetail extends ActivityCreatedResponse {
   can_edit_submitted_activity_content?: boolean
   /** false = Erstell-Wizard noch nicht abgeschlossen → Detail gesperrt, Wizard fortsetzen */
   create_wizard_completed?: boolean
+  public_code?: string | null
+  public_url?: string | null
 }
 
 export interface ActivityTransitionRow {
@@ -140,6 +142,11 @@ export interface ActivityItemRow {
 
 export async function getActivity(activityId: string): Promise<ActivityDetail> {
   const { data } = await apiClient.get<ActivityDetail>(`/api/activities/${activityId}`)
+  return data
+}
+
+export async function ensureActivityPublicCode(activityId: string): Promise<ActivityDetail> {
+  const { data } = await apiClient.post<ActivityDetail>(`/api/activities/${activityId}/public-code`)
   return data
 }
 

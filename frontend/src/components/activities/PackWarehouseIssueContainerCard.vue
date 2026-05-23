@@ -11,7 +11,10 @@ import { isPackConfirmedStage } from '@/components/activities/packStageQuantitie
 import PackCrateShellInlinePanel, {
   type PackCrateShellPeekSection,
 } from '@/components/activities/PackCrateShellInlinePanel.vue'
-import { PACK_WAREHOUSE_ISSUE_INJECT_KEY } from '@/components/activities/packWarehouseIssueInjectKey'
+import {
+  injectPackCtxBool,
+  PACK_WAREHOUSE_ISSUE_INJECT_KEY,
+} from '@/components/activities/packWarehouseIssueInjectKey'
 import PackContainerLineIssueQuick from '@/components/activities/PackContainerLineIssueQuick.vue'
 
 defineOptions({ name: 'PackWarehouseIssueContainerCard' })
@@ -43,6 +46,13 @@ const { t } = useI18n()
 const ctx = inject(PACK_WAREHOUSE_ISSUE_INJECT_KEY) as Record<string, (...args: unknown[]) => unknown> &
   Record<string, unknown>
 
+const packListEditable = computed(() => injectPackCtxBool(ctx, 'packListEditable'))
+const containerMutationLoading = computed(() => injectPackCtxBool(ctx, 'containerMutationLoading'))
+const containerBulkLoadingId = computed(() => {
+  const raw = ctx.containerBulkLoadingId
+  return unref(raw as Ref<string | null> | string | null | undefined) ?? null
+})
+
 const shellPeekSections = computed((): PackCrateShellPeekSection[] => {
   if (props.variant !== 'shell') return []
   const fn = ctx.peekSectionsForShellContainer as ((c: ActivityPackContainer) => PackCrateShellPeekSection[]) | undefined
@@ -60,6 +70,23 @@ const innerVisible = computed(
   () => !(ctx.isPackContainerCollapsed as (id: string) => boolean)(props.container.id),
 )
 
+const flatContainerLines = computed((): ActivityPackContainerItem[] => {
+  const sectionsFn = ctx.packContainerItemSections as
+    | ((c: ActivityPackContainer) => { lines: ActivityPackContainerItem[] }[])
+    | undefined
+  const sections = sectionsFn?.(props.container) ?? []
+  if (sections.length > 0) {
+    return sections.flatMap((s) => s.lines)
+  }
+  const map = ctx.containerItemsByContainerId as Record<string, ActivityPackContainerItem[]>
+  return map[props.container.id] ?? []
+})
+
+const containerLineCount = computed(() => {
+  const countFn = ctx.containerItemCount as ((id: string) => number) | undefined
+  return countFn?.(props.container.id) ?? flatContainerLines.value.length
+})
+
 const shellCanMoveForward = computed(() => {
   const pi = props.shellPackItem
   if (!pi) return false
@@ -67,7 +94,7 @@ const shellCanMoveForward = computed(() => {
   return fn ? fn(pi) > 0 : false
 })
 
-function moveShellCrateForward() {
+function moveShellCrateForward(qtyFromControl?: number) {
   const pi = props.shellPackItem
   if (!pi) return
   const maxFn = ctx.packIssueForwardMax as ((p: ActivityPackItem) => number) | undefined
@@ -75,7 +102,9 @@ function moveShellCrateForward() {
   if (!maxFn || !moveFn) return
   const max = maxFn(pi)
   if (max < 1) return
-  void moveFn(pi, max)
+  const raw = qtyFromControl ?? shellMoveQty.value
+  const moveQty = Math.min(max, Math.max(1, Math.floor(Number(raw) || max)))
+  void moveFn(pi, moveQty)
 }
 
 const activePackStage = computed(() => {
@@ -96,8 +125,73 @@ const shellMoveQty = computed(() => {
     inputs != null
       ? (unref(inputs as Ref<Record<string, number>> | Record<string, number>) as Record<string, number>)
       : {}
-  return map[pi.id] ?? 0
+  const maxFn = ctx.packIssueForwardMax as ((p: ActivityPackItem) => number) | undefined
+  return map[pi.id] ?? (maxFn && pi ? maxFn(pi) : 0)
 })
+
+function issueLineInputValue(ci: ActivityPackContainerItem): number {
+  const fn = ctx.containerIssueLineInputValue as
+    | ((cid: string, ci: ActivityPackContainerItem) => number)
+    | undefined
+  return fn?.(props.container.id, ci) ?? 1
+}
+
+function onIssueLineInput(ci: ActivityPackContainerItem, event: Event): void {
+  const el = event.target as HTMLInputElement
+  const fn = ctx.setContainerIssueLineInput as
+    | ((cid: string, ci: ActivityPackContainerItem, value: number | string) => void)
+    | undefined
+  fn?.(props.container.id, ci, el.valueAsNumber || Number(el.value))
+}
+
+function commitIssueLineToEvent(ci: ActivityPackContainerItem, event: Event): void {
+  const root = (event.currentTarget as HTMLElement).closest('.pack-move-inline')
+  const input = root?.querySelector('input.pack-move-input') as HTMLInputElement | null
+  if (input) {
+    onIssueLineInput(ci, { target: input } as unknown as Event)
+  }
+  void (ctx.issueContainerLineToEvent as (cid: string, ci: ActivityPackContainerItem) => void | Promise<void>)(
+    props.container.id,
+    ci,
+  )
+}
+
+function onUnissueLineInput(ci: ActivityPackContainerItem, event: Event): void {
+  const el = event.target as HTMLInputElement
+  const fn = ctx.setContainerUnissueLineInput as
+    | ((cid: string, ci: ActivityPackContainerItem, value: number | string) => void)
+    | undefined
+  fn?.(props.container.id, ci, el.valueAsNumber || Number(el.value))
+}
+
+const isPackMwHandoff = computed(() => Boolean(unref(ctx.canManageMaterials as Ref<boolean> | boolean | undefined)))
+
+function issueLineLooseTitle(ci: ActivityPackContainerItem): string {
+  if (isPackMwHandoff.value) {
+    return t('activities.packList.issueLineLooseTitleMw', { count: issueLineInputValue(ci) })
+  }
+  const fn = ctx.containerIssueLineLooseTitle as
+    | ((cid: string, ci: ActivityPackContainerItem) => string)
+    | undefined
+  return fn?.(props.container.id, ci) ?? ''
+}
+
+function crateAllIssueTitle(): string {
+  return isPackMwHandoff.value
+    ? t('activities.packList.issueCrateAllTitleMw')
+    : t('activities.packList.issueCrateAllTitle')
+}
+
+function containerShellTakeMax(): number {
+  const fn = ctx.containerShellTakeMax as ((id: string) => number) | undefined
+  return fn?.(props.container.id) ?? 0
+}
+
+function crateShellTakeTitle(): string {
+  return isPackMwHandoff.value
+    ? t('activities.packList.issueCrateShellTakeTitleMw')
+    : t('activities.packList.issueCrateShellTakeTitle')
+}
 
 </script>
 
@@ -109,7 +203,12 @@ const shellMoveQty = computed(() => {
       'pack-container-card--target':
         (ctx.activePackTarget as { kind: string; containerId?: string } | null)?.kind === 'container' &&
         (ctx.activePackTarget as { kind: string; containerId?: string }).containerId === container.id,
+      'pack-container-card--filled':
+        (ctx.containerHasAssignedContents as ((id: string) => boolean) | undefined)?.(container.id) ?? false,
+      'pack-container-card--selectable': packListEditable,
       'pack-container-card--shell': variant === 'shell',
+      'pack-container-card--at-event':
+        (ctx.containerHasIssuedAtEvent as ((id: string) => boolean) | undefined)?.(container.id) ?? false,
     }"
   >
     <!-- Phys.-Kombi: eine Zeile wie Granatenkiste, Aufklappen für Inhalt + Zusatz-Buchung -->
@@ -140,7 +239,7 @@ const shellMoveQty = computed(() => {
           </div>
         </div>
         <div
-          v-if="ctx.packListEditable && shellCanMoveForward"
+          v-if="packListEditable && shellCanMoveForward"
           class="pack-container-header-actions"
           @click.stop
         >
@@ -253,28 +352,33 @@ const shellMoveQty = computed(() => {
                 class="pack-container-line pack-container-line--issue-row pack-container-line--stacked"
               >
                 <div
-                  v-if="ctx.packListEditable && (ctx.containerLineUnissueableMax as (ci: ActivityPackContainerItem) => number)(ci) > 0"
+                  v-if="packListEditable && (ctx.containerLineUnissueableMax as (ci: ActivityPackContainerItem) => number)(ci) > 0"
                   class="pack-card-actions pack-card-actions-left"
                 >
                   <button
                     type="button"
                     class="btn-moveback-arrow"
-                    :disabled="ctx.containerMutationLoading"
+                    :disabled="containerMutationLoading"
                     @click="(ctx.unissueContainerLineToPacked as (cid: string, ci: ActivityPackContainerItem) => void)(container.id, ci)"
                   >
                     <IconArrowLeft />
                   </button>
                   <input
-                    v-model.number="ctx.containerUnissueLineInputs[(ctx.containerIssueLineKey as (a: string, b: string) => string)(container.id, ci.id)]"
+                    :value="
+                      ctx.containerUnissueLineInputs[
+                        (ctx.containerIssueLineKey as (a: string, b: string) => string)(container.id, ci.id)
+                      ]
+                    "
                     type="number"
                     min="1"
                     :max="(ctx.containerLineUnissueableMax as (ci: ActivityPackContainerItem) => number)(ci)"
                     class="pack-moveback-input"
+                    @input="onUnissueLineInput(ci, $event)"
                   />
                 </div>
                 <div
                   v-if="
-                    ctx.packListEditable &&
+                    packListEditable &&
                     (ctx.activePackTarget as { kind: string } | null)?.kind === 'loose' &&
                     !(ctx.isVirtualWarehouseContainerLine as (ci: ActivityPackContainerItem) => boolean)(ci)
                   "
@@ -283,7 +387,7 @@ const shellMoveQty = computed(() => {
                   <button
                     type="button"
                     class="btn-moveback-arrow"
-                    :disabled="ctx.containerMutationLoading"
+                    :disabled="containerMutationLoading"
                     @click="(ctx.pullFromContainer as (cid: string, ci: ActivityPackContainerItem) => void)(container.id, ci)"
                   >
                     <IconArrowLeft />
@@ -323,23 +427,25 @@ const shellMoveQty = computed(() => {
                   </span>
                 </div>
                 <div
-                  v-if="ctx.packListEditable && (ctx.containerLineIssueableMax as (ci: ActivityPackContainerItem) => number)(ci) > 0"
+                  v-if="packListEditable && (ctx.containerLineIssueableMax as (ci: ActivityPackContainerItem) => number)(ci) > 0"
                   class="pack-card-actions"
                 >
                   <div class="pack-move-inline">
                     <input
-                      v-model.number="ctx.containerIssueLineInputs[(ctx.containerIssueLineKey as (a: string, b: string) => string)(container.id, ci.id)]"
+                      :value="issueLineInputValue(ci)"
                       type="number"
                       min="1"
                       :max="(ctx.containerLineIssueableMax as (ci: ActivityPackContainerItem) => number)(ci)"
                       class="pack-move-input"
-                      @keyup.enter="(ctx.issueContainerLineToEvent as (cid: string, ci: ActivityPackContainerItem) => void)(container.id, ci)"
+                      @input="onIssueLineInput(ci, $event)"
+                      @keyup.enter="commitIssueLineToEvent(ci, $event)"
                     />
                     <button
                       type="button"
                       class="btn-move-arrow"
-                      :disabled="ctx.containerMutationLoading"
-                      @click="(ctx.issueContainerLineToEvent as (cid: string, ci: ActivityPackContainerItem) => void)(container.id, ci)"
+                      :disabled="containerMutationLoading"
+                      :title="issueLineLooseTitle(ci)"
+                      @click="commitIssueLineToEvent(ci, $event)"
                     >
                       <IconArrowRight />
                     </button>
@@ -418,18 +524,22 @@ const shellMoveQty = computed(() => {
         </div>
         <div
           v-if="
-            ctx.packListEditable &&
+            packListEditable &&
             ((ctx.containerUnissueableUnits as (id: string) => number)(container.id) > 0 ||
-              (ctx.containerIssueableUnits as (id: string) => number)(container.id) > 0)
+              (ctx.containerIssueableUnits as (id: string) => number)(container.id) > 0 ||
+              containerShellTakeMax() > 0)
           "
           class="pack-container-header-actions"
           @click.stop
         >
           <button
-            v-if="(ctx.containerUnissueableUnits as (id: string) => number)(container.id) > 0"
+            v-if="
+              (ctx.containerUnissueableUnits as (id: string) => number)(container.id) > 0 &&
+              !((ctx.containerHasAssignedContents as ((id: string) => boolean) | undefined)?.(container.id) ?? false)
+            "
             type="button"
             class="btn-moveback-arrow btn-move-arrow--container-header"
-            :disabled="ctx.containerBulkLoadingId === container.id"
+            :disabled="containerBulkLoadingId === container.id"
             :title="
               t('activities.packList.unissueTitle', {
                 count: (ctx.containerUnissueableUnits as (id: string) => number)(container.id),
@@ -443,14 +553,21 @@ const shellMoveQty = computed(() => {
             v-if="(ctx.containerIssueableUnits as (id: string) => number)(container.id) > 0"
             type="button"
             class="btn-move-arrow btn-move-arrow--container-header"
-            :disabled="ctx.containerBulkLoadingId === container.id"
-            :title="
-              t('activities.packList.issueRestTitle', {
-                stage: stageRightLabel,
-                count: (ctx.containerIssueableUnits as (id: string) => number)(container.id),
-              })
-            "
+            :disabled="containerBulkLoadingId === container.id"
+            :title="crateAllIssueTitle()"
             @click="(ctx.issueContainerToEvent as (c: ActivityPackContainer) => void | Promise<void>)(container)"
+          >
+            <IconArrowRight />
+          </button>
+          <button
+            v-else-if="containerShellTakeMax() > 0"
+            type="button"
+            class="btn-move-arrow btn-move-arrow--container-header"
+            :disabled="containerBulkLoadingId === container.id"
+            :title="crateShellTakeTitle()"
+            @click="
+              (ctx.issueContainerShellOnlyToEvent as (c: ActivityPackContainer) => void | Promise<void>)(container)
+            "
           >
             <IconArrowRight />
           </button>
@@ -458,6 +575,7 @@ const shellMoveQty = computed(() => {
       </div>
       <PackContainerKisteMeldungRow
         v-if="container.container_material_item_id"
+        :container-id="container.id"
         :material-item-id="String(container.container_material_item_id)"
         :linked-container-label="container.label"
       />
@@ -528,13 +646,13 @@ const shellMoveQty = computed(() => {
             class="pack-container-line pack-container-line--issue-row pack-container-line--stacked"
           >
             <div
-              v-if="ctx.packListEditable && (ctx.containerLineUnissueableMax as (ci: ActivityPackContainerItem) => number)(ci) > 0"
+              v-if="packListEditable && (ctx.containerLineUnissueableMax as (ci: ActivityPackContainerItem) => number)(ci) > 0"
               class="pack-card-actions pack-card-actions-left"
             >
               <button
                 type="button"
                 class="btn-moveback-arrow"
-                :disabled="ctx.containerMutationLoading"
+                :disabled="containerMutationLoading"
                 @click="(ctx.unissueContainerLineToPacked as (cid: string, ci: ActivityPackContainerItem) => void)(container.id, ci)"
               >
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
@@ -543,16 +661,21 @@ const shellMoveQty = computed(() => {
                 </svg>
               </button>
               <input
-                v-model.number="ctx.containerUnissueLineInputs[(ctx.containerIssueLineKey as (a: string, b: string) => string)(container.id, ci.id)]"
+                :value="
+                  ctx.containerUnissueLineInputs[
+                    (ctx.containerIssueLineKey as (a: string, b: string) => string)(container.id, ci.id)
+                  ]
+                "
                 type="number"
                 min="1"
                 :max="(ctx.containerLineUnissueableMax as (ci: ActivityPackContainerItem) => number)(ci)"
                 class="pack-moveback-input"
+                @input="onUnissueLineInput(ci, $event)"
               />
             </div>
             <div
               v-if="
-                ctx.packListEditable &&
+                packListEditable &&
                 (ctx.activePackTarget as { kind: string } | null)?.kind === 'loose' &&
                 !(ctx.isVirtualWarehouseContainerLine as (ci: ActivityPackContainerItem) => boolean)(ci)
               "
@@ -561,7 +684,7 @@ const shellMoveQty = computed(() => {
               <button
                 type="button"
                 class="btn-moveback-arrow"
-                :disabled="ctx.containerMutationLoading"
+                :disabled="containerMutationLoading"
                 @click="(ctx.pullFromContainer as (cid: string, ci: ActivityPackContainerItem) => void)(container.id, ci)"
               >
                 <IconArrowLeft />
@@ -601,23 +724,25 @@ const shellMoveQty = computed(() => {
               </span>
             </div>
             <div
-              v-if="ctx.packListEditable && (ctx.containerLineIssueableMax as (ci: ActivityPackContainerItem) => number)(ci) > 0"
+              v-if="packListEditable && (ctx.containerLineIssueableMax as (ci: ActivityPackContainerItem) => number)(ci) > 0"
               class="pack-card-actions"
             >
               <div class="pack-move-inline">
                 <input
-                  v-model.number="ctx.containerIssueLineInputs[(ctx.containerIssueLineKey as (a: string, b: string) => string)(container.id, ci.id)]"
+                  :value="issueLineInputValue(ci)"
                   type="number"
                   min="1"
                   :max="(ctx.containerLineIssueableMax as (ci: ActivityPackContainerItem) => number)(ci)"
                   class="pack-move-input"
-                  @keyup.enter="(ctx.issueContainerLineToEvent as (cid: string, ci: ActivityPackContainerItem) => void)(container.id, ci)"
+                  @input="onIssueLineInput(ci, $event)"
+                  @keyup.enter="commitIssueLineToEvent(ci, $event)"
                 />
                 <button
                   type="button"
                   class="btn-move-arrow"
-                  :disabled="ctx.containerMutationLoading"
-                  @click="(ctx.issueContainerLineToEvent as (cid: string, ci: ActivityPackContainerItem) => void)(container.id, ci)"
+                  :disabled="containerMutationLoading"
+                  :title="issueLineLooseTitle(ci)"
+                  @click="commitIssueLineToEvent(ci, $event)"
                 >
                   <IconArrowRight />
                 </button>
@@ -634,34 +759,39 @@ const shellMoveQty = computed(() => {
         </template>
         <template v-else>
           <div
-            v-for="ci in ((ctx.containerItemsByContainerId as Record<string, ActivityPackContainerItem[]>)[container.id] ?? [])"
+            v-for="ci in flatContainerLines"
             :key="'flat-' + ci.id"
             class="pack-container-line pack-container-line--issue-row pack-container-line--stacked"
           >
             <div
-              v-if="ctx.packListEditable && (ctx.containerLineUnissueableMax as (ci: ActivityPackContainerItem) => number)(ci) > 0"
+              v-if="packListEditable && (ctx.containerLineUnissueableMax as (ci: ActivityPackContainerItem) => number)(ci) > 0"
               class="pack-card-actions pack-card-actions-left"
             >
               <button
                 type="button"
                 class="btn-moveback-arrow"
-                :disabled="ctx.containerMutationLoading"
+                :disabled="containerMutationLoading"
                 @click="(ctx.unissueContainerLineToPacked as (cid: string, ci: ActivityPackContainerItem) => void)(container.id, ci)"
               >
                 <IconArrowLeft />
               </button>
               <input
-                v-model.number="ctx.containerUnissueLineInputs[(ctx.containerIssueLineKey as (a: string, b: string) => string)(container.id, ci.id)]"
+                :value="
+                  ctx.containerUnissueLineInputs[
+                    (ctx.containerIssueLineKey as (a: string, b: string) => string)(container.id, ci.id)
+                  ]
+                "
                 type="number"
                 min="1"
                 :max="(ctx.containerLineUnissueableMax as (ci: ActivityPackContainerItem) => number)(ci)"
                 class="pack-moveback-input"
+                @input="onUnissueLineInput(ci, $event)"
                 @keyup.enter="(ctx.unissueContainerLineToPacked as (cid: string, ci: ActivityPackContainerItem) => void)(container.id, ci)"
               />
             </div>
             <div
               v-if="
-                ctx.packListEditable &&
+                packListEditable &&
                 (ctx.activePackTarget as { kind: string } | null)?.kind === 'loose' &&
                 !(ctx.isVirtualWarehouseContainerLine as (ci: ActivityPackContainerItem) => boolean)(ci)
               "
@@ -670,7 +800,7 @@ const shellMoveQty = computed(() => {
               <button
                 type="button"
                 class="btn-moveback-arrow"
-                :disabled="ctx.containerMutationLoading"
+                :disabled="containerMutationLoading"
                 @click="(ctx.pullFromContainer as (cid: string, ci: ActivityPackContainerItem) => void)(container.id, ci)"
               >
                 <IconArrowLeft />
@@ -711,23 +841,25 @@ const shellMoveQty = computed(() => {
               </span>
             </div>
             <div
-              v-if="ctx.packListEditable && (ctx.containerLineIssueableMax as (ci: ActivityPackContainerItem) => number)(ci) > 0"
+              v-if="packListEditable && (ctx.containerLineIssueableMax as (ci: ActivityPackContainerItem) => number)(ci) > 0"
               class="pack-card-actions"
             >
               <div class="pack-move-inline">
                 <input
-                  v-model.number="ctx.containerIssueLineInputs[(ctx.containerIssueLineKey as (a: string, b: string) => string)(container.id, ci.id)]"
+                  :value="issueLineInputValue(ci)"
                   type="number"
                   min="1"
                   :max="(ctx.containerLineIssueableMax as (ci: ActivityPackContainerItem) => number)(ci)"
                   class="pack-move-input"
-                  @keyup.enter="(ctx.issueContainerLineToEvent as (cid: string, ci: ActivityPackContainerItem) => void)(container.id, ci)"
+                  @input="onIssueLineInput(ci, $event)"
+                  @keyup.enter="commitIssueLineToEvent(ci, $event)"
                 />
                 <button
                   type="button"
                   class="btn-move-arrow"
-                  :disabled="ctx.containerMutationLoading"
-                  @click="(ctx.issueContainerLineToEvent as (cid: string, ci: ActivityPackContainerItem) => void)(container.id, ci)"
+                  :disabled="containerMutationLoading"
+                  :title="issueLineLooseTitle(ci)"
+                  @click="commitIssueLineToEvent(ci, $event)"
                 >
                   <IconArrowRight />
                 </button>
@@ -741,7 +873,13 @@ const shellMoveQty = computed(() => {
           </div>
         </template>
         <p
-          v-if="((ctx.containerItemsByContainerId as Record<string, ActivityPackContainerItem[]>)[container.id] ?? []).length === 0"
+          v-if="containerLineCount === 0 && containerShellTakeMax() > 0"
+          class="pack-container-empty pack-container-empty-shell-hint text-muted"
+        >
+          {{ t('activities.packList.issueCrateShellTakeHint') }}
+        </p>
+        <p
+          v-else-if="containerLineCount === 0"
           class="pack-container-empty text-muted"
         >
           {{ t('activities.packList.nothingAssigned') }}

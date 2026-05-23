@@ -29,7 +29,25 @@ const shellMid = computed(() =>
 )
 
 function lineRemainingReturn(ci: ActivityPackContainerItem): number {
-  return (ctx.containerLineRemainingReturn as (row: ActivityPackContainerItem) => number)(ci)
+  return (ctx.containerLineRemainingReturn as (row: ActivityPackContainerItem, cid?: string) => number)(
+    ci,
+    props.container.id,
+  )
+}
+
+function lineReturnLabel(ci: ActivityPackContainerItem): string {
+  const n = lineRemainingReturn(ci)
+  if (n <= 0) return t('activities.packList.returnRecorded')
+  if ((ci.quantity_issued ?? 0) === 0 && (ci.quantity_packed ?? 0) > 0) {
+    const atEvent = (ctx.containerHasIssuedAtEvent as ((id: string) => boolean) | undefined)?.(
+      props.container.id,
+    )
+    if (!atEvent) {
+      return t('activities.packList.lineInCrateWarehouseReturn', { n })
+    }
+    return t('activities.packList.lineInCrateForReturn', { n })
+  }
+  return t('activities.packList.lineStillAtEvent', { n })
 }
 
 function showIssueQuick(ci: ActivityPackContainerItem): boolean {
@@ -42,6 +60,13 @@ function showIssueQuick(ci: ActivityPackContainerItem): boolean {
   <div
     :id="'pack-container-event-ret-' + container.id"
     class="pack-container-card"
+    :class="{
+      'pack-container-card--filled':
+        (ctx.containerHasAssignedContents as ((id: string) => boolean) | undefined)?.(container.id) ?? false,
+      'pack-container-card--at-event':
+        (ctx.containerHasIssuedAtEvent as ((id: string) => boolean) | undefined)?.(container.id) ??
+        false,
+    }"
   >
     <div class="pack-container-header-row">
       <button
@@ -85,6 +110,7 @@ function showIssueQuick(ci: ActivityPackContainerItem): boolean {
     </div>
     <PackContainerKisteMeldungRow
       v-if="container.container_material_item_id"
+      :container-id="container.id"
       :material-item-id="String(container.container_material_item_id)"
       :linked-container-label="container.label"
     />
@@ -95,10 +121,7 @@ function showIssueQuick(ci: ActivityPackContainerItem): boolean {
             <div class="pack-container-line-main">
               <span class="pack-container-line-name">{{ ci.material_name || t('activities.common.material') }}</span>
               <span class="pack-container-line-qty text-muted">
-                <template v-if="lineRemainingReturn(ci) > 0">
-                  {{ t('activities.packList.lineStillAtEvent', { n: lineRemainingReturn(ci) }) }}
-                </template>
-                <template v-else>{{ t('activities.packList.returnRecorded') }}</template>
+                {{ lineReturnLabel(ci) }}
               </span>
             </div>
             <PackContainerLineIssueQuick :line="ci" :visible="showIssueQuick(ci)" />
@@ -115,7 +138,11 @@ function showIssueQuick(ci: ActivityPackContainerItem): boolean {
             {{ t('activities.packList.shellStillAtEvent', { n: shellQty }) }}
           </span>
         </div>
-        <div v-if="ctx.canReportIssues && shellMid" class="pack-container-line-issue-quick" @click.stop>
+        <div
+          v-if="(ctx.showKisteMeldungForContainer as (id: string) => boolean)(container.id) && shellMid"
+          class="pack-container-line-issue-quick"
+          @click.stop
+        >
           <template v-if="(ctx.isPackMaterialConsumable as (id: string) => boolean)(shellMid)">
             <button
               type="button"

@@ -44,6 +44,15 @@
   max-width: 520px;
 }
 
+/* Feste 2px-Rahmen — Farbe wechselt bei Auswahl ohne Layout-Sprung */
+.pack-crate-picker-card.pack-container-card {
+  border-width: 2px;
+  border-style: solid;
+  border-color: #e5e7eb;
+  outline: none;
+  box-shadow: none;
+}
+
 .pack-crate-picker-loose {
   align-self: flex-start;
   margin-bottom: 4px;
@@ -56,19 +65,33 @@
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-primary) 22%, transparent);
 }
 
-/* Aktive Ziel-Kiste: grüner Rahmen */
+/* Aktive Ziel-Kiste: grüne Markierung */
 .pack-crate-picker-card.pack-container-card--target {
   border-color: #16a34a;
   background: #f0fdf4;
-  box-shadow: 0 0 0 2px color-mix(in srgb, #16a34a 28%, transparent);
 }
 
 .pack-crate-picker-card .pack-container-chevron {
+  display: inline-block;
+  width: 1.25rem;
+  text-align: center;
   color: var(--color-text-muted, #9ca3af);
+  transform: rotate(0deg);
+  transform-origin: 50% 50%;
+  transition: transform 0.15s ease, color 0.15s ease;
+}
+
+.pack-crate-picker-card .pack-container-chevron--open {
+  transform: rotate(90deg);
 }
 
 .pack-crate-picker-card.pack-container-card--target .pack-container-chevron {
   color: #15803d;
+  transform: rotate(90deg);
+}
+
+.pack-crate-picker-card.pack-container-card--target .pack-container-chevron--open {
+  transform: rotate(90deg);
 }
 
 .pack-crate-picker-card .pack-container-chevron-btn:hover .pack-container-chevron {

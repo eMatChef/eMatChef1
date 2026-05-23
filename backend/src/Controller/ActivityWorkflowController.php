@@ -13,7 +13,9 @@ use App\Entity\User;
 use App\Controller\WorkshopController;
 use App\Service\ActivityAccessService;
 use App\Service\ActivityAccountingCostService;
+use App\Service\ActivityKisteMaterialLinker;
 use App\Service\ActivityPackCrateCheckService;
+use App\Service\InboxMessageService;
 use App\Service\PackPipelineService;
 use App\Util\IdGenerator;
 use Doctrine\ORM\EntityManagerInterface;
@@ -35,9 +37,11 @@ class ActivityWorkflowController extends AbstractController
     public function __construct(
         private EntityManagerInterface $entityManager,
         private ActivityAccessService $activityAccess,
+        private ActivityKisteMaterialLinker $kisteMaterialLinker,
         private ActivityPackCrateCheckService $packCrateCheckService,
         private PackPipelineService $packPipeline,
         private ActivityAccountingCostService $activityAccountingCost,
+        private InboxMessageService $inboxMessageService,
     ) {}
 
     // ═══════════════════════════════════════════════
@@ -55,6 +59,8 @@ class ActivityWorkflowController extends AbstractController
         if ($activity instanceof JsonResponse) {
             return $activity;
         }
+
+        $this->kisteMaterialLinker->reconcileOrphanPackItemsWithoutMaterialLine($activity);
 
         $items = $this->entityManager->getRepository(ActivityPackItem::class)
             ->createQueryBuilder('pi')
@@ -580,9 +586,8 @@ class ActivityWorkflowController extends AbstractController
             return $activity;
         }
 
-        // Meldungen können ab "issued" bis "returned" erstellt werden
         if (!$activity->canReportIssues()) {
-            return new JsonResponse(['error' => 'Meldungen können nur im Status "Ausgegeben" oder "Retour" erstellt werden'], 422);
+            return new JsonResponse(['error' => 'Meldungen sind in diesem Aktivitätsstatus nicht möglich'], 422);
         }
 
         $data = json_decode($request->getContent(), true);
@@ -670,6 +675,10 @@ class ActivityWorkflowController extends AbstractController
             }
 
             $this->entityManager->flush();
+
+            if ($user instanceof User) {
+                $this->inboxMessageService->notifyActivityIssueReported($activity, $user, $report);
+            }
 
             if ($type === ActivityIssueReport::TYPE_CONSUMPTION) {
                 $this->activityAccountingCost->enqueueFromConsumption($activity, $report);

@@ -3,9 +3,11 @@ import { IconArrowLeft, IconArrowRight, IconArrowUp } from '@/components/icons'
 
 defineOptions({ name: 'PackMoveControls' })
 
-withDefaults(
+const props = withDefaults(
   defineProps<{
     direction: 'forward' | 'back' | 'assign-up'
+    /** Kiste gewählt: gleicher Pfeil, 90° gedreht + grün — Position unverändert */
+    intoCrate?: boolean
     qty: number
     max: number
     disabled?: boolean
@@ -14,6 +16,7 @@ withDefaults(
     actionsClass?: string
   }>(),
   {
+    intoCrate: false,
     disabled: false,
     actionsClass: '',
   },
@@ -21,12 +24,30 @@ withDefaults(
 
 const emit = defineEmits<{
   'update:qty': [value: number]
-  move: []
+  move: [qty: number]
 }>()
 
+function parseQtyFromInputEl(el: HTMLInputElement | null): number {
+  if (!el) return props.qty
+  const raw = parseInt(el.value, 10)
+  let qty = Number.isFinite(raw) ? raw : props.qty
+  if (qty < 1) qty = 1
+  const maxVal = Math.floor(Number(props.max))
+  if (maxVal > 0 && qty > maxVal) qty = maxVal
+  return qty
+}
+
 function onInput(event: Event) {
-  const raw = parseInt((event.target as HTMLInputElement).value, 10)
-  emit('update:qty', Number.isFinite(raw) ? raw : 0)
+  const qty = parseQtyFromInputEl(event.target as HTMLInputElement)
+  emit('update:qty', qty)
+}
+
+function onMoveClick(event: MouseEvent | KeyboardEvent) {
+  const root = (event.currentTarget as HTMLElement).closest('.pack-move-inline')
+  const input = root?.querySelector('input.pack-move-input, input.pack-moveback-input') as HTMLInputElement | null
+  const qty = parseQtyFromInputEl(input)
+  emit('update:qty', qty)
+  emit('move', qty)
 }
 </script>
 
@@ -44,11 +65,13 @@ function onInput(event: Event) {
         <button
           type="button"
           class="btn-moveback-arrow"
+          :class="{ 'btn-moveback-arrow--into-crate': intoCrate }"
           :disabled="disabled"
-          :title="backTitle"
-          @click="emit('move')"
+          :title="intoCrate ? forwardTitle : backTitle"
+          @click="onMoveClick"
         >
-          <IconArrowLeft />
+          <IconArrowUp v-if="intoCrate" />
+          <IconArrowLeft v-else />
         </button>
         <input
           :value="qty"
@@ -56,8 +79,9 @@ function onInput(event: Event) {
           min="1"
           :max="max"
           class="pack-moveback-input"
+          :class="{ 'pack-moveback-input--into-crate': intoCrate }"
           @input="onInput"
-          @keyup.enter="emit('move')"
+          @keyup.enter="onMoveClick"
         />
       </template>
       <template v-else-if="direction === 'assign-up'">
@@ -68,14 +92,14 @@ function onInput(event: Event) {
           :max="max"
           class="pack-move-input"
           @input="onInput"
-          @keyup.enter="emit('move')"
+          @keyup.enter="onMoveClick"
         />
         <button
           type="button"
           class="btn-move-arrow btn-move-arrow--up"
           :disabled="disabled"
           :title="forwardTitle"
-          @click="emit('move')"
+          @click="onMoveClick"
         >
           <IconArrowUp />
         </button>
@@ -88,18 +112,28 @@ function onInput(event: Event) {
           :max="max"
           class="pack-move-input"
           @input="onInput"
-          @keyup.enter="emit('move')"
+          @keyup.enter="onMoveClick"
         />
         <button
           type="button"
           class="btn-move-arrow"
+          :class="{ 'btn-move-arrow--into-crate': intoCrate }"
           :disabled="disabled"
           :title="forwardTitle"
-          @click="emit('move')"
+          @click="onMoveClick"
         >
-          <IconArrowRight />
+          <IconArrowUp v-if="intoCrate" />
+          <IconArrowRight v-else />
         </button>
       </template>
     </div>
   </div>
 </template>
+
+<style scoped>
+.btn-move-arrow--into-crate :deep(svg) {
+  transform: rotate(-90deg);
+  transform-origin: center center;
+  transition: transform 0.15s ease;
+}
+</style>

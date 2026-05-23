@@ -222,6 +222,15 @@
         <router-link :to="getLink('/workshop')" class="section-link">{{ t('dashboard.toWorkshop') }}</router-link>
       </section>
 
+      <!-- Infoscreen (MW / DC) -->
+      <section v-if="showDisplayLink" class="dashboard-section">
+        <h2 class="section-title">{{ t('display.title') }}</h2>
+        <p class="display-dashboard-hint">{{ t('display.subtitle') }}</p>
+        <router-link :to="getLink('/settings/my-department/display-screens')" class="section-link">
+          {{ t('dashboard.toDisplay') }}
+        </router-link>
+      </section>
+
       <!-- MW: Pack-Queue heute -->
       <section v-if="showPackQueueWidget && todayActivities.length > 0" class="dashboard-section">
         <h2 class="section-title">{{ t('dashboard.relevantToday') }}</h2>
@@ -356,6 +365,7 @@ const showActiveActivities = computed(() => USER_ROLES.includes(role.value) || L
 const showDraftsWidget = computed(() => LEADER_ROLES.includes(role.value))
 const showOverviewWidget = computed(() => DC_ROLES.includes(role.value) || MW_DASHBOARD_ROLES.includes(role.value))
 const showWorkshopWidget = computed(() => DC_ROLES.includes(role.value) || MW_DASHBOARD_ROLES.includes(role.value))
+const showDisplayLink = computed(() => DC_ROLES.includes(role.value) || MW_DASHBOARD_ROLES.includes(role.value))
 const showPackQueueWidget = computed(() => MW_DASHBOARD_ROLES.includes(role.value))
 /** Join-Requests nur für globale Profil-Rollen SA/OrgChef/SubOrgChef — nicht für reine Abteilungsrollen (mw/dc/…). */
 const showAdminJoinRequestsWidget = computed(() => hasSupportAdminRole.value)
@@ -780,6 +790,13 @@ button.quick-action-btn {
 
 .section-link:hover {
   text-decoration: underline;
+}
+
+.display-dashboard-hint {
+  margin: 0 0 4px;
+  font-size: 0.9rem;
+  color: #6b7280;
+  max-width: 42rem;
 }
 
 .config-links {

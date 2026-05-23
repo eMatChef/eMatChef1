@@ -158,6 +158,50 @@ class ActivityKisteMaterialLinker
     }
 
     /**
+     * Nach Kisten-Löschen: verwaiste Pack-Zeilen entfernen (kein ActivityItem, kein Pack-Behälter mehr).
+     * Behebt u. a. den Fall «Behälter weg in DB, Kiste erscheint links in Bestätigt».
+     */
+    public function reconcileOrphanPackItemsWithoutMaterialLine(
+        Activity $activity,
+        ?string $excludePackContainerId = null,
+    ): void {
+        if (!in_array($activity->getStatus(), [
+            Activity::STATUS_PACKING,
+            Activity::STATUS_PACKED,
+            Activity::STATUS_AT_EVENT,
+            Activity::STATUS_RETURNED,
+            Activity::STATUS_COMPLETED,
+        ], true)) {
+            return;
+        }
+
+        $containerCountByMaterialId = $this->packContainerCountByMaterialId($activity, $excludePackContainerId);
+        $packItems = $this->entityManager->getRepository(ActivityPackItem::class)
+            ->findBy(['activityId' => $activity->getId()]);
+
+        $removed = false;
+        foreach ($packItems as $packItem) {
+            if (!$packItem instanceof ActivityPackItem) {
+                continue;
+            }
+            $mid = $packItem->getMaterialItemId();
+            if (($containerCountByMaterialId[$mid] ?? 0) > 0) {
+                continue;
+            }
+            if ($this->activityItemSumQty($activity, $mid) > 0) {
+                continue;
+            }
+            $this->entityManager->remove($packItem);
+            $removed = true;
+        }
+
+        if ($removed) {
+            $activity->setUpdatedAt(new \DateTime());
+            $this->entityManager->flush();
+        }
+    }
+
+    /**
      * Fehlende Kisten-Zeilen nachziehen (einmalig nachziehbar, idempotent: keine doppelte Mengenerhöhung bei jedem GET).
      */
     public function syncMissingActivityLinesFromPackContainers(Activity $activity, User $user): void
@@ -299,6 +343,47 @@ class ActivityKisteMaterialLinker
             $packItem->setPackedByUser($user);
             $this->entityManager->persist($packItem);
         }
+    }
+
+    /**
+     * @return array<string, int> Material-ID → Anzahl Pack-Behälter mit Lager-Kiste
+     */
+    private function packContainerCountByMaterialId(
+        Activity $activity,
+        ?string $excludePackContainerId = null,
+    ): array {
+        $containers = $this->entityManager->getRepository(ActivityPackContainer::class)
+            ->findBy(['activityId' => $activity->getId()]);
+        $map = [];
+        foreach ($containers as $pc) {
+            if (!$pc instanceof ActivityPackContainer) {
+                continue;
+            }
+            if ($excludePackContainerId !== null && $pc->getId() === $excludePackContainerId) {
+                continue;
+            }
+            $batch = $pc->getContainerBatch();
+            if ($batch === null) {
+                continue;
+            }
+            $mid = $batch->getMaterialItemId();
+            $map[$mid] = ($map[$mid] ?? 0) + 1;
+        }
+
+        return $map;
+    }
+
+    private function activityItemSumQty(Activity $activity, string $materialItemId): int
+    {
+        return (int) $this->entityManager->createQueryBuilder()
+            ->select('COALESCE(SUM(ai.quantity), 0)')
+            ->from(ActivityItem::class, 'ai')
+            ->where('ai.activityId = :aid')
+            ->andWhere('ai.materialItemId = :mid')
+            ->setParameter('aid', $activity->getId())
+            ->setParameter('mid', $materialItemId)
+            ->getQuery()
+            ->getSingleScalarResult();
     }
 
     private function countPackContainersWithBatch(

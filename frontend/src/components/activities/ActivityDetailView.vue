@@ -16,6 +16,28 @@
         </div>
       </div>
       <div v-if="activity && !loadError" class="header-actions activity-detail-workflow-actions">
+        <template v-if="canManageActivityQr">
+          <button
+            v-if="showGenerateActivityQrButton"
+            type="button"
+            class="btn-outline btn-sm"
+            :disabled="isGeneratingActivityPublicCode"
+            @click="generateActivityPublicCode"
+          >
+            {{ isGeneratingActivityPublicCode ? t('activities.detail.qrGenLoading') : t('activities.detail.qrGenCreate') }}
+          </button>
+          <PublicQrTag
+            v-if="activityPublicUrl"
+            class="header-qr-tag"
+            :url="activityPublicUrl"
+            :code="activity.public_code"
+            :size="64"
+            :clickable="true"
+            :image-label="activity.name"
+            :image-entity-id="activity.id"
+            @activate="openActivityQrActionModal"
+          />
+        </template>
         <button
           v-for="tr in workflowTransitions"
           :key="tr.status"
@@ -396,6 +418,16 @@
       @close="onNachbuchungModalClose"
       @success="onNachbuchungModalSuccess"
     />
+
+    <PublicQrActionModal
+      :open="showActivityQrActionModal"
+      :label="activity?.name"
+      :code="activity?.public_code"
+      :url="activityPublicUrl"
+      @close="closeActivityQrActionModal"
+      @add-to-print-cart="handleActivityQrAddToPrintCart"
+      @print="handleActivityQrPrint"
+    />
   </div>
 </template>
 
@@ -406,6 +438,7 @@ import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import {
   addActivityItem,
+  ensureActivityPublicCode,
   getActivity,
   getActivityItems,
   getActivityTransitions,
@@ -429,6 +462,11 @@ import ActivityHistoryTab from '@/components/activities/ActivityHistoryTab.vue'
 import ActivityConsumptionModal from '@/components/activities/ActivityConsumptionModal.vue'
 import ActivityConsumableNachbuchungModal from '@/components/activities/ActivityConsumableNachbuchungModal.vue'
 import DamageReportWizard from '@/components/DamageReportWizard.vue'
+import PublicQrTag from '@/components/common/PublicQrTag.vue'
+import PublicQrActionModal from '@/components/common/PublicQrActionModal.vue'
+import { addPrintCartItem } from '@/api/tasks'
+import { printHtmlDocument } from '@/utils/printHtml'
+import { useAuthStore } from '@/stores/auth'
 import type { ConsumptionModalPreset } from '@/components/activities/ActivityConsumptionModal.vue'
 import type { ActivityMaterialLine } from '@/composables/useActivityCreateWizard'
 import type { MaterialScopeTab } from '@/components/activities/shared/activityMaterialAvailabilityScope'
@@ -437,6 +475,8 @@ import { useConfirm } from '@/composables/useConfirm'
 import { usePageHeadStore } from '@/stores/pageHead'
 import { useHeaderNotificationsStore } from '@/stores/headerNotifications'
 import { useToast } from '@/composables/useToast'
+import { resolveActivityPublicUrl } from '@/utils/publicQrUrl'
+import QRCode from 'qrcode'
 
 /** Workflow-Schritte ab Einreichung — nur MW/DC/Gruppenchef (nicht u + Gruppenmitglied). */
 const MANAGER_WORKFLOW_TRANSITION_STATUSES = new Set([
@@ -462,6 +502,7 @@ const props = defineProps<{
 
 const route = useRoute()
 const router = useRouter()
+const authStore = useAuthStore()
 
 const ACTIVITY_TAB_IDS = ['overview', 'material', 'packs', 'issues', 'consumables', 'costs', 'history'] as const
 type ActivityTabId = (typeof ACTIVITY_TAB_IDS)[number]
@@ -481,6 +522,19 @@ const headerNotificationsStore = useHeaderNotificationsStore()
 const { t, te, locale } = useI18n()
 
 const activity = ref<ActivityDetail | null>(null)
+const isGeneratingActivityPublicCode = ref(false)
+const showActivityQrActionModal = ref(false)
+
+const departmentRole = computed(() => String(authStore.currentDepartmentRole || 'u').toLowerCase())
+const canManageActivityQr = computed(() =>
+  ['mw', 'dc', 'matwart', 'depchef'].includes(departmentRole.value)
+)
+const activityPublicUrl = computed(() =>
+  resolveActivityPublicUrl(activity.value?.public_url, activity.value?.public_code),
+)
+const showGenerateActivityQrButton = computed(
+  () => canManageActivityQr.value && !activityPublicUrl.value && !!activity.value
+)
 
 /** Wie v4.01: Packliste erst ab «Wird gepackt», nicht schon bei «Bestätigt». */
 const STATUSES_WITH_PACKS_TAB = [
@@ -498,8 +552,8 @@ const showPacksTab = computed(() => {
   return (STATUSES_WITH_PACKS_TAB as readonly string[]).includes(s)
 })
 
-/** Reparaturen / Verluste: ab «Gepackt» (Leader-Phase bis Transport/Retour) — für Gruppe sichtbar */
-const STATUSES_WITH_ISSUES_TAB = ['packed', 'at_event', 'issued', 'returned', 'completed'] as const
+/** Reparaturen / Verluste: ab «Am Event» (Material ausgegeben) */
+const STATUSES_WITH_ISSUES_TAB = ['at_event', 'issued', 'returned', 'completed'] as const
 
 const showIssuesTab = computed(() => {
   const s = activity.value?.status
@@ -729,15 +783,15 @@ const materialLinesForEditableTable = computed((): ActivityMaterialLine[] => {
 
 const cancelTransition = computed(() => transitions.value.find((t) => t.status === 'cancelled' && t.allowed))
 
-/** Gleicher Meldungsflow wie Dashboard, mit vorgewählter Aktivität (issued/returned, API-konform) */
+/** Reparaturen / Verluste: erst nach «Am Event buchen» (Workflow-Status at_event), nicht bei «gepackt». */
 const showDamageReportEntry = computed(() => {
   const a = activity.value
   if (!a) return false
   if (a.status === 'completed') return false
   if (a.can_report_issues === false) return false
-  if (a.can_report_issues === true) return true
-  const s = a.status
-  return !!s && ['at_event', 'issued', 'returned'].includes(s)
+  const s = a.status === 'issued' ? 'at_event' : a.status
+  if (s !== 'at_event' && s !== 'returned') return false
+  return true
 })
 
 /** Nachbuchung zur Aktivität (addActivityItem) — wie Tab «Material» */
@@ -968,6 +1022,71 @@ function inviteStatusClass(status?: string): string {
   return 'pending'
 }
 
+async function generateActivityPublicCode() {
+  if (!props.activityId || isGeneratingActivityPublicCode.value) return
+  isGeneratingActivityPublicCode.value = true
+  try {
+    activity.value = await ensureActivityPublicCode(props.activityId)
+    toast.success(t('activities.detail.toastQrCreated'))
+  } catch (err: any) {
+    toast.error(err?.response?.data?.error || t('activities.detail.errQrCreate'))
+  } finally {
+    isGeneratingActivityPublicCode.value = false
+  }
+}
+
+function openActivityQrActionModal() {
+  showActivityQrActionModal.value = true
+}
+
+function closeActivityQrActionModal() {
+  showActivityQrActionModal.value = false
+}
+
+async function handleActivityQrAddToPrintCart() {
+  const act = activity.value
+  const url = activityPublicUrl.value
+  if (!act?.id || !url) {
+    toast.info(t('activities.detail.toastNoPublicLink'))
+    return
+  }
+  try {
+    const result = await addPrintCartItem({
+      department_id: props.departmentId,
+      entity_type: 'activity',
+      entity_id: act.id,
+      label: act.name || t('activities.detail.fallbackTitle'),
+      public_code: act.public_code || null,
+      public_url: url,
+    })
+    toast.success(
+      result.created ? t('activities.detail.toastPrintCartAdded') : t('activities.detail.toastPrintCartAlready')
+    )
+    closeActivityQrActionModal()
+  } catch (err: any) {
+    toast.error(err?.response?.data?.error || t('activities.detail.errPrintCartAdd'))
+  }
+}
+
+async function handleActivityQrPrint() {
+  const url = activityPublicUrl.value
+  const act = activity.value
+  if (!url || !act) {
+    toast.info(t('activities.detail.toastNoPublicLink'))
+    return
+  }
+  const qrDataUrl = await QRCode.toDataURL(url, { width: 300, margin: 1 })
+  printHtmlDocument(`<!doctype html>
+<html><head><meta charset="utf-8" /><title>${act.name}</title>
+<style>body{font-family:Arial,sans-serif;text-align:center;padding:24px}img{width:280px;height:280px}.title{margin-top:12px;font-weight:700}.code{font-family:monospace;color:#64748b;margin-top:6px}</style>
+</head><body>
+<img src="${qrDataUrl}" alt="QR" />
+<div class="title">${act.name}</div>
+<div class="code">${act.public_code || ''}</div>
+</body></html>`)
+  closeActivityQrActionModal()
+}
+
 function handleClose() {
   void router.push(`/${props.departmentId}/activities`)
 }
@@ -1037,6 +1156,7 @@ async function onDamageReportSuccess() {
   damageReportPresets.value = {}
   issuesReloadToken.value += 1
   costsReloadToken.value += 1
+  headerNotificationsStore.requestRefresh()
   toast.success(t('activities.detail.toastIssueRecorded'))
   try {
     await loadItems()

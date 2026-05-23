@@ -72,6 +72,9 @@ export interface WorkshopTicket {
   origin_issue_type?: 'repair' | 'loss' | 'damage' | 'consumption' | null
   origin_issue_type_label?: string | null
 
+  public_code?: string | null
+  public_url?: string | null
+
   // Detail-Felder (nur bei get mit details)
   parts_used?: any[] | null
   photos?: string[] | null
@@ -174,6 +177,11 @@ export async function getWorkshopTickets(
 export async function getWorkshopTicket(id: string): Promise<WorkshopTicket> {
   const response = await apiClient.get<WorkshopTicket>(`/api/workshop/${id}`)
   return response.data
+}
+
+export async function ensureWorkshopPublicCode(ticketId: string): Promise<WorkshopTicket> {
+  const { data } = await apiClient.post<WorkshopTicket>(`/api/workshop/${ticketId}/public-code`)
+  return data
 }
 
 /**

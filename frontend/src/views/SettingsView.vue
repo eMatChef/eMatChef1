@@ -35,7 +35,7 @@ import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'
 import { useDepartmentMemberRole } from '@/composables/useDepartmentMemberRole'
-import { IconSettings, IconContacts, IconEmployees, IconDashboard, IconActivities, IconMaterials } from '@/components/icons'
+import { IconSettings, IconContacts, IconEmployees, IconDashboard, IconActivities, IconMaterials, IconDisplay } from '@/components/icons'
 
 const route = useRoute()
 const authStore = useAuthStore()
@@ -65,6 +65,9 @@ function isSettingsItemActive(itemId: string): boolean {
   if (itemId === 'my-department/join-code') {
     return p === `${base}/my-department/join-code`
   }
+  if (itemId === 'my-department/display-screens') {
+    return p === `${base}/my-department/display-screens`
+  }
   if (itemId === 'my-department/storage-locations') {
     return p === `${base}/my-department/storage-locations`
   }
@@ -85,6 +88,7 @@ const allMenuItems = computed(() => [
   { id: 'categories', label: t('settings.nav.categories'), icon: markRaw(IconDashboard) },
   { id: 'storage', label: t('settings.nav.storage'), icon: markRaw(IconMaterials) },
   { id: 'my-department/join-code', label: t('settings.nav.joinCode'), icon: markRaw(IconEmployees) },
+  { id: 'my-department/display-screens', label: t('settings.nav.displayScreens'), icon: markRaw(IconDisplay) },
   { id: 'activities', label: t('settings.nav.activities'), icon: markRaw(IconActivities) },
   { id: 'my-department/storage-locations', label: t('settings.nav.storageLocations'), icon: markRaw(IconMaterials) },
   { id: 'my-department/billing-address', label: t('settings.nav.billingAddress'), icon: markRaw(IconContacts) },

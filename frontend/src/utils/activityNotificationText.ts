@@ -25,6 +25,9 @@ export function formatActivityMwInboxPreview(
   const parts: string[] = []
   const action = labels.actionForType(entry.type || 'activity_submitted')
   if (action) parts.push(action)
+  if (entry.type === 'activity_issue_reported' && entry.material_name?.trim()) {
+    parts.push(entry.material_name.trim())
+  }
   const typeLabel = labels.activityType(entry.activity_type || 'activity')
   if (typeLabel) parts.push(typeLabel)
   if (entry.group_name?.trim()) parts.push(entry.group_name.trim())

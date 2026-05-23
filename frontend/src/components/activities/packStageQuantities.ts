@@ -87,11 +87,13 @@ export function isPackReturnStage(stage: PackStage): boolean {
 }
 
 /**
- * Lagerort / Regal / Fach nur, solange Material noch im Lager liegt (Bestätigt links).
- * Ab «Gepackt» bzw. unterwegs/am Event ausblenden — wieder anzeigen ab Retour.
+ * Lagerort / Regal / Fach:
+ * - «Bestätigt → Gepackt»: links (Material noch im Lager)
+ * - «Retour → Ausgepackt»: rechts (wieder ins Regal einräumen)
+ * Nicht während «Am Event», «Gepackt → Event» oder «Am Event → Retour» (Material ist gepackt/unterwegs).
  */
 export function showPackStorageLocation(stage: PackStage, side: 'left' | 'right'): boolean {
-  if (isPackReturnStage(stage)) return true
+  if (isPackUnpackStage(stage)) return side === 'right'
   if (isPackConfirmedStage(stage)) return side === 'left'
   return false
 }
@@ -115,7 +117,7 @@ export function autoPackStageForStatus(
       return canManageMaterials ? 'confirmed_packed' : 'packed_at_event'
     }
     if (s === 'packed') {
-      return canManageMaterials ? 'confirmed_packed' : 'packed_at_event'
+      return 'packed_at_event'
     }
     if (canManageMaterials && (s === 'approved' || s === 'submitted')) {
       return 'confirmed_packed'

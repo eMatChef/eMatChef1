@@ -3,7 +3,9 @@
 namespace App\Service;
 
 use App\Entity\Activity;
+use App\Entity\ActivityIssueReport;
 use App\Entity\Department;
+use App\Entity\GroupMembership;
 use App\Entity\InboxMessage;
 use App\Entity\User;
 use App\Util\IdGenerator;
@@ -149,6 +151,32 @@ class InboxMessageService
             return;
         }
 
+        $this->persistActivityUserStatusNotification($activity, $actor, $type, $recipient);
+        $this->entityManager->flush();
+    }
+
+    /**
+     * «Gepackt markieren»: Ersteller der Aktivität und alle Mitglieder der zugeordneten Gruppe.
+     */
+    public function notifyActivityPacked(Activity $activity, User $actor): void
+    {
+        $recipients = $this->collectActivityPackedRecipients($activity, $actor);
+        if ($recipients === []) {
+            return;
+        }
+
+        foreach ($recipients as $recipient) {
+            $this->persistActivityUserStatusNotification($activity, $actor, 'activity_packed', $recipient);
+        }
+        $this->entityManager->flush();
+    }
+
+    private function persistActivityUserStatusNotification(
+        Activity $activity,
+        User $actor,
+        string $type,
+        User $recipient,
+    ): void {
         $department = $activity->getDepartment();
         $this->removeUnreadActivityDuplicate(
             $department->getId(),
@@ -159,9 +187,101 @@ class InboxMessageService
             $recipient->getId(),
         );
 
-        $row = $this->buildActivityRow($activity, $actor, $type, InboxMessage::CATEGORY_ACTIVITY_USER, InboxMessage::RECIPIENT_USER, $recipient->getId());
+        $row = $this->buildActivityRow(
+            $activity,
+            $actor,
+            $type,
+            InboxMessage::CATEGORY_ACTIVITY_USER,
+            InboxMessage::RECIPIENT_USER,
+            $recipient->getId(),
+        );
         $this->entityManager->persist($row);
+    }
+
+    /**
+     * @return list<User>
+     */
+    private function collectActivityPackedRecipients(Activity $activity, User $actor): array
+    {
+        $byId = [];
+        $actorId = $actor->getId();
+
+        $creator = $activity->getCreatedByUser();
+        if ($creator !== null && $creator->getId() !== $actorId) {
+            $byId[$creator->getId()] = $creator;
+        }
+
+        $groupId = trim((string) ($activity->getGroupId() ?? ''));
+        if ($groupId !== '') {
+            $memberships = $this->entityManager->getRepository(GroupMembership::class)->findBy(['groupId' => $groupId]);
+            foreach ($memberships as $membership) {
+                $user = $membership->getUser();
+                if ($user->getId() !== $actorId) {
+                    $byId[$user->getId()] = $user;
+                }
+            }
+        }
+
+        return array_values($byId);
+    }
+
+    /**
+     * Verlust/Reparatur/Schaden: MW-Inbox + Ersteller/Gruppe (jede Meldung ein eigener Eintrag).
+     */
+    public function notifyActivityIssueReported(Activity $activity, User $actor, ActivityIssueReport $report): void
+    {
+        if (!\in_array($report->getType(), [
+            ActivityIssueReport::TYPE_LOSS,
+            ActivityIssueReport::TYPE_REPAIR,
+            ActivityIssueReport::TYPE_DAMAGE,
+        ], true)) {
+            return;
+        }
+
+        $extra = $this->issueReportNotificationPayload($report);
+
+        $mwRow = $this->buildActivityRow(
+            $activity,
+            $actor,
+            'activity_issue_reported',
+            InboxMessage::CATEGORY_ACTIVITY_MW,
+            InboxMessage::RECIPIENT_DEPARTMENT_MW,
+            null,
+        );
+        $mwRow->setPayload(array_merge($mwRow->getPayload(), $extra));
+        $this->entityManager->persist($mwRow);
+
+        foreach ($this->collectActivityPackedRecipients($activity, $actor) as $recipient) {
+            $userRow = $this->buildActivityRow(
+                $activity,
+                $actor,
+                'activity_issue_reported',
+                InboxMessage::CATEGORY_ACTIVITY_USER,
+                InboxMessage::RECIPIENT_USER,
+                $recipient->getId(),
+            );
+            $userRow->setPayload(array_merge($userRow->getPayload(), $extra));
+            $this->entityManager->persist($userRow);
+        }
+
         $this->entityManager->flush();
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function issueReportNotificationPayload(ActivityIssueReport $report): array
+    {
+        $material = $report->getMaterialItem();
+        $materialName = $material?->getName() ?? '';
+
+        return [
+            'issue_report_id' => $report->getId(),
+            'issue_report_type' => $report->getType(),
+            'issue_report_quantity' => $report->getQuantity(),
+            'material_item_id' => $report->getMaterialItemId(),
+            'material_name' => $materialName,
+        ];
     }
 
     /** Storno durch MW/DC: persönliche Meldung an den Ersteller (bleibt nach purgeByActivity erhalten). */

@@ -20,6 +20,9 @@ export interface ActivityMwNotification {
   creator_text_color?: string | null
   created_at: string
   read?: boolean
+  issue_report_type?: string | null
+  issue_report_quantity?: number | null
+  material_name?: string | null
 }
 
 export interface ActivityMwNotificationsResponse {

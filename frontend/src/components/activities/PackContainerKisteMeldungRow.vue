@@ -5,7 +5,8 @@ import { PACK_WAREHOUSE_ISSUE_INJECT_KEY } from '@/components/activities/packWar
 
 defineOptions({ name: 'PackContainerKisteMeldungRow' })
 
-const props = defineProps<{
+defineProps<{
+  containerId: string
   materialItemId: string
   linkedContainerLabel?: string | null
 }>()
@@ -16,7 +17,10 @@ const ctx = inject(PACK_WAREHOUSE_ISSUE_INJECT_KEY) as Record<string, (...args: 
 
 <template>
   <div
-    v-if="ctx.canReportIssues"
+    v-if="
+      (ctx.showKisteMeldungForContainer as ((id: string) => boolean) | undefined)?.(containerId) ??
+      false
+    "
     class="pack-container-kiste-meldung-row"
     @click.stop
   >

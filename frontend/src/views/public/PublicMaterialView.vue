@@ -34,15 +34,20 @@
 
     <main class="public-page">
     <section class="public-card">
-      <h1 class="public-title">{{ routeType === 'b' ? t('public.lookup.serialInfoTitle') : t('public.lookup.materialInfoTitle') }}</h1>
+      <h1 class="public-title">{{ publicPageTitle }}</h1>
 
       <p v-if="loading" class="muted">{{ t('public.lookup.loading') }}</p>
       <p v-else-if="error" class="error">{{ error }}</p>
 
       <template v-else-if="data">
-        <p class="public-code">{{ t('public.lookup.codePrefix') }}: {{ routeCode }}</p>
-        <p v-if="routeType === 'b'" class="public-code">
-          {{ t('public.lookup.serialPrefix') }}: {{ data.batch?.serial_number || data.batch?.label || data.batch?.id }}
+        <p v-if="displayMaterialCode" class="public-code">
+          {{ t('public.lookup.materialCodePrefix') }}: {{ displayMaterialCode }}
+        </p>
+        <p v-if="displayBatchCode" class="public-code">
+          {{ t('public.lookup.batchCodePrefix') }}: {{ displayBatchCode }}
+        </p>
+        <p v-if="data.batch?.serial_number || data.batch?.label" class="public-code">
+          {{ t('public.lookup.serialPrefix') }}: {{ data.batch?.serial_number || data.batch?.label }}
         </p>
         <h2 class="material-name">{{ data.material.name }}</h2>
 
@@ -165,10 +170,9 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
   getPublicBatchByCode,
-  getPublicMaterialByCode,
+  getPublicMaterialBatchByCodes,
   submitPublicFoundItemContact,
   type PublicLookupBatchResponse,
-  type PublicLookupMaterialResponse,
 } from '../../api/public/publicLookup'
 import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '../../stores/auth'
@@ -188,13 +192,61 @@ const pageHeadStore = usePageHeadStore()
 const PUBLIC_SESSION_POLL_MS = 10_000
 let sessionPollTimer: number | null = null
 
-const routeType = computed(() => String(route.params.type || 'm').trim().toLowerCase())
-const routeCode = computed(() => String(route.params.code || '').trim())
+type LookupKind = 'material_batch' | 'batch_short' | 'material_legacy'
+
+const lookupKind = computed<LookupKind>(() => {
+  if (route.name === 'PublicLookupMaterialBatch') return 'material_batch'
+  if (route.name === 'PublicLookupBatch') return 'batch_short'
+  if (route.name === 'PublicLookupMaterialLegacy') return 'material_legacy'
+  const type = String(route.params.type || '').trim().toLowerCase()
+  if (type === 'b') return 'batch_short'
+  if (type === 'm') return 'material_legacy'
+  return 'material_legacy'
+})
+
+const matCodeParam = computed(() => {
+  if (lookupKind.value === 'material_batch') {
+    return String(route.params.matCode || '').trim()
+  }
+  return ''
+})
+
+const batchCodeParam = computed(() => {
+  if (lookupKind.value === 'material_batch') {
+    return String(route.params.batchCode || '').trim()
+  }
+  if (lookupKind.value === 'batch_short') {
+    return String(route.params.batchCode || route.params.code || '').trim()
+  }
+  return ''
+})
 
 const loading = ref(false)
 const error = ref<string | null>(null)
-type PublicLookupViewData = PublicLookupMaterialResponse | PublicLookupBatchResponse
-const data = ref<PublicLookupViewData | null>(null)
+const data = ref<PublicLookupBatchResponse | null>(null)
+
+const publicPageTitle = computed(() => {
+  if (lookupKind.value === 'material_legacy') {
+    return t('public.lookup.materialInfoTitle')
+  }
+  const batch = data.value?.batch
+  if (batch?.serial_number || batch?.label) {
+    return t('public.lookup.serialInfoTitle')
+  }
+  return t('public.lookup.batchInfoTitle')
+})
+
+const displayMaterialCode = computed(() => {
+  const d = data.value
+  if (!d) return ''
+  return String(d.material_code || '').trim()
+})
+
+const displayBatchCode = computed(() => {
+  const d = data.value
+  if (!d) return batchCodeParam.value
+  return String(d.batch_code || d.code || batchCodeParam.value || '').trim()
+})
 
 const isPublicLoggedIn = computed(() => authStore.isLoggedIn)
 const publicAvatarStyle = computed(() => ({
@@ -222,7 +274,7 @@ const pageTitle = computed(() => {
   if (!data.value) return t(PAGE_HEAD_KEYS.defaultTitle)
   const d = data.value
   const name = d.material?.name?.trim() || t('public.lookup.materialFallback')
-  if (routeType.value === 'b' && d.entity_type === 'batch' && d.batch) {
+  if (d.batch) {
     const serial = String(d.batch.serial_number || d.batch.label || '').trim()
     return serial ? `${serial} · ${name} · eMatChef` : `${name} · eMatChef`
   }
@@ -242,7 +294,9 @@ const pageDescription = computed(() => {
   const d = data.value
   const mat = d.material.name
   const dept = d.department?.name
-  const bit = routeType.value === 'b' ? t('public.lookup.serialOrBatch') : t('public.lookup.materialFallback')
+  const bit = d.batch?.serial_number
+    ? t('public.lookup.serialOrBatch')
+    : t('public.lookup.batchOrMaterial')
   return `${[mat, dept, bit].filter(Boolean).join(' · ')}. eMatChef.`
 })
 
@@ -307,7 +361,7 @@ async function submitFoundContact() {
   foundFormSubmitting.value = true
   try {
     await submitPublicFoundItemContact({
-      entity_type: d.entity_type === 'batch' ? 'batch' : 'material',
+      entity_type: 'batch',
       public_code: d.code,
       message: msg,
       sender_name: foundForm.value.sender_name.trim() || undefined,
@@ -371,7 +425,7 @@ function goToApp() {
       router,
       d.department.id,
       d.material.id,
-      d.entity_type === 'batch' ? (d.batch?.id || null) : null
+      d.batch?.id || null
     )
     return
   }
@@ -392,8 +446,23 @@ function goToApp() {
 }
 
 async function loadData() {
-  if (!routeCode.value) {
+  if (lookupKind.value === 'material_legacy') {
+    loading.value = false
+    error.value = t('public.lookup.errorBatchRequired')
+    data.value = null
+    resetFoundForm()
+    return
+  }
+
+  if (lookupKind.value === 'material_batch') {
+    if (!matCodeParam.value || !batchCodeParam.value) {
+      error.value = t('public.lookup.errorInvalidCode')
+      data.value = null
+      return
+    }
+  } else if (!batchCodeParam.value) {
     error.value = t('public.lookup.errorInvalidCode')
+    data.value = null
     return
   }
 
@@ -402,10 +471,10 @@ async function loadData() {
   resetFoundForm()
 
   try {
-    if (routeType.value === 'b') {
-      data.value = await getPublicBatchByCode(routeCode.value)
+    if (lookupKind.value === 'material_batch') {
+      data.value = await getPublicMaterialBatchByCodes(matCodeParam.value, batchCodeParam.value)
     } else {
-      data.value = await getPublicMaterialByCode(routeCode.value)
+      data.value = await getPublicBatchByCode(batchCodeParam.value)
     }
   } catch {
     error.value = t('public.lookup.errorCodeNotFound')
@@ -445,7 +514,7 @@ function onVisibilityChange() {
     refreshPublicSession()
   }
 }
-watch([routeType, routeCode], loadData)
+watch([lookupKind, matCodeParam, batchCodeParam], loadData)
 </script>
 
 <style scoped>

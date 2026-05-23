@@ -364,10 +364,19 @@ export async function loadSession(): Promise<{ user: UserResponse; profile: Prof
 
 /**
  * Lädt Session rein über serverseitige Auth-Cookies (ohne localStorage IDs).
+ * 401 = nicht eingeloggt (kein Fehler werfen — optionaler Probe-Call).
  */
-export async function loadSessionFromServer(): Promise<ServerSessionResponse> {
-  const { data } = await apiClient.get<ServerSessionResponse>('/api/auth/session')
-  return data
+export async function loadSessionFromServer(): Promise<ServerSessionResponse | null> {
+  try {
+    const { data } = await apiClient.get<ServerSessionResponse>('/api/auth/session')
+    return data
+  } catch (err: unknown) {
+    const status = (err as { response?: { status?: number } })?.response?.status
+    if (status === 401 || status === 403) {
+      return null
+    }
+    throw err
+  }
 }
 
 /**

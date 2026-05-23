@@ -268,6 +268,10 @@ export const useAuthStore = defineStore('auth', () => {
       loadingUser.value = true
       cookieSessionPromise = (async () => {
         const session = await loadSessionFromServer()
+        if (!session) {
+          clearAuthState()
+          return false
+        }
 
         user.value = {
           ...session.user,

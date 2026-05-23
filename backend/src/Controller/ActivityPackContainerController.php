@@ -187,7 +187,12 @@ class ActivityPackContainerController extends AbstractController
             );
         }
         $this->dissolveContainerPackQuantitiesBeforeDelete($activity, $container);
+        $removedContainerId = $container->getId();
         $this->entityManager->remove($container);
+        $this->kisteMaterialLinker->reconcileOrphanPackItemsWithoutMaterialLine(
+            $activity,
+            $removedContainerId,
+        );
         $this->entityManager->flush();
 
         return new JsonResponse(['success' => true]);
@@ -522,10 +527,20 @@ class ActivityPackContainerController extends AbstractController
                 $packItem->setQuantityIssued($packItem->getQuantityIssued() + $apply);
             } elseif ($mode === 'return_all') {
                 $delta = $ci->getQuantityIssued() - $ci->getQuantityReturned();
+                if ($delta <= 0 && $ci->getQuantityIssued() === 0 && $ci->getQuantityPacked() > $ci->getQuantityReturned()) {
+                    // In Kiste gepackt, nie lose ans Event — retourniert mit der Kiste
+                    $delta = $ci->getQuantityPacked() - $ci->getQuantityReturned();
+                }
                 if ($delta <= 0) {
                     continue;
                 }
                 $maxPack = $packItem->getQuantityIssued() - $packItem->getQuantityReturned();
+                if ($maxPack <= 0 && $ci->getQuantityIssued() === 0) {
+                    $maxPack = $packItem->getQuantityPacked() - $packItem->getQuantityReturned();
+                }
+                if ($maxPack <= 0) {
+                    continue;
+                }
                 $apply = min($delta, $maxPack);
                 if ($apply <= 0) {
                     continue;

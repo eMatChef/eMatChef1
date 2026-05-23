@@ -26,6 +26,7 @@ use App\Service\ActivityKisteMaterialLinker;
 use App\Service\ActivityMwNotificationService;
 use App\Service\ActivityUserNotificationService;
 use App\Service\InboxMessageService;
+use App\Service\Public\PublicCodeService;
 use App\Util\IdGenerator;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\Security\Core\Exception\AccessDeniedException;
@@ -48,7 +49,15 @@ class ActivityController extends AbstractController
         private ActivityMwNotificationService $activityMwNotifications,
         private ActivityUserNotificationService $activityUserNotifications,
         private InboxMessageService $inboxMessageService,
+        private PublicCodeService $publicCodeService,
     ) {}
+
+    private function getActorUserId(): ?string
+    {
+        $user = $this->getUser();
+
+        return $user instanceof User ? $user->getId() : null;
+    }
 
     private function normalizeInvitedDepartmentsPayload(array $incoming, array $existing = []): array
     {
@@ -646,6 +655,36 @@ class ActivityController extends AbstractController
     }
 
     /**
+     * Erzeugt (Backfill) einen öffentlichen QR-Code für eine Aktivität, falls noch keiner vorhanden ist.
+     */
+    #[Route('/{id}/public-code', name: 'ensure_public_code', methods: ['POST'])]
+    #[IsGranted('ROLE_USER')]
+    public function ensurePublicCode(string $id): JsonResponse
+    {
+        $activity = $this->entityManager->getRepository(Activity::class)->find($id);
+
+        if (!$activity || $activity->isDeleted()) {
+            return new JsonResponse(['error' => 'Aktivität nicht gefunden'], 404);
+        }
+
+        $currentUser = $this->getUser();
+        if (!$currentUser instanceof User) {
+            return new JsonResponse(['error' => 'Nicht authentifiziert'], 401);
+        }
+        if (!$this->activityAccess->canUserViewActivity($currentUser, $activity)) {
+            return new JsonResponse(['error' => 'Keine Berechtigung fuer diese Aktivitaet'], 403);
+        }
+        if (!$this->canUserManageActivityPublicCode($currentUser, $activity)) {
+            return new JsonResponse(['error' => 'Keine Berechtigung fuer oeffentliche QR-Codes'], 403);
+        }
+
+        $this->publicCodeService->ensureActivityPublicCode($activity, $this->getActorUserId());
+        $this->entityManager->flush();
+
+        return new JsonResponse($this->serializeActivity($activity, true, $currentUser));
+    }
+
+    /**
      * Neue Aktivität erstellen
      */
     #[Route('', name: 'create', methods: ['POST'])]
@@ -1189,7 +1228,7 @@ class ActivityController extends AbstractController
         }
 
         if ($newStatus === Activity::STATUS_PACKED && $oldStatus !== Activity::STATUS_PACKED) {
-            $this->activityUserNotifications->notifyStatus($activity, $user, 'activity_packed');
+            $this->activityUserNotifications->notifyPacked($activity, $user);
         }
 
         if ($newStatus === Activity::STATUS_RETURNED && $oldStatus !== Activity::STATUS_RETURNED) {
@@ -2671,6 +2710,21 @@ class ActivityController extends AbstractController
     /**
      * Aktivität serialisieren
      */
+    private function canUserManageActivityPublicCode(User $user, Activity $activity): bool
+    {
+        if (count(array_intersect(['ROLE_SUPERADMIN', 'ROLE_ORGANISATIONSCHEF', 'ROLE_SUBORGCHEF'], $user->getRoles())) > 0) {
+            return true;
+        }
+
+        $membership = $this->entityManager->getRepository(Membership::class)
+            ->findOneBy(['userId' => $user->getId(), 'departmentId' => $activity->getDepartmentId()]);
+        if (!$membership) {
+            return false;
+        }
+
+        return in_array((string) ($membership->getRole() ?? ''), ['mw', 'dc'], true);
+    }
+
     private function serializeActivity(Activity $activity, bool $detailed = false, ?User $viewer = null): array
     {
         // Gruppenname ggf. laden
@@ -2708,6 +2762,13 @@ class ActivityController extends AbstractController
             'created_at' => $activity->getCreatedAt()->format('c'),
             'updated_at' => $activity->getUpdatedAt()->format('c'),
         ];
+
+        $activityPublicEntry = $this->publicCodeService->getActiveActivityPublicCode((string) $activity->getId());
+        $activityPublicCode = $activityPublicEntry?->getPublicCode();
+        $data['public_code'] = $activityPublicCode;
+        $data['public_url'] = $activityPublicCode
+            ? $this->publicCodeService->buildActivityPublicUrl($activityPublicCode)
+            : null;
 
         if ($detailed) {
             $data = array_merge($data, [

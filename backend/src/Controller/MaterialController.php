@@ -223,28 +223,7 @@ class MaterialController extends AbstractController
             return $accessCheck;
         }
 
-        // Physische Combo aus Kiste: ein Label – QR bleibt der Batch-Code (von der Kiste übernommen), kein zweites Material-QR.
-        if ($material->getMaterialType() === 'physical_combo' && $material->getLinkedContainerBatchId()) {
-            foreach ($material->getBatches() as $batch) {
-                if ($material->getTrackingType() === 'serialized' && trim((string) $batch->getSerialNumber()) === '') {
-                    continue;
-                }
-                $this->publicCodeService->ensureBatchPublicCode($batch, $this->getActorUserId());
-            }
-        } else {
-            $this->publicCodeService->ensureMaterialPublicCode($material, $this->getActorUserId());
-
-            // Bei serialisierten Materialien zusätzlich alle fehlenden Batch-QR-Codes erzeugen.
-            if ($material->getTrackingType() === 'serialized') {
-                foreach ($material->getBatches() as $batch) {
-                    $serial = trim((string) $batch->getSerialNumber());
-                    if ($serial === '') {
-                        continue;
-                    }
-                    $this->publicCodeService->ensureBatchPublicCode($batch, $this->getActorUserId());
-                }
-            }
-        }
+        $this->ensurePublicCodesForMaterial($material, $this->getActorUserId());
 
         $this->entityManager->flush();
 
@@ -614,11 +593,13 @@ class MaterialController extends AbstractController
                 $batch->setIsContainer($material->getIsContainer());
 
                 $this->entityManager->persist($batch);
+                if (!$this->shouldSkipBatchPublicCode($material, $batch)) {
+                    $this->publicCodeService->ensureBatchPublicCode($batch, $this->getActorUserId());
+                }
                 $this->entityManager->flush();
             }
 
-            // Beim Erfassen: öffentlicher QR pro Artikel (Material), nicht pro Charge — bei Massenartikeln reicht das.
-            $this->publicCodeService->ensureMaterialPublicCode($material, $this->getActorUserId());
+            $this->ensurePublicCodesForMaterial($material, $this->getActorUserId());
             $this->entityManager->flush();
 
             return new JsonResponse($this->serializeMaterial($material, true), 201);
@@ -1214,10 +1195,8 @@ class MaterialController extends AbstractController
             }
 
             $this->entityManager->persist($batch);
-            // Serialisiert: QR nur pro Einheit (Seriennummer), nicht für „Charge“ ohne SN. Massen: QR bleibt auf Material-Ebene.
-            $tt = $material->getTrackingType();
-            $serial = trim((string) $batch->getSerialNumber());
-            if ($tt === 'serialized' && $serial !== '') {
+            if (!$this->shouldSkipBatchPublicCode($material, $batch)) {
+                $this->publicCodeService->ensureMaterialPublicCode($material, $this->getActorUserId());
                 $this->publicCodeService->ensureBatchPublicCode($batch, $this->getActorUserId());
             }
 
@@ -1236,7 +1215,7 @@ class MaterialController extends AbstractController
 
             $batchPublicCodeEntry = $this->publicCodeService->getActiveBatchPublicCode((string) $batch->getId());
             $batchPublicCode = $batchPublicCodeEntry?->getPublicCode();
-            $batchPublicUrl = $batchPublicCode ? $this->publicCodeService->buildBatchPublicUrl($batchPublicCode) : null;
+            $batchPublicUrl = $this->resolveBatchPublicUrlForApi($material, $batch);
 
             $response = [
                 'id' => $batch->getId(),
@@ -1503,9 +1482,14 @@ class MaterialController extends AbstractController
                     'serial_number' => ['old' => null, 'new' => $sn],
                 ]);
 
+                if (!$this->shouldSkipBatchPublicCode($material, $batch)) {
+                    $this->publicCodeService->ensureMaterialPublicCode($material, $this->getActorUserId());
+                    $this->publicCodeService->ensureBatchPublicCode($batch, $this->getActorUserId());
+                }
+
                 $batchPublicCodeEntry = $this->publicCodeService->getActiveBatchPublicCode((string) $batch->getId());
                 $batchPublicCode = $batchPublicCodeEntry?->getPublicCode();
-                $batchPublicUrl = $batchPublicCode ? $this->publicCodeService->buildBatchPublicUrl($batchPublicCode) : null;
+                $batchPublicUrl = $this->resolveBatchPublicUrlForApi($material, $batch);
 
                 $created[] = [
                     'id' => $batch->getId(),
@@ -1519,8 +1503,6 @@ class MaterialController extends AbstractController
                     'public_url' => $batchPublicUrl,
                     'is_container' => $batch->getIsContainer(),
                 ];
-
-                $this->publicCodeService->ensureBatchPublicCode($batch, $this->getActorUserId());
             }
 
             $this->entityManager->flush();
@@ -1639,12 +1621,8 @@ class MaterialController extends AbstractController
                 $batch->setIsContainer((bool) $data['is_container']);
             }
 
-            // Wenn serialisiert und Seriennummer vorhanden/gesetzt ist: Batch-Public-Code sicherstellen.
-            if (
-                $material->getTrackingType() === 'serialized' &&
-                $batch->getSerialNumber() !== null &&
-                trim((string) $batch->getSerialNumber()) !== ''
-            ) {
+            if (!$this->shouldSkipBatchPublicCode($material, $batch)) {
+                $this->publicCodeService->ensureMaterialPublicCode($material, $this->getActorUserId());
                 $this->publicCodeService->ensureBatchPublicCode($batch, $this->getActorUserId());
             }
 
@@ -1682,7 +1660,7 @@ class MaterialController extends AbstractController
 
             $batchPublicCodeEntry = $this->publicCodeService->getActiveBatchPublicCode((string) $batch->getId());
             $batchPublicCode = $batchPublicCodeEntry?->getPublicCode();
-            $batchPublicUrl = $batchPublicCode ? $this->publicCodeService->buildBatchPublicUrl($batchPublicCode) : null;
+            $batchPublicUrl = $this->resolveBatchPublicUrlForApi($material, $batch);
 
             return new JsonResponse([
                 'id' => $batch->getId(),
@@ -3231,24 +3209,6 @@ class MaterialController extends AbstractController
 
         $publicCodeEntry = $this->publicCodeService->getActiveMaterialPublicCode((string) $material->getId());
         $publicCode = $publicCodeEntry?->getPublicCode();
-        $publicUrl = $publicCode ? $this->publicCodeService->buildMaterialPublicUrl($publicCode) : null;
-
-        // Physische Combo aus Kiste: oft nur Batch-QR (von der Kiste übernommen) – für Listen/QR dieselbe URL zeigen
-        if ($publicUrl === null
-            && $material->getMaterialType() === 'physical_combo'
-            && $material->getLinkedContainerBatchId()) {
-            foreach ($batches as $batch) {
-                if ($batch->getStatus() !== 'active') {
-                    continue;
-                }
-                $bp = $this->publicCodeService->getActiveBatchPublicCode((string) $batch->getId());
-                if ($bp) {
-                    $publicCode = $bp->getPublicCode();
-                    $publicUrl = $this->publicCodeService->buildBatchPublicUrl($publicCode);
-                    break;
-                }
-            }
-        }
 
         $result = [
             'id' => $material->getId(),
@@ -3302,7 +3262,7 @@ class MaterialController extends AbstractController
             'pack_sale_price_chf' => $material->getPackSalePriceChf(),
             'barcode_tag' => $material->getBarcodeTag(),
             'public_code' => $publicCode,
-            'public_url' => $publicUrl,
+            'public_url' => null,
             'created_at' => $material->getCreatedAt()->format('c'),
             'updated_at' => $material->getUpdatedAt()->format('c')
         ];
@@ -3338,7 +3298,7 @@ class MaterialController extends AbstractController
             foreach ($batches as $batch) {
                 $batchPublicCodeEntry = $this->publicCodeService->getActiveBatchPublicCode((string) $batch->getId());
                 $batchPublicCode = $batchPublicCodeEntry?->getPublicCode();
-                $batchPublicUrl = $batchPublicCode ? $this->publicCodeService->buildBatchPublicUrl($batchPublicCode) : null;
+                $batchPublicUrl = $this->resolveBatchPublicUrlForApi($material, $batch);
 
                 $batchData = [
                     'id' => $batch->getId(),
@@ -4093,5 +4053,58 @@ class MaterialController extends AbstractController
             }
         }
         $material->setRentalCalcParams([] === $out ? null : $out);
+    }
+
+    /**
+     * Öffentliche Codes für Etiketten: Material-Code (Segment {mat}) + pro Charge Batch-Code.
+     * Physische Combo aus Kiste: nur Batch-QR (von Kiste übernommen), kein separates Material-QR.
+     */
+    private function ensurePublicCodesForMaterial(MaterialItem $material, ?string $actorUserId): void
+    {
+        if ($material->getMaterialType() === 'physical_combo' && $material->getLinkedContainerBatchId()) {
+            foreach ($material->getBatches() as $batch) {
+                if ($this->shouldSkipBatchPublicCode($material, $batch)) {
+                    continue;
+                }
+                $this->publicCodeService->ensureBatchPublicCode($batch, $actorUserId);
+            }
+
+            return;
+        }
+
+        $this->publicCodeService->ensureMaterialPublicCode($material, $actorUserId);
+        foreach ($material->getBatches() as $batch) {
+            if ($this->shouldSkipBatchPublicCode($material, $batch)) {
+                continue;
+            }
+            $this->publicCodeService->ensureBatchPublicCode($batch, $actorUserId);
+        }
+    }
+
+    private function shouldSkipBatchPublicCode(MaterialItem $material, MaterialBatch $batch): bool
+    {
+        return $material->getTrackingType() === 'serialized'
+            && trim((string) $batch->getSerialNumber()) === '';
+    }
+
+    /**
+     * Kanonische Etiketten-URL (/i/m/…/b/…); Fallback Kurzform /i/b/… wenn nur Batch-Code (z. B. physische Combo).
+     */
+    private function resolveBatchPublicUrlForApi(MaterialItem $material, MaterialBatch $batch): ?string
+    {
+        $canonical = $this->publicCodeService->buildCanonicalMaterialBatchPublicUrlForIds(
+            (string) $material->getId(),
+            (string) $batch->getId(),
+        );
+        if ($canonical !== null) {
+            return $canonical;
+        }
+
+        $batchEntry = $this->publicCodeService->getActiveBatchPublicCode((string) $batch->getId());
+        if ($batchEntry === null) {
+            return null;
+        }
+
+        return $this->publicCodeService->buildBatchPublicUrl($batchEntry->getPublicCode());
     }
 }

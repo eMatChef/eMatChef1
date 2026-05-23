@@ -116,6 +116,15 @@
       </div>
 
       <div v-else class="pack-workflow pack-workflow--compact">
+        <div
+          v-if="showMwHandoffBanner"
+          class="pack-mw-handoff-banner"
+          role="note"
+        >
+          <p class="pack-mw-handoff-banner-title">{{ t('activities.packList.mwHandoffBannerTitle') }}</p>
+          <p class="pack-mw-handoff-banner-body text-muted">{{ t('activities.packList.mwHandoffBannerBody') }}</p>
+        </div>
+
         <div v-if="packStageKeys.length > 1" class="pack-stage-tabs">
           <button
             v-for="st in packStagesForUi"
@@ -131,32 +140,72 @@
 
         <div class="pack-progress-bar">
           <div class="pack-progress-info">
-            <span>{{ t('activities.packList.progressPercent', { pct: stageProgress, stage: activeStageConfig.rightLabel }) }}</span>
+            <span>{{
+              showMwHandoffBanner
+                ? t('activities.packList.progressPercentGroup', {
+                    pct: stageProgress,
+                    stage: activeStageConfig.rightLabel,
+                  })
+                : t('activities.packList.progressPercent', {
+                    pct: stageProgress,
+                    stage: activeStageConfig.rightLabel,
+                  })
+            }}</span>
             <div class="pack-progress-actions">
               <button
-                v-if="
-                  showPackOperateControls &&
-                  !isPackUnpackStage(activePackStage) &&
-                  stageLeftHeaderCount > 0
-                "
+                v-if="showMoveAllToEventQuickButton"
                 type="button"
                 class="btn btn-xs btn-outline btn-move-all"
                 :disabled="moveAllLoading"
-                @click="moveAllToNextStage"
+                :title="moveAllToEventQuickTitle"
+                @click="onMoveAllToNextStageClick"
               >
-                {{ t('activities.packList.moveAll', { stage: activeStageConfig.rightLabel }) }}
+                {{ moveAllToEventQuickLabel }}
               </button>
               <button
-                v-if="nextWorkflowTransition"
+                v-if="showPackWorkflowToEventButton && nextWorkflowTransition"
                 type="button"
                 class="btn btn-sm btn-progress-action btn-outline"
                 :class="{ 'btn-progress-warn': stageProgress < 100 }"
-                :disabled="!showPackOperateControls"
-                @click="handleWorkflowTransition"
+                :disabled="!showPackOperateControls || isTransitioningPackWorkflow"
+                :title="packWorkflowToEventTitle"
+                @click="onPackWorkflowStatusToEventClick"
               >
                 {{ nextWorkflowTransition.label }}
                 <span v-if="stageProgress < 100" class="btn-progress-warn-badge">{{ stageProgress }}%</span>
               </button>
+              <template v-if="!packIssueToEventCombined">
+                <button
+                  v-if="
+                    showPackOperateControls &&
+                    !isPackUnpackStage(activePackStage) &&
+                    stageLeftHeaderCount > 0
+                  "
+                  type="button"
+                  class="btn btn-xs btn-outline btn-move-all"
+                  :disabled="moveAllLoading"
+                  :title="t('activities.packList.moveAllTitle', { stage: activeStageConfig.rightLabel })"
+                  @click="onMoveAllToNextStageClick"
+                >
+                  {{
+                    showMwHandoffBanner
+                      ? t('activities.packList.moveAllMw', { stage: activeStageConfig.rightLabel })
+                      : t('activities.packList.moveAll', { stage: activeStageConfig.rightLabel })
+                  }}
+                </button>
+                <button
+                  v-if="nextWorkflowTransition"
+                  type="button"
+                  class="btn btn-sm btn-progress-action btn-outline"
+                  :class="{ 'btn-progress-warn': stageProgress < 100 }"
+                  :disabled="!showPackOperateControls"
+                  :title="t('activities.packList.workflowTransitionTitle', { status: nextWorkflowTransition.label })"
+                  @click="handleWorkflowTransition"
+                >
+                  {{ nextWorkflowTransition.label }}
+                  <span v-if="stageProgress < 100" class="btn-progress-warn-badge">{{ stageProgress }}%</span>
+                </button>
+              </template>
             </div>
           </div>
           <div class="pack-progress-track">
@@ -197,6 +246,13 @@
               <span class="pack-panel-title">{{ activeStageConfig.leftLabel }}</span>
               <span class="pack-panel-count">{{ stageLeftHeaderCount }}</span>
             </div>
+            <p
+              v-if="hasActiveCrateTarget && isPackForwardToEventStage(activePackStage) && showPackOperateControls"
+              class="pack-active-crate-banner"
+              role="status"
+            >
+              {{ t('activities.packList.activeCrateAssignHint', { label: activePackTargetCrateLabel }) }}
+            </p>
             <div
               v-if="stageLeftItems.length === 0 && !leftPanelHasKistenEventReturn"
               class="pack-panel-empty"
@@ -236,16 +292,7 @@
                       :qty-in-containers="qtyInContainersForItem(pi)"
                     />
                   </template>
-                  <template #info-extra>
-                    <PackIssueQuickActions
-                      v-if="showPackIssueActions && isPackReturnStage(activePackStage)"
-                      :is-consumable="pi.isConsumable"
-                      @consumed="emitConsumptionFromPackItem(pi)"
-                      @loss="emitIssueWizard(pi, 'loss')"
-                      @repair="emitIssueWizard(pi, 'repair')"
-                    />
-                  </template>
-                  <template v-if="!showCrateAssignUpControls(pi)" #trailing>
+                  <template #trailing>
                     <button
                       v-if="showAssignToContainerButton(pi)"
                       type="button"
@@ -259,54 +306,37 @@
                       v-if="
                         showPackOperateControls &&
                         !isPackUnpackStage(activePackStage) &&
-                        (!isPackForwardToEventStage(activePackStage) || packIssueForwardMax(pi) > 0)
+                        (showCrateAssignUpControls(pi)
+                          ? crateAssignUpMax(pi) >= 1
+                          : !isPackForwardToEventStage(activePackStage) || packIssueForwardMax(pi) > 0)
                       "
                       direction="forward"
-                      :qty="moveQtyInputs[pi.id] ?? 0"
-                      :max="packIssueForwardMax(pi)"
-                      :disabled="movingId === pi.id"
-                      :forward-title="forwardMoveTitleForItem(pi)"
+                      :into-crate="showCrateAssignUpControls(pi)"
+                      :qty="
+                        moveQtyInputs[pi.id] ??
+                        (showCrateAssignUpControls(pi) ? crateAssignUpMax(pi) : packIssueForwardMax(pi))
+                      "
+                      :max="showCrateAssignUpControls(pi) ? crateAssignUpMax(pi) : packIssueForwardMax(pi)"
+                      :disabled="movingId === pi.id || (showCrateAssignUpControls(pi) && containerMutationLoading)"
+                      :forward-title="
+                        showCrateAssignUpControls(pi)
+                          ? assignUpTitleForItem(pi)
+                          : forwardMoveTitleForItem(pi)
+                      "
                       @update:qty="setMoveQtyForItem(pi.id, $event)"
-                      @move="moveToNextStage(pi)"
+                      @move="
+                        (q) =>
+                          showCrateAssignUpControls(pi)
+                            ? onCrateAssignUpClick(pi, q)
+                            : moveToNextStage(pi, q)
+                      "
                     />
-                  </template>
-                  <template v-if="showCrateAssignUpControls(pi)" #footer>
-                    <div class="pack-card-footer">
-                      <PackMoveControls
-                        direction="assign-up"
-                        :qty="moveQtyInputs[pi.id] ?? crateAssignUpMax(pi)"
-                        :max="crateAssignUpMax(pi)"
-                        :disabled="movingId === pi.id || containerMutationLoading"
-                        :forward-title="assignUpTitleForItem(pi)"
-                        @update:qty="setMoveQtyForItem(pi.id, $event)"
-                        @move="onCrateAssignUpClick(pi)"
-                      />
-                    </div>
                   </template>
                 </PackMaterialRow>
                 </template>
               </div>
             </div>
 
-            <!-- Am Event → Retour: Kisten mit Bestand noch am Event (wie rechts bei «Gepackt → Am Event») -->
-            <div
-              v-if="isPackReturnStage(activePackStage) && packContainersWithReturnableAtEvent.length > 0"
-              class="pack-workflow-section pack-workflow-section--kisten pack-workflow-section--event-return-kisten"
-            >
-              <div class="pack-workflow-section-title">{{ t('activities.packList.sectionKisten') }}</div>
-              <div class="pack-containers-section">
-                <div class="pack-containers-heading">
-                  <span class="pack-containers-title text-muted">{{ t('activities.packList.sectionContainers') }}</span>
-                </div>
-                <div class="pack-containers-children" role="group" :aria-label="t('activities.packList.ariaContainersAtEvent')">
-                  <PackEventReturnContainerCard
-                    v-for="c in packContainersWithReturnableAtEvent"
-                    :key="'ev-ret-' + c.id"
-                    :container="c"
-                  />
-                </div>
-              </div>
-            </div>
 
             <div
               v-if="
@@ -336,6 +366,7 @@
                   :key="'issue-' + c.id"
                   :container="c"
                   :stage-right-label="activeStageConfig.rightLabel"
+                  :use-subsections="false"
                   :show-storage-location="showPackStorageLocation(activePackStage, 'left')"
                 />
               </div>
@@ -361,12 +392,63 @@
                 </button>
               </div>
             </div>
-            <PackCrateTargetPicker
-              v-if="showPackContainersUi && activePackStage === 'confirmed_packed'"
-            />
+            <PackCrateTargetPicker v-if="showPackCrateTargetPickerTop" />
 
             <div v-if="!rightPanelHasEventContent" class="pack-panel-empty">
               {{ t('activities.packList.rightPanelEmpty') }}
+            </div>
+
+            <div
+              v-if="isPackReturnStage(activePackStage) && showPackContainersUi && packContainersWithReturnableAtEvent.length > 0"
+              class="pack-workflow-section pack-workflow-section--kisten pack-workflow-section--return-kisten-right"
+            >
+              <div class="pack-workflow-section-title">{{ t('activities.packList.sectionKisten') }}</div>
+              <div class="pack-containers-section pack-containers-section--at-event-select">
+                <p class="pack-containers-at-event-hint text-muted">
+                  {{ t('activities.packList.hintReturnCratesOnRight') }}
+                </p>
+                <div class="pack-containers-children" role="group" :aria-label="t('activities.packList.ariaContainersReturn')">
+                  <PackEventReturnContainerCard
+                    v-for="c in packContainersWithReturnableAtEvent"
+                    :key="'ret-cr-' + c.id"
+                    :container="c"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div
+              v-if="isPackReturnStage(activePackStage) && groupsNotTakenForReturn.length > 0"
+              class="pack-workflow-section pack-workflow-section--not-taken"
+            >
+              <div class="pack-workflow-section-title">{{ t('activities.packList.sectionNotTakenForReturn') }}</div>
+              <p class="pack-containers-at-event-hint text-muted">
+                {{ t('activities.packList.hintNotTakenForReturn') }}
+              </p>
+              <div v-for="g in groupsNotTakenForReturn" :key="'nt-g-' + g.categoryName" class="pack-group">
+                <div
+                  class="pack-group-header pack-group-header-done"
+                  @click="toggleGroup('nt-cat-' + g.categoryName)"
+                >
+                  <span class="pack-group-name">{{ g.categoryName }}</span>
+                  <span class="pack-group-toggle">{{ collapsedGroups['nt-cat-' + g.categoryName] ? '▶' : '▼' }}</span>
+                </div>
+                <div v-if="!collapsedGroups['nt-cat-' + g.categoryName]" class="pack-group-items">
+                  <PackMaterialRow
+                    v-for="pi in g.items"
+                    :key="'nt-pi-' + pi.id"
+                    :item="pi"
+                    :show-storage-location="showPackStorageLocation(activePackStage, 'right')"
+                    :show-linked-kiste="showPackStorageLocation(activePackStage, 'right')"
+                  >
+                    <template #detail>
+                      <span class="pack-card-detail text-muted">
+                        {{ t('activities.packList.notTakenForReturnQty', { n: notTakenQtyForReturn(pi) }) }}
+                      </span>
+                    </template>
+                  </PackMaterialRow>
+                </div>
+              </div>
             </div>
 
             <div
@@ -394,12 +476,12 @@
                       <PackMoveControls
                         v-if="showPackOperateControls && !isPackUnpackStage(activePackStage)"
                         direction="back"
-                        :qty="moveBackQtyInputs[pi.id] ?? 0"
+                        :qty="moveBackQtyInputs[pi.id] ?? rightQtyForMoveBack(pi)"
                         :max="rightQtyForMoveBack(pi)"
                         :disabled="movingId === pi.id"
                         :back-title="t('activities.common.backTitle')"
                         @update:qty="setMoveBackQtyForItem(pi.id, $event)"
-                        @move="moveToPrevStage(pi)"
+                        @move="(q) => moveToPrevStage(pi, q)"
                       />
                     </template>
                     <template #detail>
@@ -414,7 +496,7 @@
                     </template>
                     <template #info-extra>
                       <PackIssueQuickActions
-                        v-if="showPackIssueActions"
+                        v-if="showPackIssueForPackItem(pi)"
                         :is-consumable="pi.isConsumable"
                         @consumed="emitConsumptionFromPackItem(pi)"
                         @loss="emitIssueWizard(pi, 'loss')"
@@ -437,14 +519,12 @@
 
               <div
                 v-if="packContainersWithIssuedAtEvent.length > 0"
-                class="pack-workflow-section pack-workflow-section--kisten pack-workflow-section--at-event-mirror"
+                class="pack-containers-section pack-containers-section--at-event-select"
               >
-                <div class="pack-workflow-section-title">{{ t('activities.packList.sectionKisten') }}</div>
-                <div class="pack-containers-section">
-                  <div class="pack-containers-heading">
-                    <span class="pack-containers-title text-muted">{{ t('activities.packList.sectionContainers') }}</span>
-                  </div>
-                                  <div class="pack-containers-children" role="group" :aria-label="t('activities.packList.ariaContainersAtEventMirror')">
+                <p v-if="showPackOperateControls" class="pack-containers-at-event-hint text-muted">
+                  {{ t('activities.packList.selectCrateAtEventHint') }}
+                </p>
+                <div class="pack-containers-children" role="group" :aria-label="t('activities.packList.ariaContainersAtEventMirror')">
                   <PackWarehouseIssueContainerCard
                     v-for="c in packContainersWithIssuedAtEvent"
                     :key="'at-ev-' + c.id"
@@ -456,10 +536,20 @@
                   />
                 </div>
               </div>
-            </div>
 
               <div v-if="stageRightItemsLooseIssued.length > 0" class="pack-workflow-section pack-workflow-section--at-event-loose">
                 <div class="pack-workflow-section-title">{{ t('activities.packList.sectionLoose') }}</div>
+                <p
+                  v-if="hasActiveCrateTarget && showPackOperateControls"
+                  class="pack-active-crate-banner pack-active-crate-banner--inline"
+                  role="status"
+                >
+                  {{
+                    t('activities.packList.activeCrateAssignHintLooseAtEvent', {
+                      label: activePackTargetCrateLabel,
+                    })
+                  }}
+                </p>
                 <div v-for="g in groupsAtEventLoose" :key="'evt-loose-g-' + g.categoryName" class="pack-group">
                   <div
                     class="pack-group-header pack-group-header-done"
@@ -478,14 +568,44 @@
                     >
                       <template #leading>
                         <PackMoveControls
-                          v-if="showPackOperateControls && !isPackUnpackStage(activePackStage)"
+                          v-if="
+                            showPackOperateControls &&
+                            !isPackUnpackStage(activePackStage) &&
+                            !showCrateAssignUpControlsLooseAtEvent(pi)
+                          "
                           direction="back"
-                          :qty="moveBackQtyInputs[pi.id] ?? 0"
+                          :qty="moveBackQtyInputs[pi.id] ?? rightQtyForMoveBack(pi)"
                           :max="rightQtyForMoveBack(pi)"
                           :disabled="movingId === pi.id"
                           :back-title="t('activities.common.backTitle')"
                           @update:qty="setMoveBackQtyForItem(pi.id, $event)"
-                          @move="moveToPrevStage(pi)"
+                          @move="(q) => moveToPrevStage(pi, q)"
+                        />
+                      </template>
+                      <template #trailing>
+                        <button
+                          v-if="showAssignToContainerButtonLooseAtEvent(pi)"
+                          type="button"
+                          class="btn-outline btn-sm pack-assign-btn"
+                          :disabled="containerMutationLoading"
+                          @click="onAssignButtonClick(pi)"
+                        >
+                          {{ t('activities.packList.assignToContainer') }}
+                        </button>
+                        <PackMoveControls
+                          v-if="
+                            showPackOperateControls &&
+                            !isPackUnpackStage(activePackStage) &&
+                            showCrateAssignUpControlsLooseAtEvent(pi)
+                          "
+                          direction="forward"
+                          :into-crate="true"
+                          :qty="moveQtyInputs[pi.id] ?? crateAssignLooseAtEventMax(pi)"
+                          :max="crateAssignLooseAtEventMax(pi)"
+                          :disabled="movingId === pi.id || containerMutationLoading"
+                          :forward-title="assignUpTitleForItem(pi, 'loose-at-event')"
+                          @update:qty="setMoveQtyForItem(pi.id, $event)"
+                          @move="(q) => onCrateAssignUpClick(pi, q, 'loose-at-event')"
                         />
                       </template>
                       <template #detail>
@@ -496,11 +616,12 @@
                           :stage-right-label="activeStageConfig.rightLabel"
                           side="right"
                           use-detail-stack
+                          :loose-issued-at-event="looseIssuedAtEvent(pi)"
                         />
                       </template>
                       <template #info-extra>
                         <PackIssueQuickActions
-                          v-if="showPackIssueActions && isPackForwardToEventStage(activePackStage)"
+                          v-if="showPackIssueForPackItem(pi)"
                           :is-consumable="pi.isConsumable"
                           @consumed="emitConsumptionFromPackItem(pi)"
                           @loss="emitIssueWizard(pi, 'loss')"
@@ -561,15 +682,37 @@
                                                 v-if="
                                                   showPackOperateControls &&
                                                   !isPackUnpackStage(activePackStage) &&
-                                                  !showCrateAssignUpControls(pi)
+                                                  (!showCrateAssignUpControls(pi) || crateAssignUpMax(pi) >= 1)
                                                 "
                                                 direction="back"
-                                                :qty="moveBackQtyInputs[pi.id] ?? 0"
-                                                :max="rightQtyForMoveBack(pi)"
-                                                :disabled="movingId === pi.id"
+                                                :into-crate="showCrateAssignUpControls(pi)"
+                                                :qty="
+                                                  showCrateAssignUpControls(pi)
+                                                    ? (moveQtyInputs[pi.id] ?? crateAssignUpMax(pi))
+                                                    : (moveBackQtyInputs[pi.id] ?? rightQtyForMoveBack(pi))
+                                                "
+                                                :max="
+                                                  showCrateAssignUpControls(pi)
+                                                    ? crateAssignUpMax(pi)
+                                                    : rightQtyForMoveBack(pi)
+                                                "
+                                                :disabled="
+                                                  movingId === pi.id ||
+                                                  (showCrateAssignUpControls(pi) && containerMutationLoading)
+                                                "
                                                 :back-title="t('activities.common.backTitle')"
-                                                @update:qty="setMoveBackQtyForItem(pi.id, $event)"
-                                                @move="moveToPrevStage(pi)"
+                                                :forward-title="assignUpTitleForItem(pi)"
+                                                @update:qty="
+                                                  showCrateAssignUpControls(pi)
+                                                    ? setMoveQtyForItem(pi.id, $event)
+                                                    : setMoveBackQtyForItem(pi.id, $event)
+                                                "
+                                                @move="
+                                                  (q) =>
+                                                    showCrateAssignUpControls(pi)
+                                                      ? onCrateAssignUpClick(pi, q)
+                                                      : moveToPrevStage(pi, q)
+                                                "
                                               />
                                             </template>
                                             <template #detail>
@@ -587,25 +730,12 @@
                                             </template>
                                             <template #info-extra>
                                               <PackIssueQuickActions
-                                                v-if="showPackIssueActions && isPackForwardToEventStage(activePackStage)"
+                                                v-if="showPackIssueForPackItem(pi)"
                                                 :is-consumable="pi.isConsumable"
                                                 @consumed="emitConsumptionFromPackItem(pi)"
                                                 @loss="emitIssueWizard(pi, 'loss')"
                                                 @repair="emitIssueWizard(pi, 'repair')"
                                               />
-                                            </template>
-                                            <template v-if="showCrateAssignUpControls(pi)" #footer>
-                                              <div class="pack-card-footer">
-                                                <PackMoveControls
-                                                  direction="assign-up"
-                                                  :qty="moveQtyInputs[pi.id] ?? crateAssignUpMax(pi)"
-                                                  :max="crateAssignUpMax(pi)"
-                                                  :disabled="movingId === pi.id || containerMutationLoading"
-                                                  :forward-title="assignUpTitleForItem(pi)"
-                                                  @update:qty="setMoveQtyForItem(pi.id, $event)"
-                                                  @move="onCrateAssignUpClick(pi)"
-                                                />
-                                              </div>
                                             </template>
                       </PackMaterialRow>
                     </div>
@@ -631,15 +761,37 @@
                                             v-if="
                                               showPackOperateControls &&
                                               !isPackUnpackStage(activePackStage) &&
-                                              !showCrateAssignUpControls(pi)
+                                              (!showCrateAssignUpControls(pi) || crateAssignUpMax(pi) >= 1)
                                             "
                                             direction="back"
-                                            :qty="moveBackQtyInputs[pi.id] ?? 0"
-                                            :max="rightQtyForMoveBack(pi)"
-                                            :disabled="movingId === pi.id"
+                                            :into-crate="showCrateAssignUpControls(pi)"
+                                            :qty="
+                                              showCrateAssignUpControls(pi)
+                                                ? (moveQtyInputs[pi.id] ?? crateAssignUpMax(pi))
+                                                : (moveBackQtyInputs[pi.id] ?? rightQtyForMoveBack(pi))
+                                            "
+                                            :max="
+                                              showCrateAssignUpControls(pi)
+                                                ? crateAssignUpMax(pi)
+                                                : rightQtyForMoveBack(pi)
+                                            "
+                                            :disabled="
+                                              movingId === pi.id ||
+                                              (showCrateAssignUpControls(pi) && containerMutationLoading)
+                                            "
                                             :back-title="t('activities.common.backTitle')"
-                                            @update:qty="setMoveBackQtyForItem(pi.id, $event)"
-                                            @move="moveToPrevStage(pi)"
+                                            :forward-title="assignUpTitleForItem(pi)"
+                                            @update:qty="
+                                              showCrateAssignUpControls(pi)
+                                                ? setMoveQtyForItem(pi.id, $event)
+                                                : setMoveBackQtyForItem(pi.id, $event)
+                                            "
+                                            @move="
+                                              (q) =>
+                                                showCrateAssignUpControls(pi)
+                                                  ? onCrateAssignUpClick(pi, q)
+                                                  : moveToPrevStage(pi, q)
+                                            "
                                           />
                                         </template>
                                         <template #detail>
@@ -657,25 +809,12 @@
                                         </template>
                                         <template #info-extra>
                                           <PackIssueQuickActions
-                                            v-if="showPackIssueActions && isPackForwardToEventStage(activePackStage)"
+                                            v-if="showPackIssueForPackItem(pi)"
                                             :is-consumable="pi.isConsumable"
                                             @consumed="emitConsumptionFromPackItem(pi)"
                                             @loss="emitIssueWizard(pi, 'loss')"
                                             @repair="emitIssueWizard(pi, 'repair')"
                                           />
-                                        </template>
-                                        <template v-if="showCrateAssignUpControls(pi)" #footer>
-                                          <div class="pack-card-footer">
-                                            <PackMoveControls
-                                              direction="assign-up"
-                                              :qty="moveQtyInputs[pi.id] ?? crateAssignUpMax(pi)"
-                                              :max="crateAssignUpMax(pi)"
-                                              :disabled="movingId === pi.id || containerMutationLoading"
-                                              :forward-title="assignUpTitleForItem(pi)"
-                                              @update:qty="setMoveQtyForItem(pi.id, $event)"
-                                              @move="onCrateAssignUpClick(pi)"
-                                            />
-                                          </div>
                                         </template>
                   </PackMaterialRow>
                 </div>
@@ -790,7 +929,7 @@
       :stock-loading="shellForwardStockLoading"
       :history-replenish-by-key="shellForwardHistoryReplenishByKey"
       :history-prefill-hint="shellForwardHistoryPrefillHint"
-      :can-report-issues="canReportIssues"
+      :can-report-issues="showPackIssueActions"
       :submitting="shellForwardSubmitting"
       :empty-hint="shellForwardEmptyHint"
       :embedded-issues-by-line-key="shellForwardEmbeddedIssuesByLineKey"
@@ -950,7 +1089,7 @@ const props = withDefaults(
     activityType?: string
     packListEditable: boolean
     transitions: ActivityTransitionRow[]
-    /** Meldungen (v4.01): Schnellbuttons in Packliste wenn Status issued/returned */
+    /** Meldungen (v4.01): Schnellbuttons in Packliste ab Aktivitäts-Status «Am Event» */
     canReportIssues?: boolean
     /** Parent erhöht nach Verbrauchsbuchung → Packliste neu laden */
     reloadToken?: number
@@ -993,11 +1132,68 @@ const memberAwaitingMwPack = computed(
     ['submitted', 'approved', 'packing'].includes(props.status),
 )
 
+/** MW/DC: Material gepackt — Gruppe soll ans Event buchen */
+const showMwHandoffBanner = computed(
+  () =>
+    canManageMaterials.value &&
+    props.status === 'packed' &&
+    isPackForwardToEventStage(activePackStage.value),
+)
+
 const showPackOperateControls = computed(() => props.packListEditable)
 
+async function confirmMwHandoffBeforeIssueToEvent(): Promise<boolean> {
+  if (!showMwHandoffBanner.value) return true
+  return confirmDialog({
+    title: t('activities.packList.mwHandoffConfirmTitle'),
+    message: t('activities.packList.mwHandoffConfirmMessage'),
+    confirmText: t('activities.packList.mwHandoffConfirmProceed'),
+    cancelText: t('activities.common.cancel'),
+    variant: 'warning',
+  })
+}
+
+/** MW/DC: Aktivitäts-Status «Am Event» setzen — Hinweis Gruppe umgehen */
+async function confirmMwHandoffWorkflowToEvent(): Promise<boolean> {
+  if (!showMwHandoffBanner.value) return true
+  return confirmDialog({
+    title: t('activities.packList.mwHandoffCombinedConfirmTitle'),
+    message: t('activities.packList.mwHandoffWorkflowConfirmMessage'),
+    confirmText: t('activities.packList.mwHandoffWorkflowConfirmProceed'),
+    cancelText: t('activities.common.cancel'),
+    variant: 'warning',
+  })
+}
+
+/** Nur wenn Workflow «Am Event buchen» geklickt wurde (Status at_event), nicht bei «gepackt» + Packbuchungen. */
+const activityStatusAllowsIssueReports = computed(() => {
+  const s = props.status === 'issued' ? 'at_event' : props.status
+  return s === 'at_event' || s === 'returned'
+})
+
 const showPackIssueActions = computed(
-  () => Boolean(props.canReportIssues) && showPackOperateControls.value,
+  () =>
+    activityStatusAllowsIssueReports.value &&
+    showPackOperateControls.value &&
+    props.canReportIssues !== false,
 )
+
+/** Verlust/Reparatur/Verbrauch nur für lose «Am Event»-Menge (nicht Rest «Gepackt» links). */
+function showPackIssueForPackItem(pi: ActivityPackItem): boolean {
+  if (!showPackIssueActions.value) return false
+  if (isPackForwardToEventStage(activePackStage.value)) {
+    return looseIssuedAtEvent(pi) > 0
+  }
+  if (isPackReturnStage(activePackStage.value)) {
+    return Math.max(0, (pi.quantityIssued ?? 0) - (pi.quantityReturned ?? 0)) > 0
+  }
+  return (pi.quantityIssued ?? 0) > 0
+}
+
+function showKisteMeldungForContainer(containerId: string): boolean {
+  if (!showPackIssueActions.value) return false
+  return containerHasIssuedAtEvent(containerId)
+}
 
 const emit = defineEmits<{
   workflowNext: [transition: ActivityTransitionRow]
@@ -1273,12 +1469,16 @@ function onPackTabMaterialScopeChange(payload: { tab: MaterialScopeTab; singlePa
 }
 
 function emitIssueWizard(pi: ActivityPackItem, issueType: 'loss' | 'repair') {
-  if (!props.canReportIssues) return
+  if (!showPackIssueActions.value) return
   emit('openIssueWizard', { materialItemId: pi.materialItemId, issueType })
 }
 
 function emitConsumptionFromPackItem(pi: ActivityPackItem) {
-  if (!props.canReportIssues) return
+  openConsumptionModalForPackItem(pi)
+}
+
+function openConsumptionModalForPackItem(pi: ActivityPackItem) {
+  if (!props.packListEditable) return
   emit('openConsumptionModal', {
     materialItemId: pi.materialItemId,
     materialName: pi.materialName,
@@ -1288,12 +1488,48 @@ function emitConsumptionFromPackItem(pi: ActivityPackItem) {
   })
 }
 
+/** Am Event → Retour: vor Retour bei Verbrauchsmaterial nach Verbrauch fragen */
+async function promptConsumableUsageOnReturn(pi: ActivityPackItem): Promise<boolean> {
+  if (!isPackReturnStage(activePackStage.value) || !pi.isConsumable) return false
+  const bookConsumption = await confirmDialog({
+    title: t('activities.packList.consumableReturnConfirmTitle'),
+    message: t('activities.packList.consumableReturnConfirmMessage', { name: pi.materialName }),
+    confirmText: t('activities.packList.consumableReturnConfirmYes'),
+    cancelText: t('activities.packList.consumableReturnConfirmNo'),
+    variant: 'info',
+  })
+  if (bookConsumption) {
+    openConsumptionModalForPackItem(pi)
+    return true
+  }
+  return false
+}
+
+function firstConsumablePackItemInContainer(containerId: string): ActivityPackItem | undefined {
+  for (const ci of containerItemsByContainerId.value[containerId] ?? []) {
+    if (isNonActionableContainerLine(ci)) continue
+    if (containerLineRemainingReturn(ci, containerId) < 1) continue
+    const pi = packItems.value.find(
+      (p) => p.materialItemId === ci.material_item_id && p.isConsumable,
+    )
+    if (pi) return pi
+  }
+  return undefined
+}
+
+async function promptConsumableUsageOnContainerReturn(containerId: string): Promise<boolean> {
+  if (!isPackReturnStage(activePackStage.value)) return false
+  const pi = firstConsumablePackItemInContainer(containerId)
+  if (!pi) return false
+  return promptConsumableUsageOnReturn(pi)
+}
+
 /** Verbrauch zu material_item_id (Behälter/Kistenzeile); optional Anzeigetext aus UI */
 function emitConsumptionForMaterialId(
   materialItemId: string,
   hints?: { materialName?: string; linkedContainerLabel?: string | null },
 ) {
-  if (!props.canReportIssues || !materialItemId) return
+  if (!showPackIssueActions.value || !materialItemId) return
   const pi = packItems.value.find((p) => p.materialItemId === materialItemId)
   if (pi) {
     emitConsumptionFromPackItem(pi)
@@ -1310,7 +1546,7 @@ function emitConsumptionForMaterialId(
 
 /** Meldung zu einer material_item_id (Behälterzeile / Kisten-Stückliste), auch wenn keine lose Pack-Zeile existiert */
 function emitIssueWizardByMaterialId(materialItemId: string, issueType: 'loss' | 'repair') {
-  if (!props.canReportIssues || !materialItemId) return
+  if (!showPackIssueActions.value || !materialItemId) return
   const pi = packItems.value.find((p) => p.materialItemId === materialItemId)
   if (pi) {
     emitIssueWizard(pi, issueType)
@@ -1333,6 +1569,9 @@ const loading = ref(true)
 const loadError = ref<string | null>(null)
 const initLoading = ref(false)
 const moveAllLoading = ref(false)
+const isTransitioningPackWorkflow = ref(false)
+/** Nach Status «Am Event»: zum nächsten Pack-Tab springen (nach loadAll). */
+const pendingAdvancePackStageFrom = ref<PackStage | null>(null)
 const movingId = ref<string | null>(null)
 
 const activePackStage = ref<PackStage>('confirmed_packed')
@@ -1367,7 +1606,7 @@ const moveBackQtyInputs = ref<Record<string, number>>({})
 const packContainers = ref<ActivityPackContainer[]>([])
 const containerItemsByContainerId = ref<Record<string, ActivityPackContainerItem[]>>({})
 const collapsedPackContainers = ref<Record<string, boolean>>({})
-/** true/undefined = Unterabschnitt zu */
+/** true = Unterabschnitt zugeklappt; undefined = offen */
 const collapsedPackContainerSubsections = ref<Record<string, boolean>>({})
 /** Lager-Vorlage pro Pack-Behälter (material_id aus Kisteninhalt) */
 const containerWarehouseTemplateByContainerId = ref<Record<string, Set<string>>>({})
@@ -1448,6 +1687,7 @@ const shellCheckDraftByPackItemId = ref<Record<string, ShellCheckDraft>>({})
 type ShellForwardPendingAction =
   | { kind: 'pack_move' }
   | { kind: 'issue_container'; containerId: string }
+  | { kind: 'issue_container_shell'; containerId: string }
   | { kind: 'issue_container_line'; containerId: string; containerItemId: string; qty: number }
 
 const shellForwardPendingAction = ref<ShellForwardPendingAction>({ kind: 'pack_move' })
@@ -1645,12 +1885,12 @@ async function openShellCrateForwardModal(
         ? getPackCrateCheckLooseStock(props.activityId, item.id, [...mids])
         : Promise.resolve({} as Record<string, number>),
       getActivityHistory(props.activityId),
-      props.canReportIssues ? getActivityIssues(props.activityId) : Promise.resolve([]),
+      showPackIssueActions.value ? getActivityIssues(props.activityId) : Promise.resolve([]),
     ])
     shellForwardLooseStock.value = stock
     const snaps = indexLatestCrateCheckByPackItemId(history)
     // Kein Vorausfüllen aus letztem Check — Mini-Inventur startet leer (grau).
-    if (props.canReportIssues && issues.length > 0) {
+    if (showPackIssueActions.value && issues.length > 0) {
       shellForwardOrphanIssues.value = issues.filter((r) => !r.resolved)
     }
   } catch {
@@ -1786,7 +2026,7 @@ function peekSectionsForShellContainerCtx(c: ActivityPackContainer): PackCrateSh
 
 function isPackContainerSubsectionCollapsed(containerId: string, subsectionKey: string): boolean {
   const k = `${containerId}:${subsectionKey}`
-  return collapsedPackContainerSubsections.value[k] !== false
+  return collapsedPackContainerSubsections.value[k] === true
 }
 
 function togglePackContainerSubsection(containerId: string, subsectionKey: string) {
@@ -1963,6 +2203,20 @@ function qtyInContainersForItem(pi: ActivityPackItem): number {
 const assignMaxQty = computed(() => {
   const t = assignTarget.value
   if (!t) return 0
+  if (
+    isPackForwardToEventStage(activePackStage.value) &&
+    looseIssuedAtEvent(t) > 0 &&
+    getStageLeftQty(t) < 1
+  ) {
+    return looseIssuedAtEvent(t)
+  }
+  if (
+    isPackForwardToEventStage(activePackStage.value) &&
+    looseIssuedAtEvent(t) > 0 &&
+    looseQtyForPackItem(t) < 1
+  ) {
+    return looseIssuedAtEvent(t)
+  }
   return looseQtyForPackItem(t)
 })
 
@@ -1982,19 +2236,19 @@ function isVirtualWarehouseContainerLine(ci: ActivityPackContainerItem): boolean
   return false
 }
 
-/** Phys.-Kombi-Pack-Position zur Kisten-Charge — nur Inventar-Typ physical_combo */
+/** Pack-Position der Lager-Kiste (Charge) — wie Backend applyShellPackItemForBulkWorkflow */
 function shellPackItemForContainer(containerId: string): ActivityPackItem | undefined {
   const c = packContainers.value.find((x) => x.id === containerId)
   if (!c) return undefined
   const mid = (c.container_material_item_id ?? '').trim()
   if (mid) {
     const byMid = packItems.value.find((p) => p.materialItemId === mid)
-    if (byMid && isPhysicalComboPackItem(byMid)) return byMid
+    if (byMid) return byMid
   }
   const bid = (c.container_batch_id ?? '').trim()
   if (bid) {
     const byBatch = packItems.value.find((p) => (p.linkedContainerBatchId ?? '').trim() === bid)
-    if (byBatch && isPhysicalComboPackItem(byBatch)) return byBatch
+    if (byBatch) return byBatch
   }
   return undefined
 }
@@ -2004,36 +2258,86 @@ const hasActiveCrateTarget = computed(() => {
   return tgt?.kind === 'container' || tgt?.kind === 'combo'
 })
 
-/** Max. Stück für Pfeil-nach-oben: links «noch bestätigt» oder rechts lose «gepackt» */
+/** Max. Stück in die gewählte Kiste einbuchen (links: lose «Gepackt») */
 function crateAssignUpMax(pi: ActivityPackItem): number {
-  const fwd = packIssueForwardMax(pi)
-  if (fwd >= 1) return fwd
-  if (activePackStage.value === 'confirmed_packed') {
-    return looseQtyForPackItem(pi)
+  if (!hasActiveCrateTarget.value) {
+    const fwd = packIssueForwardMax(pi)
+    if (fwd >= 1) return fwd
+    if (activePackStage.value === 'confirmed_packed') {
+      return looseQtyForPackItem(pi)
+    }
+    return 0
   }
-  return 0
+  return Math.max(0, looseQtyForPackItem(pi))
+}
+
+/** Max. Stück von lose «Am Event» in die gewählte Kiste */
+function crateAssignLooseAtEventMax(pi: ActivityPackItem): number {
+  return Math.max(0, looseIssuedAtEvent(pi))
 }
 
 function showCrateAssignUpControls(pi: ActivityPackItem): boolean {
   if (!showPackOperateControls.value) return false
-  if (activePackStage.value !== 'confirmed_packed') return false
   if (!hasActiveCrateTarget.value) return false
   if (isPhysicalComboPackItem(pi)) return false
-  return crateAssignUpMax(pi) >= 1
+  if (isPackForwardToEventStage(activePackStage.value)) {
+    if (!showPackContainersUi.value) return false
+    if (getStageLeftQty(pi) < 1) return false
+    return crateAssignUpMax(pi) >= 1
+  }
+  if (activePackStage.value === 'confirmed_packed') {
+    return crateAssignUpMax(pi) >= 1
+  }
+  return false
+}
+
+/** Rechts unter «Lose»: lose «Am Event» in gewählte Kiste (grüner Pfeil nach oben) */
+function showCrateAssignUpControlsLooseAtEvent(pi: ActivityPackItem): boolean {
+  if (!showPackOperateControls.value) return false
+  if (!isPackForwardToEventStage(activePackStage.value)) return false
+  if (!showPackContainersUi.value) return false
+  if (!hasActiveCrateTarget.value) return false
+  if (isPhysicalComboPackItem(pi)) return false
+  return crateAssignLooseAtEventMax(pi) >= 1
 }
 
 function showAssignToContainerButton(pi: ActivityPackItem): boolean {
   if (!showPackOperateControls.value) return false
   if (!showPackContainersUi.value) return false
-  if (activePackStage.value !== 'confirmed_packed') return false
   if (hasActiveCrateTarget.value) return false
   if (isPhysicalComboPackItem(pi)) return false
   if (packContainers.value.length === 0) return false
-  return looseQtyForPackItem(pi) >= 1
+  if (activePackStage.value === 'confirmed_packed') {
+    return looseQtyForPackItem(pi) >= 1
+  }
+  return false
 }
 
-function assignUpTitleForItem(pi: ActivityPackItem): string {
-  const max = crateAssignUpMax(pi)
+/** «In Behälter» für lose «Am Event», wenn noch keine Kiste gewählt */
+function showAssignToContainerButtonLooseAtEvent(pi: ActivityPackItem): boolean {
+  if (!showPackOperateControls.value) return false
+  if (!isPackForwardToEventStage(activePackStage.value)) return false
+  if (!showPackContainersUi.value) return false
+  if (hasActiveCrateTarget.value) return false
+  if (isPhysicalComboPackItem(pi)) return false
+  if (looseIssuedAtEvent(pi) < 1) return false
+  return packContainersWithIssuedAtEvent.value.length > 0
+}
+
+/** Kiste hat eingebuchten Inhalt (nicht nur leere Hülle am Event) */
+function containerHasAssignedContents(containerId: string): boolean {
+  for (const ci of containerItemsByContainerId.value[containerId] ?? []) {
+    if (isNonActionableContainerLine(ci)) continue
+    if ((ci.quantity_packed ?? 0) > 0 || (ci.quantity_issued ?? 0) > 0) return true
+  }
+  return false
+}
+
+function assignUpTitleForItem(
+  pi: ActivityPackItem,
+  source: CrateAssignSource = 'packed-left',
+): string {
+  const max = source === 'loose-at-event' ? crateAssignLooseAtEventMax(pi) : crateAssignUpMax(pi)
   const qty = resolveCrateAssignQty(pi, max)
   const label = activePackTargetCrateLabel.value || t('activities.packList.crateTargetFallback')
   return t('activities.packList.titleAssignQtyToCrate', { qty: qty > 0 ? qty : max, label })
@@ -2049,31 +2353,39 @@ function resolveCrateAssignQty(pi: ActivityPackItem, max: number): number {
   return max
 }
 
-async function onCrateAssignUpClick(pi: ActivityPackItem) {
+type CrateAssignSource = 'packed-left' | 'loose-at-event'
+
+async function onCrateAssignUpClick(
+  pi: ActivityPackItem,
+  qtyFromControl?: number,
+  source: CrateAssignSource = 'packed-left',
+) {
   const tgt = activePackTarget.value
   if (!tgt || (tgt.kind !== 'container' && tgt.kind !== 'combo')) return
 
-  const maxForward = packIssueForwardMax(pi)
-  if (maxForward >= 1) {
-    const moveQty = resolveForwardMoveQty(pi)
-    if (moveQty < 1) return
-    await moveToNextStage(pi, moveQty)
-    return
-  }
-
-  const maxLoose = looseQtyForPackItem(pi)
+  const maxLoose =
+    source === 'loose-at-event' ? crateAssignLooseAtEventMax(pi) : looseQtyForPackItem(pi)
   if (maxLoose < 1) return
-  const assignQty = resolveCrateAssignQty(pi, maxLoose)
+  const assignQty =
+    qtyFromControl != null && qtyFromControl > 0
+      ? Math.min(maxLoose, Math.floor(qtyFromControl))
+      : resolveCrateAssignQty(pi, maxLoose)
   if (assignQty < 1) return
 
   if (tgt.kind === 'container') {
-    await assignDirectToActiveContainer(pi, tgt.containerId, assignQty)
+    await assignDirectToActiveContainer(pi, tgt.containerId, assignQty, source)
     return
   }
   const containerId = await ensurePackContainerForShellCombo(tgt.packItemId)
   if (!containerId) return
   activePackTarget.value = { kind: 'container', containerId }
-  await assignDirectToActiveContainer(pi, containerId, assignQty)
+  await assignDirectToActiveContainer(pi, containerId, assignQty, source)
+}
+
+/** Nach «Kiste ans Event»: als Einbuch-Ziel wählen (Picker + Pfeil in Kiste). */
+function selectContainerTargetAfterIssueToEvent(containerId: string) {
+  if (!isPackForwardToEventStage(activePackStage.value)) return
+  selectActiveContainer(containerId)
 }
 
 /** Summe «Am Event» über Behälterzeilen + Kisten-Shell (pro Material) — Aufteilung lose vs. Behälter rechts */
@@ -2144,17 +2456,42 @@ function containerLineIssueableMax(ci: ActivityPackContainerItem): number {
   return 0
 }
 
-/** Stück noch nicht «Am Event» (Gepackt → Event): Inhalt + Kisten-Material — konsistent mit issue-all */
-function containerIssueableUnits(containerId: string): number {
+/** Nur Zeileninhalt (ohne Kisten-Shell) — für «leere Kiste, nur Behälter mitnehmen» */
+function containerLinesIssueableUnits(containerId: string): number {
   let sum = 0
   for (const ci of containerItemsByContainerId.value[containerId] ?? []) {
     sum += containerLineIssueableMax(ci)
   }
-  const shell = shellPackItemForContainer(containerId)
-  if (shell) {
-    sum += Math.max(0, shell.quantityPacked - shell.quantityIssued)
-  }
   return sum
+}
+
+/** Stück noch nicht «Am Event» (Gepackt → Event): Inhalt + Kisten-Material — konsistent mit issue-all */
+function containerIssueableUnits(containerId: string): number {
+  return containerLinesIssueableUnits(containerId) + containerShellIssueableUnits(containerId)
+}
+
+/** Shell der Pack-Kiste: buchbar wie issue_all (packed − issued) */
+function containerShellIssueableUnits(containerId: string): number {
+  const shell = shellPackItemForContainer(containerId)
+  if (!shell) return 0
+  return Math.max(0, (shell.quantityPacked ?? 0) - (shell.quantityIssued ?? 0))
+}
+
+/**
+ * Leere Pack-Kiste mitnehmen: Inhalt wurde lose ans Event gebucht, Behälter steht noch links.
+ * Erlaubt 1× Shell auch wenn packed−issued = 0 (Shell noch nicht als «gepackt» gezählt).
+ */
+function containerShellTakeMax(containerId: string): number {
+  if (!isPackForwardToEventStage(activePackStage.value)) return 0
+  if (containerHasIssuedAtEvent(containerId)) return 0
+  const c = packContainers.value.find((x) => x.id === containerId)
+  if (!c?.container_batch_id && !c?.container_material_item_id) return 0
+  const shellRem = containerShellIssueableUnits(containerId)
+  if (shellRem > 0) return shellRem
+  if (containerLinesIssueableUnits(containerId) > 0) return 0
+  const shell = shellPackItemForContainer(containerId)
+  if (!shell || (shell.quantityIssued ?? 0) > 0) return 0
+  return 1
 }
 
 /** Bereits «Am Event» gebucht, zurück nach Gepackt (min Zeile, Packliste) */
@@ -2183,7 +2520,7 @@ function containerUnissueableUnits(containerId: string): number {
 function containerReturnableUnits(containerId: string): number {
   let sum = 0
   for (const ci of containerItemsByContainerId.value[containerId] ?? []) {
-    sum += containerLineRemainingReturn(ci)
+    sum += containerLineRemainingReturn(ci, containerId)
   }
   const shell = shellPackItemForContainer(containerId)
   if (shell) {
@@ -2192,11 +2529,42 @@ function containerReturnableUnits(containerId: string): number {
   return sum
 }
 
-function containerLineRemainingReturn(ci: ActivityPackContainerItem): number {
+function crateReturnQtyForMaterial(materialItemId: string): number {
+  let sum = 0
+  for (const c of packContainers.value) {
+    for (const ci of containerItemsByContainerId.value[c.id] ?? []) {
+      if (ci.material_item_id === materialItemId) {
+        sum += containerLineRemainingReturn(ci, c.id)
+      }
+    }
+  }
+  return sum
+}
+
+/** Nie gepackt oder gepackt aber nie ans Event (lose, nicht in Kisten-Zeilen) */
+function notTakenQtyForReturn(pi: ActivityPackItem): number {
+  if (!isPackReturnStage(activePackStage.value)) return 0
+  const notPacked = Math.max(0, pi.quantityOrdered - pi.quantityPacked)
+  const packedNeverIssued = Math.max(0, pi.quantityPacked - pi.quantityIssued)
+  const inCrates = crateReturnQtyForMaterial(pi.materialItemId)
+  const looseNeverIssued = Math.max(0, packedNeverIssued - inCrates)
+  return notPacked + looseNeverIssued
+}
+
+function containerLineRemainingReturn(ci: ActivityPackContainerItem, containerId?: string): number {
   if (isNonActionableContainerLine(ci)) return 0
   const i = ci.quantity_issued ?? 0
   const r = ci.quantity_returned ?? 0
-  return Math.max(0, i - r)
+  const issuedRemain = Math.max(0, i - r)
+  if (issuedRemain > 0) return issuedRemain
+  if (!isPackReturnStage(activePackStage.value)) return 0
+  const p = ci.quantity_packed ?? 0
+  if (p <= r || i > 0) return 0
+  // In Kiste gepackt, nie lose ans Event — Retour (Kiste am Event oder noch im Lager)
+  if (containerId && p > r) {
+    return p - r
+  }
+  return 0
 }
 
 /** Stück dieses Materials noch in Behälterzeilen am Event (nicht lose) — für Aufteilung in Stufe Event→Retour */
@@ -2205,7 +2573,7 @@ function containerStillAtEventQtyForMaterial(materialItemId: string): number {
   for (const c of packContainers.value) {
     for (const ci of containerItemsByContainerId.value[c.id] ?? []) {
       if (ci.material_item_id === materialItemId) {
-        sum += containerLineRemainingReturn(ci)
+        sum += containerLineRemainingReturn(ci, c.id)
       }
     }
   }
@@ -2238,6 +2606,7 @@ async function executeIssueContainerToEvent(containerId: string) {
     await issueAllPackContainerItems(props.activityId, containerId)
     toast.success(t('activities.packList.toastIssueContainer'))
     await loadAll()
+    selectContainerTargetAfterIssueToEvent(containerId)
     emit('activityItemsChanged')
   } catch (err: unknown) {
     const e = err as { response?: { data?: { error?: string } }; message?: string }
@@ -2249,15 +2618,61 @@ async function executeIssueContainerToEvent(containerId: string) {
 
 async function issueContainerToEvent(c: ActivityPackContainer) {
   if (containerBulkLoadingId.value) return
+  if (!(await confirmMwHandoffBeforeIssueToEvent())) return
   const shell = shellPackItemForContainer(c.id)
   if (shell && needsShellCratePresenceConfirm(shell)) {
-    const max = packIssueForwardMax(shell)
+    const max = Math.max(packIssueForwardMax(shell), containerShellTakeMax(c.id))
     if (max >= 1) {
       await openShellCrateForwardModal(shell, max, { kind: 'issue_container', containerId: c.id })
     }
     return
   }
   await executeIssueContainerToEvent(c.id)
+}
+
+async function executeIssueContainerShellOnlyToEvent(containerId: string) {
+  containerBulkLoadingId.value = containerId
+  try {
+    const shell = shellPackItemForContainer(containerId)
+    if (!shell) {
+      await executeIssueContainerToEvent(containerId)
+      return
+    }
+    const shellRem = containerShellIssueableUnits(containerId)
+    if (shellRem > 0) {
+      await issueAllPackContainerItems(props.activityId, containerId)
+    } else {
+      const qty = containerShellTakeMax(containerId)
+      if (qty < 1) return
+      await postMovePackItem(props.activityId, shell.id, { stage: 'at_event', quantity: qty })
+    }
+    toast.success(t('activities.packList.toastIssueContainerShell'))
+    await loadAll()
+    selectContainerTargetAfterIssueToEvent(containerId)
+    emit('activityItemsChanged')
+  } catch (err: unknown) {
+    const e = err as { response?: { data?: { error?: string } }; message?: string }
+    toast.error(
+      e.response?.data?.error || e.message || t('activities.packList.toastIssueContainerShellFailed'),
+    )
+  } finally {
+    containerBulkLoadingId.value = null
+  }
+}
+
+async function issueContainerShellOnlyToEvent(c: ActivityPackContainer) {
+  if (containerBulkLoadingId.value) return
+  if (containerShellTakeMax(c.id) < 1) return
+  if (!(await confirmMwHandoffBeforeIssueToEvent())) return
+  const shell = shellPackItemForContainer(c.id)
+  if (shell && needsShellCratePresenceConfirm(shell)) {
+    const max = containerShellTakeMax(c.id)
+    if (max >= 1) {
+      await openShellCrateForwardModal(shell, max, { kind: 'issue_container_shell', containerId: c.id })
+    }
+    return
+  }
+  await executeIssueContainerShellOnlyToEvent(c.id)
 }
 
 async function executeShellForwardPendingAfterCheck(item: ActivityPackItem) {
@@ -2269,6 +2684,10 @@ async function executeShellForwardPendingAfterCheck(item: ActivityPackItem) {
   }
   if (pending.kind === 'issue_container') {
     await executeIssueContainerToEvent(pending.containerId)
+    return
+  }
+  if (pending.kind === 'issue_container_shell') {
+    await executeIssueContainerShellOnlyToEvent(pending.containerId)
     return
   }
   if (pending.kind === 'issue_container_line') {
@@ -2300,6 +2719,7 @@ async function unissueContainerToPacked(c: ActivityPackContainer) {
 
 async function returnContainerToWarehouse(c: ActivityPackContainer) {
   if (containerBulkLoadingId.value) return
+  if (await promptConsumableUsageOnContainerReturn(c.id)) return
   containerBulkLoadingId.value = c.id
   try {
     await returnAllPackContainerItems(props.activityId, c.id)
@@ -2340,14 +2760,50 @@ function initContainerPullQtyInputs(): void {
 }
 
 function initContainerIssueLineInputs(): void {
-  const next: Record<string, number> = {}
+  const next: Record<string, number> = { ...containerIssueLineInputs.value }
   for (const c of packContainers.value) {
-    for (const ci of containerItemsByContainerId.value[c.id] ?? []) {
+    const seen = new Set<string>()
+    const lines = packContainerItemSectionsForContainer(c).flatMap((s) => s.lines)
+    for (const ci of [...lines, ...(containerItemsByContainerId.value[c.id] ?? [])]) {
+      if (seen.has(ci.id)) continue
+      seen.add(ci.id)
+      if (isNonActionableContainerLine(ci)) continue
+      const k = containerIssueLineKey(c.id, ci.id)
       const max = containerLineIssueableMax(ci)
-      next[containerIssueLineKey(c.id, ci.id)] = max > 0 ? max : 1
+      if (next[k] == null || !Number.isFinite(next[k]) || next[k] < 1) {
+        next[k] = max > 0 ? max : 1
+      }
     }
   }
   containerIssueLineInputs.value = next
+}
+
+function containerIssueLineInputValue(containerId: string, ci: ActivityPackContainerItem): number {
+  const k = containerIssueLineKey(containerId, ci.id)
+  const raw = containerIssueLineInputs.value[k]
+  if (Number.isFinite(raw) && raw > 0) return raw
+  const max = containerLineIssueableMax(ci)
+  const fallback = max > 0 ? max : 1
+  containerIssueLineInputs.value = { ...containerIssueLineInputs.value, [k]: fallback }
+  return fallback
+}
+
+function setContainerIssueLineInput(
+  containerId: string,
+  ci: ActivityPackContainerItem,
+  value: number | string,
+): void {
+  const k = containerIssueLineKey(containerId, ci.id)
+  const max = containerLineIssueableMax(ci)
+  let qty = Math.floor(Number(value))
+  if (!Number.isFinite(qty) || qty < 1) qty = max > 0 ? max : 1
+  containerIssueLineInputs.value = { ...containerIssueLineInputs.value, [k]: Math.min(qty, max > 0 ? max : qty) }
+}
+
+function containerIssueLineLooseTitle(containerId: string, ci: ActivityPackContainerItem): string {
+  return t('activities.packList.issueLineLooseTitle', {
+    count: containerIssueLineInputValue(containerId, ci),
+  })
 }
 
 function initContainerUnissueLineInputs(): void {
@@ -2359,6 +2815,21 @@ function initContainerUnissueLineInputs(): void {
     }
   }
   containerUnissueLineInputs.value = next
+}
+
+function setContainerUnissueLineInput(
+  containerId: string,
+  ci: ActivityPackContainerItem,
+  value: number | string,
+): void {
+  const k = containerIssueLineKey(containerId, ci.id)
+  const max = containerLineUnissueableMax(ci)
+  let qty = Math.floor(Number(value))
+  if (!Number.isFinite(qty) || qty < 1) qty = max > 0 ? max : 1
+  containerUnissueLineInputs.value = {
+    ...containerUnissueLineInputs.value,
+    [k]: Math.min(qty, max > 0 ? max : qty),
+  }
 }
 
 async function loadWarehouseTemplatesForContainers(): Promise<void> {
@@ -2665,15 +3136,106 @@ async function assignMaterialToContainer(
   }
 }
 
+async function assignLooseAtEventToContainer(
+  pi: ActivityPackItem,
+  containerId: string,
+  qty: number,
+) {
+  const max = crateAssignLooseAtEventMax(pi)
+  const q = Math.min(max, Math.max(1, Math.floor(qty)))
+  if (q < 1) return
+
+  movingId.value = pi.id
+  containerMutationLoading.value = true
+  try {
+    const items = containerItemsByContainerId.value[containerId] ?? []
+    const existing = items.find((row) => row.material_item_id === pi.materialItemId)
+    if (existing) {
+      await updateActivityPackContainerItem(props.activityId, containerId, existing.id, {
+        quantity_packed: existing.quantity_packed + q,
+        quantity_issued: (existing.quantity_issued ?? 0) + q,
+      })
+    } else {
+      await createActivityPackContainerItem(props.activityId, containerId, {
+        material_item_id: pi.materialItemId,
+        quantity_packed: q,
+        quantity_issued: q,
+      })
+    }
+    await loadContainersData()
+    emit('activityItemsChanged')
+    toast.success(t('activities.packList.toastMoveToContainerDirect'))
+  } catch (err: unknown) {
+    const e = err as { response?: { data?: { error?: string } }; message?: string }
+    toast.error(e.response?.data?.error || e.message || t('activities.packList.toastAssignFailed'))
+  } finally {
+    movingId.value = null
+    containerMutationLoading.value = false
+  }
+}
+
 async function assignDirectToActiveContainer(
   pi: ActivityPackItem,
   containerId: string,
   qty?: number,
+  source: CrateAssignSource = 'packed-left',
 ) {
+  if (
+    source === 'loose-at-event' &&
+    isPackForwardToEventStage(activePackStage.value) &&
+    containerHasIssuedAtEvent(containerId)
+  ) {
+    const max = crateAssignLooseAtEventMax(pi)
+    const q =
+      qty != null && qty > 0 ? Math.min(max, Math.max(1, Math.floor(qty))) : max
+    if (q < 1) return
+    await assignLooseAtEventToContainer(pi, containerId, q)
+    return
+  }
+
   const max = looseQtyForPackItem(pi)
   if (max < 1) return
   const q =
     qty != null && qty > 0 ? Math.min(max, Math.max(1, Math.floor(qty))) : max
+  if (
+    isPackForwardToEventStage(activePackStage.value) &&
+    containerHasIssuedAtEvent(containerId)
+  ) {
+    if (!(await confirmMwHandoffBeforeIssueToEvent())) return
+    movingId.value = pi.id
+    containerMutationLoading.value = true
+    try {
+      const updated = await postMovePackItem(props.activityId, pi.id, {
+        stage: 'at_event',
+        quantity: q,
+      })
+      applyUpdatedItem(updated)
+      const items = containerItemsByContainerId.value[containerId] ?? []
+      const existing = items.find((row) => row.material_item_id === pi.materialItemId)
+      if (existing) {
+        await updateActivityPackContainerItem(props.activityId, containerId, existing.id, {
+          quantity_packed: existing.quantity_packed + q,
+          quantity_issued: (existing.quantity_issued ?? 0) + q,
+        })
+      } else {
+        await createActivityPackContainerItem(props.activityId, containerId, {
+          material_item_id: pi.materialItemId,
+          quantity_packed: q,
+          quantity_issued: q,
+        })
+      }
+      await loadContainersData()
+      emit('activityItemsChanged')
+      toast.success(t('activities.packList.toastMoveToContainerDirect'))
+    } catch (err: unknown) {
+      const e = err as { response?: { data?: { error?: string } }; message?: string }
+      toast.error(e.response?.data?.error || e.message || t('activities.packList.toastAssignFailed'))
+    } finally {
+      movingId.value = null
+      containerMutationLoading.value = false
+    }
+    return
+  }
   await assignMaterialToContainer(pi, containerId, q, {
     successMessage: t('activities.packList.toastMoveToContainerDirect'),
   })
@@ -2686,7 +3248,16 @@ async function submitAssignToContainer() {
   const q = Math.min(Math.max(1, Math.floor(assignQty.value)), assignMaxQty.value)
   if (q < 1 || q > assignMaxQty.value) return
 
-  await assignMaterialToContainer(pi, cid, q)
+  if (
+    isPackForwardToEventStage(activePackStage.value) &&
+    containerHasIssuedAtEvent(cid) &&
+    looseIssuedAtEvent(pi) >= q &&
+    getStageLeftQty(pi) < 1
+  ) {
+    await assignLooseAtEventToContainer(pi, cid, q)
+  } else {
+    await assignMaterialToContainer(pi, cid, q)
+  }
   assignModalOpen.value = false
   assignTarget.value = null
 }
@@ -2738,16 +3309,21 @@ async function executeIssueContainerLineToEvent(
   containerMutationLoading.value = true
   try {
     await postMovePackItem(props.activityId, pi.id, { stage: 'at_event', quantity: qty })
-    const p = ci.quantity_packed ?? 0
-    await updateActivityPackContainerItem(props.activityId, containerId, ci.id, {
-      quantity_issued: Math.min(p, (ci.quantity_issued ?? 0) + qty),
-    })
+    const packedBefore = ci.quantity_packed ?? 0
+    const newPacked = Math.max(0, packedBefore - qty)
+    if (newPacked <= 0) {
+      await deleteActivityPackContainerItem(props.activityId, containerId, ci.id)
+    } else {
+      await updateActivityPackContainerItem(props.activityId, containerId, ci.id, {
+        quantity_packed: newPacked,
+      })
+    }
     const items = await getPackItems(props.activityId)
     packItems.value = items
     initMoveQtyInputs()
     await loadContainersData()
     emit('activityItemsChanged')
-    toast.success(t('activities.packList.toastIssueLineSuccess', { qty }))
+    toast.success(t('activities.packList.toastIssueLineLooseSuccess', { qty }))
   } catch (err: unknown) {
     const e = err as { response?: { data?: { error?: string } }; message?: string }
     toast.error(e.response?.data?.error || e.message || t('activities.packList.toastIssueLineFailed'))
@@ -2766,31 +3342,18 @@ async function executeIssueContainerLineToEvent(
 
 async function issueContainerLineToEvent(containerId: string, ci: ActivityPackContainerItem) {
   if (!props.packListEditable || !isPackForwardToEventStage(activePackStage.value)) return
+  if (!(await confirmMwHandoffBeforeIssueToEvent())) return
   if (isNonActionableContainerLine(ci)) return
   const max = containerLineIssueableMax(ci)
   if (max < 1) {
     toast.error(t('activities.packList.toastNothingLeftToIssue'))
     return
   }
-  const k = containerIssueLineKey(containerId, ci.id)
-  let qty = Math.floor(Number(containerIssueLineInputs.value[k] ?? 0))
+  let qty = Math.floor(Number(containerIssueLineInputValue(containerId, ci)))
   if (!Number.isFinite(qty) || qty < 1) qty = max
   qty = Math.min(qty, max)
   if (qty < 1) return
-
-  const shell = shellPackItemForContainer(containerId)
-  if (shell && needsShellCratePresenceConfirm(shell)) {
-    const shellMax = packIssueForwardMax(shell)
-    if (shellMax >= 1) {
-      await openShellCrateForwardModal(shell, shellMax, {
-        kind: 'issue_container_line',
-        containerId,
-        containerItemId: ci.id,
-        qty,
-      })
-    }
-    return
-  }
+  setContainerIssueLineInput(containerId, ci, qty)
 
   await executeIssueContainerLineToEvent(containerId, ci, qty)
 }
@@ -2808,6 +3371,7 @@ async function unissueContainerLineToPacked(containerId: string, ci: ActivityPac
   if (!Number.isFinite(qty) || qty < 1) qty = max
   qty = Math.min(qty, max)
   if (qty < 1) return
+  containerUnissueLineInputs.value = { ...containerUnissueLineInputs.value, [k]: qty }
 
   const pi = packItems.value.find((p) => p.materialItemId === ci.material_item_id)
   if (!pi) {
@@ -2981,7 +3545,7 @@ const stageLeftHeaderCount = computed(() => {
     return stageLeftItems.value.length + packContainersSortedWarehouseOnlyVisible.value.length
   }
   if (isPackReturnStage(activePackStage.value) && packContainers.value.length > 0) {
-    return stageLeftItems.value.length + packContainersWithReturnableAtEvent.value.length
+    return stageLeftItems.value.length
   }
   return stageLeftItems.value.length
 })
@@ -2995,7 +3559,11 @@ const stageRightItems = computed(() => packItems.value.filter((p) => getStageRig
 
 const rightPanelHasEventContent = computed(() => {
   if (isPackReturnStage(activePackStage.value)) {
-    return groupsReturned.value.length > 0
+    return (
+      packContainersWithReturnableAtEvent.value.length > 0 ||
+      groupsReturned.value.length > 0 ||
+      groupsNotTakenForReturn.value.length > 0
+    )
   }
   if (!showPackContainersUi.value) {
     return stageRightItems.value.length > 0
@@ -3037,6 +3605,61 @@ const nextWorkflowTransition = computed(() => {
   return props.transitions.find((t) => t.status === target && t.allowed) ?? null
 })
 
+/** Gepackt → Am Event: getrennte Schnellbuchung (alles) vs. Status «Am Event» */
+const packIssueToEventCombined = computed(
+  () =>
+    isPackForwardToEventStage(activePackStage.value) &&
+    nextWorkflowTransition.value?.status === 'at_event',
+)
+
+/** Mindestens ein Stück/Kiste wirklich «Am Event» (lose oder als Kiste), nicht nur gepackt links */
+const hasAnythingIssuedAtEvent = computed(() => {
+  if (!packIssueToEventCombined.value) return false
+  if (packContainersWithIssuedAtEvent.value.length > 0) return true
+  return stageRightItemsLooseIssued.value.length > 0
+})
+
+/** Schnellbutton: alles von Gepackt → Am Event — nur solange noch nichts ans Event gebucht wurde */
+const showMoveAllToEventQuickButton = computed(
+  () =>
+    packIssueToEventCombined.value &&
+    showPackOperateControls.value &&
+    !hasAnythingIssuedAtEvent.value &&
+    stageLeftHeaderCount.value > 0,
+)
+
+const moveAllToEventQuickLabel = computed(() =>
+  showMwHandoffBanner.value
+    ? t('activities.packList.moveAllToEventMw')
+    : t('activities.packList.moveAllToEvent'),
+)
+
+const moveAllToEventQuickTitle = computed(() =>
+  showMwHandoffBanner.value
+    ? t('activities.packList.moveAllToEventTitleMw')
+    : t('activities.packList.moveAllToEventTitle'),
+)
+
+/** Status «Am Event» — nur wenn schon etwas ans Event gebucht ist; verschiebt keinen Rest */
+const showPackWorkflowToEventButton = computed(
+  () => packIssueToEventCombined.value && hasAnythingIssuedAtEvent.value,
+)
+
+const packWorkflowToEventTitle = computed(() =>
+  showMwHandoffBanner.value
+    ? t('activities.packList.workflowToEventTitleMw')
+    : t('activities.packList.workflowToEventTitle'),
+)
+
+function advancePackStageTabAfterAtEvent(fromStage: PackStage): void {
+  const keys = packStageKeys.value
+  const idx = keys.indexOf(fromStage)
+  if (idx >= 0 && idx < keys.length - 1 && isPackForwardToEventStage(fromStage)) {
+    activePackStage.value = keys[idx + 1]!
+    initMoveQtyInputs()
+  }
+}
+
 function groupPackItems(items: ActivityPackItem[]) {
   void locale.value
   const grouped = groupActivityPackItemsByCategory(items, t('activities.common.categoryOther'))
@@ -3062,11 +3685,11 @@ const packContainersSorted = computed(() =>
   [...packContainers.value].sort((a, b) => a.label.localeCompare(b.label, locale.value)),
 )
 
+/** Behälter «am Event» nur wenn die Kiste selbst (Shell) oder Zeilen als Kisteninhalt ausgegeben wurden — nicht bei «lose mitnehmen». */
 function containerHasIssuedAtEvent(containerId: string): boolean {
   const sh = shellPackItemForContainer(containerId)
   if (sh != null) {
-    if ((sh.quantityIssued ?? 0) > 0) return true
-    if (isPackForwardToEventStage(activePackStage.value) && getStageRightQty(sh) > 0) return true
+    return (sh.quantityIssued ?? 0) > 0
   }
   for (const ci of containerItemsByContainerId.value[containerId] ?? []) {
     if ((ci.quantity_issued ?? 0) > 0) return true
@@ -3078,15 +3701,51 @@ const packContainersWithIssuedAtEvent = computed(() =>
   packContainersSorted.value.filter((c) => containerHasIssuedAtEvent(c.id)),
 )
 
-/** Stufe Am Event → Retour: Kisten mit noch retournierbarem Bestand (linke Spalte) */
-const packContainersWithReturnableAtEvent = computed(() =>
-  packContainersWithIssuedAtEvent.value.filter((c) => containerReturnableUnits(c.id) > 0),
+/** Phys.-Kombi rechts «Gepackt» ohne Pack-Behälter — nur dann Kisten-Picker oben */
+const packCratePickerShellOnlyItems = computed(() =>
+  stageRightCrateShellItems.value.filter(
+    (pi) => packShellContainerForPackItem(pi, packContainers.value) == null,
+  ),
 )
 
-const leftPanelHasKistenEventReturn = computed(
+/**
+ * Kisten-Auswahl nur an einer Stelle:
+ * - links unter «Gepackt» (noch am Lager), oder
+ * - unten «Bereits ans Event», oder
+ * - oben Picker nur wenn weder links noch am Event wählbar
+ */
+const showPackCrateTargetPickerTop = computed(
   () =>
-    isPackReturnStage(activePackStage.value) && packContainersWithReturnableAtEvent.value.length > 0,
+    showPackContainersUi.value &&
+    activePackStage.value === 'confirmed_packed' &&
+    packContainersWithIssuedAtEvent.value.length === 0 &&
+    packContainersSortedWarehouseOnlyVisible.value.length === 0 &&
+    packCratePickerShellOnlyItems.value.length > 0,
 )
+
+/** Stufe Am Event → Retour: Kisten mit Retour-Bestand (am Event oder noch im Lager mit Inhalt) */
+const packContainersWithReturnableAtEvent = computed(() => {
+  if (!isPackReturnStage(activePackStage.value)) {
+    return packContainersWithIssuedAtEvent.value.filter((c) => containerReturnableUnits(c.id) > 0)
+  }
+  return packContainersSorted.value.filter((c) => containerReturnableUnits(c.id) > 0)
+})
+
+const stageReturnNotTakenItems = computed(() =>
+  packItems.value.filter((p) => {
+    if (!isPackReturnStage(activePackStage.value)) return false
+    if (isOrphanShellWithoutPackContainer(p)) return false
+    if (isCrateShellPackItem(p, packContainers.value)) return false
+    return notTakenQtyForReturn(p) > 0
+  }),
+)
+
+const groupsNotTakenForReturn = computed(() => {
+  void locale.value
+  return groupPackItems(stageReturnNotTakenItems.value)
+})
+
+const leftPanelHasKistenEventReturn = computed(() => false)
 
 /** Links: Behälter nur solange noch keine Ausgabe «Am Event» — sonst nur rechts */
 const packContainersSortedWarehouseOnly = computed(() =>
@@ -3169,12 +3828,29 @@ function getBackendStage(): PackMoveStage {
   return computeBackendStage(activePackStage.value)
 }
 
+function clampMoveQtyForPackItem(pi: ActivityPackItem, rawQty: number, direction: 'forward' | 'back'): number {
+  let qty = Math.floor(Number(rawQty))
+  if (!Number.isFinite(qty) || qty < 1) qty = 1
+  const max =
+    direction === 'back'
+      ? rightQtyForMoveBack(pi)
+      : showCrateAssignUpControls(pi)
+        ? crateAssignUpMax(pi)
+        : packIssueForwardMax(pi)
+  if (max > 0) return Math.min(qty, max)
+  return qty
+}
+
 function setMoveQtyForItem(itemId: string, qty: number) {
-  moveQtyInputs.value = { ...moveQtyInputs.value, [itemId]: qty }
+  const pi = packItems.value.find((p) => p.id === itemId)
+  const v = pi ? clampMoveQtyForPackItem(pi, qty, 'forward') : Math.max(1, Math.floor(Number(qty)) || 1)
+  moveQtyInputs.value = { ...moveQtyInputs.value, [itemId]: v }
 }
 
 function setMoveBackQtyForItem(itemId: string, qty: number) {
-  moveBackQtyInputs.value = { ...moveBackQtyInputs.value, [itemId]: qty }
+  const pi = packItems.value.find((p) => p.id === itemId)
+  const v = pi ? clampMoveQtyForPackItem(pi, qty, 'back') : Math.max(1, Math.floor(Number(qty)) || 1)
+  moveBackQtyInputs.value = { ...moveBackQtyInputs.value, [itemId]: v }
 }
 
 function initMoveQtyInputs() {
@@ -3203,8 +3879,17 @@ function applyUpdatedItem(updated: ActivityPackItem) {
 
 async function moveToNextStage(item: ActivityPackItem, qty?: number) {
   if (!props.packListEditable) return
-  const moveQty = resolveForwardMoveQty(item, qty)
+  if (isPackForwardToEventStage(activePackStage.value) && !(await confirmMwHandoffBeforeIssueToEvent())) {
+    return
+  }
+  const raw = qty ?? moveQtyInputs.value[item.id]
+  const moveQty =
+    qty != null && qty > 0
+      ? clampMoveQtyForPackItem(item, raw, 'forward')
+      : resolveForwardMoveQty(item, qty)
   if (moveQty <= 0) return
+  moveQtyInputs.value = { ...moveQtyInputs.value, [item.id]: moveQty }
+  if (await promptConsumableUsageOnReturn(item)) return
   if (needsShellCratePresenceConfirm(item)) {
     await openShellCrateForwardModal(item, moveQty)
     return
@@ -3247,11 +3932,10 @@ async function executeMoveToNextStage(item: ActivityPackItem, moveQty: number) {
 
 async function moveToPrevStage(item: ActivityPackItem, qty?: number) {
   if (!props.packListEditable) return
-  const moveQty = Math.min(
-    rightQtyForMoveBack(item),
-    qty ?? moveBackQtyInputs.value[item.id] ?? rightQtyForMoveBack(item),
-  )
+  const raw = qty ?? moveBackQtyInputs.value[item.id] ?? rightQtyForMoveBack(item)
+  const moveQty = clampMoveQtyForPackItem(item, raw, 'back')
   if (moveQty <= 0) return
+  moveBackQtyInputs.value = { ...moveBackQtyInputs.value, [item.id]: moveQty }
   if (needsShellCrateBackConfirm(item)) {
     await openShellCrateBackModal(item, moveQty)
     return
@@ -3259,13 +3943,43 @@ async function moveToPrevStage(item: ActivityPackItem, qty?: number) {
   await executeMoveToPrevStage(item, moveQty)
 }
 
+function preferredContainerIdForMaterialRestore(materialItemId: string): string | null {
+  for (const c of packContainers.value) {
+    const lines = containerItemsByContainerId.value[c.id] ?? []
+    if (lines.some((ci) => ci.material_item_id === materialItemId && !isNonActionableContainerLine(ci))) {
+      return c.id
+    }
+  }
+  return packContainers.value[0]?.id ?? null
+}
+
+/** Nach «lose mitnehmen»: Menge wieder in Pack-Kiste einbuchen (Zurück-Pfeil rechts). */
+async function restoreContainerPackedAfterLooseUnissue(pi: ActivityPackItem, qty: number) {
+  if (!isPackForwardToEventStage(activePackStage.value) || qty < 1) return
+  const containerId = preferredContainerIdForMaterialRestore(pi.materialItemId)
+  if (!containerId) return
+  await assignMaterialToContainer(pi, containerId, qty, { successMessage: null })
+}
+
 async function executeMoveToPrevStage(item: ActivityPackItem, moveQty: number) {
   movingId.value = item.id
   try {
+    const restoreLooseToContainer =
+      isPackForwardToEventStage(activePackStage.value) &&
+      !isCrateShellPackItem(item, packContainers.value) &&
+      looseIssuedAtEvent(item) > 0
     const updated = await postMoveBackPackItem(props.activityId, item.id, {
       stage: getBackendStage(),
       quantity: moveQty,
     })
+    if (restoreLooseToContainer) {
+      try {
+        await restoreContainerPackedAfterLooseUnissue(item, moveQty)
+        await loadContainersData()
+      } catch {
+        /* Packliste wurde zurückgebucht; Kisten-Zeile optional */
+      }
+    }
     applyUpdatedItem(updated)
   } catch (err: unknown) {
     const e = err as { response?: { data?: { error?: string } }; message?: string }
@@ -3275,19 +3989,32 @@ async function executeMoveToPrevStage(item: ActivityPackItem, moveQty: number) {
   }
 }
 
+async function onMoveAllToNextStageClick() {
+  if (!(await confirmMwHandoffBeforeIssueToEvent())) return
+  if (isPackReturnStage(activePackStage.value)) {
+    const firstConsumable = stageLeftItems.value.find((p) => p.isConsumable)
+    if (firstConsumable && (await promptConsumableUsageOnReturn(firstConsumable))) return
+  }
+  await moveAllToNextStage()
+}
+
+async function executeMoveAllPackStageForward(): Promise<void> {
+  /** Gepackt → Am Event: zuerst alle Behälter (Inhalt + Kiste), sonst würde move-all issued=packed setzen und issue-all nichts mehr buchen. */
+  if (isPackForwardToEventStage(activePackStage.value) && packContainers.value.length > 0) {
+    for (const c of packContainers.value) {
+      await issueAllPackContainerItems(props.activityId, c.id)
+    }
+  }
+  await postMoveAllPackItems(props.activityId, getBackendStage())
+  await loadAll()
+  emit('activityItemsChanged')
+}
+
 async function moveAllToNextStage() {
   if (!props.packListEditable) return
   moveAllLoading.value = true
   try {
-    /** Gepackt → Am Event: zuerst alle Behälter (Inhalt + Kiste), sonst würde move-all issued=packed setzen und issue-all nichts mehr buchen. */
-    if (isPackForwardToEventStage(activePackStage.value) && packContainers.value.length > 0) {
-      for (const c of packContainers.value) {
-        await issueAllPackContainerItems(props.activityId, c.id)
-      }
-    }
-    await postMoveAllPackItems(props.activityId, getBackendStage())
-    await loadAll()
-    emit('activityItemsChanged')
+    await executeMoveAllPackStageForward()
   } catch (err: unknown) {
     const e = err as { response?: { data?: { error?: string } }; message?: string }
     toast.error(e.response?.data?.error || e.message || t('activities.packList.toastMoveAllFailed'))
@@ -3296,9 +4023,50 @@ async function moveAllToNextStage() {
   }
 }
 
+async function onPackWorkflowStatusToEventClick() {
+  if (!props.packListEditable) return
+  const transition = nextWorkflowTransition.value
+  if (!transition?.allowed || transition.status !== 'at_event') return
+  if (!hasAnythingIssuedAtEvent.value) {
+    toast.error(t('activities.packList.toastNothingAtEventYet'))
+    return
+  }
+  if (!(await confirmMwHandoffWorkflowToEvent())) return
+
+  if (stageProgress.value < 100) {
+    const ok = await confirmDialog({
+      title: t('activities.packList.confirmWorkflowStatusTitle', { pct: stageProgress.value }),
+      message: t('activities.packList.confirmWorkflowStatusMessage', {
+        count: stageLeftHeaderCount.value,
+      }),
+      confirmText: t('activities.packList.confirmWorkflowStatusProceed'),
+      cancelText: t('activities.common.cancel'),
+      variant: 'warning',
+    })
+    if (!ok) return
+  }
+
+  const fromStage = activePackStage.value
+  pendingAdvancePackStageFrom.value = fromStage
+  isTransitioningPackWorkflow.value = true
+  try {
+    emit('workflowNext', transition)
+    advancePackStageTabAfterAtEvent(fromStage)
+  } finally {
+    isTransitioningPackWorkflow.value = false
+  }
+}
+
 async function handleWorkflowTransition() {
   const transition = nextWorkflowTransition.value
   if (!transition || !props.packListEditable) return
+  if (
+    showMwHandoffBanner.value &&
+    transition.status === 'at_event' &&
+    !(await confirmMwHandoffBeforeIssueToEvent())
+  ) {
+    return
+  }
   if (stageProgress.value < 100) {
     const ok = await confirmDialog({
       title: t('activities.packList.confirmWorkflowTitle', { pct: stageProgress.value }),
@@ -3310,6 +4078,14 @@ async function handleWorkflowTransition() {
     if (!ok) return
   }
   emit('workflowNext', transition)
+  if (transition.status === 'packed') {
+    activePackStage.value = autoPackStageForProfile(
+      packWorkflowProfile.value,
+      'packed',
+      canManageMaterials.value,
+    )
+    initMoveQtyInputs()
+  }
 }
 
 async function onInitPackList() {
@@ -3329,6 +4105,8 @@ async function onInitPackList() {
 async function loadAll() {
   loading.value = true
   loadError.value = null
+  const advanceFrom = pendingAdvancePackStageFrom.value
+  pendingAdvancePackStageFrom.value = null
   try {
     const items = await getPackItems(props.activityId)
     packItems.value = items
@@ -3340,6 +4118,9 @@ async function loadAll() {
     const keys = packStageKeys.value
     if (!keys.includes(activePackStage.value)) {
       activePackStage.value = keys[0] ?? 'confirmed_packed'
+    }
+    if (advanceFrom) {
+      advancePackStageTabAfterAtEvent(advanceFrom)
     }
     initMoveQtyInputs()
     await loadComboComponentsForShellPackItems()
@@ -3359,6 +4140,7 @@ provide(PACK_WAREHOUSE_ISSUE_INJECT_KEY, {
   memberAwaitingMwPack,
   canManageMaterials,
   canReportIssues: showPackIssueActions,
+  showKisteMeldungForContainer,
   activePackStage,
   moveQtyInputs,
   setMoveQtyForItem,
@@ -3378,7 +4160,11 @@ provide(PACK_WAREHOUSE_ISSUE_INJECT_KEY, {
   containerItemsByContainerId,
   containerPullQtyInputs,
   containerIssueLineInputs,
+  containerIssueLineInputValue,
+  setContainerIssueLineInput,
+  containerIssueLineLooseTitle,
   containerUnissueLineInputs,
+  setContainerUnissueLineInput,
   isPackContainerCollapsed,
   isPackContainerSubsectionCollapsed,
   togglePackContainerCollapsed,
@@ -3389,11 +4175,15 @@ provide(PACK_WAREHOUSE_ISSUE_INJECT_KEY, {
   packIssueForwardMax,
   moveToNextStage,
   toggleActiveContainer,
+  containerHasIssuedAtEvent,
+  containerHasAssignedContents,
   containerItemCount,
   containerUnissueableUnits,
   containerIssueableUnits,
+  containerShellTakeMax,
   unissueContainerToPacked,
   issueContainerToEvent,
+  issueContainerShellOnlyToEvent,
   isPackMaterialConsumable,
   emitConsumptionForMaterialId,
   emitIssueWizardByMaterialId,

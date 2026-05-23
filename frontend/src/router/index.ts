@@ -5,6 +5,7 @@ import { usePermissionsStore } from '@/stores/permissions'
 import { usePageHeadStore } from '@/stores/pageHead'
 import { syncDocumentHead } from '@/composables/usePageHead'
 import { getMainSiteOrigin, isAppOrigin } from '@/utils/appLoginUrl'
+import { shouldProbeUserSession } from '@/api/unauthorizedRedirect'
 
 /**
  * route.meta: Titel/Description per vue-i18n (`router.meta.titles.*` / `descriptions.*`).
@@ -22,13 +23,61 @@ function routeHead(titleKey: string, descriptionKey?: string) {
 
 const routes: RouteRecordRaw[] = [
   {
-    path: '/i/:type/:code',
-    name: 'PublicLookup',
+    path: '/i/m/:matCode/b/:batchCode',
+    name: 'PublicLookupMaterialBatch',
     component: () => import('@/views/public/PublicMaterialView.vue'),
     meta: {
       requiresAuth: false,
       ...routeHead('publicLookup', 'publicLookup'),
-    }
+    },
+  },
+  {
+    path: '/i/b/:batchCode',
+    name: 'PublicLookupBatch',
+    component: () => import('@/views/public/PublicMaterialView.vue'),
+    meta: {
+      requiresAuth: false,
+      ...routeHead('publicLookup', 'publicLookup'),
+    },
+  },
+  {
+    path: '/i/a/:activityCode',
+    name: 'PublicLookupActivity',
+    component: () => import('@/views/public/PublicActivityView.vue'),
+    meta: {
+      requiresAuth: false,
+      ...routeHead('publicLookup', 'publicLookup'),
+    },
+  },
+  {
+    path: '/i/w/:workshopCode',
+    name: 'PublicLookupWorkshop',
+    component: () => import('@/views/public/PublicWorkshopView.vue'),
+    meta: {
+      requiresAuth: false,
+      ...routeHead('publicLookup', 'publicLookup'),
+    },
+  },
+  {
+    path: '/i/m/:code',
+    name: 'PublicLookupMaterialLegacy',
+    component: () => import('@/views/public/PublicMaterialView.vue'),
+    meta: {
+      requiresAuth: false,
+      ...routeHead('publicLookup', 'publicLookup'),
+    },
+  },
+  {
+    path: '/i/:type/:code',
+    redirect: (to) => {
+      const type = String(to.params.type || '').toLowerCase()
+      const code = encodeURIComponent(String(to.params.code || ''))
+      if (type === 'b' && code) return `/i/b/${code}`
+      if (type === 'a' && code) return `/i/a/${code}`
+      if (type === 'w' && code) return `/i/w/${code}`
+      if (type === 'm' && code) return `/i/m/${code}`
+      return '/'
+    },
   },
   {
     path: '/open-from-qr',
@@ -38,6 +87,24 @@ const routes: RouteRecordRaw[] = [
       requiresAuth: false,
       ...routeHead('openFromQr'),
     }
+  },
+  {
+    path: '/display',
+    name: 'PublicDisplayEntry',
+    component: () => import('@/views/DisplayEntryView.vue'),
+    meta: {
+      requiresAuth: false,
+      ...routeHead('displayEntry', 'displayEntry'),
+    },
+  },
+  {
+    path: '/display/:publicId',
+    name: 'PublicDepartmentDisplay',
+    component: () => import('@/views/DepartmentDisplayView.vue'),
+    meta: {
+      requiresAuth: false,
+      ...routeHead('departmentDisplay', 'departmentDisplay'),
+    },
   },
   {
     path: '/',
@@ -500,6 +567,17 @@ const routes: RouteRecordRaw[] = [
         },
         children: [
           {
+            path: ':activityId/packlist',
+            redirect: (to) => ({
+              name: 'ActivityDetailTab',
+              params: {
+                departmentId: to.params.departmentId,
+                activityId: to.params.activityId,
+                tab: 'packs',
+              },
+            }),
+          },
+          {
             path: ':activityId',
             name: 'ActivityDetail',
             component: () => import('@/views/ActivitiesView.vue'),
@@ -762,6 +840,16 @@ const routes: RouteRecordRaw[] = [
             }
           },
           {
+            path: 'my-department/display-screens',
+            name: 'SettingsMyDepartmentDisplayScreens',
+            component: () => import('@/views/settings/MyDepartmentDisplayScreensView.vue'),
+            meta: {
+              ...routeHead('settingsDisplayScreens'),
+              denyDepartmentRoles: ['u', 'user'],
+              denyRedirectTo: { name: 'SettingsMyDepartment' },
+            }
+          },
+          {
             path: 'my-department/storage-locations',
             name: 'SettingsMyDepartmentStorageLocations',
             component: () => import('@/views/settings/MyDepartmentAddressSettingsView.vue'),
@@ -886,10 +974,12 @@ function applyQrHostRedirects(to: RouteLocationNormalized): boolean {
 
   const path = to.path
 
-  // Öffentlicher /i/m|b/…-Lookup bleibt auf der QR-Domain (kein automatischer Sprung zur App).
+  // Öffentlicher /i/…-Lookup bleibt auf der QR-Domain (kein automatischer Sprung zur App).
   const parts = path.split('/').filter(Boolean)
-  if (parts[0] === 'i' && (parts[1] === 'm' || parts[1] === 'b') && parts[2]) {
-    return false
+  if (parts[0] === 'i') {
+    if (parts[1] === 'b' && parts[2]) return false
+    if (parts[1] === 'm' && parts[2] && (parts[3] === 'b' ? !!parts[4] : true)) return false
+    if (parts[1] === 'a' && parts[2]) return false
   }
 
   // Start & Login → Hauptdomain (ematchef.*), nicht app.*
@@ -915,6 +1005,11 @@ function applyQrHostRedirects(to: RouteLocationNormalized): boolean {
 router.beforeEach(async (to, from, next) => {
   if (applyQrHostRedirects(to)) {
     return next(false)
+  }
+
+  // Infoscreen-Kiosk: kein App-Login, keine Session-Probe (Display-Cookie separat).
+  if (!shouldProbeUserSession(to.path)) {
+    return next()
   }
 
   const authStore = useAuthStore()

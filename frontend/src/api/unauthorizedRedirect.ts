@@ -8,11 +8,32 @@ export function isAuthFormPath(pathname: string): boolean {
   )
 }
 
-/** Öffentliche QR-/Material-Infos ohne Login (z. B. /i/m/…, /i/b/…). */
+/** Infoscreen-Kiosk: nur Display-Cookie, kein User-JWT / keine Session-Probe. */
+export function isDisplayKioskPath(pathname: string): boolean {
+  const path = (pathname || '').replace(/\/$/, '') || '/'
+  if (path === '/display') return true
+  return /^\/display\/[^/]+/.test(path)
+}
+
+/** User-Session (/api/auth/session) nur laden, wenn sinnvoll (nicht auf Infoscreen-Kiosk). */
+export function shouldProbeUserSession(pathname?: string): boolean {
+  const path =
+    pathname ??
+    (typeof window !== 'undefined' ? window.location.pathname : '')
+  return !isDisplayKioskPath(path)
+}
+
+/** Öffentliche QR-/Material-Infos ohne Login (z. B. /i/m/…/b/…, /i/b/…). */
 export function isPublicAnonymousPath(pathname: string): boolean {
   if (pathname === '/open-from-qr') return true
+  if (isDisplayKioskPath(pathname)) return true
   const parts = pathname.split('/').filter(Boolean)
-  return parts[0] === 'i' && (parts[1] === 'm' || parts[1] === 'b') && parts.length >= 3
+  if (parts[0] !== 'i') return false
+  if (parts[1] === 'b' && parts[2]) return true
+  if (parts[1] === 'm' && parts[2] && parts[3] === 'b' && parts[4]) return true
+  if (parts[1] === 'm' && parts[2] && parts.length === 3) return true
+  if (parts[1] === 'a' && parts[2]) return true
+  return false
 }
 
 /** Kein Login-Redirect bei Session-Ablauf (Auth-Formulare + öffentliche QR-Seiten). */

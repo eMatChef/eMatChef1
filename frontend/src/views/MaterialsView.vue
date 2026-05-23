@@ -232,7 +232,6 @@
             <thead>
               <tr>
                 <th v-if="showComboExpandColumn" class="col-expand"></th>
-                <th v-if="showCodeColumn" class="col-code">{{ t('materialsView.colCode') }}</th>
                 <th class="col-name">{{ t('materialsView.colName') }}</th>
                 <th v-if="showComboColumns" class="col-type">{{ t('materialsView.colType') }}</th>
                 <th class="col-category">{{ t('materialsView.colCategory') }}</th>
@@ -266,18 +265,6 @@
                         <polyline points="6 9 12 15 18 9"/>
                       </svg>
                     </button>
-                  </td>
-                  <td v-if="showCodeColumn" class="col-code">
-                    <div class="code-cell">
-                      <span v-if="material.barcode_tag" class="code-badge">{{ material.barcode_tag }}</span>
-                      <PublicQrTag
-                        :url="material.public_url"
-                        :code="material.public_code"
-                        :size="56"
-                        :image-label="material.name"
-                        :image-entity-id="material.id"
-                      />
-                    </div>
                   </td>
                   <td class="col-name">
                     <div class="name-cell">
@@ -500,7 +487,6 @@ import MaterialCreateWizard from '@/components/material/MaterialCreateWizard.vue
 import MaterialDetailView from '@/components/material/MaterialDetailView.vue'
 import StorageTreeView from '@/components/storage/StorageTreeView.vue'
 import GlobalSearchInput from '@/components/common/GlobalSearchInput.vue'
-import PublicQrTag from '@/components/common/PublicQrTag.vue'
 import { useDetailTabsStore } from '@/stores/detailTabs'
 import { useToast } from '@/composables/useToast'
 import { useListSearchQueryRoute } from '@/composables/useListSearchQueryRoute'
@@ -519,7 +505,6 @@ const currentDepartmentId = computed(() => route.params.departmentId as string)
 const departmentRole = computed(() => (authStore.currentDepartmentRole || 'u').toLowerCase())
 const isUserMaterialsBrowseOnly = computed(() => ['u', 'user'].includes(departmentRole.value))
 const canManageMaterials = computed(() => ['mw', 'dc', 'matwart', 'depchef'].includes(departmentRole.value))
-const showCodeColumn = computed(() => !isUserMaterialsBrowseOnly.value)
 const showStockDetailColumns = computed(() => !isUserMaterialsBrowseOnly.value)
 
 type MaterialTab = 'combos' | 'all' | 'virtual_combos' | 'consumables' | 'food' | 'storage'
@@ -686,9 +671,9 @@ const materialTableColspan = computed(() => {
     cols += 1 // actions
     return cols
   }
-  if (showComboColumns.value) return 11
-  if (showComboExpandColumn.value) return 9
-  return 8
+  if (showComboColumns.value) return 10
+  if (showComboExpandColumn.value) return 8
+  return 7
 })
 
 function isComboMaterial(material: Material): boolean {

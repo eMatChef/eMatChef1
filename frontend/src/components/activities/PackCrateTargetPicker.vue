@@ -39,8 +39,18 @@ const activePackTarget = computed(() => injectRef<ActivePackTarget>(ctx.activePa
 const expandedByCrateId = reactive<Record<string, boolean>>({})
 const expandedByShellId = reactive<Record<string, boolean>>({})
 
+function isCrateAtEvent(containerId: string): boolean {
+  const fn = ctx.containerHasIssuedAtEvent as ((id: string) => boolean) | undefined
+  return fn?.(containerId) ?? false
+}
+
 const sortedCrates = computed(() =>
-  [...packContainers.value].sort((a, b) => crateDisplayLabel(a).localeCompare(crateDisplayLabel(b), 'de')),
+  [...packContainers.value].sort((a, b) => {
+    const aAt = isCrateAtEvent(a.id) ? 0 : 1
+    const bAt = isCrateAtEvent(b.id) ? 0 : 1
+    if (aAt !== bAt) return aAt - bAt
+    return crateDisplayLabel(a).localeCompare(crateDisplayLabel(b), 'de')
+  }),
 )
 
 /** Phys.-Kombi rechts «Gepackt», noch ohne Pack-Behälter-Zeile */
@@ -167,9 +177,11 @@ const pickerHasEntries = computed(
             :aria-label="t('activities.packList.cratePickerExpandAria', { label: pi.materialName })"
             @click.stop="toggleShellExpanded(pi.id)"
           >
-            <span class="pack-container-chevron" aria-hidden="true">{{
-              isShellExpanded(pi.id) ? '▼' : '▶'
-            }}</span>
+            <span
+              class="pack-container-chevron"
+              :class="{ 'pack-container-chevron--open': isShellExpanded(pi.id) }"
+              aria-hidden="true"
+            >▶</span>
           </button>
           <div class="pack-container-header-main">
             <button
@@ -218,9 +230,11 @@ const pickerHasEntries = computed(
             :aria-label="t('activities.packList.cratePickerExpandAria', { label: crateDisplayLabel(c) })"
             @click.stop="toggleCrateExpanded(c.id)"
           >
-            <span class="pack-container-chevron" aria-hidden="true">{{
-              isCrateExpanded(c.id) ? '▼' : '▶'
-            }}</span>
+            <span
+              class="pack-container-chevron"
+              :class="{ 'pack-container-chevron--open': isCrateExpanded(c.id) }"
+              aria-hidden="true"
+            >▶</span>
           </button>
           <div class="pack-container-header-main">
             <button
@@ -241,6 +255,11 @@ const pickerHasEntries = computed(
               >
             </button>
             <div class="pack-container-header-meta">
+              <span
+                v-if="isCrateAtEvent(c.id)"
+                class="pack-container-chip pack-container-chip--at-event"
+                >{{ t('activities.packList.crateAtEventBadge') }}</span
+              >
               <span class="pack-container-chip text-muted">{{
                 t('activities.common.itemsUnit', { count: itemCount(c.id) })
               }}</span>

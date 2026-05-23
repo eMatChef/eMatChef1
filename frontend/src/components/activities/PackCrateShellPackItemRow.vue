@@ -68,16 +68,19 @@ const shellMoveQty = computed(() => {
   const inputs = ctx.moveQtyInputs as unknown
   const map =
     inputs != null ? (unref(inputs as Ref<Record<string, number>> | Record<string, number>) as Record<string, number>) : {}
-  return map[props.shellPackItem.id] ?? 0
+  const maxFn = ctx.packIssueForwardMax as ((p: ActivityPackItem) => number) | undefined
+  return map[props.shellPackItem.id] ?? (maxFn ? maxFn(props.shellPackItem) : 0)
 })
 
-function moveShellCrateForward() {
+function moveShellCrateForward(qtyFromControl?: number) {
   const maxFn = ctx.packIssueForwardMax as ((p: ActivityPackItem) => number) | undefined
   const moveFn = ctx.moveToNextStage as ((p: ActivityPackItem, qty?: number) => void | Promise<void>) | undefined
   if (!maxFn || !moveFn) return
   const max = maxFn(props.shellPackItem)
   if (max < 1) return
-  void moveFn(props.shellPackItem, max)
+  const raw = qtyFromControl ?? shellMoveQty.value
+  const moveQty = Math.min(max, Math.max(1, Math.floor(Number(raw) || max)))
+  void moveFn(props.shellPackItem, moveQty)
 }
 </script>
 

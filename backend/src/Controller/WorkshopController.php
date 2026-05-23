@@ -10,8 +10,10 @@ use App\Entity\MaterialHistory;
 use App\Entity\Activity;
 use App\Entity\ActivityIssueReport;
 use App\Entity\Department;
+use App\Entity\Membership;
 use App\Entity\User;
 use App\Service\ActivityAccountingCostService;
+use App\Service\Public\PublicCodeService;
 use App\Util\IdGenerator;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -26,6 +28,7 @@ class WorkshopController extends AbstractController
     public function __construct(
         private EntityManagerInterface $entityManager,
         private ActivityAccountingCostService $activityAccountingCost,
+        private PublicCodeService $publicCodeService,
     ) {}
 
     // ═══════════════════════════════════════════════
@@ -141,6 +144,34 @@ class WorkshopController extends AbstractController
         if (!$ticket) {
             return new JsonResponse(['error' => 'Ticket nicht gefunden'], 404);
         }
+
+        return new JsonResponse($this->serializeTicket($ticket, true));
+    }
+
+    /**
+     * Erzeugt (Backfill) einen öffentlichen QR-Code für ein Werkstatt-Ticket, falls noch keiner vorhanden ist.
+     */
+    #[Route('/{id}/public-code', name: 'ensure_public_code', methods: ['POST'])]
+    #[IsGranted('ROLE_USER')]
+    public function ensurePublicCode(string $id): JsonResponse
+    {
+        $ticket = $this->entityManager->getRepository(WorkshopTicket::class)->find($id);
+
+        if (!$ticket) {
+            return new JsonResponse(['error' => 'Ticket nicht gefunden'], 404);
+        }
+
+        $currentUser = $this->getUser();
+        if (!$currentUser instanceof User) {
+            return new JsonResponse(['error' => 'Nicht authentifiziert'], 401);
+        }
+        if (!$this->canUserManageWorkshopPublicCode($currentUser, $ticket)) {
+            return new JsonResponse(['error' => 'Keine Berechtigung fuer oeffentliche QR-Codes'], 403);
+        }
+
+        $actorId = $currentUser->getId();
+        $this->publicCodeService->ensureWorkshopPublicCode($ticket, $actorId !== null ? (string) $actorId : null);
+        $this->entityManager->flush();
 
         return new JsonResponse($this->serializeTicket($ticket, true));
     }
@@ -909,6 +940,13 @@ class WorkshopController extends AbstractController
             'origin_issue_type_label' => $ticket->getIssueReport()?->getTypeLabel(),
         ];
 
+        $workshopPublicEntry = $this->publicCodeService->getActiveWorkshopPublicCode((string) $ticket->getId());
+        $workshopPublicCode = $workshopPublicEntry?->getPublicCode();
+        $result['public_code'] = $workshopPublicCode;
+        $result['public_url'] = $workshopPublicCode
+            ? $this->publicCodeService->buildWorkshopPublicUrl($workshopPublicCode)
+            : null;
+
         if ($detailed) {
             $result['parts_used'] = $ticket->getPartsUsed();
             $result['photos'] = $ticket->getPhotos();
@@ -950,6 +988,21 @@ class WorkshopController extends AbstractController
         }
 
         return $result;
+    }
+
+    private function canUserManageWorkshopPublicCode(User $user, WorkshopTicket $ticket): bool
+    {
+        if (count(array_intersect(['ROLE_SUPERADMIN', 'ROLE_ORGANISATIONSCHEF', 'ROLE_SUBORGCHEF'], $user->getRoles())) > 0) {
+            return true;
+        }
+
+        $membership = $this->entityManager->getRepository(Membership::class)
+            ->findOneBy(['userId' => $user->getId(), 'departmentId' => $ticket->getDepartmentId()]);
+        if (!$membership) {
+            return false;
+        }
+
+        return in_array((string) ($membership->getRole() ?? ''), ['mw', 'dc'], true);
     }
 
     /**

@@ -28,23 +28,12 @@
           >
             {{ qrGenerateButtonLabel }}
           </button>
-          <PublicQrTag
-            v-if="headerMaterialHasPublicQr"
-            class="header-qr-tag"
-            :url="material.public_url"
-            :code="material.public_code"
-            :size="64"
-            :clickable="true"
-            :image-label="material.name"
-            :image-entity-id="material.id"
-            @activate="openQrActionModalForMaterial"
-          />
           <button
-            v-else-if="showHeaderSerialQrShortcut"
+            v-if="showHeaderQrShortcut"
             type="button"
             class="btn-outline btn-sm header-qr-serial-shortcut"
-            :title="t('components.materialDetail.titleOpenSerialQr')"
-            @click="openQrActionModalForAll"
+            :title="t('components.materialDetail.titleOpenBatchQr')"
+            @click="openStockTabWithQrPanel"
           >
             {{ t('components.materialDetail.qrCodes') }}
           </button>
@@ -457,6 +446,59 @@
 
           <!-- Tab: Bestand -->
           <section v-else-if="activeTab === 'stock'" class="tab-content">
+            <div
+              v-if="canManageMaterials && hasAnyQrForPrint"
+              class="stock-qr-collapsible section-card"
+            >
+              <button
+                type="button"
+                class="stock-qr-toggle"
+                :aria-expanded="stockQrPanelExpanded"
+                aria-controls="stock-qr-panel"
+                @click="stockQrPanelExpanded = !stockQrPanelExpanded"
+              >
+                <span class="stock-qr-toggle-label">{{ t('components.materialDetail.modalQrActionTitle') }}</span>
+                <span class="stock-qr-toggle-chevron" :class="{ 'is-open': stockQrPanelExpanded }" aria-hidden="true">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="6 9 12 15 18 9" />
+                  </svg>
+                </span>
+              </button>
+              <div
+                v-show="stockQrPanelExpanded"
+                id="stock-qr-panel"
+                class="stock-qr-panel"
+                role="region"
+              >
+                <p class="qr-panel-hint">{{ t('components.materialDetail.qrPrintAllHint') }}</p>
+                <div class="modal-actions stock-qr-panel-actions">
+                  <button type="button" class="btn-outline btn-sm" @click="handleQrAddAllToPrintCart">
+                    {{ t('components.materialDetail.btnAddToPrintCart') }}
+                  </button>
+                  <button type="button" class="btn-primary btn-sm" @click="handleQrPrintAllFromPanel">
+                    {{ t('components.materialDetail.btnPrint') }}
+                  </button>
+                </div>
+                <ul v-if="batchesWithPrintableQr.length" class="stock-qr-batch-list">
+                  <li v-for="batch in batchesWithPrintableQr" :key="batch.id" class="stock-qr-batch-row">
+                    <PublicQrTag
+                      :url="batch.public_url"
+                      :code="batch.public_code"
+                      :size="48"
+                      :clickable="true"
+                      :image-label="material.name"
+                      :image-entity-id="batch.id"
+                      @activate="openQrActionModalForBatch(batch)"
+                    />
+                    <span class="stock-qr-batch-label">{{ batchQrRowLabel(batch) }}</span>
+                    <button type="button" class="btn-outline btn-sm" @click="openQrActionModalForBatch(batch)">
+                      {{ t('components.materialDetail.btnQrActions') }}
+                    </button>
+                  </li>
+                </ul>
+              </div>
+            </div>
+
             <div class="section-card">
               <div class="section-header-row">
                 <h2 class="section-title">{{ t('components.materialDetail.sectionStock') }}</h2>
@@ -576,6 +618,7 @@
                         </span>
                       </button>
                     </th>
+                    <th v-if="canManageMaterials">{{ t('components.materialDetail.thQr') }}</th>
                     <th class="th-sort-cell">
                       <button type="button" class="detail-th-sort" :title="t('components.materialDetail.sortByLabel')" @click="toggleStockSort('label')">
                         <span>{{ t('components.materialDetail.thLabel') }}</span>
@@ -628,6 +671,17 @@
                   <tr v-for="batch in sortedActiveBatches" :key="batch.id">
                     <td>{{ formatDate(batch.acquired_on) }}</td>
                     <td class="qty-cell">{{ batch.qty }}</td>
+                    <td v-if="canManageMaterials" class="col-qr">
+                      <PublicQrTag
+                        :url="batch.public_url"
+                        :code="batch.public_code"
+                        :size="48"
+                        :clickable="!!batch.public_url"
+                        :image-label="material.name"
+                        :image-entity-id="batch.id"
+                        @activate="openQrActionModalForBatch(batch)"
+                      />
+                    </td>
                     <td>{{ batch.label || t('components.materialDetail.emDash') }}</td>
                     <td>{{ batch.unit_price ? `${t('components.materialDetail.currencyFr')} ${batch.unit_price}` : t('components.materialDetail.emDash') }}</td>
                     <td class="location-cell">
@@ -1769,13 +1823,6 @@
               </svg>
               <img v-else :src="material.image_url" :alt="t('components.materialDetail.altMaterialImage')" />
             </div>
-            <button
-              v-if="canManageMaterials && hasAnyQrForPrint"
-              class="btn-outline btn-sm qr-print-btn"
-              @click="openQrActionModalForAll"
-            >
-              {{ t('components.materialDetail.btnPrintQrCodes') }}
-            </button>
           </div>
 
           <!-- Bestand Quick View -->
@@ -2207,23 +2254,15 @@
       </div>
     </div>
 
-    <div v-if="showQrActionModal" class="modal-overlay">
-      <div class="modal-dialog">
-        <h3>{{ t('components.materialDetail.modalQrActionTitle') }}</h3>
-        <p class="qr-modal-text">{{ qrActionLabel }}</p>
-        <p v-if="qrActionCode" class="qr-modal-meta">{{ t('components.materialDetail.labelCode') }}: {{ qrActionCode }}</p>
-        <p v-else-if="qrActionMode === 'all'" class="qr-modal-meta">
-          {{ t('components.materialDetail.qrPrintAllHint') }}
-        </p>
-        <div class="modal-actions">
-          <button class="btn-secondary btn-sm" @click="closeQrActionModal">{{ t('common.cancel') }}</button>
-          <button class="btn-outline btn-sm" @click="handleQrAddToPrintCart">{{ t('components.materialDetail.btnAddToPrintCart') }}</button>
-          <button v-if="qrActionUrl" class="btn-outline btn-sm" @click="handleQrOpenLink">{{ t('components.materialDetail.btnOpenQrPage') }}</button>
-          <button v-if="qrActionUrl" class="btn-outline btn-sm" @click="handleQrCopyLink">{{ t('components.materialDetail.btnCopyQrLink') }}</button>
-          <button v-if="qrActionUrl || qrActionMode === 'all'" class="btn-primary btn-sm" @click="handleQrPrint">{{ t('components.materialDetail.btnPrint') }}</button>
-        </div>
-      </div>
-    </div>
+    <PublicQrActionModal
+      :open="showQrActionModal && qrActionMode === 'batch'"
+      :label="qrActionLabel"
+      :code="qrActionCode"
+      :url="qrActionUrl"
+      @close="closeQrActionModal"
+      @add-to-print-cart="handleQrAddToPrintCart"
+      @print="handleQrPrint"
+    />
 
   </div>
 </template>
@@ -2306,7 +2345,9 @@ import MaterialLookupInput from '@/components/common/MaterialLookupInput.vue'
 import CategoryAutocompleteInput from '@/components/common/CategoryAutocompleteInput.vue'
 import { createBasicMaterialLookupFetcher } from '@/composables/useMaterialLookup'
 import PublicQrTag from '@/components/common/PublicQrTag.vue'
+import PublicQrActionModal from '@/components/common/PublicQrActionModal.vue'
 import { unitPriceFromPackSaleChf } from '@/utils/packPricing'
+import { isPrintableBatchPublicUrl } from '@/utils/publicQrUrl'
 
 interface Props {
   materialId: string
@@ -2781,9 +2822,10 @@ const addToContainerQty = ref(1)
 const addToContainerMaterialCatalog = ref<Material[] | null>(null)
 const isLoadingAddToContainerCatalog = ref(false)
 
-type QrActionMode = 'material' | 'batch' | 'all'
+type QrActionMode = 'batch' | 'all'
 const showQrActionModal = ref(false)
-const qrActionMode = ref<QrActionMode>('material')
+const stockQrPanelExpanded = ref(false)
+const qrActionMode = ref<QrActionMode>('batch')
 const qrActionLabel = ref('')
 const qrActionCode = ref('')
 const qrActionUrl = ref('')
@@ -3113,10 +3155,11 @@ const serialBatches = computed(() => {
   return batches.value.filter(b => b.serial_number)
 })
 
-const hasAnyQrForPrint = computed(() => {
-  if (String(material.value?.public_url || '').trim() !== '') return true
-  return (batches.value || []).some((batch: any) => String(batch?.public_url || '').trim() !== '')
-})
+const batchesWithPrintableQr = computed(() =>
+  (batches.value || []).filter((batch: any) => isPrintableBatchPublicUrl(batch?.public_url))
+)
+
+const hasAnyQrForPrint = computed(() => batchesWithPrintableQr.value.length > 0)
 
 /** Physische Combo, die mit einer konkreten Kisten-Charge verknüpft ist (QR von der Kiste übernommen). */
 const isPhysicalComboFromLinkedContainer = computed(
@@ -3138,28 +3181,18 @@ const qrGenerateButtonTitle = computed(() => {
   return ''
 })
 
-/** QR im Header: immer wenn Material einen öffentlichen Link hat (Bulk + Serien mit Material-QR). */
-const headerMaterialHasPublicQr = computed(
-  () => !isLoading.value && String(material.value?.public_url || '').trim() !== ''
-)
-
-/**
- * Serienartikel ohne Material-QR: QR liegt auf Chargen — kompakter Einstieg wie „QR-Codes drucken“.
- */
-const showHeaderSerialQrShortcut = computed(
-  () =>
-    !isLoading.value &&
-    material.value?.tracking_type === 'serialized' &&
-    String(material.value?.public_url || '').trim() === '' &&
-    hasAnyQrForPrint.value
-)
+/** Einstieg „QR-Codes drucken“ im Header, wenn mindestens eine Charge eine Etiketten-URL hat. */
+const showHeaderQrShortcut = computed(() => !isLoading.value && hasAnyQrForPrint.value)
 
 const showGenerateQrButton = computed(() => {
   if (isLoading.value) return false
 
   const materialMissing = String(material.value?.public_code || '').trim() === ''
   if (material.value?.tracking_type !== 'serialized') {
-    return materialMissing
+    const batchMissing = (batches.value || []).some(
+      (b: any) => String(b?.public_code || '').trim() === ''
+    )
+    return materialMissing || batchMissing
   }
 
   const missingSerialCount = serialBatches.value.filter((batch: any) => {
@@ -4460,15 +4493,6 @@ function closeAddToContainerModal() {
   resetAddToContainerState()
 }
 
-function openQrActionModalForMaterial() {
-  qrActionMode.value = 'material'
-  qrActionEntityId.value = String(material.value?.id || '')
-  qrActionLabel.value = material.value?.name || t('components.materialDetail.fallbackMaterialDisplayName')
-  qrActionCode.value = String(material.value?.public_code || '')
-  qrActionUrl.value = String(material.value?.public_url || '')
-  showQrActionModal.value = true
-}
-
 function openQrActionModalForBatch(batch: any) {
   qrActionMode.value = 'batch'
   qrActionEntityId.value = String(batch?.id || '')
@@ -4483,13 +4507,40 @@ function openQrActionModalForBatch(batch: any) {
   showQrActionModal.value = true
 }
 
-function openQrActionModalForAll() {
+function batchQrRowLabel(batch: any): string {
+  const serial = String(batch?.serial_number || '').trim()
+  const label = String(batch?.label || '').trim()
+  if (serial) return serial
+  if (label) return label
+  const acquired = batch?.acquired_on ? formatDate(batch.acquired_on) : ''
+  if (acquired) return acquired
+  return t('components.materialDetail.labelSerialFallback', {
+    suffix: String(batch?.id || '').slice(-6),
+  })
+}
+
+function openStockTabWithQrPanel() {
+  prepareQrActionAll()
+  setActiveTab('stock')
+  stockQrPanelExpanded.value = true
+}
+
+function prepareQrActionAll() {
   qrActionMode.value = 'all'
   qrActionEntityId.value = ''
   qrActionLabel.value = material.value?.name || t('components.materialDetail.fallbackMaterialDisplayName')
   qrActionCode.value = ''
   qrActionUrl.value = ''
-  showQrActionModal.value = true
+}
+
+async function handleQrAddAllToPrintCart() {
+  prepareQrActionAll()
+  await handleQrAddToPrintCart()
+}
+
+async function handleQrPrintAllFromPanel() {
+  prepareQrActionAll()
+  await handleQrPrint()
 }
 
 function closeQrActionModal() {
@@ -4512,21 +4563,9 @@ async function handleQrAddToPrintCart() {
       public_url: string
     }> = []
 
-    const materialUrl = String(material.value?.public_url || '').trim()
-    if (materialUrl) {
-      payloads.push({
-        department_id: props.departmentId,
-        entity_type: 'material',
-        entity_id: String(material.value?.id || ''),
-        label: String(material.value?.name || t('components.materialDetail.badgeMaterial')),
-        public_code: String(material.value?.public_code || '') || null,
-        public_url: materialUrl,
-      })
-    }
-
-    for (const batch of serialBatches.value) {
+    for (const batch of batchesWithPrintableQr.value) {
       const url = String(batch?.public_url || '').trim()
-      if (!url) continue
+      if (!isPrintableBatchPublicUrl(url)) continue
       const serial = String(batch?.serial_number || '').trim()
       const label = String(batch?.label || '').trim()
       payloads.push({
@@ -4572,7 +4611,7 @@ async function handleQrAddToPrintCart() {
   try {
     const result = await addPrintCartItem({
       department_id: props.departmentId,
-      entity_type: qrActionMode.value === 'material' ? 'material' : 'batch',
+      entity_type: 'batch',
       entity_id: entityId,
       label: qrActionLabel.value || 'QR',
       public_code: qrActionCode.value || null,
@@ -4585,25 +4624,6 @@ async function handleQrAddToPrintCart() {
   } catch (err: any) {
     toast.error(err?.response?.data?.error || t('components.materialDetail.errPrintCartAdd'))
   }
-}
-
-function handleQrOpenLink() {
-  const url = qrActionUrl.value.trim()
-  if (!url) {
-    toast.info(t('components.materialDetail.toastNoPublicLink'))
-    return
-  }
-  window.open(url, '_blank')
-}
-
-async function handleQrCopyLink() {
-  const url = qrActionUrl.value.trim()
-  if (!url) {
-    toast.info(t('components.materialDetail.toastNoPublicLink'))
-    return
-  }
-  await navigator.clipboard.writeText(url)
-  toast.success(t('components.materialDetail.toastQrLinkCopied'))
 }
 
 function escapeHtml(raw: string): string {
@@ -4619,22 +4639,9 @@ async function buildPrintRowsForAllQrs(): Promise<Array<{ label: string; code: s
   const rows: Array<{ label: string; code: string; qrDataUrl: string }> = []
   const tasks: Array<Promise<void>> = []
 
-  const materialUrl = String(material.value?.public_url || '').trim()
-  const materialCode = String(material.value?.public_code || '').trim()
-  if (materialUrl) {
-    tasks.push((async () => {
-      const qrDataUrl = await QRCode.toDataURL(materialUrl, { width: 220, margin: 1 })
-      rows.push({
-        label: material.value?.name || t('components.materialDetail.fallbackMaterialDisplayName'),
-        code: materialCode,
-        qrDataUrl,
-      })
-    })())
-  }
-
-  for (const batch of serialBatches.value) {
+  for (const batch of batchesWithPrintableQr.value) {
     const url = String(batch?.public_url || '').trim()
-    if (!url) continue
+    if (!isPrintableBatchPublicUrl(url)) continue
     const serial = String(batch?.serial_number || '').trim()
     const label = String(batch?.label || '').trim()
     const title =
@@ -5519,5 +5526,81 @@ onMounted(() => {
   margin: 0;
   color: #6b7280;
   font-size: 0.9375rem;
+}
+
+.stock-qr-collapsible {
+  margin-bottom: 1rem;
+  padding: 0;
+  overflow: hidden;
+}
+
+.stock-qr-toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  border: none;
+  background: #f8fafc;
+  font: inherit;
+  font-weight: 600;
+  color: #0f172a;
+  cursor: pointer;
+  text-align: left;
+}
+
+.stock-qr-toggle:hover {
+  background: #f1f5f9;
+}
+
+.stock-qr-toggle-chevron {
+  display: flex;
+  color: #64748b;
+  transition: transform 0.2s ease;
+}
+
+.stock-qr-toggle-chevron.is-open {
+  transform: rotate(180deg);
+}
+
+.stock-qr-panel {
+  padding: 0 16px 16px;
+  border-top: 1px solid #e2e8f0;
+}
+
+.qr-panel-hint {
+  margin: 12px 0;
+  color: #64748b;
+  font-size: 0.9rem;
+}
+
+.stock-qr-panel-actions {
+  margin-bottom: 12px;
+}
+
+.stock-qr-batch-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.stock-qr-batch-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: #fff;
+}
+
+.stock-qr-batch-label {
+  flex: 1;
+  font-size: 0.9rem;
+  color: #334155;
 }
 </style>

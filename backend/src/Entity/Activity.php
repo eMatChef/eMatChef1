@@ -816,12 +816,16 @@ class Activity
     }
 
     /**
-     * Prüft ob Meldungen (Reparatur/Verlust) erstellt werden können
-     * (entspricht POST /activities/.../issues: issued oder returned)
+     * Prüft ob Meldungen (Reparatur/Verlust) erstellt werden können.
+     * Erst ab Workflow-Status «Am Event» (Material ausgegeben), nicht mehr in «gepackt».
      */
     public function canReportIssues(): bool
     {
-        return in_array($this->status, [self::STATUS_AT_EVENT, self::STATUS_ISSUED, self::STATUS_RETURNED], true);
+        return in_array($this->status, [
+            self::STATUS_AT_EVENT,
+            self::STATUS_ISSUED,
+            self::STATUS_RETURNED,
+        ], true);
     }
 
     /**

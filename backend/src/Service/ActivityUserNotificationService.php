@@ -21,6 +21,11 @@ class ActivityUserNotificationService
         $this->inboxMessages->notifyActivityUserStatus($activity, $actor, $type);
     }
 
+    public function notifyPacked(Activity $activity, User $actor): void
+    {
+        $this->inboxMessages->notifyActivityPacked($activity, $actor);
+    }
+
     public function notifyCancelled(Activity $activity, User $actor): void
     {
         $this->inboxMessages->notifyActivityCancelled($activity, $actor);
