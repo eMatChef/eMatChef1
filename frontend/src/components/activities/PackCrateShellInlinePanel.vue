@@ -2,6 +2,7 @@
 import { computed, inject, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import PackCrateShellCheckLineActions from '@/components/activities/PackCrateShellCheckLineActions.vue'
+import PackShellInlineLooseIssueRow from '@/components/activities/PackShellInlineLooseIssueRow.vue'
 import { shellForwardLineKey } from '@/components/activities/packCrateForwardCheck'
 import { PACK_WAREHOUSE_ISSUE_INJECT_KEY } from '@/components/activities/packWarehouseIssueInjectKey'
 import type { ActivityPackItem } from '@/api/activityPackItems'
@@ -46,6 +47,10 @@ const props = withDefaults(
     useRealityView?: boolean
     /** Phys.-Kombi: Inhaltcheck mit − / Zähler / + / ✓ */
     checkPackItem?: ActivityPackItem | null
+    /** Gepackt → Am Event: lose Ausgabe pro Zeile (ohne Packkiste) */
+    looseIssueContainerId?: string | null
+    looseIssueCrateLabel?: string | null
+    stageRightLabel?: string
   }>(),
   {
     defaultExpanded: false,
@@ -54,6 +59,9 @@ const props = withDefaults(
     showTemplateToggle: false,
     useRealityView: true,
     checkPackItem: null,
+    looseIssueContainerId: null,
+    looseIssueCrateLabel: null,
+    stageRightLabel: '',
   },
 )
 
@@ -71,6 +79,12 @@ const interactiveShellCheck = computed(() => {
   const fn = ctx.shellCheckPendingForPackItem as ((p: ActivityPackItem) => boolean) | undefined
   return fn ? fn(pi) : false
 })
+
+const useLooseIssueRows = computed(
+  () =>
+    Boolean((props.looseIssueContainerId ?? '').trim()) &&
+    !interactiveShellCheck.value,
+)
 
 function lineCheckKey(subsectionKey: string, lineId: string): string {
   return shellForwardLineKey(subsectionKey, lineId)
@@ -318,6 +332,13 @@ watch(
                 @update:counted-qty="onCountedChange(sec.subsectionKey, line, $event)"
                 @ok="onLineOk(sec.subsectionKey, line)"
               />
+              <PackShellInlineLooseIssueRow
+                v-else-if="useLooseIssueRows"
+                :container-id="looseIssueContainerId!"
+                :line="line"
+                :crate-label="looseIssueCrateLabel ?? ''"
+                :stage-right-label="stageRightLabel"
+              />
               <div v-else class="pack-container-line">
                 <div class="pack-container-line-main">
                   <span class="pack-container-line-name">{{ line.materialName }}</span>
@@ -391,7 +412,11 @@ watch(
             <li
               v-for="line in sec.lines"
               :key="sec.subsectionKey + '-' + line.id"
-              :class="interactiveShellCheck ? 'pack-combo-crate-inline__check-li' : 'pack-container-line'"
+              :class="
+                interactiveShellCheck || useLooseIssueRows
+                  ? 'pack-combo-crate-inline__check-li'
+                  : 'pack-container-line'
+              "
             >
               <PackCrateShellCheckLineActions
                 v-if="interactiveShellCheck"
@@ -406,6 +431,13 @@ watch(
                 :check-disabled="historyReplenishForLine(sec.subsectionKey, line.id)"
                 @update:counted-qty="onCountedChange(sec.subsectionKey, line, $event)"
                 @ok="onLineOk(sec.subsectionKey, line)"
+              />
+              <PackShellInlineLooseIssueRow
+                v-else-if="useLooseIssueRows"
+                :container-id="looseIssueContainerId!"
+                :line="line"
+                :crate-label="looseIssueCrateLabel ?? ''"
+                :stage-right-label="stageRightLabel"
               />
               <div v-else class="pack-container-line-main">
                 <span class="pack-container-line-name">{{ line.materialName }}</span>

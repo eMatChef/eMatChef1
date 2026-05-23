@@ -164,16 +164,28 @@ function onUnissueLineInput(ci: ActivityPackContainerItem, event: Event): void {
   fn?.(props.container.id, ci, el.valueAsNumber || Number(el.value))
 }
 
+function pullLineInputValue(ci: ActivityPackContainerItem): number {
+  const fn = ctx.containerPullInputValue as
+    | ((cid: string, ci: ActivityPackContainerItem) => number)
+    | undefined
+  return fn?.(props.container.id, ci) ?? Math.max(1, ci.quantity_packed ?? 1)
+}
+
+function onPullLineInput(ci: ActivityPackContainerItem, event: Event): void {
+  const fn = ctx.setContainerPullInput as
+    | ((cid: string, ci: ActivityPackContainerItem, value: number | string) => void)
+    | undefined
+  fn?.(props.container.id, ci, (event.target as HTMLInputElement).value)
+}
+
 const isPackMwHandoff = computed(() => Boolean(unref(ctx.canManageMaterials as Ref<boolean> | boolean | undefined)))
 
 function issueLineLooseTitle(ci: ActivityPackContainerItem): string {
-  if (isPackMwHandoff.value) {
-    return t('activities.packList.issueLineLooseTitleMw', { count: issueLineInputValue(ci) })
-  }
   const fn = ctx.containerIssueLineLooseTitle as
     | ((cid: string, ci: ActivityPackContainerItem) => string)
     | undefined
-  return fn?.(props.container.id, ci) ?? ''
+  if (fn) return fn(props.container.id, ci)
+  return t('activities.packList.issueLineLooseTitle', { count: issueLineInputValue(ci) })
 }
 
 function crateAllIssueTitle(): string {
@@ -393,11 +405,12 @@ function crateShellTakeTitle(): string {
                     <IconArrowLeft />
                   </button>
                   <input
-                    v-model.number="ctx.containerPullQtyInputs[(ctx.containerPullKey as (a: string, b: string) => string)(container.id, ci.id)]"
+                    :value="pullLineInputValue(ci)"
                     type="number"
                     min="1"
                     :max="ci.quantity_packed"
                     class="pack-moveback-input"
+                    @input="onPullLineInput(ci, $event)"
                   />
                 </div>
                 <div class="pack-container-line-main">
@@ -464,6 +477,9 @@ function crateShellTakeTitle(): string {
           v-else
           :sections="shellPeekSections"
           :empty-hint="shellPeekEmptyHint"
+          :loose-issue-container-id="container.id"
+          :loose-issue-crate-label="container.label"
+          :stage-right-label="stageRightLabel"
           :reality-banner="
             shellPackItem && (ctx.crateRealityBannerForPackItem as ((p: ActivityPackItem) => string | null) | undefined)
               ? (ctx.crateRealityBannerForPackItem as (p: ActivityPackItem) => string | null)(shellPackItem)
@@ -533,10 +549,7 @@ function crateShellTakeTitle(): string {
           @click.stop
         >
           <button
-            v-if="
-              (ctx.containerUnissueableUnits as (id: string) => number)(container.id) > 0 &&
-              !((ctx.containerHasAssignedContents as ((id: string) => boolean) | undefined)?.(container.id) ?? false)
-            "
+            v-if="(ctx.containerUnissueableUnits as (id: string) => number)(container.id) > 0"
             type="button"
             class="btn-moveback-arrow btn-move-arrow--container-header"
             :disabled="containerBulkLoadingId === container.id"
@@ -690,11 +703,12 @@ function crateShellTakeTitle(): string {
                 <IconArrowLeft />
               </button>
               <input
-                v-model.number="ctx.containerPullQtyInputs[(ctx.containerPullKey as (a: string, b: string) => string)(container.id, ci.id)]"
+                :value="pullLineInputValue(ci)"
                 type="number"
                 min="1"
                 :max="ci.quantity_packed"
                 class="pack-moveback-input"
+                @input="onPullLineInput(ci, $event)"
               />
             </div>
             <div class="pack-container-line-main">
@@ -806,11 +820,12 @@ function crateShellTakeTitle(): string {
                 <IconArrowLeft />
               </button>
               <input
-                v-model.number="ctx.containerPullQtyInputs[(ctx.containerPullKey as (a: string, b: string) => string)(container.id, ci.id)]"
+                :value="pullLineInputValue(ci)"
                 type="number"
                 min="1"
                 :max="ci.quantity_packed"
                 class="pack-moveback-input"
+                @input="onPullLineInput(ci, $event)"
                 @keyup.enter="(ctx.pullFromContainer as (cid: string, ci: ActivityPackContainerItem) => void)(container.id, ci)"
               />
             </div>

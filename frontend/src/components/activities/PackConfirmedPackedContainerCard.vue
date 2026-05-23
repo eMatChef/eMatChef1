@@ -44,6 +44,20 @@ function selectCrate() {
   ;(ctx.toggleActiveContainer as (id: string) => void)(props.container.id)
 }
 
+function containerPullInputValueForLine(ci: ActivityPackContainerItem): number {
+  const fn = ctx.containerPullInputValue as
+    | ((cid: string, row: ActivityPackContainerItem) => number)
+    | undefined
+  return fn?.(props.container.id, ci) ?? Math.max(1, ci.quantity_packed ?? 1)
+}
+
+function onPullInput(ci: ActivityPackContainerItem, event: Event): void {
+  const fn = ctx.setContainerPullInput as
+    | ((cid: string, row: ActivityPackContainerItem, value: number | string) => void)
+    | undefined
+  fn?.(props.container.id, ci, (event.target as HTMLInputElement).value)
+}
+
 function onCardClick(event: MouseEvent) {
   if (!packListEditable.value) return
   const el = event.target as HTMLElement
@@ -113,11 +127,12 @@ function onCardClick(event: MouseEvent) {
                 <IconArrowLeft />
               </button>
               <input
-                v-model.number="ctx.containerPullQtyInputs[(ctx.containerPullKey as (a: string, b: string) => string)(container.id, ci.id)]"
+                :value="containerPullInputValueForLine(ci)"
                 type="number"
                 min="1"
                 :max="ci.quantity_packed"
                 class="pack-moveback-input"
+                @input="onPullInput(ci, $event)"
                 @keyup.enter="(ctx.pullFromContainer as (cid: string, row: ActivityPackContainerItem) => void)(container.id, ci)"
               />
             </div>

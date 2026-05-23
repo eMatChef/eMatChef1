@@ -507,7 +507,7 @@
 }
 
 .btn-move-arrow:active {
-  background: #1e40af;
+  background: var(--color-primary-dark);
 }
 
 /* Rechte Seite: Zurück-Button + Input */
@@ -520,23 +520,24 @@
 }
 
 .btn-move-arrow--up {
-  background: #16a34a;
-  border-color: #15803d;
+  background: var(--color-primary-light);
+  border-color: var(--color-primary);
 }
 
 .btn-move-arrow--up:hover {
-  background: #15803d;
+  background: var(--color-primary);
+  border-color: var(--color-primary-dark);
 }
 
 /* Kiste als Ziel: Pfeil dreht sich, Position bleibt gleich */
 .btn-move-arrow--into-crate {
-  background: #16a34a;
-  border-color: #15803d;
+  background: var(--color-primary-light);
+  border-color: var(--color-primary);
 }
 
 .btn-move-arrow--into-crate:hover {
-  background: #15803d;
-  border-color: #14532d;
+  background: var(--color-primary);
+  border-color: var(--color-primary-dark);
 }
 
 .btn-move-arrow--into-crate svg {
@@ -560,40 +561,42 @@
   width: 36px;
   height: 32px;
   padding: 0;
-  background: #64748b;
-  border: 1px solid #64748b;
+  background: var(--color-primary-dark);
+  border: 1px solid var(--color-primary-dark);
   border-radius: 6px 0 0 6px;
   color: white;
   cursor: pointer;
-  transition: background 0.15s;
+  transition: background 0.15s, border-color 0.15s;
 }
 
 .btn-moveback-arrow:hover {
-  background: #475569;
-  border-color: #475569;
+  background: var(--color-primary);
+  border-color: var(--color-primary);
 }
 
 .btn-moveback-arrow:active {
-  background: #334155;
+  background: #065f46;
+  border-color: #065f46;
 }
 
 .btn-moveback-arrow--into-crate {
-  background: #16a34a;
-  border-color: #15803d;
+  background: var(--color-primary-light);
+  border-color: var(--color-primary);
 }
 
 .btn-moveback-arrow--into-crate:hover {
-  background: #15803d;
-  border-color: #14532d;
+  background: var(--color-primary);
+  border-color: var(--color-primary-dark);
 }
 
 .btn-moveback-arrow--into-crate:active {
-  background: #14532d;
+  background: var(--color-primary-dark);
+  border-color: var(--color-primary-dark);
 }
 
 .pack-moveback-input--into-crate:focus {
-  border-color: #16a34a;
-  box-shadow: 0 0 0 2px rgba(22, 163, 74, 0.2);
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 2px var(--color-primary-ring);
 }
 
 .pack-moveback-input {
@@ -612,8 +615,8 @@
 }
 
 .pack-moveback-input:focus {
-  border-color: #64748b;
-  box-shadow: 0 0 0 2px rgba(100, 116, 139, 0.15);
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 2px var(--color-primary-ring);
   z-index: 1;
   position: relative;
 }
@@ -903,7 +906,7 @@
 }
 
 .pack-containers-section--at-event-select .pack-container-card.pack-container-card--target {
-  box-shadow: 0 0 0 2px #3b82f6;
+  box-shadow: 0 0 0 2px var(--color-primary);
 }
 
 .pack-containers-at-event-hint {
@@ -923,9 +926,32 @@
 .pack-progress-info {
   display: flex;
   justify-content: space-between;
+  align-items: center;
+  gap: 12px;
   font-size: 13px;
   color: #475569;
   margin-bottom: 6px;
+}
+
+.pack-progress-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.btn-workflow-revert {
+  flex-shrink: 0;
+  font-size: 12px;
+  color: #64748b;
+  border-color: #cbd5e1;
+}
+
+.btn-workflow-revert:hover:not(:disabled) {
+  color: #334155;
+  border-color: #94a3b8;
+  background: #f8fafc;
 }
 
 .pack-percent {
@@ -945,6 +971,79 @@
   background: linear-gradient(90deg, var(--color-primary-light), var(--color-primary));
   border-radius: 3px;
   transition: width 0.3s ease;
+}
+
+.pack-progress-pending {
+  margin: 8px 0 6px;
+  padding: 8px 10px;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  border-radius: 6px;
+  font-size: 12px;
+  color: #92400e;
+}
+
+.pack-progress-pending-accordion {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+  text-align: left;
+  color: inherit;
+}
+
+.pack-progress-pending-accordion .pack-progress-pending-title {
+  flex: 1;
+  margin: 0;
+}
+
+.pack-progress-pending-body {
+  margin-top: 8px;
+}
+
+.pack-progress-pending-intro {
+  margin: 0 0 8px;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.pack-progress-pending-title {
+  display: block;
+  font-weight: 600;
+}
+
+.pack-progress-pending-list {
+  margin: 0;
+  padding-left: 0;
+  list-style: none;
+}
+
+.pack-progress-pending-list li {
+  margin: 6px 0;
+  padding: 6px 8px;
+  background: rgba(255, 255, 255, 0.55);
+  border-radius: 4px;
+}
+
+.pack-progress-pending-line-qty {
+  display: block;
+  font-weight: 600;
+}
+
+.pack-progress-pending-action {
+  display: block;
+  margin-top: 2px;
+  font-size: 11px;
+  color: #b45309;
+  line-height: 1.4;
+}
+
+.pack-progress-pending-hint {
+  color: #b45309;
 }
 
 .js-workflow-summary {

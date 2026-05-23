@@ -64,6 +64,15 @@ class ActivityWorkflowController extends AbstractController
 
         $this->kisteMaterialLinker->reconcileOrphanPackItemsWithoutMaterialLine($activity);
 
+        $user = $this->getUser();
+        if ($this->kisteMaterialLinker->reconcileShellPackItemsPackedFromContainers(
+            $activity,
+            $user instanceof User ? $user : null,
+        )) {
+            $this->activityItemPipelineStatus->syncForActivity($activity);
+            $this->entityManager->flush();
+        }
+
         $items = $this->entityManager->getRepository(ActivityPackItem::class)
             ->createQueryBuilder('pi')
             ->leftJoin('pi.materialItem', 'mi')

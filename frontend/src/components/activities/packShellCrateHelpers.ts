@@ -52,10 +52,11 @@ export function isCrateShellPackItem(
   pi: ActivityPackItem,
   packContainers: ActivityPackContainer[],
 ): boolean {
+  if (packShellContainerForPackItem(pi, packContainers) != null) return true
   if (pi.materialType !== 'physical_combo') return false
   if ((pi.linkedContainerLabel ?? '').trim() !== '') return true
   if ((pi.linkedContainerBatchId ?? '').trim() !== '') return true
-  return packShellContainerForPackItem(pi, packContainers) != null
+  return false
 }
 
 export function warehousePreviewContainerItem(

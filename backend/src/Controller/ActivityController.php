@@ -1677,13 +1677,23 @@ class ActivityController extends AbstractController
             return 'Zur Packliste (Korrektur)';
         }
 
+        if ($fromStatus === Activity::STATUS_AT_EVENT && $targetStatus === Activity::STATUS_PACKED) {
+            return 'Zurück zu «Gepackt»';
+        }
+        if ($fromStatus === Activity::STATUS_ISSUED && $targetStatus === Activity::STATUS_PACKED) {
+            return 'Zurück zu «Gepackt»';
+        }
+        if ($fromStatus === Activity::STATUS_RETURNED && $targetStatus === Activity::STATUS_AT_EVENT) {
+            return 'Zurück zu «Am Event»';
+        }
+
         return match($targetStatus) {
             Activity::STATUS_SUBMITTED => 'Einreichen',
             Activity::STATUS_APPROVED  => 'Bestätigen',
             Activity::STATUS_PACKING   => 'Packen starten',
             Activity::STATUS_PACKED    => 'Gepackt markieren',
-            Activity::STATUS_AT_EVENT  => 'Am Event buchen',
-            Activity::STATUS_ISSUED    => 'Am Event buchen',
+            Activity::STATUS_AT_EVENT  => 'Alles mitgenommen ans Event',
+            Activity::STATUS_ISSUED    => 'Alles mitgenommen ans Event',
             Activity::STATUS_RETURNED  => 'Retour erfassen',
             Activity::STATUS_COMPLETED => 'Abschliessen',
             Activity::STATUS_CANCELLED => 'Stornieren',

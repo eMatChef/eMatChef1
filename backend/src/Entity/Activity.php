@@ -663,8 +663,8 @@ class Activity
         self::STATUS_APPROVED  => [self::STATUS_PACKING, self::STATUS_SUBMITTED, self::STATUS_CANCELLED], // zurück zu submitted = Zurückweisung
         self::STATUS_PACKING   => [self::STATUS_PACKED, self::STATUS_CANCELLED],
         self::STATUS_PACKED    => [self::STATUS_AT_EVENT, self::STATUS_PACKING, self::STATUS_CANCELLED],
-        self::STATUS_AT_EVENT  => [self::STATUS_RETURNED],
-        self::STATUS_RETURNED  => [self::STATUS_COMPLETED],
+        self::STATUS_AT_EVENT  => [self::STATUS_RETURNED, self::STATUS_PACKED],
+        self::STATUS_RETURNED  => [self::STATUS_COMPLETED, self::STATUS_AT_EVENT],
         self::STATUS_COMPLETED => [],
         self::STATUS_CANCELLED => [],
     ];
@@ -697,10 +697,13 @@ class Activity
         'packing->cancelled'  => ['mw', 'dc', 'sa', 'org'],
         'packed->at_event'    => ['mw', 'sa', 'org', 'creator', 'member'],
         'packed->issued'      => ['mw', 'sa', 'org', 'creator', 'member'], // Legacy-Alias
-        'packed->packing'     => ['mw', 'sa', 'org'],
+        'packed->packing'     => ['mw', 'dc', 'sa', 'org'],
         'packed->cancelled'   => ['mw', 'dc', 'sa', 'org'],
+        'at_event->packed'    => ['mw', 'dc', 'sa', 'org'],
+        'issued->packed'      => ['mw', 'dc', 'sa', 'org'],
         'at_event->returned'  => ['mw', 'sa', 'org', 'creator', 'member'],
         'issued->returned'    => ['mw', 'sa', 'org', 'creator', 'member'], // Legacy-Alias
+        'returned->at_event'  => ['mw', 'dc', 'sa', 'org'],
         'returned->completed' => ['mw', 'sa', 'org'],
     ];
 

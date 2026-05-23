@@ -47,7 +47,7 @@
           :title="!tr.allowed && tr.reason ? tr.reason : undefined"
           @click="onTransition(tr)"
         >
-          {{ tr.label }}
+          {{ transitionActionLabel(tr) }}
         </button>
         <button
           v-if="cancelTransition"
@@ -56,7 +56,7 @@
           :disabled="isTransitioning"
           @click="onCancelActivity"
         >
-          {{ cancelTransition.label }}
+          {{ cancelTransition ? transitionActionLabel(cancelTransition) : '' }}
         </button>
         <button
           v-if="showDamageReportEntry"
@@ -321,13 +321,15 @@
           <!-- Packliste -->
           <section v-else-if="activeTab === 'packs'" class="tab-content">
             <ActivityPackListTab
+              ref="packListTabRef"
               v-if="activity"
               :activity-id="activityId"
               :department-id="departmentId"
               :status="activity.status"
               :activity-type="activity.type"
+              :activity-name="activity.name"
               :pack-list-editable="activity.is_pack_list_editable === true"
-              :transitions="workflowTransitions"
+              :transitions="transitions"
               :can-report-issues="showDamageReportEntry"
               :reload-token="packListReloadToken"
               :consumption-modal-cancelled-token="consumptionModalCancelledToken"
@@ -341,7 +343,7 @@
               :saved-quantity-by-material-item-id-for-add="savedQuantityByMaterialItemId"
               :invited-departments-for-add="activity.invited_departments ?? []"
               :adding-activity-material="addingDraftMaterial"
-              @workflow-next="onTransition"
+              @workflow-next="onPackListWorkflowNext"
               @activity-items-changed="onPackListActivityItemsChanged"
               @open-issue-wizard="onPackIssueWizard"
               @open-consumption-modal="onOpenConsumptionModal"
@@ -434,7 +436,7 @@
 
 <script setup lang="ts">
 defineOptions({ name: 'ActivityDetailView' })
-import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import {
@@ -464,6 +466,7 @@ import ActivityConsumablesTab from '@/components/activities/ActivityConsumablesT
 import ActivityHistoryTab from '@/components/activities/ActivityHistoryTab.vue'
 import ActivityConsumptionModal from '@/components/activities/ActivityConsumptionModal.vue'
 import ActivityConsumableNachbuchungModal from '@/components/activities/ActivityConsumableNachbuchungModal.vue'
+import { activityTransitionActionLabel } from '@/components/activities/activityTransitionLabels'
 import DamageReportWizard from '@/components/DamageReportWizard.vue'
 import PublicQrTag from '@/components/common/PublicQrTag.vue'
 import PublicQrActionModal from '@/components/common/PublicQrActionModal.vue'
@@ -523,6 +526,10 @@ const { confirm: confirmDialog } = useConfirm()
 const pageHeadStore = usePageHeadStore()
 const headerNotificationsStore = useHeaderNotificationsStore()
 const { t, te, locale } = useI18n()
+
+function transitionActionLabel(tr: ActivityTransitionRow): string {
+  return activityTransitionActionLabel(tr.status, activity.value?.status, t, te, tr.label)
+}
 
 const activity = ref<ActivityDetail | null>(null)
 const isGeneratingActivityPublicCode = ref(false)
@@ -654,6 +661,34 @@ function normalizeActivityTabQuery(value: unknown): ActivityTabId | null {
 }
 
 const transitions = ref<ActivityTransitionRow[]>([])
+
+type ActivityPackListTabExpose = {
+  confirmBeforeWorkflowTransition: (transition: ActivityTransitionRow) => Promise<boolean>
+}
+
+const packListTabRef = ref<ActivityPackListTabExpose | null>(null)
+
+function transitionNeedsPackListConfirmation(transition: ActivityTransitionRow): boolean {
+  const a = activity.value
+  if (!a?.is_pack_list_editable) return false
+  const s = a.status === 'issued' ? 'at_event' : a.status
+  if (transition.status === 'packing' && s === 'packed') return false
+  if (transition.status === 'packed' && s === 'at_event') return false
+  if (transition.status === 'at_event' && s === 'returned') return false
+  if (transition.status === 'at_event' && (s === 'packed' || s === 'packing')) return true
+  if (transition.status === 'returned' && s === 'at_event') return true
+  if (transition.status === 'packed' && s === 'packing') return true
+  return false
+}
+
+async function ensurePackListTabForTransition(): Promise<ActivityPackListTabExpose | null> {
+  if (activeTab.value !== 'packs') {
+    activeTab.value = 'packs'
+    mergeActivityQuery({ tab: 'packs' })
+    await nextTick()
+  }
+  return packListTabRef.value
+}
 const activityItems = ref<ActivityItemRow[]>([])
 const isLoading = ref(true)
 const itemsLoading = ref(false)
@@ -739,6 +774,9 @@ const workflowTransitions = computed(() =>
     }
     if (activeTab.value === 'packs' && t.status === 'packing') return false
     if (activity.value?.status === 'packed' && t.status === 'packing') return false
+    const s = activity.value?.status === 'issued' ? 'at_event' : activity.value?.status
+    if (s === 'at_event' && t.status === 'packed') return false
+    if (s === 'returned' && t.status === 'at_event') return false
     // Quick-Modus: kein «Bestätigen» — Material ist bei Einreichung bereits final
     if (activity.value?.type === 'activity' && t.status === 'approved') return false
     return true
@@ -1312,8 +1350,28 @@ async function onRemoveDraftItem(row: ActivityItemRow) {
   }
 }
 
-async function onTransition(transition: ActivityTransitionRow) {
+async function onPackListWorkflowNext(transition: ActivityTransitionRow) {
+  await onTransition(transition, { skipPackConfirm: true })
+}
+
+async function onTransition(
+  transition: ActivityTransitionRow,
+  options?: { skipPackConfirm?: boolean },
+) {
   if (!transition.allowed || isTransitioning.value) return
+
+  if (
+    !options?.skipPackConfirm &&
+    transitionNeedsPackListConfirmation(transition)
+  ) {
+    const packTab = await ensurePackListTabForTransition()
+    if (!packTab) {
+      toast.error(t('activities.detail.toastPackListRequiredForTransition'))
+      return
+    }
+    if (!(await packTab.confirmBeforeWorkflowTransition(transition))) return
+  }
+
   isTransitioning.value = true
   try {
     await patchActivityStatus(props.activityId, { status: transition.status })

@@ -86,7 +86,13 @@ class ActivityKisteMaterialLinker
                 ->setParameter('mid', $mid)
                 ->getQuery()
                 ->getSingleScalarResult();
-            $this->syncPackItemForMaterial($activity, $materialItem, max(1, $sumQty), $user);
+            $this->syncPackItemForMaterial(
+                $activity,
+                $materialItem,
+                max(1, $sumQty),
+                $user,
+                $excludePackContainerId,
+            );
         }
     }
 
@@ -155,6 +161,7 @@ class ActivityKisteMaterialLinker
             ->getSingleScalarResult();
 
         $this->syncPackItemQuantityAfterActivityItemChange($activity, $materialItem, $sumQty, $user);
+        $this->clampShellPackedAfterContainerRemoved($activity, $materialItem);
     }
 
     /**
@@ -291,7 +298,13 @@ class ActivityKisteMaterialLinker
         $this->syncPackItemForMaterial($activity, $materialItem, $sumQty, $user);
     }
 
-    private function syncPackItemForMaterial(Activity $activity, MaterialItem $materialItem, int $newQuantity, User $user): void
+    private function syncPackItemForMaterial(
+        Activity $activity,
+        MaterialItem $materialItem,
+        int $newQuantity,
+        User $user,
+        ?string $pendingShellContainerId = null,
+    ): void
     {
         $existingPackItem = $this->entityManager->getRepository(ActivityPackItem::class)
             ->findOneBy([
@@ -342,7 +355,156 @@ class ActivityKisteMaterialLinker
             $packItem->setConditionOut('ok');
             $packItem->setPackedByUser($user);
             $this->entityManager->persist($packItem);
+            $existingPackItem = $packItem;
         }
+
+        if ($existingPackItem instanceof ActivityPackItem) {
+            $this->syncShellPackedFromAssignedContainers(
+                $activity,
+                $materialItem,
+                $existingPackItem,
+                $user,
+                $pendingShellContainerId,
+            );
+        }
+    }
+
+    /**
+     * Phys.-Kombi (Lager-Kiste): pro zugeordnetem Pack-Behälter gilt die Kiste als gepackt.
+     */
+    public function reconcileShellPackItemsPackedFromContainers(Activity $activity, ?User $user): bool
+    {
+        if (!in_array($activity->getStatus(), [
+            Activity::STATUS_PACKING,
+            Activity::STATUS_PACKED,
+            Activity::STATUS_AT_EVENT,
+            Activity::STATUS_RETURNED,
+            Activity::STATUS_COMPLETED,
+        ], true)) {
+            return false;
+        }
+
+        $changed = false;
+        $packItems = $this->entityManager->getRepository(ActivityPackItem::class)
+            ->findBy(['activityId' => $activity->getId()]);
+
+        foreach ($packItems as $packItem) {
+            if (!$packItem instanceof ActivityPackItem) {
+                continue;
+            }
+            $materialItem = $packItem->getMaterialItem();
+            if ($materialItem === null || !$this->isActivityPackShellMaterial($activity, $materialItem)) {
+                continue;
+            }
+            $before = $packItem->getQuantityPacked();
+            $this->syncShellPackedFromAssignedContainers($activity, $materialItem, $packItem, $user);
+            $this->clampShellPackedAfterContainerRemoved($activity, $materialItem);
+            if ($packItem->getQuantityPacked() !== $before) {
+                $changed = true;
+            }
+        }
+
+        return $changed;
+    }
+
+    private function syncShellPackedFromAssignedContainers(
+        Activity $activity,
+        MaterialItem $materialItem,
+        ActivityPackItem $packItem,
+        ?User $user,
+        ?string $pendingShellContainerId = null,
+    ): void {
+        if (!$this->isActivityPackShellMaterial($activity, $materialItem, $pendingShellContainerId)) {
+            return;
+        }
+
+        if (!in_array($activity->getStatus(), [
+            Activity::STATUS_PACKING,
+            Activity::STATUS_PACKED,
+            Activity::STATUS_AT_EVENT,
+            Activity::STATUS_RETURNED,
+            Activity::STATUS_COMPLETED,
+        ], true)) {
+            return;
+        }
+
+        $containerCount = $this->packContainerCountByMaterialId(
+            $activity,
+            null,
+            $pendingShellContainerId,
+        )[$materialItem->getId()] ?? 0;
+        $target = min($packItem->getQuantityOrdered(), max(0, $containerCount));
+
+        if ($target <= $packItem->getQuantityPacked()) {
+            return;
+        }
+
+        $packItem->setQuantityPacked($target);
+        if ($packItem->getPackedAt() === null) {
+            $packItem->setPackedAt(new \DateTime());
+            if ($user instanceof User) {
+                $packItem->setPackedByUser($user);
+            }
+        }
+        $packItem->setUpdatedAt(new \DateTime());
+    }
+
+    private function clampShellPackedAfterContainerRemoved(Activity $activity, MaterialItem $materialItem): void
+    {
+        if (!$this->isActivityPackShellMaterial($activity, $materialItem)) {
+            return;
+        }
+
+        $packItem = $this->entityManager->getRepository(ActivityPackItem::class)->findOneBy([
+            'activityId' => $activity->getId(),
+            'materialItemId' => $materialItem->getId(),
+        ]);
+        if (!$packItem instanceof ActivityPackItem) {
+            return;
+        }
+
+        $containerCount = $this->packContainerCountByMaterialId($activity)[$materialItem->getId()] ?? 0;
+        $ordered = $packItem->getQuantityOrdered();
+        $cap = min($ordered, max(0, $containerCount));
+        $floor = max(
+            $packItem->getQuantityIssued(),
+            $packItem->getQuantityReturned(),
+            $packItem->getQuantityStored(),
+        );
+        $newPacked = max($cap, min($floor, $ordered));
+
+        if ($newPacked === $packItem->getQuantityPacked()) {
+            return;
+        }
+
+        $packItem->setQuantityPacked($newPacked);
+        $packItem->setUpdatedAt(new \DateTime());
+    }
+
+    /**
+     * Lager-Kiste / Behälter-Shell: Phys.-Kombi oder Material mit Pack-Behälter+Batch (z. B. serialisierte Rakokiste).
+     */
+    private function isActivityPackShellMaterial(
+        Activity $activity,
+        MaterialItem $materialItem,
+        ?string $includePendingContainerId = null,
+    ): bool {
+        if ($materialItem->getMaterialType() === 'physical_combo') {
+            return true;
+        }
+        if ($materialItem->getIsContainer()) {
+            return true;
+        }
+        $mid = $materialItem->getId();
+        if ($mid !== null && ($this->packContainerCountByMaterialId(
+            $activity,
+            null,
+            $includePendingContainerId,
+        )[$mid] ?? 0) > 0) {
+            return true;
+        }
+
+        return false;
     }
 
     /**
@@ -351,14 +513,17 @@ class ActivityKisteMaterialLinker
     private function packContainerCountByMaterialId(
         Activity $activity,
         ?string $excludePackContainerId = null,
+        ?string $includePendingContainerId = null,
     ): array {
         $containers = $this->entityManager->getRepository(ActivityPackContainer::class)
             ->findBy(['activityId' => $activity->getId()]);
         $map = [];
+        $seenIds = [];
         foreach ($containers as $pc) {
             if (!$pc instanceof ActivityPackContainer) {
                 continue;
             }
+            $seenIds[] = $pc->getId();
             if ($excludePackContainerId !== null && $pc->getId() === $excludePackContainerId) {
                 continue;
             }
@@ -368,6 +533,21 @@ class ActivityKisteMaterialLinker
             }
             $mid = $batch->getMaterialItemId();
             $map[$mid] = ($map[$mid] ?? 0) + 1;
+        }
+
+        if ($includePendingContainerId !== null && !in_array($includePendingContainerId, $seenIds, true)) {
+            $pending = $this->entityManager->find(ActivityPackContainer::class, $includePendingContainerId);
+            if (
+                $pending instanceof ActivityPackContainer
+                && $pending->getActivityId() === $activity->getId()
+                && ($excludePackContainerId === null || $pending->getId() !== $excludePackContainerId)
+            ) {
+                $batch = $pending->getContainerBatch();
+                if ($batch !== null) {
+                    $mid = $batch->getMaterialItemId();
+                    $map[$mid] = ($map[$mid] ?? 0) + 1;
+                }
+            }
         }
 
         return $map;

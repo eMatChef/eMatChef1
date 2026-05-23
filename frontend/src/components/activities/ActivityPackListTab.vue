@@ -140,17 +140,29 @@
 
         <div class="pack-progress-bar">
           <div class="pack-progress-info">
-            <span>{{
-              showMwHandoffBanner
-                ? t('activities.packList.progressPercentGroup', {
-                    pct: stageProgress,
-                    stage: activeStageConfig.rightLabel,
-                  })
-                : t('activities.packList.progressPercent', {
-                    pct: stageProgress,
-                    stage: activeStageConfig.rightLabel,
-                  })
-            }}</span>
+            <div class="pack-progress-left">
+              <button
+                v-if="showWorkflowRevertButton && previousWorkflowTransition"
+                type="button"
+                class="btn btn-xs btn-outline btn-workflow-revert"
+                :disabled="isTransitioningPackWorkflow"
+                :title="workflowRevertButtonTitle"
+                @click="onWorkflowRevertClick"
+              >
+                ← {{ previousWorkflowTransitionLabel }}
+              </button>
+              <span :title="stageProgressPendingTitle">{{
+                showMwHandoffBanner
+                  ? t('activities.packList.progressPercentGroup', {
+                      pct: stageProgress,
+                      stage: activeStageConfig.rightLabel,
+                    })
+                  : t('activities.packList.progressPercent', {
+                      pct: stageProgress,
+                      stage: activeStageConfig.rightLabel,
+                    })
+              }}</span>
+            </div>
             <div class="pack-progress-actions">
               <button
                 v-if="showMoveAllToEventQuickButton"
@@ -171,7 +183,7 @@
                 :title="packWorkflowToEventTitle"
                 @click="onPackWorkflowStatusToEventClick"
               >
-                {{ nextWorkflowTransition.label }}
+                {{ nextWorkflowTransitionLabel }}
                 <span v-if="stageProgress < 100" class="btn-progress-warn-badge">{{ stageProgress }}%</span>
               </button>
               <template v-if="!packIssueToEventCombined">
@@ -195,13 +207,48 @@
                   class="btn btn-sm btn-progress-action btn-outline"
                   :class="{ 'btn-progress-warn': stageProgress < 100 }"
                   :disabled="!showPackOperateControls"
-                  :title="t('activities.packList.workflowTransitionTitle', { status: nextWorkflowTransition.label })"
+                  :title="t('activities.packList.workflowTransitionTitle', { status: nextWorkflowTransitionLabel })"
                   @click="handleWorkflowTransition"
                 >
-                  {{ nextWorkflowTransition.label }}
+                  {{ nextWorkflowTransitionLabel }}
                   <span v-if="stageProgress < 100" class="btn-progress-warn-badge">{{ stageProgress }}%</span>
                 </button>
               </template>
+            </div>
+          </div>
+          <div
+            v-if="stageProgress < 100 && stageProgressPendingLines.length > 0"
+            class="pack-progress-pending"
+            role="region"
+            :aria-label="t('activities.packList.progressPendingTitle', { stage: activeStageConfig.rightLabel })"
+          >
+            <button
+              type="button"
+              class="pack-progress-pending-accordion"
+              :aria-expanded="progressPendingOpen"
+              @click="progressPendingOpen = !progressPendingOpen"
+            >
+              <span class="pack-progress-pending-title">{{
+                t('activities.packList.progressPendingTitle', { stage: activeStageConfig.rightLabel })
+              }}</span>
+              <span class="pack-workflow-section-badge">{{ stageProgressPendingLines.length }}</span>
+              <span class="pack-group-toggle">{{ progressPendingOpen ? '▼' : '▶' }}</span>
+            </button>
+            <div v-show="progressPendingOpen" class="pack-progress-pending-body">
+              <p class="pack-progress-pending-intro text-muted">
+                {{ t('activities.packList.progressPendingIntro') }}
+              </p>
+              <ul class="pack-progress-pending-list">
+                <li v-for="line in stageProgressPendingLines" :key="line.key">
+                  <span class="pack-progress-pending-line-qty">{{
+                    t('activities.packList.progressPendingLineShort', {
+                      qty: line.qty,
+                      material: line.material,
+                    })
+                  }}</span>
+                  <span class="pack-progress-pending-action">{{ line.actionHint }}</span>
+                </li>
+              </ul>
             </div>
           </div>
           <div class="pack-progress-track">
@@ -285,7 +332,7 @@
               <div v-if="!collapsedGroups['l-' + group.categoryName]" class="pack-group-items">
                 <template v-for="pi in group.items" :key="pi.id">
                 <PackCrateShellPackItemRow
-                  v-if="showPackContainersUi && pi.materialType === 'physical_combo' && !isOrphanShellWithoutPackContainer(pi)"
+                  v-if="showPackContainersUi && isCrateShellPackItem(pi, packContainers) && !isOrphanShellWithoutPackContainer(pi)"
                   :shell-pack-item="pi"
                   :stage-right-label="activeStageConfig.rightLabel"
                   :show-storage-location="showPackStorageLocation(activePackStage, 'left')"
@@ -349,7 +396,8 @@
               v-if="
                 showPackContainersUi &&
                 isPackForwardToEventStage(activePackStage) &&
-                (packContainers.length > 0 || canManageMaterials)
+                (packContainersSortedWarehouseOnlyVisible.length > 0 ||
+                  (packContainers.length === 0 && canManageMaterials))
               "
               class="pack-workflow-section pack-workflow-section--kisten"
             >
@@ -361,12 +409,6 @@
               <div class="pack-containers-children" role="group" :aria-label="t('activities.packList.ariaContainersThisList')">
                 <p v-if="packContainers.length === 0" class="pack-containers-empty-hint text-muted">
                   {{ t('activities.packList.hintNoContainersIssue') }}
-                </p>
-                <p
-                  v-else-if="packContainersSortedWarehouseOnlyVisible.length === 0"
-                  class="pack-containers-empty-hint text-muted"
-                >
-                  {{ t('activities.packList.hintContainersOnRight', { stage: activeStageConfig.rightLabel }) }}
                 </p>
                 <PackWarehouseIssueContainerCard
                   v-for="c in packContainersSortedWarehouseOnlyVisible"
@@ -1091,6 +1133,7 @@ import {
   packWorkflowProfileForActivityType,
   showPackContainersForProfile,
 } from '@/components/activities/packWorkflowProfile'
+import { activityTransitionActionLabel } from '@/components/activities/activityTransitionLabels'
 import PackConfirmedPackedContainerCard from '@/components/activities/PackConfirmedPackedContainerCard.vue'
 import PackCrateShellForwardModal from '@/components/activities/PackCrateShellForwardModal.vue'
 import PackCrateShellPackItemRow from '@/components/activities/PackCrateShellPackItemRow.vue'
@@ -1158,7 +1201,7 @@ import { useConfirm } from '@/composables/useConfirm'
 import { useDepartmentMemberRole } from '@/composables/useDepartmentMemberRole'
 import { useToast } from '@/composables/useToast'
 
-const { t, locale } = useI18n()
+const { t, te, locale } = useI18n()
 const toast = useToast()
 const { confirm: confirmDialog } = useConfirm()
 const { canManageMaterials } = useDepartmentMemberRole()
@@ -1225,6 +1268,8 @@ const props = withDefaults(
     status: string
     /** activity | camp | event — steuert Quick- vs. Logistik-Packworkflow */
     activityType?: string
+    /** Anzeigename des Anlasses (Bestätigungsdialoge) */
+    activityName?: string
     packListEditable: boolean
     transitions: ActivityTransitionRow[]
     /** Meldungen (v4.01): Schnellbuttons in Packliste ab Aktivitäts-Status «Am Event» */
@@ -1246,6 +1291,7 @@ const props = withDefaults(
   {
     departmentId: '',
     activityType: 'activity',
+    activityName: '',
     canReportIssues: false,
     reloadToken: 0,
     consumptionModalCancelledToken: 0,
@@ -1261,6 +1307,17 @@ const props = withDefaults(
 )
 
 const packWorkflowProfile = computed(() => packWorkflowProfileForActivityType(props.activityType ?? 'activity'))
+
+function activityTypeLabel(): string {
+  const type = props.activityType ?? 'activity'
+  const key = `activities.types.${type}`
+  return te(key) ? t(key) : type
+}
+
+function activityDisplayName(): string {
+  const name = (props.activityName ?? '').trim()
+  return name || t('activities.devicesPack.untitled')
+}
 
 /**
  * Gruppenmitglied/User: Packliste erst ab «gepackt» — nicht während MW packt
@@ -1301,6 +1358,18 @@ async function confirmMwHandoffWorkflowToEvent(): Promise<boolean> {
     title: t('activities.packList.mwHandoffCombinedConfirmTitle'),
     message: t('activities.packList.mwHandoffWorkflowConfirmMessage'),
     confirmText: t('activities.packList.mwHandoffWorkflowConfirmProceed'),
+    cancelText: t('activities.common.cancel'),
+    variant: 'warning',
+  })
+}
+
+/** Gepackt → Bestätigt: physisch zurück ins Lager legen, sonst Bestand/Verfügbarkeit falsch */
+async function confirmPackedBackToConfirmed(): Promise<boolean> {
+  if (!isPackConfirmedStage(activePackStage.value)) return true
+  return confirmDialog({
+    title: t('activities.packList.confirmPackedBackTitle'),
+    message: t('activities.packList.confirmPackedBackMessage'),
+    confirmText: t('activities.packList.confirmPackedBackProceed'),
     cancelText: t('activities.common.cancel'),
     variant: 'warning',
   })
@@ -1518,7 +1587,12 @@ async function ensurePackContainerForShellCombo(packItemId: string): Promise<str
       ...(batchId ? { container_batch_id: batchId } : {}),
     })
     await loadContainersData()
-    if (!batchId) {
+    if (batchId) {
+      const items = await getPackItems(props.activityId)
+      packItems.value = items
+      initMoveQtyInputs()
+      emit('activityItemsChanged')
+    } else {
       shellComboVirtualContainerByPackItemId.value = {
         ...shellComboVirtualContainerByPackItemId.value,
         [packItemId]: created.id,
@@ -1828,6 +1902,7 @@ const activeStageConfig = computed(() => {
 })
 
 const collapsedGroups = ref<Record<string, boolean>>({})
+const progressPendingOpen = ref(false)
 /** Retour-Spalte: «Nicht mitgenommen» standardmässig zugeklappt */
 const collapsedReturnSections = ref<Record<string, boolean>>({
   'not-taken': true,
@@ -1978,9 +2053,10 @@ function shellCrateCheckDoneForPackItem(packItemId: string): boolean {
 function needsShellCratePresenceConfirm(pi: ActivityPackItem): boolean {
   const stage = activePackStage.value
   if (!isPackCrateCheckStage(stage)) return false
-  if (pi.materialType !== 'physical_combo') return false
   if (shellCrateCheckDoneForPackItem(pi.id)) return false
-  return true
+  if (pi.materialType === 'physical_combo') return true
+  if (packShellContainerForPackItem(pi, packContainers.value) != null) return true
+  return false
 }
 
 function shellCheckLinesFromSections(sections: PackCrateShellPeekSection[]): ShellForwardCheckLine[] {
@@ -2965,13 +3041,44 @@ function containerIssueLineKey(containerId: string, itemId: string): string {
 }
 
 function initContainerPullQtyInputs(): void {
-  const next: Record<string, number> = {}
+  const next: Record<string, number> = { ...containerPullQtyInputs.value }
   for (const c of packContainers.value) {
-    for (const ci of containerItemsByContainerId.value[c.id] ?? []) {
-      next[containerPullKey(c.id, ci.id)] = ci.quantity_packed
+    const seen = new Set<string>()
+    const lines = packContainerItemSectionsForContainer(c).flatMap((s) => s.lines)
+    for (const ci of [...lines, ...(containerItemsByContainerId.value[c.id] ?? [])]) {
+      if (seen.has(ci.id)) continue
+      seen.add(ci.id)
+      if (isNonActionableContainerLine(ci)) continue
+      const k = containerPullKey(c.id, ci.id)
+      const max = Math.max(0, ci.quantity_packed ?? 0)
+      if (max < 1) continue
+      if (next[k] == null || !Number.isFinite(next[k]) || next[k] < 1) {
+        next[k] = max
+      }
     }
   }
   containerPullQtyInputs.value = next
+}
+
+function containerPullInputValue(containerId: string, ci: ActivityPackContainerItem): number {
+  const k = containerPullKey(containerId, ci.id)
+  const raw = containerPullQtyInputs.value[k]
+  const max = Math.max(1, ci.quantity_packed ?? 1)
+  if (Number.isFinite(raw) && raw > 0) return Math.min(raw, max)
+  containerPullQtyInputs.value = { ...containerPullQtyInputs.value, [k]: max }
+  return max
+}
+
+function setContainerPullInput(
+  containerId: string,
+  ci: ActivityPackContainerItem,
+  value: number | string,
+): void {
+  const k = containerPullKey(containerId, ci.id)
+  const max = Math.max(1, ci.quantity_packed ?? 1)
+  let qty = Math.floor(Number(value))
+  if (!Number.isFinite(qty) || qty < 1) qty = max
+  containerPullQtyInputs.value = { ...containerPullQtyInputs.value, [k]: Math.min(qty, max) }
 }
 
 function initContainerIssueLineInputs(): void {
@@ -3016,8 +3123,34 @@ function setContainerIssueLineInput(
 }
 
 function containerIssueLineLooseTitle(containerId: string, ci: ActivityPackContainerItem): string {
-  return t('activities.packList.issueLineLooseTitle', {
-    count: containerIssueLineInputValue(containerId, ci),
+  const count = containerIssueLineInputValue(containerId, ci)
+  if (showMwHandoffBanner.value) {
+    return t('activities.packList.issueLineLooseTitleMw', { count })
+  }
+  const crate = (packContainers.value.find((c) => c.id === containerId)?.label ?? '').trim()
+  if (crate) {
+    return t('activities.packList.issueLineLooseWithoutCrateTitle', { count, crate })
+  }
+  return t('activities.packList.issueLineLooseTitle', { count })
+}
+
+async function confirmIssueLooseWithoutCrate(
+  _containerId: string,
+  ci: ActivityPackContainerItem,
+  qty: number,
+): Promise<boolean> {
+  const material = (ci.material_name ?? '').trim() || t('activities.common.material')
+  return confirmDialog({
+    title: t('activities.packList.confirmIssueLooseWithoutCrateTitle'),
+    message: t('activities.packList.confirmIssueLooseWithoutCrateMessage', {
+      qty,
+      material,
+      activityName: activityDisplayName(),
+      activityType: activityTypeLabel(),
+    }),
+    confirmText: t('activities.packList.confirmIssueLooseWithoutCrateProceed'),
+    cancelText: t('activities.common.cancel'),
+    variant: 'warning',
   })
 }
 
@@ -3517,6 +3650,19 @@ async function issueContainerLineToEvent(containerId: string, ci: ActivityPackCo
   if (qty < 1) return
   setContainerIssueLineInput(containerId, ci, qty)
 
+  const shell = shellPackItemForContainer(containerId)
+  if (shell && needsShellCratePresenceConfirm(shell)) {
+    await openShellCrateForwardModal(shell, Math.max(packIssueForwardMax(shell), qty), {
+      kind: 'issue_container_line',
+      containerId,
+      containerItemId: ci.id,
+      qty,
+    })
+    return
+  }
+
+  if (!(await confirmIssueLooseWithoutCrate(containerId, ci, qty))) return
+
   await executeIssueContainerLineToEvent(containerId, ci, qty)
 }
 
@@ -3625,6 +3771,129 @@ function getStageProgressDoneQty(item: ActivityPackItem): number {
   return getStageRightQty(item)
 }
 
+function getStagePendingQty(item: ActivityPackItem): number {
+  const total = getStageTotalQty(item)
+  if (total <= 0) return 0
+  let done: number
+  if (activePackStage.value !== 'confirmed_packed') {
+    done = getStageProgressDoneQty(item)
+  } else {
+    const leftRaw = getStageLeftQty(item)
+    const shells = packContainerBatchCountByMaterialItemId.value[item.materialItemId] ?? 0
+    const virtualPacked = Math.min(Math.max(0, shells), leftRaw)
+    done = getStageRightQty(item) + virtualPacked
+  }
+  return Math.max(0, total - done)
+}
+
+function pendingCrateLabelsForMaterial(materialItemId: string): string[] {
+  const labels = new Set<string>()
+  for (const c of packContainers.value) {
+    for (const ci of containerItemsByContainerId.value[c.id] ?? []) {
+      if (ci.material_item_id === materialItemId && containerLineIssueableMax(ci) > 0) {
+        labels.add(c.label)
+      }
+    }
+    const shell = shellPackItemForContainer(c.id)
+    if (shell?.materialItemId === materialItemId && containerShellIssueableUnits(c.id) > 0) {
+      labels.add(c.label)
+    }
+  }
+  return [...labels].sort((a, b) => a.localeCompare(b, locale.value))
+}
+
+type StageProgressPendingLine = {
+  key: string
+  qty: number
+  material: string
+  actionHint: string
+}
+
+function progressPendingActionHint(
+  pending: number,
+  loosePart: number,
+  inCratePart: number,
+  crateLabels: string[],
+): string {
+  const crate = crateLabels.join(', ')
+  if (inCratePart > 0 && loosePart <= 0) {
+    return crate
+      ? t('activities.packList.progressPendingActionInCrate', { crate })
+      : t('activities.packList.progressPendingActionInCrateGeneric')
+  }
+  if (loosePart > 0 && inCratePart <= 0) {
+    return t('activities.packList.progressPendingActionLoose')
+  }
+  if (loosePart > 0 && inCratePart > 0) {
+    return crate
+      ? t('activities.packList.progressPendingActionMixed', { loose: loosePart, inCrate: inCratePart, crate })
+      : t('activities.packList.progressPendingActionMixedNoCrate', { loose: loosePart, inCrate: inCratePart })
+  }
+  return t('activities.packList.progressPendingActionDefault')
+}
+
+const stageProgressPendingLines = computed((): StageProgressPendingLine[] => {
+  const lines: StageProgressPendingLine[] = []
+  for (const p of packItems.value) {
+    if (isOrphanShellWithoutPackContainer(p)) continue
+    const pending = getStagePendingQty(p)
+    if (pending <= 0) continue
+    const crates = pendingCrateLabelsForMaterial(p.materialItemId)
+    const loosePart = isPackForwardToEventStage(activePackStage.value)
+      ? Math.min(pending, Math.max(0, looseQtyForPackItem(p)))
+      : pending
+    const inCratePart = Math.max(0, pending - loosePart)
+    lines.push({
+      key: p.id,
+      qty: pending,
+      material: (p.materialName ?? '').trim() || t('activities.common.material'),
+      actionHint: progressPendingActionHint(pending, loosePart, inCratePart, crates),
+    })
+  }
+  return lines.sort((a, b) => a.material.localeCompare(b.material, locale.value))
+})
+
+const stageProgressPendingTitle = computed(() => {
+  if (stageProgress.value >= 100 || stageProgressPendingLines.value.length === 0) return undefined
+  const header = t('activities.packList.progressPendingTitle', {
+    stage: activeStageConfig.value.rightLabel,
+  })
+  const body = stageProgressPendingLines.value
+    .map((line) => {
+      const short = t('activities.packList.progressPendingLineShort', {
+        qty: line.qty,
+        material: line.material,
+      })
+      return `${short} — ${line.actionHint}`
+    })
+    .join('\n')
+  return `${header}\n${body}`
+})
+
+function stageProgressPendingConfirmMessage(variant: 'status' | 'transition' = 'status'): string {
+  const lines = stageProgressPendingLines.value
+  if (lines.length === 0) {
+    if (variant === 'transition') {
+      return t('activities.packList.confirmWorkflowMessage', { count: stageLeftItems.value.length })
+    }
+    return t('activities.packList.confirmWorkflowStatusMessage', {
+      count: stageLeftHeaderCount.value,
+    })
+  }
+  const list = lines
+    .map((line) => {
+      const short = t('activities.packList.progressPendingLineShort', {
+        qty: line.qty,
+        material: line.material,
+      })
+      return `${short} — ${line.actionHint}`
+    })
+    .join('\n')
+  return variant === 'transition'
+    ? t('activities.packList.confirmWorkflowPendingMessageList', { list })
+    : t('activities.packList.confirmWorkflowStatusMessageList', { list })
+}
+
 function getStageTotalQty(item: ActivityPackItem): number {
   const raw = computeStageTotalQty(item, activePackStage.value, packWorkflowProfile.value)
   if (isPackReturnStage(activePackStage.value) && item.isConsumable) {
@@ -3668,7 +3937,6 @@ const packContainerBatchCountByMaterialItemId = computed(() => {
  */
 function isOrphanShellWithoutPackContainer(pi: ActivityPackItem): boolean {
   if (activePackStage.value !== 'confirmed_packed') return false
-  if (pi.materialType !== 'physical_combo') return false
   if (!isCrateShellPackItem(pi, packContainers.value)) return false
   return packShellContainerForPackItem(pi, packContainers.value) == null
 }
@@ -3790,6 +4058,88 @@ const nextWorkflowTransition = computed(() => {
   if (!target) return null
   return props.transitions.find((t) => t.status === target && t.allowed) ?? null
 })
+
+const nextWorkflowTransitionLabel = computed(() => {
+  const tr = nextWorkflowTransition.value
+  if (!tr) return ''
+  return activityTransitionActionLabel(tr.status, props.status, t, te, tr.label)
+})
+
+/** MW/DC: einen Aktivitäts-Status zurück (gepackt→packing, am Event→gepackt, retour→am Event). */
+const ACTIVITY_STATUS_REVERT_TARGET: Record<string, string> = {
+  packed: 'packing',
+  at_event: 'packed',
+  issued: 'packed',
+  returned: 'at_event',
+}
+
+const previousWorkflowTransition = computed(() => {
+  if (!canManageMaterials.value) return null
+  const current = props.status === 'issued' ? 'at_event' : props.status
+  const target = ACTIVITY_STATUS_REVERT_TARGET[current]
+  if (!target) return null
+  return props.transitions.find((t) => t.status === target && t.allowed) ?? null
+})
+
+const previousWorkflowTransitionLabel = computed(() => {
+  const tr = previousWorkflowTransition.value
+  if (!tr) return ''
+  return activityTransitionActionLabel(tr.status, props.status, t, te, tr.label)
+})
+
+const showWorkflowRevertButton = computed(
+  () => canManageMaterials.value && previousWorkflowTransition.value != null,
+)
+
+const workflowRevertButtonTitle = computed(() => {
+  const label = previousWorkflowTransitionLabel.value
+  return label
+    ? t('activities.packList.workflowRevertButton') + ': ' + label
+    : t('activities.packList.workflowRevertButton')
+})
+
+async function confirmWorkflowRevert(transition: ActivityTransitionRow): Promise<boolean> {
+  if (transition.status === 'packing') {
+    return confirmDialog({
+      title: t('activities.packList.workflowRevertToPackingTitle'),
+      message: t('activities.packList.workflowRevertToPackingMessage'),
+      confirmText: t('activities.packList.workflowRevertToPackingProceed'),
+      cancelText: t('activities.common.cancel'),
+      variant: 'warning',
+    })
+  }
+  if (transition.status === 'packed') {
+    return confirmDialog({
+      title: t('activities.packList.workflowRevertToPackedTitle'),
+      message: t('activities.packList.workflowRevertToPackedMessage'),
+      confirmText: t('activities.packList.workflowRevertToPackedProceed'),
+      cancelText: t('activities.common.cancel'),
+      variant: 'warning',
+    })
+  }
+  if (transition.status === 'at_event') {
+    return confirmDialog({
+      title: t('activities.packList.workflowRevertToAtEventTitle'),
+      message: t('activities.packList.workflowRevertToAtEventMessage'),
+      confirmText: t('activities.packList.workflowRevertToAtEventProceed'),
+      cancelText: t('activities.common.cancel'),
+      variant: 'warning',
+    })
+  }
+  return true
+}
+
+async function onWorkflowRevertClick() {
+  const transition = previousWorkflowTransition.value
+  if (!transition?.allowed || !props.packListEditable) return
+  if (!(await confirmWorkflowRevert(transition))) return
+  isTransitioningPackWorkflow.value = true
+  try {
+    emit('workflowNext', transition)
+  } finally {
+    isTransitioningPackWorkflow.value = false
+  }
+}
 
 /** Gepackt → Am Event: getrennte Schnellbuchung (alles) vs. Status «Am Event» */
 const packIssueToEventCombined = computed(
@@ -4246,6 +4596,9 @@ async function moveToPrevStage(item: ActivityPackItem, qty?: number) {
   const moveQty = clampMoveQtyForPackItem(item, raw, 'back')
   if (moveQty <= 0) return
   moveBackQtyInputs.value = { ...moveBackQtyInputs.value, [item.id]: moveQty }
+  if (isPackConfirmedStage(activePackStage.value) && !(await confirmPackedBackToConfirmed())) {
+    return
+  }
   if (needsShellCrateBackConfirm(item)) {
     await openShellCrateBackModal(item, moveQty)
     return
@@ -4291,6 +4644,7 @@ async function executeMoveToPrevStage(item: ActivityPackItem, moveQty: number) {
       }
     }
     applyUpdatedItem(updated)
+    emit('activityItemsChanged')
   } catch (err: unknown) {
     const e = err as { response?: { data?: { error?: string } }; message?: string }
     toast.error(e.response?.data?.error || e.message || t('activities.packList.toastMoveBackFailed'))
@@ -4336,28 +4690,67 @@ async function moveAllToNextStage() {
   }
 }
 
-async function onPackWorkflowStatusToEventClick() {
-  if (!props.packListEditable) return
-  const transition = nextWorkflowTransition.value
-  if (!transition?.allowed || transition.status !== 'at_event') return
+async function confirmAtEventStatusTransition(): Promise<boolean> {
   if (!hasAnythingIssuedAtEvent.value) {
     toast.error(t('activities.packList.toastNothingAtEventYet'))
-    return
+    return false
   }
-  if (!(await confirmMwHandoffWorkflowToEvent())) return
-
+  if (!(await confirmMwHandoffWorkflowToEvent())) return false
   if (stageProgress.value < 100) {
     const ok = await confirmDialog({
       title: t('activities.packList.confirmWorkflowStatusTitle', { pct: stageProgress.value }),
-      message: t('activities.packList.confirmWorkflowStatusMessage', {
-        count: stageLeftHeaderCount.value,
-      }),
+      message: stageProgressPendingConfirmMessage(),
       confirmText: t('activities.packList.confirmWorkflowStatusProceed'),
       cancelText: t('activities.common.cancel'),
       variant: 'warning',
     })
-    if (!ok) return
+    if (!ok) return false
   }
+  return true
+}
+
+/** Gleiche Prüfungen wie Packlisten-Buttons — auch für Workflow-Button in der Kopfzeile. */
+async function confirmBeforeWorkflowTransition(transition: ActivityTransitionRow): Promise<boolean> {
+  if (!transition.allowed) return false
+  if (!props.packListEditable) return true
+
+  if (transition.status === 'at_event') {
+    return confirmAtEventStatusTransition()
+  }
+
+  const target = workflowTargetStatusForStage(activePackStage.value, props.status)
+  if (transition.status !== target) return true
+
+  if (
+    showMwHandoffBanner.value &&
+    transition.status === 'at_event' &&
+    !(await confirmMwHandoffBeforeIssueToEvent())
+  ) {
+    return false
+  }
+
+  if (stageProgress.value < 100) {
+    const ok = await confirmDialog({
+      title: t('activities.packList.confirmWorkflowTitle', { pct: stageProgress.value }),
+      message:
+        stageProgressPendingLines.value.length > 0
+          ? stageProgressPendingConfirmMessage('transition')
+          : t('activities.packList.confirmWorkflowMessage', { count: stageLeftItems.value.length }),
+      confirmText: t('activities.common.continue'),
+      cancelText: t('activities.common.cancel'),
+      variant: 'warning',
+    })
+    if (!ok) return false
+  }
+
+  return true
+}
+
+async function onPackWorkflowStatusToEventClick() {
+  if (!props.packListEditable) return
+  const transition = nextWorkflowTransition.value
+  if (!transition?.allowed || transition.status !== 'at_event') return
+  if (!(await confirmAtEventStatusTransition())) return
 
   const fromStage = activePackStage.value
   pendingAdvancePackStageFrom.value = fromStage
@@ -4373,23 +4766,7 @@ async function onPackWorkflowStatusToEventClick() {
 async function handleWorkflowTransition() {
   const transition = nextWorkflowTransition.value
   if (!transition || !props.packListEditable) return
-  if (
-    showMwHandoffBanner.value &&
-    transition.status === 'at_event' &&
-    !(await confirmMwHandoffBeforeIssueToEvent())
-  ) {
-    return
-  }
-  if (stageProgress.value < 100) {
-    const ok = await confirmDialog({
-      title: t('activities.packList.confirmWorkflowTitle', { pct: stageProgress.value }),
-      message: t('activities.packList.confirmWorkflowMessage', { count: stageLeftItems.value.length }),
-      confirmText: t('activities.common.continue'),
-      cancelText: t('activities.common.cancel'),
-      variant: 'warning',
-    })
-    if (!ok) return
-  }
+  if (!(await confirmBeforeWorkflowTransition(transition))) return
   emit('workflowNext', transition)
   if (transition.status === 'packed') {
     activePackStage.value = autoPackStageForProfile(
@@ -4479,6 +4856,8 @@ provide(PACK_WAREHOUSE_ISSUE_INJECT_KEY, {
   containerMutationLoading,
   containerItemsByContainerId,
   containerPullQtyInputs,
+  containerPullInputValue,
+  setContainerPullInput,
   containerIssueLineInputs,
   containerIssueLineInputValue,
   setContainerIssueLineInput,
@@ -4603,6 +4982,10 @@ watch(packItems, (items) => {
   if (!pi || pi.materialType !== 'physical_combo') {
     activePackTarget.value = null
   }
+})
+
+defineExpose({
+  confirmBeforeWorkflowTransition,
 })
 </script>
 
@@ -4987,9 +5370,9 @@ watch(packItems, (items) => {
 }
 
 .pack-target-loose--active {
-  border-color: #2563eb;
-  background: #eff6ff;
-  color: #1d4ed8;
+  border-color: var(--color-primary);
+  background: var(--color-primary-muted-bg);
+  color: var(--color-primary-dark);
 }
 
 .pack-group-ohne-outer--loose-target {

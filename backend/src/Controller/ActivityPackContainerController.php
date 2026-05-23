@@ -100,7 +100,8 @@ class ActivityPackContainerController extends AbstractController
         }
 
         $this->entityManager->persist($container);
-        if ($batch !== null) {
+        $batchAssigned = $batch !== null;
+        if ($batchAssigned) {
             $this->kisteMaterialLinker->linkKisteOnContainerBatchAssigned(
                 $activity,
                 $batch,
@@ -108,7 +109,12 @@ class ActivityPackContainerController extends AbstractController
                 $container->getId(),
             );
         }
+        $this->activityItemPipelineStatus->syncForActivity($activity);
         $this->entityManager->flush();
+        if ($batchAssigned && $this->kisteMaterialLinker->reconcileShellPackItemsPackedFromContainers($activity, $user)) {
+            $this->activityItemPipelineStatus->syncForActivity($activity);
+            $this->entityManager->flush();
+        }
 
         return new JsonResponse($this->serializeContainer($container), 201);
     }
@@ -131,6 +137,7 @@ class ActivityPackContainerController extends AbstractController
         }
 
         $data = json_decode($request->getContent(), true) ?? [];
+        $batchAssigned = false;
         if (array_key_exists('label', $data)) $container->setLabel(trim((string) $data['label']));
         if (array_key_exists('status', $data)) $container->setStatus((string) $data['status']);
         if (array_key_exists('container_batch_id', $data)) {
@@ -154,12 +161,17 @@ class ActivityPackContainerController extends AbstractController
                     $user,
                     $container->getId(),
                 );
+                $batchAssigned = true;
             } else {
                 $container->setContainerBatch(null);
             }
         }
         $container->touch();
-        $this->entityManager->flush();
+        $this->flushWithPipelineSync($activity);
+        if ($batchAssigned && $this->kisteMaterialLinker->reconcileShellPackItemsPackedFromContainers($activity, $user)) {
+            $this->activityItemPipelineStatus->syncForActivity($activity);
+            $this->entityManager->flush();
+        }
 
         return new JsonResponse($this->serializeContainer($container));
     }
@@ -228,9 +240,7 @@ class ActivityPackContainerController extends AbstractController
         $batch = $container->getContainerBatch();
         if ($batch !== null) {
             $batchMaterial = $batch->getMaterialItem();
-            if ($batchMaterial->getMaterialType() === 'physical_combo') {
-                $shellMaterialId = $batchMaterial->getId();
-            }
+            $shellMaterialId = $batchMaterial->getId();
         }
 
         foreach ($items as $ci) {

@@ -9,6 +9,8 @@ import PackCrateShellInlinePanel, {
   type PackCrateShellPeekSection,
 } from '@/components/activities/PackCrateShellInlinePanel.vue'
 import { PACK_WAREHOUSE_ISSUE_INJECT_KEY } from '@/components/activities/packWarehouseIssueInjectKey'
+import { packShellContainerForPackItem } from '@/components/activities/packShellCrateHelpers'
+import type { ActivityPackContainer } from '@/api/activityContainers'
 
 defineOptions({ name: 'PackCrateShellPackItemRow' })
 
@@ -24,6 +26,22 @@ const ctx = inject(PACK_WAREHOUSE_ISSUE_INJECT_KEY) as Record<string, (...args: 
   Record<string, unknown>
 
 const collapseKey = computed(() => `shell-pack-${props.shellPackItem.id}`)
+
+function injectRef<T>(raw: unknown): T {
+  return unref(raw as Ref<T> | T)
+}
+
+const shellContainer = computed((): ActivityPackContainer | undefined => {
+  const list = injectRef<ActivityPackContainer[] | undefined>(ctx.packContainers)
+  return packShellContainerForPackItem(props.shellPackItem, Array.isArray(list) ? list : [])
+})
+
+const displayName = computed(() => {
+  const label = (shellContainer.value?.label ?? '').trim()
+  const name = props.shellPackItem.materialName
+  if (label && label !== name) return `${label} – ${name}`
+  return name
+})
 
 const innerVisible = computed(
   () => !(ctx.isPackContainerCollapsed as (id: string) => boolean)(collapseKey.value),
@@ -101,10 +119,17 @@ function moveShellCrateForward(qtyFromControl?: number) {
       </button>
       <div class="pack-container-header-main">
         <div class="pack-container-header-title-block pack-container-header-title-block--shell">
-          <span class="pack-container-name">{{ shellPackItem.materialName }}</span>
-          <span class="pack-combo-badge" :title="t('activities.detail.comboPhysicalTitle')">{{
-            t('activities.detail.comboPhysicalShort')
-          }}</span>
+          <span class="pack-container-name">{{ displayName }}</span>
+          <span
+            v-if="shellPackItem.materialType === 'physical_combo'"
+            class="pack-combo-badge"
+            :title="t('activities.detail.comboPhysicalTitle')"
+          >{{ t('activities.detail.comboPhysicalShort') }}</span>
+          <span
+            v-else-if="shellPackItem.linkedContainerLabel"
+            class="pack-combo-badge pack-combo-badge--kiste"
+            :title="t('activities.packList.kisteLabel', { label: shellPackItem.linkedContainerLabel })"
+          >{{ shellPackItem.linkedContainerLabel }}</span>
           <span v-if="shellLineCount > 0" class="pack-container-chip text-muted">{{
             t('activities.common.itemsUnit', { count: shellLineCount })
           }}</span>
@@ -162,6 +187,9 @@ function moveShellCrateForward(qtyFromControl?: number) {
       <PackCrateShellInlinePanel
         :sections="shellPeekSections"
         :empty-hint="shellPeekEmptyHint"
+        :loose-issue-container-id="shellContainer?.id ?? null"
+        :loose-issue-crate-label="displayName"
+        :stage-right-label="stageRightLabel"
         :reality-banner="
           (ctx.crateRealityBannerForPackItem as ((p: ActivityPackItem) => string | null) | undefined)?.(
             shellPackItem,
@@ -197,5 +225,9 @@ function moveShellCrateForward(qtyFromControl?: number) {
   background: #ede9fe;
   color: #5b21b6;
   flex-shrink: 0;
+}
+.pack-combo-badge--kiste {
+  background: #dbeafe;
+  color: #1e40af;
 }
 </style>
