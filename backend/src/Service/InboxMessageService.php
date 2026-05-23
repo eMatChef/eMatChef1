@@ -144,6 +144,31 @@ class InboxMessageService
         $this->entityManager->flush();
     }
 
+    /** Gruppe/User hat «Retour erfassen» — MW/DC können Material wieder ins Lager nehmen. */
+    public function notifyActivityReturned(Activity $activity, User $actor): void
+    {
+        $department = $activity->getDepartment();
+        $this->removeUnreadActivityDuplicate(
+            $department->getId(),
+            $activity->getId(),
+            'activity_returned_mw',
+            InboxMessage::CATEGORY_ACTIVITY_MW,
+            InboxMessage::RECIPIENT_DEPARTMENT_MW,
+            null,
+        );
+
+        $row = $this->buildActivityRow(
+            $activity,
+            $actor,
+            'activity_returned_mw',
+            InboxMessage::CATEGORY_ACTIVITY_MW,
+            InboxMessage::RECIPIENT_DEPARTMENT_MW,
+            null,
+        );
+        $this->entityManager->persist($row);
+        $this->entityManager->flush();
+    }
+
     public function notifyActivityUserStatus(Activity $activity, User $actor, string $type): void
     {
         $recipient = $activity->getResponsibleUser() ?? $activity->getCreatedByUser();

@@ -13,9 +13,9 @@
 }
 
 .pack-container-card--target {
-  border-color: var(--color-primary-light);
-  box-shadow: 0 0 0 2px var(--color-primary-ring);
-  background: var(--color-primary-muted-bg);
+  border-color: #16a34a;
+  box-shadow: 0 0 0 2px #86efac;
+  background: #ecfdf5;
 }
 
 .pack-container-card--filled {
@@ -54,9 +54,9 @@
   font-weight: 700;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  color: var(--color-primary-dark);
-  background: var(--color-primary-subtle-bg);
-  border: 1px solid var(--color-primary-muted-border);
+  color: #166534;
+  background: #dcfce7;
+  border: 1px solid #86efac;
 }
 
 .pack-container-header-row {
@@ -110,10 +110,35 @@
 }
 
 .pack-container-chevron {
+  display: inline-block;
   width: 1.25rem;
   flex-shrink: 0;
   font-size: 12px;
+  text-align: center;
   color: #64748b;
+  transform: rotate(0deg);
+  transform-origin: 50% 50%;
+  transition: transform 0.15s ease, color 0.15s ease;
+}
+
+.pack-container-chevron--open {
+  transform: rotate(90deg);
+}
+
+.pack-container-card--target .pack-container-chevron {
+  color: #15803d;
+}
+
+.pack-container-card--target .pack-container-chevron-btn:hover .pack-container-chevron {
+  color: #166534;
+}
+
+.pack-workflow-section--confirmed-crates-right .pack-container-chevron {
+  color: #15803d;
+}
+
+.pack-workflow-section--confirmed-crates-right .pack-container-chevron-btn:hover .pack-container-chevron {
+  color: #166534;
 }
 
 .pack-container-select-main {

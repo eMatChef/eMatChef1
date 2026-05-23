@@ -3,7 +3,7 @@
 Plan zur Umstellung der bestehenden QR-Struktur auf das Zielschema aus [docs/qr/link-schema.md](../qr/link-schema.md) und [docs/qr/qr-public-pages.md](../qr/qr-public-pages.md).
 
 **Stand:** Mai 2026  
-**Status:** In Arbeit — Phase 1–6 erledigt (Phase 7 Querschnitt/Deploy offen)
+**Status:** Phase 1–7 erledigt · Nächstes Arbeitspaket: `devices.ematchef.ch`
 
 ---
 
@@ -12,16 +12,16 @@ Plan zur Umstellung der bestehenden QR-Struktur auf das Zielschema aus [docs/qr/
 | Thema | Entscheidung |
 |--------|----------------|
 | Material-Etikett | Immer `qr.ematchef.ch/i/m/{materialCode}/b/{batchCode}` |
-| Scanner (intern) | Kurzform `qr.ematchef.ch/i/b/{batchCode}` — Auflösung gleich |
+| Scanner (intern, später `devices.`) | Kanonische URL oder Rohcode-Auflösung — **kein** `/i/b/`-Only auf `qr.` |
 | Aktivität | `qr.ematchef.ch/i/a/{activityCode}` |
 | Werkstatt | `qr.ematchef.ch/i/w/{workshopCode}` |
 | `qr.ematchef.ch` | Nur öffentliche Kurzseiten + Kontakt |
 | Infoscreen | `app.ematchef.ch/display/{publicId}` (PIN + Cookie, ohne App-Login) |
 | Codes | Immer `public_code` (Tabelle `public_code`), keine UUIDs in URLs |
 | App-Anzeige | **Nur neue URLs** — kein Anzeigen alter `/i/m/` ohne `/b/` als Druck-URL |
-| Alte Aufkleber | Route `/i/b/{code}` bleibt **lesbar** (kein App-Fallback für Druck) |
+| Alte Aufkleber | `/i/b/{code}`-Only **nicht** mehr lesbar — neue Etiketten mit `/i/m/…/b/…` |
 
-**Nicht in diesem Paket (später):** `devices.ematchef.ch` (Lager-Packen) — siehe [docs/devices/README.md](../devices/README.md).
+**Nicht in diesem Paket:** `devices.ematchef.ch` — siehe [docs/devices/README.md](../devices/README.md), [concept.md](../devices/concept.md), [rollout-plan.md](../devices/rollout-plan.md).
 
 ---
 
@@ -237,20 +237,24 @@ Phase 6 (Display) nach Phase 4 + 5 (braucht public_url auf Aktivität/Werkstatt)
 
 ### Aufgaben
 
-- [ ] **7.1** `PrintTaskItem` / `TasksPrintView`: `entity_type` Werte dokumentieren (`material`/`batch`/`activity`/`workshop`); nur gültige `public_url` aus Phase 1–5
+- [x] **7.1** `PrintTaskItem` / `TasksPrintView`: `entity_type` dokumentiert (`batch`/`activity`/`workshop`); Backend validiert `public_url`
 
-- [ ] **7.2** `PublicFoundItemContactService` / Mail-Templates: URLs aus neuem Builder (falls noch `buildMaterialPublicUrl`/`buildBatchPublicUrl` einzeln)
+- [x] **7.2** `PublicFoundItemContactService`: URLs via `resolvePublicUrlFromLookup` (kanonisch `/i/m/…/b/…`)
 
-- [ ] **7.3** CORS / `VITE_QR_PUBLIC_HOST`: unverändert prüfen
+- [x] **7.3** CORS / `VITE_QR_PUBLIC_HOST`: unverändert (qr.* → gleiche SPA, `applyQrHostRedirects`)
 
-- [ ] **7.4** Doku aktualisieren: [link-schema.md](../qr/link-schema.md) Status „umgesetzt“ pro Punkt
+- [x] **7.4** Doku: [link-schema.md](../qr/link-schema.md), [qr-public-pages.md](../qr/qr-public-pages.md)
 
-- [ ] **7.5** Deploy-Reihenfolge:
-  1. Backend Phase 1+2 deployen
-  2. `app:public-code:regenerate-material-batch` (Prod: Dry-Run zuerst)
-  3. Frontend Phase 3–6 deployen
+- [x] **7.5** Route `/i/b/:code` und API `lookup/b` entfernt; kein Fallback `buildBatchPublicUrl`
 
-- [ ] **7.6** Kommunikation: **Neue Aufkleber** für Material mit `/i/m/…/b/…`; alte `/i/b/`-Only-Etiketten funktionieren weiter zum Lesen
+- [x] **7.6** Alte `/i/b/`-Only-Etiketten werden **nicht** mehr unterstützt — nur neue Aufkleber `/i/m/…/b/…`
+
+### Deploy (Prod)
+
+1. Backend deployen
+2. `php bin/console app:public-code:regenerate-material-batch` (zuerst `--dry-run`)
+3. Frontend deployen
+4. Druckkorb leeren bzw. veraltete Einträge mit `/i/b/`-URLs entfernen
 
 ---
 
@@ -281,12 +285,12 @@ Phase 6 (Display) nach Phase 4 + 5 (braucht public_url auf Aktivität/Werkstatt)
 
 ## Checkliste „Release bereit“
 
-- [ ] Alle aktiven Chargen haben `public_code` und kanonische `public_url`
-- [ ] Material-Druck nur noch `…/i/m/…/b/…`
-- [ ] Aktivität + Werkstatt: QR erzeugen + öffentliche Seite
-- [ ] Display zeigt QR für Anlässe und Reparaturen
-- [ ] Regenerate-Command auf Prod gelaufen (Log archiviert)
-- [ ] Doku `docs/qr/` aktualisiert
+- [x] Alle aktiven Chargen haben `public_code` und kanonische `public_url` (nach Regenerate)
+- [x] Material-Druck nur noch `…/i/m/…/b/…`
+- [x] Aktivität + Werkstatt: QR erzeugen + öffentliche Seite
+- [x] Display zeigt QR für Anlässe und Reparaturen
+- [ ] Regenerate-Command auf Prod gelaufen (Log archiviert) — beim Deploy
+- [x] Doku `docs/qr/` aktualisiert
 
 ---
 

@@ -1,11 +1,17 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import type { RouteLocationNormalized, RouteRecordRaw } from 'vue-router'
+import type { NavigationGuardNext, RouteLocationNormalized, RouteRecordRaw } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { usePermissionsStore } from '@/stores/permissions'
 import { usePageHeadStore } from '@/stores/pageHead'
 import { syncDocumentHead } from '@/composables/usePageHead'
 import { getMainSiteOrigin, isAppOrigin } from '@/utils/appLoginUrl'
 import { shouldProbeUserSession } from '@/api/unauthorizedRedirect'
+import {
+  applyDevicesHostRedirects,
+  canAccessDevicesWarehouse,
+  getPinnedDepartmentId,
+  isDevicesHost,
+} from '@/utils/devicesHost'
 
 /**
  * route.meta: Titel/Description per vue-i18n (`router.meta.titles.*` / `descriptions.*`).
@@ -21,19 +27,48 @@ function routeHead(titleKey: string, descriptionKey?: string) {
   return meta
 }
 
+function devicesWarehouseRoleOk(departmentId: string): boolean {
+  const authStore = useAuthStore()
+  const userRoles = authStore.userRoles || []
+  if (userRoles.includes('ROLE_SUPERADMIN')) return true
+  const dept = authStore.departments.find((d) => d.department_id === departmentId)
+  return canAccessDevicesWarehouse(dept?.role)
+}
+
+function devicesModeHostGuard(
+  to: RouteLocationNormalized,
+  _from: RouteLocationNormalized,
+  next: NavigationGuardNext,
+) {
+  if (!to.meta.devicesMode) {
+    return next()
+  }
+  if (!isDevicesHost()) {
+    const deptId = String(to.params.departmentId || '')
+    const activityId = String(to.params.activityId || '')
+    if (activityId && deptId) {
+      return next({
+        name: 'ActivityDetailTab',
+        params: { departmentId: deptId, activityId, tab: 'packs' },
+        replace: true,
+      })
+    }
+    if (deptId) {
+      return next({ name: 'Dashboard', params: { departmentId: deptId }, replace: true })
+    }
+    return next({ path: '/', replace: true })
+  }
+  const deptId = String(to.params.departmentId || '')
+  if (deptId && !devicesWarehouseRoleOk(deptId)) {
+    return next({ path: `/${deptId}/settings`, replace: true })
+  }
+  return next()
+}
+
 const routes: RouteRecordRaw[] = [
   {
     path: '/i/m/:matCode/b/:batchCode',
     name: 'PublicLookupMaterialBatch',
-    component: () => import('@/views/public/PublicMaterialView.vue'),
-    meta: {
-      requiresAuth: false,
-      ...routeHead('publicLookup', 'publicLookup'),
-    },
-  },
-  {
-    path: '/i/b/:batchCode',
-    name: 'PublicLookupBatch',
     component: () => import('@/views/public/PublicMaterialView.vue'),
     meta: {
       requiresAuth: false,
@@ -72,7 +107,6 @@ const routes: RouteRecordRaw[] = [
     redirect: (to) => {
       const type = String(to.params.type || '').toLowerCase()
       const code = encodeURIComponent(String(to.params.code || ''))
-      if (type === 'b' && code) return `/i/b/${code}`
       if (type === 'a' && code) return `/i/a/${code}`
       if (type === 'w' && code) return `/i/w/${code}`
       if (type === 'm' && code) return `/i/m/${code}`
@@ -441,6 +475,28 @@ const routes: RouteRecordRaw[] = [
         ]
       }
     ]
+  },
+  {
+    path: '/:departmentId/pack/:activityId',
+    name: 'DevicesPackSession',
+    component: () => import('@/views/devices/DevicesPackSessionView.vue'),
+    meta: {
+      requiresAuth: true,
+      devicesMode: true,
+      ...routeHead('devicesPack', 'devicesPack'),
+    },
+    beforeEnter: devicesModeHostGuard,
+  },
+  {
+    path: '/:departmentId',
+    name: 'DevicesHome',
+    component: () => import('@/views/devices/DevicesHomeView.vue'),
+    meta: {
+      requiresAuth: true,
+      devicesMode: true,
+      ...routeHead('devicesHome', 'devicesHome'),
+    },
+    beforeEnter: devicesModeHostGuard,
   },
   {
     path: '/:departmentId',
@@ -977,9 +1033,9 @@ function applyQrHostRedirects(to: RouteLocationNormalized): boolean {
   // Öffentlicher /i/…-Lookup bleibt auf der QR-Domain (kein automatischer Sprung zur App).
   const parts = path.split('/').filter(Boolean)
   if (parts[0] === 'i') {
-    if (parts[1] === 'b' && parts[2]) return false
-    if (parts[1] === 'm' && parts[2] && (parts[3] === 'b' ? !!parts[4] : true)) return false
+    if (parts[1] === 'm' && parts[2] && parts[3] === 'b' && parts[4]) return false
     if (parts[1] === 'a' && parts[2]) return false
+    if (parts[1] === 'w' && parts[2]) return false
   }
 
   // Start & Login → Hauptdomain (ematchef.*), nicht app.*
@@ -1001,9 +1057,20 @@ function applyQrHostRedirects(to: RouteLocationNormalized): boolean {
   return false
 }
 
+/**
+ * devices.-Subdomain: Rechtstexte auf Hauptdomain; Lager-Routen bleiben hier.
+ */
+function applyDevicesHostRouting(to: RouteLocationNormalized): boolean {
+  if (!isDevicesHost() || typeof window === 'undefined') return false
+  return applyDevicesHostRedirects(to.path)
+}
+
 // Navigation Guard
 router.beforeEach(async (to, from, next) => {
   if (applyQrHostRedirects(to)) {
+    return next(false)
+  }
+  if (applyDevicesHostRouting(to)) {
     return next(false)
   }
 
@@ -1190,6 +1257,16 @@ router.beforeEach(async (to, from, next) => {
       return next(`/${primaryDepartmentId}`)
     }
 
+    if (isDevicesHost() && (to.path === '/' || to.path === '/login')) {
+      const pinned =
+        getPinnedDepartmentId() ||
+        primaryDepartmentId ||
+        authStore.departments[0]?.department_id
+      if (pinned) {
+        return next({ name: 'DevicesHome', params: { departmentId: pinned }, replace: true })
+      }
+    }
+
     // Wenn User inzwischen Department hat, Pending-Seite verlassen
     if (to.path === '/pending-assignment' && primaryDepartmentId) {
       return next(`/${primaryDepartmentId}`)
@@ -1199,6 +1276,20 @@ router.beforeEach(async (to, from, next) => {
     if (to.path === '/pending-assignment' && !primaryDepartmentId && isSuperAdmin()) {
       return next('/dashboard')
     }
+  }
+
+  if (
+    isDevicesHost() &&
+    authStore.isLoggedIn &&
+    to.params.departmentId &&
+    to.meta.requiresAuth &&
+    !to.meta.devicesMode
+  ) {
+    return next({
+      name: 'DevicesHome',
+      params: { departmentId: String(to.params.departmentId) },
+      replace: true,
+    })
   }
 
   // Department-ID aus Route extrahieren

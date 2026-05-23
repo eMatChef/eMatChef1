@@ -1,6 +1,6 @@
 import apiClient from './apiClient'
 
-export type PackMoveStage = 'packed' | 'transport_to' | 'at_event' | 'transport_back' | 'returned'
+export type PackMoveStage = 'packed' | 'transport_to' | 'at_event' | 'transport_back' | 'returned' | 'stored'
 
 export interface ActivityPackItem {
   id: string
@@ -17,11 +17,13 @@ export interface ActivityPackItem {
   quantityIssued: number
   quantityTransportBack: number
   quantityReturned: number
+  quantityStored: number
   conditionOut: string | null
   notes: string | null
   isFullyPacked: boolean
   isFullyIssued: boolean
   isFullyReturned: boolean
+  isFullyStored: boolean
   packDifference: number | null
   issueDifference: number | null
   returnDifference: number | null
@@ -69,11 +71,13 @@ function mapPackItem(raw: Record<string, unknown>): ActivityPackItem {
     quantityIssued: num(raw.quantity_issued),
     quantityTransportBack: num(raw.quantity_transport_back),
     quantityReturned: num(raw.quantity_returned),
+    quantityStored: num(raw.quantity_stored),
     conditionOut: raw.condition_out != null ? String(raw.condition_out) : null,
     notes: raw.notes != null ? String(raw.notes) : null,
     isFullyPacked: Boolean(raw.is_fully_packed),
     isFullyIssued: Boolean(raw.is_fully_issued),
     isFullyReturned: Boolean(raw.is_fully_returned),
+    isFullyStored: Boolean(raw.is_fully_stored),
     packDifference: raw.pack_difference != null ? num(raw.pack_difference) : null,
     issueDifference: raw.issue_difference != null ? num(raw.issue_difference) : null,
     returnDifference: raw.return_difference != null ? num(raw.return_difference) : null,

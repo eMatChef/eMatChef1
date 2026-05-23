@@ -42,20 +42,6 @@ class PublicLookupController extends AbstractController
         return new JsonResponse($result);
     }
 
-    #[Route('/b/{publicCode}', name: 'batch', methods: ['GET'])]
-    public function batch(string $publicCode): JsonResponse
-    {
-        $result = $this->publicCodeService->resolveBatchByPublicCode($publicCode);
-
-        if ($result === null) {
-            return new JsonResponse([
-                'error' => 'Public-Code nicht gefunden oder nicht aktiv',
-            ], 404);
-        }
-
-        return new JsonResponse($result);
-    }
-
     #[Route('/a/{publicCode}', name: 'activity', methods: ['GET'])]
     public function activity(string $publicCode): JsonResponse
     {

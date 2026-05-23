@@ -527,7 +527,11 @@ async function handleSubmit() {
     } else if (autoSubmitFailed) {
       toast.error(autoSubmitError || t('activities.wizard.toastAutoSubmitFailed'))
     } else if (wantsAutoSubmit) {
-      toast.success(t('activities.wizard.toastSubmitted'))
+      toast.success(
+        selectedActivityType.value === 'activity'
+          ? t('activities.wizard.toastSubmittedQuick')
+          : t('activities.wizard.toastSubmitted'),
+      )
     } else {
       toast.success(t('activities.wizard.toastDraftSaved'))
     }

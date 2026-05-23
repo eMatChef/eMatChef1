@@ -158,7 +158,7 @@ export function getStageLeftQty(
     case 'transport_back_returned':
       return item.quantityIssued - item.quantityReturned
     case 'returned_unpack':
-      return 0
+      return Math.max(0, item.quantityReturned - item.quantityStored)
     default:
       return 0
   }
@@ -184,7 +184,7 @@ export function getStageRightQty(
     case 'transport_back_returned':
       return item.quantityReturned
     case 'returned_unpack':
-      return item.quantityReturned
+      return item.quantityStored
     default:
       return 0
   }
@@ -216,6 +216,11 @@ export function isPackUnpackStage(stage: PackStage): boolean {
   return stage === 'returned_unpack'
 }
 
+/** Retour erfassen (Gruppe) oder Ausgepackt (MW: wieder ins Lager) */
+export function isPackReturnOrUnpackWarehouseStage(stage: PackStage): boolean {
+  return isPackReturnStage(stage) || isPackUnpackStage(stage)
+}
+
 export function getBackendStage(stage: PackStage): PackMoveStage {
   switch (stage) {
     case 'confirmed_packed':
@@ -231,7 +236,7 @@ export function getBackendStage(stage: PackStage): PackMoveStage {
     case 'transport_back_returned':
       return 'returned'
     case 'returned_unpack':
-      return 'returned'
+      return 'stored'
     default:
       return 'packed'
   }

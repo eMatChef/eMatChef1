@@ -169,7 +169,6 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
-  getPublicBatchByCode,
   getPublicMaterialBatchByCodes,
   submitPublicFoundItemContact,
   type PublicLookupBatchResponse,
@@ -192,14 +191,12 @@ const pageHeadStore = usePageHeadStore()
 const PUBLIC_SESSION_POLL_MS = 10_000
 let sessionPollTimer: number | null = null
 
-type LookupKind = 'material_batch' | 'batch_short' | 'material_legacy'
+type LookupKind = 'material_batch' | 'material_legacy'
 
 const lookupKind = computed<LookupKind>(() => {
   if (route.name === 'PublicLookupMaterialBatch') return 'material_batch'
-  if (route.name === 'PublicLookupBatch') return 'batch_short'
   if (route.name === 'PublicLookupMaterialLegacy') return 'material_legacy'
   const type = String(route.params.type || '').trim().toLowerCase()
-  if (type === 'b') return 'batch_short'
   if (type === 'm') return 'material_legacy'
   return 'material_legacy'
 })
@@ -214,9 +211,6 @@ const matCodeParam = computed(() => {
 const batchCodeParam = computed(() => {
   if (lookupKind.value === 'material_batch') {
     return String(route.params.batchCode || '').trim()
-  }
-  if (lookupKind.value === 'batch_short') {
-    return String(route.params.batchCode || route.params.code || '').trim()
   }
   return ''
 })
@@ -460,10 +454,6 @@ async function loadData() {
       data.value = null
       return
     }
-  } else if (!batchCodeParam.value) {
-    error.value = t('public.lookup.errorInvalidCode')
-    data.value = null
-    return
   }
 
   loading.value = true
@@ -473,8 +463,6 @@ async function loadData() {
   try {
     if (lookupKind.value === 'material_batch') {
       data.value = await getPublicMaterialBatchByCodes(matCodeParam.value, batchCodeParam.value)
-    } else {
-      data.value = await getPublicBatchByCode(batchCodeParam.value)
     }
   } catch {
     error.value = t('public.lookup.errorCodeNotFound')

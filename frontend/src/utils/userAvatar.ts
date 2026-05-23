@@ -78,3 +78,13 @@ export function getMemberHoverTooltip(
 
   return { line1, line2 }
 }
+
+/** Anzeige «Spitzname Vorname Nachname» — fehlende Teile werden weggelassen. */
+export function formatUserNicknameFirstNameLastName(user: UserAvatarFields): string {
+  const nickname = String(user.nickname ?? '').trim()
+  const firstName = String(user.first_name ?? '').trim()
+  const lastName = String(user.last_name ?? '').trim()
+  const parts = [nickname, firstName, lastName].filter(Boolean)
+  if (parts.length > 0) return parts.join(' ')
+  return String(user.name ?? '').trim()
+}

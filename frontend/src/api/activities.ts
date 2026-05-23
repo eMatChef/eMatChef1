@@ -260,7 +260,13 @@ export interface ActivityHistoryEntryRow {
   snapshot: Record<string, unknown>
   changes: Record<string, unknown>
   created_at: string
-  user: { id: string; name: string } | null
+  user: {
+    id: string
+    name: string
+    nickname?: string | null
+    first_name?: string | null
+    last_name?: string | null
+  } | null
 }
 
 export async function getActivityHistory(activityId: string): Promise<ActivityHistoryEntryRow[]> {

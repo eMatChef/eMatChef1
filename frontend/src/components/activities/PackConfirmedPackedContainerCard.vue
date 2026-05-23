@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, inject } from 'vue'
+import { computed, inject, unref, type MaybeRef } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { ActivityPackContainer, ActivityPackContainerItem } from '@/api/activityContainers'
 import { IconArrowLeft } from '@/components/icons'
@@ -22,8 +22,8 @@ const innerVisible = computed(
   () => !(ctx.isPackContainerCollapsed as (id: string) => boolean)(props.container.id),
 )
 
-const activePackTarget = computed(
-  () => ctx.activePackTarget as unknown as { kind: string; containerId?: string } | null,
+const activePackTarget = computed(() =>
+  unref(ctx.activePackTarget as MaybeRef<{ kind: string; containerId?: string } | null>),
 )
 
 const isTarget = computed(
@@ -70,7 +70,11 @@ function onCardClick(event: MouseEvent) {
         :aria-label="t('activities.packList.ariaToggleContainer')"
         @click.stop="(ctx.togglePackContainerCollapsed as (id: string) => void)(container.id)"
       >
-        <span class="pack-container-chevron" aria-hidden="true">{{ innerVisible ? '▼' : '▶' }}</span>
+        <span
+          class="pack-container-chevron"
+          :class="{ 'pack-container-chevron--open': innerVisible }"
+          aria-hidden="true"
+        >▶</span>
       </button>
       <div class="pack-container-header-main">
         <button

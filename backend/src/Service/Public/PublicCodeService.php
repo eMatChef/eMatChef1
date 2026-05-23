@@ -320,8 +320,12 @@ class PublicCodeService
         array $publicSettings,
         ?string $recipientEmail,
     ): array {
-        return [
-            'code' => $codeEntry->getPublicCode(),
+        $batchCode = $codeEntry->getPublicCode();
+        $matEntry = $this->getActiveMaterialPublicCode((string) $material->getId());
+        $matCode = $matEntry?->getPublicCode() ?? '';
+
+        $payload = [
+            'code' => $batchCode,
             'entity_type' => self::ENTITY_BATCH,
             'batch' => [
                 'id' => $batch->getId(),
@@ -346,6 +350,50 @@ class PublicCodeService
             'contact_note' => ($publicSettings['show_contact_note'] && ($publicSettings['contact_note'] ?? '')) ? $publicSettings['contact_note'] : null,
             'public_ui' => $this->buildPublicUiPayload($department->getId(), $publicSettings, $recipientEmail),
         ];
+
+        if ($matCode !== '') {
+            $payload['material_code'] = $matCode;
+            $payload['batch_code'] = $batchCode;
+            $payload['public_url'] = $this->buildMaterialBatchPublicUrl($matCode, $batchCode);
+        }
+
+        return $payload;
+    }
+
+    /**
+     * Kanonische öffentliche URL aus Lookup-Payload (Mail, Inbox).
+     */
+    public function resolvePublicUrlFromLookup(string $entityType, array $lookup, string $fallbackPublicCode): string
+    {
+        $fromPayload = trim((string) ($lookup['public_url'] ?? ''));
+        if ($fromPayload !== '') {
+            return $fromPayload;
+        }
+
+        $entityType = strtolower(trim($entityType));
+        if ($entityType === 'batch') {
+            $matCode = trim((string) ($lookup['material_code'] ?? ''));
+            $batchCode = trim((string) ($lookup['batch_code'] ?? $lookup['code'] ?? $fallbackPublicCode));
+            if ($matCode !== '' && $batchCode !== '') {
+                return $this->buildMaterialBatchPublicUrl($matCode, $batchCode);
+            }
+            $materialId = (string) ($lookup['material']['id'] ?? '');
+            $batchId = (string) ($lookup['batch']['id'] ?? '');
+            if ($materialId !== '' && $batchId !== '') {
+                return $this->buildCanonicalMaterialBatchPublicUrlForIds($materialId, $batchId) ?? '';
+            }
+
+            return '';
+        }
+
+        if ($entityType === 'activity') {
+            return $this->buildActivityPublicUrl($fallbackPublicCode);
+        }
+        if ($entityType === 'workshop') {
+            return $this->buildWorkshopPublicUrl($fallbackPublicCode);
+        }
+
+        return '';
     }
 
     /**
@@ -700,11 +748,6 @@ class PublicCodeService
         }
 
         return $entry;
-    }
-
-    public function buildBatchPublicUrl(string $publicCode): string
-    {
-        return $this->publicQrBaseUrl . '/i/b/' . rawurlencode($publicCode);
     }
 
     /**

@@ -63,6 +63,10 @@ class ActivityPackItem
     #[ORM\Column(name: 'quantity_returned', type: 'integer', options: ['default' => 0])]
     private int $quantityReturned = 0;
 
+    /** Eingelagerte Menge (MW: wieder ins Regal) */
+    #[ORM\Column(name: 'quantity_stored', type: 'integer', options: ['default' => 0])]
+    private int $quantityStored = 0;
+
     /** Zustand bei Ausgabe: ok, leicht_beschaedigt, beschaedigt */
     #[ORM\Column(name: 'condition_out', type: 'string', length: 50, options: ['default' => 'ok'])]
     private string $conditionOut = 'ok';
@@ -144,6 +148,9 @@ class ActivityPackItem
     public function getQuantityReturned(): int { return $this->quantityReturned; }
     public function setQuantityReturned(int $quantityReturned): self { $this->quantityReturned = $quantityReturned; return $this; }
 
+    public function getQuantityStored(): int { return $this->quantityStored; }
+    public function setQuantityStored(int $quantityStored): self { $this->quantityStored = $quantityStored; return $this; }
+
     public function getConditionOut(): string { return $this->conditionOut; }
     public function setConditionOut(string $conditionOut): self { $this->conditionOut = $conditionOut; return $this; }
 
@@ -209,5 +216,17 @@ class ActivityPackItem
     public function getReturnDifference(): int
     {
         return $this->quantityIssued - $this->quantityReturned;
+    }
+
+    /** Differenz zwischen retourniert und eingelagert */
+    public function getStoreDifference(): int
+    {
+        return $this->quantityReturned - $this->quantityStored;
+    }
+
+    /** Ist die retournierte Menge vollständig eingelagert? */
+    public function isFullyStored(): bool
+    {
+        return $this->quantityStored >= $this->quantityReturned && $this->quantityReturned > 0;
     }
 }

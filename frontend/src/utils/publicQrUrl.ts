@@ -10,21 +10,9 @@ export function isCanonicalMaterialBatchPublicUrl(url: string | null | undefined
   }
 }
 
-/** Kurzform Scanner oder Legacy-Fallback (/i/b/{batch}). */
-export function isBatchShortPublicUrl(url: string | null | undefined): boolean {
-  const raw = (url || '').trim()
-  if (!raw) return false
-  try {
-    const path = new URL(raw).pathname
-    return /^\/i\/b\/[^/]+\/?$/i.test(path)
-  } catch {
-    return /\/i\/b\/[^/]+/i.test(raw)
-  }
-}
-
-/** Für Druck/Druckkorb: URL enthält ein Batch-Segment. */
+/** Für Druck/Druckkorb: kanonische Material+Charge-URL (/i/m/…/b/…). */
 export function isPrintableBatchPublicUrl(url: string | null | undefined): boolean {
-  return isCanonicalMaterialBatchPublicUrl(url) || isBatchShortPublicUrl(url)
+  return isCanonicalMaterialBatchPublicUrl(url)
 }
 
 function resolvePublicQrOrigin(): string {

@@ -5,6 +5,7 @@ namespace App\Controller;
 use Doctrine\DBAL\Connection;
 use Doctrine\DBAL\Platforms\PostgreSQLPlatform;
 use App\Entity\Activity;
+use App\Service\MaterialAvailabilityReservationQuery;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -16,7 +17,9 @@ use Symfony\Component\Security\Http\Attribute\IsGranted;
  * Material Availability Controller
  * 
  * Liefert zeitraum-basierte Verfügbarkeit für Aktivitäts-Planung.
- * Berücksichtigt Gesamtbestand (Batches) minus reservierte Mengen (ActivityItems).
+ * Berücksichtigt Gesamtbestand (Batches) minus Reservierungen:
+ * - Bestellung (activity_item) bei Zeitraum-Overlap (Entwurf…Bestätigt)
+ * - Physische Pipeline (activity_pack_item) ab «Wird gepackt» bis eingelagert (ohne Zeitraum-Overlap)
  */
 class MaterialAvailabilityController extends AbstractController
 {
@@ -273,20 +276,7 @@ class MaterialAvailabilityController extends AbstractController
                               )
                             GROUP BY b.material_item_id
                         ) stock_in_storage ON stock_in_storage.mid = mi.id
-                        LEFT JOIN LATERAL (
-                            SELECT COALESCE(SUM(ai.quantity), 0) AS reserved_qty
-                            FROM activity_item ai
-                            INNER JOIN activity a ON a.id = ai.activity_id
-                            WHERE ai.material_item_id = mi.id
-                              AND a.deleted_at IS NULL
-                              AND a.status NOT IN ('cancelled', 'completed')
-                              AND (
-                                  (COALESCE(a.planning_start, a.usage_start) < :end_date)
-                                  AND
-                                  (COALESCE(a.planning_end, a.usage_end) > :start_date)
-                              )
-                              {$reservedExcludeSql}
-                        ) reserved ON TRUE
+                        " . MaterialAvailabilityReservationQuery::lateralReservedQtySql(true, $reservedExcludeSql) . "
                         WHERE mi.deleted_at IS NULL
                           AND $scopeWhere $materialIdFilterSql";
 
@@ -298,17 +288,17 @@ class MaterialAvailabilityController extends AbstractController
                     $params['exclude_activity_id'] = $excludeActivityId;
                 }
             } else {
-                // Ohne Zeitraum: Gesamtbestand (keine Reservierungsprüfung)
+                // Ohne Zeitraum: Gesamtbestand minus physische Pipeline-Sperre (keine Bestell-Reservierung)
                 $sql = "SELECT mi.id AS material_item_id, mi.name, mi.category_id, mi.material_type, mi.department_id AS source_department_id, d.name AS source_department_name,
                         COALESCE(SUM(mb.qty), 0) AS total_stock,
                         COALESCE(MAX(stock_in_phys_combo.qty_in_phys_combo), 0) AS stock_in_phys_combo_kisten,
                         COALESCE(MAX(stock_in_storage.qty_in_storage), 0) AS stock_in_storage_containers,
-                        0 AS reserved_in_activities,
+                        COALESCE(MAX(reserved.reserved_qty), 0) AS reserved_in_activities,
                         GREATEST(0,
                             CASE WHEN mi.material_type = 'physical_combo' THEN
-                                COALESCE(SUM(mb.qty), 0)
+                                COALESCE(SUM(mb.qty), 0) - COALESCE(MAX(reserved.reserved_qty), 0)
                             ELSE
-                                COALESCE(SUM(mb.qty), 0) - COALESCE(MAX(stock_in_phys_combo.qty_in_phys_combo), 0)
+                                COALESCE(SUM(mb.qty), 0) - COALESCE(MAX(stock_in_phys_combo.qty_in_phys_combo), 0) - COALESCE(MAX(reserved.reserved_qty), 0)
                             END
                         ) AS available_for_period
                         FROM material_item mi
@@ -336,9 +326,10 @@ class MaterialAvailabilityController extends AbstractController
                               )
                             GROUP BY b.material_item_id
                         ) stock_in_storage ON stock_in_storage.mid = mi.id
+                        " . MaterialAvailabilityReservationQuery::lateralReservedQtySql(false, $reservedExcludeSql) . "
                         WHERE mi.deleted_at IS NULL
                           AND $scopeWhere $materialIdFilterSql
-                        GROUP BY mi.id, mi.name, mi.category_id, mi.material_type, mi.department_id, d.name";
+                        GROUP BY mi.id, mi.name, mi.category_id, mi.material_type, mi.department_id, d.name, reserved.reserved_qty";
 
                 $params = array_merge($deptParams, $materialIdFilterParams);
             }

@@ -23,7 +23,7 @@ export function shouldProbeUserSession(pathname?: string): boolean {
   return !isDisplayKioskPath(path)
 }
 
-/** Öffentliche QR-/Material-Infos ohne Login (z. B. /i/m/…/b/…, /i/b/…). */
+/** Öffentliche QR-Infos ohne Login (z. B. /i/m/…/b/…, /i/a/…, /i/w/…, /display/…). */
 export function isPublicAnonymousPath(pathname: string): boolean {
   if (pathname === '/open-from-qr') return true
   if (isDisplayKioskPath(pathname)) return true

@@ -18,6 +18,7 @@ export interface ActivityPackContainerItem {
   quantity_packed: number
   quantity_issued: number
   quantity_returned: number
+  quantity_stored?: number
   condition_out: string
   notes: string | null
   material_name?: string

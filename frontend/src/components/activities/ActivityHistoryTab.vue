@@ -8,6 +8,7 @@ import {
   historyEntryTitle,
   historyStatusChange,
 } from '@/components/activities/activityHistoryDisplay'
+import { formatUserNicknameFirstNameLastName } from '@/utils/userAvatar'
 
 defineOptions({ name: 'ActivityHistoryTab' })
 
@@ -57,6 +58,11 @@ function summaryLines(e: ActivityHistoryEntryRow): string[] {
 function statusChange(e: ActivityHistoryEntryRow) {
   return historyStatusChange(e, t, te)
 }
+
+function userLabel(e: ActivityHistoryEntryRow): string {
+  if (!e.user) return ''
+  return formatUserNicknameFirstNameLastName(e.user)
+}
 </script>
 
 <template>
@@ -76,8 +82,8 @@ function statusChange(e: ActivityHistoryEntryRow) {
             <strong class="activity-history-action">{{ titleFor(e) }}</strong>
             <span class="text-muted activity-history-when">{{ formatWhen(e.created_at) }}</span>
           </div>
-          <p v-if="e.user?.name" class="activity-history-user text-muted">
-            {{ t('activities.history.userBy', { name: e.user.name }) }}
+          <p v-if="userLabel(e)" class="activity-history-user text-muted">
+            {{ t('activities.history.userBy', { name: userLabel(e) }) }}
           </p>
           <p v-if="statusChange(e)" class="activity-history-status-change text-muted">
             <span class="activity-history-field">{{ t('activities.history.fieldStatus') }}:</span>

@@ -2,7 +2,7 @@
 
 Was Besucher und Scanner **ohne App** sehen, wenn sie einen QR von `qr.ematchef.ch` öffnen. Alles auf dieser Subdomain ist **bewusst öffentlich** — schmal, ohne interne Bestände oder Workflows.
 
-**Stand:** Mai 2026 · **Status:** Material teilweise umgesetzt; Aktivität/Werkstatt/Display = Ziel-Spezifikation
+**Stand:** Mai 2026 · **Status:** Umgesetzt (Material, Aktivität, Werkstatt); Display auf `app.`
 
 Linkschema: [link-schema.md](./link-schema.md) · Lager/Scanner: [../devices/README.md](../devices/README.md)
 
@@ -28,9 +28,10 @@ Interne Bearbeitung: `app.ematchef.ch`, Lager-Scan: `devices.ematchef.ch`.
 ### URL
 
 - **Kanonisch (Etikett, PDF):** `https://qr.ematchef.ch/i/m/{materialCode}/b/{batchCode}`
-- **Kurz (Scanner):** `https://qr.ematchef.ch/i/b/{batchCode}` → gleiche öffentliche Darstellung
 
-Es gibt **kein** gültiges Material-Etikett nur mit `/i/m/{materialCode}` ohne Batch — Charge/Serie ist Pflicht.
+Es gibt **kein** gültiges Material-Etikett nur mit `/i/m/{materialCode}` ohne Batch und **keine** `/i/b/{batchCode}`-Only-URLs mehr.
+
+Auf `devices.ematchef.ch` (geplant) kann der Scanner später Rohcodes oder kanonische URLs verarbeiten — nicht über eine separate Kurz-Route auf `qr.`.
 
 ### Öffentliche Anzeige (Ziel)
 
@@ -46,7 +47,7 @@ Nur das Nötige für Finder und Neugierige:
 
 ### Technik (Ist)
 
-- Route: `/i/:type/:code` mit `type` = `m` oder `b`
+- Route: `/i/m/:matCode/b/:batchCode`
 - View: `frontend/src/views/public/PublicMaterialView.vue`
 - API: `GET /api/public/lookup/m/{code}` und `…/b/{code}` (`PublicLookupController`, `PublicCodeService`)
 - Sichtbarkeit: `public_ui` aus Department-Settings (`show_contact_form`, `show_contact_email`, …)

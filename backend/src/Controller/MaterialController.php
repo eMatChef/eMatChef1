@@ -4087,24 +4087,12 @@ class MaterialController extends AbstractController
             && trim((string) $batch->getSerialNumber()) === '';
     }
 
-    /**
-     * Kanonische Etiketten-URL (/i/m/…/b/…); Fallback Kurzform /i/b/… wenn nur Batch-Code (z. B. physische Combo).
-     */
+    /** Kanonische Etiketten-URL (/i/m/…/b/…) — nur mit Material- und Batch-public_code. */
     private function resolveBatchPublicUrlForApi(MaterialItem $material, MaterialBatch $batch): ?string
     {
-        $canonical = $this->publicCodeService->buildCanonicalMaterialBatchPublicUrlForIds(
+        return $this->publicCodeService->buildCanonicalMaterialBatchPublicUrlForIds(
             (string) $material->getId(),
             (string) $batch->getId(),
         );
-        if ($canonical !== null) {
-            return $canonical;
-        }
-
-        $batchEntry = $this->publicCodeService->getActiveBatchPublicCode((string) $batch->getId());
-        if ($batchEntry === null) {
-            return null;
-        }
-
-        return $this->publicCodeService->buildBatchPublicUrl($batchEntry->getPublicCode());
     }
 }

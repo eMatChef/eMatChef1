@@ -21,6 +21,11 @@ class ActivityMwNotificationService
         $this->inboxMessages->notifyActivitySubmitted($activity, $actor);
     }
 
+    public function notifyActivityReturned(Activity $activity, User $actor): void
+    {
+        $this->inboxMessages->notifyActivityReturned($activity, $actor);
+    }
+
     /**
      * @return list<array<string, mixed>>
      */

@@ -22,6 +22,7 @@ use App\Entity\Address;
 use App\Entity\User;
 use App\Service\ActivityAccessService;
 use App\Service\ActivityAccountingCostService;
+use App\Service\ActivityItemPipelineStatusService;
 use App\Service\ActivityKisteMaterialLinker;
 use App\Service\ActivityMwNotificationService;
 use App\Service\ActivityUserNotificationService;
@@ -50,6 +51,7 @@ class ActivityController extends AbstractController
         private ActivityUserNotificationService $activityUserNotifications,
         private InboxMessageService $inboxMessageService,
         private PublicCodeService $publicCodeService,
+        private ActivityItemPipelineStatusService $activityItemPipelineStatus,
     ) {}
 
     private function getActorUserId(): ?string
@@ -840,6 +842,9 @@ class ActivityController extends AbstractController
 
             // History-Eintrag: Erstellung
             $this->createHistoryEntry($activity, 'created');
+
+            // Öffentlicher QR-Code sofort beim Anlegen (nicht erst manuell erzeugen)
+            $this->publicCodeService->ensureActivityPublicCode($activity, $currentUser->getId());
             $this->entityManager->flush();
 
             if ($activity->getStatus() === Activity::STATUS_SUBMITTED && $currentUser instanceof User) {
@@ -1147,8 +1152,16 @@ class ActivityController extends AbstractController
 
         $oldStatus = $activity->getStatus();
 
+        // Quick-Modus (Typ «activity»): Einreichen überspringt «eingereicht», landet direkt bei «bestätigt»
+        $isQuickAutoApprove = $newStatus === Activity::STATUS_SUBMITTED
+            && $activity->getType() === 'activity'
+            && $oldStatus === Activity::STATUS_DRAFT;
+        if ($isQuickAutoApprove) {
+            $newStatus = Activity::STATUS_APPROVED;
+        }
+
         // 2. Transition erlaubt?
-        if (!$activity->canTransitionTo($newStatus)) {
+        if (!$isQuickAutoApprove && !$activity->canTransitionTo($newStatus)) {
             $allowed = Activity::STATUS_TRANSITIONS[$oldStatus] ?? [];
             return new JsonResponse([
                 'error' => sprintf(
@@ -1166,7 +1179,12 @@ class ActivityController extends AbstractController
             return new JsonResponse(['error' => 'Nicht authentifiziert'], 401);
         }
 
-        $permissionCheck = $this->checkTransitionPermission($user, $activity, $oldStatus, $newStatus);
+        $permissionCheck = $this->checkTransitionPermission(
+            $user,
+            $activity,
+            $oldStatus,
+            $isQuickAutoApprove ? Activity::STATUS_SUBMITTED : $newStatus,
+        );
         if ($permissionCheck !== true) {
             return new JsonResponse(['error' => $permissionCheck], 403);
         }
@@ -1185,6 +1203,9 @@ class ActivityController extends AbstractController
         }
 
         // 4. Status setzen + Timestamp
+        if ($isQuickAutoApprove) {
+            $activity->setSubmittedAt(new \DateTime());
+        }
         $activity->setStatus($newStatus);
         $activity->setUpdatedAt(new \DateTime());
         $activity->applyStatusTimestamp($newStatus);
@@ -1204,6 +1225,19 @@ class ActivityController extends AbstractController
         if ($newStatus === Activity::STATUS_COMPLETED) {
             $this->applyStockAdjustments($activity);
         }
+        if ($newStatus === Activity::STATUS_CANCELLED) {
+            $this->resetPackPipelineOnCancel($activity, $oldStatus);
+        }
+
+        if (in_array($newStatus, [
+            Activity::STATUS_PACKING,
+            Activity::STATUS_PACKED,
+            Activity::STATUS_AT_EVENT,
+            Activity::STATUS_RETURNED,
+            Activity::STATUS_CANCELLED,
+        ], true)) {
+            $this->activityItemPipelineStatus->syncForActivity($activity);
+        }
 
         // 7. History-Eintrag
         $changes = [
@@ -1216,14 +1250,24 @@ class ActivityController extends AbstractController
 
         $this->entityManager->flush();
 
-        if (
+        if ($newStatus === Activity::STATUS_COMPLETED && $oldStatus !== Activity::STATUS_COMPLETED) {
+            $this->activityAccountingCost->finalizeConsumptionAccountingForActivity($activity);
+        }
+
+        if ($isQuickAutoApprove) {
+            $this->activityMwNotifications->notifyActivitySubmitted($activity, $user);
+        } elseif (
             $newStatus === Activity::STATUS_SUBMITTED
             && $oldStatus !== Activity::STATUS_SUBMITTED
         ) {
             $this->activityMwNotifications->notifyActivitySubmitted($activity, $user);
         }
 
-        if ($newStatus === Activity::STATUS_APPROVED && $oldStatus !== Activity::STATUS_APPROVED) {
+        if (
+            $newStatus === Activity::STATUS_APPROVED
+            && $oldStatus !== Activity::STATUS_APPROVED
+            && !$isQuickAutoApprove
+        ) {
             $this->activityUserNotifications->notifyStatus($activity, $user, 'activity_approved');
         }
 
@@ -1233,6 +1277,7 @@ class ActivityController extends AbstractController
 
         if ($newStatus === Activity::STATUS_RETURNED && $oldStatus !== Activity::STATUS_RETURNED) {
             $this->activityUserNotifications->notifyStatus($activity, $user, 'activity_returned');
+            $this->activityMwNotifications->notifyActivityReturned($activity, $user);
         }
 
         if ($oldStatus === Activity::STATUS_APPROVED && $newStatus === Activity::STATUS_SUBMITTED) {
@@ -1316,10 +1361,34 @@ class ActivityController extends AbstractController
             // Migration noch nicht ausgeführt
         }
 
+        $unstoredPackItems = $this->entityManager->getRepository(ActivityPackItem::class)
+            ->createQueryBuilder('pi')
+            ->innerJoin('pi.materialItem', 'm')
+            ->addSelect('m')
+            ->where('pi.activityId = :activityId')
+            ->andWhere('pi.quantityReturned > pi.quantityStored')
+            ->andWhere('pi.quantityReturned > 0')
+            ->setParameter('activityId', $activityId)
+            ->orderBy('m.name', 'ASC')
+            ->setMaxResults(12)
+            ->getQuery()
+            ->getResult();
+
+        $unstoredPackItemsCount = (int) $this->entityManager->getRepository(ActivityPackItem::class)
+            ->createQueryBuilder('pi')
+            ->select('COUNT(pi.id)')
+            ->where('pi.activityId = :activityId')
+            ->andWhere('pi.quantityReturned > pi.quantityStored')
+            ->andWhere('pi.quantityReturned > 0')
+            ->setParameter('activityId', $activityId)
+            ->getQuery()
+            ->getSingleScalarResult();
+
         return [
             'open_workshop_tickets_count' => count($openWorkshopTickets),
             'open_issue_reports_count' => count($openIssueReports),
             'pending_accounting_followups_count' => $pendingAccountingCount,
+            'unstored_pack_items_count' => $unstoredPackItemsCount,
             'open_workshop_tickets' => array_map(static fn(WorkshopTicket $t) => [
                 'id' => $t->getId(),
                 'title' => $t->getTitle(),
@@ -1339,6 +1408,13 @@ class ActivityController extends AbstractController
                 'receipt_label' => $f->getReceiptLabel(),
                 'source_kind' => $f->getSourceKind(),
             ], $pendingAccountingFollowups),
+            'unstored_pack_items' => array_map(static fn(ActivityPackItem $pi) => [
+                'id' => $pi->getId(),
+                'material_name' => $pi->getMaterialItem()?->getName(),
+                'quantity_returned' => $pi->getQuantityReturned(),
+                'quantity_stored' => $pi->getQuantityStored(),
+                'pending_store' => $pi->getQuantityReturned() - $pi->getQuantityStored(),
+            ], $unstoredPackItems),
         ];
     }
 
@@ -1349,7 +1425,8 @@ class ActivityController extends AbstractController
     {
         return ($blockers['open_workshop_tickets_count'] ?? 0) > 0
             || ($blockers['open_issue_reports_count'] ?? 0) > 0
-            || ($blockers['pending_accounting_followups_count'] ?? 0) > 0;
+            || ($blockers['pending_accounting_followups_count'] ?? 0) > 0
+            || ($blockers['unstored_pack_items_count'] ?? 0) > 0;
     }
 
     /**
@@ -1366,6 +1443,9 @@ class ActivityController extends AbstractController
         }
         if (($blockers['pending_accounting_followups_count'] ?? 0) > 0) {
             $parts[] = 'offene Buchhaltungs-Aufträge (Kosten zuordnen)';
+        }
+        if (($blockers['unstored_pack_items_count'] ?? 0) > 0) {
+            $parts[] = 'Material noch nicht eingelagert (Retour → Ausgepackt)';
         }
 
         return 'Aktivität kann nicht abgeschlossen werden: ' . implode(', ', $parts) . '.';
@@ -1399,6 +1479,15 @@ class ActivityController extends AbstractController
 
         $transitions = [];
         foreach ($possibleTransitions as $targetStatus) {
+            // Quick-Modus: «Bestätigen» nur für Lager/Event — Gruppe hat Material bereits final eingereicht
+            if (
+                $activity->getType() === 'activity'
+                && $currentStatus === Activity::STATUS_SUBMITTED
+                && $targetStatus === Activity::STATUS_APPROVED
+            ) {
+                continue;
+            }
+
             $allowed = $this->checkTransitionPermission($user, $activity, $currentStatus, $targetStatus);
             if ($allowed === true && $targetStatus === Activity::STATUS_COMPLETED && $this->hasCompletionBlockers($completionBlockers)) {
                 $allowed = $this->completionBlockerMessage($completionBlockers);
@@ -2237,6 +2326,9 @@ class ActivityController extends AbstractController
                 'user' => $user ? [
                     'id' => $user->getId(),
                     'name' => $profile ? trim($profile->getFirstName() . ' ' . $profile->getLastName()) : 'Unbekannt',
+                    'nickname' => $profile?->getNickname(),
+                    'first_name' => $profile?->getFirstName(),
+                    'last_name' => $profile?->getLastName(),
                 ] : null,
             ];
         }
@@ -2894,6 +2986,64 @@ class ActivityController extends AbstractController
 
             $this->entityManager->persist($returnItem);
         }
+    }
+
+    /**
+     * Storno ab «Wird gepackt»: Pack-Pipeline zurücksetzen — gebuchte Mengen gelten wieder als im Lager.
+     */
+    private function resetPackPipelineOnCancel(Activity $activity, string $oldStatus): void
+    {
+        if (!in_array($oldStatus, [Activity::STATUS_PACKING, Activity::STATUS_PACKED], true)) {
+            return;
+        }
+
+        $activityId = $activity->getId();
+        if (!$activityId) {
+            return;
+        }
+
+        $packItems = $this->entityManager->getRepository(ActivityPackItem::class)
+            ->findBy(['activityId' => $activityId]);
+        foreach ($packItems as $packItem) {
+            $packItem->setQuantityPacked(0);
+            $packItem->setQuantityTransportTo(0);
+            $packItem->setQuantityIssued(0);
+            $packItem->setQuantityTransportBack(0);
+            $packItem->setQuantityReturned(0);
+            $packItem->setUpdatedAt(new \DateTime());
+        }
+
+        $containerIds = $this->entityManager->getRepository(ActivityPackContainer::class)
+            ->createQueryBuilder('c')
+            ->select('c.id')
+            ->where('c.activityId = :activityId')
+            ->setParameter('activityId', $activityId)
+            ->getQuery()
+            ->getSingleColumnResult();
+
+        if ($containerIds !== []) {
+            $containerItems = $this->entityManager->getRepository(ActivityPackContainerItem::class)
+                ->createQueryBuilder('ci')
+                ->where('ci.packContainerId IN (:ids)')
+                ->setParameter('ids', $containerIds)
+                ->getQuery()
+                ->getResult();
+
+            foreach ($containerItems as $ci) {
+                if (!$ci instanceof ActivityPackContainerItem) {
+                    continue;
+                }
+                $ci->setQuantityPacked(0);
+                $ci->setQuantityTransportTo(0);
+                $ci->setQuantityIssued(0);
+                $ci->setQuantityTransportBack(0);
+                $ci->setQuantityReturned(0);
+            }
+        }
+
+        $this->createHistoryEntry($activity, 'pack_pipeline_reset_on_cancel', [
+            'previous_status' => $oldStatus,
+        ]);
     }
 
     /**

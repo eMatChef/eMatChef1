@@ -56,6 +56,21 @@ class ActivityAccountingCostService
         );
     }
 
+    /**
+     * Verbrauchsmaterial: Buchhaltungs-Aufträge erst beim Abschluss der Aktivität (nicht bei jeder Verbrauchsmeldung).
+     */
+    public function finalizeConsumptionAccountingForActivity(Activity $activity): void
+    {
+        $reports = $this->entityManager->getRepository(ActivityIssueReport::class)->findBy([
+            'activityId' => $activity->getId(),
+            'type' => ActivityIssueReport::TYPE_CONSUMPTION,
+        ]);
+
+        foreach ($reports as $report) {
+            $this->enqueueFromConsumption($activity, $report);
+        }
+    }
+
     public function enqueueFromLoss(Activity $activity, ActivityIssueReport $report): void
     {
         if ($report->getType() !== ActivityIssueReport::TYPE_LOSS) {

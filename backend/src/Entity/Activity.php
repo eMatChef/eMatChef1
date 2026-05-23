@@ -692,13 +692,13 @@ class Activity
         'submitted->cancelled'=> ['leader', 'mw', 'sa', 'org'],
         'approved->packing'   => ['mw', 'sa', 'org'],
         'approved->submitted' => ['mw', 'sa', 'org'], // Zurückweisung
-        'approved->cancelled' => ['mw', 'sa', 'org'],
+        'approved->cancelled' => ['mw', 'dc', 'sa', 'org'],
         'packing->packed'     => ['mw', 'sa', 'org'],
-        'packing->cancelled'  => ['mw', 'sa', 'org'],
+        'packing->cancelled'  => ['mw', 'dc', 'sa', 'org'],
         'packed->at_event'    => ['mw', 'sa', 'org', 'creator', 'member'],
         'packed->issued'      => ['mw', 'sa', 'org', 'creator', 'member'], // Legacy-Alias
         'packed->packing'     => ['mw', 'sa', 'org'],
-        'packed->cancelled'   => ['mw', 'sa', 'org'],
+        'packed->cancelled'   => ['mw', 'dc', 'sa', 'org'],
         'at_event->returned'  => ['mw', 'sa', 'org', 'creator', 'member'],
         'issued->returned'    => ['mw', 'sa', 'org', 'creator', 'member'], // Legacy-Alias
         'returned->completed' => ['mw', 'sa', 'org'],

@@ -21,6 +21,7 @@ const props = defineProps<{
   looseQty?: number
   qtyInContainers?: number
   looseIssuedAtEvent?: number
+  consumedAtEvent?: number
   useDetailStack?: boolean
 }>()
 
@@ -69,13 +70,30 @@ const totalQty = () => getStageTotalQty(props.item, props.stage, props.workflowP
       </template>
 
       <template v-else-if="side === 'right'">
-        {{
-          t('activities.packList.issuedFraction', {
-            issued: looseIssuedAtEvent ?? rightQty(),
-            packed: totalQty(),
-            stage: stageRightLabel,
-          })
-        }}
+        <template
+          v-if="
+            (stage === 'at_event_returned' || stage === 'transport_back_returned') &&
+            item.isConsumable &&
+            (consumedAtEvent ?? 0) > 0
+          "
+        >
+          {{
+            t('activities.packList.returnConsumableDetail', {
+              returned: rightQty(),
+              consumed: consumedAtEvent,
+              issued: totalQty(),
+            })
+          }}
+        </template>
+        <template v-else>
+          {{
+            t('activities.packList.issuedFraction', {
+              issued: looseIssuedAtEvent ?? rightQty(),
+              packed: totalQty(),
+              stage: stageRightLabel,
+            })
+          }}
+        </template>
       </template>
     </span>
     <slot />

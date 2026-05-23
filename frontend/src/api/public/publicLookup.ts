@@ -67,13 +67,6 @@ export interface PublicLookupBatchResponse {
   public_ui?: PublicQrPageUi
 }
 
-export async function getPublicBatchByCode(code: string): Promise<PublicLookupBatchResponse> {
-  const response = await apiClient.get<PublicLookupBatchResponse>(
-    `/api/public/lookup/b/${encodeURIComponent(code)}`
-  )
-  return response.data
-}
-
 export interface PublicLookupActivityResponse {
   code: string
   entity_type: 'activity'

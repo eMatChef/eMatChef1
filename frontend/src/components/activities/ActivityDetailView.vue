@@ -330,6 +330,7 @@
               :transitions="workflowTransitions"
               :can-report-issues="showDamageReportEntry"
               :reload-token="packListReloadToken"
+              :consumption-modal-cancelled-token="consumptionModalCancelledToken"
               :can-add-activity-material="
                 canAddActivityMaterial && (activity.status === 'packing' || activity.status === 'packed')
               "
@@ -440,6 +441,7 @@ import {
   addActivityItem,
   ensureActivityPublicCode,
   getActivity,
+  getActivityIssues,
   getActivityItems,
   getActivityTransitions,
   patchActivityStatus,
@@ -447,6 +449,7 @@ import {
   syncActivityItems,
   type ActivityApiType,
   type ActivityDetail,
+  type ActivityIssueReportRow,
   type ActivityItemRow,
   type ActivityTransitionRow,
 } from '@/api/activities'
@@ -525,7 +528,23 @@ const activity = ref<ActivityDetail | null>(null)
 const isGeneratingActivityPublicCode = ref(false)
 const showActivityQrActionModal = ref(false)
 
+/** Ab «Wird gepackt»: Storno nur noch MW/DC (Material bereits aus dem Lager genommen / gepackt). */
+const STATUSES_STAFF_ONLY_CANCEL = [
+  'packing',
+  'packed',
+  'at_event',
+  'issued',
+  'returned',
+  'completed',
+  'cancelled',
+] as const
+
 const departmentRole = computed(() => String(authStore.currentDepartmentRole || 'u').toLowerCase())
+const canManageActivityCancel = computed(() =>
+  ['mw', 'dc', 'matwart', 'depchef', 'org', 'sa'].includes(departmentRole.value),
+)
+/** Storno ab Packen: MW/DC-Warnung — Material wird in der Packliste zurückgebucht. */
+const STATUSES_CANCEL_PACK_WARNING = ['packing', 'packed'] as const
 const canManageActivityQr = computed(() =>
   ['mw', 'dc', 'matwart', 'depchef'].includes(departmentRole.value)
 )
@@ -555,6 +574,9 @@ const showPacksTab = computed(() => {
 /** Reparaturen / Verluste: ab «Am Event» (Material ausgegeben) */
 const STATUSES_WITH_ISSUES_TAB = ['at_event', 'issued', 'returned', 'completed'] as const
 
+/** Verbrauchsmaterial buchen: erst ab «Am Event» */
+const STATUSES_WITH_CONSUMABLES_TAB = ['at_event', 'issued', 'returned', 'completed'] as const
+
 const showIssuesTab = computed(() => {
   const s = activity.value?.status
   if (!s) return false
@@ -565,10 +587,34 @@ const hasConsumableItems = computed(() =>
   activityItems.value.some((row) => row.is_consumable === true),
 )
 
-const showConsumablesTab = computed(() => hasConsumableItems.value)
+const showConsumablesTab = computed(() => {
+  const s = activity.value?.status
+  if (!s) return false
+  if (!(STATUSES_WITH_CONSUMABLES_TAB as readonly string[]).includes(s)) return false
+  return hasConsumableItems.value
+})
 
-/** Kosten: ab «Wird gepackt» (wie v4.01), sobald Material zugeordnet ist */
-const showCostsTab = computed(() => showPacksTab.value)
+const activityIssues = ref<ActivityIssueReportRow[]>([])
+
+/** Reparatur / Verlust / Schaden — löst für Gruppe den Tab «Kosten» aus */
+const COSTS_TAB_ISSUE_TYPES = ['repair', 'loss', 'damage'] as const
+
+const hasRepairOrLossIssues = computed(() =>
+  activityIssues.value.some((r) =>
+    (COSTS_TAB_ISSUE_TYPES as readonly string[]).includes(r.type),
+  ),
+)
+
+/**
+ * Kosten: ab «Wird gepackt».
+ * Gruppe: erst bei Verbrauchsmaterial auf der Aktivität oder gemeldeten Reparaturen/Verlusten.
+ * MW/DC: ab Packen (Abrechnung/Kontrolle).
+ */
+const showCostsTab = computed(() => {
+  if (!showPacksTab.value) return false
+  if (canReportDamageAsMaterialStaff.value) return true
+  return hasConsumableItems.value || hasRepairOrLossIssues.value
+})
 
 /** Ohne ?tab=: v4.01 — Packliste als Start nur bei packing…returned (nicht bei completed). */
 function defaultTabWhenNoQuery(status: string | undefined): ActivityTabId {
@@ -693,6 +739,8 @@ const workflowTransitions = computed(() =>
     }
     if (activeTab.value === 'packs' && t.status === 'packing') return false
     if (activity.value?.status === 'packed' && t.status === 'packing') return false
+    // Quick-Modus: kein «Bestätigen» — Material ist bei Einreichung bereits final
+    if (activity.value?.type === 'activity' && t.status === 'approved') return false
     return true
   }),
 )
@@ -781,9 +829,26 @@ const materialLinesForEditableTable = computed((): ActivityMaterialLine[] => {
   }))
 })
 
-const cancelTransition = computed(() => transitions.value.find((t) => t.status === 'cancelled' && t.allowed))
+const cancelTransition = computed(() => {
+  const tr = transitions.value.find((t) => t.status === 'cancelled' && t.allowed)
+  if (!tr) return undefined
+  const s = activity.value?.status
+  if (
+    s &&
+    !canManageActivityCancel.value &&
+    (STATUSES_STAFF_ONLY_CANCEL as readonly string[]).includes(s)
+  ) {
+    return undefined
+  }
+  return tr
+})
 
-/** Reparaturen / Verluste: erst nach «Am Event buchen» (Workflow-Status at_event), nicht bei «gepackt». */
+/** MW/DC: Schaden/Reparatur/Verlust auch nach «Retour erfassen» (Auspacken). */
+const canReportDamageAsMaterialStaff = computed(() =>
+  ['mw', 'dc', 'matwart', 'depchef'].includes(departmentRole.value),
+)
+
+/** Reparaturen / Verluste: erst nach «Am Event buchen»; User/Gruppe nicht mehr nach «Retour erfassen». */
 const showDamageReportEntry = computed(() => {
   const a = activity.value
   if (!a) return false
@@ -791,6 +856,7 @@ const showDamageReportEntry = computed(() => {
   if (a.can_report_issues === false) return false
   const s = a.status === 'issued' ? 'at_event' : a.status
   if (s !== 'at_event' && s !== 'returned') return false
+  if (s === 'returned' && !canReportDamageAsMaterialStaff.value) return false
   return true
 })
 
@@ -807,8 +873,14 @@ const consumablesReloadToken = ref(0)
 const costsReloadToken = ref(0)
 const packListReloadToken = ref(0)
 
+watch(issuesReloadToken, () => {
+  void loadActivityIssues()
+})
+
 const consumptionModalOpen = ref(false)
 const consumptionModalPreset = ref<ConsumptionModalPreset | null>(null)
+const consumptionModalCancelledToken = ref(0)
+const skipNextConsumptionModalCloseCancel = ref(false)
 
 const nachbuchungOpen = ref(false)
 const nachbuchungMaterialId = ref('')
@@ -836,6 +908,10 @@ function onOpenConsumptionModal(payload: ConsumptionModalPreset) {
 }
 
 function onConsumptionModalClose() {
+  if (!skipNextConsumptionModalCloseCancel.value) {
+    consumptionModalCancelledToken.value += 1
+  }
+  skipNextConsumptionModalCloseCancel.value = false
   consumptionModalOpen.value = false
   consumptionModalPreset.value = null
 }
@@ -895,6 +971,7 @@ function onConsumableBooked() {
 }
 
 async function onConsumptionModalSuccess() {
+  skipNextConsumptionModalCloseCancel.value = true
   issuesReloadToken.value += 1
   consumablesReloadToken.value += 1
   costsReloadToken.value += 1
@@ -1091,12 +1168,21 @@ function handleClose() {
   void router.push(`/${props.departmentId}/activities`)
 }
 
+async function loadActivityIssues() {
+  try {
+    activityIssues.value = await getActivityIssues(props.activityId)
+  } catch {
+    activityIssues.value = []
+  }
+}
+
 async function reload() {
   loadError.value = null
   isLoading.value = true
   activity.value = null
   transitions.value = []
   activityItems.value = []
+  activityIssues.value = []
   draftQuantities.value = {}
   try {
     const [detail, tr, items] = await Promise.all([
@@ -1104,6 +1190,7 @@ async function reload() {
       getActivityTransitions(props.activityId),
       getActivityItems(props.activityId).catch(() => [] as ActivityItemRow[]),
       loadGroupsForDepartment(props.departmentId),
+      loadActivityIssues(),
     ])
     activity.value = detail
     transitions.value = tr.transitions || []
@@ -1159,8 +1246,7 @@ async function onDamageReportSuccess() {
   headerNotificationsStore.requestRefresh()
   toast.success(t('activities.detail.toastIssueRecorded'))
   try {
-    await loadItems()
-    await refreshActivityTotalsFromApi()
+    await Promise.all([loadItems(), loadActivityIssues(), refreshActivityTotalsFromApi()])
   } catch {
     /* loadItems / refresh bereits mit Toast */
   }
@@ -1258,9 +1344,22 @@ async function onTransition(transition: ActivityTransitionRow) {
 
 async function onCancelActivity() {
   if (!cancelTransition.value) return
+  const status = activity.value?.status
+  const needsPackCancelWarning =
+    canManageActivityCancel.value &&
+    !!status &&
+    (STATUSES_CANCEL_PACK_WARNING as readonly string[]).includes(status)
   const ok = await confirmDialog({
-    title: t('activities.detail.confirmCancelTitle'),
-    message: t('activities.detail.confirmCancelMessage'),
+    title: t(
+      needsPackCancelWarning
+        ? 'activities.detail.confirmCancelPackTitle'
+        : 'activities.detail.confirmCancelTitle',
+    ),
+    message: t(
+      needsPackCancelWarning
+        ? 'activities.detail.confirmCancelPackMessage'
+        : 'activities.detail.confirmCancelMessage',
+    ),
     confirmText: t('activities.detail.confirmCancelAction'),
     cancelText: t('common.cancel'),
     variant: 'danger',

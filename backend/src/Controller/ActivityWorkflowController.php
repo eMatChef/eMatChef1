@@ -13,6 +13,7 @@ use App\Entity\User;
 use App\Controller\WorkshopController;
 use App\Service\ActivityAccessService;
 use App\Service\ActivityAccountingCostService;
+use App\Service\ActivityItemPipelineStatusService;
 use App\Service\ActivityKisteMaterialLinker;
 use App\Service\ActivityPackCrateCheckService;
 use App\Service\InboxMessageService;
@@ -40,6 +41,7 @@ class ActivityWorkflowController extends AbstractController
         private ActivityKisteMaterialLinker $kisteMaterialLinker,
         private ActivityPackCrateCheckService $packCrateCheckService,
         private PackPipelineService $packPipeline,
+        private ActivityItemPipelineStatusService $activityItemPipelineStatus,
         private ActivityAccountingCostService $activityAccountingCost,
         private InboxMessageService $inboxMessageService,
     ) {}
@@ -147,6 +149,7 @@ class ActivityWorkflowController extends AbstractController
             $count++;
         }
 
+        $this->activityItemPipelineStatus->syncForActivity($activity);
         $this->entityManager->flush();
 
         return new JsonResponse(['message' => "$count Pack-Positionen erstellt", 'count' => $count], 201);
@@ -203,6 +206,7 @@ class ActivityWorkflowController extends AbstractController
             $packItem->setPackedByUser($user);
         }
 
+        $this->activityItemPipelineStatus->syncForActivity($activity);
         $this->entityManager->flush();
 
         $d = $this->storageDisplayForPackItem($packItem);
@@ -261,6 +265,7 @@ class ActivityWorkflowController extends AbstractController
             $updated++;
         }
 
+        $this->activityItemPipelineStatus->syncForActivity($activity);
         $this->entityManager->flush();
 
         return new JsonResponse(['message' => "$updated Positionen aktualisiert", 'updated' => $updated]);
@@ -359,6 +364,7 @@ class ActivityWorkflowController extends AbstractController
         }
 
         $packItem->setUpdatedAt(new \DateTime());
+        $this->activityItemPipelineStatus->syncForActivity($activity);
         $this->entityManager->flush();
 
         $d = $this->storageDisplayForPackItem($packItem);
@@ -404,6 +410,7 @@ class ActivityWorkflowController extends AbstractController
         $this->packPipeline->applyBackward($packItem, $stage, $qty);
 
         $packItem->setUpdatedAt(new \DateTime());
+        $this->activityItemPipelineStatus->syncForActivity($activity);
         $this->entityManager->flush();
 
         $d = $this->storageDisplayForPackItem($packItem);
@@ -532,6 +539,7 @@ class ActivityWorkflowController extends AbstractController
             $moved++;
         }
 
+        $this->activityItemPipelineStatus->syncForActivity($activity);
         $this->entityManager->flush();
 
         return new JsonResponse(['message' => "$moved Positionen verschoben", 'moved' => $moved]);
@@ -680,10 +688,7 @@ class ActivityWorkflowController extends AbstractController
                 $this->inboxMessageService->notifyActivityIssueReported($activity, $user, $report);
             }
 
-            if ($type === ActivityIssueReport::TYPE_CONSUMPTION) {
-                $this->activityAccountingCost->enqueueFromConsumption($activity, $report);
-            }
-            // Verlust/Reparatur: Kosten in der Werkstatt (Ist-Preis) — Follow-up bei Ticket-Abschluss
+            // Verbrauch → Buchhaltung erst beim Aktivitäts-Abschluss (finalizeConsumptionAccountingForActivity)
 
             $response = $this->serializeIssueReport($report);
             if ($workshopTicket) {
@@ -1080,12 +1085,15 @@ class ActivityWorkflowController extends AbstractController
             'quantity_issued' => $item->getQuantityIssued(),
             'quantity_transport_back' => $item->getQuantityTransportBack(),
             'quantity_returned' => $item->getQuantityReturned(),
+            'quantity_stored' => $item->getQuantityStored(),
             'condition_out' => $item->getConditionOut(),
             'batch_numbers' => $item->getBatchNumbers(),
             'notes' => $item->getNotes(),
             'is_fully_packed' => $item->isFullyPacked(),
             'is_fully_issued' => $item->isFullyIssued(),
             'is_fully_returned' => $item->isFullyReturned(),
+            'is_fully_stored' => $item->isFullyStored(),
+            'store_difference' => $item->getStoreDifference(),
             'pack_difference' => $item->getPackDifference(),
             'issue_difference' => $item->getIssueDifference(),
             'return_difference' => $item->getReturnDifference(),

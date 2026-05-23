@@ -105,6 +105,8 @@ export function getMainSiteOrigin(): string {
   return (import.meta.env.VITE_MAIN_SITE_ORIGIN || '').trim().replace(/\/$/, '')
 }
 
+import { isDevicesHost } from '@/utils/devicesHost'
+
 const qrPublicHost = (import.meta.env.VITE_QR_PUBLIC_HOST || '').trim().toLowerCase()
 
 /** Öffentliche QR-/Info-Hostnames (z. B. qr.localhost, qr.ematchef.ch). */
@@ -129,7 +131,7 @@ export function isAppOrigin(): boolean {
  * Haupt-/Marketing-Origin → Startseite „/“.
  */
 export function getPostLogoutPath(): string {
-  if (isAppOrigin()) {
+  if (isDevicesHost() || isAppOrigin()) {
     return '/login'
   }
   return '/'

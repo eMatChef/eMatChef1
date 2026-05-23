@@ -146,12 +146,10 @@ class PublicFoundItemContactService
             );
         }
 
-        $publicUrl = match ($entityType) {
-            'batch' => $this->publicCodeService->buildBatchPublicUrl($publicCode),
-            'activity' => $this->publicCodeService->buildActivityPublicUrl($publicCode),
-            'workshop' => $this->publicCodeService->buildWorkshopPublicUrl($publicCode),
-            default => $this->publicCodeService->buildMaterialPublicUrl($publicCode),
-        };
+        $publicUrl = $this->publicCodeService->resolvePublicUrlFromLookup($entityType, $lookup, $publicCode);
+        if ($publicUrl === '') {
+            return ['error' => $api('code_not_found'), 'status' => 404];
+        }
 
         $materialId = match ($entityType) {
             'activity' => (string) ($lookup['activity']['id'] ?? ''),

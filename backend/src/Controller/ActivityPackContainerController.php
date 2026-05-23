@@ -10,6 +10,7 @@ use App\Entity\MaterialBatch;
 use App\Entity\MaterialItem;
 use App\Entity\User;
 use App\Service\ActivityAccessService;
+use App\Service\ActivityItemPipelineStatusService;
 use App\Service\ActivityKisteMaterialLinker;
 use App\Service\PackPipelineService;
 use App\Util\IdGenerator;
@@ -28,7 +29,14 @@ class ActivityPackContainerController extends AbstractController
         private ActivityAccessService $activityAccess,
         private ActivityKisteMaterialLinker $kisteMaterialLinker,
         private PackPipelineService $packPipeline,
+        private ActivityItemPipelineStatusService $activityItemPipelineStatus,
     ) {}
+
+    private function flushWithPipelineSync(Activity $activity): void
+    {
+        $this->activityItemPipelineStatus->syncForActivity($activity);
+        $this->entityManager->flush();
+    }
 
     #[Route('/pack-containers', name: 'list', methods: ['GET'])]
     #[IsGranted('ROLE_USER')]
@@ -193,7 +201,7 @@ class ActivityPackContainerController extends AbstractController
             $activity,
             $removedContainerId,
         );
-        $this->entityManager->flush();
+        $this->flushWithPipelineSync($activity);
 
         return new JsonResponse(['success' => true]);
     }
@@ -369,7 +377,7 @@ class ActivityPackContainerController extends AbstractController
         }
 
         $this->entityManager->persist($item);
-        $this->entityManager->flush();
+        $this->flushWithPipelineSync($activity);
 
         return new JsonResponse($this->serializeContainerItem($item), 201);
     }
@@ -408,7 +416,7 @@ class ActivityPackContainerController extends AbstractController
             }
         }
         $item->touch();
-        $this->entityManager->flush();
+        $this->flushWithPipelineSync($activity);
 
         return new JsonResponse($this->serializeContainerItem($item));
     }
@@ -431,7 +439,8 @@ class ActivityPackContainerController extends AbstractController
         }
 
         $this->entityManager->remove($item);
-        $this->entityManager->flush();
+        $this->flushWithPipelineSync($activity);
+
         return new JsonResponse(['success' => true]);
     }
 
@@ -573,7 +582,7 @@ class ActivityPackContainerController extends AbstractController
         $updatedLines += $shell['lines'];
         $appliedTotal += $shell['units'];
 
-        $this->entityManager->flush();
+        $this->flushWithPipelineSync($activity);
 
         return new JsonResponse([
             'success' => true,
@@ -661,6 +670,7 @@ class ActivityPackContainerController extends AbstractController
             'quantity_issued' => $item->getQuantityIssued(),
             'quantity_transport_back' => $item->getQuantityTransportBack(),
             'quantity_returned' => $item->getQuantityReturned(),
+            'quantity_stored' => $item->getQuantityStored(),
             'condition_out' => $item->getConditionOut(),
             'notes' => $item->getNotes(),
             'material_name' => $item->getMaterialItem()->getName(),

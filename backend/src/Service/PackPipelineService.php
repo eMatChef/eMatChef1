@@ -6,7 +6,7 @@ use App\Entity\ActivityPackContainerItem;
 use App\Entity\ActivityPackItem;
 
 /**
- * Mengen-Pipeline: ordered → packed → transport_to → at_event (issued) → transport_back → returned.
+ * Mengen-Pipeline: ordered → packed → transport_to → at_event (issued) → transport_back → returned → stored.
  * Profile steuern, ob Zwischenschritte in einem Move übersprungen werden.
  */
 class PackPipelineService
@@ -18,6 +18,7 @@ class PackPipelineService
     public const STAGE_ISSUED = 'issued';
     public const STAGE_TRANSPORT_BACK = 'transport_back';
     public const STAGE_RETURNED = 'returned';
+    public const STAGE_STORED = 'stored';
 
     public const PROFILE_LOGISTICS = 'logistics';
     public const PROFILE_EXTERNAL = 'external';
@@ -49,6 +50,7 @@ class PackPipelineService
             self::STAGE_AT_EVENT,
             self::STAGE_TRANSPORT_BACK,
             self::STAGE_RETURNED,
+            self::STAGE_STORED,
         ];
     }
 
@@ -61,7 +63,8 @@ class PackPipelineService
             self::STAGE_TRANSPORT_TO => $this->maxTransportTo($item, $profile),
             self::STAGE_AT_EVENT => $this->maxAtEvent($item, $profile),
             self::STAGE_TRANSPORT_BACK => max(0, $item->getQuantityIssued() - $item->getQuantityTransportBack()),
-            self::STAGE_RETURNED => max(0, $item->getQuantityTransportBack() - $item->getQuantityReturned()),
+            self::STAGE_RETURNED => $this->maxReturned($item, $profile),
+            self::STAGE_STORED => max(0, $item->getQuantityReturned() - $item->getQuantityStored()),
             default => 0,
         };
     }
@@ -79,6 +82,7 @@ class PackPipelineService
             self::STAGE_AT_EVENT => $this->applyForwardAtEvent($item, $qty, $profile),
             self::STAGE_TRANSPORT_BACK => $item->setQuantityTransportBack($item->getQuantityTransportBack() + $qty),
             self::STAGE_RETURNED => $this->applyForwardReturned($item, $qty, $profile),
+            self::STAGE_STORED => $item->setQuantityStored($item->getQuantityStored() + $qty),
             default => null,
         };
     }
@@ -92,7 +96,8 @@ class PackPipelineService
             self::STAGE_TRANSPORT_TO => max(0, $item->getQuantityTransportTo() - $item->getQuantityIssued()),
             self::STAGE_AT_EVENT => max(0, $item->getQuantityIssued() - $item->getQuantityTransportBack()),
             self::STAGE_TRANSPORT_BACK => max(0, $item->getQuantityTransportBack() - $item->getQuantityReturned()),
-            self::STAGE_RETURNED => max(0, $item->getQuantityReturned()),
+            self::STAGE_RETURNED => max(0, $item->getQuantityReturned() - $item->getQuantityStored()),
+            self::STAGE_STORED => max(0, $item->getQuantityStored()),
             default => 0,
         };
     }
@@ -110,6 +115,7 @@ class PackPipelineService
             self::STAGE_AT_EVENT => $item->setQuantityIssued($item->getQuantityIssued() - $qty),
             self::STAGE_TRANSPORT_BACK => $item->setQuantityTransportBack($item->getQuantityTransportBack() - $qty),
             self::STAGE_RETURNED => $item->setQuantityReturned($item->getQuantityReturned() - $qty),
+            self::STAGE_STORED => $item->setQuantityStored($item->getQuantityStored() - $qty),
             default => null,
         };
     }
@@ -127,6 +133,7 @@ class PackPipelineService
             self::STAGE_AT_EVENT => $this->applyForwardAtEventContainer($item, $qty, $profile),
             self::STAGE_TRANSPORT_BACK => $item->setQuantityTransportBack($item->getQuantityTransportBack() + $qty),
             self::STAGE_RETURNED => $this->applyForwardReturnedContainer($item, $qty, $profile),
+            self::STAGE_STORED => $item->setQuantityStored($item->getQuantityStored() + $qty),
             default => null,
         };
     }
@@ -140,7 +147,8 @@ class PackPipelineService
             self::STAGE_TRANSPORT_TO => max(0, $item->getQuantityPacked() - $item->getQuantityTransportTo()),
             self::STAGE_AT_EVENT => max(0, $item->getQuantityTransportTo() - $item->getQuantityIssued()),
             self::STAGE_TRANSPORT_BACK => max(0, $item->getQuantityIssued() - $item->getQuantityTransportBack()),
-            self::STAGE_RETURNED => max(0, $item->getQuantityTransportBack() - $item->getQuantityReturned()),
+            self::STAGE_RETURNED => $this->maxReturnedContainer($item, $profile),
+            self::STAGE_STORED => max(0, $item->getQuantityReturned() - $item->getQuantityStored()),
             default => 0,
         };
     }
@@ -203,5 +211,23 @@ class PackPipelineService
         if ($profile === self::PROFILE_QUICK || $profile === self::PROFILE_EXTERNAL) {
             $item->setQuantityTransportBack(max($item->getQuantityTransportBack(), $item->getQuantityReturned()));
         }
+    }
+
+    private function maxReturned(ActivityPackItem $item, string $profile): int
+    {
+        if ($profile === self::PROFILE_QUICK || $profile === self::PROFILE_EXTERNAL) {
+            return max(0, $item->getQuantityIssued() - $item->getQuantityReturned());
+        }
+
+        return max(0, $item->getQuantityTransportBack() - $item->getQuantityReturned());
+    }
+
+    private function maxReturnedContainer(ActivityPackContainerItem $item, string $profile): int
+    {
+        if ($profile === self::PROFILE_QUICK || $profile === self::PROFILE_EXTERNAL) {
+            return max(0, $item->getQuantityIssued() - $item->getQuantityReturned());
+        }
+
+        return max(0, $item->getQuantityTransportBack() - $item->getQuantityReturned());
     }
 }
