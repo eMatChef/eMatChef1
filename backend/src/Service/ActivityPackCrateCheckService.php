@@ -6,6 +6,8 @@ use App\Controller\WorkshopController;
 use App\Entity\Activity;
 use App\Entity\ActivityHistory;
 use App\Entity\ActivityIssueReport;
+use App\Entity\ActivityPackContainer;
+use App\Entity\ActivityPackContainerItem;
 use App\Entity\ActivityPackItem;
 use App\Entity\MaterialItem;
 use App\Entity\User;
@@ -20,7 +22,43 @@ class ActivityPackCrateCheckService
     public function __construct(
         private EntityManagerInterface $entityManager,
         private BatchStorageMoveService $batchStorageMoveService,
+        private InboxMessageService $inboxMessages,
     ) {}
+
+    /** Kistencheck: Phys.-Kombi oder physische Kiste mit Pack-Behälter. */
+    public function isPackItemEligibleForCrateCheck(Activity $activity, ActivityPackItem $packItem): bool
+    {
+        $mi = $packItem->getMaterialItem();
+        if ($mi === null) {
+            return false;
+        }
+        if ($mi->getMaterialType() === 'physical_combo') {
+            return true;
+        }
+        if ($mi->getMaterialType() !== 'physical') {
+            return false;
+        }
+
+        $materialItemId = $packItem->getMaterialItemId();
+        $linkBatch = trim((string) ($mi->getLinkedContainerBatchId() ?? ''));
+
+        $containers = $this->entityManager->getRepository(ActivityPackContainer::class)
+            ->findBy(['activityId' => $activity->getId()]);
+        foreach ($containers as $container) {
+            if (!$container instanceof ActivityPackContainer) {
+                continue;
+            }
+            $batch = $container->getContainerBatch();
+            if ($batch !== null && $batch->getMaterialItemId() === $materialItemId) {
+                return true;
+            }
+            if ($linkBatch !== '' && $container->getContainerBatchId() === $linkBatch) {
+                return true;
+            }
+        }
+
+        return false;
+    }
 
     /**
      * @param array{
@@ -227,6 +265,8 @@ class ActivityPackCrateCheckService
             }
         }
 
+        $this->syncPackContainerQuantitiesFromCheck($activity->getId(), $containerBatchId, $lines);
+
         $this->createActivityHistory($activity, 'pack_crate_check', [
             'pack_item_id' => $shellPackItem->getId(),
             'shell_material_item_id' => $shellPackItem->getMaterialItemId(),
@@ -236,6 +276,16 @@ class ActivityPackCrateCheckService
             'actions_applied' => $actionsApplied,
             'errors' => $errors,
         ], $user);
+
+        if ($result === 'incomplete' && $user !== null && $errors === []) {
+            $this->inboxMessages->notifyActivityPackCrateCheckIncomplete(
+                $activity,
+                $user,
+                $shellPackItem,
+                $lines,
+                $actionsApplied,
+            );
+        }
 
         if ($errors !== []) {
             $this->entityManager->flush();
@@ -336,6 +386,54 @@ class ActivityPackCrateCheckService
             'id' => $report->getId(),
             'workshop_ticket_id' => $workshopTicketId,
         ];
+    }
+
+    /**
+     * Kistencheck-Ist → quantity_packed in der Pack-Kiste (z. B. 4 statt 5 nach «nicht mitgenommen»).
+     *
+     * @param list<array<string, mixed>> $lines
+     */
+    private function syncPackContainerQuantitiesFromCheck(
+        string $activityId,
+        ?string $containerBatchId,
+        array $lines,
+    ): void {
+        if ($containerBatchId === null || $containerBatchId === '') {
+            return;
+        }
+
+        $container = $this->entityManager->getRepository(ActivityPackContainer::class)
+            ->findOneBy(['activityId' => $activityId, 'containerBatchId' => $containerBatchId]);
+        if (!$container instanceof ActivityPackContainer) {
+            return;
+        }
+
+        foreach ($lines as $line) {
+            $materialItemId = trim((string) ($line['material_item_id'] ?? ''));
+            if ($materialItemId === '') {
+                continue;
+            }
+
+            $counted = null;
+            if (isset($line['counted_qty']) && is_numeric($line['counted_qty'])) {
+                $counted = max(0, (int) $line['counted_qty']);
+            } elseif (($line['status'] ?? '') === 'ok' && isset($line['expected_qty'])) {
+                $counted = max(0, (int) $line['expected_qty']);
+            }
+            if ($counted === null) {
+                continue;
+            }
+
+            $items = $this->entityManager->getRepository(ActivityPackContainerItem::class)
+                ->findBy(['packContainerId' => $container->getId(), 'materialItemId' => $materialItemId]);
+            foreach ($items as $ci) {
+                if (!$ci instanceof ActivityPackContainerItem) {
+                    continue;
+                }
+                $ci->setQuantityPacked(max($ci->getQuantityIssued(), $counted));
+                $ci->touch();
+            }
+        }
     }
 
     private function createActivityHistory(Activity $activity, string $action, array $changes, ?User $user): void

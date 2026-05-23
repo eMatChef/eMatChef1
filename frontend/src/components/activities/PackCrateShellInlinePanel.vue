@@ -67,6 +67,7 @@ const props = withDefaults(
 
 const emit = defineEmits<{
   'toggle-reality-view': []
+  'repeat-check': []
 }>()
 
 const { t } = useI18n()

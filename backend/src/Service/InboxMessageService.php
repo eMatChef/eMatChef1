@@ -4,6 +4,7 @@ namespace App\Service;
 
 use App\Entity\Activity;
 use App\Entity\ActivityIssueReport;
+use App\Entity\ActivityPackItem;
 use App\Entity\Department;
 use App\Entity\GroupMembership;
 use App\Entity\InboxMessage;
@@ -144,7 +145,80 @@ class InboxMessageService
         $this->entityManager->flush();
     }
 
-    /** Gruppe/User hat «Retour erfassen» — MW/DC können Material wieder ins Lager nehmen. */
+    /**
+     * Kistencheck mit Abweichungen (Gruppe/Leiter) — MW/DC zur Nachkontrolle.
+     *
+     * @param list<array<string, mixed>> $lines
+     * @param list<array<string, mixed>> $actionsApplied
+     */
+    public function notifyActivityPackCrateCheckIncomplete(
+        Activity $activity,
+        User $actor,
+        ActivityPackItem $shellPackItem,
+        array $lines,
+        array $actionsApplied,
+    ): void {
+        $shellName = $shellPackItem->getMaterialItem()?->getName() ?? 'Kiste';
+        $summary = $this->summarizePackCrateCheckDeviations($lines, $actionsApplied);
+
+        $mwRow = $this->buildActivityRow(
+            $activity,
+            $actor,
+            'activity_pack_crate_check_incomplete',
+            InboxMessage::CATEGORY_ACTIVITY_MW,
+            InboxMessage::RECIPIENT_DEPARTMENT_MW,
+            null,
+        );
+        $mwRow->setPayload(array_merge($mwRow->getPayload(), [
+            'pack_item_id' => $shellPackItem->getId(),
+            'shell_material_name' => $shellName,
+            'deviation_summary' => $summary,
+        ]));
+        $this->entityManager->persist($mwRow);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $lines
+     * @param list<array<string, mixed>> $actionsApplied
+     */
+    private function summarizePackCrateCheckDeviations(array $lines, array $actionsApplied): string
+    {
+        $parts = [];
+        foreach ($lines as $line) {
+            $status = (string) ($line['status'] ?? 'ok');
+            if ($status === 'ok') {
+                continue;
+            }
+            $name = trim((string) ($line['material_name'] ?? 'Material'));
+            $qty = isset($line['missing_qty']) ? max(0, (int) $line['missing_qty']) : 0;
+            if ($qty < 1 && isset($line['expected_qty'])) {
+                $expected = max(0, (int) $line['expected_qty']);
+                $qty = $expected > 0 ? $expected : 1;
+            }
+            if ($qty < 1) {
+                $qty = 1;
+            }
+            $parts[] = match ($status) {
+                'not_taken', 'loss' => sprintf('%s: %d fehlen', $name, $qty),
+                'extra', 'return_surplus' => sprintf('%s: +%d Überschuss', $name, $qty),
+                'repair' => sprintf('%s: Reparatur (%d)', $name, $qty),
+                'replenish' => sprintf('%s: %d aus Lager nachgelegt', $name, $qty),
+                default => sprintf('%s: Abweichung (%s)', $name, $status),
+            };
+        }
+        if ($parts === [] && $actionsApplied !== []) {
+            foreach ($actionsApplied as $action) {
+                $st = (string) ($action['status'] ?? '');
+                if ($st === 'ok' || $st === '') {
+                    continue;
+                }
+                $parts[] = (string) ($action['line_key'] ?? 'Zeile') . ': ' . $st;
+            }
+        }
+
+        return $parts !== [] ? implode('; ', array_slice($parts, 0, 8)) : 'Inhalt weicht von der Packliste ab';
+    }
+
     public function notifyActivityReturned(Activity $activity, User $actor): void
     {
         $department = $activity->getDepartment();

@@ -135,6 +135,40 @@ export function displayQtyInCrateAfterCheck(overlay: CrateCheckLineOverlay): num
   return overlay.countedQty
 }
 
+export function overlayForContainerMaterial(
+  snap: CrateCheckSnapshot | undefined,
+  materialItemId: string,
+): CrateCheckLineOverlay | undefined {
+  if (!snap) return undefined
+  const mid = materialItemId.trim()
+  if (!mid) return undefined
+  return buildLineOverlaysFromCrateCheck(snap).find((o) => o.materialItemId === mid)
+}
+
+/** Anzeige & Ausgabe nach Kistencheck: rem = in Kiste minus bereits ans Event, packed = Soll aus Packliste. */
+export function containerLineIssueFraction(
+  ci: { quantity_packed?: number; quantity_issued?: number | null; material_item_id?: string | null },
+  overlay: CrateCheckLineOverlay | undefined,
+): { rem: number; packed: number; missingFromPlan: number } {
+  const issued = ci.quantity_issued ?? 0
+  const linePacked = ci.quantity_packed ?? 0
+  if (!overlay) {
+    return {
+      rem: Math.max(0, linePacked - issued),
+      packed: linePacked,
+      missingFromPlan: 0,
+    }
+  }
+  const inCrate = displayQtyInCrateAfterCheck(overlay)
+  const soll = Math.max(overlay.sollQty, linePacked, inCrate)
+  const missingFromPlan = Math.max(0, overlay.sollQty - overlay.countedQty)
+  return {
+    rem: Math.max(0, inCrate - issued),
+    packed: soll,
+    missingFromPlan,
+  }
+}
+
 export function overlayToPeekLine(overlay: CrateCheckLineOverlay): PackCrateShellPeekLine {
   const id = overlay.lineKey.includes(':') ? overlay.lineKey.slice(overlay.lineKey.indexOf(':') + 1) : overlay.lineKey
   let checkStatus = overlay.status

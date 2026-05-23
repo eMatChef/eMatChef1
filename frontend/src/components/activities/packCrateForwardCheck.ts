@@ -181,6 +181,35 @@ export function surplusQty(expected: number, counted: number): number {
   return Math.max(0, counted - expected)
 }
 
+/** Gruppe/Leiter: Abweichung automatisch als «nicht mitgenommen» / «Extra» protokollieren. */
+export function applyGroupAutoResolution(
+  review: ShellForwardLineReview,
+  expectedQty: number,
+): ShellForwardLineReview {
+  if (review.status !== 'problem') return review
+  const miss = shortfallQty(expectedQty, review.countedQty)
+  const sur = surplusQty(expectedQty, review.countedQty)
+  if (miss > 0) {
+    return {
+      ...review,
+      resolution: 'not_taken',
+      missingQty: miss,
+      inventoryPhase: 'none',
+      doReplenishAfterLoss: false,
+      replenishQty: null,
+    }
+  }
+  if (sur > 0) {
+    return {
+      ...review,
+      resolution: 'extra',
+      missingQty: sur,
+      inventoryPhase: 'none',
+    }
+  }
+  return review
+}
+
 export function defaultLineReview(expectedQty: number): ShellForwardLineReview {
   return {
     status: null,

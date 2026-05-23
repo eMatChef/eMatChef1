@@ -31,6 +31,8 @@ const activePackStage = computed(() => {
 })
 
 const packListEditable = computed(() => Boolean(injectRef(ctx.packListEditable)))
+const packForwardEditable = computed(() => Boolean(injectRef(ctx.packForwardEditable)))
+const packBackwardEditable = computed(() => Boolean(injectRef(ctx.packBackwardEditable)))
 const containerMutationLoading = computed(() => Boolean(injectRef(ctx.containerMutationLoading)))
 
 const containerItem = computed((): ActivityPackContainerItem | null => {
@@ -47,7 +49,7 @@ const containerItem = computed((): ActivityPackContainerItem | null => {
 
 const showControls = computed(
   () =>
-    packListEditable.value &&
+    (packForwardEditable.value || packBackwardEditable.value) &&
     isPackForwardToEventStage(activePackStage.value as import('@/components/activities/packStageQuantities').PackStage) &&
     containerItem.value != null,
 )
@@ -69,11 +71,10 @@ const unissueableMax = computed(() => {
 const unissueQty = computed(() => {
   const ci = containerItem.value
   if (!ci) return 1
-  const keyFn = ctx.containerIssueLineKey as ((containerId: string, rowId: string) => string) | undefined
-  const inputs = injectRef<Record<string, number> | undefined>(ctx.containerUnissueLineInputs)
-  const k = keyFn?.(props.containerId, ci.id)
-  if (k && inputs?.[k] != null) return inputs[k]
-  return unissueableMax.value || 1
+  const fn = ctx.containerUnissueLineInputValue as
+    | ((containerId: string, row: ActivityPackContainerItem) => number)
+    | undefined
+  return fn ? fn(props.containerId, ci) : unissueableMax.value || 1
 })
 
 const issueQty = computed(() => {
@@ -130,11 +131,38 @@ function onUnissueClick() {
   void fn?.(props.containerId, ci)
 }
 
-const remainingIssue = computed(() => {
+const lineIssueDisplay = computed(() => {
   const ci = containerItem.value
-  if (!ci) return 0
-  const fn = ctx.containerLineRemainingIssue as ((row: ActivityPackContainerItem) => number) | undefined
-  return fn ? fn(ci) : 0
+  if (!ci) return { rem: 0, packed: 0, missingFromPlan: 0 }
+  const fn = ctx.containerLineIssueDisplay as
+    | ((row: ActivityPackContainerItem) => { rem: number; packed: number; missingFromPlan: number })
+    | undefined
+  if (fn) return fn(ci)
+  const remFn = ctx.containerLineRemainingIssue as ((row: ActivityPackContainerItem) => number) | undefined
+  return {
+    rem: remFn ? remFn(ci) : 0,
+    packed: ci.quantity_packed ?? 0,
+    missingFromPlan: 0,
+  }
+})
+
+const contentsTravelWithShellAtEvent = computed(() => {
+  const fn = ctx.containerContentsTravelWithShellAtEvent as ((containerId: string) => boolean) | undefined
+  return fn ? fn(props.containerId) : false
+})
+
+const lineIssuedDisplayQty = computed(() => {
+  const ci = containerItem.value
+  if (!ci) return props.line.quantity
+  const fn = ctx.containerLineIssuedDisplayQty as ((row: ActivityPackContainerItem) => number) | undefined
+  return fn ? fn(ci) : ci.quantity_issued ?? props.line.quantity
+})
+
+const lineIssuedDisplayPacked = computed(() => {
+  const ci = containerItem.value
+  if (!ci) return props.line.quantity
+  const fn = ctx.containerLineIssuedDisplayPacked as ((row: ActivityPackContainerItem) => number) | undefined
+  return fn ? fn(ci) : ci.quantity_packed ?? props.line.quantity
 })
 </script>
 
@@ -149,11 +177,27 @@ const remainingIssue = computed(() => {
         {{ t('activities.packList.shellForwardSerialSn', { serial: line.serialHint }) }}
       </span>
       <span class="pack-container-line-qty text-muted">
-        <template v-if="remainingIssue > 0">
+        <template v-if="lineIssueDisplay.rem > 0">
           {{
-            t('activities.packList.lineNotYetIssued', {
-              rem: remainingIssue,
-              packed: containerItem.quantity_packed,
+            lineIssueDisplay.missingFromPlan > 0
+              ? t('activities.packList.lineNotYetIssuedCrateGap', {
+                  rem: lineIssueDisplay.rem,
+                  packed: lineIssueDisplay.packed,
+                  missing: lineIssueDisplay.missingFromPlan,
+                  stage: stageRightLabel,
+                })
+              : t('activities.packList.lineNotYetIssued', {
+                  rem: lineIssueDisplay.rem,
+                  packed: lineIssueDisplay.packed,
+                  stage: stageRightLabel,
+                })
+          }}
+        </template>
+        <template v-else-if="contentsTravelWithShellAtEvent">
+          {{
+            t('activities.packList.issuedFraction', {
+              issued: lineIssuedDisplayQty,
+              packed: lineIssuedDisplayPacked,
               stage: stageRightLabel,
             })
           }}
@@ -168,7 +212,7 @@ const remainingIssue = computed(() => {
       </span>
     </div>
     <div
-      v-if="showControls && unissueableMax > 0"
+      v-if="showControls && packBackwardEditable && unissueableMax > 0"
       class="pack-card-actions pack-card-actions-left"
     >
       <button
@@ -193,7 +237,7 @@ const remainingIssue = computed(() => {
         @keyup.enter="onUnissueClick"
       />
     </div>
-    <div v-if="showControls && issueableMax > 0" class="pack-card-actions">
+    <div v-if="showControls && packForwardEditable && issueableMax > 0" class="pack-card-actions">
       <div class="pack-move-inline">
         <input
           :value="issueQty"

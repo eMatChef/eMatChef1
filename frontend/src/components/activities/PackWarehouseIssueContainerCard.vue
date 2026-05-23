@@ -47,6 +47,8 @@ const ctx = inject(PACK_WAREHOUSE_ISSUE_INJECT_KEY) as Record<string, (...args: 
   Record<string, unknown>
 
 const packListEditable = computed(() => injectPackCtxBool(ctx, 'packListEditable'))
+const packForwardEditable = computed(() => injectPackCtxBool(ctx, 'packForwardEditable'))
+const packBackwardEditable = computed(() => injectPackCtxBool(ctx, 'packBackwardEditable'))
 const containerMutationLoading = computed(() => injectPackCtxBool(ctx, 'containerMutationLoading'))
 const containerBulkLoadingId = computed(() => {
   const raw = ctx.containerBulkLoadingId
@@ -164,6 +166,13 @@ function onUnissueLineInput(ci: ActivityPackContainerItem, event: Event): void {
   fn?.(props.container.id, ci, el.valueAsNumber || Number(el.value))
 }
 
+function unissueLineInputValue(ci: ActivityPackContainerItem): number {
+  const fn = ctx.containerUnissueLineInputValue as
+    | ((cid: string, ci: ActivityPackContainerItem) => number)
+    | undefined
+  return fn?.(props.container.id, ci) ?? 1
+}
+
 function pullLineInputValue(ci: ActivityPackContainerItem): number {
   const fn = ctx.containerPullInputValue as
     | ((cid: string, ci: ActivityPackContainerItem) => number)
@@ -179,6 +188,48 @@ function onPullLineInput(ci: ActivityPackContainerItem, event: Event): void {
 }
 
 const isPackMwHandoff = computed(() => Boolean(unref(ctx.canManageMaterials as Ref<boolean> | boolean | undefined)))
+
+type ContainerLineIssueDisplay = { rem: number; packed: number; missingFromPlan: number }
+
+function lineIssueDisplay(ci: ActivityPackContainerItem): ContainerLineIssueDisplay {
+  const fn = ctx.containerLineIssueDisplay as
+    | ((row: ActivityPackContainerItem) => ContainerLineIssueDisplay)
+    | undefined
+  if (fn) return fn(ci)
+  const remFn = ctx.containerLineRemainingIssue as ((row: ActivityPackContainerItem) => number) | undefined
+  return {
+    rem: remFn ? remFn(ci) : 0,
+    packed: ci.quantity_packed ?? 0,
+    missingFromPlan: 0,
+  }
+}
+
+function lineNotYetIssuedLabel(ci: ActivityPackContainerItem): string {
+  const d = lineIssueDisplay(ci)
+  if (d.missingFromPlan > 0) {
+    return t('activities.packList.lineNotYetIssuedCrateGap', {
+      rem: d.rem,
+      packed: d.packed,
+      missing: d.missingFromPlan,
+      stage: props.stageRightLabel,
+    })
+  }
+  return t('activities.packList.lineNotYetIssued', {
+    rem: d.rem,
+    packed: d.packed,
+    stage: props.stageRightLabel,
+  })
+}
+
+function lineIssuedDisplayQty(ci: ActivityPackContainerItem): number {
+  const fn = ctx.containerLineIssuedDisplayQty as ((row: ActivityPackContainerItem) => number) | undefined
+  return fn ? fn(ci) : ci.quantity_issued ?? 0
+}
+
+function lineIssuedDisplayPacked(ci: ActivityPackContainerItem): number {
+  const fn = ctx.containerLineIssuedDisplayPacked as ((row: ActivityPackContainerItem) => number) | undefined
+  return fn ? fn(ci) : ci.quantity_packed ?? 0
+}
 
 function issueLineLooseTitle(ci: ActivityPackContainerItem): string {
   const fn = ctx.containerIssueLineLooseTitle as
@@ -251,7 +302,7 @@ function crateShellTakeTitle(): string {
           </div>
         </div>
         <div
-          v-if="packListEditable && shellCanMoveForward"
+          v-if="packForwardEditable && shellCanMoveForward"
           class="pack-container-header-actions"
           @click.stop
         >
@@ -364,7 +415,7 @@ function crateShellTakeTitle(): string {
                 class="pack-container-line pack-container-line--issue-row pack-container-line--stacked"
               >
                 <div
-                  v-if="packListEditable && (ctx.containerLineUnissueableMax as (ci: ActivityPackContainerItem) => number)(ci) > 0"
+                  v-if="packBackwardEditable && (ctx.containerLineUnissueableMax as (ci: ActivityPackContainerItem) => number)(ci) > 0"
                   class="pack-card-actions pack-card-actions-left"
                 >
                   <button
@@ -376,11 +427,7 @@ function crateShellTakeTitle(): string {
                     <IconArrowLeft />
                   </button>
                   <input
-                    :value="
-                      ctx.containerUnissueLineInputs[
-                        (ctx.containerIssueLineKey as (a: string, b: string) => string)(container.id, ci.id)
-                      ]
-                    "
+                    :value="unissueLineInputValue(ci)"
                     type="number"
                     min="1"
                     :max="(ctx.containerLineUnissueableMax as (ci: ActivityPackContainerItem) => number)(ci)"
@@ -390,7 +437,7 @@ function crateShellTakeTitle(): string {
                 </div>
                 <div
                   v-if="
-                    packListEditable &&
+                    packBackwardEditable &&
                     (ctx.activePackTarget as { kind: string } | null)?.kind === 'loose' &&
                     !(ctx.isVirtualWarehouseContainerLine as (ci: ActivityPackContainerItem) => boolean)(ci)
                   "
@@ -416,14 +463,8 @@ function crateShellTakeTitle(): string {
                 <div class="pack-container-line-main">
                   <span class="pack-container-line-name">{{ ci.material_name || t('activities.common.material') }}</span>
                   <span class="pack-container-line-qty text-muted">
-                    <template v-if="(ctx.containerLineRemainingIssue as (ci: ActivityPackContainerItem) => number)(ci) > 0">
-                      {{
-                        t('activities.packList.lineNotYetIssued', {
-                          rem: (ctx.containerLineRemainingIssue as (ci: ActivityPackContainerItem) => number)(ci),
-                          packed: ci.quantity_packed,
-                          stage: stageRightLabel,
-                        })
-                      }}
+                    <template v-if="lineIssueDisplay(ci).rem > 0">
+                      {{ lineNotYetIssuedLabel(ci) }}
                     </template>
                     <template v-else-if="(ctx.containerLinePackRemaining as (ci: ActivityPackContainerItem) => number)(ci) > 0">
                       {{ t('activities.packList.packListNotYetAtStage', { stage: stageRightLabel }) }}
@@ -431,8 +472,8 @@ function crateShellTakeTitle(): string {
                     <template v-else>
                       {{
                         t('activities.packList.issuedFraction', {
-                          issued: ci.quantity_issued ?? 0,
-                          packed: ci.quantity_packed,
+                          issued: lineIssuedDisplayQty(ci),
+                          packed: lineIssuedDisplayPacked(ci),
                           stage: stageRightLabel,
                         })
                       }}
@@ -440,7 +481,7 @@ function crateShellTakeTitle(): string {
                   </span>
                 </div>
                 <div
-                  v-if="packListEditable && (ctx.containerLineIssueableMax as (ci: ActivityPackContainerItem) => number)(ci) > 0"
+                  v-if="packForwardEditable && (ctx.containerLineIssueableMax as (ci: ActivityPackContainerItem) => number)(ci) > 0"
                   class="pack-card-actions"
                 >
                   <div class="pack-move-inline">
@@ -477,6 +518,7 @@ function crateShellTakeTitle(): string {
           v-else
           :sections="shellPeekSections"
           :empty-hint="shellPeekEmptyHint"
+          :check-pack-item="shellPackItem"
           :loose-issue-container-id="container.id"
           :loose-issue-crate-label="container.label"
           :stage-right-label="stageRightLabel"
@@ -540,16 +582,20 @@ function crateShellTakeTitle(): string {
         </div>
         <div
           v-if="
-            packListEditable &&
-            ((ctx.containerUnissueableUnits as (id: string) => number)(container.id) > 0 ||
-              (ctx.containerIssueableUnits as (id: string) => number)(container.id) > 0 ||
-              containerShellTakeMax() > 0)
+            (packBackwardEditable &&
+              (ctx.containerUnissueableUnits as (id: string) => number)(container.id) > 0) ||
+            (packForwardEditable &&
+              ((ctx.containerIssueableUnits as (id: string) => number)(container.id) > 0 ||
+                containerShellTakeMax() > 0))
           "
           class="pack-container-header-actions"
           @click.stop
         >
           <button
-            v-if="(ctx.containerUnissueableUnits as (id: string) => number)(container.id) > 0"
+            v-if="
+              packBackwardEditable &&
+              (ctx.containerUnissueableUnits as (id: string) => number)(container.id) > 0
+            "
             type="button"
             class="btn-moveback-arrow btn-move-arrow--container-header"
             :disabled="containerBulkLoadingId === container.id"
@@ -563,7 +609,10 @@ function crateShellTakeTitle(): string {
             <IconArrowLeft />
           </button>
           <button
-            v-if="(ctx.containerIssueableUnits as (id: string) => number)(container.id) > 0"
+            v-if="
+              packForwardEditable &&
+              (ctx.containerIssueableUnits as (id: string) => number)(container.id) > 0
+            "
             type="button"
             class="btn-move-arrow btn-move-arrow--container-header"
             :disabled="containerBulkLoadingId === container.id"
@@ -573,7 +622,7 @@ function crateShellTakeTitle(): string {
             <IconArrowRight />
           </button>
           <button
-            v-else-if="containerShellTakeMax() > 0"
+            v-else-if="packForwardEditable && containerShellTakeMax() > 0"
             type="button"
             class="btn-move-arrow btn-move-arrow--container-header"
             :disabled="containerBulkLoadingId === container.id"
@@ -659,7 +708,7 @@ function crateShellTakeTitle(): string {
             class="pack-container-line pack-container-line--issue-row pack-container-line--stacked"
           >
             <div
-              v-if="packListEditable && (ctx.containerLineUnissueableMax as (ci: ActivityPackContainerItem) => number)(ci) > 0"
+              v-if="packBackwardEditable && (ctx.containerLineUnissueableMax as (ci: ActivityPackContainerItem) => number)(ci) > 0"
               class="pack-card-actions pack-card-actions-left"
             >
               <button
@@ -674,11 +723,7 @@ function crateShellTakeTitle(): string {
                 </svg>
               </button>
               <input
-                :value="
-                  ctx.containerUnissueLineInputs[
-                    (ctx.containerIssueLineKey as (a: string, b: string) => string)(container.id, ci.id)
-                  ]
-                "
+                :value="unissueLineInputValue(ci)"
                 type="number"
                 min="1"
                 :max="(ctx.containerLineUnissueableMax as (ci: ActivityPackContainerItem) => number)(ci)"
@@ -714,14 +759,8 @@ function crateShellTakeTitle(): string {
             <div class="pack-container-line-main">
               <span class="pack-container-line-name">{{ ci.material_name || t('activities.common.material') }}</span>
               <span class="pack-container-line-qty text-muted">
-                <template v-if="(ctx.containerLineRemainingIssue as (ci: ActivityPackContainerItem) => number)(ci) > 0">
-                  {{
-                    t('activities.packList.lineNotYetIssued', {
-                      rem: (ctx.containerLineRemainingIssue as (ci: ActivityPackContainerItem) => number)(ci),
-                      packed: ci.quantity_packed,
-                      stage: stageRightLabel,
-                    })
-                  }}
+                <template v-if="lineIssueDisplay(ci).rem > 0">
+                  {{ lineNotYetIssuedLabel(ci) }}
                 </template>
                 <template v-else-if="(ctx.containerLinePackRemaining as (ci: ActivityPackContainerItem) => number)(ci) > 0">
                   {{ t('activities.packList.packListNotYetAtStage', { stage: stageRightLabel }) }}
@@ -729,8 +768,8 @@ function crateShellTakeTitle(): string {
                 <template v-else>
                   {{
                     t('activities.packList.issuedFraction', {
-                      issued: ci.quantity_issued ?? 0,
-                      packed: ci.quantity_packed,
+                      issued: lineIssuedDisplayQty(ci),
+                      packed: lineIssuedDisplayPacked(ci),
                       stage: stageRightLabel,
                     })
                   }}
@@ -738,7 +777,7 @@ function crateShellTakeTitle(): string {
               </span>
             </div>
             <div
-              v-if="packListEditable && (ctx.containerLineIssueableMax as (ci: ActivityPackContainerItem) => number)(ci) > 0"
+              v-if="packForwardEditable && (ctx.containerLineIssueableMax as (ci: ActivityPackContainerItem) => number)(ci) > 0"
               class="pack-card-actions"
             >
               <div class="pack-move-inline">
@@ -778,7 +817,7 @@ function crateShellTakeTitle(): string {
             class="pack-container-line pack-container-line--issue-row pack-container-line--stacked"
           >
             <div
-              v-if="packListEditable && (ctx.containerLineUnissueableMax as (ci: ActivityPackContainerItem) => number)(ci) > 0"
+              v-if="packBackwardEditable && (ctx.containerLineUnissueableMax as (ci: ActivityPackContainerItem) => number)(ci) > 0"
               class="pack-card-actions pack-card-actions-left"
             >
               <button
@@ -790,11 +829,7 @@ function crateShellTakeTitle(): string {
                 <IconArrowLeft />
               </button>
               <input
-                :value="
-                  ctx.containerUnissueLineInputs[
-                    (ctx.containerIssueLineKey as (a: string, b: string) => string)(container.id, ci.id)
-                  ]
-                "
+                :value="unissueLineInputValue(ci)"
                 type="number"
                 min="1"
                 :max="(ctx.containerLineUnissueableMax as (ci: ActivityPackContainerItem) => number)(ci)"
@@ -832,14 +867,8 @@ function crateShellTakeTitle(): string {
             <div class="pack-container-line-main">
               <span class="pack-container-line-name">{{ ci.material_name || t('activities.common.material') }}</span>
               <span class="pack-container-line-qty text-muted">
-                <template v-if="(ctx.containerLineRemainingIssue as (ci: ActivityPackContainerItem) => number)(ci) > 0">
-                  {{
-                    t('activities.packList.lineNotYetIssued', {
-                      rem: (ctx.containerLineRemainingIssue as (ci: ActivityPackContainerItem) => number)(ci),
-                      packed: ci.quantity_packed,
-                      stage: stageRightLabel,
-                    })
-                  }}
+                <template v-if="lineIssueDisplay(ci).rem > 0">
+                  {{ lineNotYetIssuedLabel(ci) }}
                 </template>
                 <template v-else-if="(ctx.containerLinePackRemaining as (ci: ActivityPackContainerItem) => number)(ci) > 0">
                   {{ t('activities.packList.packListNotYetAtStage', { stage: stageRightLabel }) }}
@@ -847,8 +876,8 @@ function crateShellTakeTitle(): string {
                 <template v-else>
                   {{
                     t('activities.packList.issuedFraction', {
-                      issued: ci.quantity_issued ?? 0,
-                      packed: ci.quantity_packed,
+                      issued: lineIssuedDisplayQty(ci),
+                      packed: lineIssuedDisplayPacked(ci),
                       stage: stageRightLabel,
                     })
                   }}
@@ -856,7 +885,7 @@ function crateShellTakeTitle(): string {
               </span>
             </div>
             <div
-              v-if="packListEditable && (ctx.containerLineIssueableMax as (ci: ActivityPackContainerItem) => number)(ci) > 0"
+              v-if="packForwardEditable && (ctx.containerLineIssueableMax as (ci: ActivityPackContainerItem) => number)(ci) > 0"
               class="pack-card-actions"
             >
               <div class="pack-move-inline">

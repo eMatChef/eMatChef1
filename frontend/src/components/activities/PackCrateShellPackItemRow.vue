@@ -135,7 +135,11 @@ function moveShellCrateForward(qtyFromControl?: number) {
           }}</span>
         </div>
       </div>
-      <div v-if="ctx.packListEditable && shellCanMoveForward" class="pack-container-header-actions" @click.stop>
+      <div
+        v-if="(ctx.packForwardEditable as boolean | undefined) && shellCanMoveForward"
+        class="pack-container-header-actions"
+        @click.stop
+      >
         <PackMoveControls
           v-if="useQtyMoveControls"
           direction="forward"
@@ -187,6 +191,7 @@ function moveShellCrateForward(qtyFromControl?: number) {
       <PackCrateShellInlinePanel
         :sections="shellPeekSections"
         :empty-hint="shellPeekEmptyHint"
+        :check-pack-item="shellPackItem"
         :loose-issue-container-id="shellContainer?.id ?? null"
         :loose-issue-crate-label="displayName"
         :stage-right-label="stageRightLabel"

@@ -2,7 +2,10 @@
 import { inject } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { ActivityPackContainerItem } from '@/api/activityContainers'
-import { PACK_WAREHOUSE_ISSUE_INJECT_KEY } from '@/components/activities/packWarehouseIssueInjectKey'
+import {
+  injectPackCtxBool,
+  PACK_WAREHOUSE_ISSUE_INJECT_KEY,
+} from '@/components/activities/packWarehouseIssueInjectKey'
 
 defineOptions({ name: 'PackContainerLineIssueQuick' })
 
@@ -13,12 +16,23 @@ const props = defineProps<{
 }>()
 
 const { t } = useI18n()
-const ctx = inject(PACK_WAREHOUSE_ISSUE_INJECT_KEY) as Record<string, (...args: unknown[]) => unknown>
+const ctx = inject(PACK_WAREHOUSE_ISSUE_INJECT_KEY) as Record<string, unknown>
+
+function showPackIssueForLine(): boolean {
+  const fn = ctx.showPackIssueForContainerLine as
+    | ((ci: ActivityPackContainerItem, containerId: string) => boolean)
+    | undefined
+  const containerId = (ctx.packContainerIdForContainerItem as ((ci: ActivityPackContainerItem) => string | null) | undefined)?.(
+    props.line,
+  )
+  if (fn && containerId) return fn(props.line, containerId)
+  return props.visible !== false && (props.line.quantity_issued ?? 0) > 0
+}
 
 const show = () =>
-  props.visible !== false &&
+  showPackIssueForLine() &&
   Boolean(props.line.material_item_id) &&
-  Boolean(ctx.canReportIssues)
+  injectPackCtxBool(ctx, 'canReportIssues')
 </script>
 
 <template>

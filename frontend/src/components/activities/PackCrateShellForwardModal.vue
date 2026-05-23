@@ -11,6 +11,7 @@ import type { ActivityIssueReportRow } from '@/api/activities'
 import { getMaterialStorageLocations } from '@/api/materials'
 import {
   applyCountedQtyToReview,
+  applyGroupAutoResolution,
   buildPackCrateCheckLinesPayload,
   buildDefaultShellForwardLineReviews,
   defaultLineReview,
@@ -47,6 +48,11 @@ const props = defineProps<{
   historyReplenishByKey: Record<string, boolean>
   historyPrefillHint: string | null
   canReportIssues: boolean
+  /** Gruppe/Leiter (u, l1–l3): vereinfachte Texte, keine MW-Lageraktionen */
+  groupMode?: boolean
+  /** Nur Check speichern — ohne ans Event weiterbuchen */
+  checkOnly?: boolean
+  submitError?: string | null
   submitting: boolean
   emptyHint: string
   embeddedIssuesByLineKey: Record<string, ActivityIssueReportRow[]>
@@ -118,10 +124,16 @@ function patchReview(key: string, expectedQty: number, isExtra: boolean, patch: 
 }
 
 function onCountedChange(line: ShellForwardCheckLine, raw: number) {
-  const r = reviewFor(line.key, line.quantity)
   patchReview(line.key, line.quantity, line.isExtra, { countedQty: raw })
   const updated = lineReviews.value[line.key]
   if (!updated || updated.status !== 'problem' || line.isExtra) return
+  if (props.groupMode) {
+    lineReviews.value = {
+      ...lineReviews.value,
+      [line.key]: applyGroupAutoResolution(updated, line.quantity),
+    }
+    return
+  }
   const miss = shortfallQty(line.quantity, updated.countedQty)
   if (miss > 0 && updated.inventoryPhase === 'none') {
     void ensureInventoryLocations(line)
@@ -314,6 +326,18 @@ function lineSettled(line: ShellForwardCheckLine): boolean {
   if (!r || r.status === null) return false
   const issues = props.embeddedIssuesByLineKey[line.key] ?? []
   if (issues.some((em) => props.repackIssueReviews[em.id] !== 'ok')) return false
+  if (props.groupMode) {
+    if (r.status === 'ok') return true
+    const miss = shortfallQty(line.quantity, r.countedQty)
+    const sur = surplusQty(line.quantity, r.countedQty)
+    if (miss > 0) {
+      return r.resolution === 'not_taken' && (r.missingQty ?? 0) >= 1
+    }
+    if (sur > 0) {
+      return r.resolution === 'extra' && (r.missingQty ?? 0) >= 1
+    }
+    return false
+  }
   if (r.status === 'ok') return true
   if (!r.resolution) return false
   if (r.resolution === 'extra') {
@@ -368,20 +392,66 @@ const submitBlocked = computed(
 )
 
 const submitLabel = computed(() => {
+  if (props.checkOnly) {
+    if (canSubmitComplete.value) return t('activities.packList.repeatCrateCheckSubmitOk')
+    if (canSubmitIncomplete.value) {
+      return props.groupMode
+        ? t('activities.packList.repeatCrateCheckSubmitIncompleteGroup')
+        : t('activities.packList.repeatCrateCheckSubmitIncomplete')
+    }
+    return t('activities.packList.shellForwardSubmitPickActionShort')
+  }
   if (canSubmitComplete.value) return t('activities.packList.shellForwardSubmitOk')
   if (canSubmitIncomplete.value) {
+    if (props.groupMode) {
+      return t('activities.packList.shellForwardGroupSubmitIncomplete')
+    }
     return t('activities.packList.shellForwardSubmitWithProtocol', { label: props.label })
   }
   return t('activities.packList.shellForwardSubmitPickActionShort')
 })
 
+const modalTitle = computed(() =>
+  props.checkOnly
+    ? t('activities.packList.repeatCrateCheckTitle')
+    : t('activities.packList.shellForwardTitle'),
+)
+
+const introText = computed(() => {
+  if (props.checkOnly) {
+    return props.groupMode
+      ? t('activities.packList.repeatCrateCheckIntroGroup', { label: props.label })
+      : t('activities.packList.repeatCrateCheckIntro', { label: props.label })
+  }
+  return props.groupMode
+    ? t('activities.packList.shellForwardIntroGroup', { label: props.label, n: props.moveQty })
+    : t('activities.packList.shellForwardIntro', { label: props.label, n: props.moveQty })
+})
+
+const wizardHintText = computed(() =>
+  props.groupMode
+    ? t('activities.packList.shellForwardWizardHintGroup')
+    : t('activities.packList.shellForwardWizardHint'),
+)
+
+const needAllLinesHint = computed(() =>
+  props.groupMode
+    ? t('activities.packList.shellForwardNeedAllLinesGroup')
+    : t('activities.packList.shellForwardNeedAllLines'),
+)
+
 function initReviews() {
+  const initial = props.initialLineReviews
+  if (initial && Object.keys(initial).length > 0) {
+    lineReviews.value = { ...initial }
+    return
+  }
   lineReviews.value = buildDefaultShellForwardLineReviews(checkLines.value)
 }
 
 watch(
-  () => props.open,
-  (isOpen) => {
+  () => [props.open, props.initialLineReviews] as const,
+  ([isOpen]) => {
     if (!isOpen) return
     initReviews()
   },
@@ -442,15 +512,23 @@ function asCheckLine(sec: PackCrateShellPeekSection, line: PackCrateShellPeekSec
 
 <template>
   <PackWorkflowModal :open="open" size="lg" @cancel="emit('cancel')">
-    <template #title>{{ t('activities.packList.shellForwardTitle') }}</template>
+    <template #title>{{ modalTitle }}</template>
     <template #intro>
+      <p v-if="submitError" class="pack-shell-forward-submit-error" role="alert">
+        {{ submitError }}
+      </p>
       <p class="pack-modal-hint text-muted">
-        {{ t('activities.packList.shellForwardIntro', { label, n: moveQty }) }}
+        {{ introText }}
       </p>
       <p class="pack-modal-hint text-muted pack-shell-forward-wizard-hint">
-        {{ t('activities.packList.shellForwardWizardHint') }}
+        {{ wizardHintText }}
       </p>
-      <p v-if="historyPrefillHint" class="pack-modal-hint text-muted pack-shell-forward-history-hint">
+      <p
+        v-if="historyPrefillHint"
+        class="pack-shell-forward-history-hint"
+        :class="{ 'pack-shell-forward-history-hint--confirm': groupMode }"
+        role="status"
+      >
         {{ historyPrefillHint }}
       </p>
     </template>
@@ -570,9 +648,34 @@ function asCheckLine(sec: PackCrateShellPeekSection, line: PackCrateShellPeekSec
                 @set-review="(st) => emit('set-repack-review', em.id, st)"
               />
 
-              <!-- Surplus: zurück ins Lager oder dokumentieren -->
+              <p
+                v-if="groupMode && varianceKind(cl) === 'short'"
+                class="pack-shell-forward-group-variance-msg"
+              >
+                {{
+                  t('activities.packList.shellForwardGroupShortMsg', {
+                    n: shortfallQty(cl.quantity, reviewFor(cl.key, cl.quantity).countedQty),
+                  })
+                }}
+              </p>
+              <p
+                v-if="groupMode && varianceKind(cl) === 'surplus'"
+                class="pack-shell-forward-group-variance-msg"
+              >
+                {{
+                  t('activities.packList.shellForwardGroupSurplusMsg', {
+                    n: surplusQty(cl.quantity, reviewFor(cl.key, cl.quantity).countedQty),
+                  })
+                }}
+              </p>
+
+              <!-- Surplus: zurück ins Lager oder dokumentieren (MW/DC) -->
               <div
-                v-if="varianceKind(cl) === 'surplus' && reviewFor(cl.key, cl.quantity).status === 'problem'"
+                v-if="
+                  !groupMode &&
+                  varianceKind(cl) === 'surplus' &&
+                  reviewFor(cl.key, cl.quantity).status === 'problem'
+                "
                 class="pack-shell-forward-li-problem"
               >
                 <p class="pack-shell-forward-variance-msg pack-shell-forward-variance-msg--surplus">
@@ -680,9 +783,13 @@ function asCheckLine(sec: PackCrateShellPeekSection, line: PackCrateShellPeekSec
                 </button>
               </div>
 
-              <!-- Shortfall: mini inventory + loss + replenish -->
+              <!-- Shortfall: mini inventory + loss + replenish (MW/DC) -->
               <div
-                v-if="varianceKind(cl) === 'short' && reviewFor(cl.key, cl.quantity).status === 'problem'"
+                v-if="
+                  !groupMode &&
+                  varianceKind(cl) === 'short' &&
+                  reviewFor(cl.key, cl.quantity).status === 'problem'
+                "
                 class="pack-shell-forward-li-problem"
               >
                 <p class="pack-shell-forward-variance-msg pack-shell-forward-variance-msg--short">
@@ -932,7 +1039,14 @@ function asCheckLine(sec: PackCrateShellPeekSection, line: PackCrateShellPeekSec
       </template>
       <p v-if="sections.length === 0" class="text-muted pack-modal-hint">{{ emptyHint }}</p>
       <p v-else-if="!allSettled" class="pack-shell-forward-hint text-muted">
-        {{ t('activities.packList.shellForwardNeedAllLines') }}
+        {{ needAllLinesHint }}
+      </p>
+      <p
+        v-else-if="groupMode && hasProblems"
+        class="pack-shell-forward-group-deviation-banner"
+        role="status"
+      >
+        {{ t('activities.packList.shellForwardGroupDeviationBanner') }}
       </p>
     </div>
 
@@ -956,6 +1070,50 @@ function asCheckLine(sec: PackCrateShellPeekSection, line: PackCrateShellPeekSec
   font-size: 13px;
 }
 
+.pack-shell-forward-submit-error {
+  margin: 0 0 10px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #991b1b;
+  font-size: 14px;
+}
+
+.pack-shell-forward-group-variance-msg {
+  margin: 8px 0 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  color: #92400e;
+  font-size: 13px;
+}
+
+.pack-shell-forward-group-deviation-banner {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  color: #1e40af;
+  font-size: 14px;
+}
+
+.pack-shell-forward-history-hint {
+  margin-top: 10px;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.pack-shell-forward-history-hint--confirm {
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  color: #92400e;
+  font-weight: 500;
+}
 
 .pack-shell-forward-variance-actions {
   flex-wrap: wrap;

@@ -229,6 +229,24 @@
   align-items: flex-start;
 }
 
+.pack-container-line--stacked .pack-container-line-main {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px 8px;
+}
+
+.pack-container-line--stacked .pack-container-line-name {
+  flex: none;
+  width: 100%;
+}
+
+.pack-container-line--stacked .pack-container-line-qty {
+  width: 100%;
+  font-size: 12px;
+  line-height: 1.4;
+  word-break: break-word;
+}
+
 .pack-container-line:last-of-type {
   border-bottom: none;
 }

@@ -26,6 +26,22 @@ class ActivityMwNotificationService
         $this->inboxMessages->notifyActivityReturned($activity, $actor);
     }
 
+    public function notifyActivityPackCrateCheckIncomplete(
+        Activity $activity,
+        User $actor,
+        \App\Entity\ActivityPackItem $shellPackItem,
+        array $lines,
+        array $actionsApplied,
+    ): void {
+        $this->inboxMessages->notifyActivityPackCrateCheckIncomplete(
+            $activity,
+            $actor,
+            $shellPackItem,
+            $lines,
+            $actionsApplied,
+        );
+    }
+
     /**
      * @return list<array<string, mixed>>
      */

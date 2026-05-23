@@ -198,6 +198,8 @@ Phasenplan für Umsetzung und Einführung. Baut auf abgeschlossenem [QR-URL-Umba
 ### Nginx / Hosting (Richtlinie)
 
 - `devices.ematchef.ch` → **dieselbe** statische SPA wie `app.` (ein Build, mehrere `server_name`).
+- Develop: `devices-dev.ematchef.ch` → gleicher Hostpoint-Ordner wie `app-dev.ematchef.ch` (kein extra FTP-Job).
+- Build: `VITE_DEVICES_HOST` in `scripts/build-hostpoint-deploy-*.sh` (App-Artefakt); CORS auf dem API-Droplet (siehe `deploy/SERVER-UPDATE.md`).
 - API bleibt `api.ematchef.ch` (oder Proxy `/api` in Dev).
 
 ### Lokale Entwicklung

@@ -1,10 +1,12 @@
 import type { PackCrateCheckLineStatus } from '@/api/activityPackCrateCheck'
 import {
+  buildLineOverlaysFromCrateCheck,
   countedQtyForDisplay,
   type CrateCheckSnapshot,
 } from '@/components/activities/packCrateCheckReality'
 import {
   applyCountedQtyToReview,
+  applyGroupAutoResolution,
   defaultLineReview,
   type ShellForwardCheckLine,
   type ShellForwardLineReview,
@@ -124,4 +126,53 @@ export function buildPrefillLineReviewsFromSnapshot(
     out[line.key] = review
   }
   return out
+}
+
+/** Gruppe/Leiter: Vorausfüllung aus letztem Check + «noch korrekt?»-Hinweis. */
+export function buildGroupPrefillLineReviewsFromSnapshot(
+  checkLines: ShellForwardCheckLine[],
+  snapshot: CrateCheckSnapshot | undefined,
+): { reviews: Record<string, ShellForwardLineReview>; replenishByKey: Record<string, boolean> } {
+  const replenishByKey = buildHistoryReplenishByKeyFromSnapshot(snapshot)
+  const raw = buildPrefillLineReviewsFromSnapshot(checkLines, snapshot, replenishByKey)
+  const reviews: Record<string, ShellForwardLineReview> = {}
+  for (const line of checkLines) {
+    let review = raw[line.key] ?? defaultLineReview(line.quantity)
+    if (review.status === null && review.countedQty !== line.quantity) {
+      review = applyCountedQtyToReview(review, line.quantity, line.isExtra)
+    }
+    review = applyGroupAutoResolution(review, line.quantity)
+    reviews[line.key] = review
+  }
+  return { reviews, replenishByKey }
+}
+
+export function formatGroupCrateCheckPrefillHint(
+  snapshot: CrateCheckSnapshot | undefined,
+  t: (key: string, params?: Record<string, unknown>) => string,
+): string | null {
+  if (!snapshot) return null
+  const overlays = buildLineOverlaysFromCrateCheck(snapshot)
+  const gaps = overlays.filter((o) => o.countedQty < o.sollQty)
+  if (gaps.length === 0) return null
+  if (gaps.length === 1) {
+    const o = gaps[0]!
+    return t('activities.packList.shellForwardGroupPrefillHintOne', {
+      name: o.materialName,
+      counted: o.countedQty,
+      soll: o.sollQty,
+      missing: o.sollQty - o.countedQty,
+    })
+  }
+  const lines = gaps
+    .map((o) =>
+      t('activities.packList.shellForwardGroupPrefillLineShort', {
+        name: o.materialName,
+        counted: o.countedQty,
+        soll: o.sollQty,
+        missing: o.sollQty - o.countedQty,
+      }),
+    )
+    .join('; ')
+  return t('activities.packList.shellForwardGroupPrefillHintMany', { lines })
 }

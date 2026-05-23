@@ -34,13 +34,13 @@ In `backend/.env` (lokal) bzw. **Server-Umgebung / Docker-Override** (Produktion
 | `AUTH_COOKIE_DOMAIN` | `.localhost` (nur sinnvoll bei Hosts `app.localhost`, `qr.localhost`, …) | `.ematchef.ch` |
 | `AUTH_COOKIE_SECURE` | `0` (HTTP) | **`1` (HTTPS)** — Pflicht sobald die API über `https://` erreichbar ist |
 
-Fuer die **öffentliche Develop-Umgebung** (`dev.ematchef.ch`, `app-dev.ematchef.ch`, `qr-dev.ematchef.ch`, API `api-dev.ematchef.ch`):
+Fuer die **öffentliche Develop-Umgebung** (`dev.ematchef.ch`, `app-dev.ematchef.ch`, `qr-dev.ematchef.ch`, `devices-dev.ematchef.ch`, API `api-dev.ematchef.ch`):
 
 - `AUTH_COOKIE_SECURE=1`
 - `AUTH_COOKIE_DOMAIN=.ematchef.ch` — damit gelten HttpOnly-Cookies für **alle** diese Subdomains (nicht nur `dev.ematchef.ch`; sonst fehlen Cookies auf `app-dev.*`).
 - `CORS_ALLOW_ORIGIN` muss **jeden** Browser-Origin abdecken, von dem die SPA die API aufruft, z. B. Regex:
 
-  `^https://(dev\.ematchef\.ch|app-dev\.ematchef\.ch|qr-dev\.ematchef\.ch)$`
+  `^https://(dev\.ematchef\.ch|app-dev\.ematchef\.ch|qr-dev\.ematchef\.ch|devices-dev\.ematchef\.ch)$`
 
   Steht dort nur `dev.ematchef.ch`, schlägt der Login von **`https://app-dev.ematchef.ch`** mit CORS-Fehlern fehl („No Access-Control-Allow-Origin“).
 
@@ -65,7 +65,7 @@ Nach Änderung: **Backend neu starten** und ggf. `php bin/console cache:clear --
 
 ## CORS
 
-`nelmio_cors` hat `allow_credentials: true`. Die erlaubten Origins (`CORS_ALLOW_ORIGIN`) müssen **alle** betroffenen **HTTPS-**Frontends in Produktion abdecken, z. B. `app.ematchef.ch`, **`qr.ematchef.ch`**, `ematchef.ch`, `www.ematchef.ch` (siehe Prod-Compose-Beispiel).
+`nelmio_cors` hat `allow_credentials: true`. Die erlaubten Origins (`CORS_ALLOW_ORIGIN`) müssen **alle** betroffenen **HTTPS-**Frontends in Produktion abdecken, z. B. `app.ematchef.ch`, **`qr.ematchef.ch`**, **`devices.ematchef.ch`**, `ematchef.ch`, `www.ematchef.ch` (siehe Prod-Compose-Beispiel).
 
 ## Wichtige Dateien (Überblick)
 
@@ -114,5 +114,5 @@ Relevante Pfade:
 - frontend/src/views/public/PublicMaterialView.vue
 - deploy/docker-compose.override.prod.example.yml
 
-Prod: AUTH_COOKIE_DOMAIN=.ematchef.ch, AUTH_COOKIE_SECURE=1; HTTPS; CORS_ALLOW_ORIGIN alle HTTPS-Frontends inkl. qr.*; nach Deploy cache:clear.
+Prod: AUTH_COOKIE_DOMAIN=.ematchef.ch, AUTH_COOKIE_SECURE=1; HTTPS; CORS_ALLOW_ORIGIN alle HTTPS-Frontends inkl. qr.* und devices.*; nach Deploy cache:clear.
 ```

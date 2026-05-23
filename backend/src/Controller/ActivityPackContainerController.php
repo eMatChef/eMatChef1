@@ -500,7 +500,7 @@ class ActivityPackContainerController extends AbstractController
             return new JsonResponse(['error' => 'Nicht authentifiziert'], 401);
         }
 
-        $deny = $this->assertCanModifyActivityMaterialItems($user, $activity);
+        $deny = $this->assertCanBulkPackContainerWorkflow($user, $activity, $mode);
         if ($deny !== null) {
             return $deny;
         }
@@ -624,10 +624,28 @@ class ActivityPackContainerController extends AbstractController
         if ($mode === 'issue_all') {
             $delta = $packItem->getQuantityPacked() - $packItem->getQuantityIssued();
             if ($delta <= 0) {
-                return ['lines' => 0, 'units' => 0];
+                $containerItems = $this->entityManager->getRepository(ActivityPackContainerItem::class)
+                    ->findBy(['packContainerId' => $container->getId()]);
+                $contentsIssued = false;
+                foreach ($containerItems as $ci) {
+                    if ($ci instanceof ActivityPackContainerItem && $ci->getQuantityIssued() > 0) {
+                        $contentsIssued = true;
+                        break;
+                    }
+                }
+                if ($contentsIssued && $packItem->getQuantityIssued() < 1) {
+                    if ($packItem->getQuantityPacked() < 1) {
+                        $packItem->setQuantityPacked(1);
+                    }
+                    $apply = 1;
+                    $packItem->setQuantityIssued($packItem->getQuantityIssued() + $apply);
+                } else {
+                    return ['lines' => 0, 'units' => 0];
+                }
+            } else {
+                $apply = $delta;
+                $packItem->setQuantityIssued($packItem->getQuantityIssued() + $apply);
             }
-            $apply = $delta;
-            $packItem->setQuantityIssued($packItem->getQuantityIssued() + $apply);
         } elseif ($mode === 'return_all') {
             $delta = $packItem->getQuantityIssued() - $packItem->getQuantityReturned();
             if ($delta <= 0) {
@@ -708,6 +726,35 @@ class ActivityPackContainerController extends AbstractController
         }
 
         return $activity;
+    }
+
+    /**
+     * Kisten-Bulk (issue/unissue/return): Pack-Workflow — Gruppe/Ersteller ab «Gepackt», nicht MW-Materialliste.
+     */
+    private function assertCanBulkPackContainerWorkflow(User $user, Activity $activity, string $mode): ?JsonResponse
+    {
+        if ($this->activityAccess->isHostDepartmentMwOrDc($user, $activity)) {
+            return null;
+        }
+
+        if (!$this->activityAccess->canUserEditPackList($user, $activity)) {
+            return new JsonResponse(['error' => 'Keine Berechtigung für diese Pack-Buchung'], 403);
+        }
+
+        $stageForMode = match ($mode) {
+            'issue_all', 'unissue_all' => PackPipelineService::STAGE_AT_EVENT,
+            'return_all' => PackPipelineService::STAGE_RETURNED,
+            default => null,
+        };
+
+        if ($stageForMode !== null) {
+            $allowedStages = $this->activityAccess->allowedPackMoveStagesForUser($user, $activity);
+            if ($allowedStages !== null && !\in_array($stageForMode, $allowedStages, true)) {
+                return new JsonResponse(['error' => 'Keine Berechtigung für diese Pack-Stufe'], 403);
+            }
+        }
+
+        return null;
     }
 
     /**

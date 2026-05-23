@@ -474,9 +474,8 @@ class ActivityWorkflowController extends AbstractController
             return new JsonResponse(['error' => 'Pack-Position nicht gefunden'], 404);
         }
 
-        $mi = $packItem->getMaterialItem();
-        if ($mi === null || $mi->getMaterialType() !== 'physical_combo') {
-            return new JsonResponse(['error' => 'Kistencheck nur für physische Kombi-Packzeilen'], 422);
+        if (!$this->packCrateCheckService->isPackItemEligibleForCrateCheck($activity, $packItem)) {
+            return new JsonResponse(['error' => 'Kistencheck nur für Pack-Kisten (Kombi oder zugewiesene Rakokiste)'], 422);
         }
 
         $data = json_decode($request->getContent(), true);
