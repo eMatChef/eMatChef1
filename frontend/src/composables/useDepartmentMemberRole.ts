@@ -1,6 +1,20 @@
 import { computed } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 
+/**
+ * Department-Rollen mit Basissicht wie «u» (ohne MW/DC-Rechte).
+ * L1–L3: gleiche Menüs, Aktivitäten-Filter, Einstellungen — Rechte später per Matrix.
+ */
+export const DEPARTMENT_BASIC_MEMBER_ROLES = ['u', 'user', 'l1', 'l2', 'l3'] as const
+
+export function isDepartmentBasicMemberRole(role: string | null | undefined): boolean {
+  return DEPARTMENT_BASIC_MEMBER_ROLES.includes(
+    String(role || '')
+      .toLowerCase()
+      .trim() as (typeof DEPARTMENT_BASIC_MEMBER_ROLES)[number],
+  )
+}
+
 /** Department-Mitgliedschaftsrolle (u, l1–l3, mw, dc, …). */
 export function useDepartmentMemberRole() {
   const authStore = useAuthStore()
@@ -9,7 +23,17 @@ export function useDepartmentMemberRole() {
     String(authStore.currentDepartmentRole || 'u').toLowerCase().trim()
   )
 
-  const isUserRole = computed(() => ['u', 'user'].includes(departmentRole.value))
+  const isUserRole = computed(() => isDepartmentBasicMemberRole(departmentRole.value))
+
+  /** Leiter 1–3 (Department-Ebene, nicht Gruppenchef ★). */
+  const isDepartmentLeader = computed(() => ['l1', 'l2', 'l3'].includes(departmentRole.value))
+
+  /** Aktivität für ganze Abteilung (group_id leer) oder konkrete Gruppe wählen. */
+  const canSelectDepartmentGroupLevel = computed(
+    () =>
+      isDepartmentLeader.value ||
+      ['mw', 'dc', 'matwart', 'depchef'].includes(departmentRole.value),
+  )
 
   /** MW/DC: Material anlegen, Druckkorb, QR-Kontakt-Verwaltung, … */
   const canManageMaterials = computed(() =>
@@ -19,7 +43,7 @@ export function useDepartmentMemberRole() {
   /** QR-Kontakt / Abteilungs-Druckkorb: nicht für reine User-Rolle */
   const canManageQrContact = computed(() => !isUserRole.value)
 
-  /** Kontakte: MW/DC/L1–L3 volle Verwaltung */
+  /** Kontakte: volle Verwaltung nur MW/DC (L1–L3 = Basissicht wie u) */
   const canManageContacts = computed(() => !isUserRole.value)
 
   /** User darf Treffpunkt & Eventstandort anlegen */
@@ -33,6 +57,8 @@ export function useDepartmentMemberRole() {
   return {
     departmentRole,
     isUserRole,
+    isDepartmentLeader,
+    canSelectDepartmentGroupLevel,
     canManageMaterials,
     canManageQrContact,
     canManageContacts,

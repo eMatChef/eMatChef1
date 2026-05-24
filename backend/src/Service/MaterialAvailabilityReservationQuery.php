@@ -9,7 +9,8 @@ use App\Entity\Activity;
  *
  * Zwei Ebenen (siehe docs/activities/material-pipeline.md):
  * 1. Bestell-Reservierung (draft…approved): activity_item.quantity, nur bei Zeitraum-Overlap
- * 2. Physische Sperre (packing…returned): gepackte / retournierte Menge — unabhängig vom Zeitraum
+ * 2. Physische Sperre (packing…returned): gepackte / retournierte Menge — bis Status «completed»
+ *    (Einlagerung quantity_stored reduziert die Sperre nicht vorher; auch nach Rückgabedatum)
  */
 final class MaterialAvailabilityReservationQuery
 {
@@ -49,6 +50,8 @@ final class MaterialAvailabilityReservationQuery
                AND (COALESCE(a.planning_end, a.usage_end) > :start_date)'
             : 'AND FALSE';
 
+        $pipelineLockQty = self::pipelineLockQtyCaseSql('pi');
+
         return <<<SQL
 LEFT JOIN LATERAL (
     SELECT COALESCE(SUM(part.qty), 0) AS reserved_qty
@@ -65,14 +68,7 @@ LEFT JOIN LATERAL (
         UNION ALL
 
         SELECT
-            CASE
-                WHEN a.status = 'packing'
-                     AND pi.quantity_packed = 0
-                     AND pi.quantity_returned = 0
-                     AND pi.quantity_ordered > 0
-                    THEN pi.quantity_ordered
-                ELSE GREATEST(pi.quantity_packed, pi.quantity_returned) - COALESCE(pi.quantity_stored, 0)
-            END AS qty
+            {$pipelineLockQty} AS qty
         FROM activity_pack_item pi
         INNER JOIN activity a ON a.id = pi.activity_id
         WHERE pi.material_item_id = mi.id
@@ -83,19 +79,25 @@ LEFT JOIN LATERAL (
               OR pi.quantity_returned > 0
               OR (a.status = 'packing' AND pi.quantity_ordered > 0)
           )
-          AND (
-              CASE
-                  WHEN a.status = 'packing'
-                       AND pi.quantity_packed = 0
-                       AND pi.quantity_returned = 0
-                       AND pi.quantity_ordered > 0
-                      THEN pi.quantity_ordered
-                  ELSE GREATEST(pi.quantity_packed, pi.quantity_returned) - COALESCE(pi.quantity_stored, 0)
-              END
-          ) > 0
+          AND ({$pipelineLockQty}) > 0
           {$excludeActivitySql}
     ) part
 ) reserved ON TRUE
+SQL;
+    }
+
+    /** Gepackte/retournierte Menge — erst bei completed wieder frei (ohne Abzug quantity_stored). */
+    private static function pipelineLockQtyCaseSql(string $alias): string
+    {
+        return <<<SQL
+CASE
+    WHEN a.status = 'packing'
+         AND {$alias}.quantity_packed = 0
+         AND {$alias}.quantity_returned = 0
+         AND {$alias}.quantity_ordered > 0
+        THEN {$alias}.quantity_ordered
+    ELSE GREATEST({$alias}.quantity_packed, {$alias}.quantity_returned)
+END
 SQL;
     }
 

@@ -99,10 +99,14 @@
           <template
             v-if="
               isRestrictedGroupMember &&
-              (activity.type === 'camp' || activity.type === 'external')
+              !canCreateCampAndEvent &&
+              (activity.type === 'camp' || activity.type === 'event' || activity.type === 'external')
             "
           >
             {{ t('activities.detail.draftBannerSubmitMemberCamp') }}
+          </template>
+          <template v-else-if="activity.type === 'camp' || activity.type === 'event'">
+            {{ t('activities.detail.draftBannerSubmitCampEvent') }}
           </template>
           <template v-else>
             {{ t('activities.detail.draftBannerSubmit') }}
@@ -343,6 +347,7 @@
               :can-add-activity-material="
                 canAddActivityMaterial && (activity.status === 'packing' || activity.status === 'packed')
               "
+              :can-request-consumable-nachbuchung="canAddActivityMaterial"
               :activity-type-for-material-add="activityTypeForMat"
               :planning-start-iso="activity.planning_start ?? null"
               :planning-end-iso="activity.planning_end ?? null"
@@ -354,6 +359,7 @@
               @activity-items-changed="onPackListActivityItemsChanged"
               @open-issue-wizard="onPackIssueWizard"
               @open-consumption-modal="onOpenConsumptionModal"
+              @request-nachbuchung="openNachbuchungModal"
               @add-activity-material="onDraftAddQuantity"
               @material-scope-change="onMaterialLookupScopeChange"
             />
@@ -508,7 +514,7 @@ const MANAGER_WORKFLOW_TRANSITION_STATUSES = new Set([
 /** Typ «activity»: Gruppenmitglied darf nur Material am Event / Retour bestätigen. */
 const MEMBER_ACTIVITY_PACK_HANDOFF_STATUSES = new Set(['at_event', 'returned'])
 
-const { isRestrictedGroupMember, canSubmitActivityType, loadGroupsForDepartment } =
+const { isRestrictedGroupMember, canCreateCampAndEvent, canSubmitActivityType, loadGroupsForDepartment } =
   useActivityGroupMemberScope()
 
 const props = defineProps<{
@@ -776,7 +782,7 @@ const workflowTransitions = computed(() =>
     if (
       t.status === 'submitted' &&
       activity.value &&
-      !canSubmitActivityType(activity.value.type || 'activity')
+      !canSubmitActivityType(activity.value.type || 'activity', activity.value.can_submit_activity)
     ) {
       return false
     }
@@ -1447,6 +1453,9 @@ async function onTransition(
     if (detail.status === 'packing') {
       activeTab.value = 'packs'
       mergeActivityQuery({ tab: 'packs' })
+    }
+    if (detail.status === 'completed' && activeTab.value === 'packs') {
+      packListReloadToken.value += 1
     }
     if (activeTab.value === 'material') {
       await loadItems()

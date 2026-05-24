@@ -33,6 +33,7 @@ const isTarget = computed(
 )
 
 const packListEditable = computed(() => injectPackCtxBool(ctx, 'packListEditable'))
+const packBackwardEditable = computed(() => injectPackCtxBool(ctx, 'packBackwardEditable'))
 const containerMutationLoading = computed(() => injectPackCtxBool(ctx, 'containerMutationLoading'))
 
 function isNonActionable(ci: ActivityPackContainerItem): boolean {
@@ -116,7 +117,7 @@ function onCardClick(event: MouseEvent) {
       <PackContainerSubsectionsList :container="container">
         <template #line="{ ci }">
           <div class="pack-container-line">
-            <div v-if="ctx.packListEditable && !isNonActionable(ci)" class="pack-card-actions pack-card-actions-left">
+            <div v-if="packBackwardEditable && !isNonActionable(ci)" class="pack-card-actions pack-card-actions-left">
               <button
                 type="button"
                 class="btn-moveback-arrow"
@@ -151,7 +152,7 @@ function onCardClick(event: MouseEvent) {
         </template>
       </PackContainerSubsectionsList>
       <button
-        v-if="ctx.packListEditable"
+        v-if="packListEditable"
         type="button"
         class="pack-container-delete"
         :disabled="containerMutationLoading"

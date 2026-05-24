@@ -25,27 +25,26 @@
           />
         </ActivityOutlinedSection>
         <div
-          v-if="showFixedMemberGroup"
-          id="activity-create-group-fixed"
-          class="form-group activity-create-group-wrap"
-        >
-          <label>{{ t('activities.wizard.form.groupLabel') }} <span class="req">*</span></label>
-          <p class="activity-readonly-value">{{ fixedMemberGroupLabel }}</p>
-        </div>
-        <div
-          v-else-if="showMemberGroupPicker"
+          v-if="showActivityGroupField"
           id="activity-create-group"
           class="form-group activity-create-group-wrap"
         >
-          <label for="activity-create-group-select">{{ t('activities.wizard.form.groupLabel') }} <span class="req">*</span></label>
+          <label for="activity-create-group-select">
+            {{ t('activities.wizard.form.groupLabel') }}
+            <span v-if="!canSelectDepartmentGroupLevel" class="req">*</span>
+            <span v-else class="text-muted group-optional-label">{{ t('activities.wizard.form.groupOptional') }}</span>
+          </label>
+          <p v-if="showFixedGroupSelection" class="activity-readonly-value">{{ displayGroupLabel }}</p>
           <select
+            v-else
             id="activity-create-group-select"
             class="form-input activity-group-select"
             :value="selectedGroupId ?? ''"
             @change="onGroupChange"
           >
-            <option value="" disabled>{{ t('activities.wizard.form.groupChoose') }}</option>
-            <option v-for="g in flatGroups" :key="g.id" :value="g.id">
+            <option v-if="canSelectDepartmentGroupLevel" value="">{{ departmentName }}</option>
+            <option v-else-if="!selectedGroupId" value="" disabled>{{ t('activities.wizard.form.groupChoose') }}</option>
+            <option v-for="g in groupSelectOptions" :key="g.id" :value="g.id">
               {{ '↳ '.repeat(g._level) }}{{ g.name }}
             </option>
           </select>
@@ -143,17 +142,24 @@
         >
           <label for="activity-create-group-select-s">
             {{ t('activities.wizard.form.groupLabel') }}
-            <span v-if="selectedActivityType === 'camp'" class="req">*</span>
+            <span v-if="selectedActivityType === 'camp' && !canSelectDepartmentGroupLevel" class="req">*</span>
             <span v-else class="text-muted group-optional-label">{{ t('activities.wizard.form.groupOptional') }}</span>
           </label>
+          <p v-if="showFixedGroupSelection" class="activity-readonly-value">
+            {{ displayGroupLabel }}
+          </p>
           <select
+            v-else
             id="activity-create-group-select-s"
             class="form-input activity-group-select"
             :value="selectedGroupId ?? ''"
             @change="onGroupChange"
           >
-            <option value="">{{ departmentName }}</option>
-            <option v-for="g in flatGroups" :key="g.id" :value="g.id">
+            <option v-if="canSelectDepartmentGroupLevel" value="">{{ departmentName }}</option>
+            <option v-else-if="!selectedGroupId" value="" disabled>
+              {{ t('activities.wizard.form.groupChoose') }}
+            </option>
+            <option v-for="g in groupSelectOptions" :key="g.id" :value="g.id">
               {{ '↳ '.repeat(g._level) }}{{ g.name }}
             </option>
           </select>
@@ -575,8 +581,13 @@ import {
   nearestAllowedQuarterOnDayOutsideUsage,
 } from '@/utils/activityPlanningUsageConstraint'
 import { useToast } from '@/composables/useToast'
-import { useActivityGroupMemberScope } from '@/composables/useActivityGroupMemberScope'
-import { flattenGroupsWithLevel, resolveActivityGroupPickerLabel } from '@/utils/groupHierarchy'
+import { useAuthStore } from '@/stores/auth'
+import { useDepartmentMemberRole } from '@/composables/useDepartmentMemberRole'
+import {
+  flattenGroupsWithLevel,
+  pickUserHomeGroupId,
+  resolveActivityGroupPickerLabel,
+} from '@/utils/groupHierarchy'
 import { activityPreviewMaterialLabel, activityPreviewUsageLabel } from './activityPreviewLabels'
 import { activityTypeLabel } from './activityTypeLabels'
 import ActivityOutlinedSection from './ActivityOutlinedSection.vue'
@@ -645,7 +656,8 @@ const emit = defineEmits<{
 
 const toast = useToast()
 const { t } = useI18n()
-const { isRestrictedGroupMember } = useActivityGroupMemberScope()
+const authStore = useAuthStore()
+const { canSelectDepartmentGroupLevel } = useDepartmentMemberRole()
 
 /** Materialsucheingabe leeren + Lookup neu mounten (Schritt Material, Typwechsel Ein-Seiten-Layout) */
 const materialSearchResetKey = ref(0)
@@ -670,19 +682,39 @@ watch(
   },
 )
 
+const isActivityType = computed(() => props.selectedActivityType === 'activity')
+
 const flatGroups = computed(() => flattenGroupsWithLevel(props.groups))
-
-const fixedMemberGroupLabel = computed(() =>
-  resolveActivityGroupPickerLabel(props.selectedGroupId, props.departmentName, props.groups),
+const groupSelectOptions = computed(() => flatGroups.value)
+const hasMultipleGroupChoices = computed(
+  () => canSelectDepartmentGroupLevel.value || groupSelectOptions.value.length > 1,
+)
+const showFixedGroupSelection = computed(() => {
+  if (canSelectDepartmentGroupLevel.value) return props.groups.length === 0
+  return props.groups.length > 0 && groupSelectOptions.value.length <= 1
+})
+const showActivityGroupField = computed(
+  () => isActivityType.value && (props.groups.length > 0 || canSelectDepartmentGroupLevel.value),
 )
 
-const showFixedMemberGroup = computed(
-  () => isRestrictedGroupMember.value && isActivityType.value && flatGroups.value.length <= 1,
-)
-
-const showMemberGroupPicker = computed(
-  () => isActivityType.value && props.groups.length > 0 && !showFixedMemberGroup.value,
-)
+const displayGroupLabel = computed(() => {
+  if (props.selectedGroupId) {
+    return resolveActivityGroupPickerLabel(
+      props.selectedGroupId,
+      props.departmentName,
+      props.groups,
+    )
+  }
+  if (canSelectDepartmentGroupLevel.value) {
+    return props.departmentName.trim() || '–'
+  }
+  const homeId = pickUserHomeGroupId(props.groups, authStore.userId)
+  if (homeId) {
+    return resolveActivityGroupPickerLabel(homeId, props.departmentName, props.groups)
+  }
+  if (flatGroups.value.length === 1) return flatGroups.value[0].name
+  return '–'
+})
 
 const invalidUsageOrderLocal = computed(() => {
   if (!props.usageStartAt || !props.usageEndAt) return false
@@ -746,9 +778,11 @@ function emitPlanningPair(nextStart: Date, nextEnd: Date) {
   emit('update:planningEndAt', resolved.end)
 }
 
-/** Gruppe in Schritt 1 (Stepper) bei Lager & Event — Abteilung als oberste Option */
+/** Gruppe in Schritt 1 (Stepper) bei Lager & Event */
 const showGroupOnGrunddatenStep = computed(
-  () => props.selectedActivityType === 'camp' || props.selectedActivityType === 'event',
+  () =>
+    (props.selectedActivityType === 'camp' || props.selectedActivityType === 'event') &&
+    (props.groups.length > 0 || canSelectDepartmentGroupLevel.value),
 )
 
 /** Eventstandort in Schritt 1: Lager, Event, extern (nicht „Aktivität“) */
@@ -763,12 +797,11 @@ const showGroupInSummary = computed(
   () =>
     props.selectedActivityType === 'camp' ||
     props.selectedActivityType === 'event' ||
-    (props.selectedActivityType === 'activity' && props.groups.length > 0),
+    (props.selectedActivityType === 'activity' &&
+      (props.groups.length > 0 || canSelectDepartmentGroupLevel.value)),
 )
 
-const groupSummaryLabel = computed(() =>
-  resolveActivityGroupPickerLabel(props.selectedGroupId, props.departmentName, props.groups),
-)
+const groupSummaryLabel = computed(() => displayGroupLabel.value)
 
 const materialSummaryLabel = computed(() => {
   const lines = props.materialLines
@@ -1067,11 +1100,11 @@ const summaryMaterialLabel = computed(() =>
 )
 
 function onGroupChange(e: Event) {
-  const v = (e.target as HTMLSelectElement).value
+  const raw = (e.target as HTMLSelectElement).value
+  const v = raw.trim()
+  if (!v && !canSelectDepartmentGroupLevel.value) return
   emit('update:selectedGroupId', v || null)
 }
-
-const isActivityType = computed(() => props.selectedActivityType === 'activity')
 
 /** Schnellauswahl (Feiertage …) nur bei Lager/Event; bei „Aktivität“ / „Extern“ ausblenden. */
 const showDateRangePresetSidebar = computed(

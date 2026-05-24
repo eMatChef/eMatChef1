@@ -13,6 +13,7 @@ use App\Service\Accounting\AccountingCostCenterBootstrapService;
 use App\Service\AuditLogger;
 use App\Service\OrganisationUserPickerFilter;
 use App\Service\DepartmentResetService;
+use App\Service\DevEnvironmentService;
 use App\Service\VerificationEmailService;
 use App\Util\IdGenerator;
 use Doctrine\ORM\EntityManagerInterface;
@@ -30,6 +31,7 @@ class DepartmentController extends AbstractController
         private EntityManagerInterface $entityManager,
         private AuditLogger $auditLogger,
         private DepartmentResetService $departmentResetService,
+        private DevEnvironmentService $devEnvironmentService,
         private AccountingCostCenterBootstrapService $accountingCostCenterBootstrap,
         private VerificationEmailService $verificationEmailService,
     ) {}
@@ -844,6 +846,50 @@ class DepartmentController extends AbstractController
     #[IsGranted('ROLE_USER')]
     public function resetDb(string $departmentId): JsonResponse
     {
+        if (!$this->devEnvironmentService->isDevToolsEnabled()) {
+            return new JsonResponse(['error' => 'Nur in Dev/Test verfügbar'], 403);
+        }
+
+        return $this->runDepartmentManagerReset(
+            $departmentId,
+            fn () => $this->departmentResetService->resetDepartment($departmentId),
+            'Department-Daten zurückgesetzt',
+            'Keine Berechtigung für DB-Reset',
+            'Fehler beim Zurücksetzen'
+        );
+    }
+
+    /**
+     * Aktivitäten löschen – setzt die Aktivitäten-Anzahl auf 0 (Material/Adressen bleiben).
+     * Nur für Dev/Test. Erfordert Superadmin oder Department-Manager.
+     */
+    #[Route('/{departmentId}/reset-activities', name: 'reset_activities', methods: ['POST'])]
+    #[IsGranted('ROLE_USER')]
+    public function resetActivities(string $departmentId): JsonResponse
+    {
+        if (!$this->devEnvironmentService->isDevToolsEnabled()) {
+            return new JsonResponse(['error' => 'Nur in Dev/Test verfügbar'], 403);
+        }
+
+        return $this->runDepartmentManagerReset(
+            $departmentId,
+            fn () => $this->departmentResetService->resetActivities($departmentId),
+            'Aktivitäten gelöscht',
+            'Keine Berechtigung für Aktivitäten-Reset',
+            'Fehler beim Löschen der Aktivitäten'
+        );
+    }
+
+    /**
+     * @param callable(): array<string, int> $resetFn
+     */
+    private function runDepartmentManagerReset(
+        string $departmentId,
+        callable $resetFn,
+        string $successPrefix,
+        string $forbiddenMessage,
+        string $errorPrefix,
+    ): JsonResponse {
         $currentUser = $this->getUser();
         if (!$currentUser instanceof User) {
             return new JsonResponse(['error' => 'Unauthorized'], 403);
@@ -854,7 +900,6 @@ class DepartmentController extends AbstractController
             return new JsonResponse(['error' => 'Department nicht gefunden'], 404);
         }
 
-        // Nur Superadmin oder Department-Manager (dc, mw, org, sub)
         $isSuperadmin = $this->isGranted('ROLE_SUPERADMIN');
         $membership = $this->entityManager->getRepository(Membership::class)
             ->findOneBy(['departmentId' => $departmentId, 'userId' => $currentUser->getId()]);
@@ -863,21 +908,21 @@ class DepartmentController extends AbstractController
         $isManager = in_array(strtolower($role), array_map('strtolower', $managerRoles));
 
         if (!$isSuperadmin && !$isManager) {
-            return new JsonResponse(['error' => 'Keine Berechtigung für DB-Reset'], 403);
+            return new JsonResponse(['error' => $forbiddenMessage], 403);
         }
 
         try {
-            $deleted = $this->departmentResetService->resetDepartment($departmentId);
+            $deleted = $resetFn();
             $total = array_sum($deleted);
             return new JsonResponse([
                 'success' => true,
-                'message' => "Department-Daten zurückgesetzt. $total Datensätze gelöscht.",
+                'message' => "$successPrefix. $total Datensätze gelöscht.",
                 'deleted' => $deleted,
             ]);
         } catch (\InvalidArgumentException $e) {
             return new JsonResponse(['error' => $e->getMessage()], 404);
         } catch (\Throwable $e) {
-            return new JsonResponse(['error' => 'Fehler beim Zurücksetzen: ' . $e->getMessage()], 500);
+            return new JsonResponse(['error' => "$errorPrefix: " . $e->getMessage()], 500);
         }
     }
 

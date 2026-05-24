@@ -652,6 +652,8 @@ class ActivityController extends AbstractController
         $data['can_edit_submitted_activity_content'] = $activity->isDraft()
             ? false
             : $this->activityAccess->canUserEditSubmittedActivityDetails($currentUser, $activity);
+        $data['can_submit_activity'] = $activity->isDraft()
+            && $this->canUserSubmitActivityForApi($currentUser, $activity);
 
         return new JsonResponse($data);
     }
@@ -725,13 +727,28 @@ class ActivityController extends AbstractController
             }
         }
 
+        $requestedType = (string) ($data['type'] ?? 'activity');
+        if (!$this->activityAccess->canUserCreateActivityType($currentUser, (string) $data['department_id'], $requestedType)) {
+            return new JsonResponse([
+                'error' => match ($requestedType) {
+                    'external' => 'Externe Ausleihen dürfen nur vom Materialwart angelegt werden.',
+                    'camp', 'event' => 'Lager und Event dürfen nur von User, Gruppenchef oder Leiter 1–3 angelegt werden.',
+                    default => 'Keine Berechtigung für diesen Aktivitätstyp.',
+                },
+            ], 403);
+        }
+
         try {
             $activity = new Activity();
             $activity->setId(IdGenerator::generate());
             $activity->setDepartment($department);
             $activity->setName($data['name']);
-            $activity->setType($data['type'] ?? 'activity');
-            $activity->setStatus($data['status'] ?? 'draft');
+            $activity->setType($requestedType);
+            if (\in_array($requestedType, ['camp', 'event'], true)) {
+                $activity->setStatus(Activity::STATUS_DRAFT);
+            } else {
+                $activity->setStatus($data['status'] ?? 'draft');
+            }
             if ($activity->getStatus() === Activity::STATUS_SUBMITTED) {
                 $activity->applyStatusTimestamp(Activity::STATUS_SUBMITTED);
             }
@@ -908,7 +925,18 @@ class ActivityController extends AbstractController
                 }
             }
             if (isset($data['status'])) {
-                $activity->setStatus($data['status']);
+                $newStatus = (string) $data['status'];
+                $oldStatus = $activity->getStatus();
+                if ($newStatus !== $oldStatus) {
+                    $activity->setStatus($newStatus);
+                    $activity->applyStatusTimestamp($newStatus);
+                    if (
+                        $newStatus === Activity::STATUS_SUBMITTED
+                        && $oldStatus === Activity::STATUS_DRAFT
+                    ) {
+                        $this->activityMwNotifications->notifyActivitySubmitted($activity, $currentUser);
+                    }
+                }
             }
             if (isset($data['color'])) {
                 $activity->setColor($data['color']);
@@ -1249,7 +1277,7 @@ class ActivityController extends AbstractController
 
         if ($newStatus === Activity::STATUS_COMPLETED && $oldStatus !== Activity::STATUS_COMPLETED) {
             // Fallback: Verbrauch, der nie eingelagert wurde (vollständig verbraucht)
-            $this->activityAccountingCost->finalizeConsumptionAccountingForActivity($activity);
+            $this->activityAccountingCost->enqueueFinalActivityBilling($activity);
         }
 
         if ($isQuickAutoApprove) {
@@ -1300,8 +1328,9 @@ class ActivityController extends AbstractController
      * Ermittelt Blocker für den Abschluss einer Aktivität.
      *
      * Blockiert wird bei:
-     * - offenen Werkstatt-Tickets zur Aktivität
-     * - offenen IssueReports (loss/repair/damage) zur Aktivität
+     * - Material noch nicht eingelagert (Retour → Ausgepackt)
+     *
+     * Offene Werkstatt-Tickets, Verlustmeldungen und Buchhaltungs-Aufträge blockieren nicht.
      */
     private function getCompletionBlockers(Activity $activity): array
     {
@@ -1421,10 +1450,7 @@ class ActivityController extends AbstractController
      */
     private function hasCompletionBlockers(array $blockers): bool
     {
-        return ($blockers['open_workshop_tickets_count'] ?? 0) > 0
-            || ($blockers['open_issue_reports_count'] ?? 0) > 0
-            || ($blockers['pending_accounting_followups_count'] ?? 0) > 0
-            || ($blockers['unstored_pack_items_count'] ?? 0) > 0;
+        return ($blockers['unstored_pack_items_count'] ?? 0) > 0;
     }
 
     /**
@@ -1433,15 +1459,6 @@ class ActivityController extends AbstractController
     private function completionBlockerMessage(array $blockers): string
     {
         $parts = [];
-        if (($blockers['open_workshop_tickets_count'] ?? 0) > 0) {
-            $parts[] = 'offene Werkstatt-Tickets';
-        }
-        if (($blockers['open_issue_reports_count'] ?? 0) > 0) {
-            $parts[] = 'offene Verlust-/Schadenmeldungen';
-        }
-        if (($blockers['pending_accounting_followups_count'] ?? 0) > 0) {
-            $parts[] = 'offene Buchhaltungs-Aufträge (Kosten zuordnen)';
-        }
         if (($blockers['unstored_pack_items_count'] ?? 0) > 0) {
             $parts[] = 'Material noch nicht eingelagert (Retour → Ausgepackt)';
         }
@@ -1521,21 +1538,36 @@ class ActivityController extends AbstractController
         $departmentId = $activity->getDepartmentId();
         $groupId = $activity->getGroupId();
 
-        // Gruppenmitglied (u, kein Gruppenchef): nur Typ «activity» einreichen — nicht Lager/extern
+        // Einreichen: typabhängige Regeln
         if ($fromStatus === Activity::STATUS_DRAFT && $toStatus === Activity::STATUS_SUBMITTED) {
-            if ($this->activityAccess->isRestrictedGroupMember($user, (string) $departmentId)) {
-                $actType = (string) ($activity->getType() ?? 'activity');
-                if ($actType === 'camp' || $actType === 'external') {
-                    return 'Als Gruppenmitglied dürfen Sie Lager und externe Ausleihen nicht einreichen. '
-                        . 'Bitte wende dich an Gruppenchef, MW oder DC.';
+            $actType = (string) ($activity->getType() ?? 'activity');
+            if (\in_array($actType, ['camp', 'event'], true)) {
+                if (!$this->activityAccess->canUserSubmitCampOrEvent($user, $activity)) {
+                    return 'Lager/Event kann nur vom Ersteller oder Gruppenchef eingereicht werden.';
                 }
+
+                return true;
+            }
+            if ($actType === 'external') {
+                if (!$this->activityAccess->isHostDepartmentMw($user, $activity)) {
+                    return 'Externe Ausleihen kann nur der Materialwart einreichen.';
+                }
+
+                return true;
+            }
+            if ($this->activityAccess->isRestrictedGroupMember($user, (string) $departmentId)) {
+                if ($activity->getCreatedByUserId() !== $userId) {
+                    return 'Als Gruppenmitglied dürfen Sie nur eigene Aktivitäten einreichen.';
+                }
+
+                return true;
             }
         }
 
-        // Typ «activity»: Ersteller/Gruppenmitglied nur «gepackt → am Event» und «am Event → Retour»
+        // activity / camp / event: Ersteller/Gruppe «gepackt → am Event» und «am Event → Retour»
         $handoffKey = $fromStatus . '->' . $toStatus;
         if (\in_array($handoffKey, ['packed->at_event', 'at_event->returned'], true)) {
-            if ($activity->getType() === 'activity'
+            if (\in_array($activity->getType() ?? '', ['activity', 'camp', 'event'], true)
                 && $this->activityAccess->canUserOperateActivityPackHandoff($user, $activity)) {
                 return true;
             }
@@ -1545,9 +1577,12 @@ class ActivityController extends AbstractController
         $membership = $this->entityManager->getRepository(Membership::class)
             ->findOneBy(['userId' => $userId, 'departmentId' => $departmentId]);
         $departmentRole = $membership?->getRole();
+        if ($this->activityAccess->isRestrictedGroupMember($user, (string) $departmentId)) {
+            $departmentRole = ActivityAccessService::normalizeBasicMemberDepartmentRole($departmentRole);
+        }
 
         // sa und org haben immer Zugriff wenn in requiredRoles
-        if ($departmentRole && in_array($departmentRole, $requiredRoles)) {
+        if ($departmentRole && in_array($departmentRole, $requiredRoles, true)) {
             return true;
         }
 
@@ -1568,6 +1603,9 @@ class ActivityController extends AbstractController
 
             if ($groupMembership) {
                 $groupRole = $groupMembership->getRole();
+                if ($groupRole === 'leader' && $this->activityAccess->isRestrictedGroupMember($user, (string) $departmentId)) {
+                    $groupRole = 'member';
+                }
                 if (in_array($groupRole, $requiredRoles)) {
                     return true;
                 }
@@ -1593,6 +1631,9 @@ class ActivityController extends AbstractController
                 ->findOneBy(['userId' => $userId, 'groupId' => $inviteGroupId]);
             if ($gMem) {
                 $gr = $gMem->getRole();
+                if ($gr === 'leader' && $this->activityAccess->isRestrictedGroupMember($user, $inviteDeptId)) {
+                    $gr = 'member';
+                }
                 if (in_array($gr, $requiredRoles, true)) {
                     return true;
                 }
@@ -2801,6 +2842,23 @@ class ActivityController extends AbstractController
     /**
      * Aktivität serialisieren
      */
+    private function canUserSubmitActivityForApi(User $user, Activity $activity): bool
+    {
+        if (!$activity->isDraft()) {
+            return false;
+        }
+
+        $type = (string) ($activity->getType() ?? 'activity');
+        if (\in_array($type, ['camp', 'event'], true)) {
+            return $this->activityAccess->canUserSubmitCampOrEvent($user, $activity);
+        }
+        if ($type === 'external') {
+            return $this->activityAccess->isHostDepartmentMw($user, $activity);
+        }
+
+        return $this->checkTransitionPermission($user, $activity, Activity::STATUS_DRAFT, Activity::STATUS_SUBMITTED) === true;
+    }
+
     private function canUserManageActivityPublicCode(User $user, Activity $activity): bool
     {
         if (count(array_intersect(['ROLE_SUPERADMIN', 'ROLE_ORGANISATIONSCHEF', 'ROLE_SUBORGCHEF'], $user->getRoles())) > 0) {

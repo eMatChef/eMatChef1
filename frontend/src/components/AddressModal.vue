@@ -181,6 +181,28 @@
           </div>
         </div>
 
+        <!-- Kontakt: Vorname, Nachname -->
+        <div class="form-row two-cols">
+          <div class="form-group">
+            <label class="form-label">{{ t('settings.addressForm.contactFirstName') }}</label>
+            <input
+              v-model="formData.contact_first_name"
+              type="text"
+              class="form-input"
+              :placeholder="t('settings.addressForm.optional')"
+            />
+          </div>
+          <div class="form-group">
+            <label class="form-label">{{ t('settings.addressForm.contactLastName') }}</label>
+            <input
+              v-model="formData.contact_last_name"
+              type="text"
+              class="form-input"
+              :placeholder="t('settings.addressForm.optional')"
+            />
+          </div>
+        </div>
+
         <!-- Kontakt: E-Mail, Telefon, Mobil -->
         <div class="form-row three-cols">
           <div class="form-group">
@@ -667,6 +689,8 @@ const formData = ref<Partial<AddressFormData>>({
   country: 'Schweiz',
   latitude: null,
   longitude: null,
+  contact_first_name: null,
+  contact_last_name: null,
   email: null,
   phone: null,
   mobile: null,
@@ -706,6 +730,8 @@ watch(() => props.address, (addr) => {
       country: addr.country,
       latitude: addr.latitude,
       longitude: addr.longitude,
+      contact_first_name: addr.contact_first_name,
+      contact_last_name: addr.contact_last_name,
       email: addr.email,
       phone: addr.phone,
       mobile: addr.mobile,
@@ -730,6 +756,8 @@ function resetForm() {
     country: 'Schweiz',
     latitude: null,
     longitude: null,
+    contact_first_name: null,
+    contact_last_name: null,
     email: null,
     phone: null,
     mobile: null,
@@ -801,6 +829,8 @@ async function handleSubmit() {
         city: formData.value.city || '',
         canton: formData.value.canton,
         country: formData.value.country || 'Schweiz',
+        contact_first_name: formData.value.contact_first_name,
+        contact_last_name: formData.value.contact_last_name,
         email: formData.value.email,
         phone: formData.value.phone,
         mobile: formData.value.mobile,
@@ -827,6 +857,8 @@ async function handleSubmit() {
         country: formData.value.country || 'Schweiz',
         latitude: formData.value.latitude,
         longitude: formData.value.longitude,
+        contact_first_name: formData.value.contact_first_name,
+        contact_last_name: formData.value.contact_last_name,
         email: formData.value.email,
         phone: formData.value.phone,
         mobile: formData.value.mobile,
@@ -875,6 +907,8 @@ const hasFormChanges = computed(() => {
       f.city !== a.city ||
       f.canton !== a.canton ||
       f.country !== a.country ||
+      f.contact_first_name !== a.contact_first_name ||
+      f.contact_last_name !== a.contact_last_name ||
       f.email !== a.email ||
       f.phone !== a.phone ||
       f.mobile !== a.mobile ||
@@ -890,6 +924,8 @@ const hasFormChanges = computed(() => {
       f.street_number ||
       f.postal_code ||
       f.city ||
+      f.contact_first_name ||
+      f.contact_last_name ||
       f.email ||
       f.phone ||
       f.mobile ||

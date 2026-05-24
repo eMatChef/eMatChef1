@@ -37,7 +37,6 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { ActivityCreateType } from '@/composables/useActivityCreateWizard'
-import { useAuthStore } from '@/stores/auth'
 import { useActivityGroupMemberScope } from '@/composables/useActivityGroupMemberScope'
 
 defineProps<{
@@ -49,7 +48,6 @@ defineEmits<{
 }>()
 
 const { t } = useI18n()
-const auth = useAuthStore()
 const { allowedCreateActivityTypes } = useActivityGroupMemberScope()
 
 const typeLabels: Record<ActivityCreateType, string> = {
@@ -59,13 +57,9 @@ const typeLabels: Record<ActivityCreateType, string> = {
   external: 'activities.types.external',
 }
 
-/** Typ «extern» nur für DC/MW; Gruppenmitglied (u) nur «Aktivität». */
+/** MW/DC: alle Typen; Basissicht + Gruppenchef/l1–l3: +camp/event; «extern» nur MW/DC. */
 const options = computed(() => {
-  const role = auth.currentDepartmentRole
   let allowed = [...allowedCreateActivityTypes.value]
-  if (role !== 'mw' && role !== 'dc') {
-    allowed = allowed.filter((type) => type !== 'external')
-  }
   return allowed.map((type) => ({
     type,
     label: t(typeLabels[type]),

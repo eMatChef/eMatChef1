@@ -5,7 +5,7 @@ import type { ActivityPackContainer, ActivityPackContainerItem } from '@/api/act
 import PackContainerLineIssueQuick from '@/components/activities/PackContainerLineIssueQuick.vue'
 import PackContainerSubsectionsList from '@/components/activities/PackContainerSubsectionsList.vue'
 import IconArrowRight from '@/components/icons/IconArrowRight.vue'
-import { PACK_WAREHOUSE_ISSUE_INJECT_KEY } from '@/components/activities/packWarehouseIssueInjectKey'
+import { injectPackCtxBool, PACK_WAREHOUSE_ISSUE_INJECT_KEY } from '@/components/activities/packWarehouseIssueInjectKey'
 
 defineOptions({ name: 'PackEventReturnContainerCard' })
 
@@ -15,6 +15,8 @@ const props = defineProps<{
 
 const { t } = useI18n()
 const ctx = inject(PACK_WAREHOUSE_ISSUE_INJECT_KEY) as Record<string, (...args: unknown[]) => unknown>
+
+const packListEditable = computed(() => injectPackCtxBool(ctx, 'packListEditable'))
 
 const innerVisible = computed(
   () => !(ctx.isPackContainerCollapsed as (id: string) => boolean)(props.container.id),
@@ -143,7 +145,7 @@ function showIssueQuick(ci: ActivityPackContainerItem): boolean {
         </div>
       </div>
       <div
-        v-if="ctx.packListEditable && (ctx.containerReturnableUnits as (id: string) => number)(container.id) > 0"
+        v-if="packListEditable && (ctx.containerReturnableUnits as (id: string) => number)(container.id) > 0"
         class="pack-container-header-actions"
         @click.stop
       >
@@ -169,7 +171,7 @@ function showIssueQuick(ci: ActivityPackContainerItem): boolean {
               </span>
             </div>
             <div
-              v-if="ctx.packListEditable && lineRemainingReturn(ci) > 0"
+              v-if="packListEditable && lineRemainingReturn(ci) > 0"
               class="pack-card-actions"
               @click.stop
             >
@@ -213,7 +215,7 @@ function showIssueQuick(ci: ActivityPackContainerItem): boolean {
             {{ t('activities.packList.shellStillAtEvent', { n: shellQty }) }}
           </span>
         </div>
-        <div v-if="ctx.packListEditable" class="pack-card-actions" @click.stop>
+        <div v-if="packListEditable" class="pack-card-actions" @click.stop>
           <div class="pack-move-inline">
             <input
               :value="(ctx.containerShellReturnInputValue as (cid: string) => number)?.(container.id) ?? shellQty"

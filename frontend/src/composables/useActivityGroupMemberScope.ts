@@ -5,21 +5,23 @@ import { useAuthStore } from '@/stores/auth'
 import { useDepartmentMemberRole } from '@/composables/useDepartmentMemberRole'
 import type { ActivityCreateType } from '@/composables/useActivityCreateWizard'
 
+/** Department-weit geteilte Gruppenliste (ein Cache für alle Composable-Aufrufer). */
+const groups = ref<Group[]>([])
+const groupsLoaded = ref(false)
+const groupsLoading = ref(false)
+
 /**
- * Department-Rolle «u» ohne Gruppenchef: eingeschränkte Aktivitäten-Sicht und nur Typ «activity» anlegen.
+ * Basissicht (u, l1–l3): eingeschränkte Aktivitäten-Sicht (eigene Gruppe).
+ * Camp/Event anlegen: Leiter 1–3 und Gruppenchef (★); reines «u» nur Typ «activity».
  */
 export function useActivityGroupMemberScope() {
   const authStore = useAuthStore()
-  const { isUserRole, departmentRole } = useDepartmentMemberRole()
+  const { isUserRole, departmentRole, isDepartmentLeader } = useDepartmentMemberRole()
 
   /** MW/DC: department-weit alle Gruppen (ohne Gruppenmitgliedschaft). */
   const isDepartmentGroupManager = computed(() =>
     ['mw', 'dc', 'matwart', 'depchef'].includes(departmentRole.value),
   )
-
-  const groups = ref<Group[]>([])
-  const groupsLoaded = ref(false)
-  const groupsLoading = ref(false)
 
   const isGroupLeaderInDepartment = computed(() => {
     const userId = authStore.userId
@@ -29,17 +31,35 @@ export function useActivityGroupMemberScope() {
     )
   })
 
-  /** u + nur Gruppenmitglied (kein Gruppenchef im Department). */
-  const isRestrictedGroupMember = computed(
-    () => isUserRole.value && !isGroupLeaderInDepartment.value,
-  )
+  /** u / l1–l3 — eingeschränkte Listen-/Workflow-Sicht (nicht MW/DC). */
+  const isRestrictedGroupMember = computed(() => isUserRole.value)
+
+  /** Camp/Event anlegen & einreichen: l1–l3 oder Gruppenchef im Department. */
+  const canCreateCampAndEvent = computed(() => {
+    const role = departmentRole.value
+    if (['l1', 'l2', 'l3'].includes(role)) return true
+    return isGroupLeaderInDepartment.value
+  })
 
   const allowedCreateActivityTypes = computed((): ActivityCreateType[] => {
-    if (isRestrictedGroupMember.value) {
-      return ['activity']
+    const role = departmentRole.value
+    const types: ActivityCreateType[] = ['activity']
+    if (isUserRole.value) {
+      if (canCreateCampAndEvent.value) {
+        types.push('camp', 'event')
+      }
+      return types
     }
-    return ['activity', 'camp', 'event', 'external']
+    if (['mw', 'dc', 'matwart', 'depchef'].includes(role)) {
+      return ['activity', 'camp', 'event', 'external']
+    }
+    if (['sa', 'org', 'sub'].includes(role)) {
+      types.push('camp', 'event')
+    }
+    return types
   })
+
+  const showActivityTypePicker = computed(() => allowedCreateActivityTypes.value.length > 1)
 
   async function loadGroupsForDepartment(departmentId: string): Promise<void> {
     if (!departmentId || groupsLoading.value) return
@@ -65,20 +85,23 @@ export function useActivityGroupMemberScope() {
     groupsLoaded.value = true
   }
 
-  /** Gruppenmitglied (u): nur Typ «activity» selbst einreichen. */
-  function canSubmitActivityType(activityType: string): boolean {
+  function canSubmitActivityType(activityType: string, canSubmitFromApi?: boolean): boolean {
+    if (canSubmitFromApi === false) return false
     if (!isRestrictedGroupMember.value) return true
+    if (canCreateCampAndEvent.value) {
+      return ['activity', 'camp', 'event'].includes(activityType)
+    }
     return activityType === 'activity'
   }
 
-  /** Gruppen für Wizard-Dropdown (MW/DC: alle; Member: eigene + Untergruppen). */
+  /** Eigene Gruppe(n) + Untergruppen; ohne Mitgliedschaft MW/DC: alle Gruppen des Departments. */
   function wizardGroupsForUser(allDepartmentGroups: Group[]): Group[] {
     const userId = authStore.userId
     if (!userId) return []
-    if (isDepartmentGroupManager.value || !isRestrictedGroupMember.value) {
-      return allDepartmentGroups
-    }
-    return expandGroupsForMemberPicker(allDepartmentGroups, userId)
+    const scoped = expandGroupsForMemberPicker(allDepartmentGroups, userId)
+    if (scoped.length > 0) return scoped
+    if (isDepartmentGroupManager.value || isDepartmentLeader.value) return allDepartmentGroups
+    return []
   }
 
   watch(
@@ -86,7 +109,7 @@ export function useActivityGroupMemberScope() {
     (deptId, prev) => {
       if (deptId !== prev) {
         resetGroupsCache()
-        if (deptId && (isUserRole.value || isDepartmentGroupManager.value)) {
+        if (deptId) {
           void loadGroupsForDepartment(deptId)
         }
       }
@@ -100,7 +123,9 @@ export function useActivityGroupMemberScope() {
     isGroupLeaderInDepartment,
     isDepartmentGroupManager,
     isRestrictedGroupMember,
+    canCreateCampAndEvent,
     allowedCreateActivityTypes,
+    showActivityTypePicker,
     loadGroupsForDepartment,
     resetGroupsCache,
     setGroups,

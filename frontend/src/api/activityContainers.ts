@@ -84,6 +84,7 @@ export async function updateActivityPackContainerItem(
     quantity_packed: number
     quantity_issued: number
     quantity_returned: number
+    quantity_stored?: number
     condition_out: string
     notes: string | null
   }>

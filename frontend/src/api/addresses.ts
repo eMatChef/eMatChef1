@@ -19,6 +19,9 @@ export interface Address {
   latitude: number | null
   longitude: number | null
   has_coordinates: boolean
+  contact_first_name: string | null
+  contact_last_name: string | null
+  contact_full_name?: string | null
   email: string | null
   phone: string | null
   mobile: string | null
@@ -43,6 +46,8 @@ export interface AddressFormData {
   country?: string
   latitude?: number | null
   longitude?: number | null
+  contact_first_name?: string | null
+  contact_last_name?: string | null
   email?: string | null
   phone?: string | null
   mobile?: string | null

@@ -39,6 +39,33 @@
   margin: 6px 0 0;
 }
 
+.activity-pack-readonly-hint--handoff {
+  max-width: 52rem;
+  line-height: 1.45;
+}
+
+.pack-workflow--readonly .pack-panel-left,
+.pack-workflow--readonly .pack-panel-right {
+  opacity: 0.88;
+  filter: grayscale(0.12);
+}
+
+.pack-workflow--readonly .pack-progress-actions .btn:not(:disabled) {
+  opacity: 0.55;
+}
+
+.pack-unpack-qty-warn {
+  display: block;
+  margin-top: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #b45309;
+}
+
+.pack-container-line-issued-ref {
+  font-size: 12px;
+}
+
 .activity-detail-view .tab-content .activity-tab-panel-card,
 .activity-issues-tab .activity-tab-panel-card,
 .activity-consumables-tab .activity-tab-panel-card,

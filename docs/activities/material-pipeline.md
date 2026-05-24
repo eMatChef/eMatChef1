@@ -16,7 +16,7 @@ Zwei **getrennte** Status-Ebenen pro Aktivität:
 | Aktivität | «In welcher Phase ist der Anlass?» | `returned` = Gruppe hat retourniert |
 | Material | «Wo ist Stück X?» | 3× retourniert, 1× noch nicht eingelagert |
 
-Eine Aktivität kann `returned` sein, während einzelne Positionen noch nicht `quantity_stored` sind. Das ist gewollt — sonst müsste MW die Aktivität offen halten oder Material erscheint fälschlich wieder als verfügbar.
+Eine Aktivität kann `returned` sein, während einzelne Positionen noch nicht `quantity_stored` sind. Das ist gewollt — sonst müsste MW die Aktivität offen halten. **Verfügbarkeit im Lager** wird trotzdem erst wieder freigegeben, wenn die Aktivität **`completed`** ist (Einlagerung allein reicht nicht).
 
 ---
 
@@ -66,14 +66,48 @@ ordered → packed → transport_to → at_event → transport_back → returned
 | Retour | `quantity_returned` | Gruppe hat abgegeben — MW hat noch nicht eingelagert |
 | Eingelagert | `quantity_stored` | MW hat geprüft und ins Regal gelegt |
 
-### Quick-Profil (Typ `activity`)
+### Quick-Profil (Typ `activity`) und External
 
-Transport-Stufen entfallen in der UI; Backend darf `transport_to` / `transport_back` beim Buchen mitfüllen:
+Transport-Stufen entfallen in der UI **und** im Backend — `quantity_transport_to` / `quantity_transport_back` bleiben **0** (nur Camp/Event schreibt diese Felder):
 
 ```
 ordered → packed → at_event → returned → quantity_stored
-         (transport_to/back intern, nicht als eigene Stufe)
 ```
+
+| Typ | Packliste bearbeiten | Ausgabe «Am Event» | Retour + Ausgepackt |
+|-----|----------------------|--------------------|---------------------|
+| `activity` | MW + Gruppe/Ersteller ab «gepackt» | Gruppe / Ersteller | Gruppe retourniert → MW lagert ein |
+| `external` | **nur MW/DC** | MW (Ausgabe an Mieter) | **MW** retourniert und lagert ein |
+
+Externe Mieter haben **keinen** Packlisten-Zugang — nach Ausgabe übernimmt der Materialwart.
+
+### Logistics-Profil (Typ `camp` / `event`)
+
+Volle Pipeline inkl. Transport — **Gruppe/Ersteller (bis Leader) ab Aktivitäts-Status «gepackt»**, MW packt vorher und lagert nach «Retour» ein:
+
+```
+ordered → packed → transport_to → at_event → transport_back → returned → quantity_stored
+```
+
+| UI-Stufe (MW) | Pipeline | Wer (Gruppe) | Wer (MW) |
+|---------------|----------|--------------|----------|
+| Bestätigt → Gepackt | `packed` | — (nur Ansicht) | MW packt |
+| Gepackt → Transport hin | `transport_to` | Gruppe / Leader | Notfall |
+| Transport hin → Am Event | `at_event` | Gruppe / Leader | Notfall |
+| Am Event → Transport zurück | `transport_back` | Gruppe / Leader | Notfall |
+| Transport zurück → Retour | `returned` | Gruppe / Leader | Notfall |
+| Retour → Ausgepackt | `quantity_stored` | — | MW lagert ein |
+
+Gruppe sieht in der Packliste **4 Transport-Tabs** (ohne «Bestätigt → Gepackt» und ohne «Ausgepackt»).
+
+### UI-Stufen (Quick / External, MW)
+
+| UI-Stufe | Pipeline-Stufe(n) | Wer (`activity`) | Wer (`external`) |
+|----------|-------------------|------------------|------------------|
+| Bestätigt → Gepackt | `packed` | MW | MW |
+| Gepackt → Am Event | `at_event` | MW / Gruppe | MW |
+| Am Event → Retour | `returned` | Gruppe | MW |
+| Retour → Ausgepackt | `quantity_stored` | MW | MW |
 
 ---
 
@@ -91,24 +125,15 @@ ordered → packed → at_event → returned → quantity_stored
 | `completed` | Ja | `quantity_stored` vollständig (minus Verlust/Verbrauch) |
 | `cancelled` | — | keine weiteren Buchungen |
 
-### UI-Stufen (Quick, MW)
-
-| UI-Stufe | Pipeline-Stufe(n) | Wer |
-|----------|-------------------|-----|
-| Bestätigt → Gepackt | `packed` | MW |
-| Gepackt → Am Event | `at_event` | MW / Gruppe |
-| Am Event → Retour | `returned` | Gruppe |
-| Retour → Ausgepackt | `quantity_stored` | MW |
-
 ---
 
 ## Regeln (Ziel)
 
-1. **`returned` ≠ wieder verfügbar** — Material zählt erst nach Einlagerung («Ausgepackt» / `quantity_stored`) als frei im Lager.
-2. **Ab «Wird gepackt» gesperrt** — `GREATEST(quantity_packed, quantity_returned) - quantity_stored` blockiert die Verfügbarkeit **ohne** Zeitraum-Overlap.
-3. **Abschluss** (`returned` → `completed`) erst wenn alle relevanten Positionen eingelagert (oder als Verlust/Verbrauch gebucht).
-4. **`activity_item`** = Bestellung (Reservierung mit Zeitraum-Overlap nur bis `approved`); **`activity_pack_item`** = physische Sperre ab `packing`.
-5. **Quick:** keine Transport-UI; Logistics: volle Pipeline.
+1. **Erst bei `completed` wieder verfügbar** — Material bleibt gesperrt ab «Wird gepackt» bis zur Aktivitäts-Abschluss, auch wenn schon retourniert/eingelagert oder das Rückgabedatum vorbei ist.
+2. **Ab «Wird gepackt» gesperrt** — `GREATEST(quantity_packed, quantity_returned)` blockiert die Verfügbarkeit **ohne** Zeitraum-Overlap (kein Abzug durch `quantity_stored` vor `completed`).
+3. **Bestell-Reservierung** — `activity_item.quantity` mit Zeitraum-Overlap nur in `draft`/`submitted`/`approved`.
+4. **Abschluss** (`returned` → `completed`) erst wenn alle relevanten Positionen eingelagert (oder als Verlust/Verbrauch gebucht).
+5. **Quick / External:** keine Transport-UI; Logistics: volle Pipeline.
 
 ---
 
@@ -129,7 +154,7 @@ ordered → packed → at_event → returned → quantity_stored
 
 - [x] `quantity_stored` (+ Backend-Stufe `stored`) in DB und Pipeline
 - [x] `returned_unpack` UI an Stufe `stored` gekoppelt (links: Retour offen, rechts: Ausgepackt / eingelagert)
-- [x] Verfügbarkeit: gepacktes / retourniertes Material blockiert «frei» bis Einlagerung (`MaterialAvailabilityReservationQuery`)
+- [x] Verfügbarkeit: gepacktes / retourniertes Material blockiert «frei» bis **`completed`** (`MaterialAvailabilityReservationQuery`)
 - [x] `activity_item.status`: Sync aus Pack-Pipeline (`ActivityItemPipelineStatusService`) bei Move, Kisten, Statuswechsel
 - [x] Abschluss blockiert, solange `quantity_returned > quantity_stored`
 

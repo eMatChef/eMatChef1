@@ -104,6 +104,10 @@
                 <span class="info-label">{{ t('settings.addressForm.company') }}</span>
                 <span class="info-value">{{ contact.company }}</span>
               </div>
+              <div class="info-item" v-if="contact.contact_first_name || contact.contact_last_name">
+                <span class="info-label">{{ t('settings.addressForm.contactPerson') }}</span>
+                <span class="info-value">{{ formatContactPerson(contact) }}</span>
+              </div>
               <div class="info-item">
                 <span class="info-label">{{ t('settings.addressForm.type') }}</span>
                 <span class="info-value">
@@ -445,9 +449,19 @@ async function loadContact() {
   }
 }
 
+function formatContactPerson(c: Address): string {
+  return [c.contact_first_name, c.contact_last_name].filter(Boolean).join(' ')
+}
+
 function getInitials(c: Address): string {
-  if (c.name) return c.name.substring(0, 2)
-  if (c.company) return c.company.substring(0, 2)
+  const contactName = formatContactPerson(c)
+  if (contactName) {
+    const parts = contactName.trim().split(/\s+/)
+    if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
+    return contactName.substring(0, 2).toUpperCase()
+  }
+  if (c.name) return c.name.substring(0, 2).toUpperCase()
+  if (c.company) return c.company.substring(0, 2).toUpperCase()
   return '??'
 }
 

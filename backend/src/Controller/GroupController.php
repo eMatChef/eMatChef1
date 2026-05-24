@@ -6,6 +6,7 @@ use App\Entity\Department;
 use App\Entity\Group;
 use App\Entity\GroupMembership;
 use App\Entity\User;
+use App\Service\GroupAccessService;
 use App\Util\IdGenerator;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -18,7 +19,8 @@ use Symfony\Component\Security\Http\Attribute\IsGranted;
 class GroupController extends AbstractController
 {
     public function __construct(
-        private EntityManagerInterface $entityManager
+        private EntityManagerInterface $entityManager,
+        private GroupAccessService $groupAccess,
     ) {}
 
     // ========================================
@@ -163,10 +165,19 @@ class GroupController extends AbstractController
     #[IsGranted('ROLE_USER')]
     public function create(Request $request): JsonResponse
     {
+        $currentUser = $this->getUser();
+        if (!$currentUser instanceof User) {
+            return new JsonResponse(['error' => 'Nicht authentifiziert'], 401);
+        }
+
         $data = json_decode($request->getContent(), true);
 
         if (!isset($data['name']) || !isset($data['department_id'])) {
             return new JsonResponse(['error' => 'name und department_id sind erforderlich'], 400);
+        }
+
+        if (!$this->groupAccess->canFullyManageDepartmentGroups($currentUser, (string) $data['department_id'])) {
+            return new JsonResponse(['error' => 'Keine Berechtigung, Gruppen zu verwalten'], 403);
         }
 
         // Department prüfen
@@ -238,6 +249,14 @@ class GroupController extends AbstractController
             return new JsonResponse(['error' => 'Gruppe nicht gefunden'], 404);
         }
 
+        $currentUser = $this->getUser();
+        if (!$currentUser instanceof User) {
+            return new JsonResponse(['error' => 'Nicht authentifiziert'], 401);
+        }
+        if (!$this->groupAccess->canFullyManageDepartmentGroups($currentUser, $group->getDepartmentId())) {
+            return new JsonResponse(['error' => 'Keine Berechtigung, Gruppen zu verwalten'], 403);
+        }
+
         $data = json_decode($request->getContent(), true);
 
         if (isset($data['name'])) {
@@ -293,6 +312,14 @@ class GroupController extends AbstractController
             return new JsonResponse(['error' => 'Gruppe nicht gefunden'], 404);
         }
 
+        $currentUser = $this->getUser();
+        if (!$currentUser instanceof User) {
+            return new JsonResponse(['error' => 'Nicht authentifiziert'], 401);
+        }
+        if (!$this->groupAccess->canFullyManageDepartmentGroups($currentUser, $group->getDepartmentId())) {
+            return new JsonResponse(['error' => 'Keine Berechtigung, Gruppen zu verwalten'], 403);
+        }
+
         // Kinder-Gruppen auf null setzen (werden zu Root-Gruppen)
         $children = $this->entityManager->getRepository(Group::class)
             ->findBy(['parentId' => $id]);
@@ -322,6 +349,14 @@ class GroupController extends AbstractController
             return new JsonResponse(['error' => 'Gruppe nicht gefunden'], 404);
         }
 
+        $currentUser = $this->getUser();
+        if (!$currentUser instanceof User) {
+            return new JsonResponse(['error' => 'Nicht authentifiziert'], 401);
+        }
+        if (!$this->groupAccess->canManageGroupMembers($currentUser, $group)) {
+            return new JsonResponse(['error' => 'Keine Berechtigung, Mitglieder dieser Gruppe zu verwalten'], 403);
+        }
+
         $data = json_decode($request->getContent(), true);
 
         if (!isset($data['user_id'])) {
@@ -333,6 +368,14 @@ class GroupController extends AbstractController
             return new JsonResponse(['error' => 'User nicht gefunden'], 404);
         }
 
+        if ($user->hasSuperAdminProfile()) {
+            return new JsonResponse(['error' => 'Superadmin-Konten können keiner Gruppe zugewiesen werden'], 400);
+        }
+
+        if (!$this->groupAccess->userHasDepartmentMembership($data['user_id'], $group->getDepartmentId())) {
+            return new JsonResponse(['error' => 'Benutzer ist kein Mitglied dieser Abteilung'], 400);
+        }
+
         // Prüfe ob User schon Mitglied ist
         $existing = $this->entityManager->getRepository(GroupMembership::class)
             ->findOneBy(['userId' => $data['user_id'], 'groupId' => $groupId]);
@@ -340,11 +383,16 @@ class GroupController extends AbstractController
             return new JsonResponse(['error' => 'User ist bereits Mitglied dieser Gruppe'], 409);
         }
 
+        $leaderOnly = $this->groupAccess->isGroupLeaderOnlyManager($currentUser, $group);
+
         // Rolle validieren
         $role = $data['role'] ?? 'member';
         $validRoles = ['leader', 'member'];
         if (!in_array($role, $validRoles, true)) {
             return new JsonResponse(['error' => 'Ungültige Rolle. Erlaubt: ' . implode(', ', $validRoles)], 400);
+        }
+        if ($leaderOnly) {
+            $role = 'member';
         }
 
         try {
@@ -352,7 +400,7 @@ class GroupController extends AbstractController
             $membership->setUser($user);
             $membership->setGroup($group);
             $membership->setRole($role);
-            $membership->setIsPrimary($data['is_primary'] ?? false);
+            $membership->setIsPrimary($leaderOnly ? false : ($data['is_primary'] ?? false));
 
             $this->entityManager->persist($membership);
             $this->entityManager->flush();
@@ -375,6 +423,19 @@ class GroupController extends AbstractController
     #[IsGranted('ROLE_USER')]
     public function updateMember(string $groupId, string $userId, Request $request): JsonResponse
     {
+        $group = $this->entityManager->getRepository(Group::class)->find($groupId);
+        if (!$group) {
+            return new JsonResponse(['error' => 'Gruppe nicht gefunden'], 404);
+        }
+
+        $currentUser = $this->getUser();
+        if (!$currentUser instanceof User) {
+            return new JsonResponse(['error' => 'Nicht authentifiziert'], 401);
+        }
+        if (!$this->groupAccess->canFullyManageDepartmentGroups($currentUser, $group->getDepartmentId())) {
+            return new JsonResponse(['error' => 'Keine Berechtigung, Gruppenmitglieder zu bearbeiten'], 403);
+        }
+
         $membership = $this->entityManager->getRepository(GroupMembership::class)
             ->findOneBy(['userId' => $userId, 'groupId' => $groupId]);
         
@@ -416,6 +477,19 @@ class GroupController extends AbstractController
     #[IsGranted('ROLE_USER')]
     public function removeMember(string $groupId, string $userId): JsonResponse
     {
+        $group = $this->entityManager->getRepository(Group::class)->find($groupId);
+        if (!$group) {
+            return new JsonResponse(['error' => 'Gruppe nicht gefunden'], 404);
+        }
+
+        $currentUser = $this->getUser();
+        if (!$currentUser instanceof User) {
+            return new JsonResponse(['error' => 'Nicht authentifiziert'], 401);
+        }
+        if (!$this->groupAccess->canFullyManageDepartmentGroups($currentUser, $group->getDepartmentId())) {
+            return new JsonResponse(['error' => 'Keine Berechtigung, Gruppenmitglieder zu entfernen'], 403);
+        }
+
         $membership = $this->entityManager->getRepository(GroupMembership::class)
             ->findOneBy(['userId' => $userId, 'groupId' => $groupId]);
         

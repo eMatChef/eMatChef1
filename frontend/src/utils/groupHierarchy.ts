@@ -49,6 +49,33 @@ export function expandGroupsForMemberPicker(allGroups: Group[], userId: string):
   return allGroups.filter((g) => idSet.has(g.id))
 }
 
+/**
+ * Heimatgruppe: direkte Mitgliedschaft (Primärgruppe bevorzugt), keine Untergruppe ohne Membership.
+ */
+export function pickUserHomeGroupId(groups: Group[], userId: string | null): string | null {
+  if (!userId || !groups.length) return null
+
+  type Row = { g: Group; isPrimary: boolean; sortOrder: number }
+  const rows: Row[] = []
+  for (const g of groups) {
+    const mem = g.members?.find((m) => m.user_id === userId)
+    if (mem) {
+      rows.push({
+        g,
+        isPrimary: !!mem.is_primary,
+        sortOrder: g.sort_order ?? 0,
+      })
+    }
+  }
+  if (rows.length === 0) return null
+
+  rows.sort((a, b) => {
+    if (a.isPrimary !== b.isPrimary) return a.isPrimary ? -1 : 1
+    return a.sortOrder - b.sortOrder || a.g.name.localeCompare(b.g.name, 'de')
+  })
+  return rows[0].g.id
+}
+
 export type GroupPathLine = { label: string; level: number }
 
 /**

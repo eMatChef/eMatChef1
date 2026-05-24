@@ -740,8 +740,9 @@ class StorageLocationController extends AbstractController
     }
 
     /**
-     * Kisten-Batches, die in einer anderen Aktivität derselben Abteilung gebucht sind und deren
-     * Zeitraum (Planung oder Nutzung) sich mit dem gegebenen Intervall überschneidet.
+     * Kisten-Batches, die in einer anderen Aktivität derselben Abteilung gebucht sind und
+     * (a) noch in der Pack-Pipeline sind oder (b) deren Zeitraum sich mit dem Intervall überschneidet.
+     * Pipeline-Aktivitäten blockieren die Kiste bis `completed`, unabhängig vom Rückgabedatum.
      *
      * @return list<string>
      */
@@ -760,23 +761,30 @@ class StorageLocationController extends AbstractController
               AND apc.activity_id <> :excludeId
               AND a.department_id = :dept
               AND a.deleted_at IS NULL
-              AND a.status <> :cancelled
-              AND COALESCE(a.planning_start, a.usage_start) IS NOT NULL
-              AND COALESCE(a.planning_end, a.usage_end) IS NOT NULL
-              AND :cStart <= COALESCE(a.planning_end, a.usage_end)
-              AND COALESCE(a.planning_start, a.usage_start) <= :cEnd
+              AND a.status NOT IN (:cancelled, :completed)
+              AND (
+                  a.status IN ('packing', 'packed', 'at_event', 'returned')
+                  OR (
+                      COALESCE(a.planning_start, a.usage_start) IS NOT NULL
+                      AND COALESCE(a.planning_end, a.usage_end) IS NOT NULL
+                      AND :cStart <= COALESCE(a.planning_end, a.usage_end)
+                      AND COALESCE(a.planning_start, a.usage_start) <= :cEnd
+                  )
+              )
         SQL;
 
         $rows = $conn->executeQuery($sql, [
             'excludeId' => $excludeActivityId,
             'dept' => $departmentId,
             'cancelled' => Activity::STATUS_CANCELLED,
+            'completed' => Activity::STATUS_COMPLETED,
             'cStart' => $rangeStart,
             'cEnd' => $rangeEnd,
         ], [
             'excludeId' => ParameterType::STRING,
             'dept' => ParameterType::STRING,
             'cancelled' => ParameterType::STRING,
+            'completed' => ParameterType::STRING,
             'cStart' => $rangeStart instanceof \DateTimeImmutable
                 ? Types::DATETIME_IMMUTABLE
                 : Types::DATETIME_MUTABLE,

@@ -418,7 +418,8 @@ class ActivityWorkflowController extends AbstractController
             return new JsonResponse(['error' => 'Ungültige Stufe'], 400);
         }
 
-        $canRemove = $this->packPipeline->maxBackwardQty($packItem, $stage);
+        $profile = $this->packPipeline->profileForActivityType($activity->getType());
+        $canRemove = $this->packPipeline->maxBackwardQty($packItem, $stage, $profile);
         if ($qty > $canRemove) {
             return new JsonResponse(['error' => "Maximal $canRemove können zurückgenommen werden"], 422);
         }

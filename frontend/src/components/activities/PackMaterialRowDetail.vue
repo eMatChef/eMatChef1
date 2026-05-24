@@ -2,12 +2,16 @@
 import type { ActivityPackItem } from '@/api/activityPackItems'
 import type { PackStage } from '@/components/activities/packStageQuantities'
 import type { PackWorkflowProfile } from '@/components/activities/packWorkflowProfile'
+import PackRetourAccountingStack from '@/components/activities/PackRetourAccountingStack.vue'
+import type { PackRetourAccounting } from '@/components/activities/packNotTakenHelpers'
 import {
   getStageLeftQty,
   getStageRightQty,
   getStageTotalQty,
   isPackForwardToEventStage,
+  isPackUnpackStage,
 } from '@/components/activities/packStageQuantities'
+import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 defineOptions({ name: 'PackMaterialRowDetail' })
@@ -22,6 +26,9 @@ const props = defineProps<{
   qtyInContainers?: number
   looseIssuedAtEvent?: number
   consumedAtEvent?: number
+  notTakenToEvent?: number
+  expectedReturnQty?: number
+  retourAccounting?: PackRetourAccounting
   useDetailStack?: boolean
 }>()
 
@@ -30,6 +37,13 @@ const { t } = useI18n()
 const leftQty = () => getStageLeftQty(props.item, props.stage, props.workflowProfile)
 const rightQty = () => getStageRightQty(props.item, props.stage, props.workflowProfile)
 const totalQty = () => getStageTotalQty(props.item, props.stage, props.workflowProfile)
+
+const unpackPendingStoreTotal = computed(() => {
+  if (isPackUnpackStage(props.stage) && props.retourAccounting) {
+    return Math.max(0, props.retourAccounting.retourTotal - (props.item.quantityStored ?? 0))
+  }
+  return leftQty()
+})
 </script>
 
 <template>
@@ -56,6 +70,25 @@ const totalQty = () => getStageTotalQty(props.item, props.stage, props.workflowP
             }}
           </span>
         </template>
+        <template v-else-if="isPackUnpackStage(stage)">
+          <span v-if="unpackPendingStoreTotal > 0" class="pack-card-detail-primary">
+            {{ t('activities.packList.unpackPendingStoreQty', { n: unpackPendingStoreTotal }) }}
+          </span>
+          <PackRetourAccountingStack
+            v-if="retourAccounting"
+            :packed="retourAccounting.packed"
+            :replenishment="retourAccounting.replenishment"
+            :issued="retourAccounting.issued"
+            :never-issued="retourAccounting.neverIssued"
+            :not-taken="retourAccounting.notTaken"
+            :consumed="retourAccounting.consumed"
+            :loss="retourAccounting.loss"
+            :repair="retourAccounting.repair"
+            :returned-booked="retourAccounting.returnedBooked"
+            :retour-total="retourAccounting.retourTotal"
+            show-mismatch
+          />
+        </template>
         <template v-else> {{ leftQty() }} / {{ totalQty() }} </template>
       </template>
 
@@ -67,6 +100,10 @@ const totalQty = () => getStageTotalQty(props.item, props.stage, props.workflowP
           </span>
         </template>
         <span v-else class="text-muted">{{ t('activities.packList.zeroPieces') }}</span>
+      </template>
+
+      <template v-else-if="side === 'right' && isPackUnpackStage(stage)">
+        <span>{{ t('activities.packList.lineStoredForUnpack', { n: rightQty() }) }}</span>
       </template>
 
       <template v-else-if="side === 'right'">

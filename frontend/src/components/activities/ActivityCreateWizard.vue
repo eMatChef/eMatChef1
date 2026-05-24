@@ -18,7 +18,7 @@
           <div class="material-wizard-content">
             <div ref="wizardFormRef" class="material-wizard-form">
               <ActivityTypeChips
-                v-if="!isRestrictedGroupMember"
+                v-if="showActivityTypePicker"
                 :selected="selectedActivityType"
                 @select="onSelectActivityType"
               />
@@ -80,7 +80,7 @@
 
         <ActivityWizardFooter
           :submit-error="submitError"
-          :missing-steps="missingSteps"
+          :missing-steps="footerMissingSteps"
           :layout-mode="layoutMode"
           :selected-activity-type="selectedActivityType"
           :wizard-step-index="wizardStepIndex"
@@ -113,8 +113,6 @@ import '@/styles/activity-type-chips.css'
 import '@/styles/activity-create-wizard.css'
 import {
   createActivity,
-  getActivity,
-  getActivityItems,
   patchActivity,
   patchActivityStatus,
   syncActivityItems,
@@ -133,6 +131,7 @@ import {
 } from '@/composables/useActivityCreateWizard'
 import { useHeaderNotificationsStore } from '@/stores/headerNotifications'
 import { useActivityGroupMemberScope } from '@/composables/useActivityGroupMemberScope'
+import { useDepartmentMemberRole } from '@/composables/useDepartmentMemberRole'
 import {
   ActivityCreateWizardForm,
   ActivityPreviewSidebar,
@@ -143,26 +142,25 @@ import {
 const props = defineProps<{
   modelValue: boolean
   departmentId: string
-  /** Wenn gesetzt: Entwurf von der API laden (Wizard fortsetzen) */
-  resumeActivityId?: string | null
 }>()
 
 const emit = defineEmits<{
   'update:modelValue': [value: boolean]
   created: [id: string]
-  'resume-consumed': []
 }>()
 
 const { t } = useI18n()
 const toast = useToast()
 const authStore = useAuthStore()
 const headerNotificationsStore = useHeaderNotificationsStore()
+const { canSelectDepartmentGroupLevel } = useDepartmentMemberRole()
 const {
-  isRestrictedGroupMember,
   loadGroupsForDepartment,
   setGroups: setScopeGroups,
   groups: scopeGroups,
   wizardGroupsForUser,
+  allowedCreateActivityTypes,
+  showActivityTypePicker,
 } = useActivityGroupMemberScope()
 
 const showDialog = computed({
@@ -202,6 +200,7 @@ const {
   activityNotes,
   setWizardGroups,
   missingSteps,
+  footerMissingSteps,
   canSubmit,
   canAdvanceFromCurrentStep,
   isLastStep,
@@ -219,8 +218,8 @@ const {
   draftActivityId,
   saveDraftStep,
   applyInvitedDepartmentsApiResponse,
-  hydrateFromActivityDetail,
   shouldAutoSubmitAfterWizard,
+  shouldFinalizeAsSubmittedAfterWizard,
 } = useActivityCreateWizard()
 
 function onSelectActivityType(t: ActivityCreateType) {
@@ -380,7 +379,10 @@ async function loadPreviewAddresses() {
 const previewGroupLine = computed(() => {
   const typ = selectedActivityType.value
   if (!typ || typ === 'external') return null
-  if (typ === 'activity' && (!selectedGroupId.value || groupsForWizard.value.length === 0)) return null
+  if (typ === 'activity') {
+    if (groupsForWizard.value.length === 0 && !canSelectDepartmentGroupLevel.value) return null
+    if (!selectedGroupId.value && !canSelectDepartmentGroupLevel.value) return null
+  }
   const label = resolveActivityGroupPickerLabel(
     selectedGroupId.value,
     wizardDepartmentName.value,
@@ -510,10 +512,21 @@ async function handleSubmit() {
         materialSyncFailed = true
       }
     }
+    const wantsSubmitted = shouldFinalizeAsSubmittedAfterWizard()
     const wantsAutoSubmit = shouldAutoSubmitAfterWizard()
+    let finalizeSubmitFailed = false
+    let finalizeSubmitError = ''
     let autoSubmitFailed = false
     let autoSubmitError = ''
-    if (id && !materialSyncFailed && wantsAutoSubmit) {
+    if (id && !materialSyncFailed && wantsSubmitted) {
+      try {
+        await patchActivity(id, { status: 'submitted' })
+      } catch (err: unknown) {
+        finalizeSubmitFailed = true
+        const e = err as { response?: { data?: { error?: string } }; message?: string }
+        finalizeSubmitError = e?.response?.data?.error || e?.message || ''
+      }
+    } else if (id && !materialSyncFailed && wantsAutoSubmit) {
       try {
         await patchActivityStatus(id, { status: 'submitted' })
       } catch (err: unknown) {
@@ -524,14 +537,12 @@ async function handleSubmit() {
     }
     if (materialSyncFailed) {
       toast.error(t('activities.wizard.toastActivityCreatedMaterialFailed'))
+    } else if (finalizeSubmitFailed) {
+      toast.error(finalizeSubmitError || t('activities.wizard.toastAutoSubmitFailed'))
     } else if (autoSubmitFailed) {
       toast.error(autoSubmitError || t('activities.wizard.toastAutoSubmitFailed'))
-    } else if (wantsAutoSubmit) {
-      toast.success(
-        selectedActivityType.value === 'activity'
-          ? t('activities.wizard.toastSubmittedQuick')
-          : t('activities.wizard.toastSubmitted'),
-      )
+    } else if (wantsSubmitted || wantsAutoSubmit) {
+      toast.success(t('activities.wizard.toastSubmitted'))
     } else {
       toast.success(t('activities.wizard.toastDraftSaved'))
     }
@@ -570,8 +581,9 @@ watch(
     try {
       await loadGroupsForDepartment(props.departmentId)
       const wizardGroups = wizardGroupsForUser(scopeGroups.value)
-      if (isRestrictedGroupMember.value && !props.resumeActivityId && !selectedActivityType.value) {
-        onSelectActivityType('activity')
+      const allowed = allowedCreateActivityTypes.value
+      if (!selectedActivityType.value && allowed.length === 1) {
+        onSelectActivityType(allowed[0])
       }
       setWizardGroups(wizardGroups)
     } catch {
@@ -579,18 +591,6 @@ watch(
       setScopeGroups([])
     }
     void loadPreviewAddresses()
-    if (props.resumeActivityId) {
-      try {
-        const [detail, items] = await Promise.all([
-          getActivity(props.resumeActivityId),
-          getActivityItems(props.resumeActivityId),
-        ])
-        await hydrateFromActivityDetail(detail, items)
-        emit('resume-consumed')
-      } catch {
-        toast.error(t('components.activityCreateWizard.toastDraftLoadFailed'))
-      }
-    }
   },
 )
 

@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { inject } from 'vue'
+import { computed, inject } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { ActivityPackContainerItem } from '@/api/activityContainers'
+import PackConsumableQuickRow from '@/components/activities/PackConsumableQuickRow.vue'
 import {
   injectPackCtxBool,
   PACK_WAREHOUSE_ISSUE_INJECT_KEY,
@@ -18,6 +19,18 @@ const props = defineProps<{
 const { t } = useI18n()
 const ctx = inject(PACK_WAREHOUSE_ISSUE_INJECT_KEY) as Record<string, unknown>
 
+const isConsumable = computed(() => {
+  const mid = props.line.material_item_id
+  if (!mid) return false
+  return (ctx.isPackMaterialConsumable as (id: string) => boolean)(mid)
+})
+
+const useInlineConsumption = computed(() => {
+  if (!isConsumable.value) return false
+  const fn = ctx.useConsumableInlineAdjust as (() => boolean) | undefined
+  return fn?.() ?? false
+})
+
 function showPackIssueForLine(): boolean {
   const fn = ctx.showPackIssueForContainerLine as
     | ((ci: ActivityPackContainerItem, containerId: string) => boolean)
@@ -31,24 +44,35 @@ function showPackIssueForLine(): boolean {
 
 const show = () => {
   if (props.visible === false) return false
+  if (useInlineConsumption.value && props.line.material_item_id) {
+    return showPackConsumptionAllowed()
+  }
   return (
     showPackIssueForLine() &&
     Boolean(props.line.material_item_id) &&
     (() => {
       const mid = props.line.material_item_id!
-      const isConsumable = (ctx.isPackMaterialConsumable as (id: string) => boolean)(mid)
-      if (isConsumable) {
+      if (isConsumable.value) {
         return injectPackCtxBool(ctx, 'canReportConsumption')
       }
       return injectPackCtxBool(ctx, 'canReportIssues')
     })()
   )
 }
+
+function showPackConsumptionAllowed(): boolean {
+  return injectPackCtxBool(ctx, 'canReportConsumption') && Boolean(props.line.material_item_id)
+}
 </script>
 
 <template>
-  <div v-if="show()" class="pack-container-line-issue-quick" @click.stop>
-    <template v-if="(ctx.isPackMaterialConsumable as (id: string) => boolean)(line.material_item_id!)">
+  <PackConsumableQuickRow
+    v-if="show() && useInlineConsumption && line.material_item_id"
+    :material-item-id="line.material_item_id"
+    compact
+  />
+  <div v-else-if="show()" class="pack-container-line-issue-quick" @click.stop>
+    <template v-if="isConsumable">
       <button
         type="button"
         class="btn-issue-quick btn-issue-consumed"

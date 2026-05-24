@@ -491,6 +491,7 @@ import { useDetailTabsStore } from '@/stores/detailTabs'
 import { useToast } from '@/composables/useToast'
 import { useListSearchQueryRoute } from '@/composables/useListSearchQueryRoute'
 import { useAuthStore } from '@/stores/auth'
+import { isDepartmentBasicMemberRole } from '@/composables/useDepartmentMemberRole'
 import '@/styles/material-wizard.css'
 
 const route = useRoute()
@@ -503,7 +504,7 @@ const currentDepartmentId = computed(() => route.params.departmentId as string)
 
 /** Department-Rolle «User»: eingeschränkte Material-Liste (nur Tab «Alle Artikel», lesen). */
 const departmentRole = computed(() => (authStore.currentDepartmentRole || 'u').toLowerCase())
-const isUserMaterialsBrowseOnly = computed(() => ['u', 'user'].includes(departmentRole.value))
+const isUserMaterialsBrowseOnly = computed(() => isDepartmentBasicMemberRole(departmentRole.value))
 const canManageMaterials = computed(() => ['mw', 'dc', 'matwart', 'depchef'].includes(departmentRole.value))
 const showStockDetailColumns = computed(() => !isUserMaterialsBrowseOnly.value)
 

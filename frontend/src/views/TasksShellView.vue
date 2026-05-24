@@ -35,16 +35,14 @@
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { useAuthStore } from '@/stores/auth'
+import { useDepartmentMemberRole } from '@/composables/useDepartmentMemberRole'
 
 const route = useRoute()
 const { t } = useI18n()
-const authStore = useAuthStore()
 
 const departmentId = computed(() => String(route.params.departmentId || ''))
 
-const departmentRole = computed(() => String(authStore.currentDepartmentRole || 'u').toLowerCase().trim())
-const isUserRole = computed(() => ['u', 'user'].includes(departmentRole.value))
+const { isUserRole } = useDepartmentMemberRole()
 const canManagePrintTasks = computed(() => !isUserRole.value)
 
 const showTasksTabs = computed(() => canManagePrintTasks.value)

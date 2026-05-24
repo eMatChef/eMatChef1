@@ -3,22 +3,15 @@
     <ActivityCreateWizard
       v-model="showCreateActivityWizard"
       :department-id="departmentId"
-      :resume-activity-id="resumeWizardActivityId"
       @created="onActivityCreateWizardCreated"
-      @resume-consumed="resumeWizardActivityId = null"
     />
 
-    <div v-if="activityRouteId && activityDetailGateLoading" class="loading-state activities-detail-gate">
-      <div class="spinner"></div>
-      <p>{{ t('activities.opening') }}</p>
+    <div v-if="activityRouteId" class="dept-page activities-detail-root">
+      <ActivityDetailView :department-id="departmentId" :activity-id="activityRouteId" />
     </div>
 
-    <div v-else-if="activityRouteId && showActivityDetail" class="dept-page activities-detail-root">
-      <ActivityDetailView :department-id="departmentId" :activity-id="activityRouteId" />
-                </div>
-
     <!-- Übersicht -->
-    <template v-else-if="!activityRouteId">
+    <template v-else>
       <div class="activities-header page-header header-content">
         <div class="header-left">
           <h1>{{ t('activities.title') }}</h1>
@@ -199,7 +192,7 @@
                 'row-selected': selectedActivityId === activity.id,
               }"
               @click="selectedActivityId = activity.id"
-              @dblclick="openActivityDetail(activity)"
+              @dblclick.prevent="openActivityDetail(activity)"
             >
               <td class="col-status">
                 <span class="status-dot" :class="activityStatusClass(activity.status)"></span>
@@ -270,7 +263,6 @@ import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import apiClient from '@/api/apiClient'
-import { getActivity } from '@/api/activities'
 import { getGroups, type Group } from '@/api/groups'
 import { buildActivityGroupPathLines, type GroupPathLine } from '@/utils/groupHierarchy'
 import { ActivityCreateWizard, ActivityDetailView } from '@/components/activities'
@@ -303,15 +295,11 @@ const sortField = ref('date')
 const sortDir = ref<'asc' | 'desc'>('asc')
 const selectedActivityId = ref<string | null>(null)
 const showCreateActivityWizard = ref(false)
-/** Entwurf aus Detail-Route: Wizard fortsetzen */
-const resumeWizardActivityId = ref<string | null>(null)
-/** Detail nur, wenn Erstell-Wizard abgeschlossen (oder nicht Stepper-Typ) */
-const showActivityDetail = ref(false)
-const activityDetailGateLoading = ref(false)
 /** Verhindert Dashboard-Rücksprung nach erfolgreicher Anlage (Navigation zur Detailseite). */
 const activityJustCreated = ref(false)
 
-const STEPPER_ACTIVITY_TYPES = ['camp', 'event', 'external'] as const
+let lastDetailOpenId = ''
+let lastDetailOpenAt = 0
 
 interface Activity {
   id: string
@@ -623,10 +611,27 @@ function toggleSort(field: string) {
 }
 
 function openActivityDetail(activity: Activity) {
-  router.push(`/${departmentId.value}/activities/${activity.id}`)
+  const id = activity.id?.trim()
+  if (!id || !departmentId.value) return
+
+  const now = Date.now()
+  if (id === lastDetailOpenId && now - lastDetailOpenAt < 600) return
+  lastDetailOpenId = id
+  lastDetailOpenAt = now
+
+  if (showCreateActivityWizard.value) {
+    showCreateActivityWizard.value = false
+  }
+
+  if (route.params.activityId === id) return
+  void router.push(`/${departmentId.value}/activities/${id}`)
 }
 
 function openCreateActivityWizard() {
+  if (activityRouteId.value) {
+    void router.push({ path: `/${departmentId.value}/activities`, query: { new: '1' } })
+    return
+  }
   showCreateActivityWizard.value = true
 }
 
@@ -645,63 +650,43 @@ function onActivityCreateWizardCreated(id: string) {
 }
 
 watch(activityRouteId, (id) => {
-  if (id) stripQueryFromDetailRoute()
+  if (id) {
+    showCreateActivityWizard.value = false
+    stripQueryFromDetailRoute()
+    if (activityJustCreated.value) {
+      activityJustCreated.value = false
+    }
+  }
 })
 
-// ?new=1: Erstell-Wizard öffnen (z. B. vom Dashboard)
+// ?new=1: Erstell-Wizard nur auf der Listen-Route (nie in der Detailansicht)
 watch(
   () => route.query.new,
   (val) => {
-    if (val === '1' && !showCreateActivityWizard.value) {
-      openCreateActivityWizard()
-      const q = { ...route.query }
-      delete q.new
-      router.replace({ path: route.path, query: q })
+    if (val !== '1') return
+    if (activityRouteId.value) {
+      void router.replace({
+        path: `/${departmentId.value}/activities`,
+        query: { new: '1' },
+      })
+      return
     }
+    if (!showCreateActivityWizard.value) {
+      showCreateActivityWizard.value = true
+    }
+    const q = { ...route.query }
+    delete q.new
+    void router.replace({ path: route.path, query: q })
   },
   { immediate: true },
 )
 
 // from=dashboard: Bei Schließen ohne Speichern zurück zum Dashboard
 watch(showCreateActivityWizard, (isOpen) => {
-  if (!isOpen) {
-    resumeWizardActivityId.value = null
-  }
   if (!isOpen && route.query.from === 'dashboard' && departmentId.value && !activityJustCreated.value) {
     router.replace(`/${departmentId.value}`)
   }
-  if (!isOpen) activityJustCreated.value = false
 })
-
-watch(
-  () => ({ aid: activityRouteId.value, dept: departmentId.value }),
-  async ({ aid, dept }) => {
-    showActivityDetail.value = false
-    if (!aid || !dept) {
-      activityDetailGateLoading.value = false
-    return
-  }
-    activityDetailGateLoading.value = true
-    try {
-      const act = await getActivity(aid)
-      const isStepper = STEPPER_ACTIVITY_TYPES.includes(act.type as (typeof STEPPER_ACTIVITY_TYPES)[number])
-      const wizardIncomplete = isStepper && act.create_wizard_completed === false
-      if (wizardIncomplete) {
-        resumeWizardActivityId.value = aid
-        showCreateActivityWizard.value = true
-        await router.replace({ path: `/${dept}/activities`, query: { ...route.query } })
-        showActivityDetail.value = false
-      } else {
-        showActivityDetail.value = true
-      }
-    } catch {
-      showActivityDetail.value = true
-  } finally {
-      activityDetailGateLoading.value = false
-    }
-  },
-  { immediate: true },
-)
 
 watch(
   () => activityRouteId.value,

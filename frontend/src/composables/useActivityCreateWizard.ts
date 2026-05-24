@@ -8,7 +8,7 @@ import {
   type ActivityItemRow,
 } from '@/api/activities'
 import type { ActivityDefaults } from '@/api/departmentSettings'
-import type { Group, GroupMember } from '@/api/groups'
+import type { Group } from '@/api/groups'
 import { useAuthStore } from '@/stores/auth'
 import {
   computeMaterialPlanningFromUsage,
@@ -18,6 +18,8 @@ import {
   getPlanningUsageViolation,
   planningUsageViolationMessage,
 } from '@/utils/activityPlanningUsageConstraint'
+import { pickUserHomeGroupId } from '@/utils/groupHierarchy'
+import { useDepartmentMemberRole } from '@/composables/useDepartmentMemberRole'
 
 export type ActivityCreateType = 'activity' | 'camp' | 'event' | 'external'
 
@@ -76,33 +78,6 @@ export interface ActivityMaterialLine {
   is_container?: boolean
 }
 
-function pickDefaultGroupForLeader(groups: Group[], userId: string | null): string | null {
-  if (!userId || !groups.length) return null
-  type Row = { g: Group; mem: GroupMember }
-  const rows: Row[] = []
-  for (const g of groups) {
-    const mem = g.members?.find((m) => m.user_id === userId && m.is_leader)
-    if (mem) rows.push({ g, mem })
-  }
-  if (rows.length === 0) return null
-  const primary = rows.find(({ mem }) => mem.is_primary)
-  return (primary ?? rows[0]).g.id
-}
-
-/** Standard-Gruppe für Gruppenmitglied (ohne Gruppenchef-Rolle). */
-function pickDefaultGroupForMember(groups: Group[], userId: string | null): string | null {
-  if (!userId || !groups.length) return null
-  type Row = { g: Group; mem: GroupMember }
-  const rows: Row[] = []
-  for (const g of groups) {
-    const mem = g.members?.find((m) => m.user_id === userId)
-    if (mem) rows.push({ g, mem })
-  }
-  if (rows.length === 0) return null
-  const primary = rows.find(({ mem }) => mem.is_primary)
-  return (primary ?? rows[0]).g.id
-}
-
 function pickFirstRootGroup(groups: Group[]): string | null {
   if (!groups.length) return null
   const ids = new Set(groups.map((g) => g.id))
@@ -113,12 +88,16 @@ function pickFirstRootGroup(groups: Group[]): string | null {
   return sorted[0]?.id ?? null
 }
 
-function pickDefaultGroup(groups: Group[], userId: string | null): string | null {
-  const fromMembership =
-    pickDefaultGroupForLeader(groups, userId) ?? pickDefaultGroupForMember(groups, userId)
-  if (fromMembership) return fromMembership
+function pickDefaultGroup(
+  groups: Group[],
+  userId: string | null,
+  canSelectDepartment: boolean,
+): string | null {
+  const home = pickUserHomeGroupId(groups, userId)
+  if (home) return home
   const role = String(useAuthStore().currentDepartmentRole || '').toLowerCase()
-  if (['mw', 'dc', 'matwart', 'depchef'].includes(role)) {
+  if (canSelectDepartment && ['l1', 'l2', 'l3'].includes(role)) return null
+  if (['mw', 'dc', 'matwart', 'depchef'].includes(role) && groups.length > 0) {
     return pickFirstRootGroup(groups)
   }
   return null
@@ -155,6 +134,8 @@ export function grunddatenStepTitle(t: ActivityCreateType | null): string {
 }
 
 export function useActivityCreateWizard() {
+  const { canSelectDepartmentGroupLevel } = useDepartmentMemberRole()
+
   const selectedActivityType = ref<ActivityCreateType | null>(null)
   const wizardStepIndex = ref(0)
 
@@ -254,13 +235,22 @@ export function useActivityCreateWizard() {
     )
   })
 
-  /** Gruppe Pflicht nur bei interner Aktivität (wenn Gruppen existieren). */
-  const needsGroupRequired = computed(
-    () =>
-      !!selectedActivityType.value &&
-      selectedActivityType.value === 'activity' &&
-      groupsForWizard.value.length > 0,
-  )
+  /**
+   * Konkrete Gruppe Pflicht (nicht Abteilungsebene).
+   * L1–L3 / MW / DC dürfen group_id leer lassen (= ganzes Department).
+   */
+  const needsExplicitGroupId = computed(() => {
+    const typ = selectedActivityType.value
+    if (!typ || typ === 'external' || canSelectDepartmentGroupLevel.value) return false
+    if (groupsForWizard.value.length === 0) return false
+    return typ === 'activity' || typ === 'camp'
+  })
+
+  const hasValidGroupChoice = computed(() => {
+    if (!needsExplicitGroupId.value) return true
+    const id = selectedGroupId.value
+    return typeof id === 'string' && id.trim() !== ''
+  })
 
   const needsVenue = computed(
     () =>
@@ -287,7 +277,7 @@ export function useActivityCreateWizard() {
       return missing
     }
     if (!formName.value.trim()) missing.push('enter_name')
-    if (needsGroupRequired.value && !selectedGroupId.value) missing.push('choose_group')
+    if (!hasValidGroupChoice.value) missing.push('choose_group')
     if (needsVenue.value && !venueAddressId.value) missing.push('choose_venue')
     if (needsCustomerAddress.value && !customerAddressId.value) missing.push('choose_tenant_address')
     if (!datesComplete.value) missing.push('complete_date_ranges')
@@ -301,7 +291,7 @@ export function useActivityCreateWizard() {
     const key = stepKeys.value[wizardStepIndex.value]
     if (key === 'grunddaten') {
       if (!formName.value.trim()) return false
-      if (needsGroupRequired.value && !selectedGroupId.value) return false
+      if (!hasValidGroupChoice.value) return false
       if (needsVenue.value && !venueAddressId.value) return false
       if (needsCustomerAddress.value && !customerAddressId.value) return false
       return true
@@ -320,6 +310,34 @@ export function useActivityCreateWizard() {
 
   const isLastStep = computed(() => wizardStepIndex.value >= stepKeys.value.length - 1)
 
+  const GRUNDDATEN_MISSING_KEYS: ActivityMissingStepKey[] = [
+    'enter_name',
+    'choose_group',
+    'choose_venue',
+    'choose_tenant_address',
+  ]
+  const ZEITRAUM_MISSING_KEYS: ActivityMissingStepKey[] = [
+    'complete_date_ranges',
+    'check_date_range',
+    'pickup_outside_usage',
+  ]
+
+  /** Stepper-Footer: nur Hinweise des aktuellen Schritts (nicht z. B. Material in Schritt 1). */
+  const footerMissingSteps = computed((): ActivityMissingStepKey[] => {
+    if (layoutMode.value !== 'stepper') return missingSteps.value
+    const key = stepKeys.value[wizardStepIndex.value]
+    if (key === 'grunddaten') {
+      return missingSteps.value.filter((k) => GRUNDDATEN_MISSING_KEYS.includes(k))
+    }
+    if (key === 'zeitraum') {
+      return missingSteps.value.filter((k) => ZEITRAUM_MISSING_KEYS.includes(k))
+    }
+    if (key === 'material') {
+      return missingSteps.value.filter((k) => k === 'choose_material')
+    }
+    return missingSteps.value
+  })
+
   const canSubmit = computed(() => {
     if (missingSteps.value.length > 0) return false
     if (layoutMode.value === 'stepper' && !isLastStep.value) return false
@@ -330,18 +348,30 @@ export function useActivityCreateWizard() {
     activityDefaults.value = defaults
   }
 
+  function applyDefaultGroupSelection(groups: Group[]) {
+    const uid = useAuthStore().userId ?? null
+    const t = selectedActivityType.value
+    if (!t || (t !== 'activity' && t !== 'camp' && t !== 'event')) return
+    if (groups.length === 0 && !canSelectDepartmentGroupLevel.value) return
+    const current = selectedGroupId.value?.trim() || null
+    if (current !== selectedGroupId.value) {
+      selectedGroupId.value = current
+    }
+    const valid =
+      (current != null && groups.some((g) => g.id === current)) ||
+      (current === null && canSelectDepartmentGroupLevel.value)
+    if (!valid) {
+      selectedGroupId.value = pickDefaultGroup(
+        groups,
+        uid,
+        canSelectDepartmentGroupLevel.value,
+      )
+    }
+  }
+
   function setWizardGroups(groups: Group[]) {
     groupsForWizard.value = groups
-    const auth = useAuthStore()
-    const uid = auth.userId ?? null
-    const t = selectedActivityType.value
-    if (t === 'activity' && groups.length > 0) {
-      const current = selectedGroupId.value
-      const valid = current != null && groups.some((g) => g.id === current)
-      if (!valid) {
-        selectedGroupId.value = pickDefaultGroup(groups, uid)
-      }
-    }
+    applyDefaultGroupSelection(groups)
   }
 
   function seedUsageAndPlanning() {
@@ -409,9 +439,12 @@ export function useActivityCreateWizard() {
     if (previous !== null) {
       formName.value = ''
     }
-    const auth = useAuthStore()
-    if (t === 'activity') {
-      selectedGroupId.value = pickDefaultGroup(groupsForWizard.value, auth.userId ?? null)
+    if (t === 'activity' || t === 'camp' || t === 'event') {
+      selectedGroupId.value = pickDefaultGroup(
+        groupsForWizard.value,
+        useAuthStore().userId ?? null,
+        canSelectDepartmentGroupLevel.value,
+      )
     } else {
       selectedGroupId.value = null
     }
@@ -560,7 +593,7 @@ export function useActivityCreateWizard() {
       department_id: departmentId,
       name,
       type: selectedActivityType.value!,
-      /** Immer Entwurf: Material ist nur bei status=draft per API/Detail bearbeitbar; Einreichen erfolgt in der Detailansicht. */
+      /** Entwurf beim Anlegen/Patch (Material-Sync). Typ «activity»: nach Wizard-Ende → eingereicht. */
       status: 'draft',
     }
     if (selectedGroupId.value) {
@@ -604,11 +637,16 @@ export function useActivityCreateWizard() {
     return payload
   }
 
-  /** Nach Wizard-Ende: direkt einreichen (POST draft → sync items → PATCH status), nicht bei Lager/Event-Entwurf; extern nur als MW. */
+  /** Typ «activity»: nach Material-Sync per PATCH auf «eingereicht» (nicht /status — kein Quick-Approve). */
+  function shouldFinalizeAsSubmittedAfterWizard(): boolean {
+    return selectedActivityType.value === 'activity'
+  }
+
+  /**
+   * Externe Ausleihe als MW: Einreichen über /status.
+   */
   function shouldAutoSubmitAfterWizard(): boolean {
     const t = selectedActivityType.value
-    if (!t) return false
-    if (t === 'activity') return true
     if (t === 'external') {
       const role = useAuthStore().currentDepartmentRole
       return role === 'mw'
@@ -683,6 +721,7 @@ export function useActivityCreateWizard() {
     activityDefaults,
     planningSynced,
     missingSteps,
+    footerMissingSteps,
     canSubmit,
     canAdvanceFromCurrentStep,
     isLastStep,
@@ -703,5 +742,6 @@ export function useActivityCreateWizard() {
     applyInvitedDepartmentsApiResponse,
     hydrateFromActivityDetail,
     shouldAutoSubmitAfterWizard,
+    shouldFinalizeAsSubmittedAfterWizard,
   }
 }

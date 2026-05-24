@@ -264,7 +264,8 @@ class ActivityPackContainerController extends AbstractController
                 'materialItemId' => $shellMaterialId,
             ]);
             if ($shellPack instanceof ActivityPackItem) {
-                $max = $this->packPipeline->maxBackwardQty($shellPack, PackPipelineService::STAGE_PACKED);
+                $profile = $this->packPipeline->profileForActivityType($activity->getType());
+                $max = $this->packPipeline->maxBackwardQty($shellPack, PackPipelineService::STAGE_PACKED, $profile);
                 if ($max > 0) {
                     $this->packPipeline->applyBackward($shellPack, PackPipelineService::STAGE_PACKED, $max);
                     $shellPack->setUpdatedAt(new \DateTime());
@@ -288,7 +289,8 @@ class ActivityPackContainerController extends AbstractController
             return;
         }
 
-        $moveBack = min($qty, $this->packPipeline->maxBackwardQty($packItem, PackPipelineService::STAGE_PACKED));
+        $profile = $this->packPipeline->profileForActivityType($activity->getType());
+        $moveBack = min($qty, $this->packPipeline->maxBackwardQty($packItem, PackPipelineService::STAGE_PACKED, $profile));
         if ($moveBack < 1) {
             return;
         }
@@ -413,6 +415,7 @@ class ActivityPackContainerController extends AbstractController
         if (array_key_exists('quantity_packed', $data)) $item->setQuantityPacked(max(0, (int) $data['quantity_packed']));
         if (array_key_exists('quantity_issued', $data)) $item->setQuantityIssued(max(0, (int) $data['quantity_issued']));
         if (array_key_exists('quantity_returned', $data)) $item->setQuantityReturned(max(0, (int) $data['quantity_returned']));
+        if (array_key_exists('quantity_stored', $data)) $item->setQuantityStored(max(0, (int) $data['quantity_stored']));
         if (array_key_exists('condition_out', $data)) $item->setConditionOut((string) $data['condition_out']);
         if (array_key_exists('notes', $data)) $item->setNotes($data['notes']);
         if (array_key_exists('material_batch_id', $data)) {

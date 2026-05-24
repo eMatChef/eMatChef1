@@ -15,6 +15,23 @@ class ActivityAccessService
 {
     private const DEPARTMENT_WIDE_MANAGER_ROLES = ['sa', 'org', 'sub', 'mw', 'dc'];
 
+    /** Basissicht wie «u» — L1–L3 vorerst gleich; Gruppenchef ohne Extra-Rechte. */
+    private const BASIC_MEMBER_ROLES = ['u', 'user', 'l1', 'l2', 'l3'];
+
+    /** Department-Rolle für Berechtigungsvergleich: l1–l3 wie «u». */
+    public static function normalizeBasicMemberDepartmentRole(?string $role): ?string
+    {
+        if ($role === null || $role === '') {
+            return null;
+        }
+        $r = strtolower(trim($role));
+        if (\in_array($r, ['l1', 'l2', 'l3', 'user'], true)) {
+            return 'u';
+        }
+
+        return $r;
+    }
+
     public function __construct(
         private EntityManagerInterface $entityManager,
         private GroupHierarchyService $groupHierarchy
@@ -31,8 +48,8 @@ class ActivityAccessService
     }
 
     /**
-     * Department-Rolle «u»/«user» ohne Gruppenchef in diesem Department.
-     * Nur Gruppen-Hierarchie + eigene Aktivitäten; Anlegen nur Typ «activity».
+     * Basissicht (u, l1–l3): Gruppen-Hierarchie, Anlegen/Einreichen nur Typ «activity».
+     * Gruppenchef zählt nicht extra — Rechte später gezielt aktivierbar.
      */
     public function isRestrictedGroupMember(User $user, string $departmentId): bool
     {
@@ -43,11 +60,8 @@ class ActivityAccessService
         }
 
         $role = strtolower(trim((string) ($membership->getRole() ?? '')));
-        if (!in_array($role, ['u', 'user'], true)) {
-            return false;
-        }
 
-        return !$this->isGroupLeaderInDepartment($user, $departmentId);
+        return in_array($role, self::BASIC_MEMBER_ROLES, true);
     }
 
     public function isGroupLeaderInDepartment(User $user, string $departmentId): bool
@@ -65,6 +79,86 @@ class ActivityAccessService
         }
 
         return false;
+    }
+
+    /**
+     * Darf User einen Aktivitätstyp in diesem Department anlegen?
+     */
+    public function canUserCreateActivityType(User $user, string $departmentId, string $type): bool
+    {
+        $type = strtolower(trim($type));
+        $role = $this->departmentRoleForUser($user, $departmentId);
+        if ($role === null) {
+            return false;
+        }
+
+        if ($type === 'external') {
+            return \in_array($role, ['mw', 'dc', 'matwart', 'depchef'], true);
+        }
+
+        if ($type === 'activity') {
+            return true;
+        }
+
+        if (\in_array($type, ['camp', 'event'], true)) {
+            if (\in_array($role, ['mw', 'dc', 'matwart', 'depchef'], true)) {
+                return true;
+            }
+            if (\in_array($role, ['sa', 'org', 'sub'], true)) {
+                return true;
+            }
+            if (\in_array($role, ['l1', 'l2', 'l3'], true)) {
+                return true;
+            }
+            if ($this->isGroupLeaderInDepartment($user, $departmentId)) {
+                return true;
+            }
+
+            return false;
+        }
+
+        return false;
+    }
+
+    /**
+     * Lager/Event: nur Ersteller oder Gruppenchef der zugeordneten Gruppe.
+     */
+    public function canUserSubmitCampOrEvent(User $user, Activity $activity): bool
+    {
+        if (!$activity->isDraft()) {
+            return false;
+        }
+        if (!\in_array($activity->getType() ?? '', ['camp', 'event'], true)) {
+            return false;
+        }
+        if ($activity->getCreatedByUserId() === $user->getId()) {
+            return true;
+        }
+
+        $groupId = $activity->getGroupId();
+        if ($groupId === null || $groupId === '') {
+            return false;
+        }
+
+        $gMem = $this->entityManager->getRepository(GroupMembership::class)->findOneBy([
+            'userId' => $user->getId(),
+            'groupId' => $groupId,
+        ]);
+
+        return $gMem !== null && $gMem->getRole() === 'leader';
+    }
+
+    private function departmentRoleForUser(User $user, string $departmentId): ?string
+    {
+        $mem = $this->entityManager->getRepository(Membership::class)->findOneBy([
+            'userId' => $user->getId(),
+            'departmentId' => $departmentId,
+        ]);
+        if ($mem === null) {
+            return null;
+        }
+
+        return strtolower(trim((string) ($mem->getRole() ?? '')));
     }
 
     /**
@@ -397,11 +491,12 @@ class ActivityAccessService
     }
 
     /**
-     * Typ «activity»: Ersteller oder Gruppenmitglied darf Material am Event / Retour buchen.
+     * Typ «activity», «camp», «event»: Ersteller oder Gruppenmitglied (bis Leader) darf
+     * ab «gepackt» Material in der Pack-Pipeline bewegen (bis Retour gemeldet).
      */
     public function canUserOperateActivityPackHandoff(User $user, Activity $activity): bool
     {
-        if (($activity->getType() ?? '') !== 'activity') {
+        if (!\in_array($activity->getType() ?? '', ['activity', 'camp', 'event'], true)) {
             return false;
         }
 
@@ -421,7 +516,7 @@ class ActivityAccessService
     }
 
     /**
-     * Packliste bearbeiten: MW/DC immer (packing…returned); bei Typ «activity» auch Ersteller/Gruppenmitglied ab «gepackt».
+     * Packliste bearbeiten: MW/DC immer (packing…returned); bei activity/camp/event auch Ersteller/Gruppe ab «gepackt».
      */
     public function canUserEditPackList(User $user, Activity $activity): bool
     {
@@ -444,17 +539,17 @@ class ActivityAccessService
             return false;
         }
 
+        // Ab «Retour gemeldet» nur MW/DC (Einlagern / Ausgepackt) — Gruppe hat Übergabe abgeschlossen.
         return \in_array($status, [
             Activity::STATUS_PACKED,
             Activity::STATUS_AT_EVENT,
-            Activity::STATUS_RETURNED,
         ], true);
     }
 
     /**
-     * Erlaubte Pack-Pipeline-Stufen für Nicht-MW bei Typ «activity» (issued / returned).
+     * Erlaubte Pack-Pipeline-Stufen für Nicht-MW (Gruppe/Ersteller).
      *
-     * @return list<string>|null null = keine Einschränkung
+     * @return list<string>|null null = keine Einschränkung (MW/DC)
      */
     public function allowedPackMoveStagesForUser(User $user, Activity $activity): ?array
     {
@@ -463,6 +558,16 @@ class ActivityAccessService
         }
         if (!$this->canUserOperateActivityPackHandoff($user, $activity)) {
             return [];
+        }
+
+        $type = $activity->getType() ?? '';
+        if (\in_array($type, ['camp', 'event'], true)) {
+            return [
+                \App\Service\PackPipelineService::STAGE_TRANSPORT_TO,
+                \App\Service\PackPipelineService::STAGE_AT_EVENT,
+                \App\Service\PackPipelineService::STAGE_TRANSPORT_BACK,
+                \App\Service\PackPipelineService::STAGE_RETURNED,
+            ];
         }
 
         return [

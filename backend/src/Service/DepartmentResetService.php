@@ -16,6 +16,29 @@ class DepartmentResetService
         private EntityManagerInterface $entityManager
     ) {}
 
+    /**
+     * Löscht alle Aktivitäten eines Departments (Packlisten, Historie, Inbox-Verknüpfungen).
+     * Material, Adressen, Gruppen etc. bleiben erhalten.
+     */
+    public function resetActivities(string $departmentId): array
+    {
+        $department = $this->entityManager->getRepository(Department::class)->find($departmentId);
+        if (!$department) {
+            throw new \InvalidArgumentException('Department nicht gefunden');
+        }
+
+        $conn = $this->entityManager->getConnection();
+        $conn->beginTransaction();
+        try {
+            $deleted = $this->deleteActivitiesForDepartment($conn, $departmentId);
+            $conn->commit();
+            return $deleted;
+        } catch (\Throwable $e) {
+            $conn->rollBack();
+            throw new \RuntimeException('Aktivitäten-Reset fehlgeschlagen: ' . $e->getMessage(), 0, $e);
+        }
+    }
+
     public function resetDepartment(string $departmentId): array
     {
         $department = $this->entityManager->getRepository(Department::class)->find($departmentId);
@@ -30,38 +53,7 @@ class DepartmentResetService
         try {
             // Reihenfolge beachten: zuerst abhängige Tabellen, dann Haupttabellen
 
-            // 1. Activity-abhängige Tabellen (CASCADE würde greifen, aber explizit für Zählung)
-            $deleted['activity_item'] = $conn->executeStatement(
-                'DELETE FROM activity_item WHERE activity_id IN (SELECT id FROM activity WHERE department_id = ?)',
-                [$departmentId]
-            );
-            $deleted['activity_return_item'] = $conn->executeStatement(
-                'DELETE FROM activity_return_item WHERE activity_id IN (SELECT id FROM activity WHERE department_id = ?)',
-                [$departmentId]
-            );
-            $deleted['activity_pack_item'] = $conn->executeStatement(
-                'DELETE FROM activity_pack_item WHERE activity_id IN (SELECT id FROM activity WHERE department_id = ?)',
-                [$departmentId]
-            );
-            $deleted['activity_pack_container_item'] = $conn->executeStatement(
-                'DELETE FROM activity_pack_container_item WHERE pack_container_id IN (SELECT id FROM activity_pack_container WHERE activity_id IN (SELECT id FROM activity WHERE department_id = ?))',
-                [$departmentId]
-            );
-            $deleted['activity_pack_container'] = $conn->executeStatement(
-                'DELETE FROM activity_pack_container WHERE activity_id IN (SELECT id FROM activity WHERE department_id = ?)',
-                [$departmentId]
-            );
-            $deleted['activity_issue_report'] = $conn->executeStatement(
-                'DELETE FROM activity_issue_report WHERE activity_id IN (SELECT id FROM activity WHERE department_id = ?)',
-                [$departmentId]
-            );
-            $deleted['activity_history'] = $conn->executeStatement(
-                'DELETE FROM activity_history WHERE activity_id IN (SELECT id FROM activity WHERE department_id = ?)',
-                [$departmentId]
-            );
-
-            // 2. Activities
-            $deleted['activity'] = $conn->executeStatement('DELETE FROM activity WHERE department_id = ?', [$departmentId]);
+            $deleted = array_merge($deleted, $this->deleteActivitiesForDepartment($conn, $departmentId));
 
             // 3. Workshop (referenziert material_item und activity)
             $deleted['workshop_ticket_history'] = $conn->executeStatement(
@@ -161,5 +153,51 @@ class DepartmentResetService
             $conn->rollBack();
             throw new \RuntimeException('DB-Reset fehlgeschlagen: ' . $e->getMessage(), 0, $e);
         }
+    }
+
+    /**
+     * @return array<string, int>
+     */
+    private function deleteActivitiesForDepartment(\Doctrine\DBAL\Connection $conn, string $departmentId): array
+    {
+        $deleted = [];
+
+        $deleted['inbox_message'] = $conn->executeStatement(
+            'DELETE FROM inbox_message WHERE activity_id IN (SELECT id FROM activity WHERE department_id = ?)',
+            [$departmentId]
+        );
+
+        $deleted['activity_item'] = $conn->executeStatement(
+            'DELETE FROM activity_item WHERE activity_id IN (SELECT id FROM activity WHERE department_id = ?)',
+            [$departmentId]
+        );
+        $deleted['activity_return_item'] = $conn->executeStatement(
+            'DELETE FROM activity_return_item WHERE activity_id IN (SELECT id FROM activity WHERE department_id = ?)',
+            [$departmentId]
+        );
+        $deleted['activity_pack_item'] = $conn->executeStatement(
+            'DELETE FROM activity_pack_item WHERE activity_id IN (SELECT id FROM activity WHERE department_id = ?)',
+            [$departmentId]
+        );
+        $deleted['activity_pack_container_item'] = $conn->executeStatement(
+            'DELETE FROM activity_pack_container_item WHERE pack_container_id IN (SELECT id FROM activity_pack_container WHERE activity_id IN (SELECT id FROM activity WHERE department_id = ?))',
+            [$departmentId]
+        );
+        $deleted['activity_pack_container'] = $conn->executeStatement(
+            'DELETE FROM activity_pack_container WHERE activity_id IN (SELECT id FROM activity WHERE department_id = ?)',
+            [$departmentId]
+        );
+        $deleted['activity_issue_report'] = $conn->executeStatement(
+            'DELETE FROM activity_issue_report WHERE activity_id IN (SELECT id FROM activity WHERE department_id = ?)',
+            [$departmentId]
+        );
+        $deleted['activity_history'] = $conn->executeStatement(
+            'DELETE FROM activity_history WHERE activity_id IN (SELECT id FROM activity WHERE department_id = ?)',
+            [$departmentId]
+        );
+
+        $deleted['activity'] = $conn->executeStatement('DELETE FROM activity WHERE department_id = ?', [$departmentId]);
+
+        return $deleted;
     }
 }

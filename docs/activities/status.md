@@ -88,14 +88,17 @@ Aus `Activity::STATUS_TRANSITIONS`:
 - **`packed` → `packing`:** Zurück zum Packen (Korrektur).
 - **`draft` / mehrere Stufen → `cancelled`:** Storno.
 
-### Quick-Modus (Typ «activity») vs. Lager/Event
+### Quick-Modus (Typ «activity») vs. Lager/Event vs. Extern
 
-| Aspekt | Typ `activity` (Quick) | Typ `camp` / `event` |
-|--------|------------------------|----------------------|
-| Einreichen | `draft` → direkt **`approved`** (kein Zwischenstatus «Eingereicht») | `draft` → **`submitted`** |
-| Gruppenchef «Bestätigen» | entfällt — Material ist bei Einreichung final | `submitted` → **`approved`** (Leader bestätigt Material-Liste) |
-| MW-Aktion danach | «Packen starten» (`approved` → `packing`) | «Bestätigen» oder «Annehmen & Packen» |
-| Verbrauchsmaterial-Tab | erst ab `at_event` | erst ab `at_event` |
+| Aspekt | Typ `activity` | Typ `camp` / `event` | Typ `external` |
+|--------|------------------|----------------------|----------------|
+| **Anlegen** | alle Department-Mitglieder (Gruppenmitglied `u` nur «Aktivität») | User (`u`), Gruppenchef, Leiter 1–3 | **nur Materialwart** |
+| **Start-Status** | Entwurf (Quick: Auto-Einreichung möglich) | **immer Entwurf** | Entwurf |
+| **Material im Entwurf** | Gruppe + Untergruppen | Gruppe + Untergruppen | MW |
+| **Einreichen** | Ersteller, Gruppenchef, DC, MW | **nur Ersteller oder Gruppenchef** | **nur MW** |
+| **Nach Einreichung Material** | nur MW/DC (bis «Am Event») | nur MW/DC (bis «Am Event») | nur MW/DC |
+| Gruppenchef «Bestätigen» | entfällt — Material bei Einreichung final | `submitted` → `approved` (Leader/MW) | — |
+| MW-Aktion danach | «Packen starten» | «Bestätigen» / «Annehmen & Packen» | Packen / Ausgabe |
 
 Technisch: Frontend sendet weiterhin `submitted`; Backend setzt bei Typ `activity` automatisch `approved` und benachrichtigt den MW.
 

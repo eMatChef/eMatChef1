@@ -175,6 +175,7 @@ import { ref, computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'
+import { isDepartmentBasicMemberRole } from '@/composables/useDepartmentMemberRole'
 import EmcLogoMark from '@/components/brand/EmcLogoMark.vue'
 import {
   IconDashboard,
@@ -262,18 +263,14 @@ const hasGlobalAdminAccess = computed(() =>
 
 const showActivitiesMenu = computed(() => !isSuperAdmin.value)
 const showMaterialsMenu = computed(() => !isSuperAdmin.value)
-/** Werkstatt: nicht für reine User-Rolle (u) — nur MW/DC/L1–L3 und andere Dept-Rollen */
+/** Werkstatt: nicht für Basissicht (u, l1–l3) — nur MW/DC */
 const showWorkshopMenu = computed(() => {
   if (isSuperAdmin.value) return false
-  const r = String(authStore.currentDepartmentRole || '').toLowerCase().trim()
-  return r !== 'u' && r !== 'user'
+  return !isDepartmentBasicMemberRole(authStore.currentDepartmentRole)
 })
 
-/** Statistik: wie Werkstatt — nicht für User (u) */
-const showStatisticsMenu = computed(() => {
-  const r = String(authStore.currentDepartmentRole || '').toLowerCase().trim()
-  return r !== 'u' && r !== 'user'
-})
+/** Statistik: wie Werkstatt — nicht für Basissicht */
+const showStatisticsMenu = computed(() => !isDepartmentBasicMemberRole(authStore.currentDepartmentRole))
 
 /** Buchhaltung: nur Materialchef (mw) oder Departmentchef (dc) im aktuellen Department */
 const showAccountingMenu = computed(() => {

@@ -2,6 +2,7 @@ import {
   isPackConfirmedStage,
   isPackForwardToEventStage,
   isPackReturnStage,
+  isPackUnpackStage,
   type PackStage,
 } from '@/components/activities/packStageQuantities'
 
@@ -84,6 +85,27 @@ export const PACK_MIRROR_SECTION_FORWARD_AT_EVENT: PackMirrorSectionPreset = {
   containerDomIdPrefix: 'pack-container-at-event-',
 }
 
+/** Linkes Kisten-Panel — Retour → Ausgepackt (MW: retournierte Kisten noch einräumen). */
+export const PACK_CRATE_SECTION_UNPACK_WAREHOUSE_LEFT: PackCrateSectionPreset = {
+  titleKey: 'activities.packList.sectionKisten',
+  hintKey: 'activities.packList.hintUnpackCratesOnLeft',
+  ariaKey: 'activities.packList.ariaContainersUnpackLeft',
+  sectionClass: 'pack-workflow-section--unpack-kisten-left',
+  cardMode: 'at_event_return',
+}
+
+/** Rechtes Spiegel-Panel — Bereits eingelagert (Retour → Ausgepackt). */
+export const PACK_MIRROR_SECTION_UNPACK_STORED: PackMirrorSectionPreset = {
+  sectionClass: 'pack-workflow-section--unpack-stored-mirror',
+  titleKey: 'activities.packList.sectionAlreadyStored',
+  cratesHintKey: 'activities.packList.hintUnpackCratesStoredRight',
+  cratesAriaKey: 'activities.packList.ariaContainersStoredMirror',
+  looseSectionClass: 'pack-workflow-section--stored-loose',
+  looseTitleKey: 'activities.packList.sectionStoredLoose',
+  cardMode: 'at_event_return_mirror',
+  containerDomIdPrefix: 'pack-container-stored-',
+}
+
 /** Rechtes Spiegel-Panel — Bereits retourniert (Am Event → Retour). */
 export const PACK_MIRROR_SECTION_RETURN_DONE: PackMirrorSectionPreset = {
   sectionClass: 'pack-workflow-section--returned-mirror',
@@ -98,6 +120,7 @@ export const PACK_MIRROR_SECTION_RETURN_DONE: PackMirrorSectionPreset = {
 export function packCrateSectionPresetForLeft(stage: PackStage): PackCrateSectionPreset | null {
   if (isPackForwardToEventStage(stage)) return PACK_CRATE_SECTION_FORWARD_WAREHOUSE_LEFT
   if (isPackReturnStage(stage)) return PACK_CRATE_SECTION_RETURN_AT_EVENT_LEFT
+  if (isPackUnpackStage(stage)) return PACK_CRATE_SECTION_UNPACK_WAREHOUSE_LEFT
   return null
 }
 
@@ -110,6 +133,7 @@ export function packMirrorSectionPresetForRight(stage: PackStage): PackMirrorSec
   if (isPackConfirmedStage(stage)) return PACK_MIRROR_SECTION_CONFIRMED_PACKED_LOOSE
   if (isPackForwardToEventStage(stage)) return PACK_MIRROR_SECTION_FORWARD_AT_EVENT
   if (isPackReturnStage(stage)) return PACK_MIRROR_SECTION_RETURN_DONE
+  if (isPackUnpackStage(stage)) return PACK_MIRROR_SECTION_UNPACK_STORED
   return null
 }
 

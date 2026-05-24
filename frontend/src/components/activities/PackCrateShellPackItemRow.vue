@@ -9,7 +9,7 @@ import { isPackConfirmedStage } from '@/components/activities/packStageQuantitie
 import PackCrateShellInlinePanel, {
   type PackCrateShellPeekSection,
 } from '@/components/activities/PackCrateShellInlinePanel.vue'
-import { PACK_WAREHOUSE_ISSUE_INJECT_KEY } from '@/components/activities/packWarehouseIssueInjectKey'
+import { injectPackCtxBool, PACK_WAREHOUSE_ISSUE_INJECT_KEY } from '@/components/activities/packWarehouseIssueInjectKey'
 import { packShellContainerForPackItem } from '@/components/activities/packShellCrateHelpers'
 import type { ActivityPackContainer } from '@/api/activityContainers'
 
@@ -83,6 +83,8 @@ const shellCanMoveForward = computed(() => {
   return fn ? fn(props.shellPackItem) > 0 : false
 })
 
+const packForwardEditable = computed(() => injectPackCtxBool(ctx, 'packForwardEditable'))
+
 const shellMoveQty = computed(() => {
   const inputs = ctx.moveQtyInputs as unknown
   const map =
@@ -137,7 +139,7 @@ function moveShellCrateForward(qtyFromControl?: number) {
         </div>
       </div>
       <div
-        v-if="(ctx.packForwardEditable as boolean | undefined) && shellCanMoveForward"
+        v-if="packForwardEditable && shellCanMoveForward"
         class="pack-container-header-actions"
         @click.stop
       >

@@ -298,6 +298,7 @@ import { getDashboardData, type DashboardActivity } from '@/api/dashboard'
 import { getPendingAdminJoinRequests } from '@/api/joinRequests'
 import DamageReportWizard from '@/components/DamageReportWizard.vue'
 import { activityStatusClass, activityStatusI18nKey } from '@/utils/activityStatus'
+import { useDepartmentMemberRole } from '@/composables/useDepartmentMemberRole'
 
 const route = useRoute()
 const { t, locale } = useI18n()
@@ -342,11 +343,9 @@ const dashboardData = ref<Awaited<ReturnType<typeof getDashboardData>> | null>(n
 const globalAdminPendingCount = ref(0)
 
 // === Role helpers ===
-// Department-Rollen: nur mw, dc, l1, l2, l3, u (sa/org/sub kommen aus profile.roles)
 const role = computed(() => (authStore.currentDepartmentRole || 'u').toLowerCase())
 const isSuperAdmin = computed(() => authStore.userRoles.includes('ROLE_SUPERADMIN'))
-const USER_ROLES = ['u', 'user']
-const LEADER_ROLES = ['l1', 'l2', 'l3']
+const { isUserRole } = useDepartmentMemberRole()
 const DC_ROLES = ['dc']
 const MW_DASHBOARD_ROLES = ['mw']
 const hasSupportAdminRole = computed(() =>
@@ -357,13 +356,12 @@ const hasSupportAdminRole = computed(() =>
 
 const showMaterialCreate = computed(() => MW_DASHBOARD_ROLES.includes(role.value))
 const showCreateActivity = computed(() =>
-  USER_ROLES.includes(role.value) ||
-  LEADER_ROLES.includes(role.value) ||
+  isUserRole.value ||
   DC_ROLES.includes(role.value) ||
   MW_DASHBOARD_ROLES.includes(role.value)
 )
-const showActiveActivities = computed(() => USER_ROLES.includes(role.value) || LEADER_ROLES.includes(role.value))
-const showDraftsWidget = computed(() => LEADER_ROLES.includes(role.value))
+const showActiveActivities = computed(() => isUserRole.value)
+const showDraftsWidget = computed(() => false)
 const showOverviewWidget = computed(() => DC_ROLES.includes(role.value) || MW_DASHBOARD_ROLES.includes(role.value))
 const showWorkshopWidget = computed(() => DC_ROLES.includes(role.value) || MW_DASHBOARD_ROLES.includes(role.value))
 const showDisplayLink = computed(() => DC_ROLES.includes(role.value) || MW_DASHBOARD_ROLES.includes(role.value))

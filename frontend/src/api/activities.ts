@@ -89,6 +89,8 @@ export interface ActivityDetail extends ActivityCreatedResponse {
   can_edit_activity_material?: boolean
   /** Nach Einreichung: Host-MW/DC dürfen Texte/Stammdaten per PATCH ändern */
   can_edit_submitted_activity_content?: boolean
+  /** Im Entwurf: darf User «Einreichen» (typabhängig — API) */
+  can_submit_activity?: boolean
   /** false = Erstell-Wizard noch nicht abgeschlossen → Detail gesperrt, Wizard fortsetzen */
   create_wizard_completed?: boolean
   public_code?: string | null

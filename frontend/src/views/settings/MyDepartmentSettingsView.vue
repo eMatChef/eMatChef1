@@ -136,8 +136,33 @@
         </p>
       </div>
 
-      <!-- DB zurücksetzen (nur für Manager) -->
-      <div v-if="canManageJoinCode" class="info-card db-reset-card">
+      <!-- Dev-Tools (nur Testumgebung, nie Produktion) -->
+      <div v-if="showDevTools && canManageJoinCode" class="info-card db-reset-card">
+        <div class="card-header">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" class="card-icon card-icon-danger">
+            <path d="M6 19C6 20.1 6.9 21 8 21H16C17.1 21 18 20.1 18 19V7H6V19ZM19 4H15.5L14.5 3H9.5L8.5 4H5V6H19V4Z" fill="#dc2626"/>
+          </svg>
+          <h2>{{ t('settings.myDepartment.activitiesResetTitle') }}</h2>
+        </div>
+        <div class="db-reset-row">
+          <p class="db-reset-desc">
+            {{ t('settings.myDepartment.activitiesResetDescription') }}
+            <strong>{{ t('settings.myDepartment.activitiesResetDescriptionStrong') }}</strong>
+          </p>
+          <button
+            class="db-reset-btn"
+            :disabled="isResettingActivities"
+            @click="resetDepartmentActivitiesAction"
+          >
+            {{ isResettingActivities ? t('settings.myDepartment.resetting') : t('settings.myDepartment.resetActivities') }}
+          </button>
+        </div>
+        <p class="selector-hint db-reset-warning">
+          {{ t('settings.myDepartment.activitiesResetWarning') }}
+        </p>
+      </div>
+
+      <div v-if="showDevTools && canManageJoinCode" class="info-card db-reset-card">
         <div class="card-header">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" class="card-icon card-icon-danger">
             <path d="M4 7V4H20V7M9 20H15V10H9V20M5 7H19V20H5V7Z" fill="#dc2626"/>
@@ -275,11 +300,13 @@ import {
   getDepartmentOnboardingStatus,
   resetDepartmentOnboardingDone,
   resetDepartmentDb as apiResetDepartmentDb,
+  resetDepartmentActivities as apiResetDepartmentActivities,
   savePublicSharingSettings,
   saveCalendarSettings as saveCalendarSettingsApi,
   type PublicFoundContactDelivery,
 } from '@/api/departmentSettings'
 import { buildOnboardingDismissedKey, buildOnboardingDoneKey, buildOnboardingStateKey } from '@/utils/departmentOnboarding'
+import { isDevToolsEnvironment } from '@/utils/devEnvironmentBanner'
 import QRCode from 'qrcode'
 
 const route = useRoute()
@@ -306,6 +333,8 @@ const pendingInvites = ref<PendingInvite[]>([])
 const onboardingDone = ref(false)
 const isResettingOnboarding = ref(false)
 const isResettingDb = ref(false)
+const isResettingActivities = ref(false)
+const showDevTools = computed(() => isDevToolsEnvironment())
 const isSavingPublicSettings = ref(false)
 const publicContactEmail = ref('')
 const publicContactNote = ref('')
@@ -607,6 +636,30 @@ async function resetDepartmentOnboarding() {
     toast.error(err.response?.data?.error || t('settings.myDepartment.onboarding.toastResetError'))
   } finally {
     isResettingOnboarding.value = false
+  }
+}
+
+async function resetDepartmentActivitiesAction() {
+  if (!selectedDepartmentId.value || isResettingActivities.value) return
+
+  const ok = await confirm.confirm({
+    title: t('settings.myDepartment.activitiesReset.confirmTitle'),
+    message: t('settings.myDepartment.activitiesReset.confirmMessage'),
+    confirmText: t('settings.myDepartment.activitiesReset.confirmAction'),
+    cancelText: t('common.cancel'),
+    variant: 'danger',
+  })
+  if (!ok) return
+
+  isResettingActivities.value = true
+  try {
+    const result = await apiResetDepartmentActivities(selectedDepartmentId.value)
+    toast.success(result.message || t('settings.myDepartment.activitiesReset.toastSuccess'))
+    window.location.href = `/${selectedDepartmentId.value}/activities`
+  } catch (err: any) {
+    toast.error(err.response?.data?.error || t('settings.myDepartment.activitiesReset.toastError'))
+  } finally {
+    isResettingActivities.value = false
   }
 }
 

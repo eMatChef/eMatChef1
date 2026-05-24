@@ -509,6 +509,12 @@ class AddressController extends AbstractController
         if (array_key_exists('longitude', $data)) {
             $address->setLongitude($data['longitude'] !== null ? (float) $data['longitude'] : null);
         }
+        if (array_key_exists('contact_first_name', $data)) {
+            $address->setContactFirstName($data['contact_first_name']);
+        }
+        if (array_key_exists('contact_last_name', $data)) {
+            $address->setContactLastName($data['contact_last_name']);
+        }
         if (array_key_exists('email', $data)) {
             $address->setEmail($data['email']);
         }

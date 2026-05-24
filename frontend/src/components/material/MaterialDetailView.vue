@@ -2328,6 +2328,7 @@ import MaterialMetricInput from '@/components/material/MaterialMetricInput.vue'
 import { normalizeMaterialMetricInput } from '@/utils/materialMetricUnits'
 import SplitModal from '@/components/material/SplitModal.vue'
 import { useAuthStore } from '@/stores/auth'
+import { isDepartmentBasicMemberRole } from '@/composables/useDepartmentMemberRole'
 import { usePageHeadStore } from '@/stores/pageHead'
 import { useToast } from '@/composables/useToast'
 import { useConfirm } from '@/composables/useConfirm'
@@ -2419,7 +2420,7 @@ const canManageJsMaterial = computed(() => {
 })
 
 const departmentRole = computed(() => String(authStore.currentDepartmentRole || 'u').toLowerCase())
-const isUserMaterialsBrowseOnly = computed(() => ['u', 'user'].includes(departmentRole.value))
+const isUserMaterialsBrowseOnly = computed(() => isDepartmentBasicMemberRole(departmentRole.value))
 const canManageMaterials = computed(() =>
   ['mw', 'dc', 'matwart', 'depchef'].includes(departmentRole.value)
 )

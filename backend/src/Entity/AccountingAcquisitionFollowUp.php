@@ -21,6 +21,8 @@ class AccountingAcquisitionFollowUp
     public const SOURCE_ACTIVITY_REPLENISHMENT = 'activity_replenishment';
     public const SOURCE_ACTIVITY_LOSS = 'activity_loss';
     public const SOURCE_ACTIVITY_WORKSHOP = 'activity_workshop';
+    /** Gesamte Endabrechnung einer Aktivität (ein Buchhaltungs-Auftrag). */
+    public const SOURCE_ACTIVITY_FINAL = 'activity_final';
 
     #[ORM\Id]
     #[ORM\Column(type: 'string', length: 12, columnDefinition: 'CHARACTER(12) NOT NULL')]

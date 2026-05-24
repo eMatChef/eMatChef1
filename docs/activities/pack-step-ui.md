@@ -191,6 +191,25 @@ i18n-Keys pro `kind` stehen in `WORKFLOW_STATUS_CONFIRM_CONFIG` (`packStepUi.ts`
 
 ---
 
+## Retour-Kistenmodal (`PackReturnCrateModal.vue`)
+
+Beim Retour-Check einer Kiste (aus `ActivityPackListTab`) gilt getrennte UI pro Zeilentyp:
+
+| Zeilentyp | UI | Buchung |
+|-----------|-----|---------|
+| **Verbrauchsmaterial** | Materialzeile, Hinweis «Verbrauch offen» / «Verbrauch erfasst», Button «Verbrauch buchen» — **keine** Checkbox, **kein** Retour-+/− | `ActivityConsumptionModal` via `emitConsumptionForMaterialId`; nach Erfolg `reloadToken` → `syncReturnCrateModalLines()` (Modal bleibt offen) |
+| **Übriges Material** | Checkbox, Retour-Menge (+/−), bei Differenz Verlust/Reparatur (Wizard mit Vorfüll-Menge) | Retour über Primary «Retour buchen» |
+
+**Submit-Regel:** «Retour buchen» ist deaktiviert, solange Verbrauchszeilen mit offenem Verbrauch (`consumptionOpen > 0`) existieren. Nicht-Verbrauch und Shell-Retour unverändert über `onReturnCrateModalSubmit` / `continueReturnCrateBatch`.
+
+State-Hilfen in `ActivityPackListTab.vue`: `returnCrateConsumableState`, `buildReturnCrateModalLines`, `syncReturnCrateModalLines`, `returnCrateModalSubmitDisabled`. Kiste nur mit Verbrauch: «Retour buchen» schliesst die Prüfung ohne physische Retour-Schritte (`toastReturnCrateCheckComplete`).
+
+**Gruppe nach «Retour gemeldet»:** Packliste bleibt sichtbar (Ansicht), Steuerung aus (`canUserEditPackList` / `memberReturnHandoffComplete`), dezentes Grau (`pack-workflow--readonly`). MW/DC bearbeiten weiter (Einlagern).
+
+**Retour → Ausgepackt (MW):** Spiegelung der anderen Stufen — links alles mit offenem Einlagern (`returned - stored`), rechts nur «Bereits ausgepackt» (`PackStepMirrorSection` + `PACK_MIRROR_SECTION_UNPACK_STORED`). Kisten links via `PackStepCrateSection` + `PackUnpackWarehouseContainerCard` (`variant=pending`); rechts `variant=stored`. Mengenabweichung Retour vs. ausgegeben: Hinweis in `PackMaterialRowDetail` / Kistenzeile.
+
+---
+
 ## Verwandte Docs
 
 | Thema | Datei |

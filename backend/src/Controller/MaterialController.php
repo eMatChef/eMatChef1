@@ -2353,7 +2353,7 @@ class MaterialController extends AbstractController
                 WHERE ai.material_item_id = :materialId
                   AND a.department_id = :departmentId
                   AND a.deleted_at IS NULL
-                  AND a.status NOT IN ('cancelled', 'completed', 'returned')
+                  AND a.status NOT IN ('cancelled', 'completed')
                 GROUP BY a.id, a.no, a.name, a.status, a.type, a.usage_start, a.usage_end
             ),
             combo_lines AS (
@@ -2379,7 +2379,7 @@ class MaterialController extends AbstractController
                 INNER JOIN material_item combo_parent ON combo_parent.id = cc.parent_material_id
                 WHERE a.department_id = :departmentId
                   AND a.deleted_at IS NULL
-                  AND a.status NOT IN ('cancelled', 'completed', 'returned')
+                  AND a.status NOT IN ('cancelled', 'completed')
                 GROUP BY a.id, a.no, a.name, a.status, a.type, a.usage_start, a.usage_end
             )
             SELECT
@@ -3503,7 +3503,7 @@ class MaterialController extends AbstractController
      *
      * Gibt ein Array zurück: [material_item_id => ['issued' => int, 'reserved' => int]]
      * - issued:   Menge in Aktivitäten mit Status at_event (Material ist draussen beim Kunden)
-     * - reserved: Menge in Aktivitäten mit Status submitted/approved/packing/packed (noch im Lager, aber reserviert)
+     * - reserved: Menge in Aktivitäten mit Status submitted/approved/packing/packed/returned (noch gesperrt bis completed)
      */
     private function getActivityStockBreakdown(string $departmentId): array
     {
@@ -3513,12 +3513,12 @@ class MaterialController extends AbstractController
             SELECT 
                 ai.material_item_id,
                 COALESCE(SUM(CASE WHEN a.status = 'at_event' THEN ai.quantity ELSE 0 END), 0) AS issued,
-                COALESCE(SUM(CASE WHEN a.status IN ('submitted', 'approved', 'packing', 'packed') THEN ai.quantity ELSE 0 END), 0) AS reserved
+                COALESCE(SUM(CASE WHEN a.status IN ('submitted', 'approved', 'packing', 'packed', 'returned') THEN ai.quantity ELSE 0 END), 0) AS reserved
             FROM activity_item ai
             INNER JOIN activity a ON a.id = ai.activity_id
             WHERE a.department_id = :department_id
               AND a.deleted_at IS NULL
-              AND a.status NOT IN ('draft', 'cancelled', 'completed', 'returned')
+              AND a.status NOT IN ('draft', 'cancelled', 'completed')
             GROUP BY ai.material_item_id
         ";
 

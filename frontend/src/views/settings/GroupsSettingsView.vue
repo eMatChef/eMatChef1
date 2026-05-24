@@ -5,10 +5,10 @@
       <div>
         <h2 class="settings-title">{{ t('settings.groups.title') }}</h2>
         <p class="settings-description">
-          {{ isUserRole ? t('settings.groups.subtitleReadOnly') : t('settings.groups.subtitle') }}
+          {{ groupsSubtitle }}
         </p>
       </div>
-      <button v-if="!isUserRole" class="btn btn-primary" @click="openCreateModal()">
+      <button v-if="canFullyManageGroups" class="btn btn-primary" @click="openCreateModal()">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
         </svg>
@@ -54,7 +54,7 @@
       </svg>
       <h3>{{ t('settings.groups.emptyTitle') }}</h3>
       <p>{{ t('settings.groups.emptyDescription') }}</p>
-      <button v-if="!isUserRole" class="btn btn-primary" @click="openCreateModal()">
+      <button v-if="canFullyManageGroups" class="btn btn-primary" @click="openCreateModal()">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
         </svg>
@@ -69,7 +69,7 @@
           <tr>
             <th class="col-name">{{ t('settings.groups.colGroup') }}</th>
             <th class="col-members">{{ t('settings.groups.colMembersAndLeaders') }}</th>
-            <th v-if="!isUserRole" class="col-actions"></th>
+            <th v-if="showGroupManagementActions" class="col-actions"></th>
           </tr>
         </thead>
         <tbody>
@@ -111,10 +111,11 @@
             </td>
 
             <!-- Aktionen -->
-            <td v-if="!isUserRole" class="col-actions">
+            <td v-if="showGroupManagementActions" class="col-actions">
               <div class="action-buttons">
-                <button 
-                  class="action-btn" 
+                <button
+                  v-if="canManageMembersForGroup(group)"
+                  class="action-btn"
                   :title="t('settings.groups.titleManageMembers')"
                   @click="openMembersModal(group)"
                 >
@@ -124,8 +125,9 @@
                     <line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/>
                   </svg>
                 </button>
-                <button 
-                  class="action-btn" 
+                <button
+                  v-if="canFullyManageGroups"
+                  class="action-btn"
                   :title="t('settings.groups.titleEdit')"
                   @click="openEditModal(group)"
                 >
@@ -134,8 +136,9 @@
                     <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
                   </svg>
                 </button>
-                <button 
-                  class="action-btn action-btn-danger" 
+                <button
+                  v-if="canFullyManageGroups"
+                  class="action-btn action-btn-danger"
                   :title="t('settings.groups.titleDelete')"
                   @click="handleDelete(group)"
                 >
@@ -245,17 +248,22 @@
                     </td>
                     <td class="member-email">{{ member.email }}</td>
                     <td>
-                      <select 
-                        :value="member.role" 
+                      <select
+                        v-if="canFullyManageGroups"
+                        :value="member.role"
                         class="role-select"
                         @change="handleRoleChange(member, ($event.target as HTMLSelectElement).value)"
                       >
                         <option value="leader">{{ t('settings.groups.roleLeader') }}</option>
                         <option value="member">{{ t('settings.groups.roleMember') }}</option>
                       </select>
+                      <span v-else class="role-readonly">
+                        {{ member.is_leader ? t('settings.groups.roleLeader') : t('settings.groups.roleMember') }}
+                      </span>
                     </td>
                     <td>
-                      <button 
+                      <button
+                        v-if="canFullyManageGroups"
                         class="action-btn action-btn-danger"
                         :title="t('settings.groups.titleRemoveMember')"
                         @click="handleRemoveMember(member)"
@@ -302,7 +310,11 @@
                     {{ user.name }} ({{ user.email }})
                   </option>
                 </select>
-                <select v-model="addMemberForm.role" class="form-select role-select-sm">
+                <select
+                  v-if="canFullyManageGroups"
+                  v-model="addMemberForm.role"
+                  class="form-select role-select-sm"
+                >
                   <option value="member">{{ t('settings.groups.roleMember') }}</option>
                   <option value="leader">{{ t('settings.groups.roleLeader') }}</option>
                 </select>
@@ -333,7 +345,7 @@ import { useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useToast } from '@/composables/useToast'
 import { useConfirm } from '@/composables/useConfirm'
-import { useDepartmentMemberRole } from '@/composables/useDepartmentMemberRole'
+import { useGroupManagementScope } from '@/composables/useGroupManagementScope'
 import UserAvatarBadge from '@/components/user/UserAvatarBadge.vue'
 import {
   getGroups,
@@ -356,7 +368,6 @@ const route = useRoute()
 const authStore = useAuthStore()
 const toast = useToast()
 const confirm = useConfirm()
-const { isUserRole } = useDepartmentMemberRole()
 const departmentId = computed(() => (route.params.departmentId as string) || authStore.activeDepartmentId || '')
 
 // === State ===
@@ -386,6 +397,19 @@ const addMemberForm = ref({
 
 
 // === Computed ===
+
+const {
+  canFullyManageGroups,
+  canManageMembersForGroup,
+  isGroupLeaderSomewhere,
+  showGroupManagementActions,
+} = useGroupManagementScope(groups)
+
+const groupsSubtitle = computed(() => {
+  if (canFullyManageGroups.value) return t('settings.groups.subtitle')
+  if (isGroupLeaderSomewhere.value) return t('settings.groups.subtitleLeader')
+  return t('settings.groups.subtitleReadOnly')
+})
 
 const totalMembers = computed(() => groups.value.reduce((sum, g) => sum + g.member_count, 0))
 const totalLeaders = computed(() => groups.value.reduce((sum, g) => sum + g.leader_count, 0))
@@ -568,7 +592,7 @@ async function handleAddMember() {
   try {
     await addGroupMember(selectedGroup.value.id, {
       user_id: addMemberForm.value.user_id,
-      role: addMemberForm.value.role,
+      role: canFullyManageGroups.value ? addMemberForm.value.role : 'member',
     })
     // Daten neu laden
     await loadGroups()
@@ -850,6 +874,11 @@ onMounted(() => {
 .text-muted {
   color: #9ca3af;
   font-size: 13px;
+}
+
+.role-readonly {
+  font-size: 13px;
+  color: #475569;
 }
 
 /* ========================================

@@ -35,6 +35,20 @@ export const PACK_STAGE_KEYS_LOGISTICS: PackStageLogistics[] = [
   'transport_back_returned',
 ]
 
+/** Gruppe/User Camp/Event: ab «gepackt» alle Transport-Stufen bis Retour (ohne MW-Packen / Einlagern). */
+export const PACK_STAGE_KEYS_LOGISTICS_MEMBER: PackStageLogistics[] = [
+  'packed_transport_to',
+  'transport_to_at_event',
+  'at_event_transport_back',
+  'transport_back_returned',
+]
+
+/** MW Camp/Event: volle Pipeline inkl. Einlagern. */
+export const PACK_STAGE_KEYS_LOGISTICS_MW: PackStage[] = [
+  ...PACK_STAGE_KEYS_LOGISTICS,
+  'returned_unpack',
+]
+
 export const PACK_STAGE_KEYS_EXTERNAL: PackStageExternal[] = [
   'confirmed_packed',
   'packed_at_event',
@@ -54,8 +68,10 @@ export const PACK_STAGE_KEYS_QUICK_MW: PackStageQuick[] = [
 
 export function packStageKeysForProfile(profile: PackWorkflowProfile): PackStage[] {
   if (profile === 'quick') return PACK_STAGE_KEYS_QUICK_MEMBER
-  if (profile === 'external') return PACK_STAGE_KEYS_EXTERNAL
-  return PACK_STAGE_KEYS_LOGISTICS
+  /** Extern: gleiche MW-Pipeline wie «Aktivität» (Pack → Event → Retour → Ausgepackt), nur MW bearbeitet. */
+  if (profile === 'external') return PACK_STAGE_KEYS_QUICK_MW
+  if (profile === 'logistics') return PACK_STAGE_KEYS_LOGISTICS_MEMBER
+  return []
 }
 
 export function packStageKeysForProfileAndRole(
@@ -64,6 +80,9 @@ export function packStageKeysForProfileAndRole(
 ): PackStage[] {
   if (profile === 'quick' && canManageMaterials) {
     return PACK_STAGE_KEYS_QUICK_MW
+  }
+  if (profile === 'logistics' && canManageMaterials) {
+    return PACK_STAGE_KEYS_LOGISTICS_MW
   }
   return packStageKeysForProfile(profile)
 }
@@ -89,11 +108,10 @@ export function isPackReturnStage(stage: PackStage): boolean {
 /**
  * Lagerort / Regal / Fach:
  * - «Bestätigt → Gepackt»: links (Material noch im Lager)
- * - «Retour → Ausgepackt»: rechts (wieder ins Regal einräumen)
- * Nicht während «Am Event», «Gepackt → Event» oder «Am Event → Retour» (Material ist gepackt/unterwegs).
+ * - «Retour → Ausgepackt»: links und rechts (Ziel-Lagerort beim Einräumen)
  */
 export function showPackStorageLocation(stage: PackStage, side: 'left' | 'right'): boolean {
-  if (isPackUnpackStage(stage)) return side === 'right'
+  if (isPackUnpackStage(stage)) return true
   if (isPackConfirmedStage(stage)) return side === 'left'
   return false
 }
@@ -108,7 +126,16 @@ export function autoPackStageForStatus(
   canManageMaterials = false,
 ): PackStage {
   const s = status
-  if (profile === 'quick') {
+  if (s === 'completed') {
+    if (profile === 'quick' || profile === 'external') {
+      return canManageMaterials ? 'returned_unpack' : 'at_event_returned'
+    }
+    if (profile === 'logistics') {
+      return canManageMaterials ? 'returned_unpack' : 'transport_back_returned'
+    }
+    return 'transport_back_returned'
+  }
+  if (profile === 'quick' || profile === 'external') {
     if (s === 'returned') {
       return canManageMaterials ? 'returned_unpack' : 'at_event_returned'
     }
@@ -124,14 +151,11 @@ export function autoPackStageForStatus(
     }
     return 'packed_at_event'
   }
-  if (profile === 'external') {
-    if (s === 'packed') return 'packed_at_event'
-    if (s === 'at_event' || s === 'returned') return 'at_event_returned'
-    return 'confirmed_packed'
-  }
   if (s === 'packed') return 'packed_transport_to'
   if (s === 'at_event') return 'at_event_transport_back'
-  if (s === 'returned') return 'transport_back_returned'
+  if (s === 'returned') {
+    return canManageMaterials ? 'returned_unpack' : 'transport_back_returned'
+  }
   return 'confirmed_packed'
 }
 
