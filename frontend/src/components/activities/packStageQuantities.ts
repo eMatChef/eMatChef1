@@ -107,7 +107,7 @@ export function autoPackStageForStatus(
   profile: PackWorkflowProfile,
   canManageMaterials = false,
 ): PackStage {
-  const s = status === 'issued' ? 'at_event' : status
+  const s = status
   if (profile === 'quick') {
     if (s === 'returned') {
       return canManageMaterials ? 'returned_unpack' : 'at_event_returned'
@@ -246,7 +246,7 @@ export function workflowTargetStatusForStage(
   stage: PackStage,
   activityStatus: string,
 ): string | null {
-  const s = activityStatus === 'issued' ? 'at_event' : activityStatus
+  const s = activityStatus
   if (stage === 'confirmed_packed') return 'packed'
   if (stage === 'returned_unpack' && s === 'returned') return 'completed'
   if (isPackForwardToEventStage(stage)) return 'at_event'

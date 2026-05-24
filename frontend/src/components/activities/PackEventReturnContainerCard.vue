@@ -2,9 +2,9 @@
 import { computed, inject } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { ActivityPackContainer, ActivityPackContainerItem } from '@/api/activityContainers'
-import PackContainerKisteMeldungRow from '@/components/activities/PackContainerKisteMeldungRow.vue'
 import PackContainerLineIssueQuick from '@/components/activities/PackContainerLineIssueQuick.vue'
 import PackContainerSubsectionsList from '@/components/activities/PackContainerSubsectionsList.vue'
+import IconArrowRight from '@/components/icons/IconArrowRight.vue'
 import { PACK_WAREHOUSE_ISSUE_INJECT_KEY } from '@/components/activities/packWarehouseIssueInjectKey'
 
 defineOptions({ name: 'PackEventReturnContainerCard' })
@@ -28,6 +28,26 @@ const shellMid = computed(() =>
   (ctx.shellMaterialIdForContainer as (id: string) => string | null)(props.container.id),
 )
 
+const shellIssueLine = computed((): ActivityPackContainerItem | null => {
+  const mid = shellMid.value
+  if (!mid) return null
+  const shellPi = (ctx.shellPackItemForContainer as (id: string) => { materialName?: string } | undefined)?.(
+    props.container.id,
+  )
+  return {
+    id: `shell-${props.container.id}`,
+    material_item_id: mid,
+    material_name: shellPi?.materialName ?? t('activities.packList.shellMaterialLine'),
+    quantity_issued: shellQty.value,
+    quantity_returned: 0,
+    quantity_packed: 0,
+  } as ActivityPackContainerItem
+})
+
+function toggleContainerExpanded(): void {
+  ;(ctx.togglePackContainerCollapsed as (id: string) => void)(props.container.id)
+}
+
 function lineRemainingReturn(ci: ActivityPackContainerItem): number {
   return (ctx.containerLineRemainingReturn as (row: ActivityPackContainerItem, cid?: string) => number)(
     ci,
@@ -50,6 +70,33 @@ function lineReturnLabel(ci: ActivityPackContainerItem): string {
   return t('activities.packList.lineStillAtEvent', { n })
 }
 
+function onReturnLineInput(ci: ActivityPackContainerItem, event: Event): void {
+  const fn = ctx.setContainerReturnLineInput as
+    | ((cid: string, ci: ActivityPackContainerItem, value: number | string) => void)
+    | undefined
+  fn?.(props.container.id, ci, (event.target as HTMLInputElement).value)
+}
+
+function commitReturnLine(ci: ActivityPackContainerItem, event?: Event): void {
+  if (event) event.preventDefault()
+  void (ctx.returnContainerLineToWarehouse as (cid: string, ci: ActivityPackContainerItem) => void | Promise<void>)?.(
+    props.container.id,
+    ci,
+  )
+}
+
+function onShellReturnInput(event: Event): void {
+  ;(ctx.setContainerShellReturnInput as (cid: string, value: number | string) => void)?.(
+    props.container.id,
+    (event.target as HTMLInputElement).value,
+  )
+}
+
+function commitShellReturn(event?: Event): void {
+  if (event) event.preventDefault()
+  void (ctx.returnContainerShellToWarehouse as (cid: string) => void | Promise<void>)?.(props.container.id)
+}
+
 function showIssueQuick(ci: ActivityPackContainerItem): boolean {
   if ((ctx.isVirtualWarehouseContainerLine as (row: ActivityPackContainerItem) => boolean)(ci)) return false
   return lineRemainingReturn(ci) > 0
@@ -66,6 +113,7 @@ function showIssueQuick(ci: ActivityPackContainerItem): boolean {
       'pack-container-card--at-event':
         (ctx.containerHasIssuedAtEvent as ((id: string) => boolean) | undefined)?.(container.id) ??
         false,
+      'pack-container-card--collapsed': !innerVisible,
     }"
   >
     <div class="pack-container-header-row">
@@ -74,13 +122,19 @@ function showIssueQuick(ci: ActivityPackContainerItem): boolean {
         class="pack-container-chevron-btn"
         :aria-expanded="innerVisible"
         :aria-label="t('activities.packList.ariaToggleContainer')"
-        @click.stop="(ctx.togglePackContainerCollapsed as (id: string) => void)(container.id)"
+        @click.stop="toggleContainerExpanded"
       >
         <span class="pack-container-chevron" aria-hidden="true">{{ innerVisible ? '▼' : '▶' }}</span>
       </button>
       <div class="pack-container-header-main">
         <div class="pack-container-header-title-block">
-          <span class="pack-container-name">{{ container.label }}</span>
+          <button
+            type="button"
+            class="pack-container-name pack-container-name-btn"
+            @click.stop="toggleContainerExpanded"
+          >
+            {{ container.label }}
+          </button>
           <span class="pack-container-chip text-muted">{{
             t('activities.common.itemsUnit', {
               count: (ctx.containerItemCount as (id: string) => number)(container.id),
@@ -97,32 +151,53 @@ function showIssueQuick(ci: ActivityPackContainerItem): boolean {
           type="button"
           class="btn btn-xs btn-primary"
           :disabled="ctx.containerBulkLoadingId === container.id"
-          :title="
-            t('activities.packList.stockPiecesTitle', {
-              count: (ctx.containerReturnableUnits as (id: string) => number)(container.id),
-            })
-          "
+          :title="t('activities.packList.allToReturn')"
           @click="(ctx.returnContainerToWarehouse as (c: ActivityPackContainer) => void | Promise<void>)(container)"
         >
           {{ t('activities.packList.allToReturn') }}
         </button>
       </div>
     </div>
-    <PackContainerKisteMeldungRow
-      v-if="container.container_material_item_id"
-      :container-id="container.id"
-      :material-item-id="String(container.container_material_item_id)"
-      :linked-container-label="container.label"
-    />
     <div v-show="innerVisible" class="pack-container-inner">
       <PackContainerSubsectionsList :container="container">
         <template #line="{ ci }">
-          <div class="pack-container-line pack-container-line--stacked">
+          <div class="pack-container-line pack-container-line--issue-row pack-container-line--stacked">
             <div class="pack-container-line-main">
               <span class="pack-container-line-name">{{ ci.material_name || t('activities.common.material') }}</span>
               <span class="pack-container-line-qty text-muted">
                 {{ lineReturnLabel(ci) }}
               </span>
+            </div>
+            <div
+              v-if="ctx.packListEditable && lineRemainingReturn(ci) > 0"
+              class="pack-card-actions"
+              @click.stop
+            >
+              <div class="pack-move-inline">
+                <input
+                  :value="
+                    (ctx.containerReturnLineInputValue as (cid: string, ci: ActivityPackContainerItem) => number)?.(
+                      container.id,
+                      ci,
+                    ) ?? lineRemainingReturn(ci)
+                  "
+                  type="number"
+                  min="1"
+                  :max="lineRemainingReturn(ci)"
+                  class="pack-move-input"
+                  @input="onReturnLineInput(ci, $event)"
+                  @keyup.enter="commitReturnLine(ci, $event)"
+                />
+                <button
+                  type="button"
+                  class="btn-move-arrow"
+                  :disabled="ctx.containerMutationLoading === true"
+                  :title="t('activities.packList.returnLineTitle', { count: lineRemainingReturn(ci) })"
+                  @click="commitReturnLine(ci)"
+                >
+                  <IconArrowRight />
+                </button>
+              </div>
             </div>
             <PackContainerLineIssueQuick :line="ci" :visible="showIssueQuick(ci)" />
           </div>
@@ -130,7 +205,7 @@ function showIssueQuick(ci: ActivityPackContainerItem): boolean {
       </PackContainerSubsectionsList>
       <div
         v-if="shellQty > 0"
-        class="pack-container-line pack-container-line--shell pack-container-line--stacked"
+        class="pack-container-line pack-container-line--issue-row pack-container-line--shell pack-container-line--stacked"
       >
         <div class="pack-container-line-main">
           <span class="pack-container-line-name">{{ t('activities.packList.shellMaterialLine') }}</span>
@@ -138,41 +213,33 @@ function showIssueQuick(ci: ActivityPackContainerItem): boolean {
             {{ t('activities.packList.shellStillAtEvent', { n: shellQty }) }}
           </span>
         </div>
-        <div
-          v-if="(ctx.showKisteMeldungForContainer as (id: string) => boolean)(container.id) && shellMid"
-          class="pack-container-line-issue-quick"
-          @click.stop
-        >
-          <template v-if="(ctx.isPackMaterialConsumable as (id: string) => boolean)(shellMid)">
+        <div v-if="ctx.packListEditable" class="pack-card-actions" @click.stop>
+          <div class="pack-move-inline">
+            <input
+              :value="(ctx.containerShellReturnInputValue as (cid: string) => number)?.(container.id) ?? shellQty"
+              type="number"
+              min="1"
+              :max="shellQty"
+              class="pack-move-input"
+              @input="onShellReturnInput"
+              @keyup.enter="commitShellReturn($event)"
+            />
             <button
               type="button"
-              class="btn-issue-quick btn-issue-consumed"
-              @click="
-                (ctx.emitConsumptionForMaterialId as (id: string, h?: unknown) => void)(shellMid, {
-                  linkedContainerLabel: container.label,
-                })
-              "
+              class="btn-move-arrow"
+              :disabled="ctx.containerMutationLoading === true"
+              :title="t('activities.packList.returnLineTitle', { count: shellQty })"
+              @click="commitShellReturn()"
             >
-              {{ t('activities.common.issueConsumed') }}
+              <IconArrowRight />
             </button>
-          </template>
-          <template v-else>
-            <button
-              type="button"
-              class="btn-issue-quick btn-issue-loss"
-              @click="(ctx.emitIssueWizardByMaterialId as (id: string, t: 'loss' | 'repair') => void)(shellMid, 'loss')"
-            >
-              {{ t('activities.common.issueLoss') }}
-            </button>
-            <button
-              type="button"
-              class="btn-issue-quick btn-issue-repair"
-              @click="(ctx.emitIssueWizardByMaterialId as (id: string, t: 'loss' | 'repair') => void)(shellMid, 'repair')"
-            >
-              {{ t('activities.common.issueRepair') }}
-            </button>
-          </template>
+          </div>
         </div>
+        <PackContainerLineIssueQuick
+          v-if="shellIssueLine"
+          :line="shellIssueLine"
+          :visible="shellQty > 0"
+        />
       </div>
       <p
         v-if="(ctx.containerItemCount as (id: string) => number)(container.id) === 0 && shellQty <= 0"
@@ -186,3 +253,20 @@ function showIssueQuick(ci: ActivityPackContainerItem): boolean {
 
 <style src="@/styles/views/activities/detail-workflow.css"></style>
 <style src="@/styles/views/activities/pack-container-card.css"></style>
+<style scoped>
+.pack-container-name-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  font-weight: 600;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.pack-container-name-btn:hover {
+  color: #0f766e;
+  text-decoration: underline;
+}
+</style>

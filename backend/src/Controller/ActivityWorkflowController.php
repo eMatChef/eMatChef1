@@ -320,7 +320,7 @@ class ActivityWorkflowController extends AbstractController
 
     /**
      * Pack-Position zur nächsten Stufe verschieben (Teilmenge möglich)
-     * Body: { "stage": "packed"|"transport_to"|"at_event"|"issued"|"transport_back"|"returned", "quantity": 5 }
+     * Body: { "stage": "packed"|"transport_to"|"at_event"|"transport_back"|"returned", "quantity": 5 }
      */
     #[Route('/pack-items/{packItemId}/move', name: 'pack_items_move', methods: ['POST'])]
     #[IsGranted('ROLE_USER')]
@@ -376,6 +376,13 @@ class ActivityWorkflowController extends AbstractController
         $this->activityItemPipelineStatus->syncForActivity($activity);
         $this->entityManager->flush();
 
+        if ($stage === PackPipelineService::STAGE_STORED) {
+            $material = $packItem->getMaterialItem();
+            if ($material !== null) {
+                $this->activityAccountingCost->enqueueAccountingForMaterialOnStore($activity, $material->getId());
+            }
+        }
+
         $d = $this->storageDisplayForPackItem($packItem);
 
         return new JsonResponse($this->serializePackItem($packItem, $d['rack'], $d['slot'], $d['address']));
@@ -383,7 +390,7 @@ class ActivityWorkflowController extends AbstractController
 
     /**
      * Pack-Position zur vorherigen Stufe zurückverschieben (Teilmenge möglich)
-     * Body: { "stage": "packed"|"transport_to"|"at_event"|"issued"|"transport_back"|"returned", "quantity": 5 }
+     * Body: { "stage": "packed"|"transport_to"|"at_event"|"transport_back"|"returned", "quantity": 5 }
      */
     #[Route('/pack-items/{packItemId}/moveback', name: 'pack_items_moveback', methods: ['POST'])]
     #[IsGranted('ROLE_USER')]
@@ -496,7 +503,7 @@ class ActivityWorkflowController extends AbstractController
 
     /**
      * Alle Pack-Positionen zur nächsten Stufe verschieben (Batch)
-     * Body: { "stage": "packed"|"issued"|"returned" }
+     * Body: { "stage": "packed"|"at_event"|"returned" }
      */
     #[Route('/pack-items/move-all', name: 'pack_items_move_all', methods: ['POST'])]
     #[IsGranted('ROLE_USER')]
@@ -549,6 +556,22 @@ class ActivityWorkflowController extends AbstractController
 
         $this->activityItemPipelineStatus->syncForActivity($activity);
         $this->entityManager->flush();
+
+        if ($stage === PackPipelineService::STAGE_STORED) {
+            $seenMaterialIds = [];
+            foreach ($packItems as $packItem) {
+                $material = $packItem->getMaterialItem();
+                if ($material === null) {
+                    continue;
+                }
+                $mid = $material->getId();
+                if (isset($seenMaterialIds[$mid])) {
+                    continue;
+                }
+                $seenMaterialIds[$mid] = true;
+                $this->activityAccountingCost->enqueueAccountingForMaterialOnStore($activity, $mid);
+            }
+        }
 
         return new JsonResponse(['message' => "$moved Positionen verschoben", 'moved' => $moved]);
     }
@@ -696,7 +719,7 @@ class ActivityWorkflowController extends AbstractController
                 $this->inboxMessageService->notifyActivityIssueReported($activity, $user, $report);
             }
 
-            // Verbrauch → Buchhaltung erst beim Aktivitäts-Abschluss (finalizeConsumptionAccountingForActivity)
+            // Verbrauch/Verlust → Buchhaltung erst beim Einlagern (stored), siehe movePackItem
 
             $response = $this->serializeIssueReport($report);
             if ($workshopTicket) {

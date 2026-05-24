@@ -1,4 +1,4 @@
-/* Pack-Behälter-Karte — shared von ActivityPackListTab + PackWarehouseIssueContainerCard */
+/* Pack-Behälter-Karte — shared von PackWarehouseIssueContainerCard, PackEventReturnContainerCard, … */
 
 .pack-container-card {
   border: 1px solid #e5e7eb;
@@ -13,7 +13,13 @@
 }
 
 .pack-container-card--target {
-  border-color: #16a34a;
+  border: 2px solid #16a34a;
+  box-shadow: 0 0 0 2px #86efac;
+  background: #ecfdf5;
+}
+
+.pack-container-card--filled.pack-container-card--target {
+  border: 2px solid #16a34a;
   box-shadow: 0 0 0 2px #86efac;
   background: #ecfdf5;
 }
@@ -21,12 +27,6 @@
 .pack-container-card--filled {
   border-color: #22c55e;
   background: #f0fdf4;
-}
-
-.pack-container-card--filled.pack-container-card--target {
-  border-color: #16a34a;
-  box-shadow: 0 0 0 2px #86efac;
-  background: #ecfdf5;
 }
 
 .pack-container-chip--at-event {
@@ -229,6 +229,20 @@
   align-items: flex-start;
 }
 
+/* Gestapelte Zeile ohne issue-row (Retour-Kiste): Text volle Breite, Aktionen darunter — nicht quetschen */
+.pack-container-line--stacked:not(.pack-container-line--issue-row) {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+}
+
+.pack-container-line--stacked:not(.pack-container-line--issue-row) .pack-container-line-issue-quick {
+  flex: none;
+  width: auto;
+  justify-content: flex-start;
+  padding-top: 0;
+}
+
 .pack-container-line--stacked .pack-container-line-main {
   flex-direction: column;
   align-items: flex-start;
@@ -375,4 +389,29 @@
 
 .pack-container-subsection-lines {
   margin: 0 0 6px;
+}
+
+/* Packliste: Ziel-Kiste und linke Pfeile einheitlich in Kisten-Grün */
+.pack-workflow .pack-container-card.pack-container-card--target {
+  border: 2px solid #16a34a;
+  box-shadow: 0 0 0 2px #86efac;
+  background: #ecfdf5;
+}
+
+.pack-workflow--crate-target-active .pack-panel-left .btn-move-arrow,
+.pack-workflow--crate-target-active .pack-panel-left .btn-move-arrow--into-crate {
+  background: #16a34a;
+  border-color: #16a34a;
+  color: #fff;
+}
+
+.pack-workflow--crate-target-active .pack-panel-left .btn-move-arrow:hover,
+.pack-workflow--crate-target-active .pack-panel-left .btn-move-arrow--into-crate:hover {
+  background: #15803d;
+  border-color: #15803d;
+}
+
+.pack-workflow--crate-target-active .pack-panel-left .pack-move-input:focus {
+  border-color: #16a34a;
+  box-shadow: 0 0 0 2px #bbf7d0;
 }

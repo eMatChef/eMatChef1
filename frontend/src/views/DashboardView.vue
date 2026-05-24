@@ -126,7 +126,7 @@
             :to="getLink(`/activities/${a.id}`)"
             class="activity-card"
           >
-            <span class="status-dot" :class="a.status"></span>
+            <span class="status-dot" :class="activityStatusClass(a.status)"></span>
             <div class="activity-info">
               <span class="activity-name">{{ a.name }}</span>
               <span class="activity-meta">
@@ -241,7 +241,7 @@
             :to="getLink(`/activities/${a.id}`)"
             class="activity-card"
           >
-            <span class="status-dot" :class="a.status"></span>
+            <span class="status-dot" :class="activityStatusClass(a.status)"></span>
             <div class="activity-info">
               <span class="activity-name">{{ a.name }}</span>
               <span class="activity-meta">{{ getPlanningLabel(a) }}</span>
@@ -264,7 +264,7 @@
             :to="getLink(`/activities/${a.id}`)"
             class="activity-card compact"
           >
-            <span class="status-dot" :class="a.status"></span>
+            <span class="status-dot" :class="activityStatusClass(a.status)"></span>
             <div class="activity-info">
               <span class="activity-name">{{ a.name }}</span>
               <span class="activity-meta">{{ formatDateShort(a.usage_start) }} {{ getRelativeDate(a.usage_start) }}</span>
@@ -297,6 +297,7 @@ import { useAuthStore } from '@/stores/auth'
 import { getDashboardData, type DashboardActivity } from '@/api/dashboard'
 import { getPendingAdminJoinRequests } from '@/api/joinRequests'
 import DamageReportWizard from '@/components/DamageReportWizard.vue'
+import { activityStatusClass, activityStatusI18nKey } from '@/utils/activityStatus'
 
 const route = useRoute()
 const { t, locale } = useI18n()
@@ -488,7 +489,7 @@ function onDamageReportSuccess() {
 }
 
 function getStatusLabel(status: string): string {
-  const key = `dashboard.status.${status}`
+  const key = `dashboard.status.${activityStatusI18nKey(status)}`
   const translated = t(key)
   return translated === key ? status : translated
 }
@@ -666,21 +667,6 @@ button.quick-action-btn {
   border-color: #e5e7eb;
 }
 
-.status-dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-
-.status-dot.draft { background: #9ca3af; }
-.status-dot.submitted { background: #3b82f6; }
-.status-dot.approved { background: #8b5cf6; }
-.status-dot.packing { background: #f59e0b; }
-.status-dot.packed { background: #f59e0b; }
-.status-dot.issued { background: #10b981; }
-.status-dot.returned { background: #06b6d4; }
-.status-dot.completed { background: #6b7280; }
 
 .activity-info {
   flex: 1;

@@ -16,6 +16,20 @@
             <div class="consumable-info">
               <span class="consumable-name">{{ displayNameAgg(row) }}</span>
               <span class="consumable-ordered text-muted">{{ t('activities.consumables.booked', { n: row.quantity_booked }) }}</span>
+              <span
+                v-if="row.quantity_warehouse > 0 && row.quantity_replenishment > 0"
+                class="consumable-qty-split text-muted"
+              >
+                {{
+                  t('activities.consumables.qtySplit', {
+                    warehouse: row.quantity_warehouse,
+                    replenishment: row.quantity_replenishment,
+                  })
+                }}
+              </span>
+              <span v-else-if="row.quantity_replenishment > 0" class="consumable-replenishment-only text-muted">
+                {{ t('activities.consumables.replenishmentOnly', { n: row.quantity_replenishment }) }}
+              </span>
               <span v-if="usedQty(row.material_item_id) > 0" class="consumable-used">
                 {{ t('activities.consumables.used', { n: usedQty(row.material_item_id) }) }}
               </span>
@@ -110,6 +124,27 @@
           </div>
         </div>
 
+        <section v-if="replenishmentRows.length > 0" class="costs-section consumable-replenishment-section">
+          <h3 class="costs-section-title">{{ t('activities.consumables.replenishmentSectionTitle') }}</h3>
+          <p class="consumable-replenishment-hint text-muted">{{ t('activities.consumables.replenishmentSectionHint') }}</p>
+          <div class="costs-table">
+            <div class="costs-row costs-row-header">
+              <span class="costs-col-name">{{ t('activities.consumables.costsColMaterial') }}</span>
+              <span class="costs-col-qty">{{ t('activities.consumables.costsColBooked') }}</span>
+              <span class="costs-col-used"></span>
+              <span class="costs-col-price">{{ t('activities.consumables.replenishmentColPurchase') }}</span>
+              <span class="costs-col-total">{{ t('activities.consumables.costsColAmount') }}</span>
+            </div>
+            <div v-for="row in replenishmentRows" :key="'repl-' + row.id" class="costs-row">
+              <span class="costs-col-name">{{ row.material_name }}</span>
+              <span class="costs-col-qty">{{ row.quantity }}</span>
+              <span class="costs-col-used"></span>
+              <span class="costs-col-price">{{ formatChfLabel(row.unit_purchase) }}</span>
+              <span class="costs-col-total">{{ formatChfLabel(row.line_total ?? (row.unit_purchase ?? 0) * row.quantity) }}</span>
+            </div>
+          </div>
+        </section>
+
         <section v-if="consumableAggregated.length > 0" class="costs-section consumable-costs-section">
           <h3 class="costs-section-title">{{ t('activities.consumables.costsTitle') }}</h3>
           <p class="consumable-costs-hint text-muted">{{ t('activities.consumables.costsHint') }}</p>
@@ -168,12 +203,13 @@ import {
   type ActivityItemRow,
 } from '@/api/activities'
 import {
+  aggregateConsumableRows,
   consumableChargeableCost,
   consumableCostTotal,
   consumableDisplayName,
   formatChf,
   formatChfLabel,
-  parseMoney,
+  replenishmentPurchaseRows,
 } from '@/components/activities/activityCosts'
 import { useToast } from '@/composables/useToast'
 import ActivityTabHeader from '@/components/activities/ActivityTabHeader.vue'
@@ -210,46 +246,22 @@ const issues = ref<ActivityIssueReportRow[]>([])
 const qtyInputs = ref<Record<string, number>>({})
 const postingId = ref<string | null>(null)
 
-/** Pro Material aggregiert (mehrere Aktivitätszeilen gleicher material_item_id) */
+/** Pro Material aggregiert (Lager vs. Nachlieferung / Zukauf). */
 const consumableAggregated = computed(() => {
-  const map = new Map<
-    string,
-    {
-      material_item_id: string
-      material_name: string
-      linked_container_label?: string | null
-      quantity_booked: number
-      pack_size?: number | null
-      pack_unit?: string | null
-      sale_price: number | null
+  const rows = aggregateConsumableRows(activityItems.value)
+  return rows.map((row) => {
+    const raw = activityItems.value.find(
+      (r) => r.material_item_id === row.material_item_id && r.is_consumable === true,
+    )
+    return {
+      ...row,
+      pack_size: raw?.pack_size ?? null,
+      pack_unit: raw?.pack_unit ?? null,
     }
-  >()
-  for (const r of activityItems.value.filter((x) => x.is_consumable === true)) {
-    const ex = map.get(r.material_item_id)
-    const price = parseMoney(r.sale_price)
-    if (ex) {
-      ex.quantity_booked += r.quantity
-      if (!ex.pack_size && r.pack_size) {
-        ex.pack_size = r.pack_size
-        ex.pack_unit = r.pack_unit ?? null
-      }
-      if (ex.sale_price == null && price != null) {
-        ex.sale_price = price
-      }
-    } else {
-      map.set(r.material_item_id, {
-        material_item_id: r.material_item_id,
-        material_name: r.material_name,
-        linked_container_label: r.linked_container_label,
-        quantity_booked: r.quantity,
-        pack_size: r.pack_size ?? null,
-        pack_unit: r.pack_unit ?? null,
-        sale_price: price,
-      })
-    }
-  }
-  return [...map.values()]
+  })
 })
+
+const replenishmentRows = computed(() => replenishmentPurchaseRows(activityItems.value))
 
 const consumableCostTotalValue = computed(() =>
   consumableCostTotal(activityItems.value, issues.value),
@@ -564,6 +576,22 @@ watch(
 
 .link-btn:hover {
   color: #1d4ed8;
+}
+
+.consumable-replenishment-section {
+  margin-top: 20px;
+}
+
+.consumable-replenishment-hint {
+  margin: 0 0 12px;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.consumable-qty-split,
+.consumable-replenishment-only {
+  font-size: 12px;
+  flex-basis: 100%;
 }
 
 .consumable-costs-section {

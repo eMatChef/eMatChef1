@@ -30,7 +30,6 @@ final class MaterialAvailabilityReservationQuery
             Activity::STATUS_PACKING,
             Activity::STATUS_PACKED,
             Activity::STATUS_AT_EVENT,
-            Activity::STATUS_ISSUED,
             Activity::STATUS_RETURNED,
         ];
     }

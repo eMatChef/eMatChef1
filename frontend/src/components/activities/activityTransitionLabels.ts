@@ -8,7 +8,7 @@ export function activityTransitionActionLabel(
   te: Composer['te'],
   apiFallback?: string,
 ): string {
-  const from = currentStatus === 'issued' ? 'at_event' : (currentStatus ?? '')
+  const from = currentStatus ?? ''
 
   if (from === 'submitted' && targetStatus === 'packing') {
     const key = 'activities.transitionActions.packingFromSubmitted'

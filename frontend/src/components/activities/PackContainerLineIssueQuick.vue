@@ -32,7 +32,14 @@ function showPackIssueForLine(): boolean {
 const show = () =>
   showPackIssueForLine() &&
   Boolean(props.line.material_item_id) &&
-  injectPackCtxBool(ctx, 'canReportIssues')
+  (() => {
+    const mid = props.line.material_item_id!
+    const isConsumable = (ctx.isPackMaterialConsumable as (id: string) => boolean)(mid)
+    if (isConsumable) {
+      return injectPackCtxBool(ctx, 'canReportConsumption')
+    }
+    return injectPackCtxBool(ctx, 'canReportIssues')
+  })()
 </script>
 
 <template>

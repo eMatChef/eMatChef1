@@ -57,7 +57,29 @@ class ActivityAccountingCostService
     }
 
     /**
-     * Verbrauchsmaterial: Buchhaltungs-Aufträge erst beim Abschluss der Aktivität (nicht bei jeder Verbrauchsmeldung).
+     * Verbrauchsmaterial: Buchhaltungs-Aufträge beim Einlagern (Retour → Ausgepackt).
+     */
+    public function enqueueAccountingForMaterialOnStore(Activity $activity, string $materialItemId): void
+    {
+        $reports = $this->entityManager->getRepository(ActivityIssueReport::class)->findBy([
+            'activityId' => $activity->getId(),
+            'materialItemId' => $materialItemId,
+        ]);
+
+        foreach ($reports as $report) {
+            if ($report->getType() === ActivityIssueReport::TYPE_CONSUMPTION) {
+                $this->enqueueFromConsumption($activity, $report);
+            }
+            if ($report->getType() === ActivityIssueReport::TYPE_LOSS) {
+                $this->enqueueFromLoss($activity, $report);
+            }
+        }
+
+        $this->enqueueReplenishmentAccountingForMaterial($activity, $materialItemId);
+    }
+
+    /**
+     * Verbrauchsmaterial: Buchhaltungs-Aufträge erst beim Abschluss der Aktivität (Fallback).
      */
     public function finalizeConsumptionAccountingForActivity(Activity $activity): void
     {
@@ -69,6 +91,65 @@ class ActivityAccountingCostService
         foreach ($reports as $report) {
             $this->enqueueFromConsumption($activity, $report);
         }
+
+        $this->finalizeReplenishmentAccountingForActivity($activity);
+    }
+
+    /**
+     * Nachkauf / Nachlieferung: Buchhaltung erst wenn MW einlagert (Retour → Ausgepackt).
+     */
+    private function enqueueReplenishmentAccountingForMaterial(Activity $activity, string $materialItemId): void
+    {
+        foreach ($this->replenishmentItemsForActivity($activity, $materialItemId) as $item) {
+            if ($this->hasReplenishmentFollowUp($item->getId())) {
+                continue;
+            }
+            $this->enqueueFromReplenishment($activity, $item);
+        }
+    }
+
+    /** Fallback beim Abschluss: Nachkäufe, die nie physisch eingelagert wurden (vollständig verbraucht). */
+    private function finalizeReplenishmentAccountingForActivity(Activity $activity): void
+    {
+        foreach ($this->replenishmentItemsForActivity($activity, null) as $item) {
+            if ($this->hasReplenishmentFollowUp($item->getId())) {
+                continue;
+            }
+            $this->enqueueFromReplenishment($activity, $item);
+        }
+    }
+
+    /** @return ActivityItem[] */
+    private function replenishmentItemsForActivity(Activity $activity, ?string $materialItemId): array
+    {
+        $qb = $this->entityManager->createQueryBuilder()
+            ->select('ai')
+            ->from(ActivityItem::class, 'ai')
+            ->where('ai.activityId = :aid')
+            ->andWhere('ai.isReplenishment = true')
+            ->setParameter('aid', $activity->getId());
+
+        if ($materialItemId !== null) {
+            $qb->andWhere('ai.materialItemId = :mid')->setParameter('mid', $materialItemId);
+        }
+
+        return $qb->getQuery()->getResult();
+    }
+
+    private function hasReplenishmentFollowUp(string $activityItemId): bool
+    {
+        $existing = $this->entityManager->createQueryBuilder()
+            ->select('f.id')
+            ->from(AccountingAcquisitionFollowUp::class, 'f')
+            ->where('f.sourceKind = :sk')
+            ->andWhere('f.sourceRefId = :ref')
+            ->setParameter('sk', AccountingAcquisitionFollowUp::SOURCE_ACTIVITY_REPLENISHMENT)
+            ->setParameter('ref', $activityItemId)
+            ->setMaxResults(1)
+            ->getQuery()
+            ->getOneOrNullResult();
+
+        return $existing !== null;
     }
 
     public function enqueueFromLoss(Activity $activity, ActivityIssueReport $report): void

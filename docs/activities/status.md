@@ -23,11 +23,25 @@
 | `completed` | Abgeschlossen | Alles erledigt (Retour verarbeitet, Abrechnung finalisiert) |
 | `cancelled` | Storniert | Aktivität abgebrochen |
 
-### Legacy-Alias
+---
 
-| Key | Hinweis |
-|-----|---------|
-| `issued` | **Veraltet** — Synonym für `at_event`. Wird im Backend bei Übergängen auf `at_event` normalisiert. Alte Daten können noch `issued` enthalten; UI zeigt «Am Event». |
+## Status-Farben (UI)
+
+Einheitlich in `frontend/src/styles/activity-status.css` (Dashboard, Aktivitäten-Liste, Detail, Infoscreen):
+
+| Key | Punkt-Farbe | Bedeutung |
+|-----|-------------|-----------|
+| `draft` | Grau | Entwurf |
+| `submitted` | Blau | Eingereicht |
+| `approved` | Grün | Bestätigt |
+| `packing` | Orange | Wird gepackt |
+| `packed` | Primary (Grün) | Gepackt |
+| `at_event` | Dunkelgrün | Am Event |
+| `returned` | Türkis | Retour |
+| `completed` | Grau | Abgeschlossen |
+| `cancelled` | Rot | Storniert |
+
+Transport-Stufen (`transport_to`, `transport_back`) sind **Pack-Pipeline**, keine Aktivitäts-Status — siehe [material-pipeline.md](./material-pipeline.md).
 
 ---
 

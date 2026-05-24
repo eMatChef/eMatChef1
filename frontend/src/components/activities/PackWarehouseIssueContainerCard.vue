@@ -6,6 +6,7 @@ import type { ActivityPackContainer } from '@/api/activityContainers'
 import type { ActivityPackContainerItem } from '@/api/activityContainers'
 import type { ActivityPackItem } from '@/api/activityPackItems'
 import PackMoveControls from '@/components/activities/PackMoveControls.vue'
+import PackMaterialStorageStack from '@/components/activities/PackMaterialStorageStack.vue'
 import PackContainerKisteMeldungRow from '@/components/activities/PackContainerKisteMeldungRow.vue'
 import { isPackConfirmedStage } from '@/components/activities/packStageQuantities'
 import PackCrateShellInlinePanel, {
@@ -335,20 +336,11 @@ function crateShellTakeTitle(): string {
         </div>
       </div>
       <div v-show="innerVisible" class="pack-container-inner pack-container-inner--shell">
-        <div
-          v-if="
-            showStorageLocation &&
-            (shellPackItem.storageAddressName || shellPackItem.storageSlotName)
-          "
-          class="pack-shell-storage text-muted"
-        >
-          <div v-if="shellPackItem.storageAddressName">
-            {{ t('activities.packList.storageLabel', { name: shellPackItem.storageAddressName }) }}
-          </div>
-          <div v-if="shellPackItem.storageSlotName">
-            {{ t('activities.packList.slotLabel', { name: shellPackItem.storageSlotName }) }}
-          </div>
-        </div>
+        <PackMaterialStorageStack
+          v-if="showStorageLocation"
+          :storage="shellPackItem"
+          variant="shell"
+        />
         <template v-if="useSubsections">
           <template
             v-for="sec in (ctx.packContainerItemSections as (c: ActivityPackContainer) => { subsectionKey: string; title: string; lines: ActivityPackContainerItem[] }[])(container)"
@@ -948,25 +940,9 @@ function crateShellTakeTitle(): string {
   padding-top: 8px;
 }
 
-.pack-shell-storage {
-  font-size: 12px;
-  line-height: 1.45;
-  margin: 0 0 8px;
-}
-
 .pack-container-embed-extra-hint {
   margin: 12px 0 4px;
   font-size: 12px;
   line-height: 1.4;
-}
-
-.pack-combo-badge {
-  font-size: 10px;
-  font-weight: 600;
-  padding: 2px 6px;
-  border-radius: 4px;
-  background: #ede9fe;
-  color: #5b21b6;
-  flex-shrink: 0;
 }
 </style>

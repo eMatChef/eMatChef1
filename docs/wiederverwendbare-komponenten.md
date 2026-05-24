@@ -144,6 +144,70 @@ const { fromActivityMw, fromPublicFound, fromDepartmentInvite, fromActivityInvit
 
 ---
 
+### Aktivitäten / Packliste (Pack-Step-UI)
+
+
+| Baustein | Pfad | Verwendung |
+| -------- | ---- | ---------- |
+| **packStepUi** | `frontend/src/components/activities/packStepUi.ts` | Presets für Kisten-Links, Spiegel-Rechts, Confirm-Config |
+| **PackStepCrateSection** | `…/PackStepCrateSection.vue` | Linkes Kisten-Panel (Titel, Hint, Aria) |
+| **PackStepMirrorSection** | `…/PackStepMirrorSection.vue` | Rechtes «Bereits …»-Panel (Slots `#crates`, `#loose`) |
+| **PackStepContainerCard** | `…/PackStepContainerCard.vue` | Router zu Issue- oder Return-Kistenkarte |
+| **confirmWorkflowStatusTransition** | `…/usePackWorkflowConfirm.ts` | Gemeinsame Confirm-Logik vor `at_event` / `returned` |
+
+**Design-Vorlage:** Stufe **Gepackt → Am Event** (`PackWarehouseIssueContainerCard`). Retour und weitere Schritte spiegeln dieses Layout über Presets — Details: [activities/pack-step-ui.md](./activities/pack-step-ui.md).
+
+**Import & Verwendung (Auszug)**
+
+```vue
+<script setup lang="ts">
+import PackStepCrateSection from '@/components/activities/PackStepCrateSection.vue'
+import PackStepMirrorSection from '@/components/activities/PackStepMirrorSection.vue'
+import PackStepContainerCard from '@/components/activities/PackStepContainerCard.vue'
+import {
+  PACK_CRATE_SECTION_FORWARD_WAREHOUSE_LEFT,
+  PACK_MIRROR_SECTION_FORWARD_AT_EVENT,
+} from '@/components/activities/packStepUi'
+</script>
+
+<template>
+  <PackStepCrateSection :preset="PACK_CRATE_SECTION_FORWARD_WAREHOUSE_LEFT">
+    <PackStepContainerCard
+      v-for="c in crates"
+      :key="c.id"
+      :container="c"
+      mode="warehouse_issue"
+      :stage-right-label="rightLabel"
+    />
+  </PackStepCrateSection>
+
+  <PackStepMirrorSection :preset="PACK_MIRROR_SECTION_FORWARD_AT_EVENT">
+    <template #crates><!-- … --></template>
+    <template #loose><!-- … --></template>
+  </PackStepMirrorSection>
+</template>
+```
+
+**Preset-Konstanten (Auswahl)**
+
+
+| Konstante | Pack-Stufe |
+| --------- | ---------- |
+| `PACK_CRATE_SECTION_CONFIRMED_PACKED_RIGHT` | Bestätigt → Gepackt (rechts, Kisten) |
+| `PACK_MIRROR_SECTION_CONFIRMED_PACKED_LOOSE` | Bestätigt → Gepackt (rechts, lose) |
+| `PACK_CRATE_SECTION_FORWARD_WAREHOUSE_LEFT` | Gepackt → Am Event (links) |
+| `PACK_MIRROR_SECTION_FORWARD_AT_EVENT` | Gepackt → Am Event (rechts, «Bereits ans Event») |
+| `PACK_CRATE_SECTION_RETURN_AT_EVENT_LEFT` | Am Event → Retour (links) |
+| `PACK_MIRROR_SECTION_RETURN_DONE` | Am Event → Retour (rechts, «Bereits retourniert») |
+
+**Karten-Modi (`PackContainerCardMode`):** `confirmed_packed_target`, `warehouse_issue`, `warehouse_issue_mirror`, `at_event_return`, `at_event_return_mirror` — siehe [pack-step-ui.md](./activities/pack-step-ui.md).
+
+**Eingebunden in:** `ActivityPackListTab.vue` (Packliste-Tab). Karten-Logik weiter über `PACK_WAREHOUSE_ISSUE_INJECT_KEY` aus der Packliste.
+
+**Neue Pack-Stufe:** Preset in `packStepUi.ts`, Computeds in `ActivityPackListTab.vue`, i18n-Keys — Checkliste in [pack-step-ui.md](./activities/pack-step-ui.md#neue-pack-stufe-anbinden).
+
+---
+
 ### Common (`frontend/src/components/common/`)
 
 
@@ -189,6 +253,7 @@ SVG-Icons als Vue-Komponenten (`IconDashboard`, `IconMaterials`, `IconActivities
 | `useStorageStructure`                | Lager-Struktur                                                                |
 | `useAutoLogout`                      | Session-Timeout                                                               |
 | `useNotificationSender`              | Factories für `NotificationSenderBlock` (Posteingang/Glocke, inkl. i18n)      |
+| `confirmWorkflowStatusTransition`    | Confirm vor Pack-Workflow-Status `at_event` / `returned` (siehe `usePackWorkflowConfirm.ts`) |
 
 
 ---

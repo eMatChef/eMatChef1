@@ -115,7 +115,11 @@
         <p class="text-muted">{{ t('activities.packList.memberAwaitingPackEmpty') }}</p>
       </div>
 
-      <div v-else class="pack-workflow pack-workflow--compact">
+      <div
+        v-else
+        class="pack-workflow"
+        :class="{ 'pack-workflow--crate-target-active': hasActiveCrateTarget }"
+      >
         <div
           v-if="showMwHandoffBanner"
           class="pack-mw-handoff-banner"
@@ -146,7 +150,19 @@
           </button>
         </div>
 
-        <div v-if="showPackStageViewOnlyBanner" class="pack-stage-view-only-banner" role="note">
+        <div
+          v-if="showPackStageOpenIssueRemainderBanner"
+          class="pack-stage-view-only-banner pack-stage-open-issue-banner"
+          role="note"
+        >
+          <p class="pack-stage-view-only-banner__title">
+            {{ t('activities.packList.packStageOpenIssueRemainderTitle') }}
+          </p>
+          <p class="pack-stage-view-only-banner__hint text-muted">
+            {{ t('activities.packList.packStageOpenIssueRemainderHint') }}
+          </p>
+        </div>
+        <div v-else-if="showPackStageViewOnlyBanner" class="pack-stage-view-only-banner" role="note">
           <p class="pack-stage-view-only-banner__title">
             {{
               t('activities.packList.packStageViewOnlyBanner', {
@@ -172,10 +188,10 @@
                 type="button"
                 class="btn btn-xs btn-outline btn-workflow-revert"
                 :disabled="isTransitioningPackWorkflow"
-                :title="workflowRevertButtonTitle"
+                :title="workflowRevertVisibleLabel"
                 @click="onWorkflowRevertClick"
               >
-                ← {{ previousWorkflowTransitionLabel }}
+                {{ workflowRevertVisibleLabel }}
               </button>
               <span :title="stageProgressPendingTitle">{{
                 showMwGroupHandoffBanner
@@ -195,10 +211,20 @@
                 type="button"
                 class="btn btn-xs btn-outline btn-move-all"
                 :disabled="moveAllLoading"
-                :title="moveAllToEventQuickTitle"
+                :title="moveAllToEventQuickLabel"
                 @click="onMoveAllToNextStageClick"
               >
                 {{ moveAllToEventQuickLabel }}
+              </button>
+              <button
+                v-if="showPartialTakenToEventUpperButton"
+                type="button"
+                class="btn btn-xs btn-outline btn-move-all"
+                :disabled="!showPackOperateControls || isTransitioningPackWorkflow"
+                :title="partialTakenToEventLabel"
+                @click="onPackWorkflowStatusToEventClick"
+              >
+                {{ partialTakenToEventLabel }}
               </button>
               <button
                 v-if="showPackWorkflowToEventButton && nextWorkflowTransition"
@@ -206,10 +232,10 @@
                 class="btn btn-sm btn-progress-action btn-outline"
                 :class="{ 'btn-progress-warn': stageProgress < 100 }"
                 :disabled="!showPackOperateControls || isTransitioningPackWorkflow"
-                :title="packWorkflowToEventTitle"
+                :title="packWorkflowToEventButtonLabel"
                 @click="onPackWorkflowStatusToEventClick"
               >
-                {{ nextWorkflowTransitionLabel }}
+                {{ packWorkflowToEventButtonLabel }}
                 <span v-if="stageProgress < 100" class="btn-progress-warn-badge">{{ stageProgress }}%</span>
               </button>
               <template v-if="!packIssueToEventCombined">
@@ -218,14 +244,10 @@
                   type="button"
                   class="btn btn-xs btn-outline btn-move-all"
                   :disabled="moveAllLoading"
-                  :title="t('activities.packList.moveAllTitle', { stage: activeStageConfig.rightLabel })"
+                  :title="moveAllStageButtonLabel"
                   @click="onMoveAllToNextStageClick"
                 >
-                  {{
-                    showMwGroupHandoffBanner
-                      ? t('activities.packList.moveAllMw', { stage: activeStageConfig.rightLabel })
-                      : t('activities.packList.moveAll', { stage: activeStageConfig.rightLabel })
-                  }}
+                  {{ moveAllStageButtonLabel }}
                 </button>
                 <button
                   v-if="nextWorkflowTransition"
@@ -233,7 +255,7 @@
                   class="btn btn-sm btn-progress-action btn-outline"
                   :class="{ 'btn-progress-warn': stageProgress < 100 }"
                   :disabled="!showPackOperateControls"
-                  :title="t('activities.packList.workflowTransitionTitle', { status: nextWorkflowTransitionLabel })"
+                  :title="nextWorkflowTransitionLabel"
                   @click="handleWorkflowTransition"
                 >
                   {{ nextWorkflowTransitionLabel }}
@@ -398,41 +420,57 @@
                       "
                     />
                   </template>
+                  <template #info-extra>
+                    <PackIssueQuickActions
+                      v-if="showPackIssueForPackItem(pi)"
+                      :is-consumable="pi.isConsumable"
+                      @consumed="emitConsumptionFromPackItem(pi)"
+                      @loss="emitIssueWizard(pi, 'loss')"
+                      @repair="emitIssueWizard(pi, 'repair')"
+                    />
+                  </template>
                 </PackMaterialRow>
                 </template>
               </div>
             </div>
 
 
-            <div
+            <PackStepCrateSection
               v-if="
                 showPackContainersUi &&
                 isPackForwardToEventStage(activePackStage) &&
                 (packContainersSortedWarehouseOnlyVisible.length > 0 ||
                   (packContainers.length === 0 && canManageMaterials))
               "
-              class="pack-workflow-section pack-workflow-section--kisten"
+              :preset="PACK_CRATE_SECTION_FORWARD_WAREHOUSE_LEFT"
+              :show-empty-hint="packContainers.length === 0"
             >
-              <div class="pack-workflow-section-title">{{ t('activities.packList.sectionKisten') }}</div>
-              <div class="pack-containers-section">
-              <div class="pack-containers-heading">
-                <span class="pack-containers-title text-muted">{{ t('activities.packList.sectionContainers') }}</span>
-              </div>
-              <div class="pack-containers-children" role="group" :aria-label="t('activities.packList.ariaContainersThisList')">
-                <p v-if="packContainers.length === 0" class="pack-containers-empty-hint text-muted">
-                  {{ t('activities.packList.hintNoContainersIssue') }}
-                </p>
-                <PackWarehouseIssueContainerCard
-                  v-for="c in packContainersSortedWarehouseOnlyVisible"
-                  :key="'issue-' + c.id"
-                  :container="c"
-                  :stage-right-label="activeStageConfig.rightLabel"
-                  :use-subsections="false"
-                  :show-storage-location="showPackStorageLocation(activePackStage, 'left')"
-                />
-              </div>
-              </div>
-            </div>
+              <PackStepContainerCard
+                v-for="c in packContainersSortedWarehouseOnlyVisible"
+                :key="'issue-' + c.id"
+                :container="c"
+                mode="warehouse_issue"
+                :stage-right-label="activeStageConfig.rightLabel"
+                :use-subsections="false"
+                :show-storage-location="showPackStorageLocation(activePackStage, 'left')"
+              />
+            </PackStepCrateSection>
+
+            <PackStepCrateSection
+              v-if="
+                showPackContainersUi &&
+                isPackReturnStage(activePackStage) &&
+                packContainersAtEventForReturnLeft.length > 0
+              "
+              :preset="PACK_CRATE_SECTION_RETURN_AT_EVENT_LEFT"
+            >
+              <PackStepContainerCard
+                v-for="c in packContainersAtEventForReturnLeft"
+                :key="'ret-cr-left-' + c.id"
+                :container="c"
+                mode="at_event_return"
+              />
+            </PackStepCrateSection>
           </div>
 
           <div class="pack-panel pack-panel-right">
@@ -455,48 +493,26 @@
             </div>
             <PackCrateTargetPicker v-if="showPackCrateTargetPickerTop" />
 
-            <div
+            <PackStepCrateSection
               v-if="
                 showPackContainersUi &&
                 activePackStage === 'confirmed_packed' &&
                 packContainersForConfirmedPackedRight.length > 0
               "
-              class="pack-workflow-section pack-workflow-section--kisten pack-workflow-section--confirmed-crates-right"
+              :preset="PACK_CRATE_SECTION_CONFIRMED_PACKED_RIGHT"
+              :show-hint="showPackOperateControls"
             >
-              <div class="pack-workflow-section-title">{{ t('activities.packList.sectionKisten') }}</div>
-              <p v-if="showPackOperateControls" class="pack-containers-at-event-hint text-muted">
-                {{ t('activities.packList.selectCrateHint') }}
-              </p>
-              <div class="pack-containers-children" role="group" :aria-label="t('activities.packList.ariaContainersThisList')">
-                <PackConfirmedPackedContainerCard
-                  v-for="c in packContainersForConfirmedPackedRight"
-                  :key="'packed-cr-' + c.id"
-                  :container="c"
-                />
-              </div>
-            </div>
+              <PackStepContainerCard
+                v-for="c in packContainersForConfirmedPackedRight"
+                :key="'packed-cr-' + c.id"
+                :container="c"
+                mode="confirmed_packed_target"
+              />
+            </PackStepCrateSection>
+
 
             <div v-if="!rightPanelHasEventContent" class="pack-panel-empty">
               {{ t('activities.packList.rightPanelEmpty') }}
-            </div>
-
-            <div
-              v-if="isPackReturnStage(activePackStage) && showPackContainersUi && packContainersWithReturnableAtEvent.length > 0"
-              class="pack-workflow-section pack-workflow-section--kisten pack-workflow-section--return-kisten-right"
-            >
-              <div class="pack-workflow-section-title">{{ t('activities.packList.sectionKisten') }}</div>
-              <div class="pack-containers-section pack-containers-section--at-event-select">
-                <p class="pack-containers-at-event-hint text-muted">
-                  {{ t('activities.packList.hintReturnCratesOnRight') }}
-                </p>
-                <div class="pack-containers-children" role="group" :aria-label="t('activities.packList.ariaContainersReturn')">
-                  <PackEventReturnContainerCard
-                    v-for="c in packContainersWithReturnableAtEvent"
-                    :key="'ret-cr-' + c.id"
-                    :container="c"
-                  />
-                </div>
-              </div>
             </div>
 
             <div
@@ -566,66 +582,80 @@
               </div>
             </div>
 
-            <div
-              v-if="isPackReturnStage(activePackStage) && groupsReturned.length > 0"
-              class="pack-workflow-section pack-workflow-section--returned"
+            <PackStepMirrorSection
+              v-if="
+                isPackReturnStage(activePackStage) &&
+                (packContainersReturnedForReturnRight.length > 0 || groupsReturned.length > 0)
+              "
+              :preset="PACK_MIRROR_SECTION_RETURN_DONE"
             >
-              <div class="pack-workflow-section-title">{{ t('activities.packList.sectionReturned') }}</div>
-              <div v-for="g in groupsReturned" :key="'ret-g-' + g.categoryName" class="pack-group">
-                <div
-                  class="pack-group-header pack-group-header-done"
-                  @click="toggleGroup('ret-cat-' + g.categoryName)"
-                >
-                  <span class="pack-group-name">{{ g.categoryName }}</span>
-                  <span class="pack-group-toggle">{{ collapsedGroups['ret-cat-' + g.categoryName] ? '▶' : '▼' }}</span>
-                </div>
-                <div v-if="!collapsedGroups['ret-cat-' + g.categoryName]" class="pack-group-items">
-                  <PackMaterialRow
-                    v-for="pi in g.items"
-                    :key="'ret-pi-' + pi.id"
-                    :item="pi"
-                    :show-storage-location="showPackStorageLocation(activePackStage, 'right')"
-                    :show-linked-kiste="showPackStorageLocation(activePackStage, 'right')"
-                  >
-                    <template #leading>
-                      <PackMoveControls
-                        v-if="showPackBackwardControls"
-                        direction="back"
-                        :qty="moveBackQtyInputs[pi.id] ?? rightQtyForMoveBack(pi)"
-                        :max="rightQtyForMoveBack(pi)"
-                        :disabled="movingId === pi.id"
-                        :back-title="t('activities.common.backTitle')"
-                        @update:qty="setMoveBackQtyForItem(pi.id, $event)"
-                        @move="(q) => moveToPrevStage(pi, q)"
-                      />
-                    </template>
-                    <template #detail>
-                      <PackMaterialRowDetail
+              <template v-if="packContainersReturnedForReturnRight.length > 0" #crates>
+                    <PackStepContainerCard
+                      v-for="c in packContainersReturnedForReturnRight"
+                      :key="'ret-mirror-' + c.id"
+                      :container="c"
+                      mode="at_event_return_mirror"
+                      container-dom-id-prefix="pack-container-returned-"
+                    />
+              </template>
+              <template v-if="groupsReturned.length > 0" #loose>
+                  <div v-for="g in groupsReturned" :key="'ret-g-' + g.categoryName" class="pack-group">
+                    <div
+                      class="pack-group-header pack-group-header-done"
+                      @click="toggleGroup('ret-cat-' + g.categoryName)"
+                    >
+                      <span class="pack-group-name">{{ g.categoryName }}</span>
+                      <span class="pack-group-toggle">{{ collapsedGroups['ret-cat-' + g.categoryName] ? '▶' : '▼' }}</span>
+                    </div>
+                    <div v-if="!collapsedGroups['ret-cat-' + g.categoryName]" class="pack-group-items">
+                      <PackMaterialRow
+                        v-for="pi in g.items"
+                        :key="'ret-pi-' + pi.id"
                         :item="pi"
-                        :stage="activePackStage"
-                        :workflow-profile="packWorkflowProfile"
-                        :stage-right-label="activeStageConfig.rightLabel"
-                        :consumed-at-event="pi.isConsumable ? consumableBookedConsumptionQty(pi) : undefined"
-                        side="right"
-                        use-detail-stack
-                      />
-                    </template>
-                    <template #info-extra>
-                      <PackIssueQuickActions
-                        v-if="showPackIssueForPackItem(pi)"
-                        :is-consumable="pi.isConsumable"
-                        @consumed="emitConsumptionFromPackItem(pi)"
-                        @loss="emitIssueWizard(pi, 'loss')"
-                        @repair="emitIssueWizard(pi, 'repair')"
-                      />
-                    </template>
-                  </PackMaterialRow>
-                </div>
-              </div>
-            </div>
+                        :show-storage-location="showPackStorageLocation(activePackStage, 'right')"
+                        :show-linked-kiste="showPackStorageLocation(activePackStage, 'right')"
+                      >
+                        <template #leading>
+                          <PackMoveControls
+                            v-if="showPackBackwardControls"
+                            direction="back"
+                            :qty="moveBackQtyInputs[pi.id] ?? rightQtyForMoveBack(pi)"
+                            :max="rightQtyForMoveBack(pi)"
+                            :disabled="movingId === pi.id"
+                            :back-title="t('activities.common.backTitle')"
+                            @update:qty="setMoveBackQtyForItem(pi.id, $event)"
+                            @move="(q) => moveToPrevStage(pi, q)"
+                          />
+                        </template>
+                        <template #detail>
+                          <PackMaterialRowDetail
+                            :item="pi"
+                            :stage="activePackStage"
+                            :workflow-profile="packWorkflowProfile"
+                            :stage-right-label="activeStageConfig.rightLabel"
+                            :consumed-at-event="pi.isConsumable ? consumableBookedConsumptionQty(pi) : undefined"
+                            side="right"
+                            use-detail-stack
+                          />
+                        </template>
+                        <template #info-extra>
+                          <PackIssueQuickActions
+                            v-if="showPackIssueForPackItem(pi)"
+                            :is-consumable="pi.isConsumable"
+                            @consumed="emitConsumptionFromPackItem(pi)"
+                            @loss="emitIssueWizard(pi, 'loss')"
+                            @repair="emitIssueWizard(pi, 'repair')"
+                          />
+                        </template>
+                      </PackMaterialRow>
+                    </div>
+                  </div>
+              </template>
+            </PackStepMirrorSection>
+
 
             <div
-              v-if="isPackReturnOrUnpackWarehouseStage(activePackStage) && groupsConsumedForReturn.length > 0"
+              v-if="isPackReturnOrUnpackWarehouseStage(activePackStage) && groupsConsumableOverview.length > 0"
               class="pack-workflow-section pack-workflow-section--consumed"
             >
               <button
@@ -635,14 +665,18 @@
                 @click="toggleReturnSection('consumption')"
               >
                 <span class="pack-workflow-section-title">{{ t('activities.packList.sectionConsumedForReturn') }}</span>
-                <span class="pack-workflow-section-badge">{{ stageReturnConsumedCount }}</span>
+                <span class="pack-workflow-section-badge">{{ stageConsumableOverviewCount }}</span>
                 <span class="pack-group-toggle">{{ isReturnSectionCollapsed('consumption') ? '▶' : '▼' }}</span>
               </button>
               <div v-show="!isReturnSectionCollapsed('consumption')" class="pack-workflow-section-accordion-body">
                 <p class="pack-containers-at-event-hint text-muted">
-                  {{ t('activities.packList.hintConsumedForReturn') }}
+                  {{
+                    canManageMaterials
+                      ? t('activities.packList.hintConsumableOverviewMw')
+                      : t('activities.packList.hintConsumableOverviewUser')
+                  }}
                 </p>
-                <div v-for="g in groupsConsumedForReturn" :key="'cons-g-' + g.categoryName" class="pack-group">
+                <div v-for="g in groupsConsumableOverview" :key="'cons-g-' + g.categoryName" class="pack-group">
                   <div class="pack-group-header pack-group-header-done pack-group-header-static">
                     <span class="pack-group-name">{{ g.categoryName }}</span>
                   </div>
@@ -655,9 +689,27 @@
                       :show-linked-kiste="showPackStorageLocation(activePackStage, 'right')"
                     >
                       <template #detail>
-                        <span class="pack-card-detail text-muted">
-                          {{ t('activities.packList.consumedForReturnQty', { n: consumableBookedConsumptionQty(pi) }) }}
-                        </span>
+                        <div class="pack-card-detail-stack text-muted">
+                          <span v-if="(pi.quantityReturned ?? 0) > 0">
+                            {{ t('activities.packList.consumableOverviewReturned', { n: pi.quantityReturned ?? 0 }) }}
+                          </span>
+                          <span v-if="(pi.quantityStored ?? 0) > 0">
+                            {{ t('activities.packList.consumableOverviewStored', { n: pi.quantityStored ?? 0 }) }}
+                          </span>
+                          <span v-if="consumableBookedConsumptionQty(pi) > 0">
+                            {{ t('activities.packList.consumedForReturnQty', { n: consumableBookedConsumptionQty(pi) }) }}
+                          </span>
+                          <span v-if="consumableConsumptionRemaining(pi) > 0">
+                            {{ t('activities.packList.consumableOverviewRemaining', { n: consumableConsumptionRemaining(pi) }) }}
+                          </span>
+                        </div>
+                      </template>
+                      <template #info-extra>
+                        <PackIssueQuickActions
+                          v-if="showConsumableConsumptionForPackItem(pi)"
+                          :is-consumable="true"
+                          @consumed="emitConsumptionFromPackItem(pi)"
+                        />
                       </template>
                     </PackMaterialRow>
                   </div>
@@ -707,37 +759,27 @@
             </div>
 
 
-            <div
+            <PackStepMirrorSection
               v-if="
                 isPackForwardToEventStage(activePackStage) &&
                 (packContainersWithIssuedAtEvent.length > 0 || stageRightItemsLooseIssued.length > 0)
               "
-              class="pack-workflow-section pack-workflow-section--at-event"
+              :preset="PACK_MIRROR_SECTION_FORWARD_AT_EVENT"
+              :show-crates-hint="showPackOperateControls"
             >
-              <div class="pack-workflow-section-title">{{ t('activities.packList.sectionAlreadyAtEvent') }}</div>
-
-              <div
-                v-if="packContainersWithIssuedAtEvent.length > 0"
-                class="pack-containers-section pack-containers-section--at-event-select"
-              >
-                <p v-if="showPackOperateControls" class="pack-containers-at-event-hint text-muted">
-                  {{ t('activities.packList.selectCrateAtEventHint') }}
-                </p>
-                <div class="pack-containers-children" role="group" :aria-label="t('activities.packList.ariaContainersAtEventMirror')">
-                  <PackWarehouseIssueContainerCard
-                    v-for="c in packContainersWithIssuedAtEvent"
-                    :key="'at-ev-' + c.id"
-                    :container="c"
-                    :stage-right-label="activeStageConfig.rightLabel"
-                    container-dom-id-prefix="pack-container-at-event-"
-                    :use-subsections="false"
-                    :show-storage-location="showPackStorageLocation(activePackStage, 'right')"
-                  />
-                </div>
-              </div>
-
-              <div v-if="stageRightItemsLooseIssued.length > 0" class="pack-workflow-section pack-workflow-section--at-event-loose">
-                <div class="pack-workflow-section-title">{{ t('activities.packList.sectionLoose') }}</div>
+              <template v-if="packContainersWithIssuedAtEvent.length > 0" #crates>
+                <PackStepContainerCard
+                  v-for="c in packContainersWithIssuedAtEvent"
+                  :key="'at-ev-' + c.id"
+                  :container="c"
+                  mode="warehouse_issue_mirror"
+                  :stage-right-label="activeStageConfig.rightLabel"
+                  container-dom-id-prefix="pack-container-at-event-"
+                  :use-subsections="false"
+                  :show-storage-location="showPackStorageLocation(activePackStage, 'right')"
+                />
+              </template>
+              <template v-if="stageRightItemsLooseIssued.length > 0" #loose>
                 <p
                   v-if="hasActiveCrateTarget && showPackOperateControls"
                   class="pack-active-crate-banner pack-active-crate-banner--inline"
@@ -821,20 +863,18 @@
                     </PackMaterialRow>
                   </div>
                 </div>
-              </div>
-            </div>
+              </template>
+            </PackStepMirrorSection>
 
-            <!-- Lose: Ohne Behälter (nach Kategorie), gemischt, nur in Behältern (flach) -->
-            <div
+            <PackStepMirrorSection
               v-if="
                 showPackContainersUi &&
                 activePackStage === 'confirmed_packed' &&
                 rightLoseSectionHasItems
               "
-              class="pack-workflow-section pack-workflow-section--lose"
+              :preset="PACK_MIRROR_SECTION_CONFIRMED_PACKED_LOOSE"
             >
-              <div class="pack-workflow-section-title">{{ t('activities.packList.sectionLoose') }}</div>
-
+              <template #loose>
               <div
                 v-if="ohneBehaelterGroups.length > 0"
                 class="pack-group pack-group-ohne-outer"
@@ -1001,7 +1041,8 @@
                   </PackMaterialRow>
                 </div>
               </div>
-            </div>
+              </template>
+            </PackStepMirrorSection>
 
 
           </div>
@@ -1096,12 +1137,31 @@
       @cancel="closeShellBackModal"
       @confirm="onShellBackConfirm"
     />
+
+    <PackReturnCrateModal
+      v-if="returnCrateModalContainer"
+      :open="returnCrateModalOpen"
+      :container-label="returnCrateModalContainer.label"
+      :contents-loading="returnCrateModalContentsLoading"
+      :contents-error="returnCrateModalContentsError"
+      :no-linked-batch="returnCrateModalNoLinkedBatch"
+      :partition="returnCrateModalPartition"
+      :not-taken-reminders="[]"
+      :not-taken-line="() => ''"
+      :line-remaining-return="(ci) => containerLineRemainingReturn(ci, returnCrateModalContainer!.id)"
+      :checked="returnCrateModalChecked"
+      :submitting="returnCrateModalSubmitting"
+      :submit-disabled="!returnCrateModalChecked || returnCrateModalSubmitting"
+      @update:checked="returnCrateModalChecked = $event"
+      @cancel="closeReturnCrateModal"
+      @submit="onReturnCrateModalSubmit"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
 defineOptions({ name: 'ActivityPackListTab' })
-import { computed, nextTick, onMounted, onUnmounted, provide, ref, watch } from 'vue'
+import { computed, nextTick, provide, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { ActivityApiType, ActivityIssueReportRow, ActivityTransitionRow } from '@/api/activities'
 import ActivityMaterialAvailabilityLookup from '@/components/activities/ActivityMaterialAvailabilityLookup.vue'
@@ -1114,6 +1174,9 @@ import {
   type PackCrateCheckRequest,
 } from '@/api/activityPackCrateCheck'
 import PackCrateShellBackModal from '@/components/activities/PackCrateShellBackModal.vue'
+import PackReturnCrateModal, {
+  type ReturnCratePartitionView,
+} from '@/components/activities/PackReturnCrateModal.vue'
 import PackIssueQuickActions from '@/components/activities/PackIssueQuickActions.vue'
 import PackMaterialRow from '@/components/activities/PackMaterialRow.vue'
 import PackMaterialRowDetail from '@/components/activities/PackMaterialRowDetail.vue'
@@ -1141,13 +1204,22 @@ import {
   showPackContainersForProfile,
 } from '@/components/activities/packWorkflowProfile'
 import { activityTransitionActionLabel } from '@/components/activities/activityTransitionLabels'
-import PackConfirmedPackedContainerCard from '@/components/activities/PackConfirmedPackedContainerCard.vue'
 import PackCrateShellForwardModal from '@/components/activities/PackCrateShellForwardModal.vue'
 import PackCrateShellPackItemRow from '@/components/activities/PackCrateShellPackItemRow.vue'
 import PackCrateTargetPicker from '@/components/activities/PackCrateTargetPicker.vue'
-import PackEventReturnContainerCard from '@/components/activities/PackEventReturnContainerCard.vue'
+import PackStepContainerCard from '@/components/activities/PackStepContainerCard.vue'
+import PackStepCrateSection from '@/components/activities/PackStepCrateSection.vue'
+import PackStepMirrorSection from '@/components/activities/PackStepMirrorSection.vue'
 import PackUnpackWarehouseContainerCard from '@/components/activities/PackUnpackWarehouseContainerCard.vue'
-import PackWarehouseIssueContainerCard from '@/components/activities/PackWarehouseIssueContainerCard.vue'
+import {
+  PACK_CRATE_SECTION_CONFIRMED_PACKED_RIGHT,
+  PACK_CRATE_SECTION_FORWARD_WAREHOUSE_LEFT,
+  PACK_CRATE_SECTION_RETURN_AT_EVENT_LEFT,
+  PACK_MIRROR_SECTION_CONFIRMED_PACKED_LOOSE,
+  PACK_MIRROR_SECTION_FORWARD_AT_EVENT,
+  PACK_MIRROR_SECTION_RETURN_DONE,
+} from '@/components/activities/packStepUi'
+import { confirmWorkflowStatusTransition } from '@/components/activities/usePackWorkflowConfirm'
 import { PACK_WAREHOUSE_ISSUE_INJECT_KEY } from '@/components/activities/packWarehouseIssueInjectKey'
 import {
   applyCountedQtyToReview,
@@ -1214,16 +1286,22 @@ import {
 } from '@/api/storageLocations'
 import { useConfirm } from '@/composables/useConfirm'
 import { useDepartmentMemberRole } from '@/composables/useDepartmentMemberRole'
+import { useBackgroundPoll } from '@/composables/useBackgroundPoll'
 import { useToast } from '@/composables/useToast'
+import { packItemsLiveSyncSignature } from '@/utils/packItemsLiveSync'
 
 const { t, te, locale } = useI18n()
 const toast = useToast()
 const { confirm: confirmDialog } = useConfirm()
 const { canManageMaterials } = useDepartmentMemberRole()
 
-/** Mehrere MW/Geräte: Packliste im Hintergrund aktualisieren (ohne Lade-Overlay). */
+/** Mehrere MW/Geräte/Sessions: Packliste im Hintergrund aktualisieren (ohne Lade-Overlay). */
 const PACK_LIST_POLL_MS = 4000
-let packListPollTimer: ReturnType<typeof setInterval> | null = null
+
+function isPackQtyInputFocused(): boolean {
+  const el = document.activeElement
+  return el instanceof HTMLInputElement && el.closest('.activity-pack-list-tab') != null
+}
 
 function isPackListInteractionBusy(): boolean {
   return (
@@ -1231,42 +1309,27 @@ function isPackListInteractionBusy(): boolean {
     initLoading.value ||
     movingId.value !== null ||
     containerMutationLoading.value ||
-    containerBulkLoadingId.value !== null
+    containerBulkLoadingId.value !== null ||
+    isPackQtyInputFocused()
   )
 }
 
 async function refreshPackListSilent(): Promise<void> {
-  if (isPackListInteractionBusy() || packItems.value.length === 0) return
+  if (isPackListInteractionBusy()) return
   try {
+    const prevSig = packItemsLiveSyncSignature(packItems.value)
     const items = await getPackItems(props.activityId)
+    const nextSig = packItemsLiveSyncSignature(items)
+    if (prevSig === nextSig) return
     packItems.value = items
-    await loadContainersData()
     initMoveQtyInputs()
+    await loadContainersData()
+    await refreshCrateCheckSnapshots()
+    emit('activityItemsChanged')
   } catch {
     /* Poll-Fehler ignorieren — nächster Tick */
   }
 }
-
-function startPackListPolling(): void {
-  if (packListPollTimer !== null) return
-  packListPollTimer = setInterval(() => {
-    void refreshPackListSilent()
-  }, PACK_LIST_POLL_MS)
-}
-
-function stopPackListPolling(): void {
-  if (packListPollTimer === null) return
-  clearInterval(packListPollTimer)
-  packListPollTimer = null
-}
-
-onMounted(() => {
-  startPackListPolling()
-})
-
-onUnmounted(() => {
-  stopPackListPolling()
-})
 
 function containerBatchOptionLabel(b: ContainerBatch): string {
   const base = (b.display_label || b.label || b.material_name || t('activities.common.crate')).trim()
@@ -1287,8 +1350,10 @@ const props = withDefaults(
     activityName?: string
     packListEditable: boolean
     transitions: ActivityTransitionRow[]
-    /** Meldungen (v4.01): Schnellbuttons in Packliste ab Aktivitäts-Status «Am Event» */
+    /** Meldungen Verlust/Reparatur (MW in Retour; Gruppe nur «Am Event») */
     canReportIssues?: boolean
+    /** Verbrauch buchen (Gruppe/Leiter ab «Am Event») */
+    canReportConsumption?: boolean
     /** Parent erhöht nach Verbrauchsbuchung → Packliste neu laden */
     reloadToken?: number
     /** Parent erhöht wenn Verbrauchs-Modal ohne Buchung geschlossen wurde */
@@ -1308,6 +1373,7 @@ const props = withDefaults(
     activityType: 'activity',
     activityName: '',
     canReportIssues: false,
+    canReportConsumption: false,
     reloadToken: 0,
     consumptionModalCancelledToken: 0,
     canAddActivityMaterial: false,
@@ -1356,7 +1422,7 @@ const showMwHandoffBanner = computed(
 /** MW/DC: Am Event — Gruppe soll Retour erfassen */
 const showMwReturnHandoffBanner = computed(() => {
   if (!canManageMaterials.value || !isPackReturnStage(activePackStage.value)) return false
-  const s = props.status === 'issued' ? 'at_event' : props.status
+  const s = props.status
   return s === 'at_event'
 })
 
@@ -1364,9 +1430,19 @@ const showMwGroupHandoffBanner = computed(
   () => showMwHandoffBanner.value || showMwReturnHandoffBanner.value,
 )
 
-const showPackOperateControls = computed(
-  () => props.packListEditable && isActiveStatusPackStage.value,
+/**
+ * MW/DC: Gruppe ist für Ausgabe/Retour zuständig (Status packed / at_event).
+ * Vorwärts (→) bleibt mit Notfall-Dialog möglich; Rückwärts + Status-Rücksetzer gesperrt.
+ */
+const mwGroupHandoffActive = computed(
+  () =>
+    canManageMaterials.value &&
+    (props.status === 'packed' || props.status === 'at_event'),
 )
+
+function toastMwPackListRevertLockedForGroup(): void {
+  toast.info(t('activities.packList.mwHandoffRevertLocked'))
+}
 
 /** Tab passend zum Aktivitäts-Status (nicht manuell vorgezogen/zurück). */
 const statusPackStage = computed(() =>
@@ -1385,6 +1461,19 @@ const isActiveStatusPackStage = computed(() => packStageTabOffset.value === 0)
 const isViewingPastPackStage = computed(() => packStageTabOffset.value < 0)
 const isViewingFuturePackStage = computed(() => packStageTabOffset.value > 0)
 
+/**
+ * Status schon «Am Event», aber Rest steht noch «Gepackt» — Tab Gepackt→Event bleibt für Vorwärtsbuchung offen.
+ */
+const allowPastStageForwardForOpenIssue = computed(() => {
+  if (!props.packListEditable) return false
+  if (!isViewingPastPackStage.value) return false
+  if (!isPackForwardToEventStage(activePackStage.value)) return false
+  if (props.status !== 'at_event') return false
+  return stageLeftHeaderCount.value > 0
+})
+
+const showPackStageOpenIssueRemainderBanner = computed(() => allowPastStageForwardForOpenIssue.value)
+
 const statusStageConfig = computed(() => {
   const key = statusPackStage.value
   return {
@@ -1395,21 +1484,35 @@ const statusStageConfig = computed(() => {
 })
 
 const showPackStageViewOnlyBanner = computed(
-  () => props.packListEditable && packStageKeys.value.length > 1 && !isActiveStatusPackStage.value,
+  () =>
+    props.packListEditable &&
+    packStageKeys.value.length > 1 &&
+    !isActiveStatusPackStage.value &&
+    !allowPastStageForwardForOpenIssue.value,
 )
 
-/** Vorwärts (→): nur aktiver Tab; MW ausnahmsweise auf älterem Tab (Nachbuchung). */
+const showPackOperateControls = computed(
+  () =>
+    props.packListEditable &&
+    (isActiveStatusPackStage.value || allowPastStageForwardForOpenIssue.value),
+)
+
+/** Vorwärts (→): aktiver Tab; bei offenem Rest «Gepackt» auch auf älterem Tab; MW mit Notfall-Dialog. */
 const showPackForwardControls = computed(() => {
   if (!props.packListEditable) return false
+  if (allowPastStageForwardForOpenIssue.value) return true
   if (isActiveStatusPackStage.value) return true
+  if (mwGroupHandoffActive.value) return false
   if (canManageMaterials.value && isViewingPastPackStage.value) return true
   return false
 })
 
-/** Rückwärts (←): nur aktiver Tab. */
-const showPackBackwardControls = computed(
-  () => props.packListEditable && isActiveStatusPackStage.value,
-)
+/** Rückwärts (←): nur aktiver Tab — MW während Gruppen-Übergabe gesperrt. */
+const showPackBackwardControls = computed(() => {
+  if (!props.packListEditable || !isActiveStatusPackStage.value) return false
+  if (mwGroupHandoffActive.value) return false
+  return true
+})
 
 function packStageViewLabel(key: PackStage): string {
   return `${t(`activities.packList.stages.${key}.left`)} → ${t(`activities.packList.stages.${key}.right`)}`
@@ -1417,6 +1520,7 @@ function packStageViewLabel(key: PackStage): string {
 
 async function confirmPackStageForwardAllowed(): Promise<boolean> {
   if (!props.packListEditable) return false
+  if (allowPastStageForwardForOpenIssue.value) return true
   if (showPackForwardControls.value && isActiveStatusPackStage.value) return true
   if (!showPackForwardControls.value) {
     toast.info(t('activities.packList.toastPackStageViewOnly'))
@@ -1506,7 +1610,7 @@ async function confirmPackedBackToConfirmed(): Promise<boolean> {
 
 /** Nur wenn Workflow «Am Event buchen» geklickt wurde (Status at_event), nicht bei «gepackt» + Packbuchungen. */
 const activityStatusAllowsIssueReports = computed(() => {
-  const s = props.status === 'issued' ? 'at_event' : props.status
+  const s = props.status
   return s === 'at_event' || s === 'returned'
 })
 
@@ -1517,8 +1621,30 @@ const showPackIssueActions = computed(
     props.canReportIssues !== false,
 )
 
+const showPackConsumptionActions = computed(
+  () =>
+    activityStatusAllowsIssueReports.value &&
+    showPackOperateControls.value &&
+    props.canReportConsumption !== false,
+)
+
+/** Verbrauch buchen (User/Leader + MW): solange noch offen und Material am Event / in Retour. */
+function showConsumableConsumptionForPackItem(pi: ActivityPackItem): boolean {
+  if (!pi.isConsumable || !showPackConsumptionActions.value) return false
+  if (consumableConsumptionRemaining(pi) <= 0) return false
+  if (isPackForwardToEventStage(activePackStage.value)) {
+    return looseIssuedAtEvent(pi) > 0 || issuedQtyInContainersForMaterial(pi.materialItemId) > 0
+  }
+  if (isPackReturnStage(activePackStage.value) || activePackStage.value === 'returned_unpack') {
+    return (pi.quantityIssued ?? 0) > 0
+  }
+  return (pi.quantityIssued ?? 0) > 0
+}
+
 /** Verlust/Reparatur/Verbrauch nur für lose «Am Event»-Menge (nicht Rest «Gepackt» links). */
 function showPackIssueForPackItem(pi: ActivityPackItem): boolean {
+  if (!showPackIssueActions.value && !showPackConsumptionActions.value) return false
+  if (pi.isConsumable) return showConsumableConsumptionForPackItem(pi)
   if (!showPackIssueActions.value) return false
   if (isPackForwardToEventStage(activePackStage.value)) {
     return looseIssuedAtEvent(pi) > 0
@@ -1536,6 +1662,9 @@ function showKisteMeldungForContainer(containerId: string): boolean {
 
 /** Verlust/Reparatur/Verbrauch für Kistenzeile — nur wenn Aktivität «Am Event» und Inhalt wirklich ausgegeben. */
 function showPackIssueForContainerLine(ci: ActivityPackContainerItem, containerId: string): boolean {
+  if (!showPackIssueActions.value && !showPackConsumptionActions.value) return false
+  const pi = packItems.value.find((p) => p.materialItemId === ci.material_item_id)
+  if (pi?.isConsumable) return showConsumableConsumptionForPackItem(pi)
   if (!showPackIssueActions.value) return false
   if ((ci.quantity_issued ?? 0) < 1) return false
   if (isPackForwardToEventStage(activePackStage.value)) {
@@ -1831,10 +1960,11 @@ function emitIssueWizard(pi: ActivityPackItem, issueType: 'loss' | 'repair') {
 }
 
 function emitConsumptionFromPackItem(pi: ActivityPackItem) {
+  if (!showConsumableConsumptionForPackItem(pi)) return
   openConsumptionModalForPackItem(pi)
 }
 
-function openConsumptionModalForPackItem(pi: ActivityPackItem) {
+function openConsumptionModalForPackItem(pi: ActivityPackItem, returnQty?: number) {
   if (!props.packListEditable) return
   emit('openConsumptionModal', {
     materialItemId: pi.materialItemId,
@@ -1842,6 +1972,7 @@ function openConsumptionModalForPackItem(pi: ActivityPackItem) {
     packSize: pi.packSize,
     packUnit: pi.packUnit,
     linkedContainerLabel: pi.linkedContainerLabel,
+    returnQty: returnQty != null && returnQty > 0 ? returnQty : undefined,
   })
 }
 
@@ -1885,88 +2016,16 @@ function toggleReturnSection(key: string) {
   }
 }
 
-/** Am Event → Retour: vor Retour bei Verbrauchsmaterial nach Verbrauch fragen */
-async function promptConsumableUsageOnReturn(pi: ActivityPackItem, moveQty: number): Promise<boolean> {
-  if (!isPackReturnStage(activePackStage.value) || !pi.isConsumable) return false
-  const bookConsumption = await confirmDialog({
-    title: t('activities.packList.consumableReturnConfirmTitle'),
-    message: t('activities.packList.consumableReturnConfirmMessage', { name: pi.materialName }),
-    confirmText: t('activities.packList.consumableReturnConfirmYes'),
-    cancelText: t('activities.packList.consumableReturnConfirmNo'),
-    variant: 'info',
-  })
-  if (bookConsumption) {
-    pendingReturnAfterConsumption.value = {
-      kind: 'pack-item',
-      packItemId: pi.id,
-      moveQty,
-      consumedBefore: consumedQtyForMaterial(pi.materialItemId),
-    }
-    openConsumptionModalForPackItem(pi)
-    return true
-  }
-  return false
+function consumableConsumptionRemaining(pi: ActivityPackItem): number {
+  if (!pi.isConsumable) return 0
+  return Math.max(0, (pi.quantityOrdered ?? 0) - consumableBookedConsumptionQty(pi))
 }
 
-function firstConsumablePackItemInContainer(containerId: string): ActivityPackItem | undefined {
-  for (const ci of containerItemsByContainerId.value[containerId] ?? []) {
-    if (isNonActionableContainerLine(ci)) continue
-    if (containerLineRemainingReturn(ci, containerId) < 1) continue
-    const pi = packItems.value.find(
-      (p) => p.materialItemId === ci.material_item_id && p.isConsumable,
-    )
-    if (pi) return pi
-  }
-  return undefined
-}
-
-async function promptConsumableUsageOnContainerReturn(containerId: string): Promise<boolean> {
-  if (!isPackReturnStage(activePackStage.value)) return false
-  const pi = firstConsumablePackItemInContainer(containerId)
-  if (!pi) return false
-  const moveQty = containerReturnableUnits(containerId)
-  if (moveQty < 1) return false
-  const bookConsumption = await confirmDialog({
-    title: t('activities.packList.consumableReturnConfirmTitle'),
-    message: t('activities.packList.consumableReturnConfirmMessage', { name: pi.materialName }),
-    confirmText: t('activities.packList.consumableReturnConfirmYes'),
-    cancelText: t('activities.packList.consumableReturnConfirmNo'),
-    variant: 'info',
-  })
-  if (!bookConsumption) return false
-  pendingReturnAfterConsumption.value = {
-    kind: 'container',
-    containerId,
-    consumedBefore: consumedQtyForMaterial(pi.materialItemId),
-    consumableMaterialId: pi.materialItemId,
-  }
-  openConsumptionModalForPackItem(pi)
+function isConsumablePackLine(pi: ActivityPackItem): boolean {
+  if (!pi.isConsumable) return false
+  if (isOrphanShellWithoutPackContainer(pi)) return false
+  if (isCrateShellPackItem(pi, packContainers.value)) return false
   return true
-}
-
-async function fulfillPendingReturnAfterConsumption() {
-  const pending = pendingReturnAfterConsumption.value
-  if (!pending) return
-  pendingReturnAfterConsumption.value = null
-  if (pending.kind === 'container') {
-    await executeReturnContainerToWarehouse(pending.containerId)
-    return
-  }
-  const pi = packItems.value.find((p) => p.id === pending.packItemId)
-  if (!pi) return
-  const consumedNow = consumedQtyForMaterial(pi.materialItemId)
-  const consumedSession = Math.max(0, consumedNow - pending.consumedBefore)
-  let returnQty = Math.max(0, pending.moveQty - consumedSession)
-  returnQty = resolveConsumableReturnQty(pi, returnQty)
-  if (returnQty <= 0) {
-    toast.info(t('activities.packList.toastConsumableAllUsedNothingToReturn'))
-    return
-  }
-  await executeMoveToNextStage(pi, returnQty)
-}
-
-function clearPendingReturnAfterConsumption() {
-  pendingReturnAfterConsumption.value = null
 }
 
 /** Verbrauch zu material_item_id (Behälter/Kistenzeile); optional Anzeigetext aus UI */
@@ -1977,9 +2036,11 @@ function emitConsumptionForMaterialId(
   if (!showPackIssueActions.value || !materialItemId) return
   const pi = packItems.value.find((p) => p.materialItemId === materialItemId)
   if (pi) {
+    if (!showConsumableConsumptionForPackItem(pi)) return
     emitConsumptionFromPackItem(pi)
     return
   }
+  if (!showPackConsumptionActions.value) return
   emit('openConsumptionModal', {
     materialItemId,
     materialName: (hints?.materialName && hints.materialName.trim()) || t('activities.common.material'),
@@ -2051,21 +2112,6 @@ const collapsedReturnSections = ref<Record<string, boolean>>({
   consumption: true,
 })
 
-type PendingReturnAfterConsumption =
-  | {
-      kind: 'pack-item'
-      packItemId: string
-      moveQty: number
-      consumedBefore: number
-    }
-  | {
-      kind: 'container'
-      containerId: string
-      consumedBefore: number
-      consumableMaterialId: string
-    }
-
-const pendingReturnAfterConsumption = ref<PendingReturnAfterConsumption | null>(null)
 const packIssues = ref<ActivityIssueReportRow[]>([])
 const moveQtyInputs = ref<Record<string, number>>({})
 const moveBackQtyInputs = ref<Record<string, number>>({})
@@ -2472,6 +2518,262 @@ const shellBackMoveQty = ref(0)
 const shellBackAcknowledged = ref(false)
 const shellBackSubmitting = ref(false)
 
+const returnCrateModalOpen = ref(false)
+const returnCrateModalContainer = ref<ActivityPackContainer | null>(null)
+const returnCrateModalChecked = ref(false)
+const returnCrateModalSubmitting = ref(false)
+const returnCrateModalContentsLoading = ref(false)
+const returnCrateModalContentsError = ref(false)
+const containerReturnLineInputs = ref<Record<string, number>>({})
+const containerShellReturnInputs = ref<Record<string, number>>({})
+
+function returnProgressNotTakenQty(pi: ActivityPackItem): number {
+  if (!isPackReturnStage(activePackStage.value)) return 0
+  return notTakenQtyForReturn(pi)
+}
+
+function buildReturnCratePartition(containerId: string): ReturnCratePartitionView {
+  const c = packContainers.value.find((x) => x.id === containerId)
+  const empty: ReturnCratePartitionView = {
+    shellQty: 0,
+    shellIsExtra: false,
+    shellMaterialName: '',
+    extraLines: [],
+    standardLines: [],
+    hasWarehouseTemplate: false,
+  }
+  if (!c) return empty
+
+  const warehouseMids = containerWarehouseTemplateByContainerId.value[containerId]
+  const hasWarehouseTemplate = (warehouseMids?.size ?? 0) > 0
+  const shellQty = containerShellStillAtEventQty(containerId)
+  const shellMid = (c.container_material_item_id ?? '').trim()
+  const shellPi = shellMid ? packItems.value.find((p) => p.materialItemId === shellMid) : undefined
+  const shellIsExtra = Boolean(shellMid && shellQty > 0 && warehouseMids && !warehouseMids.has(shellMid))
+
+  const standardLines: ActivityPackContainerItem[] = []
+  const extraLines: ActivityPackContainerItem[] = []
+  for (const sec of packContainerItemSectionsForContainer(c)) {
+    for (const ci of sec.lines) {
+      if (isNonActionableContainerLine(ci)) continue
+      if (containerLineRemainingReturn(ci, containerId) <= 0) continue
+      if (sec.subsectionKey === 'extra') extraLines.push(ci)
+      else standardLines.push(ci)
+    }
+  }
+
+  return {
+    shellQty,
+    shellIsExtra,
+    shellMaterialName: shellPi?.materialName ?? '',
+    extraLines,
+    standardLines,
+    hasWarehouseTemplate,
+  }
+}
+
+const returnCrateModalPartition = computed((): ReturnCratePartitionView => {
+  const c = returnCrateModalContainer.value
+  if (!c) {
+    return {
+      shellQty: 0,
+      shellIsExtra: false,
+      shellMaterialName: '',
+      extraLines: [],
+      standardLines: [],
+      hasWarehouseTemplate: false,
+    }
+  }
+  return buildReturnCratePartition(c.id)
+})
+
+const returnCrateModalNoLinkedBatch = computed(
+  () => !(returnCrateModalContainer.value?.container_batch_id ?? '').trim(),
+)
+
+function closeReturnCrateModal(): void {
+  returnCrateModalOpen.value = false
+  returnCrateModalContainer.value = null
+  returnCrateModalChecked.value = false
+  returnCrateModalContentsLoading.value = false
+  returnCrateModalContentsError.value = false
+}
+
+async function openReturnCrateModal(c: ActivityPackContainer): Promise<void> {
+  returnCrateModalContainer.value = c
+  returnCrateModalChecked.value = false
+  returnCrateModalContentsError.value = false
+  returnCrateModalContentsLoading.value = true
+  returnCrateModalOpen.value = true
+  try {
+    await loadWarehouseTemplatesForContainers()
+  } catch {
+    returnCrateModalContentsError.value = true
+  } finally {
+    returnCrateModalContentsLoading.value = false
+  }
+}
+
+async function onReturnCrateModalSubmit(): Promise<void> {
+  const c = returnCrateModalContainer.value
+  if (!c || !returnCrateModalChecked.value) return
+  const containerId = c.id
+  returnCrateModalSubmitting.value = true
+  try {
+    closeReturnCrateModal()
+    await executeReturnContainerToWarehouse(containerId)
+  } finally {
+    returnCrateModalSubmitting.value = false
+  }
+}
+
+function initContainerReturnLineInputs(): void {
+  const next: Record<string, number> = { ...containerReturnLineInputs.value }
+  for (const c of packContainers.value) {
+    for (const sec of packContainerItemSectionsForContainer(c)) {
+      for (const ci of sec.lines) {
+        if (isNonActionableContainerLine(ci)) continue
+        const max = containerLineRemainingReturn(ci, c.id)
+        if (max < 1) continue
+        const k = containerIssueLineKey(c.id, ci.id)
+        if (next[k] == null || !Number.isFinite(next[k]) || next[k] < 1) {
+          next[k] = max
+        }
+      }
+    }
+  }
+  containerReturnLineInputs.value = next
+}
+
+function containerShellReturnKey(containerId: string): string {
+  return `shell-return:${containerId}`
+}
+
+function initContainerShellReturnInputs(): void {
+  const next: Record<string, number> = { ...containerShellReturnInputs.value }
+  for (const c of packContainers.value) {
+    const max = containerShellStillAtEventQty(c.id)
+    if (max < 1) continue
+    const k = containerShellReturnKey(c.id)
+    if (next[k] == null || !Number.isFinite(next[k]) || next[k] < 1) {
+      next[k] = max
+    }
+  }
+  containerShellReturnInputs.value = next
+}
+
+function containerShellReturnInputValue(containerId: string): number {
+  const max = Math.max(1, containerShellStillAtEventQty(containerId))
+  const k = containerShellReturnKey(containerId)
+  const raw = containerShellReturnInputs.value[k]
+  if (Number.isFinite(raw) && raw > 0) return Math.min(raw, max)
+  containerShellReturnInputs.value = { ...containerShellReturnInputs.value, [k]: max }
+  return max
+}
+
+function setContainerShellReturnInput(containerId: string, value: number | string): void {
+  const max = Math.max(1, containerShellStillAtEventQty(containerId))
+  const k = containerShellReturnKey(containerId)
+  let qty = Math.floor(Number(value))
+  if (!Number.isFinite(qty) || qty < 1) qty = max
+  containerShellReturnInputs.value = { ...containerShellReturnInputs.value, [k]: Math.min(qty, max) }
+}
+
+async function returnContainerShellToWarehouse(containerId: string): Promise<void> {
+  if (!isPackReturnStage(activePackStage.value)) return
+  const shell = shellPackItemForContainer(containerId)
+  if (!shell) return
+  const max = containerShellStillAtEventQty(containerId)
+  if (max < 1) return
+  let qty = Math.floor(containerShellReturnInputValue(containerId))
+  qty = Math.min(qty, max)
+  setContainerShellReturnInput(containerId, qty)
+  containerMutationLoading.value = true
+  try {
+    await postMovePackItem(props.activityId, shell.id, { stage: 'returned', quantity: qty })
+    const items = await getPackItems(props.activityId)
+    packItems.value = items
+    initMoveQtyInputs()
+    initContainerShellReturnInputs()
+    await loadContainersData()
+    emit('activityItemsChanged')
+    toast.success(t('activities.packList.toastReturnLineSuccess', { qty }))
+  } catch (err: unknown) {
+    const e = err as { response?: { data?: { error?: string } }; message?: string }
+    toast.error(e.response?.data?.error || e.message || t('activities.packList.toastReturnFailed'))
+  } finally {
+    containerMutationLoading.value = false
+  }
+}
+
+function containerReturnLineInputValue(containerId: string, ci: ActivityPackContainerItem): number {
+  const k = containerIssueLineKey(containerId, ci.id)
+  const max = Math.max(1, containerLineRemainingReturn(ci, containerId))
+  const raw = containerReturnLineInputs.value[k]
+  if (Number.isFinite(raw) && raw > 0) return Math.min(raw, max)
+  containerReturnLineInputs.value = { ...containerReturnLineInputs.value, [k]: max }
+  return max
+}
+
+function setContainerReturnLineInput(
+  containerId: string,
+  ci: ActivityPackContainerItem,
+  value: number | string,
+): void {
+  const k = containerIssueLineKey(containerId, ci.id)
+  const max = Math.max(1, containerLineRemainingReturn(ci, containerId))
+  let qty = Math.floor(Number(value))
+  if (!Number.isFinite(qty) || qty < 1) qty = max
+  containerReturnLineInputs.value = { ...containerReturnLineInputs.value, [k]: Math.min(qty, max) }
+}
+
+async function executeReturnContainerLineToWarehouse(
+  containerId: string,
+  ci: ActivityPackContainerItem,
+  qty: number,
+): Promise<void> {
+  const pi = packItems.value.find((p) => p.materialItemId === ci.material_item_id)
+  if (!pi) {
+    toast.error(t('activities.packList.toastNoPackLine'))
+    return
+  }
+  const max = containerLineRemainingReturn(ci, containerId)
+  let moveQty = Math.min(Math.max(1, Math.floor(qty)), max)
+  if (moveQty < 1) return
+  containerMutationLoading.value = true
+  try {
+    await postMovePackItem(props.activityId, pi.id, { stage: 'returned', quantity: moveQty })
+    const cap = Math.max(ci.quantity_issued ?? 0, ci.quantity_packed ?? 0)
+    await updateActivityPackContainerItem(props.activityId, containerId, ci.id, {
+      quantity_returned: Math.min((ci.quantity_returned ?? 0) + moveQty, cap > 0 ? cap : moveQty),
+    })
+    const items = await getPackItems(props.activityId)
+    packItems.value = items
+    initMoveQtyInputs()
+    initContainerReturnLineInputs()
+    await loadContainersData()
+    emit('activityItemsChanged')
+    toast.success(t('activities.packList.toastReturnLineSuccess', { qty: moveQty }))
+  } catch (err: unknown) {
+    const e = err as { response?: { data?: { error?: string } }; message?: string }
+    toast.error(e.response?.data?.error || e.message || t('activities.packList.toastReturnFailed'))
+  } finally {
+    containerMutationLoading.value = false
+  }
+}
+
+async function returnContainerLineToWarehouse(containerId: string, ci: ActivityPackContainerItem): Promise<void> {
+  if (!isPackReturnStage(activePackStage.value)) return
+  if (isNonActionableContainerLine(ci)) return
+  const max = containerLineRemainingReturn(ci, containerId)
+  if (max < 1) return
+  let qty = Math.floor(Number(containerReturnLineInputValue(containerId, ci)))
+  if (!Number.isFinite(qty) || qty < 1) qty = max
+  qty = Math.min(qty, max)
+  setContainerReturnLineInput(containerId, ci, qty)
+  await executeReturnContainerLineToWarehouse(containerId, ci, qty)
+}
+
 const shellBackLabel = computed(() => {
   const pi = shellBackItem.value
   if (!pi) return ''
@@ -2519,10 +2821,15 @@ const shellBackLastCheckDateLabel = computed(() => {
 })
 
 function isPackContainerCollapsed(containerId: string): boolean {
-  return Boolean(collapsedPackContainers.value[containerId])
+  const explicit = collapsedPackContainers.value[containerId]
+  if (explicit !== undefined) return explicit
+  return isPackReturnStage(activePackStage.value) && packContainers.value.length > 1
 }
 
 function useCrateRealityForPackItem(packItemId: string): boolean {
+  if (canManageMaterials.value && activityCrateCheckSnapshots.value[packItemId]) {
+    return true
+  }
   if (!canManageMaterials.value) return true
   return useCrateRealityByPackItemId.value[packItemId] !== false
 }
@@ -2602,24 +2909,17 @@ function crateShellPeekEmptyHint(pi: ActivityPackItem): string {
   return t('activities.packList.cratePeekNoShellYet')
 }
 
-function showCrateTemplateToggle(pi: ActivityPackItem): boolean {
-  return canManageMaterials.value && Boolean(activityCrateCheckSnapshots.value[pi.id])
+/** Kein Inline-Banner — Kistencheck steht im Verlauf; Ist-Mengen gelten still im Hintergrund. */
+function showCrateTemplateToggle(_pi: ActivityPackItem): boolean {
+  return false
 }
 
-function crateRealityBannerForPackItem(pi: ActivityPackItem): string | null {
-  if (!canManageMaterials.value || !Boolean(activityCrateCheckSnapshots.value[pi.id])) {
-    return null
-  }
-  if (useCrateRealityByPackItemId.value[pi.id] === false) {
-    return t('activities.packList.cratePeekTemplateViewBanner')
-  }
-  return t('activities.packList.cratePeekRealityViewBanner')
+function crateRealityBannerForPackItem(_pi: ActivityPackItem): string | null {
+  return null
 }
 
-function toggleCrateRealityView(pi: ActivityPackItem) {
-  if (!canManageMaterials.value) return
-  const cur = useCrateRealityByPackItemId.value[pi.id] !== false
-  useCrateRealityByPackItemId.value = { ...useCrateRealityByPackItemId.value, [pi.id]: !cur }
+function toggleCrateRealityView(_pi: ActivityPackItem) {
+  /* Toggle entfernt — keine Packliste/Ist-Umschaltung in der Kiste. */
 }
 
 function needsShellCrateBackConfirm(pi: ActivityPackItem): boolean {
@@ -3286,8 +3586,7 @@ async function unissueContainerToPacked(c: ActivityPackContainer) {
 
 async function returnContainerToWarehouse(c: ActivityPackContainer) {
   if (containerBulkLoadingId.value) return
-  if (await promptConsumableUsageOnContainerReturn(c.id)) return
-  await executeReturnContainerToWarehouse(c.id)
+  await openReturnCrateModal(c)
 }
 
 async function executeReturnContainerToWarehouse(containerId: string) {
@@ -3553,6 +3852,8 @@ async function loadContainersData(): Promise<void> {
     initContainerPullQtyInputs()
     initContainerIssueLineInputs()
     initContainerUnissueLineInputs()
+    initContainerReturnLineInputs()
+    initContainerShellReturnInputs()
     if (isPackForwardToEventStage(activePackStage.value)) {
       for (const c of packContainers.value) {
         if (!containerContentsTravelWithShellAtEvent(c.id)) continue
@@ -4085,6 +4386,9 @@ function getStageProgressDoneQty(item: ActivityPackItem): number {
   if (isPackReturnStage(activePackStage.value) && item.isConsumable) {
     return consumableReturnDoneQty(item)
   }
+  if (isPackReturnStage(activePackStage.value)) {
+    return getStageRightQty(item) + returnProgressNotTakenQty(item)
+  }
   return getStageRightQty(item)
 }
 
@@ -4142,6 +4446,18 @@ function pendingIssuePartsForPackItem(pi: ActivityPackItem): {
       crateCheckGap,
     }
   }
+  if (isPackReturnStage(activePackStage.value)) {
+    const loosePart = looseQtyStillAtEventForReturn(pi)
+    const inCratePart = isCrateShellPackItem(pi, packContainers.value)
+      ? 0
+      : crateReturnQtyForMaterial(pi.materialItemId)
+    return {
+      total: loosePart + inCratePart,
+      loosePart,
+      inCratePart,
+      crateCheckGap: 0,
+    }
+  }
   const pending = getStagePendingQtyClassic(pi)
   return { total: pending, loosePart: pending, inCratePart: 0, crateCheckGap: 0 }
 }
@@ -4191,6 +4507,22 @@ type StageProgressPendingLine = {
   actionHint: string
 }
 
+function pendingReturnCrateLabelsForMaterial(materialItemId: string): string[] {
+  const labels = new Set<string>()
+  for (const c of packContainers.value) {
+    for (const ci of containerItemsByContainerId.value[c.id] ?? []) {
+      if (ci.material_item_id === materialItemId && containerLineRemainingReturn(ci, c.id) > 0) {
+        labels.add(c.label)
+      }
+    }
+    const shell = shellPackItemForContainer(c.id)
+    if (shell?.materialItemId === materialItemId && containerShellStillAtEventQty(c.id) > 0) {
+      labels.add(c.label)
+    }
+  }
+  return [...labels].sort((a, b) => a.localeCompare(b, locale.value))
+}
+
 function progressPendingActionHint(
   pending: number,
   loosePart: number,
@@ -4199,6 +4531,29 @@ function progressPendingActionHint(
   crateCheckGap = 0,
 ): string {
   const crate = crateLabels.join(', ')
+  if (isPackReturnStage(activePackStage.value)) {
+    if (inCratePart > 0 && loosePart <= 0) {
+      return crate
+        ? t('activities.packList.progressPendingReturnActionInCrate', { crate })
+        : t('activities.packList.progressPendingReturnActionInCrateGeneric')
+    }
+    if (loosePart > 0 && inCratePart <= 0) {
+      return t('activities.packList.progressPendingReturnActionLoose')
+    }
+    if (loosePart > 0 && inCratePart > 0) {
+      return crate
+        ? t('activities.packList.progressPendingReturnActionMixed', {
+            loose: loosePart,
+            inCrate: inCratePart,
+            crate,
+          })
+        : t('activities.packList.progressPendingReturnActionMixedNoCrate', {
+            loose: loosePart,
+            inCrate: inCratePart,
+          })
+    }
+    return t('activities.packList.progressPendingReturnActionDefault')
+  }
   if (inCratePart > 0 && loosePart <= 0) {
     if (crateCheckGap > 0 && crate) {
       return t('activities.packList.progressPendingActionInCrateWithGap', {
@@ -4228,7 +4583,9 @@ const stageProgressPendingLines = computed((): StageProgressPendingLine[] => {
     const parts = pendingIssuePartsForPackItem(p)
     if (parts.total <= 0) continue
     if (parts.inCratePart <= 0 && parts.loosePart <= 0) continue
-    const crates = pendingCrateLabelsForMaterial(p.materialItemId)
+    const crates = isPackReturnStage(activePackStage.value)
+      ? pendingReturnCrateLabelsForMaterial(p.materialItemId)
+      : pendingCrateLabelsForMaterial(p.materialItemId)
     lines.push({
       key: p.id,
       qty: parts.total,
@@ -4262,9 +4619,16 @@ const stageProgressPendingTitle = computed(() => {
   return `${header}\n${body}`
 })
 
-function stageProgressPendingConfirmMessage(variant: 'status' | 'transition' = 'status'): string {
+function stageProgressPendingConfirmMessage(
+  variant: 'status' | 'transition' | 'return' = 'status',
+): string {
   const lines = stageProgressPendingLines.value
   if (lines.length === 0) {
+    if (variant === 'return') {
+      return t('activities.packList.confirmReturnWorkflowStatusMessage', {
+        count: stageLeftHeaderCount.value,
+      })
+    }
     if (variant === 'transition') {
       return t('activities.packList.confirmWorkflowMessage', { count: stageLeftItems.value.length })
     }
@@ -4281,6 +4645,9 @@ function stageProgressPendingConfirmMessage(variant: 'status' | 'transition' = '
       return `${short} — ${line.actionHint}`
     })
     .join('\n')
+  if (variant === 'return') {
+    return t('activities.packList.confirmReturnWorkflowStatusMessageList', { list })
+  }
   return variant === 'transition'
     ? t('activities.packList.confirmWorkflowPendingMessageList', { list })
     : t('activities.packList.confirmWorkflowStatusMessageList', { list })
@@ -4290,6 +4657,9 @@ function getStageTotalQty(item: ActivityPackItem): number {
   const raw = computeStageTotalQty(item, activePackStage.value, packWorkflowProfile.value)
   if (isPackReturnStage(activePackStage.value) && item.isConsumable) {
     return Math.max(raw, consumableReturnDoneQty(item))
+  }
+  if (isPackReturnStage(activePackStage.value)) {
+    return raw + returnProgressNotTakenQty(item)
   }
   if (isPackForwardToEventStage(activePackStage.value)) {
     const gap = crateCheckGapForMaterial(item.materialItemId)
@@ -4391,8 +4761,8 @@ const stageLeftHeaderCount = computed(() => {
   if (isPackForwardToEventStage(activePackStage.value) && showPackContainersUi.value) {
     return stageLeftItems.value.length + packContainersSortedWarehouseOnlyVisible.value.length
   }
-  if (isPackReturnStage(activePackStage.value) && packContainers.value.length > 0) {
-    return stageLeftItems.value.length
+  if (isPackReturnStage(activePackStage.value) && showPackContainersUi.value) {
+    return stageLeftItems.value.length + packContainersAtEventForReturnLeft.value.length
   }
   return stageLeftItems.value.length
 })
@@ -4407,12 +4777,12 @@ const stageRightItems = computed(() => packItems.value.filter((p) => getStageRig
 const rightPanelHasEventContent = computed(() => {
   if (isPackReturnOrUnpackWarehouseStage(activePackStage.value)) {
     return (
-      packContainersWithReturnableAtEvent.value.length > 0 ||
+      packContainersReturnedForReturnRight.value.length > 0 ||
       packContainersForUnpackWarehouse.value.length > 0 ||
       groupsReturned.value.length > 0 ||
       groupsStoredLoose.value.length > 0 ||
       groupsNotTakenForReturn.value.length > 0 ||
-      groupsConsumedForReturn.value.length > 0
+      groupsConsumableOverview.value.length > 0
     )
   }
   if (!showPackContainersUi.value) {
@@ -4465,13 +4835,12 @@ const nextWorkflowTransitionLabel = computed(() => {
 const ACTIVITY_STATUS_REVERT_TARGET: Record<string, string> = {
   packed: 'packing',
   at_event: 'packed',
-  issued: 'packed',
   returned: 'at_event',
 }
 
 const previousWorkflowTransition = computed(() => {
   if (!canManageMaterials.value) return null
-  const current = props.status === 'issued' ? 'at_event' : props.status
+  const current = props.status
   const target = ACTIVITY_STATUS_REVERT_TARGET[current]
   if (!target) return null
   return props.transitions.find((t) => t.status === target && t.allowed) ?? null
@@ -4484,15 +4853,34 @@ const previousWorkflowTransitionLabel = computed(() => {
 })
 
 const showWorkflowRevertButton = computed(
-  () => canManageMaterials.value && previousWorkflowTransition.value != null,
+  () =>
+    canManageMaterials.value &&
+    previousWorkflowTransition.value != null &&
+    !mwGroupHandoffActive.value,
 )
 
-const workflowRevertButtonTitle = computed(() => {
+const workflowRevertVisibleLabel = computed(() => {
   const label = previousWorkflowTransitionLabel.value
-  return label
-    ? t('activities.packList.workflowRevertButton') + ': ' + label
-    : t('activities.packList.workflowRevertButton')
+  return label ? `← ${label}` : ''
 })
+
+const moveAllStageButtonLabel = computed(() =>
+  showMwGroupHandoffBanner.value
+    ? t('activities.packList.moveAllMw', { stage: activeStageConfig.value.rightLabel })
+    : t('activities.packList.moveAll', { stage: activeStageConfig.value.rightLabel }),
+)
+
+const moveAllToEventQuickLabel = computed(() =>
+  showMwHandoffBanner.value
+    ? t('activities.packList.moveAllToEventMw')
+    : t('activities.packList.moveAllToEvent'),
+)
+
+const partialTakenToEventLabel = computed(() =>
+  showMwHandoffBanner.value
+    ? t('activities.packList.partialTakenToEventMw')
+    : t('activities.packList.partialTakenToEvent'),
+)
 
 async function confirmWorkflowRevert(transition: ActivityTransitionRow): Promise<boolean> {
   if (transition.status === 'packing') {
@@ -4528,6 +4916,10 @@ async function confirmWorkflowRevert(transition: ActivityTransitionRow): Promise
 async function onWorkflowRevertClick() {
   const transition = previousWorkflowTransition.value
   if (!transition?.allowed || !props.packListEditable) return
+  if (mwGroupHandoffActive.value) {
+    toastMwPackListRevertLockedForGroup()
+    return
+  }
   if (!(await confirmWorkflowRevert(transition))) return
   isTransitioningPackWorkflow.value = true
   try {
@@ -4544,6 +4936,12 @@ const packIssueToEventCombined = computed(
     nextWorkflowTransition.value?.status === 'at_event',
 )
 
+/** Mindestens ein Stück/Kiste jemals ans Event gebucht (für Retour-Status) */
+const hasAnythingEverIssuedAtEvent = computed(() => {
+  if (packItems.value.some((p) => (p.quantityIssued ?? 0) > 0)) return true
+  return packContainersWithIssuedAtEvent.value.length > 0
+})
+
 /** Mindestens ein Stück/Kiste wirklich «Am Event» (lose oder als Kiste), nicht nur gepackt links */
 const hasAnythingIssuedAtEvent = computed(() => {
   if (!packIssueToEventCombined.value) return false
@@ -4551,36 +4949,37 @@ const hasAnythingIssuedAtEvent = computed(() => {
   return stageRightItemsLooseIssued.value.length > 0
 })
 
-/** Schnellbutton: alles von Gepackt → Am Event — nur solange noch nichts ans Event gebucht wurde */
-const showMoveAllToEventQuickButton = computed(
+/** Teilmenge: schon etwas ans Event, links noch «Gepackt». */
+const packIssueToEventHasPartialTake = computed(
   () =>
     packIssueToEventCombined.value &&
-    showPackOperateControls.value &&
-    !hasAnythingIssuedAtEvent.value &&
+    hasAnythingIssuedAtEvent.value &&
     stageLeftHeaderCount.value > 0,
 )
 
-const moveAllToEventQuickLabel = computed(() =>
-  showMwHandoffBanner.value
-    ? t('activities.packList.moveAllToEventMw')
-    : t('activities.packList.moveAllToEvent'),
+/** Schnellbutton: alles von Gepackt → Am Event — leer rechts, oder Rest-Nachbuchung bei Status «Am Event». */
+const showMoveAllToEventQuickButton = computed(() => {
+  if (!showPackOperateControls.value || stageLeftHeaderCount.value <= 0) return false
+  if (allowPastStageForwardForOpenIssue.value) return true
+  return packIssueToEventCombined.value && !hasAnythingIssuedAtEvent.value
+})
+
+const showPartialTakenToEventUpperButton = computed(
+  () =>
+    packIssueToEventCombined.value &&
+    showPackOperateControls.value &&
+    packIssueToEventHasPartialTake.value,
 )
 
-const moveAllToEventQuickTitle = computed(() =>
-  showMwHandoffBanner.value
-    ? t('activities.packList.moveAllToEventTitleMw')
-    : t('activities.packList.moveAllToEventTitle'),
-)
-
-/** Status «Am Event» — nur wenn schon etwas ans Event gebucht ist; verschiebt keinen Rest */
+/** Status «Am Event» — wenn schon etwas mitgenommen wurde. */
 const showPackWorkflowToEventButton = computed(
   () => packIssueToEventCombined.value && hasAnythingIssuedAtEvent.value,
 )
 
-const packWorkflowToEventTitle = computed(() =>
-  showMwHandoffBanner.value
-    ? t('activities.packList.workflowToEventTitleMw')
-    : t('activities.packList.workflowToEventTitle'),
+const packWorkflowToEventButtonLabel = computed(() =>
+  packIssueToEventHasPartialTake.value
+    ? partialTakenToEventLabel.value
+    : nextWorkflowTransitionLabel.value,
 )
 
 function advancePackStageTabAfterAtEvent(fromStage: PackStage): void {
@@ -4773,6 +5172,20 @@ const packContainersWithReturnableAtEvent = computed(() => {
   return packContainersSorted.value.filter((c) => containerReturnableUnits(c.id) > 0)
 })
 
+/** Links Retour: Kisten mit offenem Retour-Bestand (Spiegel «Gepackt → Am Event» links). */
+const packContainersAtEventForReturnLeft = computed(() => {
+  if (!isPackReturnStage(activePackStage.value)) return []
+  return packContainersSorted.value.filter((c) => containerReturnableUnits(c.id) > 0)
+})
+
+/** Rechts Retour: vollständig retournierte Kisten unter «Bereits retourniert». */
+const packContainersReturnedForReturnRight = computed(() => {
+  if (!isPackReturnStage(activePackStage.value)) return []
+  return packContainersSorted.value.filter(
+    (c) => containerReturnedContentUnits(c.id) > 0 && containerReturnableUnits(c.id) === 0,
+  )
+})
+
 const stageReturnNotTakenItems = computed(() =>
   packItems.value.filter((p) => {
     if (!isPackReturnOrUnpackWarehouseStage(activePackStage.value)) return false
@@ -4788,6 +5201,26 @@ const groupsNotTakenForReturn = computed(() => {
 })
 
 const stageReturnNotTakenCount = computed(() => stageReturnNotTakenItems.value.length)
+
+const stageConsumableOverviewItems = computed(() =>
+  packItems.value.filter((p) => {
+    if (!isPackReturnOrUnpackWarehouseStage(activePackStage.value)) return false
+    if (!isConsumablePackLine(p)) return false
+    return (
+      (p.quantityReturned ?? 0) > 0 ||
+      (p.quantityStored ?? 0) > 0 ||
+      consumableBookedConsumptionQty(p) > 0 ||
+      consumableConsumptionRemaining(p) > 0
+    )
+  }),
+)
+
+const groupsConsumableOverview = computed(() => {
+  void locale.value
+  return groupPackItems(stageConsumableOverviewItems.value)
+})
+
+const stageConsumableOverviewCount = computed(() => stageConsumableOverviewItems.value.length)
 
 const stageReturnConsumedItems = computed(() =>
   packItems.value.filter((p) => {
@@ -4806,7 +5239,9 @@ const groupsConsumedForReturn = computed(() => {
 
 const stageReturnConsumedCount = computed(() => stageReturnConsumedItems.value.length)
 
-const leftPanelHasKistenEventReturn = computed(() => false)
+const leftPanelHasKistenEventReturn = computed(
+  () => isPackReturnStage(activePackStage.value) && packContainersAtEventForReturnLeft.value.length > 0,
+)
 
 /** Links: Behälter nur solange noch keine Ausgabe «Am Event» — sonst nur rechts */
 const packContainersSortedWarehouseOnly = computed(() =>
@@ -4976,7 +5411,6 @@ async function moveToNextStage(item: ActivityPackItem, qty?: number) {
       : resolveForwardMoveQty(item, qty)
   if (moveQty <= 0) return
   moveQtyInputs.value = { ...moveQtyInputs.value, [item.id]: moveQty }
-  if (await promptConsumableUsageOnReturn(item, moveQty)) return
   if (needsShellCratePresenceConfirm(item)) {
     await openShellCrateForwardModal(item, moveQty)
     return
@@ -5098,11 +5532,6 @@ async function executeMoveToPrevStage(item: ActivityPackItem, moveQty: number) {
 async function onMoveAllToNextStageClick() {
   if (isPackReturnStage(activePackStage.value)) {
     if (!(await confirmMwHandoffBeforeReturn())) return
-    const firstConsumable = stageLeftItems.value.find((p) => p.isConsumable)
-    if (firstConsumable) {
-      const moveQty = packIssueForwardMax(firstConsumable)
-      if (moveQty > 0 && (await promptConsumableUsageOnReturn(firstConsumable, moveQty))) return
-    }
   } else if (!(await confirmMwHandoffBeforeIssueToEvent())) {
     return
   }
@@ -5135,35 +5564,55 @@ async function moveAllToNextStage() {
 }
 
 async function confirmAtEventStatusTransition(): Promise<boolean> {
-  if (!hasAnythingIssuedAtEvent.value) {
-    toast.error(t('activities.packList.toastNothingAtEventYet'))
-    return false
-  }
-  if (!(await confirmMwHandoffWorkflowToEvent())) return false
-  if (stageProgress.value < 100) {
-    const ok = await confirmDialog({
-      title: t('activities.packList.confirmWorkflowStatusTitle', { pct: stageProgress.value }),
-      message: stageProgressPendingConfirmMessage(),
-      confirmText: t('activities.packList.confirmWorkflowStatusProceed'),
-      cancelText: t('activities.common.cancel'),
-      variant: 'warning',
-    })
-    if (!ok) return false
-  }
-  return true
+  return confirmWorkflowStatusTransition({
+    kind: 'at_event',
+    stageProgress: stageProgress.value,
+    getPendingMessage: (variant) => stageProgressPendingConfirmMessage(variant),
+    hasMinimum: () => hasAnythingIssuedAtEvent.value,
+    confirmMwHandoff: confirmMwHandoffWorkflowToEvent,
+    t,
+    confirmDialog,
+    toast,
+  })
+}
+
+async function confirmReturnStatusTransition(): Promise<boolean> {
+  return confirmWorkflowStatusTransition({
+    kind: 'returned',
+    stageProgress: stageProgress.value,
+    getPendingMessage: (variant) => stageProgressPendingConfirmMessage(variant),
+    hasMinimum: () => hasAnythingEverIssuedAtEvent.value,
+    confirmMwHandoff: confirmMwHandoffWorkflowToReturned,
+    t,
+    confirmDialog,
+    toast,
+  })
 }
 
 /** Gleiche Prüfungen wie Packlisten-Buttons — auch für Workflow-Button in der Kopfzeile. */
+function isWorkflowStatusRevertForMw(transition: ActivityTransitionRow): boolean {
+  const s = props.status
+  if (s === 'packed' && transition.status === 'packing') return true
+  if (s === 'at_event' && transition.status === 'packed') return true
+  if (s === 'returned' && transition.status === 'at_event') return true
+  return false
+}
+
 async function confirmBeforeWorkflowTransition(transition: ActivityTransitionRow): Promise<boolean> {
   if (!transition.allowed) return false
   if (!props.packListEditable) return true
+
+  if (mwGroupHandoffActive.value && isWorkflowStatusRevertForMw(transition)) {
+    toastMwPackListRevertLockedForGroup()
+    return false
+  }
 
   if (transition.status === 'at_event') {
     return confirmAtEventStatusTransition()
   }
 
   if (transition.status === 'returned') {
-    if (!(await confirmMwHandoffWorkflowToReturned())) return false
+    return confirmReturnStatusTransition()
   }
 
   const target = workflowTargetStatusForStage(activePackStage.value, props.status)
@@ -5287,6 +5736,7 @@ provide(PACK_WAREHOUSE_ISSUE_INJECT_KEY, {
   memberAwaitingMwPack,
   canManageMaterials,
   canReportIssues: showPackIssueActions,
+  canReportConsumption: showPackConsumptionActions,
   showKisteMeldungForContainer,
   showPackIssueForContainerLine,
   packContainerIdForContainerItem,
@@ -5359,6 +5809,12 @@ provide(PACK_WAREHOUSE_ISSUE_INJECT_KEY, {
   useCrateRealityForPackItem,
   toggleCrateRealityView,
   returnContainerToWarehouse,
+  returnContainerLineToWarehouse,
+  returnContainerShellToWarehouse,
+  containerReturnLineInputValue,
+  setContainerReturnLineInput,
+  containerShellReturnInputValue,
+  setContainerShellReturnInput,
   containerReturnableUnits,
   containerLineRemainingReturn,
   containerShellStillAtEventQty,
@@ -5388,19 +5844,9 @@ watch(
   async (token, prev) => {
     if (token !== prev && token > 0) {
       await loadAll()
-      await fulfillPendingReturnAfterConsumption()
       if (pendingMaterialAssignToContainer.value && !props.addingActivityMaterial) {
         await fulfillPendingMaterialAssignToContainer()
       }
-    }
-  },
-)
-
-watch(
-  () => props.consumptionModalCancelledToken ?? 0,
-  (token, prev) => {
-    if (token !== prev && token > 0) {
-      clearPendingReturnAfterConsumption()
     }
   },
 )
@@ -5413,6 +5859,13 @@ watch(
     }
   },
 )
+
+useBackgroundPoll({
+  intervalMs: PACK_LIST_POLL_MS,
+  enabled: true,
+  isBusy: isPackListInteractionBusy,
+  poll: refreshPackListSilent,
+})
 
 watch(
   packContainers,
@@ -5540,37 +5993,11 @@ defineExpose({
   padding: 8px 10px;
 }
 
-.mat-source-badge {
-  display: inline-block;
-  font-size: 10px;
-  font-weight: 700;
-  padding: 2px 6px;
-  border-radius: 4px;
-  background: #e0e7ff;
-  color: #4338ca;
-}
-
 .pack-card-name-block {
   display: flex;
   flex-direction: column;
   gap: 4px;
   min-width: 0;
-}
-
-.pack-combo-badge {
-  font-size: 10px;
-  font-weight: 600;
-  padding: 2px 6px;
-  border-radius: 4px;
-  background: #ede9fe;
-  color: #5b21b6;
-  margin-left: 4px;
-  vertical-align: middle;
-}
-
-.pack-combo-badge--virtual {
-  background: #f3e8ff;
-  color: #7c3aed;
 }
 
 .pack-card-kiste {
@@ -5584,6 +6011,14 @@ defineExpose({
   font-size: 12px;
   line-height: 1.35;
   margin: 0;
+}
+
+.pack-card-storage-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1 1 100%;
+  min-width: 0;
 }
 
 .pack-panel-header--split {
@@ -5866,31 +6301,6 @@ defineExpose({
   background: #fff;
 }
 
-.pack-container-line {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  padding: 8px 0;
-  font-size: 13px;
-  border-bottom: 1px solid #f1f5f9;
-}
-
-.pack-container-line--issue-row {
-  align-items: center;
-  flex-wrap: wrap;
-  justify-content: space-between;
-}
-
-.pack-container-line--stacked.pack-container-line--issue-row {
-  align-items: flex-start;
-}
-
-.pack-container-line--stacked:not(.pack-container-line--issue-row) {
-  flex-direction: column;
-  align-items: stretch;
-  gap: 8px;
-}
-
 .pack-container-kiste-meldung-row {
   display: flex;
   flex-wrap: wrap;
@@ -5906,44 +6316,6 @@ defineExpose({
   font-weight: 600;
   color: #64748b;
   margin-right: 2px;
-}
-
-.pack-container-line-issue-quick {
-  flex: 1 1 100%;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  justify-content: flex-end;
-  padding-top: 2px;
-}
-
-.pack-container-line--stacked:not(.pack-container-line--issue-row) .pack-container-line-issue-quick {
-  flex: none;
-  justify-content: flex-start;
-  padding-top: 0;
-}
-
-.pack-container-line:last-of-type {
-  border-bottom: none;
-}
-
-.pack-container-line-main {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 8px 12px;
-}
-
-.pack-container-line-name {
-  flex: 1;
-  min-width: 0;
-}
-
-.pack-container-line-qty {
-  color: #64748b;
-  font-variant-numeric: tabular-nums;
 }
 
 .pack-container-empty {
@@ -6065,316 +6437,320 @@ defineExpose({
   white-space: nowrap;
 }
 
-/* Kompakte Packliste — mehr Inhalt auf dem Bildschirm */
-.activity-pack-list-tab:has(.pack-workflow--compact) .pack-list-header-card {
+/* Packliste — ein Layout für alle Aktivitätstypen; Tabs/Stufen kommen vom Profil (quick/external/logistics). */
+.activity-pack-list-tab:has(.pack-workflow) .pack-list-header-card {
   padding: 8px 12px;
   margin-bottom: 6px;
 }
 
-.activity-pack-list-tab:has(.pack-workflow--compact) .pack-add-material-card {
+.activity-pack-list-tab:has(.pack-workflow) .pack-add-material-card {
   padding: 6px 8px 8px;
   margin-bottom: 6px;
 }
 
-.activity-pack-list-tab:has(.pack-workflow--compact) .pack-add-material-toggle {
+.activity-pack-list-tab:has(.pack-workflow) .pack-add-material-toggle {
   padding: 4px 6px;
   margin-bottom: 0;
 }
 
-.activity-pack-list-tab:has(.pack-workflow--compact) .pack-add-material-toggle-title {
+.activity-pack-list-tab:has(.pack-workflow) .pack-add-material-toggle-title {
   font-size: 12px;
 }
 
-.activity-pack-list-tab:has(.pack-workflow--compact) .pack-add-material-body {
+.activity-pack-list-tab:has(.pack-workflow) .pack-add-material-body {
   padding-top: 4px;
 }
 
-.activity-pack-list-tab:has(.pack-workflow--compact) .pack-add-material-summary,
-.activity-pack-list-tab:has(.pack-workflow--compact) .pack-add-material-hint {
+.activity-pack-list-tab:has(.pack-workflow) .pack-add-material-summary,
+.activity-pack-list-tab:has(.pack-workflow) .pack-add-material-hint {
   margin-bottom: 6px;
   font-size: 11px;
 }
 
-.activity-pack-list-tab:has(.pack-workflow--compact) .section-title {
+.activity-pack-list-tab:has(.pack-workflow) .section-title {
   font-size: 0.95rem;
   margin-bottom: 4px;
 }
 
-.activity-pack-list-tab:has(.pack-workflow--compact) .activity-tab-header-card .section-title {
+.activity-pack-list-tab:has(.pack-workflow) .activity-tab-header-card .section-title {
   margin-bottom: 0;
 }
 
-.pack-workflow--compact {
+.pack-workflow {
   gap: 6px;
 }
 
-.pack-workflow--compact .pack-stage-tabs {
+.pack-workflow .pack-stage-tabs {
   padding: 2px;
   gap: 2px;
   border-radius: 6px;
 }
 
-.pack-workflow--compact .pack-stage-tab {
+.pack-workflow .pack-stage-tab {
   padding: 4px 6px;
   font-size: 10px;
   border-radius: 5px;
 }
 
-.pack-workflow--compact .pack-progress-bar {
+.pack-workflow .pack-progress-bar {
   margin-bottom: 6px;
   padding: 6px 8px;
 }
 
-.pack-workflow--compact .pack-progress-info {
+.pack-workflow .pack-progress-info {
   font-size: 11px;
   margin-bottom: 3px;
 }
 
-.pack-workflow--compact .pack-progress-track {
+.pack-workflow .pack-progress-track {
   height: 4px;
 }
 
-.pack-workflow--compact .pack-panels {
+.pack-workflow .pack-panels {
   gap: 8px;
   min-height: 100px;
 }
 
-.pack-workflow--compact .pack-panel {
+.pack-workflow .pack-panel {
   border-radius: 6px;
 }
 
-.pack-workflow--compact .pack-panel-header {
+.pack-workflow .pack-panel-header {
   padding: 5px 8px;
   font-size: 11px;
 }
 
-.pack-workflow--compact .pack-panel-title {
+.pack-workflow .pack-panel-title {
   font-size: 10px;
 }
 
-.pack-workflow--compact .pack-panel-count {
+.pack-workflow .pack-panel-count {
   min-width: 18px;
   height: 18px;
   padding: 0 5px;
   font-size: 10px;
 }
 
-.pack-workflow--compact .pack-panel-empty {
+.pack-workflow .pack-panel-empty {
   padding: 10px 8px;
   font-size: 11px;
 }
 
-.pack-workflow--compact .pack-group-header {
+.pack-workflow .pack-group-header {
   padding: 4px 8px;
 }
 
-.pack-workflow--compact .pack-group-name {
+.pack-workflow .pack-group-name {
   font-size: 10px;
 }
 
-.pack-workflow--compact .pack-group-header-sub {
+.pack-workflow .pack-group-header-sub {
   padding: 3px 6px;
   font-size: 11px;
 }
 
-.pack-workflow--compact .pack-card {
+.pack-workflow .pack-card {
   padding: 4px 8px;
 }
 
-.pack-workflow--compact .pack-card-main {
+.pack-workflow .pack-card-main {
   gap: 6px;
   align-items: center;
 }
 
-.pack-workflow--compact .pack-card-name {
+.pack-workflow .pack-card-name {
   font-size: 11px;
   line-height: 1.25;
 }
 
-.pack-workflow--compact :deep(.pack-card-name-block) {
+.pack-workflow :deep(.pack-card-name-block) {
   display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  column-gap: 0.4em;
-  row-gap: 0;
-  gap: 0;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 2px;
 }
 
-.pack-workflow--compact :deep(.pack-card-name) {
-  flex: 1 1 100%;
+.pack-workflow :deep(.pack-card-name) {
+  flex: none;
 }
 
-.pack-workflow--compact :deep(.pack-card-kiste),
-.pack-workflow--compact :deep(.pack-card-storage) {
-  flex: 0 1 auto;
+.pack-workflow :deep(.pack-card-kiste),
+.pack-workflow :deep(.pack-card-storage-stack) {
+  flex: none;
+  width: 100%;
 }
 
-.pack-workflow--compact .pack-card-detail,
-.pack-workflow--compact .pack-card-kiste,
-.pack-workflow--compact .pack-card-storage {
+.pack-workflow :deep(.pack-card-storage) {
+  flex: none;
+  display: block;
+}
+
+.pack-workflow .pack-card-detail,
+.pack-workflow .pack-card-kiste,
+.pack-workflow .pack-card-storage {
   font-size: 10px;
   line-height: 1.25;
   margin: 0;
 }
 
-.pack-workflow--compact .pack-card-detail-stack {
+.pack-workflow .pack-card-detail-stack {
   gap: 1px;
 }
 
-.pack-workflow--compact .pack-card-detail {
+.pack-workflow .pack-card-detail {
   font-size: 10px;
 }
 
-.pack-workflow--compact .pack-combo-badge {
+.pack-workflow .pack-combo-badge {
   font-size: 9px;
   padding: 1px 4px;
   margin-left: 2px;
 }
 
-.pack-workflow--compact .mat-source-badge {
+.pack-workflow .mat-source-badge {
   font-size: 9px;
   padding: 1px 4px;
 }
 
-.pack-workflow--compact .pack-move-input,
-.pack-workflow--compact .pack-moveback-input {
+.pack-workflow .pack-move-input,
+.pack-workflow .pack-moveback-input {
   width: 34px;
   height: 22px;
   font-size: 11px;
 }
 
-.pack-workflow--compact .btn-move-arrow,
-.pack-workflow--compact .btn-moveback-arrow {
+.pack-workflow .btn-move-arrow,
+.pack-workflow .btn-moveback-arrow {
   width: 24px;
   height: 22px;
 }
 
-.pack-workflow--compact .btn-move-arrow svg,
-.pack-workflow--compact .btn-moveback-arrow svg {
+.pack-workflow .btn-move-arrow svg,
+.pack-workflow .btn-moveback-arrow svg {
   width: 12px;
   height: 12px;
 }
 
-.pack-workflow--compact .pack-workflow-section {
+.pack-workflow .pack-workflow-section {
   margin-top: 4px;
 }
 
-.pack-workflow--compact .pack-workflow-section-title {
+.pack-workflow .pack-workflow-section-title {
   margin: 0 0 2px;
   font-size: 9px;
 }
 
-.pack-workflow--compact .pack-containers-section {
+.pack-workflow .pack-containers-section {
   margin-top: 4px;
   padding-top: 4px;
 }
 
-.pack-workflow--compact .pack-containers-children {
+.pack-workflow .pack-containers-children {
   padding-left: 8px;
 }
 
-.pack-workflow--compact .pack-container-card {
+.pack-workflow .pack-container-card {
   margin-bottom: 4px;
   border-radius: 6px;
 }
 
-.pack-workflow--compact .pack-container-chevron-btn {
+.pack-workflow .pack-container-chevron-btn {
   width: 1.5rem;
   padding: 4px 0 4px 4px;
 }
 
-.pack-workflow--compact .pack-container-select-main {
+.pack-workflow .pack-container-select-main {
   padding: 4px 4px 4px 2px;
 }
 
-.pack-workflow--compact .pack-container-name {
+.pack-workflow .pack-container-name {
   font-size: 11px;
 }
 
-.pack-workflow--compact .pack-container-chip {
+.pack-workflow .pack-container-chip {
   font-size: 10px;
 }
 
-.pack-workflow--compact .pack-container-inner {
+.pack-workflow .pack-container-inner {
   padding: 0 6px 6px 1.5rem;
 }
 
-.pack-workflow--compact .pack-container-line {
+.pack-workflow .pack-container-line {
   padding: 3px 0;
   font-size: 11px;
   gap: 4px;
 }
 
-.pack-workflow--compact .pack-container-subsection-toggle {
+.pack-workflow .pack-container-subsection-toggle {
   padding: 2px 0;
   font-size: 11px;
 }
 
-.pack-workflow--compact .pack-crate-picker-head {
+.pack-workflow .pack-crate-picker-head {
   margin-bottom: 4px;
 }
 
-.pack-workflow--compact .pack-crate-picker-title {
+.pack-workflow .pack-crate-picker-title {
   font-size: 10px;
   margin-bottom: 1px;
 }
 
-.pack-workflow--compact .pack-crate-picker-hint {
+.pack-workflow .pack-crate-picker-hint {
   font-size: 10px;
   line-height: 1.3;
 }
 
-.pack-workflow--compact .pack-crate-picker-list {
+.pack-workflow .pack-crate-picker-list {
   gap: 3px;
 }
 
-.pack-workflow--compact .pack-target-loose {
+.pack-workflow .pack-target-loose {
   font-size: 9px;
   padding: 2px 6px;
 }
 
-.pack-workflow--compact .pack-group-ohne-inner {
+.pack-workflow .pack-group-ohne-inner {
   margin-top: 2px;
   padding-left: 6px;
 }
 
-.pack-workflow--compact .js-workflow-summary {
+.pack-workflow .js-workflow-summary {
   margin: -2px 0 6px;
   padding: 5px 8px;
   font-size: 11px;
   gap: 6px;
 }
 
-.pack-workflow--compact .pack-add-container-btn {
+.pack-workflow .pack-add-container-btn {
   font-size: 11px;
   padding: 2px 8px;
 }
 
-.pack-workflow--compact :deep(.pack-combo-crate-inline__name) {
+.pack-workflow :deep(.pack-combo-crate-inline__name) {
   font-size: 11px;
 }
 
-.pack-workflow--compact :deep(.pack-combo-crate-inline__qty),
-.pack-workflow--compact :deep(.pack-combo-crate-inline__serial) {
+.pack-workflow :deep(.pack-combo-crate-inline__qty),
+.pack-workflow :deep(.pack-combo-crate-inline__serial) {
   font-size: 9px;
 }
 
-.pack-workflow--compact :deep(.pack-crate-shell-check-line__name) {
+.pack-workflow :deep(.pack-crate-shell-check-line__name) {
   font-size: 11px;
 }
 
-.pack-workflow--compact :deep(.pack-crate-shell-check-line__soll),
-.pack-workflow--compact :deep(.pack-crate-shell-check-line__serial) {
+.pack-workflow :deep(.pack-crate-shell-check-line__soll),
+.pack-workflow :deep(.pack-crate-shell-check-line__serial) {
   font-size: 10px;
 }
 
-.pack-workflow--compact :deep(.shell-forward-variance-btn) {
+.pack-workflow :deep(.shell-forward-variance-btn) {
   width: 22px;
   height: 22px;
   font-size: 13px;
 }
 
-.pack-workflow--compact :deep(.pack-shell-forward-count-input) {
+.pack-workflow :deep(.pack-shell-forward-count-input) {
   width: 3.5ch;
   min-width: 2.75rem;
   max-width: 4rem;

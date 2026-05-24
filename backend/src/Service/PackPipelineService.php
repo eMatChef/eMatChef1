@@ -6,7 +6,7 @@ use App\Entity\ActivityPackContainerItem;
 use App\Entity\ActivityPackItem;
 
 /**
- * Mengen-Pipeline: ordered → packed → transport_to → at_event (issued) → transport_back → returned → stored.
+ * Mengen-Pipeline: ordered → packed → transport_to → at_event → transport_back → returned → stored.
  * Profile steuern, ob Zwischenschritte in einem Move übersprungen werden.
  */
 class PackPipelineService
@@ -14,8 +14,6 @@ class PackPipelineService
     public const STAGE_PACKED = 'packed';
     public const STAGE_TRANSPORT_TO = 'transport_to';
     public const STAGE_AT_EVENT = 'at_event';
-    /** @deprecated Alias für at_event */
-    public const STAGE_ISSUED = 'issued';
     public const STAGE_TRANSPORT_BACK = 'transport_back';
     public const STAGE_RETURNED = 'returned';
     public const STAGE_STORED = 'stored';
@@ -38,7 +36,7 @@ class PackPipelineService
 
     public function normalizeStage(string $stage): string
     {
-        return $stage === self::STAGE_ISSUED ? self::STAGE_AT_EVENT : $stage;
+        return $stage;
     }
 
     /** @return list<string> */

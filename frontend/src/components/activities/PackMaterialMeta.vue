@@ -1,17 +1,16 @@
 <script setup lang="ts">
-import { computed } from 'vue'
 import type { ActivityPackItem } from '@/api/activityPackItems'
+import PackMaterialStorageStack from '@/components/activities/PackMaterialStorageStack.vue'
 import {
   isPhysicalComboPackItem,
   isVirtualComboPackItem,
   packMaterialDisplayName,
-  packRackLabel,
 } from '@/components/activities/packMaterialDisplay'
 import { useI18n } from 'vue-i18n'
 
 defineOptions({ name: 'PackMaterialMeta' })
 
-const props = withDefaults(
+withDefaults(
   defineProps<{
     item: ActivityPackItem
     /** Lagerort, Regal, Fach — nur solange noch im Lager */
@@ -25,10 +24,6 @@ const props = withDefaults(
     showLinkedKiste: false,
     showRack: true,
   },
-)
-
-const showRackLine = computed(
-  () => props.showStorageLocation && props.showRack !== false && Boolean(packRackLabel(props.item)),
 )
 
 const { t } = useI18n()
@@ -55,16 +50,10 @@ const { t } = useI18n()
     <div v-if="showLinkedKiste && item.linkedContainerLabel" class="pack-card-kiste text-muted">
       {{ t('activities.packList.kisteLabel', { label: item.linkedContainerLabel }) }}
     </div>
-    <template v-if="showStorageLocation">
-      <div v-if="item.storageAddressName" class="pack-card-storage text-muted">
-        {{ t('activities.packList.storageLabel', { name: item.storageAddressName }) }}
-      </div>
-      <div v-if="showRackLine" class="pack-card-storage text-muted">
-        {{ t('activities.packList.rackLabel', { name: packRackLabel(item) }) }}
-      </div>
-      <div v-if="item.storageSlotName" class="pack-card-storage text-muted">
-        {{ t('activities.packList.slotLabel', { name: item.storageSlotName }) }}
-      </div>
-    </template>
+    <PackMaterialStorageStack
+      v-if="showStorageLocation"
+      :storage="item"
+      :show-rack="showRack"
+    />
   </div>
 </template>

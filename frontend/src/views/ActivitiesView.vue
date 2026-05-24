@@ -202,7 +202,7 @@
               @dblclick="openActivityDetail(activity)"
             >
               <td class="col-status">
-                <span class="status-dot" :class="activity.status"></span>
+                <span class="status-dot" :class="activityStatusClass(activity.status)"></span>
               </td>
               <td class="col-name">
                 <div class="activity-name">{{ activity.name }}</div>
@@ -240,7 +240,7 @@
                 <span v-else class="text-muted">–</span>
               </td>
               <td class="col-progress">
-                <span class="status-label" :class="activity.status">{{ getStatusLabel(activity.status) }}</span>
+                <span class="status-label" :class="activityStatusClass(activity.status)">{{ getStatusLabel(activity.status) }}</span>
               </td>
               <td class="col-issues" @click.stop>
                 <router-link
@@ -278,6 +278,7 @@ import { usePageHeadStore } from '@/stores/pageHead'
 import { syncDocumentHead } from '@/composables/usePageHead'
 import { useToast } from '@/composables/useToast'
 import { useListSearchQueryRoute } from '@/composables/useListSearchQueryRoute'
+import { activityStatusClass, activityStatusI18nKey } from '@/utils/activityStatus'
 
 const route = useRoute()
 const router = useRouter()
@@ -539,7 +540,7 @@ function getTypeLabel(type: string): string {
 }
 
 function getStatusLabel(status: string): string {
-  const key = `activities.status.${status}`
+  const key = `activities.status.${activityStatusI18nKey(status)}`
   return te(key) ? t(key) : status
 }
 

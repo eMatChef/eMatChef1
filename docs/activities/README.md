@@ -12,6 +12,7 @@ Dokumentation zum **Aktivitäts-Lebenszyklus** in eMatChef: Status, Packliste, R
 |--------|--------|
 | **[status.md](./status.md)** | Alle Aktivitäts-Status, Übergänge, Rollen |
 | **[material-pipeline.md](./material-pipeline.md)** | Bestellung vs. Pack-Pipeline, Quick vs. Logistics, Zuordnung zu Aktivitäts-Status |
+| **[pack-step-ui.md](./pack-step-ui.md)** | Zentrale Pack-Step-UI (Dual-Panel, Kisten, Spiegel-Ansicht, Workflow-Confirm) |
 
 ---
 

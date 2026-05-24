@@ -63,7 +63,7 @@
               <div class="display-row-text">
                 <span class="display-row-name">{{ item.name }}</span>
                 <span class="display-row-meta">
-                  <span class="status-pill" :class="item.status">{{ activityStatusLabel(item.status) }}</span>
+                  <span class="status-pill activity-status" :class="activityStatusClass(item.status)">{{ activityStatusLabel(item.status) }}</span>
                   <span v-if="item.periodLabel">{{ item.periodLabel }}</span>
                 </span>
               </div>
@@ -123,6 +123,7 @@ import {
   getPublicDisplaySession,
 } from '@/api/displayScreens'
 import { resolveActivityPublicUrl, resolveWorkshopPublicUrl } from '@/utils/publicQrUrl'
+import { activityStatusClass, activityStatusI18nKey } from '@/utils/activityStatus'
 
 const PIN_CHARSET = /[^23456789ABCDEFGHJKLMNPQRSTUVWXYZ]/g
 
@@ -249,7 +250,7 @@ function formatDateTime(iso: string): string {
 }
 
 function activityStatusLabel(status: string): string {
-  const key = `display.activityStatus.${status}`
+  const key = `display.activityStatus.${activityStatusI18nKey(status)}`
   return te(key) ? t(key) : status
 }
 
@@ -620,25 +621,16 @@ watch(publicId, () => {
   border-radius: 999px;
   font-size: 0.75rem;
   font-weight: 600;
+}
+
+.priority-pill {
   background: #e2e8f0;
   color: #334155;
 }
 
-.status-pill.approved,
-.status-pill.packed {
-  background: #dbeafe;
-  color: #1d4ed8;
-}
-
-.status-pill.packing,
-.status-pill.at_event {
-  background: #dcfce7;
-  color: #166534;
-}
-
-.status-pill.submitted {
-  background: #fef3c7;
-  color: #b45309;
+.status-pill.workshop {
+  background: #e2e8f0;
+  color: #334155;
 }
 
 .priority-pill.urgent {

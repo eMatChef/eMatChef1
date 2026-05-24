@@ -54,7 +54,7 @@ class Activity
     #[ORM\Column(type: 'string', length: 20, options: ['default' => 'activity'])]
     private string $type = 'activity';
 
-    // Status: draft, submitted, approved, packing, packed, issued, returned, completed, cancelled
+    // Status: draft, submitted, approved, packing, packed, at_event, returned, completed, cancelled
     #[ORM\Column(type: 'string', length: 20, options: ['default' => 'draft'])]
     private string $status = 'draft';
 
@@ -635,8 +635,6 @@ class Activity
     public const STATUS_PACKED = 'packed';
     /** Material am Event / bei der Gruppe */
     public const STATUS_AT_EVENT = 'at_event';
-    /** @deprecated Alias — Migration auf at_event */
-    public const STATUS_ISSUED = 'issued';
     public const STATUS_RETURNED = 'returned';
     public const STATUS_COMPLETED = 'completed';
     public const STATUS_CANCELLED = 'cancelled';
@@ -696,13 +694,10 @@ class Activity
         'packing->packed'     => ['mw', 'sa', 'org'],
         'packing->cancelled'  => ['mw', 'dc', 'sa', 'org'],
         'packed->at_event'    => ['mw', 'sa', 'org', 'creator', 'member'],
-        'packed->issued'      => ['mw', 'sa', 'org', 'creator', 'member'], // Legacy-Alias
         'packed->packing'     => ['mw', 'dc', 'sa', 'org'],
         'packed->cancelled'   => ['mw', 'dc', 'sa', 'org'],
         'at_event->packed'    => ['mw', 'dc', 'sa', 'org'],
-        'issued->packed'      => ['mw', 'dc', 'sa', 'org'],
         'at_event->returned'  => ['mw', 'sa', 'org', 'creator', 'member'],
-        'issued->returned'    => ['mw', 'sa', 'org', 'creator', 'member'], // Legacy-Alias
         'returned->at_event'  => ['mw', 'dc', 'sa', 'org'],
         'returned->completed' => ['mw', 'sa', 'org'],
     ];
@@ -712,11 +707,7 @@ class Activity
      */
     public function canTransitionTo(string $newStatus): bool
     {
-        if ($newStatus === self::STATUS_ISSUED) {
-            $newStatus = self::STATUS_AT_EVENT;
-        }
-        $from = $this->status === self::STATUS_ISSUED ? self::STATUS_AT_EVENT : $this->status;
-        $allowed = self::STATUS_TRANSITIONS[$from] ?? self::STATUS_TRANSITIONS[$this->status] ?? [];
+        $allowed = self::STATUS_TRANSITIONS[$this->status] ?? [];
         return in_array($newStatus, $allowed, true);
     }
 
@@ -758,7 +749,7 @@ class Activity
 
     public function isIssued(): bool
     {
-        return $this->status === self::STATUS_AT_EVENT || $this->status === self::STATUS_ISSUED;
+        return $this->status === self::STATUS_AT_EVENT;
     }
 
     public function isAtEvent(): bool
@@ -813,7 +804,6 @@ class Activity
             self::STATUS_PACKING,
             self::STATUS_PACKED,
             self::STATUS_AT_EVENT,
-            self::STATUS_ISSUED,
             self::STATUS_RETURNED,
         ], true);
     }
@@ -826,7 +816,6 @@ class Activity
     {
         return in_array($this->status, [
             self::STATUS_AT_EVENT,
-            self::STATUS_ISSUED,
             self::STATUS_RETURNED,
         ], true);
     }
@@ -848,8 +837,7 @@ class Activity
         match ($newStatus) {
             self::STATUS_SUBMITTED => $this->submittedAt = $now,
             self::STATUS_APPROVED  => $this->approvedAt = $now,
-            self::STATUS_AT_EVENT,
-            self::STATUS_ISSUED    => $this->issuedAt = $now,
+            self::STATUS_AT_EVENT    => $this->issuedAt = $now,
             self::STATUS_RETURNED  => $this->returnedAt = $now,
             self::STATUS_COMPLETED => $this->completedAt = $now,
             default => null,

@@ -1018,3 +1018,171 @@
   margin: 0;
 }
 
+/* ── Activity detail shell (ActivityDetailView.vue) ── */
+
+.activity-detail-header-title {
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+
+.activity-detail-workflow-actions {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.activity-danger-outline {
+  border-color: #fca5a5;
+  color: #b91c1c;
+}
+
+.activity-danger-outline:hover:not(:disabled) {
+  background: #fef2f2;
+}
+
+.activity-detail-error {
+  gap: 12px;
+}
+
+.activity-readonly-value {
+  margin: 0;
+  font-size: 15px;
+  color: #111827;
+  line-height: 1.5;
+}
+
+.activity-notes {
+  margin: 0;
+  white-space: pre-wrap;
+  line-height: 1.5;
+  color: #374151;
+}
+
+.activity-invite-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.activity-invite-row {
+  padding: 8px 0;
+  border-bottom: 1px solid #f3f4f6;
+  font-size: 14px;
+}
+
+.activity-invite-row:last-child {
+  border-bottom: none;
+}
+
+.activity-invite-name {
+  font-weight: 500;
+}
+
+.invite-status {
+  margin-left: 8px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.invite-status.accepted {
+  color: #059669;
+}
+
+.invite-status.rejected {
+  color: #b91c1c;
+}
+
+.invite-status.pending {
+  color: #6b7280;
+}
+
+.activity-detail-content-layout {
+  padding: 0 24px 32px;
+}
+
+.activity-detail-view .spinner-sm {
+  width: 22px;
+  height: 22px;
+  border-width: 2px;
+}
+
+/* Material tab table */
+.activity-items-table-wrap {
+  overflow-x: auto;
+}
+
+.activity-items-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.activity-items-table th,
+.activity-items-table td {
+  text-align: left;
+  padding: 10px 12px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.activity-items-table th {
+  font-weight: 600;
+  color: #6b7280;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.activity-item-name {
+  font-weight: 500;
+}
+
+.activity-item-name-block {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+}
+
+.activity-combo-kiste {
+  width: 100%;
+  flex-basis: 100%;
+  font-size: 12px;
+  margin: 0;
+  padding-top: 2px;
+}
+
+.activity-storage-cell {
+  font-size: 13px;
+  color: #4b5563;
+  max-width: 180px;
+  white-space: normal;
+  word-break: break-word;
+}
+
+.activity-draft-mat-hint {
+  font-size: 13px;
+  margin: 0 0 12px;
+  line-height: 1.45;
+}
+
+.activity-draft-adding {
+  margin-top: 10px;
+}
+
+.activity-draft-mat-denied p {
+  margin: 0;
+  line-height: 1.5;
+  font-size: 14px;
+}
+
+.col-actions {
+  width: 1%;
+  white-space: nowrap;
+  text-align: right;
+}
+
+.activity-row-remove {
+  padding: 4px 10px;
+  font-size: 13px;
+}
+

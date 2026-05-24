@@ -4,6 +4,7 @@ import { computed, inject, unref, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { ActivityPackItem } from '@/api/activityPackItems'
 import PackMoveControls from '@/components/activities/PackMoveControls.vue'
+import PackMaterialStorageStack from '@/components/activities/PackMaterialStorageStack.vue'
 import { isPackConfirmedStage } from '@/components/activities/packStageQuantities'
 import PackCrateShellInlinePanel, {
   type PackCrateShellPeekSection,
@@ -170,24 +171,16 @@ function moveShellCrateForward(qtyFromControl?: number) {
     </div>
     <div v-show="innerVisible" class="pack-container-inner pack-container-inner--shell">
       <div
-        v-if="
-          showStorageLocation &&
-          (shellPackItem.storageAddressName ||
-            shellPackItem.storageSlotName ||
-            shellPackItem.linkedContainerLabel)
-        "
-        class="pack-shell-storage text-muted"
+        v-if="showStorageLocation && shellPackItem.linkedContainerLabel"
+        class="pack-card-kiste text-muted pack-shell-storage-kiste"
       >
-        <div v-if="shellPackItem.linkedContainerLabel">
-          {{ t('activities.packList.kisteLabel', { label: shellPackItem.linkedContainerLabel }) }}
-        </div>
-        <div v-if="shellPackItem.storageAddressName">
-          {{ t('activities.packList.storageLabel', { name: shellPackItem.storageAddressName }) }}
-        </div>
-        <div v-if="shellPackItem.storageSlotName">
-          {{ t('activities.packList.slotLabel', { name: shellPackItem.storageSlotName }) }}
-        </div>
+        {{ t('activities.packList.kisteLabel', { label: shellPackItem.linkedContainerLabel }) }}
       </div>
+      <PackMaterialStorageStack
+        v-if="showStorageLocation"
+        :storage="shellPackItem"
+        variant="shell"
+      />
       <PackCrateShellInlinePanel
         :sections="shellPeekSections"
         :empty-hint="shellPeekEmptyHint"
@@ -221,18 +214,3 @@ function moveShellCrateForward(qtyFromControl?: number) {
 <style src="@/styles/views/activities/detail-workflow.css"></style>
 <style src="@/styles/views/activities/pack-container-card.css"></style>
 <style src="@/styles/views/activities/pack-shell-combo.css"></style>
-<style scoped>
-.pack-combo-badge {
-  font-size: 10px;
-  font-weight: 600;
-  padding: 2px 6px;
-  border-radius: 4px;
-  background: #ede9fe;
-  color: #5b21b6;
-  flex-shrink: 0;
-}
-.pack-combo-badge--kiste {
-  background: #dbeafe;
-  color: #1e40af;
-}
-</style>

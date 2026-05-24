@@ -12,7 +12,7 @@
           <span v-if="noLabel" class="material-code">{{ noLabel }}</span>
           <span v-if="activity" class="type-badge" :class="activity.type">{{ activityTypeLabelDetail(activity.type) }}</span>
           <h1>{{ activity?.name ?? t('activities.detail.fallbackTitle') }}</h1>
-          <span v-if="activity" class="status-label" :class="activity.status">{{ activityStatusLabelDetail(activity.status) }}</span>
+          <span v-if="activity" class="status-label" :class="activityStatusClass(activity.status)">{{ activityStatusLabelDetail(activity.status) }}</span>
         </div>
       </div>
       <div v-if="activity && !loadError" class="header-actions activity-detail-workflow-actions">
@@ -298,6 +298,11 @@
                             >{{ t('activities.detail.comboVirtualShort') }}</span
                           >
                           <span v-if="row.is_js_material" class="activity-js-tag">J&amp;S</span>
+                          <span
+                            v-if="row.is_replenishment"
+                            class="activity-replenishment-badge"
+                            :title="t('activities.detail.replenishmentBadge')"
+                          >{{ t('activities.detail.replenishmentBadge') }}</span>
                           <div v-if="row.linked_container_label" class="activity-combo-kiste text-muted">
                             {{ t('activities.detail.crateLine', { label: row.linked_container_label }) }}
                           </div>
@@ -331,6 +336,7 @@
               :pack-list-editable="activity.is_pack_list_editable === true"
               :transitions="transitions"
               :can-report-issues="showDamageReportEntry"
+              :can-report-consumption="showConsumptionBooking"
               :reload-token="packListReloadToken"
               :consumption-modal-cancelled-token="consumptionModalCancelledToken"
               :can-add-activity-material="
@@ -365,7 +371,7 @@
           <section v-else-if="activeTab === 'consumables'" class="tab-content">
             <ActivityConsumablesTab
               :activity-id="activityId"
-              :can-create="showDamageReportEntry"
+              :can-create="showConsumptionBooking"
               :can-add-activity-material="canAddActivityMaterial"
               :reload-token="consumablesReloadToken"
               @request-nachbuchung="openNachbuchungModal"
@@ -477,11 +483,13 @@ import type { ConsumptionModalPreset } from '@/components/activities/ActivityCon
 import type { ActivityMaterialLine } from '@/composables/useActivityCreateWizard'
 import type { MaterialScopeTab } from '@/components/activities/shared/activityMaterialAvailabilityScope'
 import { useActivityGroupMemberScope } from '@/composables/useActivityGroupMemberScope'
+import { useBackgroundPoll } from '@/composables/useBackgroundPoll'
 import { useConfirm } from '@/composables/useConfirm'
 import { usePageHeadStore } from '@/stores/pageHead'
 import { useHeaderNotificationsStore } from '@/stores/headerNotifications'
 import { useToast } from '@/composables/useToast'
 import { resolveActivityPublicUrl } from '@/utils/publicQrUrl'
+import { activityStatusClass, activityStatusI18nKey } from '@/utils/activityStatus'
 import QRCode from 'qrcode'
 
 /** Workflow-Schritte ab Einreichung — nur MW/DC/Gruppenchef (nicht u + Gruppenmitglied). */
@@ -490,7 +498,6 @@ const MANAGER_WORKFLOW_TRANSITION_STATUSES = new Set([
   'packing',
   'packed',
   'at_event',
-  'issued',
   'returned',
   'completed',
 ])
@@ -540,7 +547,6 @@ const STATUSES_STAFF_ONLY_CANCEL = [
   'packing',
   'packed',
   'at_event',
-  'issued',
   'returned',
   'completed',
   'cancelled',
@@ -567,7 +573,6 @@ const STATUSES_WITH_PACKS_TAB = [
   'packing',
   'packed',
   'at_event',
-  'issued',
   'returned',
   'completed',
 ] as const
@@ -579,10 +584,10 @@ const showPacksTab = computed(() => {
 })
 
 /** Reparaturen / Verluste: ab «Am Event» (Material ausgegeben) */
-const STATUSES_WITH_ISSUES_TAB = ['at_event', 'issued', 'returned', 'completed'] as const
+const STATUSES_WITH_ISSUES_TAB = ['at_event', 'returned', 'completed'] as const
 
 /** Verbrauchsmaterial buchen: erst ab «Am Event» */
-const STATUSES_WITH_CONSUMABLES_TAB = ['at_event', 'issued', 'returned', 'completed'] as const
+const STATUSES_WITH_CONSUMABLES_TAB = ['at_event', 'returned', 'completed'] as const
 
 const showIssuesTab = computed(() => {
   const s = activity.value?.status
@@ -625,7 +630,7 @@ const showCostsTab = computed(() => {
 
 /** Ohne ?tab=: v4.01 — Packliste als Start nur bei packing…returned (nicht bei completed). */
 function defaultTabWhenNoQuery(status: string | undefined): ActivityTabId {
-  if (status && ['packing', 'packed', 'at_event', 'issued', 'returned'].includes(status)) return 'packs'
+  if (status && ['packing', 'packed', 'at_event', 'returned'].includes(status)) return 'packs'
   return 'overview'
 }
 
@@ -671,7 +676,7 @@ const packListTabRef = ref<ActivityPackListTabExpose | null>(null)
 function transitionNeedsPackListConfirmation(transition: ActivityTransitionRow): boolean {
   const a = activity.value
   if (!a?.is_pack_list_editable) return false
-  const s = a.status === 'issued' ? 'at_event' : a.status
+  const s = a.status
   if (transition.status === 'packing' && s === 'packed') return false
   if (transition.status === 'packed' && s === 'at_event') return false
   if (transition.status === 'at_event' && s === 'returned') return false
@@ -774,7 +779,7 @@ const workflowTransitions = computed(() =>
     }
     if (activeTab.value === 'packs' && t.status === 'packing') return false
     if (activity.value?.status === 'packed' && t.status === 'packing') return false
-    const s = activity.value?.status === 'issued' ? 'at_event' : activity.value?.status
+    const s = activity.value?.status
     if (s === 'at_event' && t.status === 'packed') return false
     if (s === 'returned' && t.status === 'at_event') return false
     // Quick-Modus: kein «Bestätigen» — Material ist bei Einreichung bereits final
@@ -892,10 +897,18 @@ const showDamageReportEntry = computed(() => {
   if (!a) return false
   if (a.status === 'completed') return false
   if (a.can_report_issues === false) return false
-  const s = a.status === 'issued' ? 'at_event' : a.status
+  const s = a.status
   if (s !== 'at_event' && s !== 'returned') return false
   if (s === 'returned' && !canReportDamageAsMaterialStaff.value) return false
   return true
+})
+
+/** Verbrauch buchen: User/Leader ab «Am Event» und in Retour (Modal / Tab «Verbrauch»). Buch-Buchhaltung erst MW beim Einlagern/Abschluss. */
+const showConsumptionBooking = computed(() => {
+  const a = activity.value
+  if (!a || a.status === 'completed') return false
+  if (a.can_report_issues === false) return false
+  return a.status === 'at_event' || a.status === 'returned'
 })
 
 /** Nachbuchung zur Aktivität (addActivityItem) — wie Tab «Material» */
@@ -1101,7 +1114,7 @@ function activityTypeLabelDetail(type: string): string {
 }
 
 function activityStatusLabelDetail(status: string): string {
-  const key = `activities.status.${status}` as const
+  const key = `activities.status.${activityStatusI18nKey(status)}` as const
   return te(key) ? t(key) : status
 }
 
@@ -1298,7 +1311,36 @@ async function refreshActivityTotalsFromApi() {
   activity.value.can_edit_draft_material = d.can_edit_draft_material
   activity.value.can_edit_activity_material = d.can_edit_activity_material
   activity.value.can_edit_submitted_activity_content = d.can_edit_submitted_activity_content
+  activity.value.is_pack_list_editable = d.is_pack_list_editable
   activity.value.status = d.status
+}
+
+const ACTIVITY_PACK_LIVE_SYNC_STATUSES = new Set(['packing', 'packed', 'at_event', 'returned'])
+
+async function refreshActivityLiveSilent(): Promise<void> {
+  if (!activity.value || isLoading.value || isTransitioning.value) return
+  if (!ACTIVITY_PACK_LIVE_SYNC_STATUSES.has(activity.value.status)) return
+  try {
+    const prevStatus = activity.value.status
+    const d = await getActivity(props.activityId)
+    activity.value.item_count = d.item_count
+    activity.value.total_price = d.total_price
+    activity.value.can_edit_draft_material = d.can_edit_draft_material
+    activity.value.can_edit_activity_material = d.can_edit_activity_material
+    activity.value.can_edit_submitted_activity_content = d.can_edit_submitted_activity_content
+    activity.value.is_pack_list_editable = d.is_pack_list_editable
+    activity.value.status = d.status
+    if (d.status !== prevStatus) {
+      pageHeadStore.setDynamic(
+        t('activities.detail.pageTitleSuffix', { name: activity.value.name }),
+        `${activityTypeLabelDetail(activity.value.type || '')} · ${activityStatusLabelDetail(d.status || '')}`,
+      )
+      const tr = await getActivityTransitions(props.activityId)
+      transitions.value = tr.transitions || []
+    }
+  } catch {
+    /* Poll-Fehler ignorieren */
+  }
 }
 
 async function onDraftAddQuantity(payload: { material: { materialItemId: string }; quantity: number }) {
@@ -1468,279 +1510,18 @@ watch(activeTab, (newTab) => {
 onBeforeUnmount(() => {
   pageHeadStore.clearDynamic()
 })
+
+useBackgroundPoll({
+  intervalMs: 4000,
+  enabled: computed(() => {
+    const status = activity.value?.status
+    return !!status && ACTIVITY_PACK_LIVE_SYNC_STATUSES.has(status)
+  }),
+  isBusy: () => isLoading.value || isTransitioning.value,
+  poll: refreshActivityLiveSilent,
+})
 </script>
 
 <style scoped src="@/styles/material-detail-view.css"></style>
-<style scoped>
-@import '@/styles/views/activities/detail-panel.css';
-@import '@/styles/views/activities/detail-workflow.css';
-
-.activity-detail-header-title {
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px 12px;
-}
-
-.activity-detail-workflow-actions {
-  flex-wrap: wrap;
-  justify-content: flex-end;
-}
-
-.activity-danger-outline {
-  border-color: #fca5a5;
-  color: #b91c1c;
-}
-
-.activity-danger-outline:hover:not(:disabled) {
-  background: #fef2f2;
-}
-
-.activity-detail-error {
-  gap: 12px;
-}
-
-.activity-readonly-value {
-  margin: 0;
-  font-size: 15px;
-  color: #111827;
-  line-height: 1.5;
-}
-
-.activity-notes {
-  margin: 0;
-  white-space: pre-wrap;
-  line-height: 1.5;
-  color: #374151;
-}
-
-.activity-invite-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-
-.activity-invite-row {
-  padding: 8px 0;
-  border-bottom: 1px solid #f3f4f6;
-  font-size: 14px;
-}
-
-.activity-invite-row:last-child {
-  border-bottom: none;
-}
-
-.activity-invite-name {
-  font-weight: 500;
-}
-
-.invite-status {
-  margin-left: 8px;
-  font-size: 12px;
-  font-weight: 600;
-}
-
-.invite-status.accepted {
-  color: #059669;
-}
-
-.invite-status.rejected {
-  color: #b91c1c;
-}
-
-.invite-status.pending {
-  color: #6b7280;
-}
-
-.activity-detail-content-layout {
-  padding: 0 24px 32px;
-}
-
-.activity-items-table-wrap {
-  overflow-x: auto;
-}
-
-.activity-items-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 14px;
-}
-
-.activity-items-table th,
-.activity-items-table td {
-  text-align: left;
-  padding: 10px 12px;
-  border-bottom: 1px solid #e5e7eb;
-}
-
-.activity-items-table th {
-  font-weight: 600;
-  color: #6b7280;
-  font-size: 12px;
-  text-transform: uppercase;
-  letter-spacing: 0.02em;
-}
-
-.activity-item-name {
-  font-weight: 500;
-}
-
-.activity-item-name-block {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px 8px;
-}
-
-.activity-combo-badge {
-  font-size: 11px;
-  font-weight: 600;
-  padding: 2px 6px;
-  border-radius: 4px;
-  background: #ede9fe;
-  color: #5b21b6;
-  flex-shrink: 0;
-}
-
-.activity-combo-badge--virtual {
-  background: #f3e8ff;
-  color: #7c3aed;
-}
-
-.activity-combo-kiste {
-  width: 100%;
-  flex-basis: 100%;
-  font-size: 12px;
-  margin: 0;
-  padding-top: 2px;
-}
-
-.activity-js-tag {
-  margin-left: 6px;
-  font-size: 11px;
-  padding: 2px 6px;
-  border-radius: 4px;
-  background: #e0f2fe;
-  color: #0369a1;
-}
-
-.activity-storage-cell {
-  font-size: 13px;
-  color: #4b5563;
-  max-width: 180px;
-  white-space: normal;
-  word-break: break-word;
-}
-
-.activity-inline-loading {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  color: #6b7280;
-  font-size: 14px;
-}
-
-.spinner-sm {
-  width: 22px;
-  height: 22px;
-  border-width: 2px;
-}
-
-.text-muted {
-  color: #6b7280;
-}
-
-.activity-draft-mat-hint {
-  font-size: 13px;
-  margin: 0 0 12px;
-  line-height: 1.45;
-}
-
-.activity-draft-adding {
-  margin-top: 10px;
-}
-
-.activity-draft-mat-denied p {
-  margin: 0;
-  line-height: 1.5;
-  font-size: 14px;
-}
-
-.col-actions {
-  width: 1%;
-  white-space: nowrap;
-  text-align: right;
-}
-
-.activity-row-remove {
-  padding: 4px 10px;
-  font-size: 13px;
-}
-
-/* Typ-/Status-Badges (wie Aktivitäten-Übersicht, ohne gesamtes overview.css) */
-.type-badge {
-  display: inline-block;
-  padding: 2px 10px;
-  border-radius: 12px;
-  font-size: 12px;
-  font-weight: 500;
-}
-.type-badge.activity {
-  background: #dbeafe;
-  color: #1d4ed8;
-}
-.type-badge.event {
-  background: #fce7f3;
-  color: #be185d;
-}
-.type-badge.camp {
-  background: #d1fae5;
-  color: #065f46;
-}
-.type-badge.external {
-  background: #fef3c7;
-  color: #92400e;
-}
-.status-label {
-  display: inline-block;
-  padding: 3px 10px;
-  border-radius: 6px;
-  font-size: 12px;
-  font-weight: 500;
-}
-.status-label.draft {
-  background: #fef3c7;
-  color: #92400e;
-}
-.status-label.submitted {
-  background: #dbeafe;
-  color: #1e40af;
-}
-.status-label.approved {
-  background: #d1fae5;
-  color: #065f46;
-}
-.status-label.packing {
-  background: #e0e7ff;
-  color: #3730a3;
-}
-.status-label.packed {
-  background: #c7d2fe;
-  color: #4338ca;
-}
-.status-label.issued {
-  background: #fed7aa;
-  color: #9a3412;
-}
-.status-label.returned {
-  background: #fbcfe8;
-  color: #9d174d;
-}
-.status-label.completed {
-  background: #f3f4f6;
-  color: #4b5563;
-}
-.status-label.cancelled {
-  background: #fee2e2;
-  color: #991b1b;
-}
-</style>
+<style scoped src="@/styles/views/activities/detail-panel.css"></style>
+<style scoped src="@/styles/views/activities/detail-workflow.css"></style>

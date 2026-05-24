@@ -1,16 +1,16 @@
-.pack-workflow--compact .pack-crate-picker-block {
+.pack-workflow .pack-crate-picker-block {
   padding: 0;
 }
 
-.pack-workflow--compact .pack-crate-picker-title {
+.pack-workflow .pack-crate-picker-title {
   font-size: 10px;
 }
 
-.pack-workflow--compact .pack-crate-picker-hint {
+.pack-workflow .pack-crate-picker-hint {
   font-size: 9px;
 }
 
-.pack-workflow--compact .pack-crate-picker-list {
+.pack-workflow .pack-crate-picker-list {
   gap: 3px;
 }
 
@@ -67,8 +67,9 @@
 
 /* Aktive Ziel-Kiste: grüne Markierung */
 .pack-crate-picker-card.pack-container-card--target {
-  border-color: #16a34a;
+  border: 2px solid #16a34a;
   background: #f0fdf4;
+  box-shadow: 0 0 0 2px #86efac;
 }
 
 .pack-crate-picker-card .pack-container-chevron {

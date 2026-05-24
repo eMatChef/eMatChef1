@@ -430,7 +430,6 @@ class ActivityAccessService
             Activity::STATUS_PACKING,
             Activity::STATUS_PACKED,
             Activity::STATUS_AT_EVENT,
-            Activity::STATUS_ISSUED,
             Activity::STATUS_RETURNED,
         ];
         if (!\in_array($status, $editableStatuses, true)) {
@@ -448,7 +447,6 @@ class ActivityAccessService
         return \in_array($status, [
             Activity::STATUS_PACKED,
             Activity::STATUS_AT_EVENT,
-            Activity::STATUS_ISSUED,
             Activity::STATUS_RETURNED,
         ], true);
     }

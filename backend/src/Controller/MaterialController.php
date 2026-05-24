@@ -2344,7 +2344,7 @@ class MaterialController extends AbstractController
                     a.usage_end,
                     SUM(ai.quantity) AS contrib_qty,
                     CASE
-                        WHEN a.status = 'issued' THEN 'issued'
+                        WHEN a.status = 'at_event' THEN 'issued'
                         WHEN a.status = 'draft' THEN 'draft'
                         ELSE 'reserved'
                     END AS booking_kind
@@ -2367,7 +2367,7 @@ class MaterialController extends AbstractController
                     a.usage_end,
                     SUM(ai.quantity * cc.qty) AS contrib_qty,
                     CASE
-                        WHEN a.status = 'issued' THEN 'issued'
+                        WHEN a.status = 'at_event' THEN 'issued'
                         WHEN a.status = 'draft' THEN 'draft'
                         ELSE 'reserved'
                     END AS booking_kind,
@@ -3502,7 +3502,7 @@ class MaterialController extends AbstractController
      * Ein einziger Query für die gesamte Liste – kein N+1-Problem.
      *
      * Gibt ein Array zurück: [material_item_id => ['issued' => int, 'reserved' => int]]
-     * - issued:   Menge in Aktivitäten mit Status 'issued' (Material ist draussen beim Kunden)
+     * - issued:   Menge in Aktivitäten mit Status at_event (Material ist draussen beim Kunden)
      * - reserved: Menge in Aktivitäten mit Status submitted/approved/packing/packed (noch im Lager, aber reserviert)
      */
     private function getActivityStockBreakdown(string $departmentId): array
@@ -3512,7 +3512,7 @@ class MaterialController extends AbstractController
         $sql = "
             SELECT 
                 ai.material_item_id,
-                COALESCE(SUM(CASE WHEN a.status = 'issued' THEN ai.quantity ELSE 0 END), 0) AS issued,
+                COALESCE(SUM(CASE WHEN a.status = 'at_event' THEN ai.quantity ELSE 0 END), 0) AS issued,
                 COALESCE(SUM(CASE WHEN a.status IN ('submitted', 'approved', 'packing', 'packed') THEN ai.quantity ELSE 0 END), 0) AS reserved
             FROM activity_item ai
             INNER JOIN activity a ON a.id = ai.activity_id

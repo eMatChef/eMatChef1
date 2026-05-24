@@ -124,7 +124,7 @@
           </p>
         </div>
         <div class="consumption-modal-footer">
-          <button type="button" class="btn btn-outline" :disabled="submitting" @click="close">{{ t('components.activityConsumptionModal.closeFooter') }}</button>
+          <button type="button" class="btn btn-outline" :disabled="submitting" @click="close">{{ closeFooterLabel }}</button>
           <button
             v-if="maxRemaining > 0"
             type="button"
@@ -152,6 +152,8 @@ export interface ConsumptionModalPreset {
   packSize: number | null
   packUnit: string | null
   linkedContainerLabel?: string | null
+  /** Retour-Kontext: Menge die ohne Verbrauch retourniert wird */
+  returnQty?: number | null
 }
 
 const props = withDefaults(
@@ -196,6 +198,14 @@ const canSubmit = computed(
     qty.value >= 1 &&
     qty.value <= maxRemaining.value,
 )
+
+const closeFooterLabel = computed(() => {
+  const rq = props.preset?.returnQty
+  if (rq != null && rq > 0) {
+    return t('components.activityConsumptionModal.returnWithoutConsumption', { count: rq })
+  }
+  return t('components.activityConsumptionModal.closeFooter')
+})
 
 function clampQtyInput() {
   const m = maxRemaining.value

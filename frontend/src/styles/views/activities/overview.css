@@ -53,24 +53,7 @@
 
 .status-dot {
   display: inline-block;
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background: #9ca3af;
 }
-
-.status-dot.draft { background: #f59e0b; }
-.status-dot.submitted { background: #3b82f6; }
-.status-dot.approved { background: #10b981; }
-.status-dot.packing { background: var(--color-primary-light); }
-.status-dot.packed { background: var(--color-primary); }
-.status-dot.issued { background: #f97316; }
-.status-dot.returned { background: #ec4899; }
-.status-dot.completed { background: #6b7280; }
-.status-dot.cancelled { background: #ef4444; }
-/* Legacy */
-.status-dot.confirmed { background: #3b82f6; }
-.status-dot.active { background: #10b981; }
 
 .activity-name {
   font-weight: 500;
@@ -94,39 +77,8 @@
   color: #6b7280;
 }
 
-.type-badge {
-  display: inline-block;
-  padding: 2px 10px;
-  border-radius: 12px;
-  font-size: 12px;
-  font-weight: 500;
-}
-
-.type-badge.activity { background: #dbeafe; color: #1d4ed8; }
-.type-badge.event { background: #fce7f3; color: #be185d; }
-.type-badge.camp { background: #d1fae5; color: #065f46; }
-.type-badge.external { background: #fef3c7; color: #92400e; }
-
-.status-label {
-  display: inline-block;
-  padding: 3px 10px;
-  border-radius: 6px;
-  font-size: 12px;
-  font-weight: 500;
-}
-
-.status-label.draft { background: #fef3c7; color: #92400e; }
-.status-label.submitted { background: #dbeafe; color: #1e40af; }
-.status-label.approved { background: #d1fae5; color: #065f46; }
-.status-label.packing { background: var(--color-primary-subtle-bg); color: var(--color-primary-dark); }
-.status-label.packed { background: var(--color-primary-muted-border); color: var(--color-primary-dark); }
-.status-label.issued { background: #fed7aa; color: #9a3412; }
-.status-label.returned { background: #fbcfe8; color: #9d174d; }
-.status-label.completed { background: #f3f4f6; color: #4b5563; }
-.status-label.cancelled { background: #fee2e2; color: #991b1b; }
-/* Legacy */
-.status-label.confirmed { background: #dbeafe; color: #1e40af; }
-.status-label.active { background: #d1fae5; color: #065f46; }
+/* type-badge → styles/ui/activity-type-badges.css (global) */
+/* status-dot / status-label → styles/activity-status.css (global) */
 
 /* Stats Bar */
 .stats-bar {
@@ -369,7 +321,5 @@
   color: #6b7280;
 }
 
-.text-muted {
-  color: var(--color-text-muted, #9ca3af);
-}
+/* text-muted → styles/ui/text-utilities.css (global) */
 

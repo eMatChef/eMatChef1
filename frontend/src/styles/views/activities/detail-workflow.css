@@ -927,7 +927,8 @@
 }
 
 .pack-containers-section--at-event-select .pack-container-card.pack-container-card--target {
-  box-shadow: 0 0 0 2px var(--color-primary);
+  border: 2px solid #16a34a;
+  box-shadow: 0 0 0 2px #86efac;
 }
 
 .pack-containers-at-event-hint {

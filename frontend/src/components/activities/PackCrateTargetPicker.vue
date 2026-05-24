@@ -283,15 +283,3 @@ const pickerHasEntries = computed(
 <style src="@/styles/views/activities/detail-workflow.css"></style>
 <style src="@/styles/views/activities/pack-container-card.css"></style>
 <style scoped src="@/styles/views/activities/pack-crate-picker.css"></style>
-<style scoped>
-.pack-combo-badge {
-  font-size: 10px;
-  font-weight: 600;
-  padding: 2px 6px;
-  border-radius: 4px;
-  background: #ede9fe;
-  color: #5b21b6;
-  flex-shrink: 0;
-  margin-left: 4px;
-}
-</style>

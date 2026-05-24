@@ -1138,9 +1138,6 @@ class ActivityController extends AbstractController
 
         $data = json_decode($request->getContent(), true);
         $newStatus = $data['status'] ?? null;
-        if ($newStatus === Activity::STATUS_ISSUED) {
-            $newStatus = Activity::STATUS_AT_EVENT;
-        }
         $comment = $data['comment'] ?? null;
 
         // 1. Gültiger Status?
@@ -1251,6 +1248,7 @@ class ActivityController extends AbstractController
         $this->entityManager->flush();
 
         if ($newStatus === Activity::STATUS_COMPLETED && $oldStatus !== Activity::STATUS_COMPLETED) {
+            // Fallback: Verbrauch, der nie eingelagert wurde (vollständig verbraucht)
             $this->activityAccountingCost->finalizeConsumptionAccountingForActivity($activity);
         }
 
@@ -1536,7 +1534,7 @@ class ActivityController extends AbstractController
 
         // Typ «activity»: Ersteller/Gruppenmitglied nur «gepackt → am Event» und «am Event → Retour»
         $handoffKey = $fromStatus . '->' . $toStatus;
-        if (\in_array($handoffKey, ['packed->at_event', 'packed->issued', 'at_event->returned', 'issued->returned'], true)) {
+        if (\in_array($handoffKey, ['packed->at_event', 'at_event->returned'], true)) {
             if ($activity->getType() === 'activity'
                 && $this->activityAccess->canUserOperateActivityPackHandoff($user, $activity)) {
                 return true;
@@ -1649,7 +1647,6 @@ class ActivityController extends AbstractController
             Activity::STATUS_PACKING   => 'Wird gepackt',
             Activity::STATUS_PACKED    => 'Gepackt',
             Activity::STATUS_AT_EVENT  => 'Am Event',
-            Activity::STATUS_ISSUED    => 'Am Event',
             Activity::STATUS_RETURNED  => 'Retour',
             Activity::STATUS_COMPLETED => 'Abgeschlossen',
             Activity::STATUS_CANCELLED => 'Storniert',
@@ -1680,9 +1677,6 @@ class ActivityController extends AbstractController
         if ($fromStatus === Activity::STATUS_AT_EVENT && $targetStatus === Activity::STATUS_PACKED) {
             return 'Zurück zu «Gepackt»';
         }
-        if ($fromStatus === Activity::STATUS_ISSUED && $targetStatus === Activity::STATUS_PACKED) {
-            return 'Zurück zu «Gepackt»';
-        }
         if ($fromStatus === Activity::STATUS_RETURNED && $targetStatus === Activity::STATUS_AT_EVENT) {
             return 'Zurück zu «Am Event»';
         }
@@ -1693,7 +1687,6 @@ class ActivityController extends AbstractController
             Activity::STATUS_PACKING   => 'Packen starten',
             Activity::STATUS_PACKED    => 'Gepackt markieren',
             Activity::STATUS_AT_EVENT  => 'Alles mitgenommen ans Event',
-            Activity::STATUS_ISSUED    => 'Alles mitgenommen ans Event',
             Activity::STATUS_RETURNED  => 'Retour erfassen',
             Activity::STATUS_COMPLETED => 'Abschliessen',
             Activity::STATUS_CANCELLED => 'Stornieren',
@@ -2042,10 +2035,6 @@ class ActivityController extends AbstractController
             // ActivityItem zuerst schreiben: COUNT/SUM/recalculate lesen aus der DB —
             // vor flush() sieht die DB neue/geänderte Zeilen nicht → Packliste quantity_ordered=0, Preis falsch.
             $this->entityManager->flush();
-
-            if ($replenishmentItem !== null) {
-                $this->activityAccountingCost->enqueueFromReplenishment($activity, $replenishmentItem);
-            }
 
             $activity->setItemCount(
                 (int) $this->entityManager->getRepository(ActivityItem::class)
