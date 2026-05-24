@@ -339,6 +339,7 @@
               :can-report-consumption="showConsumptionBooking"
               :reload-token="packListReloadToken"
               :consumption-modal-cancelled-token="consumptionModalCancelledToken"
+              :consumption-modal-return-without-consumption-token="consumptionModalReturnWithoutConsumptionToken"
               :can-add-activity-material="
                 canAddActivityMaterial && (activity.status === 'packing' || activity.status === 'packed')
               "
@@ -404,6 +405,7 @@
       :preset-activity-id="activityId"
       :preset-material-item-id="damageReportPresets.materialItemId ?? null"
       :preset-issue-type="damageReportPresets.issueType ?? null"
+      :preset-quantity="damageReportPresets.quantity ?? null"
       @close="onDamageWizardClose"
       @success="onDamageReportSuccess"
     />
@@ -414,6 +416,7 @@
       :can-add-activity-material="canAddActivityMaterial"
       @close="onConsumptionModalClose"
       @success="onConsumptionModalSuccess"
+      @return-without-consumption="onConsumptionModalReturnWithoutConsumption"
       @request-nachbuchung="onConsumptionModalRequestNachbuchung"
     />
     <ActivityConsumableNachbuchungModal
@@ -918,6 +921,7 @@ const damageReportOpen = ref(false)
 const damageReportPresets = ref<{
   materialItemId?: string
   issueType?: 'damage' | 'repair' | 'loss'
+  quantity?: number
 }>({})
 const issuesReloadToken = ref(0)
 const consumablesReloadToken = ref(0)
@@ -931,6 +935,7 @@ watch(issuesReloadToken, () => {
 const consumptionModalOpen = ref(false)
 const consumptionModalPreset = ref<ConsumptionModalPreset | null>(null)
 const consumptionModalCancelledToken = ref(0)
+const consumptionModalReturnWithoutConsumptionToken = ref(0)
 const skipNextConsumptionModalCloseCancel = ref(false)
 
 const nachbuchungOpen = ref(false)
@@ -942,9 +947,10 @@ const nachbuchungPackUnit = ref<string | null>(null)
 function openDamageReport(opts?: {
   materialItemId?: string
   issueType?: 'damage' | 'repair' | 'loss'
+  quantity?: number
 }) {
   damageReportPresets.value =
-    opts && (opts.materialItemId != null || opts.issueType != null) ? { ...opts } : {}
+    opts && (opts.materialItemId != null || opts.issueType != null || opts.quantity != null) ? { ...opts } : {}
   damageReportOpen.value = true
 }
 
@@ -963,6 +969,12 @@ function onConsumptionModalClose() {
     consumptionModalCancelledToken.value += 1
   }
   skipNextConsumptionModalCloseCancel.value = false
+  consumptionModalOpen.value = false
+  consumptionModalPreset.value = null
+}
+
+function onConsumptionModalReturnWithoutConsumption() {
+  consumptionModalReturnWithoutConsumptionToken.value += 1
   consumptionModalOpen.value = false
   consumptionModalPreset.value = null
 }
@@ -1036,10 +1048,15 @@ async function onConsumptionModalSuccess() {
   }
 }
 
-function onPackIssueWizard(payload: { materialItemId: string; issueType: 'loss' | 'repair' }) {
+function onPackIssueWizard(payload: {
+  materialItemId: string
+  issueType: 'loss' | 'repair'
+  quantity?: number
+}) {
   openDamageReport({
     materialItemId: payload.materialItemId,
     issueType: payload.issueType,
+    quantity: payload.quantity,
   })
 }
 

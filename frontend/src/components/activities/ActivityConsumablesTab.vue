@@ -194,6 +194,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { getPackItems, type ActivityPackItem } from '@/api/activityPackItems'
 import {
   createActivityIssue,
   getActivityIssues,
@@ -242,6 +243,7 @@ const emit = defineEmits<{
 const toast = useToast()
 const isLoading = ref(false)
 const activityItems = ref<ActivityItemRow[]>([])
+const packItems = ref<ActivityPackItem[]>([])
 const issues = ref<ActivityIssueReportRow[]>([])
 const qtyInputs = ref<Record<string, number>>({})
 const postingId = ref<string | null>(null)
@@ -324,8 +326,14 @@ function bookedQty(materialItemId: string): number {
   )
 }
 
+function returnedQty(materialItemId: string): number {
+  return packItems.value
+    .filter((p) => p.materialItemId === materialItemId)
+    .reduce((s, p) => s + (p.quantityReturned ?? 0), 0)
+}
+
 function remainingQty(materialItemId: string): number {
-  return Math.max(0, bookedQty(materialItemId) - usedQty(materialItemId))
+  return Math.max(0, bookedQty(materialItemId) - usedQty(materialItemId) - returnedQty(materialItemId))
 }
 
 function clampQtyFor(materialItemId: string) {
@@ -359,12 +367,14 @@ function formatDateTime(iso: string): string {
 async function load() {
   isLoading.value = true
   try {
-    const [items, iss] = await Promise.all([
+    const [items, iss, pack] = await Promise.all([
       getActivityItems(props.activityId),
       getActivityIssues(props.activityId),
+      getPackItems(props.activityId).catch(() => []),
     ])
     activityItems.value = items
     issues.value = iss
+    packItems.value = pack
     for (const r of items.filter((x) => x.is_consumable === true)) {
       if (qtyInputs.value[r.material_item_id] == null) {
         qtyInputs.value[r.material_item_id] = 1
@@ -378,6 +388,7 @@ async function load() {
     }
   } catch {
     activityItems.value = []
+    packItems.value = []
     issues.value = []
     toast.error(t('activities.consumables.toastLoadFailed'))
   } finally {

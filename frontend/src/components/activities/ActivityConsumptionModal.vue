@@ -1,10 +1,10 @@
 <template>
   <Teleport to="body">
-    <div v-if="isOpen" class="consumption-modal-overlay" @click.self="close">
+    <div v-if="isOpen" class="consumption-modal-overlay" @click.self="closeAsCancel">
       <div class="consumption-modal-dialog" role="dialog" aria-modal="true" aria-labelledby="consumption-modal-title">
         <div class="consumption-modal-header">
           <h3 id="consumption-modal-title">{{ t('components.activityConsumptionModal.title') }}</h3>
-          <button type="button" class="consumption-modal-close" :aria-label="t('components.activityConsumptionModal.closeAria')" @click="close">×</button>
+          <button type="button" class="consumption-modal-close" :aria-label="t('components.activityConsumptionModal.closeAria')" @click="closeAsCancel">×</button>
         </div>
         <div class="consumption-modal-body">
           <div v-if="loadingLimits" class="consumption-modal-loading text-muted">{{ t('components.activityConsumptionModal.loadingLimits') }}</div>
@@ -124,7 +124,7 @@
           </p>
         </div>
         <div class="consumption-modal-footer">
-          <button type="button" class="btn btn-outline" :disabled="submitting" @click="close">{{ closeFooterLabel }}</button>
+          <button type="button" class="btn btn-outline" :disabled="submitting" @click="onFooterOutlineClick">{{ closeFooterLabel }}</button>
           <button
             v-if="maxRemaining > 0"
             type="button"
@@ -171,6 +171,7 @@ const emit = defineEmits<{
   close: []
   success: []
   requestNachbuchung: []
+  returnWithoutConsumption: []
 }>()
 
 const { t } = useI18n()
@@ -282,8 +283,21 @@ watch(
   },
 )
 
-function close() {
+function closeAsCancel() {
   emit('close')
+}
+
+function onFooterOutlineClick() {
+  const rq = props.preset?.returnQty
+  if (rq != null && rq > 0) {
+    emit('returnWithoutConsumption')
+    return
+  }
+  closeAsCancel()
+}
+
+function close() {
+  closeAsCancel()
 }
 
 async function submit() {

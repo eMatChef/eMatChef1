@@ -195,6 +195,7 @@ const props = defineProps<{
   /** Optional: Material + Meldungsart aus Packliste vorbefüllen */
   presetMaterialItemId?: string | null
   presetIssueType?: 'damage' | 'repair' | 'loss' | null
+  presetQuantity?: number | null
 }>()
 
 const emit = defineEmits<{
@@ -483,9 +484,13 @@ async function applyPresetActivity(id: string) {
 function applyMaterialAndTypePresets() {
   const mid = props.presetMaterialItemId?.trim()
   const presetType = props.presetIssueType
+  const presetQty = props.presetQuantity
   if (mid) form.value.materialItemId = mid
   if (presetType && ['damage', 'repair', 'loss'].includes(presetType)) {
     form.value.type = presetType
+  }
+  if (Number.isFinite(presetQty) && (presetQty ?? 0) > 0) {
+    form.value.quantity = Math.floor(presetQty!)
   }
 }
 

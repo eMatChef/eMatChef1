@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { ActivityIssueReportRow } from '@/api/activities'
 import type { ActivityPackContainerItem } from '@/api/activityContainers'
@@ -14,17 +15,41 @@ export type ReturnCratePartitionView = {
   hasWarehouseTemplate: boolean
 }
 
-defineProps<{
+export type ReturnCrateLineEdit = {
+  id: string
+  kind: 'shell' | 'line'
+  containerItemId?: string
+  materialItemId: string | null
+  materialName: string
+  max: number
+  issued: number
+  included: boolean
+  qty: number
+  isExtra: boolean
+  isConsumable: boolean
+  consumptionDone: boolean
+  consumptionOpen: number
+}
+
+type ReturnCrateLineSection = {
+  key: string
+  titleKey: string
+  noteKey?: string
+  lines: ReturnCrateLineEdit[]
+}
+
+const props = defineProps<{
   open: boolean
   containerLabel: string
   contentsLoading: boolean
   contentsError: boolean
   noLinkedBatch: boolean
   partition: ReturnCratePartitionView
+  lines: ReturnCrateLineEdit[]
   notTakenReminders: ActivityIssueReportRow[]
   notTakenLine: (r: ActivityIssueReportRow) => string
-  lineRemainingReturn: (ci: ActivityPackContainerItem) => number
-  checked: boolean
+  canReportIssues: boolean
+  canReportConsumption: boolean
   submitting: boolean
   submitDisabled: boolean
 }>()
@@ -32,10 +57,96 @@ defineProps<{
 const emit = defineEmits<{
   cancel: []
   submit: []
-  'update:checked': [value: boolean]
+  'update:lines': [lines: ReturnCrateLineEdit[]]
+  'report-loss': [materialItemId: string, qty: number]
+  'report-repair': [materialItemId: string, qty: number]
+  'report-consumption': [materialItemId: string, materialName: string]
 }>()
 
 const { t } = useI18n()
+
+const lineSections = computed((): ReturnCrateLineSection[] => {
+  const sections: ReturnCrateLineSection[] = []
+  const shell = props.lines.filter((l) => l.kind === 'shell')
+  const extra = props.lines.filter((l) => l.kind === 'line' && l.isExtra)
+  const standard = props.lines.filter((l) => l.kind === 'line' && !l.isExtra)
+  if (shell.length > 0) {
+    sections.push({
+      key: 'shell',
+      titleKey: 'activities.packList.returnCrateModalShellSection',
+      lines: shell,
+    })
+  }
+  if (extra.length > 0) {
+    sections.push({
+      key: 'extra',
+      titleKey: 'activities.packList.returnCrateModalExtraSection',
+      noteKey: 'activities.packList.returnCrateModalExtraNote',
+      lines: extra,
+    })
+  }
+  if (standard.length > 0) {
+    sections.push({
+      key: 'standard',
+      titleKey: 'activities.packList.returnCrateModalStandardSection',
+      lines: standard,
+    })
+  }
+  return sections
+})
+
+function patchLine(id: string, patch: Partial<ReturnCrateLineEdit>): void {
+  emit(
+    'update:lines',
+    props.lines.map((line) => (line.id === id ? { ...line, ...patch } : line)),
+  )
+}
+
+function onIncludedChange(line: ReturnCrateLineEdit, included: boolean): void {
+  const nextQty = included && line.qty < 1 ? line.max : line.qty
+  patchLine(line.id, { included, qty: included ? Math.min(Math.max(1, nextQty), line.max) : line.qty })
+}
+
+function clampQty(line: ReturnCrateLineEdit, raw: number): number {
+  if (!Number.isFinite(raw)) return line.max
+  return Math.min(line.max, Math.max(0, Math.floor(raw)))
+}
+
+function bumpQty(line: ReturnCrateLineEdit, delta: number): void {
+  patchLine(line.id, { qty: clampQty(line, line.qty + delta) })
+}
+
+function onQtyInput(line: ReturnCrateLineEdit, event: Event): void {
+  const raw = Number((event.target as HTMLInputElement).value)
+  patchLine(line.id, { qty: clampQty(line, raw) })
+}
+
+function missingQty(line: ReturnCrateLineEdit): number {
+  if (!line.included) return 0
+  return Math.max(0, line.max - line.qty)
+}
+
+function showMissingActions(line: ReturnCrateLineEdit): boolean {
+  if (line.isConsumable || missingQty(line) < 1 || !line.materialItemId) return false
+  return props.canReportIssues
+}
+
+function lineQtyHint(line: ReturnCrateLineEdit): string {
+  if (line.kind === 'shell') {
+    return t('activities.packList.returnCrateModalStillQty', { n: line.max })
+  }
+  return t('activities.packList.returnCrateModalLineQty', {
+    still: line.max,
+    issued: line.issued,
+  })
+}
+
+function consumableLineHint(line: ReturnCrateLineEdit): string {
+  if (line.consumptionDone) {
+    return t('activities.packList.returnCrateModalConsumptionDone')
+  }
+  return t('activities.packList.returnCrateModalConsumptionOpen', { n: line.consumptionOpen })
+}
 </script>
 
 <template>
@@ -74,58 +185,91 @@ const { t } = useI18n()
         {{ t('activities.packList.returnCrateModalExtraHint') }}
       </p>
 
-      <div v-if="partition.shellQty > 0" class="pack-return-crate-block">
-        <h4 class="pack-return-crate-subtitle">{{ t('activities.packList.returnCrateModalShellSection') }}</h4>
+      <div v-for="section in lineSections" :key="section.key" class="pack-return-crate-block">
+        <h4 class="pack-return-crate-subtitle">{{ t(section.titleKey) }}</h4>
+        <p v-if="section.noteKey" class="pack-return-crate-note text-muted">{{ t(section.noteKey) }}</p>
         <ul class="pack-return-crate-list">
-          <li>
-            <span class="pack-return-crate-line-name">{{
-              partition.shellMaterialName || t('activities.packList.shellMaterialLine')
-            }}</span>
-            <span class="pack-return-crate-line-qty text-muted">
-              {{ t('activities.packList.returnCrateModalStillQty', { n: partition.shellQty }) }}
-            </span>
-            <span v-if="partition.shellIsExtra" class="pack-return-crate-badge">{{
-              t('activities.packList.returnCrateModalBadgeExtra')
-            }}</span>
-          </li>
-        </ul>
-      </div>
-
-      <div v-if="partition.extraLines.length > 0" class="pack-return-crate-block">
-        <h4 class="pack-return-crate-subtitle">{{ t('activities.packList.returnCrateModalExtraSection') }}</h4>
-        <p class="pack-return-crate-note text-muted">{{ t('activities.packList.returnCrateModalExtraNote') }}</p>
-        <ul class="pack-return-crate-list">
-          <li v-for="ci in partition.extraLines" :key="'ret-extra-' + ci.id">
-            <span class="pack-return-crate-line-name">{{
-              ci.material_name || t('activities.common.material')
-            }}</span>
-            <span class="pack-return-crate-line-qty text-muted">
-              {{
-                t('activities.packList.returnCrateModalLineQty', {
-                  still: lineRemainingReturn(ci),
-                  issued: ci.quantity_issued ?? 0,
-                })
-              }}
-            </span>
-          </li>
-        </ul>
-      </div>
-
-      <div v-if="partition.standardLines.length > 0" class="pack-return-crate-block">
-        <h4 class="pack-return-crate-subtitle">{{ t('activities.packList.returnCrateModalStandardSection') }}</h4>
-        <ul class="pack-return-crate-list">
-          <li v-for="ci in partition.standardLines" :key="'ret-std-' + ci.id">
-            <span class="pack-return-crate-line-name">{{
-              ci.material_name || t('activities.common.material')
-            }}</span>
-            <span class="pack-return-crate-line-qty text-muted">
-              {{
-                t('activities.packList.returnCrateModalLineQty', {
-                  still: lineRemainingReturn(ci),
-                  issued: ci.quantity_issued ?? 0,
-                })
-              }}
-            </span>
+          <li
+            v-for="line in section.lines"
+            :key="'ret-' + section.key + '-' + line.id"
+            class="pack-return-crate-line-row"
+            :class="{ 'pack-return-crate-line-row--done': line.isConsumable && line.consumptionDone }"
+          >
+            <template v-if="line.isConsumable">
+              <div class="pack-return-crate-consumable-main">
+                <span class="pack-return-crate-line-name">{{ line.materialName }}</span>
+                <span class="pack-return-crate-line-qty text-muted">{{ lineQtyHint(line) }}</span>
+                <span v-if="line.isExtra" class="pack-return-crate-badge">{{
+                  t('activities.packList.returnCrateModalBadgeExtra')
+                }}</span>
+              </div>
+              <p class="pack-return-crate-consumable-hint text-muted">{{ consumableLineHint(line) }}</p>
+              <div v-if="line.consumptionDone" class="pack-return-crate-done-badge" role="status">
+                {{ t('activities.packList.returnCrateModalConsumptionDoneBadge') }}
+              </div>
+              <button
+                v-else-if="canReportConsumption && line.materialItemId"
+                type="button"
+                class="btn btn-sm btn-primary pack-return-crate-consumption-btn"
+                @click="emit('report-consumption', line.materialItemId!, line.materialName)"
+              >
+                {{ t('activities.packList.returnCrateModalBookConsumption') }}
+              </button>
+            </template>
+            <template v-else>
+              <label class="pack-return-crate-line-check">
+                <input
+                  :checked="line.included"
+                  type="checkbox"
+                  @change="onIncludedChange(line, ($event.target as HTMLInputElement).checked)"
+                />
+                <span class="pack-return-crate-line-name">{{ line.materialName }}</span>
+              </label>
+              <span class="pack-return-crate-line-qty text-muted">{{ lineQtyHint(line) }}</span>
+              <span v-if="line.isExtra" class="pack-return-crate-badge">{{
+                t('activities.packList.returnCrateModalBadgeExtra')
+              }}</span>
+              <div v-if="line.included" class="pack-return-crate-line-controls">
+                <span class="pack-return-crate-return-label text-muted">{{
+                  t('activities.packList.returnCrateModalReturnQty')
+                }}</span>
+                <div class="adjust-qty-row">
+                  <button type="button" class="btn-qty" :disabled="line.qty <= 0" @click="bumpQty(line, -1)">
+                    −
+                  </button>
+                  <input
+                    :value="line.qty"
+                    type="number"
+                    min="0"
+                    :max="line.max"
+                    class="form-input adjust-qty-input"
+                    @input="onQtyInput(line, $event)"
+                  />
+                  <button type="button" class="btn-qty" :disabled="line.qty >= line.max" @click="bumpQty(line, 1)">
+                    +
+                  </button>
+                </div>
+              </div>
+              <div v-if="showMissingActions(line)" class="pack-return-crate-missing">
+                <span class="pack-return-crate-missing-hint text-muted">{{
+                  t('activities.packList.returnCrateModalMissingQty', { n: missingQty(line) })
+                }}</span>
+                <button
+                  type="button"
+                  class="btn-issue-quick btn-issue-loss"
+                  @click="emit('report-loss', line.materialItemId!, missingQty(line))"
+                >
+                  {{ t('activities.common.issueLoss') }}
+                </button>
+                <button
+                  type="button"
+                  class="btn-issue-quick btn-issue-repair"
+                  @click="emit('report-repair', line.materialItemId!, missingQty(line))"
+                >
+                  {{ t('activities.common.issueRepair') }}
+                </button>
+              </div>
+            </template>
           </li>
         </ul>
       </div>
@@ -140,16 +284,11 @@ const { t } = useI18n()
       >
         {{ t('activities.packList.returnCrateModalEmptyLines') }}
       </p>
-    </template>
 
-    <label class="pack-return-crate-check">
-      <input
-        :checked="checked"
-        type="checkbox"
-        @change="emit('update:checked', ($event.target as HTMLInputElement).checked)"
-      />
-      <span>{{ t('activities.packList.returnCrateModalConfirmCheckbox') }}</span>
-    </label>
+      <p v-if="lines.length > 0" class="pack-modal-hint pack-modal-hint--sm text-muted">
+        {{ t('activities.packList.returnCrateModalLineHint') }}
+      </p>
+    </template>
 
     <template #footer>
       <PackModalFooter
@@ -162,3 +301,6 @@ const { t } = useI18n()
     </template>
   </PackWorkflowModal>
 </template>
+
+<style src="@/styles/views/activities/pack-workflow-modals.css"></style>
+<style src="@/styles/views/activities/detail-panel.css"></style>

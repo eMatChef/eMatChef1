@@ -29,17 +29,21 @@ function showPackIssueForLine(): boolean {
   return props.visible !== false && (props.line.quantity_issued ?? 0) > 0
 }
 
-const show = () =>
-  showPackIssueForLine() &&
-  Boolean(props.line.material_item_id) &&
-  (() => {
-    const mid = props.line.material_item_id!
-    const isConsumable = (ctx.isPackMaterialConsumable as (id: string) => boolean)(mid)
-    if (isConsumable) {
-      return injectPackCtxBool(ctx, 'canReportConsumption')
-    }
-    return injectPackCtxBool(ctx, 'canReportIssues')
-  })()
+const show = () => {
+  if (props.visible === false) return false
+  return (
+    showPackIssueForLine() &&
+    Boolean(props.line.material_item_id) &&
+    (() => {
+      const mid = props.line.material_item_id!
+      const isConsumable = (ctx.isPackMaterialConsumable as (id: string) => boolean)(mid)
+      if (isConsumable) {
+        return injectPackCtxBool(ctx, 'canReportConsumption')
+      }
+      return injectPackCtxBool(ctx, 'canReportIssues')
+    })()
+  )
+}
 </script>
 
 <template>
