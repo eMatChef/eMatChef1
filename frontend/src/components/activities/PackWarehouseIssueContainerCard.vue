@@ -541,7 +541,7 @@ function crateShellTakeTitle(): string {
               : true
           "
           separate-section-rows
-          :default-expanded="innerVisible"
+          :default-expanded="false"
           @toggle-reality-view="
             shellPackItem &&
               (ctx.toggleCrateRealityView as ((p: ActivityPackItem) => void) | undefined) &&

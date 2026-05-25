@@ -122,6 +122,15 @@
         @go-tab="onCompletionGoTab"
       />
 
+      <div v-if="showMemberScopeStatusHint" class="draft-hint-banner member-scope-hint-banner">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+          <circle cx="12" cy="12" r="10" />
+          <line x1="12" y1="8" x2="12" y2="12" />
+          <line x1="12" y1="16" x2="12.01" y2="16" />
+        </svg>
+        <span>{{ t('activities.detail.memberScopeStatusHint') }}</span>
+      </div>
+
       <nav class="tab-nav">
         <button
           v-for="tab in tabs"
@@ -430,7 +439,7 @@
               :can-add-activity-material="
                 canAddActivityMaterial && (activity.status === 'packing' || activity.status === 'packed')
               "
-              :can-request-consumable-nachbuchung="canAddActivityMaterial"
+              :can-request-consumable-nachbuchung="canRequestConsumableNachbuchung"
               :activity-type-for-material-add="activityTypeForMat"
               :planning-start-iso="activity.planning_start ?? null"
               :planning-end-iso="activity.planning_end ?? null"
@@ -453,6 +462,7 @@
             <ActivityIssuesTab
               :activity-id="activityId"
               :can-create="showDamageReportEntry"
+              :read-only-hint="showIssuesTabReadOnlyHint"
               :reload-token="issuesReloadToken"
               @open-wizard="openDamageReport()"
             />
@@ -463,6 +473,7 @@
               :activity-id="activityId"
               :can-create="showConsumptionBooking"
               :can-add-activity-material="canAddActivityMaterial"
+              :can-request-consumable-replenishment="canRequestConsumableNachbuchung"
               :reload-token="consumablesReloadToken"
               @request-nachbuchung="openNachbuchungModal"
               @consumption-booked="onConsumableBooked"
@@ -503,7 +514,7 @@
       :is-open="consumptionModalOpen"
       :activity-id="activityId"
       :preset="consumptionModalPreset"
-      :can-add-activity-material="canAddActivityMaterial"
+      :can-add-activity-material="canRequestConsumableNachbuchung"
       @close="onConsumptionModalClose"
       @success="onConsumptionModalSuccess"
       @return-without-consumption="onConsumptionModalReturnWithoutConsumption"
@@ -518,6 +529,7 @@
       :material-label="nachbuchungMaterialLabel"
       :pack-size="nachbuchungPackSize"
       :pack-unit="nachbuchungPackUnit"
+      :show-warehouse-material-hint="canAddActivityMaterial"
       @close="onNachbuchungModalClose"
       @success="onNachbuchungModalSuccess"
     />
@@ -568,6 +580,7 @@ import ActivityHistoryTab from '@/components/activities/ActivityHistoryTab.vue'
 import ActivityConsumptionModal from '@/components/activities/ActivityConsumptionModal.vue'
 import ActivityConsumableNachbuchungModal from '@/components/activities/ActivityConsumableNachbuchungModal.vue'
 import { activityTransitionActionLabel } from '@/components/activities/activityTransitionLabels'
+import { packWorkflowProfileForActivityType } from '@/components/activities/packWorkflowProfile'
 import DamageReportWizard from '@/components/DamageReportWizard.vue'
 import PublicQrTag from '@/components/common/PublicQrTag.vue'
 import PublicQrActionModal from '@/components/common/PublicQrActionModal.vue'
@@ -640,6 +653,13 @@ function transitionActionLabel(tr: ActivityTransitionRow): string {
   return activityTransitionActionLabel(tr.status, activity.value?.status, t, te, tr.label)
 }
 
+/** Camp/Event: «Retour erfassen» erst im Pack-Tab «Transport (zurück)→Retour», nicht in der Kopfzeile bei «Am Event». */
+function hideReturnedTransitionInActivityHeader(targetStatus: string): boolean {
+  const act = activity.value
+  if (!act || targetStatus !== 'returned' || act.status !== 'at_event') return false
+  return packWorkflowProfileForActivityType(act.type || 'activity') === 'logistics'
+}
+
 const activity = ref<ActivityDetail | null>(null)
 const isGeneratingActivityPublicCode = ref(false)
 const showActivityQrActionModal = ref(false)
@@ -679,14 +699,31 @@ const STATUSES_WITH_PACKS_TAB = [
   'completed',
 ] as const
 
+/** Lager/Event/Aktivität: Gruppe übernimmt Transport & Retour (nicht external). */
+const isGroupHandoffActivityType = computed(() => {
+  const typ = activity.value?.type
+  return typ === 'activity' || typ === 'camp' || typ === 'event'
+})
+
+/** Untergruppe / Gruppenmitglied: Packliste schon ab Eingereicht/Bestätigt einsehen (nur Ansicht). */
+const showMemberEarlyPackPreview = computed(() => {
+  const s = activity.value?.status
+  if (!s || !isRestrictedGroupMember.value || !isGroupHandoffActivityType.value) return false
+  return s === 'submitted' || s === 'approved'
+})
+
 const showPacksTab = computed(() => {
   const s = activity.value?.status
   if (!s) return false
-  return (STATUSES_WITH_PACKS_TAB as readonly string[]).includes(s)
+  if ((STATUSES_WITH_PACKS_TAB as readonly string[]).includes(s)) return true
+  return showMemberEarlyPackPreview.value
 })
 
 /** Reparaturen / Verluste: ab «Am Event» (Material ausgegeben) */
 const STATUSES_WITH_ISSUES_TAB = ['at_event', 'returned', 'completed'] as const
+
+/** Gruppe: Meldungen ab «Wird gepackt» nur lesen; neue Meldungen erst ab «Am Event». */
+const MEMBER_ISSUES_PREVIEW_STATUSES = ['packing', 'packed'] as const
 
 /** Verbrauchsmaterial buchen: erst ab «Am Event» */
 const STATUSES_WITH_CONSUMABLES_TAB = ['at_event', 'returned', 'completed'] as const
@@ -694,7 +731,26 @@ const STATUSES_WITH_CONSUMABLES_TAB = ['at_event', 'returned', 'completed'] as c
 const showIssuesTab = computed(() => {
   const s = activity.value?.status
   if (!s) return false
-  return (STATUSES_WITH_ISSUES_TAB as readonly string[]).includes(s)
+  if ((STATUSES_WITH_ISSUES_TAB as readonly string[]).includes(s)) return true
+  if (
+    isRestrictedGroupMember.value &&
+    isGroupHandoffActivityType.value &&
+    (MEMBER_ISSUES_PREVIEW_STATUSES as readonly string[]).includes(s)
+  ) {
+    return true
+  }
+  return false
+})
+
+const showIssuesTabReadOnlyHint = computed(
+  () => showIssuesTab.value && !showDamageReportEntry.value && isRestrictedGroupMember.value,
+)
+
+/** Hinweis für Mitglieder in Parent-/Untergruppen-Zweig vor «Am Event». */
+const showMemberScopeStatusHint = computed(() => {
+  const s = activity.value?.status
+  if (!s || !isRestrictedGroupMember.value || !isGroupHandoffActivityType.value) return false
+  return ['submitted', 'approved', 'packing', 'packed'].includes(s)
 })
 
 const hasConsumableItems = computed(() =>
@@ -785,6 +841,7 @@ function transitionNeedsPackListConfirmation(transition: ActivityTransitionRow):
   if (transition.status === 'at_event' && s === 'returned') return false
   if (transition.status === 'at_event' && (s === 'packed' || s === 'packing')) return true
   if (transition.status === 'returned' && s === 'at_event') return true
+  if (transition.status === 'at_event' && s === 'returned') return true
   if (transition.status === 'packed' && s === 'packing') return true
   return false
 }
@@ -891,6 +948,7 @@ const workflowTransitions = computed(() =>
     if (s === 'returned' && t.status === 'at_event') return false
     // Quick-Modus: kein «Bestätigen» — Material ist bei Einreichung bereits final
     if (activity.value?.type === 'activity' && t.status === 'approved') return false
+    if (hideReturnedTransitionInActivityHeader(t.status)) return false
     return true
   }),
 )
@@ -1053,6 +1111,13 @@ const showConsumptionBooking = computed(() => {
 
 /** Nachbuchung zur Aktivität (addActivityItem) — wie Tab «Material» */
 const canAddActivityMaterial = computed(() => activity.value?.can_edit_activity_material === true)
+
+/** Nachlieferung Verbrauchsmaterial: MW/DC oder Gruppe/Ersteller ab «Am Event». */
+const canRequestConsumableNachbuchung = computed(
+  () =>
+    activity.value?.can_request_consumable_replenishment === true ||
+    canAddActivityMaterial.value,
+)
 
 const damageReportOpen = ref(false)
 const damageReportPresets = ref<{

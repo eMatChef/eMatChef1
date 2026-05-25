@@ -28,6 +28,7 @@ import {
   storageLocationRowKey,
   type InventoryLocationReview,
   shellForwardLineKey,
+  shellForwardExpectedQty,
   shortfallQty,
   surplusQty,
   type ShellForwardCheckLine,
@@ -85,7 +86,7 @@ const checkLines = computed((): ShellForwardCheckLine[] => {
         key: shellForwardLineKey(sec.subsectionKey, line.id),
         subsectionKey: sec.subsectionKey,
         materialName: line.materialName,
-        quantity: line.quantity,
+        quantity: shellForwardExpectedQty(isExtra, line.quantity),
         materialItemId: (line.materialItemId ?? '').trim() || null,
         isExtra,
         serialHint: (line.serialHint ?? '').trim() || null,
@@ -498,13 +499,14 @@ function issueTypeLabel(r: ActivityIssueReportRow): string {
 }
 
 function asCheckLine(sec: PackCrateShellPeekSection, line: PackCrateShellPeekSection['lines'][0]): ShellForwardCheckLine {
+  const isExtra = sec.subsectionKey === 'extra'
   return {
     key: shellForwardLineKey(sec.subsectionKey, line.id),
     subsectionKey: sec.subsectionKey,
     materialName: line.materialName,
-    quantity: line.quantity,
+    quantity: shellForwardExpectedQty(isExtra, line.quantity),
     materialItemId: (line.materialItemId ?? '').trim() || null,
-    isExtra: sec.subsectionKey === 'extra',
+    isExtra,
     serialHint: (line.serialHint ?? '').trim() || null,
   }
 }
@@ -556,7 +558,10 @@ function asCheckLine(sec: PackCrateShellPeekSection, line: PackCrateShellPeekSec
                   <div class="pack-shell-forward-li-meta">
                     <div class="pack-shell-forward-li-name">{{ line.materialName }}</div>
                     <div class="pack-shell-forward-li-sub text-muted">
-                      <span>{{ t('activities.packList.shellForwardExpectedQty', { n: line.quantity }) }}</span>
+                      <span v-if="!cl.isExtra">{{
+                        t('activities.packList.shellForwardExpectedQty', { n: cl.quantity })
+                      }}</span>
+                      <span v-else>{{ t('activities.packList.shellForwardExtraCountOnly') }}</span>
                       <span
                         v-if="line.serialHint"
                         class="pack-shell-forward-li-serial"
@@ -579,7 +584,7 @@ function asCheckLine(sec: PackCrateShellPeekSection, line: PackCrateShellPeekSec
                     class="shell-forward-variance-btn shell-forward-variance-btn--minus"
                     :class="{ 'shell-forward-variance-btn--active': varianceKind(cl) === 'short' }"
                     :title="t('activities.packList.shellForwardMinusTitle')"
-                    :disabled="historyReplenishByKey[cl.key] || cl.isExtra"
+                    :disabled="!!historyReplenishByKey[cl.key]"
                     @click="
                       (() => {
                         const next = Math.max(0, lineCountedQty(cl.key, cl.quantity) - 1)

@@ -31,6 +31,13 @@ const useInlineConsumption = computed(() => {
   return fn?.() ?? false
 })
 
+const showNachbuchung = computed(() => {
+  const mid = props.line.material_item_id
+  if (!mid) return false
+  const fn = ctx.showConsumableNachbuchungForMaterial as ((id: string) => boolean) | undefined
+  return fn?.(mid) ?? false
+})
+
 function showPackIssueForLine(): boolean {
   const fn = ctx.showPackIssueForContainerLine as
     | ((ci: ActivityPackContainerItem, containerId: string) => boolean)
@@ -42,10 +49,13 @@ function showPackIssueForLine(): boolean {
   return props.visible !== false && (props.line.quantity_issued ?? 0) > 0
 }
 
-const show = () => {
+function showPackLineActions(): boolean {
   if (props.visible === false) return false
   if (useInlineConsumption.value && props.line.material_item_id) {
-    return showPackConsumptionAllowed()
+    return showPackConsumptionAllowed() || showNachbuchung.value
+  }
+  if (isConsumable.value && showNachbuchung.value && props.line.material_item_id) {
+    return true
   }
   return (
     showPackIssueForLine() &&
@@ -63,17 +73,26 @@ const show = () => {
 function showPackConsumptionAllowed(): boolean {
   return injectPackCtxBool(ctx, 'canReportConsumption') && Boolean(props.line.material_item_id)
 }
+
+function showConsumptionOnLine(): boolean {
+  if (!isConsumable.value || !props.line.material_item_id) return false
+  const fn = ctx.showConsumableConsumptionForMaterial as ((id: string) => boolean) | undefined
+  if (fn) return fn(props.line.material_item_id)
+  return showPackConsumptionAllowed()
+}
 </script>
 
 <template>
   <PackConsumableQuickRow
-    v-if="show() && useInlineConsumption && line.material_item_id"
+    v-if="showPackLineActions() && useInlineConsumption && line.material_item_id"
     :material-item-id="line.material_item_id"
+    :show-consumption="showConsumptionOnLine()"
     compact
   />
-  <div v-else-if="show()" class="pack-container-line-issue-quick" @click.stop>
+  <div v-else-if="showPackLineActions()" class="pack-container-line-issue-quick" @click.stop>
     <template v-if="isConsumable">
       <button
+        v-if="showConsumptionOnLine()"
         type="button"
         class="btn-issue-quick btn-issue-consumed"
         @click="
@@ -84,6 +103,18 @@ function showPackConsumptionAllowed(): boolean {
         "
       >
         {{ t('activities.common.issueConsumed') }}
+      </button>
+      <button
+        v-if="showNachbuchung"
+        type="button"
+        class="btn-issue-quick btn-issue-nachbuchung"
+        @click="
+          (ctx.emitConsumableNachbuchungForMaterial as ((id: string) => void) | undefined)?.(
+            line.material_item_id!,
+          )
+        "
+      >
+        {{ t('activities.packList.consumableInlineNachbuchung') }}
       </button>
     </template>
     <template v-else>

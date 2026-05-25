@@ -657,6 +657,10 @@ class ActivityController extends AbstractController
         $data['can_submit_activity'] = $activity->isDraft()
             && $this->canUserSubmitActivityForApi($currentUser, $activity);
         $data['can_add_forgotten_material'] = $this->activityAccess->canUserAddMaterialBeforePacking($currentUser, $activity);
+        $data['can_request_consumable_replenishment'] = $this->activityAccess->canUserRequestConsumableReplenishment(
+            $currentUser,
+            $activity,
+        );
 
         return new JsonResponse($data);
     }
@@ -2077,14 +2081,18 @@ class ActivityController extends AbstractController
         if (!$currentUser instanceof User) {
             return new JsonResponse(['error' => 'Nicht authentifiziert'], 401);
         }
-        $deny = $this->assertCanAddActivityMaterialItem($currentUser, $activity);
-        if ($deny !== null) {
-            return $deny;
-        }
-
         $data = json_decode($request->getContent(), true);
         if (empty($data['material_item_id'])) {
             return new JsonResponse(['error' => 'material_item_id erforderlich'], 400);
+        }
+
+        $replenishment = filter_var($data['replenishment'] ?? false, FILTER_VALIDATE_BOOLEAN);
+
+        $deny = $replenishment
+            ? $this->assertCanRequestConsumableReplenishment($currentUser, $activity)
+            : $this->assertCanAddActivityMaterialItem($currentUser, $activity);
+        if ($deny !== null) {
+            return $deny;
         }
 
         $materialItem = $this->entityManager->getRepository(MaterialItem::class)
@@ -2095,8 +2103,6 @@ class ActivityController extends AbstractController
 
         try {
             $materialBefore = $this->aggregateActivityMaterials($id);
-
-            $replenishment = filter_var($data['replenishment'] ?? false, FILTER_VALIDATE_BOOLEAN);
 
             // Erste Zeile pro Material (Hauptbuchung vor Nachbuchungs-Zeilen) — es können mehrere activity_item-Zeilen existieren
             $existing = $this->primaryActivityItemForMaterial($id, (string) $data['material_item_id']);
@@ -3174,6 +3180,16 @@ class ActivityController extends AbstractController
         }
 
         return new JsonResponse(['error' => 'Keine Berechtigung zum Hinzufügen von Material'], 403);
+    }
+
+    /** Nachlieferung Verbrauchsmaterial (eigene activity_item-Zeile). */
+    private function assertCanRequestConsumableReplenishment(User $user, Activity $activity): ?JsonResponse
+    {
+        if ($this->activityAccess->canUserRequestConsumableReplenishment($user, $activity)) {
+            return null;
+        }
+
+        return new JsonResponse(['error' => 'Keine Berechtigung für Nachlieferung'], 403);
     }
 
     /**

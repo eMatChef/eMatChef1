@@ -8,6 +8,7 @@ import {
   applyCountedQtyToReview,
   applyGroupAutoResolution,
   defaultLineReview,
+  shellForwardExpectedQty,
   type ShellForwardCheckLine,
   type ShellForwardLineReview,
   type ShellForwardResolution,
@@ -71,7 +72,10 @@ export function buildPrefillLineReviewsFromSnapshot(
 
     const histStatus = String(h.status ?? 'ok').trim()
     const counted = countedQtyForDisplay(h)
-    const soll = Math.max(0, Math.floor(Number(h.expected_qty ?? line.quantity) || 0))
+    const soll = shellForwardExpectedQty(
+      line.isExtra,
+      Math.max(0, Math.floor(Number(h.expected_qty ?? line.quantity) || 0)),
+    )
     const missingQty = Math.max(0, Math.floor(Number(h.missing_qty ?? 0) || 0)) || null
     const replenishQty = Math.max(0, Math.floor(Number(h.replenish_qty ?? 0) || 0)) || null
     const note = String(h.note ?? '').trim()

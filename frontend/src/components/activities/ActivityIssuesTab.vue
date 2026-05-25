@@ -13,6 +13,9 @@
       </template>
     </ActivityTabHeader>
     <div class="section-card activity-tab-panel-card">
+      <p v-if="readOnlyHint" class="batch-field-hint activity-issues-readonly-hint">
+        {{ t('components.activityIssuesTab.readOnlyBeforeAtEvent') }}
+      </p>
       <p v-if="isLoading" class="activity-inline-loading">
         <span class="spinner spinner-sm"></span>
         <span>{{ t('components.activityIssuesTab.loading') }}</span>
@@ -61,6 +64,8 @@ const props = defineProps<{
   /** Parent erhöht nach erfolgreicher Meldung → Liste neu */
   reloadToken?: number
   canCreate: boolean
+  /** Meldungen einsehbar, neue Meldung erst ab «Am Event». */
+  readOnlyHint?: boolean
 }>()
 
 defineEmits<{

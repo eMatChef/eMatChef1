@@ -67,15 +67,28 @@ function normalizeCheckLeg(raw: unknown): string {
   return 'outbound'
 }
 
-/** Letzter Check pro Pack-Position und Etappe (outbound | return | warehouse_store). */
+export type CrateCheckHistoryEntry = {
+  action: string
+  created_at: string
+  changes?: Record<string, unknown>
+  user?: { id: string } | null
+}
+
+/** Letzter Check pro Pack-Position, Etappe und (optional) Benutzer. */
 export function indexLatestCrateCheckByPackItemAndLeg(
-  history: Array<{ action: string; created_at: string; changes?: Record<string, unknown> }>,
+  history: CrateCheckHistoryEntry[],
+  options?: { userId?: string | null },
 ): CrateCheckSnapshotByKey {
+  const filterUserId = (options?.userId ?? '').trim() || null
   const sorted = [...history]
     .filter((e) => e.action === 'pack_crate_check')
     .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
   const out: CrateCheckSnapshotByKey = {}
   for (const e of sorted) {
+    if (filterUserId) {
+      const entryUserId = (e.user?.id ?? '').trim()
+      if (entryUserId !== filterUserId) continue
+    }
     const pid = e.changes?.pack_item_id
     if (typeof pid !== 'string' || pid === '') continue
     const leg = normalizeCheckLeg(e.changes?.check_leg)
@@ -96,9 +109,10 @@ export function indexLatestCrateCheckByPackItemAndLeg(
 
 /** Abwärtskompatibel: ein Snapshot pro Pack-Item (neuester Check egal welche Etappe). */
 export function indexLatestCrateCheckByPackItemId(
-  history: Array<{ action: string; created_at: string; changes?: Record<string, unknown> }>,
+  history: CrateCheckHistoryEntry[],
+  options?: { userId?: string | null },
 ): Record<string, CrateCheckSnapshot> {
-  const byLeg = indexLatestCrateCheckByPackItemAndLeg(history)
+  const byLeg = indexLatestCrateCheckByPackItemAndLeg(history, options)
   const out: Record<string, CrateCheckSnapshot> = {}
   for (const [key, snap] of Object.entries(byLeg)) {
     const pid = key.split(':')[0] ?? ''

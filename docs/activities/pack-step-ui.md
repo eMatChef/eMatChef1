@@ -197,7 +197,7 @@ Beim Retour-Check einer Kiste (aus `ActivityPackListTab`) gilt getrennte UI pro 
 
 | Zeilentyp | UI | Buchung |
 |-----------|-----|---------|
-| **Verbrauchsmaterial** | Materialzeile, Hinweis «Verbrauch offen» / «Verbrauch erfasst», Button «Verbrauch buchen» — **keine** Checkbox, **kein** Retour-+/− | `ActivityConsumptionModal` via `emitConsumptionForMaterialId`; nach Erfolg `reloadToken` → `syncReturnCrateModalLines()` (Modal bleibt offen) |
+| **Verbrauchsmaterial** | Materialzeile, Hinweis «Verbrauch offen» / «Verbrauch erfasst», Button «Verbrauch buchen» — **keine** Checkbox, **kein** Retour-+/− | `ActivityConsumptionModal` via `emitConsumptionForMaterialId`; nach Erfolg `reloadToken` → `syncReturnCrateModalLines()` (Modal bleibt offen). **Camp/Event:** kein Inline-+/− und kein Auto-Modal beim Retour-Pfeil auf Transport-Stufen — nur Button. Inline-Quick nur Quick-Profil «Am Event → Retour». |
 | **Übriges Material** | Checkbox, Retour-Menge (+/−), bei Differenz Verlust/Reparatur (Wizard mit Vorfüll-Menge) | Retour über Primary «Retour buchen» |
 
 **Submit-Regel:** «Retour buchen» ist deaktiviert, solange Verbrauchszeilen mit offenem Verbrauch (`consumptionOpen > 0`) existieren. Nicht-Verbrauch und Shell-Retour unverändert über `onReturnCrateModalSubmit` / `continueReturnCrateBatch`.

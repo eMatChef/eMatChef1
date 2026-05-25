@@ -286,7 +286,7 @@ function moveShellCrateForward(qtyFromControl?: number) {
           true
         "
         separate-section-rows
-        :default-expanded="innerVisible"
+        :default-expanded="false"
         @toggle-reality-view="
           (ctx.toggleCrateRealityView as ((p: ActivityPackItem) => void) | undefined)?.(shellPackItem)
         "

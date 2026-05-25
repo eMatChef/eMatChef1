@@ -90,7 +90,10 @@
               }}
             </p>
           </div>
-          <p v-if="departmentId && materialItemId" class="nachbuchung-hint text-muted">
+          <p
+            v-if="showWarehouseMaterialHint && departmentId && materialItemId"
+            class="nachbuchung-hint text-muted"
+          >
             {{ t('components.activityNachbuchungModal.hintWarehouse') }}
             <router-link class="nachbuchung-link" :to="materialDetailPath">{{
               t('components.activityNachbuchungModal.openMaterial')
@@ -128,6 +131,8 @@ const props = defineProps<{
   /** Stück pro Verpackung (Bündel, Kiste, Set …); optional */
   packSize?: number | null
   packUnit?: string | null
+  /** MW/DC: Hinweis Lager/Charge — für Gruppe/Ersteller ausblenden */
+  showWarehouseMaterialHint?: boolean
 }>()
 
 const emit = defineEmits<{

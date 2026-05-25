@@ -36,7 +36,9 @@
               <span v-if="remainingQty(row.material_item_id) > 0" class="consumable-remaining text-muted">
                 {{ t('activities.consumables.remaining', { n: remainingQty(row.material_item_id) }) }}
               </span>
-              <span v-else class="consumable-remaining consumable-remaining--zero">{{ t('activities.consumables.noConsumptionLeft') }}</span>
+              <span v-else class="consumable-remaining consumable-remaining--zero">
+                {{ t('activities.consumables.remainingZero') }}
+              </span>
             </div>
             <div v-if="remainingQty(row.material_item_id) > 0" class="consumable-actions">
               <div class="consumable-qty-row">
@@ -77,7 +79,7 @@
               </button>
             </div>
             <div v-else class="consumable-actions consumable-actions--blocked">
-              <template v-if="canAddActivityMaterial">
+              <template v-if="canRequestNachbuchung">
                 <p class="consumable-blocked-hint text-muted">
                   {{ t('activities.consumables.blockedHintWithNachbuchung') }}
                 </p>
@@ -114,7 +116,7 @@
               </button>
             </div>
             <div
-              v-if="canAddActivityMaterial"
+              v-if="canRequestNachbuchung && remainingQty(row.material_item_id) > 0"
               class="consumable-nachlieferung"
             >
               <button type="button" class="link-btn" @click="emitNachbuchung(row)">
@@ -231,6 +233,8 @@ const props = defineProps<{
   canCreate: boolean
   /** Materialwart / DC: addActivityItem */
   canAddActivityMaterial?: boolean
+  /** Nachlieferung Verbrauchsmaterial (Gruppe/Ersteller ab «Am Event» oder MW/DC) */
+  canRequestConsumableReplenishment?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -287,8 +291,13 @@ function formatLineAmount(row: { material_item_id: string; sale_price: number | 
 
 const releasingId = ref<string | null>(null)
 
+const canRequestNachbuchung = computed(
+  () =>
+    Boolean(props.canRequestConsumableReplenishment) || Boolean(props.canAddActivityMaterial),
+)
+
 const canManageConsumptionEntries = computed(
-  () => props.canCreate || Boolean(props.canAddActivityMaterial),
+  () => props.canCreate || canRequestNachbuchung.value,
 )
 
 const consumptionReports = computed(() => issues.value.filter((i) => i.type === 'consumption'))

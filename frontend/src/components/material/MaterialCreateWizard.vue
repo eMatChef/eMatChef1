@@ -2016,6 +2016,34 @@
                   </div>
                 </div>
 
+                <!-- Packmaß (Verpackungseinheit) -->
+                <div class="details-subsection">
+                  <h4 class="subsection-title">{{ t('components.materialDetail.sectionPackDimensions') }}</h4>
+                  <p class="step-hint">{{ t('components.materialDetail.packDimensionsHint') }}</p>
+                  <div class="form-grid-details">
+                    <MaterialMetricInput
+                      v-model="formData.pack_weight"
+                      :label="t('components.materialDetail.labelPackWeightKg')"
+                      unit="kg"
+                    />
+                    <MaterialMetricInput
+                      v-model="formData.pack_size_length"
+                      :label="t('components.materialDetail.labelPackLengthCm')"
+                      unit="cm"
+                    />
+                    <MaterialMetricInput
+                      v-model="formData.pack_size_width"
+                      :label="t('components.materialDetail.labelPackWidthCm')"
+                      unit="cm"
+                    />
+                    <MaterialMetricInput
+                      v-model="formData.pack_size_height"
+                      :label="t('components.materialDetail.labelPackHeightCm')"
+                      unit="cm"
+                    />
+                  </div>
+                </div>
+
                 <!-- Kosten (Verbrauch / Esswaren): Preise, Verpackung, Preis pro VE -->
                 <div v-if="formData.is_consumable || formData.is_food" class="details-subsection">
                   <h4 class="subsection-title">{{ t('components.materialDetail.sectionCosts') }}</h4>
@@ -2770,6 +2798,10 @@ const formData = reactive({
   pack_size: null as number | null,
   pack_unit: '' as string,
   pack_sale_price_chf: null as number | null,
+  pack_weight: '' as string,
+  pack_size_length: '' as string,
+  pack_size_width: '' as string,
+  pack_size_height: '' as string,
   initial_qty: 0,
   purchase_date: getTodayIso(),
   expiry_date: '',
@@ -3792,6 +3824,10 @@ function resetForm() {
   formData.pack_size = null
   formData.pack_unit = ''
   formData.pack_sale_price_chf = null
+  formData.pack_weight = ''
+  formData.pack_size_length = ''
+  formData.pack_size_width = ''
+  formData.pack_size_height = ''
   formData.initial_qty = 0
   formData.purchase_date = getTodayIso()
   formData.expiry_date = ''
@@ -5343,6 +5379,10 @@ async function handleSubmit() {
         size_width: normalizeMaterialMetricInput(formData.size_width, 'cm'),
         size_height: normalizeMaterialMetricInput(formData.size_height, 'cm'),
         warranty_until: formData.warranty_until || null,
+        pack_weight: normalizeMaterialMetricInput(formData.pack_weight, 'kg'),
+        pack_size_length: normalizeMaterialMetricInput(formData.pack_size_length, 'cm'),
+        pack_size_width: normalizeMaterialMetricInput(formData.pack_size_width, 'cm'),
+        pack_size_height: normalizeMaterialMetricInput(formData.pack_size_height, 'cm'),
         rental_price_day: formData.rental_price_day || null,
         rental_price_week: formData.rental_price_week || null,
         rental_price_month: formData.rental_price_month || null,
@@ -5479,6 +5519,10 @@ async function handleSubmit() {
           formData.pack_sale_price_chf != null && formData.pack_sale_price_chf > 0
             ? String(formData.pack_sale_price_chf)
             : null,
+        pack_weight: normalizeMaterialMetricInput(formData.pack_weight, 'kg'),
+        pack_size_length: normalizeMaterialMetricInput(formData.pack_size_length, 'cm'),
+        pack_size_width: normalizeMaterialMetricInput(formData.pack_size_width, 'cm'),
+        pack_size_height: normalizeMaterialMetricInput(formData.pack_size_height, 'cm'),
         initial_acquired_on: formData.purchase_date,
         initial_expiry_date: expiryDatePayload,
         initial_unit_price: formData.unit_price > 0 ? String(formData.unit_price) : undefined,

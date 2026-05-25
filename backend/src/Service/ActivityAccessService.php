@@ -551,6 +551,24 @@ class ActivityAccessService
     }
 
     /**
+     * Verbrauchsmaterial-Nachlieferung (POST items mit replenishment): MW/DC oder Gruppe/Ersteller ab «Am Event».
+     */
+    public function canUserRequestConsumableReplenishment(User $user, Activity $activity): bool
+    {
+        if (!\in_array($activity->getStatus(), [Activity::STATUS_AT_EVENT, Activity::STATUS_RETURNED], true)) {
+            return false;
+        }
+        if (!$activity->canReportIssues()) {
+            return false;
+        }
+        if ($this->canHostMwOrDcEditActivityMaterialAfterDraft($user, $activity)) {
+            return true;
+        }
+
+        return $this->canUserOperateActivityPackHandoff($user, $activity);
+    }
+
+    /**
      * Typ «activity», «camp», «event»: Ersteller oder Gruppenmitglied (bis Leader) darf
      * ab «gepackt» Material in der Pack-Pipeline bewegen (bis Retour gemeldet).
      */

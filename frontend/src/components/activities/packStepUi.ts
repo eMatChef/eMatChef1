@@ -1,6 +1,7 @@
 import {
   isPackConfirmedStage,
   isPackForwardToEventStage,
+  isPackReturnPipelineStage,
   isPackReturnStage,
   isPackUnpackStage,
   type PackStage,
@@ -73,7 +74,18 @@ export const PACK_CRATE_SECTION_RETURN_AT_EVENT_LEFT: PackCrateSectionPreset = {
   cardMode: 'at_event_return',
 }
 
-/** Rechtes Spiegel-Panel — Bereits ans Event (Gepackt → Am Event). */
+/** Rechtes Spiegel-Panel — Bereits transportiert (Gepackt → Transport hin). */
+export const PACK_MIRROR_SECTION_TRANSPORT_TO_DONE: PackMirrorSectionPreset = {
+  sectionClass: 'pack-workflow-section--transport-to-mirror',
+  titleKey: 'activities.packList.sectionAlreadyTransportTo',
+  cratesAriaKey: 'activities.packList.ariaContainersTransportToMirror',
+  looseSectionClass: 'pack-workflow-section--transport-to-loose',
+  looseTitleKey: 'activities.packList.sectionLoose',
+  cardMode: 'warehouse_issue_mirror',
+  containerDomIdPrefix: 'pack-container-transport-to-',
+}
+
+/** Rechtes Spiegel-Panel — Bereits ans Event (Transport → Am Event / Gepackt → Am Event). */
 export const PACK_MIRROR_SECTION_FORWARD_AT_EVENT: PackMirrorSectionPreset = {
   sectionClass: 'pack-workflow-section--at-event',
   titleKey: 'activities.packList.sectionAlreadyAtEvent',
@@ -83,6 +95,17 @@ export const PACK_MIRROR_SECTION_FORWARD_AT_EVENT: PackMirrorSectionPreset = {
   looseTitleKey: 'activities.packList.sectionLoose',
   cardMode: 'warehouse_issue_mirror',
   containerDomIdPrefix: 'pack-container-at-event-',
+}
+
+/** Rechtes Spiegel-Panel — Bereits Retour-Transport (Anlass → Transport zurück). */
+export const PACK_MIRROR_SECTION_TRANSPORT_BACK_DONE: PackMirrorSectionPreset = {
+  sectionClass: 'pack-workflow-section--transport-back',
+  titleKey: 'activities.packList.sectionAlreadyTransportBack',
+  cratesAriaKey: 'activities.packList.ariaContainersTransportBackMirror',
+  looseSectionClass: 'pack-workflow-section--transport-back-loose',
+  looseTitleKey: 'activities.packList.sectionLoose',
+  cardMode: 'at_event_return_mirror',
+  containerDomIdPrefix: 'pack-container-transport-back-',
 }
 
 /** Linkes Kisten-Panel — Retour → Ausgepackt (MW: retournierte Kisten noch einräumen). */
@@ -119,7 +142,7 @@ export const PACK_MIRROR_SECTION_RETURN_DONE: PackMirrorSectionPreset = {
 
 export function packCrateSectionPresetForLeft(stage: PackStage): PackCrateSectionPreset | null {
   if (isPackForwardToEventStage(stage)) return PACK_CRATE_SECTION_FORWARD_WAREHOUSE_LEFT
-  if (isPackReturnStage(stage)) return PACK_CRATE_SECTION_RETURN_AT_EVENT_LEFT
+  if (isPackReturnPipelineStage(stage)) return PACK_CRATE_SECTION_RETURN_AT_EVENT_LEFT
   if (isPackUnpackStage(stage)) return PACK_CRATE_SECTION_UNPACK_WAREHOUSE_LEFT
   return null
 }
@@ -131,7 +154,12 @@ export function packCrateSectionPresetForRight(stage: PackStage): PackCrateSecti
 
 export function packMirrorSectionPresetForRight(stage: PackStage): PackMirrorSectionPreset | null {
   if (isPackConfirmedStage(stage)) return PACK_MIRROR_SECTION_CONFIRMED_PACKED_LOOSE
+  if (stage === 'packed_transport_to') return PACK_MIRROR_SECTION_TRANSPORT_TO_DONE
+  if (stage === 'transport_to_at_event' || stage === 'packed_at_event') {
+    return PACK_MIRROR_SECTION_FORWARD_AT_EVENT
+  }
   if (isPackForwardToEventStage(stage)) return PACK_MIRROR_SECTION_FORWARD_AT_EVENT
+  if (stage === 'at_event_transport_back') return PACK_MIRROR_SECTION_TRANSPORT_BACK_DONE
   if (isPackReturnStage(stage)) return PACK_MIRROR_SECTION_RETURN_DONE
   if (isPackUnpackStage(stage)) return PACK_MIRROR_SECTION_UNPACK_STORED
   return null

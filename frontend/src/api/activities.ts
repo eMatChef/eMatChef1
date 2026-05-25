@@ -89,6 +89,8 @@ export interface ActivityDetail extends ActivityCreatedResponse {
   can_edit_activity_material?: boolean
   /** submitted/approved: u–l3 dürfen noch Material ergänzen (vor «Annehmen & Packen») */
   can_add_forgotten_material?: boolean
+  /** Ab «Am Event»: Gruppe/Ersteller oder MW/DC — Nachlieferung Verbrauchsmaterial */
+  can_request_consumable_replenishment?: boolean
   /** Nach Einreichung: Host-MW/DC dürfen Texte/Stammdaten per PATCH ändern */
   can_edit_submitted_activity_content?: boolean
   /** Im Entwurf: darf User «Einreichen» (typabhängig — API) */

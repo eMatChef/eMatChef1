@@ -60,7 +60,8 @@ function stepCounted(delta: number) {
     <div class="pack-crate-shell-check-line__main pack-shell-forward-li-meta">
       <div class="pack-shell-forward-li-name">{{ materialName }}</div>
       <div class="pack-shell-forward-li-sub text-muted">
-        <span>{{ t('activities.packList.shellForwardExpectedQty', { n: expectedQty }) }}</span>
+        <span v-if="!isExtra">{{ t('activities.packList.shellForwardExpectedQty', { n: expectedQty }) }}</span>
+        <span v-else>{{ t('activities.packList.shellForwardExtraCountOnly') }}</span>
         <span
           v-if="serialHint"
           class="pack-shell-forward-li-serial"

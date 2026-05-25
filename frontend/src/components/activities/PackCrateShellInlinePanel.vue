@@ -3,7 +3,7 @@ import { computed, inject, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import PackCrateShellCheckLineActions from '@/components/activities/PackCrateShellCheckLineActions.vue'
 import PackShellInlineLooseIssueRow from '@/components/activities/PackShellInlineLooseIssueRow.vue'
-import { shellForwardLineKey } from '@/components/activities/packCrateForwardCheck'
+import { shellForwardExpectedQty, shellForwardLineKey } from '@/components/activities/packCrateForwardCheck'
 import { PACK_WAREHOUSE_ISSUE_INJECT_KEY } from '@/components/activities/packWarehouseIssueInjectKey'
 import type { ActivityPackItem } from '@/api/activityPackItems'
 
@@ -97,7 +97,7 @@ function reviewForLine(subsectionKey: string, line: PackCrateShellPeekLine) {
     | ((packItemId: string, key: string, expectedQty: number) => unknown)
     | undefined
   const key = lineCheckKey(subsectionKey, line.id)
-  const expected = line.quantity
+  const expected = shellForwardExpectedQty(subsectionKey === 'extra', line.quantity)
   if (!pi || !fn) return { countedQty: expected, status: null }
   return fn(pi.id, key, expected) as import('@/components/activities/packCrateForwardCheck').ShellForwardLineReview
 }
@@ -123,9 +123,13 @@ function onCountedChange(subsectionKey: string, line: PackCrateShellPeekLine, ra
       ) => void)
     | undefined
   if (!pi || !fn) return
-  fn(pi.id, lineCheckKey(subsectionKey, line.id), line.quantity, subsectionKey === 'extra', {
-    countedQty: raw,
-  })
+  fn(
+    pi.id,
+    lineCheckKey(subsectionKey, line.id),
+    shellForwardExpectedQty(subsectionKey === 'extra', line.quantity),
+    subsectionKey === 'extra',
+    { countedQty: raw },
+  )
 }
 
 function onLineOk(subsectionKey: string, line: PackCrateShellPeekLine) {
@@ -134,7 +138,12 @@ function onLineOk(subsectionKey: string, line: PackCrateShellPeekLine) {
     | ((packItemId: string, key: string, expectedQty: number, isExtra: boolean) => void)
     | undefined
   if (!pi || !fn) return
-  fn(pi.id, lineCheckKey(subsectionKey, line.id), line.quantity, subsectionKey === 'extra')
+  fn(
+    pi.id,
+    lineCheckKey(subsectionKey, line.id),
+    shellForwardExpectedQty(subsectionKey === 'extra', line.quantity),
+    subsectionKey === 'extra',
+  )
 }
 
 /** Pro Unterabschnitt (extra / fixed / all): true = aufgeklappt */
@@ -190,6 +199,7 @@ function subCollapseKey(subsectionKey: string): string {
 }
 
 function defaultSubCollapsed(subsectionKey: string): boolean {
+  if (!props.defaultExpanded) return true
   if (totalLines.value <= 1) return false
   if (subsectionKey === 'fixed') return true
   if (subsectionKey === 'extra') return false
@@ -286,7 +296,10 @@ watch(
                 >
                   {{ t('activities.packList.shellForwardSerialSn', { serial: line.serialHint }) }}
                 </span>
-                <span class="pack-combo-crate-inline__qty text-muted">
+                <span v-if="sec.subsectionKey === 'extra'" class="pack-combo-crate-inline__qty text-muted">
+                  {{ t('activities.packList.shellForwardExtraCountOnly') }}
+                </span>
+                <span v-else class="pack-combo-crate-inline__qty text-muted">
                   {{ line.quantity }}×
                   <span
                     v-if="line.sollQty != null && line.sollQty !== line.quantity"
@@ -322,11 +335,11 @@ watch(
               <PackCrateShellCheckLineActions
                 v-if="interactiveShellCheck"
                 :material-name="line.materialName"
-                :expected-qty="line.quantity"
+                :expected-qty="sec.subsectionKey === 'extra' ? 0 : line.quantity"
                 :serial-hint="line.serialHint"
                 :review="reviewForLine(sec.subsectionKey, line)"
                 :is-extra="sec.subsectionKey === 'extra'"
-                :minus-disabled="historyReplenishForLine(sec.subsectionKey, line.id) || sec.subsectionKey === 'extra'"
+                :minus-disabled="historyReplenishForLine(sec.subsectionKey, line.id)"
                 :plus-disabled="historyReplenishForLine(sec.subsectionKey, line.id)"
                 :input-disabled="historyReplenishForLine(sec.subsectionKey, line.id)"
                 :check-disabled="historyReplenishForLine(sec.subsectionKey, line.id)"
@@ -422,11 +435,11 @@ watch(
               <PackCrateShellCheckLineActions
                 v-if="interactiveShellCheck"
                 :material-name="line.materialName"
-                :expected-qty="line.quantity"
+                :expected-qty="sec.subsectionKey === 'extra' ? 0 : line.quantity"
                 :serial-hint="line.serialHint"
                 :review="reviewForLine(sec.subsectionKey, line)"
                 :is-extra="sec.subsectionKey === 'extra'"
-                :minus-disabled="historyReplenishForLine(sec.subsectionKey, line.id) || sec.subsectionKey === 'extra'"
+                :minus-disabled="historyReplenishForLine(sec.subsectionKey, line.id)"
                 :plus-disabled="historyReplenishForLine(sec.subsectionKey, line.id)"
                 :input-disabled="historyReplenishForLine(sec.subsectionKey, line.id)"
                 :check-disabled="historyReplenishForLine(sec.subsectionKey, line.id)"

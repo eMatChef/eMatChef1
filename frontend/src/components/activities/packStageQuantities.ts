@@ -100,9 +100,81 @@ export function isPackForwardToEventStage(stage: PackStage): boolean {
   )
 }
 
+/**
+ * Pack-Tab, auf dem der Aktivitäts-Status «Am Event» gesetzt werden darf
+ * (Quick: Gepackt→Am Event; Camp/Event: nur Transport→Am Event).
+ */
+export function isPackWorkflowStatusToEventStage(
+  stage: PackStage,
+  profile: PackWorkflowProfile,
+): boolean {
+  if (profile === 'logistics') {
+    return stage === 'transport_to_at_event'
+  }
+  return stage === 'packed_at_event'
+}
+
+/**
+ * Pack-Tab, auf dem der Aktivitäts-Status «Retour» gesetzt werden darf
+ * (Quick: Am Event→Retour; Camp/Event: nur Transport (zurück)→Retour).
+ */
+export function isPackWorkflowStatusToReturnedStage(
+  stage: PackStage,
+  profile: PackWorkflowProfile,
+): boolean {
+  if (profile === 'logistics') {
+    return stage === 'transport_back_returned'
+  }
+  return stage === 'at_event_returned'
+}
+
+/**
+ * Vorheriger Aktivitäts-Status für «Status zurück» (MW).
+ * Camp/Event: kein Sprung «Am Event»→«Gepackt» — Transport-Stufen nur über Pack-Tabs (←).
+ */
+export function activityStatusRevertTarget(
+  status: string,
+  profile: PackWorkflowProfile,
+): string | null {
+  if (status === 'packed') return 'packing'
+  if (status === 'at_event') {
+    if (profile === 'logistics') return null
+    return 'packed'
+  }
+  if (status === 'returned') return 'at_event'
+  return null
+}
+
+/** Pack-Tab, auf dem «Retour»→«Am Event» (Status zurück) erlaubt ist — Spiegel zu isPackWorkflowStatusToReturnedStage. */
+export function isPackWorkflowRevertFromReturnedStage(
+  stage: PackStage,
+  profile: PackWorkflowProfile,
+): boolean {
+  return isPackWorkflowStatusToReturnedStage(stage, profile)
+}
+
 /** Retour-Stufe (Event → Lager) */
 export function isPackReturnStage(stage: PackStage): boolean {
   return stage === 'at_event_returned' || stage === 'transport_back_returned'
+}
+
+/** Logistics: Retour-Transport vor «Retour eingetroffen» */
+export function isPackLogisticsReturnStage(stage: PackStage): boolean {
+  return stage === 'at_event_transport_back' || stage === 'transport_back_returned'
+}
+
+/** Alle UI-Stufen Hinweg-Retour inkl. Transport (Camp/Event) */
+export function isPackReturnPipelineStage(stage: PackStage): boolean {
+  return isPackReturnStage(stage) || stage === 'at_event_transport_back'
+}
+
+/** Rechtes Spiegel-Panel: bereits in dieser Pipeline-Stufe gebucht */
+export function isPackForwardMirrorStage(stage: PackStage): boolean {
+  return isPackForwardToEventStage(stage)
+}
+
+export function isPackReturnMirrorStage(stage: PackStage): boolean {
+  return isPackReturnPipelineStage(stage)
 }
 
 /**
@@ -238,7 +310,7 @@ export function isPackUnpackStage(stage: PackStage): boolean {
 
 /** Retour erfassen (Gruppe) oder Ausgepackt (MW: wieder ins Lager) */
 export function isPackReturnOrUnpackWarehouseStage(stage: PackStage): boolean {
-  return isPackReturnStage(stage) || isPackUnpackStage(stage)
+  return isPackReturnPipelineStage(stage) || isPackUnpackStage(stage)
 }
 
 export function getBackendStage(stage: PackStage): PackMoveStage {
@@ -265,13 +337,14 @@ export function getBackendStage(stage: PackStage): PackMoveStage {
 export function workflowTargetStatusForStage(
   stage: PackStage,
   activityStatus: string,
+  profile: PackWorkflowProfile = 'logistics',
 ): string | null {
   const s = activityStatus
   if (stage === 'confirmed_packed') return 'packed'
   if (stage === 'returned_unpack' && s === 'returned') return 'completed'
-  if (isPackForwardToEventStage(stage)) return 'at_event'
-  if (isPackReturnStage(stage)) {
-    if (s === 'at_event') return 'returned'
+  if (isPackWorkflowStatusToEventStage(stage, profile)) return 'at_event'
+  if (isPackWorkflowStatusToReturnedStage(stage, profile) && s === 'at_event') {
+    return 'returned'
   }
   return null
 }

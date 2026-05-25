@@ -38,7 +38,13 @@ export function isNonActionableContainerLine(ci: { id: string }): boolean {
 export function packShellContainerForPackItem(
   pi: ActivityPackItem,
   packContainers: ActivityPackContainer[],
+  virtualContainerIdByPackItemId?: Record<string, string>,
 ): ActivityPackContainer | undefined {
+  const virtualId = (virtualContainerIdByPackItemId?.[pi.id] ?? '').trim()
+  if (virtualId) {
+    const virtual = packContainers.find((c) => c.id === virtualId)
+    if (virtual) return virtual
+  }
   const mid = pi.materialItemId
   const linkBatch = (pi.linkedContainerBatchId ?? '').trim()
   for (const c of packContainers) {
@@ -48,11 +54,27 @@ export function packShellContainerForPackItem(
   return undefined
 }
 
+/** Phys.-Kombi-Kiste: nicht zusätzlich als «lose» Stück in Transport/Event-Spalten. */
+export function crateShellExcludedFromLooseForwardList(
+  pi: ActivityPackItem,
+  packContainers: ActivityPackContainer[],
+  isForwardToEventStage: boolean,
+  virtualContainerIdByPackItemId?: Record<string, string>,
+  activePackStage?: string,
+): boolean {
+  if (!isForwardToEventStage) return false
+  /** Transport (hin): Shell-Zeile links (Kistencheck / Ganzes verschieben), nicht lose duplizieren */
+  if (activePackStage === 'packed_transport_to') return false
+  if (!isCrateShellPackItem(pi, packContainers, virtualContainerIdByPackItemId)) return false
+  return packShellContainerForPackItem(pi, packContainers, virtualContainerIdByPackItemId) != null
+}
+
 export function isCrateShellPackItem(
   pi: ActivityPackItem,
   packContainers: ActivityPackContainer[],
+  virtualContainerIdByPackItemId?: Record<string, string>,
 ): boolean {
-  if (packShellContainerForPackItem(pi, packContainers) != null) return true
+  if (packShellContainerForPackItem(pi, packContainers, virtualContainerIdByPackItemId) != null) return true
   if (pi.materialType !== 'physical_combo') return false
   if ((pi.linkedContainerLabel ?? '').trim() !== '') return true
   if ((pi.linkedContainerBatchId ?? '').trim() !== '') return true
@@ -63,10 +85,11 @@ export function isCrateShellPackItem(
 export function isPhysicalComboAsSet(
   pi: ActivityPackItem,
   packContainers: ActivityPackContainer[],
+  virtualContainerIdByPackItemId?: Record<string, string>,
 ): boolean {
   if (pi.materialType !== 'physical_combo') return false
   if ((pi.linkedContainerBatchId ?? '').trim() !== '') return false
-  return packShellContainerForPackItem(pi, packContainers) == null
+  return packShellContainerForPackItem(pi, packContainers, virtualContainerIdByPackItemId) == null
 }
 
 /**
@@ -75,13 +98,14 @@ export function isPhysicalComboAsSet(
 export function linkedShellCombosNeedingPackContainer(
   packItems: ActivityPackItem[],
   packContainers: ActivityPackContainer[],
+  virtualContainerIdByPackItemId?: Record<string, string>,
 ): ActivityPackItem[] {
   return packItems.filter(
     (pi) =>
       pi.materialType === 'physical_combo' &&
       (pi.linkedContainerBatchId ?? '').trim() !== '' &&
-      !isPhysicalComboAsSet(pi, packContainers) &&
-      packShellContainerForPackItem(pi, packContainers) == null,
+      !isPhysicalComboAsSet(pi, packContainers, virtualContainerIdByPackItemId) &&
+      packShellContainerForPackItem(pi, packContainers, virtualContainerIdByPackItemId) == null,
   )
 }
 
@@ -606,7 +630,15 @@ export function isPackContainerMergedIntoStageLeftRow(
   packContainers: ActivityPackContainer[],
   stageLeftItems: ActivityPackItem[],
   activePackStage: string,
+  getLeftQty?: (p: ActivityPackItem) => number,
 ): boolean {
+  /** Camp/Event: Kiste links immer sichtbar; Shell ggf. als eigene Zeile oben */
+  if (
+    activePackStage === 'packed_transport_to' ||
+    activePackStage === 'transport_to_at_event'
+  ) {
+    return false
+  }
   if (
     activePackStage !== 'packed_at_event' &&
     activePackStage !== 'packed_transport_to' &&
@@ -614,10 +646,11 @@ export function isPackContainerMergedIntoStageLeftRow(
   ) {
     return false
   }
+  const leftQty = getLeftQty ?? getStageLeftQtyForFilter
   for (const p of stageLeftItems) {
     if (!isCrateShellPackItem(p, packContainers)) continue
     const shellC = packShellContainerForPackItem(p, packContainers)
-    if (shellC?.id === c.id && getStageLeftQtyForFilter(p) > 0) return true
+    if (shellC?.id === c.id && leftQty(p) > 0) return true
   }
   return false
 }

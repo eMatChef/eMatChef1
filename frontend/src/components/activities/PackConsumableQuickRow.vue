@@ -13,6 +13,8 @@ const props = defineProps<{
   materialItemId: string
   /** Kompakter Modus in Kistenzeilen */
   compact?: boolean
+  /** Verbrauch buchen (ohne Nachlieferung-only-Zeile) */
+  showConsumption?: boolean
 }>()
 
 const { t } = useI18n()
@@ -34,7 +36,13 @@ const posting = computed(() => {
   return current === props.materialItemId
 })
 
-const canNachbuchung = computed(() => injectPackCtxBool(ctx, 'canRequestConsumableNachbuchung'))
+const showNachbuchung = computed(() => {
+  const fn = ctx.showConsumableNachbuchungForMaterial as ((id: string) => boolean) | undefined
+  if (fn) return fn(props.materialItemId)
+  return injectPackCtxBool(ctx, 'canRequestConsumableNachbuchung')
+})
+
+const showConsumptionControls = computed(() => props.showConsumption !== false)
 
 function setQty(next: number) {
   const fn = ctx.setConsumableInlineQty as ((id: string, qty: number) => void) | undefined
@@ -63,10 +71,10 @@ function onNachbuchung() {
     :class="{ 'pack-consumable-quick-row--compact': compact }"
     @click.stop
   >
-    <span v-if="!compact" class="pack-consumable-quick-row__label text-muted">
+    <span v-if="!compact && showConsumptionControls" class="pack-consumable-quick-row__label text-muted">
       {{ t('activities.packList.consumableInlineLabel') }}
     </span>
-    <div class="pack-consumable-quick-row__actions consumable-qty-row">
+    <div v-if="showConsumptionControls" class="pack-consumable-quick-row__actions consumable-qty-row">
       <button
         type="button"
         class="btn-qty"
@@ -104,7 +112,7 @@ function onNachbuchung() {
       />
     </div>
     <button
-      v-if="canNachbuchung"
+      v-if="showNachbuchung"
       type="button"
       class="btn btn-xs btn-outline pack-consumable-quick-row__nachbuchung"
       :disabled="posting"

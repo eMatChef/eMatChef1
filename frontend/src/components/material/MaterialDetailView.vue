@@ -321,6 +321,33 @@
               </p>
             </div>
 
+            <div v-if="!material.is_consumable && !material.is_food" class="section-card">
+              <h2 class="section-title">{{ t('components.materialDetail.sectionPackDimensions') }}</h2>
+              <p class="section-hint">{{ t('components.materialDetail.packDimensionsHint') }}</p>
+              <div class="form-grid">
+                <MaterialMetricInput
+                  v-model="formData.pack_weight"
+                  :label="t('components.materialDetail.labelPackWeightKg')"
+                  unit="kg"
+                />
+                <MaterialMetricInput
+                  v-model="formData.pack_size_length"
+                  :label="t('components.materialDetail.labelPackLengthCm')"
+                  unit="cm"
+                />
+                <MaterialMetricInput
+                  v-model="formData.pack_size_width"
+                  :label="t('components.materialDetail.labelPackWidthCm')"
+                  unit="cm"
+                />
+                <MaterialMetricInput
+                  v-model="formData.pack_size_height"
+                  :label="t('components.materialDetail.labelPackHeightCm')"
+                  unit="cm"
+                />
+              </div>
+            </div>
+
             <div v-if="material.is_consumable || material.is_food" class="section-card">
               <h2 class="section-title">{{ t('components.materialDetail.sectionCosts') }}</h2>
               <p class="section-hint">{{ t('components.materialDetail.costsHint') }}</p>
@@ -441,6 +468,31 @@
                 {{ t('components.materialDetail.packPreview', { stock: material.total_stock || 0, packs: Math.floor((material.total_stock || 0) / formData.pack_size), unit: formData.pack_unit, per: formData.pack_size }) }}
                 <span v-if="(material.total_stock || 0) % formData.pack_size !== 0">{{ t('components.materialDetail.packPreviewRemain', { rem: (material.total_stock || 0) % formData.pack_size }) }}</span>
               </p>
+
+              <h3 class="subsection-heading-kosten">{{ t('components.materialDetail.sectionPackDimensions') }}</h3>
+              <p class="section-hint">{{ t('components.materialDetail.packDimensionsHint') }}</p>
+              <div class="form-grid">
+                <MaterialMetricInput
+                  v-model="formData.pack_weight"
+                  :label="t('components.materialDetail.labelPackWeightKg')"
+                  unit="kg"
+                />
+                <MaterialMetricInput
+                  v-model="formData.pack_size_length"
+                  :label="t('components.materialDetail.labelPackLengthCm')"
+                  unit="cm"
+                />
+                <MaterialMetricInput
+                  v-model="formData.pack_size_width"
+                  :label="t('components.materialDetail.labelPackWidthCm')"
+                  unit="cm"
+                />
+                <MaterialMetricInput
+                  v-model="formData.pack_size_height"
+                  :label="t('components.materialDetail.labelPackHeightCm')"
+                  unit="cm"
+                />
+              </div>
             </div>
           </section>
 
@@ -2058,12 +2110,15 @@
           <input
             v-model.number="addCompositionQty"
             type="number"
-            min="1"
+            :min="addCompositionOptional ? 0 : 1"
             :max="addCompositionStockCap ?? undefined"
             class="form-input"
             @input="clampAddCompositionQty"
             @blur="clampAddCompositionQty"
           />
+          <p v-if="addCompositionOptional" class="batch-field-hint">
+            {{ t('components.materialDetail.hintOptionalQtyZero') }}
+          </p>
           <p v-if="addCompositionStockCap !== null && addCompositionStockCap > 0" class="batch-field-hint">
             {{ t('components.materialDetail.hintMaxQty', { n: addCompositionStockCap }) }}
           </p>
@@ -2109,7 +2164,7 @@
         </div>
         <div v-if="addCompositionSelected" class="form-group">
           <label class="checkbox-label">
-            <input v-model="addCompositionOptional" type="checkbox" />
+            <input v-model="addCompositionOptional" type="checkbox" @change="clampAddCompositionQty" />
             {{ t('components.materialDetail.labelOptionalForCombo') }}
           </label>
         </div>
@@ -2154,12 +2209,15 @@
           <input
             v-model.number="editCompositionQty"
             type="number"
-            min="1"
+            :min="editCompositionOptional ? 0 : 1"
             :max="editCompositionStockCap ?? undefined"
             class="form-input"
             @input="clampEditCompositionQty"
             @blur="clampEditCompositionQty"
           />
+          <p v-if="editCompositionOptional" class="batch-field-hint">
+            {{ t('components.materialDetail.hintOptionalQtyZero') }}
+          </p>
           <p v-if="editCompositionStockCap !== null && editCompositionStockCap > 0" class="batch-field-hint">
             {{ t('components.materialDetail.hintMaxQty', { n: editCompositionStockCap }) }}
           </p>
@@ -2211,7 +2269,7 @@
         </div>
         <div class="form-group">
           <label class="checkbox-label">
-            <input v-model="editCompositionOptional" type="checkbox" />
+            <input v-model="editCompositionOptional" type="checkbox" @change="clampEditCompositionQty" />
             {{ t('components.materialDetail.labelOptionalForCombo') }}
           </label>
         </div>
@@ -2549,17 +2607,24 @@ const editCompositionTakePreview = computed(() => {
   )
 })
 
+function compositionQtyMin(optional: boolean): number {
+  return optional ? 0 : 1
+}
+
 function clampEditCompositionQty() {
+  const min = compositionQtyMin(editCompositionOptional.value)
+  const q = editCompositionQty.value ?? 0
+  if (q < min) editCompositionQty.value = min
+  if (editCompositionOptional.value && q === 0) return
   const cap = editCompositionStockCap.value
   if (cap === null) return
-  const q = editCompositionQty.value ?? 0
   if (q > cap) editCompositionQty.value = cap
-  if (q < 1) editCompositionQty.value = 1
 }
 
 const canSubmitAddComposition = computed(() => {
   if (!addCompositionSelected.value) return false
   const q = addCompositionQty.value ?? 0
+  if (addCompositionOptional.value && q === 0) return true
   if (q < 1) return false
   const cap = addCompositionStockCap.value
   if (cap === 0) return false
@@ -2571,6 +2636,7 @@ const canSubmitAddComposition = computed(() => {
 const canSubmitEditComposition = computed(() => {
   if (!editCompositionComp.value) return false
   const q = editCompositionQty.value ?? 0
+  if (editCompositionOptional.value && q === 0) return true
   if (q < 1) return false
   const cap = editCompositionStockCap.value
   if (cap !== null && q > cap) return false
@@ -2877,6 +2943,10 @@ const formData = reactive({
   rental_calc_params: null as RentalCalcParams | null,
   pack_size: null as number | null,
   pack_unit: '',
+  pack_weight: '',
+  pack_size_length: '',
+  pack_size_width: '',
+  pack_size_height: '',
   is_container: false,
   reservation_mode: '' as string,
   is_js_material: false,
@@ -3394,10 +3464,13 @@ function openAddCompositionModal() {
 }
 
 function clampAddCompositionQty() {
+  const min = compositionQtyMin(addCompositionOptional.value)
+  const q = addCompositionQty.value ?? 0
+  if (q < min) addCompositionQty.value = min
+  if (addCompositionOptional.value && q === 0) return
   const cap = addCompositionStockCap.value
   if (cap === null) return
-  const q = addCompositionQty.value ?? 0
-  if (q > cap) addCompositionQty.value = Math.max(0, cap)
+  if (q > cap) addCompositionQty.value = Math.max(min, cap)
   if (cap > 0 && (addCompositionQty.value ?? 0) < 1) addCompositionQty.value = 1
 }
 
@@ -3458,9 +3531,12 @@ async function submitAddComposition() {
       -1
     )
     const addRole = addCompositionRole.value.trim()
+    const addQty = addCompositionOptional.value
+      ? Math.max(0, Math.floor(Number(addCompositionQty.value) || 0))
+      : Math.max(1, addCompositionQty.value || 1)
     await addComboComponent(props.materialId, {
       component_material_id: addCompositionSelected.value.id,
-      qty: Math.max(1, addCompositionQty.value || 1),
+      qty: addQty,
       component_role: addRole === '' ? null : addRole,
       is_optional: addCompositionOptional.value,
       assignment_mode: addCompositionMode.value,
@@ -3554,7 +3630,9 @@ async function submitEditComposition() {
   try {
     const roleTrimmed = editCompositionRole.value.trim()
     const payload: UpdateComboComponentRequest = {
-      qty: Math.max(1, editCompositionQty.value || 1),
+      qty: editCompositionOptional.value
+        ? Math.max(0, Math.floor(Number(editCompositionQty.value) || 0))
+        : Math.max(1, editCompositionQty.value || 1),
       component_role: roleTrimmed === '' ? null : roleTrimmed,
       is_optional: editCompositionOptional.value,
       assignment_mode: editCompositionMode.value,
@@ -3815,6 +3893,10 @@ function populateFormData(m: Material) {
   formData.rental_calc_params = m.rental_calc_params ? { ...m.rental_calc_params } : null
   formData.pack_size = m.pack_size || null
   formData.pack_unit = m.pack_unit || ''
+  formData.pack_weight = normalizeMaterialMetricInput(m.pack_weight, 'kg') ?? ''
+  formData.pack_size_length = normalizeMaterialMetricInput(m.pack_size_length, 'cm') ?? ''
+  formData.pack_size_width = normalizeMaterialMetricInput(m.pack_size_width, 'cm') ?? ''
+  formData.pack_size_height = normalizeMaterialMetricInput(m.pack_size_height, 'cm') ?? ''
   formData.reservation_mode = m.reservation_mode || ''
   formData.is_container = m.is_container ?? false
   formData.is_js_material = m.is_js_material || false
@@ -3935,6 +4017,15 @@ const userReadOnlySections = computed((): ReadOnlySection[] => {
     pushReadOnlyField(packFields, t('components.materialDetail.labelPiecesPerUnit'), m.pack_size)
     pushReadOnlyField(packFields, t('components.materialDetail.labelDesignation'), m.pack_unit)
     sections.push({ title: t('components.materialDetail.sectionPackaging'), fields: packFields })
+  }
+
+  const packDimFields: ReadOnlyField[] = []
+  pushReadOnlyField(packDimFields, t('components.materialDetail.labelPackWeightKg'), m?.pack_weight, (v) => `${v} kg`)
+  pushReadOnlyField(packDimFields, t('components.materialDetail.labelPackLengthCm'), m?.pack_size_length, (v) => `${v} cm`)
+  pushReadOnlyField(packDimFields, t('components.materialDetail.labelPackWidthCm'), m?.pack_size_width, (v) => `${v} cm`)
+  pushReadOnlyField(packDimFields, t('components.materialDetail.labelPackHeightCm'), m?.pack_size_height, (v) => `${v} cm`)
+  if (packDimFields.length > 0) {
+    sections.push({ title: t('components.materialDetail.sectionPackDimensions'), fields: packDimFields })
   }
 
   if (m?.is_consumable || m?.is_food) {
@@ -4811,6 +4902,10 @@ async function save() {
         formData.pack_sale_price_chf != null && formData.pack_sale_price_chf > 0
           ? String(formData.pack_sale_price_chf)
           : null,
+      pack_weight: normalizeMaterialMetricInput(formData.pack_weight, 'kg'),
+      pack_size_length: normalizeMaterialMetricInput(formData.pack_size_length, 'cm'),
+      pack_size_width: normalizeMaterialMetricInput(formData.pack_size_width, 'cm'),
+      pack_size_height: normalizeMaterialMetricInput(formData.pack_size_height, 'cm'),
       reservation_mode: formData.reservation_mode || null,
     }
     if (material.value.tracking_type === 'bulk') {

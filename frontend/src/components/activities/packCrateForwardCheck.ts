@@ -71,6 +71,11 @@ export function shellForwardLineKey(subsectionKey: string, lineId: string): stri
   return `${subsectionKey}:${lineId}`
 }
 
+/** Zusatz-Zeilen: kein Soll — nur Ist zählen (Überschuss wenn Ist > 0). */
+export function shellForwardExpectedQty(isExtra: boolean, lineQuantity: number): number {
+  return isExtra ? 0 : Math.max(0, Math.floor(Number(lineQuantity)) || 0)
+}
+
 export function storageLocationRowKey(loc: MaterialStorageLocationRow): string {
   return [
     loc.rack_id ?? '',
@@ -274,6 +279,18 @@ export function applyCountedQtyToReview(
 ): ShellForwardLineReview {
   const counted = Math.max(0, Math.floor(Number(review.countedQty) || 0))
   if (isExtra) {
+    /** Soll 0 / Ist 0: «nichts Zusätzliches» — nur per ✓ bestätigen (nicht als Fehlmenge). */
+    if (expectedQty <= 0 && counted <= 0) {
+      const keepExplicitOk = options?.explicitOkOnly && review.status === 'ok'
+      return {
+        ...review,
+        countedQty: 0,
+        status: keepExplicitOk ? 'ok' : options?.explicitOkOnly ? null : 'ok',
+        resolution: null,
+        missingQty: null,
+        inventoryPhase: 'none',
+      }
+    }
     if (counted <= 0) {
       return { ...review, countedQty: counted, status: null, resolution: null }
     }

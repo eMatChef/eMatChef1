@@ -369,6 +369,18 @@ class MaterialController extends AbstractController
                 $pp = $data['pack_sale_price_chf'];
                 $material->setPackSalePriceChf($pp !== null && $pp !== '' ? (string) $pp : null);
             }
+            if (array_key_exists('pack_weight', $data)) {
+                $material->setPackWeight($data['pack_weight'] ?: null);
+            }
+            if (array_key_exists('pack_size_length', $data)) {
+                $material->setPackSizeLength($data['pack_size_length'] ?: null);
+            }
+            if (array_key_exists('pack_size_width', $data)) {
+                $material->setPackSizeWidth($data['pack_size_width'] ?: null);
+            }
+            if (array_key_exists('pack_size_height', $data)) {
+                $material->setPackSizeHeight($data['pack_size_height'] ?: null);
+            }
 
             $consumableFoodErr = $this->validateConsumableFoodPrices($material);
             if ($consumableFoodErr !== null) {
@@ -1036,6 +1048,18 @@ class MaterialController extends AbstractController
             if (array_key_exists('pack_sale_price_chf', $data)) {
                 $pp = $data['pack_sale_price_chf'];
                 $material->setPackSalePriceChf($pp !== null && $pp !== '' ? (string) $pp : null);
+            }
+            if (array_key_exists('pack_weight', $data)) {
+                $material->setPackWeight($data['pack_weight'] ?: null);
+            }
+            if (array_key_exists('pack_size_length', $data)) {
+                $material->setPackSizeLength($data['pack_size_length'] ?: null);
+            }
+            if (array_key_exists('pack_size_width', $data)) {
+                $material->setPackSizeWidth($data['pack_size_width'] ?: null);
+            }
+            if (array_key_exists('pack_size_height', $data)) {
+                $material->setPackSizeHeight($data['pack_size_height'] ?: null);
             }
 
             $consumableFoodErr = $this->validateConsumableFoodPrices($material);
@@ -3071,6 +3095,10 @@ class MaterialController extends AbstractController
             'pack_size' => $material->getPackSize(),
             'pack_unit' => $material->getPackUnit(),
             'pack_sale_price_chf' => $material->getPackSalePriceChf(),
+            'pack_weight' => $material->getPackWeight(),
+            'pack_size_length' => $material->getPackSizeLength(),
+            'pack_size_width' => $material->getPackSizeWidth(),
+            'pack_size_height' => $material->getPackSizeHeight(),
         ];
     }
 
@@ -3274,6 +3302,10 @@ class MaterialController extends AbstractController
             $result['size_width'] = $material->getSizeWidth();
             $result['size_height'] = $material->getSizeHeight();
             $result['weight'] = $material->getWeight();
+            $result['pack_weight'] = $material->getPackWeight();
+            $result['pack_size_length'] = $material->getPackSizeLength();
+            $result['pack_size_width'] = $material->getPackSizeWidth();
+            $result['pack_size_height'] = $material->getPackSizeHeight();
             $result['ean'] = $material->getEan();
             $result['barcode_tag'] = $material->getBarcodeTag();
             $result['manufacturer'] = $material->getManufacturer();

@@ -16,7 +16,9 @@ export interface ActivityPackContainerItem {
   material_item_id: string
   material_batch_id: string | null
   quantity_packed: number
+  quantity_transport_to?: number
   quantity_issued: number
+  quantity_transport_back?: number
   quantity_returned: number
   quantity_stored?: number
   condition_out: string
@@ -24,6 +26,31 @@ export interface ActivityPackContainerItem {
   material_name?: string
   serial_number?: string | null
   batch_label?: string | null
+}
+
+function num(v: unknown, fallback = 0): number {
+  const n = typeof v === 'number' ? v : parseInt(String(v ?? ''), 10)
+  return Number.isFinite(n) ? n : fallback
+}
+
+function mapPackContainerItem(raw: Record<string, unknown>): ActivityPackContainerItem {
+  return {
+    id: String(raw.id ?? ''),
+    pack_container_id: String(raw.pack_container_id ?? ''),
+    material_item_id: String(raw.material_item_id ?? ''),
+    material_batch_id: raw.material_batch_id != null ? String(raw.material_batch_id) : null,
+    quantity_packed: num(raw.quantity_packed),
+    quantity_transport_to: num(raw.quantity_transport_to),
+    quantity_issued: num(raw.quantity_issued),
+    quantity_transport_back: num(raw.quantity_transport_back),
+    quantity_returned: num(raw.quantity_returned),
+    quantity_stored: raw.quantity_stored != null ? num(raw.quantity_stored) : undefined,
+    condition_out: String(raw.condition_out ?? 'ok'),
+    notes: raw.notes != null ? String(raw.notes) : null,
+    material_name: raw.material_name != null ? String(raw.material_name) : undefined,
+    serial_number: raw.serial_number != null ? String(raw.serial_number) : null,
+    batch_label: raw.batch_label != null ? String(raw.batch_label) : null,
+  }
 }
 
 export async function getActivityPackContainers(activityId: string): Promise<ActivityPackContainer[]> {
@@ -54,8 +81,10 @@ export async function deleteActivityPackContainer(activityId: string, containerI
 }
 
 export async function getActivityPackContainerItems(activityId: string, containerId: string): Promise<ActivityPackContainerItem[]> {
-  const response = await apiClient.get<ActivityPackContainerItem[]>(`/api/activities/${activityId}/pack-containers/${containerId}/items`)
-  return response.data
+  const response = await apiClient.get<Record<string, unknown>[]>(
+    `/api/activities/${activityId}/pack-containers/${containerId}/items`,
+  )
+  return response.data.map((row) => mapPackContainerItem(row))
 }
 
 export async function createActivityPackContainerItem(

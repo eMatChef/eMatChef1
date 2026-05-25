@@ -151,6 +151,10 @@ export interface Material {
   pack_unit: string | null
   /** Optional: CHF pro Verpackungseinheit (Aufteilen auf Stückpreis) */
   pack_sale_price_chf?: string | null
+  pack_weight?: string | null
+  pack_size_length?: string | null
+  pack_size_width?: string | null
+  pack_size_height?: string | null
   created_at: string
   updated_at: string
   public_code?: string | null
@@ -239,6 +243,10 @@ export interface CreateMaterialRequest {
   pack_size?: number | null
   pack_unit?: string | null
   pack_sale_price_chf?: string | null
+  pack_weight?: string | null
+  pack_size_length?: string | null
+  pack_size_width?: string | null
+  pack_size_height?: string | null
   color?: string | null
   material?: string | null
   size_length?: string | null
@@ -286,6 +294,10 @@ export interface UpdateMaterialRequest {
   pack_size?: number | null
   pack_unit?: string | null
   pack_sale_price_chf?: string | null
+  pack_weight?: string | null
+  pack_size_length?: string | null
+  pack_size_width?: string | null
+  pack_size_height?: string | null
   color?: string | null
   material?: string | null
   size_length?: string | null

@@ -8,7 +8,10 @@ import {
   getStageLeftQty,
   getStageRightQty,
   getStageTotalQty,
+  isPackConfirmedStage,
   isPackForwardToEventStage,
+  isPackLogisticsReturnStage,
+  isPackReturnPipelineStage,
   isPackUnpackStage,
 } from '@/components/activities/packStageQuantities'
 import { computed } from 'vue'
@@ -44,6 +47,16 @@ const unpackPendingStoreTotal = computed(() => {
   }
   return leftQty()
 })
+
+function showLooseInContainersDetail(stage: PackStage, side: 'left' | 'right'): boolean {
+  if (side === 'left' && isPackForwardToEventStage(stage)) return true
+  if (side === 'right' && isPackConfirmedStage(stage)) return true
+  if (side === 'right' && isPackForwardToEventStage(stage)) return true
+  if (side === 'right' && stage === 'at_event_transport_back') return true
+  if (side === 'right' && stage === 'transport_back_returned') return true
+  if (side === 'left' && isPackLogisticsReturnStage(stage)) return true
+  return false
+}
 </script>
 
 <template>
@@ -92,11 +105,17 @@ const unpackPendingStoreTotal = computed(() => {
         <template v-else> {{ leftQty() }} / {{ totalQty() }} </template>
       </template>
 
-      <template v-else-if="side === 'right' && stage === 'confirmed_packed'">
+      <template v-else-if="side === 'right' && showLooseInContainersDetail(stage, 'right')">
         <template v-if="rightQty() > 0">
-          <span>{{ t('activities.packList.loosePieces', { n: looseQty ?? 0 }) }}</span>
+          <span>{{ t('activities.packList.loosePieces', { n: looseQty ?? looseIssuedAtEvent ?? rightQty() }) }}</span>
           <span v-if="(qtyInContainers ?? 0) > 0" class="text-muted">
             {{ t('activities.packList.inContainers', { n: qtyInContainers }) }}
+          </span>
+        </template>
+        <template v-else-if="item.isConsumable && (consumedAtEvent ?? 0) > 0">
+          <span class="text-muted">{{ t('activities.packList.zeroPieces') }}</span>
+          <span class="text-muted">
+            {{ t('activities.packList.consumableAtEventConsumed', { n: consumedAtEvent }) }}
           </span>
         </template>
         <span v-else class="text-muted">{{ t('activities.packList.zeroPieces') }}</span>
@@ -106,7 +125,7 @@ const unpackPendingStoreTotal = computed(() => {
         <span>{{ t('activities.packList.lineStoredForUnpack', { n: rightQty() }) }}</span>
       </template>
 
-      <template v-else-if="side === 'right'">
+      <template v-else-if="side === 'right' && isPackReturnPipelineStage(stage)">
         <template
           v-if="
             (stage === 'at_event_returned' || stage === 'transport_back_returned') &&
@@ -122,15 +141,23 @@ const unpackPendingStoreTotal = computed(() => {
             })
           }}
         </template>
-        <template v-else>
-          {{
-            t('activities.packList.issuedFraction', {
-              issued: looseIssuedAtEvent ?? rightQty(),
-              packed: totalQty(),
-              stage: stageRightLabel,
-            })
-          }}
+        <template v-else-if="rightQty() > 0">
+          <span>{{ t('activities.packList.loosePieces', { n: looseQty ?? looseIssuedAtEvent ?? rightQty() }) }}</span>
+          <span v-if="(qtyInContainers ?? 0) > 0" class="text-muted">
+            {{ t('activities.packList.inContainers', { n: qtyInContainers }) }}
+          </span>
         </template>
+        <span v-else class="text-muted">{{ t('activities.packList.zeroPieces') }}</span>
+      </template>
+
+      <template v-else-if="side === 'right'">
+        {{
+          t('activities.packList.issuedFraction', {
+            issued: looseIssuedAtEvent ?? rightQty(),
+            packed: totalQty(),
+            stage: stageRightLabel,
+          })
+        }}
       </template>
     </span>
     <slot />

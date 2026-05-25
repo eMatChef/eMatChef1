@@ -93,12 +93,16 @@ ordered → packed → transport_to → at_event → transport_back → returned
 |---------------|----------|--------------|----------|
 | Bestätigt → Gepackt | `packed` | — (nur Ansicht) | MW packt |
 | Gepackt → Transport hin | `transport_to` | Gruppe / Leader | Notfall |
-| Transport hin → Am Event | `at_event` | Gruppe / Leader | Notfall |
+| Transport hin → Am Event | `at_event` | Gruppe / Leader | Notfall — **Aktivitäts-Status «Am Event»** nur von diesem Tab (nicht schon bei «Transport hin») |
 | Am Event → Transport zurück | `transport_back` | Gruppe / Leader | Notfall |
-| Transport zurück → Retour | `returned` | Gruppe / Leader | Notfall |
+| Transport zurück → Retour | `returned` | Gruppe / Leader | Notfall — **Aktivitäts-Status «Retour»** nur von diesem Tab (nicht schon bei «Transport zurück») |
 | Retour → Ausgepackt | `quantity_stored` | — | MW lagert ein |
 
 Gruppe sieht in der Packliste **4 Transport-Tabs** (ohne «Bestätigt → Gepackt» und ohne «Ausgepackt»).
+
+**Rückwärts (symmetrisch):** Pfeil «←» und `moveback` nur auf dem Tab des aktuellen Aktivitäts-Status (MW-Notfall auf älteren Tabs mit Bestätigung). **Kein** Aktivitäts-Status «Am Event»→«Gepackt» bei Camp/Event — Transport-Stufen nur über die jeweiligen Pack-Tabs. «Retour»→«Am Event» (Status zurück) nur auf dem Tab «Transport (zurück)→Retour eingetroffen», analog zur Vorwärts-Regel.
+
+**Verbrauchsmaterial (Camp/Event):** Auf «Am Event → Transport (zurück)» und «Transport (zurück) → Retour» kein Inline-Quick und kein automatisches Verbrauchs-Modal beim Pfeil «→» — Verbrauch und Nachlieferung nur über die Buttons. Inline-+/− nur im Quick-Profil auf «Am Event → Retour».
 
 ### UI-Stufen (Quick / External, MW)
 
@@ -118,7 +122,7 @@ Gruppe sieht in der Packliste **4 Transport-Tabs** (ohne «Bestätigt → Gepack
 
 **Verpackungseinheit** (`pack_size` / `pack_unit`, z. B. «2 Fackeln pro Sack») ist **unabhängig** von Pack-Behältern und Kombi-Set — nur Bestell-Bündelung.
 
-**Kistencheck** (beim Verschieben): BOM-Abgleich «alles da?» — Etappen `outbound` (bis Event), `return` (Event→Retour bzw. Event→Transport zurück / Transport→Retour), `warehouse_store` (Einlagern). Gruppe/Leiter (u, L1–L3): je Etappe einmal, inkl. Rückweg. MW/DC: Hinweg (`outbound`) einmal pro Aktivität; **Rückweg (`return`) erneut** (auch Phys.-Kombi); Einlagern (`warehouse_store`) erneut.
+**Kistencheck** (beim Verschieben): BOM-Abgleich «alles da?» — Etappen `outbound` (bis Event), `return` (Event→Retour bzw. Event→Transport zurück / Transport→Retour), `warehouse_store` (Einlagern). **Pro eingeloggtem Benutzer** je Etappe einmal (History `pack_crate_check` mit `user_id`); Checks anderer Personen gelten nicht. Einlagern (`warehouse_store`) und Rückweg (`return`) jeweils erneut.
 
 ---
 

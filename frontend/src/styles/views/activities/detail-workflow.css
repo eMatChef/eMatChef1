@@ -1042,6 +1042,34 @@
   line-height: 1.4;
 }
 
+.pack-crate-check-pending-banner {
+  margin-bottom: 12px;
+  padding: 10px 14px;
+  background: #fffbeb;
+  border: 1px solid #fcd34d;
+  border-radius: 8px;
+}
+
+.pack-crate-check-pending-banner__title {
+  margin: 0 0 4px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #92400e;
+}
+
+.pack-crate-check-pending-banner__body {
+  margin: 0 0 6px;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.pack-crate-check-pending-banner__list {
+  margin: 0;
+  padding-left: 1.2rem;
+  font-size: 12px;
+  color: #78350f;
+}
+
 .pack-active-crate-banner {
   margin: 0 0 10px;
   padding: 8px 12px;
