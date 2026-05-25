@@ -57,7 +57,7 @@ const typeLabels: Record<ActivityCreateType, string> = {
   external: 'activities.types.external',
 }
 
-/** MW/DC: alle Typen; Basissicht + Gruppenchef/l1–l3: +camp/event; «extern» nur MW/DC. */
+/** MW/DC: alle Typen; l1–l3 oder «u» + Gruppenchef: +camp/event; «extern» nur MW/DC. */
 const options = computed(() => {
   let allowed = [...allowedCreateActivityTypes.value]
   return allowed.map((type) => ({

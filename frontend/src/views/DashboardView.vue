@@ -290,19 +290,22 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, onActivated, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'
+import { useHeaderNotificationsStore } from '@/stores/headerNotifications'
 import { getDashboardData, type DashboardActivity } from '@/api/dashboard'
 import { getPendingAdminJoinRequests } from '@/api/joinRequests'
 import DamageReportWizard from '@/components/DamageReportWizard.vue'
 import { activityStatusClass, activityStatusI18nKey } from '@/utils/activityStatus'
+import { useDepartmentLiveRefresh } from '@/composables/useDepartmentLiveRefresh'
 import { useDepartmentMemberRole } from '@/composables/useDepartmentMemberRole'
 
 const route = useRoute()
 const { t, locale } = useI18n()
 const authStore = useAuthStore()
+const headerNotificationsStore = useHeaderNotificationsStore()
 
 /** BCP-47-Tag für `Intl` passend zur UI-Sprache (CH-Kontext). */
 const intlLocale = computed(() => {
@@ -493,12 +496,12 @@ function getStatusLabel(status: string): string {
 }
 
 // === Load ===
-async function load() {
+async function load(opts?: { silent?: boolean }) {
   const id = departmentId.value
   if (!id) {
     dashboardData.value = null
     if (hasSupportAdminRole.value) {
-      isLoading.value = true
+      if (!opts?.silent) isLoading.value = true
       try {
         const g = await getPendingAdminJoinRequests('')
         globalAdminPendingCount.value = g.length
@@ -512,7 +515,7 @@ async function load() {
     }
     return
   }
-  isLoading.value = true
+  if (!opts?.silent) isLoading.value = true
   try {
     dashboardData.value = await getDashboardData(id, { includeJoinRequests: hasSupportAdminRole.value })
   } catch (err) {
@@ -523,7 +526,34 @@ async function load() {
 }
 
 onMounted(() => load())
+onActivated(() => {
+  if (departmentId.value) void load({ silent: true })
+})
 watch(departmentId, () => load())
+
+/** Nach Aktivitäts-Anlage (Wizard) oder Rückkehr von Aktivitäten — ohne F5. */
+watch(
+  () => headerNotificationsStore.refreshNonce,
+  () => {
+    if (departmentId.value) void load({ silent: true })
+  },
+)
+
+watch(
+  () => route.name,
+  (name, prevName) => {
+    if (name !== 'Dashboard' || !departmentId.value) return
+    if (prevName && prevName !== 'Dashboard') void load({ silent: true })
+  },
+)
+
+/** Andere User: Dashboard-Widgets alle 30s (sichtbarer Tab). */
+useDepartmentLiveRefresh({
+  departmentId,
+  enabled: () => route.name === 'Dashboard',
+  reload: load,
+  isBusy: () => isLoading.value && !dashboardData.value,
+})
 </script>
 
 <style scoped>

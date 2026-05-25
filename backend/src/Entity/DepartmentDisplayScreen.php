@@ -54,6 +54,21 @@ class DepartmentDisplayScreen
     #[ORM\Column(name: 'show_workshop', type: 'boolean')]
     private bool $showWorkshop = true;
 
+    /** @var list<string> */
+    #[ORM\Column(name: 'activity_types', type: 'json')]
+    private array $activityTypes = ['activity', 'camp', 'event', 'external'];
+
+    /** @var list<string> */
+    #[ORM\Column(name: 'activity_statuses', type: 'json')]
+    private array $activityStatuses = ['submitted', 'approved', 'packing', 'packed', 'at_event'];
+
+    /** @var list<string> */
+    #[ORM\Column(name: 'workshop_statuses', type: 'json')]
+    private array $workshopStatuses = ['open', 'in_progress', 'waiting_parts'];
+
+    #[ORM\Column(name: 'show_statistics', type: 'boolean')]
+    private bool $showStatistics = false;
+
     public function __construct()
     {
         $this->createdAt = new \DateTime();
@@ -248,6 +263,72 @@ class DepartmentDisplayScreen
     public function setShowWorkshop(bool $showWorkshop): self
     {
         $this->showWorkshop = $showWorkshop;
+
+        return $this;
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function getActivityTypes(): array
+    {
+        return $this->activityTypes;
+    }
+
+    /**
+     * @param list<string> $activityTypes
+     */
+    public function setActivityTypes(array $activityTypes): self
+    {
+        $this->activityTypes = $activityTypes;
+
+        return $this;
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function getActivityStatuses(): array
+    {
+        return $this->activityStatuses;
+    }
+
+    /**
+     * @param list<string> $activityStatuses
+     */
+    public function setActivityStatuses(array $activityStatuses): self
+    {
+        $this->activityStatuses = $activityStatuses;
+
+        return $this;
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function getWorkshopStatuses(): array
+    {
+        return $this->workshopStatuses;
+    }
+
+    /**
+     * @param list<string> $workshopStatuses
+     */
+    public function setWorkshopStatuses(array $workshopStatuses): self
+    {
+        $this->workshopStatuses = $workshopStatuses;
+
+        return $this;
+    }
+
+    public function isShowStatistics(): bool
+    {
+        return $this->showStatistics;
+    }
+
+    public function setShowStatistics(bool $showStatistics): self
+    {
+        $this->showStatistics = $showStatistics;
 
         return $this;
     }

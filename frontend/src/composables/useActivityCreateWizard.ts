@@ -93,13 +93,22 @@ function pickDefaultGroup(
   userId: string | null,
   canSelectDepartment: boolean,
 ): string | null {
+  if (groups.length === 0) return null
   const home = pickUserHomeGroupId(groups, userId)
   if (home) return home
+  if (userId) {
+    const memberGroups = groups.filter((g) =>
+      g.members?.some((m) => m.user_id === userId),
+    )
+    if (memberGroups.length === 1) return memberGroups[0].id
+    if (memberGroups.length > 0) return pickFirstRootGroup(memberGroups)
+  }
   const role = String(useAuthStore().currentDepartmentRole || '').toLowerCase()
   if (canSelectDepartment && ['l1', 'l2', 'l3'].includes(role)) return null
-  if (['mw', 'dc', 'matwart', 'depchef'].includes(role) && groups.length > 0) {
+  if (['mw', 'dc', 'matwart', 'depchef'].includes(role)) {
     return pickFirstRootGroup(groups)
   }
+  if (groups.length === 1) return groups[0].id
   return null
 }
 

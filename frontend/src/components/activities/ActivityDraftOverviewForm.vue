@@ -539,12 +539,13 @@ function resetFromActivity() {
   invitedDraft.value = mapApiInvitesToDraft(a.invited_departments)
 }
 
+/** Live-Refresh von aussen: nur wenn lokal nichts Ungespeichertes (verhindert Überschreiben beim Tippen). */
 watch(
-  () => props.activity,
+  () => props.activity.updated_at,
   () => {
+    if (hasChanges.value || saving.value) return
     resetFromActivity()
   },
-  { deep: true },
 )
 
 const hasChanges = computed(() => {
@@ -640,6 +641,11 @@ onMounted(async () => {
     toast.error(t('activities.draftOverview.toastLoadMetaFailed'))
   }
   resetFromActivity()
+})
+
+defineExpose({
+  hasUnsavedChanges: hasChanges,
+  isSaving: saving,
 })
 </script>
 

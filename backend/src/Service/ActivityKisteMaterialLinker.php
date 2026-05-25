@@ -5,6 +5,7 @@ namespace App\Service;
 use App\Entity\Activity;
 use App\Entity\ActivityItem;
 use App\Entity\ActivityPackContainer;
+use App\Entity\ActivityPackContainerItem;
 use App\Entity\ActivityPackItem;
 use App\Entity\MaterialBatch;
 use App\Entity\MaterialItem;
@@ -370,8 +371,28 @@ class ActivityKisteMaterialLinker
     }
 
     /**
-     * Phys.-Kombi (Lager-Kiste): pro zugeordnetem Pack-Behälter gilt die Kiste als gepackt.
+     * Phys.-Kombi als Set (ohne Referenz-Lager-Charge): quantity_packed nur über Pack-Pipeline,
+     * nicht über Anzahl Pack-Behälter. Mit linked_container_batch oder Batch-Behälter: wie Kiste.
      */
+    public function usesContainerDrivenPackedSync(Activity $activity, MaterialItem $materialItem): bool
+    {
+        if ($materialItem->getMaterialType() !== 'physical_combo') {
+            return true;
+        }
+
+        $linkedBatchId = trim((string) ($materialItem->getLinkedContainerBatchId() ?? ''));
+        if ($linkedBatchId !== '') {
+            return true;
+        }
+
+        $mid = $materialItem->getId();
+        if ($mid === null) {
+            return false;
+        }
+
+        return ($this->packContainerCountByMaterialId($activity)[$mid] ?? 0) > 0;
+    }
+
     public function reconcileShellPackItemsPackedFromContainers(Activity $activity, ?User $user): bool
     {
         if (!in_array($activity->getStatus(), [
@@ -397,8 +418,10 @@ class ActivityKisteMaterialLinker
                 continue;
             }
             $before = $packItem->getQuantityPacked();
-            $this->syncShellPackedFromAssignedContainers($activity, $materialItem, $packItem, $user);
-            $this->clampShellPackedAfterContainerRemoved($activity, $materialItem);
+            if ($this->usesContainerDrivenPackedSync($activity, $materialItem)) {
+                $this->syncShellPackedFromAssignedContainers($activity, $materialItem, $packItem, $user);
+                $this->clampShellPackedAfterContainerRemoved($activity, $materialItem);
+            }
             if ($packItem->getQuantityPacked() !== $before) {
                 $changed = true;
             }
@@ -415,6 +438,13 @@ class ActivityKisteMaterialLinker
         ?string $pendingShellContainerId = null,
     ): void {
         if (!$this->isActivityPackShellMaterial($activity, $materialItem, $pendingShellContainerId)) {
+            return;
+        }
+
+        if (
+            $materialItem->getMaterialType() === 'physical_combo'
+            && !$this->usesContainerDrivenPackedSync($activity, $materialItem)
+        ) {
             return;
         }
 
@@ -452,6 +482,13 @@ class ActivityKisteMaterialLinker
     private function clampShellPackedAfterContainerRemoved(Activity $activity, MaterialItem $materialItem): void
     {
         if (!$this->isActivityPackShellMaterial($activity, $materialItem)) {
+            return;
+        }
+
+        if (
+            $materialItem->getMaterialType() === 'physical_combo'
+            && !$this->usesContainerDrivenPackedSync($activity, $materialItem)
+        ) {
             return;
         }
 
@@ -551,6 +588,38 @@ class ActivityKisteMaterialLinker
         }
 
         return $map;
+    }
+
+    /** Material-ID der Phys.-Kombi / Kisten-Shell für diesen Pack-Behälter (Batch oder virtuelle Zeile). */
+    public function shellMaterialIdForPackContainer(ActivityPackContainer $pc): ?string
+    {
+        $batch = $pc->getContainerBatch();
+        if ($batch !== null) {
+            return $batch->getMaterialItemId();
+        }
+
+        return $this->shellMaterialIdFromVirtualContainer($pc);
+    }
+
+    /**
+     * Behälter ohne Lager-Charge (virtueller Sack): zählt als Shell, wenn eine gepackte Zeile
+     * das Phys.-Kombi-Material selbst trägt.
+     */
+    private function shellMaterialIdFromVirtualContainer(ActivityPackContainer $pc): ?string
+    {
+        $items = $this->entityManager->getRepository(ActivityPackContainerItem::class)
+            ->findBy(['packContainerId' => $pc->getId()]);
+        foreach ($items as $ci) {
+            if (!$ci instanceof ActivityPackContainerItem || $ci->getQuantityPacked() < 1) {
+                continue;
+            }
+            $mat = $ci->getMaterialItem();
+            if ($mat !== null && $mat->getMaterialType() === 'physical_combo') {
+                return $mat->getId();
+            }
+        }
+
+        return null;
     }
 
     private function activityItemSumQty(Activity $activity, string $materialItemId): int

@@ -17,6 +17,21 @@ export interface ReplenishmentPurchaseRow {
   quantity: number
   unit_purchase: number | null
   line_total: number | null
+  source_department_id?: string | null
+  source_department_name?: string | null
+  submitter_department_id?: string | null
+  submitter_department_name?: string | null
+  created_by_user_id?: string | null
+  created_by_display_name?: string | null
+  recorded_at?: string | null
+}
+
+export interface ReplenishmentDepartmentGroup {
+  department_id: string
+  department_name: string
+  rows: ReplenishmentPurchaseRow[]
+  total: number
+  submitter_names: string[]
 }
 
 export interface RentalCostRow {
@@ -92,8 +107,45 @@ export function replenishmentPurchaseRows(items: ActivityItemRow[]): Replenishme
         quantity: r.quantity,
         unit_purchase: unit,
         line_total: lineTotal,
+        source_department_id: r.source_department_id ?? null,
+        source_department_name: r.source_department_name ?? null,
+        submitter_department_id: r.submitter_department_id ?? null,
+        submitter_department_name: r.submitter_department_name ?? null,
+        created_by_user_id: r.created_by_user_id ?? null,
+        created_by_display_name: r.created_by_display_name ?? null,
+        recorded_at: r.recorded_at ?? null,
       }
     })
+}
+
+/** Nachlieferungen nach einreichendem Department gruppieren (departmentübergreifende Aktivitäten). */
+export function replenishmentGroupsBySubmitterDepartment(
+  rows: ReplenishmentPurchaseRow[],
+): ReplenishmentDepartmentGroup[] {
+  const map = new Map<string, ReplenishmentDepartmentGroup>()
+  for (const row of rows) {
+    const deptId = row.submitter_department_id || '_unknown'
+    const deptName = row.submitter_department_name || '–'
+    let group = map.get(deptId)
+    if (!group) {
+      group = {
+        department_id: deptId,
+        department_name: deptName,
+        rows: [],
+        total: 0,
+        submitter_names: [],
+      }
+      map.set(deptId, group)
+    }
+    group.rows.push(row)
+    const line = row.line_total ?? (row.unit_purchase ?? 0) * row.quantity
+    group.total += line
+    const who = row.created_by_display_name?.trim()
+    if (who && !group.submitter_names.includes(who)) {
+      group.submitter_names.push(who)
+    }
+  }
+  return [...map.values()].sort((a, b) => a.department_name.localeCompare(b.department_name, 'de'))
 }
 
 export function consumableUsedQty(materialItemId: string, issues: ActivityIssueReportRow[]): number {

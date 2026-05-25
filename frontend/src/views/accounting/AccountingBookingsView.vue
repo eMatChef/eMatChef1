@@ -152,7 +152,7 @@
                 :class="{ active: assignTabIndex === idx }"
                 @click="selectAssignTab(idx)"
               >
-                {{ t('accounting.bookings.assignTabBooking', { n: idx + 1 }) }}
+                {{ t(accountingFollowUpKindKey(fu.source_kind)) }}
                 <span class="booking-assign-tab-meta">· CHF {{ formatMoney(fu.amount) }}</span>
               </button>
             </div>
@@ -336,6 +336,14 @@ import { useAccountingBookingYears } from '@/composables/useAccountingBookingYea
 import { createBasicMaterialLookupFetcher } from '@/composables/useMaterialLookup'
 import MaterialLookupInput from '@/components/common/MaterialLookupInput.vue'
 import { useHeaderNotificationsStore } from '@/stores/headerNotifications'
+import {
+  accountingFollowUpKindKey,
+  sortFollowUpsForDisplay,
+} from '@/utils/accountingFollowUpLabels'
+import {
+  suggestCostCenterId,
+  suggestPaymentMethodForFollowUp,
+} from '@/utils/accountingCostCenterSuggest'
 
 const route = useRoute()
 const headerNotificationsStore = useHeaderNotificationsStore()
@@ -438,7 +446,12 @@ const workingFromPending = ref(false)
 async function refreshPendingFollowUps() {
   if (!departmentId.value) return
   try {
-    pendingFollowUps.value = await listAcquisitionFollowups(departmentId.value, 'pending')
+    const activityFilter = String(route.query.activity_id || '').trim()
+    let rows = await listAcquisitionFollowups(departmentId.value, 'pending')
+    if (activityFilter) {
+      rows = rows.filter((f) => f.activity_id === activityFilter)
+    }
+    pendingFollowUps.value = sortFollowUpsForDisplay(rows)
     hasPendingBooking.value = pendingFollowUps.value.length > 0
     if (pendingFollowUps.value.length > 0) {
       const prevId = activeFollowUpId.value
@@ -485,6 +498,8 @@ function persistCurrentAssignDraft() {
 function defaultEntryTypeForFollowUp(p: AccountingAcquisitionFollowUp): string {
   const sk = p.source_kind || (p.material_batch_id ? 'batch' : '')
   if (sk === 'activity_replenishment' || sk === 'batch') return 'purchase'
+  if (sk === 'activity_consumption') return 'other'
+  if (sk === 'activity_rental') return 'other'
   if (sk === 'activity_workshop') {
     return p.activity_type === 'external' ? 'repair_external' : 'repair_internal'
   }
@@ -507,11 +522,36 @@ function loadAssignFormForFollowUp(p: AccountingAcquisitionFollowUp) {
     form.amount = p.amount
     form.booked_at = p.suggested_date
     form.receipt_label = p.receipt_label || ''
-    form.cost_center_id = ''
     form.entry_type = defaultEntryTypeForFollowUp(p)
-    form.payment_method = ''
-    form.group_id = p.activity_group_id || ''
-    form.notes = p.activity_id ? `Aktivität: ${p.activity_name || p.activity_id}` : ''
+    const suggestedCc = suggestCostCenterId(p, costCenters.value)
+    form.cost_center_id = suggestedCc || costCenters.value[0]?.id || ''
+    const suggestedPay = suggestPaymentMethodForFollowUp(p)
+    form.payment_method = suggestedPay || ''
+    const chargeTarget = p.charge_target ?? (p.activity_type === 'external' ? 'external_customer' : 'group')
+    if (chargeTarget === 'group') {
+      form.group_id = p.suggested_group_id || p.activity_group_id || ''
+    } else {
+      form.group_id = ''
+    }
+
+    const noteParts: string[] = []
+    if (p.activity_id) {
+      noteParts.push(`Aktivität: ${p.activity_name || p.activity_id}`)
+    }
+    if (chargeTarget === 'external_customer' && p.external_customer_label) {
+      noteParts.push(`Kunde: ${p.external_customer_label}`)
+    }
+    if (chargeTarget === 'department' && p.material_department_name) {
+      noteParts.push(`Verrechnung Material-Dep.: ${p.material_department_name}`)
+    }
+    if (p.reported_by_display_name) {
+      noteParts.push(`Gemeldet von: ${p.reported_by_display_name}`)
+    }
+    form.notes = noteParts.join(' · ')
+
+    if (chargeTarget === 'external_customer' && !form.receipt_label && p.external_customer_label) {
+      form.receipt_label = p.external_customer_label
+    }
   }
   if (p.material_item_id) {
     form.material_item_id = p.material_item_id
@@ -632,10 +672,13 @@ async function applyAssignTabFromRoute() {
   if (String(q.sub || '') !== 'assign' && String(q.assign || '') !== '1') return
   bookingsSubTab.value = 'assign'
   await refreshPendingFollowUps()
+  const nextQuery: Record<string, string> = {}
+  const actId = String(q.activity_id || '').trim()
+  if (actId) nextQuery.activity_id = actId
   await router.replace({
     name: 'AccountingBookings',
     params: { departmentId: departmentId.value },
-    query: {},
+    query: nextQuery,
   })
 }
 

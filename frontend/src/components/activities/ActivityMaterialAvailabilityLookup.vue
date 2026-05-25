@@ -92,6 +92,12 @@
                   <span v-if="mat.isConsumable" class="mat-type-icon consumable" :title="t('activities.materialAvailability.titleConsumable')"
                     >🔥</span
                   >
+                  <span
+                    v-else-if="mat.materialType === 'physical_combo'"
+                    class="mat-type-icon rental"
+                    :title="t('activities.materialAvailability.titlePhysicalCombo')"
+                    >{{ physicalComboIcon(mat) }}</span
+                  >
                   <span v-else class="mat-type-icon rental" :title="t('activities.materialAvailability.titleRental')">📦</span>
                   {{ mat.name }}
                   <span
@@ -104,23 +110,23 @@
                   <span v-if="mat.packSize && mat.packUnit" class="mat-pack-badge">
                     {{ t('activities.materialAvailability.packPerShort', { n: mat.packSize, unit: mat.packUnit }) }}
                   </span>
+                  <span
+                    v-if="mat.materialType === 'physical_combo'"
+                    class="activity-combo-badge"
+                    :title="t('activities.detail.comboPhysicalTitle')"
+                  >{{ t('activities.detail.comboPhysicalShort') }}</span>
+                  <span
+                    v-else-if="mat.materialType === 'virtual_combo'"
+                    class="activity-combo-badge activity-combo-badge--virtual"
+                    :title="t('activities.detail.comboVirtualTitle')"
+                  >{{ t('activities.detail.comboVirtualShort') }}</span>
                 </span>
                 <span class="activity-mat-result-meta">
                   <span class="activity-mat-stock">
                     <span :class="effectiveStock(mat) > 0 ? 'text-green' : 'text-red'">{{ effectiveStock(mat) }}</span>
                     <span class="text-muted">&nbsp;{{ t('activities.materialAvailability.freeLabel') }}</span>
                     <span
-                      v-if="mat.materialType === 'physical_combo' && effectiveStock(mat) > 0"
-                      class="text-muted activity-mat-stock-in-crates"
-                    >
-                      {{
-                        t('activities.materialAvailability.physicalComboCrateHint', {
-                          n: effectiveStock(mat),
-                        })
-                      }}
-                    </span>
-                    <span
-                      v-else-if="(mat.stockInStorageContainers ?? 0) > 0"
+                      v-if="(mat.stockInStorageContainers ?? 0) > 0"
                       class="text-muted activity-mat-stock-in-crates"
                     >
                       {{
@@ -240,6 +246,7 @@ import {
   type MaterialLookupAvailabilityContext,
 } from '@/composables/useMaterialLookup'
 import { materialLookupContextForScopeTab, type MaterialScopeTab } from './shared/activityMaterialAvailabilityScope'
+import { storageContainerIconFromPackUnit } from '@/utils/storageContainerDisplay'
 
 interface InvitedPartnerDepartment {
   id: string
@@ -405,6 +412,10 @@ async function materialLookupFetcher(query: string): Promise<ActivityPeriodAvail
   return [...list].sort((a, b) =>
     (a.name || '').localeCompare(b.name || '', String(locale.value ?? '').startsWith('de') ? 'de' : 'en'),
   )
+}
+
+function physicalComboIcon(m: ActivityPeriodAvailabilityMaterial): string {
+  return storageContainerIconFromPackUnit(m.linkedContainerPackUnit)
 }
 
 function effectiveStock(m: ActivityPeriodAvailabilityMaterial): number {

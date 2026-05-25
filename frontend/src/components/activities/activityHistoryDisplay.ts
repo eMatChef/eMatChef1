@@ -69,12 +69,68 @@ export function historyEntrySummaryLines(
     return []
   }
 
+  if (e.action === 'material_changed' || e.action === 'material_items_changed') {
+    return materialItemsChangedLines(e.changes, t)
+  }
+
   const comment = e.changes?.comment
   if (typeof comment === 'string' && comment.trim()) {
     return [comment.trim()]
   }
 
   return []
+}
+
+type MaterialHistoryRow = {
+  material_name?: string
+  quantity?: number
+  old?: number
+  new?: number
+}
+
+function materialRowName(row: MaterialHistoryRow, t: Translate): string {
+  const n = String(row.material_name ?? '').trim()
+  return n || t('activities.common.material')
+}
+
+function materialItemsChangedLines(
+  changes: ActivityHistoryEntryRow['changes'],
+  t: Translate,
+): string[] {
+  const lines: string[] = []
+  const ch = changes ?? {}
+  const added = Array.isArray(ch.added) ? (ch.added as MaterialHistoryRow[]) : []
+  const removed = Array.isArray(ch.removed) ? (ch.removed as MaterialHistoryRow[]) : []
+  const qtyChanged = Array.isArray(ch.quantity_changed)
+    ? (ch.quantity_changed as MaterialHistoryRow[])
+    : []
+
+  for (const row of added) {
+    lines.push(
+      t('activities.history.materialAdded', {
+        name: materialRowName(row, t),
+        n: Math.max(0, Number(row.quantity ?? 0) || 0),
+      }),
+    )
+  }
+  for (const row of removed) {
+    lines.push(
+      t('activities.history.materialRemoved', {
+        name: materialRowName(row, t),
+        n: Math.max(0, Number(row.quantity ?? 0) || 0),
+      }),
+    )
+  }
+  for (const row of qtyChanged) {
+    lines.push(
+      t('activities.history.materialQuantityChanged', {
+        name: materialRowName(row, t),
+        old: Math.max(0, Number(row.old ?? 0) || 0),
+        new: Math.max(0, Number(row.new ?? 0) || 0),
+      }),
+    )
+  }
+  return lines
 }
 
 function crateCheckLineText(ln: Record<string, unknown>, t: Translate, te: Te): string {

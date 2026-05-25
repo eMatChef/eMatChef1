@@ -114,6 +114,14 @@
         </span>
       </div>
 
+      <ActivityCompletionChecklist
+        v-if="activity.status === 'returned' && completionBlockers"
+        :blockers="completionBlockers"
+        :activity-id="activityId"
+        :host-department-id="departmentId"
+        @go-tab="onCompletionGoTab"
+      />
+
       <nav class="tab-nav">
         <button
           v-for="tab in tabs"
@@ -133,6 +141,7 @@
           <section v-if="activeTab === 'overview'" class="tab-content">
             <ActivityDraftOverviewForm
               v-if="showOverviewEditForm && activity"
+              ref="draftOverviewFormRef"
               :activity="activity"
               :department-id="departmentId"
               :usage-dates-locked="(activity.item_count ?? 0) > 0"
@@ -206,6 +215,47 @@
           <!-- Material -->
           <section v-else-if="activeTab === 'material'" class="tab-content">
             <ActivityTabHeader :title="t('activities.detail.tabMaterial')" />
+            <div
+              v-if="showForgottenMaterialAccordion"
+              class="section-card pack-add-material-card activity-forgotten-material-card"
+            >
+              <button
+                type="button"
+                class="pack-add-material-toggle"
+                :aria-expanded="forgottenMaterialExpanded"
+                @click="forgottenMaterialExpanded = !forgottenMaterialExpanded"
+              >
+                <span class="pack-add-material-chevron" aria-hidden="true">{{
+                  forgottenMaterialExpanded ? '▼' : '▶'
+                }}</span>
+                <span class="pack-add-material-toggle-title">{{
+                  t('activities.detail.forgottenMaterialToggleTitle')
+                }}</span>
+              </button>
+              <div v-show="forgottenMaterialExpanded" class="pack-add-material-body">
+                <p class="pack-add-material-summary text-muted">
+                  {{ t('activities.detail.forgottenMaterialToggleSummary') }}
+                </p>
+                <ActivityMaterialAvailabilityLookup
+                  :department-id="departmentId"
+                  :activity-id="activityId"
+                  :activity-type="activityTypeForMat"
+                  :planning-start-iso="activity.planning_start"
+                  :planning-end-iso="activity.planning_end"
+                  :quantity-by-material-item-id="quantityByMaterialItemId"
+                  :saved-quantity-by-material-item-id="savedQuantityByMaterialItemId"
+                  :invited-departments="activity.invited_departments ?? []"
+                  :disabled="addingDraftMaterial"
+                  hint-variant="draft"
+                  @add-quantity="onDraftAddQuantity"
+                  @scope-change="onMaterialLookupScopeChange"
+                />
+                <p v-if="addingDraftMaterial" class="activity-inline-loading activity-draft-adding">
+                  <span class="spinner spinner-sm"></span>
+                  <span>{{ t('activities.detail.addingMaterial') }}</span>
+                </p>
+              </div>
+            </div>
             <div v-if="showMaterialAddOnMaterialTab" class="section-card activity-tab-panel-card">
               <h2 class="section-title activity-tab-subsection-title">{{ t('activities.detail.materialAddTitle') }}</h2>
               <ActivityMaterialAvailabilityLookup
@@ -450,8 +500,7 @@
 </template>
 
 <script setup lang="ts">
-defineOptions({ name: 'ActivityDetailView' })
-import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, unref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import {
@@ -468,6 +517,7 @@ import {
   type ActivityDetail,
   type ActivityIssueReportRow,
   type ActivityItemRow,
+  type ActivityCompletionBlockers,
   type ActivityTransitionRow,
 } from '@/api/activities'
 import ActivityMaterialAvailabilityLookup from '@/components/activities/ActivityMaterialAvailabilityLookup.vue'
@@ -475,6 +525,7 @@ import ActivityMaterialLinesTable from '@/components/activities/shared/ActivityM
 import ActivityDraftOverviewForm from '@/components/activities/ActivityDraftOverviewForm.vue'
 import ActivityTabHeader from '@/components/activities/ActivityTabHeader.vue'
 import ActivityCostsTab from '@/components/activities/ActivityCostsTab.vue'
+import ActivityCompletionChecklist from '@/components/activities/ActivityCompletionChecklist.vue'
 import ActivityPackListTab from '@/components/activities/ActivityPackListTab.vue'
 import ActivityIssuesTab from '@/components/activities/ActivityIssuesTab.vue'
 import ActivityConsumablesTab from '@/components/activities/ActivityConsumablesTab.vue'
@@ -492,6 +543,7 @@ import type { ConsumptionModalPreset } from '@/components/activities/ActivityCon
 import type { ActivityMaterialLine } from '@/composables/useActivityCreateWizard'
 import type { MaterialScopeTab } from '@/components/activities/shared/activityMaterialAvailabilityScope'
 import { useActivityGroupMemberScope } from '@/composables/useActivityGroupMemberScope'
+import { isDepartmentBasicMemberRole } from '@/composables/useDepartmentMemberRole'
 import { useBackgroundPoll } from '@/composables/useBackgroundPoll'
 import { useConfirm } from '@/composables/useConfirm'
 import { usePageHeadStore } from '@/stores/pageHead'
@@ -500,6 +552,8 @@ import { useToast } from '@/composables/useToast'
 import { resolveActivityPublicUrl } from '@/utils/publicQrUrl'
 import { activityStatusClass, activityStatusI18nKey } from '@/utils/activityStatus'
 import QRCode from 'qrcode'
+
+defineOptions({ name: 'ActivityDetailView' })
 
 /** Workflow-Schritte ab Einreichung — nur MW/DC/Gruppenchef (nicht u + Gruppenmitglied). */
 const MANAGER_WORKFLOW_TRANSITION_STATUSES = new Set([
@@ -675,6 +729,7 @@ function normalizeActivityTabQuery(value: unknown): ActivityTabId | null {
 }
 
 const transitions = ref<ActivityTransitionRow[]>([])
+const completionBlockers = ref<ActivityCompletionBlockers | null>(null)
 
 type ActivityPackListTabExpose = {
   confirmBeforeWorkflowTransition: (transition: ActivityTransitionRow) => Promise<boolean>
@@ -741,6 +796,10 @@ const addingDraftMaterial = ref(false)
 const removingItemId = ref<string | null>(null)
 const draftQuantities = ref<Record<string, number>>({})
 const syncingQuantities = ref(false)
+const draftOverviewFormRef = ref<InstanceType<typeof ActivityDraftOverviewForm> | null>(null)
+
+/** Detail: nahezu live für alle Beteiligten (Status, Entwurf, Material, Übergänge). */
+const ACTIVITY_DETAIL_LIVE_POLL_MS = 4000
 
 const noLabel = computed(() => {
   const n = activity.value?.no
@@ -857,8 +916,34 @@ const showMaterialLookup = computed(() => {
   return !!a.can_edit_activity_material
 })
 
+/** Status ab «Annehmen & Packen» — Accordion «vergessen» ausblenden. */
+const STATUSES_AT_OR_AFTER_PACKING = [
+  'packing',
+  'packed',
+  'at_event',
+  'returned',
+  'completed',
+  'cancelled',
+] as const
+
+const isBasicDepartmentMember = computed(() => isDepartmentBasicMemberRole(departmentRole.value))
+
+/** u–l3: Accordion mit Materialsuche bis «packing» (Entwurf: can_edit_draft_material; danach: can_add_forgotten_material). */
+const showForgottenMaterialAccordion = computed(() => {
+  const a = activity.value
+  if (!a || !isBasicDepartmentMember.value) return false
+  const status = a.status || ''
+  if ((STATUSES_AT_OR_AFTER_PACKING as readonly string[]).includes(status)) return false
+  if (status === 'draft') return !!a.can_edit_draft_material
+  return !!a.can_add_forgotten_material
+})
+
+const forgottenMaterialExpanded = ref(false)
+
 /** «Material hinzufügen» im Material-Tab (MW/DC mit Bearbeitungsrecht, bis «Am Event»). */
-const showMaterialAddOnMaterialTab = computed(() => showMaterialLookup.value)
+const showMaterialAddOnMaterialTab = computed(
+  () => showMaterialLookup.value && !isBasicDepartmentMember.value,
+)
 
 const materialLinesForEditableTable = computed((): ActivityMaterialLine[] => {
   if (!showMaterialLookup.value) return []
@@ -1255,6 +1340,7 @@ async function reload() {
   isLoading.value = true
   activity.value = null
   transitions.value = []
+  completionBlockers.value = null
   activityItems.value = []
   activityIssues.value = []
   draftQuantities.value = {}
@@ -1268,6 +1354,7 @@ async function reload() {
     ])
     activity.value = detail
     transitions.value = tr.transitions || []
+    completionBlockers.value = tr.completion_blockers ?? null
     activityItems.value = items
     if (activeTab.value === 'material') {
       initDraftQuantitiesFromItems()
@@ -1320,7 +1407,12 @@ async function onDamageReportSuccess() {
   headerNotificationsStore.requestRefresh()
   toast.success(t('activities.detail.toastIssueRecorded'))
   try {
-    await Promise.all([loadItems(), loadActivityIssues(), refreshActivityTotalsFromApi()])
+    await Promise.all([
+      loadItems(),
+      loadActivityIssues(),
+      refreshActivityTotalsFromApi(),
+      refreshCompletionBlockers(),
+    ])
   } catch {
     /* loadItems / refresh bereits mit Toast */
   }
@@ -1329,37 +1421,92 @@ async function onDamageReportSuccess() {
 async function refreshActivityTotalsFromApi() {
   const d = await getActivity(props.activityId)
   if (!activity.value) return
-  activity.value.item_count = d.item_count
-  activity.value.total_price = d.total_price
-  activity.value.can_edit_draft_material = d.can_edit_draft_material
-  activity.value.can_edit_activity_material = d.can_edit_activity_material
-  activity.value.can_edit_submitted_activity_content = d.can_edit_submitted_activity_content
-  activity.value.is_pack_list_editable = d.is_pack_list_editable
-  activity.value.status = d.status
+  applyActivityDetailPatch(d)
+}
+
+async function refreshCompletionBlockers() {
+  if (activity.value?.status !== 'returned') {
+    completionBlockers.value = null
+    return
+  }
+  try {
+    const tr = await getActivityTransitions(props.activityId)
+    completionBlockers.value = tr.completion_blockers ?? null
+  } catch {
+    /* optional */
+  }
 }
 
 const ACTIVITY_PACK_LIVE_SYNC_STATUSES = new Set(['packing', 'packed', 'at_event', 'returned'])
 
-async function refreshActivityLiveSilent(): Promise<void> {
-  if (!activity.value || isLoading.value || isTransitioning.value) return
-  if (!ACTIVITY_PACK_LIVE_SYNC_STATUSES.has(activity.value.status)) return
+function applyActivityDetailPatch(d: ActivityDetail): void {
+  if (!activity.value) return
+  Object.assign(activity.value, d)
+}
+
+function isDetailLivePollBusy(): boolean {
+  if (isLoading.value || isTransitioning.value) return true
+  if (syncingQuantities.value || addingDraftMaterial.value) return true
+  if (removingItemId.value) return true
+  if (hasDraftQtyChanges.value) return true
+  const draftForm = draftOverviewFormRef.value
+  if (unref(draftForm?.hasUnsavedChanges)) return true
+  if (unref(draftForm?.isSaving)) return true
+  return false
+}
+
+async function refreshActivityDetailSilent(): Promise<void> {
+  if (!activity.value || loadError.value) return
+  if (isDetailLivePollBusy()) return
   try {
     const prevStatus = activity.value.status
-    const d = await getActivity(props.activityId)
-    activity.value.item_count = d.item_count
-    activity.value.total_price = d.total_price
-    activity.value.can_edit_draft_material = d.can_edit_draft_material
-    activity.value.can_edit_activity_material = d.can_edit_activity_material
-    activity.value.can_edit_submitted_activity_content = d.can_edit_submitted_activity_content
-    activity.value.is_pack_list_editable = d.is_pack_list_editable
-    activity.value.status = d.status
-    if (d.status !== prevStatus) {
+    const prevUpdated = activity.value.updated_at
+    const prevItemCount = activity.value.item_count
+    const prevName = activity.value.name
+
+    const [d, tr] = await Promise.all([
+      getActivity(props.activityId),
+      getActivityTransitions(props.activityId),
+    ])
+
+    applyActivityDetailPatch(d)
+    transitions.value = tr.transitions || []
+    completionBlockers.value = tr.completion_blockers ?? null
+
+    const statusChanged = d.status !== prevStatus
+    const metaChanged =
+      statusChanged ||
+      d.updated_at !== prevUpdated ||
+      d.item_count !== prevItemCount ||
+      (d.name ?? '') !== (prevName ?? '')
+
+    if (metaChanged) {
       pageHeadStore.setDynamic(
-        t('activities.detail.pageTitleSuffix', { name: activity.value.name }),
-        `${activityTypeLabelDetail(activity.value.type || '')} · ${activityStatusLabelDetail(d.status || '')}`,
+        t('activities.detail.pageTitleSuffix', { name: d.name ?? prevName }),
+        `${activityTypeLabelDetail(d.type || '')} · ${activityStatusLabelDetail(d.status || '')}`,
       )
-      const tr = await getActivityTransitions(props.activityId)
-      transitions.value = tr.transitions || []
+    }
+
+    const itemsMayHaveChanged =
+      d.item_count !== prevItemCount ||
+      (activeTab.value === 'material' && d.updated_at !== prevUpdated)
+
+    if (itemsMayHaveChanged) {
+      const items = await getActivityItems(props.activityId).catch(() => null)
+      if (items) {
+        activityItems.value = items
+        if (activeTab.value === 'material' && showMaterialLookup.value) {
+          initDraftQuantitiesFromItems()
+        }
+      }
+    }
+
+    if (
+      statusChanged &&
+      (ACTIVITY_PACK_LIVE_SYNC_STATUSES.has(d.status || '') ||
+        ACTIVITY_PACK_LIVE_SYNC_STATUSES.has(prevStatus || ''))
+    ) {
+      packListReloadToken.value += 1
     }
   } catch {
     /* Poll-Fehler ignorieren */
@@ -1372,7 +1519,8 @@ async function onDraftAddQuantity(payload: { material: { materialItemId: string 
   if (!mid || !a) return
   const can =
     (a.status === 'draft' && a.can_edit_draft_material) ||
-    (a.status !== 'draft' && a.can_edit_activity_material)
+    (a.status !== 'draft' && a.can_edit_activity_material) ||
+    !!a.can_add_forgotten_material
   if (!can) return
   addingDraftMaterial.value = true
   try {
@@ -1394,6 +1542,13 @@ async function onDraftAddQuantity(payload: { material: { materialItemId: string 
   }
 }
 
+const PACK_PIPELINE_ITEM_STATUSES = ['packed', 'at_event', 'returned'] as const
+
+function activityItemHasPackProgress(row: ActivityItemRow): boolean {
+  const st = (row.status ?? '').trim()
+  return (PACK_PIPELINE_ITEM_STATUSES as readonly string[]).includes(st)
+}
+
 async function onRemoveDraftItem(row: ActivityItemRow) {
   const a = activity.value
   if (!a) return
@@ -1401,12 +1556,31 @@ async function onRemoveDraftItem(row: ActivityItemRow) {
     (a.status === 'draft' && a.can_edit_draft_material) ||
     (a.status !== 'draft' && a.can_edit_activity_material)
   if (!can) return
+
+  const status = a.status || ''
+  if (
+    (STATUSES_AT_OR_AFTER_PACKING as readonly string[]).includes(status) &&
+    activityItemHasPackProgress(row)
+  ) {
+    const ok = await confirmDialog({
+      title: t('activities.detail.confirmRemovePackedTitle'),
+      message: t('activities.detail.confirmRemovePackedMessage', { name: row.material_name }),
+      confirmText: t('activities.detail.confirmRemovePackedAction'),
+      cancelText: t('common.cancel'),
+      variant: 'warning',
+    })
+    if (!ok) return
+  }
+
   removingItemId.value = row.id
   try {
     await removeActivityItem(props.activityId, row.id)
     toast.success(t('activities.detail.toastPositionRemoved'))
     await loadItems()
     await refreshActivityTotalsFromApi()
+    if (status === 'packing' || status === 'packed') {
+      packListReloadToken.value += 1
+    }
   } catch (err: unknown) {
     const e = err as { response?: { data?: { error?: string } }; message?: string }
     toast.error(e.response?.data?.error || e.message || t('activities.detail.toastPositionRemoveFailed'))
@@ -1450,6 +1624,7 @@ async function onTransition(
     headerNotificationsStore.requestRefresh()
     const trNext = await getActivityTransitions(props.activityId)
     transitions.value = trNext.transitions || []
+    completionBlockers.value = trNext.completion_blockers ?? null
     if (detail.status === 'packing') {
       activeTab.value = 'packs'
       mergeActivityQuery({ tab: 'packs' })
@@ -1461,11 +1636,26 @@ async function onTransition(
       await loadItems()
     }
   } catch (err: unknown) {
-    const e = err as { response?: { data?: { error?: string } }; message?: string }
-    toast.error(e.response?.data?.error || e.message || t('activities.detail.toastStatusChangeFailed'))
+    const e = err as {
+      response?: {
+        data?: { error?: string; code?: string; blockers?: ActivityCompletionBlockers }
+      }
+      message?: string
+    }
+    if (e.response?.data?.code === 'activity_completion_blocked' && e.response.data.blockers) {
+      completionBlockers.value = e.response.data.blockers
+      toast.error(e.response?.data?.error || t('activities.detail.toastStatusChangeFailed'))
+    } else {
+      toast.error(e.response?.data?.error || e.message || t('activities.detail.toastStatusChangeFailed'))
+    }
   } finally {
     isTransitioning.value = false
   }
+}
+
+function onCompletionGoTab(tab: 'packs' | 'issues' | 'costs') {
+  activeTab.value = tab
+  mergeActivityQuery({ tab })
 }
 
 async function onCancelActivity() {
@@ -1538,13 +1728,10 @@ onBeforeUnmount(() => {
 })
 
 useBackgroundPoll({
-  intervalMs: 4000,
-  enabled: computed(() => {
-    const status = activity.value?.status
-    return !!status && ACTIVITY_PACK_LIVE_SYNC_STATUSES.has(status)
-  }),
-  isBusy: () => isLoading.value || isTransitioning.value,
-  poll: refreshActivityLiveSilent,
+  intervalMs: ACTIVITY_DETAIL_LIVE_POLL_MS,
+  enabled: computed(() => !!activity.value && !loadError.value),
+  isBusy: isDetailLivePollBusy,
+  poll: refreshActivityDetailSilent,
 })
 </script>
 

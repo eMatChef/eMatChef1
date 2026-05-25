@@ -476,7 +476,9 @@ async function onWeiter() {
       isSavingDraft.value = false
     }
   }
-  attemptNext()
+  if (!attemptNext()) {
+    toast.error(t('activities.wizard.toastFillRequired'))
+  }
 }
 
 async function handleSubmit() {
@@ -487,6 +489,9 @@ async function handleSubmit() {
     const payload = buildCreatePayload(props.departmentId, {
       wizardCreateCompleted: true,
     })
+    const wantsSubmitted = shouldFinalizeAsSubmittedAfterWizard()
+    const wantsAutoSubmit = shouldAutoSubmitAfterWizard()
+    const hasMaterial = materialLines.value.length > 0
     let id = ''
     if (draftActivityId.value) {
       const { department_id: _omit, ...patchBody } = payload
@@ -494,12 +499,17 @@ async function handleSubmit() {
       applyInvitedDepartmentsApiResponse(updated)
       id = draftActivityId.value
     } else {
-      const created = await createActivity(payload)
+      /** Material-API nur im Entwurf; Typ «activity» ohne Materialzeilen direkt eingereicht. */
+      const createPayload = {
+        ...payload,
+        status: wantsSubmitted && !hasMaterial ? 'submitted' : 'draft',
+      }
+      const created = await createActivity(createPayload)
       applyInvitedDepartmentsApiResponse(created)
       id = created?.id ? String(created.id) : ''
     }
     let materialSyncFailed = false
-    if (id && materialLines.value.length > 0) {
+    if (id && hasMaterial) {
       try {
         await syncActivityItems(id, {
           items: materialLines.value.map((l) => ({
@@ -512,15 +522,15 @@ async function handleSubmit() {
         materialSyncFailed = true
       }
     }
-    const wantsSubmitted = shouldFinalizeAsSubmittedAfterWizard()
-    const wantsAutoSubmit = shouldAutoSubmitAfterWizard()
     let finalizeSubmitFailed = false
     let finalizeSubmitError = ''
     let autoSubmitFailed = false
     let autoSubmitError = ''
     if (id && !materialSyncFailed && wantsSubmitted) {
       try {
-        await patchActivity(id, { status: 'submitted' })
+        const { department_id: _omit, ...submitBody } = payload
+        submitBody.status = 'submitted'
+        await patchActivity(id, submitBody)
       } catch (err: unknown) {
         finalizeSubmitFailed = true
         const e = err as { response?: { data?: { error?: string } }; message?: string }

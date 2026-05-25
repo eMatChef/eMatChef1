@@ -10,6 +10,10 @@ export interface DisplayScreenSettings {
   subtitle_text?: string | null
   show_activities?: boolean
   show_workshop?: boolean
+  activity_types?: string[]
+  activity_statuses?: string[]
+  workshop_statuses?: string[]
+  show_statistics?: boolean
   access_code_hint: string | null
   code_version: number
   revoked_at: string | null
@@ -31,12 +35,20 @@ export type PublicDisplayData = DepartmentDisplayData & {
   subtitle_text?: string | null
   show_activities?: boolean
   show_workshop?: boolean
+  activity_types?: string[]
+  activity_statuses?: string[]
+  workshop_statuses?: string[]
+  show_statistics?: boolean
 }
 
 export interface DisplayScreenSettingsUpdate {
   subtitle_text?: string | null
   show_activities?: boolean
   show_workshop?: boolean
+  activity_types?: string[]
+  activity_statuses?: string[]
+  workshop_statuses?: string[]
+  show_statistics?: boolean
 }
 
 export async function listDisplayScreens(departmentId: string): Promise<DisplayScreenSettings[]> {
@@ -82,6 +94,16 @@ export async function updateDisplayScreenSettings(
 export async function revokeDisplayScreen(departmentId: string, screenId: string): Promise<DisplayScreenSettings> {
   const res = await apiClient.post<DisplayScreenSettings>(
     `/api/departments/${encodeURIComponent(departmentId)}/display-screens/${encodeURIComponent(screenId)}/revoke`,
+  )
+  return res.data
+}
+
+export async function reactivateDisplayScreen(
+  departmentId: string,
+  screenId: string,
+): Promise<DisplayScreenSettings> {
+  const res = await apiClient.post<DisplayScreenSettings>(
+    `/api/departments/${encodeURIComponent(departmentId)}/display-screens/${encodeURIComponent(screenId)}/reactivate`,
   )
   return res.data
 }
@@ -137,5 +159,10 @@ export async function getPublicDisplayData(publicId: string): Promise<PublicDisp
     subtitle_text: data.subtitle_text ?? null,
     show_activities: data.show_activities !== false,
     show_workshop: data.show_workshop !== false,
+    activity_types: data.activity_types,
+    activity_statuses: data.activity_statuses,
+    workshop_statuses: data.workshop_statuses,
+    show_statistics: data.show_statistics === true,
+    statistics: data.statistics ?? null,
   }
 }

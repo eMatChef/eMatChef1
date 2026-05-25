@@ -19,7 +19,10 @@ export type CrateCheckSnapshot = {
   lines: Array<Record<string, unknown>>
   actions_applied: Array<Record<string, unknown>>
   created_at: string
+  check_leg?: string
 }
+
+export type CrateCheckSnapshotByKey = Record<string, CrateCheckSnapshot>
 
 export function isCrateCheckDisplayLine(ci: { id: string }): boolean {
   return ci.id.startsWith(CRATE_CHECK_DISPLAY_LINE_PREFIX)
@@ -58,24 +61,49 @@ function effectiveSubsectionKey(h: Record<string, unknown>): string {
   return subsectionKeyFromLineKey(String(h.line_key ?? ''))
 }
 
-export function indexLatestCrateCheckByPackItemId(
+function normalizeCheckLeg(raw: unknown): string {
+  const leg = String(raw ?? '').trim()
+  if (leg === 'return' || leg === 'warehouse_store') return leg
+  return 'outbound'
+}
+
+/** Letzter Check pro Pack-Position und Etappe (outbound | return | warehouse_store). */
+export function indexLatestCrateCheckByPackItemAndLeg(
   history: Array<{ action: string; created_at: string; changes?: Record<string, unknown> }>,
-): Record<string, CrateCheckSnapshot> {
+): CrateCheckSnapshotByKey {
   const sorted = [...history]
     .filter((e) => e.action === 'pack_crate_check')
     .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-  const out: Record<string, CrateCheckSnapshot> = {}
+  const out: CrateCheckSnapshotByKey = {}
   for (const e of sorted) {
     const pid = e.changes?.pack_item_id
-    if (typeof pid !== 'string' || pid === '' || out[pid]) continue
+    if (typeof pid !== 'string' || pid === '') continue
+    const leg = normalizeCheckLeg(e.changes?.check_leg)
+    const key = `${pid}:${leg}`
+    if (out[key]) continue
     const lines = e.changes?.lines
     if (!Array.isArray(lines) || lines.length === 0) continue
     const actions = e.changes?.actions_applied
-    out[pid] = {
+    out[key] = {
       lines: lines as Array<Record<string, unknown>>,
       actions_applied: Array.isArray(actions) ? (actions as Array<Record<string, unknown>>) : [],
       created_at: e.created_at,
+      check_leg: leg,
     }
+  }
+  return out
+}
+
+/** Abwärtskompatibel: ein Snapshot pro Pack-Item (neuester Check egal welche Etappe). */
+export function indexLatestCrateCheckByPackItemId(
+  history: Array<{ action: string; created_at: string; changes?: Record<string, unknown> }>,
+): Record<string, CrateCheckSnapshot> {
+  const byLeg = indexLatestCrateCheckByPackItemAndLeg(history)
+  const out: Record<string, CrateCheckSnapshot> = {}
+  for (const [key, snap] of Object.entries(byLeg)) {
+    const pid = key.split(':')[0] ?? ''
+    if (!pid || out[pid]) continue
+    out[pid] = snap
   }
   return out
 }

@@ -61,6 +61,9 @@ function devicesModeHostGuard(
       })
     }
     if (deptId) {
+      if (to.name === 'Dashboard') {
+        return next()
+      }
       return next({ name: 'Dashboard', params: { departmentId: deptId }, replace: true })
     }
     return next({ path: '/', replace: true })
@@ -491,17 +494,6 @@ const routes: RouteRecordRaw[] = [
       requiresAuth: true,
       devicesMode: true,
       ...routeHead('devicesPack', 'devicesPack'),
-    },
-    beforeEnter: devicesModeHostGuard,
-  },
-  {
-    path: '/:departmentId',
-    name: 'DevicesHome',
-    component: () => import('@/views/devices/DevicesHomeView.vue'),
-    meta: {
-      requiresAuth: true,
-      devicesMode: true,
-      ...routeHead('devicesHome', 'devicesHome'),
     },
     beforeEnter: devicesModeHostGuard,
   },
@@ -1005,7 +997,19 @@ const routes: RouteRecordRaw[] = [
         ]
       }
     ]
-  }
+  },
+  /** Nach AppLayout: sonst fängt DevicesHome jedes /:departmentId auf der App-Domain ab (Redirect-Schleife). */
+  {
+    path: '/:departmentId',
+    name: 'DevicesHome',
+    component: () => import('@/views/devices/DevicesHomeView.vue'),
+    meta: {
+      requiresAuth: true,
+      devicesMode: true,
+      ...routeHead('devicesHome', 'devicesHome'),
+    },
+    beforeEnter: devicesModeHostGuard,
+  },
 ]
 
 const router = createRouter({

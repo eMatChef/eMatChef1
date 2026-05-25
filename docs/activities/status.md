@@ -135,7 +135,13 @@ Zwei **getrennte** Ebenen — bewusst nicht zusammengelegt:
 
 Vollständige Beschreibung: **[material-pipeline.md](./material-pipeline.md)**
 
-Kurz: In `draft` / `submitted` / `approved` ist Material nur **bestellt** (`ordered`). Die Pack-Pipeline startet erst ab `packing`. Bei `returned` hat die Gruppe retourniert; **Eingelagert** (`quantity_stored`) ist eine eigene MW-Stufe vor `completed`.
+Kurz: In `draft` / `submitted` / `approved` ist Material nur **bestellt** (`ordered`). Die Pack-Pipeline startet erst ab `packing`. Bei `returned` hat die Gruppe retourniert; **Eingelagert** (`quantity_stored`) ist eine eigene MW-Stufe. **Verfügbarkeit** für andere Anlässe folgt der Pipeline (frei pro eingelagerter Menge), nicht `completed`.
+
+**Abschluss-Blocker** (`returned` → `completed`): Material nicht vollständig eingelagert; offene Verlust-/Reparatur-/Schaden-Meldungen; offene Werkstatt-Tickets; **alle** ausstehenden Buchhaltungs-Aufträge der Aktivität (keine Sammel-Endabrechnung).
+
+**Buchhaltung ab Retour** (`ActivityAccountingCostService`): mehrere `accounting_acquisition_follow_up` pro Aktivität — `activity_consumption` (Verbrauch gesammelt), `activity_replenishment` (**pro einreichendem Department**, Auftrag im jeweiligen Dep.), `activity_rental` (nur external), `activity_workshop` (pro Ticket, **Buchhaltungs-Department = Owner des Materials**). Verrechnungsziel in der API: `charge_target` — `group` (intern Verbrauch), `department` (Werkstatt intern / Nachlieferung), `external_customer` (Vermietung, Werkstatt/Reparatur extern). Kein separater `activity_loss`-Posten. Melder (`reported_by_display_name`) und Kunde/Material-Dep. werden für Zuordnung in der Buchhaltung mitgeliefert. Liste aller Aufträge einer Aktivität: `GET /api/activities/{id}/accounting-followups`. Details: [material-pipeline.md](./material-pipeline.md#regeln-ziel).
+
+**UI bei `returned`:** Abschluss-Checkliste in der Aktivitäts-Detailansicht (`completion_blockers` aus `GET /api/activities/{id}/transitions`) — Einlagern, Meldungen, Werkstatt, Buchhaltung mit Sprüngen zu Packliste / Issues / Kosten / Werkstatt.
 
 Details Pack-Workflow (Geräte): [devices/pack-workflow.md](../devices/pack-workflow.md)
 

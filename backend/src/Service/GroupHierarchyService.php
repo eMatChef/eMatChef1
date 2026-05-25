@@ -58,7 +58,42 @@ class GroupHierarchyService
     }
 
     /**
+     * Erweitert Root-Gruppen um alle übergeordneten Gruppen (rekursiv bis Wurzel).
+     *
+     * @param list<string> $rootGroupIds
+     *
+     * @return list<string>
+     */
+    public function expandWithAncestors(string $departmentId, array $rootGroupIds): array
+    {
+        $rootGroupIds = array_values(array_unique(array_filter($rootGroupIds)));
+        if ($rootGroupIds === []) {
+            return [];
+        }
+
+        $groups = $this->entityManager->getRepository(Group::class)->findBy(['departmentId' => $departmentId]);
+        $parentById = [];
+        foreach ($groups as $group) {
+            $parentById[$group->getId()] = $group->getParentId();
+        }
+
+        $result = [];
+        foreach ($rootGroupIds as $id) {
+            $current = $id;
+            $seen = [];
+            while ($current !== null && $current !== '' && !isset($seen[$current])) {
+                $seen[$current] = true;
+                $result[] = $current;
+                $current = $parentById[$current] ?? null;
+            }
+        }
+
+        return array_values(array_unique($result));
+    }
+
+    /**
      * Liegt die Aktivitäts-Gruppe in der Unterhierarchie einer User-Gruppe?
+     * (User in Parent sieht Child-Aktivitäten.)
      *
      * @param list<string> $userRootGroupIds
      */
@@ -67,5 +102,38 @@ class GroupHierarchyService
         $expanded = $this->expandWithDescendants($departmentId, $userRootGroupIds);
 
         return in_array($activityGroupId, $expanded, true);
+    }
+
+    /**
+     * Liegt eine User-Gruppe in der Unterhierarchie der Aktivitäts-Gruppe?
+     * (User in Untergruppe sieht Parent-Aktivitäten, z. B. Lager/Event der Gruppe darüber.)
+     *
+     * @param list<string> $userRootGroupIds
+     */
+    public function isUserGroupUnderActivityGroup(string $departmentId, string $activityGroupId, array $userRootGroupIds): bool
+    {
+        if ($userRootGroupIds === []) {
+            return false;
+        }
+
+        $activityBranch = $this->expandWithDescendants($departmentId, [$activityGroupId]);
+        foreach ($userRootGroupIds as $userRootId) {
+            if (in_array($userRootId, $activityBranch, true)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Gleicher Gruppenzweig: Aktivität in User-Unterbaum oder User in Aktivitäts-Unterbaum.
+     *
+     * @param list<string> $userRootGroupIds
+     */
+    public function isInSameGroupBranch(string $departmentId, string $activityGroupId, array $userRootGroupIds): bool
+    {
+        return $this->isActivityGroupUnderUserGroups($departmentId, $activityGroupId, $userRootGroupIds)
+            || $this->isUserGroupUnderActivityGroup($departmentId, $activityGroupId, $userRootGroupIds);
     }
 }

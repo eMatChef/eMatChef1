@@ -20,4 +20,8 @@ export interface ActivityPeriodAvailabilityMaterial {
   sourceDepartmentName?: string | null
   isJsMaterial?: boolean
   materialType?: 'physical' | 'physical_combo' | 'virtual_combo'
+  /** Referenz-Behälter der phys. Kombo (Batch-Label / SN) */
+  linkedContainerLabel?: string | null
+  /** Verpackungseinheit des Behälter-Stammartikels (z. B. Sack, Kiste) */
+  linkedContainerPackUnit?: string | null
 }

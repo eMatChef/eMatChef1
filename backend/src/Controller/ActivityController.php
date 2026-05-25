@@ -21,6 +21,7 @@ use App\Entity\WorkshopTicket;
 use App\Entity\Address;
 use App\Entity\User;
 use App\Service\ActivityAccessService;
+use App\Service\AccountingAcquisitionFollowUpSerializer;
 use App\Service\ActivityAccountingCostService;
 use App\Service\ActivityItemPipelineStatusService;
 use App\Service\ActivityKisteMaterialLinker;
@@ -52,6 +53,7 @@ class ActivityController extends AbstractController
         private InboxMessageService $inboxMessageService,
         private PublicCodeService $publicCodeService,
         private ActivityItemPipelineStatusService $activityItemPipelineStatus,
+        private AccountingAcquisitionFollowUpSerializer $followUpSerializer,
     ) {}
 
     private function getActorUserId(): ?string
@@ -654,8 +656,60 @@ class ActivityController extends AbstractController
             : $this->activityAccess->canUserEditSubmittedActivityDetails($currentUser, $activity);
         $data['can_submit_activity'] = $activity->isDraft()
             && $this->canUserSubmitActivityForApi($currentUser, $activity);
+        $data['can_add_forgotten_material'] = $this->activityAccess->canUserAddMaterialBeforePacking($currentUser, $activity);
 
         return new JsonResponse($data);
+    }
+
+    /**
+     * Alle Buchhaltungs-Aufträge einer Aktivität (alle Departments), z. B. Kosten-Tab.
+     */
+    #[Route('/{id}/accounting-followups', name: 'accounting_followups', methods: ['GET'])]
+    #[IsGranted('ROLE_USER')]
+    public function listAccountingFollowUps(string $id, Request $request): JsonResponse
+    {
+        $activity = $this->entityManager->getRepository(Activity::class)->find($id);
+
+        if (!$activity || $activity->isDeleted()) {
+            return new JsonResponse(['error' => 'Aktivität nicht gefunden'], 404);
+        }
+
+        $currentUser = $this->getUser();
+        if (!$currentUser instanceof User) {
+            return new JsonResponse(['error' => 'Nicht authentifiziert'], 401);
+        }
+        if (!$this->activityAccess->canUserViewActivity($currentUser, $activity)) {
+            return new JsonResponse(['error' => 'Keine Berechtigung fuer diese Aktivitaet'], 403);
+        }
+
+        $status = trim((string) $request->query->get('status', AccountingAcquisitionFollowUp::STATUS_PENDING));
+        if (!in_array($status, [AccountingAcquisitionFollowUp::STATUS_PENDING, AccountingAcquisitionFollowUp::STATUS_RECORDED], true)) {
+            $status = AccountingAcquisitionFollowUp::STATUS_PENDING;
+        }
+
+        try {
+            $rows = $this->entityManager->createQueryBuilder()
+                ->select('f')
+                ->from(AccountingAcquisitionFollowUp::class, 'f')
+                ->where('f.activity = :activity')
+                ->andWhere('f.status = :st')
+                ->setParameter('activity', $activity)
+                ->setParameter('st', $status)
+                ->orderBy('f.createdAt', 'ASC')
+                ->getQuery()
+                ->getResult();
+        } catch (\Throwable) {
+            return new JsonResponse([]);
+        }
+
+        $out = [];
+        foreach ($rows as $f) {
+            if ($f instanceof AccountingAcquisitionFollowUp) {
+                $out[] = $this->followUpSerializer->serialize($f);
+            }
+        }
+
+        return new JsonResponse($out);
     }
 
     /**
@@ -718,21 +772,12 @@ class ActivityController extends AbstractController
             return new JsonResponse(['error' => 'Keine Berechtigung fuer dieses Department'], 403);
         }
 
-        if ($this->activityAccess->isRestrictedGroupMember($currentUser, (string) $data['department_id'])) {
-            $requestedType = (string) ($data['type'] ?? 'activity');
-            if ($requestedType !== 'activity') {
-                return new JsonResponse([
-                    'error' => 'Als Gruppenmitglied dürfen Sie nur Aktivitäten vom Typ «Aktivität» anlegen.',
-                ], 403);
-            }
-        }
-
         $requestedType = (string) ($data['type'] ?? 'activity');
         if (!$this->activityAccess->canUserCreateActivityType($currentUser, (string) $data['department_id'], $requestedType)) {
             return new JsonResponse([
                 'error' => match ($requestedType) {
                     'external' => 'Externe Ausleihen dürfen nur vom Materialwart angelegt werden.',
-                    'camp', 'event' => 'Lager und Event dürfen nur von User, Gruppenchef oder Leiter 1–3 angelegt werden.',
+                    'camp', 'event' => 'Lager und Event dürfen nur vom Materialwart, Leiter 1–3 oder von Gruppenchefs (Department-Rolle User) angelegt werden.',
                     default => 'Keine Berechtigung für diesen Aktivitätstyp.',
                 },
             ], 403);
@@ -757,10 +802,14 @@ class ActivityController extends AbstractController
             if (isset($data['group_id'])) {
                 $group = $this->entityManager->getRepository(Group::class)->find($data['group_id']);
                 if ($group) {
-                    if ($this->activityAccess->isRestrictedGroupMember($currentUser, (string) $data['department_id'])) {
+                    $deptId = (string) $data['department_id'];
+                    if (
+                        $this->activityAccess->isRestrictedGroupMember($currentUser, $deptId)
+                        && !$this->activityAccess->canSelectDepartmentGroupLevel($currentUser, $deptId)
+                    ) {
                         $visibleGroupIds = $this->activityAccess->getExpandedVisibleGroupIds(
                             $currentUser,
-                            (string) $data['department_id']
+                            $deptId
                         );
                         if ($visibleGroupIds === [] || !in_array($group->getId(), $visibleGroupIds, true)) {
                             return new JsonResponse([
@@ -1214,8 +1263,7 @@ class ActivityController extends AbstractController
             return new JsonResponse(['error' => $permissionCheck], 403);
         }
 
-        // 3b. Abschluss-Blocker prüfen:
-        // Aktivität darf erst abgeschlossen werden, wenn offene Issues/Tickets geklärt sind.
+        // 3b. Abschluss-Blocker: Einlagerung, Meldungen, Werkstatt, offene Buchhaltung (inkl. Endabrechnung).
         if ($newStatus === Activity::STATUS_COMPLETED) {
             $blockers = $this->getCompletionBlockers($activity);
             if ($this->hasCompletionBlockers($blockers)) {
@@ -1246,6 +1294,7 @@ class ActivityController extends AbstractController
         }
         if ($newStatus === Activity::STATUS_RETURNED) {
             $this->autoInitReturnList($activity);
+            $this->activityAccountingCost->syncActivityAccountingFollowUps($activity);
         }
         if ($newStatus === Activity::STATUS_COMPLETED) {
             $this->applyStockAdjustments($activity);
@@ -1276,8 +1325,7 @@ class ActivityController extends AbstractController
         $this->entityManager->flush();
 
         if ($newStatus === Activity::STATUS_COMPLETED && $oldStatus !== Activity::STATUS_COMPLETED) {
-            // Fallback: Verbrauch, der nie eingelagert wurde (vollständig verbraucht)
-            $this->activityAccountingCost->enqueueFinalActivityBilling($activity);
+            $this->activityAccountingCost->syncActivityAccountingFollowUps($activity);
         }
 
         if ($isQuickAutoApprove) {
@@ -1328,13 +1376,21 @@ class ActivityController extends AbstractController
      * Ermittelt Blocker für den Abschluss einer Aktivität.
      *
      * Blockiert wird bei:
-     * - Material noch nicht eingelagert (Retour → Ausgepackt)
-     *
-     * Offene Werkstatt-Tickets, Verlustmeldungen und Buchhaltungs-Aufträge blockieren nicht.
+     * - Material noch nicht vollständig eingelagert (packed/returned > stored)
+     * - Offene Verlust-/Reparatur-/Schaden-Meldungen
+     * - Offene Werkstatt-Tickets
+     * - Ausstehende Buchhaltungs-Aufträge (inkl. Endabrechnung)
      */
     private function getCompletionBlockers(Activity $activity): array
     {
         $activityId = $activity->getId();
+
+        try {
+            $this->activityAccountingCost->syncActivityAccountingFollowUps($activity);
+            $this->entityManager->flush();
+        } catch (\Throwable) {
+            // Blocker-Abfrage darf nicht abbrechen
+        }
 
         $openWorkshopTickets = $this->entityManager->getRepository(WorkshopTicket::class)
             ->createQueryBuilder('t')
@@ -1393,8 +1449,9 @@ class ActivityController extends AbstractController
             ->innerJoin('pi.materialItem', 'm')
             ->addSelect('m')
             ->where('pi.activityId = :activityId')
-            ->andWhere('pi.quantityReturned > pi.quantityStored')
-            ->andWhere('pi.quantityReturned > 0')
+            ->andWhere(
+                'pi.quantityPacked > pi.quantityStored OR (pi.quantityReturned > pi.quantityStored AND pi.quantityReturned > 0)'
+            )
             ->setParameter('activityId', $activityId)
             ->orderBy('m.name', 'ASC')
             ->setMaxResults(12)
@@ -1405,8 +1462,9 @@ class ActivityController extends AbstractController
             ->createQueryBuilder('pi')
             ->select('COUNT(pi.id)')
             ->where('pi.activityId = :activityId')
-            ->andWhere('pi.quantityReturned > pi.quantityStored')
-            ->andWhere('pi.quantityReturned > 0')
+            ->andWhere(
+                'pi.quantityPacked > pi.quantityStored OR (pi.quantityReturned > pi.quantityStored AND pi.quantityReturned > 0)'
+            )
             ->setParameter('activityId', $activityId)
             ->getQuery()
             ->getSingleScalarResult();
@@ -1429,18 +1487,20 @@ class ActivityController extends AbstractController
                 'material_name' => $ir->getMaterialItem()?->getName(),
                 'reported_at' => $ir->getReportedAt()->format('c'),
             ], $openIssueReports),
-            'pending_accounting_followups' => array_map(static fn(AccountingAcquisitionFollowUp $f) => [
-                'id' => $f->getId(),
-                'amount' => $f->getAmount(),
-                'receipt_label' => $f->getReceiptLabel(),
-                'source_kind' => $f->getSourceKind(),
-            ], $pendingAccountingFollowups),
+            'pending_accounting_followups' => array_map(
+                fn(AccountingAcquisitionFollowUp $f) => $this->serializeCompletionBlockerFollowUp($f),
+                $pendingAccountingFollowups,
+            ),
             'unstored_pack_items' => array_map(static fn(ActivityPackItem $pi) => [
                 'id' => $pi->getId(),
                 'material_name' => $pi->getMaterialItem()?->getName(),
+                'quantity_packed' => $pi->getQuantityPacked(),
                 'quantity_returned' => $pi->getQuantityReturned(),
                 'quantity_stored' => $pi->getQuantityStored(),
-                'pending_store' => $pi->getQuantityReturned() - $pi->getQuantityStored(),
+                'pending_store' => max(
+                    $pi->getQuantityReturned() - $pi->getQuantityStored(),
+                    $pi->getQuantityPacked() - $pi->getQuantityStored(),
+                ),
             ], $unstoredPackItems),
         ];
     }
@@ -1450,7 +1510,10 @@ class ActivityController extends AbstractController
      */
     private function hasCompletionBlockers(array $blockers): bool
     {
-        return ($blockers['unstored_pack_items_count'] ?? 0) > 0;
+        return ($blockers['unstored_pack_items_count'] ?? 0) > 0
+            || ($blockers['open_issue_reports_count'] ?? 0) > 0
+            || ($blockers['open_workshop_tickets_count'] ?? 0) > 0
+            || ($blockers['pending_accounting_followups_count'] ?? 0) > 0;
     }
 
     /**
@@ -1460,7 +1523,16 @@ class ActivityController extends AbstractController
     {
         $parts = [];
         if (($blockers['unstored_pack_items_count'] ?? 0) > 0) {
-            $parts[] = 'Material noch nicht eingelagert (Retour → Ausgepackt)';
+            $parts[] = 'Material noch nicht vollständig eingelagert';
+        }
+        if (($blockers['open_issue_reports_count'] ?? 0) > 0) {
+            $parts[] = 'offene Verlust-/Reparatur-/Schaden-Meldungen';
+        }
+        if (($blockers['open_workshop_tickets_count'] ?? 0) > 0) {
+            $parts[] = 'offene Werkstatt-Tickets';
+        }
+        if (($blockers['pending_accounting_followups_count'] ?? 0) > 0) {
+            $parts[] = 'ausstehende Buchhaltungs-Aufträge';
         }
 
         return 'Aktivität kann nicht abgeschlossen werden: ' . implode(', ', $parts) . '.';
@@ -1515,11 +1587,20 @@ class ActivityController extends AbstractController
             ];
         }
 
-        return new JsonResponse([
+        $payload = [
             'current_status' => $currentStatus,
             'current_label' => $this->getStatusLabel($currentStatus),
             'transitions' => $transitions,
-        ]);
+        ];
+
+        if (
+            $currentStatus === Activity::STATUS_RETURNED
+            || in_array(Activity::STATUS_COMPLETED, $possibleTransitions, true)
+        ) {
+            $payload['completion_blockers'] = $completionBlockers;
+        }
+
+        return new JsonResponse($payload);
     }
 
     /**
@@ -1756,7 +1837,11 @@ class ActivityController extends AbstractController
         }
 
         if ($this->activityAccess->canHostMwOrDcEditActivityMaterialAfterDraft($currentUser, $activity)) {
-            $this->kisteMaterialLinker->syncMissingActivityLinesFromPackContainers($activity, $currentUser);
+            try {
+                $this->kisteMaterialLinker->syncMissingActivityLinesFromPackContainers($activity, $currentUser);
+            } catch (\Throwable $e) {
+                // GET darf nicht abbrechen (z. B. parallele Pack-Sync-Kanten)
+            }
         }
 
         $items = $this->entityManager->getRepository(ActivityItem::class)
@@ -1765,6 +1850,12 @@ class ActivityController extends AbstractController
             ->addSelect('mi')
             ->leftJoin('mi.linkedContainerBatch', 'linkCb')
             ->addSelect('linkCb')
+            ->leftJoin('ai.createdByUser', 'cbu')
+            ->addSelect('cbu')
+            ->leftJoin('cbu.profile', 'cbp')
+            ->addSelect('cbp')
+            ->leftJoin('ai.submitterDepartment', 'sd')
+            ->addSelect('sd')
             ->where('ai.activityId = :activityId')
             ->setParameter('activityId', $id)
             ->orderBy('mi.name', 'ASC')
@@ -1844,6 +1935,11 @@ class ActivityController extends AbstractController
                 'price_type' => $item->getPriceType(),
                 'is_consumable' => $item->getIsConsumable(),
                 'is_replenishment' => $item->getIsReplenishment(),
+                'created_by_user_id' => $item->getCreatedByUserId(),
+                'created_by_display_name' => $this->userDisplayName($item->getCreatedByUser()),
+                'submitter_department_id' => $item->getSubmitterDepartmentId(),
+                'submitter_department_name' => $item->getSubmitterDepartment()?->getName(),
+                'recorded_at' => $item->getCreatedAt()->format('c'),
                 'sale_price' => $mi->getSalePrice(),
                 'pack_size' => $mi->getPackSize(),
                 'pack_unit' => $mi->getPackUnit(),
@@ -1882,6 +1978,8 @@ class ActivityController extends AbstractController
         $items = $data['items'] ?? [];
 
         try {
+            $materialBefore = $this->aggregateActivityMaterials($id);
+
             // Alle bestehenden Items löschen
             $existingItems = $this->entityManager->getRepository(ActivityItem::class)
                 ->findBy(['activityId' => $id]);
@@ -1948,6 +2046,8 @@ class ActivityController extends AbstractController
                 $this->entityManager->flush();
             }
 
+            $this->recordMaterialItemsHistory($activity, $materialBefore);
+
             return new JsonResponse([
                 'message' => "$count Material-Positionen gespeichert",
                 'item_count' => $count,
@@ -1977,7 +2077,7 @@ class ActivityController extends AbstractController
         if (!$currentUser instanceof User) {
             return new JsonResponse(['error' => 'Nicht authentifiziert'], 401);
         }
-        $deny = $this->assertCanModifyActivityMaterialItems($currentUser, $activity);
+        $deny = $this->assertCanAddActivityMaterialItem($currentUser, $activity);
         if ($deny !== null) {
             return $deny;
         }
@@ -1994,6 +2094,8 @@ class ActivityController extends AbstractController
         }
 
         try {
+            $materialBefore = $this->aggregateActivityMaterials($id);
+
             $replenishment = filter_var($data['replenishment'] ?? false, FILTER_VALIDATE_BOOLEAN);
 
             // Erste Zeile pro Material (Hauptbuchung vor Nachbuchungs-Zeilen) — es können mehrere activity_item-Zeilen existieren
@@ -2033,6 +2135,7 @@ class ActivityController extends AbstractController
                 } else {
                     $activityItem->setPriceType('sale');
                 }
+                $this->applyItemProvenance($activityItem, $currentUser, $activity, $data);
                 $this->entityManager->persist($activityItem);
                 $replenishmentItem = $activityItem;
             } elseif ($existing) {
@@ -2070,6 +2173,7 @@ class ActivityController extends AbstractController
                 if (isset($data['price_type'])) {
                     $activityItem->setPriceType($data['price_type']);
                 }
+                $this->applyItemProvenance($activityItem, $currentUser, $activity, $data);
                 $this->entityManager->persist($activityItem);
             }
 
@@ -2108,6 +2212,16 @@ class ActivityController extends AbstractController
 
             $this->entityManager->flush();
 
+            $this->recordMaterialItemsHistory($activity, $materialBefore);
+
+            if ($replenishmentItem !== null || filter_var($data['replenishment'] ?? false, FILTER_VALIDATE_BOOLEAN)) {
+                try {
+                    $this->activityAccountingCost->syncActivityAccountingFollowUps($activity);
+                } catch (\Throwable) {
+                    // Nachlieferung bleibt gespeichert; Buchhaltungs-Sync kann nachgezogen werden
+                }
+            }
+
             return new JsonResponse(['message' => 'Material hinzugefügt', 'total_price' => $activity->getTotalPrice()], 201);
         } catch (\Exception $e) {
             return new JsonResponse(['error' => 'Fehler: ' . $e->getMessage()], 500);
@@ -2142,6 +2256,8 @@ class ActivityController extends AbstractController
         if ($materialItemId === '' || $releaseQty < 1) {
             return new JsonResponse(['error' => 'material_item_id und quantity (≥1) erforderlich'], 400);
         }
+
+        $materialBefore = $this->aggregateActivityMaterials($id);
 
         $booked = (int) $this->entityManager->createQueryBuilder()
             ->select('COALESCE(SUM(ai.quantity), 0)')
@@ -2258,6 +2374,8 @@ class ActivityController extends AbstractController
 
         $this->entityManager->flush();
 
+        $this->recordMaterialItemsHistory($activity, $materialBefore);
+
         return new JsonResponse([
             'message' => 'Überschuss entlastet',
             'released' => $releaseQty,
@@ -2287,6 +2405,8 @@ class ActivityController extends AbstractController
             return $deny;
         }
 
+        $materialBefore = $this->aggregateActivityMaterials($id);
+
         $removedMaterial = $item->getMaterialItem();
         $removedMaterialId = $item->getMaterialItemId();
 
@@ -2308,14 +2428,25 @@ class ActivityController extends AbstractController
             Activity::STATUS_RETURNED,
             Activity::STATUS_COMPLETED,
         ], true)) {
+            $packItemIdsForPurge = array_values(array_filter(array_map(
+                static fn (ActivityPackItem $pi) => $pi->getId(),
+                $this->entityManager->getRepository(ActivityPackItem::class)->findBy([
+                    'activityId' => $activity->getId(),
+                    'materialItemId' => $removedMaterialId,
+                ]),
+            )));
+            $this->dissolvePackContainersForRemovedMaterial($activity, $removedMaterialId);
             if ($removedMaterial->getMaterialType() === 'physical_combo') {
-                $this->dissolvePackContainersForRemovedMaterial($activity, $removedMaterialId);
                 $this->removeOrphanKisteActivityLinesAfterComboDissolve($activity, $removedMaterial);
             }
+            $this->purgeIssueReportsForMaterial($activity, $removedMaterialId);
             $this->resyncPackListFromActivityItems($activity);
+            $this->purgePackCrateCheckHistory($activity, $removedMaterialId, $packItemIdsForPurge);
         }
 
         $this->entityManager->flush();
+
+        $this->recordMaterialItemsHistory($activity, $materialBefore);
 
         return new JsonResponse(['message' => 'Material entfernt', 'total_price' => $activity->getTotalPrice()]);
     }
@@ -2453,39 +2584,126 @@ class ActivityController extends AbstractController
     }
 
     /**
-     * Phys.-Kombi / Kisten-Shell aus Materialliste entfernt: Pack-Behälter auflösen, Inhalt als lose Positionen.
+     * Pack-Behälter + Zeilen zu Material/Phys.-Kombi löschen (ohne Inhalt in Materialliste umzubuchen).
+     *
+     * @return ActivityPackContainer[]
+     */
+    private function findPackContainersForMaterial(Activity $activity, string $materialItemId): array
+    {
+        $activityId = $activity->getId();
+        if (!$activityId) {
+            return [];
+        }
+
+        $material = $this->entityManager->getRepository(MaterialItem::class)->find($materialItemId);
+        $linkedBatchId = $material?->getLinkedContainerBatchId();
+        $comboName = $material !== null ? trim($material->getName()) : '';
+
+        $found = [];
+        $all = $this->entityManager->getRepository(ActivityPackContainer::class)
+            ->findBy(['activityId' => $activityId]);
+
+        foreach ($all as $container) {
+            if (!$container instanceof ActivityPackContainer) {
+                continue;
+            }
+            $id = $container->getId();
+            if ($id !== null && isset($found[$id])) {
+                continue;
+            }
+
+            if ($this->kisteMaterialLinker->shellMaterialIdForPackContainer($container) === $materialItemId) {
+                $found[$id ?? ''] = $container;
+                continue;
+            }
+
+            $batch = $container->getContainerBatch();
+            if ($batch !== null && $batch->getMaterialItemId() === $materialItemId) {
+                $found[$id ?? ''] = $container;
+                continue;
+            }
+
+            if ($linkedBatchId !== null && $linkedBatchId !== '' && $container->getContainerBatchId() === $linkedBatchId) {
+                $found[$id ?? ''] = $container;
+                continue;
+            }
+
+            if (
+                $material !== null
+                && $material->getMaterialType() === 'physical_combo'
+                && $container->getContainerBatchId() === null
+                && $comboName !== ''
+                && strcasecmp(trim($container->getLabel()), $comboName) === 0
+            ) {
+                $found[$id ?? ''] = $container;
+            }
+        }
+
+        return array_values(array_filter($found));
+    }
+
+    /**
+     * Phys.-Kombi / Kisten-Shell aus Materialliste entfernt: Pack-Behälter und Zeilen vollständig entfernen.
      */
     private function dissolvePackContainersForRemovedMaterial(Activity $activity, string $removedMaterialItemId): void
     {
-        $material = $this->entityManager->getRepository(MaterialItem::class)->find($removedMaterialItemId);
-        if ($material === null) {
+        foreach ($this->findPackContainersForMaterial($activity, $removedMaterialItemId) as $container) {
+            $items = $this->entityManager->getRepository(ActivityPackContainerItem::class)
+                ->findBy(['packContainerId' => $container->getId()]);
+            foreach ($items as $ci) {
+                if ($ci instanceof ActivityPackContainerItem) {
+                    $this->entityManager->remove($ci);
+                }
+            }
+            $this->entityManager->remove($container);
+        }
+    }
+
+    private function purgeIssueReportsForMaterial(Activity $activity, string $materialItemId): void
+    {
+        $reports = $this->entityManager->getRepository(ActivityIssueReport::class)->findBy([
+            'activityId' => $activity->getId(),
+            'materialItemId' => $materialItemId,
+        ]);
+        foreach ($reports as $report) {
+            if ($report instanceof ActivityIssueReport) {
+                $this->entityManager->remove($report);
+            }
+        }
+    }
+
+    /**
+     * Kistencheck-Einträge (activity_history) zur entfernten Pack-Position löschen.
+     *
+     * @param list<string> $packItemIds Pack-Item-IDs vor resync (neu angelegte Position hat neue ID).
+     */
+    private function purgePackCrateCheckHistory(Activity $activity, string $materialItemId, array $packItemIds): void
+    {
+        $activityId = $activity->getId();
+        if (!$activityId) {
             return;
         }
 
-        $linkedBatchId = $material->getLinkedContainerBatchId();
-        $activityId = $activity->getId();
+        $packItemIdSet = array_fill_keys($packItemIds, true);
+        $entries = $this->entityManager->getRepository(ActivityHistory::class)
+            ->createQueryBuilder('h')
+            ->where('h.activityId = :aid')
+            ->andWhere('h.action = :action')
+            ->setParameter('aid', $activityId)
+            ->setParameter('action', 'pack_crate_check')
+            ->getQuery()
+            ->getResult();
 
-        $qb = $this->entityManager->createQueryBuilder()
-            ->select('pc')
-            ->from(ActivityPackContainer::class, 'pc')
-            ->leftJoin('pc.containerBatch', 'b')
-            ->where('pc.activityId = :aid')
-            ->setParameter('aid', $activityId);
-
-        $orExpr = $qb->expr()->orX('b.materialItemId = :rmid');
-        $qb->setParameter('rmid', $removedMaterialItemId);
-        if ($linkedBatchId !== null && $linkedBatchId !== '') {
-            $orExpr->add('pc.containerBatchId = :lbid');
-            $qb->setParameter('lbid', $linkedBatchId);
-        }
-        $qb->andWhere($orExpr);
-
-        /** @var ActivityPackContainer[] $toDissolve */
-        $toDissolve = $qb->getQuery()->getResult();
-
-        foreach ($toDissolve as $container) {
-            $this->releasePackContainerContentsToLooseActivityLines($activity, $container, $removedMaterialItemId);
-            $this->entityManager->remove($container);
+        foreach ($entries as $entry) {
+            if (!$entry instanceof ActivityHistory) {
+                continue;
+            }
+            $changes = $entry->getChanges();
+            $pid = isset($changes['pack_item_id']) ? (string) $changes['pack_item_id'] : '';
+            $shellMid = isset($changes['shell_material_item_id']) ? (string) $changes['shell_material_item_id'] : '';
+            if (($pid !== '' && isset($packItemIdSet[$pid])) || $shellMid === $materialItemId) {
+                $this->entityManager->remove($entry);
+            }
         }
     }
 
@@ -2771,6 +2989,105 @@ class ActivityController extends AbstractController
     }
 
     /**
+     * Summierte Materialmengen pro material_item_id (für Verlauf-Diff).
+     *
+     * @return array<string, array{material_item_id: string, material_name: string, quantity: int}>
+     */
+    private function aggregateActivityMaterials(string $activityId): array
+    {
+        /** @var ActivityItem[] $items */
+        $items = $this->entityManager->getRepository(ActivityItem::class)
+            ->createQueryBuilder('ai')
+            ->leftJoin('ai.materialItem', 'mi')
+            ->addSelect('mi')
+            ->where('ai.activityId = :aid')
+            ->setParameter('aid', $activityId)
+            ->getQuery()
+            ->getResult();
+
+        $agg = [];
+        foreach ($items as $ai) {
+            $mid = (string) $ai->getMaterialItemId();
+            if ($mid === '') {
+                continue;
+            }
+            if (!isset($agg[$mid])) {
+                $name = $ai->getMaterialItem()?->getName();
+                $agg[$mid] = [
+                    'material_item_id' => $mid,
+                    'material_name' => $name !== null && $name !== '' ? $name : $mid,
+                    'quantity' => 0,
+                ];
+            }
+            $agg[$mid]['quantity'] += max(0, $ai->getQuantity());
+        }
+
+        return $agg;
+    }
+
+    /**
+     * @param array<string, array{material_item_id: string, material_name: string, quantity: int}> $before
+     * @param array<string, array{material_item_id: string, material_name: string, quantity: int}> $after
+     *
+     * @return array{added: list<array<string, mixed>>, removed: list<array<string, mixed>>, quantity_changed: list<array<string, mixed>>}
+     */
+    private function computeMaterialAggregateDiff(array $before, array $after): array
+    {
+        $changes = ['added' => [], 'removed' => [], 'quantity_changed' => []];
+        foreach ($after as $mid => $row) {
+            if (!isset($before[$mid])) {
+                $changes['added'][] = [
+                    'material_item_id' => $mid,
+                    'material_name' => $row['material_name'],
+                    'quantity' => $row['quantity'],
+                ];
+                continue;
+            }
+            if ($before[$mid]['quantity'] !== $row['quantity']) {
+                $changes['quantity_changed'][] = [
+                    'material_item_id' => $mid,
+                    'material_name' => $row['material_name'],
+                    'old' => $before[$mid]['quantity'],
+                    'new' => $row['quantity'],
+                ];
+            }
+        }
+        foreach ($before as $mid => $row) {
+            if (!isset($after[$mid])) {
+                $changes['removed'][] = [
+                    'material_item_id' => $mid,
+                    'material_name' => $row['material_name'],
+                    'quantity' => $row['quantity'],
+                ];
+            }
+        }
+
+        return $changes;
+    }
+
+    /**
+     * @param array{added: list<array<string, mixed>>, removed: list<array<string, mixed>>, quantity_changed: list<array<string, mixed>>} $diff
+     */
+    private function hasMaterialHistoryChanges(array $diff): bool
+    {
+        return $diff['added'] !== [] || $diff['removed'] !== [] || $diff['quantity_changed'] !== [];
+    }
+
+    /**
+     * @param array<string, array{material_item_id: string, material_name: string, quantity: int}> $beforeAgg
+     */
+    private function recordMaterialItemsHistory(Activity $activity, array $beforeAgg): void
+    {
+        $afterAgg = $this->aggregateActivityMaterials($activity->getId());
+        $diff = $this->computeMaterialAggregateDiff($beforeAgg, $afterAgg);
+        if (!$this->hasMaterialHistoryChanges($diff)) {
+            return;
+        }
+        $this->createHistoryEntry($activity, 'material_changed', $diff);
+        $this->entityManager->flush();
+    }
+
+    /**
      * Erstellt einen Snapshot des aktuellen Aktivitäts-Zustands
      */
     private function buildSnapshot(Activity $activity): array
@@ -2837,6 +3154,26 @@ class ActivityController extends AbstractController
         }
 
         return null;
+    }
+
+    /**
+     * Materialposition hinzufügen (POST): Entwurf, Host-MW/DC nach Einreichung, oder u–l3 vor «packing».
+     */
+    private function assertCanAddActivityMaterialItem(User $user, Activity $activity): ?JsonResponse
+    {
+        if ($activity->isDraft()) {
+            return $this->assertCanModifyActivityMaterialItems($user, $activity);
+        }
+
+        if ($this->activityAccess->canHostMwOrDcEditActivityMaterialAfterDraft($user, $activity)) {
+            return null;
+        }
+
+        if ($this->activityAccess->canUserAddMaterialBeforePacking($user, $activity)) {
+            return null;
+        }
+
+        return new JsonResponse(['error' => 'Keine Berechtigung zum Hinzufügen von Material'], 403);
     }
 
     /**
@@ -3139,6 +3476,77 @@ class ActivityController extends AbstractController
                 'total_damaged' => array_sum(array_column($adjustments, 'damaged')),
             ]);
         }
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function serializeCompletionBlockerFollowUp(AccountingAcquisitionFollowUp $f): array
+    {
+        $row = $this->followUpSerializer->serialize($f);
+
+        return [
+            'id' => $row['id'],
+            'amount' => $row['amount'],
+            'receipt_label' => $row['receipt_label'],
+            'source_kind' => $row['source_kind'],
+            'department_id' => $row['department_id'],
+            'department_name' => $row['department_name'] ?? null,
+            'charge_target' => $row['charge_target'] ?? null,
+            'material_department_name' => $row['material_department_name'] ?? null,
+            'external_customer_label' => $row['external_customer_label'] ?? null,
+            'reported_by_display_name' => $row['reported_by_display_name'] ?? null,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     */
+    private function applyItemProvenance(ActivityItem $item, User $user, Activity $activity, array $payload): void
+    {
+        $item->setCreatedByUser($user);
+        $actingDeptId = $this->resolveActingDepartmentId($user, $activity, $payload);
+        $department = $this->entityManager->getRepository(Department::class)->find($actingDeptId);
+        if ($department instanceof Department) {
+            $item->setSubmitterDepartment($department);
+        }
+    }
+
+    /**
+     * Department, in dessen Kontext der User die Zeile erfasst hat (Route/UI oder Host-Aktivität).
+     *
+     * @param array<string, mixed> $payload
+     */
+    private function resolveActingDepartmentId(User $user, Activity $activity, array $payload): string
+    {
+        $candidate = trim((string) ($payload['acting_department_id'] ?? ''));
+        if ($candidate !== '') {
+            $membership = $this->entityManager->getRepository(Membership::class)
+                ->findOneBy(['userId' => $user->getId(), 'departmentId' => $candidate]);
+            if ($membership !== null) {
+                return $candidate;
+            }
+        }
+
+        return (string) $activity->getDepartmentId();
+    }
+
+    private function userDisplayName(?User $user): ?string
+    {
+        if ($user === null) {
+            return null;
+        }
+        $profile = $user->getProfile();
+        if ($profile === null) {
+            return null;
+        }
+        $name = trim($profile->getFirstName() . ' ' . $profile->getLastName());
+        if ($name !== '') {
+            return $name;
+        }
+        $nick = trim((string) ($profile->getNickname() ?? ''));
+
+        return $nick !== '' ? $nick : null;
     }
 
     /** @param mixed $value */

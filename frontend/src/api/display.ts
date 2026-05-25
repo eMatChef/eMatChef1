@@ -24,9 +24,22 @@ export interface DisplayWorkshopTicketRow {
   public_url?: string | null
 }
 
+export interface DisplayStatistics {
+  activities_by_status: Record<string, number>
+  workshop_by_status: Record<string, number>
+}
+
 export interface DepartmentDisplayData {
   activities: DisplayActivityRow[]
   workshopTickets: DisplayWorkshopTicketRow[]
   department_name?: string
   screen_name?: string
+  subtitle_text?: string | null
+  show_activities?: boolean
+  show_workshop?: boolean
+  show_statistics?: boolean
+  activity_types?: string[]
+  activity_statuses?: string[]
+  workshop_statuses?: string[]
+  statistics?: DisplayStatistics | null
 }

@@ -15,6 +15,14 @@
   margin: 0 0 8px;
 }
 
+.activity-detail-view .activity-forgotten-material-card {
+  margin-bottom: 8px;
+}
+
+.activity-detail-view .activity-forgotten-material-card .pack-add-material-body {
+  margin-top: 10px;
+}
+
 .section-card.activity-tab-header-card,
 .section-card.pack-list-header-card {
   padding: 10px 14px;
@@ -896,6 +904,27 @@
 }
 
 /* MW: Hinweis nach «Gepackt markieren» — Gruppe bucht ans Event */
+.pack-mw-open-packing-banner {
+  margin-bottom: 12px;
+  padding: 12px 16px;
+  background: #eff6ff;
+  border: 1px solid #93c5fd;
+  border-radius: 8px;
+}
+
+.pack-mw-open-packing-banner-title {
+  margin: 0 0 4px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #1e3a8a;
+}
+
+.pack-mw-open-packing-banner-body {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
 .pack-mw-handoff-banner {
   margin-bottom: 12px;
   padding: 12px 16px;
@@ -915,6 +944,64 @@
   margin: 0;
   font-size: 13px;
   line-height: 1.45;
+}
+
+.pack-member-preview-banner {
+  margin-bottom: 12px;
+  padding: 10px 14px;
+  background: #eff6ff;
+  border: 1px solid #93c5fd;
+  border-radius: 8px;
+}
+
+.pack-member-preview-banner-title {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: #1e3a8a;
+}
+
+.pack-member-incomplete-banner {
+  margin-bottom: 12px;
+  padding: 12px 16px;
+  background: #fef3c7;
+  border: 1px solid #fcd34d;
+  border-radius: 8px;
+}
+
+.pack-member-incomplete-banner-title {
+  margin: 0 0 4px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #92400e;
+}
+
+.pack-member-incomplete-banner-body {
+  margin: 0 0 10px;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.pack-member-incomplete-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.pack-member-incomplete-item {
+  padding: 10px 12px;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+}
+
+.pack-member-incomplete-qty {
+  margin: 4px 0 0;
+  font-size: 12px;
+}
+
+.pack-member-incomplete-bom {
+  margin-top: 8px;
 }
 
 .pack-stage-view-only-banner {

@@ -183,6 +183,11 @@ function userLabel(e: ActivityHistoryEntryRow): string {
   background: #64748b;
 }
 
+.history-dot.material_changed,
+.history-dot.material_items_changed {
+  background: #6366f1;
+}
+
 .activity-history-status-change {
   margin: 6px 0 0 20px;
   font-size: 13px;

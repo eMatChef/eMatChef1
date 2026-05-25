@@ -331,9 +331,19 @@ class ActivityWorkflowController extends AbstractController
             return $activity;
         }
 
-        $packItem = $this->entityManager->getRepository(ActivityPackItem::class)->find($packItemId);
+        $packItem = $this->entityManager->getRepository(ActivityPackItem::class)
+            ->createQueryBuilder('pi')
+            ->leftJoin('pi.materialItem', 'mi')
+            ->addSelect('mi')
+            ->where('pi.id = :id')
+            ->setParameter('id', $packItemId)
+            ->getQuery()
+            ->getOneOrNullResult();
         if (!$packItem || $packItem->getActivityId() !== $activityId) {
             return new JsonResponse(['error' => 'Pack-Position nicht gefunden'], 404);
+        }
+        if ($packItem->getMaterialItem() === null) {
+            return new JsonResponse(['error' => 'Material zur Pack-Position nicht gefunden'], 404);
         }
 
         $data = json_decode($request->getContent(), true);
@@ -364,9 +374,9 @@ class ActivityWorkflowController extends AbstractController
 
         $this->packPipeline->applyForward($packItem, $stage, $qty, $profile);
 
+        $user = $this->getUser();
         if ($stage === PackPipelineService::STAGE_PACKED) {
             $packItem->setPackedAt(new \DateTime());
-            $user = $this->getUser();
             if ($user instanceof User) {
                 $packItem->setPackedByUser($user);
             }
@@ -374,6 +384,10 @@ class ActivityWorkflowController extends AbstractController
 
         $packItem->setUpdatedAt(new \DateTime());
         $this->activityItemPipelineStatus->syncForActivity($activity);
+        $this->kisteMaterialLinker->reconcileShellPackItemsPackedFromContainers(
+            $activity,
+            $user instanceof User ? $user : null,
+        );
         $this->entityManager->flush();
 
         if ($stage === PackPipelineService::STAGE_STORED) {
@@ -720,7 +734,12 @@ class ActivityWorkflowController extends AbstractController
                 $this->inboxMessageService->notifyActivityIssueReported($activity, $user, $report);
             }
 
-            // Verbrauch/Verlust → Buchhaltung erst beim Einlagern (stored), siehe movePackItem
+            if (in_array($type, [
+                ActivityIssueReport::TYPE_CONSUMPTION,
+                ActivityIssueReport::TYPE_LOSS,
+            ], true)) {
+                $this->activityAccountingCost->syncActivityAccountingFollowUps($activity);
+            }
 
             $response = $this->serializeIssueReport($report);
             if ($workshopTicket) {
@@ -1082,6 +1101,9 @@ class ActivityWorkflowController extends AbstractController
         ?string $storageAddressName = null,
     ): array {
         $mi = $item->getMaterialItem();
+        if ($mi === null) {
+            throw new \RuntimeException('Pack-Position ohne Material-Stammdaten');
+        }
         $user = $item->getPackedByUser();
         $cat = $mi->getCategory();
 
@@ -1248,6 +1270,7 @@ ORDER BY mb.material_item_id ASC, mb.id ASC";
             'resolved_at' => $report->getResolvedAt()?->format('c'),
             'resolved_by' => $resolver?->getId(),
             'reported_by' => $reporter?->getId(),
+            'reported_by_display_name' => $this->userDisplayName($reporter),
             'reported_at' => $report->getReportedAt()->format('c'),
             'created_at' => $report->getCreatedAt()->format('c'),
             'is_js_material' => $mi?->getIsJsMaterial() ?? false,
@@ -1302,5 +1325,23 @@ ORDER BY mb.material_item_id ASC, mb.id ASC";
         }
 
         $this->entityManager->persist($history);
+    }
+
+    private function userDisplayName(?User $user): ?string
+    {
+        if ($user === null) {
+            return null;
+        }
+        $profile = $user->getProfile();
+        if ($profile === null) {
+            return null;
+        }
+        $name = trim($profile->getFirstName() . ' ' . $profile->getLastName());
+        if ($name !== '') {
+            return $name;
+        }
+        $nick = trim((string) ($profile->getNickname() ?? ''));
+
+        return $nick !== '' ? $nick : null;
     }
 }

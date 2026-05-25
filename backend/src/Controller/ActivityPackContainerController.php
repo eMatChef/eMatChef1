@@ -674,14 +674,12 @@ class ActivityPackContainerController extends AbstractController
 
     private function serializeContainer(ActivityPackContainer $container): array
     {
-        $batch = $container->getContainerBatch();
-
         return [
             'id' => $container->getId(),
             'activity_id' => $container->getActivityId(),
             'container_batch_id' => $container->getContainerBatchId(),
-            /** Stammdaten-Material der Kisten-Charge — für Packliste: keine doppelte Zeile «noch zu packen» */
-            'container_material_item_id' => $batch !== null ? $batch->getMaterialItemId() : null,
+            /** Stammdaten-Material der Kisten-Charge bzw. virtuelle Phys.-Kombi-Zeile */
+            'container_material_item_id' => $this->kisteMaterialLinker->shellMaterialIdForPackContainer($container),
             'label' => $container->getLabel(),
             'status' => $container->getStatus(),
             'created_at' => $container->getCreatedAt()->format('c'),

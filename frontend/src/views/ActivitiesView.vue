@@ -263,12 +263,15 @@ import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import apiClient from '@/api/apiClient'
+import { getActivity } from '@/api/activities'
 import { getGroups, type Group } from '@/api/groups'
 import { buildActivityGroupPathLines, type GroupPathLine } from '@/utils/groupHierarchy'
 import { ActivityCreateWizard, ActivityDetailView } from '@/components/activities'
 import { usePageHeadStore } from '@/stores/pageHead'
 import { syncDocumentHead } from '@/composables/usePageHead'
 import { useToast } from '@/composables/useToast'
+import { useHeaderNotificationsStore } from '@/stores/headerNotifications'
+import { useDepartmentLiveRefresh } from '@/composables/useDepartmentLiveRefresh'
 import { useListSearchQueryRoute } from '@/composables/useListSearchQueryRoute'
 import { activityStatusClass, activityStatusI18nKey } from '@/utils/activityStatus'
 
@@ -276,6 +279,7 @@ const route = useRoute()
 const router = useRouter()
 const { t, te, locale } = useI18n()
 const toast = useToast()
+const headerNotificationsStore = useHeaderNotificationsStore()
 const pageHeadStore = usePageHeadStore()
 
 const departmentId = computed(() => route.params.departmentId as string)
@@ -387,8 +391,20 @@ async function loadDepartmentGroups() {
   }
 }
 
-async function loadActivities() {
-  isLoading.value = true
+function upsertActivityInList(source: Record<string, unknown>) {
+  const mapped = mapActivityListItem(source)
+  const idx = activities.value.findIndex((a) => a.id === mapped.id)
+  if (idx >= 0) {
+    const next = [...activities.value]
+    next[idx] = mapped
+    activities.value = next
+  } else {
+    activities.value = [mapped, ...activities.value]
+  }
+}
+
+async function loadActivities(opts?: { silent?: boolean }) {
+  if (!opts?.silent) isLoading.value = true
   try {
     const [, response] = await Promise.all([
       loadDepartmentGroups(),
@@ -398,16 +414,26 @@ async function loadActivities() {
     ])
     activities.value = (response.data || []).map((a: Record<string, unknown>) => mapActivityListItem(a))
   } catch (err: unknown) {
-    const e = err as { code?: string; response?: { data?: { error?: string } }; message?: string }
-    const msg =
-      e?.code === 'ECONNABORTED'
-        ? t('activities.errors.timeout')
-        : e?.response?.data?.error || e?.message || t('activities.errors.unknown')
-    toast.error(t('activities.errors.loadFailed', { msg }))
+    if (!opts?.silent) {
+      const e = err as { code?: string; response?: { data?: { error?: string } }; message?: string }
+      const msg =
+        e?.code === 'ECONNABORTED'
+          ? t('activities.errors.timeout')
+          : e?.response?.data?.error || e?.message || t('activities.errors.unknown')
+      toast.error(t('activities.errors.loadFailed', { msg }))
+    }
   } finally {
     isLoading.value = false
   }
 }
+
+/** Alle User im Tab: neue/geänderte Aktivitäten ohne F5 (keep-alive inkl. Detail). */
+useDepartmentLiveRefresh({
+  departmentId,
+  reload: loadActivities,
+  isBusy: () =>
+    showCreateActivityWizard.value || (isLoading.value && activities.value.length === 0),
+})
 
 function isOpenActivity(a: Activity): boolean {
   return a.status !== 'completed' && a.status !== 'cancelled'
@@ -635,27 +661,40 @@ function openCreateActivityWizard() {
   showCreateActivityWizard.value = true
 }
 
-function onActivityCreateWizardCreated(id: string) {
+async function onActivityCreateWizardCreated(id: string) {
   activityJustCreated.value = true
   showCreateActivityWizard.value = false
+  if (id) {
+    try {
+      const detail = await getActivity(id)
+      upsertActivityInList(detail as unknown as Record<string, unknown>)
+    } catch {
+      /* Liste wird unten nachgeladen */
+    }
+  }
   void loadActivities()
+  headerNotificationsStore.requestRefresh()
   if (route.query.from === 'dashboard') {
     const q = { ...route.query }
     delete q.from
     router.replace({ path: route.path, query: q })
   }
   if (id) {
-    router.push(`/${departmentId.value}/activities/${id}`)
+    await router.push(`/${departmentId.value}/activities/${id}`)
   }
 }
 
-watch(activityRouteId, (id) => {
+watch(activityRouteId, (id, prevId) => {
   if (id) {
     showCreateActivityWizard.value = false
     stripQueryFromDetailRoute()
     if (activityJustCreated.value) {
       activityJustCreated.value = false
     }
+    return
+  }
+  if (prevId) {
+    void loadActivities()
   }
 })
 

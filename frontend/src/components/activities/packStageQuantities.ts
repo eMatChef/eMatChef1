@@ -116,10 +116,6 @@ export function showPackStorageLocation(stage: PackStage, side: 'left' | 'right'
   return false
 }
 
-export function isPackCrateCheckStage(stage: PackStage): boolean {
-  return isPackConfirmedStage(stage) || isPackForwardToEventStage(stage)
-}
-
 export function autoPackStageForStatus(
   status: string,
   profile: PackWorkflowProfile,

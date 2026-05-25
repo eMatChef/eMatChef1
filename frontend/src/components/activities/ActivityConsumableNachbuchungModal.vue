@@ -196,6 +196,7 @@ async function submit() {
       material_item_id: props.materialItemId,
       quantity: qty.value,
       replenishment: true,
+      acting_department_id: props.departmentId,
       line_total: total.toFixed(2),
       unit_price: (total / qty.value).toFixed(2),
       price_type: 'sale',

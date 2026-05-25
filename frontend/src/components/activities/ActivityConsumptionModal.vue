@@ -38,7 +38,7 @@
               <button
                 type="button"
                 class="btn-qty"
-                :disabled="maxRemaining < 1 || qty <= 1"
+                :disabled="maxRemaining < 1 || qty <= 0"
                 @click="bumpQty(-1)"
               >
                 −
@@ -47,7 +47,7 @@
                 id="consumption-qty"
                 v-model.number="qty"
                 type="number"
-                :min="maxRemaining > 0 ? 1 : 0"
+                :min="0"
                 :max="maxRemaining > 0 ? maxRemaining : 0"
                 class="form-input adjust-qty-input"
                 @change="clampQtyInput"
@@ -132,7 +132,7 @@
             :disabled="submitting || !canSubmit || loadingLimits"
             @click="submit"
           >
-            {{ submitting ? t('components.activityConsumptionModal.submitting') : t('components.activityConsumptionModal.submit') }}
+            {{ submitButtonLabel }}
           </button>
         </div>
       </div>
@@ -192,13 +192,26 @@ const displayMaterialLine = computed(() => {
   return serial ? `${serial} — ${p.materialName}` : p.materialName
 })
 
-const canSubmit = computed(
-  () =>
-    !!props.preset?.materialItemId &&
-    maxRemaining.value > 0 &&
-    qty.value >= 1 &&
-    qty.value <= maxRemaining.value,
-)
+const canSubmit = computed(() => {
+  if (!props.preset?.materialItemId || maxRemaining.value < 1) return false
+  const q = Number(qty.value)
+  if (!Number.isFinite(q) || q < 0 || q > maxRemaining.value) return false
+  return true
+})
+
+const submitButtonLabel = computed(() => {
+  if (submitting.value) return t('components.activityConsumptionModal.submitting')
+  const q = Math.floor(Number(qty.value) || 0)
+  if (q === 0 && (props.preset?.returnQty ?? 0) > 0) {
+    return t('components.activityConsumptionModal.submitZeroReturn', {
+      count: props.preset!.returnQty!,
+    })
+  }
+  if (q === 0) {
+    return t('components.activityConsumptionModal.submitZero')
+  }
+  return t('components.activityConsumptionModal.submit')
+})
 
 const closeFooterLabel = computed(() => {
   const rq = props.preset?.returnQty
@@ -215,16 +228,16 @@ function clampQtyInput() {
     return
   }
   let n = Number(qty.value)
-  if (!Number.isFinite(n)) n = 1
-  qty.value = Math.min(m, Math.max(1, Math.floor(n)))
+  if (!Number.isFinite(n)) n = 0
+  qty.value = Math.min(m, Math.max(0, Math.floor(n)))
 }
 
 function bumpQty(delta: number) {
   const m = maxRemaining.value
   if (m < 1) return
   let n = Number(qty.value)
-  if (!Number.isFinite(n)) n = 1
-  qty.value = Math.min(m, Math.max(1, Math.floor(n) + delta))
+  if (!Number.isFinite(n)) n = 0
+  qty.value = Math.min(m, Math.max(0, Math.floor(n) + delta))
 }
 
 function applySetMultiple(sets: number) {
@@ -255,6 +268,8 @@ async function loadConsumptionLimits() {
       .reduce((s, i) => s + i.quantity, 0)
     const rem = Math.max(0, bookedTotal.value - consumedTotal.value)
     if (rem < 1) {
+      qty.value = 0
+    } else if ((props.preset?.returnQty ?? 0) > 0) {
       qty.value = 0
     } else {
       qty.value = Math.min(1, rem)
@@ -304,7 +319,8 @@ async function submit() {
   const p = props.preset
   if (!p?.materialItemId || submitting.value) return
   clampQtyInput()
-  if (qty.value < 1 || qty.value > maxRemaining.value) {
+  const bookedQty = Math.floor(Number(qty.value) || 0)
+  if (bookedQty < 0 || bookedQty > maxRemaining.value) {
     toast.error(
       maxRemaining.value < 1
         ? t('components.activityConsumptionModal.toastNoConsumptionPossible')
@@ -312,12 +328,22 @@ async function submit() {
     )
     return
   }
+  if (bookedQty === 0) {
+    const rq = p.returnQty
+    if (rq != null && rq > 0) {
+      emit('returnWithoutConsumption')
+      return
+    }
+    emit('success')
+    close()
+    return
+  }
   submitting.value = true
   try {
     await createActivityIssue(props.activityId, {
       material_item_id: p.materialItemId,
       type: 'consumption',
-      quantity: qty.value,
+      quantity: bookedQty,
       description: notes.value.trim() || null,
     })
     emit('success')

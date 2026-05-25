@@ -85,6 +85,23 @@ const shellCanMoveForward = computed(() => {
 
 const packForwardEditable = computed(() => injectPackCtxBool(ctx, 'packForwardEditable'))
 
+const showCrateCheckBtn = computed(() => {
+  const fn = ctx.showShellCrateCheckButton as ((p: ActivityPackItem) => boolean) | undefined
+  return fn ? fn(props.shellPackItem) : false
+})
+
+const crateCheckBtnLabel = computed(() => {
+  const fn = ctx.shellCrateCheckButtonLabel as ((p: ActivityPackItem) => string) | undefined
+  return fn ? fn(props.shellPackItem) : ''
+})
+
+const crateCheckSubmitting = computed(() => Boolean(unref(ctx.shellForwardSubmitting as Ref<boolean> | boolean | undefined)))
+
+function onCrateCheckClick() {
+  const fn = ctx.openShellCrateCheckOnlyModal as ((p: ActivityPackItem) => void | Promise<void>) | undefined
+  if (fn) void fn(props.shellPackItem)
+}
+
 const shellMoveQty = computed(() => {
   const inputs = ctx.moveQtyInputs as unknown
   const map =
@@ -139,12 +156,21 @@ function moveShellCrateForward(qtyFromControl?: number) {
         </div>
       </div>
       <div
-        v-if="packForwardEditable && shellCanMoveForward"
+        v-if="packForwardEditable && (shellCanMoveForward || showCrateCheckBtn)"
         class="pack-container-header-actions"
         @click.stop
       >
+        <button
+          v-if="showCrateCheckBtn"
+          type="button"
+          class="btn-outline btn-sm pack-shell-crate-check-btn"
+          :disabled="ctx.movingId === shellPackItem.id || crateCheckSubmitting"
+          @click="onCrateCheckClick"
+        >
+          {{ crateCheckBtnLabel }}
+        </button>
         <PackMoveControls
-          v-if="useQtyMoveControls"
+          v-if="shellCanMoveForward && useQtyMoveControls"
           direction="forward"
           :qty="shellMoveQty"
           :max="(ctx.packIssueForwardMax as (p: ActivityPackItem) => number)(shellPackItem)"
@@ -156,7 +182,7 @@ function moveShellCrateForward(qtyFromControl?: number) {
           @move="moveShellCrateForward"
         />
         <button
-          v-else
+          v-else-if="shellCanMoveForward"
           type="button"
           class="btn-move-arrow btn-move-arrow--container-header"
           :disabled="ctx.movingId === shellPackItem.id"

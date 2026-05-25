@@ -23,8 +23,12 @@ export interface PackCrateCheckLinePayload {
   create_inspection_task?: boolean | null
 }
 
+export type PackCrateCheckLeg = 'outbound' | 'return' | 'warehouse_store'
+
 export interface PackCrateCheckRequest {
   container_batch_id?: string | null
+  /** Etappe: Hinweg (pack/event) | Rückweg | Einlagern */
+  check_leg?: PackCrateCheckLeg
   result: 'ok' | 'incomplete'
   lines: PackCrateCheckLinePayload[]
 }

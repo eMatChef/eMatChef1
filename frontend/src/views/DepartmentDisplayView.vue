@@ -50,11 +50,33 @@
       <p v-if="loading" class="display-status muted">{{ t('display.loading') }}</p>
       <p v-else-if="loadError" class="display-status error">{{ loadError }}</p>
 
-      <div v-else-if="!showActivities && !showWorkshop" class="display-status muted">
+      <div v-else-if="!showActivities && !showWorkshop && !showStatistics" class="display-status muted">
         {{ t('display.noPanelsEnabled') }}
       </div>
 
-      <div v-else class="display-grid" :class="{ 'display-grid--single': panelCount === 1 }">
+      <section v-if="showStatistics && statistics" class="display-stats">
+        <h2 class="panel-title">{{ t('display.statisticsTitle') }}</h2>
+        <div v-if="activityStatEntries.length" class="display-stat-group">
+          <h3 class="display-stat-group-title">{{ t('display.statisticsActivities') }}</h3>
+          <div class="display-stat-cards">
+            <div v-for="entry in activityStatEntries" :key="entry.status" class="display-stat-card">
+              <span class="display-stat-value">{{ entry.count }}</span>
+              <span class="display-stat-label">{{ entry.label }}</span>
+            </div>
+          </div>
+        </div>
+        <div v-if="workshopStatEntries.length" class="display-stat-group">
+          <h3 class="display-stat-group-title">{{ t('display.statisticsWorkshop') }}</h3>
+          <div class="display-stat-cards">
+            <div v-for="entry in workshopStatEntries" :key="entry.status" class="display-stat-card">
+              <span class="display-stat-value">{{ entry.count }}</span>
+              <span class="display-stat-label">{{ entry.label }}</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <div v-if="showActivities || showWorkshop" class="display-grid" :class="{ 'display-grid--single': panelCount === 1 }">
         <section v-if="showActivities" class="display-panel">
           <h2 class="panel-title">{{ t('display.upcomingActivities') }}</h2>
           <p v-if="displayActivities.length === 0" class="panel-empty">{{ t('display.noActivities') }}</p>
@@ -116,7 +138,7 @@ import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import EmcLogoMark from '@/components/brand/EmcLogoMark.vue'
 import PublicQrTag from '@/components/common/PublicQrTag.vue'
-import type { DisplayActivityRow, DisplayWorkshopTicketRow } from '@/api/display'
+import type { DisplayActivityRow, DisplayStatistics, DisplayWorkshopTicketRow } from '@/api/display'
 import {
   authenticatePublicDisplay,
   getPublicDisplayData,
@@ -128,8 +150,6 @@ import { activityStatusClass, activityStatusI18nKey } from '@/utils/activityStat
 const PIN_CHARSET = /[^23456789ABCDEFGHJKLMNPQRSTUVWXYZ]/g
 
 const REFRESH_MS = 60_000
-const DISPLAY_ACTIVITY_STATUSES = ['submitted', 'approved', 'packing', 'packed', 'at_event'] as const
-const OPEN_WORKSHOP_STATUSES = ['open', 'in_progress', 'waiting_parts'] as const
 const PRIORITY_ORDER: Record<string, number> = { urgent: 0, high: 1, normal: 2, low: 3 }
 
 const route = useRoute()
@@ -149,6 +169,11 @@ const screenName = ref('')
 const subtitleText = ref<string | null>(null)
 const showActivities = ref(true)
 const showWorkshop = ref(true)
+const showStatistics = ref(false)
+const allowedActivityTypes = ref<string[]>([])
+const allowedActivityStatuses = ref<string[]>([])
+const allowedWorkshopStatuses = ref<string[]>([])
+const statistics = ref<DisplayStatistics | null>(null)
 const clockLabel = ref('')
 const clockIso = ref('')
 const isFullscreen = ref(false)
@@ -181,9 +206,15 @@ const displayActivities = computed((): DisplayActivityItem[] => {
   todayStart.setHours(0, 0, 0, 0)
   const horizon = now + 60 * 24 * 60 * 60 * 1000
 
+  const typeSet = new Set(allowedActivityTypes.value)
+  const statusSet = new Set(allowedActivityStatuses.value)
+  const filterByType = typeSet.size > 0
+  const filterByStatus = statusSet.size > 0
+
   return activities.value
     .filter((a) => {
-      if (!(DISPLAY_ACTIVITY_STATUSES as readonly string[]).includes(a.status)) return false
+      if (filterByType && !typeSet.has(a.type)) return false
+      if (filterByStatus && !statusSet.has(a.status)) return false
       const startRaw = a.usage_start || a.planning_start
       const endRaw = a.usage_end || a.planning_end
       if (!startRaw) {
@@ -208,9 +239,12 @@ const displayActivities = computed((): DisplayActivityItem[] => {
 
 type DisplayWorkshopItem = DisplayWorkshopTicketRow & { publicUrl: string }
 
-const displayWorkshopTickets = computed((): DisplayWorkshopItem[] =>
-  workshopTickets.value
-    .filter((ticket) => (OPEN_WORKSHOP_STATUSES as readonly string[]).includes(ticket.status))
+const displayWorkshopTickets = computed((): DisplayWorkshopItem[] => {
+  const statusSet = new Set(allowedWorkshopStatuses.value)
+  const filterByStatus = statusSet.size > 0
+
+  return workshopTickets.value
+    .filter((ticket) => !filterByStatus || statusSet.has(ticket.status))
     .map((ticket) => ({
       ...ticket,
       publicUrl: resolveWorkshopPublicUrl(ticket.public_url, ticket.public_code),
@@ -220,8 +254,33 @@ const displayWorkshopTickets = computed((): DisplayWorkshopItem[] =>
       const pb = PRIORITY_ORDER[b.priority] ?? 9
       if (pa !== pb) return pa - pb
       return b.created_at.localeCompare(a.created_at)
-    }),
-)
+    })
+})
+
+const activityStatEntries = computed(() => {
+  const counts = statistics.value?.activities_by_status
+  if (!counts) return []
+  return Object.entries(counts).map(([status, count]) => ({
+    status,
+    count,
+    label: activityStatusLabel(status),
+  }))
+})
+
+const workshopStatEntries = computed(() => {
+  const counts = statistics.value?.workshop_by_status
+  if (!counts) return []
+  return Object.entries(counts).map(([status, count]) => ({
+    status,
+    count,
+    label: workshopStatusLabel(status),
+  }))
+})
+
+function workshopStatusLabel(status: string): string {
+  const key = `workshop.status.${status}`
+  return te(key) ? t(key) : status
+}
 
 function intlTag(): string {
   return String(locale.value ?? '').startsWith('de') ? 'de-CH' : 'en-CH'
@@ -250,7 +309,9 @@ function formatDateTime(iso: string): string {
 }
 
 function activityStatusLabel(status: string): string {
-  const key = `display.activityStatus.${activityStatusI18nKey(status)}`
+  const displayKey = `display.activityStatus.${activityStatusI18nKey(status)}`
+  if (te(displayKey)) return t(displayKey)
+  const key = `activities.status.${activityStatusI18nKey(status)}`
   return te(key) ? t(key) : status
 }
 
@@ -333,6 +394,11 @@ async function load() {
     subtitleText.value = data.subtitle_text ?? null
     showActivities.value = data.show_activities !== false
     showWorkshop.value = data.show_workshop !== false
+    showStatistics.value = data.show_statistics === true
+    allowedActivityTypes.value = data.activity_types?.length ? data.activity_types : []
+    allowedActivityStatuses.value = data.activity_statuses?.length ? data.activity_statuses : []
+    allowedWorkshopStatuses.value = data.workshop_statuses?.length ? data.workshop_statuses : []
+    statistics.value = data.statistics ?? null
   } catch (err: unknown) {
     const status = (err as { response?: { status?: number } })?.response?.status
     if (status === 401) {
@@ -535,6 +601,57 @@ watch(publicId, () => {
 .display-status {
   font-size: 1.1rem;
   padding: 24px 0;
+}
+
+.display-stats {
+  margin-bottom: 24px;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  padding: 20px 22px;
+  box-shadow: 0 4px 24px rgba(15, 23, 42, 0.06);
+}
+
+.display-stat-group + .display-stat-group {
+  margin-top: 16px;
+}
+
+.display-stat-group-title {
+  margin: 0 0 10px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #64748b;
+}
+
+.display-stat-cards {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.display-stat-card {
+  min-width: 88px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.display-stat-value {
+  font-size: 1.5rem;
+  font-weight: 800;
+  line-height: 1.1;
+  color: #0f172a;
+}
+
+.display-stat-label {
+  font-size: 0.75rem;
+  color: #64748b;
+  text-align: center;
 }
 
 .display-grid {

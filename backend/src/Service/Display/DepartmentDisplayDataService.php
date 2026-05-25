@@ -19,6 +19,7 @@ final class DepartmentDisplayDataService
         private EntityManagerInterface $entityManager,
         private PublicCodeService $publicCodeService,
         private ActivityAccessService $activityAccess,
+        private DepartmentDisplayScreenService $displayScreenService,
     ) {
     }
 
@@ -33,6 +34,10 @@ final class DepartmentDisplayDataService
 
         $showActivities = $screen->isShowActivities();
         $showWorkshop = $screen->isShowWorkshop();
+        $showStatistics = $screen->isShowStatistics();
+        $activityTypes = $this->displayScreenService->normalizeActivityTypes($screen->getActivityTypes());
+        $activityStatuses = $this->displayScreenService->normalizeActivityStatuses($screen->getActivityStatuses());
+        $workshopStatuses = $this->displayScreenService->normalizeWorkshopStatuses($screen->getWorkshopStatuses());
 
         return [
             'department_name' => $departmentName,
@@ -40,25 +45,33 @@ final class DepartmentDisplayDataService
             'subtitle_text' => $screen->getSubtitleText(),
             'show_activities' => $showActivities,
             'show_workshop' => $showWorkshop,
-            'activities' => $showActivities ? $this->loadActivities($departmentId) : [],
-            'workshop_tickets' => $showWorkshop ? $this->loadWorkshopTickets($departmentId) : [],
+            'show_statistics' => $showStatistics,
+            'activity_types' => $activityTypes,
+            'activity_statuses' => $activityStatuses,
+            'workshop_statuses' => $workshopStatuses,
+            'activities' => $showActivities
+                ? $this->loadActivities($departmentId, $activityTypes, $activityStatuses)
+                : [],
+            'workshop_tickets' => $showWorkshop
+                ? $this->loadWorkshopTickets($departmentId, $workshopStatuses)
+                : [],
+            'statistics' => $showStatistics
+                ? $this->buildStatistics($departmentId, $activityTypes, $activityStatuses, $workshopStatuses)
+                : null,
         ];
     }
 
     /**
+     * @param list<string> $allowedTypes
+     * @param list<string> $allowedStatuses
+     *
      * @return list<array<string, mixed>>
      */
-    private function loadActivities(string $departmentId): array
+    private function loadActivities(string $departmentId, array $allowedTypes, array $allowedStatuses): array
     {
-        $upcomingStatuses = [
-            Activity::STATUS_DRAFT,
-            Activity::STATUS_SUBMITTED,
-            Activity::STATUS_APPROVED,
-            Activity::STATUS_PACKING,
-            Activity::STATUS_PACKED,
-            Activity::STATUS_AT_EVENT,
-            Activity::STATUS_RETURNED,
-        ];
+        if ($allowedTypes === [] || $allowedStatuses === []) {
+            return [];
+        }
 
         $qb = $this->entityManager->createQueryBuilder();
         $qb->select('a')
@@ -66,32 +79,37 @@ final class DepartmentDisplayDataService
             ->where('a.departmentId = :departmentId')
             ->andWhere('a.deletedAt IS NULL')
             ->andWhere('a.status IN (:statuses)')
+            ->andWhere('a.type IN (:allowedTypes)')
             ->setParameter('departmentId', $departmentId)
-            ->setParameter('statuses', $upcomingStatuses)
+            ->setParameter('statuses', $allowedStatuses)
+            ->setParameter('allowedTypes', $allowedTypes)
             ->orderBy('a.usageStart', 'ASC');
 
         $own = $qb->getQuery()->getResult();
 
-        $invitedQb = $this->entityManager->createQueryBuilder();
-        $invitedQb->select('a')
-            ->from(Activity::class, 'a')
-            ->where('a.departmentId != :departmentId')
-            ->andWhere('a.deletedAt IS NULL')
-            ->andWhere('a.type IN (:invitedTypes)')
-            ->andWhere('a.status IN (:statuses)')
-            ->setParameter('departmentId', $departmentId)
-            ->setParameter('invitedTypes', ['camp', 'event'])
-            ->setParameter('statuses', $upcomingStatuses);
-
+        $invitedTypes = array_values(array_intersect(['camp', 'event'], $allowedTypes));
         $invited = [];
-        foreach ($invitedQb->getQuery()->getResult() as $candidate) {
-            if (!$candidate instanceof Activity) {
-                continue;
+        if ($invitedTypes !== []) {
+            $invitedQb = $this->entityManager->createQueryBuilder();
+            $invitedQb->select('a')
+                ->from(Activity::class, 'a')
+                ->where('a.departmentId != :departmentId')
+                ->andWhere('a.deletedAt IS NULL')
+                ->andWhere('a.type IN (:invitedTypes)')
+                ->andWhere('a.status IN (:statuses)')
+                ->setParameter('departmentId', $departmentId)
+                ->setParameter('invitedTypes', $invitedTypes)
+                ->setParameter('statuses', $allowedStatuses);
+
+            foreach ($invitedQb->getQuery()->getResult() as $candidate) {
+                if (!$candidate instanceof Activity) {
+                    continue;
+                }
+                if (!$this->activityAccess->isDepartmentInviteAccepted($candidate, $departmentId)) {
+                    continue;
+                }
+                $invited[] = $candidate;
             }
-            if (!$this->activityAccess->isDepartmentInviteAccepted($candidate, $departmentId)) {
-                continue;
-            }
-            $invited[] = $candidate;
         }
 
         $merged = [];
@@ -111,17 +129,27 @@ final class DepartmentDisplayDataService
     }
 
     /**
+     * @param list<string> $allowedStatuses
+     *
      * @return list<array<string, mixed>>
      */
-    private function loadWorkshopTickets(string $departmentId): array
+    private function loadWorkshopTickets(string $departmentId, array $allowedStatuses): array
     {
-        $tickets = $this->entityManager->getRepository(WorkshopTicket::class)->findBy(
-            ['departmentId' => $departmentId],
-            ['createdAt' => 'DESC'],
-        );
+        if ($allowedStatuses === []) {
+            return [];
+        }
+
+        $qb = $this->entityManager->createQueryBuilder();
+        $qb->select('t')
+            ->from(WorkshopTicket::class, 't')
+            ->where('t.departmentId = :departmentId')
+            ->andWhere('t.status IN (:statuses)')
+            ->setParameter('departmentId', $departmentId)
+            ->setParameter('statuses', $allowedStatuses)
+            ->orderBy('t.createdAt', 'DESC');
 
         $rows = [];
-        foreach ($tickets as $ticket) {
+        foreach ($qb->getQuery()->getResult() as $ticket) {
             if (!$ticket instanceof WorkshopTicket) {
                 continue;
             }
@@ -129,6 +157,55 @@ final class DepartmentDisplayDataService
         }
 
         return $rows;
+    }
+
+    /**
+     * Zähler für Statistik-Leiste (ohne Datumsfilter der Anzeige-Liste).
+     *
+     * @param list<string> $activityTypes
+     * @param list<string> $activityStatuses
+     * @param list<string> $workshopStatuses
+     *
+     * @return array{activities_by_status: array<string, int>, workshop_by_status: array<string, int>}
+     */
+    private function buildStatistics(
+        string $departmentId,
+        array $activityTypes,
+        array $activityStatuses,
+        array $workshopStatuses,
+    ): array {
+        $activitiesByStatus = [];
+        foreach ($activityStatuses as $status) {
+            $activitiesByStatus[$status] = 0;
+        }
+
+        if ($activityTypes !== [] && $activityStatuses !== []) {
+            foreach ($this->loadActivities($departmentId, $activityTypes, $activityStatuses) as $row) {
+                $status = (string) ($row['status'] ?? '');
+                if (\array_key_exists($status, $activitiesByStatus)) {
+                    ++$activitiesByStatus[$status];
+                }
+            }
+        }
+
+        $workshopByStatus = [];
+        foreach ($workshopStatuses as $status) {
+            $workshopByStatus[$status] = 0;
+        }
+
+        if ($workshopStatuses !== []) {
+            foreach ($this->loadWorkshopTickets($departmentId, $workshopStatuses) as $row) {
+                $status = (string) ($row['status'] ?? '');
+                if (\array_key_exists($status, $workshopByStatus)) {
+                    ++$workshopByStatus[$status];
+                }
+            }
+        }
+
+        return [
+            'activities_by_status' => $activitiesByStatus,
+            'workshop_by_status' => $workshopByStatus,
+        ];
     }
 
     /**

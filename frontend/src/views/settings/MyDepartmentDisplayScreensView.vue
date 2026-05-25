@@ -79,16 +79,75 @@
                 <p class="muted field-hint">{{ t('settings.displayScreens.subtitleHint') }}</p>
 
                 <p class="label label--tight content-label">{{ t('settings.displayScreens.showPanelsLabel') }}</p>
-                <div class="checkbox-group">
-                  <label class="checkbox-row">
-                    <input v-model="drafts[screen.id].show_activities" type="checkbox" />
-                    <span>{{ t('settings.displayScreens.showActivities') }}</span>
-                  </label>
-                  <label class="checkbox-row">
-                    <input v-model="drafts[screen.id].show_workshop" type="checkbox" />
-                    <span>{{ t('settings.displayScreens.showWorkshop') }}</span>
-                  </label>
-                </div>
+
+                <details class="settings-accordion" open>
+                  <summary>{{ t('settings.displayScreens.accordionActivities') }}</summary>
+                  <div class="accordion-body">
+                    <label class="checkbox-row">
+                      <input v-model="drafts[screen.id].show_activities" type="checkbox" />
+                      <span>{{ t('settings.displayScreens.showActivities') }}</span>
+                    </label>
+                    <template v-if="drafts[screen.id].show_activities">
+                      <p class="label label--tight">{{ t('settings.displayScreens.activityTypesLabel') }}</p>
+                      <div class="checkbox-group checkbox-group--nested">
+                        <label
+                          v-for="activityType in displayActivityTypes"
+                          :key="activityType"
+                          class="checkbox-row"
+                        >
+                          <input v-model="drafts[screen.id].activity_types[activityType]" type="checkbox" />
+                          <span>{{ t(`activities.types.${activityType}`) }}</span>
+                        </label>
+                      </div>
+                      <p class="label label--tight">{{ t('settings.displayScreens.activityStatusesLabel') }}</p>
+                      <div class="checkbox-group checkbox-group--nested">
+                        <label
+                          v-for="status in displayActivityStatuses"
+                          :key="status"
+                          class="checkbox-row"
+                        >
+                          <input v-model="drafts[screen.id].activity_statuses[status]" type="checkbox" />
+                          <span>{{ t(`activities.status.${status}`) }}</span>
+                        </label>
+                      </div>
+                      <p class="muted field-hint">{{ t('settings.displayScreens.activityFiltersHint') }}</p>
+                    </template>
+                  </div>
+                </details>
+
+                <details class="settings-accordion">
+                  <summary>{{ t('settings.displayScreens.accordionWorkshop') }}</summary>
+                  <div class="accordion-body">
+                    <label class="checkbox-row">
+                      <input v-model="drafts[screen.id].show_workshop" type="checkbox" />
+                      <span>{{ t('settings.displayScreens.showWorkshop') }}</span>
+                    </label>
+                    <template v-if="drafts[screen.id].show_workshop">
+                      <p class="label label--tight">{{ t('settings.displayScreens.workshopStatusesLabel') }}</p>
+                      <div class="checkbox-group checkbox-group--nested">
+                        <label
+                          v-for="status in displayWorkshopStatuses"
+                          :key="status"
+                          class="checkbox-row"
+                        >
+                          <input v-model="drafts[screen.id].workshop_statuses[status]" type="checkbox" />
+                          <span>{{ t(`workshop.status.${status}`) }}</span>
+                        </label>
+                      </div>
+                    </template>
+                  </div>
+                </details>
+
+                <details class="settings-accordion">
+                  <summary>{{ t('settings.displayScreens.accordionStatistics') }}</summary>
+                  <div class="accordion-body">
+                    <label class="checkbox-row">
+                      <input v-model="drafts[screen.id].show_statistics" type="checkbox" />
+                      <span>{{ t('settings.displayScreens.showStatistics') }}</span>
+                    </label>
+                    <p class="muted field-hint">{{ t('settings.displayScreens.statisticsHint') }}</p>
+                  </div>
+                </details>
 
                 <button
                   type="button"
@@ -165,10 +224,20 @@
             </div>
           </template>
 
-          <p v-else class="muted revoked-line">
-            <span class="badge revoked">{{ t('settings.displayScreens.revoked') }}</span>
-            <span class="revoked-url">{{ screen.display_url }}</span>
-          </p>
+          <div v-else class="revoked-line">
+            <p class="muted revoked-meta">
+              <span class="badge revoked">{{ t('settings.displayScreens.revoked') }}</span>
+              <span class="revoked-url">{{ screen.display_url }}</span>
+            </p>
+            <button
+              type="button"
+              class="btn btn-sm"
+              :disabled="reactivatingId === screen.id"
+              @click="reactivateScreen(screen)"
+            >
+              {{ reactivatingId === screen.id ? t('settings.displayScreens.loading') : t('settings.displayScreens.reactivate') }}
+            </button>
+          </div>
         </div>
       </div>
 
@@ -233,16 +302,56 @@ import { copyTextToClipboard } from '@/utils/clipboard'
 import {
   createDisplayScreen,
   listDisplayScreens,
+  reactivateDisplayScreen,
   revokeDisplayScreen,
   rotateDisplayScreenCode,
   updateDisplayScreenSettings,
   type DisplayScreenSettings,
 } from '@/api/displayScreens'
+import {
+  DISPLAY_ACTIVITY_STATUSES,
+  DISPLAY_ACTIVITY_TYPES,
+  DISPLAY_WORKSHOP_STATUSES,
+  listFromRecord,
+  normalizeDisplayActivityStatuses,
+  normalizeDisplayActivityTypes,
+  normalizeDisplayWorkshopStatuses,
+  recordFromList,
+  type DisplayActivityStatus,
+  type DisplayActivityType,
+  type DisplayWorkshopStatus,
+} from '@/constants/displayScreenConfig'
+
+const displayActivityTypes = DISPLAY_ACTIVITY_TYPES
+const displayActivityStatuses = DISPLAY_ACTIVITY_STATUSES
+const displayWorkshopStatuses = DISPLAY_WORKSHOP_STATUSES
 
 interface ScreenDraft {
   subtitle_text: string
   show_activities: boolean
   show_workshop: boolean
+  show_statistics: boolean
+  activity_types: Record<DisplayActivityType, boolean>
+  activity_statuses: Record<DisplayActivityStatus, boolean>
+  workshop_statuses: Record<DisplayWorkshopStatus, boolean>
+}
+
+function draftFromScreen(screen: DisplayScreenSettings): ScreenDraft {
+  return {
+    subtitle_text: screen.subtitle_text || '',
+    show_activities: screen.show_activities !== false,
+    show_workshop: screen.show_workshop !== false,
+    show_statistics: screen.show_statistics === true,
+    activity_types: recordFromList(DISPLAY_ACTIVITY_TYPES, normalizeDisplayActivityTypes(screen.activity_types)),
+    activity_statuses: recordFromList(
+      DISPLAY_ACTIVITY_STATUSES,
+      normalizeDisplayActivityStatuses(screen.activity_statuses),
+    ),
+    workshop_statuses: recordFromList(
+      DISPLAY_WORKSHOP_STATUSES,
+      normalizeDisplayWorkshopStatuses(screen.workshop_statuses),
+    ),
+  }
 }
 
 const route = useRoute()
@@ -258,6 +367,7 @@ const creating = ref(false)
 const newScreenName = ref('')
 const rotatingId = ref<string | null>(null)
 const revokingId = ref<string | null>(null)
+const reactivatingId = ref<string | null>(null)
 const revealedSetup = ref<{ url: string; code: string } | null>(null)
 const setupQrDataUrl = ref('')
 const screenQrById = ref<Record<string, string>>({})
@@ -317,11 +427,7 @@ function syncExpandedFromScreens(list: DisplayScreenSettings[]) {
 function initDraftsFromScreens(list: DisplayScreenSettings[]) {
   const next: Record<string, ScreenDraft> = {}
   for (const s of list) {
-    next[s.id] = {
-      subtitle_text: s.subtitle_text || '',
-      show_activities: s.show_activities !== false,
-      show_workshop: s.show_workshop !== false,
-    }
+    next[s.id] = draftFromScreen(s)
   }
   drafts.value = next
 }
@@ -330,8 +436,20 @@ async function saveSettings(screen: DisplayScreenSettings) {
   if (!selectedDepartmentId.value || screen.revoked_at) return
   const draft = drafts.value[screen.id]
   if (!draft) return
-  if (!draft.show_activities && !draft.show_workshop) {
+  if (!draft.show_activities && !draft.show_workshop && !draft.show_statistics) {
     toast.error(t('settings.displayScreens.errorNoPanel'))
+    return
+  }
+  if (draft.show_activities && listFromRecord(DISPLAY_ACTIVITY_TYPES, draft.activity_types).length === 0) {
+    toast.error(t('settings.displayScreens.errorNoActivityType'))
+    return
+  }
+  if (draft.show_activities && listFromRecord(DISPLAY_ACTIVITY_STATUSES, draft.activity_statuses).length === 0) {
+    toast.error(t('settings.displayScreens.errorNoActivityStatus'))
+    return
+  }
+  if (draft.show_workshop && listFromRecord(DISPLAY_WORKSHOP_STATUSES, draft.workshop_statuses).length === 0) {
+    toast.error(t('settings.displayScreens.errorNoWorkshopStatus'))
     return
   }
 
@@ -341,6 +459,10 @@ async function saveSettings(screen: DisplayScreenSettings) {
       subtitle_text: draft.subtitle_text.trim() || null,
       show_activities: draft.show_activities,
       show_workshop: draft.show_workshop,
+      show_statistics: draft.show_statistics,
+      activity_types: listFromRecord(DISPLAY_ACTIVITY_TYPES, draft.activity_types),
+      activity_statuses: listFromRecord(DISPLAY_ACTIVITY_STATUSES, draft.activity_statuses),
+      workshop_statuses: listFromRecord(DISPLAY_WORKSHOP_STATUSES, draft.workshop_statuses),
     })
     screens.value = screens.value.map((s) => (s.id === screen.id ? updated : s))
     initDraftsFromScreens(screens.value)
@@ -479,6 +601,35 @@ async function revokeScreen(screen: DisplayScreenSettings) {
     toast.error(t('settings.displayScreens.toastRevokeError'))
   } finally {
     revokingId.value = null
+  }
+}
+
+async function reactivateScreen(screen: DisplayScreenSettings) {
+  if (!selectedDepartmentId.value || !screen.revoked_at) return
+  const ok = await confirm.confirm({
+    title: t('settings.displayScreens.confirmReactivateTitle'),
+    message: t('settings.displayScreens.confirmReactivateMessage'),
+    confirmText: t('settings.displayScreens.reactivate'),
+    cancelText: t('common.cancel'),
+    variant: 'warning',
+  })
+  if (!ok) return
+
+  reactivatingId.value = screen.id
+  try {
+    const updated = await reactivateDisplayScreen(selectedDepartmentId.value, screen.id)
+    screens.value = screens.value.map((s) => (s.id === screen.id ? updated : s))
+    initDraftsFromScreens(screens.value)
+    syncExpandedFromScreens(screens.value)
+    if (updated.access_code && updated.display_url) {
+      await showRevealedSetup(updated.display_url, updated.access_code)
+    }
+    await refreshScreenQrs(screens.value)
+    toast.success(t('settings.displayScreens.toastReactivated'))
+  } catch {
+    toast.error(t('settings.displayScreens.toastReactivateError'))
+  } finally {
+    reactivatingId.value = null
   }
 }
 
@@ -739,11 +890,50 @@ onMounted(async () => {
   gap: 4px;
   margin-bottom: 10px;
 }
+.checkbox-group--nested {
+  margin-left: 12px;
+  padding-left: 10px;
+  border-left: 2px solid #e5e7eb;
+}
+.settings-accordion {
+  margin: 8px 0;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #fafafa;
+}
+.settings-accordion > summary {
+  cursor: pointer;
+  padding: 10px 12px;
+  font-weight: 600;
+  font-size: 14px;
+  list-style: none;
+}
+.settings-accordion > summary::-webkit-details-marker {
+  display: none;
+}
+.settings-accordion > summary::before {
+  content: '▸ ';
+  display: inline-block;
+  transition: transform 0.15s ease;
+}
+.settings-accordion[open] > summary::before {
+  transform: rotate(90deg);
+}
+.accordion-body {
+  padding: 0 12px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
 @media (min-width: 520px) {
   .checkbox-group {
     flex-direction: row;
     flex-wrap: wrap;
     gap: 10px 16px;
+  }
+  .checkbox-group--nested {
+    flex-direction: column;
+    gap: 4px;
   }
 }
 .checkbox-row {
@@ -792,10 +982,17 @@ onMounted(async () => {
 }
 .revoked-line {
   display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  margin-top: 8px;
+}
+.revoked-meta {
+  display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 8px;
-  margin-top: 8px;
+  margin: 0;
 }
 .revoked-url {
   word-break: break-all;

@@ -267,9 +267,15 @@ class ActivityPackCrateCheckService
 
         $this->syncPackContainerQuantitiesFromCheck($activity->getId(), $containerBatchId, $lines);
 
+        $checkLeg = (string) ($payload['check_leg'] ?? 'outbound');
+        if (!\in_array($checkLeg, ['outbound', 'return', 'warehouse_store'], true)) {
+            $checkLeg = 'outbound';
+        }
+
         $this->createActivityHistory($activity, 'pack_crate_check', [
             'pack_item_id' => $shellPackItem->getId(),
             'shell_material_item_id' => $shellPackItem->getMaterialItemId(),
+            'check_leg' => $checkLeg,
             'container_batch_id' => $containerBatchId,
             'result' => $result,
             'lines' => $lines,

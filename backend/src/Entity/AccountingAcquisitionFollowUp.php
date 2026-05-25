@@ -21,7 +21,9 @@ class AccountingAcquisitionFollowUp
     public const SOURCE_ACTIVITY_REPLENISHMENT = 'activity_replenishment';
     public const SOURCE_ACTIVITY_LOSS = 'activity_loss';
     public const SOURCE_ACTIVITY_WORKSHOP = 'activity_workshop';
-    /** Gesamte Endabrechnung einer Aktivität (ein Buchhaltungs-Auftrag). */
+    /** Ausleihmaterial / Miete (Typ external), ein Auftrag pro Aktivität. */
+    public const SOURCE_ACTIVITY_RENTAL = 'activity_rental';
+    /** @deprecated Sammel-Endabrechnung — wird bei Sync entfernt; nicht mehr angelegt. */
     public const SOURCE_ACTIVITY_FINAL = 'activity_final';
 
     #[ORM\Id]

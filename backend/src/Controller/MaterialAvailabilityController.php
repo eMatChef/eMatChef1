@@ -374,9 +374,83 @@ class MaterialAvailabilityController extends AbstractController
                 }
             }
 
+            $linkedContainerMap = [];
+            $comboIds = [];
+            foreach ($materials as $row) {
+                $mid = $row['material_item_id'];
+                $type = $row['material_type'] ?? ($priceMap[$mid]['material_type'] ?? '');
+                if ($type === 'physical_combo') {
+                    $comboIds[] = $mid;
+                }
+            }
+            $comboIds = array_values(array_unique($comboIds));
+            if ($comboIds !== []) {
+                $lcPh = implode(',', array_map(fn ($i) => ':lc_mid' . $i, array_keys($comboIds)));
+                $lcParams = [];
+                foreach ($comboIds as $i => $mid) {
+                    $lcParams['lc_mid' . $i] = $mid;
+                }
+                $lcSql = "SELECT combo.id AS combo_id,
+                        NULLIF(TRIM(lcb.label), '') AS linked_container_label,
+                        NULLIF(TRIM(lcb.serial_number), '') AS linked_container_serial,
+                        lcb_mi.pack_unit AS linked_container_pack_unit
+                    FROM material_item combo
+                    LEFT JOIN material_batch lcb ON lcb.id = combo.linked_container_batch_id
+                    LEFT JOIN material_item lcb_mi ON lcb_mi.id = lcb.material_item_id
+                    WHERE combo.id IN ($lcPh)";
+                $lcStmt = $this->connection->prepare($lcSql);
+                $lcRows = $lcStmt->executeQuery($lcParams)->fetchAllAssociative();
+                foreach ($lcRows as $lc) {
+                    $label = trim((string) ($lc['linked_container_label'] ?? ''));
+                    $serial = trim((string) ($lc['linked_container_serial'] ?? ''));
+                    $linkedContainerMap[$lc['combo_id']] = [
+                        'label' => $label !== '' ? $label : ($serial !== '' ? $serial : null),
+                        'pack_unit' => $lc['linked_container_pack_unit'] ?? null,
+                    ];
+                }
+
+                // Ohne Referenz-Batch: Behälter-Komponente der Stückliste (z. B. Transporttasche mit pack_unit «Sack»)
+                $comboIdsNeedingFallback = array_values(array_filter(
+                    $comboIds,
+                    static fn (string $cid) => trim((string) ($linkedContainerMap[$cid]['pack_unit'] ?? '')) === '',
+                ));
+                if ($comboIdsNeedingFallback !== []) {
+                    $fbPh = implode(',', array_map(fn ($i) => ':fb_mid' . $i, array_keys($comboIdsNeedingFallback)));
+                    $fbParams = [];
+                    foreach ($comboIdsNeedingFallback as $i => $mid) {
+                        $fbParams['fb_mid' . $i] = $mid;
+                    }
+                    $fbSql = "SELECT cc.parent_material_id AS combo_id,
+                            mi.name AS component_name,
+                            mi.pack_unit AS component_pack_unit,
+                            mi.is_container AS is_container
+                        FROM material_combo_component cc
+                        INNER JOIN material_item mi ON mi.id = cc.component_material_id AND mi.deleted_at IS NULL
+                        WHERE cc.parent_material_id IN ($fbPh)
+                          AND (mi.is_container = true OR (mi.pack_unit IS NOT NULL AND TRIM(mi.pack_unit) <> ''))";
+                    $fbRows = $this->connection->prepare($fbSql)->executeQuery($fbParams)->fetchAllAssociative();
+                    $grouped = [];
+                    foreach ($fbRows as $fb) {
+                        $grouped[$fb['combo_id']][] = $fb;
+                    }
+                    foreach ($comboIdsNeedingFallback as $cid) {
+                        $picked = $this->pickComboShellComponentForDisplay($grouped[$cid] ?? []);
+                        if ($picked === null) {
+                            continue;
+                        }
+                        $existing = $linkedContainerMap[$cid] ?? ['label' => null, 'pack_unit' => null];
+                        $linkedContainerMap[$cid] = [
+                            'label' => $existing['label'] ?? trim((string) ($picked['component_name'] ?? '')) ?: null,
+                            'pack_unit' => $picked['component_pack_unit'] ?? null,
+                        ];
+                    }
+                }
+            }
+
             // camelCase für Frontend
-            $materials = array_map(function ($item) use ($priceMap) {
+            $materials = array_map(function ($item) use ($priceMap, $linkedContainerMap) {
                 $priceInfo = $priceMap[$item['material_item_id']] ?? [];
+                $linked = $linkedContainerMap[$item['material_item_id']] ?? null;
                 return [
                     'materialItemId' => $item['material_item_id'],
                     'name' => $item['name'],
@@ -400,6 +474,8 @@ class MaterialAvailabilityController extends AbstractController
                     'packUnit' => $priceInfo['pack_unit'] ?? null,
                     'isJsMaterial' => (bool) ($priceInfo['is_js_material'] ?? false),
                     'externalSource' => $priceInfo['external_source'] ?? null,
+                    'linkedContainerLabel' => $linked['label'] ?? null,
+                    'linkedContainerPackUnit' => $linked['pack_unit'] ?? null,
                 ];
             }, $materials);
 
@@ -409,5 +485,35 @@ class MaterialAvailabilityController extends AbstractController
                 'error' => 'Datenbankfehler: ' . $e->getMessage()
             ], 500);
         }
+    }
+
+    /**
+     * Behälter-Zeile der physischen Kombo für Anzeige (Sack/Kiste …), wenn kein linked_container_batch gesetzt ist.
+     *
+     * @param list<array<string, mixed>> $candidates
+     * @return array<string, mixed>|null
+     */
+    private function pickComboShellComponentForDisplay(array $candidates): ?array
+    {
+        if ($candidates === []) {
+            return null;
+        }
+
+        $score = static function (array $row): int {
+            $name = mb_strtolower(trim((string) ($row['component_name'] ?? '')));
+            $s = !empty($row['is_container']) ? 1000 : 0;
+            if (preg_match('/\b(tasche|transport|sack|kiste|karton|fass|behälter|behaelter)\b/u', $name)) {
+                $s += 100;
+            }
+            if (trim((string) ($row['component_pack_unit'] ?? '')) !== '') {
+                $s += 10;
+            }
+
+            return $s;
+        };
+
+        usort($candidates, static fn (array $a, array $b): int => $score($b) <=> $score($a));
+
+        return $candidates[0];
     }
 }

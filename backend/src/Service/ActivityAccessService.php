@@ -64,6 +64,19 @@ class ActivityAccessService
         return in_array($role, self::BASIC_MEMBER_ROLES, true);
     }
 
+    /**
+     * Darf group_id leer bleiben (= ganze Abteilung) oder jede Department-Gruppe wählen.
+     */
+    public function canSelectDepartmentGroupLevel(User $user, string $departmentId): bool
+    {
+        $role = $this->departmentRoleForUser($user, $departmentId);
+        if ($role === null) {
+            return false;
+        }
+
+        return \in_array($role, ['l1', 'l2', 'l3', 'mw', 'dc', 'matwart', 'depchef'], true);
+    }
+
     public function isGroupLeaderInDepartment(User $user, string $departmentId): bool
     {
         $groupMemberships = $this->entityManager->getRepository(GroupMembership::class)
@@ -110,7 +123,8 @@ class ActivityAccessService
             if (\in_array($role, ['l1', 'l2', 'l3'], true)) {
                 return true;
             }
-            if ($this->isGroupLeaderInDepartment($user, $departmentId)) {
+            // Department-Rolle «u»: nur mit Gruppenchef (★).
+            if (\in_array($role, ['u', 'user'], true) && $this->isGroupLeaderInDepartment($user, $departmentId)) {
                 return true;
             }
 
@@ -180,16 +194,41 @@ class ActivityAccessService
     }
 
     /**
-     * Sichtbare Gruppen-IDs inkl. aller Untergruppen (User in Parent sieht Child-Aktivitäten).
+     * Sichtbare Gruppen-IDs: Untergruppen (Parent → Child) und Parent-Gruppen (Child → Parent),
+     * damit Lager/Event der eigenen Gruppe auch für Mitglieder in Untergruppen in Listen erscheinen.
      *
      * @return list<string>
      */
     public function getExpandedVisibleGroupIds(User $user, string $departmentId): array
     {
-        return $this->groupHierarchy->expandWithDescendants(
-            $departmentId,
-            $this->getUserRootGroupIdsInDepartment($user, $departmentId)
-        );
+        $roots = $this->getUserRootGroupIdsInDepartment($user, $departmentId);
+        $descendants = $this->groupHierarchy->expandWithDescendants($departmentId, $roots);
+        $ancestors = $this->groupHierarchy->expandWithAncestors($departmentId, $roots);
+
+        return array_values(array_unique(array_merge($descendants, $ancestors)));
+    }
+
+    /**
+     * Lager/Event: Zugriff im gesamten Gruppenzweig (Parent- oder Child-Seite).
+     * Andere Typen: nur Abwärts (User-Gruppe und Untergruppen).
+     *
+     * @param list<string> $userRootGroupIds
+     */
+    private function canAccessActivityViaGroupHierarchy(
+        Activity $activity,
+        string $departmentId,
+        array $userRootGroupIds
+    ): bool {
+        $groupId = $activity->getGroupId();
+        if ($groupId === null || $groupId === '') {
+            return false;
+        }
+
+        if (\in_array($activity->getType() ?? '', ['camp', 'event'], true)) {
+            return $this->groupHierarchy->isInSameGroupBranch($departmentId, $groupId, $userRootGroupIds);
+        }
+
+        return $this->groupHierarchy->isActivityGroupUnderUserGroups($departmentId, $groupId, $userRootGroupIds);
     }
 
     public function isDepartmentInviteAccepted(Activity $activity, string $departmentId): bool
@@ -279,17 +318,9 @@ class ActivityAccessService
             if ($activity->getCreatedByUserId() === $user->getId()) {
                 return true;
             }
-            $groupId = $activity->getGroupId();
-            if (!$groupId) {
-                return false;
-            }
             $userRootGroupIds = $this->getUserRootGroupIdsInDepartment($user, $departmentId);
 
-            return $this->groupHierarchy->isActivityGroupUnderUserGroups(
-                $departmentId,
-                $groupId,
-                $userRootGroupIds
-            );
+            return $this->canAccessActivityViaGroupHierarchy($activity, $departmentId, $userRootGroupIds);
         }
 
         if ($activity->getCreatedByUserId() === $user->getId() || $activity->getResponsibleUserId() === $user->getId()) {
@@ -300,18 +331,9 @@ class ActivityAccessService
             return false;
         }
 
-        $groupId = $activity->getGroupId();
-        if (!$groupId) {
-            return false;
-        }
-
         $userRootGroupIds = $this->getUserRootGroupIdsInDepartment($user, $departmentId);
 
-        return $this->groupHierarchy->isActivityGroupUnderUserGroups(
-            $departmentId,
-            $groupId,
-            $userRootGroupIds
-        );
+        return $this->canAccessActivityViaGroupHierarchy($activity, $departmentId, $userRootGroupIds);
     }
 
     /**
@@ -356,6 +378,31 @@ class ActivityAccessService
             return false;
         }
 
+        return $this->canUserEditActivityMaterialLinesAsGroupMember($user, $activity, false);
+    }
+
+    /**
+     * Nach Einreichung, vor «Annehmen & Packen»: u/l1/l2/l3 (und Gruppe) dürfen noch Material ergänzen.
+     */
+    public function canUserAddMaterialBeforePacking(User $user, Activity $activity): bool
+    {
+        if (!\in_array($activity->getStatus(), [Activity::STATUS_SUBMITTED, Activity::STATUS_APPROVED], true)) {
+            return false;
+        }
+
+        return $this->canUserEditActivityMaterialLinesAsGroupMember($user, $activity, true);
+    }
+
+    /**
+     * Gruppen-/Ersteller-Zugriff auf Materiallisten (Entwurf oder «vergessen»-Nachbuch vor packing).
+     *
+     * @param bool $basicMemberOnly true: nur u/l1/l2/l3 (Host + eingeladene Gruppen), keine MW/DC
+     */
+    private function canUserEditActivityMaterialLinesAsGroupMember(
+        User $user,
+        Activity $activity,
+        bool $basicMemberOnly,
+    ): bool {
         $uid = $user->getId();
         $hostDeptId = $activity->getDepartmentId();
 
@@ -365,18 +412,24 @@ class ActivityAccessService
         ]);
         if ($hostMem) {
             $role = (string) ($hostMem->getRole() ?? '');
-            if (in_array($role, ['mw', 'dc'], true)) {
+            if ($basicMemberOnly) {
+                if (!\in_array($role, ['u', 'user', 'l1', 'l2', 'l3'], true)) {
+                    return false;
+                }
+            } elseif (\in_array($role, ['mw', 'dc'], true)) {
                 return true;
             }
+        } elseif ($basicMemberOnly) {
+            return false;
         }
 
         $groupId = $activity->getGroupId();
         if ($groupId) {
             $userRootGroupIds = $this->getUserRootGroupIdsInDepartment($user, $hostDeptId);
-            if ($this->groupHierarchy->isActivityGroupUnderUserGroups($hostDeptId, $groupId, $userRootGroupIds)) {
+            if ($this->canAccessActivityViaGroupHierarchy($activity, $hostDeptId, $userRootGroupIds)) {
                 return true;
             }
-        } elseif ($activity->isEvent() && $hostMem !== null) {
+        } elseif ($activity->isEvent() && $hostMem !== null && !$basicMemberOnly) {
             // Event ohne gewählte Gruppe: alle User des Host-Departments
             return true;
         } elseif ($activity->getCreatedByUserId() === $uid || $activity->getResponsibleUserId() === $uid) {
@@ -385,7 +438,7 @@ class ActivityAccessService
         }
 
         foreach ($activity->getInvitedDepartments() ?? [] as $inv) {
-            if (!is_array($inv) || ($inv['status'] ?? '') !== 'accepted') {
+            if (!\is_array($inv) || ($inv['status'] ?? '') !== 'accepted') {
                 continue;
             }
             $deptId = trim((string) ($inv['id'] ?? $inv['department_id'] ?? ''));
@@ -396,8 +449,15 @@ class ActivityAccessService
                 'userId' => $uid,
                 'departmentId' => $deptId,
             ]);
-            if ($mem && in_array((string) ($mem->getRole() ?? ''), ['mw', 'dc'], true)) {
-                return true;
+            if ($mem) {
+                $invRole = (string) ($mem->getRole() ?? '');
+                if ($basicMemberOnly) {
+                    if (!\in_array($invRole, ['u', 'user', 'l1', 'l2', 'l3'], true)) {
+                        continue;
+                    }
+                } elseif (\in_array($invRole, ['mw', 'dc'], true)) {
+                    return true;
+                }
             }
             $ig = trim((string) ($inv['group_id'] ?? ''));
             if ($ig !== '') {
@@ -507,6 +567,12 @@ class ActivityAccessService
         $groupId = $activity->getGroupId();
         if ($groupId === null || $groupId === '') {
             return false;
+        }
+
+        $departmentId = $activity->getDepartmentId();
+        $userRootGroupIds = $this->getUserRootGroupIdsInDepartment($user, $departmentId);
+        if (\in_array($activity->getType() ?? '', ['camp', 'event'], true)) {
+            return $this->groupHierarchy->isInSameGroupBranch($departmentId, $groupId, $userRootGroupIds);
         }
 
         $groupMembership = $this->entityManager->getRepository(GroupMembership::class)

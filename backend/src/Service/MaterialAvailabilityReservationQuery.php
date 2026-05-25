@@ -9,8 +9,9 @@ use App\Entity\Activity;
  *
  * Zwei Ebenen (siehe docs/activities/material-pipeline.md):
  * 1. Bestell-Reservierung (draft…approved): activity_item.quantity, nur bei Zeitraum-Overlap
- * 2. Physische Sperre (packing…returned): gepackte / retournierte Menge — bis Status «completed»
- *    (Einlagerung quantity_stored reduziert die Sperre nicht vorher; auch nach Rückgabedatum)
+ * 2. Physische Sperre (packing…returned): GREATEST(packed, returned) − stored (ohne Zeitraum-Overlap).
+ *    Frühes Packen vor planning_start: packed greift. Nach planning_end: stored-Rest sperrt weiter.
+ *    Aktivitäts-Status «completed» beeinflusst die Verfügbarkeit nicht.
  */
 final class MaterialAvailabilityReservationQuery
 {
@@ -86,7 +87,7 @@ LEFT JOIN LATERAL (
 SQL;
     }
 
-    /** Gepackte/retournierte Menge — erst bei completed wieder frei (ohne Abzug quantity_stored). */
+    /** Gepackte/retournierte Menge minus eingelagert — frei sobald quantity_stored aufgeholt hat. */
     private static function pipelineLockQtyCaseSql(string $alias): string
     {
         return <<<SQL
@@ -96,7 +97,7 @@ CASE
          AND {$alias}.quantity_returned = 0
          AND {$alias}.quantity_ordered > 0
         THEN {$alias}.quantity_ordered
-    ELSE GREATEST({$alias}.quantity_packed, {$alias}.quantity_returned)
+    ELSE GREATEST({$alias}.quantity_packed, {$alias}.quantity_returned) - COALESCE({$alias}.quantity_stored, 0)
 END
 SQL;
     }

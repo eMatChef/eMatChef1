@@ -128,9 +128,39 @@ class DepartmentDisplayScreenController extends AbstractController
             return $screen;
         }
 
-        $this->displayScreenService->revoke($screen);
+        try {
+            $this->displayScreenService->revoke($screen);
+        } catch (\InvalidArgumentException $e) {
+            return new JsonResponse(['error' => $e->getMessage()], 400);
+        }
 
         return new JsonResponse($this->displayScreenService->serializeForSettings($screen));
+    }
+
+    #[Route('/{screenId}/reactivate', name: 'reactivate', methods: ['POST'])]
+    #[IsGranted('ROLE_USER')]
+    public function reactivate(string $departmentId, string $screenId): JsonResponse
+    {
+        $user = $this->requireManager($departmentId);
+        if ($user instanceof JsonResponse) {
+            return $user;
+        }
+
+        $screen = $this->findScreen($departmentId, $screenId);
+        if ($screen instanceof JsonResponse) {
+            return $screen;
+        }
+
+        try {
+            $result = $this->displayScreenService->reactivate($screen);
+        } catch (\InvalidArgumentException $e) {
+            return new JsonResponse(['error' => $e->getMessage()], 400);
+        }
+
+        $payload = $this->displayScreenService->serializeForSettings($result['screen']);
+        $payload['access_code'] = $result['access_code'];
+
+        return new JsonResponse($payload);
     }
 
     private function requireManager(string $departmentId): User|JsonResponse

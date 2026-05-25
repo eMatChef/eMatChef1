@@ -73,6 +73,22 @@ class ActivityItem
     #[ORM\Column(name: 'updated_at', type: 'datetime')]
     private \DateTime $updatedAt;
 
+    /** Wer die Zeile angelegt hat (z. B. Nachlieferung). */
+    #[ORM\Column(name: 'created_by_user_id', type: 'string', length: 12, nullable: true, columnDefinition: 'CHARACTER(12) NULL')]
+    private ?string $createdByUserId = null;
+
+    #[ORM\ManyToOne(targetEntity: User::class)]
+    #[ORM\JoinColumn(name: 'created_by_user_id', referencedColumnName: 'id', nullable: true, onDelete: 'SET NULL')]
+    private ?User $createdByUser = null;
+
+    /** Department-Kontext des Erfassers (UI / Mitgliedschaft), relevant bei departmentübergreifenden Aktivitäten. */
+    #[ORM\Column(name: 'submitter_department_id', type: 'string', length: 12, nullable: true, columnDefinition: 'CHARACTER(12) NULL')]
+    private ?string $submitterDepartmentId = null;
+
+    #[ORM\ManyToOne(targetEntity: Department::class)]
+    #[ORM\JoinColumn(name: 'submitter_department_id', referencedColumnName: 'id', nullable: true, onDelete: 'SET NULL')]
+    private ?Department $submitterDepartment = null;
+
     public function __construct()
     {
         $this->createdAt = new \DateTime();
@@ -230,6 +246,56 @@ class ActivityItem
     public function setUpdatedAt(\DateTime $updatedAt): self
     {
         $this->updatedAt = $updatedAt;
+        return $this;
+    }
+
+    public function getCreatedByUserId(): ?string
+    {
+        return $this->createdByUserId;
+    }
+
+    public function setCreatedByUserId(?string $createdByUserId): self
+    {
+        $this->createdByUserId = $createdByUserId;
+
+        return $this;
+    }
+
+    public function getCreatedByUser(): ?User
+    {
+        return $this->createdByUser;
+    }
+
+    public function setCreatedByUser(?User $createdByUser): self
+    {
+        $this->createdByUser = $createdByUser;
+        $this->createdByUserId = $createdByUser?->getId();
+
+        return $this;
+    }
+
+    public function getSubmitterDepartmentId(): ?string
+    {
+        return $this->submitterDepartmentId;
+    }
+
+    public function setSubmitterDepartmentId(?string $submitterDepartmentId): self
+    {
+        $this->submitterDepartmentId = $submitterDepartmentId;
+
+        return $this;
+    }
+
+    public function getSubmitterDepartment(): ?Department
+    {
+        return $this->submitterDepartment;
+    }
+
+    public function setSubmitterDepartment(?Department $submitterDepartment): self
+    {
+        $this->submitterDepartment = $submitterDepartment;
+        $this->submitterDepartmentId = $submitterDepartment?->getId();
+
         return $this;
     }
 }

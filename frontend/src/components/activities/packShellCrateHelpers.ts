@@ -59,6 +59,16 @@ export function isCrateShellPackItem(
   return false
 }
 
+/** Phys.-Kombi als Set: Pipeline auf Pack-Position, kein Zwang Pack-Behälter (ohne Referenz-Charge). */
+export function isPhysicalComboAsSet(
+  pi: ActivityPackItem,
+  packContainers: ActivityPackContainer[],
+): boolean {
+  if (pi.materialType !== 'physical_combo') return false
+  if ((pi.linkedContainerBatchId ?? '').trim() !== '') return false
+  return packShellContainerForPackItem(pi, packContainers) == null
+}
+
 export function warehousePreviewContainerItem(
   containerId: string,
   materialItemId: string,

@@ -4,6 +4,7 @@ namespace App\Controller;
 
 use App\Controller\Trait\AccountingMwOrDcTrait;
 use App\Entity\AccountingAcquisitionFollowUp;
+use App\Service\AccountingAcquisitionFollowUpSerializer;
 use App\Service\InboxMessageService;
 use App\Entity\Department;
 use App\Entity\MaterialBatch;
@@ -23,6 +24,7 @@ class AccountingAcquisitionFollowUpController extends AbstractController
     public function __construct(
         private EntityManagerInterface $entityManager,
         private InboxMessageService $inboxMessages,
+        private AccountingAcquisitionFollowUpSerializer $followUpSerializer,
     ) {
     }
 
@@ -211,30 +213,6 @@ class AccountingAcquisitionFollowUpController extends AbstractController
      */
     private function serialize(AccountingAcquisitionFollowUp $f): array
     {
-        $batch = $f->getMaterialBatch();
-        $booking = $f->getAccountingBooking();
-        $activity = $f->getActivity();
-        $material = $f->getMaterialItem();
-
-        return [
-            'id' => $f->getId(),
-            'department_id' => $f->getDepartment()->getId(),
-            'material_batch_id' => $batch?->getId(),
-            'activity_id' => $activity?->getId(),
-            'activity_name' => $activity?->getName(),
-            'activity_group_id' => $activity?->getGroupId(),
-            'activity_type' => $activity?->getType(),
-            'source_kind' => $f->getSourceKind(),
-            'source_ref_id' => $f->getSourceRefId(),
-            'material_item_id' => $material?->getId(),
-            'material_name' => $material?->getName(),
-            'amount' => $f->getAmount(),
-            'suggested_date' => $f->getSuggestedDate()->format('Y-m-d'),
-            'receipt_label' => $f->getReceiptLabel(),
-            'status' => $f->getStatus(),
-            'accounting_booking_id' => $booking?->getId(),
-            'created_at' => $f->getCreatedAt()->format('c'),
-            'updated_at' => $f->getUpdatedAt()->format('c'),
-        ];
+        return $this->followUpSerializer->serialize($f);
     }
 }

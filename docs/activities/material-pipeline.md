@@ -16,7 +16,7 @@ Zwei **getrennte** Status-Ebenen pro Aktivität:
 | Aktivität | «In welcher Phase ist der Anlass?» | `returned` = Gruppe hat retourniert |
 | Material | «Wo ist Stück X?» | 3× retourniert, 1× noch nicht eingelagert |
 
-Eine Aktivität kann `returned` sein, während einzelne Positionen noch nicht `quantity_stored` sind. Das ist gewollt — sonst müsste MW die Aktivität offen halten. **Verfügbarkeit im Lager** wird trotzdem erst wieder freigegeben, wenn die Aktivität **`completed`** ist (Einlagerung allein reicht nicht).
+Eine Aktivität kann `returned` sein, während einzelne Positionen noch nicht `quantity_stored` sind. **Verfügbarkeit für andere Anlässe** wird pro Position freigegeben, sobald die Menge **eingelagert** ist (`quantity_stored`). Der Aktivitäts-Status `completed` betrifft den **Vorgangsabschluss** (Einlagerung vollständig, Meldungen, Werkstatt, Buchhaltung).
 
 ---
 
@@ -105,9 +105,20 @@ Gruppe sieht in der Packliste **4 Transport-Tabs** (ohne «Bestätigt → Gepack
 | UI-Stufe | Pipeline-Stufe(n) | Wer (`activity`) | Wer (`external`) |
 |----------|-------------------|------------------|------------------|
 | Bestätigt → Gepackt | `packed` | MW | MW |
-| Gepackt → Am Event | `at_event` | MW / Gruppe | MW |
+| Gepackt → Am Event | `at_event` | Gruppe (MW: Pfeile mit Bestätigung; Nachlieferung: zuerst Tab «Bestätigt → Gepackt» wenn `packed < ordered`) | MW |
 | Am Event → Retour | `returned` | Gruppe | MW |
 | Retour → Ausgepackt | `quantity_stored` | MW | MW |
+
+### Phys.-Kombi: Set vs. Referenz-Kiste
+
+| Modus | Stammdaten | `quantity_packed` | Pack-Behälter (`activity_pack_container`) |
+|-------|------------|-------------------|-------------------------------------------|
+| **Set** (z. B. Zelt ohne Charge) | `physical_combo`, Stückliste (BOM), kein `linked_container_batch` | Direkt über Pack-Pipeline (Pfeil «Bestätigt → Gepackt») | **Optional** — nur wenn MW explizit einpackt |
+| **Mit Referenz-Kiste** | `linked_container_batch` gesetzt oder Pack-Behälter mit Lager-Charge | Kann mit Anzahl Batch-Behälter synchronisiert werden | Sinnvoll für Plan/Ist und serialisierte Säcke |
+
+**Verpackungseinheit** (`pack_size` / `pack_unit`, z. B. «2 Fackeln pro Sack») ist **unabhängig** von Pack-Behältern und Kombi-Set — nur Bestell-Bündelung.
+
+**Kistencheck** (beim Verschieben): BOM-Abgleich «alles da?» — Etappen `outbound` (bis Event), `return` (Event→Retour), `warehouse_store` (Einlagern). Gruppe/Leiter: je Etappe einmal; MW/DC: einmal pro Aktivität, erneut bei Einlagern.
 
 ---
 
@@ -129,10 +140,10 @@ Gruppe sieht in der Packliste **4 Transport-Tabs** (ohne «Bestätigt → Gepack
 
 ## Regeln (Ziel)
 
-1. **Erst bei `completed` wieder verfügbar** — Material bleibt gesperrt ab «Wird gepackt» bis zur Aktivitäts-Abschluss, auch wenn schon retourniert/eingelagert oder das Rückgabedatum vorbei ist.
-2. **Ab «Wird gepackt» gesperrt** — `GREATEST(quantity_packed, quantity_returned)` blockiert die Verfügbarkeit **ohne** Zeitraum-Overlap (kein Abzug durch `quantity_stored` vor `completed`).
-3. **Bestell-Reservierung** — `activity_item.quantity` mit Zeitraum-Overlap nur in `draft`/`submitted`/`approved`.
-4. **Abschluss** (`returned` → `completed`) erst wenn alle relevanten Positionen eingelagert (oder als Verlust/Verbrauch gebucht).
+1. **Physische Sperre** — `GREATEST(quantity_packed, quantity_returned) - quantity_stored` ab Status `packing` … `returned`, **ohne** Zeitraum-Overlap. Eingelagerte Menge ist sofort für andere Anlässe frei.
+2. **Zeitraum-Reservierung** — `activity_item.quantity` nur in `draft`/`submitted`/`approved` bei Overlap mit `planning_start`/`planning_end` (Fallback `usage_*`). Frühes Packen vor `planning_start`: Sperre über `quantity_packed`. Nach `planning_end`: Sperre über offene Pipeline-Menge bis `stored`.
+3. **Abschluss** (`returned` → `completed`) blockiert bei: offenem Einlagern (`packed`/`returned` > `stored`), offenen Issue-Meldungen (Verlust/Reparatur/Schaden), offenen Werkstatt-Tickets, **allen** ausstehenden Buchhaltungs-Aufträgen der Aktivität (mehrere `activity_*`-Follow-ups, kein `activity_final`).
+4. **`completed` steuert nicht die Verfügbarkeit** — nur Vorgangsabschluss; Kosten laufen über die einzelnen Buchhaltungs-Aufträge ab Retour.
 5. **Quick / External:** keine Transport-UI; Logistics: volle Pipeline.
 
 ---
@@ -154,9 +165,11 @@ Gruppe sieht in der Packliste **4 Transport-Tabs** (ohne «Bestätigt → Gepack
 
 - [x] `quantity_stored` (+ Backend-Stufe `stored`) in DB und Pipeline
 - [x] `returned_unpack` UI an Stufe `stored` gekoppelt (links: Retour offen, rechts: Ausgepackt / eingelagert)
-- [x] Verfügbarkeit: gepacktes / retourniertes Material blockiert «frei» bis **`completed`** (`MaterialAvailabilityReservationQuery`)
+- [x] Verfügbarkeit: Pipeline-Sperre `GREATEST(packed, returned) - stored`; Zeitraum-Reservierung bis `approved` (`MaterialAvailabilityReservationQuery`)
+- [x] Abschluss-Blocker: Einlagerung, Issues, Werkstatt, Buchhaltung (`ActivityController::getCompletionBlockers`)
 - [x] `activity_item.status`: Sync aus Pack-Pipeline (`ActivityItemPipelineStatusService`) bei Move, Kisten, Statuswechsel
 - [x] Abschluss blockiert, solange `quantity_returned > quantity_stored`
+- [x] UI: Abschluss-Checkliste bei Status `returned` (`ActivityCompletionChecklist`, Blocker aus `GET …/transitions`)
 
 ---
 

@@ -87,6 +87,8 @@ export interface ActivityDetail extends ActivityCreatedResponse {
   can_edit_draft_material?: boolean
   /** Einheitliche Berechtigung für die Material-UI (Entwurf: wie can_edit_draft_material; danach: Host-MW/DC bis packed) */
   can_edit_activity_material?: boolean
+  /** submitted/approved: u–l3 dürfen noch Material ergänzen (vor «Annehmen & Packen») */
+  can_add_forgotten_material?: boolean
   /** Nach Einreichung: Host-MW/DC dürfen Texte/Stammdaten per PATCH ändern */
   can_edit_submitted_activity_content?: boolean
   /** Im Entwurf: darf User «Einreichen» (typabhängig — API) */
@@ -104,10 +106,53 @@ export interface ActivityTransitionRow {
   reason: string | null
 }
 
+export interface ActivityCompletionBlockerFollowUp {
+  id: string
+  amount: string
+  receipt_label?: string | null
+  source_kind?: string | null
+  department_id: string
+  department_name?: string | null
+  charge_target?: string | null
+  material_department_name?: string | null
+  external_customer_label?: string | null
+  reported_by_display_name?: string | null
+}
+
+export interface ActivityCompletionBlockers {
+  unstored_pack_items_count?: number
+  open_issue_reports_count?: number
+  open_workshop_tickets_count?: number
+  pending_accounting_followups_count?: number
+  unstored_pack_items?: Array<{
+    id: string
+    material_name?: string | null
+    quantity_packed?: number
+    quantity_returned?: number
+    quantity_stored?: number
+    pending_store?: number
+  }>
+  open_issue_reports?: Array<{
+    id: string
+    type: string
+    quantity?: number
+    material_name?: string | null
+    reported_at?: string
+  }>
+  open_workshop_tickets?: Array<{
+    id: string
+    title?: string
+    status?: string
+    type?: string
+  }>
+  pending_accounting_followups?: ActivityCompletionBlockerFollowUp[]
+}
+
 export interface ActivityTransitionsResponse {
   current_status: string
   current_label?: string
   transitions: ActivityTransitionRow[]
+  completion_blockers?: ActivityCompletionBlockers
 }
 
 export interface ActivityItemRow {
@@ -131,6 +176,11 @@ export interface ActivityItemRow {
   price_type?: string | null
   is_consumable?: boolean
   is_replenishment?: boolean
+  created_by_user_id?: string | null
+  created_by_display_name?: string | null
+  submitter_department_id?: string | null
+  submitter_department_name?: string | null
+  recorded_at?: string | null
   sale_price?: string | number | null
   pack_size?: number | null
   pack_unit?: string | null
@@ -212,6 +262,8 @@ export async function addActivityItem(
     material_item_id: string
     quantity?: number
     replenishment?: boolean
+    /** Department-Kontext der Erfassung (Route/UI), wichtig bei Partner-Aktivitäten */
+    acting_department_id?: string
     unit_price?: number | string
     line_total?: number | string
     price_type?: string
@@ -247,6 +299,8 @@ export interface ActivityIssueReportRow {
   resolved: boolean
   resolved_at?: string | null
   reported_at: string
+  reported_by?: string | null
+  reported_by_display_name?: string | null
   is_js_material?: boolean
 }
 

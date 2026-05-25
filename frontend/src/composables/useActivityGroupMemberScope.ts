@@ -12,7 +12,7 @@ const groupsLoading = ref(false)
 
 /**
  * Basissicht (u, l1–l3): eingeschränkte Aktivitäten-Sicht (eigene Gruppe).
- * Camp/Event anlegen: Leiter 1–3 und Gruppenchef (★); reines «u» nur Typ «activity».
+ * Camp/Event anlegen: l1–l3 oder «u» mit Gruppenchef (★); reines «u» nur Typ «activity».
  */
 export function useActivityGroupMemberScope() {
   const authStore = useAuthStore()
@@ -34,10 +34,11 @@ export function useActivityGroupMemberScope() {
   /** u / l1–l3 — eingeschränkte Listen-/Workflow-Sicht (nicht MW/DC). */
   const isRestrictedGroupMember = computed(() => isUserRole.value)
 
-  /** Camp/Event anlegen & einreichen: l1–l3 oder Gruppenchef im Department. */
+  /** Camp/Event anlegen & einreichen: l1–l3 oder «u»/«user» + Gruppenchef (★). */
   const canCreateCampAndEvent = computed(() => {
     const role = departmentRole.value
     if (['l1', 'l2', 'l3'].includes(role)) return true
+    if (!['u', 'user'].includes(role)) return false
     return isGroupLeaderInDepartment.value
   })
 
