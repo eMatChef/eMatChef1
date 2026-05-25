@@ -1,15 +1,11 @@
 import type { Router } from 'vue-router'
+import { isQrPublicHost, resolvePublicLinkOrigin } from '@/utils/appLoginUrl'
 
-/** Aktueller Browser-Host ist die konfigurierte QR-Subdomain (z. B. qr.localhost). */
-export function isQrPublicHost(): boolean {
-  const qrHost = (import.meta.env.VITE_QR_PUBLIC_HOST || '').trim().toLowerCase()
-  if (!qrHost || typeof window === 'undefined') return false
-  return window.location.hostname.toLowerCase() === qrHost
-}
+export { isQrPublicHost }
 
 /**
- * Material-Detail in der App-Instanz öffnen. Auf der QR-Subdomain ist localStorage
- * getrennt von app.* – deshalb volle Navigation zu VITE_APP_ORIGIN, sobald konfiguriert.
+ * Material-Detail in der App öffnen. Auf der QR-Subdomain volle Navigation zur Hauptdomain
+ * (ematchef.*), nicht app.* — localStorage ist origin-gebunden.
  */
 export function navigateToAppMaterialDetail(
   router: Router,
@@ -18,13 +14,13 @@ export function navigateToAppMaterialDetail(
   batchId?: string | null
 ): void {
   const path = `/${departmentId}/materials/${materialId}`
-  const appOrigin = (import.meta.env.VITE_APP_ORIGIN || '').trim().replace(/\/$/, '')
+  const linkOrigin = resolvePublicLinkOrigin()
 
-  if (appOrigin && isQrPublicHost()) {
+  if (linkOrigin && isQrPublicHost()) {
     const params = new URLSearchParams()
     if (batchId) params.set('batch', batchId)
     const qs = params.toString()
-    window.location.assign(`${appOrigin}${path}${qs ? `?${qs}` : ''}`)
+    window.location.assign(`${linkOrigin}${path}${qs ? `?${qs}` : ''}`)
     return
   }
 
@@ -34,4 +30,43 @@ export function navigateToAppMaterialDetail(
     path,
     query: Object.keys(query).length ? query : undefined,
   })
+}
+
+/**
+ * Aktivitäts-Detail in der App öffnen (von qr.ematchef.ch).
+ */
+export function navigateToAppActivityDetail(
+  router: Router,
+  departmentId: string,
+  activityId: string,
+): void {
+  const path = `/${departmentId}/activities/${activityId}`
+  const linkOrigin = resolvePublicLinkOrigin()
+
+  if (linkOrigin && isQrPublicHost()) {
+    window.location.assign(`${linkOrigin}${path}`)
+    return
+  }
+
+  void router.push(path)
+}
+
+/**
+ * Werkstatt-Ticket in der App öffnen (von qr.ematchef.ch) — Liste mit Ticket-Modal.
+ */
+export function navigateToAppWorkshopTicket(
+  router: Router,
+  departmentId: string,
+  ticketId: string,
+): void {
+  const path = `/${departmentId}/workshop`
+  const query = `?ticket=${encodeURIComponent(ticketId)}`
+  const linkOrigin = resolvePublicLinkOrigin()
+
+  if (linkOrigin && isQrPublicHost()) {
+    window.location.assign(`${linkOrigin}${path}${query}`)
+    return
+  }
+
+  void router.push({ path, query: { ticket: ticketId } })
 }

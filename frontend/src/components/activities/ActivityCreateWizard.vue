@@ -17,11 +17,16 @@
         <div class="material-wizard-body">
           <div class="material-wizard-content">
             <div ref="wizardFormRef" class="material-wizard-form">
-              <ActivityTypeChips :selected="selectedActivityType" @select="onSelectActivityType" />
+              <ActivityTypeChips
+                v-if="showActivityTypePicker"
+                :selected="selectedActivityType"
+                @select="onSelectActivityType"
+              />
 
               <ActivityCreateWizardForm
                 v-if="selectedActivityType"
                 :department-id="departmentId"
+                :department-name="wizardDepartmentName"
                 :layout-mode="layoutMode"
                 :wizard-step-index="wizardStepIndex"
                 :step-keys="stepKeys"
@@ -75,7 +80,7 @@
 
         <ActivityWizardFooter
           :submit-error="submitError"
-          :missing-steps="missingSteps"
+          :missing-steps="footerMissingSteps"
           :layout-mode="layoutMode"
           :selected-activity-type="selectedActivityType"
           :wizard-step-index="wizardStepIndex"
@@ -108,16 +113,14 @@ import '@/styles/activity-type-chips.css'
 import '@/styles/activity-create-wizard.css'
 import {
   createActivity,
-  getActivity,
-  getActivityItems,
   patchActivity,
   patchActivityStatus,
   syncActivityItems,
 } from '@/api/activities'
 import { getAddresses, type Address } from '@/api/addresses'
 import { FALLBACK_ACTIVITY_DEFAULTS, getActivityDefaults } from '@/api/departmentSettings'
-import { getGroups } from '@/api/groups'
-import { flattenGroupsWithLevel } from '@/utils/groupHierarchy'
+import { resolveActivityGroupPickerLabel } from '@/utils/groupHierarchy'
+import { useAuthStore } from '@/stores/auth'
 import { useToast } from '@/composables/useToast'
 import {
   useActivityCreateWizard,
@@ -127,6 +130,8 @@ import {
   type InvitedDepartmentDraft,
 } from '@/composables/useActivityCreateWizard'
 import { useHeaderNotificationsStore } from '@/stores/headerNotifications'
+import { useActivityGroupMemberScope } from '@/composables/useActivityGroupMemberScope'
+import { useDepartmentMemberRole } from '@/composables/useDepartmentMemberRole'
 import {
   ActivityCreateWizardForm,
   ActivityPreviewSidebar,
@@ -137,19 +142,26 @@ import {
 const props = defineProps<{
   modelValue: boolean
   departmentId: string
-  /** Wenn gesetzt: Entwurf von der API laden (Wizard fortsetzen) */
-  resumeActivityId?: string | null
 }>()
 
 const emit = defineEmits<{
   'update:modelValue': [value: boolean]
   created: [id: string]
-  'resume-consumed': []
 }>()
 
 const { t } = useI18n()
 const toast = useToast()
+const authStore = useAuthStore()
 const headerNotificationsStore = useHeaderNotificationsStore()
+const { canSelectDepartmentGroupLevel } = useDepartmentMemberRole()
+const {
+  loadGroupsForDepartment,
+  setGroups: setScopeGroups,
+  groups: scopeGroups,
+  wizardGroupsForUser,
+  allowedCreateActivityTypes,
+  showActivityTypePicker,
+} = useActivityGroupMemberScope()
 
 const showDialog = computed({
   get: () => props.modelValue,
@@ -188,6 +200,7 @@ const {
   activityNotes,
   setWizardGroups,
   missingSteps,
+  footerMissingSteps,
   canSubmit,
   canAdvanceFromCurrentStep,
   isLastStep,
@@ -205,8 +218,8 @@ const {
   draftActivityId,
   saveDraftStep,
   applyInvitedDepartmentsApiResponse,
-  hydrateFromActivityDetail,
   shouldAutoSubmitAfterWizard,
+  shouldFinalizeAsSubmittedAfterWizard,
 } = useActivityCreateWizard()
 
 function onSelectActivityType(t: ActivityCreateType) {
@@ -222,6 +235,11 @@ function onSelectActivityType(t: ActivityCreateType) {
 function onUpdateFormName(v: string) {
   formName.value = v
 }
+const wizardDepartmentName = computed(() => {
+  const row = authStore.departments.find((d) => d.department_id === props.departmentId)
+  return row?.department?.name?.trim() || ''
+})
+
 function onSelectedGroupId(v: string | null) {
   selectedGroupId.value = v
 }
@@ -359,11 +377,18 @@ async function loadPreviewAddresses() {
 }
 
 const previewGroupLine = computed(() => {
-  const t = selectedActivityType.value
-  if (!t || (t !== 'activity' && t !== 'camp' && t !== 'event')) return null
-  if (!selectedGroupId.value || groupsForWizard.value.length === 0) return null
-  const g = flattenGroupsWithLevel(groupsForWizard.value).find((x) => x.id === selectedGroupId.value)
-  return g?.name?.trim() || null
+  const typ = selectedActivityType.value
+  if (!typ || typ === 'external') return null
+  if (typ === 'activity') {
+    if (groupsForWizard.value.length === 0 && !canSelectDepartmentGroupLevel.value) return null
+    if (!selectedGroupId.value && !canSelectDepartmentGroupLevel.value) return null
+  }
+  const label = resolveActivityGroupPickerLabel(
+    selectedGroupId.value,
+    wizardDepartmentName.value,
+    groupsForWizard.value,
+  )
+  return label === '–' ? null : label
 })
 
 const previewVenueLine = computed(() => {
@@ -451,7 +476,9 @@ async function onWeiter() {
       isSavingDraft.value = false
     }
   }
-  attemptNext()
+  if (!attemptNext()) {
+    toast.error(t('activities.wizard.toastFillRequired'))
+  }
 }
 
 async function handleSubmit() {
@@ -462,6 +489,9 @@ async function handleSubmit() {
     const payload = buildCreatePayload(props.departmentId, {
       wizardCreateCompleted: true,
     })
+    const wantsSubmitted = shouldFinalizeAsSubmittedAfterWizard()
+    const wantsAutoSubmit = shouldAutoSubmitAfterWizard()
+    const hasMaterial = materialLines.value.length > 0
     let id = ''
     if (draftActivityId.value) {
       const { department_id: _omit, ...patchBody } = payload
@@ -469,12 +499,17 @@ async function handleSubmit() {
       applyInvitedDepartmentsApiResponse(updated)
       id = draftActivityId.value
     } else {
-      const created = await createActivity(payload)
+      /** Material-API nur im Entwurf; Typ «activity» ohne Materialzeilen direkt eingereicht. */
+      const createPayload = {
+        ...payload,
+        status: wantsSubmitted && !hasMaterial ? 'submitted' : 'draft',
+      }
+      const created = await createActivity(createPayload)
       applyInvitedDepartmentsApiResponse(created)
       id = created?.id ? String(created.id) : ''
     }
     let materialSyncFailed = false
-    if (id && materialLines.value.length > 0) {
+    if (id && hasMaterial) {
       try {
         await syncActivityItems(id, {
           items: materialLines.value.map((l) => ({
@@ -487,28 +522,42 @@ async function handleSubmit() {
         materialSyncFailed = true
       }
     }
-    const wantsAutoSubmit = shouldAutoSubmitAfterWizard()
+    let finalizeSubmitFailed = false
+    let finalizeSubmitError = ''
     let autoSubmitFailed = false
-    if (id && !materialSyncFailed && wantsAutoSubmit) {
+    let autoSubmitError = ''
+    if (id && !materialSyncFailed && wantsSubmitted) {
+      try {
+        const { department_id: _omit, ...submitBody } = payload
+        submitBody.status = 'submitted'
+        await patchActivity(id, submitBody)
+      } catch (err: unknown) {
+        finalizeSubmitFailed = true
+        const e = err as { response?: { data?: { error?: string } }; message?: string }
+        finalizeSubmitError = e?.response?.data?.error || e?.message || ''
+      }
+    } else if (id && !materialSyncFailed && wantsAutoSubmit) {
       try {
         await patchActivityStatus(id, { status: 'submitted' })
-      } catch {
+      } catch (err: unknown) {
         autoSubmitFailed = true
+        const e = err as { response?: { data?: { error?: string } }; message?: string }
+        autoSubmitError = e?.response?.data?.error || e?.message || ''
       }
     }
     if (materialSyncFailed) {
       toast.error(t('activities.wizard.toastActivityCreatedMaterialFailed'))
+    } else if (finalizeSubmitFailed) {
+      toast.error(finalizeSubmitError || t('activities.wizard.toastAutoSubmitFailed'))
     } else if (autoSubmitFailed) {
-      toast.error(t('activities.wizard.toastAutoSubmitFailed'))
-    } else if (wantsAutoSubmit) {
+      toast.error(autoSubmitError || t('activities.wizard.toastAutoSubmitFailed'))
+    } else if (wantsSubmitted || wantsAutoSubmit) {
       toast.success(t('activities.wizard.toastSubmitted'))
     } else {
       toast.success(t('activities.wizard.toastDraftSaved'))
     }
     lastDraftSavedAt.value = new Date()
-    if (invitedDepartments.value.length > 0) {
-      headerNotificationsStore.requestRefresh()
-    }
+    headerNotificationsStore.requestRefresh()
     emit('created', id)
     showDialog.value = false
   } catch (err: unknown) {
@@ -540,24 +589,18 @@ watch(
       setActivityDefaults(FALLBACK_ACTIVITY_DEFAULTS)
     }
     try {
-      const groups = await getGroups(props.departmentId)
-      setWizardGroups(groups)
+      await loadGroupsForDepartment(props.departmentId)
+      const wizardGroups = wizardGroupsForUser(scopeGroups.value)
+      const allowed = allowedCreateActivityTypes.value
+      if (!selectedActivityType.value && allowed.length === 1) {
+        onSelectActivityType(allowed[0])
+      }
+      setWizardGroups(wizardGroups)
     } catch {
       setWizardGroups([])
+      setScopeGroups([])
     }
     void loadPreviewAddresses()
-    if (props.resumeActivityId) {
-      try {
-        const [detail, items] = await Promise.all([
-          getActivity(props.resumeActivityId),
-          getActivityItems(props.resumeActivityId),
-        ])
-        await hydrateFromActivityDetail(detail, items)
-        emit('resume-consumed')
-      } catch {
-        toast.error(t('components.activityCreateWizard.toastDraftLoadFailed'))
-      }
-    }
   },
 )
 
@@ -571,4 +614,5 @@ watch(
     if (missing) void loadPreviewAddresses()
   },
 )
+
 </script>

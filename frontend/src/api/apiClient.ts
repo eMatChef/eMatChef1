@@ -1,5 +1,6 @@
 import axios from 'axios'
 import { logSessionEvent } from '@/utils/sessionDiagnostics'
+import { shouldSkipLoginRedirect, loginRedirectUrl } from '@/api/unauthorizedRedirect'
 
 /** Handler für abgelaufene Session (401) – wird in main.ts registriert */
 let sessionExpiredHandler: (() => void | Promise<void>) | null = null
@@ -7,6 +8,31 @@ let isHandlingSessionExpiry = false
 
 export function setSessionExpiredHandler(handler: () => void | Promise<void>) {
   sessionExpiredHandler = handler
+}
+
+async function triggerSessionExpired(reason: string): Promise<void> {
+  if (isHandlingSessionExpiry) return
+  isHandlingSessionExpiry = true
+  logSessionEvent({ type: 'SESSION_EXPIRED_TRIGGERED', reason })
+  try {
+    if (sessionExpiredHandler) {
+      await sessionExpiredHandler()
+      return
+    }
+    localStorage.removeItem('auth_token')
+    localStorage.removeItem('refresh_token')
+    localStorage.removeItem('user_id')
+    localStorage.removeItem('profile_id')
+    localStorage.removeItem('session_last_activity_at')
+    if (!shouldSkipLoginRedirect(window.location.pathname)) {
+      window.location.assign(loginRedirectUrl(window.location.pathname + window.location.search))
+    }
+  } finally {
+    refreshPromise = null
+    if (shouldSkipLoginRedirect(window.location.pathname)) {
+      isHandlingSessionExpiry = false
+    }
+  }
 }
 
 /** Nach Login zurücksetzen, damit bei erneutem 401 wieder reagiert wird */
@@ -119,24 +145,7 @@ apiClient.interceptors.response.use(
       const status = error?.response?.status
       const msg = error?.response?.data?.message || error?.message
       logSessionEvent({ type: 'REFRESH_FAILED', status, message: String(msg) })
-      logSessionEvent({ type: 'SESSION_EXPIRED_TRIGGERED', reason: 'Refresh-Endpoint fehlgeschlagen' })
-      if (sessionExpiredHandler && !isHandlingSessionExpiry) {
-        isHandlingSessionExpiry = true
-        try {
-          await sessionExpiredHandler()
-        } finally {
-          refreshPromise = null
-        }
-      } else if (!sessionExpiredHandler) {
-        localStorage.removeItem('auth_token')
-        localStorage.removeItem('refresh_token')
-        localStorage.removeItem('user_id')
-        localStorage.removeItem('profile_id')
-        localStorage.removeItem('session_last_activity_at')
-        if (window.location.pathname !== '/') {
-          window.location.href = '/'
-        }
-      }
+      await triggerSessionExpired('Refresh-Endpoint fehlgeschlagen')
       return Promise.reject(error)
     }
 
@@ -152,8 +161,14 @@ apiClient.interceptors.response.use(
       return Promise.reject(error)
     }
 
-    // Public API: kein Refresh/Logout-Flow – Fehler soll sauber an Caller durchgereicht werden
-    if (isPublicApiUrl(requestUrl) || isSessionProbeUrl(requestUrl)) {
+    // Public API: kein Redirect – Fehler an Caller
+    if (isPublicApiUrl(requestUrl)) {
+      return Promise.reject(error)
+    }
+
+    // Session-Probe: 401 = nicht eingeloggt (normal auf öffentlichen QR-Seiten / Inkognito).
+    // Kein Login-Redirect — Caller (auth store, Router) entscheidet.
+    if (isSessionProbeUrl(requestUrl)) {
       return Promise.reject(error)
     }
 
@@ -201,48 +216,13 @@ apiClient.interceptors.response.use(
           return apiClient(originalRequest)
         }
 
-        // Refresh fehlgeschlagen – Handler nur einmal ausführen
-        if (sessionExpiredHandler && !isHandlingSessionExpiry) {
-          isHandlingSessionExpiry = true
-          logSessionEvent({ type: 'SESSION_EXPIRED_TRIGGERED', reason: 'Token-Refresh fehlgeschlagen' })
-          try {
-            await sessionExpiredHandler()
-          } catch {
-            // Ignorieren
-          }
-        } else if (!sessionExpiredHandler) {
-          localStorage.removeItem('auth_token')
-          localStorage.removeItem('refresh_token')
-          localStorage.removeItem('user_id')
-          localStorage.removeItem('profile_id')
-          localStorage.removeItem('session_last_activity_at')
-          if (window.location.pathname !== '/') {
-            window.location.href = '/'
-          }
-        }
+        await triggerSessionExpired('Token-Refresh fehlgeschlagen')
         return Promise.reject(error)
       }
 
       // Kein Refresh Token vorhanden
       logSessionEvent({ type: 'NO_REFRESH_TOKEN' })
-      logSessionEvent({ type: 'SESSION_EXPIRED_TRIGGERED', reason: 'Kein Refresh-Token' })
-      if (sessionExpiredHandler && !isHandlingSessionExpiry) {
-        isHandlingSessionExpiry = true
-        try {
-          await sessionExpiredHandler()
-        } catch {
-          // Ignorieren
-        }
-      } else if (!sessionExpiredHandler) {
-        localStorage.removeItem('auth_token')
-        localStorage.removeItem('refresh_token')
-        localStorage.removeItem('user_id')
-        localStorage.removeItem('profile_id')
-        localStorage.removeItem('session_last_activity_at')
-        if (window.location.pathname !== '/') {
-          window.location.href = '/'
-        }
-      }
+      await triggerSessionExpired('Kein Refresh-Token')
     }
     
     return Promise.reject(error)

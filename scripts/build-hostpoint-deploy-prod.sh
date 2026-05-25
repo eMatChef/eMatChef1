@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Erzeugt Hostpoint-Artefakte für Produktion:
 #   deploy/hostpoint/prod/home  (ematchef.ch)
-#   deploy/hostpoint/prod/app   (app.ematchef.ch)
+#   deploy/hostpoint/prod/app   (app.ematchef.ch, qr.ematchef.ch, devices.ematchef.ch — gleicher Document Root)
 set -euo pipefail
 
 ROOT="${EMATCHEF_REPO_ROOT:-}"
@@ -24,8 +24,9 @@ mkdir -p "$OUT_BASE/home" "$OUT_BASE/app"
 # Hauptdomain (ematchef.ch)
 npm --prefix "$FRONTEND" run build -- --outDir "$OUT_BASE/home" --emptyOutDir
 
-# App-Subdomain (app.ematchef.ch), inkl. QR-Host
+# App-Subdomain (app.ematchef.ch), inkl. qr.* und devices.* (gleicher Hostpoint-Ordner)
 VITE_QR_PUBLIC_HOST=qr.ematchef.ch \
+VITE_DEVICES_HOST=devices.ematchef.ch \
 npm --prefix "$FRONTEND" run build -- --outDir "$OUT_BASE/app" --emptyOutDir
 
 cp "$ROOT/scripts/hostpoint-spa.htaccess" "$OUT_BASE/home/.htaccess"

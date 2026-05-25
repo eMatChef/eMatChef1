@@ -1,9 +1,22 @@
 import apiClient from '@/api/apiClient'
 
+export type AccountingChargeTarget = 'group' | 'department' | 'external_customer'
+
 export type AccountingAcquisitionFollowUp = {
   id: string
   department_id: string
+  department_name?: string | null
   material_batch_id: string | null
+  activity_id?: string | null
+  activity_name?: string | null
+  activity_group_id?: string | null
+  activity_type?: string | null
+  source_kind?: string | null
+  source_ref_id?: string | null
+  material_item_id?: string | null
+  material_name?: string | null
+  material_department_id?: string | null
+  material_department_name?: string | null
   amount: string
   suggested_date: string
   receipt_label: string | null
@@ -11,6 +24,11 @@ export type AccountingAcquisitionFollowUp = {
   accounting_booking_id: string | null
   created_at: string
   updated_at: string
+  charge_target?: AccountingChargeTarget | null
+  suggested_group_id?: string | null
+  external_customer_label?: string | null
+  reported_by_user_id?: string | null
+  reported_by_display_name?: string | null
 }
 
 export type AcquisitionFollowUpCreateBody = {
@@ -20,13 +38,27 @@ export type AcquisitionFollowUpCreateBody = {
   material_batch_id?: string | null
 }
 
-export async function listAcquisitionFollowups(
-  departmentId: string,
-  status: 'pending' | 'recorded' = 'pending'
+export async function listActivityAcquisitionFollowups(
+  activityId: string,
+  status: 'pending' | 'recorded' = 'pending',
 ): Promise<AccountingAcquisitionFollowUp[]> {
   const { data } = await apiClient.get<AccountingAcquisitionFollowUp[]>(
+    `/api/activities/${activityId}/accounting-followups`,
+    { params: { status } },
+  )
+  return data
+}
+
+export async function listAcquisitionFollowups(
+  departmentId: string,
+  status: 'pending' | 'recorded' = 'pending',
+  activityId?: string
+): Promise<AccountingAcquisitionFollowUp[]> {
+  const params: Record<string, string> = { status }
+  if (activityId) params.activity_id = activityId
+  const { data } = await apiClient.get<AccountingAcquisitionFollowUp[]>(
     `/api/departments/${departmentId}/accounting/acquisition-followups`,
-    { params: { status } }
+    { params }
   )
   return data
 }

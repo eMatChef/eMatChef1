@@ -12,6 +12,7 @@ use Doctrine\ORM\Mapping as ORM;
  * - loss: Material fehlt / verloren
  * - consumption: Verbrauchsmaterial aufgebraucht (Fackeln, Gas, etc.)
  * - damage: Schaden dokumentieren
+ * - not_taken: Bewusst nicht mit Ausgabe / ins Pack aufgenommen (Dokumentation, kein Lager-Verlust wie bei Verlust)
  */
 #[ORM\Entity]
 #[ORM\Table(name: 'activity_issue_report')]
@@ -23,12 +24,14 @@ class ActivityIssueReport
     public const TYPE_LOSS = 'loss';
     public const TYPE_CONSUMPTION = 'consumption';
     public const TYPE_DAMAGE = 'damage';
+    public const TYPE_NOT_TAKEN = 'not_taken';
 
     public const ALL_TYPES = [
         self::TYPE_REPAIR,
         self::TYPE_LOSS,
         self::TYPE_CONSUMPTION,
         self::TYPE_DAMAGE,
+        self::TYPE_NOT_TAKEN,
     ];
 
     #[ORM\Id]
@@ -50,7 +53,7 @@ class ActivityIssueReport
     #[ORM\JoinColumn(name: 'material_item_id', referencedColumnName: 'id', nullable: true, onDelete: 'SET NULL')]
     private ?MaterialItem $materialItem = null;
 
-    /** Typ: repair, loss, consumption, damage */
+    /** Typ: repair, loss, consumption, damage, not_taken */
     #[ORM\Column(type: 'string', length: 20, options: ['default' => 'damage'])]
     private string $type = 'damage';
 
@@ -190,6 +193,7 @@ class ActivityIssueReport
             self::TYPE_LOSS => 'Verlust',
             self::TYPE_CONSUMPTION => 'Verbrauch',
             self::TYPE_DAMAGE => 'Beschädigung',
+            self::TYPE_NOT_TAKEN => 'Nicht mitgegeben',
             default => $this->type,
         };
     }

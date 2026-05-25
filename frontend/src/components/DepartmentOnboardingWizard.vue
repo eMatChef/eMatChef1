@@ -872,7 +872,8 @@ function onUserSearchInput() {
   userSearchTimer = setTimeout(async () => {
     try {
       const results = await getAvailableUsersForDepartment(props.departmentId, query)
-      availableUsers.value = results.slice(0, 10)
+      const memberIds = new Set(members.value.map((m) => m.user_id))
+      availableUsers.value = results.filter((u) => !memberIds.has(u.id)).slice(0, 10)
     } catch {
       availableUsers.value = []
     } finally {

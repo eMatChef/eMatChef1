@@ -1,10 +1,24 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import type { RouteLocationNormalized, RouteRecordRaw } from 'vue-router'
+import type { NavigationGuardNext, RouteLocationNormalized, RouteRecordRaw } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { usePermissionsStore } from '@/stores/permissions'
 import { usePageHeadStore } from '@/stores/pageHead'
 import { syncDocumentHead } from '@/composables/usePageHead'
 import { getMainSiteOrigin, isAppOrigin } from '@/utils/appLoginUrl'
+import { shouldProbeUserSession } from '@/api/unauthorizedRedirect'
+import {
+  applyDevicesHostRedirects,
+  canAccessDevicesWarehouse,
+  getPinnedDepartmentId,
+  isDevicesHost,
+} from '@/utils/devicesHost'
+import {
+  DEPARTMENT_BASIC_MEMBER_ROLES,
+  isDepartmentBasicMemberRole,
+} from '@/composables/useDepartmentMemberRole'
+
+/** Routen-Sperre für Basissicht (u, l1–l3) — gleich wie früher nur «u». */
+const DENY_BASIC_MEMBER_ROLES = [...DEPARTMENT_BASIC_MEMBER_ROLES]
 
 /**
  * route.meta: Titel/Description per vue-i18n (`router.meta.titles.*` / `descriptions.*`).
@@ -20,15 +34,94 @@ function routeHead(titleKey: string, descriptionKey?: string) {
   return meta
 }
 
+function devicesWarehouseRoleOk(departmentId: string): boolean {
+  const authStore = useAuthStore()
+  const userRoles = authStore.userRoles || []
+  if (userRoles.includes('ROLE_SUPERADMIN')) return true
+  const dept = authStore.departments.find((d) => d.department_id === departmentId)
+  return canAccessDevicesWarehouse(dept?.role)
+}
+
+function devicesModeHostGuard(
+  to: RouteLocationNormalized,
+  _from: RouteLocationNormalized,
+  next: NavigationGuardNext,
+) {
+  if (!to.meta.devicesMode) {
+    return next()
+  }
+  if (!isDevicesHost()) {
+    const deptId = String(to.params.departmentId || '')
+    const activityId = String(to.params.activityId || '')
+    if (activityId && deptId) {
+      return next({
+        name: 'ActivityDetailTab',
+        params: { departmentId: deptId, activityId, tab: 'packs' },
+        replace: true,
+      })
+    }
+    if (deptId) {
+      if (to.name === 'Dashboard') {
+        return next()
+      }
+      return next({ name: 'Dashboard', params: { departmentId: deptId }, replace: true })
+    }
+    return next({ path: '/', replace: true })
+  }
+  const deptId = String(to.params.departmentId || '')
+  if (deptId && !devicesWarehouseRoleOk(deptId)) {
+    return next({ path: `/${deptId}/settings`, replace: true })
+  }
+  return next()
+}
+
 const routes: RouteRecordRaw[] = [
   {
-    path: '/i/:type/:code',
-    name: 'PublicLookup',
+    path: '/i/m/:matCode/b/:batchCode',
+    name: 'PublicLookupMaterialBatch',
     component: () => import('@/views/public/PublicMaterialView.vue'),
     meta: {
       requiresAuth: false,
       ...routeHead('publicLookup', 'publicLookup'),
-    }
+    },
+  },
+  {
+    path: '/i/a/:activityCode',
+    name: 'PublicLookupActivity',
+    component: () => import('@/views/public/PublicActivityView.vue'),
+    meta: {
+      requiresAuth: false,
+      ...routeHead('publicLookup', 'publicLookup'),
+    },
+  },
+  {
+    path: '/i/w/:workshopCode',
+    name: 'PublicLookupWorkshop',
+    component: () => import('@/views/public/PublicWorkshopView.vue'),
+    meta: {
+      requiresAuth: false,
+      ...routeHead('publicLookup', 'publicLookup'),
+    },
+  },
+  {
+    path: '/i/m/:code',
+    name: 'PublicLookupMaterialLegacy',
+    component: () => import('@/views/public/PublicMaterialView.vue'),
+    meta: {
+      requiresAuth: false,
+      ...routeHead('publicLookup', 'publicLookup'),
+    },
+  },
+  {
+    path: '/i/:type/:code',
+    redirect: (to) => {
+      const type = String(to.params.type || '').toLowerCase()
+      const code = encodeURIComponent(String(to.params.code || ''))
+      if (type === 'a' && code) return `/i/a/${code}`
+      if (type === 'w' && code) return `/i/w/${code}`
+      if (type === 'm' && code) return `/i/m/${code}`
+      return '/'
+    },
   },
   {
     path: '/open-from-qr',
@@ -38,6 +131,24 @@ const routes: RouteRecordRaw[] = [
       requiresAuth: false,
       ...routeHead('openFromQr'),
     }
+  },
+  {
+    path: '/display',
+    name: 'PublicDisplayEntry',
+    component: () => import('@/views/DisplayEntryView.vue'),
+    meta: {
+      requiresAuth: false,
+      ...routeHead('displayEntry', 'displayEntry'),
+    },
+  },
+  {
+    path: '/display/:publicId',
+    name: 'PublicDepartmentDisplay',
+    component: () => import('@/views/DepartmentDisplayView.vue'),
+    meta: {
+      requiresAuth: false,
+      ...routeHead('departmentDisplay', 'departmentDisplay'),
+    },
   },
   {
     path: '/',
@@ -376,6 +487,17 @@ const routes: RouteRecordRaw[] = [
     ]
   },
   {
+    path: '/:departmentId/pack/:activityId',
+    name: 'DevicesPackSession',
+    component: () => import('@/views/devices/DevicesPackSessionView.vue'),
+    meta: {
+      requiresAuth: true,
+      devicesMode: true,
+      ...routeHead('devicesPack', 'devicesPack'),
+    },
+    beforeEnter: devicesModeHostGuard,
+  },
+  {
     path: '/:departmentId',
     component: () => import('@/components/layout/AppLayout.vue'),
     meta: { requiresAuth: true },
@@ -499,6 +621,17 @@ const routes: RouteRecordRaw[] = [
           ...routeHead('activities'),
         },
         children: [
+          {
+            path: ':activityId/packlist',
+            redirect: (to) => ({
+              name: 'ActivityDetailTab',
+              params: {
+                departmentId: to.params.departmentId,
+                activityId: to.params.activityId,
+                tab: 'packs',
+              },
+            }),
+          },
           {
             path: ':activityId',
             name: 'ActivityDetail',
@@ -679,6 +812,8 @@ const routes: RouteRecordRaw[] = [
             component: () => import('@/views/TasksPrintView.vue'),
             meta: {
               ...routeHead('tasksPrint'),
+              denyDepartmentRoles: DENY_BASIC_MEMBER_ROLES,
+              denyRedirectTo: { name: 'TasksGeneral' },
             },
           },
         ],
@@ -697,6 +832,7 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/views/WorkshopView.vue'),
         meta: {
           ...routeHead('workshop'),
+          denyDepartmentRoles: DENY_BASIC_MEMBER_ROLES,
         }
       },
       {
@@ -705,6 +841,7 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/views/StatisticsView.vue'),
         meta: {
           ...routeHead('statistics'),
+          denyDepartmentRoles: DENY_BASIC_MEMBER_ROLES,
         }
       },
       {
@@ -725,6 +862,8 @@ const routes: RouteRecordRaw[] = [
             component: () => import('@/views/settings/GeneralSettingsView.vue'),
             meta: {
               ...routeHead('settingsTime'),
+              denyDepartmentRoles: DENY_BASIC_MEMBER_ROLES,
+              denyRedirectTo: { name: 'SettingsMyDepartment' },
             }
           },
           {
@@ -733,6 +872,8 @@ const routes: RouteRecordRaw[] = [
             component: () => import('@/views/settings/CategoriesSettingsView.vue'),
             meta: {
               ...routeHead('settingsCategories'),
+              denyDepartmentRoles: DENY_BASIC_MEMBER_ROLES,
+              denyRedirectTo: { name: 'SettingsMyDepartment' },
             }
           },
           {
@@ -749,6 +890,18 @@ const routes: RouteRecordRaw[] = [
             component: () => import('@/views/settings/MyDepartmentJoinCodeView.vue'),
             meta: {
               ...routeHead('settingsJoinCode'),
+              denyDepartmentRoles: DENY_BASIC_MEMBER_ROLES,
+              denyRedirectTo: { name: 'SettingsMyDepartment' },
+            }
+          },
+          {
+            path: 'my-department/display-screens',
+            name: 'SettingsMyDepartmentDisplayScreens',
+            component: () => import('@/views/settings/MyDepartmentDisplayScreensView.vue'),
+            meta: {
+              ...routeHead('settingsDisplayScreens'),
+              denyDepartmentRoles: DENY_BASIC_MEMBER_ROLES,
+              denyRedirectTo: { name: 'SettingsMyDepartment' },
             }
           },
           {
@@ -758,6 +911,8 @@ const routes: RouteRecordRaw[] = [
             meta: {
               ...routeHead('settingsStorageLocations'),
               addressKind: 'storage',
+              denyDepartmentRoles: DENY_BASIC_MEMBER_ROLES,
+              denyRedirectTo: { name: 'SettingsMyDepartment' },
             }
           },
           {
@@ -767,6 +922,8 @@ const routes: RouteRecordRaw[] = [
             meta: {
               ...routeHead('settingsBillingAddress'),
               addressKind: 'billing',
+              denyDepartmentRoles: DENY_BASIC_MEMBER_ROLES,
+              denyRedirectTo: { name: 'SettingsMyDepartment' },
             }
           },
           {
@@ -775,6 +932,8 @@ const routes: RouteRecordRaw[] = [
             component: () => import('@/views/settings/MyDepartmentPublicMaterialPageView.vue'),
             meta: {
               ...routeHead('settingsPublicMaterialPage'),
+              denyDepartmentRoles: DENY_BASIC_MEMBER_ROLES,
+              denyRedirectTo: { name: 'SettingsMyDepartment' },
             }
           },
           {
@@ -783,6 +942,8 @@ const routes: RouteRecordRaw[] = [
             component: () => import('@/views/settings/AddonsSettingsView.vue'),
             meta: {
               ...routeHead('settingsAddons'),
+              denyDepartmentRoles: DENY_BASIC_MEMBER_ROLES,
+              denyRedirectTo: { name: 'SettingsMyDepartment' },
             }
           },
           {
@@ -791,6 +952,8 @@ const routes: RouteRecordRaw[] = [
             component: () => import('@/views/settings/UsersSettingsView.vue'),
             meta: {
               ...routeHead('settingsUsers'),
+              denyDepartmentRoles: DENY_BASIC_MEMBER_ROLES,
+              denyRedirectTo: { name: 'SettingsMyDepartment' },
             }
           },
           {
@@ -807,6 +970,8 @@ const routes: RouteRecordRaw[] = [
             component: () => import('@/views/settings/ActivitySettingsView.vue'),
             meta: {
               ...routeHead('settingsActivities'),
+              denyDepartmentRoles: DENY_BASIC_MEMBER_ROLES,
+              denyRedirectTo: { name: 'SettingsMyDepartment' },
             }
           },
           {
@@ -815,6 +980,8 @@ const routes: RouteRecordRaw[] = [
             component: () => import('@/views/settings/StorageSettingsView.vue'),
             meta: {
               ...routeHead('settingsStorage'),
+              denyDepartmentRoles: DENY_BASIC_MEMBER_ROLES,
+              denyRedirectTo: { name: 'SettingsMyDepartment' },
             }
           },
           {
@@ -823,12 +990,26 @@ const routes: RouteRecordRaw[] = [
             component: () => import('@/views/settings/TemplatesSettingsView.vue'),
             meta: {
               ...routeHead('settingsTemplates'),
+              denyDepartmentRoles: DENY_BASIC_MEMBER_ROLES,
+              denyRedirectTo: { name: 'SettingsMyDepartment' },
             }
           }
         ]
       }
     ]
-  }
+  },
+  /** Nach AppLayout: sonst fängt DevicesHome jedes /:departmentId auf der App-Domain ab (Redirect-Schleife). */
+  {
+    path: '/:departmentId',
+    name: 'DevicesHome',
+    component: () => import('@/views/devices/DevicesHomeView.vue'),
+    meta: {
+      requiresAuth: true,
+      devicesMode: true,
+      ...routeHead('devicesHome', 'devicesHome'),
+    },
+    beforeEnter: devicesModeHostGuard,
+  },
 ]
 
 const router = createRouter({
@@ -851,7 +1032,6 @@ const router = createRouter({
  */
 function applyQrHostRedirects(to: RouteLocationNormalized): boolean {
   const qrHost = (import.meta.env.VITE_QR_PUBLIC_HOST || '').trim().toLowerCase()
-  const appOrigin = (import.meta.env.VITE_APP_ORIGIN || '').trim().replace(/\/$/, '')
   const mainSite = (import.meta.env.VITE_MAIN_SITE_ORIGIN || 'https://ematchef.ch').trim().replace(/\/$/, '')
 
   if (!qrHost || typeof window === 'undefined') return false
@@ -861,15 +1041,17 @@ function applyQrHostRedirects(to: RouteLocationNormalized): boolean {
 
   const path = to.path
 
-  // Öffentlicher /i/m|b/…-Lookup bleibt auf der QR-Domain (kein automatischer Sprung zur App).
+  // Öffentlicher /i/…-Lookup bleibt auf der QR-Domain (kein automatischer Sprung zur App).
   const parts = path.split('/').filter(Boolean)
-  if (parts[0] === 'i' && (parts[1] === 'm' || parts[1] === 'b') && parts[2]) {
-    return false
+  if (parts[0] === 'i') {
+    if (parts[1] === 'm' && parts[2] && parts[3] === 'b' && parts[4]) return false
+    if (parts[1] === 'a' && parts[2]) return false
+    if (parts[1] === 'w' && parts[2]) return false
   }
 
-  // Login-Start → App-Instanz (Query z. B. ?redirect= bleibt erhalten)
-  if ((path === '/' || path === '/login') && appOrigin) {
-    window.location.replace(`${appOrigin}${to.fullPath}`)
+  // Start & Login → Hauptdomain (ematchef.*), nicht app.*
+  if ((path === '/' || path === '/login') && mainSite) {
+    window.location.replace(`${mainSite}${to.fullPath}`)
     return true
   }
 
@@ -886,10 +1068,26 @@ function applyQrHostRedirects(to: RouteLocationNormalized): boolean {
   return false
 }
 
+/**
+ * devices.-Subdomain: Rechtstexte auf Hauptdomain; Lager-Routen bleiben hier.
+ */
+function applyDevicesHostRouting(to: RouteLocationNormalized): boolean {
+  if (!isDevicesHost() || typeof window === 'undefined') return false
+  return applyDevicesHostRedirects(to.path)
+}
+
 // Navigation Guard
 router.beforeEach(async (to, from, next) => {
   if (applyQrHostRedirects(to)) {
     return next(false)
+  }
+  if (applyDevicesHostRouting(to)) {
+    return next(false)
+  }
+
+  // Infoscreen-Kiosk: kein App-Login, keine Session-Probe (Display-Cookie separat).
+  if (!shouldProbeUserSession(to.path)) {
+    return next()
   }
 
   const authStore = useAuthStore()
@@ -954,12 +1152,21 @@ router.beforeEach(async (to, from, next) => {
 
   // Subdomain / zweite Origin: kein localStorage-Token, aber HttpOnly-Session-Cookies
   if (to.meta.requiresAuth && !authStore.isLoggedIn && !localStorage.getItem('auth_token')) {
-    await authStore.loadUserSessionFromCookie()
+    try {
+      await authStore.loadUserSessionFromCookie()
+    } catch {
+      if (to.path !== '/login') {
+        return next({ path: '/login', query: { redirect: to.fullPath } })
+      }
+    }
   }
 
   // Auth-Requirement prüfen
   if (to.meta.requiresAuth && !authStore.isLoggedIn) {
-    return next(`/login?redirect=${encodeURIComponent(to.fullPath)}`)
+    if (to.path !== '/login') {
+      return next({ path: '/login', query: { redirect: to.fullPath } })
+    }
+    return next()
   }
 
   if (to.meta.requiresSiteEditor && !canEditPublicSite()) {
@@ -1061,6 +1268,16 @@ router.beforeEach(async (to, from, next) => {
       return next(`/${primaryDepartmentId}`)
     }
 
+    if (isDevicesHost() && (to.path === '/' || to.path === '/login')) {
+      const pinned =
+        getPinnedDepartmentId() ||
+        primaryDepartmentId ||
+        authStore.departments[0]?.department_id
+      if (pinned) {
+        return next({ name: 'DevicesHome', params: { departmentId: pinned }, replace: true })
+      }
+    }
+
     // Wenn User inzwischen Department hat, Pending-Seite verlassen
     if (to.path === '/pending-assignment' && primaryDepartmentId) {
       return next(`/${primaryDepartmentId}`)
@@ -1070,6 +1287,20 @@ router.beforeEach(async (to, from, next) => {
     if (to.path === '/pending-assignment' && !primaryDepartmentId && isSuperAdmin()) {
       return next('/dashboard')
     }
+  }
+
+  if (
+    isDevicesHost() &&
+    authStore.isLoggedIn &&
+    to.params.departmentId &&
+    to.meta.requiresAuth &&
+    !to.meta.devicesMode
+  ) {
+    return next({
+      name: 'DevicesHome',
+      params: { departmentId: String(to.params.departmentId) },
+      replace: true,
+    })
   }
 
   // Department-ID aus Route extrahieren
@@ -1097,6 +1328,29 @@ router.beforeEach(async (to, from, next) => {
   } else if (authStore.isLoggedIn && authStore.activeDepartmentId) {
     // Visibility für aktives Department laden
     permissionsStore.loadVisibility(authStore.activeDepartmentId)
+  }
+
+  // Department-Rollen, die diese Route nicht öffnen dürfen (z. B. Werkstatt für User)
+  if (to.meta.denyDepartmentRoles && Array.isArray(to.meta.denyDepartmentRoles)) {
+    const deniedRoles = to.meta.denyDepartmentRoles as string[]
+    const currentRole = String(authStore.currentDepartmentRole || '').toLowerCase().trim()
+    const isDenied = deniedRoles.some((role) => {
+      const r = role.toLowerCase()
+      if (currentRole === r) return true
+      if ((r === 'u' || r === 'user') && isDepartmentBasicMemberRole(currentRole)) return true
+      return false
+    })
+    if (isDenied) {
+      const deptId = to.params.departmentId || authStore.activeDepartmentId
+      const denyRedirectTo = to.meta.denyRedirectTo as { name?: string } | undefined
+      if (denyRedirectTo?.name && deptId) {
+        return next({ name: denyRedirectTo.name, params: { departmentId: String(deptId) } })
+      }
+      if (deptId) {
+        return next(`/${deptId}`)
+      }
+      return next('/login')
+    }
   }
 
   // Rollen-basierte Zugriffskontrolle

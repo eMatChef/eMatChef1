@@ -1,6 +1,6 @@
 import apiClient from './apiClient'
 
-export type PackMoveStage = 'packed' | 'issued' | 'returned'
+export type PackMoveStage = 'packed' | 'transport_to' | 'at_event' | 'transport_back' | 'returned' | 'stored'
 
 export interface ActivityPackItem {
   id: string
@@ -13,13 +13,17 @@ export interface ActivityPackItem {
   packUnit: string | null
   quantityOrdered: number
   quantityPacked: number
+  quantityTransportTo: number
   quantityIssued: number
+  quantityTransportBack: number
   quantityReturned: number
+  quantityStored: number
   conditionOut: string | null
   notes: string | null
   isFullyPacked: boolean
   isFullyIssued: boolean
   isFullyReturned: boolean
+  isFullyStored: boolean
   packDifference: number | null
   issueDifference: number | null
   returnDifference: number | null
@@ -34,6 +38,7 @@ export interface ActivityPackItem {
   /** physical | physical_combo | virtual_combo */
   materialType: string
   linkedContainerLabel: string | null
+  linkedContainerBatchId: string | null
 }
 
 export interface PackProgress {
@@ -62,13 +67,17 @@ function mapPackItem(raw: Record<string, unknown>): ActivityPackItem {
     packUnit: raw.pack_unit != null ? String(raw.pack_unit) : null,
     quantityOrdered: num(raw.quantity_ordered),
     quantityPacked: num(raw.quantity_packed),
+    quantityTransportTo: num(raw.quantity_transport_to),
     quantityIssued: num(raw.quantity_issued),
+    quantityTransportBack: num(raw.quantity_transport_back),
     quantityReturned: num(raw.quantity_returned),
+    quantityStored: num(raw.quantity_stored),
     conditionOut: raw.condition_out != null ? String(raw.condition_out) : null,
     notes: raw.notes != null ? String(raw.notes) : null,
     isFullyPacked: Boolean(raw.is_fully_packed),
     isFullyIssued: Boolean(raw.is_fully_issued),
     isFullyReturned: Boolean(raw.is_fully_returned),
+    isFullyStored: Boolean(raw.is_fully_stored),
     packDifference: raw.pack_difference != null ? num(raw.pack_difference) : null,
     issueDifference: raw.issue_difference != null ? num(raw.issue_difference) : null,
     returnDifference: raw.return_difference != null ? num(raw.return_difference) : null,
@@ -92,6 +101,10 @@ function mapPackItem(raw: Record<string, unknown>): ActivityPackItem {
     linkedContainerLabel:
       raw.linked_container_label != null && String(raw.linked_container_label).trim() !== ''
         ? String(raw.linked_container_label).trim()
+        : null,
+    linkedContainerBatchId:
+      raw.linked_container_batch_id != null && String(raw.linked_container_batch_id).trim() !== ''
+        ? String(raw.linked_container_batch_id).trim()
         : null,
   }
 }

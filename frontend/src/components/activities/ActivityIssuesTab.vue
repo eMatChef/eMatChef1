@@ -1,8 +1,7 @@
 <template>
   <div class="activity-issues-tab">
-    <div class="section-card">
-      <div class="activity-issues-head">
-        <h2 class="section-title">{{ t('components.activityIssuesTab.title') }}</h2>
+    <ActivityTabHeader :title="t('components.activityIssuesTab.title')">
+      <template #actions>
         <button
           v-if="canCreate"
           type="button"
@@ -11,7 +10,12 @@
         >
           {{ t('components.activityIssuesTab.createReport') }}
         </button>
-      </div>
+      </template>
+    </ActivityTabHeader>
+    <div class="section-card activity-tab-panel-card">
+      <p v-if="readOnlyHint" class="batch-field-hint activity-issues-readonly-hint">
+        {{ t('components.activityIssuesTab.readOnlyBeforeAtEvent') }}
+      </p>
       <p v-if="isLoading" class="activity-inline-loading">
         <span class="spinner spinner-sm"></span>
         <span>{{ t('components.activityIssuesTab.loading') }}</span>
@@ -51,6 +55,7 @@ import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { getActivityIssues, type ActivityIssueReportRow } from '@/api/activities'
 import { useToast } from '@/composables/useToast'
+import ActivityTabHeader from '@/components/activities/ActivityTabHeader.vue'
 
 defineOptions({ name: 'ActivityIssuesTab' })
 
@@ -59,6 +64,8 @@ const props = defineProps<{
   /** Parent erhöht nach erfolgreicher Meldung → Liste neu */
   reloadToken?: number
   canCreate: boolean
+  /** Meldungen einsehbar, neue Meldung erst ab «Am Event». */
+  readOnlyHint?: boolean
 }>()
 
 defineEmits<{
@@ -114,16 +121,4 @@ watch(
 
 <style scoped>
 @import '@/styles/views/activities/detail-workflow.css';
-
-.activity-issues-head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 16px;
-}
-.activity-issues-head .section-title {
-  margin: 0;
-}
 </style>

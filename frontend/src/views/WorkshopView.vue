@@ -304,6 +304,27 @@
               </span>
             </div>
           </div>
+          <div v-if="canManageWorkshopQr" class="workshop-qr-header-actions">
+            <button
+              v-if="showGenerateWorkshopQrButton"
+              type="button"
+              class="btn-outline btn-sm"
+              :disabled="isGeneratingWorkshopPublicCode"
+              @click="generateWorkshopPublicCode"
+            >
+              {{ isGeneratingWorkshopPublicCode ? t('workshop.qrGenLoading') : t('workshop.qrGenCreate') }}
+            </button>
+            <PublicQrTag
+              v-if="workshopPublicUrl"
+              :url="workshopPublicUrl"
+              :code="selectedTicket.public_code"
+              :size="56"
+              :clickable="true"
+              :image-label="selectedTicket.title"
+              :image-entity-id="selectedTicket.id"
+              @activate="openWorkshopQrActionModal"
+            />
+          </div>
           <button class="modal-close" @click="closeSelectedTicketDetail">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M18 6L6 18M6 6l12 12"/>
@@ -825,6 +846,16 @@
         </div>
       </div>
     </div>
+
+    <PublicQrActionModal
+      :open="showWorkshopQrActionModal"
+      :label="selectedTicket?.title"
+      :code="selectedTicket?.public_code"
+      :url="workshopPublicUrl"
+      @close="closeWorkshopQrActionModal"
+      @add-to-print-cart="handleWorkshopQrAddToPrintCart"
+      @print="handleWorkshopQrPrint"
+    />
   </div>
 </template>
 
@@ -842,6 +873,7 @@ import {
   transitionWorkshopTicket,
   getWorkshopStats,
   getWorkshopTicketHistory,
+  ensureWorkshopPublicCode,
   type WorkshopTicket,
   type WorkshopStats,
   type WorkshopHistoryEntry,
@@ -851,6 +883,12 @@ import {
 } from '@/api/workshop'
 import { getMaterials, getMaterial, type Material } from '@/api/materials'
 import GlobalSearchInput from '@/components/common/GlobalSearchInput.vue'
+import PublicQrTag from '@/components/common/PublicQrTag.vue'
+import PublicQrActionModal from '@/components/common/PublicQrActionModal.vue'
+import { addPrintCartItem } from '@/api/tasks'
+import { printHtmlDocument } from '@/utils/printHtml'
+import { resolveWorkshopPublicUrl } from '@/utils/publicQrUrl'
+import QRCode from 'qrcode'
 import '@/styles/workshop-view.css'
 
 const route = useRoute()
@@ -887,6 +925,19 @@ const quoteEstimatedCost = ref('')
 const quoteNotes = ref('')
 const quoteError = ref('')
 const isSubmittingQuote = ref(false)
+const isGeneratingWorkshopPublicCode = ref(false)
+const showWorkshopQrActionModal = ref(false)
+
+const departmentRole = computed(() => String(authStore.currentDepartmentRole || 'u').toLowerCase())
+const canManageWorkshopQr = computed(() =>
+  ['mw', 'dc', 'matwart', 'depchef'].includes(departmentRole.value)
+)
+const workshopPublicUrl = computed(() =>
+  resolveWorkshopPublicUrl(selectedTicket.value?.public_url, selectedTicket.value?.public_code),
+)
+const showGenerateWorkshopQrButton = computed(
+  () => canManageWorkshopQr.value && !workshopPublicUrl.value && !!selectedTicket.value
+)
 
 // Filter
 const searchQuery = ref('')
@@ -1108,6 +1159,80 @@ function clearMaterialFilter() {
   const nextQuery = { ...route.query }
   delete (nextQuery as Record<string, unknown>).material_id
   router.replace({ path: route.path, query: nextQuery })
+}
+
+async function generateWorkshopPublicCode() {
+  const ticket = selectedTicket.value
+  if (!ticket?.id || isGeneratingWorkshopPublicCode.value) return
+  isGeneratingWorkshopPublicCode.value = true
+  try {
+    selectedTicket.value = await ensureWorkshopPublicCode(ticket.id)
+    toast.success(t('workshop.toastQrCreated'))
+  } catch (err: any) {
+    toast.error(err?.response?.data?.error || t('workshop.errQrCreate'))
+  } finally {
+    isGeneratingWorkshopPublicCode.value = false
+  }
+}
+
+function openWorkshopQrActionModal() {
+  showWorkshopQrActionModal.value = true
+}
+
+function closeWorkshopQrActionModal() {
+  showWorkshopQrActionModal.value = false
+}
+
+async function handleWorkshopQrAddToPrintCart() {
+  const ticket = selectedTicket.value
+  const url = workshopPublicUrl.value
+  if (!ticket?.id || !url || !currentDepartmentId.value) {
+    toast.info(t('workshop.toastNoPublicLink'))
+    return
+  }
+  try {
+    const result = await addPrintCartItem({
+      department_id: currentDepartmentId.value,
+      entity_type: 'workshop',
+      entity_id: ticket.id,
+      label: ticket.title || t('workshop.title'),
+      public_code: ticket.public_code || null,
+      public_url: url,
+    })
+    toast.success(
+      result.created ? t('workshop.toastPrintCartAdded') : t('workshop.toastPrintCartAlready')
+    )
+    closeWorkshopQrActionModal()
+  } catch (err: any) {
+    toast.error(err?.response?.data?.error || t('workshop.errPrintCartAdd'))
+  }
+}
+
+async function handleWorkshopQrPrint() {
+  const ticket = selectedTicket.value
+  const url = workshopPublicUrl.value
+  if (!url || !ticket) {
+    toast.info(t('workshop.toastNoPublicLink'))
+    return
+  }
+  const qrDataUrl = await QRCode.toDataURL(url, { width: 300, margin: 1 })
+  const safeTitle = String(ticket.title || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+  const safeCode = String(ticket.public_code || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+  printHtmlDocument(`<!doctype html>
+<html><head><meta charset="utf-8" /><title>${safeTitle}</title>
+<style>body{font-family:Arial,sans-serif;text-align:center;padding:24px}img{width:280px;height:280px}.title{margin-top:12px;font-weight:700}.code{font-family:monospace;color:#64748b;margin-top:6px}</style>
+</head><body>
+<img src="${qrDataUrl}" alt="QR" />
+<div class="title">${safeTitle}</div>
+<div class="code">${safeCode}</div>
+</body></html>`)
+  closeWorkshopQrActionModal()
 }
 
 async function openTicketDetail(ticket: WorkshopTicket) {

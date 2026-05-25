@@ -1,0 +1,116 @@
+/* Zentrale Avatar-Badge-Komponente (Gruppen, Aktivitäten, Aufgaben, …) */
+.user-avatar-badge {
+  position: relative;
+  display: inline-flex;
+  flex-shrink: 0;
+}
+
+.user-avatar-badge:hover,
+.user-avatar-badge:focus-within {
+  z-index: 2;
+}
+
+.user-avatar-badge__avatar {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  box-shadow: 0 0 0 2px #fff, 0 1px 2px rgba(15, 23, 42, 0.12);
+}
+
+.user-avatar-badge--sm .user-avatar-badge__avatar {
+  width: 30px;
+  height: 30px;
+  font-size: 11px;
+}
+
+.user-avatar-badge--md .user-avatar-badge__avatar {
+  width: 36px;
+  height: 36px;
+  font-size: 12px;
+  border-radius: 10px;
+}
+
+.user-avatar-badge--lg .user-avatar-badge__avatar {
+  width: 44px;
+  height: 44px;
+  font-size: 14px;
+  border-radius: 12px;
+}
+
+.user-avatar-badge--leader .user-avatar-badge__avatar {
+  box-shadow:
+    0 0 0 2px #fff,
+    0 0 0 3px #f59e0b,
+    0 1px 2px rgba(15, 23, 42, 0.12);
+}
+
+.user-avatar-badge__star {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  width: 14px;
+  height: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: #f59e0b;
+  color: #fff;
+  font-size: 9px;
+  line-height: 1;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
+}
+
+.user-avatar-badge__tooltip {
+  min-width: 120px;
+  max-width: 240px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: #1e293b;
+  color: #f8fafc;
+  font-size: 12px;
+  line-height: 1.45;
+  white-space: normal;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.25);
+  pointer-events: none;
+}
+
+.user-avatar-badge__tooltip--floating {
+  position: fixed;
+  z-index: 10000;
+}
+
+.user-avatar-badge__tooltip::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 100%;
+  transform: translateX(-50%);
+  border: 5px solid transparent;
+  border-top-color: #1e293b;
+}
+
+.user-avatar-badge__tooltip-line {
+  display: block;
+}
+
+.user-avatar-badge__tooltip-line--nickname {
+  margin-top: 4px;
+}
+
+.user-avatar-badge__tooltip-label {
+  font-weight: 600;
+  margin-right: 4px;
+}
+
+/* Flag-Liste (z. B. Gruppen-Tabelle) */
+.user-avatar-badge-list {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 6px;
+}

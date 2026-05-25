@@ -13,9 +13,223 @@ use Doctrine\ORM\EntityManagerInterface;
  */
 class ActivityAccessService
 {
+    private const DEPARTMENT_WIDE_MANAGER_ROLES = ['sa', 'org', 'sub', 'mw', 'dc'];
+
+    /** Basissicht wie «u» — L1–L3 vorerst gleich; Gruppenchef ohne Extra-Rechte. */
+    private const BASIC_MEMBER_ROLES = ['u', 'user', 'l1', 'l2', 'l3'];
+
+    /** Department-Rolle für Berechtigungsvergleich: l1–l3 wie «u». */
+    public static function normalizeBasicMemberDepartmentRole(?string $role): ?string
+    {
+        if ($role === null || $role === '') {
+            return null;
+        }
+        $r = strtolower(trim($role));
+        if (\in_array($r, ['l1', 'l2', 'l3', 'user'], true)) {
+            return 'u';
+        }
+
+        return $r;
+    }
+
     public function __construct(
-        private EntityManagerInterface $entityManager
+        private EntityManagerInterface $entityManager,
+        private GroupHierarchyService $groupHierarchy
     ) {}
+
+    public function isDepartmentWideManager(string $role): bool
+    {
+        return in_array($role, self::DEPARTMENT_WIDE_MANAGER_ROLES, true);
+    }
+
+    public function canUserSeeExternalActivities(string $role): bool
+    {
+        return $this->isDepartmentWideManager($role);
+    }
+
+    /**
+     * Basissicht (u, l1–l3): Gruppen-Hierarchie, Anlegen/Einreichen nur Typ «activity».
+     * Gruppenchef zählt nicht extra — Rechte später gezielt aktivierbar.
+     */
+    public function isRestrictedGroupMember(User $user, string $departmentId): bool
+    {
+        $membership = $this->entityManager->getRepository(Membership::class)
+            ->findOneBy(['userId' => $user->getId(), 'departmentId' => $departmentId]);
+        if (!$membership) {
+            return false;
+        }
+
+        $role = strtolower(trim((string) ($membership->getRole() ?? '')));
+
+        return in_array($role, self::BASIC_MEMBER_ROLES, true);
+    }
+
+    /**
+     * Darf group_id leer bleiben (= ganze Abteilung) oder jede Department-Gruppe wählen.
+     */
+    public function canSelectDepartmentGroupLevel(User $user, string $departmentId): bool
+    {
+        $role = $this->departmentRoleForUser($user, $departmentId);
+        if ($role === null) {
+            return false;
+        }
+
+        return \in_array($role, ['l1', 'l2', 'l3', 'mw', 'dc', 'matwart', 'depchef'], true);
+    }
+
+    public function isGroupLeaderInDepartment(User $user, string $departmentId): bool
+    {
+        $groupMemberships = $this->entityManager->getRepository(GroupMembership::class)
+            ->findBy(['userId' => $user->getId()]);
+        foreach ($groupMemberships as $groupMembership) {
+            $group = $groupMembership->getGroup();
+            if ($group->getDepartmentId() !== $departmentId) {
+                continue;
+            }
+            if ($groupMembership->getRole() === 'leader') {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Darf User einen Aktivitätstyp in diesem Department anlegen?
+     */
+    public function canUserCreateActivityType(User $user, string $departmentId, string $type): bool
+    {
+        $type = strtolower(trim($type));
+        $role = $this->departmentRoleForUser($user, $departmentId);
+        if ($role === null) {
+            return false;
+        }
+
+        if ($type === 'external') {
+            return \in_array($role, ['mw', 'dc', 'matwart', 'depchef'], true);
+        }
+
+        if ($type === 'activity') {
+            return true;
+        }
+
+        if (\in_array($type, ['camp', 'event'], true)) {
+            if (\in_array($role, ['mw', 'dc', 'matwart', 'depchef'], true)) {
+                return true;
+            }
+            if (\in_array($role, ['sa', 'org', 'sub'], true)) {
+                return true;
+            }
+            if (\in_array($role, ['l1', 'l2', 'l3'], true)) {
+                return true;
+            }
+            // Department-Rolle «u»: nur mit Gruppenchef (★).
+            if (\in_array($role, ['u', 'user'], true) && $this->isGroupLeaderInDepartment($user, $departmentId)) {
+                return true;
+            }
+
+            return false;
+        }
+
+        return false;
+    }
+
+    /**
+     * Lager/Event: nur Ersteller oder Gruppenchef der zugeordneten Gruppe.
+     */
+    public function canUserSubmitCampOrEvent(User $user, Activity $activity): bool
+    {
+        if (!$activity->isDraft()) {
+            return false;
+        }
+        if (!\in_array($activity->getType() ?? '', ['camp', 'event'], true)) {
+            return false;
+        }
+        if ($activity->getCreatedByUserId() === $user->getId()) {
+            return true;
+        }
+
+        $groupId = $activity->getGroupId();
+        if ($groupId === null || $groupId === '') {
+            return false;
+        }
+
+        $gMem = $this->entityManager->getRepository(GroupMembership::class)->findOneBy([
+            'userId' => $user->getId(),
+            'groupId' => $groupId,
+        ]);
+
+        return $gMem !== null && $gMem->getRole() === 'leader';
+    }
+
+    private function departmentRoleForUser(User $user, string $departmentId): ?string
+    {
+        $mem = $this->entityManager->getRepository(Membership::class)->findOneBy([
+            'userId' => $user->getId(),
+            'departmentId' => $departmentId,
+        ]);
+        if ($mem === null) {
+            return null;
+        }
+
+        return strtolower(trim((string) ($mem->getRole() ?? '')));
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function getUserRootGroupIdsInDepartment(User $user, string $departmentId): array
+    {
+        $groupMemberships = $this->entityManager->getRepository(GroupMembership::class)
+            ->findBy(['userId' => $user->getId()]);
+        $ids = [];
+        foreach ($groupMemberships as $groupMembership) {
+            $group = $groupMembership->getGroup();
+            if ($group->getDepartmentId() === $departmentId) {
+                $ids[] = $groupMembership->getGroupId();
+            }
+        }
+
+        return array_values(array_unique($ids));
+    }
+
+    /**
+     * Sichtbare Gruppen-IDs: Untergruppen (Parent → Child) und Parent-Gruppen (Child → Parent),
+     * damit Lager/Event der eigenen Gruppe auch für Mitglieder in Untergruppen in Listen erscheinen.
+     *
+     * @return list<string>
+     */
+    public function getExpandedVisibleGroupIds(User $user, string $departmentId): array
+    {
+        $roots = $this->getUserRootGroupIdsInDepartment($user, $departmentId);
+        $descendants = $this->groupHierarchy->expandWithDescendants($departmentId, $roots);
+        $ancestors = $this->groupHierarchy->expandWithAncestors($departmentId, $roots);
+
+        return array_values(array_unique(array_merge($descendants, $ancestors)));
+    }
+
+    /**
+     * Lager/Event: Zugriff im gesamten Gruppenzweig (Parent- oder Child-Seite).
+     * Andere Typen: nur Abwärts (User-Gruppe und Untergruppen).
+     *
+     * @param list<string> $userRootGroupIds
+     */
+    private function canAccessActivityViaGroupHierarchy(
+        Activity $activity,
+        string $departmentId,
+        array $userRootGroupIds
+    ): bool {
+        $groupId = $activity->getGroupId();
+        if ($groupId === null || $groupId === '') {
+            return false;
+        }
+
+        if (\in_array($activity->getType() ?? '', ['camp', 'event'], true)) {
+            return $this->groupHierarchy->isInSameGroupBranch($departmentId, $groupId, $userRootGroupIds);
+        }
+
+        return $this->groupHierarchy->isActivityGroupUnderUserGroups($departmentId, $groupId, $userRootGroupIds);
+    }
 
     public function isDepartmentInviteAccepted(Activity $activity, string $departmentId): bool
     {
@@ -91,24 +305,35 @@ class ActivityAccessService
             return false;
         }
 
-        $managerRoles = ['sa', 'org', 'sub', 'mw', 'dc'];
-        if (in_array($membership->getRole(), $managerRoles, true)) {
+        if ($this->isDepartmentWideManager((string) $membership->getRole())) {
             return true;
+        }
+
+        $departmentId = $activity->getDepartmentId();
+
+        if ($this->isRestrictedGroupMember($user, $departmentId)) {
+            if (!$this->canUserSeeExternalActivities((string) $membership->getRole()) && $activity->isExternal()) {
+                return false;
+            }
+            if ($activity->getCreatedByUserId() === $user->getId()) {
+                return true;
+            }
+            $userRootGroupIds = $this->getUserRootGroupIdsInDepartment($user, $departmentId);
+
+            return $this->canAccessActivityViaGroupHierarchy($activity, $departmentId, $userRootGroupIds);
         }
 
         if ($activity->getCreatedByUserId() === $user->getId() || $activity->getResponsibleUserId() === $user->getId()) {
             return true;
         }
 
-        $groupId = $activity->getGroupId();
-        if (!$groupId) {
+        if (!$this->canUserSeeExternalActivities((string) $membership->getRole()) && $activity->isExternal()) {
             return false;
         }
 
-        $groupMembership = $this->entityManager->getRepository(GroupMembership::class)
-            ->findOneBy(['userId' => $user->getId(), 'groupId' => $groupId]);
+        $userRootGroupIds = $this->getUserRootGroupIdsInDepartment($user, $departmentId);
 
-        return $groupMembership !== null;
+        return $this->canAccessActivityViaGroupHierarchy($activity, $departmentId, $userRootGroupIds);
     }
 
     /**
@@ -153,6 +378,31 @@ class ActivityAccessService
             return false;
         }
 
+        return $this->canUserEditActivityMaterialLinesAsGroupMember($user, $activity, false);
+    }
+
+    /**
+     * Nach Einreichung, vor «Annehmen & Packen»: u/l1/l2/l3 (und Gruppe) dürfen noch Material ergänzen.
+     */
+    public function canUserAddMaterialBeforePacking(User $user, Activity $activity): bool
+    {
+        if (!\in_array($activity->getStatus(), [Activity::STATUS_SUBMITTED, Activity::STATUS_APPROVED], true)) {
+            return false;
+        }
+
+        return $this->canUserEditActivityMaterialLinesAsGroupMember($user, $activity, true);
+    }
+
+    /**
+     * Gruppen-/Ersteller-Zugriff auf Materiallisten (Entwurf oder «vergessen»-Nachbuch vor packing).
+     *
+     * @param bool $basicMemberOnly true: nur u/l1/l2/l3 (Host + eingeladene Gruppen), keine MW/DC
+     */
+    private function canUserEditActivityMaterialLinesAsGroupMember(
+        User $user,
+        Activity $activity,
+        bool $basicMemberOnly,
+    ): bool {
         $uid = $user->getId();
         $hostDeptId = $activity->getDepartmentId();
 
@@ -162,21 +412,24 @@ class ActivityAccessService
         ]);
         if ($hostMem) {
             $role = (string) ($hostMem->getRole() ?? '');
-            if (in_array($role, ['mw', 'dc'], true)) {
+            if ($basicMemberOnly) {
+                if (!\in_array($role, ['u', 'user', 'l1', 'l2', 'l3'], true)) {
+                    return false;
+                }
+            } elseif (\in_array($role, ['mw', 'dc'], true)) {
                 return true;
             }
+        } elseif ($basicMemberOnly) {
+            return false;
         }
 
         $groupId = $activity->getGroupId();
         if ($groupId) {
-            $gm = $this->entityManager->getRepository(GroupMembership::class)->findOneBy([
-                'userId' => $uid,
-                'groupId' => $groupId,
-            ]);
-            if ($gm !== null) {
+            $userRootGroupIds = $this->getUserRootGroupIdsInDepartment($user, $hostDeptId);
+            if ($this->canAccessActivityViaGroupHierarchy($activity, $hostDeptId, $userRootGroupIds)) {
                 return true;
             }
-        } elseif ($activity->isEvent() && $hostMem !== null) {
+        } elseif ($activity->isEvent() && $hostMem !== null && !$basicMemberOnly) {
             // Event ohne gewählte Gruppe: alle User des Host-Departments
             return true;
         } elseif ($activity->getCreatedByUserId() === $uid || $activity->getResponsibleUserId() === $uid) {
@@ -185,7 +438,7 @@ class ActivityAccessService
         }
 
         foreach ($activity->getInvitedDepartments() ?? [] as $inv) {
-            if (!is_array($inv) || ($inv['status'] ?? '') !== 'accepted') {
+            if (!\is_array($inv) || ($inv['status'] ?? '') !== 'accepted') {
                 continue;
             }
             $deptId = trim((string) ($inv['id'] ?? $inv['department_id'] ?? ''));
@@ -196,8 +449,15 @@ class ActivityAccessService
                 'userId' => $uid,
                 'departmentId' => $deptId,
             ]);
-            if ($mem && in_array((string) ($mem->getRole() ?? ''), ['mw', 'dc'], true)) {
-                return true;
+            if ($mem) {
+                $invRole = (string) ($mem->getRole() ?? '');
+                if ($basicMemberOnly) {
+                    if (!\in_array($invRole, ['u', 'user', 'l1', 'l2', 'l3'], true)) {
+                        continue;
+                    }
+                } elseif (\in_array($invRole, ['mw', 'dc'], true)) {
+                    return true;
+                }
             }
             $ig = trim((string) ($inv['group_id'] ?? ''));
             if ($ig !== '') {
@@ -260,25 +520,143 @@ class ActivityAccessService
     }
 
     /**
-     * Materialzeilen nach Entwurf: Host-MW in jedem Status; Host-DC nur bis «gepackt» (Buchungs-/Pack-Workflow).
+     * Materialzeilen nach Entwurf: Host-MW/DC bis einschliesslich «Am Event» (danach nur noch Packliste/Retour).
+     *
+     * @return list<string>
      */
+    private function statusesAllowingHostMaterialEditAfterDraft(): array
+    {
+        return [
+            Activity::STATUS_SUBMITTED,
+            Activity::STATUS_APPROVED,
+            Activity::STATUS_PACKING,
+            Activity::STATUS_PACKED,
+            Activity::STATUS_AT_EVENT,
+        ];
+    }
+
     public function canHostMwOrDcEditActivityMaterialAfterDraft(User $user, Activity $activity): bool
     {
         if ($activity->isDraft()) {
             return false;
         }
+        if (!\in_array($activity->getStatus(), $this->statusesAllowingHostMaterialEditAfterDraft(), true)) {
+            return false;
+        }
         if ($this->isHostDepartmentMw($user, $activity)) {
             return true;
         }
-        if (!$this->isHostDepartmentMwOrDc($user, $activity)) {
+
+        return $this->isHostDepartmentMwOrDc($user, $activity);
+    }
+
+    /**
+     * Verbrauchsmaterial-Nachlieferung (POST items mit replenishment): MW/DC oder Gruppe/Ersteller ab «Am Event».
+     */
+    public function canUserRequestConsumableReplenishment(User $user, Activity $activity): bool
+    {
+        if (!\in_array($activity->getStatus(), [Activity::STATUS_AT_EVENT, Activity::STATUS_RETURNED], true)) {
+            return false;
+        }
+        if (!$activity->canReportIssues()) {
+            return false;
+        }
+        if ($this->canHostMwOrDcEditActivityMaterialAfterDraft($user, $activity)) {
+            return true;
+        }
+
+        return $this->canUserOperateActivityPackHandoff($user, $activity);
+    }
+
+    /**
+     * Typ «activity», «camp», «event»: Ersteller oder Gruppenmitglied (bis Leader) darf
+     * ab «gepackt» Material in der Pack-Pipeline bewegen (bis Retour gemeldet).
+     */
+    public function canUserOperateActivityPackHandoff(User $user, Activity $activity): bool
+    {
+        if (!\in_array($activity->getType() ?? '', ['activity', 'camp', 'event'], true)) {
             return false;
         }
 
-        return \in_array($activity->getStatus(), [
-            Activity::STATUS_SUBMITTED,
-            Activity::STATUS_APPROVED,
+        if ($activity->getCreatedByUserId() === $user->getId()) {
+            return true;
+        }
+
+        $groupId = $activity->getGroupId();
+        if ($groupId === null || $groupId === '') {
+            return false;
+        }
+
+        $departmentId = $activity->getDepartmentId();
+        $userRootGroupIds = $this->getUserRootGroupIdsInDepartment($user, $departmentId);
+        if (\in_array($activity->getType() ?? '', ['camp', 'event'], true)) {
+            return $this->groupHierarchy->isInSameGroupBranch($departmentId, $groupId, $userRootGroupIds);
+        }
+
+        $groupMembership = $this->entityManager->getRepository(GroupMembership::class)
+            ->findOneBy(['userId' => $user->getId(), 'groupId' => $groupId]);
+
+        return $groupMembership !== null;
+    }
+
+    /**
+     * Packliste bearbeiten: MW/DC immer (packing…returned); bei activity/camp/event auch Ersteller/Gruppe ab «gepackt».
+     */
+    public function canUserEditPackList(User $user, Activity $activity): bool
+    {
+        $status = $activity->getStatus();
+        $editableStatuses = [
             Activity::STATUS_PACKING,
             Activity::STATUS_PACKED,
+            Activity::STATUS_AT_EVENT,
+            Activity::STATUS_RETURNED,
+        ];
+        if (!\in_array($status, $editableStatuses, true)) {
+            return false;
+        }
+
+        if ($this->isHostDepartmentMwOrDc($user, $activity)) {
+            return true;
+        }
+
+        if (!$this->canUserOperateActivityPackHandoff($user, $activity)) {
+            return false;
+        }
+
+        // Ab «Retour gemeldet» nur MW/DC (Einlagern / Ausgepackt) — Gruppe hat Übergabe abgeschlossen.
+        return \in_array($status, [
+            Activity::STATUS_PACKED,
+            Activity::STATUS_AT_EVENT,
         ], true);
+    }
+
+    /**
+     * Erlaubte Pack-Pipeline-Stufen für Nicht-MW (Gruppe/Ersteller).
+     *
+     * @return list<string>|null null = keine Einschränkung (MW/DC)
+     */
+    public function allowedPackMoveStagesForUser(User $user, Activity $activity): ?array
+    {
+        if ($this->isHostDepartmentMwOrDc($user, $activity)) {
+            return null;
+        }
+        if (!$this->canUserOperateActivityPackHandoff($user, $activity)) {
+            return [];
+        }
+
+        $type = $activity->getType() ?? '';
+        if (\in_array($type, ['camp', 'event'], true)) {
+            return [
+                \App\Service\PackPipelineService::STAGE_TRANSPORT_TO,
+                \App\Service\PackPipelineService::STAGE_AT_EVENT,
+                \App\Service\PackPipelineService::STAGE_TRANSPORT_BACK,
+                \App\Service\PackPipelineService::STAGE_RETURNED,
+            ];
+        }
+
+        return [
+            \App\Service\PackPipelineService::STAGE_AT_EVENT,
+            \App\Service\PackPipelineService::STAGE_RETURNED,
+        ];
     }
 }

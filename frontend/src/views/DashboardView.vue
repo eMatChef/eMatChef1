@@ -46,7 +46,7 @@
         <span>{{ t('dashboard.createMaterial') }}</span>
       </router-link>
       <router-link
-        v-if="showMaterialCreate"
+        v-if="showCreateActivity"
         :to="{ path: getLink('/activities'), query: { new: '1', from: 'dashboard' } }"
         class="quick-action-btn primary"
       >
@@ -126,10 +126,14 @@
             :to="getLink(`/activities/${a.id}`)"
             class="activity-card"
           >
-            <span class="status-dot" :class="a.status"></span>
+            <span class="status-dot" :class="activityStatusClass(a.status)"></span>
             <div class="activity-info">
               <span class="activity-name">{{ a.name }}</span>
-              <span class="activity-meta">{{ formatDateShort(a.usage_start) }} · {{ getStatusLabel(a.status) }}</span>
+              <span class="activity-meta">
+                {{ formatDateShort(a.usage_start) }}
+                <template v-if="a.group_name"> · {{ a.group_name }}</template>
+                · {{ getStatusLabel(a.status) }}
+              </span>
             </div>
             <svg class="arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
               <polyline points="9 18 15 12 9 6"/>
@@ -218,6 +222,15 @@
         <router-link :to="getLink('/workshop')" class="section-link">{{ t('dashboard.toWorkshop') }}</router-link>
       </section>
 
+      <!-- Infoscreen (MW / DC) -->
+      <section v-if="showDisplayLink" class="dashboard-section">
+        <h2 class="section-title">{{ t('display.title') }}</h2>
+        <p class="display-dashboard-hint">{{ t('display.subtitle') }}</p>
+        <router-link :to="getLink('/settings/my-department/display-screens')" class="section-link">
+          {{ t('dashboard.toDisplay') }}
+        </router-link>
+      </section>
+
       <!-- MW: Pack-Queue heute -->
       <section v-if="showPackQueueWidget && todayActivities.length > 0" class="dashboard-section">
         <h2 class="section-title">{{ t('dashboard.relevantToday') }}</h2>
@@ -228,7 +241,7 @@
             :to="getLink(`/activities/${a.id}`)"
             class="activity-card"
           >
-            <span class="status-dot" :class="a.status"></span>
+            <span class="status-dot" :class="activityStatusClass(a.status)"></span>
             <div class="activity-info">
               <span class="activity-name">{{ a.name }}</span>
               <span class="activity-meta">{{ getPlanningLabel(a) }}</span>
@@ -251,7 +264,7 @@
             :to="getLink(`/activities/${a.id}`)"
             class="activity-card compact"
           >
-            <span class="status-dot" :class="a.status"></span>
+            <span class="status-dot" :class="activityStatusClass(a.status)"></span>
             <div class="activity-info">
               <span class="activity-name">{{ a.name }}</span>
               <span class="activity-meta">{{ formatDateShort(a.usage_start) }} {{ getRelativeDate(a.usage_start) }}</span>
@@ -277,17 +290,22 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, onActivated, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'
+import { useHeaderNotificationsStore } from '@/stores/headerNotifications'
 import { getDashboardData, type DashboardActivity } from '@/api/dashboard'
 import { getPendingAdminJoinRequests } from '@/api/joinRequests'
 import DamageReportWizard from '@/components/DamageReportWizard.vue'
+import { activityStatusClass, activityStatusI18nKey } from '@/utils/activityStatus'
+import { useDepartmentLiveRefresh } from '@/composables/useDepartmentLiveRefresh'
+import { useDepartmentMemberRole } from '@/composables/useDepartmentMemberRole'
 
 const route = useRoute()
 const { t, locale } = useI18n()
 const authStore = useAuthStore()
+const headerNotificationsStore = useHeaderNotificationsStore()
 
 /** BCP-47-Tag für `Intl` passend zur UI-Sprache (CH-Kontext). */
 const intlLocale = computed(() => {
@@ -328,11 +346,9 @@ const dashboardData = ref<Awaited<ReturnType<typeof getDashboardData>> | null>(n
 const globalAdminPendingCount = ref(0)
 
 // === Role helpers ===
-// Department-Rollen: nur mw, dc, l1, l2, l3, u (sa/org/sub kommen aus profile.roles)
 const role = computed(() => (authStore.currentDepartmentRole || 'u').toLowerCase())
 const isSuperAdmin = computed(() => authStore.userRoles.includes('ROLE_SUPERADMIN'))
-const USER_ROLES = ['u', 'user']
-const LEADER_ROLES = ['l1', 'l2', 'l3']
+const { isUserRole } = useDepartmentMemberRole()
 const DC_ROLES = ['dc']
 const MW_DASHBOARD_ROLES = ['mw']
 const hasSupportAdminRole = computed(() =>
@@ -342,10 +358,16 @@ const hasSupportAdminRole = computed(() =>
 )
 
 const showMaterialCreate = computed(() => MW_DASHBOARD_ROLES.includes(role.value))
-const showActiveActivities = computed(() => USER_ROLES.includes(role.value) || LEADER_ROLES.includes(role.value))
-const showDraftsWidget = computed(() => LEADER_ROLES.includes(role.value))
+const showCreateActivity = computed(() =>
+  isUserRole.value ||
+  DC_ROLES.includes(role.value) ||
+  MW_DASHBOARD_ROLES.includes(role.value)
+)
+const showActiveActivities = computed(() => isUserRole.value)
+const showDraftsWidget = computed(() => false)
 const showOverviewWidget = computed(() => DC_ROLES.includes(role.value) || MW_DASHBOARD_ROLES.includes(role.value))
 const showWorkshopWidget = computed(() => DC_ROLES.includes(role.value) || MW_DASHBOARD_ROLES.includes(role.value))
+const showDisplayLink = computed(() => DC_ROLES.includes(role.value) || MW_DASHBOARD_ROLES.includes(role.value))
 const showPackQueueWidget = computed(() => MW_DASHBOARD_ROLES.includes(role.value))
 /** Join-Requests nur für globale Profil-Rollen SA/OrgChef/SubOrgChef — nicht für reine Abteilungsrollen (mw/dc/…). */
 const showAdminJoinRequestsWidget = computed(() => hasSupportAdminRole.value)
@@ -360,7 +382,7 @@ const totalOpenJoinRequests = computed(() => pendingJoinRequests.value.length + 
 const hasOpenJoinRequests = computed(() => pendingJoinRequests.value.length > 0 || pendingAdminJoinRequests.value.length > 0)
 
 const activeActivities = computed(() => {
-  const statuses = ['draft', 'submitted', 'approved', 'packing', 'packed', 'issued', 'returned']
+  const statuses = ['draft', 'submitted', 'approved', 'packing', 'packed', 'at_event', 'returned']
   return activitiesUpcoming.value.filter(a => statuses.includes(a.status))
 })
 
@@ -374,7 +396,7 @@ const inProgressCount = computed(() => {
   return dashboardActivities.value.filter(a => ['approved', 'packing', 'packed'].includes(a.status)).length
 })
 const issuedCount = computed(() => {
-  return dashboardActivities.value.filter(a => a.status === 'issued').length
+  return dashboardActivities.value.filter(a => a.status === 'at_event').length
 })
 
 const todayActivities = computed(() => {
@@ -388,7 +410,7 @@ const todayActivities = computed(() => {
 })
 
 const upcomingActivities = computed(() => {
-  const statuses = ['submitted', 'approved', 'packing', 'packed', 'issued']
+  const statuses = ['submitted', 'approved', 'packing', 'packed', 'at_event']
   const now = new Date()
   const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()
   return activitiesUpcoming.value
@@ -468,18 +490,18 @@ function onDamageReportSuccess() {
 }
 
 function getStatusLabel(status: string): string {
-  const key = `dashboard.status.${status}`
+  const key = `dashboard.status.${activityStatusI18nKey(status)}`
   const translated = t(key)
   return translated === key ? status : translated
 }
 
 // === Load ===
-async function load() {
+async function load(opts?: { silent?: boolean }) {
   const id = departmentId.value
   if (!id) {
     dashboardData.value = null
     if (hasSupportAdminRole.value) {
-      isLoading.value = true
+      if (!opts?.silent) isLoading.value = true
       try {
         const g = await getPendingAdminJoinRequests('')
         globalAdminPendingCount.value = g.length
@@ -493,7 +515,7 @@ async function load() {
     }
     return
   }
-  isLoading.value = true
+  if (!opts?.silent) isLoading.value = true
   try {
     dashboardData.value = await getDashboardData(id, { includeJoinRequests: hasSupportAdminRole.value })
   } catch (err) {
@@ -504,7 +526,34 @@ async function load() {
 }
 
 onMounted(() => load())
+onActivated(() => {
+  if (departmentId.value) void load({ silent: true })
+})
 watch(departmentId, () => load())
+
+/** Nach Aktivitäts-Anlage (Wizard) oder Rückkehr von Aktivitäten — ohne F5. */
+watch(
+  () => headerNotificationsStore.refreshNonce,
+  () => {
+    if (departmentId.value) void load({ silent: true })
+  },
+)
+
+watch(
+  () => route.name,
+  (name, prevName) => {
+    if (name !== 'Dashboard' || !departmentId.value) return
+    if (prevName && prevName !== 'Dashboard') void load({ silent: true })
+  },
+)
+
+/** Andere User: Dashboard-Widgets alle 30s (sichtbarer Tab). */
+useDepartmentLiveRefresh({
+  departmentId,
+  enabled: () => route.name === 'Dashboard',
+  reload: load,
+  isBusy: () => isLoading.value && !dashboardData.value,
+})
 </script>
 
 <style scoped>
@@ -646,21 +695,6 @@ button.quick-action-btn {
   border-color: #e5e7eb;
 }
 
-.status-dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-
-.status-dot.draft { background: #9ca3af; }
-.status-dot.submitted { background: #3b82f6; }
-.status-dot.approved { background: #8b5cf6; }
-.status-dot.packing { background: #f59e0b; }
-.status-dot.packed { background: #f59e0b; }
-.status-dot.issued { background: #10b981; }
-.status-dot.returned { background: #06b6d4; }
-.status-dot.completed { background: #6b7280; }
 
 .activity-info {
   flex: 1;
@@ -770,6 +804,13 @@ button.quick-action-btn {
 
 .section-link:hover {
   text-decoration: underline;
+}
+
+.display-dashboard-hint {
+  margin: 0 0 4px;
+  font-size: 0.9rem;
+  color: #6b7280;
+  max-width: 42rem;
 }
 
 .config-links {

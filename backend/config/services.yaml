@@ -3,7 +3,7 @@ parameters:
     env(MAILER_FROM): 'noreply@ematchef.ch'
     # Optional: Reply-To für System-Mails (wenn gesetzt und gültige E-Mail). Sonst optional in mail_outbound.json.
     env(MAILER_REPLY_TO): ''
-    # Optional: Basis-URL für öffentliche QR-Links (/i/m/, /i/b/). Leer = APP_FRONTEND_URL (z. B. nur eine Domain).
+    # Optional: Basis-URL für öffentliche QR-Links (/i/m/…/b/…, /i/a/, /i/w/). Leer = APP_FRONTEND_URL.
     env(APP_PUBLIC_QR_URL): ''
     # Optional: Fallback für fcal API-Key (Schulferien); bevorzugt zentral in var/app/integration_settings.json (Superadmin).
     env(FCAL_API_KEY): ''

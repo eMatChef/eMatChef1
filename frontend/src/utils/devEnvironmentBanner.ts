@@ -23,3 +23,10 @@ export function shouldShowDevEnvironmentBanner(): boolean {
 
   return false
 }
+
+/**
+ * Dev-/Test-Umgebung (gleiche Logik wie der gelbe Hinweisbalken).
+ */
+export function isDevToolsEnvironment(): boolean {
+  return shouldShowDevEnvironmentBanner()
+}

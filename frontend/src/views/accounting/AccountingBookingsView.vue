@@ -131,6 +131,12 @@
           <p class="booking-assign-lead">
             {{ t('accounting.bookings.assignLeadBefore') }}<strong>{{ t('accounting.common.costCenter') }}</strong>{{ t('accounting.bookings.assignLeadAfter') }}
           </p>
+          <p
+            v-if="pendingFollowUps[assignTabIndex]?.activity_name"
+            class="booking-assign-activity-hint text-muted"
+          >
+            {{ t('accounting.bookings.assignFromActivity', { name: pendingFollowUps[assignTabIndex].activity_name }) }}
+          </p>
           <div
             v-if="pendingFollowUps.length > 1"
             class="bookings-subtabs booking-assign-followup-tabs filter-bar accounting-inner-tabs"
@@ -146,7 +152,7 @@
                 :class="{ active: assignTabIndex === idx }"
                 @click="selectAssignTab(idx)"
               >
-                {{ t('accounting.bookings.assignTabBooking', { n: idx + 1 }) }}
+                {{ t(accountingFollowUpKindKey(fu.source_kind)) }}
                 <span class="booking-assign-tab-meta">· CHF {{ formatMoney(fu.amount) }}</span>
               </button>
             </div>
@@ -313,7 +319,6 @@ import { useRoute, useRouter } from 'vue-router'
 import { listCostCenters, type AccountingCostCenter } from '@/api/accountingCostCenters'
 import {
   listBookings,
-  getBookingYears,
   createBooking,
   updateBooking,
   deleteBooking,
@@ -327,9 +332,18 @@ import { getGroups, type Group } from '@/api/groups'
 import type { Material } from '@/api/materials'
 import { useToast } from '@/composables/useToast'
 import { useConfirm } from '@/composables/useConfirm'
+import { useAccountingBookingYears } from '@/composables/useAccountingBookingYears'
 import { createBasicMaterialLookupFetcher } from '@/composables/useMaterialLookup'
 import MaterialLookupInput from '@/components/common/MaterialLookupInput.vue'
 import { useHeaderNotificationsStore } from '@/stores/headerNotifications'
+import {
+  accountingFollowUpKindKey,
+  sortFollowUpsForDisplay,
+} from '@/utils/accountingFollowUpLabels'
+import {
+  suggestCostCenterId,
+  suggestPaymentMethodForFollowUp,
+} from '@/utils/accountingCostCenterSuggest'
 
 const route = useRoute()
 const headerNotificationsStore = useHeaderNotificationsStore()
@@ -381,8 +395,7 @@ const paymentOptions = computed(() =>
   }))
 )
 
-/** Jahre, in denen es bereits Buchungen gibt (pro Department). */
-const bookingYears = ref<number[]>([])
+const { years: bookingYears, refreshYears: loadBookingYears } = useAccountingBookingYears(departmentId)
 
 /** Einmalig: Standardfilter Kalenderjahr, falls Buchungen in diesem Jahr existieren. */
 const defaultYearFilterApplied = ref(false)
@@ -433,7 +446,12 @@ const workingFromPending = ref(false)
 async function refreshPendingFollowUps() {
   if (!departmentId.value) return
   try {
-    pendingFollowUps.value = await listAcquisitionFollowups(departmentId.value, 'pending')
+    const activityFilter = String(route.query.activity_id || '').trim()
+    let rows = await listAcquisitionFollowups(departmentId.value, 'pending')
+    if (activityFilter) {
+      rows = rows.filter((f) => f.activity_id === activityFilter)
+    }
+    pendingFollowUps.value = sortFollowUpsForDisplay(rows)
     hasPendingBooking.value = pendingFollowUps.value.length > 0
     if (pendingFollowUps.value.length > 0) {
       const prevId = activeFollowUpId.value
@@ -477,6 +495,17 @@ function persistCurrentAssignDraft() {
   }
 }
 
+function defaultEntryTypeForFollowUp(p: AccountingAcquisitionFollowUp): string {
+  const sk = p.source_kind || (p.material_batch_id ? 'batch' : '')
+  if (sk === 'activity_replenishment' || sk === 'batch') return 'purchase'
+  if (sk === 'activity_consumption') return 'other'
+  if (sk === 'activity_rental') return 'other'
+  if (sk === 'activity_workshop') {
+    return p.activity_type === 'external' ? 'repair_external' : 'repair_internal'
+  }
+  return 'other'
+}
+
 function loadAssignFormForFollowUp(p: AccountingAcquisitionFollowUp) {
   activeFollowUpId.value = p.id
   const draft = assignDrafts[p.id]
@@ -493,14 +522,44 @@ function loadAssignFormForFollowUp(p: AccountingAcquisitionFollowUp) {
     form.amount = p.amount
     form.booked_at = p.suggested_date
     form.receipt_label = p.receipt_label || ''
-    form.cost_center_id = ''
-    form.entry_type = 'purchase'
-    form.payment_method = ''
-    form.group_id = ''
-    form.notes = ''
+    form.entry_type = defaultEntryTypeForFollowUp(p)
+    const suggestedCc = suggestCostCenterId(p, costCenters.value)
+    form.cost_center_id = suggestedCc || costCenters.value[0]?.id || ''
+    const suggestedPay = suggestPaymentMethodForFollowUp(p)
+    form.payment_method = suggestedPay || ''
+    const chargeTarget = p.charge_target ?? (p.activity_type === 'external' ? 'external_customer' : 'group')
+    if (chargeTarget === 'group') {
+      form.group_id = p.suggested_group_id || p.activity_group_id || ''
+    } else {
+      form.group_id = ''
+    }
+
+    const noteParts: string[] = []
+    if (p.activity_id) {
+      noteParts.push(`Aktivität: ${p.activity_name || p.activity_id}`)
+    }
+    if (chargeTarget === 'external_customer' && p.external_customer_label) {
+      noteParts.push(`Kunde: ${p.external_customer_label}`)
+    }
+    if (chargeTarget === 'department' && p.material_department_name) {
+      noteParts.push(`Verrechnung Material-Dep.: ${p.material_department_name}`)
+    }
+    if (p.reported_by_display_name) {
+      noteParts.push(`Gemeldet von: ${p.reported_by_display_name}`)
+    }
+    form.notes = noteParts.join(' · ')
+
+    if (chargeTarget === 'external_customer' && !form.receipt_label && p.external_customer_label) {
+      form.receipt_label = p.external_customer_label
+    }
   }
-  form.material_item_id = ''
-  materialLookupDisplay.value = ''
+  if (p.material_item_id) {
+    form.material_item_id = p.material_item_id
+    materialLookupDisplay.value = p.material_name || ''
+  } else {
+    form.material_item_id = ''
+    materialLookupDisplay.value = ''
+  }
 }
 
 function selectAssignTab(idx: number) {
@@ -568,12 +627,8 @@ async function loadGroups() {
   }
 }
 
-async function loadBookingYears() {
-  try {
-    bookingYears.value = await getBookingYears(departmentId.value)
-  } catch {
-    bookingYears.value = []
-  }
+async function applyBookingYearsFilter() {
+  await loadBookingYears()
   if (!defaultYearFilterApplied.value) {
     const cy = new Date().getFullYear()
     filterYear.value = bookingYears.value.includes(cy) ? String(cy) : ''
@@ -613,13 +668,17 @@ async function bootstrapBookingsView() {
 
 /** Query `sub=assign`: Tab „Neue Buchung zuordnen“ (ausstehende Anschaffungen). */
 async function applyAssignTabFromRoute() {
-  if (String(route.query.sub || '') !== 'assign') return
+  const q = route.query
+  if (String(q.sub || '') !== 'assign' && String(q.assign || '') !== '1') return
   bookingsSubTab.value = 'assign'
   await refreshPendingFollowUps()
+  const nextQuery: Record<string, string> = {}
+  const actId = String(q.activity_id || '').trim()
+  if (actId) nextQuery.activity_id = actId
   await router.replace({
     name: 'AccountingBookings',
     params: { departmentId: departmentId.value },
-    query: {},
+    query: nextQuery,
   })
 }
 

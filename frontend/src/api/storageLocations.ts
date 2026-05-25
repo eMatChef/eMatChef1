@@ -88,18 +88,25 @@ export interface ContainerBatch {
   content_preview_more?: number
   /** true = kein Lagerinhalt in der Kiste (bei Packliste mit activity_id) */
   storage_empty?: boolean
+  /** Physische Kombo, die diese Kiste als Referenz nutzt (bei for_material_id) */
+  physical_combo_id?: string | null
+  physical_combo_name?: string | null
 }
 
 /**
- * @param options.activityId — bei Packliste: leere Kisten zuerst; nicht parallel anderer Aktivität (Zeitraum); nicht schon dieser Aktivität zugeordnet
+ * @param options.activityId — Packliste: nur leere Kisten (Lagerinhalt), nicht schon dieser Aktivität zugeordnet;
+ *   mit Planungs-/Nutzungszeitraum zusätzlich keine, die parallel anderer Aktivität gebucht sind (leer und frei, nicht «oder»).
  */
 export async function getContainerBatches(
   departmentId: string,
-  options?: { activityId?: string },
+  options?: { activityId?: string; forMaterialId?: string },
 ): Promise<ContainerBatch[]> {
   const params = new URLSearchParams({ department_id: departmentId })
   if (options?.activityId) {
     params.append('activity_id', options.activityId)
+  }
+  if (options?.forMaterialId) {
+    params.append('for_material_id', options.forMaterialId)
   }
   const response = await apiClient.get<ContainerBatch[]>(`/api/container-batches?${params.toString()}`)
   return response.data

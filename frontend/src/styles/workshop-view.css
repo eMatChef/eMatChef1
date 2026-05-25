@@ -586,6 +586,13 @@
   gap: 8px;
 }
 
+.workshop-qr-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
 .modal-close {
   width: 32px;
   height: 32px;

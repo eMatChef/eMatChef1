@@ -4,8 +4,8 @@ Für den **API-Server** (z. B. DigitalOcean), Projektverzeichnis z. B. `/opt
 
 ## Branch- und Domain-Zuordnung
 
-- `prod` -> Produktion (`ematchef.ch`, `app.ematchef.ch`, `qr.ematchef.ch`)
-- `develop` -> Entwicklungsumgebung (`dev.ematchef.ch`)
+- `prod` -> Produktion (`ematchef.ch`, `app.ematchef.ch`, `qr.ematchef.ch`, `devices.ematchef.ch`)
+- `develop` -> Entwicklungsumgebung (`dev.ematchef.ch`, `app-dev.ematchef.ch`, `qr-dev.ematchef.ch`, `devices-dev.ematchef.ch`)
 
 Empfohlene Verzeichnisse auf dem Server:
 
@@ -42,7 +42,7 @@ COMPOSE_PROJECT_NAME=ematchef-develop \
 ./deploy/prod-update.sh reset
 ```
 
-**Develop-API / CORS:** Wenn der Browser von `https://app-dev.ematchef.ch` aus `https://api-dev.ematchef.ch` blockiert („No Access-Control-Allow-Origin“), muss auf dem Develop-Server `CORS_ALLOW_ORIGIN` u. a. **`app-dev.ematchef.ch`** erlauben (siehe `deploy/CROSS-SUBDOMAIN-LOGIN.md`, `deploy/develop-droplet.env.example` und optional `deploy/docker-compose.override.develop.example.yml`).
+**Develop-API / CORS:** Wenn der Browser von `https://app-dev.ematchef.ch` oder `https://devices-dev.ematchef.ch` aus `https://api-dev.ematchef.ch` blockiert („No Access-Control-Allow-Origin“), muss auf dem Develop-Server `CORS_ALLOW_ORIGIN` alle genutzten Frontends erlauben (siehe `deploy/CROSS-SUBDOMAIN-LOGIN.md`, `deploy/develop-droplet.env.example` und optional `deploy/docker-compose.override.develop.example.yml`).
 
 ### Einmalig: Geheimnisse & URLs (überleben `git reset --hard`)
 
@@ -292,14 +292,18 @@ Produktion:
 | Lokaler Ordner (nach dem Script) | Typisch ins Hostpoint-Webverzeichnis für |
 |----------------------------------|-----------------------------------------|
 | **`deploy/hostpoint/prod/home/`** (Inhalt inkl. Unterordner) | die **Hauptdomain** bzw. den VHost fuer **`ematchef.ch`** |
-| **`deploy/hostpoint/prod/app/`** (Inhalt inkl. Unterordner) | die **Subdomain** / den VHost fuer **`app.ematchef.ch`** |
+| **`deploy/hostpoint/prod/app/`** (Inhalt inkl. Unterordner) | die **Subdomain** / den VHost fuer **`app.ematchef.ch`** (und **`qr.ematchef.ch`**, **`devices.ematchef.ch`** — gleicher Document Root auf Hostpoint) |
 
 Development:
 
 | Lokaler Ordner (nach dem Script) | Typisch ins Hostpoint-Webverzeichnis für |
 |----------------------------------|-----------------------------------------|
 | **`deploy/hostpoint/dev/home/`** (Inhalt inkl. Unterordner) | die **Dev-Hauptdomain** / den VHost fuer **`dev.ematchef.ch`** |
-| **`deploy/hostpoint/dev/app/`** (Inhalt inkl. Unterordner) | die **Dev-App-Subdomain** / den VHost fuer **`app-dev.ematchef.ch`** |
+| **`deploy/hostpoint/dev/app/`** (Inhalt inkl. Unterordner) | die **Dev-App-Subdomain** / den VHost fuer **`app-dev.ematchef.ch`** (und **`qr-dev.ematchef.ch`**, **`devices-dev.ematchef.ch`** — gleicher Document Root) |
+
+**Hostpoint (einmalig):** Subdomains `devices.ematchef.ch` bzw. `devices-dev.ematchef.ch` anlegen und auf **denselben Webordner** wie `app` / `app-dev` zeigen (kein separater FTP-Upload). Nach dem nächsten Frontend-Deploy reicht der bestehende `FTP_PATH_APP_*`-Lauf.
+
+**API (Droplet):** `CORS_ALLOW_ORIGIN` auf Prod und Develop um `devices.ematchef.ch` bzw. `devices-dev.ematchef.ch` erweitern (siehe `deploy/docker-compose.override.*.example.yml`, `deploy/develop-droplet.env.example`), dann Backend neu starten.
 
 Dazu zählt jeweils **`index.html`**, der Ordner **`assets/`** und die Datei **`.htaccess`** ( Apache-Routing für die SPA). Ohne **`.htaccess` funktionieren direkte URLs** (z. B. Reload auf einer App-Route) **nicht**; beim FTP prüfen, ob versteckte Dateien wirklich mit hochgeladen werden.
 

@@ -7,10 +7,7 @@
 <script setup lang="ts">
 import { onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import {
-  getPublicBatchByCode,
-  getPublicMaterialByCode,
-} from '@/api/public/publicLookup'
+import { getPublicMaterialByCode } from '@/api/public/publicLookup'
 import { useAuthStore } from '@/stores/auth'
 
 const route = useRoute()
@@ -26,7 +23,7 @@ function qrPublicOrigin(): string {
 onMounted(async () => {
   const type = String(route.query.type || '').toLowerCase().trim()
   const code = String(route.query.code || '').trim()
-  if ((type !== 'm' && type !== 'b') || !code) {
+  if (type !== 'm' || !code) {
     await router.replace('/login')
     return
   }
@@ -53,8 +50,7 @@ onMounted(async () => {
   const isSuperAdmin = authStore.userRoles?.includes('ROLE_SUPERADMIN') ?? false
 
   try {
-    const data =
-      type === 'b' ? await getPublicBatchByCode(code) : await getPublicMaterialByCode(code)
+    const data = await getPublicMaterialByCode(code)
 
     const departmentId = data.department.id
     const materialId = data.material.id
@@ -65,14 +61,8 @@ onMounted(async () => {
       return
     }
 
-    const query: Record<string, string> = {}
-    if (data.entity_type === 'batch' && 'batch' in data && data.batch?.id) {
-      query.batch = data.batch.id
-    }
-
     await router.replace({
       path: `/${departmentId}/materials/${materialId}`,
-      query: Object.keys(query).length ? query : undefined,
     })
   } catch {
     await fallbackToPublicQr()
