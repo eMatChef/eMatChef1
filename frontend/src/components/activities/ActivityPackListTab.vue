@@ -1794,7 +1794,7 @@ const hasMwLooseCrateAssignmentWork = computed(() => {
   const st = props.status || ''
   if (st !== 'packing' && st !== 'packed' && st !== 'at_event') return false
   return packItems.value.some((pi) => {
-    if (isPhysicalComboPackItem(pi, packContainers.value) && isPhysicalComboAsSet(pi, packContainers.value)) {
+    if (isPhysicalComboPackItem(pi) && isPhysicalComboAsSet(pi, packContainers.value)) {
       return false
     }
     return looseQtyForPackItem(pi, 'confirmed_packed') >= 1
@@ -3917,11 +3917,13 @@ async function onReturnCrateModalSubmit(): Promise<void> {
 
   const steps: ReturnCrateBatchStep[] = returnCrateModalLines.value
     .filter((line) => !line.isConsumable && line.included && line.qty > 0)
-    .map((line) => ({
-      kind: line.kind === 'shell' ? 'shell' : 'line',
-      containerItemId: line.containerItemId,
-      qty: line.qty,
-    }))
+    .map(
+      (line): ReturnCrateBatchStep => ({
+        kind: line.kind === 'shell' ? 'shell' : 'line',
+        containerItemId: line.containerItemId,
+        qty: line.qty,
+      }),
+    )
     .sort((a, b) => (a.kind === 'shell' ? 1 : 0) - (b.kind === 'shell' ? 1 : 0))
 
   if (steps.length === 0) {

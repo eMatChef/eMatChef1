@@ -44,8 +44,7 @@ const props = withDefaults(
 )
 
 const { t } = useI18n()
-const ctx = inject(PACK_WAREHOUSE_ISSUE_INJECT_KEY) as Record<string, (...args: unknown[]) => unknown> &
-  Record<string, unknown>
+const ctx = inject(PACK_WAREHOUSE_ISSUE_INJECT_KEY)!
 
 const packListEditable = computed(() => injectPackCtxBool(ctx, 'packListEditable'))
 const packForwardEditable = computed(() => injectPackCtxBool(ctx, 'packForwardEditable'))

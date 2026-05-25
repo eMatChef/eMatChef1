@@ -16,7 +16,7 @@ const props = defineProps<{
 }>()
 
 const { t } = useI18n()
-const ctx = inject(PACK_WAREHOUSE_ISSUE_INJECT_KEY) as Record<string, (...args: unknown[]) => unknown>
+const ctx = inject(PACK_WAREHOUSE_ISSUE_INJECT_KEY)!
 
 const innerVisible = computed(
   () => !(ctx.isPackContainerCollapsed as (id: string) => boolean)(props.container.id),

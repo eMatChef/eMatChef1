@@ -388,7 +388,7 @@ const allAddressTypeKeys = Object.keys(ADDRESS_TYPES) as (keyof typeof ADDRESS_T
 
 const visibleAddressTypeKeys = computed(() => {
   if (props.allowedTypes?.length) {
-    return allAddressTypeKeys.filter((key) => props.allowedTypes!.includes(key))
+    return allAddressTypeKeys.filter((key) => props.allowedTypes!.includes(String(key)))
   }
   return allAddressTypeKeys
 })
