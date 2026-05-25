@@ -305,6 +305,45 @@
   margin-left: 6px;
 }
 
+.deleted-badge {
+  display: inline-flex;
+  padding: 2px 8px;
+  background: #fef3c7;
+  color: #92400e;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 600;
+  margin-left: 6px;
+}
+
+.contact-row--deleted {
+  opacity: 0.75;
+  background: #fafafa;
+}
+
+.contact-row--deleted .contact-name,
+.contact-row--deleted .address-street,
+.contact-row--deleted .address-city {
+  text-decoration: line-through;
+  color: #6b7280;
+}
+
+.show-deleted-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: #374151;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.action-btn--danger:hover {
+  background: #fef2f2;
+  color: #dc2626;
+  border-color: #fecaca;
+}
+
 /* Responsive */
 @media (max-width: 1024px) {
   .contacts-table-wrapper {

@@ -1976,26 +1976,30 @@
                 <div class="details-subsection">
                   <h4 class="subsection-title">{{ t('components.materialDetail.sectionDetails') }}</h4>
                   <div class="form-grid-details">
-                    <div class="form-group">
-                      <label>{{ t('components.materialDetail.labelWeightKg') }}</label>
-                      <input v-model="formData.weight" type="text" class="form-input" />
-                    </div>
+                    <MaterialMetricInput
+                      v-model="formData.weight"
+                      :label="t('components.materialDetail.labelWeightKg')"
+                      unit="kg"
+                    />
                     <div class="form-group">
                       <label>{{ t('components.materialDetail.labelColor') }}</label>
                       <input v-model="formData.color" type="text" class="form-input" />
                     </div>
-                    <div class="form-group">
-                      <label>{{ t('components.materialDetail.labelLengthCm') }}</label>
-                      <input v-model="formData.size_length" type="text" class="form-input" />
-                    </div>
-                    <div class="form-group">
-                      <label>{{ t('components.materialDetail.labelWidthCm') }}</label>
-                      <input v-model="formData.size_width" type="text" class="form-input" />
-                    </div>
-                    <div class="form-group">
-                      <label>{{ t('components.materialDetail.labelHeightCm') }}</label>
-                      <input v-model="formData.size_height" type="text" class="form-input" />
-                    </div>
+                    <MaterialMetricInput
+                      v-model="formData.size_length"
+                      :label="t('components.materialDetail.labelLengthCm')"
+                      unit="cm"
+                    />
+                    <MaterialMetricInput
+                      v-model="formData.size_width"
+                      :label="t('components.materialDetail.labelWidthCm')"
+                      unit="cm"
+                    />
+                    <MaterialMetricInput
+                      v-model="formData.size_height"
+                      :label="t('components.materialDetail.labelHeightCm')"
+                      unit="cm"
+                    />
                     <div class="form-group">
                       <label>{{ t('components.materialDetail.labelWarranty') }}</label>
                       <input v-model="formData.warranty_until" type="date" class="form-input" />
@@ -2009,6 +2013,34 @@
                       rows="3"
                       :placeholder="t('components.materialCreateWizard.phDescriptionOptional')"
                     ></textarea>
+                  </div>
+                </div>
+
+                <!-- Packmaß (Verpackungseinheit) -->
+                <div class="details-subsection">
+                  <h4 class="subsection-title">{{ t('components.materialDetail.sectionPackDimensions') }}</h4>
+                  <p class="step-hint">{{ t('components.materialDetail.packDimensionsHint') }}</p>
+                  <div class="form-grid-details">
+                    <MaterialMetricInput
+                      v-model="formData.pack_weight"
+                      :label="t('components.materialDetail.labelPackWeightKg')"
+                      unit="kg"
+                    />
+                    <MaterialMetricInput
+                      v-model="formData.pack_size_length"
+                      :label="t('components.materialDetail.labelPackLengthCm')"
+                      unit="cm"
+                    />
+                    <MaterialMetricInput
+                      v-model="formData.pack_size_width"
+                      :label="t('components.materialDetail.labelPackWidthCm')"
+                      unit="cm"
+                    />
+                    <MaterialMetricInput
+                      v-model="formData.pack_size_height"
+                      :label="t('components.materialDetail.labelPackHeightCm')"
+                      unit="cm"
+                    />
                   </div>
                 </div>
 
@@ -2395,6 +2427,8 @@ import MaterialPreviewSidebar from '@/components/material/wizard/MaterialPreview
 import WizardFooter from '@/components/material/wizard/WizardFooter.vue'
 import MaterialNameInput from '@/components/material/wizard/MaterialNameInput.vue'
 import RentalPriceAmortizationCalculator from '@/components/material/RentalPriceAmortizationCalculator.vue'
+import MaterialMetricInput from '@/components/material/MaterialMetricInput.vue'
+import { normalizeMaterialMetricInput } from '@/utils/materialMetricUnits'
 import {
   getRentalAmortizationDefaults,
   DEFAULT_RENTAL_AMORTIZATION,
@@ -2764,6 +2798,10 @@ const formData = reactive({
   pack_size: null as number | null,
   pack_unit: '' as string,
   pack_sale_price_chf: null as number | null,
+  pack_weight: '' as string,
+  pack_size_length: '' as string,
+  pack_size_width: '' as string,
+  pack_size_height: '' as string,
   initial_qty: 0,
   purchase_date: getTodayIso(),
   expiry_date: '',
@@ -3786,6 +3824,10 @@ function resetForm() {
   formData.pack_size = null
   formData.pack_unit = ''
   formData.pack_sale_price_chf = null
+  formData.pack_weight = ''
+  formData.pack_size_length = ''
+  formData.pack_size_width = ''
+  formData.pack_size_height = ''
   formData.initial_qty = 0
   formData.purchase_date = getTodayIso()
   formData.expiry_date = ''
@@ -5331,12 +5373,16 @@ async function handleSubmit() {
         manufacturer: formData.manufacturer || null,
         model: formData.model || null,
         ean: formData.ean || null,
-        weight: formData.weight || null,
+        weight: normalizeMaterialMetricInput(formData.weight, 'kg'),
         color: formData.color || null,
-        size_length: formData.size_length || null,
-        size_width: formData.size_width || null,
-        size_height: formData.size_height || null,
+        size_length: normalizeMaterialMetricInput(formData.size_length, 'cm'),
+        size_width: normalizeMaterialMetricInput(formData.size_width, 'cm'),
+        size_height: normalizeMaterialMetricInput(formData.size_height, 'cm'),
         warranty_until: formData.warranty_until || null,
+        pack_weight: normalizeMaterialMetricInput(formData.pack_weight, 'kg'),
+        pack_size_length: normalizeMaterialMetricInput(formData.pack_size_length, 'cm'),
+        pack_size_width: normalizeMaterialMetricInput(formData.pack_size_width, 'cm'),
+        pack_size_height: normalizeMaterialMetricInput(formData.pack_size_height, 'cm'),
         rental_price_day: formData.rental_price_day || null,
         rental_price_week: formData.rental_price_week || null,
         rental_price_month: formData.rental_price_month || null,
@@ -5473,6 +5519,10 @@ async function handleSubmit() {
           formData.pack_sale_price_chf != null && formData.pack_sale_price_chf > 0
             ? String(formData.pack_sale_price_chf)
             : null,
+        pack_weight: normalizeMaterialMetricInput(formData.pack_weight, 'kg'),
+        pack_size_length: normalizeMaterialMetricInput(formData.pack_size_length, 'cm'),
+        pack_size_width: normalizeMaterialMetricInput(formData.pack_size_width, 'cm'),
+        pack_size_height: normalizeMaterialMetricInput(formData.pack_size_height, 'cm'),
         initial_acquired_on: formData.purchase_date,
         initial_expiry_date: expiryDatePayload,
         initial_unit_price: formData.unit_price > 0 ? String(formData.unit_price) : undefined,
@@ -5498,11 +5548,11 @@ async function handleSubmit() {
         barcode_tag: formData.barcode_tag || null,
         model: formData.model || null,
         ean: formData.ean || null,
-        weight: formData.weight || null,
+        weight: normalizeMaterialMetricInput(formData.weight, 'kg'),
         color: formData.color || null,
-        size_length: formData.size_length || null,
-        size_width: formData.size_width || null,
-        size_height: formData.size_height || null,
+        size_length: normalizeMaterialMetricInput(formData.size_length, 'cm'),
+        size_width: normalizeMaterialMetricInput(formData.size_width, 'cm'),
+        size_height: normalizeMaterialMetricInput(formData.size_height, 'cm'),
         warranty_until: formData.warranty_until || null,
         // Vermietung
         rental_price_day: formData.rental_price_day || null,

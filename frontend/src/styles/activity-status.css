@@ -1,0 +1,125 @@
+/**
+ * Einheitliche Farben für Aktivitäts-Status (Dashboard, Aktivitäten-Liste, Detail, Infoscreen).
+ * Siehe docs/activities/status.md
+ */
+:root {
+  --activity-status-draft: #9ca3af;
+  --activity-status-submitted: #3b82f6;
+  --activity-status-approved: #10b981;
+  --activity-status-packing: #f59e0b;
+  --activity-status-packed: var(--color-primary);
+  --activity-status-at_event: #047857;
+  --activity-status-returned: #06b6d4;
+  --activity-status-completed: #6b7280;
+  --activity-status-cancelled: #ef4444;
+
+  --activity-status-draft-bg: #f3f4f6;
+  --activity-status-draft-fg: #4b5563;
+  --activity-status-submitted-bg: #dbeafe;
+  --activity-status-submitted-fg: #1e40af;
+  --activity-status-approved-bg: #d1fae5;
+  --activity-status-approved-fg: #065f46;
+  --activity-status-packing-bg: #ffedd5;
+  --activity-status-packing-fg: #9a3412;
+  --activity-status-packed-bg: var(--color-primary-subtle-bg);
+  --activity-status-packed-fg: var(--color-primary-dark);
+  --activity-status-at_event-bg: #a7f3d0;
+  --activity-status-at_event-fg: #047857;
+  --activity-status-returned-bg: #cffafe;
+  --activity-status-returned-fg: #0e7490;
+  --activity-status-completed-bg: #f3f4f6;
+  --activity-status-completed-fg: #4b5563;
+  --activity-status-cancelled-bg: #fee2e2;
+  --activity-status-cancelled-fg: #991b1b;
+}
+
+.status-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.status-dot.draft { background: var(--activity-status-draft); }
+.status-dot.submitted { background: var(--activity-status-submitted); }
+.status-dot.approved { background: var(--activity-status-approved); }
+.status-dot.packing { background: var(--activity-status-packing); }
+.status-dot.packed { background: var(--activity-status-packed); }
+.status-dot.at_event { background: var(--activity-status-at_event); }
+.status-dot.returned { background: var(--activity-status-returned); }
+.status-dot.completed { background: var(--activity-status-completed); }
+.status-dot.cancelled { background: var(--activity-status-cancelled); }
+
+.status-label,
+.status-pill.activity-status {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.status-pill.activity-status {
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 2px 8px;
+}
+
+.status-label.draft,
+.status-pill.activity-status.draft {
+  background: var(--activity-status-draft-bg);
+  color: var(--activity-status-draft-fg);
+}
+.status-label.submitted,
+.status-pill.activity-status.submitted {
+  background: var(--activity-status-submitted-bg);
+  color: var(--activity-status-submitted-fg);
+}
+.status-label.approved,
+.status-pill.activity-status.approved {
+  background: var(--activity-status-approved-bg);
+  color: var(--activity-status-approved-fg);
+}
+.status-label.packing,
+.status-pill.activity-status.packing {
+  background: var(--activity-status-packing-bg);
+  color: var(--activity-status-packing-fg);
+}
+.status-label.packed,
+.status-pill.activity-status.packed {
+  background: var(--activity-status-packed-bg);
+  color: var(--activity-status-packed-fg);
+}
+.status-label.at_event,
+.status-pill.activity-status.at_event {
+  background: var(--activity-status-at_event-bg);
+  color: var(--activity-status-at_event-fg);
+}
+.status-label.returned,
+.status-pill.activity-status.returned {
+  background: var(--activity-status-returned-bg);
+  color: var(--activity-status-returned-fg);
+}
+.status-label.completed,
+.status-pill.activity-status.completed {
+  background: var(--activity-status-completed-bg);
+  color: var(--activity-status-completed-fg);
+}
+.status-label.cancelled,
+.status-pill.activity-status.cancelled {
+  background: var(--activity-status-cancelled-bg);
+  color: var(--activity-status-cancelled-fg);
+}
+
+/* Filter-Chips / Stat-Zähler in Aktivitäten-Übersicht */
+.status-dot.confirmed { background: var(--activity-status-submitted); }
+.status-dot.active { background: var(--activity-status-approved); }
+.status-label.confirmed {
+  background: var(--activity-status-submitted-bg);
+  color: var(--activity-status-submitted-fg);
+}
+.status-label.active {
+  background: var(--activity-status-approved-bg);
+  color: var(--activity-status-approved-fg);
+}

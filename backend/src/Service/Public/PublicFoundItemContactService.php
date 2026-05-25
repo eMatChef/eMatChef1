@@ -3,12 +3,11 @@
 namespace App\Service\Public;
 
 use App\Entity\Department;
-use App\Entity\PublicFoundItemMessage;
+use App\Service\InboxMessageService;
 use App\Service\Mail\AppMailer;
 use App\Service\Mail\MailOutboundSettingsStore;
 use App\Service\Mail\MailSendLogStore;
 use App\Service\Mail\MailTemplateContentStore;
-use App\Util\IdGenerator;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\Mime\Email;
 
@@ -21,6 +20,7 @@ class PublicFoundItemContactService
         private MailSendLogStore $mailSendLog,
         private MailTemplateContentStore $mailTemplateContent,
         private EntityManagerInterface $entityManager,
+        private InboxMessageService $inboxMessages,
     ) {
     }
 
@@ -46,7 +46,7 @@ class PublicFoundItemContactService
         if ($publicCode === '') {
             return ['error' => $api('public_code'), 'status' => 400];
         }
-        if (!in_array($entityType, ['material', 'batch'], true)) {
+        if (!in_array($entityType, ['material', 'batch', 'activity', 'workshop'], true)) {
             return ['error' => $api('entity_type'), 'status' => 400];
         }
         if ($message === '') {
@@ -65,9 +65,12 @@ class PublicFoundItemContactService
             return ['error' => $api('email_invalid'), 'status' => 400];
         }
 
-        $lookup = $entityType === 'batch'
-            ? $this->publicCodeService->resolveBatchByPublicCode($publicCode)
-            : $this->publicCodeService->resolveMaterialByPublicCode($publicCode);
+        $lookup = match ($entityType) {
+            'batch' => $this->publicCodeService->resolveBatchByPublicCode($publicCode),
+            'activity' => $this->publicCodeService->resolveActivityByPublicCode($publicCode),
+            'workshop' => $this->publicCodeService->resolveWorkshopByPublicCode($publicCode),
+            default => $this->publicCodeService->resolveMaterialByPublicCode($publicCode),
+        };
 
         if ($lookup === null) {
             return ['error' => $api('code_not_found'), 'status' => 404];
@@ -96,12 +99,42 @@ class PublicFoundItemContactService
             return ['error' => $api('to_required'), 'status' => 400];
         }
 
-        $materialName = (string) ($lookup['material']['name'] ?? '');
+        $materialName = match ($entityType) {
+            'activity' => (string) ($lookup['activity']['name'] ?? ''),
+            'workshop' => (string) ($lookup['workshop']['title'] ?? $lookup['workshop']['material_name'] ?? ''),
+            default => (string) ($lookup['material']['name'] ?? ''),
+        };
         $deptName = (string) ($lookup['department']['name'] ?? '');
         $locMail = $this->mailTemplateContent->resolveMailLocale(null);
         $tplForLines = $this->mailTemplateContent->getTemplate('public.found_item_contact', $locMail) ?? [];
         $serialLine = '';
-        if (($lookup['entity_type'] ?? '') === 'batch') {
+        if ($entityType === 'activity') {
+            $act = $lookup['activity'] ?? [];
+            $type = trim((string) ($act['type'] ?? ''));
+            $no = $act['no'] ?? null;
+            $period = trim(implode(' – ', array_filter([
+                $act['usage_start'] ?? $act['planning_start'] ?? '',
+                $act['usage_end'] ?? $act['planning_end'] ?? '',
+            ])));
+            $parts = array_filter([
+                $type !== '' ? $type : null,
+                $no !== null && $no !== '' ? '#' . $no : null,
+                $period !== '' ? $period : null,
+            ]);
+            if ($parts !== []) {
+                $serialLine = implode(' · ', $parts) . "\n";
+            }
+        } elseif ($entityType === 'workshop') {
+            $ws = $lookup['workshop'] ?? [];
+            $parts = array_filter([
+                trim((string) ($ws['type'] ?? '')),
+                trim((string) ($ws['status'] ?? '')),
+                trim((string) ($ws['material_name'] ?? '')),
+            ]);
+            if ($parts !== []) {
+                $serialLine = implode(' · ', $parts) . "\n";
+            }
+        } elseif (($lookup['entity_type'] ?? '') === 'batch') {
             $b = $lookup['batch'] ?? [];
             $serial = trim((string) ($b['serial_number'] ?? ''));
             $label = trim((string) ($b['label'] ?? ''));
@@ -113,11 +146,16 @@ class PublicFoundItemContactService
             );
         }
 
-        $publicUrl = $entityType === 'batch'
-            ? $this->publicCodeService->buildBatchPublicUrl($publicCode)
-            : $this->publicCodeService->buildMaterialPublicUrl($publicCode);
+        $publicUrl = $this->publicCodeService->resolvePublicUrlFromLookup($entityType, $lookup, $publicCode);
+        if ($publicUrl === '') {
+            return ['error' => $api('code_not_found'), 'status' => 404];
+        }
 
-        $materialId = (string) ($lookup['material']['id'] ?? '');
+        $materialId = match ($entityType) {
+            'activity' => (string) ($lookup['activity']['id'] ?? ''),
+            'workshop' => (string) ($lookup['workshop']['id'] ?? ''),
+            default => (string) ($lookup['material']['id'] ?? ''),
+        };
         $batchId = $entityType === 'batch' ? (string) (($lookup['batch']['id'] ?? '') ?: '') : '';
 
         $publicFoundMailTpl = null;
@@ -210,24 +248,19 @@ class PublicFoundItemContactService
             return;
         }
 
-        $msg = new PublicFoundItemMessage();
-        $msg->setId(IdGenerator::generate12UniqueWithPrefix($this->entityManager, PublicFoundItemMessage::class, 'pf'));
-        $msg->setDepartment($dept);
-        $msg->setEntityType($entityType);
-        $msg->setMaterialId($materialId);
-        $msg->setBatchId($batchId);
-        $msg->setPublicCode($publicCode);
-        $msg->setMaterialName($materialName);
-        $msg->setDepartmentName($departmentName);
-        $msg->setSerialLine($serialLine);
-        $msg->setMessage($message);
-        $msg->setSenderName($senderName);
-        $msg->setSenderEmail($senderEmail);
-        $msg->setPublicUrl($publicUrl);
-        $msg->setCreatedAt(new \DateTime());
-        $msg->setStatus(PublicFoundItemMessage::STATUS_OPEN);
-
-        $this->entityManager->persist($msg);
-        $this->entityManager->flush();
+        $this->inboxMessages->createQrFoundMessage(
+            $dept,
+            $entityType,
+            $materialId,
+            $batchId,
+            $publicCode,
+            $materialName,
+            $departmentName,
+            $serialLine,
+            $message,
+            $senderName,
+            $senderEmail,
+            $publicUrl,
+        );
     }
 }

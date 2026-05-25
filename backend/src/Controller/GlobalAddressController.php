@@ -46,6 +46,7 @@ class GlobalAddressController extends AbstractController
             ->andWhere('a.type = :type')
             ->setParameter('departmentId', GlobalSystemSeedDefaults::DEPARTMENT_ID)
             ->setParameter('type', self::GLOBAL_ADDRESS_TYPE)
+            ->andWhere('a.deletedAt IS NULL')
             ->orderBy('a.company', 'ASC')
             ->addOrderBy('a.name', 'ASC');
 
@@ -113,7 +114,7 @@ class GlobalAddressController extends AbstractController
         }
 
         $address = $this->entityManager->getRepository(Address::class)->find($id);
-        if (!$address || !$this->isGlobalSupplierAddress($address)) {
+        if (!$address || !$this->isGlobalSupplierAddress($address) || $address->isDeleted()) {
             return new JsonResponse(['error' => 'Globale Adresse nicht gefunden'], 404);
         }
 
@@ -148,11 +149,18 @@ class GlobalAddressController extends AbstractController
             return new JsonResponse(['error' => 'Globale Adresse nicht gefunden'], 404);
         }
 
+        if ($address->isDeleted()) {
+            return new JsonResponse(['error' => 'Globale Adresse wurde bereits geloescht'], 410);
+        }
+
         try {
-            $this->entityManager->remove($address);
+            $user = $this->getUser();
+            $address->setDeletedAt(new \DateTime());
+            $address->setDeletedByUserId($user instanceof \App\Entity\User ? $user->getId() : null);
+            $address->updateTimestamps();
             $this->entityManager->flush();
 
-            return new JsonResponse(['message' => 'Globale Adresse geloescht']);
+            return new JsonResponse(['message' => 'Globale Adresse in den Papierkorb verschoben']);
         } catch (\Exception $exception) {
             return new JsonResponse(['error' => 'Fehler beim Loeschen: ' . $exception->getMessage()], 500);
         }
@@ -205,6 +213,12 @@ class GlobalAddressController extends AbstractController
         }
         if (array_key_exists('country', $data) && $data['country'] !== null && $data['country'] !== '') {
             $address->setCountry((string) $data['country']);
+        }
+        if (array_key_exists('contact_first_name', $data)) {
+            $address->setContactFirstName($data['contact_first_name']);
+        }
+        if (array_key_exists('contact_last_name', $data)) {
+            $address->setContactLastName($data['contact_last_name']);
         }
         if (array_key_exists('email', $data)) {
             $address->setEmail($data['email']);

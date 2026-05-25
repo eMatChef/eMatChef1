@@ -81,6 +81,9 @@ export interface DepartmentMember {
   last_name: string | null
   nickname: string | null
   email: string
+  avatar_initials?: string | null
+  background_color?: string | null
+  text_color?: string | null
   role: string
   is_primary: boolean
   state: string
@@ -106,12 +109,16 @@ export async function getDepartmentMembers(departmentId: string): Promise<Depart
 /**
  * Mitglied zu Department hinzufügen
  */
+export interface AddDepartmentMemberResult extends DepartmentMember {
+  notification_email_sent?: boolean
+}
+
 export async function addDepartmentMember(departmentId: string, data: {
   user_id: string
   role?: string
   is_primary?: boolean
-}): Promise<DepartmentMember> {
-  const response = await apiClient.post<DepartmentMember>(`/api/departments/${departmentId}/members`, data)
+}): Promise<AddDepartmentMemberResult> {
+  const response = await apiClient.post<AddDepartmentMemberResult>(`/api/departments/${departmentId}/members`, data)
   return response.data
 }
 

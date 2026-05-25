@@ -39,7 +39,7 @@
         </thead>
         <tbody>
           <tr v-for="item in items" :key="item.id">
-            <td>{{ item.entity_type }}</td>
+            <td>{{ entityTypeLabel(item.entity_type) }}</td>
             <td>{{ item.label }}</td>
             <td><code>{{ item.public_code || t('tasksPrint.codeFallback') }}</code></td>
             <td>{{ formatDate(item.created_at) }}</td>
@@ -91,6 +91,12 @@ async function load() {
   } finally {
     isLoading.value = false
   }
+}
+
+function entityTypeLabel(entityType: string): string {
+  const key = `tasksPrint.entityTypes.${entityType}`
+  const label = t(key)
+  return label !== key ? label : entityType
 }
 
 function formatDate(value: string): string {

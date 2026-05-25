@@ -1,0 +1,28 @@
+/* Activity type pills (list, detail, workshop activity context) */
+.type-badge {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.type-badge.activity {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.type-badge.event {
+  background: #fce7f3;
+  color: #be185d;
+}
+
+.type-badge.camp {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.type-badge.external {
+  background: #fef3c7;
+  color: #92400e;
+}

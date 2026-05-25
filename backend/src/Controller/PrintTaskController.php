@@ -54,6 +54,10 @@ class PrintTaskController extends AbstractController
         if ($departmentId === '' || $entityType === '' || $entityId === '' || $publicUrl === '') {
             return new JsonResponse(['error' => 'department_id, entity_type, entity_id und public_url sind erforderlich'], 400);
         }
+        $urlCheck = $this->assertValidPublicUrl($entityType, $publicUrl);
+        if ($urlCheck instanceof JsonResponse) {
+            return $urlCheck;
+        }
         $accessCheck = $this->assertDepartmentAccess($departmentId);
         if ($accessCheck instanceof JsonResponse) return $accessCheck;
 
@@ -115,6 +119,9 @@ class PrintTaskController extends AbstractController
             $publicCode = isset($row['public_code']) ? trim((string) $row['public_code']) : null;
             $publicUrl = trim((string) ($row['public_url'] ?? ''));
             if ($entityType === '' || $entityId === '' || $publicUrl === '') {
+                continue;
+            }
+            if ($this->assertValidPublicUrl($entityType, $publicUrl) instanceof JsonResponse) {
                 continue;
             }
 
@@ -222,6 +229,26 @@ class PrintTaskController extends AbstractController
             'created_at' => $item->getCreatedAt()->format('c'),
             'printed_at' => $item->getPrintedAt()?->format('c'),
         ];
+    }
+
+    /**
+     * Erlaubte entity_type: batch (Material+Charge), activity, workshop.
+     * public_url muss zum QR-Schema passen (kein /i/b/-Only).
+     */
+    private function assertValidPublicUrl(string $entityType, string $publicUrl): true|JsonResponse
+    {
+        $path = (string) (parse_url($publicUrl, PHP_URL_PATH) ?? '');
+        $ok = match (strtolower($entityType)) {
+            'batch', 'material' => (bool) preg_match('#^/i/m/[^/]+/b/[^/]+/?$#', $path),
+            'activity' => (bool) preg_match('#^/i/a/[^/]+/?$#', $path),
+            'workshop' => (bool) preg_match('#^/i/w/[^/]+/?$#', $path),
+            default => false,
+        };
+        if (!$ok) {
+            return new JsonResponse(['error' => 'public_url entspricht nicht dem QR-Schema'], 400);
+        }
+
+        return true;
     }
 
     private function assertDepartmentAccess(string $departmentId): true|JsonResponse

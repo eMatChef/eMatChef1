@@ -5,9 +5,15 @@ import apiClient from './apiClient'
 export interface GroupMember {
   user_id: string
   name: string
+  first_name?: string | null
+  last_name?: string | null
+  nickname?: string | null
   email: string
-  role: string        // 'mw' | 'dc' | 'l1' | 'l2' | 'l3' | 'u'
-  role_label: string  // 'Materialchef' | 'Leader 1' | ...
+  avatar_initials?: string | null
+  background_color?: string | null
+  text_color?: string | null
+  role: string        // 'leader' | 'member' (+ Dept-Rolle in role_label)
+  role_label: string
   is_leader: boolean
   is_primary: boolean
 }

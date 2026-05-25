@@ -129,6 +129,7 @@ onUnmounted(() => {
   color: #64748b;
   margin: 0 0 24px 0;
   line-height: 1.5;
+  white-space: pre-line;
 }
 
 .confirm-actions {

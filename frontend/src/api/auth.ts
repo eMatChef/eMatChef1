@@ -117,6 +117,21 @@ export interface ProfileResponse {
   text_color?: string
 }
 
+/** API liefert snake_case; Store/UI nutzen beides – einheitlich normalisieren. */
+export function normalizeProfile(
+  raw: LoginResponse['profile'] | ProfileResponse
+): ProfileResponse {
+  return {
+    ...raw,
+    firstName: raw.firstName ?? raw.first_name ?? undefined,
+    lastName: raw.lastName ?? raw.last_name ?? undefined,
+    avatarInitials: raw.avatarInitials ?? raw.avatar_initials ?? undefined,
+    pendingEmail: raw.pendingEmail ?? raw.pending_email ?? undefined,
+    backgroundColor: raw.backgroundColor ?? raw.background_color ?? undefined,
+    textColor: raw.textColor ?? raw.text_color ?? undefined,
+  }
+}
+
 export interface UpdateProfilePayload {
   email?: string
   first_name?: string
@@ -349,10 +364,19 @@ export async function loadSession(): Promise<{ user: UserResponse; profile: Prof
 
 /**
  * Lädt Session rein über serverseitige Auth-Cookies (ohne localStorage IDs).
+ * 401 = nicht eingeloggt (kein Fehler werfen — optionaler Probe-Call).
  */
-export async function loadSessionFromServer(): Promise<ServerSessionResponse> {
-  const { data } = await apiClient.get<ServerSessionResponse>('/api/auth/session')
-  return data
+export async function loadSessionFromServer(): Promise<ServerSessionResponse | null> {
+  try {
+    const { data } = await apiClient.get<ServerSessionResponse>('/api/auth/session')
+    return data
+  } catch (err: unknown) {
+    const status = (err as { response?: { status?: number } })?.response?.status
+    if (status === 401 || status === 403) {
+      return null
+    }
+    throw err
+  }
 }
 
 /**

@@ -5,7 +5,7 @@
       <aside class="settings-menu">
         <nav class="settings-nav">
           <router-link
-            v-for="item in allMenuItems"
+            v-for="item in visibleMenuItems"
             :key="item.id"
             :to="getSettingsLink(`/${item.id}`)"
             class="settings-nav-item"
@@ -34,16 +34,13 @@ import { computed, markRaw } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'
-import IconSettings from '@/components/icons/IconSettings.vue'
-import IconContacts from '@/components/icons/IconContacts.vue'
-import IconEmployees from '@/components/icons/IconEmployees.vue'
-import IconDashboard from '@/components/icons/IconDashboard.vue'
-import IconActivities from '@/components/icons/IconActivities.vue'
-import IconMaterials from '@/components/icons/IconMaterials.vue'
+import { useDepartmentMemberRole } from '@/composables/useDepartmentMemberRole'
+import { IconSettings, IconContacts, IconEmployees, IconDashboard, IconActivities, IconMaterials, IconDisplay } from '@/components/icons'
 
 const route = useRoute()
 const authStore = useAuthStore()
 const { t } = useI18n()
+const { isUserRole } = useDepartmentMemberRole()
 
 // Department-ID aus Route oder Store
 const departmentId = computed(() => {
@@ -68,6 +65,9 @@ function isSettingsItemActive(itemId: string): boolean {
   if (itemId === 'my-department/join-code') {
     return p === `${base}/my-department/join-code`
   }
+  if (itemId === 'my-department/display-screens') {
+    return p === `${base}/my-department/display-screens`
+  }
   if (itemId === 'my-department/storage-locations') {
     return p === `${base}/my-department/storage-locations`
   }
@@ -83,23 +83,32 @@ function isSettingsItemActive(itemId: string): boolean {
 // Nav-Labels: nur in de.json (Crowdin); andere Locales nutzen i18n-Fallback auf Deutsch.
 const allMenuItems = computed(() => [
   { id: 'my-department', label: t('settings.nav.myDepartment'), icon: markRaw(IconDashboard) },
-  { id: 'zeit', label: t('settings.nav.timeLocation'), icon: markRaw(IconSettings) },
+  { id: 'users', label: t('settings.nav.users'), icon: markRaw(IconEmployees) },
+  { id: 'groups', label: t('settings.nav.groups'), icon: markRaw(IconContacts) },
+  { id: 'categories', label: t('settings.nav.categories'), icon: markRaw(IconDashboard) },
+  { id: 'storage', label: t('settings.nav.storage'), icon: markRaw(IconMaterials) },
   { id: 'my-department/join-code', label: t('settings.nav.joinCode'), icon: markRaw(IconEmployees) },
+  { id: 'my-department/display-screens', label: t('settings.nav.displayScreens'), icon: markRaw(IconDisplay) },
+  { id: 'activities', label: t('settings.nav.activities'), icon: markRaw(IconActivities) },
   { id: 'my-department/storage-locations', label: t('settings.nav.storageLocations'), icon: markRaw(IconMaterials) },
   { id: 'my-department/billing-address', label: t('settings.nav.billingAddress'), icon: markRaw(IconContacts) },
-  { id: 'addons', label: t('settings.nav.addons'), icon: markRaw(IconActivities) },
   {
     id: 'my-department/public-material-page',
     label: t('settings.nav.publicMaterialPage'),
     icon: markRaw(IconMaterials)
   },
-  { id: 'categories', label: t('settings.nav.categories'), icon: markRaw(IconDashboard) },
-  { id: 'users', label: t('settings.nav.users'), icon: markRaw(IconEmployees) },
-  { id: 'groups', label: t('settings.nav.groups'), icon: markRaw(IconContacts) },
-  { id: 'activities', label: t('settings.nav.activities'), icon: markRaw(IconActivities) },
-  { id: 'storage', label: t('settings.nav.storage'), icon: markRaw(IconMaterials) },
-  { id: 'templates', label: t('settings.nav.templates'), icon: markRaw(IconSettings) }
+  { id: 'templates', label: t('settings.nav.templates'), icon: markRaw(IconSettings) },
+  { id: 'zeit', label: t('settings.nav.timeLocation'), icon: markRaw(IconSettings) },
+  { id: 'addons', label: t('settings.nav.addons'), icon: markRaw(IconActivities) }
 ])
+
+const USER_ALLOWED_MENU_IDS = new Set(['my-department', 'groups'])
+
+const visibleMenuItems = computed(() =>
+  isUserRole.value
+    ? allMenuItems.value.filter((item) => USER_ALLOWED_MENU_IDS.has(item.id))
+    : allMenuItems.value
+)
 
 </script>
 

@@ -142,7 +142,7 @@
 
       <!-- Statistik -->
       <router-link
-        v-if="!isPendingAssignmentRoute && showDeptContextSidebarLinks"
+        v-if="!isPendingAssignmentRoute && showDeptContextSidebarLinks && showStatisticsMenu"
         :to="getLink('/statistics')"
         class="nav-item"
         :class="{ active: $route.path.includes('/statistics') }"
@@ -175,17 +175,20 @@ import { ref, computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'
+import { isDepartmentBasicMemberRole } from '@/composables/useDepartmentMemberRole'
 import EmcLogoMark from '@/components/brand/EmcLogoMark.vue'
-import IconDashboard from '@/components/icons/IconDashboard.vue'
-import IconActivities from '@/components/icons/IconActivities.vue'
-import IconMaterials from '@/components/icons/IconMaterials.vue'
-import IconAccounting from '@/components/icons/IconAccounting.vue'
-import IconContacts from '@/components/icons/IconContacts.vue'
-import IconTasks from '@/components/icons/IconTasks.vue'
-import IconBell from '@/components/icons/IconBell.vue'
-import IconWorkshop from '@/components/icons/IconWorkshop.vue'
-import IconStatistics from '@/components/icons/IconStatistics.vue'
-import IconSettings from '@/components/icons/IconSettings.vue'
+import {
+  IconDashboard,
+  IconActivities,
+  IconMaterials,
+  IconAccounting,
+  IconContacts,
+  IconTasks,
+  IconBell,
+  IconWorkshop,
+  IconStatistics,
+  IconSettings,
+} from '@/components/icons'
 
 const route = useRoute()
 const { t } = useI18n()
@@ -260,7 +263,14 @@ const hasGlobalAdminAccess = computed(() =>
 
 const showActivitiesMenu = computed(() => !isSuperAdmin.value)
 const showMaterialsMenu = computed(() => !isSuperAdmin.value)
-const showWorkshopMenu = computed(() => !isSuperAdmin.value)
+/** Werkstatt: nicht für Basissicht (u, l1–l3) — nur MW/DC */
+const showWorkshopMenu = computed(() => {
+  if (isSuperAdmin.value) return false
+  return !isDepartmentBasicMemberRole(authStore.currentDepartmentRole)
+})
+
+/** Statistik: wie Werkstatt — nicht für Basissicht */
+const showStatisticsMenu = computed(() => !isDepartmentBasicMemberRole(authStore.currentDepartmentRole))
 
 /** Buchhaltung: nur Materialchef (mw) oder Departmentchef (dc) im aktuellen Department */
 const showAccountingMenu = computed(() => {

@@ -6,13 +6,18 @@ use App\Entity\AdminJoinRequest;
 use App\Entity\AdminJoinRequestEvent;
 use App\Entity\Department;
 use App\Entity\DepartmentSetting;
+use App\Entity\Group;
+use App\Entity\GroupMembership;
 use App\Entity\JoinRequest;
 use App\Entity\Membership;
 use App\Entity\Organisation;
+use App\Entity\Profile;
 use App\Entity\User;
 use App\Service\AuditLogger;
 use App\Service\Mail\MailTemplateContentStore;
 use App\Service\OrganisationUserPickerFilter;
+use App\Service\InboxMessageService;
+use App\Service\UserDepartmentInviteNotificationService;
 use App\Service\VerificationEmailService;
 use App\Util\IdGenerator;
 use Doctrine\ORM\EntityManagerInterface;
@@ -31,7 +36,6 @@ class JoinRequestController extends AbstractController
     private const INVITE_CODE_SETTING_KEY = 'join.invite_code';
     private const VALID_MEMBER_ROLES = ['mw', 'dc', 'l1', 'l2', 'l3', 'u'];
     private const PENDING_INVITES_SETTING_KEY = 'join.pending_invites';
-
     private function hasGlobalAdminRole(User $user): bool
     {
         return count(array_intersect(self::GLOBAL_ADMIN_ROLES, $user->getRoles())) > 0;
@@ -64,6 +68,8 @@ class JoinRequestController extends AbstractController
         private AuditLogger $auditLogger,
         private VerificationEmailService $verificationEmailService,
         private MailTemplateContentStore $mailTemplateContent,
+        private UserDepartmentInviteNotificationService $userDepartmentInviteNotifications,
+        private InboxMessageService $inboxMessages,
         #[Autowire('%env(APP_FRONTEND_URL)%')] private string $frontendUrl
     )
     {
@@ -136,24 +142,9 @@ class JoinRequestController extends AbstractController
         $joinRequest->setDepartment($department);
         $joinRequest->setMessage($message !== '' ? $message : null);
 
-        // Join-Link (join_code) fuehrt direkt zur Department-Zuordnung mit gewaehlter Rolle.
-        $autoJoinByInviteLink = $joinCode !== '';
-        if ($autoJoinByInviteLink) {
-            $membership = new Membership();
-            $membership->setUser($currentUser);
-            $membership->setDepartment($department);
-            $membership->setRole($requestedRole);
-            $hasAnyMembership = count($this->entityManager->getRepository(Membership::class)->findBy([
-                'userId' => $currentUser->getId(),
-            ])) > 0;
-            $membership->setIsPrimary(!$hasAnyMembership);
-            $this->entityManager->persist($membership);
-
-            $joinRequest->setStatus('approved');
-            $joinRequest->setReviewedBy($currentUser);
-        } else {
-            $joinRequest->setStatus('pending');
-        }
+        // Persoenliche Einladungen muessen in der App bestaetigt werden (kein Auto-Join).
+        $autoJoinByInviteLink = false;
+        $joinRequest->setStatus('pending');
 
         $this->entityManager->persist($joinRequest);
         $this->entityManager->flush();
@@ -808,11 +799,23 @@ class JoinRequestController extends AbstractController
         $data = json_decode($request->getContent(), true) ?: [];
         $departmentId = trim((string) ($data['department_id'] ?? ''));
         $email = strtolower(trim((string) ($data['email'] ?? '')));
+        $userId = trim((string) ($data['user_id'] ?? ''));
         $requestedRole = strtolower(trim((string) ($data['role'] ?? 'u')));
+        $isPrimary = !empty($data['is_primary']);
+        $groupIds = is_array($data['group_ids'] ?? null) ? array_values(array_filter($data['group_ids'], 'is_string')) : [];
 
         if ($departmentId === '') {
             return new JsonResponse(['error' => 'department_id ist erforderlich'], 400);
         }
+
+        if ($email === '' && $userId !== '') {
+            $resolvedUser = $this->entityManager->getRepository(User::class)->find($userId);
+            if (!$resolvedUser || !$resolvedUser->getProfile()) {
+                return new JsonResponse(['error' => 'User nicht gefunden'], 404);
+            }
+            $email = strtolower(trim($resolvedUser->getProfile()->getEmail()));
+        }
+
         if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
             return new JsonResponse(['error' => 'Ungueltige E-Mail-Adresse'], 400);
         }
@@ -847,28 +850,34 @@ class JoinRequestController extends AbstractController
             $this->entityManager->persist($inviteSetting);
         }
 
-        $pendingInvites = $this->readPendingInvites($departmentId);
-        foreach ($pendingInvites as $invite) {
-            if (strtolower((string) ($invite['email'] ?? '')) === $email) {
-                return new JsonResponse(['error' => 'Fuer diese E-Mail existiert bereits eine pending Einladung'], 409);
+        $invitee = $this->findUserByEmail($email);
+        if ($invitee !== null) {
+            $existingMembership = $this->entityManager->getRepository(Membership::class)->findOneBy([
+                'userId' => $invitee->getId(),
+                'departmentId' => $departmentId,
+            ]);
+            if ($existingMembership) {
+                return new JsonResponse(['error' => 'User ist bereits Mitglied dieses Departments'], 409);
             }
         }
 
+        $pendingInvites = $this->readPendingInvites($departmentId);
+        foreach ($pendingInvites as $invite) {
+            if (
+                strtolower((string) ($invite['email'] ?? '')) === $email
+                && ($invite['status'] ?? 'pending') === 'pending'
+            ) {
+                return new JsonResponse(['error' => 'Fuer diese E-Mail existiert bereits eine offene Einladung'], 409);
+            }
+        }
+
+        $entryId = IdGenerator::generateUnique($this->entityManager, DepartmentSetting::class);
         $frontendBase = rtrim($this->frontendUrl, '/');
         $inviteUrl = $frontendBase
             . '/pending-assignment?join_code=' . urlencode($inviteSetting->getSettingValue())
             . '&invite_role=' . urlencode($requestedRole)
             . '&invite_email=' . urlencode($email)
-            . '&auto_join=1';
-
-        $entry = [
-            'id' => IdGenerator::generateUnique($this->entityManager, DepartmentSetting::class),
-            'email' => $email,
-            'role' => $requestedRole,
-            'invite_url' => $inviteUrl,
-            'created_at' => (new \DateTime())->format(\DateTimeInterface::ATOM),
-            'created_by_user_id' => $currentUser->getId(),
-        ];
+            . '&invite_id=' . urlencode($entryId);
 
         $inviterName = trim((string) ($currentUser->getProfile()?->getDisplayName() ?? ''));
         if ($inviterName === '') {
@@ -879,26 +888,169 @@ class JoinRequestController extends AbstractController
             $inviterName = (string) (is_array($dTpl) ? ($dTpl['inviter_name_fallback'] ?? '') : '');
         }
 
-        try {
-            $this->verificationEmailService->sendDepartmentInviteEmail(
-                $email,
-                $email,
-                $inviterName,
-                $department->getName(),
-                $inviteUrl,
-                $this->labelForMemberRole($requestedRole)
-            );
-        } catch (\Throwable) {
-            return new JsonResponse([
-                'error' => 'Einladungs-E-Mail konnte nicht versendet werden. Bitte E-Mail-Adresse pruefen oder spaeter erneut versuchen.'
-            ], 400);
+        $entry = [
+            'id' => $entryId,
+            'email' => $email,
+            'role' => $requestedRole,
+            'status' => 'pending',
+            'is_primary' => $isPrimary,
+            'group_ids' => $groupIds,
+            'invited_user_id' => $invitee?->getId(),
+            'invite_url' => $inviteUrl,
+            'created_at' => (new \DateTime())->format(\DateTimeInterface::ATOM),
+            'created_by_user_id' => $currentUser->getId(),
+            'created_by_name' => $inviterName,
+        ];
+
+        $mailSent = false;
+        if ($invitee === null) {
+            try {
+                $this->verificationEmailService->sendDepartmentInviteEmail(
+                    $email,
+                    $email,
+                    $inviterName,
+                    $department->getName(),
+                    $inviteUrl,
+                    $this->labelForMemberRole($requestedRole)
+                );
+                $mailSent = true;
+            } catch (\Throwable) {
+                return new JsonResponse([
+                    'error' => 'Einladungs-E-Mail konnte nicht versendet werden. Bitte E-Mail-Adresse pruefen oder spaeter erneut versuchen.'
+                ], 400);
+            }
+        } else {
+            $this->userDepartmentInviteNotifications->notifyDepartmentInvite($invitee, $department, $entry);
         }
 
         $pendingInvites[] = $entry;
         $this->writePendingInvites($department, $pendingInvites);
 
-        $entry['mail_sent'] = true;
-        return new JsonResponse($entry, 201);
+        $entry['mail_sent'] = $mailSent;
+        $entry['in_app_notified'] = $invitee !== null;
+
+        return new JsonResponse($this->enrichInviteEntry($entry), 201);
+    }
+
+    #[Route('/invite/received', name: 'invite_received_list', methods: ['GET'])]
+    #[IsGranted('ROLE_USER')]
+    public function listReceivedDepartmentInvites(Request $request): JsonResponse
+    {
+        $currentUser = $this->getUser();
+        if (!$currentUser instanceof User) {
+            return new JsonResponse(['error' => 'Nicht authentifiziert'], 403);
+        }
+
+        $bucket = strtolower(trim((string) $request->query->get('bucket', 'all')));
+        if (!in_array($bucket, ['unread', 'read', 'all'], true)) {
+            $bucket = 'all';
+        }
+        $limit = (int) $request->query->get('limit', 50);
+        if ($limit < 1) {
+            $limit = 50;
+        }
+        if ($limit > 200) {
+            $limit = 200;
+        }
+
+        $items = $this->userDepartmentInviteNotifications->listInboxForUser($currentUser->getId(), $bucket, $limit);
+        $unreadCount = $this->userDepartmentInviteNotifications->countUnreadPending($currentUser->getId());
+
+        return new JsonResponse([
+            'count' => count($items),
+            'unread_count' => $unreadCount,
+            'items' => $items,
+        ]);
+    }
+
+    #[Route('/invite/received/{notificationId}/read', name: 'invite_received_read', methods: ['PATCH'])]
+    #[IsGranted('ROLE_USER')]
+    public function markReceivedDepartmentInviteRead(string $notificationId): JsonResponse
+    {
+        $currentUser = $this->getUser();
+        if (!$currentUser instanceof User) {
+            return new JsonResponse(['error' => 'Nicht authentifiziert'], 403);
+        }
+
+        if (!$this->userDepartmentInviteNotifications->markRead($currentUser->getId(), $notificationId)) {
+            return new JsonResponse(['error' => 'Benachrichtigung nicht gefunden'], 404);
+        }
+
+        return new JsonResponse(['success' => true]);
+    }
+
+    #[Route('/invite/accept', name: 'invite_accept', methods: ['POST'])]
+    #[IsGranted('ROLE_USER')]
+    public function acceptDepartmentInvite(Request $request): JsonResponse
+    {
+        $currentUser = $this->getUser();
+        if (!$currentUser instanceof User) {
+            return new JsonResponse(['error' => 'Nicht authentifiziert'], 403);
+        }
+
+        $data = json_decode($request->getContent(), true) ?: [];
+        $notificationId = trim((string) ($data['notification_id'] ?? ''));
+        $departmentId = trim((string) ($data['department_id'] ?? ''));
+        $inviteId = trim((string) ($data['invite_id'] ?? ''));
+
+        $resolved = $this->resolveInviteForUser($currentUser, $notificationId, $departmentId, $inviteId);
+        if ($resolved instanceof JsonResponse) {
+            return $resolved;
+        }
+
+        [$department, $invite] = $resolved;
+
+        if (($invite['status'] ?? 'pending') !== 'pending') {
+            return new JsonResponse(['error' => 'Einladung wurde bereits bearbeitet'], 409);
+        }
+
+        try {
+            $this->applyDepartmentInviteMembership($currentUser, $department, $invite);
+        } catch (\RuntimeException $e) {
+            return new JsonResponse(['error' => $e->getMessage()], 409);
+        }
+
+        $this->finalizeInviteAccepted($department, $invite, $currentUser);
+
+        $currentUser->setLastUsedDepartment($department);
+        $this->entityManager->flush();
+
+        return new JsonResponse([
+            'success' => true,
+            'department_id' => $department->getId(),
+            'department_name' => $department->getName(),
+            'reload_required' => true,
+        ]);
+    }
+
+    #[Route('/invite/decline', name: 'invite_decline', methods: ['POST'])]
+    #[IsGranted('ROLE_USER')]
+    public function declineDepartmentInvite(Request $request): JsonResponse
+    {
+        $currentUser = $this->getUser();
+        if (!$currentUser instanceof User) {
+            return new JsonResponse(['error' => 'Nicht authentifiziert'], 403);
+        }
+
+        $data = json_decode($request->getContent(), true) ?: [];
+        $notificationId = trim((string) ($data['notification_id'] ?? ''));
+        $departmentId = trim((string) ($data['department_id'] ?? ''));
+        $inviteId = trim((string) ($data['invite_id'] ?? ''));
+
+        $resolved = $this->resolveInviteForUser($currentUser, $notificationId, $departmentId, $inviteId);
+        if ($resolved instanceof JsonResponse) {
+            return $resolved;
+        }
+
+        [$department, $invite] = $resolved;
+
+        if (($invite['status'] ?? 'pending') !== 'pending') {
+            return new JsonResponse(['error' => 'Einladung wurde bereits bearbeitet'], 409);
+        }
+
+        $this->finalizeInviteDeclined($department, $invite, $currentUser);
+
+        return new JsonResponse(['success' => true]);
     }
 
     #[Route('/invite/pending', name: 'invite_pending_list', methods: ['GET'])]
@@ -915,15 +1067,70 @@ class JoinRequestController extends AbstractController
             return new JsonResponse(['error' => 'department_id ist erforderlich'], 400);
         }
 
-        $myMembership = $this->entityManager->getRepository(Membership::class)->findOneBy([
-            'userId' => $currentUser->getId(),
-            'departmentId' => $departmentId,
-        ]);
-        if (!$myMembership || !in_array($myMembership->getRole(), self::MANAGER_ROLES, true)) {
+        if (!$this->canManageDepartmentInvites($currentUser, $departmentId)) {
             return new JsonResponse(['error' => 'Keine Berechtigung'], 403);
         }
 
-        return new JsonResponse($this->readPendingInvites($departmentId));
+        return new JsonResponse($this->listInvitesOverview($departmentId));
+    }
+
+    #[Route('/invite/notifications', name: 'invite_notifications_list', methods: ['GET'])]
+    #[IsGranted('ROLE_USER')]
+    public function listInviteNotifications(Request $request): JsonResponse
+    {
+        $currentUser = $this->getUser();
+        if (!$currentUser instanceof User) {
+            return new JsonResponse(['error' => 'Nicht authentifiziert'], 403);
+        }
+
+        $departmentId = trim((string) $request->query->get('department_id', ''));
+        if ($departmentId === '') {
+            return new JsonResponse(['error' => 'department_id ist erforderlich'], 400);
+        }
+
+        if (!$this->canManageDepartmentInvites($currentUser, $departmentId)) {
+            return new JsonResponse(['error' => 'Keine Berechtigung'], 403);
+        }
+
+        $bucket = trim((string) $request->query->get('bucket', 'all'));
+        if (!in_array($bucket, ['unread', 'read', 'all'], true)) {
+            $bucket = 'all';
+        }
+        $limit = max(1, min(100, (int) $request->query->get('limit', 50)));
+
+        return new JsonResponse(
+            $this->inboxMessages->listInviteAcceptedForInviter($departmentId, $currentUser->getId(), $bucket, $limit),
+        );
+    }
+
+    #[Route('/invite/notifications/{notificationId}/read', name: 'invite_notification_read', methods: ['PATCH'])]
+    #[IsGranted('ROLE_USER')]
+    public function markInviteNotificationRead(string $notificationId, Request $request): JsonResponse
+    {
+        $currentUser = $this->getUser();
+        if (!$currentUser instanceof User) {
+            return new JsonResponse(['error' => 'Nicht authentifiziert'], 403);
+        }
+
+        $departmentId = trim((string) $request->query->get('department_id', ''));
+        if ($departmentId === '') {
+            return new JsonResponse(['error' => 'department_id ist erforderlich'], 400);
+        }
+
+        $department = $this->entityManager->getRepository(Department::class)->find($departmentId);
+        if (!$department) {
+            return new JsonResponse(['error' => 'Department nicht gefunden'], 404);
+        }
+
+        if (!$this->canManageDepartmentInvites($currentUser, $departmentId)) {
+            return new JsonResponse(['error' => 'Keine Berechtigung'], 403);
+        }
+
+        if (!$this->inboxMessages->markInviteAcceptedRead($departmentId, $currentUser->getId(), $notificationId)) {
+            return new JsonResponse(['error' => 'Benachrichtigung nicht gefunden'], 404);
+        }
+
+        return new JsonResponse(['success' => true]);
     }
 
     #[Route('/invite/pending/{inviteId}', name: 'invite_pending_delete', methods: ['DELETE'])]
@@ -1194,5 +1401,282 @@ class JoinRequestController extends AbstractController
         $setting->setSettingValue(json_encode(array_values($entries), JSON_UNESCAPED_SLASHES) ?: '[]');
         $setting->setUpdatedAt(new \DateTime());
         $this->entityManager->flush();
+    }
+
+    private function canManageDepartmentInvites(User $user, string $departmentId): bool
+    {
+        if ($this->hasGlobalAdminRole($user)) {
+            return true;
+        }
+        $myMembership = $this->entityManager->getRepository(Membership::class)->findOneBy([
+            'userId' => $user->getId(),
+            'departmentId' => $departmentId,
+        ]);
+
+        return $myMembership !== null && in_array($myMembership->getRole(), self::MANAGER_ROLES, true);
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function listOpenPendingInvites(string $departmentId): array
+    {
+        return array_values(array_filter(
+            $this->readPendingInvites($departmentId),
+            static fn (array $entry): bool => ($entry['status'] ?? 'pending') === 'pending'
+        ));
+    }
+
+    /**
+     * Alle Einladungen (offen + angenommen) für die Übersicht beim Einladenden.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function listInvitesOverview(string $departmentId): array
+    {
+        $entries = array_map(
+            fn (array $entry): array => $this->enrichInviteEntry($entry),
+            $this->readPendingInvites($departmentId)
+        );
+
+        usort($entries, function (array $a, array $b): int {
+            $aPending = ($a['status'] ?? 'pending') === 'pending';
+            $bPending = ($b['status'] ?? 'pending') === 'pending';
+            if ($aPending !== $bPending) {
+                return $aPending ? -1 : 1;
+            }
+
+            $aTime = (string) ($aPending ? ($a['created_at'] ?? '') : ($a['accepted_at'] ?? $a['created_at'] ?? ''));
+            $bTime = (string) ($bPending ? ($b['created_at'] ?? '') : ($b['accepted_at'] ?? $b['created_at'] ?? ''));
+
+            return strcmp($bTime, $aTime);
+        });
+
+        return $entries;
+    }
+
+    /**
+     * @param array<string, mixed> $entry
+     * @return array<string, mixed>
+     */
+    private function enrichInviteEntry(array $entry): array
+    {
+        $email = strtolower(trim((string) ($entry['email'] ?? '')));
+        $invitee = $email !== '' ? $this->findUserByEmail($email) : null;
+        $entry['user_registered'] = $invitee !== null;
+        $profile = $invitee?->getProfile();
+        if ($profile) {
+            $displayName = trim($profile->getDisplayName());
+            if ($displayName !== '') {
+                $entry['user_name'] = $displayName;
+            }
+        }
+
+        return $entry;
+    }
+
+    /**
+     * @param array<string, mixed> $invite
+     */
+    private function applyDepartmentInviteMembership(User $user, Department $department, array $invite): void
+    {
+        $existing = $this->entityManager->getRepository(Membership::class)->findOneBy([
+            'userId' => $user->getId(),
+            'departmentId' => $department->getId(),
+        ]);
+        if ($existing) {
+            throw new \RuntimeException('Du bist bereits Mitglied dieses Departments');
+        }
+
+        $role = strtolower(trim((string) ($invite['role'] ?? 'u')));
+        if (!in_array($role, self::VALID_MEMBER_ROLES, true)) {
+            $role = 'u';
+        }
+
+        $membership = new Membership();
+        $membership->setUser($user);
+        $membership->setDepartment($department);
+        $membership->setRole($role);
+
+        $hasAnyMembership = count($this->entityManager->getRepository(Membership::class)->findBy([
+            'userId' => $user->getId(),
+        ])) > 0;
+        $isPrimary = !empty($invite['is_primary']);
+        $membership->setIsPrimary($isPrimary || !$hasAnyMembership);
+
+        $this->auditLogger->log(
+            'membership',
+            AuditLogger::buildMembershipEntityId($user->getId(), $department->getId()),
+            'membership_created',
+            $user,
+            $user,
+            $department,
+            [
+                'role' => ['old' => null, 'new' => $membership->getRole()],
+                'is_primary' => ['old' => null, 'new' => $membership->getIsPrimary()],
+            ]
+        );
+        $this->entityManager->persist($membership);
+
+        $groupIds = is_array($invite['group_ids'] ?? null) ? $invite['group_ids'] : [];
+        foreach ($groupIds as $groupId) {
+            if (!is_string($groupId) || $groupId === '') {
+                continue;
+            }
+            $group = $this->entityManager->getRepository(Group::class)->find($groupId);
+            if (!$group || $group->getDepartmentId() !== $department->getId()) {
+                continue;
+            }
+            $existingGroup = $this->entityManager->getRepository(GroupMembership::class)->findOneBy([
+                'userId' => $user->getId(),
+                'groupId' => $groupId,
+            ]);
+            if ($existingGroup) {
+                continue;
+            }
+            $groupMembership = new GroupMembership();
+            $groupMembership->setUser($user);
+            $groupMembership->setGroup($group);
+            $groupMembership->setRole('member');
+            $groupMembership->setIsPrimary(false);
+            $this->entityManager->persist($groupMembership);
+        }
+
+        $this->entityManager->flush();
+    }
+
+    /**
+     * @param array<string, mixed> $invite
+     */
+    private function finalizeInviteAccepted(Department $department, array $invite, User $joinedUser): void
+    {
+        $profile = $joinedUser->getProfile();
+        $email = strtolower(trim((string) ($profile?->getEmail() ?? $invite['email'] ?? '')));
+        $inviteId = (string) ($invite['id'] ?? '');
+
+        $pendingInvites = $this->readPendingInvites($department->getId());
+        foreach ($pendingInvites as &$entry) {
+            if ((string) ($entry['id'] ?? '') === $inviteId) {
+                $entry['status'] = 'accepted';
+                $entry['accepted_at'] = (new \DateTime())->format(\DateTimeInterface::ATOM);
+                $entry['accepted_user_id'] = $joinedUser->getId();
+                $entry['accepted_user_name'] = $profile ? $profile->getDisplayName() : '';
+                $invite = $entry;
+                break;
+            }
+        }
+        unset($entry);
+
+        $this->writePendingInvites($department, $pendingInvites);
+        $this->appendInviteAcceptedNotification($department, $invite, $joinedUser);
+        $this->userDepartmentInviteNotifications->markInviteAccepted($joinedUser, $department, $inviteId);
+    }
+
+    /**
+     * @param array<string, mixed> $invite
+     */
+    private function finalizeInviteDeclined(Department $department, array $invite, User $user): void
+    {
+        $inviteId = (string) ($invite['id'] ?? '');
+        $profile = $user->getProfile();
+        $declinerName = $profile ? $profile->getDisplayName() : '';
+
+        $pendingInvites = $this->readPendingInvites($department->getId());
+        foreach ($pendingInvites as &$entry) {
+            if ((string) ($entry['id'] ?? '') === $inviteId) {
+                $entry['status'] = 'declined';
+                $entry['declined_at'] = (new \DateTime())->format(\DateTimeInterface::ATOM);
+                $entry['declined_user_id'] = $user->getId();
+                $entry['declined_user_name'] = $declinerName;
+                break;
+            }
+        }
+        unset($entry);
+
+        $this->writePendingInvites($department, $pendingInvites);
+        $this->userDepartmentInviteNotifications->markInviteDeclined($user, $department, $inviteId);
+    }
+
+    /**
+     * @return array{0: Department, 1: array<string, mixed>}|JsonResponse
+     */
+    private function resolveInviteForUser(
+        User $user,
+        string $notificationId,
+        string $departmentId,
+        string $inviteId
+    ): array|JsonResponse {
+        $profile = $user->getProfile();
+        if (!$profile) {
+            return new JsonResponse(['error' => 'Profil nicht gefunden'], 404);
+        }
+
+        $userEmail = strtolower(trim($profile->getEmail()));
+
+        if ($notificationId !== '') {
+            $settings = $this->entityManager->getRepository(DepartmentSetting::class)->findBy([
+                'settingKey' => UserDepartmentInviteNotificationService::SETTING_KEY_PREFIX . $user->getId(),
+            ]);
+            foreach ($settings as $setting) {
+                $entries = json_decode((string) $setting->getSettingValue(), true);
+                if (!is_array($entries)) {
+                    continue;
+                }
+                foreach ($entries as $entry) {
+                    if (!is_array($entry) || (string) ($entry['id'] ?? '') !== $notificationId) {
+                        continue;
+                    }
+                    $departmentId = (string) ($entry['department_id'] ?? $setting->getDepartmentId());
+                    $inviteId = (string) ($entry['invite_id'] ?? '');
+                    break 2;
+                }
+            }
+        }
+
+        if ($departmentId === '' || $inviteId === '') {
+            return new JsonResponse(['error' => 'Einladung nicht gefunden'], 404);
+        }
+
+        $department = $this->entityManager->getRepository(Department::class)->find($departmentId);
+        if (!$department) {
+            return new JsonResponse(['error' => 'Department nicht gefunden'], 404);
+        }
+
+        $invite = null;
+        foreach ($this->readPendingInvites($departmentId) as $entry) {
+            if ((string) ($entry['id'] ?? '') === $inviteId) {
+                $invite = $entry;
+                break;
+            }
+        }
+
+        if (!$invite) {
+            return new JsonResponse(['error' => 'Einladung nicht gefunden'], 404);
+        }
+
+        if (strtolower((string) ($invite['email'] ?? '')) !== $userEmail) {
+            return new JsonResponse(['error' => 'Diese Einladung ist nicht fuer dich bestimmt'], 403);
+        }
+
+        return [$department, $invite];
+    }
+
+    private function findUserByEmail(string $email): ?User
+    {
+        $profile = $this->entityManager->getRepository(Profile::class)->findOneBy([
+            'email' => strtolower(trim($email)),
+        ]);
+        if (!$profile) {
+            return null;
+        }
+
+        return $this->entityManager->getRepository(User::class)->findOneBy([
+            'profileId' => $profile->getId(),
+        ]);
+    }
+
+    private function appendInviteAcceptedNotification(Department $department, array $invite, User $joinedUser): void
+    {
+        $this->inboxMessages->notifyInviteAccepted($department, $invite, $joinedUser);
     }
 }

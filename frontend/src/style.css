@@ -4,6 +4,7 @@
  * Reihenfolge: Marken-Tokens → UI-Module → Tailwind → globale Resets.
  */
 @import './styles/ui/brand-tokens.css';
+@import './styles/activity-status.css';
 @import './styles/ui/public-brand.css';
 @import './styles/ui/public-landing-theme.css';
 @import './styles/ui/buttons.css';
@@ -14,6 +15,11 @@
 @import './styles/ui/history.css';
 @import './styles/ui/storage.css';
 @import './styles/ui/states.css';
+@import './styles/ui/text-utilities.css';
+@import './styles/ui/activity-type-badges.css';
+@import './styles/ui/activity-combo-badges.css';
+@import './styles/ui/material-source-badges.css';
+@import './styles/ui/activity-inline-loading.css';
 @import './styles/ui/tables.css';
 
 @tailwind base;

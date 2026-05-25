@@ -48,9 +48,58 @@ export interface PendingInvite {
   id: string
   email: string
   role: string
+  status?: 'pending' | 'accepted' | 'declined'
   invite_url: string
   created_at: string
   created_by_user_id?: string
+  created_by_name?: string
+  user_registered?: boolean
+  user_name?: string
+  accepted_at?: string
+  accepted_user_id?: string
+  accepted_user_name?: string
+}
+
+export interface InviteAcceptedNotification {
+  id: string
+  type: 'invite_accepted'
+  email: string
+  user_id: string
+  user_name: string
+  invited_by_user_id: string
+  invited_by_name: string
+  role: string
+  accepted_at: string
+  read: boolean
+}
+
+export interface ReceivedDepartmentInviteNotification {
+  id: string
+  type: 'department_invite'
+  invite_id: string
+  department_id: string
+  department_name: string
+  invited_by_user_id: string
+  invited_by_name: string
+  invited_by_first_name?: string | null
+  invited_by_last_name?: string | null
+  invited_by_nickname?: string | null
+  invited_by_avatar_initials?: string | null
+  invited_by_background_color?: string | null
+  invited_by_text_color?: string | null
+  role: string
+  invite_url: string
+  created_at: string
+  status: 'pending' | 'accepted'
+  read: boolean
+}
+
+export type DepartmentInviteInboxBucket = 'unread' | 'read' | 'all'
+
+export interface ReceivedDepartmentInvitesResponse {
+  count: number
+  unread_count: number
+  items: ReceivedDepartmentInviteNotification[]
 }
 
 export interface CreateJoinRequestResponse {
@@ -155,21 +204,89 @@ export async function getPendingInvites(departmentId: string): Promise<PendingIn
 
 export async function createPendingInvite(payload: {
   departmentId: string
-  email: string
+  email?: string
+  userId?: string
   role: string
+  groupIds?: string[]
+  isPrimary?: boolean
 }): Promise<PendingInvite> {
   const { data } = await apiClient.post<PendingInvite>('/api/join-requests/invite/pending', {
     department_id: payload.departmentId,
     email: payload.email,
+    user_id: payload.userId,
     role: payload.role,
+    group_ids: payload.groupIds,
+    is_primary: payload.isPrimary,
   })
   return data
+}
+
+export async function acceptDepartmentInvite(payload: {
+  notificationId?: string
+  departmentId?: string
+  inviteId?: string
+}): Promise<{ success: boolean; department_id: string; department_name: string }> {
+  const { data } = await apiClient.post('/api/join-requests/invite/accept', {
+    notification_id: payload.notificationId,
+    department_id: payload.departmentId,
+    invite_id: payload.inviteId,
+  })
+  return data
+}
+
+export async function declineDepartmentInvite(payload: {
+  notificationId?: string
+  departmentId?: string
+  inviteId?: string
+}): Promise<void> {
+  await apiClient.post('/api/join-requests/invite/decline', {
+    notification_id: payload.notificationId,
+    department_id: payload.departmentId,
+    invite_id: payload.inviteId,
+  })
 }
 
 export async function deletePendingInvite(departmentId: string, inviteId: string): Promise<void> {
   await apiClient.delete(`/api/join-requests/invite/pending/${inviteId}`, {
     params: { department_id: departmentId }
   })
+}
+
+export async function getInviteNotifications(
+  departmentId: string,
+  options?: { bucket?: 'unread' | 'read' | 'all'; limit?: number },
+): Promise<InviteAcceptedNotification[]> {
+  const { data } = await apiClient.get<InviteAcceptedNotification[]>('/api/join-requests/invite/notifications', {
+    params: {
+      department_id: departmentId,
+      bucket: options?.bucket,
+      limit: options?.limit,
+    },
+  })
+  return data
+}
+
+export async function markInviteNotificationRead(departmentId: string, notificationId: string): Promise<void> {
+  await apiClient.patch(`/api/join-requests/invite/notifications/${notificationId}/read`, {}, {
+    params: { department_id: departmentId }
+  })
+}
+
+export async function getReceivedDepartmentInvites(options?: {
+  bucket?: DepartmentInviteInboxBucket
+  limit?: number
+}): Promise<ReceivedDepartmentInvitesResponse> {
+  const { data } = await apiClient.get<ReceivedDepartmentInvitesResponse>('/api/join-requests/invite/received', {
+    params: {
+      bucket: options?.bucket ?? 'all',
+      limit: options?.limit ?? 100,
+    },
+  })
+  return data
+}
+
+export async function markReceivedDepartmentInviteRead(notificationId: string): Promise<void> {
+  await apiClient.patch(`/api/join-requests/invite/received/${notificationId}/read`, {})
 }
 
 export async function regenerateDepartmentInvite(departmentId: string): Promise<DepartmentInviteData> {

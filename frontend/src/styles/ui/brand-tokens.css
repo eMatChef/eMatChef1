@@ -10,4 +10,14 @@
   --emc-logo-letter-spacing: -0.03em;
   /* Hover/Akzent im eMatChef-Grün (statt Blau) */
   --emc-brand-accent: #059669;
+
+  /* App-Akzent: Rahmen, aktive Kacheln, Fokus, Pack-Kistenauswahl */
+  --color-primary: #059669;
+  --color-primary-light: #10b981;
+  --color-primary-dark: #047857;
+  --color-primary-muted-bg: #ecfdf5;
+  --color-primary-subtle-bg: #d1fae5;
+  --color-primary-muted-border: #a7f3d0;
+  --color-primary-ring: color-mix(in srgb, var(--color-primary) 22%, transparent);
+  --color-primary-shadow: color-mix(in srgb, var(--color-primary) 15%, transparent);
 }

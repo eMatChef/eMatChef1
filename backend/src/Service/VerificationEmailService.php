@@ -203,6 +203,69 @@ class VerificationEmailService
         );
     }
 
+    public function sendDepartmentMemberAddedEmail(
+        string $recipientEmail,
+        string $recipientName,
+        string $adderName,
+        string $departmentName,
+        string $roleLabel,
+        ?string $recipientLocale = null
+    ): void {
+        $locale = $this->mailTemplateContent->normalizeLocaleParam(trim((string) ($recipientLocale ?? '')));
+
+        $tpl = $this->mailTemplateContent->getTemplate('department.member_added', $locale);
+        if ($tpl === null) {
+            throw $this->vex('tpl_dept_member', $locale);
+        }
+
+        $appUrl = rtrim($this->frontendBaseUrl, '/') . '/login';
+        $safeRecipient = trim($recipientName) !== '' ? $recipientName : $recipientEmail;
+        $vars = [
+            'recipient_name' => $safeRecipient,
+            'adder_name' => $adderName,
+            'department_name' => $departmentName,
+            'role_label' => $roleLabel,
+            'app_url' => $appUrl,
+        ];
+        $subject = $this->mailTemplateContent->interpolate((string) ($tpl['subject'] ?? ''), $vars);
+        $textBody = $this->mailTemplateContent->interpolate((string) ($tpl['text_body'] ?? ''), $vars);
+        $htmlCfg = is_array($tpl['html'] ?? null) ? $tpl['html'] : [];
+
+        $addedLead = strtr((string) ($htmlCfg['added_lead_template'] ?? ''), [
+            '{{adder_name}}' => htmlspecialchars($adderName, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'),
+            '{{department_name}}' => htmlspecialchars($departmentName, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'),
+        ]);
+        $roleLine = strtr((string) ($htmlCfg['role_line_template'] ?? ''), [
+            '{{role_label}}' => htmlspecialchars($roleLabel, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'),
+        ]);
+
+        $email = (new Email())
+            ->from($this->mailOutboundSettings->getFromAddressObject())
+            ->to($recipientEmail)
+            ->subject($subject)
+            ->text($textBody)
+            ->html($this->renderHtmlTemplate('department_member_added.html', [
+                'brand_header_html' => $this->buildBrandHeaderHtml($locale),
+                'recipient_name' => $safeRecipient,
+                'greeting_word' => (string) ($htmlCfg['greeting_word'] ?? ''),
+                'banner_title' => (string) ($htmlCfg['banner_title'] ?? ''),
+                'added_lead_html' => $addedLead,
+                'role_line_html' => $roleLine,
+                'cta_label' => (string) ($htmlCfg['cta_label'] ?? ''),
+                'link_hint' => (string) ($htmlCfg['link_hint'] ?? ''),
+                'app_url' => $appUrl,
+                'footer_note' => (string) ($htmlCfg['footer_note'] ?? ''),
+            ], ['brand_header_html', 'added_lead_html', 'role_line_html'], $locale));
+
+        $this->mailer->send($email);
+        $this->mailSendLog->append(
+            'department.member_added',
+            $recipientEmail,
+            $subject,
+            $this->mailOutboundSettings->getFromAddressObject()->getAddress()
+        );
+    }
+
     public function sendPasswordResetCode(User $user, string $code, \DateTime $expiresAt): void
     {
         $profile = $user->getProfile();

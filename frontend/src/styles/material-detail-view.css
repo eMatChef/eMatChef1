@@ -259,6 +259,35 @@
   text-align: right;
 }
 
+.container-combo-linked-banner {
+  margin-bottom: 14px;
+  padding: 12px 14px;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  border-radius: 8px;
+}
+
+.container-combo-linked-hint {
+  margin: 0 0 8px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: #78350f;
+}
+
+.container-combo-linked-link {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.container-combo-linked-link-suffix {
+  font-weight: 500;
+  color: #6b7280;
+}
+
+.container-content-table--readonly {
+  margin-top: 4px;
+}
+
 .container-content-header-row {
   display: block;
 }
@@ -946,9 +975,156 @@
   justify-content: flex-end;
 }
 
+/* Komponente hinzufügen / bearbeiten: fester Kopf, scrollbarer Inhalt, kleinere Hinweise */
+.modal-dialog.composition-add-modal {
+  display: flex;
+  flex-direction: column;
+  max-height: min(90vh, 640px);
+  overflow: visible;
+  padding: 0;
+}
+
+.composition-add-modal-header {
+  flex-shrink: 0;
+  padding: 16px 18px 10px;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.composition-add-modal-header h3 {
+  margin: 0 0 6px;
+  font-size: 17px;
+}
+
+.composition-add-modal-body {
+  flex: 1;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: 12px 18px;
+  -webkit-overflow-scrolling: touch;
+}
+
+.composition-add-modal-selects {
+  flex-shrink: 0;
+  padding: 4px 18px 8px;
+  border-top: 1px solid #f3f4f6;
+  background: #fff;
+}
+
+.composition-add-modal-selects .form-group:last-child {
+  margin-bottom: 0;
+}
+
+.composition-add-modal-footer {
+  flex-shrink: 0;
+  margin: 0;
+  padding: 12px 18px 16px;
+  border-top: 1px solid #e5e7eb;
+  background: #fafafa;
+}
+
 .composition-add-modal-intro {
+  font-size: 11px;
+  line-height: 1.4;
+  margin: 0;
+  color: #6b7280;
+}
+
+.composition-add-modal .form-group {
+  margin-bottom: 12px;
+}
+
+.composition-add-modal .batch-field-hint {
+  font-size: 11px;
+  line-height: 1.35;
+  margin-top: 4px;
+  color: #6b7280;
+}
+
+.composition-add-modal .error-text {
+  font-size: 12px;
+  margin-top: 6px;
+}
+
+.composition-add-modal .selected-source-material .meta {
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.composition-add-modal .composition-stock-preview {
+  margin: 8px 0 8px;
+  padding: 8px 10px;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+}
+
+.composition-add-modal .composition-stock-preview--move {
+  background: #f0fdf4;
+  border-color: #bbf7d0;
+}
+
+.composition-add-modal .composition-stock-preview-title {
+  margin: 0 0 4px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #374151;
+}
+
+.composition-add-modal .composition-stock-preview-list {
+  margin: 0;
+  padding-left: 16px;
+  font-size: 11px;
+  line-height: 1.4;
+  color: #4b5563;
+}
+
+.composition-add-modal .composition-stock-preview-list li {
+  margin-bottom: 3px;
+}
+
+.composition-add-modal .composition-stock-preview-qty {
+  font-size: 11px;
+  font-weight: 600;
+  color: #059669;
+  margin-left: 4px;
+}
+
+.composition-stock-preview {
+  margin: 10px 0 12px;
+  padding: 10px 12px;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+}
+
+.composition-stock-preview--move {
+  background: #f0fdf4;
+  border-color: #bbf7d0;
+}
+
+.composition-stock-preview-title {
+  margin: 0 0 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #374151;
+}
+
+.composition-stock-preview-list {
+  margin: 0;
+  padding-left: 18px;
   font-size: 13px;
-  margin: 0 0 12px 0;
+  color: #4b5563;
+}
+
+.composition-stock-preview-list li {
+  margin-bottom: 4px;
+}
+
+.composition-stock-preview-qty {
+  font-weight: 600;
+  color: #059669;
+  margin-left: 4px;
 }
 
 .composition-loading {
@@ -1107,4 +1283,133 @@
 
 .combo-rental-gap-hint {
   margin-top: 0.5rem;
+}
+
+.rental-accordion-item {
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  margin-bottom: 12px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.rental-accordion-trigger {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 12px 14px;
+  border: none;
+  background: #f9fafb;
+  cursor: pointer;
+  text-align: left;
+}
+
+.rental-accordion-trigger:hover {
+  background: #f3f4f6;
+}
+
+.rental-accordion-chevron {
+  flex-shrink: 0;
+  font-size: 11px;
+  color: #6b7280;
+  width: 14px;
+}
+
+.rental-accordion-title {
+  flex: 1;
+  font-size: 14px;
+  font-weight: 600;
+  color: #111827;
+}
+
+.rental-accordion-badge {
+  font-size: 12px;
+  font-weight: 600;
+  color: #059669;
+  background: #ecfdf5;
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+
+.rental-accordion-body {
+  padding: 12px 14px 14px;
+  border-top: 1px solid #e5e7eb;
+  max-height: min(52vh, 480px);
+  overflow-y: auto;
+}
+
+.rental-accordion-intro {
+  margin: 0 0 10px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: #6b7280;
+}
+
+.rental-activity-bookings-table {
+  font-size: 13px;
+  width: 100%;
+  min-width: 0;
+}
+
+.rental-activity-bookings-table th {
+  text-transform: none;
+  letter-spacing: 0;
+  white-space: normal;
+  line-height: 1.35;
+  padding: 8px 10px;
+  vertical-align: bottom;
+}
+
+.rental-activity-bookings-table td {
+  padding: 10px;
+  vertical-align: top;
+}
+
+.rental-activity-bookings-table .combo-rental-col-num {
+  width: 3.5rem;
+}
+
+.rental-activity-period {
+  font-size: 12px;
+  color: #4b5563;
+  white-space: normal;
+  line-height: 1.35;
+  max-width: 12rem;
+}
+
+.rental-booking-kind {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+
+.rental-booking-kind--issued {
+  background: #f3e8ff;
+  color: #6b21a8;
+}
+
+.rental-booking-kind--reserved {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.rental-booking-kind--draft {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.rental-activity-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: flex-start;
+}
+
+.rental-booking-via-combo {
+  font-size: 11px;
+  line-height: 1.35;
+  color: #6b7280;
 }

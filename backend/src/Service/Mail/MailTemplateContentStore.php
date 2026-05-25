@@ -26,6 +26,7 @@ final class MailTemplateContentStore
         'auth.pending_email_change',
         'auth.password_reset_code',
         'department.invite',
+        'department.member_added',
         'public.found_item_contact',
     ];
 
