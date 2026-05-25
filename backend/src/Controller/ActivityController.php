@@ -28,6 +28,7 @@ use App\Service\ActivityKisteMaterialLinker;
 use App\Service\ActivityMwNotificationService;
 use App\Service\ActivityUserNotificationService;
 use App\Service\InboxMessageService;
+use App\Service\PackPipelineService;
 use App\Service\Public\PublicCodeService;
 use App\Util\IdGenerator;
 use Doctrine\ORM\EntityManagerInterface;
@@ -54,6 +55,7 @@ class ActivityController extends AbstractController
         private PublicCodeService $publicCodeService,
         private ActivityItemPipelineStatusService $activityItemPipelineStatus,
         private AccountingAcquisitionFollowUpSerializer $followUpSerializer,
+        private PackPipelineService $packPipeline,
     ) {}
 
     private function getActorUserId(): ?string
@@ -1448,30 +1450,45 @@ class ActivityController extends AbstractController
             // Migration noch nicht ausgeführt
         }
 
-        $unstoredPackItems = $this->entityManager->getRepository(ActivityPackItem::class)
+        $packProfile = $this->packPipeline->profileForActivityType($activity->getType());
+        $consumedByMaterial = $this->consumedQtyByMaterialForActivity($activityId);
+
+        $packItemsForStorage = $this->entityManager->getRepository(ActivityPackItem::class)
             ->createQueryBuilder('pi')
             ->innerJoin('pi.materialItem', 'm')
             ->addSelect('m')
             ->where('pi.activityId = :activityId')
-            ->andWhere(
-                'pi.quantityPacked > pi.quantityStored OR (pi.quantityReturned > pi.quantityStored AND pi.quantityReturned > 0)'
-            )
             ->setParameter('activityId', $activityId)
             ->orderBy('m.name', 'ASC')
-            ->setMaxResults(12)
             ->getQuery()
             ->getResult();
 
-        $unstoredPackItemsCount = (int) $this->entityManager->getRepository(ActivityPackItem::class)
-            ->createQueryBuilder('pi')
-            ->select('COUNT(pi.id)')
-            ->where('pi.activityId = :activityId')
-            ->andWhere(
-                'pi.quantityPacked > pi.quantityStored OR (pi.quantityReturned > pi.quantityStored AND pi.quantityReturned > 0)'
-            )
-            ->setParameter('activityId', $activityId)
-            ->getQuery()
-            ->getSingleScalarResult();
+        $unstoredRows = [];
+        foreach ($packItemsForStorage as $pi) {
+            if (!$pi instanceof ActivityPackItem) {
+                continue;
+            }
+            $consumed = $consumedByMaterial[$pi->getMaterialItemId()] ?? 0;
+            $pending = $this->packPipeline->maxForwardQty(
+                $pi,
+                PackPipelineService::STAGE_STORED,
+                $packProfile,
+                $consumed,
+            );
+            if ($pending > 0) {
+                $unstoredRows[] = ['item' => $pi, 'pending' => $pending];
+            }
+        }
+
+        usort(
+            $unstoredRows,
+            static fn(array $a, array $b): int => strcmp(
+                (string) ($a['item']->getMaterialItem()?->getName() ?? ''),
+                (string) ($b['item']->getMaterialItem()?->getName() ?? ''),
+            ),
+        );
+        $unstoredPackItemsCount = count($unstoredRows);
+        $unstoredPackItems = array_slice($unstoredRows, 0, 12);
 
         return [
             'open_workshop_tickets_count' => count($openWorkshopTickets),
@@ -1495,18 +1512,39 @@ class ActivityController extends AbstractController
                 fn(AccountingAcquisitionFollowUp $f) => $this->serializeCompletionBlockerFollowUp($f),
                 $pendingAccountingFollowups,
             ),
-            'unstored_pack_items' => array_map(static fn(ActivityPackItem $pi) => [
-                'id' => $pi->getId(),
-                'material_name' => $pi->getMaterialItem()?->getName(),
-                'quantity_packed' => $pi->getQuantityPacked(),
-                'quantity_returned' => $pi->getQuantityReturned(),
-                'quantity_stored' => $pi->getQuantityStored(),
-                'pending_store' => max(
-                    $pi->getQuantityReturned() - $pi->getQuantityStored(),
-                    $pi->getQuantityPacked() - $pi->getQuantityStored(),
-                ),
+            'unstored_pack_items' => array_map(static fn(array $row) => [
+                'id' => $row['item']->getId(),
+                'material_name' => $row['item']->getMaterialItem()?->getName(),
+                'quantity_packed' => $row['item']->getQuantityPacked(),
+                'quantity_returned' => $row['item']->getQuantityReturned(),
+                'quantity_stored' => $row['item']->getQuantityStored(),
+                'pending_store' => $row['pending'],
             ], $unstoredPackItems),
         ];
+    }
+
+    /**
+     * @return array<string, int> materialItemId => Summe Verbrauchsmeldungen
+     */
+    private function consumedQtyByMaterialForActivity(string $activityId): array
+    {
+        $rows = $this->entityManager->createQueryBuilder()
+            ->select('ir.materialItemId AS mid', 'COALESCE(SUM(ir.quantity), 0) AS qty')
+            ->from(ActivityIssueReport::class, 'ir')
+            ->where('ir.activityId = :aid')
+            ->andWhere('ir.type = :t')
+            ->groupBy('ir.materialItemId')
+            ->setParameter('aid', $activityId)
+            ->setParameter('t', ActivityIssueReport::TYPE_CONSUMPTION)
+            ->getQuery()
+            ->getArrayResult();
+
+        $map = [];
+        foreach ($rows as $row) {
+            $map[(string) $row['mid']] = (int) $row['qty'];
+        }
+
+        return $map;
     }
 
     /**
@@ -2213,7 +2251,17 @@ class ActivityController extends AbstractController
                     ->setParameter('mid', $materialItem->getId())
                     ->getQuery()
                     ->getSingleScalarResult();
-                $this->syncPackItemForMaterial($activity, $materialItem, $sumQty);
+                $isConsumableReplenishment = $replenishmentItem !== null;
+                $replenishmentPackStage = $isConsumableReplenishment
+                    ? $this->normalizeReplenishmentPackStage($data['replenishment_pack_stage'] ?? null)
+                    : null;
+                $this->syncPackItemForMaterial(
+                    $activity,
+                    $materialItem,
+                    $sumQty,
+                    $replenishmentPackStage,
+                    $isConsumableReplenishment,
+                );
             }
 
             $this->entityManager->flush();
@@ -2878,8 +2926,149 @@ class ActivityController extends AbstractController
             ->getOneOrNullResult();
     }
 
-    private function syncPackItemForMaterial(Activity $activity, MaterialItem $materialItem, int $newQuantity): void
+    private function normalizeReplenishmentPackStage(mixed $value): ?string
     {
+        if (!is_string($value)) {
+            return null;
+        }
+        $stage = trim($value);
+        $allowed = [
+            'confirmed_packed',
+            'packed_transport_to',
+            'transport_to_at_event',
+            'at_event_transport_back',
+            'transport_back_returned',
+            'packed_at_event',
+            'at_event_returned',
+            'returned_unpack',
+        ];
+
+        return in_array($stage, $allowed, true) ? $stage : null;
+    }
+
+    /**
+     * @return 'packed'|'transport_to'|'issued'|'transport_back'|'returned'
+     */
+    private function replenishmentPipelineIncrement(
+        ?string $packStage,
+        string $activityStatus,
+        ActivityPackItem $packItem,
+    ): string {
+        if ($packStage !== null) {
+            return match ($packStage) {
+                'confirmed_packed' => 'packed',
+                'packed_transport_to' => 'transport_to',
+                'transport_to_at_event', 'packed_at_event' => 'issued',
+                'at_event_transport_back' => 'transport_back',
+                /** Tab «Transport (zurück) → Retour»: Zuwachs auf Transport zurück (links), nicht schon Retour (rechts). */
+                'transport_back_returned' => 'transport_back',
+                'at_event_returned' => 'returned',
+                default => $this->inferReplenishmentPipelineIncrement($packItem, $activityStatus),
+            };
+        }
+
+        return $this->inferReplenishmentPipelineIncrement($packItem, $activityStatus);
+    }
+
+    /**
+     * @return 'packed'|'transport_to'|'issued'|'transport_back'|'returned'
+     */
+    private function inferReplenishmentPipelineIncrement(ActivityPackItem $packItem, string $activityStatus): string
+    {
+        if (!in_array($activityStatus, [
+            Activity::STATUS_AT_EVENT,
+            Activity::STATUS_RETURNED,
+            Activity::STATUS_COMPLETED,
+        ], true)) {
+            return 'packed';
+        }
+        if ($packItem->getQuantityTransportTo() < $packItem->getQuantityPacked()) {
+            return 'transport_to';
+        }
+        if ($packItem->getQuantityIssued() < $packItem->getQuantityTransportTo()) {
+            return 'issued';
+        }
+        if ($packItem->getQuantityTransportBack() < $packItem->getQuantityIssued()) {
+            return 'transport_back';
+        }
+        if ($packItem->getQuantityReturned() < $packItem->getQuantityTransportBack()) {
+            return 'returned';
+        }
+
+        return 'packed';
+    }
+
+    private function applyConsumableReplenishmentDelta(
+        ActivityPackItem $packItem,
+        int $newQuantity,
+        int $delta,
+        ?string $packStage,
+        string $activityStatus,
+    ): void {
+        if ($delta <= 0) {
+            return;
+        }
+
+        $increment = $this->replenishmentPipelineIncrement($packStage, $activityStatus, $packItem);
+        switch ($increment) {
+            case 'transport_to':
+                $packItem->setQuantityTransportTo(min($newQuantity, $packItem->getQuantityTransportTo() + $delta));
+                break;
+            case 'issued':
+                $packItem->setQuantityIssued(min($newQuantity, $packItem->getQuantityIssued() + $delta));
+                break;
+            case 'transport_back':
+                $packItem->setQuantityTransportBack(min($newQuantity, $packItem->getQuantityTransportBack() + $delta));
+                break;
+            case 'returned':
+                $packItem->setQuantityReturned(min($newQuantity, $packItem->getQuantityReturned() + $delta));
+                break;
+            case 'packed':
+            default:
+                $packItem->setQuantityPacked(min($newQuantity, $packItem->getQuantityPacked() + $delta));
+                break;
+        }
+
+        $this->normalizeConsumablePackPipelineFloors($packItem, $newQuantity, $activityStatus);
+    }
+
+    private function normalizeConsumablePackPipelineFloors(
+        ActivityPackItem $packItem,
+        int $newQuantity,
+        string $activityStatus,
+    ): void {
+        $packItem->setQuantityPacked(min(
+            $newQuantity,
+            max($packItem->getQuantityPacked(), $packItem->getQuantityTransportTo(), $packItem->getQuantityIssued()),
+        ));
+        if (!in_array($activityStatus, [
+            Activity::STATUS_AT_EVENT,
+            Activity::STATUS_RETURNED,
+            Activity::STATUS_COMPLETED,
+        ], true)) {
+            return;
+        }
+        $packItem->setQuantityTransportTo(min(
+            $newQuantity,
+            max($packItem->getQuantityTransportTo(), $packItem->getQuantityIssued()),
+        ));
+        $packItem->setQuantityIssued(min(
+            $newQuantity,
+            max($packItem->getQuantityIssued(), $packItem->getQuantityTransportBack(), $packItem->getQuantityReturned()),
+        ));
+        $packItem->setQuantityTransportBack(min(
+            $newQuantity,
+            max($packItem->getQuantityTransportBack(), $packItem->getQuantityReturned()),
+        ));
+    }
+
+    private function syncPackItemForMaterial(
+        Activity $activity,
+        MaterialItem $materialItem,
+        int $newQuantity,
+        ?string $replenishmentPackStage = null,
+        bool $isConsumableReplenishment = false,
+    ): void {
         $existingPackItem = $this->entityManager->getRepository(ActivityPackItem::class)
             ->findOneBy([
                 'activityId' => $activity->getId(),
@@ -2899,25 +3088,33 @@ class ActivityController extends AbstractController
                 $existingPackItem->setQuantityIssued($newQuantity);
             }
 
-            // Verbrauchsmaterial: Mengenzuwachs während gepackt/ausgegeben/retour nicht in «Bestätigt→Gepackt» parken,
-            // sondern dort buchen, wo das Material faktisch steht (gepackt bzw. am Event).
             if ($materialItem->getIsConsumable() && $delta > 0) {
-                $st = $activity->getStatus();
-                if ($st === Activity::STATUS_PACKED) {
-                    $existingPackItem->setQuantityPacked(
-                        min($newQuantity, $existingPackItem->getQuantityPacked() + $delta)
+                if ($isConsumableReplenishment) {
+                    $this->applyConsumableReplenishmentDelta(
+                        $existingPackItem,
+                        $newQuantity,
+                        $delta,
+                        $replenishmentPackStage,
+                        $activity->getStatus(),
                     );
-                } elseif (in_array($st, [
-                    Activity::STATUS_AT_EVENT,
-                    Activity::STATUS_RETURNED,
-                    Activity::STATUS_COMPLETED,
-                ], true)) {
-                    $existingPackItem->setQuantityPacked(
-                        min($newQuantity, $existingPackItem->getQuantityPacked() + $delta)
-                    );
-                    $existingPackItem->setQuantityIssued(
-                        min($newQuantity, $existingPackItem->getQuantityIssued() + $delta)
-                    );
+                } else {
+                    $st = $activity->getStatus();
+                    if ($st === Activity::STATUS_PACKED) {
+                        $existingPackItem->setQuantityPacked(
+                            min($newQuantity, $existingPackItem->getQuantityPacked() + $delta)
+                        );
+                    } elseif (in_array($st, [
+                        Activity::STATUS_AT_EVENT,
+                        Activity::STATUS_RETURNED,
+                        Activity::STATUS_COMPLETED,
+                    ], true)) {
+                        $existingPackItem->setQuantityPacked(
+                            min($newQuantity, $existingPackItem->getQuantityPacked() + $delta)
+                        );
+                        $existingPackItem->setQuantityIssued(
+                            min($newQuantity, $existingPackItem->getQuantityIssued() + $delta)
+                        );
+                    }
                 }
             }
 

@@ -84,6 +84,21 @@
             <li v-for="item in displayActivities" :key="item.id" class="display-row">
               <div class="display-row-text">
                 <span class="display-row-name">{{ item.name }}</span>
+                <div
+                  v-if="item.group_path?.length && item.type !== 'external'"
+                  class="display-group-path"
+                >
+                  <span
+                    v-for="(line, lineIdx) in item.group_path"
+                    :key="lineIdx"
+                    class="display-group-path-line"
+                    :style="{ paddingLeft: `${line.level * 12}px` }"
+                  >{{ line.label }}</span>
+                </div>
+                <p v-if="item.venue_label" class="display-venue">
+                  <span class="display-venue-label">{{ t('display.venue') }}</span>
+                  {{ item.venue_label }}
+                </p>
                 <span class="display-row-meta">
                   <span class="status-pill activity-status" :class="activityStatusClass(item.status)">{{ activityStatusLabel(item.status) }}</span>
                   <span v-if="item.periodLabel">{{ item.periodLabel }}</span>
@@ -718,8 +733,45 @@ watch(publicId, () => {
   font-size: 1.05rem;
   font-weight: 700;
   line-height: 1.3;
-  margin-bottom: 6px;
+  margin-bottom: 4px;
   word-break: break-word;
+}
+
+.display-group-path {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin-bottom: 6px;
+  min-width: 0;
+}
+
+.display-group-path-line {
+  display: block;
+  font-size: 0.82rem;
+  line-height: 1.35;
+  color: #475569;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.display-group-path-line:first-child {
+  font-weight: 600;
+  color: #334155;
+}
+
+.display-venue {
+  margin: 0 0 6px;
+  font-size: 0.82rem;
+  line-height: 1.4;
+  color: #475569;
+  word-break: break-word;
+}
+
+.display-venue-label {
+  font-weight: 600;
+  color: #64748b;
+  margin-right: 4px;
 }
 
 .display-row-meta {

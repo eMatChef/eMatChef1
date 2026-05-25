@@ -171,6 +171,13 @@ class ActivityAccountingCostService
             $activityId . ':replenishment',
         );
 
+        /** Nachkäufe: erst bei «abgeschlossen» Buchhaltungs-Auftrag — vorher nur Tab «Kosten». */
+        if ($activity->getStatus() !== Activity::STATUS_COMPLETED) {
+            $this->removeOrphanReplenishmentFollowUps($activity, []);
+
+            return;
+        }
+
         $bySubmitterDept = $this->replenishmentTotalsBySubmitterDepartment($activity);
         $activeRefIds = [];
         $hostDept = $activity->getDepartment();

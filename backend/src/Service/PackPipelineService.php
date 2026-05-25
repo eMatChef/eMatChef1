@@ -49,8 +49,15 @@ class PackPipelineService
         ];
     }
 
-    public function maxForwardQty(ActivityPackItem $item, string $stage, string $profile): int
-    {
+    /**
+     * @param int $consumableConsumedQty Summe Verbrauchsmeldungen (TYPE_CONSUMPTION) für dieses Material
+     */
+    public function maxForwardQty(
+        ActivityPackItem $item,
+        string $stage,
+        string $profile,
+        int $consumableConsumedQty = 0,
+    ): int {
         $stage = $this->normalizeStage($stage);
 
         return match ($stage) {
@@ -59,12 +66,7 @@ class PackPipelineService
             self::STAGE_AT_EVENT => $this->maxAtEvent($item, $profile),
             self::STAGE_TRANSPORT_BACK => max(0, $item->getQuantityIssued() - $item->getQuantityTransportBack()),
             self::STAGE_RETURNED => $this->maxReturned($item, $profile),
-            self::STAGE_STORED => $this->maxStored(
-                $item->getQuantityPacked(),
-                $item->getQuantityIssued(),
-                $item->getQuantityReturned(),
-                $item->getQuantityStored(),
-            ),
+            self::STAGE_STORED => $this->maxStoredForItem($item, $consumableConsumedQty),
             default => 0,
         };
     }
@@ -178,6 +180,33 @@ class PackPipelineService
         $neverIssuedOutstanding = max(0, $packed - $issued - $extraReturned);
 
         return $returnedPending + $neverIssuedOutstanding;
+    }
+
+    /**
+     * Verbrauchsmaterial: oft kein formaler Retour-Schritt; offene Einlager-Menge =
+     * gebucht (ordered) minus gemeldeter Verbrauch minus bereits eingelagert.
+     */
+    private function maxStoredForItem(ActivityPackItem $item, int $consumableConsumedQty): int
+    {
+        $base = $this->maxStored(
+            $item->getQuantityPacked(),
+            $item->getQuantityIssued(),
+            $item->getQuantityReturned(),
+            $item->getQuantityStored(),
+        );
+
+        if ($consumableConsumedQty <= 0) {
+            return $base;
+        }
+
+        $material = $item->getMaterialItem();
+        if ($material === null || !$material->getIsConsumable()) {
+            return $base;
+        }
+
+        $consumableCap = max(0, $item->getQuantityOrdered() - $consumableConsumedQty - $item->getQuantityStored());
+
+        return max($base, $consumableCap);
     }
 
     private function applyForwardStored(ActivityPackItem $item, int $qty, string $profile): void

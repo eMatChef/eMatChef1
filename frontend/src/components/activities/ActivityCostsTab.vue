@@ -44,7 +44,7 @@ const props = defineProps<{
   reloadToken?: number
 }>()
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 const isLoading = ref(false)
 const activityItems = ref<ActivityItemRow[]>([])
 const issues = ref<ActivityIssueReportRow[]>([])
@@ -136,6 +136,17 @@ function lineAmount(row: (typeof consumableRows.value)[number]): string {
   const amount = consumableLineCost(row, usedFor(row.material_item_id), activityItems.value, issues.value)
   if (amount <= 0 && usedFor(row.material_item_id) <= 0) return 'CHF 0.00'
   return formatChfLabel(amount)
+}
+
+function formatRecordedAt(iso: string | null | undefined): string {
+  if (!iso?.trim()) return '–'
+  return new Date(iso).toLocaleString(locale.value, {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
 }
 
 async function load() {
@@ -272,6 +283,7 @@ watch(
                 <span class="costs-col-name">{{ t('activities.costs.colMaterial') }}</span>
                 <span class="costs-col-material-dept">{{ t('activities.costs.colMaterialDept') }}</span>
                 <span class="costs-col-qty">{{ t('activities.costs.colQty') }}</span>
+                <span class="costs-col-recorded">{{ t('activities.costs.colRecorded') }}</span>
                 <span class="costs-col-submitter">{{ t('activities.costs.colSubmittedBy') }}</span>
                 <span class="costs-col-price">{{ t('activities.costs.colUnitPrice') }}</span>
                 <span class="costs-col-total">{{ t('activities.costs.colAmount') }}</span>
@@ -280,6 +292,7 @@ watch(
                 <span class="costs-col-name">{{ row.material_name }}</span>
                 <span class="costs-col-material-dept text-muted">{{ row.source_department_name || '–' }}</span>
                 <span class="costs-col-qty">{{ row.quantity }}</span>
+                <span class="costs-col-recorded text-muted">{{ formatRecordedAt(row.recorded_at) }}</span>
                 <span class="costs-col-submitter">{{ row.created_by_display_name || '–' }}</span>
                 <span class="costs-col-price">{{ formatChfLabel(row.unit_purchase) }}</span>
                 <span class="costs-col-total">{{ formatChfLabel(row.line_total ?? (row.unit_purchase ?? 0) * row.quantity) }}</span>
@@ -562,11 +575,12 @@ watch(
 }
 
 .costs-table--replenishment .costs-row {
-  grid-template-columns: 1.4fr 0.9fr 0.45fr 0.9fr 0.7fr 0.75fr;
+  grid-template-columns: 1.4fr 0.9fr 0.45fr 1.05fr 0.85fr 0.7fr 0.75fr;
 }
 
 .costs-table--replenishment .costs-col-material-dept,
-.costs-table--replenishment .costs-col-submitter {
+.costs-table--replenishment .costs-col-submitter,
+.costs-table--replenishment .costs-col-recorded {
   font-size: 12px;
   color: #6b7280;
 }

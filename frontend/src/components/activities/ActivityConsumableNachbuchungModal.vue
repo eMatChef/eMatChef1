@@ -133,6 +133,8 @@ const props = defineProps<{
   packUnit?: string | null
   /** MW/DC: Hinweis Lager/Charge — für Gruppe/Ersteller ausblenden */
   showWarehouseMaterialHint?: boolean
+  /** Packliste-Tab: Nachlieferung in dieser Pipeline-Stufe buchen (nicht nur «Gepackt») */
+  replenishmentPackStage?: string | null
 }>()
 
 const emit = defineEmits<{
@@ -205,6 +207,9 @@ async function submit() {
       line_total: total.toFixed(2),
       unit_price: (total / qty.value).toFixed(2),
       price_type: 'sale',
+    }
+    if (props.replenishmentPackStage?.trim()) {
+      body.replenishment_pack_stage = props.replenishmentPackStage.trim()
     }
     await addActivityItem(props.activityId, body)
     emit('success')

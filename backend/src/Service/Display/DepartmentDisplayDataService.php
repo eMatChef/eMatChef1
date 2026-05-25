@@ -3,8 +3,10 @@
 namespace App\Service\Display;
 
 use App\Entity\Activity;
+use App\Entity\Address;
 use App\Entity\Department;
 use App\Entity\DepartmentDisplayScreen;
+use App\Entity\Group;
 use App\Entity\WorkshopTicket;
 use App\Service\ActivityAccessService;
 use App\Service\Public\PublicCodeService;
@@ -120,12 +122,183 @@ final class DepartmentDisplayDataService
             $merged[$activity->getId()] = $activity;
         }
 
+        $departmentIds = array_values(array_unique(array_map(
+            static fn (Activity $a) => $a->getDepartmentId(),
+            $merged,
+        )));
+        $context = $this->preloadDepartmentContext($departmentIds);
+        $context['venuesById'] = $this->preloadVenueAddresses($merged);
+
         $rows = [];
         foreach ($merged as $activity) {
-            $rows[] = $this->serializeActivity($activity);
+            $rows[] = $this->serializeActivity($activity, $context);
         }
 
         return $rows;
+    }
+
+    /**
+     * @param list<string> $departmentIds
+     *
+     * @return array{
+     *   deptNames: array<string, string>,
+     *   groupsByDept: array<string, array<string, array{id: string, name: string, parent_id: ?string}>>
+     * }
+     */
+    private function preloadDepartmentContext(array $departmentIds): array
+    {
+        $deptNames = [];
+        $groupsByDept = [];
+
+        foreach ($departmentIds as $deptId) {
+            $department = $this->entityManager->getRepository(Department::class)->find($deptId);
+            $deptNames[$deptId] = $department?->getName() ?? '';
+
+            $groups = $this->entityManager->getRepository(Group::class)->findBy(['departmentId' => $deptId]);
+            $groupsByDept[$deptId] = [];
+            foreach ($groups as $group) {
+                if (!$group instanceof Group) {
+                    continue;
+                }
+                $groupsByDept[$deptId][$group->getId()] = [
+                    'id' => (string) $group->getId(),
+                    'name' => $group->getName(),
+                    'parent_id' => $group->getParentId(),
+                ];
+            }
+        }
+
+        return ['deptNames' => $deptNames, 'groupsByDept' => $groupsByDept];
+    }
+
+    /**
+     * @param array<string, Activity> $activities
+     *
+     * @return array<string, Address>
+     */
+    private function preloadVenueAddresses(array $activities): array
+    {
+        $venueIds = [];
+        foreach ($activities as $activity) {
+            $venueId = $activity->getVenueAddressId();
+            if ($venueId !== null && $venueId !== '') {
+                $venueIds[] = $venueId;
+            }
+        }
+
+        if ($venueIds === []) {
+            return [];
+        }
+
+        $venuesById = [];
+        foreach ($this->entityManager->getRepository(Address::class)->findBy(['id' => array_values(array_unique($venueIds))]) as $address) {
+            if (!$address instanceof Address) {
+                continue;
+            }
+            $venuesById[(string) $address->getId()] = $address;
+        }
+
+        return $venuesById;
+    }
+
+    private function formatVenueLabel(?Address $address): ?string
+    {
+        if ($address === null) {
+            return null;
+        }
+
+        $nameParts = array_values(array_filter([
+            trim((string) ($address->getName() ?? '')),
+            trim((string) ($address->getCompany() ?? '')),
+        ], static fn (string $part) => $part !== ''));
+        $head = implode(' · ', $nameParts);
+        $city = trim($address->getCityLine());
+        if ($head !== '' && $city !== '') {
+            return $head . ', ' . $city;
+        }
+        if ($head !== '') {
+            return $head;
+        }
+        if ($city !== '') {
+            return $city;
+        }
+
+        $full = trim($address->getFullAddress());
+
+        return $full !== '' ? $full : null;
+    }
+
+    private function resolveVenueLabel(Activity $activity, array $context): ?string
+    {
+        $venueId = $activity->getVenueAddressId();
+        if ($venueId === null || $venueId === '') {
+            return null;
+        }
+
+        $venuesById = $context['venuesById'] ?? [];
+        $venue = $venuesById[$venueId] ?? $activity->getVenueAddress();
+
+        return $this->formatVenueLabel($venue instanceof Address ? $venue : null);
+    }
+
+    /**
+     * @param array{
+     *   deptNames: array<string, string>,
+     *   groupsByDept: array<string, array<string, array{id: string, name: string, parent_id: ?string}>>,
+     *   venuesById?: array<string, Address>
+     * } $context
+     *
+     * @return list<array{label: string, level: int}>
+     */
+    private function buildGroupPathLines(
+        Activity $activity,
+        array $context,
+    ): array {
+        if ($activity->getType() === 'external') {
+            return [];
+        }
+
+        $deptId = $activity->getDepartmentId();
+        $departmentName = trim($context['deptNames'][$deptId] ?? '');
+        $lines = [['label' => $departmentName !== '' ? $departmentName : '–', 'level' => 0]];
+
+        $groupId = $activity->getGroupId();
+        if ($groupId === null || $groupId === '') {
+            return $lines;
+        }
+
+        $groupsById = $context['groupsByDept'][$deptId] ?? [];
+        $chain = [];
+        $current = $groupId;
+        $seen = [];
+        while ($current !== null && $current !== '' && !isset($seen[$current])) {
+            $seen[$current] = true;
+            if (!isset($groupsById[$current])) {
+                break;
+            }
+            $chain[] = $groupsById[$current];
+            $current = $groupsById[$current]['parent_id'];
+        }
+
+        if ($chain === []) {
+            $group = $activity->getGroup();
+            $fallback = trim((string) ($group?->getName() ?? ''));
+            if ($fallback !== '') {
+                $lines[] = ['label' => $fallback, 'level' => 1];
+            }
+
+            return $lines;
+        }
+
+        foreach (array_reverse($chain) as $index => $group) {
+            $name = trim((string) ($group['name'] ?? ''));
+            if ($name === '') {
+                continue;
+            }
+            $lines[] = ['label' => $name, 'level' => $index + 1];
+        }
+
+        return $lines;
     }
 
     /**
@@ -209,9 +382,15 @@ final class DepartmentDisplayDataService
     }
 
     /**
+     * @param array{
+     *   deptNames: array<string, string>,
+     *   groupsByDept: array<string, array<string, array{id: string, name: string, parent_id: ?string}>>,
+     *   venuesById?: array<string, Address>
+     * } $context
+     *
      * @return array<string, mixed>
      */
-    private function serializeActivity(Activity $activity): array
+    private function serializeActivity(Activity $activity, array $context): array
     {
         $activityPublicEntry = $this->publicCodeService->getActiveActivityPublicCode((string) $activity->getId());
         $activityPublicCode = $activityPublicEntry?->getPublicCode();
@@ -221,6 +400,10 @@ final class DepartmentDisplayDataService
             'name' => $activity->getName(),
             'type' => $activity->getType(),
             'status' => $activity->getStatus(),
+            'group_id' => $activity->getGroupId(),
+            'group_path' => $this->buildGroupPathLines($activity, $context),
+            'venue_address_id' => $activity->getVenueAddressId(),
+            'venue_label' => $this->resolveVenueLabel($activity, $context),
             'usage_start' => $activity->getUsageStart()?->format('c'),
             'usage_end' => $activity->getUsageEnd()?->format('c'),
             'planning_start' => $activity->getPlanningStart()?->format('c'),

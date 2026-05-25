@@ -12,82 +12,112 @@
         </p>
         <p v-if="consumableAggregated.length === 0" class="text-muted">{{ t('activities.consumables.empty') }}</p>
         <div v-else class="consumables-list">
-          <div v-for="row in consumableAggregated" :key="row.material_item_id" class="consumable-card">
-            <div class="consumable-info">
-              <span class="consumable-name">{{ displayNameAgg(row) }}</span>
-              <span class="consumable-ordered text-muted">{{ t('activities.consumables.booked', { n: row.quantity_booked }) }}</span>
+          <article
+            v-for="row in consumableAggregated"
+            :key="row.material_item_id"
+            class="consumable-card"
+          >
+            <header class="consumable-card__head">
+              <h4 class="consumable-card__title">{{ displayNameAgg(row) }}</h4>
+              <span class="consumable-card__booked">
+                {{ t('activities.consumables.booked', { n: row.quantity_booked }) }}
+              </span>
+            </header>
+
+            <div
+              v-if="row.quantity_warehouse > 0 || row.quantity_replenishment > 0"
+              class="consumable-card__sources"
+            >
               <span
-                v-if="row.quantity_warehouse > 0 && row.quantity_replenishment > 0"
-                class="consumable-qty-split text-muted"
+                v-if="row.quantity_warehouse > 0"
+                class="consumable-chip consumable-chip--warehouse"
               >
-                {{
-                  t('activities.consumables.qtySplit', {
-                    warehouse: row.quantity_warehouse,
-                    replenishment: row.quantity_replenishment,
-                  })
-                }}
+                {{ t('activities.consumables.chipWarehouse', { n: row.quantity_warehouse }) }}
               </span>
-              <span v-else-if="row.quantity_replenishment > 0" class="consumable-replenishment-only text-muted">
-                {{ t('activities.consumables.replenishmentOnly', { n: row.quantity_replenishment }) }}
-              </span>
-              <span v-if="usedQty(row.material_item_id) > 0" class="consumable-used">
-                {{ t('activities.consumables.used', { n: usedQty(row.material_item_id) }) }}
-              </span>
-              <span v-if="remainingQty(row.material_item_id) > 0" class="consumable-remaining text-muted">
-                {{ t('activities.consumables.remaining', { n: remainingQty(row.material_item_id) }) }}
-              </span>
-              <span v-else class="consumable-remaining consumable-remaining--zero">
-                {{ t('activities.consumables.remainingZero') }}
+              <span
+                v-if="row.quantity_replenishment > 0"
+                class="consumable-chip consumable-chip--replenishment"
+              >
+                {{ t('activities.consumables.chipReplenishment', { n: row.quantity_replenishment }) }}
               </span>
             </div>
-            <div v-if="remainingQty(row.material_item_id) > 0" class="consumable-actions">
-              <div class="consumable-qty-row">
+
+            <div class="consumable-card__stats">
+              <div class="consumable-stat consumable-stat--used">
+                <span class="consumable-stat__label">{{ t('activities.consumables.statUsed') }}</span>
+                <span class="consumable-stat__value">{{ usedQty(row.material_item_id) }}</span>
+              </div>
+              <div
+                class="consumable-stat"
+                :class="
+                  remainingQty(row.material_item_id) > 0
+                    ? 'consumable-stat--remaining'
+                    : 'consumable-stat--remaining-zero'
+                "
+              >
+                <span class="consumable-stat__label">{{ t('activities.consumables.statRemaining') }}</span>
+                <span class="consumable-stat__value">{{ remainingQty(row.material_item_id) }}</span>
+              </div>
+            </div>
+
+            <div
+              v-if="remainingQty(row.material_item_id) > 0"
+              class="consumable-card__book"
+            >
+              <label class="consumable-book__label" :for="'consumable-qty-' + row.material_item_id">
+                {{ t('activities.consumables.bookQtyLabel') }}
+              </label>
+              <div class="consumable-book__controls">
+                <div class="consumable-qty-row">
+                  <button
+                    type="button"
+                    class="btn-qty"
+                    :disabled="(qtyInputs[row.material_item_id] ?? 1) <= 1"
+                    @click="bumpQty(row.material_item_id, -1)"
+                  >
+                    −
+                  </button>
+                  <input
+                    :id="'consumable-qty-' + row.material_item_id"
+                    v-model.number="qtyInputs[row.material_item_id]"
+                    type="number"
+                    min="1"
+                    :max="Math.max(1, remainingQty(row.material_item_id))"
+                    class="consumable-qty-input"
+                    @change="clampQtyFor(row.material_item_id)"
+                  />
+                  <button
+                    type="button"
+                    class="btn-qty"
+                    :disabled="
+                      (qtyInputs[row.material_item_id] ?? 1) >= remainingQty(row.material_item_id)
+                    "
+                    @click="bumpQty(row.material_item_id, 1)"
+                  >
+                    +
+                  </button>
+                </div>
                 <button
                   type="button"
-                  class="btn-qty"
-                  :disabled="(qtyInputs[row.material_item_id] ?? 1) <= 1"
-                  @click="bumpQty(row.material_item_id, -1)"
+                  class="btn btn-sm btn-success consumable-book__submit"
+                  :disabled="!canCreate || postingId === row.material_item_id"
+                  @click="reportConsumption(row)"
                 >
-                  −
-                </button>
-                <input
-                  v-model.number="qtyInputs[row.material_item_id]"
-                  type="number"
-                  min="1"
-                  :max="Math.max(1, remainingQty(row.material_item_id))"
-                  class="consumable-qty-input"
-                  @change="clampQtyFor(row.material_item_id)"
-                />
-                <button
-                  type="button"
-                  class="btn-qty"
-                  :disabled="
-                    (qtyInputs[row.material_item_id] ?? 1) >= remainingQty(row.material_item_id)
-                  "
-                  @click="bumpQty(row.material_item_id, 1)"
-                >
-                  +
+                  {{
+                    postingId === row.material_item_id
+                      ? t('activities.consumables.postingEllipsis')
+                      : t('activities.consumables.posting')
+                  }}
                 </button>
               </div>
-              <button
-                type="button"
-                class="btn btn-sm btn-success"
-                :disabled="!canCreate || postingId === row.material_item_id"
-                @click="reportConsumption(row)"
-              >
-                {{ postingId === row.material_item_id ? t('activities.consumables.postingEllipsis') : t('activities.consumables.posting') }}
-              </button>
             </div>
-            <div v-else class="consumable-actions consumable-actions--blocked">
+
+            <div v-else class="consumable-card__blocked">
               <template v-if="canRequestNachbuchung">
                 <p class="consumable-blocked-hint text-muted">
                   {{ t('activities.consumables.blockedHintWithNachbuchung') }}
                 </p>
-                <button
-                  type="button"
-                  class="btn btn-sm btn-primary"
-                  @click="emitNachbuchung(row)"
-                >
+                <button type="button" class="btn btn-sm btn-primary" @click="emitNachbuchung(row)">
                   {{ t('activities.consumables.addNachlieferung') }}
                 </button>
               </template>
@@ -95,54 +125,66 @@
                 {{ t('activities.consumables.blockedHintNoRights') }}
               </p>
             </div>
-            <div
-              v-if="canAddActivityMaterial && remainingQty(row.material_item_id) > 0"
-              class="consumable-surplus-row"
+
+            <footer
+              v-if="
+                (canAddActivityMaterial && remainingQty(row.material_item_id) > 0) ||
+                (canRequestNachbuchung && remainingQty(row.material_item_id) > 0)
+              "
+              class="consumable-card__footer"
             >
-              <p class="consumable-surplus-hint text-muted">
-                {{ t('activities.consumables.surplusHint', { n: remainingQty(row.material_item_id) }) }}
-              </p>
-              <button
-                type="button"
-                class="btn btn-sm btn-outline"
-                :disabled="releasingId === row.material_item_id"
-                @click="releaseSurplus(row)"
+              <div
+                v-if="canAddActivityMaterial && remainingQty(row.material_item_id) > 0"
+                class="consumable-footer__surplus"
               >
-                {{
-                  releasingId === row.material_item_id
-                    ? t('activities.consumables.surplusReleasing')
-                    : t('activities.consumables.surplusRelease', { n: remainingQty(row.material_item_id) })
-                }}
-              </button>
-            </div>
-            <div
-              v-if="canRequestNachbuchung && remainingQty(row.material_item_id) > 0"
-              class="consumable-nachlieferung"
-            >
-              <button type="button" class="link-btn" @click="emitNachbuchung(row)">
+                <p class="consumable-footer__hint text-muted">
+                  {{ t('activities.consumables.surplusHint', { n: remainingQty(row.material_item_id) }) }}
+                </p>
+                <button
+                  type="button"
+                  class="btn btn-sm btn-outline"
+                  :disabled="releasingId === row.material_item_id"
+                  @click="releaseSurplus(row)"
+                >
+                  {{
+                    releasingId === row.material_item_id
+                      ? t('activities.consumables.surplusReleasing')
+                      : t('activities.consumables.surplusRelease', { n: remainingQty(row.material_item_id) })
+                  }}
+                </button>
+              </div>
+              <button
+                v-if="canRequestNachbuchung && remainingQty(row.material_item_id) > 0"
+                type="button"
+                class="link-btn consumable-footer__nachbuchung"
+                @click="emitNachbuchung(row)"
+              >
                 {{ t('activities.consumables.increaseBooked') }}
               </button>
-            </div>
-          </div>
+            </footer>
+          </article>
         </div>
 
-        <section v-if="replenishmentRows.length > 0" class="costs-section consumable-replenishment-section">
-          <h3 class="costs-section-title">{{ t('activities.consumables.replenishmentSectionTitle') }}</h3>
+        <section v-if="replenishmentHistory.length > 0" class="consumable-replenishment-section">
+          <h3 class="consumable-history-title">{{ t('activities.consumables.replenishmentSectionTitle') }}</h3>
           <p class="consumable-replenishment-hint text-muted">{{ t('activities.consumables.replenishmentSectionHint') }}</p>
-          <div class="costs-table">
-            <div class="costs-row costs-row-header">
-              <span class="costs-col-name">{{ t('activities.consumables.costsColMaterial') }}</span>
-              <span class="costs-col-qty">{{ t('activities.consumables.costsColBooked') }}</span>
-              <span class="costs-col-used"></span>
-              <span class="costs-col-price">{{ t('activities.consumables.replenishmentColPurchase') }}</span>
-              <span class="costs-col-total">{{ t('activities.consumables.costsColAmount') }}</span>
-            </div>
-            <div v-for="row in replenishmentRows" :key="'repl-' + row.id" class="costs-row">
-              <span class="costs-col-name">{{ row.material_name }}</span>
-              <span class="costs-col-qty">{{ row.quantity }}</span>
-              <span class="costs-col-used"></span>
-              <span class="costs-col-price">{{ formatChfLabel(row.unit_purchase) }}</span>
-              <span class="costs-col-total">{{ formatChfLabel(row.line_total ?? (row.unit_purchase ?? 0) * row.quantity) }}</span>
+          <div class="consumable-history consumable-history--replenishment">
+            <div
+              v-for="row in replenishmentHistory"
+              :key="'repl-' + row.id"
+              class="consumable-history-item"
+            >
+              <span class="consumable-history-name">{{ row.material_name }}</span>
+              <span class="consumable-history-qty">{{ t('activities.consumables.historyQty', { n: row.quantity }) }}</span>
+              <span class="consumable-history-amount">{{
+                t('activities.consumables.replenishmentHistoryPurchase', {
+                  total: formatChfLabel(row.line_total ?? (row.unit_purchase ?? 0) * row.quantity),
+                  unit: formatChfLabel(row.unit_purchase),
+                })
+              }}</span>
+              <span v-if="replenishmentRecordedAt(row)" class="consumable-history-time">{{
+                formatDateTime(replenishmentRecordedAt(row)!)
+              }}</span>
             </div>
           </div>
         </section>
@@ -275,6 +317,20 @@ const consumableAggregated = computed(() => {
 })
 
 const replenishmentRows = computed(() => replenishmentPurchaseRows(activityItems.value))
+
+const replenishmentHistory = computed(() =>
+  [...replenishmentRows.value].sort((a, b) => {
+    const ta = new Date(replenishmentRecordedAt(a) ?? 0).getTime()
+    const tb = new Date(replenishmentRecordedAt(b) ?? 0).getTime()
+    if (tb !== ta) return tb - ta
+    return b.id.localeCompare(a.id)
+  }),
+)
+
+function replenishmentRecordedAt(row: { recorded_at?: string | null }): string | null {
+  const raw = row.recorded_at?.trim()
+  return raw || null
+}
 
 const consumableCostTotalValue = computed(() =>
   consumableCostTotal(activityItems.value, issues.value),
@@ -519,107 +575,235 @@ watch(
 .consumables-list {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 14px;
 }
 
 .consumable-card {
-  border: 1px solid #e5e7eb;
-  border-radius: 10px;
-  padding: 12px 14px;
-  background: #fafafa;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 0;
+  background: #fff;
+  overflow: hidden;
+  box-shadow: 0 1px 2px rgb(15 23 42 / 4%);
 }
 
-.consumable-info {
+.consumable-card__head {
   display: flex;
   flex-wrap: wrap;
-  align-items: baseline;
-  gap: 8px 14px;
-  margin-bottom: 10px;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px 12px;
+  padding: 14px 16px 10px;
+  border-bottom: 1px solid #f1f5f9;
+  background: linear-gradient(180deg, #f8fafc 0%, #fff 100%);
 }
 
-.consumable-name {
+.consumable-card__title {
+  margin: 0;
+  font-size: 1rem;
   font-weight: 600;
+  line-height: 1.3;
+  color: #0f172a;
   flex: 1;
   min-width: 0;
 }
 
-.consumable-actions {
+.consumable-card__booked {
+  font-size: 13px;
+  font-weight: 600;
+  color: #334155;
+  background: #e2e8f0;
+  padding: 4px 10px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.consumable-card__sources {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 10px 16px 0;
+}
+
+.consumable-chip {
+  font-size: 12px;
+  font-weight: 500;
+  padding: 4px 10px;
+  border-radius: 6px;
+  line-height: 1.35;
+}
+
+.consumable-chip--warehouse {
+  color: #1e40af;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+}
+
+.consumable-chip--replenishment {
+  color: #9a3412;
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+}
+
+.consumable-card__stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  padding: 12px 16px;
+}
+
+.consumable-stat {
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+}
+
+.consumable-stat__label {
+  display: block;
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: #64748b;
+  margin-bottom: 4px;
+}
+
+.consumable-stat__value {
+  font-size: 1.25rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+}
+
+.consumable-stat__value::after {
+  content: ' Stk.';
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: #64748b;
+}
+
+.consumable-stat--used .consumable-stat__value {
+  color: #b45309;
+}
+
+.consumable-stat--remaining .consumable-stat__value {
+  color: #0f766e;
+}
+
+.consumable-stat--remaining-zero .consumable-stat__value {
+  color: #b91c1c;
+}
+
+.consumable-card__book {
+  padding: 0 16px 14px;
+}
+
+.consumable-book__label {
+  display: block;
+  font-size: 12px;
+  font-weight: 500;
+  color: #475569;
+  margin-bottom: 8px;
+}
+
+.consumable-book__controls {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 10px;
+  gap: 10px 12px;
 }
 
 .consumable-qty-row {
   display: flex;
   align-items: center;
   gap: 6px;
+  padding: 4px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
 }
 
 .btn-qty {
-  width: 32px;
-  height: 34px;
+  width: 36px;
+  height: 36px;
   border: 1px solid #cbd5e1;
   border-radius: 6px;
   background: #fff;
   cursor: pointer;
+  font-size: 1.1rem;
+  line-height: 1;
+  color: #334155;
 }
 
-.btn-qty:hover {
+.btn-qty:hover:not(:disabled) {
   background: #f1f5f9;
 }
 
+.btn-qty:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 .consumable-qty-input {
-  width: 3.5rem;
+  width: 3.25rem;
   text-align: center;
-  padding: 6px 8px;
+  padding: 8px 6px;
   border: 1px solid #cbd5e1;
   border-radius: 6px;
+  font-size: 15px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
 }
 
-.consumable-used {
-  font-size: 13px;
-  color: #b45309;
-  font-weight: 500;
+.consumable-book__submit {
+  flex: 1;
+  min-width: 10rem;
+  justify-content: center;
 }
 
-.consumable-remaining {
-  font-size: 13px;
-}
-
-.consumable-remaining--zero {
-  color: #b91c1c;
-  font-weight: 500;
-}
-
-.consumable-actions--blocked {
+.consumable-card__blocked {
+  padding: 0 16px 14px;
+  display: flex;
   flex-direction: column;
   align-items: flex-start;
+  gap: 8px;
 }
 
 .consumable-blocked-hint {
-  margin: 0 0 8px;
+  margin: 0;
   font-size: 13px;
   line-height: 1.45;
   max-width: 36rem;
 }
 
-.consumable-surplus-row {
-  margin-top: 10px;
-  padding-top: 10px;
-  border-top: 1px dashed #e5e7eb;
+.consumable-card__footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px 16px;
+  padding: 12px 16px;
+  border-top: 1px solid #f1f5f9;
+  background: #fafbfc;
 }
 
-.consumable-surplus-hint {
+.consumable-footer__surplus {
+  flex: 1;
+  min-width: min(100%, 16rem);
+}
+
+.consumable-footer__hint {
   margin: 0 0 8px;
   font-size: 12px;
   line-height: 1.45;
+  max-width: 28rem;
 }
 
-.consumable-nachlieferung {
-  margin-top: 10px;
-  padding-top: 8px;
-  border-top: 1px dashed #e5e7eb;
+.consumable-footer__nachbuchung {
+  flex-shrink: 0;
+  align-self: center;
+  text-align: left;
 }
 
 .link-btn {
@@ -637,6 +821,25 @@ watch(
   color: #1d4ed8;
 }
 
+@media (max-width: 520px) {
+  .consumable-card__stats {
+    grid-template-columns: 1fr;
+  }
+
+  .consumable-book__submit {
+    width: 100%;
+  }
+
+  .consumable-card__footer {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .consumable-footer__nachbuchung {
+    align-self: flex-start;
+  }
+}
+
 .consumable-replenishment-section {
   margin-top: 20px;
 }
@@ -645,12 +848,6 @@ watch(
   margin: 0 0 12px;
   font-size: 12px;
   line-height: 1.45;
-}
-
-.consumable-qty-split,
-.consumable-replenishment-only {
-  font-size: 12px;
-  flex-basis: 100%;
 }
 
 .consumable-costs-section {
@@ -706,6 +903,15 @@ watch(
 
 .consumable-history-qty {
   font-variant-numeric: tabular-nums;
+  color: #b45309;
+  font-weight: 500;
+}
+
+.consumable-history-amount {
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+  color: #475569;
+  text-align: right;
 }
 
 .consumable-history-time {

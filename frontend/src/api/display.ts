@@ -1,8 +1,17 @@
+export interface DisplayGroupPathLine {
+  label: string
+  level: number
+}
+
 export interface DisplayActivityRow {
   id: string
   name: string
   type: string
   status: string
+  group_id?: string | null
+  group_path?: DisplayGroupPathLine[]
+  venue_address_id?: string | null
+  venue_label?: string | null
   usage_start?: string | null
   usage_end?: string | null
   planning_start?: string | null

@@ -264,6 +264,8 @@ export async function addActivityItem(
     material_item_id: string
     quantity?: number
     replenishment?: boolean
+    /** Packliste-Tab beim Buchen (z. B. packed_transport_to) — Nachlieferung landet in dieser Pipeline-Stufe */
+    replenishment_pack_stage?: string
     /** Department-Kontext der Erfassung (Route/UI), wichtig bei Partner-Aktivitäten */
     acting_department_id?: string
     unit_price?: number | string

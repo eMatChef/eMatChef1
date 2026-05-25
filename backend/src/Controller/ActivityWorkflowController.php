@@ -367,7 +367,7 @@ class ActivityWorkflowController extends AbstractController
             }
         }
 
-        $maxAllowed = $this->packPipeline->maxForwardQty($packItem, $stage, $profile);
+        $maxAllowed = $this->maxForwardAllowedForPackItem($activity, $packItem, $stage, $profile);
         if ($qty > $maxAllowed) {
             return new JsonResponse(['error' => "Maximal $maxAllowed verfügbar"], 422);
         }
@@ -551,7 +551,7 @@ class ActivityWorkflowController extends AbstractController
         $moved = 0;
 
         foreach ($packItems as $packItem) {
-            $remaining = $this->packPipeline->maxForwardQty($packItem, $stage, $profile);
+            $remaining = $this->maxForwardAllowedForPackItem($activity, $packItem, $stage, $profile);
             if ($remaining <= 0) {
                 continue;
             }
@@ -1499,6 +1499,38 @@ ORDER BY mb.material_item_id ASC, mb.id ASC";
             'is_js_material' => $mi->getIsJsMaterial(),
             'external_source' => $mi->getExternalSource(),
         ];
+    }
+
+    private function maxForwardAllowedForPackItem(
+        Activity $activity,
+        ActivityPackItem $packItem,
+        string $stage,
+        string $profile,
+    ): int {
+        $consumed = 0;
+        if ($stage === PackPipelineService::STAGE_STORED) {
+            $material = $packItem->getMaterialItem();
+            if ($material !== null && $material->getIsConsumable()) {
+                $consumed = $this->consumedQtyForMaterial($activity->getId(), $material->getId());
+            }
+        }
+
+        return $this->packPipeline->maxForwardQty($packItem, $stage, $profile, $consumed);
+    }
+
+    private function consumedQtyForMaterial(string $activityId, string $materialItemId): int
+    {
+        return (int) $this->entityManager->createQueryBuilder()
+            ->select('COALESCE(SUM(ir.quantity), 0)')
+            ->from(ActivityIssueReport::class, 'ir')
+            ->where('ir.activityId = :aid')
+            ->andWhere('ir.materialItemId = :mid')
+            ->andWhere('ir.type = :t')
+            ->setParameter('aid', $activityId)
+            ->setParameter('mid', $materialItemId)
+            ->setParameter('t', ActivityIssueReport::TYPE_CONSUMPTION)
+            ->getQuery()
+            ->getSingleScalarResult();
     }
 
     private function createHistoryEntry(Activity $activity, string $action, array $changes = []): void

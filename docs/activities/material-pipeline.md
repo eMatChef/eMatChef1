@@ -104,6 +104,10 @@ Gruppe sieht in der Packliste **4 Transport-Tabs** (ohne «Bestätigt → Gepack
 
 **Verbrauchsmaterial (Camp/Event):** Auf «Am Event → Transport (zurück)» und «Transport (zurück) → Retour» kein Inline-Quick und kein automatisches Verbrauchs-Modal beim Pfeil «→» — Verbrauch und Nachlieferung nur über die Buttons. Inline-+/− nur im Quick-Profil auf «Am Event → Retour».
 
+**Nachlieferung (API `replenishment_pack_stage`):** Der Zuwachs landet auf der Pipeline-Stufe des aktiven Pack-Tabs — z. B. `packed_transport_to` → `quantity_transport_to`, `transport_back_returned` → **`quantity_transport_back`** (links «Transport (zurück)»), nicht `quantity_returned` (rechts «Retour»). Retour-Rechts buchen nur mit Pfeil «→» oder Quick-Profil `at_event_returned`.
+
+**Anzeige «0 Stk.» (Verbrauchsmaterial):** Auf jedem Pack-Tab links, wenn alles verbraucht ist, aber für diesen Schritt noch nicht mit «→» auf die rechte Seite gebucht wurde (nicht im Lager — kann schon beim Packen sein). Nach Verschieben: Zeile verschwindet links und erscheint nur noch rechts in der Ziel-Stufe dieses Tabs.
+
 ### UI-Stufen (Quick / External, MW)
 
 | UI-Stufe | Pipeline-Stufe(n) | Wer (`activity`) | Wer (`external`) |
@@ -146,9 +150,12 @@ Gruppe sieht in der Packliste **4 Transport-Tabs** (ohne «Bestätigt → Gepack
 
 1. **Physische Sperre** — `GREATEST(quantity_packed, quantity_returned) - quantity_stored` ab Status `packing` … `returned`, **ohne** Zeitraum-Overlap. Eingelagerte Menge ist sofort für andere Anlässe frei.
 2. **Zeitraum-Reservierung** — `activity_item.quantity` nur in `draft`/`submitted`/`approved` bei Overlap mit `planning_start`/`planning_end` (Fallback `usage_*`). Frühes Packen vor `planning_start`: Sperre über `quantity_packed`. Nach `planning_end`: Sperre über offene Pipeline-Menge bis `stored`.
-3. **Abschluss** (`returned` → `completed`) blockiert bei: offenem Einlagern (`packed`/`returned` > `stored`), offenen Issue-Meldungen (Verlust/Reparatur/Schaden), offenen Werkstatt-Tickets, **allen** ausstehenden Buchhaltungs-Aufträgen der Aktivität (mehrere `activity_*`-Follow-ups, kein `activity_final`).
+3. **Abschluss** (`returned` → `completed`) blockiert bei: offenem Einlagern (gleiche Logik wie `maxForwardQty` für Stufe `stored`, inkl. Verbrauchsmaterial: `ordered − Verbrauch − stored`), offenen Issue-Meldungen (Verlust/Reparatur/Schaden), offenen Werkstatt-Tickets, **allen** ausstehenden Buchhaltungs-Aufträgen der Aktivität (mehrere `activity_*`-Follow-ups, kein `activity_final`).
 4. **`completed` steuert nicht die Verfügbarkeit** — nur Vorgangsabschluss; Kosten laufen über die einzelnen Buchhaltungs-Aufträge ab Retour.
 5. **Quick / External:** keine Transport-UI; Logistics: volle Pipeline.
+6. **Verbrauchsmaterial einlagern:** Maximal `quantity_ordered − Verbrauchsmeldungen − quantity_stored` (auch wenn `quantity_returned` noch 0 ist). Formale Retour-Stücke nutzen weiterhin `maxStored` aus Pack-Feldern.
+7. **Mehr Menge als gebucht:** über **Nachlieferung** auf der Aktivität (`activity_item` mit `is_replenishment`), nicht über Einlagern. **Neue Charge/Batch** im Modul Material = physischer Lagerbestand, unabhängig von der Aktivitäts-Buchung.
+8. **Einlagerung rückgängig (Tab «Retour → Ausgepackt», rechts):** ←-Pfeil bucht `quantity_stored` zurück nach links; Bestätigungsdialog warnt, dass die Stücke physisch bereits im Lager liegen können.
 
 ---
 
@@ -172,7 +179,7 @@ Gruppe sieht in der Packliste **4 Transport-Tabs** (ohne «Bestätigt → Gepack
 - [x] Verfügbarkeit: Pipeline-Sperre `GREATEST(packed, returned) - stored`; Zeitraum-Reservierung bis `approved` (`MaterialAvailabilityReservationQuery`)
 - [x] Abschluss-Blocker: Einlagerung, Issues, Werkstatt, Buchhaltung (`ActivityController::getCompletionBlockers`)
 - [x] `activity_item.status`: Sync aus Pack-Pipeline (`ActivityItemPipelineStatusService`) bei Move, Kisten, Statuswechsel
-- [x] Abschluss blockiert, solange `quantity_returned > quantity_stored`
+- [x] Abschluss-Blocker Einlagerung über `PackPipelineService::maxForwardQty(stored)` (+ Verbrauch pro Material)
 - [x] UI: Abschluss-Checkliste bei Status `returned` (`ActivityCompletionChecklist`, Blocker aus `GET …/transitions`)
 
 ---

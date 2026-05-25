@@ -10,6 +10,7 @@ import {
   getStageTotalQty,
   isPackConfirmedStage,
   isPackForwardToEventStage,
+  isPackReturnStage,
   isPackLogisticsReturnStage,
   isPackReturnPipelineStage,
   isPackUnpackStage,
@@ -73,6 +74,32 @@ function showLooseInContainersDetail(stage: PackStage, side: 'left' | 'right'): 
           <template v-else>
             <span class="text-muted">{{ t('activities.packList.allInContainers') }}</span>
           </template>
+          <span class="text-muted pack-card-detail-fraction">
+            {{
+              t('activities.packList.notYetStage', {
+                left: leftQty(),
+                total: totalQty(),
+                stage: stageRightLabel,
+              })
+            }}
+          </span>
+        </template>
+        <template
+          v-else-if="
+            item.isConsumable &&
+            (consumedAtEvent ?? 0) > 0 &&
+            leftQty() <= 0 &&
+            rightQty() <= 0 &&
+            !isPackReturnStage(stage) &&
+            !isPackUnpackStage(stage)
+          "
+        >
+          <span class="text-muted">{{ t('activities.packList.zeroPieces') }}</span>
+          <span class="text-muted">
+            {{ t('activities.packList.consumableAtEventConsumed', { n: consumedAtEvent }) }}
+          </span>
+        </template>
+        <template v-else-if="isPackConfirmedStage(stage) && leftQty() > 0">
           <span class="text-muted pack-card-detail-fraction">
             {{
               t('activities.packList.notYetStage', {

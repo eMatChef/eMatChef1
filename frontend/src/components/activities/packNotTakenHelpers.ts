@@ -96,11 +96,14 @@ export type PackRetourAccounting = {
 }
 
 /**
- * Bilanz aus dem Lager: Gepackt (+ Dazukauf) = Retour gesamt + Verbrauch + Verlust + Reparatur.
- * Retour gesamt = gepackt − Verbrauch − Verlust − Reparatur (physische Rückgabe).
+ * Bilanz: (Lager gepackt + Dazukauf) = Retour gesamt + Verbrauch + Verlust + Reparatur.
+ * `quantity_packed` am Pack-Item enthält bei Verbrauch oft bereits Lager + Nachlieferung —
+ * Dazukauf dann nur zur Anzeige, nicht nochmals aufaddieren.
  */
 export function packRetourAccountingSnapshot(params: {
   quantityPacked: number
+  /** Summe activity_item (Lager + Nachlieferung); falls grösser als quantity_packed. */
+  quantityOrdered?: number
   quantityIssued: number
   returned: number
   neverIssuedLoose: number
@@ -112,6 +115,7 @@ export function packRetourAccountingSnapshot(params: {
 }): PackRetourAccounting {
   const {
     quantityPacked,
+    quantityOrdered,
     quantityIssued,
     returned,
     neverIssuedLoose,
@@ -124,9 +128,12 @@ export function packRetourAccountingSnapshot(params: {
   const issued = Math.max(0, quantityIssued)
   const neverIssued = Math.max(0, neverIssuedLoose)
   const notTaken = Math.max(0, notTakenFromIssues)
-  const packed = Math.max(0, quantityPacked)
+  const packedTotal = Math.max(0, quantityPacked)
+  const orderedTotal = Math.max(packedTotal, quantityOrdered ?? 0)
   const replenishmentQty = Math.max(0, replenishment)
-  const outOfWarehouse = packed + replenishmentQty
+  const outOfWarehouse = Math.max(packedTotal, orderedTotal)
+  const packedFromWarehouse =
+    replenishmentQty > 0 ? Math.max(0, outOfWarehouse - replenishmentQty) : outOfWarehouse
   const consumed = Math.max(0, Math.min(consumedRaw, outOfWarehouse))
   const loss = Math.max(0, Math.min(lossRaw, outOfWarehouse))
   const repair = Math.max(0, Math.min(repairRaw, outOfWarehouse))
@@ -134,7 +141,7 @@ export function packRetourAccountingSnapshot(params: {
   const retourTotal = Math.max(0, outOfWarehouse - consumed - loss - repair)
   const expectedReturn = Math.max(0, issued - notTaken - consumed - loss - repair)
   return {
-    packed,
+    packed: packedFromWarehouse,
     replenishment: replenishmentQty,
     issued,
     neverIssued,

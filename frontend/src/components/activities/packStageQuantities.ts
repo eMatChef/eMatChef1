@@ -247,7 +247,11 @@ export function getStageLeftQty(
     case 'at_event_transport_back':
       return item.quantityIssued - item.quantityTransportBack
     case 'at_event_returned':
+      return item.quantityIssued - item.quantityReturned
     case 'transport_back_returned':
+      if (profile === 'logistics') {
+        return Math.max(0, item.quantityTransportBack - item.quantityReturned)
+      }
       return item.quantityIssued - item.quantityReturned
     case 'returned_unpack':
       return Math.max(0, item.quantityReturned - item.quantityStored)
@@ -295,7 +299,11 @@ export function getStageTotalQty(item: ActivityPackItem, stage: PackStage, profi
     case 'at_event_transport_back':
       return item.quantityIssued
     case 'at_event_returned':
+      return item.quantityIssued
     case 'transport_back_returned':
+      if (profile === 'logistics') {
+        return item.quantityTransportBack
+      }
       return item.quantityIssued
     case 'returned_unpack':
       return item.quantityReturned
@@ -347,6 +355,41 @@ export function workflowTargetStatusForStage(
     return 'returned'
   }
   return null
+}
+
+export type PackWorkflowTransitionResolve = {
+  confirmStage: PackStage
+  targetStatus: string
+}
+
+/**
+ * Pack-Tab für den Status-Workflow-Button (mit %-Badge).
+ * Camp/Event: «Am Event»-Status nur vom Tab «Transport hin → Am Event» (evtl. über
+ * nächsten Tab, wenn Status-Tab noch «Gepackt → Transport hin»). «Retour» nur auf
+ * «Transport zurück → Retour» — nicht auf «Am Event → Transport zurück».
+ */
+export function resolvePackWorkflowTransitionStage(
+  activeStage: PackStage,
+  isStatusTab: boolean,
+  packStageKeys: PackStage[],
+  activityStatus: string,
+  profile: PackWorkflowProfile,
+): PackWorkflowTransitionResolve | null {
+  const tryStage = (stage: PackStage): PackWorkflowTransitionResolve | null => {
+    const target = workflowTargetStatusForStage(stage, activityStatus, profile)
+    if (!target) return null
+    return { confirmStage: stage, targetStatus: target }
+  }
+
+  const direct = tryStage(activeStage)
+  if (direct) return direct
+
+  if (!isStatusTab) return null
+  const idx = packStageKeys.indexOf(activeStage)
+  if (idx < 0 || idx >= packStageKeys.length - 1) return null
+  const next = tryStage(packStageKeys[idx + 1]!)
+  if (!next || next.targetStatus === 'returned') return null
+  return next
 }
 
 export function groupActivityPackItemsByCategory(

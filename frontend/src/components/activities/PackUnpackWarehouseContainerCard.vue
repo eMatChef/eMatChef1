@@ -8,6 +8,7 @@ import PackContainerSubsectionsList from '@/components/activities/PackContainerS
 import PackRetourAccountingStack from '@/components/activities/PackRetourAccountingStack.vue'
 import PackContainerLineIssueQuick from '@/components/activities/PackContainerLineIssueQuick.vue'
 import PackUnpackStoreControls from '@/components/activities/PackUnpackStoreControls.vue'
+import PackUnpackUnstoreControls from '@/components/activities/PackUnpackUnstoreControls.vue'
 import IconArrowRight from '@/components/icons/IconArrowRight.vue'
 import { injectPackCtxBool, PACK_WAREHOUSE_ISSUE_INJECT_KEY } from '@/components/activities/packWarehouseIssueInjectKey'
 import type { PackRetourAccounting } from '@/components/activities/packNotTakenHelpers'
@@ -241,6 +242,31 @@ function commitStoreLine(ci: ActivityPackContainerItem, event?: Event): void {
   )
 }
 
+function lineStoredMoveBackMax(ci: ActivityPackContainerItem): number {
+  const fn = ctx.unpackLineStoredQty as ((cid: string, row: ActivityPackContainerItem) => number) | undefined
+  return fn?.(props.container.id, ci) ?? lineStoredQty(ci)
+}
+
+function commitUnstoreLine(ci: ActivityPackContainerItem, qty: number): void {
+  void (ctx.unstoreContainerLineFromWarehouse as (
+    cid: string,
+    row: ActivityPackContainerItem,
+    q?: number,
+  ) => void | Promise<void>)?.(props.container.id, ci, qty)
+}
+
+const shellStoredMoveBackMax = computed(() => {
+  const fn = ctx.unpackShellStoredQty as ((cid: string) => number) | undefined
+  return fn?.(props.container.id) ?? 0
+})
+
+function commitUnstoreShell(qty: number): void {
+  void (ctx.unstoreContainerShellFromWarehouse as (cid: string, q?: number) => void | Promise<void>)?.(
+    props.container.id,
+    qty,
+  )
+}
+
 function onShellStoreInput(event: Event): void {
   ;(ctx.setContainerShellStoreInput as (cid: string, value: number | string) => void)?.(
     props.container.id,
@@ -367,8 +393,16 @@ function commitPhysicalComboWhole(): void {
                   {{ t('activities.packList.consumableInlineNachbuchung') }}
                 </button>
               </p>
+            <PackUnpackUnstoreControls
+              v-if="variant === 'stored' && packListEditable && lineStoredMoveBackMax(ci) > 0"
+              class="pack-unpack-unstore-controls"
+              :qty="lineStoredMoveBackMax(ci)"
+              :max="lineStoredMoveBackMax(ci)"
+              :disabled="ctx.containerMutationLoading === true"
+              @move="(q) => commitUnstoreLine(ci, q)"
+            />
             <PackUnpackStoreControls
-              v-if="lineStoreControlsVisible(ci)"
+              v-else-if="lineStoreControlsVisible(ci)"
               :qty="
                 (ctx.containerStoreLineInputValue as (cid: string, ci: ActivityPackContainerItem) => number)?.(
                   container.id,
@@ -414,8 +448,16 @@ function commitPhysicalComboWhole(): void {
             }}
           </span>
         </div>
+        <PackUnpackUnstoreControls
+          v-if="variant === 'stored' && packListEditable && shellStoredMoveBackMax > 0"
+          class="pack-unpack-unstore-controls"
+          :qty="shellStoredMoveBackMax"
+          :max="shellStoredMoveBackMax"
+          :disabled="ctx.containerMutationLoading === true"
+          @move="(q) => commitUnstoreShell(q)"
+        />
         <PackUnpackStoreControls
-          v-if="showLineStoreControls && shellPendingQty > 0"
+          v-else-if="showLineStoreControls && shellPendingQty > 0"
           :qty="(ctx.containerShellStoreInputValue as (cid: string) => number)?.(container.id) ?? shellPendingQty"
           :max="shellPendingQty"
           :disabled="ctx.containerMutationLoading === true"

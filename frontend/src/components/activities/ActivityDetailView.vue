@@ -529,6 +529,7 @@
       :material-label="nachbuchungMaterialLabel"
       :pack-size="nachbuchungPackSize"
       :pack-unit="nachbuchungPackUnit"
+      :replenishment-pack-stage="nachbuchungPackStage"
       :show-warehouse-material-hint="canAddActivityMaterial"
       @close="onNachbuchungModalClose"
       @success="onNachbuchungModalSuccess"
@@ -1125,6 +1126,13 @@ const damageReportPresets = ref<{
   issueType?: 'damage' | 'repair' | 'loss'
   quantity?: number
 }>({})
+const damageReportQueue = ref<
+  Array<{
+    materialItemId: string
+    issueType: 'damage' | 'repair' | 'loss'
+    quantity?: number
+  }>
+>([])
 const issuesReloadToken = ref(0)
 const consumablesReloadToken = ref(0)
 const costsReloadToken = ref(0)
@@ -1145,6 +1153,7 @@ const nachbuchungMaterialId = ref('')
 const nachbuchungMaterialLabel = ref('')
 const nachbuchungPackSize = ref<number | null>(null)
 const nachbuchungPackUnit = ref<string | null>(null)
+const nachbuchungPackStage = ref<string | null>(null)
 
 function openDamageReport(opts?: {
   materialItemId?: string
@@ -1157,8 +1166,22 @@ function openDamageReport(opts?: {
 }
 
 function onDamageWizardClose() {
+  damageReportQueue.value = []
   damageReportOpen.value = false
   damageReportPresets.value = {}
+}
+
+async function openNextDamageReportFromQueue() {
+  const next = damageReportQueue.value.shift()
+  if (!next) return
+  damageReportOpen.value = false
+  damageReportPresets.value = {}
+  await nextTick()
+  openDamageReport({
+    materialItemId: next.materialItemId,
+    issueType: next.issueType,
+    quantity: next.quantity,
+  })
 }
 
 function onOpenConsumptionModal(payload: ConsumptionModalPreset) {
@@ -1202,11 +1225,13 @@ function openNachbuchungModal(payload: {
   materialLabel: string
   packSize?: number | null
   packUnit?: string | null
+  packStage?: string
 }) {
   nachbuchungMaterialId.value = payload.materialItemId
   nachbuchungMaterialLabel.value = payload.materialLabel
   nachbuchungPackSize.value = payload.packSize ?? null
   nachbuchungPackUnit.value = payload.packUnit ?? null
+  nachbuchungPackStage.value = payload.packStage?.trim() || null
   nachbuchungOpen.value = true
 }
 
@@ -1214,6 +1239,7 @@ function onNachbuchungModalClose() {
   nachbuchungOpen.value = false
   nachbuchungPackSize.value = null
   nachbuchungPackUnit.value = null
+  nachbuchungPackStage.value = null
 }
 
 function onConsumptionModalRequestNachbuchung() {
@@ -1234,6 +1260,7 @@ async function onNachbuchungModalSuccess() {
   nachbuchungOpen.value = false
   nachbuchungPackSize.value = null
   nachbuchungPackUnit.value = null
+  nachbuchungPackStage.value = null
   consumablesReloadToken.value += 1
   costsReloadToken.value += 1
   packListReloadToken.value += 1
@@ -1271,16 +1298,43 @@ async function onConsumptionModalSuccess() {
   }
 }
 
-function onPackIssueWizard(payload: {
-  materialItemId: string
-  issueType: 'loss' | 'repair'
-  quantity?: number
-}) {
-  openDamageReport({
-    materialItemId: payload.materialItemId,
-    issueType: payload.issueType,
-    quantity: payload.quantity,
-  })
+function onPackIssueWizard(
+  payload:
+    | {
+        materialItemId: string
+        issueType: 'loss' | 'repair'
+        quantity?: number
+      }
+    | {
+        items: Array<{
+          materialItemId: string
+          issueType: 'loss' | 'repair'
+          quantity?: number
+        }>
+      },
+) {
+  if ('items' in payload && payload.items.length > 0) {
+    const [first, ...rest] = payload.items
+    damageReportQueue.value = rest.map((item) => ({
+      materialItemId: item.materialItemId,
+      issueType: item.issueType,
+      quantity: item.quantity,
+    }))
+    openDamageReport({
+      materialItemId: first.materialItemId,
+      issueType: first.issueType,
+      quantity: first.quantity,
+    })
+    return
+  }
+  if ('materialItemId' in payload) {
+    damageReportQueue.value = []
+    openDamageReport({
+      materialItemId: payload.materialItemId,
+      issueType: payload.issueType,
+      quantity: payload.quantity,
+    })
+  }
 }
 
 const hasLineTotals = computed(() => activityItems.value.some((i) => i.line_total != null))
@@ -1529,9 +1583,18 @@ async function loadItems() {
 async function onPackListActivityItemsChanged() {
   await loadItems()
   await refreshActivityTotalsFromApi()
+  if (activity.value?.status === 'returned') {
+    await refreshCompletionBlockers()
+  }
 }
 
 async function onDamageReportSuccess() {
+  if (damageReportQueue.value.length > 0) {
+    issuesReloadToken.value += 1
+    toast.success(t('activities.detail.toastIssueRecorded'))
+    await openNextDamageReportFromQueue()
+    return
+  }
   damageReportOpen.value = false
   damageReportPresets.value = {}
   issuesReloadToken.value += 1
