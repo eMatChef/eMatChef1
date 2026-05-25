@@ -109,7 +109,7 @@ Spiegelung von **Gepackt → Am Event**:
 | Seite | Inhalt |
 |-------|--------|
 | **Links** | Lose Positionen am Event + Kisten mit `containerReturnableUnits > 0` |
-| **Rechts** | «Bereits retourniert»: Kisten vollständig retourniert (`returned > 0`, `returnable === 0`) + lose Retour-Gruppen |
+| **Rechts** | «Bereits retourniert»: Kisten **als Ganzes** (Behälter + Packinhalt retourniert, Phys.-Kombi: Behälter retourniert) als Kistenkarte; nur Behälter lose oder nur Inhalt ohne Ganzes → **Lose**-Spalte |
 
 Computeds in `ActivityPackListTab.vue`: `packContainersAtEventForReturnLeft`, `packContainersReturnedForReturnRight`.
 

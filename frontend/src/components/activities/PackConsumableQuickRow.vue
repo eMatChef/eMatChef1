@@ -20,7 +20,7 @@ const ctx = inject(PACK_WAREHOUSE_ISSUE_INJECT_KEY) as Record<string, unknown>
 
 const qty = computed(() => {
   const fn = ctx.consumableInlineQtyFor as ((id: string) => number) | undefined
-  return fn?.(props.materialItemId) ?? 1
+  return fn?.(props.materialItemId) ?? 0
 })
 
 const maxQty = computed(() => {
@@ -38,7 +38,8 @@ const canNachbuchung = computed(() => injectPackCtxBool(ctx, 'canRequestConsumab
 
 function setQty(next: number) {
   const fn = ctx.setConsumableInlineQty as ((id: string, qty: number) => void) | undefined
-  fn?.(props.materialItemId, Math.max(1, Math.min(maxQty.value, Math.floor(next) || 1)))
+  const n = Number.isFinite(next) ? Math.floor(next) : 0
+  fn?.(props.materialItemId, Math.max(0, Math.min(maxQty.value, n)))
 }
 
 function step(delta: number) {
@@ -65,31 +66,29 @@ function onNachbuchung() {
     <span v-if="!compact" class="pack-consumable-quick-row__label text-muted">
       {{ t('activities.packList.consumableInlineLabel') }}
     </span>
-    <div class="pack-consumable-quick-row__actions pack-shell-forward-variance-actions">
+    <div class="pack-consumable-quick-row__actions consumable-qty-row">
       <button
         type="button"
-        class="shell-forward-variance-btn shell-forward-variance-btn--minus"
+        class="btn-qty"
         :title="t('activities.packList.consumableInlineMinusTitle')"
-        :disabled="posting || qty <= 1"
+        :disabled="posting || qty <= 0"
         @click="step(-1)"
       >
         −
       </button>
-      <label class="pack-shell-forward-count-label">
-        <span class="sr-only">{{ t('activities.packList.consumableInlineQtyAria') }}</span>
-        <input
-          :value="qty"
-          type="number"
-          min="1"
-          :max="maxQty"
-          class="form-input pack-shell-forward-count-input"
-          :disabled="posting"
-          @input="setQty(parseInt(($event.target as HTMLInputElement).value, 10) || 1)"
-        />
-      </label>
+      <input
+        :value="qty"
+        type="number"
+        min="0"
+        :max="maxQty"
+        class="consumable-qty-input pack-consumable-qty-input"
+        :disabled="posting"
+        :aria-label="t('activities.packList.consumableInlineQtyAria')"
+        @input="setQty(parseInt(($event.target as HTMLInputElement).value, 10))"
+      />
       <button
         type="button"
-        class="shell-forward-variance-btn shell-forward-variance-btn--plus"
+        class="btn-qty"
         :title="t('activities.packList.consumableInlinePlusTitle')"
         :disabled="posting || qty >= maxQty"
         @click="step(1)"
@@ -98,7 +97,7 @@ function onNachbuchung() {
       </button>
       <PackShellCheckToggle
         ok-only
-        :disabled="posting"
+        :disabled="posting || qty < 1"
         :ok-title="t('activities.packList.consumableInlineConfirmTitle')"
         :ok-aria-label="t('activities.packList.consumableInlineConfirmAria')"
         @ok="onConfirm"
@@ -107,7 +106,7 @@ function onNachbuchung() {
     <button
       v-if="canNachbuchung"
       type="button"
-      class="pack-consumable-quick-row__nachbuchung link-btn"
+      class="btn btn-xs btn-outline pack-consumable-quick-row__nachbuchung"
       :disabled="posting"
       @click="onNachbuchung"
     >
@@ -116,6 +115,8 @@ function onNachbuchung() {
   </div>
 </template>
 
+<style src="@/styles/views/activities/detail-panel.css"></style>
+<style src="@/styles/views/activities/detail-workflow.css"></style>
 <style src="@/styles/views/activities/pack-workflow-modals.css"></style>
 <style scoped>
 .pack-consumable-quick-row {
@@ -137,10 +138,21 @@ function onNachbuchung() {
 }
 
 .pack-consumable-quick-row__actions {
+  display: flex;
   flex-wrap: nowrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.pack-consumable-qty-input {
+  width: 52px;
+  min-width: 52px;
+  text-align: center;
+  padding: 4px 6px;
+  font-size: 14px;
 }
 
 .pack-consumable-quick-row__nachbuchung {
-  font-size: 12px;
+  margin-top: 2px;
 }
 </style>

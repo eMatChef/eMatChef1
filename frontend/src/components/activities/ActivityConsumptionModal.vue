@@ -3,7 +3,11 @@
     <div v-if="isOpen" class="consumption-modal-overlay" @click.self="closeAsCancel">
       <div class="consumption-modal-dialog" role="dialog" aria-modal="true" aria-labelledby="consumption-modal-title">
         <div class="consumption-modal-header">
-          <h3 id="consumption-modal-title">{{ t('components.activityConsumptionModal.title') }}</h3>
+          <h3 id="consumption-modal-title">{{
+            isEditMode
+              ? t('components.activityConsumptionModal.titleEdit')
+              : t('components.activityConsumptionModal.title')
+          }}</h3>
           <button type="button" class="consumption-modal-close" :aria-label="t('components.activityConsumptionModal.closeAria')" @click="closeAsCancel">×</button>
         </div>
         <div class="consumption-modal-body">
@@ -31,7 +35,7 @@
               {{ t('components.activityConsumptionModal.requestNachbuchung') }}
             </button>
           </div>
-          <template v-if="!loadingLimits && maxRemaining > 0">
+          <template v-if="!loadingLimits && (maxRemaining > 0 || isEditMode)">
           <div class="consumption-modal-field">
             <label for="consumption-qty">{{ t('components.activityConsumptionModal.labelQty') }}</label>
             <div class="adjust-qty-row">
@@ -48,14 +52,14 @@
                 v-model.number="qty"
                 type="number"
                 :min="0"
-                :max="maxRemaining > 0 ? maxRemaining : 0"
+                :max="isEditMode ? maxQtyForEdit : maxRemaining > 0 ? maxRemaining : 0"
                 class="form-input adjust-qty-input"
                 @change="clampQtyInput"
               />
               <button
                 type="button"
                 class="btn-qty"
-                :disabled="maxRemaining < 1 || qty >= maxRemaining"
+                :disabled="(isEditMode ? maxQtyForEdit : maxRemaining) < 1 || qty >= (isEditMode ? maxQtyForEdit : maxRemaining)"
                 @click="bumpQty(1)"
               >
                 +
@@ -124,12 +128,21 @@
           </p>
         </div>
         <div class="consumption-modal-footer">
-          <button type="button" class="btn btn-outline" :disabled="submitting" @click="onFooterOutlineClick">{{ closeFooterLabel }}</button>
           <button
-            v-if="maxRemaining > 0"
+            v-if="isEditMode"
+            type="button"
+            class="btn btn-outline btn-danger-outline"
+            :disabled="submitting || deleting"
+            @click="confirmDelete"
+          >
+            {{ deleting ? t('components.activityConsumptionModal.deleting') : t('components.activityConsumptionModal.delete') }}
+          </button>
+          <button type="button" class="btn btn-outline" :disabled="submitting || deleting" @click="onFooterOutlineClick">{{ closeFooterLabel }}</button>
+          <button
+            v-if="maxRemaining > 0 || isEditMode"
             type="button"
             class="btn btn-success"
-            :disabled="submitting || !canSubmit || loadingLimits"
+            :disabled="submitting || deleting || !canSubmit || loadingLimits"
             @click="submit"
           >
             {{ submitButtonLabel }}
@@ -143,7 +156,15 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { createActivityIssue, getActivityIssues, getActivityItems } from '@/api/activities'
+import { getPackItems } from '@/api/activityPackItems'
+import {
+  createActivityIssue,
+  deleteActivityConsumptionIssue,
+  getActivityIssues,
+  getActivityItems,
+  updateActivityConsumptionIssue,
+} from '@/api/activities'
+import { useConfirm } from '@/composables/useConfirm'
 import { useToast } from '@/composables/useToast'
 
 export interface ConsumptionModalPreset {
@@ -154,6 +175,10 @@ export interface ConsumptionModalPreset {
   linkedContainerLabel?: string | null
   /** Retour-Kontext: Menge die ohne Verbrauch retourniert wird */
   returnQty?: number | null
+  /** Bestehende Verbrauchsmeldung bearbeiten */
+  editIssueId?: string | null
+  editQuantity?: number | null
+  editDescription?: string | null
 }
 
 const props = withDefaults(
@@ -172,13 +197,18 @@ const emit = defineEmits<{
   success: []
   requestNachbuchung: []
   returnWithoutConsumption: []
+  deleted: []
 }>()
 
 const { t } = useI18n()
 const toast = useToast()
+const { confirm: confirmDialog } = useConfirm()
+
+const isEditMode = computed(() => Boolean((props.preset?.editIssueId ?? '').trim()))
 const qty = ref(1)
 const notes = ref('')
 const submitting = ref(false)
+const deleting = ref(false)
 const loadingLimits = ref(false)
 const bookedTotal = ref(0)
 const consumedTotal = ref(0)
@@ -192,15 +222,26 @@ const displayMaterialLine = computed(() => {
   return serial ? `${serial} — ${p.materialName}` : p.materialName
 })
 
+const maxQtyForEdit = computed(() => {
+  if (!isEditMode.value) return maxRemaining.value
+  const editQty = Math.max(0, Math.floor(Number(props.preset?.editQuantity) || 0))
+  return maxRemaining.value + editQty
+})
+
 const canSubmit = computed(() => {
-  if (!props.preset?.materialItemId || maxRemaining.value < 1) return false
+  if (!props.preset?.materialItemId) return false
   const q = Number(qty.value)
-  if (!Number.isFinite(q) || q < 0 || q > maxRemaining.value) return false
-  return true
+  if (!Number.isFinite(q)) return false
+  if (isEditMode.value) {
+    return q >= 1 && q <= maxQtyForEdit.value
+  }
+  if (maxRemaining.value < 1) return false
+  return q >= 0 && q <= maxRemaining.value
 })
 
 const submitButtonLabel = computed(() => {
   if (submitting.value) return t('components.activityConsumptionModal.submitting')
+  if (isEditMode.value) return t('components.activityConsumptionModal.submitEdit')
   const q = Math.floor(Number(qty.value) || 0)
   if (q === 0 && (props.preset?.returnQty ?? 0) > 0) {
     return t('components.activityConsumptionModal.submitZeroReturn', {
@@ -222,22 +263,22 @@ const closeFooterLabel = computed(() => {
 })
 
 function clampQtyInput() {
-  const m = maxRemaining.value
-  if (m < 1) {
+  const m = isEditMode.value ? maxQtyForEdit.value : maxRemaining.value
+  if (m < 1 && !isEditMode.value) {
     qty.value = 0
     return
   }
   let n = Number(qty.value)
-  if (!Number.isFinite(n)) n = 0
-  qty.value = Math.min(m, Math.max(0, Math.floor(n)))
+  if (!Number.isFinite(n)) n = isEditMode.value ? 1 : 0
+  qty.value = Math.min(m, Math.max(isEditMode.value ? 1 : 0, Math.floor(n)))
 }
 
 function bumpQty(delta: number) {
-  const m = maxRemaining.value
-  if (m < 1) return
+  const m = isEditMode.value ? maxQtyForEdit.value : maxRemaining.value
+  if (m < 1 && !isEditMode.value) return
   let n = Number(qty.value)
-  if (!Number.isFinite(n)) n = 0
-  qty.value = Math.min(m, Math.max(0, Math.floor(n) + delta))
+  if (!Number.isFinite(n)) n = isEditMode.value ? 1 : 0
+  qty.value = Math.min(m, Math.max(isEditMode.value ? 1 : 0, Math.floor(n) + delta))
 }
 
 function applySetMultiple(sets: number) {
@@ -256,18 +297,29 @@ async function loadConsumptionLimits() {
   }
   loadingLimits.value = true
   try {
-    const [items, issues] = await Promise.all([
+    const editIssueId = (props.preset?.editIssueId ?? '').trim()
+    const [items, issues, pack] = await Promise.all([
       getActivityItems(props.activityId),
       getActivityIssues(props.activityId),
+      getPackItems(props.activityId).catch(() => []),
     ])
     bookedTotal.value = items
       .filter((i) => i.material_item_id === mid)
       .reduce((s, i) => s + i.quantity, 0)
-    consumedTotal.value = issues
+    const returned = pack
+      .filter((p) => p.materialItemId === mid)
+      .reduce((s, p) => s + (p.quantityReturned ?? 0), 0)
+    const consumed = issues
       .filter((i) => i.type === 'consumption' && i.material_item_id === mid)
+      .filter((i) => !editIssueId || i.id !== editIssueId)
       .reduce((s, i) => s + i.quantity, 0)
+    consumedTotal.value = consumed + returned
+    const editQty = Math.max(0, Math.floor(Number(props.preset?.editQuantity) || 0))
     const rem = Math.max(0, bookedTotal.value - consumedTotal.value)
-    if (rem < 1) {
+    if (isEditMode.value && editQty > 0) {
+      qty.value = editQty
+      notes.value = (props.preset?.editDescription ?? '').trim()
+    } else if (rem < 1) {
       qty.value = 0
     } else if ((props.preset?.returnQty ?? 0) > 0) {
       qty.value = 0
@@ -315,16 +367,65 @@ function close() {
   closeAsCancel()
 }
 
+async function confirmDelete() {
+  const issueId = props.preset?.editIssueId
+  if (!issueId || deleting.value) return
+  const ok = await confirmDialog({
+    title: t('components.activityConsumptionModal.deleteConfirmTitle'),
+    message: t('components.activityConsumptionModal.deleteConfirmMessage', {
+      name: displayMaterialLine.value,
+      n: Math.max(1, Math.floor(Number(props.preset?.editQuantity) || 0)),
+    }),
+    confirmText: t('components.activityConsumptionModal.delete'),
+    cancelText: t('common.cancel'),
+    variant: 'danger',
+  })
+  if (!ok) return
+  deleting.value = true
+  try {
+    await deleteActivityConsumptionIssue(props.activityId, issueId)
+    emit('deleted')
+    close()
+  } catch (err: unknown) {
+    const e = err as { response?: { data?: { error?: string } }; message?: string }
+    toast.error(e.response?.data?.error || e.message || t('components.activityConsumptionModal.toastDeleteFailed'))
+  } finally {
+    deleting.value = false
+  }
+}
+
 async function submit() {
   const p = props.preset
-  if (!p?.materialItemId || submitting.value) return
+  if (!p?.materialItemId || submitting.value || deleting.value) return
   clampQtyInput()
   const bookedQty = Math.floor(Number(qty.value) || 0)
-  if (bookedQty < 0 || bookedQty > maxRemaining.value) {
+  const maxAllowed = isEditMode.value ? maxQtyForEdit.value : maxRemaining.value
+  if (isEditMode.value) {
+    if (bookedQty < 1 || bookedQty > maxAllowed) {
+      toast.error(t('components.activityConsumptionModal.toastMaxQty', { max: maxAllowed }))
+      return
+    }
+    submitting.value = true
+    try {
+      await updateActivityConsumptionIssue(props.activityId, p.editIssueId!, {
+        quantity: bookedQty,
+        description: notes.value.trim() || null,
+      })
+      emit('success')
+      close()
+    } catch (err: unknown) {
+      const e = err as { response?: { data?: { error?: string } }; message?: string }
+      toast.error(e.response?.data?.error || e.message || t('components.activityConsumptionModal.toastUpdateFailed'))
+    } finally {
+      submitting.value = false
+    }
+    return
+  }
+  if (bookedQty < 0 || bookedQty > maxAllowed) {
     toast.error(
-      maxRemaining.value < 1
+      maxAllowed < 1
         ? t('components.activityConsumptionModal.toastNoConsumptionPossible')
-        : t('components.activityConsumptionModal.toastMaxQty', { max: maxRemaining.value }),
+        : t('components.activityConsumptionModal.toastMaxQty', { max: maxAllowed }),
     )
     return
   }
@@ -558,5 +659,15 @@ async function submit() {
 
 .btn-success:hover:not(:disabled) {
   background: #15803d;
+}
+
+.btn-danger-outline {
+  color: #b91c1c;
+  border-color: #fecaca;
+  margin-right: auto;
+}
+
+.btn-danger-outline:hover:not(:disabled) {
+  background: #fef2f2;
 }
 </style>

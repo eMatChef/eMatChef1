@@ -49,7 +49,7 @@ class IdGenerator
      */
     public static function isValid(string $id): bool
     {
-        return preg_match('/^[0-9a-f]{12}$/', $id) === 1;
+        return preg_match('/^[0-9a-f]{12}$/i', $id) === 1;
     }
 
     /**

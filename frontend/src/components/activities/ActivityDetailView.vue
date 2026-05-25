@@ -115,7 +115,7 @@
       </div>
 
       <ActivityCompletionChecklist
-        v-if="activity.status === 'returned' && completionBlockers"
+        v-if="canManageMaterials && activity.status === 'returned' && completionBlockers"
         :blockers="completionBlockers"
         :activity-id="activityId"
         :host-department-id="departmentId"
@@ -216,6 +216,33 @@
           <section v-else-if="activeTab === 'material'" class="tab-content">
             <ActivityTabHeader :title="t('activities.detail.tabMaterial')" />
             <div
+              v-if="showDraftMaterialAddForGroup"
+              class="section-card activity-tab-panel-card activity-draft-material-add-card"
+            >
+              <h2 class="section-title activity-tab-subsection-title">{{ t('activities.detail.materialAddTitle') }}</h2>
+              <p class="text-muted activity-draft-material-add-hint">
+                {{ t('activities.detail.draftMaterialAddHint') }}
+              </p>
+              <ActivityMaterialAvailabilityLookup
+                :department-id="departmentId"
+                :activity-id="activityId"
+                :activity-type="activityTypeForMat"
+                :planning-start-iso="activity.planning_start"
+                :planning-end-iso="activity.planning_end"
+                :quantity-by-material-item-id="quantityByMaterialItemId"
+                :saved-quantity-by-material-item-id="savedQuantityByMaterialItemId"
+                :invited-departments="activity.invited_departments ?? []"
+                :disabled="addingDraftMaterial"
+                hint-variant="draft"
+                @add-quantity="onDraftAddQuantity"
+                @scope-change="onMaterialLookupScopeChange"
+              />
+              <p v-if="addingDraftMaterial" class="activity-inline-loading activity-draft-adding">
+                <span class="spinner spinner-sm"></span>
+                <span>{{ t('activities.detail.addingMaterial') }}</span>
+              </p>
+            </div>
+            <div
               v-if="showForgottenMaterialAccordion"
               class="section-card pack-add-material-card activity-forgotten-material-card"
             >
@@ -292,7 +319,13 @@
                 <div class="spinner spinner-sm"></div>
                 <span>{{ t('activities.detail.itemsLoading') }}</span>
               </div>
-              <div v-else-if="activityItems.length === 0" class="text-muted">{{ t('activities.detail.noPositions') }}</div>
+              <div v-else-if="activityItems.length === 0" class="text-muted">
+                {{
+                  showDraftMaterialAddForGroup
+                    ? t('activities.detail.draftNoPositionsYet')
+                    : t('activities.detail.noPositions')
+                }}
+              </div>
               <div v-else-if="showMaterialLookup" class="activity-items-table-wrap">
                 <ActivityMaterialLinesTable
                   :model-value="materialLinesForEditableTable"
@@ -433,6 +466,7 @@
               :reload-token="consumablesReloadToken"
               @request-nachbuchung="openNachbuchungModal"
               @consumption-booked="onConsumableBooked"
+              @edit-consumption="onEditConsumption"
             />
           </section>
 
@@ -474,6 +508,7 @@
       @success="onConsumptionModalSuccess"
       @return-without-consumption="onConsumptionModalReturnWithoutConsumption"
       @request-nachbuchung="onConsumptionModalRequestNachbuchung"
+      @deleted="onConsumptionModalDeleted"
     />
     <ActivityConsumableNachbuchungModal
       :is-open="nachbuchungOpen"
@@ -543,7 +578,10 @@ import type { ConsumptionModalPreset } from '@/components/activities/ActivityCon
 import type { ActivityMaterialLine } from '@/composables/useActivityCreateWizard'
 import type { MaterialScopeTab } from '@/components/activities/shared/activityMaterialAvailabilityScope'
 import { useActivityGroupMemberScope } from '@/composables/useActivityGroupMemberScope'
-import { isDepartmentBasicMemberRole } from '@/composables/useDepartmentMemberRole'
+import {
+  isDepartmentBasicMemberRole,
+  useDepartmentMemberRole,
+} from '@/composables/useDepartmentMemberRole'
 import { useBackgroundPoll } from '@/composables/useBackgroundPoll'
 import { useConfirm } from '@/composables/useConfirm'
 import { usePageHeadStore } from '@/stores/pageHead'
@@ -596,6 +634,7 @@ const { confirm: confirmDialog } = useConfirm()
 const pageHeadStore = usePageHeadStore()
 const headerNotificationsStore = useHeaderNotificationsStore()
 const { t, te, locale } = useI18n()
+const { canManageMaterials } = useDepartmentMemberRole()
 
 function transitionActionLabel(tr: ActivityTransitionRow): string {
   return activityTransitionActionLabel(tr.status, activity.value?.status, t, te, tr.label)
@@ -928,17 +967,24 @@ const STATUSES_AT_OR_AFTER_PACKING = [
 
 const isBasicDepartmentMember = computed(() => isDepartmentBasicMemberRole(departmentRole.value))
 
-/** u–l3: Accordion mit Materialsuche bis «packing» (Entwurf: can_edit_draft_material; danach: can_add_forgotten_material). */
+/** u–l3: Accordion «vergessen» ab «eingereicht», nicht im Entwurf (dort: Materialtabelle). Bis «packing» aus. */
 const showForgottenMaterialAccordion = computed(() => {
   const a = activity.value
   if (!a || !isBasicDepartmentMember.value) return false
   const status = a.status || ''
+  if (status === 'draft') return false
   if ((STATUSES_AT_OR_AFTER_PACKING as readonly string[]).includes(status)) return false
-  if (status === 'draft') return !!a.can_edit_draft_material
   return !!a.can_add_forgotten_material
 })
 
 const forgottenMaterialExpanded = ref(false)
+
+/** Entwurf: Gruppe/User/L1–L3 — Material suchen und hinzufügen (ohne «vergessen»-Akkordeon). */
+const showDraftMaterialAddForGroup = computed(() => {
+  const a = activity.value
+  if (!a || a.status !== 'draft') return false
+  return !!a.can_edit_draft_material && isBasicDepartmentMember.value
+})
 
 /** «Material hinzufügen» im Material-Tab (MW/DC mit Bearbeitungsrecht, bis «Am Event»). */
 const showMaterialAddOnMaterialTab = computed(
@@ -1055,6 +1101,22 @@ function onOpenConsumptionModal(payload: ConsumptionModalPreset) {
   consumptionModalOpen.value = true
 }
 
+function onEditConsumption(payload: ConsumptionModalPreset) {
+  consumptionModalPreset.value = payload
+  consumptionModalOpen.value = true
+}
+
+function onConsumptionModalDeleted() {
+  skipNextConsumptionModalCloseCancel.value = true
+  issuesReloadToken.value += 1
+  consumablesReloadToken.value += 1
+  costsReloadToken.value += 1
+  packListReloadToken.value += 1
+  toast.success(t('activities.detail.toastConsumptionDeleted'))
+  void loadItems().catch(() => {})
+  void refreshActivityTotalsFromApi().catch(() => {})
+}
+
 function onConsumptionModalClose() {
   if (!skipNextConsumptionModalCloseCancel.value) {
     consumptionModalCancelledToken.value += 1
@@ -1126,11 +1188,16 @@ function onConsumableBooked() {
 
 async function onConsumptionModalSuccess() {
   skipNextConsumptionModalCloseCancel.value = true
+  const wasEdit = Boolean((consumptionModalPreset.value?.editIssueId ?? '').trim())
   issuesReloadToken.value += 1
   consumablesReloadToken.value += 1
   costsReloadToken.value += 1
   packListReloadToken.value += 1
-  toast.success(t('activities.detail.toastConsumptionBooked'))
+  toast.success(
+    wasEdit
+      ? t('activities.detail.toastConsumptionUpdated')
+      : t('activities.detail.toastConsumptionBooked'),
+  )
   try {
     await loadItems()
     await refreshActivityTotalsFromApi()

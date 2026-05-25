@@ -132,6 +132,15 @@ const shellMoveQty = computed(() => {
   return map[pi.id] ?? (maxFn && pi ? maxFn(pi) : 0)
 })
 
+const shellForwardLimits = computed(() => {
+  const pi = props.shellPackItem
+  const fn = ctx.packForwardMoveControlLimits as
+    | ((p: ActivityPackItem) => { max: number; inputMax: number; warnIfBelow?: number })
+    | undefined
+  if (!pi || !fn) return { max: 0, inputMax: 1, warnIfBelow: undefined as number | undefined }
+  return fn(pi)
+})
+
 function issueLineInputValue(ci: ActivityPackContainerItem): number {
   const fn = ctx.containerIssueLineInputValue as
     | ((cid: string, ci: ActivityPackContainerItem) => number)
@@ -311,7 +320,9 @@ function crateShellTakeTitle(): string {
             v-if="shellUseQtyMoveControls"
             direction="forward"
             :qty="shellMoveQty"
-            :max="(ctx.packIssueForwardMax as (p: ActivityPackItem) => number)(shellPackItem)"
+            :max="shellForwardLimits.max"
+            :input-max="shellForwardLimits.inputMax"
+            :warn-if-below="shellForwardLimits.warnIfBelow"
             :disabled="ctx.movingId === shellPackItem.id"
             :forward-title="
               (ctx.forwardMoveTitleForItem as (p: ActivityPackItem) => string | undefined)?.(shellPackItem) ?? ''

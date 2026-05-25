@@ -3435,7 +3435,7 @@ class ActivityController extends AbstractController
             }
         }
 
-        $this->createHistoryEntry($activity, 'pack_pipeline_reset_on_cancel', [
+        $this->createHistoryEntry($activity, 'pack_reset_cancel', [
             'previous_status' => $oldStatus,
         ]);
     }

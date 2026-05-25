@@ -69,6 +69,103 @@ export function isPhysicalComboAsSet(
   return packShellContainerForPackItem(pi, packContainers) == null
 }
 
+/**
+ * Phys.-Kombi mit Referenz-Lager-Charge, Pack-Behälter noch nicht angelegt (z. B. Kochkiste auf Camp).
+ */
+export function linkedShellCombosNeedingPackContainer(
+  packItems: ActivityPackItem[],
+  packContainers: ActivityPackContainer[],
+): ActivityPackItem[] {
+  return packItems.filter(
+    (pi) =>
+      pi.materialType === 'physical_combo' &&
+      (pi.linkedContainerBatchId ?? '').trim() !== '' &&
+      !isPhysicalComboAsSet(pi, packContainers) &&
+      packShellContainerForPackItem(pi, packContainers) == null,
+  )
+}
+
+/**
+ * Nur echte Waisen (Behälter gelöscht, keine Charge): nicht Shell-Kombis mit Lager-Referenz.
+ */
+export function isOrphanShellWithoutPackContainer(
+  pi: ActivityPackItem,
+  packContainers: ActivityPackContainer[],
+  activePackStage: string,
+): boolean {
+  if (activePackStage !== 'confirmed_packed') return false
+  if (isPhysicalComboAsSet(pi, packContainers)) return false
+  if (!isCrateShellPackItem(pi, packContainers)) return false
+  if (packShellContainerForPackItem(pi, packContainers) != null) return false
+  if ((pi.linkedContainerBatchId ?? '').trim() !== '') return false
+  return true
+}
+
+/**
+ * «Bestätigt → Gepackt»: Shell links nur ausblenden, wenn nichts mehr «bestätigt» offen ist
+ * und ein Behälter die gepackte Einheit rechts trägt.
+ */
+export function hideShellPackItemOnConfirmedPackedLeft(
+  pi: ActivityPackItem,
+  packContainers: ActivityPackContainer[],
+  activePackStage: string,
+  showPackContainersUi: boolean,
+): boolean {
+  if (!showPackContainersUi || activePackStage !== 'confirmed_packed') return false
+  if (!isCrateShellPackItem(pi, packContainers)) return false
+  const leftRest = Math.max(0, (pi.quantityOrdered ?? 0) - (pi.quantityPacked ?? 0))
+  if (leftRest > 0) return false
+  return packShellContainerForPackItem(pi, packContainers) != null
+}
+
+/** Leerer Pack-Behälter (Shell noch nicht gepackt) — rechts unter «Gepackt» nicht anzeigen. */
+export function packContainerVisibleOnConfirmedPackedRight(
+  containerId: string,
+  shellPackItem: ActivityPackItem | undefined,
+  containerHasPackedContent: boolean,
+): boolean {
+  if (shellPackItem && (shellPackItem.quantityPacked ?? 0) < 1) return false
+  if (containerHasPackedContent) return true
+  return (shellPackItem?.quantityPacked ?? 0) > 0
+}
+
+/** Material-ID der Phys.-Kombi / Shell — nicht als Zeile im eigenen Pack-Behälter anzeigen. */
+export function crateShellMaterialItemIdForContainer(
+  container: ActivityPackContainer,
+  shellPackItem?: ActivityPackItem | null,
+): string | undefined {
+  const fromContainer = (container.container_material_item_id ?? '').trim()
+  if (fromContainer) return fromContainer
+  const fromPackItem = (shellPackItem?.materialItemId ?? '').trim()
+  return fromPackItem || undefined
+}
+
+/** Referenz-Behälter der Kombi (Stückliste/Lager) — nicht als Inhalt der eigenen Kiste listen. */
+export function linkedContainerComponentMaterialIds(
+  shellPackItem: ActivityPackItem | null | undefined,
+  comboComponents: ComboComponent[],
+): Set<string> {
+  const out = new Set<string>()
+  const linkBatch = (shellPackItem?.linkedContainerBatchId ?? '').trim()
+  if (!linkBatch) return out
+  for (const cc of comboComponents) {
+    if ((cc.component_batch?.id ?? '').trim() !== linkBatch) continue
+    const mid = (cc.component_material?.id ?? '').trim()
+    if (mid) out.add(mid)
+  }
+  return out
+}
+
+function isExcludedShellContainerLine(
+  materialItemId: string,
+  shellMid: string,
+  linkedContainerMids: Set<string>,
+): boolean {
+  if (!materialItemId) return false
+  if (shellMid && materialItemId === shellMid) return true
+  return linkedContainerMids.has(materialItemId)
+}
+
 export function warehousePreviewContainerItem(
   containerId: string,
   materialItemId: string,
@@ -94,12 +191,14 @@ export function warehousePreviewContainerItem(
 function buildWarehouseFixedMidSet(
   warehouseTemplateMids: Set<string> | undefined,
   comboComponents: ComboComponent[],
+  shellMid?: string,
 ): Set<string> {
   const whSet = new Set<string>(warehouseTemplateMids ?? [])
   for (const cc of comboComponents) {
     const mid = (cc.component_material?.id ?? '').trim()
     if (mid) whSet.add(mid)
   }
+  if (shellMid) whSet.delete(shellMid)
   return whSet
 }
 
@@ -111,6 +210,7 @@ function mergeTemplateContainerLines(
   crateShellMaterialItemId: string | undefined,
   comboComponents: ComboComponent[],
   materialFallback: string,
+  linkedContainerMids: Set<string>,
 ): ActivityPackContainerItem[] {
   const rows = [...packLines]
   const existingMids = new Set(
@@ -121,7 +221,14 @@ function mergeTemplateContainerLines(
   if (warehouseContents) {
     for (const row of warehouseContents) {
       const mid = (row.material_id ?? '').trim()
-      if (!mid || !whSet.has(mid) || mid === shellMid || existingMids.has(mid)) continue
+      if (
+        !mid ||
+        !whSet.has(mid) ||
+        isExcludedShellContainerLine(mid, shellMid, linkedContainerMids) ||
+        existingMids.has(mid)
+      ) {
+        continue
+      }
       const name = (row.material_name && String(row.material_name).trim()) || materialFallback
       rows.push(warehousePreviewContainerItem(containerId, mid, name, row.qty))
       existingMids.add(mid)
@@ -130,14 +237,24 @@ function mergeTemplateContainerLines(
 
   for (const cc of comboComponents) {
     const mid = (cc.component_material?.id ?? '').trim()
-    if (!mid || !whSet.has(mid) || mid === shellMid || existingMids.has(mid)) continue
+    if (
+      !mid ||
+      !whSet.has(mid) ||
+      isExcludedShellContainerLine(mid, shellMid, linkedContainerMids) ||
+      existingMids.has(mid)
+    ) {
+      continue
+    }
     const name = (cc.component_material?.name ?? '').trim() || materialFallback
     const qty = Math.max(0, Math.floor(Number(cc.qty) || 0))
     rows.push(warehousePreviewContainerItem(containerId, mid, name, qty, `combo-${cc.id}`))
     existingMids.add(mid)
   }
 
-  return rows
+  return rows.filter((ci) => {
+    const mid = (ci.material_item_id ?? '').trim()
+    return !isExcludedShellContainerLine(mid, shellMid, linkedContainerMids)
+  })
 }
 
 export function packContainerItemSections(
@@ -148,14 +265,21 @@ export function packContainerItemSections(
   options?: {
     warehouseContents?: RackContentsItem[]
     crateShellMaterialItemId?: string
+    linkedContainerComponentMids?: Set<string>
     comboComponents?: ComboComponent[]
     materialFallback?: string
   },
 ): PackContainerItemSection[] {
   const comboComponents = options?.comboComponents ?? []
   const materialFallback = options?.materialFallback ?? 'Material'
-  const whSet = buildWarehouseFixedMidSet(warehouseTemplateMids, comboComponents)
-  const packLines = containerItemsByContainerId[containerId] ?? []
+  const shellMid = (options?.crateShellMaterialItemId ?? '').trim()
+  const linkedContainerMids = options?.linkedContainerComponentMids ?? new Set<string>()
+  const whSet = buildWarehouseFixedMidSet(warehouseTemplateMids, comboComponents, shellMid || undefined)
+  for (const mid of linkedContainerMids) whSet.delete(mid)
+  const packLines = (containerItemsByContainerId[containerId] ?? []).filter((ci) => {
+    const mid = (ci.material_item_id ?? '').trim()
+    return !isExcludedShellContainerLine(mid, shellMid, linkedContainerMids)
+  })
 
   const lines =
     whSet.size > 0
@@ -167,6 +291,7 @@ export function packContainerItemSections(
           options?.crateShellMaterialItemId,
           comboComponents,
           materialFallback,
+          linkedContainerMids,
         )
       : [...packLines]
 
@@ -176,7 +301,6 @@ export function packContainerItemSections(
     return [{ subsectionKey: 'all', title: titles.all, lines }]
   }
 
-  const shellMid = (options?.crateShellMaterialItemId ?? '').trim()
   const useShellFixExtraSplit = comboComponents.length > 0 || shellMid !== ''
 
   const fixed: ActivityPackContainerItem[] = []
@@ -186,7 +310,7 @@ export function packContainerItemSections(
     const packIds = new Set(packLines.map((p) => p.id))
     for (const ci of lines) {
       const mid = (ci.material_item_id ?? '').trim()
-      if (shellMid && mid === shellMid && packIds.has(ci.id)) {
+      if (isExcludedShellContainerLine(mid, shellMid, linkedContainerMids)) {
         continue
       }
       if (isWarehousePreviewContainerLine(ci) || !packIds.has(ci.id)) {
@@ -203,6 +327,7 @@ export function packContainerItemSections(
 
   for (const ci of lines) {
     const mid = (ci.material_item_id ?? '').trim()
+    if (isExcludedShellContainerLine(mid, shellMid, linkedContainerMids)) continue
     if (mid && whSet.has(mid)) fixed.push(ci)
     else extra.push(ci)
   }
@@ -275,11 +400,14 @@ export function buildShellContainerTemplateSections(
   comboComponents: ComboComponent[],
   titles: { fixed: string; extra: string; all: string },
   materialFallback: string,
+  shellPackItem?: ActivityPackItem | null,
 ): PackContainerItemSection[] {
+  const combo = comboComponents
   return packContainerItemSections(container.id, containerItemsByContainerId, warehouseTemplateMids, titles, {
     warehouseContents,
-    crateShellMaterialItemId: (container.container_material_item_id ?? '').trim() || undefined,
-    comboComponents,
+    crateShellMaterialItemId: crateShellMaterialItemIdForContainer(container, shellPackItem),
+    linkedContainerComponentMids: linkedContainerComponentMaterialIds(shellPackItem, combo),
+    comboComponents: combo,
     materialFallback,
   })
 }
@@ -295,6 +423,7 @@ export function packContainerItemSectionsWithReality(
   shellPackItemId: string | undefined,
   crateCheckSnapshotsByPackItemId: Record<string, CrateCheckSnapshot>,
   useRealityView: boolean,
+  shellPackItem?: ActivityPackItem | null,
 ): PackContainerItemSection[] {
   const template = buildShellContainerTemplateSections(
     container,
@@ -304,6 +433,7 @@ export function packContainerItemSectionsWithReality(
     comboComponents,
     titles,
     materialFallback,
+    shellPackItem,
   )
   if (!shellPackItemId || !useRealityView) return template
   const snap = crateCheckSnapshotsByPackItemId[shellPackItemId]
@@ -384,6 +514,7 @@ export function crateShellForwardPeekSections(
     comboComponents,
     titles,
     materialFallback,
+    pi,
   )
   return containerSectionsToPeekForCheck(sections, materialFallback)
 }
@@ -414,6 +545,7 @@ export function crateShellPeekSectionsForPackItem(
       comboComponentsByMaterialId[pi.materialItemId] ?? [],
       titles,
       materialFallback,
+      pi,
     ),
     materialFallback,
   )
@@ -435,6 +567,7 @@ export function peekSectionsForShellContainer(
   shellPackItemId?: string,
   crateCheckSnapshotsByPackItemId?: Record<string, CrateCheckSnapshot>,
   useRealityView?: boolean,
+  shellPackItem?: ActivityPackItem | null,
 ): PackCrateShellPeekSection[] {
   if (shellPackItemId && crateCheckSnapshotsByPackItemId && useRealityView) {
     const snap = crateCheckSnapshotsByPackItemId[shellPackItemId]
@@ -450,6 +583,7 @@ export function peekSectionsForShellContainer(
         shellPackItemId,
         crateCheckSnapshotsByPackItemId,
         true,
+        shellPackItem,
       )
       return containerSectionsToPeekForCheck(sections, materialFallback)
     }
@@ -462,6 +596,7 @@ export function peekSectionsForShellContainer(
     comboComponents,
     titles,
     materialFallback,
+    shellPackItem,
   )
   return containerSectionsToPeek(sections, materialFallback)
 }

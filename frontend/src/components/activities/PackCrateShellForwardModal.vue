@@ -413,8 +413,8 @@ const submitLabel = computed(() => {
 
 const modalTitle = computed(() =>
   props.checkOnly
-    ? t('activities.packList.repeatCrateCheckTitle')
-    : t('activities.packList.shellForwardTitle'),
+    ? t('activities.packList.repeatCrateCheckTitle', { label: props.label })
+    : t('activities.packList.shellForwardTitle', { label: props.label }),
 )
 
 const introText = computed(() => {

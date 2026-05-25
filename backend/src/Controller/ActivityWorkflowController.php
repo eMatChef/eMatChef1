@@ -784,6 +784,132 @@ class ActivityWorkflowController extends AbstractController
         return new JsonResponse($this->serializeIssueReport($report));
     }
 
+    /**
+     * Verbrauchsmeldung anpassen (Menge / Notiz).
+     * Body: { "quantity": 2, "description": "..." }
+     */
+    #[Route('/issues/{issueId}/consumption', name: 'issues_update_consumption', methods: ['PATCH'])]
+    #[IsGranted('ROLE_USER')]
+    public function updateConsumptionIssue(string $activityId, string $issueId, Request $request): JsonResponse
+    {
+        $activity = $this->findActivityForUser($activityId);
+        if ($activity instanceof JsonResponse) {
+            return $activity;
+        }
+
+        $report = $this->entityManager->getRepository(ActivityIssueReport::class)->find($issueId);
+        if (!$report || $report->getActivityId() !== $activityId) {
+            return new JsonResponse(['error' => 'Meldung nicht gefunden'], 404);
+        }
+
+        $currentUser = $this->getUser();
+        if (!$currentUser instanceof User) {
+            return new JsonResponse(['error' => 'Nicht authentifiziert'], 401);
+        }
+
+        $deny = $this->assertCanManageConsumptionReport($currentUser, $activity, $report);
+        if ($deny !== null) {
+            return $deny;
+        }
+
+        $data = json_decode($request->getContent(), true) ?? [];
+        $oldQty = $report->getQuantity();
+        $newQty = array_key_exists('quantity', $data)
+            ? max(0, (int) $data['quantity'])
+            : $oldQty;
+
+        if ($newQty < 1) {
+            return new JsonResponse(['error' => 'Menge muss mindestens 1 sein — zum Entfernen die Meldung löschen.'], 422);
+        }
+
+        $materialItemId = $report->getMaterialItemId();
+        if ($materialItemId === null || $materialItemId === '') {
+            return new JsonResponse(['error' => 'Material fehlt an dieser Meldung'], 422);
+        }
+
+        $consumptionErr = $this->validateConsumptionWithinBooked(
+            $activityId,
+            $materialItemId,
+            $newQty,
+            $issueId,
+        );
+        if ($consumptionErr !== null) {
+            return new JsonResponse(['error' => $consumptionErr], 422);
+        }
+
+        $report->setQuantity($newQty);
+        if (array_key_exists('description', $data)) {
+            $desc = $data['description'];
+            $report->setDescription(
+                is_string($desc) && trim($desc) !== '' ? trim($desc) : null,
+            );
+        }
+
+        $delta = $newQty - $oldQty;
+        if ($delta !== 0) {
+            $this->applyConsumptionDeltaToPackItem($activity, $materialItemId, $delta);
+        }
+
+        $this->createHistoryEntry($activity, 'consumption_updated', [
+            'issue_id' => $report->getId(),
+            'material_item_id' => $materialItemId,
+            'quantity_old' => $oldQty,
+            'quantity_new' => $newQty,
+        ]);
+
+        $this->entityManager->flush();
+        $this->activityAccountingCost->syncActivityAccountingFollowUps($activity);
+
+        return new JsonResponse($this->serializeIssueReport($report));
+    }
+
+    /**
+     * Verbrauchsmeldung löschen (bucht Verbrauch zurück).
+     */
+    #[Route('/issues/{issueId}/consumption', name: 'issues_delete_consumption', methods: ['DELETE'])]
+    #[IsGranted('ROLE_USER')]
+    public function deleteConsumptionIssue(string $activityId, string $issueId): JsonResponse
+    {
+        $activity = $this->findActivityForUser($activityId);
+        if ($activity instanceof JsonResponse) {
+            return $activity;
+        }
+
+        $report = $this->entityManager->getRepository(ActivityIssueReport::class)->find($issueId);
+        if (!$report || $report->getActivityId() !== $activityId) {
+            return new JsonResponse(['error' => 'Meldung nicht gefunden'], 404);
+        }
+
+        $currentUser = $this->getUser();
+        if (!$currentUser instanceof User) {
+            return new JsonResponse(['error' => 'Nicht authentifiziert'], 401);
+        }
+
+        $deny = $this->assertCanManageConsumptionReport($currentUser, $activity, $report);
+        if ($deny !== null) {
+            return $deny;
+        }
+
+        $materialItemId = $report->getMaterialItemId();
+        $removedQty = $report->getQuantity();
+
+        if ($materialItemId !== null && $materialItemId !== '' && $removedQty > 0) {
+            $this->applyConsumptionDeltaToPackItem($activity, $materialItemId, -$removedQty);
+        }
+
+        $this->createHistoryEntry($activity, 'consumption_deleted', [
+            'issue_id' => $report->getId(),
+            'material_item_id' => $materialItemId,
+            'quantity' => $removedQty,
+        ]);
+
+        $this->entityManager->remove($report);
+        $this->entityManager->flush();
+        $this->activityAccountingCost->syncActivityAccountingFollowUps($activity);
+
+        return new JsonResponse(['message' => 'Verbrauchsmeldung gelöscht']);
+    }
+
     // ═══════════════════════════════════════════════
     // RÜCKGABE
     // ═══════════════════════════════════════════════
@@ -1034,8 +1160,12 @@ class ActivityWorkflowController extends AbstractController
      *
      * @return null|string Fehlertext oder null wenn ok
      */
-    private function validateConsumptionWithinBooked(string $activityId, string $materialItemId, int $requestedQty): ?string
-    {
+    private function validateConsumptionWithinBooked(
+        string $activityId,
+        string $materialItemId,
+        int $requestedQty,
+        ?string $excludeIssueId = null,
+    ): ?string {
         $booked = (int) $this->entityManager->createQueryBuilder()
             ->select('COALESCE(SUM(ai.quantity), 0)')
             ->from(ActivityItem::class, 'ai')
@@ -1050,7 +1180,7 @@ class ActivityWorkflowController extends AbstractController
             return 'Für dieses Material ist keine Menge auf der Aktivität gebucht.';
         }
 
-        $consumed = (int) $this->entityManager->createQueryBuilder()
+        $consumedQb = $this->entityManager->createQueryBuilder()
             ->select('COALESCE(SUM(r.quantity), 0)')
             ->from(ActivityIssueReport::class, 'r')
             ->where('r.activityId = :aid')
@@ -1058,21 +1188,82 @@ class ActivityWorkflowController extends AbstractController
             ->andWhere('r.type = :ctype')
             ->setParameter('aid', $activityId)
             ->setParameter('mid', $materialItemId)
-            ->setParameter('ctype', ActivityIssueReport::TYPE_CONSUMPTION)
+            ->setParameter('ctype', ActivityIssueReport::TYPE_CONSUMPTION);
+        if ($excludeIssueId !== null && $excludeIssueId !== '') {
+            $consumedQb->andWhere('r.id != :exid')->setParameter('exid', $excludeIssueId);
+        }
+        $consumed = (int) $consumedQb->getQuery()->getSingleScalarResult();
+
+        $returned = (int) $this->entityManager->createQueryBuilder()
+            ->select('COALESCE(SUM(pi.quantityReturned), 0)')
+            ->from(ActivityPackItem::class, 'pi')
+            ->where('pi.activityId = :aid')
+            ->andWhere('pi.materialItemId = :mid')
+            ->setParameter('aid', $activityId)
+            ->setParameter('mid', $materialItemId)
             ->getQuery()
             ->getSingleScalarResult();
 
-        $remaining = $booked - $consumed;
+        $remaining = max(0, $booked - $consumed - $returned);
         if ($requestedQty > $remaining) {
             return sprintf(
                 'Verbrauch höchstens %d Stk. möglich (%d für diese Aktivität gebucht, %d bereits verbraucht).',
-                max(0, $remaining),
+                $remaining,
                 $booked,
-                $consumed
+                $booked - $remaining,
             );
         }
 
         return null;
+    }
+
+    private function assertCanManageConsumptionReport(
+        User $user,
+        Activity $activity,
+        ActivityIssueReport $report,
+    ): ?JsonResponse {
+        if ($report->getType() !== ActivityIssueReport::TYPE_CONSUMPTION) {
+            return new JsonResponse(['error' => 'Nur Verbrauchsmeldungen können bearbeitet werden'], 403);
+        }
+
+        if ($activity->getStatus() === Activity::STATUS_COMPLETED) {
+            return new JsonResponse(['error' => 'Aktivität ist abgeschlossen'], 422);
+        }
+
+        if (
+            !$activity->canReportIssues()
+            && !$this->activityAccess->canUserAddMaterialBeforePacking($user, $activity)
+        ) {
+            return new JsonResponse(['error' => 'Keine Berechtigung für Verbrauchsmeldungen'], 403);
+        }
+
+        return null;
+    }
+
+    /** Mehr Verbrauch → weniger erwartete Retour (quantityIssued). */
+    private function applyConsumptionDeltaToPackItem(
+        Activity $activity,
+        string $materialItemId,
+        int $consumptionDelta,
+    ): void {
+        if ($consumptionDelta === 0) {
+            return;
+        }
+
+        $packItem = $this->entityManager->getRepository(ActivityPackItem::class)->findOneBy([
+            'activityId' => $activity->getId(),
+            'materialItemId' => $materialItemId,
+        ]);
+        if (!$packItem instanceof ActivityPackItem) {
+            return;
+        }
+
+        $newIssued = max(0, $packItem->getQuantityIssued() - $consumptionDelta);
+        $packItem->setQuantityIssued($newIssued);
+        if ($packItem->getQuantityReturned() > $newIssued) {
+            $packItem->setQuantityReturned($newIssued);
+        }
+        $packItem->setUpdatedAt(new \DateTime());
     }
 
     private function findActivityForUser(string $id): Activity|JsonResponse

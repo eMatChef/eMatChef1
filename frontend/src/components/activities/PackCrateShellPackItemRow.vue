@@ -9,9 +9,12 @@ import { isPackConfirmedStage } from '@/components/activities/packStageQuantitie
 import PackCrateShellInlinePanel, {
   type PackCrateShellPeekSection,
 } from '@/components/activities/PackCrateShellInlinePanel.vue'
+import PackContainerSubsectionsList from '@/components/activities/PackContainerSubsectionsList.vue'
+import type { PackContainerItemSection } from '@/components/activities/packShellCrateHelpers'
 import { injectPackCtxBool, PACK_WAREHOUSE_ISSUE_INJECT_KEY } from '@/components/activities/packWarehouseIssueInjectKey'
 import { packShellContainerForPackItem } from '@/components/activities/packShellCrateHelpers'
 import type { ActivityPackContainer } from '@/api/activityContainers'
+import type { ActivityPackContainerItem } from '@/api/activityContainers'
 
 defineOptions({ name: 'PackCrateShellPackItemRow' })
 
@@ -48,9 +51,19 @@ const innerVisible = computed(
   () => !(ctx.isPackContainerCollapsed as (id: string) => boolean)(collapseKey.value),
 )
 
+const useLinkedContainerSubsections = computed(() => shellContainer.value != null)
+
 const shellPeekSections = computed((): PackCrateShellPeekSection[] => {
+  if (useLinkedContainerSubsections.value) return []
   const fn = ctx.peekSectionsForShellPackItem as ((pi: ActivityPackItem) => PackCrateShellPeekSection[]) | undefined
   return fn ? fn(props.shellPackItem) : []
+})
+
+const shellContainerSections = computed((): PackContainerItemSection[] => {
+  const c = shellContainer.value
+  if (!c) return []
+  const fn = ctx.packContainerItemSections as ((container: ActivityPackContainer) => PackContainerItemSection[]) | undefined
+  return fn ? fn(c) : []
 })
 
 const shellPeekEmptyHint = computed(() => {
@@ -58,9 +71,17 @@ const shellPeekEmptyHint = computed(() => {
   return fn ? fn(props.shellPackItem) : ''
 })
 
-const shellLineCount = computed(() =>
-  shellPeekSections.value.reduce((n, sec) => n + sec.lines.length, 0),
-)
+const shellLineCount = computed(() => {
+  if (useLinkedContainerSubsections.value) {
+    return shellContainerSections.value.reduce((n, sec) => n + sec.lines.length, 0)
+  }
+  return shellPeekSections.value.reduce((n, sec) => n + sec.lines.length, 0)
+})
+
+function isPreviewLine(ci: ActivityPackContainerItem): boolean {
+  const fn = ctx.isVirtualWarehouseContainerLine as ((row: ActivityPackContainerItem) => boolean) | undefined
+  return fn ? fn(ci) : false
+}
 
 function onToggleExpand() {
   const wasOpen = innerVisible.value
@@ -108,6 +129,15 @@ const shellMoveQty = computed(() => {
     inputs != null ? (unref(inputs as Ref<Record<string, number>> | Record<string, number>) as Record<string, number>) : {}
   const maxFn = ctx.packIssueForwardMax as ((p: ActivityPackItem) => number) | undefined
   return map[props.shellPackItem.id] ?? (maxFn ? maxFn(props.shellPackItem) : 0)
+})
+
+const shellForwardLimits = computed(() => {
+  const fn = ctx.packForwardMoveControlLimits as
+    | ((p: ActivityPackItem) => { max: number; inputMax: number; warnIfBelow?: number })
+    | undefined
+  return fn
+    ? fn(props.shellPackItem)
+    : { max: 0, inputMax: 1, warnIfBelow: undefined as number | undefined }
 })
 
 function moveShellCrateForward(qtyFromControl?: number) {
@@ -173,7 +203,9 @@ function moveShellCrateForward(qtyFromControl?: number) {
           v-if="shellCanMoveForward && useQtyMoveControls"
           direction="forward"
           :qty="shellMoveQty"
-          :max="(ctx.packIssueForwardMax as (p: ActivityPackItem) => number)(shellPackItem)"
+          :max="shellForwardLimits.max"
+          :input-max="shellForwardLimits.inputMax"
+          :warn-if-below="shellForwardLimits.warnIfBelow"
           :disabled="ctx.movingId === shellPackItem.id"
           :forward-title="
             (ctx.forwardMoveTitleForItem as (p: ActivityPackItem) => string | undefined)?.(shellPackItem) ?? ''
@@ -209,7 +241,31 @@ function moveShellCrateForward(qtyFromControl?: number) {
         :storage="shellPackItem"
         variant="shell"
       />
+      <PackContainerSubsectionsList
+        v-if="useLinkedContainerSubsections && shellContainer"
+        :container="shellContainer"
+      >
+        <template #line="{ ci }">
+          <div
+            class="pack-container-line pack-container-line--peek"
+            :class="{ 'pack-container-line--preview': isPreviewLine(ci) }"
+          >
+            <div class="pack-container-line-main">
+              <span class="pack-container-line-name">{{
+                ci.material_name || t('activities.common.material')
+              }}</span>
+              <span class="pack-container-line-qty">{{
+                t('activities.packList.qtyInContainerLine', { n: ci.quantity_packed ?? 0 })
+              }}</span>
+            </div>
+          </div>
+        </template>
+        <template #empty>
+          <p class="pack-container-empty text-muted">{{ shellPeekEmptyHint }}</p>
+        </template>
+      </PackContainerSubsectionsList>
       <PackCrateShellInlinePanel
+        v-else
         :sections="shellPeekSections"
         :empty-hint="shellPeekEmptyHint"
         :check-pack-item="shellPackItem"

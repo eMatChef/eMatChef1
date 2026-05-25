@@ -345,3 +345,25 @@ export async function createActivityIssue(
   const { data } = await apiClient.post(`/api/activities/${activityId}/issues`, body)
   return data
 }
+
+/** PATCH /api/activities/:id/issues/:issueId/consumption */
+export async function updateActivityConsumptionIssue(
+  activityId: string,
+  issueId: string,
+  body: { quantity: number; description?: string | null },
+): Promise<ActivityIssueReportRow> {
+  const { data } = await apiClient.patch<ActivityIssueReportRow>(
+    `/api/activities/${activityId}/issues/${issueId}/consumption`,
+    body,
+  )
+  return data
+}
+
+/** DELETE /api/activities/:id/issues/:issueId/consumption */
+export async function deleteActivityConsumptionIssue(
+  activityId: string,
+  issueId: string,
+): Promise<{ message?: string }> {
+  const { data } = await apiClient.delete(`/api/activities/${activityId}/issues/${issueId}/consumption`)
+  return data
+}

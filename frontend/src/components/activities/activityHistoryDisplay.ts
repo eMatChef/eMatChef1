@@ -73,6 +73,14 @@ export function historyEntrySummaryLines(
     return materialItemsChangedLines(e.changes, t)
   }
 
+  if (e.action === 'pack_reset_cancel') {
+    const prev = String(e.changes?.previous_status ?? '').trim()
+    if (prev) {
+      return [t('activities.history.packResetCancelPreviousStatus', { status: statusLabel(t, te, prev) })]
+    }
+    return []
+  }
+
   const comment = e.changes?.comment
   if (typeof comment === 'string' && comment.trim()) {
     return [comment.trim()]

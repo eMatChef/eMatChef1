@@ -118,7 +118,7 @@ Gruppe sieht in der Packliste **4 Transport-Tabs** (ohne «Bestätigt → Gepack
 
 **Verpackungseinheit** (`pack_size` / `pack_unit`, z. B. «2 Fackeln pro Sack») ist **unabhängig** von Pack-Behältern und Kombi-Set — nur Bestell-Bündelung.
 
-**Kistencheck** (beim Verschieben): BOM-Abgleich «alles da?» — Etappen `outbound` (bis Event), `return` (Event→Retour), `warehouse_store` (Einlagern). Gruppe/Leiter: je Etappe einmal; MW/DC: einmal pro Aktivität, erneut bei Einlagern.
+**Kistencheck** (beim Verschieben): BOM-Abgleich «alles da?» — Etappen `outbound` (bis Event), `return` (Event→Retour bzw. Event→Transport zurück / Transport→Retour), `warehouse_store` (Einlagern). Gruppe/Leiter (u, L1–L3): je Etappe einmal, inkl. Rückweg. MW/DC: Hinweg (`outbound`) einmal pro Aktivität; **Rückweg (`return`) erneut** (auch Phys.-Kombi); Einlagern (`warehouse_store`) erneut.
 
 ---
 

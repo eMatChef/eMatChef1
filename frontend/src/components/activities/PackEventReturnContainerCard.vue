@@ -22,9 +22,14 @@ const innerVisible = computed(
   () => !(ctx.isPackContainerCollapsed as (id: string) => boolean)(props.container.id),
 )
 
-const shellQty = computed(() =>
-  (ctx.containerShellStillAtEventQty as (id: string) => number)(props.container.id),
+const innerReturnable = computed(() =>
+  (ctx.containerInnerReturnableUnits as (id: string) => number | undefined)?.(props.container.id) ?? 0,
 )
+
+const shellQty = computed(() => {
+  if (innerReturnable.value > 0) return 0
+  return (ctx.containerShellStillAtEventQty as (id: string) => number)(props.container.id)
+})
 
 const shellMid = computed(() =>
   (ctx.shellMaterialIdForContainer as (id: string) => string | null)(props.container.id),
@@ -205,6 +210,12 @@ function showIssueQuick(ci: ActivityPackContainerItem): boolean {
           </div>
         </template>
       </PackContainerSubsectionsList>
+      <p
+        v-if="innerReturnable > 0 && (ctx.containerShellReturnableUnits as (id: string) => number | undefined)?.(container.id) > 0"
+        class="pack-container-shell-hint text-muted text-sm"
+      >
+        {{ t('activities.packList.returnShellAfterContentsHint') }}
+      </p>
       <div
         v-if="shellQty > 0"
         class="pack-container-line pack-container-line--issue-row pack-container-line--shell pack-container-line--stacked"

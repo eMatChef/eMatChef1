@@ -184,6 +184,11 @@
             <span class="consumable-history-qty">{{ t('activities.consumables.historyQty', { n: cr.quantity }) }}</span>
             <span class="consumable-history-time">{{ formatDateTime(cr.reported_at) }}</span>
             <span v-if="cr.description" class="consumable-history-desc">{{ cr.description }}</span>
+            <div v-if="canManageConsumptionEntries" class="consumable-history-actions">
+              <button type="button" class="btn-outline btn-xs" @click="emitEditConsumption(cr)">
+                {{ t('activities.consumables.historyEdit') }}
+              </button>
+            </div>
           </div>
         </div>
       </template>
@@ -214,6 +219,7 @@ import {
 } from '@/components/activities/activityCosts'
 import { useToast } from '@/composables/useToast'
 import ActivityTabHeader from '@/components/activities/ActivityTabHeader.vue'
+import type { ConsumptionModalPreset } from '@/components/activities/ActivityConsumptionModal.vue'
 
 defineOptions({ name: 'ActivityConsumablesTab' })
 
@@ -238,6 +244,7 @@ const emit = defineEmits<{
   ]
   /** Nach erfolgreicher Verbrauchsmeldung: Parent lädt Meldungen neu (Kosten-Tab, Reparaturen/Verluste). */
   consumptionBooked: []
+  editConsumption: [payload: ConsumptionModalPreset]
 }>()
 
 const toast = useToast()
@@ -280,6 +287,10 @@ function formatLineAmount(row: { material_item_id: string; sale_price: number | 
 
 const releasingId = ref<string | null>(null)
 
+const canManageConsumptionEntries = computed(
+  () => props.canCreate || Boolean(props.canAddActivityMaterial),
+)
+
 const consumptionReports = computed(() => issues.value.filter((i) => i.type === 'consumption'))
 
 const consumptionHistory = computed(() =>
@@ -297,6 +308,34 @@ function displayNameAgg(row: {
 }): string {
   const l = row.linked_container_label?.trim()
   return l ? `${l} — ${row.material_name}` : row.material_name
+}
+
+function materialMetaForIssue(cr: ActivityIssueReportRow): {
+  pack_size: number | null
+  pack_unit: string | null
+  linked_container_label: string | null
+} {
+  const raw = activityItems.value.find((r) => r.material_item_id === cr.material_item_id)
+  return {
+    pack_size: raw?.pack_size ?? null,
+    pack_unit: raw?.pack_unit ?? null,
+    linked_container_label: raw?.linked_container_label ?? null,
+  }
+}
+
+function emitEditConsumption(cr: ActivityIssueReportRow) {
+  if (!canManageConsumptionEntries.value || !cr.material_item_id) return
+  const meta = materialMetaForIssue(cr)
+  emit('editConsumption', {
+    materialItemId: cr.material_item_id,
+    materialName: cr.material_name ?? t('activities.common.material'),
+    packSize: meta.pack_size,
+    packUnit: meta.pack_unit,
+    linkedContainerLabel: meta.linked_container_label,
+    editIssueId: cr.id,
+    editQuantity: cr.quantity,
+    editDescription: cr.description ?? null,
+  })
 }
 
 function emitNachbuchung(row: {
@@ -634,11 +673,18 @@ watch(
 
 .consumable-history-item {
   display: grid;
-  grid-template-columns: 1fr auto;
+  grid-template-columns: 1fr auto auto;
   gap: 4px 12px;
+  align-items: center;
   padding: 8px 0;
   border-bottom: 1px solid #f1f5f9;
   font-size: 13px;
+}
+
+.consumable-history-actions {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
 }
 
 .consumable-history-item:last-child {

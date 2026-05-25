@@ -70,13 +70,6 @@ const lineSections = computed((): ReturnCrateLineSection[] => {
   const shell = props.lines.filter((l) => l.kind === 'shell')
   const extra = props.lines.filter((l) => l.kind === 'line' && l.isExtra)
   const standard = props.lines.filter((l) => l.kind === 'line' && !l.isExtra)
-  if (shell.length > 0) {
-    sections.push({
-      key: 'shell',
-      titleKey: 'activities.packList.returnCrateModalShellSection',
-      lines: shell,
-    })
-  }
   if (extra.length > 0) {
     sections.push({
       key: 'extra',
@@ -90,6 +83,13 @@ const lineSections = computed((): ReturnCrateLineSection[] => {
       key: 'standard',
       titleKey: 'activities.packList.returnCrateModalStandardSection',
       lines: standard,
+    })
+  }
+  if (shell.length > 0) {
+    sections.push({
+      key: 'shell',
+      titleKey: 'activities.packList.returnCrateModalShellSection',
+      lines: shell,
     })
   }
   return sections

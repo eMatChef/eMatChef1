@@ -6,6 +6,7 @@ use Doctrine\DBAL\Connection;
 use Doctrine\DBAL\Platforms\PostgreSQLPlatform;
 use App\Entity\Activity;
 use App\Service\MaterialAvailabilityReservationQuery;
+use App\Util\IdGenerator;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -67,7 +68,7 @@ class MaterialAvailabilityController extends AbstractController
      * - startDate (optional, ISO 8601 DateTime – ohne Datum wird Gesamtbestand zurückgegeben)
      * - endDate (optional, ISO 8601 DateTime – ohne Datum wird Gesamtbestand zurückgegeben)
      * - search (optional, filtert nach Materialname, ab 1 Zeichen; leer = erste Treffer ohne Namensfilter)
-     * - materialItemIds (optional, Komma-getrennte UUIDs; max. 50 — Ergebnis auf diese Material-Items begrenzen)
+     * - materialItemIds (optional, Komma-getrennte IDs; max. 50 — Ergebnis auf diese Material-Items begrenzen)
      * - excludeActivityId (optional, um eigene Reservierungen auszuschliessen)
      * - limit (optional, default 20)
      * - internalScope (optional, nur bei source=internal): own | invited | both | single
@@ -94,8 +95,8 @@ class MaterialAvailabilityController extends AbstractController
                 if ($id === '') {
                     continue;
                 }
-                if (preg_match('/^[0-9a-fA-F-]{36}$/', $id) === 1) {
-                    $materialItemUuidList[] = $id;
+                if (IdGenerator::isValid($id) || preg_match('/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/i', $id) === 1) {
+                    $materialItemUuidList[] = strtolower($id);
                 }
             }
             $materialItemUuidList = array_values(array_unique($materialItemUuidList));

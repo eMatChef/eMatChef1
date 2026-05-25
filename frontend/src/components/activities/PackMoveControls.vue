@@ -9,7 +9,12 @@ const props = withDefaults(
     /** Kiste gewählt: gleicher Pfeil, 90° gedreht + grün — Position unverändert */
     intoCrate?: boolean
     qty: number
+    /** Max. Menge beim Buchen (API / Pipeline) */
     max: number
+    /** Oberes Limit im Eingabefeld (z. B. MW: bis bestellt); Standard = max */
+    inputMax?: number
+    /** Roter Rahmen, wenn qty < dieser Wert (z. B. bestellte Menge) */
+    warnIfBelow?: number
     disabled?: boolean
     forwardTitle?: string
     backTitle?: string
@@ -22,6 +27,17 @@ const props = withDefaults(
   },
 )
 
+const inputCap = () => {
+  const cap = Math.floor(Number(props.inputMax ?? props.max))
+  return cap > 0 ? cap : 0
+}
+
+const showPartialOrderWarn = () => {
+  const below = props.warnIfBelow
+  if (below == null || below < 1) return false
+  return Math.floor(Number(props.qty)) < below
+}
+
 const emit = defineEmits<{
   'update:qty': [value: number]
   move: [qty: number]
@@ -32,7 +48,7 @@ function parseQtyFromInputEl(el: HTMLInputElement | null): number {
   const raw = parseInt(el.value, 10)
   let qty = Number.isFinite(raw) ? raw : props.qty
   if (qty < 1) qty = 1
-  const maxVal = Math.floor(Number(props.max))
+  const maxVal = inputCap()
   if (maxVal > 0 && qty > maxVal) qty = maxVal
   return qty
 }
@@ -60,7 +76,10 @@ function onMoveClick(event: MouseEvent | KeyboardEvent) {
       actionsClass,
     ]"
   >
-    <div class="pack-move-inline">
+    <div
+      class="pack-move-inline"
+      :class="{ 'pack-move-inline--below-ordered': showPartialOrderWarn() }"
+    >
       <template v-if="direction === 'back'">
         <button
           type="button"
@@ -89,7 +108,7 @@ function onMoveClick(event: MouseEvent | KeyboardEvent) {
           :value="qty"
           type="number"
           min="1"
-          :max="max"
+          :max="inputCap() || max"
           class="pack-move-input"
           @input="onInput"
           @keyup.enter="onMoveClick"
@@ -109,7 +128,7 @@ function onMoveClick(event: MouseEvent | KeyboardEvent) {
           :value="qty"
           type="number"
           min="1"
-          :max="max"
+          :max="inputCap() || max"
           class="pack-move-input"
           @input="onInput"
           @keyup.enter="onMoveClick"

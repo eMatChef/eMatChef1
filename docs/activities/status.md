@@ -141,7 +141,7 @@ Kurz: In `draft` / `submitted` / `approved` ist Material nur **bestellt** (`orde
 
 **Buchhaltung ab Retour** (`ActivityAccountingCostService`): mehrere `accounting_acquisition_follow_up` pro Aktivität — `activity_consumption` (Verbrauch gesammelt), `activity_replenishment` (**pro einreichendem Department**, Auftrag im jeweiligen Dep.), `activity_rental` (nur external), `activity_workshop` (pro Ticket, **Buchhaltungs-Department = Owner des Materials**). Verrechnungsziel in der API: `charge_target` — `group` (intern Verbrauch), `department` (Werkstatt intern / Nachlieferung), `external_customer` (Vermietung, Werkstatt/Reparatur extern). Kein separater `activity_loss`-Posten. Melder (`reported_by_display_name`) und Kunde/Material-Dep. werden für Zuordnung in der Buchhaltung mitgeliefert. Liste aller Aufträge einer Aktivität: `GET /api/activities/{id}/accounting-followups`. Details: [material-pipeline.md](./material-pipeline.md#regeln-ziel).
 
-**UI bei `returned`:** Abschluss-Checkliste in der Aktivitäts-Detailansicht (`completion_blockers` aus `GET /api/activities/{id}/transitions`) — Einlagern, Meldungen, Werkstatt, Buchhaltung mit Sprüngen zu Packliste / Issues / Kosten / Werkstatt.
+**UI bei `returned`:** Abschluss-Checkliste «Materialabschluss» nur für **MW/DC** (Materialwart, Depchef) sichtbar (`completion_blockers` aus `GET /api/activities/{id}/transitions`) — Einlagern, Meldungen, Werkstatt, Buchhaltung mit Sprüngen zu Packliste / Issues / Kosten / Werkstatt. Gruppe/User/L1–L3 sehen die Karte nicht.
 
 Details Pack-Workflow (Geräte): [devices/pack-workflow.md](../devices/pack-workflow.md)
 

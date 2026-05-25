@@ -515,7 +515,9 @@
                         moveQtyInputs[pi.id] ??
                         (showCrateAssignUpControls(pi) ? crateAssignUpMax(pi) : packIssueForwardMax(pi))
                       "
-                      :max="showCrateAssignUpControls(pi) ? crateAssignUpMax(pi) : packIssueForwardMax(pi)"
+                      :max="packForwardMoveControlLimits(pi).max"
+                      :input-max="packForwardMoveControlLimits(pi).inputMax"
+                      :warn-if-below="packForwardMoveControlLimits(pi).warnIfBelow"
                       :disabled="movingId === pi.id || (showCrateAssignUpControls(pi) && containerMutationLoading)"
                       :forward-title="
                         showCrateAssignUpControls(pi)
@@ -1361,6 +1363,7 @@ import {
 import {
   isPackCrateCheckStage,
   packCrateCheckLegForStage,
+  isPackReturnCrateCheckStage,
   crateCheckSnapshotKey,
   type PackCrateCheckLeg,
 } from '@/components/activities/packCrateCheckLeg'
@@ -1415,6 +1418,9 @@ import {
   packContainerItemSectionsWithReality,
   packShellContainerForPackItem,
   isPhysicalComboAsSet,
+  isOrphanShellWithoutPackContainer as isOrphanShellWithoutPackContainerRow,
+  hideShellPackItemOnConfirmedPackedLeft,
+  packContainerVisibleOnConfirmedPackedRight,
   peekSectionsForShellContainer,
 } from '@/components/activities/packShellCrateHelpers'
 import { isPhysicalComboPackItem } from '@/components/activities/packMaterialDisplay'
@@ -1707,7 +1713,7 @@ function mwHandoffAllowsPackLineControls(stage: PackStage): boolean {
   if (!mwGroupHandoffActive.value) return false
   if (isPackConfirmedStage(stage) && hasMwConfirmedPackedTabWork.value) return true
   if (isPackForwardToEventStage(stage)) return true
-  if (isPackReturnStage(stage)) return true
+  if (isPackReturnCrateCheckStage(stage)) return true
   return false
 }
 
@@ -1938,15 +1944,22 @@ const showPackConsumptionActions = computed(
 
 const useConsumableInlineAdjust = computed(() => isPackReturnStage(activePackStage.value))
 
+/** Verbrauch liegt nur noch in Kistenzeilen am Event (nicht lose in der Retour-Spalte). */
+function consumableStillOnlyInCrateAtReturn(pi: ActivityPackItem): boolean {
+  if (!isPackReturnStage(activePackStage.value)) return false
+  if (containerStillAtEventQtyForMaterial(pi.materialItemId) <= 0) return false
+  return looseQtyStillAtEventForReturn(pi) <= 0
+}
+
 /** Verbrauch buchen (User/Leader + MW): solange noch offen und Material am Event / in Retour. */
 function showConsumableConsumptionForPackItem(pi: ActivityPackItem): boolean {
   if (!pi.isConsumable || !showPackConsumptionActions.value) return false
-  if (isPackReturnStage(activePackStage.value)) return true
   if (consumableConsumptionRemaining(pi) <= 0) return false
   if (isPackForwardToEventStage(activePackStage.value)) {
     return looseIssuedAtEvent(pi) > 0 || issuedQtyInContainersForMaterial(pi.materialItemId) > 0
   }
   if (isPackReturnStage(activePackStage.value)) {
+    if (consumableStillOnlyInCrateAtReturn(pi)) return false
     const stillAtEvent = Math.max(0, (pi.quantityIssued ?? 0) - (pi.quantityReturned ?? 0))
     return stillAtEvent > 0 && consumableConsumptionRemaining(pi) > 0
   }
@@ -2078,6 +2091,10 @@ const pendingConsumableReturn = ref<PendingConsumableReturn | null>(null)
 
 /** Behälter ohne Lager-Batch, nur für Phys.-Kombi «Einbuchen in» (ohne verknüpfte Kiste) */
 const shellComboVirtualContainerByPackItemId = ref<Record<string, string>>({})
+
+function isOrphanShellWithoutPackContainer(pi: ActivityPackItem): boolean {
+  return isOrphanShellWithoutPackContainerRow(pi, packContainers.value, activePackStage.value)
+}
 
 /** Kisten-Ziele fürs Einbuchen: Phys.-Kombi mit Kiste oder Pack-Behälter mit Lager-Batch */
 const hasKisteAddTargetsOnActivity = computed(
@@ -2550,14 +2567,15 @@ const consumableInlineQtyInputs = ref<Record<string, number>>({})
 const consumableInlinePostingId = ref<string | null>(null)
 
 function consumableInlineQtyFor(materialItemId: string): number {
-  return consumableInlineQtyInputs.value[materialItemId] ?? 1
+  return consumableInlineQtyInputs.value[materialItemId] ?? 0
 }
 
 function setConsumableInlineQty(materialItemId: string, qty: number) {
   const max = maxInlineConsumptionQtyForMaterial(materialItemId)
+  const n = Number.isFinite(qty) ? Math.floor(qty) : 0
   consumableInlineQtyInputs.value = {
     ...consumableInlineQtyInputs.value,
-    [materialItemId]: Math.max(1, Math.min(max, Math.floor(qty) || 1)),
+    [materialItemId]: Math.max(0, Math.min(max, n)),
   }
 }
 
@@ -2606,7 +2624,7 @@ async function submitConsumableInlineForMaterial(materialItemId: string) {
       quantity: qty,
       description: null,
     })
-    consumableInlineQtyInputs.value = { ...consumableInlineQtyInputs.value, [materialItemId]: 1 }
+    consumableInlineQtyInputs.value = { ...consumableInlineQtyInputs.value, [materialItemId]: 0 }
     emit('activityItemsChanged')
     await loadAll()
     toast.success(t('activities.packList.consumableInlineBooked', { n: qty }))
@@ -2857,6 +2875,9 @@ type ShellForwardPendingAction =
   | { kind: 'issue_container'; containerId: string }
   | { kind: 'issue_container_shell'; containerId: string }
   | { kind: 'issue_container_line'; containerId: string; containerItemId: string; qty: number }
+  | { kind: 'return_container_modal'; containerId: string }
+  | { kind: 'return_container_shell'; containerId: string; qty: number }
+  | { kind: 'return_container_line'; containerId: string; containerItemId: string; qty: number }
   | { kind: 'check_only' }
 
 const shellForwardPendingAction = ref<ShellForwardPendingAction>({ kind: 'pack_move' })
@@ -2899,7 +2920,9 @@ function shellCrateCheckDoneForPackItem(pi: ActivityPackItem): boolean {
   if (!leg) return false
   const snaps = activityCrateCheckSnapshots.value
   if (canManageMaterials.value) {
-    if (leg === 'warehouse_store') return false
+    if (leg === 'warehouse_store' || leg === 'return') {
+      return Boolean(snaps[crateCheckSnapshotKey(pi.id, leg)])
+    }
     return Boolean(
       snaps[crateCheckSnapshotKey(pi.id, 'outbound')]
         || snaps[crateCheckSnapshotKey(pi.id, 'return')],
@@ -3268,7 +3291,8 @@ function buildReturnCratePartition(containerId: string): ReturnCratePartitionVie
 
   const warehouseMids = containerWarehouseTemplateByContainerId.value[containerId]
   const hasWarehouseTemplate = (warehouseMids?.size ?? 0) > 0
-  const shellQty = containerShellStillAtEventQty(containerId)
+  const shellQty =
+    containerInnerReturnableUnits(containerId) > 0 ? 0 : containerShellStillAtEventQty(containerId)
   const shellMid = (c.container_material_item_id ?? '').trim()
   const shellPi = shellMid ? packItems.value.find((p) => p.materialItemId === shellMid) : undefined
   const shellIsExtra = Boolean(shellMid && shellQty > 0 && warehouseMids && !warehouseMids.has(shellMid))
@@ -3348,25 +3372,6 @@ function buildReturnCrateModalLines(containerId: string): ReturnCrateLineEdit[] 
   const extraIds = new Set(partition.extraLines.map((line) => line.id))
   const lines: ReturnCrateLineEdit[] = []
 
-  if (partition.shellQty > 0) {
-    const shellConsumable = shellMaterialId ? isPackMaterialConsumable(shellMaterialId) : false
-    const shellConsumption = shellConsumable ? returnCrateConsumableState(shellMaterialId) : null
-    lines.push({
-      id: 'shell',
-      kind: 'shell',
-      materialItemId: shellMaterialId,
-      materialName: partition.shellMaterialName || t('activities.packList.shellMaterialLine'),
-      max: partition.shellQty,
-      issued: partition.shellQty,
-      included: !shellConsumable,
-      qty: shellConsumable ? 0 : partition.shellQty,
-      isExtra: partition.shellIsExtra,
-      isConsumable: shellConsumable,
-      consumptionDone: shellConsumption?.consumptionDone ?? false,
-      consumptionOpen: shellConsumption?.consumptionOpen ?? 0,
-    })
-  }
-
   for (const ci of [...partition.extraLines, ...partition.standardLines]) {
     const max = containerLineRemainingReturn(ci, containerId)
     const materialItemId = ci.material_item_id ?? null
@@ -3386,6 +3391,25 @@ function buildReturnCrateModalLines(containerId: string): ReturnCrateLineEdit[] 
       isConsumable,
       consumptionDone: consumption?.consumptionDone ?? false,
       consumptionOpen: consumption?.consumptionOpen ?? 0,
+    })
+  }
+
+  if (partition.shellQty > 0) {
+    const shellConsumable = shellMaterialId ? isPackMaterialConsumable(shellMaterialId) : false
+    const shellConsumption = shellConsumable ? returnCrateConsumableState(shellMaterialId) : null
+    lines.push({
+      id: 'shell',
+      kind: 'shell',
+      materialItemId: shellMaterialId,
+      materialName: partition.shellMaterialName || t('activities.packList.shellMaterialLine'),
+      max: partition.shellQty,
+      issued: partition.shellQty,
+      included: !shellConsumable,
+      qty: shellConsumable ? 0 : partition.shellQty,
+      isExtra: partition.shellIsExtra,
+      isConsumable: shellConsumable,
+      consumptionDone: shellConsumption?.consumptionDone ?? false,
+      consumptionOpen: shellConsumption?.consumptionOpen ?? 0,
     })
   }
 
@@ -3489,6 +3513,7 @@ async function onReturnCrateModalSubmit(): Promise<void> {
       containerItemId: line.containerItemId,
       qty: line.qty,
     }))
+    .sort((a, b) => (a.kind === 'shell' ? 1 : 0) - (b.kind === 'shell' ? 1 : 0))
 
   if (steps.length === 0) {
     if (!returnCrateModalCanCompleteWithoutMoves()) return
@@ -3559,18 +3584,11 @@ function setContainerShellReturnInput(containerId: string, value: number | strin
   containerShellReturnInputs.value = { ...containerShellReturnInputs.value, [k]: Math.min(qty, max) }
 }
 
-async function returnContainerShellToWarehouse(containerId: string, qtyOverride?: number): Promise<void> {
-  if (!isPackReturnStage(activePackStage.value)) return
-  const shell = shellPackItemForContainer(containerId)
-  if (!shell) return
-  const max = containerShellStillAtEventQty(containerId)
-  if (max < 1) return
-  let qty =
-    qtyOverride != null
-      ? Math.floor(qtyOverride)
-      : Math.floor(containerShellReturnInputValue(containerId))
-  qty = Math.min(Math.max(1, qty), max)
-  setContainerShellReturnInput(containerId, qty)
+async function executeReturnContainerShellToWarehouse(
+  containerId: string,
+  shell: ActivityPackItem,
+  qty: number,
+): Promise<void> {
   containerMutationLoading.value = true
   try {
     await postMovePackItem(props.activityId, shell.id, { stage: 'returned', quantity: qty })
@@ -3587,6 +3605,29 @@ async function returnContainerShellToWarehouse(containerId: string, qtyOverride?
   } finally {
     containerMutationLoading.value = false
   }
+}
+
+async function returnContainerShellToWarehouse(containerId: string, qtyOverride?: number): Promise<void> {
+  if (!isPackReturnStage(activePackStage.value)) return
+  if (containerInnerReturnableUnits(containerId) > 0) {
+    toast.error(t('activities.packList.toastReturnShellAfterContents'))
+    return
+  }
+  const shell = shellPackItemForContainer(containerId)
+  if (!shell) return
+  const max = containerShellStillAtEventQty(containerId)
+  if (max < 1) return
+  let qty =
+    qtyOverride != null
+      ? Math.floor(qtyOverride)
+      : Math.floor(containerShellReturnInputValue(containerId))
+  qty = Math.min(Math.max(1, qty), max)
+  setContainerShellReturnInput(containerId, qty)
+  if (needsShellCratePresenceConfirm(shell)) {
+    await openShellCrateForwardModal(shell, qty, { kind: 'return_container_shell', containerId, qty })
+    return
+  }
+  await executeReturnContainerShellToWarehouse(containerId, shell, qty)
 }
 
 function containerReturnLineInputValue(containerId: string, ci: ActivityPackContainerItem): number {
@@ -3650,6 +3691,37 @@ async function returnContainerLineToWarehouse(containerId: string, ci: ActivityP
   if (isNonActionableContainerLine(ci)) return
   const max = containerLineRemainingReturn(ci, containerId)
   if (max < 1) return
+
+  const container = packContainers.value.find((x) => x.id === containerId)
+  const shell = shellPackItemForContainer(containerId)
+  if (shell && needsShellCratePresenceConfirm(shell)) {
+    let qty = Math.floor(Number(containerReturnLineInputValue(containerId, ci)))
+    if (!Number.isFinite(qty) || qty < 1) qty = max
+    qty = Math.min(qty, max)
+    setContainerReturnLineInput(containerId, ci, qty)
+    await openShellCrateForwardModal(shell, qty, {
+      kind: 'return_container_line',
+      containerId,
+      containerItemId: ci.id,
+      qty,
+    })
+    return
+  }
+
+  if (container && !hasSeenReturnWholeCratePrompt(containerId)) {
+    const returnWhole = await confirmDialog({
+      title: t('activities.packList.confirmReturnWholeCrateTitle', { label: container.label }),
+      message: t('activities.packList.confirmReturnWholeCrateMessage', { label: container.label }),
+      confirmText: t('activities.packList.confirmReturnWholeCrateYes'),
+      cancelText: t('activities.packList.confirmReturnWholeCrateNo'),
+    })
+    markReturnWholeCratePromptSeen(containerId)
+    if (returnWhole) {
+      await openReturnCrateModal(container)
+      return
+    }
+  }
+
   let qty = Math.floor(Number(containerReturnLineInputValue(containerId, ci)))
   if (!Number.isFinite(qty) || qty < 1) qty = max
   qty = Math.min(qty, max)
@@ -3964,6 +4036,7 @@ function peekSectionsForShellContainerCtx(c: ActivityPackContainer): PackCrateSh
     shellPi?.id,
     activityCrateCheckSnapshots.value,
     shellPi ? useCrateRealityForPackItem(shellPi.id) : false,
+    shellPi,
   )
 }
 
@@ -3995,6 +4068,7 @@ function packContainerItemSectionsForContainer(c: ActivityPackContainer) {
     shellPi?.id,
     activityCrateCheckSnapshots.value,
     shellPi ? useCrateRealityForPackItem(shellPi.id) : false,
+    shellPi,
   )
 }
 
@@ -4348,6 +4422,10 @@ function rightQtyForMoveBack(pi: ActivityPackItem): number {
     }
     return looseIssuedAtEvent(pi)
   }
+  if (isPackReturnStage(activePackStage.value)) {
+    const looseRet = returnedLooseQtyForPackItem(pi)
+    if (looseRet > 0) return looseRet
+  }
   return getStageRightQty(pi)
 }
 
@@ -4503,17 +4581,47 @@ function containerUnissueableUnits(containerId: string): number {
   return sum
 }
 
-/** Stück am Event, noch nicht retour (Event → Retour): Inhalt + Kiste */
-function containerReturnableUnits(containerId: string): number {
+/** Packinhalt in der Kiste, noch nicht retourniert (ohne Leergehäuse). */
+function containerInnerReturnableUnits(containerId: string): number {
   let sum = 0
   for (const ci of containerItemsByContainerId.value[containerId] ?? []) {
     sum += containerLineRemainingReturn(ci, containerId)
   }
-  const shell = shellPackItemForContainer(containerId)
-  if (shell) {
-    sum += Math.max(0, shell.quantityIssued - shell.quantityReturned)
-  }
   return sum
+}
+
+/** Leergehäuse / Behälter-Material noch am Event. */
+function containerShellReturnableUnits(containerId: string): number {
+  const shell = shellPackItemForContainer(containerId)
+  if (!shell) return 0
+  return Math.max(0, shell.quantityIssued - shell.quantityReturned)
+}
+
+/** Stück am Event, noch nicht retour (Event → Retour): zuerst Inhalt, danach Behälter. */
+function containerReturnableUnits(containerId: string): number {
+  const inner = containerInnerReturnableUnits(containerId)
+  if (inner > 0) return inner
+  return containerShellReturnableUnits(containerId)
+}
+
+function returnWholeCratePromptStorageKey(containerId: string): string {
+  return `ematchef-return-whole-crate-prompt:${props.activityId}:${containerId}`
+}
+
+function hasSeenReturnWholeCratePrompt(containerId: string): boolean {
+  try {
+    return sessionStorage.getItem(returnWholeCratePromptStorageKey(containerId)) === '1'
+  } catch {
+    return false
+  }
+}
+
+function markReturnWholeCratePromptSeen(containerId: string): void {
+  try {
+    sessionStorage.setItem(returnWholeCratePromptStorageKey(containerId), '1')
+  } catch {
+    /* ignore */
+  }
 }
 
 function crateReturnQtyForMaterial(materialItemId: string): number {
@@ -4689,9 +4797,34 @@ async function executeShellForwardPendingAfterCheck(item: ActivityPackItem) {
     if (ci) {
       await executeIssueContainerLineToEvent(pending.containerId, ci, pending.qty)
     }
+  } else if (pending.kind === 'return_container_modal') {
+    const c = packContainers.value.find((x) => x.id === pending.containerId)
+    if (c) await openReturnCrateModal(c)
+  } else if (pending.kind === 'return_container_shell') {
+    const shell = shellPackItemForContainer(pending.containerId)
+    if (shell) {
+      await executeReturnContainerShellToWarehouse(pending.containerId, shell, pending.qty)
+    }
+  } else if (pending.kind === 'return_container_line') {
+    const ci = (containerItemsByContainerId.value[pending.containerId] ?? []).find(
+      (row) => row.id === pending.containerItemId,
+    )
+    if (ci) {
+      const pi = packItems.value.find((p) => p.materialItemId === ci.material_item_id)
+      if (shouldOpenConsumptionModalOnReturn(pi)) {
+        beginConsumableReturnForContainerLine(pending.containerId, ci, pending.qty)
+      } else {
+        await executeReturnContainerLineToWarehouse(pending.containerId, ci, pending.qty)
+      }
+    }
   }
   const shellC = packShellContainerForPackItem(item, packContainers.value)
-  if (shellC) {
+  if (
+    shellC &&
+    pending.kind !== 'return_container_modal' &&
+    pending.kind !== 'return_container_shell' &&
+    pending.kind !== 'return_container_line'
+  ) {
     await syncContainerContentsWithShellAtEvent(shellC.id)
   }
 }
@@ -4716,6 +4849,12 @@ async function unissueContainerToPacked(c: ActivityPackContainer) {
 
 async function returnContainerToWarehouse(c: ActivityPackContainer) {
   if (containerBulkLoadingId.value) return
+  const shell = shellPackItemForContainer(c.id)
+  if (shell && needsShellCratePresenceConfirm(shell)) {
+    const max = Math.max(1, containerReturnableUnits(c.id))
+    await openShellCrateForwardModal(shell, max, { kind: 'return_container_modal', containerId: c.id })
+    return
+  }
   await openReturnCrateModal(c)
 }
 
@@ -5828,28 +5967,59 @@ function packIssueForwardMax(pi: ActivityPackItem): number {
   return effectiveStageLeftQty(pi)
 }
 
+/** MW «Bestätigt → Gepackt»: Eingabe bis bestellte Menge (Teilpacken mit Hinweis). */
+function packForwardInputQtyMax(pi: ActivityPackItem): number {
+  if (activePackStage.value === 'confirmed_packed' && canManageMaterials.value) {
+    return Math.max(1, pi.quantityOrdered ?? 0)
+  }
+  return packIssueForwardMax(pi)
+}
+
+function packForwardWarnBelowOrdered(pi: ActivityPackItem): number | undefined {
+  if (activePackStage.value !== 'confirmed_packed' || !canManageMaterials.value) {
+    return undefined
+  }
+  const ordered = Math.max(0, pi.quantityOrdered ?? 0)
+  return ordered > 0 ? ordered : undefined
+}
+
+function packForwardMoveControlLimits(pi: ActivityPackItem): {
+  max: number
+  inputMax: number
+  warnIfBelow?: number
+} {
+  if (showCrateAssignUpControls(pi)) {
+    const m = crateAssignUpMax(pi)
+    return { max: m, inputMax: m }
+  }
+  return {
+    max: packIssueForwardMax(pi),
+    inputMax: packForwardInputQtyMax(pi),
+    warnIfBelow: packForwardWarnBelowOrdered(pi),
+  }
+}
+
 /** Auf «Gepackt → Am Event»: oben nur lose Restmenge; was nur in Behältern liegt, erscheint unten bei den Behältern. */
 /** Anzahl Pack-Behälter mit zugeordneter Lager-Kiste pro Material — diese Einheiten nicht links per Pfeil schieben. */
 const packContainerBatchCountByMaterialItemId = computed(() => {
   const m: Record<string, number> = {}
   for (const c of packContainers.value) {
-    if (!c.container_batch_id || !c.container_material_item_id) continue
-    const id = c.container_material_item_id
-    m[id] = (m[id] ?? 0) + 1
+    if (!(c.container_batch_id ?? '').trim()) continue
+    const directMid = (c.container_material_item_id ?? '').trim()
+    if (directMid) {
+      m[directMid] = (m[directMid] ?? 0) + 1
+      continue
+    }
+    for (const pi of packItems.value) {
+      if (!isCrateShellPackItem(pi, packContainers.value)) continue
+      if (packShellContainerForPackItem(pi, packContainers.value)?.id === c.id) {
+        m[pi.materialItemId] = (m[pi.materialItemId] ?? 0) + 1
+        break
+      }
+    }
   }
   return m
 })
-
-/**
- * Phys.-Kombi ohne Pack-Behälter (z. B. nach Kisten-Löschen): nicht links anzeigen —
- * linkedContainerLabel kommt vom Stammartikel, nicht vom gelöschten Behälter.
- */
-function isOrphanShellWithoutPackContainer(pi: ActivityPackItem): boolean {
-  if (activePackStage.value !== 'confirmed_packed') return false
-  if (isPhysicalComboAsSet(pi, packContainers.value)) return false
-  if (!isCrateShellPackItem(pi, packContainers.value)) return false
-  return packShellContainerForPackItem(pi, packContainers.value) == null
-}
 
 /** Sichtbare Restmenge links: Roh-Rest minus Einheiten, die bereits als Kisten-Batch am Behälter hängen. */
 function effectiveStageLeftQty(p: ActivityPackItem): number {
@@ -5874,6 +6044,16 @@ function effectiveStageLeftQty(p: ActivityPackItem): number {
 const stageLeftItems = computed(() =>
   packItems.value.filter((p) => {
     if (isOrphanShellWithoutPackContainer(p)) return false
+    if (
+      hideShellPackItemOnConfirmedPackedLeft(
+        p,
+        packContainers.value,
+        activePackStage.value,
+        showPackContainersUi.value,
+      )
+    ) {
+      return false
+    }
     if (effectiveStageLeftQty(p) <= 0) return false
     if (
       isPackForwardToEventStage(activePackStage.value) &&
@@ -6262,14 +6442,17 @@ const packCratePickerShellOnlyItems = computed(() =>
  * - unten «Bereits ans Event», oder
  * - oben Picker nur wenn weder links noch am Event wählbar
  */
-const showPackCrateTargetPickerTop = computed(
-  () =>
-    showPackContainersUi.value &&
-    activePackStage.value === 'confirmed_packed' &&
+const showPackCrateTargetPickerTop = computed(() => {
+  if (!showPackContainersUi.value || activePackStage.value !== 'confirmed_packed') return false
+  if (packCratePickerShellOnlyItems.value.length === 0) return false
+  if (
     packContainersWithIssuedAtEvent.value.length === 0 &&
-    packContainersSortedWarehouseOnlyVisible.value.length === 0 &&
-    packCratePickerShellOnlyItems.value.length > 0,
-)
+    packContainersSortedWarehouseOnlyVisible.value.length === 0
+  ) {
+    return true
+  }
+  return packContainersForConfirmedPackedRight.value.length === 0
+})
 
 function returnedQtyInContainersForMaterial(materialItemId: string): number {
   let sum = 0
@@ -6410,6 +6593,38 @@ function containerReturnedContentUnits(containerId: string): number {
   return sum
 }
 
+function containerHasPackedInnerLines(containerId: string): boolean {
+  return (containerItemsByContainerId.value[containerId] ?? []).some((ci) => {
+    if (isNonActionableContainerLine(ci)) return false
+    return Math.max(ci.quantity_packed ?? 0, ci.quantity_issued ?? 0) > 0
+  })
+}
+
+/**
+ * Rechts «Bereits retourniert» als Kistenkarte: nur wenn die Kiste als Ganzes retourniert wurde.
+ * Nur-Inhalt oder nur Behälter lose → Lose-Spalte, nicht die Kistenkarte.
+ */
+function containerReturnedAsWhole(containerId: string): boolean {
+  if (containerReturnableUnits(containerId) > 0) return false
+  if (containerReturnedContentUnits(containerId) <= 0) return false
+
+  const sh = shellPackItemForContainer(containerId)
+  const shellReturned = (sh?.quantityReturned ?? 0) > 0
+  const innerReturned = (containerItemsByContainerId.value[containerId] ?? []).some(
+    (ci) => !isVirtualWarehouseContainerLine(ci) && (ci.quantity_returned ?? 0) > 0,
+  )
+
+  if (sh && isPhysicalComboPackItem(sh)) {
+    return shellReturned
+  }
+
+  if (!containerHasPackedInnerLines(containerId)) {
+    return false
+  }
+
+  return shellReturned && innerReturned
+}
+
 function containerStoredContentUnits(containerId: string): number {
   let sum = 0
   for (const ci of containerItemsByContainerId.value[containerId] ?? []) {
@@ -6491,12 +6706,10 @@ const packContainersAtEventForReturnLeft = computed(() => {
   return packContainersSorted.value.filter((c) => containerReturnableUnits(c.id) > 0)
 })
 
-/** Rechts Retour: vollständig retournierte Kisten unter «Bereits retourniert». */
+/** Rechts Retour: als Ganzes retournierte Kisten unter «Bereits retourniert». */
 const packContainersReturnedForReturnRight = computed(() => {
   if (!isPackReturnStage(activePackStage.value)) return []
-  return packContainersSorted.value.filter(
-    (c) => containerReturnedContentUnits(c.id) > 0 && containerReturnableUnits(c.id) === 0,
-  )
+  return packContainersSorted.value.filter((c) => containerReturnedAsWhole(c.id))
 })
 
 const stageReturnNotTakenItems = computed(() =>
@@ -6526,6 +6739,7 @@ const stageConsumableOverviewItems = computed(() =>
   packItems.value.filter((p) => {
     if (!isPackReturnOrUnpackWarehouseStage(activePackStage.value)) return false
     if (!isConsumablePackLine(p)) return false
+    if (consumableStillOnlyInCrateAtReturn(p)) return false
     return (
       (p.quantityReturned ?? 0) > 0 ||
       (p.quantityStored ?? 0) > 0 ||
@@ -6580,13 +6794,17 @@ function containerHasPackedContent(containerId: string): boolean {
   return (sh?.quantityPacked ?? 0) > 0
 }
 
-/** Rechts «Gepackt»: leere/belegte Kisten (Ziel zum Einpacken) */
+/** Rechts «Gepackt»: nur Kisten mit tatsächlich gepackter Shell / Inhalt (nicht leerer Auto-Behälter). */
 const packContainersForConfirmedPackedRight = computed(() => {
   if (activePackStage.value !== 'confirmed_packed') return []
-  if (packWorkflowReadOnly.value) {
-    return packContainersSorted.value.filter((c) => containerHasPackedContent(c.id))
-  }
-  return packContainersSortedWarehouseOnly.value.filter((c) => !isPackContainerMerged(c))
+  return packContainersSortedWarehouseOnly.value.filter((c) => {
+    if (isPackContainerMerged(c)) return false
+    return packContainerVisibleOnConfirmedPackedRight(
+      c.id,
+      shellPackItemForContainer(c.id),
+      containerHasPackedContent(c.id),
+    )
+  })
 })
 
 const stageRightItemsLooseIssued = computed(() =>
@@ -6602,7 +6820,14 @@ const stageReturnedLooseItems = computed(() =>
   packItems.value.filter((p) => {
     if (!isPackReturnStage(activePackStage.value)) return false
     if (isOrphanShellWithoutPackContainer(p)) return false
-    if (isCrateShellPackItem(p, packContainers.value)) return false
+    if (isCrateShellPackItem(p, packContainers.value)) {
+      const shellContainer = packShellContainerForPackItem(p, packContainers.value)
+      if (shellContainer && containerReturnedAsWhole(shellContainer.id)) return false
+      if (isIndividuallyStorableCrateShell(p)) {
+        return (p.quantityReturned ?? 0) > 0
+      }
+      return false
+    }
     return returnedLooseQtyForPackItem(p) > 0
   }),
 )
@@ -6690,22 +6915,31 @@ function getBackendStage(): PackMoveStage {
   return computeBackendStage(activePackStage.value)
 }
 
-function clampMoveQtyForPackItem(pi: ActivityPackItem, rawQty: number, direction: 'forward' | 'back'): number {
+function clampMoveQtyForPackItem(
+  pi: ActivityPackItem,
+  rawQty: number,
+  direction: 'forward' | 'back',
+  mode: 'input' | 'move' = 'move',
+): number {
   let qty = Math.floor(Number(rawQty))
   if (!Number.isFinite(qty) || qty < 1) qty = 1
-  const max =
-    direction === 'back'
-      ? rightQtyForMoveBack(pi)
-      : showCrateAssignUpControls(pi)
-        ? crateAssignUpMax(pi)
-        : packIssueForwardMax(pi)
+  let max = 0
+  if (direction === 'back') {
+    max = rightQtyForMoveBack(pi)
+  } else if (mode === 'input') {
+    max = packForwardMoveControlLimits(pi).inputMax
+  } else {
+    max = packForwardMoveControlLimits(pi).max
+  }
   if (max > 0) return Math.min(qty, max)
   return qty
 }
 
 function setMoveQtyForItem(itemId: string, qty: number) {
   const pi = packItems.value.find((p) => p.id === itemId)
-  const v = pi ? clampMoveQtyForPackItem(pi, qty, 'forward') : Math.max(1, Math.floor(Number(qty)) || 1)
+  const v = pi
+    ? clampMoveQtyForPackItem(pi, qty, 'forward', 'input')
+    : Math.max(1, Math.floor(Number(qty)) || 1)
   moveQtyInputs.value = { ...moveQtyInputs.value, [itemId]: v }
 }
 
@@ -6741,6 +6975,15 @@ function applyUpdatedItem(updated: ActivityPackItem) {
 
 async function moveToNextStage(item: ActivityPackItem, qty?: number) {
   if (!(await confirmPackStageForwardAllowed())) return
+  if (
+    activePackStage.value === 'confirmed_packed' &&
+    isCrateShellPackItem(item, packContainers.value) &&
+    (item.linkedContainerBatchId ?? '').trim() !== '' &&
+    packShellContainerForPackItem(item, packContainers.value) == null
+  ) {
+    const containerId = await ensurePackContainerForShellCombo(item.id)
+    if (!containerId) return
+  }
   const raw = qty ?? moveQtyInputs.value[item.id]
   const moveQty =
     qty != null && qty > 0
@@ -7126,6 +7369,9 @@ provide(PACK_WAREHOUSE_ISSUE_INJECT_KEY, {
   peekSectionsForShellContainer: peekSectionsForShellContainerCtx,
   crateShellPeekEmptyHint,
   packIssueForwardMax,
+  packForwardInputQtyMax,
+  packForwardWarnBelowOrdered,
+  packForwardMoveControlLimits,
   moveToNextStage,
   showShellCrateCheckButton,
   openShellCrateCheckOnlyModal,
@@ -7171,6 +7417,8 @@ provide(PACK_WAREHOUSE_ISSUE_INJECT_KEY, {
   containerShellReturnInputValue,
   setContainerShellReturnInput,
   containerReturnableUnits,
+  containerInnerReturnableUnits,
+  containerShellReturnableUnits,
   containerLineRemainingReturn,
   containerShellStillAtEventQty,
   shellMaterialIdForContainer,
@@ -7261,8 +7509,13 @@ watch(
   () => props.consumptionModalCancelledToken ?? 0,
   (token, prev) => {
     if (token !== prev && token > 0) {
+      const hadPendingReturn =
+        pendingConsumableReturn.value != null || pendingReturnCrateBatch.value != null
       pendingConsumableReturn.value = null
       pendingReturnCrateBatch.value = null
+      if (hadPendingReturn) {
+        toast.info(t('activities.packList.toastReturnMoveCancelled'))
+      }
     }
   },
 )
