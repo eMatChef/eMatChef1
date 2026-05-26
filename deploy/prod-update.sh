@@ -51,12 +51,24 @@ case "$MODE" in
     ;;
 esac
 
+if [[ -f .env ]] && [[ ! -r .env ]]; then
+  echo "Fehler: .env ist für Benutzer $(whoami) nicht lesbar (häufig: als root mit chmod 600 angelegt)." >&2
+  echo "Fix auf dem Server: sudo chown $(whoami):$(whoami) \"$ROOT/.env\" && chmod 600 \"$ROOT/.env\"" >&2
+  exit 1
+fi
+
 export HOST_UID="$(id -u)" HOST_GID="$(id -g)"
 compose_up=(docker compose -p "$PROJECT" up -d)
 if [[ "${EMATCHEF_COMPOSE_BUILD:-}" == "1" ]]; then
   compose_up+=(--build)
 fi
 "${compose_up[@]}" db backend
+
+# Symfony var/ (Cache, integration_settings) für Container-USER beschreibbar halten
+if [[ -d backend/var ]]; then
+  chown -R "${HOST_UID}:${HOST_GID}" backend/var 2>/dev/null || true
+  chmod -R u+rwX backend/var 2>/dev/null || true
+fi
 
 echo ""
 echo "OK: ${PROJECT} db + backend gestartet."
