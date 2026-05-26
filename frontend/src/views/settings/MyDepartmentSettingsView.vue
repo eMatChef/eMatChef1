@@ -440,7 +440,9 @@ async function setAsPrimary() {
   
   try {
     // In der DB speichern
-    await apiSetPrimaryDepartment(selectedDepartmentId.value)
+    const uid = authStore.userId
+    if (!uid) throw new Error('Nicht angemeldet')
+    await apiSetPrimaryDepartment(uid, selectedDepartmentId.value)
     
     // Auth Store lokal aktualisieren (is_primary Flags updaten)
     authStore.departments.forEach(d => {

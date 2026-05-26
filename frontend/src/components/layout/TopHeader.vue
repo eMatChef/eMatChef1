@@ -1354,7 +1354,7 @@ async function saveProfile() {
       if (loginEmail) {
         try {
           await apiLogin(loginEmail, newPassword)
-          await authStore.loadUserSession()
+          await authStore.loadUserSessionFromCookie(true)
           toast.success(t('layout.toast.reloginSuccess'))
         } catch {
           // Falls Re-Login fehlschlaegt, bleibt die aktuelle Session bestehen solange der Token gueltig ist.
