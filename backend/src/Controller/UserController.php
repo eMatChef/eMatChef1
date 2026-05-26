@@ -5,7 +5,10 @@ namespace App\Controller;
 use App\Entity\User;
 use App\Entity\Membership;
 use App\Entity\Department;
+use App\Entity\Profile;
 use App\Repository\UserRepository;
+use App\Service\Admin\AdminCapabilityChecker;
+use App\Service\Admin\AdminCapabilityRegistry;
 use App\Service\AuditLogger;
 use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
@@ -19,17 +22,66 @@ use Symfony\Component\Security\Http\Attribute\IsGranted;
 class UserController extends AbstractController
 {
     private const MEMBERSHIP_ROLE_HIERARCHY = ['mw', 'dc', 'l1', 'l2', 'l3', 'u'];
-    private const GLOBAL_ADMIN_ROLES = ['ROLE_SUPERADMIN', 'ROLE_ORGANISATIONSCHEF', 'ROLE_SUBORGCHEF'];
 
     public function __construct(
         private UserRepository $userRepository,
         private EntityManagerInterface $entityManager,
-        private AuditLogger $auditLogger
+        private AuditLogger $auditLogger,
+        private AdminCapabilityChecker $adminCapabilityChecker,
     ) {}
 
     private function isGlobalAdmin(User $user): bool
     {
-        return count(array_intersect(self::GLOBAL_ADMIN_ROLES, $user->getRoles())) > 0;
+        return $this->adminCapabilityChecker->hasGlobalAdminRole($user);
+    }
+
+    private function canManageGlobalUsers(User $user): bool
+    {
+        return $this->adminCapabilityChecker->isSuperAdmin($user)
+            || $this->adminCapabilityChecker->can($user, 'users.global_manage');
+    }
+
+    private function serializeAdminUserListItem(User $user, Profile $profile, int $membershipCount): array
+    {
+        $capData = $this->adminCapabilityChecker->serializeForProfile($profile);
+
+        return [
+            'id' => $user->getId(),
+            'profile_id' => $profile->getId(),
+            'name' => $profile->getDisplayName(),
+            'first_name' => $profile->getFirstName(),
+            'last_name' => $profile->getLastName(),
+            'nickname' => $profile->getNickname(),
+            'email' => $profile->getEmail(),
+            'state' => $user->getState(),
+            'created_at' => $user->getCreatedAt()->format(\DateTimeInterface::ATOM),
+            'departments_count' => $membershipCount,
+            'global_admin_role' => $capData['global_admin_role'],
+        ];
+    }
+
+    /**
+     * @param list<array{department_id: string, department_name: string, role: string, is_primary: bool}> $membershipData
+     */
+    private function serializeAdminUserDetail(User $user, Profile $profile, array $membershipData): array
+    {
+        $capData = $this->adminCapabilityChecker->serializeForProfile($profile);
+
+        return [
+            'id' => $user->getId(),
+            'profile_id' => $profile->getId(),
+            'name' => $profile->getDisplayName(),
+            'first_name' => $profile->getFirstName(),
+            'last_name' => $profile->getLastName(),
+            'nickname' => $profile->getNickname(),
+            'email' => $profile->getEmail(),
+            'state' => $user->getState(),
+            'created_at' => $user->getCreatedAt()->format(\DateTimeInterface::ATOM),
+            'memberships' => $membershipData,
+            'global_admin_role' => $capData['global_admin_role'],
+            'admin_capabilities' => $capData['admin_capabilities'],
+            'admin_capabilities_stored' => $profile->getAdminCapabilities(),
+        ];
     }
 
     /**
@@ -40,7 +92,7 @@ class UserController extends AbstractController
     public function listForAdmin(Request $request): JsonResponse
     {
         $currentUser = $this->getUser();
-        if (!$currentUser instanceof User || !$this->isGlobalAdmin($currentUser)) {
+        if (!$currentUser instanceof User || !$this->canManageGlobalUsers($currentUser)) {
             return new JsonResponse(['error' => 'Forbidden'], 403);
         }
 
@@ -91,21 +143,83 @@ class UserController extends AbstractController
                 continue;
             }
 
-            $result[] = [
-                'id' => $user->getId(),
-                'profile_id' => $profile->getId(),
-                'name' => $profile->getDisplayName(),
-                'first_name' => $profile->getFirstName(),
-                'last_name' => $profile->getLastName(),
-                'nickname' => $profile->getNickname(),
-                'email' => $profile->getEmail(),
-                'state' => $user->getState(),
-                'created_at' => $user->getCreatedAt()->format(\DateTimeInterface::ATOM),
-                'departments_count' => $membershipCount,
-            ];
+            $result[] = $this->serializeAdminUserListItem($user, $profile, $membershipCount);
         }
 
         return new JsonResponse($result);
+    }
+
+    /**
+     * Admin: Kompakte Übersicht aller User mit Memberships und globalem Scope (Tree/Kanban).
+     */
+    #[Route('/admin/org-overview', name: 'admin_org_overview', methods: ['GET'])]
+    #[IsGranted('ROLE_USER')]
+    public function orgOverviewForAdmin(): JsonResponse
+    {
+        $currentUser = $this->getUser();
+        if (!$currentUser instanceof User || !$this->canManageGlobalUsers($currentUser)) {
+            return new JsonResponse(['error' => 'Forbidden'], 403);
+        }
+
+        $users = $this->entityManager->getRepository(User::class)
+            ->createQueryBuilder('u')
+            ->innerJoin('u.profile', 'p')
+            ->addSelect('p')
+            ->orderBy('p.lastName', 'ASC')
+            ->addOrderBy('p.firstName', 'ASC')
+            ->getQuery()
+            ->getResult();
+
+        $memberships = $this->entityManager->getRepository(Membership::class)
+            ->createQueryBuilder('m')
+            ->innerJoin('m.department', 'd')
+            ->addSelect('d')
+            ->orderBy('d.name', 'ASC')
+            ->getQuery()
+            ->getResult();
+
+        $membershipsByUser = [];
+        foreach ($memberships as $membership) {
+            if (!$membership instanceof Membership) {
+                continue;
+            }
+            $userId = $membership->getUserId();
+            $department = $membership->getDepartment();
+            $membershipsByUser[$userId][] = [
+                'department_id' => $department->getId(),
+                'department_name' => $department->getName(),
+                'role' => $membership->getRole(),
+                'is_primary' => $membership->getIsPrimary(),
+            ];
+        }
+
+        $result = [];
+        foreach ($users as $user) {
+            if (!$user instanceof User) {
+                continue;
+            }
+            $profile = $user->getProfile();
+            if (!$profile || $profile->hasSuperAdminRole()) {
+                continue;
+            }
+
+            $capData = $this->adminCapabilityChecker->serializeForProfile($profile);
+            $scope = $capData['admin_capabilities']['scope'] ?? [];
+            $rootIds = \is_array($scope['department_root_ids'] ?? null)
+                ? array_values(array_filter(array_map('strval', $scope['department_root_ids'])))
+                : [];
+
+            $result[] = [
+                'id' => $user->getId(),
+                'name' => $profile->getDisplayName(),
+                'email' => $profile->getEmail(),
+                'global_admin_role' => $capData['global_admin_role'],
+                'memberships' => $membershipsByUser[$user->getId()] ?? [],
+                'department_root_ids' => $rootIds,
+            ];
+        }
+
+        return new JsonResponse(['users' => $result]);
     }
 
     /**
@@ -116,7 +230,7 @@ class UserController extends AbstractController
     public function getAdminDetail(string $id): JsonResponse
     {
         $currentUser = $this->getUser();
-        if (!$currentUser instanceof User || !$this->isGlobalAdmin($currentUser)) {
+        if (!$currentUser instanceof User || !$this->canManageGlobalUsers($currentUser)) {
             return new JsonResponse(['error' => 'Forbidden'], 403);
         }
 
@@ -154,18 +268,7 @@ class UserController extends AbstractController
             ];
         }
 
-        return new JsonResponse([
-            'id' => $user->getId(),
-            'profile_id' => $profile->getId(),
-            'name' => $profile->getDisplayName(),
-            'first_name' => $profile->getFirstName(),
-            'last_name' => $profile->getLastName(),
-            'nickname' => $profile->getNickname(),
-            'email' => $profile->getEmail(),
-            'state' => $user->getState(),
-            'created_at' => $user->getCreatedAt()->format(\DateTimeInterface::ATOM),
-            'memberships' => $membershipData,
-        ]);
+        return new JsonResponse($this->serializeAdminUserDetail($user, $profile, $membershipData));
     }
 
     /**
@@ -176,7 +279,7 @@ class UserController extends AbstractController
     public function updateAdminUser(string $id, Request $request): JsonResponse
     {
         $currentUser = $this->getUser();
-        if (!$currentUser instanceof User || !$this->isGlobalAdmin($currentUser)) {
+        if (!$currentUser instanceof User || !$this->canManageGlobalUsers($currentUser)) {
             return new JsonResponse(['error' => 'Forbidden'], 403);
         }
 
@@ -235,6 +338,46 @@ class UserController extends AbstractController
         }
         if (array_key_exists('state', $data)) {
             $user->setState((string) $data['state']);
+        }
+
+        if ($this->adminCapabilityChecker->isSuperAdmin($currentUser)) {
+            if (array_key_exists('global_admin_role', $data)) {
+                $globalRole = strtolower(trim((string) $data['global_admin_role']));
+                if (!\in_array($globalRole, [
+                    AdminCapabilityRegistry::GLOBAL_ROLE_NONE,
+                    AdminCapabilityRegistry::GLOBAL_ROLE_ORG,
+                    AdminCapabilityRegistry::GLOBAL_ROLE_SUB,
+                ], true)) {
+                    return new JsonResponse(['error' => 'Ungültige globale Rolle'], 400);
+                }
+
+                $oldGlobalRole = AdminCapabilityRegistry::resolveGlobalRole($profile->getRoles());
+                $profile->setRoles($this->adminCapabilityChecker->profileRolesForGlobalRole($globalRole));
+                if ($globalRole === AdminCapabilityRegistry::GLOBAL_ROLE_NONE) {
+                    $profile->setAdminCapabilities(null);
+                } elseif (array_key_exists('admin_capabilities', $data) && \is_array($data['admin_capabilities'])) {
+                    $profile->setAdminCapabilities(
+                        AdminCapabilityRegistry::sanitizePayload($data['admin_capabilities'], $globalRole)
+                    );
+                } elseif ($oldGlobalRole !== $globalRole) {
+                    $profile->setAdminCapabilities(null);
+                }
+                $profileChanges['global_admin_role'] = ['old' => $oldGlobalRole, 'new' => $globalRole];
+            } elseif (array_key_exists('admin_capabilities', $data)) {
+                $globalRole = AdminCapabilityRegistry::resolveGlobalRole($profile->getRoles());
+                if ($globalRole === AdminCapabilityRegistry::GLOBAL_ROLE_NONE) {
+                    return new JsonResponse(['error' => 'Admin-Rechte nur für Org-/Suborgchef setzbar'], 400);
+                }
+                if (!\is_array($data['admin_capabilities'])) {
+                    return new JsonResponse(['error' => 'admin_capabilities muss ein Objekt sein'], 400);
+                }
+                $profile->setAdminCapabilities(
+                    AdminCapabilityRegistry::sanitizePayload($data['admin_capabilities'], $globalRole)
+                );
+                $profileChanges['admin_capabilities'] = ['old' => null, 'new' => 'updated'];
+            }
+        } elseif (array_key_exists('global_admin_role', $data) || array_key_exists('admin_capabilities', $data)) {
+            return new JsonResponse(['error' => 'Nur Superadmin darf globale Rollen und Rechte setzen'], 403);
         }
 
         if (array_key_exists('memberships', $data)) {

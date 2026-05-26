@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Controller;
 
 use App\Entity\User;
+use App\Service\Admin\AdminCapabilityChecker;
 use App\Service\Security\SecurityAlertingStore;
 use App\Service\Security\SecurityMetricsStore;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -19,6 +20,7 @@ final class SecurityMonitoringAdminController extends AbstractController
     public function __construct(
         private readonly SecurityMetricsStore $metrics,
         private readonly SecurityAlertingStore $alerting,
+        private readonly AdminCapabilityChecker $adminCapabilityChecker,
     ) {}
 
     #[Route('', name: 'get', methods: ['GET'])]
@@ -29,11 +31,7 @@ final class SecurityMonitoringAdminController extends AbstractController
         if (!$user instanceof User) {
             return new JsonResponse(['error' => 'Nicht authentifiziert'], 403);
         }
-        if (
-            !$this->isGranted('ROLE_SUPERADMIN')
-            && !$this->isGranted('ROLE_ORGANISATIONSCHEF')
-            && !$this->isGranted('ROLE_SUBORGCHEF')
-        ) {
+        if (!$this->adminCapabilityChecker->can($user, 'security_monitoring.view')) {
             return new JsonResponse(['error' => 'Keine Berechtigung'], 403);
         }
 
