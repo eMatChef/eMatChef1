@@ -6,6 +6,7 @@ use App\Entity\User;
 use App\Entity\Membership;
 use App\Repository\ProfileRepository;
 use App\Repository\UserRepository;
+use App\Service\Auth\CrossSubdomainAuthCookies;
 use Doctrine\ORM\EntityManagerInterface;
 use Lexik\Bundle\JWTAuthenticationBundle\Event\AuthenticationSuccessEvent;
 use Lexik\Bundle\JWTAuthenticationBundle\Events;
@@ -22,6 +23,7 @@ class JwtAuthenticationSuccessSubscriber implements EventSubscriberInterface
         private ProfileRepository $profileRepository,
         private EntityManagerInterface $entityManager,
         private UserRepository $userRepository,
+        private CrossSubdomainAuthCookies $authCookies,
         private ?LoggerInterface $logger = null
     ) {}
 
@@ -162,6 +164,7 @@ class JwtAuthenticationSuccessSubscriber implements EventSubscriberInterface
             }
 
             $event->setData($data);
+            $this->authCookies->clearLogoutMarker($event->getResponse());
             $this->log('info', 'Successfully added user/profile data to response');
         } catch (\Exception $e) {
             $this->log('error', 'Exception: ' . $e->getMessage() . ' | ' . $e->getTraceAsString());

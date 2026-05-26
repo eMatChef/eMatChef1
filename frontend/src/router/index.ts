@@ -1117,41 +1117,22 @@ router.beforeEach(async (to, from, next) => {
     }
   }
 
-  // Token vorhanden?
-  const token = localStorage.getItem('auth_token')
-  if (token) {
-    // Token im Store setzen (falls noch nicht gesetzt)
-    if (!authStore.token) {
-      authStore.token = token
-    }
-    
-    // Session laden falls noch nicht geladen
+  // Devices-Origin: Startseite ohne Login → Login (kein Marketing-Landing)
+  if (isDevicesHost() && to.path === '/') {
     if (!authStore.isLoggedIn) {
       try {
-        const loaded = await authStore.loadUserSession()
-        if (!loaded) {
-          // Session konnte nicht geladen werden
-          if (to.path !== '/login') {
-            return next('/login')
-          }
-        }
-      } catch (error) {
-        console.error('Session loading failed:', error)
-        localStorage.removeItem('auth_token')
-        localStorage.removeItem('refresh_token')
-        localStorage.removeItem('user_id')
-        localStorage.removeItem('profile_id')
-        localStorage.removeItem('session_last_activity_at')
-        // Wenn Session-Laden fehlschlägt, zur Login-Seite
-        if (to.path !== '/login') {
-          return next('/login')
-        }
+        await authStore.loadUserSessionFromCookie()
+      } catch {
+        // Session-Cookie ungültig oder nicht vorhanden
       }
+    }
+    if (!authStore.isLoggedIn) {
+      return next({ path: '/login', query: { redirect: to.fullPath } })
     }
   }
 
-  // Subdomain / zweite Origin: kein localStorage-Token, aber HttpOnly-Session-Cookies
-  if (to.meta.requiresAuth && !authStore.isLoggedIn && !localStorage.getItem('auth_token')) {
+  // Geschützte Routen: Session über HttpOnly-Cookies (alle Subdomains)
+  if (to.meta.requiresAuth && !authStore.isLoggedIn) {
     try {
       await authStore.loadUserSessionFromCookie()
     } catch {

@@ -1,5 +1,6 @@
 import axios from 'axios'
 import { logSessionEvent } from '@/utils/sessionDiagnostics'
+import { clearAuthStorage } from '@/utils/authStorage'
 import { shouldSkipLoginRedirect, loginRedirectUrl } from '@/api/unauthorizedRedirect'
 
 /** Handler für abgelaufene Session (401) – wird in main.ts registriert */
@@ -19,11 +20,7 @@ async function triggerSessionExpired(reason: string): Promise<void> {
       await sessionExpiredHandler()
       return
     }
-    localStorage.removeItem('auth_token')
-    localStorage.removeItem('refresh_token')
-    localStorage.removeItem('user_id')
-    localStorage.removeItem('profile_id')
-    localStorage.removeItem('session_last_activity_at')
+    clearAuthStorage()
     if (!shouldSkipLoginRedirect(window.location.pathname)) {
       window.location.assign(loginRedirectUrl(window.location.pathname + window.location.search))
     }
@@ -39,16 +36,15 @@ async function triggerSessionExpired(reason: string): Promise<void> {
 export function resetSessionExpiredHandling() {
   isHandlingSessionExpiry = false
   refreshPromise = null
-  lastApiSuccessRefresh = Date.now() // Kein sofortiger Refresh nach Login – Token ist frisch
+  lastApiSuccessRefresh = Date.now()
 }
 
-/** Mutex: Nur ein Refresh gleichzeitig – verhindert parallele Refreshs bei mehreren 401s */
-let refreshPromise: Promise<{ token: string; refresh_token: string } | null> | null = null
+/** Mutex: Nur ein Refresh gleichzeitig */
+let refreshPromise: Promise<boolean> | null = null
 
-/** Bei erfolgreichem API-Call: Refresh auslösen (User ist aktiv) – wird in main.ts registriert */
 let apiSuccessRefreshCallback: (() => void) | null = null
 let lastApiSuccessRefresh = 0
-const API_SUCCESS_REFRESH_INTERVAL = 25 * 60 * 1000 // 25 Min
+const API_SUCCESS_REFRESH_INTERVAL = 25 * 60 * 1000
 
 export function setApiSuccessRefreshCallback(cb: () => void) {
   apiSuccessRefreshCallback = cb
@@ -72,13 +68,11 @@ const apiClient = axios.create({
   timeout: 30000,
   headers: {
     'Content-Type': 'application/json',
-    'Accept': 'application/json',
-  }
+    Accept: 'application/json',
+  },
 })
 
 function isPublicApiUrl(url: string): boolean {
-  // Öffentliche Endpoints dürfen NICHT mit einem (ggf. abgelaufenen) JWT "mitgeschickt" werden,
-  // sonst kann Symfony/JWT-Auth vor PUBLIC_ACCESS abbrechen (401) und QR-Links wirken "tot".
   if (url.includes('/api/public/')) {
     return true
   }
@@ -89,38 +83,52 @@ function isSessionProbeUrl(url: string): boolean {
   return url.includes('/api/auth/session')
 }
 
-// Request Interceptor - fügt Auth-Token hinzu
+function stripAuthorizationHeader(config: { headers?: unknown }): void {
+  const headers = config.headers as Record<string, unknown> | undefined
+  if (!headers) return
+  delete headers.Authorization
+  delete headers.authorization
+}
+
+/**
+ * Authentifizierung nur über HttpOnly-Cookies (BEARER + refresh_token).
+ * Kein Authorization-Header aus localStorage.
+ */
 apiClient.interceptors.request.use((config) => {
-  // Skip Auth-Header für Token Refresh und Login
-  if (config.url?.includes('/token/refresh') || config.url?.includes('/login_check')) {
-    return config
-  }
-
   const requestUrl = String(config.url || '')
+
+  if (requestUrl.includes('/token/refresh') || requestUrl.includes('/login_check')) {
+    stripAuthorizationHeader(config)
+    return config
+  }
+
   if (isPublicApiUrl(requestUrl)) {
+    stripAuthorizationHeader(config)
     return config
   }
 
-  // Session-Probe: nur HttpOnly-Cookies — ein abgelaufener Authorization-Header
-  // könnte sonst vor dem Cookie-Extractor ausgewertet werden.
-  if (isSessionProbeUrl(requestUrl)) {
-    delete (config.headers as Record<string, unknown>).Authorization
-    return config
-  }
-
-  const token = localStorage.getItem('auth_token')
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`
-  }
+  stripAuthorizationHeader(config)
   return config
 })
 
-// Response Interceptor - behandelt Auth-Fehler
+async function refreshSessionViaCookie(): Promise<boolean> {
+  try {
+    logSessionEvent({ type: 'REFRESH_START' })
+    await apiClient.post('/api/token/refresh', {})
+    logSessionEvent({ type: 'REFRESH_SUCCESS' })
+    return true
+  } catch (e: unknown) {
+    const err = e as { response?: { status?: number; data?: { message?: string } }; message?: string }
+    const status = err?.response?.status
+    const msg = err?.response?.data?.message || err?.message
+    logSessionEvent({ type: 'REFRESH_FAILED', status, message: String(msg) })
+    return false
+  }
+}
+
 apiClient.interceptors.response.use(
   (response) => {
     const url = String(response.config?.url || '')
-    // Nur triggern wenn Session bereits stabil (lastApiSuccessRefresh > 0).
-    // Verhindert sofortigen Refresh beim ersten API-Call nach Reload/Login.
     if (
       apiSuccessRefreshCallback &&
       lastApiSuccessRefresh > 0 &&
@@ -140,7 +148,6 @@ apiClient.interceptors.response.use(
     const originalRequest = error.config
     const requestUrl = String(originalRequest?.url || '')
 
-    // Refresh-Request selbst NICHT nochmal versuchen
     if (requestUrl.includes('/token/refresh')) {
       const status = error?.response?.status
       const msg = error?.response?.data?.message || error?.message
@@ -149,8 +156,6 @@ apiClient.interceptors.response.use(
       return Promise.reject(error)
     }
 
-    // Bei Auth-Endpunkten nie Refresh versuchen:
-    // login/register/verify/password-reset sollen direkte Fehler liefern.
     if (
       requestUrl.includes('/api/auth/login_check') ||
       requestUrl.includes('/api/auth/register') ||
@@ -161,13 +166,10 @@ apiClient.interceptors.response.use(
       return Promise.reject(error)
     }
 
-    // Public API: kein Redirect – Fehler an Caller
     if (isPublicApiUrl(requestUrl)) {
       return Promise.reject(error)
     }
 
-    // Session-Probe: 401 = nicht eingeloggt (normal auf öffentlichen QR-Seiten / Inkognito).
-    // Kein Login-Redirect — Caller (auth store, Router) entscheidet.
     if (isSessionProbeUrl(requestUrl)) {
       return Promise.reject(error)
     }
@@ -178,55 +180,28 @@ apiClient.interceptors.response.use(
 
       originalRequest._retry = true
 
-      const refreshToken = localStorage.getItem('refresh_token')
-      if (refreshToken) {
-        // Mutex: Nur ein Refresh gleichzeitig – andere 401s warten und nutzen das Ergebnis
-        if (!refreshPromise) {
-          logSessionEvent({ type: 'REFRESH_MUTEX_ACQUIRED' })
-          refreshPromise = (async () => {
-            try {
-              logSessionEvent({ type: 'REFRESH_START' })
-              const { data } = await apiClient.post<{ token: string; refresh_token: string }>(
-                '/api/token/refresh',
-                { refresh_token: refreshToken }
-              )
-              logSessionEvent({ type: 'REFRESH_SUCCESS' })
-              return data
-            } catch (e: any) {
-              const status = e?.response?.status
-              const msg = e?.response?.data?.message || e?.message
-              logSessionEvent({ type: 'REFRESH_FAILED', status, message: String(msg) })
-              return null
-            } finally {
-              refreshPromise = null
-              logSessionEvent({ type: 'REFRESH_MUTEX_RELEASED' })
-            }
-          })()
-        } else {
-          logSessionEvent({ type: 'REFRESH_MUTEX_WAIT' })
-        }
-
-        const data = await refreshPromise
-        if (data) {
-          localStorage.setItem('auth_token', data.token)
-          if (data.refresh_token) {
-            localStorage.setItem('refresh_token', data.refresh_token)
-          }
-          originalRequest.headers.Authorization = `Bearer ${data.token}`
-          return apiClient(originalRequest)
-        }
-
-        await triggerSessionExpired('Token-Refresh fehlgeschlagen')
-        return Promise.reject(error)
+      if (!refreshPromise) {
+        logSessionEvent({ type: 'REFRESH_MUTEX_ACQUIRED' })
+        refreshPromise = refreshSessionViaCookie().finally(() => {
+          refreshPromise = null
+          logSessionEvent({ type: 'REFRESH_MUTEX_RELEASED' })
+        })
+      } else {
+        logSessionEvent({ type: 'REFRESH_MUTEX_WAIT' })
       }
 
-      // Kein Refresh Token vorhanden
-      logSessionEvent({ type: 'NO_REFRESH_TOKEN' })
-      await triggerSessionExpired('Kein Refresh-Token')
+      const refreshed = await refreshPromise
+      if (refreshed) {
+        stripAuthorizationHeader(originalRequest)
+        return apiClient(originalRequest)
+      }
+
+      await triggerSessionExpired('Token-Refresh fehlgeschlagen')
+      return Promise.reject(error)
     }
-    
+
     return Promise.reject(error)
-  }
+  },
 )
 
 export default apiClient

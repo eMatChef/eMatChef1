@@ -11,6 +11,7 @@ use App\Entity\Organisation;
 use App\Repository\ProfileRepository;
 use App\Repository\UserRepository;
 use App\Service\AuditLogger;
+use App\Service\Auth\CrossSubdomainAuthCookies;
 use App\Service\OrganisationUserPickerFilter;
 use App\Service\TurnstileVerifier;
 use App\Service\VerificationEmailService;
@@ -20,7 +21,6 @@ use Gesdinet\JWTRefreshTokenBundle\Model\RefreshTokenManagerInterface;
 use Gesdinet\JWTRefreshTokenBundle\Request\Extractor\ExtractorInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
-use Symfony\Component\HttpFoundation\Cookie;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Routing\Annotation\Route;
@@ -51,10 +51,7 @@ class AuthController extends AbstractController
         private LanguageConfig $languageConfig,
         #[Autowire('%kernel.secret%')]
         private string $appSecret,
-        #[Autowire('%env(default::AUTH_COOKIE_DOMAIN)%')]
-        private string $authCookieDomain = '',
-        #[Autowire('%env(bool:AUTH_COOKIE_SECURE)%')]
-        private bool $authCookieSecure = false,
+        private CrossSubdomainAuthCookies $authCookies,
     ) {}
 
     /**
@@ -86,24 +83,10 @@ class AuthController extends AbstractController
             'message' => 'Erfolgreich abgemeldet',
         ]);
 
-        $this->clearAuthCookies($response);
+        $this->authCookies->clearAuthCookies($response);
+        $this->authCookies->setLogoutMarker($response);
 
         return $response;
-    }
-
-    private function clearAuthCookies(JsonResponse $response): void
-    {
-        $domain = '' !== trim($this->authCookieDomain) ? trim($this->authCookieDomain) : null;
-        foreach (['BEARER', 'refresh_token'] as $cookieName) {
-            $response->headers->clearCookie(
-                $cookieName,
-                '/',
-                $domain,
-                $this->authCookieSecure,
-                true,
-                Cookie::SAMESITE_LAX
-            );
-        }
     }
 
     #[Route('/session', name: 'session', methods: ['GET'])]
