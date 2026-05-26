@@ -1,6 +1,7 @@
 import axios from 'axios'
 import { logSessionEvent } from '@/utils/sessionDiagnostics'
 import { shouldSkipLoginRedirect, loginRedirectUrl } from '@/api/unauthorizedRedirect'
+import { clearAuthStorage } from '@/utils/authStorage'
 
 /** Handler für abgelaufene Session (401) – wird in main.ts registriert */
 let sessionExpiredHandler: (() => void | Promise<void>) | null = null
@@ -19,11 +20,7 @@ async function triggerSessionExpired(reason: string): Promise<void> {
       await sessionExpiredHandler()
       return
     }
-    localStorage.removeItem('auth_token')
-    localStorage.removeItem('refresh_token')
-    localStorage.removeItem('user_id')
-    localStorage.removeItem('profile_id')
-    localStorage.removeItem('session_last_activity_at')
+    clearAuthStorage()
     if (!shouldSkipLoginRedirect(window.location.pathname)) {
       window.location.assign(loginRedirectUrl(window.location.pathname + window.location.search))
     }

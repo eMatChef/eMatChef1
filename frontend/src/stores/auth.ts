@@ -16,6 +16,7 @@ import {
 } from '@/api/auth'
 import { getGeneralSettings } from '@/api/departmentSettings'
 import { resetSessionExpiredHandling } from '@/api/apiClient'
+import { clearAuthStorage } from '@/utils/authStorage'
 
 export const useAuthStore = defineStore('auth', () => {
   // State
@@ -146,6 +147,7 @@ export const useAuthStore = defineStore('auth', () => {
       resetSessionExpiredHandling()
       lastSessionStartTime.value = Date.now()
       localStorage.setItem('session_last_activity_at', String(Date.now()))
+      localStorage.removeItem('emat_logged_out_seen')
       return true
     } catch (err: any) {
       console.error('Login failed:', err)
@@ -246,12 +248,7 @@ export const useAuthStore = defineStore('auth', () => {
     activeDepartmentId.value = null
     token.value = null
     lastSessionStartTime.value = 0
-    localStorage.removeItem('auth_token')
-    localStorage.removeItem('refresh_token')
-    localStorage.removeItem('active_department_id')
-    localStorage.removeItem('user_id')
-    localStorage.removeItem('profile_id')
-    localStorage.removeItem('session_last_activity_at')
+    clearAuthStorage()
   }
 
   async function loadUserSessionFromCookie(force = false): Promise<boolean> {
@@ -456,6 +453,7 @@ export const useAuthStore = defineStore('auth', () => {
     logout,
     loadUserSession,
     loadUserSessionFromCookie,
+    clearAuthState,
     loadDepartments,
     setActiveDepartment,
     refreshAfterInviteAccepted,

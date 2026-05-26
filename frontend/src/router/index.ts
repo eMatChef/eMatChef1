@@ -1117,6 +1117,20 @@ router.beforeEach(async (to, from, next) => {
     }
   }
 
+  // Devices-Origin: Startseite ohne Login → Login (kein Marketing-Landing)
+  if (isDevicesHost() && to.path === '/') {
+    if (!authStore.isLoggedIn && !localStorage.getItem('auth_token')) {
+      try {
+        await authStore.loadUserSessionFromCookie()
+      } catch {
+        // Session-Cookie ungültig oder nicht vorhanden
+      }
+    }
+    if (!authStore.isLoggedIn) {
+      return next({ path: '/login', query: { redirect: to.fullPath } })
+    }
+  }
+
   // Token vorhanden?
   const token = localStorage.getItem('auth_token')
   if (token) {

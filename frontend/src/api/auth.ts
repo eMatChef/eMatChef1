@@ -1,4 +1,6 @@
 import apiClient from './apiClient'
+import { clearAuthStorage } from '@/utils/authStorage'
+import { markCrossSubdomainLogoutSeenFromCookie } from '@/utils/authCrossOrigin'
 
 export interface LoginRequest {
   email: string
@@ -290,12 +292,8 @@ export async function logout(): Promise<void> {
     }
   }
   
-  // Lokale Auth-Daten entfernen
-  localStorage.removeItem('auth_token')
-  localStorage.removeItem('refresh_token')
-  localStorage.removeItem('user_id')
-  localStorage.removeItem('profile_id')
-  localStorage.removeItem('session_last_activity_at')
+  markCrossSubdomainLogoutSeenFromCookie()
+  clearAuthStorage()
 }
 
 /**

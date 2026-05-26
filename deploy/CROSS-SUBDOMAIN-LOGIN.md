@@ -13,6 +13,7 @@ Kurzdoku für **eine gemeinsame Anmeldung** über mehrere Frontends (z. B. `ap
 2. **API-Calls mit Credentials:** Axios `withCredentials: true`, damit der Browser Cookies mitschickt.
 3. **Session-Abfrage:** `GET /api/auth/session` liefert `user`, `profile`, `departments` wenn ein gültiges JWT-Cookie da ist (sonst 401).
 4. **Öffentliche Frontends** rufen beim Mount `loadUserSessionFromCookie()` im Auth-Store auf (kein Token in `localStorage` nötig für „eingeloggt erkannt“).
+5. **Logout über Subdomains:** `POST /api/auth/logout` löscht HttpOnly-Cookies und setzt ein lesbares Cookie `emat_logged_out` (Domain `.ematchef.ch`). Alle Frontends prüfen beim Start und bei `visibilitychange`, ob dieses Cookie neuer ist als `emat_logged_out_seen` in `localStorage` — dann wird die lokale Session verworfen (wichtig für `app.*` mit JWT in `localStorage`).
 
 ## Lokal: immer `*.localhost` nutzen
 
