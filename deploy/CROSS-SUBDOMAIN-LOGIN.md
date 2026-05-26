@@ -9,11 +9,13 @@ Kurzdoku für **eine gemeinsame Anmeldung** über mehrere Frontends (z. B. `ap
 
 ## Lösung (Stand im Repo)
 
-1. **JWT und Refresh-Token als HttpOnly-Cookies** (Lexik + Gesdinet), Domain-weit setzbar.
-2. **API-Calls mit Credentials:** Axios `withCredentials: true`, damit der Browser Cookies mitschickt.
-3. **Session-Abfrage:** `GET /api/auth/session` liefert `user`, `profile`, `departments` wenn ein gültiges JWT-Cookie da ist (sonst 401).
-4. **Öffentliche Frontends** rufen beim Mount `loadUserSessionFromCookie()` im Auth-Store auf (kein Token in `localStorage` nötig für „eingeloggt erkannt“).
-5. **Logout über Subdomains:** `POST /api/auth/logout` löscht HttpOnly-Cookies und setzt ein lesbares Cookie `emat_logged_out` (Domain `.ematchef.ch`). Alle Frontends prüfen beim Start und bei `visibilitychange`, ob dieses Cookie neuer ist als `emat_logged_out_seen` in `localStorage` — dann wird die lokale Session verworfen (wichtig für `app.*` mit JWT in `localStorage`).
+1. **JWT und Refresh-Token ausschließlich als HttpOnly-Cookies** (Lexik `BEARER` + Gesdinet `refresh_token`), Domain `.ematchef.ch`.
+2. **Kein JWT in `localStorage`** — alte Keys (`auth_token`, `refresh_token`, `user_id`, `profile_id`) werden beim App-Start entfernt (`purgeLegacyAuthSecrets`).
+3. **API-Calls mit Credentials:** Axios `withCredentials: true`, **ohne** `Authorization`-Header aus dem Browser-Speicher.
+4. **Session-Abfrage:** `GET /api/auth/session` (nur Cookies) — Auth-Store `loadUserSessionFromCookie()`.
+5. **Token-Refresh:** `POST /api/token/refresh` mit leerem Body; Refresh-Token aus HttpOnly-Cookie.
+6. **Logout über Subdomains:** HttpOnly-Cookies löschen + lesbares Cookie `emat_logged_out`; andere Tabs/Subdomains leeren UI-State beim Fokus.
+7. **In `localStorage` erlaubt:** nur UI-Präferenzen (`active_department_id`, `session_last_activity_at`, …), keine Secrets.
 
 ## Lokal: immer `*.localhost` nutzen
 

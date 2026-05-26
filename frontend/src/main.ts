@@ -11,6 +11,7 @@ import { useToastStore } from './stores/toast'
 import { setSessionExpiredHandler, setApiSuccessRefreshCallback } from './api/apiClient'
 import { shouldProbeUserSession, shouldSkipLoginRedirect, loginRedirectUrl } from './api/unauthorizedRedirect'
 import { applyCrossSubdomainLogoutSync } from './utils/authCrossOrigin'
+import { purgeLegacyAuthSecrets } from './utils/authStorage'
 import { i18n, setLocale } from './i18n'
 
 const app = createApp(App)
@@ -70,25 +71,12 @@ async function bootstrapUserSession(): Promise<void> {
     return
   }
 
+  purgeLegacyAuthSecrets()
   syncCrossSubdomainLogoutToStore()
 
   try {
-    const fromCookie = await authStore.loadUserSessionFromCookie()
-    if (fromCookie) return
+    await authStore.loadUserSessionFromCookie()
   } catch {
-    authStore.clearAuthState()
-  }
-
-  const token = localStorage.getItem('auth_token')
-  if (!token) return
-
-  try {
-    const loaded = await authStore.loadUserSession()
-    if (!loaded) {
-      authStore.clearAuthState()
-    }
-  } catch (error) {
-    console.error('Failed to load session on init:', error)
     authStore.clearAuthState()
   }
 }
