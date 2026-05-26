@@ -81,17 +81,17 @@ export function preferredEditKind(group: UserRoleGroup): OverviewKind {
 export function scopeLabelForUser(
   user: AdminOrgOverviewUser,
   deptNameById: Map<string, string>,
-  labels: { all: string; roots: (names: string) => string; memberOnly: string }
+  labels: { all: string; roots: (names: string[]) => string; memberOnly: string }
 ): string {
   const isGlobal = user.global_admin_role === 'org' || user.global_admin_role === 'sub'
   if (!isGlobal) {
     return labels.memberOnly
   }
-  const roots = user.department_root_ids || []
-  if (roots.length === 0) {
+  const rootIds = user.department_root_ids || []
+  if (rootIds.length === 0) {
     return labels.all
   }
-  const names = roots.map((id) => deptNameById.get(id) || id)
+  const names = rootIds.map((id) => deptNameById.get(id) || id)
   return labels.roots(names)
 }
 
