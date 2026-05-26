@@ -58,25 +58,54 @@ if [[ -f .env ]] && [[ ! -r .env ]]; then
 fi
 
 export HOST_UID="$(id -u)" HOST_GID="$(id -g)"
+
+# backend/var darf nicht root gehören (sonst cache:clear im Container mit HOST_UID fehl)
+fix_backend_var_permissions() {
+  [[ -d backend/var ]] || return 0
+  if chown -R "${HOST_UID}:${HOST_GID}" backend/var 2>/dev/null; then
+    chmod -R u+rwX backend/var 2>/dev/null || true
+    return 0
+  fi
+  if command -v sudo >/dev/null 2>&1; then
+    echo "==> backend/var: chown mit sudo (war nicht ${HOST_UID}:${HOST_GID}) …"
+    sudo chown -R "${HOST_UID}:${HOST_GID}" backend/var
+    sudo chmod -R u+rwX backend/var
+    return 0
+  fi
+  echo "Warnung: backend/var gehört nicht ${HOST_UID}:${HOST_GID} und chown ohne sudo fehlgeschlagen." >&2
+}
+
+reset_symfony_prod_cache() {
+  echo "==> Symfony prod cache leeren …"
+  if docker compose -p "$PROJECT" exec -T backend rm -rf var/cache/prod 2>/dev/null; then
+    :
+  else
+    echo "==> var/cache/prod: rm im Container als root …"
+    docker compose -p "$PROJECT" exec -T -u 0 backend sh -ec "
+      rm -rf var/cache/prod
+      mkdir -p var/cache var/log var/app
+      chown -R ${HOST_UID}:${HOST_GID} var
+      chmod -R u+rwX var
+    "
+  fi
+  docker compose -p "$PROJECT" exec -T backend php bin/console cache:warmup --env=prod
+}
+
+fix_backend_var_permissions
+
 compose_up=(docker compose -p "$PROJECT" up -d)
 if [[ "${EMATCHEF_COMPOSE_BUILD:-}" == "1" ]]; then
   compose_up+=(--build)
 fi
 "${compose_up[@]}" db backend
 
-# Symfony var/ (Cache, integration_settings) für Container-USER beschreibbar halten
-if [[ -d backend/var ]]; then
-  chown -R "${HOST_UID}:${HOST_GID}" backend/var 2>/dev/null || true
-  chmod -R u+rwX backend/var 2>/dev/null || true
-fi
+fix_backend_var_permissions
 
 # Nach git reset: Migrationen + DI-Container neu bauen
 if docker compose -p "$PROJECT" ps --status running backend 2>/dev/null | grep -q backend; then
   echo "==> Doctrine-Migrationen …"
   docker compose -p "$PROJECT" exec -T backend php bin/console doctrine:migrations:migrate --no-interaction --env=prod
-  echo "==> Symfony prod cache leeren …"
-  docker compose -p "$PROJECT" exec -T backend php bin/console cache:clear --env=prod --no-warmup
-  docker compose -p "$PROJECT" exec -T backend php bin/console cache:warmup --env=prod
+  reset_symfony_prod_cache
 fi
 
 echo ""
