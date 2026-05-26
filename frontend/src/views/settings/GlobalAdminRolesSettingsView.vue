@@ -87,21 +87,37 @@
               </div>
 
               <div class="scope-block">
-                <h4>{{ t('settings.globalAdminRoles.departmentScopeTitle') }}</h4>
-                <p class="inline-hint">{{ t('settings.globalAdminRoles.departmentScopeHint') }}</p>
-                <div v-if="scopeTree.length === 0" class="inline-hint">{{ t('settings.globalAdminRoles.scopeTreeEmpty') }}</div>
+                <h4>{{ t('settings.globalAdminRoles.scopeTitle') }}</h4>
+                <p class="inline-hint">{{ t('settings.globalAdminRoles.scopeHint') }}</p>
+                <div v-if="scopeTree.length === 0" class="inline-hint">
+                  {{ t('settings.globalAdminRoles.organisationScopeEmpty') }}
+                </div>
                 <div v-else class="scope-tree">
                   <div v-for="org in scopeTree" :key="org.id" class="scope-org">
-                    <div class="scope-org-label">{{ org.name }}</div>
+                    <label class="capability-checkbox scope-org-header">
+                      <input
+                        type="checkbox"
+                        :checked="editForm.admin_capabilities.scope.organisation_ids.includes(org.id)"
+                        @click.stop
+                        @change="toggleOrganisationScope(org.id, ($event.target as HTMLInputElement).checked)"
+                      />
+                      <span class="scope-org-name">{{ org.name }}</span>
+                    </label>
+                    <p v-if="org.flatNodes.length === 0" class="inline-hint scope-org-no-depts">
+                      {{ t('settings.globalAdminRoles.orgNoDepartmentsYet') }}
+                    </p>
                     <label
                       v-for="node in org.flatNodes"
                       :key="node.id"
                       class="capability-checkbox scope-dept-node"
-                      :style="{ marginLeft: `${12 + node.level * 16}px` }"
+                      :class="{ 'scope-dept-node--org-selected': isOrgFullyScoped(org.id) }"
+                      :style="{ marginLeft: `${28 + node.level * 16}px` }"
+                      :title="isOrgFullyScoped(org.id) ? t('settings.globalAdminRoles.deptUnderOrgHint') : undefined"
                     >
                       <input
                         type="checkbox"
                         :checked="editForm.admin_capabilities.scope.department_root_ids.includes(node.id)"
+                        @click.stop
                         @change="toggleDepartmentRoot(node.id, ($event.target as HTMLInputElement).checked)"
                       />
                       {{ node.name }}
@@ -140,6 +156,7 @@ import {
   ADMIN_CAPABILITY_GROUPS,
   cloneAdminCapabilities,
   defaultAdminCapabilities,
+  formatAdminScopeSummary,
   getCapabilityValue,
   normalizeAdminCapabilities,
   setCapabilityValue,
@@ -224,6 +241,17 @@ const scopeTree = computed((): OrgScopeNode[] => {
   })
 })
 
+const scopeSummaryLabels = computed(() => ({
+  all: t('settings.globalAdminRoles.scopeAll'),
+  orgs: (names: string[]) => t('settings.globalAdminRoles.scopeOrgsOnly', { names: names.join(', ') }),
+  depts: (names: string[]) => t('settings.globalAdminRoles.scopeDeptsOnly', { names: names.join(', ') }),
+  mixed: (orgNames: string[], deptNames: string[]) =>
+    t('settings.globalAdminRoles.scopeOrgsAndDepts', {
+      orgs: orgNames.join(', '),
+      depts: deptNames.join(', '),
+    }),
+}))
+
 function formatGlobalRole(role: string | undefined): string {
   const key = role === 'org' || role === 'sub' ? role : 'none'
   return t(`settings.adminUsers.globalRoles.${key}`)
@@ -236,15 +264,17 @@ function formatScopeSummary(userId: string): string {
 async function loadScopeSummaries() {
   const depts = departments.value
   const nameById = new Map(depts.map((d) => [d.id, d.name]))
+  const orgNameById = new Map(organisations.value.map((o) => [o.id, o.name]))
   for (const user of adminUsers.value) {
     try {
       const detail = await getAdminUserDetail(user.id)
-      const roots = detail.admin_capabilities?.scope?.department_root_ids || []
-      if (roots.length === 0) {
-        scopeSummaryCache.value[user.id] = t('settings.globalAdminRoles.scopeAll')
-      } else {
-        scopeSummaryCache.value[user.id] = roots.map((id) => nameById.get(id) || id).join(', ')
-      }
+      const scope = detail.admin_capabilities?.scope || { organisation_ids: [], department_root_ids: [] }
+      scopeSummaryCache.value[user.id] = formatAdminScopeSummary(
+        scope,
+        orgNameById,
+        nameById,
+        scopeSummaryLabels.value
+      )
     } catch {
       scopeSummaryCache.value[user.id] = '—'
     }
@@ -289,12 +319,71 @@ function setCapability(dotKey: string, value: boolean) {
   editForm.value.admin_capabilities = setCapabilityValue(editForm.value.admin_capabilities, dotKey, value)
 }
 
+function deptIdsInOrganisation(orgId: string): Set<string> {
+  return new Set(departments.value.filter((d) => d.organisation_id === orgId).map((d) => d.id))
+}
+
+function getDeptAncestorIds(deptId: string): string[] {
+  const ancestors: string[] = []
+  let parentId = departments.value.find((d) => d.id === deptId)?.parent_id
+  while (parentId) {
+    ancestors.push(parentId)
+    parentId = departments.value.find((d) => d.id === parentId)?.parent_id
+  }
+  return ancestors
+}
+
+function getDeptDescendantIds(deptId: string): string[] {
+  const result: string[] = []
+  const stack = departments.value.filter((d) => d.parent_id === deptId).map((d) => d.id)
+  while (stack.length > 0) {
+    const id = stack.pop()!
+    result.push(id)
+    for (const child of departments.value) {
+      if (child.parent_id === id) stack.push(child.id)
+    }
+  }
+  return result
+}
+
+function isOrgFullyScoped(orgId: string): boolean {
+  return editForm.value?.admin_capabilities.scope.organisation_ids.includes(orgId) ?? false
+}
+
+function toggleOrganisationScope(orgId: string, checked: boolean) {
+  if (!editForm.value) return
+  const caps = cloneAdminCapabilities(editForm.value.admin_capabilities)
+  const orgIds = new Set(caps.scope.organisation_ids)
+  const inOrg = deptIdsInOrganisation(orgId)
+
+  if (checked) {
+    orgIds.add(orgId)
+    caps.scope.department_root_ids = caps.scope.department_root_ids.filter((id) => !inOrg.has(id))
+  } else {
+    orgIds.delete(orgId)
+  }
+
+  caps.scope.organisation_ids = Array.from(orgIds)
+  editForm.value.admin_capabilities = caps
+}
+
 function toggleDepartmentRoot(deptId: string, checked: boolean) {
   if (!editForm.value) return
-  const ids = new Set(editForm.value.admin_capabilities.scope.department_root_ids)
-  if (checked) ids.add(deptId)
-  else ids.delete(deptId)
   const caps = cloneAdminCapabilities(editForm.value.admin_capabilities)
+  const ids = new Set(caps.scope.department_root_ids)
+  const dept = departments.value.find((d) => d.id === deptId)
+
+  if (checked) {
+    if (dept?.organisation_id) {
+      caps.scope.organisation_ids = caps.scope.organisation_ids.filter((id) => id !== dept.organisation_id)
+    }
+    for (const anc of getDeptAncestorIds(deptId)) ids.delete(anc)
+    for (const desc of getDeptDescendantIds(deptId)) ids.delete(desc)
+    ids.add(deptId)
+  } else {
+    ids.delete(deptId)
+  }
+
   caps.scope.department_root_ids = Array.from(ids)
   editForm.value.admin_capabilities = caps
 }
@@ -540,6 +629,30 @@ watch(
   margin-bottom: 10px;
 }
 
+.scope-org-header {
+  font-weight: 600;
+  font-size: 14px;
+  margin-bottom: 6px;
+  padding: 4px 0;
+}
+
+.scope-org-name {
+  color: #1e293b;
+}
+
+.scope-org-no-depts {
+  margin: 0 0 8px 28px;
+  font-style: italic;
+}
+
+.scope-dept-node {
+  margin-bottom: 4px;
+}
+
+.scope-dept-node--org-selected {
+  opacity: 0.75;
+}
+
 .scope-tree {
   max-height: 280px;
   overflow-y: auto;
@@ -551,17 +664,5 @@ watch(
 
 .scope-org {
   margin-bottom: 12px;
-}
-
-.scope-org-label {
-  font-weight: 600;
-  font-size: 13px;
-  color: #475569;
-  margin-bottom: 6px;
-}
-
-.scope-dept-node {
-  margin-left: 12px;
-  margin-bottom: 4px;
 }
 </style>

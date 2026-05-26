@@ -170,6 +170,31 @@ export function filterDepartmentsByAccessibleIds<T extends { id: string }>(
   return departments.filter((d) => allowed.has(d.id))
 }
 
+export interface AdminScopeSummaryLabels {
+  all: string
+  orgs: (names: string[]) => string
+  depts: (names: string[]) => string
+  mixed: (orgNames: string[], deptNames: string[]) => string
+}
+
+/** Kurztext für Tabellen/Listen (Org- und/oder Department-Scope). */
+export function formatAdminScopeSummary(
+  scope: AdminCapabilities['scope'],
+  orgNameById: Map<string, string>,
+  deptNameById: Map<string, string>,
+  labels: AdminScopeSummaryLabels
+): string {
+  const orgIds = scope.organisation_ids || []
+  const deptIds = scope.department_root_ids || []
+  const orgNames = orgIds.map((id) => orgNameById.get(id) || id)
+  const deptNames = deptIds.map((id) => deptNameById.get(id) || id)
+
+  if (orgIds.length === 0 && deptIds.length === 0) return labels.all
+  if (orgIds.length > 0 && deptIds.length === 0) return labels.orgs(orgNames)
+  if (orgIds.length === 0 && deptIds.length > 0) return labels.depts(deptNames)
+  return labels.mixed(orgNames, deptNames)
+}
+
 export function normalizeAdminCapabilities(raw: unknown, globalRole: GlobalAdminRole): AdminCapabilities {
   const defaults = defaultAdminCapabilities(globalRole)
   if (!raw || typeof raw !== 'object') return defaults

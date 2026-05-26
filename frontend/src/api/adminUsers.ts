@@ -61,6 +61,7 @@ export interface AdminOrgOverviewUser {
   email: string
   global_admin_role: GlobalAdminRole | string
   memberships: AdminUserMembership[]
+  organisation_ids: string[]
   department_root_ids: string[]
 }
 
