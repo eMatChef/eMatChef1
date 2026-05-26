@@ -105,7 +105,6 @@ const okAria = () => props.confirmAriaLabel ?? t('activities.packList.unpackStor
   </div>
 </template>
 
-<style src="@/styles/views/activities/pack-workflow-modals.css"></style>
 <style scoped>
 .pack-unpack-store-controls {
   flex-shrink: 0;
