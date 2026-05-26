@@ -47,40 +47,49 @@ class ApiAuthRateLimitSubscriber implements EventSubscriberInterface
             return;
         }
 
-        $ip = (string) ($request->getClientIp() ?? 'unknown');
-        $bucket = (new \DateTimeImmutable())->format('YmdHi');
-        $cacheKey = 'auth_rate|' . hash('sha256', $path . '|' . $method . '|' . $ip . '|' . $bucket);
-        $item = $this->cache->getItem($cacheKey);
-        $count = 0;
-        if ($item->isHit()) {
-            $value = $item->get();
-            $count = is_numeric($value) ? (int) $value : 0;
+        try {
+            $ip = (string) ($request->getClientIp() ?? 'unknown');
+            $bucket = (new \DateTimeImmutable())->format('YmdHi');
+            $cacheKey = 'auth_rate|' . hash('sha256', $path . '|' . $method . '|' . $ip . '|' . $bucket);
+            $item = $this->cache->getItem($cacheKey);
+            $count = 0;
+            if ($item->isHit()) {
+                $value = $item->get();
+                $count = is_numeric($value) ? (int) $value : 0;
+            }
+            $count++;
+            $item->set($count);
+            $item->expiresAfter(70);
+            $this->cache->save($item);
+
+            if ($count <= $limit) {
+                return;
+            }
+
+            $retryAfterSeconds = max(1, 60 - (int) date('s'));
+
+            $this->logger->warning('API auth rate limit exceeded', [
+                'path' => $path,
+                'method' => $method,
+                'ip' => $ip,
+                'count' => $count,
+                'limit_per_minute' => $limit,
+                'retry_after_seconds' => $retryAfterSeconds,
+            ]);
+
+            $response = new JsonResponse([
+                'error' => 'Zu viele Anfragen. Bitte kurz warten und erneut versuchen.',
+            ], 429);
+            $response->headers->set('Retry-After', (string) $retryAfterSeconds);
+            $event->setResponse($response);
+        } catch (\Throwable $e) {
+            // Cache nicht beschreibbar (z. B. var/cache-Rechte nach Deploy) — Auth nicht blockieren.
+            $this->logger->error('Auth rate limit cache failed, request allowed', [
+                'path' => $path,
+                'method' => $method,
+                'exception' => $e->getMessage(),
+            ]);
         }
-        $count++;
-        $item->set($count);
-        $item->expiresAfter(70);
-        $this->cache->save($item);
-
-        if ($count <= $limit) {
-            return;
-        }
-
-        $retryAfterSeconds = max(1, 60 - (int) date('s'));
-
-        $this->logger->warning('API auth rate limit exceeded', [
-            'path' => $path,
-            'method' => $method,
-            'ip' => $ip,
-            'count' => $count,
-            'limit_per_minute' => $limit,
-            'retry_after_seconds' => $retryAfterSeconds,
-        ]);
-
-        $response = new JsonResponse([
-            'error' => 'Zu viele Anfragen. Bitte kurz warten und erneut versuchen.',
-        ], 429);
-        $response->headers->set('Retry-After', (string) $retryAfterSeconds);
-        $event->setResponse($response);
     }
 }
 

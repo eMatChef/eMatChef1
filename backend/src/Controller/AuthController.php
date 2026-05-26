@@ -49,9 +49,9 @@ class AuthController extends AbstractController
         private CacheItemPoolInterface $cache,
         private TurnstileVerifier $turnstileVerifier,
         private LanguageConfig $languageConfig,
+        private CrossSubdomainAuthCookies $authCookies,
         #[Autowire('%kernel.secret%')]
         private string $appSecret,
-        private CrossSubdomainAuthCookies $authCookies,
     ) {}
 
     /**
@@ -354,23 +354,28 @@ class AuthController extends AbstractController
 
     private function allowRegistrationAttempt(string $clientIp, string $email): bool
     {
-        // Limits: IP = 10/h, Email = 3/h
-        $ipKey = 'auth_register_ip_' . hash('sha256', $clientIp);
-        $mailKey = 'auth_register_mail_' . hash('sha256', $email);
+        try {
+            // Limits: IP = 10/h, Email = 3/h
+            $ipKey = 'auth_register_ip_' . hash('sha256', $clientIp);
+            $mailKey = 'auth_register_mail_' . hash('sha256', $email);
 
-        $ipCount = $this->incrementRateCounter($ipKey, 3600);
-        if ($ipCount > 10) {
-            return false;
-        }
-
-        if ($email !== '') {
-            $mailCount = $this->incrementRateCounter($mailKey, 3600);
-            if ($mailCount > 3) {
+            $ipCount = $this->incrementRateCounter($ipKey, 3600);
+            if ($ipCount > 10) {
                 return false;
             }
-        }
 
-        return true;
+            if ($email !== '') {
+                $mailCount = $this->incrementRateCounter($mailKey, 3600);
+                if ($mailCount > 3) {
+                    return false;
+                }
+            }
+
+            return true;
+        } catch (\Throwable) {
+            // Cache nicht beschreibbar — Registrierung nicht wegen Infrastruktur blockieren.
+            return true;
+        }
     }
 
     private function incrementRateCounter(string $key, int $ttlSeconds): int
