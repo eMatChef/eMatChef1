@@ -70,12 +70,17 @@ if [[ -d backend/var ]]; then
   chmod -R u+rwX backend/var 2>/dev/null || true
 fi
 
+# Nach git reset: DI-Container neu bauen (sonst z. B. AuthController-TypeError bei Constructor-Änderungen)
+if docker compose -p "$PROJECT" ps --status running backend 2>/dev/null | grep -q backend; then
+  echo "==> Symfony prod cache leeren …"
+  docker compose -p "$PROJECT" exec -T backend php bin/console cache:clear --env=prod --no-warmup
+  docker compose -p "$PROJECT" exec -T backend php bin/console cache:warmup --env=prod
+fi
+
 echo ""
 echo "OK: ${PROJECT} db + backend gestartet."
 if [[ "${EMATCHEF_COMPOSE_BUILD:-}" != "1" ]]; then
   echo "(Ohne Image-Rebuild. Bei Dockerfile-/Base-Image-Änderung: EMATCHEF_COMPOSE_BUILD=1 $0 ${MODE})"
 fi
-echo "Prod-Cache (bei Code-/Config-Änderungen):"
-echo "  docker compose -p ${PROJECT} exec backend php bin/console cache:clear --env=prod"
 echo "Logs:"
 echo "  docker compose -p ${PROJECT} logs backend --tail 60"
