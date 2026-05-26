@@ -123,7 +123,6 @@ function stepCounted(delta: number) {
   </li>
 </template>
 
-<style src="@/styles/views/activities/pack-workflow-modals.css"></style>
 <style scoped>
 .pack-shell-mini-count-row {
   display: flex;
