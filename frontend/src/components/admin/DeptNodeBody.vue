@@ -53,6 +53,7 @@ const props = defineProps<{
   globalGroups: UserRoleGroup[]
   membershipGroups: UserRoleGroup[]
   deptNameById: Map<string, string>
+  orgNameById?: Map<string, string>
   hideScopeOnCards: boolean
   formatDeptRole: (role: string) => string
   formatGlobalRole: (role: string) => string
@@ -67,12 +68,18 @@ const deptRolesOpen = ref(false)
 
 const scopeLabels = computed(() => ({
   all: t('settings.userOrgOverview.scopeAllShort'),
+  orgs: (names: string[]) => t('settings.userOrgOverview.scopeOrgsShort', { names: names.join(', ') }),
   roots: (names: string[]) => t('settings.userOrgOverview.scopeRootsShort', { names: names.join(', ') }),
   memberOnly: '',
 }))
 
 function scopeLabelForGroup(group: UserRoleGroup): string {
-  return scopeLabelForUser(group.user, props.deptNameById, scopeLabels.value)
+  return scopeLabelForUser(
+    group.user,
+    props.deptNameById,
+    scopeLabels.value,
+    props.orgNameById || new Map()
+  )
 }
 </script>
 

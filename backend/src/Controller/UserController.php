@@ -205,6 +205,9 @@ class UserController extends AbstractController
 
             $capData = $this->adminCapabilityChecker->serializeForProfile($profile);
             $scope = $capData['admin_capabilities']['scope'] ?? [];
+            $orgIds = \is_array($scope['organisation_ids'] ?? null)
+                ? array_values(array_filter(array_map('strval', $scope['organisation_ids'])))
+                : [];
             $rootIds = \is_array($scope['department_root_ids'] ?? null)
                 ? array_values(array_filter(array_map('strval', $scope['department_root_ids'])))
                 : [];
@@ -215,6 +218,7 @@ class UserController extends AbstractController
                 'email' => $profile->getEmail(),
                 'global_admin_role' => $capData['global_admin_role'],
                 'memberships' => $membershipsByUser[$user->getId()] ?? [],
+                'organisation_ids' => $orgIds,
                 'department_root_ids' => $rootIds,
             ];
         }

@@ -12,6 +12,7 @@
           :global-groups="globalGroups"
           :membership-groups="membershipGroups"
           :dept-name-by-id="deptNameById"
+          :org-name-by-id="orgNameById"
           :format-dept-role="formatDeptRole"
           :format-global-role="formatGlobalRole"
           :hide-scope-on-cards="true"
@@ -26,6 +27,7 @@
             :inside-admin-scope="true"
             :branch-root-ids="branchRootIds"
             :dept-name-by-id="deptNameById"
+            :org-name-by-id="orgNameById"
             :format-dept-role="formatDeptRole"
             :format-global-role="formatGlobalRole"
             @edit-user="(userId, kind) => emit('edit-user', userId, kind)"
@@ -40,6 +42,7 @@
         :global-groups="globalGroups"
         :membership-groups="membershipGroups"
         :dept-name-by-id="deptNameById"
+        :org-name-by-id="orgNameById"
         :format-dept-role="formatDeptRole"
         :format-global-role="formatGlobalRole"
         :hide-scope-on-cards="insideAdminScope"
@@ -54,6 +57,7 @@
           :inside-admin-scope="insideAdminScope"
           :branch-root-ids="branchRootIds"
           :dept-name-by-id="deptNameById"
+          :org-name-by-id="orgNameById"
           :format-dept-role="formatDeptRole"
           :format-global-role="formatGlobalRole"
           @edit-user="(userId, kind) => emit('edit-user', userId, kind)"
@@ -93,6 +97,7 @@ const props = defineProps<{
   insideAdminScope?: boolean
   branchRootIds: Set<string>
   deptNameById: Map<string, string>
+  orgNameById: Map<string, string>
   formatDeptRole: (role: string) => string
   formatGlobalRole: (role: string) => string
 }>()
@@ -132,7 +137,7 @@ function collectScopeUsersAtRoot(): AdminOrgOverviewUser[] {
   for (const a of props.node.assignments) {
     if (seen.has(a.user.id)) continue
     const roots = a.user.department_root_ids || []
-    if (roots.length === 0 || roots.includes(props.node.id)) {
+    if (roots.length > 0 && roots.includes(props.node.id)) {
       users.push(a.user)
       seen.add(a.user.id)
     }
@@ -141,11 +146,10 @@ function collectScopeUsersAtRoot(): AdminOrgOverviewUser[] {
 }
 
 const scopeFrameTitle = computed(() => {
-  const hasAllScope = collectScopeUsersAtRoot().some(
-    (u) =>
-      (u.global_admin_role === 'org' || u.global_admin_role === 'sub') &&
-      (u.department_root_ids?.length ?? 0) === 0
-  )
+  const hasAllScope = collectScopeUsersAtRoot().some((u) => {
+    if (u.global_admin_role !== 'org' && u.global_admin_role !== 'sub') return false
+    return (u.department_root_ids?.length ?? 0) === 0 && (u.organisation_ids?.length ?? 0) === 0
+  })
   if (hasAllScope) {
     return t('settings.userOrgOverview.scopeFrameAll', { name: props.node.name })
   }

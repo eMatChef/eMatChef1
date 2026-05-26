@@ -85,17 +85,59 @@
             <span class="org-assignment-count">{{ countOrgAssignments(org) }}</span>
           </button>
           <div v-show="expandedOrgIds.includes(org.id)" class="org-accordion-panel">
-            <DeptOverviewNode
-              v-for="node in org.children"
-              :key="node.id"
-              :node="node"
-              :scope-root-ids="scopeRootIdSet"
-              :branch-root-ids="branchRootIdSet"
-              :dept-name-by-id="deptNameById"
-              :format-dept-role="formatDeptRole"
-              :format-global-role="formatGlobalRole"
-              @edit-user="openUserEdit"
-            />
+            <div
+              v-if="hasOrgWideScope(org.id)"
+              class="org-wide-frame admin-scope-frame"
+              :class="`scope-frame-${orgGlobalFrameLevel(org.id)}`"
+            >
+              <div class="scope-frame-banner">
+                {{ t('settings.userOrgOverview.scopeFrameOrgWide', { name: org.name }) }}
+              </div>
+              <div class="org-wide-frame-body">
+                <div class="org-global-strip">
+                  <div class="section-label">{{ t('settings.userOrgOverview.globalRolesSection') }}</div>
+                  <div class="org-global-cards">
+                    <UserRoleGroupCard
+                      v-for="group in orgGlobalGroups(org.id)"
+                      :key="`org-${org.id}-${group.user.id}`"
+                      :group="group"
+                      :scope-label="orgGlobalScopeLabel(group)"
+                      plain
+                      :format-dept-role="formatDeptRole"
+                      :format-global-role="formatGlobalRole"
+                      @edit-user="(userId, kind) => openUserEdit(userId, kind)"
+                    />
+                  </div>
+                </div>
+                <DeptOverviewNode
+                  v-for="node in org.children"
+                  :key="node.id"
+                  :node="node"
+                  :scope-root-ids="scopeRootIdSet"
+                  :branch-root-ids="branchRootIdSet"
+                  :dept-name-by-id="deptNameById"
+                  :org-name-by-id="orgNameById"
+                  :format-dept-role="formatDeptRole"
+                  :format-global-role="formatGlobalRole"
+                  :inside-admin-scope="true"
+                  @edit-user="openUserEdit"
+                />
+              </div>
+            </div>
+            <template v-else>
+              <DeptOverviewNode
+                v-for="node in org.children"
+                :key="node.id"
+                :node="node"
+                :scope-root-ids="scopeRootIdSet"
+                :branch-root-ids="branchRootIdSet"
+                :dept-name-by-id="deptNameById"
+                :org-name-by-id="orgNameById"
+                :format-dept-role="formatDeptRole"
+                :format-global-role="formatGlobalRole"
+                @edit-user="openUserEdit"
+              />
+            </template>
           </div>
         </div>
         <div v-if="orgTrees.length === 0" class="state-card">{{ t('settings.userOrgOverview.empty') }}</div>
@@ -211,7 +253,7 @@ const branchRootIds = computed(() => computeMyBranchRootIds())
 
 const branchRootIdSet = computed(() => new Set(branchRootIds.value))
 
-/** Wurzeln mit globalem Verwaltungs-Geltungsbereich → Rahmen um den ganzen Zweig */
+/** Department-Wurzeln mit globalem Verwaltungs-Geltungsbereich → Rahmen um Unterbaum */
 const scopeRootIdSet = computed(() => {
   const ids = new Set<string>()
   for (const u of filteredUsers.value) {
@@ -229,7 +271,12 @@ const orgNameById = computed(() => new Map(organisations.value.map((o) => [o.id,
 const filteredUsers = computed(() => {
   const q = searchQuery.value.trim().toLowerCase()
   return users.value.filter((u) => {
-    if (onlyWithAssignments.value && u.memberships.length === 0 && u.department_root_ids.length === 0) {
+    if (
+      onlyWithAssignments.value &&
+      u.memberships.length === 0 &&
+      u.department_root_ids.length === 0 &&
+      (u.organisation_ids?.length ?? 0) === 0
+    ) {
       return false
     }
     if (!q) return true
@@ -248,6 +295,37 @@ function formatDeptRole(role: string): string {
 function formatGlobalRole(role: string): string {
   const key = role === 'org' || role === 'sub' ? role : 'none'
   return t(`settings.adminUsers.globalRoles.${key}`)
+}
+
+function buildOrgGlobalAssignments(orgId: string): DeptAssignment[] {
+  const list: DeptAssignment[] = []
+  for (const user of filteredUsers.value) {
+    if (user.global_admin_role !== 'org' && user.global_admin_role !== 'sub') continue
+    if ((user.department_root_ids?.length ?? 0) > 0) continue
+    const orgIds = user.organisation_ids || []
+    if (orgIds.length > 0 && !orgIds.includes(orgId)) continue
+    list.push({
+      user,
+      kind: 'global_scope',
+      role: String(user.global_admin_role),
+      isPrimary: false,
+    })
+  }
+  return list
+}
+
+function orgGlobalGroups(orgId: string): UserRoleGroup[] {
+  return groupAssignments(buildOrgGlobalAssignments(orgId))
+}
+
+function hasOrgWideScope(orgId: string): boolean {
+  return buildOrgGlobalAssignments(orgId).length > 0
+}
+
+function orgGlobalFrameLevel(orgId: string): 'org' | 'sub' {
+  const assignments = buildOrgGlobalAssignments(orgId)
+  if (assignments.some((a) => a.role === 'org')) return 'org'
+  return 'sub'
 }
 
 function buildAssignmentsByDept(): Map<string, DeptAssignment[]> {
@@ -271,25 +349,13 @@ function buildAssignmentsByDept(): Map<string, DeptAssignment[]> {
       })
     }
     if (user.global_admin_role === 'org' || user.global_admin_role === 'sub') {
-      const roots = user.department_root_ids
-      if (roots.length === 0) {
-        for (const d of departments.value) {
-          add(d.id, {
-            user,
-            kind: 'global_scope',
-            role: String(user.global_admin_role),
-            isPrimary: false,
-          })
-        }
-      } else {
-        for (const rootId of roots) {
-          add(rootId, {
-            user,
-            kind: 'global_scope',
-            role: String(user.global_admin_role),
-            isPrimary: false,
-          })
-        }
+      for (const rootId of user.department_root_ids || []) {
+        add(rootId, {
+          user,
+          kind: 'global_scope',
+          role: String(user.global_admin_role),
+          isPrimary: false,
+        })
       }
     }
   }
@@ -320,7 +386,10 @@ const orgTrees = computed((): OrgTree[] => {
       name: org.name,
       children: buildDeptTree(org.id, null, byDept),
     }))
-    .filter((org) => org.children.length > 0 || !onlyWithAssignments.value)
+    .filter((org) => {
+      if (!onlyWithAssignments.value) return true
+      return org.children.length > 0 || buildOrgGlobalAssignments(org.id).length > 0
+    })
 })
 
 function collectOtherLinks(user: AdminOrgOverviewUser, currentDeptId: string): string[] {
@@ -331,9 +400,15 @@ function collectOtherLinks(user: AdminOrgOverviewUser, currentDeptId: string): s
     }
   }
   if (user.global_admin_role === 'org' || user.global_admin_role === 'sub') {
-    for (const rootId of user.department_root_ids) {
+    for (const rootId of user.department_root_ids || []) {
       if (rootId !== currentDeptId) {
         links.push(`${deptNameById.value.get(rootId) || rootId} (${formatGlobalRole(String(user.global_admin_role))})`)
+      }
+    }
+    const orgIds = user.organisation_ids || []
+    if (orgIds.length > 0 && (user.department_root_ids?.length ?? 0) === 0) {
+      for (const orgId of orgIds) {
+        links.push(`${orgNameById.value.get(orgId) || orgId} (${formatGlobalRole(String(user.global_admin_role))})`)
       }
     }
   }
@@ -425,7 +500,7 @@ function orgContainsBranchRoot(orgId: string): boolean {
 }
 
 function countOrgAssignments(org: OrgTree): number {
-  let n = 0
+  let n = buildOrgGlobalAssignments(org.id).length
   const walk = (nodes: DeptTreeNode[]) => {
     for (const node of nodes) {
       n += node.assignments.length
@@ -476,12 +551,17 @@ function expandAll() {
 
 const scopeLabels = computed(() => ({
   all: t('settings.userOrgOverview.scopeAllShort'),
+  orgs: (names: string[]) => t('settings.userOrgOverview.scopeOrgsShort', { names: names.join(', ') }),
   roots: (names: string[]) => t('settings.userOrgOverview.scopeRootsShort', { names: names.join(', ') }),
   memberOnly: '',
 }))
 
+function orgGlobalScopeLabel(group: UserRoleGroup): string {
+  return scopeLabelForUser(group.user, deptNameById.value, scopeLabels.value, orgNameById.value)
+}
+
 function kanbanScopeLabel(group: UserRoleGroup): string {
-  return scopeLabelForUser(group.user, deptNameById.value, scopeLabels.value)
+  return scopeLabelForUser(group.user, deptNameById.value, scopeLabels.value, orgNameById.value)
 }
 
 function kanbanOtherLinks(group: UserRoleGroup, colDeptId: string): string[] {
@@ -710,6 +790,64 @@ onMounted(() => {
 
 .org-accordion-panel {
   padding: 0.5rem 0.75rem 0.75rem;
+}
+
+.org-wide-frame {
+  margin-bottom: 0.5rem;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.org-wide-frame.scope-frame-org {
+  border: 2px solid #f59e0b;
+  box-shadow: 0 0 0 1px rgba(245, 158, 11, 0.12);
+}
+
+.org-wide-frame.scope-frame-sub {
+  border: 2px solid #8b5cf6;
+  box-shadow: 0 0 0 1px rgba(139, 92, 246, 0.1);
+}
+
+.org-wide-frame .scope-frame-banner {
+  padding: 0.45rem 0.75rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.org-wide-frame.scope-frame-org .scope-frame-banner {
+  background: linear-gradient(90deg, #fef3c7, #fffbeb);
+  color: #92400e;
+}
+
+.org-wide-frame.scope-frame-sub .scope-frame-banner {
+  background: linear-gradient(90deg, #ede9fe, #f5f3ff);
+  color: #5b21b6;
+}
+
+.org-wide-frame-body {
+  padding: 0.5rem 0.65rem 0.65rem;
+  background: #fff;
+}
+
+.org-global-strip {
+  margin-bottom: 0.65rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.org-global-strip .section-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: #64748b;
+  margin-bottom: 0.35rem;
+}
+
+.org-global-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
 }
 
 .kanban-board {

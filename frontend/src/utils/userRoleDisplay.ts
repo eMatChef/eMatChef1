@@ -81,18 +81,29 @@ export function preferredEditKind(group: UserRoleGroup): OverviewKind {
 export function scopeLabelForUser(
   user: AdminOrgOverviewUser,
   deptNameById: Map<string, string>,
-  labels: { all: string; roots: (names: string[]) => string; memberOnly: string }
+  labels: {
+    all: string
+    orgs?: (names: string[]) => string
+    roots: (names: string[]) => string
+    memberOnly: string
+  },
+  orgNameById: Map<string, string> = new Map()
 ): string {
   const isGlobal = user.global_admin_role === 'org' || user.global_admin_role === 'sub'
   if (!isGlobal) {
     return labels.memberOnly
   }
   const rootIds = user.department_root_ids || []
-  if (rootIds.length === 0) {
-    return labels.all
+  if (rootIds.length > 0) {
+    const names = rootIds.map((id) => deptNameById.get(id) || id)
+    return labels.roots(names)
   }
-  const names = rootIds.map((id) => deptNameById.get(id) || id)
-  return labels.roots(names)
+  const orgIds = user.organisation_ids || []
+  if (orgIds.length > 0 && labels.orgs) {
+    const names = orgIds.map((id) => orgNameById.get(id) || id)
+    return labels.orgs(names)
+  }
+  return labels.all
 }
 
 export function badgeClassForRole(kind: OverviewKind, role: string): string {
