@@ -49,9 +49,9 @@ class AuthController extends AbstractController
         private CacheItemPoolInterface $cache,
         private TurnstileVerifier $turnstileVerifier,
         private LanguageConfig $languageConfig,
+        private CrossSubdomainAuthCookies $authCookies,
         #[Autowire('%kernel.secret%')]
         private string $appSecret,
-        private CrossSubdomainAuthCookies $authCookies,
     ) {}
 
     /**
