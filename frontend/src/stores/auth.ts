@@ -16,6 +16,13 @@ import {
 import { getGeneralSettings } from '@/api/departmentSettings'
 import { resetSessionExpiredHandling } from '@/api/apiClient'
 import { clearAuthStorage } from '@/utils/authStorage'
+import {
+  canAdminCapability,
+  defaultAdminCapabilities,
+  normalizeAdminCapabilities,
+  type AdminCapabilities,
+  type GlobalAdminRole,
+} from '@/utils/adminCapabilities'
 import { markCrossSubdomainLogoutSeenFromCookie } from '@/utils/authCrossOrigin'
 
 export const useAuthStore = defineStore('auth', () => {
@@ -63,6 +70,57 @@ export const useAuthStore = defineStore('auth', () => {
   })
 
   const userRoles = computed(() => profile.value?.roles || [])
+  const globalAdminRole = computed<GlobalAdminRole | 'superadmin'>(() => {
+    if (userRoles.value.includes('ROLE_SUPERADMIN')) return 'superadmin'
+    const fromProfile = profile.value?.global_admin_role
+    if (fromProfile === 'org' || fromProfile === 'sub') return fromProfile
+    if (userRoles.value.includes('ROLE_ORGANISATIONSCHEF')) return 'org'
+    if (userRoles.value.includes('ROLE_SUBORGCHEF')) return 'sub'
+    return 'none'
+  })
+  const adminCapabilities = computed<AdminCapabilities | null>(() => {
+    if (userRoles.value.includes('ROLE_SUPERADMIN')) {
+      return defaultAdminCapabilities('org')
+    }
+    const role = globalAdminRole.value === 'superadmin' ? 'none' : globalAdminRole.value
+    return normalizeAdminCapabilities(profile.value?.admin_capabilities, role)
+  })
+
+  function canAdmin(dotKey: string): boolean {
+    return canAdminCapability(adminCapabilities.value, dotKey, userRoles.value.includes('ROLE_SUPERADMIN'))
+  }
+
+  function hasGlobalAdminAccess(): boolean {
+    if (userRoles.value.includes('ROLE_SUPERADMIN')) return true
+    if (globalAdminRole.value === 'org' || globalAdminRole.value === 'sub') return true
+    return false
+  }
+
+  function canAccessOrganisation(orgId: string | null | undefined): boolean {
+    if (!orgId) return true
+    if (userRoles.value.includes('ROLE_SUPERADMIN')) return true
+    const scoped = adminCapabilities.value?.scope?.organisation_ids || []
+    if (scoped.length === 0) return true
+    return scoped.includes(orgId)
+  }
+
+  /** null = alle Departments (Superadmin / kein Scope) */
+  const accessibleDepartmentIds = computed<string[] | null>(() => {
+    if (userRoles.value.includes('ROLE_SUPERADMIN')) return null
+    const fromSession = profile.value?.accessible_department_ids
+    if (fromSession === null || fromSession === undefined) {
+      return hasGlobalAdminAccess() ? null : []
+    }
+    return fromSession
+  })
+
+  function canAccessDepartment(departmentId: string | null | undefined): boolean {
+    if (!departmentId) return true
+    if (userRoles.value.includes('ROLE_SUPERADMIN')) return true
+    const ids = accessibleDepartmentIds.value
+    if (ids === null) return true
+    return ids.includes(departmentId)
+  }
 
   const userColors = computed(() => ({
     background: profile.value?.backgroundColor || profile.value?.background_color || '#ec4899',
@@ -355,6 +413,13 @@ export const useAuthStore = defineStore('auth', () => {
     userDisplayName,
     userInitials,
     userRoles,
+    globalAdminRole,
+    adminCapabilities,
+    canAdmin,
+    hasGlobalAdminAccess,
+    canAccessOrganisation,
+    accessibleDepartmentIds,
+    canAccessDepartment,
     userColors,
     currentDepartmentRole,
     activeDepartmentName,

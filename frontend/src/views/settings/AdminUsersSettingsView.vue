@@ -42,6 +42,7 @@
             <th class="sortable" @click="toggleSort('email')">
               {{ t('settings.adminUsers.columns.email') }} <span v-if="sortBy === 'email'">{{ sortDir === 'asc' ? '↑' : '↓' }}</span>
             </th>
+            <th>{{ t('settings.adminUsers.columns.globalRole') }}</th>
             <th class="sortable" @click="toggleSort('created_at')">
               {{ t('settings.adminUsers.columns.createdAt') }} <span v-if="sortBy === 'created_at'">{{ sortDir === 'asc' ? '↑' : '↓' }}</span>
             </th>
@@ -55,6 +56,7 @@
           <tr v-for="user in filteredUsers" :key="user.id">
             <td>{{ user.name }}</td>
             <td>{{ user.email }}</td>
+            <td>{{ formatGlobalRole(user.global_admin_role) }}</td>
             <td>{{ formatDate(user.created_at) }}</td>
             <td class="dept-col">{{ user.departments_count }}</td>
             <td class="actions-col">
@@ -106,6 +108,13 @@
               </div>
             </div>
 
+            <p v-if="isSuperAdminEditor" class="inline-hint admin-users-hint">
+              {{ t('settings.adminUsers.globalRolesMovedHint') }}
+              <router-link to="/admin-dashboard/verwaltung/global-admin-roles">
+                {{ t('settings.adminUsers.globalRolesMovedLink') }}
+              </router-link>
+            </p>
+
             <div class="membership-headline">
               <h4>{{ t('settings.adminUsers.membershipsTitle') }}</h4>
               <button class="btn btn-secondary btn-sm" @click="addMembershipRow">{{ t('settings.adminUsers.addDepartment') }}</button>
@@ -116,16 +125,13 @@
             </div>
 
             <div v-for="(membership, index) in editForm.memberships" :key="membership.local_id" class="membership-row">
-              <select v-model="membership.department_id" class="form-select">
-                <option value="" disabled>{{ t('settings.adminUsers.selectDepartment') }}</option>
-                <option
-                  v-for="department in departmentOptionsFor(index)"
-                  :key="department.id"
-                  :value="department.id"
-                >
-                  {{ department.name }}
-                </option>
-              </select>
+              <DepartmentMembershipPicker
+                v-model="membership.department_id"
+                :departments="manageableDepartments"
+                :organisation-name-by-id="organisationNameById"
+                :excluded-department-ids="excludedDepartmentIdsFor(index)"
+                :auto-focus="membershipFocusId === membership.local_id"
+              />
 
               <select v-model="membership.role" class="form-select role-select">
                 <option v-for="role in roleOptions" :key="role.value" :value="role.value">
@@ -161,17 +167,22 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { getDepartments, type Department } from '@/api/departments'
 import {
   getAdminUsers,
   getAdminUserDetail,
   updateAdminUser,
+  getOrganisationsForAdmin,
   type AdminUserListItem,
   type DepartmentRole,
 } from '@/api/adminUsers'
+import DepartmentMembershipPicker from '@/components/admin/DepartmentMembershipPicker.vue'
 import { useToast } from '@/composables/useToast'
+import { useAuthStore } from '@/stores/auth'
+import { filterDepartmentsByAccessibleIds } from '@/utils/adminCapabilities'
 
 type SortBy = 'created_at' | 'name' | 'email' | 'departments_count'
 type SortDir = 'asc' | 'desc'
@@ -195,7 +206,11 @@ interface EditForm {
 }
 
 const toast = useToast()
+const authStore = useAuthStore()
+const route = useRoute()
+const router = useRouter()
 const { t } = useI18n()
+const isSuperAdminEditor = computed(() => authStore.userRoles.includes('ROLE_SUPERADMIN'))
 
 const users = ref<AdminUserListItem[]>([])
 const isLoading = ref(false)
@@ -207,6 +222,19 @@ const sortDir = ref<SortDir>('desc')
 const showEditModal = ref(false)
 const editForm = ref<EditForm | null>(null)
 const departments = ref<Department[]>([])
+const organisations = ref<Array<{ id: string; name: string }>>([])
+const membershipFocusId = ref<string | null>(null)
+
+const organisationNameById = computed(
+  () => new Map(organisations.value.map((o) => [o.id, o.name]))
+)
+
+/** Departments in deinem Verwaltungsbereich (Org/Suborg-Scope oder Superadmin = alle). */
+const manageableDepartments = computed(() => {
+  const accessible = authStore.accessibleDepartmentIds
+  if (accessible === null) return departments.value
+  return filterDepartmentsByAccessibleIds(departments.value, accessible)
+})
 
 const roleOptions: Array<{ value: DepartmentRole; label: string }> = [
   { value: 'mw', label: t('settings.adminUsers.roles.mw') },
@@ -235,6 +263,11 @@ const canSave = computed(() => {
 
   return new Set(departmentIds).size === departmentIds.length
 })
+
+function formatGlobalRole(role: string | undefined): string {
+  const key = role === 'org' || role === 'sub' ? role : 'none'
+  return t(`settings.adminUsers.globalRoles.${key}`)
+}
 
 function formatDate(value: string): string {
   const parsed = new Date(value)
@@ -275,10 +308,20 @@ async function loadUsers() {
 
 async function loadDepartments() {
   try {
-    departments.value = await getDepartments()
+    const [depts, orgs] = await Promise.all([getDepartments(), getOrganisationsForAdmin()])
+    departments.value = depts
+    organisations.value = orgs
   } catch (err) {
     console.error(t('settings.adminUsers.departmentsLoadError'), err)
   }
+}
+
+function excludedDepartmentIdsFor(index: number): string[] {
+  if (!editForm.value) return []
+  return editForm.value.memberships
+    .filter((_, i) => i !== index)
+    .map((m) => m.department_id)
+    .filter(Boolean)
 }
 
 async function openEditModal(userId: string) {
@@ -305,30 +348,35 @@ async function openEditModal(userId: string) {
   }
 }
 
+function clearEditQuery() {
+  if (!route.query.edit) return
+  const { edit: _edit, ...rest } = route.query
+  void router.replace({ query: rest })
+}
+
 function closeEditModal() {
   showEditModal.value = false
   editForm.value = null
+  membershipFocusId.value = null
+  clearEditQuery()
 }
 
-function departmentOptionsFor(index: number): Department[] {
-  if (!editForm.value) return departments.value
-  const selectedByOthers = new Set(
-    editForm.value.memberships
-      .filter((_, i) => i !== index)
-      .map((membership) => membership.department_id)
-      .filter(Boolean)
-  )
-  return departments.value.filter((department) => !selectedByOthers.has(department.id))
+async function tryOpenEditFromQuery() {
+  const editId = route.query.edit
+  if (typeof editId !== 'string' || !editId) return
+  await openEditModal(editId)
 }
 
 function addMembershipRow() {
   if (!editForm.value) return
+  const localId = `new-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
   editForm.value.memberships.push({
-    local_id: `new-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    local_id: localId,
     department_id: '',
     role: 'u',
     is_primary: editForm.value.memberships.length === 0,
   })
+  membershipFocusId.value = localId
 }
 
 function removeMembershipRow(index: number) {
@@ -375,7 +423,15 @@ async function saveUser() {
 
 onMounted(async () => {
   await Promise.all([loadUsers(), loadDepartments()])
+  await tryOpenEditFromQuery()
 })
+
+watch(
+  () => route.query.edit,
+  (editId) => {
+    if (typeof editId === 'string' && editId) void openEditModal(editId)
+  }
+)
 </script>
 
 <style scoped>
@@ -504,7 +560,7 @@ onMounted(async () => {
 
 .modal-container {
   width: 100%;
-  max-width: 840px;
+  max-width: 920px;
   max-height: 90vh;
   overflow: hidden;
   background: white;
@@ -573,6 +629,14 @@ onMounted(async () => {
   gap: 6px;
   align-items: center;
   white-space: nowrap;
+}
+
+.admin-users-hint {
+  margin-bottom: 16px;
+  padding: 10px 12px;
+  background: #f0f9ff;
+  border-radius: 8px;
+  border: 1px solid #bae6fd;
 }
 
 .modal-footer {

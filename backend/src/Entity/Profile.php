@@ -34,6 +34,10 @@ class Profile
     #[ORM\Column(type: 'json')]
     private array $roles = ['ROLE_USER'];
 
+    /** @var array<string, mixed>|null Individuelle Admin-Rechte (Org/Sub); null = Rollen-Defaults */
+    #[ORM\Column(name: 'admin_capabilities', type: 'json', nullable: true)]
+    private ?array $adminCapabilities = null;
+
     #[ORM\Column(name: 'background_color', type: 'string', length: 7, nullable: true)]
     private ?string $backgroundColor = null;
 
@@ -137,6 +141,33 @@ class Profile
     public function hasSuperAdminRole(): bool
     {
         return in_array('ROLE_SUPERADMIN', $this->roles, true);
+    }
+
+    public function hasOrganisationChefRole(): bool
+    {
+        return in_array('ROLE_ORGANISATIONSCHEF', $this->roles, true);
+    }
+
+    public function hasSubOrgChefRole(): bool
+    {
+        return in_array('ROLE_SUBORGCHEF', $this->roles, true);
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    public function getAdminCapabilities(): ?array
+    {
+        return $this->adminCapabilities;
+    }
+
+    /**
+     * @param array<string, mixed>|null $adminCapabilities
+     */
+    public function setAdminCapabilities(?array $adminCapabilities): self
+    {
+        $this->adminCapabilities = $adminCapabilities;
+        return $this;
     }
 
     public function setRoles(array $roles): self
