@@ -13,6 +13,7 @@ use App\Entity\Membership;
 use App\Entity\Organisation;
 use App\Entity\Profile;
 use App\Entity\User;
+use App\Service\Admin\AdminCapabilityChecker;
 use App\Service\AuditLogger;
 use App\Service\Mail\MailTemplateContentStore;
 use App\Service\OrganisationUserPickerFilter;
@@ -36,20 +37,33 @@ class JoinRequestController extends AbstractController
     private const INVITE_CODE_SETTING_KEY = 'join.invite_code';
     private const VALID_MEMBER_ROLES = ['mw', 'dc', 'l1', 'l2', 'l3', 'u'];
     private const PENDING_INVITES_SETTING_KEY = 'join.pending_invites';
-    private function hasGlobalAdminRole(User $user): bool
+
+    public function __construct(
+        private EntityManagerInterface $entityManager,
+        private AuditLogger $auditLogger,
+        private VerificationEmailService $verificationEmailService,
+        private MailTemplateContentStore $mailTemplateContent,
+        private UserDepartmentInviteNotificationService $userDepartmentInviteNotifications,
+        private InboxMessageService $inboxMessages,
+        private AdminCapabilityChecker $adminCapabilityChecker,
+        #[Autowire('%env(APP_FRONTEND_URL)%')] private string $frontendUrl
+    )
     {
-        return count(array_intersect(self::GLOBAL_ADMIN_ROLES, $user->getRoles())) > 0;
     }
 
-    /** @return string[] Organisation-IDs aus den Departments des Users (für ORG/SUBORG-Filter) */
-    private function getManagedOrganisationIds(User $user): array
+    private function hasGlobalAdminRole(User $user): bool
     {
-        $rows = $this->entityManager->createQuery(
-            'SELECT DISTINCT d.organisationId FROM App\Entity\Membership m
-             JOIN App\Entity\Department d WITH d.id = m.departmentId
-             WHERE m.userId = :userId'
-        )->setParameter('userId', $user->getId())->getResult();
-        return array_map(fn ($r) => $r['organisationId'], $rows);
+        return $this->adminCapabilityChecker->can($user, 'support_requests.assign');
+    }
+
+    /** @return list<string>|null null = alle Organisationen */
+    private function getManagedOrganisationIds(User $user): ?array
+    {
+        if ($this->adminCapabilityChecker->isSuperAdmin($user)) {
+            return null;
+        }
+
+        return $this->adminCapabilityChecker->getAccessibleOrganisationIds($user);
     }
 
     private function logAdminJoinRequestEvent(AdminJoinRequest $adminRequest, User $actor, string $action, ?array $payload = null): void
@@ -61,18 +75,6 @@ class JoinRequestController extends AbstractController
         $event->setAction($action);
         $event->setPayload($payload);
         $this->entityManager->persist($event);
-    }
-
-    public function __construct(
-        private EntityManagerInterface $entityManager,
-        private AuditLogger $auditLogger,
-        private VerificationEmailService $verificationEmailService,
-        private MailTemplateContentStore $mailTemplateContent,
-        private UserDepartmentInviteNotificationService $userDepartmentInviteNotifications,
-        private InboxMessageService $inboxMessages,
-        #[Autowire('%env(APP_FRONTEND_URL)%')] private string $frontendUrl
-    )
-    {
     }
 
     #[Route('', name: 'create', methods: ['POST'])]
@@ -305,15 +307,15 @@ class JoinRequestController extends AbstractController
             ->orderBy('ajr.createdAt', 'ASC')
             ->setMaxResults(50);
 
-        $isSuperAdmin = in_array('ROLE_SUPERADMIN', $currentUser->getRoles(), true);
+        $isSuperAdmin = $this->adminCapabilityChecker->isSuperAdmin($currentUser);
         if ($isGlobalAdmin && !$isSuperAdmin) {
             $managedOrgIds = $this->getManagedOrganisationIds($currentUser);
-            if (count($managedOrgIds) > 0) {
-                // Ohne requested_organisation_id (z. B. Auto-Anfragen) fuer alle Org/Sub-Admins sichtbar
+            if ($managedOrgIds === null) {
+                // Kein Scope-Filter: alle Support-Anfragen sichtbar
+            } elseif (count($managedOrgIds) > 0) {
                 $qb->andWhere('(ajr.requestedOrganisationId IS NULL OR ajr.requestedOrganisationId IN (:managedOrgIds))')
                     ->setParameter('managedOrgIds', $managedOrgIds);
             } else {
-                // Kein Department-Membership: nur globale/unzugeordnete Warteschlange (NULL), nicht 1=0
                 $qb->andWhere('ajr.requestedOrganisationId IS NULL');
             }
         }
@@ -395,6 +397,10 @@ class JoinRequestController extends AbstractController
         $targetDepartment = $this->entityManager->getRepository(Department::class)->find($targetDepartmentId);
         if (!$targetDepartment) {
             return new JsonResponse(['error' => 'Ziel-Department nicht gefunden'], 404);
+        }
+
+        if ($isGlobalAdmin && !$this->adminCapabilityChecker->canAccessDepartment($currentUser, $targetDepartmentId)) {
+            return new JsonResponse(['error' => 'Keine Berechtigung für dieses Department'], 403);
         }
 
         $hasMwOrDc = (int) $this->entityManager->createQuery(
@@ -523,10 +529,12 @@ class JoinRequestController extends AbstractController
             ->orderBy('ajr.updatedAt', 'DESC')
             ->setMaxResults(100);
 
-        $isSuperAdmin = in_array('ROLE_SUPERADMIN', $currentUser->getRoles(), true);
+        $isSuperAdmin = $this->adminCapabilityChecker->isSuperAdmin($currentUser);
         if ($isGlobalAdmin && !$isSuperAdmin) {
             $managedOrgIds = $this->getManagedOrganisationIds($currentUser);
-            if (count($managedOrgIds) > 0) {
+            if ($managedOrgIds === null) {
+                // Kein Scope-Filter
+            } elseif (count($managedOrgIds) > 0) {
                 $qb->andWhere('(ajr.requestedOrganisationId IS NULL OR ajr.requestedOrganisationId IN (:managedOrgIds))')
                     ->setParameter('managedOrgIds', $managedOrgIds);
             } else {

@@ -70,8 +70,10 @@ if [[ -d backend/var ]]; then
   chmod -R u+rwX backend/var 2>/dev/null || true
 fi
 
-# Nach git reset: DI-Container neu bauen (sonst z. B. AuthController-TypeError bei Constructor-Änderungen)
+# Nach git reset: Migrationen + DI-Container neu bauen
 if docker compose -p "$PROJECT" ps --status running backend 2>/dev/null | grep -q backend; then
+  echo "==> Doctrine-Migrationen …"
+  docker compose -p "$PROJECT" exec -T backend php bin/console doctrine:migrations:migrate --no-interaction --env=prod
   echo "==> Symfony prod cache leeren …"
   docker compose -p "$PROJECT" exec -T backend php bin/console cache:clear --env=prod --no-warmup
   docker compose -p "$PROJECT" exec -T backend php bin/console cache:warmup --env=prod
