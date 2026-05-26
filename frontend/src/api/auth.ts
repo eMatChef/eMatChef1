@@ -113,6 +113,9 @@ export interface ProfileResponse {
   pending_email?: string
   language: string
   roles: string[]
+  global_admin_role?: string
+  admin_capabilities?: import('@/utils/adminCapabilities').AdminCapabilities
+  accessible_department_ids?: string[] | null
   backgroundColor?: string
   textColor?: string
   background_color?: string

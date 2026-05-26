@@ -286,13 +286,7 @@ const assignableDepartments = ref<Department[]>([])
 const organisations = ref<Organisation[]>([])
 /** Zuordnen: SA / OrgChef / SubOrgChef oder Materialchef im gewählten Department (wie Backend). */
 const canAssignSupportRequests = computed(() => {
-  if (authStore.userRoles.includes('ROLE_SUPERADMIN')) return true
-  if (
-    authStore.userRoles.includes('ROLE_ORGANISATIONSCHEF') ||
-    authStore.userRoles.includes('ROLE_SUBORGCHEF')
-  ) {
-    return true
-  }
+  if (authStore.canAdmin('support_requests.assign')) return true
   return (authStore.currentDepartmentRole || '').toLowerCase() === 'mw' && !!departmentId.value
 })
 const assignModalOpen = ref(false)

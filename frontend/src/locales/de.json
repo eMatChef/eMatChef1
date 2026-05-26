@@ -30,6 +30,8 @@
         "organisations": "Organisationen · eMatChef",
         "departments": "Abteilungen · eMatChef",
         "usersAdmin": "Benutzer · eMatChef",
+        "globalAdminRoles": "Globale Admin-Rollen · eMatChef",
+        "userOrgOverview": "Zuteilungsübersicht · eMatChef",
         "mailRoot": "E-Mail · eMatChef",
         "mailTemplates": "E-Mail · Vorlagen · eMatChef",
         "mailSettings": "E-Mail · Einstellungen · eMatChef",
@@ -684,6 +686,9 @@
   },
   "layout": {
     "onboardingResume": "Onboarding fortsetzen",
+    "subnavCollapse": "Menü einklappen (mehr Platz für Inhalt)",
+    "subnavExpand": "Menü ausklappen",
+    "subnavHoverHint": "Menü bei Hover öffnen, nach Klick wieder einklappen",
     "userFallback": "Benutzer",
     "tabs": {
       "unsavedChangesTooltip": "Ungespeicherte Änderungen",
@@ -2679,9 +2684,48 @@
       "columns": {
         "name": "Name",
         "email": "E-Mail",
+        "globalRole": "Globale Rolle",
         "createdAt": "Erstellt am",
         "departmentsCount": "Anzahl Departments",
         "actions": "Aktionen"
+      },
+      "globalRoleTitle": "Globale Admin-Rolle",
+      "globalRoles": {
+        "none": "Keine",
+        "org": "Organisationschef",
+        "sub": "Suborgchef"
+      },
+      "capabilitiesTitle": "Rechte",
+      "scopeTitle": "Organisations-Geltungsbereich",
+      "scopeHint": "Keine Auswahl = alle Organisationen. Ausgewählte Organisationen begrenzen den Zugriff.",
+      "scopeEmpty": "Keine Organisationen geladen.",
+      "capabilities": {
+        "groups": {
+          "organisations": "Organisationen",
+          "departments": "Departments",
+          "supportRequests": "Support-Anfragen",
+          "users": "Benutzer",
+          "securityMonitoring": "Security Monitoring"
+        },
+        "organisations": {
+          "view": "Organisationen ansehen",
+          "create": "Organisationen anlegen",
+          "edit": "Organisationen bearbeiten"
+        },
+        "departments": {
+          "view": "Departments ansehen",
+          "create": "Departments anlegen",
+          "edit": "Departments bearbeiten"
+        },
+        "supportRequests": {
+          "assign": "Support-Anfragen zuweisen"
+        },
+        "users": {
+          "globalManage": "Globale Benutzerverwaltung"
+        },
+        "securityMonitoring": {
+          "view": "Security Monitoring ansehen"
+        }
       },
       "edit": "Bearbeiten",
       "editUserTitle": "Benutzer bearbeiten: {name}",
@@ -2690,15 +2734,88 @@
         "lastName": "Nachname",
         "nickname": "Spitzname",
         "email": "E-Mail",
-        "state": "Status"
+        "state": "Status",
+        "globalRole": "Globale Rolle"
       },
       "membershipsTitle": "Departments und Rollen",
       "addDepartment": "Department hinzufügen",
       "noDepartment": "Dieser User hat aktuell kein Department.",
       "selectDepartment": "Department wählen",
+      "deptSearchPlaceholder": "Organisation oder Department suchen…",
+      "deptSearchMinChars": "Mind. {n} Zeichen eingeben",
+      "deptSearchEmpty": "Kein Department in deinem Verwaltungsbereich gefunden",
       "primary": "Primär",
       "removeDepartment": "Department entfernen",
-      "saving": "Speichert..."
+      "saving": "Speichert...",
+      "globalRolesMovedHint": "Globale Admin-Rollen und Department-Geltungsbereich werden unter",
+      "globalRolesMovedLink": "Globale Admin-Rollen"
+    },
+    "globalAdminRoles": {
+      "title": "Globale Admin-Rollen",
+      "subtitle": "Organisations- und Suborgchef mit Rechten und Department-Baum (Wurzel + Unter-Departments)",
+      "loadingShort": "Lädt...",
+      "refresh": "Aktualisieren",
+      "loading": "Wird geladen...",
+      "empty": "Noch keine Organisations- oder Suborgchefs zugewiesen.",
+      "loadError": "Fehler beim Laden",
+      "detailsLoadError": "Details konnten nicht geladen werden",
+      "saveError": "Fehler beim Speichern",
+      "toastUpdated": "Globale Admin-Rolle gespeichert",
+      "allUsersHint": "Neue Org-/Suborgchefs zuerst unter Benutzer anlegen, dann hier Rolle und Scope setzen:",
+      "allUsersLink": "Benutzer verwalten",
+      "overviewLink": "Zuteilungsübersicht (Baum/Kanban)",
+      "editTitle": "Globale Admin-Rolle: {name}",
+      "departmentScopeTitle": "Department-Geltungsbereich (Wurzeln)",
+      "departmentScopeHint": "Gewählte Departments und alle darunter liegenden Unter-Departments. Leer = alle sichtbaren Departments.",
+      "scopeTreeEmpty": "Keine Departments geladen.",
+      "scopeAll": "Alle Departments",
+      "fields": {
+        "globalRole": "Globale Rolle"
+      },
+      "columns": {
+        "name": "Name",
+        "email": "E-Mail",
+        "role": "Rolle",
+        "scope": "Geltungsbereich",
+        "actions": "Aktionen"
+      }
+    },
+    "userOrgOverview": {
+      "title": "Zuteilungsübersicht",
+      "subtitle": "Wer ist in welchem Department Mitglied – und wo gilt eine globale Verwaltungsrolle?",
+      "loadingShort": "Lädt...",
+      "refresh": "Aktualisieren",
+      "loading": "Wird geladen...",
+      "loadError": "Übersicht konnte nicht geladen werden",
+      "empty": "Keine Daten vorhanden.",
+      "searchPlaceholder": "Name oder E-Mail suchen…",
+      "viewTree": "Baum",
+      "viewKanban": "Kanban",
+      "onlyAssigned": "Nur Departments mit Zuweisungen",
+      "primary": "Hauptabteilung",
+      "alsoAt": "Zusätzlich",
+      "kanbanEmpty": "Keine Zuweisungen",
+      "legendMembership": "Mitgliedschaft im Department",
+      "legendGlobalSub": "Suborgchef-Verwaltung (Wurzel-Department)",
+      "legendGlobalOrg": "Orgchef-Verwaltung (Wurzel-Department)",
+      "myBranch": "Mein Zweig",
+      "expandMyBranch": "Meinen Zweig öffnen",
+      "collapseAll": "Alles zuklappen",
+      "expandAll": "Alles aufklappen",
+      "childCount": "{n} Unter-Departments",
+      "editMembership": "Mitgliedschaft bearbeiten (Benutzer)",
+      "editGlobalRole": "Globale Admin-Rolle bearbeiten",
+      "legendClickEdit": "Name anklicken → direkt bearbeiten",
+      "legendFrameOrg": "Rahmen = Verwaltungsbereich Organisationschef",
+      "legendFrameSub": "Rahmen = Verwaltungsbereich Suborgchef",
+      "legendDeptRolesToggle": "Department-Rollen pro Ebene aufklappen",
+      "scopeFrameSubtree": "Verwaltungsbereich: {name} (+ Unter-Departments)",
+      "scopeFrameAll": "Verwaltungsbereich: {name} (alle Departments)",
+      "globalRolesSection": "Globale Verwaltung",
+      "deptRolesToggle": "Department-Rollen ({n})",
+      "scopeAllShort": "Verwaltung: alle sichtbaren Departments",
+      "scopeRootsShort": "Verwaltung: {names} (+ Unter-Departments)",
+      "leafMembersAlways": "End-Departments zeigen Mitglieder automatisch"
     },
     "departmentUsers": {
       "title": "Benutzer",
@@ -2953,6 +3070,12 @@
       "overviewOpenMoveLoadError": "Fehler beim Laden"
     }
   },
+  "siteEditor": {
+    "navTitle": "Webseiten-Inhalt",
+    "navLanding": "Startseite",
+    "navBlog": "Blog",
+    "navGeneral": "Allgemein"
+  },
   "verwaltung": {
     "menuTitle": "Verwaltung der Webseite",
     "nav": {
@@ -2963,6 +3086,8 @@
       "departments": "Abteilungen",
       "allDepartments": "Alle Departments",
       "users": "Benutzer",
+      "globalAdminRoles": "Globale Admin-Rollen",
+      "userOrgOverview": "Zuteilungsübersicht",
       "integrations": "Integrationen",
       "securityMonitoring": "Security Monitoring",
       "mail": "E-Mail",

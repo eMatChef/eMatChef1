@@ -10,6 +10,7 @@ use App\Entity\Membership;
 use App\Entity\Organisation;
 use App\Repository\ProfileRepository;
 use App\Repository\UserRepository;
+use App\Service\Admin\AdminCapabilityChecker;
 use App\Service\AuditLogger;
 use App\Service\Auth\CrossSubdomainAuthCookies;
 use App\Service\OrganisationUserPickerFilter;
@@ -50,6 +51,7 @@ class AuthController extends AbstractController
         private TurnstileVerifier $turnstileVerifier,
         private LanguageConfig $languageConfig,
         private CrossSubdomainAuthCookies $authCookies,
+        private AdminCapabilityChecker $adminCapabilityChecker,
         #[Autowire('%kernel.secret%')]
         private string $appSecret,
     ) {}
@@ -141,6 +143,8 @@ class AuthController extends AbstractController
             $lastUsedResolved = $primaryDepartment['id'];
         }
 
+        $capData = $this->adminCapabilityChecker->serializeForApi($user);
+
         return new JsonResponse([
             'user' => [
                 'id' => $user->getId(),
@@ -158,6 +162,9 @@ class AuthController extends AbstractController
                 'pending_email' => $user->getPendingEmail() ?? null,
                 'language' => $profile->getLanguage(),
                 'roles' => $profile->getRoles(),
+                'global_admin_role' => $capData['global_admin_role'],
+                'admin_capabilities' => $capData['admin_capabilities'],
+                'accessible_department_ids' => $capData['accessible_department_ids'],
                 'background_color' => $profile->getBackgroundColor() ?? null,
                 'text_color' => $profile->getTextColor() ?? null,
             ],

@@ -418,7 +418,7 @@ const routes: RouteRecordRaw[] = [
             name: 'AdminSettingsDepartments',
             component: () => import('@/views/settings/DepartmentsSettingsView.vue'),
             meta: {
-              requiredRoles: ['superadmin'],
+              requiredRoles: ['superadmin', 'organisationschef', 'suborgchef'],
               ...routeHead('departments'),
             }
           },
@@ -429,6 +429,24 @@ const routes: RouteRecordRaw[] = [
             meta: {
               requiredRoles: ['superadmin'],
               ...routeHead('usersAdmin'),
+            }
+          },
+          {
+            path: 'global-admin-roles',
+            name: 'AdminGlobalAdminRoles',
+            component: () => import('@/views/settings/GlobalAdminRolesSettingsView.vue'),
+            meta: {
+              requiredRoles: ['superadmin'],
+              ...routeHead('globalAdminRoles'),
+            }
+          },
+          {
+            path: 'user-org-overview',
+            name: 'AdminUserOrgOverview',
+            component: () => import('@/views/settings/UserOrgOverviewView.vue'),
+            meta: {
+              requiredRoles: ['superadmin'],
+              ...routeHead('userOrgOverview'),
             }
           },
           {

@@ -4,7 +4,9 @@ namespace App\Controller;
 
 use App\Config\LanguageConfig;
 use App\Entity\Organisation;
+use App\Entity\User;
 use App\Repository\OrganisationRepository;
+use App\Service\Admin\AdminCapabilityChecker;
 use App\Service\OrganisationUserPickerFilter;
 use App\Util\IdGenerator;
 use Doctrine\ORM\EntityManagerInterface;
@@ -20,8 +22,19 @@ class OrganisationController extends AbstractController
     public function __construct(
         private OrganisationRepository $organisationRepository,
         private EntityManagerInterface $entityManager,
-        private LanguageConfig $languageConfig
+        private LanguageConfig $languageConfig,
+        private AdminCapabilityChecker $adminCapabilityChecker,
     ) {}
+
+    private function requireUser(): User|JsonResponse
+    {
+        $user = $this->getUser();
+        if (!$user instanceof User) {
+            return new JsonResponse(['error' => 'Nicht authentifiziert'], 403);
+        }
+
+        return $user;
+    }
 
     /**
      * Lädt alle Organisationen
@@ -30,11 +43,25 @@ class OrganisationController extends AbstractController
     #[IsGranted('ROLE_USER')]
     public function list(): JsonResponse
     {
+        $currentUser = $this->requireUser();
+        if ($currentUser instanceof JsonResponse) {
+            return $currentUser;
+        }
+
+        $accessibleOrgIds = null;
+        if ($this->adminCapabilityChecker->hasGlobalAdminRole($currentUser)
+            && !$this->adminCapabilityChecker->isSuperAdmin($currentUser)) {
+            $accessibleOrgIds = $this->adminCapabilityChecker->getAccessibleOrganisationIds($currentUser);
+        }
+
         $organisations = $this->organisationRepository->findAll();
 
         $result = [];
         foreach ($organisations as $org) {
             if (!OrganisationUserPickerFilter::isVisibleForUserPickers($org)) {
+                continue;
+            }
+            if (\is_array($accessibleOrgIds) && !\in_array($org->getId(), $accessibleOrgIds, true)) {
                 continue;
             }
             $result[] = [
@@ -54,10 +81,22 @@ class OrganisationController extends AbstractController
     #[IsGranted('ROLE_USER')]
     public function get(string $id): JsonResponse
     {
+        $currentUser = $this->requireUser();
+        if ($currentUser instanceof JsonResponse) {
+            return $currentUser;
+        }
+
         $organisation = $this->organisationRepository->find($id);
         
         if (!$organisation) {
             return new JsonResponse(['error' => 'Organisation not found'], 404);
+        }
+
+        if (
+            !$this->adminCapabilityChecker->can($currentUser, 'organisations.view')
+            && !$this->adminCapabilityChecker->canAccessOrganisation($currentUser, $organisation->getId())
+        ) {
+            return new JsonResponse(['error' => 'Zugriff verweigert'], 403);
         }
 
         return new JsonResponse([
@@ -73,8 +112,11 @@ class OrganisationController extends AbstractController
     #[Route('', name: 'create', methods: ['POST'])]
     public function create(Request $request): JsonResponse
     {
-        // Prüfe auf ROLE_ORGANISATIONSCHEF oder ROLE_SUPERADMIN
-        if (!$this->isGranted('ROLE_ORGANISATIONSCHEF') && !$this->isGranted('ROLE_SUPERADMIN')) {
+        $currentUser = $this->requireUser();
+        if ($currentUser instanceof JsonResponse) {
+            return $currentUser;
+        }
+        if (!$this->adminCapabilityChecker->can($currentUser, 'organisations.create')) {
             return new JsonResponse(['error' => 'Zugriff verweigert'], 403);
         }
         
@@ -119,8 +161,11 @@ class OrganisationController extends AbstractController
     #[Route('/{id}', name: 'update', methods: ['PATCH'])]
     public function update(string $id, Request $request): JsonResponse
     {
-        // Prüfe auf ROLE_ORGANISATIONSCHEF oder ROLE_SUPERADMIN
-        if (!$this->isGranted('ROLE_ORGANISATIONSCHEF') && !$this->isGranted('ROLE_SUPERADMIN')) {
+        $currentUser = $this->requireUser();
+        if ($currentUser instanceof JsonResponse) {
+            return $currentUser;
+        }
+        if (!$this->adminCapabilityChecker->can($currentUser, 'organisations.edit')) {
             return new JsonResponse(['error' => 'Zugriff verweigert'], 403);
         }
         
@@ -128,6 +173,10 @@ class OrganisationController extends AbstractController
         
         if (!$organisation) {
             return new JsonResponse(['error' => 'Organisation not found'], 404);
+        }
+
+        if (!$this->adminCapabilityChecker->canAccessOrganisation($currentUser, $organisation->getId())) {
+            return new JsonResponse(['error' => 'Zugriff verweigert'], 403);
         }
 
         $data = json_decode($request->getContent(), true);
