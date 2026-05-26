@@ -1,6 +1,7 @@
 import { createApp } from 'vue'
 import { watch } from 'vue'
 import './style.css'
+import './styles/views/activities/pack-workflow-modals.css'
 import App from './App.vue'
 import router from './router'
 import { syncDocumentHead } from './composables/usePageHead'

@@ -63,7 +63,6 @@ const sizeClass = computed(() =>
 </template>
 
 <style src="@/styles/views/activities/detail-workflow.css"></style>
-<style src="@/styles/views/activities/pack-workflow-modals.css"></style>
 <style scoped>
 .pack-workflow-modal-backdrop {
   position: fixed;
