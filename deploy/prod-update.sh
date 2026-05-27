@@ -40,9 +40,18 @@ case "$MODE" in
   reset)
     git fetch origin
     git reset --hard "origin/${BRANCH}"
+    # Skript neu starten: git reset überschreibt diese Datei, laufendes Bash behält sonst alte Version (offene Inode).
+    if [[ -z "${EMATCHEF_DEPLOY_REEXEC:-}" ]]; then
+      export EMATCHEF_DEPLOY_REEXEC=1
+      exec "$0" "$@"
+    fi
     ;;
   pull)
     git pull origin "$BRANCH"
+    if [[ -z "${EMATCHEF_DEPLOY_REEXEC:-}" ]]; then
+      export EMATCHEF_DEPLOY_REEXEC=1
+      exec "$0" "$@"
+    fi
     ;;
   up) ;;
   *)
