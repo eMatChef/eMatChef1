@@ -195,6 +195,7 @@ const props = defineProps<{
   /** Optional: Material + Meldungsart aus Packliste vorbefüllen */
   presetMaterialItemId?: string | null
   presetIssueType?: 'damage' | 'repair' | 'loss' | null
+  presetQuantity?: number | null
 }>()
 
 const emit = defineEmits<{
@@ -251,7 +252,7 @@ const selectableActivities = computed(() => {
   const uid = userId.value
   const myGroupIds = userGroupIds.value
   return activities.value.filter(a => {
-    if (!a.status || !['issued', 'returned'].includes(a.status)) return false
+    if (!a.status || !['at_event', 'returned'].includes(a.status)) return false
     if (a.created_by_user_id === uid) return true
     if (a.group_id && myGroupIds.includes(a.group_id)) return true
     return false
@@ -469,7 +470,7 @@ async function applyPresetActivity(id: string) {
       return
     }
   }
-  if (!a.status || !['issued', 'returned'].includes(a.status)) {
+  if (!a.status || !['at_event', 'returned'].includes(a.status)) {
     toast.error(t('components.damageReportWizard.toastOnlyIssuedReturned'))
     return
   }
@@ -483,9 +484,13 @@ async function applyPresetActivity(id: string) {
 function applyMaterialAndTypePresets() {
   const mid = props.presetMaterialItemId?.trim()
   const presetType = props.presetIssueType
+  const presetQty = props.presetQuantity
   if (mid) form.value.materialItemId = mid
   if (presetType && ['damage', 'repair', 'loss'].includes(presetType)) {
     form.value.type = presetType
+  }
+  if (Number.isFinite(presetQty) && (presetQty ?? 0) > 0) {
+    form.value.quantity = Math.floor(presetQty!)
   }
 }
 

@@ -19,7 +19,10 @@
       </router-link>
     </div>
 
-    <div v-if="loadError" class="mc-error">{{ loadError }}</div>
+    <div v-if="!yearOptions.length && !loading" class="empty-hint">
+      {{ t('accounting.common.noBookingYears') }}
+    </div>
+    <div v-else-if="loadError" class="mc-error">{{ loadError }}</div>
     <div v-else-if="loading" class="loading-inline">{{ t('accounting.common.loading') }}</div>
     <template v-else-if="data">
       <div v-if="data.rows.length === 0" class="empty-hint">
@@ -70,18 +73,14 @@ import { computed, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { getMaterialCosts, type MaterialCostsResponse } from '@/api/accountingMaterialCosts'
+import { useAccountingBookingYears } from '@/composables/useAccountingBookingYears'
 
 const route = useRoute()
 const { t } = useI18n()
 const departmentId = computed(() => String(route.params.departmentId || ''))
 
+const { years: yearOptions, refreshYears, defaultYear } = useAccountingBookingYears(departmentId)
 const year = ref(new Date().getFullYear())
-const yearOptions = computed(() => {
-  const cy = new Date().getFullYear()
-  const list: number[] = []
-  for (let y = cy + 1; y >= cy - 6; y--) list.push(y)
-  return list
-})
 
 const loading = ref(true)
 const loadError = ref('')
@@ -100,9 +99,20 @@ function materialLink(materialId: string) {
   }
 }
 
+async function bootstrap() {
+  await refreshYears()
+  const dy = defaultYear()
+  if (dy != null) year.value = dy
+}
+
 async function load() {
   const id = departmentId.value
   if (!id) return
+  if (!yearOptions.value.length) {
+    data.value = null
+    loading.value = false
+    return
+  }
   loading.value = true
   loadError.value = ''
   try {
@@ -125,10 +135,11 @@ function reload() {
 
 watch(
   departmentId,
-  () => {
-    void load()
+  async () => {
+    await bootstrap()
+    await load()
   },
-  { immediate: true }
+  { immediate: true },
 )
 </script>
 

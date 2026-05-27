@@ -10,9 +10,12 @@ use App\Entity\User;
 use App\Entity\Membership;
 use App\Repository\DepartmentRepository;
 use App\Service\Accounting\AccountingCostCenterBootstrapService;
+use App\Service\Admin\AdminCapabilityChecker;
 use App\Service\AuditLogger;
 use App\Service\OrganisationUserPickerFilter;
 use App\Service\DepartmentResetService;
+use App\Service\DevEnvironmentService;
+use App\Service\VerificationEmailService;
 use App\Util\IdGenerator;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -29,7 +32,10 @@ class DepartmentController extends AbstractController
         private EntityManagerInterface $entityManager,
         private AuditLogger $auditLogger,
         private DepartmentResetService $departmentResetService,
+        private DevEnvironmentService $devEnvironmentService,
         private AccountingCostCenterBootstrapService $accountingCostCenterBootstrap,
+        private VerificationEmailService $verificationEmailService,
+        private AdminCapabilityChecker $adminCapabilityChecker,
     ) {}
 
     /**
@@ -81,8 +87,16 @@ class DepartmentController extends AbstractController
             return strcmp($a->getName(), $b->getName());
         });
 
+        $accessibleDeptIds = null;
+        if (!$this->adminCapabilityChecker->isSuperAdmin($currentUser)) {
+            $accessibleDeptIds = $this->adminCapabilityChecker->getAccessibleDepartmentIds($currentUser);
+        }
+
         $result = [];
         foreach ($departments as $department) {
+            if (\is_array($accessibleDeptIds) && !\in_array($department->getId(), $accessibleDeptIds, true)) {
+                continue;
+            }
             // KEINE User laden - nur Department-Info
             $result[] = [
                 'id' => $department->getId(),
@@ -101,7 +115,7 @@ class DepartmentController extends AbstractController
      * 
      * Gruppen wo der User member/leader ist → selectable: true, role: 'leader'/'member'
      * Gruppen wo der User KEIN Mitglied ist → selectable: false, role: null
-     * Admins (globale Profilrollen oder Department-Rolle mw) → alle selectable: true
+     * Admins (globale Profilrollen oder Department-Rolle mw/dc) → alle selectable: true
      * 
      * Response: Hierarchisch sortierte Liste mit { id, name, parent_id, level, role, selectable, is_direct_member, member_count }
      */
@@ -140,12 +154,13 @@ class DepartmentController extends AbstractController
             $groupMap[$grp->getId()] = $grp;
         }
 
-        // 2. Prüfen ob User Admin ist (globale Profilrolle oder local mw)
+        // 2. Prüfen ob User Admin ist (globale Profilrolle oder Department-Rolle mw/dc)
         $deptMembership = $this->entityManager->getRepository(Membership::class)
             ->findOneBy(['userId' => $currentUser->getId(), 'departmentId' => $departmentId]);
 
-        $isGlobalAdmin = count(array_intersect(self::GLOBAL_ADMIN_ROLES, $currentUser->getRoles())) > 0;
-        $isDepartmentAdmin = $deptMembership && $deptMembership->getRole() === 'mw';
+        $isGlobalAdmin = $this->adminCapabilityChecker->hasGlobalAdminRole($currentUser);
+        $deptRole = $deptMembership ? strtolower(trim((string) $deptMembership->getRole())) : '';
+        $isDepartmentAdmin = in_array($deptRole, ['mw', 'dc'], true);
         $isAdmin = $isGlobalAdmin || $isDepartmentAdmin;
 
         // 3. Group-Memberships des Users laden (für ALLE seine Gruppen in diesem Department)
@@ -279,12 +294,11 @@ class DepartmentController extends AbstractController
     #[IsGranted('ROLE_USER')]
     public function create(Request $request): JsonResponse
     {
-        // Erlaubt: SUPERADMIN, ORGANISATIONSCHEF, SUBORGCHEF
-        if (
-            !$this->isGranted('ROLE_SUPERADMIN') &&
-            !$this->isGranted('ROLE_ORGANISATIONSCHEF') &&
-            !$this->isGranted('ROLE_SUBORGCHEF')
-        ) {
+        $currentUser = $this->getUser();
+        if (!$currentUser instanceof User) {
+            return new JsonResponse(['error' => 'Unauthorized'], 403);
+        }
+        if (!$this->adminCapabilityChecker->can($currentUser, 'departments.create')) {
             return new JsonResponse(['error' => 'Zugriff verweigert'], 403);
         }
 
@@ -304,6 +318,9 @@ class DepartmentController extends AbstractController
         if (!OrganisationUserPickerFilter::isVisibleForUserPickers($organisation)) {
             return new JsonResponse(['error' => 'Organisation nicht verfuegbar'], 400);
         }
+        if (!$this->adminCapabilityChecker->canAccessOrganisation($currentUser, $organisation->getId())) {
+            return new JsonResponse(['error' => 'Zugriff verweigert'], 403);
+        }
 
         // Parent Department prüfen (optional)
         $parent = null;
@@ -312,10 +329,15 @@ class DepartmentController extends AbstractController
             if (!$parent) {
                 return new JsonResponse(['error' => 'Parent Department nicht gefunden'], 404);
             }
+            if (!$this->adminCapabilityChecker->canAccessDepartment($currentUser, $parent->getId())) {
+                return new JsonResponse(['error' => 'Zugriff verweigert'], 403);
+            }
             // Prüfe ob Parent zur gleichen Organisation gehört
             if ($parent->getOrganisationId() !== $organisation->getId()) {
                 return new JsonResponse(['error' => 'Parent Department muss zur gleichen Organisation gehören'], 400);
             }
+        } elseif (!$this->adminCapabilityChecker->canAccessOrganisation($currentUser, $organisation->getId())) {
+            return new JsonResponse(['error' => 'Zugriff verweigert'], 403);
         }
 
         try {
@@ -418,6 +440,9 @@ class DepartmentController extends AbstractController
                     'last_name' => $profile->getLastName(),
                     'nickname' => $profile->getNickname(),
                     'email' => $profile->getEmail(),
+                    'avatar_initials' => $profile->getAvatarInitials(),
+                    'background_color' => $profile->getBackgroundColor(),
+                    'text_color' => $profile->getTextColor(),
                     'role' => $m->getRole(),
                     'is_primary' => $m->getIsPrimary(),
                     'state' => $user->getState(),
@@ -453,7 +478,7 @@ class DepartmentController extends AbstractController
             ->getSingleScalarResult();
 
         $bootstrapRoles = ['mw', 'dc'];
-        $hasBootstrapPrivilege = count(array_intersect(self::GLOBAL_ADMIN_ROLES, $currentUser->getRoles())) > 0;
+        $hasBootstrapPrivilege = $this->adminCapabilityChecker->hasGlobalAdminRole($currentUser);
 
         // Bootstrap-Sonderfall: leeres Department darf initial mit MW/DC besetzt werden.
         if ($existingMemberCount === 0 && in_array($targetRole, $bootstrapRoles, true) && $hasBootstrapPrivilege) {
@@ -571,6 +596,30 @@ class DepartmentController extends AbstractController
 
         $profile = $user->getProfile();
 
+        $notificationEmailSent = false;
+        if ($profile && filter_var($profile->getEmail(), FILTER_VALIDATE_EMAIL)) {
+            $adderName = trim((string) ($currentUser->getProfile()?->getDisplayName() ?? ''));
+            if ($adderName === '') {
+                $adderName = trim((string) ($currentUser->getProfile()?->getEmail() ?? ''));
+            }
+            if ($adderName === '') {
+                $adderName = 'Ein Teammitglied';
+            }
+            try {
+                $this->verificationEmailService->sendDepartmentMemberAddedEmail(
+                    $profile->getEmail(),
+                    $profile->getDisplayName(),
+                    $adderName,
+                    $department->getName(),
+                    $this->labelForMemberRole($membership->getRole()),
+                    $profile->getLanguage()
+                );
+                $notificationEmailSent = true;
+            } catch (\Throwable) {
+                $notificationEmailSent = false;
+            }
+        }
+
         return new JsonResponse([
             'user_id' => $user->getId(),
             'profile_id' => $profile ? $profile->getId() : null,
@@ -578,7 +627,20 @@ class DepartmentController extends AbstractController
             'email' => $profile ? $profile->getEmail() : '',
             'role' => $membership->getRole(),
             'is_primary' => $membership->getIsPrimary(),
+            'notification_email_sent' => $notificationEmailSent,
         ], 201);
+    }
+
+    private function labelForMemberRole(string $role): string
+    {
+        return match (strtolower(trim($role))) {
+            'mw' => 'Materialchef',
+            'dc' => 'Departmentchef',
+            'l1' => 'Leiter 1',
+            'l2' => 'Leiter 2',
+            'l3' => 'Leiter 3',
+            default => 'Mitglied',
+        };
     }
 
     /**
@@ -707,6 +769,26 @@ class DepartmentController extends AbstractController
             ]
         );
 
+        // Alle Gruppen-Zugehörigkeiten in diesem Department entfernen
+        $departmentGroupIds = $this->entityManager->getRepository(Group::class)
+            ->createQueryBuilder('g')
+            ->select('g.id')
+            ->where('g.departmentId = :departmentId')
+            ->setParameter('departmentId', $departmentId)
+            ->getQuery()
+            ->getSingleColumnResult();
+
+        if ($departmentGroupIds !== []) {
+            $this->entityManager->createQueryBuilder()
+                ->delete(GroupMembership::class, 'gm')
+                ->where('gm.userId = :userId')
+                ->andWhere('gm.groupId IN (:groupIds)')
+                ->setParameter('userId', $userId)
+                ->setParameter('groupIds', $departmentGroupIds)
+                ->getQuery()
+                ->execute();
+        }
+
         $this->entityManager->remove($membership);
         $this->entityManager->flush();
 
@@ -725,23 +807,20 @@ class DepartmentController extends AbstractController
             return new JsonResponse(['error' => 'Department nicht gefunden'], 404);
         }
 
-        // Alle User-IDs die schon im Department sind
-        $existingMemberships = $this->entityManager->getRepository(Membership::class)
-            ->findBy(['departmentId' => $departmentId]);
-        $existingUserIds = array_map(fn($m) => $m->getUserId(), $existingMemberships);
-
         // Alle User laden die NICHT im Department sind
         $qb = $this->entityManager->getRepository(User::class)
             ->createQueryBuilder('u')
             ->innerJoin('u.profile', 'p')
             ->addSelect('p')
             ->where('u.state = :state')
-            ->setParameter('state', 'active');
-
-        if (!empty($existingUserIds)) {
-            $qb->andWhere('u.id NOT IN (:existingIds)')
-                ->setParameter('existingIds', $existingUserIds);
-        }
+            ->setParameter('state', 'active')
+            ->andWhere(
+                'NOT EXISTS (
+                    SELECT 1 FROM App\Entity\Membership m
+                    WHERE m.userId = u.id AND m.departmentId = :departmentId
+                )'
+            )
+            ->setParameter('departmentId', $departmentId);
 
         $search = trim((string) $request->query->get('q', ''));
         if ($search !== '') {
@@ -784,6 +863,50 @@ class DepartmentController extends AbstractController
     #[IsGranted('ROLE_USER')]
     public function resetDb(string $departmentId): JsonResponse
     {
+        if (!$this->devEnvironmentService->isDevToolsEnabled()) {
+            return new JsonResponse(['error' => 'Nur in Dev/Test verfügbar'], 403);
+        }
+
+        return $this->runDepartmentManagerReset(
+            $departmentId,
+            fn () => $this->departmentResetService->resetDepartment($departmentId),
+            'Department-Daten zurückgesetzt',
+            'Keine Berechtigung für DB-Reset',
+            'Fehler beim Zurücksetzen'
+        );
+    }
+
+    /**
+     * Aktivitäten löschen – setzt die Aktivitäten-Anzahl auf 0 (Material/Adressen bleiben).
+     * Nur für Dev/Test. Erfordert Superadmin oder Department-Manager.
+     */
+    #[Route('/{departmentId}/reset-activities', name: 'reset_activities', methods: ['POST'])]
+    #[IsGranted('ROLE_USER')]
+    public function resetActivities(string $departmentId): JsonResponse
+    {
+        if (!$this->devEnvironmentService->isDevToolsEnabled()) {
+            return new JsonResponse(['error' => 'Nur in Dev/Test verfügbar'], 403);
+        }
+
+        return $this->runDepartmentManagerReset(
+            $departmentId,
+            fn () => $this->departmentResetService->resetActivities($departmentId),
+            'Aktivitäten gelöscht',
+            'Keine Berechtigung für Aktivitäten-Reset',
+            'Fehler beim Löschen der Aktivitäten'
+        );
+    }
+
+    /**
+     * @param callable(): array<string, int> $resetFn
+     */
+    private function runDepartmentManagerReset(
+        string $departmentId,
+        callable $resetFn,
+        string $successPrefix,
+        string $forbiddenMessage,
+        string $errorPrefix,
+    ): JsonResponse {
         $currentUser = $this->getUser();
         if (!$currentUser instanceof User) {
             return new JsonResponse(['error' => 'Unauthorized'], 403);
@@ -794,7 +917,6 @@ class DepartmentController extends AbstractController
             return new JsonResponse(['error' => 'Department nicht gefunden'], 404);
         }
 
-        // Nur Superadmin oder Department-Manager (dc, mw, org, sub)
         $isSuperadmin = $this->isGranted('ROLE_SUPERADMIN');
         $membership = $this->entityManager->getRepository(Membership::class)
             ->findOneBy(['departmentId' => $departmentId, 'userId' => $currentUser->getId()]);
@@ -803,21 +925,21 @@ class DepartmentController extends AbstractController
         $isManager = in_array(strtolower($role), array_map('strtolower', $managerRoles));
 
         if (!$isSuperadmin && !$isManager) {
-            return new JsonResponse(['error' => 'Keine Berechtigung für DB-Reset'], 403);
+            return new JsonResponse(['error' => $forbiddenMessage], 403);
         }
 
         try {
-            $deleted = $this->departmentResetService->resetDepartment($departmentId);
+            $deleted = $resetFn();
             $total = array_sum($deleted);
             return new JsonResponse([
                 'success' => true,
-                'message' => "Department-Daten zurückgesetzt. $total Datensätze gelöscht.",
+                'message' => "$successPrefix. $total Datensätze gelöscht.",
                 'deleted' => $deleted,
             ]);
         } catch (\InvalidArgumentException $e) {
             return new JsonResponse(['error' => $e->getMessage()], 404);
         } catch (\Throwable $e) {
-            return new JsonResponse(['error' => 'Fehler beim Zurücksetzen: ' . $e->getMessage()], 500);
+            return new JsonResponse(['error' => "$errorPrefix: " . $e->getMessage()], 500);
         }
     }
 
@@ -828,12 +950,11 @@ class DepartmentController extends AbstractController
     #[IsGranted('ROLE_USER')]
     public function update(string $id, Request $request): JsonResponse
     {
-        // Erlaubt: SUPERADMIN, ORGANISATIONSCHEF, SUBORGCHEF
-        if (
-            !$this->isGranted('ROLE_SUPERADMIN') &&
-            !$this->isGranted('ROLE_ORGANISATIONSCHEF') &&
-            !$this->isGranted('ROLE_SUBORGCHEF')
-        ) {
+        $currentUser = $this->getUser();
+        if (!$currentUser instanceof User) {
+            return new JsonResponse(['error' => 'Unauthorized'], 403);
+        }
+        if (!$this->adminCapabilityChecker->can($currentUser, 'departments.edit')) {
             return new JsonResponse(['error' => 'Zugriff verweigert'], 403);
         }
 
@@ -841,6 +962,10 @@ class DepartmentController extends AbstractController
         
         if (!$department) {
             return new JsonResponse(['error' => 'Department not found'], 404);
+        }
+
+        if (!$this->adminCapabilityChecker->canAccessDepartment($currentUser, $department->getId())) {
+            return new JsonResponse(['error' => 'Zugriff verweigert'], 403);
         }
 
         $data = json_decode($request->getContent(), true);
@@ -858,6 +983,9 @@ class DepartmentController extends AbstractController
             }
             if (!OrganisationUserPickerFilter::isVisibleForUserPickers($organisation)) {
                 return new JsonResponse(['error' => 'Organisation nicht verfuegbar'], 400);
+            }
+            if (!$this->adminCapabilityChecker->canAccessOrganisation($currentUser, $organisation->getId())) {
+                return new JsonResponse(['error' => 'Zugriff verweigert'], 403);
             }
 
             $department->setOrganisation($organisation);

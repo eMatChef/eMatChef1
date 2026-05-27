@@ -262,3 +262,11 @@ export async function resetDepartmentDb(departmentId: string): Promise<{ success
   const { data } = await apiClient.post(`/api/departments/${departmentId}/reset-db`)
   return data
 }
+
+/**
+ * Aktivitaeten loeschen – nur Material/Adressen/Gruppen bleiben (Dev/Test).
+ */
+export async function resetDepartmentActivities(departmentId: string): Promise<{ success: boolean; message: string; deleted: Record<string, number> }> {
+  const { data } = await apiClient.post(`/api/departments/${departmentId}/reset-activities`)
+  return data
+}

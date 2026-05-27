@@ -1,4 +1,6 @@
 import apiClient from './apiClient'
+import { clearAuthStorage, purgeLegacyAuthSecrets } from '@/utils/authStorage'
+import { markCrossSubdomainLogoutSeenFromCookie } from '@/utils/authCrossOrigin'
 
 export interface LoginRequest {
   email: string
@@ -111,10 +113,28 @@ export interface ProfileResponse {
   pending_email?: string
   language: string
   roles: string[]
+  global_admin_role?: string
+  admin_capabilities?: import('@/utils/adminCapabilities').AdminCapabilities
+  accessible_department_ids?: string[] | null
   backgroundColor?: string
   textColor?: string
   background_color?: string
   text_color?: string
+}
+
+/** API liefert snake_case; Store/UI nutzen beides – einheitlich normalisieren. */
+export function normalizeProfile(
+  raw: LoginResponse['profile'] | ProfileResponse
+): ProfileResponse {
+  return {
+    ...raw,
+    firstName: raw.firstName ?? raw.first_name ?? undefined,
+    lastName: raw.lastName ?? raw.last_name ?? undefined,
+    avatarInitials: raw.avatarInitials ?? raw.avatar_initials ?? undefined,
+    pendingEmail: raw.pendingEmail ?? raw.pending_email ?? undefined,
+    backgroundColor: raw.backgroundColor ?? raw.background_color ?? undefined,
+    textColor: raw.textColor ?? raw.text_color ?? undefined,
+  }
 }
 
 export interface UpdateProfilePayload {
@@ -201,17 +221,8 @@ export async function login(email: string, password: string): Promise<LoginRespo
 
   const data: LoginResponse = { ...body, token }
 
-  // Token und IDs im localStorage speichern
-  localStorage.setItem('auth_token', data.token)
-  localStorage.setItem('user_id', data.user.id)
-  localStorage.setItem('profile_id', data.profile.id)
-  
-  // Refresh Token speichern – OHNE diesen kann bei JWT-Ablauf kein Refresh erfolgen!
-  if (data.refresh_token) {
-    localStorage.setItem('refresh_token', data.refresh_token)
-  } else if (import.meta.env.DEV) {
-    console.warn('[Auth] Login-Response enthält keinen refresh_token – Token-Refresh wird bei 401 fehlschlagen!')
-  }
+  // JWT + Refresh nur in HttpOnly-Cookies (Lexik/Gesdinet) — nichts in localStorage.
+  purgeLegacyAuthSecrets()
 
   return data
 }
@@ -258,40 +269,24 @@ export async function confirmPasswordReset(
  * Logout - invalidiert Refresh Token auf dem Server und löscht lokale Daten
  */
 export async function logout(): Promise<void> {
-  const refreshToken = localStorage.getItem('refresh_token')
-  
-  // Wenn Refresh Token vorhanden, auf Server invalidieren
-  if (refreshToken) {
-    try {
-      await apiClient.post('/api/auth/logout', { refresh_token: refreshToken })
-    } catch (error) {
-      console.warn('Logout auf Server fehlgeschlagen, lokale Daten werden trotzdem gelöscht:', error)
-    }
-  } else {
-    try {
-      await apiClient.post('/api/auth/logout')
-    } catch (error) {
-      console.warn('Logout auf Server fehlgeschlagen, lokale Daten werden trotzdem gelöscht:', error)
-    }
+  try {
+    await apiClient.post('/api/auth/logout')
+  } catch (error) {
+    console.warn('Logout auf Server fehlgeschlagen, lokale Daten werden trotzdem gelöscht:', error)
   }
-  
-  // Lokale Auth-Daten entfernen
-  localStorage.removeItem('auth_token')
-  localStorage.removeItem('refresh_token')
-  localStorage.removeItem('user_id')
-  localStorage.removeItem('profile_id')
-  localStorage.removeItem('session_last_activity_at')
+
+  markCrossSubdomainLogoutSeenFromCookie()
+  clearAuthStorage()
 }
 
 /**
  * Lädt User-Daten anhand der gespeicherten User-ID
  */
-export async function loadUser(): Promise<UserResponse> {
-  const userId = localStorage.getItem('user_id')
+export async function loadUser(userId: string): Promise<UserResponse> {
   if (!userId) {
     throw new Error('Keine User-ID gefunden')
   }
-  
+
   const { data } = await apiClient.get<UserResponse>(`/api/users/${userId}`)
   return data
 }
@@ -299,12 +294,11 @@ export async function loadUser(): Promise<UserResponse> {
 /**
  * Lädt Profile-Daten anhand der gespeicherten Profile-ID
  */
-export async function loadProfile(): Promise<ProfileResponse> {
-  const profileId = localStorage.getItem('profile_id')
+export async function loadProfile(profileId: string): Promise<ProfileResponse> {
   if (!profileId) {
     throw new Error('Keine Profile-ID gefunden')
   }
-  
+
   const { data } = await apiClient.get<ProfileResponse>(`/api/profiles/${profileId}`)
   return data
 }
@@ -328,41 +322,50 @@ export async function changePassword(
 /**
  * Lädt User- und Profile-Daten parallel
  */
-export async function loadSession(): Promise<{ user: UserResponse; profile: ProfileResponse }> {
-  const userId = localStorage.getItem('user_id')
-  const profileId = localStorage.getItem('profile_id')
-  
+export async function loadSession(
+  userId: string,
+  profileId: string,
+): Promise<{ user: UserResponse; profile: ProfileResponse }> {
   if (!userId || !profileId) {
     throw new Error('Keine User- oder Profile-ID gefunden')
   }
-  
+
   const [userRes, profileRes] = await Promise.all([
     apiClient.get<UserResponse>(`/api/users/${userId}`),
-    apiClient.get<ProfileResponse>(`/api/profiles/${profileId}`)
+    apiClient.get<ProfileResponse>(`/api/profiles/${profileId}`),
   ])
-  
+
   return {
     user: userRes.data,
-    profile: profileRes.data
+    profile: profileRes.data,
   }
 }
 
 /**
  * Lädt Session rein über serverseitige Auth-Cookies (ohne localStorage IDs).
+ * 401 = nicht eingeloggt (kein Fehler werfen — optionaler Probe-Call).
  */
-export async function loadSessionFromServer(): Promise<ServerSessionResponse> {
-  const { data } = await apiClient.get<ServerSessionResponse>('/api/auth/session')
-  return data
+export async function loadSessionFromServer(): Promise<ServerSessionResponse | null> {
+  try {
+    const { data } = await apiClient.get<ServerSessionResponse>('/api/auth/session')
+    return data
+  } catch (err: unknown) {
+    const status = (err as { response?: { status?: number } })?.response?.status
+    if (status === 401 || status === 403) {
+      return null
+    }
+    throw err
+  }
 }
 
 /**
  * Lädt User-Memberships (Departments + Groups)
  */
-export async function loadUserMemberships(userId?: string): Promise<{ departments: UserDepartmentResponse[] }> {
-  const targetUserId = userId || localStorage.getItem('user_id')
-  if (!targetUserId) {
+export async function loadUserMemberships(userId: string): Promise<{ departments: UserDepartmentResponse[] }> {
+  if (!userId) {
     throw new Error('Keine User-ID verfügbar')
   }
+  const targetUserId = userId
   
   const { data } = await apiClient.get<{ memberships: any[] }>(`/api/users/${targetUserId}/memberships`)
   
@@ -378,53 +381,31 @@ export async function loadUserMemberships(userId?: string): Promise<{ department
 /**
  * Setzt das primäre Department für den User in der DB
  */
-export async function setPrimaryDepartment(departmentId: string): Promise<void> {
-  const userId = localStorage.getItem('user_id')
+export async function setPrimaryDepartment(userId: string, departmentId: string): Promise<void> {
   if (!userId) {
     throw new Error('Keine User-ID verfügbar')
   }
-  
+
   await apiClient.put(`/api/users/${userId}/set-primary-department`, {
-    department_id: departmentId
+    department_id: departmentId,
   })
 }
 
 /**
  * Speichert die zuletzt aktive Abteilung (Login / Session-Wiederherstellung).
  */
-export async function saveLastUsedDepartment(departmentId: string): Promise<void> {
-  const userId = localStorage.getItem('user_id')
+export async function saveLastUsedDepartment(userId: string, departmentId: string): Promise<void> {
   if (!userId) {
     throw new Error('Keine User-ID verfügbar')
   }
   await apiClient.put(`/api/users/${userId}/last-used-department`, {
-    department_id: departmentId
+    department_id: departmentId,
   })
 }
 
 /**
- * JWT Token Refresh
+ * JWT-Refresh über HttpOnly refresh_token-Cookie (Gesdinet).
  */
-export async function refreshToken(): Promise<string> {
-  const refreshToken = localStorage.getItem('refresh_token')
-  if (!refreshToken) {
-    throw new Error('Kein Refresh Token verfügbar')
-  }
-  
-  const { data } = await apiClient.post<{ token: string; refresh_token: string }>('/api/token/refresh', {
-    refresh_token: refreshToken
-  })
-  
-  // Neue Tokens speichern
-  localStorage.setItem('auth_token', data.token)
-  localStorage.setItem('refresh_token', data.refresh_token)
-  
-  return data.token
-}
-
-/**
- * Prüft ob User eingeloggt ist
- */
-export function isAuthenticated(): boolean {
-  return !!localStorage.getItem('auth_token') && !!localStorage.getItem('user_id') && !!localStorage.getItem('profile_id')
+export async function refreshToken(): Promise<void> {
+  await apiClient.post('/api/token/refresh', {})
 }

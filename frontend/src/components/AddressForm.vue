@@ -108,6 +108,28 @@
       </div>
     </div>
 
+    <!-- Kontakt: Vorname, Nachname -->
+    <div v-if="showExtended" class="form-row two-cols">
+      <div class="form-group">
+        <label class="form-label">{{ t('settings.addressForm.contactFirstName') }}</label>
+        <input
+          v-model="formData.contact_first_name"
+          type="text"
+          class="form-input"
+          :placeholder="t('settings.addressForm.optional')"
+        />
+      </div>
+      <div class="form-group">
+        <label class="form-label">{{ t('settings.addressForm.contactLastName') }}</label>
+        <input
+          v-model="formData.contact_last_name"
+          type="text"
+          class="form-input"
+          :placeholder="t('settings.addressForm.optional')"
+        />
+      </div>
+    </div>
+
     <!-- Kontakt: E-Mail, Telefon, Mobil -->
     <div v-if="showExtended" class="form-row three-cols">
       <div class="form-group">

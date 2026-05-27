@@ -46,7 +46,17 @@
             >
               {{ block.parent_name }}
             </router-link>
-            <span class="combo-derived-qty">{{ t('settings.storage.overviewComboQtyInCombo', { qty: block.component_qty }) }}</span>
+            <span class="combo-derived-qty">
+              {{ t('settings.storage.overviewComboQtyInCombo', { qty: block.component_qty }) }}
+              <template v-if="block.stored_qty_in_container != null">
+                ·
+                {{
+                  block.stored_qty_in_container > 0
+                    ? t('settings.storage.overviewComboStoredInCrate', { qty: block.stored_qty_in_container })
+                    : t('settings.storage.overviewComboNotInCrate')
+                }}
+              </template>
+            </span>
           </div>
           <ul class="combo-derived-loc-list">
             <li v-for="(loc, idx) in block.locations" :key="`${block.combo_component_id || block.parent_material_id}-${idx}`">
@@ -126,18 +136,62 @@
                   >
                     <template v-if="row.type === 'container-group'">
                       <div class="content-main">
-                        <span class="container-label">{{ row.container_label }}</span>
-                        <div
-                          v-for="line in row.previewLines"
-                          :key="line.material_id"
-                          class="container-preview-line"
-                        >
-                          <span class="container-article">{{ line.material_name }}</span>
-                          <span class="container-preview-qty">{{ t('settings.storage.overviewLineQty', { qty: line.qty }) }}</span>
+                        <div class="container-head">
+                          <span class="container-label">{{ row.container_label }}</span>
                         </div>
-                        <span v-if="row.moreCount > 0" class="container-more">
-                          {{ t('settings.storage.overviewMoreInContainer', { count: row.moreCount }) }}
-                        </span>
+                        <button
+                          v-if="useContainerContentCollapse && containerGroupItemCount(row) > 0"
+                          type="button"
+                          class="container-expand-trigger"
+                          :aria-expanded="isContainerGroupExpanded(row.container_batch_id)"
+                          :aria-label="t('settings.storage.ariaToggleContainer')"
+                          @click.stop="toggleContainerGroup(row.container_batch_id)"
+                        >
+                          <span class="toggle-icon" aria-hidden="true">
+                            {{ isContainerGroupExpanded(row.container_batch_id) ? '▼' : '▶' }}
+                          </span>
+                          <span class="container-collapsed-hint">
+                            {{
+                              containerGroupUsesCompositionList(row)
+                                ? t('settings.storage.overviewContainerComponentCount', { count: containerGroupItemCount(row) })
+                                : t('settings.storage.overviewContainerItemCount', { count: containerGroupItemCount(row) })
+                            }}
+                          </span>
+                        </button>
+                        <div
+                          v-if="!useContainerContentCollapse || isContainerGroupExpanded(row.container_batch_id)"
+                          class="container-contents-body"
+                        >
+                          <p
+                            v-if="containerGroupUsesCompositionList(row)"
+                            class="container-composition-note"
+                          >
+                            {{ t('settings.storage.overviewContainerCompositionNote') }}
+                          </p>
+                          <div
+                            v-for="line in containerGroupVisibleLines(row)"
+                            :key="line.lineKey || line.material_id"
+                            class="container-preview-line"
+                          >
+                            <span class="container-article">{{ line.material_name }}</span>
+                            <span class="container-preview-qty">
+                              {{ t('settings.storage.overviewLineQty', { qty: line.qty }) }}
+                              <template v-if="line.storedQty !== undefined">
+                                <span v-if="line.storedQty > 0" class="container-stored-tag">
+                                  · {{ t('settings.storage.overviewStoredInCrateQty', { qty: line.storedQty }) }}
+                                </span>
+                                <span v-else class="container-stored-tag container-stored-tag--none">
+                                  · {{ t('settings.storage.overviewNotInCrate') }}
+                                </span>
+                              </template>
+                            </span>
+                          </div>
+                          <span
+                            v-if="!useContainerContentCollapse && row.moreCount > 0"
+                            class="container-more-ellipsis"
+                            :title="t('settings.storage.overviewMoreInContainer', { count: row.moreCount })"
+                          >…</span>
+                        </div>
                         <button
                           v-if="canOpenContainerMaterial(row.representative) && !embeddedDetailMaterialId"
                           class="container-link-btn"
@@ -146,17 +200,24 @@
                           {{ t('settings.storage.openContainer') }}
                         </button>
                       </div>
-                      <span class="content-qty">{{ t('settings.storage.overviewLineQty', { qty: row.totalQty }) }}</span>
-                      <div
-                        class="content-actions"
-                        v-if="canOpenContainerMaterial(row.representative) && showContainerOpenUi()"
-                      >
-                        <StorageActionButton
-                          :title="t('settings.storage.openContainer')"
-                          size="sm"
-                          icon="open"
-                          @click.stop="navigateToContainerContentTab(row.container_batch_id)"
-                        />
+                      <div class="content-item-right">
+                        <span class="content-qty">{{ containerGroupQtyLabel(row) }}</span>
+                        <div class="content-actions" v-if="showContainerGroupActionsBar(row)">
+                          <StorageActionButton
+                            v-if="canMoveContainerGroup(row)"
+                            :title="t('settings.storage.moveQuantity')"
+                            size="sm"
+                            icon="move"
+                            @click.stop="openMoveForContainerGroup(row, rack, slot)"
+                          />
+                          <StorageActionButton
+                            v-if="canOpenContainerMaterial(row.representative) && showContainerOpenUi()"
+                            :title="t('settings.storage.openContainer')"
+                            size="sm"
+                            icon="open"
+                            @click.stop="navigateToContainerContentTab(row.container_batch_id)"
+                          />
+                        </div>
                       </div>
                     </template>
                     <template v-else>
@@ -318,6 +379,7 @@ import { useI18n } from 'vue-i18n'
 import {
   getStorageOverview,
   getContainerBatches,
+  getContainerBatchContents,
   createStorageRack,
   createStorageSlot,
   deleteStorageRack,
@@ -332,6 +394,8 @@ import { getAddresses, type Address } from '@/api/addresses'
 import {
   getMaterial,
   getMaterialStorageLocations,
+  getComboComponents,
+  type ComboComponent,
   type MaterialStorageLocationRow,
   type MaterialStorageLocationsResponse,
 } from '@/api/materials'
@@ -382,6 +446,8 @@ const isLoading = ref(true)
 const error = ref('')
 const expandedLocations = ref<Set<string>>(new Set())
 const expandedRacks = ref<Set<string>>(new Set())
+/** Material-Detail: Kisteninhalt aufklappbar, standardmäßig zu. */
+const expandedContainerBatchIds = ref<Set<string>>(new Set())
 const showMoveModal = ref(false)
 const moveContext = ref<{
   materialId: string
@@ -406,6 +472,25 @@ const isSubmittingAction = ref(false)
 const containerBatches = ref<ContainerBatch[]>([])
 /** Lagerorte inkl. über physische Kombi (Elternmaterial) – nur wenn materialId gesetzt */
 const materialStorageContext = ref<MaterialStorageLocationsResponse | null>(null)
+/** Material-Detail „Gelagert in“: phys. Kombi mit verknüpfter Kisten-Charge */
+const embeddedMaterialMeta = ref<{
+  linkedContainerBatchId: string | null
+  linkedContainerMaterialId: string | null
+  materialType: string
+} | null>(null)
+/** Material-Detail phys. Kombi: Zusammensetzung für Kisten-Aufklappung */
+const embeddedComboComponents = ref<ComboComponent[]>([])
+/** Komponenten-Ansicht: Stückliste pro verknüpfter Kisten-Charge (parent → linked batch). */
+type PhysicalComboShellContext = {
+  parentMaterialId: string
+  parentName: string
+  linkedContainerBatchId: string
+  components: ComboComponent[]
+  storedQtyByMaterialId: Map<string, number>
+}
+const physicalComboShellByContainerBatch = ref<Map<string, PhysicalComboShellContext>>(new Map())
+/** Phys. Kombi (eigenes Material-Detail): gebuchte Mengen in der verknüpften Kiste. */
+const embeddedLinkedBatchStoredQty = ref<Map<string, number>>(new Map())
 
 type StorageLocationNode = {
   id: string
@@ -472,6 +557,8 @@ const deleteModalMessage = computed(() => {
 })
 
 const normalizedSearchQuery = computed(() => (props.searchQuery || '').trim().toLocaleLowerCase('de-CH'))
+
+const useContainerContentCollapse = computed(() => !!(props.embeddedDetailMaterialId || '').trim())
 const containerMaterialByBatchId = computed(() => {
   const map = new Map<string, string>()
   for (const batch of containerBatches.value) {
@@ -512,12 +599,21 @@ function matchesSearch(item: StorageSlotContent): boolean {
   return haystack.includes(q)
 }
 
+type ContainerContentLine = {
+  material_id: string
+  material_name: string
+  qty: number
+  lineKey?: string
+  storedQty?: number
+}
+
 type SlotDisplayRow =
   | {
       type: 'container-group'
       container_batch_id: string
       container_label: string
-      previewLines: { material_id: string; material_name: string; qty: number }[]
+      contentLines: ContainerContentLine[]
+      previewLines: ContainerContentLine[]
       moreCount: number
       totalQty: number
       representative: StorageSlotContent
@@ -527,25 +623,42 @@ type SlotDisplayRow =
 
 type StorageOverviewSlotWithRows = StorageOverviewSlot & { displayRows: SlotDisplayRow[] }
 
-function aggregateContainerPreview(items: StorageSlotContent[]): {
-  previewLines: { material_id: string; material_name: string; qty: number }[]
+/** Vorschau-Zeilen pro Kiste in der Übersicht; Zeile 4 = „…“ wenn mehr Artikel. */
+const CONTAINER_PREVIEW_LINE_LIMIT = 3
+
+function aggregateContainerPreview(
+  items: StorageSlotContent[],
+  options?: { excludeMaterialIds?: Set<string> },
+): {
+  contentLines: ContainerContentLine[]
+  previewLines: ContainerContentLine[]
   moreCount: number
   totalQty: number
 } {
-  const byMat = new Map<string, { material_id: string; material_name: string; qty: number }>()
+  const exclude = options?.excludeMaterialIds
+  const byMat = new Map<string, ContainerContentLine>()
   for (const item of items) {
     const id = item.material_id
+    if (exclude?.has(id)) continue
     const ex = byMat.get(id)
     if (ex) ex.qty += item.qty
     else byMat.set(id, { material_id: id, material_name: item.material_name, qty: item.qty })
   }
-  const sorted = Array.from(byMat.values()).sort((a, b) =>
+  const contentLines = Array.from(byMat.values()).sort((a, b) =>
     a.material_name.localeCompare(b.material_name, 'de')
   )
-  const totalQty = sorted.reduce((s, x) => s + x.qty, 0)
-  const previewLines = sorted.slice(0, 2)
-  const moreCount = Math.max(0, sorted.length - 2)
-  return { previewLines, moreCount, totalQty }
+  const totalQty = contentLines.reduce((s, x) => s + x.qty, 0)
+  const previewLines = contentLines.slice(0, CONTAINER_PREVIEW_LINE_LIMIT)
+  const moreCount = Math.max(0, contentLines.length - CONTAINER_PREVIEW_LINE_LIMIT)
+  return { contentLines, previewLines, moreCount, totalQty }
+}
+
+function dedupeContainerLinesByLabel(
+  lines: ContainerContentLine[],
+  label: string,
+): ContainerContentLine[] {
+  const labelKey = label.toLocaleLowerCase('de')
+  return lines.filter((l) => l.material_name.toLocaleLowerCase('de') !== labelKey)
 }
 
 /** Schlüssel für Standalone-Zeilen: Bulk nach material_id; serialisiert je Charge/Einheit (eigene Zeile pro Kiste). */
@@ -593,11 +706,17 @@ function buildSlotDisplayRows(contents: StorageSlotContent[]): SlotDisplayRow[] 
         groupItems.find((i) => (i.container_label || '').trim())?.container_label?.trim() ||
         t('settings.storage.containerBatchLabel', { id: cid })
       const rep = groupItems[0]
-      const { previewLines, moreCount, totalQty } = aggregateContainerPreview(groupItems)
+      /** Im Material-Detail alle Inhalte zeigen (inkl. des gerade angesehenen Artikels). */
+      let { contentLines, previewLines, moreCount, totalQty } = aggregateContainerPreview(groupItems)
+      contentLines = dedupeContainerLinesByLabel(contentLines, label)
+      previewLines = dedupeContainerLinesByLabel(previewLines, label)
+      moreCount = Math.max(0, contentLines.length - CONTAINER_PREVIEW_LINE_LIMIT)
+      previewLines = contentLines.slice(0, CONTAINER_PREVIEW_LINE_LIMIT)
       rows.push({
         type: 'container-group',
         container_batch_id: cid,
         container_label: label,
+        contentLines,
         previewLines,
         moreCount,
         totalQty,
@@ -976,6 +1095,7 @@ async function load(
       getAddresses(props.departmentId, 'storage').catch(() => ({ addresses: [] as Address[] })),
       getStorageOverview(props.departmentId),
       getContainerBatches(props.departmentId).catch(() => [] as ContainerBatch[]),
+      loadEmbeddedMaterialMeta(),
     ])
     storageAddresses.value = addressResult.addresses || []
     overview.value = storageOverview
@@ -1003,23 +1123,251 @@ async function load(
   }
 }
 
+async function fetchStoredQtyByMaterialForContainerBatch(
+  containerBatchId: string,
+): Promise<Map<string, number>> {
+  const map = new Map<string, number>()
+  try {
+    const data = await getContainerBatchContents(containerBatchId)
+    for (const line of data.contents || []) {
+      const mid = (line.material_id || '').trim()
+      if (!mid) continue
+      map.set(mid, (map.get(mid) ?? 0) + (line.qty ?? 0))
+    }
+  } catch {
+    /* ignore */
+  }
+  return map
+}
+
+async function loadPhysicalComboShellContexts() {
+  const blocks = comboViaPhysicalBlocks.value
+  if (blocks.length === 0) {
+    physicalComboShellByContainerBatch.value = new Map()
+    return
+  }
+  const next = new Map<string, PhysicalComboShellContext>()
+  const seenParents = new Set<string>()
+  for (const block of blocks) {
+    const pid = block.parent_material_id
+    if (!pid || seenParents.has(pid)) continue
+    seenParents.add(pid)
+    try {
+      const linkedFromApi = (block.parent_linked_container_batch_id || '').trim()
+      let linked = linkedFromApi
+      let parentName = block.parent_name
+      if (!linked) {
+        const parent = await getMaterial(pid)
+        linked = (parent.linked_container_batch_id || parent.linked_container_batch?.id || '').trim()
+        parentName = parent.name || parentName
+      }
+      if (!linked) continue
+      if (next.has(linked)) continue
+      const [components, storedQtyByMaterialId] = await Promise.all([
+        getComboComponents(pid),
+        fetchStoredQtyByMaterialForContainerBatch(linked),
+      ])
+      next.set(linked, {
+        parentMaterialId: pid,
+        parentName,
+        linkedContainerBatchId: linked,
+        components,
+        storedQtyByMaterialId,
+      })
+    } catch {
+      /* ignore single parent load failure */
+    }
+  }
+  physicalComboShellByContainerBatch.value = next
+}
+
 async function loadMaterialStorageContext() {
   const mid = (props.materialId || '').trim()
   if (!mid || !props.departmentId || (props.containerBatchId || '').trim()) {
     materialStorageContext.value = null
+    physicalComboShellByContainerBatch.value = new Map()
     return
   }
   try {
     materialStorageContext.value = await getMaterialStorageLocations(mid, props.departmentId)
+    await loadPhysicalComboShellContexts()
   } catch {
     materialStorageContext.value = null
+    physicalComboShellByContainerBatch.value = new Map()
   }
+}
+
+async function loadEmbeddedMaterialMeta() {
+  const mid = (props.materialId || '').trim()
+  const emb = (props.embeddedDetailMaterialId || '').trim()
+  if (!mid || emb !== mid) {
+    embeddedMaterialMeta.value = null
+    return
+  }
+  try {
+    const m = await getMaterial(mid)
+    const linkedBatch = m.linked_container_batch
+    embeddedMaterialMeta.value = {
+      linkedContainerBatchId:
+        (m.linked_container_batch_id || linkedBatch?.id || '').trim() || null,
+      linkedContainerMaterialId: (linkedBatch?.material_id || '').trim() || null,
+      materialType: m.material_type || '',
+    }
+    await loadEmbeddedComboComponents()
+  } catch {
+    embeddedMaterialMeta.value = null
+    embeddedComboComponents.value = []
+  }
+}
+
+type ContainerGroupRow = Extract<SlotDisplayRow, { type: 'container-group' }>
+
+function isContainerGroupExpanded(containerBatchId: string): boolean {
+  return expandedContainerBatchIds.value.has(containerBatchId.trim())
+}
+
+function toggleContainerGroup(containerBatchId: string): void {
+  const cid = containerBatchId.trim()
+  if (!cid) return
+  const next = new Set(expandedContainerBatchIds.value)
+  if (next.has(cid)) next.delete(cid)
+  else next.add(cid)
+  expandedContainerBatchIds.value = next
+}
+
+function physicalComboContextForContainerGroup(row: ContainerGroupRow): PhysicalComboShellContext | undefined {
+  const direct = physicalComboShellByContainerBatch.value.get(row.container_batch_id.trim())
+  if (direct) return direct
+  const shellMat = shellMaterialIdForContainerBatch(row.container_batch_id)
+  if (!shellMat) return undefined
+  for (const ctx of physicalComboShellByContainerBatch.value.values()) {
+    const linkedShellMat = shellMaterialIdForContainerBatch(ctx.linkedContainerBatchId)
+    if (linkedShellMat && linkedShellMat === shellMat) return ctx
+  }
+  return undefined
+}
+
+function comboComponentsForContainerGroup(row: ContainerGroupRow): ComboComponent[] {
+  if (containerGroupIsEmbeddedPhysicalComboShell(row)) {
+    return embeddedComboComponents.value
+  }
+  return physicalComboContextForContainerGroup(row)?.components ?? []
+}
+
+function containerGroupUsesCompositionList(row: ContainerGroupRow): boolean {
+  if (!useContainerContentCollapse.value) return false
+  return comboComponentsForContainerGroup(row).length > 0
+}
+
+function containerGroupItemCount(row: ContainerGroupRow): number {
+  if (containerGroupUsesCompositionList(row)) {
+    return comboComponentsForContainerGroup(row).length
+  }
+  return row.contentLines.length
+}
+
+function storedQtyMapForContainerGroup(row: ContainerGroupRow): Map<string, number> {
+  const ctx = physicalComboContextForContainerGroup(row)
+  if (ctx?.storedQtyByMaterialId.size) return ctx.storedQtyByMaterialId
+  if (containerGroupIsEmbeddedPhysicalComboShell(row) && embeddedLinkedBatchStoredQty.value.size) {
+    return embeddedLinkedBatchStoredQty.value
+  }
+  return new Map(row.contentLines.map((l) => [l.material_id, l.qty]))
+}
+
+function containerGroupVisibleLines(row: ContainerGroupRow): ContainerContentLine[] {
+  const components = comboComponentsForContainerGroup(row)
+  if (containerGroupUsesCompositionList(row)) {
+    const storageByMat = storedQtyMapForContainerGroup(row)
+    return components
+      .slice()
+      .sort((a, b) => a.component_material.name.localeCompare(b.component_material.name, 'de'))
+      .map((comp) => ({
+        lineKey: comp.id,
+        material_id: comp.component_material.id,
+        material_name: comp.component_material.name,
+        qty: comp.qty,
+        storedQty: storageByMat.get(comp.component_material.id) ?? 0,
+      }))
+  }
+  if (useContainerContentCollapse.value) return row.contentLines
+  return row.previewLines
+}
+
+async function loadEmbeddedComboComponents() {
+  const mid = (props.materialId || '').trim()
+  const emb = (props.embeddedDetailMaterialId || '').trim()
+  if (!mid || emb !== mid || embeddedMaterialMeta.value?.materialType !== 'physical_combo') {
+    embeddedComboComponents.value = []
+    embeddedLinkedBatchStoredQty.value = new Map()
+    return
+  }
+  try {
+    const linked = (embeddedMaterialMeta.value?.linkedContainerBatchId || '').trim()
+    const [components, storedMap] = await Promise.all([
+      getComboComponents(mid),
+      linked ? fetchStoredQtyByMaterialForContainerBatch(linked) : Promise.resolve(new Map<string, number>()),
+    ])
+    embeddedComboComponents.value = components
+    embeddedLinkedBatchStoredQty.value = storedMap
+  } catch {
+    embeddedComboComponents.value = []
+    embeddedLinkedBatchStoredQty.value = new Map()
+  }
+}
+
+/** Phys. Kombi: diese Kisten-Charge ist die feste Komponente (Referenz-Kiste am Regalplatz). */
+function containerGroupIsEmbeddedPhysicalComboShell(row: ContainerGroupRow): boolean {
+  const linked = embeddedMaterialMeta.value?.linkedContainerBatchId
+  if (!linked || embeddedMaterialMeta.value?.materialType !== 'physical_combo') return false
+  if (row.container_batch_id === linked) return true
+  const shellMat = shellMaterialIdForContainerBatch(row.container_batch_id)
+  const linkedMat = embeddedMaterialMeta.value.linkedContainerMaterialId
+  return !!(shellMat && linkedMat && shellMat === linkedMat)
+}
+
+function containerGroupIsPhysicalComboLinkedShell(row: ContainerGroupRow): boolean {
+  if (containerGroupIsEmbeddedPhysicalComboShell(row)) return true
+  return !!physicalComboContextForContainerGroup(row)
+}
+
+function containerGroupQtyLabel(row: ContainerGroupRow): string {
+  if (containerGroupIsPhysicalComboLinkedShell(row)) {
+    return t('settings.storage.overviewLineQty', { qty: 1 })
+  }
+  return t('settings.storage.overviewLineQty', { qty: row.totalQty })
+}
+
+function showContainerGroupActionsBar(row: ContainerGroupRow): boolean {
+  return (
+    !props.readonly ||
+    props.allowMoveActions ||
+    props.allowOpenActions ||
+    (!!(props.embeddedDetailMaterialId || '').trim() && containerGroupIsEmbeddedPhysicalComboShell(row))
+  )
+}
+
+function shellMaterialIdForContainerBatch(containerBatchId: string): string | undefined {
+  const cid = containerBatchId.trim()
+  if (!cid) return undefined
+  return (
+    containerMaterialByBatchId.value.get(cid) ||
+    (embeddedMaterialMeta.value?.linkedContainerBatchId === cid
+      ? embeddedMaterialMeta.value.linkedContainerMaterialId || undefined
+      : undefined)
+  )
+}
+
+function canMoveContainerGroup(row: ContainerGroupRow): boolean {
+  if (!props.allowMoveActions) return false
+  if (!containerGroupIsEmbeddedPhysicalComboShell(row)) return false
+  return !!shellMaterialIdForContainerBatch(row.container_batch_id)
 }
 
 function canOpenContainerMaterial(item: StorageSlotContent): boolean {
   const containerId = (item.container_batch_id || '').trim()
   if (!containerId) return false
-  return containerMaterialByBatchId.value.has(containerId)
+  return !!shellMaterialIdForContainerBatch(containerId)
 }
 
 function showContainerOpenUi(): boolean {
@@ -1030,7 +1378,7 @@ function showContainerOpenUi(): boolean {
 function navigateToContainerContentTab(containerBatchId: string) {
   const cid = containerBatchId.trim()
   if (!cid) return
-  const materialId = containerMaterialByBatchId.value.get(cid)
+  const materialId = shellMaterialIdForContainerBatch(cid)
   if (!materialId) return
   const deptId = String(router.currentRoute.value.params.departmentId || props.departmentId || '')
   if (!deptId) return
@@ -1039,7 +1387,10 @@ function navigateToContainerContentTab(containerBatchId: string) {
     tab: 'container-content',
     containerBatch: cid,
   }
-  if (embedded && materialId === embedded) {
+  const linkedShell =
+    embeddedMaterialMeta.value?.linkedContainerBatchId &&
+    embeddedMaterialMeta.value.linkedContainerBatchId === cid
+  if (embedded && (materialId === embedded || linkedShell)) {
     router.replace({
       path: router.currentRoute.value.path,
       query: { ...router.currentRoute.value.query, ...query },
@@ -1085,6 +1436,44 @@ async function openMoveForItem(item: StorageSlotContent, rack: StorageOverviewRa
   }
 }
 
+/** Kisten-Gruppe: phys. Kombi → verknüpfte Kisten-Charge am Regal verschieben (wie Zelt als Einheit). */
+async function openMoveForContainerGroup(
+  row: ContainerGroupRow,
+  rack: StorageOverviewRack,
+  slot: StorageOverviewSlot,
+) {
+  if (containerGroupIsEmbeddedPhysicalComboShell(row)) {
+    const shellMaterialId = shellMaterialIdForContainerBatch(row.container_batch_id)
+    if (!shellMaterialId) {
+      error.value = t('settings.storage.overviewOpenMoveBatchNotFound')
+      return
+    }
+    try {
+      const material = await getMaterial(shellMaterialId)
+      const batch = material.batches?.find((b) => b.id === row.container_batch_id)
+      if (!batch) {
+        error.value = t('settings.storage.overviewOpenMoveBatchNotFound')
+        return
+      }
+      moveContext.value = {
+        materialId: shellMaterialId,
+        batch,
+        sourceAllocationId: null,
+        sourceRackId: rack.id,
+        sourceSlotId: slot.id ?? null,
+      }
+      showMoveModal.value = true
+    } catch (e: unknown) {
+      const ax = e as { response?: { data?: { error?: string } } }
+      error.value = ax.response?.data?.error || t('settings.storage.overviewOpenMoveLoadError')
+    }
+    return
+  }
+  if (rowAllowsMoveForStoredItem(row.representative)) {
+    await openMoveForItem(row.representative, rack, slot)
+  }
+}
+
 function openMaterial(item: StorageSlotContent) {
   const deptId = router.currentRoute.value.params.departmentId
   if (deptId) {
@@ -1124,9 +1513,13 @@ function getContainerOtherItemsCount(item: StorageSlotContent): number {
 }
 
 watch(
-  () => [props.materialId, props.departmentId, props.containerBatchId],
+  () => [props.materialId, props.departmentId, props.containerBatchId, props.embeddedDetailMaterialId],
   () => {
     void loadMaterialStorageContext()
+    void loadEmbeddedMaterialMeta()
+    if ((props.embeddedDetailMaterialId || '').trim()) {
+      void load()
+    }
   },
   { immediate: true }
 )
@@ -1436,10 +1829,79 @@ onMounted(() => { load() })
   color: #111827;
 }
 
+.container-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+}
+
 .container-label {
   font-weight: 700;
   font-size: 13px;
   color: #374151;
+}
+
+.container-expand-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 2px;
+  padding: 2px 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+}
+
+.container-expand-trigger:hover .container-collapsed-hint {
+  color: #374151;
+}
+
+.container-expand-trigger .toggle-icon {
+  font-size: 10px;
+  line-height: 1;
+  color: #6b7280;
+  flex-shrink: 0;
+}
+
+.container-expand-trigger:hover .toggle-icon {
+  color: #374151;
+}
+
+.container-collapsed-hint {
+  font-size: 12px;
+  font-weight: 500;
+  color: #6b7280;
+}
+
+.container-contents-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 4px;
+  padding-left: 16px;
+}
+
+.container-contents-body .container-preview-line {
+  padding-left: 0;
+}
+
+.container-composition-note {
+  margin: 0 0 6px 0;
+  font-size: 11px;
+  color: #9ca3af;
+  line-height: 1.35;
+}
+
+.container-stored-tag {
+  font-size: 11px;
+  font-weight: 500;
+  color: #059669;
+}
+
+.container-stored-tag--none {
+  color: #9ca3af;
 }
 
 .container-article {
@@ -1450,19 +1912,37 @@ onMounted(() => { load() })
 .container-preview-line {
   display: flex;
   flex-wrap: wrap;
-  align-items: baseline;
-  gap: 6px 10px;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 4px 12px;
 }
 
 .container-preview-qty {
-  font-size: 12px;
-  color: #6b7280;
-  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  font-size: 13px;
+  color: #374151;
+  text-align: right;
+}
+
+.container-preview-qty .container-stored-tag {
+  display: block;
 }
 
 .container-more {
   font-size: 12px;
   color: #9ca3af;
+}
+
+.container-more-ellipsis {
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1;
+  color: #9ca3af;
+  letter-spacing: 0.12em;
+  cursor: default;
 }
 
 .container-link-btn {
@@ -1491,6 +1971,14 @@ onMounted(() => { load() })
   color: #374151;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.content-item-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  flex-shrink: 0;
 }
 
 .content-qty {

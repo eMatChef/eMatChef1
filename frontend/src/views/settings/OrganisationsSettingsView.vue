@@ -103,31 +103,9 @@ const editingOrganisation = ref<Organisation | null>(null)
  * Berechtigung: Nur SUPERADMIN, ORGANISATIONSCHEF oder SUBORGCHEF können Organisationen verwalten
  * Rollen kommen als Abkürzung vom Backend (sa, org, sub, etc.)
  */
-const canManageOrganisations = computed(() => {
-  // Prüfe Department-Rolle
-  const role = authStore.currentDepartmentRole
-  
-  if (role) {
-    // Normalisiere zu lowercase für Vergleich
-    const normalizedRole = String(role).toLowerCase().trim()
-    
-    // Erlaubte Rollen: sa, org, sub
-    const allowedRoles = ['sa', 'superadmin', 'org', 'organisationschef', 'sub', 'suborgchef']
-    if (allowedRoles.includes(normalizedRole)) {
-      return true
-    }
-  }
-  
-  // Fallback: Prüfe auch Symfony-Rollen (falls Department-Rolle nicht verfügbar)
-  const userRoles = authStore.userRoles || []
-  if (userRoles.includes('ROLE_SUPERADMIN') || 
-      userRoles.includes('ROLE_ORGANISATIONSCHEF') ||
-      userRoles.includes('ROLE_SUBORGCHEF')) {
-    return true
-  }
-  
-  return false
-})
+const canManageOrganisations = computed(() =>
+  authStore.canAdmin('organisations.create') || authStore.canAdmin('organisations.edit')
+)
 
 const isSuperAdmin = computed(() =>
   (authStore.userRoles || []).includes('ROLE_SUPERADMIN')

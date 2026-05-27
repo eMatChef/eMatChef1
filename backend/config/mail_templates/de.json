@@ -42,6 +42,7 @@
       "tpl_auth_verify": "Mailvorlage auth.verify_email fehlt.",
       "tpl_pending": "Mailvorlage auth.pending_email_change fehlt.",
       "tpl_dept": "Mailvorlage department.invite fehlt.",
+      "tpl_dept_member": "Mailvorlage department.member_added fehlt.",
       "tpl_pwd": "Mailvorlage auth.password_reset_code fehlt.",
       "html_not_found": "Mail-Template nicht gefunden: {{file}}",
       "html_unreadable": "Mail-Template konnte nicht geladen werden: {{file}}"
@@ -74,6 +75,11 @@
       "title": "Department - Einladung",
       "description": "Wird im Onboarding/Department bei \"Einladung senden\" versendet.",
       "body_preview": "Hallo {{recipient_name}},\n\n{{inviter_name}} hat dich zu dem Department \"{{department_name}}\" eingeladen.\nVorgesehene Rolle: {{role_label}}\n\nEinladungslink:\n{{invite_url}}"
+    },
+    "department.member_added": {
+      "title": "Department - Neu zugewiesen",
+      "description": "Wird versendet, wenn ein bestehender Benutzer direkt einem Department hinzugefuegt wird.",
+      "body_preview": "Hallo {{recipient_name}},\n\n{{adder_name}} hat dich dem Department \"{{department_name}}\" zugewiesen.\nDeine Rolle: {{role_label}}\n\nApp oeffnen:\n{{app_url}}"
     },
     "public.found_item_contact": {
       "title": "Oeffentlich - Fund-Hinweis",
@@ -120,6 +126,20 @@
       "expires_intro": "Gueltig bis:",
       "instruction": "Bitte gib den Code zusammen mit deinem neuen Passwort im Login-Bereich ein.",
       "footer_note": "Falls du diese Anfrage nicht gestellt hast, ignoriere diese E-Mail."
+    }
+  },
+  "department.member_added": {
+    "adder_name_fallback": "Ein Teammitglied",
+    "subject": "Du wurdest dem Department {{department_name}} zugewiesen",
+    "text_body": "Hallo {{recipient_name}},\n\n{{adder_name}} hat dich dem Department \"{{department_name}}\" in eMatChef zugewiesen.\nDeine Rolle: {{role_label}}\n\nMelde dich an und wechsle ggf. in der App zu diesem Department:\n{{app_url}}\n\nFalls du diese Zuweisung nicht erwartest, wende dich an deine Abteilungsleitung.",
+    "html": {
+      "greeting_word": "Hallo",
+      "banner_title": "Neues Department in eMatChef",
+      "added_lead_template": "<p style=\"margin:0 0 12px 0;font-size:15px;line-height:1.5;\">{{adder_name}} hat dich dem Department <strong>{{department_name}}</strong> in eMatChef zugewiesen.</p>",
+      "role_line_template": "<p style=\"margin:0 0 16px 0;font-size:14px;color:#374151;\">Deine Rolle: <strong>{{role_label}}</strong></p>",
+      "cta_label": "eMatChef oeffnen",
+      "link_hint": "Falls der Button nicht funktioniert, nutze diesen Link:",
+      "footer_note": "Falls du diese Zuweisung nicht erwartest, wende dich an deine Abteilungsleitung."
     }
   },
   "department.invite": {

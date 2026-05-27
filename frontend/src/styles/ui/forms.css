@@ -73,3 +73,23 @@
   border-color: #dc2626 !important;
   box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.1) !important;
 }
+
+.input-with-suffix {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.input-with-suffix--fluid .form-input {
+  flex: 1;
+  min-width: 0;
+  width: auto;
+}
+
+.input-suffix {
+  flex-shrink: 0;
+  font-size: 13px;
+  font-weight: 500;
+  color: #6b7280;
+  white-space: nowrap;
+}

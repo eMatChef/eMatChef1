@@ -113,6 +113,7 @@ import {
   memberOrganisationIdsFromUserDepartments,
   prepareOrganisationsForOrgSubAdminList
 } from '@/utils/organisationUserPicker'
+import { filterDepartmentsByAccessibleIds } from '@/utils/adminCapabilities'
 
 const authStore = useAuthStore()
 const { t } = useI18n()
@@ -121,26 +122,9 @@ const isDev = computed(() => import.meta.env.DEV)
 /**
  * Berechtigung: Nur SUPERADMIN, ORGANISATIONSCHEF oder SUBORGCHEF können Departments verwalten
  */
-const canManageDepartments = computed(() => {
-  const role = authStore.currentDepartmentRole
-  
-  if (role) {
-    const normalizedRole = String(role).toLowerCase().trim()
-    const allowedRoles = ['sa', 'superadmin', 'org', 'organisationschef', 'sub', 'suborgchef']
-    if (allowedRoles.includes(normalizedRole)) {
-      return true
-    }
-  }
-  
-  const userRoles = authStore.userRoles || []
-  if (userRoles.includes('ROLE_SUPERADMIN') || 
-      userRoles.includes('ROLE_ORGANISATIONSCHEF') ||
-      userRoles.includes('ROLE_SUBORGCHEF')) {
-    return true
-  }
-  
-  return false
-})
+const canManageDepartments = computed(() =>
+  authStore.canAdmin('departments.create') || authStore.canAdmin('departments.edit')
+)
 
 const isSuperAdmin = computed(() =>
   (authStore.userRoles || []).includes('ROLE_SUPERADMIN')
@@ -256,11 +240,11 @@ async function loadDepartments() {
     })
     organisations.value = orgs
 
-    // WICHTIG: Leere den User-Cache NICHT, damit User die bereits geladen wurden erhalten bleiben
-    // Aber: User werden nur angezeigt, wenn sie im Cache sind (explizit geladen)
+    const visibleDepts = filterDepartmentsByAccessibleIds(depts, authStore.accessibleDepartmentIds)
+    const visibleOrgIds = new Set(visibleDepts.map((d) => d.organisation_id))
+    const visibleOrgs = orgs.filter((o) => visibleOrgIds.has(o.id))
 
-    // Konvertiere zu TreeItemData (ohne User, außer die die bereits im Cache sind)
-    treeItems.value = convertToTreeItems(orgs, depts)
+    treeItems.value = convertToTreeItems(visibleOrgs, visibleDepts)
     
     // KEINE Items standardmäßig expanded (User werden erst bei Bedarf geladen)
     expandedItems.value = []

@@ -18,5 +18,9 @@ declare module 'vue-router' {
     /** Nur ROLE_SUPERADMIN / ROLE_WEBADMIN */
     requiresSiteEditor?: boolean
     requiredRoles?: string[]
+    /** Department-Mitgliedschaftsrollen, die diese Route nicht öffnen dürfen (z. B. `u` für Werkstatt) */
+    denyDepartmentRoles?: string[]
+    /** Bei denyDepartmentRoles: Ziel-Route statt Dashboard (z. B. TasksGeneral) */
+    denyRedirectTo?: { name: string }
   }
 }

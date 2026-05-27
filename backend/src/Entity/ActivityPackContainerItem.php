@@ -40,11 +40,20 @@ class ActivityPackContainerItem
     #[ORM\Column(name: 'quantity_packed', type: 'integer', options: ['default' => 0])]
     private int $quantityPacked = 0;
 
+    #[ORM\Column(name: 'quantity_transport_to', type: 'integer', options: ['default' => 0])]
+    private int $quantityTransportTo = 0;
+
     #[ORM\Column(name: 'quantity_issued', type: 'integer', options: ['default' => 0])]
     private int $quantityIssued = 0;
 
+    #[ORM\Column(name: 'quantity_transport_back', type: 'integer', options: ['default' => 0])]
+    private int $quantityTransportBack = 0;
+
     #[ORM\Column(name: 'quantity_returned', type: 'integer', options: ['default' => 0])]
     private int $quantityReturned = 0;
+
+    #[ORM\Column(name: 'quantity_stored', type: 'integer', options: ['default' => 0])]
+    private int $quantityStored = 0;
 
     #[ORM\Column(name: 'condition_out', type: 'string', length: 50, options: ['default' => 'ok'])]
     private string $conditionOut = 'ok';
@@ -80,10 +89,16 @@ class ActivityPackContainerItem
     public function setMaterialBatch(?MaterialBatch $materialBatch): self { $this->materialBatch = $materialBatch; $this->materialBatchId = $materialBatch?->getId(); return $this; }
     public function getQuantityPacked(): int { return $this->quantityPacked; }
     public function setQuantityPacked(int $quantityPacked): self { $this->quantityPacked = $quantityPacked; return $this; }
+    public function getQuantityTransportTo(): int { return $this->quantityTransportTo; }
+    public function setQuantityTransportTo(int $quantityTransportTo): self { $this->quantityTransportTo = $quantityTransportTo; return $this; }
     public function getQuantityIssued(): int { return $this->quantityIssued; }
     public function setQuantityIssued(int $quantityIssued): self { $this->quantityIssued = $quantityIssued; return $this; }
+    public function getQuantityTransportBack(): int { return $this->quantityTransportBack; }
+    public function setQuantityTransportBack(int $quantityTransportBack): self { $this->quantityTransportBack = $quantityTransportBack; return $this; }
     public function getQuantityReturned(): int { return $this->quantityReturned; }
     public function setQuantityReturned(int $quantityReturned): self { $this->quantityReturned = $quantityReturned; return $this; }
+    public function getQuantityStored(): int { return $this->quantityStored; }
+    public function setQuantityStored(int $quantityStored): self { $this->quantityStored = $quantityStored; return $this; }
     public function getConditionOut(): string { return $this->conditionOut; }
     public function setConditionOut(string $conditionOut): self { $this->conditionOut = $conditionOut; return $this; }
     public function getNotes(): ?string { return $this->notes; }

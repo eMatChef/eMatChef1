@@ -1,0 +1,8 @@
+/* Inline loading row (activity tabs, pack list) */
+.activity-inline-loading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #6b7280;
+  font-size: 14px;
+}

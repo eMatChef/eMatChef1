@@ -14,6 +14,20 @@ class PublicLookupController extends AbstractController
         private PublicCodeService $publicCodeService
     ) {}
 
+    #[Route('/m/{materialCode}/b/{batchCode}', name: 'material_batch', methods: ['GET'])]
+    public function materialBatch(string $materialCode, string $batchCode): JsonResponse
+    {
+        $result = $this->publicCodeService->resolveMaterialBatchByPublicCodes($materialCode, $batchCode);
+
+        if ($result === null) {
+            return new JsonResponse([
+                'error' => 'Public-Code nicht gefunden oder nicht aktiv',
+            ], 404);
+        }
+
+        return new JsonResponse($result);
+    }
+
     #[Route('/m/{publicCode}', name: 'material', methods: ['GET'])]
     public function material(string $publicCode): JsonResponse
     {
@@ -28,10 +42,24 @@ class PublicLookupController extends AbstractController
         return new JsonResponse($result);
     }
 
-    #[Route('/b/{publicCode}', name: 'batch', methods: ['GET'])]
-    public function batch(string $publicCode): JsonResponse
+    #[Route('/a/{publicCode}', name: 'activity', methods: ['GET'])]
+    public function activity(string $publicCode): JsonResponse
     {
-        $result = $this->publicCodeService->resolveBatchByPublicCode($publicCode);
+        $result = $this->publicCodeService->resolveActivityByPublicCode($publicCode);
+
+        if ($result === null) {
+            return new JsonResponse([
+                'error' => 'Public-Code nicht gefunden oder nicht aktiv',
+            ], 404);
+        }
+
+        return new JsonResponse($result);
+    }
+
+    #[Route('/w/{publicCode}', name: 'workshop', methods: ['GET'])]
+    public function workshop(string $publicCode): JsonResponse
+    {
+        $result = $this->publicCodeService->resolveWorkshopByPublicCode($publicCode);
 
         if ($result === null) {
             return new JsonResponse([
@@ -42,4 +70,3 @@ class PublicLookupController extends AbstractController
         return new JsonResponse($result);
     }
 }
-

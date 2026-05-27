@@ -10,7 +10,10 @@ use App\Entity\MaterialHistory;
 use App\Entity\Activity;
 use App\Entity\ActivityIssueReport;
 use App\Entity\Department;
+use App\Entity\Membership;
 use App\Entity\User;
+use App\Service\ActivityAccountingCostService;
+use App\Service\Public\PublicCodeService;
 use App\Util\IdGenerator;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -23,7 +26,9 @@ use Symfony\Component\Security\Http\Attribute\IsGranted;
 class WorkshopController extends AbstractController
 {
     public function __construct(
-        private EntityManagerInterface $entityManager
+        private EntityManagerInterface $entityManager,
+        private ActivityAccountingCostService $activityAccountingCost,
+        private PublicCodeService $publicCodeService,
     ) {}
 
     // ═══════════════════════════════════════════════
@@ -139,6 +144,34 @@ class WorkshopController extends AbstractController
         if (!$ticket) {
             return new JsonResponse(['error' => 'Ticket nicht gefunden'], 404);
         }
+
+        return new JsonResponse($this->serializeTicket($ticket, true));
+    }
+
+    /**
+     * Erzeugt (Backfill) einen öffentlichen QR-Code für ein Werkstatt-Ticket, falls noch keiner vorhanden ist.
+     */
+    #[Route('/{id}/public-code', name: 'ensure_public_code', methods: ['POST'])]
+    #[IsGranted('ROLE_USER')]
+    public function ensurePublicCode(string $id): JsonResponse
+    {
+        $ticket = $this->entityManager->getRepository(WorkshopTicket::class)->find($id);
+
+        if (!$ticket) {
+            return new JsonResponse(['error' => 'Ticket nicht gefunden'], 404);
+        }
+
+        $currentUser = $this->getUser();
+        if (!$currentUser instanceof User) {
+            return new JsonResponse(['error' => 'Nicht authentifiziert'], 401);
+        }
+        if (!$this->canUserManageWorkshopPublicCode($currentUser, $ticket)) {
+            return new JsonResponse(['error' => 'Keine Berechtigung fuer oeffentliche QR-Codes'], 403);
+        }
+
+        $actorId = $currentUser->getId();
+        $this->publicCodeService->ensureWorkshopPublicCode($ticket, $actorId !== null ? (string) $actorId : null);
+        $this->entityManager->flush();
 
         return new JsonResponse($this->serializeTicket($ticket, true));
     }
@@ -579,6 +612,10 @@ class WorkshopController extends AbstractController
 
             $this->entityManager->flush();
 
+            if ($newStatus === WorkshopTicket::STATUS_COMPLETED) {
+                $this->activityAccountingCost->enqueueFromWorkshopTicket($ticket);
+            }
+
             return new JsonResponse($this->serializeTicket($ticket));
 
         } catch (\Exception $e) {
@@ -903,6 +940,13 @@ class WorkshopController extends AbstractController
             'origin_issue_type_label' => $ticket->getIssueReport()?->getTypeLabel(),
         ];
 
+        $workshopPublicEntry = $this->publicCodeService->getActiveWorkshopPublicCode((string) $ticket->getId());
+        $workshopPublicCode = $workshopPublicEntry?->getPublicCode();
+        $result['public_code'] = $workshopPublicCode;
+        $result['public_url'] = $workshopPublicCode
+            ? $this->publicCodeService->buildWorkshopPublicUrl($workshopPublicCode)
+            : null;
+
         if ($detailed) {
             $result['parts_used'] = $ticket->getPartsUsed();
             $result['photos'] = $ticket->getPhotos();
@@ -946,6 +990,21 @@ class WorkshopController extends AbstractController
         return $result;
     }
 
+    private function canUserManageWorkshopPublicCode(User $user, WorkshopTicket $ticket): bool
+    {
+        if (count(array_intersect(['ROLE_SUPERADMIN', 'ROLE_ORGANISATIONSCHEF', 'ROLE_SUBORGCHEF'], $user->getRoles())) > 0) {
+            return true;
+        }
+
+        $membership = $this->entityManager->getRepository(Membership::class)
+            ->findOneBy(['userId' => $user->getId(), 'departmentId' => $ticket->getDepartmentId()]);
+        if (!$membership) {
+            return false;
+        }
+
+        return in_array((string) ($membership->getRole() ?? ''), ['mw', 'dc'], true);
+    }
+
     /**
      * Gibt den Anzeigenamen eines Users zurück
      */
@@ -969,7 +1028,7 @@ class WorkshopController extends AbstractController
      * Erstellt automatisch ein Workshop-Ticket aus einem IssueReport
      * 
      * Wird aufgerufen von ActivityWorkflowController::createIssue()
-     * wenn type = 'repair', 'damage' oder 'loss'
+     * sowie ActivityPackCrateCheckService bei repair, damage, loss und not_taken (letzteres: Inspektion, kein Lagerverlust).
      */
     public static function autoCreateFromIssueReport(
         EntityManagerInterface $em,
@@ -1001,6 +1060,7 @@ class WorkshopController extends AbstractController
             ActivityIssueReport::TYPE_REPAIR => WorkshopTicket::TYPE_REPAIR,
             ActivityIssueReport::TYPE_DAMAGE => WorkshopTicket::TYPE_REPAIR,
             ActivityIssueReport::TYPE_LOSS => WorkshopTicket::TYPE_WRITEOFF,
+            ActivityIssueReport::TYPE_NOT_TAKEN => WorkshopTicket::TYPE_INSPECTION,
             default => WorkshopTicket::TYPE_INSPECTION,
         };
         $ticket->setType($type);
@@ -1030,12 +1090,15 @@ class WorkshopController extends AbstractController
             $ticket->setCreatedByUser($currentUser);
         }
 
-        // Material-Zustand setzen: bei Verlust 'lost', sonst 'repair'
+        // Material-Zustand: nur bei Verlust / Reparatur-Pfaden; not_taken & Verbrauch unverändert lassen
         if ($materialItem->getCondition() === 'ok') {
-            $materialItem->setCondition(
-                $issueReport->getType() === ActivityIssueReport::TYPE_LOSS ? 'lost' : 'repair'
-            );
-            $materialItem->updateTimestamps();
+            if ($issueReport->getType() === ActivityIssueReport::TYPE_LOSS) {
+                $materialItem->setCondition('lost');
+                $materialItem->updateTimestamps();
+            } elseif (in_array($issueReport->getType(), [ActivityIssueReport::TYPE_REPAIR, ActivityIssueReport::TYPE_DAMAGE], true)) {
+                $materialItem->setCondition('repair');
+                $materialItem->updateTimestamps();
+            }
         }
 
         $em->persist($ticket);
@@ -1059,6 +1122,62 @@ class WorkshopController extends AbstractController
             'material_id' => $materialItem->getId(),
             'material_name' => $materialItem->getName(),
             'reported_by_user_id' => $issueReport->getReportedByUserId(),
+        ]);
+        if ($currentUser instanceof User) {
+            $history->setUser($currentUser);
+        }
+        $em->persist($history);
+
+        return $ticket;
+    }
+
+    /**
+     * Inspektions-Aufgabe nach Kistencheck-Überschuss (Lager-Kontrolle).
+     */
+    public static function autoCreateInspectionForCrateCheckSurplus(
+        EntityManagerInterface $em,
+        Activity $activity,
+        MaterialItem $materialItem,
+        int $qty,
+        string $shellLabel,
+        ?User $currentUser,
+    ): ?WorkshopTicket {
+        $ticket = new WorkshopTicket();
+        $ticket->setId(IdGenerator::generate13('wt'));
+        $ticket->setDepartment($activity->getDepartment());
+        $ticket->setMaterialItem($materialItem);
+        $ticket->setActivity($activity);
+        $ticket->setType(WorkshopTicket::TYPE_INSPECTION);
+        $ticket->setPriority(WorkshopTicket::PRIORITY_NORMAL);
+        $ticket->setTitle(sprintf('Inventur/Kontrolle: %s', $materialItem->getName()));
+        $ticket->setDescription(sprintf(
+            'Kistencheck «%s» (Aktivität «%s»): %d Stk. Überschuss — Lagerstand und Einlagerung prüfen.',
+            $shellLabel,
+            $activity->getName(),
+            max(1, $qty),
+        ));
+        if ($currentUser instanceof User) {
+            $ticket->setCreatedByUser($currentUser);
+        }
+        $em->persist($ticket);
+
+        $history = new WorkshopTicketHistory();
+        $history->setId(IdGenerator::generate13('wh'));
+        $history->setWorkshopTicket($ticket);
+        $history->setAction(WorkshopTicketHistory::ACTION_AUTO_CREATED_ISSUE);
+        $history->setSnapshot([
+            'status' => $ticket->getStatus(),
+            'type' => $ticket->getType(),
+            'priority' => $ticket->getPriority(),
+        ]);
+        $history->setChanges([
+            'source' => 'pack_crate_check_surplus',
+            'activity_id' => $activity->getId(),
+            'activity_name' => $activity->getName(),
+            'material_id' => $materialItem->getId(),
+            'material_name' => $materialItem->getName(),
+            'surplus_qty' => max(1, $qty),
+            'shell_label' => $shellLabel,
         ]);
         if ($currentUser instanceof User) {
             $history->setUser($currentUser);

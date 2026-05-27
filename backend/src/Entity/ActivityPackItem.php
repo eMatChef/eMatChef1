@@ -47,13 +47,25 @@ class ActivityPackItem
     #[ORM\Column(name: 'quantity_packed', type: 'integer', options: ['default' => 0])]
     private int $quantityPacked = 0;
 
-    /** Tatsächlich ausgegebene Menge (Am Event) */
+    /** Transport zum Event */
+    #[ORM\Column(name: 'quantity_transport_to', type: 'integer', options: ['default' => 0])]
+    private int $quantityTransportTo = 0;
+
+    /** Tatsächlich am Event / ausgegeben */
     #[ORM\Column(name: 'quantity_issued', type: 'integer', options: ['default' => 0])]
     private int $quantityIssued = 0;
+
+    /** Transport zurück ins Lager */
+    #[ORM\Column(name: 'quantity_transport_back', type: 'integer', options: ['default' => 0])]
+    private int $quantityTransportBack = 0;
 
     /** Retournierte Menge */
     #[ORM\Column(name: 'quantity_returned', type: 'integer', options: ['default' => 0])]
     private int $quantityReturned = 0;
+
+    /** Eingelagerte Menge (MW: wieder ins Regal) */
+    #[ORM\Column(name: 'quantity_stored', type: 'integer', options: ['default' => 0])]
+    private int $quantityStored = 0;
 
     /** Zustand bei Ausgabe: ok, leicht_beschaedigt, beschaedigt */
     #[ORM\Column(name: 'condition_out', type: 'string', length: 50, options: ['default' => 'ok'])]
@@ -124,11 +136,20 @@ class ActivityPackItem
     public function getQuantityPacked(): int { return $this->quantityPacked; }
     public function setQuantityPacked(int $quantityPacked): self { $this->quantityPacked = $quantityPacked; return $this; }
 
+    public function getQuantityTransportTo(): int { return $this->quantityTransportTo; }
+    public function setQuantityTransportTo(int $quantityTransportTo): self { $this->quantityTransportTo = $quantityTransportTo; return $this; }
+
     public function getQuantityIssued(): int { return $this->quantityIssued; }
     public function setQuantityIssued(int $quantityIssued): self { $this->quantityIssued = $quantityIssued; return $this; }
 
+    public function getQuantityTransportBack(): int { return $this->quantityTransportBack; }
+    public function setQuantityTransportBack(int $quantityTransportBack): self { $this->quantityTransportBack = $quantityTransportBack; return $this; }
+
     public function getQuantityReturned(): int { return $this->quantityReturned; }
     public function setQuantityReturned(int $quantityReturned): self { $this->quantityReturned = $quantityReturned; return $this; }
+
+    public function getQuantityStored(): int { return $this->quantityStored; }
+    public function setQuantityStored(int $quantityStored): self { $this->quantityStored = $quantityStored; return $this; }
 
     public function getConditionOut(): string { return $this->conditionOut; }
     public function setConditionOut(string $conditionOut): self { $this->conditionOut = $conditionOut; return $this; }
@@ -167,16 +188,16 @@ class ActivityPackItem
         return $this->quantityPacked >= $this->quantityOrdered;
     }
 
-    /** Ist die Menge vollständig ausgegeben? */
+    /** Ist die Menge vollständig am Event? */
     public function isFullyIssued(): bool
     {
-        return $this->quantityIssued >= $this->quantityPacked;
+        return $this->quantityIssued >= $this->quantityPacked && $this->quantityPacked > 0;
     }
 
     /** Ist die Menge vollständig retourniert? */
     public function isFullyReturned(): bool
     {
-        return $this->quantityReturned >= $this->quantityIssued;
+        return $this->quantityReturned >= $this->quantityIssued && $this->quantityIssued > 0;
     }
 
     /** Gibt die Differenz zwischen bestellt und gepackt zurück */
@@ -195,5 +216,17 @@ class ActivityPackItem
     public function getReturnDifference(): int
     {
         return $this->quantityIssued - $this->quantityReturned;
+    }
+
+    /** Differenz zwischen retourniert und eingelagert */
+    public function getStoreDifference(): int
+    {
+        return $this->quantityReturned - $this->quantityStored;
+    }
+
+    /** Ist die retournierte Menge vollständig eingelagert? */
+    public function isFullyStored(): bool
+    {
+        return $this->quantityStored >= $this->quantityReturned && $this->quantityReturned > 0;
     }
 }

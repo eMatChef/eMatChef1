@@ -9,18 +9,12 @@
       @click="expand"
       :aria-label="t('common.search')"
     >
-      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-        <circle cx="11" cy="11" r="8" stroke-width="2"/>
-        <path d="m21 21-4.35-4.35" stroke-width="2" stroke-linecap="round"/>
-      </svg>
+      <IconSearch />
     </button>
 
     <!-- Suchfeld (expandiert oder inline) -->
     <div v-else class="search-field-wrap">
-      <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-        <circle cx="11" cy="11" r="8" stroke-width="2"/>
-        <path d="m21 21-4.35-4.35" stroke-width="2" stroke-linecap="round"/>
-      </svg>
+      <IconSearch />
       <input
         ref="inputRef"
         v-model="query"
@@ -39,9 +33,7 @@
         :aria-label="mode === 'icon' ? t('common.searchClose') : t('common.searchClear')"
         @click="mode === 'icon' ? collapse() : (query = '')"
       >
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M18 6L6 18M6 6l12 12"/>
-        </svg>
+        <IconClose />
       </button>
       <!-- Dropdown: bis zu 4 Vorschläge -->
       <Transition name="dropdown-fade">
@@ -69,6 +61,7 @@
 </template>
 
 <script setup lang="ts">
+import { IconSearch, IconClose } from '@/components/icons'
 import { ref, watch, nextTick, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'

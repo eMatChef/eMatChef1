@@ -16,6 +16,16 @@ class AccountingAcquisitionFollowUp
     public const STATUS_PENDING = 'pending';
     public const STATUS_RECORDED = 'recorded';
 
+    public const SOURCE_BATCH = 'batch';
+    public const SOURCE_ACTIVITY_CONSUMPTION = 'activity_consumption';
+    public const SOURCE_ACTIVITY_REPLENISHMENT = 'activity_replenishment';
+    public const SOURCE_ACTIVITY_LOSS = 'activity_loss';
+    public const SOURCE_ACTIVITY_WORKSHOP = 'activity_workshop';
+    /** Ausleihmaterial / Miete (Typ external), ein Auftrag pro Aktivität. */
+    public const SOURCE_ACTIVITY_RENTAL = 'activity_rental';
+    /** @deprecated Sammel-Endabrechnung — wird bei Sync entfernt; nicht mehr angelegt. */
+    public const SOURCE_ACTIVITY_FINAL = 'activity_final';
+
     #[ORM\Id]
     #[ORM\Column(type: 'string', length: 12, columnDefinition: 'CHARACTER(12) NOT NULL')]
     #[ORM\GeneratedValue(strategy: 'NONE')]
@@ -28,6 +38,20 @@ class AccountingAcquisitionFollowUp
     #[ORM\ManyToOne(targetEntity: MaterialBatch::class)]
     #[ORM\JoinColumn(name: 'material_batch_id', referencedColumnName: 'id', nullable: true, onDelete: 'SET NULL')]
     private ?MaterialBatch $materialBatch = null;
+
+    #[ORM\ManyToOne(targetEntity: Activity::class)]
+    #[ORM\JoinColumn(name: 'activity_id', referencedColumnName: 'id', nullable: true, onDelete: 'CASCADE')]
+    private ?Activity $activity = null;
+
+    #[ORM\Column(name: 'source_kind', type: 'string', length: 32, nullable: true)]
+    private ?string $sourceKind = null;
+
+    #[ORM\Column(name: 'source_ref_id', type: 'string', length: 13, nullable: true)]
+    private ?string $sourceRefId = null;
+
+    #[ORM\ManyToOne(targetEntity: MaterialItem::class)]
+    #[ORM\JoinColumn(name: 'material_item_id', referencedColumnName: 'id', nullable: true, onDelete: 'SET NULL')]
+    private ?MaterialItem $materialItem = null;
 
     #[ORM\Column(type: 'decimal', precision: 12, scale: 2)]
     private string $amount = '0.00';
@@ -90,6 +114,54 @@ class AccountingAcquisitionFollowUp
     public function setMaterialBatch(?MaterialBatch $materialBatch): self
     {
         $this->materialBatch = $materialBatch;
+
+        return $this;
+    }
+
+    public function getActivity(): ?Activity
+    {
+        return $this->activity;
+    }
+
+    public function setActivity(?Activity $activity): self
+    {
+        $this->activity = $activity;
+
+        return $this;
+    }
+
+    public function getSourceKind(): ?string
+    {
+        return $this->sourceKind;
+    }
+
+    public function setSourceKind(?string $sourceKind): self
+    {
+        $this->sourceKind = $sourceKind;
+
+        return $this;
+    }
+
+    public function getSourceRefId(): ?string
+    {
+        return $this->sourceRefId;
+    }
+
+    public function setSourceRefId(?string $sourceRefId): self
+    {
+        $this->sourceRefId = $sourceRefId;
+
+        return $this;
+    }
+
+    public function getMaterialItem(): ?MaterialItem
+    {
+        return $this->materialItem;
+    }
+
+    public function setMaterialItem(?MaterialItem $materialItem): self
+    {
+        $this->materialItem = $materialItem;
 
         return $this;
     }

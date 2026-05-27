@@ -61,58 +61,146 @@
         <div class="notifications-dropdown-body">
           <div v-if="isLoadingNotifications" class="notifications-empty">{{ t('layout.notifications.loading') }}</div>
           <div
-            v-else-if="pendingDepartmentInvites.length === 0 && publicFoundPreview.length === 0 && pendingFollowUpCount === 0"
+            v-else-if="bellEmpty"
             class="notifications-empty"
           >
             {{ t('layout.notifications.empty') }}
           </div>
           <div v-else class="notifications-list">
-            <button
-              v-if="pendingFollowUpCount > 0"
-              type="button"
-              class="notification-item notification-item--accounting"
-              @click="goToAccountingAssign"
-            >
-              <div class="notification-title">{{ t('layout.notifications.accountingTitle') }}</div>
-              <div class="notification-subtitle">
-                {{
-                  pendingFollowUpCount === 1
-                    ? t('layout.notifications.accountingFollowUpOne', { count: pendingFollowUpCount })
-                    : t('layout.notifications.accountingFollowUpMany', { count: pendingFollowUpCount })
-                }}
-              </div>
-              <div class="notification-hint">{{ t('layout.notifications.accountingHint') }}</div>
-            </button>
-            <div
-              v-for="invite in notificationPreviewInvites"
-              :key="`inv-${invite.activity_id}-${invite.source_department_id}`"
-              class="notification-item"
-            >
-              <div class="notification-title">{{ notificationInviteTitle(invite) }}</div>
-              <div class="notification-subtitle">{{ invite.activity_name }}</div>
-              <div class="notification-actions">
-                <button type="button" class="btn-success btn-xs" @click="decideInvite(invite, 'accepted')">{{ t('layout.notifications.accept') }}</button>
-                <button type="button" class="btn-danger-outline btn-xs" @click="decideInvite(invite, 'rejected')">{{ t('layout.notifications.reject') }}</button>
-              </div>
-            </div>
-            <button
-              v-for="msg in notificationPreviewFound"
-              :key="`pf-${msg.id}`"
-              type="button"
-              class="notification-item notification-item--found"
-              @click="openFoundMessageFromBell(msg)"
-            >
-              <div class="notification-title">{{ t('layout.notifications.qrContactTitle', { name: msg.material_name }) }}</div>
-              <div class="notification-subtitle">{{ truncateMessage(msg.message) }}</div>
-              <div class="notification-hint">{{ t('layout.notifications.foundHint') }}</div>
-            </button>
+            <template v-if="hasBellMessages">
+              <p class="notifications-section-label">{{ t('layout.notifications.sectionMessages') }}</p>
+              <button
+                v-for="msg in userMessagePreview"
+                :key="`um-${msg.id}`"
+                type="button"
+                class="notification-item notification-item--user-message"
+                :class="{ 'notification-item--unread': !msg.read }"
+                @click="openUserMessageFromBell(msg)"
+              >
+                <NotificationSenderBlock
+                  :sender="fromUserMessage(msg)"
+                  size="sm"
+                  class="notification-item__avatar"
+                  :show-tooltip="false"
+                />
+                <div class="notification-item__body">
+                  <div class="notification-title">{{ msg.subject }}</div>
+                  <div class="notification-subtitle">{{ truncateMessage(msg.message) }}</div>
+                </div>
+              </button>
+              <button
+                v-for="entry in bellActivityMessages"
+                :key="`act-${entry.bellScope}-${entry.id}`"
+                type="button"
+                class="notification-item notification-item--activity-mw"
+                @click="openActivityBellEntry(entry)"
+              >
+                <NotificationSenderBlock
+                  :sender="fromActivityMw(entry)"
+                  size="sm"
+                  class="notification-item__avatar"
+                />
+                <div class="notification-item__body">
+                  <div class="notification-title">{{ bellLine(entry) }}</div>
+                  <div class="notification-subtitle">{{ bellSubtitle(entry) }}</div>
+                </div>
+              </button>
+              <button
+                v-for="note in inviteAcceptedPreview"
+                :key="`inv-acc-${note.id}`"
+                type="button"
+                class="notification-item notification-item--invite-accepted"
+                :class="{ 'notification-item--unread': !note.read }"
+                @click="openInviteAcceptedFromBell(note)"
+              >
+                <div class="notification-item__body notification-item__body--full">
+                  <div class="notification-title">{{ inviteAcceptedBellTitle(note) }}</div>
+                  <div class="notification-subtitle">{{ inviteAcceptedBellSubtitle(note) }}</div>
+                </div>
+              </button>
+              <button
+                v-for="msg in notificationPreviewFound"
+                :key="`pf-${msg.id}`"
+                type="button"
+                class="notification-item notification-item--found"
+                @click="openFoundMessageFromBell(msg)"
+              >
+                <NotificationSenderBlock
+                  :sender="fromPublicFound(msg)"
+                  size="sm"
+                  class="notification-item__avatar"
+                  :show-tooltip="false"
+                />
+                <div class="notification-item__body">
+                  <div class="notification-title">{{ t('layout.notifications.qrContactTitle', { name: msg.material_name }) }}</div>
+                  <div class="notification-subtitle">{{ truncateMessage(msg.message) }}</div>
+                </div>
+              </button>
+              <button
+                v-for="inv in receivedDepartmentInvitePreview"
+                :key="`dept-inv-${inv.id}`"
+                type="button"
+                class="notification-item notification-item--dept-invite"
+                :class="{ 'notification-item--unread': !inv.read }"
+                @click="openDepartmentInviteFromBell(inv)"
+              >
+                <NotificationSenderBlock
+                  :sender="fromDepartmentInvite(inv)"
+                  size="sm"
+                  class="notification-item__avatar"
+                  :show-tooltip="false"
+                />
+                <div class="notification-item__body">
+                  <div class="notification-title">
+                    {{ t('layout.notifications.departmentInviteTitle', { department: inv.department_name }) }}
+                  </div>
+                  <div class="notification-subtitle">
+                    {{ truncateMessage(t('layout.notifications.departmentInviteSubtitle', {
+                      name: inv.invited_by_name || t('layout.userFallback'),
+                      role: departmentInviteRoleLabel(inv.role),
+                    })) }}
+                  </div>
+                </div>
+              </button>
+              <button
+                v-for="invite in notificationPreviewInvites"
+                :key="`inv-${invite.activity_id}-${invite.source_department_id}`"
+                type="button"
+                class="notification-item notification-item--activity-invite"
+                @click="openCampInviteFromBell(invite)"
+              >
+                <div class="notification-item__body notification-item__body--full">
+                  <div class="notification-title">{{ notificationInviteTitle(invite) }}</div>
+                  <div class="notification-subtitle">{{ truncateMessage(invite.activity_name) }}</div>
+                </div>
+              </button>
+            </template>
+
+            <template v-if="hasBellTasks">
+              <p class="notifications-section-label">{{ t('layout.notifications.sectionTasks') }}</p>
+              <button
+                v-if="showAccountingInBell"
+                type="button"
+                class="notification-item notification-item--accounting"
+                @click="goToAccountingAssign"
+              >
+                <div class="notification-title">{{ t('layout.notifications.accountingTitle') }}</div>
+                <div class="notification-subtitle">
+                  {{
+                    pendingFollowUpCount === 1
+                      ? t('layout.notifications.accountingFollowUpOne', { count: pendingFollowUpCount })
+                      : t('layout.notifications.accountingFollowUpMany', { count: pendingFollowUpCount })
+                  }}
+                </div>
+              </button>
+            </template>
           </div>
         </div>
         <div v-if="!isLoadingNotifications" class="notifications-dropdown-footer">
           <button
             type="button"
             class="btn btn-secondary btn-sm notifications-more-fullwidth"
-            :title="t('layout.notifications.showAllFooterTitle')"
+            :title="notificationsShowAllTitle"
             @click.stop="goToNotificationsCenter"
           >
             {{ t('layout.notifications.showAll') }}
@@ -404,27 +492,61 @@ import { useConfirm } from '../../composables/useConfirm'
 import {
   getPendingDepartmentActivityInvites,
   decideDepartmentActivityInvite,
+  getReceivedDepartmentInvites,
+  markReceivedDepartmentInviteRead,
+  acceptDepartmentInvite,
+  declineDepartmentInvite,
+  getInviteNotifications,
+  markInviteNotificationRead,
+  type InviteAcceptedNotification,
   type PendingDepartmentActivityInvite,
+  type ReceivedDepartmentInviteNotification,
 } from '../../api/joinRequests'
 import {
   getPublicFoundMessages,
   updatePublicFoundMessageStatus,
   type PublicFoundItemMessage,
 } from '../../api/publicFoundMessages'
-import { listAcquisitionFollowups } from '@/api/accountingAcquisitionFollowups'
-import { departmentHasAccountingRole } from '@/composables/useCostBookingFollowUp'
 // @ts-ignore Vetur false positive in Vue 3 script-setup import
 import GlobalSearchInput from '../common/GlobalSearchInput.vue'
 import { useDetailTabsStore } from '../../stores/detailTabs'
 import { useHeaderNotificationsStore } from '@/stores/headerNotifications'
 import { getPostLogoutPath } from '@/utils/appLoginUrl'
-
+import { useDepartmentMemberRole } from '@/composables/useDepartmentMemberRole'
+import {
+  getActivityMwNotifications,
+  markActivityMwNotificationRead,
+  type ActivityMwNotification,
+} from '@/api/activityNotifications'
+import {
+  getUserActivityStatusNotifications,
+  markUserActivityStatusNotificationRead,
+} from '@/api/activityUserNotifications'
+import { listAcquisitionFollowups } from '@/api/accountingAcquisitionFollowups'
+import { departmentHasAccountingRole } from '@/composables/useCostBookingFollowUp'
+import { useActivityNotificationText } from '@/composables/useActivityNotificationText'
+import {
+  getUserDirectMessages,
+  markUserDirectMessageRead,
+  type UserDirectMessage,
+} from '@/api/inboxMessages'
+import { NotificationSenderBlock } from '@/components/notifications'
+import { useNotificationSender } from '@/composables/useNotificationSender'
+import { useUnreadDocumentTitleAlert } from '@/composables/useUnreadDocumentTitleAlert'
+import { getSenderPrimaryLine } from '@/utils/notificationSender'
 const { t } = useI18n()
 const router = useRouter()
 const detailTabsStore = useDetailTabsStore()
 const headerNotificationsStore = useHeaderNotificationsStore()
 const route = useRoute()
 const authStore = useAuthStore()
+const { isUserRole, canManageQrContact, canManageMaterials } = useDepartmentMemberRole()
+const { fromActivityMw, fromDepartmentInvite, fromPublicFound, fromUserMessage } =
+  useNotificationSender()
+const { bellLine, bellSubtitle } = useActivityNotificationText()
+
+type BellActivityEntry = ActivityMwNotification & { bellScope: 'user' | 'mw' }
+
 const globalSearchRef = ref<InstanceType<typeof GlobalSearchInput> | null>(null)
 const toast = useToast()
 const confirm = useConfirm()
@@ -442,9 +564,22 @@ const unreadCount = ref(0)
 const showNotifications = ref(false)
 const isLoadingNotifications = ref(false)
 const pendingDepartmentInvites = ref<PendingDepartmentActivityInvite[]>([])
+const receivedDepartmentInvitePreview = ref<ReceivedDepartmentInviteNotification[]>([])
+const receivedDepartmentInviteUnread = ref(0)
 const publicFoundPreview = ref<PublicFoundItemMessage[]>([])
-/** Ausstehende Anschaffungs-Follow-ups (mw/dc): Buchung in der Buchhaltung zuordnen. */
+const activityMwPreview = ref<ActivityMwNotification[]>([])
+const activityMwUnreadCount = ref(0)
+const activityUserPreview = ref<ActivityMwNotification[]>([])
+const activityUserUnreadCount = ref(0)
 const pendingFollowUpCount = ref(0)
+const accountingBellDismissed = ref(false)
+const userMessagePreview = ref<UserDirectMessage[]>([])
+const userMessageUnreadCount = ref(0)
+const inviteAcceptedPreview = ref<InviteAcceptedNotification[]>([])
+const inviteAcceptedUnreadCount = ref(0)
+
+useUnreadDocumentTitleAlert(unreadCount)
+
 const trialDays = ref(29)
 const showTrialWarning = ref(true)
 const profileForm = ref({
@@ -538,7 +673,94 @@ const pendingEmailTarget = computed(() =>
 )
 
 const notificationPreviewInvites = computed(() => pendingDepartmentInvites.value.slice(0, 5))
-const notificationPreviewFound = computed(() => publicFoundPreview.value.slice(0, 5))
+const notificationPreviewFound = computed(() =>
+  canManageQrContact.value
+    ? publicFoundPreview.value.filter((m) => m.status === 'open').slice(0, 5)
+    : [],
+)
+
+const showAccountingInBell = computed(
+  () => pendingFollowUpCount.value > 0 && !accountingBellDismissed.value,
+)
+
+const bellActivityMessages = computed((): BellActivityEntry[] => {
+  const user = activityUserPreview.value.map((e) => ({ ...e, bellScope: 'user' as const }))
+  const mw = activityMwPreview.value.map((e) => ({ ...e, bellScope: 'mw' as const }))
+  return [...user, ...mw]
+})
+
+const hasBellMessages = computed(
+  () =>
+    userMessagePreview.value.length > 0 ||
+    bellActivityMessages.value.length > 0 ||
+    inviteAcceptedPreview.value.length > 0 ||
+    notificationPreviewFound.value.length > 0 ||
+    receivedDepartmentInvitePreview.value.length > 0 ||
+    notificationPreviewInvites.value.length > 0,
+)
+
+const hasBellTasks = computed(() => showAccountingInBell.value)
+
+const bellEmpty = computed(() => !hasBellMessages.value && !hasBellTasks.value)
+
+const notificationsShowAllTitle = computed(() => t('layout.notifications.showAllFooterTitle'))
+
+const DEPT_INVITE_ROLE_KEYS: Record<string, string> = {
+  mw: 'settings.departmentUsers.roles.mw',
+  dc: 'settings.departmentUsers.roles.dc',
+  l1: 'settings.departmentUsers.roles.l1',
+  l2: 'settings.departmentUsers.roles.l2',
+  l3: 'settings.departmentUsers.roles.l3',
+  u: 'settings.departmentUsers.roles.u',
+}
+
+function departmentInviteRoleLabel(role: string): string {
+  const key = DEPT_INVITE_ROLE_KEYS[role]
+  return key ? t(key) : role
+}
+
+async function acceptDepartmentInviteFromBell(inv: ReceivedDepartmentInviteNotification) {
+  showNotifications.value = false
+  receivedDepartmentInvitePreview.value = receivedDepartmentInvitePreview.value.filter((e) => e.id !== inv.id)
+  receivedDepartmentInviteUnread.value = Math.max(0, receivedDepartmentInviteUnread.value - 1)
+  decrementUnreadCount()
+  try {
+    const result = await acceptDepartmentInvite({
+      notificationId: inv.id,
+      departmentId: inv.department_id,
+      inviteId: inv.invite_id,
+    })
+    toast.success(t('layout.notifications.departmentInviteAccepted', { department: result.department_name }))
+    if (result.department_id) {
+      await authStore.refreshAfterInviteAccepted(result.department_id)
+      return
+    }
+  } catch (err: any) {
+    toast.error(err?.response?.data?.error || t('layout.notifications.departmentInviteAcceptFailed'))
+    void loadDepartmentInvites()
+  } finally {
+    syncBellBadge()
+  }
+}
+
+async function declineDepartmentInviteFromBell(inv: ReceivedDepartmentInviteNotification) {
+  showNotifications.value = false
+  receivedDepartmentInvitePreview.value = receivedDepartmentInvitePreview.value.filter((e) => e.id !== inv.id)
+  receivedDepartmentInviteUnread.value = Math.max(0, receivedDepartmentInviteUnread.value - 1)
+  decrementUnreadCount()
+  try {
+    await declineDepartmentInvite({
+      notificationId: inv.id,
+      departmentId: inv.department_id,
+      inviteId: inv.invite_id,
+    })
+    syncBellBadge()
+    toast.success(t('layout.notifications.departmentInviteDeclined'))
+  } catch (err: any) {
+    toast.error(err?.response?.data?.error || t('layout.notifications.departmentInviteDeclineFailed'))
+    void loadDepartmentInvites()
+  }
+}
 
 function notificationInviteTitle(invite: PendingDepartmentActivityInvite): string {
   const activityType =
@@ -551,10 +773,20 @@ function notificationInviteTitle(invite: PendingDepartmentActivityInvite): strin
   })
 }
 
-function truncateMessage(text: string, max = 100): string {
-  const trimmed = String(text || '').trim()
+const BELL_PREVIEW_MAX = 52
+
+function truncateMessage(text: string, max = BELL_PREVIEW_MAX): string {
+  const trimmed = String(text || '').trim().replace(/\s+/g, ' ')
   if (trimmed.length <= max) return trimmed
   return `${trimmed.slice(0, max)}…`
+}
+
+function decrementUnreadCount(n = 1) {
+  unreadCount.value = Math.max(0, unreadCount.value - n)
+}
+
+function syncBellBadge() {
+  headerNotificationsStore.requestRefresh()
 }
 
 function isTabActive(tab: { path: string }) {
@@ -603,49 +835,243 @@ function goToNotificationsCenter() {
   router.push(`/${deptId}/notifications`)
 }
 
+async function openActivityBellEntry(entry: BellActivityEntry) {
+  const deptId = authStore.activeDepartmentId
+  if (!deptId || !entry.activity_id) return
+  showNotifications.value = false
+  if (entry.bellScope === 'user') {
+    activityUserPreview.value = activityUserPreview.value.filter((e) => e.id !== entry.id)
+    activityUserUnreadCount.value = Math.max(0, activityUserUnreadCount.value - 1)
+  } else {
+    activityMwPreview.value = activityMwPreview.value.filter((e) => e.id !== entry.id)
+    activityMwUnreadCount.value = Math.max(0, activityMwUnreadCount.value - 1)
+  }
+  decrementUnreadCount()
+  try {
+    if (entry.bellScope === 'user') {
+      await markUserActivityStatusNotificationRead(deptId, entry.id)
+    } else {
+      await markActivityMwNotificationRead(deptId, entry.id)
+    }
+    syncBellBadge()
+  } catch {
+    /* navigate anyway */
+  }
+  void router.push(`/${deptId}/activities/${entry.activity_id}`)
+}
+
 function goToAccountingAssign() {
   const deptId = authStore.activeDepartmentId
   if (!deptId) return
   showNotifications.value = false
-  router.push({
-    name: 'AccountingBookings',
-    params: { departmentId: deptId },
-    query: { sub: 'assign' },
+  accountingBellDismissed.value = true
+  const n = pendingFollowUpCount.value
+  if (n > 0) decrementUnreadCount(n)
+  void router.push({
+    path: `/${deptId}/tasks`,
+    query: { open: 'accounting_followup:all' },
   })
 }
 
+async function openDepartmentInviteFromBell(inv: ReceivedDepartmentInviteNotification) {
+  const deptId = authStore.activeDepartmentId
+  if (!deptId) return
+  showNotifications.value = false
+  receivedDepartmentInvitePreview.value = receivedDepartmentInvitePreview.value.filter((e) => e.id !== inv.id)
+  receivedDepartmentInviteUnread.value = Math.max(0, receivedDepartmentInviteUnread.value - 1)
+  decrementUnreadCount()
+  if (!inv.read) {
+    try {
+      await markReceivedDepartmentInviteRead(inv.id)
+      syncBellBadge()
+    } catch {
+      /* navigate anyway */
+    }
+  }
+  void router.push({ path: `/${deptId}/notifications` })
+}
+
+function openCampInviteFromBell(invite: PendingDepartmentActivityInvite) {
+  const deptId = authStore.activeDepartmentId
+  if (!deptId) return
+  showNotifications.value = false
+  void router.push({ path: `/${deptId}/notifications` })
+}
+
+function inviteAcceptedBellTitle(note: InviteAcceptedNotification): string {
+  return t('layout.notifications.inviteAcceptedTitle', { name: note.user_name || note.email })
+}
+
+function inviteAcceptedBellSubtitle(note: InviteAcceptedNotification): string {
+  return t('settings.departmentUsers.inviteAcceptedMessage', {
+    name: note.user_name || note.email,
+    role: departmentInviteRoleLabel(note.role),
+  })
+}
+
+async function openInviteAcceptedFromBell(note: InviteAcceptedNotification) {
+  const deptId = authStore.activeDepartmentId
+  if (!deptId) return
+  showNotifications.value = false
+  inviteAcceptedPreview.value = inviteAcceptedPreview.value.filter((n) => n.id !== note.id)
+  if (!note.read) {
+    inviteAcceptedUnreadCount.value = Math.max(0, inviteAcceptedUnreadCount.value - 1)
+    decrementUnreadCount()
+    try {
+      await markInviteNotificationRead(deptId, note.id)
+      syncBellBadge()
+    } catch {
+      /* navigate anyway */
+    }
+  }
+  void router.push({ path: `/${deptId}/notifications` })
+}
+
+/** Glocke: nur ungelesene Nachrichten + offene Aufgaben (QR, Einladungen). */
 async function loadDepartmentInvites() {
   const deptId = authStore.activeDepartmentId
   if (!deptId) return
   isLoadingNotifications.value = true
   try {
+    const receivedInvitesPromise = getReceivedDepartmentInvites({ bucket: 'unread', limit: 5 }).catch(() => ({
+      count: 0,
+      unread_count: 0,
+      items: [] as ReceivedDepartmentInviteNotification[],
+    }))
+
+    const userMsgPromise = getUserDirectMessages(deptId, { bucket: 'unread', limit: 5 }).catch(() => ({
+      unread_count: 0,
+      items: [] as UserDirectMessage[],
+    }))
+
+    const campInvitesPromise = isUserRole.value
+      ? Promise.resolve({ count: 0, items: [] as PendingDepartmentActivityInvite[] })
+      : getPendingDepartmentActivityInvites(deptId).catch(() => ({
+          count: 0,
+          items: [] as PendingDepartmentActivityInvite[],
+        }))
+
+    const foundPromise =
+      !isUserRole.value && canManageQrContact.value
+        ? getPublicFoundMessages(deptId, { bucket: 'open', limit: 5 }).catch(() => ({
+            unread_count: 0,
+            items: [] as PublicFoundItemMessage[],
+          }))
+        : Promise.resolve({ unread_count: 0, items: [] as PublicFoundItemMessage[] })
+
+    const activityMwPromise = canManageMaterials.value
+      ? getActivityMwNotifications(deptId, { bucket: 'unread', limit: 5 }).catch(() => ({
+          unread_count: 0,
+          items: [] as ActivityMwNotification[],
+        }))
+      : Promise.resolve({ unread_count: 0, items: [] as ActivityMwNotification[] })
+
+    const activityUserPromise = getUserActivityStatusNotifications(deptId, {
+      bucket: 'unread',
+      limit: 5,
+    }).catch(() => ({ unread_count: 0, items: [] as ActivityMwNotification[] }))
+
     const followUpPromise =
-      departmentHasAccountingRole(deptId)
+      !isUserRole.value && departmentHasAccountingRole(deptId)
         ? listAcquisitionFollowups(deptId, 'pending').catch(() => [])
         : Promise.resolve([])
 
-    const [inviteResult, foundResult, pendingFollowUps] = await Promise.all([
-      getPendingDepartmentActivityInvites(deptId).catch(() => ({ count: 0, items: [] as PendingDepartmentActivityInvite[] })),
-      getPublicFoundMessages(deptId, { bucket: 'open', limit: 5 }).catch(() => ({
-        unread_count: 0,
-        items: [] as PublicFoundItemMessage[],
-      })),
+    const inviteAcceptedPromise = !isUserRole.value
+      ? getInviteNotifications(deptId, { bucket: 'unread', limit: 5 }).catch(() => [] as InviteAcceptedNotification[])
+      : Promise.resolve([] as InviteAcceptedNotification[])
+
+    const [
+      receivedInvites,
+      userMsg,
+      inviteResult,
+      foundResult,
+      activityMwResult,
+      activityUserResult,
+      pendingFollowUps,
+      inviteAcceptedItems,
+    ] = await Promise.all([
+      receivedInvitesPromise,
+      userMsgPromise,
+      campInvitesPromise,
+      foundPromise,
+      activityMwPromise,
+      activityUserPromise,
       followUpPromise,
+      inviteAcceptedPromise,
     ])
+
+    userMessagePreview.value = userMsg.items || []
+    userMessageUnreadCount.value =
+      typeof userMsg.unread_count === 'number'
+        ? userMsg.unread_count
+        : userMessagePreview.value.length
+
+    receivedDepartmentInvitePreview.value = (receivedInvites.items || []).slice(0, 5)
+    receivedDepartmentInviteUnread.value =
+      typeof receivedInvites.unread_count === 'number'
+        ? receivedInvites.unread_count
+        : receivedDepartmentInvitePreview.value.filter((e) => !e.read).length
+
     pendingDepartmentInvites.value = inviteResult.items || []
     publicFoundPreview.value = foundResult.items || []
-    const invC =
-      typeof inviteResult.count === 'number'
-        ? inviteResult.count
-        : pendingDepartmentInvites.value.length
-    const fu = typeof foundResult.unread_count === 'number' ? foundResult.unread_count : 0
-    const ac = Array.isArray(pendingFollowUps) ? pendingFollowUps.length : 0
-    pendingFollowUpCount.value = ac
-    unreadCount.value = invC + fu + ac
+
+    activityMwPreview.value = canManageMaterials.value ? (activityMwResult.items || []).slice(0, 5) : []
+    activityMwUnreadCount.value = canManageMaterials.value
+      ? typeof activityMwResult.unread_count === 'number'
+        ? activityMwResult.unread_count
+        : activityMwPreview.value.length
+      : 0
+
+    activityUserPreview.value = (activityUserResult.items || []).slice(0, 5)
+    activityUserUnreadCount.value =
+      typeof activityUserResult.unread_count === 'number'
+        ? activityUserResult.unread_count
+        : activityUserPreview.value.length
+
+    inviteAcceptedPreview.value = (inviteAcceptedItems || []).slice(0, 5)
+    inviteAcceptedUnreadCount.value = inviteAcceptedPreview.value.filter((n) => !n.read).length
+
+    const followUpLen = Array.isArray(pendingFollowUps) ? pendingFollowUps.length : 0
+    if (followUpLen === 0) {
+      accountingBellDismissed.value = false
+    }
+    pendingFollowUpCount.value = followUpLen
+
+    const accountingInBell =
+      pendingFollowUpCount.value > 0 && !accountingBellDismissed.value ? pendingFollowUpCount.value : 0
+
+    const taskCount = accountingInBell
+
+    const qrUnread =
+      !isUserRole.value && canManageQrContact.value
+        ? typeof foundResult.unread_count === 'number'
+          ? foundResult.unread_count
+          : publicFoundPreview.value.filter((m) => m.status === 'open').length
+        : 0
+
+    const messageCount =
+      userMessageUnreadCount.value +
+      activityMwUnreadCount.value +
+      activityUserUnreadCount.value +
+      inviteAcceptedUnreadCount.value +
+      qrUnread +
+      receivedDepartmentInviteUnread.value +
+      pendingDepartmentInvites.value.length
+    unreadCount.value = taskCount + messageCount
   } catch {
     pendingDepartmentInvites.value = []
+    receivedDepartmentInvitePreview.value = []
+    receivedDepartmentInviteUnread.value = 0
     publicFoundPreview.value = []
+    activityMwPreview.value = []
+    activityMwUnreadCount.value = 0
+    activityUserPreview.value = []
+    activityUserUnreadCount.value = 0
+    inviteAcceptedPreview.value = []
+    inviteAcceptedUnreadCount.value = 0
     pendingFollowUpCount.value = 0
+    userMessagePreview.value = []
+    userMessageUnreadCount.value = 0
     unreadCount.value = 0
   } finally {
     isLoadingNotifications.value = false
@@ -659,42 +1085,64 @@ watch(
   }
 )
 
+async function openUserMessageFromBell(msg: UserDirectMessage) {
+  const deptId = authStore.activeDepartmentId
+  if (!deptId) return
+  showNotifications.value = false
+  userMessagePreview.value = userMessagePreview.value.filter((m) => m.id !== msg.id)
+  if (!msg.read) {
+    userMessageUnreadCount.value = Math.max(0, userMessageUnreadCount.value - 1)
+    decrementUnreadCount()
+  }
+  try {
+    if (!msg.read) {
+      await markUserDirectMessageRead(deptId, msg.id)
+      syncBellBadge()
+    }
+  } catch {
+    /* navigate anyway */
+  }
+  void router.push({
+    path: `/${deptId}/notifications`,
+    query: { openMessage: msg.id },
+  })
+}
+
 async function openFoundMessageFromBell(msg: PublicFoundItemMessage) {
   const deptId = authStore.activeDepartmentId
   if (!deptId) return
   showNotifications.value = false
-  try {
-    if (msg.status === 'open') {
-      await updatePublicFoundMessageStatus(deptId, msg.id, 'in_progress')
-    }
-  } catch (err: any) {
-    toast.error(err?.response?.data?.error || t('layout.toast.statusSaveFailed'))
-  }
   void router.push({
     path: `/${deptId}/notifications`,
     query: { highlight: msg.id },
   })
-  await loadDepartmentInvites()
 }
 
 async function decideInvite(invite: PendingDepartmentActivityInvite, decision: 'accepted' | 'rejected') {
   const deptId = authStore.activeDepartmentId
   if (!deptId) return
+  showNotifications.value = false
+  pendingDepartmentInvites.value = pendingDepartmentInvites.value.filter(
+    (entry) =>
+      !(
+        entry.activity_id === invite.activity_id &&
+        entry.source_department_id === invite.source_department_id
+      ),
+  )
+  decrementUnreadCount()
   try {
     await decideDepartmentActivityInvite({
       activityId: invite.activity_id,
       departmentId: deptId,
       decision,
     })
-    pendingDepartmentInvites.value = pendingDepartmentInvites.value.filter(
-      (entry) => !(entry.activity_id === invite.activity_id && entry.source_department_id === invite.source_department_id)
-    )
-    await loadDepartmentInvites()
+    syncBellBadge()
     toast.success(
-      decision === 'accepted' ? t('layout.toast.inviteAccepted') : t('layout.toast.inviteRejected')
+      decision === 'accepted' ? t('layout.toast.inviteAccepted') : t('layout.toast.inviteRejected'),
     )
   } catch (err: any) {
     toast.error(err?.response?.data?.error || t('layout.toast.decisionSaveFailed'))
+    void loadDepartmentInvites()
   }
 }
 
@@ -906,7 +1354,7 @@ async function saveProfile() {
       if (loginEmail) {
         try {
           await apiLogin(loginEmail, newPassword)
-          await authStore.loadUserSession()
+          await authStore.loadUserSessionFromCookie(true)
           toast.success(t('layout.toast.reloginSuccess'))
         } catch {
           // Falls Re-Login fehlschlaegt, bleibt die aktuelle Session bestehen solange der Token gueltig ist.
@@ -945,13 +1393,31 @@ function handleClickOutside(event: MouseEvent) {
   }
 }
 
+let notificationsPollTimer: ReturnType<typeof setInterval> | null = null
+
+function startNotificationsPolling() {
+  if (notificationsPollTimer) {
+    clearInterval(notificationsPollTimer)
+    notificationsPollTimer = null
+  }
+  if (!authStore.activeDepartmentId) return
+  notificationsPollTimer = setInterval(() => {
+    void loadDepartmentInvites()
+  }, 60_000)
+}
+
 onMounted(() => {
   document.addEventListener('click', handleClickOutside)
-  loadDepartmentInvites()
+  void loadDepartmentInvites()
+  startNotificationsPolling()
 })
 
 onUnmounted(() => {
   document.removeEventListener('click', handleClickOutside)
+  if (notificationsPollTimer) {
+    clearInterval(notificationsPollTimer)
+    notificationsPollTimer = null
+  }
 })
 
 watch(
@@ -960,8 +1426,11 @@ watch(
     unreadCount.value = 0
     pendingDepartmentInvites.value = []
     publicFoundPreview.value = []
-    pendingFollowUpCount.value = 0
-    loadDepartmentInvites()
+    userMessagePreview.value = []
+    userMessageUnreadCount.value = 0
+    accountingBellDismissed.value = false
+    void loadDepartmentInvites()
+    startNotificationsPolling()
   }
 )
 </script>
@@ -1222,6 +1691,22 @@ watch(
   border-bottom: 1px solid #e5e7eb;
 }
 
+.notifications-section-label {
+  margin: 0;
+  padding: 8px 12px 4px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #6b7280;
+}
+
+.notifications-list .notifications-section-label:not(:first-child) {
+  margin-top: 6px;
+  padding-top: 10px;
+  border-top: 1px solid #f3f4f6;
+}
+
 .notifications-dropdown-footer {
   flex-shrink: 0;
   padding: 8px 12px;
@@ -1262,12 +1747,171 @@ button.notification-item--found {
   font: inherit;
   color: inherit;
   padding: 10px 12px;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+button.notification-item--found .notification-item__avatar {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+button.notification-item--found .notification-item__body {
+  flex: 1;
+  min-width: 0;
   display: grid;
-  gap: 6px;
+  gap: 4px;
 }
 
 button.notification-item--found:hover {
   background: #f9fafb;
+}
+
+button.notification-item--activity {
+  width: 100%;
+  margin: 0;
+  border: none;
+  border-bottom: 1px solid #f3f4f6;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  padding: 10px 12px;
+  display: grid;
+  gap: 6px;
+}
+
+button.notification-item--activity:hover {
+  background: #f9fafb;
+}
+
+button.notification-item--activity-mw {
+  width: 100%;
+  margin: 0;
+  border: none;
+  border-bottom: 1px solid #f3f4f6;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  padding: 10px 12px;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+button.notification-item--activity-mw:hover {
+  background: #f9fafb;
+}
+
+button.notification-item--user-message {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  border: none;
+  border-bottom: 1px solid #f3f4f6;
+  background: #fff;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+button.notification-item--user-message:hover {
+  background: #f9fafb;
+}
+
+button.notification-item--user-message.notification-item--unread {
+  background: #eff6ff;
+}
+
+button.notification-item--user-message .notification-item__avatar {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+button.notification-item--user-message .notification-item__body {
+  flex: 1;
+  min-width: 0;
+}
+
+button.notification-item--invite-accepted {
+  width: 100%;
+  padding: 10px 12px;
+  border: none;
+  border-bottom: 1px solid #f3f4f6;
+  background: #fff;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+button.notification-item--invite-accepted:hover {
+  background: #f9fafb;
+}
+
+button.notification-item--invite-accepted.notification-item--unread {
+  background: #eff6ff;
+}
+
+.notification-item__body--full {
+  flex: 1;
+  min-width: 0;
+}
+
+button.notification-item--activity-mw .notification-item__avatar {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+button.notification-item--activity-mw .notification-item__body {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+button.notification-item--dept-invite {
+  width: 100%;
+  margin: 0;
+  border: none;
+  border-bottom: 1px solid #f3f4f6;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  padding: 10px 12px;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+button.notification-item--dept-invite .notification-item__avatar {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+button.notification-item--dept-invite .notification-item__body {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+button.notification-item--dept-invite:hover {
+  background: #f9fafb;
+}
+
+button.notification-item--dept-invite.notification-item--unread {
+  background: #eff6ff;
+  border-left: 3px solid #3b82f6;
 }
 
 button.notification-item--accounting {
@@ -1303,6 +1947,39 @@ button.notification-item--accounting:hover {
 .notification-subtitle {
   font-size: 12px;
   color: #64748b;
+  line-height: 1.35;
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.notification-item--clickable {
+  cursor: pointer;
+}
+
+.notification-item--clickable:hover {
+  background: #f9fafb;
+}
+
+.notification-item--dept-invite.notification-item--clickable {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.notification-item--dept-invite.notification-item--clickable .notification-item__body {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.notification-item--dept-invite.notification-item--clickable.notification-item--unread {
+  background: #eff6ff;
+  border-left: 3px solid #3b82f6;
 }
 
 .notification-actions {

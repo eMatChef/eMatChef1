@@ -39,7 +39,10 @@ export async function fetchMaterialsAvailableForPeriodByIds(params: {
     limit: 50,
     materialItemIds: params.materialItemIds.join(','),
   }
-  if (params.activityId) q.activityId = params.activityId
+  if (params.activityId) {
+    q.activityId = params.activityId
+    q.excludeActivityId = params.activityId
+  }
   if (params.startDateIso && params.endDateIso) {
     q.startDate = params.startDateIso
     q.endDate = params.endDateIso

@@ -26,6 +26,7 @@ export default defineConfig(({ mode }) => {
         'ematchef.test',
         'app.ematchef.test',
         'qr.ematchef.test',
+        'devices.ematchef.test',
         'localhost',
         '127.0.0.1',
       ],

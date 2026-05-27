@@ -63,7 +63,7 @@ const props = defineProps<{
   previewUsageLine: string
   previewPlanningLine: string
   selectedActivityType: ActivityCreateType | null
-  /** Gruppenname (Aktivität / Lager / Event) */
+  /** Gruppenname (interne Aktivität) */
   previewGroupLine?: string | null
   /** Bezeichnung gewählter Eventstandort-Adresse */
   previewVenueLine?: string | null

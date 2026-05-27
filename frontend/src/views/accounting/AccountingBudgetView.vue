@@ -21,7 +21,10 @@
       </div>
     </div>
 
-    <div v-if="loadError" class="budget-error">{{ loadError }}</div>
+    <div v-if="!yearOptions.length && !loading" class="empty-hint">
+      {{ t('accounting.common.noBookingYears') }}
+    </div>
+    <div v-else-if="loadError" class="budget-error">{{ loadError }}</div>
     <div v-else-if="loading" class="loading-inline">{{ t('accounting.common.loading') }}</div>
     <template v-else-if="comparison">
       <div v-if="comparison.totals.budget_chf" class="acc-kpi-grid budget-kpis">
@@ -146,6 +149,7 @@ import {
 import { listCostCenters, type AccountingCostCenter } from '@/api/accountingCostCenters'
 import { useToast } from '@/composables/useToast'
 import { useConfirm } from '@/composables/useConfirm'
+import { useAccountingBookingYears } from '@/composables/useAccountingBookingYears'
 
 const { t } = useI18n()
 const route = useRoute()
@@ -154,13 +158,8 @@ const { confirm: confirmDialog } = useConfirm()
 
 const departmentId = computed(() => String(route.params.departmentId || ''))
 
+const { years: yearOptions, refreshYears, defaultYear } = useAccountingBookingYears(departmentId)
 const year = ref(new Date().getFullYear())
-const yearOptions = computed(() => {
-  const cy = new Date().getFullYear()
-  const list: number[] = []
-  for (let y = cy + 2; y >= cy - 5; y--) list.push(y)
-  return list
-})
 
 const loading = ref(true)
 const loadError = ref('')
@@ -194,9 +193,20 @@ async function loadCostCenters() {
   }
 }
 
+async function bootstrapYears() {
+  await refreshYears()
+  const dy = defaultYear()
+  if (dy != null) year.value = dy
+}
+
 async function loadComparison() {
   const id = departmentId.value
   if (!id) return
+  if (!yearOptions.value.length) {
+    comparison.value = null
+    loading.value = false
+    return
+  }
   loading.value = true
   loadError.value = ''
   try {
@@ -336,11 +346,12 @@ async function onDeleteLine(row: BudgetComparisonRow) {
 
 watch(
   departmentId,
-  () => {
+  async () => {
+    await bootstrapYears()
     void loadCostCenters()
-    void loadComparison()
+    await loadComparison()
   },
-  { immediate: true }
+  { immediate: true },
 )
 </script>
 

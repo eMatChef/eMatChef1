@@ -6,7 +6,7 @@ use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\Mime\Address;
 
 /**
- * Absender/SMTP-Metadaten in var/app/mail_outbound.json (nicht DB).
+ * Absender- und Reply-To-Metadaten in var/app/mail_outbound.json (nicht DB).
  * Transport: ausschliesslich MAILER_DSN aus der Umgebung (SendGrid-only).
  */
 class MailOutboundSettingsStore

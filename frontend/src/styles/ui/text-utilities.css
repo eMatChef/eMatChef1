@@ -1,0 +1,4 @@
+/* Shared muted / secondary text */
+.text-muted {
+  color: var(--color-text-muted, #6b7280);
+}
