@@ -27,11 +27,25 @@
     </div>
 
     <div v-else class="list">
-      <div v-for="req in requests" :key="req.id" class="card">
-        <div class="title">{{ req.requested_department_name }}</div>
+      <div v-for="req in requests" :key="`${req.request_kind || 'admin'}-${req.id}`" class="card">
+        <div class="title-row">
+          <span v-if="req.request_kind === 'department_join'" class="request-kind-badge request-kind-badge--join">
+            {{ t('supportRequests.kindDepartmentJoin') }}
+          </span>
+          <span v-else class="request-kind-badge request-kind-badge--admin">
+            {{ t('supportRequests.kindAdminRequest') }}
+          </span>
+          <div class="title">{{ req.requested_department_name }}</div>
+        </div>
         <div class="meta">
           <span>{{ req.name }}</span>
           <span v-if="req.email"> · {{ req.email }}</span>
+        </div>
+        <div v-if="req.request_kind === 'department_join' && req.organisation_name" class="meta">
+          {{ t('supportRequests.organisation', { name: req.organisation_name }) }}
+        </div>
+        <div v-if="req.request_kind === 'department_join' && req.target_department_name" class="meta">
+          {{ t('supportRequests.joinTargetDept', { name: req.target_department_name }) }}
         </div>
         <div v-if="req.requested_organisation_id" class="meta">
           {{ t('supportRequests.organisation', { name: organisations.find(o => o.id === req.requested_organisation_id)?.name || req.requested_organisation_id }) }}
@@ -58,16 +72,32 @@
           <span v-if="req.updated_at"> · {{ formatDate(req.updated_at) }}</span>
         </div>
         <div v-if="activeTab === 'pending'" class="row-actions">
-          <template v-if="canAssignSupportRequests">
+          <template v-if="req.request_kind === 'department_join'">
             <button
               class="btn btn-success btn-sm"
               :disabled="loading"
-              @click="openAssignModal(req)"
+              @click="decideDepartmentJoin(req.id, 'approved')"
             >
-              {{ t('supportRequests.assign') }}
+              {{ t('supportRequests.approveJoin') }}
+            </button>
+            <button class="btn btn-danger btn-sm" :disabled="loading" @click="decideDepartmentJoin(req.id, 'rejected')">
+              {{ t('supportRequests.reject') }}
             </button>
           </template>
-          <button class="btn btn-danger btn-sm" :disabled="loading" @click="decide(req.id, 'rejected')">{{ t('supportRequests.reject') }}</button>
+          <template v-else>
+            <template v-if="canAssignSupportRequests">
+              <button
+                class="btn btn-success btn-sm"
+                :disabled="loading"
+                @click="openAssignModal(req)"
+              >
+                {{ t('supportRequests.assign') }}
+              </button>
+            </template>
+            <button class="btn btn-danger btn-sm" :disabled="loading" @click="decideAdmin(req.id)">
+              {{ t('supportRequests.reject') }}
+            </button>
+          </template>
         </div>
       </div>
     </div>
@@ -84,9 +114,46 @@
         </div>
 
         <div class="modal-body">
-          <div class="form-group">
-            <div class="meta"><strong>{{ t('supportRequests.userLabel') }}</strong> {{ selectedRequest?.name || '-' }}</div>
-            <div class="meta"><strong>{{ t('supportRequests.searchedLabel') }}</strong> {{ selectedRequest?.requested_department_name || '-' }}</div>
+          <div v-if="selectedRequest" class="assign-request-details">
+            <div class="assign-request-details-row">
+              <span class="assign-request-details-label">{{ t('supportRequests.userLabel') }}</span>
+              <span>{{ selectedRequest.name || '–' }}</span>
+            </div>
+            <div class="assign-request-details-row">
+              <span class="assign-request-details-label">{{ t('supportRequests.emailLabel') }}</span>
+              <a v-if="selectedRequest.email" :href="`mailto:${selectedRequest.email}`">{{ selectedRequest.email }}</a>
+              <span v-else>–</span>
+            </div>
+            <div class="assign-request-details-row">
+              <span class="assign-request-details-label">{{ t('supportRequests.searchedLabel') }}</span>
+              <span>{{ selectedRequest.requested_department_name || '–' }}</span>
+            </div>
+            <p
+              v-if="selectedRequest.requested_department_name === unknownDepartmentName"
+              class="assign-request-details-hint"
+            >
+              {{ t('supportRequests.unknownDeptHint') }}
+            </p>
+            <div v-if="selectedRequestOrganisationName" class="assign-request-details-row">
+              <span class="assign-request-details-label">{{ t('supportRequests.organisationLabel') }}</span>
+              <span>{{ selectedRequestOrganisationName }}</span>
+            </div>
+            <div v-if="selectedRequest.requested_parent_department_name" class="assign-request-details-row">
+              <span class="assign-request-details-label">{{ t('supportRequests.parentDeptLabel') }}</span>
+              <span>{{ selectedRequest.requested_parent_department_name }}</span>
+            </div>
+            <div v-if="selectedRequest.requested_affiliation" class="assign-request-details-row">
+              <span class="assign-request-details-label">{{ t('supportRequests.affiliationLabel') }}</span>
+              <span>{{ selectedRequest.requested_affiliation }}</span>
+            </div>
+            <div v-if="selectedRequest.message" class="assign-request-details-row assign-request-details-row--block">
+              <span class="assign-request-details-label">{{ t('supportRequests.messageLabel') }}</span>
+              <span class="assign-request-details-message">{{ selectedRequest.message }}</span>
+            </div>
+            <div class="assign-request-details-row">
+              <span class="assign-request-details-label">{{ t('supportRequests.requestedAtLabel') }}</span>
+              <span>{{ formatDate(selectedRequest.created_at) }}</span>
+            </div>
           </div>
 
           <!-- Toggle: Bestehendes Department ODER Neues erstellen -->
@@ -135,27 +202,34 @@
               type="text"
               class="form-input"
               :placeholder="t('supportRequests.deptSearchPlaceholder')"
-              @focus="showDepartmentDropdown = true"
-              @input="showDepartmentDropdown = true"
+              autocomplete="off"
+              @focus="onDepartmentSearchFocus"
+              @input="onDepartmentSearchInput"
               @blur="handleDepartmentBlur"
               ref="departmentSearchInput"
             />
-            <div v-if="showDepartmentDropdown" class="autocomplete-dropdown">
+            <Teleport to="body">
               <div
-                v-for="d in filteredAssignableDepartments"
-                :key="d.id"
-                class="autocomplete-item"
-                :class="{ 'is-child': d.parent_id }"
-                :style="d.parent_id ? { paddingLeft: `${(getDepartmentLevel(d) * 12) + 12}px` } : {}"
-                @mousedown.prevent="selectDepartment(d)"
+                v-if="showDepartmentDropdown && !selectedDepartment"
+                class="autocomplete-dropdown autocomplete-dropdown--teleported"
+                :style="departmentDropdownStyle"
               >
-                <span class="ac-name">{{ d.name }}</span>
-                <span v-if="d.parent_id" class="ac-meta">› {{ getParentPath(d) }}</span>
+                <div
+                  v-for="d in filteredAssignableDepartments"
+                  :key="d.id"
+                  class="autocomplete-item"
+                  :class="{ 'is-child': d._level > 0 }"
+                  :style="{ paddingLeft: `${12 + d._level * 14}px` }"
+                  @mousedown.prevent="selectDepartment(d)"
+                >
+                  <span class="ac-name">{{ d.name }}</span>
+                  <span v-if="d.parent_id" class="ac-meta">› {{ getParentPath(d) }}</span>
+                </div>
+                <div v-if="filteredAssignableDepartments.length === 0" class="autocomplete-empty">
+                  {{ t('supportRequests.noResults') }}
+                </div>
               </div>
-              <div v-if="filteredAssignableDepartments.length === 0" class="autocomplete-empty">
-                {{ t('supportRequests.noResults') }}
-              </div>
-            </div>
+            </Teleport>
           </div>
           <div v-if="selectedDepartment" class="form-group">
             <label class="form-label">{{ t('supportRequests.roleInDept') }}</label>
@@ -249,18 +323,23 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { departmentNameMatchScore, levenshtein } from '@/utils/stringSimilarity'
+import { flattenDepartmentsWithLevel } from '@/utils/departmentHierarchy'
+import { levenshtein } from '@/utils/stringSimilarity'
 import { useRoute } from 'vue-router'
 import { useToast } from '@/composables/useToast'
 import { useAuthStore } from '@/stores/auth'
 import { createDepartment, departmentHasManager, getDepartments, type Department } from '@/api/departments'
 import { getOrganisations, type Organisation } from '@/api/organisations'
-import { filterOrganisationsForUserPickers } from '@/utils/organisationUserPicker'
+import {
+  filterDepartmentsForAdminScope,
+  filterOrganisationsForUserPickers,
+} from '@/utils/organisationUserPicker'
 import {
   assignAdminJoinRequest,
   decideAdminJoinRequest,
+  decideJoinRequest,
   getAdminJoinRequestHistory,
   getPendingAdminJoinRequests,
   type PendingAdminJoinRequest
@@ -273,6 +352,8 @@ const authStore = useAuthStore()
 
 /** Backend liefert diesen Platzhalter für fehlende Abteilung (Sprache API). */
 const unknownDepartmentName = 'Unbekannte Abteilung'
+const DEPARTMENT_DROPDOWN_Z_INDEX = 2500
+const DEPARTMENT_DROPDOWN_MAX_HEIGHT = 240
 // Im Admin-Bereich (/admin-dashboard) keine departmentId – API akzeptiert '' für globale Admins
 const isAdminRoute = computed(() => route.path.startsWith('/admin-dashboard'))
 const departmentId = computed(() =>
@@ -296,6 +377,8 @@ const selectedDepartment = ref<Department | null>(null)
 const departmentSearchQuery = ref('')
 const showDepartmentDropdown = ref(false)
 const departmentSearchInput = ref<HTMLInputElement | null>(null)
+const departmentDropdownStyle = ref<Record<string, string>>({})
+let departmentDropdownListenersBound = false
 const assignLoading = ref(false)
 const assignError = ref<string | null>(null)
 const createDepartmentMode = ref(false)
@@ -313,28 +396,20 @@ const assignRoles = computed(() => [
   { value: 'mw', label: t('supportRequests.roles.mw') }
 ])
 
+const selectedRequestOrganisationName = computed(() => {
+  const orgId = selectedRequest.value?.requested_organisation_id
+  if (!orgId) return ''
+  return organisations.value.find((o) => o.id === orgId)?.name || orgId
+})
+
 // Verfügbare Parent-Departments als Tree (nur aus gewählter Organisation)
 const availableParentDepartmentsTree = computed(() => {
   const orgId = newDepartmentOrganisationId.value
   if (!orgId) return []
-  const depts = assignableDepartments.value.filter((d) => d.organisation_id === orgId)
-  interface TreeDept { id: string; name: string; level: number }
-  function buildTree(parentId: string | null, level: number): TreeDept[] {
-    const children = depts.filter((d) => (d.parent_id ?? null) === parentId)
-    const result: TreeDept[] = []
-    children.forEach((dept) => {
-      result.push({ id: dept.id, name: dept.name, level })
-      result.push(...buildTree(dept.id, level + 1))
-    })
-    return result
-  }
-  const main = depts.filter((d) => !d.parent_id)
-  const tree: TreeDept[] = []
-  main.forEach((d) => {
-    tree.push({ id: d.id, name: d.name, level: 0 })
-    tree.push(...buildTree(d.id, 1))
-  })
-  return tree
+  return flattenDepartmentsWithLevel(
+    assignableDepartments.value.filter((d) => d.organisation_id === orgId),
+    locale.value,
+  ).map((d) => ({ id: d.id, name: d.name, level: d._level }))
 })
 
 /** Departments derselben Organisation wie die Anfrage (falls gesetzt), sonst alle. */
@@ -345,10 +420,7 @@ const departmentPoolForAssign = computed(() => {
 })
 
 const filteredAssignableDepartments = computed(() => {
-  const rawReq = selectedRequest.value?.requested_department_name || ''
-  const requestedNeedle = rawReq === unknownDepartmentName ? '' : rawReq.trim()
   const q = departmentSearchQuery.value.trim()
-  const sortNeedle = q || requestedNeedle
   let list = departmentPoolForAssign.value
 
   if (q) {
@@ -356,30 +428,16 @@ const filteredAssignableDepartments = computed(() => {
     list = list.filter((d) => {
       const dn = d.name.toLowerCase()
       if (dn.includes(ql)) return true
+      const path = getParentPath(d).toLowerCase()
+      if (path.includes(ql)) return true
       const maxLen = Math.max(dn.length, ql.length)
       if (maxLen === 0) return false
       return levenshtein(dn, ql) <= Math.min(4, Math.ceil(maxLen / 3))
     })
   }
 
-  if (sortNeedle) {
-    return [...list]
-      .sort(
-        (a, b) =>
-          departmentNameMatchScore(b.name, sortNeedle) -
-          departmentNameMatchScore(a.name, sortNeedle)
-      )
-      .slice(0, 30)
-  }
-
-  return [...list].sort((a, b) => a.name.localeCompare(b.name, locale.value)).slice(0, 25)
+  return flattenDepartmentsWithLevel(list, locale.value).slice(0, q ? 40 : 80)
 })
-
-function getDepartmentLevel(d: Department): number {
-  if (!d.parent_id) return 0
-  const parent = assignableDepartments.value.find((x) => x.id === d.parent_id)
-  return parent ? 1 + getDepartmentLevel(parent) : 0
-}
 
 function getParentPath(d: Department): string {
   if (!d.parent_id) return ''
@@ -408,7 +466,7 @@ async function loadRequests() {
 
 async function loadAssignableDepartments() {
   try {
-    assignableDepartments.value = await getDepartments()
+    assignableDepartments.value = filterDepartmentsForAdminScope(await getDepartments())
   } catch (err) {
     console.error('Departments konnten nicht geladen werden:', err)
     assignableDepartments.value = []
@@ -424,11 +482,11 @@ async function loadOrganisations() {
   }
 }
 
-async function decide(id: string, status: 'rejected') {
+async function decideAdmin(id: string) {
   loading.value = true
   error.value = null
   try {
-    await decideAdminJoinRequest(departmentId.value, id, status)
+    await decideAdminJoinRequest(departmentId.value, id, 'rejected')
     await loadRequests()
   } catch (err: any) {
     error.value = err?.response?.data?.error || t('supportRequests.errors.decideFailed')
@@ -437,7 +495,31 @@ async function decide(id: string, status: 'rejected') {
   }
 }
 
+async function decideDepartmentJoin(id: string, status: 'approved' | 'rejected') {
+  loading.value = true
+  error.value = null
+  try {
+    await decideJoinRequest(id, status)
+    toast.success(
+      status === 'approved'
+        ? t('supportRequests.toastJoinApproved')
+        : t('supportRequests.toastJoinRejected'),
+    )
+    await loadRequests()
+  } catch (err: any) {
+    error.value = err?.response?.data?.error || t('supportRequests.errors.decideFailed')
+    toast.error(error.value)
+  } finally {
+    loading.value = false
+  }
+}
+
+function isAdminSupportRequest(req: PendingAdminJoinRequest): boolean {
+  return req.request_kind !== 'department_join'
+}
+
 async function openAssignModal(req: PendingAdminJoinRequest) {
+  if (!isAdminSupportRequest(req)) return
   selectedRequest.value = req
   selectedAssignmentDepartmentId.value = ''
   selectedDepartment.value = null
@@ -457,6 +539,8 @@ async function openAssignModal(req: PendingAdminJoinRequest) {
 }
 
 function closeAssignModal() {
+  showDepartmentDropdown.value = false
+  unbindDepartmentDropdownListeners()
   assignModalOpen.value = false
   selectedRequest.value = null
   selectedDepartment.value = null
@@ -469,6 +553,7 @@ async function selectDepartment(d: Department) {
   selectedAssignmentDepartmentId.value = d.id
   departmentSearchQuery.value = ''
   showDepartmentDropdown.value = false
+  unbindDepartmentDropdownListeners()
   try {
     const hasManager = await departmentHasManager(d.id)
     assignRole.value = hasManager ? 'u' : 'mw'
@@ -483,8 +568,79 @@ function clearSelectedDepartment() {
   departmentSearchQuery.value = ''
 }
 
+function syncDepartmentDropdownPosition() {
+  const el = departmentSearchInput.value
+  if (!el) return
+
+  const rect = el.getBoundingClientRect()
+  const vw = window.innerWidth
+  const vh = window.innerHeight
+  const width = Math.min(Math.max(rect.width, 280), vw - 16)
+  const left = Math.max(8, Math.min(rect.left, vw - width - 8))
+  const spaceBelow = vh - rect.bottom - 8
+  const spaceAbove = rect.top - 8
+  const openBelow = spaceBelow >= 120 || spaceBelow >= spaceAbove
+
+  if (openBelow) {
+    departmentDropdownStyle.value = {
+      position: 'fixed',
+      top: `${rect.bottom + 4}px`,
+      left: `${left}px`,
+      width: `${width}px`,
+      maxHeight: `${Math.min(DEPARTMENT_DROPDOWN_MAX_HEIGHT, Math.max(spaceBelow - 4, 80))}px`,
+      zIndex: String(DEPARTMENT_DROPDOWN_Z_INDEX),
+    }
+    return
+  }
+
+  departmentDropdownStyle.value = {
+    position: 'fixed',
+    left: `${left}px`,
+    width: `${width}px`,
+    bottom: `${vh - rect.top + 4}px`,
+    maxHeight: `${Math.min(DEPARTMENT_DROPDOWN_MAX_HEIGHT, Math.max(spaceAbove - 4, 80))}px`,
+    zIndex: String(DEPARTMENT_DROPDOWN_Z_INDEX),
+  }
+}
+
+function onDepartmentDropdownPositionChange() {
+  if (showDepartmentDropdown.value) syncDepartmentDropdownPosition()
+}
+
+function bindDepartmentDropdownListeners() {
+  if (departmentDropdownListenersBound) return
+  departmentDropdownListenersBound = true
+  window.addEventListener('resize', onDepartmentDropdownPositionChange)
+  window.addEventListener('scroll', onDepartmentDropdownPositionChange, true)
+}
+
+function unbindDepartmentDropdownListeners() {
+  if (!departmentDropdownListenersBound) return
+  departmentDropdownListenersBound = false
+  window.removeEventListener('resize', onDepartmentDropdownPositionChange)
+  window.removeEventListener('scroll', onDepartmentDropdownPositionChange, true)
+}
+
+async function onDepartmentSearchFocus() {
+  showDepartmentDropdown.value = true
+  await nextTick()
+  syncDepartmentDropdownPosition()
+  bindDepartmentDropdownListeners()
+}
+
+function onDepartmentSearchInput() {
+  showDepartmentDropdown.value = true
+  void nextTick().then(() => {
+    syncDepartmentDropdownPosition()
+    bindDepartmentDropdownListeners()
+  })
+}
+
 function handleDepartmentBlur() {
-  setTimeout(() => { showDepartmentDropdown.value = false }, 200)
+  setTimeout(() => {
+    showDepartmentDropdown.value = false
+    unbindDepartmentDropdownListeners()
+  }, 200)
 }
 
 function switchToSearchMode() {
@@ -558,8 +714,19 @@ async function createAndAssignDepartment() {
   }
 }
 
+watch(showDepartmentDropdown, async (open) => {
+  if (!open) {
+    unbindDepartmentDropdownListeners()
+    return
+  }
+  await nextTick()
+  syncDepartmentDropdownPosition()
+  bindDepartmentDropdownListeners()
+})
+
 onMounted(loadRequests)
 onMounted(loadOrganisations)
+onUnmounted(unbindDepartmentDropdownListeners)
 watch(departmentId, loadRequests)
 watch(activeTab, loadRequests)
 </script>
@@ -591,16 +758,97 @@ watch(activeTab, loadRequests)
 .empty { padding: 16px; border: 1px dashed #d1d5db; border-radius: 8px; color: #6b7280; }
 .list { display: flex; flex-direction: column; gap: 10px; }
 .card { border: 1px solid #e5e7eb; border-radius: 10px; padding: 12px; background: #fff; }
+.title-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.title-row .title {
+  margin: 0;
+}
+
+.request-kind-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.request-kind-badge--join {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.request-kind-badge--admin {
+  background: #fef3c7;
+  color: #92400e;
+}
+
 .title { font-weight: 700; color: #111827; }
 .meta { font-size: 13px; color: #6b7280; margin-top: 3px; }
 .message { margin-top: 8px; color: #374151; }
 .row-actions { margin-top: 10px; display: flex; gap: 8px; }
 /* Modal overlay/header/body/footer base uses shared ui/modals.css */
 .support-modal-dialog {
-  width: min(500px, calc(100vw - 48px));
+  width: min(560px, calc(100vw - 48px));
   max-height: calc(100vh - 48px);
   padding: 0;
   overflow: hidden;
+}
+
+.assign-request-details {
+  margin-bottom: 16px;
+  padding: 12px 14px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #f9fafb;
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.assign-request-details-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  margin-bottom: 6px;
+}
+
+.assign-request-details-row:last-child {
+  margin-bottom: 0;
+}
+
+.assign-request-details-row--block {
+  flex-direction: column;
+  gap: 2px;
+}
+
+.assign-request-details-label {
+  flex: 0 0 auto;
+  min-width: 9.5rem;
+  font-weight: 600;
+  color: #374151;
+}
+
+.assign-request-details-hint {
+  margin: 0 0 8px;
+  padding-left: 0;
+  font-size: 13px;
+  color: #6b7280;
+}
+
+.assign-request-details-message {
+  white-space: pre-wrap;
+  color: #374151;
+}
+
+.assign-request-details a {
+  color: #2563eb;
+  word-break: break-all;
 }
 
 .modal-header h2 {
@@ -783,19 +1031,12 @@ watch(activeTab, loadRequests)
   color: #4338ca;
 }
 
-.autocomplete-dropdown {
-  position: absolute;
-  top: 100%;
-  left: 0;
-  right: 0;
-  background: white;
-  border: 1px solid #e5e7eb;
-  border-top: none;
-  border-radius: 0 0 8px 8px;
-  box-shadow: 0 8px 25px -5px rgba(0, 0, 0, 0.15);
-  z-index: 50;
-  max-height: 240px;
+.autocomplete-dropdown--teleported {
   overflow-y: auto;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
 }
 
 .autocomplete-item {

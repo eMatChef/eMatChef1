@@ -83,51 +83,6 @@
       "titleFallback": "Blog",
       "untitledPost": "Ohne Titel",
       "noPostsYet": "Noch keine Beiträge."
-    },
-    "landing": {
-      "kicker": "Materialverwaltung",
-      "heroTitle": "Material im Griff, Team im Blick",
-      "heroSubtitle": "eMatChef unterstützt dich bei Lager, Ausleihe und Übersicht – für Vermietungen und Teams, die mitdenken.",
-      "primaryCta": "Login",
-      "secondaryCta": "Fragen & Antworten",
-      "intro": {
-        "title": "Einfach digital organisieren",
-        "paragraph1": "Suchst du eine klare, digitale Lösung für Material, Lager und Ausleihen? eMatChef richtet sich an Teams und Vermietungen: Du behältst Übersicht über Bestände, Orte und Bewegungen – ohne Tabellenchaos und ohne Zettelwirtschaft.",
-        "paragraph2": "Die Anwendung läuft im Browser, ist rollenbasiert aufgebaut und lässt sich pro Organisation anpassen. Öffentliche QR-Infos helfen dabei, Material schnell wiederzufinden."
-      },
-      "features": {
-        "title": "Was eMatChef kann",
-        "items": [
-          {
-            "title": "Alles an einem Ort",
-            "text": "Material, Lagerorte, Mengen und Bewegungen – strukturiert und nachvollziehbar."
-          },
-          {
-            "title": "QR & öffentliche Infos",
-            "text": "Seriennummern und Hinweise für alle sichtbar, wo es sinnvoll ist."
-          },
-          {
-            "title": "Rollen & Abteilungen",
-            "text": "Wer darf was sehen und bearbeiten? Rechte pro Team und Organisation."
-          },
-          {
-            "title": "Ausleihe & Bestand",
-            "text": "Buchungen und Verschiebungen dokumentieren, ohne Doppelungen zu riskieren."
-          },
-          {
-            "title": "Vorlagen & Einstellungen",
-            "text": "Organisationsspezifische Vorlagen und Konfiguration – nicht \"One size fits all\"."
-          },
-          {
-            "title": "Im Browser",
-            "text": "Keine Installation nötig: einfach anmelden und loslegen."
-          }
-        ]
-      },
-      "cta": {
-        "titleSrOnly": "Loslegen",
-        "text": "Bereit? Melde dich an und arbeite mit deiner Abteilung in einer gemeinsamen Oberfläche."
-      }
     }
   },
   "languageNames": {

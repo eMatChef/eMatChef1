@@ -243,18 +243,14 @@
             <p class="required-note">{{ t('login.organisationFromInvite') }}</p>
           </div>
 
-          <div class="form-group">
-            <label for="requestedDepartmentName" class="form-label">{{ t('login.departmentLabel') }}</label>
-            <input
-              id="requestedDepartmentName"
-              v-model="requestedDepartmentName"
-              type="text"
-              class="form-input"
-              :placeholder="t('login.departmentPlaceholder')"
-              required
-              :disabled="isLoading"
-            />
-          </div>
+          <RegisterDepartmentPicker
+            :organisation-id="effectiveRequestedOrganisationId"
+            :disabled="isLoading"
+            :initial-query="registerDepartmentInitialQuery"
+            @update:selected="registerSelectedDepartment = $event"
+            @update:organisation-id="onRegisterOrganisationFromDepartment"
+            @update:manual="registerManualDepartment = $event"
+          />
 
           <!-- Honeypot: Bots fuellen das oft aus -->
           <div class="form-group" style="position:absolute; left:-10000px; top:auto; width:1px; height:1px; overflow:hidden;">
@@ -361,6 +357,10 @@ import { confirmPasswordReset, register as apiRegister, requestPasswordReset, re
 import { useAuthStore } from '@/stores/auth'
 import EmcLogoMark from '@/components/brand/EmcLogoMark.vue'
 import { getOrganisations, type Organisation } from '@/api/organisations'
+import RegisterDepartmentPicker, {
+  type RegisterDepartmentManualRequest,
+} from '@/components/auth/RegisterDepartmentPicker.vue'
+import type { PublicDepartmentSearchResult } from '@/api/publicDepartments'
 import { filterOrganisationsForUserPickers } from '@/utils/organisationUserPicker'
 import { setLocale, SUPPORTED_LOCALES } from '@/i18n'
 
@@ -392,7 +392,9 @@ const registerPasswordConfirm = ref('')
 const language = ref('de')
 const acceptTerms = ref(false)
 const requestedOrganisationId = ref('')
-const requestedDepartmentName = ref('')
+const registerSelectedDepartment = ref<PublicDepartmentSearchResult | null>(null)
+const registerManualDepartment = ref<RegisterDepartmentManualRequest | null>(null)
+const registerDepartmentInitialQuery = ref('')
 const inviteOrganisationId = ref('')
 const inviteOrganisationName = ref('')
 // Honeypot gegen Bots: unsichtbar, muss leer bleiben
@@ -552,7 +554,7 @@ function applyRegisterPrefillFromQuery() {
       requestedOrganisationId.value = orgId
     }
     if (deptName) {
-      requestedDepartmentName.value = deptName
+      registerDepartmentInitialQuery.value = deptName
     }
   }
 
@@ -603,10 +605,16 @@ function resetRegisterForm() {
   language.value = 'de'
   acceptTerms.value = false
   requestedOrganisationId.value = ''
-  requestedDepartmentName.value = ''
+  registerSelectedDepartment.value = null
+  registerManualDepartment.value = null
+  registerDepartmentInitialQuery.value = ''
   inviteOrganisationId.value = ''
   inviteOrganisationName.value = ''
   website.value = ''
+}
+
+function onRegisterOrganisationFromDepartment(orgId: string) {
+  requestedOrganisationId.value = orgId
 }
 
 async function loadOrganisationsForRegister() {
@@ -775,7 +783,7 @@ async function handleRegister() {
     error.value = t('login.validationOrganisationRequired')
     return
   }
-  if (!requestedDepartmentName.value.trim()) {
+  if (!registerSelectedDepartment.value && !registerManualDepartment.value) {
     error.value = t('login.validationDepartmentRequired')
     return
   }
@@ -822,7 +830,12 @@ async function handleRegister() {
       language: language.value,
       acceptTerms: acceptTerms.value,
       requestedOrganisationId: effectiveRequestedOrganisationId.value,
-      requestedDepartmentName: requestedDepartmentName.value.trim(),
+      requestedDepartmentName: (
+        registerSelectedDepartment.value?.name || registerManualDepartment.value?.departmentName || ''
+      ).trim(),
+      requestedDepartmentId: registerSelectedDepartment.value?.id,
+      requestedParentDepartmentId: registerManualDepartment.value?.parentDepartmentId || undefined,
+      requestedParentDepartmentName: registerManualDepartment.value?.parentDepartmentName || undefined,
       website: website.value,
       turnstileToken
     })
@@ -920,7 +933,7 @@ watch([email, password], () => {
   }
 })
 
-watch([firstName, lastName, nickname, registerEmail, registerPassword, registerPasswordConfirm, language, acceptTerms, requestedOrganisationId, requestedDepartmentName], () => {
+watch([firstName, lastName, nickname, registerEmail, registerPassword, registerPasswordConfirm, language, acceptTerms, requestedOrganisationId, registerSelectedDepartment, registerManualDepartment], () => {
   if (mode.value === 'register' && error.value) {
     error.value = null
   }
