@@ -72,8 +72,32 @@ export function isOrganisationHiddenFromUserPickers(org: Organisation): boolean 
   return false
 }
 
+/** Feste Reihenfolge in Registrierungs-/Join-Dropdowns: Pfadi, dann Cevi, Rest A–Z. */
+function organisationUserPickerSortRank(org: Organisation): number {
+  const n = org.name.toLowerCase()
+  if (n.includes('pfadi')) {
+    return 0
+  }
+  if (n.includes('cevi')) {
+    return 1
+  }
+  return 2
+}
+
+export function sortOrganisationsForUserPickers(orgs: Organisation[]): Organisation[] {
+  return [...orgs].sort((a, b) => {
+    const ra = organisationUserPickerSortRank(a)
+    const rb = organisationUserPickerSortRank(b)
+    if (ra !== rb) {
+      return ra - rb
+    }
+    return a.name.localeCompare(b.name, 'de', { sensitivity: 'base' })
+  })
+}
+
 export function filterOrganisationsForUserPickers(orgs: Organisation[]): Organisation[] {
-  return orgs.filter(o => !isOrganisationHiddenFromUserPickers(o))
+  const visible = orgs.filter((o) => !isOrganisationHiddenFromUserPickers(o))
+  return sortOrganisationsForUserPickers(visible)
 }
 
 export type DepartmentLike = {
@@ -92,7 +116,10 @@ export function isDepartmentHiddenFromAdminScope(dept: DepartmentLike): boolean 
     return true
   }
   const n = (dept.name || '').toLowerCase()
-  if (n.includes('global suppliers')) {
+  if (n.includes('global suppliers') || n.includes('global system')) {
+    return true
+  }
+  if (n.includes('j&s') || n.includes('j+s') || n.includes('leih-material')) {
     return true
   }
   return false

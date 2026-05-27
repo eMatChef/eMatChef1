@@ -6,6 +6,8 @@ use App\Config\LanguageConfig;
 use App\Entity\Profile;
 use App\Entity\User;
 use App\Entity\AdminJoinRequest;
+use App\Entity\Department;
+use App\Entity\JoinRequest;
 use App\Entity\Membership;
 use App\Entity\Organisation;
 use App\Repository\ProfileRepository;
@@ -15,6 +17,7 @@ use App\Service\AuditLogger;
 use App\Service\Auth\CrossSubdomainAuthCookies;
 use App\Service\OrganisationUserPickerFilter;
 use App\Service\TurnstileVerifier;
+use App\Service\JoinRequestManagerNotificationService;
 use App\Service\VerificationEmailService;
 use App\Util\IdGenerator;
 use Doctrine\ORM\EntityManagerInterface;
@@ -52,6 +55,7 @@ class AuthController extends AbstractController
         private LanguageConfig $languageConfig,
         private CrossSubdomainAuthCookies $authCookies,
         private AdminCapabilityChecker $adminCapabilityChecker,
+        private JoinRequestManagerNotificationService $joinRequestManagerNotifications,
         #[Autowire('%kernel.secret%')]
         private string $appSecret,
     ) {}
@@ -221,7 +225,10 @@ class AuthController extends AbstractController
         $language = $this->languageConfig->normalize((string) ($data['language'] ?? $this->languageConfig->getDefaultLanguage()));
         $acceptTerms = (bool) ($data['acceptTerms'] ?? false);
         $requestedOrganisationId = trim((string) ($data['requestedOrganisationId'] ?? ''));
+        $requestedDepartmentId = trim((string) ($data['requestedDepartmentId'] ?? ''));
         $requestedDepartmentName = trim((string) ($data['requestedDepartmentName'] ?? ''));
+        $requestedParentDepartmentId = trim((string) ($data['requestedParentDepartmentId'] ?? ''));
+        $requestedParentDepartmentName = trim((string) ($data['requestedParentDepartmentName'] ?? ''));
         $honeypotWebsite = trim((string) ($data['website'] ?? ''));
         $turnstileToken = trim((string) ($data['turnstileToken'] ?? ''));
 
@@ -248,8 +255,11 @@ class AuthController extends AbstractController
             return new JsonResponse(['error' => 'Vorname und Nachname sind erforderlich'], 400);
         }
 
-        if ($requestedOrganisationId === '' || $requestedDepartmentName === '') {
-            return new JsonResponse(['error' => 'Organisation und Abteilungsname sind erforderlich'], 400);
+        if ($requestedOrganisationId === '') {
+            return new JsonResponse(['error' => 'Organisation ist erforderlich'], 400);
+        }
+        if ($requestedDepartmentId === '' && $requestedDepartmentName === '') {
+            return new JsonResponse(['error' => 'Bitte Abteilung suchen und auswaehlen oder Abteilungsname eingeben'], 400);
         }
 
         if ($email === '' || $password === '') {
@@ -311,14 +321,43 @@ class AuthController extends AbstractController
         $this->entityManager->persist($profile);
         $this->entityManager->persist($user);
 
-        // Direkt Admin-Join-Request erstellen (damit Admins den Wunsch sehen)
-        $adminRequest = new AdminJoinRequest();
-        $adminRequest->setId(IdGenerator::generateUnique($this->entityManager, AdminJoinRequest::class));
-        $adminRequest->setUser($user);
-        $adminRequest->setRequestedDepartmentName($requestedDepartmentName);
-        $adminRequest->setRequestedOrganisationId($requestedOrganisationId);
-        $adminRequest->setStatus('pending');
-        $this->entityManager->persist($adminRequest);
+        $matchedDepartment = null;
+        if ($requestedDepartmentId !== '') {
+            /** @var Department|null $matchedDepartment */
+            $matchedDepartment = $this->entityManager->getRepository(Department::class)->find($requestedDepartmentId);
+            if (!$matchedDepartment || $matchedDepartment->getOrganisationId() !== $requestedOrganisationId) {
+                return new JsonResponse(['error' => 'Abteilung gehoert nicht zur gewaehlten Organisation'], 400);
+            }
+            $requestedDepartmentName = $matchedDepartment->getName();
+        }
+
+        $adminRequest = null;
+        $joinRequest = null;
+        if ($matchedDepartment) {
+            $joinRequest = new JoinRequest();
+            $joinRequest->setId(IdGenerator::generateUnique($this->entityManager, JoinRequest::class));
+            $joinRequest->setUser($user);
+            $joinRequest->setDepartment($matchedDepartment);
+            $joinRequest->setStatus('pending');
+            $this->entityManager->persist($joinRequest);
+        } else {
+            $adminRequest = new AdminJoinRequest();
+            $adminRequest->setId(IdGenerator::generateUnique($this->entityManager, AdminJoinRequest::class));
+            $adminRequest->setUser($user);
+            $adminRequest->setRequestedDepartmentName($requestedDepartmentName);
+            $adminRequest->setRequestedOrganisationId($requestedOrganisationId);
+            if ($requestedParentDepartmentId !== '') {
+                /** @var Department|null $parentDept */
+                $parentDept = $this->entityManager->getRepository(Department::class)->find($requestedParentDepartmentId);
+                if ($parentDept && $parentDept->getOrganisationId() === $requestedOrganisationId) {
+                    $adminRequest->setRequestedParentDepartment($parentDept);
+                }
+            } elseif ($requestedParentDepartmentName !== '') {
+                $adminRequest->setRequestedParentDepartmentName($requestedParentDepartmentName);
+            }
+            $adminRequest->setStatus('pending');
+            $this->entityManager->persist($adminRequest);
+        }
 
         $this->entityManager->flush();
         try {
@@ -328,12 +367,27 @@ class AuthController extends AbstractController
             // damit kein unbestaetigter "Zombie-Account" bestehen bleibt.
             $this->entityManager->remove($user);
             $this->entityManager->remove($profile);
-            $this->entityManager->remove($adminRequest);
+            if ($adminRequest) {
+                $this->entityManager->remove($adminRequest);
+            }
+            if ($joinRequest) {
+                $this->entityManager->remove($joinRequest);
+            }
             $this->entityManager->flush();
 
             return new JsonResponse([
                 'error' => 'Verifikationsmail konnte nicht zugestellt werden. Bitte E-Mail-Adresse pruefen.'
             ], 400);
+        }
+
+        try {
+            if ($joinRequest) {
+                $this->joinRequestManagerNotifications->notifyJoinRequestCreated($joinRequest);
+            } elseif ($adminRequest) {
+                $this->joinRequestManagerNotifications->notifyAdminJoinRequestCreated($adminRequest);
+            }
+        } catch (\Throwable) {
+            // Registrierung bleibt gueltig auch wenn Manager-Mail fehlschlaegt
         }
 
         $this->auditLogger->log(
