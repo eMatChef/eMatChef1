@@ -1158,6 +1158,10 @@ class JoinRequestController extends AbstractController
         }
 
         $this->finalizeInviteAccepted($department, $invite, $currentUser);
+
+        $currentUser->setLastUsedDepartment($department);
+        $this->entityManager->flush();
+
         return new JsonResponse([
             'success' => true,
             'department_id' => $department->getId(),
