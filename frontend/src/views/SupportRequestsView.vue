@@ -507,8 +507,9 @@ async function decideDepartmentJoin(id: string, status: 'approved' | 'rejected')
     )
     await loadRequests()
   } catch (err: any) {
-    error.value = err?.response?.data?.error || t('supportRequests.errors.decideFailed')
-    toast.error(error.value)
+    const msg = err?.response?.data?.error || t('supportRequests.errors.decideFailed')
+    error.value = msg
+    toast.error(msg)
   } finally {
     loading.value = false
   }
