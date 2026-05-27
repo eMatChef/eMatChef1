@@ -46,7 +46,10 @@ final class SystemScopeVisibility
         }
 
         $name = mb_strtolower($department->getName());
-        if (str_contains($name, 'global suppliers')) {
+        if (str_contains($name, 'global suppliers') || str_contains($name, 'global system')) {
+            return false;
+        }
+        if (str_contains($name, 'j&s') || str_contains($name, 'j+s') || str_contains($name, 'leih-material')) {
             return false;
         }
 

@@ -27,6 +27,8 @@ final class MailTemplateContentStore
         'auth.password_reset_code',
         'department.invite',
         'department.member_added',
+        'join_request.manager_notify',
+        'admin_join_request.manager_notify',
         'public.found_item_contact',
     ];
 

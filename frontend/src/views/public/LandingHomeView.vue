@@ -2,38 +2,60 @@
   <div class="plt-page">
     <section class="plt-hero" aria-labelledby="landing-title">
       <div class="plt-hero__inner">
-        <p class="plt-kicker">{{ t('public.landing.kicker') }}</p>
-        <h1 id="landing-title">{{ heroTitle }}</h1>
-        <p class="plt-lead">{{ heroSubtitle }}</p>
-        <div class="plt-hero__actions">
+        <p v-if="landing.kicker" class="plt-kicker">{{ landing.kicker }}</p>
+        <h1 v-if="landing.heroTitle" id="landing-title">{{ landing.heroTitle }}</h1>
+        <p v-if="landing.heroSubtitle" class="plt-lead">{{ landing.heroSubtitle }}</p>
+        <div v-if="showPrimaryCta || showSecondaryCta" class="plt-hero__actions">
           <a
+            v-if="showPrimaryCta"
             :href="primaryHref"
             :target="openPrimaryInNewTab ? '_blank' : undefined"
             :rel="openPrimaryInNewTab ? 'noopener noreferrer' : undefined"
             class="btn btn-primary plt-btn-lg"
           >
-            {{ primaryCta }}
+            {{ primaryCtaLabel }}
           </a>
-          <RouterLink to="/faq" class="btn btn-outline plt-btn-lg">{{ secondaryCta }}</RouterLink>
+          <RouterLink
+            v-if="showSecondaryCta && secondaryIsInternal"
+            :to="landing.secondaryCtaPath"
+            class="btn btn-outline plt-btn-lg"
+          >
+            {{ landing.secondaryCta }}
+          </RouterLink>
+          <a
+            v-else-if="showSecondaryCta"
+            :href="landing.secondaryCtaPath"
+            class="btn btn-outline plt-btn-lg"
+          >
+            {{ landing.secondaryCta }}
+          </a>
         </div>
       </div>
     </section>
 
-    <section class="plt-section plt-section--alt" aria-labelledby="section-intro">
+    <section
+      v-if="showIntro"
+      class="plt-section plt-section--alt"
+      aria-labelledby="section-intro"
+    >
       <div class="plt-container">
-        <h2 id="section-intro">{{ t('public.landing.intro.title') }}</h2>
+        <h2 v-if="landing.introTitle" id="section-intro">{{ landing.introTitle }}</h2>
         <div class="plt-prose">
-          <p>{{ t('public.landing.intro.paragraph1') }}</p>
-          <p>{{ t('public.landing.intro.paragraph2') }}</p>
+          <p v-if="landing.introParagraph1">{{ landing.introParagraph1 }}</p>
+          <p v-if="landing.introParagraph2">{{ landing.introParagraph2 }}</p>
         </div>
       </div>
     </section>
 
-    <section class="plt-section" aria-labelledby="section-features">
+    <section
+      v-if="landing.features.length"
+      class="plt-section"
+      aria-labelledby="section-features"
+    >
       <div class="plt-container">
-        <h2 id="section-features">{{ t('public.landing.features.title') }}</h2>
+        <h2 v-if="landing.featuresTitle" id="section-features">{{ landing.featuresTitle }}</h2>
         <div class="plt-features">
-          <article v-for="(f, i) in features" :key="i" class="plt-feature-card">
+          <article v-for="(f, i) in landing.features" :key="i" class="plt-feature-card">
             <div class="plt-feature-card__icon" aria-hidden="true">{{ f.icon }}</div>
             <h3>{{ f.title }}</h3>
             <p>{{ f.text }}</p>
@@ -42,17 +64,18 @@
       </div>
     </section>
 
-    <section class="plt-cta" aria-labelledby="section-cta">
+    <section v-if="showCta" class="plt-cta" aria-labelledby="section-cta">
       <div class="plt-container">
-        <h2 id="section-cta" class="sr-only">{{ t('public.landing.cta.titleSrOnly') }}</h2>
-        <p>{{ t('public.landing.cta.text') }}</p>
+        <h2 v-if="landing.ctaTitleSrOnly" id="section-cta" class="sr-only">{{ landing.ctaTitleSrOnly }}</h2>
+        <p v-if="landing.ctaText">{{ landing.ctaText }}</p>
         <a
+          v-if="showPrimaryCta"
           :href="primaryHref"
           :target="openPrimaryInNewTab ? '_blank' : undefined"
           :rel="openPrimaryInNewTab ? 'noopener noreferrer' : undefined"
           class="btn btn-primary plt-btn-lg"
         >
-          {{ primaryCta }}
+          {{ primaryCtaLabel }}
         </a>
       </div>
     </section>
@@ -65,9 +88,10 @@ import { useI18n } from 'vue-i18n'
 import { useSiteContentStore } from '@/stores/siteContent'
 import { getAppEntryTarget, getAppLoginTarget } from '@/utils/appLoginUrl'
 import { useAuthStore } from '@/stores/auth'
+import { resolveLandingDisplay } from '@/utils/publicLanding'
 
 const site = useSiteContentStore()
-const { t } = useI18n()
+const { t, locale } = useI18n()
 const authStore = useAuthStore()
 
 onMounted(() => {
@@ -75,23 +99,31 @@ onMounted(() => {
   void authStore.loadUserSessionFromCookie()
 })
 
-const heroTitle = computed(() =>
-  String(site.getContent('landing').heroTitle ?? t('public.landing.heroTitle'))
+const landing = computed(() =>
+  resolveLandingDisplay(site.getContent('landing'), String(locale.value)),
 )
-const heroSubtitle = computed(() =>
-  String(
-    site.getContent('landing').heroSubtitle ??
-      t('public.landing.heroSubtitle')
-  )
-)
+
 const isPublicLoggedIn = computed(() => authStore.isLoggedIn)
-const primaryCta = computed(() =>
-  isPublicLoggedIn.value
-    ? t('public.lookup.toApp')
-    : String(site.getContent('landing').primaryCta ?? t('public.landing.primaryCta'))
+const primaryCtaLabel = computed(() =>
+  isPublicLoggedIn.value ? t('public.lookup.toApp') : landing.value.primaryCta,
 )
+const showPrimaryCta = computed(
+  () => isPublicLoggedIn.value || Boolean(landing.value.primaryCta),
+)
+const showSecondaryCta = computed(
+  () => Boolean(landing.value.secondaryCta && landing.value.secondaryCtaPath),
+)
+const showIntro = computed(
+  () =>
+    Boolean(
+      landing.value.introTitle ||
+        landing.value.introParagraph1 ||
+        landing.value.introParagraph2,
+    ),
+)
+const showCta = computed(() => Boolean(landing.value.ctaText || showPrimaryCta.value))
 const primaryHref = computed(() =>
-  isPublicLoggedIn.value ? getAppEntryTarget() : getAppLoginTarget()
+  isPublicLoggedIn.value ? getAppEntryTarget() : getAppLoginTarget(),
 )
 const openPrimaryInNewTab = computed(() => {
   if (typeof window === 'undefined') return false
@@ -101,18 +133,8 @@ const openPrimaryInNewTab = computed(() => {
     return false
   }
 })
-const secondaryCta = computed(() =>
-  String(site.getContent('landing').secondaryCta ?? t('public.landing.secondaryCta'))
-)
 
-const featureIcons = ['⊙', '⌗', '◎', '⇄', '◇', '○'] as const
-const features = computed(() =>
-  featureIcons.map((icon, index) => ({
-    icon,
-    title: t(`public.landing.features.items.${index}.title`),
-    text: t(`public.landing.features.items.${index}.text`),
-  }))
-)
+const secondaryIsInternal = computed(() => landing.value.secondaryCtaPath.startsWith('/'))
 </script>
 
 <style scoped>

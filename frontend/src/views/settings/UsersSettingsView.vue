@@ -100,6 +100,33 @@
       <p v-else class="pending-muted">{{ t('settings.departmentUsers.pendingNone') }}</p>
     </div>
 
+    <div v-if="canManagePendingInvites && !isLoading" class="pending-invites-card">
+      <div class="pending-head">
+        <h3>{{ t('settings.departmentUsers.pendingJoinRequestsTitle') }}</h3>
+        <span v-if="pendingJoinRequests.length > 0" class="pending-count">{{ pendingJoinRequests.length }}</span>
+      </div>
+      <p v-if="pendingJoinRequestsError" class="pending-error">{{ pendingJoinRequestsError }}</p>
+      <p v-else-if="isLoadingPendingJoinRequests" class="pending-muted">{{ t('settings.departmentUsers.pendingJoinRequestsLoading') }}</p>
+      <ul v-else-if="pendingJoinRequests.length > 0" class="pending-list">
+        <li v-for="jr in pendingJoinRequests" :key="jr.id" class="pending-item">
+          <div class="pending-item-main">
+            <span class="pending-email">{{ jr.name }}</span>
+            <span v-if="jr.email" class="pending-user-name">{{ jr.email }}</span>
+            <p v-if="jr.message" class="pending-join-message">{{ t('settings.departmentUsers.pendingJoinMessage', { text: jr.message }) }}</p>
+          </div>
+          <div class="pending-join-actions">
+            <button class="btn btn-primary btn-sm" type="button" @click="decidePendingJoin(jr.id, 'approved')">
+              {{ t('settings.departmentUsers.pendingJoinApprove') }}
+            </button>
+            <button class="btn btn-secondary btn-sm" type="button" @click="decidePendingJoin(jr.id, 'rejected')">
+              {{ t('settings.departmentUsers.pendingJoinReject') }}
+            </button>
+          </div>
+        </li>
+      </ul>
+      <p v-else class="pending-muted">{{ t('settings.departmentUsers.pendingJoinRequestsNone') }}</p>
+    </div>
+
     <!-- Loading -->
     <div v-if="isLoading" class="loading-state">
       <div class="spinner"></div>
@@ -437,9 +464,12 @@ import { useToast } from '@/composables/useToast'
 import { useConfirm } from '@/composables/useConfirm'
 import {
   createPendingInvite,
+  decideJoinRequest,
   deletePendingInvite,
   getPendingInvites,
+  getPendingJoinRequests,
   type PendingInvite,
+  type PendingJoinRequest,
 } from '@/api/joinRequests'
 import {
   getDepartmentMembers,
@@ -541,6 +571,9 @@ const sortDir = ref<'asc' | 'desc'>('asc')
 const pendingInvites = ref<PendingInvite[]>([])
 const isLoadingPendingInvites = ref(false)
 const pendingInvitesError = ref('')
+const pendingJoinRequests = ref<PendingJoinRequest[]>([])
+const isLoadingPendingJoinRequests = ref(false)
+const pendingJoinRequestsError = ref('')
 
 // Add Modal
 const showAddModal = ref(false)
@@ -701,6 +734,34 @@ async function loadPendingInvites() {
     pendingInvitesError.value = err.response?.data?.error || t('settings.departmentUsers.errLoadPendingInvites')
   } finally {
     isLoadingPendingInvites.value = false
+  }
+}
+
+async function loadPendingJoinRequests() {
+  if (!departmentId.value || !canManagePendingInvites.value) {
+    pendingJoinRequests.value = []
+    pendingJoinRequestsError.value = ''
+    return
+  }
+  isLoadingPendingJoinRequests.value = true
+  pendingJoinRequestsError.value = ''
+  try {
+    pendingJoinRequests.value = await getPendingJoinRequests(departmentId.value)
+  } catch (err: any) {
+    pendingJoinRequests.value = []
+    pendingJoinRequestsError.value = err.response?.data?.error || t('settings.departmentUsers.errLoadPendingInvites')
+  } finally {
+    isLoadingPendingJoinRequests.value = false
+  }
+}
+
+async function decidePendingJoin(id: string, status: 'approved' | 'rejected') {
+  try {
+    await decideJoinRequest(id, status)
+    toast.success(status === 'approved' ? t('settings.departmentUsers.pendingJoinApprove') : t('settings.departmentUsers.pendingJoinReject'))
+    await Promise.all([loadPendingJoinRequests(), loadMembers()])
+  } catch (err: any) {
+    toast.error(err.response?.data?.error || t('settings.departmentUsers.errLoadPendingInvites'))
   }
 }
 
@@ -933,6 +994,7 @@ async function removePendingInviteItem(inviteId: string) {
 watch(departmentId, () => {
   loadMembers()
   loadPendingInvites()
+  loadPendingJoinRequests()
 })
 watch(userSearchQuery, (value) => {
   if (!showAddModal.value || selectedAvailableUser.value) return
@@ -950,6 +1012,7 @@ watch(userSearchQuery, (value) => {
 onMounted(() => {
   loadMembers()
   loadPendingInvites()
+  loadPendingJoinRequests()
 })
 
 onUnmounted(() => {
@@ -1205,6 +1268,19 @@ onUnmounted(() => {
 .notification-time {
   font-size: 11px;
   color: #94a3b8;
+}
+
+.pending-join-message {
+  margin: 6px 0 0;
+  font-size: 13px;
+  color: #4b5563;
+}
+
+.pending-join-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  flex-shrink: 0;
 }
 
 .pending-muted {
