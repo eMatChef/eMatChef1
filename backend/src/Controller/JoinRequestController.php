@@ -162,7 +162,12 @@ class JoinRequestController extends AbstractController
         $joinRequest->setUser($currentUser);
         $joinRequest->setDepartment($department);
         $joinRequest->setMessage($message !== '' ? $message : null);
-        $joinRequest->setReviewedBy($currentUser);
+        // Join-Code: sofort Mitglied. Abteilung per Suche / persoenliche Einladung: MW/DC-Freigabe.
+        if ($autoJoined) {
+            $joinRequest->setStatus('approved');
+            $joinRequest->setReviewedBy($currentUser);
+        } else {
+            $joinRequest->setStatus('pending');
         }
 
         $this->entityManager->persist($joinRequest);
