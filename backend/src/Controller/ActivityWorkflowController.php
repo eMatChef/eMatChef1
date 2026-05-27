@@ -12,6 +12,12 @@ use App\Entity\MaterialItem;
 use App\Entity\User;
 use App\Controller\WorkshopController;
 use App\Service\ActivityAccessService;
+use App\Service\ActivityAccountingCostService;
+use App\Service\ActivityItemPipelineStatusService;
+use App\Service\ActivityKisteMaterialLinker;
+use App\Service\ActivityPackCrateCheckService;
+use App\Service\InboxMessageService;
+use App\Service\PackPipelineService;
 use App\Util\IdGenerator;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -31,7 +37,13 @@ class ActivityWorkflowController extends AbstractController
 {
     public function __construct(
         private EntityManagerInterface $entityManager,
-        private ActivityAccessService $activityAccess
+        private ActivityAccessService $activityAccess,
+        private ActivityKisteMaterialLinker $kisteMaterialLinker,
+        private ActivityPackCrateCheckService $packCrateCheckService,
+        private PackPipelineService $packPipeline,
+        private ActivityItemPipelineStatusService $activityItemPipelineStatus,
+        private ActivityAccountingCostService $activityAccountingCost,
+        private InboxMessageService $inboxMessageService,
     ) {}
 
     // ═══════════════════════════════════════════════
@@ -48,6 +60,17 @@ class ActivityWorkflowController extends AbstractController
         $activity = $this->findActivityForUser($activityId);
         if ($activity instanceof JsonResponse) {
             return $activity;
+        }
+
+        $this->kisteMaterialLinker->reconcileOrphanPackItemsWithoutMaterialLine($activity);
+
+        $user = $this->getUser();
+        if ($this->kisteMaterialLinker->reconcileShellPackItemsPackedFromContainers(
+            $activity,
+            $user instanceof User ? $user : null,
+        )) {
+            $this->activityItemPipelineStatus->syncForActivity($activity);
+            $this->entityManager->flush();
         }
 
         $items = $this->entityManager->getRepository(ActivityPackItem::class)
@@ -135,6 +158,7 @@ class ActivityWorkflowController extends AbstractController
             $count++;
         }
 
+        $this->activityItemPipelineStatus->syncForActivity($activity);
         $this->entityManager->flush();
 
         return new JsonResponse(['message' => "$count Pack-Positionen erstellt", 'count' => $count], 201);
@@ -191,6 +215,7 @@ class ActivityWorkflowController extends AbstractController
             $packItem->setPackedByUser($user);
         }
 
+        $this->activityItemPipelineStatus->syncForActivity($activity);
         $this->entityManager->flush();
 
         $d = $this->storageDisplayForPackItem($packItem);
@@ -249,6 +274,7 @@ class ActivityWorkflowController extends AbstractController
             $updated++;
         }
 
+        $this->activityItemPipelineStatus->syncForActivity($activity);
         $this->entityManager->flush();
 
         return new JsonResponse(['message' => "$updated Positionen aktualisiert", 'updated' => $updated]);
@@ -294,12 +320,7 @@ class ActivityWorkflowController extends AbstractController
 
     /**
      * Pack-Position zur nächsten Stufe verschieben (Teilmenge möglich)
-     * Body: { "stage": "packed"|"issued"|"returned", "quantity": 5 }
-     * 
-     * Stufen-Logik:
-     * - "packed": quantity_packed += qty (max: quantity_ordered - quantity_packed)
-     * - "issued": quantity_issued += qty (max: quantity_packed - quantity_issued)
-     * - "returned": quantity_returned += qty (max: quantity_issued - quantity_returned)
+     * Body: { "stage": "packed"|"transport_to"|"at_event"|"transport_back"|"returned", "quantity": 5 }
      */
     #[Route('/pack-items/{packItemId}/move', name: 'pack_items_move', methods: ['POST'])]
     #[IsGranted('ROLE_USER')]
@@ -310,55 +331,71 @@ class ActivityWorkflowController extends AbstractController
             return $activity;
         }
 
-        $packItem = $this->entityManager->getRepository(ActivityPackItem::class)->find($packItemId);
+        $packItem = $this->entityManager->getRepository(ActivityPackItem::class)
+            ->createQueryBuilder('pi')
+            ->leftJoin('pi.materialItem', 'mi')
+            ->addSelect('mi')
+            ->where('pi.id = :id')
+            ->setParameter('id', $packItemId)
+            ->getQuery()
+            ->getOneOrNullResult();
         if (!$packItem || $packItem->getActivityId() !== $activityId) {
             return new JsonResponse(['error' => 'Pack-Position nicht gefunden'], 404);
         }
+        if ($packItem->getMaterialItem() === null) {
+            return new JsonResponse(['error' => 'Material zur Pack-Position nicht gefunden'], 404);
+        }
 
         $data = json_decode($request->getContent(), true);
-        $stage = $data['stage'] ?? '';
+        $stage = $this->packPipeline->normalizeStage((string) ($data['stage'] ?? ''));
         $qty = max(0, (int)($data['quantity'] ?? 0));
+        $profile = $this->packPipeline->profileForActivityType($activity->getType());
 
         if ($qty === 0) {
             return new JsonResponse(['error' => 'Menge muss grösser als 0 sein'], 400);
         }
 
-        switch ($stage) {
-            case 'packed':
-                $maxAllowed = $packItem->getQuantityOrdered() - $packItem->getQuantityPacked();
-                if ($qty > $maxAllowed) {
-                    return new JsonResponse(['error' => "Maximal $maxAllowed verfügbar zum Packen"], 422);
-                }
-                $packItem->setQuantityPacked($packItem->getQuantityPacked() + $qty);
-                $packItem->setPackedAt(new \DateTime());
-                $user = $this->getUser();
-                if ($user instanceof User) {
-                    $packItem->setPackedByUser($user);
-                }
-                break;
+        if (!in_array($stage, PackPipelineService::allForwardStages(), true)) {
+            return new JsonResponse(['error' => 'Ungültige Stufe'], 400);
+        }
 
-            case 'issued':
-                $maxAllowed = $packItem->getQuantityPacked() - $packItem->getQuantityIssued();
-                if ($qty > $maxAllowed) {
-                    return new JsonResponse(['error' => "Maximal $maxAllowed verfügbar zur Ausgabe"], 422);
-                }
-                $packItem->setQuantityIssued($packItem->getQuantityIssued() + $qty);
-                break;
+        $user = $this->getUser();
+        if ($user instanceof User) {
+            $allowedStages = $this->activityAccess->allowedPackMoveStagesForUser($user, $activity);
+            if ($allowedStages !== null && !\in_array($stage, $allowedStages, true)) {
+                return new JsonResponse(['error' => 'Keine Berechtigung für diese Pack-Stufe'], 403);
+            }
+        }
 
-            case 'returned':
-                $maxAllowed = $packItem->getQuantityIssued() - $packItem->getQuantityReturned();
-                if ($qty > $maxAllowed) {
-                    return new JsonResponse(['error' => "Maximal $maxAllowed verfügbar zur Rückgabe"], 422);
-                }
-                $packItem->setQuantityReturned($packItem->getQuantityReturned() + $qty);
-                break;
+        $maxAllowed = $this->maxForwardAllowedForPackItem($activity, $packItem, $stage, $profile);
+        if ($qty > $maxAllowed) {
+            return new JsonResponse(['error' => "Maximal $maxAllowed verfügbar"], 422);
+        }
 
-            default:
-                return new JsonResponse(['error' => 'Ungültige Stufe. Erlaubt: packed, issued, returned'], 400);
+        $this->packPipeline->applyForward($packItem, $stage, $qty, $profile);
+
+        $user = $this->getUser();
+        if ($stage === PackPipelineService::STAGE_PACKED) {
+            $packItem->setPackedAt(new \DateTime());
+            if ($user instanceof User) {
+                $packItem->setPackedByUser($user);
+            }
         }
 
         $packItem->setUpdatedAt(new \DateTime());
+        $this->activityItemPipelineStatus->syncForActivity($activity);
+        $this->kisteMaterialLinker->reconcileShellPackItemsPackedFromContainers(
+            $activity,
+            $user instanceof User ? $user : null,
+        );
         $this->entityManager->flush();
+
+        if ($stage === PackPipelineService::STAGE_STORED) {
+            $material = $packItem->getMaterialItem();
+            if ($material !== null) {
+                $this->activityAccountingCost->enqueueAccountingForMaterialOnStore($activity, $material->getId());
+            }
+        }
 
         $d = $this->storageDisplayForPackItem($packItem);
 
@@ -367,12 +404,7 @@ class ActivityWorkflowController extends AbstractController
 
     /**
      * Pack-Position zur vorherigen Stufe zurückverschieben (Teilmenge möglich)
-     * Body: { "stage": "packed"|"issued"|"returned", "quantity": 5 }
-     * 
-     * Rückwärts-Logik:
-     * - "packed": quantity_packed -= qty (min: quantity_issued, da bereits ausgegebene nicht zurückgenommen werden können)
-     * - "issued": quantity_issued -= qty (min: quantity_returned)
-     * - "returned": quantity_returned -= qty (min: 0)
+     * Body: { "stage": "packed"|"transport_to"|"at_event"|"transport_back"|"returned", "quantity": 5 }
      */
     #[Route('/pack-items/{packItemId}/moveback', name: 'pack_items_moveback', methods: ['POST'])]
     #[IsGranted('ROLE_USER')]
@@ -389,43 +421,27 @@ class ActivityWorkflowController extends AbstractController
         }
 
         $data = json_decode($request->getContent(), true);
-        $stage = $data['stage'] ?? '';
+        $stage = $this->packPipeline->normalizeStage((string) ($data['stage'] ?? ''));
         $qty = max(0, (int)($data['quantity'] ?? 0));
 
         if ($qty === 0) {
             return new JsonResponse(['error' => 'Menge muss grösser als 0 sein'], 400);
         }
 
-        switch ($stage) {
-            case 'packed':
-                $canRemove = $packItem->getQuantityPacked() - $packItem->getQuantityIssued();
-                if ($qty > $canRemove) {
-                    return new JsonResponse(['error' => "Maximal $canRemove können zurückgenommen werden (bereits $canRemove ausgegeben)"], 422);
-                }
-                $packItem->setQuantityPacked($packItem->getQuantityPacked() - $qty);
-                break;
-
-            case 'issued':
-                $canRemove = $packItem->getQuantityIssued() - $packItem->getQuantityReturned();
-                if ($qty > $canRemove) {
-                    return new JsonResponse(['error' => "Maximal $canRemove können zurückgenommen werden"], 422);
-                }
-                $packItem->setQuantityIssued($packItem->getQuantityIssued() - $qty);
-                break;
-
-            case 'returned':
-                $canRemove = $packItem->getQuantityReturned();
-                if ($qty > $canRemove) {
-                    return new JsonResponse(['error' => "Maximal $canRemove können zurückgenommen werden"], 422);
-                }
-                $packItem->setQuantityReturned($packItem->getQuantityReturned() - $qty);
-                break;
-
-            default:
-                return new JsonResponse(['error' => 'Ungültige Stufe. Erlaubt: packed, issued, returned'], 400);
+        if (!in_array($stage, PackPipelineService::allForwardStages(), true)) {
+            return new JsonResponse(['error' => 'Ungültige Stufe'], 400);
         }
 
+        $profile = $this->packPipeline->profileForActivityType($activity->getType());
+        $canRemove = $this->packPipeline->maxBackwardQty($packItem, $stage, $profile);
+        if ($qty > $canRemove) {
+            return new JsonResponse(['error' => "Maximal $canRemove können zurückgenommen werden"], 422);
+        }
+
+        $this->packPipeline->applyBackward($packItem, $stage, $qty);
+
         $packItem->setUpdatedAt(new \DateTime());
+        $this->activityItemPipelineStatus->syncForActivity($activity);
         $this->entityManager->flush();
 
         $d = $this->storageDisplayForPackItem($packItem);
@@ -434,8 +450,75 @@ class ActivityWorkflowController extends AbstractController
     }
 
     /**
+     * Lose Bestände für Kistencheck (Nachlegen) — mehrere Material-IDs.
+     * Query: material_item_ids=id1,id2,…
+     */
+    #[Route('/pack-items/{packItemId}/crate-check-stock', name: 'pack_items_crate_check_stock', methods: ['GET'])]
+    #[IsGranted('ROLE_USER')]
+    public function packItemCrateCheckStock(string $activityId, string $packItemId, Request $request): JsonResponse
+    {
+        $activity = $this->findActivityForUser($activityId);
+        if ($activity instanceof JsonResponse) {
+            return $activity;
+        }
+
+        $packItem = $this->entityManager->getRepository(ActivityPackItem::class)->find($packItemId);
+        if (!$packItem || $packItem->getActivityId() !== $activityId) {
+            return new JsonResponse(['error' => 'Pack-Position nicht gefunden'], 404);
+        }
+
+        $raw = (string) $request->query->get('material_item_ids', '');
+        $ids = array_values(array_filter(array_map('trim', explode(',', $raw))));
+        $stock = $this->packCrateCheckService->looseStockByMaterialIds($activity->getDepartmentId(), $ids);
+
+        return new JsonResponse(['loose_stock_by_material_id' => $stock]);
+    }
+
+    /**
+     * Sichtkontrolle Phys.-Kombi-Kiste vor Weiterbuchen (History, Nachlegen, Meldungen).
+     * Body: siehe ActivityPackCrateCheckService::apply
+     */
+    #[Route('/pack-items/{packItemId}/crate-check', name: 'pack_items_crate_check', methods: ['POST'])]
+    #[IsGranted('ROLE_USER')]
+    public function packItemCrateCheck(string $activityId, string $packItemId, Request $request): JsonResponse
+    {
+        $activity = $this->findActivityForUser($activityId);
+        if ($activity instanceof JsonResponse) {
+            return $activity;
+        }
+
+        if (!$activity->isPackListEditable()) {
+            return new JsonResponse(['error' => 'Packliste kann in Status "' . $activity->getStatus() . '" nicht bearbeitet werden'], 422);
+        }
+
+        $packItem = $this->entityManager->getRepository(ActivityPackItem::class)->find($packItemId);
+        if (!$packItem || $packItem->getActivityId() !== $activityId) {
+            return new JsonResponse(['error' => 'Pack-Position nicht gefunden'], 404);
+        }
+
+        if (!$this->packCrateCheckService->isPackItemEligibleForCrateCheck($activity, $packItem)) {
+            return new JsonResponse(['error' => 'Kistencheck nur für Pack-Kisten (Kombi oder zugewiesene Rakokiste)'], 422);
+        }
+
+        $data = json_decode($request->getContent(), true);
+        if (!is_array($data)) {
+            return new JsonResponse(['error' => 'Ungültiger JSON-Body'], 400);
+        }
+
+        $user = $this->getUser();
+        $result = $this->packCrateCheckService->apply(
+            $activity,
+            $packItem,
+            $data,
+            $user instanceof User ? $user : null,
+        );
+
+        return new JsonResponse($result, ($result['ok'] ?? false) ? 200 : 422);
+    }
+
+    /**
      * Alle Pack-Positionen zur nächsten Stufe verschieben (Batch)
-     * Body: { "stage": "packed"|"issued"|"returned" }
+     * Body: { "stage": "packed"|"at_event"|"returned" }
      */
     #[Route('/pack-items/move-all', name: 'pack_items_move_all', methods: ['POST'])]
     #[IsGranted('ROLE_USER')]
@@ -447,34 +530,35 @@ class ActivityWorkflowController extends AbstractController
         }
 
         $data = json_decode($request->getContent(), true);
-        $stage = $data['stage'] ?? '';
+        $stage = $this->packPipeline->normalizeStage((string) ($data['stage'] ?? ''));
+        $profile = $this->packPipeline->profileForActivityType($activity->getType());
 
-        if (!in_array($stage, ['packed', 'issued', 'returned'])) {
-            return new JsonResponse(['error' => 'Ungültige Stufe. Erlaubt: packed, issued, returned'], 400);
+        if (!in_array($stage, PackPipelineService::allForwardStages(), true)) {
+            return new JsonResponse(['error' => 'Ungültige Stufe'], 400);
+        }
+
+        $user = $this->getUser();
+        if ($user instanceof User) {
+            $allowedStages = $this->activityAccess->allowedPackMoveStagesForUser($user, $activity);
+            if ($allowedStages !== null && !\in_array($stage, $allowedStages, true)) {
+                return new JsonResponse(['error' => 'Keine Berechtigung für diese Pack-Stufe'], 403);
+            }
         }
 
         $packItems = $this->entityManager->getRepository(ActivityPackItem::class)
             ->findBy(['activityId' => $activityId]);
 
-        $user = $this->getUser();
         $moved = 0;
 
         foreach ($packItems as $packItem) {
-            $remaining = match ($stage) {
-                'packed' => $packItem->getQuantityOrdered() - $packItem->getQuantityPacked(),
-                'issued' => $packItem->getQuantityPacked() - $packItem->getQuantityIssued(),
-                'returned' => $packItem->getQuantityIssued() - $packItem->getQuantityReturned(),
-            };
+            $remaining = $this->maxForwardAllowedForPackItem($activity, $packItem, $stage, $profile);
+            if ($remaining <= 0) {
+                continue;
+            }
 
-            if ($remaining <= 0) continue;
+            $this->packPipeline->applyForward($packItem, $stage, $remaining, $profile);
 
-            match ($stage) {
-                'packed' => $packItem->setQuantityPacked($packItem->getQuantityOrdered()),
-                'issued' => $packItem->setQuantityIssued($packItem->getQuantityPacked()),
-                'returned' => $packItem->setQuantityReturned($packItem->getQuantityIssued()),
-            };
-
-            if ($stage === 'packed') {
+            if ($stage === PackPipelineService::STAGE_PACKED) {
                 $packItem->setPackedAt(new \DateTime());
                 if ($user instanceof User) {
                     $packItem->setPackedByUser($user);
@@ -485,7 +569,24 @@ class ActivityWorkflowController extends AbstractController
             $moved++;
         }
 
+        $this->activityItemPipelineStatus->syncForActivity($activity);
         $this->entityManager->flush();
+
+        if ($stage === PackPipelineService::STAGE_STORED) {
+            $seenMaterialIds = [];
+            foreach ($packItems as $packItem) {
+                $material = $packItem->getMaterialItem();
+                if ($material === null) {
+                    continue;
+                }
+                $mid = $material->getId();
+                if (isset($seenMaterialIds[$mid])) {
+                    continue;
+                }
+                $seenMaterialIds[$mid] = true;
+                $this->activityAccountingCost->enqueueAccountingForMaterialOnStore($activity, $mid);
+            }
+        }
 
         return new JsonResponse(['message' => "$moved Positionen verschoben", 'moved' => $moved]);
     }
@@ -539,9 +640,8 @@ class ActivityWorkflowController extends AbstractController
             return $activity;
         }
 
-        // Meldungen können ab "issued" bis "returned" erstellt werden
-        if (!in_array($activity->getStatus(), [Activity::STATUS_ISSUED, Activity::STATUS_RETURNED])) {
-            return new JsonResponse(['error' => 'Meldungen können nur im Status "Ausgegeben" oder "Retour" erstellt werden'], 422);
+        if (!$activity->canReportIssues()) {
+            return new JsonResponse(['error' => 'Meldungen sind in diesem Aktivitätsstatus nicht möglich'], 422);
         }
 
         $data = json_decode($request->getContent(), true);
@@ -630,6 +730,17 @@ class ActivityWorkflowController extends AbstractController
 
             $this->entityManager->flush();
 
+            if ($user instanceof User) {
+                $this->inboxMessageService->notifyActivityIssueReported($activity, $user, $report);
+            }
+
+            if (in_array($type, [
+                ActivityIssueReport::TYPE_CONSUMPTION,
+                ActivityIssueReport::TYPE_LOSS,
+            ], true)) {
+                $this->activityAccountingCost->syncActivityAccountingFollowUps($activity);
+            }
+
             $response = $this->serializeIssueReport($report);
             if ($workshopTicket) {
                 $response['workshop_ticket_id'] = $workshopTicket->getId();
@@ -671,6 +782,132 @@ class ActivityWorkflowController extends AbstractController
         $this->entityManager->flush();
 
         return new JsonResponse($this->serializeIssueReport($report));
+    }
+
+    /**
+     * Verbrauchsmeldung anpassen (Menge / Notiz).
+     * Body: { "quantity": 2, "description": "..." }
+     */
+    #[Route('/issues/{issueId}/consumption', name: 'issues_update_consumption', methods: ['PATCH'])]
+    #[IsGranted('ROLE_USER')]
+    public function updateConsumptionIssue(string $activityId, string $issueId, Request $request): JsonResponse
+    {
+        $activity = $this->findActivityForUser($activityId);
+        if ($activity instanceof JsonResponse) {
+            return $activity;
+        }
+
+        $report = $this->entityManager->getRepository(ActivityIssueReport::class)->find($issueId);
+        if (!$report || $report->getActivityId() !== $activityId) {
+            return new JsonResponse(['error' => 'Meldung nicht gefunden'], 404);
+        }
+
+        $currentUser = $this->getUser();
+        if (!$currentUser instanceof User) {
+            return new JsonResponse(['error' => 'Nicht authentifiziert'], 401);
+        }
+
+        $deny = $this->assertCanManageConsumptionReport($currentUser, $activity, $report);
+        if ($deny !== null) {
+            return $deny;
+        }
+
+        $data = json_decode($request->getContent(), true) ?? [];
+        $oldQty = $report->getQuantity();
+        $newQty = array_key_exists('quantity', $data)
+            ? max(0, (int) $data['quantity'])
+            : $oldQty;
+
+        if ($newQty < 1) {
+            return new JsonResponse(['error' => 'Menge muss mindestens 1 sein — zum Entfernen die Meldung löschen.'], 422);
+        }
+
+        $materialItemId = $report->getMaterialItemId();
+        if ($materialItemId === null || $materialItemId === '') {
+            return new JsonResponse(['error' => 'Material fehlt an dieser Meldung'], 422);
+        }
+
+        $consumptionErr = $this->validateConsumptionWithinBooked(
+            $activityId,
+            $materialItemId,
+            $newQty,
+            $issueId,
+        );
+        if ($consumptionErr !== null) {
+            return new JsonResponse(['error' => $consumptionErr], 422);
+        }
+
+        $report->setQuantity($newQty);
+        if (array_key_exists('description', $data)) {
+            $desc = $data['description'];
+            $report->setDescription(
+                is_string($desc) && trim($desc) !== '' ? trim($desc) : null,
+            );
+        }
+
+        $delta = $newQty - $oldQty;
+        if ($delta !== 0) {
+            $this->applyConsumptionDeltaToPackItem($activity, $materialItemId, $delta);
+        }
+
+        $this->createHistoryEntry($activity, 'consumption_updated', [
+            'issue_id' => $report->getId(),
+            'material_item_id' => $materialItemId,
+            'quantity_old' => $oldQty,
+            'quantity_new' => $newQty,
+        ]);
+
+        $this->entityManager->flush();
+        $this->activityAccountingCost->syncActivityAccountingFollowUps($activity);
+
+        return new JsonResponse($this->serializeIssueReport($report));
+    }
+
+    /**
+     * Verbrauchsmeldung löschen (bucht Verbrauch zurück).
+     */
+    #[Route('/issues/{issueId}/consumption', name: 'issues_delete_consumption', methods: ['DELETE'])]
+    #[IsGranted('ROLE_USER')]
+    public function deleteConsumptionIssue(string $activityId, string $issueId): JsonResponse
+    {
+        $activity = $this->findActivityForUser($activityId);
+        if ($activity instanceof JsonResponse) {
+            return $activity;
+        }
+
+        $report = $this->entityManager->getRepository(ActivityIssueReport::class)->find($issueId);
+        if (!$report || $report->getActivityId() !== $activityId) {
+            return new JsonResponse(['error' => 'Meldung nicht gefunden'], 404);
+        }
+
+        $currentUser = $this->getUser();
+        if (!$currentUser instanceof User) {
+            return new JsonResponse(['error' => 'Nicht authentifiziert'], 401);
+        }
+
+        $deny = $this->assertCanManageConsumptionReport($currentUser, $activity, $report);
+        if ($deny !== null) {
+            return $deny;
+        }
+
+        $materialItemId = $report->getMaterialItemId();
+        $removedQty = $report->getQuantity();
+
+        if ($materialItemId !== null && $materialItemId !== '' && $removedQty > 0) {
+            $this->applyConsumptionDeltaToPackItem($activity, $materialItemId, -$removedQty);
+        }
+
+        $this->createHistoryEntry($activity, 'consumption_deleted', [
+            'issue_id' => $report->getId(),
+            'material_item_id' => $materialItemId,
+            'quantity' => $removedQty,
+        ]);
+
+        $this->entityManager->remove($report);
+        $this->entityManager->flush();
+        $this->activityAccountingCost->syncActivityAccountingFollowUps($activity);
+
+        return new JsonResponse(['message' => 'Verbrauchsmeldung gelöscht']);
     }
 
     // ═══════════════════════════════════════════════
@@ -923,8 +1160,12 @@ class ActivityWorkflowController extends AbstractController
      *
      * @return null|string Fehlertext oder null wenn ok
      */
-    private function validateConsumptionWithinBooked(string $activityId, string $materialItemId, int $requestedQty): ?string
-    {
+    private function validateConsumptionWithinBooked(
+        string $activityId,
+        string $materialItemId,
+        int $requestedQty,
+        ?string $excludeIssueId = null,
+    ): ?string {
         $booked = (int) $this->entityManager->createQueryBuilder()
             ->select('COALESCE(SUM(ai.quantity), 0)')
             ->from(ActivityItem::class, 'ai')
@@ -939,7 +1180,7 @@ class ActivityWorkflowController extends AbstractController
             return 'Für dieses Material ist keine Menge auf der Aktivität gebucht.';
         }
 
-        $consumed = (int) $this->entityManager->createQueryBuilder()
+        $consumedQb = $this->entityManager->createQueryBuilder()
             ->select('COALESCE(SUM(r.quantity), 0)')
             ->from(ActivityIssueReport::class, 'r')
             ->where('r.activityId = :aid')
@@ -947,21 +1188,82 @@ class ActivityWorkflowController extends AbstractController
             ->andWhere('r.type = :ctype')
             ->setParameter('aid', $activityId)
             ->setParameter('mid', $materialItemId)
-            ->setParameter('ctype', ActivityIssueReport::TYPE_CONSUMPTION)
+            ->setParameter('ctype', ActivityIssueReport::TYPE_CONSUMPTION);
+        if ($excludeIssueId !== null && $excludeIssueId !== '') {
+            $consumedQb->andWhere('r.id != :exid')->setParameter('exid', $excludeIssueId);
+        }
+        $consumed = (int) $consumedQb->getQuery()->getSingleScalarResult();
+
+        $returned = (int) $this->entityManager->createQueryBuilder()
+            ->select('COALESCE(SUM(pi.quantityReturned), 0)')
+            ->from(ActivityPackItem::class, 'pi')
+            ->where('pi.activityId = :aid')
+            ->andWhere('pi.materialItemId = :mid')
+            ->setParameter('aid', $activityId)
+            ->setParameter('mid', $materialItemId)
             ->getQuery()
             ->getSingleScalarResult();
 
-        $remaining = $booked - $consumed;
+        $remaining = max(0, $booked - $consumed - $returned);
         if ($requestedQty > $remaining) {
             return sprintf(
                 'Verbrauch höchstens %d Stk. möglich (%d für diese Aktivität gebucht, %d bereits verbraucht).',
-                max(0, $remaining),
+                $remaining,
                 $booked,
-                $consumed
+                $booked - $remaining,
             );
         }
 
         return null;
+    }
+
+    private function assertCanManageConsumptionReport(
+        User $user,
+        Activity $activity,
+        ActivityIssueReport $report,
+    ): ?JsonResponse {
+        if ($report->getType() !== ActivityIssueReport::TYPE_CONSUMPTION) {
+            return new JsonResponse(['error' => 'Nur Verbrauchsmeldungen können bearbeitet werden'], 403);
+        }
+
+        if ($activity->getStatus() === Activity::STATUS_COMPLETED) {
+            return new JsonResponse(['error' => 'Aktivität ist abgeschlossen'], 422);
+        }
+
+        if (
+            !$activity->canReportIssues()
+            && !$this->activityAccess->canUserAddMaterialBeforePacking($user, $activity)
+        ) {
+            return new JsonResponse(['error' => 'Keine Berechtigung für Verbrauchsmeldungen'], 403);
+        }
+
+        return null;
+    }
+
+    /** Mehr Verbrauch → weniger erwartete Retour (quantityIssued). */
+    private function applyConsumptionDeltaToPackItem(
+        Activity $activity,
+        string $materialItemId,
+        int $consumptionDelta,
+    ): void {
+        if ($consumptionDelta === 0) {
+            return;
+        }
+
+        $packItem = $this->entityManager->getRepository(ActivityPackItem::class)->findOneBy([
+            'activityId' => $activity->getId(),
+            'materialItemId' => $materialItemId,
+        ]);
+        if (!$packItem instanceof ActivityPackItem) {
+            return;
+        }
+
+        $newIssued = max(0, $packItem->getQuantityIssued() - $consumptionDelta);
+        $packItem->setQuantityIssued($newIssued);
+        if ($packItem->getQuantityReturned() > $newIssued) {
+            $packItem->setQuantityReturned($newIssued);
+        }
+        $packItem->setUpdatedAt(new \DateTime());
     }
 
     private function findActivityForUser(string $id): Activity|JsonResponse
@@ -990,6 +1292,9 @@ class ActivityWorkflowController extends AbstractController
         ?string $storageAddressName = null,
     ): array {
         $mi = $item->getMaterialItem();
+        if ($mi === null) {
+            throw new \RuntimeException('Pack-Position ohne Material-Stammdaten');
+        }
         $user = $item->getPackedByUser();
         $cat = $mi->getCategory();
 
@@ -1014,20 +1319,26 @@ class ActivityWorkflowController extends AbstractController
             'material_name' => $mi->getName(),
             'material_type' => $mi->getMaterialType(),
             'linked_container_label' => $linkedContainerLabel,
+            'linked_container_batch_id' => $linkCb?->getId(),
             'category_name' => $cat ? $cat->getName() : null,
             'category_id' => $cat ? $cat->getId() : null,
             'pack_size' => $mi->getPackSize(),
             'pack_unit' => $mi->getPackUnit(),
             'quantity_ordered' => $item->getQuantityOrdered(),
             'quantity_packed' => $item->getQuantityPacked(),
+            'quantity_transport_to' => $item->getQuantityTransportTo(),
             'quantity_issued' => $item->getQuantityIssued(),
+            'quantity_transport_back' => $item->getQuantityTransportBack(),
             'quantity_returned' => $item->getQuantityReturned(),
+            'quantity_stored' => $item->getQuantityStored(),
             'condition_out' => $item->getConditionOut(),
             'batch_numbers' => $item->getBatchNumbers(),
             'notes' => $item->getNotes(),
             'is_fully_packed' => $item->isFullyPacked(),
             'is_fully_issued' => $item->isFullyIssued(),
             'is_fully_returned' => $item->isFullyReturned(),
+            'is_fully_stored' => $item->isFullyStored(),
+            'store_difference' => $item->getStoreDifference(),
             'pack_difference' => $item->getPackDifference(),
             'issue_difference' => $item->getIssueDifference(),
             'return_difference' => $item->getReturnDifference(),
@@ -1150,6 +1461,7 @@ ORDER BY mb.material_item_id ASC, mb.id ASC";
             'resolved_at' => $report->getResolvedAt()?->format('c'),
             'resolved_by' => $resolver?->getId(),
             'reported_by' => $reporter?->getId(),
+            'reported_by_display_name' => $this->userDisplayName($reporter),
             'reported_at' => $report->getReportedAt()->format('c'),
             'created_at' => $report->getCreatedAt()->format('c'),
             'is_js_material' => $mi?->getIsJsMaterial() ?? false,
@@ -1189,6 +1501,38 @@ ORDER BY mb.material_item_id ASC, mb.id ASC";
         ];
     }
 
+    private function maxForwardAllowedForPackItem(
+        Activity $activity,
+        ActivityPackItem $packItem,
+        string $stage,
+        string $profile,
+    ): int {
+        $consumed = 0;
+        if ($stage === PackPipelineService::STAGE_STORED) {
+            $material = $packItem->getMaterialItem();
+            if ($material !== null && $material->getIsConsumable()) {
+                $consumed = $this->consumedQtyForMaterial($activity->getId(), $material->getId());
+            }
+        }
+
+        return $this->packPipeline->maxForwardQty($packItem, $stage, $profile, $consumed);
+    }
+
+    private function consumedQtyForMaterial(string $activityId, string $materialItemId): int
+    {
+        return (int) $this->entityManager->createQueryBuilder()
+            ->select('COALESCE(SUM(ir.quantity), 0)')
+            ->from(ActivityIssueReport::class, 'ir')
+            ->where('ir.activityId = :aid')
+            ->andWhere('ir.materialItemId = :mid')
+            ->andWhere('ir.type = :t')
+            ->setParameter('aid', $activityId)
+            ->setParameter('mid', $materialItemId)
+            ->setParameter('t', ActivityIssueReport::TYPE_CONSUMPTION)
+            ->getQuery()
+            ->getSingleScalarResult();
+    }
+
     private function createHistoryEntry(Activity $activity, string $action, array $changes = []): void
     {
         $history = new ActivityHistory();
@@ -1204,5 +1548,23 @@ ORDER BY mb.material_item_id ASC, mb.id ASC";
         }
 
         $this->entityManager->persist($history);
+    }
+
+    private function userDisplayName(?User $user): ?string
+    {
+        if ($user === null) {
+            return null;
+        }
+        $profile = $user->getProfile();
+        if ($profile === null) {
+            return null;
+        }
+        $name = trim($profile->getFirstName() . ' ' . $profile->getLastName());
+        if ($name !== '') {
+            return $name;
+        }
+        $nick = trim((string) ($profile->getNickname() ?? ''));
+
+        return $nick !== '' ? $nick : null;
     }
 }

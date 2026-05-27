@@ -5,6 +5,8 @@ namespace App\Controller;
 use Doctrine\DBAL\Connection;
 use Doctrine\DBAL\Platforms\PostgreSQLPlatform;
 use App\Entity\Activity;
+use App\Service\MaterialAvailabilityReservationQuery;
+use App\Util\IdGenerator;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -16,7 +18,9 @@ use Symfony\Component\Security\Http\Attribute\IsGranted;
  * Material Availability Controller
  * 
  * Liefert zeitraum-basierte Verfügbarkeit für Aktivitäts-Planung.
- * Berücksichtigt Gesamtbestand (Batches) minus reservierte Mengen (ActivityItems).
+ * Berücksichtigt Gesamtbestand (Batches) minus Reservierungen:
+ * - Bestellung (activity_item) bei Zeitraum-Overlap (Entwurf…Bestätigt)
+ * - Physische Pipeline (activity_pack_item) ab «Wird gepackt» bis eingelagert (ohne Zeitraum-Overlap)
  */
 class MaterialAvailabilityController extends AbstractController
 {
@@ -64,7 +68,7 @@ class MaterialAvailabilityController extends AbstractController
      * - startDate (optional, ISO 8601 DateTime – ohne Datum wird Gesamtbestand zurückgegeben)
      * - endDate (optional, ISO 8601 DateTime – ohne Datum wird Gesamtbestand zurückgegeben)
      * - search (optional, filtert nach Materialname, ab 1 Zeichen; leer = erste Treffer ohne Namensfilter)
-     * - materialItemIds (optional, Komma-getrennte UUIDs; max. 50 — Ergebnis auf diese Material-Items begrenzen)
+     * - materialItemIds (optional, Komma-getrennte IDs; max. 50 — Ergebnis auf diese Material-Items begrenzen)
      * - excludeActivityId (optional, um eigene Reservierungen auszuschliessen)
      * - limit (optional, default 20)
      * - internalScope (optional, nur bei source=internal): own | invited | both | single
@@ -91,8 +95,8 @@ class MaterialAvailabilityController extends AbstractController
                 if ($id === '') {
                     continue;
                 }
-                if (preg_match('/^[0-9a-fA-F-]{36}$/', $id) === 1) {
-                    $materialItemUuidList[] = $id;
+                if (IdGenerator::isValid($id) || preg_match('/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/i', $id) === 1) {
+                    $materialItemUuidList[] = strtolower($id);
                 }
             }
             $materialItemUuidList = array_values(array_unique($materialItemUuidList));
@@ -107,6 +111,7 @@ class MaterialAvailabilityController extends AbstractController
         $source = strtolower((string) $request->query->get('source', 'all'));
         $includeGlobalJs = filter_var($request->query->get('includeGlobalJs', '1'), FILTER_VALIDATE_BOOLEAN);
         $activityId = trim((string) $request->query->get('activityId', ''));
+        $excludeActivityId = trim((string) $request->query->get('excludeActivityId', ''));
 
         if (!$departmentId) {
             return new JsonResponse([
@@ -218,17 +223,30 @@ class MaterialAvailabilityController extends AbstractController
                 $materialIdFilterSql = ' AND mi.id IN (' . implode(', ', $midPh) . ')';
             }
 
+            $reservedExcludeSql = $excludeActivityId !== ''
+                ? ' AND a.id != :exclude_activity_id'
+                : '';
+
             if ($hasPeriod) {
                 // Zeitraum-basierte Verfügbarkeit (Department + globales J&S Material)
                 $sql = "SELECT 
                         mi.id AS material_item_id,
                         mi.name,
                         mi.category_id,
+                        mi.material_type,
                         mi.department_id AS source_department_id,
                         d.name AS source_department_name,
                         COALESCE(batch_totals.total_qty, 0)::INT AS total_stock,
+                        COALESCE(stock_in_phys_combo.qty_in_phys_combo, 0)::INT AS stock_in_phys_combo_kisten,
+                        COALESCE(stock_in_storage.qty_in_storage, 0)::INT AS stock_in_storage_containers,
                         COALESCE(reserved.reserved_qty, 0)::INT AS reserved_in_activities,
-                        GREATEST(0, COALESCE(batch_totals.total_qty, 0) - COALESCE(reserved.reserved_qty, 0))::INT AS available_for_period
+                        GREATEST(0,
+                            CASE WHEN mi.material_type = 'physical_combo' THEN
+                                COALESCE(batch_totals.total_qty, 0) - COALESCE(reserved.reserved_qty, 0)
+                            ELSE
+                                COALESCE(batch_totals.total_qty, 0) - COALESCE(stock_in_phys_combo.qty_in_phys_combo, 0) - COALESCE(reserved.reserved_qty, 0)
+                            END
+                        )::INT AS available_for_period
                         FROM material_item mi
                         JOIN department d ON d.id = mi.department_id
                         LEFT JOIN (
@@ -237,19 +255,29 @@ class MaterialAvailabilityController extends AbstractController
                             WHERE status = 'active'
                             GROUP BY material_item_id
                         ) batch_totals ON batch_totals.mid = mi.id
-                        LEFT JOIN LATERAL (
-                            SELECT COALESCE(SUM(ai.quantity), 0) AS reserved_qty
-                            FROM activity_item ai
-                            INNER JOIN activity a ON a.id = ai.activity_id
-                            WHERE ai.material_item_id = mi.id
-                              AND a.deleted_at IS NULL
-                              AND a.status NOT IN ('cancelled', 'completed')
-                              AND (
-                                  (COALESCE(a.planning_start, a.usage_start) < :end_date)
-                                  AND
-                                  (COALESCE(a.planning_end, a.usage_end) > :start_date)
+                        LEFT JOIN (
+                            SELECT b.material_item_id AS mid, SUM(a.qty) AS qty_in_phys_combo
+                            FROM batch_storage_allocation a
+                            INNER JOIN material_batch b ON a.batch_id = b.id AND b.status = 'active'
+                            INNER JOIN material_item combo_kiste ON combo_kiste.linked_container_batch_id = a.container_batch_id
+                                AND combo_kiste.material_type = 'physical_combo'
+                                AND combo_kiste.deleted_at IS NULL
+                            GROUP BY b.material_item_id
+                        ) stock_in_phys_combo ON stock_in_phys_combo.mid = mi.id
+                        LEFT JOIN (
+                            SELECT b.material_item_id AS mid, SUM(a.qty) AS qty_in_storage
+                            FROM batch_storage_allocation a
+                            INNER JOIN material_batch b ON a.batch_id = b.id AND b.status = 'active'
+                            WHERE a.container_batch_id IS NOT NULL
+                              AND NOT EXISTS (
+                                  SELECT 1 FROM material_item combo_kiste
+                                  WHERE combo_kiste.linked_container_batch_id = a.container_batch_id
+                                    AND combo_kiste.material_type = 'physical_combo'
+                                    AND combo_kiste.deleted_at IS NULL
                               )
-                        ) reserved ON TRUE
+                            GROUP BY b.material_item_id
+                        ) stock_in_storage ON stock_in_storage.mid = mi.id
+                        " . MaterialAvailabilityReservationQuery::lateralReservedQtySql(true, $reservedExcludeSql) . "
                         WHERE mi.deleted_at IS NULL
                           AND $scopeWhere $materialIdFilterSql";
 
@@ -257,18 +285,52 @@ class MaterialAvailabilityController extends AbstractController
                     'start_date' => $startDate->format('Y-m-d H:i:s'),
                     'end_date' => $endDate->format('Y-m-d H:i:s'),
                 ], $deptParams, $materialIdFilterParams);
+                if ($excludeActivityId !== '') {
+                    $params['exclude_activity_id'] = $excludeActivityId;
+                }
             } else {
-                // Ohne Zeitraum: Gesamtbestand (keine Reservierungsprüfung)
-                $sql = "SELECT mi.id AS material_item_id, mi.name, mi.category_id, mi.department_id AS source_department_id, d.name AS source_department_name,
-                        COALESCE(SUM(mb.quantity), 0) AS total_stock,
-                        0 AS reserved_in_activities,
-                        COALESCE(SUM(mb.quantity), 0) AS available_for_period
+                // Ohne Zeitraum: Gesamtbestand minus physische Pipeline-Sperre (keine Bestell-Reservierung)
+                $sql = "SELECT mi.id AS material_item_id, mi.name, mi.category_id, mi.material_type, mi.department_id AS source_department_id, d.name AS source_department_name,
+                        COALESCE(SUM(mb.qty), 0) AS total_stock,
+                        COALESCE(MAX(stock_in_phys_combo.qty_in_phys_combo), 0) AS stock_in_phys_combo_kisten,
+                        COALESCE(MAX(stock_in_storage.qty_in_storage), 0) AS stock_in_storage_containers,
+                        COALESCE(MAX(reserved.reserved_qty), 0) AS reserved_in_activities,
+                        GREATEST(0,
+                            CASE WHEN mi.material_type = 'physical_combo' THEN
+                                COALESCE(SUM(mb.qty), 0) - COALESCE(MAX(reserved.reserved_qty), 0)
+                            ELSE
+                                COALESCE(SUM(mb.qty), 0) - COALESCE(MAX(stock_in_phys_combo.qty_in_phys_combo), 0) - COALESCE(MAX(reserved.reserved_qty), 0)
+                            END
+                        ) AS available_for_period
                         FROM material_item mi
                         JOIN department d ON d.id = mi.department_id
                         LEFT JOIN material_batch mb ON mb.material_item_id = mi.id AND mb.status = 'active'
+                        LEFT JOIN (
+                            SELECT b.material_item_id AS mid, SUM(a.qty) AS qty_in_phys_combo
+                            FROM batch_storage_allocation a
+                            INNER JOIN material_batch b ON a.batch_id = b.id AND b.status = 'active'
+                            INNER JOIN material_item combo_kiste ON combo_kiste.linked_container_batch_id = a.container_batch_id
+                                AND combo_kiste.material_type = 'physical_combo'
+                                AND combo_kiste.deleted_at IS NULL
+                            GROUP BY b.material_item_id
+                        ) stock_in_phys_combo ON stock_in_phys_combo.mid = mi.id
+                        LEFT JOIN (
+                            SELECT b.material_item_id AS mid, SUM(a.qty) AS qty_in_storage
+                            FROM batch_storage_allocation a
+                            INNER JOIN material_batch b ON a.batch_id = b.id AND b.status = 'active'
+                            WHERE a.container_batch_id IS NOT NULL
+                              AND NOT EXISTS (
+                                  SELECT 1 FROM material_item combo_kiste
+                                  WHERE combo_kiste.linked_container_batch_id = a.container_batch_id
+                                    AND combo_kiste.material_type = 'physical_combo'
+                                    AND combo_kiste.deleted_at IS NULL
+                              )
+                            GROUP BY b.material_item_id
+                        ) stock_in_storage ON stock_in_storage.mid = mi.id
+                        " . MaterialAvailabilityReservationQuery::lateralReservedQtySql(false, $reservedExcludeSql) . "
                         WHERE mi.deleted_at IS NULL
                           AND $scopeWhere $materialIdFilterSql
-                        GROUP BY mi.id, mi.name, mi.category_id, mi.department_id, d.name";
+                        GROUP BY mi.id, mi.name, mi.category_id, mi.material_type, mi.department_id, d.name, reserved.reserved_qty";
 
                 $params = array_merge($deptParams, $materialIdFilterParams);
             }
@@ -301,7 +363,7 @@ class MaterialAvailabilityController extends AbstractController
             $priceMap = [];
             if (!empty($materialIds)) {
                 $placeholders = implode(',', array_map(fn($i) => ':mid' . $i, array_keys($materialIds)));
-                $priceSql = "SELECT id, is_consumable, sale_price, rental_price_day, rental_price_week, rental_price_month, pack_size, pack_unit, is_js_material, external_source FROM material_item WHERE id IN ($placeholders)";
+                $priceSql = "SELECT id, material_type, is_consumable, sale_price, rental_price_day, rental_price_week, rental_price_month, pack_size, pack_unit, is_js_material, external_source FROM material_item WHERE id IN ($placeholders)";
                 $priceParams = [];
                 foreach ($materialIds as $i => $mid) {
                     $priceParams['mid' . $i] = $mid;
@@ -313,9 +375,83 @@ class MaterialAvailabilityController extends AbstractController
                 }
             }
 
+            $linkedContainerMap = [];
+            $comboIds = [];
+            foreach ($materials as $row) {
+                $mid = $row['material_item_id'];
+                $type = $row['material_type'] ?? ($priceMap[$mid]['material_type'] ?? '');
+                if ($type === 'physical_combo') {
+                    $comboIds[] = $mid;
+                }
+            }
+            $comboIds = array_values(array_unique($comboIds));
+            if ($comboIds !== []) {
+                $lcPh = implode(',', array_map(fn ($i) => ':lc_mid' . $i, array_keys($comboIds)));
+                $lcParams = [];
+                foreach ($comboIds as $i => $mid) {
+                    $lcParams['lc_mid' . $i] = $mid;
+                }
+                $lcSql = "SELECT combo.id AS combo_id,
+                        NULLIF(TRIM(lcb.label), '') AS linked_container_label,
+                        NULLIF(TRIM(lcb.serial_number), '') AS linked_container_serial,
+                        lcb_mi.pack_unit AS linked_container_pack_unit
+                    FROM material_item combo
+                    LEFT JOIN material_batch lcb ON lcb.id = combo.linked_container_batch_id
+                    LEFT JOIN material_item lcb_mi ON lcb_mi.id = lcb.material_item_id
+                    WHERE combo.id IN ($lcPh)";
+                $lcStmt = $this->connection->prepare($lcSql);
+                $lcRows = $lcStmt->executeQuery($lcParams)->fetchAllAssociative();
+                foreach ($lcRows as $lc) {
+                    $label = trim((string) ($lc['linked_container_label'] ?? ''));
+                    $serial = trim((string) ($lc['linked_container_serial'] ?? ''));
+                    $linkedContainerMap[$lc['combo_id']] = [
+                        'label' => $label !== '' ? $label : ($serial !== '' ? $serial : null),
+                        'pack_unit' => $lc['linked_container_pack_unit'] ?? null,
+                    ];
+                }
+
+                // Ohne Referenz-Batch: Behälter-Komponente der Stückliste (z. B. Transporttasche mit pack_unit «Sack»)
+                $comboIdsNeedingFallback = array_values(array_filter(
+                    $comboIds,
+                    static fn (string $cid) => trim((string) ($linkedContainerMap[$cid]['pack_unit'] ?? '')) === '',
+                ));
+                if ($comboIdsNeedingFallback !== []) {
+                    $fbPh = implode(',', array_map(fn ($i) => ':fb_mid' . $i, array_keys($comboIdsNeedingFallback)));
+                    $fbParams = [];
+                    foreach ($comboIdsNeedingFallback as $i => $mid) {
+                        $fbParams['fb_mid' . $i] = $mid;
+                    }
+                    $fbSql = "SELECT cc.parent_material_id AS combo_id,
+                            mi.name AS component_name,
+                            mi.pack_unit AS component_pack_unit,
+                            mi.is_container AS is_container
+                        FROM material_combo_component cc
+                        INNER JOIN material_item mi ON mi.id = cc.component_material_id AND mi.deleted_at IS NULL
+                        WHERE cc.parent_material_id IN ($fbPh)
+                          AND (mi.is_container = true OR (mi.pack_unit IS NOT NULL AND TRIM(mi.pack_unit) <> ''))";
+                    $fbRows = $this->connection->prepare($fbSql)->executeQuery($fbParams)->fetchAllAssociative();
+                    $grouped = [];
+                    foreach ($fbRows as $fb) {
+                        $grouped[$fb['combo_id']][] = $fb;
+                    }
+                    foreach ($comboIdsNeedingFallback as $cid) {
+                        $picked = $this->pickComboShellComponentForDisplay($grouped[$cid] ?? []);
+                        if ($picked === null) {
+                            continue;
+                        }
+                        $existing = $linkedContainerMap[$cid] ?? ['label' => null, 'pack_unit' => null];
+                        $linkedContainerMap[$cid] = [
+                            'label' => $existing['label'] ?? trim((string) ($picked['component_name'] ?? '')) ?: null,
+                            'pack_unit' => $picked['component_pack_unit'] ?? null,
+                        ];
+                    }
+                }
+            }
+
             // camelCase für Frontend
-            $materials = array_map(function ($item) use ($priceMap) {
+            $materials = array_map(function ($item) use ($priceMap, $linkedContainerMap) {
                 $priceInfo = $priceMap[$item['material_item_id']] ?? [];
+                $linked = $linkedContainerMap[$item['material_item_id']] ?? null;
                 return [
                     'materialItemId' => $item['material_item_id'],
                     'name' => $item['name'],
@@ -323,8 +459,13 @@ class MaterialAvailabilityController extends AbstractController
                     'sourceDepartmentId' => $item['source_department_id'] ?? null,
                     'sourceDepartmentName' => $item['source_department_name'] ?? null,
                     'totalStock' => (int) $item['total_stock'],
+                    'stockInPhysComboKisten' => (int) ($item['stock_in_phys_combo_kisten'] ?? 0),
+                    'stockInStorageContainers' => (int) ($item['stock_in_storage_containers'] ?? 0),
+                    /** @deprecated use stockInPhysComboKisten / stockInStorageContainers */
+                    'stockInContainers' => (int) ($item['stock_in_phys_combo_kisten'] ?? 0),
                     'reservedInActivities' => (int) $item['reserved_in_activities'],
                     'availableForPeriod' => (int) $item['available_for_period'],
+                    'materialType' => $item['material_type'] ?? ($priceInfo['material_type'] ?? 'physical'),
                     'isConsumable' => (bool) ($priceInfo['is_consumable'] ?? false),
                     'salePrice' => $priceInfo['sale_price'] ?? null,
                     'rentalPriceDay' => $priceInfo['rental_price_day'] ?? null,
@@ -334,6 +475,8 @@ class MaterialAvailabilityController extends AbstractController
                     'packUnit' => $priceInfo['pack_unit'] ?? null,
                     'isJsMaterial' => (bool) ($priceInfo['is_js_material'] ?? false),
                     'externalSource' => $priceInfo['external_source'] ?? null,
+                    'linkedContainerLabel' => $linked['label'] ?? null,
+                    'linkedContainerPackUnit' => $linked['pack_unit'] ?? null,
                 ];
             }, $materials);
 
@@ -343,5 +486,35 @@ class MaterialAvailabilityController extends AbstractController
                 'error' => 'Datenbankfehler: ' . $e->getMessage()
             ], 500);
         }
+    }
+
+    /**
+     * Behälter-Zeile der physischen Kombo für Anzeige (Sack/Kiste …), wenn kein linked_container_batch gesetzt ist.
+     *
+     * @param list<array<string, mixed>> $candidates
+     * @return array<string, mixed>|null
+     */
+    private function pickComboShellComponentForDisplay(array $candidates): ?array
+    {
+        if ($candidates === []) {
+            return null;
+        }
+
+        $score = static function (array $row): int {
+            $name = mb_strtolower(trim((string) ($row['component_name'] ?? '')));
+            $s = !empty($row['is_container']) ? 1000 : 0;
+            if (preg_match('/\b(tasche|transport|sack|kiste|karton|fass|behälter|behaelter)\b/u', $name)) {
+                $s += 100;
+            }
+            if (trim((string) ($row['component_pack_unit'] ?? '')) !== '') {
+                $s += 10;
+            }
+
+            return $s;
+        };
+
+        usort($candidates, static fn (array $a, array $b): int => $score($b) <=> $score($a));
+
+        return $candidates[0];
     }
 }

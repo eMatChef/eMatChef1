@@ -1,7 +1,7 @@
 <template>
   <div class="contacts-view">
     <!-- Detail View (ersetzt Liste wenn Kontakt ausgewählt) -->
-    <ContactDetailView
+      <ContactDetailView
       v-if="showDetailView && selectedContactId"
       :contact-id="selectedContactId"
       :department-id="currentDepartmentId"
@@ -17,13 +17,15 @@
         <div class="header-content">
           <div>
             <h1>{{ t('contacts.title') }}</h1>
-            <p class="description">{{ t('contacts.description') }}</p>
+            <p class="description">
+              {{ isUserRole ? t('contacts.descriptionUser') : t('contacts.description') }}
+            </p>
           </div>
-          <button @click="openCreateModal" class="btn-primary">
+          <button v-if="canCreateContact" @click="openCreateModal" class="btn-primary">
             <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
               <path d="M10 4V16M4 10H16" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
             </svg>
-            <span>{{ t('contacts.newContact') }}</span>
+            <span>{{ t('contacts.newAddress') }}</span>
           </button>
         </div>
       </header>
@@ -50,7 +52,7 @@
         <div class="filter-group">
           <select v-model="selectedType" class="filter-select">
             <option value="">{{ t('contacts.allTypes') }}</option>
-            <option v-for="key in addressTypeKeys" :key="key" :value="key">
+            <option v-for="key in visibleAddressTypeKeys" :key="key" :value="key">
               {{ t('settings.addressForm.types.' + key) }}
             </option>
           </select>
@@ -70,6 +72,11 @@
           >
             {{ t('contacts.resetFilters') }}
           </button>
+
+          <label v-if="canManageDeletedContacts" class="show-deleted-toggle">
+            <input v-model="showDeleted" type="checkbox" />
+            {{ t('contacts.showDeleted') }}
+          </label>
         </div>
       </div>
 
@@ -102,7 +109,7 @@
         </div>
         <h2>{{ t('contacts.emptyTitle') }}</h2>
         <p>{{ t('contacts.emptyText') }}</p>
-        <button @click="openCreateModal" class="btn-primary btn-large">
+        <button v-if="canCreateContact" @click="openCreateModal" class="btn-primary btn-large">
           <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
             <path d="M10 4V16M4 10H16" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
           </svg>
@@ -137,10 +144,11 @@
             </tr>
           </thead>
           <tbody>
-            <tr 
-              v-for="contact in filteredContacts" 
+            <tr
+              v-for="contact in filteredContacts"
               :key="contact.id"
               class="contact-row"
+              :class="{ 'contact-row--deleted': contact.is_deleted }"
               @dblclick="openContactDetail(contact)"
             >
               <!-- Name -->
@@ -153,6 +161,7 @@
                     <span class="contact-name">
                       {{ contact.name || contact.company || t('contacts.unnamed') }}
                       <span v-if="contact.is_primary" class="primary-badge">{{ t('contacts.primaryBadge') }}</span>
+                      <span v-if="contact.is_deleted" class="deleted-badge">{{ t('contacts.deletedBadge') }}</span>
                     </span>
                     <span v-if="contact.company && contact.name" class="contact-company">{{ contact.company }}</span>
                   </div>
@@ -202,7 +211,30 @@
               <!-- Aktionen -->
               <td class="col-actions">
                 <div class="action-buttons">
-                  <button class="action-btn" @click.stop="openContactDetail(contact)" :title="t('contacts.openDetailsTitle')">
+                  <template v-if="contact.is_deleted && canManageDeletedContacts">
+                    <button
+                      class="action-btn"
+                      :title="t('contacts.restore')"
+                      @click.stop="restoreContact(contact)"
+                    >
+                      <svg class="table-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M3 12a9 9 0 0115-6.7L21 8"/>
+                        <path d="M21 3v5h-5M21 12a9 9 0 01-15 6.7L3 16"/>
+                        <path d="M3 21v-5h5"/>
+                      </svg>
+                    </button>
+                    <button
+                      class="action-btn action-btn--danger"
+                      :title="t('contacts.permanentDelete')"
+                      @click.stop="confirmPermanentDelete(contact)"
+                    >
+                      <svg class="table-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="3 6 5 6 21 6"/>
+                        <path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/>
+                      </svg>
+                    </button>
+                  </template>
+                  <button v-else class="action-btn" @click.stop="openContactDetail(contact)" :title="t('contacts.openDetailsTitle')">
                     <svg class="table-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                       <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
                       <circle cx="12" cy="12" r="3"/>
@@ -223,7 +255,8 @@
       v-if="showModal"
       :department-id="currentDepartmentId"
       :address="null"
-      :default-type="'customer'"
+      :default-type="createDefaultType"
+      :allowed-types="createAllowedTypes"
       @close="closeModal"
       @saved="handleSaved"
     />
@@ -234,22 +267,46 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { 
-  getAddresses, 
-  ADDRESS_TYPES, 
-  SWISS_CANTONS, 
-  type Address 
+import {
+  getAddresses,
+  restoreAddress,
+  permanentDeleteAddress,
+  ADDRESS_TYPES,
+  SWISS_CANTONS,
+  type Address,
 } from '@/api/addresses'
+import { useToast } from '@/composables/useToast'
 import AddressModal from '@/components/AddressModal.vue'
 import ContactDetailView from '@/components/contacts/ContactDetailView.vue'
+import {
+  useDepartmentMemberRole,
+  USER_CONTACT_VIEW_TYPES,
+  USER_CONTACT_CREATE_TYPES,
+} from '@/composables/useDepartmentMemberRole'
 import '@/styles/contacts-view.css'
 
 const route = useRoute()
 const router = useRouter()
 const { t, te } = useI18n()
+const toast = useToast()
+const { isUserRole, canManageContacts, canManageDeletedContacts } = useDepartmentMemberRole()
 const currentDepartmentId = computed(() => route.params.departmentId as string)
 
-const addressTypeKeys = Object.keys(ADDRESS_TYPES) as (keyof typeof ADDRESS_TYPES)[]
+const canCreateContact = computed(() => canManageContacts.value || isUserRole.value)
+
+const createDefaultType = computed(() => (isUserRole.value ? 'meeting' : 'customer'))
+
+const createAllowedTypes = computed(() =>
+  isUserRole.value ? [...USER_CONTACT_CREATE_TYPES] : null
+)
+
+const visibleAddressTypeKeys = computed(() => {
+  const all = Object.keys(ADDRESS_TYPES) as (keyof typeof ADDRESS_TYPES)[]
+  if (!isUserRole.value) return all
+  return all.filter((key) =>
+    USER_CONTACT_VIEW_TYPES.includes(key as (typeof USER_CONTACT_VIEW_TYPES)[number])
+  )
+})
 
 function addressTypeLabel(type: string): string {
   const path = `settings.addressForm.types.${type}` as const
@@ -265,6 +322,7 @@ const error = ref<string | null>(null)
 const searchQuery = ref('')
 const selectedType = ref('')
 const selectedCanton = ref('')
+const showDeleted = ref(false)
 
 // Modal State
 const showModal = ref(false)
@@ -317,7 +375,9 @@ async function loadContacts() {
   error.value = null
   
   try {
-    const data = await getAddresses(currentDepartmentId.value)
+    const data = await getAddresses(currentDepartmentId.value, {
+      includeDeleted: showDeleted.value && canManageDeletedContacts.value,
+    })
     contacts.value = data.addresses
   } catch (err: any) {
     error.value = err.response?.data?.error || t('contacts.loadError')
@@ -378,7 +438,32 @@ async function handleSaved() {
   await loadContacts()
 }
 
+async function restoreContact(contact: Address) {
+  try {
+    await restoreAddress(contact.id)
+    toast.success(t('contacts.restoreSuccess'))
+    await loadContacts()
+  } catch (err: any) {
+    toast.error(err.response?.data?.error || t('contacts.restoreError'))
+  }
+}
+
+async function confirmPermanentDelete(contact: Address) {
+  const name = contact.name || contact.company || t('contacts.unnamed')
+  if (!window.confirm(t('contacts.permanentDeleteMessage', { name }))) return
+  try {
+    await permanentDeleteAddress(contact.id)
+    await loadContacts()
+  } catch (err: any) {
+    toast.error(err.response?.data?.error || t('contacts.permanentDeleteError'))
+  }
+}
+
 // Watchers
+watch(showDeleted, () => {
+  loadContacts()
+})
+
 watch(currentDepartmentId, () => {
   if (selectedContactId.value) {
     router.replace(`/${currentDepartmentId.value}/contacts`)

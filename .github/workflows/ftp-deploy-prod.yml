@@ -48,7 +48,7 @@ jobs:
           du -sh deploy/hostpoint/prod/home deploy/hostpoint/prod/app
 
       - name: Upload prod home
-        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        uses: SamKirkland/FTP-Deploy-Action@v4.4.0
         with:
           server: ${{ secrets.FTP_HOST }}
           username: ${{ secrets.FTP_USER }}
@@ -60,7 +60,7 @@ jobs:
           dangerous-clean-slate: true
 
       - name: Upload prod app
-        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        uses: SamKirkland/FTP-Deploy-Action@v4.4.0
         with:
           server: ${{ secrets.FTP_HOST }}
           username: ${{ secrets.FTP_USER }}

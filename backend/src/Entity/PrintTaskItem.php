@@ -4,6 +4,14 @@ namespace App\Entity;
 
 use Doctrine\ORM\Mapping as ORM;
 
+/**
+ * Druckkorb-Eintrag mit öffentlicher QR-URL.
+ *
+ * entity_type:
+ * - batch — Material-Charge (public_url: /i/m/{materialCode}/b/{batchCode})
+ * - activity — Anlass (/i/a/{activityCode})
+ * - workshop — Werkstatt-Ticket (/i/w/{workshopCode})
+ */
 #[ORM\Entity]
 #[ORM\Table(name: 'print_task_item')]
 #[ORM\Index(name: 'idx_print_task_dept_status_created', columns: ['department_id', 'status', 'created_at'])]

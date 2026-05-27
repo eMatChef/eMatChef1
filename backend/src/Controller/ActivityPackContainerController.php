@@ -10,7 +10,9 @@ use App\Entity\MaterialBatch;
 use App\Entity\MaterialItem;
 use App\Entity\User;
 use App\Service\ActivityAccessService;
+use App\Service\ActivityItemPipelineStatusService;
 use App\Service\ActivityKisteMaterialLinker;
+use App\Service\PackPipelineService;
 use App\Util\IdGenerator;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -26,7 +28,15 @@ class ActivityPackContainerController extends AbstractController
         private EntityManagerInterface $entityManager,
         private ActivityAccessService $activityAccess,
         private ActivityKisteMaterialLinker $kisteMaterialLinker,
+        private PackPipelineService $packPipeline,
+        private ActivityItemPipelineStatusService $activityItemPipelineStatus,
     ) {}
+
+    private function flushWithPipelineSync(Activity $activity): void
+    {
+        $this->activityItemPipelineStatus->syncForActivity($activity);
+        $this->entityManager->flush();
+    }
 
     #[Route('/pack-containers', name: 'list', methods: ['GET'])]
     #[IsGranted('ROLE_USER')]
@@ -90,10 +100,21 @@ class ActivityPackContainerController extends AbstractController
         }
 
         $this->entityManager->persist($container);
-        if ($batch !== null) {
-            $this->kisteMaterialLinker->linkKisteOnContainerBatchAssigned($activity, $batch, $user);
+        $batchAssigned = $batch !== null;
+        if ($batchAssigned) {
+            $this->kisteMaterialLinker->linkKisteOnContainerBatchAssigned(
+                $activity,
+                $batch,
+                $user,
+                $container->getId(),
+            );
         }
+        $this->activityItemPipelineStatus->syncForActivity($activity);
         $this->entityManager->flush();
+        if ($batchAssigned && $this->kisteMaterialLinker->reconcileShellPackItemsPackedFromContainers($activity, $user)) {
+            $this->activityItemPipelineStatus->syncForActivity($activity);
+            $this->entityManager->flush();
+        }
 
         return new JsonResponse($this->serializeContainer($container), 201);
     }
@@ -116,6 +137,7 @@ class ActivityPackContainerController extends AbstractController
         }
 
         $data = json_decode($request->getContent(), true) ?? [];
+        $batchAssigned = false;
         if (array_key_exists('label', $data)) $container->setLabel(trim((string) $data['label']));
         if (array_key_exists('status', $data)) $container->setStatus((string) $data['status']);
         if (array_key_exists('container_batch_id', $data)) {
@@ -133,13 +155,23 @@ class ActivityPackContainerController extends AbstractController
                     return $deny;
                 }
                 $container->setContainerBatch($batch);
-                $this->kisteMaterialLinker->linkKisteOnContainerBatchAssigned($activity, $batch, $user);
+                $this->kisteMaterialLinker->linkKisteOnContainerBatchAssigned(
+                    $activity,
+                    $batch,
+                    $user,
+                    $container->getId(),
+                );
+                $batchAssigned = true;
             } else {
                 $container->setContainerBatch(null);
             }
         }
         $container->touch();
-        $this->entityManager->flush();
+        $this->flushWithPipelineSync($activity);
+        if ($batchAssigned && $this->kisteMaterialLinker->reconcileShellPackItemsPackedFromContainers($activity, $user)) {
+            $this->activityItemPipelineStatus->syncForActivity($activity);
+            $this->entityManager->flush();
+        }
 
         return new JsonResponse($this->serializeContainer($container));
     }
@@ -156,9 +188,141 @@ class ActivityPackContainerController extends AbstractController
             return new JsonResponse(['error' => 'Container nicht gefunden'], 404);
         }
 
+        $user = $this->getUser();
+        if (!$user instanceof User) {
+            return new JsonResponse(['error' => 'Nicht authentifiziert'], 401);
+        }
+
+        if (!$this->activityAccess->canUserEditPackList($user, $activity)) {
+            return new JsonResponse(['error' => 'Keine Berechtigung zum Bearbeiten der Packliste'], 403);
+        }
+
+        $batch = $container->getContainerBatch();
+        if ($batch !== null) {
+            $this->kisteMaterialLinker->unlinkKisteOnContainerRemoved(
+                $activity,
+                $batch,
+                $user,
+                $container->getId(),
+            );
+        }
+        $this->dissolveContainerPackQuantitiesBeforeDelete($activity, $container);
+        $removedContainerId = $container->getId();
         $this->entityManager->remove($container);
-        $this->entityManager->flush();
+        $this->kisteMaterialLinker->reconcileOrphanPackItemsWithoutMaterialLine(
+            $activity,
+            $removedContainerId,
+        );
+        $this->flushWithPipelineSync($activity);
+
         return new JsonResponse(['success' => true]);
+    }
+
+    /**
+     * Beim Löschen einer Kiste in «Bestätigt → Gepackt»: eingepackte Mengen aus dem Behälter
+     * wieder auf die linke Spalte (quantity_packed reduzieren), nicht als lose «Gepackt» stehen lassen.
+     */
+    private function dissolveContainerPackQuantitiesBeforeDelete(Activity $activity, ActivityPackContainer $container): void
+    {
+        if (!in_array($activity->getStatus(), [
+            Activity::STATUS_PACKING,
+            Activity::STATUS_PACKED,
+            Activity::STATUS_AT_EVENT,
+            Activity::STATUS_RETURNED,
+        ], true)) {
+            return;
+        }
+
+        $items = $this->entityManager->getRepository(ActivityPackContainerItem::class)
+            ->findBy(['packContainerId' => $container->getId()]);
+
+        $shellMaterialId = null;
+        $batch = $container->getContainerBatch();
+        if ($batch !== null) {
+            $batchMaterial = $batch->getMaterialItem();
+            $shellMaterialId = $batchMaterial->getId();
+        }
+
+        foreach ($items as $ci) {
+            if (!$ci instanceof ActivityPackContainerItem) {
+                continue;
+            }
+            if ($shellMaterialId !== null && $ci->getMaterialItemId() === $shellMaterialId) {
+                continue;
+            }
+            $this->movePackItemBackForContainerLine($activity, $ci);
+        }
+
+        // Lager-Kiste: unlink entfernt Activity-/Pack-Zeile — kein applyBackward (sonst taucht die Kiste links wieder auf).
+        if (
+            $batch === null
+            && $shellMaterialId !== null
+            && $this->countOtherShellContainers($activity, $container, $shellMaterialId) === 0
+        ) {
+            $shellPack = $this->entityManager->getRepository(ActivityPackItem::class)->findOneBy([
+                'activityId' => $activity->getId(),
+                'materialItemId' => $shellMaterialId,
+            ]);
+            if ($shellPack instanceof ActivityPackItem) {
+                $profile = $this->packPipeline->profileForActivityType($activity->getType());
+                $max = $this->packPipeline->maxBackwardQty($shellPack, PackPipelineService::STAGE_PACKED, $profile);
+                if ($max > 0) {
+                    $this->packPipeline->applyBackward($shellPack, PackPipelineService::STAGE_PACKED, $max);
+                    $shellPack->setUpdatedAt(new \DateTime());
+                }
+            }
+        }
+    }
+
+    private function movePackItemBackForContainerLine(Activity $activity, ActivityPackContainerItem $ci): void
+    {
+        $qty = max(0, $ci->getQuantityPacked());
+        if ($qty < 1) {
+            return;
+        }
+
+        $packItem = $this->entityManager->getRepository(ActivityPackItem::class)->findOneBy([
+            'activityId' => $activity->getId(),
+            'materialItemId' => $ci->getMaterialItemId(),
+        ]);
+        if (!$packItem instanceof ActivityPackItem) {
+            return;
+        }
+
+        $profile = $this->packPipeline->profileForActivityType($activity->getType());
+        $moveBack = min($qty, $this->packPipeline->maxBackwardQty($packItem, PackPipelineService::STAGE_PACKED, $profile));
+        if ($moveBack < 1) {
+            return;
+        }
+
+        $this->packPipeline->applyBackward($packItem, PackPipelineService::STAGE_PACKED, $moveBack);
+        $packItem->setUpdatedAt(new \DateTime());
+    }
+
+    private function countOtherShellContainers(
+        Activity $activity,
+        ActivityPackContainer $exclude,
+        string $shellMaterialId,
+    ): int {
+        $others = $this->entityManager->getRepository(ActivityPackContainer::class)->findBy([
+            'activityId' => $activity->getId(),
+        ]);
+        $count = 0;
+        foreach ($others as $pc) {
+            if (!$pc instanceof ActivityPackContainer || $pc->getId() === $exclude->getId()) {
+                continue;
+            }
+            $bid = $pc->getContainerBatchId();
+            if ($bid === null || $bid === '') {
+                continue;
+            }
+            $batch = $pc->getContainerBatch();
+            if ($batch !== null && $batch->getMaterialItemId() === $shellMaterialId) {
+                ++$count;
+            }
+        }
+
+        return $count;
     }
 
     #[Route('/pack-containers/{containerId}/items', name: 'items_list', methods: ['GET'])]
@@ -225,7 +389,7 @@ class ActivityPackContainerController extends AbstractController
         }
 
         $this->entityManager->persist($item);
-        $this->entityManager->flush();
+        $this->flushWithPipelineSync($activity);
 
         return new JsonResponse($this->serializeContainerItem($item), 201);
     }
@@ -251,6 +415,7 @@ class ActivityPackContainerController extends AbstractController
         if (array_key_exists('quantity_packed', $data)) $item->setQuantityPacked(max(0, (int) $data['quantity_packed']));
         if (array_key_exists('quantity_issued', $data)) $item->setQuantityIssued(max(0, (int) $data['quantity_issued']));
         if (array_key_exists('quantity_returned', $data)) $item->setQuantityReturned(max(0, (int) $data['quantity_returned']));
+        if (array_key_exists('quantity_stored', $data)) $item->setQuantityStored(max(0, (int) $data['quantity_stored']));
         if (array_key_exists('condition_out', $data)) $item->setConditionOut((string) $data['condition_out']);
         if (array_key_exists('notes', $data)) $item->setNotes($data['notes']);
         if (array_key_exists('material_batch_id', $data)) {
@@ -264,7 +429,7 @@ class ActivityPackContainerController extends AbstractController
             }
         }
         $item->touch();
-        $this->entityManager->flush();
+        $this->flushWithPipelineSync($activity);
 
         return new JsonResponse($this->serializeContainerItem($item));
     }
@@ -287,7 +452,8 @@ class ActivityPackContainerController extends AbstractController
         }
 
         $this->entityManager->remove($item);
-        $this->entityManager->flush();
+        $this->flushWithPipelineSync($activity);
+
         return new JsonResponse(['success' => true]);
     }
 
@@ -337,7 +503,7 @@ class ActivityPackContainerController extends AbstractController
             return new JsonResponse(['error' => 'Nicht authentifiziert'], 401);
         }
 
-        $deny = $this->assertCanModifyActivityMaterialItems($user, $activity);
+        $deny = $this->assertCanBulkPackContainerWorkflow($user, $activity, $mode);
         if ($deny !== null) {
             return $deny;
         }
@@ -383,10 +549,20 @@ class ActivityPackContainerController extends AbstractController
                 $packItem->setQuantityIssued($packItem->getQuantityIssued() + $apply);
             } elseif ($mode === 'return_all') {
                 $delta = $ci->getQuantityIssued() - $ci->getQuantityReturned();
+                if ($delta <= 0 && $ci->getQuantityIssued() === 0 && $ci->getQuantityPacked() > $ci->getQuantityReturned()) {
+                    // In Kiste gepackt, nie lose ans Event — retourniert mit der Kiste
+                    $delta = $ci->getQuantityPacked() - $ci->getQuantityReturned();
+                }
                 if ($delta <= 0) {
                     continue;
                 }
                 $maxPack = $packItem->getQuantityIssued() - $packItem->getQuantityReturned();
+                if ($maxPack <= 0 && $ci->getQuantityIssued() === 0) {
+                    $maxPack = $packItem->getQuantityPacked() - $packItem->getQuantityReturned();
+                }
+                if ($maxPack <= 0) {
+                    continue;
+                }
                 $apply = min($delta, $maxPack);
                 if ($apply <= 0) {
                     continue;
@@ -419,7 +595,7 @@ class ActivityPackContainerController extends AbstractController
         $updatedLines += $shell['lines'];
         $appliedTotal += $shell['units'];
 
-        $this->entityManager->flush();
+        $this->flushWithPipelineSync($activity);
 
         return new JsonResponse([
             'success' => true,
@@ -451,10 +627,28 @@ class ActivityPackContainerController extends AbstractController
         if ($mode === 'issue_all') {
             $delta = $packItem->getQuantityPacked() - $packItem->getQuantityIssued();
             if ($delta <= 0) {
-                return ['lines' => 0, 'units' => 0];
+                $containerItems = $this->entityManager->getRepository(ActivityPackContainerItem::class)
+                    ->findBy(['packContainerId' => $container->getId()]);
+                $contentsIssued = false;
+                foreach ($containerItems as $ci) {
+                    if ($ci instanceof ActivityPackContainerItem && $ci->getQuantityIssued() > 0) {
+                        $contentsIssued = true;
+                        break;
+                    }
+                }
+                if ($contentsIssued && $packItem->getQuantityIssued() < 1) {
+                    if ($packItem->getQuantityPacked() < 1) {
+                        $packItem->setQuantityPacked(1);
+                    }
+                    $apply = 1;
+                    $packItem->setQuantityIssued($packItem->getQuantityIssued() + $apply);
+                } else {
+                    return ['lines' => 0, 'units' => 0];
+                }
+            } else {
+                $apply = $delta;
+                $packItem->setQuantityIssued($packItem->getQuantityIssued() + $apply);
             }
-            $apply = $delta;
-            $packItem->setQuantityIssued($packItem->getQuantityIssued() + $apply);
         } elseif ($mode === 'return_all') {
             $delta = $packItem->getQuantityIssued() - $packItem->getQuantityReturned();
             if ($delta <= 0) {
@@ -480,14 +674,12 @@ class ActivityPackContainerController extends AbstractController
 
     private function serializeContainer(ActivityPackContainer $container): array
     {
-        $batch = $container->getContainerBatch();
-
         return [
             'id' => $container->getId(),
             'activity_id' => $container->getActivityId(),
             'container_batch_id' => $container->getContainerBatchId(),
-            /** Stammdaten-Material der Kisten-Charge — für Packliste: keine doppelte Zeile «noch zu packen» */
-            'container_material_item_id' => $batch !== null ? $batch->getMaterialItemId() : null,
+            /** Stammdaten-Material der Kisten-Charge bzw. virtuelle Phys.-Kombi-Zeile */
+            'container_material_item_id' => $this->kisteMaterialLinker->shellMaterialIdForPackContainer($container),
             'label' => $container->getLabel(),
             'status' => $container->getStatus(),
             'created_at' => $container->getCreatedAt()->format('c'),
@@ -503,8 +695,11 @@ class ActivityPackContainerController extends AbstractController
             'material_item_id' => $item->getMaterialItemId(),
             'material_batch_id' => $item->getMaterialBatchId(),
             'quantity_packed' => $item->getQuantityPacked(),
+            'quantity_transport_to' => $item->getQuantityTransportTo(),
             'quantity_issued' => $item->getQuantityIssued(),
+            'quantity_transport_back' => $item->getQuantityTransportBack(),
             'quantity_returned' => $item->getQuantityReturned(),
+            'quantity_stored' => $item->getQuantityStored(),
             'condition_out' => $item->getConditionOut(),
             'notes' => $item->getNotes(),
             'material_name' => $item->getMaterialItem()->getName(),
@@ -532,6 +727,35 @@ class ActivityPackContainerController extends AbstractController
         }
 
         return $activity;
+    }
+
+    /**
+     * Kisten-Bulk (issue/unissue/return): Pack-Workflow — Gruppe/Ersteller ab «Gepackt», nicht MW-Materialliste.
+     */
+    private function assertCanBulkPackContainerWorkflow(User $user, Activity $activity, string $mode): ?JsonResponse
+    {
+        if ($this->activityAccess->isHostDepartmentMwOrDc($user, $activity)) {
+            return null;
+        }
+
+        if (!$this->activityAccess->canUserEditPackList($user, $activity)) {
+            return new JsonResponse(['error' => 'Keine Berechtigung für diese Pack-Buchung'], 403);
+        }
+
+        $stageForMode = match ($mode) {
+            'issue_all', 'unissue_all' => PackPipelineService::STAGE_AT_EVENT,
+            'return_all' => PackPipelineService::STAGE_RETURNED,
+            default => null,
+        };
+
+        if ($stageForMode !== null) {
+            $allowedStages = $this->activityAccess->allowedPackMoveStagesForUser($user, $activity);
+            if ($allowedStages !== null && !\in_array($stageForMode, $allowedStages, true)) {
+                return new JsonResponse(['error' => 'Keine Berechtigung für diese Pack-Stufe'], 403);
+            }
+        }
+
+        return null;
     }
 
     /**

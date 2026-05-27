@@ -10,7 +10,9 @@ use App\Entity\Membership;
 use App\Entity\Organisation;
 use App\Repository\ProfileRepository;
 use App\Repository\UserRepository;
+use App\Service\Admin\AdminCapabilityChecker;
 use App\Service\AuditLogger;
+use App\Service\Auth\CrossSubdomainAuthCookies;
 use App\Service\OrganisationUserPickerFilter;
 use App\Service\TurnstileVerifier;
 use App\Service\VerificationEmailService;
@@ -48,8 +50,10 @@ class AuthController extends AbstractController
         private CacheItemPoolInterface $cache,
         private TurnstileVerifier $turnstileVerifier,
         private LanguageConfig $languageConfig,
+        private CrossSubdomainAuthCookies $authCookies,
+        private AdminCapabilityChecker $adminCapabilityChecker,
         #[Autowire('%kernel.secret%')]
-        private string $appSecret
+        private string $appSecret,
     ) {}
 
     /**
@@ -77,9 +81,14 @@ class AuthController extends AbstractController
             }
         }
 
-        return new JsonResponse([
-            'message' => 'Erfolgreich abgemeldet'
+        $response = new JsonResponse([
+            'message' => 'Erfolgreich abgemeldet',
         ]);
+
+        $this->authCookies->clearAuthCookies($response);
+        $this->authCookies->setLogoutMarker($response);
+
+        return $response;
     }
 
     #[Route('/session', name: 'session', methods: ['GET'])]
@@ -134,6 +143,8 @@ class AuthController extends AbstractController
             $lastUsedResolved = $primaryDepartment['id'];
         }
 
+        $capData = $this->adminCapabilityChecker->serializeForApi($user);
+
         return new JsonResponse([
             'user' => [
                 'id' => $user->getId(),
@@ -151,6 +162,9 @@ class AuthController extends AbstractController
                 'pending_email' => $user->getPendingEmail() ?? null,
                 'language' => $profile->getLanguage(),
                 'roles' => $profile->getRoles(),
+                'global_admin_role' => $capData['global_admin_role'],
+                'admin_capabilities' => $capData['admin_capabilities'],
+                'accessible_department_ids' => $capData['accessible_department_ids'],
                 'background_color' => $profile->getBackgroundColor() ?? null,
                 'text_color' => $profile->getTextColor() ?? null,
             ],
@@ -347,23 +361,28 @@ class AuthController extends AbstractController
 
     private function allowRegistrationAttempt(string $clientIp, string $email): bool
     {
-        // Limits: IP = 10/h, Email = 3/h
-        $ipKey = 'auth_register_ip_' . hash('sha256', $clientIp);
-        $mailKey = 'auth_register_mail_' . hash('sha256', $email);
+        try {
+            // Limits: IP = 10/h, Email = 3/h
+            $ipKey = 'auth_register_ip_' . hash('sha256', $clientIp);
+            $mailKey = 'auth_register_mail_' . hash('sha256', $email);
 
-        $ipCount = $this->incrementRateCounter($ipKey, 3600);
-        if ($ipCount > 10) {
-            return false;
-        }
-
-        if ($email !== '') {
-            $mailCount = $this->incrementRateCounter($mailKey, 3600);
-            if ($mailCount > 3) {
+            $ipCount = $this->incrementRateCounter($ipKey, 3600);
+            if ($ipCount > 10) {
                 return false;
             }
-        }
 
-        return true;
+            if ($email !== '') {
+                $mailCount = $this->incrementRateCounter($mailKey, 3600);
+                if ($mailCount > 3) {
+                    return false;
+                }
+            }
+
+            return true;
+        } catch (\Throwable) {
+            // Cache nicht beschreibbar — Registrierung nicht wegen Infrastruktur blockieren.
+            return true;
+        }
     }
 
     private function incrementRateCounter(string $key, int $ttlSeconds): int

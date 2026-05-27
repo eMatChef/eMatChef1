@@ -86,6 +86,18 @@ class Address
     private ?string $longitude = null;
 
     /**
+     * Vorname der Kontaktperson
+     */
+    #[ORM\Column(name: 'contact_first_name', type: 'string', length: 100, nullable: true)]
+    private ?string $contactFirstName = null;
+
+    /**
+     * Nachname der Kontaktperson
+     */
+    #[ORM\Column(name: 'contact_last_name', type: 'string', length: 100, nullable: true)]
+    private ?string $contactLastName = null;
+
+    /**
      * E-Mail-Adresse
      */
     #[ORM\Column(type: 'string', length: 255, nullable: true)]
@@ -120,6 +132,12 @@ class Address
 
     #[ORM\Column(name: 'updated_at', type: 'datetime')]
     private \DateTime $updatedAt;
+
+    #[ORM\Column(name: 'deleted_at', type: 'datetime', nullable: true)]
+    private ?\DateTime $deletedAt = null;
+
+    #[ORM\Column(name: 'deleted_by_user_id', type: 'string', length: 12, nullable: true)]
+    private ?string $deletedByUserId = null;
 
     public function __construct()
     {
@@ -305,6 +323,34 @@ class Address
         return $this->latitude !== null && $this->longitude !== null;
     }
 
+    // === Contact Person ===
+    public function getContactFirstName(): ?string
+    {
+        return $this->contactFirstName;
+    }
+
+    public function setContactFirstName(?string $contactFirstName): self
+    {
+        $this->contactFirstName = $contactFirstName;
+        return $this;
+    }
+
+    public function getContactLastName(): ?string
+    {
+        return $this->contactLastName;
+    }
+
+    public function setContactLastName(?string $contactLastName): self
+    {
+        $this->contactLastName = $contactLastName;
+        return $this;
+    }
+
+    public function getContactFullName(): string
+    {
+        return trim(($this->contactFirstName ?? '') . ' ' . ($this->contactLastName ?? ''));
+    }
+
     // === Email ===
     public function getEmail(): ?string
     {
@@ -379,6 +425,33 @@ class Address
     public function updateTimestamps(): void
     {
         $this->updatedAt = new \DateTime();
+    }
+
+    public function getDeletedAt(): ?\DateTime
+    {
+        return $this->deletedAt;
+    }
+
+    public function setDeletedAt(?\DateTime $deletedAt): self
+    {
+        $this->deletedAt = $deletedAt;
+        return $this;
+    }
+
+    public function getDeletedByUserId(): ?string
+    {
+        return $this->deletedByUserId;
+    }
+
+    public function setDeletedByUserId(?string $deletedByUserId): self
+    {
+        $this->deletedByUserId = $deletedByUserId;
+        return $this;
+    }
+
+    public function isDeleted(): bool
+    {
+        return $this->deletedAt !== null;
     }
 
     /**
@@ -470,12 +543,17 @@ class Address
             'latitude' => $this->getLatitude(),
             'longitude' => $this->getLongitude(),
             'has_coordinates' => $this->hasCoordinates(),
+            'contact_first_name' => $this->contactFirstName,
+            'contact_last_name' => $this->contactLastName,
+            'contact_full_name' => $this->getContactFullName() ?: null,
             'email' => $this->email,
             'phone' => $this->phone,
             'mobile' => $this->mobile,
             'additional_info' => $this->additionalInfo,
             'is_primary' => $this->isPrimary,
             'full_address' => $this->getFullAddress(),
+            'deleted_at' => $this->deletedAt?->format('c'),
+            'is_deleted' => $this->isDeleted(),
         ];
     }
 

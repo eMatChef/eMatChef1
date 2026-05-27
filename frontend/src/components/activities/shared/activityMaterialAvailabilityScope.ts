@@ -3,8 +3,9 @@ import type { MaterialLookupAvailabilityContext } from '@/composables/useMateria
 export type MaterialScopeTab = 'own' | 'all' | 'single' | 'js'
 
 /**
- * Gleiche Quellenlogik wie in ActivityMaterialAvailabilityLookup (Eigen / Partner / J&S),
+ * Gleiche Quellenlogik wie in ActivityMaterialAvailabilityLookup (Eigen / Partner),
  * damit „Frei im Zeitraum“ in der Liste mit der Suche übereinstimmt.
+ * J&S-Material ist ein separates Projekt und wird in der Suche nicht angeboten.
  */
 export function materialLookupContextForScopeTab(
   base: Pick<MaterialLookupAvailabilityContext, 'departmentId' | 'activityId' | 'startDate' | 'endDate' | 'limit'>,

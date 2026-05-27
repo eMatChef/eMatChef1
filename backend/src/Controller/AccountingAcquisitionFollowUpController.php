@@ -4,6 +4,8 @@ namespace App\Controller;
 
 use App\Controller\Trait\AccountingMwOrDcTrait;
 use App\Entity\AccountingAcquisitionFollowUp;
+use App\Service\AccountingAcquisitionFollowUpSerializer;
+use App\Service\InboxMessageService;
 use App\Entity\Department;
 use App\Entity\MaterialBatch;
 use App\Util\IdGenerator;
@@ -20,7 +22,9 @@ class AccountingAcquisitionFollowUpController extends AbstractController
     use AccountingMwOrDcTrait;
 
     public function __construct(
-        private EntityManagerInterface $entityManager
+        private EntityManagerInterface $entityManager,
+        private InboxMessageService $inboxMessages,
+        private AccountingAcquisitionFollowUpSerializer $followUpSerializer,
     ) {
     }
 
@@ -38,6 +42,8 @@ class AccountingAcquisitionFollowUpController extends AbstractController
             $status = AccountingAcquisitionFollowUp::STATUS_PENDING;
         }
 
+        $activityIdFilter = trim((string) $request->query->get('activity_id', ''));
+
         $deptRef = $this->entityManager->getReference(Department::class, $departmentId);
 
         $qb = $this->entityManager->createQueryBuilder()
@@ -48,6 +54,11 @@ class AccountingAcquisitionFollowUpController extends AbstractController
             ->setParameter('d', $deptRef)
             ->setParameter('st', $status)
             ->orderBy('f.createdAt', 'ASC');
+
+        if ($activityIdFilter !== '') {
+            $qb->andWhere('f.activity = :act')
+                ->setParameter('act', $activityIdFilter);
+        }
 
         try {
             $rows = $qb->getQuery()->getResult();
@@ -119,10 +130,12 @@ class AccountingAcquisitionFollowUpController extends AbstractController
 
             if ($materialBatch !== null) {
                 $followUp->setMaterialBatch($materialBatch);
+                $followUp->setSourceKind(AccountingAcquisitionFollowUp::SOURCE_BATCH);
             }
 
             $this->entityManager->persist($followUp);
             $this->entityManager->flush();
+            $this->inboxMessages->syncAccountingFollowUp($followUp);
 
             return new JsonResponse($this->serialize($followUp), 201);
         } catch (\Throwable $e) {
@@ -200,20 +213,6 @@ class AccountingAcquisitionFollowUpController extends AbstractController
      */
     private function serialize(AccountingAcquisitionFollowUp $f): array
     {
-        $batch = $f->getMaterialBatch();
-        $booking = $f->getAccountingBooking();
-
-        return [
-            'id' => $f->getId(),
-            'department_id' => $f->getDepartment()->getId(),
-            'material_batch_id' => $batch?->getId(),
-            'amount' => $f->getAmount(),
-            'suggested_date' => $f->getSuggestedDate()->format('Y-m-d'),
-            'receipt_label' => $f->getReceiptLabel(),
-            'status' => $f->getStatus(),
-            'accounting_booking_id' => $booking?->getId(),
-            'created_at' => $f->getCreatedAt()->format('c'),
-            'updated_at' => $f->getUpdatedAt()->format('c'),
-        ];
+        return $this->followUpSerializer->serialize($f);
     }
 }

@@ -50,6 +50,17 @@
   margin-top: 4px;
 }
 
+.activity-create-wizard-host .activity-create-group-wrap .activity-readonly-value {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #f3f4f6;
+  border: 1px solid #e5e7eb;
+  font-size: 14px;
+  font-weight: 500;
+  color: #111827;
+}
+
 .activity-create-wizard-host .activity-external-address-wrap {
   margin-top: 16px;
 }

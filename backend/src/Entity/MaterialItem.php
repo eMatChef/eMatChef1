@@ -180,6 +180,19 @@ class MaterialItem
     #[ORM\Column(name: 'pack_sale_price_chf', type: 'decimal', precision: 10, scale: 2, nullable: true)]
     private ?string $packSalePriceChf = null;
 
+    /** Packmaß: Abmessungen der Verpackungseinheit (nicht des Einzelstücks) */
+    #[ORM\Column(name: 'pack_weight', type: 'string', length: 120, nullable: true)]
+    private ?string $packWeight = null;
+
+    #[ORM\Column(name: 'pack_size_length', type: 'string', length: 120, nullable: true)]
+    private ?string $packSizeLength = null;
+
+    #[ORM\Column(name: 'pack_size_width', type: 'string', length: 120, nullable: true)]
+    private ?string $packSizeWidth = null;
+
+    #[ORM\Column(name: 'pack_size_height', type: 'string', length: 120, nullable: true)]
+    private ?string $packSizeHeight = null;
+
     // Verbrauchsmaterial
     #[ORM\Column(name: 'is_consumable', type: 'boolean', options: ['default' => false])]
     private bool $isConsumable = false;
@@ -493,6 +506,18 @@ class MaterialItem
         $this->packSalePriceChf = $packSalePriceChf;
         return $this;
     }
+
+    public function getPackWeight(): ?string { return $this->packWeight; }
+    public function setPackWeight(?string $packWeight): self { $this->packWeight = $packWeight; return $this; }
+
+    public function getPackSizeLength(): ?string { return $this->packSizeLength; }
+    public function setPackSizeLength(?string $packSizeLength): self { $this->packSizeLength = $packSizeLength; return $this; }
+
+    public function getPackSizeWidth(): ?string { return $this->packSizeWidth; }
+    public function setPackSizeWidth(?string $packSizeWidth): self { $this->packSizeWidth = $packSizeWidth; return $this; }
+
+    public function getPackSizeHeight(): ?string { return $this->packSizeHeight; }
+    public function setPackSizeHeight(?string $packSizeHeight): self { $this->packSizeHeight = $packSizeHeight; return $this; }
 
     /**
      * Berechnet die Anzahl Verpackungseinheiten aus dem Gesamtbestand

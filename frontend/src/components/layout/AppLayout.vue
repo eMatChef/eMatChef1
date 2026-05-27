@@ -52,6 +52,7 @@ import TopHeader from './TopHeader.vue'
 const route = useRoute()
 const { t } = useI18n()
 const authStore = useAuthStore()
+
 useUnsavedChangesReminder()
 const isOnboardingOpen = ref(false)
 const backendOnboardingDone = ref<boolean | null>(null)

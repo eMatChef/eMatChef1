@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Erzeugt Hostpoint-Artefakte für Development:
 #   deploy/hostpoint/dev/home  (dev.ematchef.ch)
-#   deploy/hostpoint/dev/app   (app-dev.ematchef.ch)
+#   deploy/hostpoint/dev/app   (app-dev.ematchef.ch, qr-dev.*, devices-dev.* — gleicher Document Root)
 set -euo pipefail
 
 ROOT="${EMATCHEF_REPO_ROOT:-}"
@@ -29,11 +29,12 @@ VITE_QR_PUBLIC_HOST=qr-dev.ematchef.ch \
 VITE_SHOW_DEV_BANNER=1 \
 npm --prefix "$FRONTEND" run build -- --outDir "$OUT_BASE/home" --emptyOutDir
 
-# Dev-App-Subdomain (app-dev.ematchef.ch)
+# Dev-App-Subdomain (app-dev.ematchef.ch), inkl. qr-dev.* und devices-dev.*
 VITE_API_BASE=https://api-dev.ematchef.ch \
 VITE_MAIN_SITE_ORIGIN=https://dev.ematchef.ch \
 VITE_APP_ORIGIN=https://app-dev.ematchef.ch \
 VITE_QR_PUBLIC_HOST=qr-dev.ematchef.ch \
+VITE_DEVICES_HOST=devices-dev.ematchef.ch \
 VITE_SHOW_DEV_BANNER=1 \
 npm --prefix "$FRONTEND" run build -- --outDir "$OUT_BASE/app" --emptyOutDir
 

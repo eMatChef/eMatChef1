@@ -20,7 +20,7 @@
       <span v-if="lookup.isLoading.value" class="material-lookup-spinner">⟳</span>
     </div>
 
-    <Transition name="dropdown-fade">
+    <Transition v-if="!teleportDropdown" name="dropdown-fade">
       <div
         v-if="lookup.isOpen.value && shouldShowDropdown"
         class="material-lookup-dropdown"
@@ -54,13 +54,54 @@
         </slot>
       </div>
     </Transition>
+
+    <Teleport v-else to="body">
+      <Transition name="dropdown-fade">
+        <div
+          v-if="lookup.isOpen.value && shouldShowDropdown"
+          class="material-lookup-dropdown material-lookup-dropdown--teleported"
+          :style="dropdownStyle"
+        >
+          <slot
+            name="results"
+            :results="lookup.results.value"
+            :is-loading="lookup.isLoading.value"
+            :query="internalValue"
+            :active-index="lookup.activeIndex.value"
+            :set-active-index="lookup.setActiveIndex"
+            :select-result="selectResult"
+            :close-dropdown="lookup.closeNow"
+          >
+            <div v-if="lookup.isLoading.value" class="mat-dropdown-loading">{{ loadingText || t('components.materialLookup.loading') }}</div>
+            <div v-else-if="lookup.results.value.length === 0" class="mat-dropdown-empty">{{ emptyText || t('components.materialLookup.empty') }}</div>
+            <div v-else class="mat-dropdown-list">
+              <button
+                v-for="(item, index) in lookup.results.value"
+                :key="String(resolveResultKey(item, index))"
+                type="button"
+                class="mat-dropdown-item material-lookup-item"
+                :class="{ active: lookup.activeIndex.value === index }"
+                @mousedown.prevent="selectResult(item)"
+                @mouseenter="lookup.setActiveIndex(index)"
+              >
+                <span class="mat-dropdown-name">{{ resolveResultLabel(item) }}</span>
+                <span v-if="resolveResultSecondary(item)" class="mat-dropdown-meta">{{ resolveResultSecondary(item) }}</span>
+              </button>
+            </div>
+          </slot>
+        </div>
+      </Transition>
+    </Teleport>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, nextTick, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useMaterialLookup, type UseMaterialLookupOptions } from '@/composables/useMaterialLookup'
+
+const DROPDOWN_MAX_HEIGHT = 260
+const DROPDOWN_Z_INDEX = 2500
 
 const { t } = useI18n()
 
@@ -78,6 +119,8 @@ const props = withDefaults(
     emptyText?: string
     showEmptyWhenNoResults?: boolean
     inputClass?: string
+    teleportDropdown?: boolean
+    dropdownMaxHeight?: string
     getResultKey?: (item: GenericItem, index: number) => string | number
     getResultLabel?: (item: GenericItem) => string
     getResultSecondary?: (item: GenericItem) => string
@@ -91,7 +134,9 @@ const props = withDefaults(
     emptyText: undefined,
     showEmptyWhenNoResults: true,
     inputClass: '',
-  }
+    teleportDropdown: true,
+    dropdownMaxHeight: undefined,
+  },
 )
 
 const emit = defineEmits<{
@@ -103,6 +148,9 @@ const emit = defineEmits<{
 const rootRef = ref<HTMLElement | null>(null)
 const inputRef = ref<HTMLInputElement | null>(null)
 const internalValue = ref(props.modelValue || '')
+const dropdownStyle = ref<Record<string, string>>({})
+
+let positionListenersBound = false
 
 const lookup = useMaterialLookup<GenericItem>({
   fetcher: props.fetcher,
@@ -117,6 +165,8 @@ const shouldShowDropdown = computed(() => {
   if (!props.showEmptyWhenNoResults) return false
   return internalValue.value.trim().length >= props.minChars
 })
+
+const dropdownVisible = computed(() => lookup.isOpen.value && shouldShowDropdown.value)
 
 watch(
   () => props.modelValue,
@@ -137,8 +187,74 @@ watch(
   () => lookup.results.value,
   (items) => {
     emit('results-change', items)
-  }
+  },
 )
+
+watch(
+  () => [dropdownVisible.value, lookup.results.value.length, internalValue.value] as const,
+  async ([visible]) => {
+    if (!props.teleportDropdown || !visible) {
+      unbindPositionListeners()
+      return
+    }
+    await nextTick()
+    syncDropdownPosition()
+    bindPositionListeners()
+  },
+)
+
+function syncDropdownPosition() {
+  const el = inputRef.value
+  if (!el) return
+
+  const rect = el.getBoundingClientRect()
+  const vw = window.innerWidth
+  const vh = window.innerHeight
+  const width = Math.min(rect.width, vw - 16)
+  const left = Math.max(8, Math.min(rect.left, vw - width - 8))
+  const spaceBelow = vh - rect.bottom - 8
+  const spaceAbove = rect.top - 8
+  const openBelow = spaceBelow >= 120 || spaceBelow >= spaceAbove
+  const preferredMaxHeight = props.dropdownMaxHeight || `${DROPDOWN_MAX_HEIGHT}px`
+
+  if (openBelow) {
+    dropdownStyle.value = {
+      position: 'fixed',
+      top: `${rect.bottom + 4}px`,
+      left: `${left}px`,
+      width: `${width}px`,
+      maxHeight: `min(${preferredMaxHeight}, ${Math.max(spaceBelow - 4, 80)}px)`,
+      zIndex: String(DROPDOWN_Z_INDEX),
+    }
+    return
+  }
+
+  const maxHeight = `min(${preferredMaxHeight}, ${Math.max(spaceAbove - 4, 80)}px)`
+  dropdownStyle.value = {
+    position: 'fixed',
+    left: `${left}px`,
+    width: `${width}px`,
+    bottom: `${vh - rect.top + 4}px`,
+    maxHeight: maxHeight,
+    zIndex: String(DROPDOWN_Z_INDEX),
+  }
+}
+
+function bindPositionListeners() {
+  if (positionListenersBound) return
+  positionListenersBound = true
+  window.addEventListener('resize', syncDropdownPosition, { passive: true })
+  window.addEventListener('scroll', syncDropdownPosition, { passive: true, capture: true })
+}
+
+function unbindPositionListeners() {
+  if (!positionListenersBound) return
+  positionListenersBound = false
+  window.removeEventListener('resize', syncDropdownPosition)
+  window.removeEventListener('scroll', syncDropdownPosition, true)
+}
+
+onUnmounted(unbindPositionListeners)
 
 function resolveResultLabel(item: GenericItem) {
   if (props.getResultLabel) return props.getResultLabel(item)
@@ -238,6 +354,10 @@ defineExpose({
   box-shadow: 0 8px 24px rgba(15, 23, 42, 0.14);
   max-height: 260px;
   overflow-y: auto;
+}
+
+.material-lookup-dropdown--teleported {
+  right: auto;
 }
 
 .mat-dropdown-list {

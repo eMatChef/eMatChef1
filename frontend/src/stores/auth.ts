@@ -1,50 +1,55 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { 
-  login as apiLogin, 
-  logout as apiLogout, 
-  loadSession, 
+import {
+  login as apiLogin,
+  logout as apiLogout,
   loadSessionFromServer,
   loadUserMemberships,
   refreshToken as apiRefreshToken,
   saveLastUsedDepartment as apiSaveLastUsedDepartment,
-  type LoginResponse, 
-  type UserResponse, 
-  type ProfileResponse, 
-  type UserDepartmentResponse
+  normalizeProfile,
+  type LoginResponse,
+  type UserResponse,
+  type ProfileResponse,
+  type UserDepartmentResponse,
 } from '@/api/auth'
 import { getGeneralSettings } from '@/api/departmentSettings'
 import { resetSessionExpiredHandling } from '@/api/apiClient'
+import { clearAuthStorage } from '@/utils/authStorage'
+import {
+  canAdminCapability,
+  defaultAdminCapabilities,
+  normalizeAdminCapabilities,
+  type AdminCapabilities,
+  type GlobalAdminRole,
+} from '@/utils/adminCapabilities'
+import { markCrossSubdomainLogoutSeenFromCookie } from '@/utils/authCrossOrigin'
 
 export const useAuthStore = defineStore('auth', () => {
-  // State
   const user = ref<UserResponse | null>(null)
   const profile = ref<ProfileResponse | null>(null)
   const departments = ref<UserDepartmentResponse[]>([])
   const activeDepartmentId = ref<string | null>(localStorage.getItem('active_department_id'))
-  const token = ref<string | null>(localStorage.getItem('auth_token'))
   const loadingUser = ref(false)
   const error = ref<string | null>(null)
   const lastSessionStartTime = ref<number>(0)
   let cookieSessionPromise: Promise<boolean> | null = null
-  
-  // Getters
-  const isLoggedIn = computed(() => {
-    // Cookie-basierte Session (Public-Seiten) hat absichtlich keinen localStorage-Token.
-    return !!user.value && !!profile.value
-  })
+
+  const isLoggedIn = computed(() => !!user.value && !!profile.value)
 
   const userId = computed(() => user.value?.id || null)
   const profileId = computed(() => profile.value?.id || null)
   const userEmail = computed(() => profile.value?.email || '')
-  
+
   const userDisplayName = computed(() => {
     if (!profile.value) return ''
     if (profile.value.nickname) return profile.value.nickname
-    if (profile.value.firstName && profile.value.lastName) {
-      return `${profile.value.firstName} ${profile.value.lastName}`
-    }
-    if (profile.value.firstName) return profile.value.firstName
+    const first = profile.value.firstName || profile.value.first_name || ''
+    const last = profile.value.lastName || profile.value.last_name || ''
+    if (first && last) return `${first} ${last}`.trim()
+    if (first) return first
+    if (last) return last
+    if (profile.value.email) return profile.value.email
     return 'Unbekannt'
   })
 
@@ -65,22 +70,69 @@ export const useAuthStore = defineStore('auth', () => {
   })
 
   const userRoles = computed(() => profile.value?.roles || [])
-  
-  const userColors = computed(() => {
-    return {
-      background: profile.value?.backgroundColor || profile.value?.background_color || '#ec4899',
-      text: profile.value?.textColor || profile.value?.text_color || '#FFFFFF'
+  const globalAdminRole = computed<GlobalAdminRole | 'superadmin'>(() => {
+    if (userRoles.value.includes('ROLE_SUPERADMIN')) return 'superadmin'
+    const fromProfile = profile.value?.global_admin_role
+    if (fromProfile === 'org' || fromProfile === 'sub') return fromProfile
+    if (userRoles.value.includes('ROLE_ORGANISATIONSCHEF')) return 'org'
+    if (userRoles.value.includes('ROLE_SUBORGCHEF')) return 'sub'
+    return 'none'
+  })
+  const adminCapabilities = computed<AdminCapabilities | null>(() => {
+    if (userRoles.value.includes('ROLE_SUPERADMIN')) {
+      return defaultAdminCapabilities('org')
     }
+    const role = globalAdminRole.value === 'superadmin' ? 'none' : globalAdminRole.value
+    return normalizeAdminCapabilities(profile.value?.admin_capabilities, role)
   })
 
-  // Department-Rolle des aktuellen Departments
+  function canAdmin(dotKey: string): boolean {
+    return canAdminCapability(adminCapabilities.value, dotKey, userRoles.value.includes('ROLE_SUPERADMIN'))
+  }
+
+  function hasGlobalAdminAccess(): boolean {
+    if (userRoles.value.includes('ROLE_SUPERADMIN')) return true
+    if (globalAdminRole.value === 'org' || globalAdminRole.value === 'sub') return true
+    return false
+  }
+
+  function canAccessOrganisation(orgId: string | null | undefined): boolean {
+    if (!orgId) return true
+    if (userRoles.value.includes('ROLE_SUPERADMIN')) return true
+    const scoped = adminCapabilities.value?.scope?.organisation_ids || []
+    if (scoped.length === 0) return true
+    return scoped.includes(orgId)
+  }
+
+  /** null = alle Departments (Superadmin / kein Scope) */
+  const accessibleDepartmentIds = computed<string[] | null>(() => {
+    if (userRoles.value.includes('ROLE_SUPERADMIN')) return null
+    const fromSession = profile.value?.accessible_department_ids
+    if (fromSession === null || fromSession === undefined) {
+      return hasGlobalAdminAccess() ? null : []
+    }
+    return fromSession
+  })
+
+  function canAccessDepartment(departmentId: string | null | undefined): boolean {
+    if (!departmentId) return true
+    if (userRoles.value.includes('ROLE_SUPERADMIN')) return true
+    const ids = accessibleDepartmentIds.value
+    if (ids === null) return true
+    return ids.includes(departmentId)
+  }
+
+  const userColors = computed(() => ({
+    background: profile.value?.backgroundColor || profile.value?.background_color || '#ec4899',
+    text: profile.value?.textColor || profile.value?.text_color || '#FFFFFF',
+  }))
+
   const currentDepartmentRole = computed(() => {
     if (!activeDepartmentId.value) return 'user'
-    const dept = departments.value.find(d => d.department_id === activeDepartmentId.value)
+    const dept = departments.value.find((d) => d.department_id === activeDepartmentId.value)
     return dept?.role || 'user'
   })
 
-  // Timezone des aktuellen Departments
   const departmentTimezone = ref<string>(localStorage.getItem('department_timezone') || 'Europe/Zurich')
 
   async function loadDepartmentTimezone() {
@@ -95,7 +147,35 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  // Actions
+  function applyServerSession(session: NonNullable<Awaited<ReturnType<typeof loadSessionFromServer>>>) {
+    user.value = {
+      ...session.user,
+      last_used_department:
+        session.last_used_department ?? session.user.last_used_department ?? null,
+    }
+    profile.value = normalizeProfile(session.profile)
+    departments.value = (session.departments || []).map((d) => ({
+      department_id: d.id,
+      role: d.role,
+      is_primary: d.is_primary,
+      department: {
+        id: d.id,
+        name: d.name,
+        organisation_id: d.organisation_id || '',
+      },
+    }))
+
+    const preferredDept =
+      session.last_used_department ||
+      session.primary_department ||
+      session.departments?.[0]?.id ||
+      null
+    activeDepartmentId.value = preferredDept
+    if (preferredDept) {
+      localStorage.setItem('active_department_id', preferredDept)
+    }
+  }
+
   async function login(email: string, password: string): Promise<boolean> {
     try {
       loadingUser.value = true
@@ -105,56 +185,57 @@ export const useAuthStore = defineStore('auth', () => {
       localStorage.removeItem('active_department_id')
 
       const response: LoginResponse = await apiLogin(email, password)
-      
-      // State aktualisieren
-      token.value = response.token
+
       user.value = {
         ...response.user,
-        last_used_department: response.last_used_department ?? response.user.last_used_department ?? null
+        last_used_department: response.last_used_department ?? response.user.last_used_department ?? null,
       }
-      profile.value = response.profile
+      profile.value = normalizeProfile(response.profile)
 
-      // Departments aus Login-Response verwenden
       if (response.departments && response.departments.length > 0) {
-        departments.value = response.departments.map(d => ({
+        departments.value = response.departments.map((d) => ({
           department_id: d.id,
           role: d.role,
           is_primary: d.is_primary,
           department: {
             id: d.id,
             name: d.name,
-            organisation_id: d.organisation_id || ''
-          }
+            organisation_id: d.organisation_id || '',
+          },
         }))
 
-        // Primary Department bestimmen
-        const lastUsedId = response.last_used_department
-        const primaryId = response.primary_department
-        const firstId = response.departments[0]?.id
-
-        const newActiveDeptId = lastUsedId || primaryId || firstId || null
+        const newActiveDeptId =
+          response.last_used_department ||
+          response.primary_department ||
+          response.departments[0]?.id ||
+          null
         activeDepartmentId.value = newActiveDeptId
         if (newActiveDeptId) localStorage.setItem('active_department_id', newActiveDeptId)
       } else {
-        // Fallback: Departments separat laden
         await loadDepartments()
       }
 
       resetSessionExpiredHandling()
       lastSessionStartTime.value = Date.now()
       localStorage.setItem('session_last_activity_at', String(Date.now()))
+      localStorage.removeItem('emat_logged_out_seen')
       return true
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Login failed:', err)
-      if (err?.code === 'ECONNABORTED') {
+      const e = err as {
+        code?: string
+        response?: { data?: { error?: { message?: string }; message?: string } }
+        message?: string
+      }
+      if (e?.code === 'ECONNABORTED') {
         error.value = 'Backend antwortet nicht rechtzeitig. Bitte erneut versuchen.'
       } else {
         const fromApi =
-          err?.response?.data?.error?.message ||
-          err?.response?.data?.error ||
-          err?.response?.data?.message
-        const fromThrown = typeof err?.message === 'string' && err.message.length > 0 ? err.message : null
-        error.value = fromApi || fromThrown || 'Login fehlgeschlagen'
+          e?.response?.data?.error?.message ||
+          e?.response?.data?.error ||
+          e?.response?.data?.message
+        const fromThrown = typeof e?.message === 'string' && e.message.length > 0 ? e.message : null
+        error.value = (fromApi as string) || fromThrown || 'Login fehlgeschlagen'
       }
       return false
     } finally {
@@ -168,80 +249,9 @@ export const useAuthStore = defineStore('auth', () => {
     } catch (err) {
       console.error('Backend logout failed:', err)
     }
-    
-    // State zurücksetzen
-    user.value = null
-    profile.value = null
-    departments.value = []
-    activeDepartmentId.value = null
-    token.value = null
+    markCrossSubdomainLogoutSeenFromCookie()
+    clearAuthState()
     error.value = null
-    lastSessionStartTime.value = 0
-    localStorage.removeItem('active_department_id')
-  }
-
-  async function loadUserSession(): Promise<boolean> {
-    try {
-      loadingUser.value = true
-      error.value = null
-
-      // Token aus localStorage holen (falls noch nicht gesetzt)
-      const storedToken = localStorage.getItem('auth_token')
-      const storedUserId = localStorage.getItem('user_id')
-      const storedProfileId = localStorage.getItem('profile_id')
-      
-      // Wenn keine vollständige Session vorhanden ist, abbrechen (kein Error - ist normal)
-      if (!storedToken || !storedUserId || !storedProfileId) {
-        // Inkonsistenten State bereinigen
-        if (storedToken && (!storedUserId || !storedProfileId)) {
-          console.info('Inkonsistenter Auth-State gefunden, bereinige...')
-          localStorage.removeItem('auth_token')
-          localStorage.removeItem('refresh_token')
-          localStorage.removeItem('user_id')
-          localStorage.removeItem('profile_id')
-          localStorage.removeItem('session_last_activity_at')
-        }
-        return false
-      }
-      
-      // Token im Store setzen
-      token.value = storedToken
-
-      const session = await loadSession()
-      
-      // State aktualisieren
-      user.value = session.user
-      profile.value = session.profile
-      token.value = localStorage.getItem('auth_token') // Nochmal sicherstellen
-
-      // Departments laden
-      await loadDepartments()
-      
-      // Timezone des aktiven Departments laden
-      await loadDepartmentTimezone()
-      
-      resetSessionExpiredHandling()
-      lastSessionStartTime.value = Date.now()
-      return true
-    } catch (err: any) {
-      // Nur bei echten API-Fehlern als Error loggen
-      if (err.response) {
-        console.error('Session load failed:', err)
-        error.value = err.response?.data?.error?.message || 'Session konnte nicht geladen werden'
-        
-        // Bei 401/403: Token ist ungültig, ausloggen
-        if (err.response?.status === 401 || err.response?.status === 403) {
-          await logout()
-        }
-      } else {
-        // Lokale Fehler (z.B. fehlende IDs) nur als Info loggen
-        console.info('No valid session:', err.message)
-      }
-      
-      return false
-    } finally {
-      loadingUser.value = false
-    }
   }
 
   function clearAuthState(): void {
@@ -249,61 +259,41 @@ export const useAuthStore = defineStore('auth', () => {
     profile.value = null
     departments.value = []
     activeDepartmentId.value = null
-    token.value = null
     lastSessionStartTime.value = 0
-    localStorage.removeItem('active_department_id')
-    localStorage.removeItem('user_id')
-    localStorage.removeItem('profile_id')
+    clearAuthStorage()
+  }
+
+  /** @deprecated Nutze loadUserSessionFromCookie — Session läuft nur über HttpOnly-Cookies. */
+  async function loadUserSession(): Promise<boolean> {
+    return loadUserSessionFromCookie()
   }
 
   async function loadUserSessionFromCookie(force = false): Promise<boolean> {
     if (!force && isLoggedIn.value) return true
-    if (cookieSessionPromise) return cookieSessionPromise
+    if (cookieSessionPromise && !force) {
+      try {
+        return await cookieSessionPromise
+      } catch {
+        clearAuthState()
+        return false
+      }
+    }
     try {
       loadingUser.value = true
       cookieSessionPromise = (async () => {
         const session = await loadSessionFromServer()
-
-        user.value = {
-          ...session.user,
-          last_used_department:
-            session.last_used_department ?? session.user.last_used_department ?? null,
-        }
-        profile.value = session.profile
-        departments.value = (session.departments || []).map((d) => ({
-          department_id: d.id,
-          role: d.role,
-          is_primary: d.is_primary,
-          department: {
-            id: d.id,
-            name: d.name,
-            organisation_id: d.organisation_id || '',
-          },
-        }))
-
-        const preferredDept =
-          session.last_used_department ||
-          session.primary_department ||
-          session.departments?.[0]?.id ||
-          null
-        activeDepartmentId.value = preferredDept
-        if (preferredDept) {
-          localStorage.setItem('active_department_id', preferredDept)
+        if (!session) {
+          clearAuthState()
+          return false
         }
 
+        applyServerSession(session)
         resetSessionExpiredHandling()
         lastSessionStartTime.value = Date.now()
-        // IDs auf dieser Origin (z. B. qr.*) — JWT bleibt nur im HttpOnly-Cookie
-        localStorage.setItem('user_id', session.user.id)
-        localStorage.setItem(
-          'profile_id',
-          session.profile.id ?? session.user.profile_id ?? ''
-        )
         return true
       })()
       return await cookieSessionPromise
     } catch {
-      // Session ist nicht mehr gültig (z. B. Cookie abgelaufen): Public-UI sofort auf ausgeloggten Zustand setzen.
       clearAuthState()
       return false
     } finally {
@@ -315,25 +305,23 @@ export const useAuthStore = defineStore('auth', () => {
   async function loadDepartments(): Promise<void> {
     try {
       if (!userId.value) return
-      
+
       const memberships = await loadUserMemberships(userId.value)
       departments.value = memberships.departments
-      
+
       if (memberships.departments.length === 0) {
         activeDepartmentId.value = null
         localStorage.removeItem('active_department_id')
         return
       }
 
-      const ids = new Set(memberships.departments.map(d => d.department_id))
+      const ids = new Set(memberships.departments.map((d) => d.department_id))
 
-      // Bereits gültige Auswahl (z. B. localStorage nach Reload) beibehalten
       if (activeDepartmentId.value && ids.has(activeDepartmentId.value)) {
         localStorage.setItem('active_department_id', activeDepartmentId.value)
         return
       }
 
-      // Serverseitig gespeicherte Abteilung (GET /api/users/:id), falls noch Mitglied
       const lastUsed = user.value?.last_used_department
       if (lastUsed && ids.has(lastUsed)) {
         activeDepartmentId.value = lastUsed
@@ -341,7 +329,7 @@ export const useAuthStore = defineStore('auth', () => {
         return
       }
 
-      const primaryDept = memberships.departments.find(d => d.is_primary)
+      const primaryDept = memberships.departments.find((d) => d.is_primary)
       if (primaryDept) {
         activeDepartmentId.value = primaryDept.department_id
         localStorage.setItem('active_department_id', primaryDept.department_id)
@@ -355,14 +343,13 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   async function setActiveDepartment(departmentId: string): Promise<void> {
-    if (departments.value.find(d => d.department_id === departmentId)) {
+    if (departments.value.find((d) => d.department_id === departmentId)) {
       activeDepartmentId.value = departmentId
       localStorage.setItem('active_department_id', departmentId)
-      // Timezone des neuen Departments laden
       await loadDepartmentTimezone()
       if (userId.value) {
         try {
-          await apiSaveLastUsedDepartment(departmentId)
+          await apiSaveLastUsedDepartment(userId.value, departmentId)
         } catch (e) {
           console.warn('last_used_department konnte nicht gespeichert werden:', e)
         }
@@ -370,10 +357,29 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  // Getter: Name des aktiven Departments
+  async function refreshAfterInviteAccepted(targetDepartmentId: string): Promise<void> {
+    const cookieReloaded = await loadUserSessionFromCookie(true)
+    if (!cookieReloaded) {
+      await loadDepartments()
+    }
+
+    const deptId =
+      targetDepartmentId && departments.value.some((d) => d.department_id === targetDepartmentId)
+        ? targetDepartmentId
+        : departments.value[0]?.department_id
+
+    if (!deptId) {
+      window.location.reload()
+      return
+    }
+
+    await setActiveDepartment(deptId)
+    window.location.assign(`/${deptId}/settings/my-department`)
+  }
+
   const activeDepartmentName = computed(() => {
     if (!activeDepartmentId.value) return ''
-    const dept = departments.value.find(d => d.department_id === activeDepartmentId.value)
+    const dept = departments.value.find((d) => d.department_id === activeDepartmentId.value)
     return dept?.department?.name || ''
   })
 
@@ -381,14 +387,12 @@ export const useAuthStore = defineStore('auth', () => {
     error.value = null
   }
 
-  /** Proaktiver Token-Refresh – verhindert 401 durch abgelaufenen JWT bei aktiver Nutzung */
   async function refreshTokenProactively(): Promise<boolean> {
-    if (!isLoggedIn.value || !localStorage.getItem('refresh_token')) return false
-    const MIN_SESSION_AGE = 2 * 60 * 1000 // 2 Min – kein Refresh direkt nach Login
+    if (!isLoggedIn.value) return false
+    const MIN_SESSION_AGE = 2 * 60 * 1000
     if (Date.now() - lastSessionStartTime.value < MIN_SESSION_AGE) return true
     try {
-      const newToken = await apiRefreshToken()
-      token.value = newToken
+      await apiRefreshToken()
       return true
     } catch {
       return false
@@ -396,16 +400,12 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   return {
-    // State
     user,
     profile,
     departments,
     activeDepartmentId,
-    token,
     loadingUser,
     error,
-    
-    // Getters
     isLoggedIn,
     userId,
     profileId,
@@ -413,20 +413,27 @@ export const useAuthStore = defineStore('auth', () => {
     userDisplayName,
     userInitials,
     userRoles,
+    globalAdminRole,
+    adminCapabilities,
+    canAdmin,
+    hasGlobalAdminAccess,
+    canAccessOrganisation,
+    accessibleDepartmentIds,
+    canAccessDepartment,
     userColors,
     currentDepartmentRole,
     activeDepartmentName,
     departmentTimezone,
-    
-    // Actions
     login,
     logout,
     loadUserSession,
     loadUserSessionFromCookie,
+    clearAuthState,
     loadDepartments,
     setActiveDepartment,
+    refreshAfterInviteAccepted,
     loadDepartmentTimezone,
     clearError,
-    refreshTokenProactively
+    refreshTokenProactively,
   }
 })

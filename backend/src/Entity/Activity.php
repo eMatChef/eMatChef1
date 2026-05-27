@@ -54,7 +54,7 @@ class Activity
     #[ORM\Column(type: 'string', length: 20, options: ['default' => 'activity'])]
     private string $type = 'activity';
 
-    // Status: draft, submitted, approved, packing, packed, issued, returned, completed, cancelled
+    // Status: draft, submitted, approved, packing, packed, at_event, returned, completed, cancelled
     #[ORM\Column(type: 'string', length: 20, options: ['default' => 'draft'])]
     private string $status = 'draft';
 
@@ -633,7 +633,8 @@ class Activity
     public const STATUS_APPROVED = 'approved';
     public const STATUS_PACKING = 'packing';
     public const STATUS_PACKED = 'packed';
-    public const STATUS_ISSUED = 'issued';
+    /** Material am Event / bei der Gruppe */
+    public const STATUS_AT_EVENT = 'at_event';
     public const STATUS_RETURNED = 'returned';
     public const STATUS_COMPLETED = 'completed';
     public const STATUS_CANCELLED = 'cancelled';
@@ -644,7 +645,7 @@ class Activity
         self::STATUS_APPROVED,
         self::STATUS_PACKING,
         self::STATUS_PACKED,
-        self::STATUS_ISSUED,
+        self::STATUS_AT_EVENT,
         self::STATUS_RETURNED,
         self::STATUS_COMPLETED,
         self::STATUS_CANCELLED,
@@ -659,9 +660,9 @@ class Activity
         self::STATUS_SUBMITTED => [self::STATUS_APPROVED, self::STATUS_PACKING, self::STATUS_CANCELLED],
         self::STATUS_APPROVED  => [self::STATUS_PACKING, self::STATUS_SUBMITTED, self::STATUS_CANCELLED], // zurück zu submitted = Zurückweisung
         self::STATUS_PACKING   => [self::STATUS_PACKED, self::STATUS_CANCELLED],
-        self::STATUS_PACKED    => [self::STATUS_ISSUED, self::STATUS_PACKING, self::STATUS_CANCELLED], // zurück zu packing = Korrektur
-        self::STATUS_ISSUED    => [self::STATUS_RETURNED],
-        self::STATUS_RETURNED  => [self::STATUS_COMPLETED],
+        self::STATUS_PACKED    => [self::STATUS_AT_EVENT, self::STATUS_PACKING, self::STATUS_CANCELLED],
+        self::STATUS_AT_EVENT  => [self::STATUS_RETURNED, self::STATUS_PACKED],
+        self::STATUS_RETURNED  => [self::STATUS_COMPLETED, self::STATUS_AT_EVENT],
         self::STATUS_COMPLETED => [],
         self::STATUS_CANCELLED => [],
     ];
@@ -680,22 +681,24 @@ class Activity
      * - 'org': Organisations-Admin
      */
     public const TRANSITION_PERMISSIONS = [
-        // Einreichen: Gruppenleiter, DC, MW — nicht reine Gruppenmitglieder (Host- oder eingeladene Gruppe)
-        'draft->submitted'    => ['leader', 'dc', 'mw'],
+        // Einreichen: Ersteller, Gruppenleiter, DC, MW (Gruppenmitglied darf eigene Aktivität einreichen)
+        'draft->submitted'    => ['creator', 'leader', 'dc', 'mw'],
         'draft->cancelled'    => ['leader', 'member', 'u', 'l1', 'l2', 'l3', 'dc', 'mw', 'sub', 'org', 'sa'],
-        // Bestätigen / direkt Packen: MW, DC, Gruppenleiter, Ersteller, Org-Admins
-        'submitted->approved' => ['mw', 'dc', 'leader', 'creator', 'org', 'sa'],
-        'submitted->packing'  => ['mw', 'dc', 'leader', 'creator', 'org', 'sa'], // Annehmen & direkt Packen
+        // Bestätigen / direkt Packen: MW, DC, Gruppenleiter, Org-Admins (nicht reines Gruppenmitglied)
+        'submitted->approved' => ['mw', 'dc', 'leader', 'org', 'sa'],
+        'submitted->packing'  => ['mw', 'dc', 'leader', 'org', 'sa'], // Annehmen & direkt Packen
         'submitted->cancelled'=> ['leader', 'mw', 'sa', 'org'],
         'approved->packing'   => ['mw', 'sa', 'org'],
         'approved->submitted' => ['mw', 'sa', 'org'], // Zurückweisung
-        'approved->cancelled' => ['mw', 'sa', 'org'],
+        'approved->cancelled' => ['mw', 'dc', 'sa', 'org'],
         'packing->packed'     => ['mw', 'sa', 'org'],
-        'packing->cancelled'  => ['mw', 'sa', 'org'],
-        'packed->issued'      => ['mw', 'sa', 'org'],
-        'packed->packing'     => ['mw', 'sa', 'org'], // Korrektur
-        'packed->cancelled'   => ['mw', 'sa', 'org'],
-        'issued->returned'    => ['mw', 'sa', 'org'],
+        'packing->cancelled'  => ['mw', 'dc', 'sa', 'org'],
+        'packed->at_event'    => ['mw', 'sa', 'org', 'creator', 'member'],
+        'packed->packing'     => ['mw', 'dc', 'sa', 'org'],
+        'packed->cancelled'   => ['mw', 'dc', 'sa', 'org'],
+        'at_event->packed'    => ['mw', 'dc', 'sa', 'org'],
+        'at_event->returned'  => ['mw', 'sa', 'org', 'creator', 'member'],
+        'returned->at_event'  => ['mw', 'dc', 'sa', 'org'],
         'returned->completed' => ['mw', 'sa', 'org'],
     ];
 
@@ -705,7 +708,7 @@ class Activity
     public function canTransitionTo(string $newStatus): bool
     {
         $allowed = self::STATUS_TRANSITIONS[$this->status] ?? [];
-        return in_array($newStatus, $allowed);
+        return in_array($newStatus, $allowed, true);
     }
 
     /**
@@ -746,7 +749,12 @@ class Activity
 
     public function isIssued(): bool
     {
-        return $this->status === self::STATUS_ISSUED;
+        return $this->status === self::STATUS_AT_EVENT;
+    }
+
+    public function isAtEvent(): bool
+    {
+        return $this->isIssued();
     }
 
     public function isReturned(): bool
@@ -792,16 +800,24 @@ class Activity
      */
     public function isPackListEditable(): bool
     {
-        return in_array($this->status, [self::STATUS_PACKING, self::STATUS_PACKED, self::STATUS_ISSUED]);
+        return in_array($this->status, [
+            self::STATUS_PACKING,
+            self::STATUS_PACKED,
+            self::STATUS_AT_EVENT,
+            self::STATUS_RETURNED,
+        ], true);
     }
 
     /**
-     * Prüft ob Meldungen (Reparatur/Verlust) erstellt werden können
-     * (entspricht POST /activities/.../issues: issued oder returned)
+     * Prüft ob Meldungen (Reparatur/Verlust) erstellt werden können.
+     * Erst ab Workflow-Status «Am Event» (Material ausgegeben), nicht mehr in «gepackt».
      */
     public function canReportIssues(): bool
     {
-        return in_array($this->status, [self::STATUS_ISSUED, self::STATUS_RETURNED], true);
+        return in_array($this->status, [
+            self::STATUS_AT_EVENT,
+            self::STATUS_RETURNED,
+        ], true);
     }
 
     /**
@@ -821,7 +837,7 @@ class Activity
         match ($newStatus) {
             self::STATUS_SUBMITTED => $this->submittedAt = $now,
             self::STATUS_APPROVED  => $this->approvedAt = $now,
-            self::STATUS_ISSUED    => $this->issuedAt = $now,
+            self::STATUS_AT_EVENT    => $this->issuedAt = $now,
             self::STATUS_RETURNED  => $this->returnedAt = $now,
             self::STATUS_COMPLETED => $this->completedAt = $now,
             default => null,

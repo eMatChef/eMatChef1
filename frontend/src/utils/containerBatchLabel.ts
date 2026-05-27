@@ -45,3 +45,35 @@ export function formatContainerBatchContentPreviewSuffix(cb: ContainerBatch): st
 export function formatContainerBatchOptionFullLabel(cb: ContainerBatch): string {
   return `${formatContainerBatchSelectLabel(cb)}${formatContainerBatchContentPreviewSuffix(cb)}`
 }
+
+/** Referenz-Kiste einer physischen Kombo (material.linked_container_batch). */
+export interface LinkedContainerBatchRef {
+  id: string
+  material_id: string
+  label: string | null
+  serial_number: string | null
+  material_name: string
+  display_label: string
+}
+
+export function containerBatchFromLinkedRef(linked: LinkedContainerBatchRef): ContainerBatch {
+  return {
+    id: linked.id,
+    material_id: linked.material_id,
+    serial_number: linked.serial_number,
+    label: linked.label,
+    material_name: linked.material_name,
+    display_label: linked.display_label,
+    rack_id: '',
+    slot_id: null,
+    rack: null,
+    slot: null,
+  }
+}
+
+/** Dropdown-Zeile: Kombi-Name + Kisten-Batch (API listet verknüpfte Kisten nicht). */
+export function formatPhysicalComboLinkedContainerLabel(comboName: string, cb: ContainerBatch): string {
+  const name = comboName.trim()
+  const batchPart = formatContainerBatchOptionFullLabel(cb)
+  return name ? `${name} — ${batchPart}` : batchPart
+}

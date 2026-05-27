@@ -4,7 +4,10 @@
       {{ t('accounting.overview.intro') }}
     </p>
 
-    <div v-if="loadError" class="overview-error">{{ loadError }}</div>
+    <div v-if="!yearOptions.length && !loading" class="empty-hint">
+      {{ t('accounting.common.noBookingYears') }}
+    </div>
+    <div v-else-if="loadError" class="overview-error">{{ loadError }}</div>
     <div v-else-if="loading" class="loading-inline">{{ t('accounting.common.loading') }}</div>
     <template v-else-if="overview">
       <div class="overview-toolbar">
@@ -127,6 +130,7 @@ import { computed, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { getAccountingOverview, type AccountingOverview } from '@/api/accountingOverview'
+import { useAccountingBookingYears } from '@/composables/useAccountingBookingYears'
 
 const route = useRoute()
 const { t, te } = useI18n()
@@ -140,15 +144,8 @@ function entryLabel(k: string): string {
 const loading = ref(true)
 const loadError = ref('')
 const overview = ref<AccountingOverview | null>(null)
+const { years: yearOptions, refreshYears, defaultYear } = useAccountingBookingYears(departmentId)
 const selectedYear = ref(new Date().getFullYear())
-
-const yearOptions = computed(() => {
-  const y = new Set<number>()
-  y.add(selectedYear.value)
-  y.add(new Date().getFullYear())
-  overview.value?.years.forEach((r) => y.add(r.year))
-  return Array.from(y).sort((a, b) => b - a)
-})
 
 function formatMoney(s: string): string {
   const n = parseFloat(s)
@@ -162,6 +159,15 @@ async function load() {
   loading.value = true
   loadError.value = ''
   try {
+    await refreshYears()
+    if (yearOptions.value.length && !yearOptions.value.includes(selectedYear.value)) {
+      const dy = defaultYear()
+      if (dy != null) selectedYear.value = dy
+    }
+    if (!yearOptions.value.length) {
+      overview.value = null
+      return
+    }
     const data = await getAccountingOverview(id, selectedYear.value)
     overview.value = data
     selectedYear.value = data.selected_year

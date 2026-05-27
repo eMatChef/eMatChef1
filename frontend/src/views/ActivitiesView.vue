@@ -3,22 +3,15 @@
     <ActivityCreateWizard
       v-model="showCreateActivityWizard"
       :department-id="departmentId"
-      :resume-activity-id="resumeWizardActivityId"
       @created="onActivityCreateWizardCreated"
-      @resume-consumed="resumeWizardActivityId = null"
     />
 
-    <div v-if="activityRouteId && activityDetailGateLoading" class="loading-state activities-detail-gate">
-      <div class="spinner"></div>
-      <p>{{ t('activities.opening') }}</p>
+    <div v-if="activityRouteId" class="dept-page activities-detail-root">
+      <ActivityDetailView :department-id="departmentId" :activity-id="activityRouteId" />
     </div>
 
-    <div v-else-if="activityRouteId && showActivityDetail" class="dept-page activities-detail-root">
-      <ActivityDetailView :department-id="departmentId" :activity-id="activityRouteId" />
-                </div>
-
     <!-- Übersicht -->
-    <template v-else-if="!activityRouteId">
+    <template v-else>
       <div class="activities-header page-header header-content">
         <div class="header-left">
           <h1>{{ t('activities.title') }}</h1>
@@ -34,31 +27,61 @@
         </div>
       </div>
 
-      <div v-if="!isLoading && activities.length > 0" class="stats-bar">
-        <div class="stat-item">
+      <div v-if="!isLoading" class="stats-bar">
+        <button
+          type="button"
+          class="stat-item stat-item-btn"
+          :class="{ 'stat-item-active': activeTab === 'all' && !statusFilter && !activeTypeFilter }"
+          @click="applyStatFilter('')"
+        >
           <span class="stat-value">{{ activities.length }}</span>
           <span class="stat-label">{{ t('activities.stats.total') }}</span>
-        </div>
-        <div class="stat-item">
+        </button>
+        <button
+          type="button"
+          class="stat-item stat-item-btn"
+          :class="{ 'stat-item-active': activeTab === 'all' && statusFilter === 'draft' }"
+          @click="applyStatFilter('draft')"
+        >
           <span class="stat-value stat-draft">{{ activities.filter((a) => a.status === 'draft').length }}</span>
           <span class="stat-label">{{ t('activities.stats.drafts') }}</span>
-        </div>
-        <div class="stat-item">
+        </button>
+        <button
+          type="button"
+          class="stat-item stat-item-btn"
+          :class="{ 'stat-item-active': activeTab === 'all' && statusFilter === 'submitted' }"
+          @click="applyStatFilter('submitted')"
+        >
           <span class="stat-value stat-submitted">{{ activities.filter((a) => a.status === 'submitted').length }}</span>
           <span class="stat-label">{{ t('activities.stats.submitted') }}</span>
-        </div>
-        <div class="stat-item">
+        </button>
+        <button
+          type="button"
+          class="stat-item stat-item-btn"
+          :class="{ 'stat-item-active': activeTab === 'all' && statusFilter === 'in_progress' }"
+          @click="applyStatFilter('in_progress')"
+        >
           <span class="stat-value stat-approved">{{ activities.filter((a) => ['approved', 'packing', 'packed'].includes(a.status)).length }}</span>
           <span class="stat-label">{{ t('activities.stats.inProgress') }}</span>
-        </div>
-        <div class="stat-item">
-          <span class="stat-value stat-issued">{{ activities.filter((a) => a.status === 'issued').length }}</span>
+        </button>
+        <button
+          type="button"
+          class="stat-item stat-item-btn"
+          :class="{ 'stat-item-active': activeTab === 'all' && statusFilter === 'at_event' }"
+          @click="applyStatFilter('at_event')"
+        >
+          <span class="stat-value stat-issued">{{ activities.filter((a) => ['at_event', 'returned'].includes(a.status)).length }}</span>
           <span class="stat-label">{{ t('activities.stats.issued') }}</span>
-        </div>
-        <div class="stat-item">
+        </button>
+        <button
+          type="button"
+          class="stat-item stat-item-btn"
+          :class="{ 'stat-item-active': activeTab === 'all' && statusFilter === 'completed' }"
+          @click="applyStatFilter('completed')"
+        >
           <span class="stat-value stat-completed">{{ activities.filter((a) => a.status === 'completed').length }}</span>
           <span class="stat-label">{{ t('activities.stats.completed') }}</span>
-        </div>
+        </button>
       </div>
 
       <div class="filter-bar">
@@ -69,32 +92,23 @@
             class="filter-tab"
             :class="{ active: activeTab === tab.key }"
             type="button"
-            @click="activeTab = tab.key"
+            @click="onListTabChange(tab.key)"
           >
             {{ tab.label }}
             <span v-if="tab.count !== undefined" class="tab-count">{{ tab.count }}</span>
           </button>
         </div>
-        <div class="filter-actions">
-          <div class="type-filter-chips">
-            <button 
-              v-for="tpl in typeFilterChips"
-              :key="tpl.type"
-              type="button"
-              class="type-chip"
-              :class="{ active: activeTypeFilter === tpl.type }"
-              @click="activeTypeFilter = activeTypeFilter === tpl.type ? '' : tpl.type"
-            >
-              {{ tpl.label }}
-            </button>
-          </div>
+        <div v-if="activeTab === 'all'" class="filter-actions filter-actions-all">
           <div class="search-box">
-            <GlobalSearchInput
-              mode="inline"
-              :department-id="departmentId"
-              default-type="activity"
+            <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <circle cx="11" cy="11" r="8" />
+              <path d="m21 21-4.35-4.35" />
+            </svg>
+            <input
               v-model="searchQuery"
-              :placeholder="t('activities.searchPlaceholder')"
+              type="search"
+              class="search-input form-input"
+              :placeholder="t('activities.searchListPlaceholder')"
             />
           </div>
         </div>
@@ -114,8 +128,21 @@
                 {{ t('activities.table.name') }}
                 <span v-if="sortField === 'name'" class="sort-icon">{{ sortDir === 'asc' ? '↑' : '↓' }}</span>
               </th>
-              <th class="col-type">{{ t('activities.table.type') }}</th>
-              <th class="col-customer">{{ t('activities.table.customerGroup') }}</th>
+              <th class="col-type">
+                <div class="th-filter-wrap">
+                  <span>{{ t('activities.table.type') }}</span>
+                  <select
+                    v-if="activeTab === 'all'"
+                    v-model="activeTypeFilter"
+                    class="col-filter-select"
+                    @click.stop
+                  >
+                    <option value="">{{ t('activities.filters.allTypes') }}</option>
+                    <option v-for="tpl in typeFilterOptions" :key="tpl.type" :value="tpl.type">{{ tpl.label }}</option>
+                  </select>
+                </div>
+              </th>
+              <th class="col-customer">{{ t('activities.table.group') }}</th>
               <th class="col-period" @click="toggleSort('date')">
                 {{ t('activities.table.period') }}
                 <span v-if="sortField === 'date'" class="sort-icon">{{ sortDir === 'asc' ? '↑' : '↓' }}</span>
@@ -125,7 +152,20 @@
                 {{ t('activities.table.price') }}
                 <span v-if="sortField === 'price'" class="sort-icon">{{ sortDir === 'asc' ? '↑' : '↓' }}</span>
               </th>
-              <th class="col-progress">{{ t('activities.table.status') }}</th>
+              <th class="col-progress">
+                <div class="th-filter-wrap">
+                  <span>{{ t('activities.table.status') }}</span>
+                  <select
+                    v-if="activeTab === 'all'"
+                    v-model="statusFilter"
+                    class="col-filter-select"
+                    @click.stop
+                  >
+                    <option value="">{{ t('activities.filters.allStatuses') }}</option>
+                    <option v-for="opt in statusFilterOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+                  </select>
+                </div>
+              </th>
               <th class="col-issues">{{ t('activities.table.issues') }}</th>
             </tr>
           </thead>
@@ -139,7 +179,7 @@
                     <line x1="8" y1="2" x2="8" y2="6" />
                     <line x1="3" y1="10" x2="21" y2="10" />
                   </svg>
-                  <p>{{ searchQuery || activeTypeFilter ? t('activities.empty.noMatch') : t('activities.empty.noneYet') }}</p>
+                  <p>{{ hasActiveListFilters ? t('activities.empty.noMatch') : t('activities.empty.noneYet') }}</p>
                 </div>
               </td>
             </tr>
@@ -152,10 +192,10 @@
                 'row-selected': selectedActivityId === activity.id,
               }"
               @click="selectedActivityId = activity.id"
-              @dblclick="openActivityDetail(activity)"
+              @dblclick.prevent="openActivityDetail(activity)"
             >
               <td class="col-status">
-                <span class="status-dot" :class="activity.status"></span>
+                <span class="status-dot" :class="activityStatusClass(activity.status)"></span>
               </td>
               <td class="col-name">
                 <div class="activity-name">{{ activity.name }}</div>
@@ -167,18 +207,21 @@
                 <span class="type-badge" :class="activity.type">{{ getTypeLabel(activity.type) }}</span>
               </td>
               <td class="col-customer">
-                <span v-if="activity.groupName" class="customer-group">{{ activity.groupName }}</span>
+                <span v-if="activity.type === 'external'" class="text-muted">–</span>
+                <div v-else-if="getActivityGroupPathLines(activity).length" class="activity-group-path">
+                  <span
+                    v-for="(line, lineIdx) in getActivityGroupPathLines(activity)"
+                    :key="lineIdx"
+                    class="activity-group-path-line"
+                    :style="{ paddingLeft: `${line.level * 12}px` }"
+                  >{{ line.label }}</span>
+                </div>
                 <span v-else class="text-muted">–</span>
               </td>
               <td class="col-period">
-                <span v-if="activity.usageStart" class="period-display">
-                  <span class="period-date">{{ formatDateShort(activity.usageStart) }}</span>
-                  <span v-if="activity.usageEnd && !isSameDay(activity.usageStart, activity.usageEnd)" class="period-separator">–</span>
-                  <span v-if="activity.usageEnd && !isSameDay(activity.usageStart, activity.usageEnd)" class="period-date">{{
-                    formatDateShort(activity.usageEnd)
-                  }}</span>
-                  <span class="period-relative">{{ getRelativeDate(activity.usageStart) }}</span>
-                </span>
+                <span v-if="activity.usageStart" class="period-compact">{{
+                  formatPeriodCompact(activity.usageStart, activity.usageEnd)
+                }}</span>
                 <span v-else class="text-muted">–</span>
               </td>
               <td class="col-items">
@@ -190,11 +233,11 @@
                 <span v-else class="text-muted">–</span>
               </td>
               <td class="col-progress">
-                <span class="status-label" :class="activity.status">{{ getStatusLabel(activity.status) }}</span>
+                <span class="status-label" :class="activityStatusClass(activity.status)">{{ getStatusLabel(activity.status) }}</span>
               </td>
               <td class="col-issues" @click.stop>
                 <router-link
-                  v-if="['issued', 'returned', 'completed'].includes(activity.status)"
+                  v-if="['at_event', 'returned', 'completed'].includes(activity.status)"
                   class="activities-list-issues-link"
                   :to="`/${departmentId}/activities/${activity.id}?tab=issues`"
                 >
@@ -221,39 +264,46 @@ import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import apiClient from '@/api/apiClient'
 import { getActivity } from '@/api/activities'
-import GlobalSearchInput from '@/components/common/GlobalSearchInput.vue'
+import { getGroups, type Group } from '@/api/groups'
+import { buildActivityGroupPathLines, type GroupPathLine } from '@/utils/groupHierarchy'
 import { ActivityCreateWizard, ActivityDetailView } from '@/components/activities'
 import { usePageHeadStore } from '@/stores/pageHead'
 import { syncDocumentHead } from '@/composables/usePageHead'
 import { useToast } from '@/composables/useToast'
+import { useHeaderNotificationsStore } from '@/stores/headerNotifications'
+import { useDepartmentLiveRefresh } from '@/composables/useDepartmentLiveRefresh'
+import { useListSearchQueryRoute } from '@/composables/useListSearchQueryRoute'
+import { activityStatusClass, activityStatusI18nKey } from '@/utils/activityStatus'
 
 const route = useRoute()
 const router = useRouter()
 const { t, te, locale } = useI18n()
 const toast = useToast()
+const headerNotificationsStore = useHeaderNotificationsStore()
 const pageHeadStore = usePageHeadStore()
 
 const departmentId = computed(() => route.params.departmentId as string)
 const activityRouteId = computed(() => (route.params.activityId as string | undefined) || undefined)
 
 const activities = ref<Activity[]>([])
+const departmentGroups = ref<Group[]>([])
 const isLoading = ref(false)
-const activeTab = ref('upcoming')
+type ListTab = 'open' | 'upcoming' | 'all'
+type StatusFilter = '' | 'draft' | 'submitted' | 'in_progress' | 'at_event' | 'completed' | 'cancelled'
+
+const activeTab = ref<ListTab>('open')
 const activeTypeFilter = ref('')
+const statusFilter = ref<StatusFilter>('')
 const searchQuery = ref('')
 const sortField = ref('date')
 const sortDir = ref<'asc' | 'desc'>('asc')
 const selectedActivityId = ref<string | null>(null)
 const showCreateActivityWizard = ref(false)
-/** Entwurf aus Detail-Route: Wizard fortsetzen */
-const resumeWizardActivityId = ref<string | null>(null)
-/** Detail nur, wenn Erstell-Wizard abgeschlossen (oder nicht Stepper-Typ) */
-const showActivityDetail = ref(false)
-const activityDetailGateLoading = ref(false)
 /** Verhindert Dashboard-Rücksprung nach erfolgreicher Anlage (Navigation zur Detailseite). */
 const activityJustCreated = ref(false)
 
-const STEPPER_ACTIVITY_TYPES = ['camp', 'event', 'external'] as const
+let lastDetailOpenId = ''
+let lastDetailOpenAt = 0
 
 interface Activity {
   id: string
@@ -262,8 +312,9 @@ interface Activity {
   departmentId?: string
   departmentName?: string
   type: 'activity' | 'camp' | 'event' | 'external'
-  status: 'draft' | 'submitted' | 'approved' | 'packing' | 'packed' | 'issued' | 'returned' | 'completed' | 'cancelled'
+  status: 'draft' | 'submitted' | 'approved' | 'packing' | 'packed' | 'at_event' | 'returned' | 'completed' | 'cancelled'
   invitedDepartments?: Array<{ id?: string; name?: string; organisation_name?: string; status?: string }>
+  groupId?: string | null
   groupName?: string
   usageStart?: string
   usageEnd?: string
@@ -275,11 +326,27 @@ interface Activity {
 
 const ACTIVITY_FILTER_TYPES = ['activity', 'camp', 'event', 'external'] as const
 
-const typeFilterChips = computed(() =>
+const typeFilterOptions = computed(() =>
   ACTIVITY_FILTER_TYPES.map((type) => ({
     type,
     label: t(`activities.types.${type}`),
   })),
+)
+
+const statusFilterOptions = computed(() => [
+  { value: 'draft' as const, label: t('activities.stats.drafts') },
+  { value: 'submitted' as const, label: t('activities.stats.submitted') },
+  { value: 'in_progress' as const, label: t('activities.stats.inProgress') },
+  { value: 'at_event' as const, label: t('activities.stats.issued') },
+  { value: 'completed' as const, label: t('activities.stats.completed') },
+  { value: 'cancelled' as const, label: t('activities.tabs.cancelled') },
+])
+
+const hasActiveListFilters = computed(
+  () =>
+    !!searchQuery.value ||
+    !!activeTypeFilter.value ||
+    (activeTab.value === 'all' && !!statusFilter.value),
 )
 
 function nameSortLocale(): string {
@@ -301,6 +368,7 @@ function mapActivityListItem(a: Record<string, unknown>): Activity {
     type: a.type as Activity['type'],
     status: a.status as Activity['status'],
     invitedDepartments: Array.isArray(a.invited_departments) ? (a.invited_departments as Activity['invitedDepartments']) : [],
+    groupId: (a.group_id as string | null | undefined) ?? null,
     groupName: a.group_name as string | undefined,
     usageStart: a.usage_start as string | undefined,
     usageEnd: a.usage_end as string | undefined,
@@ -311,27 +379,68 @@ function mapActivityListItem(a: Record<string, unknown>): Activity {
   }
 }
 
-async function loadActivities() {
-  isLoading.value = true
+async function loadDepartmentGroups() {
+  if (!departmentId.value) {
+    departmentGroups.value = []
+    return
+  }
   try {
-    const response = await apiClient.get('/api/activities', {
-      params: { department_id: departmentId.value },
-    })
+    departmentGroups.value = await getGroups(departmentId.value)
+  } catch {
+    departmentGroups.value = []
+  }
+}
+
+function upsertActivityInList(source: Record<string, unknown>) {
+  const mapped = mapActivityListItem(source)
+  const idx = activities.value.findIndex((a) => a.id === mapped.id)
+  if (idx >= 0) {
+    const next = [...activities.value]
+    next[idx] = mapped
+    activities.value = next
+  } else {
+    activities.value = [mapped, ...activities.value]
+  }
+}
+
+async function loadActivities(opts?: { silent?: boolean }) {
+  if (!opts?.silent) isLoading.value = true
+  try {
+    const [, response] = await Promise.all([
+      loadDepartmentGroups(),
+      apiClient.get('/api/activities', {
+        params: { department_id: departmentId.value },
+      }),
+    ])
     activities.value = (response.data || []).map((a: Record<string, unknown>) => mapActivityListItem(a))
   } catch (err: unknown) {
-    const e = err as { code?: string; response?: { data?: { error?: string } }; message?: string }
-    const msg =
-      e?.code === 'ECONNABORTED'
-        ? t('activities.errors.timeout')
-        : e?.response?.data?.error || e?.message || t('activities.errors.unknown')
-    toast.error(t('activities.errors.loadFailed', { msg }))
+    if (!opts?.silent) {
+      const e = err as { code?: string; response?: { data?: { error?: string } }; message?: string }
+      const msg =
+        e?.code === 'ECONNABORTED'
+          ? t('activities.errors.timeout')
+          : e?.response?.data?.error || e?.message || t('activities.errors.unknown')
+      toast.error(t('activities.errors.loadFailed', { msg }))
+    }
   } finally {
     isLoading.value = false
   }
 }
 
+/** Alle User im Tab: neue/geänderte Aktivitäten ohne F5 (keep-alive inkl. Detail). */
+useDepartmentLiveRefresh({
+  departmentId,
+  reload: loadActivities,
+  isBusy: () =>
+    showCreateActivityWizard.value || (isLoading.value && activities.value.length === 0),
+})
+
+function isOpenActivity(a: Activity): boolean {
+  return a.status !== 'completed' && a.status !== 'cancelled'
+}
+
 function isUpcomingActivity(a: Activity): boolean {
-  if (!['draft', 'submitted', 'approved', 'packing', 'packed', 'issued', 'returned'].includes(a.status)) return false
+  if (!isOpenActivity(a)) return false
   if (!a.usageEnd) return true
   const endDate = new Date(a.usageEnd)
   const todayStart = new Date()
@@ -339,51 +448,71 @@ function isUpcomingActivity(a: Activity): boolean {
   return endDate >= todayStart
 }
 
-function isPastActivity(a: Activity): boolean {
-  if (a.status === 'cancelled') return false
-  if (a.status === 'completed') return true
-  if (!a.usageEnd) return false
-  const endDate = new Date(a.usageEnd)
-  const todayStart = new Date()
-  todayStart.setHours(0, 0, 0, 0)
-  return endDate < todayStart
+function matchesStatusFilter(a: Activity, filter: StatusFilter): boolean {
+  if (!filter) return true
+  if (filter === 'draft') return a.status === 'draft'
+  if (filter === 'submitted') return a.status === 'submitted'
+  if (filter === 'in_progress') return ['approved', 'packing', 'packed'].includes(a.status)
+  if (filter === 'at_event') return ['at_event', 'returned'].includes(a.status)
+  if (filter === 'completed') return a.status === 'completed'
+  if (filter === 'cancelled') return a.status === 'cancelled'
+  return true
 }
 
 const tabs = computed(() => [
-  { key: 'upcoming', label: t('activities.tabs.upcoming'), count: activities.value.filter(isUpcomingActivity).length },
-  { key: 'past', label: t('activities.tabs.past'), count: activities.value.filter(isPastActivity).length },
-  { key: 'all', label: t('activities.tabs.all'), count: activities.value.length },
-  { key: 'cancelled', label: t('activities.tabs.cancelled'), count: activities.value.filter((a) => a.status === 'cancelled').length },
+  { key: 'open' as const, label: t('activities.tabs.open'), count: activities.value.filter(isOpenActivity).length },
+  { key: 'upcoming' as const, label: t('activities.tabs.upcoming'), count: activities.value.filter(isUpcomingActivity).length },
+  { key: 'all' as const, label: t('activities.tabs.all'), count: activities.value.length },
 ])
+
+const { clearSearchFromRoute, stripQueryFromDetailRoute } = useListSearchQueryRoute({
+  searchQuery,
+  route,
+  router,
+  pathIncludes: '/activities',
+  isListView: () => !activityRouteId.value,
+  isSearchActive: () => activeTab.value === 'all',
+})
+
+function onListTabChange(tab: ListTab) {
+  activeTab.value = tab
+  if (tab !== 'all') {
+    statusFilter.value = ''
+    activeTypeFilter.value = ''
+    clearSearchFromRoute()
+  }
+}
+
+function applyStatFilter(filter: StatusFilter) {
+  activeTab.value = 'all'
+  statusFilter.value = filter
+}
 
 const filteredActivities = computed(() => {
   let result = activities.value
 
-  if (activeTab.value === 'upcoming') {
+  if (activeTab.value === 'open') {
+    result = result.filter(isOpenActivity)
+  } else if (activeTab.value === 'upcoming') {
     result = result.filter(isUpcomingActivity)
-  } else if (activeTab.value === 'past') {
-    result = result.filter(isPastActivity)
-  } else if (activeTab.value === 'cancelled') {
-    result = result.filter((a) => a.status === 'cancelled')
   }
 
-  if (activeTypeFilter.value) {
+  if (activeTab.value === 'all' && statusFilter.value) {
+    result = result.filter((a) => matchesStatusFilter(a, statusFilter.value))
+  }
+
+  if (activeTab.value === 'all' && activeTypeFilter.value) {
     result = result.filter((a) => a.type === activeTypeFilter.value)
   }
 
-  if (searchQuery.value) {
+  if (activeTab.value === 'all' && searchQuery.value) {
     const q = searchQuery.value.toLowerCase()
-    result = result.filter(
-      (a) =>
-      a.name.toLowerCase().includes(q) || 
-      a.groupName?.toLowerCase().includes(q) ||
-        a.no?.toLowerCase().includes(q),
-    )
+    result = result.filter((a) => activityMatchesSearch(a, q))
   }
 
   result = [...result].sort((a, b) => {
     let cmp = 0
-    if (activeTab.value === 'past') {
+    if (activeTab.value === 'all' && statusFilter.value === 'completed') {
       const da = new Date(a.usageEnd || a.usageStart || 0).getTime()
       const db = new Date(b.usageEnd || b.usageStart || 0).getTime()
       return db - da
@@ -403,13 +532,29 @@ const filteredActivities = computed(() => {
   return result
 })
 
+function getActivityGroupPathLines(activity: Activity): GroupPathLine[] {
+  if (activity.type === 'external') return []
+  return buildActivityGroupPathLines(
+    activity.groupId,
+    activity.departmentName || '',
+    departmentGroups.value,
+    activity.groupName,
+  )
+}
+
+function activityMatchesSearch(activity: Activity, q: string): boolean {
+  if (activity.name.toLowerCase().includes(q)) return true
+  if (activity.no?.toLowerCase().includes(q)) return true
+  return getActivityGroupPathLines(activity).some((line) => line.label.toLowerCase().includes(q))
+}
+
 function getTypeLabel(type: string): string {
   const key = `activities.types.${type}`
   return te(key) ? t(key) : type
 }
 
 function getStatusLabel(status: string): string {
-  const key = `activities.status.${status}`
+  const key = `activities.status.${activityStatusI18nKey(status)}`
   return te(key) ? t(key) : status
 }
 
@@ -456,25 +601,30 @@ function isSameDay(date1: string, date2: string): boolean {
   return d1.toDateString() === d2.toDateString()
 }
 
-function formatDateShort(dateStr: string): string {
-  if (!dateStr) return ''
-  const d = new Date(dateStr)
-  return d.toLocaleDateString(undefined, { day: '2-digit', month: 'short' })
+function pad2(n: number): string {
+  return String(n).padStart(2, '0')
 }
 
-function getRelativeDate(dateStr: string): string {
-  const now = new Date()
-  const d = new Date(dateStr)
-  const diffMs = d.getTime() - now.getTime()
-  const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24))
-  if (diffDays === 0) return t('activities.relative.today')
-  if (diffDays === 1) return t('activities.relative.tomorrow')
-  if (diffDays === -1) return t('activities.relative.yesterday')
-  if (diffDays > 0 && diffDays <= 7) return t('activities.relative.inDays', { n: diffDays })
-  if (diffDays < 0 && diffDays >= -7) return t('activities.relative.daysAgo', { n: Math.abs(diffDays) })
-  if (diffDays > 7 && diffDays <= 30) return t('activities.relative.inWeeks', { n: Math.ceil(diffDays / 7) })
-  if (diffDays < -7 && diffDays >= -30) return t('activities.relative.weeksAgo', { n: Math.ceil(Math.abs(diffDays) / 7) })
-  return ''
+function formatDayMonthYear(d: Date): string {
+  return `${pad2(d.getDate())}.${pad2(d.getMonth() + 1)}.${String(d.getFullYear()).slice(-2)}`
+}
+
+/** z. B. 14.03.26 oder 14.–18.03.26 */
+function formatPeriodCompact(startStr?: string, endStr?: string): string {
+  if (!startStr) return ''
+  const start = new Date(startStr)
+  if (!endStr || isSameDay(startStr, endStr)) return formatDayMonthYear(start)
+  const end = new Date(endStr)
+  const d1 = pad2(start.getDate())
+  const m1 = pad2(start.getMonth() + 1)
+  const y1 = String(start.getFullYear()).slice(-2)
+  const d2 = pad2(end.getDate())
+  const m2 = pad2(end.getMonth() + 1)
+  const y2 = String(end.getFullYear()).slice(-2)
+  const sameMonth = start.getMonth() === end.getMonth() && start.getFullYear() === end.getFullYear()
+  if (sameMonth && y1 === y2) return `${d1}.–${d2}.${m1}.${y1}`
+  if (y1 === y2) return `${d1}.${m1}.–${d2}.${m2}.${y2}`
+  return `${d1}.${m1}.${y1}–${d2}.${m2}.${y2}`
 }
 
 function toggleSort(field: string) {
@@ -487,91 +637,95 @@ function toggleSort(field: string) {
 }
 
 function openActivityDetail(activity: Activity) {
-  router.push(`/${departmentId.value}/activities/${activity.id}`)
+  const id = activity.id?.trim()
+  if (!id || !departmentId.value) return
+
+  const now = Date.now()
+  if (id === lastDetailOpenId && now - lastDetailOpenAt < 600) return
+  lastDetailOpenId = id
+  lastDetailOpenAt = now
+
+  if (showCreateActivityWizard.value) {
+    showCreateActivityWizard.value = false
+  }
+
+  if (route.params.activityId === id) return
+  void router.push(`/${departmentId.value}/activities/${id}`)
 }
 
 function openCreateActivityWizard() {
+  if (activityRouteId.value) {
+    void router.push({ path: `/${departmentId.value}/activities`, query: { new: '1' } })
+    return
+  }
   showCreateActivityWizard.value = true
 }
 
-function onActivityCreateWizardCreated(id: string) {
+async function onActivityCreateWizardCreated(id: string) {
   activityJustCreated.value = true
   showCreateActivityWizard.value = false
+  if (id) {
+    try {
+      const detail = await getActivity(id)
+      upsertActivityInList(detail as unknown as Record<string, unknown>)
+    } catch {
+      /* Liste wird unten nachgeladen */
+    }
+  }
   void loadActivities()
+  headerNotificationsStore.requestRefresh()
   if (route.query.from === 'dashboard') {
     const q = { ...route.query }
     delete q.from
     router.replace({ path: route.path, query: q })
   }
   if (id) {
-    router.push(`/${departmentId.value}/activities/${id}`)
+    await router.push(`/${departmentId.value}/activities/${id}`)
   }
 }
 
-watch(
-  () => route.query.q,
-  (q) => {
-    if (route.path.includes('/activities')) {
-      searchQuery.value = (q as string) ?? ''
+watch(activityRouteId, (id, prevId) => {
+  if (id) {
+    showCreateActivityWizard.value = false
+    stripQueryFromDetailRoute()
+    if (activityJustCreated.value) {
+      activityJustCreated.value = false
     }
-  },
-  { immediate: true },
-)
+    return
+  }
+  if (prevId) {
+    void loadActivities()
+  }
+})
 
-// ?new=1: Erstell-Wizard öffnen (z. B. vom Dashboard)
+// ?new=1: Erstell-Wizard nur auf der Listen-Route (nie in der Detailansicht)
 watch(
   () => route.query.new,
   (val) => {
-    if (val === '1' && !showCreateActivityWizard.value) {
-      openCreateActivityWizard()
-      const q = { ...route.query }
-      delete q.new
-      router.replace({ path: route.path, query: q })
+    if (val !== '1') return
+    if (activityRouteId.value) {
+      void router.replace({
+        path: `/${departmentId.value}/activities`,
+        query: { new: '1' },
+      })
+      return
     }
+    if (!showCreateActivityWizard.value) {
+      showCreateActivityWizard.value = true
+    }
+    const q = { ...route.query }
+    delete q.new
+    void router.replace({ path: route.path, query: q })
   },
   { immediate: true },
 )
 
 // from=dashboard: Bei Schließen ohne Speichern zurück zum Dashboard
 watch(showCreateActivityWizard, (isOpen) => {
-  if (!isOpen) {
-    resumeWizardActivityId.value = null
-  }
   if (!isOpen && route.query.from === 'dashboard' && departmentId.value && !activityJustCreated.value) {
     router.replace(`/${departmentId.value}`)
   }
-  if (!isOpen) activityJustCreated.value = false
 })
-
-watch(
-  () => ({ aid: activityRouteId.value, dept: departmentId.value }),
-  async ({ aid, dept }) => {
-    showActivityDetail.value = false
-    if (!aid || !dept) {
-      activityDetailGateLoading.value = false
-    return
-  }
-    activityDetailGateLoading.value = true
-    try {
-      const act = await getActivity(aid)
-      const isStepper = STEPPER_ACTIVITY_TYPES.includes(act.type as (typeof STEPPER_ACTIVITY_TYPES)[number])
-      const wizardIncomplete = isStepper && act.create_wizard_completed === false
-      if (wizardIncomplete) {
-        resumeWizardActivityId.value = aid
-        showCreateActivityWizard.value = true
-        await router.replace({ path: `/${dept}/activities`, query: { ...route.query } })
-        showActivityDetail.value = false
-      } else {
-        showActivityDetail.value = true
-      }
-    } catch {
-      showActivityDetail.value = true
-  } finally {
-      activityDetailGateLoading.value = false
-    }
-  },
-  { immediate: true },
-)
 
 watch(
   () => activityRouteId.value,
@@ -607,7 +761,7 @@ watch(
 }
 
 .row-selected {
-  outline: 2px solid rgba(99, 102, 241, 0.35);
+  outline: 2px solid var(--color-primary-ring);
 }
 
 .col-issues {
@@ -626,4 +780,5 @@ watch(
 .activities-list-issues-link:hover {
   text-decoration: underline;
 }
+
 </style>

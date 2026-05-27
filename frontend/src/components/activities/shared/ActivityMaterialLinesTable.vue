@@ -17,6 +17,7 @@
         hasAnyAvailabilityShortage &&
         !availabilityLoading &&
         !disabled &&
+        !packingStageQuantityReadonly &&
         modelValue.length > 0
       "
       class="activity-mat-reconcile-bulk"
@@ -115,7 +116,7 @@
                 <span v-if="availabilityLoading" class="text-muted">…</span>
                 <template v-else>
                   <span class="activity-mat-rest-value">{{ formatRestCell(row) }}</span>
-                  <template v-if="!disabled && !lineLockedForPackListOnly(row) && shortageForRow(row) > 0">
+                  <template v-if="!disabled && !qtyRowLocked(row) && shortageForRow(row) > 0">
                     <button
                       type="button"
                       class="btn-outline btn-sm activity-mat-rest-adjust"
@@ -133,13 +134,17 @@
             </td>
             <td class="activity-mat-cell-qty">
               <div
-                v-if="lineLockedForPackListOnly(row)"
+                v-if="qtyRowLocked(row)"
                 class="activity-material-line-qty-block activity-material-line-qty-block--packing-locked"
               >
                 <span class="activity-mat-qty-readonly" :title="t('activities.materialLinesTable.qtyReadonlyTitle')">{{
                   row.quantity
                 }}</span>
-                <span class="activity-mat-pack-hint text-muted">{{ t('activities.materialLinesTable.packList') }}</span>
+                <span class="activity-mat-pack-hint text-muted">{{
+                  lineLockedForPackListOnly(row)
+                    ? t('activities.materialLinesTable.packList')
+                    : t('activities.materialLinesTable.qtyPackingReadonlyHint')
+                }}</span>
               </div>
               <div
                 v-else
@@ -288,10 +293,16 @@
               </span>
             </td>
             <td class="activity-mat-cell-remove">
-              <template v-if="lineLockedForPackListOnly(row)">
-                <span class="activity-mat-remove-na text-muted" :title="t('activities.materialLinesTable.packListRemoveTitle')">{{
-                  t('activities.wizard.form.summaryEmpty')
-                }}</span>
+              <template v-if="qtyRowLocked(row)">
+                <span
+                  class="activity-mat-remove-na text-muted"
+                  :title="
+                    lineLockedForPackListOnly(row)
+                      ? t('activities.materialLinesTable.packListRemoveTitle')
+                      : t('activities.materialLinesTable.qtyPackingRemoveTitle')
+                  "
+                  >{{ t('activities.wizard.form.summaryEmpty') }}</span
+                >
               </template>
               <template v-else>
                 <button
@@ -351,6 +362,8 @@ const props = withDefaults(
     materialScopeTab?: MaterialScopeTab
     materialScopeHasPartners?: boolean
     materialScopeSinglePartnerId?: string | null
+    /** Status packing + Nachbuch: Mengen/Entfernen nur Packliste / Packlisten-Hinzufügen */
+    packingStageQuantityReadonly?: boolean
   }>(),
   {
     activityId: null,
@@ -364,6 +377,7 @@ const props = withDefaults(
     materialScopeTab: 'own',
     materialScopeHasPartners: false,
     materialScopeSinglePartnerId: null,
+    packingStageQuantityReadonly: false,
   },
 )
 
@@ -516,9 +530,13 @@ function lineLockedForPackListOnly(row: ActivityMaterialLine): boolean {
   return !!row.is_container && row.material_type !== 'physical_combo'
 }
 
+function qtyRowLocked(row: ActivityMaterialLine): boolean {
+  return lineLockedForPackListOnly(row) || props.packingStageQuantityReadonly === true
+}
+
 function lineHasIssue(row: ActivityMaterialLine): boolean {
   if (availabilityLoading.value) return false
-  if (lineLockedForPackListOnly(row)) return false
+  if (qtyRowLocked(row)) return false
   return shortageForRow(row) > 0
 }
 
@@ -539,14 +557,14 @@ function formatRestCell(row: ActivityMaterialLine): string {
 
 const hasAnyAvailabilityShortage = computed(() => {
   if (availabilityLoading.value) return false
-  return props.modelValue.some((row) => !lineLockedForPackListOnly(row) && shortageForRow(row) > 0)
+  return props.modelValue.some((row) => !qtyRowLocked(row) && shortageForRow(row) > 0)
 })
 
 const orderedLines = computed(() => {
   const rows = props.modelValue.map((row, originalIndex) => ({ row, originalIndex }))
   const getAvail = (id: string) => availabilityMap.value[id]
   const shortageForSort = (r: ActivityMaterialLine) =>
-    lineLockedForPackListOnly(r) ? 0 : shortageForRow(r)
+    qtyRowLocked(r) ? 0 : shortageForRow(r)
   const asc = sortDir.value === 'asc'
 
   return [...rows].sort((x, y) => {
@@ -700,7 +718,7 @@ function showPackDecDivider(row: ActivityMaterialLine): boolean {
 
 function incrementLine(idx: number, delta: number) {
   const row = props.modelValue[idx]
-  if (!row || lineLockedForPackListOnly(row) || !canIncrementLine(row, delta)) return
+  if (!row || qtyRowLocked(row) || !canIncrementLine(row, delta)) return
   const max = maxQtyForRow(row)
   const maxAdd = max === undefined ? delta : Math.min(delta, Math.max(0, max - row.quantity))
   if (maxAdd < 1) return
@@ -711,7 +729,7 @@ function incrementLine(idx: number, delta: number) {
 
 function decrementLine(idx: number, delta: number) {
   const row = props.modelValue[idx]
-  if (!row || lineLockedForPackListOnly(row) || !canDecrementLine(row, delta)) return
+  if (!row || qtyRowLocked(row) || !canDecrementLine(row, delta)) return
   const next = Math.max(minQty.value, row.quantity - delta)
   const lines = [...props.modelValue]
   lines[idx] = { ...lines[idx], quantity: next }
@@ -720,7 +738,7 @@ function decrementLine(idx: number, delta: number) {
 
 function onQtyChange(idx: number, e: Event) {
   const row = props.modelValue[idx]
-  if (!row || lineLockedForPackListOnly(row)) return
+  if (!row || qtyRowLocked(row)) return
   const raw = parseInt((e.target as HTMLInputElement).value, 10)
   let v = Number.isNaN(raw) ? minQty.value : Math.max(minQty.value, raw)
   const max = maxQtyForRow(row)
@@ -732,14 +750,14 @@ function onQtyChange(idx: number, e: Event) {
 
 function emitRemove(originalIndex: number) {
   const line = props.modelValue[originalIndex]
-  if (!line || lineLockedForPackListOnly(line)) return
+  if (!line || qtyRowLocked(line)) return
   emit('remove-line', { line, index: originalIndex })
 }
 
 function applySuggestedForLine(originalIndex: number) {
   if (props.disabled || availabilityLoading.value) return
   const row = props.modelValue[originalIndex]
-  if (!row || lineLockedForPackListOnly(row)) return
+  if (!row || qtyRowLocked(row)) return
   const max = maxQtyForRow(row)
   if (max === undefined) return
   const nextQty = Math.min(row.quantity, max)
@@ -753,7 +771,7 @@ function applyAllSuggestedQuantities() {
   if (props.disabled || availabilityLoading.value) return
   let changed = false
   const lines = props.modelValue.map((row) => {
-    if (lineLockedForPackListOnly(row)) return row
+    if (qtyRowLocked(row)) return row
     const max = maxQtyForRow(row)
     if (max === undefined) return row
     const nextQty = Math.min(row.quantity, max)

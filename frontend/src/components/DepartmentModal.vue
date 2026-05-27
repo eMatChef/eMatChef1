@@ -316,10 +316,13 @@ const roleOptions = computed(() =>
   }))
 )
 
+const existingMemberUserIds = computed(() => new Set(members.value.map((m) => m.user_id)))
+
 const filteredAvailableUsers = computed(() => {
   const query = newMemberSearchQuery.value.trim().toLowerCase()
   if (query.length < 2) return []
   return availableUsers.value
+    .filter((user) => !existingMemberUserIds.value.has(user.id))
     .filter((user) => {
       return (
         user.name.toLowerCase().includes(query) ||
@@ -523,9 +526,10 @@ async function loadMembersData(departmentId: string) {
       getAvailableUsersForDepartment(departmentId)
     ])
     members.value = membersRes
-    availableUsers.value = availableRes
+    const memberIds = new Set(membersRes.map((m) => m.user_id))
+    availableUsers.value = availableRes.filter((u) => !memberIds.has(u.id))
     if (newMemberUserId.value) {
-      const selected = availableRes.find((u) => u.id === newMemberUserId.value) || null
+      const selected = availableUsers.value.find((u) => u.id === newMemberUserId.value) || null
       selectedAvailableUser.value = selected
       if (!selected) {
         newMemberUserId.value = ''
@@ -675,6 +679,19 @@ function close() {
   max-height: calc(100vh - 48px);
   padding: 0;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.department-modal-dialog .modal-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.department-modal-dialog .modal-header {
+  flex-shrink: 0;
 }
 
 .modal-header h2 {
