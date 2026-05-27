@@ -9,6 +9,7 @@ use App\Entity\Profile;
 use App\Repository\UserRepository;
 use App\Service\Admin\AdminCapabilityChecker;
 use App\Service\Admin\AdminCapabilityRegistry;
+use App\Service\SystemScopeVisibility;
 use App\Service\AuditLogger;
 use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
@@ -185,6 +186,9 @@ class UserController extends AbstractController
             }
             $userId = $membership->getUserId();
             $department = $membership->getDepartment();
+            if (!SystemScopeVisibility::isDepartmentVisibleForAssignment($department)) {
+                continue;
+            }
             $membershipsByUser[$userId][] = [
                 'department_id' => $department->getId(),
                 'department_name' => $department->getName(),
@@ -206,10 +210,14 @@ class UserController extends AbstractController
             $capData = $this->adminCapabilityChecker->serializeForProfile($profile);
             $scope = $capData['admin_capabilities']['scope'] ?? [];
             $orgIds = \is_array($scope['organisation_ids'] ?? null)
-                ? array_values(array_filter(array_map('strval', $scope['organisation_ids'])))
+                ? SystemScopeVisibility::filterOrganisationIds(
+                    array_values(array_filter(array_map('strval', $scope['organisation_ids'])))
+                )
                 : [];
             $rootIds = \is_array($scope['department_root_ids'] ?? null)
-                ? array_values(array_filter(array_map('strval', $scope['department_root_ids'])))
+                ? SystemScopeVisibility::filterDepartmentIds(
+                    array_values(array_filter(array_map('strval', $scope['department_root_ids'])))
+                )
                 : [];
 
             $result[] = [
@@ -264,6 +272,9 @@ class UserController extends AbstractController
         $membershipData = [];
         foreach ($memberships as $m) {
             $department = $m->getDepartment();
+            if (!SystemScopeVisibility::isDepartmentVisibleForAssignment($department)) {
+                continue;
+            }
             $membershipData[] = [
                 'department_id' => $department->getId(),
                 'department_name' => $department->getName(),
@@ -416,6 +427,11 @@ class UserController extends AbstractController
                 foreach ($departmentIds as $departmentId) {
                     if (!isset($departments[$departmentId])) {
                         return new JsonResponse(['error' => "Department {$departmentId} nicht gefunden"], 404);
+                    }
+                    if (!SystemScopeVisibility::isDepartmentVisibleForAssignment($departments[$departmentId])) {
+                        return new JsonResponse([
+                            'error' => 'Dieses Department ist ein System-Department und kann keinen Benutzern zugeordnet werden',
+                        ], 400);
                     }
                 }
             }

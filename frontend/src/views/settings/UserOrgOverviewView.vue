@@ -212,6 +212,11 @@ import {
 } from '@/utils/userRoleDisplay'
 import { useAuthStore } from '@/stores/auth'
 import { filterDepartmentsByAccessibleIds } from '@/utils/adminCapabilities'
+import {
+  filterDepartmentsForAdminScope,
+  filterOrganisationsForAdminScope,
+  isDepartmentHiddenFromAdminScope,
+} from '@/utils/organisationUserPicker'
 
 interface OrgTree {
   id: string
@@ -341,6 +346,9 @@ function buildAssignmentsByDept(): Map<string, DeptAssignment[]> {
 
   for (const user of filteredUsers.value) {
     for (const m of user.memberships) {
+      if (isDepartmentHiddenFromAdminScope({ id: m.department_id, name: m.department_name })) {
+        continue
+      }
       add(m.department_id, {
         user,
         kind: 'membership',
@@ -591,10 +599,11 @@ async function load() {
       getDepartments(),
       getAdminOrgOverview(),
     ])
-    organisations.value = orgs
+    organisations.value = filterOrganisationsForAdminScope(orgs)
     const accessible = authStore.accessibleDepartmentIds
-    departments.value =
+    const scopedDepts =
       accessible === null ? depts : filterDepartmentsByAccessibleIds(depts, accessible)
+    departments.value = filterDepartmentsForAdminScope(scopedDepts)
     users.value = overviewUsers
     applyDefaultExpansion()
   } catch {
