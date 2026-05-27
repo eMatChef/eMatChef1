@@ -18,36 +18,45 @@
         @input="dropdownOpen = true"
         @blur="onBlur"
       />
-      <div v-if="dropdownOpen" class="autocomplete-dropdown">
-        <div v-if="searchQuery.trim().length < minChars" class="autocomplete-hint">
-          {{ t('settings.adminUsers.deptSearchMinChars', { n: minChars }) }}
-        </div>
-        <template v-else>
-          <button
-            v-for="dept in filteredDepartments"
-            :key="dept.id"
-            type="button"
-            class="autocomplete-item"
-            :class="{ 'is-child': !!dept.parent_id }"
-            :style="dept.parent_id ? { paddingLeft: `${12 + getLevel(dept) * 14}px` } : undefined"
-            @mousedown.prevent="selectDepartment(dept)"
-          >
-            <span class="ac-name">{{ dept.name }}</span>
-            <span class="ac-meta">{{ formatDepartmentMeta(dept) }}</span>
-          </button>
-          <div v-if="filteredDepartments.length === 0" class="autocomplete-empty">
-            {{ t('settings.adminUsers.deptSearchEmpty') }}
+      <Teleport to="body">
+        <div
+          v-if="dropdownOpen"
+          class="autocomplete-dropdown autocomplete-dropdown--teleported"
+          :style="dropdownStyle"
+        >
+          <div v-if="searchQuery.trim().length < minChars" class="autocomplete-hint">
+            {{ t('settings.adminUsers.deptSearchMinChars', { n: minChars }) }}
           </div>
-        </template>
-      </div>
+          <template v-else>
+            <button
+              v-for="dept in filteredDepartments"
+              :key="dept.id"
+              type="button"
+              class="autocomplete-item"
+              :class="{ 'is-child': !!dept.parent_id }"
+              :style="dept.parent_id ? { paddingLeft: `${12 + getLevel(dept) * 14}px` } : undefined"
+              @mousedown.prevent="selectDepartment(dept)"
+            >
+              <span class="ac-name">{{ dept.name }}</span>
+              <span class="ac-meta">{{ formatDepartmentMeta(dept) }}</span>
+            </button>
+            <div v-if="filteredDepartments.length === 0" class="autocomplete-empty">
+              {{ t('settings.adminUsers.deptSearchEmpty') }}
+            </div>
+          </template>
+        </div>
+      </Teleport>
     </template>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, nextTick, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { Department } from '@/api/departments'
+
+const DROPDOWN_Z_INDEX = 2500
+const DROPDOWN_MAX_HEIGHT = 240
 
 const props = withDefaults(
   defineProps<{
@@ -75,6 +84,9 @@ const { t } = useI18n()
 const searchQuery = ref('')
 const dropdownOpen = ref(false)
 const inputRef = ref<HTMLInputElement | null>(null)
+const dropdownStyle = ref<Record<string, string>>({})
+
+let positionListenersBound = false
 
 const deptById = computed(() => new Map(props.departments.map((d) => [d.id, d])))
 
@@ -131,6 +143,73 @@ watch(
   }
 )
 
+watch(dropdownOpen, async (open) => {
+  if (!open) {
+    unbindPositionListeners()
+    return
+  }
+  await nextTick()
+  syncDropdownPosition()
+  bindPositionListeners()
+})
+
+onUnmounted(() => {
+  unbindPositionListeners()
+})
+
+function syncDropdownPosition() {
+  const el = inputRef.value
+  if (!el) return
+
+  const rect = el.getBoundingClientRect()
+  const vw = window.innerWidth
+  const vh = window.innerHeight
+  const width = Math.min(Math.max(rect.width, 280), vw - 16)
+  const left = Math.max(8, Math.min(rect.left, vw - width - 8))
+  const spaceBelow = vh - rect.bottom - 8
+  const spaceAbove = rect.top - 8
+  const openBelow = spaceBelow >= 120 || spaceBelow >= spaceAbove
+
+  if (openBelow) {
+    dropdownStyle.value = {
+      position: 'fixed',
+      top: `${rect.bottom + 4}px`,
+      left: `${left}px`,
+      width: `${width}px`,
+      maxHeight: `${Math.min(DROPDOWN_MAX_HEIGHT, Math.max(spaceBelow - 4, 80))}px`,
+      zIndex: String(DROPDOWN_Z_INDEX),
+    }
+    return
+  }
+
+  dropdownStyle.value = {
+    position: 'fixed',
+    left: `${left}px`,
+    width: `${width}px`,
+    bottom: `${vh - rect.top + 4}px`,
+    maxHeight: `${Math.min(DROPDOWN_MAX_HEIGHT, Math.max(spaceAbove - 4, 80))}px`,
+    zIndex: String(DROPDOWN_Z_INDEX),
+  }
+}
+
+function onPositionChange() {
+  if (dropdownOpen.value) syncDropdownPosition()
+}
+
+function bindPositionListeners() {
+  if (positionListenersBound) return
+  positionListenersBound = true
+  window.addEventListener('resize', onPositionChange)
+  window.addEventListener('scroll', onPositionChange, true)
+}
+
+function unbindPositionListeners() {
+  if (!positionListenersBound) return
+  positionListenersBound = false
+  window.removeEventListener('resize', onPositionChange)
+  window.removeEventListener('scroll', onPositionChange, true)
+}
+
 function getLevel(d: Department): number {
   if (!d.parent_id) return 0
   const parent = deptById.value.get(d.parent_id)
@@ -171,6 +250,7 @@ function clearSelection() {
 
 function onFocus() {
   dropdownOpen.value = true
+  void nextTick().then(syncDropdownPosition)
 }
 
 function onBlur() {
@@ -223,13 +303,7 @@ function onBlur() {
   color: #b91c1c;
 }
 
-.autocomplete-dropdown {
-  position: absolute;
-  z-index: 40;
-  left: 0;
-  right: 0;
-  top: calc(100% + 4px);
-  max-height: 240px;
+.autocomplete-dropdown--teleported {
   overflow-y: auto;
   background: #fff;
   border: 1px solid #e2e8f0;

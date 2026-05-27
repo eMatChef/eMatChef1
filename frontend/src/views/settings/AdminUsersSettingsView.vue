@@ -172,6 +172,10 @@ import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { getDepartments, type Department } from '@/api/departments'
 import {
+  filterDepartmentsForAdminScope,
+  filterOrganisationsForAdminScope,
+} from '@/utils/organisationUserPicker'
+import {
   getAdminUsers,
   getAdminUserDetail,
   updateAdminUser,
@@ -309,8 +313,8 @@ async function loadUsers() {
 async function loadDepartments() {
   try {
     const [depts, orgs] = await Promise.all([getDepartments(), getOrganisationsForAdmin()])
-    departments.value = depts
-    organisations.value = orgs
+    departments.value = filterDepartmentsForAdminScope(depts)
+    organisations.value = filterOrganisationsForAdminScope(orgs)
   } catch (err) {
     console.error(t('settings.adminUsers.departmentsLoadError'), err)
   }

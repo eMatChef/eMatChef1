@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Service\Admin;
 
+use App\Service\SystemScopeVisibility;
+
 /**
  * Globale Admin-Rechte für Organisations-/Suborgchef (profile.admin_capabilities).
  * Superadmin bypassed alle Checks in AdminCapabilityChecker.
@@ -122,7 +124,9 @@ final class AdminCapabilityRegistry
             return [];
         }
 
-        return array_values(array_unique(array_filter(array_map('strval', $ids))));
+        return SystemScopeVisibility::filterOrganisationIds(
+            array_values(array_unique(array_filter(array_map('strval', $ids))))
+        );
     }
 
     /**
@@ -196,7 +200,9 @@ final class AdminCapabilityRegistry
             return [];
         }
 
-        return array_values(array_unique(array_filter(array_map('strval', $ids))));
+        return SystemScopeVisibility::filterDepartmentIds(
+            array_values(array_unique(array_filter(array_map('strval', $ids))))
+        );
     }
 
     /**

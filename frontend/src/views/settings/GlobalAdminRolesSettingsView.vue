@@ -151,6 +151,10 @@ import {
   getOrganisationsForAdmin,
 } from '@/api/adminUsers'
 import { getDepartments, type Department } from '@/api/departments'
+import {
+  filterDepartmentsForAdminScope,
+  filterOrganisationsForAdminScope,
+} from '@/utils/organisationUserPicker'
 import { useToast } from '@/composables/useToast'
 import {
   ADMIN_CAPABILITY_GROUPS,
@@ -291,8 +295,8 @@ async function loadUsers() {
       getOrganisationsForAdmin(),
     ])
     users.value = userList
-    organisations.value = orgList
-    departments.value = deptList
+    organisations.value = filterOrganisationsForAdminScope(orgList)
+    departments.value = filterDepartmentsForAdminScope(deptList)
     await loadScopeSummaries()
   } catch (err: unknown) {
     const e = err as { response?: { data?: { error?: string } } }
