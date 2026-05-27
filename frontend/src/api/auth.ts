@@ -17,6 +17,11 @@ export interface RegisterRequest {
   acceptTerms: boolean
   requestedOrganisationId: string
   requestedDepartmentName: string
+  /** Bestehende Abteilung aus Suche – MW/DC muss bestaetigen */
+  requestedDepartmentId?: string
+  /** Uebergeordnete Abteilung bei Admin-Antrag (wenn Abteilung nicht gefunden) */
+  requestedParentDepartmentId?: string
+  requestedParentDepartmentName?: string
   /** Cloudflare Turnstile (wenn VITE_TURNSTILE_SITE_KEY gesetzt) */
   turnstileToken?: string
   /** Bot-Schutz: muss leer bleiben */

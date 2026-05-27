@@ -36,11 +36,122 @@ class SitePageContentDefaults
     /** @return PageContent */
     private function landing(): array
     {
+        $de = $this->landingLocaleDe();
+
         return [
+            ...$de,
+            'locales' => [
+                'de' => $de,
+                'en' => $this->landingLocaleEn(),
+                'fr' => $this->landingLocaleFr(),
+            ],
+        ];
+    }
+
+    /** @return PageContent */
+    private function landingLocaleDe(): array
+    {
+        return [
+            'kicker' => 'Erste Version online',
             'heroTitle' => 'Material im Griff, Team im Blick',
-            'heroSubtitle' => 'eMatChef unterstützt dich bei Lager, Ausleihe und Übersicht – für Vermietungen und Teams, die mitdenken.',
-            'primaryCta' => 'Login',
-            'secondaryCta' => 'Fragen & Antworten',
+            'heroSubtitle' => 'Nach über fünf Jahren Entwicklung ist eMatChef live: Du als Materialwart behältst den Überblick — deine Mitleiter planen Lager und Samstage und buchen Material direkt.',
+            'primaryCta' => 'Jetzt anmelden',
+            'secondaryCta' => 'Häufige Fragen',
+            'secondaryCtaPath' => '/faq',
+            'introTitle' => 'Für Materialwart und Team',
+            'introParagraph1' => 'eMatChef ist die gemeinsame Stelle für Material und Anlässe in deiner Abteilung. Als Materialwart pflegst du Bestände, Lagerorte und Buchungen — und siehst jederzeit, was für welches Lager, welchen Samstag oder welches Event reserviert ist. Deine Mitleiter legen Aktivitäten an, tragen Material ein und reichen ein. Du prüfst, packst und behältst den Überblick bis zur Retour.',
+            'introParagraph2' => 'Alles läuft im Browser, ohne Installation. Rollen legen fest, wer was sehen und bearbeiten darf. QR-Codes am Material helfen beim Wiederfinden — wo eure Abteilung es einrichtet. Das ist Version 1: bewusst ein Start, der im Alltag funktionieren soll — mit eurem Feedback für die nächsten Schritte.',
+            'featuresTitle' => 'So arbeitet ihr mit eMatChef',
+            'features' => [
+                'title' => 'So arbeitet ihr mit eMatChef',
+                'items' => [
+                    ['icon' => '⊙', 'title' => 'Materialwart im Überblick', 'text' => 'Alle Aktivitäten und Buchungen der Abteilung auf einen Blick — packen, ausgeben, Retour: du weisst, was gerade wo ist.'],
+                    ['icon' => '◎', 'title' => 'Mitleiter planen selbst', 'text' => 'Lager, Samstage und Events anlegen, Material buchen und einreichen — ohne Listen-Chaos per Chat oder Zettel.'],
+                    ['icon' => '⇄', 'title' => 'Aktivitäten & Buchungen', 'text' => 'Vom Entwurf über Einreichen und Packen bis zur Retour: der Bestand bleibt mit dem echten Einsatz verbunden.'],
+                    ['icon' => '⌗', 'title' => 'Alles an einem Ort', 'text' => 'Material, Mengen, Lagerorte und Bewegungen — strukturiert statt in verstreuten Tabellen.'],
+                    ['icon' => '◇', 'title' => 'QR am Material', 'text' => 'Scan am Regal oder unterwegs: Infos, Seriennummer — und optional Kontakt zum Materialwart.'],
+                    ['icon' => '○', 'title' => 'Im Browser', 'text' => 'Keine App installieren: anmelden und mit deiner Abteilung in einer gemeinsamen Oberfläche arbeiten.'],
+                ],
+            ],
+            'intro' => [
+                'title' => 'Für Materialwart und Team',
+                'paragraph1' => 'eMatChef ist die gemeinsame Stelle für Material und Anlässe in deiner Abteilung. Als Materialwart pflegst du Bestände, Lagerorte und Buchungen — und siehst jederzeit, was für welches Lager, welchen Samstag oder welches Event reserviert ist. Deine Mitleiter legen Aktivitäten an, tragen Material ein und reichen ein. Du prüfst, packst und behältst den Überblick bis zur Retour.',
+                'paragraph2' => 'Alles läuft im Browser, ohne Installation. Rollen legen fest, wer was sehen und bearbeiten darf. QR-Codes am Material helfen beim Wiederfinden — wo eure Abteilung es einrichtet. Das ist Version 1: bewusst ein Start, der im Alltag funktionieren soll — mit eurem Feedback für die nächsten Schritte.',
+            ],
+            'ctaTitleSrOnly' => 'Loslegen',
+            'ctaText' => 'Bereit zum Ausprobieren? Melde dich an — oder lies zuerst die häufigen Fragen. Wir freuen uns über dein Feedback zur ersten Version.',
+            'cta' => [
+                'titleSrOnly' => 'Loslegen',
+                'text' => 'Bereit zum Ausprobieren? Melde dich an — oder lies zuerst die häufigen Fragen. Wir freuen uns über dein Feedback zur ersten Version.',
+            ],
+        ];
+    }
+
+    /** @return PageContent */
+    private function landingLocaleEn(): array
+    {
+        return [
+            'kicker' => 'Inventory management',
+            'heroTitle' => 'Materials under control, team in view',
+            'heroSubtitle' => 'eMatChef helps with storage, lending and overview – for rentals and teams that plan ahead.',
+            'primaryCta' => 'Log in',
+            'secondaryCta' => 'FAQ',
+            'secondaryCtaPath' => '/faq',
+            'introTitle' => 'Organise digitally with ease',
+            'introParagraph1' => 'Looking for a clear digital solution for materials, storage and lending?',
+            'introParagraph2' => 'Runs in the browser with role-based access per organisation.',
+            'featuresTitle' => 'What eMatChef offers',
+            'features' => [
+                'title' => 'What eMatChef offers',
+                'items' => [
+                    ['icon' => '⊙', 'title' => 'All in one place', 'text' => 'Materials, locations, quantities and movements.'],
+                ],
+            ],
+            'intro' => [
+                'title' => 'Organise digitally with ease',
+                'paragraph1' => 'Looking for a clear digital solution for materials, storage and lending?',
+                'paragraph2' => 'Runs in the browser with role-based access per organisation.',
+            ],
+            'ctaTitleSrOnly' => 'Get started',
+            'ctaText' => 'Ready? Log in and work with your department.',
+            'cta' => [
+                'titleSrOnly' => 'Get started',
+                'text' => 'Ready? Log in and work with your department.',
+            ],
+        ];
+    }
+
+    /** @return PageContent */
+    private function landingLocaleFr(): array
+    {
+        return [
+            'kicker' => 'Gestion du matériel',
+            'heroTitle' => 'Matériel sous contrôle, équipe en vue',
+            'heroSubtitle' => 'eMatChef aide pour le stockage, les prêts et la vue d’ensemble.',
+            'primaryCta' => 'Connexion',
+            'secondaryCta' => 'FAQ',
+            'secondaryCtaPath' => '/faq',
+            'introTitle' => 'Organiser simplement en numérique',
+            'introParagraph1' => 'Vous cherchez une solution claire pour le matériel et les prêts ?',
+            'introParagraph2' => 'Fonctionne dans le navigateur avec des droits par organisation.',
+            'featuresTitle' => 'Ce que eMatChef propose',
+            'features' => [
+                'title' => 'Ce que eMatChef propose',
+                'items' => [
+                    ['icon' => '⊙', 'title' => 'Tout au même endroit', 'text' => 'Matériel, emplacements et mouvements.'],
+                ],
+            ],
+            'intro' => [
+                'title' => 'Organiser simplement en numérique',
+                'paragraph1' => 'Vous cherchez une solution claire pour le matériel et les prêts ?',
+                'paragraph2' => 'Fonctionne dans le navigateur avec des droits par organisation.',
+            ],
+            'ctaTitleSrOnly' => 'Commencer',
+            'ctaText' => 'Prêt ? Connectez-vous et travaillez avec votre département.',
+            'cta' => [
+                'titleSrOnly' => 'Commencer',
+                'text' => 'Prêt ? Connectez-vous et travaillez avec votre département.',
+            ],
         ];
     }
 

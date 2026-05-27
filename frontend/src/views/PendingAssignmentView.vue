@@ -60,14 +60,12 @@
               :placeholder="t('pendingAssignment.affiliationPlaceholder')"
             />
           </div>
-          <div class="form-group">
-            <label class="form-label">{{ t('pendingAssignment.parentDepartmentsQuestion') }}</label>
-            <input
-              v-model="manualParentDepartment"
-              class="form-input"
-              :placeholder="t('pendingAssignment.parentDepartmentsPlaceholder')"
-            />
-          </div>
+          <ParentDepartmentPicker
+            v-if="manualOrganisationId"
+            :organisation-id="manualOrganisationId"
+            :disabled="loading"
+            @update:model-value="manualParentPick = $event"
+          />
           <button class="btn btn-secondary" type="button" :disabled="loading || !manualOrganisationId" @click="submitAdminRequest">
             {{ t('pendingAssignment.submitAdminRequest') }}
           </button>
@@ -81,6 +79,8 @@
         <label class="label">{{ t('pendingAssignment.joinCodeLabel') }}</label>
         <input v-model="joinCode" class="form-input" :placeholder="t('pendingAssignment.joinCodePlaceholder')" />
       </div>
+
+      <div v-if="turnstileRequired" ref="turnstileContainerRef" class="turnstile-box" />
 
       <div class="actions">
         <button class="btn btn-primary" :disabled="loading" @click="submitRequest">
@@ -130,14 +130,12 @@
                 :placeholder="t('pendingAssignment.affiliationModalPlaceholder')"
               />
             </div>
-            <div class="form-group">
-              <label class="form-label">{{ t('pendingAssignment.parentDepartmentsModalLabel') }}</label>
-              <input
-                v-model="adminModalParentDepartment"
-                class="form-input"
-                :placeholder="t('pendingAssignment.parentDepartmentsModalPlaceholder')"
-              />
-            </div>
+            <ParentDepartmentPicker
+              v-if="adminModalOrganisationId"
+              :organisation-id="adminModalOrganisationId"
+              :disabled="adminModalLoading"
+              @update:model-value="adminModalParentPick = $event"
+            />
             <div class="form-group">
               <label class="form-label">{{ t('pendingAssignment.messageToAdmin') }}</label>
               <textarea
@@ -183,14 +181,22 @@
       <table v-else>
         <thead>
           <tr>
+            <th>{{ t('pendingAssignment.colType') }}</th>
             <th>{{ t('pendingAssignment.colDepartment') }}</th>
             <th>{{ t('pendingAssignment.colStatus') }}</th>
             <th>{{ t('pendingAssignment.colCreated') }}</th>
           </tr>
         </thead>
         <tbody>
-          <tr v-for="r in requests" :key="r.id">
-            <td>{{ r.department_name }}</td>
+          <tr v-for="r in requests" :key="`${r.request_kind || 'join'}-${r.id}`">
+            <td>{{ requestKindLabel(r) }}</td>
+            <td>
+              <span>{{ r.department_name }}</span>
+              <span v-if="r.organisation_name" class="request-org-hint">({{ r.organisation_name }})</span>
+              <span v-if="r.requested_parent_department_name" class="request-org-hint">
+                · {{ t('pendingAssignment.parentDept', { name: r.requested_parent_department_name }) }}
+              </span>
+            </td>
             <td>{{ statusLabel(r.status) }}</td>
             <td>{{ formatDate(r.created_at) }}</td>
           </tr>
@@ -202,6 +208,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { useTurnstile } from '@/composables/useTurnstile'
 import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
@@ -211,9 +218,12 @@ import {
   getMyJoinRequests,
   searchJoinableDepartments,
   type DepartmentSearchResult,
-  type MyJoinRequest
+  type MyJoinRequest,
 } from '@/api/joinRequests'
 import { getOrganisations, type Organisation } from '@/api/organisations'
+import ParentDepartmentPicker, {
+  type ParentDepartmentPickerValue,
+} from '@/components/auth/ParentDepartmentPicker.vue'
 import { filterOrganisationsForUserPickers } from '@/utils/organisationUserPicker'
 import { localizedBarcodeScannerError } from '@/utils/barcodeScannerErrors'
 import BarcodeScannerPanel from '@/components/common/BarcodeScannerPanel.vue'
@@ -221,6 +231,13 @@ import BarcodeScannerPanel from '@/components/common/BarcodeScannerPanel.vue'
 const route = useRoute()
 const { t, locale } = useI18n()
 const authStore = useAuthStore()
+const {
+  isRequired: turnstileRequired,
+  containerRef: turnstileContainerRef,
+  init: initTurnstile,
+  getToken: getTurnstileToken,
+  reset: resetTurnstile,
+} = useTurnstile()
 const joinCode = ref('')
 const inviteRole = ref('u')
 const departmentQuery = ref('')
@@ -229,7 +246,7 @@ const departmentResults = ref<DepartmentSearchResult[]>([])
 const selectedDepartment = ref<DepartmentSearchResult | null>(null)
 const manualDepartmentName = ref('')
 const manualAffiliation = ref('')
-const manualParentDepartment = ref('')
+const manualParentPick = ref<ParentDepartmentPickerValue | null>(null)
 const manualOrganisationId = ref('')
 const organisations = ref<Organisation[]>([])
 const message = ref('')
@@ -237,7 +254,7 @@ const adminContactModalOpen = ref(false)
 const adminModalOrganisationId = ref('')
 const adminModalDepartmentName = ref('')
 const adminModalAffiliation = ref('')
-const adminModalParentDepartment = ref('')
+const adminModalParentPick = ref<ParentDepartmentPickerValue | null>(null)
 const adminModalMessage = ref('')
 const adminModalLoading = ref(false)
 const adminModalError = ref<string | null>(null)
@@ -257,9 +274,14 @@ let searchTimer: ReturnType<typeof setTimeout> | null = null
 let autoJoinTriggered = false
 
 function statusLabel(status: string): string {
-  if (status === 'approved') return t('pendingAssignment.statusApproved')
+  if (status === 'approved' || status === 'assigned') return t('pendingAssignment.statusApproved')
   if (status === 'rejected') return t('pendingAssignment.statusRejected')
   return t('pendingAssignment.statusOpen')
+}
+
+function requestKindLabel(r: MyJoinRequest): string {
+  if (r.request_kind === 'admin') return t('pendingAssignment.requestKindAdmin')
+  return t('pendingAssignment.requestKindJoin')
 }
 
 function formatDate(iso: string): string {
@@ -331,11 +353,24 @@ async function loadMine() {
   }
 }
 
+function requireTurnstileToken(): string | undefined {
+  if (!turnstileRequired.value) return undefined
+  const token = getTurnstileToken()
+  if (!token) {
+    error.value = t('login.validationCaptcha')
+    return undefined
+  }
+  return token
+}
+
 async function submitRequest() {
   if (!selectedDepartment.value && !joinCode.value.trim()) {
     error.value = t('pendingAssignment.errorSelectOrCode')
     return
   }
+
+  const turnstileToken = requireTurnstileToken()
+  if (turnstileRequired.value && !turnstileToken) return
 
   loading.value = true
   error.value = null
@@ -346,7 +381,8 @@ async function submitRequest() {
       departmentId: selectedDepartment.value?.id,
       joinCode: selectedDepartment.value ? undefined : joinCode.value.trim(),
       message: message.value.trim() || undefined,
-      requestedRole: inviteRole.value
+      requestedRole: inviteRole.value,
+      turnstileToken,
     })
     if (created.auto_joined) {
       await authStore.loadDepartments()
@@ -367,8 +403,16 @@ async function submitRequest() {
     await loadMine()
   } catch (err: any) {
     error.value = err?.response?.data?.error || t('pendingAssignment.errorSendFailed')
+    resetTurnstile()
   } finally {
     loading.value = false
+  }
+}
+
+function parentPayload(pick: ParentDepartmentPickerValue | null) {
+  return {
+    requestedParentDepartmentId: pick?.departmentId || undefined,
+    requestedParentDepartmentName: pick?.departmentName || undefined,
   }
 }
 
@@ -383,6 +427,12 @@ async function submitAdminContactModal() {
     return
   }
 
+  const turnstileToken = requireTurnstileToken()
+  if (turnstileRequired.value && !turnstileToken) {
+    adminModalError.value = t('login.validationCaptcha')
+    return
+  }
+
   adminModalLoading.value = true
   adminModalError.value = null
   try {
@@ -390,19 +440,21 @@ async function submitAdminContactModal() {
       requestedDepartmentName: deptName,
       requestedAffiliation: adminModalAffiliation.value.trim() || undefined,
       requestedOrganisationId: adminModalOrganisationId.value,
-      requestedParentDepartmentName: adminModalParentDepartment.value.trim() || undefined,
-      message: adminModalMessage.value.trim() || undefined
+      ...parentPayload(adminModalParentPick.value),
+      message: adminModalMessage.value.trim() || undefined,
+      turnstileToken,
     })
     success.value = t('pendingAssignment.successTicketSent')
     adminContactModalOpen.value = false
     adminModalOrganisationId.value = ''
     adminModalDepartmentName.value = ''
     adminModalAffiliation.value = ''
-    adminModalParentDepartment.value = ''
+    adminModalParentPick.value = null
     adminModalMessage.value = ''
     await loadMine()
   } catch (err: any) {
     adminModalError.value = err?.response?.data?.error || t('pendingAssignment.errorTicketSend')
+    resetTurnstile()
   } finally {
     adminModalLoading.value = false
   }
@@ -419,6 +471,9 @@ async function submitAdminRequest() {
     return
   }
 
+  const turnstileToken = requireTurnstileToken()
+  if (turnstileRequired.value && !turnstileToken) return
+
   loading.value = true
   error.value = null
   success.value = null
@@ -427,18 +482,20 @@ async function submitAdminRequest() {
       requestedDepartmentName: deptName,
       requestedAffiliation: manualAffiliation.value.trim() || undefined,
       requestedOrganisationId: manualOrganisationId.value,
-      requestedParentDepartmentName: manualParentDepartment.value.trim() || undefined,
-      message: message.value.trim() || undefined
+      ...parentPayload(manualParentPick.value),
+      message: message.value.trim() || undefined,
+      turnstileToken,
     })
     success.value = t('pendingAssignment.successAdminRequest')
     manualOrganisationId.value = ''
     manualDepartmentName.value = ''
     manualAffiliation.value = ''
-    manualParentDepartment.value = ''
+    manualParentPick.value = null
     departmentQuery.value = ''
     departmentResults.value = []
   } catch (err: any) {
     error.value = err?.response?.data?.error || t('pendingAssignment.errorAdminRequest')
+    resetTurnstile()
   } finally {
     loading.value = false
   }
@@ -455,6 +512,9 @@ async function loadOrganisations() {
 
 onMounted(loadMine)
 onMounted(loadOrganisations)
+onMounted(() => {
+  void initTurnstile()
+})
 onMounted(() => {
   const incomingCode = route.query.join_code
   if (typeof incomingCode === 'string' && incomingCode.trim().length > 0) {
@@ -501,6 +561,18 @@ onUnmounted(() => {
 
 <style scoped>
 .pending-page { max-width: 980px; margin: 0 auto; }
+
+.request-org-hint {
+  display: block;
+  font-size: 12px;
+  color: #6b7280;
+  margin-top: 2px;
+}
+
+.turnstile-box {
+  min-height: 65px;
+  margin: 12px 0;
+}
 .pending-card { background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 18px; margin-bottom: 16px; }
 .box { margin: 12px 0; }
 .label { display: block; margin-bottom: 6px; font-weight: 600; color: #374151; }
