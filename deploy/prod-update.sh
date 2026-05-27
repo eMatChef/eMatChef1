@@ -57,22 +57,26 @@ if [[ -f .env ]] && [[ ! -r .env ]]; then
   exit 1
 fi
 
-export HOST_UID="$(id -u)" HOST_GID="$(id -g)"
+# HOST_UID/GID: Compose-.env auf dem Server hat Vorrang (oft 1000:1000), sonst Deploy-User
+if [[ -f .env ]]; then
+  # shellcheck disable=SC1091
+  set -a && source .env && set +a
+fi
+export HOST_UID="${HOST_UID:-$(id -u)}"
+export HOST_GID="${HOST_GID:-$(id -g)}"
 
-# backend/var darf nicht root gehören (sonst cache:clear im Container mit HOST_UID fehl)
+# backend/var muss dem Container-USER gehören (kein sudo — CI/SSH ist non-interactive)
 fix_backend_var_permissions() {
   [[ -d backend/var ]] || return 0
   if chown -R "${HOST_UID}:${HOST_GID}" backend/var 2>/dev/null; then
     chmod -R u+rwX backend/var 2>/dev/null || true
     return 0
   fi
-  if command -v sudo >/dev/null 2>&1; then
-    echo "==> backend/var: chown mit sudo (war nicht ${HOST_UID}:${HOST_GID}) …"
-    sudo chown -R "${HOST_UID}:${HOST_GID}" backend/var
-    sudo chmod -R u+rwX backend/var
-    return 0
-  fi
-  echo "Warnung: backend/var gehört nicht ${HOST_UID}:${HOST_GID} und chown ohne sudo fehlgeschlagen." >&2
+  echo "==> backend/var: Rechte per Docker (root) auf ${HOST_UID}:${HOST_GID} …"
+  docker run --rm -u 0 \
+    -v "${ROOT}/backend/var:/var" \
+    alpine:3.20 \
+    sh -c "chown -R ${HOST_UID}:${HOST_GID} /var && chmod -R u+rwX /var"
 }
 
 reset_symfony_prod_cache() {
