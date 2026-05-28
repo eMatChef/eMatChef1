@@ -2681,6 +2681,7 @@
       "statusDuplicate": "Duplikat",
       "emptyHint": "Laden Sie eine CSV- oder Excel-Datei hoch, oder laden Sie zuerst die Vorlage herunter.",
       "parseEmpty": "Keine Datenzeilen in der Datei gefunden.",
+      "parseEmptyDetail": "Keine importierbaren Zeilen ({lines} Zeilen gelesen). Erkannte Kopfzeile: {headers}. Gemappte Spalten: {mapped}. Bitte die CSV-Vorlage nutzen oder eine Kopfzeile mit «name»/«Artikel» und «qty»/«Menge».",
       "parseSuccess": "{count} Zeilen eingelesen.",
       "parseFailed": "Datei konnte nicht gelesen werden.",
       "validateOk": "Prüfung abgeschlossen – bereit zum Import.",

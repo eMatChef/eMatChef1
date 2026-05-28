@@ -288,9 +288,16 @@ async function onFileSelected(ev: Event) {
   if (!file) return
   fileName.value = file.name
   try {
-    const parsed = await parseImportFile(file)
+    const { rows: parsed, debug } = await parseImportFile(file)
     if (parsed.length === 0) {
-      toast.error(t('settings.materialImport.parseEmpty'))
+      const mapped = debug?.mappedColumns?.length
+        ? debug.mappedColumns.join(', ')
+        : '—'
+      const headers = debug?.headerCells?.filter(Boolean).slice(0, 8).join(', ') || '—'
+      toast.error(
+        t('settings.materialImport.parseEmptyDetail', { headers, mapped, lines: debug?.lineCount ?? 0 }),
+        8000,
+      )
       return
     }
     enrichWithExisting(parsed)
