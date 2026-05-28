@@ -62,8 +62,8 @@
                 <th v-for="col in tableColumnIndices" :key="`map-${col}`" class="mapping-th">
                   <select
                     class="column-field-select"
-                    :class="{ 'column-field-select--mapped': columnAssignments[col] }"
-                    :value="columnAssignments[col] || ''"
+                    :class="{ 'column-field-select--mapped': assignmentAt(col) }"
+                    :value="assignmentAt(col)"
                     @change="onColumnFieldSelect(col, ($event.target as HTMLSelectElement).value)"
                   >
                     <option value="">{{ t('settings.materialImport.mappingColumnSkip') }}</option>
@@ -72,7 +72,7 @@
                       :key="field"
                       :value="field"
                     >
-                      {{ mappingFieldLabel(field) }}{{ field === 'name' ? ' *' : '' }}
+                      {{ mappingFieldShort(field) }}
                     </option>
                   </select>
                 </th>
@@ -89,7 +89,7 @@
                 <td
                   v-for="col in tableColumnIndices"
                   :key="col"
-                  :class="{ 'cell-mapped': columnAssignments[col] }"
+                  :class="{ 'cell-mapped': assignmentAt(col) }"
                 >
                   {{ row[col] ?? '' }}
                 </td>
@@ -98,14 +98,39 @@
           </table>
         </div>
 
+        <div v-if="mappingLivePreview.length > 0" class="mapping-live-preview">
+          <p class="mapping-live-title">{{ t('settings.materialImport.mappingLivePreview') }}</p>
+          <table class="mapping-live-table">
+            <thead>
+              <tr>
+                <th>{{ t('settings.materialImport.colName') }}</th>
+                <th>{{ t('settings.materialImport.colQty') }}</th>
+                <th>{{ t('settings.materialImport.colSupplier') }}</th>
+                <th>{{ t('settings.materialImport.colYear') }}</th>
+                <th>{{ t('settings.materialImport.colPrice') }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="(pr, i) in mappingLivePreview" :key="i">
+                <td>{{ pr.name }}</td>
+                <td>{{ pr.qty }}</td>
+                <td>{{ pr.supplier_name || '—' }}</td>
+                <td>{{ pr.acquired_year || '—' }}</td>
+                <td>{{ pr.unit_price || '—' }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
         <div class="mapping-actions">
-          <button type="button" class="btn-primary" @click="applyColumnMapping">
+          <button type="button" class="btn-primary btn-sm" @click="applyColumnMapping">
             {{ t('settings.materialImport.mappingApply') }}
           </button>
+          <span v-if="previewLoaded" class="mapping-auto-hint">{{ t('settings.materialImport.mappingAutoRefresh') }}</span>
         </div>
       </div>
 
-      <div v-if="rows.length > 0" class="card preview-card">
+      <div v-if="rows.length > 0" class="card preview-card preview-card--compact">
         <div class="preview-toolbar">
           <h2>{{ t('settings.materialImport.previewTitle', { count: rows.length }) }}</h2>
           <div class="toolbar-actions">
@@ -283,6 +308,8 @@ const previewRows = ref<MaterialImportResultRow[]>([])
 const isValidating = ref(false)
 const isImporting = ref(false)
 const showDuplicateDialog = ref(false)
+const previewLoaded = ref(false)
+let mappingRefreshTimer: ReturnType<typeof setTimeout> | null = null
 
 const isBusy = computed(() => isValidating.value || isImporting.value)
 
@@ -325,8 +352,27 @@ const tableColumnIndices = computed(() =>
 
 const sourcePreviewRows = computed(() => {
   if (!rawImport.value) return [] as string[][]
-  return getSourcePreviewRows(rawImport.value.matrix, headerRowIndex.value, 12)
+  return getSourcePreviewRows(rawImport.value.matrix, headerRowIndex.value, 8)
 })
+
+const columnAssignmentsByIndex = computed(() => {
+  const len = tableColumnCount.value
+  const arr = columnAssignments.value
+  return Array.from({ length: len }, (_, i) => arr[i] ?? '')
+})
+
+const mappingLivePreview = computed(() => {
+  if (!rawImport.value || columnMapping.value.name === undefined) return [] as MaterialImportRow[]
+  return parseMatrixWithMapping(
+    rawImport.value.matrix,
+    headerRowIndex.value,
+    columnMapping.value,
+  ).slice(0, 2)
+})
+
+function assignmentAt(col: number): string {
+  return columnAssignmentsByIndex.value[col] || ''
+}
 
 const hasBlockingErrors = computed(() => {
   if (rows.value.some((r) => !r.name.trim() || !(parseInt(r.qty, 10) > 0))) return true
@@ -410,6 +456,13 @@ function mappingFieldLabel(field: MaterialImportColumn): string {
   return t(key)
 }
 
+function mappingFieldShort(field: MaterialImportColumn): string {
+  const key = `settings.materialImport.mappingFieldShort.${field}` as const
+  const short = t(key)
+  if (short !== key) return short
+  return mappingFieldLabel(field)
+}
+
 function syncColumnAssignmentsFromMapping() {
   columnAssignments.value = mappingToColumnAssignments(
     tableColumnCount.value,
@@ -418,8 +471,8 @@ function syncColumnAssignmentsFromMapping() {
 }
 
 function onColumnFieldSelect(colIdx: number, field: string) {
-  const next = [...columnAssignments.value]
-  while (next.length < tableColumnCount.value) next.push('')
+  const len = tableColumnCount.value
+  const next = Array.from({ length: len }, (_, i) => columnAssignmentsByIndex.value[i] ?? '')
   const f = field as ColumnAssignment
   if (f) {
     for (let i = 0; i < next.length; i++) {
@@ -429,16 +482,51 @@ function onColumnFieldSelect(colIdx: number, field: string) {
   next[colIdx] = f
   columnAssignments.value = next
   columnMapping.value = columnAssignmentsToMapping(next)
+  schedulePreviewRefresh()
 }
 
 function onHeaderRowChange() {
   columnMapping.value = buildSuggestedMapping(fileColumnLabels.value)
   syncColumnAssignmentsFromMapping()
+  schedulePreviewRefresh()
 }
 
 function resetSuggestedMapping() {
   columnMapping.value = { ...buildSuggestedMapping(fileColumnLabels.value) }
   syncColumnAssignmentsFromMapping()
+  schedulePreviewRefresh()
+}
+
+function refreshPreviewFromMapping(showToast = false): boolean {
+  if (!rawImport.value) return false
+  if (columnMapping.value.name === undefined) {
+    if (previewLoaded.value) rows.value = []
+    return false
+  }
+  const parsed = parseMatrixWithMapping(
+    rawImport.value.matrix,
+    headerRowIndex.value,
+    columnMapping.value,
+  )
+  if (parsed.length === 0) {
+    if (showToast) toast.error(t('settings.materialImport.parseEmpty'))
+    return false
+  }
+  enrichWithExisting(parsed)
+  rows.value = parsed
+  previewRows.value = []
+  return true
+}
+
+function schedulePreviewRefresh() {
+  if (!previewLoaded.value) return
+  if (mappingRefreshTimer) clearTimeout(mappingRefreshTimer)
+  mappingRefreshTimer = setTimeout(() => {
+    mappingRefreshTimer = null
+    if (refreshPreviewFromMapping(false)) {
+      // stillstehende Vorschau aktualisiert
+    }
+  }, 350)
 }
 
 function applyColumnMapping() {
@@ -447,20 +535,9 @@ function applyColumnMapping() {
     toast.error(t('settings.materialImport.mappingNameRequired'))
     return
   }
-  const parsed = parseMatrixWithMapping(
-    rawImport.value.matrix,
-    headerRowIndex.value,
-    columnMapping.value,
-  )
-  if (parsed.length === 0) {
-    toast.error(t('settings.materialImport.parseEmpty'))
-    return
-  }
-  enrichWithExisting(parsed)
-  rows.value = parsed
-  previewRows.value = []
-  showMappingPanel.value = false
-  toast.success(t('settings.materialImport.parseSuccess', { count: parsed.length }))
+  if (!refreshPreviewFromMapping(true)) return
+  previewLoaded.value = true
+  toast.success(t('settings.materialImport.parseSuccess', { count: rows.value.length }))
 }
 
 function onDownloadTemplate() {
@@ -484,6 +561,7 @@ async function onFileSelected(ev: Event) {
     syncColumnAssignmentsFromMapping()
     rows.value = []
     previewRows.value = []
+    previewLoaded.value = false
     showMappingPanel.value = true
     toast.info(t('settings.materialImport.mappingPleaseMap'))
   } catch (e) {
@@ -568,16 +646,17 @@ onMounted(async () => {
 
 <style scoped>
 .material-import-settings {
-  max-width: 1200px;
+  max-width: 100%;
+  font-size: 0.8125rem;
 }
 
 .settings-header {
-  margin-bottom: 1.5rem;
+  margin-bottom: 0.75rem;
 }
 
 .settings-header h1 {
-  margin: 0 0 0.25rem;
-  font-size: 1.5rem;
+  margin: 0 0 0.15rem;
+  font-size: 1.2rem;
 }
 
 .subtitle {
@@ -608,9 +687,9 @@ onMounted(async () => {
 .card {
   background: #fff;
   border: 1px solid #e5e7eb;
-  border-radius: 12px;
-  padding: 1.25rem;
-  margin-bottom: 1rem;
+  border-radius: 8px;
+  padding: 0.75rem 0.85rem;
+  margin-bottom: 0.65rem;
 }
 
 .actions-card {
@@ -800,13 +879,14 @@ onMounted(async () => {
 }
 
 .mapping-card h2 {
-  margin: 0 0 0.5rem;
-  font-size: 1.125rem;
+  margin: 0 0 0.35rem;
+  font-size: 1rem;
 }
 
-.mapping-hint {
-  margin: 0 0 1rem;
-  font-size: 0.875rem;
+.mapping-hint,
+.mapping-table-hint {
+  margin: 0 0 0.5rem;
+  font-size: 0.75rem;
   color: #6b7280;
 }
 
@@ -818,35 +898,30 @@ onMounted(async () => {
   margin-bottom: 1rem;
 }
 
-.mapping-table-hint {
-  margin: 0 0 0.75rem;
-  font-size: 0.875rem;
-  color: #4b5563;
-}
-
 .source-table-wrap {
-  max-height: 420px;
+  max-height: 280px;
   overflow: auto;
-  margin-bottom: 1rem;
+  margin-bottom: 0.5rem;
   border: 1px solid #e5e7eb;
-  border-radius: 8px;
+  border-radius: 6px;
 }
 
 .source-mapping-table {
   width: max-content;
   min-width: 100%;
   border-collapse: collapse;
-  font-size: 0.8125rem;
+  font-size: 0.75rem;
 }
 
 .source-mapping-table th,
 .source-mapping-table td {
   border: 1px solid #e5e7eb;
-  padding: 0.35rem 0.5rem;
+  padding: 0.2rem 0.35rem;
   vertical-align: top;
-  max-width: 200px;
+  max-width: 120px;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .mapping-dropdown-row th {
@@ -861,8 +936,9 @@ onMounted(async () => {
   font-weight: 500;
   color: #374151;
   position: sticky;
-  top: 2.6rem;
+  top: 1.85rem;
   z-index: 1;
+  font-size: 0.7rem;
 }
 
 .col-letter {
@@ -879,12 +955,12 @@ onMounted(async () => {
 
 .column-field-select {
   width: 100%;
-  min-width: 120px;
-  max-width: 180px;
-  padding: 0.35rem 0.4rem;
+  min-width: 88px;
+  max-width: 130px;
+  padding: 0.2rem 0.25rem;
   border: 1px solid #93c5fd;
-  border-radius: 6px;
-  font-size: 0.8125rem;
+  border-radius: 4px;
+  font-size: 0.7rem;
   background: #fff;
 }
 
@@ -905,8 +981,75 @@ onMounted(async () => {
   background: #ecfdf5;
 }
 
+.mapping-live-preview {
+  margin-bottom: 0.5rem;
+  padding: 0.45rem 0.5rem;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+}
+
+.mapping-live-title {
+  margin: 0 0 0.35rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: #475569;
+}
+
+.mapping-live-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.7rem;
+}
+
+.mapping-live-table th,
+.mapping-live-table td {
+  border: 1px solid #e2e8f0;
+  padding: 0.15rem 0.35rem;
+  text-align: left;
+}
+
+.mapping-live-table th {
+  background: #f1f5f9;
+  font-weight: 600;
+}
+
 .mapping-actions {
   display: flex;
+  flex-wrap: wrap;
+  align-items: center;
   justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+.mapping-auto-hint {
+  font-size: 0.7rem;
+  color: #64748b;
+}
+
+.preview-card--compact {
+  padding: 0.65rem 0.75rem;
+}
+
+.preview-card--compact .preview-toolbar {
+  margin-bottom: 0.5rem;
+}
+
+.preview-card--compact .preview-toolbar h2 {
+  font-size: 0.95rem;
+}
+
+.preview-card--compact .preview-table {
+  font-size: 0.75rem;
+}
+
+.preview-card--compact .cell-input {
+  font-size: 0.75rem;
+  padding: 0.15rem 0.3rem;
+  min-width: 64px;
+}
+
+.preview-card--compact .cell-input-narrow {
+  max-width: 72px;
 }
 </style>
