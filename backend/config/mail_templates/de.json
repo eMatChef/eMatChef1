@@ -43,6 +43,8 @@
       "tpl_pending": "Mailvorlage auth.pending_email_change fehlt.",
       "tpl_dept": "Mailvorlage department.invite fehlt.",
       "tpl_dept_member": "Mailvorlage department.member_added fehlt.",
+      "tpl_join_mgr": "Mailvorlage join_request.manager_notify fehlt.",
+      "tpl_admin_join_mgr": "Mailvorlage admin_join_request.manager_notify fehlt.",
       "tpl_pwd": "Mailvorlage auth.password_reset_code fehlt.",
       "html_not_found": "Mail-Template nicht gefunden: {{file}}",
       "html_unreadable": "Mail-Template konnte nicht geladen werden: {{file}}"
@@ -80,6 +82,16 @@
       "title": "Department - Neu zugewiesen",
       "description": "Wird versendet, wenn ein bestehender Benutzer direkt einem Department hinzugefuegt wird.",
       "body_preview": "Hallo {{recipient_name}},\n\n{{adder_name}} hat dich dem Department \"{{department_name}}\" zugewiesen.\nDeine Rolle: {{role_label}}\n\nApp oeffnen:\n{{app_url}}"
+    },
+    "join_request.manager_notify": {
+      "title": "Department - Join-Anfrage (MW/DC)",
+      "description": "Wird an Materialchef/Departmentchef gesendet, wenn jemand per Suche einer bestehenden Abteilung beitreten moechte.",
+      "body_preview": "Neue Join-Anfrage von {{requester_name}} fuer {{department_name}}."
+    },
+    "admin_join_request.manager_notify": {
+      "title": "Support - Neue Abteilungs-Anfrage",
+      "description": "Wird an Org-Admins und ggf. uebergeordnete Abteilungsleitung gesendet, wenn keine passende Abteilung gefunden wurde.",
+      "body_preview": "Neuer Antrag von {{requester_name}} fuer Abteilung {{requested_department_name}}."
     },
     "public.found_item_contact": {
       "title": "Oeffentlich - Fund-Hinweis",
@@ -140,6 +152,30 @@
       "cta_label": "eMatChef oeffnen",
       "link_hint": "Falls der Button nicht funktioniert, nutze diesen Link:",
       "footer_note": "Falls du diese Zuweisung nicht erwartest, wende dich an deine Abteilungsleitung."
+    }
+  },
+  "join_request.manager_notify": {
+    "subject": "Neue Join-Anfrage: {{department_name}}",
+    "text_body": "Hallo {{recipient_name}},\n\n{{requester_name}} ({{requester_email}}) moechte der Abteilung \"{{department_name}}\" ({{organisation_name}}) beitreten.\n{{message_line}}\nBitte pruefe und bestaetige die Anfrage in eMatChef:\n{{review_url}}\n\nDu erhaeltst diese Mail, weil du Materialchef oder Departmentchef dieser Abteilung bist.",
+    "html": {
+      "greeting_word": "Hallo",
+      "banner_title": "Neue Join-Anfrage",
+      "lead_template": "<p style=\"margin:0 0 12px 0;font-size:15px;line-height:1.5;\"><strong>{{requester_name}}</strong> ({{requester_email}}) moechte der Abteilung <strong>{{department_name}}</strong> ({{organisation_name}}) beitreten.</p>",
+      "cta_label": "Anfragen pruefen",
+      "link_hint": "Falls der Button nicht funktioniert, nutze diesen Link:",
+      "footer_note": "Du erhaeltst diese Mail, weil du Materialchef oder Departmentchef dieser Abteilung bist."
+    }
+  },
+  "admin_join_request.manager_notify": {
+    "subject": "Neuer Abteilungs-Antrag: {{requested_department_name}}",
+    "text_body": "Hallo {{recipient_name}},\n\n{{requester_name}} ({{requester_email}}) hat einen Antrag fuer eine neue oder unbekannte Abteilung gestellt.\n\nGewuenschte Abteilung: {{requested_department_name}}\nOrganisation: {{organisation_name}}\n{{parent_line}}{{message_line}}\nBitte bearbeite den Antrag in eMatChef:\n{{review_url}}",
+    "html": {
+      "greeting_word": "Hallo",
+      "banner_title": "Neuer Abteilungs-Antrag",
+      "lead_template": "<p style=\"margin:0 0 12px 0;font-size:15px;line-height:1.5;\"><strong>{{requester_name}}</strong> ({{requester_email}}) hat einen Antrag fuer die Abteilung <strong>{{requested_department_name}}</strong> (Organisation: {{organisation_name}}) gestellt.</p>",
+      "cta_label": "Antrag bearbeiten",
+      "link_hint": "Falls der Button nicht funktioniert, nutze diesen Link:",
+      "footer_note": "Du erhaeltst diese Mail, weil du Organisationen oder Support-Anfragen verwalten darfst."
     }
   },
   "department.invite": {

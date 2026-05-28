@@ -1,5 +1,6 @@
 <template>
   <BlogPageEditor v-if="slug === 'blog'" />
+  <LandingPageEditor v-else-if="slug === 'landing'" />
   <div v-else class="site-page-editor">
     <header class="editor-head">
       <h1>{{ label }}</h1>
@@ -18,6 +19,7 @@ import { computed, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import BlogPageEditor from '@/components/site/BlogPageEditor.vue'
+import LandingPageEditor from '@/components/site/LandingPageEditor.vue'
 import { SITE_PAGE_LABELS, type SitePageSlug } from '@/config/sitePageEditorFields'
 import { getAdminSitePage, putAdminSitePage } from '@/api/sitePages'
 
@@ -48,7 +50,7 @@ const updatedAtDisplay = computed(() => {
 async function load() {
   error.value = null
   const s = slug.value
-  if (!s || s === 'blog') return
+  if (!s || s === 'blog' || s === 'landing') return
   try {
     const data = await getAdminSitePage(s)
     jsonText.value = JSON.stringify(data.content, null, 2)
