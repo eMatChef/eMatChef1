@@ -8,6 +8,7 @@ export interface MaterialImportApiRow {
   qty: number
   color?: string | null
   material?: string | null
+  manufacturer?: string | null
   size_length?: string | null
   size_width?: string | null
   size_height?: string | null

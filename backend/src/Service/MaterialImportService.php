@@ -239,6 +239,7 @@ class MaterialImportService
             'description' => $this->nullableString($row['notes'] ?? $row['description'] ?? null),
             'color' => $this->nullableString($row['color'] ?? null),
             'material' => $this->nullableString($row['material'] ?? null),
+            'manufacturer' => trim((string) ($row['manufacturer'] ?? '')),
             'size_length' => $this->normalizeSize($row['size_length'] ?? null),
             'size_width' => $this->normalizeSize($row['size_width'] ?? null),
             'size_height' => $this->normalizeSize($row['size_height'] ?? null),
@@ -412,6 +413,9 @@ class MaterialImportService
         if ($parsed['material']) {
             $material->setMaterial($parsed['material']);
         }
+        if ($parsed['manufacturer'] !== '') {
+            $material->setManufacturer($parsed['manufacturer']);
+        }
         if ($parsed['size_length']) {
             $material->setSizeLength($parsed['size_length']);
         }
@@ -455,6 +459,10 @@ class MaterialImportService
         ?Address $supplier,
         ?User $actor,
     ): void {
+        if ($parsed['manufacturer'] !== '' && !$material->getManufacturer()) {
+            $material->setManufacturer($parsed['manufacturer']);
+        }
+
         $acquiredOn = new \DateTime($parsed['acquired_on']);
         $batch = new MaterialBatch();
         $batch->setId(IdGenerator::generate13('ba', $acquiredOn->format('Y')));

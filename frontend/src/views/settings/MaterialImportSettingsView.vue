@@ -105,6 +105,7 @@
               <tr>
                 <th>{{ t('settings.materialImport.colName') }}</th>
                 <th>{{ t('settings.materialImport.colQty') }}</th>
+                <th>{{ t('settings.materialImport.colManufacturer') }}</th>
                 <th>{{ t('settings.materialImport.colSupplier') }}</th>
                 <th>{{ t('settings.materialImport.colYear') }}</th>
                 <th>{{ t('settings.materialImport.colPrice') }}</th>
@@ -114,6 +115,7 @@
               <tr v-for="(pr, i) in mappingLivePreview" :key="i">
                 <td>{{ pr.name }}</td>
                 <td>{{ pr.qty }}</td>
+                <td>{{ pr.manufacturer || '—' }}</td>
                 <td>{{ pr.supplier_name || '—' }}</td>
                 <td>{{ pr.acquired_year || '—' }}</td>
                 <td>{{ pr.unit_price || '—' }}</td>
@@ -167,6 +169,7 @@
                 <th>{{ t('settings.materialImport.colName') }}</th>
                 <th>{{ t('settings.materialImport.colQty') }}</th>
                 <th>{{ t('settings.materialImport.colLength') }}</th>
+                <th>{{ t('settings.materialImport.colManufacturer') }}</th>
                 <th>{{ t('settings.materialImport.colSupplier') }}</th>
                 <th>{{ t('settings.materialImport.colYear') }}</th>
                 <th>{{ t('settings.materialImport.colPrice') }}</th>
@@ -187,6 +190,7 @@
                 <td><input v-model="row.name" class="cell-input" type="text" /></td>
                 <td><input v-model="row.qty" class="cell-input cell-input-narrow" type="number" min="1" /></td>
                 <td><input v-model="row.size_length" class="cell-input cell-input-narrow" type="text" :placeholder="t('settings.materialImport.lengthPlaceholder')" /></td>
+                <td><input v-model="row.manufacturer" class="cell-input" type="text" /></td>
                 <td class="supplier-cell">
                   <input
                     v-model="row.supplier_name"
@@ -646,7 +650,10 @@ onMounted(async () => {
 
 <style scoped>
 .material-import-settings {
+  width: 100%;
   max-width: 100%;
+  min-width: 0;
+  overflow-x: hidden;
   font-size: 0.8125rem;
 }
 
@@ -754,6 +761,8 @@ onMounted(async () => {
 }
 
 .table-wrap {
+  max-width: 100%;
+  min-width: 0;
   overflow-x: auto;
 }
 
@@ -878,6 +887,11 @@ onMounted(async () => {
   font-size: 0.875rem;
 }
 
+.mapping-card {
+  min-width: 0;
+  overflow-x: hidden;
+}
+
 .mapping-card h2 {
   margin: 0 0 0.35rem;
   font-size: 1rem;
@@ -899,16 +913,21 @@ onMounted(async () => {
 }
 
 .source-table-wrap {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
   max-height: 280px;
-  overflow: auto;
+  overflow-x: auto;
+  overflow-y: auto;
   margin-bottom: 0.5rem;
   border: 1px solid #e5e7eb;
   border-radius: 6px;
+  -webkit-overflow-scrolling: touch;
 }
 
 .source-mapping-table {
   width: max-content;
-  min-width: 100%;
   border-collapse: collapse;
   font-size: 0.75rem;
 }
@@ -918,10 +937,18 @@ onMounted(async () => {
   border: 1px solid #e5e7eb;
   padding: 0.2rem 0.35rem;
   vertical-align: top;
-  max-width: 120px;
+  min-width: 88px;
+  max-width: 200px;
+  white-space: nowrap;
+}
+
+.source-mapping-table td {
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
+}
+
+.mapping-th {
+  min-width: 120px;
 }
 
 .mapping-dropdown-row th {

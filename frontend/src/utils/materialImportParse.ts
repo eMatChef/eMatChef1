@@ -12,6 +12,7 @@ export const MATERIAL_IMPORT_COLUMNS = [
   'size_unit',
   'color',
   'material',
+  'manufacturer',
   'supplier',
   'acquired_year',
   'unit_price',
@@ -31,6 +32,7 @@ export const IMPORT_UI_FIELDS: MaterialImportColumn[] = [
   'size_unit',
   'color',
   'material',
+  'manufacturer',
   'supplier',
   'acquired_year',
   'unit_price',
@@ -109,6 +111,7 @@ export interface MaterialImportRow {
   size_unit: string
   color: string
   material: string
+  manufacturer: string
   supplier_name: string
   supplier_id: string
   acquired_year: string
@@ -155,8 +158,14 @@ const HEADER_ALIASES: Record<string, MaterialImportColumn> = {
   color: 'color',
   farbe: 'color',
   material: 'material',
+  materialart: 'material',
+  manufacturer: 'manufacturer',
+  hersteller: 'manufacturer',
+  marke: 'manufacturer',
+  brand: 'manufacturer',
   supplier: 'supplier',
   lieferant: 'supplier',
+  gekauft_von: 'supplier',
   acquired_year: 'acquired_year',
   beschaffung: 'acquired_year',
   beschafft: 'acquired_year',
@@ -382,6 +391,7 @@ function rowFromCells(cells: string[], headerMap: (MaterialImportColumn | null)[
     size_unit: sizeUnit,
     color: (data.color ?? '').trim(),
     material: (data.material ?? '').trim(),
+    manufacturer: (data.manufacturer ?? '').trim(),
     supplier_name: (data.supplier ?? '').trim(),
     supplier_id: '',
     acquired_year: year,
@@ -515,6 +525,7 @@ export function rowsToApiPayload(rows: MaterialImportRow[]) {
     qty: parseInt(r.qty, 10) || 0,
     color: r.color || null,
     material: r.material || null,
+    manufacturer: r.manufacturer || null,
     size_length: r.size_length || null,
     size_width: r.size_width || null,
     size_height: r.size_height || null,

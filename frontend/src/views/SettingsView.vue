@@ -138,6 +138,8 @@ const visibleMenuItems = computed(() => {
 .settings-view {
   padding: 24px;
   height: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
 }
 
 .settings-container {
@@ -146,6 +148,7 @@ const visibleMenuItems = computed(() => {
   height: 100%;
   max-width: 1400px;
   margin: 0 auto;
+  min-width: 0;
 }
 
 .settings-menu {
@@ -234,6 +237,8 @@ const visibleMenuItems = computed(() => {
 
 .settings-content {
   flex: 1;
+  min-width: 0;
+  overflow-x: hidden;
   background: white;
   border-radius: 8px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
