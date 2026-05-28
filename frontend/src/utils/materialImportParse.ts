@@ -20,6 +20,27 @@ export const MATERIAL_IMPORT_COLUMNS = [
 
 export type MaterialImportColumn = (typeof MATERIAL_IMPORT_COLUMNS)[number]
 
+/** Felder, die in der Zuordnungs-UI wählbar sind. */
+export const IMPORT_UI_FIELDS: MaterialImportColumn[] = [
+  'name',
+  'qty',
+  'unit',
+  'size_length',
+  'size_width',
+  'size_height',
+  'size_unit',
+  'color',
+  'material',
+  'supplier',
+  'acquired_year',
+  'unit_price',
+  'notes',
+]
+
+export type ColumnMapping = Partial<Record<MaterialImportColumn, number>>
+
+const UNMAPPED = -1
+
 /** Nur Jahr angegeben: Monat/Tag vom Importzeitpunkt (heute), Jahr aus der Datei. */
 export function acquiredDateFromYear(yearStr: string): string {
   const year = parseInt(yearStr, 10)
@@ -53,10 +74,16 @@ export interface MaterialImportRow {
   unit_price: string
   notes: string
   duplicate_action: 'add_batch' | 'skip' | 'create'
-  /** Client-seitig: existierendes Material */
   _existingMaterialId?: string | null
   _existingMaterialName?: string | null
   _parseWarnings?: string[]
+}
+
+export interface ImportFileRaw {
+  matrix: string[][]
+  headerRowIndex: number
+  columnLabels: string[]
+  suggestedMapping: ColumnMapping
 }
 
 const HEADER_ALIASES: Record<string, MaterialImportColumn> = {
@@ -67,6 +94,7 @@ const HEADER_ALIASES: Record<string, MaterialImportColumn> = {
   quantity: 'qty',
   unit: 'unit',
   einheit: 'unit',
+  stk: 'unit',
   size_length: 'size_length',
   laenge: 'size_length',
   länge: 'size_length',
@@ -89,14 +117,16 @@ const HEADER_ALIASES: Record<string, MaterialImportColumn> = {
   lieferant: 'supplier',
   acquired_year: 'acquired_year',
   beschaffung: 'acquired_year',
+  beschafft: 'acquired_year',
   jahr: 'acquired_year',
   year: 'acquired_year',
-  acquired_on: 'acquired_year',
   unit_price: 'unit_price',
   preis: 'unit_price',
   'à': 'unit_price',
+  a: 'unit_price',
   stueckpreis: 'unit_price',
   stückpreis: 'unit_price',
+  total: 'unit_price',
   notes: 'notes',
   zusatz: 'notes',
   bemerkung: 'notes',
@@ -113,7 +143,7 @@ function normalizeHeader(cell: string): string {
     .replace(/\s+/g, '_')
 }
 
-function cellToString(value: unknown): string {
+export function cellToString(value: unknown): string {
   if (value == null || value === '') return ''
   if (value instanceof Date) {
     if (!Number.isNaN(value.getTime())) {
@@ -133,8 +163,7 @@ function scoreHeaderRow(cells: string[]): number {
   return score
 }
 
-/** Erste Zeile mit erkannten Spaltenköpfen (z. B. Zeile 2 bei Materialliste mit Titelzeile). */
-function findHeaderRowIndex(matrix: string[][]): number {
+export function findHeaderRowIndex(matrix: string[][]): number {
   const limit = Math.min(matrix.length, 30)
   let bestIdx = 0
   let bestScore = 0
@@ -148,20 +177,7 @@ function findHeaderRowIndex(matrix: string[][]): number {
   return bestScore >= 1 ? bestIdx : 0
 }
 
-function buildPositionalHeaderMap(columnCount: number): (MaterialImportColumn | null)[] {
-  const map: (MaterialImportColumn | null)[] = []
-  for (let i = 0; i < columnCount; i++) {
-    map.push(MATERIAL_IMPORT_COLUMNS[i] ?? null)
-  }
-  return map
-}
-
-function headerMapHasName(headerMap: (MaterialImportColumn | null)[]): boolean {
-  return headerMap.some((c) => c === 'name')
-}
-
-/** Mehrzeilige Köpfe (Titel + Unterspalten): pro Spalte die unterste nicht-leere Bezeichnung. */
-function mergeMultiRowHeaders(matrix: string[][], headerStartIdx: number, depth = 3): string[] {
+export function mergeMultiRowHeaders(matrix: string[][], headerStartIdx: number, depth = 3): string[] {
   const end = Math.min(matrix.length, headerStartIdx + depth)
   let maxCols = 0
   for (let r = headerStartIdx; r < end; r++) {
@@ -179,20 +195,51 @@ function mergeMultiRowHeaders(matrix: string[][], headerStartIdx: number, depth 
   return merged
 }
 
-function resolveHeaderMap(matrix: string[][], headerIdx: number): (MaterialImportColumn | null)[] {
-  const merged = mergeMultiRowHeaders(matrix, headerIdx)
-  let headerMap = mapHeaders(merged)
-  if (!headerMapHasName(headerMap) && headerIdx + 1 < matrix.length) {
-    const merged2 = mergeMultiRowHeaders(matrix, headerIdx, 4)
-    headerMap = mapHeaders(merged2)
-  }
-  if (!headerMapHasName(headerMap)) {
-    const sampleData = matrix[headerIdx + 1] || matrix[headerIdx + 2] || []
-    if (sampleData.length >= 2 && cellToString(sampleData[0]) !== '') {
-      return buildPositionalHeaderMap(Math.max(merged.length, sampleData.length))
+export function getColumnLabels(matrix: string[][], headerRowIndex: number): string[] {
+  return mergeMultiRowHeaders(matrix, headerRowIndex)
+}
+
+export function buildSuggestedMapping(columnLabels: string[]): ColumnMapping {
+  const mapping: ColumnMapping = {}
+  columnLabels.forEach((label, idx) => {
+    const key = normalizeHeader(label)
+    const field = key ? HEADER_ALIASES[key] : undefined
+    if (field && mapping[field] === undefined) {
+      mapping[field] = idx
+    }
+  })
+  return mapping
+}
+
+export function columnMappingToHeaderMap(
+  columnCount: number,
+  mapping: ColumnMapping,
+): (MaterialImportColumn | null)[] {
+  const map: (MaterialImportColumn | null)[] = Array.from({ length: columnCount }, () => null)
+  for (const field of IMPORT_UI_FIELDS) {
+    const idx = mapping[field]
+    if (typeof idx === 'number' && idx >= 0 && idx < columnCount) {
+      map[idx] = field
     }
   }
-  return headerMap
+  return map
+}
+
+export function excelColumnLetter(index: number): string {
+  let n = index + 1
+  let s = ''
+  while (n > 0) {
+    const rem = (n - 1) % 26
+    s = String.fromCharCode(65 + rem) + s
+    n = Math.floor((n - 1) / 26)
+  }
+  return s
+}
+
+export function formatFileColumnOption(index: number, label: string): string {
+  const letter = excelColumnLetter(index)
+  const name = label.trim() || `Spalte ${index + 1}`
+  return `${letter}: ${name}`
 }
 
 function detectDelimiter(line: string): string {
@@ -227,11 +274,35 @@ function parseCsvLine(line: string, delimiter: string): string[] {
   return out.map((c) => c.trim())
 }
 
-function mapHeaders(headerCells: string[]): (MaterialImportColumn | null)[] {
-  return headerCells.map((h) => {
-    const key = normalizeHeader(h)
-    return HEADER_ALIASES[key] ?? null
-  })
+function parseYearField(raw: string): { year: string; acquiredOn: string } {
+  const s = raw.trim()
+  if (!s) return { year: '', acquiredOn: '' }
+
+  const iso = s.match(/^(\d{4})-(\d{2})-(\d{2})/)
+  if (iso) {
+    return { year: iso[1], acquiredOn: `${iso[1]}-${iso[2]}-${iso[3]}` }
+  }
+
+  if (/^\d{4}$/.test(s)) {
+    return { year: s, acquiredOn: acquiredDateFromYear(s) }
+  }
+
+  const yearMatch = s.match(/\b(19|20)\d{2}\b/)
+  if (yearMatch) {
+    const year = yearMatch[0]
+    return { year, acquiredOn: acquiredDateFromYear(year) }
+  }
+
+  return { year: s.slice(0, 4), acquiredOn: '' }
+}
+
+function normalizePriceDisplay(raw: string): string {
+  let s = raw.trim()
+  if (!s) return ''
+  s = s.replace(/\s*\/.*$/i, '')
+  s = s.replace(/chf|fr\.?/gi, '').replace(/\s/g, '').replace(',', '.')
+  const num = s.replace(/[^0-9.]/g, '')
+  return num || raw.trim()
 }
 
 function rowFromCells(cells: string[], headerMap: (MaterialImportColumn | null)[], rowIndex: number): MaterialImportRow | null {
@@ -256,13 +327,7 @@ function rowFromCells(cells: string[], headerMap: (MaterialImportColumn | null)[
   const normalizedWidth = normalizeMaterialMetricInput((data.size_width ?? '').trim(), 'cm') ?? (data.size_width ?? '').trim()
   const normalizedHeight = normalizeMaterialMetricInput((data.size_height ?? '').trim(), 'cm') ?? (data.size_height ?? '').trim()
 
-  const year = (data.acquired_year ?? '').trim()
-  let acquiredOn = ''
-  if (/^\d{4}-\d{2}-\d{2}$/.test(year)) {
-    acquiredOn = year
-  } else if (/^\d{4}$/.test(year)) {
-    acquiredOn = acquiredDateFromYear(year)
-  }
+  const { year, acquiredOn } = parseYearField(data.acquired_year ?? '')
 
   return {
     row_index: rowIndex,
@@ -277,19 +342,18 @@ function rowFromCells(cells: string[], headerMap: (MaterialImportColumn | null)[
     material: (data.material ?? '').trim(),
     supplier_name: (data.supplier ?? '').trim(),
     supplier_id: '',
-    acquired_year: /^\d{4}$/.test(year) ? year : year.slice(0, 4),
+    acquired_year: year,
     acquired_on: acquiredOn,
-    unit_price: (data.unit_price ?? '').trim(),
+    unit_price: normalizePriceDisplay(data.unit_price ?? ''),
     notes: (data.notes ?? '').trim(),
     duplicate_action: 'add_batch',
   }
 }
 
-function dataStartAfterHeader(matrix: string[][], headerIdx: number): number {
+function dataStartAfterHeader(matrix: string[][], headerIdx: number, headerMap: (MaterialImportColumn | null)[]): number {
   let start = headerIdx + 1
-  const mergedOnce = mapHeaders(mergeMultiRowHeaders(matrix, headerIdx))
-  const nameCols = mergedOnce.map((c, i) => (c === 'name' ? i : -1)).filter((i) => i >= 0)
-  while (start < matrix.length && start < headerIdx + 4) {
+  const nameCols = headerMap.map((c, i) => (c === 'name' ? i : -1)).filter((i) => i >= 0)
+  while (start < matrix.length && start < headerIdx + 5) {
     const row = matrix[start] || []
     const first = cellToString(row[0])
     if (!first) {
@@ -310,15 +374,24 @@ function dataStartAfterHeader(matrix: string[][], headerIdx: number): number {
   return start
 }
 
-function parseMatrix(matrix: string[][]): MaterialImportRow[] {
+/** Matrix mit manueller Spaltenzuordnung in Import-Zeilen umwandeln. */
+export function parseMatrixWithMapping(
+  matrix: string[][],
+  headerRowIndex: number,
+  mapping: ColumnMapping,
+): MaterialImportRow[] {
   const normalized = matrix.map((row) => (row || []).map((c) => cellToString(c)))
   const nonEmptyRows = normalized.filter((row) => row.some((c) => c !== ''))
   if (nonEmptyRows.length < 2) return []
 
-  const headerIdx = findHeaderRowIndex(nonEmptyRows)
-  const headerMap = resolveHeaderMap(nonEmptyRows, headerIdx)
-  const dataStart = dataStartAfterHeader(nonEmptyRows, headerIdx)
+  const colCount = Math.max(
+    ...nonEmptyRows.slice(headerRowIndex, headerRowIndex + 4).map((r) => r.length),
+    0,
+  )
+  const headerMap = columnMappingToHeaderMap(colCount, mapping)
+  if (!headerMap.some((c) => c === 'name')) return []
 
+  const dataStart = dataStartAfterHeader(nonEmptyRows, headerRowIndex, headerMap)
   const rows: MaterialImportRow[] = []
   for (let i = dataStart; i < nonEmptyRows.length; i++) {
     const row = rowFromCells(nonEmptyRows[i], headerMap, i)
@@ -327,42 +400,17 @@ function parseMatrix(matrix: string[][]): MaterialImportRow[] {
   return rows
 }
 
-export function parseCsvText(text: string): MaterialImportRow[] {
-  const normalized = text.replace(/^\uFEFF/, '')
-  let lines = normalized.split(/\r?\n/).filter((l) => l.trim() !== '')
-  if (lines.length < 2) return []
-
-  // Excel-Europe: erste Zeile "sep=;"
-  if (/^sep\s*=/i.test(lines[0].trim())) {
-    lines = lines.slice(1)
-    if (lines.length < 2) return []
-  }
-
-  const delimiter = detectDelimiter(lines[0])
-  const matrix = lines.map((line) => parseCsvLine(line, delimiter))
-  return parseMatrix(matrix)
-}
-
-export interface ParseImportFileResult {
-  rows: MaterialImportRow[]
-  /** Kurzinfo für Fehlermeldungen */
-  debug?: {
-    headerRowIndex: number
-    headerCells: string[]
-    mappedColumns: string[]
-    lineCount: number
-  }
-}
-
-export async function parseImportFile(file: File): Promise<ParseImportFileResult> {
-  const name = file.name.toLowerCase()
+export async function readImportMatrixFromFile(file: File): Promise<ImportFileRaw> {
   let matrix: string[][] = []
 
+  const name = file.name.toLowerCase()
   if (name.endsWith('.xlsx') || name.endsWith('.xls')) {
     const buffer = await file.arrayBuffer()
     const workbook = XLSX.read(buffer, { type: 'array', cellDates: true })
     const sheetName = workbook.SheetNames[0]
-    if (!sheetName) return { rows: [] }
+    if (!sheetName) {
+      return { matrix: [], headerRowIndex: 0, columnLabels: [], suggestedMapping: {} }
+    }
     const sheet = workbook.Sheets[sheetName]
     const raw = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, defval: '' })
     matrix = raw.map((row) => (Array.isArray(row) ? row : []).map((c) => cellToString(c)))
@@ -380,19 +428,40 @@ export async function parseImportFile(file: File): Promise<ParseImportFileResult
   }
 
   const normalized = matrix.map((row) => (row || []).map((c) => cellToString(c)))
-  const nonEmptyRows = normalized.filter((row) => row.some((c) => c !== ''))
-  const headerIdx = findHeaderRowIndex(nonEmptyRows)
-  const headerCells = mergeMultiRowHeaders(nonEmptyRows, headerIdx)
-  const headerMap = resolveHeaderMap(nonEmptyRows, headerIdx)
-  const rows = parseMatrix(normalized)
+  const nonEmpty = normalized.filter((row) => row.some((c) => c !== ''))
+  const headerRowIndex = findHeaderRowIndex(nonEmpty)
+  const columnLabels = getColumnLabels(nonEmpty, headerRowIndex)
+  const suggestedMapping = buildSuggestedMapping(columnLabels)
 
+  return {
+    matrix: normalized,
+    headerRowIndex,
+    columnLabels,
+    suggestedMapping,
+  }
+}
+
+export interface ParseImportFileResult {
+  rows: MaterialImportRow[]
+  debug?: {
+    headerRowIndex: number
+    headerCells: string[]
+    mappedColumns: string[]
+    lineCount: number
+  }
+}
+
+/** Automatische Zuordnung (Vorlage mit passenden Köpfen). */
+export async function parseImportFile(file: File): Promise<ParseImportFileResult> {
+  const raw = await readImportMatrixFromFile(file)
+  const rows = parseMatrixWithMapping(raw.matrix, raw.headerRowIndex, raw.suggestedMapping)
   return {
     rows,
     debug: {
-      headerRowIndex: headerIdx,
-      headerCells,
-      mappedColumns: headerMap.filter((c): c is MaterialImportColumn => c != null),
-      lineCount: nonEmptyRows.length,
+      headerRowIndex: raw.headerRowIndex,
+      headerCells: raw.columnLabels,
+      mappedColumns: Object.keys(raw.suggestedMapping),
+      lineCount: raw.matrix.filter((r) => r.some((c) => c)).length,
     },
   }
 }
@@ -427,3 +496,5 @@ export function downloadTemplateCsv(baseUrl = '') {
   a.click()
   a.remove()
 }
+
+export { UNMAPPED as COLUMN_UNMAPPED }

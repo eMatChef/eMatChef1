@@ -35,10 +35,67 @@
 
       <p class="hint">{{ t('settings.materialImport.uploadHint') }}</p>
 
+      <div v-if="showMappingPanel && rawImport" class="card mapping-card">
+        <h2>{{ t('settings.materialImport.mappingTitle') }}</h2>
+        <p class="mapping-hint">{{ t('settings.materialImport.mappingHint') }}</p>
+
+        <div class="mapping-row-header">
+          <label>
+            {{ t('settings.materialImport.headerRowLabel') }}
+            <select v-model.number="headerRowIndex" class="form-select-sm" @change="onHeaderRowChange">
+              <option v-for="n in headerRowOptions" :key="n" :value="n">
+                {{ t('settings.materialImport.headerRowOption', { n: n + 1 }) }}
+              </option>
+            </select>
+          </label>
+          <button type="button" class="btn-secondary btn-sm" @click="resetSuggestedMapping">
+            {{ t('settings.materialImport.mappingAutoDetect') }}
+          </button>
+        </div>
+
+        <div class="mapping-grid">
+          <div v-for="field in importUiFields" :key="field" class="mapping-field-row">
+            <span class="mapping-field-label">
+              {{ mappingFieldLabel(field) }}
+              <span v-if="field === 'name'" class="required">*</span>
+            </span>
+            <select
+              class="mapping-select"
+              :value="mappingSelectValue(field)"
+              @change="onMappingSelect(field, ($event.target as HTMLSelectElement).value)"
+            >
+              <option :value="COLUMN_UNMAPPED">{{ t('settings.materialImport.mappingNone') }}</option>
+              <option
+                v-for="(label, colIdx) in fileColumnLabels"
+                :key="colIdx"
+                :value="colIdx"
+              >
+                {{ formatFileColumnOption(colIdx, label) }}
+              </option>
+            </select>
+            <span v-if="mappingSample(field)" class="mapping-sample">{{ mappingSample(field) }}</span>
+          </div>
+        </div>
+
+        <div class="mapping-actions">
+          <button type="button" class="btn-primary" @click="applyColumnMapping">
+            {{ t('settings.materialImport.mappingApply') }}
+          </button>
+        </div>
+      </div>
+
       <div v-if="rows.length > 0" class="card preview-card">
         <div class="preview-toolbar">
           <h2>{{ t('settings.materialImport.previewTitle', { count: rows.length }) }}</h2>
           <div class="toolbar-actions">
+            <button
+              v-if="rawImport"
+              type="button"
+              class="btn-secondary btn-sm"
+              @click="showMappingPanel = true"
+            >
+              {{ t('settings.materialImport.mappingEdit') }}
+            </button>
             <label class="duplicate-default">
               {{ t('settings.materialImport.duplicateDefault') }}
               <select v-model="defaultDuplicateAction" class="form-select-sm">
@@ -163,11 +220,20 @@ import { getMaterials, type Material } from '@/api/materials'
 import { getAddresses, type Address } from '@/api/addresses'
 import { importMaterials, type MaterialImportResultRow, type MaterialImportDuplicateAction } from '@/api/materialImport'
 import {
-  parseImportFile,
   rowsToApiPayload,
   downloadTemplateCsv,
   acquiredDateFromYear,
+  readImportMatrixFromFile,
+  parseMatrixWithMapping,
+  buildSuggestedMapping,
+  getColumnLabels,
+  formatFileColumnOption,
+  IMPORT_UI_FIELDS,
+  COLUMN_UNMAPPED,
   type MaterialImportRow,
+  type MaterialImportColumn,
+  type ColumnMapping,
+  type ImportFileRaw,
 } from '@/utils/materialImportParse'
 
 const GLOBAL_SUPPLIER_DEPARTMENT_ID = 'GLOBAL000000'
@@ -179,6 +245,11 @@ const toast = useToast()
 const departmentId = computed(() => route.params.departmentId as string)
 const activeTab = ref<'import' | 'export'>('import')
 const rows = ref<MaterialImportRow[]>([])
+const rawImport = ref<ImportFileRaw | null>(null)
+const showMappingPanel = ref(false)
+const headerRowIndex = ref(0)
+const columnMapping = ref<ColumnMapping>({})
+const importUiFields = IMPORT_UI_FIELDS
 const fileName = ref('')
 const materials = ref<Material[]>([])
 const supplierOptions = ref<Address[]>([])
@@ -200,6 +271,18 @@ const previewByIndex = computed(() => {
 })
 
 const duplicateCount = computed(() => rows.value.filter((r) => r._existingMaterialId).length)
+
+const fileColumnLabels = computed(() => {
+  if (!rawImport.value) return [] as string[]
+  return getColumnLabels(rawImport.value.matrix, headerRowIndex.value)
+})
+
+const headerRowOptions = computed(() => {
+  const len = rawImport.value?.matrix.filter((r) => r.some((c) => c)).length ?? 0
+  return Array.from({ length: Math.min(Math.max(len, 1), 25) }, (_, i) => i)
+})
+
+const firstDataRowIndex = computed(() => headerRowIndex.value + 1)
 
 const hasBlockingErrors = computed(() => {
   if (rows.value.some((r) => !r.name.trim() || !(parseInt(r.qty, 10) > 0))) return true
@@ -278,6 +361,68 @@ async function loadMaterials() {
   materials.value = await getMaterials(departmentId.value).catch(() => [])
 }
 
+function mappingFieldLabel(field: MaterialImportColumn): string {
+  const key = `settings.materialImport.mappingField.${field}` as const
+  return t(key)
+}
+
+function mappingSelectValue(field: MaterialImportColumn): number {
+  const v = columnMapping.value[field]
+  return v === undefined ? COLUMN_UNMAPPED : v
+}
+
+function onMappingSelect(field: MaterialImportColumn, value: string) {
+  const idx = parseInt(value, 10)
+  const next = { ...columnMapping.value }
+  if (idx === COLUMN_UNMAPPED || Number.isNaN(idx)) {
+    delete next[field]
+  } else {
+    next[field] = idx
+  }
+  columnMapping.value = next
+}
+
+function mappingSample(field: MaterialImportColumn): string {
+  const col = columnMapping.value[field]
+  if (col === undefined || col < 0 || !rawImport.value) return ''
+  const sampleRow = rawImport.value.matrix[firstDataRowIndex.value]
+  if (!sampleRow) return ''
+  const val = (sampleRow[col] ?? '').trim()
+  if (!val) return ''
+  const preview = val.length > 28 ? `${val.slice(0, 28)}…` : val
+  return t('settings.materialImport.mappingSample', { value: preview })
+}
+
+function onHeaderRowChange() {
+  columnMapping.value = buildSuggestedMapping(fileColumnLabels.value)
+}
+
+function resetSuggestedMapping() {
+  columnMapping.value = { ...buildSuggestedMapping(fileColumnLabels.value) }
+}
+
+function applyColumnMapping() {
+  if (!rawImport.value) return
+  if (columnMapping.value.name === undefined) {
+    toast.error(t('settings.materialImport.mappingNameRequired'))
+    return
+  }
+  const parsed = parseMatrixWithMapping(
+    rawImport.value.matrix,
+    headerRowIndex.value,
+    columnMapping.value,
+  )
+  if (parsed.length === 0) {
+    toast.error(t('settings.materialImport.parseEmpty'))
+    return
+  }
+  enrichWithExisting(parsed)
+  rows.value = parsed
+  previewRows.value = []
+  showMappingPanel.value = false
+  toast.success(t('settings.materialImport.parseSuccess', { count: parsed.length }))
+}
+
 function onDownloadTemplate() {
   downloadTemplateCsv(import.meta.env.BASE_URL || '/')
 }
@@ -288,22 +433,18 @@ async function onFileSelected(ev: Event) {
   if (!file) return
   fileName.value = file.name
   try {
-    const { rows: parsed, debug } = await parseImportFile(file)
-    if (parsed.length === 0) {
-      const mapped = debug?.mappedColumns?.length
-        ? debug.mappedColumns.join(', ')
-        : '—'
-      const headers = debug?.headerCells?.filter(Boolean).slice(0, 8).join(', ') || '—'
-      toast.error(
-        t('settings.materialImport.parseEmptyDetail', { headers, mapped, lines: debug?.lineCount ?? 0 }),
-        8000,
-      )
+    const raw = await readImportMatrixFromFile(file)
+    if (!raw.matrix.some((r) => r.some((c) => c))) {
+      toast.error(t('settings.materialImport.parseEmpty'))
       return
     }
-    enrichWithExisting(parsed)
-    rows.value = parsed
+    rawImport.value = raw
+    headerRowIndex.value = raw.headerRowIndex
+    columnMapping.value = { ...raw.suggestedMapping }
+    rows.value = []
     previewRows.value = []
-    toast.success(t('settings.materialImport.parseSuccess', { count: parsed.length }))
+    showMappingPanel.value = true
+    toast.info(t('settings.materialImport.mappingPleaseMap'))
   } catch (e) {
     console.error(e)
     toast.error(t('settings.materialImport.parseFailed'))
@@ -615,5 +756,74 @@ onMounted(async () => {
 .btn-sm {
   padding: 0.35rem 0.75rem;
   font-size: 0.875rem;
+}
+
+.mapping-card h2 {
+  margin: 0 0 0.5rem;
+  font-size: 1.125rem;
+}
+
+.mapping-hint {
+  margin: 0 0 1rem;
+  font-size: 0.875rem;
+  color: #6b7280;
+}
+
+.mapping-row-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.mapping-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.mapping-field-row {
+  display: grid;
+  grid-template-columns: minmax(140px, 200px) 1fr minmax(100px, 220px);
+  gap: 0.75rem;
+  align-items: center;
+}
+
+@media (max-width: 720px) {
+  .mapping-field-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+.mapping-field-label {
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.mapping-field-label .required {
+  color: #dc2626;
+}
+
+.mapping-select {
+  width: 100%;
+  padding: 0.35rem 0.5rem;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 0.875rem;
+}
+
+.mapping-sample {
+  font-size: 0.75rem;
+  color: #6b7280;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mapping-actions {
+  display: flex;
+  justify-content: flex-end;
 }
 </style>
