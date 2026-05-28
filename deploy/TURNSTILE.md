@@ -1,6 +1,11 @@
 # Cloudflare Turnstile einbinden
 
-Turnstile schützt in eMatChef die **öffentliche Registrierung** (`POST /api/auth/register`). **Login** nutzt kein Turnstile.
+Turnstile schützt in eMatChef:
+
+- **Registrierung** (`POST /api/auth/register`)
+- **Join-Anfragen** (`POST /api/join-requests`) und **Support-Antraege** (`POST /api/join-requests/admin-request`)
+
+**Login** nutzt kein Turnstile.
 
 ## 1. Widget in Cloudflare anlegen
 

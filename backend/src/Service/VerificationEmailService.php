@@ -266,6 +266,163 @@ class VerificationEmailService
         );
     }
 
+    public function sendJoinRequestManagerNotification(
+        string $recipientEmail,
+        string $recipientName,
+        string $requesterName,
+        string $requesterEmail,
+        string $departmentName,
+        string $organisationName,
+        ?string $message,
+        string $reviewUrl,
+        ?string $recipientLocale = null,
+    ): void {
+        $locale = $this->mailTemplateContent->normalizeLocaleParam(trim((string) ($recipientLocale ?? '')));
+        $tpl = $this->mailTemplateContent->getTemplate('join_request.manager_notify', $locale);
+        if ($tpl === null) {
+            throw $this->vex('tpl_join_mgr', $locale);
+        }
+
+        $messageBlock = trim((string) ($message ?? ''));
+        $messageLine = $messageBlock !== ''
+            ? "\nNachricht: {$messageBlock}\n"
+            : '';
+
+        $safeRecipient = trim($recipientName) !== '' ? $recipientName : $recipientEmail;
+        $vars = [
+            'recipient_name' => $safeRecipient,
+            'requester_name' => $requesterName,
+            'requester_email' => $requesterEmail,
+            'department_name' => $departmentName,
+            'organisation_name' => $organisationName,
+            'message_line' => $messageLine,
+            'review_url' => $reviewUrl,
+        ];
+        $subject = $this->mailTemplateContent->interpolate((string) ($tpl['subject'] ?? ''), $vars);
+        $textBody = $this->mailTemplateContent->interpolate((string) ($tpl['text_body'] ?? ''), $vars);
+        $htmlCfg = is_array($tpl['html'] ?? null) ? $tpl['html'] : [];
+
+        $leadHtml = strtr((string) ($htmlCfg['lead_template'] ?? ''), [
+            '{{requester_name}}' => htmlspecialchars($requesterName, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'),
+            '{{requester_email}}' => htmlspecialchars($requesterEmail, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'),
+            '{{department_name}}' => htmlspecialchars($departmentName, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'),
+            '{{organisation_name}}' => htmlspecialchars($organisationName, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'),
+        ]);
+        $messageHtml = $messageBlock !== ''
+            ? '<p style="margin:0 0 12px 0;font-size:14px;color:#374151;"><strong>Nachricht:</strong> '
+                . htmlspecialchars($messageBlock, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '</p>'
+            : '';
+
+        $email = (new Email())
+            ->from($this->mailOutboundSettings->getFromAddressObject())
+            ->to($recipientEmail)
+            ->subject($subject)
+            ->text($textBody)
+            ->html($this->renderHtmlTemplate('join_request_manager.html', [
+                'brand_header_html' => $this->buildBrandHeaderHtml($locale),
+                'recipient_name' => $safeRecipient,
+                'greeting_word' => (string) ($htmlCfg['greeting_word'] ?? ''),
+                'banner_title' => (string) ($htmlCfg['banner_title'] ?? ''),
+                'lead_html' => $leadHtml,
+                'message_html' => $messageHtml,
+                'cta_label' => (string) ($htmlCfg['cta_label'] ?? ''),
+                'link_hint' => (string) ($htmlCfg['link_hint'] ?? ''),
+                'review_url' => $reviewUrl,
+                'footer_note' => (string) ($htmlCfg['footer_note'] ?? ''),
+            ], ['brand_header_html', 'lead_html', 'message_html'], $locale));
+
+        $this->mailer->send($email);
+        $this->mailSendLog->append(
+            'join_request.manager_notify',
+            $recipientEmail,
+            $subject,
+            $this->mailOutboundSettings->getFromAddressObject()->getAddress()
+        );
+    }
+
+    public function sendAdminJoinRequestManagerNotification(
+        string $recipientEmail,
+        string $recipientName,
+        string $requesterName,
+        string $requesterEmail,
+        string $requestedDepartmentName,
+        string $organisationName,
+        ?string $parentDepartmentName,
+        ?string $message,
+        string $reviewUrl,
+        ?string $recipientLocale = null,
+    ): void {
+        $locale = $this->mailTemplateContent->normalizeLocaleParam(trim((string) ($recipientLocale ?? '')));
+        $tpl = $this->mailTemplateContent->getTemplate('admin_join_request.manager_notify', $locale);
+        if ($tpl === null) {
+            throw $this->vex('tpl_admin_join_mgr', $locale);
+        }
+
+        $parentLine = trim((string) ($parentDepartmentName ?? '')) !== ''
+            ? "\nUebergeordnete Abteilung: {$parentDepartmentName}\n"
+            : '';
+        $messageBlock = trim((string) ($message ?? ''));
+        $messageLine = $messageBlock !== ''
+            ? "\nNachricht: {$messageBlock}\n"
+            : '';
+
+        $safeRecipient = trim($recipientName) !== '' ? $recipientName : $recipientEmail;
+        $vars = [
+            'recipient_name' => $safeRecipient,
+            'requester_name' => $requesterName,
+            'requester_email' => $requesterEmail,
+            'requested_department_name' => $requestedDepartmentName,
+            'organisation_name' => $organisationName,
+            'parent_line' => $parentLine,
+            'message_line' => $messageLine,
+            'review_url' => $reviewUrl,
+        ];
+        $subject = $this->mailTemplateContent->interpolate((string) ($tpl['subject'] ?? ''), $vars);
+        $textBody = $this->mailTemplateContent->interpolate((string) ($tpl['text_body'] ?? ''), $vars);
+        $htmlCfg = is_array($tpl['html'] ?? null) ? $tpl['html'] : [];
+
+        $leadHtml = strtr((string) ($htmlCfg['lead_template'] ?? ''), [
+            '{{requester_name}}' => htmlspecialchars($requesterName, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'),
+            '{{requester_email}}' => htmlspecialchars($requesterEmail, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'),
+            '{{requested_department_name}}' => htmlspecialchars($requestedDepartmentName, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'),
+            '{{organisation_name}}' => htmlspecialchars($organisationName, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'),
+        ]);
+        $parentHtml = trim((string) ($parentDepartmentName ?? '')) !== ''
+            ? '<p style="margin:0 0 12px 0;font-size:14px;color:#374151;"><strong>Uebergeordnete Abteilung:</strong> '
+                . htmlspecialchars($parentDepartmentName, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '</p>'
+            : '';
+        $messageHtml = $messageBlock !== ''
+            ? '<p style="margin:0 0 12px 0;font-size:14px;color:#374151;"><strong>Nachricht:</strong> '
+                . htmlspecialchars($messageBlock, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '</p>'
+            : '';
+
+        $email = (new Email())
+            ->from($this->mailOutboundSettings->getFromAddressObject())
+            ->to($recipientEmail)
+            ->subject($subject)
+            ->text($textBody)
+            ->html($this->renderHtmlTemplate('join_request_manager.html', [
+                'brand_header_html' => $this->buildBrandHeaderHtml($locale),
+                'recipient_name' => $safeRecipient,
+                'greeting_word' => (string) ($htmlCfg['greeting_word'] ?? ''),
+                'banner_title' => (string) ($htmlCfg['banner_title'] ?? ''),
+                'lead_html' => $leadHtml,
+                'message_html' => $parentHtml . $messageHtml,
+                'cta_label' => (string) ($htmlCfg['cta_label'] ?? ''),
+                'link_hint' => (string) ($htmlCfg['link_hint'] ?? ''),
+                'review_url' => $reviewUrl,
+                'footer_note' => (string) ($htmlCfg['footer_note'] ?? ''),
+            ], ['brand_header_html', 'lead_html', 'message_html'], $locale));
+
+        $this->mailer->send($email);
+        $this->mailSendLog->append(
+            'admin_join_request.manager_notify',
+            $recipientEmail,
+            $subject,
+            $this->mailOutboundSettings->getFromAddressObject()->getAddress()
+        );
+    }
+
     public function sendPasswordResetCode(User $user, string $code, \DateTime $expiresAt): void
     {
         $profile = $user->getProfile();

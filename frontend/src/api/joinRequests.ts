@@ -2,9 +2,13 @@ import apiClient from './apiClient'
 
 export interface MyJoinRequest {
   id: string
-  status: 'pending' | 'approved' | 'rejected'
-  department_id: string
+  request_kind?: 'admin' | 'department_join'
+  status: 'pending' | 'approved' | 'rejected' | 'assigned'
+  department_id?: string | null
   department_name: string
+  organisation_name?: string | null
+  requested_parent_department_name?: string | null
+  requested_affiliation?: string | null
   message?: string | null
   created_at: string
   updated_at: string
@@ -114,13 +118,17 @@ export interface CreateJoinRequestResponse {
 
 export interface PendingAdminJoinRequest {
   id: string
+  request_kind?: 'admin' | 'department_join'
   user_id: string
   name: string
   email?: string | null
   requested_department_name: string
+  target_department_id?: string | null
+  target_department_name?: string | null
+  organisation_name?: string | null
   requested_affiliation?: string | null
   message?: string | null
-  status?: 'pending' | 'assigned' | 'rejected'
+  status?: 'pending' | 'assigned' | 'rejected' | 'approved'
   created_at: string
   updated_at?: string
   reviewed_by_name?: string | null
@@ -146,12 +154,14 @@ export async function createJoinRequest(options: {
   departmentId?: string
   message?: string
   requestedRole?: string
+  turnstileToken?: string
 }): Promise<CreateJoinRequestResponse> {
   const { data } = await apiClient.post<CreateJoinRequestResponse>('/api/join-requests', {
     join_code: options.joinCode,
     department_id: options.departmentId,
     message: options.message,
-    requested_role: options.requestedRole
+    requested_role: options.requestedRole,
+    turnstileToken: options.turnstileToken,
   })
   return data
 }
@@ -161,14 +171,18 @@ export async function createAdminJoinRequest(payload: {
   requestedAffiliation?: string
   requestedOrganisationId?: string
   requestedParentDepartmentName?: string
+  requestedParentDepartmentId?: string
   message?: string
+  turnstileToken?: string
 }): Promise<void> {
   await apiClient.post('/api/join-requests/admin-request', {
     requested_department_name: payload.requestedDepartmentName,
     requested_affiliation: payload.requestedAffiliation,
     requested_organisation_id: payload.requestedOrganisationId,
     requested_parent_department_name: payload.requestedParentDepartmentName,
-    message: payload.message
+    requested_parent_department_id: payload.requestedParentDepartmentId,
+    message: payload.message,
+    turnstileToken: payload.turnstileToken,
   })
 }
 
