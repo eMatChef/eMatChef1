@@ -2055,6 +2055,7 @@
     }
   },
   "settings": {
+    "menuTitle": "Einstellungen",
     "nav": {
       "myDepartment": "Mein Department",
       "timeLocation": "Zeit/Ort",
