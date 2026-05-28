@@ -58,7 +58,7 @@ const submitButtonText = computed(() => {
     if (props.creationMode === 'individual') return t('components.materialWizardFooter.createArticle')
     if (props.creationMode === 'physical_combo') return t('components.materialWizardFooter.createCombo')
     if (props.creationMode === 'virtual_combo') return t('components.materialWizardFooter.createVirtualCombo')
-    return t('components.materialWizardFooter.create')
+    return t('common.create')
   }
   return t('components.materialWizardFooter.addMaterial')
 })

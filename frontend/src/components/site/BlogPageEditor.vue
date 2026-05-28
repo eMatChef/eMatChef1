@@ -223,7 +223,7 @@
                 {{ p.status === 'draft' ? t('components.siteEditors.blog.editDraft') : t('components.siteEditors.blog.editPost') }}
               </button>
               <button type="button" class="btn-ghost danger" :disabled="saving" @click.stop="removePost(p.id)">
-                {{ t('components.siteEditors.blog.delete') }}
+                {{ t('common.delete') }}
               </button>
             </div>
           </li>

@@ -6,7 +6,7 @@
         <p class="settings-description">{{ t('settings.globalAdminRoles.subtitle') }}</p>
       </div>
       <button class="btn btn-secondary" @click="loadUsers" :disabled="isLoading">
-        {{ isLoading ? t('settings.globalAdminRoles.loadingShort') : t('settings.globalAdminRoles.refresh') }}
+        {{ isLoading ? t('settings.globalAdminRoles.loadingShort') : t('common.refresh') }}
       </button>
     </div>
 
@@ -21,11 +21,11 @@
       <table class="users-table">
         <thead>
           <tr>
-            <th>{{ t('settings.globalAdminRoles.columns.name') }}</th>
+            <th>{{ t('common.name') }}</th>
             <th>{{ t('settings.globalAdminRoles.columns.email') }}</th>
-            <th>{{ t('settings.globalAdminRoles.columns.role') }}</th>
+            <th>{{ t('common.role') }}</th>
             <th>{{ t('settings.globalAdminRoles.columns.scope') }}</th>
-            <th class="actions-col">{{ t('settings.globalAdminRoles.columns.actions') }}</th>
+            <th class="actions-col">{{ t('common.actions') }}</th>
           </tr>
         </thead>
         <tbody>

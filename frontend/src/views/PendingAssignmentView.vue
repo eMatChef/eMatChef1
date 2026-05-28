@@ -183,7 +183,7 @@
           <tr>
             <th>{{ t('pendingAssignment.colType') }}</th>
             <th>{{ t('pendingAssignment.colDepartment') }}</th>
-            <th>{{ t('pendingAssignment.colStatus') }}</th>
+            <th>{{ t('common.status') }}</th>
             <th>{{ t('pendingAssignment.colCreated') }}</th>
           </tr>
         </thead>

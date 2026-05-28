@@ -86,7 +86,7 @@ function userLabel(e: ActivityHistoryEntryRow): string {
             {{ t('activities.history.userBy', { name: userLabel(e) }) }}
           </p>
           <p v-if="statusChange(e)" class="activity-history-status-change text-muted">
-            <span class="activity-history-field">{{ t('activities.history.fieldStatus') }}:</span>
+            <span class="activity-history-field">{{ t('common.status') }}:</span>
             <span class="history-status-old">{{ statusChange(e)!.old }}</span>
             <span class="history-status-arrow" aria-hidden="true">→</span>
             <span class="history-status-new">{{ statusChange(e)!.new }}</span>

@@ -33,7 +33,7 @@
           <tr>
             <th scope="col" class="activity-mat-col-name">
               <button type="button" class="activity-mat-th-btn" @click="toggleSort('name')">
-                {{ t('activities.materialLinesTable.thMaterial') }}
+                {{ t('common.material') }}
                 <span class="activity-mat-sort-ind" aria-hidden="true">{{ sortGlyph('name') }}</span>
               </button>
             </th>
@@ -59,7 +59,7 @@
               t('activities.materialLinesTable.thLine')
             }}</th>
             <th scope="col" class="activity-mat-col-warn">{{ t('activities.materialLinesTable.thHint') }}</th>
-            <th scope="col" class="activity-mat-col-actions"><span class="sr-only">{{ t('activities.materialLinesTable.thActions') }}</span></th>
+            <th scope="col" class="activity-mat-col-actions"><span class="sr-only">{{ t('common.actions') }}</span></th>
           </tr>
         </thead>
         <tbody>
@@ -323,7 +323,7 @@
                   :disabled="disabled || removeBusyFor(row)"
                   @click="emitRemove(originalIndex)"
                 >
-                  {{ t('activities.materialLinesTable.removeLineBtn') }}
+                  {{ t('common.remove') }}
                 </button>
               </template>
             </td>

@@ -75,7 +75,7 @@
               <button class="btn btn-primary" :disabled="isSavingSettings" @click="saveSettings">
                 {{
                   isSavingSettings
-                    ? t('components.departmentOnboarding.savingSettings')
+                    ? t('common.saving')
                     : t('components.departmentOnboarding.saveSettings')
                 }}
               </button>
@@ -126,7 +126,7 @@
                     <li v-for="invite in pendingInvites" :key="invite.id" class="pending-item">
                       <span>{{ invite.email }} ({{ invite.role }})</span>
                       <button class="btn btn-light" @click="removePendingInvite(invite.id)">
-                        {{ t('components.departmentOnboarding.deletePending') }}
+                        {{ t('common.delete') }}
                       </button>
                     </li>
                   </ul>
@@ -378,7 +378,7 @@
             {{ t('components.departmentOnboarding.next') }}
           </button>
           <button class="btn btn-success" @click="currentStep >= ONBOARDING_TOTAL_STEPS ? completeWizard() : finishWizard()">
-            {{ currentStep >= ONBOARDING_TOTAL_STEPS ? t('components.departmentOnboarding.finish') : t('components.departmentOnboarding.close') }}
+            {{ currentStep >= ONBOARDING_TOTAL_STEPS ? t('components.departmentOnboarding.finish') : t('common.close') }}
           </button>
         </footer>
       </div>

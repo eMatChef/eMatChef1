@@ -30,7 +30,7 @@
           isLoading
             ? t('components.containerBatchContentsPicker.loading')
             : selectedContents
-              ? t('components.containerBatchContentsPicker.refresh')
+              ? t('common.refresh')
               : t('components.containerBatchContentsPicker.applyContents')
         }}
       </button>

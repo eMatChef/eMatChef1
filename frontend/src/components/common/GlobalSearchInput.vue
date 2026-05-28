@@ -128,7 +128,7 @@ watch(query, (val) => emit('update:modelValue', val))
 
 function typeLabel(type: SearchTargetType): string {
   const keys: Record<SearchTargetType, string> = {
-    material: 'components.globalSearch.typeMaterial',
+    material: 'common.material',
     activity: 'components.globalSearch.typeActivity',
     reparatur: 'components.globalSearch.typeRepair',
   }

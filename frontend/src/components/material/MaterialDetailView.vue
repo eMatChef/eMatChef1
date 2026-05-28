@@ -110,7 +110,7 @@
           <!-- Tab: Daten (Bearbeitung) -->
           <section v-else-if="activeTab === 'data'" class="tab-content">
             <div class="section-card">
-              <h2 class="section-title">{{ t('components.materialDetail.sectionMaterial') }}</h2>
+              <h2 class="section-title">{{ t('common.material') }}</h2>
               
               <div class="form-grid">
                 <div class="form-group span-2">
@@ -134,7 +134,7 @@
                 </div>
                 
                 <div class="form-group">
-                  <label>{{ t('components.materialDetail.labelManufacturer') }}</label>
+                  <label>{{ t('common.manufacturer') }}</label>
                   <input v-model="formData.manufacturer" type="text" class="form-input" />
                 </div>
                 
@@ -528,7 +528,7 @@
                     {{ t('components.materialDetail.btnAddToPrintCart') }}
                   </button>
                   <button type="button" class="btn-primary btn-sm" @click="handleQrPrintAllFromPanel">
-                    {{ t('components.materialDetail.btnPrint') }}
+                    {{ t('common.print') }}
                   </button>
                 </div>
                 <ul v-if="batchesWithPrintableQr.length" class="stock-qr-batch-list">
@@ -544,7 +544,7 @@
                     />
                     <span class="stock-qr-batch-label">{{ batchQrRowLabel(batch) }}</span>
                     <button type="button" class="btn-outline btn-sm" @click="openQrActionModalForBatch(batch)">
-                      {{ t('components.materialDetail.btnQrActions') }}
+                      {{ t('common.actions') }}
                     </button>
                   </li>
                 </ul>
@@ -700,7 +700,7 @@
                     </th>
                     <th class="th-sort-cell">
                       <button type="button" class="detail-th-sort" :title="t('components.materialDetail.sortByStatus')" @click="toggleStockSort('status')">
-                        <span>{{ t('components.materialDetail.thStatus') }}</span>
+                        <span>{{ t('common.status') }}</span>
                         <span class="detail-th-sort-arrows" aria-hidden="true">
                           <span class="detail-sort-chev" :class="{ active: stockSortKey === 'status' && stockSortDir === 'asc' }">▲</span>
                           <span class="detail-sort-chev" :class="{ active: stockSortKey === 'status' && stockSortDir === 'desc' }">▼</span>
@@ -833,7 +833,7 @@
                     {{ t('components.materialDetail.btnCreateNewMaterial') }}
                   </button>
                   <button type="button" class="btn-outline-small" :disabled="comboComponentsLoading" @click="loadComboComponentsForTab">
-                    {{ t('components.materialDetail.btnRefresh') }}
+                    {{ t('common.refresh') }}
                   </button>
                 </div>
               </div>
@@ -853,15 +853,15 @@
                 <thead>
                   <tr>
                     <th>{{ t('components.materialDetail.thComponent') }}</th>
-                    <th>{{ t('components.materialDetail.thRole') }}</th>
+                    <th>{{ t('common.role') }}</th>
                     <th>{{ t('components.materialDetail.thQty') }}</th>
-                    <th>{{ t('components.materialDetail.thSerial') }}</th>
+                    <th>{{ t('common.serialNumber') }}</th>
                     <th>{{ t('components.materialDetail.thBatchStatus') }}</th>
                     <th>{{ t('components.materialDetail.thAssignment') }}</th>
                     <th class="composition-state-th" :title="t('components.materialDetail.thCompositionStateHint')">
                       {{ t('components.materialDetail.thCompositionState') }}
                     </th>
-                    <th class="composition-actions-th">{{ t('components.materialDetail.thActions') }}</th>
+                    <th class="composition-actions-th">{{ t('common.actions') }}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -907,7 +907,7 @@
                         <button
                           type="button"
                           class="icon-btn"
-                          :title="t('components.materialDetail.titleEditGeneric')"
+                          :title="t('common.edit')"
                           :aria-label="t('components.materialDetail.ariaEditComposition')"
                           @click="openEditCompositionModal(comp)"
                         >
@@ -1074,7 +1074,7 @@
                   </div>
                   <div v-else class="form-grid">
                     <div class="form-group span-full">
-                      <label>{{ t('components.materialDetail.labelSerialNumber') }}</label>
+                      <label>{{ t('common.serialNumber') }}</label>
                       <input v-model="containerEditorForm.serial_number" type="text" class="form-input" />
                     </div>
                     <div class="form-group span-full">
@@ -1082,7 +1082,7 @@
                       <input v-model="containerEditorForm.label" type="text" class="form-input" />
                     </div>
                     <div class="form-group span-full">
-                      <label>{{ t('components.materialDetail.labelStatus') }}</label>
+                      <label>{{ t('common.status') }}</label>
                       <select v-model="containerEditorForm.status" class="form-select">
                         <option value="active">{{ t('components.materialDetail.batchStatusActive') }}</option>
                         <option value="defect">{{ t('components.materialDetail.batchStatusDefect') }}</option>
@@ -1134,7 +1134,7 @@
                     <th>{{ t('components.materialDetail.thIndex') }}</th>
                     <th class="th-sort-cell">
                       <button type="button" class="detail-th-sort" :title="t('components.materialDetail.sortBySerial')" @click="toggleSerialSort('serial_number')">
-                        <span>{{ t('components.materialDetail.thSerial') }}</span>
+                        <span>{{ t('common.serialNumber') }}</span>
                         <span class="detail-th-sort-arrows" aria-hidden="true">
                           <span class="detail-sort-chev" :class="{ active: serialSortKey === 'serial_number' && serialSortDir === 'asc' }">▲</span>
                           <span class="detail-sort-chev" :class="{ active: serialSortKey === 'serial_number' && serialSortDir === 'desc' }">▼</span>
@@ -1188,7 +1188,7 @@
                     </th>
                     <th class="th-sort-cell">
                       <button type="button" class="detail-th-sort" :title="t('components.materialDetail.sortByStatus')" @click="toggleSerialSort('status')">
-                        <span>{{ t('components.materialDetail.thStatus') }}</span>
+                        <span>{{ t('common.status') }}</span>
                         <span class="detail-th-sort-arrows" aria-hidden="true">
                           <span class="detail-sort-chev" :class="{ active: serialSortKey === 'status' && serialSortDir === 'asc' }">▲</span>
                           <span class="detail-sort-chev" :class="{ active: serialSortKey === 'status' && serialSortDir === 'desc' }">▼</span>
@@ -1310,7 +1310,7 @@
                     <tr>
                       <th>{{ t('components.materialDetail.thTicket') }}</th>
                       <th>{{ t('components.materialDetail.thType') }}</th>
-                      <th>{{ t('components.materialDetail.thStatus') }}</th>
+                      <th>{{ t('common.status') }}</th>
                       <th>{{ t('components.materialDetail.thActivity') }}</th>
                       <th></th>
                     </tr>
@@ -1684,8 +1684,8 @@
                   <tr>
                     <th>{{ t('components.materialDetail.thCombo') }}</th>
                     <th>{{ t('components.materialDetail.thComboType') }}</th>
-                    <th>{{ t('components.materialDetail.thRole') }}</th>
-                    <th>{{ t('components.materialDetail.thSerial') }}</th>
+                    <th>{{ t('common.role') }}</th>
+                    <th>{{ t('common.serialNumber') }}</th>
                     <th>{{ t('components.materialDetail.thQty') }}</th>
                     <th>{{ t('components.materialDetail.thAssignment') }}</th>
                   </tr>
@@ -1873,7 +1873,7 @@
                 <circle cx="8.5" cy="8.5" r="1.5"/>
                 <polyline points="21 15 16 10 5 21"/>
               </svg>
-              <img v-else :src="material.image_url" :alt="t('components.materialDetail.altMaterialImage')" />
+              <img v-else :src="material.image_url" :alt="t('common.material')" />
             </div>
           </div>
 
@@ -2067,7 +2067,7 @@
         <div class="modal-actions">
           <button class="btn-secondary btn-sm" @click="closeAddToContainerModal">{{ t('common.cancel') }}</button>
           <button class="btn-primary btn-sm" :disabled="!canSubmitAddToContainer || isAddingToContainer" @click="submitAddToContainer">
-            {{ isAddingToContainer ? t('components.materialDetail.modalAddToContainerSubmitting') : t('components.materialDetail.modalAddToContainerSubmit') }}
+            {{ isAddingToContainer ? t('components.materialDetail.modalAddToContainerSubmitting') : t('common.add') }}
           </button>
         </div>
       </div>
@@ -2189,7 +2189,7 @@
             :disabled="!canSubmitAddComposition || addCompositionSubmitting"
             @click="submitAddComposition"
           >
-            {{ addCompositionSubmitting ? t('components.materialDetail.modalAddCompositionSubmitting') : t('components.materialDetail.modalAddToContainerSubmit') }}
+            {{ addCompositionSubmitting ? t('components.materialDetail.modalAddCompositionSubmitting') : t('common.add') }}
           </button>
         </div>
       </div>
@@ -3372,7 +3372,7 @@ const propertyBadgeText = computed(() => {
     return t('components.materialDetail.badgePhysical')
   }
 
-  return t('components.materialDetail.badgeMaterial')
+  return t('common.material')
 })
 
 const availableStock = computed(() => {
@@ -3972,10 +3972,10 @@ const userReadOnlySections = computed((): ReadOnlySection[] => {
   pushReadOnlyField(materialFields, t('components.materialDetail.labelNameDb'), m?.name)
   pushReadOnlyField(materialFields, t('components.materialDetail.labelCode'), m?.barcode_tag)
   pushReadOnlyField(materialFields, t('components.materialDetail.labelCategory'), getCategoryPath())
-  pushReadOnlyField(materialFields, t('components.materialDetail.labelManufacturer'), m?.manufacturer)
+  pushReadOnlyField(materialFields, t('common.manufacturer'), m?.manufacturer)
   pushReadOnlyField(materialFields, t('components.materialDetail.labelModel'), m?.model)
   if (materialFields.length > 0) {
-    sections.push({ title: t('components.materialDetail.sectionMaterial'), fields: materialFields })
+    sections.push({ title: t('common.material'), fields: materialFields })
   }
 
   const propertyFields: ReadOnlyField[] = []
@@ -4620,7 +4620,7 @@ function openStockTabWithQrPanel() {
 function prepareQrActionAll() {
   qrActionMode.value = 'all'
   qrActionEntityId.value = ''
-  qrActionLabel.value = material.value?.name || t('components.materialDetail.fallbackMaterialDisplayName')
+  qrActionLabel.value = material.value?.name || t('common.material')
   qrActionCode.value = ''
   qrActionUrl.value = ''
 }
@@ -4773,7 +4773,7 @@ async function handleQrPrint() {
   <meta charset="utf-8" />
   <title>${escapeHtml(
       t('components.materialDetail.qrPrintAllDocTitle', {
-        name: material.value?.name || t('components.materialDetail.fallbackMaterialDisplayName'),
+        name: material.value?.name || t('common.material'),
       })
     )}</title>
   <style>
@@ -4789,7 +4789,7 @@ async function handleQrPrint() {
 <body>
   <h1>${escapeHtml(
       t('components.materialDetail.qrPrintAllDocHeading', {
-        name: material.value?.name || t('components.materialDetail.fallbackMaterialDisplayName'),
+        name: material.value?.name || t('common.material'),
       })
     )}</h1>
   <div class="grid">${cards}</div>
