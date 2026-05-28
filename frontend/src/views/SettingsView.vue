@@ -1,8 +1,15 @@
 <template>
   <div class="settings-view">
     <div class="settings-container">
-      <!-- Linkes Menü -->
-      <aside class="settings-menu">
+      <aside
+        class="settings-menu"
+        :class="{ 'settings-menu--collapsed': !menuExpanded }"
+        @mouseenter="openMenu"
+        @mouseleave="closeMenu"
+      >
+        <div class="settings-menu-header">
+          <h2 v-show="menuExpanded" class="settings-menu-title">{{ t('settings.menuTitle') }}</h2>
+        </div>
         <nav class="settings-nav">
           <router-link
             v-for="item in visibleMenuItems"
@@ -10,9 +17,11 @@
             :to="getSettingsLink(`/${item.id}`)"
             class="settings-nav-item"
             :class="{ active: isSettingsItemActive(item.id) }"
+            :title="!menuExpanded ? item.label : undefined"
+            @click="onMenuNavClick"
           >
             <component :is="item.icon" class="nav-icon" />
-            <span class="nav-label">{{ item.label }}</span>
+            <span v-show="menuExpanded" class="nav-label">{{ item.label }}</span>
           </router-link>
         </nav>
       </aside>
@@ -35,12 +44,15 @@ import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'
 import { useDepartmentMemberRole } from '@/composables/useDepartmentMemberRole'
+import { useHoverSubnav } from '@/composables/useHoverSubnav'
 import { IconSettings, IconContacts, IconEmployees, IconDashboard, IconActivities, IconMaterials, IconDisplay } from '@/components/icons'
 
 const route = useRoute()
 const authStore = useAuthStore()
 const { t } = useI18n()
-const { isUserRole } = useDepartmentMemberRole()
+const { isUserRole, canManageMaterials } = useDepartmentMemberRole()
+const { expanded: menuExpanded, open: openMenu, close: closeMenu, onNavClick: onMenuNavClick } =
+  useHoverSubnav()
 
 // Department-ID aus Route oder Store
 const departmentId = computed(() => {
@@ -98,17 +110,27 @@ const allMenuItems = computed(() => [
     icon: markRaw(IconMaterials)
   },
   { id: 'templates', label: t('settings.nav.templates'), icon: markRaw(IconSettings) },
+  {
+    id: 'material-import',
+    label: t('settings.nav.materialImport'),
+    icon: markRaw(IconMaterials),
+    requiresMaterialManage: true,
+  },
   { id: 'zeit', label: t('settings.nav.timeLocation'), icon: markRaw(IconSettings) },
   { id: 'addons', label: t('settings.nav.addons'), icon: markRaw(IconActivities) }
 ])
 
 const USER_ALLOWED_MENU_IDS = new Set(['my-department', 'groups'])
 
-const visibleMenuItems = computed(() =>
-  isUserRole.value
+const visibleMenuItems = computed(() => {
+  let items = isUserRole.value
     ? allMenuItems.value.filter((item) => USER_ALLOWED_MENU_IDS.has(item.id))
     : allMenuItems.value
-)
+  if (!canManageMaterials.value) {
+    items = items.filter((item) => !(item as { requiresMaterialManage?: boolean }).requiresMaterialManage)
+  }
+  return items
+})
 
 </script>
 
@@ -116,6 +138,8 @@ const visibleMenuItems = computed(() =>
 .settings-view {
   padding: 24px;
   height: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
 }
 
 .settings-container {
@@ -124,16 +148,42 @@ const visibleMenuItems = computed(() =>
   height: 100%;
   max-width: 1400px;
   margin: 0 auto;
+  min-width: 0;
 }
 
 .settings-menu {
-  width: 240px;
+  width: 260px;
   flex-shrink: 0;
   background: white;
   border-radius: 8px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-  padding: 16px 0;
+  padding: 16px 0 20px;
   height: fit-content;
+  transition: width 0.2s ease;
+}
+
+.settings-menu--collapsed {
+  width: 56px;
+  padding-top: 12px;
+}
+
+.settings-menu-header {
+  margin-bottom: 8px;
+  padding: 0 12px;
+  min-height: 1.5rem;
+}
+
+.settings-menu--collapsed .settings-menu-header {
+  padding: 0 8px;
+}
+
+.settings-menu-title {
+  margin: 0;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #64748b;
 }
 
 .settings-nav {
@@ -164,6 +214,16 @@ const visibleMenuItems = computed(() =>
   font-weight: 500;
 }
 
+.settings-menu--collapsed .settings-nav-item {
+  justify-content: center;
+  padding: 12px 8px;
+  border-left-width: 3px;
+}
+
+.settings-menu--collapsed .settings-nav-item .nav-icon {
+  margin-right: 0;
+}
+
 .settings-nav-item .nav-icon {
   width: 20px;
   height: 20px;
@@ -177,6 +237,8 @@ const visibleMenuItems = computed(() =>
 
 .settings-content {
   flex: 1;
+  min-width: 0;
+  overflow-x: hidden;
   background: white;
   border-radius: 8px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
