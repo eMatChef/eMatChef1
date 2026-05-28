@@ -32,6 +32,13 @@ class AdminJoinRequest
     #[ORM\Column(name: 'requested_parent_department_name', type: 'string', length: 255, nullable: true)]
     private ?string $requestedParentDepartmentName = null;
 
+    #[ORM\Column(name: 'requested_parent_department_id', type: 'string', length: 12, nullable: true, options: ['fixed' => true])]
+    private ?string $requestedParentDepartmentId = null;
+
+    #[ORM\ManyToOne(targetEntity: Department::class)]
+    #[ORM\JoinColumn(name: 'requested_parent_department_id', referencedColumnName: 'id', nullable: true, onDelete: 'SET NULL')]
+    private ?Department $requestedParentDepartment = null;
+
     #[ORM\Column(type: 'text', nullable: true)]
     private ?string $message = null;
 
@@ -133,6 +140,26 @@ class AdminJoinRequest
     public function setRequestedParentDepartmentName(?string $requestedParentDepartmentName): self
     {
         $this->requestedParentDepartmentName = $requestedParentDepartmentName;
+        return $this;
+    }
+
+    public function getRequestedParentDepartmentId(): ?string
+    {
+        return $this->requestedParentDepartmentId;
+    }
+
+    public function getRequestedParentDepartment(): ?Department
+    {
+        return $this->requestedParentDepartment;
+    }
+
+    public function setRequestedParentDepartment(?Department $requestedParentDepartment): self
+    {
+        $this->requestedParentDepartment = $requestedParentDepartment;
+        $this->requestedParentDepartmentId = $requestedParentDepartment?->getId();
+        if ($requestedParentDepartment !== null && $this->requestedParentDepartmentName === null) {
+            $this->requestedParentDepartmentName = $requestedParentDepartment->getName();
+        }
         return $this;
     }
 

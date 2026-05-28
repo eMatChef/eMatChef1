@@ -18,6 +18,8 @@ use App\Service\AuditLogger;
 use App\Service\Mail\MailTemplateContentStore;
 use App\Service\OrganisationUserPickerFilter;
 use App\Service\InboxMessageService;
+use App\Service\JoinRequestManagerNotificationService;
+use App\Service\TurnstileVerifier;
 use App\Service\UserDepartmentInviteNotificationService;
 use App\Service\VerificationEmailService;
 use App\Util\IdGenerator;
@@ -44,6 +46,8 @@ class JoinRequestController extends AbstractController
         private VerificationEmailService $verificationEmailService,
         private MailTemplateContentStore $mailTemplateContent,
         private UserDepartmentInviteNotificationService $userDepartmentInviteNotifications,
+        private JoinRequestManagerNotificationService $joinRequestManagerNotifications,
+        private TurnstileVerifier $turnstileVerifier,
         private InboxMessageService $inboxMessages,
         private AdminCapabilityChecker $adminCapabilityChecker,
         #[Autowire('%env(APP_FRONTEND_URL)%')] private string $frontendUrl
@@ -87,6 +91,11 @@ class JoinRequestController extends AbstractController
         }
 
         $data = json_decode($request->getContent(), true) ?: [];
+        $turnstileError = $this->validateTurnstileToken($request, $data);
+        if ($turnstileError !== null) {
+            return $turnstileError;
+        }
+
         $joinCode = trim((string) ($data['join_code'] ?? ''));
         $departmentId = trim((string) ($data['department_id'] ?? ''));
         $message = trim((string) ($data['message'] ?? ''));
@@ -138,26 +147,47 @@ class JoinRequestController extends AbstractController
             return new JsonResponse(['error' => 'Es existiert bereits eine offene Anfrage fuer dieses Department'], 409);
         }
 
+        $viaJoinCode = $departmentId === '' && $joinCode !== '';
+        $autoJoined = false;
+        $assignedRole = null;
+
+        if ($viaJoinCode) {
+            $this->createMembershipForUser($currentUser, $department, 'u', $currentUser);
+            $autoJoined = true;
+            $assignedRole = 'u';
+        }
+
         $joinRequest = new JoinRequest();
         $joinRequest->setId(IdGenerator::generateUnique($this->entityManager, JoinRequest::class));
         $joinRequest->setUser($currentUser);
         $joinRequest->setDepartment($department);
         $joinRequest->setMessage($message !== '' ? $message : null);
-
-        // Persoenliche Einladungen muessen in der App bestaetigt werden (kein Auto-Join).
-        $autoJoinByInviteLink = false;
-        $joinRequest->setStatus('pending');
+        // Join-Code: sofort Mitglied. Abteilung per Suche / persoenliche Einladung: MW/DC-Freigabe.
+        if ($autoJoined) {
+            $joinRequest->setStatus('approved');
+            $joinRequest->setReviewedBy($currentUser);
+        } else {
+            $joinRequest->setStatus('pending');
+        }
 
         $this->entityManager->persist($joinRequest);
         $this->entityManager->flush();
+
+        if (!$autoJoined) {
+            try {
+                $this->joinRequestManagerNotifications->notifyJoinRequestCreated($joinRequest);
+            } catch (\Throwable) {
+                // Anfrage bleibt gueltig auch wenn Mail fehlschlaegt
+            }
+        }
 
         return new JsonResponse([
             'id' => $joinRequest->getId(),
             'status' => $joinRequest->getStatus(),
             'department_id' => $department->getId(),
             'department_name' => $department->getName(),
-            'assigned_role' => $autoJoinByInviteLink ? $requestedRole : null,
-            'auto_joined' => $autoJoinByInviteLink,
+            'assigned_role' => $assignedRole,
+            'auto_joined' => $autoJoined,
             'created_at' => $joinRequest->getCreatedAt()->format(\DateTimeInterface::ATOM),
         ], 201);
     }
@@ -172,10 +202,16 @@ class JoinRequestController extends AbstractController
         }
 
         $data = json_decode($request->getContent(), true) ?: [];
+        $turnstileError = $this->validateTurnstileToken($request, $data);
+        if ($turnstileError !== null) {
+            return $turnstileError;
+        }
+
         $requestedDepartmentName = trim((string) ($data['requested_department_name'] ?? ''));
         $requestedAffiliation = trim((string) ($data['requested_affiliation'] ?? ''));
         $requestedOrganisationId = trim((string) ($data['requested_organisation_id'] ?? ''));
         $requestedParentDepartmentName = trim((string) ($data['requested_parent_department_name'] ?? ''));
+        $requestedParentDepartmentId = trim((string) ($data['requested_parent_department_id'] ?? ''));
         $message = trim((string) ($data['message'] ?? ''));
 
         if ($requestedDepartmentName === '') {
@@ -206,6 +242,13 @@ class JoinRequestController extends AbstractController
         $adminRequest->setRequestedAffiliation($requestedAffiliation !== '' ? $requestedAffiliation : null);
         $adminRequest->setRequestedOrganisationId($requestedOrganisationId !== '' ? $requestedOrganisationId : null);
         $adminRequest->setRequestedParentDepartmentName($requestedParentDepartmentName !== '' ? $requestedParentDepartmentName : null);
+        if ($requestedParentDepartmentId !== '' && $requestedOrganisationId !== '') {
+            /** @var Department|null $parentDept */
+            $parentDept = $this->entityManager->getRepository(Department::class)->find($requestedParentDepartmentId);
+            if ($parentDept && $parentDept->getOrganisationId() === $requestedOrganisationId) {
+                $adminRequest->setRequestedParentDepartment($parentDept);
+            }
+        }
         $adminRequest->setMessage($message !== '' ? $message : null);
         $adminRequest->setStatus('pending');
 
@@ -214,8 +257,15 @@ class JoinRequestController extends AbstractController
             'requested_department_name' => $requestedDepartmentName,
             'requested_organisation_id' => $requestedOrganisationId !== '' ? $requestedOrganisationId : null,
             'requested_parent_department_name' => $requestedParentDepartmentName !== '' ? $requestedParentDepartmentName : null,
+            'requested_parent_department_id' => $adminRequest->getRequestedParentDepartmentId(),
         ]);
         $this->entityManager->flush();
+
+        try {
+            $this->joinRequestManagerNotifications->notifyAdminJoinRequestCreated($adminRequest);
+        } catch (\Throwable) {
+            // Antrag bleibt gueltig auch wenn Mail fehlschlaegt
+        }
 
         return new JsonResponse([
             'id' => $adminRequest->getId(),
@@ -224,6 +274,7 @@ class JoinRequestController extends AbstractController
             'requested_affiliation' => $adminRequest->getRequestedAffiliation(),
             'requested_organisation_id' => $adminRequest->getRequestedOrganisationId(),
             'requested_parent_department_name' => $adminRequest->getRequestedParentDepartmentName(),
+            'requested_parent_department_id' => $adminRequest->getRequestedParentDepartmentId(),
             'created_at' => $adminRequest->getCreatedAt()->format(\DateTimeInterface::ATOM),
         ], 201);
     }
@@ -265,8 +316,15 @@ class JoinRequestController extends AbstractController
                 'WITH',
                 'existing.userId = u.id AND existing.status = :pendingStatus'
             )
+            ->leftJoin(
+                JoinRequest::class,
+                'existingJoin',
+                'WITH',
+                'existingJoin.userId = u.id AND existingJoin.status = :pendingStatus'
+            )
             ->where('m.userId IS NULL')
             ->andWhere('existing.id IS NULL')
+            ->andWhere('existingJoin.id IS NULL')
             ->andWhere('u.state = :activeState')
             ->setParameter('pendingStatus', $pendingStatus)
             ->setParameter('activeState', 'active')
@@ -308,6 +366,7 @@ class JoinRequestController extends AbstractController
             ->setMaxResults(50);
 
         $isSuperAdmin = $this->adminCapabilityChecker->isSuperAdmin($currentUser);
+        $managedOrgIds = null;
         if ($isGlobalAdmin && !$isSuperAdmin) {
             $managedOrgIds = $this->getManagedOrganisationIds($currentUser);
             if ($managedOrgIds === null) {
@@ -322,11 +381,17 @@ class JoinRequestController extends AbstractController
 
         $requests = $qb->getQuery()->getResult();
 
+        $this->removeStaleAutoAdminRequestsForUsersWithPendingJoin($requests);
+
         $result = [];
         foreach ($requests as $req) {
+            if ($req->getStatus() !== $pendingStatus) {
+                continue;
+            }
             $profile = $req->getUser()?->getProfile();
             $result[] = [
                 'id' => $req->getId(),
+                'request_kind' => 'admin',
                 'user_id' => $req->getUserId(),
                 'name' => $profile ? $profile->getDisplayName() : 'Unbekannt',
                 'email' => $profile?->getEmail(),
@@ -334,6 +399,7 @@ class JoinRequestController extends AbstractController
                 'requested_affiliation' => $req->getRequestedAffiliation(),
                 'requested_organisation_id' => $req->getRequestedOrganisationId(),
                 'requested_parent_department_name' => $req->getRequestedParentDepartmentName(),
+                'requested_parent_department_id' => $req->getRequestedParentDepartmentId(),
                 'message' => $req->getMessage(),
                 'status' => $req->getStatus(),
                 'assigned_department_id' => $req->getAssignedDepartmentId(),
@@ -341,6 +407,40 @@ class JoinRequestController extends AbstractController
                 'created_at' => $req->getCreatedAt()->format(\DateTimeInterface::ATOM),
             ];
         }
+
+        if ($isGlobalAdmin) {
+            $joinQb = $this->entityManager->getRepository(JoinRequest::class)
+                ->createQueryBuilder('jr')
+                ->innerJoin('jr.user', 'u')
+                ->innerJoin('u.profile', 'p')
+                ->innerJoin('jr.department', 'd')
+                ->innerJoin('d.organisation', 'o')
+                ->addSelect('u', 'p', 'd', 'o')
+                ->leftJoin(Membership::class, 'm', 'WITH', 'm.userId = u.id')
+                ->where('jr.status = :status')
+                ->andWhere('m.userId IS NULL')
+                ->setParameter('status', $pendingStatus)
+                ->orderBy('jr.createdAt', 'ASC')
+                ->setMaxResults(50);
+
+            if (!$isSuperAdmin && $managedOrgIds !== null) {
+                if (count($managedOrgIds) > 0) {
+                    $joinQb->andWhere('d.organisationId IN (:managedOrgIds)')
+                        ->setParameter('managedOrgIds', $managedOrgIds);
+                } else {
+                    $joinQb->andWhere('1 = 0');
+                }
+            }
+
+            foreach ($joinQb->getQuery()->getResult() as $joinRequest) {
+                if (!$joinRequest instanceof JoinRequest) {
+                    continue;
+                }
+                $result[] = $this->serializePendingDepartmentJoinRequest($joinRequest);
+            }
+        }
+
+        usort($result, static fn (array $a, array $b): int => strcmp($a['created_at'], $b['created_at']));
 
         return new JsonResponse($result);
     }
@@ -679,7 +779,8 @@ class JoinRequestController extends AbstractController
         $requests = $this->entityManager->getRepository(JoinRequest::class)
             ->createQueryBuilder('jr')
             ->innerJoin('jr.department', 'd')
-            ->addSelect('d')
+            ->innerJoin('d.organisation', 'o')
+            ->addSelect('d', 'o')
             ->where('jr.userId = :userId')
             ->setParameter('userId', $currentUser->getId())
             ->orderBy('jr.createdAt', 'DESC')
@@ -688,16 +789,54 @@ class JoinRequestController extends AbstractController
 
         $result = [];
         foreach ($requests as $jr) {
+            if (!$jr instanceof JoinRequest) {
+                continue;
+            }
+            $dept = $jr->getDepartment();
             $result[] = [
                 'id' => $jr->getId(),
+                'request_kind' => 'department_join',
                 'status' => $jr->getStatus(),
                 'department_id' => $jr->getDepartmentId(),
-                'department_name' => $jr->getDepartment()?->getName(),
+                'department_name' => $dept?->getName(),
+                'organisation_name' => $dept?->getOrganisation()?->getName(),
                 'message' => $jr->getMessage(),
                 'created_at' => $jr->getCreatedAt()->format(\DateTimeInterface::ATOM),
                 'updated_at' => $jr->getUpdatedAt()->format(\DateTimeInterface::ATOM),
             ];
         }
+
+        $adminRequests = $this->entityManager->getRepository(AdminJoinRequest::class)->findBy(
+            ['userId' => $currentUser->getId()],
+            ['createdAt' => 'DESC'],
+            20
+        );
+        foreach ($adminRequests as $adminRequest) {
+            $displayStatus = $adminRequest->getStatus();
+            if ($displayStatus === 'assigned') {
+                $displayStatus = 'approved';
+            }
+            $orgName = null;
+            if ($adminRequest->getRequestedOrganisationId() !== null) {
+                $org = $this->entityManager->getRepository(Organisation::class)->find($adminRequest->getRequestedOrganisationId());
+                $orgName = $org?->getName();
+            }
+            $result[] = [
+                'id' => $adminRequest->getId(),
+                'request_kind' => 'admin',
+                'status' => $displayStatus,
+                'department_id' => $adminRequest->getAssignedDepartmentId(),
+                'department_name' => $adminRequest->getRequestedDepartmentName(),
+                'organisation_name' => $orgName,
+                'requested_parent_department_name' => $adminRequest->getRequestedParentDepartmentName(),
+                'requested_affiliation' => $adminRequest->getRequestedAffiliation(),
+                'message' => $adminRequest->getMessage(),
+                'created_at' => $adminRequest->getCreatedAt()->format(\DateTimeInterface::ATOM),
+                'updated_at' => $adminRequest->getUpdatedAt()->format(\DateTimeInterface::ATOM),
+            ];
+        }
+
+        usort($result, static fn (array $a, array $b): int => strcmp($b['created_at'], $a['created_at']));
 
         return new JsonResponse($result);
     }
@@ -1249,12 +1388,7 @@ class JoinRequestController extends AbstractController
             return new JsonResponse(['error' => 'Anfrage wurde bereits bearbeitet'], 409);
         }
 
-        $departmentId = $joinRequest->getDepartmentId();
-        $myMembership = $this->entityManager->getRepository(Membership::class)->findOneBy([
-            'userId' => $currentUser->getId(),
-            'departmentId' => $departmentId,
-        ]);
-        if (!$myMembership || !in_array($myMembership->getRole(), self::MANAGER_ROLES, true)) {
+        if (!$this->canDecideJoinRequest($currentUser, $joinRequest)) {
             return new JsonResponse(['error' => 'Keine Berechtigung'], 403);
         }
 
@@ -1267,36 +1401,8 @@ class JoinRequestController extends AbstractController
         $joinRequest->setReviewedBy($currentUser);
         $joinRequest->setStatus($decision);
 
-        if ($decision === 'approved') {
-            $existingMembership = $this->entityManager->getRepository(Membership::class)->findOneBy([
-                'userId' => $joinRequest->getUserId(),
-                'departmentId' => $departmentId,
-            ]);
-
-            if (!$existingMembership) {
-                $membership = new Membership();
-                $membership->setUser($joinRequest->getUser());
-                $membership->setDepartment($joinRequest->getDepartment());
-                $membership->setRole('u');
-
-                $hasAnyMembership = count($this->entityManager->getRepository(Membership::class)->findBy([
-                    'userId' => $joinRequest->getUserId(),
-                ])) > 0;
-                $membership->setIsPrimary(!$hasAnyMembership);
-                $this->auditLogger->log(
-                    'membership',
-                    AuditLogger::buildMembershipEntityId($membership->getUserId(), $membership->getDepartmentId()),
-                    'membership_created',
-                    $currentUser,
-                    $membership->getUser(),
-                    $membership->getDepartment(),
-                    [
-                        'role' => ['old' => null, 'new' => $membership->getRole()],
-                        'is_primary' => ['old' => null, 'new' => $membership->getIsPrimary()],
-                    ]
-                );
-                $this->entityManager->persist($membership);
-            }
+        if ($decision === 'approved' && $joinRequest->getDepartment()) {
+            $this->createMembershipForUser($joinRequest->getUser(), $joinRequest->getDepartment(), 'u', $currentUser);
         }
 
         $this->entityManager->flush();
@@ -1305,6 +1411,138 @@ class JoinRequestController extends AbstractController
             'success' => true,
             'status' => $joinRequest->getStatus(),
         ]);
+    }
+
+    private function canDecideJoinRequest(User $currentUser, JoinRequest $joinRequest): bool
+    {
+        if ($this->adminCapabilityChecker->can($currentUser, 'support_requests.assign')) {
+            return true;
+        }
+
+        $departmentId = $joinRequest->getDepartmentId();
+        $myMembership = $this->entityManager->getRepository(Membership::class)->findOneBy([
+            'userId' => $currentUser->getId(),
+            'departmentId' => $departmentId,
+        ]);
+
+        return $myMembership !== null && in_array($myMembership->getRole(), self::MANAGER_ROLES, true);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function serializePendingDepartmentJoinRequest(JoinRequest $joinRequest): array
+    {
+        $profile = $joinRequest->getUser()?->getProfile();
+        $department = $joinRequest->getDepartment();
+        $organisation = $department?->getOrganisation();
+
+        return [
+            'id' => $joinRequest->getId(),
+            'request_kind' => 'department_join',
+            'user_id' => $joinRequest->getUserId(),
+            'name' => $profile ? $profile->getDisplayName() : 'Unbekannt',
+            'email' => $profile?->getEmail(),
+            'requested_department_name' => $department?->getName(),
+            'target_department_id' => $department?->getId(),
+            'target_department_name' => $department?->getName(),
+            'requested_organisation_id' => $department?->getOrganisationId(),
+            'organisation_name' => $organisation?->getName(),
+            'message' => $joinRequest->getMessage(),
+            'status' => $joinRequest->getStatus(),
+            'created_at' => $joinRequest->getCreatedAt()->format(\DateTimeInterface::ATOM),
+        ];
+    }
+
+    /**
+     * @param list<AdminJoinRequest> $adminRequests
+     */
+    private function removeStaleAutoAdminRequestsForUsersWithPendingJoin(array $adminRequests): void
+    {
+        $removed = false;
+        foreach ($adminRequests as $adminRequest) {
+            if (!$adminRequest instanceof AdminJoinRequest) {
+                continue;
+            }
+            if (!$this->isAutoUnknownAdminRequest($adminRequest)) {
+                continue;
+            }
+            $pendingJoin = $this->entityManager->getRepository(JoinRequest::class)->findOneBy([
+                'userId' => $adminRequest->getUserId(),
+                'status' => 'pending',
+            ]);
+            if ($pendingJoin instanceof JoinRequest) {
+                $this->entityManager->remove($adminRequest);
+                $removed = true;
+            }
+        }
+        if ($removed) {
+            $this->entityManager->flush();
+        }
+    }
+
+    private function isAutoUnknownAdminRequest(AdminJoinRequest $adminRequest): bool
+    {
+        if ($adminRequest->getRequestedDepartmentName() !== 'Unbekannte Abteilung') {
+            return false;
+        }
+        $message = $adminRequest->getMessage() ?? '';
+
+        return str_starts_with($message, 'Automatisch erstellt:');
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     */
+    private function validateTurnstileToken(Request $request, array $data): ?JsonResponse
+    {
+        if (!$this->turnstileVerifier->mustValidateCaptcha()) {
+            return null;
+        }
+
+        $token = trim((string) ($data['turnstileToken'] ?? $data['turnstile_token'] ?? ''));
+        $clientIp = (string) ($request->getClientIp() ?? 'unknown');
+        if ($token === '' || !$this->turnstileVerifier->verify($token, $clientIp !== 'unknown' ? $clientIp : null)) {
+            return new JsonResponse(['error' => 'Captcha-Verifikation fehlgeschlagen. Bitte erneut versuchen.'], 400);
+        }
+
+        return null;
+    }
+
+    private function createMembershipForUser(User $user, Department $department, string $role, ?User $actor): Membership
+    {
+        $existingMembership = $this->entityManager->getRepository(Membership::class)->findOneBy([
+            'userId' => $user->getId(),
+            'departmentId' => $department->getId(),
+        ]);
+        if ($existingMembership) {
+            return $existingMembership;
+        }
+
+        $membership = new Membership();
+        $membership->setUser($user);
+        $membership->setDepartment($department);
+        $membership->setRole($role);
+
+        $hasAnyMembership = count($this->entityManager->getRepository(Membership::class)->findBy([
+            'userId' => $user->getId(),
+        ])) > 0;
+        $membership->setIsPrimary(!$hasAnyMembership);
+        $this->auditLogger->log(
+            'membership',
+            AuditLogger::buildMembershipEntityId($membership->getUserId(), $membership->getDepartmentId()),
+            'membership_created',
+            $actor,
+            $membership->getUser(),
+            $membership->getDepartment(),
+            [
+                'role' => ['old' => null, 'new' => $membership->getRole()],
+                'is_primary' => ['old' => null, 'new' => $membership->getIsPrimary()],
+            ]
+        );
+        $this->entityManager->persist($membership);
+
+        return $membership;
     }
 
     private function normalizeJoinCode(string $code): string
