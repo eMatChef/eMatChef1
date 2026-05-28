@@ -40,7 +40,7 @@ import { IconSettings, IconContacts, IconEmployees, IconDashboard, IconActivitie
 const route = useRoute()
 const authStore = useAuthStore()
 const { t } = useI18n()
-const { isUserRole } = useDepartmentMemberRole()
+const { isUserRole, canManageMaterials } = useDepartmentMemberRole()
 
 // Department-ID aus Route oder Store
 const departmentId = computed(() => {
@@ -98,17 +98,27 @@ const allMenuItems = computed(() => [
     icon: markRaw(IconMaterials)
   },
   { id: 'templates', label: t('settings.nav.templates'), icon: markRaw(IconSettings) },
+  {
+    id: 'material-import',
+    label: t('settings.nav.materialImport'),
+    icon: markRaw(IconMaterials),
+    requiresMaterialManage: true,
+  },
   { id: 'zeit', label: t('settings.nav.timeLocation'), icon: markRaw(IconSettings) },
   { id: 'addons', label: t('settings.nav.addons'), icon: markRaw(IconActivities) }
 ])
 
 const USER_ALLOWED_MENU_IDS = new Set(['my-department', 'groups'])
 
-const visibleMenuItems = computed(() =>
-  isUserRole.value
+const visibleMenuItems = computed(() => {
+  let items = isUserRole.value
     ? allMenuItems.value.filter((item) => USER_ALLOWED_MENU_IDS.has(item.id))
     : allMenuItems.value
-)
+  if (!canManageMaterials.value) {
+    items = items.filter((item) => !(item as { requiresMaterialManage?: boolean }).requiresMaterialManage)
+  }
+  return items
+})
 
 </script>
 

@@ -77,7 +77,8 @@
         "settingsGroups": "Einstellungen · Gruppen · eMatChef",
         "settingsActivities": "Einstellungen · Aktivitäten · eMatChef",
         "settingsStorage": "Einstellungen · Lager · eMatChef",
-        "settingsTemplates": "Einstellungen · Vorlagen · eMatChef"
+        "settingsTemplates": "Einstellungen · Vorlagen · eMatChef",
+        "settingsMaterialImport": "Einstellungen · Material Import/Export · eMatChef"
       },
       "descriptions": {
         "publicLookup": "Öffentliche Material- und Seriennummern-Informationen in eMatChef.",
@@ -2068,7 +2069,8 @@
       "groups": "Gruppen",
       "activities": "Aktivitäten",
       "storage": "Regale & Fächer",
-      "templates": "Vorlagen"
+      "templates": "Vorlagen",
+      "materialImport": "Material Import/Export"
     },
     "common": {
       "selectDepartment": "Department auswählen"
@@ -2643,6 +2645,52 @@
         "gruppenzelt": "Gruppenzelt",
         "sonstiges": "Sonstiges"
       }
+    },
+    "materialImport": {
+      "title": "Material Import/Export",
+      "subtitle": "Bestand aus CSV- oder Excel-Datei importieren. Vorlage herunterladen, Daten prüfen und anpassen.",
+      "tabImport": "Import",
+      "tabExport": "Export",
+      "exportTitle": "Material exportieren",
+      "exportComingSoon": "Der Export wird in einem nächsten Schritt ergänzt (gleiche Spalten wie die Import-Vorlage).",
+      "downloadTemplate": "CSV-Vorlage herunterladen",
+      "uploadFile": "Datei hochladen (CSV / Excel)",
+      "uploadHint": "Unterstützt .csv, .xlsx und .xls. Die erste Zeile muss Spaltenüberschriften enthalten (siehe Vorlage).",
+      "previewTitle": "Vorschau ({count} Zeilen)",
+      "validate": "Prüfen",
+      "importing": "Import läuft…",
+      "importSubmit": "Import starten",
+      "duplicateDefault": "Bei Duplikaten standardmässig",
+      "duplicateAddBatch": "Neuer Batch (Einkauf)",
+      "duplicateSkip": "Überspringen",
+      "duplicateCreate": "Neues Material anlegen",
+      "duplicateDialogTitle": "Duplikate gefunden",
+      "duplicateDialogBody": "{count} Artikel existieren bereits in diesem Department. Standard-Aktion für alle Duplikate:",
+      "colName": "Artikel",
+      "colQty": "Menge",
+      "colLength": "Länge (cm)",
+      "colSupplier": "Lieferant",
+      "colYear": "Beschaffung",
+      "colPrice": "Stückpreis",
+      "colDuplicate": "Duplikat",
+      "colStatus": "Status",
+      "lengthPlaceholder": "z. B. 30 m",
+      "statusError": "Fehler",
+      "statusWarn": "Hinweis",
+      "statusOk": "OK",
+      "statusDuplicate": "Duplikat",
+      "emptyHint": "Laden Sie eine CSV- oder Excel-Datei hoch, oder laden Sie zuerst die Vorlage herunter.",
+      "parseEmpty": "Keine Datenzeilen in der Datei gefunden.",
+      "parseSuccess": "{count} Zeilen eingelesen.",
+      "parseFailed": "Datei konnte nicht gelesen werden.",
+      "validateOk": "Prüfung abgeschlossen – bereit zum Import.",
+      "validateWithErrors": "Prüfung: {n} Zeile(n) mit Fehlern.",
+      "importSuccess": "Import: {created} neu, {batches} Batch(es) ergänzt, {skipped} übersprungen.",
+      "importPartial": "{n} Zeile(n) mit Fehlern – Details in der Tabelle.",
+      "importFailed": "Import fehlgeschlagen.",
+      "errName": "Name fehlt",
+      "errQty": "Menge ungültig",
+      "errYear": "Jahr/Datum fehlt"
     },
     "adminUsers": {
       "title": "Benutzer",

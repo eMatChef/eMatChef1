@@ -1011,6 +1011,16 @@ const routes: RouteRecordRaw[] = [
               denyDepartmentRoles: DENY_BASIC_MEMBER_ROLES,
               denyRedirectTo: { name: 'SettingsMyDepartment' },
             }
+          },
+          {
+            path: 'material-import',
+            name: 'SettingsMaterialImport',
+            component: () => import('@/views/settings/MaterialImportSettingsView.vue'),
+            meta: {
+              ...routeHead('settingsMaterialImport'),
+              denyDepartmentRoles: DENY_BASIC_MEMBER_ROLES,
+              denyRedirectTo: { name: 'SettingsMyDepartment' },
+            }
           }
         ]
       }
