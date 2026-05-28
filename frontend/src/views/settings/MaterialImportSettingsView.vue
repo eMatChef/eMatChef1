@@ -53,28 +53,49 @@
           </button>
         </div>
 
-        <div class="mapping-grid">
-          <div v-for="field in importUiFields" :key="field" class="mapping-field-row">
-            <span class="mapping-field-label">
-              {{ mappingFieldLabel(field) }}
-              <span v-if="field === 'name'" class="required">*</span>
-            </span>
-            <select
-              class="mapping-select"
-              :value="mappingSelectValue(field)"
-              @change="onMappingSelect(field, ($event.target as HTMLSelectElement).value)"
-            >
-              <option :value="COLUMN_UNMAPPED">{{ t('settings.materialImport.mappingNone') }}</option>
-              <option
-                v-for="(label, colIdx) in fileColumnLabels"
-                :key="colIdx"
-                :value="colIdx"
-              >
-                {{ formatFileColumnOption(colIdx, label) }}
-              </option>
-            </select>
-            <span v-if="mappingSample(field)" class="mapping-sample">{{ mappingSample(field) }}</span>
-          </div>
+        <p class="mapping-table-hint">{{ t('settings.materialImport.mappingTableHint') }}</p>
+
+        <div class="table-wrap source-table-wrap">
+          <table class="source-mapping-table">
+            <thead>
+              <tr class="mapping-dropdown-row">
+                <th v-for="col in tableColumnIndices" :key="`map-${col}`" class="mapping-th">
+                  <select
+                    class="column-field-select"
+                    :class="{ 'column-field-select--mapped': columnAssignments[col] }"
+                    :value="columnAssignments[col] || ''"
+                    @change="onColumnFieldSelect(col, ($event.target as HTMLSelectElement).value)"
+                  >
+                    <option value="">{{ t('settings.materialImport.mappingColumnSkip') }}</option>
+                    <option
+                      v-for="field in importUiFields"
+                      :key="field"
+                      :value="field"
+                    >
+                      {{ mappingFieldLabel(field) }}{{ field === 'name' ? ' *' : '' }}
+                    </option>
+                  </select>
+                </th>
+              </tr>
+              <tr class="source-file-header-row">
+                <th v-for="col in tableColumnIndices" :key="`hdr-${col}`">
+                  <span class="col-letter">{{ excelColumnLetter(col) }}</span>
+                  <span class="col-file-label">{{ fileColumnLabels[col] || '—' }}</span>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="(row, ri) in sourcePreviewRows" :key="ri">
+                <td
+                  v-for="col in tableColumnIndices"
+                  :key="col"
+                  :class="{ 'cell-mapped': columnAssignments[col] }"
+                >
+                  {{ row[col] ?? '' }}
+                </td>
+              </tr>
+            </tbody>
+          </table>
         </div>
 
         <div class="mapping-actions">
@@ -183,7 +204,7 @@
         </div>
       </div>
 
-      <div v-else class="card empty-card">
+      <div v-else-if="!showMappingPanel" class="card empty-card">
         <p>{{ t('settings.materialImport.emptyHint') }}</p>
       </div>
     </template>
@@ -227,12 +248,15 @@ import {
   parseMatrixWithMapping,
   buildSuggestedMapping,
   getColumnLabels,
-  formatFileColumnOption,
+  excelColumnLetter,
+  mappingToColumnAssignments,
+  columnAssignmentsToMapping,
+  getSourcePreviewRows,
   IMPORT_UI_FIELDS,
-  COLUMN_UNMAPPED,
   type MaterialImportRow,
   type MaterialImportColumn,
   type ColumnMapping,
+  type ColumnAssignment,
   type ImportFileRaw,
 } from '@/utils/materialImportParse'
 
@@ -249,6 +273,7 @@ const rawImport = ref<ImportFileRaw | null>(null)
 const showMappingPanel = ref(false)
 const headerRowIndex = ref(0)
 const columnMapping = ref<ColumnMapping>({})
+const columnAssignments = ref<ColumnAssignment[]>([])
 const importUiFields = IMPORT_UI_FIELDS
 const fileName = ref('')
 const materials = ref<Material[]>([])
@@ -282,7 +307,26 @@ const headerRowOptions = computed(() => {
   return Array.from({ length: Math.min(Math.max(len, 1), 25) }, (_, i) => i)
 })
 
-const firstDataRowIndex = computed(() => headerRowIndex.value + 1)
+const tableColumnCount = computed(() => {
+  if (!rawImport.value) return 0
+  const m = rawImport.value.matrix
+  let max = 0
+  const from = headerRowIndex.value
+  const to = Math.min(m.length, from + 25)
+  for (let i = from; i < to; i++) {
+    max = Math.max(max, m[i]?.length ?? 0)
+  }
+  return max
+})
+
+const tableColumnIndices = computed(() =>
+  Array.from({ length: tableColumnCount.value }, (_, i) => i),
+)
+
+const sourcePreviewRows = computed(() => {
+  if (!rawImport.value) return [] as string[][]
+  return getSourcePreviewRows(rawImport.value.matrix, headerRowIndex.value, 12)
+})
 
 const hasBlockingErrors = computed(() => {
   if (rows.value.some((r) => !r.name.trim() || !(parseInt(r.qty, 10) > 0))) return true
@@ -366,39 +410,35 @@ function mappingFieldLabel(field: MaterialImportColumn): string {
   return t(key)
 }
 
-function mappingSelectValue(field: MaterialImportColumn): number {
-  const v = columnMapping.value[field]
-  return v === undefined ? COLUMN_UNMAPPED : v
+function syncColumnAssignmentsFromMapping() {
+  columnAssignments.value = mappingToColumnAssignments(
+    tableColumnCount.value,
+    columnMapping.value,
+  )
 }
 
-function onMappingSelect(field: MaterialImportColumn, value: string) {
-  const idx = parseInt(value, 10)
-  const next = { ...columnMapping.value }
-  if (idx === COLUMN_UNMAPPED || Number.isNaN(idx)) {
-    delete next[field]
-  } else {
-    next[field] = idx
+function onColumnFieldSelect(colIdx: number, field: string) {
+  const next = [...columnAssignments.value]
+  while (next.length < tableColumnCount.value) next.push('')
+  const f = field as ColumnAssignment
+  if (f) {
+    for (let i = 0; i < next.length; i++) {
+      if (i !== colIdx && next[i] === f) next[i] = ''
+    }
   }
-  columnMapping.value = next
-}
-
-function mappingSample(field: MaterialImportColumn): string {
-  const col = columnMapping.value[field]
-  if (col === undefined || col < 0 || !rawImport.value) return ''
-  const sampleRow = rawImport.value.matrix[firstDataRowIndex.value]
-  if (!sampleRow) return ''
-  const val = (sampleRow[col] ?? '').trim()
-  if (!val) return ''
-  const preview = val.length > 28 ? `${val.slice(0, 28)}…` : val
-  return t('settings.materialImport.mappingSample', { value: preview })
+  next[colIdx] = f
+  columnAssignments.value = next
+  columnMapping.value = columnAssignmentsToMapping(next)
 }
 
 function onHeaderRowChange() {
   columnMapping.value = buildSuggestedMapping(fileColumnLabels.value)
+  syncColumnAssignmentsFromMapping()
 }
 
 function resetSuggestedMapping() {
   columnMapping.value = { ...buildSuggestedMapping(fileColumnLabels.value) }
+  syncColumnAssignmentsFromMapping()
 }
 
 function applyColumnMapping() {
@@ -441,6 +481,7 @@ async function onFileSelected(ev: Event) {
     rawImport.value = raw
     headerRowIndex.value = raw.headerRowIndex
     columnMapping.value = { ...raw.suggestedMapping }
+    syncColumnAssignmentsFromMapping()
     rows.value = []
     previewRows.value = []
     showMappingPanel.value = true
@@ -777,49 +818,91 @@ onMounted(async () => {
   margin-bottom: 1rem;
 }
 
-.mapping-grid {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
+.mapping-table-hint {
+  margin: 0 0 0.75rem;
+  font-size: 0.875rem;
+  color: #4b5563;
+}
+
+.source-table-wrap {
+  max-height: 420px;
+  overflow: auto;
   margin-bottom: 1rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
 }
 
-.mapping-field-row {
-  display: grid;
-  grid-template-columns: minmax(140px, 200px) 1fr minmax(100px, 220px);
-  gap: 0.75rem;
-  align-items: center;
+.source-mapping-table {
+  width: max-content;
+  min-width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8125rem;
 }
 
-@media (max-width: 720px) {
-  .mapping-field-row {
-    grid-template-columns: 1fr;
-  }
-}
-
-.mapping-field-label {
-  font-size: 0.875rem;
-  font-weight: 500;
-}
-
-.mapping-field-label .required {
-  color: #dc2626;
-}
-
-.mapping-select {
-  width: 100%;
+.source-mapping-table th,
+.source-mapping-table td {
+  border: 1px solid #e5e7eb;
   padding: 0.35rem 0.5rem;
-  border: 1px solid #d1d5db;
-  border-radius: 6px;
-  font-size: 0.875rem;
-}
-
-.mapping-sample {
-  font-size: 0.75rem;
-  color: #6b7280;
+  vertical-align: top;
+  max-width: 200px;
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
+}
+
+.mapping-dropdown-row th {
+  background: #eff6ff;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+
+.source-file-header-row th {
+  background: #f9fafb;
+  font-weight: 500;
+  color: #374151;
+  position: sticky;
+  top: 2.6rem;
+  z-index: 1;
+}
+
+.col-letter {
+  display: inline-block;
+  min-width: 1.25rem;
+  margin-right: 0.35rem;
+  font-weight: 600;
+  color: #6b7280;
+}
+
+.col-file-label {
+  font-weight: 400;
+}
+
+.column-field-select {
+  width: 100%;
+  min-width: 120px;
+  max-width: 180px;
+  padding: 0.35rem 0.4rem;
+  border: 1px solid #93c5fd;
+  border-radius: 6px;
+  font-size: 0.8125rem;
+  background: #fff;
+}
+
+.column-field-select--mapped {
+  border-color: #2563eb;
+  background: #f0f9ff;
+}
+
+.source-mapping-table td.cell-mapped {
+  background: #f0fdf4;
+}
+
+.source-mapping-table tbody tr:nth-child(even) td {
+  background: #fafafa;
+}
+
+.source-mapping-table tbody tr:nth-child(even) td.cell-mapped {
+  background: #ecfdf5;
 }
 
 .mapping-actions {

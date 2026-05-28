@@ -39,6 +39,48 @@ export const IMPORT_UI_FIELDS: MaterialImportColumn[] = [
 
 export type ColumnMapping = Partial<Record<MaterialImportColumn, number>>
 
+/** Pro Datei-Spalte: zugeordnetes App-Feld oder leer. */
+export type ColumnAssignment = MaterialImportColumn | ''
+
+export function mappingToColumnAssignments(
+  columnCount: number,
+  mapping: ColumnMapping,
+): ColumnAssignment[] {
+  const assignments: ColumnAssignment[] = Array.from({ length: columnCount }, () => '')
+  for (const field of IMPORT_UI_FIELDS) {
+    const idx = mapping[field]
+    if (typeof idx === 'number' && idx >= 0 && idx < columnCount) {
+      assignments[idx] = field
+    }
+  }
+  return assignments
+}
+
+export function columnAssignmentsToMapping(assignments: ColumnAssignment[]): ColumnMapping {
+  const mapping: ColumnMapping = {}
+  assignments.forEach((field, idx) => {
+    if (field) mapping[field] = idx
+  })
+  return mapping
+}
+
+/** Erste Datenzeilen der Datei zur Anzeige unter der Zuordnungszeile. */
+export function getSourcePreviewRows(
+  matrix: string[][],
+  headerRowIndex: number,
+  maxRows = 15,
+): string[][] {
+  const result: string[][] = []
+  for (let i = headerRowIndex + 1; i < matrix.length && result.length < maxRows; i++) {
+    const row = matrix[i] || []
+    if (!row.some((c) => cellToString(c))) continue
+    const first = cellToString(row[0])
+    if (first && HEADER_ALIASES[normalizeHeader(first)]) continue
+    result.push(row.map((c) => cellToString(c)))
+  }
+  return result
+}
+
 const UNMAPPED = -1
 
 /** Nur Jahr angegeben: Monat/Tag vom Importzeitpunkt (heute), Jahr aus der Datei. */
