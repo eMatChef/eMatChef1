@@ -5,6 +5,7 @@ namespace App\Controller;
 use Doctrine\DBAL\Connection;
 use Doctrine\DBAL\Platforms\PostgreSQLPlatform;
 use App\Entity\Activity;
+use App\Service\ComboResolutionService;
 use App\Service\MaterialAvailabilityReservationQuery;
 use App\Util\IdGenerator;
 use Doctrine\ORM\EntityManagerInterface;
@@ -27,6 +28,7 @@ class MaterialAvailabilityController extends AbstractController
     public function __construct(
         private Connection $connection,
         private EntityManagerInterface $entityManager,
+        private ComboResolutionService $comboResolution,
     ) {}
 
     /**
@@ -482,12 +484,153 @@ class MaterialAvailabilityController extends AbstractController
                 ];
             }, $materials);
 
+            // Virtuelle Kombos: Verfügbarkeit = Flaschenhals min(floor(frei/menge)) über stock-Teile.
+            $materials = $this->enrichVirtualComboAvailability(
+                $materials,
+                $hasPeriod ? $startDate : null,
+                $hasPeriod ? $endDate : null,
+                $excludeActivityId,
+            );
+
             return new JsonResponse($materials);
         } catch (\Exception $e) {
             return new JsonResponse([
                 'error' => 'Datenbankfehler: ' . $e->getMessage()
             ], 500);
         }
+    }
+
+    /**
+     * Reichert virtuelle Kombos mit Flaschenhals-Verfügbarkeit + aufgelöster Stückliste an.
+     *
+     * @param list<array<string, mixed>> $materials
+     * @return list<array<string, mixed>>
+     */
+    private function enrichVirtualComboAvailability(
+        array $materials,
+        ?\DateTime $startDate,
+        ?\DateTime $endDate,
+        string $excludeActivityId,
+    ): array {
+        $comboIds = [];
+        foreach ($materials as $row) {
+            if (($row['materialType'] ?? '') === 'virtual_combo') {
+                $comboIds[] = (string) $row['materialItemId'];
+            }
+        }
+        if ($comboIds === []) {
+            return $materials;
+        }
+
+        // Basis-Konfiguration (Pflichtteile + default-Toggles) je Kombo auflösen.
+        $resolvedByCombo = [];
+        $allComponentIds = [];
+        foreach ($comboIds as $cid) {
+            $resolved = $this->comboResolution->resolve($cid, $this->comboResolution->defaultSelectedOptionIds($cid));
+            $resolvedByCombo[$cid] = $resolved;
+            foreach ($resolved['stock'] as $mid => $_part) {
+                $allComponentIds[(string) $mid] = true;
+            }
+        }
+        $componentAvail = $this->availabilityForIds(array_keys($allComponentIds), $startDate, $endDate, $excludeActivityId);
+
+        return array_map(function (array $row) use ($resolvedByCombo, $componentAvail) {
+            $cid = (string) $row['materialItemId'];
+            if (!isset($resolvedByCombo[$cid])) {
+                return $row;
+            }
+            $stock = $resolvedByCombo[$cid]['stock'];
+            $bottleneck = null;
+            $components = [];
+            foreach ($stock as $mid => $part) {
+                $qtyPer = (int) $part['qty_per_combo'];
+                if ($qtyPer <= 0) {
+                    continue;
+                }
+                $compAvail = (int) ($componentAvail[(string) $mid] ?? 0);
+                $possible = intdiv($compAvail, $qtyPer);
+                $bottleneck = $bottleneck === null ? $possible : min($bottleneck, $possible);
+                $components[] = [
+                    'materialItemId' => (string) $mid,
+                    'name' => $part['name'],
+                    'qtyPerCombo' => $qtyPer,
+                    'availableForPeriod' => $compAvail,
+                ];
+            }
+            $row['availableForPeriod'] = $bottleneck ?? 0;
+            $row['comboBottleneck'] = $bottleneck ?? 0;
+            $row['comboStockComponents'] = $components;
+            return $row;
+        }, $materials);
+    }
+
+    /**
+     * Verfügbarkeit (available_for_period) je Material-Id – ohne Scope/Suche/Limit.
+     *
+     * @param list<string> $ids
+     * @return array<string, int>
+     */
+    private function availabilityForIds(
+        array $ids,
+        ?\DateTime $startDate,
+        ?\DateTime $endDate,
+        string $excludeActivityId,
+    ): array {
+        $ids = array_values(array_unique(array_filter($ids, static fn ($v) => (string) $v !== '')));
+        if ($ids === []) {
+            return [];
+        }
+
+        $idPh = [];
+        $params = [];
+        foreach ($ids as $i => $id) {
+            $k = 'avc_id' . $i;
+            $idPh[] = ':' . $k;
+            $params[$k] = $id;
+        }
+        $idIn = implode(', ', $idPh);
+
+        $reservedExcludeSql = $excludeActivityId !== '' ? ' AND a.id != :exclude_activity_id' : '';
+        $hasPeriod = $startDate !== null && $endDate !== null;
+
+        $sql = "SELECT mi.id AS material_item_id,
+                GREATEST(0,
+                    CASE WHEN mi.material_type = 'physical_combo' THEN
+                        COALESCE(batch_totals.total_qty, 0) - COALESCE(reserved.reserved_qty, 0)
+                    ELSE
+                        COALESCE(batch_totals.total_qty, 0) - COALESCE(stock_in_phys_combo.qty_in_phys_combo, 0) - COALESCE(reserved.reserved_qty, 0)
+                    END
+                )::INT AS available_for_period
+                FROM material_item mi
+                LEFT JOIN (
+                    SELECT material_item_id AS mid, SUM(qty) AS total_qty
+                    FROM material_batch WHERE status = 'active' GROUP BY material_item_id
+                ) batch_totals ON batch_totals.mid = mi.id
+                LEFT JOIN (
+                    SELECT b.material_item_id AS mid, SUM(a.qty) AS qty_in_phys_combo
+                    FROM batch_storage_allocation a
+                    INNER JOIN material_batch b ON a.batch_id = b.id AND b.status = 'active'
+                    INNER JOIN material_item combo_kiste ON combo_kiste.linked_container_batch_id = a.container_batch_id
+                        AND combo_kiste.material_type = 'physical_combo' AND combo_kiste.deleted_at IS NULL
+                    GROUP BY b.material_item_id
+                ) stock_in_phys_combo ON stock_in_phys_combo.mid = mi.id
+                " . MaterialAvailabilityReservationQuery::lateralReservedQtySql($hasPeriod, $reservedExcludeSql) . "
+                WHERE mi.deleted_at IS NULL AND mi.id IN ($idIn)";
+
+        if ($hasPeriod) {
+            $params['start_date'] = $startDate->format('Y-m-d H:i:s');
+            $params['end_date'] = $endDate->format('Y-m-d H:i:s');
+        }
+        if ($excludeActivityId !== '') {
+            $params['exclude_activity_id'] = $excludeActivityId;
+        }
+
+        $rows = $this->connection->prepare($sql)->executeQuery($params)->fetchAllAssociative();
+        $map = [];
+        foreach ($rows as $r) {
+            $map[(string) $r['material_item_id']] = (int) $r['available_for_period'];
+        }
+        return $map;
     }
 
     /**

@@ -47,6 +47,10 @@ class MaterialTemplateComponent
     #[ORM\Column(type: 'string', length: 20, options: ['default' => 'bulk'])]
     private string $tracking = 'bulk';
 
+    /** Komponenten-Quelle: 'stock' | 'self_provided' (siehe MaterialComboComponent). */
+    #[ORM\Column(name: 'component_source', type: 'string', length: 20, options: ['default' => 'stock'])]
+    private string $componentSource = 'stock';
+
     /** Mögliche Reparaturtypen: ["loch", "riss", "abspannung"] */
     #[ORM\Column(name: 'repair_types', type: 'json', nullable: true)]
     private ?array $repairTypes = null;
@@ -147,6 +151,17 @@ class MaterialTemplateComponent
     public function setTracking(string $tracking): self
     {
         $this->tracking = $tracking;
+        return $this;
+    }
+
+    public function getComponentSource(): string
+    {
+        return $this->componentSource;
+    }
+
+    public function setComponentSource(string $componentSource): self
+    {
+        $this->componentSource = $componentSource;
         return $this;
     }
 

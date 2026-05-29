@@ -40,6 +40,11 @@ export const MATERIAL_IMPORT_COLUMNS = [
   'material',
   'manufacturer',
   'supplier',
+  'storage',
+  'stock_location_mode',
+  'rack',
+  'slot',
+  'container',
   'acquired_year',
   'unit_price',
   'notes',
@@ -60,6 +65,11 @@ export const IMPORT_UI_FIELDS: MaterialImportColumn[] = [
   'material',
   'manufacturer',
   'supplier',
+  'storage',
+  'stock_location_mode',
+  'rack',
+  'slot',
+  'container',
   'acquired_year',
   'unit_price',
   'notes',
@@ -140,6 +150,15 @@ export interface MaterialImportRow {
   manufacturer: string
   supplier_name: string
   supplier_id: string
+  storage_name: string
+  storage_address_id: string
+  stock_location_mode: string
+  rack_id: string
+  rack_name: string
+  slot_id: string
+  slot_name: string
+  container_name: string
+  container_batch_id: string
   acquired_year: string
   acquired_on: string
   unit_price: string
@@ -148,6 +167,38 @@ export interface MaterialImportRow {
   _existingMaterialId?: string | null
   _existingMaterialName?: string | null
   _parseWarnings?: string[]
+}
+
+export type ImportRowStorageIssue = 'lager' | 'mode' | 'rack' | 'slot' | 'container'
+
+/** Pflicht vor Import: Lager + Gestell/Fach oder Kiste (wie Material-Wizard). */
+export function getImportRowStorageIssues(row: MaterialImportRow): ImportRowStorageIssue[] {
+  const issues: ImportRowStorageIssue[] = []
+  if (!row.storage_address_id?.trim() && !row.storage_name?.trim()) {
+    issues.push('lager')
+  }
+  const mode = row.stock_location_mode
+  if (mode !== 'slot' && mode !== 'kiste') {
+    issues.push('mode')
+    return issues
+  }
+  if (mode === 'kiste') {
+    if (!row.container_batch_id?.trim() && !row.container_name?.trim()) {
+      issues.push('container')
+    }
+    return issues
+  }
+  if (!row.rack_id?.trim() && !row.rack_name?.trim()) {
+    issues.push('rack')
+  }
+  if (!row.slot_id?.trim() && !row.slot_name?.trim()) {
+    issues.push('slot')
+  }
+  return issues
+}
+
+export function isImportRowStorageComplete(row: MaterialImportRow): boolean {
+  return getImportRowStorageIssues(row).length === 0
 }
 
 export interface ImportFileRaw {
@@ -192,6 +243,25 @@ const HEADER_ALIASES: Record<string, MaterialImportColumn> = {
   supplier: 'supplier',
   lieferant: 'supplier',
   gekauft_von: 'supplier',
+  storage: 'storage',
+  lager: 'storage',
+  magazin: 'storage',
+  lagerort: 'storage',
+  standort: 'storage',
+  stock_location_mode: 'stock_location_mode',
+  lagerung: 'stock_location_mode',
+  lagerart: 'stock_location_mode',
+  lagerplatz_typ: 'stock_location_mode',
+  gestell: 'rack',
+  rack: 'rack',
+  regal: 'rack',
+  slot: 'slot',
+  fach: 'slot',
+  platz: 'slot',
+  container: 'container',
+  kiste: 'container',
+  tasche: 'container',
+  box: 'container',
   acquired_year: 'acquired_year',
   beschaffung: 'acquired_year',
   beschafft: 'acquired_year',
@@ -382,6 +452,15 @@ function normalizePriceDisplay(raw: string): string {
   return num || raw.trim()
 }
 
+function inferStockLocationModeFromCells(data: Partial<Record<MaterialImportColumn, string>>): string {
+  const explicit = (data.stock_location_mode ?? '').trim().toLowerCase()
+  if (['kiste', 'kisten', 'tasche', 'box', 'container'].includes(explicit)) return 'kiste'
+  if (['slot', 'gestell', 'rack', 'regal', 'fach', 'platz'].includes(explicit)) return 'slot'
+  if ((data.container ?? '').trim()) return 'kiste'
+  if ((data.rack ?? '').trim() || (data.slot ?? '').trim()) return 'slot'
+  return explicit
+}
+
 function rowFromCells(cells: string[], headerMap: (MaterialImportColumn | null)[], rowIndex: number): MaterialImportRow | null {
   const data: Partial<Record<MaterialImportColumn, string>> = {}
   headerMap.forEach((col, i) => {
@@ -420,6 +499,15 @@ function rowFromCells(cells: string[], headerMap: (MaterialImportColumn | null)[
     manufacturer: (data.manufacturer ?? '').trim(),
     supplier_name: (data.supplier ?? '').trim(),
     supplier_id: '',
+    storage_name: (data.storage ?? '').trim(),
+    storage_address_id: '',
+    stock_location_mode: inferStockLocationModeFromCells(data),
+    rack_id: '',
+    rack_name: (data.rack ?? '').trim(),
+    slot_id: '',
+    slot_name: (data.slot ?? '').trim(),
+    container_name: (data.container ?? '').trim(),
+    container_batch_id: '',
     acquired_year: year,
     acquired_on: acquiredOn,
     unit_price: normalizePriceDisplay(data.unit_price ?? ''),
@@ -565,6 +653,15 @@ export function rowsToApiPayload(rows: MaterialImportRow[]) {
     size_height: r.size_height || null,
     supplier_name: r.supplier_name || null,
     supplier_id: r.supplier_id || null,
+    storage_name: r.storage_name || null,
+    storage_address_id: r.storage_address_id || null,
+    stock_location_mode: r.stock_location_mode || null,
+    rack_id: r.rack_id || null,
+    rack_name: r.rack_name || null,
+    slot_id: r.slot_id || null,
+    slot_name: r.slot_name || null,
+    container_name: r.container_name || null,
+    container_batch_id: r.container_batch_id || null,
     acquired_on: r.acquired_on || null,
     acquired_year: r.acquired_year || null,
     unit_price: r.unit_price || null,

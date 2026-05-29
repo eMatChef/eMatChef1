@@ -1112,17 +1112,21 @@ class MaterialController extends AbstractController
             return new JsonResponse(['error' => 'Nur Kombos können fertiggestellt werden'], 400);
         }
 
-        $requiredCount = (int) $this->entityManager->getRepository(MaterialComboComponent::class)
+        // Regel (Weg B): jede Kombo braucht ≥ 1 Pflicht-Stückteil aus dem Lager (component_source = stock).
+        // self_provided-Teile (z. B. Mast) zählen nie als Pflichtteil – sie sind nur Checklisten-Hinweis.
+        $requiredStockCount = (int) $this->entityManager->getRepository(MaterialComboComponent::class)
             ->createQueryBuilder('cc')
             ->select('COUNT(cc.id)')
             ->where('cc.parentMaterialId = :parentId')
             ->andWhere('cc.isOptional = false')
+            ->andWhere('cc.componentSource = :stock')
             ->setParameter('parentId', $id)
+            ->setParameter('stock', 'stock')
             ->getQuery()
             ->getSingleScalarResult();
 
-        if ($requiredCount < 1) {
-            return new JsonResponse(['error' => 'Mindestens ein Pflichtteil ist erforderlich, bevor die Kombo fertiggestellt werden kann'], 400);
+        if ($requiredStockCount < 1) {
+            return new JsonResponse(['error' => 'Mindestens ein Pflichtteil aus dem Lager ist erforderlich, bevor die Kombo fertiggestellt werden kann'], 400);
         }
 
         $material->setComboStatus('ready');
@@ -2909,6 +2913,9 @@ class MaterialController extends AbstractController
             $comp->setComponentRole($data['component_role'] ?? null);
             $comp->setAssignmentMode($data['assignment_mode'] ?? 'bulk');
             $comp->setIsOptional($data['is_optional'] ?? false);
+            $comp->setComponentSource(
+                ($data['component_source'] ?? null) === 'self_provided' ? 'self_provided' : 'stock'
+            );
             $comp->setSortOrder($data['sort_order'] ?? 0);
 
             // Batch zuweisen (für serialized/fixed/assigned)
@@ -2998,6 +3005,11 @@ class MaterialController extends AbstractController
             }
             if (array_key_exists('is_optional', $data)) {
                 $comp->setIsOptional((bool) $data['is_optional']);
+            }
+            if (array_key_exists('component_source', $data)) {
+                $comp->setComponentSource(
+                    ((string) $data['component_source']) === 'self_provided' ? 'self_provided' : 'stock'
+                );
             }
             if (array_key_exists('sort_order', $data)) {
                 $comp->setSortOrder((int) $data['sort_order']);
@@ -3161,6 +3173,7 @@ class MaterialController extends AbstractController
             'component_role' => $comp->getComponentRole(),
             'assignment_mode' => $comp->getAssignmentMode(),
             'is_optional' => $comp->getIsOptional(),
+            'component_source' => $comp->getComponentSource(),
             'sort_order' => $comp->getSortOrder(),
             'is_assigned' => $comp->isAssignedToBatch(),
             'is_awaiting' => $comp->isAwaitingAssignment(),

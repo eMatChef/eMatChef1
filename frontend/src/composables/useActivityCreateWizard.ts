@@ -76,6 +76,8 @@ export interface ActivityMaterialLine {
   tracking_type?: 'serialized' | 'bulk' | null
   /** Wie GET …/items */
   is_container?: boolean
+  /** Zeilenmodell B: gewählte Toggle-Optionen einer virtuellen Kombo. */
+  selected_option_ids?: string[]
 }
 
 function pickFirstRootGroup(groups: Group[]): string | null {
@@ -534,6 +536,9 @@ export function useActivityCreateWizard() {
             material_item_id: l.material_item_id,
             quantity: l.quantity,
             priority: 'normal' as const,
+            ...(l.material_type === 'virtual_combo' && l.selected_option_ids
+              ? { selected_option_ids: l.selected_option_ids }
+              : {}),
           })),
         })
       }
@@ -688,15 +693,20 @@ export function useActivityCreateWizard() {
     activityNotes.value = (detail.notes ?? '').trim()
     draftActivityId.value = detail.id
     applyInvitedDepartmentsApiResponse(detail)
-    materialLines.value = items.map((i) => ({
-      material_item_id: i.material_item_id,
-      material_name: i.material_name,
-      quantity: i.quantity,
-      pack_size: i.pack_size ?? null,
-      pack_unit: i.pack_unit ?? null,
-      tracking_type: i.tracking_type ?? null,
-      is_container: !!i.is_container,
-    }))
+    // Zeilenmodell B: Kind-Zeilen (parent_activity_item_id != null) sind abgeleitet -> nicht editierbar listen.
+    materialLines.value = items
+      .filter((i) => !i.parent_activity_item_id)
+      .map((i) => ({
+        material_item_id: i.material_item_id,
+        material_name: i.material_name,
+        quantity: i.quantity,
+        material_type: i.material_type ?? null,
+        pack_size: i.pack_size ?? null,
+        pack_unit: i.pack_unit ?? null,
+        tracking_type: i.tracking_type ?? null,
+        is_container: !!i.is_container,
+        selected_option_ids: i.config_snapshot?.selected_option_ids ?? undefined,
+      }))
     planningSynced.value = true
     await nextTick()
     const first = missingSteps.value[0]

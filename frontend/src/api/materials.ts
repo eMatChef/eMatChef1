@@ -90,10 +90,67 @@ export interface ComboComponent {
   component_role: string | null
   assignment_mode: 'fixed' | 'assigned' | 'on_issue' | 'bulk'
   is_optional: boolean
+  /** Komponenten-Quelle (Weg B): aus Lager (reserviert) vs. vom Leiter selbst mitgebracht. */
+  component_source: ComponentSource
   sort_order: number
   is_assigned: boolean
   is_awaiting: boolean
   created_at: string
+}
+
+/**
+ * Komponenten-Quelle einer Stücklisten-/Delta-Zeile (Weg B):
+ * - stock: aus dem Lager, wird reserviert und zählt im Flaschenhals.
+ * - self_provided: vom Leiter selbst zu organisieren (z. B. Mast) – nicht reserviert, nur Checkliste.
+ */
+export type ComponentSource = 'stock' | 'self_provided'
+
+/** Anzeige-Modus einer Option (entkoppelt von den Deltas). */
+export type OptionDisplayMode = 'toggle' | 'group'
+
+/** Auswahlregel einer Options-Gruppe. */
+export type OptionSelectionType = 'exclusive' | 'multi' | 'quantity'
+
+/** ±Stücklisten-Zeile einer Option (Weg B, README Abschnitt 6). */
+export interface ComboOptionDelta {
+  id: string
+  option_id: string
+  component_material: {
+    id: string
+    name: string
+    material_type: string
+    tracking_type: string | null
+    total_stock: number
+  }
+  /** ±Menge (signed), z. B. +1, −12 */
+  qty_delta: number
+  assignment_mode: 'on_issue' | 'bulk'
+  tracking: string | null
+  component_source: ComponentSource
+  sort_order: number
+}
+
+/** Eine wählbare Option einer virtuellen Kombo. */
+export interface ComboOption {
+  id: string
+  material_item_id: string
+  option_group_id: string | null
+  name: string
+  display_mode: OptionDisplayMode
+  default_selected: boolean
+  sort_order: number
+  deltas: ComboOptionDelta[]
+}
+
+/** Auswahl-Gruppe (Paket 6-UI; Schema bereits in Paket 5). */
+export interface ComboOptionGroup {
+  id: string
+  material_item_id: string
+  name: string
+  selection_type: OptionSelectionType
+  min_select: number
+  max_select: number | null
+  sort_order: number
 }
 
 /** Verwandtes Zubehör: Empfehlungs-Verknüpfung (kein Stücklisten-Teil) */
@@ -209,6 +266,10 @@ export interface Material {
   /** Nur Kombos (physical_combo / virtual_combo), Detail-GET */
   combo_components?: ComboComponent[]
   combo_component_count?: number
+
+  /** Optionen einer virtuellen Kombo (Weg B); Toggle in Paket 5, Gruppen in Paket 6. */
+  combo_options?: ComboOption[]
+  combo_option_groups?: ComboOptionGroup[]
 
   /** Verwandtes Zubehör (Empfehlung, separate Position), Detail-GET */
   related_accessories?: RelatedAccessory[]
@@ -752,6 +813,7 @@ export interface AddComboComponentRequest {
   component_role?: string | null
   assignment_mode?: 'fixed' | 'assigned' | 'on_issue' | 'bulk'
   is_optional?: boolean
+  component_source?: ComponentSource
   sort_order?: number
   /** Phys. Kombi: Bestand in verknüpfte Kiste buchen (Standard: true) */
   allocate_to_linked_container?: boolean
@@ -763,6 +825,7 @@ export interface UpdateComboComponentRequest {
   assignment_mode?: string
   component_role?: string | null
   is_optional?: boolean
+  component_source?: ComponentSource
   sort_order?: number
   /** Phys. Kombi: Mehr-Menge in verknüpfte Kiste buchen (Standard: true) */
   allocate_to_linked_container?: boolean

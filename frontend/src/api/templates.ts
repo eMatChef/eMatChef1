@@ -2,6 +2,15 @@ import apiClient from './apiClient'
 
 // ============== Types ==============
 
+/** Komponenten-Quelle (Weg B): aus Lager vs. vom Leiter mitgebracht. */
+export type ComponentSource = 'stock' | 'self_provided'
+
+/** Anzeige-Modus einer Vorlagen-Option. */
+export type OptionDisplayMode = 'toggle' | 'group'
+
+/** Auswahlregel einer Vorlagen-Options-Gruppe. */
+export type OptionSelectionType = 'exclusive' | 'multi' | 'quantity'
+
 export interface TemplateComponent {
   id: string
   component_type: string
@@ -10,7 +19,42 @@ export interface TemplateComponent {
   is_optional: boolean
   is_generic: boolean
   tracking: 'serialized' | 'bulk'
+  component_source: ComponentSource
   repair_types: string[] | null
+  sort_order: number
+}
+
+/** ±Stücklisten-Zeile einer Vorlagen-Option (abstrakt über component_type). */
+export interface TemplateOptionDelta {
+  id: string
+  option_id: string
+  component_type: string
+  name: string
+  qty_delta: number
+  tracking: 'serialized' | 'bulk'
+  component_source: ComponentSource
+  is_generic: boolean
+  sort_order: number
+}
+
+export interface TemplateOption {
+  id: string
+  template_id: string
+  option_group_id: string | null
+  name: string
+  display_mode: OptionDisplayMode
+  default_selected: boolean
+  sort_order: number
+  deltas: TemplateOptionDelta[]
+}
+
+export interface TemplateOptionGroup {
+  id: string
+  template_id: string
+  name: string
+  selection_type: OptionSelectionType
+  min_select: number
+  max_select: number | null
   sort_order: number
 }
 
@@ -51,6 +95,8 @@ export interface Template {
   // Nur bei Einzelabfrage
   components?: TemplateComponent[]
   related_accessories?: TemplateRelatedAccessory[]
+  options?: TemplateOption[]
+  option_groups?: TemplateOptionGroup[]
 }
 
 export interface CreateTemplateComponentRequest {
@@ -60,6 +106,7 @@ export interface CreateTemplateComponentRequest {
   is_optional?: boolean
   is_generic?: boolean
   tracking?: 'serialized' | 'bulk'
+  component_source?: ComponentSource
   repair_types?: string[]
   sort_order?: number
 }

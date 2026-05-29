@@ -529,7 +529,7 @@
                       :image-entity-id="batch.id"
                       @activate="openQrActionModalForBatch(batch)"
                     />
-                    <span class="stock-qr-batch-label">{{ batchQrRowLabel(batch) }}</span>
+                    <span class="stock-qr-batch-label">{{ batchPrintLine(batch) }}</span>
                     <button type="button" class="btn-outline btn-sm" @click="openQrActionModalForBatch(batch)">
                       {{ t('components.materialDetail.btnQrActions') }}
                     </button>
@@ -867,6 +867,11 @@
                         {{ comp.component_material.name }}
                       </button>
                       <span v-if="isVirtualComboView && comp.is_optional" class="composition-optional-badge">{{ t('components.materialDetail.optionalShortBadge') }}</span>
+                      <span
+                        v-if="isVirtualComboView && comp.component_source === 'self_provided'"
+                        class="composition-optional-badge composition-selfprovided-badge"
+                        :title="t('components.materialDetail.hintComponentSource')"
+                      >{{ t('components.materialDetail.selfProvidedShortBadge') }}</span>
                     </td>
                     <td>{{ comp.component_role || t('components.materialDetail.emDash') }}</td>
                     <td>{{ comp.qty }}</td>
@@ -2229,6 +2234,14 @@
             {{ t('components.materialDetail.labelOptionalForCombo') }}
           </label>
         </div>
+        <div v-if="addCompositionSelected && isVirtualComboView" class="form-group">
+          <label>{{ t('components.materialDetail.labelComponentSource') }}</label>
+          <select v-model="addCompositionSource" class="form-select">
+            <option value="stock">{{ t('components.materialDetail.componentSourceStock') }}</option>
+            <option value="self_provided">{{ t('components.materialDetail.componentSourceSelfProvided') }}</option>
+          </select>
+          <p class="batch-field-hint">{{ t('components.materialDetail.hintComponentSource') }}</p>
+        </div>
         <p v-if="addCompositionError" class="error-text">{{ addCompositionError }}</p>
         </div>
         <div v-if="addCompositionSelected" class="composition-add-modal-selects">
@@ -2382,6 +2395,14 @@
             {{ t('components.materialDetail.labelOptionalForCombo') }}
           </label>
         </div>
+        <div v-if="isVirtualComboView" class="form-group">
+          <label>{{ t('components.materialDetail.labelComponentSource') }}</label>
+          <select v-model="editCompositionSource" class="form-select">
+            <option value="stock">{{ t('components.materialDetail.componentSourceStock') }}</option>
+            <option value="self_provided">{{ t('components.materialDetail.componentSourceSelfProvided') }}</option>
+          </select>
+          <p class="batch-field-hint">{{ t('components.materialDetail.hintComponentSource') }}</p>
+        </div>
         <p v-if="editCompositionError" class="error-text">{{ editCompositionError }}</p>
         </div>
         <div class="composition-add-modal-selects">
@@ -2469,6 +2490,7 @@ import {
   type MaterialStorageLocationsResponse,
   type MaterialStorageLocationRow,
   type ComboComponent,
+  type ComponentSource,
   type UpdateComboComponentRequest,
 } from '@/api/materials'
 import { addPrintCartItem, addPrintCartItemsBulk } from '@/api/tasks'
@@ -2629,6 +2651,7 @@ const addCompositionStockLocations = ref<MaterialStorageLocationsResponse | null
 const addCompositionQty = ref(1)
 const addCompositionRole = ref('')
 const addCompositionOptional = ref(false)
+const addCompositionSource = ref<ComponentSource>('stock')
 const addCompositionMode = ref<'fixed' | 'assigned' | 'on_issue' | 'bulk'>('bulk')
 const addCompositionError = ref('')
 const addCompositionSubmitting = ref(false)
@@ -2638,6 +2661,7 @@ const editCompositionComp = ref<ComboComponent | null>(null)
 const editCompositionQty = ref(1)
 const editCompositionRole = ref('')
 const editCompositionOptional = ref(false)
+const editCompositionSource = ref<ComponentSource>('stock')
 const editCompositionMode = ref<'fixed' | 'assigned' | 'on_issue' | 'bulk'>('bulk')
 const editCompositionBatchId = ref('')
 const editCompositionBatches = ref<MaterialBatch[]>([])
@@ -3587,6 +3611,7 @@ function openAddCompositionModal() {
   addCompositionQty.value = 1
   addCompositionRole.value = ''
   addCompositionOptional.value = false
+  addCompositionSource.value = 'stock'
   addCompositionError.value = ''
   addCompositionMode.value =
     material.value?.material_type === 'virtual_combo' ? 'on_issue' : 'bulk'
@@ -3670,6 +3695,7 @@ async function submitAddComposition() {
       qty: addQty,
       component_role: addRole === '' ? null : addRole,
       is_optional: addOptional,
+      component_source: isVirtualComboView.value ? addCompositionSource.value : 'stock',
       assignment_mode: addCompositionMode.value,
       sort_order: maxSort + 1,
       allocate_to_linked_container: addCompositionAllocatesToLinkedCrate.value,
@@ -3820,6 +3846,7 @@ async function openEditCompositionModal(comp: ComboComponent) {
   editCompositionQty.value = comp.qty
   editCompositionRole.value = comp.component_role || ''
   editCompositionOptional.value = comp.is_optional
+  editCompositionSource.value = comp.component_source ?? 'stock'
   editCompositionMode.value = comp.assignment_mode as 'fixed' | 'assigned' | 'on_issue' | 'bulk'
   editCompositionBatchId.value = comp.component_batch?.id || ''
   editCompositionError.value = ''
@@ -3878,6 +3905,7 @@ async function submitEditComposition() {
         : Math.max(1, editCompositionQty.value || 1),
       component_role: roleTrimmed === '' ? null : roleTrimmed,
       is_optional: editOptional,
+      component_source: isVirtualComboView.value ? editCompositionSource.value : 'stock',
       assignment_mode: editCompositionMode.value,
     }
     if (editCompositionBatches.value.length > 0) {
@@ -4816,25 +4844,19 @@ function closeAddToContainerModal() {
 function openQrActionModalForBatch(batch: any) {
   qrActionMode.value = 'batch'
   qrActionEntityId.value = String(batch?.id || '')
-  const serial = String(batch?.serial_number || '').trim()
-  const label = String(batch?.label || '').trim()
-  qrActionLabel.value =
-    serial ||
-    label ||
-    t('components.materialDetail.labelSerialFallback', { suffix: String(batch?.id || '').slice(-6) })
+  qrActionLabel.value = batchPrintLine(batch)
   qrActionCode.value = String(batch?.public_code || '')
   qrActionUrl.value = String(batch?.public_url || '')
   showQrActionModal.value = true
 }
 
-function batchQrRowLabel(batch: any): string {
+/** Kontextabhängige Druckzeile unter dem QR: S/N bei Seriennummer, sonst Charge (Label oder ID-Endung). */
+function batchPrintLine(batch: any): string {
   const serial = String(batch?.serial_number || '').trim()
+  if (serial) return t('components.materialDetail.qrPrintLineSerial', { value: serial })
   const label = String(batch?.label || '').trim()
-  if (serial) return serial
-  if (label) return label
-  const acquired = batch?.acquired_on ? formatDate(batch.acquired_on) : ''
-  if (acquired) return acquired
-  return t('components.materialDetail.labelSerialFallback', {
+  if (label) return t('components.materialDetail.qrPrintLineBatch', { value: label })
+  return t('components.materialDetail.qrPrintLineBatchFallback', {
     suffix: String(batch?.id || '').slice(-6),
   })
 }
@@ -4873,6 +4895,8 @@ async function handleQrAddToPrintCart() {
     return
   }
 
+  const materialName = material.value?.name || t('components.materialDetail.fallbackMaterialDisplayName')
+
   if (qrActionMode.value === 'all') {
     const payloads: Array<{
       department_id: string
@@ -4886,16 +4910,11 @@ async function handleQrAddToPrintCart() {
     for (const batch of batchesWithPrintableQr.value) {
       const url = String(batch?.public_url || '').trim()
       if (!isPrintableBatchPublicUrl(url)) continue
-      const serial = String(batch?.serial_number || '').trim()
-      const label = String(batch?.label || '').trim()
       payloads.push({
         department_id: props.departmentId,
         entity_type: 'batch',
         entity_id: String(batch?.id || ''),
-        label:
-          serial ||
-          label ||
-          t('components.materialDetail.labelSerialFallback', { suffix: String(batch?.id || '').slice(-6) }),
+        label: t('components.materialDetail.qrCartLabel', { material: materialName, line: batchPrintLine(batch) }),
         public_code: String(batch?.public_code || '') || null,
         public_url: url,
       })
@@ -4933,7 +4952,7 @@ async function handleQrAddToPrintCart() {
       department_id: props.departmentId,
       entity_type: 'batch',
       entity_id: entityId,
-      label: qrActionLabel.value || 'QR',
+      label: t('components.materialDetail.qrCartLabel', { material: materialName, line: qrActionLabel.value || 'QR' }),
       public_code: qrActionCode.value || null,
       public_url: url,
     })
@@ -4955,23 +4974,18 @@ function escapeHtml(raw: string): string {
     .replace(/'/g, '&#039;')
 }
 
-async function buildPrintRowsForAllQrs(): Promise<Array<{ label: string; code: string; qrDataUrl: string }>> {
-  const rows: Array<{ label: string; code: string; qrDataUrl: string }> = []
+async function buildPrintRowsForAllQrs(): Promise<Array<{ line: string; code: string; qrDataUrl: string }>> {
+  const rows: Array<{ line: string; code: string; qrDataUrl: string }> = []
   const tasks: Array<Promise<void>> = []
 
   for (const batch of batchesWithPrintableQr.value) {
     const url = String(batch?.public_url || '').trim()
     if (!isPrintableBatchPublicUrl(url)) continue
-    const serial = String(batch?.serial_number || '').trim()
-    const label = String(batch?.label || '').trim()
-    const title =
-      serial ||
-      label ||
-      t('components.materialDetail.labelSerialFallback', { suffix: String(batch?.id || '').slice(-6) })
+    const line = batchPrintLine(batch)
     const code = String(batch?.public_code || '').trim()
     tasks.push((async () => {
       const qrDataUrl = await QRCode.toDataURL(url, { width: 220, margin: 1 })
-      rows.push({ label: title, code, qrDataUrl })
+      rows.push({ line, code, qrDataUrl })
     })())
   }
 
@@ -4980,6 +4994,7 @@ async function buildPrintRowsForAllQrs(): Promise<Array<{ label: string; code: s
 }
 
 async function handleQrPrint() {
+  const materialName = material.value?.name || t('components.materialDetail.fallbackMaterialDisplayName')
   if (qrActionMode.value === 'all') {
     const rows = await buildPrintRowsForAllQrs()
     if (rows.length === 0) {
@@ -4990,7 +5005,8 @@ async function handleQrPrint() {
       .map((row) => `
         <div class="card">
           <img src="${row.qrDataUrl}" alt="${escapeHtml(t('components.materialDetail.qrAlt'))}" />
-          <div class="title">${escapeHtml(row.label)}</div>
+          <div class="material">${escapeHtml(materialName)}</div>
+          <div class="title">${escapeHtml(row.line)}</div>
           <div class="code">${escapeHtml(row.code || '-')}</div>
         </div>
       `)
@@ -5010,8 +5026,9 @@ async function handleQrPrint() {
     .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px; }
     .card { border: 1px solid #d1d5db; border-radius: 10px; padding: 10px; text-align: center; page-break-inside: avoid; }
     img { width: 160px; height: 160px; object-fit: contain; }
-    .title { margin-top: 8px; font-weight: 700; font-size: 13px; }
-    .code { margin-top: 4px; font-family: monospace; color: #4b5563; font-size: 12px; }
+    .material { margin-top: 8px; font-weight: 700; font-size: 14px; }
+    .title { margin-top: 3px; font-size: 12px; color: #374151; }
+    .code { margin-top: 3px; font-family: monospace; color: #4b5563; font-size: 11px; }
   </style>
 </head>
 <body>
@@ -5042,13 +5059,15 @@ async function handleQrPrint() {
     body { font-family: Arial, sans-serif; margin: 20px; }
     .card { max-width: 360px; border: 1px solid #d1d5db; border-radius: 10px; padding: 14px; text-align: center; }
     img { width: 240px; height: 240px; object-fit: contain; }
-    .title { margin-top: 10px; font-weight: 700; font-size: 14px; }
+    .material { margin-top: 10px; font-weight: 700; font-size: 15px; }
+    .title { margin-top: 4px; font-size: 13px; color: #374151; }
     .code { margin-top: 4px; font-family: monospace; color: #4b5563; font-size: 12px; }
   </style>
 </head>
 <body>
   <div class="card">
     <img src="${qrDataUrl}" alt="${escapeHtml(t('components.materialDetail.qrAlt'))}" />
+    <div class="material">${escapeHtml(materialName)}</div>
     <div class="title">${escapeHtml(qrActionLabel.value)}</div>
     <div class="code">${escapeHtml(qrActionCode.value || '-')}</div>
   </div>

@@ -485,6 +485,7 @@ class TemplateController extends AbstractController
                 $requiredQty = $tplComp->getRequiredQty();
                 $tracking = $tplComp->getTracking(); // serialized oder bulk
                 $isOptional = $tplComp->getIsOptional();
+                $componentSource = $tplComp->getComponentSource(); // stock | self_provided
 
                 // ── Artikelname zusammensetzen ──
                 // is_generic=true  → Name bleibt generisch: "Heringe" (übergreifendes Material)
@@ -634,6 +635,7 @@ class TemplateController extends AbstractController
                     $comboComp->setQty((int)$qty);
                     $comboComp->setComponentRole($compType);
                     $comboComp->setIsOptional($isOptional);
+                    $comboComp->setComponentSource($componentSource === 'self_provided' ? 'self_provided' : 'stock');
                     $comboComp->setSortOrder($sortOrder++);
 
                     if ($tracking === 'bulk') {
@@ -857,6 +859,7 @@ class TemplateController extends AbstractController
                         } else {
                             $comp->setTracking('bulk');
                         }
+                        $comp->setComponentSource(($compData['component_source'] ?? null) === 'self_provided' ? 'self_provided' : 'stock');
 
                         // Repair Types
                         if (isset($compData['repair_types']) && is_array($compData['repair_types'])) {
@@ -903,6 +906,7 @@ class TemplateController extends AbstractController
         $comp->setIsOptional($compData['is_optional'] ?? false);
         $comp->setIsGeneric($compData['is_generic'] ?? false);
         $comp->setTracking($compData['tracking'] ?? 'bulk');
+        $comp->setComponentSource(($compData['component_source'] ?? null) === 'self_provided' ? 'self_provided' : 'stock');
         $comp->setSortOrder($compData['sort_order'] ?? $index);
 
         if (isset($compData['repair_types']) && is_array($compData['repair_types'])) {
@@ -964,6 +968,7 @@ class TemplateController extends AbstractController
                     'is_optional' => $comp->getIsOptional(),
                     'is_generic' => $comp->getIsGeneric(),
                     'tracking' => $comp->getTracking(),
+                    'component_source' => $comp->getComponentSource(),
                     'repair_types' => $comp->getRepairTypes(),
                     'sort_order' => $comp->getSortOrder(),
                 ];

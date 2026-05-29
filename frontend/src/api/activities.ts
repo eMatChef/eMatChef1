@@ -192,6 +192,35 @@ export interface ActivityItemRow {
   /** Lager-Kisten-Charge der Bezugskiste (physisch. Kombi / verknüpfte Kiste) — für Pack-Behälter anlegen */
   linked_container_batch_id?: string | null
   external_source?: string | null
+  /**
+   * Zeilenmodell B (virtuelle Kombo): NULL = normale/Eltern-Zeile,
+   * gesetzt = Kind-Zeile eines aufgelösten stock-Teils.
+   */
+  parent_activity_item_id?: string | null
+  /** Gewählte Kombo-Konfiguration (nur an der Eltern-Zeile). */
+  config_snapshot?: ComboConfigSnapshot | null
+}
+
+/** Snapshot der gewählten Kombo-Konfiguration (Zeilenmodell B). */
+export interface ComboConfigSnapshot {
+  /** Anzahl gebuchter Kombos (= Eltern-Zeilen-Menge). */
+  combo_qty: number
+  /** IDs der aktivierten Optionen (material_combo_option.id). */
+  selected_option_ids: string[]
+  /** Aufgelöste Endmengen je stock-Teil (für Anzeige „wie Kiste"). */
+  resolved_components?: Array<{
+    component_material_id: string
+    name: string
+    qty_per_combo: number
+    total_qty: number
+    component_source: 'stock' | 'self_provided'
+  }>
+  /** self_provided-Hinweisposten (keine Reservierung). */
+  self_provided?: Array<{
+    component_material_id: string
+    name: string
+    total_qty: number
+  }>
 }
 
 export async function getActivity(activityId: string): Promise<ActivityDetail> {
@@ -245,6 +274,8 @@ export interface SyncActivityItemPayload {
   material_item_id: string
   quantity: number
   priority?: string
+  /** Zeilenmodell B: gewählte Toggle-Optionen einer virtuellen Kombo (cc:<id> / opt:<id>). */
+  selected_option_ids?: string[]
 }
 
 /**

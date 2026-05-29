@@ -28,6 +28,7 @@ use App\Service\ActivityKisteMaterialLinker;
 use App\Service\ActivityMwNotificationService;
 use App\Service\ActivityUserNotificationService;
 use App\Service\InboxMessageService;
+use App\Service\ComboResolutionService;
 use App\Service\PackPipelineService;
 use App\Service\Public\PublicCodeService;
 use App\Util\IdGenerator;
@@ -56,6 +57,7 @@ class ActivityController extends AbstractController
         private ActivityItemPipelineStatusService $activityItemPipelineStatus,
         private AccountingAcquisitionFollowUpSerializer $followUpSerializer,
         private PackPipelineService $packPipeline,
+        private ComboResolutionService $comboResolution,
     ) {}
 
     private function getActorUserId(): ?string
@@ -1962,6 +1964,8 @@ class ActivityController extends AbstractController
                 'material_item_id' => $item->getMaterialItemId(),
                 'material_name' => $mi->getName(),
                 'material_type' => $mi->getMaterialType(),
+                'parent_activity_item_id' => $item->getParentActivityItemId(),
+                'config_snapshot' => $item->getConfigSnapshot(),
                 'tracking_type' => $trackingType,
                 'is_container' => $isContainerPosition,
                 'linked_container_label' => $linkedContainerLabel,
@@ -2067,6 +2071,11 @@ class ActivityController extends AbstractController
 
                 $this->entityManager->persist($activityItem);
                 $count++;
+
+                // Zeilenmodell B: virtuelle Kombo -> Eltern-Zeile (oben) + Kind-Zeilen je stock-Teil.
+                if ($materialItem->isVirtualCombo()) {
+                    $this->expandVirtualComboLine($activity, $activityItem, $materialItem, $itemData);
+                }
             }
 
             // Item-Count und total_price am Activity aktualisieren
@@ -2141,6 +2150,11 @@ class ActivityController extends AbstractController
 
         try {
             $materialBefore = $this->aggregateActivityMaterials($id);
+
+            // Zeilenmodell B: virtuelle Kombo separat behandeln (Eltern-Zeile + stock-Kind-Zeilen, kein Mengen-Merge).
+            if ($materialItem->isVirtualCombo()) {
+                return $this->addVirtualComboItem($activity, $materialItem, $data, $currentUser, $materialBefore);
+            }
 
             // Erste Zeile pro Material (Hauptbuchung vor Nachbuchungs-Zeilen) — es können mehrere activity_item-Zeilen existieren
             $existing = $this->primaryActivityItemForMaterial($id, (string) $data['material_item_id']);
@@ -2464,6 +2478,17 @@ class ActivityController extends AbstractController
         $removedMaterial = $item->getMaterialItem();
         $removedMaterialId = $item->getMaterialItemId();
 
+        // Zeilenmodell B: virtuelle Kombo-Eltern entfernt auch ihre stock-Kind-Zeilen.
+        $removedChildMaterialIds = [];
+        if ($item->getParentActivityItemId() === null) {
+            $children = $this->entityManager->getRepository(ActivityItem::class)
+                ->findBy(['parentActivityItemId' => $item->getId()]);
+            foreach ($children as $child) {
+                $removedChildMaterialIds[] = $child->getMaterialItemId();
+                $this->entityManager->remove($child);
+            }
+        }
+
         $this->entityManager->remove($item);
 
         // Item-Count aktualisieren
@@ -2490,6 +2515,15 @@ class ActivityController extends AbstractController
                 ]),
             )));
             $this->dissolvePackContainersForRemovedMaterial($activity, $removedMaterialId);
+            // Zeilenmodell B: Pack-Behälter der entfernten stock-Kind-Teile auflösen, falls keine andere Zeile sie noch braucht.
+            foreach (array_values(array_unique($removedChildMaterialIds)) as $childMid) {
+                $stillUsed = (int) $this->entityManager->getRepository(ActivityItem::class)
+                    ->count(['activityId' => $activity->getId(), 'materialItemId' => $childMid]) > 0;
+                if (!$stillUsed) {
+                    $this->dissolvePackContainersForRemovedMaterial($activity, $childMid);
+                    $this->purgeIssueReportsForMaterial($activity, $childMid);
+                }
+            }
             if ($removedMaterial->getMaterialType() === 'physical_combo') {
                 $this->removeOrphanKisteActivityLinesAfterComboDissolve($activity, $removedMaterial);
             }
@@ -2600,6 +2634,10 @@ class ActivityController extends AbstractController
 
         $qtyByMaterialId = [];
         foreach ($activityItems as $ai) {
+            // Zeilenmodell B: virtuelle Kombo-Eltern packen nicht; nur ihre stock-Kind-Zeilen.
+            if ($ai->getMaterialItem()->isVirtualCombo()) {
+                continue;
+            }
             $mid = $ai->getMaterialItemId();
             $qtyByMaterialId[$mid] = ($qtyByMaterialId[$mid] ?? 0) + $ai->getQuantity();
         }
@@ -2616,6 +2654,9 @@ class ActivityController extends AbstractController
             ->findBy(['activityId' => $activity->getId()]);
         $qtyByMaterialId = [];
         foreach ($activityItems as $ai) {
+            if ($ai->getMaterialItem()->isVirtualCombo()) {
+                continue;
+            }
             $mid = $ai->getMaterialItemId();
             $qtyByMaterialId[$mid] = ($qtyByMaterialId[$mid] ?? 0) + $ai->getQuantity();
         }
@@ -2912,11 +2953,13 @@ class ActivityController extends AbstractController
 
     private function primaryActivityItemForMaterial(string $activityId, string $materialItemId): ?ActivityItem
     {
+        // Zeilenmodell B: abgeleitete Kombo-Kind-Zeilen nie als „primäre" Zeile (würden sonst beim Mengen-Merge verfälscht).
         return $this->entityManager->createQueryBuilder()
             ->select('ai')
             ->from(ActivityItem::class, 'ai')
             ->where('ai.activityId = :aid')
             ->andWhere('ai.materialItemId = :mid')
+            ->andWhere('ai.parentActivityItemId IS NULL')
             ->orderBy('ai.isReplenishment', 'ASC')
             ->addOrderBy('ai.createdAt', 'ASC')
             ->setParameter('aid', $activityId)
@@ -3189,6 +3232,173 @@ class ActivityController extends AbstractController
         }
 
         $activity->setTotalPrice($total !== '0.00' ? $total : null);
+    }
+
+    /**
+     * Zeilenmodell B: einzelne virtuelle Kombo zur Aktivität hinzufügen (POST /items).
+     * Erhöht bei vorhandener Eltern-Zeile die Menge und baut die Kind-Zeilen neu auf.
+     *
+     * @param array<string, mixed> $data
+     * @param array<string, array{material_item_id: string, material_name: string, quantity: int}> $materialBefore
+     */
+    private function addVirtualComboItem(
+        Activity $activity,
+        MaterialItem $combo,
+        array $data,
+        User $currentUser,
+        array $materialBefore,
+    ): JsonResponse {
+        $activityId = (string) $activity->getId();
+        $addQty = max(1, (int) ($data['quantity'] ?? 1));
+
+        $selectedOptionIds = null;
+        if (isset($data['selected_option_ids']) && is_array($data['selected_option_ids'])) {
+            $selectedOptionIds = array_values(array_filter(array_map(
+                static fn ($v) => trim((string) $v),
+                $data['selected_option_ids'],
+            ), static fn (string $v) => $v !== ''));
+        }
+
+        $parent = $this->primaryActivityItemForMaterial($activityId, (string) $combo->getId());
+
+        if ($parent !== null) {
+            $parent->setQuantity($parent->getQuantity() + $addQty);
+            $parent->setUpdatedAt(new \DateTime());
+            // bestehende Kind-Zeilen entfernen (werden mit neuer Menge/Config neu aufgebaut)
+            $oldChildren = $this->entityManager->getRepository(ActivityItem::class)
+                ->findBy(['parentActivityItemId' => $parent->getId()]);
+            foreach ($oldChildren as $child) {
+                $this->entityManager->remove($child);
+            }
+            $this->entityManager->flush();
+            if ($selectedOptionIds === null) {
+                $snapshot = $parent->getConfigSnapshot();
+                $selectedOptionIds = is_array($snapshot['selected_option_ids'] ?? null)
+                    ? array_values(array_map('strval', $snapshot['selected_option_ids']))
+                    : null;
+            }
+        } else {
+            $parent = new ActivityItem();
+            $parent->setId(IdGenerator::generate13('ai'));
+            $parent->setActivity($activity);
+            $parent->setMaterialItem($combo);
+            $parent->setQuantity($addQty);
+            $parent->setPriority($data['priority'] ?? 'normal');
+            $parent->setNotes($data['notes'] ?? null);
+            $parent->setIsConsumable($combo->getIsConsumable());
+            $parent->setIsReplenishment(false);
+            $this->applyItemProvenance($parent, $currentUser, $activity, $data);
+            $this->entityManager->persist($parent);
+        }
+
+        $childData = $data;
+        if ($selectedOptionIds !== null) {
+            $childData['selected_option_ids'] = $selectedOptionIds;
+        } else {
+            unset($childData['selected_option_ids']);
+        }
+        $this->expandVirtualComboLine($activity, $parent, $combo, $childData);
+
+        $this->entityManager->flush();
+
+        $activity->setItemCount(
+            (int) $this->entityManager->getRepository(ActivityItem::class)->count(['activityId' => $activityId])
+        );
+        $this->recalculateTotalPrice($activity);
+        $activity->setUpdatedAt(new \DateTime());
+
+        if (in_array($activity->getStatus(), [
+            Activity::STATUS_PACKING,
+            Activity::STATUS_PACKED,
+            Activity::STATUS_AT_EVENT,
+            Activity::STATUS_RETURNED,
+            Activity::STATUS_COMPLETED,
+        ], true)) {
+            $this->resyncPackListFromActivityItems($activity);
+        }
+
+        $this->entityManager->flush();
+
+        $this->recordMaterialItemsHistory($activity, $materialBefore);
+
+        return new JsonResponse(['message' => 'Material hinzugefügt', 'total_price' => $activity->getTotalPrice()], 201);
+    }
+
+    /**
+     * Zeilenmodell B: löst eine virtuelle Kombo-Eltern-Zeile in Kind-Zeilen je stock-Teil auf
+     * und legt den config_snapshot an der Eltern-Zeile ab. self_provided erzeugt keine Kind-Zeile.
+     *
+     * @param array<string, mixed> $itemData
+     */
+    private function expandVirtualComboLine(
+        Activity $activity,
+        ActivityItem $parent,
+        MaterialItem $combo,
+        array $itemData,
+    ): void {
+        $comboQty = max(1, $parent->getQuantity());
+
+        $selectedOptionIds = [];
+        if (isset($itemData['selected_option_ids']) && is_array($itemData['selected_option_ids'])) {
+            foreach ($itemData['selected_option_ids'] as $oid) {
+                $oid = trim((string) $oid);
+                if ($oid !== '') {
+                    $selectedOptionIds[] = $oid;
+                }
+            }
+        } else {
+            $selectedOptionIds = $this->comboResolution->defaultSelectedOptionIds((string) $combo->getId());
+        }
+        $selectedOptionIds = array_values(array_unique($selectedOptionIds));
+
+        $resolved = $this->comboResolution->resolve((string) $combo->getId(), $selectedOptionIds);
+
+        $resolvedComponents = [];
+        foreach ($resolved['stock'] as $mid => $part) {
+            $componentMaterial = $this->entityManager->getRepository(MaterialItem::class)->find((string) $mid);
+            if ($componentMaterial === null) {
+                continue;
+            }
+            $qtyPerCombo = (int) $part['qty_per_combo'];
+            $childQty = $comboQty * $qtyPerCombo;
+            if ($childQty <= 0) {
+                continue;
+            }
+            $child = new ActivityItem();
+            $child->setId(IdGenerator::generate13('ai'));
+            $child->setActivity($activity);
+            $child->setMaterialItem($componentMaterial);
+            $child->setQuantity($childQty);
+            $child->setPriority($itemData['priority'] ?? 'normal');
+            $child->setIsConsumable($componentMaterial->getIsConsumable());
+            $child->setIsReplenishment(false);
+            $child->setParentActivityItemId($parent->getId());
+            $this->entityManager->persist($child);
+
+            $resolvedComponents[] = [
+                'component_material_id' => (string) $mid,
+                'name' => $part['name'],
+                'qty_per_combo' => $qtyPerCombo,
+                'total_qty' => $childQty,
+                'component_source' => 'stock',
+            ];
+        }
+
+        $selfProvided = [];
+        foreach ($resolved['self_provided'] as $mid => $part) {
+            $selfProvided[] = [
+                'component_material_id' => (string) $mid,
+                'name' => $part['name'],
+                'total_qty' => $comboQty * (int) $part['qty_per_combo'],
+            ];
+        }
+
+        $parent->setConfigSnapshot([
+            'combo_qty' => $comboQty,
+            'selected_option_ids' => $selectedOptionIds,
+            'resolved_components' => $resolvedComponents,
+            'self_provided' => $selfProvided,
+        ]);
     }
 
     /**

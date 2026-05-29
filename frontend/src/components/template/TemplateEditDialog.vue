@@ -141,6 +141,7 @@
                     <span class="comp-badge" :class="element.tracking">{{ element.tracking === 'serialized' ? t('components.templateEditDialog.trackingShortSn') : t('components.templateEditDialog.trackingShortBulk') }}</span>
                     <span v-if="element.is_generic" class="comp-badge generic" :title="t('components.templateEditDialog.genericBadgeTitle')">🌐</span>
                     <span v-if="element.is_optional" class="comp-badge optional">{{ t('components.templateEditDialog.optionalBadge') }}</span>
+                    <span v-if="element.component_source === 'self_provided'" class="comp-badge" :title="t('components.templateEditDialog.componentSourceSelfProvided')">{{ t('components.templateEditDialog.componentSourceSelfBadge') }}</span>
                   </div>
                   <button class="component-toggle" :class="{ expanded: expandedComponents.has(index) }" @click="toggleComponent(index)">
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -174,6 +175,13 @@
                         <select v-model="element.tracking" class="form-select">
                           <option value="serialized">{{ t('components.templateEditDialog.trackingSerialized') }}</option>
                           <option value="bulk">{{ t('components.templateEditDialog.trackingBulk') }}</option>
+                        </select>
+                      </div>
+                      <div class="form-group">
+                        <label class="form-label">{{ t('components.templateEditDialog.componentSourceLabel') }}</label>
+                        <select v-model="element.component_source" class="form-select">
+                          <option value="stock">{{ t('components.templateEditDialog.componentSourceStock') }}</option>
+                          <option value="self_provided">{{ t('components.templateEditDialog.componentSourceSelfProvided') }}</option>
                         </select>
                       </div>
                       <div class="form-group checkbox-group">
@@ -272,7 +280,8 @@ import {
   type CreateTemplateRequest,
   type UpdateTemplateRequest,
   type CreateTemplateComponentRequest,
-  type CreateTemplateRelatedAccessoryRequest
+  type CreateTemplateRelatedAccessoryRequest,
+  type ComponentSource
 } from '@/api/templates'
 
 interface ComponentForm {
@@ -283,6 +292,7 @@ interface ComponentForm {
   is_optional: boolean
   is_generic: boolean
   tracking: 'serialized' | 'bulk'
+  component_source: ComponentSource
   repair_types: string[] | null
   _repairTypesStr: string
   sort_order: number
@@ -350,6 +360,7 @@ function addComponent() {
     is_optional: false,
     is_generic: false,
     tracking: 'serialized',
+    component_source: 'stock',
     repair_types: null,
     _repairTypesStr: '',
     sort_order: form.components.length,
@@ -406,6 +417,7 @@ async function save() {
       is_optional: c.is_optional,
       is_generic: c.is_generic,
       tracking: c.tracking,
+      component_source: c.component_source,
       repair_types: c._repairTypesStr
         ? c._repairTypesStr.split(',').map(s => s.trim()).filter(Boolean)
         : undefined,
@@ -492,6 +504,7 @@ async function loadTemplate() {
           is_optional: c.is_optional,
           is_generic: c.is_generic ?? false,
           tracking: c.tracking,
+          component_source: c.component_source ?? 'stock',
           repair_types: c.repair_types,
           _repairTypesStr: c.repair_types ? c.repair_types.join(', ') : '',
           sort_order: c.sort_order,

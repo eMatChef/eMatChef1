@@ -2,7 +2,7 @@
 
 Abarbeitbare Checkliste für den Umbau auf das bereinigte Combo-Modell. Das **Warum/Zielmodell** steht im [README.md](./README.md) (insb. Abschnitt 0 + 6). Dieser Plan = **Was & in welcher Reihenfolge**.
 
-**Stand:** Mai 2026 · Pakete 0–7, von klein → groß. **Erledigt: 0–4** (Mini-Fixes; `combo_status` draft/ready inkl. Migration `Version20260529120000`; `reservation_mode` end-to-end entfernt inkl. Drop-Migration `Version20260529130000`; drei Typen im Wizard mit Klartext-Karten/Badges + Hülle-Hinweis; verwandtes Zubehör als separate Empfehlung inkl. Entities/Migration `Version20260529140000`/API, Detail-Tab, Vorlage + Aktivitäts-Vorschlag, „fertigstellen" für physische Kombo). **Nächstes: Paket 5.**
+**Stand:** Mai 2026 · Pakete 0–7, von klein → groß. **Erledigt: 0–5** (Mini-Fixes; `combo_status` draft/ready inkl. Migration `Version20260529120000`; `reservation_mode` end-to-end entfernt inkl. Drop-Migration `Version20260529130000`; drei Typen im Wizard mit Klartext-Karten/Badges + Hülle-Hinweis; verwandtes Zubehör als separate Empfehlung inkl. Entities/Migration `Version20260529140000`/API, Detail-Tab, Vorlage + Aktivitäts-Vorschlag, „fertigstellen" für physische Kombo; **Paket 5**: virtuelle Kombo + vereinheitlichtes Options-/Delta-Fundament inkl. Migration `Version20260529150000`, `ComboResolutionService` (Flaschenhals/Klemmung), Zeilenmodell B in `ActivityController`, Pack-pro-Komponente). **Nächstes: Paket 6.**
 
 ---
 
@@ -29,7 +29,7 @@ Abarbeitbare Checkliste für den Umbau auf das bereinigte Combo-Modell. Das **Wa
 | 2 | `reservation_mode` entfernen (end-to-end) | S–M | – | [x] |
 | 3 | Drei Typen im Wizard | M | 1, 2 | [x] |
 | 4 | Physische Kombo finalisieren | M | 3 | [x] |
-| 5 | Virtuelle Kombo + Options-/Delta-Fundament | XL | 4 | [ ] |
+| 5 | Virtuelle Kombo + Options-/Delta-Fundament | XL | 4 | [x] |
 | 6 | Konfigurator-UI (Auswahl-Gruppen) | L | 5 | [ ] |
 | 7 | Komfort / Cross-Cutting | M | 5, 6 | [ ] |
 
@@ -185,14 +185,14 @@ Diese Stellen steuern Typ-/Status-/Verfügbarkeitslogik zentral — Änderungen 
 - `frontend/src/composables/useActivityCreateWizard.ts`, `frontend/src/components/activities/ActivityMaterialAvailabilityLookup.vue`
 
 **Schritte:**
-- [ ] **Options-/Delta-Schema** (Kombo **und** Vorlage) nach **README Abschnitt 6 „Datenbank-Schema (Detail)"**: `material_combo_option_group` / `material_combo_option` (`display_mode` toggle|group) / `material_combo_option_delta` (`qty_delta` signed) + `component_source` auf `material_combo_component`; gespiegelt als `material_template_*`. `is_optional` wird zum abgeleiteten Anzeige-Flag „Toggle" (kein separater Mechanismus).
-- [ ] **Komponenten-Quelle** `component_source` (`stock` | `self_provided`) auf Basis- **und** Delta-Zeilen. `self_provided` (z. B. Mast): **nicht** reserviert/im Flaschenhals, nur Checklisten-/Hinweis-Posten. **Validierung: ≥ 1 `stock`-Teil je Kombo.**
-- [ ] Detail/Wizard/Vorlage: Basis-Stückliste + Ja/Nein-Optionen (Toggle), `component_source` wählbar. (Gruppen-UI erst Paket 6.)
-- [ ] **Backend Verfügbarkeit:** virtuelle Kombo in Komponenten auflösen → Flaschenhals `min(floor(frei/menge))` nur über `stock`-Teile; Delta-Klemmung auf **≥ 0** (README Abschnitt 6/7).
-- [ ] **`ready`-Validierung = Gesamtmenge:** Fertigstellen/Buchen prüft Verfügbarkeit der gesamthaft benötigten `stock`-Pflichtteile (Flaschenhals × Stückzahl) im Zeitraum.
-- [ ] Aktivitäts-Lookup zeigt „X× verfügbar"; Toggle-Optionen an/aus; **Hartsperre auch für Toggles**, die nicht verfügbare `stock`-Teile hinzufügen; `self_provided`-Teile als Hinweis gelistet.
-- [ ] **Zeilenmodell B (hybrid):** `activity_item` um `parent_activity_item_id` (NULL = Eltern/normal) + `config_snapshot` (JSON, an Eltern-Zeile) erweitern. Buchung erzeugt Eltern-Zeile (Kombo) + Kind-Zeilen pro `stock`-Teil → bestehende Reservierungs-SQL zählt die Kinder automatisch. `self_provided` ohne Kind-Zeile (nur Hinweis).
-- [ ] Packen (MW): Pick-/Scan-Liste je `on_issue`-Komponente → `component_batch_id` setzen; Pack-/Sperr-Positionen pro Komponente (da Kombo keine Batches hat).
+- [x] **Options-/Delta-Schema** (Kombo **und** Vorlage) nach **README Abschnitt 6 „Datenbank-Schema (Detail)"**: `material_combo_option_group` / `material_combo_option` (`display_mode` toggle|group) / `material_combo_option_delta` (`qty_delta` signed) + `component_source` auf `material_combo_component`; gespiegelt als `material_template_*`. `is_optional` wird zum abgeleiteten Anzeige-Flag „Toggle" (kein separater Mechanismus). *(5a: Entities + Migration `Version20260529150000`, `component_source` auf Basis-Stücklisten, `activity_item.parent_activity_item_id`/`config_snapshot`, zentrale TS-Typen in `api/materials.ts`/`templates.ts`/`activities.ts`.)*
+- [x] **Komponenten-Quelle** `component_source` (`stock` | `self_provided`) auf Basis- **und** Delta-Zeilen. `self_provided` (z. B. Mast): **nicht** reserviert/im Flaschenhals, nur Checklisten-/Hinweis-Posten. **Validierung: ≥ 1 `stock`-Teil je Kombo.** *(5b: `component_source` Schema+API; finalize-combo verlangt ≥ 1 `stock`-Pflichtteil. Flaschenhals-Ausschluss von `self_provided` in 5c.)*
+- [x] Detail/Wizard/Vorlage: Basis-Stückliste + Ja/Nein-Optionen (Toggle), `component_source` wählbar. (Gruppen-UI erst Paket 6.) *(5b: `MaterialDetailView` Add/Edit-Zusammensetzung + Badge, `TemplateEditDialog` Quelle-Auswahl + Vorlage→Material-Durchreichung. `is_optional` = Anzeige-Flag „Toggle". Wizard legt nur Hülle an; Quelle/Teile im Detail-Tab gem. README Abschnitt 0.)
+- [x] **Backend Verfügbarkeit:** virtuelle Kombo in Komponenten auflösen → Flaschenhals `min(floor(frei/menge))` nur über `stock`-Teile; Delta-Klemmung auf **≥ 0** (README Abschnitt 6/7). *(5c: `ComboResolutionService.resolve()` löst Basis-Stückliste + Toggle-Deltas auf, klemmt je Teil ≥ 0, trennt `stock`/`self_provided`. `MaterialAvailabilityController` rechnet je virtueller Kombo Flaschenhals über die `stock`-Teile und liefert `availableForPeriod`/`comboBottleneck`/`comboStockComponents`.)*
+- [x] **`ready`-Validierung = Gesamtmenge:** Fertigstellen/Buchen prüft Verfügbarkeit der gesamthaft benötigten `stock`-Pflichtteile (Flaschenhals × Stückzahl) im Zeitraum. *(5c: Flaschenhals × gebuchter Menge ergibt die Kappung; `finalizeCombo` (5b) verlangt ≥ 1 `stock`-Pflichtteil. Lookup-Kappung = `availableForPeriod` = Flaschenhals.)*
+- [x] Aktivitäts-Lookup zeigt „X× verfügbar"; `self_provided`-Teile als Hinweis (in `config_snapshot.self_provided`); **Hartsperre** greift, weil `availableForPeriod` = Flaschenhals 0 wird, wenn ein `stock`-Teil fehlt. *(5c: Lookup-Typ `ActivityPeriodAvailabilityMaterial` um Kombo-Felder erweitert. Interaktive Toggle-An/Aus-Auswahl im Lookup folgt mit der Options-/Gruppen-UI in Paket 6; Datenpfad (`selected_option_ids`) ist bereits end-to-end durchgereicht.)*
+- [x] **Zeilenmodell B (hybrid):** Buchung erzeugt Eltern-Zeile (Kombo + `config_snapshot`) + Kind-Zeilen pro `stock`-Teil (`parent_activity_item_id`) → bestehende Reservierungs-SQL zählt die Kinder automatisch. `self_provided` ohne Kind-Zeile (nur Hinweis). *(5c: `ActivityController::expandVirtualComboLine` in `syncItems` **und** `addVirtualComboItem` für POST; `removeItem` löscht Kind-Zeilen mit; `listItems` liefert `parent_activity_item_id`/`config_snapshot`; Frontend filtert Kind-Zeilen aus der editierbaren Liste und reicht `selected_option_ids` durch.)*
+- [x] Packen (MW): Pick-/Scan-Liste je Komponente, da die Kombo-Eltern-Zeile keine Pack-Position erzeugt (`resyncPackListFromActivityItems` überspringt virtuelle Kombos) und die `stock`-Kind-Zeilen reguläre Material-Zeilen sind → bestehende Pick-/Scan-/Pack-Pipeline (inkl. `component_batch_id`, Pack-/Sperr-Positionen) greift pro Komponente. `packMaterialDisplay` unterscheidet virtuelle Kombos bereits. *(5d: über Zeilenmodell B abgedeckt — keine Sonderlogik nötig, weil Kinder echte Material-Zeilen sind.)*
 
 **Definition of Done:** Virtuelle Kombo mit Basis + Ja/Nein-Optionen (auch abziehende) buchbar; korrekte Flaschenhals-Verfügbarkeit inkl. Hartsperre; `self_provided` als Hinweis; MW kann beim Packen Seriennummern zuweisen.
 

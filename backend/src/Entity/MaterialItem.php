@@ -433,6 +433,7 @@ class MaterialItem
 
     public function isCombo(): bool { return in_array($this->materialType, ['physical_combo', 'virtual_combo'], true); }
     public function isComboDraft(): bool { return $this->isCombo() && $this->comboStatus === 'draft'; }
+    public function isVirtualCombo(): bool { return $this->materialType === 'virtual_combo'; }
 
     // Identifikation Getters/Setters
     public function getEan(): ?string { return $this->ean; }

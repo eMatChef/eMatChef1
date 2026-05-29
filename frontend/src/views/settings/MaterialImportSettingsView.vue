@@ -34,6 +34,7 @@
       </div>
 
       <p class="hint">{{ t('settings.materialImport.uploadHint') }}</p>
+      <p class="hint hint-secondary">{{ t('settings.materialImport.qrAutoHint') }}</p>
 
       <div v-if="showMappingPanel && rawImport" class="card mapping-card">
         <h2>{{ t('settings.materialImport.mappingTitle') }}</h2>
@@ -107,6 +108,7 @@
                 <th>{{ t('settings.materialImport.colQty') }}</th>
                 <th>{{ t('settings.materialImport.colManufacturer') }}</th>
                 <th>{{ t('settings.materialImport.colSupplier') }}</th>
+                <th>{{ t('settings.materialImport.colStorage') }}</th>
                 <th>{{ t('settings.materialImport.colYear') }}</th>
                 <th>{{ t('settings.materialImport.colPrice') }}</th>
               </tr>
@@ -117,6 +119,7 @@
                 <td>{{ pr.qty }}</td>
                 <td>{{ pr.manufacturer || '—' }}</td>
                 <td>{{ pr.supplier_name || '—' }}</td>
+                <td>{{ storagePreviewLabel(pr) }}</td>
                 <td>{{ pr.acquired_year || '—' }}</td>
                 <td>{{ pr.unit_price || '—' }}</td>
               </tr>
@@ -133,6 +136,7 @@
       </div>
 
       <div v-if="rows.length > 0" class="card preview-card preview-card--compact">
+        <p class="preview-storage-hint">{{ t('settings.materialImport.storageRequiredHint') }}</p>
         <div class="preview-toolbar">
           <h2>{{ t('settings.materialImport.previewTitle', { count: rows.length }) }}</h2>
           <div class="toolbar-actions">
@@ -171,6 +175,7 @@
                 <th>{{ t('settings.materialImport.colLength') }}</th>
                 <th>{{ t('settings.materialImport.colManufacturer') }}</th>
                 <th>{{ t('settings.materialImport.colSupplier') }}</th>
+                <th>{{ t('settings.materialImport.colStorage') }}</th>
                 <th>{{ t('settings.materialImport.colYear') }}</th>
                 <th>{{ t('settings.materialImport.colPrice') }}</th>
                 <th>{{ t('settings.materialImport.colDuplicate') }}</th>
@@ -202,6 +207,17 @@
                   <datalist :id="`supplier-list-${idx}`">
                     <option v-for="s in supplierOptions" :key="s.id" :value="supplierLabel(s)" />
                   </datalist>
+                </td>
+                <td class="storage-cell">
+                  <button
+                    type="button"
+                    class="storage-pick-btn"
+                    :class="{ 'storage-pick-btn--empty': !isImportRowStorageComplete(row) }"
+                    :title="t('settings.materialImport.storageModalPickTitle')"
+                    @click="openStorageModal(row)"
+                  >
+                    {{ storagePreviewLabel(row) }}
+                  </button>
                 </td>
                 <td><input v-model="row.acquired_year" class="cell-input cell-input-narrow" type="text" maxlength="10" @blur="syncAcquiredOn(row)" /></td>
                 <td><input v-model="row.unit_price" class="cell-input cell-input-narrow" type="text" /></td>
@@ -238,6 +254,15 @@
       </div>
     </template>
 
+    <ImportStoragePickerModal
+      :open="storageModalOpen"
+      :department-id="departmentId"
+      :row="storageModalRow"
+      :storage-addresses="storageAddresses"
+      @close="closeStorageModal"
+      @apply="applyStorageModal"
+    />
+
     <div v-if="showDuplicateDialog" class="modal-overlay" @click.self="showDuplicateDialog = false">
       <div class="modal-dialog">
         <h3>{{ t('settings.materialImport.duplicateDialogTitle') }}</h3>
@@ -268,6 +293,7 @@ import { useI18n } from 'vue-i18n'
 import { useToast } from '@/composables/useToast'
 import { getMaterials, type Material } from '@/api/materials'
 import { getAddresses, type Address } from '@/api/addresses'
+import ImportStoragePickerModal from '@/components/material/ImportStoragePickerModal.vue'
 import { importMaterials, type MaterialImportResultRow, type MaterialImportDuplicateAction } from '@/api/materialImport'
 import {
   rowsToApiPayload,
@@ -288,7 +314,10 @@ import {
   type MaterialImportColumn,
   type ColumnMapping,
   type ColumnAssignment,
+  getImportRowStorageIssues,
+  isImportRowStorageComplete,
   type ImportFileRaw,
+  type ImportRowStorageIssue,
 } from '@/utils/materialImportParse'
 
 const GLOBAL_SUPPLIER_DEPARTMENT_ID = 'GLOBAL000000'
@@ -309,6 +338,9 @@ const importUiFields = IMPORT_UI_FIELDS
 const fileName = ref('')
 const materials = ref<Material[]>([])
 const supplierOptions = ref<Address[]>([])
+const storageAddresses = ref<Address[]>([])
+const storageModalOpen = ref(false)
+const storageModalRow = ref<MaterialImportRow | null>(null)
 const defaultDuplicateAction = ref<MaterialImportDuplicateAction>('add_batch')
 const previewRows = ref<MaterialImportResultRow[]>([])
 const isValidating = ref(false)
@@ -382,6 +414,7 @@ function assignmentAt(col: number): string {
 
 const hasBlockingErrors = computed(() => {
   if (rows.value.some((r) => !r.name.trim() || !(parseInt(r.qty, 10) > 0))) return true
+  if (rows.value.some((r) => !isImportRowStorageComplete(r))) return true
   if (previewRows.value.some((pr) => pr.errors?.length > 0)) return true
   return false
 })
@@ -426,6 +459,9 @@ function rowErrors(idx: number): string[] {
   if (!row.acquired_on && !/^\d{4}$/.test(row.acquired_year.trim())) {
     errs.push(t('settings.materialImport.errYear'))
   }
+  for (const code of getImportRowStorageIssues(row)) {
+    errs.push(storageIssueLabel(code))
+  }
   const pr = previewByIndex.value[idx]
   if (pr?.errors?.length) errs.push(...pr.errors)
   return errs
@@ -439,6 +475,51 @@ function onSupplierNameChange(row: MaterialImportRow) {
   const key = normalizeName(row.supplier_name)
   const hit = supplierOptions.value.find((s) => normalizeName(supplierLabel(s)) === key)
   row.supplier_id = hit?.id ?? ''
+}
+
+function storageIssueLabel(code: ImportRowStorageIssue): string {
+  const key = `settings.materialImport.errStorage.${code}` as const
+  return t(key)
+}
+
+function storagePreviewLabel(row: MaterialImportRow): string {
+  if (!isImportRowStorageComplete(row)) {
+    return t('settings.materialImport.storagePickPlaceholder')
+  }
+  const parts: string[] = []
+  if (row.storage_name?.trim()) parts.push(row.storage_name.trim())
+  if (row.stock_location_mode === 'kiste' && row.container_name?.trim()) {
+    parts.push(`Kiste: ${row.container_name.trim()}`)
+  } else if (row.stock_location_mode === 'slot') {
+    const rack = row.rack_name?.trim()
+    const slot = row.slot_name?.trim()
+    if (rack || slot) parts.push([rack, slot].filter(Boolean).join(' / '))
+  }
+  return parts.length ? parts.join(' · ') : '—'
+}
+
+function openStorageModal(row: MaterialImportRow) {
+  storageModalRow.value = row
+  storageModalOpen.value = true
+}
+
+function closeStorageModal() {
+  storageModalOpen.value = false
+  storageModalRow.value = null
+}
+
+function applyStorageModal(patch: Partial<MaterialImportRow>) {
+  const row = storageModalRow.value
+  if (!row) return
+  Object.assign(row, patch)
+  if (previewLoaded.value) {
+    schedulePreviewRefresh()
+  }
+}
+
+async function loadStorageAddresses() {
+  const res = await getAddresses(departmentId.value, 'storage').catch(() => ({ addresses: [] as Address[] }))
+  storageAddresses.value = res.addresses || []
 }
 
 async function loadSuppliers() {
@@ -587,6 +668,10 @@ async function onFileSelected(ev: Event) {
 
 async function runDryRun() {
   if (!rows.value.length) return
+  if (rows.value.some((r) => !isImportRowStorageComplete(r))) {
+    toast.warning(t('settings.materialImport.storageRequiredHint'))
+    return
+  }
   isValidating.value = true
   try {
     for (const row of rows.value) syncAcquiredOn(row)
@@ -654,7 +739,7 @@ watch(defaultDuplicateAction, (action) => {
 })
 
 onMounted(async () => {
-  await Promise.all([loadMaterials(), loadSuppliers()])
+  await Promise.all([loadMaterials(), loadSuppliers(), loadStorageAddresses()])
 })
 </script>
 
@@ -734,6 +819,46 @@ onMounted(async () => {
   font-size: 0.875rem;
   color: #6b7280;
   margin: 0 0 1rem;
+}
+
+.hint-secondary {
+  margin-top: -0.65rem;
+  font-size: 0.8125rem;
+}
+
+.storage-cell {
+  min-width: 120px;
+  vertical-align: top;
+}
+
+.storage-pick-btn {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 0.25rem 0.4rem;
+  border: 1px dashed #cbd5e1;
+  border-radius: 4px;
+  background: #f8fafc;
+  font-size: 0.7rem;
+  color: #334155;
+  cursor: pointer;
+  line-height: 1.35;
+}
+
+.storage-pick-btn:hover {
+  border-color: #2563eb;
+  background: #eff6ff;
+}
+
+.storage-pick-btn--empty {
+  color: #64748b;
+  font-style: italic;
+}
+
+.preview-storage-hint {
+  margin: 0 0 0.5rem;
+  font-size: 0.8125rem;
+  color: #b45309;
 }
 
 .preview-toolbar {

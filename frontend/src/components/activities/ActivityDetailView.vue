@@ -1381,11 +1381,17 @@ async function saveDraftQuantities() {
   syncingQuantities.value = true
   try {
     await syncActivityItems(props.activityId, {
-      items: activityItems.value.map((r) => ({
-        material_item_id: r.material_item_id,
-        quantity: draftQty(r),
-        priority: r.priority ?? undefined,
-      })),
+      // Zeilenmodell B: Kind-Zeilen sind abgeleitet -> nur Eltern-/Normalzeilen senden, Backend expandiert neu.
+      items: activityItems.value
+        .filter((r) => !r.parent_activity_item_id)
+        .map((r) => ({
+          material_item_id: r.material_item_id,
+          quantity: draftQty(r),
+          priority: r.priority ?? undefined,
+          ...(r.material_type === 'virtual_combo' && r.config_snapshot?.selected_option_ids
+            ? { selected_option_ids: r.config_snapshot.selected_option_ids }
+            : {}),
+        })),
     })
     toast.success(t('activities.detail.toastQtySaved'))
     await loadItems()
