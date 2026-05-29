@@ -1,6 +1,32 @@
 import * as XLSX from 'xlsx'
 import { normalizeMaterialMetricInput } from '@/utils/materialMetricUnits'
 
+/** Upload-Limits: begrenzen DoS-Fläche beim Parsen unbekannter Dateien. */
+export const MAX_IMPORT_FILE_BYTES = 5 * 1024 * 1024
+export const ALLOWED_IMPORT_EXTENSIONS = ['.csv', '.xlsx', '.xls'] as const
+
+export type ImportFileErrorCode = 'too_large' | 'bad_type'
+
+/** Fehler mit Code, damit die UI eine passende Meldung wählen kann. */
+export class ImportFileError extends Error {
+  code: ImportFileErrorCode
+  constructor(code: ImportFileErrorCode, message: string) {
+    super(message)
+    this.name = 'ImportFileError'
+    this.code = code
+  }
+}
+
+function assertAcceptableImportFile(file: File): void {
+  if (file.size > MAX_IMPORT_FILE_BYTES) {
+    throw new ImportFileError('too_large', `File too large: ${file.size} bytes`)
+  }
+  const lower = file.name.toLowerCase()
+  if (!ALLOWED_IMPORT_EXTENSIONS.some((ext) => lower.endsWith(ext))) {
+    throw new ImportFileError('bad_type', `Unsupported file type: ${file.name}`)
+  }
+}
+
 /** Spalten der Import-Vorlage (Kopfzeile). */
 export const MATERIAL_IMPORT_COLUMNS = [
   'name',
@@ -453,12 +479,20 @@ export function parseMatrixWithMapping(
 }
 
 export async function readImportMatrixFromFile(file: File): Promise<ImportFileRaw> {
+  assertAcceptableImportFile(file)
   let matrix: string[][] = []
 
   const name = file.name.toLowerCase()
   if (name.endsWith('.xlsx') || name.endsWith('.xls')) {
     const buffer = await file.arrayBuffer()
-    const workbook = XLSX.read(buffer, { type: 'array', cellDates: true })
+    // Nur Zellwerte lesen: keine Formeln/HTML/VBA auswerten (kleinere Angriffsfläche).
+    const workbook = XLSX.read(buffer, {
+      type: 'array',
+      cellDates: true,
+      cellFormula: false,
+      cellHTML: false,
+      bookVBA: false,
+    })
     const sheetName = workbook.SheetNames[0]
     if (!sheetName) {
       return { matrix: [], headerRowIndex: 0, columnLabels: [], suggestedMapping: {} }
