@@ -39,7 +39,7 @@ export async function confirmWorkflowStatusTransition(
       title: opts.t(cfg.confirmTitleKey, { pct: opts.stageProgress }),
       message: opts.getPendingMessage(cfg.pendingVariant),
       confirmText: opts.t(cfg.confirmProceedKey),
-      cancelText: opts.t('activities.common.cancel'),
+      cancelText: opts.t('common.cancel'),
       variant: 'warning',
     })
     if (!ok) return false

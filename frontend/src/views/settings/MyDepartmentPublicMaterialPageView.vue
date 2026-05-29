@@ -85,7 +85,7 @@
               <dd>{{ userDepartments.find((d) => d.department_id === selectedDepartmentId)?.department?.name || '-' }}</dd>
             </div>
             <div>
-              <dt>{{ t('settings.publicMaterialPage.previewLabelManufacturer') }}</dt>
+              <dt>{{ t('common.manufacturer') }}</dt>
               <dd>{{ t('settings.publicMaterialPage.previewSampleManufacturer') }}</dd>
             </div>
           </div>
@@ -141,7 +141,7 @@
       </div>
 
       <button class="btn" :disabled="isSavingPublicSettings || isSaveDisabled" @click="savePublicSettings">
-        {{ isSavingPublicSettings ? t('settings.publicMaterialPage.saving') : t('settings.publicMaterialPage.save') }}
+        {{ isSavingPublicSettings ? t('common.saving') : t('common.save') }}
       </button>
       <p v-if="isSaveDisabled && !isSavingPublicSettings" class="hint-text">
         {{ t('settings.publicMaterialPage.saveDisabledReason') }}

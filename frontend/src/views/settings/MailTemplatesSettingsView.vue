@@ -27,7 +27,7 @@
 
       <div class="editor-toolbar">
         <button type="button" class="btn primary" :disabled="saving" @click="saveMessages">
-          {{ saving ? t('mail.templates.editor.saving') : t('mail.templates.editor.save') }}
+          {{ saving ? t('mail.templates.editor.saving') : t('common.save') }}
         </button>
         <button type="button" class="btn ghost" :disabled="saving" @click="loadAll">
           {{ t('mail.templates.editor.reload') }}

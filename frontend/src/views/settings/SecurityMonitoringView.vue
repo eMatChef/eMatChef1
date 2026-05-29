@@ -10,7 +10,7 @@
           {{ t('securityMonitoring.windowMinutesLabel') }}
           <input v-model.number="minutes" type="number" min="1" max="1440" />
         </label>
-        <button class="btn-secondary" :disabled="loading" @click="load">{{ t('securityMonitoring.refresh') }}</button>
+        <button class="btn-secondary" :disabled="loading" @click="load">{{ t('common.refresh') }}</button>
       </div>
     </div>
 
@@ -90,7 +90,7 @@
             <th>{{ t('securityMonitoring.columns.window') }}</th>
             <th>Login</th>
             <th>IP</th>
-            <th>{{ t('securityMonitoring.columns.status') }}</th>
+            <th>{{ t('common.status') }}</th>
           </tr>
         </thead>
         <tbody>
@@ -151,7 +151,7 @@
           {{ t('securityMonitoring.settings.reset') }}
         </button>
         <button type="button" class="btn-primary" :disabled="!dirtySettings || savingSettings" @click="saveSettings">
-          {{ savingSettings ? t('securityMonitoring.settings.saving') : t('securityMonitoring.settings.save') }}
+          {{ savingSettings ? t('securityMonitoring.settings.saving') : t('common.save') }}
         </button>
       </div>
     </section>

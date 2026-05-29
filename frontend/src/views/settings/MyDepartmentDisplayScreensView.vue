@@ -36,7 +36,7 @@
             :disabled="creating"
           />
           <button type="button" class="btn" :disabled="creating || !newScreenName.trim()" @click="createScreen">
-            {{ creating ? t('settings.displayScreens.loading') : t('settings.displayScreens.create') }}
+            {{ creating ? t('settings.displayScreens.loading') : t('common.create') }}
           </button>
         </div>
       </div>

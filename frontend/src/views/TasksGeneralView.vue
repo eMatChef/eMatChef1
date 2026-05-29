@@ -7,7 +7,7 @@
 
     <div v-else-if="error" class="tasks-empty">
       <p>{{ t('tasksGeneral.loadFailed') }}</p>
-      <button type="button" class="btn btn-secondary btn-sm" @click="reload">{{ t('tasksGeneral.retry') }}</button>
+      <button type="button" class="btn btn-secondary btn-sm" @click="reload">{{ t('common.retry') }}</button>
     </div>
 
     <div v-else-if="tasks.length === 0" class="tasks-empty">

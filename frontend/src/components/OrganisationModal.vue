@@ -57,7 +57,7 @@
               {{
                 isSubmitting
                   ? t('components.organisationModal.saving')
-                  : (isEdit ? t('common.save') : t('components.organisationModal.addSubmit'))
+                  : (isEdit ? t('common.save') : t('common.add'))
               }}
             </button>
           </div>

@@ -41,7 +41,7 @@
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
             <path d="M8 1L10 5.5L15 6L11.5 9.5L12.5 14.5L8 12L3.5 14.5L4.5 9.5L1 6L6 5.5L8 1Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
           </svg>
-          {{ isSavingPrimary ? t('settings.myDepartment.saving') : t('settings.myDepartment.setAsPrimary') }}
+          {{ isSavingPrimary ? t('common.saving') : t('settings.myDepartment.setAsPrimary') }}
         </button>
         <span v-else class="current-primary-badge">
           <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
@@ -81,7 +81,7 @@
         
         <div class="info-grid">
           <div class="info-item">
-            <span class="info-label">{{ t('settings.myDepartment.fields.name') }}</span>
+            <span class="info-label">{{ t('common.name') }}</span>
             <span class="info-value">{{ department.name }}</span>
           </div>
           <div class="info-item">
@@ -754,7 +754,7 @@ async function removePendingInviteItem(inviteId: string) {
   const ok = await confirm.confirm({
     title: t('settings.joinCode.confirmDeleteTitle'),
     message: t('settings.joinCode.confirmDeleteMessage'),
-    confirmText: t('settings.joinCode.confirmDeleteAction'),
+    confirmText: t('common.delete'),
     cancelText: t('common.cancel'),
     variant: 'danger',
   })
@@ -827,7 +827,7 @@ async function deleteAddressItem(address: Address) {
   const ok = await confirm.confirm({
     title: t('settings.myDepartment.deleteAddressConfirmTitle', { type: typeLabel }),
     message: t('settings.myDepartment.deleteAddressConfirmMessage', { name: address.name || address.street_line }),
-    confirmText: t('settings.myDepartment.deleteAction'),
+    confirmText: t('common.delete'),
     cancelText: t('common.cancel'),
     variant: 'danger',
   })

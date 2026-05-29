@@ -38,7 +38,7 @@
         <h3>{{ t('settings.joinCode.pendingTitle') }}</h3>
         <div class="pending-item" v-for="invite in pendingInvites" :key="invite.id">
           <span>{{ invite.email }} ({{ formatRole(invite.role) }})</span>
-          <button class="btn danger" @click="removePendingInviteItem(invite.id)">{{ t('settings.joinCode.delete') }}</button>
+          <button class="btn danger" @click="removePendingInviteItem(invite.id)">{{ t('common.delete') }}</button>
         </div>
       </div>
     </div>
@@ -128,7 +128,7 @@ async function removePendingInviteItem(inviteId: string) {
   const ok = await confirm.confirm({
     title: t('settings.joinCode.confirmDeleteTitle'),
     message: t('settings.joinCode.confirmDeleteMessage'),
-    confirmText: t('settings.joinCode.confirmDeleteAction'),
+    confirmText: t('common.delete'),
     cancelText: t('common.cancel'),
     variant: 'danger',
   })

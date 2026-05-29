@@ -9,7 +9,7 @@
 
     <div v-else-if="loadError" class="section-card">
       <p class="text-muted">{{ loadError }}</p>
-      <button type="button" class="btn-outline btn-sm" @click="loadAll">{{ t('activities.common.retry') }}</button>
+      <button type="button" class="btn-outline btn-sm" @click="loadAll">{{ t('common.retry') }}</button>
     </div>
 
     <template v-else>
@@ -1297,14 +1297,14 @@
             </p>
           </template>
           <div class="pack-modal-actions">
-            <button type="button" class="btn-outline btn-sm" @click="showAddContainerModal = false">{{ t('activities.common.cancel') }}</button>
+            <button type="button" class="btn-outline btn-sm" @click="showAddContainerModal = false">{{ t('common.cancel') }}</button>
             <button
               type="button"
               class="btn-primary btn-sm"
               :disabled="containerMutationLoading || stockBatchesLoading || !canSubmitAddContainer"
               @click="submitAddContainer"
             >
-              {{ t('activities.packList.modalAdd') }}
+              {{ t('common.add') }}
             </button>
           </div>
         </div>
@@ -1966,7 +1966,7 @@ async function confirmPackStageForwardAllowed(): Promise<boolean> {
         statusStage: packStageViewLabel(statusPackStage.value),
       }),
       confirmText: t('activities.packList.mwOffStageForwardConfirmProceed'),
-      cancelText: t('activities.common.cancel'),
+      cancelText: t('common.cancel'),
       variant: 'warning',
     })
   }
@@ -1992,7 +1992,7 @@ async function confirmPackStageBackwardAllowed(): Promise<boolean> {
           statusStage: packStageViewLabel(statusPackStage.value),
         }),
         confirmText: t('activities.packList.mwOffStageBackConfirmProceed'),
-        cancelText: t('activities.common.cancel'),
+        cancelText: t('common.cancel'),
         variant: 'warning',
       })
     }
@@ -2022,7 +2022,7 @@ async function confirmMwHandoffBeforeIssueToEvent(skipForCrateCheck = false): Pr
     title: t('activities.packList.mwHandoffConfirmTitle'),
     message: t('activities.packList.mwHandoffConfirmMessage'),
     confirmText: t('activities.packList.mwHandoffConfirmProceed'),
-    cancelText: t('activities.common.cancel'),
+    cancelText: t('common.cancel'),
     variant: 'warning',
   })
 }
@@ -2034,7 +2034,7 @@ async function confirmMwHandoffWorkflowToEvent(): Promise<boolean> {
     title: t('activities.packList.mwHandoffCombinedConfirmTitle'),
     message: t('activities.packList.mwHandoffWorkflowConfirmMessage'),
     confirmText: t('activities.packList.mwHandoffWorkflowConfirmProceed'),
-    cancelText: t('activities.common.cancel'),
+    cancelText: t('common.cancel'),
     variant: 'warning',
   })
 }
@@ -2045,7 +2045,7 @@ async function confirmMwHandoffBeforeReturn(): Promise<boolean> {
     title: t('activities.packList.mwReturnHandoffConfirmTitle'),
     message: t('activities.packList.mwReturnHandoffConfirmMessage'),
     confirmText: t('activities.packList.mwReturnHandoffConfirmProceed'),
-    cancelText: t('activities.common.cancel'),
+    cancelText: t('common.cancel'),
     variant: 'warning',
   })
 }
@@ -2057,19 +2057,19 @@ async function confirmMwHandoffWorkflowToReturned(): Promise<boolean> {
     title: t('activities.packList.mwReturnHandoffWorkflowConfirmTitle'),
     message: t('activities.packList.mwReturnHandoffWorkflowConfirmMessage'),
     confirmText: t('activities.packList.mwReturnHandoffWorkflowConfirmProceed'),
-    cancelText: t('activities.common.cancel'),
+    cancelText: t('common.cancel'),
     variant: 'warning',
   })
 }
 
 /** Ausgepackt → noch einzulagern: Buchung korrigieren, obwohl physisch evtl. schon im Lager */
 async function confirmUnpackUnstoreFromWarehouse(qty: number, materialLabel: string): Promise<boolean> {
-  const name = materialLabel.trim() || t('activities.common.material')
+  const name = materialLabel.trim() || t('common.material')
   return confirmDialog({
     title: t('activities.packList.confirmUnpackUnstoreTitle'),
     message: t('activities.packList.confirmUnpackUnstoreMessage', { qty, name }),
     confirmText: t('activities.packList.confirmUnpackUnstoreProceed'),
-    cancelText: t('activities.common.cancel'),
+    cancelText: t('common.cancel'),
     variant: 'warning',
   })
 }
@@ -2081,7 +2081,7 @@ async function confirmPackedBackToConfirmed(): Promise<boolean> {
     title: t('activities.packList.confirmPackedBackTitle'),
     message: t('activities.packList.confirmPackedBackMessage'),
     confirmText: t('activities.packList.confirmPackedBackProceed'),
-    cancelText: t('activities.common.cancel'),
+    cancelText: t('common.cancel'),
     variant: 'warning',
   })
 }
@@ -3096,7 +3096,7 @@ function emitConsumptionForMaterialId(
   if (!showPackConsumptionActions.value) return
   emit('openConsumptionModal', {
     materialItemId,
-    materialName: (hints?.materialName && hints.materialName.trim()) || t('activities.common.material'),
+    materialName: (hints?.materialName && hints.materialName.trim()) || t('common.material'),
     packSize: null,
     packUnit: null,
     linkedContainerLabel: hints?.linkedContainerLabel ?? null,
@@ -3423,7 +3423,7 @@ function shellForwardSectionsForItem(item: ActivityPackItem): PackCrateShellPeek
     warehouseContents,
     comboComponents,
     peekSectionTitles(),
-    t('activities.common.material'),
+    t('common.material'),
   )
 }
 
@@ -3791,7 +3791,7 @@ function buildReturnCrateModalLines(containerId: string): ReturnCrateLineEdit[] 
       kind: 'line',
       containerItemId: ci.id,
       materialItemId,
-      materialName: ci.material_name || t('activities.common.material'),
+      materialName: ci.material_name || t('common.material'),
       max,
       issued: ci.quantity_issued ?? 0,
       included: !isConsumable,
@@ -4468,7 +4468,7 @@ const shellBackPeekSections = computed((): PackCrateShellPeekSection[] => {
     containerWarehouseContentsByContainerId.value,
     comboComponentsByMaterialId.value,
     peekSectionTitles(),
-    t('activities.common.material'),
+    t('common.material'),
     activityCrateCheckSnapshots.value,
     true,
   )
@@ -4519,7 +4519,7 @@ function peekSectionsForShellContainerCtx(c: ActivityPackContainer): PackCrateSh
     containerWarehouseContentsByContainerId.value,
     combo,
     peekSectionTitles(),
-    t('activities.common.material'),
+    t('common.material'),
     shellPi?.id,
     activityCrateCheckSnapshots.value,
     shellPi ? useCrateRealityForPackItem(shellPi.id) : false,
@@ -4554,7 +4554,7 @@ function packContainerItemSectionsForContainer(c: ActivityPackContainer) {
     containerWarehouseContentsByContainerId.value[c.id],
     combo,
     peekSectionTitles(),
-    t('activities.common.material'),
+    t('common.material'),
     shellPi?.id,
     activityCrateCheckSnapshots.value,
     shellPi ? useCrateRealityForPackItem(shellPi.id) : false,
@@ -4571,7 +4571,7 @@ function peekSectionsForShellPackItem(pi: ActivityPackItem): PackCrateShellPeekS
     containerWarehouseContentsByContainerId.value,
     comboComponentsByMaterialId.value,
     peekSectionTitles(),
-    t('activities.common.material'),
+    t('common.material'),
     activityCrateCheckSnapshots.value,
     useCrateRealityByPackItemId.value[pi.id] !== false,
   )
@@ -5761,7 +5761,7 @@ async function confirmIssueLooseWithoutCrate(
   ci: ActivityPackContainerItem,
   qty: number,
 ): Promise<boolean> {
-  const material = (ci.material_name ?? '').trim() || t('activities.common.material')
+  const material = (ci.material_name ?? '').trim() || t('common.material')
   return confirmDialog({
     title: t('activities.packList.confirmIssueLooseWithoutCrateTitle'),
     message: t('activities.packList.confirmIssueLooseWithoutCrateMessage', {
@@ -5771,7 +5771,7 @@ async function confirmIssueLooseWithoutCrate(
       activityType: activityTypeLabel(),
     }),
     confirmText: t('activities.packList.confirmIssueLooseWithoutCrateProceed'),
-    cancelText: t('activities.common.cancel'),
+    cancelText: t('common.cancel'),
     variant: 'warning',
   })
 }
@@ -6396,8 +6396,8 @@ async function confirmDeleteContainer(c: ActivityPackContainer) {
   const ok = await confirmDialog({
     title: t('activities.packList.confirmDeleteTitle'),
     message: t('activities.packList.confirmDeleteMessage', { label: c.label }),
-    confirmText: t('activities.common.delete'),
-    cancelText: t('activities.common.cancel'),
+    confirmText: t('common.delete'),
+    cancelText: t('common.cancel'),
     variant: 'danger',
   })
   if (!ok) return
@@ -6688,7 +6688,7 @@ const stageProgressPendingLines = computed((): StageProgressPendingLine[] => {
       qty: parts.consumptionOpen && parts.loosePart <= 0 && parts.inCratePart <= 0
         ? parts.consumptionOpen
         : parts.total,
-      material: (p.materialName ?? '').trim() || t('activities.common.material'),
+      material: (p.materialName ?? '').trim() || t('common.material'),
       actionHint: progressPendingActionHint(
         parts.total,
         parts.loosePart,
@@ -7171,7 +7171,7 @@ async function confirmWorkflowRevert(transition: ActivityTransitionRow): Promise
       title: t('activities.packList.workflowRevertToPackingTitle'),
       message: t('activities.packList.workflowRevertToPackingMessage'),
       confirmText: t('activities.packList.workflowRevertToPackingProceed'),
-      cancelText: t('activities.common.cancel'),
+      cancelText: t('common.cancel'),
       variant: 'warning',
     })
   }
@@ -7180,7 +7180,7 @@ async function confirmWorkflowRevert(transition: ActivityTransitionRow): Promise
       title: t('activities.packList.workflowRevertToPackedTitle'),
       message: t('activities.packList.workflowRevertToPackedMessage'),
       confirmText: t('activities.packList.workflowRevertToPackedProceed'),
-      cancelText: t('activities.common.cancel'),
+      cancelText: t('common.cancel'),
       variant: 'warning',
     })
   }
@@ -7189,7 +7189,7 @@ async function confirmWorkflowRevert(transition: ActivityTransitionRow): Promise
       title: t('activities.packList.workflowRevertToAtEventTitle'),
       message: t('activities.packList.workflowRevertToAtEventMessage'),
       confirmText: t('activities.packList.workflowRevertToAtEventProceed'),
-      cancelText: t('activities.common.cancel'),
+      cancelText: t('common.cancel'),
       variant: 'warning',
     })
   }
@@ -8349,8 +8349,8 @@ async function confirmBeforeWorkflowTransition(transition: ActivityTransitionRow
         stageProgressPendingLines.value.length > 0
           ? stageProgressPendingConfirmMessage('transition')
           : t('activities.packList.confirmWorkflowMessage', { count: stageLeftItems.value.length }),
-      confirmText: t('activities.common.continue'),
-      cancelText: t('activities.common.cancel'),
+      confirmText: t('common.continue'),
+      cancelText: t('common.cancel'),
       variant: 'warning',
     })
     if (!ok) return false

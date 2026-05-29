@@ -186,7 +186,7 @@ function setPullQty(ci: ActivityPackContainerItem, raw: string | number): void {
           </div>
           <div class="pack-container-line-main">
             <span class="pack-container-line-name">{{
-              ci.material_name || t('activities.common.material')
+              ci.material_name || t('common.material')
             }}</span>
             <span class="pack-container-line-qty text-muted">{{
               t('activities.packList.qtyInContainerLine', { n: ci.quantity_packed ?? 0 })
@@ -286,7 +286,7 @@ function setPullQty(ci: ActivityPackContainerItem, raw: string | number): void {
             </div>
             <div class="pack-container-line-main">
               <span class="pack-container-line-name">{{
-                ci.material_name || t('activities.common.material')
+                ci.material_name || t('common.material')
               }}</span>
               <span class="pack-container-line-qty text-muted">{{
                 t('activities.packList.qtyInContainerLine', { n: ci.quantity_packed ?? 0 })

@@ -34,12 +34,12 @@
         <div v-show="activeTab === 'general'" class="tab-content">
           <div class="form-grid">
             <div class="form-group full">
-              <label class="form-label required">{{ t('components.templateEditDialog.nameLabel') }}</label>
+              <label class="form-label required">{{ t('common.name') }}</label>
               <input v-model="form.name" type="text" class="form-input" :placeholder="t('components.templateEditDialog.namePlaceholder')" :disabled="props.readonly" />
             </div>
 
             <div class="form-group">
-              <label class="form-label">{{ t('components.templateEditDialog.manufacturerLabel') }}</label>
+              <label class="form-label">{{ t('common.manufacturer') }}</label>
               <input v-model="form.manufacturer" type="text" class="form-input" :placeholder="t('components.templateEditDialog.manufacturerPlaceholder')" :disabled="props.readonly" />
             </div>
 
@@ -49,7 +49,7 @@
             </div>
 
             <div class="form-group full">
-              <label class="form-label">{{ t('components.templateEditDialog.descriptionLabel') }}</label>
+              <label class="form-label">{{ t('common.description') }}</label>
               <textarea v-model="form.description" class="form-textarea" rows="2" :placeholder="t('components.templateEditDialog.descriptionPlaceholder')" :disabled="props.readonly"></textarea>
             </div>
 
@@ -62,7 +62,7 @@
             </div>
 
             <div class="form-group">
-              <label class="form-label">{{ t('components.templateEditDialog.statusLabel') }}</label>
+              <label class="form-label">{{ t('common.status') }}</label>
               <div class="toggle-group">
                 <label class="toggle">
                   <input type="checkbox" v-model="form.is_active" :disabled="props.readonly" />
@@ -152,14 +152,14 @@
                   <div class="component-badges">
                     <span class="comp-badge" :class="element.tracking">{{ element.tracking === 'serialized' ? t('components.templateEditDialog.trackingShortSn') : t('components.templateEditDialog.trackingShortBulk') }}</span>
                     <span v-if="element.is_generic" class="comp-badge generic" :title="t('components.templateEditDialog.genericBadgeTitle')">🌐</span>
-                    <span v-if="element.is_optional" class="comp-badge optional">{{ t('components.templateEditDialog.optionalBadge') }}</span>
+                    <span v-if="element.is_optional" class="comp-badge optional">{{ t('common.optional') }}</span>
                   </div>
                   <button class="component-toggle" :class="{ expanded: expandedComponents.has(index) }" @click="toggleComponent(index)">
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                       <polyline points="6 9 12 15 18 9"/>
                     </svg>
                   </button>
-                  <button v-if="!props.readonly" class="btn-remove-component" @click="removeComponent(index)" :title="t('components.templateEditDialog.removeTitle')">
+                  <button v-if="!props.readonly" class="btn-remove-component" @click="removeComponent(index)" :title="t('common.remove')">
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                       <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
                     </svg>
@@ -170,7 +170,7 @@
                   <div v-if="expandedComponents.has(index)" class="component-body">
                     <div class="comp-form-grid">
                       <div class="form-group">
-                        <label class="form-label required">{{ t('components.templateEditDialog.nameLabel') }}</label>
+                        <label class="form-label required">{{ t('common.name') }}</label>
                         <input v-model="element.name" type="text" class="form-input" :placeholder="t('components.templateEditDialog.componentNamePlaceholder')" />
                       </div>
                       <div class="form-group">
@@ -219,7 +219,7 @@
         <div v-if="saveError" class="save-error">{{ saveError }}</div>
         <button class="btn-secondary" @click="$emit('close')">{{ props.readonly ? t('components.templateEditDialog.close') : t('common.cancel') }}</button>
         <button v-if="!props.readonly" class="btn-primary" @click="save" :disabled="isSaving || !isValid">
-          {{ isSaving ? t('components.templateEditDialog.saving') : (isEditing ? t('common.save') : t('components.templateEditDialog.create')) }}
+          {{ isSaving ? t('components.templateEditDialog.saving') : (isEditing ? t('common.save') : t('common.create')) }}
         </button>
       </div>
     </div>

@@ -30,7 +30,7 @@
           class="form-group activity-create-group-wrap"
         >
           <label for="activity-create-group-select">
-            {{ t('activities.wizard.form.groupLabel') }}
+            {{ t('common.group') }}
             <span v-if="!canSelectDepartmentGroupLevel" class="req">*</span>
             <span v-else class="text-muted group-optional-label">{{ t('activities.wizard.form.groupOptional') }}</span>
           </label>
@@ -105,7 +105,7 @@
       </section>
 
       <section id="activity-create-material" class="activity-create-section">
-        <ActivityOutlinedSection :title="t('activities.wizard.previewMetaMaterial')" :required="true">
+        <ActivityOutlinedSection :title="t('common.material')" :required="true">
           <ActivityCreateMaterialStep
             :department-id="departmentId"
             :activity-type="selectedActivityType"
@@ -141,7 +141,7 @@
           class="form-group activity-create-group-wrap"
         >
           <label for="activity-create-group-select-s">
-            {{ t('activities.wizard.form.groupLabel') }}
+            {{ t('common.group') }}
             <span v-if="selectedActivityType === 'camp' && !canSelectDepartmentGroupLevel" class="req">*</span>
             <span v-else class="text-muted group-optional-label">{{ t('activities.wizard.form.groupOptional') }}</span>
           </label>
@@ -410,7 +410,7 @@
         </p>
         <p class="zeitraum-intro text-muted">
           <strong>{{ t('activities.wizard.form.usageLabelWord') }}</strong> {{ t('activities.wizard.form.zeitraumIntroUsage') }}
-          <strong>{{ t('activities.wizard.form.materialLabelWord') }}</strong> {{ t('activities.wizard.form.zeitraumIntroMaterial') }}
+          <strong>{{ t('common.material') }}</strong> {{ t('activities.wizard.form.zeitraumIntroMaterial') }}
         </p>
 
         <ActivityZeitraumDatetimeFields
@@ -488,7 +488,7 @@
             <dd>{{ activityTypeLabel(selectedActivityType, t) }}</dd>
           </div>
           <div class="activity-summary-row">
-            <dt>{{ t('activities.wizard.form.summaryName') }}</dt>
+            <dt>{{ t('common.name') }}</dt>
             <dd>{{ formName.trim() || t('activities.wizard.form.summaryEmpty') }}</dd>
           </div>
           <div
@@ -503,7 +503,7 @@
             <dd>{{ customerAddressSummary }}</dd>
           </div>
           <div v-if="showGroupInSummary" class="activity-summary-row">
-            <dt>{{ t('activities.wizard.form.summaryGroup') }}</dt>
+            <dt>{{ t('common.group') }}</dt>
             <dd>{{ groupSummaryLabel }}</dd>
           </div>
           <div class="activity-summary-row">
@@ -515,7 +515,7 @@
             <dd>{{ formatRange(planningStartAt, planningEndAt) }}</dd>
           </div>
           <div class="activity-summary-row">
-            <dt>{{ t('activities.wizard.form.summaryMaterialLines') }}</dt>
+            <dt>{{ t('common.material') }}</dt>
             <dd>{{ materialSummaryLabel }}</dd>
           </div>
           <div

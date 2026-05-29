@@ -55,7 +55,7 @@
             </div>
             <div v-else class="form-fields">
               <div class="form-group">
-                <label>{{ t('components.damageReportWizard.materialLabel') }} <span class="required">*</span></label>
+                <label>{{ t('common.material') }} <span class="required">*</span></label>
                 <select v-model="form.materialItemId" class="form-select" required>
                   <option value="">{{ t('components.damageReportWizard.selectMaterialOption') }}</option>
                   <option v-for="pi in packItems" :key="pi.material_item_id" :value="pi.material_item_id">
@@ -76,7 +76,7 @@
                 <input v-model.number="form.quantity" type="number" min="1" class="form-input" />
               </div>
               <div class="form-group">
-                <label>{{ t('components.damageReportWizard.descriptionLabel') }}</label>
+                <label>{{ t('common.description') }}</label>
                 <textarea v-model="form.description" rows="3" class="form-input" :placeholder="t('components.damageReportWizard.descriptionPlaceholder')"></textarea>
               </div>
             </div>
@@ -88,7 +88,7 @@
             <p class="step-hint">{{ t('components.damageReportWizard.step2NoActivityHint') }}</p>
             <div class="form-fields">
               <div class="form-group">
-                <label>{{ t('components.damageReportWizard.materialLabel') }} <span class="required">*</span></label>
+                <label>{{ t('common.material') }} <span class="required">*</span></label>
                 <div class="mat-search-wrap">
                   <div v-if="selectedMaterial" class="mat-selected">
                     <span>{{ selectedMaterial.name }}</span>
@@ -131,7 +131,7 @@
                 </select>
               </div>
               <div class="form-group">
-                <label>{{ t('components.damageReportWizard.descriptionLabel') }}</label>
+                <label>{{ t('common.description') }}</label>
                 <textarea v-model="formNoActivity.description" rows="3" class="form-input" :placeholder="t('components.damageReportWizard.descriptionNoActivityPlaceholder')"></textarea>
               </div>
             </div>

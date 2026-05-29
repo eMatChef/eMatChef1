@@ -19,7 +19,7 @@
             stroke-linecap="round"
           />
         </svg>
-        <span>{{ t('settings.departments.add') }}</span>
+        <span>{{ t('common.add') }}</span>
       </button>
     </div>
 
@@ -38,7 +38,7 @@
     <div v-else-if="treeItems.length > 0" class="tree-container">
       <TreeList
         :items="treeItems"
-        :header-label="t('settings.departments.treeHeader')"
+        :header-label="t('common.name')"
         :selected-items="selectedItems"
         :expanded-items="expandedItems"
         @update:selected-items="selectedItems = $event"

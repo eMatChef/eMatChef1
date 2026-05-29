@@ -469,9 +469,9 @@
             <div class="profile-status-hint" :class="{ visible: hasUnsavedProfileChanges }">
               <span v-if="hasUnsavedProfileChanges">{{ t('layout.profileModal.unsavedChanges') }}</span>
             </div>
-            <button type="button" class="btn-secondary btn-sm" @click="requestCloseEditProfileModal" :disabled="savingProfile">{{ t('layout.profileModal.cancel') }}</button>
+            <button type="button" class="btn-secondary btn-sm" @click="requestCloseEditProfileModal" :disabled="savingProfile">{{ t('common.cancel') }}</button>
             <button type="submit" class="btn-primary btn-sm" :disabled="savingProfile || (!hasUnsavedProfileChanges && !hasPasswordInput) || !!passwordInlineError">
-              {{ savingProfile ? t('layout.profileModal.saving') : t('layout.profileModal.save') }}
+              {{ savingProfile ? t('layout.profileModal.saving') : t('common.save') }}
             </button>
           </div>
         </form>
@@ -803,7 +803,7 @@ async function closeTab(tab: { id: string; type: 'material' | 'activity'; depart
     const ok = await confirm.confirm({
       title: t('layout.confirm.unsavedTitle'),
       message: t('layout.confirm.unsavedMessage'),
-      confirmText: t('layout.confirm.close'),
+      confirmText: t('common.close'),
       cancelText: t('layout.confirm.back'),
       variant: 'warning',
     })
@@ -1209,7 +1209,7 @@ async function requestCloseEditProfileModal() {
     const shouldClose = await confirm.confirm({
       title: t('layout.confirm.unsavedTitle'),
       message: t('layout.confirm.unsavedMessage'),
-      confirmText: t('layout.confirm.close'),
+      confirmText: t('common.close'),
       cancelText: t('layout.confirm.back'),
       variant: 'warning',
     })

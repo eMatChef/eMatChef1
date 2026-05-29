@@ -9,7 +9,7 @@
     >
       <header class="modal-header">
         <h3>{{ t('notificationsCenter.composeTitle') }}</h3>
-        <button type="button" class="modal-close" :aria-label="t('notificationsCenter.composeCancel')" @click="close">
+        <button type="button" class="modal-close" :aria-label="t('common.cancel')" @click="close">
           ×
         </button>
       </header>
@@ -92,7 +92,7 @@
         </label>
         <footer class="modal-footer nc-compose-modal__footer">
           <button type="button" class="btn-outline btn-sm" @click="close">
-            {{ t('notificationsCenter.composeCancel') }}
+            {{ t('common.cancel') }}
           </button>
           <button type="submit" class="btn-primary btn-sm" :disabled="!canSubmit || isSending">
             {{ isSending ? t('notificationsCenter.composeSending') : t('notificationsCenter.composeSend') }}

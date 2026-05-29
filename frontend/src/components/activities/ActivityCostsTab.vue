@@ -241,11 +241,11 @@ watch(
           <template v-else>
             <div class="costs-table">
               <div class="costs-row costs-row-header">
-                <span class="costs-col-name">{{ t('activities.costs.colMaterial') }}</span>
+                <span class="costs-col-name">{{ t('common.material') }}</span>
                 <span class="costs-col-qty">{{ t('activities.costs.colBooked') }}</span>
                 <span class="costs-col-used">{{ t('activities.costs.colUsed') }}</span>
                 <span class="costs-col-price">{{ t('activities.costs.colUnitPrice') }}</span>
-                <span class="costs-col-total">{{ t('activities.costs.colAmount') }}</span>
+                <span class="costs-col-total">{{ t('common.amount') }}</span>
               </div>
               <div v-for="row in consumableRows" :key="row.material_item_id" class="costs-row">
                 <span class="costs-col-name">{{ consumableDisplayName(row) }}</span>
@@ -280,13 +280,13 @@ watch(
             </h4>
             <div class="costs-table costs-table--replenishment">
               <div class="costs-row costs-row-header">
-                <span class="costs-col-name">{{ t('activities.costs.colMaterial') }}</span>
+                <span class="costs-col-name">{{ t('common.material') }}</span>
                 <span class="costs-col-material-dept">{{ t('activities.costs.colMaterialDept') }}</span>
                 <span class="costs-col-qty">{{ t('activities.costs.colQty') }}</span>
                 <span class="costs-col-recorded">{{ t('activities.costs.colRecorded') }}</span>
                 <span class="costs-col-submitter">{{ t('activities.costs.colSubmittedBy') }}</span>
                 <span class="costs-col-price">{{ t('activities.costs.colUnitPrice') }}</span>
-                <span class="costs-col-total">{{ t('activities.costs.colAmount') }}</span>
+                <span class="costs-col-total">{{ t('common.amount') }}</span>
               </div>
               <div v-for="row in group.rows" :key="row.id" class="costs-row">
                 <span class="costs-col-name">{{ row.material_name }}</span>
@@ -316,11 +316,11 @@ watch(
           <template v-else>
             <div class="costs-table">
               <div class="costs-row costs-row-header">
-                <span class="costs-col-name">{{ t('activities.costs.colMaterial') }}</span>
+                <span class="costs-col-name">{{ t('common.material') }}</span>
                 <span class="costs-col-qty">{{ t('activities.costs.colQty') }}</span>
                 <span class="costs-col-used"></span>
                 <span class="costs-col-price">{{ t('activities.costs.colUnitPrice') }}</span>
-                <span class="costs-col-total">{{ t('activities.costs.colAmount') }}</span>
+                <span class="costs-col-total">{{ t('common.amount') }}</span>
               </div>
               <div v-for="row in rentalRows" :key="row.material_item_id" class="costs-row">
                 <span class="costs-col-name">{{ row.material_name }}</span>
@@ -345,11 +345,11 @@ watch(
           </h3>
           <div class="costs-table">
             <div class="costs-row costs-row-header">
-              <span class="costs-col-name">{{ t('activities.costs.colMaterial') }}</span>
+              <span class="costs-col-name">{{ t('common.material') }}</span>
               <span class="costs-col-qty">{{ t('activities.costs.colQty') }}</span>
               <span class="costs-col-reporter">{{ t('activities.costs.colReportedBy') }}</span>
               <span class="costs-col-price"></span>
-              <span class="costs-col-total">{{ t('activities.costs.colDescription') }}</span>
+              <span class="costs-col-total">{{ t('common.description') }}</span>
             </div>
             <div v-for="loss in lossIssues" :key="loss.id" class="costs-row">
               <span class="costs-col-name">{{ loss.material_name || '–' }}</span>
@@ -387,7 +387,7 @@ watch(
           <div class="costs-table">
             <div class="costs-row costs-row-header">
               <span class="costs-col-name">{{ t('activities.costs.colTicket') }}</span>
-              <span class="costs-col-qty">{{ t('activities.costs.colStatus') }}</span>
+              <span class="costs-col-qty">{{ t('common.status') }}</span>
               <span class="costs-col-reporter">{{ t('activities.costs.colReportedBy') }}</span>
               <span class="costs-col-price"></span>
               <span class="costs-col-total">{{ t('activities.costs.colCost') }}</span>
@@ -415,7 +415,7 @@ watch(
           <div class="costs-table">
             <div class="costs-row costs-row-header">
               <span class="costs-col-name">{{ t('activities.costs.colTicket') }}</span>
-              <span class="costs-col-qty">{{ t('activities.costs.colStatus') }}</span>
+              <span class="costs-col-qty">{{ t('common.status') }}</span>
               <span class="costs-col-reporter">{{ t('activities.costs.colReportedBy') }}</span>
               <span class="costs-col-price"></span>
               <span class="costs-col-total">{{ t('activities.costs.colCost') }}</span>
