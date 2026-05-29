@@ -41,7 +41,7 @@
     <!-- Error -->
     <div v-else-if="error" class="error-state">
       <p class="error-message">{{ error }}</p>
-      <button @click="loadGroups" class="btn btn-secondary">{{ t('settings.groups.retry') }}</button>
+      <button @click="loadGroups" class="btn btn-secondary">{{ t('common.retry') }}</button>
     </div>
 
     <!-- Empty State -->
@@ -67,7 +67,7 @@
       <table class="groups-table">
         <thead>
           <tr>
-            <th class="col-name">{{ t('settings.groups.colGroup') }}</th>
+            <th class="col-name">{{ t('common.group') }}</th>
             <th class="col-members">{{ t('settings.groups.colMembersAndLeaders') }}</th>
             <th v-if="showGroupManagementActions" class="col-actions"></th>
           </tr>
@@ -128,7 +128,7 @@
                 <button
                   v-if="canFullyManageGroups"
                   class="action-btn"
-                  :title="t('settings.groups.titleEdit')"
+                  :title="t('common.edit')"
                   @click="openEditModal(group)"
                 >
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -139,7 +139,7 @@
                 <button
                   v-if="canFullyManageGroups"
                   class="action-btn action-btn-danger"
-                  :title="t('settings.groups.titleDelete')"
+                  :title="t('common.delete')"
                   @click="handleDelete(group)"
                 >
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -197,13 +197,13 @@
           </div>
 
           <div class="modal-footer">
-            <button class="btn btn-secondary" @click="closeGroupModal">{{ t('settings.groups.cancel') }}</button>
+            <button class="btn btn-secondary" @click="closeGroupModal">{{ t('common.cancel') }}</button>
             <button 
               class="btn btn-primary" 
               :disabled="!groupForm.name.trim() || isSaving"
               @click="saveGroup"
             >
-              {{ isSaving ? t('settings.groups.saving') : (editingGroup ? t('settings.groups.save') : t('settings.groups.create')) }}
+              {{ isSaving ? t('settings.groups.saving') : (editingGroup ? t('common.save') : t('common.create')) }}
             </button>
           </div>
         </div>
@@ -234,9 +234,9 @@
               <table class="members-table">
                 <thead>
                   <tr>
-                    <th>{{ t('settings.groups.memberColName') }}</th>
+                    <th>{{ t('common.name') }}</th>
                     <th>{{ t('settings.groups.memberColEmail') }}</th>
-                    <th>{{ t('settings.groups.memberColRole') }}</th>
+                    <th>{{ t('common.role') }}</th>
                     <th></th>
                   </tr>
                 </thead>
@@ -265,7 +265,7 @@
                       <button
                         v-if="canFullyManageGroups"
                         class="action-btn action-btn-danger"
-                        :title="t('settings.groups.titleRemoveMember')"
+                        :title="t('common.remove')"
                         @click="handleRemoveMember(member)"
                       >
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -323,7 +323,7 @@
                   :disabled="!addMemberForm.user_id"
                   @click="handleAddMember"
                 >
-                  {{ t('settings.groups.add') }}
+                  {{ t('common.add') }}
                 </button>
               </div>
             </div>
@@ -560,8 +560,8 @@ async function handleDelete(group: Group) {
   const ok = await confirm.confirm({
     title: t('settings.groups.deleteGroupTitle'),
     message: t('settings.groups.deleteGroupMessage', { name: group.name }),
-    confirmText: t('settings.groups.delete'),
-    cancelText: t('settings.groups.cancel'),
+    confirmText: t('common.delete'),
+    cancelText: t('common.cancel'),
     variant: 'danger',
   })
   if (!ok) return
@@ -623,8 +623,8 @@ async function handleRemoveMember(member: GroupMember) {
   const ok = await confirm.confirm({
     title: t('settings.groups.removeMemberTitle'),
     message: t('settings.groups.removeMemberMessage', { name: member.name }),
-    confirmText: t('settings.groups.remove'),
-    cancelText: t('settings.groups.cancel'),
+    confirmText: t('common.remove'),
+    cancelText: t('common.cancel'),
     variant: 'danger',
   })
   if (!ok) return

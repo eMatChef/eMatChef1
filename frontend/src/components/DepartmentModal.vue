@@ -107,9 +107,9 @@
                 <table class="members-table">
                   <thead>
                     <tr>
-                      <th>{{ t('components.departmentModal.colName') }}</th>
+                      <th>{{ t('common.name') }}</th>
                       <th>{{ t('components.departmentModal.colEmail') }}</th>
-                      <th>{{ t('components.departmentModal.colRole') }}</th>
+                      <th>{{ t('common.role') }}</th>
                       <th>{{ t('components.departmentModal.colPrimary') }}</th>
                       <th></th>
                     </tr>
@@ -135,7 +135,7 @@
                           :disabled="memberActionLoading"
                           @click="saveMember(member)"
                         >
-                          {{ t('components.departmentModal.saveMember') }}
+                          {{ t('common.save') }}
                         </button>
                         <button
                           v-if="!isCurrentUser(member)"
@@ -144,7 +144,7 @@
                           :disabled="memberActionLoading"
                           @click="deleteMember(member)"
                         >
-                          {{ t('components.departmentModal.removeMember') }}
+                          {{ t('common.remove') }}
                         </button>
                       </td>
                     </tr>
@@ -208,7 +208,7 @@
                     :disabled="!newMemberUserId || memberActionLoading"
                     @click="addMember"
                   >
-                    {{ t('components.departmentModal.addButton') }}
+                    {{ t('common.add') }}
                   </button>
                 </div>
               </div>
@@ -229,7 +229,7 @@
               {{
                 isSubmitting
                   ? t('components.departmentModal.saving')
-                  : (isEdit ? t('common.save') : t('components.departmentModal.addSubmit'))
+                  : (isEdit ? t('common.save') : t('common.add'))
               }}
             </button>
           </div>

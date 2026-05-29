@@ -12,7 +12,7 @@
           <p class="activity-readonly-inline">CHF {{ Number(activity.total_price).toFixed(2) }}</p>
         </div>
         <div class="form-group span-2">
-          <label for="draft-activity-name">{{ t('activities.detail.summaryName') }}</label>
+          <label for="draft-activity-name">{{ t('common.name') }}</label>
           <input
             id="draft-activity-name"
             v-model="form.name"
@@ -24,7 +24,7 @@
         </div>
         <div v-if="showGroup" class="form-group span-2">
           <label for="draft-activity-group">
-            {{ t('activities.wizard.form.groupLabel') }}
+            {{ t('common.group') }}
             <span v-if="groupRequired" class="req">*</span>
             <span v-else-if="activityType === 'event'" class="text-muted">{{ t('activities.wizard.form.groupOptional') }}</span>
           </label>
@@ -62,7 +62,7 @@
     <div class="section-card">
       <h2 class="section-title">{{ t('activities.detail.sectionPeriod') }}</h2>
       <p class="field-hint text-muted draft-time-hint">
-        {{ t('activities.draftOverview.periodHint', { materialTab: t('activities.detail.tabMaterial') }) }}
+        {{ t('activities.draftOverview.periodHint', { materialTab: t('common.material') }) }}
       </p>
       <p v-if="usageDatesLocked" class="field-hint activity-draft-usage-locked-hint" role="status">
         <strong>{{ t('activities.wizard.form.datesLockedTitle') }}</strong> {{ t('activities.draftOverview.datesLockedBodyDraft') }}
@@ -190,7 +190,7 @@
         :disabled="saving || !hasChanges || !isValid"
         @click="onSave"
       >
-        {{ saving ? t('activities.draftOverview.saveSaving') : t('activities.draftOverview.save') }}
+        {{ saving ? t('activities.draftOverview.saveSaving') : t('common.save') }}
       </button>
       <button type="button" class="btn-outline" :disabled="saving || !hasChanges" @click="resetFromActivity">
         {{ t('activities.draftOverview.reset') }}

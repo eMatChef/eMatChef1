@@ -301,7 +301,7 @@
                           <line x1="7" y1="13" x2="12" y2="13"/>
                         </svg>
                       </button>
-                      <button type="button" class="remove-serial-btn" @click="removeSerialNumber(entry.id)" :title="t('components.batchModal.removeTitle')">
+                      <button type="button" class="remove-serial-btn" @click="removeSerialNumber(entry.id)" :title="t('common.remove')">
                         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                           <line x1="18" y1="6" x2="6" y2="18"/>
                           <line x1="6" y1="6" x2="18" y2="18"/>
@@ -383,7 +383,7 @@
           <template v-if="isSerializedMaterial && isEditMode">
             <div class="batch-form-row">
               <div class="batch-form-group full-width">
-                <label>{{ t('components.batchModal.serialNumberEdit') }}</label>
+                <label>{{ t('common.serialNumber') }}</label>
                 <input 
                   v-model="form.serial_number" 
                   type="text" 
@@ -506,7 +506,7 @@
                         </select>
                       </td>
                       <td>
-                        <button type="button" class="remove-row-btn" @click="removeAllocationRow(row.id)" :title="t('components.batchModal.removeTitle')">×</button>
+                        <button type="button" class="remove-row-btn" @click="removeAllocationRow(row.id)" :title="t('common.remove')">×</button>
                       </td>
                     </tr>
                   </tbody>
@@ -632,7 +632,7 @@
               {{
                 isSaving
                   ? t('common.saving')
-                  : (isEditMode ? t('common.save') : t('components.batchModal.addSubmit'))
+                  : (isEditMode ? t('common.save') : t('common.add'))
               }}
             </button>
           </div>
@@ -1184,7 +1184,7 @@ async function prefetchRackPreview(rackId: string) {
   if (!text) {
     const data = await getRackContents(rackId).catch(() => null)
     const items = (data?.contents || []).map((c: { material_name: string; qty: number }) => ({
-      material_name: c.material_name || t('components.batchModal.materialGeneric'),
+      material_name: c.material_name || t('common.material'),
       qty: Number(c.qty || 0),
     }))
     text = summarizeMaterialsForPreview(items)
