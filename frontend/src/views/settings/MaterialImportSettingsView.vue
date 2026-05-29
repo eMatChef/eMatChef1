@@ -274,6 +274,8 @@ import {
   downloadTemplateCsv,
   acquiredDateFromYear,
   readImportMatrixFromFile,
+  ImportFileError,
+  MAX_IMPORT_FILE_BYTES,
   parseMatrixWithMapping,
   buildSuggestedMapping,
   getColumnLabels,
@@ -569,8 +571,16 @@ async function onFileSelected(ev: Event) {
     showMappingPanel.value = true
     toast.info(t('settings.materialImport.mappingPleaseMap'))
   } catch (e) {
-    console.error(e)
-    toast.error(t('settings.materialImport.parseFailed'))
+    if (e instanceof ImportFileError) {
+      toast.error(
+        e.code === 'too_large'
+          ? t('settings.materialImport.fileTooLarge', { max: MAX_IMPORT_FILE_BYTES / (1024 * 1024) })
+          : t('settings.materialImport.fileBadType'),
+      )
+    } else {
+      console.error(e)
+      toast.error(t('settings.materialImport.parseFailed'))
+    }
   }
   input.value = ''
 }
