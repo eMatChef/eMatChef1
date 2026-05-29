@@ -7,6 +7,7 @@ use App\Entity\MaterialBatch;
 use App\Entity\BatchStorageAllocation;
 use App\Entity\MaterialHistory;
 use App\Entity\MaterialComboComponent;
+use App\Entity\MaterialRelatedAccessory;
 use App\Entity\ActivityIssueReport;
 use App\Entity\WorkshopTicket;
 use App\Entity\Category;
@@ -1130,6 +1131,124 @@ class MaterialController extends AbstractController
         $this->entityManager->flush();
 
         return new JsonResponse($this->serializeMaterial($material, true));
+    }
+
+    // ==========================================
+    // === Verwandtes Zubehör (Empfehlung) ===
+    // ==========================================
+
+    /**
+     * Verwandtes Zubehör eines Materials laden.
+     */
+    #[Route('/{id}/related-accessories', name: 'related_accessories_list', methods: ['GET'])]
+    #[IsGranted('ROLE_USER')]
+    public function listRelatedAccessories(string $id): JsonResponse
+    {
+        $material = $this->entityManager->getRepository(MaterialItem::class)->find($id);
+        if (!$material) {
+            return new JsonResponse(['error' => 'Material nicht gefunden'], 404);
+        }
+        $accessCheck = $this->assertDepartmentAccess($material->getDepartmentId());
+        if ($accessCheck instanceof JsonResponse) {
+            return $accessCheck;
+        }
+
+        $accessories = $this->entityManager->getRepository(MaterialRelatedAccessory::class)
+            ->createQueryBuilder('ra')
+            ->leftJoin('ra.accessoryMaterial', 'am')
+            ->addSelect('am')
+            ->where('ra.materialId = :materialId')
+            ->setParameter('materialId', $id)
+            ->orderBy('ra.sortOrder', 'ASC')
+            ->getQuery()
+            ->getResult();
+
+        $result = [];
+        foreach ($accessories as $ra) {
+            $result[] = $this->serializeRelatedAccessory($ra);
+        }
+
+        return new JsonResponse($result);
+    }
+
+    /**
+     * Verwandtes Zubehör verknüpfen (eigene Empfehlung, kein Stücklisten-Teil).
+     */
+    #[Route('/{id}/related-accessories', name: 'related_accessories_add', methods: ['POST'])]
+    #[IsGranted('ROLE_USER')]
+    public function addRelatedAccessory(string $id, Request $request): JsonResponse
+    {
+        $material = $this->entityManager->getRepository(MaterialItem::class)->find($id);
+        if (!$material) {
+            return new JsonResponse(['error' => 'Material nicht gefunden'], 404);
+        }
+        $accessCheck = $this->assertDepartmentAccess($material->getDepartmentId());
+        if ($accessCheck instanceof JsonResponse) {
+            return $accessCheck;
+        }
+
+        $data = json_decode($request->getContent(), true) ?? [];
+        $accessoryId = $data['accessory_material_id'] ?? null;
+        if (!$accessoryId) {
+            return new JsonResponse(['error' => 'accessory_material_id ist erforderlich'], 400);
+        }
+
+        $accessory = $this->entityManager->getRepository(MaterialItem::class)->find($accessoryId);
+        if (!$accessory) {
+            return new JsonResponse(['error' => 'Zubehör-Material nicht gefunden'], 404);
+        }
+        if ($accessory->getId() === $material->getId()) {
+            return new JsonResponse(['error' => 'Ein Material kann nicht sich selbst als Zubehör haben'], 400);
+        }
+        if ($accessory->getDepartmentId() !== $material->getDepartmentId()) {
+            return new JsonResponse(['error' => 'Zubehör-Artikel muss zum gleichen Team gehören'], 400);
+        }
+
+        $existing = $this->entityManager->getRepository(MaterialRelatedAccessory::class)
+            ->findOneBy(['materialId' => $id, 'accessoryMaterialId' => $accessory->getId()]);
+        if ($existing) {
+            return new JsonResponse(['error' => 'Dieses Zubehör ist bereits verknüpft'], 409);
+        }
+
+        $maxSort = (int) $this->entityManager->getRepository(MaterialRelatedAccessory::class)
+            ->createQueryBuilder('ra')
+            ->select('COALESCE(MAX(ra.sortOrder), -1)')
+            ->where('ra.materialId = :materialId')
+            ->setParameter('materialId', $id)
+            ->getQuery()
+            ->getSingleScalarResult();
+
+        $ra = new MaterialRelatedAccessory();
+        $ra->setId(IdGenerator::generate13Unique($this->entityManager, MaterialRelatedAccessory::class, 'ra'));
+        $ra->setMaterial($material);
+        $ra->setAccessoryMaterial($accessory);
+        $ra->setSortOrder(isset($data['sort_order']) ? (int) $data['sort_order'] : $maxSort + 1);
+        $this->entityManager->persist($ra);
+        $this->entityManager->flush();
+
+        return new JsonResponse($this->serializeRelatedAccessory($ra), 201);
+    }
+
+    /**
+     * Verwandtes Zubehör entfernen.
+     */
+    #[Route('/{materialId}/related-accessories/{accessoryId}', name: 'related_accessories_delete', methods: ['DELETE'])]
+    #[IsGranted('ROLE_USER')]
+    public function deleteRelatedAccessory(string $materialId, string $accessoryId): JsonResponse
+    {
+        $ra = $this->entityManager->getRepository(MaterialRelatedAccessory::class)->find($accessoryId);
+        if (!$ra || $ra->getMaterialId() !== $materialId) {
+            return new JsonResponse(['error' => 'Zubehör-Verknüpfung nicht gefunden'], 404);
+        }
+        $accessCheck = $this->assertDepartmentAccess($ra->getMaterial()->getDepartmentId());
+        if ($accessCheck instanceof JsonResponse) {
+            return $accessCheck;
+        }
+
+        $this->entityManager->remove($ra);
+        $this->entityManager->flush();
+
+        return new JsonResponse(null, 204);
     }
 
     /**
@@ -3433,9 +3552,44 @@ class MaterialController extends AbstractController
                 }
                 $result['combo_component_count'] = count($comboComponents);
             }
+
+            // Verwandtes Zubehör (Empfehlung, kein Stücklisten-Teil) – für alle Typen
+            $relatedAccessories = $this->entityManager->getRepository(MaterialRelatedAccessory::class)
+                ->createQueryBuilder('ra')
+                ->leftJoin('ra.accessoryMaterial', 'am')
+                ->addSelect('am')
+                ->where('ra.materialId = :materialId')
+                ->setParameter('materialId', $material->getId())
+                ->orderBy('ra.sortOrder', 'ASC')
+                ->getQuery()
+                ->getResult();
+
+            $result['related_accessories'] = [];
+            foreach ($relatedAccessories as $ra) {
+                $result['related_accessories'][] = $this->serializeRelatedAccessory($ra);
+            }
         }
 
         return $result;
+    }
+
+    private function serializeRelatedAccessory(MaterialRelatedAccessory $ra): array
+    {
+        $accessory = $ra->getAccessoryMaterial();
+
+        return [
+            'id' => $ra->getId(),
+            'material_id' => $ra->getMaterialId(),
+            'accessory_material' => [
+                'id' => $accessory->getId(),
+                'name' => $accessory->getName(),
+                'material_type' => $accessory->getMaterialType(),
+                'tracking_type' => $accessory->getTrackingType(),
+                'total_stock' => $accessory->getTotalStock(),
+            ],
+            'sort_order' => $ra->getSortOrder(),
+            'created_at' => $ra->getCreatedAt()->format('c'),
+        ];
     }
 
     /**

@@ -232,6 +232,41 @@
         </template>
       </MaterialLookupInput>
     </div>
+
+    <!-- Vorschlag: verwandtes Zubehör nach Hinzufügen einer Kombo -->
+    <div
+      v-if="accessorySuggestion && accessorySuggestion.accessories.length > 0"
+      class="activity-accessory-suggestion"
+    >
+      <div class="activity-accessory-suggestion-head">
+        <span class="activity-accessory-suggestion-title">
+          {{ t('activities.materialAvailability.accessorySuggestTitle', { name: accessorySuggestion.comboName }) }}
+        </span>
+        <button
+          type="button"
+          class="activity-accessory-suggestion-dismiss"
+          :aria-label="t('common.close')"
+          @click="dismissAccessorySuggestion"
+        >×</button>
+      </div>
+      <ul class="activity-accessory-suggestion-list">
+        <li v-for="acc in accessorySuggestion.accessories" :key="acc.materialItemId" class="activity-accessory-suggestion-item">
+          <span class="activity-accessory-suggestion-name">{{ acc.name }}</span>
+          <span class="activity-accessory-suggestion-stock">
+            {{ t('activities.materialAvailability.accessorySuggestAvailable', { n: effectiveStock(acc) }) }}
+          </span>
+          <button
+            v-if="canAdd(acc, 1)"
+            type="button"
+            class="activity-accessory-suggestion-add"
+            :disabled="disabled"
+            @click="addAccessoryFromSuggestion(acc)"
+          >
+            {{ t('activities.materialAvailability.accessorySuggestAdd') }}
+          </button>
+        </li>
+      </ul>
+    </div>
   </div>
 </template>
 
@@ -247,6 +282,8 @@ import {
 } from '@/composables/useMaterialLookup'
 import { materialLookupContextForScopeTab, type MaterialScopeTab } from './shared/activityMaterialAvailabilityScope'
 import { storageContainerIconFromPackUnit } from '@/utils/storageContainerDisplay'
+import { getRelatedAccessories } from '@/api/materials'
+import { fetchMaterialsAvailableForPeriodByIds } from '@/api/materialAvailabilityPeriod'
 
 interface InvitedPartnerDepartment {
   id: string
@@ -347,6 +384,7 @@ function setMaterialScope(mode: 'own' | 'all' | 'single' | 'js', partnerId?: str
   materialScopeTab.value = mode
   singlePartnerDepartmentId.value = mode === 'single' && partnerId ? partnerId : null
   matSearch.value = ''
+  accessorySuggestion.value = null
 }
 
 const matSearch = ref('')
@@ -455,12 +493,161 @@ function addQty(m: ActivityPeriodAvailabilityMaterial, qty: number) {
   if (add < 1) return
   emit('add-quantity', { material: m, quantity: add })
   matSearch.value = ''
+  if (m.materialType === 'physical_combo' || m.materialType === 'virtual_combo') {
+    void loadAccessorySuggestion(m)
+  }
+}
+
+// ── Vorschlag: verwandtes Zubehör nach Hinzufügen einer Kombo ──
+const accessorySuggestion = ref<{
+  comboId: string
+  comboName: string
+  accessories: ActivityPeriodAvailabilityMaterial[]
+} | null>(null)
+let accessorySuggestionToken = 0
+
+function dismissAccessorySuggestion() {
+  accessorySuggestion.value = null
+}
+
+async function loadAccessorySuggestion(combo: ActivityPeriodAvailabilityMaterial) {
+  const token = ++accessorySuggestionToken
+  try {
+    const links = await getRelatedAccessories(combo.materialItemId)
+    if (token !== accessorySuggestionToken) return
+    const ids = links.map((l) => l.accessory_material.id)
+    if (ids.length === 0) {
+      accessorySuggestion.value = null
+      return
+    }
+    const ctx = availabilityContext.value
+    const rows = await fetchMaterialsAvailableForPeriodByIds({
+      departmentId: props.departmentId,
+      activityId: props.activityId || null,
+      startDateIso: ctx?.startDate ?? null,
+      endDateIso: ctx?.endDate ?? null,
+      materialItemIds: ids,
+      scope: ctx
+        ? {
+            source: ctx.source,
+            internalScope: ctx.internalScope,
+            singleDepartmentId: ctx.singleDepartmentId,
+            includeGlobalJs: ctx.includeGlobalJs,
+          }
+        : null,
+    })
+    if (token !== accessorySuggestionToken) return
+    // Nur verfügbares Zubehör vorschlagen (Reihenfolge wie verknüpft).
+    const byId = new Map(rows.map((r) => [r.materialItemId, r]))
+    const available = ids
+      .map((id) => byId.get(id))
+      .filter((r): r is ActivityPeriodAvailabilityMaterial => !!r && effectiveStock(r) >= 1)
+    if (available.length === 0) {
+      accessorySuggestion.value = null
+      return
+    }
+    accessorySuggestion.value = {
+      comboId: combo.materialItemId,
+      comboName: combo.name,
+      accessories: available,
+    }
+  } catch {
+    if (token === accessorySuggestionToken) accessorySuggestion.value = null
+  }
+}
+
+function addAccessoryFromSuggestion(acc: ActivityPeriodAvailabilityMaterial) {
+  if (props.disabled) return
+  const raw = effectiveStock(acc)
+  const draft = draftQtyFor(acc.materialItemId)
+  const saved = savedQtyFor(acc.materialItemId)
+  const adjustedFree = Math.max(0, raw + saved - draft)
+  if (adjustedFree < 1) return
+  emit('add-quantity', { material: acc, quantity: 1 })
 }
 </script>
 
 <style scoped>
 .activity-material-availability-lookup {
   width: 100%;
+}
+
+.activity-accessory-suggestion {
+  margin-top: 12px;
+  padding: 12px 14px;
+  border: 1px solid #c7d2fe;
+  background: #eef2ff;
+  border-radius: 10px;
+}
+
+.activity-accessory-suggestion-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.activity-accessory-suggestion-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #3730a3;
+}
+
+.activity-accessory-suggestion-dismiss {
+  border: none;
+  background: transparent;
+  font-size: 18px;
+  line-height: 1;
+  color: #6b7280;
+  cursor: pointer;
+}
+
+.activity-accessory-suggestion-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.activity-accessory-suggestion-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.activity-accessory-suggestion-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: #1f2937;
+  flex: 1 1 auto;
+}
+
+.activity-accessory-suggestion-stock {
+  font-size: 12px;
+  color: #4b5563;
+}
+
+.activity-accessory-suggestion-add {
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  border: 1px solid #4f46e5;
+  border-radius: 6px;
+  background: #4f46e5;
+  color: #fff;
+  cursor: pointer;
+}
+
+.activity-accessory-suggestion-add:hover:not(:disabled) {
+  background: #4338ca;
+}
+
+.activity-accessory-suggestion-add:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .activity-material-scope-tabs {

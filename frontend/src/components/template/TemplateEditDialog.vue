@@ -27,6 +27,9 @@
             <span v-if="tab.id === 'components' && form.components.length > 0" class="tab-count">
               {{ form.components.length }}
             </span>
+            <span v-if="tab.id === 'accessories' && form.accessories.length > 0" class="tab-count">
+              {{ form.accessories.length }}
+            </span>
           </button>
         </div>
 
@@ -197,6 +200,51 @@
             </template>
           </draggable>
         </div>
+
+        <!-- Tab: Verwandtes Zubehör -->
+        <div v-show="activeTab === 'accessories'" class="tab-content">
+          <div class="components-header">
+            <p class="components-info">
+              {{ t('components.templateEditDialog.accessoriesInfo') }}
+            </p>
+            <button v-if="!props.readonly" class="btn-add-component" @click="addAccessory">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+              </svg>
+              {{ t('components.templateEditDialog.addAccessory') }}
+            </button>
+          </div>
+
+          <div v-if="form.accessories.length === 0" class="empty-components">
+            <p>{{ t('components.templateEditDialog.emptyAccessories') }}</p>
+          </div>
+
+          <div v-else class="components-list">
+            <div v-for="(acc, index) in form.accessories" :key="acc.__key" class="component-item">
+              <div class="component-body" style="padding: 12px 16px;">
+                <div class="form-grid">
+                  <div class="form-group">
+                    <label class="form-label required">{{ t('components.templateEditDialog.nameLabel') }}</label>
+                    <input v-model="acc.name" type="text" class="form-input" :placeholder="t('components.templateEditDialog.accessoryNamePlaceholder')" :disabled="props.readonly" />
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label">{{ t('components.templateEditDialog.typeLabel') }}</label>
+                    <input v-model="acc.component_type" type="text" class="form-input" :placeholder="t('components.templateEditDialog.componentTypePlaceholder')" :disabled="props.readonly" />
+                  </div>
+                  <div class="form-group full">
+                    <label class="checkbox-row">
+                      <input type="checkbox" v-model="acc.is_generic" :disabled="props.readonly" />
+                      <span>{{ t('components.templateEditDialog.genericHint') }}</span>
+                    </label>
+                  </div>
+                </div>
+                <button v-if="!props.readonly" class="btn-remove-component" @click="removeAccessory(index)" :title="t('components.templateEditDialog.removeTitle')">
+                  {{ t('components.templateEditDialog.removeTitle') }}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
       <!-- Footer -->
@@ -223,7 +271,8 @@ import {
   type Template,
   type CreateTemplateRequest,
   type UpdateTemplateRequest,
-  type CreateTemplateComponentRequest
+  type CreateTemplateComponentRequest,
+  type CreateTemplateRelatedAccessoryRequest
 } from '@/api/templates'
 
 interface ComponentForm {
@@ -236,6 +285,14 @@ interface ComponentForm {
   tracking: 'serialized' | 'bulk'
   repair_types: string[] | null
   _repairTypesStr: string
+  sort_order: number
+}
+
+interface AccessoryForm {
+  __key: number
+  name: string
+  component_type: string
+  is_generic: boolean
   sort_order: number
 }
 
@@ -259,7 +316,7 @@ const saveError = ref('')
 const expandedComponents = ref(new Set<number>())
 let keyCounter = 0
 
-const tabs = ['general', 'tent', 'components'].map((id) => ({
+const tabs = ['general', 'tent', 'components', 'accessories'].map((id) => ({
   id,
   label: t(`components.templateEditDialog.tab.${id}`),
 }))
@@ -276,6 +333,7 @@ const form = reactive({
   is_active: true,
   source: null as string | null,
   components: [] as ComponentForm[],
+  accessories: [] as AccessoryForm[],
 })
 
 const isValid = computed(() => {
@@ -319,6 +377,21 @@ function toggleComponent(index: number) {
   }
 }
 
+// Verwandtes Zubehör (Empfehlung, kein Stücklisten-Teil)
+function addAccessory() {
+  form.accessories.push({
+    __key: ++keyCounter,
+    name: '',
+    component_type: '',
+    is_generic: false,
+    sort_order: form.accessories.length,
+  })
+}
+
+function removeAccessory(index: number) {
+  form.accessories.splice(index, 1)
+}
+
 // Speichern
 async function save() {
   if (!isValid.value) return
@@ -339,6 +412,15 @@ async function save() {
       sort_order: i,
     }))
 
+    const related_accessories: CreateTemplateRelatedAccessoryRequest[] = form.accessories
+      .filter((a) => a.name.trim().length > 0)
+      .map((a, i) => ({
+        name: a.name.trim(),
+        component_type: a.component_type.trim() || null,
+        is_generic: a.is_generic,
+        sort_order: i,
+      }))
+
     if (isEditing.value && props.template) {
       const data: UpdateTemplateRequest = {
         name: form.name,
@@ -351,6 +433,7 @@ async function save() {
         is_active: form.is_active,
         source: form.source,
         components,
+        related_accessories,
       }
       await updateTemplate(props.template.id, data)
     } else {
@@ -366,6 +449,7 @@ async function save() {
         is_active: form.is_active,
         source: form.source,
         components,
+        related_accessories,
       }
       await createTemplate(data)
     }
@@ -411,6 +495,15 @@ async function loadTemplate() {
           repair_types: c.repair_types,
           _repairTypesStr: c.repair_types ? c.repair_types.join(', ') : '',
           sort_order: c.sort_order,
+        }))
+      }
+      if (full.related_accessories) {
+        form.accessories = full.related_accessories.map((a) => ({
+          __key: ++keyCounter,
+          name: a.name,
+          component_type: a.component_type ?? '',
+          is_generic: a.is_generic ?? false,
+          sort_order: a.sort_order,
         }))
       }
     } catch (err) {

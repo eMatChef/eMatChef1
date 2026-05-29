@@ -305,6 +305,8 @@ Die gebuchte virtuelle Kombo wird **gruppiert wie eine Kiste** dargestellt (Hül
 
 Eigene Empfehlungs-Verknüpfung (Kombo → andere Materialien), **getrennt** von der Stückliste, verwaltet im Zusammensetzungs-Tab (`MaterialDetailView`). Im Aktivitäts-Flow als Vorschlag „Zubehör dazu?" → **eigene Positionen** (nicht Teil des Sets). Auch für **physische** Kombos nutzbar.
 
+> ✅ **Umgesetzt (Paket 4):** Entity `MaterialRelatedAccessory` (Migration `Version20260529140000`) + CRUD `/api/materials/{id}/related-accessories`; Verwaltung im Zusammensetzungs-Tab; Vorlagen führen Zubehör über `MaterialTemplateRelatedAccessory` mit und lösen es beim „Vorlage → Material" zu konkreten Verknüpfungen auf; Aktivitäts-Lookup schlägt nach dem Hinzufügen einer Kombo das verfügbare Zubehör als eigene Positionen vor.
+
 ### Phasen
 
 | Phase | Inhalt |

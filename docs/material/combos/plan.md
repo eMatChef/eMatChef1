@@ -2,7 +2,7 @@
 
 Abarbeitbare Checkliste für den Umbau auf das bereinigte Combo-Modell. Das **Warum/Zielmodell** steht im [README.md](./README.md) (insb. Abschnitt 0 + 6). Dieser Plan = **Was & in welcher Reihenfolge**.
 
-**Stand:** Mai 2026 · Pakete 0–7, von klein → groß. **Erledigt: 0–3** (Mini-Fixes; `combo_status` draft/ready inkl. Migration `Version20260529120000`; `reservation_mode` end-to-end entfernt inkl. Drop-Migration `Version20260529130000`; drei Typen im Wizard mit Klartext-Karten/Badges + Hülle-Hinweis). **Nächstes: Paket 4.**
+**Stand:** Mai 2026 · Pakete 0–7, von klein → groß. **Erledigt: 0–4** (Mini-Fixes; `combo_status` draft/ready inkl. Migration `Version20260529120000`; `reservation_mode` end-to-end entfernt inkl. Drop-Migration `Version20260529130000`; drei Typen im Wizard mit Klartext-Karten/Badges + Hülle-Hinweis; verwandtes Zubehör als separate Empfehlung inkl. Entities/Migration `Version20260529140000`/API, Detail-Tab, Vorlage + Aktivitäts-Vorschlag, „fertigstellen" für physische Kombo). **Nächstes: Paket 5.**
 
 ---
 
@@ -28,7 +28,7 @@ Abarbeitbare Checkliste für den Umbau auf das bereinigte Combo-Modell. Das **Wa
 | 1 | DB-Fundament: Entwurfs-Flag | S | – | [x] |
 | 2 | `reservation_mode` entfernen (end-to-end) | S–M | – | [x] |
 | 3 | Drei Typen im Wizard | M | 1, 2 | [x] |
-| 4 | Physische Kombo finalisieren | M | 3 | [ ] |
+| 4 | Physische Kombo finalisieren | M | 3 | [x] |
 | 5 | Virtuelle Kombo + Options-/Delta-Fundament | XL | 4 | [ ] |
 | 6 | Konfigurator-UI (Auswahl-Gruppen) | L | 5 | [ ] |
 | 7 | Komfort / Cross-Cutting | M | 5, 6 | [ ] |
@@ -160,11 +160,11 @@ Diese Stellen steuern Typ-/Status-/Verfügbarkeitslogik zentral — Änderungen 
 - `frontend/src/components/activities/ActivityMaterialAvailabilityLookup.vue` (Vorschlag „Zubehör dazu?")
 
 **Schritte:**
-- [ ] Relation „verwandtes Zubehör" (Material → Materialien) – Entity + Migration + API. **Für alle Typen nutzbar** (physisch und virtuell), nicht nur physische Kombo.
-- [ ] Detail-Tab: Zubehör-Liste verwalten (getrennt von Stückliste/Optionen).
-- [ ] Vorlage: Zubehör mitführen, beim Erstellen übertragen.
-- [ ] Aktivitäts-Flow: nach Hinzufügen einer Kombo verwandtes Zubehör als **eigene Positionen** vorschlagen (nur wenn verfügbar).
-- [ ] „fertigstellen" (Paket 1) auch für physische Kombo.
+- [x] Relation „verwandtes Zubehör" (Material → Materialien) – Entity + Migration + API. **Für alle Typen nutzbar** (physisch und virtuell), nicht nur physische Kombo. (`MaterialRelatedAccessory` + `MaterialTemplateRelatedAccessory`, Migration `Version20260529140000`, CRUD `/materials/{id}/related-accessories`.)
+- [x] Detail-Tab: Zubehör-Liste verwalten (getrennt von Stückliste/Optionen). (Eigene Karte „Verwandtes Zubehör" im Zusammensetzungs-Tab.)
+- [x] Vorlage: Zubehör mitführen, beim Erstellen übertragen. (Tab „Zubehör" im `TemplateEditDialog`; Auflösung zu konkreten Materialien beim „Vorlage → Material".)
+- [x] Aktivitäts-Flow: nach Hinzufügen einer Kombo verwandtes Zubehör als **eigene Positionen** vorschlagen (nur wenn verfügbar). (Vorschlag-Panel in `ActivityMaterialAvailabilityLookup`, Zeitraum-Verfügbarkeit über `available-for-period`.)
+- [x] „fertigstellen" (Paket 1) auch für physische Kombo. (Bereits via `isComboDraft`/`finalize-combo` für beide Typen; verifiziert.)
 
 **Definition of Done:** Physische Kombo komplett anlegbar/bearbeitbar inkl. Zubehör-Vorschlag im Buchungs-Flow.
 

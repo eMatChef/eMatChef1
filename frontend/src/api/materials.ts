@@ -96,6 +96,21 @@ export interface ComboComponent {
   created_at: string
 }
 
+/** Verwandtes Zubehör: Empfehlungs-Verknüpfung (kein Stücklisten-Teil) */
+export interface RelatedAccessory {
+  id: string
+  material_id: string
+  accessory_material: {
+    id: string
+    name: string
+    material_type: string
+    tracking_type: string | null
+    total_stock: number
+  }
+  sort_order: number
+  created_at: string
+}
+
 export interface Material {
   id: string
   department_id: string
@@ -194,6 +209,9 @@ export interface Material {
   /** Nur Kombos (physical_combo / virtual_combo), Detail-GET */
   combo_components?: ComboComponent[]
   combo_component_count?: number
+
+  /** Verwandtes Zubehör (Empfehlung, separate Position), Detail-GET */
+  related_accessories?: RelatedAccessory[]
 }
 
 // Seriennummer-Eintrag für serialisierte Materialien
@@ -806,4 +824,32 @@ export async function deleteComboComponent(
 export async function finalizeCombo(materialId: string): Promise<Material> {
   const response = await apiClient.post<Material>(`/api/materials/${materialId}/finalize-combo`)
   return response.data
+}
+
+// ============== Related-Accessory API Functions ==============
+
+/**
+ * Lädt das verwandte Zubehör eines Materials (Empfehlung, kein Stücklisten-Teil).
+ */
+export async function getRelatedAccessories(materialId: string): Promise<RelatedAccessory[]> {
+  const response = await apiClient.get<RelatedAccessory[]>(`/api/materials/${materialId}/related-accessories`)
+  return response.data
+}
+
+/**
+ * Verknüpft ein verwandtes Zubehör mit einem Material.
+ */
+export async function addRelatedAccessory(
+  materialId: string,
+  data: { accessory_material_id: string; sort_order?: number },
+): Promise<RelatedAccessory> {
+  const response = await apiClient.post<RelatedAccessory>(`/api/materials/${materialId}/related-accessories`, data)
+  return response.data
+}
+
+/**
+ * Entfernt eine verwandtes-Zubehör-Verknüpfung.
+ */
+export async function deleteRelatedAccessory(materialId: string, accessoryId: string): Promise<void> {
+  await apiClient.delete(`/api/materials/${materialId}/related-accessories/${accessoryId}`)
 }

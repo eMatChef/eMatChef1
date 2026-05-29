@@ -98,11 +98,17 @@ class MaterialTemplate
     #[ORM\OrderBy(['sortOrder' => 'ASC'])]
     private Collection $components;
 
+    /** Verwandtes Zubehör (Empfehlung, kein Stücklisten-Teil). */
+    #[ORM\OneToMany(mappedBy: 'template', targetEntity: MaterialTemplateRelatedAccessory::class, cascade: ['persist', 'remove'], orphanRemoval: true)]
+    #[ORM\OrderBy(['sortOrder' => 'ASC'])]
+    private Collection $relatedAccessories;
+
     public function __construct()
     {
         $this->createdAt = new \DateTime();
         $this->updatedAt = new \DateTime();
         $this->components = new ArrayCollection();
+        $this->relatedAccessories = new ArrayCollection();
     }
 
     // ========== Getters & Setters ==========
@@ -317,6 +323,35 @@ class MaterialTemplate
     public function removeComponent(MaterialTemplateComponent $component): self
     {
         $this->components->removeElement($component);
+        return $this;
+    }
+
+    /**
+     * @return Collection<int, MaterialTemplateRelatedAccessory>
+     */
+    public function getRelatedAccessories(): Collection
+    {
+        return $this->relatedAccessories;
+    }
+
+    public function addRelatedAccessory(MaterialTemplateRelatedAccessory $accessory): self
+    {
+        if (!$this->relatedAccessories->contains($accessory)) {
+            $this->relatedAccessories->add($accessory);
+            $accessory->setTemplate($this);
+        }
+        return $this;
+    }
+
+    public function removeRelatedAccessory(MaterialTemplateRelatedAccessory $accessory): self
+    {
+        $this->relatedAccessories->removeElement($accessory);
+        return $this;
+    }
+
+    public function clearRelatedAccessories(): self
+    {
+        $this->relatedAccessories->clear();
         return $this;
     }
 

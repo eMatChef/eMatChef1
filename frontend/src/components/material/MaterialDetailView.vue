@@ -951,6 +951,71 @@
               </table>
               </div>
             </div>
+
+            <!-- Verwandtes Zubehör (Empfehlung, kein Stücklisten-Teil) -->
+            <div class="section-card composition-accessories-card">
+              <div class="section-header-row composition-tab-head">
+                <div>
+                  <h2 class="section-title">{{ t('components.materialDetail.accessoriesTitle') }}</h2>
+                  <p class="composition-tab-intro">{{ t('components.materialDetail.accessoriesIntro') }}</p>
+                </div>
+                <div class="composition-tab-actions">
+                  <button type="button" class="btn-primary btn-sm" @click="openAddAccessoryModal">
+                    {{ t('components.materialDetail.btnAddAccessory') }}
+                  </button>
+                </div>
+              </div>
+
+              <div v-if="relatedAccessoriesLoading" class="loading-container composition-loading">
+                <div class="spinner"></div>
+                <p>{{ t('components.materialDetail.accessoriesLoading') }}</p>
+              </div>
+              <div v-else-if="relatedAccessoriesList.length === 0" class="empty-used-in">
+                <p>{{ t('components.materialDetail.accessoriesEmpty') }}</p>
+              </div>
+              <div v-else class="composition-table-wrapper">
+                <table class="used-in-table composition-table">
+                  <thead>
+                    <tr>
+                      <th>{{ t('components.materialDetail.thAccessory') }}</th>
+                      <th>{{ t('components.materialDetail.thTotalStock') }}</th>
+                      <th class="composition-actions-th">{{ t('components.materialDetail.thActions') }}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="acc in relatedAccessoriesList" :key="acc.id" class="used-in-row">
+                      <td>
+                        <button type="button" class="link-btn composition-comp-link" @click="openComponentMaterialDetail(acc.accessory_material.id)">
+                          {{ acc.accessory_material.name }}
+                        </button>
+                      </td>
+                      <td>{{ acc.accessory_material.total_stock }}</td>
+                      <td class="composition-actions-cell">
+                        <button
+                          type="button"
+                          class="icon-btn icon-btn-danger"
+                          :title="t('components.materialDetail.accessoryRemoveTitle')"
+                          :disabled="deletingAccessoryId === acc.id"
+                          @click="confirmDeleteAccessory(acc)"
+                        >
+                          <svg
+                            class="table-icon-sm"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                          >
+                            <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6M10 11v6M14 11v6" />
+                          </svg>
+                        </button>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
           </section>
 
           <!-- Tab: Inhalt Kiste/Tasche -->
@@ -2191,6 +2256,54 @@
       </div>
     </div>
 
+    <div v-if="showAddAccessoryModal" class="modal-overlay">
+      <div class="modal-dialog composition-add-modal">
+        <div class="composition-add-modal-header">
+          <h3>{{ t('components.materialDetail.modalAddAccessoryTitle') }}</h3>
+          <p class="text-muted composition-add-modal-intro">
+            {{ t('components.materialDetail.modalAddAccessoryIntro') }}
+          </p>
+        </div>
+        <div class="composition-add-modal-body">
+          <div class="form-group">
+            <label>{{ t('components.materialDetail.labelSearchArticle') }}</label>
+            <MaterialLookupInput
+              v-model="addAccessorySearch"
+              :fetcher="accessoryMaterialFetcher"
+              :min-chars="1"
+              :max-suggestions="8"
+              :placeholder="t('components.materialDetail.phNameOrCode')"
+              :loading-text="t('components.materialDetail.lookupLoadingEllipsis')"
+              :empty-text="t('components.materialDetail.lookupEmptyHits', { query: addAccessorySearch || '' })"
+              :get-result-label="accessoryLookupLabel"
+              :get-result-secondary="formatCompositionLookupSecondary"
+              @select="handleAccessorySelect"
+            />
+          </div>
+          <div v-if="addAccessorySelected" class="form-group">
+            <label>{{ t('components.materialDetail.labelSelectedArticle') }}</label>
+            <div class="selected-source-material">
+              <div class="name">{{ addAccessorySelected.name }}</div>
+              <div class="meta">{{ t('components.materialDetail.metaTotalStock', { n: addAccessorySelected.total_stock ?? 0 }) }}</div>
+              <button type="button" class="btn-outline-small" @click="clearAddAccessorySelection">{{ t('components.materialDetail.btnChangeSelection') }}</button>
+            </div>
+          </div>
+          <p v-if="addAccessoryError" class="error-text">{{ addAccessoryError }}</p>
+        </div>
+        <div class="modal-actions composition-add-modal-footer">
+          <button type="button" class="btn-secondary btn-sm" @click="closeAddAccessoryModal">{{ t('common.cancel') }}</button>
+          <button
+            type="button"
+            class="btn-primary btn-sm"
+            :disabled="!addAccessorySelected || addAccessorySubmitting"
+            @click="submitAddAccessory"
+          >
+            {{ addAccessorySubmitting ? t('components.materialDetail.modalAddAccessorySubmitting') : t('components.materialDetail.btnAddAccessory') }}
+          </button>
+        </div>
+      </div>
+    </div>
+
     <div v-if="showEditCompositionModal && editCompositionComp" class="modal-overlay">
       <div class="modal-dialog composition-add-modal">
         <div class="composition-add-modal-header">
@@ -2342,6 +2455,10 @@ import {
   updateComboComponent,
   deleteComboComponent,
   finalizeCombo,
+  getRelatedAccessories,
+  addRelatedAccessory,
+  deleteRelatedAccessory,
+  type RelatedAccessory,
   type DeleteComboComponentRequest,
   type Material,
   type MaterialHistoryEntry,
@@ -2490,6 +2607,16 @@ const workshopTicketsLoading = ref(false)
 /** Stückliste für Kombos (Tab „Zusammensetzung“) */
 const comboComponentsList = ref<ComboComponent[]>([])
 const comboComponentsLoading = ref(false)
+
+/** Verwandtes Zubehör (Empfehlung, kein Stücklisten-Teil) */
+const relatedAccessoriesList = ref<RelatedAccessory[]>([])
+const relatedAccessoriesLoading = ref(false)
+const showAddAccessoryModal = ref(false)
+const addAccessorySearch = ref('')
+const addAccessorySelected = ref<Material | null>(null)
+const addAccessorySubmitting = ref(false)
+const addAccessoryError = ref('')
+const deletingAccessoryId = ref<string | null>(null)
 /** Lagerbaum nach Zusammensetzung+Einlagerung neu laden */
 const storageTreeRefreshKey = ref(0)
 
@@ -3574,6 +3701,101 @@ async function finalizeComboNow() {
     toast.error(ax.response?.data?.error || t('components.materialDetail.errComboFinalize'))
   } finally {
     finalizingCombo.value = false
+  }
+}
+
+// ── Verwandtes Zubehör ──
+async function loadRelatedAccessories() {
+  if (!props.materialId || !isComboMaterialView.value) return
+  relatedAccessoriesLoading.value = true
+  try {
+    relatedAccessoriesList.value = await getRelatedAccessories(props.materialId)
+  } catch (err) {
+    console.error(t('components.materialDetail.logErrorAccessories'), err)
+    toast.error(t('components.materialDetail.errAccessoriesLoad'))
+  } finally {
+    relatedAccessoriesLoading.value = false
+  }
+}
+
+function openAddAccessoryModal() {
+  addAccessorySearch.value = ''
+  addAccessorySelected.value = null
+  addAccessoryError.value = ''
+  showAddAccessoryModal.value = true
+}
+
+function closeAddAccessoryModal() {
+  showAddAccessoryModal.value = false
+}
+
+async function accessoryMaterialFetcher(query: string) {
+  const fetcher = createBasicMaterialLookupFetcher(() => props.departmentId)
+  const items = await fetcher(query)
+  const linkedIds = new Set(relatedAccessoriesList.value.map((a) => a.accessory_material.id))
+  return items
+    .filter((m) => m.id !== props.materialId)
+    .map((m) => (linkedIds.has(m.id) ? { ...m, _alreadyAccessory: true } : m))
+}
+
+function accessoryLookupLabel(item: Record<string, unknown>) {
+  const name = String(item?.name ?? '')
+  if (item?._alreadyAccessory) {
+    return `${name} (${t('components.materialDetail.badgeAlreadyAccessory')})`
+  }
+  return name
+}
+
+function handleAccessorySelect(item: Record<string, unknown>) {
+  if (item?._alreadyAccessory) return
+  const { _alreadyAccessory: _a, ...rest } = item as Record<string, unknown>
+  void _a
+  addAccessorySelected.value = rest as unknown as Material
+}
+
+function clearAddAccessorySelection() {
+  addAccessorySelected.value = null
+  addAccessorySearch.value = ''
+}
+
+async function submitAddAccessory() {
+  if (!addAccessorySelected.value) return
+  addAccessorySubmitting.value = true
+  addAccessoryError.value = ''
+  try {
+    await addRelatedAccessory(props.materialId, {
+      accessory_material_id: addAccessorySelected.value.id,
+    })
+    toast.success(t('components.materialDetail.toastAccessoryAdded'))
+    showAddAccessoryModal.value = false
+    await loadRelatedAccessories()
+  } catch (e: unknown) {
+    const ax = e as { response?: { data?: { error?: string } } }
+    addAccessoryError.value = ax.response?.data?.error || t('components.materialDetail.errAccessoryAdd')
+  } finally {
+    addAccessorySubmitting.value = false
+  }
+}
+
+async function confirmDeleteAccessory(acc: RelatedAccessory) {
+  const ok = await confirmDialog({
+    title: t('components.materialDetail.accessoryRemoveTitle'),
+    message: t('components.materialDetail.accessoryRemoveMessage', { name: acc.accessory_material.name }),
+    confirmText: t('components.materialDetail.accessoryRemoveConfirm'),
+    cancelText: t('common.cancel'),
+    variant: 'danger',
+  })
+  if (!ok) return
+  deletingAccessoryId.value = acc.id
+  try {
+    await deleteRelatedAccessory(props.materialId, acc.id)
+    toast.success(t('components.materialDetail.toastAccessoryRemoved'))
+    await loadRelatedAccessories()
+  } catch (e: unknown) {
+    const ax = e as { response?: { data?: { error?: string } } }
+    toast.error(ax.response?.data?.error || t('components.materialDetail.errAccessoryRemove'))
+  } finally {
+    deletingAccessoryId.value = null
   }
 }
 
@@ -5329,6 +5551,7 @@ watch(activeTab, (newTab) => {
   }
   if (newTab === 'composition') {
     void loadComboComponentsForTab()
+    void loadRelatedAccessories()
   }
   if (newTab === 'stock' || newTab === 'serials' || newTab === 'stored-in' || newTab === 'container-content') {
     ensureContainerBatchesLoaded()

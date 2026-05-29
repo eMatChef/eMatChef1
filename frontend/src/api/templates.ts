@@ -14,6 +14,21 @@ export interface TemplateComponent {
   sort_order: number
 }
 
+export interface TemplateRelatedAccessory {
+  id: string
+  name: string
+  component_type: string | null
+  is_generic: boolean
+  sort_order: number
+}
+
+export interface CreateTemplateRelatedAccessoryRequest {
+  name: string
+  component_type?: string | null
+  is_generic?: boolean
+  sort_order?: number
+}
+
 export interface Template {
   id: string
   department_id: string | null
@@ -35,6 +50,7 @@ export interface Template {
   updated_at: string
   // Nur bei Einzelabfrage
   components?: TemplateComponent[]
+  related_accessories?: TemplateRelatedAccessory[]
 }
 
 export interface CreateTemplateComponentRequest {
@@ -62,6 +78,7 @@ export interface CreateTemplateRequest {
   is_active?: boolean
   source?: string | null
   components?: CreateTemplateComponentRequest[]
+  related_accessories?: CreateTemplateRelatedAccessoryRequest[]
 }
 
 export interface UpdateTemplateRequest {
@@ -76,6 +93,7 @@ export interface UpdateTemplateRequest {
   is_active?: boolean
   source?: string | null
   components?: CreateTemplateComponentRequest[]
+  related_accessories?: CreateTemplateRelatedAccessoryRequest[]
 }
 
 // ============== API Functions ==============

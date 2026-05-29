@@ -4,9 +4,11 @@ namespace App\Controller;
 
 use App\Entity\MaterialTemplate;
 use App\Entity\MaterialTemplateComponent;
+use App\Entity\MaterialTemplateRelatedAccessory;
 use App\Entity\MaterialItem;
 use App\Entity\MaterialBatch;
 use App\Entity\MaterialComboComponent;
+use App\Entity\MaterialRelatedAccessory;
 use App\Entity\Category;
 use App\Entity\Department;
 use App\Entity\Address;
@@ -187,6 +189,13 @@ class TemplateController extends AbstractController
                 }
             }
 
+            // Verwandtes Zubehör (Empfehlung, kein Stücklisten-Teil)
+            if (isset($data['related_accessories']) && is_array($data['related_accessories'])) {
+                foreach ($data['related_accessories'] as $index => $accData) {
+                    $template->addRelatedAccessory($this->createTemplateAccessory($accData, $index));
+                }
+            }
+
             $this->entityManager->persist($template);
             $this->entityManager->flush();
 
@@ -273,6 +282,17 @@ class TemplateController extends AbstractController
                 foreach ($data['components'] as $index => $compData) {
                     $component = $this->createComponent($compData, $index);
                     $template->addComponent($component);
+                }
+            }
+
+            // Verwandtes Zubehör ersetzen (wenn mitgeliefert)
+            if (isset($data['related_accessories']) && is_array($data['related_accessories'])) {
+                foreach ($template->getRelatedAccessories()->toArray() as $existing) {
+                    $template->removeRelatedAccessory($existing);
+                    $this->entityManager->remove($existing);
+                }
+                foreach ($data['related_accessories'] as $index => $accData) {
+                    $template->addRelatedAccessory($this->createTemplateAccessory($accData, $index));
                 }
             }
 
@@ -649,6 +669,59 @@ class TemplateController extends AbstractController
                 ];
             }
 
+            // ══════════════════════════════════════════════
+            // Verwandtes Zubehör übertragen (Empfehlung, kein Stücklisten-Teil)
+            // ══════════════════════════════════════════════
+            if (!$isIndividual && $comboMaterial) {
+                $accSort = 0;
+                foreach ($template->getRelatedAccessories() as $tplAcc) {
+                    $accName = $tplAcc->getName();
+                    if (!$tplAcc->getIsGeneric()) {
+                        $manufacturer = $template->getManufacturer() ?? '';
+                        $model = $template->getModel() ?? '';
+                        $nameLower = mb_strtolower($accName);
+                        if ($model && !str_contains($nameLower, mb_strtolower($model))) {
+                            $accName .= ' ' . $model;
+                            $nameLower = mb_strtolower($accName);
+                        }
+                        if ($manufacturer && !str_contains($nameLower, mb_strtolower($manufacturer))) {
+                            $accName .= ' ' . $manufacturer;
+                        }
+                    }
+
+                    $accessoryMaterial = $this->entityManager->getRepository(MaterialItem::class)
+                        ->findOneBy([
+                            'departmentId' => $department->getId(),
+                            'name' => $accName,
+                            'deletedAt' => null,
+                        ]);
+
+                    if (!$accessoryMaterial) {
+                        $accessoryMaterial = new MaterialItem();
+                        $accessoryMaterial->setId(IdGenerator::generate());
+                        $accessoryMaterial->setDepartment($department);
+                        $accessoryMaterial->setName($accName);
+                        $accessoryMaterial->setMaterialType('physical');
+                        $accessoryMaterial->setManufacturer($template->getManufacturer());
+                        if ($category) {
+                            $accessoryMaterial->setCategory($category);
+                        }
+                        if ($storageAddress) {
+                            $accessoryMaterial->setStorageAddress($storageAddress);
+                        }
+                        $this->entityManager->persist($accessoryMaterial);
+                        $comboComponentMaterialsForPublicCode[$accessoryMaterial->getId()] = $accessoryMaterial;
+                    }
+
+                    $link = new MaterialRelatedAccessory();
+                    $link->setId(IdGenerator::generate13Unique($this->entityManager, MaterialRelatedAccessory::class, 'ra'));
+                    $link->setMaterial($comboMaterial);
+                    $link->setAccessoryMaterial($accessoryMaterial);
+                    $link->setSortOrder($accSort++);
+                    $this->entityManager->persist($link);
+                }
+            }
+
             $actorId = $this->getActorUserId();
             if (!$isIndividual && $comboMaterial) {
                 $this->publicCodeService->ensureMaterialPublicCode($comboMaterial, $actorId);
@@ -839,6 +912,19 @@ class TemplateController extends AbstractController
         return $comp;
     }
 
+    private function createTemplateAccessory(array $accData, int $index): MaterialTemplateRelatedAccessory
+    {
+        $acc = new MaterialTemplateRelatedAccessory();
+        $acc->setId(IdGenerator::generate());
+        $acc->setName($accData['name'] ?? 'Zubehör');
+        $type = $accData['component_type'] ?? null;
+        $acc->setComponentType(is_string($type) && trim($type) !== '' ? trim($type) : null);
+        $acc->setIsGeneric($accData['is_generic'] ?? false);
+        $acc->setSortOrder($accData['sort_order'] ?? $index);
+
+        return $acc;
+    }
+
     /**
      * Serialisiert ein Template für die JSON-Response
      */
@@ -880,6 +966,17 @@ class TemplateController extends AbstractController
                     'tracking' => $comp->getTracking(),
                     'repair_types' => $comp->getRepairTypes(),
                     'sort_order' => $comp->getSortOrder(),
+                ];
+            }
+
+            $data['related_accessories'] = [];
+            foreach ($template->getRelatedAccessories() as $acc) {
+                $data['related_accessories'][] = [
+                    'id' => $acc->getId(),
+                    'name' => $acc->getName(),
+                    'component_type' => $acc->getComponentType(),
+                    'is_generic' => $acc->getIsGeneric(),
+                    'sort_order' => $acc->getSortOrder(),
                 ];
             }
         }
