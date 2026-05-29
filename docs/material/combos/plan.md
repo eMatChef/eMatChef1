@@ -2,7 +2,7 @@
 
 Abarbeitbare Checkliste für den Umbau auf das bereinigte Combo-Modell. Das **Warum/Zielmodell** steht im [README.md](./README.md) (insb. Abschnitt 0 + 6). Dieser Plan = **Was & in welcher Reihenfolge**.
 
-**Stand:** Mai 2026 · Pakete 0–7, von klein → groß. **Erledigt: Paket 0 + 1** (Mini-Fixes; `combo_status` draft/ready inkl. Migration `Version20260529120000`, Create→draft, `finalize-combo`, Draft-Ausschluss, Badge). **Nächstes: Paket 2.**
+**Stand:** Mai 2026 · Pakete 0–7, von klein → groß. **Erledigt: 0–3** (Mini-Fixes; `combo_status` draft/ready inkl. Migration `Version20260529120000`; `reservation_mode` end-to-end entfernt inkl. Drop-Migration `Version20260529130000`; drei Typen im Wizard mit Klartext-Karten/Badges + Hülle-Hinweis). **Nächstes: Paket 4.**
 
 ---
 
@@ -27,7 +27,7 @@ Abarbeitbare Checkliste für den Umbau auf das bereinigte Combo-Modell. Das **Wa
 | 0 | Mini-Fixes | XS | – | [x] |
 | 1 | DB-Fundament: Entwurfs-Flag | S | – | [x] |
 | 2 | `reservation_mode` entfernen (end-to-end) | S–M | – | [x] |
-| 3 | Drei Typen im Wizard | M | 1, 2 | [ ] |
+| 3 | Drei Typen im Wizard | M | 1, 2 | [x] |
 | 4 | Physische Kombo finalisieren | M | 3 | [ ] |
 | 5 | Virtuelle Kombo + Options-/Delta-Fundament | XL | 4 | [ ] |
 | 6 | Konfigurator-UI (Auswahl-Gruppen) | L | 5 | [ ] |
@@ -137,10 +137,10 @@ Diese Stellen steuern Typ-/Status-/Verfügbarkeitslogik zentral — Änderungen 
 - `frontend/src/locales/de.json`, `en.json`
 
 **Schritte:**
-- [ ] Karten bleiben 3, mit Klartext-Beschreibungen (wann nehme ich was?) + konsistente Badges/Icons.
-- [ ] Kein neuer `material_type`, kein `is_configurable` bei Erstellung — „Konfigurator-Eigenschaft" wird in Paket 6 aus den Options-Gruppen abgeleitet.
-- [ ] Wizard erfasst nur Typ/Name/Kategorie/Basisteile → Material als `draft` (Paket 1).
-- [ ] Hinweis „Stückliste/Optionen im Detail fertigstellen".
+- [x] Karten bleiben 3, mit Klartext-Beschreibungen (wann nehme ich was?) + konsistente Badges/Icons.
+- [x] Kein neuer `material_type`, kein `is_configurable` bei Erstellung — „Konfigurator-Eigenschaft" wird in Paket 6 aus den Options-Gruppen abgeleitet.
+- [x] Wizard erfasst nur Typ/Name/Kategorie/Basisteile → Material als `draft` (Paket 1).
+- [x] Hinweis „Stückliste/Optionen im Detail fertigstellen".
 
 **Definition of Done:** Drei Typen anlegbar als `draft`; klare Typ-Auswahl; Build grün.
 
