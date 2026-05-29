@@ -2685,6 +2685,8 @@
       "parseEmptyDetail": "Keine importierbaren Zeilen ({lines} Zeilen gelesen). Erkannte Kopfzeile: {headers}. Gemappte Spalten: {mapped}. Bitte die CSV-Vorlage nutzen oder eine Kopfzeile mit «name»/«Artikel» und «qty»/«Menge».",
       "parseSuccess": "{count} Zeilen eingelesen.",
       "parseFailed": "Datei konnte nicht gelesen werden.",
+      "fileTooLarge": "Datei zu groß (max. {max} MB).",
+      "fileBadType": "Dateityp nicht unterstützt. Erlaubt: CSV, XLSX, XLS.",
       "validateOk": "Prüfung abgeschlossen – bereit zum Import.",
       "validateWithErrors": "Prüfung: {n} Zeile(n) mit Fehlern.",
       "importSuccess": "Import: {created} neu, {batches} Batch(es) ergänzt, {skipped} übersprungen.",
