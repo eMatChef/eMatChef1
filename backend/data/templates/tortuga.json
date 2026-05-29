@@ -7,7 +7,6 @@
       "name": "Tortuga Monza 600",
       "capacity": 20,
       "tentType": "gruppenzelt",
-      "reservationMode": "complete_only",
       "description": "Leichtes und vielseitiges Einsatzzelt, Lagerzelt, Kochzelt. Polyesterhaut, abwaschbar, pflegeleicht. Dimensionen 600x595cm, Mittelhöhe 300cm, Seitenhöhe 195cm.",
       "components": [
         {
@@ -69,7 +68,6 @@
       "name": "Tortuga Monza 800",
       "capacity": 30,
       "tentType": "gruppenzelt",
-      "reservationMode": "complete_only",
       "description": "Leichtes und vielseitiges Einsatzzelt, Lagerzelt, Kochzelt. Polyesterhaut, abwaschbar, pflegeleicht. Dimensionen 800x595cm, Mittelhöhe 300cm, Seitenhöhe 195cm.",
       "components": [
         {
@@ -131,7 +129,6 @@
       "name": "Tortuga Monza 1000",
       "capacity": 40,
       "tentType": "gruppenzelt",
-      "reservationMode": "complete_only",
       "description": "Leichtes und vielseitiges Einsatzzelt, Lagerzelt, Kochzelt. Polyesterhaut, abwaschbar, pflegeleicht. Dimensionen 1000x595cm, Mittelhöhe 300cm, Seitenhöhe 195cm.",
       "components": [
         {

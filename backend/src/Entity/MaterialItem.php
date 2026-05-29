@@ -89,10 +89,6 @@ class MaterialItem
     #[ORM\Column(name: 'tent_capacity', type: 'integer', nullable: true)]
     private ?int $tentCapacity = null;
 
-    /** complete_only, individual, flexible */
-    #[ORM\Column(name: 'reservation_mode', type: 'string', length: 20, nullable: true)]
-    private ?string $reservationMode = null;
-
     /**
      * Referenz-Kiste (MaterialBatch): bei physischer Kombination aus Kisten-Inhalt erzeugt –
      * für späteren Abgleich Plan (Komponenten) vs. Ist (Inhalt der Kiste).
@@ -110,6 +106,13 @@ class MaterialItem
 
     #[ORM\Column(name: 'tracking_type', type: 'string', length: 20, nullable: true)]
     private ?string $trackingType = null; // serialized, bulk
+
+    /**
+     * Entwurfs-Status für Kombos: 'draft' (in Bearbeitung, nicht buchbar) | 'ready' (fertig, buchbar).
+     * Einzelartikel sind immer 'ready'.
+     */
+    #[ORM\Column(name: 'combo_status', type: 'string', length: 20, options: ['default' => 'ready'])]
+    private string $comboStatus = 'ready';
 
     // Identifikation
     #[ORM\Column(type: 'string', length: 13, nullable: true)]
@@ -395,9 +398,6 @@ class MaterialItem
     public function getTentCapacity(): ?int { return $this->tentCapacity; }
     public function setTentCapacity(?int $tentCapacity): self { $this->tentCapacity = $tentCapacity; return $this; }
 
-    public function getReservationMode(): ?string { return $this->reservationMode; }
-    public function setReservationMode(?string $reservationMode): self { $this->reservationMode = $reservationMode; return $this; }
-
     public function getLinkedContainerBatchId(): ?string
     {
         return $this->linkedContainerBatchId;
@@ -427,6 +427,12 @@ class MaterialItem
 
     public function getTrackingType(): ?string { return $this->trackingType; }
     public function setTrackingType(?string $trackingType): self { $this->trackingType = $trackingType; return $this; }
+
+    public function getComboStatus(): string { return $this->comboStatus; }
+    public function setComboStatus(string $comboStatus): self { $this->comboStatus = $comboStatus; return $this; }
+
+    public function isCombo(): bool { return in_array($this->materialType, ['physical_combo', 'virtual_combo'], true); }
+    public function isComboDraft(): bool { return $this->isCombo() && $this->comboStatus === 'draft'; }
 
     // Identifikation Getters/Setters
     public function getEan(): ?string { return $this->ean; }

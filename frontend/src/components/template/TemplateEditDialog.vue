@@ -92,21 +92,6 @@
             </div>
 
             <div class="form-group">
-              <label class="form-label">{{ t('components.templateEditDialog.reservationModeLabel') }}</label>
-              <select v-model="form.reservation_mode" class="form-select">
-                <option :value="null">{{ t('components.templateEditDialog.reservationDefaultOption') }}</option>
-                <option value="complete_only">{{ t('components.templateEditDialog.reservationCompleteOnly') }}</option>
-                <option value="individual">{{ t('components.templateEditDialog.reservationIndividual') }}</option>
-                <option value="flexible">{{ t('components.templateEditDialog.reservationFlexible') }}</option>
-              </select>
-              <span class="form-hint">
-                <template v-if="form.reservation_mode === 'complete_only'">{{ t('components.templateEditDialog.reservationHintCompleteOnly') }}</template>
-                <template v-else-if="form.reservation_mode === 'individual'">{{ t('components.templateEditDialog.reservationHintIndividual') }}</template>
-                <template v-else-if="form.reservation_mode === 'flexible'">{{ t('components.templateEditDialog.reservationHintFlexible') }}</template>
-              </span>
-            </div>
-
-            <div class="form-group">
               <label class="form-label">{{ t('components.templateEditDialog.sourceLabel') }}</label>
               <input v-model="form.source" type="text" class="form-input" :placeholder="t('components.templateEditDialog.sourcePlaceholder')" />
             </div>
@@ -288,7 +273,6 @@ const form = reactive({
   material_type: 'physical_combo' as 'physical_combo' | 'virtual_combo',
   tent_type: null as string | null,
   capacity: null as number | null,
-  reservation_mode: null as string | null,
   is_active: true,
   source: null as string | null,
   components: [] as ComponentForm[],
@@ -364,7 +348,6 @@ async function save() {
         material_type: form.material_type,
         tent_type: form.tent_type,
         capacity: form.capacity,
-        reservation_mode: form.reservation_mode,
         is_active: form.is_active,
         source: form.source,
         components,
@@ -380,7 +363,6 @@ async function save() {
         material_type: form.material_type,
         tent_type: form.tent_type,
         capacity: form.capacity,
-        reservation_mode: form.reservation_mode,
         is_active: form.is_active,
         source: form.source,
         components,
@@ -410,7 +392,6 @@ async function loadTemplate() {
   form.material_type = props.template.material_type
   form.tent_type = props.template.tent_type
   form.capacity = props.template.capacity
-  form.reservation_mode = props.template.reservation_mode
   form.is_active = props.template.is_active
   form.source = props.template.source
 

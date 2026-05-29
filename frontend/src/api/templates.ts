@@ -27,7 +27,6 @@ export interface Template {
   material_type: 'physical_combo' | 'virtual_combo'
   tent_type: string | null
   capacity: number | null
-  reservation_mode: 'complete_only' | 'individual' | 'flexible' | null
   is_active: boolean
   source: string | null
   component_count: number
@@ -60,7 +59,6 @@ export interface CreateTemplateRequest {
   material_type?: 'physical_combo' | 'virtual_combo'
   tent_type?: string | null
   capacity?: number | null
-  reservation_mode?: string | null
   is_active?: boolean
   source?: string | null
   components?: CreateTemplateComponentRequest[]
@@ -75,7 +73,6 @@ export interface UpdateTemplateRequest {
   material_type?: 'physical_combo' | 'virtual_combo'
   tent_type?: string | null
   capacity?: number | null
-  reservation_mode?: string | null
   is_active?: boolean
   source?: string | null
   components?: CreateTemplateComponentRequest[]
@@ -175,8 +172,6 @@ export interface CreateMaterialFromTemplateRequest {
   model?: string
   tent_type?: string
   tent_capacity?: number
-  /** Nur bei virtual_combo relevant */
-  reservation_mode?: string
   components?: CreateMaterialComponentInput[]
   /** Nur physical_combo: Lagerung des Kombi-Sets */
   initial_rack_id?: string
@@ -205,7 +200,6 @@ export interface CreateMaterialFromTemplateResponse {
     is_container: boolean
     tent_type: string | null
     tent_capacity: number | null
-    reservation_mode: string | null
     manufacturer: string | null
     serial_number: string | null
   }

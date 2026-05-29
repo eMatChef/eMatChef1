@@ -288,6 +288,7 @@
                         <span class="material-name">
                           {{ material.name }}
                           <span v-if="material.is_js_material" class="source-badge">J&amp;S</span>
+                          <span v-if="isComboDraft(material)" class="combo-draft-badge">{{ t('materialsView.comboDraftBadge') }}</span>
                         </span>
                         <span v-if="material.manufacturer" class="material-manufacturer">{{ material.manufacturer }}</span>
                         <span v-if="material.open_loss_reports > 0" class="loss-reported-badge">
@@ -679,6 +680,10 @@ const materialTableColspan = computed(() => {
 
 function isComboMaterial(material: Material): boolean {
   return material.material_type === 'physical_combo' || material.material_type === 'virtual_combo'
+}
+
+function isComboDraft(material: Material): boolean {
+  return isComboMaterial(material) && material.combo_status === 'draft'
 }
 
 // Computed

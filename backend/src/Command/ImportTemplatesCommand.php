@@ -152,7 +152,6 @@ class ImportTemplatesCommand extends Command
                 $template->setMaterialType('physical_combo');
                 $template->setTentType($tplData['tentType'] ?? null);
                 $template->setCapacity(isset($tplData['capacity']) ? (int) $tplData['capacity'] : null);
-                $template->setReservationMode($tplData['reservationMode'] ?? null);
                 $template->setIsActive($tplData['isActive'] ?? true);
                 $template->setSource($manufacturer);
                 $template->updateTimestamps();

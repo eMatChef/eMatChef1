@@ -75,6 +75,16 @@
   font-weight: 700;
 }
 
+.combo-draft-badge {
+  padding: 4px 10px;
+  background: #fef3c7;
+  color: #92400e;
+  border: 1px solid #fcd34d;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
 .header-actions {
   display: flex;
   gap: 12px;

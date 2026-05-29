@@ -81,10 +81,6 @@ class MaterialTemplate
     #[ORM\Column(type: 'integer', nullable: true)]
     private ?int $capacity = null;
 
-    /** complete_only, individual, flexible */
-    #[ORM\Column(name: 'reservation_mode', type: 'string', length: 20, nullable: true)]
-    private ?string $reservationMode = null;
-
     #[ORM\Column(name: 'is_active', type: 'boolean', options: ['default' => true])]
     private bool $isActive = true;
 
@@ -261,17 +257,6 @@ class MaterialTemplate
     public function setCapacity(?int $capacity): self
     {
         $this->capacity = $capacity;
-        return $this;
-    }
-
-    public function getReservationMode(): ?string
-    {
-        return $this->reservationMode;
-    }
-
-    public function setReservationMode(?string $reservationMode): self
-    {
-        $this->reservationMode = $reservationMode;
         return $this;
     }
 

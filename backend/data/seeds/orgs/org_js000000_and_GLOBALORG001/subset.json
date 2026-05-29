@@ -235,7 +235,6 @@
                 "pack_unit": null,
                 "tent_type": null,
                 "tent_capacity": null,
-                "reservation_mode": null,
                 "is_food": false,
                 "is_js_material": true,
                 "external_source": "js_ch"
@@ -284,7 +283,6 @@
                 "pack_unit": null,
                 "tent_type": null,
                 "tent_capacity": null,
-                "reservation_mode": null,
                 "is_food": false,
                 "is_js_material": true,
                 "external_source": "js_ch"
@@ -333,7 +331,6 @@
                 "pack_unit": null,
                 "tent_type": null,
                 "tent_capacity": null,
-                "reservation_mode": null,
                 "is_food": false,
                 "is_js_material": true,
                 "external_source": "js_ch"
@@ -382,7 +379,6 @@
                 "pack_unit": null,
                 "tent_type": null,
                 "tent_capacity": null,
-                "reservation_mode": null,
                 "is_food": false,
                 "is_js_material": true,
                 "external_source": "js_ch"
@@ -431,7 +427,6 @@
                 "pack_unit": null,
                 "tent_type": null,
                 "tent_capacity": null,
-                "reservation_mode": null,
                 "is_food": false,
                 "is_js_material": true,
                 "external_source": "js_ch"
@@ -480,7 +475,6 @@
                 "pack_unit": null,
                 "tent_type": null,
                 "tent_capacity": null,
-                "reservation_mode": null,
                 "is_food": false,
                 "is_js_material": true,
                 "external_source": "js_ch"
@@ -529,7 +523,6 @@
                 "pack_unit": null,
                 "tent_type": null,
                 "tent_capacity": null,
-                "reservation_mode": null,
                 "is_food": false,
                 "is_js_material": true,
                 "external_source": "js_ch"
@@ -578,7 +571,6 @@
                 "pack_unit": null,
                 "tent_type": null,
                 "tent_capacity": null,
-                "reservation_mode": null,
                 "is_food": false,
                 "is_js_material": true,
                 "external_source": "js_ch"
@@ -627,7 +619,6 @@
                 "pack_unit": null,
                 "tent_type": null,
                 "tent_capacity": null,
-                "reservation_mode": null,
                 "is_food": false,
                 "is_js_material": true,
                 "external_source": "js_ch"
@@ -676,7 +667,6 @@
                 "pack_unit": null,
                 "tent_type": null,
                 "tent_capacity": null,
-                "reservation_mode": null,
                 "is_food": false,
                 "is_js_material": true,
                 "external_source": "js_ch"
@@ -725,7 +715,6 @@
                 "pack_unit": null,
                 "tent_type": null,
                 "tent_capacity": null,
-                "reservation_mode": null,
                 "is_food": false,
                 "is_js_material": true,
                 "external_source": "js_ch"
@@ -774,7 +763,6 @@
                 "pack_unit": null,
                 "tent_type": null,
                 "tent_capacity": null,
-                "reservation_mode": null,
                 "is_food": false,
                 "is_js_material": true,
                 "external_source": "js_ch"
@@ -823,7 +811,6 @@
                 "pack_unit": null,
                 "tent_type": null,
                 "tent_capacity": null,
-                "reservation_mode": null,
                 "is_food": false,
                 "is_js_material": true,
                 "external_source": "js_ch"
@@ -872,7 +859,6 @@
                 "pack_unit": null,
                 "tent_type": null,
                 "tent_capacity": null,
-                "reservation_mode": null,
                 "is_food": false,
                 "is_js_material": true,
                 "external_source": "js_ch"
@@ -921,7 +907,6 @@
                 "pack_unit": null,
                 "tent_type": null,
                 "tent_capacity": null,
-                "reservation_mode": null,
                 "is_food": false,
                 "is_js_material": true,
                 "external_source": "js_ch"
@@ -970,7 +955,6 @@
                 "pack_unit": null,
                 "tent_type": null,
                 "tent_capacity": null,
-                "reservation_mode": null,
                 "is_food": false,
                 "is_js_material": true,
                 "external_source": "js_ch"
@@ -1019,7 +1003,6 @@
                 "pack_unit": null,
                 "tent_type": null,
                 "tent_capacity": null,
-                "reservation_mode": null,
                 "is_food": false,
                 "is_js_material": true,
                 "external_source": "js_ch"
@@ -1068,7 +1051,6 @@
                 "pack_unit": null,
                 "tent_type": null,
                 "tent_capacity": null,
-                "reservation_mode": null,
                 "is_food": false,
                 "is_js_material": true,
                 "external_source": "js_ch"
@@ -1117,7 +1099,6 @@
                 "pack_unit": null,
                 "tent_type": null,
                 "tent_capacity": null,
-                "reservation_mode": null,
                 "is_food": false,
                 "is_js_material": true,
                 "external_source": "js_ch"
@@ -1166,7 +1147,6 @@
                 "pack_unit": null,
                 "tent_type": null,
                 "tent_capacity": null,
-                "reservation_mode": null,
                 "is_food": false,
                 "is_js_material": true,
                 "external_source": "js_ch"
@@ -1215,7 +1195,6 @@
                 "pack_unit": null,
                 "tent_type": null,
                 "tent_capacity": null,
-                "reservation_mode": null,
                 "is_food": false,
                 "is_js_material": true,
                 "external_source": "js_ch"
@@ -1264,7 +1243,6 @@
                 "pack_unit": null,
                 "tent_type": null,
                 "tent_capacity": null,
-                "reservation_mode": null,
                 "is_food": false,
                 "is_js_material": true,
                 "external_source": "js_ch"
@@ -1313,7 +1291,6 @@
                 "pack_unit": null,
                 "tent_type": null,
                 "tent_capacity": null,
-                "reservation_mode": null,
                 "is_food": false,
                 "is_js_material": true,
                 "external_source": "js_ch"
@@ -1362,7 +1339,6 @@
                 "pack_unit": null,
                 "tent_type": null,
                 "tent_capacity": null,
-                "reservation_mode": null,
                 "is_food": false,
                 "is_js_material": true,
                 "external_source": "js_ch"
@@ -1411,7 +1387,6 @@
                 "pack_unit": null,
                 "tent_type": null,
                 "tent_capacity": null,
-                "reservation_mode": null,
                 "is_food": false,
                 "is_js_material": true,
                 "external_source": "js_ch"
@@ -1460,7 +1435,6 @@
                 "pack_unit": null,
                 "tent_type": null,
                 "tent_capacity": null,
-                "reservation_mode": null,
                 "is_food": false,
                 "is_js_material": true,
                 "external_source": "js_ch"
@@ -1509,7 +1483,6 @@
                 "pack_unit": null,
                 "tent_type": null,
                 "tent_capacity": null,
-                "reservation_mode": null,
                 "is_food": false,
                 "is_js_material": true,
                 "external_source": "js_ch"
@@ -1558,7 +1531,6 @@
                 "pack_unit": null,
                 "tent_type": null,
                 "tent_capacity": null,
-                "reservation_mode": null,
                 "is_food": false,
                 "is_js_material": true,
                 "external_source": "js_ch"
@@ -1607,7 +1579,6 @@
                 "pack_unit": null,
                 "tent_type": null,
                 "tent_capacity": null,
-                "reservation_mode": null,
                 "is_food": false,
                 "is_js_material": true,
                 "external_source": "js_ch"
@@ -1656,7 +1627,6 @@
                 "pack_unit": null,
                 "tent_type": null,
                 "tent_capacity": null,
-                "reservation_mode": null,
                 "is_food": false,
                 "is_js_material": true,
                 "external_source": "js_ch"
@@ -2367,7 +2337,6 @@
                 "material_type": "physical_combo",
                 "tent_type": "gruppenzelt",
                 "capacity": 6,
-                "reservation_mode": "complete_only",
                 "is_active": true,
                 "source": "hajk",
                 "created_at": "2026-02-10 21:38:00",
@@ -2385,7 +2354,6 @@
                 "material_type": "physical_combo",
                 "tent_type": "gruppenzelt",
                 "capacity": 8,
-                "reservation_mode": "complete_only",
                 "is_active": true,
                 "source": "hajk",
                 "created_at": "2026-02-10 21:38:00",
@@ -2403,7 +2371,6 @@
                 "material_type": "physical_combo",
                 "tent_type": "gruppenzelt",
                 "capacity": 10,
-                "reservation_mode": "complete_only",
                 "is_active": true,
                 "source": "hajk",
                 "created_at": "2026-02-10 21:38:00",
@@ -2421,7 +2388,6 @@
                 "material_type": "physical_combo",
                 "tent_type": "sonstiges",
                 "capacity": 0,
-                "reservation_mode": "individual",
                 "is_active": true,
                 "source": "hajk",
                 "created_at": "2026-02-10 21:38:00",
@@ -2439,7 +2405,6 @@
                 "material_type": "physical_combo",
                 "tent_type": "gruppenzelt",
                 "capacity": 6,
-                "reservation_mode": "complete_only",
                 "is_active": true,
                 "source": "Spatz",
                 "created_at": "2026-02-10 21:38:00",
@@ -2457,7 +2422,6 @@
                 "material_type": "physical_combo",
                 "tent_type": "gruppenzelt",
                 "capacity": 8,
-                "reservation_mode": "complete_only",
                 "is_active": true,
                 "source": "Spatz",
                 "created_at": "2026-02-10 21:38:00",
@@ -2475,7 +2439,6 @@
                 "material_type": "physical_combo",
                 "tent_type": "gruppenzelt",
                 "capacity": 10,
-                "reservation_mode": "complete_only",
                 "is_active": true,
                 "source": "Spatz",
                 "created_at": "2026-02-10 21:38:00",
@@ -2493,7 +2456,6 @@
                 "material_type": "physical_combo",
                 "tent_type": "sonstiges",
                 "capacity": 0,
-                "reservation_mode": "individual",
                 "is_active": true,
                 "source": "Spatz",
                 "created_at": "2026-02-10 21:38:00",
@@ -2511,7 +2473,6 @@
                 "material_type": "physical_combo",
                 "tent_type": "sonstiges",
                 "capacity": 0,
-                "reservation_mode": "individual",
                 "is_active": true,
                 "source": "Spatz",
                 "created_at": "2026-02-10 21:38:00",
@@ -2529,7 +2490,6 @@
                 "material_type": "physical_combo",
                 "tent_type": "gruppenzelt",
                 "capacity": 20,
-                "reservation_mode": "complete_only",
                 "is_active": true,
                 "source": "Tortuga",
                 "created_at": "2026-02-10 21:38:00",
@@ -2547,7 +2507,6 @@
                 "material_type": "physical_combo",
                 "tent_type": "gruppenzelt",
                 "capacity": 30,
-                "reservation_mode": "complete_only",
                 "is_active": true,
                 "source": "Tortuga",
                 "created_at": "2026-02-10 21:38:00",
@@ -2565,7 +2524,6 @@
                 "material_type": "physical_combo",
                 "tent_type": "gruppenzelt",
                 "capacity": 40,
-                "reservation_mode": "complete_only",
                 "is_active": true,
                 "source": "Tortuga",
                 "created_at": "2026-02-10 21:38:00",
@@ -2583,7 +2541,6 @@
                 "material_type": "physical_combo",
                 "tent_type": "gruppenzelt",
                 "capacity": 8,
-                "reservation_mode": "complete_only",
                 "is_active": true,
                 "source": "Wico",
                 "created_at": "2026-02-10 21:38:01",
@@ -2601,7 +2558,6 @@
                 "material_type": "physical_combo",
                 "tent_type": "gruppenzelt",
                 "capacity": 8,
-                "reservation_mode": "individual",
                 "is_active": true,
                 "source": "Wico",
                 "created_at": "2026-02-10 21:38:01",
@@ -2619,7 +2575,6 @@
                 "material_type": "physical_combo",
                 "tent_type": "gruppenzelt",
                 "capacity": 8,
-                "reservation_mode": "individual",
                 "is_active": true,
                 "source": "Wico",
                 "created_at": "2026-02-10 21:38:01",
@@ -2637,7 +2592,6 @@
                 "material_type": "physical_combo",
                 "tent_type": "sonstiges",
                 "capacity": 0,
-                "reservation_mode": "individual",
                 "is_active": true,
                 "source": "Wico",
                 "created_at": "2026-02-10 21:38:01",
@@ -2655,7 +2609,6 @@
                 "material_type": "physical_combo",
                 "tent_type": "gruppenzelt",
                 "capacity": 0,
-                "reservation_mode": "individual",
                 "is_active": true,
                 "source": "Zelthangar",
                 "created_at": "2026-02-10 21:38:01",
@@ -2673,7 +2626,6 @@
                 "material_type": "physical_combo",
                 "tent_type": "gruppenzelt",
                 "capacity": 8,
-                "reservation_mode": "individual",
                 "is_active": true,
                 "source": "Zelthangar",
                 "created_at": "2026-02-10 21:38:01",
@@ -2691,7 +2643,6 @@
                 "material_type": "physical_combo",
                 "tent_type": "sonstiges",
                 "capacity": 0,
-                "reservation_mode": "individual",
                 "is_active": true,
                 "source": "Zelthangar",
                 "created_at": "2026-02-10 21:38:01",
@@ -2709,7 +2660,6 @@
                 "material_type": "physical_combo",
                 "tent_type": "sonstiges",
                 "capacity": 0,
-                "reservation_mode": "individual",
                 "is_active": true,
                 "source": "Zelthangar",
                 "created_at": "2026-02-10 21:38:01",
@@ -2727,7 +2677,6 @@
                 "material_type": "physical_combo",
                 "tent_type": "gruppenzelt",
                 "capacity": 8,
-                "reservation_mode": "flexible",
                 "is_active": true,
                 "source": "Zelthangar",
                 "created_at": "2026-02-10 21:38:01",

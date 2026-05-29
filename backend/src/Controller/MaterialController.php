@@ -308,6 +308,11 @@ class MaterialController extends AbstractController
                 $material->setMaterialType($data['material_type']);
             }
 
+            // Kombos werden als „Hülle“ (Entwurf) angelegt und erst im Detail fertiggestellt.
+            if ($material->isCombo()) {
+                $material->setComboStatus('draft');
+            }
+
             // Details
             if (array_key_exists('is_container', $data)) {
                 $material->setIsContainer((bool) $data['is_container']);
@@ -685,7 +690,7 @@ class MaterialController extends AbstractController
             $comboMaterial->setMaterialType($materialType);
             $comboMaterial->setTrackingType('serialized');
             $comboMaterial->setIsContainer(false);
-            $comboMaterial->setReservationMode($data['reservation_mode'] ?? 'complete_only');
+            $comboMaterial->setComboStatus('draft');
 
             if (!empty($data['category_id'])) {
                 $category = $this->entityManager->getRepository(Category::class)->find($data['category_id']);
@@ -804,7 +809,7 @@ class MaterialController extends AbstractController
             $comboMaterial->setMaterialType($materialType);
             $comboMaterial->setTrackingType('serialized');
             $comboMaterial->setIsContainer(false);
-            $comboMaterial->setReservationMode($data['reservation_mode'] ?? 'complete_only');
+            $comboMaterial->setComboStatus('draft');
 
             if (!empty($data['category_id'])) {
                 $category = $this->entityManager->getRepository(Category::class)->find($data['category_id']);
@@ -992,7 +997,6 @@ class MaterialController extends AbstractController
             if (array_key_exists('is_container', $data)) {
                 $material->setIsContainer((bool) $data['is_container']);
             }
-            if (array_key_exists('reservation_mode', $data)) $material->setReservationMode($data['reservation_mode']);
             if (isset($data['color'])) $material->setColor($data['color']);
             if (isset($data['material'])) $material->setMaterial($data['material']);
             if (isset($data['size_length'])) $material->setSizeLength($data['size_length']);
@@ -1085,6 +1089,47 @@ class MaterialController extends AbstractController
                 'error' => 'Fehler beim Aktualisieren des Materials: ' . $e->getMessage()
             ], 500);
         }
+    }
+
+    /**
+     * Kombo fertigstellen: Status draft → ready.
+     * Mindest-Validierung: ≥ 1 Pflichtteil (nicht-optionale Komponente).
+     */
+    #[Route('/{id}/finalize-combo', name: 'finalize_combo', methods: ['POST'])]
+    #[IsGranted('ROLE_USER')]
+    public function finalizeCombo(string $id): JsonResponse
+    {
+        $material = $this->entityManager->getRepository(MaterialItem::class)->find($id);
+        if (!$material) {
+            return new JsonResponse(['error' => 'Material nicht gefunden'], 404);
+        }
+        $accessCheck = $this->assertDepartmentAccess($material->getDepartmentId());
+        if ($accessCheck instanceof JsonResponse) {
+            return $accessCheck;
+        }
+        if (!$material->isCombo()) {
+            return new JsonResponse(['error' => 'Nur Kombos können fertiggestellt werden'], 400);
+        }
+
+        $requiredCount = (int) $this->entityManager->getRepository(MaterialComboComponent::class)
+            ->createQueryBuilder('cc')
+            ->select('COUNT(cc.id)')
+            ->where('cc.parentMaterialId = :parentId')
+            ->andWhere('cc.isOptional = false')
+            ->setParameter('parentId', $id)
+            ->getQuery()
+            ->getSingleScalarResult();
+
+        if ($requiredCount < 1) {
+            return new JsonResponse(['error' => 'Mindestens ein Pflichtteil ist erforderlich, bevor die Kombo fertiggestellt werden kann'], 400);
+        }
+
+        $material->setComboStatus('ready');
+        $material->updateTimestamps();
+        $this->createHistoryEntry($material, 'updated', ['combo_status' => ['old' => 'draft', 'new' => 'ready']]);
+        $this->entityManager->flush();
+
+        return new JsonResponse($this->serializeMaterial($material, true));
     }
 
     /**
@@ -3277,7 +3322,7 @@ class MaterialController extends AbstractController
             'is_container' => $material->getIsContainer(),
             'tent_type' => $material->getTentType(),
             'tent_capacity' => $material->getTentCapacity(),
-            'reservation_mode' => $material->getReservationMode(),
+            'combo_status' => $material->getComboStatus(),
             'is_consumable' => $material->getIsConsumable(),
             'is_food' => $material->getIsFood(),
             'is_js_material' => $material->getIsJsMaterial(),

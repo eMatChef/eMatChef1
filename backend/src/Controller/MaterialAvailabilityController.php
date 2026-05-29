@@ -279,6 +279,7 @@ class MaterialAvailabilityController extends AbstractController
                         ) stock_in_storage ON stock_in_storage.mid = mi.id
                         " . MaterialAvailabilityReservationQuery::lateralReservedQtySql(true, $reservedExcludeSql) . "
                         WHERE mi.deleted_at IS NULL
+                          AND mi.combo_status <> 'draft'
                           AND $scopeWhere $materialIdFilterSql";
 
                 $params = array_merge([
@@ -329,6 +330,7 @@ class MaterialAvailabilityController extends AbstractController
                         ) stock_in_storage ON stock_in_storage.mid = mi.id
                         " . MaterialAvailabilityReservationQuery::lateralReservedQtySql(false, $reservedExcludeSql) . "
                         WHERE mi.deleted_at IS NULL
+                          AND mi.combo_status <> 'draft'
                           AND $scopeWhere $materialIdFilterSql
                         GROUP BY mi.id, mi.name, mi.category_id, mi.material_type, mi.department_id, d.name, reserved.reserved_qty";
 

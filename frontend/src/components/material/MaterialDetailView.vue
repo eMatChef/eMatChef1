@@ -12,6 +12,9 @@
         <div class="header-title">
           <span v-if="!isUserMaterialsBrowseOnly && material.barcode_tag" class="material-code">{{ material.barcode_tag }}</span>
           <h1>{{ material.name }}</h1>
+          <span v-if="isComboDraft" class="combo-draft-badge">
+            {{ t('components.materialDetail.comboDraftBadge') }}
+          </span>
           <span v-if="material.open_loss_reports > 0" class="loss-report-badge">
             {{ t('components.materialDetail.lossReportBadge', { detail: openLossLabel }) }}
           </span>
@@ -193,22 +196,6 @@
                 <input :value="formData.external_source || 'js_ch'" type="text" class="form-input" disabled />
               </div>
               
-              <!-- Reservation-Modus (bei Zelt/Kombo-Materialien) -->
-              <div v-if="material.is_container || material.material_type === 'physical_combo' || material.material_type === 'virtual_combo'" class="form-grid mt-4">
-                <div class="form-group span-2">
-                  <label>{{ t('components.materialDetail.labelReservationMode') }}</label>
-                  <select v-model="formData.reservation_mode" class="form-select">
-                    <option value="">{{ t('components.materialDetail.reservationUnset') }}</option>
-                    <option value="complete_only">{{ t('components.materialDetail.reservationComplete') }}</option>
-                    <option value="individual">{{ t('components.materialDetail.reservationIndividual') }}</option>
-                    <option value="flexible">{{ t('components.materialDetail.reservationFlexible') }}</option>
-                  </select>
-                  <p class="form-hint" v-if="formData.reservation_mode === 'complete_only'">{{ t('components.materialDetail.hintReservationComplete') }}</p>
-                  <p class="form-hint" v-else-if="formData.reservation_mode === 'individual'">{{ t('components.materialDetail.hintReservationIndividual') }}</p>
-                  <p class="form-hint" v-else-if="formData.reservation_mode === 'flexible'">{{ t('components.materialDetail.hintReservationFlexible') }}</p>
-                </div>
-              </div>
-
               <div
                 v-if="material.material_type === 'physical_combo' && material.linked_container_batch"
                 class="linked-kiste-banner mt-4"
@@ -826,6 +813,15 @@
                   </p>
                 </div>
                 <div class="composition-tab-actions">
+                  <button
+                    v-if="isComboDraft"
+                    type="button"
+                    class="btn-primary btn-sm composition-finalize-btn"
+                    :disabled="finalizingCombo"
+                    @click="finalizeComboNow"
+                  >
+                    {{ finalizingCombo ? t('components.materialDetail.comboFinalizeSubmitting') : t('components.materialDetail.btnFinalizeCombo') }}
+                  </button>
                   <button type="button" class="btn-primary btn-sm" @click="openAddCompositionModal">
                     {{ t('components.materialDetail.btnAddFromStock') }}
                   </button>
@@ -870,7 +866,7 @@
                       <button type="button" class="link-btn composition-comp-link" @click="openComponentMaterialDetail(comp.component_material.id)">
                         {{ comp.component_material.name }}
                       </button>
-                      <span v-if="comp.is_optional" class="composition-optional-badge">{{ t('components.materialDetail.optionalShortBadge') }}</span>
+                      <span v-if="isVirtualComboView && comp.is_optional" class="composition-optional-badge">{{ t('components.materialDetail.optionalShortBadge') }}</span>
                     </td>
                     <td>{{ comp.component_role || t('components.materialDetail.emDash') }}</td>
                     <td>{{ comp.qty }}</td>
@@ -1482,7 +1478,7 @@
                         <tr v-for="(row, idx) in comboRentalRows" :key="`${row.componentId}-${idx}`">
                           <td>
                             <span>{{ row.name }}</span>
-                            <span v-if="row.optional" class="composition-optional-badge">{{ t('components.materialDetail.optionalShortBadge') }}</span>
+                            <span v-if="isVirtualComboView && row.optional" class="composition-optional-badge">{{ t('components.materialDetail.optionalShortBadge') }}</span>
                           </td>
                           <td class="combo-rental-col-num">{{ row.qty }}</td>
                           <td class="combo-rental-col-num">
@@ -2162,7 +2158,7 @@
           <input v-model="addCompositionRole" type="text" class="form-input" :placeholder="t('components.materialDetail.phRoleExamples')" />
           <p class="batch-field-hint">{{ t('components.materialDetail.hintRoleInCombo') }}</p>
         </div>
-        <div v-if="addCompositionSelected" class="form-group">
+        <div v-if="addCompositionSelected && isVirtualComboView" class="form-group">
           <label class="checkbox-label">
             <input v-model="addCompositionOptional" type="checkbox" @change="clampAddCompositionQty" />
             {{ t('components.materialDetail.labelOptionalForCombo') }}
@@ -2267,7 +2263,7 @@
           <input v-model="editCompositionRole" type="text" class="form-input" :placeholder="t('components.materialDetail.phRoleExamples')" />
           <p class="batch-field-hint">{{ t('components.materialDetail.hintRoleInCombo') }}</p>
         </div>
-        <div class="form-group">
+        <div v-if="isVirtualComboView" class="form-group">
           <label class="checkbox-label">
             <input v-model="editCompositionOptional" type="checkbox" @change="clampEditCompositionQty" />
             {{ t('components.materialDetail.labelOptionalForCombo') }}
@@ -2345,6 +2341,7 @@ import {
   addComboComponent,
   updateComboComponent,
   deleteComboComponent,
+  finalizeCombo,
   type DeleteComboComponentRequest,
   type Material,
   type MaterialHistoryEntry,
@@ -2526,6 +2523,7 @@ const editCompositionError = ref('')
 const editCompositionSubmitting = ref(false)
 const deletingCompositionId = ref<string | null>(null)
 const pendingRemoveComposition = ref<ComboComponent | null>(null)
+const finalizingCombo = ref(false)
 
 const linkedContainerBatchIdForRelease = computed(() => {
   const m = material.value
@@ -2663,6 +2661,12 @@ const isComboMaterialView = computed(
   () =>
     material.value?.material_type === 'physical_combo' || material.value?.material_type === 'virtual_combo'
 )
+
+/** „optional“ (Zubehör-Toggle) ist nur bei virtueller Kombo sinnvoll; physische Kombo kennt das nicht. */
+const isVirtualComboView = computed(() => material.value?.material_type === 'virtual_combo')
+
+/** Kombo-Entwurf („in Bearbeitung“, nicht buchbar). */
+const isComboDraft = computed(() => isComboMaterialView.value && material.value?.combo_status === 'draft')
 
 /** Zeilen für „Anschaffung aus Zusammensetzung“ (Vermietung-Tab, Kombis) */
 const comboRentalRows = ref<
@@ -2948,7 +2952,6 @@ const formData = reactive({
   pack_size_width: '',
   pack_size_height: '',
   is_container: false,
-  reservation_mode: '' as string,
   is_js_material: false,
   external_source: '',
   sale_price: null as number | null,
@@ -3531,14 +3534,15 @@ async function submitAddComposition() {
       -1
     )
     const addRole = addCompositionRole.value.trim()
-    const addQty = addCompositionOptional.value
+    const addOptional = isVirtualComboView.value && addCompositionOptional.value
+    const addQty = addOptional
       ? Math.max(0, Math.floor(Number(addCompositionQty.value) || 0))
       : Math.max(1, addCompositionQty.value || 1)
     await addComboComponent(props.materialId, {
       component_material_id: addCompositionSelected.value.id,
       qty: addQty,
       component_role: addRole === '' ? null : addRole,
-      is_optional: addCompositionOptional.value,
+      is_optional: addOptional,
       assignment_mode: addCompositionMode.value,
       sort_order: maxSort + 1,
       allocate_to_linked_container: addCompositionAllocatesToLinkedCrate.value,
@@ -3554,6 +3558,22 @@ async function submitAddComposition() {
     addCompositionError.value = ax.response?.data?.error || t('components.materialDetail.errCompositionAdd')
   } finally {
     addCompositionSubmitting.value = false
+  }
+}
+
+async function finalizeComboNow() {
+  if (finalizingCombo.value) return
+  finalizingCombo.value = true
+  try {
+    const updated = await finalizeCombo(props.materialId)
+    material.value = updated
+    toast.success(t('components.materialDetail.toastComboFinalized'))
+    emit('updated', material.value)
+  } catch (e: unknown) {
+    const ax = e as { response?: { data?: { error?: string } } }
+    toast.error(ax.response?.data?.error || t('components.materialDetail.errComboFinalize'))
+  } finally {
+    finalizingCombo.value = false
   }
 }
 
@@ -3629,12 +3649,13 @@ async function submitEditComposition() {
   editCompositionError.value = ''
   try {
     const roleTrimmed = editCompositionRole.value.trim()
+    const editOptional = isVirtualComboView.value && editCompositionOptional.value
     const payload: UpdateComboComponentRequest = {
-      qty: editCompositionOptional.value
+      qty: editOptional
         ? Math.max(0, Math.floor(Number(editCompositionQty.value) || 0))
         : Math.max(1, editCompositionQty.value || 1),
       component_role: roleTrimmed === '' ? null : roleTrimmed,
-      is_optional: editCompositionOptional.value,
+      is_optional: editOptional,
       assignment_mode: editCompositionMode.value,
     }
     if (editCompositionBatches.value.length > 0) {
@@ -3897,7 +3918,6 @@ function populateFormData(m: Material) {
   formData.pack_size_length = normalizeMaterialMetricInput(m.pack_size_length, 'cm') ?? ''
   formData.pack_size_width = normalizeMaterialMetricInput(m.pack_size_width, 'cm') ?? ''
   formData.pack_size_height = normalizeMaterialMetricInput(m.pack_size_height, 'cm') ?? ''
-  formData.reservation_mode = m.reservation_mode || ''
   formData.is_container = m.is_container ?? false
   formData.is_js_material = m.is_js_material || false
   formData.external_source = m.external_source || ''
@@ -3957,13 +3977,6 @@ function pushReadOnlyField(
   fields.push({ label, value: format ? format(value) : String(value) })
 }
 
-function formatReservationModeLabel(mode: string): string {
-  if (mode === 'complete_only') return t('components.materialDetail.reservationComplete')
-  if (mode === 'individual') return t('components.materialDetail.reservationIndividual')
-  if (mode === 'flexible') return t('components.materialDetail.reservationFlexible')
-  return mode
-}
-
 const userReadOnlySections = computed((): ReadOnlySection[] => {
   const m = material.value
   const sections: ReadOnlySection[] = []
@@ -3987,13 +4000,6 @@ const userReadOnlySections = computed((): ReadOnlySection[] => {
       t('components.materialDetail.sourceJs')
     )
     pushReadOnlyField(propertyFields, t('components.materialDetail.labelExternalSource'), m?.external_source)
-  }
-  if (m?.reservation_mode) {
-    pushReadOnlyField(
-      propertyFields,
-      t('components.materialDetail.labelReservationMode'),
-      formatReservationModeLabel(String(m.reservation_mode))
-    )
   }
   if (propertyFields.length > 0) {
     sections.push({ title: t('components.materialDetail.sectionProperties'), fields: propertyFields })
@@ -4906,7 +4912,6 @@ async function save() {
       pack_size_length: normalizeMaterialMetricInput(formData.pack_size_length, 'cm'),
       pack_size_width: normalizeMaterialMetricInput(formData.pack_size_width, 'cm'),
       pack_size_height: normalizeMaterialMetricInput(formData.pack_size_height, 'cm'),
-      reservation_mode: formData.reservation_mode || null,
     }
     if (material.value.tracking_type === 'bulk') {
       payload.is_container = formData.is_container

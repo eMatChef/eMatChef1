@@ -138,7 +138,8 @@ export interface Material {
   is_container: boolean
   tent_type: string | null
   tent_capacity: number | null
-  reservation_mode: string | null
+  /** Entwurfs-Status für Kombos: 'draft' (in Bearbeitung, nicht buchbar) | 'ready' */
+  combo_status: 'draft' | 'ready'
   is_consumable: boolean
   is_food: boolean
   is_js_material?: boolean
@@ -217,7 +218,6 @@ export interface CreateMaterialRequest {
   // Material- und Tracking-Typ
   material_type?: 'physical' | 'physical_combo' | 'virtual_combo'
   tracking_type?: 'serialized' | 'bulk' | null
-  reservation_mode?: string | null
   
   // Initialer Batch (für Massenartikel)
   initial_qty?: number
@@ -287,7 +287,6 @@ export interface UpdateMaterialRequest {
   is_container?: boolean
   is_consumable?: boolean
   is_food?: boolean
-  reservation_mode?: string | null
   sale_price?: string | null
   reference_purchase_unit_chf?: string | null
   min_stock?: number | null
@@ -382,7 +381,6 @@ export interface CreateComboFromRackRequest {
   material_type?: 'physical_combo' | 'virtual_combo'
   category_id?: string | null
   storage_address_id?: string | null
-  reservation_mode?: string
   purchase_date?: string
 }
 
@@ -401,7 +399,6 @@ export interface CreateComboFromContainerBatchRequest {
   material_type?: 'physical_combo' | 'virtual_combo'
   category_id?: string | null
   storage_address_id?: string | null
-  reservation_mode?: string
   purchase_date?: string
   /** Physische Kombi: Lagerung des Sets – Gestell/Fach … */
   initial_rack_id?: string
@@ -801,4 +798,12 @@ export async function deleteComboComponent(
   data?: DeleteComboComponentRequest,
 ): Promise<void> {
   await apiClient.delete(`/api/materials/${materialId}/components/${componentId}`, { data })
+}
+
+/**
+ * Kombo fertigstellen: Status draft → ready (Mindest-Validierung ≥ 1 Pflichtteil im Backend).
+ */
+export async function finalizeCombo(materialId: string): Promise<Material> {
+  const response = await apiClient.post<Material>(`/api/materials/${materialId}/finalize-combo`)
+  return response.data
 }

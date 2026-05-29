@@ -163,9 +163,6 @@ class TemplateController extends AbstractController
             if (isset($data['capacity'])) {
                 $template->setCapacity((int) $data['capacity']);
             }
-            if (isset($data['reservation_mode'])) {
-                $template->setReservationMode($data['reservation_mode']);
-            }
             if (isset($data['source'])) {
                 $template->setSource($data['source']);
             }
@@ -243,9 +240,6 @@ class TemplateController extends AbstractController
             }
             if (array_key_exists('capacity', $data)) {
                 $template->setCapacity($data['capacity'] !== null ? (int) $data['capacity'] : null);
-            }
-            if (isset($data['reservation_mode'])) {
-                $template->setReservationMode($data['reservation_mode']);
             }
             if (isset($data['source'])) {
                 $template->setSource($data['source']);
@@ -325,7 +319,7 @@ class TemplateController extends AbstractController
      * Unterstützt 3 Erstellungsmodi (creation_mode):
      * - individual:      Einzelartikel erstellen/ergänzen (kein Combo)
      * - physical_combo:  Physische Kombo (feste Einheit, name Pflicht)
-     * - virtual_combo:   Virtuelle Kombo (Planungsgruppe, reservation_mode)
+     * - virtual_combo:   Virtuelle Kombo (Planungsgruppe)
      */
     #[Route('/{id}/create-material', name: 'create_material', methods: ['POST'])]
     #[IsGranted('ROLE_USER')]
@@ -409,17 +403,12 @@ class TemplateController extends AbstractController
                 $comboMaterial->setMaterialType($creationMode); // physical_combo oder virtual_combo
                 $comboMaterial->setTrackingType('serialized');
                 $comboMaterial->setIsContainer(true);
+                // Aus Vorlage erstellte Kombo startet als Entwurf (Detail-Tab → fertigstellen).
+                $comboMaterial->setComboStatus('draft');
                 $comboMaterial->setTentType($data['tent_type'] ?? $template->getTentType());
                 $comboMaterial->setTentCapacity($data['tent_capacity'] ?? $template->getCapacity());
                 $comboMaterial->setManufacturer($data['manufacturer'] ?? $template->getManufacturer());
                 $comboMaterial->setModel($data['model'] ?? $template->getModel());
-
-                // Reservation Mode: nur bei virtual_combo relevant
-                if ($isVirtualCombo) {
-                    $comboMaterial->setReservationMode($data['reservation_mode'] ?? $template->getReservationMode() ?? 'complete_only');
-                } else {
-                    $comboMaterial->setReservationMode('complete_only');
-                }
 
                 if ($category) {
                     $comboMaterial->setCategory($category);
@@ -702,7 +691,6 @@ class TemplateController extends AbstractController
                     'is_container' => $comboMaterial->getIsContainer(),
                     'tent_type' => $comboMaterial->getTentType(),
                     'tent_capacity' => $comboMaterial->getTentCapacity(),
-                    'reservation_mode' => $comboMaterial->getReservationMode(),
                     'manufacturer' => $comboMaterial->getManufacturer(),
                 ],
                 'components' => $createdArticles,
@@ -776,7 +764,6 @@ class TemplateController extends AbstractController
                 $template->setMaterialType($tplData['materialType'] ?? 'physical_combo');
                 $template->setTentType($tplData['tentType'] ?? null);
                 $template->setCapacity(isset($tplData['capacity']) ? (int) $tplData['capacity'] : null);
-                $template->setReservationMode($tplData['reservationMode'] ?? null);
                 $template->setIsActive($tplData['isActive'] ?? true);
                 $template->setSource($manufacturer);
 
@@ -873,7 +860,6 @@ class TemplateController extends AbstractController
             'material_type' => $template->getMaterialType(),
             'tent_type' => $template->getTentType(),
             'capacity' => $template->getCapacity(),
-            'reservation_mode' => $template->getReservationMode(),
             'is_active' => $template->getIsActive(),
             'source' => $template->getSource(),
             'component_count' => $template->getTotalComponentCount(),

@@ -150,7 +150,7 @@
                   @load-container-contents="loadContainerBatchContents"
                 />
 
-                <!-- Virtuelle Kombo: Name + Reservation -->
+                <!-- Virtuelle Kombo: Name -->
                 <div v-if="creationMode === 'virtual_combo'" class="virtual-combo-fields">
                   <MaterialNameInput
                     ref="articleNameInputRef"
@@ -166,26 +166,6 @@
                     @focus="handleNameInputFocus"
                     @blur="handleNameInputBlur"
                   />
-                  <div class="form-group">
-                    <label>{{ t('components.materialCreateWizard.labelReservationModeStar') }}</label>
-                    <div class="reservation-radio-options">
-                      <label class="radio-option" :class="{ active: tentForm.reservation_mode === 'complete_only' }">
-                        <input type="radio" v-model="tentForm.reservation_mode" value="complete_only" />
-                        <span class="radio-label">{{ t('components.materialCreateWizard.resOnlyComplete') }}</span>
-                        <span class="radio-desc">{{ t('components.materialCreateWizard.resOnlyCompleteDesc') }}</span>
-                      </label>
-                      <label class="radio-option" :class="{ active: tentForm.reservation_mode === 'individual_parts' }">
-                        <input type="radio" v-model="tentForm.reservation_mode" value="individual_parts" />
-                        <span class="radio-label">{{ t('components.materialCreateWizard.resParts') }}</span>
-                        <span class="radio-desc">{{ t('components.materialCreateWizard.resPartsDesc') }}</span>
-                      </label>
-                      <label class="radio-option" :class="{ active: tentForm.reservation_mode === 'flexible' }">
-                        <input type="radio" v-model="tentForm.reservation_mode" value="flexible" />
-                        <span class="radio-label">{{ t('components.materialCreateWizard.resFlexible') }}</span>
-                        <span class="radio-desc">{{ t('components.materialCreateWizard.resFlexibleDesc') }}</span>
-                      </label>
-                    </div>
-                  </div>
                 </div>
 
                 <!-- Einzelartikel-Modus mit Vorlage: Info statt Name-Eingabe -->
@@ -664,32 +644,6 @@
                   </div>
                 </div>
 
-                <div class="form-group">
-                  <label>{{ t('components.materialCreateWizard.labelReservationShort') }}</label>
-                  <div class="reservation-options">
-                    <label class="radio-option" :class="{ active: tentForm.reservation_mode === 'complete_only' }">
-                      <input type="radio" v-model="tentForm.reservation_mode" value="complete_only" />
-                      <div class="radio-text">
-                        <span class="radio-name">{{ t('components.materialCreateWizard.tentResOnlyComplete') }}</span>
-                        <span class="radio-desc">{{ t('components.materialCreateWizard.tentResOnlyCompleteDesc') }}</span>
-                      </div>
-                    </label>
-                    <label class="radio-option" :class="{ active: tentForm.reservation_mode === 'individual' }">
-                      <input type="radio" v-model="tentForm.reservation_mode" value="individual" />
-                      <div class="radio-text">
-                        <span class="radio-name">{{ t('components.materialCreateWizard.tentResParts') }}</span>
-                        <span class="radio-desc">{{ t('components.materialCreateWizard.tentResPartsDesc') }}</span>
-                      </div>
-                    </label>
-                    <label class="radio-option" :class="{ active: tentForm.reservation_mode === 'flexible' }">
-                      <input type="radio" v-model="tentForm.reservation_mode" value="flexible" />
-                      <div class="radio-text">
-                        <span class="radio-name">{{ t('components.materialCreateWizard.tentResFlexible') }}</span>
-                        <span class="radio-desc">{{ t('components.materialCreateWizard.tentResFlexibleDesc') }}</span>
-                      </div>
-                    </label>
-                  </div>
-                </div>
               </div>
             </div>
 
@@ -2775,7 +2729,6 @@ const getTodayIso = () => new Date().toISOString().slice(0, 10)
 const tentForm = reactive({
   tent_type: '' as string,
   tent_capacity: null as number | null,
-  reservation_mode: 'complete_only' as string
 })
 
 const formData = reactive({
@@ -3510,7 +3463,7 @@ const canSubmit = computed(() => {
     return true
   }
 
-  // ── Virtuelle Kombo (ohne Vorlage): Name + Kategorie + Reservation ──
+  // ── Virtuelle Kombo (ohne Vorlage): Name + Kategorie ──
   if (creationMode.value === 'virtual_combo') {
     if (!formData.name.trim()) return false
     if (nameExists.value) return false
@@ -3901,7 +3854,6 @@ function resetForm() {
   componentInputs.value = []
   tentForm.tent_type = ''
   tentForm.tent_capacity = null
-  tentForm.reservation_mode = 'complete_only'
 
   templateLoadInProgress.value = false
   expandAllVisibleSteps.value = true
@@ -4849,7 +4801,6 @@ async function selectTemplate(template: Template) {
     // Zelt-Details
     tentForm.tent_type = fullTemplate.tent_type || 'gruppenzelt'
     tentForm.tent_capacity = fullTemplate.capacity || null
-    tentForm.reservation_mode = fullTemplate.reservation_mode || 'complete_only'
 
     // Hersteller aus Vorlage automatisch übernehmen (bleibt manuell änderbar)
     applyTemplateManufacturer(fullTemplate.manufacturer)
@@ -4869,14 +4820,16 @@ async function selectTemplate(template: Template) {
       }
 
       const rq = Math.max(1, comp.required_qty || 1)
-      const optionalBulkStartZero = comp.is_optional && isBulk
+      // „optional“ (Zubehör-Toggle) gilt nur bei virtueller Kombo; sonst erzwungen false.
+      const compOptional = formData.material_type === 'virtual_combo' ? comp.is_optional : false
+      const optionalBulkStartZero = compOptional && isBulk
       const initialQty = optionalBulkStartZero ? 0 : rq
       return {
         component_type: comp.component_type,
         name: comp.name,
         tracking: comp.tracking,
         required_qty: comp.required_qty,
-        is_optional: comp.is_optional,
+        is_optional: compOptional,
         mode: 'new',
         serial_number: '',
         qty: initialQty,
@@ -5078,7 +5031,6 @@ function clearTemplate() {
   selectedContainerBatchContents.value = null
   tentForm.tent_type = ''
   tentForm.tent_capacity = null
-  tentForm.reservation_mode = 'complete_only'
   // Reset auch die automatisch gesetzten Felder
   formData.category_id = ''
   selectedCategory.value = null
@@ -5344,7 +5296,6 @@ async function handleSubmit() {
         material_type: formData.material_type === 'virtual_combo' ? 'virtual_combo' : 'physical_combo',
         category_id: formData.category_id || null,
         storage_address_id: formData.storage_address_id || null,
-        reservation_mode: tentForm.reservation_mode || 'complete_only',
         purchase_date: formData.purchase_date || undefined,
       }
       if (formData.material_type === 'physical_combo') {
@@ -5367,7 +5318,6 @@ async function handleSubmit() {
         storage_address_id: formData.storage_address_id || null,
         location: combinedLocation,
         material_type: 'virtual_combo',
-        reservation_mode: tentForm.reservation_mode || 'complete_only',
         description: formData.description || null,
         barcode_tag: formData.barcode_tag || null,
         manufacturer: formData.manufacturer || null,
@@ -5457,11 +5407,6 @@ async function handleSubmit() {
       if (mode !== 'individual') {
         templatePayload.tent_type = tentForm.tent_type || undefined
         templatePayload.tent_capacity = tentForm.tent_capacity || undefined
-      }
-
-      // Reservation-Mode nur bei virtueller Kombo
-      if (mode === 'virtual_combo') {
-        templatePayload.reservation_mode = tentForm.reservation_mode || undefined
       }
 
       if (mode === 'physical_combo') {
