@@ -106,6 +106,9 @@ reset_symfony_prod_cache() {
 
 fix_backend_var_permissions
 
+docker compose -p "$PROJECT" stop backend 2>/dev/null || true
+docker compose -p "$PROJECT" rm -f backend 2>/dev/null || true
+
 compose_up=(docker compose -p "$PROJECT" up -d)
 if [[ "${EMATCHEF_COMPOSE_BUILD:-}" == "1" ]]; then
   compose_up+=(--build)
