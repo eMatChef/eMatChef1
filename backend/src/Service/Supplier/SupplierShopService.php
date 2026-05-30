@@ -49,25 +49,84 @@ class SupplierShopService
     /**
      * @return list<array<string, mixed>>
      */
-    public function listShopCatalog(string $companyId): array
+    public function listShopCatalog(?string $companyId = null): array
+    {
+        if ($companyId !== null) {
+            return $this->listShopCatalogForCompany($companyId);
+        }
+
+        $items = [];
+        foreach ($this->listCatalogCompanies() as $company) {
+            $items = array_merge(
+                $items,
+                $this->mapCatalogItems(
+                    $this->catalogItemRepository->findShopVisibleByCompanyId($company->getId()),
+                    $company
+                )
+            );
+        }
+
+        usort(
+            $items,
+            static fn (array $a, array $b) => strcasecmp((string) $a['name'], (string) $b['name'])
+                ?: strcasecmp((string) ($a['sku'] ?? ''), (string) ($b['sku'] ?? ''))
+        );
+
+        return $items;
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    public function listShopTemplates(?string $companyId = null): array
+    {
+        if ($companyId !== null) {
+            return $this->listShopTemplatesForCompany($companyId);
+        }
+
+        $templates = [];
+        foreach ($this->listTemplateCompanies() as $company) {
+            $templates = array_merge(
+                $templates,
+                $this->mapTemplateItems(
+                    $this->templateRepository->findShopVisibleByCompanyId($company->getId()),
+                    $company
+                )
+            );
+        }
+
+        usort(
+            $templates,
+            static fn (array $a, array $b) => strcasecmp((string) $a['name'], (string) $b['name'])
+        );
+
+        return $templates;
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function listShopCatalogForCompany(string $companyId): array
     {
         $company = $this->companyRepository->find($companyId);
         if (!$company instanceof SupplierCompany || $company->getStatus() !== SupplierCompany::STATUS_ACTIVE) {
             return [];
         }
 
-        $items = $this->catalogItemRepository->findShopVisibleByCompanyId($companyId);
+        if (!\in_array(SupplierCompany::CAPABILITY_CATALOG, $company->getCapabilities(), true)) {
+            return [];
+        }
 
-        return array_map(
-            static fn (SupplierCatalogItem $item) => $item->toArray(),
-            $items
+        return $this->mapCatalogItems(
+            $this->catalogItemRepository->findShopVisibleByCompanyId($companyId),
+            $company
         );
     }
 
     /**
      * @return list<array<string, mixed>>
      */
-    public function listShopTemplates(string $companyId): array
+    private function listShopTemplatesForCompany(string $companyId): array
     {
         $company = $this->companyRepository->find($companyId);
         if (!$company instanceof SupplierCompany || $company->getStatus() !== SupplierCompany::STATUS_ACTIVE) {
@@ -78,12 +137,79 @@ class SupplierShopService
             return [];
         }
 
-        $templates = $this->templateRepository->findShopVisibleByCompanyId($companyId);
+        return $this->mapTemplateItems(
+            $this->templateRepository->findShopVisibleByCompanyId($companyId),
+            $company
+        );
+    }
 
+    /**
+     * @param list<SupplierCatalogItem> $items
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function mapCatalogItems(array $items, SupplierCompany $company): array
+    {
         return array_map(
-            static fn (SupplierMaterialTemplate $template) => $template->toArray(false),
+            function (SupplierCatalogItem $item) use ($company): array {
+                $payload = $item->toArray();
+                $payload['supplier_company_name'] = $company->getName();
+
+                return $payload;
+            },
+            $items
+        );
+    }
+
+    /**
+     * @param list<SupplierMaterialTemplate> $templates
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function mapTemplateItems(array $templates, SupplierCompany $company): array
+    {
+        return array_map(
+            function (SupplierMaterialTemplate $template) use ($company): array {
+                $payload = $template->toArray(false);
+                $payload['supplier_company_name'] = $company->getName();
+
+                return $payload;
+            },
             $templates
         );
+    }
+
+    /**
+     * @return list<SupplierCompany>
+     */
+    private function listCatalogCompanies(): array
+    {
+        return $this->listCompaniesWithCapability(SupplierCompany::CAPABILITY_CATALOG);
+    }
+
+    /**
+     * @return list<SupplierCompany>
+     */
+    private function listTemplateCompanies(): array
+    {
+        return $this->listCompaniesWithCapability(SupplierCompany::CAPABILITY_TEMPLATES);
+    }
+
+    /**
+     * @return list<SupplierCompany>
+     */
+    private function listCompaniesWithCapability(string $capability): array
+    {
+        $companies = $this->companyRepository->findByStatus(SupplierCompany::STATUS_ACTIVE);
+        $items = [];
+
+        foreach ($companies as $company) {
+            if (\in_array($capability, $company->getCapabilities(), true)) {
+                $items[] = $company;
+            }
+        }
+
+        return $items;
     }
 
     /**

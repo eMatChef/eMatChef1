@@ -23,6 +23,7 @@ export interface SupplierCatalogItem {
   status: SupplierCatalogStatus
   created_at: string
   updated_at: string
+  supplier_company_name?: string
 }
 
 export interface SupplierCatalogItemPayload {

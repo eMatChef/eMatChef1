@@ -64,12 +64,9 @@ class DepartmentSupplierShopController extends AbstractController
         }
 
         $companyId = trim((string) $request->query->get('supplier_company_id', ''));
-        if ($companyId === '') {
-            return new JsonResponse(['error' => 'supplier_company_id ist erforderlich'], 400);
-        }
 
         return new JsonResponse([
-            'catalog_items' => $this->shopService->listShopCatalog($companyId),
+            'catalog_items' => $this->shopService->listShopCatalog($companyId !== '' ? $companyId : null),
         ]);
     }
 
@@ -82,12 +79,9 @@ class DepartmentSupplierShopController extends AbstractController
         }
 
         $companyId = trim((string) $request->query->get('supplier_company_id', ''));
-        if ($companyId === '') {
-            return new JsonResponse(['error' => 'supplier_company_id ist erforderlich'], 400);
-        }
 
         return new JsonResponse([
-            'material_templates' => $this->shopService->listShopTemplates($companyId),
+            'material_templates' => $this->shopService->listShopTemplates($companyId !== '' ? $companyId : null),
         ]);
     }
 

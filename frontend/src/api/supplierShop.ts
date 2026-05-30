@@ -11,6 +11,7 @@ export interface SupplierShopCompany {
 export interface SupplierShopTemplate {
   id: string
   supplier_company_id: string
+  supplier_company_name?: string
   name: string
   material_type: string
   unit_price: number | null
@@ -83,22 +84,24 @@ export async function listSupplierRepairCompanies(
 
 export async function listSupplierShopCatalog(
   departmentId: string,
-  supplierCompanyId: string,
+  supplierCompanyId?: string,
 ): Promise<SupplierCatalogItem[]> {
+  const params = supplierCompanyId ? { supplier_company_id: supplierCompanyId } : undefined
   const { data } = await apiClient.get<{ catalog_items: SupplierCatalogItem[] }>(
     `/api/departments/${departmentId}/supplier-shop/catalog`,
-    { params: { supplier_company_id: supplierCompanyId } },
+    { params },
   )
   return data.catalog_items
 }
 
 export async function listSupplierShopTemplates(
   departmentId: string,
-  supplierCompanyId: string,
+  supplierCompanyId?: string,
 ): Promise<SupplierShopTemplate[]> {
+  const params = supplierCompanyId ? { supplier_company_id: supplierCompanyId } : undefined
   const { data } = await apiClient.get<{ material_templates: SupplierShopTemplate[] }>(
     `/api/departments/${departmentId}/supplier-shop/templates`,
-    { params: { supplier_company_id: supplierCompanyId } },
+    { params },
   )
   return data.material_templates
 }

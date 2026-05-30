@@ -6,11 +6,19 @@
     </header>
 
     <div class="toolbar">
-      <label class="field-inline">
+      <label v-if="activeTab === 'catalog' || activeTab === 'templates'" class="field-inline">
         <span>{{ t('supplierShop.supplierFilter') }}</span>
         <select v-model="selectedCompanyId" @change="onCompanyChange">
-          <option value="">{{ t('supplierShop.selectSupplier') }}</option>
+          <option value="">{{ t('supplierShop.filterAllSuppliers') }}</option>
           <option v-for="c in companies" :key="c.id" :value="c.id">{{ c.name }}</option>
+        </select>
+      </label>
+      <label v-else-if="activeTab === 'deliveries'" class="field-inline">
+        <span>{{ t('supplierShop.deliveryStatusFilter') }}</span>
+        <select v-model="deliveryStatusFilter" @change="loadDeliveries">
+          <option value="submitted">{{ t('supplierShop.deliveryStatus.open') }}</option>
+          <option value="imported">{{ t('supplierShop.deliveryStatus.imported') }}</option>
+          <option value="all">{{ t('supplierShop.deliveryStatus.all') }}</option>
         </select>
       </label>
       <div v-if="activeTab === 'watchlist'" class="budget">
@@ -43,7 +51,7 @@
         @click="activeTab = 'deliveries'"
       >
         {{ t('supplierShop.tabs.deliveries') }}
-        <span v-if="deliveries.length" class="badge-count">{{ deliveries.length }}</span>
+        <span v-if="openDeliveryCount" class="badge-count">{{ openDeliveryCount }}</span>
       </button>
       <button
         type="button"
@@ -62,12 +70,12 @@
     <template v-else>
       <!-- Catalog -->
       <section v-if="activeTab === 'catalog'">
-        <p v-if="!selectedCompanyId" class="state">{{ t('supplierShop.pickSupplier') }}</p>
-        <p v-else-if="catalogItems.length === 0" class="state">{{ t('supplierShop.catalogEmpty') }}</p>
+        <p v-if="catalogItems.length === 0" class="state">{{ t('supplierShop.catalogEmpty') }}</p>
         <table v-else class="data-table">
           <thead>
             <tr>
               <th>{{ t('supplierShop.columns.name') }}</th>
+              <th>{{ t('supplierShop.columns.supplier') }}</th>
               <th>{{ t('supplierShop.columns.sku') }}</th>
               <th>{{ t('supplierShop.columns.tracking') }}</th>
               <th>{{ t('supplierShop.columns.price') }}</th>
@@ -77,6 +85,7 @@
           <tbody>
             <tr v-for="item in catalogItems" :key="item.id">
               <td>{{ item.name }}</td>
+              <td>{{ supplierName(item.supplier_company_id, item.supplier_company_name) }}</td>
               <td>{{ item.sku || '—' }}</td>
               <td>{{ trackingLabel(item.tracking_type) }}</td>
               <td>{{ formatPrice(item.unit_price, item.currency) }}</td>
@@ -92,12 +101,12 @@
 
       <!-- Templates -->
       <section v-else-if="activeTab === 'templates'">
-        <p v-if="!selectedCompanyId" class="state">{{ t('supplierShop.pickSupplier') }}</p>
-        <p v-else-if="templates.length === 0" class="state">{{ t('supplierShop.templatesEmpty') }}</p>
+        <p v-if="templates.length === 0" class="state">{{ t('supplierShop.templatesEmpty') }}</p>
         <table v-else class="data-table">
           <thead>
             <tr>
               <th>{{ t('supplierShop.columns.name') }}</th>
+              <th>{{ t('supplierShop.columns.supplier') }}</th>
               <th>{{ t('supplierShop.columns.materialType') }}</th>
               <th>{{ t('supplierShop.columns.components') }}</th>
               <th>{{ t('supplierShop.columns.price') }}</th>
@@ -107,6 +116,7 @@
           <tbody>
             <tr v-for="tpl in templates" :key="tpl.id">
               <td>{{ tpl.name }}</td>
+              <td>{{ supplierName(tpl.supplier_company_id, tpl.supplier_company_name) }}</td>
               <td>{{ materialTypeLabel(tpl.material_type) }}</td>
               <td>{{ tpl.component_count }}</td>
               <td>{{ formatPrice(tpl.unit_price, tpl.currency) }}</td>
@@ -133,8 +143,10 @@
             <div>
               <strong>{{ delivery.supplier_company_name }}</strong>
               <span class="muted"> · {{ delivery.delivery_ref || t('departmentSupplierDeliveries.noRef') }}</span>
+              <span class="status-badge" :class="delivery.status">{{ deliveryStatusLabel(delivery.status) }}</span>
             </div>
             <button
+              v-if="delivery.status === 'submitted'"
               type="button"
               class="btn btn-primary btn-sm"
               :disabled="importingId === delivery.id"
@@ -254,9 +266,11 @@ function syncTabFromRoute() {
 }
 const companies = ref<SupplierShopCompany[]>([])
 const selectedCompanyId = ref('')
+const deliveryStatusFilter = ref<'submitted' | 'imported' | 'all'>('all')
 const catalogItems = ref<SupplierCatalogItem[]>([])
 const templates = ref<SupplierShopTemplate[]>([])
 const deliveries = ref<SupplierDelivery[]>([])
+const openDeliveryCount = ref(0)
 const watchlist = ref<WatchlistItem[]>([])
 const importingId = ref('')
 const importingCatalogId = ref('')
@@ -276,6 +290,17 @@ function trackingLabel(type: string): string {
     : t('supplierCatalog.tracking.bulk')
 }
 
+function supplierName(companyId: string, name?: string): string {
+  if (name) return name
+  return companies.value.find((c) => c.id === companyId)?.name || '—'
+}
+
+function deliveryStatusLabel(status: SupplierDelivery['status']): string {
+  if (status === 'imported') return t('supplierShop.deliveryStatus.imported')
+  if (status === 'submitted') return t('supplierShop.deliveryStatus.open')
+  return status
+}
+
 function formatPrice(amount: number | null, currency = 'CHF'): string {
   if (amount == null) return '—'
   return `${amount.toFixed(2)} ${currency}`
@@ -286,7 +311,6 @@ function persistWatchlist() {
 }
 
 function addToWatchlist(item: SupplierCatalogItem) {
-  const company = companies.value.find((c) => c.id === selectedCompanyId.value)
   const existing = watchlist.value.find((w) => w.catalog_item_id === item.id)
   if (existing) {
     existing.qty += 1
@@ -300,7 +324,7 @@ function addToWatchlist(item: SupplierCatalogItem) {
       currency: item.currency,
       tracking_type: item.tracking_type,
       supplier_company_id: item.supplier_company_id,
-      supplier_company_name: company?.name || '',
+      supplier_company_name: supplierName(item.supplier_company_id, item.supplier_company_name),
     })
   }
   persistWatchlist()
@@ -317,14 +341,8 @@ async function loadCompaniesAndDeliveries() {
   loadError.value = ''
   try {
     companies.value = await listSupplierShopCompanies(departmentId.value)
-    const res = await listDepartmentSupplierDeliveries(departmentId.value, 'submitted')
-    deliveries.value = res.deliveries
+    await Promise.all([loadCatalog(), loadTemplates(), loadDeliveries(), loadOpenDeliveryCount()])
     watchlist.value = loadWatchlist(departmentId.value)
-    if (!selectedCompanyId.value && companies.value.length === 1) {
-      selectedCompanyId.value = companies.value[0].id
-      await loadCatalog()
-      await loadTemplates()
-    }
   } catch (err: any) {
     loadError.value = err?.response?.data?.error || t('supplierShop.errorLoad')
   } finally {
@@ -332,25 +350,41 @@ async function loadCompaniesAndDeliveries() {
   }
 }
 
-async function loadTemplates() {
-  if (!selectedCompanyId.value) {
-    templates.value = []
-    return
-  }
+async function loadOpenDeliveryCount() {
   try {
-    templates.value = await listSupplierShopTemplates(departmentId.value, selectedCompanyId.value)
+    const res = await listDepartmentSupplierDeliveries(departmentId.value, 'submitted')
+    openDeliveryCount.value = res.deliveries.length
+  } catch {
+    openDeliveryCount.value = 0
+  }
+}
+
+async function loadDeliveries() {
+  try {
+    const res = await listDepartmentSupplierDeliveries(departmentId.value, deliveryStatusFilter.value)
+    deliveries.value = res.deliveries
+  } catch (err: any) {
+    toast.error(err?.response?.data?.error || t('supplierShop.errorLoad'))
+  }
+}
+
+async function loadTemplates() {
+  try {
+    templates.value = await listSupplierShopTemplates(
+      departmentId.value,
+      selectedCompanyId.value || undefined,
+    )
   } catch (err: any) {
     toast.error(err?.response?.data?.error || t('supplierShop.errorLoad'))
   }
 }
 
 async function loadCatalog() {
-  if (!selectedCompanyId.value) {
-    catalogItems.value = []
-    return
-  }
   try {
-    catalogItems.value = await listSupplierShopCatalog(departmentId.value, selectedCompanyId.value)
+    catalogItems.value = await listSupplierShopCatalog(
+      departmentId.value,
+      selectedCompanyId.value || undefined,
+    )
   } catch (err: any) {
     toast.error(err?.response?.data?.error || t('supplierShop.errorLoad'))
   }
@@ -397,7 +431,8 @@ async function importDelivery(delivery: SupplierDelivery) {
   try {
     const result = await importSupplierDelivery(departmentId.value, delivery.id)
     toast.success(result.message || t('supplierShop.importSuccess'))
-    await loadCompaniesAndDeliveries()
+    await loadDeliveries()
+    await loadOpenDeliveryCount()
   } catch (err: any) {
     toast.error(err?.response?.data?.error || t('supplierShop.importError'))
   } finally {
@@ -439,8 +474,11 @@ async function importWatchlistItem(item: WatchlistItem) {
 }
 
 watch(activeTab, (tab) => {
-  if (tab === 'templates' && selectedCompanyId.value && templates.value.length === 0) {
+  if (tab === 'templates' && templates.value.length === 0) {
     loadTemplates()
+  }
+  if (tab === 'catalog' && catalogItems.value.length === 0) {
+    loadCatalog()
   }
 })
 
@@ -573,5 +611,23 @@ onMounted(() => {
 
 .muted {
   color: #6b7280;
+}
+
+.status-badge {
+  margin-left: 8px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  border-radius: 999px;
+  padding: 2px 8px;
+}
+
+.status-badge.submitted {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.status-badge.imported {
+  background: #dcfce7;
+  color: #15803d;
 }
 </style>
