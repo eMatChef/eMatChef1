@@ -31,4 +31,23 @@ class SupplierCatalogItemRepository extends ServiceEntityRepository
             ->getQuery()
             ->getResult();
     }
+
+    /**
+     * @return list<SupplierCatalogItem>
+     */
+    public function findShopVisibleByCompanyId(string $companyId): array
+    {
+        return $this->createQueryBuilder('i')
+            ->where('i.supplierCompanyId = :companyId')
+            ->andWhere('i.isActive = true')
+            ->andWhere('i.status = :status')
+            ->andWhere('i.visibility != :private')
+            ->setParameter('companyId', $companyId)
+            ->setParameter('status', SupplierCatalogItem::STATUS_PUBLISHED)
+            ->setParameter('private', SupplierCatalogItem::VISIBILITY_PRIVATE)
+            ->orderBy('i.name', 'ASC')
+            ->addOrderBy('i.sku', 'ASC')
+            ->getQuery()
+            ->getResult();
+    }
 }

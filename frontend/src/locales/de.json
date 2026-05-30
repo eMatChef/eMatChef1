@@ -48,6 +48,7 @@
         "activities": "Aktivitäten · eMatChef",
         "activityDetail": "Aktivität · eMatChef",
         "materials": "Materialien · eMatChef",
+        "supplierShop": "Lieferanten-Shop · eMatChef",
         "materialsAll": "Alle Materialien · eMatChef",
         "materialsCombos": "Kombos · eMatChef",
         "materialsVirtualCombos": "Virtuelle Kombis · eMatChef",
@@ -654,6 +655,7 @@
     "website": "Webseite",
     "activities": "Aktivitäten",
     "materials": "Materialien",
+    "supplierShop": "Lieferanten-Shop",
     "accounting": "Buchhaltung",
     "contacts": "Kontakte",
     "tasks": "Aufgaben",
@@ -972,6 +974,43 @@
       "qty": "Menge",
       "price": "Preis",
       "serials": "Seriennummern"
+    }
+  },
+  "supplierShop": {
+    "title": "Lieferanten-Shop",
+    "subtitle": "Katalog durchsuchen, Budget kalkulieren und bewusst importieren.",
+    "supplierFilter": "Lieferant",
+    "selectSupplier": "Lieferant wählen …",
+    "pickSupplier": "Bitte zuerst einen Lieferanten wählen.",
+    "budgetTotal": "Budget (Merkliste)",
+    "errorLoad": "Shop konnte nicht geladen werden.",
+    "catalogEmpty": "Keine veröffentlichten Artikel für diesen Lieferanten.",
+    "deliveriesEmpty": "Keine offenen Übergaben.",
+    "watchlistEmpty": "Merkliste ist leer.",
+    "addToWatchlist": "Zur Merkliste",
+    "addedToWatchlist": "Zur Merkliste hinzugefügt.",
+    "importDelivery": "Importieren",
+    "importDeliveryTitle": "Übergabe importieren?",
+    "importDeliveryMessage": "Alle Positionen der Übergabe {ref} werden ins Department übernommen.",
+    "importItem": "Importieren",
+    "importItemTitle": "Artikel importieren?",
+    "importItemMessage": "{qty}× {name} ins Department übernehmen?",
+    "importing": "Importiere …",
+    "importSuccess": "Import erfolgreich.",
+    "importError": "Import fehlgeschlagen.",
+    "serializedUseDelivery": "Serialisierte Artikel bitte über eine offene Übergabe importieren.",
+    "tabs": {
+      "catalog": "Katalog",
+      "deliveries": "Offene Übergaben",
+      "watchlist": "Merkliste"
+    },
+    "columns": {
+      "name": "Name",
+      "sku": "SKU",
+      "tracking": "Tracking",
+      "price": "Preis",
+      "supplier": "Lieferant",
+      "qty": "Menge"
     }
   },
   "layout": {

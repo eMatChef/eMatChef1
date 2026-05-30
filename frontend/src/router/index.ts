@@ -839,6 +839,15 @@ const routes: RouteRecordRaw[] = [
         ]
       },
       {
+        path: 'supplier-shop',
+        name: 'SupplierShop',
+        component: () => import('@/views/SupplierShopView.vue'),
+        meta: {
+          requiredRoles: ['matwart', 'depchef', 'mw', 'dc'],
+          ...routeHead('supplierShop'),
+        },
+      },
+      {
         path: 'accounting',
         component: () => import('@/views/accounting/AccountingShellView.vue'),
         meta: {

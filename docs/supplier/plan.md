@@ -40,7 +40,7 @@ Abarbeitbare Checkliste für Phase 1–3. Das **Warum/Zielmodell** steht in [sup
 | 9 | Katalog `supplier_catalog_item` + Supplier-CRUD | 2a | L | 1–7 | [x] |
 | 10 | Übergaben `supplier_delivery*` + SN | 2b | XL | 9 | [x] |
 | 11 | Vorlagen `supplier_material_template_*` | 2c | XL | 9 | [~] |
-| 12 | MW-Shop, Budget, Import-Pfade | 2d | XL | 9–11 | [ ] |
+| 12 | MW-Shop, Budget, Import-Pfade | 2d | XL | 9–11 | [~] |
 | 13 | Sichtbarkeit + Global-Review | 2e | M | 9, 12 | [ ] |
 | 14 | Reparaturen an Lieferant | 3 | L | 1–7 | [ ] |
 | 15 | Cleanup: `GLOBAL000000` / `GLOBALORG001` | 1/2 | S | 0, 8 | [ ] |
@@ -342,10 +342,11 @@ Diese Stellen strahlen bei Address-/Supplier-Änderungen am stärksten aus:
 - `TemplateController::createMaterialFromTemplate` — SN-Logik wiederverwenden
 
 **Schritte:**
-- [ ] Shop-UI: Filter, Merkliste, Budget-Summe
-- [ ] Tab „Offene Übergaben"
-- [ ] Import bulk + serialisiert → `MaterialBatch`(s) mit `serial_number`
-- [ ] Kein direkter Lieferanten-Schreibzugriff auf `material_item`
+- [x] Shop-UI: Filter, Merkliste, Budget-Summe
+- [x] Tab „Offene Übergaben"
+- [x] Import bulk + serialisiert → `MaterialBatch`(s) mit `serial_number`
+- [x] Kein direkter Lieferanten-Schreibzugriff auf `material_item`
+- [ ] Import Vorlage → Material (SN aus Übergabe) — Erweiterung TemplateController
 
 **Definition of Done:** End-to-end MW importiert aus Shop/Übergabe inkl. SN; siehe [supplier-portal.md Phase 2 DoD](./supplier-portal.md#definition-of-done-1).
 

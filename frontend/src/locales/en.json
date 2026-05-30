@@ -35,6 +35,7 @@
         "activities": "Activities · eMatChef",
         "activityDetail": "Activity · eMatChef",
         "materials": "Materials · eMatChef",
+        "supplierShop": "Supplier shop · eMatChef",
         "materialsAll": "All materials · eMatChef",
         "materialsCombos": "Combos · eMatChef",
         "materialsVirtualCombos": "Virtual combos · eMatChef",
@@ -553,6 +554,7 @@
     "website": "Website",
     "activities": "Activities",
     "materials": "Materials",
+    "supplierShop": "Supplier shop",
     "accounting": "Accounting",
     "contacts": "Contacts",
     "tasks": "Tasks",
@@ -871,6 +873,43 @@
       "qty": "Qty",
       "price": "Price",
       "serials": "Serial numbers"
+    }
+  },
+  "supplierShop": {
+    "title": "Supplier shop",
+    "subtitle": "Browse catalog, calculate budget, and import deliberately.",
+    "supplierFilter": "Supplier",
+    "selectSupplier": "Select supplier …",
+    "pickSupplier": "Please select a supplier first.",
+    "budgetTotal": "Budget (watchlist)",
+    "errorLoad": "Could not load shop.",
+    "catalogEmpty": "No published items for this supplier.",
+    "deliveriesEmpty": "No open deliveries.",
+    "watchlistEmpty": "Watchlist is empty.",
+    "addToWatchlist": "Add to watchlist",
+    "addedToWatchlist": "Added to watchlist.",
+    "importDelivery": "Import",
+    "importDeliveryTitle": "Import delivery?",
+    "importDeliveryMessage": "Import all lines from delivery {ref} into the department.",
+    "importItem": "Import",
+    "importItemTitle": "Import item?",
+    "importItemMessage": "Import {qty}× {name} into the department?",
+    "importing": "Importing …",
+    "importSuccess": "Import successful.",
+    "importError": "Import failed.",
+    "serializedUseDelivery": "Import serialized items via an open delivery.",
+    "tabs": {
+      "catalog": "Catalog",
+      "deliveries": "Open deliveries",
+      "watchlist": "Watchlist"
+    },
+    "columns": {
+      "name": "Name",
+      "sku": "SKU",
+      "tracking": "Tracking",
+      "price": "Price",
+      "supplier": "Supplier",
+      "qty": "Qty"
     }
   },
   "layout": {

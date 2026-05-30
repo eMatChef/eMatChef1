@@ -149,6 +149,17 @@
         <span class="nav-label" :class="{ visible: isHovered }">{{ t('sidebar.materials') }}</span>
       </router-link>
 
+      <!-- Lieferanten-Shop (MW) -->
+      <router-link
+        v-if="!isPendingAssignmentRoute && !isAdminDashboardRoute && showSupplierShopLink && hasDepartmentContext"
+        :to="getLink('/supplier-shop')"
+        class="nav-item"
+        :class="{ active: $route.path.includes('/supplier-shop') }"
+      >
+        <IconMaterials class="nav-icon" />
+        <span class="nav-label" :class="{ visible: isHovered }">{{ t('sidebar.supplierShop') }}</span>
+      </router-link>
+
       <!-- Buchhaltung (nur Materialchef / Departmentchef) -->
       <router-link
         v-if="!isPendingAssignmentRoute && !isAdminDashboardRoute && showAccountingMenu && hasDepartmentContext"
@@ -417,6 +428,13 @@ const showAccountingMenu = computed(() => {
   if (isSuperAdmin.value) return false
   const r = String(authStore.currentDepartmentRole || '').toLowerCase().trim()
   return r === 'mw' || r === 'dc'
+})
+
+/** Lieferanten-Shop: Materialwart / Departmentchef */
+const showSupplierShopLink = computed(() => {
+  if (isSuperAdmin.value) return false
+  const r = String(authStore.currentDepartmentRole || '').toLowerCase().trim()
+  return ['mw', 'dc', 'matwart', 'depchef'].includes(r)
 })
 
 /** Sidebar: Buchhaltung aktiv bei allen Unterpfaden /accounting/… */

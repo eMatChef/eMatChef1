@@ -8,6 +8,7 @@ use App\Entity\Membership;
 use App\Entity\SupplierDelivery;
 use App\Entity\User;
 use App\Repository\SupplierDeliveryRepository;
+use App\Service\Supplier\SupplierImportService;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -23,6 +24,7 @@ class DepartmentSupplierDeliveryController extends AbstractController
     public function __construct(
         private EntityManagerInterface $entityManager,
         private SupplierDeliveryRepository $deliveryRepository,
+        private SupplierImportService $importService,
     ) {
     }
 
@@ -81,6 +83,36 @@ class DepartmentSupplierDeliveryController extends AbstractController
         }
 
         return new JsonResponse(['delivery' => $delivery->toArray()]);
+    }
+
+    #[Route('/{deliveryId}/import', name: 'import', methods: ['POST'])]
+    #[IsGranted('ROLE_USER')]
+    public function import(string $departmentId, string $deliveryId, Request $request): JsonResponse
+    {
+        $user = $this->getUser();
+        if (!$user instanceof User) {
+            return new JsonResponse(['error' => 'Nicht authentifiziert'], 401);
+        }
+
+        if (!$this->canReadDepartmentDeliveries($user, $departmentId)) {
+            return new JsonResponse(['error' => 'Keine Berechtigung'], 403);
+        }
+
+        $data = json_decode($request->getContent(), true) ?: [];
+
+        try {
+            $result = $this->importService->importDelivery($departmentId, $deliveryId, $data);
+
+            return new JsonResponse([
+                'delivery' => $result['delivery'],
+                'materials' => $result['materials'],
+                'message' => 'Übergabe importiert',
+            ]);
+        } catch (\InvalidArgumentException $e) {
+            return new JsonResponse(['error' => $e->getMessage()], 400);
+        } catch (\Exception $e) {
+            return new JsonResponse(['error' => 'Import fehlgeschlagen: ' . $e->getMessage()], 500);
+        }
     }
 
     private function canReadDepartmentDeliveries(User $user, string $departmentId): bool
