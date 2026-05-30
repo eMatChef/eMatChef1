@@ -53,10 +53,10 @@ export function prepareOrganisationsForOrgSubAdminList(
 }
 
 /** System-/J&S-Organisationen: nie in Dropdowns / Admin-Zuordnung */
-export const HIDDEN_ORGANISATION_IDS = new Set(['GLOBALORG001', 'org_js000000'])
+export const HIDDEN_ORGANISATION_IDS = new Set(['org_js000000'])
 
-/** System-Department für globale Lieferanten-Adressen (nicht für User-Memberships) */
-export const HIDDEN_DEPARTMENT_IDS = new Set(['GLOBAL000000'])
+/** @deprecated Paket 15 — GLOBAL000000 entfernt; leeres Set für Abwärtskompatibilität */
+export const HIDDEN_DEPARTMENT_IDS = new Set<string>([])
 
 export function isOrganisationHiddenFromUserPickers(org: Organisation): boolean {
   if (HIDDEN_ORGANISATION_IDS.has(org.id)) {

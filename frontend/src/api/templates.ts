@@ -2,6 +2,41 @@ import apiClient from './apiClient'
 
 // ============== Types ==============
 
+/** Komponenten-Quelle (Weg B): aus Lager vs. vom Leiter mitgebracht. */
+export type ComponentSource = 'stock' | 'self_provided'
+
+/** Anzeige-Modus einer Vorlagen-Option. */
+export type OptionDisplayMode = 'toggle' | 'group'
+
+/** Auswahlregel einer Vorlagen-Options-Gruppe. */
+export type OptionSelectionType = 'exclusive' | 'multi' | 'quantity'
+
+export type TemplateKind = 'single_part' | 'combo' | 'configurator'
+
+export type TemplateDomain = 'tent' | 'kitchen' | 'workshop' | 'first_aid' | 'general'
+
+export interface TemplateManufacturerOption {
+  id: string
+  label: string
+  scope: string
+}
+
+/** Ergebnis des Start-Assistenten vor dem Editor. */
+export interface TemplateWizardResult {
+  template_kind: TemplateKind
+  template_domain: TemplateDomain
+  manufacturer_address_id: string | null
+  manufacturer: string | null
+  material_type: 'physical_combo' | 'virtual_combo'
+}
+
+export type ComponentMatchState = 'found' | 'missing' | 'ambiguous'
+
+export interface TemplateComponentCandidate {
+  id: string
+  name: string
+}
+
 export interface TemplateComponent {
   id: string
   component_type: string
@@ -10,8 +45,69 @@ export interface TemplateComponent {
   is_optional: boolean
   is_generic: boolean
   tracking: 'serialized' | 'bulk'
+  component_source: ComponentSource
   repair_types: string[] | null
   sort_order: number
+  /** Gesetzt wenn GET mit department_id (Paket 2 Auflösung) */
+  expected_name?: string
+  match_state?: ComponentMatchState
+  matched_material_id?: string | null
+  candidates?: TemplateComponentCandidate[]
+}
+
+export interface TemplateMissingRequiredComponent {
+  component_type: string
+  name: string
+  expected_name: string
+}
+
+/** ±Stücklisten-Zeile einer Vorlagen-Option (abstrakt über component_type). */
+export interface TemplateOptionDelta {
+  id: string
+  option_id: string
+  component_type: string
+  name: string
+  qty_delta: number
+  tracking: 'serialized' | 'bulk'
+  component_source: ComponentSource
+  is_generic: boolean
+  sort_order: number
+}
+
+export interface TemplateOption {
+  id: string
+  template_id: string
+  option_group_id: string | null
+  name: string
+  display_mode: OptionDisplayMode
+  default_selected: boolean
+  sort_order: number
+  deltas: TemplateOptionDelta[]
+}
+
+export interface TemplateOptionGroup {
+  id: string
+  template_id: string
+  name: string
+  selection_type: OptionSelectionType
+  min_select: number
+  max_select: number | null
+  sort_order: number
+}
+
+export interface TemplateRelatedAccessory {
+  id: string
+  name: string
+  component_type: string | null
+  is_generic: boolean
+  sort_order: number
+}
+
+export interface CreateTemplateRelatedAccessoryRequest {
+  name: string
+  component_type?: string | null
+  is_generic?: boolean
+  sort_order?: number
 }
 
 export interface Template {
@@ -22,12 +118,14 @@ export interface Template {
   name: string
   description: string | null
   manufacturer: string | null
+  manufacturer_address_id: string | null
+  template_kind: TemplateKind | null
+  template_domain: TemplateDomain | null
   model: string | null
   category: { id: string; name: string } | null
   material_type: 'physical_combo' | 'virtual_combo'
   tent_type: string | null
   capacity: number | null
-  reservation_mode: 'complete_only' | 'individual' | 'flexible' | null
   is_active: boolean
   source: string | null
   component_count: number
@@ -36,6 +134,11 @@ export interface Template {
   updated_at: string
   // Nur bei Einzelabfrage
   components?: TemplateComponent[]
+  related_accessories?: TemplateRelatedAccessory[]
+  options?: TemplateOption[]
+  option_groups?: TemplateOptionGroup[]
+  /** Pflicht-Komponenten ohne Bestandstreffer (nur mit department_id) */
+  missing_required_components?: TemplateMissingRequiredComponent[]
 }
 
 export interface CreateTemplateComponentRequest {
@@ -45,8 +148,39 @@ export interface CreateTemplateComponentRequest {
   is_optional?: boolean
   is_generic?: boolean
   tracking?: 'serialized' | 'bulk'
+  component_source?: ComponentSource
   repair_types?: string[]
   sort_order?: number
+}
+
+/** Options-Gruppe einer Vorlage (Weg B, Paket 6). `id` ist client-seitig (temp) oder real (Bezug für Optionen). */
+export interface UpsertTemplateOptionGroupRequest {
+  id?: string
+  name: string
+  selection_type?: OptionSelectionType
+  min_select?: number
+  max_select?: number | null
+  sort_order?: number
+}
+
+export interface UpsertTemplateOptionDeltaRequest {
+  component_type: string
+  name: string
+  qty_delta: number
+  tracking?: 'serialized' | 'bulk'
+  component_source?: ComponentSource
+  is_generic?: boolean
+  sort_order?: number
+}
+
+export interface UpsertTemplateOptionRequest {
+  name: string
+  display_mode?: OptionDisplayMode
+  default_selected?: boolean
+  /** Verweist auf die `id` einer UpsertTemplateOptionGroupRequest. */
+  option_group_id?: string | null
+  sort_order?: number
+  deltas?: UpsertTemplateOptionDeltaRequest[]
 }
 
 export interface CreateTemplateRequest {
@@ -55,33 +189,96 @@ export interface CreateTemplateRequest {
   name: string
   description?: string | null
   manufacturer?: string | null
+  manufacturer_address_id?: string | null
+  template_kind?: TemplateKind | null
+  template_domain?: TemplateDomain | null
   model?: string | null
   category_id?: string | null
   material_type?: 'physical_combo' | 'virtual_combo'
   tent_type?: string | null
   capacity?: number | null
-  reservation_mode?: string | null
   is_active?: boolean
   source?: string | null
   components?: CreateTemplateComponentRequest[]
+  related_accessories?: CreateTemplateRelatedAccessoryRequest[]
+  option_groups?: UpsertTemplateOptionGroupRequest[]
+  options?: UpsertTemplateOptionRequest[]
 }
 
 export interface UpdateTemplateRequest {
   name?: string
   description?: string | null
   manufacturer?: string | null
+  manufacturer_address_id?: string | null
+  template_kind?: TemplateKind | null
+  template_domain?: TemplateDomain | null
   model?: string | null
   category_id?: string | null
   material_type?: 'physical_combo' | 'virtual_combo'
   tent_type?: string | null
   capacity?: number | null
-  reservation_mode?: string | null
   is_active?: boolean
   source?: string | null
   components?: CreateTemplateComponentRequest[]
+  related_accessories?: CreateTemplateRelatedAccessoryRequest[]
+  option_groups?: UpsertTemplateOptionGroupRequest[]
+  options?: UpsertTemplateOptionRequest[]
+}
+
+export type TemplateImportDuplicateAction = 'skip' | 'update' | 'create'
+
+export interface TemplateImportResultRow {
+  template_index: number
+  name: string | null
+  status: string
+  action: string | null
+  errors: string[]
+  existing_template_id?: string | null
+}
+
+export interface TemplateImportResponse {
+  success: boolean
+  dry_run: boolean
+  manufacturer: string
+  rows: TemplateImportResultRow[]
+  stats: {
+    created: number
+    updated: number
+    skipped: number
+    errors: number
+  }
+  total: number
+  created: number
+  updated: number
+  skipped: number
+  error?: string
+}
+
+export interface TemplateExportJson {
+  format_version: number
+  manufacturer: string
+  templates: unknown[]
 }
 
 // ============== API Functions ==============
+
+/** Internal key for templates without manufacturer (list filter/export). */
+export const NO_MANUFACTURER_KEY = '__NO_MANUFACTURER__'
+
+/**
+ * Lieferanten/Hersteller für Vorlagen-Picker (Address-Scope-Modell).
+ */
+export async function getTemplateManufacturerOptions(
+  scope: 'global' | 'department',
+  departmentId?: string,
+): Promise<TemplateManufacturerOption[]> {
+  const params = new URLSearchParams({ scope })
+  if (departmentId) params.append('department_id', departmentId)
+  const response = await apiClient.get<{ options: TemplateManufacturerOption[] }>(
+    `/api/templates/manufacturer-options?${params.toString()}`,
+  )
+  return response.data.options
+}
 
 /**
  * Lädt alle Vorlagen für ein Department
@@ -94,10 +291,22 @@ export async function getTemplates(departmentId: string, activeOnly = false): Pr
 }
 
 /**
+ * Lädt alle globalen Vorlagen (Admin, ohne Department-Kontext)
+ */
+export async function getGlobalTemplates(activeOnly = false): Promise<Template[]> {
+  const params = new URLSearchParams({ scope: 'global' })
+  if (activeOnly) params.append('active_only', '1')
+  const response = await apiClient.get<Template[]>(`/api/templates?${params.toString()}`)
+  return response.data
+}
+
+/**
  * Lädt eine einzelne Vorlage mit Komponenten
  */
-export async function getTemplate(id: string): Promise<Template> {
-  const response = await apiClient.get<Template>(`/api/templates/${id}`)
+export async function getTemplate(id: string, departmentId?: string): Promise<Template> {
+  const response = await apiClient.get<Template>(`/api/templates/${id}`, {
+    params: departmentId ? { department_id: departmentId } : undefined,
+  })
   return response.data
 }
 
@@ -125,19 +334,68 @@ export async function deleteTemplate(id: string): Promise<void> {
 }
 
 /**
- * Importiert Vorlagen aus v4-JSON-Format
+ * Importiert Vorlagen aus v4/v5-JSON (Department)
  */
-export async function importTemplates(departmentId: string, templatesJson: any): Promise<{
-  success: boolean
-  manufacturer: string
-  created: number
-  skipped: number
-  total: number
-}> {
-  const response = await apiClient.post('/api/templates/import', {
+export async function importTemplates(
+  departmentId: string,
+  templatesJson: unknown,
+  options: {
+    dryRun?: boolean
+    duplicateAction?: TemplateImportDuplicateAction
+    force?: boolean
+  } = {},
+): Promise<TemplateImportResponse> {
+  const response = await apiClient.post<TemplateImportResponse>('/api/templates/import', {
     department_id: departmentId,
-    templates_json: templatesJson
+    templates_json: templatesJson,
+    dry_run: options.dryRun ?? false,
+    duplicate_action: options.duplicateAction ?? 'skip',
+    force: options.force ?? false,
   })
+  return response.data
+}
+
+/**
+ * Importiert globale Vorlagen aus v4/v5-JSON (Admin)
+ */
+export async function importGlobalTemplates(
+  templatesJson: unknown,
+  options: {
+    dryRun?: boolean
+    duplicateAction?: TemplateImportDuplicateAction
+    force?: boolean
+  } = {},
+): Promise<TemplateImportResponse> {
+  const response = await apiClient.post<TemplateImportResponse>('/api/templates/import', {
+    scope: 'global',
+    templates_json: templatesJson,
+    dry_run: options.dryRun ?? false,
+    duplicate_action: options.duplicateAction ?? 'skip',
+    force: options.force ?? false,
+  })
+  return response.data
+}
+
+/**
+ * Exportiert Vorlagen als v5-JSON (Department)
+ */
+export async function exportTemplates(
+  departmentId: string,
+  manufacturer?: string,
+): Promise<TemplateExportJson> {
+  const params = new URLSearchParams({ scope: 'department', department_id: departmentId })
+  if (manufacturer) params.append('manufacturer', manufacturer)
+  const response = await apiClient.get<TemplateExportJson>(`/api/templates/export?${params.toString()}`)
+  return response.data
+}
+
+/**
+ * Exportiert globale Vorlagen als v5-JSON (Admin)
+ */
+export async function exportGlobalTemplates(manufacturer?: string): Promise<TemplateExportJson> {
+  const params = new URLSearchParams({ scope: 'global' })
+  if (manufacturer) params.append('manufacturer', manufacturer)
+  const response = await apiClient.get<TemplateExportJson>(`/api/templates/export?${params.toString()}`)
   return response.data
 }
 
@@ -175,8 +433,6 @@ export interface CreateMaterialFromTemplateRequest {
   model?: string
   tent_type?: string
   tent_capacity?: number
-  /** Nur bei virtual_combo relevant */
-  reservation_mode?: string
   components?: CreateMaterialComponentInput[]
   /** Nur physical_combo: Lagerung des Kombi-Sets */
   initial_rack_id?: string
@@ -205,7 +461,6 @@ export interface CreateMaterialFromTemplateResponse {
     is_container: boolean
     tent_type: string | null
     tent_capacity: number | null
-    reservation_mode: string | null
     manufacturer: string | null
     serial_number: string | null
   }

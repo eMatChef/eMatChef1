@@ -78,13 +78,13 @@
                   v-if="row.material_type === 'physical_combo'"
                   class="activity-mat-combo-tag"
                   :title="t('activities.detail.comboPhysicalTitle')"
-                  >{{ t('activities.detail.comboPhysicalShort') }}</span
+                  ><span aria-hidden="true">{{ COMBO_BADGE.physical }}</span> {{ t('activities.detail.comboPhysicalShort') }}</span
                 >
                 <span
                   v-else-if="row.material_type === 'virtual_combo'"
                   class="activity-mat-combo-tag activity-mat-combo-tag--virtual"
                   :title="t('activities.detail.comboVirtualTitle')"
-                  >{{ t('activities.detail.comboVirtualShort') }}</span
+                  ><span aria-hidden="true">{{ COMBO_BADGE.virtual }}</span> {{ t('activities.detail.comboVirtualShort') }}</span
                 >
                 <span v-if="row.is_js_material" class="activity-mat-js-tag">J&amp;S</span>
                 <button
@@ -105,6 +105,26 @@
                 </span>
                 <div v-if="row.linked_container_label" class="activity-mat-combo-kiste text-muted">
                   {{ t('activities.materialLinesTable.crateLine', { label: row.linked_container_label }) }}
+                </div>
+                <!-- Set-Anzeige „wie Kiste": aufgelöste Teile der virtuellen Kombo -->
+                <div v-if="comboSetContent(row)" class="activity-mat-set-content">
+                  <span class="activity-mat-set-title text-muted">
+                    <span aria-hidden="true">{{ COMBO_BADGE.crate }}</span>
+                    {{ t('activities.detail.comboSetContentTitle') }}
+                  </span>
+                  <ul class="activity-mat-set-list">
+                    <li v-for="c in comboSetContent(row)!.resolved" :key="`r-${c.component_material_id}`">
+                      {{ c.total_qty }}× {{ c.name }}
+                    </li>
+                    <li
+                      v-for="c in comboSetContent(row)!.selfProvided"
+                      :key="`s-${c.component_material_id}`"
+                      class="activity-mat-set-self"
+                    >
+                      {{ c.total_qty }}× {{ c.name }}
+                      <span class="text-muted">· {{ t('activities.detail.comboSetSelfProvided') }}</span>
+                    </li>
+                  </ul>
                 </div>
               </div>
             </td>
@@ -342,6 +362,7 @@ import { fetchMaterialsAvailableForPeriodByIds } from '@/api/materialAvailabilit
 import type { ActivityMaterialLine } from '@/composables/useActivityCreateWizard'
 import { materialLookupContextForScopeTab, type MaterialScopeTab } from './activityMaterialAvailabilityScope'
 import type { MaterialLookupAvailabilityContext } from '@/composables/useMaterialLookup'
+import { COMBO_BADGE } from '@/utils/comboDisplay'
 
 const props = withDefaults(
   defineProps<{
@@ -455,6 +476,19 @@ function sortGlyph(col: SortCol): string {
 
 function rowKey(row: ActivityMaterialLine, originalIndex: number): string {
   return row.activity_item_id ? row.activity_item_id : `${row.material_item_id}-${originalIndex}`
+}
+
+/** Set-Inhalt „wie Kiste" einer gebuchten virtuellen Kombo (aus config_snapshot). */
+function comboSetContent(row: ActivityMaterialLine): {
+  resolved: NonNullable<NonNullable<ActivityMaterialLine['config_snapshot']>['resolved_components']>
+  selfProvided: NonNullable<NonNullable<ActivityMaterialLine['config_snapshot']>['self_provided']>
+} | null {
+  if (row.material_type !== 'virtual_combo') return null
+  const snap = row.config_snapshot
+  const resolved = snap?.resolved_components ?? []
+  const selfProvided = snap?.self_provided ?? []
+  if (resolved.length === 0 && selfProvided.length === 0) return null
+  return { resolved, selfProvided }
 }
 
 function removeBusyFor(row: ActivityMaterialLine): boolean {
@@ -925,6 +959,38 @@ function applyAllSuggestedQuantities() {
   flex-basis: 100%;
   font-size: 12px;
   margin: 0;
+}
+
+.activity-mat-set-content {
+  width: 100%;
+  flex-basis: 100%;
+  margin-top: 4px;
+  padding: 6px 10px;
+  border-left: 2px solid #d8b4fe;
+  background: #faf5ff;
+  border-radius: 0 6px 6px 0;
+}
+
+.activity-mat-set-title {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+
+.activity-mat-set-list {
+  margin: 0;
+  padding-left: 16px;
+  font-size: 12px;
+  color: #4b5563;
+}
+
+.activity-mat-set-list li {
+  line-height: 1.5;
+}
+
+.activity-mat-set-self {
+  font-style: italic;
 }
 
 .activity-mat-col-source {

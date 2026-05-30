@@ -1,0 +1,60 @@
+/* Shared wizard step indicator + choice cards (TemplateStartWizard, etc.) */
+
+.wizard-step-indicator {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  padding: 16px 24px 0;
+}
+
+.wizard-step-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #d1d5db;
+}
+
+.wizard-step-dot.active,
+.wizard-step-dot.done {
+  background: var(--color-primary);
+}
+
+.wizard-step-intro {
+  font-size: 14px;
+  color: #6b7280;
+  margin: 0 0 16px;
+}
+
+.choice-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.choice-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 14px 16px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: white;
+  cursor: pointer;
+  text-align: left;
+}
+
+.choice-card.selected {
+  border-color: var(--color-primary);
+  background: var(--color-primary-muted-bg);
+}
+
+.choice-card strong {
+  font-size: 14px;
+  color: #111827;
+}
+
+.choice-card span {
+  font-size: 13px;
+  color: #6b7280;
+}

@@ -1,4 +1,6 @@
 import apiClient from './apiClient'
+import type { MediaPhoto } from './media'
+import { uploadMediaFile } from './media'
 import type { RentalCalcParams } from '@/utils/rentalPriceAmortization'
 
 // ============== Types ==============
@@ -90,9 +92,81 @@ export interface ComboComponent {
   component_role: string | null
   assignment_mode: 'fixed' | 'assigned' | 'on_issue' | 'bulk'
   is_optional: boolean
+  /** Komponenten-Quelle (Weg B): aus Lager (reserviert) vs. vom Leiter selbst mitgebracht. */
+  component_source: ComponentSource
   sort_order: number
   is_assigned: boolean
   is_awaiting: boolean
+  created_at: string
+}
+
+/**
+ * Komponenten-Quelle einer Stücklisten-/Delta-Zeile (Weg B):
+ * - stock: aus dem Lager, wird reserviert und zählt im Flaschenhals.
+ * - self_provided: vom Leiter selbst zu organisieren (z. B. Mast) – nicht reserviert, nur Checkliste.
+ */
+export type ComponentSource = 'stock' | 'self_provided'
+
+/** Anzeige-Modus einer Option (entkoppelt von den Deltas). */
+export type OptionDisplayMode = 'toggle' | 'group'
+
+/** Auswahlregel einer Options-Gruppe. */
+export type OptionSelectionType = 'exclusive' | 'multi' | 'quantity'
+
+/** ±Stücklisten-Zeile einer Option (Weg B, README Abschnitt 6). */
+export interface ComboOptionDelta {
+  id: string
+  option_id: string
+  component_material: {
+    id: string
+    name: string
+    material_type: string
+    tracking_type: string | null
+    total_stock: number
+  }
+  /** ±Menge (signed), z. B. +1, −12 */
+  qty_delta: number
+  assignment_mode: 'on_issue' | 'bulk'
+  tracking: string | null
+  component_source: ComponentSource
+  sort_order: number
+}
+
+/** Eine wählbare Option einer virtuellen Kombo. */
+export interface ComboOption {
+  id: string
+  material_item_id: string
+  option_group_id: string | null
+  name: string
+  display_mode: OptionDisplayMode
+  default_selected: boolean
+  sort_order: number
+  deltas: ComboOptionDelta[]
+}
+
+/** Auswahl-Gruppe (Paket 6-UI; Schema bereits in Paket 5). */
+export interface ComboOptionGroup {
+  id: string
+  material_item_id: string
+  name: string
+  selection_type: OptionSelectionType
+  min_select: number
+  max_select: number | null
+  sort_order: number
+}
+
+/** Verwandtes Zubehör: Empfehlungs-Verknüpfung (kein Stücklisten-Teil) */
+export interface RelatedAccessory {
+  id: string
+  material_id: string
+  accessory_material: {
+    id: string
+    name: string
+    material_type: string
+    tracking_type: string | null
+    total_stock: number
+  }
+  sort_order: number
   created_at: string
 }
 
@@ -138,7 +212,8 @@ export interface Material {
   is_container: boolean
   tent_type: string | null
   tent_capacity: number | null
-  reservation_mode: string | null
+  /** Entwurfs-Status für Kombos: 'draft' (in Bearbeitung, nicht buchbar) | 'ready' */
+  combo_status: 'draft' | 'ready'
   is_consumable: boolean
   is_food: boolean
   is_js_material?: boolean
@@ -159,6 +234,8 @@ export interface Material {
   updated_at: string
   public_code?: string | null
   public_url?: string | null
+  image_url?: string | null
+  photos?: MediaPhoto[] | null
   
   // Details (nur bei get mit Details)
   color?: string | null
@@ -193,6 +270,13 @@ export interface Material {
   /** Nur Kombos (physical_combo / virtual_combo), Detail-GET */
   combo_components?: ComboComponent[]
   combo_component_count?: number
+
+  /** Optionen einer virtuellen Kombo (Weg B); Toggle in Paket 5, Gruppen in Paket 6. */
+  combo_options?: ComboOption[]
+  combo_option_groups?: ComboOptionGroup[]
+
+  /** Verwandtes Zubehör (Empfehlung, separate Position), Detail-GET */
+  related_accessories?: RelatedAccessory[]
 }
 
 // Seriennummer-Eintrag für serialisierte Materialien
@@ -217,7 +301,6 @@ export interface CreateMaterialRequest {
   // Material- und Tracking-Typ
   material_type?: 'physical' | 'physical_combo' | 'virtual_combo'
   tracking_type?: 'serialized' | 'bulk' | null
-  reservation_mode?: string | null
   
   // Initialer Batch (für Massenartikel)
   initial_qty?: number
@@ -287,7 +370,6 @@ export interface UpdateMaterialRequest {
   is_container?: boolean
   is_consumable?: boolean
   is_food?: boolean
-  reservation_mode?: string | null
   sale_price?: string | null
   reference_purchase_unit_chf?: string | null
   min_stock?: number | null
@@ -382,7 +464,6 @@ export interface CreateComboFromRackRequest {
   material_type?: 'physical_combo' | 'virtual_combo'
   category_id?: string | null
   storage_address_id?: string | null
-  reservation_mode?: string
   purchase_date?: string
 }
 
@@ -401,7 +482,6 @@ export interface CreateComboFromContainerBatchRequest {
   material_type?: 'physical_combo' | 'virtual_combo'
   category_id?: string | null
   storage_address_id?: string | null
-  reservation_mode?: string
   purchase_date?: string
   /** Physische Kombi: Lagerung des Sets – Gestell/Fach … */
   initial_rack_id?: string
@@ -442,6 +522,30 @@ export async function getLinkedPhysicalComboForContainerBatch(
     `/api/materials/container-batch/${encodeURIComponent(containerBatchId)}/linked-physical-combo`
   )
   return response.data.physical_combo ?? null
+}
+
+/** POST /api/materials/{materialId}/photos — Primary-Abbildung (ersetzt bestehendes Foto) */
+export async function uploadMaterialPhoto(
+  materialId: string,
+  file: File,
+): Promise<{ photos: MediaPhoto[]; image_url: string | null }> {
+  const { data } = await uploadMediaFile<{
+    photos: MediaPhoto[]
+    image_url: string | null
+  }>(`/api/materials/${materialId}/photos`, file)
+  return { photos: data.photos, image_url: data.image_url }
+}
+
+/** POST /api/materials/{materialId}/photos/from-url — Bild von URL importieren (lokal speichern) */
+export async function importMaterialPhotoFromUrl(
+  materialId: string,
+  url: string,
+): Promise<{ photos: MediaPhoto[]; image_url: string | null }> {
+  const { data } = await apiClient.post<{
+    photos: MediaPhoto[]
+    image_url: string | null
+  }>(`/api/materials/${materialId}/photos/from-url`, { url })
+  return { photos: data.photos, image_url: data.image_url }
 }
 
 /**
@@ -737,6 +841,7 @@ export interface AddComboComponentRequest {
   component_role?: string | null
   assignment_mode?: 'fixed' | 'assigned' | 'on_issue' | 'bulk'
   is_optional?: boolean
+  component_source?: ComponentSource
   sort_order?: number
   /** Phys. Kombi: Bestand in verknüpfte Kiste buchen (Standard: true) */
   allocate_to_linked_container?: boolean
@@ -748,6 +853,7 @@ export interface UpdateComboComponentRequest {
   assignment_mode?: string
   component_role?: string | null
   is_optional?: boolean
+  component_source?: ComponentSource
   sort_order?: number
   /** Phys. Kombi: Mehr-Menge in verknüpfte Kiste buchen (Standard: true) */
   allocate_to_linked_container?: boolean
@@ -801,4 +907,174 @@ export async function deleteComboComponent(
   data?: DeleteComboComponentRequest,
 ): Promise<void> {
   await apiClient.delete(`/api/materials/${materialId}/components/${componentId}`, { data })
+}
+
+/**
+ * Kombo fertigstellen: Status draft → ready (Mindest-Validierung ≥ 1 Pflichtteil im Backend).
+ */
+export async function finalizeCombo(materialId: string): Promise<Material> {
+  const response = await apiClient.post<Material>(`/api/materials/${materialId}/finalize-combo`)
+  return response.data
+}
+
+// ============== Related-Accessory API Functions ==============
+
+/**
+ * Lädt das verwandte Zubehör eines Materials (Empfehlung, kein Stücklisten-Teil).
+ */
+export async function getRelatedAccessories(materialId: string): Promise<RelatedAccessory[]> {
+  const response = await apiClient.get<RelatedAccessory[]>(`/api/materials/${materialId}/related-accessories`)
+  return response.data
+}
+
+/**
+ * Verknüpft ein verwandtes Zubehör mit einem Material.
+ */
+export async function addRelatedAccessory(
+  materialId: string,
+  data: { accessory_material_id: string; sort_order?: number },
+): Promise<RelatedAccessory> {
+  const response = await apiClient.post<RelatedAccessory>(`/api/materials/${materialId}/related-accessories`, data)
+  return response.data
+}
+
+/**
+ * Entfernt eine verwandtes-Zubehör-Verknüpfung.
+ */
+export async function deleteRelatedAccessory(materialId: string, accessoryId: string): Promise<void> {
+  await apiClient.delete(`/api/materials/${materialId}/related-accessories/${accessoryId}`)
+}
+
+// ============== Konfigurator: Options-Gruppen & Optionen (Weg B, Paket 6) ==============
+
+export interface UpsertOptionGroupRequest {
+  name?: string
+  selection_type?: OptionSelectionType
+  min_select?: number
+  max_select?: number | null
+  sort_order?: number
+}
+
+export interface UpsertOptionDeltaRequest {
+  component_material_id: string
+  qty_delta: number
+  assignment_mode?: 'on_issue' | 'bulk'
+  tracking?: string | null
+  component_source?: ComponentSource
+  sort_order?: number
+}
+
+export interface UpsertOptionRequest {
+  name?: string
+  display_mode?: OptionDisplayMode
+  default_selected?: boolean
+  option_group_id?: string | null
+  sort_order?: number
+  deltas?: UpsertOptionDeltaRequest[]
+}
+
+export async function addComboOptionGroup(materialId: string, data: UpsertOptionGroupRequest): Promise<ComboOptionGroup> {
+  const response = await apiClient.post<ComboOptionGroup>(`/api/materials/${materialId}/option-groups`, data)
+  return response.data
+}
+
+export async function updateComboOptionGroup(materialId: string, groupId: string, data: UpsertOptionGroupRequest): Promise<ComboOptionGroup> {
+  const response = await apiClient.patch<ComboOptionGroup>(`/api/materials/${materialId}/option-groups/${groupId}`, data)
+  return response.data
+}
+
+export async function deleteComboOptionGroup(materialId: string, groupId: string): Promise<void> {
+  await apiClient.delete(`/api/materials/${materialId}/option-groups/${groupId}`)
+}
+
+export async function addComboOption(materialId: string, data: UpsertOptionRequest): Promise<ComboOption> {
+  const response = await apiClient.post<ComboOption>(`/api/materials/${materialId}/options`, data)
+  return response.data
+}
+
+export async function updateComboOption(materialId: string, optionId: string, data: UpsertOptionRequest): Promise<ComboOption> {
+  const response = await apiClient.patch<ComboOption>(`/api/materials/${materialId}/options/${optionId}`, data)
+  return response.data
+}
+
+export async function deleteComboOption(materialId: string, optionId: string): Promise<void> {
+  await apiClient.delete(`/api/materials/${materialId}/options/${optionId}`)
+}
+
+/** 3-Zustands-Modell pro Option (README Abschnitt 6). */
+export type OptionAvailabilityState = 'available' | 'blocked' | 'missing'
+
+export interface ConfiguratorComponentAvailability {
+  materialItemId: string
+  name: string
+  qtyPerCombo?: number
+  qtyDelta?: number
+  availableForPeriod: number
+  inStock: boolean
+}
+
+export interface ConfiguratorOptionAvailability {
+  optionId: string
+  name: string
+  displayMode: OptionDisplayMode
+  optionGroupId: string | null
+  defaultSelected: boolean
+  state: OptionAvailabilityState
+  buildable: number | null
+  addedStockComponents: ConfiguratorComponentAvailability[]
+}
+
+export interface ConfiguratorAvailabilityGroup {
+  id: string
+  name: string
+  selectionType: OptionSelectionType
+  minSelect: number
+  maxSelect: number | null
+  sortOrder: number
+}
+
+export interface ConfiguratorAvailability {
+  comboId: string
+  quantity: number
+  groups: ConfiguratorAvailabilityGroup[]
+  base: {
+    components: ConfiguratorComponentAvailability[]
+    buildable: number | null
+    blocked: boolean
+  }
+  options: ConfiguratorOptionAvailability[]
+  selected: {
+    selectedOptionIds: string[]
+    components: ConfiguratorComponentAvailability[]
+    buildable: number | null
+    blocked: boolean
+    selfProvided: Array<{ materialItemId: string; name: string; qtyPerCombo: number }>
+  }
+}
+
+export interface ConfiguratorAvailabilityParams {
+  startDate?: string | null
+  endDate?: string | null
+  quantity?: number
+  excludeActivityId?: string | null
+  selectedOptionIds?: string[]
+}
+
+export async function getConfiguratorAvailability(
+  comboId: string,
+  params: ConfiguratorAvailabilityParams = {},
+): Promise<ConfiguratorAvailability> {
+  const query: Record<string, string> = {}
+  if (params.startDate) query.startDate = params.startDate
+  if (params.endDate) query.endDate = params.endDate
+  if (params.quantity != null) query.quantity = String(params.quantity)
+  if (params.excludeActivityId) query.excludeActivityId = params.excludeActivityId
+  if (params.selectedOptionIds && params.selectedOptionIds.length > 0) {
+    query.selectedOptionIds = params.selectedOptionIds.join(',')
+  }
+  const response = await apiClient.get<ConfiguratorAvailability>(
+    `/api/materials/${comboId}/configurator-availability`,
+    { params: query },
+  )
+  return response.data
 }

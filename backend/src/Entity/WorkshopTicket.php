@@ -138,6 +138,13 @@ class WorkshopTicket
     #[ORM\JoinColumn(name: 'assigned_to_user_id', referencedColumnName: 'id', nullable: true, onDelete: 'SET NULL')]
     private ?User $assignedToUser = null;
 
+    #[ORM\Column(name: 'assigned_to_supplier_company_id', type: 'string', length: 12, nullable: true, columnDefinition: 'CHARACTER(12) NULL')]
+    private ?string $assignedToSupplierCompanyId = null;
+
+    #[ORM\ManyToOne(targetEntity: SupplierCompany::class)]
+    #[ORM\JoinColumn(name: 'assigned_to_supplier_company_id', referencedColumnName: 'id', nullable: true, onDelete: 'SET NULL')]
+    private ?SupplierCompany $assignedToSupplierCompany = null;
+
     /** Geschätzte Kosten */
     #[ORM\Column(name: 'estimated_cost', type: 'decimal', precision: 10, scale: 2, nullable: true)]
     private ?string $estimatedCost = null;
@@ -262,6 +269,29 @@ class WorkshopTicket
     {
         $this->assignedToUser = $user;
         $this->assignedToUserId = $user?->getId();
+        return $this;
+    }
+
+    public function getAssignedToSupplierCompanyId(): ?string
+    {
+        return $this->assignedToSupplierCompanyId;
+    }
+
+    public function setAssignedToSupplierCompanyId(?string $assignedToSupplierCompanyId): self
+    {
+        $this->assignedToSupplierCompanyId = $assignedToSupplierCompanyId;
+        return $this;
+    }
+
+    public function getAssignedToSupplierCompany(): ?SupplierCompany
+    {
+        return $this->assignedToSupplierCompany;
+    }
+
+    public function setAssignedToSupplierCompany(?SupplierCompany $company): self
+    {
+        $this->assignedToSupplierCompany = $company;
+        $this->assignedToSupplierCompanyId = $company?->getId();
         return $this;
     }
 

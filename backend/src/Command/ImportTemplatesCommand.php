@@ -3,10 +3,7 @@
 namespace App\Command;
 
 use App\Entity\Department;
-use App\Entity\MaterialTemplate;
-use App\Entity\MaterialTemplateComponent;
-use App\Util\IdGenerator;
-use Doctrine\ORM\EntityManagerInterface;
+use App\Service\TemplateImportExportService;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputArgument;
@@ -17,12 +14,13 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 
 #[AsCommand(
     name: 'app:templates:import',
-    description: 'Importiert Zelt-Vorlagen aus JSON-Dateien (v4-Format)'
+    description: 'Importiert Zelt-Vorlagen aus JSON-Dateien (v4/v5-Format)'
 )]
 class ImportTemplatesCommand extends Command
 {
     public function __construct(
-        private EntityManagerInterface $entityManager
+        private TemplateImportExportService $importExportService,
+        private \Doctrine\ORM\EntityManagerInterface $entityManager,
     ) {
         parent::__construct();
     }
@@ -33,8 +31,9 @@ class ImportTemplatesCommand extends Command
             ->addArgument('department_id', InputArgument::OPTIONAL, 'Department-ID (leer = zentrale/globale Vorlagen)')
             ->addOption('file', 'f', InputOption::VALUE_OPTIONAL, 'Einzelne JSON-Datei importieren (z.B. data/templates/hajk.json)')
             ->addOption('all', 'a', InputOption::VALUE_NONE, 'Alle JSON-Dateien aus data/templates/ importieren')
-            ->addOption('force', null, InputOption::VALUE_NONE, 'Bestehende Vorlagen überschreiben')
-            ->addOption('global', 'g', InputOption::VALUE_NONE, 'Als zentrale Vorlagen importieren (department_id=NULL)');
+            ->addOption('force', null, InputOption::VALUE_NONE, 'Bestehende Vorlagen überschreiben (duplicate_action=update)')
+            ->addOption('global', 'g', InputOption::VALUE_NONE, 'Als zentrale Vorlagen importieren (department_id=NULL)')
+            ->addOption('dry-run', null, InputOption::VALUE_NONE, 'Nur Vorschau, keine DB-Änderungen');
     }
 
     protected function execute(InputInterface $input, OutputInterface $output): int
@@ -42,32 +41,31 @@ class ImportTemplatesCommand extends Command
         $io = new SymfonyStyle($input, $output);
         $departmentId = $input->getArgument('department_id');
         $isGlobal = $input->getOption('global') || !$departmentId;
-
-        $department = null;
-        $scope = 'global';
+        $scope = $isGlobal ? 'global' : 'department';
 
         if ($isGlobal) {
             $io->title('Zelt-Vorlagen Import (ZENTRAL)');
             $io->text('Scope: Globale Vorlagen (sichtbar für alle Departments)');
         } else {
-            // Department prüfen
             $department = $this->entityManager->getRepository(Department::class)->find($departmentId);
             if (!$department) {
                 $io->error('Department nicht gefunden: ' . $departmentId);
+
                 return Command::FAILURE;
             }
-            $scope = 'department';
             $io->title('Zelt-Vorlagen Import (Department)');
             $io->text('Department: ' . $department->getName() . ' (' . $department->getId() . ')');
         }
 
         $force = $input->getOption('force');
+        $dryRun = $input->getOption('dry-run');
         $files = [];
 
         if ($input->getOption('all')) {
             $dir = dirname(__DIR__, 2) . '/data/templates';
             if (!is_dir($dir)) {
                 $io->error('Template-Verzeichnis nicht gefunden: ' . $dir);
+
                 return Command::FAILURE;
             }
             foreach (glob($dir . '/*.json') as $file) {
@@ -75,23 +73,25 @@ class ImportTemplatesCommand extends Command
             }
         } elseif ($input->getOption('file')) {
             $file = $input->getOption('file');
-            // Relativer oder absoluter Pfad
             if (!file_exists($file)) {
                 $file = dirname(__DIR__, 2) . '/' . $file;
             }
             if (!file_exists($file)) {
                 $io->error('Datei nicht gefunden: ' . $input->getOption('file'));
+
                 return Command::FAILURE;
             }
             $files[] = $file;
         } else {
             $io->error('Bitte --file oder --all angeben.');
+
             return Command::FAILURE;
         }
 
         $totalCreated = 0;
-        $totalSkipped = 0;
         $totalUpdated = 0;
+        $totalSkipped = 0;
+        $totalErrors = 0;
 
         foreach ($files as $filePath) {
             $io->section('Datei: ' . basename($filePath));
@@ -104,105 +104,63 @@ class ImportTemplatesCommand extends Command
                 continue;
             }
 
-            $manufacturer = $json['manufacturer'];
-            $io->text('Hersteller: ' . $manufacturer);
+            $io->text('Hersteller: ' . $json['manufacturer']);
 
-            foreach ($json['templates'] as $tplData) {
-                $name = $tplData['name'] ?? $tplData['id'] ?? 'Unbenannt';
+            $result = $this->importExportService->importFromJson($json, [
+                'scope' => $scope,
+                'department_id' => $isGlobal ? null : $departmentId,
+                'duplicate_action' => $force ? 'update' : 'skip',
+                'dry_run' => $dryRun,
+            ]);
 
-                // Prüfe ob bereits vorhanden (nach Name + scope)
-                $findBy = ['name' => $name];
-                if ($isGlobal) {
-                    // Zentrale Vorlagen: departmentId IS NULL
-                    $findBy['departmentId'] = null;
-                } else {
-                    $findBy['departmentId'] = $department->getId();
-                }
+            if (!empty($result['error'])) {
+                $io->error($result['error']);
 
-                $existing = $this->entityManager->getRepository(MaterialTemplate::class)
-                    ->findOneBy($findBy);
-
-                if ($existing && !$force) {
-                    $io->text("  ⏭  $name (existiert bereits)");
-                    $totalSkipped++;
-                    continue;
-                }
-
-                if ($existing && $force) {
-                    // Bestehende Komponenten entfernen
-                    foreach ($existing->getComponents()->toArray() as $comp) {
-                        $this->entityManager->remove($comp);
-                    }
-                    $template = $existing;
-                    $totalUpdated++;
-                    $action = '🔄';
-                } else {
-                    $template = new MaterialTemplate();
-                    $template->setId(IdGenerator::generate());
-                    $template->setDepartment($department); // NULL für global
-                    $template->setScope($scope);
-                    $totalCreated++;
-                    $action = '✅';
-                }
-
-                $template->setName($name);
-                $template->setDescription($tplData['description'] ?? null);
-                $template->setManufacturer($manufacturer);
-                $template->setModel($tplData['model'] ?? null);
-                $template->setMaterialType('physical_combo');
-                $template->setTentType($tplData['tentType'] ?? null);
-                $template->setCapacity(isset($tplData['capacity']) ? (int) $tplData['capacity'] : null);
-                $template->setReservationMode($tplData['reservationMode'] ?? null);
-                $template->setIsActive($tplData['isActive'] ?? true);
-                $template->setSource($manufacturer);
-                $template->updateTimestamps();
-
-                // Komponenten
-                $compCount = 0;
-                if (isset($tplData['components']) && is_array($tplData['components'])) {
-                    foreach ($tplData['components'] as $index => $compData) {
-                        $comp = new MaterialTemplateComponent();
-                        $comp->setId(IdGenerator::generate());
-                        $comp->setComponentType($compData['type'] ?? 'unknown');
-                        $comp->setName($compData['name'] ?? $compData['type'] ?? 'Unbenannt');
-                        $comp->setRequiredQty(isset($compData['required']) ? (int) $compData['required'] : 1);
-                        $comp->setIsOptional($compData['optional'] ?? false);
-                        $comp->setSortOrder($index);
-
-                        // Tracking: aus JSON oder Standard bulk (keine Heuristik „1× = serialisiert“)
-                        if (isset($compData['tracking'])) {
-                            $comp->setTracking($compData['tracking']);
-                        } else {
-                            $comp->setTracking('bulk');
-                        }
-
-                        // Repair Types
-                        if (isset($compData['repair_types']) && is_array($compData['repair_types'])) {
-                            $comp->setRepairTypes($compData['repair_types']);
-                        }
-
-                        $template->addComponent($comp);
-                        $compCount++;
-                    }
-                }
-
-                $this->entityManager->persist($template);
-
-                $capacity = $template->getCapacity() ? $template->getCapacity() . ' Pers.' : '-';
-                $io->text("  $action  $name ($capacity, $compCount Komp.)");
+                return Command::FAILURE;
             }
+
+            foreach ($result['rows'] ?? [] as $row) {
+                $name = $row['name'] ?? '?';
+                $action = $row['action'] ?? '';
+                $icon = match ($action) {
+                    'create' => '✅',
+                    'update' => '🔄',
+                    'skip' => '⏭',
+                    default => '❌',
+                };
+                if (($row['status'] ?? '') === 'error') {
+                    $io->text("  ❌  $name: " . implode(', ', $row['errors'] ?? []));
+                } else {
+                    $io->text("  $icon  $name ($action)");
+                }
+            }
+
+            $stats = $result['stats'] ?? [];
+            $totalCreated += (int) ($stats['created'] ?? 0);
+            $totalUpdated += (int) ($stats['updated'] ?? 0);
+            $totalSkipped += (int) ($stats['skipped'] ?? 0);
+            $totalErrors += (int) ($stats['errors'] ?? 0);
         }
 
-        $this->entityManager->flush();
-
         $io->newLine();
-        $io->success(sprintf(
-            'Import abgeschlossen: %d erstellt, %d aktualisiert, %d übersprungen',
-            $totalCreated,
-            $totalUpdated,
-            $totalSkipped
-        ));
+        if ($dryRun) {
+            $io->success(sprintf(
+                'Dry-run abgeschlossen: %d würden erstellt, %d aktualisiert, %d übersprungen, %d Fehler',
+                $totalCreated,
+                $totalUpdated,
+                $totalSkipped,
+                $totalErrors,
+            ));
+        } else {
+            $io->success(sprintf(
+                'Import abgeschlossen: %d erstellt, %d aktualisiert, %d übersprungen, %d Fehler',
+                $totalCreated,
+                $totalUpdated,
+                $totalSkipped,
+                $totalErrors,
+            ));
+        }
 
-        return Command::SUCCESS;
+        return $totalErrors > 0 ? Command::FAILURE : Command::SUCCESS;
     }
 }

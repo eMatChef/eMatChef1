@@ -5,10 +5,12 @@ import { listAcquisitionFollowups, type AccountingAcquisitionFollowUp } from '@/
 import { departmentHasAccountingRole } from '@/composables/useCostBookingFollowUp'
 
 export type DepartmentTaskKind = 'qr_found' | 'department_invite' | 'activity_invite' | 'accounting_followup'
+export type DepartmentTaskStatus = 'open' | 'in_progress' | 'done'
 
 export interface DepartmentTaskItem {
   id: string
   kind: DepartmentTaskKind
+  status: DepartmentTaskStatus
   createdAt: string
   title: string
   preview: string
@@ -55,7 +57,7 @@ export async function loadDepartmentTasks(
       }))
 
   const qrPromise = options.canManageQrContact
-    ? getPublicFoundMessages(departmentId, { bucket: 'active', limit: 200 }).catch(() => ({
+    ? getPublicFoundMessages(departmentId, { bucket: 'all', limit: 200 }).catch(() => ({
         items: [] as PublicFoundItemMessage[],
       }))
     : Promise.resolve({ items: [] as PublicFoundItemMessage[] })
@@ -73,10 +75,10 @@ export async function loadDepartmentTasks(
   ])
 
   for (const msg of qr.items || []) {
-    if (msg.status === 'done') continue
     items.push({
       id: `qr-${msg.id}`,
       kind: 'qr_found',
+      status: msg.status,
       createdAt: msg.created_at,
       title: msg.material_name,
       preview: msg.message,
@@ -88,6 +90,7 @@ export async function loadDepartmentTasks(
     items.push({
       id: `dept-${inv.id}`,
       kind: 'department_invite',
+      status: 'open',
       createdAt: inv.created_at,
       title: inv.department_name,
       preview: inv.role,
@@ -99,6 +102,7 @@ export async function loadDepartmentTasks(
     items.push({
       id: `camp-${inv.activity_id}-${inv.source_department_id}`,
       kind: 'activity_invite',
+      status: 'open',
       createdAt: inv.invited_at || '',
       title: inv.activity_name,
       preview: inv.source_department_name,
@@ -110,6 +114,7 @@ export async function loadDepartmentTasks(
     items.push({
       id: `acc-${row.id}`,
       kind: 'accounting_followup',
+      status: 'open',
       createdAt: row.created_at,
       title: row.material_name || row.receipt_label || row.id,
       preview: row.amount,

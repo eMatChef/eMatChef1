@@ -240,6 +240,7 @@
                 :planning-end-iso="activity.planning_end"
                 :quantity-by-material-item-id="quantityByMaterialItemId"
                 :saved-quantity-by-material-item-id="savedQuantityByMaterialItemId"
+                :standalone-quantity-by-material-item-id="standaloneQuantityByMaterialItemId"
                 :invited-departments="activity.invited_departments ?? []"
                 :disabled="addingDraftMaterial"
                 hint-variant="draft"
@@ -280,6 +281,7 @@
                   :planning-end-iso="activity.planning_end"
                   :quantity-by-material-item-id="quantityByMaterialItemId"
                   :saved-quantity-by-material-item-id="savedQuantityByMaterialItemId"
+                  :standalone-quantity-by-material-item-id="standaloneQuantityByMaterialItemId"
                   :invited-departments="activity.invited_departments ?? []"
                   :disabled="addingDraftMaterial"
                   hint-variant="draft"
@@ -302,6 +304,7 @@
                 :planning-end-iso="activity.planning_end"
                 :quantity-by-material-item-id="quantityByMaterialItemId"
                 :saved-quantity-by-material-item-id="savedQuantityByMaterialItemId"
+                :standalone-quantity-by-material-item-id="standaloneQuantityByMaterialItemId"
                 :invited-departments="activity.invited_departments ?? []"
                 :disabled="addingDraftMaterial"
                 hint-variant="draft"
@@ -377,7 +380,7 @@
                     </tr>
                   </thead>
                   <tbody>
-                    <tr v-for="row in activityItems" :key="row.id">
+                    <tr v-for="row in topLevelActivityItems" :key="row.id">
                       <td>
                         <div class="activity-item-name-block">
                           <span class="activity-item-name">{{ row.material_name }}</span>
@@ -385,13 +388,13 @@
                             v-if="row.material_type === 'physical_combo'"
                             class="activity-combo-badge"
                             :title="t('activities.detail.comboPhysicalTitle')"
-                            >{{ t('activities.detail.comboPhysicalShort') }}</span
+                            ><span aria-hidden="true">{{ COMBO_BADGE.physical }}</span> {{ t('activities.detail.comboPhysicalShort') }}</span
                           >
                           <span
                             v-else-if="row.material_type === 'virtual_combo'"
                             class="activity-combo-badge activity-combo-badge--virtual"
                             :title="t('activities.detail.comboVirtualTitle')"
-                            >{{ t('activities.detail.comboVirtualShort') }}</span
+                            ><span aria-hidden="true">{{ COMBO_BADGE.virtual }}</span> {{ t('activities.detail.comboVirtualShort') }}</span
                           >
                           <span v-if="row.is_js_material" class="activity-js-tag">J&amp;S</span>
                           <span
@@ -401,6 +404,32 @@
                           >{{ t('activities.detail.replenishmentBadge') }}</span>
                           <div v-if="row.linked_container_label" class="activity-combo-kiste text-muted">
                             {{ t('activities.detail.crateLine', { label: row.linked_container_label }) }}
+                          </div>
+                          <!-- Set-Anzeige „wie Kiste": Hülle + aufgelöste Teile als Inhalt -->
+                          <div
+                            v-if="comboSetContent(row)"
+                            class="activity-combo-set-content"
+                          >
+                            <span class="activity-combo-set-title text-muted">
+                              <span aria-hidden="true">{{ COMBO_BADGE.crate }}</span>
+                              {{ t('activities.detail.comboSetContentTitle') }}
+                            </span>
+                            <ul class="activity-combo-set-list">
+                              <li
+                                v-for="c in comboSetContent(row)!.resolved"
+                                :key="`r-${c.component_material_id}`"
+                              >
+                                {{ c.total_qty }}× {{ c.name }}
+                              </li>
+                              <li
+                                v-for="c in comboSetContent(row)!.selfProvided"
+                                :key="`s-${c.component_material_id}`"
+                                class="activity-combo-set-self"
+                              >
+                                {{ c.total_qty }}× {{ c.name }}
+                                <span class="text-muted">· {{ t('activities.detail.comboSetSelfProvided') }}</span>
+                              </li>
+                            </ul>
                           </div>
                         </div>
                       </td>
@@ -590,6 +619,7 @@ import { printHtmlDocument } from '@/utils/printHtml'
 import { useAuthStore } from '@/stores/auth'
 import type { ConsumptionModalPreset } from '@/components/activities/ActivityConsumptionModal.vue'
 import type { ActivityMaterialLine } from '@/composables/useActivityCreateWizard'
+import { COMBO_BADGE } from '@/utils/comboDisplay'
 import type { MaterialScopeTab } from '@/components/activities/shared/activityMaterialAvailabilityScope'
 import { useActivityGroupMemberScope } from '@/composables/useActivityGroupMemberScope'
 import {
@@ -976,6 +1006,17 @@ const savedQuantityByMaterialItemId = computed(() => {
   return m
 })
 
+/** Nur eigenständige Einzelpositionen (kein Kombo-Kind, keine Kombo-Hülle) — für „Kombinieren?". */
+const standaloneQuantityByMaterialItemId = computed(() => {
+  const m: Record<string, number> = {}
+  for (const r of activityItems.value) {
+    if (r.parent_activity_item_id) continue
+    if (r.material_type === 'physical_combo' || r.material_type === 'virtual_combo') continue
+    m[r.material_item_id] = (m[r.material_item_id] ?? 0) + r.quantity
+  }
+  return m
+})
+
 function parsePlanningDate(iso: string | undefined | null): Date | null {
   if (!iso) return null
   const d = new Date(iso)
@@ -1052,24 +1093,50 @@ const showMaterialAddOnMaterialTab = computed(
 
 const materialLinesForEditableTable = computed((): ActivityMaterialLine[] => {
   if (!showMaterialLookup.value) return []
-  return activityItems.value.map((r) => ({
-    material_item_id: r.material_item_id,
-    material_name: r.material_name,
-    material_type: r.material_type ?? null,
-    linked_container_label: r.linked_container_label ?? null,
-    quantity: draftQty(r),
-    saved_quantity: r.quantity,
-    period_availability_cap: undefined,
-    pack_size: r.pack_size,
-    pack_unit: r.pack_unit,
-    activity_item_id: r.id,
-    source_department_name: r.source_department_name ?? null,
-    line_total: r.line_total,
-    is_js_material: r.is_js_material,
-    tracking_type: r.tracking_type ?? null,
-    is_container: !!r.is_container,
-  }))
+  // Zeilenmodell B / Set-Anzeige: Kind-Zeilen (aufgelöste stock-Teile) erscheinen nicht
+  // als eigene editierbare Zeile, sondern als Inhalt der Kombo-Eltern-Zeile („wie Kiste").
+  return activityItems.value
+    .filter((r) => !r.parent_activity_item_id)
+    .map((r) => ({
+      material_item_id: r.material_item_id,
+      material_name: r.material_name,
+      material_type: r.material_type ?? null,
+      linked_container_label: r.linked_container_label ?? null,
+      quantity: draftQty(r),
+      saved_quantity: r.quantity,
+      period_availability_cap: undefined,
+      pack_size: r.pack_size,
+      pack_unit: r.pack_unit,
+      activity_item_id: r.id,
+      source_department_name: r.source_department_name ?? null,
+      line_total: r.line_total,
+      is_js_material: r.is_js_material,
+      tracking_type: r.tracking_type ?? null,
+      is_container: !!r.is_container,
+      config_snapshot: r.config_snapshot ?? null,
+    }))
 })
+
+/** Read-only-Tabelle: nur Eltern-/Normalzeilen (Kombo-Inhalt wird verschachtelt gezeigt). */
+const topLevelActivityItems = computed((): ActivityItemRow[] =>
+  activityItems.value.filter((r) => !r.parent_activity_item_id),
+)
+
+/**
+ * Set-Inhalt einer gebuchten virtuellen Kombo „wie Kiste" (aus dem config_snapshot).
+ * Gibt `null` zurück, wenn keine aufgelösten Teile vorliegen.
+ */
+function comboSetContent(row: ActivityItemRow): {
+  resolved: NonNullable<ActivityItemRow['config_snapshot']>['resolved_components']
+  selfProvided: NonNullable<ActivityItemRow['config_snapshot']>['self_provided']
+} | null {
+  if (row.material_type !== 'virtual_combo') return null
+  const snap = row.config_snapshot
+  const resolved = snap?.resolved_components ?? []
+  const selfProvided = snap?.self_provided ?? []
+  if (resolved.length === 0 && selfProvided.length === 0) return null
+  return { resolved, selfProvided }
+}
 
 const cancelTransition = computed(() => {
   const tr = transitions.value.find((t) => t.status === 'cancelled' && t.allowed)
@@ -1381,11 +1448,17 @@ async function saveDraftQuantities() {
   syncingQuantities.value = true
   try {
     await syncActivityItems(props.activityId, {
-      items: activityItems.value.map((r) => ({
-        material_item_id: r.material_item_id,
-        quantity: draftQty(r),
-        priority: r.priority ?? undefined,
-      })),
+      // Zeilenmodell B: Kind-Zeilen sind abgeleitet -> nur Eltern-/Normalzeilen senden, Backend expandiert neu.
+      items: activityItems.value
+        .filter((r) => !r.parent_activity_item_id)
+        .map((r) => ({
+          material_item_id: r.material_item_id,
+          quantity: draftQty(r),
+          priority: r.priority ?? undefined,
+          ...(r.material_type === 'virtual_combo' && r.config_snapshot?.selected_option_ids
+            ? { selected_option_ids: r.config_snapshot.selected_option_ids }
+            : {}),
+        })),
     })
     toast.success(t('activities.detail.toastQtySaved'))
     await loadItems()
@@ -1708,7 +1781,12 @@ async function refreshActivityDetailSilent(): Promise<void> {
   }
 }
 
-async function onDraftAddQuantity(payload: { material: { materialItemId: string }; quantity: number }) {
+async function onDraftAddQuantity(payload: {
+  material: { materialItemId: string }
+  quantity: number
+  selectedOptionIds?: string[]
+  combineParts?: Array<{ materialItemId: string; reduceBy: number }>
+}) {
   const mid = payload.material?.materialItemId
   const a = activity.value
   if (!mid || !a) return
@@ -1722,9 +1800,14 @@ async function onDraftAddQuantity(payload: { material: { materialItemId: string 
     await addActivityItem(props.activityId, {
       material_item_id: mid,
       quantity: payload.quantity,
+      ...(payload.selectedOptionIds ? { selected_option_ids: payload.selectedOptionIds } : {}),
     })
-    toast.success(t('activities.detail.toastMaterialAdded'))
     await loadItems()
+    // „Kombinieren?": vorhandene Einzelpositionen um den genutzten Kombo-Bedarf reduzieren.
+    if (payload.combineParts && payload.combineParts.length > 0) {
+      await applyCombineReductions(payload.combineParts)
+    }
+    toast.success(t('activities.detail.toastMaterialAdded'))
     await refreshActivityTotalsFromApi()
     if (a.status === 'packing' || a.status === 'packed') {
       packListReloadToken.value += 1
@@ -1735,6 +1818,46 @@ async function onDraftAddQuantity(payload: { material: { materialItemId: string 
   } finally {
     addingDraftMaterial.value = false
   }
+}
+
+/**
+ * „Kombinieren?": reduziert vorhandene eigenständige Einzelpositionen um den vom
+ * Nutzer für die Kombo „freigegebenen" Bedarf (Zeilenmodell B re-expandiert die Kombo neu).
+ */
+async function applyCombineReductions(
+  parts: Array<{ materialItemId: string; reduceBy: number }>,
+): Promise<void> {
+  const reduceMap = new Map<string, number>()
+  for (const p of parts) {
+    if (p.reduceBy > 0) reduceMap.set(p.materialItemId, (reduceMap.get(p.materialItemId) ?? 0) + p.reduceBy)
+  }
+  if (reduceMap.size === 0) return
+
+  const items: { material_item_id: string; quantity: number; priority?: string; selected_option_ids?: string[] }[] = []
+  let changed = false
+  for (const r of activityItems.value) {
+    if (r.parent_activity_item_id) continue
+    let qty = draftQty(r)
+    const isComboRow = r.material_type === 'physical_combo' || r.material_type === 'virtual_combo'
+    const reduce = !isComboRow ? reduceMap.get(r.material_item_id) : undefined
+    if (reduce) {
+      const next = Math.max(0, qty - reduce)
+      if (next !== qty) changed = true
+      qty = next
+    }
+    if (qty <= 0) continue
+    items.push({
+      material_item_id: r.material_item_id,
+      quantity: qty,
+      priority: r.priority ?? undefined,
+      ...(r.material_type === 'virtual_combo' && r.config_snapshot?.selected_option_ids
+        ? { selected_option_ids: r.config_snapshot.selected_option_ids }
+        : {}),
+    })
+  }
+  if (!changed) return
+  await syncActivityItems(props.activityId, { items })
+  await loadItems()
 }
 
 const PACK_PIPELINE_ITEM_STATUSES = ['packed', 'at_event', 'returned'] as const

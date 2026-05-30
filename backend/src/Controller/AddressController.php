@@ -6,6 +6,7 @@ use App\Entity\Address;
 use App\Entity\Department;
 use App\Entity\Membership;
 use App\Entity\User;
+use App\Service\MaterialWizardSupplierService;
 use App\Util\IdGenerator;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -25,7 +26,8 @@ class AddressController extends AbstractController
     private const USER_CONTACT_CREATE_TYPES = ['meeting', 'event'];
 
     public function __construct(
-        private EntityManagerInterface $entityManager
+        private EntityManagerInterface $entityManager,
+        private MaterialWizardSupplierService $materialWizardSupplierService,
     ) {}
 
     /**
@@ -51,7 +53,9 @@ class AddressController extends AbstractController
         $qb = $this->entityManager->createQueryBuilder()
             ->select('a')
             ->from(Address::class, 'a')
-            ->where('a.departmentId = :departmentId')
+            ->where('a.scope = :scope')
+            ->andWhere('a.departmentId = :departmentId')
+            ->setParameter('scope', Address::SCOPE_DEPARTMENT)
             ->setParameter('departmentId', $departmentId)
             ->orderBy('a.type', 'ASC')
             ->addOrderBy('a.name', 'ASC');
@@ -153,6 +157,7 @@ class AddressController extends AbstractController
         try {
             $address = new Address();
             $address->setId(IdGenerator::generateUnique($this->entityManager, Address::class));
+            $address->setScope(Address::SCOPE_DEPARTMENT);
             $address->setDepartmentId($data['department_id']);
             
             $this->updateAddressFromData($address, $data);
@@ -333,6 +338,35 @@ class AddressController extends AbstractController
     }
 
     /**
+     * Lieferanten für MW-Wizard / Import: aktive Firmen + Legacy-global + department-lokal.
+     */
+    #[Route('/material-wizard-suppliers', name: 'material_wizard_suppliers', methods: ['GET'], priority: 10)]
+    #[IsGranted('ROLE_USER')]
+    public function materialWizardSuppliers(Request $request): JsonResponse
+    {
+        $departmentId = trim((string) $request->query->get('department_id', ''));
+        if ($departmentId === '') {
+            return new JsonResponse(['error' => 'department_id ist erforderlich'], 400);
+        }
+
+        $department = $this->entityManager->getRepository(Department::class)->find($departmentId);
+        if (!$department) {
+            return new JsonResponse(['error' => 'Department nicht gefunden'], 404);
+        }
+
+        $role = $this->resolveDepartmentRole($departmentId);
+        if ($role === null) {
+            return new JsonResponse(['error' => 'Keine Berechtigung für dieses Department'], 403);
+        }
+
+        $addresses = $this->materialWizardSupplierService->listForDepartment($departmentId);
+
+        return new JsonResponse([
+            'addresses' => array_map(fn (Address $address) => $address->toArray(), $addresses),
+        ]);
+    }
+
+    /**
      * Verfügbare Typen und Kantone abrufen
      */
     #[Route('/meta/options', name: 'options', methods: ['GET'], priority: 10)]
@@ -428,6 +462,9 @@ class AddressController extends AbstractController
 
     private function assertCanModifyContact(Address $address): void
     {
+        if ($address->getScope() !== Address::SCOPE_DEPARTMENT || $address->getDepartmentId() === null) {
+            throw new AccessDeniedHttpException('Adresse nicht gefunden');
+        }
         $role = $this->resolveDepartmentRole($address->getDepartmentId());
         if ($this->isUserContactReader($role) && !in_array($address->getType(), self::USER_CONTACT_CREATE_TYPES, true)) {
             throw new AccessDeniedHttpException('Keine Berechtigung zum Bearbeiten dieses Kontakts');
@@ -436,6 +473,9 @@ class AddressController extends AbstractController
 
     private function assertCanViewContact(Address $address): void
     {
+        if ($address->getScope() !== Address::SCOPE_DEPARTMENT || $address->getDepartmentId() === null) {
+            throw new AccessDeniedHttpException('Adresse nicht gefunden');
+        }
         $role = $this->resolveDepartmentRole($address->getDepartmentId());
         if ($this->isUserContactReader($role) && !in_array($address->getType(), self::USER_CONTACT_VIEW_TYPES, true)) {
             throw new AccessDeniedHttpException('Keine Berechtigung für diesen Kontakt');

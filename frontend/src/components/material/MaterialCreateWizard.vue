@@ -71,14 +71,18 @@
               <div class="step-content">
                 <div class="creation-mode-cards">
                   <div class="creation-mode-card" @click="selectCreationMode('individual')">
-                    <div class="mode-card-icon">
+                    <div class="mode-card-icon individual">
                       <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
                       </svg>
                     </div>
                     <div class="mode-card-content">
-                      <span class="mode-card-title">{{ t('components.materialCreateWizard.modeIndividualTitle') }}</span>
+                      <div class="mode-card-head">
+                        <span class="mode-card-title">{{ t('components.materialCreateWizard.modeIndividualTitle') }}</span>
+                        <span class="mode-card-badge mode-card-badge--individual">{{ t('components.materialCreateWizard.badgeIndividual') }}</span>
+                      </div>
                       <span class="mode-card-desc">{{ t('components.materialCreateWizard.modeIndividualDesc') }}</span>
+                      <span class="mode-card-when">{{ t('components.materialCreateWizard.modeIndividualWhen') }}</span>
                     </div>
                   </div>
                   <div class="creation-mode-card" @click="selectCreationMode('physical_combo')">
@@ -89,8 +93,12 @@
                       </svg>
                     </div>
                     <div class="mode-card-content">
-                      <span class="mode-card-title">{{ t('components.materialCreateWizard.modePhysicalComboTitle') }}</span>
+                      <div class="mode-card-head">
+                        <span class="mode-card-title">{{ t('components.materialCreateWizard.modePhysicalComboTitle') }}</span>
+                        <span class="mode-card-badge mode-card-badge--physical">{{ t('components.materialCreateWizard.badgePhysicalCombo') }}</span>
+                      </div>
                       <span class="mode-card-desc">{{ t('components.materialCreateWizard.modePhysicalComboDesc') }}</span>
+                      <span class="mode-card-when">{{ t('components.materialCreateWizard.modePhysicalComboWhen') }}</span>
                     </div>
                   </div>
                   <div class="creation-mode-card" @click="selectCreationMode('virtual_combo')">
@@ -101,8 +109,12 @@
                       </svg>
                     </div>
                     <div class="mode-card-content">
-                      <span class="mode-card-title">{{ t('components.materialCreateWizard.modeVirtualComboTitle') }}</span>
+                      <div class="mode-card-head">
+                        <span class="mode-card-title">{{ t('components.materialCreateWizard.modeVirtualComboTitle') }}</span>
+                        <span class="mode-card-badge mode-card-badge--virtual">{{ t('components.materialCreateWizard.badgeVirtualCombo') }}</span>
+                      </div>
                       <span class="mode-card-desc">{{ t('components.materialCreateWizard.modeVirtualComboDesc') }}</span>
+                      <span class="mode-card-when">{{ t('components.materialCreateWizard.modeVirtualComboWhen') }}</span>
                     </div>
                   </div>
                 </div>
@@ -131,6 +143,22 @@
                   @reset="resetWizardForModeChange"
                 />
 
+                <!-- Hülle-Hinweis: Kombo wird als Entwurf angelegt, Stückliste/Optionen im Detail-Tab -->
+                <div
+                  v-if="creationMode === 'physical_combo' || creationMode === 'virtual_combo'"
+                  class="combo-shell-hint"
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"/>
+                    <line x1="12" y1="16" x2="12" y2="12"/>
+                    <line x1="12" y1="8" x2="12.01" y2="8"/>
+                  </svg>
+                  <p>
+                    {{ t('components.materialCreateWizard.comboShellHintDraft') }}
+                    <strong>{{ t('components.materialCreateWizard.comboShellHintDetailTab') }}</strong>
+                  </p>
+                </div>
+
                 <!-- Template-Auswahl (bei allen Modi möglich, wenn noch kein Template gewählt) -->
                 <TemplatePickerSection
                   v-if="!isAddBatchMode && creationMode && !isFromTemplate && !isFromContainerBatchContents"
@@ -150,8 +178,20 @@
                   @load-container-contents="loadContainerBatchContents"
                 />
 
-                <!-- Virtuelle Kombo: Name + Reservation -->
+                <!-- Virtuelle Kombo: Name -->
                 <div v-if="creationMode === 'virtual_combo'" class="virtual-combo-fields">
+                  <div
+                    v-if="isFromTemplate && selectedTemplate?.missing_required_components?.length && hasTemplateConfigurator"
+                    class="configurator-missing-hint"
+                  >
+                    <p>{{ t('components.materialCreateWizard.configuratorMissingComponents') }}</p>
+                    <ul>
+                      <li v-for="mc in selectedTemplate!.missing_required_components!" :key="mc.component_type">
+                        {{ mc.expected_name }}
+                        <span class="configurator-missing-type">({{ mc.name }})</span>
+                      </li>
+                    </ul>
+                  </div>
                   <MaterialNameInput
                     ref="articleNameInputRef"
                     :model-value="formData.name"
@@ -166,26 +206,6 @@
                     @focus="handleNameInputFocus"
                     @blur="handleNameInputBlur"
                   />
-                  <div class="form-group">
-                    <label>{{ t('components.materialCreateWizard.labelReservationModeStar') }}</label>
-                    <div class="reservation-radio-options">
-                      <label class="radio-option" :class="{ active: tentForm.reservation_mode === 'complete_only' }">
-                        <input type="radio" v-model="tentForm.reservation_mode" value="complete_only" />
-                        <span class="radio-label">{{ t('components.materialCreateWizard.resOnlyComplete') }}</span>
-                        <span class="radio-desc">{{ t('components.materialCreateWizard.resOnlyCompleteDesc') }}</span>
-                      </label>
-                      <label class="radio-option" :class="{ active: tentForm.reservation_mode === 'individual' }">
-                        <input type="radio" v-model="tentForm.reservation_mode" value="individual" />
-                        <span class="radio-label">{{ t('components.materialCreateWizard.resParts') }}</span>
-                        <span class="radio-desc">{{ t('components.materialCreateWizard.resPartsDesc') }}</span>
-                      </label>
-                      <label class="radio-option" :class="{ active: tentForm.reservation_mode === 'flexible' }">
-                        <input type="radio" v-model="tentForm.reservation_mode" value="flexible" />
-                        <span class="radio-label">{{ t('components.materialCreateWizard.resFlexible') }}</span>
-                        <span class="radio-desc">{{ t('components.materialCreateWizard.resFlexibleDesc') }}</span>
-                      </label>
-                    </div>
-                  </div>
                 </div>
 
                 <!-- Einzelartikel-Modus mit Vorlage: Info statt Name-Eingabe -->
@@ -406,6 +426,29 @@
                       </div>
                     </div>
 
+                    <div v-if="ci._match_state && creationMode !== 'virtual_combo'" class="comp-resolve-status">
+                      <p v-if="ci._match_state === 'found' && ci._selectedMaterial" class="comp-resolve comp-resolve--found">
+                        {{ t('components.materialCreateWizard.compResolveFound', { name: ci._selectedMaterial.name }) }}
+                      </p>
+                      <p v-else-if="ci._match_state === 'missing'" class="comp-resolve comp-resolve--missing">
+                        {{ t('components.materialCreateWizard.compResolveMissing', { name: ci._expected_name || ci.name }) }}
+                      </p>
+                      <div v-else-if="ci._match_state === 'ambiguous'" class="comp-resolve comp-resolve--ambiguous">
+                        <p>{{ t('components.materialCreateWizard.compResolveAmbiguous') }}</p>
+                        <div v-if="ci._candidates?.length" class="comp-candidate-list">
+                          <button
+                            v-for="candidate in ci._candidates"
+                            :key="candidate.id"
+                            type="button"
+                            class="btn-secondary comp-candidate-btn"
+                            @click="pickComponentCandidate(ci, candidate)"
+                          >
+                            {{ candidate.name }}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
                     <div class="comp-card-body">
 
                       <!-- Virtual Combo: Nur Info, keine Eingabe -->
@@ -458,7 +501,7 @@
                                 v-model="ci._materialSearch"
                                 type="text"
                                 class="form-input"
-                                :placeholder="t('components.materialCreateWizard.phSearchNamedArticle', { name: ci.name })"
+                                :placeholder="t('components.materialCreateWizard.phSearchNamedArticle', { name: ci._expected_name || ci.name })"
                                 @input="searchExistingMaterial(ci)"
                                 @focus="ci._showDropdown = true"
                                 @blur="hideCompDropdownDelayed(ci)"
@@ -664,32 +707,6 @@
                   </div>
                 </div>
 
-                <div class="form-group">
-                  <label>{{ t('components.materialCreateWizard.labelReservationShort') }}</label>
-                  <div class="reservation-options">
-                    <label class="radio-option" :class="{ active: tentForm.reservation_mode === 'complete_only' }">
-                      <input type="radio" v-model="tentForm.reservation_mode" value="complete_only" />
-                      <div class="radio-text">
-                        <span class="radio-name">{{ t('components.materialCreateWizard.tentResOnlyComplete') }}</span>
-                        <span class="radio-desc">{{ t('components.materialCreateWizard.tentResOnlyCompleteDesc') }}</span>
-                      </div>
-                    </label>
-                    <label class="radio-option" :class="{ active: tentForm.reservation_mode === 'individual' }">
-                      <input type="radio" v-model="tentForm.reservation_mode" value="individual" />
-                      <div class="radio-text">
-                        <span class="radio-name">{{ t('components.materialCreateWizard.tentResParts') }}</span>
-                        <span class="radio-desc">{{ t('components.materialCreateWizard.tentResPartsDesc') }}</span>
-                      </div>
-                    </label>
-                    <label class="radio-option" :class="{ active: tentForm.reservation_mode === 'flexible' }">
-                      <input type="radio" v-model="tentForm.reservation_mode" value="flexible" />
-                      <div class="radio-text">
-                        <span class="radio-name">{{ t('components.materialCreateWizard.tentResFlexible') }}</span>
-                        <span class="radio-desc">{{ t('components.materialCreateWizard.tentResFlexibleDesc') }}</span>
-                      </div>
-                    </label>
-                  </div>
-                </div>
               </div>
             </div>
 
@@ -1389,13 +1406,30 @@
                               <label>{{ t('components.materialCreateWizard.labelCountShort') }}</label>
                               <input v-model.number="autoGenCount" type="number" min="1" class="form-input form-input-sm" />
                             </div>
+                            <label
+                              v-if="serialNumbers.length === 0"
+                              class="serial-auto-container-flag checkbox-label"
+                            >
+                              <input type="checkbox" v-model="serialAllAsContainers" />
+                              <span>{{ t('components.materialCreateWizard.serialAllAsContainersTitle') }}</span>
+                            </label>
                             <button type="button" class="add-serial-btn add-serial-btn-secondary" @click="generateSerialNumbers">
                               {{ t('components.materialCreateWizard.btnGenerateSerialList') }}
                             </button>
                             <span class="serial-auto-preview">{{ autoGenPreview }}</span>
                           </div>
+                          <p
+                            v-if="serialNumbers.length === 0"
+                            class="field-hint serial-all-containers-hint"
+                          >{{ t('components.materialCreateWizard.serialAllAsContainersDesc') }}</p>
                         </div>
                       </transition>
+                    </div>
+                    <div v-if="serialNumbers.length > 0" class="serial-bulk-container-row">
+                      <label class="checkbox-label">
+                        <input type="checkbox" v-model="serialAllAsContainers" />
+                        <span>{{ t('components.materialCreateWizard.serialAllAsContainersTitle') }}</span>
+                      </label>
                     </div>
                     <BarcodeScannerPanel
                       v-if="serialScannerActive"
@@ -1406,146 +1440,163 @@
                       @error="onSerialScannerError"
                     />
                     
-                    <div class="serial-list" v-if="serialNumbers.length > 0">
-                      <div
-                        v-for="(entry, index) in serialNumbers"
-                        :key="entry.id"
-                        class="serial-row"
-                        :class="{ 'serial-row--shared-location': serialLocationSameForAll }"
-                      >
-                        <div class="serial-block serial-block--identity">
-                          <label class="form-label-sm">{{ getSerialRowTitle(entry, index) }}</label>
-                          <input
-                            v-model="entry.serial_number"
-                            type="text"
-                            class="form-input serial-input"
-                            :placeholder="t('components.materialCreateWizard.phEnterSerialNumber')"
-                            @keydown.enter.prevent="addSerialNumber"
-                          />
-                          <label class="form-label-sm">{{ t('components.materialCreateWizard.labelInstanceLabelOptional') }}</label>
-                          <input
-                            v-model="entry.label"
-                            type="text"
-                            class="form-input notes-input"
-                            :placeholder="t('components.materialCreateWizard.phInstanceLabelExample')"
-                          />
-                          <label class="checkbox-label serial-is-container-flag mt-2">
-                            <input type="checkbox" v-model="entry.is_container" />
-                            <span>{{ t('components.materialCreateWizard.serialIsContainerLong') }}</span>
-                          </label>
-                        </div>
-
-                        <div v-if="!serialLocationSameForAll" class="serial-block serial-block--art">
-                          <label class="form-label-sm">{{ t('components.materialCreateWizard.labelLocationKindShort') }}</label>
-                          <select v-model="entry.location_mode" class="form-select form-select--sm" @change="entry.rack_id=''; entry.slot_id=''; entry.container_batch_id=''">
-                            <option value="slot">{{ t('components.materialCreateWizard.tabGestellFach') }}</option>
-                            <option value="kiste">{{ t('components.materialCreateWizard.tabKisteTasche') }}</option>
-                          </select>
-                        </div>
-
-                        <div v-if="!serialLocationSameForAll" class="serial-block serial-block--location">
-                          <div class="serial-location-cell">
-                            <template v-if="entry.location_mode === 'slot'">
-                              <label class="form-label-sm">{{ t('components.materialCreateWizard.labelStorageSiteSm') }}</label>
-                              <select v-model="entry.storage_address_id" class="form-select form-select--sm" @change="onSerialEntryStorageAddressChange(entry)">
-                                <option v-for="addr in storageAddresses" :key="addr.id" :value="addr.id">{{ addr.name || addr.street_line }}</option>
-                              </select>
-                              <label class="form-label-sm">{{ t('components.materialCreateWizard.labelRackSm') }}</label>
+                    <div v-if="serialNumbers.length > 0" class="serial-table-wrap">
+                      <table class="serial-table serial-table--wizard">
+                        <thead>
+                          <tr>
+                            <th class="col-num">#</th>
+                            <th>{{ t('components.materialDetail.thSerial') }}</th>
+                            <th>{{ t('components.materialDetail.thLabel') }}</th>
+                            <th
+                              class="col-container"
+                              :title="t('components.materialCreateWizard.serialIsContainerLong')"
+                            >
+                              {{ t('components.materialDetail.thContainer') }}
+                            </th>
+                            <th v-if="!serialLocationSameForAll">{{ t('components.materialCreateWizard.labelLocationKindShort') }}</th>
+                            <th v-if="!serialLocationSameForAll">{{ t('components.materialDetail.thStorageSlot') }}</th>
+                            <th>{{ t('components.materialDetail.thNote') }}</th>
+                            <th class="col-actions"></th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <tr v-for="(entry, index) in serialNumbers" :key="entry.id">
+                            <td class="col-num">{{ index + 1 }}</td>
+                            <td>
+                              <input
+                                v-model="entry.serial_number"
+                                type="text"
+                                class="form-input form-input-sm serial-table-input"
+                                :placeholder="t('components.materialCreateWizard.phEnterSerialNumber')"
+                                @keydown.enter.prevent="addSerialNumber"
+                              />
+                            </td>
+                            <td>
+                              <input
+                                v-model="entry.label"
+                                type="text"
+                                class="form-input form-input-sm serial-table-input"
+                                :placeholder="t('components.materialCreateWizard.phInstanceLabelExample')"
+                              />
+                            </td>
+                            <td class="col-container">
+                              <label class="checkbox-label serial-table-container-cell">
+                                <input
+                                  type="checkbox"
+                                  v-model="entry.is_container"
+                                  :title="t('components.materialCreateWizard.serialIsContainerLong')"
+                                />
+                              </label>
+                            </td>
+                            <td v-if="!serialLocationSameForAll">
                               <select
-                                v-model="entry.rack_id"
-                                class="form-select form-select--sm"
-                                @change="onSerialEntryRackChange(entry)"
-                                @mouseenter="prefetchRackPreview(entry.rack_id)"
-                                :title="getRackPreviewTitle(entry.rack_id)"
+                                v-model="entry.location_mode"
+                                class="form-select form-select--sm serial-table-input"
+                                @change="entry.rack_id=''; entry.slot_id=''; entry.container_batch_id=''"
                               >
-                                <option value="" disabled>{{ t('components.materialCreateWizard.selectRackDash') }}</option>
-                                <option
-                                  v-for="rack in getRacksForSerialEntry(entry)"
-                                  :key="rack.id"
-                                  :value="String(rack.id)"
-                                  :title="getRackPreviewTitle(rack.id)"
-                                >
-                                  {{ rack.name }}
-                                </option>
+                                <option value="slot">{{ t('components.materialCreateWizard.tabGestellFach') }}</option>
+                                <option value="kiste">{{ t('components.materialCreateWizard.tabKisteTasche') }}</option>
                               </select>
-                              <label class="form-label-sm">{{ t('components.materialCreateWizard.labelSlotSm') }}</label>
-                              <select
-                                v-model="entry.slot_id"
-                                class="form-select form-select--sm"
-                                :disabled="!entry.rack_id"
-                                @mouseenter="prefetchSlotPreview(entry.rack_id, entry.slot_id)"
-                                :title="getSlotPreviewTitle(entry.rack_id, entry.slot_id)"
+                            </td>
+                            <td v-if="!serialLocationSameForAll" class="serial-table-location-cell">
+                              <template v-if="entry.location_mode === 'slot'">
+                                <select
+                                  v-model="entry.storage_address_id"
+                                  class="form-select form-select--sm serial-table-input"
+                                  @change="onSerialEntryStorageAddressChange(entry)"
+                                >
+                                  <option v-for="addr in storageAddresses" :key="addr.id" :value="addr.id">{{ addr.name || addr.street_line }}</option>
+                                </select>
+                                <select
+                                  v-model="entry.rack_id"
+                                  class="form-select form-select--sm serial-table-input"
+                                  @change="onSerialEntryRackChange(entry)"
+                                  @mouseenter="prefetchRackPreview(entry.rack_id)"
+                                  :title="getRackPreviewTitle(entry.rack_id)"
+                                >
+                                  <option value="" disabled>{{ t('components.materialCreateWizard.selectRackDash') }}</option>
+                                  <option
+                                    v-for="rack in getRacksForSerialEntry(entry)"
+                                    :key="rack.id"
+                                    :value="String(rack.id)"
+                                    :title="getRackPreviewTitle(rack.id)"
+                                  >
+                                    {{ rack.name }}
+                                  </option>
+                                </select>
+                                <select
+                                  v-model="entry.slot_id"
+                                  class="form-select form-select--sm serial-table-input"
+                                  :disabled="!entry.rack_id"
+                                  @mouseenter="prefetchSlotPreview(entry.rack_id, entry.slot_id)"
+                                  :title="getSlotPreviewTitle(entry.rack_id, entry.slot_id)"
+                                >
+                                  <option value="" disabled>{{ t('components.materialCreateWizard.selectPickSlotDash') }}</option>
+                                  <option
+                                    v-for="slot in (entry.rack_id ? (slotsByRackId[String(entry.rack_id)] || []) : [])"
+                                    :key="slot.id"
+                                    :value="String(slot.id)"
+                                    :title="getSlotPreviewTitle(entry.rack_id, slot.id)"
+                                  >
+                                    {{ formatSlotOptionLabel(entry.rack_id, slot) }}
+                                  </option>
+                                </select>
+                              </template>
+                              <template v-else>
+                                <select
+                                  v-model="entry.container_batch_id"
+                                  class="form-select form-select--sm serial-table-input"
+                                  @mouseenter="prefetchContainerPreviews()"
+                                  :title="getContainerPreviewTitle(entry.container_batch_id)"
+                                >
+                                  <option value="">{{ t('components.materialCreateWizard.selectPickBoxDash') }}</option>
+                                  <option
+                                    v-for="cb in containerBatches"
+                                    :key="cb.id"
+                                    :value="cb.id"
+                                    :title="formatContainerBatchOptionFullLabel(cb)"
+                                  >
+                                    {{ formatContainerBatchOptionFullLabel(cb) }}
+                                  </option>
+                                </select>
+                              </template>
+                            </td>
+                            <td>
+                              <input
+                                v-model="entry.notes"
+                                type="text"
+                                class="form-input form-input-sm serial-table-input"
+                                :placeholder="t('components.materialCreateWizard.optionalPlain')"
+                              />
+                            </td>
+                            <td class="col-actions">
+                              <button
+                                type="button"
+                                class="remove-serial-btn"
+                                @click="openSerialScannerFor(entry.id)"
+                                :title="t('components.materialCreateWizard.titleScanSerialRow')"
                               >
-                                <option value="" disabled>{{ t('components.materialCreateWizard.selectPickSlotDash') }}</option>
-                                <option
-                                  v-for="slot in (entry.rack_id ? (slotsByRackId[String(entry.rack_id)] || []) : [])"
-                                  :key="slot.id"
-                                  :value="String(slot.id)"
-                                  :title="getSlotPreviewTitle(entry.rack_id, slot.id)"
-                                >
-                                  {{ formatSlotOptionLabel(entry.rack_id, slot) }}
-                                </option>
-                              </select>
-                            </template>
-                            <template v-else>
-                              <label class="form-label-sm">{{ t('components.materialCreateWizard.labelBoxBagSm') }}</label>
-                              <select
-                                v-model="entry.container_batch_id"
-                                class="form-select form-select--sm"
-                                @mouseenter="prefetchContainerPreviews()"
-                                :title="getContainerPreviewTitle(entry.container_batch_id)"
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                  <rect x="3" y="5" width="18" height="14" rx="2"/>
+                                  <line x1="7" y1="9" x2="17" y2="9"/>
+                                  <line x1="7" y1="13" x2="12" y2="13"/>
+                                </svg>
+                              </button>
+                              <button
+                                type="button"
+                                class="remove-serial-btn"
+                                @click="removeSerialNumber(entry.id)"
+                                :title="t('components.materialCreateWizard.btnRemoveRowTitle')"
                               >
-                                <option value="">{{ t('components.materialCreateWizard.selectPickBoxDash') }}</option>
-                                <option
-                                  v-for="cb in containerBatches"
-                                  :key="cb.id"
-                                  :value="cb.id"
-                                  :title="formatContainerBatchOptionFullLabel(cb)"
-                                >
-                                  {{ formatContainerBatchOptionFullLabel(cb) }}
-                                </option>
-                              </select>
-                            </template>
-                          </div>
-                        </div>
-
-                        <div class="serial-block serial-block--notes">
-                          <label class="form-label-sm">{{ t('components.materialCreateWizard.serialRowNotesLabelOptional') }}</label>
-                          <input
-                            v-model="entry.notes"
-                            type="text"
-                            class="form-input notes-input"
-                            :placeholder="t('common.optional')"
-                          />
-                        </div>
-
-                        <div class="serial-block serial-block--actions">
-                          <button
-                            type="button"
-                            class="remove-serial-btn"
-                            style="margin-right:6px;"
-                            @click="openSerialScannerFor(entry.id)"
-                            :title="t('components.materialCreateWizard.titleScanSerialRow')"
-                          >
-                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                              <rect x="3" y="5" width="18" height="14" rx="2"/>
-                              <line x1="7" y1="9" x2="17" y2="9"/>
-                              <line x1="7" y1="13" x2="12" y2="13"/>
-                            </svg>
-                          </button>
-                          <button
-                            type="button"
-                            class="remove-serial-btn"
-                            @click="removeSerialNumber(entry.id)"
-                            :title="t('common.remove')"
-                          >
-                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                              <line x1="18" y1="6" x2="6" y2="18"/>
-                              <line x1="6" y1="6" x2="18" y2="18"/>
-                            </svg>
-                          </button>
-                        </div>
-                      </div>
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                  <line x1="18" y1="6" x2="6" y2="18"/>
+                                  <line x1="6" y1="6" x2="18" y2="18"/>
+                                </svg>
+                              </button>
+                            </td>
+                          </tr>
+                        </tbody>
+                      </table>
                     </div>
                     
                     <div v-else class="empty-serials">
@@ -2389,8 +2440,7 @@ import {
   type MaterialBatch,
   type AddBatchMultiResponse,
 } from '@/api/materials'
-import { getAddresses, type Address } from '@/api/addresses'
-import { getGlobalAddresses } from '@/api/globalAddresses'
+import { getAddresses, getMaterialWizardSuppliers, type Address } from '@/api/addresses'
 import { createCategory, getCategories, type Category } from '@/api/categories'
 import {
   createStorageRack,
@@ -2466,7 +2516,6 @@ const emit = defineEmits<{
 const toast = useToast()
 const { t } = useI18n()
 const headerNotificationsStore = useHeaderNotificationsStore()
-const GLOBAL_SUPPLIER_DEPARTMENT_ID = 'GLOBAL000000'
 const PACK_UNIT_BUNDLE = 'Bündel'
 const articleNameInputRef = ref<HTMLInputElement | null>(null)
 const wizardFormRef = ref<HTMLElement | null>(null)
@@ -2688,6 +2737,11 @@ const containerContentsBatchId = ref('')
 const selectedContainerBatchContents = ref<ContainerBatchContentsResponse | null>(null)
 const isLoadingContainerContents = ref(false)
 const selectedTemplate = ref<Template | null>(null)
+const hasTemplateConfigurator = computed(() => {
+  const tpl = selectedTemplate.value
+  if (!tpl) return false
+  return (tpl.option_groups?.length ?? 0) > 0 || (tpl.options?.length ?? 0) > 0
+})
 
 // Verpackungseinheit Toggle – setzt pack_size/pack_unit zurück wenn deaktiviert
 const packUnitEnabled = computed({
@@ -2745,6 +2799,9 @@ interface ComponentInput {
   _filteredMaterials?: any[]
   _selectedMaterial?: any
   _availableBatches?: any[]
+  _match_state?: 'found' | 'missing' | 'ambiguous'
+  _expected_name?: string
+  _candidates?: { id: string; name: string }[]
 }
 const componentInputs = ref<ComponentInput[]>([])
 
@@ -2775,7 +2832,6 @@ const getTodayIso = () => new Date().toISOString().slice(0, 10)
 const tentForm = reactive({
   tent_type: '' as string,
   tent_capacity: null as number | null,
-  reservation_mode: 'complete_only' as string
 })
 
 const formData = reactive({
@@ -2904,6 +2960,13 @@ const autoGenPad = ref(3)
 const autoGenCount = ref(5)
 const serialAutoGenerateEnabled = ref(false)
 const serialLocationSameForAll = ref(false)
+const serialAllAsContainers = ref(false)
+
+watch(serialAllAsContainers, (value) => {
+  for (const entry of serialNumbers.value) {
+    entry.is_container = value
+  }
+})
 
 const suggestedSerialPrefix = computed(() => {
   const name = (formData.name || '').trim()
@@ -2919,6 +2982,7 @@ type WizardStockPrefs = {
   autoGenCount?: number
   serialAutoGenerateEnabled?: boolean
   serialLocationSameForAll?: boolean
+  serialAllAsContainers?: boolean
 }
 
 const wizardStockPrefsKey = computed(() => `materialWizard.stockPrefs.${props.departmentId}`)
@@ -2945,6 +3009,7 @@ function saveWizardStockPrefs() {
       autoGenCount: Math.max(1, Math.min(100, autoGenCount.value || 1)),
       serialAutoGenerateEnabled: !!serialAutoGenerateEnabled.value,
       serialLocationSameForAll: !!serialLocationSameForAll.value,
+      serialAllAsContainers: !!serialAllAsContainers.value,
     }
     localStorage.setItem(wizardStockPrefsKey.value, JSON.stringify(payload))
   } catch {
@@ -2967,6 +3032,7 @@ function applyWizardStockPrefs() {
   if (typeof prefs.autoGenCount === 'number') autoGenCount.value = Math.max(1, Math.min(100, prefs.autoGenCount))
   if (typeof prefs.serialAutoGenerateEnabled === 'boolean') serialAutoGenerateEnabled.value = prefs.serialAutoGenerateEnabled
   if (typeof prefs.serialLocationSameForAll === 'boolean') serialLocationSameForAll.value = prefs.serialLocationSameForAll
+  if (typeof prefs.serialAllAsContainers === 'boolean') serialAllAsContainers.value = prefs.serialAllAsContainers
 }
 
 const autoGenPreview = computed(() => {
@@ -2992,7 +3058,7 @@ function generateSerialNumbers() {
     serial_number: prefix + String(start + i).padStart(pad, '0'),
     label: '',
     notes: '',
-    is_container: false,
+    is_container: serialAllAsContainers.value,
     location_mode: 'slot',
     storage_address_id: getPreferredStorageAddressId(),
     rack_id: '',
@@ -3007,7 +3073,7 @@ function addSerialNumber() {
     serial_number: '',
     label: '',
     notes: '',
-    is_container: false,
+    is_container: serialAllAsContainers.value,
     location_mode: 'slot',
     storage_address_id: getPreferredStorageAddressId(),
     rack_id: '',
@@ -3510,7 +3576,7 @@ const canSubmit = computed(() => {
     return true
   }
 
-  // ── Virtuelle Kombo (ohne Vorlage): Name + Kategorie + Reservation ──
+  // ── Virtuelle Kombo (ohne Vorlage): Name + Kategorie ──
   if (creationMode.value === 'virtual_combo') {
     if (!formData.name.trim()) return false
     if (nameExists.value) return false
@@ -3799,7 +3865,15 @@ const shouldRenderCreationMode = computed(() => {
   return missingSteps.value[0]?.step === 'creation_mode'
 })
 
-function resetForm() {
+function scrollWizardFormToTop(): void {
+  if (wizardFormRef.value) {
+    wizardFormRef.value.scrollTop = 0
+  }
+}
+
+/** Formular leeren; optional gespeicherte Serien-/Lager-Präferenzen wiederherstellen. */
+function resetForm(options: { restoreStockPrefs?: boolean } = {}) {
+  const { restoreStockPrefs = true } = options
   formData.name = ''
   formData.storage_address_id = ''
   formData.location_rack = ''
@@ -3884,6 +3958,7 @@ function resetForm() {
   serialScannerActive.value = false
   serialScannerTargetId.value = null
   serialLocationSameForAll.value = false
+  serialAllAsContainers.value = false
   serialAutoGenerateEnabled.value = false
   autoGenPrefix.value = ''
   autoGenStart.value = 1
@@ -3901,20 +3976,26 @@ function resetForm() {
   componentInputs.value = []
   tentForm.tent_type = ''
   tentForm.tent_capacity = null
-  tentForm.reservation_mode = 'complete_only'
 
   templateLoadInProgress.value = false
   expandAllVisibleSteps.value = true
   accordionUserControlled.value = false
   activeStep.value = ''
 
-  // Last-used stock/serial preferences per department
-  applyWizardStockPrefs()
+  scrollWizardFormToTop()
+
+  if (restoreStockPrefs) {
+    applyWizardStockPrefs()
+  }
+}
+
+function resetFormForNewMaterial(): void {
+  resetForm({ restoreStockPrefs: false })
 }
 
 function handleClose() {
   showDialog.value = false
-  resetForm()
+  resetFormForNewMaterial()
 }
 
 function selectTrackingType(type: 'serialized' | 'bulk') {
@@ -4128,21 +4209,8 @@ async function loadData() {
     await prefetchContainerPreviews()
     searchRackCategories()
     
-    const [supplierResult, globalSupplierResult, globalDepartmentSupplierResult] = await Promise.all([
-      getAddresses(props.departmentId, 'supplier').catch(() => ({ addresses: [] })),
-      getGlobalAddresses().catch(() => ({ addresses: [] })),
-      getAddresses(GLOBAL_SUPPLIER_DEPARTMENT_ID, 'supplier').catch(() => ({ addresses: [] }))
-    ])
-    const mergedSuppliers = [...(supplierResult.addresses || [])]
-    const globalCandidates = [
-      ...(globalSupplierResult.addresses || []),
-      ...(globalDepartmentSupplierResult.addresses || [])
-    ]
-    for (const globalAddress of globalCandidates) {
-      if (!mergedSuppliers.some(addr => addr.id === globalAddress.id)) {
-        mergedSuppliers.push(globalAddress)
-      }
-    }
+    const supplierResult = await getMaterialWizardSuppliers(props.departmentId).catch(() => ({ addresses: [] }))
+    const mergedSuppliers = supplierResult.addresses || []
     allManufacturers.value = mergedSuppliers
     allSuppliers.value = mergedSuppliers
     
@@ -4827,7 +4895,7 @@ async function selectTemplate(template: Template) {
     expandAllVisibleSteps.value = false
 
     // Lade die vollständige Vorlage mit Komponenten
-    const fullTemplate = await getTemplate(template.id)
+    const fullTemplate = await getTemplate(template.id, props.departmentId)
     selectedTemplate.value = fullTemplate
     isFromTemplate.value = true
     templateComponents.value = fullTemplate.components || []
@@ -4849,49 +4917,20 @@ async function selectTemplate(template: Template) {
     // Zelt-Details
     tentForm.tent_type = fullTemplate.tent_type || 'gruppenzelt'
     tentForm.tent_capacity = fullTemplate.capacity || null
-    tentForm.reservation_mode = fullTemplate.reservation_mode || 'complete_only'
 
     // Hersteller aus Vorlage automatisch übernehmen (bleibt manuell änderbar)
     applyTemplateManufacturer(fullTemplate.manufacturer)
 
-    // Komponenten-Eingaben initialisieren
-    componentInputs.value = (fullTemplate.components || []).map(comp => {
-      const isBulk = comp.tracking === 'bulk'
-      const defaultMode = formData.material_type === 'physical_combo' ? 'fixed' : (isBulk ? 'bulk' : 'assigned')
+    // Komponenten-Eingaben initialisieren (Auflösung vom Backend)
+    componentInputs.value = (fullTemplate.components || []).map((comp) =>
+      buildComponentInputFromTemplate(comp, formData.material_type),
+    )
 
-      // Für Bulk: automatisch passendes Material im Lager suchen
-      let autoMaterial: any = null
-      if (isBulk) {
-        autoMaterial = allMaterials.value.find(m =>
-          m.material_type === 'physical' &&
-          m.name.toLowerCase() === comp.name.toLowerCase()
-        )
+    for (const ci of componentInputs.value) {
+      if (ci.tracking === 'serialized' && ci.mode === 'existing' && ci.material_id && ci._selectedMaterial) {
+        await selectExistingMaterial(ci, ci._selectedMaterial)
       }
-
-      const rq = Math.max(1, comp.required_qty || 1)
-      const optionalBulkStartZero = comp.is_optional && isBulk
-      const initialQty = optionalBulkStartZero ? 0 : rq
-      return {
-        component_type: comp.component_type,
-        name: comp.name,
-        tracking: comp.tracking,
-        required_qty: comp.required_qty,
-        is_optional: comp.is_optional,
-        mode: 'new',
-        serial_number: '',
-        qty: initialQty,
-        unit_price: '',
-        material_id: autoMaterial?.id || '',
-        batch_id: '',
-        assignment_mode: defaultMode,
-        // UI-Hilfsfelder
-        _materialSearch: autoMaterial?.name || '',
-        _showDropdown: false,
-        _filteredMaterials: [],
-        _selectedMaterial: autoMaterial || null,
-        _availableBatches: [],
-      } as ComponentInput
-    })
+    }
 
     await performNameDuplicateCheck()
     activeStep.value = 'general'
@@ -5078,7 +5117,6 @@ function clearTemplate() {
   selectedContainerBatchContents.value = null
   tentForm.tent_type = ''
   tentForm.tent_capacity = null
-  tentForm.reservation_mode = 'complete_only'
   // Reset auch die automatisch gesetzten Felder
   formData.category_id = ''
   selectedCategory.value = null
@@ -5146,9 +5184,68 @@ function hideCompDropdownDelayed(ci: ComponentInput) {
 // Automatische Suche beim Fokussieren des Bulk-Suchfelds
 function autoSearchBulk(ci: ComponentInput) {
   if (!ci._materialSearch) {
-    ci._materialSearch = ci.name
+    ci._materialSearch = ci._expected_name || ci.name
   }
   searchExistingMaterial(ci)
+}
+
+function buildComponentInputFromTemplate(comp: TemplateComponent, materialType: string): ComponentInput {
+  const isBulk = comp.tracking === 'bulk'
+  const defaultMode = materialType === 'physical_combo' ? 'fixed' : (isBulk ? 'bulk' : 'assigned')
+  const expectedName = comp.expected_name || comp.name
+  const matchState = comp.match_state
+  const compOptional = materialType === 'virtual_combo' ? comp.is_optional : false
+  const rq = Math.max(1, comp.required_qty || 1)
+  const optionalBulkStartZero = compOptional && isBulk
+  const initialQty = optionalBulkStartZero ? 0 : rq
+
+  let mode: 'new' | 'existing' = 'existing'
+  let material_id = ''
+  let selectedMaterial: { id: string; name: string } | null = null
+  let search = expectedName
+
+  if (matchState === 'found' && comp.matched_material_id) {
+    material_id = comp.matched_material_id
+    selectedMaterial = allMaterials.value.find((m) => m.id === material_id) ?? null
+    search = selectedMaterial?.name || expectedName
+  } else if (!matchState && isBulk) {
+    const autoMaterial = allMaterials.value.find(
+      (m) => m.material_type === 'physical' && m.name.toLowerCase() === expectedName.toLowerCase(),
+    )
+    if (autoMaterial) {
+      material_id = autoMaterial.id
+      selectedMaterial = autoMaterial
+      search = autoMaterial.name
+    }
+  }
+
+  return {
+    component_type: comp.component_type,
+    name: comp.name,
+    tracking: comp.tracking,
+    required_qty: comp.required_qty,
+    is_optional: compOptional,
+    mode,
+    serial_number: '',
+    qty: initialQty,
+    unit_price: '',
+    material_id,
+    batch_id: '',
+    assignment_mode: defaultMode,
+    _materialSearch: search,
+    _showDropdown: false,
+    _filteredMaterials: [],
+    _selectedMaterial: selectedMaterial,
+    _availableBatches: [],
+    _match_state: matchState,
+    _expected_name: expectedName,
+    _candidates: comp.candidates ?? [],
+  }
+}
+
+async function pickComponentCandidate(ci: ComponentInput, candidate: { id: string; name: string }) {
+  await selectExistingMaterial(ci, candidate)
+  ci._match_state = 'found'
 }
 
 // Bulk-Material auswählen (vereinfacht, kein Batch nötig)
@@ -5344,7 +5441,6 @@ async function handleSubmit() {
         material_type: formData.material_type === 'virtual_combo' ? 'virtual_combo' : 'physical_combo',
         category_id: formData.category_id || null,
         storage_address_id: formData.storage_address_id || null,
-        reservation_mode: tentForm.reservation_mode || 'complete_only',
         purchase_date: formData.purchase_date || undefined,
       }
       if (formData.material_type === 'physical_combo') {
@@ -5367,7 +5463,6 @@ async function handleSubmit() {
         storage_address_id: formData.storage_address_id || null,
         location: combinedLocation,
         material_type: 'virtual_combo',
-        reservation_mode: tentForm.reservation_mode || 'complete_only',
         description: formData.description || null,
         barcode_tag: formData.barcode_tag || null,
         manufacturer: formData.manufacturer || null,
@@ -5457,11 +5552,6 @@ async function handleSubmit() {
       if (mode !== 'individual') {
         templatePayload.tent_type = tentForm.tent_type || undefined
         templatePayload.tent_capacity = tentForm.tent_capacity || undefined
-      }
-
-      // Reservation-Mode nur bei virtueller Kombo
-      if (mode === 'virtual_combo') {
-        templatePayload.reservation_mode = tentForm.reservation_mode || undefined
       }
 
       if (mode === 'physical_combo') {
@@ -5611,7 +5701,7 @@ async function handleSubmit() {
     }
 
     if (createAnother.value) {
-      resetForm()
+      resetFormForNewMaterial()
       nextTick(() => {
         scrollCreationModeIntoView()
       })
@@ -5651,7 +5741,7 @@ function scrollCreationModeIntoView(): void {
 
 async function initializeOnOpen(): Promise<void> {
   const runId = ++openInitRunId
-  resetForm()
+  resetFormForNewMaterial()
   await nextTick()
   if (runId !== openInitRunId) return
   scrollCreationModeIntoView()
@@ -5871,6 +5961,7 @@ watch(
     autoGenCount.value,
     serialAutoGenerateEnabled.value,
     serialLocationSameForAll.value,
+    serialAllAsContainers.value,
   ] as const,
   () => {
     saveWizardStockPrefs()

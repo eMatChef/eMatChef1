@@ -5,11 +5,9 @@ namespace App\Command;
 use App\Entity\User;
 use App\Entity\Profile;
 use App\Entity\Department;
-use App\Entity\Organisation;
 use App\Entity\Membership;
 use App\Enum\DepartmentRole;
-use App\Service\Accounting\AccountingCostCenterBootstrapService;
-use App\Service\Bootstrap\GlobalSystemSeedDefaults;
+use App\Service\Bootstrap\DevBootstrapContextService;
 use App\Util\IdGenerator;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\Console\Attribute\AsCommand;
@@ -28,7 +26,7 @@ class CreateRoleUsersCommand extends Command
     public function __construct(
         private EntityManagerInterface $em,
         private UserPasswordHasherInterface $passwordHasher,
-        private AccountingCostCenterBootstrapService $accountingCostCenterBootstrap
+        private DevBootstrapContextService $bootstrapContext,
     ) {
         parent::__construct();
     }
@@ -39,34 +37,8 @@ class CreateRoleUsersCommand extends Command
         
         $io->title('Erstelle Benutzer für alle Rollen');
 
-        // Hole oder erstelle Organisation und Department (GLOBALORG001 wie Seed / Superadmin-Bootstrap)
-        $organisation = $this->em->find(Organisation::class, GlobalSystemSeedDefaults::ORGANISATION_ID)
-            ?? $this->em->getRepository(Organisation::class)->findOneBy([]);
-        if (!$organisation) {
-            $io->warning('Keine Organisation gefunden. Erstelle globale System-Organisation (GLOBALORG001)...');
-            $organisation = new Organisation();
-            $organisation->setId(GlobalSystemSeedDefaults::ORGANISATION_ID);
-            $organisation->setName(GlobalSystemSeedDefaults::ORGANISATION_NAME);
-            $this->em->persist($organisation);
-            $this->em->flush();
-        }
-
-        $department = $this->em->getRepository(Department::class)->findOneBy(['organisationId' => $organisation->getId()]);
-        if (!$department) {
-            $io->warning('Kein Department gefunden. Erstelle Standard-Department...');
-            $department = new Department();
-            if ($organisation->getId() === GlobalSystemSeedDefaults::ORGANISATION_ID) {
-                $department->setId(GlobalSystemSeedDefaults::DEPARTMENT_ID);
-                $department->setName(GlobalSystemSeedDefaults::DEPARTMENT_NAME);
-            } else {
-                $department->setId(IdGenerator::generateUnique($this->em, Department::class));
-                $department->setName('Standard Department');
-            }
-            $department->setOrganisation($organisation);
-            $this->em->persist($department);
-            $this->em->flush();
-            $this->accountingCostCenterBootstrap->ensureDefaultCostCenters($this->em, $department);
-        }
+        // Hole oder erstelle sichtbare Organisation und Department (kein GLOBALORG001 mehr)
+        [$organisation, $department] = $this->bootstrapContext->findOrCreateOrganisationAndDepartment();
 
         // Lösche alle bestehenden Test-User (außer dem ersten Superadmin, falls er existiert)
         $io->section('Lösche alte Test-User...');

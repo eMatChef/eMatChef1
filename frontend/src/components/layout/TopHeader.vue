@@ -264,6 +264,19 @@
             <span class="dept-switch-hint">{{ authStore.activeDepartmentName }}</span>
           </span>
         </button>
+        <button
+          v-if="authStore.activeSupplierCompanies.length > 1"
+          class="dropdown-item"
+          @click="switchSupplierCompany"
+        >
+          <svg class="item-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+            <path d="M3 21h18M5 21V7l8-4 8 4v14M9 21v-6h6v6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <span class="dept-switch-text">
+            {{ t('layout.userMenu.switchSupplierCompany') }}
+            <span class="dept-switch-hint">{{ authStore.activeSupplierCompanyName }}</span>
+          </span>
+        </button>
         <div class="dropdown-divider"></div>
         <button class="dropdown-item logout" @click="doLogout">
           <svg class="item-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
@@ -1178,6 +1191,16 @@ function switchDepartment() {
   if (deptId) {
     router.push(`/${deptId}/settings/my-department`)
   }
+  showUserDropdown.value = false
+}
+
+function switchSupplierCompany() {
+  const companies = authStore.activeSupplierCompanies
+  if (companies.length <= 1) return
+  const currentIdx = companies.findIndex((c) => c.id === authStore.activeSupplierCompanyId)
+  const next = companies[(currentIdx + 1 + companies.length) % companies.length]
+  authStore.setActiveSupplierCompany(next.id)
+  router.push(`/supplier/${next.id}/profile`)
   showUserDropdown.value = false
 }
 

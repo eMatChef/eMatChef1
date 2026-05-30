@@ -1,6 +1,7 @@
 import apiClient from './apiClient'
 import { clearAuthStorage, purgeLegacyAuthSecrets } from '@/utils/authStorage'
 import { markCrossSubdomainLogoutSeenFromCookie } from '@/utils/authCrossOrigin'
+import type { SupplierCompanySession } from '@/api/supplier'
 
 export interface LoginRequest {
   email: string
@@ -57,6 +58,7 @@ export interface LoginResponse {
     state: string
     profile_id: string
     last_used_department?: string | null
+    last_used_supplier_company?: string | null
   }
   profile: {
     id: string
@@ -86,6 +88,8 @@ export interface LoginResponse {
   }>
   primary_department: string | null
   last_used_department: string | null
+  supplier_companies?: SupplierCompanySession[]
+  last_used_supplier_company?: string | null
 }
 
 export interface ServerSessionResponse {
@@ -94,6 +98,8 @@ export interface ServerSessionResponse {
   departments: LoginResponse['departments']
   primary_department: string | null
   last_used_department: string | null
+  supplier_companies?: SupplierCompanySession[]
+  last_used_supplier_company?: string | null
 }
 
 export interface UserResponse {
@@ -102,6 +108,7 @@ export interface UserResponse {
   profile_id: string
   /** Serverseitig gespeicherte Abteilungswahl; nur nutzen wenn noch Membership besteht */
   last_used_department?: string | null
+  last_used_supplier_company?: string | null
 }
 
 export interface ProfileResponse {

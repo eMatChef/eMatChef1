@@ -205,7 +205,7 @@
 
               <!-- Typ -->
               <td class="col-type">
-                <span class="type-badge" :class="contact.type">{{ addressTypeLabel(contact.type) }}</span>
+                <span class="address-type-badge" :class="contact.type">{{ addressTypeLabel(contact.type) }}</span>
               </td>
 
               <!-- Aktionen -->
