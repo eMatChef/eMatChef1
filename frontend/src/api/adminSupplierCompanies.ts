@@ -116,3 +116,45 @@ export async function removeAdminSupplierMembership(
   const { data } = await apiClient.delete(`/api/admin/supplier-companies/${companyId}/memberships/${userId}`)
   return data
 }
+
+export interface LegacyTemplatePreviewItem {
+  legacy_material_template_id: string
+  name: string
+  manufacturer: string | null
+  model: string | null
+  material_type: string
+  component_count: number
+  already_imported: boolean
+}
+
+export interface LegacyTemplatePreview {
+  manufacturer_key: string | null
+  available_count: number
+  already_imported_count: number
+  templates: LegacyTemplatePreviewItem[]
+  message?: string
+}
+
+export async function previewLegacySupplierTemplates(
+  companyId: string,
+): Promise<LegacyTemplatePreview> {
+  const { data } = await apiClient.get<LegacyTemplatePreview>(
+    `/api/admin/supplier-companies/${companyId}/legacy-templates/preview`,
+  )
+  return data
+}
+
+export async function importLegacySupplierTemplates(
+  companyId: string,
+  legacyMaterialTemplateIds?: string[],
+): Promise<{
+  imported: Array<{ legacy_material_template_id: string; supplier_material_template_id: string; name: string }>
+  skipped: Array<{ legacy_material_template_id: string; reason: string }>
+  message: string
+}> {
+  const { data } = await apiClient.post(
+    `/api/admin/supplier-companies/${companyId}/legacy-templates/import`,
+    legacyMaterialTemplateIds ? { legacy_material_template_ids: legacyMaterialTemplateIds } : {},
+  )
+  return data
+}

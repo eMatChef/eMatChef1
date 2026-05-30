@@ -14,6 +14,7 @@ use App\Repository\SupplierCompanyRepository;
 use App\Repository\SupplierMembershipRepository;
 use App\Repository\UserRepository;
 use App\Service\Supplier\SupplierCompanyFactory;
+use App\Service\Supplier\SupplierLegacyTemplateImportService;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -31,6 +32,7 @@ class SupplierCompanyAdminController extends AbstractController
         private SupplierMembershipRepository $supplierMembershipRepository,
         private UserRepository $userRepository,
         private ProfileRepository $profileRepository,
+        private SupplierLegacyTemplateImportService $legacyTemplateImportService,
     ) {
     }
 
@@ -302,6 +304,58 @@ class SupplierCompanyAdminController extends AbstractController
             return new JsonResponse(['error' => 'manufacturer_key ist bereits vergeben'], 409);
         } catch (\Exception $exception) {
             return new JsonResponse(['error' => 'Fehler beim Aktualisieren: ' . $exception->getMessage()], 500);
+        }
+    }
+
+    #[Route('/{id}/legacy-templates/preview', name: 'legacy_templates_preview', methods: ['GET'])]
+    #[IsGranted('ROLE_USER')]
+    public function legacyTemplatesPreview(string $id): JsonResponse
+    {
+        $accessCheck = $this->ensurePlatformAdmin();
+        if ($accessCheck instanceof JsonResponse) {
+            return $accessCheck;
+        }
+
+        if (!$this->supplierCompanyRepository->find($id)) {
+            return new JsonResponse(['error' => 'Supplier-Firma nicht gefunden'], 404);
+        }
+
+        try {
+            return new JsonResponse($this->legacyTemplateImportService->getPreview($id));
+        } catch (\InvalidArgumentException $e) {
+            return new JsonResponse(['error' => $e->getMessage()], 400);
+        }
+    }
+
+    #[Route('/{id}/legacy-templates/import', name: 'legacy_templates_import', methods: ['POST'])]
+    #[IsGranted('ROLE_USER')]
+    public function legacyTemplatesImport(string $id, Request $request): JsonResponse
+    {
+        $accessCheck = $this->ensurePlatformAdmin();
+        if ($accessCheck instanceof JsonResponse) {
+            return $accessCheck;
+        }
+
+        if (!$this->supplierCompanyRepository->find($id)) {
+            return new JsonResponse(['error' => 'Supplier-Firma nicht gefunden'], 404);
+        }
+
+        $data = json_decode($request->getContent(), true) ?: [];
+        $templateIds = null;
+        if (\array_key_exists('legacy_material_template_ids', $data)) {
+            $templateIds = \is_array($data['legacy_material_template_ids'])
+                ? array_values(array_map('strval', $data['legacy_material_template_ids']))
+                : [];
+        }
+
+        try {
+            $result = $this->legacyTemplateImportService->import($id, $templateIds);
+
+            return new JsonResponse($result);
+        } catch (\InvalidArgumentException $e) {
+            return new JsonResponse(['error' => $e->getMessage()], 400);
+        } catch (\Exception $e) {
+            return new JsonResponse(['error' => 'Import fehlgeschlagen: ' . $e->getMessage()], 500);
         }
     }
 

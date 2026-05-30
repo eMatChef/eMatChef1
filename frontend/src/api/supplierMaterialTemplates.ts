@@ -144,3 +144,19 @@ export async function deleteSupplierMaterialTemplate(
 ): Promise<void> {
   await apiClient.delete(`/api/supplier-companies/${companyId}/material-templates/${templateId}`)
 }
+
+export interface SupplierLegacyGlobalHint {
+  available_count: number
+  already_imported_count: number
+  manufacturer_key: string | null
+  has_global_templates: boolean
+}
+
+export async function getSupplierLegacyGlobalHint(
+  companyId: string,
+): Promise<SupplierLegacyGlobalHint> {
+  const { data } = await apiClient.get<SupplierLegacyGlobalHint>(
+    `/api/supplier-companies/${companyId}/material-templates/legacy-global-hint`,
+  )
+  return data
+}

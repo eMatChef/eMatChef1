@@ -39,7 +39,7 @@ Abarbeitbare Checkliste für Phase 1–3. Das **Warum/Zielmodell** steht in [sup
 | 8 | MW-Listen: Import, Global Addresses, Konstanten | 1b | M | 0, 1 | [x] |
 | 9 | Katalog `supplier_catalog_item` + Supplier-CRUD | 2a | L | 1–7 | [x] |
 | 10 | Übergaben `supplier_delivery*` + SN | 2b | XL | 9 | [x] |
-| 11 | Vorlagen `supplier_material_template_*` | 2c | XL | 9 | [~] |
+| 11 | Vorlagen `supplier_material_template_*` | 2c | XL | 9 | [x] |
 | 12 | MW-Shop, Budget, Import-Pfade | 2d | XL | 9–11 | [x] |
 | 13 | Sichtbarkeit + Global-Review | 2e | M | 9, 12 | [x] |
 | 14 | Reparaturen an Lieferant | 3 | L | 1–7 | [ ] |
@@ -323,10 +323,10 @@ Diese Stellen strahlen bei Address-/Supplier-Änderungen am stärksten aus:
 **Schritte:**
 - [x] Basis-Entity + Komponenten + Options-/Delta-Tabellen
 - [x] Supplier-Editor (Progressive Disclosure — Basis-Stückliste, Optionen, Gruppen)
-- [ ] MW-Import-Pfad: Vorlage → Material (SN aus Übergabe vorbefüllen) — Erweiterung `TemplateController`-Logik
-- [ ] **Legacy-Übernahme:** Admin-Aktion „Globale Vorlagen übernehmen" — `material_template` (`scope=global`, `manufacturer` match) → **Kopie** nach `supplier_material_template*` (Komponenten + Options mit); Match über `manufacturer` ↔ `supplier_company.manufacturer_key` (normalisiert)
-- [ ] Globale Vorlagen bleiben parallel (MW-Abwärtskompatibilität); optional als Legacy markieren/ablösen
-- [ ] Optional Portal: Hinweis „N globale Vorlagen für euren Hersteller — als Basis importieren"
+- [x] MW-Import-Pfad: Vorlage → Material (Paket 12, `SupplierTemplateImportService`)
+- [x] **Legacy-Übernahme:** Admin-Aktion „Globale Vorlagen übernehmen" — `SupplierLegacyTemplateImportService`
+- [x] Globale Vorlagen bleiben parallel (Kopie, `legacy_material_template_id`)
+- [x] Portal-Hinweis: „N globale Vorlagen … als Basis importieren" (Admin übernimmt)
 
 **Definition of Done:** Supplier-Vorlage anlegbar; Import erzeugt Department-Material wie Plattform-Vorlage; Admin kann globale Herstellervorlagen in die Firma **kopieren** (ohne `material_template`-Zeile zu verschieben).
 

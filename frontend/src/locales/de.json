@@ -859,6 +859,7 @@
     "newTemplate": "Neue Vorlage",
     "refresh": "Aktualisieren",
     "empty": "Noch keine Vorlagen.",
+    "legacyGlobalHint": "{count} globale Plattform-Vorlagen für euren Hersteller sind verfügbar — der Plattform-Admin kann sie als Basis in eure Firma übernehmen.",
     "errorLoad": "Vorlagen konnten nicht geladen werden.",
     "createSuccess": "Vorlage erstellt.",
     "saveSuccess": "Vorlage gespeichert.",
@@ -6687,7 +6688,14 @@
       "capabilityDelivery": "Lieferungen",
       "capabilityTemplates": "Vorlagen",
       "capabilityRepairs": "Reparaturen",
-      "capabilityOperator": "Operator (Vermietung)"
+      "capabilityOperator": "Operator (Vermietung)",
+      "legacyTemplatesSection": "Globale Vorlagen übernehmen",
+      "legacyTemplatesAvailable": "{count} globale Plattform-Vorlage(n) können in diese Firma kopiert werden (material_template → supplier_material_template).",
+      "legacyTemplatesNone": "Keine weiteren globalen Vorlagen verfügbar ({imported} bereits übernommen).",
+      "legacyTemplatesImport": "Alle übernehmen",
+      "legacyTemplatesImporting": "Übernehme …",
+      "legacyTemplatesSuccess": "Globale Vorlagen übernommen.",
+      "legacyTemplatesError": "Übernahme fehlgeschlagen."
     }
   },
   "landingClassic": {

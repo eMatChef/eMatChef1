@@ -49,6 +49,39 @@
           </form>
         </section>
 
+        <section v-if="form.manufacturer_key" class="section">
+          <h4>{{ t('globalAddressesPage.supplierAdminModal.legacyTemplatesSection') }}</h4>
+          <p v-if="loadingLegacyPreview" class="hint">{{ t('globalAddressesPage.loading') }}</p>
+          <p v-else-if="legacyPreview && legacyPreview.available_count === 0" class="hint">
+            {{ t('globalAddressesPage.supplierAdminModal.legacyTemplatesNone', {
+              imported: legacyPreview.already_imported_count,
+            }) }}
+          </p>
+          <template v-else-if="legacyPreview">
+            <p class="hint">
+              {{ t('globalAddressesPage.supplierAdminModal.legacyTemplatesAvailable', {
+                count: legacyPreview.available_count,
+              }) }}
+            </p>
+            <ul v-if="legacyPreview.templates.length" class="legacy-list">
+              <li v-for="item in legacyPreview.templates.filter((t) => !t.already_imported)" :key="item.legacy_material_template_id">
+                {{ item.name }}
+                <span class="muted">({{ item.component_count }} {{ t('supplierTemplates.columns.components') }})</span>
+              </li>
+            </ul>
+            <button
+              type="button"
+              class="btn btn-secondary btn-sm"
+              :disabled="importingLegacy || legacyPreview.available_count === 0"
+              @click="importLegacyTemplates"
+            >
+              {{ importingLegacy
+                ? t('globalAddressesPage.supplierAdminModal.legacyTemplatesImporting')
+                : t('globalAddressesPage.supplierAdminModal.legacyTemplatesImport') }}
+            </button>
+          </template>
+        </section>
+
         <section class="section">
           <h4>{{ t('globalAddressesPage.supplierAdminModal.membersSection') }}</h4>
           <p v-if="loadingMembers" class="hint">{{ t('globalAddressesPage.loading') }}</p>
@@ -123,12 +156,15 @@ import { useI18n } from 'vue-i18n'
 import {
   addAdminSupplierMembership,
   deleteAdminSupplierCompany,
+  importLegacySupplierTemplates,
   listAdminSupplierMemberships,
   patchAdminSupplierCompany,
+  previewLegacySupplierTemplates,
   removeAdminSupplierMembership,
   updateAdminSupplierMembership,
   type AdminSupplierCompany,
   type AdminSupplierMembership,
+  type LegacyTemplatePreview,
 } from '@/api/adminSupplierCompanies'
 import type { SupplierCompanyStatus, SupplierMembershipRole } from '@/api/supplier'
 import { useConfirm } from '@/composables/useConfirm'
@@ -175,6 +211,41 @@ const addingMember = ref(false)
 const savingUserId = ref<string | null>(null)
 const error = ref<string | null>(null)
 const memberships = ref<AdminSupplierMembership[]>([])
+const loadingLegacyPreview = ref(false)
+const importingLegacy = ref(false)
+const legacyPreview = ref<LegacyTemplatePreview | null>(null)
+
+async function loadLegacyPreview() {
+  if (!form.manufacturer_key.trim()) {
+    legacyPreview.value = null
+    return
+  }
+  loadingLegacyPreview.value = true
+  try {
+    legacyPreview.value = await previewLegacySupplierTemplates(props.company.id)
+  } catch {
+    legacyPreview.value = null
+  } finally {
+    loadingLegacyPreview.value = false
+  }
+}
+
+async function importLegacyTemplates() {
+  if (!legacyPreview.value || legacyPreview.value.available_count === 0) return
+
+  importingLegacy.value = true
+  error.value = null
+  try {
+    const result = await importLegacySupplierTemplates(props.company.id)
+    toast.success(result.message || t('globalAddressesPage.supplierAdminModal.legacyTemplatesSuccess'))
+    await loadLegacyPreview()
+    emit('saved')
+  } catch (err: any) {
+    error.value = err?.response?.data?.error || t('globalAddressesPage.supplierAdminModal.legacyTemplatesError')
+  } finally {
+    importingLegacy.value = false
+  }
+}
 
 async function loadMembers() {
   loadingMembers.value = true
@@ -293,6 +364,7 @@ async function removeMember(member: AdminSupplierMembership) {
 
 onMounted(() => {
   loadMembers()
+  loadLegacyPreview()
 })
 </script>
 
@@ -434,6 +506,16 @@ onMounted(() => {
 .error {
   color: #b91c1c;
   font-size: 14px;
+}
+
+.legacy-list {
+  margin: 8px 0 12px;
+  padding-left: 20px;
+  font-size: 14px;
+}
+
+.muted {
+  color: #6b7280;
 }
 
 .btn-inline,

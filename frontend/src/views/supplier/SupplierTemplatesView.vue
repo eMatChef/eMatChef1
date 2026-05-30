@@ -10,6 +10,10 @@
     <div v-else-if="loadError" class="supplier-page-state supplier-page-state--error">{{ loadError }}</div>
 
     <template v-else>
+      <div v-if="legacyHint?.has_global_templates" class="legacy-hint-banner">
+        {{ t('supplierTemplates.legacyGlobalHint', { count: legacyHint.available_count }) }}
+      </div>
+
       <div class="toolbar">
         <button type="button" class="btn btn-primary" @click="openCreate">
           {{ t('supplierTemplates.newTemplate') }}
@@ -76,9 +80,11 @@ import SupplierMaterialTemplateModal from '@/components/supplier/SupplierMateria
 import {
   createSupplierMaterialTemplate,
   deleteSupplierMaterialTemplate,
+  getSupplierLegacyGlobalHint,
   getSupplierMaterialTemplate,
   listSupplierMaterialTemplates,
   updateSupplierMaterialTemplate,
+  type SupplierLegacyGlobalHint,
   type SupplierMaterialTemplate,
   type SupplierMaterialTemplatePayload,
   type SupplierMaterialType,
@@ -104,6 +110,7 @@ const loading = ref(true)
 const loadingDetail = ref(false)
 const loadError = ref('')
 const templates = ref<SupplierMaterialTemplate[]>([])
+const legacyHint = ref<SupplierLegacyGlobalHint | null>(null)
 const modalOpen = ref(false)
 const editingTemplate = ref<SupplierMaterialTemplate | null>(null)
 
@@ -131,7 +138,12 @@ async function loadTemplates() {
   loading.value = true
   loadError.value = ''
   try {
-    templates.value = await listSupplierMaterialTemplates(companyId.value)
+    const [items, hint] = await Promise.all([
+      listSupplierMaterialTemplates(companyId.value),
+      getSupplierLegacyGlobalHint(companyId.value).catch(() => null),
+    ])
+    templates.value = items
+    legacyHint.value = hint
   } catch (err: any) {
     loadError.value = err?.response?.data?.error || t('supplierTemplates.errorLoad')
   } finally {
@@ -224,6 +236,16 @@ onMounted(() => {
 .supplier-page-hint {
   margin: 8px 0 0;
   color: #6b7280;
+}
+
+.legacy-hint-banner {
+  margin-top: 16px;
+  padding: 12px 14px;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+  color: #1e40af;
+  font-size: 0.95rem;
 }
 
 .supplier-page-state {

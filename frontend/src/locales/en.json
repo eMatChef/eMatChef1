@@ -758,6 +758,7 @@
     "newTemplate": "New template",
     "refresh": "Refresh",
     "empty": "No templates yet.",
+    "legacyGlobalHint": "{count} global platform template(s) for your manufacturer are available — the platform admin can copy them into your company as a starting point.",
     "errorLoad": "Could not load templates.",
     "createSuccess": "Template created.",
     "saveSuccess": "Template saved.",
@@ -4888,7 +4889,14 @@
       "capabilityDelivery": "Deliveries",
       "capabilityTemplates": "Templates",
       "capabilityRepairs": "Repairs",
-      "capabilityOperator": "Operator (rental)"
+      "capabilityOperator": "Operator (rental)",
+      "legacyTemplatesSection": "Import global templates",
+      "legacyTemplatesAvailable": "{count} global platform template(s) can be copied into this company (material_template → supplier_material_template).",
+      "legacyTemplatesNone": "No further global templates available ({imported} already imported).",
+      "legacyTemplatesImport": "Import all",
+      "legacyTemplatesImporting": "Importing …",
+      "legacyTemplatesSuccess": "Global templates imported.",
+      "legacyTemplatesError": "Import failed."
     }
   }
 }

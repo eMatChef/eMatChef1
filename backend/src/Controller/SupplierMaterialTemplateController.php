@@ -13,6 +13,7 @@ use App\Entity\User;
 use App\Repository\SupplierMaterialTemplateRepository;
 use App\Security\Voter\SupplierCompanyVoter;
 use App\Service\Supplier\SupplierCompanyAccessService;
+use App\Service\Supplier\SupplierLegacyTemplateImportService;
 use App\Util\IdGenerator;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -28,6 +29,7 @@ class SupplierMaterialTemplateController extends AbstractController
         private EntityManagerInterface $entityManager,
         private SupplierMaterialTemplateRepository $templateRepository,
         private SupplierCompanyAccessService $accessService,
+        private SupplierLegacyTemplateImportService $legacyTemplateImportService,
     ) {
     }
 
@@ -51,6 +53,32 @@ class SupplierMaterialTemplateController extends AbstractController
                 $templates
             ),
         ]);
+    }
+
+    #[Route('/legacy-global-hint', name: 'legacy_global_hint', methods: ['GET'])]
+    #[IsGranted('ROLE_USER')]
+    #[IsGranted(SupplierCompanyVoter::ACCESS, subject: 'companyId')]
+    public function legacyGlobalHint(string $companyId): JsonResponse
+    {
+        $user = $this->requireUser();
+        try {
+            $this->accessService->requireTemplatesAccess($user, $companyId);
+        } catch (\Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException $e) {
+            return new JsonResponse(['error' => $e->getMessage()], 403);
+        }
+
+        try {
+            $preview = $this->legacyTemplateImportService->getPreview($companyId);
+
+            return new JsonResponse([
+                'available_count' => $preview['available_count'],
+                'already_imported_count' => $preview['already_imported_count'],
+                'manufacturer_key' => $preview['manufacturer_key'],
+                'has_global_templates' => $preview['available_count'] > 0,
+            ]);
+        } catch (\InvalidArgumentException $e) {
+            return new JsonResponse(['error' => $e->getMessage()], 400);
+        }
     }
 
     #[Route('', name: 'create', methods: ['POST'])]

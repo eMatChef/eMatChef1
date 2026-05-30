@@ -75,6 +75,25 @@ class SupplierMaterialTemplateRepository extends ServiceEntityRepository
     }
 
     /**
+     * @return list<string>
+     */
+    public function findImportedLegacyIdsByCompanyId(string $companyId): array
+    {
+        $rows = $this->createQueryBuilder('t')
+            ->select('t.legacyMaterialTemplateId')
+            ->where('t.supplierCompanyId = :companyId')
+            ->andWhere('t.legacyMaterialTemplateId IS NOT NULL')
+            ->setParameter('companyId', $companyId)
+            ->getQuery()
+            ->getScalarResult();
+
+        return array_values(array_filter(array_map(
+            static fn (array $row) => (string) ($row['legacyMaterialTemplateId'] ?? ''),
+            $rows
+        )));
+    }
+
+    /**
      * @return list<SupplierMaterialTemplate>
      */
     public function findPendingGlobalReview(): array
