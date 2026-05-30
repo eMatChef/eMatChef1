@@ -17,4 +17,17 @@ class SupplierCompanyRepository extends ServiceEntityRepository
     {
         parent::__construct($registry, SupplierCompany::class);
     }
+
+    /**
+     * @return list<SupplierCompany>
+     */
+    public function findByStatus(string $status): array
+    {
+        return $this->createQueryBuilder('c')
+            ->andWhere('c.status = :status')
+            ->setParameter('status', $status)
+            ->orderBy('c.name', 'ASC')
+            ->getQuery()
+            ->getResult();
+    }
 }

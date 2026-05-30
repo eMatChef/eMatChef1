@@ -562,8 +562,19 @@
     "myCompanyTeam": "Team"
   },
   "supplierProfile": {
-    "title": "Profil & Kontakt",
-    "placeholder": "Firmenprofil und öffentliche Kontaktdaten werden hier in Kürze verfügbar sein."
+    "title": "Profile & contact",
+    "readOnlyHint": "You can view company details but not edit them.",
+    "sectionCompany": "Company",
+    "sectionContact": "Contact & address",
+    "loadFailed": "Could not load profile.",
+    "saveSuccess": "Profile saved.",
+    "saveFailed": "Could not save profile.",
+    "fields": {
+      "name": "Company name",
+      "manufacturerKey": "Manufacturer key",
+      "manufacturerKeyPlaceholder": "e.g. tortuga",
+      "manufacturerKeyHint": "Unique key for import and template matching (lowercase)."
+    }
   },
   "supplierTeam": {
     "title": "Team",

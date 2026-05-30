@@ -181,22 +181,67 @@ class SupplierCompanyFactory
     }
 
     /** @param array<string, mixed|null> $data */
+    public function applyAddressPatch(Address $address, array $data, ?string $syncCompanyName = null): void
+    {
+        if ($syncCompanyName !== null) {
+            $address->setCompany($syncCompanyName);
+        }
+        if (array_key_exists('company', $data)) {
+            $address->setCompany($this->nullableString($data['company']));
+        }
+        if (array_key_exists('name', $data)) {
+            $address->setName($this->nullableString($data['name']));
+        }
+        if (array_key_exists('street', $data)) {
+            $address->setStreet($this->nullableString($data['street']));
+        }
+        if (array_key_exists('street_number', $data)) {
+            $address->setStreetNumber($this->nullableString($data['street_number']));
+        }
+        if (array_key_exists('postal_code', $data)) {
+            $address->setPostalCode($this->nullableString($data['postal_code']));
+        }
+        if (array_key_exists('city', $data)) {
+            $address->setCity($this->nullableString($data['city']));
+        }
+        if (array_key_exists('canton', $data)) {
+            $address->setCanton($this->nullableString($data['canton']));
+        }
+        if (array_key_exists('country', $data)) {
+            $country = trim((string) $data['country']);
+            $address->setCountry($country !== '' ? $country : 'Schweiz');
+        }
+        if (array_key_exists('contact_first_name', $data)) {
+            $address->setContactFirstName($this->nullableString($data['contact_first_name']));
+        }
+        if (array_key_exists('contact_last_name', $data)) {
+            $address->setContactLastName($this->nullableString($data['contact_last_name']));
+        }
+        if (array_key_exists('email', $data)) {
+            $address->setEmail($this->nullableString($data['email']));
+        }
+        if (array_key_exists('phone', $data)) {
+            $address->setPhone($this->nullableString($data['phone']));
+        }
+        if (array_key_exists('mobile', $data)) {
+            $address->setMobile($this->nullableString($data['mobile']));
+        }
+        if (array_key_exists('additional_info', $data)) {
+            $address->setAdditionalInfo($this->nullableString($data['additional_info']));
+        }
+    }
+
+    /** @param array<string, mixed|null> $data */
     private function applyAddressData(Address $address, array $data, string $companyName): void
     {
-        $address->setCompany($this->nullableString($data['company'] ?? $companyName));
-        $address->setName($this->nullableString($data['name'] ?? null));
-        $address->setStreet($this->nullableString($data['street'] ?? null));
-        $address->setStreetNumber($this->nullableString($data['street_number'] ?? null));
-        $address->setPostalCode($this->nullableString($data['postal_code'] ?? null));
-        $address->setCity($this->nullableString($data['city'] ?? null));
-        $address->setCanton($this->nullableString($data['canton'] ?? null));
-        $address->setCountry((string) ($data['country'] ?? 'Schweiz'));
-        $address->setContactFirstName($this->nullableString($data['contact_first_name'] ?? null));
-        $address->setContactLastName($this->nullableString($data['contact_last_name'] ?? null));
-        $address->setEmail($this->nullableString($data['email'] ?? null));
-        $address->setPhone($this->nullableString($data['phone'] ?? null));
-        $address->setMobile($this->nullableString($data['mobile'] ?? null));
-        $address->setAdditionalInfo($this->nullableString($data['additional_info'] ?? null));
+        $patch = $data;
+        if (!array_key_exists('company', $patch)) {
+            $patch['company'] = $companyName;
+        }
+        if (!array_key_exists('country', $patch)) {
+            $patch['country'] = 'Schweiz';
+        }
+        $this->applyAddressPatch($address, $patch);
     }
 
     private function nullableString(mixed $value): ?string

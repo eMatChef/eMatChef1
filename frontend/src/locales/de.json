@@ -664,7 +664,18 @@
   },
   "supplierProfile": {
     "title": "Profil & Kontakt",
-    "placeholder": "Firmenprofil und öffentliche Kontaktdaten werden hier in Kürze verfügbar sein."
+    "readOnlyHint": "Du kannst die Firmendaten einsehen, aber nicht bearbeiten.",
+    "sectionCompany": "Firma",
+    "sectionContact": "Kontakt & Adresse",
+    "loadFailed": "Profil konnte nicht geladen werden.",
+    "saveSuccess": "Profil gespeichert.",
+    "saveFailed": "Profil konnte nicht gespeichert werden.",
+    "fields": {
+      "name": "Firmenname",
+      "manufacturerKey": "Hersteller-Schlüssel",
+      "manufacturerKeyPlaceholder": "z. B. tortuga",
+      "manufacturerKeyHint": "Eindeutiger Schlüssel für Import und Vorlagen-Matching (Kleinbuchstaben)."
+    }
   },
   "supplierTeam": {
     "title": "Team",

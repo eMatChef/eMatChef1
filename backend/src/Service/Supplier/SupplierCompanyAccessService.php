@@ -43,6 +43,34 @@ class SupplierCompanyAccessService
         }
     }
 
+    public function isCompanyAdmin(User $user, string $companyId): bool
+    {
+        $membership = $this->supplierMembershipRepository->findOneBy([
+            'userId' => $user->getId(),
+            'supplierCompanyId' => $companyId,
+        ]);
+
+        if (!$membership instanceof SupplierMembership) {
+            return false;
+        }
+
+        if ($membership->getSupplierCompany()->getStatus() !== SupplierCompany::STATUS_ACTIVE) {
+            return false;
+        }
+
+        return $membership->getRole() === SupplierMembership::ROLE_ADMIN;
+    }
+
+    public function getMembership(User $user, string $companyId): ?SupplierMembership
+    {
+        $membership = $this->supplierMembershipRepository->findOneBy([
+            'userId' => $user->getId(),
+            'supplierCompanyId' => $companyId,
+        ]);
+
+        return $membership instanceof SupplierMembership ? $membership : null;
+    }
+
     public function userHasActiveSupplierMembership(User $user): bool
     {
         return \count($this->loadMembershipsForUser($user)) > 0;

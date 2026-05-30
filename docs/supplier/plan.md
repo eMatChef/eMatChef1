@@ -2,7 +2,7 @@
 
 Abarbeitbare Checkliste für Phase 1–3. Das **Warum/Zielmodell** steht in [supplier-portal.md](./supplier-portal.md). Dieser Plan = **Was & in welcher Reihenfolge**.
 
-**Stand:** Mai 2026 · Phase 1 in Paketen 0–8; Phase 2/3 als grobe Pakete (Detail folgt mit Phase-2-Start). **Erledigt: Paket 0–4**
+**Stand:** Mai 2026 · Phase 1 in Paketen 0–8; Phase 2/3 als grobe Pakete (Detail folgt mit Phase-2-Start). **Erledigt: Paket 0–5**
 
 ---
 
@@ -33,7 +33,7 @@ Abarbeitbare Checkliste für Phase 1–3. Das **Warum/Zielmodell** steht in [sup
 | 2 | Auth: `ROLE_SUPPLIER`, Session, Voter | 1 | S–M | 1 | [x] |
 | 3 | Plattform-Admin: Onboarding + Legacy-Promote | 1 | M | 1, 2 | [x] |
 | 4 | Frontend-Shell: Routing, Layout, Sidebar | 1 | M | 2 | [x] |
-| 5 | „Meine Firma“: Profil & Kontakt | 1 | M | 1, 2, 4 | [ ] |
+| 5 | „Meine Firma“: Profil & Kontakt | 1 | M | 1, 2, 4 | [x] |
 | 6 | Team + Join-Code | 1 | M | 2, 5 | [ ] |
 | 7 | Operator: Capability + `linked_department_id` | 1 | S | 1, 5 | [ ] |
 | 8 | MW-Listen: Import, Global Addresses, Konstanten | 1b | M | 0, 1 | [ ] |
@@ -155,8 +155,9 @@ Diese Stellen strahlen bei Address-/Supplier-Änderungen am stärksten aus:
 - [x] `PATCH` Capabilities, `status`, `linked_department_id` (nur Plattform-Admin für sensible Felder)
 - [x] Legacy: Aktion „Als Supplier-Firma aktivieren“ auf `address` (`scope=global`) → `SupplierCompany` + Adresse `scope=supplier` + `supplier_company_id`
 - [x] **Keine** Self-Registration neuer Firmen
+- Globale **Material-Vorlagen**-Übernahme (`material_template` → `supplier_material_template*`) folgt in **Paket 11** — siehe [supplier-portal.md §8.8](./supplier-portal.md#88-legacy-daten)
 
-**Definition of Done:** Admin kann Tortuga als Firma anlegen; Legacy-Promote ohne Datenverlust; erster User ist `admin`.
+**Definition of Done:** Admin kann Tortuga als Firma anlegen; Legacy-Promote (Adresse) ohne Datenverlust; erster User ist `admin`.
 
 ---
 
@@ -200,11 +201,11 @@ Diese Stellen strahlen bei Address-/Supplier-Änderungen am stärksten aus:
 - Öffentlicher Read-Endpoint für MW (Liste aktiver Firmen + Kontakt) — kann schon hier minimal
 
 **Schritte:**
-- [ ] `GET/PATCH /api/supplier-companies/{id}` — Profil (admin schreibt, member liest)
-- [ ] `PATCH` aktualisiert verknüpfte `address` (`scope=supplier`, `type=supplier`): Name, Firma, Strasse, PLZ, Ort, Tel, E-Mail, …
-- [ ] `manufacturer_key` pflegen (Unique-Validierung)
-- [ ] Öffentlich: `GET /api/supplier-companies?status=active` oder dedizierter Picker-Endpoint für MW (Kontakt sichtbar)
-- [ ] UI: Formular Profil & Kontakt; Member sieht disabled/read-only
+- [x] `GET/PATCH /api/supplier-companies/{id}` — Profil (admin schreibt, member liest)
+- [x] `PATCH` aktualisiert verknüpfte `address` (`scope=supplier`, `type=supplier`): Name, Firma, Strasse, PLZ, Ort, Tel, E-Mail, …
+- [x] `manufacturer_key` pflegen (Unique-Validierung)
+- [x] Öffentlich: `GET /api/supplier-companies?status=active` oder dedizierter Picker-Endpoint für MW (Kontakt sichtbar)
+- [x] UI: Formular Profil & Kontakt; Member sieht disabled/read-only
 
 **Definition of Done:** Admin speichert Kontakt; MW-API liefert aktive Firmen mit Adresse; Member kann nicht schreiben.
 
@@ -323,8 +324,11 @@ Diese Stellen strahlen bei Address-/Supplier-Änderungen am stärksten aus:
 - [ ] Basis-Entity + Komponenten + Options-/Delta-Tabellen
 - [ ] Supplier-Editor (Progressive Disclosure wie Combo-Editor)
 - [ ] MW-Import-Pfad: Vorlage → Material (SN aus Übergabe vorbefüllen) — Erweiterung `TemplateController`-Logik
+- [ ] **Legacy-Übernahme:** Admin-Aktion „Globale Vorlagen übernehmen" — `material_template` (`scope=global`, `manufacturer` match) → **Kopie** nach `supplier_material_template*` (Komponenten + Options mit); Match über `manufacturer` ↔ `supplier_company.manufacturer_key` (normalisiert)
+- [ ] Globale Vorlagen bleiben parallel (MW-Abwärtskompatibilität); optional als Legacy markieren/ablösen
+- [ ] Optional Portal: Hinweis „N globale Vorlagen für euren Hersteller — als Basis importieren"
 
-**Definition of Done:** Supplier-Vorlage anlegbar; Import erzeugt Department-Material wie Plattform-Vorlage.
+**Definition of Done:** Supplier-Vorlage anlegbar; Import erzeugt Department-Material wie Plattform-Vorlage; Admin kann globale Herstellervorlagen in die Firma **kopieren** (ohne `material_template`-Zeile zu verschieben).
 
 ---
 
@@ -410,6 +414,7 @@ Diese Stellen strahlen bei Address-/Supplier-Änderungen am stärksten aus:
 > - Kein `linked_organisation_id`
 > - SN nur auf Delivery, nicht Katalog
 > - J&S out of scope; `dept_js00000` unberührt bei M1
+> - Globale Vorlagen (`material_template scope=global`) ohne `SupplierCompany` gültig; Übernahme = Kopie nach `supplier_material_template*` (Paket 11), Match `manufacturer` ↔ `manufacturer_key`
 
 ---
 
