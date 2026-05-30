@@ -114,12 +114,12 @@
                     v-if="mat.materialType === 'physical_combo'"
                     class="activity-combo-badge"
                     :title="t('activities.detail.comboPhysicalTitle')"
-                  >{{ t('activities.detail.comboPhysicalShort') }}</span>
+                  ><span aria-hidden="true">{{ COMBO_BADGE.physical }}</span> {{ t('activities.detail.comboPhysicalShort') }}</span>
                   <span
                     v-else-if="mat.materialType === 'virtual_combo'"
                     class="activity-combo-badge activity-combo-badge--virtual"
                     :title="t('activities.detail.comboVirtualTitle')"
-                  >{{ t('activities.detail.comboVirtualShort') }}</span>
+                  ><span aria-hidden="true">{{ COMBO_BADGE.virtual }}</span> {{ t('activities.detail.comboVirtualShort') }}</span>
                 </span>
                 <span class="activity-mat-result-meta">
                   <span class="activity-mat-stock">
@@ -281,6 +281,16 @@
       @confirm="onConfiguratorConfirm"
       @cancel="onConfiguratorCancel"
     />
+
+    <!-- „Kombinieren?"-Dialog: Überlapp mit vorhandener Position -->
+    <CombineWithExistingDialog
+      v-if="combineState"
+      :combo-name="combineState.material.name"
+      :overlaps="combineState.overlaps"
+      @combine="onCombineUseExisting"
+      @separate="onCombineSeparate"
+      @cancel="onCombineCancel"
+    />
   </div>
 </template>
 
@@ -299,6 +309,10 @@ import { materialLookupContextForScopeTab, type MaterialScopeTab } from './share
 import { storageContainerIconFromPackUnit } from '@/utils/storageContainerDisplay'
 import { getRelatedAccessories } from '@/api/materials'
 import { fetchMaterialsAvailableForPeriodByIds } from '@/api/materialAvailabilityPeriod'
+import { COMBO_BADGE } from '@/utils/comboDisplay'
+import CombineWithExistingDialog, {
+  type CombineOverlap,
+} from '@/components/activities/CombineWithExistingDialog.vue'
 
 interface InvitedPartnerDepartment {
   id: string
@@ -315,6 +329,12 @@ const props = withDefaults(
     planningEndIso?: string | null
     /** Bereits gebuchte Menge pro Material-Item (Wizard-Zeilen oder Detail-API) */
     quantityByMaterialItemId: Record<string, number>
+    /**
+     * Menge je Material-Item, die als **eigenständige** Einzelposition gebucht ist
+     * (kein Kombo-Kind, keine Kombo-Hülle). Grundlage für die „Kombinieren?"-Erkennung.
+     * Fehlt sie, fällt die Erkennung auf `quantityByMaterialItemId` zurück.
+     */
+    standaloneQuantityByMaterialItemId?: Record<string, number>
     /** Optional: gespeicherte Summe pro Material (Detail-Entwurf), sonst wie Entwurf */
     savedQuantityByMaterialItemId?: Record<string, number>
     /** Eingeladene Departments (nur accepted → Partner-Tabs) */
@@ -337,6 +357,7 @@ const props = withDefaults(
     planningStartIso: null,
     planningEndIso: null,
     invitedDepartments: () => [],
+    standaloneQuantityByMaterialItemId: () => ({}),
     savedQuantityByMaterialItemId: () => ({}),
     disabled: false,
     hintVariant: 'draft',
@@ -348,7 +369,15 @@ const props = withDefaults(
 const { t, locale } = useI18n()
 
 const emit = defineEmits<{
-  'add-quantity': [payload: { material: ActivityPeriodAvailabilityMaterial; quantity: number; selectedOptionIds?: string[] }]
+  'add-quantity': [
+    payload: {
+      material: ActivityPeriodAvailabilityMaterial
+      quantity: number
+      selectedOptionIds?: string[]
+      /** „Kombinieren?": vorhandene Einzelpositionen um den Kombo-Bedarf reduzieren. */
+      combineParts?: Array<{ materialItemId: string; reduceBy: number }>
+    },
+  ]
   /** Tab Eigen / Partner / J&S — für dieselbe Verfügbarkeitslogik wie die Materialtabelle */
   'scope-change': [payload: { tab: MaterialScopeTab; singlePartnerDepartmentId: string | null }]
 }>()
@@ -525,10 +554,27 @@ function openConfigurator(m: ActivityPeriodAvailabilityMaterial, qty: number) {
   configuratorState.value = { material: m, quantity: qty }
 }
 
-function onConfiguratorConfirm(payload: { selectedOptionIds: string[]; quantity: number }) {
+function onConfiguratorConfirm(payload: {
+  selectedOptionIds: string[]
+  quantity: number
+  resolvedStock: Array<{ materialItemId: string; name: string; qtyPerCombo: number }>
+}) {
   const state = configuratorState.value
   configuratorState.value = null
   if (!state) return
+
+  // „Kombinieren?": Überlapp der aufgelösten Teile mit vorhandenen Einzelpositionen erkennen.
+  const overlaps = detectCombineOverlaps(payload.resolvedStock, payload.quantity)
+  if (overlaps.length > 0) {
+    combineState.value = {
+      material: state.material,
+      quantity: payload.quantity,
+      selectedOptionIds: payload.selectedOptionIds,
+      overlaps,
+    }
+    return
+  }
+
   emit('add-quantity', {
     material: state.material,
     quantity: payload.quantity,
@@ -540,6 +586,74 @@ function onConfiguratorConfirm(payload: { selectedOptionIds: string[]; quantity:
 
 function onConfiguratorCancel() {
   configuratorState.value = null
+}
+
+// ── „Kombinieren?"-Dialog (Überlapp Kombo-Teil ↔ vorhandene Einzelposition) ──
+const combineState = ref<{
+  material: ActivityPeriodAvailabilityMaterial
+  quantity: number
+  selectedOptionIds: string[]
+  overlaps: CombineOverlap[]
+} | null>(null)
+
+/** Eigenständige Einzelpositionen (Reduktions-Grundlage), Fallback auf Gesamtmenge. */
+function standaloneQtyFor(materialId: string): number {
+  const std = props.standaloneQuantityByMaterialItemId
+  if (std && Object.keys(std).length > 0) {
+    return std[materialId] ?? 0
+  }
+  return props.quantityByMaterialItemId[materialId] ?? 0
+}
+
+function detectCombineOverlaps(
+  resolvedStock: Array<{ materialItemId: string; name: string; qtyPerCombo: number }>,
+  comboQty: number,
+): CombineOverlap[] {
+  const result: CombineOverlap[] = []
+  for (const part of resolvedStock) {
+    const existing = standaloneQtyFor(part.materialItemId)
+    if (existing <= 0) continue
+    const comboNeed = Math.max(0, part.qtyPerCombo) * Math.max(1, comboQty)
+    if (comboNeed <= 0) continue
+    result.push({ materialItemId: part.materialItemId, name: part.name, existingQty: existing, comboNeed })
+  }
+  return result
+}
+
+function onCombineUseExisting() {
+  const state = combineState.value
+  combineState.value = null
+  if (!state) return
+  const combineParts = state.overlaps.map((o) => ({
+    materialItemId: o.materialItemId,
+    // Vorhandene Einheit für die Kombo nutzen → Einzelposition um den (gedeckelten) Bedarf reduzieren.
+    reduceBy: Math.min(o.existingQty, o.comboNeed),
+  }))
+  emit('add-quantity', {
+    material: state.material,
+    quantity: state.quantity,
+    selectedOptionIds: state.selectedOptionIds,
+    combineParts,
+  })
+  matSearch.value = ''
+  void loadAccessorySuggestion(state.material)
+}
+
+function onCombineSeparate() {
+  const state = combineState.value
+  combineState.value = null
+  if (!state) return
+  emit('add-quantity', {
+    material: state.material,
+    quantity: state.quantity,
+    selectedOptionIds: state.selectedOptionIds,
+  })
+  matSearch.value = ''
+  void loadAccessorySuggestion(state.material)
+}
+
+function onCombineCancel() {
+  combineState.value = null
 }
 
 // ── Vorschlag: verwandtes Zubehör nach Hinzufügen einer Kombo ──

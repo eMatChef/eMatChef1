@@ -609,6 +609,11 @@
   color: #6d28d9;
 }
 
+.combo-type-badge-emoji {
+  margin-right: 3px;
+  font-size: 11px;
+}
+
 /* Combo Stock Badge */
 .stock-badge.combo {
   background: #e0f2fe;

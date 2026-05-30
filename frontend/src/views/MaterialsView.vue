@@ -299,6 +299,7 @@
                   </td>
                   <td v-if="showComboColumns" class="col-type">
                     <span class="combo-type-badge" :class="material.material_type">
+                      <span class="combo-type-badge-emoji" aria-hidden="true">{{ comboBadgeEmoji({ materialType: material.material_type }) }}</span>
                       {{
                         material.material_type === 'physical_combo'
                           ? t('components.materialDetail.typePhysicalShort')
@@ -493,6 +494,7 @@ import { useToast } from '@/composables/useToast'
 import { useListSearchQueryRoute } from '@/composables/useListSearchQueryRoute'
 import { useAuthStore } from '@/stores/auth'
 import { isDepartmentBasicMemberRole } from '@/composables/useDepartmentMemberRole'
+import { isComboMaterial as isComboMaterialType, comboBadgeEmoji } from '@/utils/comboDisplay'
 import '@/styles/material-wizard.css'
 
 const route = useRoute()
@@ -679,7 +681,7 @@ const materialTableColspan = computed(() => {
 })
 
 function isComboMaterial(material: Material): boolean {
-  return material.material_type === 'physical_combo' || material.material_type === 'virtual_combo'
+  return isComboMaterialType(material)
 }
 
 function isComboDraft(material: Material): boolean {

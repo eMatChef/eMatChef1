@@ -1128,6 +1128,8 @@
       "comboPhysicalShort": "Phys. Kombi",
       "comboVirtualTitle": "Virtuelle Kombination",
       "comboVirtualShort": "Virt. Kombi",
+      "comboSetContentTitle": "Set-Inhalt",
+      "comboSetSelfProvided": "selbst mitbringen",
       "crateLine": "Kiste: {label}",
       "replenishmentBadge": "Nachlieferung / Zukauf",
       "saveQtySaving": "Speichern…",
@@ -1243,6 +1245,14 @@
       "packUnitSets": "Sets",
       "titleAddOnePack": "1 {unit}",
       "titleAddFivePacks": "5 {units}"
+    },
+    "combineDialog": {
+      "title": "Kombinieren?",
+      "intro": "Teile der Kombo „{name}“ sind bereits als eigene Position in dieser Aktivität.",
+      "overlapDetail": "Bereits gebucht: {existing} · Kombo braucht zusätzlich: {combo}",
+      "explain": "Vorhandene Einheit für die Kombo nutzen (Einzelposition wird entsprechend reduziert) – oder beides getrennt buchen.",
+      "useExisting": "Vorhandene nutzen",
+      "keepSeparate": "Getrennt buchen"
     },
     "materialLinesTable": {
       "shortageBanner": "Im gewählten Abhol-/Rückgabezeitraum reicht der Bestand für mindestens eine Position nicht — betroffene Zeilen stehen oben in der Liste.",

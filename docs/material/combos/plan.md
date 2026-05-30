@@ -2,7 +2,7 @@
 
 Abarbeitbare Checkliste für den Umbau auf das bereinigte Combo-Modell. Das **Warum/Zielmodell** steht im [README.md](./README.md) (insb. Abschnitt 0 + 6). Dieser Plan = **Was & in welcher Reihenfolge**.
 
-**Stand:** Mai 2026 · Pakete 0–7, von klein → groß. **Erledigt: 0–6** (Mini-Fixes; `combo_status` draft/ready inkl. Migration `Version20260529120000`; `reservation_mode` end-to-end entfernt inkl. Drop-Migration `Version20260529130000`; drei Typen im Wizard mit Klartext-Karten/Badges + Hülle-Hinweis; verwandtes Zubehör als separate Empfehlung inkl. Entities/Migration `Version20260529140000`/API, Detail-Tab, Vorlage + Aktivitäts-Vorschlag, „fertigstellen" für physische Kombo; **Paket 5**: virtuelle Kombo + vereinheitlichtes Options-/Delta-Fundament inkl. Migration `Version20260529150000`, `ComboResolutionService` (Flaschenhals/Klemmung), Zeilenmodell B in `ActivityController`, Pack-pro-Komponente; **Paket 6**: Konfigurator-UI — Options-/Gruppen-Editor in Material (`ComboOptionsEditor.vue`, CRUD in `MaterialController`) und Vorlage (`TemplateOptionsEditor.vue`, generisch, replace-all in `TemplateController`), 3-Zustands-Verfügbarkeit `MaterialAvailabilityController::configuratorAvailability`, interaktiver `ComboConfiguratorDialog.vue` in Lookup + Wizard mit Zeilenmodell-B-Durchreichung, i18n de/en). **Nächstes: Paket 7.** Kein neues DB-Schema in Paket 6 (Fundament steht aus Paket 5).
+**Stand:** Mai 2026 · Pakete 0–7, von klein → groß. **Erledigt: 0–7** (Mini-Fixes; `combo_status` draft/ready inkl. Migration `Version20260529120000`; `reservation_mode` end-to-end entfernt inkl. Drop-Migration `Version20260529130000`; drei Typen im Wizard mit Klartext-Karten/Badges + Hülle-Hinweis; verwandtes Zubehör als separate Empfehlung inkl. Entities/Migration `Version20260529140000`/API, Detail-Tab, Vorlage + Aktivitäts-Vorschlag, „fertigstellen" für physische Kombo; **Paket 5**: virtuelle Kombo + vereinheitlichtes Options-/Delta-Fundament inkl. Migration `Version20260529150000`, `ComboResolutionService` (Flaschenhals/Klemmung), Zeilenmodell B in `ActivityController`, Pack-pro-Komponente; **Paket 6**: Konfigurator-UI — Options-/Gruppen-Editor in Material (`ComboOptionsEditor.vue`, CRUD in `MaterialController`) und Vorlage (`TemplateOptionsEditor.vue`, generisch, replace-all in `TemplateController`), 3-Zustands-Verfügbarkeit `MaterialAvailabilityController::configuratorAvailability`, interaktiver `ComboConfiguratorDialog.vue` in Lookup + Wizard mit Zeilenmodell-B-Durchreichung, i18n de/en; **Paket 7**: Cross-Cutting — „Kombinieren?"-Dialog (`CombineWithExistingDialog.vue`) bei Überlapp Kombo-Teil ↔ vorhandener Einzelposition, Set-Anzeige „wie Kiste" (Hülle + aufgelöste Kind-Teile aus `config_snapshot`) in Detail + Lines-Table, einheitliche Emoji-Badges 📦/🟦/🟪/🧩 über neuen Shared-Helfer `frontend/src/utils/comboDisplay.ts` (duplizierter `isComboMaterial` zusammengeführt), i18n de/en). **Paket 7 fertig — frontend `npm run build` (vue-tsc + vite) grün.** Kein neues DB-Schema in Paket 6/7 (Fundament steht aus Paket 5).
 
 ---
 
@@ -31,7 +31,7 @@ Abarbeitbare Checkliste für den Umbau auf das bereinigte Combo-Modell. Das **Wa
 | 4 | Physische Kombo finalisieren | M | 3 | [x] |
 | 5 | Virtuelle Kombo + Options-/Delta-Fundament | XL | 4 | [x] |
 | 6 | Konfigurator-UI (Auswahl-Gruppen) | L | 5 | [x] |
-| 7 | Komfort / Cross-Cutting | M | 5, 6 | [ ] |
+| 7 | Komfort / Cross-Cutting | M | 5, 6 | [x] |
 
 > **Weg B (vereinheitlicht):** Alles Wählbare ist eine **Option mit Delta-Liste**; `is_optional` ist nur Anzeige-Flag „Toggle". Darum baut **Paket 5 das Options-/Delta-Schema gleich mit** (auch der einfache Ja/Nein-Fall nutzt es). Paket 6 setzt nur die **Gruppen-/Auswahl-UI** obendrauf, kein neues Fundament. Es gibt **keinen** billigen Bool-Zwischenschritt.
 
@@ -52,7 +52,7 @@ Diese Stellen steuern Typ-/Status-/Verfügbarkeitslogik zentral — Änderungen 
 - `composables/useActivityCreateWizard.ts` — Aktivitäts-Materialauswahl.
 - `components/activities/shared/activityAvailabilityMaterial.ts`, `packMaterialDisplay.ts`, `packShellCrateHelpers.ts` — Verfügbarkeits-/Pack-Anzeige, verzweigt auf `material_type`.
 - Wizard: `wizard/CreationModeStep.vue`, `MaterialTypeToggles.vue`, `SelectedModeBanner.vue` (Paket 3).
-- ⚠️ **Kein** zentraler Frontend-Helfer für „ist Kombo": `isComboMaterial` ist **dupliziert** (`MaterialsView.vue` + `MaterialDetailView.vue`). Bei Typ-Logik-Änderungen beide Stellen anfassen — oder vorher in einen gemeinsamen Helfer ziehen.
+- ✅ **Zentraler Frontend-Helfer** `frontend/src/utils/comboDisplay.ts` (`isComboMaterial`/`isPhysicalCombo`/`isVirtualCombo` + Emoji-Konstanten `COMBO_BADGE` 📦/🟦/🟪/🧩 + `comboBadgeEmoji`). Die früher in `MaterialsView.vue` + `MaterialDetailView.vue` duplizierte `isComboMaterial`-Logik ist hier zusammengeführt (Paket 7); Badge-Stellen nutzen die Emoji-Konstanten.
 
 ---
 
@@ -233,11 +233,11 @@ Diese Stellen steuern Typ-/Status-/Verfügbarkeitslogik zentral — Änderungen 
 - ggf. Backend (Überlapp-Erkennung)
 
 **Schritte:**
-- [ ] „Kombinieren?"-Dialog: Überlapp einer Kombo-Option mit vorhandener Aktivitäts-Position erkennen → fragen statt doppelt reservieren (README Abschnitt 7).
-- [ ] Set-Anzeige der gebuchten virtuellen Kombo „wie Kiste" (Hülle + Inhalt).
-- [ ] Badges überall konsistent (📦 / 🟦 phys / 🟪 virt / 🧩 konfigurierbar).
+- [x] „Kombinieren?"-Dialog: Überlapp einer Kombo-Option mit vorhandener Aktivitäts-Position erkennen → fragen statt doppelt reservieren (README Abschnitt 7). *(`ComboConfiguratorDialog` gibt die aufgelösten `stock`-Teile zurück; `ActivityMaterialAvailabilityLookup` erkennt Überlapp mit eigenständigen Einzelpositionen (`standaloneQuantityByMaterialItemId`, Fallback Gesamtmenge) und öffnet `CombineWithExistingDialog.vue`. „Vorhandene nutzen" → `combineParts` reduziert die Einzelposition um den gedeckelten Kombo-Bedarf — Detail via `syncActivityItems`/Zeilenmodell-B-Re-Expansion, Wizard lokal in einem `update:modelValue`. „Getrennt buchen"/„Abbrechen" wie gehabt. Grundlage `excludeActivityId` war vorhanden.)*
+- [x] Set-Anzeige der gebuchten virtuellen Kombo „wie Kiste" (Hülle + Inhalt). *(Aus `config_snapshot.resolved_components` + `self_provided`: Kind-Zeilen werden aus der editierbaren/Read-only-Liste gefiltert und unter der Kombo-Eltern-Zeile als eingerückter „Set-Inhalt" gerendert — `ActivityMaterialLinesTable.vue` und Read-only-Tabelle in `ActivityDetailView.vue`.)*
+- [x] Badges überall konsistent (📦 / 🟦 phys / 🟪 virt / 🧩 konfigurierbar). *(Shared-Helfer `comboDisplay.ts`; Emoji-Präfix in `MaterialsView` (Typ-Spalte), `MaterialDetailView` (Konfigurator-Badge 🧩), `ActivityMaterialAvailabilityLookup`, `ActivityDetailView`-Read-only-Tabelle und `ActivityMaterialLinesTable`. Duplizierter `isComboMaterial`-Helfer zusammengeführt.)*
 
-**Definition of Done:** Buchung von Kombos fühlt sich rund an; keine Doppelreservierung innerhalb einer Aktivität.
+**Definition of Done:** Buchung von Kombos fühlt sich rund an; keine Doppelreservierung innerhalb einer Aktivität. ✓ *(„Kombinieren?"-Dialog, Set-Anzeige und einheitliche Badges umgesetzt; frontend `npm run build` (vue-tsc + vite) grün. i18n nur de/en.)*
 
 ---
 

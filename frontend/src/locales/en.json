@@ -1010,6 +1010,8 @@
       "comboPhysicalShort": "Phys. combo",
       "comboVirtualTitle": "Virtual combination",
       "comboVirtualShort": "Virt. combo",
+      "comboSetContentTitle": "Set contents",
+      "comboSetSelfProvided": "bring yourself",
       "crateLine": "Crate: {label}",
       "replenishmentBadge": "Follow-up / purchase",
       "saveQtySaving": "Saving…",
@@ -1145,6 +1147,14 @@
       "packUnitSets": "sets",
       "titleAddOnePack": "1 {unit}",
       "titleAddFivePacks": "5 {units}"
+    },
+    "combineDialog": {
+      "title": "Combine?",
+      "intro": "Parts of the combo “{name}” are already a separate position in this activity.",
+      "overlapDetail": "Already booked: {existing} · Combo additionally needs: {combo}",
+      "explain": "Use the existing unit for the combo (the separate position is reduced accordingly) — or book both separately.",
+      "useExisting": "Use existing",
+      "keepSeparate": "Book separately"
     },
     "materialLinesTable": {
       "shortageBanner": "Stock is insufficient for at least one line in the selected pick-up/return window — affected rows are listed at the top.",

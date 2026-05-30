@@ -804,6 +804,7 @@
                   <h2 class="section-title">
                     {{ t('components.materialDetail.tabComposition') }}
                     <span v-if="isConfigurator" class="composition-configurator-badge" :title="t('components.comboOptions.configuratorBadgeHint')">
+                      <span aria-hidden="true">{{ COMBO_BADGE.configurable }}</span>
                       {{ t('components.comboOptions.configuratorBadge') }}
                     </span>
                   </h2>
@@ -2571,6 +2572,7 @@ import PublicQrTag from '@/components/common/PublicQrTag.vue'
 import PublicQrActionModal from '@/components/common/PublicQrActionModal.vue'
 import { unitPriceFromPackSaleChf } from '@/utils/packPricing'
 import { isPrintableBatchPublicUrl } from '@/utils/publicQrUrl'
+import { isComboMaterial as isComboMaterialType, COMBO_BADGE } from '@/utils/comboDisplay'
 
 interface Props {
   materialId: string
@@ -2841,10 +2843,7 @@ const comboAssignmentLabelsShort = computed((): Record<string, string> => ({
   bulk: t('components.materialDetail.assignmentShortBulk'),
 }))
 
-const isComboMaterialView = computed(
-  () =>
-    material.value?.material_type === 'physical_combo' || material.value?.material_type === 'virtual_combo'
-)
+const isComboMaterialView = computed(() => isComboMaterialType(material.value))
 
 /** „optional“ (Zubehör-Toggle) ist nur bei virtueller Kombo sinnvoll; physische Kombo kennt das nicht. */
 const isVirtualComboView = computed(() => material.value?.material_type === 'virtual_combo')

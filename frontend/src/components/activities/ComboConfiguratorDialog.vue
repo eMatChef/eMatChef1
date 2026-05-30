@@ -143,7 +143,15 @@ interface Props {
 }
 const props = withDefaults(defineProps<Props>(), { activityId: null, startIso: null, endIso: null, initialQuantity: 1 })
 const emit = defineEmits<{
-  (e: 'confirm', payload: { selectedOptionIds: string[]; quantity: number }): void
+  (
+    e: 'confirm',
+    payload: {
+      selectedOptionIds: string[]
+      quantity: number
+      /** Aufgelöste stock-Teile je Kombo (für „Kombinieren?"-Überlapperkennung). */
+      resolvedStock: Array<{ materialItemId: string; name: string; qtyPerCombo: number }>
+    },
+  ): void
   (e: 'cancel'): void
 }>()
 
@@ -320,7 +328,12 @@ function onQuantityChange() {
 
 function confirm() {
   if (!canConfirm.value) return
-  emit('confirm', { selectedOptionIds: [...selected.value], quantity: quantity.value })
+  const resolvedStock = (availability.value?.selected.components ?? []).map((c) => ({
+    materialItemId: c.materialItemId,
+    name: c.name,
+    qtyPerCombo: c.qtyPerCombo ?? 0,
+  }))
+  emit('confirm', { selectedOptionIds: [...selected.value], quantity: quantity.value, resolvedStock })
 }
 function cancel() {
   emit('cancel')

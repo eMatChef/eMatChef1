@@ -6,6 +6,7 @@ import {
   type ActivityCreatedResponse,
   type ActivityDetail,
   type ActivityItemRow,
+  type ComboConfigSnapshot,
 } from '@/api/activities'
 import type { ActivityDefaults } from '@/api/departmentSettings'
 import type { Group } from '@/api/groups'
@@ -78,6 +79,8 @@ export interface ActivityMaterialLine {
   is_container?: boolean
   /** Zeilenmodell B: gewählte Toggle-Optionen einer virtuellen Kombo. */
   selected_option_ids?: string[]
+  /** Set-Anzeige „wie Kiste": aufgelöste Teile der gebuchten virtuellen Kombo (nur Detail/gebucht). */
+  config_snapshot?: ComboConfigSnapshot | null
 }
 
 function pickFirstRootGroup(groups: Group[]): string | null {

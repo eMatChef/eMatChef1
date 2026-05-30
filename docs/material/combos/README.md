@@ -2,7 +2,7 @@
 
 Konzept-Dokumentation zu **Combo-Materialien** in eMatChef: physische vs. virtuelle Kombo, Stückliste (BOM), Reservationsmodus, optionales Zubehör, Verfügbarkeit/Sperre und der geplante Umbau (Wizard, Vorlagen, Aktivitäten).
 
-**Stand:** Mai 2026 · Zielmodell bereinigt (4 Typen, `reservation_mode` entfällt, Entwurfs-Flag), finaler Umbau offen
+**Stand:** Mai 2026 · Zielmodell bereinigt (3 Typen, `reservation_mode` entfällt, Entwurfs-Flag); Umbau Pakete 0–7 erledigt (Konfigurator + 3-Zustands-Verfügbarkeit + Buchungs-Dialog; Paket 7 Cross-Cutting: „Kombinieren?"-Dialog, Set-Anzeige „wie Kiste", einheitliche Badges)
 
 ---
 
@@ -321,6 +321,8 @@ baubar(Option) = min über Teile_der_Option ( floor( frei(Teil) / benötigt_pro_
 
 Die gebuchte virtuelle Kombo wird **gruppiert wie eine Kiste** dargestellt (Hülle + aufgelöste Teile als Inhalt) – analog `activity_pack_container`, aber logisch statt physisch. Umsetzung über **Zeilenmodell B** (Abschnitt 7): Kind-Zeilen (`parent_activity_item_id`) hängen an der Eltern-/Kombo-Zeile.
 
+> ✅ **Umgesetzt (Paket 7):** Kind-Zeilen werden aus der editierbaren/Read-only-Materialliste gefiltert und unter der Kombo-Eltern-Zeile als eingerückter „Set-Inhalt" (📦) gerendert — aus `config_snapshot.resolved_components` (Lager-Teile) + `self_provided` (Hinweis). Stellen: `ActivityMaterialLinesTable.vue` und die Read-only-Tabelle in `ActivityDetailView.vue`.
+
 ### Verwandtes Zubehör (separat, unabhängig)
 
 Eigene Empfehlungs-Verknüpfung (Kombo → andere Materialien), **getrennt** von der Stückliste, verwaltet im Zusammensetzungs-Tab (`MaterialDetailView`). Im Aktivitäts-Flow als Vorschlag „Zubehör dazu?" → **eigene Positionen** (nicht Teil des Sets). Auch für **physische** Kombos nutzbar.
@@ -334,7 +336,7 @@ Eigene Empfehlungs-Verknüpfung (Kombo → andere Materialien), **getrennt** von
 | **0** | Verwandtes Zubehör (unabhängig, sofort nützlich) |
 | **1** | Basis + Options-Gruppen + **positive** Deltas + Exklusivität + Verfügbarkeit pro Option (hart) |
 | **2** | **negative** Deltas (Ecken entfernt Teile) |
-| **3** | Set-Anzeige wie Kiste + „Kombinieren?"-Dialog |
+| **3** | Set-Anzeige wie Kiste + „Kombinieren?"-Dialog ✅ (Paket 7) |
 
 Vorlagen (`MaterialTemplate*`) ziehen pro Phase mit – Gruppen/Optionen/Delta-Listen auch im `TemplateEditDialog` und im „Vorlage → Material"-Pfad.
 
@@ -397,9 +399,11 @@ Fremde Reservierungen zählen **nur bei Zeitraum-Überlappung** (`MaterialAvaila
 
 **Ausnahme vom Zeitraum-Prinzip:** gepacktes Material ist physisch nicht im Regal → gesperrt, egal welcher Zeitraum (zweite Sperr-Ebene).
 
-### Kombinieren statt doppelt reservieren (Feature, offen)
+### Kombinieren statt doppelt reservieren
 
-Wenn ein Kombo-Bestandteil (z. B. Aufstelleinheit als Option) dasselbe Teil ist wie eine **bereits in derselben Aktivität** vorhandene Position, soll die App **nicht** stumpf eine zweite Einheit reservieren, sondern den Überlapp erkennen und **den User fragen**, ob die vorhandene Einheit für die Kombo verwendet wird. Verhindert Doppelbuchung *innerhalb* der Aktivität. Grundlage (`excludeActivityId`) ist vorhanden, der Dialog/die Verknüpfung nicht.
+Wenn ein Kombo-Bestandteil (z. B. Aufstelleinheit als Option) dasselbe Teil ist wie eine **bereits in derselben Aktivität** vorhandene Position, soll die App **nicht** stumpf eine zweite Einheit reservieren, sondern den Überlapp erkennen und **den User fragen**, ob die vorhandene Einheit für die Kombo verwendet wird. Verhindert Doppelbuchung *innerhalb* der Aktivität.
+
+> ✅ **Umgesetzt (Paket 7):** `ComboConfiguratorDialog` gibt die aufgelösten `stock`-Teile zurück; `ActivityMaterialAvailabilityLookup` erkennt den Überlapp mit eigenständigen Einzelpositionen (`standaloneQuantityByMaterialItemId`, Fallback auf die Gesamtmenge) und öffnet `CombineWithExistingDialog.vue`. „Vorhandene nutzen" reduziert die Einzelposition um den (auf den vorhandenen Bestand gedeckelten) Kombo-Bedarf — im Detail über `syncActivityItems` (Zeilenmodell-B-Re-Expansion), im Wizard lokal. „Getrennt buchen" reserviert wie bisher beides. Grundlage `excludeActivityId` war vorhanden.
 
 ---
 
@@ -410,7 +414,7 @@ Wenn ein Kombo-Bestandteil (z. B. Aufstelleinheit als Option) dasselbe Teil ist 
 - [ ] Kein `on_issue`-Auflösungs-Flow beim Packen (keine Pick-/Scan-Liste für serialisierte Teile der virtuellen Kombo).
 - [x] **Behoben (Paket 0):** `is_optional`-Haken bei physischen Kombos ausgeblendet.
 - [ ] Kein Varianten-/Konfigurator-BOM (abhängige Mengen, Entweder-Oder).
-- [ ] Kein „Kombinieren?"-Dialog bei Überlapp einer Kombo-Option mit vorhandener Aktivitäts-Position.
+- [x] **Umgesetzt (Paket 7):** „Kombinieren?"-Dialog (`CombineWithExistingDialog.vue`) bei Überlapp einer Kombo-Option mit vorhandener Einzelposition — fragt statt doppelt zu reservieren; „Vorhandene nutzen" reduziert die Einzelposition.
 - [x] **Umgesetzt (Paket 1):** Entwurfs-Flag `combo_status` (draft/ready) auf `MaterialItem` inkl. Migration, Create→draft, `finalize-combo`, Draft-Ausschluss in der Verfügbarkeit, Badge.
 - [ ] `reservation_mode` noch vorhanden (in Wizard/Detail/Vorlage), soll **entfernt** werden (Paket 2).
 - [x] **Behoben:** Wert-Inkonsistenz im Wizard – erster Reservationsmodus-Block nutzte `individual_parts` statt `individual` (jetzt einheitlich `individual`).
