@@ -34,6 +34,7 @@
             <th>{{ t('globalAddressesPage.supplierTableKey') }}</th>
             <th>{{ t('globalAddressesPage.tableStatus') }}</th>
             <th>{{ t('globalAddressesPage.supplierTableMembers') }}</th>
+            <th>{{ t('globalAddressesPage.tableActions') }}</th>
           </tr>
         </thead>
         <tbody>
@@ -42,6 +43,15 @@
             <td>{{ company.manufacturer_key || '–' }}</td>
             <td>{{ company.status }}</td>
             <td>{{ company.membership_count ?? 0 }}</td>
+            <td class="actions">
+              <button
+                class="btn btn-secondary btn-inline"
+                :disabled="supplierLoading"
+                @click="openEditSupplier(company)"
+              >
+                {{ t('common.edit') }}
+              </button>
+            </td>
           </tr>
         </tbody>
       </table>
@@ -156,6 +166,13 @@
       @close="closePromoteModal"
       @submit="handlePromote"
     />
+    <SupplierCompanyAdminModal
+      v-if="editingSupplier"
+      :company="editingSupplier"
+      @close="closeEditSupplier"
+      @saved="handleSupplierSaved"
+      @deleted="handleSupplierDeleted"
+    />
   </div>
 </template>
 
@@ -171,6 +188,7 @@ import {
 import { deleteGlobalAddress, getGlobalAddresses, type GlobalAddress } from '@/api/globalAddresses'
 import AddressModal from '@/components/AddressModal.vue'
 import SupplierCompanyOnboardModal from '@/components/supplier/SupplierCompanyOnboardModal.vue'
+import SupplierCompanyAdminModal from '@/components/supplier/SupplierCompanyAdminModal.vue'
 
 const { t } = useI18n()
 
@@ -185,6 +203,7 @@ const editingGlobalAddress = ref<GlobalAddress | null>(null)
 const supplierLoading = ref(false)
 const supplierCompanies = ref<AdminSupplierCompany[]>([])
 const isCreateSupplierModalOpen = ref(false)
+const editingSupplier = ref<AdminSupplierCompany | null>(null)
 const promoteTarget = ref<GlobalAddress | null>(null)
 
 async function loadGlobalAddresses() {
@@ -256,6 +275,24 @@ async function removeGlobalAddress(id: string) {
   } finally {
     globalLoading.value = false
   }
+}
+
+function openEditSupplier(company: AdminSupplierCompany) {
+  editingSupplier.value = company
+  globalError.value = null
+}
+
+function closeEditSupplier() {
+  editingSupplier.value = null
+}
+
+async function handleSupplierSaved() {
+  await loadSupplierCompanies()
+}
+
+async function handleSupplierDeleted() {
+  editingSupplier.value = null
+  await Promise.all([loadSupplierCompanies(), loadGlobalAddresses()])
 }
 
 function openCreateSupplierModal() {

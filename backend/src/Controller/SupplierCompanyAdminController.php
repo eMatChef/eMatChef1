@@ -11,6 +11,7 @@ use App\Entity\SupplierMembership;
 use App\Entity\User;
 use App\Repository\ProfileRepository;
 use App\Repository\SupplierCompanyRepository;
+use App\Repository\SupplierMembershipRepository;
 use App\Repository\UserRepository;
 use App\Service\Supplier\SupplierCompanyFactory;
 use Doctrine\ORM\EntityManagerInterface;
@@ -27,6 +28,7 @@ class SupplierCompanyAdminController extends AbstractController
         private EntityManagerInterface $entityManager,
         private SupplierCompanyFactory $supplierCompanyFactory,
         private SupplierCompanyRepository $supplierCompanyRepository,
+        private SupplierMembershipRepository $supplierMembershipRepository,
         private UserRepository $userRepository,
         private ProfileRepository $profileRepository,
     ) {
@@ -83,11 +85,11 @@ class SupplierCompanyAdminController extends AbstractController
                 linkedDepartmentId: $linkedDepartmentId,
             );
 
-            $membership = $this->assignAdminUser($company, $data, true);
+            $membership = $this->assignUser($company, $data, true);
 
             return new JsonResponse([
                 'supplier_company' => $this->serializeAdminCompany($company),
-                'membership' => $membership?->toArray(),
+                'membership' => $membership ? $this->serializeMembership($membership) : null,
                 'message' => 'Supplier-Firma erstellt',
             ], 201);
         } catch (\InvalidArgumentException $exception) {
@@ -132,12 +134,12 @@ class SupplierCompanyAdminController extends AbstractController
                 linkedDepartmentId: $linkedDepartmentId,
             );
 
-            $membership = $this->assignAdminUser($company, $data, true);
+            $membership = $this->assignUser($company, $data, true);
 
             return new JsonResponse([
                 'supplier_company' => $this->serializeAdminCompany($company),
                 'address' => $address->toArray(),
-                'membership' => $membership?->toArray(),
+                'membership' => $membership ? $this->serializeMembership($membership) : null,
                 'message' => 'Globale Adresse als Supplier-Firma aktiviert',
             ]);
         } catch (\InvalidArgumentException $exception) {
@@ -147,6 +149,103 @@ class SupplierCompanyAdminController extends AbstractController
         } catch (\Exception $exception) {
             return new JsonResponse(['error' => 'Fehler beim Aktivieren: ' . $exception->getMessage()], 500);
         }
+    }
+
+    #[Route('/{id}/memberships', name: 'list_memberships', methods: ['GET'])]
+    #[IsGranted('ROLE_USER')]
+    public function listMemberships(string $id): JsonResponse
+    {
+        $accessCheck = $this->ensurePlatformAdmin();
+        if ($accessCheck instanceof JsonResponse) {
+            return $accessCheck;
+        }
+
+        $company = $this->supplierCompanyRepository->find($id);
+        if (!$company) {
+            return new JsonResponse(['error' => 'Supplier-Firma nicht gefunden'], 404);
+        }
+
+        $memberships = $this->supplierMembershipRepository->findByCompanyId($id);
+
+        return new JsonResponse([
+            'memberships' => array_map(
+                fn (SupplierMembership $membership) => $this->serializeMembership($membership),
+                $memberships
+            ),
+        ]);
+    }
+
+    #[Route('/{id}/memberships/{userId}', name: 'update_membership', methods: ['PATCH'])]
+    #[IsGranted('ROLE_USER')]
+    public function updateMembership(string $id, string $userId, Request $request): JsonResponse
+    {
+        $accessCheck = $this->ensurePlatformAdmin();
+        if ($accessCheck instanceof JsonResponse) {
+            return $accessCheck;
+        }
+
+        $membership = $this->supplierMembershipRepository->findOneBy([
+            'supplierCompanyId' => $id,
+            'userId' => $userId,
+        ]);
+        if (!$membership instanceof SupplierMembership) {
+            return new JsonResponse(['error' => 'Membership nicht gefunden'], 404);
+        }
+
+        $data = json_decode($request->getContent(), true) ?: [];
+        $role = strtolower(trim((string) ($data['role'] ?? '')));
+        if (!\in_array($role, [SupplierMembership::ROLE_ADMIN, SupplierMembership::ROLE_MEMBER], true)) {
+            return new JsonResponse(['error' => 'Ungültige Rolle'], 400);
+        }
+
+        if (
+            $membership->getRole() === SupplierMembership::ROLE_ADMIN
+            && $role === SupplierMembership::ROLE_MEMBER
+            && $this->supplierMembershipRepository->countAdminsForCompany($id) <= 1
+        ) {
+            return new JsonResponse(['error' => 'Der letzte Firmen-Admin kann nicht herabgestuft werden'], 409);
+        }
+
+        $membership->setRole($role);
+        if (array_key_exists('is_primary', $data)) {
+            $membership->setIsPrimary((bool) $data['is_primary']);
+        }
+        $this->entityManager->flush();
+
+        return new JsonResponse([
+            'membership' => $this->serializeMembership($membership),
+            'message' => 'Membership aktualisiert',
+        ]);
+    }
+
+    #[Route('/{id}/memberships/{userId}', name: 'remove_membership', methods: ['DELETE'])]
+    #[IsGranted('ROLE_USER')]
+    public function removeMembership(string $id, string $userId): JsonResponse
+    {
+        $accessCheck = $this->ensurePlatformAdmin();
+        if ($accessCheck instanceof JsonResponse) {
+            return $accessCheck;
+        }
+
+        $membership = $this->supplierMembershipRepository->findOneBy([
+            'supplierCompanyId' => $id,
+            'userId' => $userId,
+        ]);
+        if (!$membership instanceof SupplierMembership) {
+            return new JsonResponse(['error' => 'Membership nicht gefunden'], 404);
+        }
+
+        if (
+            $membership->getRole() === SupplierMembership::ROLE_ADMIN
+            && $this->supplierMembershipRepository->countAdminsForCompany($id) <= 1
+        ) {
+            return new JsonResponse(['error' => 'Der letzte Firmen-Admin kann nicht entfernt werden'], 409);
+        }
+
+        $this->entityManager->remove($membership);
+        $this->entityManager->flush();
+
+        return new JsonResponse(['success' => true, 'message' => 'Mitglied entfernt']);
     }
 
     #[Route('/{id}', name: 'update', methods: ['PATCH'])]
@@ -223,17 +322,52 @@ class SupplierCompanyAdminController extends AbstractController
         $data = json_decode($request->getContent(), true) ?: [];
 
         try {
-            $membership = $this->assignAdminUser($company, $data, false);
+            $membership = $this->assignUser($company, $data, false);
             if (!$membership) {
-                return new JsonResponse(['error' => 'admin_user_id oder admin_user_email ist erforderlich'], 400);
+                return new JsonResponse(['error' => 'user_id oder user_email ist erforderlich'], 400);
             }
 
             return new JsonResponse([
-                'membership' => $membership->toArray(),
+                'membership' => $this->serializeMembership($membership),
                 'message' => 'Membership angelegt',
             ], 201);
         } catch (\InvalidArgumentException $exception) {
             return new JsonResponse(['error' => $exception->getMessage()], 400);
+        }
+    }
+
+    #[Route('/{id}', name: 'delete', methods: ['DELETE'])]
+    #[IsGranted('ROLE_USER')]
+    public function delete(string $id): JsonResponse
+    {
+        $accessCheck = $this->ensurePlatformAdmin();
+        if ($accessCheck instanceof JsonResponse) {
+            return $accessCheck;
+        }
+
+        $company = $this->supplierCompanyRepository->find($id);
+        if (!$company) {
+            return new JsonResponse(['error' => 'Supplier-Firma nicht gefunden'], 404);
+        }
+
+        try {
+            $address = $company->getSupplierAddress();
+            if ($address === null && $company->getSupplierAddressId()) {
+                $address = $this->entityManager->find(Address::class, $company->getSupplierAddressId());
+            }
+            if ($address instanceof Address) {
+                $address->setSupplierCompanyId(null);
+                if ($address->getScope() === Address::SCOPE_SUPPLIER) {
+                    $address->setScope(Address::SCOPE_GLOBAL);
+                }
+            }
+
+            $this->entityManager->remove($company);
+            $this->entityManager->flush();
+
+            return new JsonResponse(['success' => true, 'message' => 'Supplier-Firma gelöscht']);
+        } catch (\Exception $exception) {
+            return new JsonResponse(['error' => 'Fehler beim Löschen: ' . $exception->getMessage()], 500);
         }
     }
 
@@ -267,11 +401,11 @@ class SupplierCompanyAdminController extends AbstractController
     }
 
     /** @param array<string, mixed> $data */
-    private function assignAdminUser(SupplierCompany $company, array $data, bool $isPrimaryDefault): ?SupplierMembership
+    private function assignUser(SupplierCompany $company, array $data, bool $isPrimaryDefault): ?SupplierMembership
     {
         $user = $this->resolveUser(
-            $this->nullableString($data['admin_user_id'] ?? null),
-            $this->nullableString($data['admin_user_email'] ?? null),
+            $this->nullableString($data['user_id'] ?? $data['admin_user_id'] ?? null),
+            $this->nullableString($data['user_email'] ?? $data['admin_user_email'] ?? null),
         );
         if (!$user) {
             return null;
@@ -282,17 +416,18 @@ class SupplierCompanyAdminController extends AbstractController
             'userId' => $user->getId(),
         ]);
         if ($existing instanceof SupplierMembership) {
-            if (($data['admin_role'] ?? SupplierMembership::ROLE_ADMIN) === SupplierMembership::ROLE_ADMIN) {
-                $existing->setRole(SupplierMembership::ROLE_ADMIN);
+            $role = (string) ($data['role'] ?? $data['admin_role'] ?? $existing->getRole());
+            if (\in_array($role, [SupplierMembership::ROLE_ADMIN, SupplierMembership::ROLE_MEMBER], true)) {
+                $existing->setRole($role);
                 $this->entityManager->flush();
             }
 
             return $existing;
         }
 
-        $role = (string) ($data['admin_role'] ?? SupplierMembership::ROLE_ADMIN);
+        $role = (string) ($data['role'] ?? $data['admin_role'] ?? SupplierMembership::ROLE_ADMIN);
         if (!\in_array($role, [SupplierMembership::ROLE_ADMIN, SupplierMembership::ROLE_MEMBER], true)) {
-            throw new \InvalidArgumentException('Ungültige admin_role');
+            throw new \InvalidArgumentException('Ungültige Rolle');
         }
 
         return $this->supplierCompanyFactory->addMembership(
@@ -301,6 +436,21 @@ class SupplierCompanyAdminController extends AbstractController
             $role,
             (bool) ($data['is_primary'] ?? $isPrimaryDefault),
         );
+    }
+
+    /** @return array<string, mixed> */
+    private function serializeMembership(SupplierMembership $membership): array
+    {
+        $profile = $membership->getUser()->getProfile();
+
+        return [
+            'supplier_company_id' => $membership->getSupplierCompanyId(),
+            'user_id' => $membership->getUserId(),
+            'role' => $membership->getRole(),
+            'is_primary' => $membership->getIsPrimary(),
+            'name' => $profile?->getDisplayName() ?? 'Unbekannt',
+            'email' => $profile?->getEmail(),
+        ];
     }
 
     private function resolveUser(?string $userId, ?string $email): ?User

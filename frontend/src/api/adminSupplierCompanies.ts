@@ -1,5 +1,5 @@
 import apiClient from './apiClient'
-import type { SupplierCompanyStatus } from './supplier'
+import type { SupplierCompanyStatus, SupplierMembershipRole } from './supplier'
 
 export interface AdminSupplierCompany {
   id: string
@@ -13,6 +13,15 @@ export interface AdminSupplierCompany {
   updated_at: string
   address?: Record<string, unknown> | null
   membership_count?: number
+}
+
+export interface AdminSupplierMembership {
+  supplier_company_id: string
+  user_id: string
+  role: SupplierMembershipRole
+  is_primary: boolean
+  name: string
+  email: string | null
 }
 
 export interface CreateSupplierCompanyPayload {
@@ -65,5 +74,45 @@ export async function patchAdminSupplierCompany(
   payload: Partial<CreateSupplierCompanyPayload>
 ): Promise<{ supplier_company: AdminSupplierCompany; message: string }> {
   const { data } = await apiClient.patch(`/api/admin/supplier-companies/${id}`, payload)
+  return data
+}
+
+export async function deleteAdminSupplierCompany(id: string): Promise<{ success: boolean; message: string }> {
+  const { data } = await apiClient.delete(`/api/admin/supplier-companies/${id}`)
+  return data
+}
+
+export async function listAdminSupplierMemberships(
+  companyId: string
+): Promise<{ memberships: AdminSupplierMembership[] }> {
+  const { data } = await apiClient.get(`/api/admin/supplier-companies/${companyId}/memberships`)
+  return data
+}
+
+export async function addAdminSupplierMembership(
+  companyId: string,
+  payload: { user_email?: string; user_id?: string; role?: SupplierMembershipRole }
+): Promise<{ membership: AdminSupplierMembership; message: string }> {
+  const { data } = await apiClient.post(`/api/admin/supplier-companies/${companyId}/memberships`, payload)
+  return data
+}
+
+export async function updateAdminSupplierMembership(
+  companyId: string,
+  userId: string,
+  payload: { role: SupplierMembershipRole }
+): Promise<{ membership: AdminSupplierMembership; message: string }> {
+  const { data } = await apiClient.patch(
+    `/api/admin/supplier-companies/${companyId}/memberships/${userId}`,
+    payload
+  )
+  return data
+}
+
+export async function removeAdminSupplierMembership(
+  companyId: string,
+  userId: string
+): Promise<{ success: boolean; message: string }> {
+  const { data } = await apiClient.delete(`/api/admin/supplier-companies/${companyId}/memberships/${userId}`)
   return data
 }

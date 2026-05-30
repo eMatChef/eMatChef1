@@ -4516,6 +4516,32 @@
       "manufacturerKeyHint": "e.g. tortuga",
       "adminEmail": "Admin user (email, optional)",
       "errorNameRequired": "Company name is required"
+    },
+    "supplierAdminModal": {
+      "title": "Supplier company: {name}",
+      "subtitle": "Manage company details and members (superadmin).",
+      "companySection": "Company details",
+      "membersSection": "Members",
+      "statusPending": "Pending",
+      "statusActive": "Active",
+      "statusSuspended": "Suspended",
+      "noMembers": "No members yet.",
+      "addMemberEmail": "Add user by email",
+      "addMember": "Add member",
+      "saveSuccess": "Supplier company saved",
+      "deleteTitle": "Delete supplier company",
+      "deleteMessage": "Delete supplier company \"{name}\"? The linked address will revert to global scope.",
+      "deleteSuccess": "Supplier company deleted",
+      "addMemberSuccess": "Member added",
+      "removeMemberTitle": "Remove member",
+      "removeMemberMessage": "Remove {name} from this company?",
+      "removeMemberSuccess": "Member removed",
+      "errorLoadMembers": "Could not load members",
+      "errorSave": "Save failed",
+      "errorDelete": "Delete failed",
+      "errorAddMember": "Could not add member",
+      "errorUpdateMember": "Could not change role",
+      "errorRemoveMember": "Could not remove member"
     }
   }
 }

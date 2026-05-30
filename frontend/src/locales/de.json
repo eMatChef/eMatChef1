@@ -6314,6 +6314,32 @@
       "manufacturerKeyHint": "z. B. tortuga",
       "adminEmail": "Admin-User (E-Mail, optional)",
       "errorNameRequired": "Firmenname ist erforderlich"
+    },
+    "supplierAdminModal": {
+      "title": "Supplier-Firma: {name}",
+      "subtitle": "Stammdaten und Mitglieder verwalten (Superadmin).",
+      "companySection": "Stammdaten",
+      "membersSection": "Mitglieder",
+      "statusPending": "Ausstehend",
+      "statusActive": "Aktiv",
+      "statusSuspended": "Gesperrt",
+      "noMembers": "Noch keine Mitglieder.",
+      "addMemberEmail": "User per E-Mail hinzufügen",
+      "addMember": "Mitglied hinzufügen",
+      "saveSuccess": "Supplier-Firma gespeichert",
+      "deleteTitle": "Supplier-Firma löschen",
+      "deleteMessage": "Supplier-Firma \"{name}\" wirklich löschen? Die verknüpfte Adresse wird wieder global.",
+      "deleteSuccess": "Supplier-Firma gelöscht",
+      "addMemberSuccess": "Mitglied hinzugefügt",
+      "removeMemberTitle": "Mitglied entfernen",
+      "removeMemberMessage": "{name} wirklich aus der Firma entfernen?",
+      "removeMemberSuccess": "Mitglied entfernt",
+      "errorLoadMembers": "Mitglieder konnten nicht geladen werden",
+      "errorSave": "Speichern fehlgeschlagen",
+      "errorDelete": "Löschen fehlgeschlagen",
+      "errorAddMember": "Mitglied konnte nicht hinzugefügt werden",
+      "errorUpdateMember": "Rolle konnte nicht geändert werden",
+      "errorRemoveMember": "Mitglied konnte nicht entfernt werden"
     }
   },
   "landingClassic": {
