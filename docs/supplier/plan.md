@@ -2,7 +2,7 @@
 
 Abarbeitbare Checkliste für Phase 1–3. Das **Warum/Zielmodell** steht in [supplier-portal.md](./supplier-portal.md). Dieser Plan = **Was & in welcher Reihenfolge**.
 
-**Stand:** Mai 2026 · Phase 1 in Paketen 0–8; Phase 2/3 als grobe Pakete (Detail folgt mit Phase-2-Start). **Erledigt: Paket 0–6**
+**Stand:** Mai 2026 · Phase 1 in Paketen 0–8; Phase 2/3 als grobe Pakete (Detail folgt mit Phase-2-Start). **Erledigt: Paket 0–7**
 
 ---
 
@@ -35,7 +35,7 @@ Abarbeitbare Checkliste für Phase 1–3. Das **Warum/Zielmodell** steht in [sup
 | 4 | Frontend-Shell: Routing, Layout, Sidebar | 1 | M | 2 | [x] |
 | 5 | „Meine Firma“: Profil & Kontakt | 1 | M | 1, 2, 4 | [x] |
 | 6 | Team + Join-Code | 1 | M | 2, 5 | [x] |
-| 7 | Operator: Capability + `linked_department_id` | 1 | S | 1, 5 | [ ] |
+| 7 | Operator: Capability + `linked_department_id` | 1 | S | 1, 5 | [x] |
 | 8 | MW-Listen: Import, Global Addresses, Konstanten | 1b | M | 0, 1 | [ ] |
 | 9 | Katalog `supplier_catalog_item` + Supplier-CRUD | 2a | L | 1–7 | [ ] |
 | 10 | Übergaben `supplier_delivery*` + SN | 2b | XL | 9 | [ ] |
@@ -240,10 +240,10 @@ Diese Stellen strahlen bei Address-/Supplier-Änderungen am stärksten aus:
 - `frontend/src/views/supplier/SupplierProfileView.vue` — Toggle „Wir vermieten auch"
 
 **Schritte:**
-- [ ] UI-Toggle setzt Capability `operator` + wählt `linked_department_id` (Picker bestehender Departments — vom Support vorbereitet)
-- [ ] Validierung: Department existiert; Org ableitbar; User braucht **eigene** Department-`Membership` für Operator-Arbeit (Hinweis in UI)
-- [ ] Entfernen des Toggles: Capability `operator` weg, `linked_department_id` NULL (Bestand im Dept bleibt)
-- [ ] Kein paralleles Supplier-Lager — Vermietung = normales `material_item` im linked Dept
+- [x] UI-Toggle setzt Capability `operator` + wählt `linked_department_id` (Picker bestehender Departments — vom Support vorbereitet)
+- [x] Validierung: Department existiert; Org ableitbar; User braucht **eigene** Department-`Membership` für Operator-Arbeit (Hinweis in UI)
+- [x] Entfernen des Toggles: Capability `operator` weg, `linked_department_id` NULL (Bestand im Dept bleibt)
+- [x] Kein paralleles Supplier-Lager — Vermietung = normales `material_item` im linked Dept
 
 **Definition of Done:** Admin verknüpft Dept; Capability gespeichert; B2B-Katalog weiterhin Phase 2.
 

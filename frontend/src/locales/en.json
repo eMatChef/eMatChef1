@@ -574,7 +574,17 @@
       "manufacturerKey": "Manufacturer key",
       "manufacturerKeyPlaceholder": "e.g. tortuga",
       "manufacturerKeyHint": "Unique key for import and template matching (lowercase)."
-    }
+    },
+    "sectionOperator": "Rental (operator)",
+    "operatorIntro": "If you also rent via an existing eMatChef department in addition to the B2B portal, link that department here. No new department or organisation is created.",
+    "operatorToggle": "We also rent via a department",
+    "operatorActive": "Operator mode is active.",
+    "operatorInactive": "Operator mode is not active.",
+    "operatorDepartment": "Linked department",
+    "operatorDepartmentPlaceholder": "Select department …",
+    "operatorDepartmentRequired": "Please select a department for operator mode.",
+    "operatorMembershipHint": "You need your own membership in this department to manage materials there.",
+    "operatorNoDepartments": "You have no department membership yet. Join a department first or ask support to link one."
   },
   "supplierTeam": {
     "title": "Team",

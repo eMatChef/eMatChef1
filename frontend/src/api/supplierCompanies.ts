@@ -23,6 +23,20 @@ export interface SupplierCompanyAddress {
   full_address?: string
 }
 
+export interface SupplierLinkedDepartment {
+  id: string
+  name: string | null
+  organisation_id: string | null
+  organisation_name: string | null
+}
+
+export interface SupplierOperatorDepartmentOption {
+  department_id: string
+  name: string
+  organisation_name: string
+  role: string
+}
+
 export interface SupplierCompanyProfile {
   id: string
   name: string
@@ -30,7 +44,11 @@ export interface SupplierCompanyProfile {
   supplier_address_id: string | null
   status: SupplierCompanyStatus
   capabilities: string[]
+  operator_enabled: boolean
   linked_department_id: string | null
+  linked_department: SupplierLinkedDepartment | null
+  has_linked_department_membership: boolean
+  eligible_operator_departments: SupplierOperatorDepartmentOption[]
   address: SupplierCompanyAddress | null
   role: SupplierMembershipRole
   can_edit: boolean
@@ -48,6 +66,8 @@ export interface SupplierCompanyPublic {
 export interface SupplierCompanyProfilePatch {
   name?: string
   manufacturer_key?: string | null
+  operator_enabled?: boolean
+  linked_department_id?: string | null
   address?: Partial<
     Pick<
       SupplierCompanyAddress,

@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Controller;
 
 use App\Entity\Address;
+use App\Entity\Department;
+use App\Entity\Membership;
 use App\Entity\SupplierCompany;
 use App\Entity\SupplierMembership;
 use App\Entity\User;
@@ -90,6 +92,24 @@ class SupplierCompanyController extends AbstractController
             }
             if (array_key_exists('manufacturer_key', $data)) {
                 $company->setManufacturerKey($this->nullableString($data['manufacturer_key']));
+            }
+
+            if (array_key_exists('operator_enabled', $data)) {
+                $operatorError = $this->applyOperatorSettings($company, $user, $data);
+                if ($operatorError instanceof JsonResponse) {
+                    return $operatorError;
+                }
+            } elseif (
+                $company->hasCapability(SupplierCompany::CAPABILITY_OPERATOR)
+                && array_key_exists('linked_department_id', $data)
+            ) {
+                $operatorError = $this->applyOperatorSettings($company, $user, [
+                    'operator_enabled' => true,
+                    'linked_department_id' => $data['linked_department_id'],
+                ]);
+                if ($operatorError instanceof JsonResponse) {
+                    return $operatorError;
+                }
             }
 
             $address = $this->resolveSupplierAddress($company);
@@ -185,13 +205,130 @@ class SupplierCompanyController extends AbstractController
             'supplier_address_id' => $company->getSupplierAddressId(),
             'status' => $company->getStatus(),
             'capabilities' => $company->getCapabilities(),
+            'operator_enabled' => $company->hasCapability(SupplierCompany::CAPABILITY_OPERATOR),
             'linked_department_id' => $company->getLinkedDepartmentId(),
+            'linked_department' => $this->serializeLinkedDepartment($company),
+            'has_linked_department_membership' => $this->userHasLinkedDepartmentMembership($user, $company),
+            'eligible_operator_departments' => $this->serializeEligibleOperatorDepartments($user),
             'address' => $address?->toArray(),
             'role' => $role,
             'can_edit' => $role === SupplierMembership::ROLE_ADMIN,
             'created_at' => $company->getCreatedAt()->format('c'),
             'updated_at' => $company->getUpdatedAt()->format('c'),
         ];
+    }
+
+    /** @param array<string, mixed> $data */
+    private function applyOperatorSettings(SupplierCompany $company, User $user, array $data): ?JsonResponse
+    {
+        $enabled = filter_var($data['operator_enabled'] ?? false, FILTER_VALIDATE_BOOLEAN);
+        $capabilities = $company->getCapabilities();
+
+        if (!$enabled) {
+            $company->setCapabilities(array_values(array_filter(
+                $capabilities,
+                static fn (string $capability): bool => $capability !== SupplierCompany::CAPABILITY_OPERATOR
+            )));
+            $company->setLinkedDepartmentId(null);
+
+            return null;
+        }
+
+        $linkedDepartmentId = $this->nullableString($data['linked_department_id'] ?? null);
+        if ($linkedDepartmentId === null) {
+            return new JsonResponse(['error' => 'linked_department_id ist für Operator erforderlich'], 400);
+        }
+
+        $department = $this->entityManager->find(Department::class, $linkedDepartmentId);
+        if (!$department instanceof Department) {
+            return new JsonResponse(['error' => 'Department nicht gefunden'], 404);
+        }
+
+        if (!$this->userHasDepartmentMembership($user, $linkedDepartmentId)) {
+            return new JsonResponse([
+                'error' => 'Du brauchst eine eigene Department-Membership im gewählten Department',
+            ], 403);
+        }
+
+        if (!\in_array(SupplierCompany::CAPABILITY_OPERATOR, $capabilities, true)) {
+            $capabilities[] = SupplierCompany::CAPABILITY_OPERATOR;
+        }
+        $company->setCapabilities(array_values(array_unique($capabilities)));
+        $company->setLinkedDepartmentId($linkedDepartmentId);
+
+        return null;
+    }
+
+    private function userHasDepartmentMembership(User $user, string $departmentId): bool
+    {
+        $membership = $this->entityManager->getRepository(Membership::class)->findOneBy([
+            'userId' => $user->getId(),
+            'departmentId' => $departmentId,
+        ]);
+
+        return $membership instanceof Membership;
+    }
+
+    private function userHasLinkedDepartmentMembership(User $user, SupplierCompany $company): bool
+    {
+        $linkedDepartmentId = $company->getLinkedDepartmentId();
+        if ($linkedDepartmentId === null || !$company->hasCapability(SupplierCompany::CAPABILITY_OPERATOR)) {
+            return false;
+        }
+
+        return $this->userHasDepartmentMembership($user, $linkedDepartmentId);
+    }
+
+    /** @return array<string, mixed>|null */
+    private function serializeLinkedDepartment(SupplierCompany $company): ?array
+    {
+        $linkedDepartmentId = $company->getLinkedDepartmentId();
+        if ($linkedDepartmentId === null) {
+            return null;
+        }
+
+        $department = $company->getLinkedDepartment();
+        if ($department === null) {
+            $department = $this->entityManager->find(Department::class, $linkedDepartmentId);
+        }
+        if (!$department instanceof Department) {
+            return [
+                'id' => $linkedDepartmentId,
+                'name' => null,
+                'organisation_id' => null,
+                'organisation_name' => null,
+            ];
+        }
+
+        return [
+            'id' => $department->getId(),
+            'name' => $department->getName(),
+            'organisation_id' => $department->getOrganisationId(),
+            'organisation_name' => $department->getOrganisation()->getName(),
+        ];
+    }
+
+    /** @return list<array{department_id: string, name: string, organisation_name: string, role: string}> */
+    private function serializeEligibleOperatorDepartments(User $user): array
+    {
+        $memberships = $this->entityManager->getRepository(Membership::class)->findBy(['userId' => $user->getId()]);
+        $items = [];
+        foreach ($memberships as $membership) {
+            if (!$membership instanceof Membership) {
+                continue;
+            }
+            $department = $membership->getDepartment();
+            $items[] = [
+                'department_id' => $department->getId(),
+                'name' => $department->getName(),
+                'organisation_name' => $department->getOrganisation()->getName(),
+                'role' => $membership->getRole(),
+            ];
+        }
+
+        usort($items, static fn (array $a, array $b): int => strcmp($a['name'], $b['name']));
+
+        return $items;
     }
 
     private function nullableString(mixed $value): ?string

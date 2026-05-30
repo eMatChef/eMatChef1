@@ -39,6 +39,57 @@
       </section>
 
       <section class="form-section">
+        <h2 class="form-section-title">{{ t('supplierProfile.sectionOperator') }}</h2>
+        <p class="form-hint section-intro">{{ t('supplierProfile.operatorIntro') }}</p>
+
+        <label v-if="canEdit" class="operator-toggle">
+          <input v-model="operatorForm.operator_enabled" type="checkbox" :disabled="!canEdit" />
+          <span>{{ t('supplierProfile.operatorToggle') }}</span>
+        </label>
+        <p v-else class="operator-readonly">
+          {{
+            profile?.operator_enabled
+              ? t('supplierProfile.operatorActive')
+              : t('supplierProfile.operatorInactive')
+          }}
+        </p>
+
+        <div v-if="operatorForm.operator_enabled" class="operator-details">
+          <label class="form-field">
+            <span>{{ t('supplierProfile.operatorDepartment') }}</span>
+            <select
+              v-model="operatorForm.linked_department_id"
+              class="form-input"
+              :disabled="!canEdit"
+              required
+            >
+              <option value="" disabled>{{ t('supplierProfile.operatorDepartmentPlaceholder') }}</option>
+              <option
+                v-for="dept in eligibleDepartments"
+                :key="dept.department_id"
+                :value="dept.department_id"
+              >
+                {{ dept.name }} ({{ dept.organisation_name }})
+              </option>
+            </select>
+          </label>
+
+          <p v-if="linkedDepartmentLabel && !canEdit" class="form-hint">{{ linkedDepartmentLabel }}</p>
+
+          <p v-if="canEdit && operatorForm.operator_enabled && eligibleDepartments.length === 0" class="form-warning">
+            {{ t('supplierProfile.operatorNoDepartments') }}
+          </p>
+
+          <p
+            v-if="operatorForm.operator_enabled && operatorForm.linked_department_id && !hasLinkedDepartmentMembership"
+            class="form-warning"
+          >
+            {{ t('supplierProfile.operatorMembershipHint') }}
+          </p>
+        </div>
+      </section>
+
+      <section class="form-section">
         <h2 class="form-section-title">{{ t('supplierProfile.sectionContact') }}</h2>
         <div :class="{ 'address-readonly': !canEdit }">
           <AddressForm
@@ -94,9 +145,30 @@ const form = ref({
   manufacturer_key: '',
 })
 
+const operatorForm = ref({
+  operator_enabled: false,
+  linked_department_id: '',
+})
+
 const addressForm = ref<AddressFormData>(emptyAddressForm())
 
 const canEdit = computed(() => profile.value?.can_edit === true)
+const eligibleDepartments = computed(() => profile.value?.eligible_operator_departments ?? [])
+const hasLinkedDepartmentMembership = computed(() => {
+  if (!operatorForm.value.operator_enabled || !operatorForm.value.linked_department_id) {
+    return true
+  }
+  return authStore.departments.some(
+    (dept) => dept.department_id === operatorForm.value.linked_department_id
+  )
+})
+
+const linkedDepartmentLabel = computed(() => {
+  const linked = profile.value?.linked_department
+  if (!linked?.name) return ''
+  const org = linked.organisation_name ? ` (${linked.organisation_name})` : ''
+  return `${linked.name}${org}`
+})
 
 const hasChanges = computed(() => {
   if (!profile.value) return false
@@ -132,6 +204,10 @@ function applyProfileToForm(data: SupplierCompanyProfile) {
     name: data.name,
     manufacturer_key: data.manufacturer_key || '',
   }
+  operatorForm.value = {
+    operator_enabled: data.operator_enabled,
+    linked_department_id: data.linked_department_id || '',
+  }
   const addr = data.address
   addressForm.value = {
     department_id: '',
@@ -157,6 +233,10 @@ function applyProfileToForm(data: SupplierCompanyProfile) {
 function buildPayloadFromProfile(data: SupplierCompanyProfile) {
   return buildPatchPayloadFromState(
     { name: data.name, manufacturer_key: data.manufacturer_key || '' },
+    {
+      operator_enabled: data.operator_enabled,
+      linked_department_id: data.linked_department_id || '',
+    },
     addressFromProfile(data)
   )
 }
@@ -191,11 +271,16 @@ function nullableField(value: string | null | undefined): string | null {
 
 function buildPatchPayloadFromState(
   companyForm: { name: string; manufacturer_key: string },
+  operator: { operator_enabled: boolean; linked_department_id: string },
   address: AddressFormData
 ) {
   return {
     name: companyForm.name.trim(),
     manufacturer_key: nullableField(companyForm.manufacturer_key),
+    operator_enabled: operator.operator_enabled,
+    linked_department_id: operator.operator_enabled
+      ? operator.linked_department_id || null
+      : null,
     address: {
       company: nullableField(address.company),
       name: nullableField(address.name),
@@ -216,7 +301,7 @@ function buildPatchPayloadFromState(
 }
 
 function buildPatchPayload() {
-  return buildPatchPayloadFromState(form.value, addressForm.value)
+  return buildPatchPayloadFromState(form.value, operatorForm.value, addressForm.value)
 }
 
 async function loadProfile() {
@@ -244,6 +329,10 @@ function resetForm() {
 
 async function save() {
   if (!canEdit.value || !profile.value) return
+  if (operatorForm.value.operator_enabled && !operatorForm.value.linked_department_id) {
+    saveError.value = t('supplierProfile.operatorDepartmentRequired')
+    return
+  }
   saving.value = true
   saveError.value = ''
   saveSuccess.value = ''
@@ -357,6 +446,38 @@ onMounted(() => {
 .form-hint {
   font-size: 0.8rem;
   color: #6b7280;
+}
+
+.section-intro {
+  margin: 0 0 16px;
+}
+
+.operator-toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+  font-size: 0.95rem;
+  color: #374151;
+}
+
+.operator-readonly {
+  margin: 0 0 12px;
+  color: #4b5563;
+}
+
+.operator-details {
+  margin-top: 8px;
+}
+
+.form-warning {
+  margin: 12px 0 0;
+  padding: 10px 12px;
+  border-radius: 6px;
+  background: #fffbeb;
+  border: 1px solid #fcd34d;
+  color: #92400e;
+  font-size: 0.875rem;
 }
 
 .form-actions {

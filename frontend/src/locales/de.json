@@ -675,7 +675,17 @@
       "manufacturerKey": "Hersteller-Schlüssel",
       "manufacturerKeyPlaceholder": "z. B. tortuga",
       "manufacturerKeyHint": "Eindeutiger Schlüssel für Import und Vorlagen-Matching (Kleinbuchstaben)."
-    }
+    },
+    "sectionOperator": "Vermietung (Operator)",
+    "operatorIntro": "Wenn ihr neben dem B2B-Portal auch über ein bestehendes eMatChef-Department vermietet, verknüpft hier euer Department. Es wird kein neues Department oder keine neue Organisation angelegt.",
+    "operatorToggle": "Wir vermieten auch über ein Department",
+    "operatorActive": "Operator-Modus ist aktiv.",
+    "operatorInactive": "Operator-Modus ist nicht aktiv.",
+    "operatorDepartment": "Verknüpftes Department",
+    "operatorDepartmentPlaceholder": "Department wählen …",
+    "operatorDepartmentRequired": "Bitte ein Department für den Operator-Modus wählen.",
+    "operatorMembershipHint": "Du brauchst eine eigene Membership in diesem Department, um dort Material zu verwalten.",
+    "operatorNoDepartments": "Du hast noch keine Department-Membership. Bitte zuerst einem Department beitreten oder vom Support anbinden lassen."
   },
   "supplierTeam": {
     "title": "Team",
