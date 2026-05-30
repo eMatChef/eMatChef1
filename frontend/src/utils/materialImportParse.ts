@@ -232,7 +232,6 @@ const EDITABLE_OVERRIDE_FIELDS = [
   'acquired_on',
   'unit_price',
   'notes',
-  'duplicate_action',
 ] as const
 
 /** Manuelle Vorschau-Änderungen beim Neu-Parsen der Datei beibehalten. */
