@@ -86,6 +86,28 @@ class SupplierShopService
         );
     }
 
+    /**
+     * @return list<array<string, mixed>>
+     */
+    public function listRepairCompanies(): array
+    {
+        $companies = $this->companyRepository->findByStatus(SupplierCompany::STATUS_ACTIVE);
+        $items = [];
+
+        foreach ($companies as $company) {
+            if (!\in_array(SupplierCompany::CAPABILITY_REPAIRS, $company->getCapabilities(), true)) {
+                continue;
+            }
+            $items[] = [
+                'id' => $company->getId(),
+                'name' => $company->getName(),
+                'manufacturer_key' => $company->getManufacturerKey(),
+            ];
+        }
+
+        return $items;
+    }
+
     private function companyHasShopCapability(SupplierCompany $company): bool
     {
         $caps = $company->getCapabilities();

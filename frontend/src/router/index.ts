@@ -65,6 +65,12 @@ function hasSupplierTemplatesCapability(companyId: string): boolean {
   return company?.capabilities?.includes('templates') ?? false
 }
 
+function hasSupplierRepairsCapability(companyId: string): boolean {
+  const authStore = useAuthStore()
+  const company = authStore.activeSupplierCompanies.find((c) => c.id === companyId)
+  return company?.capabilities?.includes('repairs') ?? false
+}
+
 function devicesWarehouseRoleOk(departmentId: string): boolean {
   const authStore = useAuthStore()
   const userRoles = authStore.userRoles || []
@@ -613,6 +619,16 @@ const routes: RouteRecordRaw[] = [
           requiresSupplierAccess: true,
           requiresSupplierTemplates: true,
           ...routeHead('supplierTemplates'),
+        },
+      },
+      {
+        path: 'repairs',
+        name: 'SupplierRepairs',
+        component: () => import('@/views/supplier/SupplierRepairsView.vue'),
+        meta: {
+          requiresSupplierAccess: true,
+          requiresSupplierRepairs: true,
+          ...routeHead('supplierRepairs'),
         },
       },
     ],
@@ -1487,6 +1503,9 @@ router.beforeEach(async (to, from, next) => {
       return next({ name: 'SupplierProfile', params: { companyId } })
     }
     if (to.meta.requiresSupplierTemplates && !hasSupplierTemplatesCapability(companyId)) {
+      return next({ name: 'SupplierProfile', params: { companyId } })
+    }
+    if (to.meta.requiresSupplierRepairs && !hasSupplierRepairsCapability(companyId)) {
       return next({ name: 'SupplierProfile', params: { companyId } })
     }
   }

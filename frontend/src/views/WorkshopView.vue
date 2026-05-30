@@ -418,6 +418,27 @@
                 <span class="detail-label">{{ t('workshop.detailAssignedTo') }}</span>
                 <span class="detail-value">{{ selectedTicket.assigned_to?.name || t('workshop.notAssigned') }}</span>
               </div>
+              <div v-if="selectedTicket.assigned_to_supplier_company" class="detail-item">
+                <span class="detail-label">{{ t('workshop.detailAssignedSupplier') }}</span>
+                <span class="detail-value">{{ selectedTicket.assigned_to_supplier_company.name }}</span>
+              </div>
+              <div v-else class="detail-item detail-item--full">
+                <span class="detail-label">{{ t('workshop.assignSupplier') }}</span>
+                <div class="supplier-assign-row">
+                  <select v-model="assignSupplierCompanyId" class="supplier-select">
+                    <option value="">{{ t('workshop.selectSupplierCompany') }}</option>
+                    <option v-for="c in repairCompanies" :key="c.id" :value="c.id">{{ c.name }}</option>
+                  </select>
+                  <button
+                    type="button"
+                    class="btn btn-secondary btn-sm"
+                    :disabled="!assignSupplierCompanyId || isAssigningSupplier"
+                    @click="assignTicketToSupplier"
+                  >
+                    {{ t('workshop.assignSupplierAction') }}
+                  </button>
+                </div>
+              </div>
               <div class="detail-item">
                 <span class="detail-label">{{ t('workshop.detailEstimatedCost') }}</span>
                 <span class="detail-value">{{ selectedTicket.estimated_cost ? selectedTicket.estimated_cost + t('workshop.chfSuffix') : t('workshop.dash') }}</span>
@@ -881,6 +902,7 @@ import {
   type TicketType,
   type TicketPriority,
 } from '@/api/workshop'
+import { listSupplierRepairCompanies } from '@/api/supplierShop'
 import { getMaterials, getMaterial, type Material } from '@/api/materials'
 import GlobalSearchInput from '@/components/common/GlobalSearchInput.vue'
 import PublicQrTag from '@/components/common/PublicQrTag.vue'
@@ -927,6 +949,9 @@ const quoteError = ref('')
 const isSubmittingQuote = ref(false)
 const isGeneratingWorkshopPublicCode = ref(false)
 const showWorkshopQrActionModal = ref(false)
+const repairCompanies = ref<Array<{ id: string; name: string }>>([])
+const assignSupplierCompanyId = ref('')
+const isAssigningSupplier = ref(false)
 
 const departmentRole = computed(() => String(authStore.currentDepartmentRole || 'u').toLowerCase())
 const canManageWorkshopQr = computed(() =>
@@ -1248,12 +1273,37 @@ async function openTicketDetail(ticket: WorkshopTicket) {
 
     selectedTicket.value = detailed
     ticketHistory.value = history
+    assignSupplierCompanyId.value = ''
+    try {
+      repairCompanies.value = await listSupplierRepairCompanies(currentDepartmentId.value)
+    } catch {
+      repairCompanies.value = []
+    }
   } catch (err) {
     console.error('Failed to load ticket details:', err)
     selectedTicket.value = ticket
     ticketHistory.value = []
   } finally {
     isLoadingHistory.value = false
+  }
+}
+
+async function assignTicketToSupplier() {
+  if (!selectedTicket.value || !assignSupplierCompanyId.value) return
+  isAssigningSupplier.value = true
+  try {
+    await updateWorkshopTicket(selectedTicket.value.id, {
+      assigned_to_supplier_company_id: assignSupplierCompanyId.value,
+    })
+    const detailed = await getWorkshopTicket(selectedTicket.value.id)
+    selectedTicket.value = detailed
+    assignSupplierCompanyId.value = ''
+    await loadData()
+    toast.success(t('workshop.toast.supplierAssigned'))
+  } catch (err: any) {
+    toast.error(err?.response?.data?.error || t('workshop.toast.supplierAssignError'))
+  } finally {
+    isAssigningSupplier.value = false
   }
 }
 

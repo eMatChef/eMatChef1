@@ -95,6 +95,7 @@
         "supplierCatalog": "Meine Firma · Katalog · eMatChef",
         "supplierDeliveries": "Meine Firma · Übergaben · eMatChef",
         "supplierTemplates": "Meine Firma · Vorlagen · eMatChef",
+        "supplierRepairs": "Meine Firma · Reparaturen · eMatChef",
         "settingsSupplierDeliveries": "Einstellungen · Lieferanten-Übergaben · eMatChef"
       },
       "descriptions": {
@@ -569,6 +570,8 @@
     "optional": "Optional",
     "create": "Erstellen",
     "cancel": "Abbrechen",
+    "back": "Zurück",
+    "next": "Weiter",
     "confirm": "Bestätigen",
     "close": "Schließen",
     "print": "Drucken",
@@ -670,7 +673,8 @@
     "myCompanyTeam": "Team",
     "myCompanyCatalog": "Katalog",
     "myCompanyDeliveries": "Übergaben",
-    "myCompanyTemplates": "Vorlagen"
+    "myCompanyTemplates": "Vorlagen",
+    "myCompanyRepairs": "Reparaturen"
   },
   "supplierProfile": {
     "title": "Profil & Kontakt",
@@ -963,6 +967,34 @@
     },
     "errors": {
       "nameRequired": "Name ist erforderlich."
+    }
+  },
+  "supplierRepairs": {
+    "title": "Reparaturen",
+    "subtitle": "Zugewiesene Werkstatt-Tickets — minimaler Datenzugriff ohne Aktivitätsdetails.",
+    "refresh": "Aktualisieren",
+    "empty": "Keine zugewiesenen Reparaturen.",
+    "errorLoad": "Reparaturen konnten nicht geladen werden.",
+    "filterStatus": "Status",
+    "allStatuses": "Alle",
+    "estimatedCost": "Geschätzte Kosten (CHF)",
+    "serial": "Seriennummer",
+    "transitionSuccess": "Status aktualisiert.",
+    "transitionError": "Statusänderung fehlgeschlagen.",
+    "openDetail": "Öffnen",
+    "status": {
+      "open": "Offen",
+      "inProgress": "In Bearbeitung",
+      "waitingParts": "Wartet auf Teile",
+      "completed": "Abgeschlossen",
+      "cancelled": "Abgebrochen"
+    },
+    "columns": {
+      "title": "Titel",
+      "department": "Department",
+      "material": "Material",
+      "status": "Status",
+      "updated": "Aktualisiert"
     }
   },
   "departmentSupplierDeliveries": {
@@ -3098,6 +3130,8 @@
       "importSubmit": "Importieren",
       "deleteConfirmWarning": "Bereits erstellte Materialien werden davon nicht betroffen.",
       "noManufacturer": "Ohne Hersteller",
+      "generalMixed": "Allgemein / gemischt",
+      "badgeSinglePart": "Einzelteil",
       "duplicateNameSuffix": "Kopie",
       "tentType": {
         "gruppenzelt": "Gruppenzelt",
@@ -5345,6 +5379,30 @@
       "toastMaxQty": "Höchstens {max} Stk. möglich.",
       "toastBookFailed": "Verbrauch konnte nicht gebucht werden."
     },
+    "templateStartWizard": {
+      "title": "Neue Vorlage",
+      "step1Intro": "Was möchten Sie modellieren?",
+      "step2Intro": "Welcher Fachbereich?",
+      "step3Intro": "Optional: Hersteller-Kontext für diese Vorlage.",
+      "kindSinglePart": "Einzelteil",
+      "kindSinglePartHint": "Eine Komponente — Wizard „Einzelartikel“",
+      "kindCombo": "Combo / Set",
+      "kindComboHint": "Physische oder virtuelle Kombo",
+      "kindConfigurator": "Konfigurator",
+      "kindConfiguratorHint": "Virtuelle Kombo mit Options-Gruppen",
+      "domainTent": "Zelt / Unterkunft",
+      "domainTentHint": "Tab Zelt-Details im Editor",
+      "domainKitchen": "Küche",
+      "domainWorkshop": "Werkstatt",
+      "domainFirstAid": "Erste Hilfe",
+      "domainGeneral": "Allgemein",
+      "domainGeneralHint": "Nur Name, Beschreibung, Komponenten",
+      "manufacturerLabel": "Hersteller",
+      "manufacturerMixed": "Kein / gemischt",
+      "loadingOptions": "Lieferanten werden geladen…",
+      "loadOptionsFailed": "Lieferanten konnten nicht geladen werden",
+      "continueToEditor": "Weiter zum Editor"
+    },
     "templateEditDialog": {
       "titleView": "Vorlage ansehen",
       "titleEdit": "Vorlage bearbeiten",
@@ -5354,6 +5412,12 @@
       "namePlaceholder": "z.B. Spatz Zelt 6P",
       "manufacturerLabel": "Hersteller",
       "manufacturerPlaceholder": "z.B. Spatz, hajk",
+      "manufacturerMixed": "Kein / gemischt",
+      "manufacturerHint": "Optional. Bei „Kein / gemischt“ bleiben Komponentennamen generisch.",
+      "kindBadge": "Einzelteil",
+      "singlePartHint": "Einzelteil-Vorlage: genau eine Komponente, kein Combo-Set.",
+      "optionalNotAccessory": "Optional = Stücklisten-Teil, das weggelassen werden kann — nicht dasselbe wie der Tab „Zubehör“ (Empfehlung).",
+      "errorLoadManufacturerOptions": "Hersteller-Optionen konnten nicht geladen werden:",
       "modelLabel": "Modell",
       "modelPlaceholder": "z.B. Group 6",
       "descriptionLabel": "Beschreibung",
@@ -5934,6 +5998,10 @@
     "sectionDetails": "Details",
     "detailCreatedBy": "Erstellt von",
     "detailAssignedTo": "Zugewiesen an",
+    "detailAssignedSupplier": "Lieferant",
+    "assignSupplier": "An Lieferant zuweisen",
+    "selectSupplierCompany": "Lieferanten-Firma wählen …",
+    "assignSupplierAction": "Zuweisen",
     "detailEstimatedCost": "Geschätzte Kosten",
     "detailActualCost": "Tatsächliche Kosten",
     "detailCreatedAt": "Erstellt am",
@@ -6070,7 +6138,9 @@
       "quoteSetWaiting": "Ticket auf „Wartet auf Teile“ gesetzt",
       "quoteError": "Fehler:",
       "lossAccepted": "Verlust angenommen und {qty} Stk. abgeschrieben",
-      "lossError": "Fehler beim Annehmen des Verlusts:"
+      "lossError": "Fehler beim Annehmen des Verlusts:",
+      "supplierAssigned": "Ticket an Lieferant zugewiesen",
+      "supplierAssignError": "Zuweisung fehlgeschlagen"
     },
     "internal": {
       "lossResolutionNotes": "Verlustmeldung angenommen und abgeschrieben."
@@ -6087,6 +6157,12 @@
       "namePlaceholder": "z.B. Spatz Zelt 6P",
       "manufacturerLabel": "Hersteller",
       "manufacturerPlaceholder": "z.B. Spatz, hajk",
+      "manufacturerMixed": "Kein / gemischt",
+      "manufacturerHint": "Optional. Bei „Kein / gemischt“ bleiben Komponentennamen generisch.",
+      "kindBadge": "Einzelteil",
+      "singlePartHint": "Einzelteil-Vorlage: genau eine Komponente, kein Combo-Set.",
+      "optionalNotAccessory": "Optional = Stücklisten-Teil, das weggelassen werden kann — nicht dasselbe wie der Tab „Zubehör“ (Empfehlung).",
+      "errorLoadManufacturerOptions": "Hersteller-Optionen konnten nicht geladen werden:",
       "modelLabel": "Modell",
       "modelPlaceholder": "z.B. Group 6",
       "descriptionLabel": "Beschreibung",

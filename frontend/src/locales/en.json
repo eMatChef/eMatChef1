@@ -79,6 +79,7 @@
         "supplierCatalog": "My company · Catalog · eMatChef",
         "supplierDeliveries": "My company · Deliveries · eMatChef",
         "supplierTemplates": "My company · Templates · eMatChef",
+        "supplierRepairs": "My company · Repairs · eMatChef",
         "settingsSupplierDeliveries": "Settings · Supplier deliveries · eMatChef"
       },
       "descriptions": {
@@ -505,6 +506,8 @@
     "save": "Save",
     "create": "Create",
     "cancel": "Cancel",
+    "back": "Back",
+    "next": "Next",
     "confirm": "Confirm",
     "close": "Close",
     "remove": "Remove",
@@ -569,7 +572,8 @@
     "myCompanyTeam": "Team",
     "myCompanyCatalog": "Catalog",
     "myCompanyDeliveries": "Deliveries",
-    "myCompanyTemplates": "Templates"
+    "myCompanyTemplates": "Templates",
+    "myCompanyRepairs": "Repairs"
   },
   "supplierProfile": {
     "title": "Profile & contact",
@@ -862,6 +866,34 @@
     },
     "errors": {
       "nameRequired": "Name is required."
+    }
+  },
+  "supplierRepairs": {
+    "title": "Repairs",
+    "subtitle": "Assigned workshop tickets — minimal data access without activity details.",
+    "refresh": "Refresh",
+    "empty": "No assigned repair tickets.",
+    "errorLoad": "Could not load repairs.",
+    "filterStatus": "Status",
+    "allStatuses": "All",
+    "estimatedCost": "Estimated cost (CHF)",
+    "serial": "Serial number",
+    "transitionSuccess": "Status updated.",
+    "transitionError": "Status change failed.",
+    "openDetail": "Open",
+    "status": {
+      "open": "Open",
+      "inProgress": "In progress",
+      "waitingParts": "Waiting for parts",
+      "completed": "Completed",
+      "cancelled": "Cancelled"
+    },
+    "columns": {
+      "title": "Title",
+      "department": "Department",
+      "material": "Material",
+      "status": "Status",
+      "updated": "Updated"
     }
   },
   "departmentSupplierDeliveries": {
@@ -2646,6 +2678,8 @@
       "importSubmit": "Import",
       "deleteConfirmWarning": "Materials already created from this template are not affected.",
       "noManufacturer": "No manufacturer",
+      "generalMixed": "General / mixed",
+      "badgeSinglePart": "Single part",
       "duplicateNameSuffix": "copy",
       "tentType": {
         "gruppenzelt": "Group tent",
@@ -4379,6 +4413,10 @@
     "sectionDetails": "Details",
     "detailCreatedBy": "Created by",
     "detailAssignedTo": "Assigned to",
+    "detailAssignedSupplier": "Supplier",
+    "assignSupplier": "Assign to supplier",
+    "selectSupplierCompany": "Select supplier company …",
+    "assignSupplierAction": "Assign",
     "detailEstimatedCost": "Estimated cost",
     "detailActualCost": "Actual cost",
     "detailCreatedAt": "Created on",
@@ -4515,7 +4553,9 @@
       "quoteSetWaiting": "Ticket set to “Waiting for parts”",
       "quoteError": "Error:",
       "lossAccepted": "Loss accepted and {qty} pcs. written off",
-      "lossError": "Error accepting loss:"
+      "lossError": "Error accepting loss:",
+      "supplierAssigned": "Ticket assigned to supplier",
+      "supplierAssignError": "Assignment failed"
     },
     "internal": {
       "lossResolutionNotes": "Loss report accepted and written off."
@@ -4604,6 +4644,30 @@
         "removeSection": "Remove section"
       }
     },
+    "templateStartWizard": {
+      "title": "New template",
+      "step1Intro": "What do you want to model?",
+      "step2Intro": "Which domain?",
+      "step3Intro": "Optional: manufacturer context for this template.",
+      "kindSinglePart": "Single part",
+      "kindSinglePartHint": "One component — \"Single item\" wizard",
+      "kindCombo": "Combo / set",
+      "kindComboHint": "Physical or virtual combo",
+      "kindConfigurator": "Configurator",
+      "kindConfiguratorHint": "Virtual combo with option groups",
+      "domainTent": "Tent / shelter",
+      "domainTentHint": "Tent details tab in editor",
+      "domainKitchen": "Kitchen",
+      "domainWorkshop": "Workshop",
+      "domainFirstAid": "First aid",
+      "domainGeneral": "General",
+      "domainGeneralHint": "Name, description, components only",
+      "manufacturerLabel": "Manufacturer",
+      "manufacturerMixed": "None / mixed",
+      "loadingOptions": "Loading suppliers…",
+      "loadOptionsFailed": "Could not load suppliers",
+      "continueToEditor": "Continue to editor"
+    },
     "templateEditDialog": {
       "titleView": "View template",
       "titleEdit": "Edit template",
@@ -4613,6 +4677,12 @@
       "namePlaceholder": "e.g. Spatz tent 6P",
       "manufacturerLabel": "Manufacturer",
       "manufacturerPlaceholder": "e.g. Spatz, hajk",
+      "manufacturerMixed": "None / mixed",
+      "manufacturerHint": "Optional. With \"None / mixed\", component names stay generic.",
+      "kindBadge": "Single part",
+      "singlePartHint": "Single-part template: exactly one component, not a combo set.",
+      "optionalNotAccessory": "Optional = BOM line that can be omitted — not the same as the Accessories tab (recommendation).",
+      "errorLoadManufacturerOptions": "Could not load manufacturer options:",
       "modelLabel": "Model",
       "modelPlaceholder": "e.g. Group 6",
       "descriptionLabel": "Description",

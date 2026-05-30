@@ -72,6 +72,15 @@ export async function listSupplierShopCompanies(
   return data.companies
 }
 
+export async function listSupplierRepairCompanies(
+  departmentId: string,
+): Promise<Array<{ id: string; name: string; manufacturer_key: string | null }>> {
+  const { data } = await apiClient.get<{ companies: Array<{ id: string; name: string; manufacturer_key: string | null }> }>(
+    `/api/departments/${departmentId}/supplier-shop/repair-companies`,
+  )
+  return data.companies
+}
+
 export async function listSupplierShopCatalog(
   departmentId: string,
   supplierCompanyId: string,

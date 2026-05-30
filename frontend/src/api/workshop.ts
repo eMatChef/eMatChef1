@@ -64,6 +64,7 @@ export interface WorkshopTicket {
   updated_at: string
   material_item: WorkshopMaterialInfo
   assigned_to: WorkshopUserInfo | null
+  assigned_to_supplier_company?: { id: string; name: string } | null
   created_by: WorkshopUserInfo | null
   activity_id: string | null
   activity_type?: string | null
@@ -114,6 +115,7 @@ export interface UpdateTicketRequest {
   type?: TicketType
   priority?: TicketPriority
   assigned_to_user_id?: string | null
+  assigned_to_supplier_company_id?: string | null
   estimated_cost?: string | null
   actual_cost?: string | null
   parts_used?: any[] | null

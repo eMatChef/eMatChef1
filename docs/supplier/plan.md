@@ -42,7 +42,7 @@ Abarbeitbare Checkliste für Phase 1–3. Das **Warum/Zielmodell** steht in [sup
 | 11 | Vorlagen `supplier_material_template_*` | 2c | XL | 9 | [x] |
 | 12 | MW-Shop, Budget, Import-Pfade | 2d | XL | 9–11 | [x] |
 | 13 | Sichtbarkeit + Global-Review | 2e | M | 9, 12 | [x] |
-| 14 | Reparaturen an Lieferant | 3 | L | 1–7 | [ ] |
+| 14 | Reparaturen an Lieferant | 3 | L | 1–7 | [~] |
 | 15 | Cleanup: `GLOBAL000000` / `GLOBALORG001` | 1/2 | S | 0, 8 | [ ] |
 
 > **Phase 1 DoD:** Login, `SupplierCompany`, Team, öffentliche Kontaktdaten, Sidebar **Meine Firma** — ohne Shop. Paket 8 kann parallel zu 4–7 laufen, sollte aber vor Phase-2-Start fertig sein.
@@ -375,9 +375,11 @@ Diese Stellen strahlen bei Address-/Supplier-Änderungen am stärksten aus:
 - `PublicWorkshopView` bleibt parallel
 
 **Schritte:**
-- [ ] MW weist Ticket zu; Capability `repairs` + Rolle `repairs`
-- [ ] Supplier-Dashboard: Status, Kostenvoranschlag, Fotos
-- [ ] API filtert personenbezogene Aktivitätsdaten weg
+- [x] Migration + `assigned_to_supplier_company_id` auf `WorkshopTicket`
+- [x] MW weist Ticket zu (`WorkshopController`, Werkstatt-UI)
+- [x] Supplier-API + Portal-View (Status, Kostenvoranschlag); Capability `repairs`
+- [x] API filtert Aktivitätsdetails weg (`SupplierRepairTicketService`)
+- [ ] Fotos-Upload Lieferant (optional; URLs per PATCH möglich)
 
 **Definition of Done:** Siehe [supplier-portal.md Phase 3 DoD](./supplier-portal.md#definition-of-done-2).
 
