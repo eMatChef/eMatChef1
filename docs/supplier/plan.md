@@ -2,7 +2,7 @@
 
 Abarbeitbare Checkliste für Phase 1–3. Das **Warum/Zielmodell** steht in [supplier-portal.md](./supplier-portal.md). Dieser Plan = **Was & in welcher Reihenfolge**.
 
-**Stand:** Mai 2026 · Phase 1 in Paketen 0–8; Phase 2/3 als grobe Pakete (Detail folgt mit Phase-2-Start). **Erledigt: Paket 0–2**
+**Stand:** Mai 2026 · Phase 1 in Paketen 0–8; Phase 2/3 als grobe Pakete (Detail folgt mit Phase-2-Start). **Erledigt: Paket 0–3**
 
 ---
 
@@ -31,7 +31,7 @@ Abarbeitbare Checkliste für Phase 1–3. Das **Warum/Zielmodell** steht in [sup
 | 0 | Address-Scope + Migration `GLOBAL000000` | 1 | M | – | [x] |
 | 1 | `supplier_company` + `supplier_membership` | 1 | M | 0 | [x] |
 | 2 | Auth: `ROLE_SUPPLIER`, Session, Voter | 1 | S–M | 1 | [x] |
-| 3 | Plattform-Admin: Onboarding + Legacy-Promote | 1 | M | 1, 2 | [ ] |
+| 3 | Plattform-Admin: Onboarding + Legacy-Promote | 1 | M | 1, 2 | [x] |
 | 4 | Frontend-Shell: Routing, Layout, Sidebar | 1 | M | 2 | [ ] |
 | 5 | „Meine Firma“: Profil & Kontakt | 1 | M | 1, 2, 4 | [ ] |
 | 6 | Team + Join-Code | 1 | M | 2, 5 | [ ] |
@@ -150,11 +150,11 @@ Diese Stellen strahlen bei Address-/Supplier-Änderungen am stärksten aus:
 - E-Mail/Invite-Flow (bestehendes User-Anlegen wiederverwenden)
 
 **Schritte:**
-- [ ] `POST /api/admin/supplier-companies` — Firma + Adresse + Capabilities + `status=active`
-- [ ] Ersten User als Membership `admin` anlegen / bestehenden User zuweisen; Login-Zugang (Support-Prozess)
-- [ ] `PATCH` Capabilities, `status`, `linked_department_id` (nur Plattform-Admin für sensible Felder)
-- [ ] Legacy: Aktion „Als Supplier-Firma aktivieren“ auf `address` (`scope=global`) → `SupplierCompany` + Adresse `scope=supplier` + `supplier_company_id`
-- [ ] **Keine** Self-Registration neuer Firmen
+- [x] `POST /api/admin/supplier-companies` — Firma + Adresse + Capabilities + `status=active`
+- [x] Ersten User als Membership `admin` anlegen / bestehenden User zuweisen; Login-Zugang (Support-Prozess)
+- [x] `PATCH` Capabilities, `status`, `linked_department_id` (nur Plattform-Admin für sensible Felder)
+- [x] Legacy: Aktion „Als Supplier-Firma aktivieren“ auf `address` (`scope=global`) → `SupplierCompany` + Adresse `scope=supplier` + `supplier_company_id`
+- [x] **Keine** Self-Registration neuer Firmen
 
 **Definition of Done:** Admin kann Tortuga als Firma anlegen; Legacy-Promote ohne Datenverlust; erster User ist `admin`.
 

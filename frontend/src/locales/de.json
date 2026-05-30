@@ -6228,7 +6228,30 @@
     "successSaved": "Globale Adresse wurde gespeichert",
     "confirmDelete": "Globale Adresse wirklich loeschen?",
     "successDeleted": "Globale Adresse wurde geloescht",
-    "errorDelete": "Loeschen fehlgeschlagen"
+    "errorDelete": "Loeschen fehlgeschlagen",
+    "supplierSectionTitle": "Registrierte Supplier-Firmen",
+    "supplierSectionDescription": "B2B-Firmen mit Portal-Zugang (Support-Onboarding). Legacy-Adressen unten koennen aktiviert werden.",
+    "newSupplierCompany": "Neue Supplier-Firma",
+    "supplierEmpty": "Noch keine Supplier-Firmen angelegt.",
+    "supplierTableKey": "Hersteller-Key",
+    "supplierTableMembers": "Mitglieder",
+    "supplierErrorLoad": "Supplier-Firmen konnten nicht geladen werden",
+    "supplierCreateSuccess": "Supplier-Firma wurde angelegt",
+    "supplierErrorCreate": "Supplier-Firma konnte nicht angelegt werden",
+    "promoteToSupplier": "Als Supplier-Firma aktivieren",
+    "promoteSuccess": "Adresse wurde als Supplier-Firma aktiviert",
+    "promoteError": "Aktivierung fehlgeschlagen",
+    "supplierModal": {
+      "createTitle": "Neue Supplier-Firma",
+      "createSubmit": "Firma anlegen",
+      "promoteTitle": "Als Supplier-Firma aktivieren",
+      "promoteSubmit": "Aktivieren",
+      "name": "Firmenname",
+      "manufacturerKey": "Hersteller-Key (optional, unique)",
+      "manufacturerKeyHint": "z. B. tortuga",
+      "adminEmail": "Admin-User (E-Mail, optional)",
+      "errorNameRequired": "Firmenname ist erforderlich"
+    }
   },
   "landingClassic": {
     "login": "Anmelden",

@@ -89,6 +89,97 @@ class SupplierCompanyFactory
         return $membership;
     }
 
+    /**
+     * Legacy: scope=global Adresse → SupplierCompany (gleiche address.id, material_batch FK bleibt).
+     *
+     * @param list<string> $capabilities
+     */
+    public function promoteGlobalAddress(
+        Address $globalAddress,
+        ?string $name = null,
+        ?string $manufacturerKey = null,
+        array $capabilities = [],
+        string $status = SupplierCompany::STATUS_ACTIVE,
+        ?string $linkedDepartmentId = null,
+    ): SupplierCompany {
+        if ($globalAddress->getScope() !== Address::SCOPE_GLOBAL || $globalAddress->getType() !== 'supplier') {
+            throw new \InvalidArgumentException('Nur globale Lieferanten-Adressen können aktiviert werden');
+        }
+        if ($globalAddress->isDeleted()) {
+            throw new \InvalidArgumentException('Gelöschte Adresse kann nicht aktiviert werden');
+        }
+        if ($globalAddress->getSupplierCompanyId() !== null) {
+            throw new \InvalidArgumentException('Adresse ist bereits einer Supplier-Firma zugeordnet');
+        }
+
+        $companyName = trim($name ?? $globalAddress->getCompany() ?? $globalAddress->getName() ?? '');
+        if ($companyName === '') {
+            throw new \InvalidArgumentException('Firmenname ist erforderlich');
+        }
+
+        return $this->entityManager->wrapInTransaction(function () use (
+            $globalAddress,
+            $companyName,
+            $manufacturerKey,
+            $capabilities,
+            $status,
+            $linkedDepartmentId,
+        ): SupplierCompany {
+            $companyId = IdGenerator::generateUnique($this->entityManager, SupplierCompany::class);
+
+            $company = new SupplierCompany();
+            $company->setId($companyId);
+            $company->setName($companyName);
+            $company->setManufacturerKey($manufacturerKey);
+            $company->setCapabilities($capabilities);
+            $company->setStatus($status);
+            $company->setLinkedDepartmentId($linkedDepartmentId);
+            $company->setSupplierAddressId($globalAddress->getId());
+
+            $globalAddress->setScope(Address::SCOPE_SUPPLIER);
+            $globalAddress->setSupplierCompanyId($companyId);
+
+            $this->entityManager->persist($company);
+            $this->entityManager->flush();
+
+            $company->setSupplierAddress($globalAddress);
+
+            return $company;
+        });
+    }
+
+    /** @param list<string> $raw */
+    public static function normalizeCapabilities(array $raw): array
+    {
+        $allowed = [
+            SupplierCompany::CAPABILITY_CATALOG,
+            SupplierCompany::CAPABILITY_DELIVERY,
+            SupplierCompany::CAPABILITY_TEMPLATES,
+            SupplierCompany::CAPABILITY_REPAIRS,
+            SupplierCompany::CAPABILITY_OPERATOR,
+        ];
+        $filtered = array_values(array_unique(array_filter(
+            $raw,
+            static fn ($c) => \is_string($c) && \in_array($c, $allowed, true)
+        )));
+
+        return $filtered;
+    }
+
+    public static function normalizeStatus(string $status): string
+    {
+        $status = strtolower(trim($status));
+        if (!\in_array($status, [
+            SupplierCompany::STATUS_PENDING,
+            SupplierCompany::STATUS_ACTIVE,
+            SupplierCompany::STATUS_SUSPENDED,
+        ], true)) {
+            throw new \InvalidArgumentException('Ungültiger status');
+        }
+
+        return $status;
+    }
+
     /** @param array<string, mixed|null> $data */
     private function applyAddressData(Address $address, array $data, string $companyName): void
     {

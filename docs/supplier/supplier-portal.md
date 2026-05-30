@@ -2,7 +2,7 @@
 
 Konzept-Dokumentation für ein **Lieferanten-Portal** mit Firmen-Modell (`SupplierCompany`), mehreren Usern pro Firma, B2B-Katalog für Materialwarte (MW) und optional **eigenem Vermietungsbetrieb** (Operator). Später: Reparatur-Workflow.
 
-**Stand:** Mai 2026 · Konzept; **Paket 0–2 implementiert** — Address-Scope, `supplier_company`, `ROLE_SUPPLIER`, Session + Voter
+**Stand:** Mai 2026 · Konzept; **Paket 0–3 implementiert** — Address-Scope, Firmen-Modell, Auth, Plattform-Admin-Onboarding
 
 Verwandt:
 
@@ -309,8 +309,8 @@ Capabilities (`catalog`, `operator`, …) hängen an **`SupplierCompany`**, nich
 
 - [x] `SupplierCompany` + `SupplierMembership` (Migration)
 - [x] Address-Scope auf `address` (Migration GLOBAL000000 → `scope=global`; **J&S `dept_js00000` unberührt**)
-- [ ] Support-Onboarding: Admin legt Firma an, erster User admin, Login-Zugang
-- [ ] Legacy `scope=global` → SupplierCompany (Admin-Aktion)
+- [x] Support-Onboarding: Admin legt Firma an, erster User admin, Login-Zugang
+- [x] Legacy `scope=global` → SupplierCompany (Admin-Aktion)
 - [x] Login; `ROLE_SUPPLIER`; Session mit `supplier_companies[]`
 - [ ] Supplier-only wenn kein Department; sonst Toggle **Meine Firma** (Profil & Kontakt, Team für admin)
 - [ ] Öffentliche Kontaktdaten über `address` (`scope=supplier`) — für MW sichtbar
