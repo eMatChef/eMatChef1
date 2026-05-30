@@ -1,3 +1,3 @@
-name;qty;unit;size_length;size_width;size_height;size_unit;color;material;manufacturer;supplier;acquired_year;unit_price;notes
-Statikseil 11mm Rot 33kN;20;Stk;30;;;m;;;Tendon;Outdoor Shop;2020;49.00;
-Karabiner Stahl Oval Twist-Lock;12;Stk;;;;;;;Petzl;Spanset;2016;18.50;
+name;qty;unit;size_length;size_width;size_height;size_unit;color;material;manufacturer;supplier;storage;stock_location_mode;rack;slot;container;acquired_year;unit_price;notes
+Statikseil 11mm Rot 33kN;20;Stk;30;;;m;;;Tendon;Outdoor Shop;Magazin;slot;Regal A;Fach 3;;2020;49.00;
+Karabiner Stahl Oval Twist-Lock;12;Stk;;;;;;;Petzl;Spanset;Magazin;kiste;;;Kiste Blau;2016;18.50;

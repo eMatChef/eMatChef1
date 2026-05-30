@@ -149,9 +149,17 @@ const visibleMenuItems = computed(() => {
   max-width: 1400px;
   margin: 0 auto;
   min-width: 0;
+  position: relative;
+  /* Platzhalter für das eingeklappte Menü (56px) + gap (24px),
+     damit das aufgeklappte Menü den Inhalt überlappt statt verschiebt */
+  padding-left: 80px;
 }
 
 .settings-menu {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 20;
   width: 260px;
   flex-shrink: 0;
   background: white;
@@ -159,12 +167,16 @@ const visibleMenuItems = computed(() => {
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
   padding: 16px 0 20px;
   height: fit-content;
-  transition: width 0.2s ease;
+  transition: width 0.2s ease, box-shadow 0.2s ease;
 }
 
 .settings-menu--collapsed {
   width: 56px;
   padding-top: 12px;
+}
+
+.settings-menu:not(.settings-menu--collapsed) {
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
 }
 
 .settings-menu-header {

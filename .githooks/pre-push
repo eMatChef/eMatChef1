@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+# Runs the same checks as .github/workflows/ci.yml before git push.
+set -euo pipefail
+
+ROOT="$(git rev-parse --show-toplevel)"
+cd "$ROOT"
+
+echo "pre-push: Frontend Build (vue-tsc + vite build)..."
+(
+  cd frontend
+  npm run build
+)
+
+echo "pre-push: Backend Composer validate..."
+(
+  cd backend
+  composer validate --strict --no-interaction
+)
+
+echo "pre-push: all checks passed."

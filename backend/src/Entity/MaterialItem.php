@@ -89,10 +89,6 @@ class MaterialItem
     #[ORM\Column(name: 'tent_capacity', type: 'integer', nullable: true)]
     private ?int $tentCapacity = null;
 
-    /** complete_only, individual, flexible */
-    #[ORM\Column(name: 'reservation_mode', type: 'string', length: 20, nullable: true)]
-    private ?string $reservationMode = null;
-
     /**
      * Referenz-Kiste (MaterialBatch): bei physischer Kombination aus Kisten-Inhalt erzeugt –
      * für späteren Abgleich Plan (Komponenten) vs. Ist (Inhalt der Kiste).
@@ -110,6 +106,13 @@ class MaterialItem
 
     #[ORM\Column(name: 'tracking_type', type: 'string', length: 20, nullable: true)]
     private ?string $trackingType = null; // serialized, bulk
+
+    /**
+     * Entwurfs-Status für Kombos: 'draft' (in Bearbeitung, nicht buchbar) | 'ready' (fertig, buchbar).
+     * Einzelartikel sind immer 'ready'.
+     */
+    #[ORM\Column(name: 'combo_status', type: 'string', length: 20, options: ['default' => 'ready'])]
+    private string $comboStatus = 'ready';
 
     // Identifikation
     #[ORM\Column(type: 'string', length: 13, nullable: true)]
@@ -210,6 +213,10 @@ class MaterialItem
 
     #[ORM\Column(name: 'min_stock', type: 'integer', nullable: true)]
     private ?int $minStock = null;
+
+    /** Produktfoto(s) — aktuell max. 1 Primary (MediaPhoto-JSON) */
+    #[ORM\Column(type: 'json', nullable: true)]
+    private ?array $photos = null;
 
     // Timestamps
     #[ORM\Column(name: 'created_at', type: 'datetime')]
@@ -395,9 +402,6 @@ class MaterialItem
     public function getTentCapacity(): ?int { return $this->tentCapacity; }
     public function setTentCapacity(?int $tentCapacity): self { $this->tentCapacity = $tentCapacity; return $this; }
 
-    public function getReservationMode(): ?string { return $this->reservationMode; }
-    public function setReservationMode(?string $reservationMode): self { $this->reservationMode = $reservationMode; return $this; }
-
     public function getLinkedContainerBatchId(): ?string
     {
         return $this->linkedContainerBatchId;
@@ -427,6 +431,13 @@ class MaterialItem
 
     public function getTrackingType(): ?string { return $this->trackingType; }
     public function setTrackingType(?string $trackingType): self { $this->trackingType = $trackingType; return $this; }
+
+    public function getComboStatus(): string { return $this->comboStatus; }
+    public function setComboStatus(string $comboStatus): self { $this->comboStatus = $comboStatus; return $this; }
+
+    public function isCombo(): bool { return in_array($this->materialType, ['physical_combo', 'virtual_combo'], true); }
+    public function isComboDraft(): bool { return $this->isCombo() && $this->comboStatus === 'draft'; }
+    public function isVirtualCombo(): bool { return $this->materialType === 'virtual_combo'; }
 
     // Identifikation Getters/Setters
     public function getEan(): ?string { return $this->ean; }
@@ -569,6 +580,28 @@ class MaterialItem
 
     public function getMinStock(): ?int { return $this->minStock; }
     public function setMinStock(?int $minStock): self { $this->minStock = $minStock; return $this; }
+
+    /** @return list<array<string, mixed>>|null */
+    public function getPhotos(): ?array { return $this->photos; }
+
+    /** @param list<array<string, mixed>>|null $photos */
+    public function setPhotos(?array $photos): self { $this->photos = $photos; return $this; }
+
+    public function getPrimaryPhotoUrl(): ?string
+    {
+        $photos = $this->photos ?? [];
+        if ($photos !== []) {
+            $first = $photos[0];
+            if (\is_array($first) && !empty($first['url'])) {
+                return (string) $first['url'];
+            }
+            if (\is_string($first) && $first !== '') {
+                return $first;
+            }
+        }
+
+        return null;
+    }
 
     // Timestamps
     public function getCreatedAt(): \DateTime

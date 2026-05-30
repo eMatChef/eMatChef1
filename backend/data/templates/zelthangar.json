@@ -7,7 +7,6 @@
       "name": "Zelthangar Phoenix, ganzes Zelt",
       "capacity": 16,
       "tentType": "gruppenzelt",
-      "reservationMode": "flexible",
       "description": "Großes Gruppenzelt für Veranstaltungen. Flexible Reservierung möglich.",
       "components": [
         {
@@ -140,7 +139,6 @@
       "name": "Zelthangar Phoenix, Aussenzelt",
       "capacity": 0,
       "tentType": "gruppenzelt",
-      "reservationMode": "individual",
       "description": "Nur die Zeltplane vom Zelthangar Phoenix mit zugehörigen Teilen.",
       "components": [
         {
@@ -223,7 +221,6 @@
       "name": "Zelthangar Phoenix, Innenzelt",
       "capacity": 8,
       "tentType": "gruppenzelt",
-      "reservationMode": "individual",
       "description": "Nur das Innenzelt vom Zelthangar Phoenix.",
       "components": [
         {
@@ -250,7 +247,6 @@
       "name": "Zelthangar Phoenix, Hochstelleinheit",
       "capacity": 0,
       "tentType": "sonstiges",
-      "reservationMode": "individual",
       "description": "Hochstelleinheit für Zelthangar Phoenix.",
       "components": [
         {
@@ -304,7 +300,6 @@
       "name": "Zelthangar Phoenix, Winkel",
       "capacity": 0,
       "tentType": "sonstiges",
-      "reservationMode": "individual",
       "description": "Winkel-Element für Zelthangar Phoenix. Zubehör.",
       "components": [
         {

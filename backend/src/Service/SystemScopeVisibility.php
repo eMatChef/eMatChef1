@@ -6,17 +6,14 @@ namespace App\Service;
 
 use App\Entity\Department;
 use App\Entity\Organisation;
-use App\Service\Bootstrap\GlobalSystemSeedDefaults;
 
 /**
- * System-Organisation (Global System) und Global Suppliers sind technische Entitäten —
- * keine User-Zuordnung in Admin-UI.
+ * System-Organisationen/Departments ohne User-Zuordnung in Admin-UI ausblenden (z. B. J&S).
  */
 final class SystemScopeVisibility
 {
     /** @var list<string> */
     private const HIDDEN_ORGANISATION_IDS = [
-        GlobalSystemSeedDefaults::ORGANISATION_ID,
         'org_js000000',
     ];
 
@@ -36,10 +33,6 @@ final class SystemScopeVisibility
 
     public static function isDepartmentVisibleForAssignment(Department $department): bool
     {
-        if ($department->getId() === GlobalSystemSeedDefaults::DEPARTMENT_ID) {
-            return false;
-        }
-
         $orgId = $department->getOrganisationId();
         if ($orgId !== null && !self::isOrganisationIdVisibleForAssignment($orgId)) {
             return false;
@@ -58,10 +51,6 @@ final class SystemScopeVisibility
 
     public static function isDepartmentIdVisibleForAssignment(string $departmentId): bool
     {
-        if ($departmentId === GlobalSystemSeedDefaults::DEPARTMENT_ID) {
-            return false;
-        }
-
         return true;
     }
 

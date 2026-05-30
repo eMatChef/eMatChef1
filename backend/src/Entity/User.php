@@ -80,6 +80,9 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     #[ORM\OneToMany(mappedBy: 'user', targetEntity: Membership::class, cascade: ['persist', 'remove'], orphanRemoval: true)]
     private Collection $memberships;
 
+    #[ORM\OneToMany(mappedBy: 'user', targetEntity: SupplierMembership::class, cascade: ['persist', 'remove'], orphanRemoval: true)]
+    private Collection $supplierMemberships;
+
     /**
      * Zuletzt in der App gewählte Abteilung (Login-Vorschlag / Session-Wiederherstellung).
      * Wird bei Abteilungswechsel gesetzt; ungültige oder gelöschte Abteilungen → FK SET NULL.
@@ -88,11 +91,19 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     #[ORM\JoinColumn(name: 'last_used_department_id', referencedColumnName: 'id', nullable: true, onDelete: 'SET NULL')]
     private ?Department $lastUsedDepartment = null;
 
+    /**
+     * Zuletzt gewählte Lieferanten-Firma (Supplier-Kontextwechsel, Paket 2+).
+     */
+    #[ORM\ManyToOne(targetEntity: SupplierCompany::class)]
+    #[ORM\JoinColumn(name: 'last_used_supplier_company_id', referencedColumnName: 'id', nullable: true, onDelete: 'SET NULL')]
+    private ?SupplierCompany $lastUsedSupplierCompany = null;
+
     public function __construct()
     {
         $this->createdAt = new \DateTime();
         $this->updatedAt = new \DateTime();
         $this->memberships = new ArrayCollection();
+        $this->supplierMemberships = new ArrayCollection();
     }
 
     public function getId(): string
@@ -331,8 +342,23 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
                 $roles[] = $symfonyRole;
             }
         }
+
+        if ($this->hasActiveSupplierMembership()) {
+            $roles[] = 'ROLE_SUPPLIER';
+        }
         
         return array_unique($roles);
+    }
+
+    public function hasActiveSupplierMembership(): bool
+    {
+        foreach ($this->supplierMemberships as $membership) {
+            if ($membership->getSupplierCompany()->getStatus() === SupplierCompany::STATUS_ACTIVE) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     public function eraseCredentials(): void
@@ -391,6 +417,29 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
         return $this;
     }
 
+    /**
+     * @return Collection<int, SupplierMembership>
+     */
+    public function getSupplierMemberships(): Collection
+    {
+        return $this->supplierMemberships;
+    }
+
+    public function addSupplierMembership(SupplierMembership $membership): self
+    {
+        if (!$this->supplierMemberships->contains($membership)) {
+            $this->supplierMemberships->add($membership);
+            $membership->setUser($this);
+        }
+        return $this;
+    }
+
+    public function removeSupplierMembership(SupplierMembership $membership): self
+    {
+        $this->supplierMemberships->removeElement($membership);
+        return $this;
+    }
+
     public function getLastUsedDepartment(): ?Department
     {
         return $this->lastUsedDepartment;
@@ -411,6 +460,29 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
             return $this->lastUsedDepartment->getId();
         } catch (EntityNotFoundException) {
             // FK zeigt auf gelöschtes Department (z. B. nach manuellem DB-Eingriff) — kein 500 in API
+            return null;
+        }
+    }
+
+    public function getLastUsedSupplierCompany(): ?SupplierCompany
+    {
+        return $this->lastUsedSupplierCompany;
+    }
+
+    public function setLastUsedSupplierCompany(?SupplierCompany $lastUsedSupplierCompany): self
+    {
+        $this->lastUsedSupplierCompany = $lastUsedSupplierCompany;
+        return $this;
+    }
+
+    public function getLastUsedSupplierCompanyId(): ?string
+    {
+        if ($this->lastUsedSupplierCompany === null) {
+            return null;
+        }
+        try {
+            return $this->lastUsedSupplierCompany->getId();
+        } catch (EntityNotFoundException) {
             return null;
         }
     }

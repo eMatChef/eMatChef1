@@ -9,6 +9,56 @@
 
     <section class="card">
       <div class="title-row">
+        <h2>{{ t('globalAddressesPage.supplierSectionTitle') }}</h2>
+      </div>
+      <p class="description">
+        {{ t('globalAddressesPage.supplierSectionDescription') }}
+      </p>
+
+      <div class="controls">
+        <button class="btn btn-primary" :disabled="supplierLoading" @click="openCreateSupplierModal">
+          {{ t('globalAddressesPage.newSupplierCompany') }}
+        </button>
+        <button class="btn btn-secondary" :disabled="supplierLoading" @click="loadSupplierCompanies">
+          {{ t('globalAddressesPage.refresh') }}
+        </button>
+      </div>
+
+      <p v-if="supplierLoading">{{ t('globalAddressesPage.loading') }}</p>
+      <p v-else-if="supplierCompanies.length === 0">{{ t('globalAddressesPage.supplierEmpty') }}</p>
+
+      <table v-if="supplierCompanies.length > 0">
+        <thead>
+          <tr>
+            <th>{{ t('globalAddressesPage.tableCompany') }}</th>
+            <th>{{ t('globalAddressesPage.supplierTableKey') }}</th>
+            <th>{{ t('globalAddressesPage.tableStatus') }}</th>
+            <th>{{ t('globalAddressesPage.supplierTableMembers') }}</th>
+            <th>{{ t('globalAddressesPage.tableActions') }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="company in supplierCompanies" :key="company.id">
+            <td>{{ company.name }}</td>
+            <td>{{ company.manufacturer_key || '–' }}</td>
+            <td>{{ company.status }}</td>
+            <td>{{ company.membership_count ?? 0 }}</td>
+            <td class="actions">
+              <button
+                class="btn btn-secondary btn-inline"
+                :disabled="supplierLoading"
+                @click="openEditSupplier(company)"
+              >
+                {{ t('common.edit') }}
+              </button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="card">
+      <div class="title-row">
         <h2>{{ t('globalAddressesPage.sectionTitle') }}</h2>
         <span class="badge">{{ t('globalAddressesPage.roleBadge') }}</span>
       </div>
@@ -62,6 +112,13 @@
               <td>-</td>
               <td class="actions">
                 <button
+                  class="btn btn-primary btn-inline"
+                  :disabled="globalLoading"
+                  @click="startPromote(address)"
+                >
+                  {{ t('globalAddressesPage.promoteToSupplier') }}
+                </button>
+                <button
                   class="btn btn-secondary btn-inline"
                   :disabled="globalLoading"
                   @click="startGlobalEdit(address)"
@@ -84,7 +141,7 @@
 
     <AddressModal
       v-if="isGlobalAddressModalOpen"
-      :department-id="GLOBAL_DEPARTMENT_ID"
+      department-id=""
       :address="editingGlobalAddress"
       :edit-address-id="editingGlobalAddress?.id || null"
       default-type="supplier"
@@ -92,16 +149,51 @@
       @close="closeGlobalAddressModal"
       @saved="handleGlobalAddressSaved"
     />
+
+    <SupplierCompanyOnboardModal
+      v-if="isCreateSupplierModalOpen"
+      :title="t('globalAddressesPage.supplierModal.createTitle')"
+      :submit-label="t('globalAddressesPage.supplierModal.createSubmit')"
+      @close="closeCreateSupplierModal"
+      @submit="handleCreateSupplier"
+    />
+
+    <SupplierCompanyOnboardModal
+      v-if="promoteTarget"
+      :title="t('globalAddressesPage.supplierModal.promoteTitle')"
+      :submit-label="t('globalAddressesPage.supplierModal.promoteSubmit')"
+      :initial-name="promoteTarget.company || promoteTarget.name || ''"
+      :show-name-field="false"
+      :manufacturer-key-placeholder="promoteTarget.company || ''"
+      @close="closePromoteModal"
+      @submit="handlePromote"
+    />
+    <SupplierCompanyAdminModal
+      v-if="editingSupplier"
+      :company="editingSupplier"
+      @close="closeEditSupplier"
+      @saved="handleSupplierSaved"
+      @deleted="handleSupplierDeleted"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import {
+  createAdminSupplierCompany,
+  listAdminSupplierCompanies,
+  promoteGlobalAddressToSupplierCompany,
+  type AdminSupplierCompany,
+} from '@/api/adminSupplierCompanies'
 import { deleteGlobalAddress, getGlobalAddresses, type GlobalAddress } from '@/api/globalAddresses'
 import AddressModal from '@/components/AddressModal.vue'
+import SupplierCompanyOnboardModal from '@/components/supplier/SupplierCompanyOnboardModal.vue'
+import SupplierCompanyAdminModal from '@/components/supplier/SupplierCompanyAdminModal.vue'
 
-const GLOBAL_DEPARTMENT_ID = 'GLOBAL000000'
+const DEFAULT_SUPPLIER_CAPABILITIES = ['catalog', 'delivery', 'templates']
+
 const { t } = useI18n()
 
 const globalLoading = ref(false)
@@ -111,6 +203,12 @@ const globalAddresses = ref<GlobalAddress[]>([])
 const globalSearch = ref('')
 const isGlobalAddressModalOpen = ref(false)
 const editingGlobalAddress = ref<GlobalAddress | null>(null)
+
+const supplierLoading = ref(false)
+const supplierCompanies = ref<AdminSupplierCompany[]>([])
+const isCreateSupplierModalOpen = ref(false)
+const editingSupplier = ref<AdminSupplierCompany | null>(null)
+const promoteTarget = ref<GlobalAddress | null>(null)
 
 async function loadGlobalAddresses() {
   globalLoading.value = true
@@ -122,6 +220,18 @@ async function loadGlobalAddresses() {
     globalError.value = err?.response?.data?.error || t('globalAddressesPage.errorLoad')
   } finally {
     globalLoading.value = false
+  }
+}
+
+async function loadSupplierCompanies() {
+  supplierLoading.value = true
+  try {
+    const response = await listAdminSupplierCompanies()
+    supplierCompanies.value = response.supplier_companies
+  } catch (err: any) {
+    globalError.value = err?.response?.data?.error || t('globalAddressesPage.supplierErrorLoad')
+  } finally {
+    supplierLoading.value = false
   }
 }
 
@@ -171,8 +281,96 @@ async function removeGlobalAddress(id: string) {
   }
 }
 
+function openEditSupplier(company: AdminSupplierCompany) {
+  editingSupplier.value = company
+  globalError.value = null
+}
+
+function closeEditSupplier() {
+  editingSupplier.value = null
+}
+
+async function handleSupplierSaved() {
+  await loadSupplierCompanies()
+}
+
+async function handleSupplierDeleted() {
+  editingSupplier.value = null
+  await Promise.all([loadSupplierCompanies(), loadGlobalAddresses()])
+}
+
+function openCreateSupplierModal() {
+  isCreateSupplierModalOpen.value = true
+  globalError.value = null
+}
+
+function closeCreateSupplierModal() {
+  isCreateSupplierModalOpen.value = false
+}
+
+async function handleCreateSupplier(payload: {
+  name: string
+  manufacturer_key: string
+  admin_user_email: string
+}) {
+  globalLoading.value = true
+  globalError.value = null
+  try {
+    await createAdminSupplierCompany({
+      name: payload.name,
+      manufacturer_key: payload.manufacturer_key || null,
+      status: 'active',
+      capabilities: [...DEFAULT_SUPPLIER_CAPABILITIES],
+      admin_user_email: payload.admin_user_email || null,
+    })
+    closeCreateSupplierModal()
+    globalSuccess.value = t('globalAddressesPage.supplierCreateSuccess')
+    await loadSupplierCompanies()
+  } catch (err: any) {
+    globalError.value = err?.response?.data?.error || t('globalAddressesPage.supplierErrorCreate')
+  } finally {
+    globalLoading.value = false
+  }
+}
+
+function startPromote(address: GlobalAddress) {
+  promoteTarget.value = address
+  globalError.value = null
+}
+
+function closePromoteModal() {
+  promoteTarget.value = null
+}
+
+async function handlePromote(payload: {
+  name: string
+  manufacturer_key: string
+  admin_user_email: string
+}) {
+  if (!promoteTarget.value) return
+
+  globalLoading.value = true
+  globalError.value = null
+  try {
+    await promoteGlobalAddressToSupplierCompany(promoteTarget.value.id, {
+      manufacturer_key: payload.manufacturer_key || null,
+      admin_user_email: payload.admin_user_email || null,
+      status: 'active',
+      capabilities: [...DEFAULT_SUPPLIER_CAPABILITIES],
+    })
+    closePromoteModal()
+    globalSuccess.value = t('globalAddressesPage.promoteSuccess')
+    await Promise.all([loadGlobalAddresses(), loadSupplierCompanies()])
+  } catch (err: any) {
+    globalError.value = err?.response?.data?.error || t('globalAddressesPage.promoteError')
+  } finally {
+    globalLoading.value = false
+  }
+}
+
 onMounted(() => {
   loadGlobalAddresses()
+  loadSupplierCompanies()
 })
 </script>
 
@@ -267,6 +465,7 @@ td {
 
 .actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
 }
 </style>

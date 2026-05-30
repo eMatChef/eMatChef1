@@ -393,6 +393,11 @@
                   <div v-if="selectedTicket.issue_report.description" class="origin-description">
                     {{ selectedTicket.issue_report.description }}
                   </div>
+                  <PhotoGallery
+                    v-if="issueReportPhotos.length"
+                    :photos="issueReportPhotos"
+                    :show-meta="false"
+                  />
                   <div class="origin-meta">
                     <span v-if="selectedTicket.issue_report.reported_by">
                       👤 {{ selectedTicket.issue_report.reported_by.name }}
@@ -406,6 +411,24 @@
             </div>
           </div>
 
+          <!-- Ticket-Fotos -->
+          <div class="modal-section">
+            <div class="modal-section-title">{{ t('workshop.sectionPhotos') }}</div>
+            <PhotoGallery
+              :photos="ticketPhotos"
+              :show-empty="true"
+              :empty-text="t('workshop.photosEmpty')"
+              :format-date="formatDateTime"
+            />
+            <PhotoUpload
+              v-if="canUploadWorkshopPhotos"
+              :upload-fn="uploadTicketPhoto"
+              :label="t('workshop.uploadPhoto')"
+              @uploaded="onTicketPhotoUploaded"
+              @error="onTicketPhotoError"
+            />
+          </div>
+
           <!-- Details Grid -->
           <div class="modal-section">
             <div class="modal-section-title">{{ t('workshop.sectionDetails') }}</div>
@@ -417,6 +440,27 @@
               <div class="detail-item">
                 <span class="detail-label">{{ t('workshop.detailAssignedTo') }}</span>
                 <span class="detail-value">{{ selectedTicket.assigned_to?.name || t('workshop.notAssigned') }}</span>
+              </div>
+              <div v-if="selectedTicket.assigned_to_supplier_company" class="detail-item">
+                <span class="detail-label">{{ t('workshop.detailAssignedSupplier') }}</span>
+                <span class="detail-value">{{ selectedTicket.assigned_to_supplier_company.name }}</span>
+              </div>
+              <div v-else class="detail-item detail-item--full">
+                <span class="detail-label">{{ t('workshop.assignSupplier') }}</span>
+                <div class="supplier-assign-row">
+                  <select v-model="assignSupplierCompanyId" class="supplier-select">
+                    <option value="">{{ t('workshop.selectSupplierCompany') }}</option>
+                    <option v-for="c in repairCompanies" :key="c.id" :value="c.id">{{ c.name }}</option>
+                  </select>
+                  <button
+                    type="button"
+                    class="btn btn-secondary btn-sm"
+                    :disabled="!assignSupplierCompanyId || isAssigningSupplier"
+                    @click="assignTicketToSupplier"
+                  >
+                    {{ t('workshop.assignSupplierAction') }}
+                  </button>
+                </div>
               </div>
               <div class="detail-item">
                 <span class="detail-label">{{ t('workshop.detailEstimatedCost') }}</span>
@@ -874,6 +918,7 @@ import {
   getWorkshopStats,
   getWorkshopTicketHistory,
   ensureWorkshopPublicCode,
+  uploadWorkshopTicketPhoto,
   type WorkshopTicket,
   type WorkshopStats,
   type WorkshopHistoryEntry,
@@ -881,6 +926,7 @@ import {
   type TicketType,
   type TicketPriority,
 } from '@/api/workshop'
+import { listSupplierRepairCompanies } from '@/api/supplierShop'
 import { getMaterials, getMaterial, type Material } from '@/api/materials'
 import GlobalSearchInput from '@/components/common/GlobalSearchInput.vue'
 import PublicQrTag from '@/components/common/PublicQrTag.vue'
@@ -888,6 +934,10 @@ import PublicQrActionModal from '@/components/common/PublicQrActionModal.vue'
 import { addPrintCartItem } from '@/api/tasks'
 import { printHtmlDocument } from '@/utils/printHtml'
 import { resolveWorkshopPublicUrl } from '@/utils/publicQrUrl'
+import { filterMediaPhotos, normalizeMediaPhotos } from '@/api/media'
+import type { MediaPhoto } from '@/api/media'
+import PhotoGallery from '@/components/media/PhotoGallery.vue'
+import PhotoUpload from '@/components/media/PhotoUpload.vue'
 import QRCode from 'qrcode'
 import '@/styles/workshop-view.css'
 
@@ -927,11 +977,24 @@ const quoteError = ref('')
 const isSubmittingQuote = ref(false)
 const isGeneratingWorkshopPublicCode = ref(false)
 const showWorkshopQrActionModal = ref(false)
-
+const repairCompanies = ref<Array<{ id: string; name: string }>>([])
+const assignSupplierCompanyId = ref('')
+const isAssigningSupplier = ref(false)
 const departmentRole = computed(() => String(authStore.currentDepartmentRole || 'u').toLowerCase())
 const canManageWorkshopQr = computed(() =>
   ['mw', 'dc', 'matwart', 'depchef'].includes(departmentRole.value)
 )
+const canUploadWorkshopPhotos = computed(() => canManageWorkshopQr.value)
+
+const ticketPhotos = computed((): MediaPhoto[] => {
+  return filterMediaPhotos(selectedTicket.value?.photos)
+})
+
+const issueReportPhotos = computed((): MediaPhoto[] => {
+  const report = selectedTicket.value?.issue_report
+  if (!report) return []
+  return normalizeMediaPhotos(report.photos, report.photo_url)
+})
 const workshopPublicUrl = computed(() =>
   resolveWorkshopPublicUrl(selectedTicket.value?.public_url, selectedTicket.value?.public_code),
 )
@@ -1248,6 +1311,12 @@ async function openTicketDetail(ticket: WorkshopTicket) {
 
     selectedTicket.value = detailed
     ticketHistory.value = history
+    assignSupplierCompanyId.value = ''
+    try {
+      repairCompanies.value = await listSupplierRepairCompanies(currentDepartmentId.value)
+    } catch {
+      repairCompanies.value = []
+    }
   } catch (err) {
     console.error('Failed to load ticket details:', err)
     selectedTicket.value = ticket
@@ -1255,6 +1324,46 @@ async function openTicketDetail(ticket: WorkshopTicket) {
   } finally {
     isLoadingHistory.value = false
   }
+}
+
+async function assignTicketToSupplier() {
+  if (!selectedTicket.value || !assignSupplierCompanyId.value) return
+  isAssigningSupplier.value = true
+  try {
+    await updateWorkshopTicket(selectedTicket.value.id, {
+      assigned_to_supplier_company_id: assignSupplierCompanyId.value,
+    })
+    const detailed = await getWorkshopTicket(selectedTicket.value.id)
+    selectedTicket.value = detailed
+    assignSupplierCompanyId.value = ''
+    await loadData()
+    toast.success(t('workshop.toast.supplierAssigned'))
+  } catch (err: any) {
+    toast.error(err?.response?.data?.error || t('workshop.toast.supplierAssignError'))
+  } finally {
+    isAssigningSupplier.value = false
+  }
+}
+
+async function uploadTicketPhoto(file: File) {
+  const ticket = selectedTicket.value
+  if (!ticket) {
+    throw new Error(t('workshop.uploadPhotoError'))
+  }
+  const photos = await uploadWorkshopTicketPhoto(ticket.id, file)
+  return { photos, ticketId: ticket.id }
+}
+
+function onTicketPhotoUploaded(payload: unknown) {
+  const result = payload as { photos: MediaPhoto[]; ticketId: string }
+  const ticket = selectedTicket.value
+  if (!ticket || ticket.id !== result.ticketId) return
+  selectedTicket.value = { ...ticket, photos: result.photos }
+  toast.success(t('media.uploadSuccess'))
+}
+
+function onTicketPhotoError(message: string) {
+  toast.error(message || t('media.uploadError'))
 }
 
 async function tryOpenTicketFromQuery() {

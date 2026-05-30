@@ -35,6 +35,25 @@ class ActivityItem
     #[ORM\JoinColumn(name: 'material_item_id', referencedColumnName: 'id', nullable: false, onDelete: 'CASCADE')]
     private MaterialItem $materialItem;
 
+    /**
+     * Zeilenmodell B (Kombo): NULL = normale Zeile bzw. Eltern-Zeile (Kombo),
+     * gesetzt = Kind-Zeile (aufgelöstes stock-Teil) der referenzierten Eltern-Kombo-Zeile.
+     * Die bestehende Reservierungs-SQL zählt die Kind-Zeilen automatisch mit.
+     */
+    #[ORM\Column(name: 'parent_activity_item_id', type: 'string', length: 13, nullable: true, columnDefinition: 'CHARACTER(13) NULL')]
+    private ?string $parentActivityItemId = null;
+
+    #[ORM\ManyToOne(targetEntity: ActivityItem::class)]
+    #[ORM\JoinColumn(name: 'parent_activity_item_id', referencedColumnName: 'id', nullable: true, onDelete: 'CASCADE')]
+    private ?ActivityItem $parentActivityItem = null;
+
+    /**
+     * Gewählte Konfiguration der Kombo (JSON), nur an der Eltern-Zeile gesetzt.
+     * Hält die ausgewählten Optionen/Mengen für Anzeige (Set wie Kiste) und Bearbeitung.
+     */
+    #[ORM\Column(name: 'config_snapshot', type: 'json', nullable: true)]
+    private ?array $configSnapshot = null;
+
     #[ORM\Column(type: 'integer', options: ['default' => 1])]
     private int $quantity = 1;
 
@@ -152,6 +171,46 @@ class ActivityItem
         $this->materialItem = $materialItem;
         $this->materialItemId = $materialItem->getId();
         return $this;
+    }
+
+    public function getParentActivityItemId(): ?string
+    {
+        return $this->parentActivityItemId;
+    }
+
+    public function setParentActivityItemId(?string $parentActivityItemId): self
+    {
+        $this->parentActivityItemId = $parentActivityItemId;
+        return $this;
+    }
+
+    public function getParentActivityItem(): ?ActivityItem
+    {
+        return $this->parentActivityItem;
+    }
+
+    public function setParentActivityItem(?ActivityItem $parentActivityItem): self
+    {
+        $this->parentActivityItem = $parentActivityItem;
+        $this->parentActivityItemId = $parentActivityItem?->getId();
+        return $this;
+    }
+
+    public function getConfigSnapshot(): ?array
+    {
+        return $this->configSnapshot;
+    }
+
+    public function setConfigSnapshot(?array $configSnapshot): self
+    {
+        $this->configSnapshot = $configSnapshot;
+        return $this;
+    }
+
+    /** Eltern-/Kombo-Zeile (kein Kind einer anderen Zeile)? */
+    public function isParentLine(): bool
+    {
+        return $this->parentActivityItemId === null;
     }
 
     public function getQuantity(): int

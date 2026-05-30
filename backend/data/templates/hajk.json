@@ -7,7 +7,6 @@
             "name": "hajk 6er",
             "capacity": 6,
             "tentType": "gruppenzelt",
-            "reservationMode": "complete_only",
             "description": "Modernes 6-Personen Gruppenzelt von hajk.",
             "components": [
                 {
@@ -73,7 +72,6 @@
             "name": "hajk 8er",
             "capacity": 8,
             "tentType": "gruppenzelt",
-            "reservationMode": "complete_only",
             "description": "Modernes 8-Personen Gruppenzelt von hajk.",
             "components": [
                 {
@@ -139,7 +137,6 @@
             "name": "hajk 10er",
             "capacity": 10,
             "tentType": "gruppenzelt",
-            "reservationMode": "complete_only",
             "description": "Großes 10-Personen Gruppenzelt von hajk.",
             "components": [
                 {
@@ -205,7 +202,6 @@
             "name": "hajk Vordach",
             "capacity": 0,
             "tentType": "sonstiges",
-            "reservationMode": "individual",
             "description": "Vordach für hajk-Zelte. Zubehör.",
             "components": [
                 {

@@ -14,6 +14,15 @@ export interface MaterialImportApiRow {
   size_height?: string | null
   supplier_name?: string | null
   supplier_id?: string | null
+  storage_name?: string | null
+  storage_address_id?: string | null
+  stock_location_mode?: string | null
+  rack_id?: string | null
+  rack_name?: string | null
+  slot_id?: string | null
+  slot_name?: string | null
+  container_name?: string | null
+  container_batch_id?: string | null
   acquired_on?: string | null
   acquired_year?: string | null
   unit_price?: string | null
@@ -32,6 +41,9 @@ export interface MaterialImportResultRow {
   supplier_resolution: string | null
   supplier_id: string | null
   supplier_label: string | null
+  material_public_code?: string | null
+  batch_public_code?: string | null
+  public_codes_planned?: boolean
 }
 
 export interface MaterialImportResponse {

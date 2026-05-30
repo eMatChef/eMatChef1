@@ -34,6 +34,7 @@
       </div>
 
       <p class="hint">{{ t('settings.materialImport.uploadHint') }}</p>
+      <p class="hint hint-secondary">{{ t('settings.materialImport.qrAutoHint') }}</p>
 
       <div v-if="showMappingPanel && rawImport" class="card mapping-card">
         <h2>{{ t('settings.materialImport.mappingTitle') }}</h2>
@@ -107,6 +108,7 @@
                 <th>{{ t('settings.materialImport.colQty') }}</th>
                 <th>{{ t('common.manufacturer') }}</th>
                 <th>{{ t('settings.materialImport.colSupplier') }}</th>
+                <th>{{ t('settings.materialImport.colStorage') }}</th>
                 <th>{{ t('settings.materialImport.colYear') }}</th>
                 <th>{{ t('settings.materialImport.colPrice') }}</th>
               </tr>
@@ -117,6 +119,7 @@
                 <td>{{ pr.qty }}</td>
                 <td>{{ pr.manufacturer || '—' }}</td>
                 <td>{{ pr.supplier_name || '—' }}</td>
+                <td>{{ storagePreviewLabel(pr) }}</td>
                 <td>{{ pr.acquired_year || '—' }}</td>
                 <td>{{ pr.unit_price || '—' }}</td>
               </tr>
@@ -133,8 +136,16 @@
       </div>
 
       <div v-if="rows.length > 0" class="card preview-card preview-card--compact">
+        <p class="preview-storage-hint">{{ t('settings.materialImport.storageRequiredHint') }}</p>
         <div class="preview-toolbar">
-          <h2>{{ t('settings.materialImport.previewTitle', { count: rows.length }) }}</h2>
+          <h2>
+            {{
+              t('settings.materialImport.previewTitleSelected', {
+                selected: selectedImportCount,
+                total: rows.length,
+              })
+            }}
+          </h2>
           <div class="toolbar-actions">
             <button
               v-if="rawImport"
@@ -165,12 +176,22 @@
           <table class="preview-table">
             <thead>
               <tr>
+                <th class="col-import-select">
+                  <input
+                    type="checkbox"
+                    class="import-select-all"
+                    :checked="allRowsImportSelected"
+                    :title="t('settings.materialImport.colImportAllTitle')"
+                    @change="toggleAllImportSelected"
+                  />
+                </th>
                 <th>#</th>
                 <th>{{ t('settings.materialImport.colName') }}</th>
                 <th>{{ t('settings.materialImport.colQty') }}</th>
                 <th>{{ t('settings.materialImport.colLength') }}</th>
                 <th>{{ t('common.manufacturer') }}</th>
                 <th>{{ t('settings.materialImport.colSupplier') }}</th>
+                <th>{{ t('settings.materialImport.colStorage') }}</th>
                 <th>{{ t('settings.materialImport.colYear') }}</th>
                 <th>{{ t('settings.materialImport.colPrice') }}</th>
                 <th>{{ t('settings.materialImport.colDuplicate') }}</th>
@@ -182,10 +203,14 @@
                 v-for="(row, idx) in rows"
                 :key="row.row_index"
                 :class="{
-                  'row-error': rowErrors(idx).length > 0,
+                  'row-error': row.import_selected !== false && rowErrors(idx).length > 0,
                   'row-duplicate': !!row._existingMaterialId,
+                  'row-not-imported': row.import_selected === false,
                 }"
               >
+                <td class="col-import-select">
+                  <input v-model="row.import_selected" type="checkbox" @change="onRowImportToggle" />
+                </td>
                 <td>{{ idx + 1 }}</td>
                 <td><input v-model="row.name" class="cell-input" type="text" /></td>
                 <td><input v-model="row.qty" class="cell-input cell-input-narrow" type="number" min="1" /></td>
@@ -203,6 +228,17 @@
                     <option v-for="s in supplierOptions" :key="s.id" :value="supplierLabel(s)" />
                   </datalist>
                 </td>
+                <td class="storage-cell">
+                  <button
+                    type="button"
+                    class="storage-pick-btn"
+                    :class="{ 'storage-pick-btn--empty': !isImportRowStorageComplete(row) }"
+                    :title="t('settings.materialImport.storageModalPickTitle')"
+                    @click="openStorageModal(row)"
+                  >
+                    {{ storagePreviewLabel(row) }}
+                  </button>
+                </td>
                 <td><input v-model="row.acquired_year" class="cell-input cell-input-narrow" type="text" maxlength="10" @blur="syncAcquiredOn(row)" /></td>
                 <td><input v-model="row.unit_price" class="cell-input cell-input-narrow" type="text" /></td>
                 <td>
@@ -214,7 +250,10 @@
                   <span v-else class="muted">—</span>
                 </td>
                 <td class="status-cell">
-                  <span v-if="previewByIndex[idx]?.errors?.length" class="badge badge-error" :title="previewByIndex[idx].errors.join(', ')">
+                  <span v-if="row.import_selected === false" class="badge badge-muted">
+                    {{ t('settings.materialImport.statusSkippedRow') }}
+                  </span>
+                  <span v-else-if="previewByIndex[idx]?.errors?.length" class="badge badge-error" :title="previewByIndex[idx].errors.join(', ')">
                     {{ t('settings.materialImport.statusError') }}
                   </span>
                   <span v-else-if="previewByIndex[idx]?.warnings?.length" class="badge badge-warn">
@@ -237,6 +276,15 @@
         <p>{{ t('settings.materialImport.emptyHint') }}</p>
       </div>
     </template>
+
+    <ImportStoragePickerModal
+      :open="storageModalOpen"
+      :department-id="departmentId"
+      :row="storageModalRow"
+      :storage-addresses="storageAddresses"
+      @close="closeStorageModal"
+      @apply="applyStorageModal"
+    />
 
     <div v-if="showDuplicateDialog" class="modal-overlay" @click.self="showDuplicateDialog = false">
       <div class="modal-dialog">
@@ -267,10 +315,12 @@ import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useToast } from '@/composables/useToast'
 import { getMaterials, type Material } from '@/api/materials'
-import { getAddresses, type Address } from '@/api/addresses'
+import { getAddresses, getMaterialWizardSuppliers, type Address } from '@/api/addresses'
+import ImportStoragePickerModal from '@/components/material/ImportStoragePickerModal.vue'
 import { importMaterials, type MaterialImportResultRow, type MaterialImportDuplicateAction } from '@/api/materialImport'
 import {
   rowsToApiPayload,
+  rowsForImport,
   downloadTemplateCsv,
   acquiredDateFromYear,
   readImportMatrixFromFile,
@@ -288,11 +338,12 @@ import {
   type MaterialImportColumn,
   type ColumnMapping,
   type ColumnAssignment,
+  getImportRowStorageIssues,
+  isImportRowStorageComplete,
+  mergeImportRowOverrides,
   type ImportFileRaw,
+  type ImportRowStorageIssue,
 } from '@/utils/materialImportParse'
-
-const GLOBAL_SUPPLIER_DEPARTMENT_ID = 'GLOBAL000000'
-
 const route = useRoute()
 const { t } = useI18n()
 const toast = useToast()
@@ -309,6 +360,9 @@ const importUiFields = IMPORT_UI_FIELDS
 const fileName = ref('')
 const materials = ref<Material[]>([])
 const supplierOptions = ref<Address[]>([])
+const storageAddresses = ref<Address[]>([])
+const storageModalOpen = ref(false)
+const storageModalRow = ref<MaterialImportRow | null>(null)
 const defaultDuplicateAction = ref<MaterialImportDuplicateAction>('add_batch')
 const previewRows = ref<MaterialImportResultRow[]>([])
 const isValidating = ref(false)
@@ -328,7 +382,15 @@ const previewByIndex = computed(() => {
   return map
 })
 
-const duplicateCount = computed(() => rows.value.filter((r) => r._existingMaterialId).length)
+const selectedImportCount = computed(() => rows.value.filter((r) => r.import_selected !== false).length)
+
+const allRowsImportSelected = computed(
+  () => rows.value.length > 0 && rows.value.every((r) => r.import_selected !== false),
+)
+
+const duplicateCount = computed(() =>
+  rows.value.filter((r) => r.import_selected !== false && r._existingMaterialId).length,
+)
 
 const fileColumnLabels = computed(() => {
   if (!rawImport.value) return [] as string[]
@@ -381,8 +443,14 @@ function assignmentAt(col: number): string {
 }
 
 const hasBlockingErrors = computed(() => {
-  if (rows.value.some((r) => !r.name.trim() || !(parseInt(r.qty, 10) > 0))) return true
-  if (previewRows.value.some((pr) => pr.errors?.length > 0)) return true
+  if (selectedImportCount.value === 0) return true
+  const selected = rowsForImport(rows.value)
+  if (selected.some((r) => !r.name.trim() || !(parseInt(r.qty, 10) > 0))) return true
+  if (selected.some((r) => !isImportRowStorageComplete(r))) return true
+  if (previewRows.value.some((pr) => {
+    const row = rows.value.find((r) => r.row_index === pr.row_index)
+    return row && row.import_selected !== false && pr.errors?.length > 0
+  })) return true
   return false
 })
 
@@ -418,13 +486,29 @@ function syncAcquiredOn(row: MaterialImportRow) {
   row.acquired_on = ''
 }
 
+function toggleAllImportSelected(ev: Event) {
+  const checked = (ev.target as HTMLInputElement).checked
+  for (const row of rows.value) {
+    row.import_selected = checked
+  }
+  previewRows.value = []
+}
+
+function onRowImportToggle() {
+  previewRows.value = []
+}
+
 function rowErrors(idx: number): string[] {
   const row = rows.value[idx]
+  if (row.import_selected === false) return []
   const errs: string[] = []
   if (!row.name.trim()) errs.push(t('settings.materialImport.errName'))
   if (!(parseInt(row.qty, 10) > 0)) errs.push(t('settings.materialImport.errQty'))
   if (!row.acquired_on && !/^\d{4}$/.test(row.acquired_year.trim())) {
     errs.push(t('settings.materialImport.errYear'))
+  }
+  for (const code of getImportRowStorageIssues(row)) {
+    errs.push(storageIssueLabel(code))
   }
   const pr = previewByIndex.value[idx]
   if (pr?.errors?.length) errs.push(...pr.errors)
@@ -441,16 +525,65 @@ function onSupplierNameChange(row: MaterialImportRow) {
   row.supplier_id = hit?.id ?? ''
 }
 
-async function loadSuppliers() {
-  const [local, global] = await Promise.all([
-    getAddresses(departmentId.value, 'supplier').catch(() => ({ addresses: [] as Address[] })),
-    getAddresses(GLOBAL_SUPPLIER_DEPARTMENT_ID, 'supplier').catch(() => ({ addresses: [] as Address[] })),
-  ])
-  const merged = [...(local.addresses || [])]
-  for (const g of global.addresses || []) {
-    if (!merged.some((a) => a.id === g.id)) merged.push(g)
+function storageIssueLabel(code: ImportRowStorageIssue): string {
+  const key = `settings.materialImport.errStorage.${code}` as const
+  return t(key)
+}
+
+function storagePreviewLabel(row: MaterialImportRow): string {
+  if (!isImportRowStorageComplete(row)) {
+    return t('settings.materialImport.storagePickPlaceholder')
   }
-  supplierOptions.value = merged
+  const parts: string[] = []
+  if (row.storage_name?.trim()) parts.push(row.storage_name.trim())
+  if (row.stock_location_mode === 'kiste' && row.container_name?.trim()) {
+    parts.push(`Kiste: ${row.container_name.trim()}`)
+  } else if (row.stock_location_mode === 'slot') {
+    const rack = row.rack_name?.trim()
+    const slot = row.slot_name?.trim()
+    if (rack || slot) parts.push([rack, slot].filter(Boolean).join(' / '))
+  }
+  return parts.length ? parts.join(' · ') : '—'
+}
+
+function openStorageModal(row: MaterialImportRow) {
+  storageModalRow.value = row
+  storageModalOpen.value = true
+}
+
+function closeStorageModal() {
+  storageModalOpen.value = false
+  storageModalRow.value = null
+}
+
+function applyStorageModal(patch: Partial<MaterialImportRow>) {
+  const row = storageModalRow.value
+  if (!row) return
+  Object.assign(row, patch)
+  previewRows.value = []
+}
+
+function mergeRowsWithExistingEdits(parsed: MaterialImportRow[]): MaterialImportRow[] {
+  const previous = rows.value
+  if (previous.length === 0) return parsed
+
+  const byRowIndex = new Map(previous.map((r) => [r.row_index, r]))
+  const byName = new Map(previous.map((r) => [normalizeName(r.name), r]))
+
+  return parsed.map((p) => {
+    const existing = byRowIndex.get(p.row_index) ?? byName.get(normalizeName(p.name))
+    return existing ? mergeImportRowOverrides(p, existing) : p
+  })
+}
+
+async function loadStorageAddresses() {
+  const res = await getAddresses(departmentId.value, 'storage').catch(() => ({ addresses: [] as Address[] }))
+  storageAddresses.value = res.addresses || []
+}
+
+async function loadSuppliers() {
+  const res = await getMaterialWizardSuppliers(departmentId.value).catch(() => ({ addresses: [] as Address[] }))
+  supplierOptions.value = res.addresses || []
 }
 
 async function loadMaterials() {
@@ -518,8 +651,9 @@ function refreshPreviewFromMapping(showToast = false): boolean {
     if (showToast) toast.error(t('settings.materialImport.parseEmpty'))
     return false
   }
-  enrichWithExisting(parsed)
-  rows.value = parsed
+  const merged = mergeRowsWithExistingEdits(parsed)
+  enrichWithExisting(merged)
+  rows.value = merged
   previewRows.value = []
   return true
 }
@@ -586,10 +720,18 @@ async function onFileSelected(ev: Event) {
 }
 
 async function runDryRun() {
-  if (!rows.value.length) return
+  const toImport = rowsForImport(rows.value)
+  if (!toImport.length) {
+    toast.warning(t('settings.materialImport.noRowsSelected'))
+    return
+  }
+  if (toImport.some((r) => !isImportRowStorageComplete(r))) {
+    toast.warning(t('settings.materialImport.storageRequiredHint'))
+    return
+  }
   isValidating.value = true
   try {
-    for (const row of rows.value) syncAcquiredOn(row)
+    for (const row of toImport) syncAcquiredOn(row)
     const res = await importMaterials(departmentId.value, rowsToApiPayload(rows.value), {
       dryRun: true,
       defaultDuplicateAction: defaultDuplicateAction.value,
@@ -609,6 +751,10 @@ async function runDryRun() {
 }
 
 function onImportClick() {
+  if (selectedImportCount.value === 0) {
+    toast.warning(t('settings.materialImport.noRowsSelected'))
+    return
+  }
   if (duplicateCount.value > 0) {
     showDuplicateDialog.value = true
     return
@@ -654,7 +800,7 @@ watch(defaultDuplicateAction, (action) => {
 })
 
 onMounted(async () => {
-  await Promise.all([loadMaterials(), loadSuppliers()])
+  await Promise.all([loadMaterials(), loadSuppliers(), loadStorageAddresses()])
 })
 </script>
 
@@ -734,6 +880,46 @@ onMounted(async () => {
   font-size: 0.875rem;
   color: #6b7280;
   margin: 0 0 1rem;
+}
+
+.hint-secondary {
+  margin-top: -0.65rem;
+  font-size: 0.8125rem;
+}
+
+.storage-cell {
+  min-width: 120px;
+  vertical-align: top;
+}
+
+.storage-pick-btn {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 0.25rem 0.4rem;
+  border: 1px dashed #cbd5e1;
+  border-radius: 4px;
+  background: #f8fafc;
+  font-size: 0.7rem;
+  color: #334155;
+  cursor: pointer;
+  line-height: 1.35;
+}
+
+.storage-pick-btn:hover {
+  border-color: #2563eb;
+  background: #eff6ff;
+}
+
+.storage-pick-btn--empty {
+  color: #64748b;
+  font-style: italic;
+}
+
+.preview-storage-hint {
+  margin: 0 0 0.5rem;
+  font-size: 0.8125rem;
+  color: #b45309;
 }
 
 .preview-toolbar {
@@ -820,6 +1006,25 @@ onMounted(async () => {
 
 .row-duplicate {
   background: #fffbeb;
+}
+
+.row-not-imported {
+  opacity: 0.6;
+}
+
+.col-import-select {
+  width: 2.25rem;
+  text-align: center;
+  vertical-align: middle;
+}
+
+.import-select-all {
+  cursor: pointer;
+}
+
+.badge-muted {
+  background: #e2e8f0;
+  color: #64748b;
 }
 
 .badge {

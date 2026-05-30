@@ -7,7 +7,6 @@
       "name": "Wico Standard, ganzes Zelt",
       "capacity": 8,
       "tentType": "gruppenzelt",
-      "reservationMode": "complete_only",
       "description": "Komplettes Wico Standard Zelt.",
       "components": [
         {
@@ -56,7 +55,6 @@
       "name": "Wico Standard, Aussenzelt",
       "capacity": 8,
       "tentType": "gruppenzelt",
-      "reservationMode": "individual",
       "description": "Nur das Außenzelt vom Wico Standard.",
       "components": [
         {
@@ -90,7 +88,6 @@
       "name": "Wico Standard, Innenzelt",
       "capacity": 8,
       "tentType": "gruppenzelt",
-      "reservationMode": "individual",
       "description": "Nur das Innenzelt vom Wico Standard.",
       "components": [
         {
@@ -110,7 +107,6 @@
       "name": "Wico Vordach",
       "capacity": 0,
       "tentType": "sonstiges",
-      "reservationMode": "individual",
       "description": "Vordach für Wico-Zelte. Zubehör.",
       "components": [
         {

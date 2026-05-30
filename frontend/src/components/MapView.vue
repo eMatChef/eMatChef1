@@ -18,7 +18,7 @@
 
       <!-- Layer-Auswahl (ausserhalb des Leaflet-Containers, sonst Klick = Marker setzen) -->
       <div
-        v-if="interactive && showLayerControl"
+        v-if="showLayerControl"
         class="layer-control"
         @mousedown.stop
         @click.stop
@@ -70,7 +70,7 @@
     </div>
 
     <div
-      v-if="!interactive && showExternalMapLinks && hasCoordinates && latitude != null && longitude != null"
+      v-if="showExternalMapLinks && hasCoordinates && latitude != null && longitude != null"
       class="external-map-links"
     >
       <a
@@ -80,6 +80,14 @@
         class="btn btn-outline btn-sm"
       >
         {{ t('components.mapView.openSwisstopoMap') }}
+      </a>
+      <a
+        :href="openStreetMapLink"
+        target="_blank"
+        rel="noopener noreferrer"
+        class="btn btn-outline btn-sm"
+      >
+        {{ t('components.mapView.openOpenStreetMap') }}
       </a>
       <a
         :href="googleMapsLink"
@@ -98,8 +106,12 @@
 import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import L from 'leaflet'
-import { googleMapsCoordinatesUrl, swisstopoMapUrl } from '@/utils/mapExternalLinks'
+import proj4 from 'proj4'
+import 'proj4leaflet'
+import { googleMapsCoordinatesUrl, swisstopoMapUrl, openStreetMapUrl, geoAdminZoomFromLv95LeafletZoom } from '@/utils/mapExternalLinks'
 import 'leaflet/dist/leaflet.css'
+
+void proj4
 
 // Fix für Leaflet Marker Icons
 import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png'
@@ -126,8 +138,16 @@ interface Props {
   preferSwissMap?: boolean
   /** Zoom/Pan/Scroll deaktivieren (z. B. Kontakt-Detailansicht). */
   interactive?: boolean
+  /** Nur Mausrad-Zoom (de)aktivieren, ohne übrige Interaktivität anzutasten. */
+  scrollWheelZoom?: boolean
   /** Links zu map.geo.admin.ch und Google Maps unter der Karte. */
   showExternalMapLinks?: boolean
+  /**
+   * Schweizer Projektion LV95 (EPSG:2056) verwenden – identisch zu
+   * map.geo.admin.ch (gleiche Kachelgrundlage und Maßstabsstufen).
+   * Achtung: Der weltweite OpenStreetMap-Layer ist dann nicht verfügbar.
+   */
+  useSwissProjection?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -141,7 +161,9 @@ const props = withDefaults(defineProps<Props>(), {
   showLayerControl: true,
   preferSwissMap: true,
   interactive: true,
+  scrollWheelZoom: true,
   showExternalMapLinks: false,
+  useSwissProjection: false,
 })
 
 const { t, locale } = useI18n()
@@ -157,21 +179,45 @@ const mapContainer = ref<HTMLDivElement>()
 let map: L.Map | null = null
 let marker: L.Marker | null = null
 let currentTileLayer: L.Layer | null = null
-let tileLayerInstances: Record<MapBaseLayer, L.Layer> | null = null
+let tileLayerInstances: Partial<Record<MapBaseLayer, L.Layer>> | null = null
+
+/** Aktive Karten-Projektion. OSM gibt es nur in Web-Mercator, swisstopo/swissimage je nach Prop. */
+type Projection = 'lv95' | 'webmercator'
+let activeProjection: Projection = 'webmercator'
 
 const WMTS_BASE = 'https://wmts.geo.admin.ch/1.0.0'
 const SWISSTOPO_ATTRIBUTION =
   '&copy; <a href="https://www.swisstopo.admin.ch">swisstopo</a>'
 const MAP_MAX_ZOOM = 22
 
-/** Zoom-Stufen für gestaffelte Landeskarten (EPSG:3857, geo.admin.ch). */
-const SWISSTOPO_SCALE_ZOOM = {
-  overview: { min: 7, max: 13 },
-  pk50: { min: 14, max: 16 },
-  pk25: { min: 17, max: 18 },
-  /** Landeskarte 1:10'000 – native Kacheln bis Zoom 19, darüber skaliert Leaflet. */
-  lk10: { min: 19, max: MAP_MAX_ZOOM },
-} as const
+/** Kleinster sinnvoller Zoom für die Swisstopo-Landeskarte (EPSG:3857). */
+const SWISSTOPO_MIN_ZOOM = 7
+
+/* ---- Schweizer Projektion LV95 (EPSG:2056), identisch zu map.geo.admin.ch ---- */
+const SWISS_LV95_PROJ4 =
+  '+proj=somerc +lat_0=46.95240555555556 +lon_0=7.439583333333333 ' +
+  '+k_0=1 +x_0=2600000 +y_0=1200000 +ellps=bessel ' +
+  '+towgs84=674.374,15.056,405.346,0,0,0,0 +units=m +no_defs'
+/** Offizielle Auflösungsstufen (m/px) des swisstopo-WMTS-Kachelgitters in LV95. */
+const SWISS_LV95_RESOLUTIONS = [
+  4000, 3750, 3500, 3250, 3000, 2750, 2500, 2250, 2000, 1750, 1500, 1250, 1000,
+  750, 650, 500, 250, 100, 50, 20, 10, 5, 2.5, 2, 1.5, 1, 0.5, 0.25, 0.1,
+]
+const SWISS_LV95_ORIGIN: [number, number] = [2420000, 1350000]
+const SWISS_LV95_MIN_ZOOM = 14
+const SWISS_LV95_MAX_ZOOM = 27
+
+let swissCrs: L.CRS | null = null
+function getSwissCrs(): L.CRS {
+  if (!swissCrs) {
+    // @ts-ignore proj4leaflet erweitert L um L.Proj zur Laufzeit (kein Typ in @types/leaflet)
+    swissCrs = new L.Proj.CRS('EPSG:2056', SWISS_LV95_PROJ4, {
+      resolutions: SWISS_LV95_RESOLUTIONS,
+      origin: SWISS_LV95_ORIGIN,
+    })
+  }
+  return swissCrs as L.CRS
+}
 
 const hasCoordinates = ref(false)
 const isLoading = ref(false)
@@ -204,6 +250,18 @@ const DEFAULT_ZOOM_EDITABLE = 11
 /** Ab dieser Zoomstufe gilt die Karte als «nah genug» – darunter nach Treffer ranzoomen. */
 const MIN_LOCATION_ZOOM = 14
 const SEARCH_RESULT_ZOOM = 17
+/** LV95: Detail-Zoom nach Adresssuche / Marker setzen (≈ geo.admin z 7.7). */
+const SWISS_LV95_SEARCH_ZOOM = 21.7
+/** LV95: Schwelle «nah genug» für automatisches Heranzoomen. */
+const SWISS_LV95_MIN_LOCATION_ZOOM = 18
+
+function searchResultZoom(): number {
+  return props.useSwissProjection ? SWISS_LV95_SEARCH_ZOOM : SEARCH_RESULT_ZOOM
+}
+
+function minLocationZoom(): number {
+  return props.useSwissProjection ? SWISS_LV95_MIN_LOCATION_ZOOM : MIN_LOCATION_ZOOM
+}
 
 // Schweiz Bounding Box (ungefähr)
 const SWISS_BOUNDS = {
@@ -211,6 +269,27 @@ const SWISS_BOUNDS = {
   maxLat: 47.85,
   minLng: 5.9,
   maxLng: 10.55
+}
+
+function shouldFitSwissOverview(): boolean {
+  return (
+    props.editable &&
+    props.useSwissProjection &&
+    (props.latitude == null || props.longitude == null)
+  )
+}
+
+function swissOverviewBounds(): L.LatLngBounds {
+  return L.latLngBounds(
+    [SWISS_BOUNDS.minLat, SWISS_BOUNDS.minLng],
+    [SWISS_BOUNDS.maxLat, SWISS_BOUNDS.maxLng]
+  )
+}
+
+/** Ganze Schweiz in den sichtbaren Kartenbereich einpassen (Adress-Modal ohne Koordinaten). */
+function fitSwissOverviewIfNeeded() {
+  if (!map || !shouldFitSwissOverview()) return
+  map.fitBounds(swissOverviewBounds(), { padding: [12, 12], animate: false })
 }
 
 // Prüfen ob Koordinaten in der Schweiz liegen
@@ -226,12 +305,23 @@ const mapLang = computed(() => (String(locale.value).startsWith('en') ? 'en' : '
 
 const swisstopoMapLink = computed(() => {
   if (props.latitude == null || props.longitude == null) return '#'
-  return swisstopoMapUrl(props.latitude, props.longitude, mapLang.value)
+  const geoZoom = props.useSwissProjection
+    ? geoAdminZoomFromLv95LeafletZoom(props.zoom)
+    : 8
+  return swisstopoMapUrl(props.latitude, props.longitude, {
+    lang: mapLang.value,
+    zoom: geoZoom,
+  })
 })
 
 const googleMapsLink = computed(() => {
   if (props.latitude == null || props.longitude == null) return '#'
   return googleMapsCoordinatesUrl(props.latitude, props.longitude)
+})
+
+const openStreetMapLink = computed(() => {
+  if (props.latitude == null || props.longitude == null) return '#'
+  return openStreetMapUrl(props.latitude, props.longitude)
 })
 
 // WGS84 zu LV95 (Schweizer Koordinaten) Umrechnung
@@ -259,11 +349,11 @@ function wgs84ToLV95(lat: number, lng: number): { e: number, n: number } {
   return { e: Math.round(e), n: Math.round(n) }
 }
 
-// Formatierung Schweizer Koordinaten
+// Formatierung Schweizer Koordinaten (E / N – ohne Präfixe, mit Hochkomma-Trennung)
 function formatSwissCoords(lat: number | null | undefined, lng: number | null | undefined): string {
   if (!lat || !lng) return '-'
   const { e, n } = wgs84ToLV95(lat, lng)
-  return `E ${e.toLocaleString('de-CH')} / N ${n.toLocaleString('de-CH')}`
+  return `${e.toLocaleString('de-CH')} / ${n.toLocaleString('de-CH')}`
 }
 
 // Formatierung WGS84
@@ -280,9 +370,12 @@ const tileLayers: Record<
   swisstopo: {
     options: {
       attribution: SWISSTOPO_ATTRIBUTION,
-      maxNativeZoom: 19,
+      // Nahtlose Landeskarte (wie map.geo.admin.ch): wählt je nach Zoom
+      // automatisch die passende Karte (u. a. 1:25'000). Native Kacheln bis
+      // Zoom 18, darüber skaliert Leaflet.
+      maxNativeZoom: 18,
       maxZoom: MAP_MAX_ZOOM,
-      minZoom: SWISSTOPO_SCALE_ZOOM.overview.min,
+      minZoom: SWISSTOPO_MIN_ZOOM,
     },
   },
   swissimage: {
@@ -304,53 +397,89 @@ const tileLayers: Record<
   },
 }
 
-function wmtsUrl(layerId: string, format: 'jpeg' | 'png' = 'jpeg'): string {
-  return `${WMTS_BASE}/${layerId}/default/current/3857/{z}/{x}/{y}.${format}`
+function wmtsUrl(
+  layerId: string,
+  format: 'jpeg' | 'png' = 'jpeg',
+  grid: '2056' | '3857' = '3857'
+): string {
+  return `${WMTS_BASE}/${layerId}/default/current/${grid}/{z}/{x}/{y}.${format}`
 }
 
-function buildSwisstopoLayerGroup(): L.LayerGroup {
-  const overview = L.tileLayer(wmtsUrl('ch.swisstopo.pixelkarte-farbe'), {
-    attribution: SWISSTOPO_ATTRIBUTION,
-    minZoom: SWISSTOPO_SCALE_ZOOM.overview.min,
-    maxZoom: SWISSTOPO_SCALE_ZOOM.overview.max,
-    maxNativeZoom: 18,
-  })
-  const pk50 = L.tileLayer(wmtsUrl('ch.swisstopo.pixelkarte-farbe-pk50.noscale'), {
-    attribution: SWISSTOPO_ATTRIBUTION,
-    minZoom: SWISSTOPO_SCALE_ZOOM.pk50.min,
-    maxZoom: SWISSTOPO_SCALE_ZOOM.pk50.max,
-    maxNativeZoom: SWISSTOPO_SCALE_ZOOM.pk50.max,
-  })
-  const pk25 = L.tileLayer(wmtsUrl('ch.swisstopo.pixelkarte-farbe-pk25.noscale'), {
-    attribution: SWISSTOPO_ATTRIBUTION,
-    minZoom: SWISSTOPO_SCALE_ZOOM.pk25.min,
-    maxZoom: SWISSTOPO_SCALE_ZOOM.pk25.max,
-    maxNativeZoom: SWISSTOPO_SCALE_ZOOM.pk25.max,
-  })
-  const lk10 = L.tileLayer(wmtsUrl('ch.swisstopo.landeskarte-farbe-10', 'png'), {
-    attribution: SWISSTOPO_ATTRIBUTION,
-    minZoom: SWISSTOPO_SCALE_ZOOM.lk10.min,
-    maxZoom: SWISSTOPO_SCALE_ZOOM.lk10.max,
-    maxNativeZoom: 19,
-  })
-  return L.layerGroup([overview, pk50, pk25, lk10])
-}
-
-function buildTileLayerInstances(): Record<MapBaseLayer, L.Layer> {
+function swissTileOptions(maxNativeZoom: number): L.TileLayerOptions {
   return {
-    swisstopo: buildSwisstopoLayerGroup(),
-    swissimage: L.tileLayer(wmtsUrl('ch.swisstopo.swissimage'), tileLayers.swissimage.options),
+    attribution: SWISSTOPO_ATTRIBUTION,
+    minZoom: SWISS_LV95_MIN_ZOOM,
+    maxZoom: SWISS_LV95_MAX_ZOOM,
+    maxNativeZoom,
+  }
+}
+
+/** Welche Projektion ein Basis-Layer benötigt (OSM nur Web-Mercator). */
+function projectionForLayer(layer: MapBaseLayer): Projection {
+  if (!props.useSwissProjection) return 'webmercator'
+  return layer === 'osm' ? 'webmercator' : 'lv95'
+}
+
+function buildTileLayerInstances(projection: Projection): Partial<Record<MapBaseLayer, L.Layer>> {
+  if (projection === 'lv95') {
+    // LV95-Kachelgitter (wie map.geo.admin.ch). OSM existiert hier nicht.
+    return {
+      swisstopo: L.tileLayer(wmtsUrl('ch.swisstopo.pixelkarte-farbe', 'jpeg', '2056'), swissTileOptions(26)),
+      swissimage: L.tileLayer(wmtsUrl('ch.swisstopo.swissimage', 'jpeg', '2056'), swissTileOptions(28)),
+    }
+  }
+  return {
+    swisstopo: L.tileLayer(wmtsUrl('ch.swisstopo.pixelkarte-farbe', 'jpeg', '3857'), tileLayers.swisstopo.options),
+    swissimage: L.tileLayer(wmtsUrl('ch.swisstopo.swissimage', 'jpeg', '3857'), tileLayers.swissimage.options),
     osm: L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', tileLayers.osm.options),
   }
 }
 
 function applyMapZoomLimitsForLayer(layerName: MapBaseLayer) {
   if (!map) return
+  if (activeProjection === 'lv95') {
+    map.setMaxZoom(SWISS_LV95_MAX_ZOOM)
+    map.setMinZoom(SWISS_LV95_MIN_ZOOM)
+    return
+  }
   const opts = tileLayers[layerName].options
   const layerMax = opts.maxZoom ?? MAP_MAX_ZOOM
   const layerMin = opts.minZoom ?? 1
   map.setMaxZoom(Math.min(MAP_MAX_ZOOM, layerMax))
   map.setMinZoom(layerMin)
+}
+
+/* ---- Auflösung (m/px am Boden) ↔ Zoom, projektionsübergreifend ---- */
+const WEB_MERCATOR_RES0 = 156543.03392
+
+function lv95Resolution(zoom: number): number {
+  const res = SWISS_LV95_RESOLUTIONS
+  const z = Math.max(0, Math.min(res.length - 1, zoom))
+  const i = Math.min(res.length - 2, Math.floor(z))
+  const f = z - i
+  return res[i] * Math.pow(res[i + 1] / res[i], f)
+}
+
+function lv95ZoomForResolution(targetRes: number): number {
+  const res = SWISS_LV95_RESOLUTIONS
+  if (targetRes >= res[0]) return 0
+  if (targetRes <= res[res.length - 1]) return res.length - 1
+  for (let i = 0; i < res.length - 1; i++) {
+    if (targetRes <= res[i] && targetRes >= res[i + 1]) {
+      return i + Math.log(res[i] / targetRes) / Math.log(res[i] / res[i + 1])
+    }
+  }
+  return res.length - 1
+}
+
+function groundResolution(projection: Projection, zoom: number, lat: number): number {
+  if (projection === 'lv95') return lv95Resolution(zoom)
+  return (WEB_MERCATOR_RES0 / Math.pow(2, zoom)) * Math.cos((lat * Math.PI) / 180)
+}
+
+function zoomForGroundResolution(projection: Projection, res: number, lat: number): number {
+  if (projection === 'lv95') return lv95ZoomForResolution(res)
+  return Math.log2((WEB_MERCATOR_RES0 * Math.cos((lat * Math.PI) / 180)) / res)
 }
 
 function pinnedMarkerLatLng(): L.LatLng | null {
@@ -361,20 +490,36 @@ function pinnedMarkerLatLng(): L.LatLng | null {
 }
 
 function setLayer(layerName: MapBaseLayer, options?: SetLayerOptions) {
-  if (!map || !tileLayerInstances) return
-  if (currentLayer.value === layerName && currentTileLayer) return
-
-  suppressMapClick = true
+  if (!map) return
 
   if (options?.userInitiated) {
     userPickedLayer = true
   }
 
+  // Layer braucht andere Projektion → Karte in passender Projektion neu aufbauen.
+  const targetProjection = projectionForLayer(layerName)
+  if (targetProjection !== activeProjection) {
+    rebuildMap(targetProjection, layerName)
+    return
+  }
+
+  if (currentLayer.value === layerName && currentTileLayer) return
+  applyActiveLayer(layerName)
+}
+
+/** Layer innerhalb der aktuellen Projektion umschalten (kein Neuaufbau). */
+function applyActiveLayer(layerName: MapBaseLayer) {
+  if (!map || !tileLayerInstances) return
+  const targetLayer = tileLayerInstances[layerName]
+  if (!targetLayer) return
+
+  suppressMapClick = true
+
   const anchor = pinnedMarkerLatLng() ?? map.getCenter()
   const zoom = map.getZoom()
 
   currentLayer.value = layerName
-  currentTileLayer = tileLayerInstances[layerName]
+  currentTileLayer = targetLayer
 
   for (const [name, layer] of Object.entries(tileLayerInstances) as [MapBaseLayer, L.Layer][]) {
     if (name === layerName) {
@@ -404,47 +549,59 @@ function setLayer(layerName: MapBaseLayer, options?: SetLayerOptions) {
   })
 }
 
-function initMap() {
-  if (!mapContainer.value || map) return
-  
-  const lat = props.latitude ?? DEFAULT_CENTER[0]
-  const lng = props.longitude ?? DEFAULT_CENTER[1]
-  const zoom =
-    props.latitude && props.longitude
-      ? props.zoom
-      : props.editable
-        ? DEFAULT_ZOOM_EDITABLE
-        : DEFAULT_ZOOM
-  
-  hasCoordinates.value = props.latitude !== null && props.longitude !== null
-  
+/** Karte in einer anderen Projektion neu aufbauen, Mittelpunkt und Maßstab beibehalten. */
+function rebuildMap(projection: Projection, layerName: MapBaseLayer) {
+  if (!map) return
+  const center = pinnedMarkerLatLng() ?? map.getCenter()
+  const res = groundResolution(activeProjection, map.getZoom(), center.lat)
+  const newZoom = zoomForGroundResolution(projection, res, center.lat)
+
+  map.off()
+  map.remove()
+  map = null
+  marker = null
+  currentTileLayer = null
+  tileLayerInstances = null
+
+  createMap(projection, center, newZoom, layerName)
+}
+
+/** Leaflet-Karte in der gewünschten Projektion erstellen und Layer/Marker setzen. */
+function createMap(
+  projection: Projection,
+  center: L.LatLng,
+  zoom: number,
+  initialLayer: MapBaseLayer
+) {
+  if (!mapContainer.value) return
+
+  activeProjection = projection
+  const swiss = projection === 'lv95'
+
   map = L.map(mapContainer.value, {
-    maxZoom: MAP_MAX_ZOOM,
+    crs: swiss ? getSwissCrs() : L.CRS.EPSG3857,
+    maxZoom: swiss ? SWISS_LV95_MAX_ZOOM : MAP_MAX_ZOOM,
+    minZoom: swiss ? SWISS_LV95_MIN_ZOOM : undefined,
+    // Stufenloser Zoom, um den exakten Maßstab von map.geo.admin.ch zu treffen.
+    zoomSnap: swiss ? 0 : 1,
     zoomControl: props.interactive,
-    scrollWheelZoom: props.interactive,
+    scrollWheelZoom: props.interactive && props.scrollWheelZoom,
     touchZoom: props.interactive,
     doubleClickZoom: props.interactive,
     boxZoom: props.interactive,
     keyboard: props.interactive,
     dragging: props.interactive,
-  }).setView([lat, lng], zoom)
+  }).setView(center, zoom)
 
-  tileLayerInstances = buildTileLayerInstances()
-
-  // Initial Layer basierend auf Position oder Präferenz
-  const useSwiss = props.preferSwissMap && (
-    !props.latitude || !props.longitude || isInSwitzerland.value
-  )
-  setLayer(useSwiss ? 'swisstopo' : 'osm')
+  tileLayerInstances = buildTileLayerInstances(projection)
+  currentTileLayer = null
+  applyActiveLayer(initialLayer)
   applyMapInteractivity()
-  
-  // Marker setzen wenn Koordinaten vorhanden
-  if (props.latitude && props.longitude) {
-    setMarker(props.latitude, props.longitude)
-    // Reverse Geocoding für initiale Position
-    reverseGeocode(props.latitude, props.longitude)
+
+  if (props.latitude != null && props.longitude != null) {
+    setMarker(props.latitude, props.longitude, undefined, { recenter: false, allowAutoLayer: false })
   }
-  
+
   // Klick-Handler nur bei interaktiver, editierbarer Karte
   if (props.interactive && props.editable) {
     map.on('click', async (e: L.LeafletMouseEvent) => {
@@ -455,24 +612,51 @@ function initMap() {
       emit('update:longitude', lng)
       emit('coordinates-changed', lat, lng)
       hasCoordinates.value = true
-      
-      // Reverse Geocoding
       await reverseGeocode(lat, lng)
     })
   }
-  
+
   // Fix: invalidateSize nach dem Layout stabil ist, damit Tiles korrekt laden
   setTimeout(() => {
     if (map) {
       map.invalidateSize({ pan: false })
+      fitSwissOverviewIfNeeded()
     }
   }, 200)
+}
+
+function initMap() {
+  if (!mapContainer.value || map) return
+
+  const lat = props.latitude ?? DEFAULT_CENTER[0]
+  const lng = props.longitude ?? DEFAULT_CENTER[1]
+  const zoom =
+    props.latitude && props.longitude
+      ? props.zoom
+      : props.editable
+        ? props.useSwissProjection
+          ? props.zoom
+          : DEFAULT_ZOOM_EDITABLE
+        : DEFAULT_ZOOM
+
+  hasCoordinates.value = props.latitude !== null && props.longitude !== null
+
+  const useSwiss = props.preferSwissMap && (
+    !props.latitude || !props.longitude || isInSwitzerland.value
+  )
+  const initialLayer: MapBaseLayer = useSwiss ? 'swisstopo' : 'osm'
+  createMap(projectionForLayer(initialLayer), L.latLng(lat, lng), zoom, initialLayer)
+
+  if (props.latitude && props.longitude) {
+    reverseGeocode(props.latitude, props.longitude)
+  }
 }
 
 // Kartengrösse neu berechnen (für Parent-Komponenten)
 function invalidateSize() {
   if (map) {
     map.invalidateSize({ pan: false })
+    fitSwissOverviewIfNeeded()
   }
 }
 
@@ -514,7 +698,7 @@ function setMarker(
 
   if (recenter) {
     const targetZoom =
-      zoomLevel ?? (map.getZoom() < MIN_LOCATION_ZOOM ? SEARCH_RESULT_ZOOM : map.getZoom())
+      zoomLevel ?? (map.getZoom() < minLocationZoom() ? searchResultZoom() : map.getZoom())
     map.setView([lat, lng], targetZoom, { animate: false })
     setTimeout(() => {
       if (map) map.invalidateSize({ pan: false })
@@ -625,7 +809,7 @@ async function searchAddress() {
       const lat = result.lat
       const lng = result.lon
       
-      setMarker(lat, lng, SEARCH_RESULT_ZOOM, { recenter: true, allowAutoLayer: true })
+      setMarker(lat, lng, searchResultZoom(), { recenter: true, allowAutoLayer: true })
       emit('update:latitude', lat)
       emit('update:longitude', lng)
       emit('coordinates-changed', lat, lng)
@@ -646,7 +830,7 @@ async function searchAddress() {
       const latitude = parseFloat(lat)
       const longitude = parseFloat(lon)
       
-      setMarker(latitude, longitude, SEARCH_RESULT_ZOOM, { recenter: true, allowAutoLayer: true })
+      setMarker(latitude, longitude, searchResultZoom(), { recenter: true, allowAutoLayer: true })
       emit('update:latitude', latitude)
       emit('update:longitude', longitude)
       emit('coordinates-changed', latitude, longitude)
@@ -686,8 +870,14 @@ watch(() => props.preferSwissMap, (useSwiss) => {
 watch(
   () => props.zoom,
   (z) => {
-    if (!map || props.latitude == null || props.longitude == null) return
-    map.setView([props.latitude, props.longitude], z)
+    if (!map) return
+    if (props.latitude != null && props.longitude != null) {
+      map.setView([props.latitude, props.longitude], z)
+    } else if (shouldFitSwissOverview()) {
+      fitSwissOverviewIfNeeded()
+    } else if (props.editable) {
+      map.setView(map.getCenter(), z)
+    }
   }
 )
 
@@ -695,7 +885,8 @@ function applyMapInteractivity() {
   if (!map) return
   const on = props.interactive
   if (on) {
-    map.scrollWheelZoom.enable()
+    if (props.scrollWheelZoom) map.scrollWheelZoom.enable()
+    else map.scrollWheelZoom.disable()
     map.touchZoom.enable()
     map.doubleClickZoom.enable()
     map.boxZoom.enable()
@@ -711,7 +902,7 @@ function applyMapInteractivity() {
   }
 }
 
-watch(() => props.interactive, () => {
+watch([() => props.interactive, () => props.scrollWheelZoom], () => {
   applyMapInteractivity()
 })
 
@@ -756,6 +947,10 @@ defineExpose({
   max-width: 100%;
   height: auto;
   box-sizing: border-box;
+  /* Leaflet-interne z-index-Stufen (Panes/Controls bis 1000) auf diese
+     Komponente begrenzen, damit die Karte nicht über Overlays wie das
+     Settings-Menü (z-index 20) gezeichnet wird. */
+  isolation: isolate;
 }
 
 .map-stage {
@@ -860,6 +1055,8 @@ defineExpose({
   overflow-wrap: anywhere;
   word-break: break-word;
   text-align: right;
+  user-select: all;
+  cursor: text;
 }
 
 .coord-row.address .coord-value {

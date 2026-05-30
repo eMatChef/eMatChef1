@@ -9,7 +9,7 @@ use App\Entity\Organisation;
  */
 final class OrganisationUserPickerFilter
 {
-    private const HIDDEN_IDS = ['GLOBALORG001', 'org_js000000'];
+    private const HIDDEN_IDS = ['org_js000000'];
 
     public static function isVisibleForUserPickers(Organisation $org): bool
     {

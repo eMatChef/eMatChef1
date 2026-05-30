@@ -6,6 +6,98 @@
 
 ---
 
+## Medien / Fotos
+
+Zentrale Foto-Uploads über **kontextspezifische APIs** und **gemeinsame Vue-Bausteine**. Konzept und Umbauplan: [media/README.md](./media/README.md) · Checkliste: [media/plan.md](./media/plan.md).
+
+**Ist-Zustand (Mai 2026):** Werkstatt (MW + Lieferant), Schaden melden, Material-Abbildung — einheitliche Bausteine `PhotoUpload` / `PhotoGallery` / `useMediaUpload`.
+
+### Backend (geplant / teilweise vorhanden)
+
+
+| Baustein | Pfad | Verwendung |
+| -------- | ---- | ---------- |
+| **MediaStorageService** | `backend/src/Service/Media/MediaStorageService.php` *(geplant)* | Speichern unter `var/uploads/{context}/…`, Kompression, Löschen |
+| **MediaCompressionService** | `backend/src/Service/Media/MediaCompressionService.php` *(geplant)* | Resize max. 1920 px, WebP/JPEG |
+| **WorkshopPhotoStorageService** | `backend/src/Service/Workshop/WorkshopPhotoStorageService.php` | **Prototyp** — wird in Paket 0/1 durch `MediaStorageService` ersetzt |
+| **MediaPhoto** (JSON-Shape) | siehe [media/README.md §2.3](./media/README.md#23-einheitliches-foto-json-metadaten) | Einheitliche Metadaten: `uploaded_at`, `uploaded_by_name`, `filename`, … |
+
+
+**Kontexte & API-Routes (Ziel)**
+
+
+| Kontext | Upload | Galerie in |
+| ------- | ------ | ---------- |
+| Werkstatt-Ticket (MW) | `POST /api/workshop/tickets/{id}/photos` | `WorkshopView` |
+| Werkstatt-Ticket (Lieferant) | `POST /api/supplier-companies/{companyId}/repairs/{ticketId}/photos` | `SupplierRepairsView` |
+| Schadenmeldung | `POST /api/activities/{activityId}/issues/{issueId}/photos` | `DamageReportWizard` |
+| Material | `POST /api/material/{materialId}/photos` | `MaterialDetailView` |
+
+
+**Ordnerstruktur:** `var/uploads/workshop/{departmentId}/{ticketId}/`, `issues/…`, `material/…` — Retention für abgeschlossene Tickets nach X Jahren ([media/plan.md Paket 5](./media/plan.md)).
+
+---
+
+### Vue-Komponenten
+
+
+| Baustein | Pfad | Verwendung |
+| -------- | ---- | ---------- |
+| **MaterialImagePicker** | `frontend/src/components/media/MaterialImagePicker.vue` | Material-Detail: Upload / Kamera / URL (+ Google-Suche) |
+| **PhotoUpload** | `frontend/src/components/media/PhotoUpload.vue` | Datei wählen, Upload (sofort oder defer mit `v-model:files`) |
+| **PhotoGallery** | `frontend/src/components/media/PhotoGallery.vue` | Thumbnails + Meta (Wer, Wann) |
+| **useMediaUpload** | `frontend/src/composables/useMediaUpload.ts` | FormData-Upload via `uploadMediaFile` |
+| **media.ts** | `frontend/src/api/media.ts` | Typ `MediaPhoto`, `uploadMediaFile`, Hilfsfunktionen |
+
+
+**PhotoUpload — Props**
+
+```vue
+import PhotoUpload from '@/components/media/PhotoUpload.vue'
+
+<!-- Sofort-Upload (URL oder domain-spezifische uploadFn) -->
+<PhotoUpload
+  :upload-fn="(file) => uploadWorkshopTicketPhoto(ticketId, file)"
+  @uploaded="onPhotoUploaded"
+  @error="onUploadError"
+/>
+
+<!-- Defer-Modus (z. B. Schaden melden, max. 3 Fotos) -->
+<PhotoUpload
+  v-model:files="selectedPhotos"
+  multiple
+  :auto-upload="false"
+  :max-files="3"
+  @error="onUploadError"
+/>
+```
+
+**PhotoGallery — Props**
+
+```vue
+import PhotoGallery from '@/components/media/PhotoGallery.vue'
+import type { MediaPhoto } from '@/api/media'
+
+<PhotoGallery :photos="ticket.photos ?? []" readonly />
+<PhotoGallery :photos="ticket.photos ?? []" :format-date="formatDateTime" show-empty />
+```
+
+**`MediaPhoto`-Objekt** (API, snake_case):
+
+- `id`, `filename`, `url`
+- `uploaded_at`, `uploaded_by_id`, `uploaded_by_name`
+- `original_filename`
+- optional `context`, `context_id`, `bytes`, `width`, `height`, `mime`
+- `legacy?: true` — alter reiner URL-String
+
+**Eingebunden in:** `SupplierRepairsView.vue`, `WorkshopView.vue`, `MaterialDetailView.vue` (`MaterialImagePicker`), `DamageReportWizard.vue`.
+
+**Zukunft:** Department-Mediathek — [mediathek-zukunft.md](./media/mediathek-zukunft.md)
+
+**Styles:** `frontend/src/styles/components/photo-gallery.css` (von PhotoUpload/PhotoGallery importiert)
+
+---
+
 ## Vue-Komponenten
 
 ### User / Identität
@@ -208,6 +300,56 @@ import {
 
 ---
 
+### Adressen / Department (`frontend/src/components/addresses/`)
+
+
+| Baustein                           | Pfad                                                              | Verwendung                                                                 |
+| ---------------------------------- | ----------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| **DepartmentAddressAutocomplete**  | `frontend/src/components/addresses/DepartmentAddressAutocomplete.vue` | Suche in Department-Adressen mit Typ-Priorität, Trenner, Inline-Anlegen   |
+| **departmentAddressSearch** (Util) | `frontend/src/utils/departmentAddressSearch.ts`                   | `formatAddressOption`, `addressMatchesQuery`, `groupDepartmentAddressesForSearch` |
+
+
+**DepartmentAddressAutocomplete — Import & Props**
+
+```vue
+import { DepartmentAddressAutocomplete } from '@/components/addresses'
+
+<DepartmentAddressAutocomplete
+  input-id="activity-venue-address-search"
+  :addresses="rentalAddresses"
+  :selected-id="venueAddressId"
+  primary-type="event"
+  :placeholder="t('activities.wizard.form.addressSearchPlaceholder')"
+  :add-button-title="t('activities.wizard.form.addVenueAddressTitle')"
+  inline-create-label-key="addresses.search.createEventVenueInline"
+  @update:selected-id="emit('update:venueAddressId', $event)"
+  @create="openAddVenueAddressModal"
+/>
+```
+
+**Verhalten:**
+
+- Treffer mit `primary-type` (z. B. `event`) oben
+- Übrige Adresstypen darunter mit Trenner «Andere Standorte»
+- Kein Treffer: klickbarer Inline-Vorschlag «{query} als … anlegen» → Eltern öffnet `AddressModal` mit `:default-name`
+- Nach `@saved` im Modal: Eltern lädt Adressen neu und setzt `selected-id`
+
+**Styles:** Layout in `department-address-autocomplete.css`; Typ-Badges global via `address-type-badge.css` (`.address-type-badge` + `.address-type-badge--compact`)
+
+**Eingebunden in:** `ActivityCreateWizardForm.vue` (Eventstandort bei Lager/Event/Extern)
+
+**Adress-Typ-Badge (global)**
+
+```vue
+<span class="address-type-badge" :class="address.type">{{ typeLabel }}</span>
+<!-- Kompakt (Autocomplete-Dropdown): -->
+<span class="address-type-badge address-type-badge--compact" :class="address.type">{{ typeLabel }}</span>
+```
+
+Typ-Schlüssel entsprechen `ADDRESS_TYPES` in `api/addresses.ts` (`storage`, `event`, `customer`, …).
+
+---
+
 ### Common (`frontend/src/components/common/`)
 
 
@@ -254,6 +396,7 @@ SVG-Icons als Vue-Komponenten (`IconDashboard`, `IconMaterials`, `IconActivities
 | `useAutoLogout`                      | Session-Timeout                                                               |
 | `useNotificationSender`              | Factories für `NotificationSenderBlock` (Posteingang/Glocke, inkl. i18n)      |
 | `confirmWorkflowStatusTransition`    | Confirm vor Pack-Workflow-Status `at_event` / `returned` (siehe `usePackWorkflowConfirm.ts`) |
+| `useMediaUpload` *(geplant)*         | FormData-Foto-Upload für kontextspezifische Routes — siehe [media/plan.md](./media/plan.md) Paket 6 |
 
 
 ---
@@ -266,6 +409,7 @@ Ausführlich: `[docs/Archiv/HANDOUT_CSS_ZENTRALISIERUNG.md](Archiv/HANDOUT_CSS_Z
 | Modul           | Pfad                                      | Inhalt                                      |
 | --------------- | ----------------------------------------- | ------------------------------------------- |
 | Buttons         | `styles/ui/buttons.css`                   | `.btn`, `.btn-primary`, `.btn-secondary`, … |
+| Inline «+»      | `styles/ui/inline-add-button.css`         | `.add-inline-btn` — gestrichelter Rand, grünes «+» neben Autocomplete |
 | Layout          | `styles/ui/page-layout.css`               | `.page-header`, Filter, …                   |
 | Formulare       | `styles/ui/forms.css`                     | Inputs, Labels                              |
 | Karten          | `styles/ui/cards.css`                     | Card-Patterns                               |
@@ -275,6 +419,7 @@ Ausführlich: `[docs/Archiv/HANDOUT_CSS_ZENTRALISIERUNG.md](Archiv/HANDOUT_CSS_Z
 | History         | `styles/ui/history.css`                   | Änderungs-Historie                          |
 | Storage         | `styles/ui/storage.css`                   | Lager/Regale                                |
 | **User-Avatar** | `styles/components/user-avatar-badge.css` | Avatar-Badge + Liste                        |
+| **Adress-Typ**  | `styles/components/address-type-badge.css` | `.address-type-badge.{type}` + Avatar-Farben (Kontakte, Autocomplete) |
 | **Sender (Inbox)** | `styles/components/notification-sender-block.css` | System-/Aufgaben-Icons, Actor-Overlay |
 
 

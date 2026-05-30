@@ -3,10 +3,6 @@
 namespace App\Controller;
 
 use App\Entity\Address;
-use App\Entity\Department;
-use App\Entity\Organisation;
-use App\Service\Accounting\AccountingCostCenterBootstrapService;
-use App\Service\Bootstrap\GlobalSystemSeedDefaults;
 use App\Util\IdGenerator;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -22,7 +18,6 @@ class GlobalAddressController extends AbstractController
 
     public function __construct(
         private EntityManagerInterface $entityManager,
-        private AccountingCostCenterBootstrapService $accountingCostCenterBootstrap
     ) {
     }
 
@@ -35,16 +30,14 @@ class GlobalAddressController extends AbstractController
             return $accessCheck;
         }
 
-        $this->ensureGlobalScope();
-
         $query = trim((string) $request->query->get('q', ''));
 
         $qb = $this->entityManager->createQueryBuilder()
             ->select('a')
             ->from(Address::class, 'a')
-            ->where('a.departmentId = :departmentId')
+            ->where('a.scope = :scope')
             ->andWhere('a.type = :type')
-            ->setParameter('departmentId', GlobalSystemSeedDefaults::DEPARTMENT_ID)
+            ->setParameter('scope', Address::SCOPE_GLOBAL)
             ->setParameter('type', self::GLOBAL_ADDRESS_TYPE)
             ->andWhere('a.deletedAt IS NULL')
             ->orderBy('a.company', 'ASC')
@@ -60,7 +53,7 @@ class GlobalAddressController extends AbstractController
         return new JsonResponse([
             'addresses' => array_map(fn (Address $address) => $this->toApiAddress($address), $addresses),
             'meta' => [
-                'department_id' => GlobalSystemSeedDefaults::DEPARTMENT_ID,
+                'scope' => Address::SCOPE_GLOBAL,
                 'type' => self::GLOBAL_ADDRESS_TYPE,
             ],
         ]);
@@ -75,7 +68,6 @@ class GlobalAddressController extends AbstractController
             return $accessCheck;
         }
 
-        $this->ensureGlobalScope();
         $data = json_decode($request->getContent(), true) ?: [];
 
         $hasName = !empty($data['name']);
@@ -87,7 +79,7 @@ class GlobalAddressController extends AbstractController
         try {
             $address = new Address();
             $address->setId(IdGenerator::generateUnique($this->entityManager, Address::class));
-            $address->setDepartmentId(GlobalSystemSeedDefaults::DEPARTMENT_ID);
+            $address->setScope(Address::SCOPE_GLOBAL);
             $address->setType(self::GLOBAL_ADDRESS_TYPE);
 
             $this->updateAddressFromData($address, $data);
@@ -177,7 +169,7 @@ class GlobalAddressController extends AbstractController
 
     private function isGlobalSupplierAddress(Address $address): bool
     {
-        return $address->getDepartmentId() === GlobalSystemSeedDefaults::DEPARTMENT_ID
+        return $address->getScope() === Address::SCOPE_GLOBAL
             && $address->getType() === self::GLOBAL_ADDRESS_TYPE;
     }
 
@@ -231,34 +223,6 @@ class GlobalAddressController extends AbstractController
         }
         if (array_key_exists('additional_info', $data)) {
             $address->setAdditionalInfo($data['additional_info']);
-        }
-    }
-
-    private function ensureGlobalScope(): void
-    {
-        $organisation = $this->entityManager->getRepository(Organisation::class)->find(GlobalSystemSeedDefaults::ORGANISATION_ID);
-        if (!$organisation) {
-            $organisation = new Organisation();
-            $organisation->setId(GlobalSystemSeedDefaults::ORGANISATION_ID);
-            $organisation->setName('Global System');
-            $this->entityManager->persist($organisation);
-        }
-
-        $department = $this->entityManager->getRepository(Department::class)->find(GlobalSystemSeedDefaults::DEPARTMENT_ID);
-        $createdGlobalDepartment = false;
-        if (!$department) {
-            $department = new Department();
-            $department->setId(GlobalSystemSeedDefaults::DEPARTMENT_ID);
-            $department->setName('Global Suppliers');
-            $department->setOrganisation($organisation);
-            $this->entityManager->persist($department);
-            $createdGlobalDepartment = true;
-        }
-
-        $this->entityManager->flush();
-
-        if ($createdGlobalDepartment && $department !== null) {
-            $this->accountingCostCenterBootstrap->ensureDefaultCostCenters($this->entityManager, $department);
         }
     }
 }

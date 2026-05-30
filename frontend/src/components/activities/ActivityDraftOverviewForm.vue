@@ -202,6 +202,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import '@/styles/activity-create-wizard.css'
 import {
   patchActivity,
   type ActivityApiType,
@@ -650,8 +651,6 @@ defineExpose({
 </script>
 
 <style scoped>
-@import '@/styles/activity-create-wizard.css';
-
 .activity-draft-overview-form {
   display: flex;
   flex-direction: column;

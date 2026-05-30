@@ -111,7 +111,7 @@
               <div class="info-item">
                 <span class="info-label">{{ t('settings.addressForm.type') }}</span>
                 <span class="info-value">
-                  <span class="type-badge" :class="contact.type">{{ addressTypeLabel(contact.type) }}</span>
+                  <span class="address-type-badge" :class="contact.type">{{ addressTypeLabel(contact.type) }}</span>
                 </span>
               </div>
               <div class="info-item" v-if="contact.is_primary">
@@ -648,16 +648,7 @@ onMounted(() => {
   text-transform: uppercase;
 }
 
-.contact-avatar-lg.customer { background: #dbeafe; color: #1d4ed8; }
-.contact-avatar-lg.billing { background: #fef3c7; color: #92400e; }
-.contact-avatar-lg.delivery { background: #d1fae5; color: #065f46; }
-.contact-avatar-lg.storage { background: #e0e7ff; color: #4338ca; }
-.contact-avatar-lg.event { background: #fce7f3; color: #be185d; }
-.contact-avatar-lg.meeting { background: #ede9fe; color: #6d28d9; }
-.contact-avatar-lg.office { background: #f3f4f6; color: #374151; }
-.contact-avatar-lg.private { background: #fef2f2; color: #991b1b; }
-.contact-avatar-lg.general { background: #e5e7eb; color: #6b7280; }
-.contact-avatar-lg.postal { background: #ccfbf1; color: #0f766e; }
+/* Avatar-Farben → styles/components/address-type-badge.css (global) */
 
 .header-actions {
   display: flex;
@@ -908,25 +899,7 @@ onMounted(() => {
   font-weight: 500;
 }
 
-/* Type & Primary Badges */
-.type-badge {
-  display: inline-block;
-  padding: 4px 10px;
-  border-radius: 6px;
-  font-size: 12px;
-  font-weight: 500;
-}
-
-.type-badge.customer { background: #dbeafe; color: #1d4ed8; }
-.type-badge.billing { background: #fef3c7; color: #92400e; }
-.type-badge.delivery { background: #d1fae5; color: #065f46; }
-.type-badge.storage { background: #e0e7ff; color: #4338ca; }
-.type-badge.event { background: #fce7f3; color: #be185d; }
-.type-badge.meeting { background: #ede9fe; color: #6d28d9; }
-.type-badge.office { background: #f3f4f6; color: #374151; }
-.type-badge.private { background: #fef2f2; color: #991b1b; }
-.type-badge.general { background: #e5e7eb; color: #6b7280; }
-.type-badge.postal { background: #ccfbf1; color: #0f766e; }
+/* Type & Primary Badges — Adress-Typ → styles/components/address-type-badge.css (global) */
 
 .primary-badge {
   display: inline-flex;

@@ -12,6 +12,9 @@
         <div class="header-title">
           <span v-if="!isUserMaterialsBrowseOnly && material.barcode_tag" class="material-code">{{ material.barcode_tag }}</span>
           <h1>{{ material.name }}</h1>
+          <span v-if="isComboDraft" class="combo-draft-badge">
+            {{ t('components.materialDetail.comboDraftBadge') }}
+          </span>
           <span v-if="material.open_loss_reports > 0" class="loss-report-badge">
             {{ t('components.materialDetail.lossReportBadge', { detail: openLossLabel }) }}
           </span>
@@ -193,22 +196,6 @@
                 <input :value="formData.external_source || 'js_ch'" type="text" class="form-input" disabled />
               </div>
               
-              <!-- Reservation-Modus (bei Zelt/Kombo-Materialien) -->
-              <div v-if="material.is_container || material.material_type === 'physical_combo' || material.material_type === 'virtual_combo'" class="form-grid mt-4">
-                <div class="form-group span-2">
-                  <label>{{ t('components.materialDetail.labelReservationMode') }}</label>
-                  <select v-model="formData.reservation_mode" class="form-select">
-                    <option value="">{{ t('components.materialDetail.reservationUnset') }}</option>
-                    <option value="complete_only">{{ t('components.materialDetail.reservationComplete') }}</option>
-                    <option value="individual">{{ t('components.materialDetail.reservationIndividual') }}</option>
-                    <option value="flexible">{{ t('components.materialDetail.reservationFlexible') }}</option>
-                  </select>
-                  <p class="form-hint" v-if="formData.reservation_mode === 'complete_only'">{{ t('components.materialDetail.hintReservationComplete') }}</p>
-                  <p class="form-hint" v-else-if="formData.reservation_mode === 'individual'">{{ t('components.materialDetail.hintReservationIndividual') }}</p>
-                  <p class="form-hint" v-else-if="formData.reservation_mode === 'flexible'">{{ t('components.materialDetail.hintReservationFlexible') }}</p>
-                </div>
-              </div>
-
               <div
                 v-if="material.material_type === 'physical_combo' && material.linked_container_batch"
                 class="linked-kiste-banner mt-4"
@@ -542,7 +529,7 @@
                       :image-entity-id="batch.id"
                       @activate="openQrActionModalForBatch(batch)"
                     />
-                    <span class="stock-qr-batch-label">{{ batchQrRowLabel(batch) }}</span>
+                    <span class="stock-qr-batch-label">{{ batchPrintLine(batch) }}</span>
                     <button type="button" class="btn-outline btn-sm" @click="openQrActionModalForBatch(batch)">
                       {{ t('common.actions') }}
                     </button>
@@ -814,7 +801,13 @@
             <div class="section-card composition-tab-card">
               <div class="section-header-row composition-tab-head">
                 <div>
-                  <h2 class="section-title">{{ t('components.materialDetail.tabComposition') }}</h2>
+                  <h2 class="section-title">
+                    {{ t('components.materialDetail.tabComposition') }}
+                    <span v-if="isConfigurator" class="composition-configurator-badge" :title="t('components.comboOptions.configuratorBadgeHint')">
+                      <span aria-hidden="true">{{ COMBO_BADGE.configurable }}</span>
+                      {{ t('components.comboOptions.configuratorBadge') }}
+                    </span>
+                  </h2>
                   <p class="composition-tab-intro">
                     {{
                       material.material_type === 'physical_combo'
@@ -826,6 +819,24 @@
                   </p>
                 </div>
                 <div class="composition-tab-actions">
+                  <button
+                    v-if="isComboDraft"
+                    type="button"
+                    class="btn-primary btn-sm composition-finalize-btn"
+                    :disabled="finalizingCombo"
+                    @click="finalizeComboNow"
+                  >
+                    {{ finalizingCombo ? t('components.materialDetail.comboFinalizeSubmitting') : t('components.materialDetail.btnFinalizeCombo') }}
+                  </button>
+                  <button
+                    v-if="isVirtualComboView"
+                    type="button"
+                    class="btn-outline-small"
+                    :class="{ 'is-active': showComboOptionsEditor }"
+                    @click="showComboOptionsEditor = !showComboOptionsEditor"
+                  >
+                    {{ t('components.comboOptions.btnToggleEditor') }}
+                  </button>
                   <button type="button" class="btn-primary btn-sm" @click="openAddCompositionModal">
                     {{ t('components.materialDetail.btnAddFromStock') }}
                   </button>
@@ -870,7 +881,12 @@
                       <button type="button" class="link-btn composition-comp-link" @click="openComponentMaterialDetail(comp.component_material.id)">
                         {{ comp.component_material.name }}
                       </button>
-                      <span v-if="comp.is_optional" class="composition-optional-badge">{{ t('components.materialDetail.optionalShortBadge') }}</span>
+                      <span v-if="isVirtualComboView && comp.is_optional" class="composition-optional-badge">{{ t('components.materialDetail.optionalShortBadge') }}</span>
+                      <span
+                        v-if="isVirtualComboView && comp.component_source === 'self_provided'"
+                        class="composition-optional-badge composition-selfprovided-badge"
+                        :title="t('components.materialDetail.hintComponentSource')"
+                      >{{ t('components.materialDetail.selfProvidedShortBadge') }}</span>
                     </td>
                     <td>{{ comp.component_role || t('components.materialDetail.emDash') }}</td>
                     <td>{{ comp.qty }}</td>
@@ -953,6 +969,82 @@
                   </tr>
                 </tbody>
               </table>
+              </div>
+            </div>
+
+            <!-- Konfigurator: Auswahl-Gruppen & Optionen (Weg B, Paket 6) -->
+            <div v-if="isVirtualComboView && showComboOptionsEditor" class="section-card composition-options-card">
+              <ComboOptionsEditor
+                :material-id="props.materialId"
+                :department-id="props.departmentId"
+                :options="comboOptionsList"
+                :groups="comboOptionGroupsList"
+                @reload="reloadComboOptions"
+              />
+            </div>
+
+            <!-- Verwandtes Zubehör (Empfehlung, kein Stücklisten-Teil) -->
+            <div class="section-card composition-accessories-card">
+              <div class="section-header-row composition-tab-head">
+                <div>
+                  <h2 class="section-title">{{ t('components.materialDetail.accessoriesTitle') }}</h2>
+                  <p class="composition-tab-intro">{{ t('components.materialDetail.accessoriesIntro') }}</p>
+                </div>
+                <div class="composition-tab-actions">
+                  <button type="button" class="btn-primary btn-sm" @click="openAddAccessoryModal">
+                    {{ t('components.materialDetail.btnAddAccessory') }}
+                  </button>
+                </div>
+              </div>
+
+              <div v-if="relatedAccessoriesLoading" class="loading-container composition-loading">
+                <div class="spinner"></div>
+                <p>{{ t('components.materialDetail.accessoriesLoading') }}</p>
+              </div>
+              <div v-else-if="relatedAccessoriesList.length === 0" class="empty-used-in">
+                <p>{{ t('components.materialDetail.accessoriesEmpty') }}</p>
+              </div>
+              <div v-else class="composition-table-wrapper">
+                <table class="used-in-table composition-table">
+                  <thead>
+                    <tr>
+                      <th>{{ t('components.materialDetail.thAccessory') }}</th>
+                      <th>{{ t('components.materialDetail.thTotalStock') }}</th>
+                      <th class="composition-actions-th">{{ t('components.materialDetail.thActions') }}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="acc in relatedAccessoriesList" :key="acc.id" class="used-in-row">
+                      <td>
+                        <button type="button" class="link-btn composition-comp-link" @click="openComponentMaterialDetail(acc.accessory_material.id)">
+                          {{ acc.accessory_material.name }}
+                        </button>
+                      </td>
+                      <td>{{ acc.accessory_material.total_stock }}</td>
+                      <td class="composition-actions-cell">
+                        <button
+                          type="button"
+                          class="icon-btn icon-btn-danger"
+                          :title="t('components.materialDetail.accessoryRemoveTitle')"
+                          :disabled="deletingAccessoryId === acc.id"
+                          @click="confirmDeleteAccessory(acc)"
+                        >
+                          <svg
+                            class="table-icon-sm"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                          >
+                            <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6M10 11v6M14 11v6" />
+                          </svg>
+                        </button>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
               </div>
             </div>
           </section>
@@ -1482,7 +1574,7 @@
                         <tr v-for="(row, idx) in comboRentalRows" :key="`${row.componentId}-${idx}`">
                           <td>
                             <span>{{ row.name }}</span>
-                            <span v-if="row.optional" class="composition-optional-badge">{{ t('components.materialDetail.optionalShortBadge') }}</span>
+                            <span v-if="isVirtualComboView && row.optional" class="composition-optional-badge">{{ t('components.materialDetail.optionalShortBadge') }}</span>
                           </td>
                           <td class="combo-rental-col-num">{{ row.qty }}</td>
                           <td class="combo-rental-col-num">
@@ -1865,16 +1957,24 @@
           <div class="sidebar-card">
             <div class="sidebar-header">
               <h3>{{ t('components.materialDetail.sidebarImage') }}</h3>
-              <button v-if="canManageMaterials" class="link-btn">{{ t('components.materialDetail.btnGoogleSearch') }}</button>
             </div>
             <div class="image-slot">
-              <svg v-if="!material.image_url" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#d1d5db" stroke-width="1.5">
+              <svg v-if="!materialPrimaryImageUrl" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#d1d5db" stroke-width="1.5">
                 <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
                 <circle cx="8.5" cy="8.5" r="1.5"/>
                 <polyline points="21 15 16 10 5 21"/>
               </svg>
-              <img v-else :src="material.image_url" :alt="t('common.material')" />
+              <img v-else :src="materialPrimaryImageUrl" :alt="t('components.materialDetail.altMaterialImage')" />
             </div>
+            <MaterialImagePicker
+              v-if="canManageMaterials"
+              :has-image="!!materialPrimaryImageUrl"
+              :search-query="material.name"
+              :upload-file="uploadMaterialPhotoFile"
+              :import-url="importMaterialPhotoFromUrlFn"
+              @uploaded="onMaterialPhotoUploaded"
+              @error="onMaterialPhotoError"
+            />
           </div>
 
           <!-- Bestand Quick View -->
@@ -2162,11 +2262,19 @@
           <input v-model="addCompositionRole" type="text" class="form-input" :placeholder="t('components.materialDetail.phRoleExamples')" />
           <p class="batch-field-hint">{{ t('components.materialDetail.hintRoleInCombo') }}</p>
         </div>
-        <div v-if="addCompositionSelected" class="form-group">
+        <div v-if="addCompositionSelected && isVirtualComboView" class="form-group">
           <label class="checkbox-label">
             <input v-model="addCompositionOptional" type="checkbox" @change="clampAddCompositionQty" />
             {{ t('components.materialDetail.labelOptionalForCombo') }}
           </label>
+        </div>
+        <div v-if="addCompositionSelected && isVirtualComboView" class="form-group">
+          <label>{{ t('components.materialDetail.labelComponentSource') }}</label>
+          <select v-model="addCompositionSource" class="form-select">
+            <option value="stock">{{ t('components.materialDetail.componentSourceStock') }}</option>
+            <option value="self_provided">{{ t('components.materialDetail.componentSourceSelfProvided') }}</option>
+          </select>
+          <p class="batch-field-hint">{{ t('components.materialDetail.hintComponentSource') }}</p>
         </div>
         <p v-if="addCompositionError" class="error-text">{{ addCompositionError }}</p>
         </div>
@@ -2190,6 +2298,54 @@
             @click="submitAddComposition"
           >
             {{ addCompositionSubmitting ? t('components.materialDetail.modalAddCompositionSubmitting') : t('common.add') }}
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div v-if="showAddAccessoryModal" class="modal-overlay">
+      <div class="modal-dialog composition-add-modal">
+        <div class="composition-add-modal-header">
+          <h3>{{ t('components.materialDetail.modalAddAccessoryTitle') }}</h3>
+          <p class="text-muted composition-add-modal-intro">
+            {{ t('components.materialDetail.modalAddAccessoryIntro') }}
+          </p>
+        </div>
+        <div class="composition-add-modal-body">
+          <div class="form-group">
+            <label>{{ t('components.materialDetail.labelSearchArticle') }}</label>
+            <MaterialLookupInput
+              v-model="addAccessorySearch"
+              :fetcher="accessoryMaterialFetcher"
+              :min-chars="1"
+              :max-suggestions="8"
+              :placeholder="t('components.materialDetail.phNameOrCode')"
+              :loading-text="t('components.materialDetail.lookupLoadingEllipsis')"
+              :empty-text="t('components.materialDetail.lookupEmptyHits', { query: addAccessorySearch || '' })"
+              :get-result-label="accessoryLookupLabel"
+              :get-result-secondary="formatCompositionLookupSecondary"
+              @select="handleAccessorySelect"
+            />
+          </div>
+          <div v-if="addAccessorySelected" class="form-group">
+            <label>{{ t('components.materialDetail.labelSelectedArticle') }}</label>
+            <div class="selected-source-material">
+              <div class="name">{{ addAccessorySelected.name }}</div>
+              <div class="meta">{{ t('components.materialDetail.metaTotalStock', { n: addAccessorySelected.total_stock ?? 0 }) }}</div>
+              <button type="button" class="btn-outline-small" @click="clearAddAccessorySelection">{{ t('components.materialDetail.btnChangeSelection') }}</button>
+            </div>
+          </div>
+          <p v-if="addAccessoryError" class="error-text">{{ addAccessoryError }}</p>
+        </div>
+        <div class="modal-actions composition-add-modal-footer">
+          <button type="button" class="btn-secondary btn-sm" @click="closeAddAccessoryModal">{{ t('common.cancel') }}</button>
+          <button
+            type="button"
+            class="btn-primary btn-sm"
+            :disabled="!addAccessorySelected || addAccessorySubmitting"
+            @click="submitAddAccessory"
+          >
+            {{ addAccessorySubmitting ? t('components.materialDetail.modalAddAccessorySubmitting') : t('components.materialDetail.btnAddAccessory') }}
           </button>
         </div>
       </div>
@@ -2267,11 +2423,19 @@
           <input v-model="editCompositionRole" type="text" class="form-input" :placeholder="t('components.materialDetail.phRoleExamples')" />
           <p class="batch-field-hint">{{ t('components.materialDetail.hintRoleInCombo') }}</p>
         </div>
-        <div class="form-group">
+        <div v-if="isVirtualComboView" class="form-group">
           <label class="checkbox-label">
             <input v-model="editCompositionOptional" type="checkbox" @change="clampEditCompositionQty" />
             {{ t('components.materialDetail.labelOptionalForCombo') }}
           </label>
+        </div>
+        <div v-if="isVirtualComboView" class="form-group">
+          <label>{{ t('components.materialDetail.labelComponentSource') }}</label>
+          <select v-model="editCompositionSource" class="form-select">
+            <option value="stock">{{ t('components.materialDetail.componentSourceStock') }}</option>
+            <option value="self_provided">{{ t('components.materialDetail.componentSourceSelfProvided') }}</option>
+          </select>
+          <p class="batch-field-hint">{{ t('components.materialDetail.hintComponentSource') }}</p>
         </div>
         <p v-if="editCompositionError" class="error-text">{{ editCompositionError }}</p>
         </div>
@@ -2333,6 +2497,8 @@ import {
   getMaterial,
   getMaterials,
   updateMaterial,
+  uploadMaterialPhoto,
+  importMaterialPhotoFromUrl,
   updateBatch,
   moveBatchQuantity,
   getMaterialHistory,
@@ -2345,6 +2511,11 @@ import {
   addComboComponent,
   updateComboComponent,
   deleteComboComponent,
+  finalizeCombo,
+  getRelatedAccessories,
+  addRelatedAccessory,
+  deleteRelatedAccessory,
+  type RelatedAccessory,
   type DeleteComboComponentRequest,
   type Material,
   type MaterialHistoryEntry,
@@ -2355,6 +2526,9 @@ import {
   type MaterialStorageLocationsResponse,
   type MaterialStorageLocationRow,
   type ComboComponent,
+  type ComboOption,
+  type ComboOptionGroup,
+  type ComponentSource,
   type UpdateComboComponentRequest,
 } from '@/api/materials'
 import { addPrintCartItem, addPrintCartItemsBulk } from '@/api/tasks'
@@ -2401,12 +2575,15 @@ import {
 } from '@/utils/compositionStockLocations'
 import StorageTreeView from '@/components/storage/StorageTreeView.vue'
 import MaterialLookupInput from '@/components/common/MaterialLookupInput.vue'
+import ComboOptionsEditor from '@/components/material/ComboOptionsEditor.vue'
 import CategoryAutocompleteInput from '@/components/common/CategoryAutocompleteInput.vue'
 import { createBasicMaterialLookupFetcher } from '@/composables/useMaterialLookup'
 import PublicQrTag from '@/components/common/PublicQrTag.vue'
 import PublicQrActionModal from '@/components/common/PublicQrActionModal.vue'
 import { unitPriceFromPackSaleChf } from '@/utils/packPricing'
 import { isPrintableBatchPublicUrl } from '@/utils/publicQrUrl'
+import { isComboMaterial as isComboMaterialType, COMBO_BADGE } from '@/utils/comboDisplay'
+import MaterialImagePicker from '@/components/media/MaterialImagePicker.vue'
 
 interface Props {
   materialId: string
@@ -2483,6 +2660,12 @@ const canManageMaterials = computed(() =>
   ['mw', 'dc', 'matwart', 'depchef'].includes(departmentRole.value)
 )
 
+const materialPrimaryImageUrl = computed(() => {
+  const photos = material.value.photos
+  if (photos?.length && photos[0]?.url) return photos[0].url
+  return material.value.image_url || null
+})
+
 // State
 const material = ref<Material>({} as Material)
 const batches = ref<any[]>([])
@@ -2493,6 +2676,21 @@ const workshopTicketsLoading = ref(false)
 /** Stückliste für Kombos (Tab „Zusammensetzung“) */
 const comboComponentsList = ref<ComboComponent[]>([])
 const comboComponentsLoading = ref(false)
+
+/** Konfigurator: Options-Gruppen + Optionen (Weg B, Paket 6) – nur virtuelle Kombo */
+const comboOptionsList = ref<ComboOption[]>([])
+const comboOptionGroupsList = ref<ComboOptionGroup[]>([])
+const showComboOptionsEditor = ref(false)
+
+/** Verwandtes Zubehör (Empfehlung, kein Stücklisten-Teil) */
+const relatedAccessoriesList = ref<RelatedAccessory[]>([])
+const relatedAccessoriesLoading = ref(false)
+const showAddAccessoryModal = ref(false)
+const addAccessorySearch = ref('')
+const addAccessorySelected = ref<Material | null>(null)
+const addAccessorySubmitting = ref(false)
+const addAccessoryError = ref('')
+const deletingAccessoryId = ref<string | null>(null)
 /** Lagerbaum nach Zusammensetzung+Einlagerung neu laden */
 const storageTreeRefreshKey = ref(0)
 
@@ -2505,6 +2703,7 @@ const addCompositionStockLocations = ref<MaterialStorageLocationsResponse | null
 const addCompositionQty = ref(1)
 const addCompositionRole = ref('')
 const addCompositionOptional = ref(false)
+const addCompositionSource = ref<ComponentSource>('stock')
 const addCompositionMode = ref<'fixed' | 'assigned' | 'on_issue' | 'bulk'>('bulk')
 const addCompositionError = ref('')
 const addCompositionSubmitting = ref(false)
@@ -2514,6 +2713,7 @@ const editCompositionComp = ref<ComboComponent | null>(null)
 const editCompositionQty = ref(1)
 const editCompositionRole = ref('')
 const editCompositionOptional = ref(false)
+const editCompositionSource = ref<ComponentSource>('stock')
 const editCompositionMode = ref<'fixed' | 'assigned' | 'on_issue' | 'bulk'>('bulk')
 const editCompositionBatchId = ref('')
 const editCompositionBatches = ref<MaterialBatch[]>([])
@@ -2526,6 +2726,7 @@ const editCompositionError = ref('')
 const editCompositionSubmitting = ref(false)
 const deletingCompositionId = ref<string | null>(null)
 const pendingRemoveComposition = ref<ComboComponent | null>(null)
+const finalizingCombo = ref(false)
 
 const linkedContainerBatchIdForRelease = computed(() => {
   const m = material.value
@@ -2659,10 +2860,21 @@ const comboAssignmentLabelsShort = computed((): Record<string, string> => ({
   bulk: t('components.materialDetail.assignmentShortBulk'),
 }))
 
-const isComboMaterialView = computed(
-  () =>
-    material.value?.material_type === 'physical_combo' || material.value?.material_type === 'virtual_combo'
-)
+const isComboMaterialView = computed(() => isComboMaterialType(material.value))
+
+/** „optional“ (Zubehör-Toggle) ist nur bei virtueller Kombo sinnvoll; physische Kombo kennt das nicht. */
+const isVirtualComboView = computed(() => material.value?.material_type === 'virtual_combo')
+
+/** Kombo-Entwurf („in Bearbeitung“, nicht buchbar). */
+const isComboDraft = computed(() => isComboMaterialView.value && material.value?.combo_status === 'draft')
+
+/** Abgeleitete „Konfigurator“-Eigenschaft: virtuelle Kombo mit ≥ 1 Options-Gruppe. */
+const isConfigurator = computed(() => isVirtualComboView.value && comboOptionGroupsList.value.length > 0)
+
+/** Editor neu laden (Optionen/Gruppen änderten sich). */
+async function reloadComboOptions() {
+  await loadMaterial({ preserveComboComponents: true })
+}
 
 /** Zeilen für „Anschaffung aus Zusammensetzung“ (Vermietung-Tab, Kombis) */
 const comboRentalRows = ref<
@@ -2948,7 +3160,6 @@ const formData = reactive({
   pack_size_width: '',
   pack_size_height: '',
   is_container: false,
-  reservation_mode: '' as string,
   is_js_material: false,
   external_source: '',
   sale_price: null as number | null,
@@ -3457,6 +3668,7 @@ function openAddCompositionModal() {
   addCompositionQty.value = 1
   addCompositionRole.value = ''
   addCompositionOptional.value = false
+  addCompositionSource.value = 'stock'
   addCompositionError.value = ''
   addCompositionMode.value =
     material.value?.material_type === 'virtual_combo' ? 'on_issue' : 'bulk'
@@ -3531,14 +3743,16 @@ async function submitAddComposition() {
       -1
     )
     const addRole = addCompositionRole.value.trim()
-    const addQty = addCompositionOptional.value
+    const addOptional = isVirtualComboView.value && addCompositionOptional.value
+    const addQty = addOptional
       ? Math.max(0, Math.floor(Number(addCompositionQty.value) || 0))
       : Math.max(1, addCompositionQty.value || 1)
     await addComboComponent(props.materialId, {
       component_material_id: addCompositionSelected.value.id,
       qty: addQty,
       component_role: addRole === '' ? null : addRole,
-      is_optional: addCompositionOptional.value,
+      is_optional: addOptional,
+      component_source: isVirtualComboView.value ? addCompositionSource.value : 'stock',
       assignment_mode: addCompositionMode.value,
       sort_order: maxSort + 1,
       allocate_to_linked_container: addCompositionAllocatesToLinkedCrate.value,
@@ -3554,6 +3768,117 @@ async function submitAddComposition() {
     addCompositionError.value = ax.response?.data?.error || t('components.materialDetail.errCompositionAdd')
   } finally {
     addCompositionSubmitting.value = false
+  }
+}
+
+async function finalizeComboNow() {
+  if (finalizingCombo.value) return
+  finalizingCombo.value = true
+  try {
+    const updated = await finalizeCombo(props.materialId)
+    material.value = updated
+    toast.success(t('components.materialDetail.toastComboFinalized'))
+    emit('updated', material.value)
+  } catch (e: unknown) {
+    const ax = e as { response?: { data?: { error?: string } } }
+    toast.error(ax.response?.data?.error || t('components.materialDetail.errComboFinalize'))
+  } finally {
+    finalizingCombo.value = false
+  }
+}
+
+// ── Verwandtes Zubehör ──
+async function loadRelatedAccessories() {
+  if (!props.materialId || !isComboMaterialView.value) return
+  relatedAccessoriesLoading.value = true
+  try {
+    relatedAccessoriesList.value = await getRelatedAccessories(props.materialId)
+  } catch (err) {
+    console.error(t('components.materialDetail.logErrorAccessories'), err)
+    toast.error(t('components.materialDetail.errAccessoriesLoad'))
+  } finally {
+    relatedAccessoriesLoading.value = false
+  }
+}
+
+function openAddAccessoryModal() {
+  addAccessorySearch.value = ''
+  addAccessorySelected.value = null
+  addAccessoryError.value = ''
+  showAddAccessoryModal.value = true
+}
+
+function closeAddAccessoryModal() {
+  showAddAccessoryModal.value = false
+}
+
+async function accessoryMaterialFetcher(query: string) {
+  const fetcher = createBasicMaterialLookupFetcher(() => props.departmentId)
+  const items = await fetcher(query)
+  const linkedIds = new Set(relatedAccessoriesList.value.map((a) => a.accessory_material.id))
+  return items
+    .filter((m) => m.id !== props.materialId)
+    .map((m) => (linkedIds.has(m.id) ? { ...m, _alreadyAccessory: true } : m))
+}
+
+function accessoryLookupLabel(item: Record<string, unknown>) {
+  const name = String(item?.name ?? '')
+  if (item?._alreadyAccessory) {
+    return `${name} (${t('components.materialDetail.badgeAlreadyAccessory')})`
+  }
+  return name
+}
+
+function handleAccessorySelect(item: Record<string, unknown>) {
+  if (item?._alreadyAccessory) return
+  const { _alreadyAccessory: _a, ...rest } = item as Record<string, unknown>
+  void _a
+  addAccessorySelected.value = rest as unknown as Material
+}
+
+function clearAddAccessorySelection() {
+  addAccessorySelected.value = null
+  addAccessorySearch.value = ''
+}
+
+async function submitAddAccessory() {
+  if (!addAccessorySelected.value) return
+  addAccessorySubmitting.value = true
+  addAccessoryError.value = ''
+  try {
+    await addRelatedAccessory(props.materialId, {
+      accessory_material_id: addAccessorySelected.value.id,
+    })
+    toast.success(t('components.materialDetail.toastAccessoryAdded'))
+    showAddAccessoryModal.value = false
+    await loadRelatedAccessories()
+  } catch (e: unknown) {
+    const ax = e as { response?: { data?: { error?: string } } }
+    addAccessoryError.value = ax.response?.data?.error || t('components.materialDetail.errAccessoryAdd')
+  } finally {
+    addAccessorySubmitting.value = false
+  }
+}
+
+async function confirmDeleteAccessory(acc: RelatedAccessory) {
+  const ok = await confirmDialog({
+    title: t('components.materialDetail.accessoryRemoveTitle'),
+    message: t('components.materialDetail.accessoryRemoveMessage', { name: acc.accessory_material.name }),
+    confirmText: t('components.materialDetail.accessoryRemoveConfirm'),
+    cancelText: t('common.cancel'),
+    variant: 'danger',
+  })
+  if (!ok) return
+  deletingAccessoryId.value = acc.id
+  try {
+    await deleteRelatedAccessory(props.materialId, acc.id)
+    toast.success(t('components.materialDetail.toastAccessoryRemoved'))
+    await loadRelatedAccessories()
+  } catch (e: unknown) {
+    const ax = e as { response?: { data?: { error?: string } } }
+    toast.error(ax.response?.data?.error || t('components.materialDetail.errAccessoryRemove'))
+  } finally {
+    deletingAccessoryId.value = null
   }
 }
 
@@ -3578,6 +3903,7 @@ async function openEditCompositionModal(comp: ComboComponent) {
   editCompositionQty.value = comp.qty
   editCompositionRole.value = comp.component_role || ''
   editCompositionOptional.value = comp.is_optional
+  editCompositionSource.value = comp.component_source ?? 'stock'
   editCompositionMode.value = comp.assignment_mode as 'fixed' | 'assigned' | 'on_issue' | 'bulk'
   editCompositionBatchId.value = comp.component_batch?.id || ''
   editCompositionError.value = ''
@@ -3629,12 +3955,14 @@ async function submitEditComposition() {
   editCompositionError.value = ''
   try {
     const roleTrimmed = editCompositionRole.value.trim()
+    const editOptional = isVirtualComboView.value && editCompositionOptional.value
     const payload: UpdateComboComponentRequest = {
-      qty: editCompositionOptional.value
+      qty: editOptional
         ? Math.max(0, Math.floor(Number(editCompositionQty.value) || 0))
         : Math.max(1, editCompositionQty.value || 1),
       component_role: roleTrimmed === '' ? null : roleTrimmed,
-      is_optional: editCompositionOptional.value,
+      is_optional: editOptional,
+      component_source: isVirtualComboView.value ? editCompositionSource.value : 'stock',
       assignment_mode: editCompositionMode.value,
     }
     if (editCompositionBatches.value.length > 0) {
@@ -3745,6 +4073,34 @@ watch(
   },
 )
 
+async function uploadMaterialPhotoFile(file: File) {
+  if (!material.value.id) {
+    throw new Error(t('components.materialDetail.uploadPhotoError'))
+  }
+  return uploadMaterialPhoto(material.value.id, file)
+}
+
+async function importMaterialPhotoFromUrlFn(url: string) {
+  if (!material.value.id) {
+    throw new Error(t('components.materialDetail.uploadPhotoError'))
+  }
+  return importMaterialPhotoFromUrl(material.value.id, url)
+}
+
+function onMaterialPhotoUploaded(result: unknown) {
+  const data = result as { photos: Material['photos']; image_url: string | null }
+  material.value = {
+    ...material.value,
+    photos: data.photos,
+    image_url: data.image_url,
+  }
+  toast.success(t('media.uploadSuccess'))
+}
+
+function onMaterialPhotoError(message: string) {
+  toast.error(message || t('media.uploadError'))
+}
+
 async function loadMaterial(opts?: { preserveComboComponents?: boolean }) {
   isLoading.value = true
   try {
@@ -3757,6 +4113,13 @@ async function loadMaterial(opts?: { preserveComboComponents?: boolean }) {
       } else {
         comboComponentsList.value = []
       }
+    }
+    if (data.material_type === 'virtual_combo') {
+      comboOptionsList.value = data.combo_options ?? []
+      comboOptionGroupsList.value = data.combo_option_groups ?? []
+    } else {
+      comboOptionsList.value = []
+      comboOptionGroupsList.value = []
     }
 
     populateFormData(data)
@@ -3897,7 +4260,6 @@ function populateFormData(m: Material) {
   formData.pack_size_length = normalizeMaterialMetricInput(m.pack_size_length, 'cm') ?? ''
   formData.pack_size_width = normalizeMaterialMetricInput(m.pack_size_width, 'cm') ?? ''
   formData.pack_size_height = normalizeMaterialMetricInput(m.pack_size_height, 'cm') ?? ''
-  formData.reservation_mode = m.reservation_mode || ''
   formData.is_container = m.is_container ?? false
   formData.is_js_material = m.is_js_material || false
   formData.external_source = m.external_source || ''
@@ -3957,13 +4319,6 @@ function pushReadOnlyField(
   fields.push({ label, value: format ? format(value) : String(value) })
 }
 
-function formatReservationModeLabel(mode: string): string {
-  if (mode === 'complete_only') return t('components.materialDetail.reservationComplete')
-  if (mode === 'individual') return t('components.materialDetail.reservationIndividual')
-  if (mode === 'flexible') return t('components.materialDetail.reservationFlexible')
-  return mode
-}
-
 const userReadOnlySections = computed((): ReadOnlySection[] => {
   const m = material.value
   const sections: ReadOnlySection[] = []
@@ -3987,13 +4342,6 @@ const userReadOnlySections = computed((): ReadOnlySection[] => {
       t('components.materialDetail.sourceJs')
     )
     pushReadOnlyField(propertyFields, t('components.materialDetail.labelExternalSource'), m?.external_source)
-  }
-  if (m?.reservation_mode) {
-    pushReadOnlyField(
-      propertyFields,
-      t('components.materialDetail.labelReservationMode'),
-      formatReservationModeLabel(String(m.reservation_mode))
-    )
   }
   if (propertyFields.length > 0) {
     sections.push({ title: t('components.materialDetail.sectionProperties'), fields: propertyFields })
@@ -4588,25 +4936,19 @@ function closeAddToContainerModal() {
 function openQrActionModalForBatch(batch: any) {
   qrActionMode.value = 'batch'
   qrActionEntityId.value = String(batch?.id || '')
-  const serial = String(batch?.serial_number || '').trim()
-  const label = String(batch?.label || '').trim()
-  qrActionLabel.value =
-    serial ||
-    label ||
-    t('components.materialDetail.labelSerialFallback', { suffix: String(batch?.id || '').slice(-6) })
+  qrActionLabel.value = batchPrintLine(batch)
   qrActionCode.value = String(batch?.public_code || '')
   qrActionUrl.value = String(batch?.public_url || '')
   showQrActionModal.value = true
 }
 
-function batchQrRowLabel(batch: any): string {
+/** Kontextabhängige Druckzeile unter dem QR: S/N bei Seriennummer, sonst Charge (Label oder ID-Endung). */
+function batchPrintLine(batch: any): string {
   const serial = String(batch?.serial_number || '').trim()
+  if (serial) return t('components.materialDetail.qrPrintLineSerial', { value: serial })
   const label = String(batch?.label || '').trim()
-  if (serial) return serial
-  if (label) return label
-  const acquired = batch?.acquired_on ? formatDate(batch.acquired_on) : ''
-  if (acquired) return acquired
-  return t('components.materialDetail.labelSerialFallback', {
+  if (label) return t('components.materialDetail.qrPrintLineBatch', { value: label })
+  return t('components.materialDetail.qrPrintLineBatchFallback', {
     suffix: String(batch?.id || '').slice(-6),
   })
 }
@@ -4645,6 +4987,8 @@ async function handleQrAddToPrintCart() {
     return
   }
 
+  const materialName = material.value?.name || t('components.materialDetail.fallbackMaterialDisplayName')
+
   if (qrActionMode.value === 'all') {
     const payloads: Array<{
       department_id: string
@@ -4658,16 +5002,11 @@ async function handleQrAddToPrintCart() {
     for (const batch of batchesWithPrintableQr.value) {
       const url = String(batch?.public_url || '').trim()
       if (!isPrintableBatchPublicUrl(url)) continue
-      const serial = String(batch?.serial_number || '').trim()
-      const label = String(batch?.label || '').trim()
       payloads.push({
         department_id: props.departmentId,
         entity_type: 'batch',
         entity_id: String(batch?.id || ''),
-        label:
-          serial ||
-          label ||
-          t('components.materialDetail.labelSerialFallback', { suffix: String(batch?.id || '').slice(-6) }),
+        label: t('components.materialDetail.qrCartLabel', { material: materialName, line: batchPrintLine(batch) }),
         public_code: String(batch?.public_code || '') || null,
         public_url: url,
       })
@@ -4705,7 +5044,7 @@ async function handleQrAddToPrintCart() {
       department_id: props.departmentId,
       entity_type: 'batch',
       entity_id: entityId,
-      label: qrActionLabel.value || 'QR',
+      label: t('components.materialDetail.qrCartLabel', { material: materialName, line: qrActionLabel.value || 'QR' }),
       public_code: qrActionCode.value || null,
       public_url: url,
     })
@@ -4727,23 +5066,18 @@ function escapeHtml(raw: string): string {
     .replace(/'/g, '&#039;')
 }
 
-async function buildPrintRowsForAllQrs(): Promise<Array<{ label: string; code: string; qrDataUrl: string }>> {
-  const rows: Array<{ label: string; code: string; qrDataUrl: string }> = []
+async function buildPrintRowsForAllQrs(): Promise<Array<{ line: string; code: string; qrDataUrl: string }>> {
+  const rows: Array<{ line: string; code: string; qrDataUrl: string }> = []
   const tasks: Array<Promise<void>> = []
 
   for (const batch of batchesWithPrintableQr.value) {
     const url = String(batch?.public_url || '').trim()
     if (!isPrintableBatchPublicUrl(url)) continue
-    const serial = String(batch?.serial_number || '').trim()
-    const label = String(batch?.label || '').trim()
-    const title =
-      serial ||
-      label ||
-      t('components.materialDetail.labelSerialFallback', { suffix: String(batch?.id || '').slice(-6) })
+    const line = batchPrintLine(batch)
     const code = String(batch?.public_code || '').trim()
     tasks.push((async () => {
       const qrDataUrl = await QRCode.toDataURL(url, { width: 220, margin: 1 })
-      rows.push({ label: title, code, qrDataUrl })
+      rows.push({ line, code, qrDataUrl })
     })())
   }
 
@@ -4752,6 +5086,7 @@ async function buildPrintRowsForAllQrs(): Promise<Array<{ label: string; code: s
 }
 
 async function handleQrPrint() {
+  const materialName = material.value?.name || t('components.materialDetail.fallbackMaterialDisplayName')
   if (qrActionMode.value === 'all') {
     const rows = await buildPrintRowsForAllQrs()
     if (rows.length === 0) {
@@ -4762,7 +5097,8 @@ async function handleQrPrint() {
       .map((row) => `
         <div class="card">
           <img src="${row.qrDataUrl}" alt="${escapeHtml(t('components.materialDetail.qrAlt'))}" />
-          <div class="title">${escapeHtml(row.label)}</div>
+          <div class="material">${escapeHtml(materialName)}</div>
+          <div class="title">${escapeHtml(row.line)}</div>
           <div class="code">${escapeHtml(row.code || '-')}</div>
         </div>
       `)
@@ -4782,8 +5118,9 @@ async function handleQrPrint() {
     .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px; }
     .card { border: 1px solid #d1d5db; border-radius: 10px; padding: 10px; text-align: center; page-break-inside: avoid; }
     img { width: 160px; height: 160px; object-fit: contain; }
-    .title { margin-top: 8px; font-weight: 700; font-size: 13px; }
-    .code { margin-top: 4px; font-family: monospace; color: #4b5563; font-size: 12px; }
+    .material { margin-top: 8px; font-weight: 700; font-size: 14px; }
+    .title { margin-top: 3px; font-size: 12px; color: #374151; }
+    .code { margin-top: 3px; font-family: monospace; color: #4b5563; font-size: 11px; }
   </style>
 </head>
 <body>
@@ -4814,13 +5151,15 @@ async function handleQrPrint() {
     body { font-family: Arial, sans-serif; margin: 20px; }
     .card { max-width: 360px; border: 1px solid #d1d5db; border-radius: 10px; padding: 14px; text-align: center; }
     img { width: 240px; height: 240px; object-fit: contain; }
-    .title { margin-top: 10px; font-weight: 700; font-size: 14px; }
+    .material { margin-top: 10px; font-weight: 700; font-size: 15px; }
+    .title { margin-top: 4px; font-size: 13px; color: #374151; }
     .code { margin-top: 4px; font-family: monospace; color: #4b5563; font-size: 12px; }
   </style>
 </head>
 <body>
   <div class="card">
     <img src="${qrDataUrl}" alt="${escapeHtml(t('components.materialDetail.qrAlt'))}" />
+    <div class="material">${escapeHtml(materialName)}</div>
     <div class="title">${escapeHtml(qrActionLabel.value)}</div>
     <div class="code">${escapeHtml(qrActionCode.value || '-')}</div>
   </div>
@@ -4906,7 +5245,6 @@ async function save() {
       pack_size_length: normalizeMaterialMetricInput(formData.pack_size_length, 'cm'),
       pack_size_width: normalizeMaterialMetricInput(formData.pack_size_width, 'cm'),
       pack_size_height: normalizeMaterialMetricInput(formData.pack_size_height, 'cm'),
-      reservation_mode: formData.reservation_mode || null,
     }
     if (material.value.tracking_type === 'bulk') {
       payload.is_container = formData.is_container
@@ -5324,6 +5662,7 @@ watch(activeTab, (newTab) => {
   }
   if (newTab === 'composition') {
     void loadComboComponentsForTab()
+    void loadRelatedAccessories()
   }
   if (newTab === 'stock' || newTab === 'serials' || newTab === 'stored-in' || newTab === 'container-content') {
     ensureContainerBatchesLoaded()
@@ -5426,6 +5765,25 @@ onMounted(() => {
 
 <style scoped src="@/styles/material-detail-view.css"></style>
 <style scoped>
+.composition-configurator-badge {
+  display: inline-block;
+  margin-left: 0.5rem;
+  font-size: 0.68rem;
+  font-weight: 600;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  background: #ede9fe;
+  color: #6d28d9;
+  vertical-align: middle;
+}
+.composition-options-card {
+  margin-top: 0.75rem;
+}
+.btn-outline-small.is-active {
+  background: #ede9fe;
+  border-color: #c4b5fd;
+  color: #6d28d9;
+}
 .workshop-tab-actions {
   display: flex;
   flex-wrap: wrap;

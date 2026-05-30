@@ -5,6 +5,9 @@ namespace App\Controller;
 use Doctrine\DBAL\Connection;
 use Doctrine\DBAL\Platforms\PostgreSQLPlatform;
 use App\Entity\Activity;
+use App\Entity\MaterialComboOption;
+use App\Entity\MaterialComboOptionDelta;
+use App\Service\ComboResolutionService;
 use App\Service\MaterialAvailabilityReservationQuery;
 use App\Util\IdGenerator;
 use Doctrine\ORM\EntityManagerInterface;
@@ -27,6 +30,7 @@ class MaterialAvailabilityController extends AbstractController
     public function __construct(
         private Connection $connection,
         private EntityManagerInterface $entityManager,
+        private ComboResolutionService $comboResolution,
     ) {}
 
     /**
@@ -279,6 +283,7 @@ class MaterialAvailabilityController extends AbstractController
                         ) stock_in_storage ON stock_in_storage.mid = mi.id
                         " . MaterialAvailabilityReservationQuery::lateralReservedQtySql(true, $reservedExcludeSql) . "
                         WHERE mi.deleted_at IS NULL
+                          AND mi.combo_status <> 'draft'
                           AND $scopeWhere $materialIdFilterSql";
 
                 $params = array_merge([
@@ -329,6 +334,7 @@ class MaterialAvailabilityController extends AbstractController
                         ) stock_in_storage ON stock_in_storage.mid = mi.id
                         " . MaterialAvailabilityReservationQuery::lateralReservedQtySql(false, $reservedExcludeSql) . "
                         WHERE mi.deleted_at IS NULL
+                          AND mi.combo_status <> 'draft'
                           AND $scopeWhere $materialIdFilterSql
                         GROUP BY mi.id, mi.name, mi.category_id, mi.material_type, mi.department_id, d.name, reserved.reserved_qty";
 
@@ -480,12 +486,394 @@ class MaterialAvailabilityController extends AbstractController
                 ];
             }, $materials);
 
+            // Virtuelle Kombos: Verfügbarkeit = Flaschenhals min(floor(frei/menge)) über stock-Teile.
+            $materials = $this->enrichVirtualComboAvailability(
+                $materials,
+                $hasPeriod ? $startDate : null,
+                $hasPeriod ? $endDate : null,
+                $excludeActivityId,
+            );
+
             return new JsonResponse($materials);
         } catch (\Exception $e) {
             return new JsonResponse([
                 'error' => 'Datenbankfehler: ' . $e->getMessage()
             ], 500);
         }
+    }
+
+    /**
+     * Konfigurator-Verfügbarkeit (Paket 6): Basis-Flaschenhals + 3-Zustands-Modell pro Option
+     * (nur stock-Teile, im Zeitraum, × Bestellmenge) + Auflösung der aktuellen Auswahl
+     * (für „live X× verfügbar"). README Abschnitt 6 „Option = drei Zustände".
+     */
+    #[Route('/api/materials/{comboId}/configurator-availability', name: 'api_materials_configurator_availability', methods: ['GET'])]
+    #[IsGranted('ROLE_USER')]
+    public function configuratorAvailability(string $comboId, Request $request): JsonResponse
+    {
+        $combo = $this->entityManager->getRepository(\App\Entity\MaterialItem::class)->find($comboId);
+        if (!$combo || $combo->getDeletedAt() !== null) {
+            return new JsonResponse(['error' => 'Kombo nicht gefunden'], 404);
+        }
+        if ($combo->getMaterialType() !== 'virtual_combo') {
+            return new JsonResponse(['error' => 'Konfigurator-Verfügbarkeit nur für virtuelle Kombos'], 400);
+        }
+
+        $quantity = max(1, (int) $request->query->get('quantity', 1));
+        $excludeActivityId = trim((string) $request->query->get('excludeActivityId', ''));
+        $startDateTime = $request->query->get('startDate');
+        $endDateTime = $request->query->get('endDate');
+        $startDate = null;
+        $endDate = null;
+        if ($startDateTime && $endDateTime) {
+            try {
+                $startDate = new \DateTime((string) $startDateTime);
+                $endDate = new \DateTime((string) $endDateTime);
+            } catch (\Exception) {
+                return new JsonResponse(['error' => 'Ungültiges Datumsformat'], 400);
+            }
+        }
+
+        $selectedOptionIds = [];
+        $selRaw = (string) $request->query->get('selectedOptionIds', '');
+        if ($selRaw !== '') {
+            foreach (explode(',', $selRaw) as $part) {
+                $v = trim($part);
+                if ($v !== '') {
+                    $selectedOptionIds[] = $v;
+                }
+            }
+        }
+
+        // Alle referenzierten Teile (Basis-Pflichtteile + alle Options-Deltas) für die Verfügbarkeits-Query sammeln.
+        $base = $this->comboResolution->resolve($comboId, []);
+        $groups = $this->entityManager->getRepository(\App\Entity\MaterialComboOptionGroup::class)
+            ->findBy(['materialItemId' => $comboId], ['sortOrder' => 'ASC']);
+        $options = $this->entityManager->getRepository(MaterialComboOption::class)
+            ->findBy(['materialItemId' => $comboId], ['sortOrder' => 'ASC']);
+
+        $allIds = [];
+        foreach ($base['stock'] as $mid => $_p) {
+            $allIds[(string) $mid] = true;
+        }
+        /** @var array<string, list<MaterialComboOptionDelta>> $deltasByOption */
+        $deltasByOption = [];
+        foreach ($options as $opt) {
+            $deltas = $this->entityManager->getRepository(MaterialComboOptionDelta::class)
+                ->createQueryBuilder('d')
+                ->leftJoin('d.componentMaterial', 'cm')
+                ->addSelect('cm')
+                ->where('d.optionId = :oid')
+                ->setParameter('oid', $opt->getId())
+                ->orderBy('d.sortOrder', 'ASC')
+                ->getQuery()
+                ->getResult();
+            $deltasByOption[(string) $opt->getId()] = $deltas;
+            foreach ($deltas as $d) {
+                if ($d->getComponentSource() !== 'self_provided') {
+                    $allIds[(string) $d->getComponentMaterialId()] = true;
+                }
+            }
+        }
+
+        $availMap = $this->availabilityForIds(array_keys($allIds), $startDate, $endDate, $excludeActivityId);
+        $totalMap = $this->totalStockForIds(array_keys($allIds));
+
+        // Basis-Flaschenhals (Pflichtteile). Pflicht-Basis fehlt/0 ⇒ ganze Kombo nicht baubar.
+        $baseComponents = [];
+        $baseBottleneck = null;
+        $baseBlocked = false;
+        foreach ($base['stock'] as $mid => $part) {
+            $mid = (string) $mid;
+            $qtyPer = (int) $part['qty_per_combo'];
+            if ($qtyPer <= 0) {
+                continue;
+            }
+            $avail = (int) ($availMap[$mid] ?? 0);
+            $inStock = ((int) ($totalMap[$mid] ?? 0)) > 0;
+            $possible = intdiv($avail, $qtyPer);
+            $baseBottleneck = $baseBottleneck === null ? $possible : min($baseBottleneck, $possible);
+            if (!$inStock || $possible < $quantity) {
+                $baseBlocked = true;
+            }
+            $baseComponents[] = [
+                'materialItemId' => $mid,
+                'name' => $part['name'],
+                'qtyPerCombo' => $qtyPer,
+                'availableForPeriod' => $avail,
+                'inStock' => $inStock,
+            ];
+        }
+
+        // 3-Zustands-Modell je Option (nur additive stock-Teile bestimmen die Sperre).
+        $optionResults = [];
+        foreach ($options as $opt) {
+            $oid = (string) $opt->getId();
+            $added = [];
+            $optBottleneck = null;
+            $state = 'available';
+            foreach ($deltasByOption[$oid] as $d) {
+                if ($d->getComponentSource() === 'self_provided') {
+                    continue;
+                }
+                $delta = $d->getQtyDelta();
+                if ($delta <= 0) {
+                    continue; // reine Abzüge brauchen keine Sperre
+                }
+                $mid = (string) $d->getComponentMaterialId();
+                $avail = (int) ($availMap[$mid] ?? 0);
+                $inStock = ((int) ($totalMap[$mid] ?? 0)) > 0;
+                $cm = $d->getComponentMaterial();
+                $possible = intdiv($avail, $delta);
+                $optBottleneck = $optBottleneck === null ? $possible : min($optBottleneck, $possible);
+                if (!$inStock && $state !== 'missing') {
+                    $state = 'missing';
+                }
+                $added[] = [
+                    'materialItemId' => $mid,
+                    'name' => $cm->getName(),
+                    'qtyDelta' => $delta,
+                    'availableForPeriod' => $avail,
+                    'inStock' => $inStock,
+                ];
+            }
+            if ($state !== 'missing' && $optBottleneck !== null && $optBottleneck < $quantity) {
+                $state = 'blocked';
+            }
+            $optionResults[] = [
+                'optionId' => $oid,
+                'name' => $opt->getName(),
+                'displayMode' => $opt->getDisplayMode(),
+                'optionGroupId' => $opt->getOptionGroupId(),
+                'defaultSelected' => $opt->getDefaultSelected(),
+                'state' => $state,
+                'buildable' => $optBottleneck,
+                'addedStockComponents' => $added,
+            ];
+        }
+
+        // Auflösung der aktuellen Auswahl → live Flaschenhals × Bestellmenge.
+        $resolved = $this->comboResolution->resolve($comboId, $selectedOptionIds);
+        $selBottleneck = null;
+        $selBlocked = false;
+        $selComponents = [];
+        foreach ($resolved['stock'] as $mid => $part) {
+            $mid = (string) $mid;
+            $qtyPer = (int) $part['qty_per_combo'];
+            if ($qtyPer <= 0) {
+                continue;
+            }
+            $avail = (int) ($availMap[$mid] ?? 0);
+            $inStock = ((int) ($totalMap[$mid] ?? 0)) > 0;
+            $possible = intdiv($avail, $qtyPer);
+            $selBottleneck = $selBottleneck === null ? $possible : min($selBottleneck, $possible);
+            if (!$inStock || $possible < $quantity) {
+                $selBlocked = true;
+            }
+            $selComponents[] = [
+                'materialItemId' => $mid,
+                'name' => $part['name'],
+                'qtyPerCombo' => $qtyPer,
+                'availableForPeriod' => $avail,
+                'inStock' => $inStock,
+            ];
+        }
+
+        $groupResults = array_map(static fn (\App\Entity\MaterialComboOptionGroup $g) => [
+            'id' => $g->getId(),
+            'name' => $g->getName(),
+            'selectionType' => $g->getSelectionType(),
+            'minSelect' => $g->getMinSelect(),
+            'maxSelect' => $g->getMaxSelect(),
+            'sortOrder' => $g->getSortOrder(),
+        ], $groups);
+
+        return new JsonResponse([
+            'comboId' => $comboId,
+            'quantity' => $quantity,
+            'groups' => $groupResults,
+            'base' => [
+                'components' => $baseComponents,
+                'buildable' => $baseBottleneck,
+                'blocked' => $baseBlocked,
+            ],
+            'options' => $optionResults,
+            'selected' => [
+                'selectedOptionIds' => array_values($selectedOptionIds),
+                'components' => $selComponents,
+                'buildable' => $selBottleneck,
+                'blocked' => $selBlocked,
+                'selfProvided' => array_values(array_map(static fn ($p) => [
+                    'materialItemId' => (string) $p['component_material_id'],
+                    'name' => $p['name'],
+                    'qtyPerCombo' => (int) $p['qty_per_combo'],
+                ], $resolved['self_provided'])),
+            ],
+        ]);
+    }
+
+    /**
+     * Gesamtbestand (aktive Batches) je Material-Id – um „nicht im Bestand" (total 0) vom Flaschenhals 0 zu trennen.
+     *
+     * @param list<string> $ids
+     * @return array<string, int>
+     */
+    private function totalStockForIds(array $ids): array
+    {
+        $ids = array_values(array_unique(array_filter($ids, static fn ($v) => (string) $v !== '')));
+        if ($ids === []) {
+            return [];
+        }
+        $idPh = [];
+        $params = [];
+        foreach ($ids as $i => $id) {
+            $k = 'ts_id' . $i;
+            $idPh[] = ':' . $k;
+            $params[$k] = $id;
+        }
+        $sql = 'SELECT material_item_id AS mid, COALESCE(SUM(qty), 0) AS total_qty
+                FROM material_batch
+                WHERE status = \'active\' AND material_item_id IN (' . implode(', ', $idPh) . ')
+                GROUP BY material_item_id';
+        $rows = $this->connection->prepare($sql)->executeQuery($params)->fetchAllAssociative();
+        $map = [];
+        foreach ($rows as $r) {
+            $map[(string) $r['mid']] = (int) $r['total_qty'];
+        }
+        return $map;
+    }
+
+    /**
+     * Reichert virtuelle Kombos mit Flaschenhals-Verfügbarkeit + aufgelöster Stückliste an.
+     *
+     * @param list<array<string, mixed>> $materials
+     * @return list<array<string, mixed>>
+     */
+    private function enrichVirtualComboAvailability(
+        array $materials,
+        ?\DateTime $startDate,
+        ?\DateTime $endDate,
+        string $excludeActivityId,
+    ): array {
+        $comboIds = [];
+        foreach ($materials as $row) {
+            if (($row['materialType'] ?? '') === 'virtual_combo') {
+                $comboIds[] = (string) $row['materialItemId'];
+            }
+        }
+        if ($comboIds === []) {
+            return $materials;
+        }
+
+        // Basis-Konfiguration (Pflichtteile + default-Toggles) je Kombo auflösen.
+        $resolvedByCombo = [];
+        $allComponentIds = [];
+        foreach ($comboIds as $cid) {
+            $resolved = $this->comboResolution->resolve($cid, $this->comboResolution->defaultSelectedOptionIds($cid));
+            $resolvedByCombo[$cid] = $resolved;
+            foreach ($resolved['stock'] as $mid => $_part) {
+                $allComponentIds[(string) $mid] = true;
+            }
+        }
+        $componentAvail = $this->availabilityForIds(array_keys($allComponentIds), $startDate, $endDate, $excludeActivityId);
+
+        return array_map(function (array $row) use ($resolvedByCombo, $componentAvail) {
+            $cid = (string) $row['materialItemId'];
+            if (!isset($resolvedByCombo[$cid])) {
+                return $row;
+            }
+            $stock = $resolvedByCombo[$cid]['stock'];
+            $bottleneck = null;
+            $components = [];
+            foreach ($stock as $mid => $part) {
+                $qtyPer = (int) $part['qty_per_combo'];
+                if ($qtyPer <= 0) {
+                    continue;
+                }
+                $compAvail = (int) ($componentAvail[(string) $mid] ?? 0);
+                $possible = intdiv($compAvail, $qtyPer);
+                $bottleneck = $bottleneck === null ? $possible : min($bottleneck, $possible);
+                $components[] = [
+                    'materialItemId' => (string) $mid,
+                    'name' => $part['name'],
+                    'qtyPerCombo' => $qtyPer,
+                    'availableForPeriod' => $compAvail,
+                ];
+            }
+            $row['availableForPeriod'] = $bottleneck ?? 0;
+            $row['comboBottleneck'] = $bottleneck ?? 0;
+            $row['comboStockComponents'] = $components;
+            return $row;
+        }, $materials);
+    }
+
+    /**
+     * Verfügbarkeit (available_for_period) je Material-Id – ohne Scope/Suche/Limit.
+     *
+     * @param list<string> $ids
+     * @return array<string, int>
+     */
+    private function availabilityForIds(
+        array $ids,
+        ?\DateTime $startDate,
+        ?\DateTime $endDate,
+        string $excludeActivityId,
+    ): array {
+        $ids = array_values(array_unique(array_filter($ids, static fn ($v) => (string) $v !== '')));
+        if ($ids === []) {
+            return [];
+        }
+
+        $idPh = [];
+        $params = [];
+        foreach ($ids as $i => $id) {
+            $k = 'avc_id' . $i;
+            $idPh[] = ':' . $k;
+            $params[$k] = $id;
+        }
+        $idIn = implode(', ', $idPh);
+
+        $reservedExcludeSql = $excludeActivityId !== '' ? ' AND a.id != :exclude_activity_id' : '';
+        $hasPeriod = $startDate !== null && $endDate !== null;
+
+        $sql = "SELECT mi.id AS material_item_id,
+                GREATEST(0,
+                    CASE WHEN mi.material_type = 'physical_combo' THEN
+                        COALESCE(batch_totals.total_qty, 0) - COALESCE(reserved.reserved_qty, 0)
+                    ELSE
+                        COALESCE(batch_totals.total_qty, 0) - COALESCE(stock_in_phys_combo.qty_in_phys_combo, 0) - COALESCE(reserved.reserved_qty, 0)
+                    END
+                )::INT AS available_for_period
+                FROM material_item mi
+                LEFT JOIN (
+                    SELECT material_item_id AS mid, SUM(qty) AS total_qty
+                    FROM material_batch WHERE status = 'active' GROUP BY material_item_id
+                ) batch_totals ON batch_totals.mid = mi.id
+                LEFT JOIN (
+                    SELECT b.material_item_id AS mid, SUM(a.qty) AS qty_in_phys_combo
+                    FROM batch_storage_allocation a
+                    INNER JOIN material_batch b ON a.batch_id = b.id AND b.status = 'active'
+                    INNER JOIN material_item combo_kiste ON combo_kiste.linked_container_batch_id = a.container_batch_id
+                        AND combo_kiste.material_type = 'physical_combo' AND combo_kiste.deleted_at IS NULL
+                    GROUP BY b.material_item_id
+                ) stock_in_phys_combo ON stock_in_phys_combo.mid = mi.id
+                " . MaterialAvailabilityReservationQuery::lateralReservedQtySql($hasPeriod, $reservedExcludeSql) . "
+                WHERE mi.deleted_at IS NULL AND mi.id IN ($idIn)";
+
+        if ($hasPeriod) {
+            $params['start_date'] = $startDate->format('Y-m-d H:i:s');
+            $params['end_date'] = $endDate->format('Y-m-d H:i:s');
+        }
+        if ($excludeActivityId !== '') {
+            $params['exclude_activity_id'] = $excludeActivityId;
+        }
+
+        $rows = $this->connection->prepare($sql)->executeQuery($params)->fetchAllAssociative();
+        $map = [];
+        foreach ($rows as $r) {
+            $map[(string) $r['material_item_id']] = (int) $r['available_for_period'];
+        }
+        return $map;
     }
 
     /**
