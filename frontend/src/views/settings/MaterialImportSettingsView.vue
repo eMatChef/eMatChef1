@@ -137,6 +137,9 @@
 
       <div v-if="rows.length > 0" class="card preview-card preview-card--compact">
         <p class="preview-storage-hint">{{ t('settings.materialImport.storageRequiredHint') }}</p>
+        <p v-if="specWarningCount > 0" class="preview-spec-warn-banner">
+          {{ t('settings.materialImport.specWarningBanner', { count: specWarningCount }) }}
+        </p>
         <div class="preview-toolbar">
           <h2>
             {{
@@ -194,8 +197,8 @@
                 <th>{{ t('settings.materialImport.colStorage') }}</th>
                 <th>{{ t('settings.materialImport.colYear') }}</th>
                 <th>{{ t('settings.materialImport.colPrice') }}</th>
-                <th>{{ t('settings.materialImport.colDuplicate') }}</th>
-                <th>{{ t('common.status') }}</th>
+                <th class="col-duplicate">{{ t('settings.materialImport.colDuplicate') }}</th>
+                <th class="col-status">{{ t('common.status') }}</th>
               </tr>
             </thead>
             <tbody>
@@ -205,6 +208,7 @@
                 :class="{
                   'row-error': row.import_selected !== false && rowErrors(idx).length > 0,
                   'row-duplicate': !!row._existingMaterialId,
+                  'row-spec-warn': row.import_selected !== false && rowSpecWarnings(idx).length > 0,
                   'row-not-imported': row.import_selected === false,
                 }"
               >
@@ -212,9 +216,21 @@
                   <input v-model="row.import_selected" type="checkbox" @change="onRowImportToggle" />
                 </td>
                 <td>{{ idx + 1 }}</td>
-                <td><input v-model="row.name" class="cell-input" type="text" /></td>
+                <td class="col-name">
+                  <div class="name-cell-stack">
+                    <input v-model="row.name" class="cell-input" type="text" :title="rowSpecWarnings(idx).length ? rowSpecWarningsText(idx) : undefined" />
+                    <button
+                      v-if="canAppendLengthToImportName(row) && rowSpecWarnings(idx).some((w) => w.code.startsWith('name_exists'))"
+                      type="button"
+                      class="name-append-btn"
+                      @click="applyLengthToName(row)"
+                    >
+                      {{ t('settings.materialImport.appendLengthToName', { suffix: formatImportLengthNameSuffix(row.size_length) }) }}
+                    </button>
+                  </div>
+                </td>
                 <td><input v-model="row.qty" class="cell-input cell-input-narrow" type="number" min="1" /></td>
-                <td><input v-model="row.size_length" class="cell-input cell-input-narrow" type="text" :placeholder="t('settings.materialImport.lengthPlaceholder')" /></td>
+                <td><input v-model="row.size_length" class="cell-input cell-input-narrow" type="text" :placeholder="t('settings.materialImport.lengthPlaceholder')" :title="rowSpecWarnings(idx).length ? rowSpecWarningsText(idx) : undefined" /></td>
                 <td><input v-model="row.manufacturer" class="cell-input" type="text" /></td>
                 <td class="supplier-cell">
                   <input
@@ -241,7 +257,7 @@
                 </td>
                 <td><input v-model="row.acquired_year" class="cell-input cell-input-narrow" type="text" maxlength="10" @blur="syncAcquiredOn(row)" /></td>
                 <td><input v-model="row.unit_price" class="cell-input cell-input-narrow" type="text" /></td>
-                <td>
+                <td class="col-duplicate">
                   <select v-if="row._existingMaterialId" v-model="row.duplicate_action" class="cell-select">
                     <option value="add_batch">{{ t('settings.materialImport.duplicateAddBatch') }}</option>
                     <option value="skip">{{ t('settings.materialImport.duplicateSkip') }}</option>
@@ -249,21 +265,25 @@
                   </select>
                   <span v-else class="muted">—</span>
                 </td>
-                <td class="status-cell">
-                  <span v-if="row.import_selected === false" class="badge badge-muted">
-                    {{ t('settings.materialImport.statusSkippedRow') }}
+                <td class="status-cell col-status">
+                  <span v-if="row.import_selected === false" class="badge badge-muted" :title="t('settings.materialImport.statusSkippedRow')">
+                    {{ t('settings.materialImport.statusSkippedShort') }}
                   </span>
-                  <span v-else-if="previewByIndex[idx]?.errors?.length" class="badge badge-error" :title="previewByIndex[idx].errors.join(', ')">
-                    {{ t('settings.materialImport.statusError') }}
+                  <span v-else-if="rowErrors(idx).length" class="badge badge-error" :title="rowErrors(idx).join(', ')">
+                    {{ t('settings.materialImport.statusErrorShort') }}
                   </span>
-                  <span v-else-if="previewByIndex[idx]?.warnings?.length" class="badge badge-warn">
-                    {{ t('settings.materialImport.statusWarn') }}
+                  <span
+                    v-else-if="rowSpecWarnings(idx).length || previewByIndex[idx]?.warnings?.length"
+                    class="badge badge-warn"
+                    :title="rowStatusWarningText(idx)"
+                  >
+                    {{ t('settings.materialImport.statusWarnShort') }}
                   </span>
-                  <span v-else-if="previewByIndex[idx]" class="badge badge-ok">
-                    {{ t('settings.materialImport.statusOk') }}
+                  <span v-else-if="previewByIndex[idx]" class="badge badge-ok" :title="t('settings.materialImport.statusOk')">
+                    {{ t('settings.materialImport.statusOkShort') }}
                   </span>
-                  <span v-else-if="row._existingMaterialId" class="badge badge-dup">
-                    {{ t('settings.materialImport.statusDuplicate') }}
+                  <span v-else-if="row._existingMaterialId" class="badge badge-dup" :title="t('settings.materialImport.statusDuplicate')">
+                    {{ t('settings.materialImport.statusDuplicateShort') }}
                   </span>
                 </td>
               </tr>
@@ -285,6 +305,33 @@
       @close="closeStorageModal"
       @apply="applyStorageModal"
     />
+
+    <div v-if="showSpecWarningDialog" class="modal-overlay" @click.self="showSpecWarningDialog = false">
+      <div class="modal-dialog modal-dialog-wide">
+        <h3>{{ t('settings.materialImport.specWarningDialogTitle') }}</h3>
+        <p>{{ t('settings.materialImport.specWarningDialogBody', { count: specWarningCount }) }}</p>
+        <ul v-if="specWarningPreviewLines.length" class="spec-warning-list">
+          <li v-for="(line, i) in specWarningPreviewLines" :key="i">{{ line }}</li>
+        </ul>
+        <p class="spec-warning-hint">{{ t('settings.materialImport.specWarningDialogHint') }}</p>
+        <button
+          v-if="rowsEligibleForLengthAppend.length > 0"
+          type="button"
+          class="btn-secondary btn-sm spec-warning-append-all"
+          @click="appendLengthToAllWarnedRows"
+        >
+          {{ t('settings.materialImport.appendLengthToAll', { count: rowsEligibleForLengthAppend.length }) }}
+        </button>
+        <div class="modal-actions">
+          <button type="button" class="btn-secondary" @click="showSpecWarningDialog = false">
+            {{ t('settings.materialImport.specWarningDialogBack') }}
+          </button>
+          <button type="button" class="btn-primary" :disabled="isImporting" @click="confirmImportAfterSpecWarning">
+            {{ t('settings.materialImport.specWarningDialogContinue') }}
+          </button>
+        </div>
+      </div>
+    </div>
 
     <div v-if="showDuplicateDialog" class="modal-overlay" @click.self="showDuplicateDialog = false">
       <div class="modal-dialog">
@@ -334,6 +381,13 @@ import {
   columnAssignmentsToMapping,
   getSourcePreviewRows,
   IMPORT_UI_FIELDS,
+  buildMaterialImportMatchKey,
+  computeMaterialImportSpecWarnings,
+  appendLengthSuffixToImportName,
+  canAppendLengthToImportName,
+  findImportMaterialMatch,
+  formatImportLengthNameSuffix,
+  type MaterialImportSpecWarning,
   type MaterialImportRow,
   type MaterialImportColumn,
   type ColumnMapping,
@@ -368,6 +422,7 @@ const previewRows = ref<MaterialImportResultRow[]>([])
 const isValidating = ref(false)
 const isImporting = ref(false)
 const showDuplicateDialog = ref(false)
+const showSpecWarningDialog = ref(false)
 const previewLoaded = ref(false)
 let mappingRefreshTimer: ReturnType<typeof setTimeout> | null = null
 
@@ -390,6 +445,33 @@ const allRowsImportSelected = computed(
 
 const duplicateCount = computed(() =>
   rows.value.filter((r) => r.import_selected !== false && r._existingMaterialId).length,
+)
+
+const specWarningsByRowIndex = computed(() =>
+  rows.value.map((row) => computeMaterialImportSpecWarnings(row, rows.value, materials.value)),
+)
+
+const specWarningCount = computed(() =>
+  specWarningsByRowIndex.value.filter((warnings, idx) =>
+    rows.value[idx]?.import_selected !== false && warnings.length > 0,
+  ).length,
+)
+
+const specWarningPreviewLines = computed(() => {
+  const lines: string[] = []
+  rows.value.forEach((row, idx) => {
+    if (row.import_selected === false) return
+    for (const warning of specWarningsByRowIndex.value[idx] ?? []) {
+      lines.push(formatSpecWarningMessage(warning, idx + 1))
+    }
+  })
+  return lines.slice(0, 8)
+})
+
+const rowsEligibleForLengthAppend = computed(() =>
+  rows.value.filter(
+    (row) => row.import_selected !== false && canAppendLengthToImportName(row),
+  ),
 )
 
 const fileColumnLabels = computed(() => {
@@ -458,16 +540,87 @@ function normalizeName(name: string): string {
   return name.trim().toLowerCase()
 }
 
-function enrichWithExisting(list: MaterialImportRow[]) {
-  const byName = new Map<string, Material>()
-  for (const m of materials.value) {
-    byName.set(normalizeName(m.name), m)
+function rowSpecWarnings(idx: number) {
+  return specWarningsByRowIndex.value[idx] ?? []
+}
+
+function formatSpecWarningMessage(warning: MaterialImportSpecWarning, rowNumber?: number): string {
+  const prefix = rowNumber ? `#${rowNumber}: ` : ''
+  if (warning.code === 'name_exists_other_specs_db') {
+    return prefix + t('settings.materialImport.specWarnNameDb', {
+      name: warning.existingMaterialName ?? '',
+      existing: warning.existingSpecs ?? '—',
+      imported: warning.importSpecs ?? '—',
+    })
   }
+  if (warning.code === 'name_exists_other_specs_file') {
+    return prefix + t('settings.materialImport.specWarnNameFile', {
+      row: warning.otherRowNumber ?? '?',
+      existing: warning.existingSpecs ?? '—',
+      imported: warning.importSpecs ?? '—',
+    })
+  }
+  if (warning.code === 'matched_existing_by_specs') {
+    return prefix + t('settings.materialImport.specWarnMatchedBySpecs', {
+      name: warning.existingMaterialName ?? '',
+      existing: warning.existingSpecs ?? '—',
+      imported: warning.importSpecs ?? '—',
+    })
+  }
+  if (warning.code === 'would_create_duplicate_catalog') {
+    return prefix + t('settings.materialImport.specWarnWouldDuplicateCatalog', {
+      name: warning.existingMaterialName ?? '',
+      existing: warning.existingSpecs ?? '—',
+      imported: warning.importSpecs ?? '—',
+    })
+  }
+  return prefix + t('settings.materialImport.specWarnAddBatch', {
+    name: warning.existingMaterialName ?? '',
+    specs: warning.existingSpecs ?? warning.importSpecs ?? '—',
+  })
+}
+
+function rowSpecWarningsText(idx: number): string {
+  return rowSpecWarnings(idx).map((w) => formatSpecWarningMessage(w)).join('\n')
+}
+
+function rowStatusWarningText(idx: number): string {
+  const parts = [...rowSpecWarnings(idx).map((w) => formatSpecWarningMessage(w))]
+  const pr = previewByIndex.value[idx]
+  if (pr?.warnings?.length) parts.push(...pr.warnings)
+  return parts.join('\n')
+}
+
+function applyLengthToName(row: MaterialImportRow) {
+  if (!appendLengthSuffixToImportName(row)) return
+  enrichWithExisting(rows.value)
+  previewRows.value = []
+  const match = findImportMaterialMatch(row, materials.value)
+  if (match?.kind === 'specs') {
+    toast.info(t('settings.materialImport.appendLengthMatchedExisting', { name: match.material.name }))
+  }
+}
+
+function appendLengthToAllWarnedRows() {
+  let changed = 0
+  for (const row of rows.value) {
+    if (row.import_selected === false) continue
+    if (appendLengthSuffixToImportName(row)) changed++
+  }
+  if (changed > 0) {
+    enrichWithExisting(rows.value)
+    previewRows.value = []
+    toast.success(t('settings.materialImport.appendLengthDone', { count: changed }))
+  }
+}
+
+function enrichWithExisting(list: MaterialImportRow[]) {
   for (const row of list) {
-    const hit = byName.get(normalizeName(row.name))
-    row._existingMaterialId = hit?.id ?? null
-    row._existingMaterialName = hit?.name ?? null
-    if (hit && !row.duplicate_action) {
+    const match = findImportMaterialMatch(row, materials.value)
+    row._existingMaterialId = match?.material.id ?? null
+    row._existingMaterialName = match?.material.name ?? null
+    row._existingMatchKind = match?.kind ?? null
+    if (match && !row.duplicate_action) {
       row.duplicate_action = defaultDuplicateAction.value
     }
   }
@@ -755,6 +908,19 @@ function onImportClick() {
     toast.warning(t('settings.materialImport.noRowsSelected'))
     return
   }
+  if (specWarningCount.value > 0) {
+    showSpecWarningDialog.value = true
+    return
+  }
+  proceedImportAfterWarnings()
+}
+
+function confirmImportAfterSpecWarning() {
+  showSpecWarningDialog.value = false
+  proceedImportAfterWarnings()
+}
+
+function proceedImportAfterWarnings() {
   if (duplicateCount.value > 0) {
     showDuplicateDialog.value = true
     return
@@ -764,6 +930,7 @@ function onImportClick() {
 
 async function confirmImport() {
   showDuplicateDialog.value = false
+  showSpecWarningDialog.value = false
   isImporting.value = true
   try {
     for (const row of rows.value) syncAcquiredOn(row)
@@ -922,6 +1089,16 @@ onMounted(async () => {
   color: #b45309;
 }
 
+.preview-spec-warn-banner {
+  margin: 0 0 0.75rem;
+  padding: 0.625rem 0.75rem;
+  border-radius: 8px;
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+  color: #9a3412;
+  font-size: 0.8125rem;
+}
+
 .preview-toolbar {
   display: flex;
   flex-wrap: wrap;
@@ -960,11 +1137,14 @@ onMounted(async () => {
   max-width: 100%;
   min-width: 0;
   overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .preview-table {
   width: 100%;
-  border-collapse: collapse;
+  min-width: 72rem;
+  border-collapse: separate;
+  border-spacing: 0;
   font-size: 0.875rem;
 }
 
@@ -997,7 +1177,96 @@ onMounted(async () => {
 
 .cell-select {
   font-size: 0.8rem;
-  max-width: 140px;
+  width: 100%;
+  min-width: 7.5rem;
+  max-width: none;
+}
+
+.col-name {
+  min-width: 9rem;
+}
+
+.name-cell-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 8rem;
+}
+
+.name-append-btn {
+  align-self: flex-start;
+  border: none;
+  background: none;
+  padding: 0;
+  font-size: 0.65rem;
+  color: #c2410c;
+  cursor: pointer;
+  text-decoration: underline;
+  white-space: nowrap;
+}
+
+.name-append-btn:hover {
+  color: #9a3412;
+}
+
+.col-duplicate {
+  min-width: 8.5rem;
+}
+
+.col-status,
+.status-cell {
+  min-width: 4.5rem;
+  white-space: nowrap;
+}
+
+.preview-table th.col-status,
+.preview-table td.status-cell {
+  position: sticky;
+  right: 0;
+  z-index: 2;
+  box-shadow: -4px 0 8px -4px rgba(15, 23, 42, 0.15);
+}
+
+.preview-table th.col-duplicate,
+.preview-table td.col-duplicate {
+  position: sticky;
+  right: 4.5rem;
+  z-index: 1;
+  box-shadow: -4px 0 8px -4px rgba(15, 23, 42, 0.08);
+}
+
+.preview-table th.col-status,
+.preview-table th.col-duplicate {
+  background: #f9fafb;
+}
+
+.preview-table td.status-cell,
+.preview-table td.col-duplicate {
+  background: #fff;
+}
+
+.row-error td.status-cell,
+.row-error td.col-duplicate {
+  background: #fef2f2;
+}
+
+.row-duplicate td.status-cell,
+.row-duplicate td.col-duplicate {
+  background: #fffbeb;
+}
+
+.row-spec-warn td.status-cell,
+.row-spec-warn td.col-duplicate {
+  background: #fff7ed;
+}
+
+.row-not-imported td.status-cell,
+.row-not-imported td.col-duplicate {
+  background: #f8fafc;
+}
+
+.status-cell .badge {
+  white-space: nowrap;
 }
 
 .row-error {
@@ -1006,6 +1275,35 @@ onMounted(async () => {
 
 .row-duplicate {
   background: #fffbeb;
+}
+
+.row-spec-warn {
+  background: #fff7ed;
+}
+
+.row-spec-warn td:first-of-type + td + td {
+  box-shadow: inset 3px 0 0 #f97316;
+}
+
+.modal-dialog-wide {
+  max-width: 560px;
+}
+
+.spec-warning-list {
+  margin: 12px 0;
+  padding-left: 1.25rem;
+  font-size: 13px;
+  color: #374151;
+}
+
+.spec-warning-list li + li {
+  margin-top: 6px;
+}
+
+.spec-warning-hint {
+  font-size: 13px;
+  color: #6b7280;
+  margin: 0 0 12px;
 }
 
 .row-not-imported {
@@ -1271,6 +1569,11 @@ onMounted(async () => {
 
 .preview-card--compact {
   padding: 0.65rem 0.75rem;
+  overflow: visible;
+}
+
+.spec-warning-append-all {
+  margin-bottom: 0.5rem;
 }
 
 .preview-card--compact .preview-toolbar {

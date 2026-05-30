@@ -1,4 +1,5 @@
 import apiClient from './apiClient'
+import { sortByNaturalName } from '@/utils/naturalSort'
 
 export interface StorageRack {
   id: string
@@ -116,14 +117,18 @@ export async function getStorageOverview(departmentId: string): Promise<StorageO
   const response = await apiClient.get<StorageOverviewResponse>(
     `/api/storage-overview?department_id=${encodeURIComponent(departmentId)}`
   )
-  return response.data
+  const racks = sortByNaturalName(response.data.racks || [], (rack) => rack.name).map((rack) => ({
+    ...rack,
+    slots: sortByNaturalName(rack.slots || [], (slot) => slot.name),
+  }))
+  return { racks }
 }
 
 export async function getStorageRacks(departmentId: string, storageAddressId?: string): Promise<StorageRack[]> {
   const params = new URLSearchParams({ department_id: departmentId })
   if (storageAddressId) params.append('storage_address_id', storageAddressId)
   const response = await apiClient.get<StorageRack[]>(`/api/storage-racks?${params.toString()}`)
-  return response.data
+  return sortByNaturalName(response.data, (rack) => rack.name)
 }
 
 export async function getRackContents(rackId: string): Promise<RackContentsResponse> {
@@ -167,7 +172,8 @@ export async function deleteStorageRack(id: string): Promise<void> {
 export async function getStorageSlots(rackId: string): Promise<StorageSlot[]> {
   const response = await apiClient.get<unknown>(`/api/storage-slots?rack_id=${encodeURIComponent(rackId)}`)
   const raw = response.data
-  return Array.isArray(raw) ? (raw as StorageSlot[]) : []
+  const slots = Array.isArray(raw) ? (raw as StorageSlot[]) : []
+  return sortByNaturalName(slots, (slot) => slot.name)
 }
 
 export async function createStorageSlot(data: {

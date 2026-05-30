@@ -8,16 +8,10 @@
     </div>
 
     <div class="toolbar">
-      <div class="search-wrapper">
-        <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <circle cx="11" cy="11" r="8" />
-          <line x1="21" y1="21" x2="16.65" y2="16.65" />
-        </svg>
-        <input
+      <div class="search-box">
+        <SearchFieldInput
           v-model="searchQuery"
-          class="search-input"
-          type="text"
-          :placeholder="t('settings.adminUsers.searchPlaceholder')"
+          :label="t('settings.adminUsers.searchPlaceholder')"
         />
       </div>
       <button class="btn btn-secondary" @click="loadUsers" :disabled="isLoading">
@@ -183,6 +177,7 @@ import {
   type AdminUserListItem,
   type DepartmentRole,
 } from '@/api/adminUsers'
+import SearchFieldInput from '@/components/common/SearchFieldInput.vue'
 import DepartmentMembershipPicker from '@/components/admin/DepartmentMembershipPicker.vue'
 import { useToast } from '@/composables/useToast'
 import { useAuthStore } from '@/stores/auth'

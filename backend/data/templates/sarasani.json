@@ -1,0 +1,118 @@
+{
+    "format_version": 5,
+    "manufacturer": "sarasani",
+    "templates": [
+        {
+            "name": "Sarasani 39er ",
+            "description": "Vorlage für einen 39er Sarasani",
+            "manufacturer": null,
+            "manufacturer_address_id": null,
+            "template_kind": "configurator",
+            "template_domain": "tent",
+            "model": null,
+            "capacity": null,
+            "tentType": "sonstiges",
+            "materialType": "virtual_combo",
+            "isActive": true,
+            "source": null,
+            "components": [
+                {
+                    "type": "zelttuch_",
+                    "name": "Zelttuch ",
+                    "required": 39,
+                    "optional": false,
+                    "tracking": "bulk",
+                    "component_source": "stock"
+                },
+                {
+                    "type": "zurrgurt_12m",
+                    "name": "Zurrgurt 12m",
+                    "required": 3,
+                    "optional": false,
+                    "tracking": "bulk",
+                    "component_source": "stock"
+                },
+                {
+                    "type": "60m",
+                    "name": "Statikseil 60m",
+                    "required": 2,
+                    "optional": false,
+                    "tracking": "bulk",
+                    "component_source": "stock"
+                },
+                {
+                    "type": "rundschlinge",
+                    "name": "Rundschlinge",
+                    "required": 3,
+                    "optional": false,
+                    "tracking": "bulk",
+                    "component_source": "stock"
+                },
+                {
+                    "type": "hms_karabiner",
+                    "name": "HMS Karabiner",
+                    "required": 6,
+                    "optional": false,
+                    "tracking": "bulk",
+                    "component_source": "stock"
+                },
+                {
+                    "type": "30m",
+                    "name": "Statikseil 30m",
+                    "required": 1,
+                    "optional": false,
+                    "tracking": "bulk",
+                    "component_source": "stock"
+                },
+                {
+                    "type": "umlenkrolle",
+                    "name": "Umlenkrolle",
+                    "required": 1,
+                    "optional": false,
+                    "tracking": "bulk",
+                    "component_source": "stock"
+                },
+                {
+                    "type": "eisen_nagel",
+                    "name": "Eisen Nagel",
+                    "required": 7,
+                    "optional": false,
+                    "tracking": "bulk",
+                    "component_source": "stock"
+                },
+                {
+                    "type": "für einen Paralellbund für Karabiner",
+                    "name": "Bundseil",
+                    "required": 2,
+                    "optional": false,
+                    "tracking": "bulk",
+                    "component_source": "stock"
+                },
+                {
+                    "type": "9m",
+                    "name": "Mast",
+                    "required": 1,
+                    "optional": false,
+                    "tracking": "bulk",
+                    "component_source": "self_provided"
+                },
+                {
+                    "type": "abseilachter",
+                    "name": "Abseilachter",
+                    "required": 4,
+                    "optional": false,
+                    "tracking": "bulk",
+                    "component_source": "stock"
+                },
+                {
+                    "type": "schäkel",
+                    "name": "Schäkel",
+                    "required": 4,
+                    "optional": false,
+                    "tracking": "bulk",
+                    "component_source": "stock"
+                }
+            ]
+        }
+    ]
+}

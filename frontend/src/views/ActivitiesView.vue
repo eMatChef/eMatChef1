@@ -101,15 +101,9 @@
         </div>
         <div v-if="activeTab === 'all'" class="filter-actions filter-actions-all">
           <div class="search-box">
-            <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-              <circle cx="11" cy="11" r="8" />
-              <path d="m21 21-4.35-4.35" />
-            </svg>
-            <input
+            <SearchFieldInput
               v-model="searchQuery"
-              type="search"
-              class="search-input form-input"
-              :placeholder="t('activities.searchListPlaceholder')"
+              :label="t('activities.searchListPlaceholder')"
             />
           </div>
         </div>
@@ -267,11 +261,13 @@ import apiClient from '@/api/apiClient'
 import { getActivity } from '@/api/activities'
 import { getGroups, type Group } from '@/api/groups'
 import { buildActivityGroupPathLines, type GroupPathLine } from '@/utils/groupHierarchy'
+import SearchFieldInput from '@/components/common/SearchFieldInput.vue'
 import { ActivityCreateWizard, ActivityDetailView } from '@/components/activities'
 import { usePageHeadStore } from '@/stores/pageHead'
 import { syncDocumentHead } from '@/composables/usePageHead'
 import { useToast } from '@/composables/useToast'
 import { useHeaderNotificationsStore } from '@/stores/headerNotifications'
+import { useDetailTabsStore } from '@/stores/detailTabs'
 import { useDepartmentLiveRefresh } from '@/composables/useDepartmentLiveRefresh'
 import { useListSearchQueryRoute } from '@/composables/useListSearchQueryRoute'
 import { activityStatusClass, activityStatusI18nKey } from '@/utils/activityStatus'
@@ -281,6 +277,7 @@ const router = useRouter()
 const { t, te, locale } = useI18n()
 const toast = useToast()
 const headerNotificationsStore = useHeaderNotificationsStore()
+const detailTabsStore = useDetailTabsStore()
 const pageHeadStore = usePageHeadStore()
 
 const departmentId = computed(() => route.params.departmentId as string)
@@ -710,6 +707,26 @@ watch(activityRouteId, (id, prevId) => {
     void loadActivities()
   }
 })
+
+watch(
+  [activityRouteId, departmentId],
+  ([id, deptId]) => {
+    if (!id || !deptId) return
+    const act = activities.value.find((a) => a.id === id)
+    const label =
+      act?.name?.trim() ||
+      act?.no?.trim() ||
+      t('activities.fallbackTabLabel', { id })
+    detailTabsStore.addOrUpdateTab({
+      id,
+      type: 'activity',
+      label,
+      departmentId: deptId,
+      path: `/${deptId}/activities/${id}`,
+    })
+  },
+  { immediate: true }
+)
 
 // ?new=1: Erstell-Wizard nur auf der Listen-Route (nie in der Detailansicht)
 watch(

@@ -629,6 +629,7 @@ import {
 import { useBackgroundPoll } from '@/composables/useBackgroundPoll'
 import { useConfirm } from '@/composables/useConfirm'
 import { usePageHeadStore } from '@/stores/pageHead'
+import { useDetailTabsStore } from '@/stores/detailTabs'
 import { useHeaderNotificationsStore } from '@/stores/headerNotifications'
 import { useToast } from '@/composables/useToast'
 import { resolveActivityPublicUrl } from '@/utils/publicQrUrl'
@@ -660,6 +661,7 @@ const props = defineProps<{
 
 const route = useRoute()
 const router = useRouter()
+const detailTabsStore = useDetailTabsStore()
 const authStore = useAuthStore()
 
 const ACTIVITY_TAB_IDS = ['overview', 'material', 'packs', 'issues', 'consumables', 'costs', 'history'] as const
@@ -1472,7 +1474,30 @@ async function saveDraftQuantities() {
 }
 
 async function onDraftOverviewSaved() {
-  await reload()
+  await reloadActivityDetailSoft()
+}
+
+/** Nach Auto-Save in der Übersicht: Daten nachladen ohne Vollseiten-Spinner */
+async function reloadActivityDetailSoft(): Promise<void> {
+  if (!activity.value) return
+  try {
+    const prevName = activity.value.name
+    const [d, tr] = await Promise.all([
+      getActivity(props.activityId),
+      getActivityTransitions(props.activityId),
+    ])
+    applyActivityDetailPatch(d)
+    transitions.value = tr.transitions || []
+    completionBlockers.value = tr.completion_blockers ?? null
+    if ((d.name ?? '') !== (prevName ?? '')) {
+      pageHeadStore.setDynamic(
+        t('activities.detail.pageTitleSuffix', { name: d.name ?? prevName }),
+        `${activityTypeLabelDetail(d.type || '')} · ${activityStatusLabelDetail(d.status || '')}`,
+      )
+    }
+  } catch {
+    /* stiller Refresh — kein Spinner, Fehler ignorieren */
+  }
 }
 
 function activityTypeLabelDetail(type: string): string {
@@ -1583,6 +1608,7 @@ async function handleActivityQrPrint() {
 }
 
 function handleClose() {
+  // Zurück zur Liste: Tab im Header bleibt offen (nur × im Header entfernt Chip)
   void router.push(`/${props.departmentId}/activities`)
 }
 
@@ -2040,6 +2066,26 @@ watch(activeTab, (newTab) => {
     void loadItems()
   }
 })
+
+watch(
+  () => {
+    const name = activity.value?.name
+    if (name && String(name).trim()) return String(name).trim()
+    const no = activity.value?.no
+    if (no != null && String(no).trim()) return String(no).trim()
+    return ''
+  },
+  (label) => {
+    if (!label) return
+    detailTabsStore.addOrUpdateTab({
+      id: props.activityId,
+      type: 'activity',
+      label,
+      departmentId: props.departmentId,
+      path: `/${props.departmentId}/activities/${props.activityId}`,
+    })
+  }
+)
 
 onBeforeUnmount(() => {
   pageHeadStore.clearDynamic()

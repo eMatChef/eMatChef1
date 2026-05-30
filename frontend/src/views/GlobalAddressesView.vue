@@ -70,12 +70,11 @@
         <button class="btn btn-primary" :disabled="globalLoading" @click="openCreateGlobalAddressModal">
           {{ t('globalAddressesPage.newAddress') }}
         </button>
-        <input
-          v-model.trim="globalSearch"
-          class="search-input"
-          type="text"
-          :placeholder="t('globalAddressesPage.searchPlaceholder')"
-          @keyup.enter="loadGlobalAddresses"
+        <SearchFieldInput
+          v-model="globalSearch"
+          :label="t('globalAddressesPage.searchPlaceholder')"
+          class="controls-search"
+          @keydown.enter="loadGlobalAddresses"
         />
         <button class="btn btn-secondary" :disabled="globalLoading" @click="loadGlobalAddresses">
           {{ t('common.refresh') }}
@@ -188,6 +187,7 @@ import {
   type AdminSupplierCompany,
 } from '@/api/adminSupplierCompanies'
 import { deleteGlobalAddress, getGlobalAddresses, type GlobalAddress } from '@/api/globalAddresses'
+import SearchFieldInput from '@/components/common/SearchFieldInput.vue'
 import AddressModal from '@/components/AddressModal.vue'
 import SupplierCompanyOnboardModal from '@/components/supplier/SupplierCompanyOnboardModal.vue'
 import SupplierCompanyAdminModal from '@/components/supplier/SupplierCompanyAdminModal.vue'
@@ -427,10 +427,6 @@ onMounted(() => {
   flex-wrap: wrap;
   gap: 10px;
   margin: 14px 0;
-}
-
-.search-input {
-  width: 280px;
 }
 
 .btn-inline {

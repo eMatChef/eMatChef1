@@ -830,6 +830,7 @@
     "viewKanban": "Kanban",
     "viewTable": "Tabella",
     "searchPlaceholder": "Cerca ticket (material:, attività:, reparatur:)",
+    "searchListPlaceholder": "Cerca titolo, materiale o descrizione…",
     "filterAllTypes": "Tutti i tipi",
     "filterAllSources": "Tutte le fonti",
     "filterAllPriorities": "Tutte le priorità",
