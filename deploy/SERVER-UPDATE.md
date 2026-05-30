@@ -79,14 +79,14 @@ chmod 600 .env
 EMATCHEF_PROD_ROOT=/opt/ematchef/develop EMATCHEF_GIT_BRANCH=develop COMPOSE_PROJECT_NAME=ematchef-develop ./deploy/prod-update.sh up
 ```
 
-**Backend-Port 8081 (Override):** `docker-compose.yml` mappt bereits `8081:8081`. Die Override-Vorlagen setzen `ports: !reset` und nur `127.0.0.1:8081:8081` — sonst zwei Bindings auf demselben Host-Port (`address already in use`, Backend bleibt `Created`). Prüfen:
+**Backend-Port 8081 (Override):** `docker-compose.yml` mappt bereits `8081:8081`. Die Override-Vorlagen setzen `ports: !override` mit nur `127.0.0.1:8081:8081` — sonst zwei Bindings auf demselben Host-Port (`address already in use`, Backend bleibt `Created`). Nicht `!reset` verwenden: das leert `ports` komplett (Container läuft, aber kein Host-Port). Prüfen:
 
 ```bash
 docker compose -p ematchef-develop config | awk '/^  backend:/{p=1} p{print} /^  [a-z]+:/ && !/^  backend:/{if(p&&NR>1) exit}' | grep -A10 ports
 # Erwartung: genau ein Eintrag mit host_ip: 127.0.0.1
 ```
 
-Bestehende `docker-compose.override.yml` auf dem Server: `ports: !reset` ergänzen (siehe `deploy/docker-compose.override.develop.example.yml`).
+Bestehende `docker-compose.override.yml` auf dem Server: `ports: !override` ergänzen (siehe `deploy/docker-compose.override.develop.example.yml`).
 
 **Prod-Droplet** (Reihenfolge wie in den Kommentaren der Beispieldateien):
 

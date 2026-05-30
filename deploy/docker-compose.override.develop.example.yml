@@ -13,8 +13,9 @@ services:
     restart: unless-stopped
 
   backend:
-    # !reset: docker-compose.yml hat bereits 8081:8081 — ohne reset doppeltes Host-Mapping → „address already in use“
-    ports: !reset
+    # !override: docker-compose.yml hat bereits 8081:8081 — ohne override doppeltes Host-Mapping → „address already in use“
+    # (!reset würde ports leeren; die Liste darunter wird bei !reset ignoriert)
+    ports: !override
       - "127.0.0.1:8081:8081"
     restart: unless-stopped
     security_opt:
