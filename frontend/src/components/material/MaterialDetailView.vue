@@ -41,7 +41,12 @@
             {{ t('components.materialDetail.qrCodes') }}
           </button>
           <button class="btn-outline" @click="handleClose">{{ t('components.materialDetail.close') }}</button>
-          <button class="btn-primary" @click="save" :disabled="!hasChanges || isSaving">
+          <button
+            v-if="hasManualUnsavedChanges || isSaving"
+            class="btn-primary"
+            @click="save"
+            :disabled="!hasManualUnsavedChanges || isSaving"
+          >
             {{ isSaving ? t('common.saving') : t('common.save') }}
           </button>
         </template>
@@ -116,35 +121,54 @@
               <h2 class="section-title">{{ t('common.material') }}</h2>
               
               <div class="form-grid">
-                <div class="form-group span-2">
-                  <label>{{ t('components.materialDetail.labelNameDb') }}</label>
-                  <input v-model="formData.name" type="text" class="form-input" />
-                </div>
+                <AutoSaveField
+                  v-model="formData.name"
+                  :baseline="savedFormBaselines.name"
+                  :label="t('components.materialDetail.labelNameDb')"
+                  span-class="form-group span-2"
+                  :save="(v) => saveMaterialField('name', v)"
+                />
                 
-                <div class="form-group">
-                  <label>{{ t('components.materialDetail.labelCode') }} <span class="optional">{{ t('components.materialDetail.optionalShort') }}</span></label>
-                  <input v-model="formData.barcode_tag" type="text" class="form-input" :placeholder="t('components.materialDetail.codePlaceholder')" />
-                </div>
+                <AutoSaveField
+                  v-model="formData.barcode_tag"
+                  :baseline="savedFormBaselines.barcode_tag"
+                  :label="`${t('components.materialDetail.labelCode')} (${t('components.materialDetail.optionalShort')})`"
+                  :placeholder="t('components.materialDetail.codePlaceholder')"
+                  :save="(v) => saveMaterialField('barcode_tag', v)"
+                />
                 
-                <div class="form-group">
-                  <label>{{ t('components.materialDetail.labelCategory') }}</label>
-                  <CategoryAutocompleteInput
-                    v-model="formData.category_id"
-                    :categories="categories"
-                    :department-id="departmentId"
-                    @reload-categories="handleCategoryReloadFromPicker"
-                  />
-                </div>
+                <AutoSaveField
+                  v-model="formData.category_id"
+                  :baseline="savedFormBaselines.category_id"
+                  :label="t('components.materialDetail.labelCategory')"
+                  :save="(v) => saveMaterialField('category_id', v)"
+                >
+                  <template #default="{ onFocus, onBlur, onChange }">
+                    <CategoryAutocompleteInput
+                      v-model="formData.category_id"
+                      :categories="categories"
+                      :department-id="departmentId"
+                      @focus="onFocus"
+                      @blur="onBlur"
+                      @change="onChange"
+                      @reload-categories="handleCategoryReloadFromPicker"
+                    />
+                  </template>
+                </AutoSaveField>
                 
-                <div class="form-group">
-                  <label>{{ t('common.manufacturer') }}</label>
-                  <input v-model="formData.manufacturer" type="text" class="form-input" />
-                </div>
+                <AutoSaveField
+                  v-model="formData.manufacturer"
+                  :baseline="savedFormBaselines.manufacturer"
+                  :label="t('common.manufacturer')"
+                  :save="(v) => saveMaterialField('manufacturer', v)"
+                />
                 
-                <div class="form-group">
-                  <label>{{ t('components.materialDetail.labelModel') }}</label>
-                  <input v-model="formData.model" type="text" class="form-input" />
-                </div>
+                <AutoSaveField
+                  v-model="formData.model"
+                  :baseline="savedFormBaselines.model"
+                  :label="t('components.materialDetail.labelModel')"
+                  :save="(v) => saveMaterialField('model', v)"
+                />
               </div>
             </div>
 
@@ -167,10 +191,15 @@
                   v-if="material.tracking_type === 'bulk'"
                   class="property-item property-item--checkbox"
                 >
-                  <label class="checkbox-label property-checkbox-label">
-                    <input type="checkbox" v-model="formData.is_container" />
-                    <span>{{ t('components.materialDetail.containerCheckbox') }}</span>
-                  </label>
+                  <AutoSaveField
+                    v-model="formData.is_container"
+                    :baseline="savedFormBaselines.is_container"
+                    :label="t('components.materialDetail.containerCheckbox')"
+                    type="checkbox"
+                    :checkbox-label="t('components.materialDetail.containerCheckbox')"
+                    span-class="property-item property-item--checkbox autosave-checkbox-field"
+                    :save="(v) => saveMaterialField('is_container', v)"
+                  />
                   <p class="form-hint text-muted mt-1">
                     {{ t('components.materialDetail.containerCheckboxHint') }}
                   </p>
@@ -182,14 +211,24 @@
               </div>
 
               <div v-if="canManageJsMaterial" class="checkbox-group mt-4">
-                <label class="checkbox-label">
-                  <input type="checkbox" v-model="formData.is_js_material" />
-                  <span>{{ t('components.materialDetail.jsMaterialGlobal') }}</span>
-                </label>
-                <div v-if="formData.is_js_material" class="form-group mt-2">
-                  <label>{{ t('components.materialDetail.labelExternalSource') }}</label>
-                  <input v-model="formData.external_source" type="text" class="form-input" :placeholder="t('components.materialDetail.externalSourcePlaceholder')" />
-                </div>
+                <AutoSaveField
+                  v-model="formData.is_js_material"
+                  :baseline="savedFormBaselines.is_js_material"
+                  :label="t('components.materialDetail.jsMaterialGlobal')"
+                  type="checkbox"
+                  :checkbox-label="t('components.materialDetail.jsMaterialGlobal')"
+                  span-class="autosave-checkbox-field"
+                  :save="(v) => saveMaterialField('is_js_material', v)"
+                />
+                <AutoSaveField
+                  v-if="formData.is_js_material"
+                  v-model="formData.external_source"
+                  :baseline="savedFormBaselines.external_source"
+                  :label="t('components.materialDetail.labelExternalSource')"
+                  :placeholder="t('components.materialDetail.externalSourcePlaceholder')"
+                  span-class="form-group mt-2"
+                  :save="(v) => saveMaterialField('external_source', v)"
+                />
               </div>
               <div v-else-if="formData.is_js_material" class="form-group mt-4">
                 <label>{{ t('components.materialDetail.labelExternalSource') }}</label>
@@ -217,49 +256,65 @@
               <h2 class="section-title">{{ t('components.materialDetail.sectionDetails') }}</h2>
               
               <div class="form-grid">
-                <div class="form-group">
-                  <label>{{ t('components.materialDetail.labelEan') }}</label>
-                  <input v-model="formData.ean" type="text" class="form-input" />
-                </div>
-                <MaterialMetricInput
+                <AutoSaveField
+                  v-model="formData.ean"
+                  :baseline="savedFormBaselines.ean"
+                  :label="t('components.materialDetail.labelEan')"
+                  :save="(v) => saveMaterialField('ean', v)"
+                />
+                <AutoSaveField
                   v-model="formData.weight"
+                  :baseline="savedFormBaselines.weight"
                   :label="t('components.materialDetail.labelWeightKg')"
-                  unit="kg"
+                  type="number"
+                  :save="(v) => saveMaterialField('weight', v)"
                 />
-                <div class="form-group">
-                  <label>{{ t('components.materialDetail.labelColor') }}</label>
-                  <input v-model="formData.color" type="text" class="form-input" />
-                </div>
-                <MaterialMetricInput
+                <AutoSaveField
+                  v-model="formData.color"
+                  :baseline="savedFormBaselines.color"
+                  :label="t('components.materialDetail.labelColor')"
+                  :save="(v) => saveMaterialField('color', v)"
+                />
+                <AutoSaveField
                   v-model="formData.size_length"
+                  :baseline="savedFormBaselines.size_length"
                   :label="t('components.materialDetail.labelLengthCm')"
-                  unit="cm"
+                  type="number"
+                  :save="(v) => saveMaterialField('size_length', v)"
                 />
-                <MaterialMetricInput
+                <AutoSaveField
                   v-model="formData.size_width"
+                  :baseline="savedFormBaselines.size_width"
                   :label="t('components.materialDetail.labelWidthCm')"
-                  unit="cm"
+                  type="number"
+                  :save="(v) => saveMaterialField('size_width', v)"
                 />
-                <MaterialMetricInput
+                <AutoSaveField
                   v-model="formData.size_height"
+                  :baseline="savedFormBaselines.size_height"
                   :label="t('components.materialDetail.labelHeightCm')"
-                  unit="cm"
+                  type="number"
+                  :save="(v) => saveMaterialField('size_height', v)"
                 />
-                <div class="form-group">
-                  <label>{{ t('components.materialDetail.labelWarranty') }}</label>
-                  <input v-model="formData.warranty_until" type="date" class="form-input" />
-                </div>
+                <AutoSaveField
+                  v-model="formData.warranty_until"
+                  :baseline="savedFormBaselines.warranty_until"
+                  :label="t('components.materialDetail.labelWarranty')"
+                  type="date"
+                  :save="(v) => saveMaterialField('warranty_until', v)"
+                />
               </div>
 
-              <div class="form-group span-full mt-4">
-                <label>{{ t('components.materialDetail.labelDescription') }}</label>
-                <textarea
-                  v-model="formData.description"
-                  class="form-textarea"
-                  rows="3"
-                  :placeholder="t('components.materialDetail.phDescriptionOptional')"
-                ></textarea>
-              </div>
+              <AutoSaveField
+                v-model="formData.description"
+                :baseline="savedFormBaselines.description"
+                :label="t('components.materialDetail.labelDescription')"
+                type="textarea"
+                :rows="3"
+                :placeholder="t('components.materialDetail.phDescriptionOptional')"
+                span-class="form-group span-full mt-4"
+                :save="(v) => saveMaterialField('description', v)"
+              />
             </div>
 
             <!-- Verpackungseinheit (bei Verbrauch/Essen siehe Kosten) -->
@@ -268,39 +323,32 @@
               <p class="section-hint">{{ t('components.materialDetail.packagingHint') }}</p>
               
               <div class="form-grid">
-                <div class="form-group">
-                  <label>{{ t('components.materialDetail.labelPiecesPerUnit') }}</label>
-                  <input 
-                    v-model.number="formData.pack_size" 
-                    type="number" 
-                    min="2"
-                    class="form-input"
-                    :placeholder="t('components.materialDetail.packSizePlaceholder')"
-                  />
-                </div>
-                <div class="form-group">
-                  <label>{{ t('components.materialDetail.labelDesignation') }}</label>
-                  <div class="pack-unit-select">
-                    <select v-model="formData.pack_unit" class="form-select">
-                      <option value="">{{ t('components.materialDetail.packUnitNone') }}</option>
-                      <option :value="PACK_UNIT_BUNDLE">{{ t('components.materialDetail.packUnitBundle') }}</option>
-                      <option :value="PACK_UNIT_KISTE">{{ t('components.materialDetail.packUnitKiste') }}</option>
-                      <option :value="PACK_UNIT_KARTON">{{ t('components.materialDetail.packUnitKarton') }}</option>
-                      <option :value="PACK_UNIT_SACK">{{ t('components.materialDetail.packUnitSack') }}</option>
-                      <option :value="PACK_UNIT_ROLLE">{{ t('components.materialDetail.packUnitRolle') }}</option>
-                      <option :value="PACK_UNIT_PALETTE">{{ t('components.materialDetail.packUnitPalette') }}</option>
-                      <option :value="PACK_UNIT_SET">{{ t('components.materialDetail.packUnitSet') }}</option>
-                      <option :value="PACK_UNIT_PAKET">{{ t('components.materialDetail.packUnitPaket') }}</option>
-                    </select>
-                    <input
-                      v-if="formData.pack_unit && !PACK_UNIT_VALUES.includes(formData.pack_unit)"
-                      v-model="formData.pack_unit"
-                      type="text"
-                      class="form-input mt-1"
-                      :placeholder="t('components.materialDetail.packUnitCustomPlaceholder')"
-                    />
-                  </div>
-                </div>
+                <AutoSaveField
+                  v-model="formData.pack_size"
+                  :baseline="savedFormBaselines.pack_size"
+                  :label="t('components.materialDetail.labelPiecesPerUnit')"
+                  type="number"
+                  :min="2"
+                  :placeholder="t('components.materialDetail.packSizePlaceholder')"
+                  :save="(v) => saveMaterialField('pack_size', v)"
+                />
+                <AutoSaveField
+                  v-model="formData.pack_unit"
+                  :baseline="savedFormBaselines.pack_unit"
+                  :label="t('components.materialDetail.labelDesignation')"
+                  type="select"
+                  :options="packUnitSelectOptions"
+                  :save="(v) => saveMaterialField('pack_unit', v)"
+                />
+                <AutoSaveField
+                  v-if="formData.pack_unit && !PACK_UNIT_VALUES.includes(formData.pack_unit)"
+                  v-model="formData.pack_unit"
+                  :baseline="savedFormBaselines.pack_unit"
+                  :label="t('components.materialDetail.packUnitCustomPlaceholder')"
+                  :placeholder="t('components.materialDetail.packUnitCustomPlaceholder')"
+                  span-class="form-group span-full"
+                  :save="(v) => saveMaterialField('pack_unit', v)"
+                />
               </div>
               <p v-if="formData.pack_size && formData.pack_unit" class="pack-preview">
                 {{ t('components.materialDetail.packPreview', { stock: material.total_stock || 80, packs: Math.floor((material.total_stock || 80) / formData.pack_size), unit: formData.pack_unit, per: formData.pack_size }) }}
@@ -312,25 +360,33 @@
               <h2 class="section-title">{{ t('components.materialDetail.sectionPackDimensions') }}</h2>
               <p class="section-hint">{{ t('components.materialDetail.packDimensionsHint') }}</p>
               <div class="form-grid">
-                <MaterialMetricInput
+                <AutoSaveField
                   v-model="formData.pack_weight"
+                  :baseline="savedFormBaselines.pack_weight"
                   :label="t('components.materialDetail.labelPackWeightKg')"
-                  unit="kg"
+                  type="number"
+                  :save="(v) => saveMaterialField('pack_weight', v)"
                 />
-                <MaterialMetricInput
+                <AutoSaveField
                   v-model="formData.pack_size_length"
+                  :baseline="savedFormBaselines.pack_size_length"
                   :label="t('components.materialDetail.labelPackLengthCm')"
-                  unit="cm"
+                  type="number"
+                  :save="(v) => saveMaterialField('pack_size_length', v)"
                 />
-                <MaterialMetricInput
+                <AutoSaveField
                   v-model="formData.pack_size_width"
+                  :baseline="savedFormBaselines.pack_size_width"
                   :label="t('components.materialDetail.labelPackWidthCm')"
-                  unit="cm"
+                  type="number"
+                  :save="(v) => saveMaterialField('pack_size_width', v)"
                 />
-                <MaterialMetricInput
+                <AutoSaveField
                   v-model="formData.pack_size_height"
+                  :baseline="savedFormBaselines.pack_size_height"
                   :label="t('components.materialDetail.labelPackHeightCm')"
-                  unit="cm"
+                  type="number"
+                  :save="(v) => saveMaterialField('pack_size_height', v)"
                 />
               </div>
             </div>
@@ -459,25 +515,33 @@
               <h3 class="subsection-heading-kosten">{{ t('components.materialDetail.sectionPackDimensions') }}</h3>
               <p class="section-hint">{{ t('components.materialDetail.packDimensionsHint') }}</p>
               <div class="form-grid">
-                <MaterialMetricInput
+                <AutoSaveField
                   v-model="formData.pack_weight"
+                  :baseline="savedFormBaselines.pack_weight"
                   :label="t('components.materialDetail.labelPackWeightKg')"
-                  unit="kg"
+                  type="number"
+                  :save="(v) => saveMaterialField('pack_weight', v)"
                 />
-                <MaterialMetricInput
+                <AutoSaveField
                   v-model="formData.pack_size_length"
+                  :baseline="savedFormBaselines.pack_size_length"
                   :label="t('components.materialDetail.labelPackLengthCm')"
-                  unit="cm"
+                  type="number"
+                  :save="(v) => saveMaterialField('pack_size_length', v)"
                 />
-                <MaterialMetricInput
+                <AutoSaveField
                   v-model="formData.pack_size_width"
+                  :baseline="savedFormBaselines.pack_size_width"
                   :label="t('components.materialDetail.labelPackWidthCm')"
-                  unit="cm"
+                  type="number"
+                  :save="(v) => saveMaterialField('pack_size_width', v)"
                 />
-                <MaterialMetricInput
+                <AutoSaveField
                   v-model="formData.pack_size_height"
+                  :baseline="savedFormBaselines.pack_size_height"
                   :label="t('components.materialDetail.labelPackHeightCm')"
-                  unit="cm"
+                  type="number"
+                  :save="(v) => saveMaterialField('pack_size_height', v)"
                 />
               </div>
             </div>
@@ -1061,7 +1125,7 @@
                       <label class="detail-inline-label">{{ t('components.materialDetail.labelContainerBag') }}</label>
                       <select v-model="containerContentBatchId" class="detail-inline-select">
                         <option value="">{{ t('components.materialDetail.optPickContainerBag') }}</option>
-                        <option v-for="option in storedInContainerOptions" :key="option.id" :value="option.id">
+                        <option v-for="option in storedInContainerOptions" :key="option.id" :value="option.id" :title="option.label">
                           {{ option.label }}
                         </option>
                       </select>
@@ -1164,38 +1228,39 @@
                   <div v-else-if="!containerEditorBatchId" class="empty-used-in">
                     <p>{{ t('components.materialDetail.containerEditorLoadFailed') }}</p>
                   </div>
-                  <div v-else class="form-grid">
-                    <div class="form-group span-full">
-                      <label>{{ t('common.serialNumber') }}</label>
-                      <input v-model="containerEditorForm.serial_number" type="text" class="form-input" />
-                    </div>
-                    <div class="form-group span-full">
-                      <label>{{ t('components.materialDetail.labelBatchLabel') }}</label>
-                      <input v-model="containerEditorForm.label" type="text" class="form-input" />
-                    </div>
-                    <div class="form-group span-full">
-                      <label>{{ t('common.status') }}</label>
-                      <select v-model="containerEditorForm.status" class="form-select">
-                        <option value="active">{{ t('components.materialDetail.batchStatusActive') }}</option>
-                        <option value="defect">{{ t('components.materialDetail.batchStatusDefect') }}</option>
-                        <option value="repair">{{ t('components.materialDetail.batchStatusRepair') }}</option>
-                        <option value="lost">{{ t('components.materialDetail.batchStatusLost') }}</option>
-                        <option value="disposed">{{ t('components.materialDetail.batchStatusDisposed') }}</option>
-                      </select>
-                    </div>
-                    <div class="form-group span-full">
-                      <label>{{ t('components.materialDetail.labelNote') }}</label>
-                      <textarea v-model="containerEditorForm.notes" class="form-textarea" rows="3"></textarea>
-                    </div>
-                    <div class="form-group span-full">
-                      <button
-                        class="btn-primary"
-                        :disabled="isSavingContainerEditor || !containerEditorDirty"
-                        @click="saveContainerEditor"
-                      >
-                        {{ isSavingContainerEditor ? t('common.saving') : t('common.save') }}
-                      </button>
-                    </div>
+                  <div v-else class="form-grid autosave-form-grid">
+                    <AutoSaveField
+                      v-model="containerEditorForm.serial_number"
+                      :baseline="containerEditorBaselines.serial_number"
+                      :label="t('common.serialNumber')"
+                      span-class="form-group span-full"
+                      :save="(v) => saveContainerEditorField('serial_number', v)"
+                    />
+                    <AutoSaveField
+                      v-model="containerEditorForm.label"
+                      :baseline="containerEditorBaselines.label"
+                      :label="t('components.materialDetail.labelBatchLabel')"
+                      span-class="form-group span-full"
+                      :save="(v) => saveContainerEditorField('label', v)"
+                    />
+                    <AutoSaveField
+                      v-model="containerEditorForm.status"
+                      :baseline="containerEditorBaselines.status"
+                      :label="t('common.status')"
+                      type="select"
+                      span-class="form-group span-full"
+                      :options="containerEditorStatusOptions"
+                      :save="(v) => saveContainerEditorField('status', v)"
+                    />
+                    <AutoSaveField
+                      v-model="containerEditorForm.notes"
+                      :baseline="containerEditorBaselines.notes"
+                      :label="t('components.materialDetail.labelNote')"
+                      type="textarea"
+                      :rows="3"
+                      span-class="form-group span-full"
+                      :save="(v) => saveContainerEditorField('notes', v)"
+                    />
                   </div>
                 </div>
               </aside>
@@ -1617,70 +1682,90 @@
               />
               
               <div class="form-grid">
-                <div class="form-group">
-                  <label>{{ t('components.materialDetail.labelDayPrice') }}</label>
-                  <div class="input-with-prefix">
-                    <span class="prefix">{{ t('components.materialDetail.currencyFr') }}</span>
-                    <input v-model="formData.rental_price_day" type="text" class="form-input" />
-                  </div>
-                </div>
-                <div class="form-group">
-                  <label>{{ t('components.materialDetail.labelWeekPrice') }}</label>
-                  <div class="input-with-prefix">
-                    <span class="prefix">{{ t('components.materialDetail.currencyFr') }}</span>
-                    <input v-model="formData.rental_price_week" type="text" class="form-input" />
-                  </div>
-                </div>
-                <div class="form-group">
-                  <label>{{ t('components.materialDetail.labelMonthPrice') }}</label>
-                  <div class="input-with-prefix">
-                    <span class="prefix">{{ t('components.materialDetail.currencyFr') }}</span>
-                    <input v-model="formData.rental_price_month" type="text" class="form-input" />
-                  </div>
-                </div>
-                <div class="form-group">
-                  <label>{{ t('components.materialDetail.labelDeposit') }}</label>
-                  <div class="input-with-prefix">
-                    <span class="prefix">{{ t('components.materialDetail.currencyFr') }}</span>
-                    <input v-model="formData.rental_deposit" type="text" class="form-input" />
-                  </div>
-                </div>
-                <div class="form-group">
-                  <label>{{ t('components.materialDetail.labelLeadDays') }}</label>
-                  <input v-model="formData.rental_lead_days" type="number" class="form-input" />
-                </div>
-                <div class="form-group">
-                  <label>{{ t('components.materialDetail.labelMaxRentalDays') }}</label>
-                  <input v-model="formData.rental_max_days" type="number" class="form-input" />
-                </div>
+                <AutoSaveField
+                  v-model="formData.rental_price_day"
+                  :baseline="savedFormBaselines.rental_price_day"
+                  :label="t('components.materialDetail.labelDayPrice')"
+                  :save="(v) => saveMaterialField('rental_price_day', v)"
+                />
+                <AutoSaveField
+                  v-model="formData.rental_price_week"
+                  :baseline="savedFormBaselines.rental_price_week"
+                  :label="t('components.materialDetail.labelWeekPrice')"
+                  :save="(v) => saveMaterialField('rental_price_week', v)"
+                />
+                <AutoSaveField
+                  v-model="formData.rental_price_month"
+                  :baseline="savedFormBaselines.rental_price_month"
+                  :label="t('components.materialDetail.labelMonthPrice')"
+                  :save="(v) => saveMaterialField('rental_price_month', v)"
+                />
+                <AutoSaveField
+                  v-model="formData.rental_deposit"
+                  :baseline="savedFormBaselines.rental_deposit"
+                  :label="t('components.materialDetail.labelDeposit')"
+                  :save="(v) => saveMaterialField('rental_deposit', v)"
+                />
+                <AutoSaveField
+                  v-model="formData.rental_lead_days"
+                  :baseline="savedFormBaselines.rental_lead_days"
+                  :label="t('components.materialDetail.labelLeadDays')"
+                  type="number"
+                  :save="(v) => saveMaterialField('rental_lead_days', v)"
+                />
+                <AutoSaveField
+                  v-model="formData.rental_max_days"
+                  :baseline="savedFormBaselines.rental_max_days"
+                  :label="t('components.materialDetail.labelMaxRentalDays')"
+                  type="number"
+                  :save="(v) => saveMaterialField('rental_max_days', v)"
+                />
               </div>
 
               <div class="checkbox-group mt-4">
-                <label class="checkbox-label">
-                  <input type="checkbox" v-model="formData.rental_external_allowed" />
-                  <span>{{ t('components.materialDetail.chkExternalRental') }}</span>
-                </label>
-                <label class="checkbox-label">
-                  <input type="checkbox" v-model="formData.rental_requires_approval" />
-                  <span>{{ t('components.materialDetail.chkApprovalRequired') }}</span>
-                </label>
+                <AutoSaveField
+                  v-model="formData.rental_external_allowed"
+                  :baseline="savedFormBaselines.rental_external_allowed"
+                  :label="t('components.materialDetail.chkExternalRental')"
+                  type="checkbox"
+                  :checkbox-label="t('components.materialDetail.chkExternalRental')"
+                  span-class="autosave-checkbox-field"
+                  :save="(v) => saveMaterialField('rental_external_allowed', v)"
+                />
+                <AutoSaveField
+                  v-model="formData.rental_requires_approval"
+                  :baseline="savedFormBaselines.rental_requires_approval"
+                  :label="t('components.materialDetail.chkApprovalRequired')"
+                  type="checkbox"
+                  :checkbox-label="t('components.materialDetail.chkApprovalRequired')"
+                  span-class="autosave-checkbox-field"
+                  :save="(v) => saveMaterialField('rental_requires_approval', v)"
+                />
               </div>
 
-              <div v-if="formData.rental_external_allowed" class="form-group span-full mt-2">
-                <label>{{ t('components.materialDetail.labelExternalRentalScope') }}</label>
-                <select v-model="formData.rental_scope" class="form-select">
-                  <option value="">{{ t('components.materialDetail.rentalScopeUnset') }}</option>
-                  <option value="department">{{ t('components.materialDetail.rentalScopeDepartment') }}</option>
-                  <option value="organisation">{{ t('components.materialDetail.rentalScopeOrganisation') }}</option>
-                  <option value="public">{{ t('components.materialDetail.rentalScopePublic') }}</option>
-                </select>
+              <div v-if="formData.rental_external_allowed" class="span-full mt-2">
+                <AutoSaveField
+                  v-model="formData.rental_scope"
+                  :baseline="savedFormBaselines.rental_scope"
+                  :label="t('components.materialDetail.labelExternalRentalScope')"
+                  type="select"
+                  span-class="form-group span-full"
+                  :options="rentalScopeOptions"
+                  :save="(v) => saveMaterialField('rental_scope', v)"
+                />
                 <p class="form-hint">{{ t('components.materialDetail.hintRentalScope') }}</p>
               </div>
 
-              <div class="form-group span-full mt-4">
-                <label>{{ t('components.materialDetail.labelRentalNotes') }}</label>
-                <textarea v-model="formData.rental_notes" class="form-textarea" rows="3" :placeholder="t('components.materialDetail.phRentalNotes')"></textarea>
-              </div>
+              <AutoSaveField
+                v-model="formData.rental_notes"
+                :baseline="savedFormBaselines.rental_notes"
+                :label="t('components.materialDetail.labelRentalNotes')"
+                type="textarea"
+                :rows="3"
+                :placeholder="t('components.materialDetail.phRentalNotes')"
+                span-class="form-group span-full mt-4"
+                :save="(v) => saveMaterialField('rental_notes', v)"
+              />
                 </div>
               </div>
             </div>
@@ -2556,7 +2641,7 @@ import {
 } from '@/api/departmentSettings'
 import { getWorkshopTickets, type WorkshopTicket } from '@/api/workshop'
 import RentalPriceAmortizationCalculator from '@/components/material/RentalPriceAmortizationCalculator.vue'
-import MaterialMetricInput from '@/components/material/MaterialMetricInput.vue'
+import { AutoSaveField, useFormFieldBaselines } from '@/components/common/autoSave'
 import { normalizeMaterialMetricInput } from '@/utils/materialMetricUnits'
 import SplitModal from '@/components/material/SplitModal.vue'
 import { useAuthStore } from '@/stores/auth'
@@ -2621,6 +2706,25 @@ const PACK_UNIT_VALUES = [
   PACK_UNIT_PAKET,
   '',
 ]
+
+const packUnitSelectOptions = computed(() => [
+  { value: '', label: t('components.materialDetail.packUnitNone') },
+  { value: PACK_UNIT_BUNDLE, label: t('components.materialDetail.packUnitBundle') },
+  { value: PACK_UNIT_KISTE, label: t('components.materialDetail.packUnitKiste') },
+  { value: PACK_UNIT_KARTON, label: t('components.materialDetail.packUnitKarton') },
+  { value: PACK_UNIT_SACK, label: t('components.materialDetail.packUnitSack') },
+  { value: PACK_UNIT_ROLLE, label: t('components.materialDetail.packUnitRolle') },
+  { value: PACK_UNIT_PALETTE, label: t('components.materialDetail.packUnitPalette') },
+  { value: PACK_UNIT_SET, label: t('components.materialDetail.packUnitSet') },
+  { value: PACK_UNIT_PAKET, label: t('components.materialDetail.packUnitPaket') },
+])
+
+const rentalScopeOptions = computed(() => [
+  { value: '', label: t('components.materialDetail.rentalScopeUnset') },
+  { value: 'department', label: t('components.materialDetail.rentalScopeDepartment') },
+  { value: 'organisation', label: t('components.materialDetail.rentalScopeOrganisation') },
+  { value: 'public', label: t('components.materialDetail.rentalScopePublic') },
+])
 
 function sortLocale(): string {
   return String(locale.value || 'de').replace('_', '-')
@@ -3052,10 +3156,18 @@ function onRentalCalculatorApply(p: { day: string; week: string; month: string }
   formData.rental_price_day = p.day
   formData.rental_price_week = p.week
   formData.rental_price_month = p.month
-  void nextTick(() => {
-    detailTabsStore.setTabDirty(props.materialId, 'material', props.departmentId, hasChanges.value)
+  void nextTick(async () => {
     if (rentalChanged) {
-      toast.success(t('components.materialDetail.toastRentalSuggestionApplied'))
+      try {
+        await Promise.all([
+          saveMaterialField('rental_price_day', p.day),
+          saveMaterialField('rental_price_week', p.week),
+          saveMaterialField('rental_price_month', p.month),
+        ])
+        toast.success(t('components.materialDetail.toastRentalSuggestionApplied'))
+      } catch {
+        toast.error(t('components.materialDetail.errSaveMaterial'))
+      }
     } else {
       toast.info(t('components.materialDetail.toastRentalPricesUnchanged'))
     }
@@ -3088,6 +3200,8 @@ const containerEditorForm = reactive({
   status: 'active',
   notes: '',
 })
+const { baselines: containerEditorBaselines, syncBaselines: syncContainerEditorBaselines } =
+  useFormFieldBaselines(containerEditorForm)
 const showAddToContainerModal = ref(false)
 const isLoadingSourceMaterial = ref(false)
 const isAddingToContainer = ref(false)
@@ -3168,8 +3282,176 @@ const formData = reactive({
   pack_sale_price_chf: null as number | null,
 })
 
+const { baselines: savedFormBaselines, syncBaselines: syncSavedFormBaselines, syncBaselineFor: syncSavedFormBaselineFor } =
+  useFormFieldBaselines(formData)
+
 // Original data for change detection
 let originalFormData = ''
+
+type MaterialFormField = keyof typeof formData
+
+function buildMaterialFieldPayload(field: MaterialFormField, value: unknown, m: Material): Record<string, unknown> {
+  const payload: Record<string, unknown> = {}
+  const emptyToNull = (v: unknown) => {
+    if (v == null) return null
+    if (typeof v === 'string' && v.trim() === '') return null
+    return v
+  }
+
+  switch (field) {
+    case 'name':
+      payload.name = String(value ?? '')
+      break
+    case 'description':
+      payload.description = emptyToNull(value)
+      break
+    case 'barcode_tag':
+      payload.barcode_tag = emptyToNull(value)
+      break
+    case 'category_id':
+      payload.category_id = emptyToNull(value)
+      break
+    case 'storage_address_id':
+      payload.storage_address_id = emptyToNull(value)
+      break
+    case 'manufacturer':
+    case 'model':
+    case 'ean':
+    case 'color':
+      payload[field] = emptyToNull(value)
+      break
+    case 'weight':
+      payload.weight = normalizeMaterialMetricInput(String(value ?? ''), 'kg')
+      break
+    case 'size_length':
+    case 'size_width':
+    case 'size_height':
+      payload[field] = normalizeMaterialMetricInput(String(value ?? ''), 'cm')
+      break
+    case 'warranty_until':
+      payload.warranty_until = emptyToNull(value)
+      break
+    case 'rental_price_day':
+    case 'rental_price_week':
+    case 'rental_price_month':
+    case 'rental_deposit':
+      payload[field] = emptyToNull(value)
+      break
+    case 'rental_lead_days':
+    case 'rental_max_days':
+      payload[field] = value == null || value === '' ? null : Number(value)
+      break
+    case 'rental_external_allowed':
+    case 'rental_requires_approval':
+      payload[field] = !!value
+      break
+    case 'rental_scope':
+      payload.rental_scope = formData.rental_external_allowed ? emptyToNull(value) : null
+      break
+    case 'rental_notes':
+      payload.rental_notes = emptyToNull(value)
+      break
+    case 'rental_calc_params':
+      payload.rental_calc_params = value ?? null
+      break
+    case 'pack_size':
+      payload.pack_size = value == null || value === '' ? null : Number(value)
+      break
+    case 'pack_unit':
+      payload.pack_unit = emptyToNull(value)
+      break
+    case 'pack_sale_price_chf':
+      payload.pack_sale_price_chf =
+        value != null && Number(value) > 0 ? String(Number(value)) : null
+      break
+    case 'pack_weight':
+      payload.pack_weight = normalizeMaterialMetricInput(String(value ?? ''), 'kg')
+      break
+    case 'pack_size_length':
+    case 'pack_size_width':
+    case 'pack_size_height':
+      payload[field] = normalizeMaterialMetricInput(String(value ?? ''), 'cm')
+      break
+    case 'is_container':
+      if (m.tracking_type === 'bulk') payload.is_container = !!value
+      break
+    case 'is_js_material':
+      if (canManageJsMaterial.value) {
+        payload.is_js_material = !!value
+        payload.external_source = value ? (formData.external_source || 'js_ch') : null
+      }
+      break
+    case 'external_source':
+      if (canManageJsMaterial.value) {
+        payload.is_js_material = formData.is_js_material
+        payload.external_source = formData.is_js_material ? (String(value || 'js_ch')) : null
+      }
+      break
+    case 'sale_price':
+      payload.sale_price = value != null && Number(value) > 0 ? String(Number(value)) : null
+      break
+    case 'reference_purchase_unit_chf':
+      payload.reference_purchase_unit_chf =
+        value != null && Number(value) > 0 ? String(Number(value)) : null
+      break
+    case 'min_stock':
+      payload.min_stock = value == null || value === '' ? null : Number(value)
+      break
+    default:
+      break
+  }
+
+  return payload
+}
+
+async function saveMaterialField(field: MaterialFormField, value: unknown): Promise<void> {
+  if (!canManageMaterials.value) return
+  const m = material.value
+  if (!m?.id) return
+
+  if (m.is_consumable || m.is_food) {
+    const sp = field === 'sale_price' ? value : formData.sale_price
+    const rp = field === 'reference_purchase_unit_chf' ? value : formData.reference_purchase_unit_chf
+    if (field === 'sale_price' || field === 'reference_purchase_unit_chf') {
+      if (sp == null || Number(sp) <= 0 || rp == null || Number(rp) <= 0) {
+        throw new Error(t('components.materialDetail.errConsumablePricesRequired'))
+      }
+    }
+  }
+
+  const payload = buildMaterialFieldPayload(field, value, m)
+  if (Object.keys(payload).length === 0) return
+
+  const updated = await updateMaterial(props.materialId, payload)
+  applyMaterialSoftUpdate(updated, field)
+  emit('updated', updated)
+
+  if (activeTab.value === 'history') {
+    loadHistory()
+  } else {
+    historyEntries.value = []
+  }
+}
+
+async function saveContainerEditorField(
+  field: 'serial_number' | 'label' | 'status' | 'notes',
+  value: unknown,
+): Promise<void> {
+  if (!containerEditorMaterialId.value || !containerEditorBatchId.value) return
+  const payload: Record<string, unknown> = {}
+  if (field === 'serial_number') payload.serial_number = value ? String(value) : null
+  if (field === 'label') payload.label = value ? String(value) : null
+  if (field === 'status') payload.status = value || 'active'
+  if (field === 'notes') payload.notes = value ? String(value) : null
+
+  await updateBatch(containerEditorMaterialId.value, containerEditorBatchId.value, payload)
+  containerEditorOriginal.value = JSON.stringify(containerEditorForm)
+  syncContainerEditorBaselines()
+  await Promise.all([loadContainerBatches(), loadContainerContentOverview()])
+  if (containerEditorMaterialId.value === props.materialId) {
+    await loadMaterial({ preserveComboComponents: true, silent: true })
+  }
+}
 
 function normalizeQueryString(value: unknown): string {
   if (Array.isArray(value)) return typeof value[0] === 'string' ? value[0] : ''
@@ -3398,6 +3680,14 @@ const containerEditorDirty = computed(() => {
   return JSON.stringify(containerEditorForm) !== containerEditorOriginal.value
 })
 
+const containerEditorStatusOptions = computed(() => [
+  { value: 'active', label: t('components.materialDetail.batchStatusActive') },
+  { value: 'defect', label: t('components.materialDetail.batchStatusDefect') },
+  { value: 'repair', label: t('components.materialDetail.batchStatusRepair') },
+  { value: 'lost', label: t('components.materialDetail.batchStatusLost') },
+  { value: 'disposed', label: t('components.materialDetail.batchStatusDisposed') },
+])
+
 const addToContainerSourceBatches = computed(() => {
   const batchesList = addToContainerSourceMaterial.value?.batches || []
   return batchesList.filter((batch: any) => (batch.qty || 0) > 0 && batch.status === 'active')
@@ -3560,8 +3850,41 @@ const serialSortDir = ref<'asc' | 'desc'>('desc')
 const serialIsContainerSaving = reactive<Record<string, boolean>>({})
 
 // Computed
-const hasChanges = computed(() => {
-  return JSON.stringify(formData) !== originalFormData
+/** Felder ohne AutoSaveField – nur diese lösen den Header-«Speichern»-Button aus */
+const MANUAL_SAVE_FIELD_KEYS = [
+  'sale_price',
+  'reference_purchase_unit_chf',
+  'min_stock',
+  'pack_sale_price_chf',
+  'rental_calc_params',
+  'storage_address_id',
+] as const satisfies readonly MaterialFormField[]
+
+const MANUAL_PACK_FIELD_KEYS = [
+  'pack_size',
+  'pack_unit',
+] as const satisfies readonly MaterialFormField[]
+
+function pickFormFields(source: Record<string, unknown>, keys: readonly MaterialFormField[]) {
+  const picked: Record<string, unknown> = {}
+  for (const key of keys) picked[key] = source[key]
+  return picked
+}
+
+const manualSaveFieldKeys = computed((): MaterialFormField[] => {
+  const keys: MaterialFormField[] = [...MANUAL_SAVE_FIELD_KEYS]
+  if (material.value?.is_consumable || material.value?.is_food) {
+    keys.push(...MANUAL_PACK_FIELD_KEYS)
+  }
+  return keys
+})
+
+const hasManualUnsavedChanges = computed(() => {
+  const keys = manualSaveFieldKeys.value
+  const original = JSON.parse(originalFormData || '{}') as Record<string, unknown>
+  return (
+    JSON.stringify(pickFormFields(formData, keys)) !== JSON.stringify(pickFormFields(original, keys))
+  )
 })
 
 const propertyBadgeText = computed(() => {
@@ -4101,8 +4424,8 @@ function onMaterialPhotoError(message: string) {
   toast.error(message || t('media.uploadError'))
 }
 
-async function loadMaterial(opts?: { preserveComboComponents?: boolean }) {
-  isLoading.value = true
+async function loadMaterial(opts?: { preserveComboComponents?: boolean; silent?: boolean }) {
+  if (!opts?.silent) isLoading.value = true
   try {
     const data = await getMaterial(props.materialId)
     material.value = data
@@ -4122,16 +4445,16 @@ async function loadMaterial(opts?: { preserveComboComponents?: boolean }) {
       comboOptionGroupsList.value = []
     }
 
+    if (opts?.silent) {
+      updateMaterialDetailTabLabel(data)
+      return
+    }
+
     populateFormData(data)
     originalFormData = JSON.stringify(formData)
+    syncSavedFormBaselines()
 
-    detailTabsStore.addOrUpdateTab({
-      id: props.materialId,
-      type: 'material',
-      label: data.name || t('components.materialDetail.tabFallbackMaterialName', { id: props.materialId }),
-      departmentId: props.departmentId,
-      path: `/${props.departmentId}/materials/${props.materialId}`,
-    })
+    updateMaterialDetailTabLabel(data)
     await loadMaterialStorageLocations()
     void nextTick(() => {
       if (
@@ -4143,9 +4466,9 @@ async function loadMaterial(opts?: { preserveComboComponents?: boolean }) {
     })
   } catch (err) {
     console.error(t('components.materialDetail.logErrorLoadMaterial'), err)
-    materialStorageLocations.value = null
+    if (!opts?.silent) materialStorageLocations.value = null
   } finally {
-    isLoading.value = false
+    if (!opts?.silent) isLoading.value = false
   }
 }
 
@@ -4263,15 +4586,168 @@ function populateFormData(m: Material) {
   formData.is_container = m.is_container ?? false
   formData.is_js_material = m.is_js_material || false
   formData.external_source = m.external_source || ''
-  const parsePriceNum = (v: string | null | undefined) => {
-    if (v == null || v === '') return null
-    const n = Number(v)
-    return Number.isFinite(n) ? n : null
-  }
-  formData.sale_price = parsePriceNum(m.sale_price)
-  formData.reference_purchase_unit_chf = parsePriceNum(m.reference_purchase_unit_chf)
+  formData.sale_price = parseMaterialPriceNum(m.sale_price)
+  formData.reference_purchase_unit_chf = parseMaterialPriceNum(m.reference_purchase_unit_chf)
   formData.min_stock = m.min_stock ?? null
-  formData.pack_sale_price_chf = parsePriceNum(m.pack_sale_price_chf)
+  formData.pack_sale_price_chf = parseMaterialPriceNum(m.pack_sale_price_chf)
+}
+
+function parseMaterialPriceNum(v: string | null | undefined): number | null {
+  if (v == null || v === '') return null
+  const n = Number(v)
+  return Number.isFinite(n) ? n : null
+}
+
+function assignFormFieldFromMaterial(field: MaterialFormField, m: Material) {
+  switch (field) {
+    case 'name':
+      formData.name = m.name || ''
+      break
+    case 'description':
+      formData.description = m.description || ''
+      break
+    case 'barcode_tag':
+      formData.barcode_tag = m.barcode_tag || ''
+      break
+    case 'category_id':
+      formData.category_id = m.category?.id || ''
+      break
+    case 'storage_address_id':
+      formData.storage_address_id = m.storage_address?.id || ''
+      break
+    case 'manufacturer':
+      formData.manufacturer = m.manufacturer || ''
+      break
+    case 'model':
+      formData.model = m.model || ''
+      break
+    case 'ean':
+      formData.ean = m.ean || ''
+      break
+    case 'weight':
+      formData.weight = normalizeMaterialMetricInput(m.weight, 'kg') ?? ''
+      break
+    case 'color':
+      formData.color = m.color || ''
+      break
+    case 'size_length':
+      formData.size_length = normalizeMaterialMetricInput(m.size_length, 'cm') ?? ''
+      break
+    case 'size_width':
+      formData.size_width = normalizeMaterialMetricInput(m.size_width, 'cm') ?? ''
+      break
+    case 'size_height':
+      formData.size_height = normalizeMaterialMetricInput(m.size_height, 'cm') ?? ''
+      break
+    case 'warranty_until':
+      formData.warranty_until = m.warranty_until || ''
+      break
+    case 'rental_price_day':
+      formData.rental_price_day = m.rental_price_day || ''
+      break
+    case 'rental_price_week':
+      formData.rental_price_week = m.rental_price_week || ''
+      break
+    case 'rental_price_month':
+      formData.rental_price_month = m.rental_price_month || ''
+      break
+    case 'rental_deposit':
+      formData.rental_deposit = m.rental_deposit || ''
+      break
+    case 'rental_lead_days':
+      formData.rental_lead_days = m.rental_lead_days || null
+      break
+    case 'rental_max_days':
+      formData.rental_max_days = m.rental_max_days || null
+      break
+    case 'rental_external_allowed':
+      formData.rental_external_allowed = m.rental_external_allowed || false
+      break
+    case 'rental_scope':
+      formData.rental_scope = m.rental_scope || ''
+      break
+    case 'rental_requires_approval':
+      formData.rental_requires_approval = m.rental_requires_approval || false
+      break
+    case 'rental_notes':
+      formData.rental_notes = m.rental_notes || ''
+      break
+    case 'rental_calc_params':
+      formData.rental_calc_params = m.rental_calc_params ? { ...m.rental_calc_params } : null
+      break
+    case 'pack_size':
+      formData.pack_size = m.pack_size || null
+      break
+    case 'pack_unit':
+      formData.pack_unit = m.pack_unit || ''
+      break
+    case 'pack_weight':
+      formData.pack_weight = normalizeMaterialMetricInput(m.pack_weight, 'kg') ?? ''
+      break
+    case 'pack_size_length':
+      formData.pack_size_length = normalizeMaterialMetricInput(m.pack_size_length, 'cm') ?? ''
+      break
+    case 'pack_size_width':
+      formData.pack_size_width = normalizeMaterialMetricInput(m.pack_size_width, 'cm') ?? ''
+      break
+    case 'pack_size_height':
+      formData.pack_size_height = normalizeMaterialMetricInput(m.pack_size_height, 'cm') ?? ''
+      break
+    case 'is_container':
+      formData.is_container = m.is_container ?? false
+      break
+    case 'is_js_material':
+      formData.is_js_material = m.is_js_material || false
+      break
+    case 'external_source':
+      formData.external_source = m.external_source || ''
+      break
+    case 'sale_price':
+      formData.sale_price = parseMaterialPriceNum(m.sale_price)
+      break
+    case 'reference_purchase_unit_chf':
+      formData.reference_purchase_unit_chf = parseMaterialPriceNum(m.reference_purchase_unit_chf)
+      break
+    case 'min_stock':
+      formData.min_stock = m.min_stock ?? null
+      break
+    case 'pack_sale_price_chf':
+      formData.pack_sale_price_chf = parseMaterialPriceNum(m.pack_sale_price_chf)
+      break
+  }
+}
+
+function patchOriginalFormField(field: MaterialFormField) {
+  const parsed = JSON.parse(originalFormData || '{}') as Record<string, unknown>
+  parsed[field] = formData[field]
+  originalFormData = JSON.stringify(parsed)
+}
+
+function updateMaterialDetailTabLabel(m: Material) {
+  detailTabsStore.addOrUpdateTab({
+    id: props.materialId,
+    type: 'material',
+    label: m.name || t('components.materialDetail.tabFallbackMaterialName', { id: props.materialId }),
+    departmentId: props.departmentId,
+    path: `/${props.departmentId}/materials/${props.materialId}`,
+  })
+}
+
+function applyMaterialSoftUpdate(updated: Material, touchedField?: MaterialFormField) {
+  material.value = updated
+  if (updated.batches) batches.value = updated.batches
+  updateMaterialDetailTabLabel(updated)
+
+  if (touchedField) {
+    assignFormFieldFromMaterial(touchedField, updated)
+    syncSavedFormBaselineFor(touchedField)
+    patchOriginalFormField(touchedField)
+    return
+  }
+
+  populateFormData(updated)
+  originalFormData = JSON.stringify(formData)
+  syncSavedFormBaselines()
 }
 
 function getCategoryPath(): string {
@@ -4766,6 +5242,7 @@ async function loadContainerEditorForSelectedBatch() {
     containerEditorForm.status = batch.status || 'active'
     containerEditorForm.notes = batch.notes || ''
     containerEditorOriginal.value = JSON.stringify(containerEditorForm)
+    syncContainerEditorBaselines()
   } catch (err) {
     console.error(t('components.materialDetail.logErrorLoadContainerEditor'), err)
   } finally {
@@ -4785,6 +5262,7 @@ async function saveContainerEditor() {
       notes: containerEditorForm.notes || null,
     })
     containerEditorOriginal.value = JSON.stringify(containerEditorForm)
+    syncContainerEditorBaselines()
     await Promise.all([loadContainerBatches(), loadContainerContentOverview()])
     if (containerEditorMaterialId.value === props.materialId) {
       await loadMaterial()
@@ -5270,6 +5748,7 @@ async function save() {
     const updated = await updateMaterial(props.materialId, payload)
     
     originalFormData = JSON.stringify(formData)
+    syncSavedFormBaselines()
     void nextTick(() => {
       detailTabsStore.setTabDirty(props.materialId, 'material', props.departmentId, false)
     })
@@ -5451,7 +5930,7 @@ function closeBatchModal() {
 }
 
 function handleClose() {
-  // Keine Bestätigung: Tab bleibt offen, Änderungen bleiben erhalten (keep-alive)
+  // Zurück zur Liste: Tab im Header bleibt offen (nur × im Header entfernt Chip)
   emit('close')
 }
 
@@ -5681,7 +6160,7 @@ watch(activeTab, (newTab) => {
   }
 }, { immediate: true })
 
-watch(hasChanges, (dirty) => {
+watch(hasManualUnsavedChanges, (dirty) => {
   detailTabsStore.setTabDirty(props.materialId, 'material', props.departmentId, dirty)
 }, { immediate: true })
 

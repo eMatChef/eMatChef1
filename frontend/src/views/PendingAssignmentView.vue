@@ -8,20 +8,12 @@
 
       <div class="box">
         <label class="label">{{ t('pendingAssignment.searchLabel') }}</label>
-        <div class="search-box search-input-wrap">
-          <svg class="search-icon" width="20" height="20" viewBox="0 0 20 20" fill="none">
-            <path d="M9 17A8 8 0 1 0 9 1a8 8 0 0 0 0 16zM19 19l-4.35-4.35" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-          </svg>
-          <input
-            v-model="departmentQuery"
-            class="search-input"
-            :placeholder="t('pendingAssignment.searchPlaceholder')"
-          />
-          <button v-if="departmentQuery" @click="clearDepartmentSearch" class="clear-btn" type="button" :aria-label="t('pendingAssignment.clearSearchAria')">
-            <svg width="16" height="16" viewBox="0 0 20 20" fill="none">
-              <path d="M15 5L5 15M5 5l10 10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-            </svg>
-          </button>
+        <SearchFieldInput
+          v-model="departmentQuery"
+          :label="t('pendingAssignment.searchPlaceholder')"
+          class="search-box"
+          @clear="clearDepartmentSearch"
+        >
           <div v-if="displayedDepartmentResults.length > 0" class="search-results search-results--above">
             <button
               v-for="d in displayedDepartmentResults"
@@ -37,7 +29,7 @@
               {{ t('pendingAssignment.searchMoreHint') }}
             </p>
           </div>
-        </div>
+        </SearchFieldInput>
         <div v-if="departmentLoading" class="hint">{{ t('pendingAssignment.searchLoading') }}</div>
         <div v-if="showManualAdminRequest" class="manual-request-box">
           <p class="hint">{{ t('pendingAssignment.manualHint') }}</p>
@@ -228,6 +220,7 @@ import ParentDepartmentPicker, {
 import { filterOrganisationsForUserPickers } from '@/utils/organisationUserPicker'
 import { localizedBarcodeScannerError } from '@/utils/barcodeScannerErrors'
 import BarcodeScannerPanel from '@/components/common/BarcodeScannerPanel.vue'
+import SearchFieldInput from '@/components/common/SearchFieldInput.vue'
 
 const route = useRoute()
 const { t, locale } = useI18n()

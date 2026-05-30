@@ -136,6 +136,15 @@ export function acquiredDateFromYear(yearStr: string): string {
   return `${year}-${mm}-${dd}`
 }
 
+export type MaterialImportMatchKind = 'exact' | 'specs'
+
+export interface MaterialImportSpecParts {
+  size_length?: string | null
+  size_width?: string | null
+  size_height?: string | null
+  color?: string | null
+}
+
 export interface MaterialImportRow {
   row_index: number
   name: string
@@ -168,7 +177,238 @@ export interface MaterialImportRow {
   import_selected: boolean
   _existingMaterialId?: string | null
   _existingMaterialName?: string | null
+  _existingMatchKind?: MaterialImportMatchKind | null
   _parseWarnings?: string[]
+}
+
+/** Duplikat-Schlüssel: Name + Masse + Farbe (wie Backend MaterialImportService). */
+export function buildMaterialImportMatchKey(parts: {
+  name: string
+  size_length?: string | null
+  size_width?: string | null
+  size_height?: string | null
+  color?: string | null
+}): string {
+  const normalizeName = (name: string) => name.trim().toLowerCase()
+  const normalizeSize = (raw?: string | null): string => {
+    if (!raw?.trim()) return ''
+    return normalizeMaterialMetricInput(raw.trim(), 'cm') ?? raw.trim()
+  }
+  return [
+    normalizeName(parts.name),
+    normalizeSize(parts.size_length),
+    normalizeSize(parts.size_width),
+    normalizeSize(parts.size_height),
+    normalizeName(parts.color ?? ''),
+  ].join('|')
+}
+
+/** Nur Masse/Farbe — für «gleiche Specs, verwandter Name». */
+export function buildMaterialImportSpecKey(parts: MaterialImportSpecParts): string {
+  return buildMaterialImportMatchKey({ name: '', ...parts })
+}
+
+export function hasMaterialImportSpecs(parts: MaterialImportSpecParts): boolean {
+  return !!(
+    parts.size_length?.trim()
+    || parts.size_width?.trim()
+    || parts.size_height?.trim()
+    || parts.color?.trim()
+  )
+}
+
+function namesRelatedForImport(nameA: string, nameB: string): boolean {
+  const a = nameA.trim().toLowerCase()
+  const b = nameB.trim().toLowerCase()
+  if (!a || !b) return false
+  if (a === b) return true
+  if (a.startsWith(`${b} `) || b.startsWith(`${a} `)) return true
+  const stripLengthSuffix = (value: string) => value.replace(/\s+\d+(?:[.,]\d+)?\s*m\s*$/i, '').trim()
+  const baseA = stripLengthSuffix(a)
+  const baseB = stripLengthSuffix(b)
+  return baseA === baseB || a.startsWith(baseB) || b.startsWith(baseA)
+}
+
+/** Exakter Treffer oder gleiche Masse + ähnlicher Name (z. B. nach «+ 8 m an Name»). */
+export function findImportMaterialMatch(
+  row: MaterialImportRow,
+  materials: Array<MaterialImportSpecMaterial & { id: string }>,
+): { material: MaterialImportSpecMaterial & { id: string }; kind: MaterialImportMatchKind } | null {
+  const rowKey = buildMaterialImportMatchKey(row)
+  for (const m of materials) {
+    if (buildMaterialImportMatchKey(m) === rowKey) {
+      return { material: m, kind: 'exact' }
+    }
+  }
+
+  if (!hasMaterialImportSpecs(row)) return null
+
+  const rowSpecKey = buildMaterialImportSpecKey(row)
+  for (const m of materials) {
+    if (!hasMaterialImportSpecs(m)) continue
+    if (buildMaterialImportSpecKey(m) !== rowSpecKey) continue
+    if (namesRelatedForImport(row.name, m.name)) {
+      return { material: m, kind: 'specs' }
+    }
+  }
+
+  return null
+}
+
+export type MaterialImportSpecWarningCode =
+  | 'name_exists_other_specs_db'
+  | 'name_exists_other_specs_file'
+  | 'will_add_batch'
+  | 'matched_existing_by_specs'
+  | 'would_create_duplicate_catalog'
+
+export interface MaterialImportSpecWarning {
+  code: MaterialImportSpecWarningCode
+  existingMaterialName?: string
+  existingSpecs?: string
+  importSpecs?: string
+  otherRowNumber?: number
+}
+
+/** Kurztext für Warnungen (Länge/Breite/Höhe/Farbe). */
+export function formatMaterialImportSpecs(parts: MaterialImportSpecParts): string {
+  const bits: string[] = []
+  const length = parts.size_length?.trim()
+  const width = parts.size_width?.trim()
+  const height = parts.size_height?.trim()
+  const color = parts.color?.trim()
+  if (length) bits.push(`L ${length} cm`)
+  if (width) bits.push(`B ${width} cm`)
+  if (height) bits.push(`H ${height} cm`)
+  if (color) bits.push(color)
+  return bits.length > 0 ? bits.join(' · ') : '—'
+}
+
+type MaterialImportSpecMaterial = MaterialImportSpecParts & {
+  id?: string
+  name: string
+}
+
+/** Clientseitige Hinweise vor dem Import (Name gleich, Masse anders / Batch-Anhängen). */
+export function computeMaterialImportSpecWarnings(
+  row: MaterialImportRow,
+  allRows: MaterialImportRow[],
+  materials: MaterialImportSpecMaterial[],
+): MaterialImportSpecWarning[] {
+  if (row.import_selected === false) return []
+
+  const normName = row.name.trim().toLowerCase()
+  if (!normName) return []
+
+  const warnings: MaterialImportSpecWarning[] = []
+  const rowKey = buildMaterialImportMatchKey(row)
+  const importSpecs = formatMaterialImportSpecs(row)
+  const matchedId = row._existingMaterialId ?? null
+  const matchedKind = row._existingMatchKind ?? null
+
+  if (matchedId && matchedKind === 'specs') {
+    const hit = materials.find((m) => m.id === matchedId)
+    warnings.push({
+      code: 'matched_existing_by_specs',
+      existingMaterialName: hit?.name ?? row._existingMaterialName ?? '',
+      existingSpecs: hit ? formatMaterialImportSpecs(hit) : undefined,
+      importSpecs,
+    })
+  }
+
+  if (!matchedId) {
+    const dbOther = materials.filter(
+      (m) => m.name.trim().toLowerCase() === normName && buildMaterialImportMatchKey(m) !== rowKey,
+    )
+    if (dbOther.length > 0) {
+      const hit = dbOther[0]
+      warnings.push({
+        code: 'name_exists_other_specs_db',
+        existingMaterialName: hit.name,
+        existingSpecs: formatMaterialImportSpecs(hit),
+        importSpecs,
+      })
+    }
+
+    const sameBaseName = materials.filter(
+      (m) => namesRelatedForImport(row.name, m.name) && buildMaterialImportMatchKey(m) !== rowKey,
+    )
+    if (sameBaseName.length > 0 && hasMaterialImportSpecs(row) && dbOther.length === 0) {
+      warnings.push({
+        code: 'would_create_duplicate_catalog',
+        existingMaterialName: sameBaseName[0].name,
+        existingSpecs: formatMaterialImportSpecs(sameBaseName[0]),
+        importSpecs,
+      })
+    }
+  }
+
+  const fileOther = allRows.find(
+    (other) =>
+      other !== row
+      && other.import_selected !== false
+      && other.name.trim().toLowerCase() === normName
+      && buildMaterialImportMatchKey(other) !== rowKey,
+  )
+  if (fileOther) {
+    const otherIdx = allRows.indexOf(fileOther)
+    warnings.push({
+      code: 'name_exists_other_specs_file',
+      importSpecs,
+      existingSpecs: formatMaterialImportSpecs(fileOther),
+      otherRowNumber: otherIdx >= 0 ? otherIdx + 1 : undefined,
+    })
+  }
+
+  if (row._existingMaterialId && row.duplicate_action === 'add_batch' && matchedKind !== 'specs') {
+    const hit = materials.find((m) => m.id === row._existingMaterialId)
+    warnings.push({
+      code: 'will_add_batch',
+      existingMaterialName: hit?.name ?? row._existingMaterialName ?? row.name,
+      existingSpecs: hit ? formatMaterialImportSpecs(hit) : undefined,
+      importSpecs,
+    })
+  }
+
+  return warnings
+}
+
+/** Länge als lesbares Suffix (z. B. 1600 → «16 m»). */
+export function formatImportLengthNameSuffix(sizeLength: string): string {
+  const raw = sizeLength.trim().replace(',', '.')
+  if (!raw) return ''
+  const n = parseFloat(raw.replace(/[^\d.]/g, ''))
+  if (!Number.isFinite(n) || n <= 0) return raw.includes('m') || raw.includes('cm') ? raw : `${raw} cm`
+  if (n >= 100 && n % 100 === 0) return `${n / 100} m`
+  if (n >= 100) return `${(n / 100).toFixed(1).replace(/\.0$/, '')} m`
+  return `${n} cm`
+}
+
+/** Hängt Länge an den Artikelnamen an, wenn noch nicht enthalten. */
+export function appendLengthSuffixToImportName(row: MaterialImportRow): boolean {
+  const length = row.size_length?.trim()
+  const base = row.name.trim()
+  if (!length || !base) return false
+
+  const suffix = formatImportLengthNameSuffix(length)
+  if (!suffix) return false
+
+  const lower = base.toLowerCase()
+  const suffixLower = suffix.toLowerCase()
+  if (lower.includes(suffixLower) || lower.includes(length.toLowerCase())) {
+    return false
+  }
+
+  row.name = `${base} ${suffix}`
+  return true
+}
+
+export function canAppendLengthToImportName(row: MaterialImportRow): boolean {
+  if (!row.size_length?.trim() || !row.name.trim()) return false
+  const suffix = formatImportLengthNameSuffix(row.size_length)
+  if (!suffix) return false
+  const lower = row.name.trim().toLowerCase()
+  return !lower.includes(suffix.toLowerCase()) && !lower.includes(row.size_length.trim().toLowerCase())
 }
 
 export type ImportRowStorageIssue = 'lager' | 'mode' | 'rack' | 'slot' | 'container'

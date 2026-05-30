@@ -4,23 +4,15 @@ import type { ContainerBatch } from '@/api/storageLocations'
  * Einheitliche Beschriftung für Kisten/Taschen in Selects – gleiche Logik wie
  * der Dropdown „Kiste/Tasche“ im Tab „Inhalt Kiste/Tasche“ (MaterialDetailView).
  *
- * Reihenfolge: Lagerplatz (Fach, optional „Regal / Fach“) · Primärbezeichnung · Seriennummer · Materialname
+ * Reihenfolge: Lagerplatz (Fach, optional „Regal / Fach“) · Seriennummer · Materialname · Label (wenn gesetzt)
  */
 export function formatContainerBatchSelectLabel(cb: ContainerBatch): string {
-  const d = (cb.display_label || '').trim()
-  if (d) return d
-
   const rackName = (cb.rack?.name || '').trim()
   const slotName = (cb.slot?.name || '').trim()
   const label = (cb.label || '').trim()
   const serial = (cb.serial_number || '').trim()
   const materialName = (cb.material_name || '').trim()
 
-  const lead = label || serial || materialName || 'Kiste/Tasche'
-  const serialSuffix = serial && serial !== lead ? ` · ${serial}` : ''
-  const materialSuffix = materialName && materialName !== lead ? ` · ${materialName}` : ''
-
-  // Wie MaterialDetailView: zuerst Fachname (z. B. „A3 ·“), sonst Regal, sonst „Regal / Fach“
   let locationPrefix = ''
   if (slotName) {
     locationPrefix = `${slotName} · `
@@ -28,7 +20,19 @@ export function formatContainerBatchSelectLabel(cb: ContainerBatch): string {
     locationPrefix = `${rackName} · `
   }
 
-  return `${locationPrefix}${lead}${serialSuffix}${materialSuffix}`
+  const parts: string[] = []
+  const primary = serial || label || materialName || 'Kiste/Tasche'
+  parts.push(primary)
+
+  if (materialName && materialName !== primary) {
+    parts.push(materialName)
+  }
+
+  if (label && label !== primary && label !== materialName) {
+    parts.push(label)
+  }
+
+  return `${locationPrefix}${parts.join(' — ')}`
 }
 
 /** Inhaltsvorschau aus API (max. 2 Zeilen + „+N weitere“) für Kisten-Dropdowns */

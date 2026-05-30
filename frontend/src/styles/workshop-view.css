@@ -120,34 +120,10 @@
   color: #374151;
 }
 
-.toolbar-search {
-  position: relative;
+.workshop-toolbar .search-box {
   flex: 1;
   min-width: 200px;
-  max-width: 320px;
-}
-
-.toolbar-search .search-icon {
-  position: absolute;
-  left: 10px;
-  top: 50%;
-  transform: translateY(-50%);
-  color: #9ca3af;
-}
-
-.toolbar-search input {
-  width: 100%;
-  padding: 7px 12px 7px 34px;
-  border: 1px solid #d1d5db;
-  border-radius: 8px;
-  font-size: 13px;
-  outline: none;
-  transition: border-color 0.15s;
-}
-
-.toolbar-search input:focus {
-  border-color: #6366f1;
-  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+  max-width: 500px;
 }
 
 .toolbar-filters {

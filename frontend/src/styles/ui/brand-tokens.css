@@ -20,4 +20,12 @@
   --color-primary-muted-border: #a7f3d0;
   --color-primary-ring: color-mix(in srgb, var(--color-primary) 22%, transparent);
   --color-primary-shadow: color-mix(in srgb, var(--color-primary) 15%, transparent);
+
+  /* Text / Rahmen / Fehler (Formulare, Auto-Save) */
+  --color-text: #111827;
+  --color-text-muted: #6b7280;
+  --color-border: #d1d5db;
+  --color-surface-muted: #f3f4f6;
+  --color-error: #dc2626;
+  --color-error-bg: #fee2e2;
 }

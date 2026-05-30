@@ -34,15 +34,12 @@
 
     <!-- Search -->
     <div v-if="!isLoading && members.length > 3" class="search-bar">
-      <svg class="search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2">
-        <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
-      </svg>
-      <input 
-        v-model="searchQuery" 
-        type="text" 
-        :placeholder="t('settings.departmentUsers.searchPlaceholder')"
-        class="search-input"
-      />
+      <div class="search-box">
+        <SearchFieldInput
+          v-model="searchQuery"
+          :label="t('settings.departmentUsers.searchPlaceholder')"
+        />
+      </div>
     </div>
 
     <div v-if="canManagePendingInvites && !isLoading" class="pending-invites-card">
@@ -461,6 +458,7 @@ import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useToast } from '@/composables/useToast'
+import SearchFieldInput from '@/components/common/SearchFieldInput.vue'
 import { useConfirm } from '@/composables/useConfirm'
 import {
   createPendingInvite,
