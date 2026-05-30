@@ -76,6 +76,7 @@
         "supplierTeam": "My company · Team · eMatChef",
         "supplierCatalog": "My company · Catalog · eMatChef",
         "supplierDeliveries": "My company · Deliveries · eMatChef",
+        "supplierTemplates": "My company · Templates · eMatChef",
         "settingsSupplierDeliveries": "Settings · Supplier deliveries · eMatChef"
       },
       "descriptions": {
@@ -564,7 +565,8 @@
     "myCompanyProfile": "Profile & contact",
     "myCompanyTeam": "Team",
     "myCompanyCatalog": "Catalog",
-    "myCompanyDeliveries": "Deliveries"
+    "myCompanyDeliveries": "Deliveries",
+    "myCompanyTemplates": "Templates"
   },
   "supplierProfile": {
     "title": "Profile & contact",
@@ -745,6 +747,117 @@
     },
     "errors": {
       "linesRequired": "At least one line item is required."
+    }
+  },
+  "supplierTemplates": {
+    "title": "Material templates",
+    "subtitle": "Bill of materials and configurators for material managers.",
+    "newTemplate": "New template",
+    "refresh": "Refresh",
+    "empty": "No templates yet.",
+    "errorLoad": "Could not load templates.",
+    "createSuccess": "Template created.",
+    "saveSuccess": "Template saved.",
+    "errorSave": "Save failed.",
+    "deleteTitle": "Delete template?",
+    "deleteMessage": "Delete template \"{name}\"?",
+    "deleteSuccess": "Template deleted.",
+    "errorDelete": "Delete failed.",
+    "activeYes": "Yes",
+    "activeNo": "No",
+    "globalReviewHint": "Global visibility with status \"Published\" will be queued for admin review.",
+    "componentsEmpty": "No base components yet — at least one recommended.",
+    "standaloneOptionsHint": "Standalone yes/no options (e.g. accessories) with delta BOM.",
+    "optionGroupsHint": "Selection groups for configurators (either-or, quantity n–m).",
+    "groupOptionsTitle": "Options in this group",
+    "deltasTitle": "Delta bill of materials",
+    "addComponent": "Add component",
+    "removeComponent": "Remove component",
+    "addOption": "Add option",
+    "removeOption": "Remove option",
+    "addOptionGroup": "Add option group",
+    "removeOptionGroup": "Remove group",
+    "addDelta": "Add delta",
+    "removeDelta": "Remove delta",
+    "columns": {
+      "name": "Name",
+      "type": "Type",
+      "components": "Parts",
+      "price": "Price",
+      "status": "Status",
+      "active": "Active"
+    },
+    "sections": {
+      "header": "Master data",
+      "components": "Base bill of materials",
+      "standaloneOptions": "Standalone options",
+      "optionGroups": "Option groups"
+    },
+    "fields": {
+      "name": "Name",
+      "materialType": "Material type",
+      "manufacturer": "Manufacturer",
+      "model": "Model",
+      "capacity": "Capacity",
+      "unitPrice": "Indicative price",
+      "currency": "Currency",
+      "categoryHint": "Category hint",
+      "description": "Description",
+      "visibility": "Visibility",
+      "status": "Status",
+      "isActive": "Active in shop",
+      "componentType": "Type key",
+      "componentName": "Label",
+      "requiredQty": "Qty",
+      "tracking": "Tracking",
+      "componentSource": "Source",
+      "isOptionalToggle": "Show as yes/no toggle",
+      "optionName": "Option name",
+      "displayMode": "Display mode",
+      "defaultSelected": "Selected by default",
+      "groupName": "Group name",
+      "selectionType": "Selection type",
+      "minSelect": "Min selection",
+      "maxSelect": "Max selection",
+      "qtyDelta": "±Qty"
+    },
+    "materialType": {
+      "physicalCombo": "Physical combo",
+      "virtualCombo": "Virtual combo"
+    },
+    "tracking": {
+      "bulk": "Quantity (bulk)",
+      "serialized": "Serial numbers"
+    },
+    "componentSource": {
+      "stock": "From stock",
+      "selfProvided": "Self-provided"
+    },
+    "visibility": {
+      "private": "Draft (company only)",
+      "departments": "Selected departments",
+      "global": "Global (review)"
+    },
+    "status": {
+      "draft": "Draft",
+      "published": "Published",
+      "pendingReview": "Pending review"
+    },
+    "selectionType": {
+      "exclusive": "Exactly one",
+      "multi": "Multiple",
+      "quantity": "Quantity n–m"
+    },
+    "displayMode": {
+      "toggle": "Yes/No",
+      "group": "Group selection"
+    },
+    "modal": {
+      "createTitle": "New material template",
+      "editTitle": "Edit material template"
+    },
+    "errors": {
+      "nameRequired": "Name is required."
     }
   },
   "departmentSupplierDeliveries": {

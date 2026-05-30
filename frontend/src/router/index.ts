@@ -59,6 +59,12 @@ function hasSupplierDeliveryCapability(companyId: string): boolean {
   return company?.capabilities?.includes('delivery') ?? false
 }
 
+function hasSupplierTemplatesCapability(companyId: string): boolean {
+  const authStore = useAuthStore()
+  const company = authStore.activeSupplierCompanies.find((c) => c.id === companyId)
+  return company?.capabilities?.includes('templates') ?? false
+}
+
 function devicesWarehouseRoleOk(departmentId: string): boolean {
   const authStore = useAuthStore()
   const userRoles = authStore.userRoles || []
@@ -588,6 +594,16 @@ const routes: RouteRecordRaw[] = [
           requiresSupplierAccess: true,
           requiresSupplierDelivery: true,
           ...routeHead('supplierDeliveries'),
+        },
+      },
+      {
+        path: 'templates',
+        name: 'SupplierTemplates',
+        component: () => import('@/views/supplier/SupplierTemplatesView.vue'),
+        meta: {
+          requiresSupplierAccess: true,
+          requiresSupplierTemplates: true,
+          ...routeHead('supplierTemplates'),
         },
       },
     ],
@@ -1450,6 +1466,9 @@ router.beforeEach(async (to, from, next) => {
       return next({ name: 'SupplierProfile', params: { companyId } })
     }
     if (to.meta.requiresSupplierDelivery && !hasSupplierDeliveryCapability(companyId)) {
+      return next({ name: 'SupplierProfile', params: { companyId } })
+    }
+    if (to.meta.requiresSupplierTemplates && !hasSupplierTemplatesCapability(companyId)) {
       return next({ name: 'SupplierProfile', params: { companyId } })
     }
   }

@@ -79,6 +79,16 @@
             </span>
           </router-link>
           <router-link
+            v-if="showSupplierTemplatesLink"
+            :to="supplierLink('/templates')"
+            class="nav-item nav-item--sub"
+            :class="{ active: isSupplierTemplatesActive }"
+          >
+            <span class="nav-label nav-label--sub" :class="{ visible: isHovered }">
+              {{ t('sidebar.myCompanyTemplates') }}
+            </span>
+          </router-link>
+          <router-link
             v-if="isCurrentSupplierAdmin"
             :to="supplierLink('/team')"
             class="nav-item nav-item--sub"
@@ -293,6 +303,12 @@ const showSupplierDeliveryLink = computed(() => {
   return company?.capabilities?.includes('delivery') ?? false
 })
 
+const showSupplierTemplatesLink = computed(() => {
+  const id = supplierCompanyId.value
+  const company = authStore.activeSupplierCompanies.find((c) => c.id === id)
+  return company?.capabilities?.includes('templates') ?? false
+})
+
 watch(
   isSupplierRoute,
   (active) => {
@@ -317,6 +333,7 @@ const isSupplierProfileActive = computed(
 const isSupplierTeamActive = computed(() => isSupplierRoute.value && route.path.includes('/team'))
 const isSupplierCatalogActive = computed(() => isSupplierRoute.value && route.path.includes('/catalog'))
 const isSupplierDeliveriesActive = computed(() => isSupplierRoute.value && route.path.includes('/deliveries'))
+const isSupplierTemplatesActive = computed(() => isSupplierRoute.value && route.path.includes('/templates'))
 
 const isPendingAssignmentRoute = computed(() => route.path === '/pending-assignment')
 const isAdminDashboardRoute = computed(() => route.path.startsWith('/admin-dashboard'))

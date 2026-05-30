@@ -2,7 +2,7 @@
 
 Abarbeitbare Checkliste für Phase 1–3. Das **Warum/Zielmodell** steht in [supplier-portal.md](./supplier-portal.md). Dieser Plan = **Was & in welcher Reihenfolge**.
 
-**Stand:** Mai 2026 · Phase 1 (Paket 0–8) erledigt; Phase 2 gestartet. **Erledigt: Paket 0–10 (10 = Phase 2b Übergaben + SN)**
+**Stand:** Mai 2026 · Phase 2 gestartet. **Erledigt: Paket 0–10; Paket 11 Basis (Entities + Supplier-CRUD) in Arbeit**
 
 ---
 
@@ -39,7 +39,7 @@ Abarbeitbare Checkliste für Phase 1–3. Das **Warum/Zielmodell** steht in [sup
 | 8 | MW-Listen: Import, Global Addresses, Konstanten | 1b | M | 0, 1 | [x] |
 | 9 | Katalog `supplier_catalog_item` + Supplier-CRUD | 2a | L | 1–7 | [x] |
 | 10 | Übergaben `supplier_delivery*` + SN | 2b | XL | 9 | [x] |
-| 11 | Vorlagen `supplier_material_template_*` | 2c | XL | 9 | [ ] |
+| 11 | Vorlagen `supplier_material_template_*` | 2c | XL | 9 | [~] |
 | 12 | MW-Shop, Budget, Import-Pfade | 2d | XL | 9–11 | [ ] |
 | 13 | Sichtbarkeit + Global-Review | 2e | M | 9, 12 | [ ] |
 | 14 | Reparaturen an Lieferant | 3 | L | 1–7 | [ ] |
@@ -321,8 +321,8 @@ Diese Stellen strahlen bei Address-/Supplier-Änderungen am stärksten aus:
 - **Nicht** `material_template` erweitern
 
 **Schritte:**
-- [ ] Basis-Entity + Komponenten + Options-/Delta-Tabellen
-- [ ] Supplier-Editor (Progressive Disclosure wie Combo-Editor)
+- [x] Basis-Entity + Komponenten + Options-/Delta-Tabellen
+- [x] Supplier-Editor (Progressive Disclosure — Basis-Stückliste, Optionen, Gruppen)
 - [ ] MW-Import-Pfad: Vorlage → Material (SN aus Übergabe vorbefüllen) — Erweiterung `TemplateController`-Logik
 - [ ] **Legacy-Übernahme:** Admin-Aktion „Globale Vorlagen übernehmen" — `material_template` (`scope=global`, `manufacturer` match) → **Kopie** nach `supplier_material_template*` (Komponenten + Options mit); Match über `manufacturer` ↔ `supplier_company.manufacturer_key` (normalisiert)
 - [ ] Globale Vorlagen bleiben parallel (MW-Abwärtskompatibilität); optional als Legacy markieren/ablösen

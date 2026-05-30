@@ -92,6 +92,7 @@
         "supplierTeam": "Meine Firma · Team · eMatChef",
         "supplierCatalog": "Meine Firma · Katalog · eMatChef",
         "supplierDeliveries": "Meine Firma · Übergaben · eMatChef",
+        "supplierTemplates": "Meine Firma · Vorlagen · eMatChef",
         "settingsSupplierDeliveries": "Einstellungen · Lieferanten-Übergaben · eMatChef"
       },
       "descriptions": {
@@ -665,7 +666,8 @@
     "myCompanyProfile": "Profil & Kontakt",
     "myCompanyTeam": "Team",
     "myCompanyCatalog": "Katalog",
-    "myCompanyDeliveries": "Übergaben"
+    "myCompanyDeliveries": "Übergaben",
+    "myCompanyTemplates": "Vorlagen"
   },
   "supplierProfile": {
     "title": "Profil & Kontakt",
@@ -846,6 +848,117 @@
     },
     "errors": {
       "linesRequired": "Mindestens eine Zeile ist erforderlich."
+    }
+  },
+  "supplierTemplates": {
+    "title": "Material-Vorlagen",
+    "subtitle": "Stücklisten und Konfiguratoren für Materialwarte (Combo-Spiegel).",
+    "newTemplate": "Neue Vorlage",
+    "refresh": "Aktualisieren",
+    "empty": "Noch keine Vorlagen.",
+    "errorLoad": "Vorlagen konnten nicht geladen werden.",
+    "createSuccess": "Vorlage erstellt.",
+    "saveSuccess": "Vorlage gespeichert.",
+    "errorSave": "Speichern fehlgeschlagen.",
+    "deleteTitle": "Vorlage löschen?",
+    "deleteMessage": "Vorlage \"{name}\" wirklich löschen?",
+    "deleteSuccess": "Vorlage gelöscht.",
+    "errorDelete": "Löschen fehlgeschlagen.",
+    "activeYes": "Ja",
+    "activeNo": "Nein",
+    "globalReviewHint": "Globale Sichtbarkeit mit Status \"Veröffentlicht\" wird zur Admin-Prüfung eingereicht.",
+    "componentsEmpty": "Noch keine Basiskomponenten — mindestens eine empfohlen.",
+    "standaloneOptionsHint": "Eigenständige Ja/Nein-Optionen (z. B. Zubehör) mit Delta-Stückliste.",
+    "optionGroupsHint": "Auswahl-Gruppen für Konfiguratoren (Entweder-Oder, Menge n–m).",
+    "groupOptionsTitle": "Optionen in dieser Gruppe",
+    "deltasTitle": "Delta-Stückliste",
+    "addComponent": "Komponente hinzufügen",
+    "removeComponent": "Komponente entfernen",
+    "addOption": "Option hinzufügen",
+    "removeOption": "Option entfernen",
+    "addOptionGroup": "Options-Gruppe hinzufügen",
+    "removeOptionGroup": "Gruppe entfernen",
+    "addDelta": "Delta hinzufügen",
+    "removeDelta": "Delta entfernen",
+    "columns": {
+      "name": "Name",
+      "type": "Typ",
+      "components": "Teile",
+      "price": "Preis",
+      "status": "Status",
+      "active": "Aktiv"
+    },
+    "sections": {
+      "header": "Stammdaten",
+      "components": "Basis-Stückliste",
+      "standaloneOptions": "Eigenständige Optionen",
+      "optionGroups": "Options-Gruppen"
+    },
+    "fields": {
+      "name": "Name",
+      "materialType": "Material-Typ",
+      "manufacturer": "Hersteller",
+      "model": "Modell",
+      "capacity": "Kapazität",
+      "unitPrice": "Richtpreis",
+      "currency": "Währung",
+      "categoryHint": "Kategorie-Hinweis",
+      "description": "Beschreibung",
+      "visibility": "Sichtbarkeit",
+      "status": "Status",
+      "isActive": "Aktiv im Shop",
+      "componentType": "Typ-Schlüssel",
+      "componentName": "Bezeichnung",
+      "requiredQty": "Menge",
+      "tracking": "Tracking",
+      "componentSource": "Quelle",
+      "isOptionalToggle": "Als Ja/Nein-Toggle anzeigen",
+      "optionName": "Optionsname",
+      "displayMode": "Anzeige-Modus",
+      "defaultSelected": "Standardmässig gewählt",
+      "groupName": "Gruppenname",
+      "selectionType": "Auswahltyp",
+      "minSelect": "Min. Auswahl",
+      "maxSelect": "Max. Auswahl",
+      "qtyDelta": "±Menge"
+    },
+    "materialType": {
+      "physicalCombo": "Physische Kombo",
+      "virtualCombo": "Virtuelle Kombo"
+    },
+    "tracking": {
+      "bulk": "Menge (bulk)",
+      "serialized": "Seriennummern"
+    },
+    "componentSource": {
+      "stock": "Aus Lager",
+      "selfProvided": "Selbst mitbringen"
+    },
+    "visibility": {
+      "private": "Entwurf (nur Firma)",
+      "departments": "Ausgewählte Departments",
+      "global": "Global (Review)"
+    },
+    "status": {
+      "draft": "Entwurf",
+      "published": "Veröffentlicht",
+      "pendingReview": "Prüfung ausstehend"
+    },
+    "selectionType": {
+      "exclusive": "Genau eine",
+      "multi": "Mehrere",
+      "quantity": "Menge n–m"
+    },
+    "displayMode": {
+      "toggle": "Ja/Nein",
+      "group": "Gruppen-Auswahl"
+    },
+    "modal": {
+      "createTitle": "Neue Material-Vorlage",
+      "editTitle": "Material-Vorlage bearbeiten"
+    },
+    "errors": {
+      "nameRequired": "Name ist erforderlich."
     }
   },
   "departmentSupplierDeliveries": {
