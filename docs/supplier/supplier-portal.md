@@ -2,7 +2,7 @@
 
 Konzept-Dokumentation für ein **Lieferanten-Portal** mit Firmen-Modell (`SupplierCompany`), mehreren Usern pro Firma, B2B-Katalog für Materialwarte (MW) und optional **eigenem Vermietungsbetrieb** (Operator). Später: Reparatur-Workflow.
 
-**Stand:** Mai 2026 · Konzept; **M1 (Paket 0) implementiert** — `address.scope`, Migration GLOBAL000000
+**Stand:** Mai 2026 · Konzept; **M1 (Paket 0) + M2 (Paket 1) implementiert** — `address.scope`, `supplier_company`, `supplier_membership`
 
 Verwandt:
 
@@ -307,7 +307,7 @@ Capabilities (`catalog`, `operator`, …) hängen an **`SupplierCompany`**, nich
 
 ### Definition of Done
 
-- [ ] `SupplierCompany` + `SupplierMembership` (Migration)
+- [x] `SupplierCompany` + `SupplierMembership` (Migration)
 - [x] Address-Scope auf `address` (Migration GLOBAL000000 → `scope=global`; **J&S `dept_js00000` unberührt**)
 - [ ] Support-Onboarding: Admin legt Firma an, erster User admin, Login-Zugang
 - [ ] Legacy `scope=global` → SupplierCompany (Admin-Aktion)
