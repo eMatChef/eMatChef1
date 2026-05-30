@@ -7,6 +7,10 @@ use App\Entity\MaterialBatch;
 use App\Entity\BatchStorageAllocation;
 use App\Entity\MaterialHistory;
 use App\Entity\MaterialComboComponent;
+use App\Entity\MaterialComboOption;
+use App\Entity\MaterialComboOptionDelta;
+use App\Entity\MaterialComboOptionGroup;
+use App\Entity\MaterialRelatedAccessory;
 use App\Entity\ActivityIssueReport;
 use App\Entity\WorkshopTicket;
 use App\Entity\Category;
@@ -16,6 +20,8 @@ use App\Entity\Membership;
 use App\Entity\StorageRack;
 use App\Entity\StorageSlot;
 use App\Entity\User;
+use App\Service\Material\MaterialItemPhotoService;
+use App\Service\Media\MediaPhotoNormalizer;
 use App\Service\Public\PublicCodeService;
 use App\Util\IdGenerator;
 use Doctrine\ORM\EntityManagerInterface;
@@ -30,7 +36,9 @@ class MaterialController extends AbstractController
 {
     public function __construct(
         private EntityManagerInterface $entityManager,
-        private PublicCodeService $publicCodeService
+        private PublicCodeService $publicCodeService,
+        private MediaPhotoNormalizer $photoNormalizer,
+        private MaterialItemPhotoService $materialItemPhotoService,
     ) {}
 
     /**
@@ -306,6 +314,11 @@ class MaterialController extends AbstractController
             // Material- und Tracking-Typ
             if (isset($data['material_type'])) {
                 $material->setMaterialType($data['material_type']);
+            }
+
+            // Kombos werden als „Hülle“ (Entwurf) angelegt und erst im Detail fertiggestellt.
+            if ($material->isCombo()) {
+                $material->setComboStatus('draft');
             }
 
             // Details
@@ -685,7 +698,7 @@ class MaterialController extends AbstractController
             $comboMaterial->setMaterialType($materialType);
             $comboMaterial->setTrackingType('serialized');
             $comboMaterial->setIsContainer(false);
-            $comboMaterial->setReservationMode($data['reservation_mode'] ?? 'complete_only');
+            $comboMaterial->setComboStatus('draft');
 
             if (!empty($data['category_id'])) {
                 $category = $this->entityManager->getRepository(Category::class)->find($data['category_id']);
@@ -804,7 +817,7 @@ class MaterialController extends AbstractController
             $comboMaterial->setMaterialType($materialType);
             $comboMaterial->setTrackingType('serialized');
             $comboMaterial->setIsContainer(false);
-            $comboMaterial->setReservationMode($data['reservation_mode'] ?? 'complete_only');
+            $comboMaterial->setComboStatus('draft');
 
             if (!empty($data['category_id'])) {
                 $category = $this->entityManager->getRepository(Category::class)->find($data['category_id']);
@@ -992,7 +1005,6 @@ class MaterialController extends AbstractController
             if (array_key_exists('is_container', $data)) {
                 $material->setIsContainer((bool) $data['is_container']);
             }
-            if (array_key_exists('reservation_mode', $data)) $material->setReservationMode($data['reservation_mode']);
             if (isset($data['color'])) $material->setColor($data['color']);
             if (isset($data['material'])) $material->setMaterial($data['material']);
             if (isset($data['size_length'])) $material->setSizeLength($data['size_length']);
@@ -1085,6 +1097,169 @@ class MaterialController extends AbstractController
                 'error' => 'Fehler beim Aktualisieren des Materials: ' . $e->getMessage()
             ], 500);
         }
+    }
+
+    /**
+     * Kombo fertigstellen: Status draft → ready.
+     * Mindest-Validierung: ≥ 1 Pflichtteil (nicht-optionale Komponente).
+     */
+    #[Route('/{id}/finalize-combo', name: 'finalize_combo', methods: ['POST'])]
+    #[IsGranted('ROLE_USER')]
+    public function finalizeCombo(string $id): JsonResponse
+    {
+        $material = $this->entityManager->getRepository(MaterialItem::class)->find($id);
+        if (!$material) {
+            return new JsonResponse(['error' => 'Material nicht gefunden'], 404);
+        }
+        $accessCheck = $this->assertDepartmentAccess($material->getDepartmentId());
+        if ($accessCheck instanceof JsonResponse) {
+            return $accessCheck;
+        }
+        if (!$material->isCombo()) {
+            return new JsonResponse(['error' => 'Nur Kombos können fertiggestellt werden'], 400);
+        }
+
+        // Regel (Weg B): jede Kombo braucht ≥ 1 Pflicht-Stückteil aus dem Lager (component_source = stock).
+        // self_provided-Teile (z. B. Mast) zählen nie als Pflichtteil – sie sind nur Checklisten-Hinweis.
+        $requiredStockCount = (int) $this->entityManager->getRepository(MaterialComboComponent::class)
+            ->createQueryBuilder('cc')
+            ->select('COUNT(cc.id)')
+            ->where('cc.parentMaterialId = :parentId')
+            ->andWhere('cc.isOptional = false')
+            ->andWhere('cc.componentSource = :stock')
+            ->setParameter('parentId', $id)
+            ->setParameter('stock', 'stock')
+            ->getQuery()
+            ->getSingleScalarResult();
+
+        if ($requiredStockCount < 1) {
+            return new JsonResponse(['error' => 'Mindestens ein Pflichtteil aus dem Lager ist erforderlich, bevor die Kombo fertiggestellt werden kann'], 400);
+        }
+
+        $material->setComboStatus('ready');
+        $material->updateTimestamps();
+        $this->createHistoryEntry($material, 'updated', ['combo_status' => ['old' => 'draft', 'new' => 'ready']]);
+        $this->entityManager->flush();
+
+        return new JsonResponse($this->serializeMaterial($material, true));
+    }
+
+    // ==========================================
+    // === Verwandtes Zubehör (Empfehlung) ===
+    // ==========================================
+
+    /**
+     * Verwandtes Zubehör eines Materials laden.
+     */
+    #[Route('/{id}/related-accessories', name: 'related_accessories_list', methods: ['GET'])]
+    #[IsGranted('ROLE_USER')]
+    public function listRelatedAccessories(string $id): JsonResponse
+    {
+        $material = $this->entityManager->getRepository(MaterialItem::class)->find($id);
+        if (!$material) {
+            return new JsonResponse(['error' => 'Material nicht gefunden'], 404);
+        }
+        $accessCheck = $this->assertDepartmentAccess($material->getDepartmentId());
+        if ($accessCheck instanceof JsonResponse) {
+            return $accessCheck;
+        }
+
+        $accessories = $this->entityManager->getRepository(MaterialRelatedAccessory::class)
+            ->createQueryBuilder('ra')
+            ->leftJoin('ra.accessoryMaterial', 'am')
+            ->addSelect('am')
+            ->where('ra.materialId = :materialId')
+            ->setParameter('materialId', $id)
+            ->orderBy('ra.sortOrder', 'ASC')
+            ->getQuery()
+            ->getResult();
+
+        $result = [];
+        foreach ($accessories as $ra) {
+            $result[] = $this->serializeRelatedAccessory($ra);
+        }
+
+        return new JsonResponse($result);
+    }
+
+    /**
+     * Verwandtes Zubehör verknüpfen (eigene Empfehlung, kein Stücklisten-Teil).
+     */
+    #[Route('/{id}/related-accessories', name: 'related_accessories_add', methods: ['POST'])]
+    #[IsGranted('ROLE_USER')]
+    public function addRelatedAccessory(string $id, Request $request): JsonResponse
+    {
+        $material = $this->entityManager->getRepository(MaterialItem::class)->find($id);
+        if (!$material) {
+            return new JsonResponse(['error' => 'Material nicht gefunden'], 404);
+        }
+        $accessCheck = $this->assertDepartmentAccess($material->getDepartmentId());
+        if ($accessCheck instanceof JsonResponse) {
+            return $accessCheck;
+        }
+
+        $data = json_decode($request->getContent(), true) ?? [];
+        $accessoryId = $data['accessory_material_id'] ?? null;
+        if (!$accessoryId) {
+            return new JsonResponse(['error' => 'accessory_material_id ist erforderlich'], 400);
+        }
+
+        $accessory = $this->entityManager->getRepository(MaterialItem::class)->find($accessoryId);
+        if (!$accessory) {
+            return new JsonResponse(['error' => 'Zubehör-Material nicht gefunden'], 404);
+        }
+        if ($accessory->getId() === $material->getId()) {
+            return new JsonResponse(['error' => 'Ein Material kann nicht sich selbst als Zubehör haben'], 400);
+        }
+        if ($accessory->getDepartmentId() !== $material->getDepartmentId()) {
+            return new JsonResponse(['error' => 'Zubehör-Artikel muss zum gleichen Team gehören'], 400);
+        }
+
+        $existing = $this->entityManager->getRepository(MaterialRelatedAccessory::class)
+            ->findOneBy(['materialId' => $id, 'accessoryMaterialId' => $accessory->getId()]);
+        if ($existing) {
+            return new JsonResponse(['error' => 'Dieses Zubehör ist bereits verknüpft'], 409);
+        }
+
+        $maxSort = (int) $this->entityManager->getRepository(MaterialRelatedAccessory::class)
+            ->createQueryBuilder('ra')
+            ->select('COALESCE(MAX(ra.sortOrder), -1)')
+            ->where('ra.materialId = :materialId')
+            ->setParameter('materialId', $id)
+            ->getQuery()
+            ->getSingleScalarResult();
+
+        $ra = new MaterialRelatedAccessory();
+        $ra->setId(IdGenerator::generate13Unique($this->entityManager, MaterialRelatedAccessory::class, 'ra'));
+        $ra->setMaterial($material);
+        $ra->setAccessoryMaterial($accessory);
+        $ra->setSortOrder(isset($data['sort_order']) ? (int) $data['sort_order'] : $maxSort + 1);
+        $this->entityManager->persist($ra);
+        $this->entityManager->flush();
+
+        return new JsonResponse($this->serializeRelatedAccessory($ra), 201);
+    }
+
+    /**
+     * Verwandtes Zubehör entfernen.
+     */
+    #[Route('/{materialId}/related-accessories/{accessoryId}', name: 'related_accessories_delete', methods: ['DELETE'])]
+    #[IsGranted('ROLE_USER')]
+    public function deleteRelatedAccessory(string $materialId, string $accessoryId): JsonResponse
+    {
+        $ra = $this->entityManager->getRepository(MaterialRelatedAccessory::class)->find($accessoryId);
+        if (!$ra || $ra->getMaterialId() !== $materialId) {
+            return new JsonResponse(['error' => 'Zubehör-Verknüpfung nicht gefunden'], 404);
+        }
+        $accessCheck = $this->assertDepartmentAccess($ra->getMaterial()->getDepartmentId());
+        if ($accessCheck instanceof JsonResponse) {
+            return $accessCheck;
+        }
+
+        $this->entityManager->remove($ra);
+        $this->entityManager->flush();
+
+        return new JsonResponse(null, 204);
     }
 
     /**
@@ -2243,6 +2418,7 @@ class MaterialController extends AbstractController
         }
 
         // Soft-Delete
+        $this->materialItemPhotoService->deletePhotosForMaterial($material);
         $material->setDeletedAt(new \DateTime());
         $this->entityManager->flush();
 
@@ -2745,6 +2921,9 @@ class MaterialController extends AbstractController
             $comp->setComponentRole($data['component_role'] ?? null);
             $comp->setAssignmentMode($data['assignment_mode'] ?? 'bulk');
             $comp->setIsOptional($data['is_optional'] ?? false);
+            $comp->setComponentSource(
+                ($data['component_source'] ?? null) === 'self_provided' ? 'self_provided' : 'stock'
+            );
             $comp->setSortOrder($data['sort_order'] ?? 0);
 
             // Batch zuweisen (für serialized/fixed/assigned)
@@ -2834,6 +3013,11 @@ class MaterialController extends AbstractController
             }
             if (array_key_exists('is_optional', $data)) {
                 $comp->setIsOptional((bool) $data['is_optional']);
+            }
+            if (array_key_exists('component_source', $data)) {
+                $comp->setComponentSource(
+                    ((string) $data['component_source']) === 'self_provided' ? 'self_provided' : 'stock'
+                );
             }
             if (array_key_exists('sort_order', $data)) {
                 $comp->setSortOrder((int) $data['sort_order']);
@@ -2965,8 +3149,399 @@ class MaterialController extends AbstractController
     }
 
     // ==========================================
+    // === Konfigurator: Options-Gruppen & Optionen (Weg B, Paket 6) ===
+    // ==========================================
+
+    /**
+     * Options-Gruppe anlegen (nur virtuelle Kombo).
+     */
+    #[Route('/{id}/option-groups', name: 'option_groups_add', methods: ['POST'])]
+    #[IsGranted('ROLE_USER')]
+    public function addOptionGroup(string $id, Request $request): JsonResponse
+    {
+        $combo = $this->entityManager->getRepository(MaterialItem::class)->find($id);
+        if (!$combo) {
+            return new JsonResponse(['error' => 'Material nicht gefunden'], 404);
+        }
+        if ($combo->getMaterialType() !== 'virtual_combo') {
+            return new JsonResponse(['error' => 'Options-Gruppen gibt es nur bei virtuellen Kombos'], 400);
+        }
+        $accessCheck = $this->assertDepartmentAccess($combo->getDepartmentId());
+        if ($accessCheck instanceof JsonResponse) {
+            return $accessCheck;
+        }
+
+        $data = json_decode($request->getContent(), true) ?? [];
+        $group = new MaterialComboOptionGroup();
+        $group->setId(IdGenerator::generate13('og'));
+        $group->setMaterialItem($combo);
+        $group->setName('Gruppe');
+        $this->applyOptionGroupData($group, $data);
+
+        $this->entityManager->persist($group);
+        $this->entityManager->flush();
+
+        return new JsonResponse($this->serializeComboOptionGroup($group), 201);
+    }
+
+    /**
+     * Options-Gruppe bearbeiten.
+     */
+    #[Route('/{materialId}/option-groups/{groupId}', name: 'option_groups_update', methods: ['PATCH'])]
+    #[IsGranted('ROLE_USER')]
+    public function updateOptionGroup(string $materialId, string $groupId, Request $request): JsonResponse
+    {
+        $group = $this->entityManager->getRepository(MaterialComboOptionGroup::class)->find($groupId);
+        if (!$group || $group->getMaterialItemId() !== $materialId) {
+            return new JsonResponse(['error' => 'Options-Gruppe nicht gefunden'], 404);
+        }
+        $accessCheck = $this->assertDepartmentAccess($group->getMaterialItem()->getDepartmentId());
+        if ($accessCheck instanceof JsonResponse) {
+            return $accessCheck;
+        }
+
+        $data = json_decode($request->getContent(), true) ?? [];
+        $this->applyOptionGroupData($group, $data);
+        $this->entityManager->flush();
+
+        return new JsonResponse($this->serializeComboOptionGroup($group));
+    }
+
+    /**
+     * Options-Gruppe löschen (kaskadiert auf ihre Optionen/Deltas via FK ON DELETE CASCADE).
+     */
+    #[Route('/{materialId}/option-groups/{groupId}', name: 'option_groups_delete', methods: ['DELETE'])]
+    #[IsGranted('ROLE_USER')]
+    public function deleteOptionGroup(string $materialId, string $groupId): JsonResponse
+    {
+        $group = $this->entityManager->getRepository(MaterialComboOptionGroup::class)->find($groupId);
+        if (!$group || $group->getMaterialItemId() !== $materialId) {
+            return new JsonResponse(['error' => 'Options-Gruppe nicht gefunden'], 404);
+        }
+        $accessCheck = $this->assertDepartmentAccess($group->getMaterialItem()->getDepartmentId());
+        if ($accessCheck instanceof JsonResponse) {
+            return $accessCheck;
+        }
+
+        // Optionen der Gruppe explizit entfernen (DB-Kaskade greift, ORM-Konsistenz sicherstellen).
+        $options = $this->entityManager->getRepository(MaterialComboOption::class)
+            ->findBy(['optionGroupId' => $groupId]);
+        foreach ($options as $opt) {
+            $this->removeOptionWithDeltas($opt);
+        }
+        $this->entityManager->remove($group);
+        $this->entityManager->flush();
+
+        return new JsonResponse(['success' => true]);
+    }
+
+    /**
+     * Option anlegen (Toggle oder Gruppen-Option) inkl. Inline-Deltas.
+     */
+    #[Route('/{id}/options', name: 'options_add', methods: ['POST'])]
+    #[IsGranted('ROLE_USER')]
+    public function addOption(string $id, Request $request): JsonResponse
+    {
+        $combo = $this->entityManager->getRepository(MaterialItem::class)->find($id);
+        if (!$combo) {
+            return new JsonResponse(['error' => 'Material nicht gefunden'], 404);
+        }
+        if ($combo->getMaterialType() !== 'virtual_combo') {
+            return new JsonResponse(['error' => 'Optionen gibt es nur bei virtuellen Kombos'], 400);
+        }
+        $accessCheck = $this->assertDepartmentAccess($combo->getDepartmentId());
+        if ($accessCheck instanceof JsonResponse) {
+            return $accessCheck;
+        }
+
+        $data = json_decode($request->getContent(), true) ?? [];
+
+        $this->entityManager->beginTransaction();
+        try {
+            $option = new MaterialComboOption();
+            $option->setId(IdGenerator::generate13('op'));
+            $option->setMaterialItem($combo);
+            $option->setName('Option');
+            $groupResult = $this->applyOptionData($option, $combo, $data);
+            if ($groupResult instanceof JsonResponse) {
+                $this->entityManager->rollback();
+                return $groupResult;
+            }
+            $this->entityManager->persist($option);
+
+            $deltaResult = $this->replaceOptionDeltas($option, $combo, $data['deltas'] ?? []);
+            if ($deltaResult instanceof JsonResponse) {
+                $this->entityManager->rollback();
+                return $deltaResult;
+            }
+
+            $this->entityManager->flush();
+            $this->entityManager->commit();
+
+            return new JsonResponse($this->serializeComboOption($option), 201);
+        } catch (\Exception $e) {
+            $this->entityManager->rollback();
+            return new JsonResponse(['error' => 'Fehler beim Anlegen der Option: ' . $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Option bearbeiten (inkl. Deltas, replace-all).
+     */
+    #[Route('/{materialId}/options/{optionId}', name: 'options_update', methods: ['PATCH'])]
+    #[IsGranted('ROLE_USER')]
+    public function updateOption(string $materialId, string $optionId, Request $request): JsonResponse
+    {
+        $option = $this->entityManager->getRepository(MaterialComboOption::class)->find($optionId);
+        if (!$option || $option->getMaterialItemId() !== $materialId) {
+            return new JsonResponse(['error' => 'Option nicht gefunden'], 404);
+        }
+        $combo = $option->getMaterialItem();
+        $accessCheck = $this->assertDepartmentAccess($combo->getDepartmentId());
+        if ($accessCheck instanceof JsonResponse) {
+            return $accessCheck;
+        }
+
+        $data = json_decode($request->getContent(), true) ?? [];
+
+        $this->entityManager->beginTransaction();
+        try {
+            $groupResult = $this->applyOptionData($option, $combo, $data);
+            if ($groupResult instanceof JsonResponse) {
+                $this->entityManager->rollback();
+                return $groupResult;
+            }
+            if (array_key_exists('deltas', $data)) {
+                $deltaResult = $this->replaceOptionDeltas($option, $combo, $data['deltas'] ?? []);
+                if ($deltaResult instanceof JsonResponse) {
+                    $this->entityManager->rollback();
+                    return $deltaResult;
+                }
+            }
+            $this->entityManager->flush();
+            $this->entityManager->commit();
+
+            return new JsonResponse($this->serializeComboOption($option));
+        } catch (\Exception $e) {
+            $this->entityManager->rollback();
+            return new JsonResponse(['error' => 'Fehler beim Aktualisieren der Option: ' . $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Option löschen (kaskadiert auf ihre Deltas).
+     */
+    #[Route('/{materialId}/options/{optionId}', name: 'options_delete', methods: ['DELETE'])]
+    #[IsGranted('ROLE_USER')]
+    public function deleteOption(string $materialId, string $optionId): JsonResponse
+    {
+        $option = $this->entityManager->getRepository(MaterialComboOption::class)->find($optionId);
+        if (!$option || $option->getMaterialItemId() !== $materialId) {
+            return new JsonResponse(['error' => 'Option nicht gefunden'], 404);
+        }
+        $accessCheck = $this->assertDepartmentAccess($option->getMaterialItem()->getDepartmentId());
+        if ($accessCheck instanceof JsonResponse) {
+            return $accessCheck;
+        }
+
+        $this->removeOptionWithDeltas($option);
+        $this->entityManager->flush();
+
+        return new JsonResponse(['success' => true]);
+    }
+
+    // ==========================================
     // === Private Helpers ===
     // ==========================================
+
+    /**
+     * @param array<string, mixed> $data
+     */
+    private function applyOptionGroupData(MaterialComboOptionGroup $group, array $data): void
+    {
+        if (array_key_exists('name', $data)) {
+            $group->setName(trim((string) $data['name']) !== '' ? trim((string) $data['name']) : 'Gruppe');
+        }
+        if (array_key_exists('selection_type', $data)) {
+            $st = (string) $data['selection_type'];
+            $group->setSelectionType(in_array($st, ['exclusive', 'multi', 'quantity'], true) ? $st : 'exclusive');
+        }
+        if (array_key_exists('min_select', $data)) {
+            $group->setMinSelect(max(0, (int) $data['min_select']));
+        }
+        if (array_key_exists('max_select', $data)) {
+            $group->setMaxSelect($data['max_select'] === null ? null : max(0, (int) $data['max_select']));
+        }
+        if (array_key_exists('sort_order', $data)) {
+            $group->setSortOrder((int) $data['sort_order']);
+        }
+    }
+
+    /**
+     * Setzt die einfachen Felder einer Option + optionale Gruppen-Zuordnung.
+     *
+     * @param array<string, mixed> $data
+     */
+    private function applyOptionData(MaterialComboOption $option, MaterialItem $combo, array $data): ?JsonResponse
+    {
+        if (array_key_exists('name', $data)) {
+            $option->setName(trim((string) $data['name']) !== '' ? trim((string) $data['name']) : 'Option');
+        }
+        if (array_key_exists('display_mode', $data)) {
+            $dm = (string) $data['display_mode'];
+            $option->setDisplayMode($dm === 'group' ? 'group' : 'toggle');
+        }
+        if (array_key_exists('default_selected', $data)) {
+            $option->setDefaultSelected((bool) $data['default_selected']);
+        }
+        if (array_key_exists('sort_order', $data)) {
+            $option->setSortOrder((int) $data['sort_order']);
+        }
+        if (array_key_exists('option_group_id', $data)) {
+            $gid = $data['option_group_id'];
+            if ($gid === null || $gid === '') {
+                $option->setOptionGroup(null);
+            } else {
+                $group = $this->entityManager->getRepository(MaterialComboOptionGroup::class)->find((string) $gid);
+                if (!$group || $group->getMaterialItemId() !== $combo->getId()) {
+                    return new JsonResponse(['error' => 'Options-Gruppe nicht gefunden'], 400);
+                }
+                $option->setOptionGroup($group);
+                $option->setDisplayMode('group');
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Ersetzt alle Delta-Zeilen einer Option (replace-all). Referenziert BESTEHENDE material_item.
+     *
+     * @param list<array<string, mixed>> $deltas
+     */
+    private function replaceOptionDeltas(MaterialComboOption $option, MaterialItem $combo, array $deltas): ?JsonResponse
+    {
+        $existing = $this->entityManager->getRepository(MaterialComboOptionDelta::class)
+            ->findBy(['optionId' => $option->getId()]);
+        foreach ($existing as $d) {
+            $this->entityManager->remove($d);
+        }
+
+        $sort = 0;
+        foreach ($deltas as $row) {
+            $mid = (string) ($row['component_material_id'] ?? '');
+            if ($mid === '') {
+                return new JsonResponse(['error' => 'component_material_id ist je Delta-Zeile erforderlich'], 400);
+            }
+            $componentMaterial = $this->entityManager->getRepository(MaterialItem::class)->find($mid);
+            if (!$componentMaterial) {
+                return new JsonResponse(['error' => 'Komponenten-Material nicht gefunden: ' . $mid], 404);
+            }
+            if ($componentMaterial->getDepartmentId() !== $combo->getDepartmentId()) {
+                return new JsonResponse(['error' => 'Komponenten-Artikel muss zum gleichen Team gehören'], 400);
+            }
+            if ($componentMaterial->getId() === $combo->getId()) {
+                return new JsonResponse(['error' => 'Eine Kombo kann sich nicht selbst als Komponente haben'], 400);
+            }
+
+            $delta = new MaterialComboOptionDelta();
+            $delta->setId(IdGenerator::generate13('dt'));
+            $delta->setOption($option);
+            $delta->setComponentMaterial($componentMaterial);
+            $delta->setQtyDelta((int) ($row['qty_delta'] ?? 0));
+            $delta->setAssignmentMode(($row['assignment_mode'] ?? 'bulk') === 'on_issue' ? 'on_issue' : 'bulk');
+            $tracking = $row['tracking'] ?? $componentMaterial->getTrackingType();
+            $delta->setTracking(is_string($tracking) && $tracking !== '' ? $tracking : null);
+            $delta->setComponentSource(($row['component_source'] ?? null) === 'self_provided' ? 'self_provided' : 'stock');
+            $delta->setSortOrder((int) ($row['sort_order'] ?? $sort++));
+            $this->entityManager->persist($delta);
+        }
+        return null;
+    }
+
+    private function removeOptionWithDeltas(MaterialComboOption $option): void
+    {
+        $deltas = $this->entityManager->getRepository(MaterialComboOptionDelta::class)
+            ->findBy(['optionId' => $option->getId()]);
+        foreach ($deltas as $d) {
+            $this->entityManager->remove($d);
+        }
+        $this->entityManager->remove($option);
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function loadComboOptionGroups(string $comboId): array
+    {
+        $groups = $this->entityManager->getRepository(MaterialComboOptionGroup::class)
+            ->findBy(['materialItemId' => $comboId], ['sortOrder' => 'ASC']);
+        return array_map(fn (MaterialComboOptionGroup $g) => $this->serializeComboOptionGroup($g), $groups);
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function loadComboOptions(string $comboId): array
+    {
+        $options = $this->entityManager->getRepository(MaterialComboOption::class)
+            ->findBy(['materialItemId' => $comboId], ['sortOrder' => 'ASC']);
+        return array_map(fn (MaterialComboOption $o) => $this->serializeComboOption($o), $options);
+    }
+
+    private function serializeComboOptionGroup(MaterialComboOptionGroup $g): array
+    {
+        return [
+            'id' => $g->getId(),
+            'material_item_id' => $g->getMaterialItemId(),
+            'name' => $g->getName(),
+            'selection_type' => $g->getSelectionType(),
+            'min_select' => $g->getMinSelect(),
+            'max_select' => $g->getMaxSelect(),
+            'sort_order' => $g->getSortOrder(),
+        ];
+    }
+
+    private function serializeComboOption(MaterialComboOption $o): array
+    {
+        $deltas = $this->entityManager->getRepository(MaterialComboOptionDelta::class)
+            ->createQueryBuilder('d')
+            ->leftJoin('d.componentMaterial', 'cm')
+            ->addSelect('cm')
+            ->where('d.optionId = :oid')
+            ->setParameter('oid', $o->getId())
+            ->orderBy('d.sortOrder', 'ASC')
+            ->getQuery()
+            ->getResult();
+
+        return [
+            'id' => $o->getId(),
+            'material_item_id' => $o->getMaterialItemId(),
+            'option_group_id' => $o->getOptionGroupId(),
+            'name' => $o->getName(),
+            'display_mode' => $o->getDisplayMode(),
+            'default_selected' => $o->getDefaultSelected(),
+            'sort_order' => $o->getSortOrder(),
+            'deltas' => array_map(function (MaterialComboOptionDelta $d) {
+                $cm = $d->getComponentMaterial();
+                return [
+                    'id' => $d->getId(),
+                    'option_id' => $d->getOptionId(),
+                    'component_material' => [
+                        'id' => $cm->getId(),
+                        'name' => $cm->getName(),
+                        'material_type' => $cm->getMaterialType(),
+                        'tracking_type' => $cm->getTrackingType(),
+                        'total_stock' => $cm->getTotalStock(),
+                    ],
+                    'qty_delta' => $d->getQtyDelta(),
+                    'assignment_mode' => $d->getAssignmentMode(),
+                    'tracking' => $d->getTracking(),
+                    'component_source' => $d->getComponentSource(),
+                    'sort_order' => $d->getSortOrder(),
+                ];
+            }, $deltas),
+        ];
+    }
 
     /**
      * Serialisiert eine ComboComponent für die API-Response
@@ -2997,6 +3572,7 @@ class MaterialController extends AbstractController
             'component_role' => $comp->getComponentRole(),
             'assignment_mode' => $comp->getAssignmentMode(),
             'is_optional' => $comp->getIsOptional(),
+            'component_source' => $comp->getComponentSource(),
             'sort_order' => $comp->getSortOrder(),
             'is_assigned' => $comp->isAssignedToBatch(),
             'is_awaiting' => $comp->isAwaitingAssignment(),
@@ -3277,7 +3853,7 @@ class MaterialController extends AbstractController
             'is_container' => $material->getIsContainer(),
             'tent_type' => $material->getTentType(),
             'tent_capacity' => $material->getTentCapacity(),
-            'reservation_mode' => $material->getReservationMode(),
+            'combo_status' => $material->getComboStatus(),
             'is_consumable' => $material->getIsConsumable(),
             'is_food' => $material->getIsFood(),
             'is_js_material' => $material->getIsJsMaterial(),
@@ -3289,6 +3865,7 @@ class MaterialController extends AbstractController
             'pack_unit' => $material->getPackUnit(),
             'pack_sale_price_chf' => $material->getPackSalePriceChf(),
             'barcode_tag' => $material->getBarcodeTag(),
+            'image_url' => $material->getPrimaryPhotoUrl(),
             'public_code' => $publicCode,
             'public_url' => null,
             'created_at' => $material->getCreatedAt()->format('c'),
@@ -3296,6 +3873,7 @@ class MaterialController extends AbstractController
         ];
 
         if ($includeDetails) {
+            $result['photos'] = $this->photoNormalizer->normalizeOutgoing($material->getPhotos());
             $result['color'] = $material->getColor();
             $result['material'] = $material->getMaterial();
             $result['size_length'] = $material->getSizeLength();
@@ -3387,10 +3965,51 @@ class MaterialController extends AbstractController
                     $result['combo_components'][] = $this->serializeComboComponent($cc);
                 }
                 $result['combo_component_count'] = count($comboComponents);
+
+                // Options-Gruppen + Optionen (Weg B / Konfigurator, Paket 6) – nur virtuelle Kombo.
+                if ($material->getMaterialType() === 'virtual_combo') {
+                    $result['combo_option_groups'] = $this->loadComboOptionGroups($material->getId());
+                    $result['combo_options'] = $this->loadComboOptions($material->getId());
+                }
+            }
+
+            // Verwandtes Zubehör (Empfehlung, kein Stücklisten-Teil) – für alle Typen
+            $relatedAccessories = $this->entityManager->getRepository(MaterialRelatedAccessory::class)
+                ->createQueryBuilder('ra')
+                ->leftJoin('ra.accessoryMaterial', 'am')
+                ->addSelect('am')
+                ->where('ra.materialId = :materialId')
+                ->setParameter('materialId', $material->getId())
+                ->orderBy('ra.sortOrder', 'ASC')
+                ->getQuery()
+                ->getResult();
+
+            $result['related_accessories'] = [];
+            foreach ($relatedAccessories as $ra) {
+                $result['related_accessories'][] = $this->serializeRelatedAccessory($ra);
             }
         }
 
         return $result;
+    }
+
+    private function serializeRelatedAccessory(MaterialRelatedAccessory $ra): array
+    {
+        $accessory = $ra->getAccessoryMaterial();
+
+        return [
+            'id' => $ra->getId(),
+            'material_id' => $ra->getMaterialId(),
+            'accessory_material' => [
+                'id' => $accessory->getId(),
+                'name' => $accessory->getName(),
+                'material_type' => $accessory->getMaterialType(),
+                'tracking_type' => $accessory->getTrackingType(),
+                'total_stock' => $accessory->getTotalStock(),
+            ],
+            'sort_order' => $ra->getSortOrder(),
+            'created_at' => $ra->getCreatedAt()->format('c'),
+        ];
     }
 
     /**

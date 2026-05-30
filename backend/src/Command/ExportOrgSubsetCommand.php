@@ -30,7 +30,7 @@ class ExportOrgSubsetCommand extends Command
                 'org',
                 null,
                 InputOption::VALUE_REQUIRED | InputOption::VALUE_IS_ARRAY,
-                'Organisation-ID(s), z.B. --org=org_js000000 --org=GLOBALORG001'
+                'Organisation-ID(s), z.B. --org=org_js000000'
             )
             ->addOption(
                 'output',

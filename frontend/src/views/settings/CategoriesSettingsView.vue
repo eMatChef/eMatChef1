@@ -16,16 +16,10 @@
 
     <!-- Suchleiste -->
     <div class="search-bar">
-      <div class="search-input-wrapper">
-        <svg class="search-icon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <circle cx="11" cy="11" r="8"/>
-          <path d="m21 21-4.35-4.35"/>
-        </svg>
-        <input 
-          v-model="searchQuery" 
-          type="text" 
-          :placeholder="t('settings.categories.searchPlaceholder')"
-          class="search-input"
+      <div class="search-box">
+        <SearchFieldInput
+          v-model="searchQuery"
+          :label="t('settings.categories.searchPlaceholder')"
         />
       </div>
       <div class="category-count">
@@ -64,7 +58,7 @@
             </div>
           </div>
           <div class="category-actions">
-            <button class="action-btn" @click.stop="openEditModal(mainCat)" :title="t('settings.categories.edit')">
+            <button class="action-btn" @click.stop="openEditModal(mainCat)" :title="t('common.edit')">
               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
                 <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
@@ -76,7 +70,7 @@
                 <line x1="5" y1="12" x2="19" y2="12"/>
               </svg>
             </button>
-            <button class="action-btn delete" @click.stop="confirmDelete(mainCat)" :title="t('settings.categories.delete')">
+            <button class="action-btn delete" @click.stop="confirmDelete(mainCat)" :title="t('common.delete')">
               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <polyline points="3 6 5 6 21 6"/>
                 <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
@@ -106,13 +100,13 @@
                 </div>
               </div>
               <div class="category-actions">
-                <button class="action-btn" @click.stop="openEditModal(subCat)" :title="t('settings.categories.edit')">
+                <button class="action-btn" @click.stop="openEditModal(subCat)" :title="t('common.edit')">
                   <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
                     <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
                   </svg>
                 </button>
-                <button class="action-btn delete" @click.stop="confirmDelete(subCat)" :title="t('settings.categories.delete')">
+                <button class="action-btn delete" @click.stop="confirmDelete(subCat)" :title="t('common.delete')">
                   <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <polyline points="3 6 5 6 21 6"/>
                     <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
@@ -168,7 +162,7 @@
         <div class="confirm-actions">
           <button class="btn-secondary" @click="showDeleteConfirm = false">{{ t('common.cancel') }}</button>
           <button class="btn-danger" @click="executeDelete" :disabled="isDeleting">
-            {{ isDeleting ? t('settings.categories.deleting') : t('settings.categories.delete') }}
+            {{ isDeleting ? t('common.deleteInProgress') : t('common.delete') }}
           </button>
         </div>
       </div>
@@ -182,6 +176,7 @@ import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useToast } from '@/composables/useToast'
 import { getCategories, deleteCategory, type Category } from '@/api/categories'
+import SearchFieldInput from '@/components/common/SearchFieldInput.vue'
 import CategoryModal from '@/components/CategoryModal.vue'
 
 const route = useRoute()

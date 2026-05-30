@@ -33,7 +33,7 @@ const { t } = useI18n()
       :disabled="cancelDisabled"
       @click="$emit('cancel')"
     >
-      {{ t('activities.common.cancel') }}
+      {{ t('common.cancel') }}
     </button>
     <button
       type="button"

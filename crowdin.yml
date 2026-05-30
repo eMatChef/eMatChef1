@@ -14,8 +14,8 @@ branch: prod
 files:
   - source: frontend/src/locales/de.json
     translation: frontend/src/locales/%locale%.json
-  # Zusätzliche Sprachvarianten als eigene Quellen in Crowdin anzeigen.
-  # Eigene Zielpfade vermeiden Kollisionen mit en.json/fr.json/it.json.
+  # Pfadi/Cevi: nur Abweichungen zu de.json (vue-i18n-Fallback de-pfadi|de-cevi → de).
+  # Ziel-Locales (%locale%-pfadi|cevi) ebenfalls nur Deltas zur Basis-Locale.
   - source: frontend/src/locales/de-pfadi.json
     translation: frontend/src/locales/%locale%-pfadi.json
   - source: frontend/src/locales/de-cevi.json

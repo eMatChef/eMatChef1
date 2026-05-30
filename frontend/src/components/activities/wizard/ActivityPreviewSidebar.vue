@@ -18,7 +18,7 @@
         <span v-else class="preview-badge preview-badge--muted">{{ t('activities.wizard.previewNoType') }}</span>
         <template v-if="selectedActivityType">
           <p v-if="previewGroupLine" class="preview-meta">
-            <span class="preview-dates-label">{{ t('activities.wizard.previewMetaGroup') }}</span>
+            <span class="preview-dates-label">{{ t('common.group') }}</span>
             {{ previewGroupLine }}
           </p>
           <p v-if="previewVenueLine" class="preview-meta">
@@ -30,7 +30,7 @@
             {{ previewMieterLine }}
           </p>
           <p v-if="previewMaterialLine" class="preview-meta">
-            <span class="preview-dates-label">{{ t('activities.wizard.previewMetaMaterial') }}</span>
+            <span class="preview-dates-label">{{ t('common.material') }}</span>
             {{ previewMaterialLine }}
           </p>
           <p v-if="previewInvitedLine" class="preview-meta">

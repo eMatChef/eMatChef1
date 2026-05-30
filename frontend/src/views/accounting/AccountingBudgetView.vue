@@ -54,7 +54,7 @@
               <th class="col-num">{{ t('accounting.budget.colActualChf') }}</th>
               <th class="col-num">{{ t('accounting.budget.colRemaining') }}</th>
               <th>{{ t('accounting.budget.colBookings') }}</th>
-              <th class="col-actions">{{ t('accounting.common.actions') }}</th>
+              <th class="col-actions">{{ t('common.actions') }}</th>
             </tr>
           </thead>
           <tbody>
@@ -69,13 +69,13 @@
               <td>{{ row.booking_count }}</td>
               <td class="col-actions">
                 <template v-if="row.budget_line_id">
-                  <button type="button" class="acc-icon-btn" :title="t('accounting.common.edit')" @click="openEditModal(row)">
+                  <button type="button" class="acc-icon-btn" :title="t('common.edit')" @click="openEditModal(row)">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                       <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
                       <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
                     </svg>
                   </button>
-                  <button type="button" class="acc-icon-btn danger" :title="t('accounting.common.delete')" @click="onDeleteLine(row)">
+                  <button type="button" class="acc-icon-btn danger" :title="t('common.delete')" @click="onDeleteLine(row)">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                       <polyline points="3 6 5 6 21 6" />
                       <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
@@ -123,9 +123,9 @@
           <p v-if="modalError" class="budget-error">{{ modalError }}</p>
         </div>
         <div class="acc-modal-footer">
-          <button type="button" class="btn btn-secondary btn-sm" @click="modalOpen = false">{{ t('accounting.common.cancel') }}</button>
+          <button type="button" class="btn btn-secondary btn-sm" @click="modalOpen = false">{{ t('common.cancel') }}</button>
           <button type="button" class="btn btn-primary btn-sm" :disabled="saving" @click="submitModal">
-            {{ saving ? t('accounting.common.savingAlt') : t('accounting.common.save') }}
+            {{ saving ? t('accounting.common.savingAlt') : t('common.save') }}
           </button>
         </div>
       </div>
@@ -324,8 +324,8 @@ async function onDeleteLine(row: BudgetComparisonRow) {
   const ok = await confirmDialog({
     title: t('accounting.budget.deleteTitle'),
     message: t('accounting.budget.deleteMessage'),
-    confirmText: t('accounting.common.delete'),
-    cancelText: t('accounting.common.cancel'),
+    confirmText: t('common.delete'),
+    cancelText: t('common.cancel'),
     variant: 'danger',
   })
   if (!ok) return

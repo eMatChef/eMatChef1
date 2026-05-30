@@ -13,7 +13,7 @@
       </div>
       <div class="tree-header-cell expand-cell"></div>
       <div class="tree-header-cell content-cell">
-        <span class="header-label">{{ headerLabel || t('components.treeList.headerNameDefault') }}</span>
+        <span class="header-label">{{ headerLabel || t('common.name') }}</span>
         <button class="sort-button" @click="toggleSort">
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
             <path d="M4 6L8 2L12 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -23,7 +23,7 @@
         <span class="item-count">{{ totalCount }}</span>
       </div>
       <div class="tree-header-cell actions-cell">
-        <span class="header-label">{{ t('components.treeList.actions') }}</span>
+        <span class="header-label">{{ t('common.actions') }}</span>
       </div>
     </div>
 

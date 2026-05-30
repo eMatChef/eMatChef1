@@ -33,20 +33,10 @@
       <!-- Search & Filter Bar -->
       <div class="filter-bar">
         <div class="search-box">
-          <svg class="search-icon" width="20" height="20" viewBox="0 0 20 20" fill="none">
-            <path d="M9 17A8 8 0 1 0 9 1a8 8 0 0 0 0 16zM19 19l-4.35-4.35" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-          </svg>
-          <input 
+          <SearchFieldInput
             v-model="searchQuery"
-            type="text" 
-            :placeholder="t('contacts.searchPlaceholder')"
-            class="search-input"
+            :label="t('contacts.searchPlaceholder')"
           />
-          <button v-if="searchQuery" @click="clearSearch" class="clear-btn">
-            <svg width="16" height="16" viewBox="0 0 20 20" fill="none">
-              <path d="M15 5L5 15M5 5l10 10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-            </svg>
-          </button>
         </div>
         
         <div class="filter-group">
@@ -136,7 +126,7 @@
         <table class="contacts-table">
           <thead>
             <tr>
-              <th class="col-name">{{ t('contacts.colName') }}</th>
+              <th class="col-name">{{ t('common.name') }}</th>
               <th class="col-contact">{{ t('contacts.colContact') }}</th>
               <th class="col-address">{{ t('contacts.colAddress') }}</th>
               <th class="col-type">{{ t('contacts.colType') }}</th>
@@ -205,7 +195,7 @@
 
               <!-- Typ -->
               <td class="col-type">
-                <span class="type-badge" :class="contact.type">{{ addressTypeLabel(contact.type) }}</span>
+                <span class="address-type-badge" :class="contact.type">{{ addressTypeLabel(contact.type) }}</span>
               </td>
 
               <!-- Aktionen -->
@@ -276,6 +266,7 @@ import {
   type Address,
 } from '@/api/addresses'
 import { useToast } from '@/composables/useToast'
+import SearchFieldInput from '@/components/common/SearchFieldInput.vue'
 import AddressModal from '@/components/AddressModal.vue'
 import ContactDetailView from '@/components/contacts/ContactDetailView.vue'
 import {
@@ -394,10 +385,6 @@ function getInitials(contact: Address): string {
     return contact.company.substring(0, 2)
   }
   return '??'
-}
-
-function clearSearch() {
-  searchQuery.value = ''
 }
 
 function resetFilters() {

@@ -170,7 +170,7 @@ function showIssueQuick(ci: ActivityPackContainerItem): boolean {
         <template #line="{ ci }">
           <div class="pack-container-line pack-container-line--issue-row pack-container-line--stacked">
             <div class="pack-container-line-main">
-              <span class="pack-container-line-name">{{ ci.material_name || t('activities.common.material') }}</span>
+              <span class="pack-container-line-name">{{ ci.material_name || t('common.material') }}</span>
               <span class="pack-container-line-qty text-muted">
                 {{ lineReturnLabel(ci) }}
               </span>

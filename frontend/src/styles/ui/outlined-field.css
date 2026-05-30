@@ -1,0 +1,278 @@
+/**
+ * Outlined Formularfelder (Material Design): Label sitzt auf dem oberen Rahmen.
+ * Global für .form-group / AutoSaveField – Activity, Wizard, Material-Detail, Modals.
+ */
+
+.field-outline-label,
+.autosave-label {
+  position: absolute;
+  top: 0;
+  left: 12px;
+  transform: translateY(-50%);
+  padding: 0 6px;
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.2;
+  color: var(--color-primary-dark, #047857);
+  background: var(--outlined-label-bg, #fff);
+  z-index: 5;
+  pointer-events: none;
+  transition: color 0.15s ease;
+  max-width: calc(100% - 24px);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Nur Anzeige: Label über Text, kein Rahmen-Feld */
+.form-group:has(> .activity-readonly-inline),
+.form-group.form-group--static {
+  gap: 4px;
+  padding-top: 0;
+  margin-bottom: 0;
+}
+
+.form-group:has(> .activity-readonly-inline) > label:first-child,
+.form-group.form-group--static > label:first-child {
+  position: static;
+  transform: none;
+  padding: 0;
+  margin: 0;
+  background: transparent;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-muted, #6b7280);
+  pointer-events: auto;
+  max-width: none;
+  white-space: normal;
+}
+
+/* Manuelle Felder (ohne AutoSaveField) */
+.form-group:not(.autosave-field):where(
+  :has(> .form-input),
+  :has(> .form-select),
+  :has(> .form-textarea),
+  :has(> .input-with-prefix),
+  :has(> .pack-unit-select),
+  :has(> .material-lookup),
+  :has(> .autocomplete-wrapper),
+  :has(> .storage-location-picker)
+) {
+  position: relative;
+  padding-top: 0;
+  gap: 0;
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+.form-group:not(.autosave-field):where(
+  :has(> .form-input),
+  :has(> .form-select),
+  :has(> .form-textarea),
+  :has(> .input-with-prefix),
+  :has(> .pack-unit-select),
+  :has(> .material-lookup),
+  :has(> .autocomplete-wrapper),
+  :has(> .storage-location-picker)
+) > label:first-child,
+.form-group:not(.autosave-field):where(
+  :has(> .form-input),
+  :has(> .form-select),
+  :has(> .form-textarea),
+  :has(> .input-with-prefix),
+  :has(> .pack-unit-select),
+  :has(> .material-lookup),
+  :has(> .autocomplete-wrapper),
+  :has(> .storage-location-picker)
+) > .form-label:first-child {
+  position: absolute;
+  top: 0;
+  left: 12px;
+  transform: translateY(-50%);
+  padding: 0 6px;
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.2;
+  color: var(--color-primary-dark, #047857);
+  background: var(--outlined-label-bg, #fff);
+  z-index: 3;
+  pointer-events: none;
+  max-width: calc(100% - 24px);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: color 0.15s ease;
+}
+
+.form-group:not(.autosave-field):where(
+  :has(> .form-input),
+  :has(> .form-select),
+  :has(> .form-textarea),
+  :has(> .input-with-prefix),
+  :has(> .pack-unit-select),
+  :has(> .material-lookup),
+  :has(> .autocomplete-wrapper),
+  :has(> .storage-location-picker)
+):focus-within > label:first-child,
+.form-group:not(.autosave-field):where(
+  :has(> .form-input),
+  :has(> .form-select),
+  :has(> .form-textarea),
+  :has(> .input-with-prefix),
+  :has(> .pack-unit-select),
+  :has(> .material-lookup),
+  :has(> .autocomplete-wrapper),
+  :has(> .storage-location-picker)
+):focus-within > .form-label:first-child {
+  color: var(--color-primary, #059669);
+}
+
+.form-group:not(.autosave-field) > .form-input,
+.form-group:not(.autosave-field) > .form-textarea {
+  min-height: 48px;
+  padding: 16px 12px 10px;
+}
+
+.form-group:not(.autosave-field) > .form-textarea {
+  min-height: 96px;
+}
+
+.form-group:not(.autosave-field) > .form-select {
+  min-height: 48px;
+  padding: 16px 28px 10px 12px;
+  appearance: auto;
+}
+
+.form-group:not(.autosave-field):has(> .input-with-prefix) .input-with-prefix {
+  display: flex;
+  align-items: stretch;
+  border: 1px solid var(--color-border, #d1d5db);
+  border-radius: 8px;
+  overflow: hidden;
+  min-height: 48px;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.form-group:not(.autosave-field):has(> .input-with-prefix):focus-within .input-with-prefix {
+  border-color: var(--color-primary-light, #10b981);
+  box-shadow: 0 0 0 3px var(--color-primary-ring, rgba(16, 185, 129, 0.1));
+}
+
+.form-group:not(.autosave-field):has(> .input-with-prefix) .input-with-prefix .prefix {
+  display: flex;
+  align-items: center;
+  padding: 16px 10px 10px;
+  border: none;
+  border-right: 1px solid var(--color-border, #d1d5db);
+  border-radius: 0;
+  background: var(--color-surface-muted, #f3f4f6);
+}
+
+.form-group:not(.autosave-field):has(> .input-with-prefix) .input-with-prefix .form-input {
+  flex: 1;
+  min-height: 0;
+  padding: 16px 12px 10px;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.form-group:not(.autosave-field):has(> .input-with-prefix) .input-with-prefix .form-input:focus {
+  box-shadow: none;
+}
+
+.form-group:not(.autosave-field):has(> .pack-unit-select) > .pack-unit-select > .form-select {
+  min-height: 48px;
+  padding: 16px 28px 10px 12px;
+}
+
+.form-group:not(.autosave-field):has(> .material-lookup) .material-lookup-input-wrap {
+  border: 1px solid var(--color-border, #d1d5db);
+  border-radius: 8px;
+  min-height: 48px;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.form-group:not(.autosave-field):has(> .material-lookup):focus-within .material-lookup-input-wrap {
+  border-color: var(--color-primary-light, #10b981);
+  box-shadow: 0 0 0 3px var(--color-primary-ring, rgba(16, 185, 129, 0.1));
+}
+
+.form-group:not(.autosave-field):has(> .material-lookup) .material-lookup-input {
+  min-height: 48px;
+  padding-top: 16px;
+  padding-bottom: 10px;
+  border: none;
+  box-shadow: none;
+}
+
+.form-group:not(.autosave-field):has(> .material-lookup) .material-lookup-input:focus {
+  box-shadow: none;
+}
+
+.form-group:not(.autosave-field):has(> .autocomplete-wrapper) .autocomplete-wrapper .form-input {
+  min-height: 48px;
+  padding: 16px 12px 10px;
+}
+
+.form-group:not(.autosave-field):where(
+  :has(> .form-input),
+  :has(> .form-select),
+  :has(> .form-textarea),
+  :has(> .input-with-prefix),
+  :has(> .pack-unit-select),
+  :has(> .material-lookup),
+  :has(> .autocomplete-wrapper),
+  :has(> .storage-location-picker)
+) > .form-hint,
+.form-group:not(.autosave-field):where(
+  :has(> .form-input),
+  :has(> .form-select),
+  :has(> .form-textarea),
+  :has(> .input-with-prefix),
+  :has(> .pack-unit-select),
+  :has(> .material-lookup),
+  :has(> .autocomplete-wrapper),
+  :has(> .storage-location-picker)
+) > .batch-field-hint {
+  margin-top: 6px;
+}
+
+/* StorageLocationPicker: jedes Dropdown als outlined field */
+.storage-location-picker .picker-field {
+  position: relative;
+  padding-top: 0;
+  gap: 0;
+}
+
+.storage-location-picker .picker-field > label {
+  position: absolute;
+  top: 0;
+  left: 12px;
+  transform: translateY(-50%);
+  padding: 0 6px;
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.2;
+  color: var(--color-primary-dark, #047857);
+  background: var(--outlined-label-bg, #fff);
+  z-index: 3;
+  pointer-events: none;
+  max-width: calc(100% - 24px);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: color 0.15s ease;
+}
+
+.storage-location-picker .picker-field:focus-within > label {
+  color: var(--color-primary, #059669);
+}
+
+.storage-location-picker .picker-field > .form-select {
+  min-height: 48px;
+  padding: 16px 28px 10px 12px;
+}

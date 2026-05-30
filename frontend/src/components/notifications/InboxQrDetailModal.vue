@@ -9,7 +9,7 @@
     >
       <header class="modal-header">
         <h3>{{ t('notificationsCenter.qrDetailTitle') }}</h3>
-        <button type="button" class="modal-close" :aria-label="t('notificationsCenter.composeCancel')" @click="emit('close')">
+        <button type="button" class="modal-close" :aria-label="t('common.cancel')" @click="emit('close')">
           ×
         </button>
       </header>
@@ -22,7 +22,7 @@
           </div>
         </div>
         <p class="nc-qr-detail__material">
-          <strong>{{ t('notificationsCenter.tableMaterial') }}:</strong> {{ message.material_name }}
+          <strong>{{ t('common.material') }}:</strong> {{ message.material_name }}
         </p>
         <div class="nc-message-detail__body">{{ message.message }}</div>
         <p v-if="message.sender_email" class="nc-qr-detail__email">
@@ -34,7 +34,7 @@
           <select
             class="nc-status-select"
             :value="message.status"
-            :title="t('notificationsCenter.tableStatus')"
+            :title="t('common.status')"
             @change="onStatusChange"
           >
             <option value="open">{{ t('notificationsCenter.statusOpen') }}</option>

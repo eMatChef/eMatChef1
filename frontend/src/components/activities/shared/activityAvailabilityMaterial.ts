@@ -24,4 +24,13 @@ export interface ActivityPeriodAvailabilityMaterial {
   linkedContainerLabel?: string | null
   /** Verpackungseinheit des Behälter-Stammartikels (z. B. Sack, Kiste) */
   linkedContainerPackUnit?: string | null
+  /** Virtuelle Kombo: Flaschenhals = min(floor(frei/menge)) über stock-Teile (= availableForPeriod). */
+  comboBottleneck?: number
+  /** Virtuelle Kombo: aufgelöste stock-Teile der Basis-Konfiguration. */
+  comboStockComponents?: Array<{
+    materialItemId: string
+    name: string
+    qtyPerCombo: number
+    availableForPeriod: number
+  }>
 }

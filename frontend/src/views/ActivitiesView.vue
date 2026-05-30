@@ -4,6 +4,7 @@
       v-model="showCreateActivityWizard"
       :department-id="departmentId"
       @created="onActivityCreateWizardCreated"
+      @draft-saved="onActivityDraftSaved"
     />
 
     <div v-if="activityRouteId" class="dept-page activities-detail-root">
@@ -100,15 +101,9 @@
         </div>
         <div v-if="activeTab === 'all'" class="filter-actions filter-actions-all">
           <div class="search-box">
-            <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-              <circle cx="11" cy="11" r="8" />
-              <path d="m21 21-4.35-4.35" />
-            </svg>
-            <input
+            <SearchFieldInput
               v-model="searchQuery"
-              type="search"
-              class="search-input form-input"
-              :placeholder="t('activities.searchListPlaceholder')"
+              :label="t('activities.searchListPlaceholder')"
             />
           </div>
         </div>
@@ -125,7 +120,7 @@
             <tr>
               <th class="col-status"></th>
               <th class="col-name" @click="toggleSort('name')">
-                {{ t('activities.table.name') }}
+                {{ t('common.name') }}
                 <span v-if="sortField === 'name'" class="sort-icon">{{ sortDir === 'asc' ? '↑' : '↓' }}</span>
               </th>
               <th class="col-type">
@@ -142,19 +137,19 @@
                   </select>
                 </div>
               </th>
-              <th class="col-customer">{{ t('activities.table.group') }}</th>
+              <th class="col-customer">{{ t('common.group') }}</th>
               <th class="col-period" @click="toggleSort('date')">
                 {{ t('activities.table.period') }}
                 <span v-if="sortField === 'date'" class="sort-icon">{{ sortDir === 'asc' ? '↑' : '↓' }}</span>
               </th>
-              <th class="col-items">{{ t('activities.table.material') }}</th>
+              <th class="col-items">{{ t('common.material') }}</th>
               <th class="col-price" @click="toggleSort('price')">
                 {{ t('activities.table.price') }}
                 <span v-if="sortField === 'price'" class="sort-icon">{{ sortDir === 'asc' ? '↑' : '↓' }}</span>
               </th>
               <th class="col-progress">
                 <div class="th-filter-wrap">
-                  <span>{{ t('activities.table.status') }}</span>
+                  <span>{{ t('common.status') }}</span>
                   <select
                     v-if="activeTab === 'all'"
                     v-model="statusFilter"
@@ -266,11 +261,13 @@ import apiClient from '@/api/apiClient'
 import { getActivity } from '@/api/activities'
 import { getGroups, type Group } from '@/api/groups'
 import { buildActivityGroupPathLines, type GroupPathLine } from '@/utils/groupHierarchy'
+import SearchFieldInput from '@/components/common/SearchFieldInput.vue'
 import { ActivityCreateWizard, ActivityDetailView } from '@/components/activities'
 import { usePageHeadStore } from '@/stores/pageHead'
 import { syncDocumentHead } from '@/composables/usePageHead'
 import { useToast } from '@/composables/useToast'
 import { useHeaderNotificationsStore } from '@/stores/headerNotifications'
+import { useDetailTabsStore } from '@/stores/detailTabs'
 import { useDepartmentLiveRefresh } from '@/composables/useDepartmentLiveRefresh'
 import { useListSearchQueryRoute } from '@/composables/useListSearchQueryRoute'
 import { activityStatusClass, activityStatusI18nKey } from '@/utils/activityStatus'
@@ -280,6 +277,7 @@ const router = useRouter()
 const { t, te, locale } = useI18n()
 const toast = useToast()
 const headerNotificationsStore = useHeaderNotificationsStore()
+const detailTabsStore = useDetailTabsStore()
 const pageHeadStore = usePageHeadStore()
 
 const departmentId = computed(() => route.params.departmentId as string)
@@ -661,6 +659,18 @@ function openCreateActivityWizard() {
   showCreateActivityWizard.value = true
 }
 
+async function onActivityDraftSaved(id: string) {
+  if (id) {
+    try {
+      const detail = await getActivity(id)
+      upsertActivityInList(detail as unknown as Record<string, unknown>)
+    } catch {
+      /* Liste wird unten still nachgeladen */
+    }
+  }
+  void loadActivities({ silent: true })
+}
+
 async function onActivityCreateWizardCreated(id: string) {
   activityJustCreated.value = true
   showCreateActivityWizard.value = false
@@ -697,6 +707,26 @@ watch(activityRouteId, (id, prevId) => {
     void loadActivities()
   }
 })
+
+watch(
+  [activityRouteId, departmentId],
+  ([id, deptId]) => {
+    if (!id || !deptId) return
+    const act = activities.value.find((a) => a.id === id)
+    const label =
+      act?.name?.trim() ||
+      act?.no?.trim() ||
+      t('activities.fallbackTabLabel', { id })
+    detailTabsStore.addOrUpdateTab({
+      id,
+      type: 'activity',
+      label,
+      departmentId: deptId,
+      path: `/${deptId}/activities/${id}`,
+    })
+  },
+  { immediate: true }
+)
 
 // ?new=1: Erstell-Wizard nur auf der Listen-Route (nie in der Detailansicht)
 watch(

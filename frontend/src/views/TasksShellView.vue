@@ -22,7 +22,7 @@
           class="filter-tab"
           active-class="active"
         >
-          {{ t('tasksShell.tabPrint') }}
+          {{ t('common.print') }}
         </router-link>
       </div>
     </div>

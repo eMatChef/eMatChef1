@@ -40,7 +40,7 @@
           <table class="cost-centers-table mc-table">
             <thead>
               <tr>
-                <th>{{ t('accounting.materialCosts.colMaterial') }}</th>
+                <th>{{ t('common.material') }}</th>
                 <th class="col-num">{{ t('accounting.materialCosts.colBookings') }}</th>
                 <th class="col-num">{{ t('accounting.materialCosts.colSumChf') }}</th>
                 <th class="col-actions">{{ t('accounting.common.action') }}</th>

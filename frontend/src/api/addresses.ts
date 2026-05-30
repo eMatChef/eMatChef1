@@ -87,6 +87,18 @@ export async function getAddresses(
 }
 
 /**
+ * Lieferanten für MW-Wizard / Import (aktive Firmen + Legacy-global + department-lokal).
+ */
+export async function getMaterialWizardSuppliers(
+  departmentId: string,
+): Promise<{ addresses: Address[] }> {
+  const { data } = await apiClient.get('/api/addresses/material-wizard-suppliers', {
+    params: { department_id: departmentId },
+  })
+  return data
+}
+
+/**
  * Einzelne Adresse laden
  */
 export async function getAddress(id: string): Promise<{

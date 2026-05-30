@@ -7,14 +7,18 @@
     <div v-show="isOpen" class="step-content">
       <div class="creation-mode-cards">
         <div class="creation-mode-card" @click="$emit('select', 'individual')">
-          <div class="mode-card-icon">
+          <div class="mode-card-icon individual">
             <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
             </svg>
           </div>
           <div class="mode-card-content">
-            <span class="mode-card-title">{{ t('components.materialCreateWizard.modeIndividualTitle') }}</span>
+            <div class="mode-card-head">
+              <span class="mode-card-title">{{ t('components.materialCreateWizard.modeIndividualTitle') }}</span>
+              <span class="mode-card-badge mode-card-badge--individual">{{ t('components.materialCreateWizard.badgeIndividual') }}</span>
+            </div>
             <span class="mode-card-desc">{{ t('components.materialCreateWizard.modeIndividualDesc') }}</span>
+            <span class="mode-card-when">{{ t('components.materialCreateWizard.modeIndividualWhen') }}</span>
           </div>
         </div>
         <div class="creation-mode-card" @click="$emit('select', 'physical_combo')">
@@ -25,8 +29,12 @@
             </svg>
           </div>
           <div class="mode-card-content">
-            <span class="mode-card-title">{{ t('components.materialCreateWizard.modePhysicalComboTitle') }}</span>
+            <div class="mode-card-head">
+              <span class="mode-card-title">{{ t('components.materialCreateWizard.modePhysicalComboTitle') }}</span>
+              <span class="mode-card-badge mode-card-badge--physical">{{ t('components.materialCreateWizard.badgePhysicalCombo') }}</span>
+            </div>
             <span class="mode-card-desc">{{ t('components.materialCreateWizard.modePhysicalComboDesc') }}</span>
+            <span class="mode-card-when">{{ t('components.materialCreateWizard.modePhysicalComboWhen') }}</span>
           </div>
         </div>
         <div class="creation-mode-card" @click="$emit('select', 'virtual_combo')">
@@ -37,8 +45,12 @@
             </svg>
           </div>
           <div class="mode-card-content">
-            <span class="mode-card-title">{{ t('components.materialCreateWizard.modeVirtualComboTitle') }}</span>
+            <div class="mode-card-head">
+              <span class="mode-card-title">{{ t('components.materialCreateWizard.modeVirtualComboTitle') }}</span>
+              <span class="mode-card-badge mode-card-badge--virtual">{{ t('components.materialCreateWizard.badgeVirtualCombo') }}</span>
+            </div>
             <span class="mode-card-desc">{{ t('components.materialCreateWizard.modeVirtualComboDesc') }}</span>
+            <span class="mode-card-when">{{ t('components.materialCreateWizard.modeVirtualComboWhen') }}</span>
           </div>
         </div>
       </div>

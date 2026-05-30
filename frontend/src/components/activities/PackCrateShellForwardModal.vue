@@ -641,7 +641,7 @@ function asCheckLine(sec: PackCrateShellPeekSection, line: PackCrateShellPeekSec
                 v-for="em in embeddedIssuesByLineKey[cl.key] ?? []"
                 :key="'emb-' + em.id"
                 embedded
-                :material-heading="em.material_name || t('activities.common.material')"
+                :material-heading="em.material_name || t('common.material')"
                 :type-label="issueTypeLabel(em)"
                 :quantity="em.quantity"
                 :description="String(em.description ?? '')"

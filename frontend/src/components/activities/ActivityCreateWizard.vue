@@ -6,7 +6,7 @@
           <div class="material-wizard-header-title">
             <h2>{{ t('activities.wizard.createTitle') }}</h2>
           </div>
-          <button type="button" class="close-btn" :title="t('activities.wizard.closeTitle')" @click="handleClose">
+          <button type="button" class="close-btn" :title="t('common.close')" @click="handleClose">
             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <line x1="18" y1="6" x2="6" y2="18" />
               <line x1="6" y1="6" x2="18" y2="18" />
@@ -94,7 +94,9 @@
           :submit-button-label="submitButtonLabel"
           :show-draft-status="showDraftFooterStatus"
           :last-saved-at="lastDraftSavedAt"
+          :show-close-saved-button="showCloseSavedButton"
           @close="handleClose"
+          @close-saved="handleClose"
           @prev="prevStep"
           @weiter="onWeiter"
           @submit="handleSubmit"
@@ -147,6 +149,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   'update:modelValue': [value: boolean]
   created: [id: string]
+  draftSaved: [id: string]
 }>()
 
 const { t } = useI18n()
@@ -297,6 +300,15 @@ const showDraftFooterStatus = computed(
     !!selectedActivityType.value &&
     (!!draftActivityId.value || lastDraftSavedAt.value !== null),
 )
+
+const showCloseSavedButton = computed(() => {
+  const typ = selectedActivityType.value
+  return (
+    layoutMode.value === 'stepper' &&
+    !!draftActivityId.value &&
+    (typ === 'camp' || typ === 'event' || typ === 'external')
+  )
+})
 
 const submitButtonLabel = computed(() => {
   switch (selectedActivityType.value) {
@@ -469,6 +481,9 @@ async function onWeiter() {
         return
       }
       lastDraftSavedAt.value = new Date()
+      if (draftActivityId.value) {
+        emit('draftSaved', draftActivityId.value)
+      }
       if (invitedDepartments.value.length > 0) {
         headerNotificationsStore.requestRefresh()
       }
