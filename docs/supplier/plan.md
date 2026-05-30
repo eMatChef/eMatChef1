@@ -2,7 +2,7 @@
 
 Abarbeitbare Checkliste für Phase 1–3. Das **Warum/Zielmodell** steht in [supplier-portal.md](./supplier-portal.md). Dieser Plan = **Was & in welcher Reihenfolge**.
 
-**Stand:** Mai 2026 · Phase 1 in Paketen 0–8; Phase 2/3 als grobe Pakete (Detail folgt mit Phase-2-Start). **Erledigt: Paket 0–8**
+**Stand:** Mai 2026 · Phase 1 (Paket 0–8) erledigt; Phase 2 gestartet. **Erledigt: Paket 0–9 (9 = Phase 2a Katalog)**
 
 ---
 
@@ -37,7 +37,7 @@ Abarbeitbare Checkliste für Phase 1–3. Das **Warum/Zielmodell** steht in [sup
 | 6 | Team + Join-Code | 1 | M | 2, 5 | [x] |
 | 7 | Operator: Capability + `linked_department_id` | 1 | S | 1, 5 | [x] |
 | 8 | MW-Listen: Import, Global Addresses, Konstanten | 1b | M | 0, 1 | [x] |
-| 9 | Katalog `supplier_catalog_item` + Supplier-CRUD | 2a | L | 1–7 | [ ] |
+| 9 | Katalog `supplier_catalog_item` + Supplier-CRUD | 2a | L | 1–7 | [x] |
 | 10 | Übergaben `supplier_delivery*` + SN | 2b | XL | 9 | [ ] |
 | 11 | Vorlagen `supplier_material_template_*` | 2c | XL | 9 | [ ] |
 | 12 | MW-Shop, Budget, Import-Pfade | 2d | XL | 9–11 | [ ] |
@@ -285,10 +285,10 @@ Diese Stellen strahlen bei Address-/Supplier-Änderungen am stärksten aus:
 - Supplier-CRUD-Controller; später MW read-API
 
 **Schritte:**
-- [ ] Felder laut [supplier-portal.md Phase 2A](./supplier-portal.md#phase-2--katalog--vorlagen-shop-für-mw)
-- [ ] CRUD nur eigene Firma; Capability `catalog` erforderlich
-- [ ] `visibility` / `status` Felder vorbereiten (Logik Paket 13)
-- [ ] **Keine** Seriennummern auf Katalog-Entity
+- [x] Felder laut [supplier-portal.md Phase 2A](./supplier-portal.md#phase-2--katalog--vorlagen-shop-für-mw)
+- [x] CRUD nur eigene Firma; Capability `catalog` erforderlich
+- [x] `visibility` / `status` Felder vorbereiten (Logik Paket 13)
+- [x] **Keine** Seriennummern auf Katalog-Entity
 
 **Definition of Done:** Lieferant legt Artikel an; isoliert pro Firma; noch kein MW-Import.
 

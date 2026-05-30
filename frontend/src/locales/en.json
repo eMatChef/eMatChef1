@@ -73,7 +73,8 @@
         "settingsTemplates": "Settings · Templates · eMatChef",
         "globalMaterialTemplates": "Admin · Material templates · eMatChef",
         "supplierProfile": "My company · Profile · eMatChef",
-        "supplierTeam": "My company · Team · eMatChef"
+        "supplierTeam": "My company · Team · eMatChef",
+        "supplierCatalog": "My company · Catalog · eMatChef"
       },
       "descriptions": {
         "publicLookup": "Public material and serial number information in eMatChef.",
@@ -559,7 +560,8 @@
     "settings": "Settings",
     "myCompany": "My company",
     "myCompanyProfile": "Profile & contact",
-    "myCompanyTeam": "Team"
+    "myCompanyTeam": "Team",
+    "myCompanyCatalog": "Catalog"
   },
   "supplierProfile": {
     "title": "Profile & contact",
@@ -616,6 +618,68 @@
     "roles": {
       "admin": "Admin",
       "member": "Member"
+    }
+  },
+  "supplierCatalog": {
+    "title": "Sales catalog",
+    "subtitle": "Item master data for material managers (no serial numbers).",
+    "newItem": "New item",
+    "refresh": "Refresh",
+    "empty": "No catalog items yet.",
+    "errorLoad": "Could not load catalog.",
+    "createSuccess": "Item created.",
+    "saveSuccess": "Item saved.",
+    "errorSave": "Save failed.",
+    "deleteTitle": "Delete item?",
+    "deleteMessage": "Delete item \"{name}\"?",
+    "deleteSuccess": "Item deleted.",
+    "errorDelete": "Delete failed.",
+    "activeYes": "Yes",
+    "activeNo": "No",
+    "globalReviewHint": "Global visibility with status \"Published\" will be queued for admin review.",
+    "columns": {
+      "name": "Name",
+      "sku": "SKU",
+      "tracking": "Tracking",
+      "price": "Price",
+      "status": "Status",
+      "active": "Active"
+    },
+    "fields": {
+      "name": "Name",
+      "sku": "SKU",
+      "manufacturer": "Manufacturer",
+      "trackingType": "Tracking",
+      "unitPrice": "List price",
+      "currency": "Currency",
+      "packSize": "Pack size",
+      "categoryHint": "Category hint",
+      "description": "Description",
+      "externalRef": "Vendor item no.",
+      "visibility": "Visibility",
+      "status": "Status",
+      "isActive": "Active in catalog"
+    },
+    "tracking": {
+      "bulk": "Quantity (bulk)",
+      "serialized": "Serial numbers (serialized)"
+    },
+    "visibility": {
+      "private": "Draft (company only)",
+      "departments": "Selected departments",
+      "global": "Global (review)"
+    },
+    "status": {
+      "draft": "Draft",
+      "published": "Published",
+      "pendingReview": "Pending review"
+    },
+    "modal": {
+      "createTitle": "New catalog item",
+      "editTitle": "Edit catalog item"
+    },
+    "errors": {
+      "nameRequired": "Name is required."
     }
   },
   "layout": {
@@ -4541,7 +4605,13 @@
       "errorDelete": "Delete failed",
       "errorAddMember": "Could not add member",
       "errorUpdateMember": "Could not change role",
-      "errorRemoveMember": "Could not remove member"
+      "errorRemoveMember": "Could not remove member",
+      "capabilities": "Capabilities",
+      "capabilityCatalog": "Catalog",
+      "capabilityDelivery": "Deliveries",
+      "capabilityTemplates": "Templates",
+      "capabilityRepairs": "Repairs",
+      "capabilityOperator": "Operator (rental)"
     }
   }
 }

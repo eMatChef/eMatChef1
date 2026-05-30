@@ -47,6 +47,12 @@ function hasSupplierCompanyAccess(companyId: string): boolean {
   return authStore.activeSupplierCompanies.some((c) => c.id === companyId)
 }
 
+function hasSupplierCatalogCapability(companyId: string): boolean {
+  const authStore = useAuthStore()
+  const company = authStore.activeSupplierCompanies.find((c) => c.id === companyId)
+  return company?.capabilities?.includes('catalog') ?? false
+}
+
 function devicesWarehouseRoleOk(departmentId: string): boolean {
   const authStore = useAuthStore()
   const userRoles = authStore.userRoles || []
@@ -556,6 +562,16 @@ const routes: RouteRecordRaw[] = [
           requiresSupplierAccess: true,
           requiresSupplierAdmin: true,
           ...routeHead('supplierTeam'),
+        },
+      },
+      {
+        path: 'catalog',
+        name: 'SupplierCatalog',
+        component: () => import('@/views/supplier/SupplierCatalogView.vue'),
+        meta: {
+          requiresSupplierAccess: true,
+          requiresSupplierCatalog: true,
+          ...routeHead('supplierCatalog'),
         },
       },
     ],
@@ -1402,6 +1418,9 @@ router.beforeEach(async (to, from, next) => {
       authStore.setActiveSupplierCompany(companyId)
     }
     if (to.meta.requiresSupplierAdmin && !authStore.isSupplierCompanyAdmin(companyId)) {
+      return next({ name: 'SupplierProfile', params: { companyId } })
+    }
+    if (to.meta.requiresSupplierCatalog && !hasSupplierCatalogCapability(companyId)) {
       return next({ name: 'SupplierProfile', params: { companyId } })
     }
   }

@@ -89,7 +89,8 @@
         "globalMaterialTemplates": "Verwaltung · Material-Vorlagen · eMatChef",
         "settingsMaterialImport": "Einstellungen · Material Import/Export · eMatChef",
         "supplierProfile": "Meine Firma · Profil · eMatChef",
-        "supplierTeam": "Meine Firma · Team · eMatChef"
+        "supplierTeam": "Meine Firma · Team · eMatChef",
+        "supplierCatalog": "Meine Firma · Katalog · eMatChef"
       },
       "descriptions": {
         "publicLookup": "Öffentliche Material- und Seriennummern-Informationen in eMatChef.",
@@ -660,7 +661,8 @@
     "settings": "Konfiguration",
     "myCompany": "Meine Firma",
     "myCompanyProfile": "Profil & Kontakt",
-    "myCompanyTeam": "Team"
+    "myCompanyTeam": "Team",
+    "myCompanyCatalog": "Katalog"
   },
   "supplierProfile": {
     "title": "Profil & Kontakt",
@@ -717,6 +719,68 @@
     "roles": {
       "admin": "Admin",
       "member": "Mitglied"
+    }
+  },
+  "supplierCatalog": {
+    "title": "Verkaufskatalog",
+    "subtitle": "Artikel-Stammdaten für Materialwarte (ohne Seriennummern).",
+    "newItem": "Neuer Artikel",
+    "refresh": "Aktualisieren",
+    "empty": "Noch keine Katalog-Artikel.",
+    "errorLoad": "Katalog konnte nicht geladen werden.",
+    "createSuccess": "Artikel angelegt.",
+    "saveSuccess": "Artikel gespeichert.",
+    "errorSave": "Speichern fehlgeschlagen.",
+    "deleteTitle": "Artikel löschen?",
+    "deleteMessage": "Artikel \"{name}\" wirklich löschen?",
+    "deleteSuccess": "Artikel gelöscht.",
+    "errorDelete": "Löschen fehlgeschlagen.",
+    "activeYes": "Ja",
+    "activeNo": "Nein",
+    "globalReviewHint": "Globale Sichtbarkeit mit Status «Veröffentlicht» wird zur Admin-Prüfung vorgemerkt.",
+    "columns": {
+      "name": "Name",
+      "sku": "SKU",
+      "tracking": "Tracking",
+      "price": "Preis",
+      "status": "Status",
+      "active": "Aktiv"
+    },
+    "fields": {
+      "name": "Bezeichnung",
+      "sku": "SKU",
+      "manufacturer": "Hersteller",
+      "trackingType": "Tracking",
+      "unitPrice": "Listenpreis",
+      "currency": "Währung",
+      "packSize": "Packungsgrösse",
+      "categoryHint": "Kategorie-Hinweis",
+      "description": "Beschreibung",
+      "externalRef": "Händler-Artikelnr.",
+      "visibility": "Sichtbarkeit",
+      "status": "Status",
+      "isActive": "Im Katalog aktiv"
+    },
+    "tracking": {
+      "bulk": "Menge (bulk)",
+      "serialized": "Seriennummern (serialized)"
+    },
+    "visibility": {
+      "private": "Nur Entwurf (Firma)",
+      "departments": "Bestimmte Departments",
+      "global": "Global (Prüfung)"
+    },
+    "status": {
+      "draft": "Entwurf",
+      "published": "Veröffentlicht",
+      "pendingReview": "Prüfung ausstehend"
+    },
+    "modal": {
+      "createTitle": "Neuer Katalog-Artikel",
+      "editTitle": "Katalog-Artikel bearbeiten"
+    },
+    "errors": {
+      "nameRequired": "Bezeichnung ist erforderlich."
     }
   },
   "layout": {
@@ -6339,7 +6403,13 @@
       "errorDelete": "Löschen fehlgeschlagen",
       "errorAddMember": "Mitglied konnte nicht hinzugefügt werden",
       "errorUpdateMember": "Rolle konnte nicht geändert werden",
-      "errorRemoveMember": "Mitglied konnte nicht entfernt werden"
+      "errorRemoveMember": "Mitglied konnte nicht entfernt werden",
+      "capabilities": "Capabilities",
+      "capabilityCatalog": "Katalog",
+      "capabilityDelivery": "Lieferungen",
+      "capabilityTemplates": "Vorlagen",
+      "capabilityRepairs": "Reparaturen",
+      "capabilityOperator": "Operator (Vermietung)"
     }
   },
   "landingClassic": {

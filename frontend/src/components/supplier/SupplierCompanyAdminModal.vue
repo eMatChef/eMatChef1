@@ -31,6 +31,13 @@
                 <option value="suspended">{{ t('globalAddressesPage.supplierAdminModal.statusSuspended') }}</option>
               </select>
             </label>
+            <fieldset class="capabilities-fieldset">
+              <legend>{{ t('globalAddressesPage.supplierAdminModal.capabilities') }}</legend>
+              <label v-for="option in capabilityOptions" :key="option.value" class="capability-option">
+                <input v-model="form.capabilities" type="checkbox" :value="option.value" />
+                <span>{{ option.label }}</span>
+              </label>
+            </fieldset>
             <div class="company-actions">
               <button type="submit" class="btn btn-primary btn-sm" :disabled="savingCompany">
                 {{ savingCompany ? t('common.saving') : t('common.save') }}
@@ -111,7 +118,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
   addAdminSupplierMembership,
@@ -145,7 +152,16 @@ const form = reactive({
   name: props.company.name,
   manufacturer_key: props.company.manufacturer_key || '',
   status: props.company.status as SupplierCompanyStatus,
+  capabilities: [...(props.company.capabilities || [])],
 })
+
+const capabilityOptions = computed(() => [
+  { value: 'catalog', label: t('globalAddressesPage.supplierAdminModal.capabilityCatalog') },
+  { value: 'delivery', label: t('globalAddressesPage.supplierAdminModal.capabilityDelivery') },
+  { value: 'templates', label: t('globalAddressesPage.supplierAdminModal.capabilityTemplates') },
+  { value: 'repairs', label: t('globalAddressesPage.supplierAdminModal.capabilityRepairs') },
+  { value: 'operator', label: t('globalAddressesPage.supplierAdminModal.capabilityOperator') },
+])
 
 const addForm = reactive({
   user_email: '',
@@ -181,6 +197,7 @@ async function saveCompany() {
       name: form.name,
       manufacturer_key: form.manufacturer_key || null,
       status: form.status,
+      capabilities: form.capabilities,
     })
     toast.success(t('globalAddressesPage.supplierAdminModal.saveSuccess'))
     emit('saved')
@@ -389,6 +406,29 @@ onMounted(() => {
 .hint {
   color: #6b7280;
   font-size: 14px;
+}
+
+.capability-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+}
+
+.capabilities-fieldset {
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1 1 100%;
+}
+
+.capabilities-fieldset legend {
+  padding: 0 4px;
+  font-size: 14px;
+  color: #374151;
 }
 
 .error {

@@ -59,6 +59,16 @@
             </span>
           </router-link>
           <router-link
+            v-if="showSupplierCatalogLink"
+            :to="supplierLink('/catalog')"
+            class="nav-item nav-item--sub"
+            :class="{ active: isSupplierCatalogActive }"
+          >
+            <span class="nav-label nav-label--sub" :class="{ visible: isHovered }">
+              {{ t('sidebar.myCompanyCatalog') }}
+            </span>
+          </router-link>
+          <router-link
             v-if="isCurrentSupplierAdmin"
             :to="supplierLink('/team')"
             class="nav-item nav-item--sub"
@@ -261,6 +271,12 @@ const isCurrentSupplierAdmin = computed(() => {
   return company?.role === 'admin'
 })
 
+const showSupplierCatalogLink = computed(() => {
+  const id = supplierCompanyId.value
+  const company = authStore.activeSupplierCompanies.find((c) => c.id === id)
+  return company?.capabilities?.includes('catalog') ?? false
+})
+
 watch(
   isSupplierRoute,
   (active) => {
@@ -283,6 +299,7 @@ const isSupplierProfileActive = computed(
   () => isSupplierRoute.value && route.path.includes('/profile')
 )
 const isSupplierTeamActive = computed(() => isSupplierRoute.value && route.path.includes('/team'))
+const isSupplierCatalogActive = computed(() => isSupplierRoute.value && route.path.includes('/catalog'))
 
 const isPendingAssignmentRoute = computed(() => route.path === '/pending-assignment')
 const isAdminDashboardRoute = computed(() => route.path.startsWith('/admin-dashboard'))

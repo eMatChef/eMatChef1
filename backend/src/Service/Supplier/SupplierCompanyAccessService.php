@@ -61,6 +61,31 @@ class SupplierCompanyAccessService
         return $membership->getRole() === SupplierMembership::ROLE_ADMIN;
     }
 
+    public function companyHasCapability(SupplierCompany $company, string $capability): bool
+    {
+        return \in_array($capability, $company->getCapabilities(), true);
+    }
+
+    public function requireCatalogAccess(User $user, string $companyId): SupplierCompany
+    {
+        $this->assertSupplierCompanyAccess($user, $companyId);
+
+        $membership = $this->supplierMembershipRepository->findOneBy([
+            'userId' => $user->getId(),
+            'supplierCompanyId' => $companyId,
+        ]);
+        if (!$membership instanceof SupplierMembership) {
+            throw new AccessDeniedHttpException('Kein Zugriff auf diese Lieferanten-Firma');
+        }
+
+        $company = $membership->getSupplierCompany();
+        if (!$this->companyHasCapability($company, SupplierCompany::CAPABILITY_CATALOG)) {
+            throw new AccessDeniedHttpException('Katalog-Capability ist für diese Firma nicht aktiviert');
+        }
+
+        return $company;
+    }
+
     public function getMembership(User $user, string $companyId): ?SupplierMembership
     {
         $membership = $this->supplierMembershipRepository->findOneBy([

@@ -190,6 +190,8 @@ import AddressModal from '@/components/AddressModal.vue'
 import SupplierCompanyOnboardModal from '@/components/supplier/SupplierCompanyOnboardModal.vue'
 import SupplierCompanyAdminModal from '@/components/supplier/SupplierCompanyAdminModal.vue'
 
+const DEFAULT_SUPPLIER_CAPABILITIES = ['catalog', 'delivery', 'templates']
+
 const { t } = useI18n()
 
 const globalLoading = ref(false)
@@ -316,6 +318,7 @@ async function handleCreateSupplier(payload: {
       name: payload.name,
       manufacturer_key: payload.manufacturer_key || null,
       status: 'active',
+      capabilities: [...DEFAULT_SUPPLIER_CAPABILITIES],
       admin_user_email: payload.admin_user_email || null,
     })
     closeCreateSupplierModal()
@@ -351,6 +354,7 @@ async function handlePromote(payload: {
       manufacturer_key: payload.manufacturer_key || null,
       admin_user_email: payload.admin_user_email || null,
       status: 'active',
+      capabilities: [...DEFAULT_SUPPLIER_CAPABILITIES],
     })
     closePromoteModal()
     globalSuccess.value = t('globalAddressesPage.promoteSuccess')
