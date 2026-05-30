@@ -2,7 +2,7 @@
 
 Abarbeitbare Checkliste für Phase 1–3. Das **Warum/Zielmodell** steht in [supplier-portal.md](./supplier-portal.md). Dieser Plan = **Was & in welcher Reihenfolge**.
 
-**Stand:** Mai 2026 · Phase 1 in Paketen 0–8; Phase 2/3 als grobe Pakete (Detail folgt mit Phase-2-Start). **Erledigt: Paket 0**
+**Stand:** Mai 2026 · Phase 1 in Paketen 0–8; Phase 2/3 als grobe Pakete (Detail folgt mit Phase-2-Start). **Erledigt: Paket 0–1**
 
 ---
 
@@ -29,7 +29,7 @@ Abarbeitbare Checkliste für Phase 1–3. Das **Warum/Zielmodell** steht in [sup
 | # | Paket | Phase | Größe | Hängt ab von | Status |
 |---|-------|-------|-------|--------------|--------|
 | 0 | Address-Scope + Migration `GLOBAL000000` | 1 | M | – | [x] |
-| 1 | `supplier_company` + `supplier_membership` | 1 | M | 0 | [ ] |
+| 1 | `supplier_company` + `supplier_membership` | 1 | M | 0 | [x] |
 | 2 | Auth: `ROLE_SUPPLIER`, Session, Voter | 1 | S–M | 1 | [ ] |
 | 3 | Plattform-Admin: Onboarding + Legacy-Promote | 1 | M | 1, 2 | [ ] |
 | 4 | Frontend-Shell: Routing, Layout, Sidebar | 1 | M | 2 | [ ] |
@@ -108,11 +108,11 @@ Diese Stellen strahlen bei Address-/Supplier-Änderungen am stärksten aus:
 - `backend/src/Repository/` (neu)
 
 **Schritte:**
-- [ ] `supplier_company`: `name`, `manufacturer_key`, `supplier_address_id` (FK, UNIQUE empfohlen), `capabilities` JSON, `linked_department_id` NULL, `status` (`pending` \| `active` \| `suspended`), Timestamps
-- [ ] **Kein** `linked_organisation_id`
-- [ ] `supplier_membership`: `supplier_company_id`, `user_id`, `role` (`admin` \| `member` in Phase 1), `is_primary` optional; UNIQUE `(supplier_company_id, user_id)`
-- [ ] Optional: `user.last_used_supplier_company_id` (M3)
-- [ ] Firma + `address` (`scope=supplier`) in **einer Transaktion** anlegen (Chicken-Egg: `supplier_company_id` ↔ `supplier_address_id`)
+- [x] `supplier_company`: `name`, `manufacturer_key`, `supplier_address_id` (FK, UNIQUE empfohlen), `capabilities` JSON, `linked_department_id` NULL, `status` (`pending` \| `active` \| `suspended`), Timestamps
+- [x] **Kein** `linked_organisation_id`
+- [x] `supplier_membership`: `supplier_company_id`, `user_id`, `role` (`admin` \| `member` in Phase 1), `is_primary` optional; UNIQUE `(supplier_company_id, user_id)`
+- [x] Optional: `user.last_used_supplier_company_id` (M3)
+- [x] Firma + `address` (`scope=supplier`) in **einer Transaktion** anlegen (Chicken-Egg: `supplier_company_id` ↔ `supplier_address_id`)
 
 **Definition of Done:** Entities + Migration; manuell/Faker anlegbare Firma mit Haupt-Adresse; keine API/UI nötig.
 
