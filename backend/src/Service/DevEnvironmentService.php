@@ -13,7 +13,7 @@ class DevEnvironmentService
 {
     public function __construct(
         private KernelInterface $kernel,
-        #[Autowire('%env(bool:default:0:EMATCHEF_DEV_TOOLS)%')]
+        #[Autowire('%env(bool:EMATCHEF_DEV_TOOLS)%')]
         private bool $devToolsOverride = false,
     ) {}
 
