@@ -4,8 +4,7 @@
         "version": 1,
         "generated_at": "2026-03-20T19:09:06+00:00",
         "org_ids": [
-            "org_js000000",
-            "GLOBALORG001"
+            "org_js000000"
         ],
         "with_global_templates": true
     },
@@ -16,12 +15,6 @@
                 "name": "J&S Global",
                 "created_at": "2026-03-08 08:06:06",
                 "updated_at": "2026-03-08 08:06:06"
-            },
-            {
-                "id": "GLOBALORG001",
-                "name": "Global System",
-                "created_at": "2026-03-08 16:11:31",
-                "updated_at": "2026-03-08 16:11:31"
             }
         ],
         "department": [
@@ -31,15 +24,6 @@
                 "name": "J+S Leih-Material Schweiz",
                 "created_at": "2026-03-08 08:06:06",
                 "updated_at": "2026-03-08 08:06:06",
-                "parent_id": null,
-                "billing_address_id": null
-            },
-            {
-                "id": "GLOBAL000000",
-                "organisation_id": "GLOBALORG001",
-                "name": "Global Suppliers",
-                "created_at": "2026-03-08 16:11:31",
-                "updated_at": "2026-03-08 16:11:31",
                 "parent_id": null,
                 "billing_address_id": null
             }
@@ -69,11 +53,12 @@
                 "updated_at": "2026-03-08 08:09:52.305635",
                 "email": null,
                 "phone": null,
-                "mobile": null
+                "mobile": null,
+                "scope": "department"
             },
             {
                 "id": "9ce6bc16a809",
-                "department_id": "GLOBAL000000",
+                "department_id": null,
                 "type": "supplier",
                 "name": null,
                 "company": "Bächli Bergsport AG",
@@ -92,11 +77,12 @@
                 "updated_at": "2026-03-08 16:40:42",
                 "email": "info@baechli-bergsport.ch",
                 "phone": "+41 44 826 76 76",
-                "mobile": null
+                "mobile": null,
+                "scope": "global"
             },
             {
                 "id": "cb3b4a2ddd18",
-                "department_id": "GLOBAL000000",
+                "department_id": null,
                 "type": "supplier",
                 "name": null,
                 "company": "Hajk",
@@ -115,11 +101,12 @@
                 "updated_at": "2026-03-08 16:47:52",
                 "email": "office@hajk.ch",
                 "phone": "+41 31 838 38 38",
-                "mobile": null
+                "mobile": null,
+                "scope": "global"
             },
             {
                 "id": "ba4bfebf3638",
-                "department_id": "GLOBAL000000",
+                "department_id": null,
                 "type": "supplier",
                 "name": null,
                 "company": "Scandinavian Outdoor Shop",
@@ -138,11 +125,12 @@
                 "updated_at": "2026-03-08 16:49:51",
                 "email": "info@outdoorfeeling.com",
                 "phone": "+41 43 810 23 23",
-                "mobile": null
+                "mobile": null,
+                "scope": "global"
             },
             {
                 "id": "800ee16391d2",
-                "department_id": "GLOBAL000000",
+                "department_id": null,
                 "type": "supplier",
                 "name": null,
                 "company": "Transa Backpacking AG",
@@ -161,11 +149,12 @@
                 "updated_at": "2026-03-08 16:52:16",
                 "email": "info@transa.ch",
                 "phone": "+41 848 0848 11",
-                "mobile": null
+                "mobile": null,
+                "scope": "global"
             },
             {
                 "id": "bf8551640016",
-                "department_id": "GLOBAL000000",
+                "department_id": null,
                 "type": "supplier",
                 "name": null,
                 "company": "Zelthangar",
@@ -184,7 +173,8 @@
                 "updated_at": "2026-03-08 16:53:39",
                 "email": "diego@zelthangar.ch",
                 "phone": " +41 55 505 66 61",
-                "mobile": null
+                "mobile": null,
+                "scope": "global"
             }
         ],
         "category": [],

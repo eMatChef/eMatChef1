@@ -42,8 +42,8 @@ Abarbeitbare Checkliste für Phase 1–3. Das **Warum/Zielmodell** steht in [sup
 | 11 | Vorlagen `supplier_material_template_*` | 2c | XL | 9 | [x] |
 | 12 | MW-Shop, Budget, Import-Pfade | 2d | XL | 9–11 | [x] |
 | 13 | Sichtbarkeit + Global-Review | 2e | M | 9, 12 | [x] |
-| 14 | Reparaturen an Lieferant | 3 | L | 1–7 | [~] |
-| 15 | Cleanup: `GLOBAL000000` / `GLOBALORG001` | 1/2 | S | 0, 8 | [ ] |
+| 14 | Reparaturen an Lieferant | 3 | L | 1–7 | [x] |
+| 15 | Cleanup: `GLOBAL000000` / `GLOBALORG001` | 1/2 | S | 0, 8 | [x] |
 
 > **Phase 1 DoD:** Login, `SupplierCompany`, Team, öffentliche Kontaktdaten, Sidebar **Meine Firma** — ohne Shop. Paket 8 kann parallel zu 4–7 laufen, sollte aber vor Phase-2-Start fertig sein.
 
@@ -59,7 +59,8 @@ Diese Stellen strahlen bei Address-/Supplier-Änderungen am stärksten aus:
 - `backend/src/Controller/GlobalAddressController.php` — Filter `scope=global` statt `GLOBAL000000`
 - `backend/src/Entity/Membership.php` — Vorbild für `SupplierMembership`
 - `backend/src/Controller/JoinRequestController.php` — Join-Code-Muster für Team (Paket 6)
-- `backend/src/Service/Bootstrap/GlobalSystemSeedDefaults.php` — Seeds / `GLOBAL000000`
+- `backend/src/Service/Bootstrap/AddressScopeDefaults.php` — Address-Scope-Konstanten
+- `backend/src/Service/Bootstrap/DevBootstrapContextService.php` — Dev-Bootstrap ohne GLOBAL-IDs
 
 **Frontend**
 - `frontend/src/stores/auth.ts` — `departments[]` heute → ergänzen: `supplierCompanies[]`, optional `lastUsedSupplierCompanyId`
@@ -82,7 +83,7 @@ Diese Stellen strahlen bei Address-/Supplier-Änderungen am stärksten aus:
 - `backend/src/Entity/Address.php`
 - `backend/migrations/` (neue Migration)
 - `backend/src/Controller/GlobalAddressController.php` (Lesefilter)
-- `backend/src/Service/Bootstrap/GlobalSystemSeedDefaults.php` (Seed anpassen)
+- `backend/src/Service/Bootstrap/AddressScopeDefaults.php` (Seed-Legacy normalisieren)
 - ggf. alle Stellen mit hart codiertem `GLOBAL000000` (grep)
 
 **Schritte:**
@@ -379,7 +380,7 @@ Diese Stellen strahlen bei Address-/Supplier-Änderungen am stärksten aus:
 - [x] MW weist Ticket zu (`WorkshopController`, Werkstatt-UI)
 - [x] Supplier-API + Portal-View (Status, Kostenvoranschlag); Capability `repairs`
 - [x] API filtert Aktivitätsdetails weg (`SupplierRepairTicketService`)
-- [ ] Fotos-Upload Lieferant (optional; URLs per PATCH möglich)
+- [x] Fotos-Upload Lieferant (`var/uploads/workshop/supplier/{companyId}/{ticketId}/` — **Prototyp**; Zentralisierung: [media/plan.md](../media/plan.md))
 
 **Definition of Done:** Siehe [supplier-portal.md Phase 3 DoD](./supplier-portal.md#definition-of-done-2).
 
@@ -392,9 +393,10 @@ Diese Stellen strahlen bei Address-/Supplier-Änderungen am stärksten aus:
 **Hängt ab von:** Paket 0, 8 (+ ideally Phase 2 live)
 
 **Schritte:**
-- [ ] Prüfen: keine FK auf `GLOBAL000000`; Seeds angepasst
-- [ ] Department + Org löschen/deprecaten
-- [ ] Doku + Kommentare aufräumen
+- [x] Prüfen: keine FK auf `GLOBAL000000`; Seeds angepasst
+- [x] Department + Org löschen (Migration `Version20260530310000`)
+- [x] Bootstrap ohne feste GLOBAL-IDs (`DevBootstrapContextService`)
+- [x] Doku + Kommentare aufräumen
 
 **Definition of Done:** Kein produktiver Code-Pfad mehr über `GLOBAL000000`.
 
@@ -424,5 +426,6 @@ Diese Stellen strahlen bei Address-/Supplier-Änderungen am stärksten aus:
 ## Siehe auch
 
 - [supplier-portal.md](./supplier-portal.md) — Konzept & Zielmodell
+- [media/README.md](../media/README.md) — Zentrale Foto-Speicherung (Zentralisierung des Reparatur-Prototyps)
 - [material/combos/plan.md](../material/combos/plan.md) — Combo-Umbau (Vorlagen-Editor-Referenz Phase 2)
 - [activities/material-pipeline.md](../activities/material-pipeline.md) — Material-Import und Bestand

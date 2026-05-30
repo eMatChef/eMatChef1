@@ -3,7 +3,7 @@
 namespace App\Command;
 
 use App\Service\Accounting\AccountingCostCenterBootstrapService;
-use App\Service\Bootstrap\GlobalSystemSeedDefaults;
+use App\Service\Bootstrap\AddressScopeDefaults;
 use App\Service\Bootstrap\SuperadminBootstrapService;
 use Doctrine\DBAL\Connection;
 use Doctrine\ORM\EntityManagerInterface;
@@ -173,7 +173,7 @@ class ImportOrgSubsetCommand extends Command
     }
 
     /**
-     * Legacy-Seed: GLOBAL000000-Lieferanten → scope=global (Paket 0).
+     * Legacy-Seed (vor Paket 15): GLOBAL000000-Lieferanten → scope=global.
      *
      * @param array<string, mixed> $row
      * @return array<string, mixed>
@@ -181,11 +181,11 @@ class ImportOrgSubsetCommand extends Command
     private function normalizeAddressSeedRow(array $row): array
     {
         $departmentId = (string) ($row['department_id'] ?? '');
-        if ($departmentId === GlobalSystemSeedDefaults::DEPARTMENT_ID) {
-            $row['scope'] = GlobalSystemSeedDefaults::ADDRESS_SCOPE_GLOBAL;
+        if ($departmentId === AddressScopeDefaults::LEGACY_GLOBAL_SUPPLIER_DEPARTMENT_ID) {
+            $row['scope'] = AddressScopeDefaults::SCOPE_GLOBAL;
             $row['department_id'] = null;
         } elseif (!isset($row['scope'])) {
-            $row['scope'] = GlobalSystemSeedDefaults::ADDRESS_SCOPE_DEPARTMENT;
+            $row['scope'] = AddressScopeDefaults::SCOPE_DEPARTMENT;
         }
 
         return $row;
