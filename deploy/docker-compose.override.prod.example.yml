@@ -25,7 +25,9 @@ services:
   backend:
     # API-Port nur lokal am Droplet binden; externen Zugriff nur über Host-Nginx/443.
     # So ist :8081 nicht direkt aus dem Internet erreichbar.
-    ports:
+    # !override: docker-compose.yml hat bereits 8081:8081 — ohne override doppeltes Host-Mapping → „address already in use“
+    # (!reset würde ports leeren; die Liste darunter wird bei !reset ignoriert)
+    ports: !override
       - "127.0.0.1:8081:8081"
     restart: unless-stopped
     security_opt:
