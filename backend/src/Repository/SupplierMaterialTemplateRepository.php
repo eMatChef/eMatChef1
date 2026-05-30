@@ -73,4 +73,20 @@ class SupplierMaterialTemplateRepository extends ServiceEntityRepository
             ->getQuery()
             ->getOneOrNullResult();
     }
+
+    /**
+     * @return list<SupplierMaterialTemplate>
+     */
+    public function findPendingGlobalReview(): array
+    {
+        return $this->createQueryBuilder('t')
+            ->where('t.visibility = :global')
+            ->andWhere('t.status = :pending')
+            ->andWhere('t.isActive = true')
+            ->setParameter('global', SupplierMaterialTemplate::VISIBILITY_GLOBAL)
+            ->setParameter('pending', SupplierMaterialTemplate::STATUS_PENDING_REVIEW)
+            ->orderBy('t.updatedAt', 'DESC')
+            ->getQuery()
+            ->getResult();
+    }
 }

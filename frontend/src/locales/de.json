@@ -31,6 +31,7 @@
         "pendingAssignment": "Abteilung zuweisen · eMatChef",
         "dashboard": "Dashboard · eMatChef",
         "globalAddresses": "Globale Adressen · eMatChef",
+        "supplierGlobalReview": "Lieferanten-Freigabe · eMatChef",
         "supportRequests": "Support-Anfragen · eMatChef",
         "systemJobs": "System-Jobs · eMatChef",
         "integrations": "Integrationen · eMatChef",
@@ -1023,6 +1024,39 @@
       "qty": "Menge",
       "materialType": "Typ",
       "components": "Komponenten"
+    }
+  },
+  "supplierGlobalReview": {
+    "title": "Lieferanten — globale Freigabe",
+    "subtitle": "Katalog-Artikel und Vorlagen mit Sichtbarkeit «global» prüfen und freigeben.",
+    "scopeNote": "Hinweis: address.scope=global betrifft Lieferanten-Stammdaten; hier geht es um Shop-Inhalte (supplier_catalog_item / supplier_material_template mit visibility=global).",
+    "errorLoad": "Freigabe-Warteschlange konnte nicht geladen werden.",
+    "catalogEmpty": "Keine Katalog-Artikel zur Freigabe.",
+    "templatesEmpty": "Keine Vorlagen zur Freigabe.",
+    "approve": "Freigeben",
+    "reject": "Ablehnen",
+    "approveTitle": "Global freigeben?",
+    "approveCatalogMessage": "Der Katalog-Artikel wird für alle Departments im Shop sichtbar.",
+    "approveTemplateMessage": "Die Vorlage wird für alle Departments im Shop sichtbar.",
+    "rejectTitle": "Ablehnen?",
+    "rejectCatalogMessage": "Der Artikel wird auf Entwurf zurückgesetzt (nur für den Lieferanten sichtbar).",
+    "rejectTemplateMessage": "Die Vorlage wird auf Entwurf zurückgesetzt (nur für den Lieferanten sichtbar).",
+    "approveSuccess": "Freigabe erfolgreich.",
+    "rejectSuccess": "Abgelehnt.",
+    "actionError": "Aktion fehlgeschlagen.",
+    "tabs": {
+      "catalog": "Katalog",
+      "templates": "Vorlagen"
+    },
+    "columns": {
+      "supplier": "Lieferant",
+      "name": "Name",
+      "sku": "SKU",
+      "tracking": "Tracking",
+      "price": "Preis",
+      "materialType": "Typ",
+      "components": "Komponenten",
+      "updated": "Aktualisiert"
     }
   },
   "layout": {
@@ -3644,6 +3678,7 @@
     "menuTitle": "Verwaltung der Webseite",
     "nav": {
       "globalAddresses": "Globale Adressen",
+      "supplierGlobalReview": "Lieferanten-Freigabe",
       "systemJobs": "System-Jobs",
       "supportRequests": "Supportanfragen",
       "organisations": "Organisationen",

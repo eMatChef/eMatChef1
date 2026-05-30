@@ -373,6 +373,15 @@ const routes: RouteRecordRaw[] = [
             }
           },
           {
+            path: 'supplier-global-review',
+            name: 'AdminSupplierGlobalReview',
+            component: () => import('@/views/SupplierGlobalReviewView.vue'),
+            meta: {
+              requiredRoles: ['superadmin'],
+              ...routeHead('supplierGlobalReview'),
+            }
+          },
+          {
             path: 'dashboard',
             name: 'AdminDashboard',
             component: () => import('@/views/DashboardView.vue'),

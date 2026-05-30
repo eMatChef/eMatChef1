@@ -20,6 +20,7 @@
         "pendingAssignment": "Assign department · eMatChef",
         "dashboard": "Dashboard · eMatChef",
         "globalAddresses": "Global addresses · eMatChef",
+        "supplierGlobalReview": "Supplier global review · eMatChef",
         "supportRequests": "Support requests · eMatChef",
         "systemJobs": "System jobs · eMatChef",
         "integrations": "Integrations · eMatChef",
@@ -922,6 +923,39 @@
       "qty": "Qty",
       "materialType": "Type",
       "components": "Components"
+    }
+  },
+  "supplierGlobalReview": {
+    "title": "Supplier — global review",
+    "subtitle": "Review and approve catalog items and templates with visibility «global».",
+    "scopeNote": "Note: address.scope=global refers to supplier master data; this queue is for shop content (supplier_catalog_item / supplier_material_template with visibility=global).",
+    "errorLoad": "Could not load review queue.",
+    "catalogEmpty": "No catalog items pending review.",
+    "templatesEmpty": "No templates pending review.",
+    "approve": "Approve",
+    "reject": "Reject",
+    "approveTitle": "Approve globally?",
+    "approveCatalogMessage": "The catalog item will be visible in the shop for all departments.",
+    "approveTemplateMessage": "The template will be visible in the shop for all departments.",
+    "rejectTitle": "Reject?",
+    "rejectCatalogMessage": "The item will be reset to draft (visible to supplier only).",
+    "rejectTemplateMessage": "The template will be reset to draft (visible to supplier only).",
+    "approveSuccess": "Approved successfully.",
+    "rejectSuccess": "Rejected.",
+    "actionError": "Action failed.",
+    "tabs": {
+      "catalog": "Catalog",
+      "templates": "Templates"
+    },
+    "columns": {
+      "supplier": "Supplier",
+      "name": "Name",
+      "sku": "SKU",
+      "tracking": "Tracking",
+      "price": "Price",
+      "materialType": "Type",
+      "components": "Components",
+      "updated": "Updated"
     }
   },
   "layout": {
@@ -4713,6 +4747,7 @@
     "menuTitle": "Website administration",
     "nav": {
       "globalAddresses": "Global addresses",
+      "supplierGlobalReview": "Supplier global review",
       "systemJobs": "System jobs",
       "supportRequests": "Support requests",
       "organisations": "Organisations",

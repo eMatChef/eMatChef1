@@ -41,7 +41,7 @@ Abarbeitbare Checkliste für Phase 1–3. Das **Warum/Zielmodell** steht in [sup
 | 10 | Übergaben `supplier_delivery*` + SN | 2b | XL | 9 | [x] |
 | 11 | Vorlagen `supplier_material_template_*` | 2c | XL | 9 | [~] |
 | 12 | MW-Shop, Budget, Import-Pfade | 2d | XL | 9–11 | [x] |
-| 13 | Sichtbarkeit + Global-Review | 2e | M | 9, 12 | [ ] |
+| 13 | Sichtbarkeit + Global-Review | 2e | M | 9, 12 | [x] |
 | 14 | Reparaturen an Lieferant | 3 | L | 1–7 | [ ] |
 | 15 | Cleanup: `GLOBAL000000` / `GLOBALORG001` | 1/2 | S | 0, 8 | [ ] |
 
@@ -357,9 +357,9 @@ Diese Stellen strahlen bei Address-/Supplier-Änderungen am stärksten aus:
 **Ziel:** Entwurf / Department / global mit Admin-Freigabe.
 
 **Schritte:**
-- [ ] `visibility`, `status` (`draft`, `published`, `pending_review`) auf Katalog + Vorlagen
-- [ ] Admin-Queue für globale Freigabe
-- [ ] Unterscheidung `address.scope=global` vs. Katalog `visibility=global` (§8.3)
+- [x] `visibility`, `status` (`draft`, `published`, `pending_review`) auf Katalog + Vorlagen
+- [x] Admin-Queue für globale Freigabe (`SupplierGlobalReviewController`, Verwaltung → Lieferanten-Freigabe)
+- [x] Unterscheidung `address.scope=global` vs. Katalog `visibility=global` (§8.3) — Hinweis in Admin-UI
 
 **Definition of Done:** Globaler Shop-Inhalt nur nach Review sichtbar.
 

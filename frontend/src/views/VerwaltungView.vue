@@ -113,9 +113,17 @@ type MenuItem = {
 }
 
 const visibleMenuItems = computed((): MenuItem[] => {
-  const start: MenuItem[] = canManageGlobalAddresses.value
-    ? [{ id: 'global-addresses', label: t('verwaltung.nav.globalAddresses'), icon: markRaw(IconContacts) }]
-    : []
+  const start: MenuItem[] = []
+  if (canManageGlobalAddresses.value) {
+    start.push({ id: 'global-addresses', label: t('verwaltung.nav.globalAddresses'), icon: markRaw(IconContacts) })
+  }
+  if (isSuperAdminUser.value) {
+    start.push({
+      id: 'supplier-global-review',
+      label: t('verwaltung.nav.supplierGlobalReview'),
+      icon: markRaw(IconTasks),
+    })
+  }
   const jobsItem: MenuItem = { id: 'jobs', label: t('verwaltung.nav.systemJobs'), icon: markRaw(IconJobs) }
   const mid: MenuItem[] = canAssignSupport.value
     ? [{ id: 'support-requests', label: t('verwaltung.nav.supportRequests'), icon: markRaw(IconTasks) }]

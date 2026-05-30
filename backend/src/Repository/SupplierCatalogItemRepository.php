@@ -50,4 +50,20 @@ class SupplierCatalogItemRepository extends ServiceEntityRepository
             ->getQuery()
             ->getResult();
     }
+
+    /**
+     * @return list<SupplierCatalogItem>
+     */
+    public function findPendingGlobalReview(): array
+    {
+        return $this->createQueryBuilder('i')
+            ->where('i.visibility = :global')
+            ->andWhere('i.status = :pending')
+            ->andWhere('i.isActive = true')
+            ->setParameter('global', SupplierCatalogItem::VISIBILITY_GLOBAL)
+            ->setParameter('pending', SupplierCatalogItem::STATUS_PENDING_REVIEW)
+            ->orderBy('i.updatedAt', 'DESC')
+            ->getQuery()
+            ->getResult();
+    }
 }
