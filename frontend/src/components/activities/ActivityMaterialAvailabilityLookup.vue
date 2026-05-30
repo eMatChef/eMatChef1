@@ -267,6 +267,20 @@
         </li>
       </ul>
     </div>
+
+    <!-- Konfigurator-Dialog (virtuelle Kombo zusammenstellen) -->
+    <ComboConfiguratorDialog
+      v-if="configuratorState"
+      :combo-id="configuratorState.material.materialItemId"
+      :combo-name="configuratorState.material.name"
+      :department-id="departmentId"
+      :activity-id="activityId || null"
+      :start-iso="availabilityContext?.startDate ?? null"
+      :end-iso="availabilityContext?.endDate ?? null"
+      :initial-quantity="configuratorState.quantity"
+      @confirm="onConfiguratorConfirm"
+      @cancel="onConfiguratorCancel"
+    />
   </div>
 </template>
 
@@ -275,6 +289,7 @@ import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { ActivityApiType } from '@/api/activities'
 import MaterialLookupInput from '@/components/common/MaterialLookupInput.vue'
+import ComboConfiguratorDialog from '@/components/activities/ComboConfiguratorDialog.vue'
 import type { ActivityPeriodAvailabilityMaterial } from '@/components/activities/shared/activityAvailabilityMaterial'
 import {
   createAvailabilityMaterialLookupFetcher,
@@ -333,7 +348,7 @@ const props = withDefaults(
 const { t, locale } = useI18n()
 
 const emit = defineEmits<{
-  'add-quantity': [payload: { material: ActivityPeriodAvailabilityMaterial; quantity: number }]
+  'add-quantity': [payload: { material: ActivityPeriodAvailabilityMaterial; quantity: number; selectedOptionIds?: string[] }]
   /** Tab Eigen / Partner / J&S — für dieselbe Verfügbarkeitslogik wie die Materialtabelle */
   'scope-change': [payload: { tab: MaterialScopeTab; singlePartnerDepartmentId: string | null }]
 }>()
@@ -491,11 +506,40 @@ function addQty(m: ActivityPeriodAvailabilityMaterial, qty: number) {
   const adjustedFree = Math.max(0, raw + saved - draft)
   const add = Math.min(qty, adjustedFree)
   if (add < 1) return
+  // Virtuelle Kombo → Konfigurator-Dialog (Gruppen/Toggles wählen + live Verfügbarkeit), Zeilenmodell B.
+  if (m.materialType === 'virtual_combo') {
+    openConfigurator(m, add)
+    return
+  }
   emit('add-quantity', { material: m, quantity: add })
   matSearch.value = ''
-  if (m.materialType === 'physical_combo' || m.materialType === 'virtual_combo') {
+  if (m.materialType === 'physical_combo') {
     void loadAccessorySuggestion(m)
   }
+}
+
+// ── Konfigurator-Dialog (virtuelle Kombo) ──
+const configuratorState = ref<{ material: ActivityPeriodAvailabilityMaterial; quantity: number } | null>(null)
+
+function openConfigurator(m: ActivityPeriodAvailabilityMaterial, qty: number) {
+  configuratorState.value = { material: m, quantity: qty }
+}
+
+function onConfiguratorConfirm(payload: { selectedOptionIds: string[]; quantity: number }) {
+  const state = configuratorState.value
+  configuratorState.value = null
+  if (!state) return
+  emit('add-quantity', {
+    material: state.material,
+    quantity: payload.quantity,
+    selectedOptionIds: payload.selectedOptionIds,
+  })
+  matSearch.value = ''
+  void loadAccessorySuggestion(state.material)
+}
+
+function onConfiguratorCancel() {
+  configuratorState.value = null
 }
 
 // ── Vorschlag: verwandtes Zubehör nach Hinzufügen einer Kombo ──

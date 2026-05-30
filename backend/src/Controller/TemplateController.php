@@ -4,10 +4,16 @@ namespace App\Controller;
 
 use App\Entity\MaterialTemplate;
 use App\Entity\MaterialTemplateComponent;
+use App\Entity\MaterialTemplateOption;
+use App\Entity\MaterialTemplateOptionDelta;
+use App\Entity\MaterialTemplateOptionGroup;
 use App\Entity\MaterialTemplateRelatedAccessory;
 use App\Entity\MaterialItem;
 use App\Entity\MaterialBatch;
 use App\Entity\MaterialComboComponent;
+use App\Entity\MaterialComboOption;
+use App\Entity\MaterialComboOptionDelta;
+use App\Entity\MaterialComboOptionGroup;
 use App\Entity\MaterialRelatedAccessory;
 use App\Entity\Category;
 use App\Entity\Department;
@@ -199,6 +205,10 @@ class TemplateController extends AbstractController
             $this->entityManager->persist($template);
             $this->entityManager->flush();
 
+            // Options-Gruppen/Optionen (Weg B, Paket 6) – nach dem ersten Flush (Template-Id steht).
+            $this->applyTemplateOptions($template, $data);
+            $this->entityManager->flush();
+
             return new JsonResponse($this->serializeTemplate($template, true), 201);
 
         } catch (\Exception $e) {
@@ -295,6 +305,9 @@ class TemplateController extends AbstractController
                     $template->addRelatedAccessory($this->createTemplateAccessory($accData, $index));
                 }
             }
+
+            // Options-Gruppen/Optionen (Weg B, Paket 6) ersetzen.
+            $this->applyTemplateOptions($template, $data);
 
             $template->updateTimestamps();
             $this->entityManager->flush();
@@ -478,6 +491,8 @@ class TemplateController extends AbstractController
 
             $createdArticles = [];
             $sortOrder = 0;
+            /** @var array<string, MaterialItem> $materialByComponentType Bindung component_type → konkretes Material (für Options-Auflösung) */
+            $materialByComponentType = [];
 
             foreach ($templateComponents as $tplComp) {
                 $compType = $tplComp->getComponentType();
@@ -660,6 +675,10 @@ class TemplateController extends AbstractController
                     }
                 }
 
+                if ($compType !== '' && !isset($materialByComponentType[$compType])) {
+                    $materialByComponentType[$compType] = $componentMaterial;
+                }
+
                 $createdArticles[] = [
                     'id' => $componentMaterial->getId(),
                     'name' => $componentMaterial->getName(),
@@ -722,6 +741,13 @@ class TemplateController extends AbstractController
                     $link->setSortOrder($accSort++);
                     $this->entityManager->persist($link);
                 }
+            }
+
+            // ══════════════════════════════════════════════
+            // Options-Gruppen/Optionen (Konfigurator, Weg B) – nur virtuelle Kombo, generisch → konkret binden
+            // ══════════════════════════════════════════════
+            if ($isVirtualCombo && $comboMaterial) {
+                $this->resolveTemplateOptionsToCombo($template, $comboMaterial, $materialByComponentType, $department->getId());
             }
 
             $actorId = $this->getActorUserId();
@@ -930,6 +956,192 @@ class TemplateController extends AbstractController
     }
 
     /**
+     * Options-Gruppen + Optionen einer Vorlage (Weg B, Paket 6) ersetzen (replace-all), generisch über component_type.
+     *
+     * @param array<string, mixed> $data
+     */
+    private function applyTemplateOptions(MaterialTemplate $template, array $data): void
+    {
+        $hasGroups = array_key_exists('option_groups', $data) && is_array($data['option_groups']);
+        $hasOptions = array_key_exists('options', $data) && is_array($data['options']);
+        if (!$hasGroups && !$hasOptions) {
+            return;
+        }
+
+        // Bestehende entfernen (Deltas → Optionen → Gruppen).
+        $existingOptions = $this->entityManager->getRepository(MaterialTemplateOption::class)
+            ->findBy(['templateId' => $template->getId()]);
+        foreach ($existingOptions as $opt) {
+            foreach ($this->entityManager->getRepository(MaterialTemplateOptionDelta::class)->findBy(['optionId' => $opt->getId()]) as $d) {
+                $this->entityManager->remove($d);
+            }
+            $this->entityManager->remove($opt);
+        }
+        foreach ($this->entityManager->getRepository(MaterialTemplateOptionGroup::class)->findBy(['templateId' => $template->getId()]) as $g) {
+            $this->entityManager->remove($g);
+        }
+        $this->entityManager->flush();
+
+        // Gruppen anlegen, payload-id → reale id abbilden.
+        $groupIdMap = [];
+        foreach (($data['option_groups'] ?? []) as $index => $g) {
+            $group = new MaterialTemplateOptionGroup();
+            $group->setId(IdGenerator::generate());
+            $group->setTemplate($template);
+            $group->setName(trim((string) ($g['name'] ?? 'Gruppe')) ?: 'Gruppe');
+            $st = (string) ($g['selection_type'] ?? 'exclusive');
+            $group->setSelectionType(in_array($st, ['exclusive', 'multi', 'quantity'], true) ? $st : 'exclusive');
+            $group->setMinSelect(max(0, (int) ($g['min_select'] ?? 0)));
+            $group->setMaxSelect(isset($g['max_select']) && $g['max_select'] !== null ? max(0, (int) $g['max_select']) : null);
+            $group->setSortOrder((int) ($g['sort_order'] ?? $index));
+            $this->entityManager->persist($group);
+            $payloadId = (string) ($g['id'] ?? $g['_key'] ?? $index);
+            $groupIdMap[$payloadId] = $group->getId();
+        }
+
+        // Optionen + Deltas anlegen.
+        foreach (($data['options'] ?? []) as $index => $o) {
+            $option = new MaterialTemplateOption();
+            $option->setId(IdGenerator::generate());
+            $option->setTemplate($template);
+            $option->setName(trim((string) ($o['name'] ?? 'Option')) ?: 'Option');
+            $dm = (string) ($o['display_mode'] ?? 'toggle');
+            $option->setDisplayMode($dm === 'group' ? 'group' : 'toggle');
+            $option->setDefaultSelected((bool) ($o['default_selected'] ?? false));
+            $option->setSortOrder((int) ($o['sort_order'] ?? $index));
+            $gid = $o['option_group_id'] ?? null;
+            if ($gid !== null && $gid !== '' && isset($groupIdMap[(string) $gid])) {
+                $group = $this->entityManager->getRepository(MaterialTemplateOptionGroup::class)->find($groupIdMap[(string) $gid]);
+                if ($group) {
+                    $option->setOptionGroup($group);
+                    $option->setDisplayMode('group');
+                }
+            }
+            $this->entityManager->persist($option);
+
+            $deltaSort = 0;
+            foreach (($o['deltas'] ?? []) as $d) {
+                $delta = new MaterialTemplateOptionDelta();
+                $delta->setId(IdGenerator::generate());
+                $delta->setOption($option);
+                $delta->setComponentType(trim((string) ($d['component_type'] ?? '')) ?: 'unknown');
+                $delta->setName(trim((string) ($d['name'] ?? '')) ?: (string) ($d['component_type'] ?? 'Teil'));
+                $delta->setQtyDelta((int) ($d['qty_delta'] ?? 0));
+                $delta->setTracking(($d['tracking'] ?? 'bulk') === 'serialized' ? 'serialized' : 'bulk');
+                $delta->setComponentSource(($d['component_source'] ?? null) === 'self_provided' ? 'self_provided' : 'stock');
+                $delta->setIsGeneric((bool) ($d['is_generic'] ?? false));
+                $delta->setSortOrder((int) ($d['sort_order'] ?? $deltaSort++));
+                $this->entityManager->persist($delta);
+            }
+        }
+    }
+
+    /**
+     * „Vorlage → Material": löst die generischen Vorlagen-Optionen an konkrete Kombo-Optionen mit
+     * material_item-Deltas. Bindung über component_type → erstelltes/gefundenes Material; fehlende überspringen.
+     *
+     * @param array<string, MaterialItem> $materialByComponentType
+     */
+    private function resolveTemplateOptionsToCombo(
+        MaterialTemplate $template,
+        MaterialItem $combo,
+        array $materialByComponentType,
+        string $departmentId,
+    ): void {
+        $tplGroups = $this->entityManager->getRepository(MaterialTemplateOptionGroup::class)
+            ->findBy(['templateId' => $template->getId()], ['sortOrder' => 'ASC']);
+        $tplOptions = $this->entityManager->getRepository(MaterialTemplateOption::class)
+            ->findBy(['templateId' => $template->getId()], ['sortOrder' => 'ASC']);
+        if ($tplGroups === [] && $tplOptions === []) {
+            return;
+        }
+
+        $groupIdMap = [];
+        foreach ($tplGroups as $tg) {
+            $group = new MaterialComboOptionGroup();
+            $group->setId(IdGenerator::generate13('og'));
+            $group->setMaterialItem($combo);
+            $group->setName($tg->getName());
+            $group->setSelectionType($tg->getSelectionType());
+            $group->setMinSelect($tg->getMinSelect());
+            $group->setMaxSelect($tg->getMaxSelect());
+            $group->setSortOrder($tg->getSortOrder());
+            $this->entityManager->persist($group);
+            $groupIdMap[(string) $tg->getId()] = $group;
+        }
+
+        foreach ($tplOptions as $to) {
+            $tplDeltas = $this->entityManager->getRepository(MaterialTemplateOptionDelta::class)
+                ->findBy(['optionId' => $to->getId()], ['sortOrder' => 'ASC']);
+
+            // Konkrete Delta-Zeilen ermitteln (fehlende component_types überspringen).
+            $resolvedDeltas = [];
+            foreach ($tplDeltas as $td) {
+                $material = $this->resolveComponentMaterial($td->getComponentType(), $td->getName(), $materialByComponentType, $departmentId);
+                if ($material === null) {
+                    continue;
+                }
+                $resolvedDeltas[] = [$td, $material];
+            }
+            if ($resolvedDeltas === []) {
+                continue; // Option ohne bindbare Teile → überspringen
+            }
+
+            $option = new MaterialComboOption();
+            $option->setId(IdGenerator::generate13('op'));
+            $option->setMaterialItem($combo);
+            $option->setName($to->getName());
+            $option->setDisplayMode($to->getDisplayMode());
+            $option->setDefaultSelected($to->getDefaultSelected());
+            $option->setSortOrder($to->getSortOrder());
+            if ($to->getOptionGroupId() !== null && isset($groupIdMap[(string) $to->getOptionGroupId()])) {
+                $option->setOptionGroup($groupIdMap[(string) $to->getOptionGroupId()]);
+            }
+            $this->entityManager->persist($option);
+
+            foreach ($resolvedDeltas as [$td, $material]) {
+                $delta = new MaterialComboOptionDelta();
+                $delta->setId(IdGenerator::generate13('dt'));
+                $delta->setOption($option);
+                $delta->setComponentMaterial($material);
+                $delta->setQtyDelta($td->getQtyDelta());
+                $delta->setAssignmentMode($td->getTracking() === 'serialized' ? 'on_issue' : 'bulk');
+                $delta->setTracking($td->getTracking());
+                $delta->setComponentSource($td->getComponentSource());
+                $delta->setSortOrder($td->getSortOrder());
+                $this->entityManager->persist($delta);
+            }
+        }
+    }
+
+    /**
+     * Findet ein konkretes Material für einen generischen component_type (erst Map aus Basis-Stückliste, dann per Name).
+     *
+     * @param array<string, MaterialItem> $materialByComponentType
+     */
+    private function resolveComponentMaterial(
+        string $componentType,
+        string $name,
+        array $materialByComponentType,
+        string $departmentId,
+    ): ?MaterialItem {
+        if ($componentType !== '' && isset($materialByComponentType[$componentType])) {
+            return $materialByComponentType[$componentType];
+        }
+        if (trim($name) !== '') {
+            $found = $this->entityManager->getRepository(MaterialItem::class)->findOneBy([
+                'departmentId' => $departmentId,
+                'name' => $name,
+                'deletedAt' => null,
+            ]);
+            if ($found) {
+                return $found;
+            }
+        }
+        return null;
+    }
+
+    /**
      * Serialisiert ein Template für die JSON-Response
      */
     private function serializeTemplate(MaterialTemplate $template, bool $includeComponents): array
@@ -982,6 +1194,50 @@ class TemplateController extends AbstractController
                     'component_type' => $acc->getComponentType(),
                     'is_generic' => $acc->getIsGeneric(),
                     'sort_order' => $acc->getSortOrder(),
+                ];
+            }
+
+            // Options-Gruppen + Optionen (Weg B, Paket 6)
+            $data['option_groups'] = [];
+            $groups = $this->entityManager->getRepository(MaterialTemplateOptionGroup::class)
+                ->findBy(['templateId' => $template->getId()], ['sortOrder' => 'ASC']);
+            foreach ($groups as $g) {
+                $data['option_groups'][] = [
+                    'id' => $g->getId(),
+                    'template_id' => $g->getTemplateId(),
+                    'name' => $g->getName(),
+                    'selection_type' => $g->getSelectionType(),
+                    'min_select' => $g->getMinSelect(),
+                    'max_select' => $g->getMaxSelect(),
+                    'sort_order' => $g->getSortOrder(),
+                ];
+            }
+
+            $data['options'] = [];
+            $options = $this->entityManager->getRepository(MaterialTemplateOption::class)
+                ->findBy(['templateId' => $template->getId()], ['sortOrder' => 'ASC']);
+            foreach ($options as $o) {
+                $deltas = $this->entityManager->getRepository(MaterialTemplateOptionDelta::class)
+                    ->findBy(['optionId' => $o->getId()], ['sortOrder' => 'ASC']);
+                $data['options'][] = [
+                    'id' => $o->getId(),
+                    'template_id' => $o->getTemplateId(),
+                    'option_group_id' => $o->getOptionGroupId(),
+                    'name' => $o->getName(),
+                    'display_mode' => $o->getDisplayMode(),
+                    'default_selected' => $o->getDefaultSelected(),
+                    'sort_order' => $o->getSortOrder(),
+                    'deltas' => array_map(static fn (MaterialTemplateOptionDelta $d) => [
+                        'id' => $d->getId(),
+                        'option_id' => $d->getOptionId(),
+                        'component_type' => $d->getComponentType(),
+                        'name' => $d->getName(),
+                        'qty_delta' => $d->getQtyDelta(),
+                        'tracking' => $d->getTracking(),
+                        'component_source' => $d->getComponentSource(),
+                        'is_generic' => $d->getIsGeneric(),
+                        'sort_order' => $d->getSortOrder(),
+                    ], $deltas),
                 ];
             }
         }

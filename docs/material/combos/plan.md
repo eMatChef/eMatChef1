@@ -2,7 +2,7 @@
 
 Abarbeitbare Checkliste für den Umbau auf das bereinigte Combo-Modell. Das **Warum/Zielmodell** steht im [README.md](./README.md) (insb. Abschnitt 0 + 6). Dieser Plan = **Was & in welcher Reihenfolge**.
 
-**Stand:** Mai 2026 · Pakete 0–7, von klein → groß. **Erledigt: 0–5** (Mini-Fixes; `combo_status` draft/ready inkl. Migration `Version20260529120000`; `reservation_mode` end-to-end entfernt inkl. Drop-Migration `Version20260529130000`; drei Typen im Wizard mit Klartext-Karten/Badges + Hülle-Hinweis; verwandtes Zubehör als separate Empfehlung inkl. Entities/Migration `Version20260529140000`/API, Detail-Tab, Vorlage + Aktivitäts-Vorschlag, „fertigstellen" für physische Kombo; **Paket 5**: virtuelle Kombo + vereinheitlichtes Options-/Delta-Fundament inkl. Migration `Version20260529150000`, `ComboResolutionService` (Flaschenhals/Klemmung), Zeilenmodell B in `ActivityController`, Pack-pro-Komponente). **Nächstes: Paket 6.**
+**Stand:** Mai 2026 · Pakete 0–7, von klein → groß. **Erledigt: 0–6** (Mini-Fixes; `combo_status` draft/ready inkl. Migration `Version20260529120000`; `reservation_mode` end-to-end entfernt inkl. Drop-Migration `Version20260529130000`; drei Typen im Wizard mit Klartext-Karten/Badges + Hülle-Hinweis; verwandtes Zubehör als separate Empfehlung inkl. Entities/Migration `Version20260529140000`/API, Detail-Tab, Vorlage + Aktivitäts-Vorschlag, „fertigstellen" für physische Kombo; **Paket 5**: virtuelle Kombo + vereinheitlichtes Options-/Delta-Fundament inkl. Migration `Version20260529150000`, `ComboResolutionService` (Flaschenhals/Klemmung), Zeilenmodell B in `ActivityController`, Pack-pro-Komponente; **Paket 6**: Konfigurator-UI — Options-/Gruppen-Editor in Material (`ComboOptionsEditor.vue`, CRUD in `MaterialController`) und Vorlage (`TemplateOptionsEditor.vue`, generisch, replace-all in `TemplateController`), 3-Zustands-Verfügbarkeit `MaterialAvailabilityController::configuratorAvailability`, interaktiver `ComboConfiguratorDialog.vue` in Lookup + Wizard mit Zeilenmodell-B-Durchreichung, i18n de/en). **Nächstes: Paket 7.** Kein neues DB-Schema in Paket 6 (Fundament steht aus Paket 5).
 
 ---
 
@@ -30,7 +30,7 @@ Abarbeitbare Checkliste für den Umbau auf das bereinigte Combo-Modell. Das **Wa
 | 3 | Drei Typen im Wizard | M | 1, 2 | [x] |
 | 4 | Physische Kombo finalisieren | M | 3 | [x] |
 | 5 | Virtuelle Kombo + Options-/Delta-Fundament | XL | 4 | [x] |
-| 6 | Konfigurator-UI (Auswahl-Gruppen) | L | 5 | [ ] |
+| 6 | Konfigurator-UI (Auswahl-Gruppen) | L | 5 | [x] |
 | 7 | Komfort / Cross-Cutting | M | 5, 6 | [ ] |
 
 > **Weg B (vereinheitlicht):** Alles Wählbare ist eine **Option mit Delta-Liste**; `is_optional` ist nur Anzeige-Flag „Toggle". Darum baut **Paket 5 das Options-/Delta-Schema gleich mit** (auch der einfache Ja/Nein-Fall nutzt es). Paket 6 setzt nur die **Gruppen-/Auswahl-UI** obendrauf, kein neues Fundament. Es gibt **keinen** billigen Bool-Zwischenschritt.
@@ -209,14 +209,18 @@ Diese Stellen steuern Typ-/Status-/Verfügbarkeitslogik zentral — Änderungen 
 - Aktivitäts-Zusammenstell-Schritt (neu) + `useActivityCreateWizard.ts` (Zeilenmodell mit gewählter Konfiguration)
 
 **Schritte:**
-- [ ] „Konfigurator-Eigenschaft" **abgeleitet**: virtuelle Kombo mit ≥ 1 Options-Gruppe (Anzeige-Modus `group`) verhält sich als Konfigurator (Badge/Buchungs-UI), kein eigener `material_type`/Flag.
-- [ ] Button „Delta/Optionen" im Zusammensetzungs-Tab klappt die Gruppen-Maschinerie auf (Progressive Disclosure).
-- [ ] Detail-/Vorlagen-Editor: Gruppen (Auswahltyp exklusiv/Menge, min/max) + Optionen mit ±Delta (Vorzeichen sichtbar, Live-Vorschau der Endmenge).
-- [ ] Verfügbarkeit **pro Option/Gruppe** (Flaschenhals, Zeitraum, nur `stock`-Teile) → nicht verfügbare Option **hart gesperrt**, exklusive Gruppe lenkt zur Alternative.
-- [ ] Aktivitäts-Zusammenstell-Schritt (Gruppen wählen → Endmenge berechnen × Bestellmenge).
-- [ ] Gewählte Konfiguration via **Zeilenmodell B** ablegen: `config_snapshot` an der Eltern-Zeile, Kind-Zeilen aus der aufgelösten Endmenge (Struktur steht aus Paket 5).
+- [x] „Konfigurator-Eigenschaft" **abgeleitet**: virtuelle Kombo mit ≥ 1 Options-Gruppe verhält sich als Konfigurator (Badge/Buchungs-UI), kein eigener `material_type`/Flag. *(Frontend `MaterialDetailView.isConfigurator` = ≥ 1 Gruppe; Badge „Konfigurator" im Zusammensetzungs-Tab; Aktivitäts-Lookup öffnet bei `virtual_combo` den Konfigurator-Dialog.)*
+- [x] Button „Delta/Optionen" im Zusammensetzungs-Tab klappt die Gruppen-Maschinerie auf (Progressive Disclosure). *(Toggle-Button + `ComboOptionsEditor.vue`, nur für `virtual_combo`.)*
+- [x] Detail-/Vorlagen-Editor: Gruppen (Auswahltyp exklusiv/multi/Menge, min/max) + Optionen mit ±Delta. *(`ComboOptionsEditor.vue` (Material, konkrete Artikel) + `TemplateOptionsEditor.vue` (Vorlage, generisch über `component_type`); CRUD in `MaterialController`, replace-all in `TemplateController::applyTemplateOptions`.)*
+- [x] Verfügbarkeit **pro Option/Gruppe** (Flaschenhals, Zeitraum, nur `stock`-Teile) → nicht verfügbare Option **hart gesperrt**, exklusive Gruppe lenkt zur Alternative. *(`MaterialAvailabilityController::configuratorAvailability`; Dialog sperrt `blocked`/`missing`, Hinweis „verfügbare Alternative wählen".)*
+- [x] **3-Zustands-Option** (README Abschnitt 6): Artikel **fehlt im Bestand** → „nicht im Bestand"; **0 frei** → hart gesperrt; **frei** → wählbar. **Pflicht-Basis fehlt/0 ⇒ ganze Kombo nicht baubar.** `self_provided` ausgenommen. *(Endpoint liefert `state` missing|blocked|available je Option; `totalStockForIds` trennt fehlt/0; `baseBlocked` sperrt die ganze Kombo.)*
+- [x] **Einzelartikel-Bezug, kein Duplikat** (README Abschnitt 6): Material-Editor referenziert **bestehende** `material_item` („aus Bestand wählen") via `MaterialLookupInput`, legt keine Kopien an. Vorlage = generisches Rezept (`component_type`/`is_generic`) → bei „Vorlage → Material" an konkrete Department-Artikel binden, fehlende überspringen. *(`TemplateController::resolveTemplateOptionsToCombo`.)*
+- [x] Aktivitäts-Zusammenstell-Schritt (Gruppen wählen → Endmenge berechnen × Bestellmenge). *(`ComboConfiguratorDialog.vue` in Lookup + Wizard-Step; live Verfügbarkeit pro Menge.)*
+- [x] Gewählte Konfiguration via **Zeilenmodell B** ablegen: `config_snapshot` an der Eltern-Zeile, Kind-Zeilen aus der aufgelösten Endmenge. *(`selected_option_ids` durchgereicht über `addActivityItem`/Wizard-Lines → bestehender `expandVirtualComboLine`-Pfad aus Paket 5.)*
 
-**Definition of Done:** Konfigurierbares Zelt/Blachenburg anlegbar (inkl. Entweder-Oder + „1 oder 2" + ±Delta), in der Aktivität zusammenstellbar mit korrekter Verfügbarkeit.
+**Definition of Done:** Konfigurierbares Zelt/Blachenburg anlegbar (inkl. Entweder-Oder + „1 oder 2" + ±Delta), in der Aktivität zusammenstellbar mit korrekter Verfügbarkeit. ✓ *(Editor (Material + Vorlage), 3-Zustands-Verfügbarkeit und interaktiver Buchungs-Dialog implementiert; Frontend type-check + PHP-Lint grün.)*
+
+> **Hinweis — Vorlagen-Funktion vs. -Inhalte:** Paket 6 baut nur die **Funktion** (Editor + Verfügbarkeit). Das **Konvertieren bestehender System-Vorlagen** (z. B. Zelthangar Phoenix von 5 getrennten Vorlagen → 1 Konfigurator) ist eine **separate, optionale Inhalts-/Datenaufgabe danach** (manuell im Editor oder JSON + Re-Import), nicht Teil der DoD.
 
 ---
 

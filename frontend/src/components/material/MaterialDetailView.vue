@@ -801,7 +801,12 @@
             <div class="section-card composition-tab-card">
               <div class="section-header-row composition-tab-head">
                 <div>
-                  <h2 class="section-title">{{ t('components.materialDetail.tabComposition') }}</h2>
+                  <h2 class="section-title">
+                    {{ t('components.materialDetail.tabComposition') }}
+                    <span v-if="isConfigurator" class="composition-configurator-badge" :title="t('components.comboOptions.configuratorBadgeHint')">
+                      {{ t('components.comboOptions.configuratorBadge') }}
+                    </span>
+                  </h2>
                   <p class="composition-tab-intro">
                     {{
                       material.material_type === 'physical_combo'
@@ -821,6 +826,15 @@
                     @click="finalizeComboNow"
                   >
                     {{ finalizingCombo ? t('components.materialDetail.comboFinalizeSubmitting') : t('components.materialDetail.btnFinalizeCombo') }}
+                  </button>
+                  <button
+                    v-if="isVirtualComboView"
+                    type="button"
+                    class="btn-outline-small"
+                    :class="{ 'is-active': showComboOptionsEditor }"
+                    @click="showComboOptionsEditor = !showComboOptionsEditor"
+                  >
+                    {{ t('components.comboOptions.btnToggleEditor') }}
                   </button>
                   <button type="button" class="btn-primary btn-sm" @click="openAddCompositionModal">
                     {{ t('components.materialDetail.btnAddFromStock') }}
@@ -955,6 +969,17 @@
                 </tbody>
               </table>
               </div>
+            </div>
+
+            <!-- Konfigurator: Auswahl-Gruppen & Optionen (Weg B, Paket 6) -->
+            <div v-if="isVirtualComboView && showComboOptionsEditor" class="section-card composition-options-card">
+              <ComboOptionsEditor
+                :material-id="props.materialId"
+                :department-id="props.departmentId"
+                :options="comboOptionsList"
+                :groups="comboOptionGroupsList"
+                @reload="reloadComboOptions"
+              />
             </div>
 
             <!-- Verwandtes Zubehör (Empfehlung, kein Stücklisten-Teil) -->
@@ -2490,6 +2515,8 @@ import {
   type MaterialStorageLocationsResponse,
   type MaterialStorageLocationRow,
   type ComboComponent,
+  type ComboOption,
+  type ComboOptionGroup,
   type ComponentSource,
   type UpdateComboComponentRequest,
 } from '@/api/materials'
@@ -2537,6 +2564,7 @@ import {
 } from '@/utils/compositionStockLocations'
 import StorageTreeView from '@/components/storage/StorageTreeView.vue'
 import MaterialLookupInput from '@/components/common/MaterialLookupInput.vue'
+import ComboOptionsEditor from '@/components/material/ComboOptionsEditor.vue'
 import CategoryAutocompleteInput from '@/components/common/CategoryAutocompleteInput.vue'
 import { createBasicMaterialLookupFetcher } from '@/composables/useMaterialLookup'
 import PublicQrTag from '@/components/common/PublicQrTag.vue'
@@ -2629,6 +2657,11 @@ const workshopTicketsLoading = ref(false)
 /** Stückliste für Kombos (Tab „Zusammensetzung“) */
 const comboComponentsList = ref<ComboComponent[]>([])
 const comboComponentsLoading = ref(false)
+
+/** Konfigurator: Options-Gruppen + Optionen (Weg B, Paket 6) – nur virtuelle Kombo */
+const comboOptionsList = ref<ComboOption[]>([])
+const comboOptionGroupsList = ref<ComboOptionGroup[]>([])
+const showComboOptionsEditor = ref(false)
 
 /** Verwandtes Zubehör (Empfehlung, kein Stücklisten-Teil) */
 const relatedAccessoriesList = ref<RelatedAccessory[]>([])
@@ -2818,6 +2851,14 @@ const isVirtualComboView = computed(() => material.value?.material_type === 'vir
 
 /** Kombo-Entwurf („in Bearbeitung“, nicht buchbar). */
 const isComboDraft = computed(() => isComboMaterialView.value && material.value?.combo_status === 'draft')
+
+/** Abgeleitete „Konfigurator“-Eigenschaft: virtuelle Kombo mit ≥ 1 Options-Gruppe. */
+const isConfigurator = computed(() => isVirtualComboView.value && comboOptionGroupsList.value.length > 0)
+
+/** Editor neu laden (Optionen/Gruppen änderten sich). */
+async function reloadComboOptions() {
+  await loadMaterial({ preserveComboComponents: true })
+}
 
 /** Zeilen für „Anschaffung aus Zusammensetzung“ (Vermietung-Tab, Kombis) */
 const comboRentalRows = ref<
@@ -4028,6 +4069,13 @@ async function loadMaterial(opts?: { preserveComboComponents?: boolean }) {
       } else {
         comboComponentsList.value = []
       }
+    }
+    if (data.material_type === 'virtual_combo') {
+      comboOptionsList.value = data.combo_options ?? []
+      comboOptionGroupsList.value = data.combo_option_groups ?? []
+    } else {
+      comboOptionsList.value = []
+      comboOptionGroupsList.value = []
     }
 
     populateFormData(data)
@@ -5673,6 +5721,25 @@ onMounted(() => {
 
 <style scoped src="@/styles/material-detail-view.css"></style>
 <style scoped>
+.composition-configurator-badge {
+  display: inline-block;
+  margin-left: 0.5rem;
+  font-size: 0.68rem;
+  font-weight: 600;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  background: #ede9fe;
+  color: #6d28d9;
+  vertical-align: middle;
+}
+.composition-options-card {
+  margin-top: 0.75rem;
+}
+.btn-outline-small.is-active {
+  background: #ede9fe;
+  border-color: #c4b5fd;
+  color: #6d28d9;
+}
 .workshop-tab-actions {
   display: flex;
   flex-wrap: wrap;

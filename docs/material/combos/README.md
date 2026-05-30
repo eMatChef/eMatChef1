@@ -281,6 +281,26 @@ Vier Tabellen für die Kombo, **gespiegelt** für die Vorlage (`material_templat
 - **Kaskaden:** `ON DELETE CASCADE` von Kombo → Gruppen/Optionen/Deltas. Löschen einer Gruppe setzt `option.option_group_id` NULL **oder** löscht die Gruppen-Optionen (Entscheidung im Migrations-Detail).
 - **`self_provided`** zählt nie in Flaschenhals/Reservierung — nur Checklisten-Posten.
 
+### Bezug zu Einzelartikeln & Vorlagen (generisch → konkret)
+
+Der Konfigurator ist eine **Rezept-Schicht**: er gibt nur vor, **was wie kombiniert** wird. Die Mengen-/Bestandslogik kommt aus den referenzierten **Einzelartikeln**.
+
+- **Kein Duplikat:** Basis- und Delta-Zeilen referenzieren **bestehende** `material_item` (per `component_material_id`). Der Konfigurator legt **keine** Kopien an — sonst stimmt die Verfügbarkeit nicht. Beim Bauen daher „**aus Bestand wählen**", nicht „neu anlegen", wenn der Artikel schon existiert.
+- **Einzelartikel sind Voraussetzung:** Erst die Artikel (Aussenzelt, Innenzelt, Heringe …) im Bestand anlegen, dann den Konfigurator darauf aufsetzen.
+- **Zwei Erstell-Wege:** (a) **aus Vorlage** — die Vorlage ist das **generische** Rezept (`component_type` + `is_generic`, kein konkreter Artikel); beim „Vorlage → Material" wird an die konkreten Artikel des Departments **gebunden**. (b) **aus bestehenden Daten** — direkt vorhandene Artikel referenzieren.
+- **Generisches Rezept, lokale Bindung:** Ein **globales** Konfigurator-Rezept gilt für alle; jedes Department bekommt automatisch nur die Optionen, für die es die Teile hat (siehe 3-Zustands-Modell).
+
+### Option = drei Zustände (graceful degradation)
+
+| Zustand des referenzierten `stock`-Artikels | Verhalten der Option |
+|---|---|
+| **existiert nicht** im Department-Bestand | Option **nicht berechnet**; entweder ausblenden **oder** als „nicht im Bestand" zeigen (UI-Entscheidung) |
+| existiert, aber im Zeitraum **0 frei** | **hart gesperrt** (ausgegraut) |
+| existiert und frei | wählbar |
+
+- **Pflicht-Basis vs. Option:** Fehlt ein **Pflichtteil der Basis** (oder ist 0 frei), ist die **ganze Kombo nicht baubar** — nicht nur eine Option. „Still weglassen" gilt nur für **optionale** Zeilen.
+- **`self_provided`** ist von diesem Modell ausgenommen (kein Bestandsbezug, immer nur Hinweis).
+
 ### Verfügbarkeit pro Option (hart gesperrt)
 
 Buildbarkeit wird **je Option** gerechnet – Flaschenhals ihrer Teile auf dem gemeinsamen Pool im gewählten Zeitraum:

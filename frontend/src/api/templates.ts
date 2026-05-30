@@ -111,6 +111,36 @@ export interface CreateTemplateComponentRequest {
   sort_order?: number
 }
 
+/** Options-Gruppe einer Vorlage (Weg B, Paket 6). `id` ist client-seitig (temp) oder real (Bezug für Optionen). */
+export interface UpsertTemplateOptionGroupRequest {
+  id?: string
+  name: string
+  selection_type?: OptionSelectionType
+  min_select?: number
+  max_select?: number | null
+  sort_order?: number
+}
+
+export interface UpsertTemplateOptionDeltaRequest {
+  component_type: string
+  name: string
+  qty_delta: number
+  tracking?: 'serialized' | 'bulk'
+  component_source?: ComponentSource
+  is_generic?: boolean
+  sort_order?: number
+}
+
+export interface UpsertTemplateOptionRequest {
+  name: string
+  display_mode?: OptionDisplayMode
+  default_selected?: boolean
+  /** Verweist auf die `id` einer UpsertTemplateOptionGroupRequest. */
+  option_group_id?: string | null
+  sort_order?: number
+  deltas?: UpsertTemplateOptionDeltaRequest[]
+}
+
 export interface CreateTemplateRequest {
   department_id?: string
   scope?: 'global' | 'department'
@@ -126,6 +156,8 @@ export interface CreateTemplateRequest {
   source?: string | null
   components?: CreateTemplateComponentRequest[]
   related_accessories?: CreateTemplateRelatedAccessoryRequest[]
+  option_groups?: UpsertTemplateOptionGroupRequest[]
+  options?: UpsertTemplateOptionRequest[]
 }
 
 export interface UpdateTemplateRequest {
@@ -141,6 +173,8 @@ export interface UpdateTemplateRequest {
   source?: string | null
   components?: CreateTemplateComponentRequest[]
   related_accessories?: CreateTemplateRelatedAccessoryRequest[]
+  option_groups?: UpsertTemplateOptionGroupRequest[]
+  options?: UpsertTemplateOptionRequest[]
 }
 
 // ============== API Functions ==============

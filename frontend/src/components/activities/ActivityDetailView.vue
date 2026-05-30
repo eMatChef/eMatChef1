@@ -1714,7 +1714,7 @@ async function refreshActivityDetailSilent(): Promise<void> {
   }
 }
 
-async function onDraftAddQuantity(payload: { material: { materialItemId: string }; quantity: number }) {
+async function onDraftAddQuantity(payload: { material: { materialItemId: string }; quantity: number; selectedOptionIds?: string[] }) {
   const mid = payload.material?.materialItemId
   const a = activity.value
   if (!mid || !a) return
@@ -1728,6 +1728,7 @@ async function onDraftAddQuantity(payload: { material: { materialItemId: string 
     await addActivityItem(props.activityId, {
       material_item_id: mid,
       quantity: payload.quantity,
+      ...(payload.selectedOptionIds ? { selected_option_ids: payload.selectedOptionIds } : {}),
     })
     toast.success(t('activities.detail.toastMaterialAdded'))
     await loadItems()

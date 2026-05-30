@@ -302,6 +302,8 @@ export async function addActivityItem(
     unit_price?: number | string
     line_total?: number | string
     price_type?: string
+    /** Zeilenmodell B: gewählte Optionen einer virtuellen Kombo (Konfigurator). */
+    selected_option_ids?: string[]
   },
 ): Promise<{ message?: string; total_price?: string | null }> {
   const { data } = await apiClient.post(`/api/activities/${activityId}/items`, body)

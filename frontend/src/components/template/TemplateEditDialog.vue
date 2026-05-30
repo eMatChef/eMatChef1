@@ -253,6 +253,15 @@
             </div>
           </div>
         </div>
+
+        <!-- Tab: Konfigurator (nur virtuelle Kombo) -->
+        <div v-if="form.material_type === 'virtual_combo'" v-show="activeTab === 'configurator'" class="tab-content">
+          <TemplateOptionsEditor
+            v-model:groups="form.optionGroups"
+            v-model:options="form.options"
+            :readonly="props.readonly"
+          />
+        </div>
       </div>
 
       <!-- Footer -->
@@ -272,6 +281,10 @@ import { ref, computed, onMounted, reactive } from 'vue'
 import { useToast } from '@/composables/useToast'
 import { useI18n } from 'vue-i18n'
 import draggable from 'vuedraggable'
+import TemplateOptionsEditor, {
+  type TemplateOptionGroupForm,
+  type TemplateOptionForm,
+} from './TemplateOptionsEditor.vue'
 import {
   getTemplate,
   createTemplate,
@@ -281,6 +294,8 @@ import {
   type UpdateTemplateRequest,
   type CreateTemplateComponentRequest,
   type CreateTemplateRelatedAccessoryRequest,
+  type UpsertTemplateOptionGroupRequest,
+  type UpsertTemplateOptionRequest,
   type ComponentSource
 } from '@/api/templates'
 
@@ -326,10 +341,14 @@ const saveError = ref('')
 const expandedComponents = ref(new Set<number>())
 let keyCounter = 0
 
-const tabs = ['general', 'tent', 'components', 'accessories'].map((id) => ({
-  id,
-  label: t(`components.templateEditDialog.tab.${id}`),
-}))
+const tabs = computed(() => {
+  const ids = ['general', 'tent', 'components', 'accessories']
+  if (form.material_type === 'virtual_combo') ids.push('configurator')
+  return ids.map((id) => ({
+    id,
+    label: t(`components.templateEditDialog.tab.${id}`),
+  }))
+})
 
 // Form-Daten
 const form = reactive({
@@ -344,6 +363,8 @@ const form = reactive({
   source: null as string | null,
   components: [] as ComponentForm[],
   accessories: [] as AccessoryForm[],
+  optionGroups: [] as TemplateOptionGroupForm[],
+  options: [] as TemplateOptionForm[],
 })
 
 const isValid = computed(() => {
@@ -433,6 +454,37 @@ async function save() {
         sort_order: i,
       }))
 
+    // Konfigurator-Optionen (generisch, nur bei virtueller Kombo). __key dient als temp-Bezug.
+    const isCombo = form.material_type === 'virtual_combo'
+    const option_groups: UpsertTemplateOptionGroupRequest[] | undefined = isCombo
+      ? form.optionGroups.map((g, i) => ({
+          id: `tmp-${g.__key}`,
+          name: g.name.trim() || `Gruppe ${i + 1}`,
+          selection_type: g.selection_type,
+          min_select: g.min_select,
+          max_select: g.max_select,
+          sort_order: i,
+        }))
+      : undefined
+    const options: UpsertTemplateOptionRequest[] | undefined = isCombo
+      ? form.options.map((o, i) => ({
+          name: o.name.trim() || `Option ${i + 1}`,
+          display_mode: o.option_group_key === null ? 'toggle' : 'group',
+          default_selected: o.default_selected,
+          option_group_id: o.option_group_key === null ? null : `tmp-${o.option_group_key}`,
+          sort_order: i,
+          deltas: o.deltas.map((d, j) => ({
+            component_type: d.component_type,
+            name: d.name,
+            qty_delta: d.qty_delta,
+            tracking: d.tracking,
+            component_source: d.component_source,
+            is_generic: d.is_generic,
+            sort_order: j,
+          })),
+        }))
+      : undefined
+
     if (isEditing.value && props.template) {
       const data: UpdateTemplateRequest = {
         name: form.name,
@@ -446,6 +498,8 @@ async function save() {
         source: form.source,
         components,
         related_accessories,
+        option_groups,
+        options,
       }
       await updateTemplate(props.template.id, data)
     } else {
@@ -462,6 +516,8 @@ async function save() {
         source: form.source,
         components,
         related_accessories,
+        option_groups,
+        options,
       }
       await createTemplate(data)
     }
@@ -518,6 +574,59 @@ async function loadTemplate() {
           is_generic: a.is_generic ?? false,
           sort_order: a.sort_order,
         }))
+      }
+      // Konfigurator-Optionen laden: reale Gruppen-IDs auf lokale __key abbilden.
+      if (full.option_groups && full.option_groups.length > 0) {
+        const groupKeyById = new Map<string, number>()
+        form.optionGroups = [...full.option_groups]
+          .sort((a, b) => a.sort_order - b.sort_order)
+          .map((g) => {
+            const key = ++keyCounter
+            groupKeyById.set(g.id, key)
+            return {
+              __key: key,
+              name: g.name,
+              selection_type: g.selection_type,
+              min_select: g.min_select,
+              max_select: g.max_select,
+            }
+          })
+        form.options = (full.options ?? [])
+          .slice()
+          .sort((a, b) => a.sort_order - b.sort_order)
+          .map((o) => ({
+            __key: ++keyCounter,
+            name: o.name,
+            default_selected: o.default_selected,
+            option_group_key: o.option_group_id ? (groupKeyById.get(o.option_group_id) ?? null) : null,
+            deltas: (o.deltas ?? []).map((d) => ({
+              name: d.name,
+              component_type: d.component_type,
+              qty_delta: d.qty_delta,
+              tracking: d.tracking,
+              component_source: d.component_source ?? 'stock',
+              is_generic: d.is_generic ?? true,
+            })),
+          }))
+      } else if (full.options && full.options.length > 0) {
+        // Nur Toggle-Optionen ohne Gruppen.
+        form.options = full.options
+          .slice()
+          .sort((a, b) => a.sort_order - b.sort_order)
+          .map((o) => ({
+            __key: ++keyCounter,
+            name: o.name,
+            default_selected: o.default_selected,
+            option_group_key: null,
+            deltas: (o.deltas ?? []).map((d) => ({
+              name: d.name,
+              component_type: d.component_type,
+              qty_delta: d.qty_delta,
+              tracking: d.tracking,
+              component_source: d.component_source ?? 'stock',
+              is_generic: d.is_generic ?? true,
+            })),
+          }))
       }
     } catch (err) {
       console.error(t('components.templateEditDialog.errorLoadConsole'), err)

@@ -36,11 +36,11 @@ final class ComboResolutionService
     {
         $selected = [];
 
-        // MaterialComboOption-Toggles mit default_selected
+        // MaterialComboOption mit default_selected (Toggle UND Gruppen-Optionen, Paket 6).
         $options = $this->entityManager->getRepository(MaterialComboOption::class)
             ->findBy(['materialItemId' => $comboId]);
         foreach ($options as $opt) {
-            if ($opt->getDisplayMode() === 'toggle' && $opt->getDefaultSelected()) {
+            if ($opt->getDefaultSelected()) {
                 $selected[] = 'opt:' . $opt->getId();
             }
         }

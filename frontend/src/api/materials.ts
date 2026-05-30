@@ -916,3 +916,137 @@ export async function addRelatedAccessory(
 export async function deleteRelatedAccessory(materialId: string, accessoryId: string): Promise<void> {
   await apiClient.delete(`/api/materials/${materialId}/related-accessories/${accessoryId}`)
 }
+
+// ============== Konfigurator: Options-Gruppen & Optionen (Weg B, Paket 6) ==============
+
+export interface UpsertOptionGroupRequest {
+  name?: string
+  selection_type?: OptionSelectionType
+  min_select?: number
+  max_select?: number | null
+  sort_order?: number
+}
+
+export interface UpsertOptionDeltaRequest {
+  component_material_id: string
+  qty_delta: number
+  assignment_mode?: 'on_issue' | 'bulk'
+  tracking?: string | null
+  component_source?: ComponentSource
+  sort_order?: number
+}
+
+export interface UpsertOptionRequest {
+  name?: string
+  display_mode?: OptionDisplayMode
+  default_selected?: boolean
+  option_group_id?: string | null
+  sort_order?: number
+  deltas?: UpsertOptionDeltaRequest[]
+}
+
+export async function addComboOptionGroup(materialId: string, data: UpsertOptionGroupRequest): Promise<ComboOptionGroup> {
+  const response = await apiClient.post<ComboOptionGroup>(`/api/materials/${materialId}/option-groups`, data)
+  return response.data
+}
+
+export async function updateComboOptionGroup(materialId: string, groupId: string, data: UpsertOptionGroupRequest): Promise<ComboOptionGroup> {
+  const response = await apiClient.patch<ComboOptionGroup>(`/api/materials/${materialId}/option-groups/${groupId}`, data)
+  return response.data
+}
+
+export async function deleteComboOptionGroup(materialId: string, groupId: string): Promise<void> {
+  await apiClient.delete(`/api/materials/${materialId}/option-groups/${groupId}`)
+}
+
+export async function addComboOption(materialId: string, data: UpsertOptionRequest): Promise<ComboOption> {
+  const response = await apiClient.post<ComboOption>(`/api/materials/${materialId}/options`, data)
+  return response.data
+}
+
+export async function updateComboOption(materialId: string, optionId: string, data: UpsertOptionRequest): Promise<ComboOption> {
+  const response = await apiClient.patch<ComboOption>(`/api/materials/${materialId}/options/${optionId}`, data)
+  return response.data
+}
+
+export async function deleteComboOption(materialId: string, optionId: string): Promise<void> {
+  await apiClient.delete(`/api/materials/${materialId}/options/${optionId}`)
+}
+
+/** 3-Zustands-Modell pro Option (README Abschnitt 6). */
+export type OptionAvailabilityState = 'available' | 'blocked' | 'missing'
+
+export interface ConfiguratorComponentAvailability {
+  materialItemId: string
+  name: string
+  qtyPerCombo?: number
+  qtyDelta?: number
+  availableForPeriod: number
+  inStock: boolean
+}
+
+export interface ConfiguratorOptionAvailability {
+  optionId: string
+  name: string
+  displayMode: OptionDisplayMode
+  optionGroupId: string | null
+  defaultSelected: boolean
+  state: OptionAvailabilityState
+  buildable: number | null
+  addedStockComponents: ConfiguratorComponentAvailability[]
+}
+
+export interface ConfiguratorAvailabilityGroup {
+  id: string
+  name: string
+  selectionType: OptionSelectionType
+  minSelect: number
+  maxSelect: number | null
+  sortOrder: number
+}
+
+export interface ConfiguratorAvailability {
+  comboId: string
+  quantity: number
+  groups: ConfiguratorAvailabilityGroup[]
+  base: {
+    components: ConfiguratorComponentAvailability[]
+    buildable: number | null
+    blocked: boolean
+  }
+  options: ConfiguratorOptionAvailability[]
+  selected: {
+    selectedOptionIds: string[]
+    components: ConfiguratorComponentAvailability[]
+    buildable: number | null
+    blocked: boolean
+    selfProvided: Array<{ materialItemId: string; name: string; qtyPerCombo: number }>
+  }
+}
+
+export interface ConfiguratorAvailabilityParams {
+  startDate?: string | null
+  endDate?: string | null
+  quantity?: number
+  excludeActivityId?: string | null
+  selectedOptionIds?: string[]
+}
+
+export async function getConfiguratorAvailability(
+  comboId: string,
+  params: ConfiguratorAvailabilityParams = {},
+): Promise<ConfiguratorAvailability> {
+  const query: Record<string, string> = {}
+  if (params.startDate) query.startDate = params.startDate
+  if (params.endDate) query.endDate = params.endDate
+  if (params.quantity != null) query.quantity = String(params.quantity)
+  if (params.excludeActivityId) query.excludeActivityId = params.excludeActivityId
+  if (params.selectedOptionIds && params.selectedOptionIds.length > 0) {
+    query.selectedOptionIds = params.selectedOptionIds.join(',')
+  }
+  const response = await apiClient.get<ConfiguratorAvailability>(
+    `/api/materials/${comboId}/configurator-availability`,
+    { params: query },
+  )
+  return response.data
+}

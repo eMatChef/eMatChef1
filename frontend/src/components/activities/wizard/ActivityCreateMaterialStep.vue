@@ -119,15 +119,15 @@ function onRemoveLine({ index }: { line: ActivityMaterialLine; index: number }) 
   )
 }
 
-function onAvailabilityAddQuantity(payload: { material: ActivityPeriodAvailabilityMaterial; quantity: number }) {
-  addQty(payload.material, payload.quantity)
+function onAvailabilityAddQuantity(payload: { material: ActivityPeriodAvailabilityMaterial; quantity: number; selectedOptionIds?: string[] }) {
+  addQty(payload.material, payload.quantity, payload.selectedOptionIds)
 }
 
 function effectiveStock(m: ActivityPeriodAvailabilityMaterial): number {
   return typeof m.availableForPeriod === 'number' ? m.availableForPeriod : 0
 }
 
-function addQty(m: ActivityPeriodAvailabilityMaterial, qty: number) {
+function addQty(m: ActivityPeriodAvailabilityMaterial, qty: number, selectedOptionIds?: string[]) {
   const raw = effectiveStock(m)
   let draftSum = 0
   let savedSum = 0
@@ -152,15 +152,19 @@ function addQty(m: ActivityPeriodAvailabilityMaterial, qty: number) {
       period_availability_cap: lines[i].period_availability_cap ?? raw,
       pack_size: lines[i].pack_size ?? m.packSize ?? undefined,
       pack_unit: lines[i].pack_unit ?? m.packUnit ?? undefined,
+      // Konfigurator: zuletzt gewählte Konfiguration übernehmen (eine Eltern-Zeile je Kombo).
+      ...(selectedOptionIds ? { material_type: m.materialType ?? undefined, selected_option_ids: selectedOptionIds } : {}),
     }
   } else {
     lines.push({
       material_item_id: m.materialItemId,
       material_name: m.name,
+      material_type: m.materialType ?? undefined,
       quantity: add,
       period_availability_cap: raw,
       pack_size: m.packSize ?? undefined,
       pack_unit: m.packUnit ?? undefined,
+      ...(selectedOptionIds ? { selected_option_ids: selectedOptionIds } : {}),
     })
   }
   emit('update:modelValue', lines)
