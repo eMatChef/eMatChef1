@@ -1,4 +1,6 @@
 import apiClient from './apiClient'
+import type { MediaPhoto } from './media'
+import { uploadMediaFile } from './media'
 import type { RentalCalcParams } from '@/utils/rentalPriceAmortization'
 
 // ============== Types ==============
@@ -232,6 +234,8 @@ export interface Material {
   updated_at: string
   public_code?: string | null
   public_url?: string | null
+  image_url?: string | null
+  photos?: MediaPhoto[] | null
   
   // Details (nur bei get mit Details)
   color?: string | null
@@ -518,6 +522,30 @@ export async function getLinkedPhysicalComboForContainerBatch(
     `/api/materials/container-batch/${encodeURIComponent(containerBatchId)}/linked-physical-combo`
   )
   return response.data.physical_combo ?? null
+}
+
+/** POST /api/materials/{materialId}/photos — Primary-Abbildung (ersetzt bestehendes Foto) */
+export async function uploadMaterialPhoto(
+  materialId: string,
+  file: File,
+): Promise<{ photos: MediaPhoto[]; image_url: string | null }> {
+  const { data } = await uploadMediaFile<{
+    photos: MediaPhoto[]
+    image_url: string | null
+  }>(`/api/materials/${materialId}/photos`, file)
+  return { photos: data.photos, image_url: data.image_url }
+}
+
+/** POST /api/materials/{materialId}/photos/from-url — Bild von URL importieren (lokal speichern) */
+export async function importMaterialPhotoFromUrl(
+  materialId: string,
+  url: string,
+): Promise<{ photos: MediaPhoto[]; image_url: string | null }> {
+  const { data } = await apiClient.post<{
+    photos: MediaPhoto[]
+    image_url: string | null
+  }>(`/api/materials/${materialId}/photos/from-url`, { url })
+  return { photos: data.photos, image_url: data.image_url }
 }
 
 /**

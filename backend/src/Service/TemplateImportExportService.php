@@ -11,6 +11,7 @@ use App\Entity\MaterialTemplateOption;
 use App\Entity\MaterialTemplateOptionDelta;
 use App\Entity\MaterialTemplateOptionGroup;
 use App\Entity\MaterialTemplateRelatedAccessory;
+use App\Entity\Address;
 use App\Entity\User;
 use App\Util\IdGenerator;
 use Doctrine\ORM\EntityManagerInterface;
@@ -22,6 +23,9 @@ class TemplateImportExportService
 {
     /** Nur Materialwart (nicht Depchef) darf Vorlagen importieren/exportieren. */
     private const MATERIALWART_ROLES = ['mw', 'matwart'];
+
+    /** Filter-Wert für Export: Vorlagen ohne Hersteller. */
+    public const NO_MANUFACTURER_FILTER = '__NO_MANUFACTURER__';
 
     public function __construct(
         private EntityManagerInterface $entityManager,
@@ -57,8 +61,12 @@ class TemplateImportExportService
         }
 
         if ($manufacturer !== null && $manufacturer !== '') {
-            $qb->andWhere('LOWER(t.manufacturer) = LOWER(:manufacturer)')
-                ->setParameter('manufacturer', $manufacturer);
+            if ($manufacturer === self::NO_MANUFACTURER_FILTER) {
+                $qb->andWhere('t.manufacturer IS NULL AND t.manufacturerAddressId IS NULL');
+            } else {
+                $qb->andWhere('LOWER(t.manufacturer) = LOWER(:manufacturer)')
+                    ->setParameter('manufacturer', $manufacturer);
+            }
         }
 
         if ($templateIds !== null && $templateIds !== []) {
@@ -76,6 +84,8 @@ class TemplateImportExportService
         $exportManufacturer = $manufacturer;
         if ($exportManufacturer === null || $exportManufacturer === '') {
             $exportManufacturer = $templates[0]->getManufacturer() ?? 'unknown';
+        } elseif ($exportManufacturer === self::NO_MANUFACTURER_FILTER) {
+            $exportManufacturer = self::NO_MANUFACTURER_FILTER;
         }
 
         $exportedTemplates = [];
@@ -340,9 +350,11 @@ class TemplateImportExportService
     {
         $template->setName(trim((string) ($tplData['name'] ?? $tplData['id'] ?? 'Unbenannt')));
         $template->setDescription($this->nullableString($tplData['description'] ?? null));
-        $template->setManufacturer($this->nullableString($tplData['manufacturer'] ?? null) ?? $manufacturer);
+        $this->applyManufacturerFromImport($template, $tplData, $manufacturer);
         $template->setModel($this->nullableString($tplData['model'] ?? null));
         $template->setMaterialType($this->readMaterialType($tplData));
+        $template->setTemplateKind($this->nullableString($tplData['template_kind'] ?? $tplData['templateKind'] ?? null));
+        $template->setTemplateDomain($this->nullableString($tplData['template_domain'] ?? $tplData['templateDomain'] ?? null));
         $template->setTentType($this->nullableString($tplData['tentType'] ?? $tplData['tent_type'] ?? null));
         $capacity = $tplData['capacity'] ?? null;
         $template->setCapacity($capacity !== null && $capacity !== '' ? (int) $capacity : null);
@@ -492,6 +504,10 @@ class TemplateImportExportService
         $data = [
             'name' => $template->getName(),
             'description' => $template->getDescription(),
+            'manufacturer' => $template->getManufacturer(),
+            'manufacturer_address_id' => $template->getManufacturerAddressId(),
+            'template_kind' => $template->getTemplateKind(),
+            'template_domain' => $template->getTemplateDomain(),
             'model' => $template->getModel(),
             'capacity' => $template->getCapacity(),
             'tentType' => $template->getTentType(),
@@ -646,6 +662,37 @@ class TemplateImportExportService
         $s = trim((string) $value);
 
         return $s === '' ? null : $s;
+    }
+
+    /**
+     * @param array<string, mixed> $tplData
+     */
+    private function applyManufacturerFromImport(MaterialTemplate $template, array $tplData, string $fileManufacturer): void
+    {
+        $addressId = $this->nullableString($tplData['manufacturer_address_id'] ?? null);
+        if ($addressId !== null) {
+            $address = $this->entityManager->getRepository(Address::class)->find($addressId);
+            if ($address !== null && !$address->isDeleted()) {
+                $template->setManufacturerAddress($address);
+                $template->setManufacturer($this->addressDisplayLabel($address));
+
+                return;
+            }
+        }
+
+        $manufacturer = $this->nullableString($tplData['manufacturer'] ?? null);
+        if ($manufacturer === null && $fileManufacturer !== self::NO_MANUFACTURER_FILTER) {
+            $manufacturer = $this->nullableString($fileManufacturer);
+        }
+        $template->setManufacturerAddress(null);
+        $template->setManufacturer($manufacturer);
+    }
+
+    private function addressDisplayLabel(Address $address): string
+    {
+        $label = trim((string) ($address->getCompany() ?: $address->getName() ?: ''));
+
+        return $label !== '' ? $label : (string) $address->getId();
     }
 
     private function canEditGlobalTemplates(User $user): bool

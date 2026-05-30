@@ -58,40 +58,12 @@ class MediaCompressionService
         $mime = $this->assertValidUpload($file);
         $sourcePath = $file->getPathname();
 
-        if (!$this->settingsStore->isCompressionEnabled()) {
-            $ext = self::MIME_TO_EXT[$mime];
-            $targetPath = $targetPathWithoutExt . '.' . $ext;
-            if (!copy($sourcePath, $targetPath)) {
-                throw new \RuntimeException('Datei konnte nicht gespeichert werden');
-            }
-            $dimensions = $this->readDimensions($targetPath);
-
-            return [
-                'path' => $targetPath,
-                'filename_ext' => $ext,
-                'mime' => $mime,
-                'bytes' => (int) filesize($targetPath),
-                'width' => $dimensions['width'],
-                'height' => $dimensions['height'],
-            ];
+        if (!$this->settingsStore->isCompressionEnabled() || !$this->canProcessWithGd($mime)) {
+            return $this->storeCopy($sourcePath, $targetPathWithoutExt, $mime);
         }
 
         if ($mime === 'image/gif' && $this->isAnimatedGif($sourcePath)) {
-            $ext = 'gif';
-            $targetPath = $targetPathWithoutExt . '.' . $ext;
-            if (!copy($sourcePath, $targetPath)) {
-                throw new \RuntimeException('Datei konnte nicht gespeichert werden');
-            }
-            $dimensions = $this->readDimensions($targetPath);
-
-            return [
-                'path' => $targetPath,
-                'filename_ext' => $ext,
-                'mime' => 'image/gif',
-                'bytes' => (int) filesize($targetPath),
-                'width' => $dimensions['width'],
-                'height' => $dimensions['height'],
-            ];
+            return $this->storeCopy($sourcePath, $targetPathWithoutExt, 'image/gif');
         }
 
         $image = $this->loadImage($sourcePath, $mime);
@@ -99,18 +71,18 @@ class MediaCompressionService
             throw new \InvalidArgumentException('Bild konnte nicht gelesen werden');
         }
 
-        $width = imagesx($image);
-        $height = imagesy($image);
+        $width = \imagesx($image);
+        $height = \imagesy($image);
         [$newWidth, $newHeight] = $this->scaleDimensions($width, $height);
 
         if ($newWidth !== $width || $newHeight !== $height) {
-            $resized = imagecreatetruecolor($newWidth, $newHeight);
+            $resized = \imagecreatetruecolor($newWidth, $newHeight);
             if ($resized === false) {
-                imagedestroy($image);
+                \imagedestroy($image);
                 throw new \RuntimeException('Bild konnte nicht skaliert werden');
             }
-            imagecopyresampled($resized, $image, 0, 0, 0, 0, $newWidth, $newHeight, $width, $height);
-            imagedestroy($image);
+            \imagecopyresampled($resized, $image, 0, 0, 0, 0, $newWidth, $newHeight, $width, $height);
+            \imagedestroy($image);
             $image = $resized;
             $width = $newWidth;
             $height = $newHeight;
@@ -120,10 +92,10 @@ class MediaCompressionService
         $targetPath = $targetPathWithoutExt . '.' . $ext;
 
         if (!$this->saveImage($image, $targetPath, $ext)) {
-            imagedestroy($image);
+            \imagedestroy($image);
             throw new \RuntimeException('Bild konnte nicht gespeichert werden');
         }
-        imagedestroy($image);
+        \imagedestroy($image);
 
         return [
             'path' => $targetPath,
@@ -132,6 +104,87 @@ class MediaCompressionService
             'bytes' => (int) filesize($targetPath),
             'width' => $width,
             'height' => $height,
+        ];
+    }
+
+    /**
+     * Komprimiert eine bestehende Datei (Legacy ohne bytes-Metadaten).
+     *
+     * @return array{path: string, mime: string, bytes: int, width: int, height: int, filename_ext: string}|null
+     */
+    public function compressExistingFile(string $path): ?array
+    {
+        if (!$this->settingsStore->isCompressionEnabled() || !is_file($path)) {
+            return null;
+        }
+
+        $info = @getimagesize($path);
+        if ($info === false) {
+            return null;
+        }
+
+        $mime = (string) ($info['mime'] ?? '');
+        if (!isset(self::MIME_TO_EXT[$mime])) {
+            return null;
+        }
+
+        if ($mime === 'image/gif' && $this->isAnimatedGif($path)) {
+            $dimensions = $this->readDimensions($path);
+
+            return [
+                'path' => $path,
+                'mime' => 'image/gif',
+                'bytes' => (int) filesize($path),
+                'width' => $dimensions['width'],
+                'height' => $dimensions['height'],
+                'filename_ext' => 'gif',
+            ];
+        }
+
+        $image = $this->loadImage($path, $mime);
+        if ($image === null) {
+            return null;
+        }
+
+        $width = \imagesx($image);
+        $height = \imagesy($image);
+        [$newWidth, $newHeight] = $this->scaleDimensions($width, $height);
+
+        if ($newWidth !== $width || $newHeight !== $height) {
+            $resized = \imagecreatetruecolor($newWidth, $newHeight);
+            if ($resized === false) {
+                \imagedestroy($image);
+
+                return null;
+            }
+            \imagecopyresampled($resized, $image, 0, 0, 0, 0, $newWidth, $newHeight, $width, $height);
+            \imagedestroy($image);
+            $image = $resized;
+            $width = $newWidth;
+            $height = $newHeight;
+        }
+
+        [$ext, $outMime] = $this->preferredOutputFormat();
+        $targetPath = dirname($path) . '/' . pathinfo($path, PATHINFO_FILENAME) . '.' . $ext;
+
+        if (!$this->saveImage($image, $targetPath, $ext)) {
+            \imagedestroy($image);
+
+            return null;
+        }
+        \imagedestroy($image);
+
+        if ($targetPath !== $path && is_file($path)) {
+            @unlink($path);
+        }
+
+        return [
+            'path' => $targetPath,
+            'mime' => $outMime,
+            'bytes' => (int) filesize($targetPath),
+            'width' => $width,
+            'height' => $height,
+            'filename_ext' => $ext,
         ];
     }
 
@@ -162,23 +215,60 @@ class MediaCompressionService
         ];
     }
 
+    /** @return array{path: string, filename_ext: string, mime: string, bytes: int, width: int, height: int} */
+    private function storeCopy(string $sourcePath, string $targetPathWithoutExt, string $mime): array
+    {
+        $ext = self::MIME_TO_EXT[$mime] ?? 'bin';
+        $targetPath = $targetPathWithoutExt . '.' . $ext;
+        if (!copy($sourcePath, $targetPath)) {
+            throw new \RuntimeException('Datei konnte nicht gespeichert werden');
+        }
+        $dimensions = $this->readDimensions($targetPath);
+
+        return [
+            'path' => $targetPath,
+            'filename_ext' => $ext,
+            'mime' => $mime,
+            'bytes' => (int) filesize($targetPath),
+            'width' => $dimensions['width'],
+            'height' => $dimensions['height'],
+        ];
+    }
+
+    private function canProcessWithGd(string $mime): bool
+    {
+        return match ($mime) {
+            'image/jpeg' => \function_exists('imagecreatefromjpeg') && \function_exists('imagejpeg'),
+            'image/png' => \function_exists('imagecreatefrompng') && \function_exists('imagepng'),
+            'image/webp' => \function_exists('imagecreatefromwebp') && \function_exists('imagewebp'),
+            'image/gif' => \function_exists('imagecreatefromgif'),
+            default => false,
+        };
+    }
+
     /** @return array{0: string, 1: string} ext + mime */
     private function preferredOutputFormat(): array
     {
         if (\function_exists('imagewebp')) {
             return ['webp', 'image/webp'];
         }
+        if (\function_exists('imagejpeg')) {
+            return ['jpg', 'image/jpeg'];
+        }
+        if (\function_exists('imagepng')) {
+            return ['png', 'image/png'];
+        }
 
-        return ['jpg', 'image/jpeg'];
+        throw new \RuntimeException('Keine GD-Bildausgabe verfügbar');
     }
 
     private function loadImage(string $path, string $mime): ?\GdImage
     {
         return match ($mime) {
-            'image/jpeg' => @imagecreatefromjpeg($path) ?: null,
-            'image/png' => @imagecreatefrompng($path) ?: null,
-            'image/webp' => \function_exists('imagecreatefromwebp') ? (@imagecreatefromwebp($path) ?: null) : null,
-            'image/gif' => @imagecreatefromgif($path) ?: null,
+            'image/jpeg' => @\imagecreatefromjpeg($path) ?: null,
+            'image/png' => @\imagecreatefrompng($path) ?: null,
+            'image/webp' => \function_exists('imagecreatefromwebp') ? (@\imagecreatefromwebp($path) ?: null) : null,
+            'image/gif' => @\imagecreatefromgif($path) ?: null,
             default => null,
         };
     }
@@ -186,8 +276,9 @@ class MediaCompressionService
     private function saveImage(\GdImage $image, string $path, string $ext): bool
     {
         return match ($ext) {
-            'webp' => \function_exists('imagewebp') && imagewebp($image, $path, self::WEBP_QUALITY),
-            'jpg' => imagejpeg($image, $path, self::JPEG_QUALITY),
+            'webp' => \function_exists('imagewebp') && \imagewebp($image, $path, self::WEBP_QUALITY),
+            'jpg' => \function_exists('imagejpeg') && \imagejpeg($image, $path, self::JPEG_QUALITY),
+            'png' => \function_exists('imagepng') && \imagepng($image, $path),
             default => false,
         };
     }

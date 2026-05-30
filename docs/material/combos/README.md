@@ -492,5 +492,7 @@ Wenn ein Kombo-Bestandteil (z. B. Aufstelleinheit als Option) dasselbe Teil ist 
 ## Siehe auch
 
 - [plan.md](./plan.md) — **Umbauplan / Checkliste** (Pakete 0–7)
+- [../templates/README.md](../templates/README.md) — Vorlagen-Editor, Hersteller-Picker, Start-Assistent
+- [../templates/plan.md](../templates/plan.md) — Paket 1–2 (Editor + Komponenten-Auflösung)
 - [Material-Pipeline (Aktivitäten)](../../activities/material-pipeline.md)
 - [Aktivitäts-Status](../../activities/status.md)

@@ -180,6 +180,18 @@
 
                 <!-- Virtuelle Kombo: Name -->
                 <div v-if="creationMode === 'virtual_combo'" class="virtual-combo-fields">
+                  <div
+                    v-if="isFromTemplate && selectedTemplate?.missing_required_components?.length && hasTemplateConfigurator"
+                    class="configurator-missing-hint"
+                  >
+                    <p>{{ t('components.materialCreateWizard.configuratorMissingComponents') }}</p>
+                    <ul>
+                      <li v-for="mc in selectedTemplate!.missing_required_components!" :key="mc.component_type">
+                        {{ mc.expected_name }}
+                        <span class="configurator-missing-type">({{ mc.name }})</span>
+                      </li>
+                    </ul>
+                  </div>
                   <MaterialNameInput
                     ref="articleNameInputRef"
                     :model-value="formData.name"
@@ -414,6 +426,29 @@
                       </div>
                     </div>
 
+                    <div v-if="ci._match_state && creationMode !== 'virtual_combo'" class="comp-resolve-status">
+                      <p v-if="ci._match_state === 'found' && ci._selectedMaterial" class="comp-resolve comp-resolve--found">
+                        {{ t('components.materialCreateWizard.compResolveFound', { name: ci._selectedMaterial.name }) }}
+                      </p>
+                      <p v-else-if="ci._match_state === 'missing'" class="comp-resolve comp-resolve--missing">
+                        {{ t('components.materialCreateWizard.compResolveMissing', { name: ci._expected_name || ci.name }) }}
+                      </p>
+                      <div v-else-if="ci._match_state === 'ambiguous'" class="comp-resolve comp-resolve--ambiguous">
+                        <p>{{ t('components.materialCreateWizard.compResolveAmbiguous') }}</p>
+                        <div v-if="ci._candidates?.length" class="comp-candidate-list">
+                          <button
+                            v-for="candidate in ci._candidates"
+                            :key="candidate.id"
+                            type="button"
+                            class="btn-secondary comp-candidate-btn"
+                            @click="pickComponentCandidate(ci, candidate)"
+                          >
+                            {{ candidate.name }}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
                     <div class="comp-card-body">
 
                       <!-- Virtual Combo: Nur Info, keine Eingabe -->
@@ -466,7 +501,7 @@
                                 v-model="ci._materialSearch"
                                 type="text"
                                 class="form-input"
-                                :placeholder="t('components.materialCreateWizard.phSearchNamedArticle', { name: ci.name })"
+                                :placeholder="t('components.materialCreateWizard.phSearchNamedArticle', { name: ci._expected_name || ci.name })"
                                 @input="searchExistingMaterial(ci)"
                                 @focus="ci._showDropdown = true"
                                 @blur="hideCompDropdownDelayed(ci)"
@@ -2702,6 +2737,11 @@ const containerContentsBatchId = ref('')
 const selectedContainerBatchContents = ref<ContainerBatchContentsResponse | null>(null)
 const isLoadingContainerContents = ref(false)
 const selectedTemplate = ref<Template | null>(null)
+const hasTemplateConfigurator = computed(() => {
+  const tpl = selectedTemplate.value
+  if (!tpl) return false
+  return (tpl.option_groups?.length ?? 0) > 0 || (tpl.options?.length ?? 0) > 0
+})
 
 // Verpackungseinheit Toggle – setzt pack_size/pack_unit zurück wenn deaktiviert
 const packUnitEnabled = computed({
@@ -2759,6 +2799,9 @@ interface ComponentInput {
   _filteredMaterials?: any[]
   _selectedMaterial?: any
   _availableBatches?: any[]
+  _match_state?: 'found' | 'missing' | 'ambiguous'
+  _expected_name?: string
+  _candidates?: { id: string; name: string }[]
 }
 const componentInputs = ref<ComponentInput[]>([])
 
@@ -4852,7 +4895,7 @@ async function selectTemplate(template: Template) {
     expandAllVisibleSteps.value = false
 
     // Lade die vollständige Vorlage mit Komponenten
-    const fullTemplate = await getTemplate(template.id)
+    const fullTemplate = await getTemplate(template.id, props.departmentId)
     selectedTemplate.value = fullTemplate
     isFromTemplate.value = true
     templateComponents.value = fullTemplate.components || []
@@ -4878,46 +4921,16 @@ async function selectTemplate(template: Template) {
     // Hersteller aus Vorlage automatisch übernehmen (bleibt manuell änderbar)
     applyTemplateManufacturer(fullTemplate.manufacturer)
 
-    // Komponenten-Eingaben initialisieren
-    componentInputs.value = (fullTemplate.components || []).map(comp => {
-      const isBulk = comp.tracking === 'bulk'
-      const defaultMode = formData.material_type === 'physical_combo' ? 'fixed' : (isBulk ? 'bulk' : 'assigned')
+    // Komponenten-Eingaben initialisieren (Auflösung vom Backend)
+    componentInputs.value = (fullTemplate.components || []).map((comp) =>
+      buildComponentInputFromTemplate(comp, formData.material_type),
+    )
 
-      // Für Bulk: automatisch passendes Material im Lager suchen
-      let autoMaterial: any = null
-      if (isBulk) {
-        autoMaterial = allMaterials.value.find(m =>
-          m.material_type === 'physical' &&
-          m.name.toLowerCase() === comp.name.toLowerCase()
-        )
+    for (const ci of componentInputs.value) {
+      if (ci.tracking === 'serialized' && ci.mode === 'existing' && ci.material_id && ci._selectedMaterial) {
+        await selectExistingMaterial(ci, ci._selectedMaterial)
       }
-
-      const rq = Math.max(1, comp.required_qty || 1)
-      // „optional“ (Zubehör-Toggle) gilt nur bei virtueller Kombo; sonst erzwungen false.
-      const compOptional = formData.material_type === 'virtual_combo' ? comp.is_optional : false
-      const optionalBulkStartZero = compOptional && isBulk
-      const initialQty = optionalBulkStartZero ? 0 : rq
-      return {
-        component_type: comp.component_type,
-        name: comp.name,
-        tracking: comp.tracking,
-        required_qty: comp.required_qty,
-        is_optional: compOptional,
-        mode: 'new',
-        serial_number: '',
-        qty: initialQty,
-        unit_price: '',
-        material_id: autoMaterial?.id || '',
-        batch_id: '',
-        assignment_mode: defaultMode,
-        // UI-Hilfsfelder
-        _materialSearch: autoMaterial?.name || '',
-        _showDropdown: false,
-        _filteredMaterials: [],
-        _selectedMaterial: autoMaterial || null,
-        _availableBatches: [],
-      } as ComponentInput
-    })
+    }
 
     await performNameDuplicateCheck()
     activeStep.value = 'general'
@@ -5171,9 +5184,68 @@ function hideCompDropdownDelayed(ci: ComponentInput) {
 // Automatische Suche beim Fokussieren des Bulk-Suchfelds
 function autoSearchBulk(ci: ComponentInput) {
   if (!ci._materialSearch) {
-    ci._materialSearch = ci.name
+    ci._materialSearch = ci._expected_name || ci.name
   }
   searchExistingMaterial(ci)
+}
+
+function buildComponentInputFromTemplate(comp: TemplateComponent, materialType: string): ComponentInput {
+  const isBulk = comp.tracking === 'bulk'
+  const defaultMode = materialType === 'physical_combo' ? 'fixed' : (isBulk ? 'bulk' : 'assigned')
+  const expectedName = comp.expected_name || comp.name
+  const matchState = comp.match_state
+  const compOptional = materialType === 'virtual_combo' ? comp.is_optional : false
+  const rq = Math.max(1, comp.required_qty || 1)
+  const optionalBulkStartZero = compOptional && isBulk
+  const initialQty = optionalBulkStartZero ? 0 : rq
+
+  let mode: 'new' | 'existing' = 'existing'
+  let material_id = ''
+  let selectedMaterial: { id: string; name: string } | null = null
+  let search = expectedName
+
+  if (matchState === 'found' && comp.matched_material_id) {
+    material_id = comp.matched_material_id
+    selectedMaterial = allMaterials.value.find((m) => m.id === material_id) ?? null
+    search = selectedMaterial?.name || expectedName
+  } else if (!matchState && isBulk) {
+    const autoMaterial = allMaterials.value.find(
+      (m) => m.material_type === 'physical' && m.name.toLowerCase() === expectedName.toLowerCase(),
+    )
+    if (autoMaterial) {
+      material_id = autoMaterial.id
+      selectedMaterial = autoMaterial
+      search = autoMaterial.name
+    }
+  }
+
+  return {
+    component_type: comp.component_type,
+    name: comp.name,
+    tracking: comp.tracking,
+    required_qty: comp.required_qty,
+    is_optional: compOptional,
+    mode,
+    serial_number: '',
+    qty: initialQty,
+    unit_price: '',
+    material_id,
+    batch_id: '',
+    assignment_mode: defaultMode,
+    _materialSearch: search,
+    _showDropdown: false,
+    _filteredMaterials: [],
+    _selectedMaterial: selectedMaterial,
+    _availableBatches: [],
+    _match_state: matchState,
+    _expected_name: expectedName,
+    _candidates: comp.candidates ?? [],
+  }
+}
+
+async function pickComponentCandidate(ci: ComponentInput, candidate: { id: string; name: string }) {
+  await selectExistingMaterial(ci, candidate)
+  ci._match_state = 'found'
 }
 
 // Bulk-Material auswählen (vereinfacht, kein Batch nötig)

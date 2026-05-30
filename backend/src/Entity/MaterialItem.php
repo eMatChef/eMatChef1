@@ -214,6 +214,10 @@ class MaterialItem
     #[ORM\Column(name: 'min_stock', type: 'integer', nullable: true)]
     private ?int $minStock = null;
 
+    /** Produktfoto(s) — aktuell max. 1 Primary (MediaPhoto-JSON) */
+    #[ORM\Column(type: 'json', nullable: true)]
+    private ?array $photos = null;
+
     // Timestamps
     #[ORM\Column(name: 'created_at', type: 'datetime')]
     private \DateTime $createdAt;
@@ -576,6 +580,28 @@ class MaterialItem
 
     public function getMinStock(): ?int { return $this->minStock; }
     public function setMinStock(?int $minStock): self { $this->minStock = $minStock; return $this; }
+
+    /** @return list<array<string, mixed>>|null */
+    public function getPhotos(): ?array { return $this->photos; }
+
+    /** @param list<array<string, mixed>>|null $photos */
+    public function setPhotos(?array $photos): self { $this->photos = $photos; return $this; }
+
+    public function getPrimaryPhotoUrl(): ?string
+    {
+        $photos = $this->photos ?? [];
+        if ($photos !== []) {
+            $first = $photos[0];
+            if (\is_array($first) && !empty($first['url'])) {
+                return (string) $first['url'];
+            }
+            if (\is_string($first) && $first !== '') {
+                return $first;
+            }
+        }
+
+        return null;
+    }
 
     // Timestamps
     public function getCreatedAt(): \DateTime

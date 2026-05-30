@@ -74,35 +74,24 @@
           </p>
           <section v-if="issueReportPhotos.length" class="photos-section">
             <h4>{{ t('supplierRepairs.issuePhotosTitle') }}</h4>
-            <ul class="photo-list">
-              <li v-for="(photo, index) in issueReportPhotos" :key="photo.id || photo.url || index">
-                <img :src="photo.url" :alt="photo.original_filename || ''" class="issue-photo" />
-              </li>
-            </ul>
+            <PhotoGallery :photos="issueReportPhotos" :show-meta="false" />
           </section>
 
           <section v-if="selectedTicket.photos?.length" class="photos-section">
             <h4>{{ t('supplierRepairs.photosTitle') }}</h4>
-            <ul class="photo-list">
-              <li v-for="(photo, index) in selectedTicket.photos" :key="photo.id || photo.url || index">
-                <img :src="photo.url" :alt="photo.original_filename || ''" class="issue-photo" />
-                <p v-if="photo.uploaded_by_name || photo.uploaded_at" class="photo-meta">
-                  <span v-if="photo.uploaded_by_name">{{ photo.uploaded_by_name }}</span>
-                  <span v-if="photo.uploaded_at"> · {{ formatDate(photo.uploaded_at) }}</span>
-                </p>
-              </li>
-            </ul>
+            <PhotoGallery
+              :photos="selectedTicket.photos"
+              :format-date="formatDate"
+            />
           </section>
 
-          <label class="field photo-upload">
-            <span>{{ t('supplierRepairs.uploadPhoto') }}</span>
-            <input
-              type="file"
-              accept="image/jpeg,image/png,image/webp,image/gif"
-              :disabled="uploadingPhoto"
-              @change="onPhotoSelected"
-            />
-          </label>
+          <PhotoUpload
+            :upload-fn="uploadRepairPhoto"
+            :disabled="acting"
+            :label="t('supplierRepairs.uploadPhoto')"
+            @uploaded="onPhotoUploaded"
+            @error="onUploadError"
+          />
 
           <label class="field">
             <span>{{ t('supplierRepairs.estimatedCost') }}</span>
@@ -142,6 +131,9 @@ import {
   type SupplierRepairStatus,
   type SupplierRepairTicket,
 } from '@/api/supplierRepairs'
+import { normalizeMediaPhotos } from '@/api/media'
+import PhotoGallery from '@/components/media/PhotoGallery.vue'
+import PhotoUpload from '@/components/media/PhotoUpload.vue'
 
 const route = useRoute()
 const { t } = useI18n()
@@ -157,9 +149,7 @@ const companyName = computed(() => {
 const issueReportPhotos = computed(() => {
   const report = selectedTicket.value?.issue_report
   if (!report) return []
-  if (report.photos?.length) return report.photos
-  if (report.photo_url) return [{ url: report.photo_url, legacy: true }]
-  return []
+  return normalizeMediaPhotos(report.photos, report.photo_url)
 })
 
 const loading = ref(true)
@@ -170,7 +160,6 @@ const detailOpen = ref(false)
 const selectedTicket = ref<SupplierRepairTicket | null>(null)
 const formEstimatedCost = ref('')
 const acting = ref(false)
-const uploadingPhoto = ref(false)
 
 function formatDate(value: string): string {
   try {
@@ -215,26 +204,21 @@ function closeDetail() {
   selectedTicket.value = null
 }
 
-async function onPhotoSelected(event: Event) {
-  const input = event.target as HTMLInputElement
-  const file = input.files?.[0]
-  input.value = ''
-  if (!file || !selectedTicket.value) return
-
-  uploadingPhoto.value = true
-  try {
-    selectedTicket.value = await uploadSupplierRepairPhoto(
-      companyId.value,
-      selectedTicket.value.id,
-      file,
-    )
-    toast.success(t('supplierRepairs.uploadSuccess'))
-    await loadTickets()
-  } catch (err: any) {
-    toast.error(err?.response?.data?.error || t('supplierRepairs.uploadError'))
-  } finally {
-    uploadingPhoto.value = false
+async function uploadRepairPhoto(file: File) {
+  if (!selectedTicket.value) {
+    throw new Error(t('supplierRepairs.errorLoad'))
   }
+  return uploadSupplierRepairPhoto(companyId.value, selectedTicket.value.id, file)
+}
+
+async function onPhotoUploaded(ticket: unknown) {
+  selectedTicket.value = ticket as SupplierRepairTicket
+  toast.success(t('media.uploadSuccess'))
+  await loadTickets()
+}
+
+function onUploadError(message: string) {
+  toast.error(message || t('media.uploadError'))
 }
 
 async function transitionTo(nextStatus: SupplierRepairStatus) {
@@ -357,32 +341,7 @@ onMounted(() => loadTickets())
   gap: 4px;
 }
 
-.issue-photo {
-  max-width: 100%;
-  border-radius: 8px;
-}
-
-.photos-section h4 {
   margin: 0;
-  font-size: 14px;
-}
-
-.photo-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.photo-meta {
-  margin: 4px 0 0;
-  font-size: 12px;
-  color: #6b7280;
-}
-
-.photo-upload input[type='file'] {
   font-size: 14px;
 }
 

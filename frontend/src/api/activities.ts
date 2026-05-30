@@ -1,5 +1,6 @@
 import apiClient from './apiClient'
 import type { MediaPhoto } from './media'
+import { uploadMediaFile } from './media'
 
 export type ActivityApiType = 'activity' | 'camp' | 'event' | 'external'
 
@@ -392,12 +393,9 @@ export async function uploadActivityIssuePhoto(
   issueId: string,
   file: File,
 ): Promise<ActivityIssueReportRow> {
-  const formData = new FormData()
-  formData.append('photo', file)
-  const { data } = await apiClient.post<{ issue: ActivityIssueReportRow }>(
+  const { data } = await uploadMediaFile<{ issue: ActivityIssueReportRow }>(
     `/api/activities/${activityId}/issues/${issueId}/photos`,
-    formData,
-    { headers: { 'Content-Type': 'multipart/form-data' } },
+    file,
   )
   return data.issue
 }

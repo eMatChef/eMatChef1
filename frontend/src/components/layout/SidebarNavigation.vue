@@ -159,17 +159,6 @@
         <span class="nav-label" :class="{ visible: isHovered }">{{ t('sidebar.materials') }}</span>
       </router-link>
 
-      <!-- Lieferanten-Shop (MW) -->
-      <router-link
-        v-if="!isPendingAssignmentRoute && !isAdminDashboardRoute && showSupplierShopLink && hasDepartmentContext"
-        :to="getLink('/supplier-shop')"
-        class="nav-item"
-        :class="{ active: $route.path.includes('/supplier-shop') }"
-      >
-        <IconMaterials class="nav-icon" />
-        <span class="nav-label" :class="{ visible: isHovered }">{{ t('sidebar.supplierShop') }}</span>
-      </router-link>
-
       <!-- Buchhaltung (nur Materialchef / Departmentchef) -->
       <router-link
         v-if="!isPendingAssignmentRoute && !isAdminDashboardRoute && showAccountingMenu && hasDepartmentContext"
@@ -240,6 +229,17 @@
       >
         <IconStatistics class="nav-icon" />
         <span class="nav-label" :class="{ visible: isHovered }">{{ t('sidebar.statistics') }}</span>
+      </router-link>
+
+      <!-- Lieferanten-Shop (MW/DC, vor Konfiguration) -->
+      <router-link
+        v-if="!isPendingAssignmentRoute && !isAdminDashboardRoute && showSupplierShopLink && hasDepartmentContext"
+        :to="getLink('/supplier-shop')"
+        class="nav-item"
+        :class="{ active: $route.path.includes('/supplier-shop') }"
+      >
+        <IconPackage class="nav-icon" />
+        <span class="nav-label" :class="{ visible: isHovered }">{{ t('sidebar.supplierShop') }}</span>
       </router-link>
 
       <!-- Konfiguration -->

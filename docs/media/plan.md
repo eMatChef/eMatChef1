@@ -31,9 +31,9 @@ Abarbeitbare Checkliste für zentrale Foto-Speicherung mit **kontextspezifischen
 | 1 | Werkstatt: Prototyp migrieren + Pfad `{departmentId}/{ticketId}` | M | 0 | [x] |
 | 2 | Schaden melden: Issue-Report-Fotos | M | 0 | [x] |
 | 3 | Werkstatt MW: Upload in `WorkshopView` | S–M | 1 | [x] |
-| 4 | Material-Abbildung | M | 0 | [ ] |
-| 5 | Retention + optional Legacy-Kompression | M | 1 | [ ] |
-| 6 | Frontend: `PhotoUpload` / `PhotoGallery` / `useMediaUpload` | M | 1 | [ ] |
+| 4 | Material-Abbildung | M | 0 | [x] |
+| 5 | Retention + optional Legacy-Kompression | M | 1 | [x] |
+| 6 | Frontend: `PhotoUpload` / `PhotoGallery` / `useMediaUpload` | M | 1 | [x] |
 
 > **Reihenfolge:** 0 → 1 → (2 ∥ 3 ∥ 4) → 5; Paket 6 kann parallel zu 2–4 starten, sobald Paket 1 die API stabilisiert.
 
@@ -145,11 +145,12 @@ Abarbeitbare Checkliste für zentrale Foto-Speicherung mit **kontextspezifischen
 **Ziel:** Produktfoto am Material (Sidebar in `MaterialDetailView`).
 
 **Schritte:**
-- [ ] Migration: `material_item.photos` JSON oder dediziertes `primary_photo` + Galerie — **Entscheid vor Start:** ein Hauptbild vs. Galerie
-- [ ] `POST/GET /api/material/{materialId}/photos/…`
-- [ ] `MaterialDetailView.vue`: Upload statt Platzhalter; `image_url` aus erstem Foto ableiten
-- [ ] Material löschen → Fotos mitlöschen (`MediaStorageService::deleteContextFolder`)
-- [ ] i18n de/en
+- [x] Migration: `material_item.photos` JSON (Primary, max. 1)
+- [x] `POST/GET /api/materials/{materialId}/photos/…`
+- [x] `MaterialDetailView.vue`: Upload statt Platzhalter; `image_url` aus erstem Foto
+- [x] Material löschen → Fotos mitlöschen (`MediaStorageService::deleteContextFolder`)
+- [x] i18n de/en
+- [ ] Manuell testen: Upload → sichtbar → nach Löschung weg
 
 **Definition of Done:** Abbildung uploaden, in Detail sichtbar, nach Material-Löschung weg.
 
@@ -160,11 +161,12 @@ Abarbeitbare Checkliste für zentrale Foto-Speicherung mit **kontextspezifischen
 **Ziel:** Speicherplatz begrenzen; abgeschlossene Reparaturen aufräumen.
 
 **Schritte:**
-- [ ] `MediaRetentionService`: Tickets `completed` + `completed_at` älter als X Jahre
-- [ ] Command `app:media:retention` (--dry-run, --years=3)
-- [ ] Cron-Doku in `deploy/SERVER-UPDATE.md`
-- [ ] Optional: `app:media:compress-legacy` für Dateien ohne `bytes`-Metadaten
-- [ ] Logging + Zähler (gelöschte Dateien, freigegebene MB)
+- [x] `MediaRetentionService`: Tickets `completed` + `completed_at` älter als X Jahre (+ verknüpfte Issue-Fotos)
+- [x] Command `app:media:retention` (--dry-run, --years=3)
+- [x] Cron-Doku in `deploy/SERVER-UPDATE.md`
+- [x] Optional: `app:media:compress-legacy` für Dateien ohne `bytes`-Metadaten
+- [x] Logging + Zähler (gelöschte Dateien, freigegebene MB) → `var/log/media_retention.log`
+- [ ] Manuell testen: `--dry-run` listet Tickets; Live-Lauf löscht Ordner + leert `photos` JSON
 
 **Definition of Done:** Dry-run listet betroffene Tickets; Live-Lauf löscht Ordner + leert `photos` JSON.
 
@@ -175,15 +177,30 @@ Abarbeitbare Checkliste für zentrale Foto-Speicherung mit **kontextspezifischen
 **Ziel:** Kein copy-paste `<input type="file">` mehr.
 
 **Schritte:**
-- [ ] `PhotoUpload.vue` — Props: `uploadUrl`, `accept`, `maxSize`, `disabled`; Events: `@uploaded`, `@error`
-- [ ] `PhotoGallery.vue` — Props: `photos: MediaPhoto[]`, `readonly`
-- [ ] `useMediaUpload.ts` — FormData, axios ohne JSON-Content-Type
-- [ ] `frontend/src/api/media.ts` — Typ `MediaPhoto`
-- [ ] `SupplierRepairsView.vue` refactoren
-- [ ] Eintrag in [wiederverwendbare-komponenten.md](../wiederverwendbare-komponenten.md)
-- [ ] i18n: `media.upload`, `media.uploadError`, `media.uploadSuccess`, `media.tooLarge`, …
+- [x] `PhotoUpload.vue` — Props: `uploadUrl`, `uploadFn`, `accept`, `maxBytes`, `disabled`; Events: `@uploaded`, `@error`; defer-Modus mit `v-model:files`
+- [x] `PhotoGallery.vue` — Props: `photos: MediaPhoto[]`, `readonly`, `showMeta`
+- [x] `useMediaUpload.ts` — FormData, axios ohne JSON-Content-Type
+- [x] `frontend/src/api/media.ts` — Typ `MediaPhoto`, `uploadMediaFile`, Hilfsfunktionen
+- [x] `SupplierRepairsView.vue`, `WorkshopView.vue`, `MaterialDetailView.vue`, `DamageReportWizard.vue` refactored
+- [x] Eintrag in [wiederverwendbare-komponenten.md](../wiederverwendbare-komponenten.md)
+- [x] i18n: `media.upload`, `media.uploadError`, `media.uploadSuccess`, `media.tooLarge`, …
+- [ ] Manuell testen: Upload in Werkstatt + Lieferanten-Portal
 
 **Definition of Done:** Mindestens zwei Views nutzen dieselben Komponenten; `vue-tsc` grün.
+
+---
+
+## Hybrid Phase 1 — Material-Bild (Upload / Kamera / URL)
+
+**Ziel:** Material-Detail ohne Mediathek — schneller «Bild hinzufügen»-Flow.
+
+- [x] `MaterialImagePicker.vue` — Menü: Hochladen, Kamera, Link zum Bild
+- [x] Google-Bildersuche mit Materialname (neuer Tab)
+- [x] `POST /api/materials/{id}/photos/from-url` — Download + lokal speichern (SSRF-Schutz)
+- [x] `MediaUrlImportService.php`
+- [ ] Manuell testen: Upload, Kamera (mobil), URL-Import
+
+**Phase 2 (optional):** [mediathek-zukunft.md](./mediathek-zukunft.md)
 
 ---
 
@@ -202,5 +219,6 @@ Abarbeitbare Checkliste für zentrale Foto-Speicherung mit **kontextspezifischen
 ## Siehe auch
 
 - [README.md](./README.md) — Konzept, Ordner, JSON-Shape, Retention
+- [mediathek-zukunft.md](./mediathek-zukunft.md) — Department-Mediathek (Phase 2, optional)
 - [wiederverwendbare-komponenten.md](../wiederverwendbare-komponenten.md) — Frontend-Bausteine
 - [supplier/plan.md](../supplier/plan.md) — Paket 14 Reparaturen

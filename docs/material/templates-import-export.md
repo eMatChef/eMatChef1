@@ -2,7 +2,13 @@
 
 Zentraler Workflow, um Vorlagen lokal zu bearbeiten und reproduzierbar auf Prod zu bringen — analog zum Material-CSV-Import, aber als JSON.
 
-## Komponenten
+Verwandt:
+
+- [templates/README.md](./templates/README.md) — Vorlagen-Editor, Hersteller-Picker, Start-Assistent, Komponenten-Auflösung (Konzept)
+- [templates/plan.md](./templates/plan.md) — Paket 1–2 (Editor erledigt, Auflösung offen)
+- [combos/README.md](./combos/README.md) — `option_groups`, Konfigurator, Optional vs. Zubehör
+
+---
 
 | Schicht | Datei |
 |---------|--------|
@@ -142,3 +148,11 @@ Department: `scope=department&department_id=…`
 - **Department-Export:** nur eigene Department-Vorlagen (`scope=department`), keine zentralen
 
 Später erweiterbar um `scope=vendor` (Supplier-Portal).
+
+---
+
+## Siehe auch
+
+- [templates/README.md](./templates/README.md) — Felder `manufacturer_address_id`, `template_kind`, `template_domain` (Paket 1, Editor)
+- [templates/plan.md](./templates/plan.md) — Checkliste Import/Export v5 round-trip
+- [combos/README.md](./combos/README.md) — JSON-Felder `related_accessories`, `option_groups`, `options`

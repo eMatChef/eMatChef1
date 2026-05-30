@@ -82,20 +82,14 @@
               <div class="form-group">
                 <label>{{ t('components.damageReportWizard.photosLabel') }}</label>
                 <p class="field-hint">{{ t('components.damageReportWizard.photosHint', { max: maxIssuePhotos }) }}</p>
-                <input
-                  type="file"
-                  class="form-input photo-file-input"
-                  :accept="imageUploadAccept"
+                <PhotoUpload
+                  v-model:files="selectedPhotos"
                   multiple
-                  :disabled="selectedPhotos.length >= maxIssuePhotos"
-                  @change="onPhotosSelected"
+                  :auto-upload="false"
+                  :max-files="maxIssuePhotos"
+                  :label="t('media.upload')"
+                  @error="onPhotoUploadError"
                 />
-                <ul v-if="selectedPhotos.length" class="photo-preview-list">
-                  <li v-for="(file, index) in selectedPhotos" :key="`${file.name}-${index}`">
-                    <span>{{ file.name }}</span>
-                    <button type="button" class="photo-remove-btn" @click="removePhoto(index)">×</button>
-                  </li>
-                </ul>
               </div>
             </div>
           </div>
@@ -186,7 +180,8 @@ import { getMaterials, type Material } from '@/api/materials'
 import { createWorkshopTicket } from '@/api/workshop'
 import { createActivityIssue, uploadActivityIssuePhoto } from '@/api/activities'
 import { getActivityPackContainers } from '@/api/activityContainers'
-import { IMAGE_UPLOAD_ACCEPT, MAX_IMAGE_BYTES, MAX_ISSUE_PHOTOS } from '@/api/media'
+import { MAX_ISSUE_PHOTOS } from '@/api/media'
+import PhotoUpload from '@/components/media/PhotoUpload.vue'
 
 interface ActivityOption {
   id: string
@@ -241,7 +236,6 @@ const isLoadingPackItems = ref(false)
 const isSubmitting = ref(false)
 const selectedPhotos = ref<File[]>([])
 const maxIssuePhotos = MAX_ISSUE_PHOTOS
-const imageUploadAccept = IMAGE_UPLOAD_ACCEPT
 
 const selectedMaterial = ref<Material | null>(null)
 const matSearchResults = ref<Material[]>([])
@@ -460,29 +454,8 @@ async function submit() {
   }
 }
 
-function onPhotosSelected(event: Event) {
-  const input = event.target as HTMLInputElement
-  const files = input.files ? Array.from(input.files) : []
-  input.value = ''
-  if (files.length === 0) return
-
-  const next = [...selectedPhotos.value]
-  for (const file of files) {
-    if (next.length >= maxIssuePhotos) {
-      toast.error(t('components.damageReportWizard.photosTooMany', { max: maxIssuePhotos }))
-      break
-    }
-    if (file.size > MAX_IMAGE_BYTES) {
-      toast.error(t('components.damageReportWizard.photoTooLarge', { name: file.name }))
-      continue
-    }
-    next.push(file)
-  }
-  selectedPhotos.value = next
-}
-
-function removePhoto(index: number) {
-  selectedPhotos.value = selectedPhotos.value.filter((_, i) => i !== index)
+function onPhotoUploadError(message: string) {
+  toast.error(message)
 }
 
 function close() {
@@ -815,43 +788,6 @@ textarea.form-input {
   margin: 0 0 8px 0;
   font-size: 0.85rem;
   color: #6b7280;
-}
-
-.photo-file-input {
-  padding: 8px;
-}
-
-.photo-preview-list {
-  list-style: none;
-  margin: 8px 0 0 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.photo-preview-list li {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 8px 10px;
-  background: #f9fafb;
-  border-radius: 6px;
-  font-size: 0.9rem;
-}
-
-.photo-remove-btn {
-  background: none;
-  border: none;
-  color: #6b7280;
-  font-size: 1.1rem;
-  cursor: pointer;
-  padding: 0 4px;
-}
-
-.photo-remove-btn:hover {
-  color: #ef4444;
 }
 
 .wizard-footer {

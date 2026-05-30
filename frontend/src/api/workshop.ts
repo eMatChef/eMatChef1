@@ -1,5 +1,6 @@
 import apiClient from './apiClient'
 import type { MediaPhoto } from './media'
+import { uploadMediaFile } from './media'
 
 // ============== Types ==============
 
@@ -240,12 +241,9 @@ export async function uploadWorkshopTicketPhoto(
   ticketId: string,
   file: File,
 ): Promise<MediaPhoto[]> {
-  const formData = new FormData()
-  formData.append('photo', file)
-  const { data } = await apiClient.post<{ photos: MediaPhoto[] }>(
+  const { data } = await uploadMediaFile<{ photos: MediaPhoto[] }>(
     `/api/workshop/tickets/${ticketId}/photos`,
-    formData,
-    { headers: { 'Content-Type': 'multipart/form-data' } },
+    file,
   )
   return data.photos
 }

@@ -153,11 +153,62 @@ class MediaStorageService
         $this->assertSafePathSegment($contextId);
 
         $dir = $this->resolveContextDir($context, $departmentId, $contextId);
+        $this->deleteDirectoryIfExists($dir);
+    }
+
+    /**
+     * @return array{files: int, bytes: int}
+     */
+    public function deleteDirectoryIfExists(string $dir): array
+    {
         if (!is_dir($dir)) {
-            return;
+            return ['files' => 0, 'bytes' => 0];
         }
 
+        $stats = $this->measureDirectory($dir);
         $this->removeDirectoryRecursive($dir);
+
+        return $stats;
+    }
+
+    /**
+     * @return array{files: int, bytes: int}
+     */
+    public function deleteLegacyWorkshopSupplierFolder(string $supplierCompanyId, string $ticketId): array
+    {
+        $dir = $this->resolveLegacyWorkshopSupplierDir($supplierCompanyId, $ticketId);
+
+        return $this->deleteDirectoryIfExists($dir);
+    }
+
+    /**
+     * @return array{files: int, bytes: int}
+     */
+    public function measureDirectory(string $dir): array
+    {
+        if (!is_dir($dir)) {
+            return ['files' => 0, 'bytes' => 0];
+        }
+
+        $files = 0;
+        $bytes = 0;
+        $iterator = new \RecursiveIteratorIterator(
+            new \RecursiveDirectoryIterator($dir, \FilesystemIterator::SKIP_DOTS),
+        );
+        foreach ($iterator as $file) {
+            if (!$file->isFile()) {
+                continue;
+            }
+            ++$files;
+            $bytes += (int) $file->getSize();
+        }
+
+        return ['files' => $files, 'bytes' => $bytes];
+    }
+
+    public function getUploadsBaseDir(): string
+    {
+        return $this->uploadsBaseDir;
     }
 
     public function buildFilenameBase(User $user): string

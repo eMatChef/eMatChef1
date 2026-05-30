@@ -20,6 +20,8 @@ use App\Entity\Membership;
 use App\Entity\StorageRack;
 use App\Entity\StorageSlot;
 use App\Entity\User;
+use App\Service\Material\MaterialItemPhotoService;
+use App\Service\Media\MediaPhotoNormalizer;
 use App\Service\Public\PublicCodeService;
 use App\Util\IdGenerator;
 use Doctrine\ORM\EntityManagerInterface;
@@ -34,7 +36,9 @@ class MaterialController extends AbstractController
 {
     public function __construct(
         private EntityManagerInterface $entityManager,
-        private PublicCodeService $publicCodeService
+        private PublicCodeService $publicCodeService,
+        private MediaPhotoNormalizer $photoNormalizer,
+        private MaterialItemPhotoService $materialItemPhotoService,
     ) {}
 
     /**
@@ -2414,6 +2418,7 @@ class MaterialController extends AbstractController
         }
 
         // Soft-Delete
+        $this->materialItemPhotoService->deletePhotosForMaterial($material);
         $material->setDeletedAt(new \DateTime());
         $this->entityManager->flush();
 
@@ -3860,6 +3865,7 @@ class MaterialController extends AbstractController
             'pack_unit' => $material->getPackUnit(),
             'pack_sale_price_chf' => $material->getPackSalePriceChf(),
             'barcode_tag' => $material->getBarcodeTag(),
+            'image_url' => $material->getPrimaryPhotoUrl(),
             'public_code' => $publicCode,
             'public_url' => null,
             'created_at' => $material->getCreatedAt()->format('c'),
@@ -3867,6 +3873,7 @@ class MaterialController extends AbstractController
         ];
 
         if ($includeDetails) {
+            $result['photos'] = $this->photoNormalizer->normalizeOutgoing($material->getPhotos());
             $result['color'] = $material->getColor();
             $result['material'] = $material->getMaterial();
             $result['size_length'] = $material->getSizeLength();

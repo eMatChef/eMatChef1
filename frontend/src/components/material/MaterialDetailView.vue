@@ -1957,16 +1957,24 @@
           <div class="sidebar-card">
             <div class="sidebar-header">
               <h3>{{ t('components.materialDetail.sidebarImage') }}</h3>
-              <button v-if="canManageMaterials" class="link-btn">{{ t('components.materialDetail.btnGoogleSearch') }}</button>
             </div>
             <div class="image-slot">
-              <svg v-if="!material.image_url" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#d1d5db" stroke-width="1.5">
+              <svg v-if="!materialPrimaryImageUrl" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#d1d5db" stroke-width="1.5">
                 <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
                 <circle cx="8.5" cy="8.5" r="1.5"/>
                 <polyline points="21 15 16 10 5 21"/>
               </svg>
-              <img v-else :src="material.image_url" :alt="t('components.materialDetail.altMaterialImage')" />
+              <img v-else :src="materialPrimaryImageUrl" :alt="t('components.materialDetail.altMaterialImage')" />
             </div>
+            <MaterialImagePicker
+              v-if="canManageMaterials"
+              :has-image="!!materialPrimaryImageUrl"
+              :search-query="material.name"
+              :upload-file="uploadMaterialPhotoFile"
+              :import-url="importMaterialPhotoFromUrlFn"
+              @uploaded="onMaterialPhotoUploaded"
+              @error="onMaterialPhotoError"
+            />
           </div>
 
           <!-- Bestand Quick View -->
@@ -2489,6 +2497,8 @@ import {
   getMaterial,
   getMaterials,
   updateMaterial,
+  uploadMaterialPhoto,
+  importMaterialPhotoFromUrl,
   updateBatch,
   moveBatchQuantity,
   getMaterialHistory,
@@ -2573,6 +2583,7 @@ import PublicQrActionModal from '@/components/common/PublicQrActionModal.vue'
 import { unitPriceFromPackSaleChf } from '@/utils/packPricing'
 import { isPrintableBatchPublicUrl } from '@/utils/publicQrUrl'
 import { isComboMaterial as isComboMaterialType, COMBO_BADGE } from '@/utils/comboDisplay'
+import MaterialImagePicker from '@/components/media/MaterialImagePicker.vue'
 
 interface Props {
   materialId: string
@@ -2648,6 +2659,12 @@ const isUserMaterialsBrowseOnly = computed(() => isDepartmentBasicMemberRole(dep
 const canManageMaterials = computed(() =>
   ['mw', 'dc', 'matwart', 'depchef'].includes(departmentRole.value)
 )
+
+const materialPrimaryImageUrl = computed(() => {
+  const photos = material.value.photos
+  if (photos?.length && photos[0]?.url) return photos[0].url
+  return material.value.image_url || null
+})
 
 // State
 const material = ref<Material>({} as Material)
@@ -4055,6 +4072,34 @@ watch(
     containerContentBatchId.value = ''
   },
 )
+
+async function uploadMaterialPhotoFile(file: File) {
+  if (!material.value.id) {
+    throw new Error(t('components.materialDetail.uploadPhotoError'))
+  }
+  return uploadMaterialPhoto(material.value.id, file)
+}
+
+async function importMaterialPhotoFromUrlFn(url: string) {
+  if (!material.value.id) {
+    throw new Error(t('components.materialDetail.uploadPhotoError'))
+  }
+  return importMaterialPhotoFromUrl(material.value.id, url)
+}
+
+function onMaterialPhotoUploaded(result: unknown) {
+  const data = result as { photos: Material['photos']; image_url: string | null }
+  material.value = {
+    ...material.value,
+    photos: data.photos,
+    image_url: data.image_url,
+  }
+  toast.success(t('media.uploadSuccess'))
+}
+
+function onMaterialPhotoError(message: string) {
+  toast.error(message || t('media.uploadError'))
+}
 
 async function loadMaterial(opts?: { preserveComboComponents?: boolean }) {
   isLoading.value = true

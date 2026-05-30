@@ -546,6 +546,19 @@
   border-radius: 8px;
 }
 
+.material-photo-upload {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 10px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #374151;
+}
+
+.material-photo-upload input[type='file'] {
+  font-size: 13px;
+}
 
 .category-path {
   padding: 10px 12px;

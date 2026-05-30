@@ -2402,6 +2402,71 @@
   margin-bottom: 0;
 }
 
+.comp-resolve-status {
+  padding: 0 14px 8px;
+}
+
+.comp-resolve {
+  margin: 0;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.comp-resolve--found {
+  background: #ecfdf5;
+  color: #065f46;
+  border: 1px solid #a7f3d0;
+}
+
+.comp-resolve--missing {
+  background: #fffbeb;
+  color: #92400e;
+  border: 1px solid #fde68a;
+}
+
+.comp-resolve--ambiguous {
+  background: #eff6ff;
+  color: #1e40af;
+  border: 1px solid #bfdbfe;
+}
+
+.comp-resolve--ambiguous p {
+  margin: 0 0 8px;
+}
+
+.comp-candidate-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.comp-candidate-btn {
+  font-size: 12px;
+  padding: 6px 10px;
+}
+
+.configurator-missing-hint {
+  margin-bottom: 16px;
+  padding: 12px 14px;
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+  border-radius: 8px;
+  font-size: 13px;
+  color: #9a3412;
+}
+
+.configurator-missing-hint ul {
+  margin: 8px 0 0;
+  padding-left: 18px;
+}
+
+.configurator-missing-type {
+  color: #c2410c;
+  font-size: 12px;
+}
+
 .comp-existing-hint {
   display: flex;
   align-items: center;

@@ -23,6 +23,7 @@ use App\Entity\StorageRack;
 use App\Entity\StorageSlot;
 use App\Service\Public\PublicCodeService;
 use App\Service\TemplateImportExportService;
+use App\Service\MaterialWizardSupplierService;
 use App\Entity\User;
 use App\Util\IdGenerator;
 use Doctrine\ORM\EntityManagerInterface;
@@ -39,6 +40,7 @@ class TemplateController extends AbstractController
         private EntityManagerInterface $entityManager,
         private PublicCodeService $publicCodeService,
         private TemplateImportExportService $templateImportExportService,
+        private MaterialWizardSupplierService $materialWizardSupplierService,
     ) {}
 
     /**
@@ -77,7 +79,7 @@ class TemplateController extends AbstractController
 
         $templates = $qb
             ->orderBy('t.scope', 'ASC')
-            ->addOrderBy('t.manufacturer', 'ASC')
+            ->addOrderBy('t.manufacturer', 'ASC', 'NULLS LAST')
             ->addOrderBy('t.name', 'ASC')
             ->getQuery()
             ->getResult();
@@ -100,6 +102,37 @@ class TemplateController extends AbstractController
         }
 
         return new JsonResponse($result);
+    }
+
+    /**
+     * Lieferanten/Hersteller für Vorlagen-Picker (Address-Scope-Modell).
+     */
+    #[Route('/manufacturer-options', name: 'manufacturer_options', methods: ['GET'], priority: 5)]
+    #[IsGranted('ROLE_USER')]
+    public function manufacturerOptions(Request $request): JsonResponse
+    {
+        $scope = (string) $request->query->get('scope', 'department');
+        $departmentId = trim((string) $request->query->get('department_id', ''));
+
+        if ($scope === 'global') {
+            if (!$this->canEditGlobalTemplates()) {
+                return new JsonResponse(['error' => 'Keine Berechtigung für zentrale Vorlagen'], 403);
+            }
+            $addresses = $this->materialWizardSupplierService->listCatalogSuppliers();
+        } else {
+            if ($departmentId === '') {
+                return new JsonResponse(['error' => 'department_id ist erforderlich'], 400);
+            }
+            $addresses = $this->materialWizardSupplierService->listForDepartment($departmentId);
+        }
+
+        return new JsonResponse([
+            'options' => array_map(fn (Address $address) => [
+                'id' => $address->getId(),
+                'label' => $this->addressDisplayLabel($address),
+                'scope' => $address->getScope(),
+            ], $addresses),
+        ]);
     }
 
     /**
@@ -212,7 +245,7 @@ class TemplateController extends AbstractController
      */
     #[Route('/{id}', name: 'get', methods: ['GET'], requirements: ['id' => '[a-zA-Z0-9]+'])]
     #[IsGranted('ROLE_USER')]
-    public function get(string $id): JsonResponse
+    public function get(string $id, Request $request): JsonResponse
     {
         $template = $this->entityManager->getRepository(MaterialTemplate::class)->find($id);
 
@@ -220,7 +253,12 @@ class TemplateController extends AbstractController
             return new JsonResponse(['error' => 'Vorlage nicht gefunden'], 404);
         }
 
-        $data = $this->serializeTemplate($template, true);
+        $departmentId = trim((string) $request->query->get('department_id', ''));
+        $data = $this->serializeTemplate(
+            $template,
+            true,
+            $departmentId !== '' ? $departmentId : null,
+        );
         $data['can_edit'] = $template->isGlobal() ? $this->canEditGlobalTemplates() : true;
 
         return new JsonResponse($data);
@@ -272,8 +310,12 @@ class TemplateController extends AbstractController
             if (isset($data['description'])) {
                 $template->setDescription($data['description']);
             }
-            if (isset($data['manufacturer'])) {
-                $template->setManufacturer($data['manufacturer']);
+            $this->applyManufacturerFields($template, $data);
+            if (isset($data['template_kind'])) {
+                $template->setTemplateKind($this->nullableString($data['template_kind']));
+            }
+            if (isset($data['template_domain'])) {
+                $template->setTemplateDomain($this->nullableString($data['template_domain']));
             }
             if (isset($data['model'])) {
                 $template->setModel($data['model']);
@@ -361,8 +403,12 @@ class TemplateController extends AbstractController
             if (isset($data['description'])) {
                 $template->setDescription($data['description']);
             }
-            if (isset($data['manufacturer'])) {
-                $template->setManufacturer($data['manufacturer']);
+            $this->applyManufacturerFields($template, $data);
+            if (array_key_exists('template_kind', $data)) {
+                $template->setTemplateKind($this->nullableString($data['template_kind']));
+            }
+            if (array_key_exists('template_domain', $data)) {
+                $template->setTemplateDomain($this->nullableString($data['template_domain']));
             }
             if (isset($data['model'])) {
                 $template->setModel($data['model']);
@@ -618,27 +664,8 @@ class TemplateController extends AbstractController
                 $isOptional = $tplComp->getIsOptional();
                 $componentSource = $tplComp->getComponentSource(); // stock | self_provided
 
-                // ── Artikelname zusammensetzen ──
-                // is_generic=true  → Name bleibt generisch: "Heringe" (übergreifendes Material)
-                // is_generic=false → Name + Modell + Hersteller: "Außenzelt Phoenix Zelthangar"
-                $compName = $compNameRaw;
-
-                if (!$tplComp->getIsGeneric()) {
-                    $manufacturer = $template->getManufacturer() ?? '';
-                    $model = $template->getModel() ?? '';
-                    $nameLower = mb_strtolower($compName);
-
-                    // Modell anhängen (wenn nicht schon enthalten)
-                    if ($model && !str_contains($nameLower, mb_strtolower($model))) {
-                        $compName .= ' ' . $model;
-                        $nameLower = mb_strtolower($compName);
-                    }
-
-                    // Hersteller anhängen (wenn nicht schon enthalten)
-                    if ($manufacturer && !str_contains($nameLower, mb_strtolower($manufacturer))) {
-                        $compName .= ' ' . $manufacturer;
-                    }
-                }
+                // ── Artikelname zusammensetzen (eine zentrale Stelle) ──
+                $compName = $this->buildExpectedComponentName($template, $tplComp);
 
                 // Input-Daten für diese Komponente
                 $input = $inputByType[$compType] ?? null;
@@ -646,6 +673,14 @@ class TemplateController extends AbstractController
                 // Optionale Komponente ohne Input: überspringen
                 if ($isOptional && !$input) {
                     continue;
+                }
+
+                if (!$isOptional && $input === null) {
+                    $this->entityManager->rollback();
+
+                    return new JsonResponse([
+                        'error' => sprintf('Pflicht-Komponente "%s" fehlt in der Anfrage', $compType),
+                    ], 422);
                 }
 
                 $mode = $input['mode'] ?? 'new'; // new oder existing
@@ -665,24 +700,34 @@ class TemplateController extends AbstractController
 
                 // ── Komponenten-MaterialItem suchen oder erstellen ──
                 $componentMaterial = null;
-
-                if ($mode === 'existing' && isset($input['material_id'])) {
-                    $componentMaterial = $this->entityManager->getRepository(MaterialItem::class)
-                        ->find($input['material_id']);
-                }
-
-                if (!$componentMaterial) {
-                    // Suche nach existierendem Material mit gleichem Namen im Department
-                    $componentMaterial = $this->entityManager->getRepository(MaterialItem::class)
-                        ->findOneBy([
-                            'departmentId' => $department->getId(),
-                            'name' => $compName,
-                            'deletedAt' => null,
-                        ]);
-                }
-
                 $isNewArticle = false;
-                if (!$componentMaterial) {
+
+                if ($mode === 'existing') {
+                    $materialId = trim((string) ($input['material_id'] ?? ''));
+                    if ($materialId === '') {
+                        $this->entityManager->rollback();
+
+                        return new JsonResponse([
+                            'error' => sprintf(
+                                'Komponente "%s": mode=existing erfordert material_id (erwartet: %s)',
+                                $compType,
+                                $compName,
+                            ),
+                        ], 422);
+                    }
+                    $componentMaterial = $this->entityManager->getRepository(MaterialItem::class)->find($materialId);
+                    if (
+                        !$componentMaterial
+                        || $componentMaterial->getDepartmentId() !== $department->getId()
+                        || $componentMaterial->getDeletedAt() !== null
+                    ) {
+                        $this->entityManager->rollback();
+
+                        return new JsonResponse([
+                            'error' => sprintf('Komponente "%s": Material nicht gefunden oder gehört nicht zum Department', $compType),
+                        ], 422);
+                    }
+                } elseif ($mode === 'new') {
                     $isNewArticle = true;
                     $componentMaterial = new MaterialItem();
                     $componentMaterial->setId(IdGenerator::generate());
@@ -698,6 +743,12 @@ class TemplateController extends AbstractController
                         $componentMaterial->setStorageAddress($storageAddress);
                     }
                     $this->entityManager->persist($componentMaterial);
+                } else {
+                    $this->entityManager->rollback();
+
+                    return new JsonResponse([
+                        'error' => sprintf('Komponente "%s": ungültiger mode "%s"', $compType, $mode),
+                    ], 422);
                 }
 
                 // ── Batch erstellen (für individual + physical_combo) ──
@@ -1132,27 +1183,110 @@ class TemplateController extends AbstractController
         string $name,
         array $materialByComponentType,
         string $departmentId,
+        ?string $expectedName = null,
     ): ?MaterialItem {
         if ($componentType !== '' && isset($materialByComponentType[$componentType])) {
             return $materialByComponentType[$componentType];
         }
-        if (trim($name) !== '') {
-            $found = $this->entityManager->getRepository(MaterialItem::class)->findOneBy([
-                'departmentId' => $departmentId,
-                'name' => $name,
-                'deletedAt' => null,
-            ]);
-            if ($found) {
-                return $found;
+        $searchName = trim($expectedName ?? $name);
+        if ($searchName !== '') {
+            $found = $this->findMaterialsByExactName($departmentId, $searchName);
+            if (count($found) === 1) {
+                return $found[0];
             }
         }
+
         return null;
+    }
+
+    /**
+     * Erwarteter Materialname für eine Vorlagen-Komponente (eine zentrale Stelle).
+     */
+    private function buildExpectedComponentName(MaterialTemplate $template, MaterialTemplateComponent $comp): string
+    {
+        $compName = $comp->getName();
+        if ($comp->getIsGeneric()) {
+            return $compName;
+        }
+
+        $manufacturer = $template->getManufacturer() ?? '';
+        $model = $template->getModel() ?? '';
+        $nameLower = mb_strtolower($compName);
+
+        if ($model && !str_contains($nameLower, mb_strtolower($model))) {
+            $compName .= ' ' . $model;
+            $nameLower = mb_strtolower($compName);
+        }
+
+        if ($manufacturer && !str_contains($nameLower, mb_strtolower($manufacturer))) {
+            $compName .= ' ' . $manufacturer;
+        }
+
+        return $compName;
+    }
+
+    /**
+     * @return MaterialItem[]
+     */
+    private function findMaterialsByExactName(string $departmentId, string $name): array
+    {
+        return $this->entityManager->createQueryBuilder()
+            ->select('m')
+            ->from(MaterialItem::class, 'm')
+            ->where('m.departmentId = :dept')
+            ->andWhere('m.deletedAt IS NULL')
+            ->andWhere('LOWER(m.name) = LOWER(:name)')
+            ->setParameter('dept', $departmentId)
+            ->setParameter('name', $name)
+            ->getQuery()
+            ->getResult();
+    }
+
+    /**
+     * @return array{expected_name: string, match_state: string, matched_material_id: ?string, candidates: array<int, array{id: string, name: string}>}
+     */
+    private function resolveComponentMatchFields(
+        MaterialTemplate $template,
+        MaterialTemplateComponent $comp,
+        string $departmentId,
+    ): array {
+        $expectedName = $this->buildExpectedComponentName($template, $comp);
+        $matches = $this->findMaterialsByExactName($departmentId, $expectedName);
+        $candidates = array_map(
+            fn (MaterialItem $m) => ['id' => $m->getId(), 'name' => $m->getName()],
+            $matches,
+        );
+
+        if (count($matches) === 1) {
+            return [
+                'expected_name' => $expectedName,
+                'match_state' => 'found',
+                'matched_material_id' => $matches[0]->getId(),
+                'candidates' => $candidates,
+            ];
+        }
+
+        if (count($matches) > 1) {
+            return [
+                'expected_name' => $expectedName,
+                'match_state' => 'ambiguous',
+                'matched_material_id' => null,
+                'candidates' => $candidates,
+            ];
+        }
+
+        return [
+            'expected_name' => $expectedName,
+            'match_state' => 'missing',
+            'matched_material_id' => null,
+            'candidates' => [],
+        ];
     }
 
     /**
      * Serialisiert ein Template für die JSON-Response
      */
-    private function serializeTemplate(MaterialTemplate $template, bool $includeComponents): array
+    private function serializeTemplate(MaterialTemplate $template, bool $includeComponents, ?string $departmentId = null): array
     {
         $data = [
             'id' => $template->getId(),
@@ -1162,6 +1296,9 @@ class TemplateController extends AbstractController
             'name' => $template->getName(),
             'description' => $template->getDescription(),
             'manufacturer' => $template->getManufacturer(),
+            'manufacturer_address_id' => $template->getManufacturerAddressId(),
+            'template_kind' => $template->getTemplateKind(),
+            'template_domain' => $template->getTemplateDomain(),
             'model' => $template->getModel(),
             'category' => $template->getCategory() ? [
                 'id' => $template->getCategory()->getId(),
@@ -1179,8 +1316,9 @@ class TemplateController extends AbstractController
 
         if ($includeComponents) {
             $data['components'] = [];
+            $missingRequired = [];
             foreach ($template->getComponents() as $comp) {
-                $data['components'][] = [
+                $row = [
                     'id' => $comp->getId(),
                     'component_type' => $comp->getComponentType(),
                     'name' => $comp->getName(),
@@ -1192,6 +1330,20 @@ class TemplateController extends AbstractController
                     'repair_types' => $comp->getRepairTypes(),
                     'sort_order' => $comp->getSortOrder(),
                 ];
+                if ($departmentId !== null) {
+                    $row = array_merge($row, $this->resolveComponentMatchFields($template, $comp, $departmentId));
+                    if (!$comp->getIsOptional() && ($row['match_state'] ?? '') === 'missing') {
+                        $missingRequired[] = [
+                            'component_type' => $comp->getComponentType(),
+                            'name' => $comp->getName(),
+                            'expected_name' => $row['expected_name'],
+                        ];
+                    }
+                }
+                $data['components'][] = $row;
+            }
+            if ($departmentId !== null) {
+                $data['missing_required_components'] = $missingRequired;
             }
 
             $data['related_accessories'] = [];
@@ -1325,5 +1477,49 @@ class TemplateController extends AbstractController
         $user = $this->getUser();
 
         return $user instanceof User ? $user->getId() : null;
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     */
+    private function applyManufacturerFields(MaterialTemplate $template, array $data): void
+    {
+        if (array_key_exists('manufacturer_address_id', $data)) {
+            $addressId = $data['manufacturer_address_id'];
+            if ($addressId === null || $addressId === '') {
+                $template->setManufacturerAddress(null);
+                $template->setManufacturer(null);
+            } else {
+                $address = $this->entityManager->getRepository(Address::class)->find((string) $addressId);
+                if (!$address || $address->isDeleted()) {
+                    throw new \InvalidArgumentException('Hersteller-Adresse nicht gefunden');
+                }
+                $template->setManufacturerAddress($address);
+                $template->setManufacturer($this->addressDisplayLabel($address));
+            }
+
+            return;
+        }
+
+        if (array_key_exists('manufacturer', $data)) {
+            $template->setManufacturer($this->nullableString($data['manufacturer']));
+        }
+    }
+
+    private function addressDisplayLabel(Address $address): string
+    {
+        $label = trim((string) ($address->getCompany() ?: $address->getName() ?: ''));
+
+        return $label !== '' ? $label : (string) $address->getId();
+    }
+
+    private function nullableString(mixed $value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+        $s = trim((string) $value);
+
+        return $s === '' ? null : $s;
     }
 }

@@ -10,7 +10,7 @@
 
 Zentrale Foto-Uploads über **kontextspezifische APIs** und **gemeinsame Vue-Bausteine**. Konzept und Umbauplan: [media/README.md](./media/README.md) · Checkliste: [media/plan.md](./media/plan.md).
 
-**Ist-Zustand (Mai 2026):** Nur Lieferanten-Reparatur hat echten Datei-Upload (`WorkshopPhotoStorageService`). Schaden melden, Werkstatt-MW und Material-Abbildung folgen laut Plan.
+**Ist-Zustand (Mai 2026):** Werkstatt (MW + Lieferant), Schaden melden, Material-Abbildung — einheitliche Bausteine `PhotoUpload` / `PhotoGallery` / `useMediaUpload`.
 
 ### Backend (geplant / teilweise vorhanden)
 
@@ -38,44 +38,48 @@ Zentrale Foto-Uploads über **kontextspezifische APIs** und **gemeinsame Vue-Bau
 
 ---
 
-### Vue-Komponenten (geplant — Paket 6)
+### Vue-Komponenten
 
 
-| Baustein | Pfad *(geplant)* | Verwendung |
-| -------- | ---------------- | ---------- |
-| **PhotoUpload** | `frontend/src/components/media/PhotoUpload.vue` | Datei wählen, Vorschau, Upload-Fortschritt, Fehler |
-| **PhotoGallery** | `frontend/src/components/media/PhotoGallery.vue` | Thumbnails + Meta (Wer, Wann), optional Löschen |
-| **useMediaUpload** | `frontend/src/composables/useMediaUpload.ts` | FormData-Upload, axios ohne JSON-Header |
-| **media.ts** | `frontend/src/api/media.ts` | Typ `MediaPhoto`, Hilfsfunktionen |
+| Baustein | Pfad | Verwendung |
+| -------- | ---- | ---------- |
+| **MaterialImagePicker** | `frontend/src/components/media/MaterialImagePicker.vue` | Material-Detail: Upload / Kamera / URL (+ Google-Suche) |
+| **PhotoUpload** | `frontend/src/components/media/PhotoUpload.vue` | Datei wählen, Upload (sofort oder defer mit `v-model:files`) |
+| **PhotoGallery** | `frontend/src/components/media/PhotoGallery.vue` | Thumbnails + Meta (Wer, Wann) |
+| **useMediaUpload** | `frontend/src/composables/useMediaUpload.ts` | FormData-Upload via `uploadMediaFile` |
+| **media.ts** | `frontend/src/api/media.ts` | Typ `MediaPhoto`, `uploadMediaFile`, Hilfsfunktionen |
 
 
-**PhotoUpload — geplante Props**
+**PhotoUpload — Props**
 
 ```vue
 import PhotoUpload from '@/components/media/PhotoUpload.vue'
 
+<!-- Sofort-Upload (URL oder domain-spezifische uploadFn) -->
 <PhotoUpload
-  :upload-url="`/api/supplier-companies/${companyId}/repairs/${ticketId}/photos`"
-  accept="image/jpeg,image/png,image/webp,image/gif"
-  :max-bytes="10_485_760"
-  :disabled="uploading"
+  :upload-fn="(file) => uploadWorkshopTicketPhoto(ticketId, file)"
   @uploaded="onPhotoUploaded"
+  @error="onUploadError"
+/>
+
+<!-- Defer-Modus (z. B. Schaden melden, max. 3 Fotos) -->
+<PhotoUpload
+  v-model:files="selectedPhotos"
+  multiple
+  :auto-upload="false"
+  :max-files="3"
   @error="onUploadError"
 />
 ```
 
-**PhotoGallery — geplante Props**
+**PhotoGallery — Props**
 
 ```vue
 import PhotoGallery from '@/components/media/PhotoGallery.vue'
 import type { MediaPhoto } from '@/api/media'
 
 <PhotoGallery :photos="ticket.photos ?? []" readonly />
-<PhotoGallery
-  :photos="ticket.photos ?? []"
-  :delete-url="(photo) => `/api/workshop/tickets/${ticket.id}/photos/${photo.filename}`"
-  @deleted="reloadTicket"
-/>
+<PhotoGallery :photos="ticket.photos ?? []" :format-date="formatDateTime" show-empty />
 ```
 
 **`MediaPhoto`-Objekt** (API, snake_case):
@@ -86,11 +90,11 @@ import type { MediaPhoto } from '@/api/media'
 - optional `context`, `context_id`, `bytes`, `width`, `height`, `mime`
 - `legacy?: true` — alter reiner URL-String
 
-**Eingebunden (Ist):** `SupplierRepairsView.vue` — eigenes `<input type="file">` bis Paket 6.
+**Eingebunden in:** `SupplierRepairsView.vue`, `WorkshopView.vue`, `MaterialDetailView.vue` (`MaterialImagePicker`), `DamageReportWizard.vue`.
 
-**Geplant einsetzen in:** `DamageReportWizard.vue`, `WorkshopView.vue`, `MaterialDetailView.vue`, `SupplierRepairsView.vue` (Refactor).
+**Zukunft:** Department-Mediathek — [mediathek-zukunft.md](./media/mediathek-zukunft.md)
 
-**Styles *(geplant)*:** `frontend/src/styles/components/photo-gallery.css`
+**Styles:** `frontend/src/styles/components/photo-gallery.css` (von PhotoUpload/PhotoGallery importiert)
 
 ---
 

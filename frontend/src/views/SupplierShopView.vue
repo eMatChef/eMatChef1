@@ -244,6 +244,14 @@ const departmentId = computed(() => route.params.departmentId as string)
 const loading = ref(true)
 const loadError = ref('')
 const activeTab = ref<'catalog' | 'templates' | 'deliveries' | 'watchlist'>('catalog')
+const shopTabs = ['catalog', 'templates', 'deliveries', 'watchlist'] as const
+
+function syncTabFromRoute() {
+  const tab = route.query.tab
+  if (typeof tab === 'string' && (shopTabs as readonly string[]).includes(tab)) {
+    activeTab.value = tab as (typeof shopTabs)[number]
+  }
+}
 const companies = ref<SupplierShopCompany[]>([])
 const selectedCompanyId = ref('')
 const catalogItems = ref<SupplierCatalogItem[]>([])
@@ -436,8 +444,13 @@ watch(activeTab, (tab) => {
   }
 })
 
+watch(() => route.query.tab, syncTabFromRoute)
+
 watch(departmentId, () => loadCompaniesAndDeliveries())
-onMounted(() => loadCompaniesAndDeliveries())
+onMounted(() => {
+  syncTabFromRoute()
+  loadCompaniesAndDeliveries()
+})
 </script>
 
 <style scoped>

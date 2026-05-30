@@ -1162,14 +1162,12 @@ const routes: RouteRecordRaw[] = [
           },
           {
             path: 'supplier-deliveries',
-            name: 'SettingsSupplierDeliveries',
-            component: () => import('@/views/settings/DepartmentSupplierDeliveriesView.vue'),
-            meta: {
-              ...routeHead('settingsSupplierDeliveries'),
-              denyDepartmentRoles: DENY_BASIC_MEMBER_ROLES,
-              denyRedirectTo: { name: 'SettingsMyDepartment' },
-            }
-          }
+            redirect: (to) => ({
+              name: 'SupplierShop',
+              params: { departmentId: to.params.departmentId },
+              query: { tab: 'deliveries' },
+            }),
+          },
         ]
       }
     ]

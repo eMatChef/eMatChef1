@@ -163,6 +163,7 @@ Siehe [wiederverwendbare-komponenten.md § Medien/Fotos](../wiederverwendbare-ko
 
 ## 6. Siehe auch
 
+- [mediathek-zukunft.md](./mediathek-zukunft.md) — optionale Department-Mediathek (Phase 2)
 - [supplier/plan.md Paket 14](../supplier/plan.md) — Reparaturen Lieferant (Fotos)
 - [supplier-portal.md § Datenschutz](../supplier/supplier-portal.md) — Lieferant sieht Schadenfotos der Meldung
 - [wiederverwendbare-komponenten.md](../wiederverwendbare-komponenten.md) — Frontend-Bausteine

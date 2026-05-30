@@ -11,6 +11,32 @@ export type OptionDisplayMode = 'toggle' | 'group'
 /** Auswahlregel einer Vorlagen-Options-Gruppe. */
 export type OptionSelectionType = 'exclusive' | 'multi' | 'quantity'
 
+export type TemplateKind = 'single_part' | 'combo' | 'configurator'
+
+export type TemplateDomain = 'tent' | 'kitchen' | 'workshop' | 'first_aid' | 'general'
+
+export interface TemplateManufacturerOption {
+  id: string
+  label: string
+  scope: string
+}
+
+/** Ergebnis des Start-Assistenten vor dem Editor. */
+export interface TemplateWizardResult {
+  template_kind: TemplateKind
+  template_domain: TemplateDomain
+  manufacturer_address_id: string | null
+  manufacturer: string | null
+  material_type: 'physical_combo' | 'virtual_combo'
+}
+
+export type ComponentMatchState = 'found' | 'missing' | 'ambiguous'
+
+export interface TemplateComponentCandidate {
+  id: string
+  name: string
+}
+
 export interface TemplateComponent {
   id: string
   component_type: string
@@ -22,6 +48,17 @@ export interface TemplateComponent {
   component_source: ComponentSource
   repair_types: string[] | null
   sort_order: number
+  /** Gesetzt wenn GET mit department_id (Paket 2 Auflösung) */
+  expected_name?: string
+  match_state?: ComponentMatchState
+  matched_material_id?: string | null
+  candidates?: TemplateComponentCandidate[]
+}
+
+export interface TemplateMissingRequiredComponent {
+  component_type: string
+  name: string
+  expected_name: string
 }
 
 /** ±Stücklisten-Zeile einer Vorlagen-Option (abstrakt über component_type). */
@@ -81,6 +118,9 @@ export interface Template {
   name: string
   description: string | null
   manufacturer: string | null
+  manufacturer_address_id: string | null
+  template_kind: TemplateKind | null
+  template_domain: TemplateDomain | null
   model: string | null
   category: { id: string; name: string } | null
   material_type: 'physical_combo' | 'virtual_combo'
@@ -97,6 +137,8 @@ export interface Template {
   related_accessories?: TemplateRelatedAccessory[]
   options?: TemplateOption[]
   option_groups?: TemplateOptionGroup[]
+  /** Pflicht-Komponenten ohne Bestandstreffer (nur mit department_id) */
+  missing_required_components?: TemplateMissingRequiredComponent[]
 }
 
 export interface CreateTemplateComponentRequest {
@@ -147,6 +189,9 @@ export interface CreateTemplateRequest {
   name: string
   description?: string | null
   manufacturer?: string | null
+  manufacturer_address_id?: string | null
+  template_kind?: TemplateKind | null
+  template_domain?: TemplateDomain | null
   model?: string | null
   category_id?: string | null
   material_type?: 'physical_combo' | 'virtual_combo'
@@ -164,6 +209,9 @@ export interface UpdateTemplateRequest {
   name?: string
   description?: string | null
   manufacturer?: string | null
+  manufacturer_address_id?: string | null
+  template_kind?: TemplateKind | null
+  template_domain?: TemplateDomain | null
   model?: string | null
   category_id?: string | null
   material_type?: 'physical_combo' | 'virtual_combo'
@@ -214,6 +262,24 @@ export interface TemplateExportJson {
 
 // ============== API Functions ==============
 
+/** Internal key for templates without manufacturer (list filter/export). */
+export const NO_MANUFACTURER_KEY = '__NO_MANUFACTURER__'
+
+/**
+ * Lieferanten/Hersteller für Vorlagen-Picker (Address-Scope-Modell).
+ */
+export async function getTemplateManufacturerOptions(
+  scope: 'global' | 'department',
+  departmentId?: string,
+): Promise<TemplateManufacturerOption[]> {
+  const params = new URLSearchParams({ scope })
+  if (departmentId) params.append('department_id', departmentId)
+  const response = await apiClient.get<{ options: TemplateManufacturerOption[] }>(
+    `/api/templates/manufacturer-options?${params.toString()}`,
+  )
+  return response.data.options
+}
+
 /**
  * Lädt alle Vorlagen für ein Department
  */
@@ -237,8 +303,10 @@ export async function getGlobalTemplates(activeOnly = false): Promise<Template[]
 /**
  * Lädt eine einzelne Vorlage mit Komponenten
  */
-export async function getTemplate(id: string): Promise<Template> {
-  const response = await apiClient.get<Template>(`/api/templates/${id}`)
+export async function getTemplate(id: string, departmentId?: string): Promise<Template> {
+  const response = await apiClient.get<Template>(`/api/templates/${id}`, {
+    params: departmentId ? { department_id: departmentId } : undefined,
+  })
   return response.data
 }
 

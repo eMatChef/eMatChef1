@@ -109,6 +109,7 @@
             <select v-model="exportManufacturer" class="filter-select">
               <option value="">{{ t('settings.templates.exportAllManufacturers') }}</option>
               <option v-for="m in manufacturers" :key="m" :value="m">{{ m }}</option>
+              <option :value="NO_MANUFACTURER_KEY">{{ t('settings.templates.generalMixed') }}</option>
             </select>
           </label>
           <button type="button" class="btn-primary" :disabled="isExporting" @click="runExport">
@@ -137,6 +138,7 @@
         <select v-model="filterManufacturer" class="filter-select">
           <option value="">{{ t('settings.templates.allManufacturers') }}</option>
           <option v-for="m in listManufacturers" :key="m" :value="m">{{ m }}</option>
+          <option :value="NO_MANUFACTURER_KEY">{{ t('settings.templates.generalMixed') }}</option>
         </select>
         <select v-model="filterType" class="filter-select">
           <option value="">{{ t('settings.templates.allTypes') }}</option>
@@ -201,6 +203,7 @@
                     <span v-if="!isGlobalAdminMode && template.is_global" class="badge global">{{ t('settings.templates.badgeGlobal') }}</span>
                     <span v-if="!isGlobalAdminMode && !template.is_global" class="badge department">{{ t('settings.templates.badgeDepartment') }}</span>
                     <span v-if="!template.is_active" class="badge inactive">{{ t('settings.templates.badgeInactive') }}</span>
+                    <span v-if="isSinglePartTemplate(template)" class="badge single-part">{{ t('settings.templates.badgeSinglePart') }}</span>
                   </div>
                   <div class="template-meta">
                     <span class="meta-item">
@@ -281,12 +284,22 @@
     </div>
     </template>
 
+    <!-- Start-Assistent (Neue Vorlage) -->
+    <TemplateStartWizard
+      v-if="showStartWizard"
+      :department-id="departmentId"
+      :template-scope="templateScope"
+      @close="handleWizardClose"
+      @complete="handleWizardComplete"
+    />
+
     <!-- Template Edit/Create Dialog -->
     <TemplateEditDialog
       v-if="showEditDialog"
       :department-id="departmentId"
       :template-scope="templateScope"
       :template="editingTemplate"
+      :initial-wizard="wizardResult"
       :readonly="editingReadonly"
       @close="closeEditDialog"
       @saved="handleTemplateSaved"
@@ -294,7 +307,7 @@
 
     <!-- Lösch-Bestätigung -->
     <div v-if="showDeleteConfirm" class="modal-overlay">
-      <div class="confirm-dialog">
+      <div class="modal-dialog modal-dialog--confirm">
         <h3>{{ t('settings.templates.deleteConfirmTitle') }}</h3>
         <p>
           {{ t('settings.templates.deleteConfirmMessage', { name: deletingTemplate?.name }) }}
@@ -326,12 +339,15 @@ import {
   importGlobalTemplates,
   exportTemplates,
   exportGlobalTemplates,
+  NO_MANUFACTURER_KEY,
   type Template,
   type TemplateImportResponse,
   type TemplateImportDuplicateAction,
+  type TemplateWizardResult,
 } from '@/api/templates'
 import { useDepartmentMemberRole } from '@/composables/useDepartmentMemberRole'
 import TemplateEditDialog from '@/components/template/TemplateEditDialog.vue'
+import TemplateStartWizard from '@/components/template/TemplateStartWizard.vue'
 
 const props = withDefaults(defineProps<{
   mode?: 'department' | 'global-admin'
@@ -361,9 +377,6 @@ const duplicateTitle = computed(() =>
   isGlobalAdminMode.value ? t('settings.templates.globalAdmin.duplicateTitle') : t('settings.templates.duplicateTitle')
 )
 
-/** Internal grouping key when a template has no manufacturer (never shown raw). */
-const NO_MANUFACTURER_KEY = '__NO_MANUFACTURER__'
-
 const activeTab = ref<'list' | 'import' | 'export'>('list')
 const templates = ref<Template[]>([])
 const isLoading = ref(true)
@@ -372,7 +385,9 @@ const filterManufacturer = ref('')
 const filterType = ref('')
 const expandedManufacturers = ref(new Set<string>())
 
-// Edit/Create Dialog
+// Start Wizard / Edit Dialog
+const showStartWizard = ref(false)
+const wizardResult = ref<TemplateWizardResult | null>(null)
 const showEditDialog = ref(false)
 const editingTemplate = ref<Template | null>(null)
 const editingReadonly = ref(false)
@@ -424,7 +439,11 @@ const filteredTemplates = computed(() => {
   }
 
   if (filterManufacturer.value) {
-    result = result.filter(t => t.manufacturer === filterManufacturer.value)
+    if (filterManufacturer.value === NO_MANUFACTURER_KEY) {
+      result = result.filter(t => isGeneralMixedTemplate(t))
+    } else {
+      result = result.filter(t => t.manufacturer === filterManufacturer.value)
+    }
   }
 
   if (filterType.value) {
@@ -435,20 +454,31 @@ const filteredTemplates = computed(() => {
 })
 
 function manufacturerDisplayName(key: string): string {
-  return key === NO_MANUFACTURER_KEY ? t('settings.templates.noManufacturer') : key
+  return key === NO_MANUFACTURER_KEY ? t('settings.templates.generalMixed') : key
+}
+
+function isGeneralMixedTemplate(template: Template): boolean {
+  return !template.manufacturer && !template.manufacturer_address_id
 }
 
 // Computed: Gruppiert nach Hersteller
 const groupedTemplates = computed(() => {
   const groups: Record<string, Template[]> = {}
-  for (const t of filteredTemplates.value) {
-    const key = t.manufacturer || NO_MANUFACTURER_KEY
+  for (const tpl of filteredTemplates.value) {
+    const key = isGeneralMixedTemplate(tpl) ? NO_MANUFACTURER_KEY : (tpl.manufacturer || NO_MANUFACTURER_KEY)
     if (!groups[key]) groups[key] = []
-    groups[key].push(t)
+    groups[key].push(tpl)
   }
   return Object.entries(groups)
-    .map(([manufacturer, tpls]) => ({ manufacturer, templates: tpls }))
-    .sort((a, b) => manufacturerDisplayName(a.manufacturer).localeCompare(manufacturerDisplayName(b.manufacturer)))
+    .map(([manufacturer, tpls]) => ({
+      manufacturer,
+      templates: tpls.sort((a, b) => a.name.localeCompare(b.name)),
+    }))
+    .sort((a, b) => {
+      if (a.manufacturer === NO_MANUFACTURER_KEY) return 1
+      if (b.manufacturer === NO_MANUFACTURER_KEY) return -1
+      return manufacturerDisplayName(a.manufacturer).localeCompare(manufacturerDisplayName(b.manufacturer))
+    })
 })
 
 // Hersteller-Gruppen expandieren/kollabieren
@@ -467,11 +497,26 @@ function formatTentType(type: string): string {
   return translated !== key ? translated : type
 }
 
+function isSinglePartTemplate(template: Template): boolean {
+  return template.template_kind === 'single_part' || template.component_count === 1
+}
+
 // Dialog-Funktionen
 function openCreateDialog() {
+  wizardResult.value = null
+  showStartWizard.value = true
+}
+
+function handleWizardComplete(result: TemplateWizardResult) {
+  showStartWizard.value = false
+  wizardResult.value = result
   editingTemplate.value = null
   editingReadonly.value = false
   showEditDialog.value = true
+}
+
+function handleWizardClose() {
+  showStartWizard.value = false
 }
 
 function openEditDialog(template: Template) {
@@ -484,6 +529,7 @@ function closeEditDialog() {
   showEditDialog.value = false
   editingTemplate.value = null
   editingReadonly.value = false
+  wizardResult.value = null
 }
 
 async function handleTemplateSaved() {
@@ -696,8 +742,8 @@ onMounted(() => {
 }
 
 .tab-btn.active {
-  color: #7c3aed;
-  border-bottom-color: #7c3aed;
+  color: var(--color-primary);
+  border-bottom-color: var(--color-primary);
 }
 
 .io-panel {
@@ -911,8 +957,8 @@ onMounted(() => {
   align-items: center;
   justify-content: center;
   border-radius: 8px;
-  background: #ede9fe;
-  color: #7c3aed;
+  background: var(--color-primary-muted-bg);
+  color: var(--color-primary);
 }
 
 .manufacturer-info {
@@ -1026,6 +1072,11 @@ onMounted(() => {
 .badge.department {
   background: #ecfdf5;
   color: #065f46;
+}
+
+.badge.single-part {
+  background: #ecfdf5;
+  color: #047857;
 }
 
 .template-meta {
@@ -1148,7 +1199,7 @@ onMounted(() => {
 
 /* Loading state base uses shared ui/states.css */
 
-/* Modal overlay base uses shared ui/modals.css */
+/* Modal overlay + confirm dialog: shared ui/modals.css */
 
 /* Import Dialog */
 .import-dialog {
@@ -1157,21 +1208,6 @@ onMounted(() => {
   width: 100%;
   max-width: 520px;
   box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
-}
-
-.dialog-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 20px 24px;
-  border-bottom: 1px solid #e5e7eb;
-}
-
-.dialog-header h2 {
-  font-size: 18px;
-  font-weight: 600;
-  color: #111827;
-  margin: 0;
 }
 
 .close-btn {
@@ -1219,8 +1255,8 @@ onMounted(() => {
 }
 
 .file-upload-area.dragging {
-  border-color: #8b5cf6;
-  background: #faf5ff;
+  border-color: var(--color-primary-light);
+  background: var(--color-primary-muted-bg);
 }
 
 .file-input {
@@ -1239,7 +1275,7 @@ onMounted(() => {
 }
 
 .upload-content .file-selected {
-  color: #7c3aed;
+  color: var(--color-primary);
   font-weight: 500;
 }
 
@@ -1265,42 +1301,6 @@ onMounted(() => {
   gap: 12px;
   padding: 16px 24px;
   border-top: 1px solid #e5e7eb;
-}
-
-/* Delete Confirm */
-.confirm-dialog {
-  background: white;
-  border-radius: 12px;
-  padding: 24px;
-  width: 100%;
-  max-width: 400px;
-  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
-}
-
-.confirm-dialog h3 {
-  font-size: 18px;
-  font-weight: 600;
-  color: #111827;
-  margin: 0 0 12px 0;
-}
-
-.confirm-dialog p {
-  font-size: 14px;
-  color: #6b7280;
-  margin: 0 0 8px 0;
-}
-
-.warning-hint {
-  font-size: 12px;
-  color: #9ca3af;
-  font-style: italic;
-}
-
-.confirm-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 12px;
-  margin-top: 20px;
 }
 
 /* Danger button uses shared ui/buttons.css */

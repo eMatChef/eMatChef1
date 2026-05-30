@@ -1,5 +1,6 @@
 import apiClient from './apiClient'
 import type { MediaPhoto } from './media'
+import { uploadMediaFile } from './media'
 
 export type SupplierRepairStatus = 'open' | 'in_progress' | 'waiting_parts' | 'completed' | 'cancelled'
 
@@ -118,12 +119,9 @@ export async function uploadSupplierRepairPhoto(
   ticketId: string,
   file: File,
 ): Promise<SupplierRepairTicket> {
-  const formData = new FormData()
-  formData.append('photo', file)
-  const { data } = await apiClient.post<{ ticket: SupplierRepairTicket }>(
+  const { data } = await uploadMediaFile<{ ticket: SupplierRepairTicket }>(
     `/api/supplier-companies/${companyId}/repairs/${ticketId}/photos`,
-    formData,
-    { headers: { 'Content-Type': 'multipart/form-data' } },
+    file,
   )
   return data.ticket
 }
