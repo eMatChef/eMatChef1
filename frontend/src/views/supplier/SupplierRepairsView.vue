@@ -341,6 +341,7 @@ onMounted(() => loadTickets())
   gap: 4px;
 }
 
+.photos-section h4 {
   margin: 0;
   font-size: 14px;
 }
