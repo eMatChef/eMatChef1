@@ -220,6 +220,7 @@ import {
   type DepartmentSearchResult,
   type MyJoinRequest,
 } from '@/api/joinRequests'
+import { joinSupplierCompany } from '@/api/supplierMemberships'
 import { getOrganisations, type Organisation } from '@/api/organisations'
 import ParentDepartmentPicker, {
   type ParentDepartmentPickerValue,
@@ -402,7 +403,29 @@ async function submitRequest() {
     message.value = ''
     await loadMine()
   } catch (err: any) {
-    error.value = err?.response?.data?.error || t('pendingAssignment.errorSendFailed')
+    const deptError = err?.response?.data?.error
+    const canTrySupplierJoin =
+      !selectedDepartment.value &&
+      joinCode.value.trim() &&
+      (err?.response?.status === 404 ||
+        String(deptError || '').toLowerCase().includes('join-code') ||
+        String(deptError || '').toLowerCase().includes('department'))
+
+    if (canTrySupplierJoin) {
+      try {
+        const joined = await joinSupplierCompany(joinCode.value.trim())
+        await authStore.loadUserSessionFromCookie(true)
+        joinCode.value = ''
+        message.value = ''
+        window.location.href = joined.redirect_path
+        return
+      } catch (supplierErr: any) {
+        error.value =
+          supplierErr?.response?.data?.error || deptError || t('pendingAssignment.errorSendFailed')
+      }
+    } else {
+      error.value = deptError || t('pendingAssignment.errorSendFailed')
+    }
     resetTurnstile()
   } finally {
     loading.value = false

@@ -30,4 +30,20 @@ class SupplierCompanyRepository extends ServiceEntityRepository
             ->getQuery()
             ->getResult();
     }
+
+    public function findOneActiveByJoinCode(string $joinCode): ?SupplierCompany
+    {
+        $normalized = strtoupper(preg_replace('/[^A-Z0-9]/', '', $joinCode) ?? '');
+        if ($normalized === '') {
+            return null;
+        }
+
+        return $this->createQueryBuilder('c')
+            ->andWhere('c.joinCode = :code')
+            ->andWhere('c.status = :status')
+            ->setParameter('code', $normalized)
+            ->setParameter('status', SupplierCompany::STATUS_ACTIVE)
+            ->getQuery()
+            ->getOneOrNullResult();
+    }
 }

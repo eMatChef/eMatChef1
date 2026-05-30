@@ -2,7 +2,7 @@
 
 Abarbeitbare Checkliste für Phase 1–3. Das **Warum/Zielmodell** steht in [supplier-portal.md](./supplier-portal.md). Dieser Plan = **Was & in welcher Reihenfolge**.
 
-**Stand:** Mai 2026 · Phase 1 in Paketen 0–8; Phase 2/3 als grobe Pakete (Detail folgt mit Phase-2-Start). **Erledigt: Paket 0–5**
+**Stand:** Mai 2026 · Phase 1 in Paketen 0–8; Phase 2/3 als grobe Pakete (Detail folgt mit Phase-2-Start). **Erledigt: Paket 0–6**
 
 ---
 
@@ -34,7 +34,7 @@ Abarbeitbare Checkliste für Phase 1–3. Das **Warum/Zielmodell** steht in [sup
 | 3 | Plattform-Admin: Onboarding + Legacy-Promote | 1 | M | 1, 2 | [x] |
 | 4 | Frontend-Shell: Routing, Layout, Sidebar | 1 | M | 2 | [x] |
 | 5 | „Meine Firma“: Profil & Kontakt | 1 | M | 1, 2, 4 | [x] |
-| 6 | Team + Join-Code | 1 | M | 2, 5 | [ ] |
+| 6 | Team + Join-Code | 1 | M | 2, 5 | [x] |
 | 7 | Operator: Capability + `linked_department_id` | 1 | S | 1, 5 | [ ] |
 | 8 | MW-Listen: Import, Global Addresses, Konstanten | 1b | M | 0, 1 | [ ] |
 | 9 | Katalog `supplier_catalog_item` + Supplier-CRUD | 2a | L | 1–7 | [ ] |
@@ -221,11 +221,11 @@ Diese Stellen strahlen bei Address-/Supplier-Änderungen am stärksten aus:
 - `frontend/src/views/supplier/SupplierTeamView.vue` (neu)
 
 **Schritte:**
-- [ ] CRUD Memberships: Liste, Rolle setzen (`admin` \| `member`), entfernen
-- [ ] Join-Code pro `SupplierCompany` (generieren, rotieren) — analog Department-Join
-- [ ] Beitritt: User authentifiziert → Membership `member` (oder vom Admin hochgestuft)
-- [ ] Nur **admin** darf Team + Join-Code; Join-Code **nicht** für Erst-Anlage der Firma
-- [ ] UI: Team-Tabelle, Invite/Join-Code-Anzeige, Rolle ändern
+- [x] CRUD Memberships: Liste, Rolle setzen (`admin` \| `member`), entfernen
+- [x] Join-Code pro `SupplierCompany` (generieren, rotieren) — analog Department-Join
+- [x] Beitritt: User authentifiziert → Membership `member` (oder vom Admin hochgestuft)
+- [x] Nur **admin** darf Team + Join-Code; Join-Code **nicht** für Erst-Anlage der Firma
+- [x] UI: Team-Tabelle, Invite/Join-Code-Anzeige, Rolle ändern
 
 **Definition of Done:** Zweiter User tritt per Code bei; admin verwaltet Rollen; kein Zugriff für `member` auf Team-API.
 

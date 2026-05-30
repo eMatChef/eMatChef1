@@ -8,6 +8,7 @@ use App\Entity\Address;
 use App\Entity\SupplierCompany;
 use App\Entity\SupplierMembership;
 use App\Entity\User;
+use App\Repository\SupplierCompanyRepository;
 use App\Util\IdGenerator;
 use Doctrine\ORM\EntityManagerInterface;
 
@@ -87,6 +88,73 @@ class SupplierCompanyFactory
         $this->entityManager->flush();
 
         return $membership;
+    }
+
+    public function ensureJoinCode(SupplierCompany $company): string
+    {
+        if ($company->getJoinCode() !== null && $company->getJoinCode() !== '') {
+            return $company->getJoinCode();
+        }
+
+        do {
+            $code = strtoupper(substr(bin2hex(random_bytes(4)), 0, 8));
+            $existing = $this->entityManager->getRepository(SupplierCompany::class)->findOneBy([
+                'joinCode' => $code,
+            ]);
+        } while ($existing !== null);
+
+        $company->setJoinCode($code);
+        $company->updateTimestamps();
+        $this->entityManager->flush();
+
+        return $code;
+    }
+
+    public function regenerateJoinCode(SupplierCompany $company): string
+    {
+        do {
+            $code = strtoupper(substr(bin2hex(random_bytes(4)), 0, 8));
+            $existing = $this->entityManager->getRepository(SupplierCompany::class)->findOneBy([
+                'joinCode' => $code,
+            ]);
+        } while ($existing !== null && $existing->getId() !== $company->getId());
+
+        $company->setJoinCode($code);
+        $company->updateTimestamps();
+        $this->entityManager->flush();
+
+        return $code;
+    }
+
+    public function joinCompanyByCode(User $user, string $joinCode): SupplierMembership
+    {
+        $company = $this->entityManager->getRepository(SupplierCompany::class);
+        if (!$company instanceof SupplierCompanyRepository) {
+            throw new \RuntimeException('SupplierCompanyRepository expected');
+        }
+        $resolved = $company->findOneActiveByJoinCode($joinCode);
+        if (!$resolved instanceof SupplierCompany) {
+            throw new \InvalidArgumentException('Kein Lieferanten-Unternehmen für diesen Join-Code gefunden');
+        }
+
+        $existing = $this->entityManager->getRepository(SupplierMembership::class)->findOneBy([
+            'userId' => $user->getId(),
+            'supplierCompanyId' => $resolved->getId(),
+        ]);
+        if ($existing instanceof SupplierMembership) {
+            throw new \InvalidArgumentException('Du bist bereits Mitglied dieser Firma');
+        }
+
+        $hasAny = \count($this->entityManager->getRepository(SupplierMembership::class)->findBy([
+            'userId' => $user->getId(),
+        ])) > 0;
+
+        return $this->addMembership(
+            $resolved,
+            $user,
+            SupplierMembership::ROLE_MEMBER,
+            !$hasAny,
+        );
     }
 
     /**

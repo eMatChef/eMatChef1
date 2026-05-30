@@ -679,7 +679,35 @@
   },
   "supplierTeam": {
     "title": "Team",
-    "placeholder": "Team-Verwaltung und Join-Codes werden hier in Kürze verfügbar sein."
+    "joinCodeTitle": "Join-Code",
+    "joinCodeHint": "Teile diesen Code mit Kolleginnen und Kollegen. Nach dem Login können sie der Firma beitreten.",
+    "copyCode": "Code kopieren",
+    "copyLink": "Link kopieren",
+    "regenerate": "Code erneuern",
+    "regenerateConfirmTitle": "Join-Code erneuern?",
+    "regenerateConfirmMessage": "Der bisherige Code funktioniert danach nicht mehr.",
+    "regenerateSuccess": "Join-Code wurde erneuert.",
+    "regenerateFailed": "Join-Code konnte nicht erneuert werden.",
+    "copyCodeSuccess": "Join-Code kopiert.",
+    "copyLinkSuccess": "Einladungslink kopiert.",
+    "membersTitle": "Mitglieder",
+    "emptyMembers": "Noch keine weiteren Mitglieder.",
+    "loadFailed": "Team konnte nicht geladen werden.",
+    "roleUpdated": "Rolle gespeichert.",
+    "roleUpdateFailed": "Rolle konnte nicht gespeichert werden.",
+    "removeConfirmTitle": "Mitglied entfernen?",
+    "removeConfirmMessage": "{name} wirklich aus der Firma entfernen?",
+    "removeSuccess": "Mitglied entfernt.",
+    "removeFailed": "Mitglied konnte nicht entfernt werden.",
+    "columns": {
+      "name": "Name",
+      "email": "E-Mail",
+      "role": "Rolle"
+    },
+    "roles": {
+      "admin": "Admin",
+      "member": "Mitglied"
+    }
   },
   "layout": {
     "onboardingResume": "Onboarding fortsetzen",

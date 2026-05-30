@@ -37,6 +37,9 @@ class SupplierCompany
     #[ORM\Column(name: 'manufacturer_key', type: 'string', length: 120, nullable: true)]
     private ?string $manufacturerKey = null;
 
+    #[ORM\Column(name: 'join_code', type: 'string', length: 8, nullable: true)]
+    private ?string $joinCode = null;
+
     #[ORM\Column(name: 'supplier_address_id', type: 'string', length: 12, nullable: true, columnDefinition: 'CHARACTER(12) NULL')]
     private ?string $supplierAddressId = null;
 
@@ -108,6 +111,22 @@ class SupplierCompany
         $this->manufacturerKey = $manufacturerKey !== null && $manufacturerKey !== ''
             ? mb_strtolower(trim($manufacturerKey))
             : null;
+        return $this;
+    }
+
+    public function getJoinCode(): ?string
+    {
+        return $this->joinCode;
+    }
+
+    public function setJoinCode(?string $joinCode): self
+    {
+        if ($joinCode === null || $joinCode === '') {
+            $this->joinCode = null;
+            return $this;
+        }
+        $normalized = strtoupper(preg_replace('/[^A-Z0-9]/', '', $joinCode) ?? '');
+        $this->joinCode = $normalized !== '' ? $normalized : null;
         return $this;
     }
 
