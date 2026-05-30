@@ -1,6 +1,5 @@
 <template>
   <div class="global-search" :class="{ expanded: isExpanded, inline: mode === 'inline' }" ref="rootRef">
-    <!-- Icon-Modus: Nur Lupensymbol, expandiert bei Klick -->
     <button
       v-if="mode === 'icon' && !isExpanded"
       type="button"
@@ -12,56 +11,56 @@
       <IconSearch />
     </button>
 
-    <!-- Suchfeld (expandiert oder inline) -->
-    <div v-else class="search-field-wrap">
-      <IconSearch />
-      <input
-        ref="inputRef"
+    <div v-else class="global-search__field">
+      <SearchFieldInput
+        ref="searchFieldRef"
         v-model="query"
-        type="text"
-        :placeholder="placeholder || t('components.globalSearch.placeholderDefault')"
-        class="search-input"
-        :class="{ 'has-clear': mode === 'inline' && query }"
+        :label="effectiveLabel"
+        :clearable="mode === 'inline'"
+        class="global-search__input"
         @input="onInput"
-        @focus="showSuggestionsDropdown = true"
+        @focus="onFieldFocus"
         @keydown="onKeydown"
-      />
+      >
+        <Transition name="dropdown-fade">
+          <div
+            v-if="showSuggestionsDropdown && (suggestions.length > 0 || isSuggestionsLoading)"
+            class="suggestions-dropdown"
+          >
+            <div v-if="isSuggestionsLoading" class="suggestions-loading">
+              {{ t('components.globalSearch.loadingSuggestions') }}
+            </div>
+            <div v-else class="suggestions-list">
+              <button
+                v-for="s in suggestions"
+                :key="`${s.type}-${s.id}`"
+                type="button"
+                class="suggestion-item"
+                @click="selectSuggestion(s)"
+              >
+                <span class="suggestion-label">{{ s.label }}</span>
+                <span class="suggestion-type">{{ typeLabel(s.type) }}</span>
+              </button>
+            </div>
+          </div>
+        </Transition>
+      </SearchFieldInput>
       <button
-        v-if="(mode === 'icon') || (mode === 'inline' && query)"
+        v-if="mode === 'icon'"
         type="button"
-        class="search-close-btn"
-        :aria-label="mode === 'icon' ? t('common.searchClose') : t('common.searchClear')"
-        @click="mode === 'icon' ? collapse() : (query = '')"
+        class="global-search__collapse"
+        :aria-label="t('common.searchClose')"
+        @click="collapse"
       >
         <IconClose />
       </button>
-      <!-- Dropdown: bis zu 4 Vorschläge -->
-      <Transition name="dropdown-fade">
-        <div
-          v-if="showSuggestionsDropdown && (suggestions.length > 0 || isSuggestionsLoading)"
-          class="suggestions-dropdown"
-        >
-          <div v-if="isSuggestionsLoading" class="suggestions-loading">{{ t('components.globalSearch.loadingSuggestions') }}</div>
-          <div v-else class="suggestions-list">
-            <button
-              v-for="s in suggestions"
-              :key="`${s.type}-${s.id}`"
-              type="button"
-              class="suggestion-item"
-              @click="selectSuggestion(s)"
-            >
-              <span class="suggestion-label">{{ s.label }}</span>
-              <span class="suggestion-type">{{ typeLabel(s.type) }}</span>
-            </button>
-          </div>
-        </div>
-      </Transition>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { IconSearch, IconClose } from '@/components/icons'
+import SearchFieldInput from '@/components/common/SearchFieldInput.vue'
 import { ref, watch, nextTick, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
@@ -75,15 +74,10 @@ import {
 
 const props = withDefaults(
   defineProps<{
-    /** icon = expandierbar (Header), inline = immer sichtbar (in Views) */
     mode?: 'icon' | 'inline'
-    /** Department-ID für Navigation */
     departmentId?: string
-    /** Standard-Suchtyp ohne Prefix (z.B. in Material-View: material) */
     defaultType?: SearchTargetType
-    /** Placeholder-Text */
     placeholder?: string
-    /** Initialer Wert (z.B. aus route.query.q) */
     modelValue?: string
   }>(),
   {
@@ -104,13 +98,16 @@ const { executeSearch } = useSearchNavigation()
 
 const query = ref(props.modelValue ?? '')
 const isExpanded = ref(props.mode === 'inline')
-const inputRef = ref<HTMLInputElement | null>(null)
+const searchFieldRef = ref<InstanceType<typeof SearchFieldInput> | null>(null)
 const rootRef = ref<HTMLElement | null>(null)
 const suggestions = ref<SearchSuggestion[]>([])
 const isSuggestionsLoading = ref(false)
 const showSuggestionsDropdown = ref(false)
 
 const effectiveDepartmentId = computed(() => props.departmentId ?? '')
+const effectiveLabel = computed(
+  () => props.placeholder || t('components.globalSearch.placeholderDefault'),
+)
 
 let debounceTimer: ReturnType<typeof setTimeout> | null = null
 
@@ -128,7 +125,7 @@ watch(query, (val) => emit('update:modelValue', val))
 
 function typeLabel(type: SearchTargetType): string {
   const keys: Record<SearchTargetType, string> = {
-    material: 'components.globalSearch.typeMaterial',
+    material: 'common.material',
     activity: 'components.globalSearch.typeActivity',
     reparatur: 'components.globalSearch.typeRepair',
   }
@@ -144,6 +141,10 @@ function onInput() {
     return
   }
   debounceTimer = setTimeout(() => loadSuggestions(), 250)
+}
+
+function onFieldFocus() {
+  showSuggestionsDropdown.value = true
 }
 
 async function loadSuggestions() {
@@ -180,7 +181,7 @@ function handleClickOutside(e: MouseEvent) {
 
 function expand() {
   isExpanded.value = true
-  nextTick(() => inputRef.value?.focus())
+  nextTick(() => searchFieldRef.value?.focus())
 }
 
 function collapse() {
@@ -196,7 +197,7 @@ function onKeydown(e: KeyboardEvent) {
     if (props.mode === 'icon') {
       collapse()
     } else {
-      ;(e.target as HTMLInputElement).blur()
+      searchFieldRef.value?.blur()
     }
     return
   }
@@ -234,7 +235,7 @@ onUnmounted(() => {
 defineExpose({
   expand,
   collapse,
-  focus: () => inputRef.value?.focus(),
+  focus: () => searchFieldRef.value?.focus(),
 })
 </script>
 
@@ -249,11 +250,23 @@ defineExpose({
   min-width: 0;
 }
 
-.global-search.inline .search-field-wrap {
+.global-search__field {
+  position: relative;
   display: flex;
+  align-items: flex-start;
+  gap: 4px;
   width: 100%;
-  min-width: 200px;
+  min-width: 280px;
   max-width: 500px;
+}
+
+.global-search.inline .global-search__field {
+  max-width: none;
+}
+
+.global-search__input {
+  flex: 1;
+  min-width: 0;
 }
 
 .search-icon-btn {
@@ -265,10 +278,11 @@ defineExpose({
   display: flex;
   align-items: center;
   justify-content: center;
+  transition: color 0.15s ease;
 }
 
 .search-icon-btn:hover {
-  color: #333;
+  color: var(--color-primary, #10b981);
 }
 
 .search-icon-btn .icon {
@@ -276,55 +290,28 @@ defineExpose({
   height: 20px;
 }
 
-.search-field-wrap {
-  position: relative;
-  display: flex;
-  align-items: center;
-  width: 100%;
-  min-width: 280px;
-  max-width: 500px;
-}
-
-.search-icon {
-  position: absolute;
-  left: 12px;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 18px;
-  height: 18px;
-  color: #999;
-  pointer-events: none;
-}
-
-.search-input {
-  width: 100%;
-  padding: 10px 36px 10px 40px;
-  border-radius: 10px;
-  font-size: 14px;
-}
-
-.search-close-btn {
-  position: absolute;
-  right: 8px;
-  top: 50%;
-  transform: translateY(-50%);
+.global-search__collapse {
+  flex-shrink: 0;
+  align-self: center;
+  margin-top: 10px;
   background: none;
   border: none;
-  padding: 4px;
+  padding: 8px;
   cursor: pointer;
   color: #999;
   display: flex;
   align-items: center;
   justify-content: center;
+  transition: color 0.15s ease;
 }
 
-.search-close-btn:hover {
-  color: #333;
+.global-search__collapse:hover {
+  color: var(--color-primary, #10b981);
 }
 
 .suggestions-dropdown {
   position: absolute;
-  top: 100%;
+  top: calc(100% - 6px);
   left: 0;
   right: 0;
   margin-top: 4px;

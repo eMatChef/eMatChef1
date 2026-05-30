@@ -4,7 +4,7 @@
       <label>{{ storageAddressLabel }}</label>
       <select
         :value="storageAddressId"
-        class="picker-select"
+        class="form-select"
         :disabled="disabled"
         @change="handleStorageAddressChange"
       >
@@ -23,14 +23,14 @@
       <label>{{ rackLabel }}</label>
       <select
         :value="rackId"
-        class="picker-select"
+        class="form-select"
         :disabled="disabled"
         @change="handleRackChange"
         @mouseenter="$emit('rackListMouseenter')"
       >
         <option value="">{{ rackPlaceholder }}</option>
         <option
-          v-for="rack in racks"
+          v-for="rack in sortedRacks"
           :key="rack.id"
           :value="String(rack.id)"
           :title="formatRackOptionTitle(rack)"
@@ -44,14 +44,14 @@
       <label>{{ slotLabel }}</label>
       <select
         :value="slotId"
-        class="picker-select"
+        class="form-select"
         :disabled="disabled || (disableSlotWithoutRack && !rackId)"
         @change="handleSlotChange"
         @mouseenter="$emit('slotListMouseenter')"
       >
         <option value="">{{ slotPlaceholder }}</option>
         <option
-          v-for="slot in slotList"
+          v-for="slot in sortedSlotList"
           :key="slot.id"
           :value="String(slot.id)"
           :title="formatSlotOptionTitle(slot)"
@@ -67,7 +67,9 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
 import type { StorageRack, StorageSlot } from '@/api/storageLocations'
+import { sortByNaturalName } from '@/utils/naturalSort'
 
 type StorageAddressOption = {
   id: string
@@ -126,6 +128,9 @@ const props = withDefaults(defineProps<{
   rackOptionTitleFormatter: undefined,
   slotOptionTitleFormatter: undefined,
 })
+
+const sortedRacks = computed(() => sortByNaturalName(props.racks, (rack) => rack.name))
+const sortedSlotList = computed(() => sortByNaturalName(props.slotList, (slot) => slot.name))
 
 function formatSlotLabel(slot: StorageSlot): string {
   return props.slotLabelFormatter ? props.slotLabelFormatter(slot) : slot.name
@@ -189,22 +194,7 @@ function handleSlotChange(event: Event) {
 }
 
 .picker-field {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.picker-field label {
-  font-size: 13px;
-  font-weight: 500;
-  color: #374151;
-}
-
-.picker-select {
-  padding: 8px 12px;
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
-  font-size: 14px;
+  min-width: 0;
 }
 
 .picker-hint {

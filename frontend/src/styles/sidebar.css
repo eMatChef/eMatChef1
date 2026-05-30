@@ -143,6 +143,37 @@
   opacity: 1;
 }
 
+.nav-item--toggle {
+  position: relative;
+}
+
+.nav-chevron {
+  width: 14px;
+  height: 14px;
+  margin-left: auto;
+  flex-shrink: 0;
+  opacity: 0.7;
+  transition: transform 0.2s ease;
+}
+
+.nav-chevron--collapsed {
+  transform: rotate(-90deg);
+}
+
+.nav-item--sub {
+  padding-left: 36px;
+  min-height: 40px;
+}
+
+.nav-item--sub .nav-icon {
+  display: none;
+}
+
+.nav-label--sub {
+  font-size: 13px;
+  font-weight: 400;
+}
+
 .sidebar-footer {
   padding: 16px;
   border-top: 1px solid rgba(255, 255, 255, 0.1);

@@ -4,9 +4,17 @@ namespace App\Controller;
 
 use App\Entity\MaterialTemplate;
 use App\Entity\MaterialTemplateComponent;
+use App\Entity\MaterialTemplateOption;
+use App\Entity\MaterialTemplateOptionDelta;
+use App\Entity\MaterialTemplateOptionGroup;
+use App\Entity\MaterialTemplateRelatedAccessory;
 use App\Entity\MaterialItem;
 use App\Entity\MaterialBatch;
 use App\Entity\MaterialComboComponent;
+use App\Entity\MaterialComboOption;
+use App\Entity\MaterialComboOptionDelta;
+use App\Entity\MaterialComboOptionGroup;
+use App\Entity\MaterialRelatedAccessory;
 use App\Entity\Category;
 use App\Entity\Department;
 use App\Entity\Address;
@@ -14,6 +22,8 @@ use App\Entity\BatchStorageAllocation;
 use App\Entity\StorageRack;
 use App\Entity\StorageSlot;
 use App\Service\Public\PublicCodeService;
+use App\Service\TemplateImportExportService;
+use App\Service\MaterialWizardSupplierService;
 use App\Entity\User;
 use App\Util\IdGenerator;
 use Doctrine\ORM\EntityManagerInterface;
@@ -29,6 +39,8 @@ class TemplateController extends AbstractController
     public function __construct(
         private EntityManagerInterface $entityManager,
         private PublicCodeService $publicCodeService,
+        private TemplateImportExportService $templateImportExportService,
+        private MaterialWizardSupplierService $materialWizardSupplierService,
     ) {}
 
     /**
@@ -43,22 +55,31 @@ class TemplateController extends AbstractController
     public function list(Request $request): JsonResponse
     {
         $departmentId = $request->query->get('department_id');
+        $scope = $request->query->get('scope');
 
-        if (!$departmentId) {
-            return new JsonResponse(['error' => 'department_id ist erforderlich'], 400);
-        }
-
-        // Zentrale (global) + Department-eigene Vorlagen laden
-        $templates = $this->entityManager->getRepository(MaterialTemplate::class)
+        $qb = $this->entityManager->getRepository(MaterialTemplate::class)
             ->createQueryBuilder('t')
             ->leftJoin('t.components', 'c')
             ->addSelect('c')
             ->leftJoin('t.category', 'cat')
-            ->addSelect('cat')
-            ->where('t.departmentId IS NULL OR t.departmentId = :departmentId')
-            ->setParameter('departmentId', $departmentId)
+            ->addSelect('cat');
+
+        if ($scope === 'global') {
+            if (!$this->canEditGlobalTemplates()) {
+                return new JsonResponse(['error' => 'Keine Berechtigung für zentrale Vorlagen'], 403);
+            }
+            $qb->where('t.departmentId IS NULL');
+        } elseif (!$departmentId) {
+            return new JsonResponse(['error' => 'department_id ist erforderlich'], 400);
+        } else {
+            // Zentrale (global) + Department-eigene Vorlagen laden
+            $qb->where('t.departmentId IS NULL OR t.departmentId = :departmentId')
+                ->setParameter('departmentId', $departmentId);
+        }
+
+        $templates = $qb
             ->orderBy('t.scope', 'ASC')
-            ->addOrderBy('t.manufacturer', 'ASC')
+            ->addOrderBy('t.manufacturer', 'ASC', 'NULLS LAST')
             ->addOrderBy('t.name', 'ASC')
             ->getQuery()
             ->getResult();
@@ -84,11 +105,147 @@ class TemplateController extends AbstractController
     }
 
     /**
+     * Lieferanten/Hersteller für Vorlagen-Picker (Address-Scope-Modell).
+     */
+    #[Route('/manufacturer-options', name: 'manufacturer_options', methods: ['GET'], priority: 5)]
+    #[IsGranted('ROLE_USER')]
+    public function manufacturerOptions(Request $request): JsonResponse
+    {
+        $scope = (string) $request->query->get('scope', 'department');
+        $departmentId = trim((string) $request->query->get('department_id', ''));
+
+        if ($scope === 'global') {
+            if (!$this->canEditGlobalTemplates()) {
+                return new JsonResponse(['error' => 'Keine Berechtigung für zentrale Vorlagen'], 403);
+            }
+            $addresses = $this->materialWizardSupplierService->listCatalogSuppliers();
+        } else {
+            if ($departmentId === '') {
+                return new JsonResponse(['error' => 'department_id ist erforderlich'], 400);
+            }
+            $addresses = $this->materialWizardSupplierService->listForDepartment($departmentId);
+        }
+
+        return new JsonResponse([
+            'options' => array_map(fn (Address $address) => [
+                'id' => $address->getId(),
+                'label' => $this->addressDisplayLabel($address),
+                'scope' => $address->getScope(),
+            ], $addresses),
+        ]);
+    }
+
+    /**
+     * JSON-Datei importieren (v4/v5-Format)
+     * Body: { department_id?, scope?, templates_json, duplicate_action?, dry_run?, force? }
+     */
+    #[Route('/import', name: 'import', methods: ['POST'])]
+    #[IsGranted('ROLE_USER')]
+    public function import(Request $request): JsonResponse
+    {
+        $data = json_decode($request->getContent(), true);
+        if (!is_array($data)) {
+            return new JsonResponse(['error' => 'Ungültiger JSON-Body'], 400);
+        }
+
+        if (!isset($data['templates_json']) || !is_array($data['templates_json'])) {
+            return new JsonResponse(['error' => 'templates_json ist erforderlich'], 400);
+        }
+
+        $scope = (string) ($data['scope'] ?? 'department');
+        $departmentId = isset($data['department_id']) ? trim((string) $data['department_id']) : null;
+
+        $user = $this->getUser();
+        if (!$user instanceof User) {
+            return new JsonResponse(['error' => 'Nicht authentifiziert'], 401);
+        }
+
+        $accessError = $this->templateImportExportService->assertCanImport($departmentId, $scope, $user);
+        if ($accessError !== null) {
+            return new JsonResponse(['error' => $accessError], 403);
+        }
+
+        $duplicateAction = (string) ($data['duplicate_action'] ?? 'skip');
+        if (!in_array($duplicateAction, ['skip', 'update', 'create'], true)) {
+            $duplicateAction = 'skip';
+        }
+
+        $dryRun = (bool) ($data['dry_run'] ?? false);
+
+        try {
+            $result = $this->templateImportExportService->importFromJson($data['templates_json'], [
+                'scope' => $scope,
+                'department_id' => $departmentId,
+                'duplicate_action' => $duplicateAction,
+                'dry_run' => $dryRun,
+                'force' => (bool) ($data['force'] ?? false),
+            ]);
+
+            if (!empty($result['error'])) {
+                return new JsonResponse(['error' => $result['error']], 400);
+            }
+
+            $status = $dryRun ? 200 : ($result['success'] ? 201 : 207);
+
+            return new JsonResponse($result, $status);
+        } catch (\Throwable $e) {
+            return new JsonResponse([
+                'error' => 'Fehler beim Import: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Vorlagen als v5-JSON exportieren
+     * Query: scope=global|department, department_id?, manufacturer?
+     */
+    #[Route('/export', name: 'export', methods: ['GET'])]
+    #[IsGranted('ROLE_USER')]
+    public function export(Request $request): JsonResponse
+    {
+        $scope = (string) ($request->query->get('scope', 'department'));
+        $departmentId = trim((string) ($request->query->get('department_id', '')));
+        $manufacturer = trim((string) ($request->query->get('manufacturer', '')));
+
+        $user = $this->getUser();
+        if (!$user instanceof User) {
+            return new JsonResponse(['error' => 'Nicht authentifiziert'], 401);
+        }
+
+        $accessError = $this->templateImportExportService->assertCanExport(
+            $departmentId !== '' ? $departmentId : null,
+            $scope,
+            $user,
+        );
+        if ($accessError !== null) {
+            return new JsonResponse(['error' => $accessError], 403);
+        }
+
+        try {
+            $result = $this->templateImportExportService->exportToJson(
+                $scope,
+                $departmentId !== '' ? $departmentId : null,
+                $manufacturer !== '' ? $manufacturer : null,
+            );
+
+            if (!empty($result['error'])) {
+                return new JsonResponse(['error' => $result['error']], 404);
+            }
+
+            return new JsonResponse($result);
+        } catch (\Throwable $e) {
+            return new JsonResponse([
+                'error' => 'Export fehlgeschlagen: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
      * Einzelne Vorlage mit Komponenten laden
      */
-    #[Route('/{id}', name: 'get', methods: ['GET'])]
+    #[Route('/{id}', name: 'get', methods: ['GET'], requirements: ['id' => '[a-zA-Z0-9]+'])]
     #[IsGranted('ROLE_USER')]
-    public function get(string $id): JsonResponse
+    public function get(string $id, Request $request): JsonResponse
     {
         $template = $this->entityManager->getRepository(MaterialTemplate::class)->find($id);
 
@@ -96,7 +253,12 @@ class TemplateController extends AbstractController
             return new JsonResponse(['error' => 'Vorlage nicht gefunden'], 404);
         }
 
-        $data = $this->serializeTemplate($template, true);
+        $departmentId = trim((string) $request->query->get('department_id', ''));
+        $data = $this->serializeTemplate(
+            $template,
+            true,
+            $departmentId !== '' ? $departmentId : null,
+        );
         $data['can_edit'] = $template->isGlobal() ? $this->canEditGlobalTemplates() : true;
 
         return new JsonResponse($data);
@@ -148,8 +310,12 @@ class TemplateController extends AbstractController
             if (isset($data['description'])) {
                 $template->setDescription($data['description']);
             }
-            if (isset($data['manufacturer'])) {
-                $template->setManufacturer($data['manufacturer']);
+            $this->applyManufacturerFields($template, $data);
+            if (isset($data['template_kind'])) {
+                $template->setTemplateKind($this->nullableString($data['template_kind']));
+            }
+            if (isset($data['template_domain'])) {
+                $template->setTemplateDomain($this->nullableString($data['template_domain']));
             }
             if (isset($data['model'])) {
                 $template->setModel($data['model']);
@@ -162,9 +328,6 @@ class TemplateController extends AbstractController
             }
             if (isset($data['capacity'])) {
                 $template->setCapacity((int) $data['capacity']);
-            }
-            if (isset($data['reservation_mode'])) {
-                $template->setReservationMode($data['reservation_mode']);
             }
             if (isset($data['source'])) {
                 $template->setSource($data['source']);
@@ -190,7 +353,18 @@ class TemplateController extends AbstractController
                 }
             }
 
+            // Verwandtes Zubehör (Empfehlung, kein Stücklisten-Teil)
+            if (isset($data['related_accessories']) && is_array($data['related_accessories'])) {
+                foreach ($data['related_accessories'] as $index => $accData) {
+                    $template->addRelatedAccessory($this->createTemplateAccessory($accData, $index));
+                }
+            }
+
             $this->entityManager->persist($template);
+            $this->entityManager->flush();
+
+            // Options-Gruppen/Optionen (Weg B, Paket 6) – nach dem ersten Flush (Template-Id steht).
+            $this->applyTemplateOptions($template, $data);
             $this->entityManager->flush();
 
             return new JsonResponse($this->serializeTemplate($template, true), 201);
@@ -229,8 +403,12 @@ class TemplateController extends AbstractController
             if (isset($data['description'])) {
                 $template->setDescription($data['description']);
             }
-            if (isset($data['manufacturer'])) {
-                $template->setManufacturer($data['manufacturer']);
+            $this->applyManufacturerFields($template, $data);
+            if (array_key_exists('template_kind', $data)) {
+                $template->setTemplateKind($this->nullableString($data['template_kind']));
+            }
+            if (array_key_exists('template_domain', $data)) {
+                $template->setTemplateDomain($this->nullableString($data['template_domain']));
             }
             if (isset($data['model'])) {
                 $template->setModel($data['model']);
@@ -243,9 +421,6 @@ class TemplateController extends AbstractController
             }
             if (array_key_exists('capacity', $data)) {
                 $template->setCapacity($data['capacity'] !== null ? (int) $data['capacity'] : null);
-            }
-            if (isset($data['reservation_mode'])) {
-                $template->setReservationMode($data['reservation_mode']);
             }
             if (isset($data['source'])) {
                 $template->setSource($data['source']);
@@ -281,6 +456,20 @@ class TemplateController extends AbstractController
                     $template->addComponent($component);
                 }
             }
+
+            // Verwandtes Zubehör ersetzen (wenn mitgeliefert)
+            if (isset($data['related_accessories']) && is_array($data['related_accessories'])) {
+                foreach ($template->getRelatedAccessories()->toArray() as $existing) {
+                    $template->removeRelatedAccessory($existing);
+                    $this->entityManager->remove($existing);
+                }
+                foreach ($data['related_accessories'] as $index => $accData) {
+                    $template->addRelatedAccessory($this->createTemplateAccessory($accData, $index));
+                }
+            }
+
+            // Options-Gruppen/Optionen (Weg B, Paket 6) ersetzen.
+            $this->applyTemplateOptions($template, $data);
 
             $template->updateTimestamps();
             $this->entityManager->flush();
@@ -325,7 +514,7 @@ class TemplateController extends AbstractController
      * Unterstützt 3 Erstellungsmodi (creation_mode):
      * - individual:      Einzelartikel erstellen/ergänzen (kein Combo)
      * - physical_combo:  Physische Kombo (feste Einheit, name Pflicht)
-     * - virtual_combo:   Virtuelle Kombo (Planungsgruppe, reservation_mode)
+     * - virtual_combo:   Virtuelle Kombo (Planungsgruppe)
      */
     #[Route('/{id}/create-material', name: 'create_material', methods: ['POST'])]
     #[IsGranted('ROLE_USER')]
@@ -409,17 +598,12 @@ class TemplateController extends AbstractController
                 $comboMaterial->setMaterialType($creationMode); // physical_combo oder virtual_combo
                 $comboMaterial->setTrackingType('serialized');
                 $comboMaterial->setIsContainer(true);
+                // Aus Vorlage erstellte Kombo startet als Entwurf (Detail-Tab → fertigstellen).
+                $comboMaterial->setComboStatus('draft');
                 $comboMaterial->setTentType($data['tent_type'] ?? $template->getTentType());
                 $comboMaterial->setTentCapacity($data['tent_capacity'] ?? $template->getCapacity());
                 $comboMaterial->setManufacturer($data['manufacturer'] ?? $template->getManufacturer());
                 $comboMaterial->setModel($data['model'] ?? $template->getModel());
-
-                // Reservation Mode: nur bei virtual_combo relevant
-                if ($isVirtualCombo) {
-                    $comboMaterial->setReservationMode($data['reservation_mode'] ?? $template->getReservationMode() ?? 'complete_only');
-                } else {
-                    $comboMaterial->setReservationMode('complete_only');
-                }
 
                 if ($category) {
                     $comboMaterial->setCategory($category);
@@ -469,6 +653,8 @@ class TemplateController extends AbstractController
 
             $createdArticles = [];
             $sortOrder = 0;
+            /** @var array<string, MaterialItem> $materialByComponentType Bindung component_type → konkretes Material (für Options-Auflösung) */
+            $materialByComponentType = [];
 
             foreach ($templateComponents as $tplComp) {
                 $compType = $tplComp->getComponentType();
@@ -476,28 +662,10 @@ class TemplateController extends AbstractController
                 $requiredQty = $tplComp->getRequiredQty();
                 $tracking = $tplComp->getTracking(); // serialized oder bulk
                 $isOptional = $tplComp->getIsOptional();
+                $componentSource = $tplComp->getComponentSource(); // stock | self_provided
 
-                // ── Artikelname zusammensetzen ──
-                // is_generic=true  → Name bleibt generisch: "Heringe" (übergreifendes Material)
-                // is_generic=false → Name + Modell + Hersteller: "Außenzelt Phoenix Zelthangar"
-                $compName = $compNameRaw;
-
-                if (!$tplComp->getIsGeneric()) {
-                    $manufacturer = $template->getManufacturer() ?? '';
-                    $model = $template->getModel() ?? '';
-                    $nameLower = mb_strtolower($compName);
-
-                    // Modell anhängen (wenn nicht schon enthalten)
-                    if ($model && !str_contains($nameLower, mb_strtolower($model))) {
-                        $compName .= ' ' . $model;
-                        $nameLower = mb_strtolower($compName);
-                    }
-
-                    // Hersteller anhängen (wenn nicht schon enthalten)
-                    if ($manufacturer && !str_contains($nameLower, mb_strtolower($manufacturer))) {
-                        $compName .= ' ' . $manufacturer;
-                    }
-                }
+                // ── Artikelname zusammensetzen (eine zentrale Stelle) ──
+                $compName = $this->buildExpectedComponentName($template, $tplComp);
 
                 // Input-Daten für diese Komponente
                 $input = $inputByType[$compType] ?? null;
@@ -505,6 +673,14 @@ class TemplateController extends AbstractController
                 // Optionale Komponente ohne Input: überspringen
                 if ($isOptional && !$input) {
                     continue;
+                }
+
+                if (!$isOptional && $input === null) {
+                    $this->entityManager->rollback();
+
+                    return new JsonResponse([
+                        'error' => sprintf('Pflicht-Komponente "%s" fehlt in der Anfrage', $compType),
+                    ], 422);
                 }
 
                 $mode = $input['mode'] ?? 'new'; // new oder existing
@@ -524,24 +700,34 @@ class TemplateController extends AbstractController
 
                 // ── Komponenten-MaterialItem suchen oder erstellen ──
                 $componentMaterial = null;
-
-                if ($mode === 'existing' && isset($input['material_id'])) {
-                    $componentMaterial = $this->entityManager->getRepository(MaterialItem::class)
-                        ->find($input['material_id']);
-                }
-
-                if (!$componentMaterial) {
-                    // Suche nach existierendem Material mit gleichem Namen im Department
-                    $componentMaterial = $this->entityManager->getRepository(MaterialItem::class)
-                        ->findOneBy([
-                            'departmentId' => $department->getId(),
-                            'name' => $compName,
-                            'deletedAt' => null,
-                        ]);
-                }
-
                 $isNewArticle = false;
-                if (!$componentMaterial) {
+
+                if ($mode === 'existing') {
+                    $materialId = trim((string) ($input['material_id'] ?? ''));
+                    if ($materialId === '') {
+                        $this->entityManager->rollback();
+
+                        return new JsonResponse([
+                            'error' => sprintf(
+                                'Komponente "%s": mode=existing erfordert material_id (erwartet: %s)',
+                                $compType,
+                                $compName,
+                            ),
+                        ], 422);
+                    }
+                    $componentMaterial = $this->entityManager->getRepository(MaterialItem::class)->find($materialId);
+                    if (
+                        !$componentMaterial
+                        || $componentMaterial->getDepartmentId() !== $department->getId()
+                        || $componentMaterial->getDeletedAt() !== null
+                    ) {
+                        $this->entityManager->rollback();
+
+                        return new JsonResponse([
+                            'error' => sprintf('Komponente "%s": Material nicht gefunden oder gehört nicht zum Department', $compType),
+                        ], 422);
+                    }
+                } elseif ($mode === 'new') {
                     $isNewArticle = true;
                     $componentMaterial = new MaterialItem();
                     $componentMaterial->setId(IdGenerator::generate());
@@ -557,6 +743,12 @@ class TemplateController extends AbstractController
                         $componentMaterial->setStorageAddress($storageAddress);
                     }
                     $this->entityManager->persist($componentMaterial);
+                } else {
+                    $this->entityManager->rollback();
+
+                    return new JsonResponse([
+                        'error' => sprintf('Komponente "%s": ungültiger mode "%s"', $compType, $mode),
+                    ], 422);
                 }
 
                 // ── Batch erstellen (für individual + physical_combo) ──
@@ -625,6 +817,7 @@ class TemplateController extends AbstractController
                     $comboComp->setQty((int)$qty);
                     $comboComp->setComponentRole($compType);
                     $comboComp->setIsOptional($isOptional);
+                    $comboComp->setComponentSource($componentSource === 'self_provided' ? 'self_provided' : 'stock');
                     $comboComp->setSortOrder($sortOrder++);
 
                     if ($tracking === 'bulk') {
@@ -649,6 +842,10 @@ class TemplateController extends AbstractController
                     }
                 }
 
+                if ($compType !== '' && !isset($materialByComponentType[$compType])) {
+                    $materialByComponentType[$compType] = $componentMaterial;
+                }
+
                 $createdArticles[] = [
                     'id' => $componentMaterial->getId(),
                     'name' => $componentMaterial->getName(),
@@ -658,6 +855,66 @@ class TemplateController extends AbstractController
                     'serial_number' => $componentBatch?->getSerialNumber(),
                     'qty' => (int)$qty,
                 ];
+            }
+
+            // ══════════════════════════════════════════════
+            // Verwandtes Zubehör übertragen (Empfehlung, kein Stücklisten-Teil)
+            // ══════════════════════════════════════════════
+            if (!$isIndividual && $comboMaterial) {
+                $accSort = 0;
+                foreach ($template->getRelatedAccessories() as $tplAcc) {
+                    $accName = $tplAcc->getName();
+                    if (!$tplAcc->getIsGeneric()) {
+                        $manufacturer = $template->getManufacturer() ?? '';
+                        $model = $template->getModel() ?? '';
+                        $nameLower = mb_strtolower($accName);
+                        if ($model && !str_contains($nameLower, mb_strtolower($model))) {
+                            $accName .= ' ' . $model;
+                            $nameLower = mb_strtolower($accName);
+                        }
+                        if ($manufacturer && !str_contains($nameLower, mb_strtolower($manufacturer))) {
+                            $accName .= ' ' . $manufacturer;
+                        }
+                    }
+
+                    $accessoryMaterial = $this->entityManager->getRepository(MaterialItem::class)
+                        ->findOneBy([
+                            'departmentId' => $department->getId(),
+                            'name' => $accName,
+                            'deletedAt' => null,
+                        ]);
+
+                    if (!$accessoryMaterial) {
+                        $accessoryMaterial = new MaterialItem();
+                        $accessoryMaterial->setId(IdGenerator::generate());
+                        $accessoryMaterial->setDepartment($department);
+                        $accessoryMaterial->setName($accName);
+                        $accessoryMaterial->setMaterialType('physical');
+                        $accessoryMaterial->setManufacturer($template->getManufacturer());
+                        if ($category) {
+                            $accessoryMaterial->setCategory($category);
+                        }
+                        if ($storageAddress) {
+                            $accessoryMaterial->setStorageAddress($storageAddress);
+                        }
+                        $this->entityManager->persist($accessoryMaterial);
+                        $comboComponentMaterialsForPublicCode[$accessoryMaterial->getId()] = $accessoryMaterial;
+                    }
+
+                    $link = new MaterialRelatedAccessory();
+                    $link->setId(IdGenerator::generate13Unique($this->entityManager, MaterialRelatedAccessory::class, 'ra'));
+                    $link->setMaterial($comboMaterial);
+                    $link->setAccessoryMaterial($accessoryMaterial);
+                    $link->setSortOrder($accSort++);
+                    $this->entityManager->persist($link);
+                }
+            }
+
+            // ══════════════════════════════════════════════
+            // Options-Gruppen/Optionen (Konfigurator, Weg B) – nur virtuelle Kombo, generisch → konkret binden
+            // ══════════════════════════════════════════════
+            if ($isVirtualCombo && $comboMaterial) {
+                $this->resolveTemplateOptionsToCombo($template, $comboMaterial, $materialByComponentType, $department->getId());
             }
 
             $actorId = $this->getActorUserId();
@@ -702,7 +959,6 @@ class TemplateController extends AbstractController
                     'is_container' => $comboMaterial->getIsContainer(),
                     'tent_type' => $comboMaterial->getTentType(),
                     'tent_capacity' => $comboMaterial->getTentCapacity(),
-                    'reservation_mode' => $comboMaterial->getReservationMode(),
                     'manufacturer' => $comboMaterial->getManufacturer(),
                 ],
                 'components' => $createdArticles,
@@ -716,114 +972,6 @@ class TemplateController extends AbstractController
             }
             return new JsonResponse([
                 'error' => 'Fehler beim Erstellen des Materials: ' . $e->getMessage()
-            ], 500);
-        }
-    }
-
-    /**
-     * JSON-Datei importieren (v4-Format)
-     * Erwartet: { "manufacturer": "...", "templates": [...] }
-     */
-    #[Route('/import', name: 'import', methods: ['POST'])]
-    #[IsGranted('ROLE_USER')]
-    public function import(Request $request): JsonResponse
-    {
-        $data = json_decode($request->getContent(), true);
-
-        if (!isset($data['department_id'])) {
-            return new JsonResponse(['error' => 'department_id ist erforderlich'], 400);
-        }
-        if (!isset($data['templates_json'])) {
-            return new JsonResponse(['error' => 'templates_json ist erforderlich'], 400);
-        }
-
-        $department = $this->entityManager->getRepository(Department::class)
-            ->find($data['department_id']);
-        if (!$department) {
-            return new JsonResponse(['error' => 'Department nicht gefunden'], 404);
-        }
-
-        $json = $data['templates_json'];
-        if (!isset($json['manufacturer']) || !isset($json['templates'])) {
-            return new JsonResponse(['error' => 'Ungültiges JSON-Format. Erwartet: { "manufacturer": "...", "templates": [...] }'], 400);
-        }
-
-        $manufacturer = $json['manufacturer'];
-        $created = 0;
-        $skipped = 0;
-
-        try {
-            foreach ($json['templates'] as $tplData) {
-                // Prüfe ob schon vorhanden (gleicher Name + Department)
-                $existing = $this->entityManager->getRepository(MaterialTemplate::class)
-                    ->findOneBy([
-                        'departmentId' => $department->getId(),
-                        'name' => $tplData['name'] ?? $tplData['id'] ?? 'Unbenannt'
-                    ]);
-
-                if ($existing) {
-                    $skipped++;
-                    continue;
-                }
-
-                $template = new MaterialTemplate();
-                $template->setId(IdGenerator::generate());
-                $template->setDepartment($department);
-                $template->setName($tplData['name'] ?? $tplData['id'] ?? 'Unbenannt');
-                $template->setDescription($tplData['description'] ?? null);
-                $template->setManufacturer($manufacturer);
-                $template->setModel($tplData['model'] ?? null);
-                $template->setMaterialType($tplData['materialType'] ?? 'physical_combo');
-                $template->setTentType($tplData['tentType'] ?? null);
-                $template->setCapacity(isset($tplData['capacity']) ? (int) $tplData['capacity'] : null);
-                $template->setReservationMode($tplData['reservationMode'] ?? null);
-                $template->setIsActive($tplData['isActive'] ?? true);
-                $template->setSource($manufacturer);
-
-                // Komponenten
-                if (isset($tplData['components']) && is_array($tplData['components'])) {
-                    foreach ($tplData['components'] as $index => $compData) {
-                        $comp = new MaterialTemplateComponent();
-                        $comp->setId(IdGenerator::generate());
-                        $comp->setComponentType($compData['type'] ?? 'unknown');
-                        $comp->setName($compData['name'] ?? $compData['type'] ?? 'Unbenannt');
-                        $comp->setRequiredQty(isset($compData['required']) ? (int) $compData['required'] : 1);
-                        $comp->setIsOptional($compData['optional'] ?? false);
-                        $comp->setSortOrder($index);
-
-                        // Tracking: aus JSON oder Standard bulk (Stücklisten; SN nur bei explizit serialized)
-                        if (isset($compData['tracking'])) {
-                            $comp->setTracking($compData['tracking']);
-                        } else {
-                            $comp->setTracking('bulk');
-                        }
-
-                        // Repair Types
-                        if (isset($compData['repair_types']) && is_array($compData['repair_types'])) {
-                            $comp->setRepairTypes($compData['repair_types']);
-                        }
-
-                        $template->addComponent($comp);
-                    }
-                }
-
-                $this->entityManager->persist($template);
-                $created++;
-            }
-
-            $this->entityManager->flush();
-
-            return new JsonResponse([
-                'success' => true,
-                'manufacturer' => $manufacturer,
-                'created' => $created,
-                'skipped' => $skipped,
-                'total' => count($json['templates'])
-            ], 201);
-
-        } catch (\Exception $e) {
-            return new JsonResponse([
-                'error' => 'Fehler beim Import: ' . $e->getMessage()
             ], 500);
         }
     }
@@ -843,6 +991,7 @@ class TemplateController extends AbstractController
         $comp->setIsOptional($compData['is_optional'] ?? false);
         $comp->setIsGeneric($compData['is_generic'] ?? false);
         $comp->setTracking($compData['tracking'] ?? 'bulk');
+        $comp->setComponentSource(($compData['component_source'] ?? null) === 'self_provided' ? 'self_provided' : 'stock');
         $comp->setSortOrder($compData['sort_order'] ?? $index);
 
         if (isset($compData['repair_types']) && is_array($compData['repair_types'])) {
@@ -852,10 +1001,292 @@ class TemplateController extends AbstractController
         return $comp;
     }
 
+    private function createTemplateAccessory(array $accData, int $index): MaterialTemplateRelatedAccessory
+    {
+        $acc = new MaterialTemplateRelatedAccessory();
+        $acc->setId(IdGenerator::generate());
+        $acc->setName($accData['name'] ?? 'Zubehör');
+        $type = $accData['component_type'] ?? null;
+        $acc->setComponentType(is_string($type) && trim($type) !== '' ? trim($type) : null);
+        $acc->setIsGeneric($accData['is_generic'] ?? false);
+        $acc->setSortOrder($accData['sort_order'] ?? $index);
+
+        return $acc;
+    }
+
+    /**
+     * Options-Gruppen + Optionen einer Vorlage (Weg B, Paket 6) ersetzen (replace-all), generisch über component_type.
+     *
+     * @param array<string, mixed> $data
+     */
+    private function applyTemplateOptions(MaterialTemplate $template, array $data): void
+    {
+        $hasGroups = array_key_exists('option_groups', $data) && is_array($data['option_groups']);
+        $hasOptions = array_key_exists('options', $data) && is_array($data['options']);
+        if (!$hasGroups && !$hasOptions) {
+            return;
+        }
+
+        // Bestehende entfernen (Deltas → Optionen → Gruppen).
+        $existingOptions = $this->entityManager->getRepository(MaterialTemplateOption::class)
+            ->findBy(['templateId' => $template->getId()]);
+        foreach ($existingOptions as $opt) {
+            foreach ($this->entityManager->getRepository(MaterialTemplateOptionDelta::class)->findBy(['optionId' => $opt->getId()]) as $d) {
+                $this->entityManager->remove($d);
+            }
+            $this->entityManager->remove($opt);
+        }
+        foreach ($this->entityManager->getRepository(MaterialTemplateOptionGroup::class)->findBy(['templateId' => $template->getId()]) as $g) {
+            $this->entityManager->remove($g);
+        }
+        $this->entityManager->flush();
+
+        // Gruppen anlegen, payload-id → reale id abbilden.
+        $groupIdMap = [];
+        foreach (($data['option_groups'] ?? []) as $index => $g) {
+            $group = new MaterialTemplateOptionGroup();
+            $group->setId(IdGenerator::generate());
+            $group->setTemplate($template);
+            $group->setName(trim((string) ($g['name'] ?? 'Gruppe')) ?: 'Gruppe');
+            $st = (string) ($g['selection_type'] ?? 'exclusive');
+            $group->setSelectionType(in_array($st, ['exclusive', 'multi', 'quantity'], true) ? $st : 'exclusive');
+            $group->setMinSelect(max(0, (int) ($g['min_select'] ?? 0)));
+            $group->setMaxSelect(isset($g['max_select']) && $g['max_select'] !== null ? max(0, (int) $g['max_select']) : null);
+            $group->setSortOrder((int) ($g['sort_order'] ?? $index));
+            $this->entityManager->persist($group);
+            $payloadId = (string) ($g['id'] ?? $g['_key'] ?? $index);
+            $groupIdMap[$payloadId] = $group->getId();
+        }
+
+        // Optionen + Deltas anlegen.
+        foreach (($data['options'] ?? []) as $index => $o) {
+            $option = new MaterialTemplateOption();
+            $option->setId(IdGenerator::generate());
+            $option->setTemplate($template);
+            $option->setName(trim((string) ($o['name'] ?? 'Option')) ?: 'Option');
+            $dm = (string) ($o['display_mode'] ?? 'toggle');
+            $option->setDisplayMode($dm === 'group' ? 'group' : 'toggle');
+            $option->setDefaultSelected((bool) ($o['default_selected'] ?? false));
+            $option->setSortOrder((int) ($o['sort_order'] ?? $index));
+            $gid = $o['option_group_id'] ?? null;
+            if ($gid !== null && $gid !== '' && isset($groupIdMap[(string) $gid])) {
+                $group = $this->entityManager->getRepository(MaterialTemplateOptionGroup::class)->find($groupIdMap[(string) $gid]);
+                if ($group) {
+                    $option->setOptionGroup($group);
+                    $option->setDisplayMode('group');
+                }
+            }
+            $this->entityManager->persist($option);
+
+            $deltaSort = 0;
+            foreach (($o['deltas'] ?? []) as $d) {
+                $delta = new MaterialTemplateOptionDelta();
+                $delta->setId(IdGenerator::generate());
+                $delta->setOption($option);
+                $delta->setComponentType(trim((string) ($d['component_type'] ?? '')) ?: 'unknown');
+                $delta->setName(trim((string) ($d['name'] ?? '')) ?: (string) ($d['component_type'] ?? 'Teil'));
+                $delta->setQtyDelta((int) ($d['qty_delta'] ?? 0));
+                $delta->setTracking(($d['tracking'] ?? 'bulk') === 'serialized' ? 'serialized' : 'bulk');
+                $delta->setComponentSource(($d['component_source'] ?? null) === 'self_provided' ? 'self_provided' : 'stock');
+                $delta->setIsGeneric((bool) ($d['is_generic'] ?? false));
+                $delta->setSortOrder((int) ($d['sort_order'] ?? $deltaSort++));
+                $this->entityManager->persist($delta);
+            }
+        }
+    }
+
+    /**
+     * „Vorlage → Material": löst die generischen Vorlagen-Optionen an konkrete Kombo-Optionen mit
+     * material_item-Deltas. Bindung über component_type → erstelltes/gefundenes Material; fehlende überspringen.
+     *
+     * @param array<string, MaterialItem> $materialByComponentType
+     */
+    private function resolveTemplateOptionsToCombo(
+        MaterialTemplate $template,
+        MaterialItem $combo,
+        array $materialByComponentType,
+        string $departmentId,
+    ): void {
+        $tplGroups = $this->entityManager->getRepository(MaterialTemplateOptionGroup::class)
+            ->findBy(['templateId' => $template->getId()], ['sortOrder' => 'ASC']);
+        $tplOptions = $this->entityManager->getRepository(MaterialTemplateOption::class)
+            ->findBy(['templateId' => $template->getId()], ['sortOrder' => 'ASC']);
+        if ($tplGroups === [] && $tplOptions === []) {
+            return;
+        }
+
+        $groupIdMap = [];
+        foreach ($tplGroups as $tg) {
+            $group = new MaterialComboOptionGroup();
+            $group->setId(IdGenerator::generate13('og'));
+            $group->setMaterialItem($combo);
+            $group->setName($tg->getName());
+            $group->setSelectionType($tg->getSelectionType());
+            $group->setMinSelect($tg->getMinSelect());
+            $group->setMaxSelect($tg->getMaxSelect());
+            $group->setSortOrder($tg->getSortOrder());
+            $this->entityManager->persist($group);
+            $groupIdMap[(string) $tg->getId()] = $group;
+        }
+
+        foreach ($tplOptions as $to) {
+            $tplDeltas = $this->entityManager->getRepository(MaterialTemplateOptionDelta::class)
+                ->findBy(['optionId' => $to->getId()], ['sortOrder' => 'ASC']);
+
+            // Konkrete Delta-Zeilen ermitteln (fehlende component_types überspringen).
+            $resolvedDeltas = [];
+            foreach ($tplDeltas as $td) {
+                $material = $this->resolveComponentMaterial($td->getComponentType(), $td->getName(), $materialByComponentType, $departmentId);
+                if ($material === null) {
+                    continue;
+                }
+                $resolvedDeltas[] = [$td, $material];
+            }
+            if ($resolvedDeltas === []) {
+                continue; // Option ohne bindbare Teile → überspringen
+            }
+
+            $option = new MaterialComboOption();
+            $option->setId(IdGenerator::generate13('op'));
+            $option->setMaterialItem($combo);
+            $option->setName($to->getName());
+            $option->setDisplayMode($to->getDisplayMode());
+            $option->setDefaultSelected($to->getDefaultSelected());
+            $option->setSortOrder($to->getSortOrder());
+            if ($to->getOptionGroupId() !== null && isset($groupIdMap[(string) $to->getOptionGroupId()])) {
+                $option->setOptionGroup($groupIdMap[(string) $to->getOptionGroupId()]);
+            }
+            $this->entityManager->persist($option);
+
+            foreach ($resolvedDeltas as [$td, $material]) {
+                $delta = new MaterialComboOptionDelta();
+                $delta->setId(IdGenerator::generate13('dt'));
+                $delta->setOption($option);
+                $delta->setComponentMaterial($material);
+                $delta->setQtyDelta($td->getQtyDelta());
+                $delta->setAssignmentMode($td->getTracking() === 'serialized' ? 'on_issue' : 'bulk');
+                $delta->setTracking($td->getTracking());
+                $delta->setComponentSource($td->getComponentSource());
+                $delta->setSortOrder($td->getSortOrder());
+                $this->entityManager->persist($delta);
+            }
+        }
+    }
+
+    /**
+     * Findet ein konkretes Material für einen generischen component_type (erst Map aus Basis-Stückliste, dann per Name).
+     *
+     * @param array<string, MaterialItem> $materialByComponentType
+     */
+    private function resolveComponentMaterial(
+        string $componentType,
+        string $name,
+        array $materialByComponentType,
+        string $departmentId,
+        ?string $expectedName = null,
+    ): ?MaterialItem {
+        if ($componentType !== '' && isset($materialByComponentType[$componentType])) {
+            return $materialByComponentType[$componentType];
+        }
+        $searchName = trim($expectedName ?? $name);
+        if ($searchName !== '') {
+            $found = $this->findMaterialsByExactName($departmentId, $searchName);
+            if (count($found) === 1) {
+                return $found[0];
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Erwarteter Materialname für eine Vorlagen-Komponente (eine zentrale Stelle).
+     */
+    private function buildExpectedComponentName(MaterialTemplate $template, MaterialTemplateComponent $comp): string
+    {
+        $compName = $comp->getName();
+        if ($comp->getIsGeneric()) {
+            return $compName;
+        }
+
+        $manufacturer = $template->getManufacturer() ?? '';
+        $model = $template->getModel() ?? '';
+        $nameLower = mb_strtolower($compName);
+
+        if ($model && !str_contains($nameLower, mb_strtolower($model))) {
+            $compName .= ' ' . $model;
+            $nameLower = mb_strtolower($compName);
+        }
+
+        if ($manufacturer && !str_contains($nameLower, mb_strtolower($manufacturer))) {
+            $compName .= ' ' . $manufacturer;
+        }
+
+        return $compName;
+    }
+
+    /**
+     * @return MaterialItem[]
+     */
+    private function findMaterialsByExactName(string $departmentId, string $name): array
+    {
+        return $this->entityManager->createQueryBuilder()
+            ->select('m')
+            ->from(MaterialItem::class, 'm')
+            ->where('m.departmentId = :dept')
+            ->andWhere('m.deletedAt IS NULL')
+            ->andWhere('LOWER(m.name) = LOWER(:name)')
+            ->setParameter('dept', $departmentId)
+            ->setParameter('name', $name)
+            ->getQuery()
+            ->getResult();
+    }
+
+    /**
+     * @return array{expected_name: string, match_state: string, matched_material_id: ?string, candidates: array<int, array{id: string, name: string}>}
+     */
+    private function resolveComponentMatchFields(
+        MaterialTemplate $template,
+        MaterialTemplateComponent $comp,
+        string $departmentId,
+    ): array {
+        $expectedName = $this->buildExpectedComponentName($template, $comp);
+        $matches = $this->findMaterialsByExactName($departmentId, $expectedName);
+        $candidates = array_map(
+            fn (MaterialItem $m) => ['id' => $m->getId(), 'name' => $m->getName()],
+            $matches,
+        );
+
+        if (count($matches) === 1) {
+            return [
+                'expected_name' => $expectedName,
+                'match_state' => 'found',
+                'matched_material_id' => $matches[0]->getId(),
+                'candidates' => $candidates,
+            ];
+        }
+
+        if (count($matches) > 1) {
+            return [
+                'expected_name' => $expectedName,
+                'match_state' => 'ambiguous',
+                'matched_material_id' => null,
+                'candidates' => $candidates,
+            ];
+        }
+
+        return [
+            'expected_name' => $expectedName,
+            'match_state' => 'missing',
+            'matched_material_id' => null,
+            'candidates' => [],
+        ];
+    }
+
     /**
      * Serialisiert ein Template für die JSON-Response
      */
-    private function serializeTemplate(MaterialTemplate $template, bool $includeComponents): array
+    private function serializeTemplate(MaterialTemplate $template, bool $includeComponents, ?string $departmentId = null): array
     {
         $data = [
             'id' => $template->getId(),
@@ -865,6 +1296,9 @@ class TemplateController extends AbstractController
             'name' => $template->getName(),
             'description' => $template->getDescription(),
             'manufacturer' => $template->getManufacturer(),
+            'manufacturer_address_id' => $template->getManufacturerAddressId(),
+            'template_kind' => $template->getTemplateKind(),
+            'template_domain' => $template->getTemplateDomain(),
             'model' => $template->getModel(),
             'category' => $template->getCategory() ? [
                 'id' => $template->getCategory()->getId(),
@@ -873,7 +1307,6 @@ class TemplateController extends AbstractController
             'material_type' => $template->getMaterialType(),
             'tent_type' => $template->getTentType(),
             'capacity' => $template->getCapacity(),
-            'reservation_mode' => $template->getReservationMode(),
             'is_active' => $template->getIsActive(),
             'source' => $template->getSource(),
             'component_count' => $template->getTotalComponentCount(),
@@ -883,8 +1316,9 @@ class TemplateController extends AbstractController
 
         if ($includeComponents) {
             $data['components'] = [];
+            $missingRequired = [];
             foreach ($template->getComponents() as $comp) {
-                $data['components'][] = [
+                $row = [
                     'id' => $comp->getId(),
                     'component_type' => $comp->getComponentType(),
                     'name' => $comp->getName(),
@@ -892,8 +1326,78 @@ class TemplateController extends AbstractController
                     'is_optional' => $comp->getIsOptional(),
                     'is_generic' => $comp->getIsGeneric(),
                     'tracking' => $comp->getTracking(),
+                    'component_source' => $comp->getComponentSource(),
                     'repair_types' => $comp->getRepairTypes(),
                     'sort_order' => $comp->getSortOrder(),
+                ];
+                if ($departmentId !== null) {
+                    $row = array_merge($row, $this->resolveComponentMatchFields($template, $comp, $departmentId));
+                    if (!$comp->getIsOptional() && ($row['match_state'] ?? '') === 'missing') {
+                        $missingRequired[] = [
+                            'component_type' => $comp->getComponentType(),
+                            'name' => $comp->getName(),
+                            'expected_name' => $row['expected_name'],
+                        ];
+                    }
+                }
+                $data['components'][] = $row;
+            }
+            if ($departmentId !== null) {
+                $data['missing_required_components'] = $missingRequired;
+            }
+
+            $data['related_accessories'] = [];
+            foreach ($template->getRelatedAccessories() as $acc) {
+                $data['related_accessories'][] = [
+                    'id' => $acc->getId(),
+                    'name' => $acc->getName(),
+                    'component_type' => $acc->getComponentType(),
+                    'is_generic' => $acc->getIsGeneric(),
+                    'sort_order' => $acc->getSortOrder(),
+                ];
+            }
+
+            // Options-Gruppen + Optionen (Weg B, Paket 6)
+            $data['option_groups'] = [];
+            $groups = $this->entityManager->getRepository(MaterialTemplateOptionGroup::class)
+                ->findBy(['templateId' => $template->getId()], ['sortOrder' => 'ASC']);
+            foreach ($groups as $g) {
+                $data['option_groups'][] = [
+                    'id' => $g->getId(),
+                    'template_id' => $g->getTemplateId(),
+                    'name' => $g->getName(),
+                    'selection_type' => $g->getSelectionType(),
+                    'min_select' => $g->getMinSelect(),
+                    'max_select' => $g->getMaxSelect(),
+                    'sort_order' => $g->getSortOrder(),
+                ];
+            }
+
+            $data['options'] = [];
+            $options = $this->entityManager->getRepository(MaterialTemplateOption::class)
+                ->findBy(['templateId' => $template->getId()], ['sortOrder' => 'ASC']);
+            foreach ($options as $o) {
+                $deltas = $this->entityManager->getRepository(MaterialTemplateOptionDelta::class)
+                    ->findBy(['optionId' => $o->getId()], ['sortOrder' => 'ASC']);
+                $data['options'][] = [
+                    'id' => $o->getId(),
+                    'template_id' => $o->getTemplateId(),
+                    'option_group_id' => $o->getOptionGroupId(),
+                    'name' => $o->getName(),
+                    'display_mode' => $o->getDisplayMode(),
+                    'default_selected' => $o->getDefaultSelected(),
+                    'sort_order' => $o->getSortOrder(),
+                    'deltas' => array_map(static fn (MaterialTemplateOptionDelta $d) => [
+                        'id' => $d->getId(),
+                        'option_id' => $d->getOptionId(),
+                        'component_type' => $d->getComponentType(),
+                        'name' => $d->getName(),
+                        'qty_delta' => $d->getQtyDelta(),
+                        'tracking' => $d->getTracking(),
+                        'component_source' => $d->getComponentSource(),
+                        'is_generic' => $d->getIsGeneric(),
+                        'sort_order' => $d->getSortOrder(),
+                    ], $deltas),
                 ];
             }
         }
@@ -973,5 +1477,49 @@ class TemplateController extends AbstractController
         $user = $this->getUser();
 
         return $user instanceof User ? $user->getId() : null;
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     */
+    private function applyManufacturerFields(MaterialTemplate $template, array $data): void
+    {
+        if (array_key_exists('manufacturer_address_id', $data)) {
+            $addressId = $data['manufacturer_address_id'];
+            if ($addressId === null || $addressId === '') {
+                $template->setManufacturerAddress(null);
+                $template->setManufacturer(null);
+            } else {
+                $address = $this->entityManager->getRepository(Address::class)->find((string) $addressId);
+                if (!$address || $address->isDeleted()) {
+                    throw new \InvalidArgumentException('Hersteller-Adresse nicht gefunden');
+                }
+                $template->setManufacturerAddress($address);
+                $template->setManufacturer($this->addressDisplayLabel($address));
+            }
+
+            return;
+        }
+
+        if (array_key_exists('manufacturer', $data)) {
+            $template->setManufacturer($this->nullableString($data['manufacturer']));
+        }
+    }
+
+    private function addressDisplayLabel(Address $address): string
+    {
+        $label = trim((string) ($address->getCompany() ?: $address->getName() ?: ''));
+
+        return $label !== '' ? $label : (string) $address->getId();
+    }
+
+    private function nullableString(mixed $value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+        $s = trim((string) $value);
+
+        return $s === '' ? null : $s;
     }
 }

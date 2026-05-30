@@ -1,7 +1,12 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 
-export type DetailTabType = 'material' | 'activity'
+export type DetailTabType = 'material' | 'activity' | 'workshop'
+
+export const DETAIL_TAB_TYPE_ORDER: DetailTabType[] = ['material', 'activity', 'workshop']
+
+/** Ab dieser Anzahl Tabs werden sie nach Typ gruppiert angezeigt */
+export const DETAIL_TAB_GROUP_MIN_COUNT = 5
 
 export interface DetailTab {
   id: string
@@ -14,10 +19,53 @@ export interface DetailTab {
   dirtySince?: number
 }
 
+export interface DetailTabGroup {
+  type: DetailTabType
+  tabs: DetailTab[]
+}
+
+export function shouldGroupDetailTabs(tabs: DetailTab[]): boolean {
+  if (tabs.length >= DETAIL_TAB_GROUP_MIN_COUNT) return true
+  const types = new Set(tabs.map((t) => t.type))
+  return types.size >= 2 && tabs.length >= 3
+}
+
+export function groupDetailTabs(tabs: DetailTab[]): DetailTabGroup[] {
+  const groups: DetailTabGroup[] = []
+  for (const type of DETAIL_TAB_TYPE_ORDER) {
+    const groupTabs = tabs.filter((t) => t.type === type)
+    if (groupTabs.length > 0) {
+      groups.push({ type, tabs: groupTabs })
+    }
+  }
+  return groups
+}
+
+export function listPathForDetailTab(tab: Pick<DetailTab, 'type' | 'departmentId'>): string {
+  const base = `/${tab.departmentId}`
+  switch (tab.type) {
+    case 'material':
+      return `${base}/materials`
+    case 'activity':
+      return `${base}/activities`
+    case 'workshop':
+      return `${base}/workshop`
+    default:
+      return base
+  }
+}
+
+export function ticketIdFromWorkshopTabPath(path: string): string | null {
+  const q = path.includes('?') ? path.slice(path.indexOf('?') + 1) : ''
+  return new URLSearchParams(q).get('ticket')
+}
+
 export const useDetailTabsStore = defineStore('detailTabs', () => {
   const tabs = ref<DetailTab[]>([])
 
   const hasTabs = computed(() => tabs.value.length > 0)
+  const useGroupedLayout = computed(() => shouldGroupDetailTabs(tabs.value))
+  const tabGroups = computed(() => groupDetailTabs(tabs.value))
 
   function addOrUpdateTab(tab: Omit<DetailTab, 'hasUnsavedChanges'>) {
     const existing = tabs.value.find(
@@ -60,6 +108,8 @@ export const useDetailTabsStore = defineStore('detailTabs', () => {
   return {
     tabs,
     hasTabs,
+    useGroupedLayout,
+    tabGroups,
     addOrUpdateTab,
     setTabDirty,
     removeTab,

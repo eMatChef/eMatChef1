@@ -24,11 +24,17 @@ import {
   type GlobalAdminRole,
 } from '@/utils/adminCapabilities'
 import { markCrossSubdomainLogoutSeenFromCookie } from '@/utils/authCrossOrigin'
+import {
+  isActiveSupplierCompany,
+  type SupplierCompanySession,
+} from '@/api/supplier'
 
 export const useAuthStore = defineStore('auth', () => {
   const user = ref<UserResponse | null>(null)
   const profile = ref<ProfileResponse | null>(null)
   const departments = ref<UserDepartmentResponse[]>([])
+  const supplierCompanies = ref<SupplierCompanySession[]>([])
+  const activeSupplierCompanyId = ref<string | null>(localStorage.getItem('active_supplier_company_id'))
   const activeDepartmentId = ref<string | null>(localStorage.getItem('active_department_id'))
   const loadingUser = ref(false)
   const error = ref<string | null>(null)
@@ -36,6 +42,16 @@ export const useAuthStore = defineStore('auth', () => {
   let cookieSessionPromise: Promise<boolean> | null = null
 
   const isLoggedIn = computed(() => !!user.value && !!profile.value)
+
+  const activeSupplierCompanies = computed(() =>
+    supplierCompanies.value.filter(isActiveSupplierCompany)
+  )
+
+  const hasSupplierAccess = computed(() => activeSupplierCompanies.value.length > 0)
+
+  const isSupplierOnly = computed(
+    () => hasSupplierAccess.value && departments.value.length === 0
+  )
 
   const userId = computed(() => user.value?.id || null)
   const profileId = computed(() => profile.value?.id || null)
@@ -147,11 +163,34 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
+  function applySupplierCompaniesFromSession(
+    companies: SupplierCompanySession[] | undefined,
+    lastUsedSupplierCompany: string | null | undefined
+  ) {
+    supplierCompanies.value = companies ?? []
+    const allowed = new Set(activeSupplierCompanies.value.map((c) => c.id))
+    const preferred =
+      (lastUsedSupplierCompany && allowed.has(lastUsedSupplierCompany)
+        ? lastUsedSupplierCompany
+        : null) ||
+      activeSupplierCompanies.value.find((c) => c.is_primary)?.id ||
+      activeSupplierCompanies.value[0]?.id ||
+      null
+    activeSupplierCompanyId.value = preferred
+    if (preferred) {
+      localStorage.setItem('active_supplier_company_id', preferred)
+    } else {
+      localStorage.removeItem('active_supplier_company_id')
+    }
+  }
+
   function applyServerSession(session: NonNullable<Awaited<ReturnType<typeof loadSessionFromServer>>>) {
     user.value = {
       ...session.user,
       last_used_department:
         session.last_used_department ?? session.user.last_used_department ?? null,
+      last_used_supplier_company:
+        session.last_used_supplier_company ?? session.user.last_used_supplier_company ?? null,
     }
     profile.value = normalizeProfile(session.profile)
     departments.value = (session.departments || []).map((d) => ({
@@ -174,6 +213,11 @@ export const useAuthStore = defineStore('auth', () => {
     if (preferredDept) {
       localStorage.setItem('active_department_id', preferredDept)
     }
+
+    applySupplierCompaniesFromSession(
+      session.supplier_companies,
+      session.last_used_supplier_company ?? session.user.last_used_supplier_company ?? null
+    )
   }
 
   async function login(email: string, password: string): Promise<boolean> {
@@ -181,14 +225,19 @@ export const useAuthStore = defineStore('auth', () => {
       loadingUser.value = true
       error.value = null
       departments.value = []
+      supplierCompanies.value = []
       activeDepartmentId.value = null
+      activeSupplierCompanyId.value = null
       localStorage.removeItem('active_department_id')
+      localStorage.removeItem('active_supplier_company_id')
 
       const response: LoginResponse = await apiLogin(email, password)
 
       user.value = {
         ...response.user,
         last_used_department: response.last_used_department ?? response.user.last_used_department ?? null,
+        last_used_supplier_company:
+          response.last_used_supplier_company ?? response.user.last_used_supplier_company ?? null,
       }
       profile.value = normalizeProfile(response.profile)
 
@@ -214,6 +263,11 @@ export const useAuthStore = defineStore('auth', () => {
       } else {
         await loadDepartments()
       }
+
+      applySupplierCompaniesFromSession(
+        response.supplier_companies,
+        response.last_used_supplier_company ?? response.user.last_used_supplier_company ?? null
+      )
 
       resetSessionExpiredHandling()
       lastSessionStartTime.value = Date.now()
@@ -258,7 +312,9 @@ export const useAuthStore = defineStore('auth', () => {
     user.value = null
     profile.value = null
     departments.value = []
+    supplierCompanies.value = []
     activeDepartmentId.value = null
+    activeSupplierCompanyId.value = null
     lastSessionStartTime.value = 0
     clearAuthStorage()
   }
@@ -357,6 +413,17 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
+  function setActiveSupplierCompany(companyId: string): void {
+    if (!activeSupplierCompanies.value.some((c) => c.id === companyId)) return
+    activeSupplierCompanyId.value = companyId
+    localStorage.setItem('active_supplier_company_id', companyId)
+  }
+
+  function isSupplierCompanyAdmin(companyId: string): boolean {
+    const company = activeSupplierCompanies.value.find((c) => c.id === companyId)
+    return company?.role === 'admin'
+  }
+
   async function refreshAfterInviteAccepted(targetDepartmentId: string): Promise<void> {
     const cookieReloaded = await loadUserSessionFromCookie(true)
     if (!cookieReloaded) {
@@ -383,6 +450,17 @@ export const useAuthStore = defineStore('auth', () => {
     return dept?.department?.name || ''
   })
 
+  const currentSupplierCompany = computed(() => {
+    if (!activeSupplierCompanyId.value) return null
+    return activeSupplierCompanies.value.find((c) => c.id === activeSupplierCompanyId.value) || null
+  })
+
+  const currentSupplierCompanyRole = computed(() => currentSupplierCompany.value?.role || null)
+
+  const activeSupplierCompanyName = computed(() => currentSupplierCompany.value?.name || '')
+
+  const isCurrentSupplierAdmin = computed(() => currentSupplierCompanyRole.value === 'admin')
+
   function clearError(): void {
     error.value = null
   }
@@ -403,10 +481,19 @@ export const useAuthStore = defineStore('auth', () => {
     user,
     profile,
     departments,
+    supplierCompanies,
+    activeSupplierCompanyId,
     activeDepartmentId,
     loadingUser,
     error,
     isLoggedIn,
+    hasSupplierAccess,
+    isSupplierOnly,
+    activeSupplierCompanies,
+    currentSupplierCompany,
+    currentSupplierCompanyRole,
+    activeSupplierCompanyName,
+    isCurrentSupplierAdmin,
     userId,
     profileId,
     userEmail,
@@ -431,6 +518,8 @@ export const useAuthStore = defineStore('auth', () => {
     clearAuthState,
     loadDepartments,
     setActiveDepartment,
+    setActiveSupplierCompany,
+    isSupplierCompanyAdmin,
     refreshAfterInviteAccepted,
     loadDepartmentTimezone,
     clearError,

@@ -361,7 +361,7 @@ function commitPhysicalComboWhole(): void {
                 />
               </div>
               <template v-else>
-                <span class="pack-container-line-name">{{ ci.material_name || t('activities.common.material') }}</span>
+                <span class="pack-container-line-name">{{ ci.material_name || t('common.material') }}</span>
               </template>
               <span class="pack-container-line-qty text-muted">
                 {{

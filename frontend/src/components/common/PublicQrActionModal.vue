@@ -20,7 +20,7 @@
           {{ t('components.publicQrAction.btnCopyQrLink') }}
         </button>
         <button v-if="hasUrl" type="button" class="btn-primary btn-sm" @click="emit('print')">
-          {{ t('components.publicQrAction.btnPrint') }}
+          {{ t('common.print') }}
         </button>
       </div>
     </div>

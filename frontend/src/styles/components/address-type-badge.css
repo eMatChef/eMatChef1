@@ -1,0 +1,82 @@
+/**
+ * Adress-Typ-Badges & Avatar-Farben (Kontakte, Autocomplete, …).
+ * Klassen: .address-type-badge.{type}
+ * Avatar-Farben nutzen dieselben CSS-Variablen.
+ */
+
+:root {
+  --address-type-general-bg: #e5e7eb;
+  --address-type-general-fg: #6b7280;
+  --address-type-billing-bg: #fef3c7;
+  --address-type-billing-fg: #92400e;
+  --address-type-delivery-bg: #d1fae5;
+  --address-type-delivery-fg: #065f46;
+  --address-type-supplier-bg: #ffedd5;
+  --address-type-supplier-fg: #c2410c;
+  --address-type-storage-bg: #e0e7ff;
+  --address-type-storage-fg: #4338ca;
+  --address-type-customer-bg: #dbeafe;
+  --address-type-customer-fg: #1d4ed8;
+  --address-type-event-bg: #fce7f3;
+  --address-type-event-fg: #be185d;
+  --address-type-meeting-bg: #ede9fe;
+  --address-type-meeting-fg: #6d28d9;
+  --address-type-office-bg: #f3f4f6;
+  --address-type-office-fg: #374151;
+  --address-type-private-bg: #fef2f2;
+  --address-type-private-fg: #991b1b;
+  --address-type-postal-bg: #ccfbf1;
+  --address-type-postal-fg: #0f766e;
+}
+
+.address-type-badge {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.3;
+  flex-shrink: 0;
+}
+
+.address-type-badge--compact {
+  padding: 2px 7px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.address-type-badge.general { background: var(--address-type-general-bg); color: var(--address-type-general-fg); }
+.address-type-badge.billing { background: var(--address-type-billing-bg); color: var(--address-type-billing-fg); }
+.address-type-badge.delivery { background: var(--address-type-delivery-bg); color: var(--address-type-delivery-fg); }
+.address-type-badge.supplier { background: var(--address-type-supplier-bg); color: var(--address-type-supplier-fg); }
+.address-type-badge.storage { background: var(--address-type-storage-bg); color: var(--address-type-storage-fg); }
+.address-type-badge.customer { background: var(--address-type-customer-bg); color: var(--address-type-customer-fg); }
+.address-type-badge.event { background: var(--address-type-event-bg); color: var(--address-type-event-fg); }
+.address-type-badge.meeting { background: var(--address-type-meeting-bg); color: var(--address-type-meeting-fg); }
+.address-type-badge.office { background: var(--address-type-office-bg); color: var(--address-type-office-fg); }
+.address-type-badge.private { background: var(--address-type-private-bg); color: var(--address-type-private-fg); }
+.address-type-badge.postal { background: var(--address-type-postal-bg); color: var(--address-type-postal-fg); }
+
+.contact-avatar.general,
+.contact-avatar-lg.general { background: var(--address-type-general-bg); color: var(--address-type-general-fg); }
+.contact-avatar.billing,
+.contact-avatar-lg.billing { background: var(--address-type-billing-bg); color: var(--address-type-billing-fg); }
+.contact-avatar.delivery,
+.contact-avatar-lg.delivery { background: var(--address-type-delivery-bg); color: var(--address-type-delivery-fg); }
+.contact-avatar.supplier,
+.contact-avatar-lg.supplier { background: var(--address-type-supplier-bg); color: var(--address-type-supplier-fg); }
+.contact-avatar.storage,
+.contact-avatar-lg.storage { background: var(--address-type-storage-bg); color: var(--address-type-storage-fg); }
+.contact-avatar.customer,
+.contact-avatar-lg.customer { background: var(--address-type-customer-bg); color: var(--address-type-customer-fg); }
+.contact-avatar.event,
+.contact-avatar-lg.event { background: var(--address-type-event-bg); color: var(--address-type-event-fg); }
+.contact-avatar.meeting,
+.contact-avatar-lg.meeting { background: var(--address-type-meeting-bg); color: var(--address-type-meeting-fg); }
+.contact-avatar.office,
+.contact-avatar-lg.office { background: var(--address-type-office-bg); color: var(--address-type-office-fg); }
+.contact-avatar.private,
+.contact-avatar-lg.private { background: var(--address-type-private-bg); color: var(--address-type-private-fg); }
+.contact-avatar.postal,
+.contact-avatar-lg.postal { background: var(--address-type-postal-bg); color: var(--address-type-postal-fg); }

@@ -176,14 +176,18 @@ watch(
 
 .main-content {
   flex: 1;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   margin-left: 64px; /* Sidebar-Breite (schmal) - Sidebar überlappt beim Erweitern */
+  overflow-x: hidden;
 }
 
 .page-content {
   flex: 1;
+  min-width: 0;
   padding: 24px;
+  overflow-x: hidden;
   overflow-y: auto;
 }
 

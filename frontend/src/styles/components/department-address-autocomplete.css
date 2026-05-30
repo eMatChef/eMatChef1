@@ -1,0 +1,72 @@
+.department-address-autocomplete {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+  width: 100%;
+}
+
+.department-address-autocomplete .activity-address-autocomplete {
+  flex: 1;
+  min-width: 0;
+}
+
+.department-address-autocomplete .activity-address-autocomplete .form-input {
+  width: 100%;
+}
+
+.department-address-autocomplete .activity-address-autocomplete-dropdown {
+  right: 0;
+  z-index: 300;
+  max-height: 220px;
+}
+
+.department-address-autocomplete .activity-address-ac-main {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+  flex: 1;
+}
+
+.department-address-autocomplete .activity-address-ac-item {
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-start;
+  gap: 8px;
+}
+
+.department-address-autocomplete .activity-address-ac-item .item-city {
+  margin-left: auto;
+  flex-shrink: 0;
+  max-width: 42%;
+  text-align: right;
+}
+
+.department-address-autocomplete .autocomplete-divider {
+  margin: 4px 0 2px;
+  padding: 7px 12px 5px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #64748b;
+  background: #f1f5f9;
+  border-top: 2px solid #cbd5e1;
+  border-bottom: 1px solid #e2e8f0;
+  pointer-events: none;
+  user-select: none;
+}
+
+.department-address-autocomplete .autocomplete-item--create {
+  color: #059669;
+  cursor: pointer;
+}
+
+.department-address-autocomplete .autocomplete-item--create:hover {
+  background: #ecfdf5;
+}
+
+.department-address-autocomplete .autocomplete-item--create .item-name {
+  font-weight: 600;
+}

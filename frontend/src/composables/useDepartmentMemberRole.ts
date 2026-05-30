@@ -35,6 +35,11 @@ export function useDepartmentMemberRole() {
       ['mw', 'dc', 'matwart', 'depchef'].includes(departmentRole.value),
   )
 
+  /** Nur MW: Vorlagen-Import/Export (Department). */
+  const isMaterialwart = computed(() =>
+    ['mw', 'matwart'].includes(departmentRole.value),
+  )
+
   /** MW/DC: Material anlegen, Druckkorb, QR-Kontakt-Verwaltung, … */
   const canManageMaterials = computed(() =>
     ['mw', 'dc', 'matwart', 'depchef'].includes(departmentRole.value)
@@ -60,6 +65,7 @@ export function useDepartmentMemberRole() {
     isDepartmentLeader,
     canSelectDepartmentGroupLevel,
     canManageMaterials,
+    isMaterialwart,
     canManageQrContact,
     canManageContacts,
     canUserCreateContacts,

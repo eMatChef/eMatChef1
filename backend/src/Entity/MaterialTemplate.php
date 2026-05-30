@@ -59,6 +59,22 @@ class MaterialTemplate
     #[ORM\Column(type: 'string', length: 255, nullable: true)]
     private ?string $manufacturer = null;
 
+    /** FK → address (scope=global|supplier|department); Anzeige-Cache in manufacturer */
+    #[ORM\Column(name: 'manufacturer_address_id', type: 'string', length: 12, nullable: true, columnDefinition: 'CHARACTER(12) NULL')]
+    private ?string $manufacturerAddressId = null;
+
+    #[ORM\ManyToOne(targetEntity: Address::class)]
+    #[ORM\JoinColumn(name: 'manufacturer_address_id', referencedColumnName: 'id', nullable: true, onDelete: 'SET NULL')]
+    private ?Address $manufacturerAddress = null;
+
+    /** single_part | combo | configurator */
+    #[ORM\Column(name: 'template_kind', type: 'string', length: 20, nullable: true)]
+    private ?string $templateKind = null;
+
+    /** tent | kitchen | general | … */
+    #[ORM\Column(name: 'template_domain', type: 'string', length: 40, nullable: true)]
+    private ?string $templateDomain = null;
+
     #[ORM\Column(type: 'string', length: 100, nullable: true)]
     private ?string $model = null;
 
@@ -81,10 +97,6 @@ class MaterialTemplate
     #[ORM\Column(type: 'integer', nullable: true)]
     private ?int $capacity = null;
 
-    /** complete_only, individual, flexible */
-    #[ORM\Column(name: 'reservation_mode', type: 'string', length: 20, nullable: true)]
-    private ?string $reservationMode = null;
-
     #[ORM\Column(name: 'is_active', type: 'boolean', options: ['default' => true])]
     private bool $isActive = true;
 
@@ -102,11 +114,17 @@ class MaterialTemplate
     #[ORM\OrderBy(['sortOrder' => 'ASC'])]
     private Collection $components;
 
+    /** Verwandtes Zubehör (Empfehlung, kein Stücklisten-Teil). */
+    #[ORM\OneToMany(mappedBy: 'template', targetEntity: MaterialTemplateRelatedAccessory::class, cascade: ['persist', 'remove'], orphanRemoval: true)]
+    #[ORM\OrderBy(['sortOrder' => 'ASC'])]
+    private Collection $relatedAccessories;
+
     public function __construct()
     {
         $this->createdAt = new \DateTime();
         $this->updatedAt = new \DateTime();
         $this->components = new ArrayCollection();
+        $this->relatedAccessories = new ArrayCollection();
     }
 
     // ========== Getters & Setters ==========
@@ -197,6 +215,51 @@ class MaterialTemplate
         return $this;
     }
 
+    public function getManufacturerAddressId(): ?string
+    {
+        return $this->manufacturerAddressId;
+    }
+
+    public function setManufacturerAddressId(?string $manufacturerAddressId): self
+    {
+        $this->manufacturerAddressId = $manufacturerAddressId;
+        return $this;
+    }
+
+    public function getManufacturerAddress(): ?Address
+    {
+        return $this->manufacturerAddress;
+    }
+
+    public function setManufacturerAddress(?Address $manufacturerAddress): self
+    {
+        $this->manufacturerAddress = $manufacturerAddress;
+        $this->manufacturerAddressId = $manufacturerAddress?->getId();
+        return $this;
+    }
+
+    public function getTemplateKind(): ?string
+    {
+        return $this->templateKind;
+    }
+
+    public function setTemplateKind(?string $templateKind): self
+    {
+        $this->templateKind = $templateKind;
+        return $this;
+    }
+
+    public function getTemplateDomain(): ?string
+    {
+        return $this->templateDomain;
+    }
+
+    public function setTemplateDomain(?string $templateDomain): self
+    {
+        $this->templateDomain = $templateDomain;
+        return $this;
+    }
+
     public function getModel(): ?string
     {
         return $this->model;
@@ -264,17 +327,6 @@ class MaterialTemplate
         return $this;
     }
 
-    public function getReservationMode(): ?string
-    {
-        return $this->reservationMode;
-    }
-
-    public function setReservationMode(?string $reservationMode): self
-    {
-        $this->reservationMode = $reservationMode;
-        return $this;
-    }
-
     public function getIsActive(): bool
     {
         return $this->isActive;
@@ -332,6 +384,35 @@ class MaterialTemplate
     public function removeComponent(MaterialTemplateComponent $component): self
     {
         $this->components->removeElement($component);
+        return $this;
+    }
+
+    /**
+     * @return Collection<int, MaterialTemplateRelatedAccessory>
+     */
+    public function getRelatedAccessories(): Collection
+    {
+        return $this->relatedAccessories;
+    }
+
+    public function addRelatedAccessory(MaterialTemplateRelatedAccessory $accessory): self
+    {
+        if (!$this->relatedAccessories->contains($accessory)) {
+            $this->relatedAccessories->add($accessory);
+            $accessory->setTemplate($this);
+        }
+        return $this;
+    }
+
+    public function removeRelatedAccessory(MaterialTemplateRelatedAccessory $accessory): self
+    {
+        $this->relatedAccessories->removeElement($accessory);
+        return $this;
+    }
+
+    public function clearRelatedAccessories(): self
+    {
+        $this->relatedAccessories->clear();
         return $this;
     }
 

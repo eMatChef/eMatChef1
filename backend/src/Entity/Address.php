@@ -12,27 +12,46 @@ use Doctrine\ORM\Mapping as ORM;
  * - Kunden
  * - Eventstandorte
  * - Lieferadressen
- * 
- * WICHTIG: Jede Adresse gehört zu einem Department (Multi-Tenant)
+ *
+ * scope bestimmt den Besitz-Kontext (genau einer):
+ * - department: department_id gesetzt (Multi-Tenant)
+ * - supplier: supplier_company_id gesetzt (registrierte B2B-Firma)
+ * - global: beides NULL (systemweite Stammdaten)
  */
 #[ORM\Entity]
 #[ORM\Table(name: 'address')]
 #[ORM\Index(columns: ['department_id'], name: 'idx_address_department')]
 #[ORM\Index(columns: ['department_id', 'type'], name: 'idx_address_department_type')]
+#[ORM\Index(columns: ['scope'], name: 'idx_address_scope')]
+#[ORM\Index(columns: ['scope', 'type'], name: 'idx_address_scope_type')]
 #[ORM\Index(columns: ['postal_code'], name: 'idx_address_postal_code')]
 class Address
 {
+    public const SCOPE_DEPARTMENT = 'department';
+    public const SCOPE_SUPPLIER = 'supplier';
+    public const SCOPE_GLOBAL = 'global';
     #[ORM\Id]
     #[ORM\Column(type: 'string', length: 12, columnDefinition: 'CHARACTER(12) NOT NULL')]
     #[ORM\GeneratedValue(strategy: 'NONE')]
     private ?string $id = null;
 
     /**
-     * Department-Zuordnung (Multi-Tenant)
-     * Jede Adresse gehört zu genau einem Department
+     * Besitz-Kontext: department | supplier | global
      */
-    #[ORM\Column(name: 'department_id', type: 'string', length: 12)]
-    private string $departmentId;
+    #[ORM\Column(type: 'string', length: 20)]
+    private string $scope = self::SCOPE_DEPARTMENT;
+
+    /**
+     * Department-Zuordnung (scope=department)
+     */
+    #[ORM\Column(name: 'department_id', type: 'string', length: 12, nullable: true)]
+    private ?string $departmentId = null;
+
+    /**
+     * Supplier-Firma (scope=supplier, FK in Paket 1)
+     */
+    #[ORM\Column(name: 'supplier_company_id', type: 'string', length: 12, nullable: true)]
+    private ?string $supplierCompanyId = null;
 
     /**
      * Typ der Adresse - bestimmt den Verwendungszweck
@@ -157,13 +176,25 @@ class Address
         return $this;
     }
 
-    // === Department (Multi-Tenant) ===
-    public function getDepartmentId(): string
+    // === Scope ===
+    public function getScope(): string
+    {
+        return $this->scope;
+    }
+
+    public function setScope(string $scope): self
+    {
+        $this->scope = $scope;
+        return $this;
+    }
+
+    // === Department (scope=department) ===
+    public function getDepartmentId(): ?string
     {
         return $this->departmentId;
     }
 
-    public function setDepartmentId(string $departmentId): self
+    public function setDepartmentId(?string $departmentId): self
     {
         $this->departmentId = $departmentId;
         return $this;
@@ -172,6 +203,19 @@ class Address
     public function setDepartment(Department $department): self
     {
         $this->departmentId = $department->getId();
+        $this->scope = self::SCOPE_DEPARTMENT;
+        return $this;
+    }
+
+    // === Supplier company (scope=supplier) ===
+    public function getSupplierCompanyId(): ?string
+    {
+        return $this->supplierCompanyId;
+    }
+
+    public function setSupplierCompanyId(?string $supplierCompanyId): self
+    {
+        $this->supplierCompanyId = $supplierCompanyId;
         return $this;
     }
 
@@ -526,7 +570,9 @@ class Address
     {
         return [
             'id' => $this->id,
+            'scope' => $this->scope,
             'department_id' => $this->departmentId,
+            'supplier_company_id' => $this->supplierCompanyId,
             'type' => $this->type,
             'type_label' => self::getAvailableTypes()[$this->type] ?? $this->type,
             'name' => $this->name,
