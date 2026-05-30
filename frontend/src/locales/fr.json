@@ -926,6 +926,7 @@
     "viewKanban": "Kanban",
     "viewTable": "Tableau",
     "searchPlaceholder": "Rechercher des tickets (material:, activité:, reparatur:)",
+    "searchListPlaceholder": "Rechercher titre, matériel ou description…",
     "filterAllTypes": "Tous les types",
     "filterAllSources": "Toutes les sources",
     "filterAllPriorities": "Toutes les priorités",

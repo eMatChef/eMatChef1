@@ -5,28 +5,6 @@
       <p class="hint">{{ t('supplierShop.subtitle') }}</p>
     </header>
 
-    <div class="toolbar">
-      <label v-if="activeTab === 'catalog' || activeTab === 'templates'" class="field-inline">
-        <span>{{ t('supplierShop.supplierFilter') }}</span>
-        <select v-model="selectedCompanyId" @change="onCompanyChange">
-          <option value="">{{ t('supplierShop.filterAllSuppliers') }}</option>
-          <option v-for="c in companies" :key="c.id" :value="c.id">{{ c.name }}</option>
-        </select>
-      </label>
-      <label v-else-if="activeTab === 'deliveries'" class="field-inline">
-        <span>{{ t('supplierShop.deliveryStatusFilter') }}</span>
-        <select v-model="deliveryStatusFilter" @change="loadDeliveries">
-          <option value="submitted">{{ t('supplierShop.deliveryStatus.open') }}</option>
-          <option value="imported">{{ t('supplierShop.deliveryStatus.imported') }}</option>
-          <option value="all">{{ t('supplierShop.deliveryStatus.all') }}</option>
-        </select>
-      </label>
-      <div v-if="activeTab === 'watchlist'" class="budget">
-        {{ t('supplierShop.budgetTotal') }}:
-        <strong>{{ budgetTotal.toFixed(2) }} CHF</strong>
-      </div>
-    </div>
-
     <nav class="tabs">
       <button
         type="button"
@@ -70,7 +48,20 @@
     <template v-else>
       <!-- Catalog -->
       <section v-if="activeTab === 'catalog'">
-        <p v-if="catalogItems.length === 0" class="state">{{ t('supplierShop.catalogEmpty') }}</p>
+        <div class="filter-bar">
+          <label class="filter-field">
+            <span>{{ t('supplierShop.searchFilter') }}</span>
+            <input v-model="catalogSearch" type="search" :placeholder="t('supplierShop.searchPlaceholder')" />
+          </label>
+          <label class="filter-field">
+            <span>{{ t('supplierShop.supplierFilter') }}</span>
+            <select v-model="selectedCompanyId" @change="onCompanyChange">
+              <option value="">{{ t('supplierShop.filterAllSuppliers') }}</option>
+              <option v-for="c in companies" :key="c.id" :value="c.id">{{ c.name }}</option>
+            </select>
+          </label>
+        </div>
+        <p v-if="filteredCatalogItems.length === 0" class="state">{{ catalogEmptyMessage }}</p>
         <table v-else class="data-table">
           <thead>
             <tr>
@@ -83,7 +74,7 @@
             </tr>
           </thead>
           <tbody>
-            <tr v-for="item in catalogItems" :key="item.id">
+            <tr v-for="item in filteredCatalogItems" :key="item.id">
               <td>{{ item.name }}</td>
               <td>{{ supplierName(item.supplier_company_id, item.supplier_company_name) }}</td>
               <td>{{ item.sku || '—' }}</td>
@@ -101,7 +92,20 @@
 
       <!-- Templates -->
       <section v-else-if="activeTab === 'templates'">
-        <p v-if="templates.length === 0" class="state">{{ t('supplierShop.templatesEmpty') }}</p>
+        <div class="filter-bar">
+          <label class="filter-field">
+            <span>{{ t('supplierShop.searchFilter') }}</span>
+            <input v-model="templateSearch" type="search" :placeholder="t('supplierShop.searchPlaceholder')" />
+          </label>
+          <label class="filter-field">
+            <span>{{ t('supplierShop.supplierFilter') }}</span>
+            <select v-model="selectedCompanyId" @change="onCompanyChange">
+              <option value="">{{ t('supplierShop.filterAllSuppliers') }}</option>
+              <option v-for="c in companies" :key="c.id" :value="c.id">{{ c.name }}</option>
+            </select>
+          </label>
+        </div>
+        <p v-if="filteredTemplates.length === 0" class="state">{{ templateEmptyMessage }}</p>
         <table v-else class="data-table">
           <thead>
             <tr>
@@ -114,7 +118,7 @@
             </tr>
           </thead>
           <tbody>
-            <tr v-for="tpl in templates" :key="tpl.id">
+            <tr v-for="tpl in filteredTemplates" :key="tpl.id">
               <td>{{ tpl.name }}</td>
               <td>{{ supplierName(tpl.supplier_company_id, tpl.supplier_company_name) }}</td>
               <td>{{ materialTypeLabel(tpl.material_type) }}</td>
@@ -137,7 +141,17 @@
 
       <!-- Deliveries -->
       <section v-else-if="activeTab === 'deliveries'">
-        <p v-if="deliveries.length === 0" class="state">{{ t('supplierShop.deliveriesEmpty') }}</p>
+        <div class="filter-bar">
+          <label class="filter-field">
+            <span>{{ t('supplierShop.deliveryStatusFilter') }}</span>
+            <select v-model="deliveryStatusFilter" @change="loadDeliveries">
+              <option value="submitted">{{ t('supplierShop.deliveryStatus.open') }}</option>
+              <option value="imported">{{ t('supplierShop.deliveryStatus.imported') }}</option>
+              <option value="all">{{ t('supplierShop.deliveryStatus.all') }}</option>
+            </select>
+          </label>
+        </div>
+        <p v-if="deliveries.length === 0" class="state">{{ deliveriesEmptyMessage }}</p>
         <article v-for="delivery in deliveries" :key="delivery.id" class="card">
           <header class="card-header">
             <div>
@@ -178,6 +192,12 @@
 
       <!-- Watchlist -->
       <section v-else>
+        <div class="filter-bar filter-bar-summary">
+          <div class="budget">
+            {{ t('supplierShop.budgetTotal') }}:
+            <strong>{{ budgetTotal.toFixed(2) }} CHF</strong>
+          </div>
+        </div>
         <p v-if="watchlist.length === 0" class="state">{{ t('supplierShop.watchlistEmpty') }}</p>
         <table v-else class="data-table">
           <thead>
@@ -266,6 +286,8 @@ function syncTabFromRoute() {
 }
 const companies = ref<SupplierShopCompany[]>([])
 const selectedCompanyId = ref('')
+const catalogSearch = ref('')
+const templateSearch = ref('')
 const deliveryStatusFilter = ref<'submitted' | 'imported' | 'all'>('all')
 const catalogItems = ref<SupplierCatalogItem[]>([])
 const templates = ref<SupplierShopTemplate[]>([])
@@ -277,6 +299,49 @@ const importingCatalogId = ref('')
 const importingTemplateId = ref('')
 
 const budgetTotal = computed(() => watchlistBudgetTotal(watchlist.value))
+
+function matchesSearch(query: string, ...values: Array<string | null | undefined>): boolean {
+  const needle = query.trim().toLowerCase()
+  if (!needle) return true
+  return values.some((value) => (value ?? '').toLowerCase().includes(needle))
+}
+
+const filteredCatalogItems = computed(() =>
+  catalogItems.value.filter((item) =>
+    matchesSearch(
+      catalogSearch.value,
+      item.name,
+      item.sku,
+      supplierName(item.supplier_company_id, item.supplier_company_name),
+    ),
+  ),
+)
+
+const filteredTemplates = computed(() =>
+  templates.value.filter((tpl) =>
+    matchesSearch(
+      templateSearch.value,
+      tpl.name,
+      supplierName(tpl.supplier_company_id, tpl.supplier_company_name),
+    ),
+  ),
+)
+
+const catalogEmptyMessage = computed(() => {
+  if (catalogSearch.value.trim()) return t('supplierShop.catalogNoMatch')
+  return t('supplierShop.catalogEmpty')
+})
+
+const templateEmptyMessage = computed(() => {
+  if (templateSearch.value.trim()) return t('supplierShop.templatesNoMatch')
+  return t('supplierShop.templatesEmpty')
+})
+
+const deliveriesEmptyMessage = computed(() => {
+  if (deliveryStatusFilter.value === 'imported') return t('supplierShop.deliveriesEmptyImported')
+  if (deliveryStatusFilter.value === 'submitted') return t('supplierShop.deliveriesEmptyOpen')
+  return t('supplierShop.deliveriesEmpty')
+})
 
 function materialTypeLabel(type: string): string {
   if (type === 'physical_combo') return t('supplierShop.materialType.physicalCombo')
@@ -512,6 +577,43 @@ onMounted(() => {
   gap: 16px;
   margin: 20px 0 12px;
   flex-wrap: wrap;
+}
+
+.filter-bar {
+  display: flex;
+  align-items: flex-end;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+  padding: 12px 14px;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+}
+
+.filter-bar-summary {
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.filter-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 180px;
+}
+
+.filter-field span {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.filter-field input,
+.filter-field select {
+  min-width: 220px;
 }
 
 .field-inline {

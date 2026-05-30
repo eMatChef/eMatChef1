@@ -82,7 +82,7 @@ defineProps<{
 .activity-outlined-legend-icon {
   display: flex;
   flex-shrink: 0;
-  color: #6366f1;
+  color: var(--color-primary, #059669);
 }
 
 .activity-outlined-legend-icon svg {

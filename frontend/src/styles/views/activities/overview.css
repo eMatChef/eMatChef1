@@ -175,24 +175,6 @@
   border-color: var(--color-primary);
 }
 
-/* Search Box */
-.search-box {
-  position: relative;
-  display: flex;
-  align-items: center;
-}
-
-.search-box .search-icon {
-  position: absolute;
-  left: 10px;
-  color: #9ca3af;
-  pointer-events: none;
-}
-
-.search-box .search-input {
-  padding-left: 32px;
-}
-
 /* Sort */
 .activities-table thead th[class*="col-name"],
 .activities-table thead th[class*="col-period"],
@@ -272,7 +254,7 @@
 
 .filter-actions-all .search-box {
   width: 100%;
-  max-width: 320px;
+  max-width: 500px;
 }
 
 .stat-item-active {

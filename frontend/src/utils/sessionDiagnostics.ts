@@ -15,6 +15,7 @@ export type SessionEvent =
   | { type: 'REFRESH_MUTEX_WAIT' }
   | { type: 'REFRESH_MUTEX_ACQUIRED' }
   | { type: 'REFRESH_MUTEX_RELEASED' }
+  | { type: 'REFRESH_FAILED_SESSION_STILL_VALID' }
 
 function ts(): string {
   return new Date().toISOString().slice(11, 23)
@@ -50,6 +51,9 @@ export function logSessionEvent(event: SessionEvent): void {
       break
     case 'REFRESH_MUTEX_RELEASED':
       console.info(prefix, 'Refresh-Mutex freigegeben')
+      break
+    case 'REFRESH_FAILED_SESSION_STILL_VALID':
+      console.info(prefix, 'Refresh fehlgeschlagen, Session aber noch gültig (kein Logout)')
       break
     default:
       break

@@ -48,7 +48,16 @@ class MaterialImportService
             return ['success' => false, 'error' => 'Department nicht gefunden'];
         }
 
-        $existingByName = $this->loadExistingMaterialsByNormalizedName($departmentId);
+        $departmentMaterials = $this->loadDepartmentMaterialsForImport($departmentId);
+        $existingByMatchKey = [];
+        $existingByName = [];
+        foreach ($departmentMaterials as $material) {
+            if (!$material instanceof MaterialItem) {
+                continue;
+            }
+            $existingByMatchKey[$this->materialMatchKeyFromItem($material)] = $material;
+            $existingByName[$this->normalizeName($material->getName())][] = $material;
+        }
         $localSuppliers = $this->loadDepartmentSuppliers($departmentId);
         $globalSuppliers = $this->materialWizardSupplierService->listCatalogSuppliers();
         $storageContext = $this->buildStorageContext($departmentId);
@@ -62,6 +71,8 @@ class MaterialImportService
             'suppliers_copied' => 0,
             'suppliers_created' => 0,
         ];
+
+        $fileNameToMatchKeys = [];
 
         foreach ($rows as $index => $row) {
             $parsed = $this->parseRow($row, $index);
@@ -85,8 +96,16 @@ class MaterialImportService
                 continue;
             }
 
+            $matchKey = $this->materialMatchKeyFromParsed($parsed);
+            $existing = $existingByMatchKey[$matchKey] ?? null;
+            $matchKind = $existing !== null ? 'exact' : null;
+            if ($existing === null) {
+                $existing = $this->findImportMaterialMatchBySpecs($parsed, $departmentMaterials);
+                if ($existing !== null) {
+                    $matchKind = 'specs';
+                }
+            }
             $normName = $this->normalizeName($parsed['name']);
-            $existing = $existingByName[$normName] ?? null;
             $duplicateAction = (string) ($row['duplicate_action'] ?? $defaultDuplicateAction);
             if (!in_array($duplicateAction, ['add_batch', 'skip', 'create'], true)) {
                 $duplicateAction = $defaultDuplicateAction;
@@ -126,13 +145,26 @@ class MaterialImportService
 
             $storagePlan = $this->resolveStoragePlan($parsed, $storageContext);
             $outcome['warnings'] = array_merge($outcome['warnings'], $storagePlan['warnings']);
+            $outcome['warnings'] = array_merge(
+                $outcome['warnings'],
+                $this->detectImportSpecWarnings($parsed, $matchKey, $normName, $existing, $matchKind, $duplicateAction, $existingByName, $fileNameToMatchKeys),
+            );
 
             if ($dryRun) {
                 if ($existing !== null) {
                     $outcome['existing_material_id'] = $existing->getId();
                     $outcome['existing_material_name'] = $existing->getName();
                     $outcome['action'] = $duplicateAction === 'create' ? 'create' : 'add_batch';
-                    $outcome['warnings'][] = 'Artikel existiert bereits im Department';
+                    if ($duplicateAction !== 'create') {
+                        if ($matchKind === 'specs') {
+                            $outcome['warnings'][] = sprintf(
+                                'Gleiche Masse wie «%s» — Einkaufs-Batch wird angehängt (kein neuer Katalog-Artikel). Name wird bei Bedarf präzisiert.',
+                                $existing->getName(),
+                            );
+                        } else {
+                            $outcome['warnings'][] = 'Artikel existiert bereits im Department';
+                        }
+                    }
                 } else {
                     $outcome['action'] = 'create';
                 }
@@ -160,7 +192,7 @@ class MaterialImportService
                     );
                     $outcome['action'] = 'create';
                     $outcome['existing_material_id'] = $material->getId();
-                    $existingByName[$normName] = $material;
+                    $existingByMatchKey[$matchKey] = $material;
                     ++$stats['created'];
                 }
 
@@ -505,6 +537,7 @@ class MaterialImportService
         ?User $actor,
         array $storagePlan,
     ): MaterialBatch {
+        $this->maybeUpdateMaterialNameFromImport($material, $parsed);
         if ($parsed['manufacturer'] !== '' && !$material->getManufacturer()) {
             $material->setManufacturer($parsed['manufacturer']);
         }
@@ -974,9 +1007,127 @@ class MaterialImportService
     }
 
     /**
+     * @return list<MaterialItem>
+     */
+    private function loadDepartmentMaterialsForImport(string $departmentId): array
+    {
+        return $this->entityManager->createQueryBuilder()
+            ->select('m')
+            ->from(MaterialItem::class, 'm')
+            ->where('m.departmentId = :departmentId')
+            ->andWhere('m.deletedAt IS NULL')
+            ->andWhere('m.isJsMaterial = false')
+            ->setParameter('departmentId', $departmentId)
+            ->getQuery()
+            ->getResult();
+    }
+
+    /**
+     * @param list<MaterialItem> $materials
+     */
+    private function findImportMaterialMatchBySpecs(array $parsed, array $materials): ?MaterialItem
+    {
+        if (!$this->hasImportSpecs($parsed)) {
+            return null;
+        }
+
+        $specKey = $this->materialSpecMatchKeyFromParsed($parsed);
+        foreach ($materials as $material) {
+            if (!$material instanceof MaterialItem) {
+                continue;
+            }
+            if (!$this->hasImportSpecs([
+                'size_length' => $material->getSizeLength(),
+                'size_width' => $material->getSizeWidth(),
+                'size_height' => $material->getSizeHeight(),
+                'color' => $material->getColor(),
+            ])) {
+                continue;
+            }
+            if ($this->materialSpecMatchKeyFromParsed([
+                'size_length' => $material->getSizeLength(),
+                'size_width' => $material->getSizeWidth(),
+                'size_height' => $material->getSizeHeight(),
+                'color' => $material->getColor(),
+            ]) !== $specKey) {
+                continue;
+            }
+            if ($this->namesRelatedForImport((string) ($parsed['name'] ?? ''), $material->getName())) {
+                return $material;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string, mixed> $parsed
+     */
+    private function materialSpecMatchKeyFromParsed(array $parsed): string
+    {
+        return $this->materialMatchKey(
+            '',
+            $parsed['size_length'] ?? null,
+            $parsed['size_width'] ?? null,
+            $parsed['size_height'] ?? null,
+            $parsed['color'] ?? null,
+        );
+    }
+
+    /**
+     * @param array<string, mixed> $parsed
+     */
+    private function hasImportSpecs(array $parsed): bool
+    {
+        return trim((string) ($parsed['size_length'] ?? '')) !== ''
+            || trim((string) ($parsed['size_width'] ?? '')) !== ''
+            || trim((string) ($parsed['size_height'] ?? '')) !== ''
+            || trim((string) ($parsed['color'] ?? '')) !== '';
+    }
+
+    private function namesRelatedForImport(string $importName, string $existingName): bool
+    {
+        $a = mb_strtolower(trim($importName));
+        $b = mb_strtolower(trim($existingName));
+        if ($a === '' || $b === '') {
+            return false;
+        }
+        if ($a === $b) {
+            return true;
+        }
+        if (str_starts_with($a, $b . ' ') || str_starts_with($b, $a . ' ')) {
+            return true;
+        }
+        $strip = static fn (string $value): string => preg_replace('/\s+\d+(?:[.,]\d+)?\s*m\s*$/iu', '', $value) ?? $value;
+        $baseA = trim($strip($a));
+        $baseB = trim($strip($b));
+
+        return $baseA === $baseB || str_starts_with($a, $baseB) || str_starts_with($b, $baseA);
+    }
+
+    /**
+     * @param array<string, mixed> $parsed
+     */
+    private function maybeUpdateMaterialNameFromImport(MaterialItem $material, array $parsed): void
+    {
+        $importName = trim((string) ($parsed['name'] ?? ''));
+        $currentName = trim($material->getName());
+        if ($importName === '' || $currentName === '') {
+            return;
+        }
+        if (!$this->namesRelatedForImport($importName, $currentName)) {
+            return;
+        }
+        if (mb_strlen($importName) <= mb_strlen($currentName)) {
+            return;
+        }
+        $material->setName($importName);
+    }
+
+    /**
      * @return array<string, MaterialItem>
      */
-    private function loadExistingMaterialsByNormalizedName(string $departmentId): array
+    private function loadExistingMaterialsByMatchKey(string $departmentId): array
     {
         $materials = $this->entityManager->createQueryBuilder()
             ->select('m')
@@ -991,11 +1142,183 @@ class MaterialImportService
         $map = [];
         foreach ($materials as $material) {
             if ($material instanceof MaterialItem) {
-                $map[$this->normalizeName($material->getName())] = $material;
+                $map[$this->materialMatchKeyFromItem($material)] = $material;
             }
         }
 
         return $map;
+    }
+
+    /**
+     * @return array<string, list<MaterialItem>>
+     */
+    private function loadExistingMaterialsGroupedByName(string $departmentId): array
+    {
+        $materials = $this->entityManager->createQueryBuilder()
+            ->select('m')
+            ->from(MaterialItem::class, 'm')
+            ->where('m.departmentId = :departmentId')
+            ->andWhere('m.deletedAt IS NULL')
+            ->andWhere('m.isJsMaterial = false')
+            ->setParameter('departmentId', $departmentId)
+            ->getQuery()
+            ->getResult();
+
+        $map = [];
+        foreach ($materials as $material) {
+            if ($material instanceof MaterialItem) {
+                $map[$this->normalizeName($material->getName())][] = $material;
+            }
+        }
+
+        return $map;
+    }
+
+    /**
+     * @param array<string, list<MaterialItem>> $existingByName
+     * @param array<string, list<string>> $fileNameToMatchKeys
+     *
+     * @return list<string>
+     */
+    private function detectImportSpecWarnings(
+        array $parsed,
+        string $matchKey,
+        string $normName,
+        ?MaterialItem $existing,
+        ?string $matchKind,
+        string $duplicateAction,
+        array $existingByName,
+        array &$fileNameToMatchKeys,
+    ): array {
+        $warnings = [];
+
+        if ($existing === null) {
+            foreach ($existingByName[$normName] ?? [] as $other) {
+                if (!$other instanceof MaterialItem) {
+                    continue;
+                }
+                if ($this->materialMatchKeyFromItem($other) === $matchKey) {
+                    continue;
+                }
+                $warnings[] = sprintf(
+                    'Artikelname «%s» existiert bereits mit anderen Angaben (bestehend: %s; Import: %s). Namen präzisieren oder Masse prüfen.',
+                    $parsed['name'],
+                    $this->formatImportSpecsForWarning($other),
+                    $this->formatImportSpecsForWarningFromParsed($parsed),
+                );
+                break;
+            }
+        } elseif ($duplicateAction === 'add_batch' && $matchKind !== 'specs') {
+            $warnings[] = 'Einkaufs-Batch wird an bestehenden Artikel angehängt — Menge, Beschaffung und Masse prüfen.';
+        }
+
+        $seenKeys = $fileNameToMatchKeys[$normName] ?? [];
+        foreach ($seenKeys as $seenKey) {
+            if ($seenKey !== $matchKey) {
+                $warnings[] = sprintf(
+                    'In dieser Datei gibt es eine weitere Zeile mit gleichem Artikelnamen aber anderen Angaben (Import: %s). Namen oder Masse anpassen.',
+                    $this->formatImportSpecsForWarningFromParsed($parsed),
+                );
+                break;
+            }
+        }
+        if (!in_array($matchKey, $seenKeys, true)) {
+            $fileNameToMatchKeys[$normName][] = $matchKey;
+        }
+
+        return $warnings;
+    }
+
+    private function formatImportSpecsForWarning(MaterialItem $material): string
+    {
+        return $this->formatImportSpecsLabel(
+            $material->getSizeLength(),
+            $material->getSizeWidth(),
+            $material->getSizeHeight(),
+            $material->getColor(),
+        );
+    }
+
+    /**
+     * @param array<string, mixed> $parsed
+     */
+    private function formatImportSpecsForWarningFromParsed(array $parsed): string
+    {
+        return $this->formatImportSpecsLabel(
+            $parsed['size_length'] ?? null,
+            $parsed['size_width'] ?? null,
+            $parsed['size_height'] ?? null,
+            $parsed['color'] ?? null,
+        );
+    }
+
+    private function formatImportSpecsLabel(?string $length, ?string $width, ?string $height, ?string $color): string
+    {
+        $bits = [];
+        if ($length !== null && trim($length) !== '') {
+            $bits[] = 'L ' . trim($length) . ' cm';
+        }
+        if ($width !== null && trim($width) !== '') {
+            $bits[] = 'B ' . trim($width) . ' cm';
+        }
+        if ($height !== null && trim($height) !== '') {
+            $bits[] = 'H ' . trim($height) . ' cm';
+        }
+        if ($color !== null && trim($color) !== '') {
+            $bits[] = trim($color);
+        }
+
+        return $bits !== [] ? implode(' · ', $bits) : '—';
+    }
+
+    /**
+     * @param array<string, mixed> $parsed
+     */
+    private function materialMatchKeyFromParsed(array $parsed): string
+    {
+        return $this->materialMatchKey(
+            (string) ($parsed['name'] ?? ''),
+            $parsed['size_length'] ?? null,
+            $parsed['size_width'] ?? null,
+            $parsed['size_height'] ?? null,
+            $parsed['color'] ?? null,
+        );
+    }
+
+    private function materialMatchKeyFromItem(MaterialItem $material): string
+    {
+        return $this->materialMatchKey(
+            $material->getName(),
+            $material->getSizeLength(),
+            $material->getSizeWidth(),
+            $material->getSizeHeight(),
+            $material->getColor(),
+        );
+    }
+
+    private function materialMatchKey(
+        string $name,
+        ?string $sizeLength,
+        ?string $sizeWidth,
+        ?string $sizeHeight,
+        ?string $color,
+    ): string {
+        return implode('|', [
+            $this->normalizeName($name),
+            $this->normalizeSizeForMatchKey($sizeLength),
+            $this->normalizeSizeForMatchKey($sizeWidth),
+            $this->normalizeSizeForMatchKey($sizeHeight),
+            $this->normalizeName((string) ($color ?? '')),
+        ]);
+    }
+
+    private function normalizeSizeForMatchKey(?string $raw): string
+    {
+        if ($raw === null || trim($raw) === '') {
+            return '';
+        }
+
+        return $this->normalizeSize($raw) ?? '';
     }
 
     /**

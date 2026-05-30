@@ -60,6 +60,9 @@
                 <option :value="null">{{ t('components.templateEditDialog.manufacturerMixed') }}</option>
                 <option v-for="opt in manufacturerOptions" :key="opt.id" :value="opt.id">{{ opt.label }}</option>
               </select>
+              <p v-if="hasLegacyManufacturerOnly" class="manufacturer-legacy-hint">
+                {{ t('components.templateEditDialog.manufacturerLegacyHint', { name: form.manufacturer }) }}
+              </p>
               <span class="form-hint">{{ t('components.templateEditDialog.manufacturerHint') }}</span>
             </div>
 
@@ -189,31 +192,40 @@
           >
             <template #item="{ element, index }">
               <div class="component-card" :class="{ 'single-part-card': isSinglePartLocked }">
-                <div class="component-header">
-                  <button v-if="!isSinglePartLocked" class="drag-handle" :title="t('components.templateEditDialog.dragToSortTitle')">
+                <div
+                  class="component-header"
+                  :class="{ expanded: isComponentExpanded(index), 'header-clickable': !isSinglePartLocked }"
+                  :role="isSinglePartLocked ? undefined : 'button'"
+                  :tabindex="isSinglePartLocked ? undefined : 0"
+                  @click="toggleComponentAccordion(index)"
+                  @keydown.enter.prevent="toggleComponentAccordion(index)"
+                  @keydown.space.prevent="toggleComponentAccordion(index)"
+                >
+                  <button v-if="!isSinglePartLocked" class="drag-handle" :title="t('components.templateEditDialog.dragToSortTitle')" @click.stop>
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                       <line x1="8" y1="6" x2="16" y2="6"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="8" y1="18" x2="16" y2="18"/>
                     </svg>
                   </button>
                   <span class="component-number">#{{ index + 1 }}</span>
                   <span class="component-title">{{ element.name || t('components.templateEditDialog.newComponent') }}</span>
+                  <span v-if="!isSinglePartLocked && element.component_type?.trim()" class="component-type-label">
+                    {{ element.component_type.trim() }}
+                  </span>
+                  <span v-if="!isSinglePartLocked && element.required_qty" class="component-qty">
+                    {{ t('components.templateEditDialog.componentQtyShort', { qty: element.required_qty }) }}
+                  </span>
                   <div class="component-badges">
                     <span class="comp-badge" :class="element.tracking">{{ element.tracking === 'serialized' ? t('components.templateEditDialog.trackingShortSn') : t('components.templateEditDialog.trackingShortBulk') }}</span>
                     <span v-if="element.is_generic" class="comp-badge generic" :title="t('components.templateEditDialog.genericBadgeTitle')">🌐</span>
                     <span v-if="element.is_optional" class="comp-badge optional">{{ t('components.templateEditDialog.optionalBadge') }}</span>
                     <span v-if="element.component_source === 'self_provided'" class="comp-badge" :title="t('components.templateEditDialog.componentSourceSelfProvided')">{{ t('components.templateEditDialog.componentSourceSelfBadge') }}</span>
                   </div>
-                  <button
-                    v-if="!isSinglePartLocked"
-                    class="component-toggle"
-                    :class="{ expanded: expandedComponents.has(index) }"
-                    @click="toggleComponent(index)"
-                  >
+                  <span v-if="!isSinglePartLocked" class="component-caret" :class="{ expanded: isComponentExpanded(index) }">
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                       <polyline points="6 9 12 15 18 9"/>
                     </svg>
-                  </button>
-                  <button v-if="!props.readonly && !isSinglePartLocked" class="btn-remove-component" @click="removeComponent(index)" :title="t('components.templateEditDialog.removeTitle')">
+                  </span>
+                  <button v-if="!props.readonly && !isSinglePartLocked" class="btn-remove-component" @click.stop="removeComponent(index)" :title="t('components.templateEditDialog.removeTitle')">
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                       <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
                     </svg>
@@ -521,6 +533,35 @@ function syncManufacturerLabel() {
   form.manufacturer = selected?.label ?? null
 }
 
+const hasLegacyManufacturerOnly = computed(
+  () => !form.manufacturer_address_id && !!form.manufacturer?.trim(),
+)
+
+/** Legacy-Freitext → Picker, wenn exakt ein Treffer in den scoped Optionen. */
+function resolveManufacturerFromOptions() {
+  if (form.manufacturer_address_id) return
+  const needle = (form.manufacturer || '').trim().toLowerCase()
+  if (!needle) return
+
+  const exact = manufacturerOptions.value.filter(
+    (o) => o.label.trim().toLowerCase() === needle,
+  )
+  if (exact.length === 1) {
+    form.manufacturer_address_id = exact[0].id
+    form.manufacturer = exact[0].label
+    return
+  }
+
+  const partial = manufacturerOptions.value.filter((o) => {
+    const hay = o.label.trim().toLowerCase()
+    return hay.includes(needle) || needle.includes(hay)
+  })
+  if (partial.length === 1) {
+    form.manufacturer_address_id = partial[0].id
+    form.manufacturer = partial[0].label
+  }
+}
+
 async function loadManufacturerOptions() {
   loadingManufacturerOptions.value = true
   try {
@@ -528,7 +569,9 @@ async function loadManufacturerOptions() {
       props.templateScope,
       props.templateScope === 'department' ? props.departmentId : undefined,
     )
-    syncManufacturerLabel()
+    if (form.manufacturer_address_id) {
+      syncManufacturerLabel()
+    }
   } catch (err) {
     console.error(t('components.templateEditDialog.errorLoadManufacturerOptions'), err)
   } finally {
@@ -603,7 +646,7 @@ function addComponent() {
     sort_order: form.components.length,
   }
   form.components.push(newComp)
-  expandedComponents.value.add(form.components.length - 1)
+  expandedComponents.value = new Set([form.components.length - 1])
 }
 
 function removeComponent(index: number) {
@@ -617,11 +660,12 @@ function removeComponent(index: number) {
   expandedComponents.value = newSet
 }
 
-function toggleComponent(index: number) {
+function toggleComponentAccordion(index: number) {
+  if (isSinglePartLocked.value) return
   if (expandedComponents.value.has(index)) {
-    expandedComponents.value.delete(index)
+    expandedComponents.value = new Set()
   } else {
-    expandedComponents.value.add(index)
+    expandedComponents.value = new Set([index])
   }
 }
 
@@ -875,6 +919,7 @@ onMounted(async () => {
     applyInitialWizard()
   } else {
     await loadTemplate()
+    resolveManufacturerFromOptions()
   }
 })
 </script>
@@ -901,6 +946,12 @@ onMounted(async () => {
   font-size: 14px;
   font-weight: 500;
   color: var(--color-primary-dark);
+}
+
+.manufacturer-legacy-hint {
+  margin: 6px 0 0;
+  font-size: 13px;
+  color: #92400e;
 }
 
 .readonly-badge {
@@ -1211,6 +1262,20 @@ onMounted(async () => {
   background: #f9fafb;
 }
 
+.component-header.header-clickable {
+  cursor: pointer;
+  user-select: none;
+}
+
+.component-header.header-clickable:hover {
+  background: #f3f4f6;
+}
+
+.component-header.header-clickable:focus-visible {
+  outline: 2px solid #3b82f6;
+  outline-offset: -2px;
+}
+
 .drag-handle {
   background: none;
   border: none;
@@ -1237,6 +1302,28 @@ onMounted(async () => {
   font-weight: 500;
   color: #111827;
   flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.component-type-label {
+  font-size: 11px;
+  font-weight: 500;
+  color: #6b7280;
+  background: #f3f4f6;
+  padding: 1px 6px;
+  border-radius: 4px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.component-qty {
+  font-size: 12px;
+  font-weight: 600;
+  color: #6b7280;
+  white-space: nowrap;
 }
 
 .component-badges {
@@ -1274,16 +1361,15 @@ onMounted(async () => {
   cursor: help;
 }
 
-.component-toggle {
-  background: none;
-  border: none;
+.component-caret {
+  display: flex;
+  align-items: center;
   color: #6b7280;
-  cursor: pointer;
-  padding: 4px;
+  flex-shrink: 0;
   transition: transform 0.2s;
 }
 
-.component-toggle.expanded {
+.component-caret.expanded {
   transform: rotate(180deg);
 }
 

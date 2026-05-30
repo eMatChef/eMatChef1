@@ -25,16 +25,10 @@
 
     <!-- Suchleiste -->
     <div class="search-bar">
-      <div class="search-input-wrapper">
-        <svg class="search-icon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <circle cx="11" cy="11" r="8"/>
-          <path d="m21 21-4.35-4.35"/>
-        </svg>
-        <input
+      <div class="search-box">
+        <SearchFieldInput
           v-model="searchQuery"
-          type="text"
-          :placeholder="t('settings.storage.searchPlaceholder')"
-          class="search-input"
+          :label="t('settings.storage.searchPlaceholder')"
         />
       </div>
       <div class="rack-count">
@@ -312,6 +306,7 @@ import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useToast } from '@/composables/useToast'
 import { getAddresses, setAddressPrimary, type Address } from '@/api/addresses'
+import SearchFieldInput from '@/components/common/SearchFieldInput.vue'
 import AddressModal from '@/components/AddressModal.vue'
 import StorageConfirmModal from '@/components/storage/StorageConfirmModal.vue'
 import StorageBulkCreateModal from '@/components/storage/StorageBulkCreateModal.vue'

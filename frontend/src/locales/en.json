@@ -502,6 +502,13 @@
     "deleteInProgress": "Deleting...",
     "loading": "Please wait...",
     "saving": "Saving…",
+    "autoSaveField": {
+      "saving": "Saving…",
+      "saved": "Saved",
+      "error": "Save failed",
+      "retry": "Try again",
+      "cancel": "Discard change"
+    },
     "retry": "Try again",
     "closeAria": "Close",
     "search": "Search",
@@ -914,6 +921,10 @@
     "subtitle": "Browse catalog, calculate budget, and import deliberately.",
     "supplierFilter": "Supplier",
     "filterAllSuppliers": "All suppliers",
+    "searchFilter": "Search",
+    "searchPlaceholder": "Name or SKU …",
+    "catalogNoMatch": "No items match the filter.",
+    "templatesNoMatch": "No templates match the filter.",
     "deliveryStatusFilter": "Status",
     "deliveryStatus": {
       "open": "Open",
@@ -924,6 +935,8 @@
     "errorLoad": "Could not load shop.",
     "catalogEmpty": "No published items.",
     "deliveriesEmpty": "No deliveries.",
+    "deliveriesEmptyOpen": "No open deliveries.",
+    "deliveriesEmptyImported": "No completed deliveries.",
     "watchlistEmpty": "Watchlist is empty.",
     "addToWatchlist": "Add to watchlist",
     "addedToWatchlist": "Added to watchlist.",
@@ -1001,7 +1014,10 @@
     "userFallback": "User",
     "tabs": {
       "unsavedChangesTooltip": "Unsaved changes",
-      "closeAria": "Close tab"
+      "closeAria": "Close tab",
+      "groupMaterial": "Material",
+      "groupActivity": "Activity",
+      "groupWorkshop": "Workshop"
     },
     "notifications": {
       "title": "Notifications",
@@ -1175,6 +1191,7 @@
     "title": "Activities",
     "subtitle": "Manage events, rentals & loans",
     "create": "Create activity",
+    "fallbackTabLabel": "Activity {id}",
     "stats": {
       "total": "Total",
       "drafts": "Drafts",
@@ -4149,6 +4166,7 @@
   },
   "workshop": {
     "title": "Workshop",
+    "fallbackTabLabel": "Ticket {id}",
     "description": "Repairs, inspections, maintenance and write-offs",
     "newTicket": "New ticket",
     "qrGenCreate": "Generate QR",
@@ -4166,6 +4184,7 @@
     "statCancelled": "Cancelled",
     "viewTable": "Table",
     "searchPlaceholder": "Search tickets (material:, activity:, reparatur:)",
+    "searchListPlaceholder": "Search title, material or description…",
     "filterAllTypes": "All types",
     "filterAllSources": "All sources",
     "filterAllPriorities": "All priorities",
@@ -4465,6 +4484,8 @@
       "manufacturerPlaceholder": "e.g. Spatz, hajk",
       "manufacturerMixed": "None / mixed",
       "manufacturerHint": "Optional. With \"None / mixed\", component names stay generic.",
+      "manufacturerCurrent": "Manufacturer: {name}",
+      "manufacturerLegacyHint": "Stored as \"{name}\" — please link in the picker so the scoped manufacturer is correct.",
       "kindBadge": "Single part",
       "singlePartHint": "Single-part template: exactly one component. Choose tracking — serial number (e.g. tent) or bulk quantity (e.g. kitchen items, stakes).",
       "singlePartComponentsInfo": "The single component for this template — set name and tracking (serial or bulk).",
@@ -4509,6 +4530,7 @@
       "typeLabel": "Type",
       "componentTypePlaceholder": "e.g. outer_tent, inner_tent, stakes",
       "quantityLabel": "Quantity",
+      "componentQtyShort": "×{qty}",
       "trackingSerialized": "Serialized (serial number)",
       "trackingBulk": "Bulk (quantity management)",
       "componentSourceLabel": "Source",

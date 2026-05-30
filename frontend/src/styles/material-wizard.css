@@ -276,7 +276,7 @@
 .form-grid-details {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 16px;
+  gap: 24px 16px;
   margin-bottom: 16px;
 }
 
@@ -428,28 +428,6 @@
   background: #f3f4f6;
   color: #6b7280;
   font-weight: 500;
-}
-
-.material-wizard-overlay .form-group label {
-  font-size: 13px;
-  font-weight: 500;
-  color: #374151;
-}
-
-.material-wizard-overlay .form-input, .material-wizard-overlay .form-select {
-  padding: 10px 12px;
-  border: 1px solid #d1d5db;
-  border-radius: 8px;
-  font-size: 14px;
-  color: #111827;
-  background: white;
-  transition: all 0.2s;
-}
-
-.material-wizard-overlay .form-input:focus, .material-wizard-overlay .form-select:focus {
-  outline: none;
-  border-color: #16a34a;
-  box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.1);
 }
 
 .material-wizard-overlay .form-input.is-valid {
