@@ -315,7 +315,7 @@ import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useToast } from '@/composables/useToast'
 import { getMaterials, type Material } from '@/api/materials'
-import { getAddresses, type Address } from '@/api/addresses'
+import { getAddresses, getMaterialWizardSuppliers, type Address } from '@/api/addresses'
 import ImportStoragePickerModal from '@/components/material/ImportStoragePickerModal.vue'
 import { importMaterials, type MaterialImportResultRow, type MaterialImportDuplicateAction } from '@/api/materialImport'
 import {
@@ -344,9 +344,6 @@ import {
   type ImportFileRaw,
   type ImportRowStorageIssue,
 } from '@/utils/materialImportParse'
-
-const GLOBAL_SUPPLIER_DEPARTMENT_ID = 'GLOBAL000000'
-
 const route = useRoute()
 const { t } = useI18n()
 const toast = useToast()
@@ -585,15 +582,8 @@ async function loadStorageAddresses() {
 }
 
 async function loadSuppliers() {
-  const [local, global] = await Promise.all([
-    getAddresses(departmentId.value, 'supplier').catch(() => ({ addresses: [] as Address[] })),
-    getAddresses(GLOBAL_SUPPLIER_DEPARTMENT_ID, 'supplier').catch(() => ({ addresses: [] as Address[] })),
-  ])
-  const merged = [...(local.addresses || [])]
-  for (const g of global.addresses || []) {
-    if (!merged.some((a) => a.id === g.id)) merged.push(g)
-  }
-  supplierOptions.value = merged
+  const res = await getMaterialWizardSuppliers(departmentId.value).catch(() => ({ addresses: [] as Address[] }))
+  supplierOptions.value = res.addresses || []
 }
 
 async function loadMaterials() {

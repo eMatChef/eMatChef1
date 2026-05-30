@@ -2,7 +2,7 @@
 
 Abarbeitbare Checkliste für Phase 1–3. Das **Warum/Zielmodell** steht in [supplier-portal.md](./supplier-portal.md). Dieser Plan = **Was & in welcher Reihenfolge**.
 
-**Stand:** Mai 2026 · Phase 1 in Paketen 0–8; Phase 2/3 als grobe Pakete (Detail folgt mit Phase-2-Start). **Erledigt: Paket 0–7**
+**Stand:** Mai 2026 · Phase 1 in Paketen 0–8; Phase 2/3 als grobe Pakete (Detail folgt mit Phase-2-Start). **Erledigt: Paket 0–8**
 
 ---
 
@@ -36,7 +36,7 @@ Abarbeitbare Checkliste für Phase 1–3. Das **Warum/Zielmodell** steht in [sup
 | 5 | „Meine Firma“: Profil & Kontakt | 1 | M | 1, 2, 4 | [x] |
 | 6 | Team + Join-Code | 1 | M | 2, 5 | [x] |
 | 7 | Operator: Capability + `linked_department_id` | 1 | S | 1, 5 | [x] |
-| 8 | MW-Listen: Import, Global Addresses, Konstanten | 1b | M | 0, 1 | [ ] |
+| 8 | MW-Listen: Import, Global Addresses, Konstanten | 1b | M | 0, 1 | [x] |
 | 9 | Katalog `supplier_catalog_item` + Supplier-CRUD | 2a | L | 1–7 | [ ] |
 | 10 | Übergaben `supplier_delivery*` + SN | 2b | XL | 9 | [ ] |
 | 11 | Vorlagen `supplier_material_template_*` | 2c | XL | 9 | [ ] |
@@ -262,13 +262,13 @@ Diese Stellen strahlen bei Address-/Supplier-Änderungen am stärksten aus:
 - ggf. Batch-Modal / Address-Picker
 
 **Schritte:**
-- [ ] Lieferanten-Query (siehe [supplier-portal.md §8.4](./supplier-portal.md#84-mw-abfrage-lieferanten-ziel)):
+- [x] Lieferanten-Query (siehe [supplier-portal.md §8.4](./supplier-portal.md#84-mw-abfrage-lieferanten-ziel)):
   1. `SupplierCompany` `status=active` + Haupt-Adresse
   2. `address` `scope=global` AND `type=supplier` (Legacy)
   3. `address` `scope=department` AND `department_id = :current`
-- [ ] `MaterialImportService.loadSuppliers` auf neues Modell
-- [ ] Frontend: `GLOBAL_SUPPLIER_DEPARTMENT_ID` / `GLOBAL000000` entfernen
-- [ ] `GlobalAddressesView`: weiterhin Legacy pflegen + Link „Als Supplier-Firma aktivieren" (Paket 3)
+- [x] `MaterialImportService.loadSuppliers` auf neues Modell
+- [x] Frontend: `GLOBAL_SUPPLIER_DEPARTMENT_ID` / `GLOBAL000000` entfernen
+- [x] `GlobalAddressesView`: weiterhin Legacy pflegen + Link „Als Supplier-Firma aktivieren" (Paket 3)
 - [ ] Tests: Import mit globalem + department-scoped Supplier; J&S-Material unverändert
 
 **Definition of Done:** MW sieht Lieferanten in Import/Wizard wie heute (+ aktive Firmen); kein Hardcode `GLOBAL000000` mehr im Frontend.

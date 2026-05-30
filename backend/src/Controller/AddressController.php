@@ -6,6 +6,7 @@ use App\Entity\Address;
 use App\Entity\Department;
 use App\Entity\Membership;
 use App\Entity\User;
+use App\Service\MaterialWizardSupplierService;
 use App\Util\IdGenerator;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -25,7 +26,8 @@ class AddressController extends AbstractController
     private const USER_CONTACT_CREATE_TYPES = ['meeting', 'event'];
 
     public function __construct(
-        private EntityManagerInterface $entityManager
+        private EntityManagerInterface $entityManager,
+        private MaterialWizardSupplierService $materialWizardSupplierService,
     ) {}
 
     /**
@@ -333,6 +335,35 @@ class AddressController extends AbstractController
                 'error' => 'Fehler beim endgültigen Löschen: ' . $errorText,
             ], 500);
         }
+    }
+
+    /**
+     * Lieferanten für MW-Wizard / Import: aktive Firmen + Legacy-global + department-lokal.
+     */
+    #[Route('/material-wizard-suppliers', name: 'material_wizard_suppliers', methods: ['GET'], priority: 10)]
+    #[IsGranted('ROLE_USER')]
+    public function materialWizardSuppliers(Request $request): JsonResponse
+    {
+        $departmentId = trim((string) $request->query->get('department_id', ''));
+        if ($departmentId === '') {
+            return new JsonResponse(['error' => 'department_id ist erforderlich'], 400);
+        }
+
+        $department = $this->entityManager->getRepository(Department::class)->find($departmentId);
+        if (!$department) {
+            return new JsonResponse(['error' => 'Department nicht gefunden'], 404);
+        }
+
+        $role = $this->resolveDepartmentRole($departmentId);
+        if ($role === null) {
+            return new JsonResponse(['error' => 'Keine Berechtigung für dieses Department'], 403);
+        }
+
+        $addresses = $this->materialWizardSupplierService->listForDepartment($departmentId);
+
+        return new JsonResponse([
+            'addresses' => array_map(fn (Address $address) => $address->toArray(), $addresses),
+        ]);
     }
 
     /**

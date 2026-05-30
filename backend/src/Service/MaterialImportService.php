@@ -27,6 +27,7 @@ class MaterialImportService
     public function __construct(
         private EntityManagerInterface $entityManager,
         private PublicCodeService $publicCodeService,
+        private MaterialWizardSupplierService $materialWizardSupplierService,
     ) {
     }
 
@@ -49,7 +50,7 @@ class MaterialImportService
 
         $existingByName = $this->loadExistingMaterialsByNormalizedName($departmentId);
         $localSuppliers = $this->loadDepartmentSuppliers($departmentId);
-        $globalSuppliers = $this->loadGlobalSuppliers();
+        $globalSuppliers = $this->materialWizardSupplierService->listCatalogSuppliers();
         $storageContext = $this->buildStorageContext($departmentId);
 
         $resultRows = [];
@@ -1011,23 +1012,6 @@ class MaterialImportService
             ->andWhere('a.deletedAt IS NULL')
             ->setParameter('scope', Address::SCOPE_DEPARTMENT)
             ->setParameter('departmentId', $departmentId)
-            ->setParameter('type', 'supplier')
-            ->getQuery()
-            ->getResult();
-    }
-
-    /**
-     * @return Address[]
-     */
-    private function loadGlobalSuppliers(): array
-    {
-        return $this->entityManager->createQueryBuilder()
-            ->select('a')
-            ->from(Address::class, 'a')
-            ->where('a.scope = :scope')
-            ->andWhere('a.type = :type')
-            ->andWhere('a.deletedAt IS NULL')
-            ->setParameter('scope', Address::SCOPE_GLOBAL)
             ->setParameter('type', 'supplier')
             ->getQuery()
             ->getResult();

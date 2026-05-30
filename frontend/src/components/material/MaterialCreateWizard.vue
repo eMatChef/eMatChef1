@@ -2405,8 +2405,7 @@ import {
   type MaterialBatch,
   type AddBatchMultiResponse,
 } from '@/api/materials'
-import { getAddresses, type Address } from '@/api/addresses'
-import { getGlobalAddresses } from '@/api/globalAddresses'
+import { getAddresses, getMaterialWizardSuppliers, type Address } from '@/api/addresses'
 import { createCategory, getCategories, type Category } from '@/api/categories'
 import {
   createStorageRack,
@@ -2482,7 +2481,6 @@ const emit = defineEmits<{
 const toast = useToast()
 const { t } = useI18n()
 const headerNotificationsStore = useHeaderNotificationsStore()
-const GLOBAL_SUPPLIER_DEPARTMENT_ID = 'GLOBAL000000'
 const PACK_UNIT_BUNDLE = 'Bündel'
 const articleNameInputRef = ref<HTMLInputElement | null>(null)
 const wizardFormRef = ref<HTMLElement | null>(null)
@@ -4168,21 +4166,8 @@ async function loadData() {
     await prefetchContainerPreviews()
     searchRackCategories()
     
-    const [supplierResult, globalSupplierResult, globalDepartmentSupplierResult] = await Promise.all([
-      getAddresses(props.departmentId, 'supplier').catch(() => ({ addresses: [] })),
-      getGlobalAddresses().catch(() => ({ addresses: [] })),
-      getAddresses(GLOBAL_SUPPLIER_DEPARTMENT_ID, 'supplier').catch(() => ({ addresses: [] }))
-    ])
-    const mergedSuppliers = [...(supplierResult.addresses || [])]
-    const globalCandidates = [
-      ...(globalSupplierResult.addresses || []),
-      ...(globalDepartmentSupplierResult.addresses || [])
-    ]
-    for (const globalAddress of globalCandidates) {
-      if (!mergedSuppliers.some(addr => addr.id === globalAddress.id)) {
-        mergedSuppliers.push(globalAddress)
-      }
-    }
+    const supplierResult = await getMaterialWizardSuppliers(props.departmentId).catch(() => ({ addresses: [] }))
+    const mergedSuppliers = supplierResult.addresses || []
     allManufacturers.value = mergedSuppliers
     allSuppliers.value = mergedSuppliers
     
