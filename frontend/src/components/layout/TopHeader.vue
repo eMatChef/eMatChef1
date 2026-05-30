@@ -262,18 +262,18 @@
       </button>
       
       <!-- User Menu -->
-      <div class="user-menu" @click="toggleUserMenu">
-        <div class="user-avatar" :style="avatarStyle">
-          {{ userInitials }}
+      <div class="user-menu-wrapper">
+        <div class="user-menu" @click.stop="toggleUserMenu">
+          <div class="user-avatar" :style="avatarStyle">
+            {{ userInitials }}
+          </div>
+          <span class="user-name">{{ userName }}</span>
+          <svg class="chevron-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+            <path d="M19 9l-7 7-7-7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
         </div>
-        <span class="user-name">{{ userName }}</span>
-        <svg class="chevron-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-          <path d="M19 9l-7 7-7-7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-        </svg>
-      </div>
-      
-      <!-- User Dropdown -->
-      <div v-if="showUserDropdown" class="user-dropdown">
+
+        <div v-if="showUserDropdown" class="user-dropdown">
         <div class="user-info">
           <div class="user-avatar-large" :style="avatarStyle">
             {{ userInitials }}
@@ -323,6 +323,7 @@
           </svg>
           {{ t('layout.userMenu.logout') }}
         </button>
+        </div>
       </div>
     </div>
     </div>
@@ -1480,7 +1481,7 @@ async function saveProfile() {
 
 function handleClickOutside(event: MouseEvent) {
   const target = event.target as HTMLElement
-  if (!target.closest('.user-menu') && !target.closest('.user-dropdown')) {
+  if (!target.closest('.user-menu-wrapper')) {
     showUserDropdown.value = false
   }
   if (!target.closest('.header-icon-btn') && !target.closest('.notifications-dropdown')) {
@@ -1545,7 +1546,6 @@ watch(
   top: 0;
   z-index: 999;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-  overflow: hidden;
 }
 
 .tabs-scroll {
@@ -1687,7 +1687,6 @@ watch(
   gap: 0;
   height: 64px;
   max-height: 64px;
-  overflow: hidden;
   padding: 0 24px;
   box-sizing: border-box;
 }
@@ -1781,6 +1780,11 @@ watch(
   text-align: center;
 }
 
+.user-menu-wrapper {
+  position: relative;
+  flex-shrink: 0;
+}
+
 .user-menu {
   display: flex;
   align-items: center;
@@ -1821,7 +1825,7 @@ watch(
 .user-dropdown {
   position: absolute;
   top: 100%;
-  right: 24px;
+  right: 0;
   margin-top: 8px;
   background: white;
   border-radius: 8px;
