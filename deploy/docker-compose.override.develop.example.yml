@@ -29,6 +29,7 @@ services:
       # Alle Develop-Frontends unter *.ematchef.ch (JWT/Refresh-Cookies)
       AUTH_COOKIE_DOMAIN: ".ematchef.ch"
       AUTH_COOKIE_SECURE: "1"
+      EMATCHEF_DEV_TOOLS: "1"
       # Alle Origins, die die API vom Browser aus aufrufen (kein * bei credentials)
       CORS_ALLOW_ORIGIN: '^https://(dev\.ematchef\.ch|app-dev\.ematchef\.ch|qr-dev\.ematchef\.ch|devices-dev\.ematchef\.ch)$'
       MAILER_DSN: "${MAILER_DSN:-null://null}"
