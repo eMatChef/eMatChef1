@@ -1,4 +1,5 @@
 import apiClient from './apiClient'
+import type { MediaPhoto } from './media'
 
 export type ActivityApiType = 'activity' | 'camp' | 'event' | 'external'
 
@@ -333,6 +334,8 @@ export interface ActivityIssueReportRow {
   type_label?: string
   quantity: number
   description?: string | null
+  photo_url?: string | null
+  photos?: MediaPhoto[] | null
   resolved: boolean
   resolved_at?: string | null
   reported_at: string
@@ -378,9 +381,25 @@ export async function createActivityIssue(
     quantity: number
     description?: string | null
   },
-): Promise<unknown> {
+): Promise<ActivityIssueReportRow & { workshop_ticket_id?: string }> {
   const { data } = await apiClient.post(`/api/activities/${activityId}/issues`, body)
-  return data
+  return data as ActivityIssueReportRow & { workshop_ticket_id?: string }
+}
+
+/** POST /api/activities/:id/issues/:issueId/photos */
+export async function uploadActivityIssuePhoto(
+  activityId: string,
+  issueId: string,
+  file: File,
+): Promise<ActivityIssueReportRow> {
+  const formData = new FormData()
+  formData.append('photo', file)
+  const { data } = await apiClient.post<{ issue: ActivityIssueReportRow }>(
+    `/api/activities/${activityId}/issues/${issueId}/photos`,
+    formData,
+    { headers: { 'Content-Type': 'multipart/form-data' } },
+  )
+  return data.issue
 }
 
 /** PATCH /api/activities/:id/issues/:issueId/consumption */

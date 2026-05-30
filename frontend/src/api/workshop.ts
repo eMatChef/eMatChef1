@@ -1,4 +1,5 @@
 import apiClient from './apiClient'
+import type { MediaPhoto } from './media'
 
 // ============== Types ==============
 
@@ -33,6 +34,7 @@ export interface WorkshopIssueReportInfo {
   description: string | null
   quantity: number | null
   photo_url: string | null
+  photos?: MediaPhoto[] | null
   reported_at: string
   reported_by: WorkshopUserInfo | null
   resolved: boolean
@@ -78,7 +80,7 @@ export interface WorkshopTicket {
 
   // Detail-Felder (nur bei get mit details)
   parts_used?: any[] | null
-  photos?: string[] | null
+  photos?: MediaPhoto[] | null
   activity?: WorkshopActivityInfo | null
   issue_report?: WorkshopIssueReportInfo | null
   allowed_transitions?: TicketStatus[]
@@ -231,4 +233,19 @@ export async function getWorkshopStats(departmentId: string): Promise<WorkshopSt
 export async function getWorkshopTicketHistory(ticketId: string): Promise<WorkshopHistoryEntry[]> {
   const response = await apiClient.get<WorkshopHistoryEntry[]>(`/api/workshop/${ticketId}/history`)
   return response.data
+}
+
+/** POST /api/workshop/tickets/{ticketId}/photos — MW/DC Upload */
+export async function uploadWorkshopTicketPhoto(
+  ticketId: string,
+  file: File,
+): Promise<MediaPhoto[]> {
+  const formData = new FormData()
+  formData.append('photo', file)
+  const { data } = await apiClient.post<{ photos: MediaPhoto[] }>(
+    `/api/workshop/tickets/${ticketId}/photos`,
+    formData,
+    { headers: { 'Content-Type': 'multipart/form-data' } },
+  )
+  return data.photos
 }

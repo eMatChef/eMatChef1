@@ -1248,6 +1248,53 @@
   color: #374151;
 }
 
+.ticket-photo-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.ticket-photo-item {
+  margin: 0;
+  max-width: 140px;
+}
+
+.ticket-photo-thumb {
+  display: block;
+  width: 120px;
+  height: 90px;
+  object-fit: cover;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+}
+
+.ticket-photo-meta {
+  margin-top: 4px;
+  font-size: 11px;
+  color: #6b7280;
+  line-height: 1.3;
+}
+
+.ticket-photos-empty {
+  margin: 0 0 10px 0;
+  font-size: 13px;
+  color: #9ca3af;
+}
+
+.ticket-photo-upload {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #374151;
+}
+
+.ticket-photo-upload input[type='file'] {
+  font-size: 13px;
+}
+
 .resolution-option .option-desc {
   font-size: 11px;
   color: #6b7280;

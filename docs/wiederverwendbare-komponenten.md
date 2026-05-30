@@ -6,6 +6,94 @@
 
 ---
 
+## Medien / Fotos
+
+Zentrale Foto-Uploads über **kontextspezifische APIs** und **gemeinsame Vue-Bausteine**. Konzept und Umbauplan: [media/README.md](./media/README.md) · Checkliste: [media/plan.md](./media/plan.md).
+
+**Ist-Zustand (Mai 2026):** Nur Lieferanten-Reparatur hat echten Datei-Upload (`WorkshopPhotoStorageService`). Schaden melden, Werkstatt-MW und Material-Abbildung folgen laut Plan.
+
+### Backend (geplant / teilweise vorhanden)
+
+
+| Baustein | Pfad | Verwendung |
+| -------- | ---- | ---------- |
+| **MediaStorageService** | `backend/src/Service/Media/MediaStorageService.php` *(geplant)* | Speichern unter `var/uploads/{context}/…`, Kompression, Löschen |
+| **MediaCompressionService** | `backend/src/Service/Media/MediaCompressionService.php` *(geplant)* | Resize max. 1920 px, WebP/JPEG |
+| **WorkshopPhotoStorageService** | `backend/src/Service/Workshop/WorkshopPhotoStorageService.php` | **Prototyp** — wird in Paket 0/1 durch `MediaStorageService` ersetzt |
+| **MediaPhoto** (JSON-Shape) | siehe [media/README.md §2.3](./media/README.md#23-einheitliches-foto-json-metadaten) | Einheitliche Metadaten: `uploaded_at`, `uploaded_by_name`, `filename`, … |
+
+
+**Kontexte & API-Routes (Ziel)**
+
+
+| Kontext | Upload | Galerie in |
+| ------- | ------ | ---------- |
+| Werkstatt-Ticket (MW) | `POST /api/workshop/tickets/{id}/photos` | `WorkshopView` |
+| Werkstatt-Ticket (Lieferant) | `POST /api/supplier-companies/{companyId}/repairs/{ticketId}/photos` | `SupplierRepairsView` |
+| Schadenmeldung | `POST /api/activities/{activityId}/issues/{issueId}/photos` | `DamageReportWizard` |
+| Material | `POST /api/material/{materialId}/photos` | `MaterialDetailView` |
+
+
+**Ordnerstruktur:** `var/uploads/workshop/{departmentId}/{ticketId}/`, `issues/…`, `material/…` — Retention für abgeschlossene Tickets nach X Jahren ([media/plan.md Paket 5](./media/plan.md)).
+
+---
+
+### Vue-Komponenten (geplant — Paket 6)
+
+
+| Baustein | Pfad *(geplant)* | Verwendung |
+| -------- | ---------------- | ---------- |
+| **PhotoUpload** | `frontend/src/components/media/PhotoUpload.vue` | Datei wählen, Vorschau, Upload-Fortschritt, Fehler |
+| **PhotoGallery** | `frontend/src/components/media/PhotoGallery.vue` | Thumbnails + Meta (Wer, Wann), optional Löschen |
+| **useMediaUpload** | `frontend/src/composables/useMediaUpload.ts` | FormData-Upload, axios ohne JSON-Header |
+| **media.ts** | `frontend/src/api/media.ts` | Typ `MediaPhoto`, Hilfsfunktionen |
+
+
+**PhotoUpload — geplante Props**
+
+```vue
+import PhotoUpload from '@/components/media/PhotoUpload.vue'
+
+<PhotoUpload
+  :upload-url="`/api/supplier-companies/${companyId}/repairs/${ticketId}/photos`"
+  accept="image/jpeg,image/png,image/webp,image/gif"
+  :max-bytes="10_485_760"
+  :disabled="uploading"
+  @uploaded="onPhotoUploaded"
+  @error="onUploadError"
+/>
+```
+
+**PhotoGallery — geplante Props**
+
+```vue
+import PhotoGallery from '@/components/media/PhotoGallery.vue'
+import type { MediaPhoto } from '@/api/media'
+
+<PhotoGallery :photos="ticket.photos ?? []" readonly />
+<PhotoGallery
+  :photos="ticket.photos ?? []"
+  :delete-url="(photo) => `/api/workshop/tickets/${ticket.id}/photos/${photo.filename}`"
+  @deleted="reloadTicket"
+/>
+```
+
+**`MediaPhoto`-Objekt** (API, snake_case):
+
+- `id`, `filename`, `url`
+- `uploaded_at`, `uploaded_by_id`, `uploaded_by_name`
+- `original_filename`
+- optional `context`, `context_id`, `bytes`, `width`, `height`, `mime`
+- `legacy?: true` — alter reiner URL-String
+
+**Eingebunden (Ist):** `SupplierRepairsView.vue` — eigenes `<input type="file">` bis Paket 6.
+
+**Geplant einsetzen in:** `DamageReportWizard.vue`, `WorkshopView.vue`, `MaterialDetailView.vue`, `SupplierRepairsView.vue` (Refactor).
+
+**Styles *(geplant)*:** `frontend/src/styles/components/photo-gallery.css`
+
+---
+
 ## Vue-Komponenten
 
 ### User / Identität
@@ -304,6 +392,7 @@ SVG-Icons als Vue-Komponenten (`IconDashboard`, `IconMaterials`, `IconActivities
 | `useAutoLogout`                      | Session-Timeout                                                               |
 | `useNotificationSender`              | Factories für `NotificationSenderBlock` (Posteingang/Glocke, inkl. i18n)      |
 | `confirmWorkflowStatusTransition`    | Confirm vor Pack-Workflow-Status `at_event` / `returned` (siehe `usePackWorkflowConfirm.ts`) |
+| `useMediaUpload` *(geplant)*         | FormData-Foto-Upload für kontextspezifische Routes — siehe [media/plan.md](./media/plan.md) Paket 6 |
 
 
 ---

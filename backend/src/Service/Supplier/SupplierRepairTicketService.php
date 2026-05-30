@@ -4,13 +4,15 @@ declare(strict_types=1);
 
 namespace App\Service\Supplier;
 
-use App\Entity\Department;
 use App\Entity\MaterialBatch;
 use App\Entity\SupplierCompany;
 use App\Entity\User;
 use App\Entity\WorkshopTicket;
 use App\Repository\SupplierCompanyRepository;
+use App\Service\Media\MediaPhotoNormalizer;
+use App\Service\Workshop\WorkshopPhotoStorageService;
 use Doctrine\ORM\EntityManagerInterface;
+use Symfony\Component\HttpFoundation\File\UploadedFile;
 
 /**
  * Lieferanten-Sicht auf zugewiesene Workshop-Tickets (minimaler Datenzugriff).
@@ -20,6 +22,8 @@ class SupplierRepairTicketService
     public function __construct(
         private EntityManagerInterface $entityManager,
         private SupplierCompanyRepository $companyRepository,
+        private WorkshopPhotoStorageService $photoStorage,
+        private MediaPhotoNormalizer $photoNormalizer,
     ) {
     }
 
@@ -74,12 +78,27 @@ class SupplierRepairTicketService
             $ticket->setActualCost($this->nullableDecimalString($data['actual_cost']));
         }
         if (\array_key_exists('photos', $data) && \is_array($data['photos'])) {
-            $ticket->setPhotos(array_values(array_map('strval', $data['photos'])));
+            $ticket->setPhotos($this->photoNormalizer->normalizeIncoming($data['photos']));
         }
         if (\array_key_exists('resolution_notes', $data)) {
             $ticket->setResolutionNotes($this->nullableString($data['resolution_notes']));
         }
 
+        $ticket->updateTimestamps();
+        $this->entityManager->flush();
+
+        return $this->serializeTicket($ticket, true);
+    }
+
+    /** @return array<string, mixed> */
+    public function addPhoto(string $companyId, string $ticketId, User $user, UploadedFile $file): array
+    {
+        $ticket = $this->requireAssignedTicket($companyId, $ticketId);
+        $photo = $this->photoStorage->store($ticket, $user, $file, $companyId);
+
+        $photos = $ticket->getPhotos() ?? [];
+        $photos[] = $photo;
+        $ticket->setPhotos($photos);
         $ticket->updateTimestamps();
         $this->entityManager->flush();
 
@@ -217,17 +236,19 @@ class SupplierRepairTicketService
         ];
 
         if ($issueReport !== null) {
+            $issuePhotos = $this->photoNormalizer->normalizeOutgoing($issueReport->getPhotos());
             $result['issue_report'] = [
                 'type' => $issueReport->getType(),
                 'type_label' => $issueReport->getTypeLabel(),
                 'description' => $issueReport->getDescription(),
-                'photo_url' => $issueReport->getPhotoUrl(),
+                'photo_url' => $issueReport->getPrimaryPhotoUrl(),
+                'photos' => $issuePhotos,
                 'reported_at' => $issueReport->getReportedAt()?->format(\DateTimeInterface::ATOM),
             ];
         }
 
         if ($detailed) {
-            $result['photos'] = $ticket->getPhotos();
+            $result['photos'] = $this->photoNormalizer->normalizeOutgoing($ticket->getPhotos());
             $createdBy = $ticket->getCreatedByUser();
             if ($createdBy instanceof User) {
                 $result['department_contact'] = [

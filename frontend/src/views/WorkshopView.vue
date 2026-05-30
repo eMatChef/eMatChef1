@@ -393,6 +393,15 @@
                   <div v-if="selectedTicket.issue_report.description" class="origin-description">
                     {{ selectedTicket.issue_report.description }}
                   </div>
+                  <div v-if="issueReportPhotos.length" class="ticket-photo-grid">
+                    <img
+                      v-for="(photo, index) in issueReportPhotos"
+                      :key="photo.id || photo.url || index"
+                      :src="photo.url"
+                      :alt="photo.original_filename || ''"
+                      class="ticket-photo-thumb"
+                    />
+                  </div>
                   <div class="origin-meta">
                     <span v-if="selectedTicket.issue_report.reported_by">
                       👤 {{ selectedTicket.issue_report.reported_by.name }}
@@ -404,6 +413,30 @@
                 </div>
               </div>
             </div>
+          </div>
+
+          <!-- Ticket-Fotos -->
+          <div class="modal-section">
+            <div class="modal-section-title">{{ t('workshop.sectionPhotos') }}</div>
+            <div v-if="ticketPhotos.length" class="ticket-photo-grid">
+              <figure v-for="(photo, index) in ticketPhotos" :key="photo.id || photo.url || index" class="ticket-photo-item">
+                <img :src="photo.url" :alt="photo.original_filename || ''" class="ticket-photo-thumb" />
+                <figcaption v-if="photo.uploaded_by_name || photo.uploaded_at" class="ticket-photo-meta">
+                  <span v-if="photo.uploaded_by_name">{{ photo.uploaded_by_name }}</span>
+                  <span v-if="photo.uploaded_at"> · {{ formatDateTime(photo.uploaded_at) }}</span>
+                </figcaption>
+              </figure>
+            </div>
+            <p v-else class="ticket-photos-empty">{{ t('workshop.photosEmpty') }}</p>
+            <label v-if="canUploadWorkshopPhotos" class="ticket-photo-upload">
+              <span>{{ t('workshop.uploadPhoto') }}</span>
+              <input
+                type="file"
+                :accept="imageUploadAccept"
+                :disabled="uploadingTicketPhoto"
+                @change="onTicketPhotoSelected"
+              />
+            </label>
           </div>
 
           <!-- Details Grid -->
@@ -895,6 +928,7 @@ import {
   getWorkshopStats,
   getWorkshopTicketHistory,
   ensureWorkshopPublicCode,
+  uploadWorkshopTicketPhoto,
   type WorkshopTicket,
   type WorkshopStats,
   type WorkshopHistoryEntry,
@@ -910,6 +944,8 @@ import PublicQrActionModal from '@/components/common/PublicQrActionModal.vue'
 import { addPrintCartItem } from '@/api/tasks'
 import { printHtmlDocument } from '@/utils/printHtml'
 import { resolveWorkshopPublicUrl } from '@/utils/publicQrUrl'
+import { IMAGE_UPLOAD_ACCEPT, MAX_IMAGE_BYTES } from '@/api/media'
+import type { MediaPhoto } from '@/api/media'
 import QRCode from 'qrcode'
 import '@/styles/workshop-view.css'
 
@@ -952,11 +988,28 @@ const showWorkshopQrActionModal = ref(false)
 const repairCompanies = ref<Array<{ id: string; name: string }>>([])
 const assignSupplierCompanyId = ref('')
 const isAssigningSupplier = ref(false)
+const uploadingTicketPhoto = ref(false)
+const imageUploadAccept = IMAGE_UPLOAD_ACCEPT
 
 const departmentRole = computed(() => String(authStore.currentDepartmentRole || 'u').toLowerCase())
 const canManageWorkshopQr = computed(() =>
   ['mw', 'dc', 'matwart', 'depchef'].includes(departmentRole.value)
 )
+const canUploadWorkshopPhotos = computed(() => canManageWorkshopQr.value)
+
+const ticketPhotos = computed((): MediaPhoto[] => {
+  const photos = selectedTicket.value?.photos
+  if (!photos?.length) return []
+  return photos.filter((p): p is MediaPhoto => typeof p === 'object' && p !== null && 'url' in p)
+})
+
+const issueReportPhotos = computed((): MediaPhoto[] => {
+  const report = selectedTicket.value?.issue_report
+  if (!report) return []
+  if (report.photos?.length) return report.photos
+  if (report.photo_url) return [{ url: report.photo_url, legacy: true }]
+  return []
+})
 const workshopPublicUrl = computed(() =>
   resolveWorkshopPublicUrl(selectedTicket.value?.public_url, selectedTicket.value?.public_code),
 )
@@ -1304,6 +1357,32 @@ async function assignTicketToSupplier() {
     toast.error(err?.response?.data?.error || t('workshop.toast.supplierAssignError'))
   } finally {
     isAssigningSupplier.value = false
+  }
+}
+
+async function onTicketPhotoSelected(event: Event) {
+  const ticket = selectedTicket.value
+  if (!ticket || uploadingTicketPhoto.value) return
+
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = ''
+  if (!file) return
+
+  if (file.size > MAX_IMAGE_BYTES) {
+    toast.error(t('workshop.photoTooLarge', { name: file.name }))
+    return
+  }
+
+  uploadingTicketPhoto.value = true
+  try {
+    const photos = await uploadWorkshopTicketPhoto(ticket.id, file)
+    selectedTicket.value = { ...ticket, photos }
+    toast.success(t('workshop.uploadPhotoSuccess'))
+  } catch (err: any) {
+    toast.error(err?.response?.data?.error || t('workshop.uploadPhotoError'))
+  } finally {
+    uploadingTicketPhoto.value = false
   }
 }
 

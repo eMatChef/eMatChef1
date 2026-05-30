@@ -1,6 +1,18 @@
 import apiClient from './apiClient'
+import type { MediaPhoto } from './media'
 
 export type SupplierRepairStatus = 'open' | 'in_progress' | 'waiting_parts' | 'completed' | 'cancelled'
+
+export interface SupplierRepairPhoto {
+  id?: string
+  url: string
+  filename?: string
+  uploaded_at?: string
+  uploaded_by_id?: string
+  uploaded_by_name?: string
+  original_filename?: string
+  legacy?: boolean
+}
 
 export interface SupplierRepairTicket {
   id: string
@@ -36,9 +48,10 @@ export interface SupplierRepairTicket {
     type_label: string
     description: string | null
     photo_url: string | null
+    photos?: MediaPhoto[] | null
     reported_at: string
   } | null
-  photos?: string[] | null
+  photos?: SupplierRepairPhoto[] | null
   department_contact?: { name: string } | null
 }
 
@@ -77,7 +90,7 @@ export async function updateSupplierRepair(
   payload: Partial<{
     estimated_cost: string | null
     actual_cost: string | null
-    photos: string[]
+    photos: SupplierRepairPhoto[]
     resolution_notes: string | null
   }>,
 ): Promise<SupplierRepairTicket> {
@@ -96,6 +109,21 @@ export async function transitionSupplierRepair(
   const { data } = await apiClient.post<{ ticket: SupplierRepairTicket }>(
     `/api/supplier-companies/${companyId}/repairs/${ticketId}/transition`,
     payload,
+  )
+  return data.ticket
+}
+
+export async function uploadSupplierRepairPhoto(
+  companyId: string,
+  ticketId: string,
+  file: File,
+): Promise<SupplierRepairTicket> {
+  const formData = new FormData()
+  formData.append('photo', file)
+  const { data } = await apiClient.post<{ ticket: SupplierRepairTicket }>(
+    `/api/supplier-companies/${companyId}/repairs/${ticketId}/photos`,
+    formData,
+    { headers: { 'Content-Type': 'multipart/form-data' } },
   )
   return data.ticket
 }

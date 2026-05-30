@@ -13,6 +13,7 @@ use App\Entity\Department;
 use App\Entity\Membership;
 use App\Entity\User;
 use App\Service\ActivityAccountingCostService;
+use App\Service\Media\MediaPhotoNormalizer;
 use App\Service\Public\PublicCodeService;
 use App\Util\IdGenerator;
 use Doctrine\ORM\EntityManagerInterface;
@@ -29,6 +30,7 @@ class WorkshopController extends AbstractController
         private EntityManagerInterface $entityManager,
         private ActivityAccountingCostService $activityAccountingCost,
         private PublicCodeService $publicCodeService,
+        private MediaPhotoNormalizer $photoNormalizer,
     ) {}
 
     // ═══════════════════════════════════════════════
@@ -978,7 +980,7 @@ class WorkshopController extends AbstractController
 
         if ($detailed) {
             $result['parts_used'] = $ticket->getPartsUsed();
-            $result['photos'] = $ticket->getPhotos();
+            $result['photos'] = $this->photoNormalizer->normalizeOutgoing($ticket->getPhotos());
 
             // Activity-Info
             $activity = $ticket->getActivity();
@@ -995,13 +997,15 @@ class WorkshopController extends AbstractController
             $issueReport = $ticket->getIssueReport();
             if ($issueReport) {
                 $reporter = $issueReport->getReportedByUser();
+                $issuePhotos = $this->photoNormalizer->normalizeOutgoing($issueReport->getPhotos());
                 $result['issue_report'] = [
                     'id' => $issueReport->getId(),
                     'type' => $issueReport->getType(),
                     'type_label' => $issueReport->getTypeLabel(),
                     'description' => $issueReport->getDescription(),
                     'quantity' => $issueReport->getQuantity(),
-                    'photo_url' => $issueReport->getPhotoUrl(),
+                    'photo_url' => $issueReport->getPrimaryPhotoUrl(),
+                    'photos' => $issuePhotos,
                     'reported_at' => $issueReport->getReportedAt()->format('c'),
                     'reported_by' => $reporter ? [
                         'id' => $reporter->getId(),

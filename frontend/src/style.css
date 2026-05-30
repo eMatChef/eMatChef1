@@ -13,6 +13,7 @@
 @import './styles/ui/forms.css';
 @import './styles/ui/cards.css';
 @import './styles/ui/modals.css';
+@import './styles/ui/wizard-choices.css';
 @import './styles/ui/history.css';
 @import './styles/ui/storage.css';
 @import './styles/ui/states.css';
