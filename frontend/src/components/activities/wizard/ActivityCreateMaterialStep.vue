@@ -7,6 +7,7 @@
       :planning-start-iso="planningStartIso"
       :planning-end-iso="planningEndIso"
       :quantity-by-material-item-id="quantityByMaterialItemIdFromLines"
+      :standalone-quantity-by-material-item-id="standaloneQuantityByMaterialItemIdFromLines"
       :invited-departments="invitedDepartmentsForLookup"
       :search-reset-key="props.materialSearchResetKey"
       hint-variant="wizard"
@@ -104,6 +105,16 @@ const quantityByMaterialItemIdFromLines = computed(() => {
   return m
 })
 
+/** Eigenständige Einzelpositionen (kein Kombo) — für „Kombinieren?". */
+const standaloneQuantityByMaterialItemIdFromLines = computed(() => {
+  const m: Record<string, number> = {}
+  for (const row of props.modelValue) {
+    if (row.material_type === 'physical_combo' || row.material_type === 'virtual_combo') continue
+    m[row.material_item_id] = (m[row.material_item_id] ?? 0) + row.quantity
+  }
+  return m
+})
+
 const invitedDepartmentsForLookup = computed(() =>
   (props.invitedPartnerDepartments ?? []).map((d) => ({
     id: d.id,
@@ -119,19 +130,56 @@ function onRemoveLine({ index }: { line: ActivityMaterialLine; index: number }) 
   )
 }
 
-function onAvailabilityAddQuantity(payload: { material: ActivityPeriodAvailabilityMaterial; quantity: number }) {
-  addQty(payload.material, payload.quantity)
+function onAvailabilityAddQuantity(payload: {
+  material: ActivityPeriodAvailabilityMaterial
+  quantity: number
+  selectedOptionIds?: string[]
+  combineParts?: Array<{ materialItemId: string; reduceBy: number }>
+}) {
+  // „Kombinieren?": Reduktion + Hinzufügen in EINEM emit (sonst überschreibt das zweite das erste).
+  const base = applyCombineReductions(props.modelValue, payload.combineParts)
+  addQty(base, payload.material, payload.quantity, payload.selectedOptionIds)
+}
+
+function applyCombineReductions(
+  lines: ActivityMaterialLine[],
+  parts?: Array<{ materialItemId: string; reduceBy: number }>,
+): ActivityMaterialLine[] {
+  if (!parts || parts.length === 0) return [...lines]
+  const reduceMap = new Map<string, number>()
+  for (const p of parts) {
+    if (p.reduceBy > 0) reduceMap.set(p.materialItemId, (reduceMap.get(p.materialItemId) ?? 0) + p.reduceBy)
+  }
+  if (reduceMap.size === 0) return [...lines]
+  const next: ActivityMaterialLine[] = []
+  for (const row of lines) {
+    const isComboRow = row.material_type === 'physical_combo' || row.material_type === 'virtual_combo'
+    const reduce = !isComboRow ? reduceMap.get(row.material_item_id) : undefined
+    if (reduce) {
+      const q = Math.max(0, row.quantity - reduce)
+      if (q <= 0) continue
+      next.push({ ...row, quantity: q })
+    } else {
+      next.push(row)
+    }
+  }
+  return next
 }
 
 function effectiveStock(m: ActivityPeriodAvailabilityMaterial): number {
   return typeof m.availableForPeriod === 'number' ? m.availableForPeriod : 0
 }
 
-function addQty(m: ActivityPeriodAvailabilityMaterial, qty: number) {
+function addQty(
+  baseLines: ActivityMaterialLine[],
+  m: ActivityPeriodAvailabilityMaterial,
+  qty: number,
+  selectedOptionIds?: string[],
+) {
   const raw = effectiveStock(m)
   let draftSum = 0
   let savedSum = 0
-  for (const l of props.modelValue) {
+  for (const l of baseLines) {
     if (l.material_item_id !== m.materialItemId) continue
     draftSum += l.quantity
     if (typeof l.saved_quantity === 'number') {
@@ -141,9 +189,13 @@ function addQty(m: ActivityPeriodAvailabilityMaterial, qty: number) {
   /** Freie Menge laut API, korrigiert wenn Entwurf ≠ gespeichert (Detail) */
   const adjustedFree = Math.max(0, raw + savedSum - draftSum)
   const add = Math.min(qty, adjustedFree)
-  if (add < 1) return
+  if (add < 1) {
+    // Reduktion evtl. dennoch übernehmen (Kombo selbst war nicht mehr zubuchbar).
+    if (baseLines.length !== props.modelValue.length) emit('update:modelValue', baseLines)
+    return
+  }
 
-  const lines = [...props.modelValue]
+  const lines = [...baseLines]
   const i = lines.findIndex((l) => l.material_item_id === m.materialItemId)
   if (i >= 0) {
     lines[i] = {
@@ -152,15 +204,19 @@ function addQty(m: ActivityPeriodAvailabilityMaterial, qty: number) {
       period_availability_cap: lines[i].period_availability_cap ?? raw,
       pack_size: lines[i].pack_size ?? m.packSize ?? undefined,
       pack_unit: lines[i].pack_unit ?? m.packUnit ?? undefined,
+      // Konfigurator: zuletzt gewählte Konfiguration übernehmen (eine Eltern-Zeile je Kombo).
+      ...(selectedOptionIds ? { material_type: m.materialType ?? undefined, selected_option_ids: selectedOptionIds } : {}),
     }
   } else {
     lines.push({
       material_item_id: m.materialItemId,
       material_name: m.name,
+      material_type: m.materialType ?? undefined,
       quantity: add,
       period_availability_cap: raw,
       pack_size: m.packSize ?? undefined,
       pack_unit: m.packUnit ?? undefined,
+      ...(selectedOptionIds ? { selected_option_ids: selectedOptionIds } : {}),
     })
   }
   emit('update:modelValue', lines)

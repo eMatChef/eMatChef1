@@ -38,10 +38,10 @@
       <table class="cost-centers-table">
         <thead>
           <tr>
-            <th>{{ t('accounting.common.name') }}</th>
+            <th>{{ t('common.name') }}</th>
             <th>{{ t('accounting.common.accountCode') }}</th>
             <th>{{ t('accounting.common.sortOrder') }}</th>
-            <th class="col-actions">{{ t('accounting.common.actions') }}</th>
+            <th class="col-actions">{{ t('common.actions') }}</th>
           </tr>
         </thead>
         <tbody>
@@ -53,13 +53,13 @@
             <td>{{ row.account_code || t('accounting.common.dash') }}</td>
             <td>{{ row.sort_order }}</td>
             <td class="col-actions">
-              <button type="button" class="acc-icon-btn" :title="t('accounting.common.edit')" @click="openEdit(row)">
+              <button type="button" class="acc-icon-btn" :title="t('common.edit')" @click="openEdit(row)">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
                   <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
                 </svg>
               </button>
-              <button type="button" class="acc-icon-btn danger" :title="t('accounting.common.delete')" @click="onDelete(row)">
+              <button type="button" class="acc-icon-btn danger" :title="t('common.delete')" @click="onDelete(row)">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <polyline points="3 6 5 6 21 6" />
                   <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
@@ -76,7 +76,7 @@
         <div class="acc-modal" role="dialog" aria-modal="true">
           <div class="acc-modal-header">
             <h2>{{ editingId ? t('accounting.costCenters.modalEditTitle') : t('accounting.costCenters.modalCreateTitle') }}</h2>
-            <button type="button" class="acc-icon-btn" :aria-label="t('accounting.common.close')" @click="closeModal">
+            <button type="button" class="acc-icon-btn" :aria-label="t('common.close')" @click="closeModal">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <line x1="18" y1="6" x2="6" y2="18" />
                 <line x1="6" y1="6" x2="18" y2="18" />
@@ -101,9 +101,9 @@
               <textarea id="cc-desc" v-model="form.description" :placeholder="t('accounting.costCenters.placeholderDescription')" />
             </div>
             <div class="acc-modal-actions">
-              <button type="button" class="btn btn-secondary" @click="closeModal">{{ t('accounting.common.cancel') }}</button>
+              <button type="button" class="btn btn-secondary" @click="closeModal">{{ t('common.cancel') }}</button>
               <button type="button" class="btn btn-primary" :disabled="saving" @click="save">
-                {{ saving ? t('accounting.common.saving') : t('accounting.common.save') }}
+                {{ saving ? t('accounting.common.saving') : t('common.save') }}
               </button>
             </div>
           </div>
@@ -265,8 +265,8 @@ async function onDelete(row: AccountingCostCenter) {
   const ok = await confirmDialog({
     title: t('accounting.costCenters.deleteTitle'),
     message: t('accounting.costCenters.deleteMessage', { name: row.name }),
-    confirmText: t('accounting.common.delete'),
-    cancelText: t('accounting.common.cancel'),
+    confirmText: t('common.delete'),
+    cancelText: t('common.cancel'),
     variant: 'danger',
   })
   if (!ok) return

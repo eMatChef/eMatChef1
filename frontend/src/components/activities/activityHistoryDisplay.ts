@@ -98,7 +98,7 @@ type MaterialHistoryRow = {
 
 function materialRowName(row: MaterialHistoryRow, t: Translate): string {
   const n = String(row.material_name ?? '').trim()
-  return n || t('activities.common.material')
+  return n || t('common.material')
 }
 
 function materialItemsChangedLines(
@@ -142,7 +142,7 @@ function materialItemsChangedLines(
 }
 
 function crateCheckLineText(ln: Record<string, unknown>, t: Translate, te: Te): string {
-  const name = String(ln.material_name ?? t('activities.common.material'))
+  const name = String(ln.material_name ?? t('common.material'))
   const status = String(ln.status ?? 'ok')
   const note = typeof ln.note === 'string' ? ln.note.trim() : ''
   const missingQty = Math.max(0, Number(ln.missing_qty ?? 0) || 0)

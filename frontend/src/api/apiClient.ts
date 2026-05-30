@@ -111,7 +111,16 @@ apiClient.interceptors.request.use((config) => {
   return config
 })
 
-async function refreshSessionViaCookie(): Promise<boolean> {
+async function probeSessionValid(): Promise<boolean> {
+  try {
+    await apiClient.get('/api/auth/session')
+    return true
+  } catch {
+    return false
+  }
+}
+
+async function performRefreshPost(): Promise<boolean> {
   try {
     logSessionEvent({ type: 'REFRESH_START' })
     await apiClient.post('/api/token/refresh', {})
@@ -124,6 +133,42 @@ async function refreshSessionViaCookie(): Promise<boolean> {
     logSessionEvent({ type: 'REFRESH_FAILED', status, message: String(msg) })
     return false
   }
+}
+
+/**
+ * Einziger Einstieg für Token-Refresh (Mutex gegen single_use-Race).
+ * Bei fehlgeschlagenem Refresh: Session-Probe — BEARER kann noch gültig sein.
+ */
+export async function refreshSessionCookie(): Promise<boolean> {
+  if (refreshPromise) {
+    logSessionEvent({ type: 'REFRESH_MUTEX_WAIT' })
+    return refreshPromise
+  }
+
+  logSessionEvent({ type: 'REFRESH_MUTEX_ACQUIRED' })
+  refreshPromise = (async () => {
+    if (await performRefreshPost()) {
+      return true
+    }
+    const stillValid = await probeSessionValid()
+    if (stillValid) {
+      logSessionEvent({ type: 'REFRESH_FAILED_SESSION_STILL_VALID' })
+    }
+    return stillValid
+  })().finally(() => {
+    refreshPromise = null
+    logSessionEvent({ type: 'REFRESH_MUTEX_RELEASED' })
+  })
+
+  return refreshPromise
+}
+
+async function handleRefreshEndpointFailure(): Promise<void> {
+  if (await probeSessionValid()) {
+    logSessionEvent({ type: 'REFRESH_FAILED_SESSION_STILL_VALID' })
+    return
+  }
+  await triggerSessionExpired('Refresh-Endpoint fehlgeschlagen')
 }
 
 apiClient.interceptors.response.use(
@@ -149,10 +194,7 @@ apiClient.interceptors.response.use(
     const requestUrl = String(originalRequest?.url || '')
 
     if (requestUrl.includes('/token/refresh')) {
-      const status = error?.response?.status
-      const msg = error?.response?.data?.message || error?.message
-      logSessionEvent({ type: 'REFRESH_FAILED', status, message: String(msg) })
-      await triggerSessionExpired('Refresh-Endpoint fehlgeschlagen')
+      await handleRefreshEndpointFailure()
       return Promise.reject(error)
     }
 
@@ -180,17 +222,7 @@ apiClient.interceptors.response.use(
 
       originalRequest._retry = true
 
-      if (!refreshPromise) {
-        logSessionEvent({ type: 'REFRESH_MUTEX_ACQUIRED' })
-        refreshPromise = refreshSessionViaCookie().finally(() => {
-          refreshPromise = null
-          logSessionEvent({ type: 'REFRESH_MUTEX_RELEASED' })
-        })
-      } else {
-        logSessionEvent({ type: 'REFRESH_MUTEX_WAIT' })
-      }
-
-      const refreshed = await refreshPromise
+      const refreshed = await refreshSessionCookie()
       if (refreshed) {
         stripAuthorizationHeader(originalRequest)
         return apiClient(originalRequest)

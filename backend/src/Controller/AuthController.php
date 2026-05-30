@@ -16,6 +16,7 @@ use App\Service\Admin\AdminCapabilityChecker;
 use App\Service\AuditLogger;
 use App\Service\Auth\CrossSubdomainAuthCookies;
 use App\Service\OrganisationUserPickerFilter;
+use App\Service\Supplier\SupplierCompanyAccessService;
 use App\Service\TurnstileVerifier;
 use App\Service\JoinRequestManagerNotificationService;
 use App\Service\VerificationEmailService;
@@ -56,6 +57,7 @@ class AuthController extends AbstractController
         private CrossSubdomainAuthCookies $authCookies,
         private AdminCapabilityChecker $adminCapabilityChecker,
         private JoinRequestManagerNotificationService $joinRequestManagerNotifications,
+        private SupplierCompanyAccessService $supplierCompanyAccessService,
         #[Autowire('%kernel.secret%')]
         private string $appSecret,
     ) {}
@@ -149,12 +151,19 @@ class AuthController extends AbstractController
 
         $capData = $this->adminCapabilityChecker->serializeForApi($user);
 
+        $supplierCompanies = $this->supplierCompanyAccessService->serializeCompaniesForUser($user);
+        $lastUsedSupplierCompany = $this->supplierCompanyAccessService->resolveLastUsedSupplierCompanyId(
+            $user,
+            $supplierCompanies
+        );
+
         return new JsonResponse([
             'user' => [
                 'id' => $user->getId(),
                 'state' => $user->getState(),
                 'profile_id' => $user->getProfileId(),
                 'last_used_department' => $lastUsedResolved,
+                'last_used_supplier_company' => $lastUsedSupplierCompany,
             ],
             'profile' => [
                 'id' => $profile->getId(),
@@ -175,6 +184,8 @@ class AuthController extends AbstractController
             'departments' => $departments,
             'primary_department' => $primaryDepartment ? $primaryDepartment['id'] : null,
             'last_used_department' => $lastUsedResolved,
+            'supplier_companies' => $supplierCompanies,
+            'last_used_supplier_company' => $lastUsedSupplierCompany,
         ]);
     }
 

@@ -81,7 +81,7 @@ const holidayMarkers = computed<DatePickerMarker[]>(() => {
   const school: DatePickerMarker[] = fcalSchoolMarkers.value.map((m) => ({
     date: m.date,
     type: 'dot',
-    color: '#2563eb',
+    color: '#059669',
     tooltip: [{ text: t('activities.dateRangePicker.schoolHolidayTooltip', { label: m.label }) }],
   }))
   return [...base, ...school]

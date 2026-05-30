@@ -34,15 +34,12 @@
 
     <!-- Search -->
     <div v-if="!isLoading && members.length > 3" class="search-bar">
-      <svg class="search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2">
-        <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
-      </svg>
-      <input 
-        v-model="searchQuery" 
-        type="text" 
-        :placeholder="t('settings.departmentUsers.searchPlaceholder')"
-        class="search-input"
-      />
+      <div class="search-box">
+        <SearchFieldInput
+          v-model="searchQuery"
+          :label="t('settings.departmentUsers.searchPlaceholder')"
+        />
+      </div>
     </div>
 
     <div v-if="canManagePendingInvites && !isLoading" class="pending-invites-card">
@@ -86,7 +83,7 @@
             class="btn btn-secondary btn-sm"
             @click.stop="removePendingInviteItem(invite.id)"
           >
-            {{ t('settings.departmentUsers.pendingDelete') }}
+            {{ t('common.delete') }}
           </button>
           <button
             v-else
@@ -136,7 +133,7 @@
     <!-- Error -->
     <div v-else-if="error" class="error-state">
       <p class="error-message">{{ error }}</p>
-      <button @click="loadMembers" class="btn btn-secondary">{{ t('settings.departmentUsers.retry') }}</button>
+      <button @click="loadMembers" class="btn btn-secondary">{{ t('common.retry') }}</button>
     </div>
 
     <!-- Empty State -->
@@ -159,12 +156,12 @@
         <thead>
           <tr>
             <th class="col-name" @click="toggleSort('name')">
-              {{ t('settings.departmentUsers.colName') }}
+              {{ t('common.name') }}
               <span v-if="sortBy === 'name'" class="sort-indicator">{{ sortDir === 'asc' ? '↑' : '↓' }}</span>
             </th>
             <th class="col-email">{{ t('settings.departmentUsers.colEmail') }}</th>
             <th class="col-role" @click="toggleSort('role')">
-              {{ t('settings.departmentUsers.colRole') }}
+              {{ t('common.role') }}
               <span v-if="sortBy === 'role'" class="sort-indicator">{{ sortDir === 'asc' ? '↑' : '↓' }}</span>
             </th>
             <th class="col-primary">{{ t('settings.departmentUsers.colPrimary') }}</th>
@@ -326,7 +323,7 @@
                 />
               </div>
               <div class="form-group form-group-role">
-                <label>{{ t('settings.departmentUsers.labelRole') }}</label>
+                <label>{{ t('common.role') }}</label>
                 <select v-model="addForm.role" class="form-select">
                   <option v-for="(cfg, key) in assignableRoles" :key="key" :value="key">
                     {{ cfg.short }} – {{ getRoleLabel(String(key)) }}
@@ -338,7 +335,7 @@
             <template v-if="selectedAvailableUser">
               <p class="groups-hint">{{ t('settings.departmentUsers.inviteExistingUserHint') }}</p>
               <div class="form-group form-group-role">
-                <label>{{ t('settings.departmentUsers.labelRole') }}</label>
+                <label>{{ t('common.role') }}</label>
                 <select v-model="addForm.role" class="form-select">
                   <option v-for="(cfg, key) in assignableRoles" :key="key" :value="key">
                     {{ cfg.short }} – {{ getRoleLabel(String(key)) }}
@@ -384,7 +381,7 @@
           </div>
 
           <div class="modal-footer">
-            <button class="btn btn-secondary" @click="closeAddModal">{{ t('settings.departmentUsers.cancel') }}</button>
+            <button class="btn btn-secondary" @click="closeAddModal">{{ t('common.cancel') }}</button>
             <button
               v-if="showInviteByEmail"
               class="btn btn-primary"
@@ -423,7 +420,7 @@
 
           <div class="modal-body">
             <div class="form-group">
-              <label>{{ t('settings.departmentUsers.labelRole') }}</label>
+              <label>{{ t('common.role') }}</label>
               <select v-model="editForm.role" class="form-select">
                 <option v-for="(cfg, key) in assignableRoles" :key="key" :value="key">
                   {{ cfg.short }} – {{ getRoleLabel(String(key)) }}
@@ -440,13 +437,13 @@
           </div>
 
           <div class="modal-footer">
-            <button class="btn btn-secondary" @click="closeEditModal">{{ t('settings.departmentUsers.cancel') }}</button>
+            <button class="btn btn-secondary" @click="closeEditModal">{{ t('common.cancel') }}</button>
             <button 
               class="btn btn-primary" 
               :disabled="isSaving"
               @click="handleUpdate"
             >
-              {{ isSaving ? t('settings.departmentUsers.saving') : t('settings.departmentUsers.save') }}
+              {{ isSaving ? t('settings.departmentUsers.saving') : t('common.save') }}
             </button>
           </div>
         </div>
@@ -461,6 +458,7 @@ import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useToast } from '@/composables/useToast'
+import SearchFieldInput from '@/components/common/SearchFieldInput.vue'
 import { useConfirm } from '@/composables/useConfirm'
 import {
   createPendingInvite,
@@ -956,8 +954,8 @@ async function handleRemove(member: DepartmentMember) {
   const ok = await confirm.confirm({
     title: t('settings.departmentUsers.confirmRemoveTitle'),
     message: t('settings.departmentUsers.confirmRemoveMessage', { name: member.name }),
-    confirmText: t('settings.departmentUsers.confirmRemove'),
-    cancelText: t('settings.departmentUsers.cancel'),
+    confirmText: t('common.remove'),
+    cancelText: t('common.cancel'),
     variant: 'danger',
   })
   if (!ok) return
@@ -974,8 +972,8 @@ async function removePendingInviteItem(inviteId: string) {
   const ok = await confirm.confirm({
     title: t('settings.departmentUsers.confirmDeleteInviteTitle'),
     message: t('settings.departmentUsers.confirmDeleteInviteMessage'),
-    confirmText: t('settings.departmentUsers.confirmDelete'),
-    cancelText: t('settings.departmentUsers.cancel'),
+    confirmText: t('common.delete'),
+    cancelText: t('common.cancel'),
     variant: 'danger',
   })
   if (!ok) return

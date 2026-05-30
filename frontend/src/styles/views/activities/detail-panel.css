@@ -1151,6 +1151,38 @@
   padding-top: 2px;
 }
 
+.activity-combo-set-content {
+  width: 100%;
+  flex-basis: 100%;
+  margin-top: 4px;
+  padding: 6px 10px;
+  border-left: 2px solid #d8b4fe;
+  background: #faf5ff;
+  border-radius: 0 6px 6px 0;
+}
+
+.activity-combo-set-title {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+
+.activity-combo-set-list {
+  margin: 0;
+  padding-left: 16px;
+  font-size: 12px;
+  color: #4b5563;
+}
+
+.activity-combo-set-list li {
+  line-height: 1.5;
+}
+
+.activity-combo-set-self {
+  font-style: italic;
+}
+
 .activity-storage-cell {
   font-size: 13px;
   color: #4b5563;

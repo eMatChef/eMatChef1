@@ -204,7 +204,7 @@
           </div>
           <div class="split-footer-actions">
             <button class="btn-outline btn-sm" @click="$emit('update:modelValue', false)">{{
-              t('components.splitModal.cancel')
+              t('common.cancel')
             }}</button>
             <button class="btn-primary btn-sm" @click="submit" :disabled="isSplitting">
               {{ isSplitting ? t('components.splitModal.splitting') : t('components.splitModal.splitSubmit') }}

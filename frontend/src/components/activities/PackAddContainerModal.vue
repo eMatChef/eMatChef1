@@ -53,7 +53,7 @@ const { t } = useI18n()
 
     <template #footer>
       <PackModalFooter
-        :primary-label="t('activities.packList.modalAdd')"
+        :primary-label="t('common.add')"
         :primary-disabled="submitting || loading || !canSubmit"
         :cancel-disabled="submitting"
         @cancel="emit('cancel')"

@@ -194,11 +194,11 @@
           <p class="consumable-costs-hint text-muted">{{ t('activities.consumables.costsHint') }}</p>
           <div class="costs-table">
             <div class="costs-row costs-row-header">
-              <span class="costs-col-name">{{ t('activities.consumables.costsColMaterial') }}</span>
+              <span class="costs-col-name">{{ t('common.material') }}</span>
               <span class="costs-col-qty">{{ t('activities.consumables.costsColBooked') }}</span>
               <span class="costs-col-used">{{ t('activities.consumables.costsColUsed') }}</span>
               <span class="costs-col-price">{{ t('activities.consumables.costsColUnitPrice') }}</span>
-              <span class="costs-col-total">{{ t('activities.consumables.costsColAmount') }}</span>
+              <span class="costs-col-total">{{ t('common.amount') }}</span>
             </div>
             <div v-for="row in consumableAggregated" :key="'cost-' + row.material_item_id" class="costs-row">
               <span class="costs-col-name">{{ displayNameAgg(row) }}</span>
@@ -224,7 +224,7 @@
             :key="cr.id"
             class="consumable-history-item"
           >
-            <span class="consumable-history-name">{{ cr.material_name || t('activities.common.material') }}</span>
+            <span class="consumable-history-name">{{ cr.material_name || t('common.material') }}</span>
             <span class="consumable-history-qty">{{ t('activities.consumables.historyQty', { n: cr.quantity }) }}</span>
             <span class="consumable-history-time">{{ formatDateTime(cr.reported_at) }}</span>
             <span v-if="cr.description" class="consumable-history-desc">{{ cr.description }}</span>
@@ -393,7 +393,7 @@ function emitEditConsumption(cr: ActivityIssueReportRow) {
   const meta = materialMetaForIssue(cr)
   emit('editConsumption', {
     materialItemId: cr.material_item_id,
-    materialName: cr.material_name ?? t('activities.common.material'),
+    materialName: cr.material_name ?? t('common.material'),
     packSize: meta.pack_size,
     packUnit: meta.pack_unit,
     linkedContainerLabel: meta.linked_container_label,

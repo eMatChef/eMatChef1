@@ -48,11 +48,11 @@
               <dd>{{ workshopTypeLabel }}</dd>
             </div>
             <div v-if="workshopStatusLabel">
-              <dt>{{ t('public.lookup.workshopStatus') }}</dt>
+              <dt>{{ t('common.status') }}</dt>
               <dd>{{ workshopStatusLabel }}</dd>
             </div>
             <div v-if="data.workshop.material_name">
-              <dt>{{ t('public.lookup.workshopMaterial') }}</dt>
+              <dt>{{ t('common.material') }}</dt>
               <dd>{{ data.workshop.material_name }}</dd>
             </div>
             <div>
@@ -188,7 +188,7 @@ const publicAvatarStyle = computed(() => ({
   color: authStore.userColors.text,
 }))
 const publicGreetingName = computed(() =>
-  authStore.userDisplayName || t('public.lookup.materialFallback')
+  authStore.userDisplayName || t('common.material')
 )
 const publicInitials = computed(() => authStore.userInitials || '??')
 const publicHomeUrl = computed(() => {

@@ -30,7 +30,7 @@
           </p>
           <div class="pcw-actions">
             <button type="button" class="pcw-btn pcw-btn--ghost" @click="onCancel">
-              {{ t('components.physicalComboWarning.cancel') }}
+              {{ t('common.cancel') }}
             </button>
             <button type="button" class="pcw-btn pcw-btn--secondary" @click="onOpenCombo">
               {{ t('components.physicalComboWarning.openCombo') }}

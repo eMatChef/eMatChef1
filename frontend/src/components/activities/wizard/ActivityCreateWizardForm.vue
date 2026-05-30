@@ -30,7 +30,7 @@
           class="form-group activity-create-group-wrap"
         >
           <label for="activity-create-group-select">
-            {{ t('activities.wizard.form.groupLabel') }}
+            {{ t('common.group') }}
             <span v-if="!canSelectDepartmentGroupLevel" class="req">*</span>
             <span v-else class="text-muted group-optional-label">{{ t('activities.wizard.form.groupOptional') }}</span>
           </label>
@@ -105,7 +105,7 @@
       </section>
 
       <section id="activity-create-material" class="activity-create-section">
-        <ActivityOutlinedSection :title="t('activities.wizard.previewMetaMaterial')" :required="true">
+        <ActivityOutlinedSection :title="t('common.material')" :required="true">
           <ActivityCreateMaterialStep
             :department-id="departmentId"
             :activity-type="selectedActivityType"
@@ -141,7 +141,7 @@
           class="form-group activity-create-group-wrap"
         >
           <label for="activity-create-group-select-s">
-            {{ t('activities.wizard.form.groupLabel') }}
+            {{ t('common.group') }}
             <span v-if="selectedActivityType === 'camp' && !canSelectDepartmentGroupLevel" class="req">*</span>
             <span v-else class="text-muted group-optional-label">{{ t('activities.wizard.form.groupOptional') }}</span>
           </label>
@@ -173,70 +173,19 @@
           <p class="field-hint text-muted">
             {{ t('activities.wizard.form.venueHint') }}
           </p>
-          <div class="activity-address-select-row">
-            <div class="autocomplete-wrapper activity-address-autocomplete">
-              <input
-                id="activity-venue-address-search"
-                v-model="venueAddressSearch"
-                type="text"
-                class="form-input"
-                :placeholder="t('activities.wizard.form.addressSearchPlaceholder')"
-                autocomplete="off"
-                @input="onVenueAddressSearchInput"
-                @focus="showVenueAddressDropdown = true"
-                @blur="hideVenueAddressDropdownDelayed"
-              />
-              <div
-                v-if="showVenueAddressDropdown && filteredVenueAddressesForAutocomplete.length > 0"
-                class="autocomplete-dropdown activity-address-autocomplete-dropdown"
-              >
-                <div
-                  v-for="a in filteredVenueAddressesForAutocomplete"
-                  :key="a.id"
-                  class="autocomplete-item activity-address-ac-item"
-                  @mousedown.prevent="selectVenueAddress(a)"
-                >
-                  <div class="activity-address-ac-main">
-                    <span class="item-name">{{ a.name || a.company || a.street_line || t('activities.wizard.form.addressFallbackName') }}</span>
-                    <span class="item-address-type-tag" :title="t('activities.wizard.form.addressTypeTitle', { type: a.type_label })">{{
-                      a.type_label
-                    }}</span>
-                  </div>
-                  <span class="item-city">{{ a.city_line || a.city || '' }}</span>
-                </div>
-              </div>
-              <div
-                v-else-if="
-                  showVenueAddressDropdown &&
-                  venueAddressSearchTrimmed.length >= 1 &&
-                  rentalAddresses.length > 0 &&
-                  filteredVenueAddressesForAutocomplete.length === 0
-                "
-                class="autocomplete-dropdown activity-address-autocomplete-dropdown"
-              >
-                <div class="autocomplete-item autocomplete-empty">
-                  <span class="item-name">{{ t('activities.empty.noMatch') }}</span>
-                </div>
-              </div>
-              <div
-                v-else-if="showVenueAddressDropdown && rentalAddresses.length === 0"
-                class="autocomplete-dropdown activity-address-autocomplete-dropdown"
-              >
-                <div class="autocomplete-item autocomplete-empty">
-                  <span class="item-name">{{ t('activities.wizard.form.noAddressesWithAdd') }}</span>
-                </div>
-              </div>
-            </div>
-            <button
-              type="button"
-              class="btn-add-address"
-              :title="t('activities.wizard.form.addVenueAddressTitle')"
-              :aria-label="t('activities.wizard.form.addVenueAddressTitle')"
-              @click="openAddVenueAddressModal"
-            >
-              +
-            </button>
-          </div>
+          <DepartmentAddressAutocomplete
+            ref="venueAddressAutocompleteRef"
+            input-id="activity-venue-address-search"
+            :addresses="rentalAddresses"
+            :selected-id="venueAddressId"
+            primary-type="event"
+            :placeholder="t('activities.wizard.form.addressSearchPlaceholder')"
+            :add-button-title="t('activities.wizard.form.addVenueAddressTitle')"
+            :empty-addresses-label="t('activities.wizard.form.noAddressesWithAdd')"
+            inline-create-label-key="addresses.search.createEventVenueInline"
+            @update:selected-id="emit('update:venueAddressId', $event)"
+            @create="openAddVenueAddressModal"
+          />
           <p v-if="venueAddressId" class="selected-address">
             {{ t('activities.wizard.form.selectedPrefix') }}{{ venueAddressSummary }}
             <button type="button" class="clear-selection" :title="t('activities.wizard.form.clearSelectionTitle')" @click="clearVenueAddress">
@@ -309,7 +258,7 @@
             </div>
             <button
               type="button"
-              class="btn-add-address"
+              class="add-inline-btn"
               :title="t('activities.wizard.form.addCustomerAddressTitle')"
               :aria-label="t('activities.wizard.form.addCustomerAddressTitle')"
               @click="openAddCustomerAddressModal"
@@ -410,7 +359,7 @@
         </p>
         <p class="zeitraum-intro text-muted">
           <strong>{{ t('activities.wizard.form.usageLabelWord') }}</strong> {{ t('activities.wizard.form.zeitraumIntroUsage') }}
-          <strong>{{ t('activities.wizard.form.materialLabelWord') }}</strong> {{ t('activities.wizard.form.zeitraumIntroMaterial') }}
+          <strong>{{ t('common.material') }}</strong> {{ t('activities.wizard.form.zeitraumIntroMaterial') }}
         </p>
 
         <ActivityZeitraumDatetimeFields
@@ -488,7 +437,7 @@
             <dd>{{ activityTypeLabel(selectedActivityType, t) }}</dd>
           </div>
           <div class="activity-summary-row">
-            <dt>{{ t('activities.wizard.form.summaryName') }}</dt>
+            <dt>{{ t('common.name') }}</dt>
             <dd>{{ formName.trim() || t('activities.wizard.form.summaryEmpty') }}</dd>
           </div>
           <div
@@ -503,7 +452,7 @@
             <dd>{{ customerAddressSummary }}</dd>
           </div>
           <div v-if="showGroupInSummary" class="activity-summary-row">
-            <dt>{{ t('activities.wizard.form.summaryGroup') }}</dt>
+            <dt>{{ t('common.group') }}</dt>
             <dd>{{ groupSummaryLabel }}</dd>
           </div>
           <div class="activity-summary-row">
@@ -515,7 +464,7 @@
             <dd>{{ formatRange(planningStartAt, planningEndAt) }}</dd>
           </div>
           <div class="activity-summary-row">
-            <dt>{{ t('activities.wizard.form.summaryMaterialLines') }}</dt>
+            <dt>{{ t('common.material') }}</dt>
             <dd>{{ materialSummaryLabel }}</dd>
           </div>
           <div
@@ -551,6 +500,7 @@
       :key="addressModalTarget"
       :department-id="departmentId"
       :default-type="addressModalTarget === 'venue' ? 'event' : 'customer'"
+      :default-name="addressModalDefaultName"
       @close="closeAddressModal"
       @saved="onAddressModalSaved"
     />
@@ -563,6 +513,7 @@ import { useI18n } from 'vue-i18n'
 import type { ActivityApiType } from '@/api/activities'
 import { getAddresses, type Address } from '@/api/addresses'
 import { searchJoinableDepartments, type DepartmentSearchResult } from '@/api/joinRequests'
+import { DepartmentAddressAutocomplete } from '@/components/addresses'
 import AddressModal from '@/components/AddressModal.vue'
 import ActivityZeitraumDatetimeFields from '@/components/activities/shared/ActivityZeitraumDatetimeFields.vue'
 import type { ActivityDefaults } from '@/api/departmentSettings'
@@ -574,6 +525,7 @@ import type {
   ActivityMaterialLine,
   InvitedDepartmentDraft,
 } from '@/composables/useActivityCreateWizard'
+import { formatAddressOption, formatAddressSelectionLabel } from '@/utils/departmentAddressSearch'
 import { combineDayAndTime, startOfLocalDay } from '@/utils/activityDateTimeParts'
 import {
   getPlanningUsageViolation,
@@ -905,13 +857,12 @@ const datesLockedByMaterial = computed(() => props.materialLines.length > 0)
 const rentalAddresses = ref<Address[]>([])
 const showAddressModal = ref(false)
 const addressModalTarget = ref<'customer' | 'venue' | null>(null)
+const addressModalDefaultName = ref('')
+const venueAddressAutocompleteRef = ref<InstanceType<typeof DepartmentAddressAutocomplete> | null>(null)
 const customerAddressSearch = ref('')
 const showCustomerAddressDropdown = ref(false)
-const venueAddressSearch = ref('')
-const showVenueAddressDropdown = ref(false)
 
 const customerAddressSearchTrimmed = computed(() => customerAddressSearch.value.trim())
-const venueAddressSearchTrimmed = computed(() => venueAddressSearch.value.trim())
 
 const customerAddressSummary = computed(() => {
   if (!props.customerAddressId) return t('activities.wizard.form.summaryEmpty')
@@ -926,13 +877,6 @@ const venueAddressSummary = computed(() => {
   if (!a) return props.venueAddressId
   return (a.full_address && a.full_address.trim()) || formatAddressOption(a)
 })
-
-function formatAddressOption(a: Address): string {
-  const tail = a.full_address || [a.postal_code, a.city].filter(Boolean).join(' ')
-  const head = (a.name || a.company || a.street_line || '').trim()
-  if (head && tail) return `${head} — ${tail}`
-  return tail || head || a.id
-}
 
 function addressMatchesQuery(a: Address, q: string): boolean {
   const hay = [
@@ -962,13 +906,6 @@ const filteredRentalAddressesForAutocomplete = computed(() => {
   return list.filter((a) => addressMatchesQuery(a, q)).slice(0, 40)
 })
 
-const filteredVenueAddressesForAutocomplete = computed(() => {
-  const q = venueAddressSearchTrimmed.value.toLowerCase()
-  const list = rentalAddresses.value
-  if (!q) return list.slice(0, 20)
-  return list.filter((a) => addressMatchesQuery(a, q)).slice(0, 40)
-})
-
 async function loadRentalAddresses() {
   if (!props.departmentId) return
   try {
@@ -990,9 +927,7 @@ watch(
     if (needsAddr && deptId) void loadRentalAddresses()
     if (!needsAddr) {
       customerAddressSearch.value = ''
-      venueAddressSearch.value = ''
       showCustomerAddressDropdown.value = false
-      showVenueAddressDropdown.value = false
     }
   },
   { immediate: true },
@@ -1005,21 +940,12 @@ watch(
     const id = props.customerAddressId
     if (!id) return
     const a = rentalAddresses.value.find((x) => x.id === id)
-    if (a) customerAddressSearch.value = formatAddressOption(a)
-  },
-)
-
-watch(
-  () => [props.venueAddressId, rentalAddresses.value] as const,
-  () => {
-    const id = props.venueAddressId
-    if (!id) return
-    const a = rentalAddresses.value.find((x) => x.id === id)
-    if (a) venueAddressSearch.value = formatAddressOption(a)
+    if (a) customerAddressSearch.value = formatAddressSelectionLabel(a)
   },
 )
 
 function onCustomerAddressSearchInput() {
+  showCustomerAddressDropdown.value = true
   if (props.customerAddressId) {
     emit('update:customerAddressId', null)
   }
@@ -1031,15 +957,9 @@ function hideCustomerAddressDropdownDelayed() {
   }, 200)
 }
 
-function hideVenueAddressDropdownDelayed() {
-  window.setTimeout(() => {
-    showVenueAddressDropdown.value = false
-  }, 200)
-}
-
 function selectCustomerAddress(a: Address) {
   emit('update:customerAddressId', a.id)
-  customerAddressSearch.value = formatAddressOption(a)
+  customerAddressSearch.value = formatAddressSelectionLabel(a)
   showCustomerAddressDropdown.value = false
 }
 
@@ -1048,34 +968,25 @@ function clearCustomerAddress() {
   customerAddressSearch.value = ''
 }
 
-function onVenueAddressSearchInput() {
-  if (props.venueAddressId) {
-    emit('update:venueAddressId', null)
-  }
-}
-
-function selectVenueAddress(a: Address) {
-  emit('update:venueAddressId', a.id)
-  venueAddressSearch.value = formatAddressOption(a)
-  showVenueAddressDropdown.value = false
-}
-
 function clearVenueAddress() {
   emit('update:venueAddressId', null)
-  venueAddressSearch.value = ''
+  venueAddressAutocompleteRef.value?.clearSearch()
 }
 
 function closeAddressModal() {
   showAddressModal.value = false
   addressModalTarget.value = null
+  addressModalDefaultName.value = ''
 }
 
 function openAddCustomerAddressModal() {
+  addressModalDefaultName.value = customerAddressSearchTrimmed.value
   addressModalTarget.value = 'customer'
   showAddressModal.value = true
 }
 
-function openAddVenueAddressModal() {
+function openAddVenueAddressModal(presetName = '') {
+  addressModalDefaultName.value = presetName.trim()
   addressModalTarget.value = 'venue'
   showAddressModal.value = true
 }
@@ -1084,6 +995,7 @@ function onAddressModalSaved(addr?: Address) {
   const t = addressModalTarget.value
   showAddressModal.value = false
   addressModalTarget.value = null
+  addressModalDefaultName.value = ''
   void loadRentalAddresses().then(() => {
     if (addr?.id) {
       if (t === 'customer') emit('update:customerAddressId', addr.id)

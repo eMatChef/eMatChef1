@@ -7,9 +7,12 @@
         <p v-if="primaryStorageLabel" class="subtitle primary-storage-hint">
           {{ t('settings.storage.primaryStorageHint', { label: primaryStorageLabel }) }}
         </p>
-        <p v-if="!isLoading && storageAddresses.length === 0" class="subtitle warning-text">
-          {{ t('settings.storage.needStorageLocationFirst') }}
-        </p>
+        <div v-if="!isLoading && storageAddresses.length === 0" class="storage-location-hint">
+          <p class="subtitle warning-text">{{ t('settings.storage.needStorageLocationFirst') }}</p>
+          <button type="button" class="btn btn-warning btn-sm" @click="addStorageLocation">
+            {{ t('settings.storage.addStorageLocation') }}
+          </button>
+        </div>
       </div>
       <button class="btn-primary" :disabled="storageAddresses.length === 0" @click="openRackModal()">
         <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -22,16 +25,10 @@
 
     <!-- Suchleiste -->
     <div class="search-bar">
-      <div class="search-input-wrapper">
-        <svg class="search-icon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <circle cx="11" cy="11" r="8"/>
-          <path d="m21 21-4.35-4.35"/>
-        </svg>
-        <input
+      <div class="search-box">
+        <SearchFieldInput
           v-model="searchQuery"
-          type="text"
-          :placeholder="t('settings.storage.searchPlaceholder')"
-          class="search-input"
+          :label="t('settings.storage.searchPlaceholder')"
         />
       </div>
       <div class="rack-count">
@@ -73,7 +70,7 @@
               :disabled="settingPrimaryAddressId === location.addressId"
               @click="setPrimaryStorageLocation(location.addressId)"
             >
-              {{ settingPrimaryAddressId === location.addressId ? t('settings.storage.saving') : t('settings.storage.saveAsPrimary') }}
+              {{ settingPrimaryAddressId === location.addressId ? t('common.saving') : t('settings.storage.saveAsPrimary') }}
             </button>
           </div>
         </div>
@@ -192,13 +189,13 @@
           </select>
         </div>
         <div class="form-group">
-          <label>{{ t('settings.storage.fieldName') }}</label>
+          <label>{{ t('common.name') }}</label>
           <input v-model="rackForm.name" type="text" :placeholder="rackPlaceholder" class="form-input" />
         </div>
         <div class="modal-actions">
           <button class="btn-secondary" @click="closeRackModal">{{ t('common.cancel') }}</button>
           <button class="btn-primary" @click="saveRack" :disabled="!rackForm.name.trim() || !rackForm.storage_address_id || isSaving">
-            {{ isSaving ? t('settings.storage.saving') : t('common.save') }}
+            {{ isSaving ? t('common.saving') : t('common.save') }}
           </button>
         </div>
       </div>
@@ -239,13 +236,13 @@
         <h3>{{ t('settings.storage.editSlotTitle') }}</h3>
         <p v-if="slotRack" class="modal-context">{{ t('settings.storage.rackContext', { name: slotRack.name }) }}</p>
         <div class="form-group">
-          <label>{{ t('settings.storage.fieldName') }}</label>
+          <label>{{ t('common.name') }}</label>
           <input v-model="slotForm.name" type="text" :placeholder="slotFachPlaceholder" class="form-input" />
         </div>
         <div class="modal-actions">
           <button class="btn-secondary" @click="closeSlotModal">{{ t('common.cancel') }}</button>
           <button class="btn-primary" @click="saveSlot" :disabled="!slotForm.name.trim() || isSaving">
-            {{ isSaving ? t('settings.storage.saving') : t('common.save') }}
+            {{ isSaving ? t('common.saving') : t('common.save') }}
           </button>
         </div>
       </div>
@@ -309,6 +306,7 @@ import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useToast } from '@/composables/useToast'
 import { getAddresses, setAddressPrimary, type Address } from '@/api/addresses'
+import SearchFieldInput from '@/components/common/SearchFieldInput.vue'
 import AddressModal from '@/components/AddressModal.vue'
 import StorageConfirmModal from '@/components/storage/StorageConfirmModal.vue'
 import StorageBulkCreateModal from '@/components/storage/StorageBulkCreateModal.vue'
@@ -550,6 +548,11 @@ async function setPrimaryStorageLocation(addressId: string) {
   } finally {
     settingPrimaryAddressId.value = null
   }
+}
+
+function addStorageLocation() {
+  editingAddress.value = null
+  showAddressModal.value = true
 }
 
 function editStorageLocation(addressId: string) {
@@ -842,6 +845,18 @@ onMounted(() => {
 .warning-text {
   color: #b45309 !important;
   margin-top: 6px !important;
+}
+
+.storage-location-hint {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 6px;
+}
+
+.storage-location-hint .warning-text {
+  margin-top: 0 !important;
 }
 
 .primary-storage-hint {

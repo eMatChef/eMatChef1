@@ -13,7 +13,7 @@
       <form @submit.prevent="handleSubmit" class="modal-body">
         <!-- Name -->
         <div class="form-group">
-          <label class="form-label">{{ t('settings.categories.modal.nameLabel') }} <span class="required">*</span></label>
+          <label class="form-label">{{ t('common.name') }} <span class="required">*</span></label>
           <input 
             v-model="formData.name" 
             type="text" 
@@ -42,7 +42,7 @@
 
         <!-- Beschreibung -->
         <div class="form-group">
-          <label class="form-label">{{ t('settings.categories.modal.descriptionLabel') }}</label>
+          <label class="form-label">{{ t('common.description') }}</label>
           <textarea 
             v-model="formData.description" 
             class="form-textarea" 

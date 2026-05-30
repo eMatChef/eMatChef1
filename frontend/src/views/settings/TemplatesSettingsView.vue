@@ -2,18 +2,10 @@
   <div class="templates-settings">
     <div class="settings-header">
       <div>
-        <h1>{{ t('settings.templates.title') }}</h1>
-        <p class="subtitle">{{ t('settings.templates.subtitle') }}</p>
+        <h1>{{ pageTitle }}</h1>
+        <p class="subtitle">{{ pageSubtitle }}</p>
       </div>
       <div class="header-actions">
-        <button class="btn-secondary" @click="showImportDialog = true">
-          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-            <polyline points="7 10 12 15 17 10"/>
-            <line x1="12" y1="15" x2="12" y2="3"/>
-          </svg>
-          {{ t('settings.templates.jsonImport') }}
-        </button>
         <button class="btn-primary" @click="openCreateDialog">
           <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <line x1="12" y1="5" x2="12" y2="19"/>
@@ -24,24 +16,123 @@
       </div>
     </div>
 
-    <!-- Suchleiste + Filter -->
+    <div v-if="canImportExportTemplates" class="tab-bar">
+      <button type="button" class="tab-btn" :class="{ active: activeTab === 'list' }" @click="activeTab = 'list'">
+        {{ t('settings.templates.tabList') }}
+      </button>
+      <button type="button" class="tab-btn" :class="{ active: activeTab === 'import' }" @click="activeTab = 'import'">
+        {{ t('settings.templates.tabImport') }}
+      </button>
+      <button type="button" class="tab-btn" :class="{ active: activeTab === 'export' }" @click="activeTab = 'export'">
+        {{ t('settings.templates.tabExport') }}
+      </button>
+    </div>
+
+    <!-- Import Tab -->
+    <div v-if="canImportExportTemplates && activeTab === 'import'" class="io-panel">
+      <div class="card actions-card">
+        <label class="btn-primary file-label">
+          <input type="file" accept=".json,application/json" class="file-input" @change="handleFileSelect" />
+          {{ t('settings.templates.uploadJson') }}
+        </label>
+        <span v-if="importFile" class="file-name">{{ importFile.name }}</span>
+      </div>
+      <p class="hint">{{ t('settings.templates.importHint') }}</p>
+
+      <div v-if="importFile" class="card preview-card">
+        <div class="preview-toolbar">
+          <label class="duplicate-default">
+            {{ t('settings.templates.duplicateAction') }}
+            <select v-model="duplicateAction" class="form-select-sm">
+              <option value="skip">{{ t('settings.templates.duplicateSkip') }}</option>
+              <option value="update">{{ t('settings.templates.duplicateUpdate') }}</option>
+              <option value="create">{{ t('settings.templates.duplicateCreate') }}</option>
+            </select>
+          </label>
+          <button type="button" class="btn-secondary btn-sm" :disabled="isImporting" @click="runDryRun">
+            {{ t('settings.templates.validate') }}
+          </button>
+          <button type="button" class="btn-primary btn-sm" :disabled="isImporting || !importFile" @click="executeImport">
+            {{ isImporting ? t('settings.templates.importSubmitting') : t('settings.templates.importSubmit') }}
+          </button>
+        </div>
+
+        <div v-if="importResult" class="import-result" :class="{ success: importResult.success, error: !importResult.success }">
+          <template v-if="importResult.success">
+            <strong>{{ importResult.dry_run ? t('settings.templates.previewTitle') : t('settings.templates.importSuccessStrong') }}</strong>
+            {{ t('settings.templates.importStats', {
+              created: importResult.stats.created,
+              updated: importResult.stats.updated,
+              skipped: importResult.stats.skipped,
+              errors: importResult.stats.errors,
+            }) }}
+          </template>
+          <template v-else>
+            <strong>{{ t('settings.templates.errorLabel') }}:</strong> {{ importResult.error }}
+          </template>
+        </div>
+
+        <div v-if="importResult?.rows?.length" class="table-wrap">
+          <table class="preview-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>{{ t('settings.templates.colName') }}</th>
+                <th>{{ t('settings.templates.colAction') }}</th>
+                <th>{{ t('settings.templates.colStatus') }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="row in importResult.rows" :key="row.template_index" :class="{ 'row-error': row.status === 'error' }">
+                <td>{{ row.template_index + 1 }}</td>
+                <td>{{ row.name || '—' }}</td>
+                <td>{{ row.action || '—' }}</td>
+                <td>
+                  <span v-if="row.errors?.length">{{ row.errors.join(', ') }}</span>
+                  <span v-else>{{ row.status }}</span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Export Tab -->
+    <div v-else-if="canImportExportTemplates && activeTab === 'export'" class="io-panel">
+      <div class="card export-card">
+        <h2>{{ t('settings.templates.exportTitle') }}</h2>
+        <p class="hint">{{ t('settings.templates.exportHint') }}</p>
+        <div class="export-form">
+          <label>
+            {{ t('settings.templates.exportManufacturer') }}
+            <select v-model="exportManufacturer" class="filter-select">
+              <option value="">{{ t('settings.templates.exportAllManufacturers') }}</option>
+              <option v-for="m in manufacturers" :key="m" :value="m">{{ m }}</option>
+              <option :value="NO_MANUFACTURER_KEY">{{ t('settings.templates.generalMixed') }}</option>
+            </select>
+          </label>
+          <button type="button" class="btn-primary" :disabled="isExporting" @click="runExport">
+            {{ isExporting ? t('settings.templates.exporting') : t('settings.templates.exportDownload') }}
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Vorlagen-Liste -->
+    <template v-else-if="!canImportExportTemplates || activeTab === 'list'">
     <div class="search-bar">
-      <div class="search-input-wrapper">
-        <svg class="search-icon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <circle cx="11" cy="11" r="8"/>
-          <path d="m21 21-4.35-4.35"/>
-        </svg>
-        <input
+      <div class="search-box">
+        <SearchFieldInput
           v-model="searchQuery"
-          type="text"
-          :placeholder="t('settings.templates.searchPlaceholder')"
-          class="search-input"
+          :label="t('settings.templates.searchPlaceholder')"
         />
       </div>
       <div class="filter-group">
         <select v-model="filterManufacturer" class="filter-select">
           <option value="">{{ t('settings.templates.allManufacturers') }}</option>
-          <option v-for="m in manufacturers" :key="m" :value="m">{{ m }}</option>
+          <option v-for="m in listManufacturers" :key="m" :value="m">{{ m }}</option>
+          <option :value="NO_MANUFACTURER_KEY">{{ t('settings.templates.generalMixed') }}</option>
         </select>
         <select v-model="filterType" class="filter-select">
           <option value="">{{ t('settings.templates.allTypes') }}</option>
@@ -103,9 +194,10 @@
                 <div class="template-info">
                   <div class="template-name-row">
                     <span class="template-name">{{ template.name }}</span>
-                    <span v-if="template.is_global" class="badge global">{{ t('settings.templates.badgeGlobal') }}</span>
-                    <span v-else class="badge department">{{ t('settings.templates.badgeDepartment') }}</span>
+                    <span v-if="!isGlobalAdminMode && template.is_global" class="badge global">{{ t('settings.templates.badgeGlobal') }}</span>
+                    <span v-if="!isGlobalAdminMode && !template.is_global" class="badge department">{{ t('settings.templates.badgeDepartment') }}</span>
                     <span v-if="!template.is_active" class="badge inactive">{{ t('settings.templates.badgeInactive') }}</span>
+                    <span v-if="isSinglePartTemplate(template)" class="badge single-part">{{ t('settings.templates.badgeSinglePart') }}</span>
                   </div>
                   <div class="template-meta">
                     <span class="meta-item">
@@ -132,13 +224,13 @@
                 </div>
               </div>
               <div class="template-actions">
-                <button class="action-btn" @click.stop="duplicateTemplate(template)" :title="t('settings.templates.duplicateTitle')">
+                <button class="action-btn" @click.stop="duplicateTemplate(template)" :title="duplicateTitle">
                   <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
                     <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
                   </svg>
                 </button>
-                <button v-if="template.can_edit" class="action-btn" @click.stop="openEditDialog(template)" :title="t('settings.templates.edit')">
+                <button v-if="template.can_edit" class="action-btn" @click.stop="openEditDialog(template)" :title="t('common.edit')">
                   <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
                     <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
@@ -150,7 +242,7 @@
                     <circle cx="12" cy="12" r="3"/>
                   </svg>
                 </button>
-                <button v-if="template.can_edit" class="action-btn delete" @click.stop="confirmDelete(template)" :title="t('settings.templates.delete')">
+                <button v-if="template.can_edit" class="action-btn delete" @click.stop="confirmDelete(template)" :title="t('common.delete')">
                   <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <polyline points="3 6 5 6 21 6"/>
                     <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
@@ -171,9 +263,9 @@
           </svg>
         </div>
         <h3>{{ t('settings.templates.emptyTitle') }}</h3>
-        <p>{{ t('settings.templates.emptyDescription') }}</p>
+        <p>{{ emptyDescription }}</p>
         <div class="empty-actions">
-          <button class="btn-secondary" @click="showImportDialog = true">{{ t('settings.templates.jsonImport') }}</button>
+          <button v-if="canImportExportTemplates" class="btn-secondary" @click="activeTab = 'import'">{{ t('settings.templates.jsonImport') }}</button>
           <button class="btn-primary" @click="openCreateDialog">{{ t('settings.templates.firstTemplate') }}</button>
         </div>
       </div>
@@ -184,67 +276,32 @@
       <div class="spinner"></div>
       <p>{{ t('settings.templates.loading') }}</p>
     </div>
+    </template>
+
+    <!-- Start-Assistent (Neue Vorlage) -->
+    <TemplateStartWizard
+      v-if="showStartWizard"
+      :department-id="departmentId"
+      :template-scope="templateScope"
+      @close="handleWizardClose"
+      @complete="handleWizardComplete"
+    />
 
     <!-- Template Edit/Create Dialog -->
     <TemplateEditDialog
       v-if="showEditDialog"
       :department-id="departmentId"
+      :template-scope="templateScope"
       :template="editingTemplate"
+      :initial-wizard="wizardResult"
       :readonly="editingReadonly"
       @close="closeEditDialog"
       @saved="handleTemplateSaved"
     />
 
-    <!-- Import Dialog -->
-    <div v-if="showImportDialog" class="modal-overlay">
-      <div class="import-dialog">
-        <div class="dialog-header">
-          <h2>{{ t('settings.templates.importDialogTitle') }}</h2>
-          <button class="close-btn" @click="showImportDialog = false">
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-            </svg>
-          </button>
-        </div>
-        <div class="dialog-body">
-          <p class="import-info">
-            {{ t('settings.templates.importInfo') }}
-            <code>{{ '{ "manufacturer": "...", "templates": [...] }' }}</code>
-          </p>
-          <div class="file-upload-area" :class="{ dragging: isDragging }" @dragover.prevent="isDragging = true" @dragleave="isDragging = false" @drop.prevent="handleFileDrop">
-            <input type="file" ref="fileInputEl" accept=".json" @change="handleFileSelect" class="file-input" />
-            <div class="upload-content" @click="triggerFileInput()">
-              <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                <polyline points="17 8 12 3 7 8"/>
-                <line x1="12" y1="3" x2="12" y2="15"/>
-              </svg>
-              <p v-if="!importFile">{{ t('settings.templates.importDropzoneHint') }}</p>
-              <p v-else class="file-selected">{{ importFile.name }}</p>
-            </div>
-          </div>
-          <div v-if="importResult" class="import-result" :class="{ success: importResult.success, error: !importResult.success }">
-            <template v-if="importResult.success">
-              <strong>{{ t('settings.templates.importSuccessStrong') }}</strong>
-              {{ t('settings.templates.importSuccess', { created: importResult.created, skipped: importResult.skipped, manufacturer: importResult.manufacturer }) }}
-            </template>
-            <template v-else>
-              <strong>{{ t('settings.templates.errorLabel') }}:</strong> {{ importResult.error }}
-            </template>
-          </div>
-        </div>
-        <div class="dialog-footer">
-          <button class="btn-secondary" @click="showImportDialog = false">{{ t('settings.templates.importClose') }}</button>
-          <button class="btn-primary" @click="executeImport" :disabled="!importFile || isImporting">
-            {{ isImporting ? t('settings.templates.importSubmitting') : t('settings.templates.importSubmit') }}
-          </button>
-        </div>
-      </div>
-    </div>
-
     <!-- Lösch-Bestätigung -->
     <div v-if="showDeleteConfirm" class="modal-overlay">
-      <div class="confirm-dialog">
+      <div class="modal-dialog modal-dialog--confirm">
         <h3>{{ t('settings.templates.deleteConfirmTitle') }}</h3>
         <p>
           {{ t('settings.templates.deleteConfirmMessage', { name: deletingTemplate?.name }) }}
@@ -255,7 +312,7 @@
         <div class="confirm-actions">
           <button class="btn-secondary" @click="showDeleteConfirm = false">{{ t('common.cancel') }}</button>
           <button class="btn-danger" @click="executeDelete" :disabled="isDeleting">
-            {{ isDeleting ? t('settings.templates.deleting') : t('settings.templates.delete') }}
+            {{ isDeleting ? t('common.deleteInProgress') : t('common.delete') }}
           </button>
         </div>
       </div>
@@ -268,17 +325,54 @@ import { ref, computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useToast } from '@/composables/useToast'
-import { getTemplates, deleteTemplate, importTemplates, type Template } from '@/api/templates'
+import {
+  getTemplates,
+  getGlobalTemplates,
+  deleteTemplate,
+  importTemplates,
+  importGlobalTemplates,
+  exportTemplates,
+  exportGlobalTemplates,
+  NO_MANUFACTURER_KEY,
+  type Template,
+  type TemplateImportResponse,
+  type TemplateImportDuplicateAction,
+  type TemplateWizardResult,
+} from '@/api/templates'
+import { useDepartmentMemberRole } from '@/composables/useDepartmentMemberRole'
+import SearchFieldInput from '@/components/common/SearchFieldInput.vue'
 import TemplateEditDialog from '@/components/template/TemplateEditDialog.vue'
+import TemplateStartWizard from '@/components/template/TemplateStartWizard.vue'
+
+const props = withDefaults(defineProps<{
+  mode?: 'department' | 'global-admin'
+}>(), {
+  mode: 'department',
+})
 
 const route = useRoute()
 const toast = useToast()
 const { t } = useI18n()
+const { isMaterialwart } = useDepartmentMemberRole()
 const departmentId = computed(() => route.params.departmentId as string)
+const isGlobalAdminMode = computed(() => props.mode === 'global-admin')
+const canImportExportTemplates = computed(() => isGlobalAdminMode.value || isMaterialwart.value)
+const templateScope = computed(() => (isGlobalAdminMode.value ? 'global' : 'department') as 'global' | 'department')
 
-/** Internal grouping key when a template has no manufacturer (never shown raw). */
-const NO_MANUFACTURER_KEY = '__NO_MANUFACTURER__'
+const pageTitle = computed(() =>
+  isGlobalAdminMode.value ? t('settings.templates.globalAdmin.title') : t('settings.templates.title')
+)
+const pageSubtitle = computed(() =>
+  isGlobalAdminMode.value ? t('settings.templates.globalAdmin.subtitle') : t('settings.templates.subtitle')
+)
+const emptyDescription = computed(() =>
+  isGlobalAdminMode.value ? t('settings.templates.globalAdmin.emptyDescription') : t('settings.templates.emptyDescription')
+)
+const duplicateTitle = computed(() =>
+  isGlobalAdminMode.value ? t('settings.templates.globalAdmin.duplicateTitle') : t('settings.templates.duplicateTitle')
+)
 
+const activeTab = ref<'list' | 'import' | 'export'>('list')
 const templates = ref<Template[]>([])
 const isLoading = ref(true)
 const searchQuery = ref('')
@@ -286,7 +380,9 @@ const filterManufacturer = ref('')
 const filterType = ref('')
 const expandedManufacturers = ref(new Set<string>())
 
-// Edit/Create Dialog
+// Start Wizard / Edit Dialog
+const showStartWizard = ref(false)
+const wizardResult = ref<TemplateWizardResult | null>(null)
 const showEditDialog = ref(false)
 const editingTemplate = ref<Template | null>(null)
 const editingReadonly = ref(false)
@@ -296,23 +392,30 @@ const showDeleteConfirm = ref(false)
 const deletingTemplate = ref<Template | null>(null)
 const isDeleting = ref(false)
 
-// Import
-const showImportDialog = ref(false)
+// Import / Export
 const importFile = ref<File | null>(null)
-const isDragging = ref(false)
 const isImporting = ref(false)
-const importResult = ref<{ success: boolean; created?: number; skipped?: number; manufacturer?: string; error?: string } | null>(null)
-const fileInputEl = ref<HTMLInputElement | null>(null)
+const importResult = ref<(TemplateImportResponse & { error?: string }) | null>(null)
+const duplicateAction = ref<TemplateImportDuplicateAction>('skip')
+const exportManufacturer = ref('')
+const isExporting = ref(false)
 
-function triggerFileInput() {
-  fileInputEl.value?.click()
-}
-
-// Computed: Hersteller-Liste
+// Computed: Hersteller-Liste (Export: nur eigene Dep-Vorlagen; Liste: alle sichtbaren)
 const manufacturers = computed(() => {
   const set = new Set<string>()
-  templates.value.forEach(t => {
-    if (t.manufacturer) set.add(t.manufacturer)
+  const source = isGlobalAdminMode.value
+    ? templates.value
+    : templates.value.filter((tpl) => !tpl.is_global)
+  source.forEach((tpl) => {
+    if (tpl.manufacturer) set.add(tpl.manufacturer)
+  })
+  return Array.from(set).sort()
+})
+
+const listManufacturers = computed(() => {
+  const set = new Set<string>()
+  templates.value.forEach((tpl) => {
+    if (tpl.manufacturer) set.add(tpl.manufacturer)
   })
   return Array.from(set).sort()
 })
@@ -331,7 +434,11 @@ const filteredTemplates = computed(() => {
   }
 
   if (filterManufacturer.value) {
-    result = result.filter(t => t.manufacturer === filterManufacturer.value)
+    if (filterManufacturer.value === NO_MANUFACTURER_KEY) {
+      result = result.filter(t => isGeneralMixedTemplate(t))
+    } else {
+      result = result.filter(t => t.manufacturer === filterManufacturer.value)
+    }
   }
 
   if (filterType.value) {
@@ -342,20 +449,31 @@ const filteredTemplates = computed(() => {
 })
 
 function manufacturerDisplayName(key: string): string {
-  return key === NO_MANUFACTURER_KEY ? t('settings.templates.noManufacturer') : key
+  return key === NO_MANUFACTURER_KEY ? t('settings.templates.generalMixed') : key
+}
+
+function isGeneralMixedTemplate(template: Template): boolean {
+  return !template.manufacturer && !template.manufacturer_address_id
 }
 
 // Computed: Gruppiert nach Hersteller
 const groupedTemplates = computed(() => {
   const groups: Record<string, Template[]> = {}
-  for (const t of filteredTemplates.value) {
-    const key = t.manufacturer || NO_MANUFACTURER_KEY
+  for (const tpl of filteredTemplates.value) {
+    const key = isGeneralMixedTemplate(tpl) ? NO_MANUFACTURER_KEY : (tpl.manufacturer || NO_MANUFACTURER_KEY)
     if (!groups[key]) groups[key] = []
-    groups[key].push(t)
+    groups[key].push(tpl)
   }
   return Object.entries(groups)
-    .map(([manufacturer, tpls]) => ({ manufacturer, templates: tpls }))
-    .sort((a, b) => manufacturerDisplayName(a.manufacturer).localeCompare(manufacturerDisplayName(b.manufacturer)))
+    .map(([manufacturer, tpls]) => ({
+      manufacturer,
+      templates: tpls.sort((a, b) => a.name.localeCompare(b.name)),
+    }))
+    .sort((a, b) => {
+      if (a.manufacturer === NO_MANUFACTURER_KEY) return 1
+      if (b.manufacturer === NO_MANUFACTURER_KEY) return -1
+      return manufacturerDisplayName(a.manufacturer).localeCompare(manufacturerDisplayName(b.manufacturer))
+    })
 })
 
 // Hersteller-Gruppen expandieren/kollabieren
@@ -374,11 +492,26 @@ function formatTentType(type: string): string {
   return translated !== key ? translated : type
 }
 
+function isSinglePartTemplate(template: Template): boolean {
+  return template.template_kind === 'single_part' || template.component_count === 1
+}
+
 // Dialog-Funktionen
 function openCreateDialog() {
+  wizardResult.value = null
+  showStartWizard.value = true
+}
+
+function handleWizardComplete(result: TemplateWizardResult) {
+  showStartWizard.value = false
+  wizardResult.value = result
   editingTemplate.value = null
   editingReadonly.value = false
   showEditDialog.value = true
+}
+
+function handleWizardClose() {
+  showStartWizard.value = false
 }
 
 function openEditDialog(template: Template) {
@@ -391,6 +524,7 @@ function closeEditDialog() {
   showEditDialog.value = false
   editingTemplate.value = null
   editingReadonly.value = false
+  wizardResult.value = null
 }
 
 async function handleTemplateSaved() {
@@ -398,16 +532,28 @@ async function handleTemplateSaved() {
   await loadTemplates()
 }
 
-// Duplizieren – erstellt immer eine eigene Department-Kopie
+// Duplizieren – Department: eigene Kopie; Admin: globale Kopie
 async function duplicateTemplate(template: Template) {
-  editingTemplate.value = {
-    ...template,
-    id: '', // Kein ID = neue Vorlage
-    name: `${template.name} (${t('settings.templates.duplicateNameSuffix')})`,
-    scope: 'department',
-    is_global: false,
-    department_id: departmentId.value,
-    can_edit: true,
+  if (isGlobalAdminMode.value) {
+    editingTemplate.value = {
+      ...template,
+      id: '',
+      name: `${template.name} (${t('settings.templates.duplicateNameSuffix')})`,
+      scope: 'global',
+      is_global: true,
+      department_id: null,
+      can_edit: true,
+    }
+  } else {
+    editingTemplate.value = {
+      ...template,
+      id: '',
+      name: `${template.name} (${t('settings.templates.duplicateNameSuffix')})`,
+      scope: 'department',
+      is_global: false,
+      department_id: departmentId.value,
+      can_edit: true,
+    }
   }
   editingReadonly.value = false
   showEditDialog.value = true
@@ -443,14 +589,31 @@ function handleFileSelect(event: Event) {
   }
 }
 
-function handleFileDrop(event: DragEvent) {
-  isDragging.value = false
-  if (event.dataTransfer?.files && event.dataTransfer.files.length > 0) {
-    const file = event.dataTransfer.files[0]
-    if (file.name.endsWith('.json')) {
-      importFile.value = file
-      importResult.value = null
-    }
+async function parseImportFile(): Promise<unknown> {
+  if (!importFile.value) throw new Error('No file')
+  const text = await importFile.value.text()
+  return JSON.parse(text)
+}
+
+async function runImportRequest(dryRun: boolean) {
+  const json = await parseImportFile()
+  const options = { dryRun, duplicateAction: duplicateAction.value }
+  return isGlobalAdminMode.value
+    ? await importGlobalTemplates(json, options)
+    : await importTemplates(departmentId.value, json, options)
+}
+
+async function runDryRun() {
+  if (!importFile.value) return
+  isImporting.value = true
+  importResult.value = null
+  try {
+    importResult.value = await runImportRequest(true)
+  } catch (err: unknown) {
+    importResult.value = { success: false, error: importErrorMessage(err), dry_run: true, manufacturer: '', rows: [], stats: { created: 0, updated: 0, skipped: 0, errors: 1 }, total: 0, created: 0, updated: 0, skipped: 0 }
+    toast.error(importResult.value.error!)
+  } finally {
+    isImporting.value = false
   }
 }
 
@@ -458,25 +621,49 @@ async function executeImport() {
   if (!importFile.value) return
   isImporting.value = true
   importResult.value = null
-
   try {
-    const text = await importFile.value.text()
-    const json = JSON.parse(text)
-    const result = await importTemplates(departmentId.value, json)
+    const result = await runImportRequest(false)
     importResult.value = result
-    await loadTemplates()
-  } catch (err: any) {
-    if (err instanceof SyntaxError) {
-      const msg = t('settings.templates.invalidJson')
-      importResult.value = { success: false, error: msg }
-      toast.error(msg)
-    } else {
-      const msg = (err as any).response?.data?.error || (err as Error).message || t('settings.templates.importFailed')
-      importResult.value = { success: false, error: msg }
-      toast.error(msg)
+    if (result.success) {
+      toast.success(t('settings.templates.importSuccessStrong'))
+      await loadTemplates()
     }
+  } catch (err: unknown) {
+    const msg = importErrorMessage(err)
+    importResult.value = { success: false, error: msg, dry_run: false, manufacturer: '', rows: [], stats: { created: 0, updated: 0, skipped: 0, errors: 1 }, total: 0, created: 0, updated: 0, skipped: 0 }
+    toast.error(msg)
   } finally {
     isImporting.value = false
+  }
+}
+
+function importErrorMessage(err: unknown): string {
+  if (err instanceof SyntaxError) return t('settings.templates.invalidJson')
+  const axiosErr = err as { response?: { data?: { error?: string } } }
+  return axiosErr.response?.data?.error || (err as Error).message || t('settings.templates.importFailed')
+}
+
+async function runExport() {
+  isExporting.value = true
+  try {
+    const manufacturer = exportManufacturer.value || undefined
+    const data = isGlobalAdminMode.value
+      ? await exportGlobalTemplates(manufacturer)
+      : await exportTemplates(departmentId.value, manufacturer)
+    const slug = (data.manufacturer || 'templates').toLowerCase().replace(/[^a-z0-9]+/g, '-')
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${slug}-templates-v5.json`
+    a.click()
+    URL.revokeObjectURL(url)
+    toast.success(t('settings.templates.exportSuccess'))
+  } catch (err: unknown) {
+    const axiosErr = err as { response?: { data?: { error?: string } } }
+    toast.error(axiosErr.response?.data?.error || t('settings.templates.exportFailed'))
+  } finally {
+    isExporting.value = false
   }
 }
 
@@ -484,12 +671,10 @@ async function executeImport() {
 async function loadTemplates() {
   isLoading.value = true
   try {
-    templates.value = await getTemplates(departmentId.value)
-    // Alle Gruppen expandieren
-    manufacturers.value.forEach(m => expandedManufacturers.value.add(m))
-    if (templates.value.some((tpl) => !tpl.manufacturer)) {
-      expandedManufacturers.value.add(NO_MANUFACTURER_KEY)
-    }
+    templates.value = isGlobalAdminMode.value
+      ? await getGlobalTemplates()
+      : await getTemplates(departmentId.value)
+    expandedManufacturers.value.clear()
   } catch (err) {
     console.error(t('settings.templates.loadError'), err)
   } finally {
@@ -530,6 +715,142 @@ onMounted(() => {
 .header-actions {
   display: flex;
   gap: 10px;
+}
+
+.tab-bar {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 20px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.tab-btn {
+  padding: 10px 16px;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: #6b7280;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  margin-bottom: -1px;
+}
+
+.tab-btn.active {
+  color: var(--color-primary);
+  border-bottom-color: var(--color-primary);
+}
+
+.io-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.card {
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 20px;
+}
+
+.actions-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.file-label {
+  cursor: pointer;
+  display: inline-flex;
+}
+
+.file-input {
+  display: none;
+}
+
+.file-name {
+  font-size: 13px;
+  color: #6b7280;
+}
+
+.hint {
+  font-size: 13px;
+  color: #6b7280;
+  margin: 0;
+}
+
+.preview-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.duplicate-default {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #374151;
+}
+
+.form-select-sm {
+  padding: 4px 8px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 13px;
+}
+
+.table-wrap {
+  overflow-x: auto;
+}
+
+.preview-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.preview-table th,
+.preview-table td {
+  padding: 8px 12px;
+  text-align: left;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.preview-table th {
+  font-weight: 600;
+  color: #374151;
+  background: #f9fafb;
+}
+
+.row-error {
+  background: #fef2f2;
+}
+
+.export-card h2 {
+  font-size: 16px;
+  font-weight: 600;
+  margin: 0 0 8px 0;
+}
+
+.export-form {
+  display: flex;
+  align-items: flex-end;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-top: 16px;
+}
+
+.export-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  color: #374151;
 }
 
 /* Buttons use shared ui/buttons.css */
@@ -631,8 +952,8 @@ onMounted(() => {
   align-items: center;
   justify-content: center;
   border-radius: 8px;
-  background: #ede9fe;
-  color: #7c3aed;
+  background: var(--color-primary-muted-bg);
+  color: var(--color-primary);
 }
 
 .manufacturer-info {
@@ -746,6 +1067,11 @@ onMounted(() => {
 .badge.department {
   background: #ecfdf5;
   color: #065f46;
+}
+
+.badge.single-part {
+  background: #ecfdf5;
+  color: #047857;
 }
 
 .template-meta {
@@ -868,7 +1194,7 @@ onMounted(() => {
 
 /* Loading state base uses shared ui/states.css */
 
-/* Modal overlay base uses shared ui/modals.css */
+/* Modal overlay + confirm dialog: shared ui/modals.css */
 
 /* Import Dialog */
 .import-dialog {
@@ -877,21 +1203,6 @@ onMounted(() => {
   width: 100%;
   max-width: 520px;
   box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
-}
-
-.dialog-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 20px 24px;
-  border-bottom: 1px solid #e5e7eb;
-}
-
-.dialog-header h2 {
-  font-size: 18px;
-  font-weight: 600;
-  color: #111827;
-  margin: 0;
 }
 
 .close-btn {
@@ -939,8 +1250,8 @@ onMounted(() => {
 }
 
 .file-upload-area.dragging {
-  border-color: #8b5cf6;
-  background: #faf5ff;
+  border-color: var(--color-primary-light);
+  background: var(--color-primary-muted-bg);
 }
 
 .file-input {
@@ -959,7 +1270,7 @@ onMounted(() => {
 }
 
 .upload-content .file-selected {
-  color: #7c3aed;
+  color: var(--color-primary);
   font-weight: 500;
 }
 
@@ -985,42 +1296,6 @@ onMounted(() => {
   gap: 12px;
   padding: 16px 24px;
   border-top: 1px solid #e5e7eb;
-}
-
-/* Delete Confirm */
-.confirm-dialog {
-  background: white;
-  border-radius: 12px;
-  padding: 24px;
-  width: 100%;
-  max-width: 400px;
-  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
-}
-
-.confirm-dialog h3 {
-  font-size: 18px;
-  font-weight: 600;
-  color: #111827;
-  margin: 0 0 12px 0;
-}
-
-.confirm-dialog p {
-  font-size: 14px;
-  color: #6b7280;
-  margin: 0 0 8px 0;
-}
-
-.warning-hint {
-  font-size: 12px;
-  color: #9ca3af;
-  font-style: italic;
-}
-
-.confirm-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 12px;
-  margin-top: 20px;
 }
 
 /* Danger button uses shared ui/buttons.css */

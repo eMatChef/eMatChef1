@@ -173,25 +173,30 @@
           />
         </div>
 
-        <!-- Loading State -->
-        <div v-else-if="isLoading" class="loading-state">
-        <div class="spinner"></div>
-        <p>{{ t('materialsView.loading') }}</p>
-      </div>
+        <template v-else>
+          <!-- Hard Loading (nur beim ersten Laden ohne Cache) -->
+          <div v-if="showFullLoading" class="loading-state">
+            <div class="spinner"></div>
+            <p>{{ t('materialsView.loading') }}</p>
+          </div>
 
-      <!-- Error State -->
-      <div v-else-if="error" class="error-state">
-        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <circle cx="12" cy="12" r="10"/>
-          <line x1="12" y1="8" x2="12" y2="12"/>
-          <line x1="12" y1="16" x2="12.01" y2="16"/>
-        </svg>
-        <p class="error-message">{{ error }}</p>
-        <button @click="loadData" class="retry-btn">{{ t('materialsView.retry') }}</button>
-      </div>
+          <!-- Error State (nur wenn keine Daten angezeigt werden können) -->
+          <div v-else-if="error && materials.length === 0" class="error-state">
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"/>
+              <line x1="12" y1="8" x2="12" y2="12"/>
+              <line x1="12" y1="16" x2="12.01" y2="16"/>
+            </svg>
+            <p class="error-message">{{ error }}</p>
+            <button @click="loadData()" class="retry-btn">{{ t('common.retry') }}</button>
+          </div>
 
-      <!-- Empty State -->
-      <div v-else-if="materials.length === 0" class="empty-state">
+          <!-- Listen-Inhalt (bleibt bei Soft-Refresh sichtbar) -->
+          <div v-else class="list-content" :class="{ 'is-soft-loading': isRefreshing }">
+            <div v-if="isRefreshing" class="soft-refresh-bar" aria-hidden="true"></div>
+
+            <!-- Empty State -->
+            <div v-if="materials.length === 0" class="empty-state">
         <div class="empty-illustration">
           <svg width="120" height="120" viewBox="0 0 120 120" fill="none">
             <rect x="20" y="30" width="80" height="60" rx="4" stroke="#d1d5db" stroke-width="2" stroke-dasharray="4 4"/>
@@ -210,10 +215,10 @@
           </svg>
           {{ t('materialsView.emptyCta') }}
         </button>
-      </div>
+            </div>
 
-      <!-- No Results State -->
-      <div v-else-if="filteredMaterials.length === 0" class="empty-state">
+            <!-- No Results State -->
+            <div v-else-if="filteredMaterials.length === 0" class="empty-state">
         <div class="empty-illustration">
           <svg width="100" height="100" viewBox="0 0 100 100" fill="none">
             <circle cx="45" cy="45" r="25" stroke="#d1d5db" stroke-width="3"/>
@@ -224,15 +229,15 @@
         <h2>{{ t('materialsView.noResultsTitle') }}</h2>
         <p>{{ t('materialsView.noResultsDescription') }}</p>
         <button @click="resetFilters" class="btn-secondary">{{ t('materialsView.resetFilters') }}</button>
-      </div>
+            </div>
 
-      <!-- Materials Table -->
-      <div v-else class="materials-table-wrapper">
+            <!-- Materials Table -->
+            <div v-else class="materials-table-wrapper">
           <table class="materials-table">
             <thead>
               <tr>
                 <th v-if="showComboExpandColumn" class="col-expand"></th>
-                <th class="col-name">{{ t('materialsView.colName') }}</th>
+                <th class="col-name">{{ t('common.name') }}</th>
                 <th v-if="showComboColumns" class="col-type">{{ t('materialsView.colType') }}</th>
                 <th class="col-category">{{ t('materialsView.colCategory') }}</th>
                 <th class="col-stock">{{ t('materialsView.colTotal') }}</th>
@@ -288,6 +293,7 @@
                         <span class="material-name">
                           {{ material.name }}
                           <span v-if="material.is_js_material" class="source-badge">J&amp;S</span>
+                          <span v-if="isComboDraft(material)" class="combo-draft-badge">{{ t('materialsView.comboDraftBadge') }}</span>
                         </span>
                         <span v-if="material.manufacturer" class="material-manufacturer">{{ material.manufacturer }}</span>
                         <span v-if="material.open_loss_reports > 0" class="loss-reported-badge">
@@ -298,6 +304,7 @@
                   </td>
                   <td v-if="showComboColumns" class="col-type">
                     <span class="combo-type-badge" :class="material.material_type">
+                      <span class="combo-type-badge-emoji" aria-hidden="true">{{ comboBadgeEmoji({ materialType: material.material_type }) }}</span>
                       {{
                         material.material_type === 'physical_combo'
                           ? t('components.materialDetail.typePhysicalShort')
@@ -306,7 +313,13 @@
                     </span>
                   </td>
                   <td class="col-category">
-                    <span v-if="material.category" class="category-tag">{{ material.category.name }}</span>
+                    <span v-if="material.category" class="category-tag">
+                      <template v-if="material.category.parent_id && categoriesById[material.category.parent_id]">
+                        <span class="category-parent">{{ categoriesById[material.category.parent_id] }} →</span>
+                        <span class="category-child">{{ material.category.name }}</span>
+                      </template>
+                      <span v-else class="category-child">{{ material.category.name }}</span>
+                    </span>
                     <span v-else class="no-category">-</span>
                   </td>
                   <td class="col-stock">
@@ -362,10 +375,10 @@
                         <thead>
                           <tr>
                             <th>{{ t('materialsView.subColComponent') }}</th>
-                            <th>{{ t('materialsView.subColSerial') }}</th>
+                            <th>{{ t('common.serialNumber') }}</th>
                             <th>{{ t('materialsView.subColQty') }}</th>
                             <th>{{ t('materialsView.subColAssignment') }}</th>
-                            <th>{{ t('materialsView.subColStatus') }}</th>
+                            <th>{{ t('common.status') }}</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -406,7 +419,9 @@
           </table>
           
           <p class="table-hint">{{ t('materialsView.tableHint') }}</p>
-        </div>
+            </div>
+          </div>
+        </template>
       </div>
     </div>
 
@@ -490,9 +505,17 @@ import GlobalSearchInput from '@/components/common/GlobalSearchInput.vue'
 import { useDetailTabsStore } from '@/stores/detailTabs'
 import { useToast } from '@/composables/useToast'
 import { useListSearchQueryRoute } from '@/composables/useListSearchQueryRoute'
+import { useDepartmentLiveRefresh } from '@/composables/useDepartmentLiveRefresh'
 import { useAuthStore } from '@/stores/auth'
 import { isDepartmentBasicMemberRole } from '@/composables/useDepartmentMemberRole'
+import { isComboMaterial as isComboMaterialType, comboBadgeEmoji } from '@/utils/comboDisplay'
 import '@/styles/material-wizard.css'
+
+/** Überlebt Tab-Remounts (router-view :key="route.path") — gleiche Daten, kein Hard-Spinner. */
+const materialsListCache = new Map<string, { materials: Material[]; categories: Category[] }>()
+/** Überlebt Remount beim Schliessen der Detailansicht (router-view :key="route.path"). */
+let lastOpenMaterialDetailId: string | null = null
+let skipNextMountedListLoad = false
 
 const route = useRoute()
 const authStore = useAuthStore()
@@ -528,11 +551,39 @@ const routeNameToMaterialTab: Record<string, MaterialTab> = {
 }
 const lastTabStorageKey = computed(() => `materials.lastTab.${currentDepartmentId.value || 'default'}`)
 
+function readMaterialsCache(deptId: string | undefined) {
+  if (!deptId) return null
+  return materialsListCache.get(deptId) ?? null
+}
+
+function writeMaterialsCache(deptId: string) {
+  materialsListCache.set(deptId, {
+    materials: materials.value,
+    categories: categories.value,
+  })
+}
+
+function hydrateMaterialsFromCache(deptId: string | undefined): boolean {
+  const cached = readMaterialsCache(deptId)
+  if (!cached) return false
+  materials.value = cached.materials
+  categories.value = cached.categories
+  return true
+}
+
 // State
 const materials = ref<Material[]>([])
 const categories = ref<Category[]>([])
+if (hydrateMaterialsFromCache(currentDepartmentId.value)) {
+  /* Sofort aus Cache — Tab-Wechsel ohne Hard-Load */
+}
+const categoriesById = computed(() =>
+  Object.fromEntries(categories.value.map(c => [c.id, c.name]))
+)
 const isLoading = ref(false)
+const isRefreshing = ref(false)
 const error = ref<string | null>(null)
+const showFullLoading = computed(() => isLoading.value && materials.value.length === 0)
 
 // Tab State
 const activeTab = ref<MaterialTab>('all')
@@ -613,7 +664,7 @@ async function submitPostCreateComposition() {
     })
     toast.success(t('materialsView.toastAddedToComposition'))
     closePostCreateCompositionModal()
-    await loadData()
+    await loadData({ silent: true })
   } catch (err: unknown) {
     const ax = err as { response?: { data?: { error?: string } } }
     postCreateCompositionError.value = ax.response?.data?.error || t('materialsView.errLinkComponent')
@@ -678,7 +729,11 @@ const materialTableColspan = computed(() => {
 })
 
 function isComboMaterial(material: Material): boolean {
-  return material.material_type === 'physical_combo' || material.material_type === 'virtual_combo'
+  return isComboMaterialType(material)
+}
+
+function isComboDraft(material: Material): boolean {
+  return isComboMaterial(material) && material.combo_status === 'draft'
 }
 
 // Computed
@@ -736,26 +791,49 @@ const hasActiveFilters = computed(() => {
 })
 
 // Methods
-async function loadData() {
-  if (!currentDepartmentId.value) return
-  
-  isLoading.value = true
-  error.value = null
-  
+async function loadData(opts?: { silent?: boolean }) {
+  const deptId = currentDepartmentId.value
+  if (!deptId) return
+
+  const hasCachedList = materials.value.length > 0
+  const silent = opts?.silent ?? hasCachedList
+
+  if (silent) {
+    isRefreshing.value = true
+  } else {
+    isLoading.value = true
+    error.value = null
+  }
+
   try {
     const [materialsData, categoriesData] = await Promise.all([
-      getMaterials(currentDepartmentId.value),
-      getCategories(currentDepartmentId.value)
+      getMaterials(deptId),
+      getCategories(deptId)
     ])
-    
+
     materials.value = materialsData
     categories.value = categoriesData
+    writeMaterialsCache(deptId)
   } catch (err: any) {
-    error.value = err.response?.data?.error || t('materialsView.errLoadList')
+    if (!silent) {
+      error.value = err.response?.data?.error || t('materialsView.errLoadList')
+    }
   } finally {
     isLoading.value = false
+    isRefreshing.value = false
   }
 }
+
+/** Hintergrund-Aktualisierung (andere User, Tab-Remount) ohne Hard-Spinner. */
+useDepartmentLiveRefresh({
+  departmentId: currentDepartmentId,
+  reload: loadData,
+  enabled: () => !showDetailView.value && activeTab.value !== 'storage',
+  isBusy: () =>
+    showCreateWizard.value
+    || showPostCreateCompositionModal.value
+    || (isLoading.value && materials.value.length === 0),
+})
 
 function getStockClass(stock: number): string {
   if (stock === 0) return 'empty'
@@ -871,7 +949,7 @@ async function handleMaterialCreated(material: Material) {
   const linkParent = pendingCompositionParentId.value
   pendingCompositionParentId.value = null
 
-  await loadData()
+  await loadData({ silent: true })
 
   if (linkParent && material?.id) {
     try {
@@ -914,7 +992,7 @@ function openMaterialDetailById(materialId: string) {
 }
 
 function closeDetailView() {
-  // Tab bleibt offen, Änderungen bleiben erhalten (keep-alive)
+  // Tab bleibt im Header (keep-alive); nur × im Header schliesst den Chip
   const nextQuery = { ...route.query }
   delete nextQuery.batch
   router.push({
@@ -928,10 +1006,13 @@ async function handleMaterialUpdated(material: Material) {
   const index = materials.value.findIndex(m => m.id === material.id)
   if (index !== -1) {
     materials.value[index] = material
+    if (currentDepartmentId.value) {
+      writeMaterialsCache(currentDepartmentId.value)
+    }
   }
 }
 
-// Tab-Registrierung für Detail-Ansicht (Tab bleibt offen bei Zurück zur Liste)
+// Tab-Registrierung für Detail-Ansicht (Header-Chip bleibt bei «Zurück zur Liste»)
 watch(
   [selectedMaterialId, currentDepartmentId],
   ([matId, deptId]) => {
@@ -949,14 +1030,21 @@ watch(
 )
 
 // Watchers
-watch(currentDepartmentId, () => {
+watch(currentDepartmentId, (deptId) => {
   if (selectedMaterialId.value) {
     router.replace({
       name: materialTabRouteNames[activeTab.value],
       params: { departmentId: currentDepartmentId.value },
     })
   }
-  loadData()
+  if (!deptId) return
+  if (hydrateMaterialsFromCache(deptId)) {
+    void loadData({ silent: true })
+  } else {
+    materials.value = []
+    categories.value = []
+    void loadData()
+  }
 })
 
 watch(
@@ -997,9 +1085,18 @@ watch(
   { immediate: true }
 )
 
-watch(selectedMaterialId, (id) => {
-  if (id) stripQueryFromDetailRoute()
-})
+watch(selectedMaterialId, (id, prevId) => {
+  if (id) {
+    lastOpenMaterialDetailId = id
+    stripQueryFromDetailRoute()
+    return
+  }
+  const closedDetailId = prevId ?? lastOpenMaterialDetailId
+  if (!closedDetailId) return
+  lastOpenMaterialDetailId = null
+  skipNextMountedListLoad = true
+  void loadData({ silent: true })
+}, { immediate: true })
 
 // Query ?new=1: Wizard direkt öffnen (z.B. vom Dashboard)
 watch(
@@ -1027,7 +1124,12 @@ watch(showCreateWizard, (isOpen) => {
 
 // Lifecycle
 onMounted(() => {
-  loadData()
+  if (skipNextMountedListLoad) {
+    skipNextMountedListLoad = false
+    return
+  }
+  if (selectedMaterialId.value) return
+  void loadData()
 })
 </script>
 

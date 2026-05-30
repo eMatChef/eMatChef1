@@ -105,16 +105,7 @@
   text-transform: uppercase;
 }
 
-.contact-avatar.customer { background: #dbeafe; color: #1d4ed8; }
-.contact-avatar.billing { background: #fef3c7; color: #92400e; }
-.contact-avatar.delivery { background: #d1fae5; color: #065f46; }
-.contact-avatar.storage { background: #e0e7ff; color: #4338ca; }
-.contact-avatar.event { background: #fce7f3; color: #be185d; }
-.contact-avatar.meeting { background: #ede9fe; color: #6d28d9; }
-.contact-avatar.office { background: #f3f4f6; color: #374151; }
-.contact-avatar.private { background: #fef2f2; color: #991b1b; }
-.contact-avatar.general { background: #e5e7eb; color: #6b7280; }
-.contact-avatar.postal { background: #ccfbf1; color: #0f766e; }
+/* Avatar-Farben → styles/components/address-type-badge.css */
 
 .name-info {
   display: flex;
@@ -183,25 +174,7 @@
   color: #9ca3af;
 }
 
-/* Type Badge */
-.type-badge {
-  display: inline-block;
-  padding: 4px 10px;
-  border-radius: 6px;
-  font-size: 12px;
-  font-weight: 500;
-}
-
-.type-badge.customer { background: #dbeafe; color: #1d4ed8; }
-.type-badge.billing { background: #fef3c7; color: #92400e; }
-.type-badge.delivery { background: #d1fae5; color: #065f46; }
-.type-badge.storage { background: #e0e7ff; color: #4338ca; }
-.type-badge.event { background: #fce7f3; color: #be185d; }
-.type-badge.meeting { background: #ede9fe; color: #6d28d9; }
-.type-badge.office { background: #f3f4f6; color: #374151; }
-.type-badge.private { background: #fef2f2; color: #991b1b; }
-.type-badge.general { background: #e5e7eb; color: #6b7280; }
-.type-badge.postal { background: #ccfbf1; color: #0f766e; }
+/* Adress-Typ-Badges → styles/components/address-type-badge.css (global) */
 
 /* Action Buttons */
 .action-buttons {

@@ -11,58 +11,73 @@
           <label>{{ t('activities.draftOverview.totalPriceCurrent') }}</label>
           <p class="activity-readonly-inline">CHF {{ Number(activity.total_price).toFixed(2) }}</p>
         </div>
-        <div class="form-group span-2">
-          <label for="draft-activity-name">{{ t('activities.detail.summaryName') }}</label>
-          <input
-            id="draft-activity-name"
-            v-model="form.name"
-            type="text"
-            class="form-input"
-            autocomplete="off"
-            :placeholder="t('activities.draftOverview.namePlaceholder')"
-          />
+        <AutoSaveField
+          v-model="form.name"
+          :baseline="savedBaselines.name"
+          :label="t('common.name')"
+          span-class="form-group span-2 activity-compact-autosave-field"
+          :placeholder="t('activities.draftOverview.namePlaceholder')"
+          :save="saveName"
+          @saved="onAutoFieldSaved"
+        />
+        <AutoSaveField
+          v-if="showGroup"
+          v-model="groupField"
+          :baseline="savedBaselines.group_id"
+          :label="groupFieldLabel"
+          type="select"
+          span-class="form-group span-2 activity-compact-autosave-field"
+          :options="groupSelectOptions"
+          :save="saveGroupId"
+          @saved="onAutoFieldSaved"
+        />
+        <div v-if="showVenue" class="form-group span-2 activity-external-address-wrap activity-venue-field-wrap">
+          <p class="field-hint text-muted activity-venue-field-hint">
+            {{ t('activities.wizard.form.venueHint') }}
+          </p>
+          <AutoSaveField
+            v-model="venueField"
+            :baseline="savedBaselines.venue_address_id"
+            :label="t('activities.wizard.form.venueLabel')"
+            span-class="activity-compact-autosave-field activity-venue-autosave-field"
+            :save="saveVenueAddressId"
+            @saved="onAutoFieldSaved"
+          >
+            <template #default="{ inputId, onChange }">
+              <DepartmentAddressAutocomplete
+                ref="venueAddressAutocompleteRef"
+                :input-id="inputId"
+                :addresses="addresses"
+                :selected-id="form.venue_address_id"
+                primary-type="event"
+                :placeholder="t('activities.wizard.form.addressSearchPlaceholder')"
+                :add-button-title="t('activities.wizard.form.addVenueAddressTitle')"
+                :empty-addresses-label="t('activities.wizard.form.noAddressesWithAdd')"
+                inline-create-label-key="addresses.search.createEventVenueInline"
+                @update:selected-id="(id) => onVenueAddressId(id, onChange)"
+                @create="openAddVenueAddressModal"
+              />
+            </template>
+          </AutoSaveField>
         </div>
-        <div v-if="showGroup" class="form-group span-2">
-          <label for="draft-activity-group">
-            {{ t('activities.wizard.form.groupLabel') }}
-            <span v-if="groupRequired" class="req">*</span>
-            <span v-else-if="activityType === 'event'" class="text-muted">{{ t('activities.wizard.form.groupOptional') }}</span>
-          </label>
-          <select id="draft-activity-group" v-model="groupField" class="form-input activity-group-select">
-            <option v-if="activityType === 'camp' || activityType === 'event'" value="">
-              {{ activity.department_name || t('activities.wizard.form.summaryEmpty') }}
-            </option>
-            <option v-else value="" disabled>{{ t('activities.wizard.form.groupChoose') }}</option>
-            <option v-for="g in flatGroups" :key="g.id" :value="g.id">
-              {{ '↳ '.repeat(g._level) }}{{ g.name }}
-            </option>
-          </select>
-        </div>
-        <div v-if="showVenue" class="form-group span-2">
-          <label for="draft-venue-address">{{ t('activities.wizard.form.venueLabel') }}</label>
-          <select id="draft-venue-address" v-model="form.venue_address_id" class="form-input">
-            <option :value="null">{{ t('activities.draftOverview.selectNone') }}</option>
-            <option v-for="a in addresses" :key="a.id" :value="a.id">
-              {{ addressShort(a) }}
-            </option>
-          </select>
-        </div>
-        <div v-if="showCustomerAddress" class="form-group span-2">
-          <label for="draft-customer-address">{{ t('activities.draftOverview.customerTenantAddress') }}</label>
-          <select id="draft-customer-address" v-model="form.address_id" class="form-input">
-            <option :value="null">{{ t('activities.draftOverview.selectNone') }}</option>
-            <option v-for="a in addresses" :key="a.id" :value="a.id">
-              {{ addressShort(a) }}
-            </option>
-          </select>
-        </div>
+        <AutoSaveField
+          v-if="showCustomerAddress"
+          v-model="addressField"
+          :baseline="savedBaselines.address_id"
+          :label="t('activities.draftOverview.customerTenantAddress')"
+          type="select"
+          span-class="form-group span-2 activity-compact-autosave-field"
+          :options="addressSelectOptions"
+          :save="saveAddressId"
+          @saved="onAutoFieldSaved"
+        />
       </div>
     </div>
 
     <div class="section-card">
       <h2 class="section-title">{{ t('activities.detail.sectionPeriod') }}</h2>
       <p class="field-hint text-muted draft-time-hint">
-        {{ t('activities.draftOverview.periodHint', { materialTab: t('activities.detail.tabMaterial') }) }}
+        {{ t('activities.draftOverview.periodHint', { materialTab: t('common.material') }) }}
       </p>
       <p v-if="usageDatesLocked" class="field-hint activity-draft-usage-locked-hint" role="status">
         <strong>{{ t('activities.wizard.form.datesLockedTitle') }}</strong> {{ t('activities.draftOverview.datesLockedBodyDraft') }}
@@ -71,37 +86,49 @@
         {{ planningUsageConflictMessage }}
       </p>
 
-      <ActivityZeitraumDatetimeFields
-        v-model:usage-day="usageDay"
-        v-model:usage-range="usageRange"
-        v-model:usage-time-from="usageTimeFrom"
-        v-model:usage-time-to="usageTimeTo"
-        v-model:mat-range="matRange"
-        v-model:mat-start-time="matStartTime"
-        v-model:mat-end-time="matEndTime"
-        :activity-type="activityTypeForZeitraum"
-        :department-id="departmentId"
-        teleport-to="body"
-        :show-date-range-preset-sidebar="showDateRangePresetSidebar"
-        :usage-dates-locked="usageDatesLocked"
-        :material-times-blocked-usage="materialTimesBlockedUsage"
-        usage-block-id="draft-usage-block"
-        planning-block-id="draft-planning-block"
-      />
+      <div
+        class="activity-zeitraum-autosave-wrap"
+        :class="{ 'is-zeitraum-saving': zeitraumSaving, 'is-zeitraum-saved': zeitraumShowSaved }"
+        @focusout="onZeitraumFocusOut"
+      >
+        <ActivityZeitraumDatetimeFields
+          v-model:usage-day="usageDay"
+          v-model:usage-range="usageRange"
+          v-model:usage-time-from="usageTimeFrom"
+          v-model:usage-time-to="usageTimeTo"
+          v-model:mat-range="matRange"
+          v-model:mat-start-time="matStartTime"
+          v-model:mat-end-time="matEndTime"
+          :activity-type="activityTypeForZeitraum"
+          :department-id="departmentId"
+          teleport-to="body"
+          :show-date-range-preset-sidebar="showDateRangePresetSidebar"
+          :usage-dates-locked="usageDatesLocked"
+          :material-times-blocked-usage="materialTimesBlockedUsage"
+          usage-block-id="draft-usage-block"
+          planning-block-id="draft-planning-block"
+        />
+        <p v-if="zeitraumSaving" class="activity-zeitraum-autosave-status" role="status">
+          {{ t('common.autoSaveField.saving') }}
+        </p>
+        <p v-else-if="zeitraumShowSaved" class="activity-zeitraum-autosave-status is-saved" role="status">
+          {{ t('common.autoSaveField.saved') }}
+        </p>
+      </div>
     </div>
 
     <div class="section-card">
-      <h2 class="section-title">{{ t('activities.detail.sectionNotes') }}</h2>
-      <div class="form-group">
-        <label for="draft-notes" class="sr-only">{{ t('activities.detail.sectionNotes') }}</label>
-        <textarea
-          id="draft-notes"
-          v-model="form.notes"
-          class="form-input"
-          rows="4"
-          :placeholder="t('activities.wizard.form.notesPlaceholder')"
-        />
-      </div>
+      <AutoSaveField
+        v-model="form.notes"
+        :baseline="savedBaselines.notes"
+        :label="t('activities.detail.sectionNotes')"
+        type="textarea"
+        span-class="form-group span-2 activity-compact-autosave-field"
+        :rows="4"
+        :placeholder="t('activities.wizard.form.notesPlaceholder')"
+        :save="saveNotes"
+        @saved="onAutoFieldSaved"
+      />
     </div>
 
     <div v-if="showInviteDepartments" class="section-card">
@@ -183,25 +210,35 @@
       </div>
     </div>
 
-    <div class="draft-form-actions">
+    <div v-if="hasManualUnsavedChanges" class="draft-form-actions">
       <button
         type="button"
         class="btn-primary"
-        :disabled="saving || !hasChanges || !isValid"
-        @click="onSave"
+        :disabled="saving || !hasManualUnsavedChanges"
+        @click="onSaveInvites"
       >
-        {{ saving ? t('activities.draftOverview.saveSaving') : t('activities.draftOverview.save') }}
+        {{ saving ? t('activities.draftOverview.saveSaving') : t('common.save') }}
       </button>
-      <button type="button" class="btn-outline" :disabled="saving || !hasChanges" @click="resetFromActivity">
+      <button type="button" class="btn-outline" :disabled="saving || !hasManualUnsavedChanges" @click="resetInvites">
         {{ t('activities.draftOverview.reset') }}
       </button>
     </div>
+
+    <AddressModal
+      v-if="showVenueAddressModal"
+      :department-id="departmentId"
+      default-type="event"
+      :default-name="venueAddressModalDefaultName"
+      @close="closeVenueAddressModal"
+      @saved="onVenueAddressModalSaved"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import '@/styles/activity-create-wizard.css'
 import {
   patchActivity,
   type ActivityApiType,
@@ -218,6 +255,11 @@ import { combineDayAndTime, startOfLocalDay } from '@/utils/activityDateTimePart
 import { getPlanningUsageViolation } from '@/utils/activityPlanningUsageConstraint'
 import { flattenGroupsWithLevel } from '@/utils/groupHierarchy'
 import ActivityZeitraumDatetimeFields from '@/components/activities/shared/ActivityZeitraumDatetimeFields.vue'
+import AutoSaveField from '@/components/common/autoSave/AutoSaveField.vue'
+import type { AutoSaveFieldValue, AutoSaveSelectOption } from '@/components/common/autoSave/types'
+import { DepartmentAddressAutocomplete } from '@/components/addresses'
+import AddressModal from '@/components/AddressModal.vue'
+import { formatAddressOption } from '@/utils/departmentAddressSearch'
 
 const props = withDefaults(
   defineProps<{
@@ -240,6 +282,28 @@ const { t } = useI18n()
 const groups = ref<Group[]>([])
 const addresses = ref<Address[]>([])
 const saving = ref(false)
+const showVenueAddressModal = ref(false)
+const venueAddressModalDefaultName = ref('')
+const venueAddressAutocompleteRef = ref<InstanceType<typeof DepartmentAddressAutocomplete> | null>(null)
+const zeitraumSaving = ref(false)
+const zeitraumShowSaved = ref(false)
+let zeitraumBlurTimer: ReturnType<typeof setTimeout> | null = null
+let zeitraumSavedTimer: ReturnType<typeof setTimeout> | null = null
+
+const savedBaselines = reactive({
+  name: '',
+  group_id: '',
+  venue_address_id: '',
+  address_id: '',
+  notes: '',
+})
+
+const zeitraumBaseline = ref({
+  usage_start: null as string | null,
+  usage_end: null as string | null,
+  planning_start: null as string | null,
+  planning_end: null as string | null,
+})
 
 /** Lager / Event / extern: wie Erstell-Wizard */
 const showInviteDepartments = computed(() =>
@@ -286,6 +350,8 @@ watch(inviteDeptSearch, (value) => {
 
 onUnmounted(() => {
   if (inviteDeptSearchTimer) clearTimeout(inviteDeptSearchTimer)
+  if (zeitraumBlurTimer) clearTimeout(zeitraumBlurTimer)
+  if (zeitraumSavedTimer) clearTimeout(zeitraumSavedTimer)
 })
 
 function hideInviteDeptDropdownDelayed() {
@@ -411,6 +477,12 @@ const showDateRangePresetSidebar = computed(
   () => activityType.value !== 'activity' && activityType.value !== 'external',
 )
 
+function addressShort(a: Address): string {
+  const line = a.full_address || a.street_line || a.name || a.id
+  const typeSuffix = a.type_label ? ` · ${a.type_label}` : ''
+  return `${line}${typeSuffix}`
+}
+
 const groupField = computed({
   get() {
     return form.value.group_id ?? ''
@@ -419,6 +491,91 @@ const groupField = computed({
     form.value.group_id = v === '' ? null : v
   },
 })
+
+const venueField = computed({
+  get() {
+    return form.value.venue_address_id ?? ''
+  },
+  set(v: string) {
+    form.value.venue_address_id = v === '' ? null : v
+  },
+})
+
+const addressField = computed({
+  get() {
+    return form.value.address_id ?? ''
+  },
+  set(v: string) {
+    form.value.address_id = v === '' ? null : v
+  },
+})
+
+const groupFieldLabel = computed(() => {
+  let label = t('common.group')
+  if (groupRequired.value) label += ' *'
+  else if (activityType.value === 'event') label += ` (${t('activities.wizard.form.groupOptional')})`
+  return label
+})
+
+const groupSelectOptions = computed((): AutoSaveSelectOption[] => {
+  const opts: AutoSaveSelectOption[] = []
+  if (activityType.value === 'camp' || activityType.value === 'event') {
+    opts.push({
+      value: '',
+      label: props.activity.department_name || t('activities.wizard.form.summaryEmpty'),
+    })
+  } else {
+    opts.push({ value: '', label: t('activities.wizard.form.groupChoose') })
+  }
+  for (const g of flatGroups.value) {
+    opts.push({ value: g.id, label: `${'↳ '.repeat(g._level)}${g.name}` })
+  }
+  return opts
+})
+
+const addressSelectOptions = computed((): AutoSaveSelectOption[] => {
+  const opts: AutoSaveSelectOption[] = [{ value: '', label: t('activities.draftOverview.selectNone') }]
+  for (const a of addresses.value) {
+    opts.push({ value: a.id, label: addressShort(a) })
+  }
+  return opts
+})
+
+function onVenueAddressId(id: string | null, onChange: () => void) {
+  form.value.venue_address_id = id
+  onChange()
+}
+
+function openAddVenueAddressModal(presetName = '') {
+  venueAddressModalDefaultName.value = presetName.trim()
+  showVenueAddressModal.value = true
+}
+
+function closeVenueAddressModal() {
+  showVenueAddressModal.value = false
+  venueAddressModalDefaultName.value = ''
+}
+
+async function reloadAddresses() {
+  try {
+    const { addresses: list } = await getAddresses(props.departmentId)
+    addresses.value = [...list].sort((a, b) =>
+      formatAddressOption(a).localeCompare(formatAddressOption(b), 'de'),
+    )
+  } catch {
+    addresses.value = []
+  }
+}
+
+async function onVenueAddressModalSaved(addr?: Address) {
+  closeVenueAddressModal()
+  await reloadAddresses()
+  if (addr?.id) {
+    form.value.venue_address_id = addr.id
+    await saveVenueAddressId(addr.id)
+    onAutoFieldSaved()
+  }
+}
 
 /** Ohne Uhrzeit: ActivityTimeField bleibt leer/fehlerhaft — Vorbelegung, sobald ein Datum gewählt ist */
 watch(usageDay, (day) => {
@@ -505,6 +662,36 @@ const materialTimesBlockedUsage = computed((): { start: Date; end: Date } | null
   return { start: us, end: ue }
 })
 
+function syncSavedBaselinesFromActivity() {
+  const a = props.activity
+  savedBaselines.name = a.name ?? ''
+  savedBaselines.group_id = a.group_id ?? ''
+  savedBaselines.venue_address_id = a.venue_address_id ?? ''
+  savedBaselines.address_id = a.address_id ?? ''
+  savedBaselines.notes = a.notes ?? ''
+}
+
+function syncZeitraumBaselineFromActivity() {
+  const a = props.activity
+  zeitraumBaseline.value = {
+    usage_start: normIso(a.usage_start),
+    usage_end: normIso(a.usage_end),
+    planning_start: normIso(a.planning_start),
+    planning_end: normIso(a.planning_end),
+  }
+}
+
+function syncZeitraumBaselineFromLocal() {
+  const usage = buildUsageIsos()
+  const planning = buildPlanningIsos()
+  zeitraumBaseline.value = {
+    usage_start: normIso(usage.usage_start),
+    usage_end: normIso(usage.usage_end),
+    planning_start: normIso(planning.planning_start),
+    planning_end: normIso(planning.planning_end),
+  }
+}
+
 function resetFromActivity() {
   const a = props.activity
   form.value = {
@@ -514,6 +701,7 @@ function resetFromActivity() {
     address_id: a.address_id ?? null,
     notes: a.notes ?? '',
   }
+  syncSavedBaselinesFromActivity()
 
   const us = parseIso(a.usage_start)
   const ue = parseIso(a.usage_end)
@@ -536,92 +724,185 @@ function resetFromActivity() {
   matStartTime.value = ps
   matEndTime.value = pe
 
+  syncZeitraumBaselineFromActivity()
   invitedDraft.value = mapApiInvitesToDraft(a.invited_departments)
+}
+
+function resetInvites() {
+  invitedDraft.value = mapApiInvitesToDraft(props.activity.invited_departments)
 }
 
 /** Live-Refresh von aussen: nur wenn lokal nichts Ungespeichertes (verhindert Überschreiben beim Tippen). */
 watch(
   () => props.activity.updated_at,
   () => {
-    if (hasChanges.value || saving.value) return
+    if (shouldSkipActivitySync.value) return
     resetFromActivity()
   },
 )
 
-const hasChanges = computed(() => {
-  const a = props.activity
-  const f = form.value
-  const u = buildUsageIsos()
-  const p = buildPlanningIsos()
+const hasManualUnsavedChanges = computed(() => {
+  if (!showInviteDepartments.value) return false
   return (
-    f.name !== (a.name ?? '') ||
-    (f.group_id ?? null) !== (a.group_id ?? null) ||
-    (f.venue_address_id ?? null) !== (a.venue_address_id ?? null) ||
-    (f.address_id ?? null) !== (a.address_id ?? null) ||
-    normIso(u.usage_start) !== normIso(a.usage_start ?? undefined) ||
-    normIso(u.usage_end) !== normIso(a.usage_end ?? undefined) ||
-    normIso(p.planning_start) !== normIso(a.planning_start ?? undefined) ||
-    normIso(p.planning_end) !== normIso(a.planning_end ?? undefined) ||
-    (f.notes ?? '') !== (a.notes ?? '') ||
-    (showInviteDepartments.value &&
-      invitesSnapshot(invitedDraft.value) !== invitesSnapshot(a.invited_departments ?? []))
+    invitesSnapshot(invitedDraft.value) !==
+    invitesSnapshot(props.activity.invited_departments ?? [])
   )
 })
 
-const isValid = computed(() => {
-  if (showGroup.value && groupRequired.value && !form.value.group_id) return false
-  if (planningUsageConflictMessage.value) return false
-  return true
+const hasPendingAutoSaveFields = computed(() => {
+  const f = form.value
+  return (
+    f.name !== savedBaselines.name ||
+    (f.group_id ?? '') !== savedBaselines.group_id ||
+    (f.venue_address_id ?? '') !== savedBaselines.venue_address_id ||
+    (f.address_id ?? '') !== savedBaselines.address_id ||
+    (f.notes ?? '') !== savedBaselines.notes
+  )
 })
 
-function addressShort(a: Address): string {
-  const line = a.full_address || a.street_line || a.name || a.id
-  const typeSuffix = a.type_label ? ` · ${a.type_label}` : ''
-  return `${line}${typeSuffix}`
+const zeitraumIsDirty = computed(() => {
+  const usage = buildUsageIsos()
+  const planning = buildPlanningIsos()
+  const b = zeitraumBaseline.value
+  return (
+    normIso(usage.usage_start) !== b.usage_start ||
+    normIso(usage.usage_end) !== b.usage_end ||
+    normIso(planning.planning_start) !== b.planning_start ||
+    normIso(planning.planning_end) !== b.planning_end
+  )
+})
+
+const hasUnsavedChanges = computed(
+  () => hasManualUnsavedChanges.value || zeitraumIsDirty.value || hasPendingAutoSaveFields.value,
+)
+
+const shouldSkipActivitySync = computed(
+  () => hasUnsavedChanges.value || isSavingAny.value,
+)
+
+const isSavingAny = computed(() => saving.value || zeitraumSaving.value)
+
+function isExternalDatetimePickerTarget(el: EventTarget | null): boolean {
+  if (!(el instanceof HTMLElement)) return false
+  return !!el.closest(
+    '.dp__menu, .dp__overlay, .dp__calendar, .dp__outer_menu_wrap, .dp__menu_inner, .dp__sidebar_left',
+  )
 }
 
-function buildPayload(): PatchActivityPayload {
-  const a = props.activity
-  const f = form.value
-  const p: PatchActivityPayload = {}
-  if (f.name !== (a.name ?? '')) p.name = f.name
-  if ((f.group_id ?? null) !== (a.group_id ?? null)) p.group_id = f.group_id
-  if ((f.venue_address_id ?? null) !== (a.venue_address_id ?? null)) p.venue_address_id = f.venue_address_id
-  if ((f.address_id ?? null) !== (a.address_id ?? null)) p.address_id = f.address_id
-  if ((f.notes ?? '') !== (a.notes ?? '')) p.notes = f.notes || null
-
-  const u = buildUsageIsos()
-  const pl = buildPlanningIsos()
-  if (normIso(u.usage_start) !== normIso(a.usage_start ?? undefined)) p.usage_start = u.usage_start ?? undefined
-  if (normIso(u.usage_end) !== normIso(a.usage_end ?? undefined)) p.usage_end = u.usage_end ?? undefined
-  if (normIso(pl.planning_start) !== normIso(a.planning_start ?? undefined)) {
-    p.planning_start = pl.planning_start ?? undefined
-  }
-  if (normIso(pl.planning_end) !== normIso(a.planning_end ?? undefined)) {
-    p.planning_end = pl.planning_end ?? undefined
-  }
-  if (
-    showInviteDepartments.value &&
-    invitesSnapshot(invitedDraft.value) !== invitesSnapshot(a.invited_departments ?? [])
-  ) {
-    p.invited_departments = toInvitePayload(invitedDraft.value)
-  }
-  return p
+function onZeitraumFocusOut(event: FocusEvent) {
+  if (isExternalDatetimePickerTarget(event.relatedTarget)) return
+  if (zeitraumBlurTimer) clearTimeout(zeitraumBlurTimer)
+  zeitraumBlurTimer = setTimeout(() => {
+    zeitraumBlurTimer = null
+    const active = document.activeElement
+    if (active instanceof HTMLElement) {
+      if (active.closest('.activity-zeitraum-autosave-wrap, .dp__menu, .dp__overlay')) return
+    }
+    void saveZeitraumIfDirty()
+  }, 150)
 }
 
-async function onSave() {
+async function patchActivityFields(payload: PatchActivityPayload): Promise<void> {
+  await patchActivity(props.activity.id, payload)
+}
+
+function onAutoFieldSaved() {
+  emit('saved')
+}
+
+async function saveName(value: AutoSaveFieldValue) {
+  const name = String(value ?? '')
+  await patchActivityFields({ name })
+  savedBaselines.name = name
+}
+
+async function saveGroupId(value: AutoSaveFieldValue) {
+  const id = value === '' || value == null ? null : String(value)
+  if (groupRequired.value && !id) {
+    throw new Error(t('activities.wizard.form.groupChoose'))
+  }
+  await patchActivityFields({ group_id: id })
+  savedBaselines.group_id = id ?? ''
+  form.value.group_id = id
+}
+
+async function saveVenueAddressId(value: AutoSaveFieldValue) {
+  const id = value === '' || value == null ? null : String(value)
+  await patchActivityFields({ venue_address_id: id })
+  savedBaselines.venue_address_id = id ?? ''
+  form.value.venue_address_id = id
+}
+
+async function saveAddressId(value: AutoSaveFieldValue) {
+  const id = value === '' || value == null ? null : String(value)
+  await patchActivityFields({ address_id: id })
+  savedBaselines.address_id = id ?? ''
+  form.value.address_id = id
+}
+
+async function saveNotes(value: AutoSaveFieldValue) {
+  const notes = value == null || value === '' ? null : String(value)
+  await patchActivityFields({ notes })
+  savedBaselines.notes = notes ?? ''
+  form.value.notes = notes ?? ''
+}
+
+async function saveZeitraumIfDirty() {
+  if (!zeitraumIsDirty.value) return
   const conflict = planningUsageConflictMessage.value
   if (conflict) {
     toast.error(conflict)
     return
   }
-  const payload = buildPayload()
+
+  const a = props.activity
+  const usage = buildUsageIsos()
+  const planning = buildPlanningIsos()
+  const payload: PatchActivityPayload = {}
+  if (normIso(usage.usage_start) !== normIso(a.usage_start ?? undefined)) {
+    payload.usage_start = usage.usage_start ?? undefined
+  }
+  if (normIso(usage.usage_end) !== normIso(a.usage_end ?? undefined)) {
+    payload.usage_end = usage.usage_end ?? undefined
+  }
+  if (normIso(planning.planning_start) !== normIso(a.planning_start ?? undefined)) {
+    payload.planning_start = planning.planning_start ?? undefined
+  }
+  if (normIso(planning.planning_end) !== normIso(a.planning_end ?? undefined)) {
+    payload.planning_end = planning.planning_end ?? undefined
+  }
   if (Object.keys(payload).length === 0) return
+
+  zeitraumSaving.value = true
+  zeitraumShowSaved.value = false
+  try {
+    await patchActivityFields(payload)
+    syncZeitraumBaselineFromLocal()
+    zeitraumShowSaved.value = true
+    if (zeitraumSavedTimer) clearTimeout(zeitraumSavedTimer)
+    zeitraumSavedTimer = setTimeout(() => {
+      zeitraumShowSaved.value = false
+    }, 2000)
+    emit('saved')
+  } catch (err: unknown) {
+    const e = err as { response?: { data?: { error?: string } }; message?: string }
+    toast.error(e.response?.data?.error || e.message || t('activities.draftOverview.toastSaveFailed'))
+  } finally {
+    zeitraumSaving.value = false
+  }
+}
+
+async function onSaveInvites() {
+  if (!hasManualUnsavedChanges.value) return
   saving.value = true
   try {
-    await patchActivity(props.activity.id, payload)
+    await patchActivity(props.activity.id, {
+      invited_departments: toInvitePayload(invitedDraft.value),
+    })
     toast.success(
-      isSubmittedActivityEdit.value ? t('activities.draftOverview.toastSavedSubmitted') : t('activities.draftOverview.toastSavedDraft'),
+      isSubmittedActivityEdit.value
+        ? t('activities.draftOverview.toastSavedSubmitted')
+        : t('activities.draftOverview.toastSavedDraft'),
     )
     emit('saved')
   } catch (err: unknown) {
@@ -636,7 +917,9 @@ onMounted(async () => {
   try {
     const [g, addrRes] = await Promise.all([getGroups(props.departmentId), getAddresses(props.departmentId)])
     groups.value = g
-    addresses.value = addrRes.addresses
+    addresses.value = [...addrRes.addresses].sort((a, b) =>
+      formatAddressOption(a).localeCompare(formatAddressOption(b), 'de'),
+    )
   } catch {
     toast.error(t('activities.draftOverview.toastLoadMetaFailed'))
   }
@@ -644,18 +927,33 @@ onMounted(async () => {
 })
 
 defineExpose({
-  hasUnsavedChanges: hasChanges,
-  isSaving: saving,
+  hasUnsavedChanges,
+  isSaving: isSavingAny,
 })
 </script>
 
 <style scoped>
-@import '@/styles/activity-create-wizard.css';
-
 .activity-draft-overview-form {
   display: flex;
   flex-direction: column;
   gap: 0;
+  --activity-compact-field-width: min(100%, 28rem);
+}
+
+.activity-compact-autosave-field.autosave-field {
+  width: var(--activity-compact-field-width);
+  max-width: 28rem;
+}
+
+/* Zeitraum: volle Breite beibehalten */
+.activity-zeitraum-autosave-wrap {
+  width: 100%;
+  max-width: none;
+}
+
+.activity-zeitraum-autosave-wrap :deep(.activity-outlined-fieldset) {
+  width: 100%;
+  max-width: 100%;
 }
 
 .activity-detail-datetime-host {
@@ -763,5 +1061,61 @@ defineExpose({
 .activity-detail-datetime-host :deep(.activity-time-part:focus) {
   border-color: AccentColor;
   box-shadow: 0 0 0 2px color-mix(in srgb, AccentColor 35%, transparent);
+}
+
+.activity-zeitraum-autosave-status {
+  margin: 10px 0 0;
+  font-size: 13px;
+  line-height: 1.4;
+  color: #6b7280;
+}
+
+.activity-zeitraum-autosave-status.is-saved {
+  color: #059669;
+}
+
+.activity-venue-field-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0;
+}
+
+.activity-invite-departments-wrap .activity-address-select-row {
+  width: var(--activity-compact-field-width);
+  max-width: 28rem;
+}
+
+.activity-invite-departments-wrap .activity-address-autocomplete {
+  flex: 1;
+  min-width: 0;
+}
+
+.activity-venue-field-hint {
+  margin: 0 0 8px;
+  width: 100%;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.activity-venue-autosave-field.autosave-field {
+  margin-bottom: 6px;
+}
+
+.activity-venue-autosave-field :deep(.department-address-autocomplete) {
+  width: 100%;
+}
+
+.activity-venue-autosave-field :deep(.department-address-autocomplete .form-input) {
+  min-height: 48px;
+  padding: 16px 12px 10px;
+  border-radius: 8px;
+}
+
+.activity-venue-autosave-field :deep(.add-inline-btn) {
+  width: 48px;
+  height: 48px;
+  min-height: 48px;
+  flex-shrink: 0;
 }
 </style>

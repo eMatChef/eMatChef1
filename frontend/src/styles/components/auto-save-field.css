@@ -1,0 +1,338 @@
+/**
+ * Auto-Save-Feld (ecamp3-inspiriert) – nutzt Marken-Tokens aus brand-tokens.css
+ */
+.autosave-field {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding-top: 0;
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+/* Label: shared tokens in outlined-field.css (.autosave-label) */
+
+.autosave-control {
+  position: relative;
+  width: 100%;
+}
+
+.autosave-field-frame {
+  position: relative;
+  width: 100%;
+  isolation: isolate;
+}
+
+/* Gemeinsame Eingabe-Styles */
+.autosave-control .autosave-input,
+.autosave-control .autosave-textarea,
+.autosave-control .autosave-select,
+.autosave-control .form-input,
+.autosave-control .form-select {
+  display: block;
+  width: 100%;
+  min-height: 48px;
+  padding: 16px 12px 10px;
+  border: 1px solid var(--color-border, #d1d5db);
+  border-radius: 8px;
+  font-size: 14px;
+  line-height: 1.4;
+  color: var(--color-text, #111827);
+  background: #fff;
+  box-sizing: border-box;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.autosave-control .autosave-textarea {
+  min-height: 96px;
+  resize: vertical;
+}
+
+.autosave-control .autosave-select {
+  padding-right: 28px;
+  appearance: auto;
+}
+
+.autosave-control .autosave-input:focus,
+.autosave-control .autosave-textarea:focus,
+.autosave-control .autosave-select:focus,
+.autosave-control .form-input:focus,
+.autosave-control .form-select:focus {
+  outline: none;
+  border-color: var(--color-primary-light, #10b981);
+  box-shadow: 0 0 0 3px var(--color-primary-ring, rgba(16, 185, 129, 0.1));
+}
+
+/* Fortschritt: indeterminate Balken unten am Rahmen (Vuetify/Material-Stil, Label oben unberührt) */
+.autosave-frame-loader {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2px;
+  overflow: hidden;
+  border-radius: 0 0 7px 7px;
+  z-index: 4;
+  pointer-events: none;
+  background: transparent;
+}
+
+.autosave-frame-loader-bar {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: auto;
+  background: var(--color-primary, #059669);
+  will-change: left, right;
+}
+
+.autosave-frame-loader-bar--long {
+  animation: autosave-indeterminate-long 2.1s cubic-bezier(0.65, 0.815, 0.735, 0.395) infinite;
+}
+
+.autosave-frame-loader-bar--short {
+  animation: autosave-indeterminate-short 2.1s cubic-bezier(0.165, 0.84, 0.44, 1) infinite;
+  animation-delay: 1.15s;
+}
+
+@keyframes autosave-indeterminate-long {
+  0% {
+    left: -35%;
+    right: 100%;
+  }
+  60% {
+    left: 100%;
+    right: -90%;
+  }
+  100% {
+    left: 100%;
+    right: -90%;
+  }
+}
+
+@keyframes autosave-indeterminate-short {
+  0% {
+    left: -200%;
+    right: 100%;
+  }
+  60% {
+    left: 107%;
+    right: -8%;
+  }
+  100% {
+    left: 107%;
+    right: -8%;
+  }
+}
+
+/* Label über Loader, Input darunter */
+.autosave-label {
+  z-index: 5;
+}
+
+.autosave-field-frame > :not(.autosave-label):not(.autosave-frame-loader) {
+  position: relative;
+  z-index: 1;
+}
+
+/* Input mit Suffix (Einheit) */
+.autosave-input-wrap {
+  position: relative;
+  width: 100%;
+}
+
+.autosave-input-wrap .autosave-input {
+  width: 100%;
+  padding-right: 2.75rem;
+}
+
+.autosave-input-wrap .autosave-suffix {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-30%);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-text-muted, #6b7280);
+  pointer-events: none;
+  line-height: 1;
+}
+
+/* Kategorie-Autocomplete */
+.autosave-control .category-autocomplete-field {
+  width: 100%;
+}
+
+.autosave-control .category-autocomplete-field .autocomplete-wrapper {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+}
+
+.autosave-control .category-autocomplete-field .autocomplete-wrapper .form-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.autosave-control .category-autocomplete-field .selected-address {
+  margin-top: 6px;
+}
+
+/* Checkbox */
+.autosave-checkbox-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 48px;
+  padding: 12px 12px 10px;
+  border: 1px solid var(--color-border, #d1d5db);
+  border-radius: 8px;
+  cursor: pointer;
+  box-sizing: border-box;
+}
+
+.autosave-checkbox-text {
+  font-size: 14px;
+  color: var(--color-text, #374151);
+}
+
+.autosave-field.autosave-checkbox-field {
+  padding-top: 0;
+}
+
+/* Zustände: Rahmen + Label während Debounce/Speichern/Erfolg */
+.autosave-field.is-focused .autosave-label {
+  color: var(--color-primary, #059669);
+}
+
+.autosave-field.is-pending .autosave-label,
+.autosave-field.is-saving .autosave-label,
+.autosave-field.is-saved .autosave-label {
+  color: var(--color-primary, #059669);
+}
+
+/* Fortschritt nur unten — Rahmen bleibt neutral während Pending/Saving */
+
+.autosave-field.is-saved .autosave-control .autosave-input,
+.autosave-field.is-saved .autosave-control .autosave-textarea,
+.autosave-field.is-saved .autosave-control .autosave-select,
+.autosave-field.is-saved .autosave-control .form-input,
+.autosave-field.is-saved .autosave-control .form-select,
+.autosave-field.is-saved .autosave-control .autosave-checkbox-wrap {
+  border-color: var(--color-primary-light, #10b981);
+}
+
+.autosave-field.is-error .autosave-control .autosave-input,
+.autosave-field.is-error .autosave-control .autosave-textarea,
+.autosave-field.is-error .autosave-control .autosave-select,
+.autosave-field.is-error .autosave-control .form-input,
+.autosave-field.is-error .autosave-control .form-select,
+.autosave-field.is-error .autosave-control .autosave-checkbox-wrap {
+  border-color: var(--color-error, #dc2626);
+  box-shadow: 0 0 0 1px rgba(220, 38, 38, 0.12);
+}
+
+.autosave-field.is-error .autosave-label {
+  color: var(--color-error, #dc2626);
+}
+
+.autosave-field.is-disabled .autosave-control .autosave-input,
+.autosave-field.is-disabled .autosave-control .autosave-textarea,
+.autosave-field.is-disabled .autosave-control .autosave-select,
+.autosave-field.is-disabled .autosave-control .form-input,
+.autosave-field.is-disabled .autosave-control .form-select,
+.autosave-field.is-disabled .autosave-control .autosave-checkbox-wrap {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+/* ecamp3: Diskette auf der unteren Rahmenkante (mdi-content-save) */
+.autosave-append {
+  position: absolute;
+  right: 10px;
+  bottom: 0;
+  transform: translateY(50%);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  z-index: 5;
+}
+
+.autosave-disk {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #fff;
+  color: var(--color-primary, #059669);
+  border: 2px solid var(--color-primary-light, #10b981);
+  box-shadow:
+    0 0 0 2px #fff,
+    0 1px 3px var(--color-primary-shadow, rgba(16, 185, 129, 0.2));
+  opacity: 0;
+  transform: scale(0.8);
+  transition:
+    opacity 0.25s ease-out,
+    transform 0.25s cubic-bezier(0.34, 1.4, 0.64, 1);
+  pointer-events: none;
+}
+
+.autosave-disk.is-visible {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.autosave-disk-icon {
+  display: block;
+}
+
+.autosave-action {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  padding: 0;
+  box-shadow: 0 0 0 2px #fff;
+}
+
+.autosave-action--retry {
+  background: var(--color-error-bg, #fee2e2);
+  color: var(--color-error, #dc2626);
+}
+
+.autosave-action--cancel {
+  background: var(--color-surface-muted, #f3f4f6);
+  color: var(--color-text-muted, #6b7280);
+}
+
+.autosave-error-hint {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: var(--color-error, #dc2626);
+}
+
+/* Checkbox: Diskette etwas höher */
+.autosave-field.autosave-checkbox-field .autosave-append {
+  bottom: 50%;
+  transform: translateY(50%);
+}
+
+.form-grid .autosave-field,
+.autosave-form-grid .autosave-field {
+  align-self: start;
+}
+
+/* Unten etwas Luft für die auf der Kante sitzende Diskette */
+.autosave-field:not(.autosave-checkbox-field) {
+  margin-bottom: 6px;
+}

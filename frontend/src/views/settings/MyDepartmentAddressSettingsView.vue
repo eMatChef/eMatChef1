@@ -31,7 +31,7 @@
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
               <path d="M8 4V12M4 8H12" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
             </svg>
-            {{ t('settings.myDepartment.add') }}
+            {{ t('common.add') }}
           </button>
         </div>
 
@@ -47,73 +47,92 @@
             class="storage-item"
             :class="{ 'is-primary': addr.is_primary }"
           >
-            <div class="storage-icon">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-                <path d="M20 7H4C2.9 7 2 7.9 2 9V19C2 20.1 2.9 21 4 21H20C21.1 21 22 20.1 22 19V9C22 7.9 21.1 7 20 7Z" fill="currentColor" />
-                <path d="M12 3L2 7H22L12 3Z" fill="currentColor" opacity="0.6" />
-              </svg>
-            </div>
-            <div class="storage-info">
-              <div class="storage-name-row">
-                <span class="storage-name">{{ addr.name || addr.street_line }}</span>
-                <span v-if="addr.is_primary" class="primary-badge">{{ t('settings.myDepartment.primaryShort') }}</span>
+            <div class="storage-item-main">
+              <div class="storage-icon">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                  <path d="M20 7H4C2.9 7 2 7.9 2 9V19C2 20.1 2.9 21 4 21H20C21.1 21 22 20.1 22 19V9C22 7.9 21.1 7 20 7Z" fill="currentColor" />
+                  <path d="M12 3L2 7H22L12 3Z" fill="currentColor" opacity="0.6" />
+                </svg>
               </div>
-              <span class="storage-address">{{ addr.full_address }}</span>
+              <div class="storage-info">
+                <div class="storage-name-row">
+                  <span class="storage-name">{{ addr.name || addr.street_line }}</span>
+                  <span v-if="addr.is_primary" class="primary-badge">{{ t('settings.myDepartment.primaryShort') }}</span>
+                </div>
+                <span class="storage-address">{{ addr.full_address }}</span>
+              </div>
+              <div class="storage-actions">
+                <button
+                  v-if="!addr.is_primary"
+                  type="button"
+                  class="action-btn"
+                  :title="t('settings.myDepartment.titleSetPrimary')"
+                  @click="makePrimary(addr)"
+                >
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                    <path
+                      d="M8 1L10 5.5L15 6L11.5 9.5L12.5 14.5L8 12L3.5 14.5L4.5 9.5L1 6L6 5.5L8 1Z"
+                      stroke="currentColor"
+                      stroke-width="1.5"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    />
+                  </svg>
+                </button>
+                <button type="button" class="action-btn" :title="t('settings.myDepartment.titleEdit')" @click="openAddressModal(addr)">
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                    <path
+                      d="M11.3333 2C11.5084 1.82489 11.7163 1.68601 11.9444 1.59124C12.1726 1.49648 12.4163 1.44775 12.6625 1.44775C12.9087 1.44775 13.1524 1.49648 13.3806 1.59124C13.6087 1.68601 13.8166 1.82489 13.9917 2C14.1668 2.17511 14.3057 2.383 14.4005 2.61117C14.4952 2.83934 14.5439 3.08305 14.5439 3.32917C14.5439 3.57529 14.4952 3.819 14.4005 4.04717C14.3057 4.27534 14.1668 4.48323 13.9917 4.65833L5.325 13.325L2 14L2.675 10.675L11.3333 2Z"
+                      stroke="currentColor"
+                      stroke-width="1.5"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    />
+                  </svg>
+                </button>
+                <button type="button" class="action-btn delete" :title="t('settings.myDepartment.titleDelete')" @click="deleteAddressItem(addr)">
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                    <path
+                      d="M2 4H14M5 4V2H11V4M6 7V12M10 7V12M3 4L4 14H12L13 4H3Z"
+                      stroke="currentColor"
+                      stroke-width="1.5"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    />
+                  </svg>
+                </button>
+              </div>
             </div>
-            <div class="storage-actions">
+
+            <div v-if="addr.has_coordinates" class="storage-map-accordion">
               <button
-                v-if="!addr.is_primary"
                 type="button"
-                class="action-btn"
-                :title="t('settings.myDepartment.titleSetPrimary')"
-                @click="makePrimary(addr)"
+                class="map-accordion-toggle"
+                :aria-expanded="expandedMaps.has(addr.id)"
+                @click="toggleMap(addr.id)"
               >
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                  <path
-                    d="M8 1L10 5.5L15 6L11.5 9.5L12.5 14.5L8 12L3.5 14.5L4.5 9.5L1 6L6 5.5L8 1Z"
-                    stroke="currentColor"
-                    stroke-width="1.5"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                  />
-                </svg>
-              </button>
-              <button type="button" class="action-btn" :title="t('settings.myDepartment.titleEdit')" @click="openAddressModal(addr)">
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                  <path
-                    d="M11.3333 2C11.5084 1.82489 11.7163 1.68601 11.9444 1.59124C12.1726 1.49648 12.4163 1.44775 12.6625 1.44775C12.9087 1.44775 13.1524 1.49648 13.3806 1.59124C13.6087 1.68601 13.8166 1.82489 13.9917 2C14.1668 2.17511 14.3057 2.383 14.4005 2.61117C14.4952 2.83934 14.5439 3.08305 14.5439 3.32917C14.5439 3.57529 14.4952 3.819 14.4005 4.04717C14.3057 4.27534 14.1668 4.48323 13.9917 4.65833L5.325 13.325L2 14L2.675 10.675L11.3333 2Z"
-                    stroke="currentColor"
-                    stroke-width="1.5"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                  />
-                </svg>
-              </button>
-              <button
-                v-if="addr.has_coordinates"
-                type="button"
-                class="action-btn"
-                :title="t('settings.myDepartment.titleShowOnMap')"
-                @click="showOnMap(addr)"
-              >
+                <span class="map-accordion-caret" :class="{ expanded: expandedMaps.has(addr.id) }">▶</span>
                 <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
                   <path
                     d="M8 2C5.24 2 3 4.24 3 7C3 10.75 8 14 8 14S13 10.75 13 7C13 4.24 10.76 2 8 2ZM8 8.5C7.17 8.5 6.5 7.83 6.5 7C6.5 6.17 7.17 5.5 8 5.5C8.83 5.5 9.5 6.17 9.5 7C9.5 7.83 8.83 8.5 8 8.5Z"
                     fill="currentColor"
                   />
                 </svg>
+                <span>{{ t('settings.myDepartment.mapAccordionLabel') }}</span>
               </button>
-              <button type="button" class="action-btn delete" :title="t('settings.myDepartment.titleDelete')" @click="deleteAddressItem(addr)">
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                  <path
-                    d="M2 4H14M5 4V2H11V4M6 7V12M10 7V12M3 4L4 14H12L13 4H3Z"
-                    stroke="currentColor"
-                    stroke-width="1.5"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                  />
-                </svg>
-              </button>
+              <div v-if="expandedMaps.has(addr.id)" class="map-accordion-body">
+                <MapView
+                  :latitude="addr.latitude"
+                  :longitude="addr.longitude"
+                  :editable="false"
+                  :interactive="false"
+                  :use-swiss-projection="true"
+                  :show-layer-control="true"
+                  :show-external-map-links="true"
+                  height="300px"
+                  :zoom="21.7"
+                />
+              </div>
             </div>
           </div>
         </div>
@@ -129,16 +148,6 @@
           </button>
         </div>
 
-        <div v-if="storageAddressesWithCoords.length > 0" class="storage-map-section">
-          <h3>{{ t('settings.myDepartment.mapOverviewTitle') }}</h3>
-          <MapView
-            :latitude="storageAddressesWithCoords[0]?.latitude"
-            :longitude="storageAddressesWithCoords[0]?.longitude"
-            :editable="false"
-            height="300px"
-            :zoom="18"
-          />
-        </div>
       </div>
 
       <!-- Rechnungsadresse -->
@@ -153,7 +162,7 @@
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
               <path d="M8 4V12M4 8H12" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
             </svg>
-            {{ t('settings.myDepartment.add') }}
+            {{ t('common.add') }}
           </button>
         </div>
 
@@ -164,7 +173,7 @@
               <span>{{ addr.full_address }}</span>
             </div>
             <div class="address-actions">
-              <button type="button" class="action-btn" :title="t('settings.myDepartment.titleEdit')" @click="openAddressModal(addr)">
+              <button type="button" class="action-btn" :title="t('common.edit')" @click="openAddressModal(addr)">
                 <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
                   <path
                     d="M11.3333 2C11.5084 1.82489 11.7163 1.68601 11.9444 1.59124C12.1726 1.49648 12.4163 1.44775 12.6625 1.44775C12.9087 1.44775 13.1524 1.49648 13.3806 1.59124C13.6087 1.68601 13.8166 1.82489 13.9917 2C14.1668 2.17511 14.3057 2.383 14.4005 2.61117C14.4952 2.83934 14.5439 3.08305 14.5439 3.32917C14.5439 3.57529 14.4952 3.819 14.4005 4.04717C14.3057 4.27534 14.1668 4.48323 13.9917 4.65833L5.325 13.325L2 14L2.675 10.675L11.3333 2Z"
@@ -175,7 +184,7 @@
                   />
                 </svg>
               </button>
-              <button type="button" class="action-btn delete" :title="t('settings.myDepartment.titleDelete')" @click="deleteAddressItem(addr)">
+              <button type="button" class="action-btn delete" :title="t('common.delete')" @click="deleteAddressItem(addr)">
                 <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
                   <path
                     d="M2 4H14M5 4V2H11V4M6 7V12M10 7V12M3 4L4 14H12L13 4H3Z"
@@ -253,7 +262,15 @@ const newAddressType = ref<string>('storage')
 
 const storageAddresses = computed(() => addresses.value.filter((a) => a.type === 'storage'))
 const billingAddresses = computed(() => addresses.value.filter((a) => a.type === 'billing'))
-const storageAddressesWithCoords = computed(() => storageAddresses.value.filter((a) => a.has_coordinates))
+
+const expandedMaps = ref(new Set<string>())
+
+function toggleMap(addressId: string) {
+  const next = new Set(expandedMaps.value)
+  if (next.has(addressId)) next.delete(addressId)
+  else next.add(addressId)
+  expandedMaps.value = next
+}
 
 const modalDepartmentId = computed(() => String(effectiveDepartmentId.value || selectedDepartmentId.value || ''))
 
@@ -294,7 +311,7 @@ async function deleteAddressItem(address: Address) {
     message: t('settings.myDepartment.deleteAddressConfirmMessage', {
       name: address.name || address.street_line,
     }),
-    confirmText: t('settings.myDepartment.deleteAction'),
+    confirmText: t('common.delete'),
     cancelText: t('common.cancel'),
     variant: 'danger',
   })
@@ -317,13 +334,6 @@ async function makePrimary(address: Address) {
   } catch (err: unknown) {
     const e = err as { response?: { data?: { error?: string } } }
     toast.error(e.response?.data?.error || t('settings.myDepartment.toastSetPrimaryAddressError'))
-  }
-}
-
-function showOnMap(address: Address) {
-  if (address.latitude && address.longitude) {
-    const url = `https://www.openstreetmap.org/?mlat=${address.latitude}&mlon=${address.longitude}#map=17/${address.latitude}/${address.longitude}`
-    window.open(url, '_blank')
   }
 }
 
@@ -460,13 +470,17 @@ watch(
 }
 .storage-item {
   display: flex;
-  align-items: flex-start;
-  gap: 14px;
+  flex-direction: column;
   padding: 16px;
   background: white;
   border: 1px solid #e5e7eb;
   border-radius: 10px;
   transition: all 0.2s;
+}
+.storage-item-main {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
 }
 .storage-item:hover {
   border-color: #d1d5db;
@@ -548,6 +562,39 @@ watch(
   color: #dc2626;
 }
 
+.storage-map-accordion {
+  margin-top: 12px;
+  border-top: 1px solid #e5e7eb;
+  padding-top: 12px;
+}
+.map-accordion-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: #4b5563;
+  font-size: 13px;
+  font-weight: 500;
+}
+.map-accordion-toggle:hover {
+  color: #1f2937;
+}
+.map-accordion-caret {
+  display: inline-flex;
+  font-size: 10px;
+  color: #9ca3af;
+  transition: transform 0.15s ease;
+}
+.map-accordion-caret.expanded {
+  transform: rotate(90deg);
+}
+.map-accordion-body {
+  margin-top: 12px;
+}
+
 .empty-storage {
   display: flex;
   flex-direction: column;
@@ -573,18 +620,6 @@ watch(
 }
 .add-first-btn:hover {
   background: #2563eb;
-}
-
-.storage-map-section {
-  margin-top: 20px;
-  padding-top: 20px;
-  border-top: 1px solid #e5e7eb;
-}
-.storage-map-section h3 {
-  margin: 0 0 16px 0;
-  font-size: 14px;
-  font-weight: 600;
-  color: #374151;
 }
 
 .billing-address {

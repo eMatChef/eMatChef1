@@ -138,7 +138,7 @@ function onCardClick(event: MouseEvent) {
               />
             </div>
             <div class="pack-container-line-main">
-              <span class="pack-container-line-name">{{ ci.material_name || t('activities.common.material') }}</span>
+              <span class="pack-container-line-name">{{ ci.material_name || t('common.material') }}</span>
               <span class="pack-container-line-qty">{{
                 t('activities.packList.qtyInContainerLine', { n: ci.quantity_packed })
               }}</span>

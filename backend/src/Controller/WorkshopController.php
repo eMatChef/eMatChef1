@@ -13,6 +13,7 @@ use App\Entity\Department;
 use App\Entity\Membership;
 use App\Entity\User;
 use App\Service\ActivityAccountingCostService;
+use App\Service\Media\MediaPhotoNormalizer;
 use App\Service\Public\PublicCodeService;
 use App\Util\IdGenerator;
 use Doctrine\ORM\EntityManagerInterface;
@@ -29,6 +30,7 @@ class WorkshopController extends AbstractController
         private EntityManagerInterface $entityManager,
         private ActivityAccountingCostService $activityAccountingCost,
         private PublicCodeService $publicCodeService,
+        private MediaPhotoNormalizer $photoNormalizer,
     ) {}
 
     // ═══════════════════════════════════════════════
@@ -358,10 +360,34 @@ class WorkshopController extends AbstractController
                         $assignedUser = $this->entityManager->getRepository(User::class)
                             ->find($newAssignedId);
                         $ticket->setAssignedToUser($assignedUser);
+                        $ticket->setAssignedToSupplierCompany(null);
                     } else {
                         $ticket->setAssignedToUser(null);
                     }
                     $changes['assigned_to_user_id'] = ['old' => $oldAssignedId, 'new' => $newAssignedId];
+                }
+            }
+
+            if (array_key_exists('assigned_to_supplier_company_id', $data)) {
+                $oldSupplierId = $ticket->getAssignedToSupplierCompanyId();
+                $newSupplierId = $data['assigned_to_supplier_company_id'] ?: null;
+
+                if ($oldSupplierId !== $newSupplierId) {
+                    if ($newSupplierId) {
+                        $supplierCompany = $this->entityManager->getRepository(\App\Entity\SupplierCompany::class)
+                            ->find($newSupplierId);
+                        if (!$supplierCompany instanceof \App\Entity\SupplierCompany) {
+                            return new JsonResponse(['error' => 'Lieferanten-Firma nicht gefunden'], 404);
+                        }
+                        if (!\in_array(\App\Entity\SupplierCompany::CAPABILITY_REPAIRS, $supplierCompany->getCapabilities(), true)) {
+                            return new JsonResponse(['error' => 'Firma hat keine Repairs-Capability'], 400);
+                        }
+                        $ticket->setAssignedToSupplierCompany($supplierCompany);
+                        $ticket->setAssignedToUser(null);
+                    } else {
+                        $ticket->setAssignedToSupplierCompany(null);
+                    }
+                    $changes['assigned_to_supplier_company_id'] = ['old' => $oldSupplierId, 'new' => $newSupplierId];
                 }
             }
 
@@ -925,6 +951,11 @@ class WorkshopController extends AbstractController
                 'name' => $this->getUserDisplayName($assignedUser),
             ] : null,
 
+            'assigned_to_supplier_company' => $ticket->getAssignedToSupplierCompany() ? [
+                'id' => $ticket->getAssignedToSupplierCompany()->getId(),
+                'name' => $ticket->getAssignedToSupplierCompany()->getName(),
+            ] : null,
+
             // Ersteller
             'created_by' => $createdByUser ? [
                 'id' => $createdByUser->getId(),
@@ -949,7 +980,7 @@ class WorkshopController extends AbstractController
 
         if ($detailed) {
             $result['parts_used'] = $ticket->getPartsUsed();
-            $result['photos'] = $ticket->getPhotos();
+            $result['photos'] = $this->photoNormalizer->normalizeOutgoing($ticket->getPhotos());
 
             // Activity-Info
             $activity = $ticket->getActivity();
@@ -966,13 +997,15 @@ class WorkshopController extends AbstractController
             $issueReport = $ticket->getIssueReport();
             if ($issueReport) {
                 $reporter = $issueReport->getReportedByUser();
+                $issuePhotos = $this->photoNormalizer->normalizeOutgoing($issueReport->getPhotos());
                 $result['issue_report'] = [
                     'id' => $issueReport->getId(),
                     'type' => $issueReport->getType(),
                     'type_label' => $issueReport->getTypeLabel(),
                     'description' => $issueReport->getDescription(),
                     'quantity' => $issueReport->getQuantity(),
-                    'photo_url' => $issueReport->getPhotoUrl(),
+                    'photo_url' => $issueReport->getPrimaryPhotoUrl(),
+                    'photos' => $issuePhotos,
                     'reported_at' => $issueReport->getReportedAt()->format('c'),
                     'reported_by' => $reporter ? [
                         'id' => $reporter->getId(),

@@ -102,7 +102,7 @@
 
       <div class="actions">
         <button v-if="canEdit" type="submit" class="btn btn-primary" :disabled="isSaving">
-          {{ isSaving ? t('mail.outbound.saving') : t('common.save') }}
+          {{ isSaving ? t('common.saving') : t('common.save') }}
         </button>
       </div>
     </form>

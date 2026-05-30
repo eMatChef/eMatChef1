@@ -17,6 +17,7 @@
       <div class="banner-info">
         <span class="banner-name">
           {{ modeLabel }}
+          <span class="banner-badge" :class="'banner-badge--' + creationMode">{{ modeBadge }}</span>
         </span>
         <span v-if="templateName" class="banner-details">
           {{ t('components.materialCreateWizard.bannerTemplatePrefix') }} {{ templateName }}<span v-if="templateManufacturer"> · {{ templateManufacturer }}</span>
@@ -64,4 +65,36 @@ const modeLabel = computed(() => {
   if (m === 'physical_combo') return t('components.materialCreateWizard.modePhysicalComboTitle')
   return t('components.materialCreateWizard.modeVirtualComboTitle')
 })
+
+const modeBadge = computed(() => {
+  const m = props.creationMode
+  if (m === 'individual') return t('components.materialCreateWizard.badgeIndividual')
+  if (m === 'physical_combo') return t('components.materialCreateWizard.badgePhysicalCombo')
+  return t('components.materialCreateWizard.badgeVirtualCombo')
+})
 </script>
+
+<style scoped>
+.banner-badge {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.5;
+  vertical-align: middle;
+}
+.banner-badge--individual {
+  background: #e2e8f0;
+  color: #334155;
+}
+.banner-badge--physical_combo {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+.banner-badge--virtual_combo {
+  background: #ede9fe;
+  color: #6d28d9;
+}
+</style>

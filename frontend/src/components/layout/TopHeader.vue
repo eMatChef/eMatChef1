@@ -5,30 +5,67 @@
     <!-- Left Section: Tabs (offene Detail-Ansichten) -->
     <div class="header-left">
       <div v-if="detailTabsStore.hasTabs" class="tabs-scroll">
-        <div
-          v-for="tab in detailTabsStore.tabs"
-          :key="`${tab.type}-${tab.id}`"
-          role="tab"
-          tabindex="0"
-          class="detail-tab"
-          :class="{ active: isTabActive(tab) }"
-          @click="navigateToTab(tab)"
-          @keydown.enter="navigateToTab(tab)"
-          @keydown.space.prevent="navigateToTab(tab)"
-        >
-          <span class="tab-label">{{ tab.label }}</span>
-          <span v-if="tab.hasUnsavedChanges" class="tab-dirty" :title="t('layout.tabs.unsavedChangesTooltip')">●</span>
-          <button
-            type="button"
-            class="tab-close"
-            :aria-label="t('layout.tabs.closeAria')"
-            @click.stop="closeTab(tab)"
+        <template v-if="detailTabsStore.useGroupedLayout">
+          <div
+            v-for="group in detailTabsStore.tabGroups"
+            :key="group.type"
+            class="tab-group"
           >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M18 6L6 18M6 6l12 12"/>
-            </svg>
-          </button>
-        </div>
+            <span class="tab-group-label">{{ tabGroupLabel(group.type) }}</span>
+            <div class="tab-group-chips">
+              <div
+                v-for="tab in group.tabs"
+                :key="`${tab.type}-${tab.id}`"
+                role="tab"
+                tabindex="0"
+                class="detail-tab"
+                :class="{ active: isTabActive(tab) }"
+                @click="navigateToTab(tab)"
+                @keydown.enter="navigateToTab(tab)"
+                @keydown.space.prevent="navigateToTab(tab)"
+              >
+                <span class="tab-label">{{ tab.label }}</span>
+                <span v-if="tab.hasUnsavedChanges" class="tab-dirty" :title="t('layout.tabs.unsavedChangesTooltip')">●</span>
+                <button
+                  type="button"
+                  class="tab-close"
+                  :aria-label="t('layout.tabs.closeAria')"
+                  @click.stop="closeTab(tab)"
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M18 6L6 18M6 6l12 12"/>
+                  </svg>
+                </button>
+              </div>
+            </div>
+          </div>
+        </template>
+        <template v-else>
+          <div
+            v-for="tab in detailTabsStore.tabs"
+            :key="`${tab.type}-${tab.id}`"
+            role="tab"
+            tabindex="0"
+            class="detail-tab"
+            :class="{ active: isTabActive(tab) }"
+            @click="navigateToTab(tab)"
+            @keydown.enter="navigateToTab(tab)"
+            @keydown.space.prevent="navigateToTab(tab)"
+          >
+            <span class="tab-label">{{ tab.label }}</span>
+            <span v-if="tab.hasUnsavedChanges" class="tab-dirty" :title="t('layout.tabs.unsavedChangesTooltip')">●</span>
+            <button
+              type="button"
+              class="tab-close"
+              :aria-label="t('layout.tabs.closeAria')"
+              @click.stop="closeTab(tab)"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M18 6L6 18M6 6l12 12"/>
+              </svg>
+            </button>
+          </div>
+        </template>
       </div>
     </div>
     
@@ -264,6 +301,19 @@
             <span class="dept-switch-hint">{{ authStore.activeDepartmentName }}</span>
           </span>
         </button>
+        <button
+          v-if="authStore.activeSupplierCompanies.length > 1"
+          class="dropdown-item"
+          @click="switchSupplierCompany"
+        >
+          <svg class="item-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+            <path d="M3 21h18M5 21V7l8-4 8 4v14M9 21v-6h6v6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <span class="dept-switch-text">
+            {{ t('layout.userMenu.switchSupplierCompany') }}
+            <span class="dept-switch-hint">{{ authStore.activeSupplierCompanyName }}</span>
+          </span>
+        </button>
         <div class="dropdown-divider"></div>
         <button class="dropdown-item logout" @click="doLogout">
           <svg class="item-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
@@ -469,9 +519,9 @@
             <div class="profile-status-hint" :class="{ visible: hasUnsavedProfileChanges }">
               <span v-if="hasUnsavedProfileChanges">{{ t('layout.profileModal.unsavedChanges') }}</span>
             </div>
-            <button type="button" class="btn-secondary btn-sm" @click="requestCloseEditProfileModal" :disabled="savingProfile">{{ t('layout.profileModal.cancel') }}</button>
+            <button type="button" class="btn-secondary btn-sm" @click="requestCloseEditProfileModal" :disabled="savingProfile">{{ t('common.cancel') }}</button>
             <button type="submit" class="btn-primary btn-sm" :disabled="savingProfile || (!hasUnsavedProfileChanges && !hasPasswordInput) || !!passwordInlineError">
-              {{ savingProfile ? t('layout.profileModal.saving') : t('layout.profileModal.save') }}
+              {{ savingProfile ? t('layout.profileModal.saving') : t('common.save') }}
             </button>
           </div>
         </form>
@@ -509,7 +559,13 @@ import {
 } from '../../api/publicFoundMessages'
 // @ts-ignore Vetur false positive in Vue 3 script-setup import
 import GlobalSearchInput from '../common/GlobalSearchInput.vue'
-import { useDetailTabsStore } from '../../stores/detailTabs'
+import {
+  useDetailTabsStore,
+  listPathForDetailTab,
+  ticketIdFromWorkshopTabPath,
+  type DetailTab,
+  type DetailTabType,
+} from '../../stores/detailTabs'
 import { useHeaderNotificationsStore } from '@/stores/headerNotifications'
 import { getPostLogoutPath } from '@/utils/appLoginUrl'
 import { useDepartmentMemberRole } from '@/composables/useDepartmentMemberRole'
@@ -789,31 +845,65 @@ function syncBellBadge() {
   headerNotificationsStore.requestRefresh()
 }
 
-function isTabActive(tab: { path: string }) {
+function tabGroupLabel(type: DetailTabType): string {
+  const keys: Record<DetailTabType, string> = {
+    material: 'layout.tabs.groupMaterial',
+    activity: 'layout.tabs.groupActivity',
+    workshop: 'layout.tabs.groupWorkshop',
+  }
+  return t(keys[type])
+}
+
+function isTabActive(tab: DetailTab) {
+  if (tab.type === 'workshop') {
+    const tabTicketId = ticketIdFromWorkshopTabPath(tab.path)
+    const routeTicketId = typeof route.query.ticket === 'string' ? route.query.ticket : null
+    return route.path.includes('/workshop') && tabTicketId !== null && tabTicketId === routeTicketId
+  }
   const basePath = tab.path.split('?')[0]
   return route.fullPath === tab.path || route.fullPath === basePath || route.fullPath.startsWith(basePath + '/')
 }
 
-function navigateToTab(tab: { path: string }) {
+function navigateToTab(tab: DetailTab) {
+  if (tab.type === 'workshop') {
+    const ticketId = ticketIdFromWorkshopTabPath(tab.path)
+    router.push({
+      path: `/${tab.departmentId}/workshop`,
+      query: ticketId ? { ticket: ticketId } : {},
+    })
+    return
+  }
   router.push(tab.path)
 }
 
-async function closeTab(tab: { id: string; type: 'material' | 'activity'; departmentId: string; path: string; hasUnsavedChanges: boolean }) {
+function isViewingClosedTab(tab: DetailTab): boolean {
+  if (tab.type === 'workshop') {
+    const tabTicketId = ticketIdFromWorkshopTabPath(tab.path)
+    const routeTicketId = typeof route.query.ticket === 'string' ? route.query.ticket : null
+    return route.path.includes('/workshop') && tabTicketId !== null && tabTicketId === routeTicketId
+  }
+  const basePath = tab.path.split('?')[0]
+  return (
+    route.fullPath === tab.path ||
+    route.fullPath === basePath ||
+    route.fullPath.startsWith(`${basePath}/`)
+  )
+}
+
+async function closeTab(tab: DetailTab) {
   if (tab.hasUnsavedChanges) {
     const ok = await confirm.confirm({
       title: t('layout.confirm.unsavedTitle'),
       message: t('layout.confirm.unsavedMessage'),
-      confirmText: t('layout.confirm.close'),
+      confirmText: t('common.close'),
       cancelText: t('layout.confirm.back'),
       variant: 'warning',
     })
     if (!ok) return
   }
   detailTabsStore.removeTab(tab.id, tab.type, tab.departmentId)
-  const basePath = tab.path.split('?')[0]
-  if (route.fullPath === tab.path || route.fullPath === basePath || route.fullPath.startsWith(basePath + '/')) {
-    const base = `/${tab.departmentId}`
-    router.push(tab.type === 'material' ? `${base}/materials` : `${base}/activities`)
+  if (isViewingClosedTab(tab)) {
+    router.push(listPathForDetailTab(tab))
   }
 }
 
@@ -1181,6 +1271,16 @@ function switchDepartment() {
   showUserDropdown.value = false
 }
 
+function switchSupplierCompany() {
+  const companies = authStore.activeSupplierCompanies
+  if (companies.length <= 1) return
+  const currentIdx = companies.findIndex((c) => c.id === authStore.activeSupplierCompanyId)
+  const next = companies[(currentIdx + 1 + companies.length) % companies.length]
+  authStore.setActiveSupplierCompany(next.id)
+  router.push(`/supplier/${next.id}/profile`)
+  showUserDropdown.value = false
+}
+
 async function doLogout() {
   await authStore.logout()
   router.replace(getPostLogoutPath())
@@ -1209,7 +1309,7 @@ async function requestCloseEditProfileModal() {
     const shouldClose = await confirm.confirm({
       title: t('layout.confirm.unsavedTitle'),
       message: t('layout.confirm.unsavedMessage'),
-      confirmText: t('layout.confirm.close'),
+      confirmText: t('common.close'),
       cancelText: t('layout.confirm.back'),
       variant: 'warning',
     })
@@ -1437,54 +1537,116 @@ watch(
 
 <style scoped>
 .top-header {
-  background-color: #f8f9fa;
-  border-bottom: 1px solid #e0e0e0;
+  background-color: var(--color-surface-muted, #f8f9fa);
+  border-bottom: 1px solid var(--color-border, #e0e0e0);
   display: flex;
   flex-direction: column;
   position: sticky;
   top: 0;
   z-index: 999;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  overflow: hidden;
 }
 
 .tabs-scroll {
   display: flex;
   align-items: center;
-  gap: 4px;
+  align-self: stretch;
+  gap: 8px;
   overflow-x: auto;
+  overflow-y: hidden;
   flex: 1;
   min-width: 0;
+  max-height: 100%;
+  padding: 2px 0;
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-primary-muted-border) transparent;
 }
 
-.tabs-scroll::-webkit-scrollbar {
-  height: 4px;
-}
-
-.detail-tab {
+.tab-group {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 6px 10px;
-  border: 1px solid #d1d5db;
-  border-radius: 6px;
+  flex-shrink: 0;
+  max-height: 100%;
+  padding-right: 8px;
+  border-right: 1px solid var(--color-border);
+}
+
+.tab-group:last-child {
+  border-right: none;
+  padding-right: 0;
+}
+
+.tab-group-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.tab-group-chips {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  max-height: 100%;
+}
+
+.tabs-scroll::-webkit-scrollbar {
+  height: 3px;
+}
+
+.tabs-scroll::-webkit-scrollbar-thumb {
+  background: var(--color-primary-muted-border);
+  border-radius: 3px;
+}
+
+.tabs-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.detail-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  box-sizing: border-box;
+  max-height: 36px;
+  padding: 5px 8px 5px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
   background: #fff;
   font-size: 13px;
-  color: #374151;
+  line-height: 1.25;
+  color: var(--color-text);
   cursor: pointer;
   white-space: nowrap;
   flex-shrink: 0;
-  transition: border-color 0.2s, background 0.2s;
+  transition: border-color 0.15s, background 0.15s, color 0.15s, box-shadow 0.15s;
 }
 
 .detail-tab:hover {
-  border-color: #9ca3af;
-  background: #f9fafb;
+  border-color: var(--color-primary-muted-border);
+  background: var(--color-surface-muted);
 }
 
 .detail-tab.active {
-  border-color: #3b82f6;
-  background: #eff6ff;
-  color: #1d4ed8;
+  border-color: var(--color-primary);
+  background: var(--color-primary-muted-bg);
+  color: var(--color-primary-dark);
+  box-shadow: 0 0 0 1px var(--color-primary-ring);
+}
+
+.detail-tab.active .tab-close {
+  color: var(--color-primary);
+}
+
+.detail-tab.active .tab-close:hover {
+  color: var(--color-error);
+  background: var(--color-error-bg);
 }
 
 .tab-label {
@@ -1494,26 +1656,29 @@ watch(
 }
 
 .tab-dirty {
-  color: #f59e0b;
+  color: #d97706;
   font-size: 10px;
   font-weight: bold;
+  line-height: 1;
 }
 
 .tab-close {
   display: flex;
   align-items: center;
   justify-content: center;
+  flex-shrink: 0;
   padding: 2px;
+  margin: -2px -2px -2px 0;
   border: none;
   background: none;
-  color: #9ca3af;
+  color: var(--color-text-muted);
   cursor: pointer;
   border-radius: 4px;
 }
 
 .tab-close:hover {
-  color: #ef4444;
-  background: #fef2f2;
+  color: var(--color-error);
+  background: var(--color-error-bg);
 }
 
 .header-main-row {
@@ -1521,14 +1686,19 @@ watch(
   align-items: center;
   gap: 0;
   height: 64px;
+  max-height: 64px;
+  overflow: hidden;
   padding: 0 24px;
+  box-sizing: border-box;
 }
 
 .header-left {
   flex: 1;
   min-width: 0;
+  height: 100%;
   display: flex;
   align-items: center;
+  overflow: hidden;
 }
 
 .trial-warning {

@@ -14,8 +14,16 @@
             {{ t('activities.wizard.missing.' + missingSteps[0]) }}
           </button>
         </div>
-        <button type="button" class="btn-secondary btn-sm" @click="$emit('close')">
-          {{ t('activities.wizard.footerDiscard') }}
+        <button
+          v-if="showCloseSavedButton"
+          type="button"
+          class="btn-secondary btn-sm"
+          @click="$emit('closeSaved')"
+        >
+          {{ t('activities.common.close') }}
+        </button>
+        <button v-else type="button" class="btn-secondary btn-sm" @click="$emit('close')">
+          {{ t('activities.common.discard') }}
         </button>
         <button
           v-if="layoutMode === 'stepper' && selectedActivityType && wizardStepIndex > 0"
@@ -23,7 +31,7 @@
           class="btn-secondary btn-sm"
           @click="$emit('prev')"
         >
-          {{ t('activities.wizard.footerBack') }}
+          {{ t('activities.common.backTitle') }}
         </button>
         <button
           v-if="layoutMode === 'stepper' && selectedActivityType && !isLastStep"
@@ -32,7 +40,7 @@
           :disabled="!canAdvanceFromCurrentStep || isSavingDraft"
           @click="$emit('weiter')"
         >
-          {{ isSavingDraft ? t('activities.wizard.footerSaving') : t('activities.wizard.footerNext') }}
+          {{ isSavingDraft ? t('common.saving') : t('activities.wizard.footerNext') }}
         </button>
         <button
           v-if="showSubmitButton"
@@ -80,8 +88,16 @@ const props = withDefaults(
     /** Stepper: Entwurf-Badge + Zeit nach Speichern / finalem Speichern */
     showDraftStatus?: boolean
     lastSavedAt?: Date | null
+    /** camp/event/external: Entwurf auf Server → «Schliessen» statt «Verwerfen» */
+    showCloseSavedButton?: boolean
   }>(),
-  { isSavingDraft: false, submitButtonLabel: undefined, showDraftStatus: false, lastSavedAt: null },
+  {
+    isSavingDraft: false,
+    submitButtonLabel: undefined,
+    showDraftStatus: false,
+    lastSavedAt: null,
+    showCloseSavedButton: false,
+  },
 )
 
 const savedAtLabel = computed(() => {
@@ -101,6 +117,7 @@ const savedAtLabel = computed(() => {
 
 defineEmits<{
   close: []
+  closeSaved: []
   prev: []
   weiter: []
   submit: []
