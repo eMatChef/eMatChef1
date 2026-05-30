@@ -342,8 +342,23 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
                 $roles[] = $symfonyRole;
             }
         }
+
+        if ($this->hasActiveSupplierMembership()) {
+            $roles[] = 'ROLE_SUPPLIER';
+        }
         
         return array_unique($roles);
+    }
+
+    public function hasActiveSupplierMembership(): bool
+    {
+        foreach ($this->supplierMemberships as $membership) {
+            if ($membership->getSupplierCompany()->getStatus() === SupplierCompany::STATUS_ACTIVE) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     public function eraseCredentials(): void

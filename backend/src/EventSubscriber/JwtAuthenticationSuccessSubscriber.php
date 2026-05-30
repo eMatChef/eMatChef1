@@ -7,6 +7,7 @@ use App\Entity\Membership;
 use App\Repository\ProfileRepository;
 use App\Repository\UserRepository;
 use App\Service\Auth\CrossSubdomainAuthCookies;
+use App\Service\Supplier\SupplierCompanyAccessService;
 use Doctrine\ORM\EntityManagerInterface;
 use Lexik\Bundle\JWTAuthenticationBundle\Event\AuthenticationSuccessEvent;
 use Lexik\Bundle\JWTAuthenticationBundle\Events;
@@ -24,6 +25,7 @@ class JwtAuthenticationSuccessSubscriber implements EventSubscriberInterface
         private EntityManagerInterface $entityManager,
         private UserRepository $userRepository,
         private CrossSubdomainAuthCookies $authCookies,
+        private SupplierCompanyAccessService $supplierCompanyAccessService,
         private ?LoggerInterface $logger = null
     ) {}
 
@@ -158,6 +160,15 @@ class JwtAuthenticationSuccessSubscriber implements EventSubscriberInterface
             }
             $data['last_used_department'] = $lastUsedResolved;
             $data['user']['last_used_department'] = $lastUsedResolved;
+
+            $supplierCompanies = $this->supplierCompanyAccessService->serializeCompaniesForUser($user);
+            $lastUsedSupplierCompany = $this->supplierCompanyAccessService->resolveLastUsedSupplierCompanyId(
+                $user,
+                $supplierCompanies
+            );
+            $data['supplier_companies'] = $supplierCompanies;
+            $data['last_used_supplier_company'] = $lastUsedSupplierCompany;
+            $data['user']['last_used_supplier_company'] = $lastUsedSupplierCompany;
 
             if (\is_string($jwt) && $jwt !== '') {
                 $data['token'] = $jwt;

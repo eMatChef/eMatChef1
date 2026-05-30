@@ -2,7 +2,7 @@
 
 Abarbeitbare Checkliste für Phase 1–3. Das **Warum/Zielmodell** steht in [supplier-portal.md](./supplier-portal.md). Dieser Plan = **Was & in welcher Reihenfolge**.
 
-**Stand:** Mai 2026 · Phase 1 in Paketen 0–8; Phase 2/3 als grobe Pakete (Detail folgt mit Phase-2-Start). **Erledigt: Paket 0–1**
+**Stand:** Mai 2026 · Phase 1 in Paketen 0–8; Phase 2/3 als grobe Pakete (Detail folgt mit Phase-2-Start). **Erledigt: Paket 0–2**
 
 ---
 
@@ -30,7 +30,7 @@ Abarbeitbare Checkliste für Phase 1–3. Das **Warum/Zielmodell** steht in [sup
 |---|-------|-------|-------|--------------|--------|
 | 0 | Address-Scope + Migration `GLOBAL000000` | 1 | M | – | [x] |
 | 1 | `supplier_company` + `supplier_membership` | 1 | M | 0 | [x] |
-| 2 | Auth: `ROLE_SUPPLIER`, Session, Voter | 1 | S–M | 1 | [ ] |
+| 2 | Auth: `ROLE_SUPPLIER`, Session, Voter | 1 | S–M | 1 | [x] |
 | 3 | Plattform-Admin: Onboarding + Legacy-Promote | 1 | M | 1, 2 | [ ] |
 | 4 | Frontend-Shell: Routing, Layout, Sidebar | 1 | M | 2 | [ ] |
 | 5 | „Meine Firma“: Profil & Kontakt | 1 | M | 1, 2, 4 | [ ] |
@@ -130,11 +130,11 @@ Diese Stellen strahlen bei Address-/Supplier-Änderungen am stärksten aus:
 - `frontend/src/api/` — Typen für `SupplierCompany`, Membership
 
 **Schritte:**
-- [ ] `ROLE_SUPPLIER` wenn ≥ 1 `SupplierMembership` und Firma `status=active`
-- [ ] Me-Response: `supplier_companies[]` mit `{ id, name, role, status, capabilities }`
-- [ ] Voter: `assertSupplierCompanyAccess($companyId)` — Membership + `status=active`; bei `suspended`/`pending` blockieren
-- [ ] Frontend Store: `supplierCompanies`, Getter `hasSupplierAccess`, `isSupplierOnly` (kein Department)
-- [ ] Kein automatischer Department-Zugriff über Supplier-Rolle
+- [x] `ROLE_SUPPLIER` wenn ≥ 1 `SupplierMembership` und Firma `status=active`
+- [x] Me-Response: `supplier_companies[]` mit `{ id, name, role, status, capabilities }`
+- [x] Voter: `assertSupplierCompanyAccess($companyId)` — Membership + `status=active`; bei `suspended`/`pending` blockieren
+- [x] Frontend Store: `supplierCompanies`, Getter `hasSupplierAccess`, `isSupplierOnly` (kein Department)
+- [x] Kein automatischer Department-Zugriff über Supplier-Rolle
 
 **Definition of Done:** Login liefert Supplier-Liste; Voter blockt fremde/inaktive Firmen; Type-check grün.
 

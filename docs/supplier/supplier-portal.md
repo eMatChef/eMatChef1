@@ -2,7 +2,7 @@
 
 Konzept-Dokumentation für ein **Lieferanten-Portal** mit Firmen-Modell (`SupplierCompany`), mehreren Usern pro Firma, B2B-Katalog für Materialwarte (MW) und optional **eigenem Vermietungsbetrieb** (Operator). Später: Reparatur-Workflow.
 
-**Stand:** Mai 2026 · Konzept; **M1 (Paket 0) + M2 (Paket 1) implementiert** — `address.scope`, `supplier_company`, `supplier_membership`
+**Stand:** Mai 2026 · Konzept; **Paket 0–2 implementiert** — Address-Scope, `supplier_company`, `ROLE_SUPPLIER`, Session + Voter
 
 Verwandt:
 
@@ -78,7 +78,7 @@ J&S ist **kein** Supplier im B2B-Sinn: Sie pflegen eine **Referenzliste**, damit
 | **Seriennummern heute** | Am `MaterialBatch.serial_number`; Erfassung via Material-Wizard oder Vorlage→Material (`TemplateController`) — nicht im CSV-Import |
 | **Globale Vorlagen** | `MaterialTemplate` mit `scope=global` — bearbeitbar nur für Superadmin / Org- / Suborg-Chef |
 | **Reparaturen** | `WorkshopTicket` — Zuweisung an **interne User** (`assigned_to_user_id`); öffentlicher QR-Status (`PublicWorkshopView`) |
-| **Supplier-Login** | **Existiert nicht** — keine `ROLE_SUPPLIER`, kein Supplier-Dashboard |
+| **Supplier-Login** | **`ROLE_SUPPLIER`** + Session `supplier_companies[]` (Paket 2); Supplier-Dashboard/UI ab Paket 4 |
 | **User ↔ Department** | `Membership` — ein User kann **mehrere** Departments mit Rollen (`mw`, `dc`, …) haben |
 | **Vermietung (Operator)** | `Activity.type = external`, Mieter über `address_id`; `MaterialItem.rental_price_*`, `rental_external_allowed` |
 
@@ -311,7 +311,7 @@ Capabilities (`catalog`, `operator`, …) hängen an **`SupplierCompany`**, nich
 - [x] Address-Scope auf `address` (Migration GLOBAL000000 → `scope=global`; **J&S `dept_js00000` unberührt**)
 - [ ] Support-Onboarding: Admin legt Firma an, erster User admin, Login-Zugang
 - [ ] Legacy `scope=global` → SupplierCompany (Admin-Aktion)
-- [ ] Login; `ROLE_SUPPLIER`; Session mit `supplier_companies[]`
+- [x] Login; `ROLE_SUPPLIER`; Session mit `supplier_companies[]`
 - [ ] Supplier-only wenn kein Department; sonst Toggle **Meine Firma** (Profil & Kontakt, Team für admin)
 - [ ] Öffentliche Kontaktdaten über `address` (`scope=supplier`) — für MW sichtbar
 - [ ] Team: admin verwaltet Memberships + Join-Code
