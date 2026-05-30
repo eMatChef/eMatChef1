@@ -2,7 +2,7 @@
 
 Abarbeitbare Checkliste für Phase 1–3. Das **Warum/Zielmodell** steht in [supplier-portal.md](./supplier-portal.md). Dieser Plan = **Was & in welcher Reihenfolge**.
 
-**Stand:** Mai 2026 · Phase 1 in Paketen 0–8; Phase 2/3 als grobe Pakete (Detail folgt mit Phase-2-Start). **Erledigt: Paket 0–3**
+**Stand:** Mai 2026 · Phase 1 in Paketen 0–8; Phase 2/3 als grobe Pakete (Detail folgt mit Phase-2-Start). **Erledigt: Paket 0–4**
 
 ---
 
@@ -32,7 +32,7 @@ Abarbeitbare Checkliste für Phase 1–3. Das **Warum/Zielmodell** steht in [sup
 | 1 | `supplier_company` + `supplier_membership` | 1 | M | 0 | [x] |
 | 2 | Auth: `ROLE_SUPPLIER`, Session, Voter | 1 | S–M | 1 | [x] |
 | 3 | Plattform-Admin: Onboarding + Legacy-Promote | 1 | M | 1, 2 | [x] |
-| 4 | Frontend-Shell: Routing, Layout, Sidebar | 1 | M | 2 | [ ] |
+| 4 | Frontend-Shell: Routing, Layout, Sidebar | 1 | M | 2 | [x] |
 | 5 | „Meine Firma“: Profil & Kontakt | 1 | M | 1, 2, 4 | [ ] |
 | 6 | Team + Join-Code | 1 | M | 2, 5 | [ ] |
 | 7 | Operator: Capability + `linked_department_id` | 1 | S | 1, 5 | [ ] |
@@ -171,10 +171,10 @@ Diese Stellen strahlen bei Address-/Supplier-Änderungen am stärksten aus:
 - `frontend/src/locales/de.json`, `en.json`
 
 **Schritte:**
-- [ ] Routen: `/supplier/:companyId/profile`, `/team`, … (Phase 1 minimal)
-- [ ] Guard: Supplier-Membership für `companyId`; Department-Routen unverändert (`Membership`)
-- [ ] **Supplier-only** (kein Department): nach Login Redirect `/supplier/{defaultCompanyId}/…`
-- [ ] **Department + Supplier:** normales Dashboard + aufklappbarer Block unter Dashboard:
+- [x] Routen: `/supplier/:companyId/profile`, `/team`, … (Phase 1 minimal)
+- [x] Guard: Supplier-Membership für `companyId`; Department-Routen unverändert (`Membership`)
+- [x] **Supplier-only** (kein Department): nach Login Redirect `/supplier/{defaultCompanyId}/…`
+- [x] **Department + Supplier:** normales Dashboard + aufklappbarer Block unter Dashboard:
 
 ```text
 ▼ Meine Firma
@@ -182,8 +182,8 @@ Diese Stellen strahlen bei Address-/Supplier-Änderungen am stärksten aus:
     Team                    (nur admin)
 ```
 
-- [ ] Firmen-Kontextwechsel wenn User in mehreren `SupplierCompany` (analog Department-Wechsel)
-- [ ] i18n: `sidebar.myCompany`, Unterpunkte
+- [x] Firmen-Kontextwechsel wenn User in mehreren `SupplierCompany` (analog Department-Wechsel)
+- [x] i18n: `sidebar.myCompany`, Unterpunkte
 
 **Definition of Done:** Navigation sichtbar/nicht sichtbar je nach Membership; Supplier-only landet im Supplier-Bereich; Build grün.
 

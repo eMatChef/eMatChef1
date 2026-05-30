@@ -71,7 +71,9 @@
         "settingsActivities": "Settings · Activities · eMatChef",
         "settingsStorage": "Settings · Storage · eMatChef",
         "settingsTemplates": "Settings · Templates · eMatChef",
-        "globalMaterialTemplates": "Admin · Material templates · eMatChef"
+        "globalMaterialTemplates": "Admin · Material templates · eMatChef",
+        "supplierProfile": "My company · Profile · eMatChef",
+        "supplierTeam": "My company · Team · eMatChef"
       },
       "descriptions": {
         "publicLookup": "Public material and serial number information in eMatChef.",
@@ -554,7 +556,18 @@
     "workshop": "Workshop",
     "display": "Info display",
     "statistics": "Statistics",
-    "settings": "Settings"
+    "settings": "Settings",
+    "myCompany": "My company",
+    "myCompanyProfile": "Profile & contact",
+    "myCompanyTeam": "Team"
+  },
+  "supplierProfile": {
+    "title": "Profil & Kontakt",
+    "placeholder": "Firmenprofil und öffentliche Kontaktdaten werden hier in Kürze verfügbar sein."
+  },
+  "supplierTeam": {
+    "title": "Team",
+    "placeholder": "Team-Verwaltung und Join-Codes werden hier in Kürze verfügbar sein."
   },
   "layout": {
     "onboardingResume": "Continue onboarding",
@@ -602,6 +615,7 @@
     "userMenu": {
       "editProfile": "Edit profile",
       "switchDepartment": "Switch department",
+      "switchSupplierCompany": "Switch company",
       "logout": "Log out"
     },
     "profileModal": {

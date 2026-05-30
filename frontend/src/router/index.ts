@@ -34,6 +34,19 @@ function routeHead(titleKey: string, descriptionKey?: string) {
   return meta
 }
 
+function defaultSupplierPath(): string | null {
+  const authStore = useAuthStore()
+  const companies = authStore.activeSupplierCompanies
+  if (companies.length === 0) return null
+  const id = authStore.activeSupplierCompanyId || companies[0]?.id
+  return id ? `/supplier/${id}/profile` : null
+}
+
+function hasSupplierCompanyAccess(companyId: string): boolean {
+  const authStore = useAuthStore()
+  return authStore.activeSupplierCompanies.some((c) => c.id === companyId)
+}
+
 function devicesWarehouseRoleOk(departmentId: string): boolean {
   const authStore = useAuthStore()
   const userRoles = authStore.userRoles || []
@@ -513,6 +526,39 @@ const routes: RouteRecordRaw[] = [
         ]
       }
     ]
+  },
+  {
+    path: '/supplier/:companyId',
+    component: () => import('@/components/layout/AppLayout.vue'),
+    meta: { requiresAuth: true },
+    children: [
+      {
+        path: '',
+        redirect: (to) => ({
+          name: 'SupplierProfile',
+          params: { companyId: to.params.companyId },
+        }),
+      },
+      {
+        path: 'profile',
+        name: 'SupplierProfile',
+        component: () => import('@/views/supplier/SupplierProfileView.vue'),
+        meta: {
+          requiresSupplierAccess: true,
+          ...routeHead('supplierProfile'),
+        },
+      },
+      {
+        path: 'team',
+        name: 'SupplierTeam',
+        component: () => import('@/views/supplier/SupplierTeamView.vue'),
+        meta: {
+          requiresSupplierAccess: true,
+          requiresSupplierAdmin: true,
+          ...routeHead('supplierTeam'),
+        },
+      },
+    ],
   },
   {
     path: '/:departmentId/pack/:activityId',
@@ -1236,13 +1282,23 @@ router.beforeEach(async (to, from, next) => {
       return next('/dashboard')
     }
 
-    // User ohne Department werden auf Pending-Seite geleitet
+    // User ohne Department werden auf Pending-Seite geleitet (Supplier-only → Supplier-Bereich)
     if (!primaryDepartmentId) {
       if (
         isSuperAdmin() &&
         (to.path.startsWith('/admin-dashboard') || to.path === '/dashboard')
       ) {
         // SA darf ohne Department im Admin-Bereich bzw. globalem Dashboard arbeiten
+      } else if (to.path.startsWith('/supplier/')) {
+        // Supplier-Routen — Zugriff unten geprüft
+      } else if (authStore.isSupplierOnly && authStore.hasSupplierAccess) {
+        const supplierHome = defaultSupplierPath()
+        if (supplierHome && to.path !== supplierHome && !to.path.startsWith('/supplier/')) {
+          const siteEditorRoute = to.matched.some((r) => r.meta.requiresSiteEditor)
+          if (!(siteEditorRoute && canEditPublicSite())) {
+            return next(supplierHome)
+          }
+        }
       } else if (to.path !== '/pending-assignment') {
         const siteEditorRoute = to.matched.some((r) => r.meta.requiresSiteEditor)
         if (siteEditorRoute && canEditPublicSite()) {
@@ -1259,6 +1315,7 @@ router.beforeEach(async (to, from, next) => {
     if (
       !isAdminPath &&
       !to.path.startsWith('/site-inhalt') &&
+      !to.path.startsWith('/supplier/') &&
       (to.path.startsWith('/app/') ||
         (to.meta.requiresAuth && !to.params.departmentId && to.path !== '/pending-assignment'))
     ) {
@@ -1287,6 +1344,11 @@ router.beforeEach(async (to, from, next) => {
       return next(`/${primaryDepartmentId}`)
     }
 
+    if (appLoginOrRoot && authStore.hasSupplierAccess) {
+      const supplierHome = defaultSupplierPath()
+      if (supplierHome) return next(supplierHome)
+    }
+
     if (isDevicesHost() && (to.path === '/' || to.path === '/login')) {
       const pinned =
         getPinnedDepartmentId() ||
@@ -1300,6 +1362,12 @@ router.beforeEach(async (to, from, next) => {
     // Wenn User inzwischen Department hat, Pending-Seite verlassen
     if (to.path === '/pending-assignment' && primaryDepartmentId) {
       return next(`/${primaryDepartmentId}`)
+    }
+
+    // Supplier-only: Pending-Seite → Supplier-Bereich
+    if (to.path === '/pending-assignment' && authStore.isSupplierOnly && authStore.hasSupplierAccess) {
+      const supplierHome = defaultSupplierPath()
+      if (supplierHome) return next(supplierHome)
     }
 
     // SA ohne Department: Pending-Seite → globales Dashboard (kein Wartebereich wie neue Nutzer)
@@ -1320,6 +1388,22 @@ router.beforeEach(async (to, from, next) => {
       params: { departmentId: String(to.params.departmentId) },
       replace: true,
     })
+  }
+
+  // Supplier-Bereich: Membership + optional Admin-Rolle
+  if (to.path.startsWith('/supplier/') && authStore.isLoggedIn) {
+    const companyId = String(to.params.companyId || '')
+    if (!companyId || !hasSupplierCompanyAccess(companyId)) {
+      const supplierHome = defaultSupplierPath()
+      if (supplierHome) return next(supplierHome)
+      return next('/pending-assignment')
+    }
+    if (authStore.activeSupplierCompanyId !== companyId) {
+      authStore.setActiveSupplierCompany(companyId)
+    }
+    if (to.meta.requiresSupplierAdmin && !authStore.isSupplierCompanyAdmin(companyId)) {
+      return next({ name: 'SupplierProfile', params: { companyId } })
+    }
   }
 
   // Department-ID aus Route extrahieren

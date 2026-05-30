@@ -413,6 +413,17 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
+  function setActiveSupplierCompany(companyId: string): void {
+    if (!activeSupplierCompanies.value.some((c) => c.id === companyId)) return
+    activeSupplierCompanyId.value = companyId
+    localStorage.setItem('active_supplier_company_id', companyId)
+  }
+
+  function isSupplierCompanyAdmin(companyId: string): boolean {
+    const company = activeSupplierCompanies.value.find((c) => c.id === companyId)
+    return company?.role === 'admin'
+  }
+
   async function refreshAfterInviteAccepted(targetDepartmentId: string): Promise<void> {
     const cookieReloaded = await loadUserSessionFromCookie(true)
     if (!cookieReloaded) {
@@ -438,6 +449,17 @@ export const useAuthStore = defineStore('auth', () => {
     const dept = departments.value.find((d) => d.department_id === activeDepartmentId.value)
     return dept?.department?.name || ''
   })
+
+  const currentSupplierCompany = computed(() => {
+    if (!activeSupplierCompanyId.value) return null
+    return activeSupplierCompanies.value.find((c) => c.id === activeSupplierCompanyId.value) || null
+  })
+
+  const currentSupplierCompanyRole = computed(() => currentSupplierCompany.value?.role || null)
+
+  const activeSupplierCompanyName = computed(() => currentSupplierCompany.value?.name || '')
+
+  const isCurrentSupplierAdmin = computed(() => currentSupplierCompanyRole.value === 'admin')
 
   function clearError(): void {
     error.value = null
@@ -468,6 +490,10 @@ export const useAuthStore = defineStore('auth', () => {
     hasSupplierAccess,
     isSupplierOnly,
     activeSupplierCompanies,
+    currentSupplierCompany,
+    currentSupplierCompanyRole,
+    activeSupplierCompanyName,
+    isCurrentSupplierAdmin,
     userId,
     profileId,
     userEmail,
@@ -492,6 +518,8 @@ export const useAuthStore = defineStore('auth', () => {
     clearAuthState,
     loadDepartments,
     setActiveDepartment,
+    setActiveSupplierCompany,
+    isSupplierCompanyAdmin,
     refreshAfterInviteAccepted,
     loadDepartmentTimezone,
     clearError,

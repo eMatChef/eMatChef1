@@ -87,7 +87,9 @@
         "settingsStorage": "Einstellungen · Lager · eMatChef",
         "settingsTemplates": "Einstellungen · Vorlagen · eMatChef",
         "globalMaterialTemplates": "Verwaltung · Material-Vorlagen · eMatChef",
-        "settingsMaterialImport": "Einstellungen · Material Import/Export · eMatChef"
+        "settingsMaterialImport": "Einstellungen · Material Import/Export · eMatChef",
+        "supplierProfile": "Meine Firma · Profil · eMatChef",
+        "supplierTeam": "Meine Firma · Team · eMatChef"
       },
       "descriptions": {
         "publicLookup": "Öffentliche Material- und Seriennummern-Informationen in eMatChef.",
@@ -655,7 +657,18 @@
     "workshop": "Werkstatt",
     "display": "Infoscreen",
     "statistics": "Statistik",
-    "settings": "Konfiguration"
+    "settings": "Konfiguration",
+    "myCompany": "Meine Firma",
+    "myCompanyProfile": "Profil & Kontakt",
+    "myCompanyTeam": "Team"
+  },
+  "supplierProfile": {
+    "title": "Profil & Kontakt",
+    "placeholder": "Firmenprofil und öffentliche Kontaktdaten werden hier in Kürze verfügbar sein."
+  },
+  "supplierTeam": {
+    "title": "Team",
+    "placeholder": "Team-Verwaltung und Join-Codes werden hier in Kürze verfügbar sein."
   },
   "layout": {
     "onboardingResume": "Onboarding fortsetzen",
@@ -715,6 +728,7 @@
     "userMenu": {
       "editProfile": "Profil bearbeiten",
       "switchDepartment": "Department wechseln",
+      "switchSupplierCompany": "Firma wechseln",
       "logout": "Abmelden"
     },
     "profileModal": {

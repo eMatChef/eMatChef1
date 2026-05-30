@@ -31,6 +31,46 @@
         <span class="nav-label" :class="{ visible: isHovered }">{{ t('sidebar.dashboard') }}</span>
       </router-link>
 
+      <!-- Meine Firma (Supplier-Portal) -->
+      <div v-if="!isPendingAssignmentRoute && showMyCompanySection" class="nav-section">
+        <button
+          type="button"
+          class="nav-item nav-item--toggle"
+          :class="{ active: isSupplierRoute }"
+          :title="!isHovered ? t('sidebar.myCompany') : undefined"
+          @click="toggleMyCompany"
+        >
+          <IconPackage class="nav-icon" />
+          <span class="nav-label" :class="{ visible: isHovered }">{{ t('sidebar.myCompany') }}</span>
+          <IconChevronDown
+            v-if="isHovered"
+            class="nav-chevron"
+            :class="{ 'nav-chevron--collapsed': !myCompanyExpanded }"
+          />
+        </button>
+        <template v-if="myCompanyExpanded">
+          <router-link
+            :to="supplierLink('/profile')"
+            class="nav-item nav-item--sub"
+            :class="{ active: isSupplierProfileActive }"
+          >
+            <span class="nav-label nav-label--sub" :class="{ visible: isHovered }">
+              {{ t('sidebar.myCompanyProfile') }}
+            </span>
+          </router-link>
+          <router-link
+            v-if="isCurrentSupplierAdmin"
+            :to="supplierLink('/team')"
+            class="nav-item nav-item--sub"
+            :class="{ active: isSupplierTeamActive }"
+          >
+            <span class="nav-label nav-label--sub" :class="{ visible: isHovered }">
+              {{ t('sidebar.myCompanyTeam') }}
+            </span>
+          </router-link>
+        </template>
+      </div>
+
       <!-- Verwaltung der Webseite: Superadmin / Organisationschef / Suborgchef -->
       <router-link
         v-if="!isPendingAssignmentRoute && hasGlobalAdminAccess"
@@ -59,7 +99,7 @@
 
       <!-- Aktivitäten -->
       <router-link
-        v-if="!isPendingAssignmentRoute && !isAdminDashboardRoute && showActivitiesMenu"
+        v-if="!isPendingAssignmentRoute && !isAdminDashboardRoute && showActivitiesMenu && hasDepartmentContext"
         :to="getLink('/activities')"
         class="nav-item"
         :class="{ active: $route.path.includes('/activities') }"
@@ -70,7 +110,7 @@
 
       <!-- Materialien -->
       <router-link
-        v-if="!isPendingAssignmentRoute && !isAdminDashboardRoute && showMaterialsMenu"
+        v-if="!isPendingAssignmentRoute && !isAdminDashboardRoute && showMaterialsMenu && hasDepartmentContext"
         :to="getLink('/materials')"
         class="nav-item"
         :class="{ active: $route.path.includes('/materials') }"
@@ -81,7 +121,7 @@
 
       <!-- Buchhaltung (nur Materialchef / Departmentchef) -->
       <router-link
-        v-if="!isPendingAssignmentRoute && !isAdminDashboardRoute && showAccountingMenu"
+        v-if="!isPendingAssignmentRoute && !isAdminDashboardRoute && showAccountingMenu && hasDepartmentContext"
         :to="getLink('/accounting')"
         class="nav-item"
         :class="{ active: isAccountingNavActive }"
@@ -131,7 +171,7 @@
 
       <!-- Werkstatt -->
       <router-link
-        v-if="!isPendingAssignmentRoute && !isAdminDashboardRoute && showWorkshopMenu"
+        v-if="!isPendingAssignmentRoute && !isAdminDashboardRoute && showWorkshopMenu && hasDepartmentContext"
         :to="getLink('/workshop')"
         class="nav-item"
         :class="{ active: $route.path.includes('/workshop') }"
@@ -171,7 +211,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'
@@ -188,24 +228,69 @@ import {
   IconWorkshop,
   IconStatistics,
   IconSettings,
+  IconPackage,
+  IconChevronDown,
 } from '@/components/icons'
 
 const route = useRoute()
 const { t } = useI18n()
 const authStore = useAuthStore()
 const isHovered = ref(false)
+const myCompanyExpanded = ref(false)
 
 // Department-ID aus Route oder Store
 const departmentId = computed(() => {
   return (route.params.departmentId as string) || authStore.activeDepartmentId || ''
 })
+
+const isSupplierRoute = computed(() => route.path.startsWith('/supplier/'))
+const supplierCompanyId = computed(
+  () =>
+    (route.params.companyId as string) ||
+    authStore.activeSupplierCompanyId ||
+    authStore.activeSupplierCompanies[0]?.id ||
+    ''
+)
+const showMyCompanySection = computed(() => authStore.hasSupplierAccess)
+const hasDepartmentContext = computed(
+  () => !authStore.isSupplierOnly && !!(departmentId.value || authStore.departments.length)
+)
+const isCurrentSupplierAdmin = computed(() => {
+  const id = supplierCompanyId.value
+  const company = authStore.activeSupplierCompanies.find((c) => c.id === id)
+  return company?.role === 'admin'
+})
+
+watch(
+  isSupplierRoute,
+  (active) => {
+    if (active) myCompanyExpanded.value = true
+  },
+  { immediate: true }
+)
+
+function toggleMyCompany() {
+  myCompanyExpanded.value = !myCompanyExpanded.value
+}
+
+function supplierLink(subpath: string): string {
+  const id = supplierCompanyId.value
+  if (!id) return '/pending-assignment'
+  return `/supplier/${id}${subpath}`
+}
+
+const isSupplierProfileActive = computed(
+  () => isSupplierRoute.value && route.path.includes('/profile')
+)
+const isSupplierTeamActive = computed(() => isSupplierRoute.value && route.path.includes('/team'))
+
 const isPendingAssignmentRoute = computed(() => route.path === '/pending-assignment')
 const isAdminDashboardRoute = computed(() => route.path.startsWith('/admin-dashboard'))
 /** Unter /admin-dashboard ist die zweite Sidebar (Verwaltung) aktiv — Standard-Links würden sonst ausgeblendet. */
 const showAppNavInAdminShell = computed(() => !isAdminDashboardRoute.value || isSuperAdmin.value)
 /** Kontakte/Aufgaben/Statistik/Konfiguration sind Abteilungs-App — Superadmin braucht sie nicht (nur Verwaltung/Dashboard). */
 const showDeptContextSidebarLinks = computed(
-  () => showAppNavInAdminShell.value && !isSuperAdmin.value
+  () => showAppNavInAdminShell.value && !isSuperAdmin.value && hasDepartmentContext.value
 )
 /** Einstieg Verwaltung: Unterbereich (nicht die Übersicht — die ist unter „Dashboard“) */
 const verwaltungEntryLink = computed(() => {
@@ -223,9 +308,12 @@ const isVerwaltungNavActive = computed(() => {
   return true
 })
 
-/** Home = Department-Dashboard; Superadmin ohne Department → /dashboard (ohne Verwaltungs-Sidebar) */
+/** Home = Department-Dashboard; Supplier-only → Profil; Superadmin ohne Department → /dashboard */
 const mainDashboardLink = computed(() => {
   if (isPendingAssignmentRoute.value) return '/pending-assignment'
+  if (authStore.isSupplierOnly && supplierCompanyId.value) {
+    return `/supplier/${supplierCompanyId.value}/profile`
+  }
   const id = departmentId.value || authStore.activeDepartmentId
   if (id) return `/${id}`
   if (isSuperAdmin.value) return '/dashboard'
@@ -235,6 +323,7 @@ const mainDashboardLink = computed(() => {
 
 const isMainDashboardNavActive = computed(() => {
   const p = route.path
+  if (authStore.isSupplierOnly && isSupplierProfileActive.value) return true
   const id = departmentId.value || authStore.activeDepartmentId
   if (id && (p === `/${id}` || p === `/${id}/` || p === `/${id}/dashboard`)) return true
   if (p === '/dashboard') return true
