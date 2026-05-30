@@ -49,6 +49,20 @@ export interface DeliveryImportPayload {
   }>
 }
 
+export interface TemplateImportPayload {
+  supplier_material_template_id: string
+  name?: string
+  category_id?: string | null
+  storage_address_id?: string | null
+  purchase_date?: string | null
+  serial_number?: string | null
+  components?: Array<{
+    component_type: string
+    serial_number?: string
+    qty?: number
+  }>
+}
+
 export async function listSupplierShopCompanies(
   departmentId: string,
 ): Promise<SupplierShopCompany[]> {
@@ -86,6 +100,17 @@ export async function importSupplierCatalogItem(
 ): Promise<{ material: Record<string, unknown>; message: string }> {
   const { data } = await apiClient.post(
     `/api/departments/${departmentId}/supplier-shop/catalog-import`,
+    payload,
+  )
+  return data
+}
+
+export async function importSupplierTemplate(
+  departmentId: string,
+  payload: TemplateImportPayload,
+): Promise<{ material: Record<string, unknown>; message: string }> {
+  const { data } = await apiClient.post(
+    `/api/departments/${departmentId}/supplier-shop/template-import`,
     payload,
   )
   return data

@@ -898,8 +898,18 @@
     "importSuccess": "Import successful.",
     "importError": "Import failed.",
     "serializedUseDelivery": "Import serialized items via an open delivery.",
+    "templatesEmpty": "No published templates for this supplier.",
+    "importTemplate": "Import as material",
+    "importTemplateTitle": "Import template?",
+    "importTemplateMessage": "Template «{name}» will be imported as a material draft into the department.",
+    "importTemplateSuccess": "Template imported as material draft.",
+    "materialType": {
+      "physicalCombo": "Physical combo",
+      "virtualCombo": "Virtual combo"
+    },
     "tabs": {
       "catalog": "Catalog",
+      "templates": "Templates",
       "deliveries": "Open deliveries",
       "watchlist": "Watchlist"
     },
@@ -909,7 +919,9 @@
       "tracking": "Tracking",
       "price": "Price",
       "supplier": "Supplier",
-      "qty": "Qty"
+      "qty": "Qty",
+      "materialType": "Type",
+      "components": "Components"
     }
   },
   "layout": {

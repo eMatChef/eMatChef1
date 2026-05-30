@@ -999,8 +999,18 @@
     "importSuccess": "Import erfolgreich.",
     "importError": "Import fehlgeschlagen.",
     "serializedUseDelivery": "Serialisierte Artikel bitte über eine offene Übergabe importieren.",
+    "templatesEmpty": "Keine veröffentlichten Vorlagen für diesen Lieferanten.",
+    "importTemplate": "Als Material importieren",
+    "importTemplateTitle": "Vorlage importieren?",
+    "importTemplateMessage": "Die Vorlage «{name}» wird als Material-Entwurf ins Department übernommen.",
+    "importTemplateSuccess": "Vorlage als Material-Entwurf importiert.",
+    "materialType": {
+      "physicalCombo": "Physisches Combo",
+      "virtualCombo": "Virtuelles Combo"
+    },
     "tabs": {
       "catalog": "Katalog",
+      "templates": "Vorlagen",
       "deliveries": "Offene Übergaben",
       "watchlist": "Merkliste"
     },
@@ -1010,7 +1020,9 @@
       "tracking": "Tracking",
       "price": "Preis",
       "supplier": "Lieferant",
-      "qty": "Menge"
+      "qty": "Menge",
+      "materialType": "Typ",
+      "components": "Komponenten"
     }
   },
   "layout": {

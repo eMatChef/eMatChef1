@@ -8,6 +8,7 @@ use App\Entity\Membership;
 use App\Entity\User;
 use App\Service\Supplier\SupplierImportService;
 use App\Service\Supplier\SupplierShopService;
+use App\Service\Supplier\SupplierTemplateImportService;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -23,6 +24,7 @@ class DepartmentSupplierShopController extends AbstractController
     public function __construct(
         private SupplierShopService $shopService,
         private SupplierImportService $importService,
+        private SupplierTemplateImportService $templateImportService,
         private EntityManagerInterface $entityManager,
     ) {
     }
@@ -98,6 +100,34 @@ class DepartmentSupplierShopController extends AbstractController
             return new JsonResponse([
                 'material' => $result,
                 'message' => 'Katalog-Artikel importiert',
+            ], 201);
+        } catch (\InvalidArgumentException $e) {
+            return new JsonResponse(['error' => $e->getMessage()], 400);
+        } catch (\Exception $e) {
+            return new JsonResponse(['error' => 'Import fehlgeschlagen: ' . $e->getMessage()], 500);
+        }
+    }
+
+    #[Route('/template-import', name: 'template_import', methods: ['POST'])]
+    #[IsGranted('ROLE_USER')]
+    public function templateImport(string $departmentId, Request $request): JsonResponse
+    {
+        if (!$this->canAccessShop($departmentId)) {
+            return new JsonResponse(['error' => 'Keine Berechtigung'], 403);
+        }
+
+        $data = json_decode($request->getContent(), true) ?: [];
+        $templateId = trim((string) ($data['supplier_material_template_id'] ?? ''));
+        if ($templateId === '') {
+            return new JsonResponse(['error' => 'supplier_material_template_id ist erforderlich'], 400);
+        }
+
+        try {
+            $result = $this->templateImportService->importTemplate($departmentId, $templateId, $data);
+
+            return new JsonResponse([
+                'material' => $result,
+                'message' => 'Vorlage als Material-Entwurf importiert',
             ], 201);
         } catch (\InvalidArgumentException $e) {
             return new JsonResponse(['error' => $e->getMessage()], 400);

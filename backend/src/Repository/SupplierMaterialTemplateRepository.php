@@ -59,4 +59,18 @@ class SupplierMaterialTemplateRepository extends ServiceEntityRepository
             ->getQuery()
             ->getResult();
     }
+
+    public function findShopVisibleById(string $templateId): ?SupplierMaterialTemplate
+    {
+        return $this->createQueryBuilder('t')
+            ->where('t.id = :templateId')
+            ->andWhere('t.isActive = true')
+            ->andWhere('t.status = :status')
+            ->andWhere('t.visibility != :private')
+            ->setParameter('templateId', $templateId)
+            ->setParameter('status', SupplierMaterialTemplate::STATUS_PUBLISHED)
+            ->setParameter('private', SupplierMaterialTemplate::VISIBILITY_PRIVATE)
+            ->getQuery()
+            ->getOneOrNullResult();
+    }
 }

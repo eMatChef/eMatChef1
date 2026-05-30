@@ -31,6 +31,14 @@
       <button
         type="button"
         class="tab"
+        :class="{ active: activeTab === 'templates' }"
+        @click="activeTab = 'templates'"
+      >
+        {{ t('supplierShop.tabs.templates') }}
+      </button>
+      <button
+        type="button"
+        class="tab"
         :class="{ active: activeTab === 'deliveries' }"
         @click="activeTab = 'deliveries'"
       >
@@ -75,6 +83,41 @@
               <td class="actions">
                 <button type="button" class="btn btn-secondary btn-sm" @click="addToWatchlist(item)">
                   {{ t('supplierShop.addToWatchlist') }}
+                </button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <!-- Templates -->
+      <section v-else-if="activeTab === 'templates'">
+        <p v-if="!selectedCompanyId" class="state">{{ t('supplierShop.pickSupplier') }}</p>
+        <p v-else-if="templates.length === 0" class="state">{{ t('supplierShop.templatesEmpty') }}</p>
+        <table v-else class="data-table">
+          <thead>
+            <tr>
+              <th>{{ t('supplierShop.columns.name') }}</th>
+              <th>{{ t('supplierShop.columns.materialType') }}</th>
+              <th>{{ t('supplierShop.columns.components') }}</th>
+              <th>{{ t('supplierShop.columns.price') }}</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="tpl in templates" :key="tpl.id">
+              <td>{{ tpl.name }}</td>
+              <td>{{ materialTypeLabel(tpl.material_type) }}</td>
+              <td>{{ tpl.component_count }}</td>
+              <td>{{ formatPrice(tpl.unit_price, tpl.currency) }}</td>
+              <td class="actions">
+                <button
+                  type="button"
+                  class="btn btn-primary btn-sm"
+                  :disabled="importingTemplateId === tpl.id"
+                  @click="importTemplate(tpl)"
+                >
+                  {{ importingTemplateId === tpl.id ? t('supplierShop.importing') : t('supplierShop.importTemplate') }}
                 </button>
               </td>
             </tr>
@@ -180,12 +223,15 @@ import { listDepartmentSupplierDeliveries, type SupplierDelivery } from '@/api/s
 import {
   importSupplierCatalogItem,
   importSupplierDelivery,
+  importSupplierTemplate,
   listSupplierShopCatalog,
   listSupplierShopCompanies,
+  listSupplierShopTemplates,
   loadWatchlist,
   saveWatchlist,
   watchlistBudgetTotal,
   type SupplierShopCompany,
+  type SupplierShopTemplate,
   type WatchlistItem,
 } from '@/api/supplierShop'
 
@@ -197,16 +243,24 @@ const confirm = useConfirm()
 const departmentId = computed(() => route.params.departmentId as string)
 const loading = ref(true)
 const loadError = ref('')
-const activeTab = ref<'catalog' | 'deliveries' | 'watchlist'>('catalog')
+const activeTab = ref<'catalog' | 'templates' | 'deliveries' | 'watchlist'>('catalog')
 const companies = ref<SupplierShopCompany[]>([])
 const selectedCompanyId = ref('')
 const catalogItems = ref<SupplierCatalogItem[]>([])
+const templates = ref<SupplierShopTemplate[]>([])
 const deliveries = ref<SupplierDelivery[]>([])
 const watchlist = ref<WatchlistItem[]>([])
 const importingId = ref('')
 const importingCatalogId = ref('')
+const importingTemplateId = ref('')
 
 const budgetTotal = computed(() => watchlistBudgetTotal(watchlist.value))
+
+function materialTypeLabel(type: string): string {
+  if (type === 'physical_combo') return t('supplierShop.materialType.physicalCombo')
+  if (type === 'virtual_combo') return t('supplierShop.materialType.virtualCombo')
+  return type
+}
 
 function trackingLabel(type: string): string {
   return type === 'serialized'
@@ -261,11 +315,24 @@ async function loadCompaniesAndDeliveries() {
     if (!selectedCompanyId.value && companies.value.length === 1) {
       selectedCompanyId.value = companies.value[0].id
       await loadCatalog()
+      await loadTemplates()
     }
   } catch (err: any) {
     loadError.value = err?.response?.data?.error || t('supplierShop.errorLoad')
   } finally {
     loading.value = false
+  }
+}
+
+async function loadTemplates() {
+  if (!selectedCompanyId.value) {
+    templates.value = []
+    return
+  }
+  try {
+    templates.value = await listSupplierShopTemplates(departmentId.value, selectedCompanyId.value)
+  } catch (err: any) {
+    toast.error(err?.response?.data?.error || t('supplierShop.errorLoad'))
   }
 }
 
@@ -283,6 +350,30 @@ async function loadCatalog() {
 
 function onCompanyChange() {
   loadCatalog()
+  loadTemplates()
+}
+
+async function importTemplate(tpl: SupplierShopTemplate) {
+  const ok = await confirm.confirm({
+    title: t('supplierShop.importTemplateTitle'),
+    message: t('supplierShop.importTemplateMessage', { name: tpl.name }),
+    confirmText: t('supplierShop.importTemplate'),
+    cancelText: t('common.cancel'),
+  })
+  if (!ok) return
+
+  importingTemplateId.value = tpl.id
+  try {
+    const result = await importSupplierTemplate(departmentId.value, {
+      supplier_material_template_id: tpl.id,
+      name: tpl.name,
+    })
+    toast.success(result.message || t('supplierShop.importTemplateSuccess'))
+  } catch (err: any) {
+    toast.error(err?.response?.data?.error || t('supplierShop.importError'))
+  } finally {
+    importingTemplateId.value = ''
+  }
 }
 
 async function importDelivery(delivery: SupplierDelivery) {
@@ -338,6 +429,12 @@ async function importWatchlistItem(item: WatchlistItem) {
     importingCatalogId.value = ''
   }
 }
+
+watch(activeTab, (tab) => {
+  if (tab === 'templates' && selectedCompanyId.value && templates.value.length === 0) {
+    loadTemplates()
+  }
+})
 
 watch(departmentId, () => loadCompaniesAndDeliveries())
 onMounted(() => loadCompaniesAndDeliveries())
