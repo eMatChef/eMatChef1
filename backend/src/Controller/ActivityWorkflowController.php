@@ -17,12 +17,18 @@ use App\Service\ActivityItemPipelineStatusService;
 use App\Service\ActivityKisteMaterialLinker;
 use App\Service\ActivityPackCrateCheckService;
 use App\Service\InboxMessageService;
+use App\Service\Issue\IssuePhotoAccessService;
+use App\Service\Issue\IssuePhotoStorageService;
+use App\Service\Issue\IssueReportPhotoService;
 use App\Service\PackPipelineService;
 use App\Util\IdGenerator;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpFoundation\ResponseHeaderBag;
 use Symfony\Component\Routing\Annotation\Route;
 use Symfony\Component\Security\Http\Attribute\IsGranted;
 
@@ -44,6 +50,9 @@ class ActivityWorkflowController extends AbstractController
         private ActivityItemPipelineStatusService $activityItemPipelineStatus,
         private ActivityAccountingCostService $activityAccountingCost,
         private InboxMessageService $inboxMessageService,
+        private IssueReportPhotoService $issueReportPhotoService,
+        private IssuePhotoStorageService $issuePhotoStorage,
+        private IssuePhotoAccessService $issuePhotoAccess,
     ) {}
 
     // ═══════════════════════════════════════════════
@@ -621,7 +630,7 @@ class ActivityWorkflowController extends AbstractController
 
         $result = [];
         foreach ($reports as $report) {
-            $result[] = $this->serializeIssueReport($report);
+            $result[] = $this->issueReportPhotoService->serializeIssueReport($report);
         }
 
         return new JsonResponse($result);
@@ -671,7 +680,13 @@ class ActivityWorkflowController extends AbstractController
             $report->setType($type);
             $report->setQuantity($quantityRequested);
             $report->setDescription($data['description'] ?? null);
-            $report->setPhotoUrl($data['photo_url'] ?? null);
+            if (!empty($data['photo_url']) && \is_string($data['photo_url'])) {
+                $legacyUrl = trim($data['photo_url']);
+                if ($legacyUrl !== '') {
+                    $report->setPhotoUrl($legacyUrl);
+                    $report->setPhotos([['url' => $legacyUrl, 'legacy' => true]]);
+                }
+            }
             $report->setNotes($data['notes'] ?? null);
 
             if (!empty($data['material_item_id'])) {
@@ -741,7 +756,7 @@ class ActivityWorkflowController extends AbstractController
                 $this->activityAccountingCost->syncActivityAccountingFollowUps($activity);
             }
 
-            $response = $this->serializeIssueReport($report);
+            $response = $this->issueReportPhotoService->serializeIssueReport($report);
             if ($workshopTicket) {
                 $response['workshop_ticket_id'] = $workshopTicket->getId();
                 $response['workshop_ticket_created'] = true;
@@ -750,6 +765,66 @@ class ActivityWorkflowController extends AbstractController
             return new JsonResponse($response, 201);
         } catch (\Exception $e) {
             return new JsonResponse(['error' => 'Fehler: ' . $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Foto zu einer Meldung hochladen (nach createIssue, max. 3 Fotos).
+     */
+    #[Route('/issues/{issueId}/photos', name: 'issues_upload_photo', methods: ['POST'])]
+    #[IsGranted('ROLE_USER')]
+    public function uploadIssuePhoto(string $activityId, string $issueId, Request $request): JsonResponse
+    {
+        $activity = $this->findActivityForUser($activityId);
+        if ($activity instanceof JsonResponse) {
+            return $activity;
+        }
+
+        $file = $request->files->get('photo');
+        if (!$file instanceof \Symfony\Component\HttpFoundation\File\UploadedFile) {
+            return new JsonResponse(['error' => 'photo ist erforderlich'], 400);
+        }
+
+        try {
+            $user = $this->requireUser();
+            $report = $this->issuePhotoAccess->requireIssueReport($activityId, $issueId);
+            $issue = $this->issueReportPhotoService->addPhoto($activity, $report, $user, $file);
+
+            return new JsonResponse(['issue' => $issue, 'message' => 'Foto hochgeladen']);
+        } catch (\Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException $e) {
+            return new JsonResponse(['error' => $e->getMessage()], 403);
+        } catch (\InvalidArgumentException $e) {
+            return new JsonResponse(['error' => $e->getMessage()], 400);
+        }
+    }
+
+    #[Route('/issues/{issueId}/photos/{filename}', name: 'issues_show_photo', methods: ['GET'])]
+    #[IsGranted('ROLE_USER')]
+    public function showIssuePhoto(string $activityId, string $issueId, string $filename): Response
+    {
+        try {
+            $activity = $this->findActivityForUser($activityId);
+            if ($activity instanceof JsonResponse) {
+                return $activity;
+            }
+
+            $user = $this->requireUser();
+            $report = $this->issuePhotoAccess->requireIssueReport($activityId, $issueId);
+            $this->issuePhotoAccess->assertCanViewPhoto($user, $activity, $report);
+
+            $path = $this->issuePhotoStorage->resolveFilePath(
+                $activity->getDepartmentId(),
+                $issueId,
+                $filename,
+            );
+            $response = new BinaryFileResponse($path);
+            $response->setContentDisposition(ResponseHeaderBag::DISPOSITION_INLINE, $filename);
+
+            return $response;
+        } catch (\Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException $e) {
+            return new JsonResponse(['error' => $e->getMessage()], 403);
+        } catch (\InvalidArgumentException $e) {
+            return new JsonResponse(['error' => $e->getMessage()], 404);
         }
     }
 
@@ -781,7 +856,7 @@ class ActivityWorkflowController extends AbstractController
 
         $this->entityManager->flush();
 
-        return new JsonResponse($this->serializeIssueReport($report));
+        return new JsonResponse($this->issueReportPhotoService->serializeIssueReport($report));
     }
 
     /**
@@ -860,7 +935,7 @@ class ActivityWorkflowController extends AbstractController
         $this->entityManager->flush();
         $this->activityAccountingCost->syncActivityAccountingFollowUps($activity);
 
-        return new JsonResponse($this->serializeIssueReport($report));
+        return new JsonResponse($this->issueReportPhotoService->serializeIssueReport($report));
     }
 
     /**
@@ -1285,6 +1360,16 @@ class ActivityWorkflowController extends AbstractController
         return $activity;
     }
 
+    private function requireUser(): User
+    {
+        $user = $this->getUser();
+        if (!$user instanceof User) {
+            throw $this->createAccessDeniedException();
+        }
+
+        return $user;
+    }
+
     private function serializePackItem(
         ActivityPackItem $item,
         ?string $storageRackName = null,
@@ -1438,35 +1523,6 @@ ORDER BY mb.material_item_id ASC, mb.id ASC";
         }
 
         return $out;
-    }
-
-    private function serializeIssueReport(ActivityIssueReport $report): array
-    {
-        $mi = $report->getMaterialItem();
-        $reporter = $report->getReportedByUser();
-        $resolver = $report->getResolvedByUser();
-
-        return [
-            'id' => $report->getId(),
-            'activity_id' => $report->getActivityId(),
-            'material_item_id' => $report->getMaterialItemId(),
-            'material_name' => $mi?->getName(),
-            'type' => $report->getType(),
-            'type_label' => $report->getTypeLabel(),
-            'quantity' => $report->getQuantity(),
-            'description' => $report->getDescription(),
-            'photo_url' => $report->getPhotoUrl(),
-            'notes' => $report->getNotes(),
-            'resolved' => $report->isResolved(),
-            'resolved_at' => $report->getResolvedAt()?->format('c'),
-            'resolved_by' => $resolver?->getId(),
-            'reported_by' => $reporter?->getId(),
-            'reported_by_display_name' => $this->userDisplayName($reporter),
-            'reported_at' => $report->getReportedAt()->format('c'),
-            'created_at' => $report->getCreatedAt()->format('c'),
-            'is_js_material' => $mi?->getIsJsMaterial() ?? false,
-            'external_source' => $mi?->getExternalSource(),
-        ];
     }
 
     private function serializeReturnItem(ActivityReturnItem $item): array

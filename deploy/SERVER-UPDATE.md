@@ -586,3 +586,38 @@ Das Skript setzt intern **`GIT_SSH_COMMAND`** über die Umgebungsvariable **`EMA
 - `docker-compose.override.yml` und `.env` mit Geheimnissen liegen **nur auf dem Server**, nicht im Git (siehe `.gitignore`).
 - Neue **Console-Commands** erscheinen unter `APP_ENV=prod` erst nach **Cache-Warmup** (siehe Abschnitt 3).
 - **Nginx** auf dem Host (443 → 8081) ist unabhängig von Docker; bei reinen PHP-Änderungen meist kein `systemctl reload nginx` nötig.
+
+---
+
+## Cron: Medien-Retention (Werkstatt-Fotos)
+
+Abgeschlossene Werkstatt-Tickets: Fotos werden **X Jahre nach `completed_at`** gelöscht (Default: **3**, konfigurierbar in `backend/var/app/media_settings.json` → `retention_years`).
+
+**Dry-run (empfohlen vor erstem Live-Lauf):**
+
+```bash
+docker compose -p ematchef-prod exec backend php bin/console app:media:retention --dry-run --env=prod
+```
+
+**Live-Lauf (z. B. monatlich):**
+
+```bash
+docker compose -p ematchef-prod exec backend php bin/console app:media:retention --env=prod
+```
+
+Optional mit expliziter Frist: `--years=3`
+
+**Legacy-Kompression** (Fotos ohne `bytes`-Metadaten in der DB, einmalig nach Migration):
+
+```bash
+docker compose -p ematchef-prod exec backend php bin/console app:media:compress-legacy --dry-run --env=prod
+docker compose -p ematchef-prod exec backend php bin/console app:media:compress-legacy --env=prod
+```
+
+Log: `backend/var/log/media_retention.log` (im Container, persistent über Volume `./backend`).
+
+**Crontab-Beispiel** (Host, 1× monatlich, 03:30):
+
+```cron
+30 3 1 * * cd /opt/ematchef/prod && docker compose -p ematchef-prod exec -T backend php bin/console app:media:retention --env=prod >> /var/log/ematchef-media-retention.log 2>&1
+```

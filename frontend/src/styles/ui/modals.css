@@ -62,3 +62,75 @@
 .modal-close:hover {
   color: #1e293b;
 }
+
+/* Structured modal: header / body / footer without outer padding */
+.modal-dialog--structured {
+  padding: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.modal-dialog--narrow {
+  width: min(560px, calc(100vw - 48px));
+}
+
+.modal-dialog--wide {
+  width: min(720px, calc(100vw - 48px));
+  max-height: 90vh;
+}
+
+.modal-dialog--confirm {
+  width: min(400px, calc(100vw - 48px));
+  padding: 24px;
+}
+
+.modal-header h2 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: #111827;
+}
+
+.modal-header-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.modal-body--scroll {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0;
+}
+
+.modal-footer--plain {
+  background: #ffffff;
+}
+
+.modal-dialog--confirm h3 {
+  margin: 0 0 12px;
+  font-size: 18px;
+  font-weight: 600;
+  color: #111827;
+}
+
+.modal-dialog--confirm p {
+  font-size: 14px;
+  color: #6b7280;
+  margin: 0 0 8px;
+}
+
+.modal-dialog--confirm .confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.modal-dialog--confirm .warning-hint {
+  font-size: 12px;
+  color: #9ca3af;
+  font-style: italic;
+}

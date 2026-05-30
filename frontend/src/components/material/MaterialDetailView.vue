@@ -12,6 +12,9 @@
         <div class="header-title">
           <span v-if="!isUserMaterialsBrowseOnly && material.barcode_tag" class="material-code">{{ material.barcode_tag }}</span>
           <h1>{{ material.name }}</h1>
+          <span v-if="isComboDraft" class="combo-draft-badge">
+            {{ t('components.materialDetail.comboDraftBadge') }}
+          </span>
           <span v-if="material.open_loss_reports > 0" class="loss-report-badge">
             {{ t('components.materialDetail.lossReportBadge', { detail: openLossLabel }) }}
           </span>
@@ -38,7 +41,12 @@
             {{ t('components.materialDetail.qrCodes') }}
           </button>
           <button class="btn-outline" @click="handleClose">{{ t('components.materialDetail.close') }}</button>
-          <button class="btn-primary" @click="save" :disabled="!hasChanges || isSaving">
+          <button
+            v-if="hasManualUnsavedChanges || isSaving"
+            class="btn-primary"
+            @click="save"
+            :disabled="!hasManualUnsavedChanges || isSaving"
+          >
             {{ isSaving ? t('common.saving') : t('common.save') }}
           </button>
         </template>
@@ -110,38 +118,57 @@
           <!-- Tab: Daten (Bearbeitung) -->
           <section v-else-if="activeTab === 'data'" class="tab-content">
             <div class="section-card">
-              <h2 class="section-title">{{ t('components.materialDetail.sectionMaterial') }}</h2>
+              <h2 class="section-title">{{ t('common.material') }}</h2>
               
               <div class="form-grid">
-                <div class="form-group span-2">
-                  <label>{{ t('components.materialDetail.labelNameDb') }}</label>
-                  <input v-model="formData.name" type="text" class="form-input" />
-                </div>
+                <AutoSaveField
+                  v-model="formData.name"
+                  :baseline="savedFormBaselines.name"
+                  :label="t('components.materialDetail.labelNameDb')"
+                  span-class="form-group span-2"
+                  :save="(v) => saveMaterialField('name', v)"
+                />
                 
-                <div class="form-group">
-                  <label>{{ t('components.materialDetail.labelCode') }} <span class="optional">{{ t('components.materialDetail.optionalShort') }}</span></label>
-                  <input v-model="formData.barcode_tag" type="text" class="form-input" :placeholder="t('components.materialDetail.codePlaceholder')" />
-                </div>
+                <AutoSaveField
+                  v-model="formData.barcode_tag"
+                  :baseline="savedFormBaselines.barcode_tag"
+                  :label="`${t('components.materialDetail.labelCode')} (${t('components.materialDetail.optionalShort')})`"
+                  :placeholder="t('components.materialDetail.codePlaceholder')"
+                  :save="(v) => saveMaterialField('barcode_tag', v)"
+                />
                 
-                <div class="form-group">
-                  <label>{{ t('components.materialDetail.labelCategory') }}</label>
-                  <CategoryAutocompleteInput
-                    v-model="formData.category_id"
-                    :categories="categories"
-                    :department-id="departmentId"
-                    @reload-categories="handleCategoryReloadFromPicker"
-                  />
-                </div>
+                <AutoSaveField
+                  v-model="formData.category_id"
+                  :baseline="savedFormBaselines.category_id"
+                  :label="t('components.materialDetail.labelCategory')"
+                  :save="(v) => saveMaterialField('category_id', v)"
+                >
+                  <template #default="{ onFocus, onBlur, onChange }">
+                    <CategoryAutocompleteInput
+                      v-model="formData.category_id"
+                      :categories="categories"
+                      :department-id="departmentId"
+                      @focus="onFocus"
+                      @blur="onBlur"
+                      @change="onChange"
+                      @reload-categories="handleCategoryReloadFromPicker"
+                    />
+                  </template>
+                </AutoSaveField>
                 
-                <div class="form-group">
-                  <label>{{ t('components.materialDetail.labelManufacturer') }}</label>
-                  <input v-model="formData.manufacturer" type="text" class="form-input" />
-                </div>
+                <AutoSaveField
+                  v-model="formData.manufacturer"
+                  :baseline="savedFormBaselines.manufacturer"
+                  :label="t('common.manufacturer')"
+                  :save="(v) => saveMaterialField('manufacturer', v)"
+                />
                 
-                <div class="form-group">
-                  <label>{{ t('components.materialDetail.labelModel') }}</label>
-                  <input v-model="formData.model" type="text" class="form-input" />
-                </div>
+                <AutoSaveField
+                  v-model="formData.model"
+                  :baseline="savedFormBaselines.model"
+                  :label="t('components.materialDetail.labelModel')"
+                  :save="(v) => saveMaterialField('model', v)"
+                />
               </div>
             </div>
 
@@ -164,10 +191,15 @@
                   v-if="material.tracking_type === 'bulk'"
                   class="property-item property-item--checkbox"
                 >
-                  <label class="checkbox-label property-checkbox-label">
-                    <input type="checkbox" v-model="formData.is_container" />
-                    <span>{{ t('components.materialDetail.containerCheckbox') }}</span>
-                  </label>
+                  <AutoSaveField
+                    v-model="formData.is_container"
+                    :baseline="savedFormBaselines.is_container"
+                    :label="t('components.materialDetail.containerCheckbox')"
+                    type="checkbox"
+                    :checkbox-label="t('components.materialDetail.containerCheckbox')"
+                    span-class="property-item property-item--checkbox autosave-checkbox-field"
+                    :save="(v) => saveMaterialField('is_container', v)"
+                  />
                   <p class="form-hint text-muted mt-1">
                     {{ t('components.materialDetail.containerCheckboxHint') }}
                   </p>
@@ -179,36 +211,30 @@
               </div>
 
               <div v-if="canManageJsMaterial" class="checkbox-group mt-4">
-                <label class="checkbox-label">
-                  <input type="checkbox" v-model="formData.is_js_material" />
-                  <span>{{ t('components.materialDetail.jsMaterialGlobal') }}</span>
-                </label>
-                <div v-if="formData.is_js_material" class="form-group mt-2">
-                  <label>{{ t('components.materialDetail.labelExternalSource') }}</label>
-                  <input v-model="formData.external_source" type="text" class="form-input" :placeholder="t('components.materialDetail.externalSourcePlaceholder')" />
-                </div>
+                <AutoSaveField
+                  v-model="formData.is_js_material"
+                  :baseline="savedFormBaselines.is_js_material"
+                  :label="t('components.materialDetail.jsMaterialGlobal')"
+                  type="checkbox"
+                  :checkbox-label="t('components.materialDetail.jsMaterialGlobal')"
+                  span-class="autosave-checkbox-field"
+                  :save="(v) => saveMaterialField('is_js_material', v)"
+                />
+                <AutoSaveField
+                  v-if="formData.is_js_material"
+                  v-model="formData.external_source"
+                  :baseline="savedFormBaselines.external_source"
+                  :label="t('components.materialDetail.labelExternalSource')"
+                  :placeholder="t('components.materialDetail.externalSourcePlaceholder')"
+                  span-class="form-group mt-2"
+                  :save="(v) => saveMaterialField('external_source', v)"
+                />
               </div>
               <div v-else-if="formData.is_js_material" class="form-group mt-4">
                 <label>{{ t('components.materialDetail.labelExternalSource') }}</label>
                 <input :value="formData.external_source || 'js_ch'" type="text" class="form-input" disabled />
               </div>
               
-              <!-- Reservation-Modus (bei Zelt/Kombo-Materialien) -->
-              <div v-if="material.is_container || material.material_type === 'physical_combo' || material.material_type === 'virtual_combo'" class="form-grid mt-4">
-                <div class="form-group span-2">
-                  <label>{{ t('components.materialDetail.labelReservationMode') }}</label>
-                  <select v-model="formData.reservation_mode" class="form-select">
-                    <option value="">{{ t('components.materialDetail.reservationUnset') }}</option>
-                    <option value="complete_only">{{ t('components.materialDetail.reservationComplete') }}</option>
-                    <option value="individual">{{ t('components.materialDetail.reservationIndividual') }}</option>
-                    <option value="flexible">{{ t('components.materialDetail.reservationFlexible') }}</option>
-                  </select>
-                  <p class="form-hint" v-if="formData.reservation_mode === 'complete_only'">{{ t('components.materialDetail.hintReservationComplete') }}</p>
-                  <p class="form-hint" v-else-if="formData.reservation_mode === 'individual'">{{ t('components.materialDetail.hintReservationIndividual') }}</p>
-                  <p class="form-hint" v-else-if="formData.reservation_mode === 'flexible'">{{ t('components.materialDetail.hintReservationFlexible') }}</p>
-                </div>
-              </div>
-
               <div
                 v-if="material.material_type === 'physical_combo' && material.linked_container_batch"
                 class="linked-kiste-banner mt-4"
@@ -230,49 +256,65 @@
               <h2 class="section-title">{{ t('components.materialDetail.sectionDetails') }}</h2>
               
               <div class="form-grid">
-                <div class="form-group">
-                  <label>{{ t('components.materialDetail.labelEan') }}</label>
-                  <input v-model="formData.ean" type="text" class="form-input" />
-                </div>
-                <MaterialMetricInput
+                <AutoSaveField
+                  v-model="formData.ean"
+                  :baseline="savedFormBaselines.ean"
+                  :label="t('components.materialDetail.labelEan')"
+                  :save="(v) => saveMaterialField('ean', v)"
+                />
+                <AutoSaveField
                   v-model="formData.weight"
+                  :baseline="savedFormBaselines.weight"
                   :label="t('components.materialDetail.labelWeightKg')"
-                  unit="kg"
+                  type="number"
+                  :save="(v) => saveMaterialField('weight', v)"
                 />
-                <div class="form-group">
-                  <label>{{ t('components.materialDetail.labelColor') }}</label>
-                  <input v-model="formData.color" type="text" class="form-input" />
-                </div>
-                <MaterialMetricInput
+                <AutoSaveField
+                  v-model="formData.color"
+                  :baseline="savedFormBaselines.color"
+                  :label="t('components.materialDetail.labelColor')"
+                  :save="(v) => saveMaterialField('color', v)"
+                />
+                <AutoSaveField
                   v-model="formData.size_length"
+                  :baseline="savedFormBaselines.size_length"
                   :label="t('components.materialDetail.labelLengthCm')"
-                  unit="cm"
+                  type="number"
+                  :save="(v) => saveMaterialField('size_length', v)"
                 />
-                <MaterialMetricInput
+                <AutoSaveField
                   v-model="formData.size_width"
+                  :baseline="savedFormBaselines.size_width"
                   :label="t('components.materialDetail.labelWidthCm')"
-                  unit="cm"
+                  type="number"
+                  :save="(v) => saveMaterialField('size_width', v)"
                 />
-                <MaterialMetricInput
+                <AutoSaveField
                   v-model="formData.size_height"
+                  :baseline="savedFormBaselines.size_height"
                   :label="t('components.materialDetail.labelHeightCm')"
-                  unit="cm"
+                  type="number"
+                  :save="(v) => saveMaterialField('size_height', v)"
                 />
-                <div class="form-group">
-                  <label>{{ t('components.materialDetail.labelWarranty') }}</label>
-                  <input v-model="formData.warranty_until" type="date" class="form-input" />
-                </div>
+                <AutoSaveField
+                  v-model="formData.warranty_until"
+                  :baseline="savedFormBaselines.warranty_until"
+                  :label="t('components.materialDetail.labelWarranty')"
+                  type="date"
+                  :save="(v) => saveMaterialField('warranty_until', v)"
+                />
               </div>
 
-              <div class="form-group span-full mt-4">
-                <label>{{ t('components.materialDetail.labelDescription') }}</label>
-                <textarea
-                  v-model="formData.description"
-                  class="form-textarea"
-                  rows="3"
-                  :placeholder="t('components.materialDetail.phDescriptionOptional')"
-                ></textarea>
-              </div>
+              <AutoSaveField
+                v-model="formData.description"
+                :baseline="savedFormBaselines.description"
+                :label="t('components.materialDetail.labelDescription')"
+                type="textarea"
+                :rows="3"
+                :placeholder="t('components.materialDetail.phDescriptionOptional')"
+                span-class="form-group span-full mt-4"
+                :save="(v) => saveMaterialField('description', v)"
+              />
             </div>
 
             <!-- Verpackungseinheit (bei Verbrauch/Essen siehe Kosten) -->
@@ -281,39 +323,32 @@
               <p class="section-hint">{{ t('components.materialDetail.packagingHint') }}</p>
               
               <div class="form-grid">
-                <div class="form-group">
-                  <label>{{ t('components.materialDetail.labelPiecesPerUnit') }}</label>
-                  <input 
-                    v-model.number="formData.pack_size" 
-                    type="number" 
-                    min="2"
-                    class="form-input"
-                    :placeholder="t('components.materialDetail.packSizePlaceholder')"
-                  />
-                </div>
-                <div class="form-group">
-                  <label>{{ t('components.materialDetail.labelDesignation') }}</label>
-                  <div class="pack-unit-select">
-                    <select v-model="formData.pack_unit" class="form-select">
-                      <option value="">{{ t('components.materialDetail.packUnitNone') }}</option>
-                      <option :value="PACK_UNIT_BUNDLE">{{ t('components.materialDetail.packUnitBundle') }}</option>
-                      <option :value="PACK_UNIT_KISTE">{{ t('components.materialDetail.packUnitKiste') }}</option>
-                      <option :value="PACK_UNIT_KARTON">{{ t('components.materialDetail.packUnitKarton') }}</option>
-                      <option :value="PACK_UNIT_SACK">{{ t('components.materialDetail.packUnitSack') }}</option>
-                      <option :value="PACK_UNIT_ROLLE">{{ t('components.materialDetail.packUnitRolle') }}</option>
-                      <option :value="PACK_UNIT_PALETTE">{{ t('components.materialDetail.packUnitPalette') }}</option>
-                      <option :value="PACK_UNIT_SET">{{ t('components.materialDetail.packUnitSet') }}</option>
-                      <option :value="PACK_UNIT_PAKET">{{ t('components.materialDetail.packUnitPaket') }}</option>
-                    </select>
-                    <input
-                      v-if="formData.pack_unit && !PACK_UNIT_VALUES.includes(formData.pack_unit)"
-                      v-model="formData.pack_unit"
-                      type="text"
-                      class="form-input mt-1"
-                      :placeholder="t('components.materialDetail.packUnitCustomPlaceholder')"
-                    />
-                  </div>
-                </div>
+                <AutoSaveField
+                  v-model="formData.pack_size"
+                  :baseline="savedFormBaselines.pack_size"
+                  :label="t('components.materialDetail.labelPiecesPerUnit')"
+                  type="number"
+                  :min="2"
+                  :placeholder="t('components.materialDetail.packSizePlaceholder')"
+                  :save="(v) => saveMaterialField('pack_size', v)"
+                />
+                <AutoSaveField
+                  v-model="formData.pack_unit"
+                  :baseline="savedFormBaselines.pack_unit"
+                  :label="t('components.materialDetail.labelDesignation')"
+                  type="select"
+                  :options="packUnitSelectOptions"
+                  :save="(v) => saveMaterialField('pack_unit', v)"
+                />
+                <AutoSaveField
+                  v-if="formData.pack_unit && !PACK_UNIT_VALUES.includes(formData.pack_unit)"
+                  v-model="formData.pack_unit"
+                  :baseline="savedFormBaselines.pack_unit"
+                  :label="t('components.materialDetail.packUnitCustomPlaceholder')"
+                  :placeholder="t('components.materialDetail.packUnitCustomPlaceholder')"
+                  span-class="form-group span-full"
+                  :save="(v) => saveMaterialField('pack_unit', v)"
+                />
               </div>
               <p v-if="formData.pack_size && formData.pack_unit" class="pack-preview">
                 {{ t('components.materialDetail.packPreview', { stock: material.total_stock || 80, packs: Math.floor((material.total_stock || 80) / formData.pack_size), unit: formData.pack_unit, per: formData.pack_size }) }}
@@ -325,25 +360,33 @@
               <h2 class="section-title">{{ t('components.materialDetail.sectionPackDimensions') }}</h2>
               <p class="section-hint">{{ t('components.materialDetail.packDimensionsHint') }}</p>
               <div class="form-grid">
-                <MaterialMetricInput
+                <AutoSaveField
                   v-model="formData.pack_weight"
+                  :baseline="savedFormBaselines.pack_weight"
                   :label="t('components.materialDetail.labelPackWeightKg')"
-                  unit="kg"
+                  type="number"
+                  :save="(v) => saveMaterialField('pack_weight', v)"
                 />
-                <MaterialMetricInput
+                <AutoSaveField
                   v-model="formData.pack_size_length"
+                  :baseline="savedFormBaselines.pack_size_length"
                   :label="t('components.materialDetail.labelPackLengthCm')"
-                  unit="cm"
+                  type="number"
+                  :save="(v) => saveMaterialField('pack_size_length', v)"
                 />
-                <MaterialMetricInput
+                <AutoSaveField
                   v-model="formData.pack_size_width"
+                  :baseline="savedFormBaselines.pack_size_width"
                   :label="t('components.materialDetail.labelPackWidthCm')"
-                  unit="cm"
+                  type="number"
+                  :save="(v) => saveMaterialField('pack_size_width', v)"
                 />
-                <MaterialMetricInput
+                <AutoSaveField
                   v-model="formData.pack_size_height"
+                  :baseline="savedFormBaselines.pack_size_height"
                   :label="t('components.materialDetail.labelPackHeightCm')"
-                  unit="cm"
+                  type="number"
+                  :save="(v) => saveMaterialField('pack_size_height', v)"
                 />
               </div>
             </div>
@@ -472,25 +515,33 @@
               <h3 class="subsection-heading-kosten">{{ t('components.materialDetail.sectionPackDimensions') }}</h3>
               <p class="section-hint">{{ t('components.materialDetail.packDimensionsHint') }}</p>
               <div class="form-grid">
-                <MaterialMetricInput
+                <AutoSaveField
                   v-model="formData.pack_weight"
+                  :baseline="savedFormBaselines.pack_weight"
                   :label="t('components.materialDetail.labelPackWeightKg')"
-                  unit="kg"
+                  type="number"
+                  :save="(v) => saveMaterialField('pack_weight', v)"
                 />
-                <MaterialMetricInput
+                <AutoSaveField
                   v-model="formData.pack_size_length"
+                  :baseline="savedFormBaselines.pack_size_length"
                   :label="t('components.materialDetail.labelPackLengthCm')"
-                  unit="cm"
+                  type="number"
+                  :save="(v) => saveMaterialField('pack_size_length', v)"
                 />
-                <MaterialMetricInput
+                <AutoSaveField
                   v-model="formData.pack_size_width"
+                  :baseline="savedFormBaselines.pack_size_width"
                   :label="t('components.materialDetail.labelPackWidthCm')"
-                  unit="cm"
+                  type="number"
+                  :save="(v) => saveMaterialField('pack_size_width', v)"
                 />
-                <MaterialMetricInput
+                <AutoSaveField
                   v-model="formData.pack_size_height"
+                  :baseline="savedFormBaselines.pack_size_height"
                   :label="t('components.materialDetail.labelPackHeightCm')"
-                  unit="cm"
+                  type="number"
+                  :save="(v) => saveMaterialField('pack_size_height', v)"
                 />
               </div>
             </div>
@@ -528,7 +579,7 @@
                     {{ t('components.materialDetail.btnAddToPrintCart') }}
                   </button>
                   <button type="button" class="btn-primary btn-sm" @click="handleQrPrintAllFromPanel">
-                    {{ t('components.materialDetail.btnPrint') }}
+                    {{ t('common.print') }}
                   </button>
                 </div>
                 <ul v-if="batchesWithPrintableQr.length" class="stock-qr-batch-list">
@@ -542,9 +593,9 @@
                       :image-entity-id="batch.id"
                       @activate="openQrActionModalForBatch(batch)"
                     />
-                    <span class="stock-qr-batch-label">{{ batchQrRowLabel(batch) }}</span>
+                    <span class="stock-qr-batch-label">{{ batchPrintLine(batch) }}</span>
                     <button type="button" class="btn-outline btn-sm" @click="openQrActionModalForBatch(batch)">
-                      {{ t('components.materialDetail.btnQrActions') }}
+                      {{ t('common.actions') }}
                     </button>
                   </li>
                 </ul>
@@ -700,7 +751,7 @@
                     </th>
                     <th class="th-sort-cell">
                       <button type="button" class="detail-th-sort" :title="t('components.materialDetail.sortByStatus')" @click="toggleStockSort('status')">
-                        <span>{{ t('components.materialDetail.thStatus') }}</span>
+                        <span>{{ t('common.status') }}</span>
                         <span class="detail-th-sort-arrows" aria-hidden="true">
                           <span class="detail-sort-chev" :class="{ active: stockSortKey === 'status' && stockSortDir === 'asc' }">▲</span>
                           <span class="detail-sort-chev" :class="{ active: stockSortKey === 'status' && stockSortDir === 'desc' }">▼</span>
@@ -814,7 +865,13 @@
             <div class="section-card composition-tab-card">
               <div class="section-header-row composition-tab-head">
                 <div>
-                  <h2 class="section-title">{{ t('components.materialDetail.tabComposition') }}</h2>
+                  <h2 class="section-title">
+                    {{ t('components.materialDetail.tabComposition') }}
+                    <span v-if="isConfigurator" class="composition-configurator-badge" :title="t('components.comboOptions.configuratorBadgeHint')">
+                      <span aria-hidden="true">{{ COMBO_BADGE.configurable }}</span>
+                      {{ t('components.comboOptions.configuratorBadge') }}
+                    </span>
+                  </h2>
                   <p class="composition-tab-intro">
                     {{
                       material.material_type === 'physical_combo'
@@ -826,6 +883,24 @@
                   </p>
                 </div>
                 <div class="composition-tab-actions">
+                  <button
+                    v-if="isComboDraft"
+                    type="button"
+                    class="btn-primary btn-sm composition-finalize-btn"
+                    :disabled="finalizingCombo"
+                    @click="finalizeComboNow"
+                  >
+                    {{ finalizingCombo ? t('components.materialDetail.comboFinalizeSubmitting') : t('components.materialDetail.btnFinalizeCombo') }}
+                  </button>
+                  <button
+                    v-if="isVirtualComboView"
+                    type="button"
+                    class="btn-outline-small"
+                    :class="{ 'is-active': showComboOptionsEditor }"
+                    @click="showComboOptionsEditor = !showComboOptionsEditor"
+                  >
+                    {{ t('components.comboOptions.btnToggleEditor') }}
+                  </button>
                   <button type="button" class="btn-primary btn-sm" @click="openAddCompositionModal">
                     {{ t('components.materialDetail.btnAddFromStock') }}
                   </button>
@@ -833,7 +908,7 @@
                     {{ t('components.materialDetail.btnCreateNewMaterial') }}
                   </button>
                   <button type="button" class="btn-outline-small" :disabled="comboComponentsLoading" @click="loadComboComponentsForTab">
-                    {{ t('components.materialDetail.btnRefresh') }}
+                    {{ t('common.refresh') }}
                   </button>
                 </div>
               </div>
@@ -853,15 +928,15 @@
                 <thead>
                   <tr>
                     <th>{{ t('components.materialDetail.thComponent') }}</th>
-                    <th>{{ t('components.materialDetail.thRole') }}</th>
+                    <th>{{ t('common.role') }}</th>
                     <th>{{ t('components.materialDetail.thQty') }}</th>
-                    <th>{{ t('components.materialDetail.thSerial') }}</th>
+                    <th>{{ t('common.serialNumber') }}</th>
                     <th>{{ t('components.materialDetail.thBatchStatus') }}</th>
                     <th>{{ t('components.materialDetail.thAssignment') }}</th>
                     <th class="composition-state-th" :title="t('components.materialDetail.thCompositionStateHint')">
                       {{ t('components.materialDetail.thCompositionState') }}
                     </th>
-                    <th class="composition-actions-th">{{ t('components.materialDetail.thActions') }}</th>
+                    <th class="composition-actions-th">{{ t('common.actions') }}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -870,7 +945,12 @@
                       <button type="button" class="link-btn composition-comp-link" @click="openComponentMaterialDetail(comp.component_material.id)">
                         {{ comp.component_material.name }}
                       </button>
-                      <span v-if="comp.is_optional" class="composition-optional-badge">{{ t('components.materialDetail.optionalShortBadge') }}</span>
+                      <span v-if="isVirtualComboView && comp.is_optional" class="composition-optional-badge">{{ t('components.materialDetail.optionalShortBadge') }}</span>
+                      <span
+                        v-if="isVirtualComboView && comp.component_source === 'self_provided'"
+                        class="composition-optional-badge composition-selfprovided-badge"
+                        :title="t('components.materialDetail.hintComponentSource')"
+                      >{{ t('components.materialDetail.selfProvidedShortBadge') }}</span>
                     </td>
                     <td>{{ comp.component_role || t('components.materialDetail.emDash') }}</td>
                     <td>{{ comp.qty }}</td>
@@ -907,7 +987,7 @@
                         <button
                           type="button"
                           class="icon-btn"
-                          :title="t('components.materialDetail.titleEditGeneric')"
+                          :title="t('common.edit')"
                           :aria-label="t('components.materialDetail.ariaEditComposition')"
                           @click="openEditCompositionModal(comp)"
                         >
@@ -955,6 +1035,82 @@
               </table>
               </div>
             </div>
+
+            <!-- Konfigurator: Auswahl-Gruppen & Optionen (Weg B, Paket 6) -->
+            <div v-if="isVirtualComboView && showComboOptionsEditor" class="section-card composition-options-card">
+              <ComboOptionsEditor
+                :material-id="props.materialId"
+                :department-id="props.departmentId"
+                :options="comboOptionsList"
+                :groups="comboOptionGroupsList"
+                @reload="reloadComboOptions"
+              />
+            </div>
+
+            <!-- Verwandtes Zubehör (Empfehlung, kein Stücklisten-Teil) -->
+            <div class="section-card composition-accessories-card">
+              <div class="section-header-row composition-tab-head">
+                <div>
+                  <h2 class="section-title">{{ t('components.materialDetail.accessoriesTitle') }}</h2>
+                  <p class="composition-tab-intro">{{ t('components.materialDetail.accessoriesIntro') }}</p>
+                </div>
+                <div class="composition-tab-actions">
+                  <button type="button" class="btn-primary btn-sm" @click="openAddAccessoryModal">
+                    {{ t('components.materialDetail.btnAddAccessory') }}
+                  </button>
+                </div>
+              </div>
+
+              <div v-if="relatedAccessoriesLoading" class="loading-container composition-loading">
+                <div class="spinner"></div>
+                <p>{{ t('components.materialDetail.accessoriesLoading') }}</p>
+              </div>
+              <div v-else-if="relatedAccessoriesList.length === 0" class="empty-used-in">
+                <p>{{ t('components.materialDetail.accessoriesEmpty') }}</p>
+              </div>
+              <div v-else class="composition-table-wrapper">
+                <table class="used-in-table composition-table">
+                  <thead>
+                    <tr>
+                      <th>{{ t('components.materialDetail.thAccessory') }}</th>
+                      <th>{{ t('components.materialDetail.thTotalStock') }}</th>
+                      <th class="composition-actions-th">{{ t('components.materialDetail.thActions') }}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="acc in relatedAccessoriesList" :key="acc.id" class="used-in-row">
+                      <td>
+                        <button type="button" class="link-btn composition-comp-link" @click="openComponentMaterialDetail(acc.accessory_material.id)">
+                          {{ acc.accessory_material.name }}
+                        </button>
+                      </td>
+                      <td>{{ acc.accessory_material.total_stock }}</td>
+                      <td class="composition-actions-cell">
+                        <button
+                          type="button"
+                          class="icon-btn icon-btn-danger"
+                          :title="t('components.materialDetail.accessoryRemoveTitle')"
+                          :disabled="deletingAccessoryId === acc.id"
+                          @click="confirmDeleteAccessory(acc)"
+                        >
+                          <svg
+                            class="table-icon-sm"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                          >
+                            <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6M10 11v6M14 11v6" />
+                          </svg>
+                        </button>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
           </section>
 
           <!-- Tab: Inhalt Kiste/Tasche -->
@@ -969,7 +1125,7 @@
                       <label class="detail-inline-label">{{ t('components.materialDetail.labelContainerBag') }}</label>
                       <select v-model="containerContentBatchId" class="detail-inline-select">
                         <option value="">{{ t('components.materialDetail.optPickContainerBag') }}</option>
-                        <option v-for="option in storedInContainerOptions" :key="option.id" :value="option.id">
+                        <option v-for="option in storedInContainerOptions" :key="option.id" :value="option.id" :title="option.label">
                           {{ option.label }}
                         </option>
                       </select>
@@ -1072,38 +1228,39 @@
                   <div v-else-if="!containerEditorBatchId" class="empty-used-in">
                     <p>{{ t('components.materialDetail.containerEditorLoadFailed') }}</p>
                   </div>
-                  <div v-else class="form-grid">
-                    <div class="form-group span-full">
-                      <label>{{ t('components.materialDetail.labelSerialNumber') }}</label>
-                      <input v-model="containerEditorForm.serial_number" type="text" class="form-input" />
-                    </div>
-                    <div class="form-group span-full">
-                      <label>{{ t('components.materialDetail.labelBatchLabel') }}</label>
-                      <input v-model="containerEditorForm.label" type="text" class="form-input" />
-                    </div>
-                    <div class="form-group span-full">
-                      <label>{{ t('components.materialDetail.labelStatus') }}</label>
-                      <select v-model="containerEditorForm.status" class="form-select">
-                        <option value="active">{{ t('components.materialDetail.batchStatusActive') }}</option>
-                        <option value="defect">{{ t('components.materialDetail.batchStatusDefect') }}</option>
-                        <option value="repair">{{ t('components.materialDetail.batchStatusRepair') }}</option>
-                        <option value="lost">{{ t('components.materialDetail.batchStatusLost') }}</option>
-                        <option value="disposed">{{ t('components.materialDetail.batchStatusDisposed') }}</option>
-                      </select>
-                    </div>
-                    <div class="form-group span-full">
-                      <label>{{ t('components.materialDetail.labelNote') }}</label>
-                      <textarea v-model="containerEditorForm.notes" class="form-textarea" rows="3"></textarea>
-                    </div>
-                    <div class="form-group span-full">
-                      <button
-                        class="btn-primary"
-                        :disabled="isSavingContainerEditor || !containerEditorDirty"
-                        @click="saveContainerEditor"
-                      >
-                        {{ isSavingContainerEditor ? t('common.saving') : t('common.save') }}
-                      </button>
-                    </div>
+                  <div v-else class="form-grid autosave-form-grid">
+                    <AutoSaveField
+                      v-model="containerEditorForm.serial_number"
+                      :baseline="containerEditorBaselines.serial_number"
+                      :label="t('common.serialNumber')"
+                      span-class="form-group span-full"
+                      :save="(v) => saveContainerEditorField('serial_number', v)"
+                    />
+                    <AutoSaveField
+                      v-model="containerEditorForm.label"
+                      :baseline="containerEditorBaselines.label"
+                      :label="t('components.materialDetail.labelBatchLabel')"
+                      span-class="form-group span-full"
+                      :save="(v) => saveContainerEditorField('label', v)"
+                    />
+                    <AutoSaveField
+                      v-model="containerEditorForm.status"
+                      :baseline="containerEditorBaselines.status"
+                      :label="t('common.status')"
+                      type="select"
+                      span-class="form-group span-full"
+                      :options="containerEditorStatusOptions"
+                      :save="(v) => saveContainerEditorField('status', v)"
+                    />
+                    <AutoSaveField
+                      v-model="containerEditorForm.notes"
+                      :baseline="containerEditorBaselines.notes"
+                      :label="t('components.materialDetail.labelNote')"
+                      type="textarea"
+                      :rows="3"
+                      span-class="form-group span-full"
+                      :save="(v) => saveContainerEditorField('notes', v)"
+                    />
                   </div>
                 </div>
               </aside>
@@ -1134,7 +1291,7 @@
                     <th>{{ t('components.materialDetail.thIndex') }}</th>
                     <th class="th-sort-cell">
                       <button type="button" class="detail-th-sort" :title="t('components.materialDetail.sortBySerial')" @click="toggleSerialSort('serial_number')">
-                        <span>{{ t('components.materialDetail.thSerial') }}</span>
+                        <span>{{ t('common.serialNumber') }}</span>
                         <span class="detail-th-sort-arrows" aria-hidden="true">
                           <span class="detail-sort-chev" :class="{ active: serialSortKey === 'serial_number' && serialSortDir === 'asc' }">▲</span>
                           <span class="detail-sort-chev" :class="{ active: serialSortKey === 'serial_number' && serialSortDir === 'desc' }">▼</span>
@@ -1188,7 +1345,7 @@
                     </th>
                     <th class="th-sort-cell">
                       <button type="button" class="detail-th-sort" :title="t('components.materialDetail.sortByStatus')" @click="toggleSerialSort('status')">
-                        <span>{{ t('components.materialDetail.thStatus') }}</span>
+                        <span>{{ t('common.status') }}</span>
                         <span class="detail-th-sort-arrows" aria-hidden="true">
                           <span class="detail-sort-chev" :class="{ active: serialSortKey === 'status' && serialSortDir === 'asc' }">▲</span>
                           <span class="detail-sort-chev" :class="{ active: serialSortKey === 'status' && serialSortDir === 'desc' }">▼</span>
@@ -1310,7 +1467,7 @@
                     <tr>
                       <th>{{ t('components.materialDetail.thTicket') }}</th>
                       <th>{{ t('components.materialDetail.thType') }}</th>
-                      <th>{{ t('components.materialDetail.thStatus') }}</th>
+                      <th>{{ t('common.status') }}</th>
                       <th>{{ t('components.materialDetail.thActivity') }}</th>
                       <th></th>
                     </tr>
@@ -1482,7 +1639,7 @@
                         <tr v-for="(row, idx) in comboRentalRows" :key="`${row.componentId}-${idx}`">
                           <td>
                             <span>{{ row.name }}</span>
-                            <span v-if="row.optional" class="composition-optional-badge">{{ t('components.materialDetail.optionalShortBadge') }}</span>
+                            <span v-if="isVirtualComboView && row.optional" class="composition-optional-badge">{{ t('components.materialDetail.optionalShortBadge') }}</span>
                           </td>
                           <td class="combo-rental-col-num">{{ row.qty }}</td>
                           <td class="combo-rental-col-num">
@@ -1525,70 +1682,90 @@
               />
               
               <div class="form-grid">
-                <div class="form-group">
-                  <label>{{ t('components.materialDetail.labelDayPrice') }}</label>
-                  <div class="input-with-prefix">
-                    <span class="prefix">{{ t('components.materialDetail.currencyFr') }}</span>
-                    <input v-model="formData.rental_price_day" type="text" class="form-input" />
-                  </div>
-                </div>
-                <div class="form-group">
-                  <label>{{ t('components.materialDetail.labelWeekPrice') }}</label>
-                  <div class="input-with-prefix">
-                    <span class="prefix">{{ t('components.materialDetail.currencyFr') }}</span>
-                    <input v-model="formData.rental_price_week" type="text" class="form-input" />
-                  </div>
-                </div>
-                <div class="form-group">
-                  <label>{{ t('components.materialDetail.labelMonthPrice') }}</label>
-                  <div class="input-with-prefix">
-                    <span class="prefix">{{ t('components.materialDetail.currencyFr') }}</span>
-                    <input v-model="formData.rental_price_month" type="text" class="form-input" />
-                  </div>
-                </div>
-                <div class="form-group">
-                  <label>{{ t('components.materialDetail.labelDeposit') }}</label>
-                  <div class="input-with-prefix">
-                    <span class="prefix">{{ t('components.materialDetail.currencyFr') }}</span>
-                    <input v-model="formData.rental_deposit" type="text" class="form-input" />
-                  </div>
-                </div>
-                <div class="form-group">
-                  <label>{{ t('components.materialDetail.labelLeadDays') }}</label>
-                  <input v-model="formData.rental_lead_days" type="number" class="form-input" />
-                </div>
-                <div class="form-group">
-                  <label>{{ t('components.materialDetail.labelMaxRentalDays') }}</label>
-                  <input v-model="formData.rental_max_days" type="number" class="form-input" />
-                </div>
+                <AutoSaveField
+                  v-model="formData.rental_price_day"
+                  :baseline="savedFormBaselines.rental_price_day"
+                  :label="t('components.materialDetail.labelDayPrice')"
+                  :save="(v) => saveMaterialField('rental_price_day', v)"
+                />
+                <AutoSaveField
+                  v-model="formData.rental_price_week"
+                  :baseline="savedFormBaselines.rental_price_week"
+                  :label="t('components.materialDetail.labelWeekPrice')"
+                  :save="(v) => saveMaterialField('rental_price_week', v)"
+                />
+                <AutoSaveField
+                  v-model="formData.rental_price_month"
+                  :baseline="savedFormBaselines.rental_price_month"
+                  :label="t('components.materialDetail.labelMonthPrice')"
+                  :save="(v) => saveMaterialField('rental_price_month', v)"
+                />
+                <AutoSaveField
+                  v-model="formData.rental_deposit"
+                  :baseline="savedFormBaselines.rental_deposit"
+                  :label="t('components.materialDetail.labelDeposit')"
+                  :save="(v) => saveMaterialField('rental_deposit', v)"
+                />
+                <AutoSaveField
+                  v-model="formData.rental_lead_days"
+                  :baseline="savedFormBaselines.rental_lead_days"
+                  :label="t('components.materialDetail.labelLeadDays')"
+                  type="number"
+                  :save="(v) => saveMaterialField('rental_lead_days', v)"
+                />
+                <AutoSaveField
+                  v-model="formData.rental_max_days"
+                  :baseline="savedFormBaselines.rental_max_days"
+                  :label="t('components.materialDetail.labelMaxRentalDays')"
+                  type="number"
+                  :save="(v) => saveMaterialField('rental_max_days', v)"
+                />
               </div>
 
               <div class="checkbox-group mt-4">
-                <label class="checkbox-label">
-                  <input type="checkbox" v-model="formData.rental_external_allowed" />
-                  <span>{{ t('components.materialDetail.chkExternalRental') }}</span>
-                </label>
-                <label class="checkbox-label">
-                  <input type="checkbox" v-model="formData.rental_requires_approval" />
-                  <span>{{ t('components.materialDetail.chkApprovalRequired') }}</span>
-                </label>
+                <AutoSaveField
+                  v-model="formData.rental_external_allowed"
+                  :baseline="savedFormBaselines.rental_external_allowed"
+                  :label="t('components.materialDetail.chkExternalRental')"
+                  type="checkbox"
+                  :checkbox-label="t('components.materialDetail.chkExternalRental')"
+                  span-class="autosave-checkbox-field"
+                  :save="(v) => saveMaterialField('rental_external_allowed', v)"
+                />
+                <AutoSaveField
+                  v-model="formData.rental_requires_approval"
+                  :baseline="savedFormBaselines.rental_requires_approval"
+                  :label="t('components.materialDetail.chkApprovalRequired')"
+                  type="checkbox"
+                  :checkbox-label="t('components.materialDetail.chkApprovalRequired')"
+                  span-class="autosave-checkbox-field"
+                  :save="(v) => saveMaterialField('rental_requires_approval', v)"
+                />
               </div>
 
-              <div v-if="formData.rental_external_allowed" class="form-group span-full mt-2">
-                <label>{{ t('components.materialDetail.labelExternalRentalScope') }}</label>
-                <select v-model="formData.rental_scope" class="form-select">
-                  <option value="">{{ t('components.materialDetail.rentalScopeUnset') }}</option>
-                  <option value="department">{{ t('components.materialDetail.rentalScopeDepartment') }}</option>
-                  <option value="organisation">{{ t('components.materialDetail.rentalScopeOrganisation') }}</option>
-                  <option value="public">{{ t('components.materialDetail.rentalScopePublic') }}</option>
-                </select>
+              <div v-if="formData.rental_external_allowed" class="span-full mt-2">
+                <AutoSaveField
+                  v-model="formData.rental_scope"
+                  :baseline="savedFormBaselines.rental_scope"
+                  :label="t('components.materialDetail.labelExternalRentalScope')"
+                  type="select"
+                  span-class="form-group span-full"
+                  :options="rentalScopeOptions"
+                  :save="(v) => saveMaterialField('rental_scope', v)"
+                />
                 <p class="form-hint">{{ t('components.materialDetail.hintRentalScope') }}</p>
               </div>
 
-              <div class="form-group span-full mt-4">
-                <label>{{ t('components.materialDetail.labelRentalNotes') }}</label>
-                <textarea v-model="formData.rental_notes" class="form-textarea" rows="3" :placeholder="t('components.materialDetail.phRentalNotes')"></textarea>
-              </div>
+              <AutoSaveField
+                v-model="formData.rental_notes"
+                :baseline="savedFormBaselines.rental_notes"
+                :label="t('components.materialDetail.labelRentalNotes')"
+                type="textarea"
+                :rows="3"
+                :placeholder="t('components.materialDetail.phRentalNotes')"
+                span-class="form-group span-full mt-4"
+                :save="(v) => saveMaterialField('rental_notes', v)"
+              />
                 </div>
               </div>
             </div>
@@ -1684,8 +1861,8 @@
                   <tr>
                     <th>{{ t('components.materialDetail.thCombo') }}</th>
                     <th>{{ t('components.materialDetail.thComboType') }}</th>
-                    <th>{{ t('components.materialDetail.thRole') }}</th>
-                    <th>{{ t('components.materialDetail.thSerial') }}</th>
+                    <th>{{ t('common.role') }}</th>
+                    <th>{{ t('common.serialNumber') }}</th>
                     <th>{{ t('components.materialDetail.thQty') }}</th>
                     <th>{{ t('components.materialDetail.thAssignment') }}</th>
                   </tr>
@@ -1865,16 +2042,24 @@
           <div class="sidebar-card">
             <div class="sidebar-header">
               <h3>{{ t('components.materialDetail.sidebarImage') }}</h3>
-              <button v-if="canManageMaterials" class="link-btn">{{ t('components.materialDetail.btnGoogleSearch') }}</button>
             </div>
             <div class="image-slot">
-              <svg v-if="!material.image_url" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#d1d5db" stroke-width="1.5">
+              <svg v-if="!materialPrimaryImageUrl" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#d1d5db" stroke-width="1.5">
                 <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
                 <circle cx="8.5" cy="8.5" r="1.5"/>
                 <polyline points="21 15 16 10 5 21"/>
               </svg>
-              <img v-else :src="material.image_url" :alt="t('components.materialDetail.altMaterialImage')" />
+              <img v-else :src="materialPrimaryImageUrl" :alt="t('components.materialDetail.altMaterialImage')" />
             </div>
+            <MaterialImagePicker
+              v-if="canManageMaterials"
+              :has-image="!!materialPrimaryImageUrl"
+              :search-query="material.name"
+              :upload-file="uploadMaterialPhotoFile"
+              :import-url="importMaterialPhotoFromUrlFn"
+              @uploaded="onMaterialPhotoUploaded"
+              @error="onMaterialPhotoError"
+            />
           </div>
 
           <!-- Bestand Quick View -->
@@ -2067,7 +2252,7 @@
         <div class="modal-actions">
           <button class="btn-secondary btn-sm" @click="closeAddToContainerModal">{{ t('common.cancel') }}</button>
           <button class="btn-primary btn-sm" :disabled="!canSubmitAddToContainer || isAddingToContainer" @click="submitAddToContainer">
-            {{ isAddingToContainer ? t('components.materialDetail.modalAddToContainerSubmitting') : t('components.materialDetail.modalAddToContainerSubmit') }}
+            {{ isAddingToContainer ? t('components.materialDetail.modalAddToContainerSubmitting') : t('common.add') }}
           </button>
         </div>
       </div>
@@ -2162,11 +2347,19 @@
           <input v-model="addCompositionRole" type="text" class="form-input" :placeholder="t('components.materialDetail.phRoleExamples')" />
           <p class="batch-field-hint">{{ t('components.materialDetail.hintRoleInCombo') }}</p>
         </div>
-        <div v-if="addCompositionSelected" class="form-group">
+        <div v-if="addCompositionSelected && isVirtualComboView" class="form-group">
           <label class="checkbox-label">
             <input v-model="addCompositionOptional" type="checkbox" @change="clampAddCompositionQty" />
             {{ t('components.materialDetail.labelOptionalForCombo') }}
           </label>
+        </div>
+        <div v-if="addCompositionSelected && isVirtualComboView" class="form-group">
+          <label>{{ t('components.materialDetail.labelComponentSource') }}</label>
+          <select v-model="addCompositionSource" class="form-select">
+            <option value="stock">{{ t('components.materialDetail.componentSourceStock') }}</option>
+            <option value="self_provided">{{ t('components.materialDetail.componentSourceSelfProvided') }}</option>
+          </select>
+          <p class="batch-field-hint">{{ t('components.materialDetail.hintComponentSource') }}</p>
         </div>
         <p v-if="addCompositionError" class="error-text">{{ addCompositionError }}</p>
         </div>
@@ -2189,7 +2382,55 @@
             :disabled="!canSubmitAddComposition || addCompositionSubmitting"
             @click="submitAddComposition"
           >
-            {{ addCompositionSubmitting ? t('components.materialDetail.modalAddCompositionSubmitting') : t('components.materialDetail.modalAddToContainerSubmit') }}
+            {{ addCompositionSubmitting ? t('components.materialDetail.modalAddCompositionSubmitting') : t('common.add') }}
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div v-if="showAddAccessoryModal" class="modal-overlay">
+      <div class="modal-dialog composition-add-modal">
+        <div class="composition-add-modal-header">
+          <h3>{{ t('components.materialDetail.modalAddAccessoryTitle') }}</h3>
+          <p class="text-muted composition-add-modal-intro">
+            {{ t('components.materialDetail.modalAddAccessoryIntro') }}
+          </p>
+        </div>
+        <div class="composition-add-modal-body">
+          <div class="form-group">
+            <label>{{ t('components.materialDetail.labelSearchArticle') }}</label>
+            <MaterialLookupInput
+              v-model="addAccessorySearch"
+              :fetcher="accessoryMaterialFetcher"
+              :min-chars="1"
+              :max-suggestions="8"
+              :placeholder="t('components.materialDetail.phNameOrCode')"
+              :loading-text="t('components.materialDetail.lookupLoadingEllipsis')"
+              :empty-text="t('components.materialDetail.lookupEmptyHits', { query: addAccessorySearch || '' })"
+              :get-result-label="accessoryLookupLabel"
+              :get-result-secondary="formatCompositionLookupSecondary"
+              @select="handleAccessorySelect"
+            />
+          </div>
+          <div v-if="addAccessorySelected" class="form-group">
+            <label>{{ t('components.materialDetail.labelSelectedArticle') }}</label>
+            <div class="selected-source-material">
+              <div class="name">{{ addAccessorySelected.name }}</div>
+              <div class="meta">{{ t('components.materialDetail.metaTotalStock', { n: addAccessorySelected.total_stock ?? 0 }) }}</div>
+              <button type="button" class="btn-outline-small" @click="clearAddAccessorySelection">{{ t('components.materialDetail.btnChangeSelection') }}</button>
+            </div>
+          </div>
+          <p v-if="addAccessoryError" class="error-text">{{ addAccessoryError }}</p>
+        </div>
+        <div class="modal-actions composition-add-modal-footer">
+          <button type="button" class="btn-secondary btn-sm" @click="closeAddAccessoryModal">{{ t('common.cancel') }}</button>
+          <button
+            type="button"
+            class="btn-primary btn-sm"
+            :disabled="!addAccessorySelected || addAccessorySubmitting"
+            @click="submitAddAccessory"
+          >
+            {{ addAccessorySubmitting ? t('components.materialDetail.modalAddAccessorySubmitting') : t('components.materialDetail.btnAddAccessory') }}
           </button>
         </div>
       </div>
@@ -2267,11 +2508,19 @@
           <input v-model="editCompositionRole" type="text" class="form-input" :placeholder="t('components.materialDetail.phRoleExamples')" />
           <p class="batch-field-hint">{{ t('components.materialDetail.hintRoleInCombo') }}</p>
         </div>
-        <div class="form-group">
+        <div v-if="isVirtualComboView" class="form-group">
           <label class="checkbox-label">
             <input v-model="editCompositionOptional" type="checkbox" @change="clampEditCompositionQty" />
             {{ t('components.materialDetail.labelOptionalForCombo') }}
           </label>
+        </div>
+        <div v-if="isVirtualComboView" class="form-group">
+          <label>{{ t('components.materialDetail.labelComponentSource') }}</label>
+          <select v-model="editCompositionSource" class="form-select">
+            <option value="stock">{{ t('components.materialDetail.componentSourceStock') }}</option>
+            <option value="self_provided">{{ t('components.materialDetail.componentSourceSelfProvided') }}</option>
+          </select>
+          <p class="batch-field-hint">{{ t('components.materialDetail.hintComponentSource') }}</p>
         </div>
         <p v-if="editCompositionError" class="error-text">{{ editCompositionError }}</p>
         </div>
@@ -2333,6 +2582,8 @@ import {
   getMaterial,
   getMaterials,
   updateMaterial,
+  uploadMaterialPhoto,
+  importMaterialPhotoFromUrl,
   updateBatch,
   moveBatchQuantity,
   getMaterialHistory,
@@ -2345,6 +2596,11 @@ import {
   addComboComponent,
   updateComboComponent,
   deleteComboComponent,
+  finalizeCombo,
+  getRelatedAccessories,
+  addRelatedAccessory,
+  deleteRelatedAccessory,
+  type RelatedAccessory,
   type DeleteComboComponentRequest,
   type Material,
   type MaterialHistoryEntry,
@@ -2355,6 +2611,9 @@ import {
   type MaterialStorageLocationsResponse,
   type MaterialStorageLocationRow,
   type ComboComponent,
+  type ComboOption,
+  type ComboOptionGroup,
+  type ComponentSource,
   type UpdateComboComponentRequest,
 } from '@/api/materials'
 import { addPrintCartItem, addPrintCartItemsBulk } from '@/api/tasks'
@@ -2382,7 +2641,7 @@ import {
 } from '@/api/departmentSettings'
 import { getWorkshopTickets, type WorkshopTicket } from '@/api/workshop'
 import RentalPriceAmortizationCalculator from '@/components/material/RentalPriceAmortizationCalculator.vue'
-import MaterialMetricInput from '@/components/material/MaterialMetricInput.vue'
+import { AutoSaveField, useFormFieldBaselines } from '@/components/common/autoSave'
 import { normalizeMaterialMetricInput } from '@/utils/materialMetricUnits'
 import SplitModal from '@/components/material/SplitModal.vue'
 import { useAuthStore } from '@/stores/auth'
@@ -2401,12 +2660,15 @@ import {
 } from '@/utils/compositionStockLocations'
 import StorageTreeView from '@/components/storage/StorageTreeView.vue'
 import MaterialLookupInput from '@/components/common/MaterialLookupInput.vue'
+import ComboOptionsEditor from '@/components/material/ComboOptionsEditor.vue'
 import CategoryAutocompleteInput from '@/components/common/CategoryAutocompleteInput.vue'
 import { createBasicMaterialLookupFetcher } from '@/composables/useMaterialLookup'
 import PublicQrTag from '@/components/common/PublicQrTag.vue'
 import PublicQrActionModal from '@/components/common/PublicQrActionModal.vue'
 import { unitPriceFromPackSaleChf } from '@/utils/packPricing'
 import { isPrintableBatchPublicUrl } from '@/utils/publicQrUrl'
+import { isComboMaterial as isComboMaterialType, COMBO_BADGE } from '@/utils/comboDisplay'
+import MaterialImagePicker from '@/components/media/MaterialImagePicker.vue'
 
 interface Props {
   materialId: string
@@ -2444,6 +2706,25 @@ const PACK_UNIT_VALUES = [
   PACK_UNIT_PAKET,
   '',
 ]
+
+const packUnitSelectOptions = computed(() => [
+  { value: '', label: t('components.materialDetail.packUnitNone') },
+  { value: PACK_UNIT_BUNDLE, label: t('components.materialDetail.packUnitBundle') },
+  { value: PACK_UNIT_KISTE, label: t('components.materialDetail.packUnitKiste') },
+  { value: PACK_UNIT_KARTON, label: t('components.materialDetail.packUnitKarton') },
+  { value: PACK_UNIT_SACK, label: t('components.materialDetail.packUnitSack') },
+  { value: PACK_UNIT_ROLLE, label: t('components.materialDetail.packUnitRolle') },
+  { value: PACK_UNIT_PALETTE, label: t('components.materialDetail.packUnitPalette') },
+  { value: PACK_UNIT_SET, label: t('components.materialDetail.packUnitSet') },
+  { value: PACK_UNIT_PAKET, label: t('components.materialDetail.packUnitPaket') },
+])
+
+const rentalScopeOptions = computed(() => [
+  { value: '', label: t('components.materialDetail.rentalScopeUnset') },
+  { value: 'department', label: t('components.materialDetail.rentalScopeDepartment') },
+  { value: 'organisation', label: t('components.materialDetail.rentalScopeOrganisation') },
+  { value: 'public', label: t('components.materialDetail.rentalScopePublic') },
+])
 
 function sortLocale(): string {
   return String(locale.value || 'de').replace('_', '-')
@@ -2483,6 +2764,12 @@ const canManageMaterials = computed(() =>
   ['mw', 'dc', 'matwart', 'depchef'].includes(departmentRole.value)
 )
 
+const materialPrimaryImageUrl = computed(() => {
+  const photos = material.value.photos
+  if (photos?.length && photos[0]?.url) return photos[0].url
+  return material.value.image_url || null
+})
+
 // State
 const material = ref<Material>({} as Material)
 const batches = ref<any[]>([])
@@ -2493,6 +2780,21 @@ const workshopTicketsLoading = ref(false)
 /** Stückliste für Kombos (Tab „Zusammensetzung“) */
 const comboComponentsList = ref<ComboComponent[]>([])
 const comboComponentsLoading = ref(false)
+
+/** Konfigurator: Options-Gruppen + Optionen (Weg B, Paket 6) – nur virtuelle Kombo */
+const comboOptionsList = ref<ComboOption[]>([])
+const comboOptionGroupsList = ref<ComboOptionGroup[]>([])
+const showComboOptionsEditor = ref(false)
+
+/** Verwandtes Zubehör (Empfehlung, kein Stücklisten-Teil) */
+const relatedAccessoriesList = ref<RelatedAccessory[]>([])
+const relatedAccessoriesLoading = ref(false)
+const showAddAccessoryModal = ref(false)
+const addAccessorySearch = ref('')
+const addAccessorySelected = ref<Material | null>(null)
+const addAccessorySubmitting = ref(false)
+const addAccessoryError = ref('')
+const deletingAccessoryId = ref<string | null>(null)
 /** Lagerbaum nach Zusammensetzung+Einlagerung neu laden */
 const storageTreeRefreshKey = ref(0)
 
@@ -2505,6 +2807,7 @@ const addCompositionStockLocations = ref<MaterialStorageLocationsResponse | null
 const addCompositionQty = ref(1)
 const addCompositionRole = ref('')
 const addCompositionOptional = ref(false)
+const addCompositionSource = ref<ComponentSource>('stock')
 const addCompositionMode = ref<'fixed' | 'assigned' | 'on_issue' | 'bulk'>('bulk')
 const addCompositionError = ref('')
 const addCompositionSubmitting = ref(false)
@@ -2514,6 +2817,7 @@ const editCompositionComp = ref<ComboComponent | null>(null)
 const editCompositionQty = ref(1)
 const editCompositionRole = ref('')
 const editCompositionOptional = ref(false)
+const editCompositionSource = ref<ComponentSource>('stock')
 const editCompositionMode = ref<'fixed' | 'assigned' | 'on_issue' | 'bulk'>('bulk')
 const editCompositionBatchId = ref('')
 const editCompositionBatches = ref<MaterialBatch[]>([])
@@ -2526,6 +2830,7 @@ const editCompositionError = ref('')
 const editCompositionSubmitting = ref(false)
 const deletingCompositionId = ref<string | null>(null)
 const pendingRemoveComposition = ref<ComboComponent | null>(null)
+const finalizingCombo = ref(false)
 
 const linkedContainerBatchIdForRelease = computed(() => {
   const m = material.value
@@ -2659,10 +2964,21 @@ const comboAssignmentLabelsShort = computed((): Record<string, string> => ({
   bulk: t('components.materialDetail.assignmentShortBulk'),
 }))
 
-const isComboMaterialView = computed(
-  () =>
-    material.value?.material_type === 'physical_combo' || material.value?.material_type === 'virtual_combo'
-)
+const isComboMaterialView = computed(() => isComboMaterialType(material.value))
+
+/** „optional“ (Zubehör-Toggle) ist nur bei virtueller Kombo sinnvoll; physische Kombo kennt das nicht. */
+const isVirtualComboView = computed(() => material.value?.material_type === 'virtual_combo')
+
+/** Kombo-Entwurf („in Bearbeitung“, nicht buchbar). */
+const isComboDraft = computed(() => isComboMaterialView.value && material.value?.combo_status === 'draft')
+
+/** Abgeleitete „Konfigurator“-Eigenschaft: virtuelle Kombo mit ≥ 1 Options-Gruppe. */
+const isConfigurator = computed(() => isVirtualComboView.value && comboOptionGroupsList.value.length > 0)
+
+/** Editor neu laden (Optionen/Gruppen änderten sich). */
+async function reloadComboOptions() {
+  await loadMaterial({ preserveComboComponents: true })
+}
 
 /** Zeilen für „Anschaffung aus Zusammensetzung“ (Vermietung-Tab, Kombis) */
 const comboRentalRows = ref<
@@ -2840,10 +3156,18 @@ function onRentalCalculatorApply(p: { day: string; week: string; month: string }
   formData.rental_price_day = p.day
   formData.rental_price_week = p.week
   formData.rental_price_month = p.month
-  void nextTick(() => {
-    detailTabsStore.setTabDirty(props.materialId, 'material', props.departmentId, hasChanges.value)
+  void nextTick(async () => {
     if (rentalChanged) {
-      toast.success(t('components.materialDetail.toastRentalSuggestionApplied'))
+      try {
+        await Promise.all([
+          saveMaterialField('rental_price_day', p.day),
+          saveMaterialField('rental_price_week', p.week),
+          saveMaterialField('rental_price_month', p.month),
+        ])
+        toast.success(t('components.materialDetail.toastRentalSuggestionApplied'))
+      } catch {
+        toast.error(t('components.materialDetail.errSaveMaterial'))
+      }
     } else {
       toast.info(t('components.materialDetail.toastRentalPricesUnchanged'))
     }
@@ -2876,6 +3200,8 @@ const containerEditorForm = reactive({
   status: 'active',
   notes: '',
 })
+const { baselines: containerEditorBaselines, syncBaselines: syncContainerEditorBaselines } =
+  useFormFieldBaselines(containerEditorForm)
 const showAddToContainerModal = ref(false)
 const isLoadingSourceMaterial = ref(false)
 const isAddingToContainer = ref(false)
@@ -2948,7 +3274,6 @@ const formData = reactive({
   pack_size_width: '',
   pack_size_height: '',
   is_container: false,
-  reservation_mode: '' as string,
   is_js_material: false,
   external_source: '',
   sale_price: null as number | null,
@@ -2957,8 +3282,176 @@ const formData = reactive({
   pack_sale_price_chf: null as number | null,
 })
 
+const { baselines: savedFormBaselines, syncBaselines: syncSavedFormBaselines, syncBaselineFor: syncSavedFormBaselineFor } =
+  useFormFieldBaselines(formData)
+
 // Original data for change detection
 let originalFormData = ''
+
+type MaterialFormField = keyof typeof formData
+
+function buildMaterialFieldPayload(field: MaterialFormField, value: unknown, m: Material): Record<string, unknown> {
+  const payload: Record<string, unknown> = {}
+  const emptyToNull = (v: unknown) => {
+    if (v == null) return null
+    if (typeof v === 'string' && v.trim() === '') return null
+    return v
+  }
+
+  switch (field) {
+    case 'name':
+      payload.name = String(value ?? '')
+      break
+    case 'description':
+      payload.description = emptyToNull(value)
+      break
+    case 'barcode_tag':
+      payload.barcode_tag = emptyToNull(value)
+      break
+    case 'category_id':
+      payload.category_id = emptyToNull(value)
+      break
+    case 'storage_address_id':
+      payload.storage_address_id = emptyToNull(value)
+      break
+    case 'manufacturer':
+    case 'model':
+    case 'ean':
+    case 'color':
+      payload[field] = emptyToNull(value)
+      break
+    case 'weight':
+      payload.weight = normalizeMaterialMetricInput(String(value ?? ''), 'kg')
+      break
+    case 'size_length':
+    case 'size_width':
+    case 'size_height':
+      payload[field] = normalizeMaterialMetricInput(String(value ?? ''), 'cm')
+      break
+    case 'warranty_until':
+      payload.warranty_until = emptyToNull(value)
+      break
+    case 'rental_price_day':
+    case 'rental_price_week':
+    case 'rental_price_month':
+    case 'rental_deposit':
+      payload[field] = emptyToNull(value)
+      break
+    case 'rental_lead_days':
+    case 'rental_max_days':
+      payload[field] = value == null || value === '' ? null : Number(value)
+      break
+    case 'rental_external_allowed':
+    case 'rental_requires_approval':
+      payload[field] = !!value
+      break
+    case 'rental_scope':
+      payload.rental_scope = formData.rental_external_allowed ? emptyToNull(value) : null
+      break
+    case 'rental_notes':
+      payload.rental_notes = emptyToNull(value)
+      break
+    case 'rental_calc_params':
+      payload.rental_calc_params = value ?? null
+      break
+    case 'pack_size':
+      payload.pack_size = value == null || value === '' ? null : Number(value)
+      break
+    case 'pack_unit':
+      payload.pack_unit = emptyToNull(value)
+      break
+    case 'pack_sale_price_chf':
+      payload.pack_sale_price_chf =
+        value != null && Number(value) > 0 ? String(Number(value)) : null
+      break
+    case 'pack_weight':
+      payload.pack_weight = normalizeMaterialMetricInput(String(value ?? ''), 'kg')
+      break
+    case 'pack_size_length':
+    case 'pack_size_width':
+    case 'pack_size_height':
+      payload[field] = normalizeMaterialMetricInput(String(value ?? ''), 'cm')
+      break
+    case 'is_container':
+      if (m.tracking_type === 'bulk') payload.is_container = !!value
+      break
+    case 'is_js_material':
+      if (canManageJsMaterial.value) {
+        payload.is_js_material = !!value
+        payload.external_source = value ? (formData.external_source || 'js_ch') : null
+      }
+      break
+    case 'external_source':
+      if (canManageJsMaterial.value) {
+        payload.is_js_material = formData.is_js_material
+        payload.external_source = formData.is_js_material ? (String(value || 'js_ch')) : null
+      }
+      break
+    case 'sale_price':
+      payload.sale_price = value != null && Number(value) > 0 ? String(Number(value)) : null
+      break
+    case 'reference_purchase_unit_chf':
+      payload.reference_purchase_unit_chf =
+        value != null && Number(value) > 0 ? String(Number(value)) : null
+      break
+    case 'min_stock':
+      payload.min_stock = value == null || value === '' ? null : Number(value)
+      break
+    default:
+      break
+  }
+
+  return payload
+}
+
+async function saveMaterialField(field: MaterialFormField, value: unknown): Promise<void> {
+  if (!canManageMaterials.value) return
+  const m = material.value
+  if (!m?.id) return
+
+  if (m.is_consumable || m.is_food) {
+    const sp = field === 'sale_price' ? value : formData.sale_price
+    const rp = field === 'reference_purchase_unit_chf' ? value : formData.reference_purchase_unit_chf
+    if (field === 'sale_price' || field === 'reference_purchase_unit_chf') {
+      if (sp == null || Number(sp) <= 0 || rp == null || Number(rp) <= 0) {
+        throw new Error(t('components.materialDetail.errConsumablePricesRequired'))
+      }
+    }
+  }
+
+  const payload = buildMaterialFieldPayload(field, value, m)
+  if (Object.keys(payload).length === 0) return
+
+  const updated = await updateMaterial(props.materialId, payload)
+  applyMaterialSoftUpdate(updated, field)
+  emit('updated', updated)
+
+  if (activeTab.value === 'history') {
+    loadHistory()
+  } else {
+    historyEntries.value = []
+  }
+}
+
+async function saveContainerEditorField(
+  field: 'serial_number' | 'label' | 'status' | 'notes',
+  value: unknown,
+): Promise<void> {
+  if (!containerEditorMaterialId.value || !containerEditorBatchId.value) return
+  const payload: Record<string, unknown> = {}
+  if (field === 'serial_number') payload.serial_number = value ? String(value) : null
+  if (field === 'label') payload.label = value ? String(value) : null
+  if (field === 'status') payload.status = value || 'active'
+  if (field === 'notes') payload.notes = value ? String(value) : null
+
+  await updateBatch(containerEditorMaterialId.value, containerEditorBatchId.value, payload)
+  containerEditorOriginal.value = JSON.stringify(containerEditorForm)
+  syncContainerEditorBaselines()
+  await Promise.all([loadContainerBatches(), loadContainerContentOverview()])
+  if (containerEditorMaterialId.value === props.materialId) {
+    await loadMaterial({ preserveComboComponents: true, silent: true })
+  }
+}
 
 function normalizeQueryString(value: unknown): string {
   if (Array.isArray(value)) return typeof value[0] === 'string' ? value[0] : ''
@@ -3187,6 +3680,14 @@ const containerEditorDirty = computed(() => {
   return JSON.stringify(containerEditorForm) !== containerEditorOriginal.value
 })
 
+const containerEditorStatusOptions = computed(() => [
+  { value: 'active', label: t('components.materialDetail.batchStatusActive') },
+  { value: 'defect', label: t('components.materialDetail.batchStatusDefect') },
+  { value: 'repair', label: t('components.materialDetail.batchStatusRepair') },
+  { value: 'lost', label: t('components.materialDetail.batchStatusLost') },
+  { value: 'disposed', label: t('components.materialDetail.batchStatusDisposed') },
+])
+
 const addToContainerSourceBatches = computed(() => {
   const batchesList = addToContainerSourceMaterial.value?.batches || []
   return batchesList.filter((batch: any) => (batch.qty || 0) > 0 && batch.status === 'active')
@@ -3349,8 +3850,41 @@ const serialSortDir = ref<'asc' | 'desc'>('desc')
 const serialIsContainerSaving = reactive<Record<string, boolean>>({})
 
 // Computed
-const hasChanges = computed(() => {
-  return JSON.stringify(formData) !== originalFormData
+/** Felder ohne AutoSaveField – nur diese lösen den Header-«Speichern»-Button aus */
+const MANUAL_SAVE_FIELD_KEYS = [
+  'sale_price',
+  'reference_purchase_unit_chf',
+  'min_stock',
+  'pack_sale_price_chf',
+  'rental_calc_params',
+  'storage_address_id',
+] as const satisfies readonly MaterialFormField[]
+
+const MANUAL_PACK_FIELD_KEYS = [
+  'pack_size',
+  'pack_unit',
+] as const satisfies readonly MaterialFormField[]
+
+function pickFormFields(source: Record<string, unknown>, keys: readonly MaterialFormField[]) {
+  const picked: Record<string, unknown> = {}
+  for (const key of keys) picked[key] = source[key]
+  return picked
+}
+
+const manualSaveFieldKeys = computed((): MaterialFormField[] => {
+  const keys: MaterialFormField[] = [...MANUAL_SAVE_FIELD_KEYS]
+  if (material.value?.is_consumable || material.value?.is_food) {
+    keys.push(...MANUAL_PACK_FIELD_KEYS)
+  }
+  return keys
+})
+
+const hasManualUnsavedChanges = computed(() => {
+  const keys = manualSaveFieldKeys.value
+  const original = JSON.parse(originalFormData || '{}') as Record<string, unknown>
+  return (
+    JSON.stringify(pickFormFields(formData, keys)) !== JSON.stringify(pickFormFields(original, keys))
+  )
 })
 
 const propertyBadgeText = computed(() => {
@@ -3372,7 +3906,7 @@ const propertyBadgeText = computed(() => {
     return t('components.materialDetail.badgePhysical')
   }
 
-  return t('components.materialDetail.badgeMaterial')
+  return t('common.material')
 })
 
 const availableStock = computed(() => {
@@ -3457,6 +3991,7 @@ function openAddCompositionModal() {
   addCompositionQty.value = 1
   addCompositionRole.value = ''
   addCompositionOptional.value = false
+  addCompositionSource.value = 'stock'
   addCompositionError.value = ''
   addCompositionMode.value =
     material.value?.material_type === 'virtual_combo' ? 'on_issue' : 'bulk'
@@ -3531,14 +4066,16 @@ async function submitAddComposition() {
       -1
     )
     const addRole = addCompositionRole.value.trim()
-    const addQty = addCompositionOptional.value
+    const addOptional = isVirtualComboView.value && addCompositionOptional.value
+    const addQty = addOptional
       ? Math.max(0, Math.floor(Number(addCompositionQty.value) || 0))
       : Math.max(1, addCompositionQty.value || 1)
     await addComboComponent(props.materialId, {
       component_material_id: addCompositionSelected.value.id,
       qty: addQty,
       component_role: addRole === '' ? null : addRole,
-      is_optional: addCompositionOptional.value,
+      is_optional: addOptional,
+      component_source: isVirtualComboView.value ? addCompositionSource.value : 'stock',
       assignment_mode: addCompositionMode.value,
       sort_order: maxSort + 1,
       allocate_to_linked_container: addCompositionAllocatesToLinkedCrate.value,
@@ -3554,6 +4091,117 @@ async function submitAddComposition() {
     addCompositionError.value = ax.response?.data?.error || t('components.materialDetail.errCompositionAdd')
   } finally {
     addCompositionSubmitting.value = false
+  }
+}
+
+async function finalizeComboNow() {
+  if (finalizingCombo.value) return
+  finalizingCombo.value = true
+  try {
+    const updated = await finalizeCombo(props.materialId)
+    material.value = updated
+    toast.success(t('components.materialDetail.toastComboFinalized'))
+    emit('updated', material.value)
+  } catch (e: unknown) {
+    const ax = e as { response?: { data?: { error?: string } } }
+    toast.error(ax.response?.data?.error || t('components.materialDetail.errComboFinalize'))
+  } finally {
+    finalizingCombo.value = false
+  }
+}
+
+// ── Verwandtes Zubehör ──
+async function loadRelatedAccessories() {
+  if (!props.materialId || !isComboMaterialView.value) return
+  relatedAccessoriesLoading.value = true
+  try {
+    relatedAccessoriesList.value = await getRelatedAccessories(props.materialId)
+  } catch (err) {
+    console.error(t('components.materialDetail.logErrorAccessories'), err)
+    toast.error(t('components.materialDetail.errAccessoriesLoad'))
+  } finally {
+    relatedAccessoriesLoading.value = false
+  }
+}
+
+function openAddAccessoryModal() {
+  addAccessorySearch.value = ''
+  addAccessorySelected.value = null
+  addAccessoryError.value = ''
+  showAddAccessoryModal.value = true
+}
+
+function closeAddAccessoryModal() {
+  showAddAccessoryModal.value = false
+}
+
+async function accessoryMaterialFetcher(query: string) {
+  const fetcher = createBasicMaterialLookupFetcher(() => props.departmentId)
+  const items = await fetcher(query)
+  const linkedIds = new Set(relatedAccessoriesList.value.map((a) => a.accessory_material.id))
+  return items
+    .filter((m) => m.id !== props.materialId)
+    .map((m) => (linkedIds.has(m.id) ? { ...m, _alreadyAccessory: true } : m))
+}
+
+function accessoryLookupLabel(item: Record<string, unknown>) {
+  const name = String(item?.name ?? '')
+  if (item?._alreadyAccessory) {
+    return `${name} (${t('components.materialDetail.badgeAlreadyAccessory')})`
+  }
+  return name
+}
+
+function handleAccessorySelect(item: Record<string, unknown>) {
+  if (item?._alreadyAccessory) return
+  const { _alreadyAccessory: _a, ...rest } = item as Record<string, unknown>
+  void _a
+  addAccessorySelected.value = rest as unknown as Material
+}
+
+function clearAddAccessorySelection() {
+  addAccessorySelected.value = null
+  addAccessorySearch.value = ''
+}
+
+async function submitAddAccessory() {
+  if (!addAccessorySelected.value) return
+  addAccessorySubmitting.value = true
+  addAccessoryError.value = ''
+  try {
+    await addRelatedAccessory(props.materialId, {
+      accessory_material_id: addAccessorySelected.value.id,
+    })
+    toast.success(t('components.materialDetail.toastAccessoryAdded'))
+    showAddAccessoryModal.value = false
+    await loadRelatedAccessories()
+  } catch (e: unknown) {
+    const ax = e as { response?: { data?: { error?: string } } }
+    addAccessoryError.value = ax.response?.data?.error || t('components.materialDetail.errAccessoryAdd')
+  } finally {
+    addAccessorySubmitting.value = false
+  }
+}
+
+async function confirmDeleteAccessory(acc: RelatedAccessory) {
+  const ok = await confirmDialog({
+    title: t('components.materialDetail.accessoryRemoveTitle'),
+    message: t('components.materialDetail.accessoryRemoveMessage', { name: acc.accessory_material.name }),
+    confirmText: t('components.materialDetail.accessoryRemoveConfirm'),
+    cancelText: t('common.cancel'),
+    variant: 'danger',
+  })
+  if (!ok) return
+  deletingAccessoryId.value = acc.id
+  try {
+    await deleteRelatedAccessory(props.materialId, acc.id)
+    toast.success(t('components.materialDetail.toastAccessoryRemoved'))
+    await loadRelatedAccessories()
+  } catch (e: unknown) {
+    const ax = e as { response?: { data?: { error?: string } } }
+    toast.error(ax.response?.data?.error || t('components.materialDetail.errAccessoryRemove'))
+  } finally {
+    deletingAccessoryId.value = null
   }
 }
 
@@ -3578,6 +4226,7 @@ async function openEditCompositionModal(comp: ComboComponent) {
   editCompositionQty.value = comp.qty
   editCompositionRole.value = comp.component_role || ''
   editCompositionOptional.value = comp.is_optional
+  editCompositionSource.value = comp.component_source ?? 'stock'
   editCompositionMode.value = comp.assignment_mode as 'fixed' | 'assigned' | 'on_issue' | 'bulk'
   editCompositionBatchId.value = comp.component_batch?.id || ''
   editCompositionError.value = ''
@@ -3629,12 +4278,14 @@ async function submitEditComposition() {
   editCompositionError.value = ''
   try {
     const roleTrimmed = editCompositionRole.value.trim()
+    const editOptional = isVirtualComboView.value && editCompositionOptional.value
     const payload: UpdateComboComponentRequest = {
-      qty: editCompositionOptional.value
+      qty: editOptional
         ? Math.max(0, Math.floor(Number(editCompositionQty.value) || 0))
         : Math.max(1, editCompositionQty.value || 1),
       component_role: roleTrimmed === '' ? null : roleTrimmed,
-      is_optional: editCompositionOptional.value,
+      is_optional: editOptional,
+      component_source: isVirtualComboView.value ? editCompositionSource.value : 'stock',
       assignment_mode: editCompositionMode.value,
     }
     if (editCompositionBatches.value.length > 0) {
@@ -3745,8 +4396,36 @@ watch(
   },
 )
 
-async function loadMaterial(opts?: { preserveComboComponents?: boolean }) {
-  isLoading.value = true
+async function uploadMaterialPhotoFile(file: File) {
+  if (!material.value.id) {
+    throw new Error(t('components.materialDetail.uploadPhotoError'))
+  }
+  return uploadMaterialPhoto(material.value.id, file)
+}
+
+async function importMaterialPhotoFromUrlFn(url: string) {
+  if (!material.value.id) {
+    throw new Error(t('components.materialDetail.uploadPhotoError'))
+  }
+  return importMaterialPhotoFromUrl(material.value.id, url)
+}
+
+function onMaterialPhotoUploaded(result: unknown) {
+  const data = result as { photos: Material['photos']; image_url: string | null }
+  material.value = {
+    ...material.value,
+    photos: data.photos,
+    image_url: data.image_url,
+  }
+  toast.success(t('media.uploadSuccess'))
+}
+
+function onMaterialPhotoError(message: string) {
+  toast.error(message || t('media.uploadError'))
+}
+
+async function loadMaterial(opts?: { preserveComboComponents?: boolean; silent?: boolean }) {
+  if (!opts?.silent) isLoading.value = true
   try {
     const data = await getMaterial(props.materialId)
     material.value = data
@@ -3758,17 +4437,24 @@ async function loadMaterial(opts?: { preserveComboComponents?: boolean }) {
         comboComponentsList.value = []
       }
     }
+    if (data.material_type === 'virtual_combo') {
+      comboOptionsList.value = data.combo_options ?? []
+      comboOptionGroupsList.value = data.combo_option_groups ?? []
+    } else {
+      comboOptionsList.value = []
+      comboOptionGroupsList.value = []
+    }
+
+    if (opts?.silent) {
+      updateMaterialDetailTabLabel(data)
+      return
+    }
 
     populateFormData(data)
     originalFormData = JSON.stringify(formData)
+    syncSavedFormBaselines()
 
-    detailTabsStore.addOrUpdateTab({
-      id: props.materialId,
-      type: 'material',
-      label: data.name || t('components.materialDetail.tabFallbackMaterialName', { id: props.materialId }),
-      departmentId: props.departmentId,
-      path: `/${props.departmentId}/materials/${props.materialId}`,
-    })
+    updateMaterialDetailTabLabel(data)
     await loadMaterialStorageLocations()
     void nextTick(() => {
       if (
@@ -3780,9 +4466,9 @@ async function loadMaterial(opts?: { preserveComboComponents?: boolean }) {
     })
   } catch (err) {
     console.error(t('components.materialDetail.logErrorLoadMaterial'), err)
-    materialStorageLocations.value = null
+    if (!opts?.silent) materialStorageLocations.value = null
   } finally {
-    isLoading.value = false
+    if (!opts?.silent) isLoading.value = false
   }
 }
 
@@ -3897,19 +4583,171 @@ function populateFormData(m: Material) {
   formData.pack_size_length = normalizeMaterialMetricInput(m.pack_size_length, 'cm') ?? ''
   formData.pack_size_width = normalizeMaterialMetricInput(m.pack_size_width, 'cm') ?? ''
   formData.pack_size_height = normalizeMaterialMetricInput(m.pack_size_height, 'cm') ?? ''
-  formData.reservation_mode = m.reservation_mode || ''
   formData.is_container = m.is_container ?? false
   formData.is_js_material = m.is_js_material || false
   formData.external_source = m.external_source || ''
-  const parsePriceNum = (v: string | null | undefined) => {
-    if (v == null || v === '') return null
-    const n = Number(v)
-    return Number.isFinite(n) ? n : null
-  }
-  formData.sale_price = parsePriceNum(m.sale_price)
-  formData.reference_purchase_unit_chf = parsePriceNum(m.reference_purchase_unit_chf)
+  formData.sale_price = parseMaterialPriceNum(m.sale_price)
+  formData.reference_purchase_unit_chf = parseMaterialPriceNum(m.reference_purchase_unit_chf)
   formData.min_stock = m.min_stock ?? null
-  formData.pack_sale_price_chf = parsePriceNum(m.pack_sale_price_chf)
+  formData.pack_sale_price_chf = parseMaterialPriceNum(m.pack_sale_price_chf)
+}
+
+function parseMaterialPriceNum(v: string | null | undefined): number | null {
+  if (v == null || v === '') return null
+  const n = Number(v)
+  return Number.isFinite(n) ? n : null
+}
+
+function assignFormFieldFromMaterial(field: MaterialFormField, m: Material) {
+  switch (field) {
+    case 'name':
+      formData.name = m.name || ''
+      break
+    case 'description':
+      formData.description = m.description || ''
+      break
+    case 'barcode_tag':
+      formData.barcode_tag = m.barcode_tag || ''
+      break
+    case 'category_id':
+      formData.category_id = m.category?.id || ''
+      break
+    case 'storage_address_id':
+      formData.storage_address_id = m.storage_address?.id || ''
+      break
+    case 'manufacturer':
+      formData.manufacturer = m.manufacturer || ''
+      break
+    case 'model':
+      formData.model = m.model || ''
+      break
+    case 'ean':
+      formData.ean = m.ean || ''
+      break
+    case 'weight':
+      formData.weight = normalizeMaterialMetricInput(m.weight, 'kg') ?? ''
+      break
+    case 'color':
+      formData.color = m.color || ''
+      break
+    case 'size_length':
+      formData.size_length = normalizeMaterialMetricInput(m.size_length, 'cm') ?? ''
+      break
+    case 'size_width':
+      formData.size_width = normalizeMaterialMetricInput(m.size_width, 'cm') ?? ''
+      break
+    case 'size_height':
+      formData.size_height = normalizeMaterialMetricInput(m.size_height, 'cm') ?? ''
+      break
+    case 'warranty_until':
+      formData.warranty_until = m.warranty_until || ''
+      break
+    case 'rental_price_day':
+      formData.rental_price_day = m.rental_price_day || ''
+      break
+    case 'rental_price_week':
+      formData.rental_price_week = m.rental_price_week || ''
+      break
+    case 'rental_price_month':
+      formData.rental_price_month = m.rental_price_month || ''
+      break
+    case 'rental_deposit':
+      formData.rental_deposit = m.rental_deposit || ''
+      break
+    case 'rental_lead_days':
+      formData.rental_lead_days = m.rental_lead_days || null
+      break
+    case 'rental_max_days':
+      formData.rental_max_days = m.rental_max_days || null
+      break
+    case 'rental_external_allowed':
+      formData.rental_external_allowed = m.rental_external_allowed || false
+      break
+    case 'rental_scope':
+      formData.rental_scope = m.rental_scope || ''
+      break
+    case 'rental_requires_approval':
+      formData.rental_requires_approval = m.rental_requires_approval || false
+      break
+    case 'rental_notes':
+      formData.rental_notes = m.rental_notes || ''
+      break
+    case 'rental_calc_params':
+      formData.rental_calc_params = m.rental_calc_params ? { ...m.rental_calc_params } : null
+      break
+    case 'pack_size':
+      formData.pack_size = m.pack_size || null
+      break
+    case 'pack_unit':
+      formData.pack_unit = m.pack_unit || ''
+      break
+    case 'pack_weight':
+      formData.pack_weight = normalizeMaterialMetricInput(m.pack_weight, 'kg') ?? ''
+      break
+    case 'pack_size_length':
+      formData.pack_size_length = normalizeMaterialMetricInput(m.pack_size_length, 'cm') ?? ''
+      break
+    case 'pack_size_width':
+      formData.pack_size_width = normalizeMaterialMetricInput(m.pack_size_width, 'cm') ?? ''
+      break
+    case 'pack_size_height':
+      formData.pack_size_height = normalizeMaterialMetricInput(m.pack_size_height, 'cm') ?? ''
+      break
+    case 'is_container':
+      formData.is_container = m.is_container ?? false
+      break
+    case 'is_js_material':
+      formData.is_js_material = m.is_js_material || false
+      break
+    case 'external_source':
+      formData.external_source = m.external_source || ''
+      break
+    case 'sale_price':
+      formData.sale_price = parseMaterialPriceNum(m.sale_price)
+      break
+    case 'reference_purchase_unit_chf':
+      formData.reference_purchase_unit_chf = parseMaterialPriceNum(m.reference_purchase_unit_chf)
+      break
+    case 'min_stock':
+      formData.min_stock = m.min_stock ?? null
+      break
+    case 'pack_sale_price_chf':
+      formData.pack_sale_price_chf = parseMaterialPriceNum(m.pack_sale_price_chf)
+      break
+  }
+}
+
+function patchOriginalFormField(field: MaterialFormField) {
+  const parsed = JSON.parse(originalFormData || '{}') as Record<string, unknown>
+  parsed[field] = formData[field]
+  originalFormData = JSON.stringify(parsed)
+}
+
+function updateMaterialDetailTabLabel(m: Material) {
+  detailTabsStore.addOrUpdateTab({
+    id: props.materialId,
+    type: 'material',
+    label: m.name || t('components.materialDetail.tabFallbackMaterialName', { id: props.materialId }),
+    departmentId: props.departmentId,
+    path: `/${props.departmentId}/materials/${props.materialId}`,
+  })
+}
+
+function applyMaterialSoftUpdate(updated: Material, touchedField?: MaterialFormField) {
+  material.value = updated
+  if (updated.batches) batches.value = updated.batches
+  updateMaterialDetailTabLabel(updated)
+
+  if (touchedField) {
+    assignFormFieldFromMaterial(touchedField, updated)
+    syncSavedFormBaselineFor(touchedField)
+    patchOriginalFormField(touchedField)
+    return
+  }
+
+  populateFormData(updated)
+  originalFormData = JSON.stringify(formData)
+  syncSavedFormBaselines()
 }
 
 function getCategoryPath(): string {
@@ -3957,13 +4795,6 @@ function pushReadOnlyField(
   fields.push({ label, value: format ? format(value) : String(value) })
 }
 
-function formatReservationModeLabel(mode: string): string {
-  if (mode === 'complete_only') return t('components.materialDetail.reservationComplete')
-  if (mode === 'individual') return t('components.materialDetail.reservationIndividual')
-  if (mode === 'flexible') return t('components.materialDetail.reservationFlexible')
-  return mode
-}
-
 const userReadOnlySections = computed((): ReadOnlySection[] => {
   const m = material.value
   const sections: ReadOnlySection[] = []
@@ -3972,10 +4803,10 @@ const userReadOnlySections = computed((): ReadOnlySection[] => {
   pushReadOnlyField(materialFields, t('components.materialDetail.labelNameDb'), m?.name)
   pushReadOnlyField(materialFields, t('components.materialDetail.labelCode'), m?.barcode_tag)
   pushReadOnlyField(materialFields, t('components.materialDetail.labelCategory'), getCategoryPath())
-  pushReadOnlyField(materialFields, t('components.materialDetail.labelManufacturer'), m?.manufacturer)
+  pushReadOnlyField(materialFields, t('common.manufacturer'), m?.manufacturer)
   pushReadOnlyField(materialFields, t('components.materialDetail.labelModel'), m?.model)
   if (materialFields.length > 0) {
-    sections.push({ title: t('components.materialDetail.sectionMaterial'), fields: materialFields })
+    sections.push({ title: t('common.material'), fields: materialFields })
   }
 
   const propertyFields: ReadOnlyField[] = []
@@ -3987,13 +4818,6 @@ const userReadOnlySections = computed((): ReadOnlySection[] => {
       t('components.materialDetail.sourceJs')
     )
     pushReadOnlyField(propertyFields, t('components.materialDetail.labelExternalSource'), m?.external_source)
-  }
-  if (m?.reservation_mode) {
-    pushReadOnlyField(
-      propertyFields,
-      t('components.materialDetail.labelReservationMode'),
-      formatReservationModeLabel(String(m.reservation_mode))
-    )
   }
   if (propertyFields.length > 0) {
     sections.push({ title: t('components.materialDetail.sectionProperties'), fields: propertyFields })
@@ -4418,6 +5242,7 @@ async function loadContainerEditorForSelectedBatch() {
     containerEditorForm.status = batch.status || 'active'
     containerEditorForm.notes = batch.notes || ''
     containerEditorOriginal.value = JSON.stringify(containerEditorForm)
+    syncContainerEditorBaselines()
   } catch (err) {
     console.error(t('components.materialDetail.logErrorLoadContainerEditor'), err)
   } finally {
@@ -4437,6 +5262,7 @@ async function saveContainerEditor() {
       notes: containerEditorForm.notes || null,
     })
     containerEditorOriginal.value = JSON.stringify(containerEditorForm)
+    syncContainerEditorBaselines()
     await Promise.all([loadContainerBatches(), loadContainerContentOverview()])
     if (containerEditorMaterialId.value === props.materialId) {
       await loadMaterial()
@@ -4588,25 +5414,19 @@ function closeAddToContainerModal() {
 function openQrActionModalForBatch(batch: any) {
   qrActionMode.value = 'batch'
   qrActionEntityId.value = String(batch?.id || '')
-  const serial = String(batch?.serial_number || '').trim()
-  const label = String(batch?.label || '').trim()
-  qrActionLabel.value =
-    serial ||
-    label ||
-    t('components.materialDetail.labelSerialFallback', { suffix: String(batch?.id || '').slice(-6) })
+  qrActionLabel.value = batchPrintLine(batch)
   qrActionCode.value = String(batch?.public_code || '')
   qrActionUrl.value = String(batch?.public_url || '')
   showQrActionModal.value = true
 }
 
-function batchQrRowLabel(batch: any): string {
+/** Kontextabhängige Druckzeile unter dem QR: S/N bei Seriennummer, sonst Charge (Label oder ID-Endung). */
+function batchPrintLine(batch: any): string {
   const serial = String(batch?.serial_number || '').trim()
+  if (serial) return t('components.materialDetail.qrPrintLineSerial', { value: serial })
   const label = String(batch?.label || '').trim()
-  if (serial) return serial
-  if (label) return label
-  const acquired = batch?.acquired_on ? formatDate(batch.acquired_on) : ''
-  if (acquired) return acquired
-  return t('components.materialDetail.labelSerialFallback', {
+  if (label) return t('components.materialDetail.qrPrintLineBatch', { value: label })
+  return t('components.materialDetail.qrPrintLineBatchFallback', {
     suffix: String(batch?.id || '').slice(-6),
   })
 }
@@ -4620,7 +5440,7 @@ function openStockTabWithQrPanel() {
 function prepareQrActionAll() {
   qrActionMode.value = 'all'
   qrActionEntityId.value = ''
-  qrActionLabel.value = material.value?.name || t('components.materialDetail.fallbackMaterialDisplayName')
+  qrActionLabel.value = material.value?.name || t('common.material')
   qrActionCode.value = ''
   qrActionUrl.value = ''
 }
@@ -4645,6 +5465,8 @@ async function handleQrAddToPrintCart() {
     return
   }
 
+  const materialName = material.value?.name || t('components.materialDetail.fallbackMaterialDisplayName')
+
   if (qrActionMode.value === 'all') {
     const payloads: Array<{
       department_id: string
@@ -4658,16 +5480,11 @@ async function handleQrAddToPrintCart() {
     for (const batch of batchesWithPrintableQr.value) {
       const url = String(batch?.public_url || '').trim()
       if (!isPrintableBatchPublicUrl(url)) continue
-      const serial = String(batch?.serial_number || '').trim()
-      const label = String(batch?.label || '').trim()
       payloads.push({
         department_id: props.departmentId,
         entity_type: 'batch',
         entity_id: String(batch?.id || ''),
-        label:
-          serial ||
-          label ||
-          t('components.materialDetail.labelSerialFallback', { suffix: String(batch?.id || '').slice(-6) }),
+        label: t('components.materialDetail.qrCartLabel', { material: materialName, line: batchPrintLine(batch) }),
         public_code: String(batch?.public_code || '') || null,
         public_url: url,
       })
@@ -4705,7 +5522,7 @@ async function handleQrAddToPrintCart() {
       department_id: props.departmentId,
       entity_type: 'batch',
       entity_id: entityId,
-      label: qrActionLabel.value || 'QR',
+      label: t('components.materialDetail.qrCartLabel', { material: materialName, line: qrActionLabel.value || 'QR' }),
       public_code: qrActionCode.value || null,
       public_url: url,
     })
@@ -4727,23 +5544,18 @@ function escapeHtml(raw: string): string {
     .replace(/'/g, '&#039;')
 }
 
-async function buildPrintRowsForAllQrs(): Promise<Array<{ label: string; code: string; qrDataUrl: string }>> {
-  const rows: Array<{ label: string; code: string; qrDataUrl: string }> = []
+async function buildPrintRowsForAllQrs(): Promise<Array<{ line: string; code: string; qrDataUrl: string }>> {
+  const rows: Array<{ line: string; code: string; qrDataUrl: string }> = []
   const tasks: Array<Promise<void>> = []
 
   for (const batch of batchesWithPrintableQr.value) {
     const url = String(batch?.public_url || '').trim()
     if (!isPrintableBatchPublicUrl(url)) continue
-    const serial = String(batch?.serial_number || '').trim()
-    const label = String(batch?.label || '').trim()
-    const title =
-      serial ||
-      label ||
-      t('components.materialDetail.labelSerialFallback', { suffix: String(batch?.id || '').slice(-6) })
+    const line = batchPrintLine(batch)
     const code = String(batch?.public_code || '').trim()
     tasks.push((async () => {
       const qrDataUrl = await QRCode.toDataURL(url, { width: 220, margin: 1 })
-      rows.push({ label: title, code, qrDataUrl })
+      rows.push({ line, code, qrDataUrl })
     })())
   }
 
@@ -4752,6 +5564,7 @@ async function buildPrintRowsForAllQrs(): Promise<Array<{ label: string; code: s
 }
 
 async function handleQrPrint() {
+  const materialName = material.value?.name || t('components.materialDetail.fallbackMaterialDisplayName')
   if (qrActionMode.value === 'all') {
     const rows = await buildPrintRowsForAllQrs()
     if (rows.length === 0) {
@@ -4762,7 +5575,8 @@ async function handleQrPrint() {
       .map((row) => `
         <div class="card">
           <img src="${row.qrDataUrl}" alt="${escapeHtml(t('components.materialDetail.qrAlt'))}" />
-          <div class="title">${escapeHtml(row.label)}</div>
+          <div class="material">${escapeHtml(materialName)}</div>
+          <div class="title">${escapeHtml(row.line)}</div>
           <div class="code">${escapeHtml(row.code || '-')}</div>
         </div>
       `)
@@ -4773,7 +5587,7 @@ async function handleQrPrint() {
   <meta charset="utf-8" />
   <title>${escapeHtml(
       t('components.materialDetail.qrPrintAllDocTitle', {
-        name: material.value?.name || t('components.materialDetail.fallbackMaterialDisplayName'),
+        name: material.value?.name || t('common.material'),
       })
     )}</title>
   <style>
@@ -4782,14 +5596,15 @@ async function handleQrPrint() {
     .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px; }
     .card { border: 1px solid #d1d5db; border-radius: 10px; padding: 10px; text-align: center; page-break-inside: avoid; }
     img { width: 160px; height: 160px; object-fit: contain; }
-    .title { margin-top: 8px; font-weight: 700; font-size: 13px; }
-    .code { margin-top: 4px; font-family: monospace; color: #4b5563; font-size: 12px; }
+    .material { margin-top: 8px; font-weight: 700; font-size: 14px; }
+    .title { margin-top: 3px; font-size: 12px; color: #374151; }
+    .code { margin-top: 3px; font-family: monospace; color: #4b5563; font-size: 11px; }
   </style>
 </head>
 <body>
   <h1>${escapeHtml(
       t('components.materialDetail.qrPrintAllDocHeading', {
-        name: material.value?.name || t('components.materialDetail.fallbackMaterialDisplayName'),
+        name: material.value?.name || t('common.material'),
       })
     )}</h1>
   <div class="grid">${cards}</div>
@@ -4814,13 +5629,15 @@ async function handleQrPrint() {
     body { font-family: Arial, sans-serif; margin: 20px; }
     .card { max-width: 360px; border: 1px solid #d1d5db; border-radius: 10px; padding: 14px; text-align: center; }
     img { width: 240px; height: 240px; object-fit: contain; }
-    .title { margin-top: 10px; font-weight: 700; font-size: 14px; }
+    .material { margin-top: 10px; font-weight: 700; font-size: 15px; }
+    .title { margin-top: 4px; font-size: 13px; color: #374151; }
     .code { margin-top: 4px; font-family: monospace; color: #4b5563; font-size: 12px; }
   </style>
 </head>
 <body>
   <div class="card">
     <img src="${qrDataUrl}" alt="${escapeHtml(t('components.materialDetail.qrAlt'))}" />
+    <div class="material">${escapeHtml(materialName)}</div>
     <div class="title">${escapeHtml(qrActionLabel.value)}</div>
     <div class="code">${escapeHtml(qrActionCode.value || '-')}</div>
   </div>
@@ -4906,7 +5723,6 @@ async function save() {
       pack_size_length: normalizeMaterialMetricInput(formData.pack_size_length, 'cm'),
       pack_size_width: normalizeMaterialMetricInput(formData.pack_size_width, 'cm'),
       pack_size_height: normalizeMaterialMetricInput(formData.pack_size_height, 'cm'),
-      reservation_mode: formData.reservation_mode || null,
     }
     if (material.value.tracking_type === 'bulk') {
       payload.is_container = formData.is_container
@@ -4932,6 +5748,7 @@ async function save() {
     const updated = await updateMaterial(props.materialId, payload)
     
     originalFormData = JSON.stringify(formData)
+    syncSavedFormBaselines()
     void nextTick(() => {
       detailTabsStore.setTabDirty(props.materialId, 'material', props.departmentId, false)
     })
@@ -5113,7 +5930,7 @@ function closeBatchModal() {
 }
 
 function handleClose() {
-  // Keine Bestätigung: Tab bleibt offen, Änderungen bleiben erhalten (keep-alive)
+  // Zurück zur Liste: Tab im Header bleibt offen (nur × im Header entfernt Chip)
   emit('close')
 }
 
@@ -5324,6 +6141,7 @@ watch(activeTab, (newTab) => {
   }
   if (newTab === 'composition') {
     void loadComboComponentsForTab()
+    void loadRelatedAccessories()
   }
   if (newTab === 'stock' || newTab === 'serials' || newTab === 'stored-in' || newTab === 'container-content') {
     ensureContainerBatchesLoaded()
@@ -5342,7 +6160,7 @@ watch(activeTab, (newTab) => {
   }
 }, { immediate: true })
 
-watch(hasChanges, (dirty) => {
+watch(hasManualUnsavedChanges, (dirty) => {
   detailTabsStore.setTabDirty(props.materialId, 'material', props.departmentId, dirty)
 }, { immediate: true })
 
@@ -5426,6 +6244,25 @@ onMounted(() => {
 
 <style scoped src="@/styles/material-detail-view.css"></style>
 <style scoped>
+.composition-configurator-badge {
+  display: inline-block;
+  margin-left: 0.5rem;
+  font-size: 0.68rem;
+  font-weight: 600;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  background: #ede9fe;
+  color: #6d28d9;
+  vertical-align: middle;
+}
+.composition-options-card {
+  margin-top: 0.75rem;
+}
+.btn-outline-small.is-active {
+  background: #ede9fe;
+  border-color: #c4b5fd;
+  color: #6d28d9;
+}
 .workshop-tab-actions {
   display: flex;
   flex-wrap: wrap;

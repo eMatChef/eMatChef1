@@ -1,3 +1,6 @@
+import { isAppOrigin } from '@/utils/appLoginUrl'
+import { isDevicesHost } from '@/utils/devicesHost'
+
 /** Pfade, auf denen 401 keinen Login-Redirect auslösen (Formular zeigt Fehler selbst). */
 export function isAuthFormPath(pathname: string): boolean {
   return (
@@ -36,14 +39,29 @@ export function isPublicAnonymousPath(pathname: string): boolean {
   return false
 }
 
+/** Marketing-Startseite & öffentliche Inhalte auf der Hauptdomain (ematchef.ch). */
+export function isPublicMarketingPath(pathname: string): boolean {
+  const path = (pathname || '').replace(/\/$/, '') || '/'
+  if (path === '/') return true
+  const prefixes = ['/blog', '/faq', '/tos', '/impressum', '/datenschutz'] as const
+  return prefixes.some((p) => path === p || path.startsWith(`${p}/`))
+}
+
 /** Kein Login-Redirect bei Session-Ablauf (Auth-Formulare + öffentliche QR-Seiten). */
 export function shouldSkipLoginRedirect(pathname: string): boolean {
-  return isAuthFormPath(pathname) || isPublicAnonymousPath(pathname)
+  if (isAuthFormPath(pathname) || isPublicAnonymousPath(pathname)) {
+    return true
+  }
+  // Hauptdomain: nach Logout auf Landing/Marketing nicht nach /login?redirect=/ schicken
+  if (!isAppOrigin() && !isDevicesHost() && isPublicMarketingPath(pathname)) {
+    return true
+  }
+  return false
 }
 
 export function loginRedirectUrl(currentFullPath?: string): string {
   const path = (currentFullPath || '').trim()
-  if (!path || path === '/login' || path.startsWith('/login?')) {
+  if (!path || path === '/' || path === '/login' || path.startsWith('/login?')) {
     return '/login'
   }
   return `/login?redirect=${encodeURIComponent(path)}`

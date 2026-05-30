@@ -1,0 +1,164 @@
+/**
+ * Einheitliche Listen-Suchfelder: Lupe links, Label auf dem Rahmen (outlined),
+ * grüne Akzentfarbe bei Hover/Fokus.
+ */
+
+.search-field {
+  position: relative;
+  width: 100%;
+  min-width: 0;
+  padding-top: 10px;
+}
+
+.search-field__frame {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-height: 48px;
+  border: 1px solid var(--color-border, #e5e7eb);
+  border-radius: 10px;
+  background: #fff;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.search-field:hover .search-field__icon,
+.search-field.is-focused .search-field__icon {
+  color: var(--color-primary, #10b981);
+}
+
+.search-field.is-focused .search-field__frame {
+  border-color: var(--color-primary-light, #10b981);
+  box-shadow: 0 0 0 3px var(--color-primary-ring, rgba(16, 185, 129, 0.1));
+}
+
+.search-field.is-focused .search-field__label {
+  color: var(--color-primary, #059669);
+}
+
+.search-field__icon {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #9ca3af;
+  pointer-events: none;
+  transition: color 0.15s ease;
+}
+
+.search-field__icon .icon,
+.search-field__icon svg {
+  width: 18px;
+  height: 18px;
+}
+
+.search-field__label {
+  position: absolute;
+  left: 40px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 2;
+  margin: 0;
+  padding: 0 4px;
+  max-width: calc(100% - 88px);
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.2;
+  color: #9ca3af;
+  background: transparent;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+  transition:
+    top 0.15s ease,
+    left 0.15s ease,
+    transform 0.15s ease,
+    font-size 0.15s ease,
+    font-weight 0.15s ease,
+    color 0.15s ease,
+    background 0.15s ease;
+}
+
+.search-field.is-focused .search-field__label,
+.search-field.has-value .search-field__label {
+  top: 0;
+  left: 12px;
+  transform: translateY(-50%);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-primary-dark, #047857);
+  background: #fff;
+}
+
+.search-field__input {
+  flex: 1;
+  width: 100%;
+  min-width: 0;
+  min-height: 48px;
+  margin: 0;
+  padding: 16px 36px 10px 40px;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  font-size: 14px;
+  line-height: 1.4;
+  color: var(--color-text, #111827);
+  outline: none;
+  box-sizing: border-box;
+}
+
+.search-field.has-clear .search-field__input {
+  padding-right: 40px;
+}
+
+.search-field__clear {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  border: none;
+  border-radius: 4px;
+  background: none;
+  color: #9ca3af;
+  cursor: pointer;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+
+.search-field__clear:hover {
+  color: #374151;
+  background: #f3f4f6;
+}
+
+.search-field__clear .icon,
+.search-field__clear svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* Wrapper in Filter-Leisten */
+.search-box .search-field {
+  width: 100%;
+}
+
+.search-bar .search-box,
+.controls .controls-search {
+  flex: 1;
+  min-width: 200px;
+  max-width: 400px;
+}
+
+.controls .controls-search.search-field {
+  max-width: 400px;
+}

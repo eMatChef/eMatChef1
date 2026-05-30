@@ -69,6 +69,13 @@ class MaterialComboComponent
     #[ORM\Column(name: 'is_optional', type: 'boolean', options: ['default' => false])]
     private bool $isOptional = false;
 
+    /**
+     * Komponenten-Quelle: 'stock' (aus Lager, reserviert, zählt im Flaschenhals)
+     * vs. 'self_provided' (Leiter bringt selbst, z. B. Mast – nicht reserviert, nur Checkliste).
+     */
+    #[ORM\Column(name: 'component_source', type: 'string', length: 20, options: ['default' => 'stock'])]
+    private string $componentSource = 'stock';
+
     #[ORM\Column(name: 'sort_order', type: 'integer', options: ['default' => 0])]
     private int $sortOrder = 0;
 
@@ -212,6 +219,23 @@ class MaterialComboComponent
     {
         $this->isOptional = $isOptional;
         return $this;
+    }
+
+    public function getComponentSource(): string
+    {
+        return $this->componentSource;
+    }
+
+    public function setComponentSource(string $componentSource): self
+    {
+        $this->componentSource = $componentSource;
+        return $this;
+    }
+
+    /** Aus dem Lager reserviert (zählt im Flaschenhals)? */
+    public function isStockSourced(): bool
+    {
+        return $this->componentSource === 'stock';
     }
 
     public function getSortOrder(): int

@@ -40,7 +40,7 @@
         />
       </div>
       <button type="button" class="save-btn" :disabled="!calendarDirty || isSavingCalendar" @click="saveCalendarSettingsForDept">
-        {{ isSavingCalendar ? t('settings.addons.saving') : t('settings.addons.saveCalendar') }}
+        {{ isSavingCalendar ? t('common.saving') : t('settings.addons.saveCalendar') }}
       </button>
     </div>
   </div>

@@ -33,8 +33,47 @@ export function googleMapsAddressUrl(address: string): string {
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`
 }
 
-/** map.geo.admin.ch – center in LV95 (E,N), siehe map.geo.admin.ch Hash-Routing. */
-export function swisstopoMapUrl(lat: number, lng: number, lang = 'de'): string {
+/** map.geo.admin.ch – Zoomstufe (0–13, oft mit Dezimalstellen). */
+export type SwisstopoMapUrlOptions = {
+  lang?: string
+  /** Zoom der map.geo.admin.ch-Karte (z-Parameter). Default: 8. */
+  zoom?: number
+  /** Marker am Standort anzeigen. Default: true. */
+  showMarker?: boolean
+}
+
+/**
+ * Deep-Link zu map.geo.admin.ch (Viewer ab 2024: Query-Parameter auf der Root-URL).
+ * center = LV95 (E,N), bgLayer = Landeskarte farbig wie in der App.
+ */
+export function swisstopoMapUrl(
+  lat: number,
+  lng: number,
+  options: SwisstopoMapUrlOptions = {}
+): string {
+  const { lang = 'de', zoom = 8, showMarker = true } = options
   const { e, n } = wgs84ToLV95(lat, lng)
-  return `https://map.geo.admin.ch/#/map?lang=${encodeURIComponent(lang)}&center=${e},${n}`
+  const params = new URLSearchParams({
+    lang,
+    center: `${e},${n}`,
+    z: String(Math.round(zoom * 100) / 100),
+    bgLayer: 'ch.swisstopo.pixelkarte-farbe',
+  })
+  if (showMarker) {
+    params.set('crosshair', `marker,${e},${n}`)
+  }
+  return `https://map.geo.admin.ch/?${params.toString()}`
+}
+
+/**
+ * map.geo.admin.ch z-Parameter aus Leaflet-LV95-Zoom (EPSG:2056, ab Zoom 14).
+ * Entspricht dem Maßstab in unserer LV95-Karte (z ≈ leafletZoom − 14).
+ */
+export function geoAdminZoomFromLv95LeafletZoom(leafletZoom: number): number {
+  return Math.round((leafletZoom - 14) * 100) / 100
+}
+
+/** OpenStreetMap mit Marker (WGS84). */
+export function openStreetMapUrl(lat: number, lng: number, zoom = 17): string {
+  return `https://www.openstreetmap.org/?mlat=${lat}&mlon=${lng}#map=${zoom}/${lat}/${lng}`
 }

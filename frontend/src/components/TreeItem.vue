@@ -68,7 +68,7 @@
       <div class="tree-cell actions-cell" @dblclick.stop>
         <!-- Organisationen: Bleistift UND 3-Punkte-Menü -->
         <div v-if="item.type === 'group' && item.id.startsWith('org-')" class="actions-group">
-          <button @click="handleEdit" class="edit-button" :title="t('components.treeItem.titleEdit')">
+          <button @click="handleEdit" class="edit-button" :title="t('common.edit')">
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
               <path
                 d="M11.3333 2.00001C11.5084 1.8249 11.7163 1.68601 11.9444 1.59124C12.1726 1.49648 12.4163 1.44775 12.6625 1.44775C12.9087 1.44775 13.1524 1.49648 13.3806 1.59124C13.6087 1.68601 13.8166 1.8249 13.9917 2.00001C14.1668 2.17512 14.3057 2.38301 14.4005 2.61118C14.4952 2.83935 14.544 3.08306 14.544 3.32918C14.544 3.5753 14.4952 3.81901 14.4005 4.04718C14.3057 4.27535 14.1668 4.48324 13.9917 4.65835L5.32499 13.325L2 14L2.67499 10.675L11.3333 2.00001Z"
@@ -106,7 +106,7 @@
         </div>
         <!-- Departments: Bleistift UND 3-Punkte-Menü -->
         <div v-else-if="item.type === 'group' && item.id.startsWith('dept-')" class="actions-group">
-          <button @click="handleEdit" class="edit-button" :title="t('components.treeItem.titleEdit')">
+          <button @click="handleEdit" class="edit-button" :title="t('common.edit')">
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
               <path
                 d="M11.3333 2.00001C11.5084 1.8249 11.7163 1.68601 11.9444 1.59124C12.1726 1.49648 12.4163 1.44775 12.6625 1.44775C12.9087 1.44775 13.1524 1.49648 13.3806 1.59124C13.6087 1.68601 13.8166 1.8249 13.9917 2.00001C14.1668 2.17512 14.3057 2.38301 14.4005 2.61118C14.4952 2.83935 14.544 3.08306 14.544 3.32918C14.544 3.5753 14.4952 3.81901 14.4005 4.04718C14.3057 4.27535 14.1668 4.48324 13.9917 4.65835L5.32499 13.325L2 14L2.67499 10.675L11.3333 2.00001Z"
@@ -143,7 +143,7 @@
           </div>
         </div>
         <!-- Bearbeiten-Button für User -->
-        <button v-else @click="handleEdit" class="edit-button" :title="t('components.treeItem.titleEdit')">
+        <button v-else @click="handleEdit" class="edit-button" :title="t('common.edit')">
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
             <path
               d="M11.3333 2.00001C11.5084 1.8249 11.7163 1.68601 11.9444 1.59124C12.1726 1.49648 12.4163 1.44775 12.6625 1.44775C12.9087 1.44775 13.1524 1.49648 13.3806 1.59124C13.6087 1.68601 13.8166 1.8249 13.9917 2.00001C14.1668 2.17512 14.3057 2.38301 14.4005 2.61118C14.4952 2.83935 14.544 3.08306 14.544 3.32918C14.544 3.5753 14.4952 3.81901 14.4005 4.04718C14.3057 4.27535 14.1668 4.48324 13.9917 4.65835L5.32499 13.325L2 14L2.67499 10.675L11.3333 2.00001Z"

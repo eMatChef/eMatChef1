@@ -6,6 +6,7 @@ import { useConfirm } from '@/composables/useConfirm'
 import { useConfirmStore } from '@/stores/confirm'
 import { useToastStore } from '@/stores/toast'
 import { getPublicRuntimeConfig } from '@/api/publicRuntimeConfig'
+import { getPostLogoutPath } from '@/utils/appLoginUrl'
 
 const LAST_ACTIVITY_KEY = 'session_last_activity_at'
 const DEFAULT_ACTIVITY_EVENTS = ['click', 'keydown', 'scroll'] as const
@@ -91,7 +92,7 @@ export function useAutoLogout() {
     clearAllTimers()
     confirmStore.cancel() // Schließt ggf. offene Session-Warnung
     await authStore.logout()
-    router.push('/login')
+    router.push(getPostLogoutPath())
   }
 
   /** Abmeldung wegen Inaktivität (Toast + Redirect) */
@@ -104,7 +105,7 @@ export function useAutoLogout() {
       5000
     )
     await authStore.logout()
-    router.push('/login')
+    router.push(getPostLogoutPath())
   }
 
   /**

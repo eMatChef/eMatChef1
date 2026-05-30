@@ -9,7 +9,7 @@
     >
       <header class="modal-header">
         <h3>{{ title }}</h3>
-        <button type="button" class="modal-close" :aria-label="t('notificationsCenter.composeCancel')" @click="emit('close')">
+        <button type="button" class="modal-close" :aria-label="t('common.cancel')" @click="emit('close')">
           ×
         </button>
       </header>

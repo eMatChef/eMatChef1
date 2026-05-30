@@ -55,7 +55,7 @@
             </div>
             <div v-else class="form-fields">
               <div class="form-group">
-                <label>{{ t('components.damageReportWizard.materialLabel') }} <span class="required">*</span></label>
+                <label>{{ t('common.material') }} <span class="required">*</span></label>
                 <select v-model="form.materialItemId" class="form-select" required>
                   <option value="">{{ t('components.damageReportWizard.selectMaterialOption') }}</option>
                   <option v-for="pi in packItems" :key="pi.material_item_id" :value="pi.material_item_id">
@@ -76,8 +76,20 @@
                 <input v-model.number="form.quantity" type="number" min="1" class="form-input" />
               </div>
               <div class="form-group">
-                <label>{{ t('components.damageReportWizard.descriptionLabel') }}</label>
+                <label>{{ t('common.description') }}</label>
                 <textarea v-model="form.description" rows="3" class="form-input" :placeholder="t('components.damageReportWizard.descriptionPlaceholder')"></textarea>
+              </div>
+              <div class="form-group">
+                <label>{{ t('components.damageReportWizard.photosLabel') }}</label>
+                <p class="field-hint">{{ t('components.damageReportWizard.photosHint', { max: maxIssuePhotos }) }}</p>
+                <PhotoUpload
+                  v-model:files="selectedPhotos"
+                  multiple
+                  :auto-upload="false"
+                  :max-files="maxIssuePhotos"
+                  :label="t('media.upload')"
+                  @error="onPhotoUploadError"
+                />
               </div>
             </div>
           </div>
@@ -88,7 +100,7 @@
             <p class="step-hint">{{ t('components.damageReportWizard.step2NoActivityHint') }}</p>
             <div class="form-fields">
               <div class="form-group">
-                <label>{{ t('components.damageReportWizard.materialLabel') }} <span class="required">*</span></label>
+                <label>{{ t('common.material') }} <span class="required">*</span></label>
                 <div class="mat-search-wrap">
                   <div v-if="selectedMaterial" class="mat-selected">
                     <span>{{ selectedMaterial.name }}</span>
@@ -131,7 +143,7 @@
                 </select>
               </div>
               <div class="form-group">
-                <label>{{ t('components.damageReportWizard.descriptionLabel') }}</label>
+                <label>{{ t('common.description') }}</label>
                 <textarea v-model="formNoActivity.description" rows="3" class="form-input" :placeholder="t('components.damageReportWizard.descriptionNoActivityPlaceholder')"></textarea>
               </div>
             </div>
@@ -166,7 +178,10 @@ import { getActivity, type ActivityDetail } from '@/api/activities'
 import { getGroups, type Group } from '@/api/groups'
 import { getMaterials, type Material } from '@/api/materials'
 import { createWorkshopTicket } from '@/api/workshop'
+import { createActivityIssue, uploadActivityIssuePhoto } from '@/api/activities'
 import { getActivityPackContainers } from '@/api/activityContainers'
+import { MAX_ISSUE_PHOTOS } from '@/api/media'
+import PhotoUpload from '@/components/media/PhotoUpload.vue'
 
 interface ActivityOption {
   id: string
@@ -219,6 +234,8 @@ const packItems = ref<PackItem[]>([])
 const containerLabelByMaterialItemId = ref<Record<string, string>>({})
 const isLoadingPackItems = ref(false)
 const isSubmitting = ref(false)
+const selectedPhotos = ref<File[]>([])
+const maxIssuePhotos = MAX_ISSUE_PHOTOS
 
 const selectedMaterial = ref<Material | null>(null)
 const matSearchResults = ref<Material[]>([])
@@ -419,12 +436,15 @@ async function submit() {
   if (!selectedActivity.value || !form.value.materialItemId || isSubmitting.value) return
   isSubmitting.value = true
   try {
-    await apiClient.post(`/api/activities/${selectedActivity.value.id}/issues`, {
+    const issue = await createActivityIssue(selectedActivity.value.id, {
       material_item_id: form.value.materialItemId,
       type: form.value.type,
       quantity: form.value.quantity,
-      description: form.value.description || null
+      description: form.value.description || null,
     })
+    for (const file of selectedPhotos.value) {
+      await uploadActivityIssuePhoto(selectedActivity.value.id, issue.id, file)
+    }
     emit('success')
     close()
   } catch (err: any) {
@@ -432,6 +452,10 @@ async function submit() {
   } finally {
     isSubmitting.value = false
   }
+}
+
+function onPhotoUploadError(message: string) {
+  toast.error(message)
 }
 
 function close() {
@@ -448,6 +472,7 @@ function reset() {
   matSearchResults.value = []
   form.value = { materialItemId: '', type: 'damage' as const, quantity: 1, description: '' }
   formNoActivity.value = { matSearch: '', title: '', type: 'repair', description: '' }
+  selectedPhotos.value = []
 }
 
 async function applyPresetActivity(id: string) {
@@ -757,6 +782,12 @@ watch(
 textarea.form-input {
   resize: vertical;
   min-height: 80px;
+}
+
+.field-hint {
+  margin: 0 0 8px 0;
+  font-size: 0.85rem;
+  color: #6b7280;
 }
 
 .wizard-footer {

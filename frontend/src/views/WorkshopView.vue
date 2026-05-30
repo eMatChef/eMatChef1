@@ -63,13 +63,13 @@
         </button>
       </div>
 
-      <div class="toolbar-search">
+      <div class="search-box">
         <GlobalSearchInput
           mode="inline"
           :department-id="currentDepartmentId"
           default-type="reparatur"
           v-model="searchQuery"
-          :placeholder="t('workshop.searchPlaceholder')"
+          :placeholder="t('workshop.searchListPlaceholder')"
         />
       </div>
 
@@ -230,10 +230,10 @@
       <table class="workshop-table">
         <thead>
           <tr>
-            <th>{{ t('workshop.tableStatus') }}</th>
+            <th>{{ t('common.status') }}</th>
             <th>{{ t('workshop.tablePriority') }}</th>
             <th>{{ t('workshop.tableTitle') }}</th>
-            <th>{{ t('workshop.tableMaterial') }}</th>
+            <th>{{ t('common.material') }}</th>
             <th>{{ t('workshop.tableType') }}</th>
             <th>{{ t('workshop.tableAssigned') }}</th>
             <th>{{ t('workshop.tableCreated') }}</th>
@@ -335,7 +335,7 @@
         <div class="modal-body">
           <!-- Material Info -->
           <div class="modal-section">
-            <div class="modal-section-title">{{ t('workshop.sectionMaterial') }}</div>
+            <div class="modal-section-title">{{ t('common.material') }}</div>
             <div class="material-info-block">
               <div class="mat-icon-box">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -355,7 +355,7 @@
 
           <!-- Beschreibung -->
           <div v-if="selectedTicket.description" class="modal-section">
-            <div class="modal-section-title">{{ t('workshop.sectionDescription') }}</div>
+            <div class="modal-section-title">{{ t('common.description') }}</div>
             <p style="font-size: 14px; color: #374151; line-height: 1.6; margin: 0; white-space: pre-wrap;">{{ selectedTicket.description }}</p>
           </div>
 
@@ -393,6 +393,11 @@
                   <div v-if="selectedTicket.issue_report.description" class="origin-description">
                     {{ selectedTicket.issue_report.description }}
                   </div>
+                  <PhotoGallery
+                    v-if="issueReportPhotos.length"
+                    :photos="issueReportPhotos"
+                    :show-meta="false"
+                  />
                   <div class="origin-meta">
                     <span v-if="selectedTicket.issue_report.reported_by">
                       👤 {{ selectedTicket.issue_report.reported_by.name }}
@@ -406,6 +411,24 @@
             </div>
           </div>
 
+          <!-- Ticket-Fotos -->
+          <div class="modal-section">
+            <div class="modal-section-title">{{ t('workshop.sectionPhotos') }}</div>
+            <PhotoGallery
+              :photos="ticketPhotos"
+              :show-empty="true"
+              :empty-text="t('workshop.photosEmpty')"
+              :format-date="formatDateTime"
+            />
+            <PhotoUpload
+              v-if="canUploadWorkshopPhotos"
+              :upload-fn="uploadTicketPhoto"
+              :label="t('workshop.uploadPhoto')"
+              @uploaded="onTicketPhotoUploaded"
+              @error="onTicketPhotoError"
+            />
+          </div>
+
           <!-- Details Grid -->
           <div class="modal-section">
             <div class="modal-section-title">{{ t('workshop.sectionDetails') }}</div>
@@ -417,6 +440,27 @@
               <div class="detail-item">
                 <span class="detail-label">{{ t('workshop.detailAssignedTo') }}</span>
                 <span class="detail-value">{{ selectedTicket.assigned_to?.name || t('workshop.notAssigned') }}</span>
+              </div>
+              <div v-if="selectedTicket.assigned_to_supplier_company" class="detail-item">
+                <span class="detail-label">{{ t('workshop.detailAssignedSupplier') }}</span>
+                <span class="detail-value">{{ selectedTicket.assigned_to_supplier_company.name }}</span>
+              </div>
+              <div v-else class="detail-item detail-item--full">
+                <span class="detail-label">{{ t('workshop.assignSupplier') }}</span>
+                <div class="supplier-assign-row">
+                  <select v-model="assignSupplierCompanyId" class="supplier-select">
+                    <option value="">{{ t('workshop.selectSupplierCompany') }}</option>
+                    <option v-for="c in repairCompanies" :key="c.id" :value="c.id">{{ c.name }}</option>
+                  </select>
+                  <button
+                    type="button"
+                    class="btn btn-secondary btn-sm"
+                    :disabled="!assignSupplierCompanyId || isAssigningSupplier"
+                    @click="assignTicketToSupplier"
+                  >
+                    {{ t('workshop.assignSupplierAction') }}
+                  </button>
+                </div>
               </div>
               <div class="detail-item">
                 <span class="detail-label">{{ t('workshop.detailEstimatedCost') }}</span>
@@ -554,7 +598,7 @@
             class="btn-ghost"
             @click="closeSelectedTicketDetail"
           >
-            {{ t('workshop.btnClose') }}
+            {{ t('common.close') }}
           </button>
         </div>
         <div class="modal-footer" v-else-if="selectedTicket.status === 'cancelled'">
@@ -825,7 +869,7 @@
               </div>
             </div>
             <div class="form-group">
-              <label>{{ t('workshop.createDescription') }}</label>
+              <label>{{ t('common.description') }}</label>
               <textarea v-model="createForm.description" rows="3" :placeholder="t('workshop.createDescriptionPlaceholder')"></textarea>
             </div>
             <div class="form-group">
@@ -864,6 +908,7 @@ import { ref, computed, onMounted, watch, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import { useDetailTabsStore } from '@/stores/detailTabs'
 import { useToast } from '@/composables/useToast'
 import {
   getWorkshopTickets,
@@ -874,6 +919,7 @@ import {
   getWorkshopStats,
   getWorkshopTicketHistory,
   ensureWorkshopPublicCode,
+  uploadWorkshopTicketPhoto,
   type WorkshopTicket,
   type WorkshopStats,
   type WorkshopHistoryEntry,
@@ -881,13 +927,20 @@ import {
   type TicketType,
   type TicketPriority,
 } from '@/api/workshop'
+import { listSupplierRepairCompanies } from '@/api/supplierShop'
 import { getMaterials, getMaterial, type Material } from '@/api/materials'
 import GlobalSearchInput from '@/components/common/GlobalSearchInput.vue'
+import { useListSearchQueryRoute } from '@/composables/useListSearchQueryRoute'
+import { parseSearchQuery } from '@/composables/useSearchNavigation'
 import PublicQrTag from '@/components/common/PublicQrTag.vue'
 import PublicQrActionModal from '@/components/common/PublicQrActionModal.vue'
 import { addPrintCartItem } from '@/api/tasks'
 import { printHtmlDocument } from '@/utils/printHtml'
 import { resolveWorkshopPublicUrl } from '@/utils/publicQrUrl'
+import { filterMediaPhotos, normalizeMediaPhotos } from '@/api/media'
+import type { MediaPhoto } from '@/api/media'
+import PhotoGallery from '@/components/media/PhotoGallery.vue'
+import PhotoUpload from '@/components/media/PhotoUpload.vue'
 import QRCode from 'qrcode'
 import '@/styles/workshop-view.css'
 
@@ -895,6 +948,7 @@ const route = useRoute()
 const router = useRouter()
 const { t, locale } = useI18n()
 const authStore = useAuthStore()
+const detailTabsStore = useDetailTabsStore()
 const toast = useToast()
 const currentDepartmentId = computed(() => route.params.departmentId as string)
 
@@ -927,11 +981,24 @@ const quoteError = ref('')
 const isSubmittingQuote = ref(false)
 const isGeneratingWorkshopPublicCode = ref(false)
 const showWorkshopQrActionModal = ref(false)
-
+const repairCompanies = ref<Array<{ id: string; name: string }>>([])
+const assignSupplierCompanyId = ref('')
+const isAssigningSupplier = ref(false)
 const departmentRole = computed(() => String(authStore.currentDepartmentRole || 'u').toLowerCase())
 const canManageWorkshopQr = computed(() =>
   ['mw', 'dc', 'matwart', 'depchef'].includes(departmentRole.value)
 )
+const canUploadWorkshopPhotos = computed(() => canManageWorkshopQr.value)
+
+const ticketPhotos = computed((): MediaPhoto[] => {
+  return filterMediaPhotos(selectedTicket.value?.photos)
+})
+
+const issueReportPhotos = computed((): MediaPhoto[] => {
+  const report = selectedTicket.value?.issue_report
+  if (!report) return []
+  return normalizeMediaPhotos(report.photos, report.photo_url)
+})
 const workshopPublicUrl = computed(() =>
   resolveWorkshopPublicUrl(selectedTicket.value?.public_url, selectedTicket.value?.public_code),
 )
@@ -945,6 +1012,14 @@ const filterType = ref<TicketType | ''>('')
 const filterOriginIssueType = ref<'repair' | 'loss' | 'damage' | 'consumption' | 'manual' | ''>('')
 const filterPriority = ref<TicketPriority | ''>('')
 const quickFilter = ref<'waiting_quote' | 'missing_estimated_cost' | ''>('')
+
+useListSearchQueryRoute({
+  searchQuery,
+  route,
+  router,
+  pathIncludes: '/workshop',
+  isListView: () => true,
+})
 
 // Create Form
 const createForm = ref({
@@ -1052,12 +1127,15 @@ const filteredTickets = computed(() => {
   let result = [...tickets.value]
 
   if (searchQuery.value) {
-    const q = searchQuery.value.toLowerCase()
-    result = result.filter(t =>
-      t.title.toLowerCase().includes(q) ||
-      t.material_item.name.toLowerCase().includes(q) ||
-      (t.description && t.description.toLowerCase().includes(q))
-    )
+    const parsed = parseSearchQuery(searchQuery.value, 'reparatur')
+    const q = (parsed?.term ?? searchQuery.value).toLowerCase()
+    if (q) {
+      result = result.filter(t =>
+        t.title.toLowerCase().includes(q) ||
+        t.material_item.name.toLowerCase().includes(q) ||
+        (t.description && t.description.toLowerCase().includes(q))
+      )
+    }
   }
 
   if (filterType.value) {
@@ -1235,7 +1313,23 @@ async function handleWorkshopQrPrint() {
   closeWorkshopQrActionModal()
 }
 
+function registerWorkshopDetailTab(ticket: WorkshopTicket) {
+  const dept = currentDepartmentId.value
+  if (!dept || !ticket.id) return
+  detailTabsStore.addOrUpdateTab({
+    id: ticket.id,
+    type: 'workshop',
+    label: ticket.title?.trim() || t('workshop.fallbackTabLabel', { id: ticket.id }),
+    departmentId: dept,
+    path: `/${dept}/workshop?ticket=${encodeURIComponent(ticket.id)}`,
+  })
+}
+
 async function openTicketDetail(ticket: WorkshopTicket) {
+  registerWorkshopDetailTab(ticket)
+  if (route.query.ticket !== ticket.id) {
+    router.replace({ path: route.path, query: { ...route.query, ticket: ticket.id } })
+  }
   try {
     // Lade Ticket-Details und History parallel
     selectedTicket.value = ticket // Sofort zeigen
@@ -1247,7 +1341,14 @@ async function openTicketDetail(ticket: WorkshopTicket) {
     ])
 
     selectedTicket.value = detailed
+    registerWorkshopDetailTab(detailed)
     ticketHistory.value = history
+    assignSupplierCompanyId.value = ''
+    try {
+      repairCompanies.value = await listSupplierRepairCompanies(currentDepartmentId.value)
+    } catch {
+      repairCompanies.value = []
+    }
   } catch (err) {
     console.error('Failed to load ticket details:', err)
     selectedTicket.value = ticket
@@ -1255,6 +1356,46 @@ async function openTicketDetail(ticket: WorkshopTicket) {
   } finally {
     isLoadingHistory.value = false
   }
+}
+
+async function assignTicketToSupplier() {
+  if (!selectedTicket.value || !assignSupplierCompanyId.value) return
+  isAssigningSupplier.value = true
+  try {
+    await updateWorkshopTicket(selectedTicket.value.id, {
+      assigned_to_supplier_company_id: assignSupplierCompanyId.value,
+    })
+    const detailed = await getWorkshopTicket(selectedTicket.value.id)
+    selectedTicket.value = detailed
+    assignSupplierCompanyId.value = ''
+    await loadData()
+    toast.success(t('workshop.toast.supplierAssigned'))
+  } catch (err: any) {
+    toast.error(err?.response?.data?.error || t('workshop.toast.supplierAssignError'))
+  } finally {
+    isAssigningSupplier.value = false
+  }
+}
+
+async function uploadTicketPhoto(file: File) {
+  const ticket = selectedTicket.value
+  if (!ticket) {
+    throw new Error(t('workshop.uploadPhotoError'))
+  }
+  const photos = await uploadWorkshopTicketPhoto(ticket.id, file)
+  return { photos, ticketId: ticket.id }
+}
+
+function onTicketPhotoUploaded(payload: unknown) {
+  const result = payload as { photos: MediaPhoto[]; ticketId: string }
+  const ticket = selectedTicket.value
+  if (!ticket || ticket.id !== result.ticketId) return
+  selectedTicket.value = { ...ticket, photos: result.photos }
+  toast.success(t('media.uploadSuccess'))
+}
+
+function onTicketPhotoError(message: string) {
+  toast.error(message || t('media.uploadError'))
 }
 
 async function tryOpenTicketFromQuery() {
@@ -1278,6 +1419,7 @@ async function tryOpenTicketFromQuery() {
 }
 
 function closeSelectedTicketDetail() {
+  // Modal schliessen: Tab im Header bleibt (nur × im Header entfernt Chip)
   selectedTicket.value = null
   ticketHistory.value = []
   if (route.query.ticket) {
@@ -1710,7 +1852,7 @@ function materialTypeLabel(type: string): string {
     case 'physical': return t('workshop.materialTypePhysical')
     case 'physical_combo': return t('workshop.materialTypePhysicalCombo')
     case 'virtual_combo': return t('workshop.materialTypeVirtualCombo')
-    default: return t('workshop.materialTypeFallback')
+    default: return t('common.material')
   }
 }
 
@@ -1747,8 +1889,15 @@ watch([currentDepartmentId, materialFilterId], () => {
 
 watch(
   () => route.query.ticket,
-  () => {
-    tryOpenTicketFromQuery()
+  (ticketId) => {
+    if (!ticketId || typeof ticketId !== 'string') {
+      if (selectedTicket.value) {
+        selectedTicket.value = null
+        ticketHistory.value = []
+      }
+      return
+    }
+    void tryOpenTicketFromQuery()
   }
 )
 
@@ -1757,16 +1906,6 @@ watch(
   () => {
     applyQuickFilterFromRoute()
   }
-)
-
-watch(
-  () => route.query.q,
-  (q) => {
-    if (route.path.includes('/workshop')) {
-      searchQuery.value = (q as string) ?? ''
-    }
-  },
-  { immediate: true }
 )
 
 watch(showCreateModal, async (open) => {

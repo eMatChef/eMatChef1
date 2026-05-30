@@ -77,9 +77,13 @@ class ActivityIssueReport
     #[ORM\Column(name: 'reported_at', type: 'datetime')]
     private \DateTime $reportedAt;
 
-    /** Foto-URL (optional) */
+    /** Foto-URL (optional, legacy — Dual-read mit photos[0]) */
     #[ORM\Column(name: 'photo_url', type: 'string', length: 500, nullable: true)]
     private ?string $photoUrl = null;
+
+    /** Fotos (JSON-Array, einheitliches MediaPhoto-Shape) */
+    #[ORM\Column(type: 'json', nullable: true)]
+    private ?array $photos = null;
 
     /** Erledigt? */
     #[ORM\Column(type: 'boolean', options: ['default' => false])]
@@ -160,6 +164,42 @@ class ActivityIssueReport
 
     public function getPhotoUrl(): ?string { return $this->photoUrl; }
     public function setPhotoUrl(?string $photoUrl): self { $this->photoUrl = $photoUrl; return $this; }
+
+    /** @return list<array<string, mixed>>|null */
+    public function getPhotos(): ?array { return $this->photos; }
+
+    /** @param list<array<string, mixed>>|null $photos */
+    public function setPhotos(?array $photos): self { $this->photos = $photos; return $this; }
+
+    /** Erstes Foto oder legacy photo_url (Dual-read). */
+    public function getPrimaryPhotoUrl(): ?string
+    {
+        $photos = $this->photos ?? [];
+        if ($photos !== []) {
+            $first = $photos[0];
+            if (\is_array($first) && !empty($first['url'])) {
+                return (string) $first['url'];
+            }
+            if (\is_string($first) && $first !== '') {
+                return $first;
+            }
+        }
+
+        $legacy = $this->photoUrl;
+        if ($legacy !== null && trim($legacy) !== '') {
+            return trim($legacy);
+        }
+
+        return null;
+    }
+
+    /** photo_url aus photos[0] ableiten (Backward-Compat für Supplier-View). */
+    public function syncPrimaryPhotoUrl(): self
+    {
+        $this->photoUrl = $this->getPrimaryPhotoUrl();
+
+        return $this;
+    }
 
     public function isResolved(): bool { return $this->resolved; }
     public function setResolved(bool $resolved): self { $this->resolved = $resolved; return $this; }

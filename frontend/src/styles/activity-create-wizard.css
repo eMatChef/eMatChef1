@@ -96,6 +96,33 @@
   align-items: flex-start;
 }
 
+.activity-create-wizard-host .autocomplete-divider {
+  padding: 6px 12px 4px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: #94a3b8;
+  background: #f8fafc;
+  border-top: 1px solid #e2e8f0;
+  border-bottom: 1px solid #e2e8f0;
+  pointer-events: none;
+  user-select: none;
+}
+
+.activity-create-wizard-host .autocomplete-item--create {
+  color: #059669;
+  cursor: pointer;
+}
+
+.activity-create-wizard-host .autocomplete-item--create:hover {
+  background: #ecfdf5;
+}
+
+.activity-create-wizard-host .autocomplete-item--create .item-name {
+  font-weight: 600;
+}
+
 .activity-create-wizard-host .activity-address-ac-main {
   display: flex;
   flex-wrap: wrap;
@@ -112,26 +139,7 @@
   flex-shrink: 0;
 }
 
-.activity-create-wizard-host .btn-add-address {
-  flex-shrink: 0;
-  width: 44px;
-  min-height: 44px;
-  padding: 0;
-  border-radius: 8px;
-  border: 1px solid #e5e7eb;
-  background: #fff;
-  font-size: 1.35rem;
-  font-weight: 600;
-  line-height: 1;
-  color: #059669;
-  cursor: pointer;
-  transition: background 0.15s ease, border-color 0.15s ease;
-}
-
-.activity-create-wizard-host .btn-add-address:hover {
-  background: #ecfdf5;
-  border-color: #059669;
-}
+/* .add-inline-btn → styles/ui/inline-add-button.css (global) */
 
 .activity-create-wizard-host .form-row-dates,
 .activity-create-wizard-host .form-row-datetime {
@@ -339,6 +347,14 @@
   padding-inline: 6px 2px;
   box-sizing: content-box;
   max-height: var(--activity-pill-control-h);
+  color: var(--color-primary, #059669);
+}
+
+.activity-create-wizard-host .activity-pill-bar .activity-date-field .dp__input_icon svg,
+.activity-create-wizard-host .activity-pill-bar .activity-date-range-field .dp__input_icon svg,
+.activity-create-wizard-host .activity-pill-bar .activity-time-field .dp__input_icon svg {
+  fill: var(--color-primary, #059669);
+  stroke: var(--color-primary, #059669);
 }
 
 /* Library: padding: var(--dp-input-padding) — komplett überschreiben, sonst bleibt das Datum höher */
@@ -422,33 +438,11 @@
   margin-bottom: 0;
 }
 
-.activity-create-wizard-host .form-group label {
-  display: block;
-  font-size: 13px;
-  font-weight: 500;
-  color: #374151;
-  margin-bottom: 6px;
-}
-
 .activity-create-wizard-host .req {
   color: #b45309;
 }
 
-.activity-create-wizard-host .form-input {
-  width: 100%;
-  padding: 10px 12px;
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
-  font-size: 14px;
-  color: #111827;
-  background: #fff;
-}
-
-.activity-create-wizard-host .form-input:focus {
-  outline: none;
-  border-color: var(--emc-brand-accent, #059669);
-  box-shadow: 0 0 0 3px rgb(5 150 105 / 18%);
-}
+/* Form input/select: shared ui/forms.css + ui/outlined-field.css */
 
 .activity-create-wizard-host .text-muted {
   color: #6b7280;

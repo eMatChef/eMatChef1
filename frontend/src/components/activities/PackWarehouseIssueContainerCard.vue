@@ -463,7 +463,7 @@ function crateShellTakeTitle(): string {
                   />
                 </div>
                 <div class="pack-container-line-main">
-                  <span class="pack-container-line-name">{{ ci.material_name || t('activities.common.material') }}</span>
+                  <span class="pack-container-line-name">{{ ci.material_name || t('common.material') }}</span>
                   <span class="pack-container-line-qty text-muted">
                     <template v-if="lineIssueDisplay(ci).rem > 0">
                       {{ lineNotYetIssuedLabel(ci) }}
@@ -759,7 +759,7 @@ function crateShellTakeTitle(): string {
               />
             </div>
             <div class="pack-container-line-main">
-              <span class="pack-container-line-name">{{ ci.material_name || t('activities.common.material') }}</span>
+              <span class="pack-container-line-name">{{ ci.material_name || t('common.material') }}</span>
               <span class="pack-container-line-qty text-muted">
                 <template v-if="lineIssueDisplay(ci).rem > 0">
                   {{ lineNotYetIssuedLabel(ci) }}
@@ -867,7 +867,7 @@ function crateShellTakeTitle(): string {
               />
             </div>
             <div class="pack-container-line-main">
-              <span class="pack-container-line-name">{{ ci.material_name || t('activities.common.material') }}</span>
+              <span class="pack-container-line-name">{{ ci.material_name || t('common.material') }}</span>
               <span class="pack-container-line-qty text-muted">
                 <template v-if="lineIssueDisplay(ci).rem > 0">
                   {{ lineNotYetIssuedLabel(ci) }}

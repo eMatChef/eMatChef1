@@ -1,4 +1,6 @@
 import apiClient from './apiClient'
+import type { MediaPhoto } from './media'
+import { uploadMediaFile } from './media'
 
 export type ActivityApiType = 'activity' | 'camp' | 'event' | 'external'
 
@@ -192,6 +194,35 @@ export interface ActivityItemRow {
   /** Lager-Kisten-Charge der Bezugskiste (physisch. Kombi / verknüpfte Kiste) — für Pack-Behälter anlegen */
   linked_container_batch_id?: string | null
   external_source?: string | null
+  /**
+   * Zeilenmodell B (virtuelle Kombo): NULL = normale/Eltern-Zeile,
+   * gesetzt = Kind-Zeile eines aufgelösten stock-Teils.
+   */
+  parent_activity_item_id?: string | null
+  /** Gewählte Kombo-Konfiguration (nur an der Eltern-Zeile). */
+  config_snapshot?: ComboConfigSnapshot | null
+}
+
+/** Snapshot der gewählten Kombo-Konfiguration (Zeilenmodell B). */
+export interface ComboConfigSnapshot {
+  /** Anzahl gebuchter Kombos (= Eltern-Zeilen-Menge). */
+  combo_qty: number
+  /** IDs der aktivierten Optionen (material_combo_option.id). */
+  selected_option_ids: string[]
+  /** Aufgelöste Endmengen je stock-Teil (für Anzeige „wie Kiste"). */
+  resolved_components?: Array<{
+    component_material_id: string
+    name: string
+    qty_per_combo: number
+    total_qty: number
+    component_source: 'stock' | 'self_provided'
+  }>
+  /** self_provided-Hinweisposten (keine Reservierung). */
+  self_provided?: Array<{
+    component_material_id: string
+    name: string
+    total_qty: number
+  }>
 }
 
 export async function getActivity(activityId: string): Promise<ActivityDetail> {
@@ -245,6 +276,8 @@ export interface SyncActivityItemPayload {
   material_item_id: string
   quantity: number
   priority?: string
+  /** Zeilenmodell B: gewählte Toggle-Optionen einer virtuellen Kombo (cc:<id> / opt:<id>). */
+  selected_option_ids?: string[]
 }
 
 /**
@@ -271,6 +304,8 @@ export async function addActivityItem(
     unit_price?: number | string
     line_total?: number | string
     price_type?: string
+    /** Zeilenmodell B: gewählte Optionen einer virtuellen Kombo (Konfigurator). */
+    selected_option_ids?: string[]
   },
 ): Promise<{ message?: string; total_price?: string | null }> {
   const { data } = await apiClient.post(`/api/activities/${activityId}/items`, body)
@@ -300,6 +335,8 @@ export interface ActivityIssueReportRow {
   type_label?: string
   quantity: number
   description?: string | null
+  photo_url?: string | null
+  photos?: MediaPhoto[] | null
   resolved: boolean
   resolved_at?: string | null
   reported_at: string
@@ -345,9 +382,22 @@ export async function createActivityIssue(
     quantity: number
     description?: string | null
   },
-): Promise<unknown> {
+): Promise<ActivityIssueReportRow & { workshop_ticket_id?: string }> {
   const { data } = await apiClient.post(`/api/activities/${activityId}/issues`, body)
-  return data
+  return data as ActivityIssueReportRow & { workshop_ticket_id?: string }
+}
+
+/** POST /api/activities/:id/issues/:issueId/photos */
+export async function uploadActivityIssuePhoto(
+  activityId: string,
+  issueId: string,
+  file: File,
+): Promise<ActivityIssueReportRow> {
+  const { data } = await uploadMediaFile<{ issue: ActivityIssueReportRow }>(
+    `/api/activities/${activityId}/issues/${issueId}/photos`,
+    file,
+  )
+  return data.issue
 }
 
 /** PATCH /api/activities/:id/issues/:issueId/consumption */
