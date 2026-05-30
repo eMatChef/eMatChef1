@@ -13,7 +13,6 @@ use App\Entity\MaterialItem;
 use App\Entity\StorageRack;
 use App\Entity\StorageSlot;
 use App\Entity\User;
-use App\Service\Bootstrap\GlobalSystemSeedDefaults;
 use App\Service\Public\PublicCodeService;
 use App\Util\IdGenerator;
 use Doctrine\ORM\EntityManagerInterface;
@@ -49,8 +48,8 @@ class MaterialImportService
         }
 
         $existingByName = $this->loadExistingMaterialsByNormalizedName($departmentId);
-        $localSuppliers = $this->loadSuppliers($departmentId);
-        $globalSuppliers = $this->loadSuppliers(GlobalSystemSeedDefaults::DEPARTMENT_ID);
+        $localSuppliers = $this->loadDepartmentSuppliers($departmentId);
+        $globalSuppliers = $this->loadGlobalSuppliers();
         $storageContext = $this->buildStorageContext($departmentId);
 
         $resultRows = [];
@@ -932,6 +931,7 @@ class MaterialImportService
     {
         $local = new Address();
         $local->setId(IdGenerator::generate());
+        $local->setScope(Address::SCOPE_DEPARTMENT);
         $local->setDepartmentId($departmentId);
         $local->setType('supplier');
         $local->setName($global->getName());
@@ -960,6 +960,7 @@ class MaterialImportService
     {
         $local = new Address();
         $local->setId(IdGenerator::generate());
+        $local->setScope(Address::SCOPE_DEPARTMENT);
         $local->setDepartmentId($departmentId);
         $local->setType('supplier');
         $local->setName($name);
@@ -999,15 +1000,34 @@ class MaterialImportService
     /**
      * @return Address[]
      */
-    private function loadSuppliers(string $departmentId): array
+    private function loadDepartmentSuppliers(string $departmentId): array
     {
         return $this->entityManager->createQueryBuilder()
             ->select('a')
             ->from(Address::class, 'a')
-            ->where('a.departmentId = :departmentId')
+            ->where('a.scope = :scope')
+            ->andWhere('a.departmentId = :departmentId')
             ->andWhere('a.type = :type')
             ->andWhere('a.deletedAt IS NULL')
+            ->setParameter('scope', Address::SCOPE_DEPARTMENT)
             ->setParameter('departmentId', $departmentId)
+            ->setParameter('type', 'supplier')
+            ->getQuery()
+            ->getResult();
+    }
+
+    /**
+     * @return Address[]
+     */
+    private function loadGlobalSuppliers(): array
+    {
+        return $this->entityManager->createQueryBuilder()
+            ->select('a')
+            ->from(Address::class, 'a')
+            ->where('a.scope = :scope')
+            ->andWhere('a.type = :type')
+            ->andWhere('a.deletedAt IS NULL')
+            ->setParameter('scope', Address::SCOPE_GLOBAL)
             ->setParameter('type', 'supplier')
             ->getQuery()
             ->getResult();

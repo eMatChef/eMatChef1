@@ -2,7 +2,7 @@
 
 Konzept-Dokumentation für ein **Lieferanten-Portal** mit Firmen-Modell (`SupplierCompany`), mehreren Usern pro Firma, B2B-Katalog für Materialwarte (MW) und optional **eigenem Vermietungsbetrieb** (Operator). Später: Reparatur-Workflow.
 
-**Stand:** Mai 2026 · Konzept (noch nicht implementiert)
+**Stand:** Mai 2026 · Konzept; **M1 (Paket 0) implementiert** — `address.scope`, Migration GLOBAL000000
 
 Verwandt:
 
@@ -73,7 +73,7 @@ J&S ist **kein** Supplier im B2B-Sinn: Sie pflegen eine **Referenzliste**, damit
 
 | Bereich | Stand heute |
 |--------|-------------|
-| **Lieferanten** | `Address` mit Typ `supplier` — heute global über verstecktes Department `GLOBAL000000` · **Ziel:** Address-Scope-Modell (Abschnitt 8) |
+| **Lieferanten** | `Address` mit Typ `supplier` und **`scope`** (`department` \| `supplier` \| `global`) — globale Legacy-Stammdaten: `scope=global` (seit Paket 0); registrierte Firmen: `scope=supplier` (Paket 1+) |
 | **Material-Import** | MW importiert CSV/XLSX; Lieferanten werden aus global/lokal aufgelöst (`MaterialImportService`) — **ohne Seriennummern** |
 | **Seriennummern heute** | Am `MaterialBatch.serial_number`; Erfassung via Material-Wizard oder Vorlage→Material (`TemplateController`) — nicht im CSV-Import |
 | **Globale Vorlagen** | `MaterialTemplate` mit `scope=global` — bearbeitbar nur für Superadmin / Org- / Suborg-Chef |
@@ -308,7 +308,7 @@ Capabilities (`catalog`, `operator`, …) hängen an **`SupplierCompany`**, nich
 ### Definition of Done
 
 - [ ] `SupplierCompany` + `SupplierMembership` (Migration)
-- [ ] Address-Scope auf `address` (Migration GLOBAL000000 → `scope=global`; **J&S `dept_js00000` unberührt**)
+- [x] Address-Scope auf `address` (Migration GLOBAL000000 → `scope=global`; **J&S `dept_js00000` unberührt**)
 - [ ] Support-Onboarding: Admin legt Firma an, erster User admin, Login-Zugang
 - [ ] Legacy `scope=global` → SupplierCompany (Admin-Aktion)
 - [ ] Login; `ROLE_SUPPLIER`; Session mit `supplier_companies[]`

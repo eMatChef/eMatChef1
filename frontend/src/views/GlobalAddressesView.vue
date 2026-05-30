@@ -84,7 +84,7 @@
 
     <AddressModal
       v-if="isGlobalAddressModalOpen"
-      :department-id="GLOBAL_DEPARTMENT_ID"
+      department-id=""
       :address="editingGlobalAddress"
       :edit-address-id="editingGlobalAddress?.id || null"
       default-type="supplier"
@@ -101,7 +101,6 @@ import { useI18n } from 'vue-i18n'
 import { deleteGlobalAddress, getGlobalAddresses, type GlobalAddress } from '@/api/globalAddresses'
 import AddressModal from '@/components/AddressModal.vue'
 
-const GLOBAL_DEPARTMENT_ID = 'GLOBAL000000'
 const { t } = useI18n()
 
 const globalLoading = ref(false)

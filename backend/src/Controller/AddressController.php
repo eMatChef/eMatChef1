@@ -51,7 +51,9 @@ class AddressController extends AbstractController
         $qb = $this->entityManager->createQueryBuilder()
             ->select('a')
             ->from(Address::class, 'a')
-            ->where('a.departmentId = :departmentId')
+            ->where('a.scope = :scope')
+            ->andWhere('a.departmentId = :departmentId')
+            ->setParameter('scope', Address::SCOPE_DEPARTMENT)
             ->setParameter('departmentId', $departmentId)
             ->orderBy('a.type', 'ASC')
             ->addOrderBy('a.name', 'ASC');
@@ -153,6 +155,7 @@ class AddressController extends AbstractController
         try {
             $address = new Address();
             $address->setId(IdGenerator::generateUnique($this->entityManager, Address::class));
+            $address->setScope(Address::SCOPE_DEPARTMENT);
             $address->setDepartmentId($data['department_id']);
             
             $this->updateAddressFromData($address, $data);
@@ -428,6 +431,9 @@ class AddressController extends AbstractController
 
     private function assertCanModifyContact(Address $address): void
     {
+        if ($address->getScope() !== Address::SCOPE_DEPARTMENT || $address->getDepartmentId() === null) {
+            throw new AccessDeniedHttpException('Adresse nicht gefunden');
+        }
         $role = $this->resolveDepartmentRole($address->getDepartmentId());
         if ($this->isUserContactReader($role) && !in_array($address->getType(), self::USER_CONTACT_CREATE_TYPES, true)) {
             throw new AccessDeniedHttpException('Keine Berechtigung zum Bearbeiten dieses Kontakts');
@@ -436,6 +442,9 @@ class AddressController extends AbstractController
 
     private function assertCanViewContact(Address $address): void
     {
+        if ($address->getScope() !== Address::SCOPE_DEPARTMENT || $address->getDepartmentId() === null) {
+            throw new AccessDeniedHttpException('Adresse nicht gefunden');
+        }
         $role = $this->resolveDepartmentRole($address->getDepartmentId());
         if ($this->isUserContactReader($role) && !in_array($address->getType(), self::USER_CONTACT_VIEW_TYPES, true)) {
             throw new AccessDeniedHttpException('Keine Berechtigung für diesen Kontakt');

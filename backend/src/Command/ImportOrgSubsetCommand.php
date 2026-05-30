@@ -3,6 +3,7 @@
 namespace App\Command;
 
 use App\Service\Accounting\AccountingCostCenterBootstrapService;
+use App\Service\Bootstrap\GlobalSystemSeedDefaults;
 use App\Service\Bootstrap\SuperadminBootstrapService;
 use Doctrine\DBAL\Connection;
 use Doctrine\ORM\EntityManagerInterface;
@@ -144,6 +145,9 @@ class ImportOrgSubsetCommand extends Command
                     if (!is_array($row)) {
                         continue;
                     }
+                    if ($table === 'address') {
+                        $row = $this->normalizeAddressSeedRow($row);
+                    }
                     $normalized = $this->normalizeRowForInsert($row, $jsonColumns[$table]);
                     $this->upsertRow($conn, $table, $normalized, $conflicts[$table], $table === 'user');
                     $imported++;
@@ -166,6 +170,25 @@ class ImportOrgSubsetCommand extends Command
 
         $io->success('Subset erfolgreich importiert.');
         return Command::SUCCESS;
+    }
+
+    /**
+     * Legacy-Seed: GLOBAL000000-Lieferanten → scope=global (Paket 0).
+     *
+     * @param array<string, mixed> $row
+     * @return array<string, mixed>
+     */
+    private function normalizeAddressSeedRow(array $row): array
+    {
+        $departmentId = (string) ($row['department_id'] ?? '');
+        if ($departmentId === GlobalSystemSeedDefaults::DEPARTMENT_ID) {
+            $row['scope'] = GlobalSystemSeedDefaults::ADDRESS_SCOPE_GLOBAL;
+            $row['department_id'] = null;
+        } elseif (!isset($row['scope'])) {
+            $row['scope'] = GlobalSystemSeedDefaults::ADDRESS_SCOPE_DEPARTMENT;
+        }
+
+        return $row;
     }
 
     /**

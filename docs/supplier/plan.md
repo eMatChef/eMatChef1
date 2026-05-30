@@ -2,7 +2,7 @@
 
 Abarbeitbare Checkliste für Phase 1–3. Das **Warum/Zielmodell** steht in [supplier-portal.md](./supplier-portal.md). Dieser Plan = **Was & in welcher Reihenfolge**.
 
-**Stand:** Mai 2026 · Phase 1 in Paketen 0–8; Phase 2/3 als grobe Pakete (Detail folgt mit Phase-2-Start). **Erledigt: —** (noch nicht implementiert)
+**Stand:** Mai 2026 · Phase 1 in Paketen 0–8; Phase 2/3 als grobe Pakete (Detail folgt mit Phase-2-Start). **Erledigt: Paket 0**
 
 ---
 
@@ -28,7 +28,7 @@ Abarbeitbare Checkliste für Phase 1–3. Das **Warum/Zielmodell** steht in [sup
 
 | # | Paket | Phase | Größe | Hängt ab von | Status |
 |---|-------|-------|-------|--------------|--------|
-| 0 | Address-Scope + Migration `GLOBAL000000` | 1 | M | – | [ ] |
+| 0 | Address-Scope + Migration `GLOBAL000000` | 1 | M | – | [x] |
 | 1 | `supplier_company` + `supplier_membership` | 1 | M | 0 | [ ] |
 | 2 | Auth: `ROLE_SUPPLIER`, Session, Voter | 1 | S–M | 1 | [ ] |
 | 3 | Plattform-Admin: Onboarding + Legacy-Promote | 1 | M | 1, 2 | [ ] |
@@ -86,12 +86,12 @@ Diese Stellen strahlen bei Address-/Supplier-Änderungen am stärksten aus:
 - ggf. alle Stellen mit hart codiertem `GLOBAL000000` (grep)
 
 **Schritte:**
-- [ ] Spalten `scope` (`department` \| `supplier` \| `global`), `supplier_company_id` (nullable FK, Phase 1 vorbereiten), `department_id` nullable
-- [ ] CHECK-Constraint: genau ein Kontext (siehe [supplier-portal.md §8.1](./supplier-portal.md#81-address-scope-modell-ersetzt-global-suppliers-department))
-- [ ] Migration: alle `address` in `GLOBAL000000` → `scope=global`, `department_id=NULL`
-- [ ] Bestehende Department-Adressen → `scope=department` (Default)
-- [ ] `GlobalAddressController`: CRUD nur `scope=global AND type=supplier` (nicht mehr `department_id=GLOBAL000000`)
-- [ ] Regression: `material_batch.supplier_id` FK bleibt gültig (gleiche `address.id`)
+- [x] Spalten `scope` (`department` \| `supplier` \| `global`), `supplier_company_id` (nullable FK, Phase 1 vorbereiten), `department_id` nullable
+- [x] CHECK-Constraint: genau ein Kontext (siehe [supplier-portal.md §8.1](./supplier-portal.md#81-address-scope-modell-ersetzt-global-suppliers-department))
+- [x] Migration: alle `address` in `GLOBAL000000` → `scope=global`, `department_id=NULL`
+- [x] Bestehende Department-Adressen → `scope=department` (Default)
+- [x] `GlobalAddressController`: CRUD nur `scope=global AND type=supplier` (nicht mehr `department_id=GLOBAL000000`)
+- [x] Regression: `material_batch.supplier_id` FK bleibt gültig (gleiche `address.id`)
 
 **Definition of Done:** Globale Lieferanten ohne Global-Department referenzierbar; J&S-Seeds unverändert; PHPUnit/Migration grün.
 
