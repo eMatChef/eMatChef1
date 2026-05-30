@@ -8,6 +8,7 @@
 @import './styles/ui/public-brand.css';
 @import './styles/ui/public-landing-theme.css';
 @import './styles/ui/buttons.css';
+@import './styles/ui/inline-add-button.css';
 @import './styles/ui/page-layout.css';
 @import './styles/ui/forms.css';
 @import './styles/ui/cards.css';
@@ -17,6 +18,7 @@
 @import './styles/ui/states.css';
 @import './styles/ui/text-utilities.css';
 @import './styles/ui/activity-type-badges.css';
+@import './styles/components/address-type-badge.css';
 @import './styles/ui/activity-combo-badges.css';
 @import './styles/ui/material-source-badges.css';
 @import './styles/ui/activity-inline-loading.css';

@@ -344,7 +344,6 @@ import { useAuthStore } from '@/stores/auth'
 import {
   getPublicFoundMessages,
   updatePublicFoundMessageStatus,
-  openPublicFoundReplyMailto,
   type PublicFoundItemMessage,
   type PublicFoundMessageStatus,
 } from '@/api/publicFoundMessages'
@@ -534,6 +533,7 @@ const allInboxItems = computed((): UnifiedInboxItem[] => {
 
   if (canManageQrContact.value) {
     for (const msg of allFoundMessages.value) {
+      if (msg.status === 'done') continue
       items.push({
         id: `qr-${msg.id}`,
         kind: 'qr_found',
@@ -600,7 +600,7 @@ function inboxBadges(item: UnifiedInboxItem): string[] {
   const task = t('notificationsCenter.inboxCategoryTask')
   switch (item.kind) {
     case 'qr_found':
-      return item.qrFound?.status !== 'done' ? [message, task] : [message]
+      return [message, task]
     case 'department_invite':
     case 'activity_invite':
       return [message, task]
@@ -941,6 +941,7 @@ async function onFoundStatusChange(msg: PublicFoundItemMessage, status: PublicFo
     const i = allFoundMessages.value.findIndex((m) => m.id === msg.id)
     if (i >= 0) allFoundMessages.value[i] = item
     headerNotificationsStore.requestRefresh()
+    if (status === 'done') detailQr.value = null
   } catch (err: any) {
     toast.error(err?.response?.data?.error || t('notificationsCenter.toastSaveFailed'))
     await load()

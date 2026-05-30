@@ -164,6 +164,8 @@ export interface MaterialImportRow {
   unit_price: string
   notes: string
   duplicate_action: 'add_batch' | 'skip' | 'create'
+  /** Standard: Zeile wird importiert; abwählen = überspringen. */
+  import_selected: boolean
   _existingMaterialId?: string | null
   _existingMaterialName?: string | null
   _parseWarnings?: string[]
@@ -199,6 +201,76 @@ export function getImportRowStorageIssues(row: MaterialImportRow): ImportRowStor
 
 export function isImportRowStorageComplete(row: MaterialImportRow): boolean {
   return getImportRowStorageIssues(row).length === 0
+}
+
+const STORAGE_OVERRIDE_FIELDS = [
+  'storage_name',
+  'storage_address_id',
+  'stock_location_mode',
+  'rack_id',
+  'rack_name',
+  'slot_id',
+  'slot_name',
+  'container_name',
+  'container_batch_id',
+] as const
+
+const EDITABLE_OVERRIDE_FIELDS = [
+  'name',
+  'qty',
+  'unit',
+  'size_length',
+  'size_width',
+  'size_height',
+  'size_unit',
+  'color',
+  'material',
+  'manufacturer',
+  'supplier_name',
+  'supplier_id',
+  'acquired_year',
+  'acquired_on',
+  'unit_price',
+  'notes',
+  'duplicate_action',
+] as const
+
+/** Manuelle Vorschau-Änderungen beim Neu-Parsen der Datei beibehalten. */
+export function mergeImportRowOverrides(parsed: MaterialImportRow, existing: MaterialImportRow): MaterialImportRow {
+  const merged: MaterialImportRow = { ...parsed }
+
+  const hasStorageOverride =
+    !!existing.storage_address_id?.trim()
+    || !!existing.stock_location_mode
+    || !!existing.storage_name?.trim()
+    || !!existing.rack_id?.trim()
+    || !!existing.container_batch_id?.trim()
+
+  if (hasStorageOverride) {
+    for (const field of STORAGE_OVERRIDE_FIELDS) {
+      merged[field] = existing[field]
+    }
+  }
+
+  if (existing.supplier_id?.trim()) {
+    merged.supplier_name = existing.supplier_name
+    merged.supplier_id = existing.supplier_id
+  }
+
+  for (const field of EDITABLE_OVERRIDE_FIELDS) {
+    const prev = existing[field]
+    const next = parsed[field]
+    if (prev !== undefined && prev !== '' && prev !== next) {
+      merged[field] = prev
+    }
+  }
+
+  merged.duplicate_action = existing.duplicate_action || parsed.duplicate_action
+  merged.import_selected = existing.import_selected !== false
+  merged._existingMaterialId = existing._existingMaterialId ?? parsed._existingMaterialId
+  merged._existingMaterialName = existing._existingMaterialName ?? parsed._existingMaterialName
+
+  return merged
 }
 
 export interface ImportFileRaw {
@@ -513,7 +585,13 @@ function rowFromCells(cells: string[], headerMap: (MaterialImportColumn | null)[
     unit_price: normalizePriceDisplay(data.unit_price ?? ''),
     notes: (data.notes ?? '').trim(),
     duplicate_action: 'add_batch',
+    import_selected: true,
   }
+}
+
+/** Zeilen, die beim Import mitgeschickt werden. */
+export function rowsForImport(rows: MaterialImportRow[]): MaterialImportRow[] {
+  return rows.filter((r) => r.import_selected !== false)
 }
 
 function dataStartAfterHeader(matrix: string[][], headerIdx: number, headerMap: (MaterialImportColumn | null)[]): number {
@@ -641,7 +719,7 @@ export async function parseImportFile(file: File): Promise<ParseImportFileResult
 }
 
 export function rowsToApiPayload(rows: MaterialImportRow[]) {
-  return rows.map((r) => ({
+  return rowsForImport(rows).map((r) => ({
     row_index: r.row_index,
     name: r.name.trim(),
     qty: parseInt(r.qty, 10) || 0,

@@ -4,6 +4,7 @@
       v-model="showCreateActivityWizard"
       :department-id="departmentId"
       @created="onActivityCreateWizardCreated"
+      @draft-saved="onActivityDraftSaved"
     />
 
     <div v-if="activityRouteId" class="dept-page activities-detail-root">
@@ -659,6 +660,18 @@ function openCreateActivityWizard() {
     return
   }
   showCreateActivityWizard.value = true
+}
+
+async function onActivityDraftSaved(id: string) {
+  if (id) {
+    try {
+      const detail = await getActivity(id)
+      upsertActivityInList(detail as unknown as Record<string, unknown>)
+    } catch {
+      /* Liste wird unten still nachgeladen */
+    }
+  }
+  void loadActivities({ silent: true })
 }
 
 async function onActivityCreateWizardCreated(id: string) {

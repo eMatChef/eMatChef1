@@ -177,6 +177,41 @@ export interface UpdateTemplateRequest {
   options?: UpsertTemplateOptionRequest[]
 }
 
+export type TemplateImportDuplicateAction = 'skip' | 'update' | 'create'
+
+export interface TemplateImportResultRow {
+  template_index: number
+  name: string | null
+  status: string
+  action: string | null
+  errors: string[]
+  existing_template_id?: string | null
+}
+
+export interface TemplateImportResponse {
+  success: boolean
+  dry_run: boolean
+  manufacturer: string
+  rows: TemplateImportResultRow[]
+  stats: {
+    created: number
+    updated: number
+    skipped: number
+    errors: number
+  }
+  total: number
+  created: number
+  updated: number
+  skipped: number
+  error?: string
+}
+
+export interface TemplateExportJson {
+  format_version: number
+  manufacturer: string
+  templates: unknown[]
+}
+
 // ============== API Functions ==============
 
 /**
@@ -184,6 +219,16 @@ export interface UpdateTemplateRequest {
  */
 export async function getTemplates(departmentId: string, activeOnly = false): Promise<Template[]> {
   const params = new URLSearchParams({ department_id: departmentId })
+  if (activeOnly) params.append('active_only', '1')
+  const response = await apiClient.get<Template[]>(`/api/templates?${params.toString()}`)
+  return response.data
+}
+
+/**
+ * Lädt alle globalen Vorlagen (Admin, ohne Department-Kontext)
+ */
+export async function getGlobalTemplates(activeOnly = false): Promise<Template[]> {
+  const params = new URLSearchParams({ scope: 'global' })
   if (activeOnly) params.append('active_only', '1')
   const response = await apiClient.get<Template[]>(`/api/templates?${params.toString()}`)
   return response.data
@@ -221,19 +266,68 @@ export async function deleteTemplate(id: string): Promise<void> {
 }
 
 /**
- * Importiert Vorlagen aus v4-JSON-Format
+ * Importiert Vorlagen aus v4/v5-JSON (Department)
  */
-export async function importTemplates(departmentId: string, templatesJson: any): Promise<{
-  success: boolean
-  manufacturer: string
-  created: number
-  skipped: number
-  total: number
-}> {
-  const response = await apiClient.post('/api/templates/import', {
+export async function importTemplates(
+  departmentId: string,
+  templatesJson: unknown,
+  options: {
+    dryRun?: boolean
+    duplicateAction?: TemplateImportDuplicateAction
+    force?: boolean
+  } = {},
+): Promise<TemplateImportResponse> {
+  const response = await apiClient.post<TemplateImportResponse>('/api/templates/import', {
     department_id: departmentId,
-    templates_json: templatesJson
+    templates_json: templatesJson,
+    dry_run: options.dryRun ?? false,
+    duplicate_action: options.duplicateAction ?? 'skip',
+    force: options.force ?? false,
   })
+  return response.data
+}
+
+/**
+ * Importiert globale Vorlagen aus v4/v5-JSON (Admin)
+ */
+export async function importGlobalTemplates(
+  templatesJson: unknown,
+  options: {
+    dryRun?: boolean
+    duplicateAction?: TemplateImportDuplicateAction
+    force?: boolean
+  } = {},
+): Promise<TemplateImportResponse> {
+  const response = await apiClient.post<TemplateImportResponse>('/api/templates/import', {
+    scope: 'global',
+    templates_json: templatesJson,
+    dry_run: options.dryRun ?? false,
+    duplicate_action: options.duplicateAction ?? 'skip',
+    force: options.force ?? false,
+  })
+  return response.data
+}
+
+/**
+ * Exportiert Vorlagen als v5-JSON (Department)
+ */
+export async function exportTemplates(
+  departmentId: string,
+  manufacturer?: string,
+): Promise<TemplateExportJson> {
+  const params = new URLSearchParams({ scope: 'department', department_id: departmentId })
+  if (manufacturer) params.append('manufacturer', manufacturer)
+  const response = await apiClient.get<TemplateExportJson>(`/api/templates/export?${params.toString()}`)
+  return response.data
+}
+
+/**
+ * Exportiert globale Vorlagen als v5-JSON (Admin)
+ */
+export async function exportGlobalTemplates(manufacturer?: string): Promise<TemplateExportJson> {
+  const params = new URLSearchParams({ scope: 'global' })
+  if (manufacturer) params.append('manufacturer', manufacturer)
+  const response = await apiClient.get<TemplateExportJson>(`/api/templates/export?${params.toString()}`)
   return response.data
 }
 

@@ -1,5 +1,21 @@
 <template>
   <div class="tasks-general-panel">
+    <div class="filter-bar tasks-general-tabs">
+      <div class="filter-tabs">
+        <button
+          v-for="tab in statusTabs"
+          :key="tab.key"
+          type="button"
+          class="filter-tab"
+          :class="{ active: statusTab === tab.key }"
+          @click="statusTab = tab.key"
+        >
+          {{ tab.label }}
+          <span v-if="tab.count > 0" class="tab-count">{{ tab.count }}</span>
+        </button>
+      </div>
+    </div>
+
     <div v-if="isLoading" class="tasks-loading">
       <div class="spinner" />
       <p>{{ t('tasksGeneral.loading') }}</p>
@@ -10,14 +26,14 @@
       <button type="button" class="btn btn-secondary btn-sm" @click="reload">{{ t('tasksGeneral.retry') }}</button>
     </div>
 
-    <div v-else-if="tasks.length === 0" class="tasks-empty">
-      <h2 class="panel-heading">{{ t('tasksGeneral.emptyTitle') }}</h2>
-      <p class="panel-text">{{ t('tasksGeneral.emptyText') }}</p>
+    <div v-else-if="filteredTasks.length === 0" class="tasks-empty">
+      <h2 class="panel-heading">{{ emptyTitle }}</h2>
+      <p class="panel-text">{{ emptyText }}</p>
     </div>
 
     <div v-else class="tasks-list" role="list">
       <article
-        v-for="task in tasks"
+        v-for="task in filteredTasks"
         :key="task.id"
         role="listitem"
         class="task-row"
@@ -107,7 +123,10 @@ import {
   useDepartmentTasksLoader,
   type DepartmentTaskItem,
   type DepartmentTaskKind,
+  type DepartmentTaskStatus,
 } from '@/composables/useDepartmentTasks'
+
+type StatusTab = DepartmentTaskStatus
 
 const route = useRoute()
 const router = useRouter()
@@ -124,6 +143,48 @@ const roleOptions = computed(() => ({
 }))
 
 const { tasks, isLoading, error, reload } = useDepartmentTasksLoader(departmentId, roleOptions)
+
+const statusTab = ref<StatusTab>('open')
+
+const statusTabs = computed(() => {
+  const openCount = tasks.value.filter((t) => t.kind !== 'qr_found' || t.status === 'open').length
+  const inProgressCount = tasks.value.filter((t) => t.status === 'in_progress').length
+  const doneCount = tasks.value.filter((t) => t.status === 'done').length
+  return [
+    { key: 'open' as const, label: t('tasksGeneral.tabOpen'), count: openCount },
+    { key: 'in_progress' as const, label: t('tasksGeneral.tabInProgress'), count: inProgressCount },
+    { key: 'done' as const, label: t('tasksGeneral.tabDone'), count: doneCount },
+  ]
+})
+
+const filteredTasks = computed(() => {
+  if (statusTab.value === 'open') {
+    return tasks.value.filter((t) => t.kind !== 'qr_found' || t.status === 'open')
+  }
+  return tasks.value.filter((t) => t.status === statusTab.value)
+})
+
+const emptyTitle = computed(() => {
+  switch (statusTab.value) {
+    case 'in_progress':
+      return t('tasksGeneral.emptyInProgressTitle')
+    case 'done':
+      return t('tasksGeneral.emptyDoneTitle')
+    default:
+      return t('tasksGeneral.emptyTitle')
+  }
+})
+
+const emptyText = computed(() => {
+  switch (statusTab.value) {
+    case 'in_progress':
+      return t('tasksGeneral.emptyInProgressText')
+    case 'done':
+      return t('tasksGeneral.emptyDoneText')
+    default:
+      return t('tasksGeneral.emptyText')
+  }
+})
 
 const detailQr = ref<PublicFoundItemMessage | null>(null)
 const flashTaskId = ref('')
@@ -217,6 +278,10 @@ function openFoundMaterial(msg: PublicFoundItemMessage) {
 }
 
 function goToMessageForQr(msg: PublicFoundItemMessage) {
+  if (msg.status === 'done') {
+    openQrTask(msg)
+    return
+  }
   void router.push({
     path: `/${departmentId.value}/notifications`,
     query: { highlight: msg.id },
@@ -326,6 +391,10 @@ async function applyOpenQuery() {
   const row = findTaskByOpenQuery(parsed)
   if (!row) return
 
+  if (row.kind === 'qr_found') {
+    statusTab.value = row.status
+  }
+
   flashTaskId.value = row.id
   window.setTimeout(() => {
     flashTaskId.value = ''
@@ -369,6 +438,12 @@ watch(departmentId, () => {
 <style scoped>
 .tasks-general-panel {
   max-width: 52rem;
+}
+
+.tasks-general-tabs {
+  margin-bottom: 16px;
+  border-bottom: 1px solid #e5e7eb;
+  padding-bottom: 0;
 }
 
 .tasks-loading,

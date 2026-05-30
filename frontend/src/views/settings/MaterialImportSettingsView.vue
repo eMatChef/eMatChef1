@@ -138,7 +138,14 @@
       <div v-if="rows.length > 0" class="card preview-card preview-card--compact">
         <p class="preview-storage-hint">{{ t('settings.materialImport.storageRequiredHint') }}</p>
         <div class="preview-toolbar">
-          <h2>{{ t('settings.materialImport.previewTitle', { count: rows.length }) }}</h2>
+          <h2>
+            {{
+              t('settings.materialImport.previewTitleSelected', {
+                selected: selectedImportCount,
+                total: rows.length,
+              })
+            }}
+          </h2>
           <div class="toolbar-actions">
             <button
               v-if="rawImport"
@@ -169,6 +176,15 @@
           <table class="preview-table">
             <thead>
               <tr>
+                <th class="col-import-select">
+                  <input
+                    type="checkbox"
+                    class="import-select-all"
+                    :checked="allRowsImportSelected"
+                    :title="t('settings.materialImport.colImportAllTitle')"
+                    @change="toggleAllImportSelected"
+                  />
+                </th>
                 <th>#</th>
                 <th>{{ t('settings.materialImport.colName') }}</th>
                 <th>{{ t('settings.materialImport.colQty') }}</th>
@@ -187,10 +203,14 @@
                 v-for="(row, idx) in rows"
                 :key="row.row_index"
                 :class="{
-                  'row-error': rowErrors(idx).length > 0,
+                  'row-error': row.import_selected !== false && rowErrors(idx).length > 0,
                   'row-duplicate': !!row._existingMaterialId,
+                  'row-not-imported': row.import_selected === false,
                 }"
               >
+                <td class="col-import-select">
+                  <input v-model="row.import_selected" type="checkbox" @change="onRowImportToggle" />
+                </td>
                 <td>{{ idx + 1 }}</td>
                 <td><input v-model="row.name" class="cell-input" type="text" /></td>
                 <td><input v-model="row.qty" class="cell-input cell-input-narrow" type="number" min="1" /></td>
@@ -230,7 +250,10 @@
                   <span v-else class="muted">—</span>
                 </td>
                 <td class="status-cell">
-                  <span v-if="previewByIndex[idx]?.errors?.length" class="badge badge-error" :title="previewByIndex[idx].errors.join(', ')">
+                  <span v-if="row.import_selected === false" class="badge badge-muted">
+                    {{ t('settings.materialImport.statusSkippedRow') }}
+                  </span>
+                  <span v-else-if="previewByIndex[idx]?.errors?.length" class="badge badge-error" :title="previewByIndex[idx].errors.join(', ')">
                     {{ t('settings.materialImport.statusError') }}
                   </span>
                   <span v-else-if="previewByIndex[idx]?.warnings?.length" class="badge badge-warn">
@@ -297,6 +320,7 @@ import ImportStoragePickerModal from '@/components/material/ImportStoragePickerM
 import { importMaterials, type MaterialImportResultRow, type MaterialImportDuplicateAction } from '@/api/materialImport'
 import {
   rowsToApiPayload,
+  rowsForImport,
   downloadTemplateCsv,
   acquiredDateFromYear,
   readImportMatrixFromFile,
@@ -316,6 +340,7 @@ import {
   type ColumnAssignment,
   getImportRowStorageIssues,
   isImportRowStorageComplete,
+  mergeImportRowOverrides,
   type ImportFileRaw,
   type ImportRowStorageIssue,
 } from '@/utils/materialImportParse'
@@ -360,7 +385,15 @@ const previewByIndex = computed(() => {
   return map
 })
 
-const duplicateCount = computed(() => rows.value.filter((r) => r._existingMaterialId).length)
+const selectedImportCount = computed(() => rows.value.filter((r) => r.import_selected !== false).length)
+
+const allRowsImportSelected = computed(
+  () => rows.value.length > 0 && rows.value.every((r) => r.import_selected !== false),
+)
+
+const duplicateCount = computed(() =>
+  rows.value.filter((r) => r.import_selected !== false && r._existingMaterialId).length,
+)
 
 const fileColumnLabels = computed(() => {
   if (!rawImport.value) return [] as string[]
@@ -413,9 +446,14 @@ function assignmentAt(col: number): string {
 }
 
 const hasBlockingErrors = computed(() => {
-  if (rows.value.some((r) => !r.name.trim() || !(parseInt(r.qty, 10) > 0))) return true
-  if (rows.value.some((r) => !isImportRowStorageComplete(r))) return true
-  if (previewRows.value.some((pr) => pr.errors?.length > 0)) return true
+  if (selectedImportCount.value === 0) return true
+  const selected = rowsForImport(rows.value)
+  if (selected.some((r) => !r.name.trim() || !(parseInt(r.qty, 10) > 0))) return true
+  if (selected.some((r) => !isImportRowStorageComplete(r))) return true
+  if (previewRows.value.some((pr) => {
+    const row = rows.value.find((r) => r.row_index === pr.row_index)
+    return row && row.import_selected !== false && pr.errors?.length > 0
+  })) return true
   return false
 })
 
@@ -451,8 +489,21 @@ function syncAcquiredOn(row: MaterialImportRow) {
   row.acquired_on = ''
 }
 
+function toggleAllImportSelected(ev: Event) {
+  const checked = (ev.target as HTMLInputElement).checked
+  for (const row of rows.value) {
+    row.import_selected = checked
+  }
+  previewRows.value = []
+}
+
+function onRowImportToggle() {
+  previewRows.value = []
+}
+
 function rowErrors(idx: number): string[] {
   const row = rows.value[idx]
+  if (row.import_selected === false) return []
   const errs: string[] = []
   if (!row.name.trim()) errs.push(t('settings.materialImport.errName'))
   if (!(parseInt(row.qty, 10) > 0)) errs.push(t('settings.materialImport.errQty'))
@@ -512,9 +563,20 @@ function applyStorageModal(patch: Partial<MaterialImportRow>) {
   const row = storageModalRow.value
   if (!row) return
   Object.assign(row, patch)
-  if (previewLoaded.value) {
-    schedulePreviewRefresh()
-  }
+  previewRows.value = []
+}
+
+function mergeRowsWithExistingEdits(parsed: MaterialImportRow[]): MaterialImportRow[] {
+  const previous = rows.value
+  if (previous.length === 0) return parsed
+
+  const byRowIndex = new Map(previous.map((r) => [r.row_index, r]))
+  const byName = new Map(previous.map((r) => [normalizeName(r.name), r]))
+
+  return parsed.map((p) => {
+    const existing = byRowIndex.get(p.row_index) ?? byName.get(normalizeName(p.name))
+    return existing ? mergeImportRowOverrides(p, existing) : p
+  })
 }
 
 async function loadStorageAddresses() {
@@ -599,8 +661,9 @@ function refreshPreviewFromMapping(showToast = false): boolean {
     if (showToast) toast.error(t('settings.materialImport.parseEmpty'))
     return false
   }
-  enrichWithExisting(parsed)
-  rows.value = parsed
+  const merged = mergeRowsWithExistingEdits(parsed)
+  enrichWithExisting(merged)
+  rows.value = merged
   previewRows.value = []
   return true
 }
@@ -667,14 +730,18 @@ async function onFileSelected(ev: Event) {
 }
 
 async function runDryRun() {
-  if (!rows.value.length) return
-  if (rows.value.some((r) => !isImportRowStorageComplete(r))) {
+  const toImport = rowsForImport(rows.value)
+  if (!toImport.length) {
+    toast.warning(t('settings.materialImport.noRowsSelected'))
+    return
+  }
+  if (toImport.some((r) => !isImportRowStorageComplete(r))) {
     toast.warning(t('settings.materialImport.storageRequiredHint'))
     return
   }
   isValidating.value = true
   try {
-    for (const row of rows.value) syncAcquiredOn(row)
+    for (const row of toImport) syncAcquiredOn(row)
     const res = await importMaterials(departmentId.value, rowsToApiPayload(rows.value), {
       dryRun: true,
       defaultDuplicateAction: defaultDuplicateAction.value,
@@ -694,6 +761,10 @@ async function runDryRun() {
 }
 
 function onImportClick() {
+  if (selectedImportCount.value === 0) {
+    toast.warning(t('settings.materialImport.noRowsSelected'))
+    return
+  }
   if (duplicateCount.value > 0) {
     showDuplicateDialog.value = true
     return
@@ -945,6 +1016,25 @@ onMounted(async () => {
 
 .row-duplicate {
   background: #fffbeb;
+}
+
+.row-not-imported {
+  opacity: 0.6;
+}
+
+.col-import-select {
+  width: 2.25rem;
+  text-align: center;
+  vertical-align: middle;
+}
+
+.import-select-all {
+  cursor: pointer;
+}
+
+.badge-muted {
+  background: #e2e8f0;
+  color: #64748b;
 }
 
 .badge {

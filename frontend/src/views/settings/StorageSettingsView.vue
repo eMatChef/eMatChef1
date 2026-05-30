@@ -7,9 +7,12 @@
         <p v-if="primaryStorageLabel" class="subtitle primary-storage-hint">
           {{ t('settings.storage.primaryStorageHint', { label: primaryStorageLabel }) }}
         </p>
-        <p v-if="!isLoading && storageAddresses.length === 0" class="subtitle warning-text">
-          {{ t('settings.storage.needStorageLocationFirst') }}
-        </p>
+        <div v-if="!isLoading && storageAddresses.length === 0" class="storage-location-hint">
+          <p class="subtitle warning-text">{{ t('settings.storage.needStorageLocationFirst') }}</p>
+          <button type="button" class="btn btn-warning btn-sm" @click="addStorageLocation">
+            {{ t('settings.storage.addStorageLocation') }}
+          </button>
+        </div>
       </div>
       <button class="btn-primary" :disabled="storageAddresses.length === 0" @click="openRackModal()">
         <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -552,6 +555,11 @@ async function setPrimaryStorageLocation(addressId: string) {
   }
 }
 
+function addStorageLocation() {
+  editingAddress.value = null
+  showAddressModal.value = true
+}
+
 function editStorageLocation(addressId: string) {
   const address = storageAddresses.value.find((a) => a.id === addressId)
   if (!address) return
@@ -842,6 +850,18 @@ onMounted(() => {
 .warning-text {
   color: #b45309 !important;
   margin-top: 6px !important;
+}
+
+.storage-location-hint {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 6px;
+}
+
+.storage-location-hint .warning-text {
+  margin-top: 0 !important;
 }
 
 .primary-storage-hint {

@@ -43,7 +43,7 @@ import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useHoverSubnav } from '@/composables/useHoverSubnav'
 import { useAuthStore } from '@/stores/auth'
-import { IconSettings, IconDashboard, IconJobs, IconTasks, IconEmployees, IconContacts } from '@/components/icons'
+import { IconSettings, IconDashboard, IconJobs, IconTasks, IconEmployees, IconContacts, IconMaterials } from '@/components/icons'
 
 const route = useRoute()
 const authStore = useAuthStore()
@@ -56,6 +56,12 @@ const isAdminDashboardRoute = computed(() => route.path.startsWith('/admin-dashb
 const departmentId = computed(() => (route.params.departmentId as string) || authStore.activeDepartmentId || '')
 
 const isSuperAdminUser = computed(() => authStore.userRoles.includes('ROLE_SUPERADMIN'))
+
+const canEditGlobalTemplates = computed(() =>
+  authStore.userRoles.includes('ROLE_SUPERADMIN') ||
+  authStore.userRoles.includes('ROLE_ORGANISATIONSCHEF') ||
+  authStore.userRoles.includes('ROLE_SUBORGCHEF')
+)
 
 const canManageOrganisations = computed(() => authStore.hasGlobalAdminAccess())
 
@@ -148,9 +154,15 @@ const visibleMenuItems = computed((): MenuItem[] => {
     const securityMonitoring: MenuItem = { id: 'security-monitoring', label: t('verwaltung.nav.securityMonitoring'), icon: markRaw(IconSettings) }
     const mail: MenuItem = { id: 'mail', label: t('verwaltung.nav.mail'), icon: markRaw(IconSettings) }
     const perm: MenuItem = { id: 'permissions', label: t('verwaltung.nav.permissions'), icon: markRaw(IconSettings) }
+    const materialTemplates: MenuItem = {
+      id: 'templates',
+      label: t('verwaltung.nav.materialTemplates'),
+      icon: markRaw(IconMaterials),
+    }
     return [
       ...core,
       ...sa,
+      ...(canEditGlobalTemplates.value ? [materialTemplates] : []),
       ...(canManageIntegrations.value ? [integrations] : []),
       ...(canViewSecurityMonitoring.value ? [securityMonitoring] : []),
       ...(canManageMail.value ? [mail] : []),

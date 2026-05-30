@@ -70,7 +70,8 @@
         "settingsGroups": "Settings · Groups · eMatChef",
         "settingsActivities": "Settings · Activities · eMatChef",
         "settingsStorage": "Settings · Storage · eMatChef",
-        "settingsTemplates": "Settings · Templates · eMatChef"
+        "settingsTemplates": "Settings · Templates · eMatChef",
+        "globalMaterialTemplates": "Admin · Material templates · eMatChef"
       },
       "descriptions": {
         "publicLookup": "Public material and serial number information in eMatChef.",
@@ -524,7 +525,14 @@
   "tasksGeneral": {
     "heading": "General",
     "intro": "Your personal tasks and notices will appear here later — for you only, not for the whole department.",
-    "printHint": "Department QR labels and bulk printing are under the «Print» tab."
+    "printHint": "Department QR labels and bulk printing are under the «Print» tab.",
+    "tabOpen": "Open",
+    "tabInProgress": "In progress",
+    "tabDone": "Done",
+    "emptyInProgressTitle": "No tasks in progress",
+    "emptyInProgressText": "Tasks you are working on will appear here.",
+    "emptyDoneTitle": "No completed tasks",
+    "emptyDoneText": "Completed QR contacts are listed here."
   },
   "errors": {
     "sessionExpired": "Your session has expired. Please sign in again.",
@@ -916,10 +924,7 @@
       },
       "draftBadge": "Draft",
       "lastSaved": "Last saved: {datetime}",
-      "footerDiscard": "Discard",
-      "footerBack": "Back",
       "footerNext": "Next",
-      "footerSaving": "Saving…",
       "footerSubmitting": "Saving…",
       "defaultSubmit": "Create activity",
       "submitTitleWhenBlocked": "You can create the activity once all required fields are set",
@@ -1224,6 +1229,7 @@
       "crate": "Crate",
       "close": "Close",
       "cancel": "Cancel",
+      "discard": "Discard",
       "delete": "Delete",
       "continue": "Continue",
       "retry": "Try again",
@@ -2169,6 +2175,53 @@
       "moveQuantity": "Move quantity"
     },
     "templates": {
+      "title": "Templates",
+      "subtitle": "Manage tent and combo templates for material creation",
+      "jsonImport": "JSON import",
+      "tabList": "Templates",
+      "tabImport": "Import",
+      "tabExport": "Export",
+      "uploadJson": "Upload JSON file",
+      "importHint": "v4 and v5 JSON are supported. v5 additionally includes configurator groups, options, deltas and accessories.",
+      "duplicateAction": "On duplicate",
+      "duplicateSkip": "Skip",
+      "duplicateUpdate": "Update",
+      "duplicateCreate": "Create new",
+      "validate": "Preview",
+      "previewTitle": "Preview",
+      "importStats": "{created} created, {updated} updated, {skipped} skipped, {errors} errors",
+      "colName": "Name",
+      "colAction": "Action",
+      "colStatus": "Status",
+      "exportTitle": "Export templates",
+      "exportHint": "Exports templates as v5 JSON (components, accessories, configurator). Optionally filter by manufacturer.",
+      "exportManufacturer": "Manufacturer",
+      "exportAllManufacturers": "All manufacturers",
+      "exportDownload": "Download JSON",
+      "exporting": "Exporting…",
+      "exportSuccess": "Export successful",
+      "exportFailed": "Export failed",
+      "newTemplate": "New template",
+      "searchPlaceholder": "Search templates…",
+      "allManufacturers": "All manufacturers",
+      "allTypes": "All types",
+      "physicalCombo": "Physical combo",
+      "virtualCombo": "Virtual combo",
+      "count": "{count} templates",
+      "edit": "Edit",
+      "delete": "Delete",
+      "emptyTitle": "No templates",
+      "emptyDescription": "Create your first template or import from a JSON file.",
+      "firstTemplate": "Create first template",
+      "importSuccess": "{created} created, {skipped} skipped ({manufacturer})",
+      "errorLabel": "Error",
+      "deleteConfirmTitle": "Delete template?",
+      "deleteConfirmMessage": "Do you really want to delete template {name}?",
+      "deleting": "Deleting…",
+      "deleteError": "Delete failed",
+      "invalidJson": "Invalid JSON file",
+      "importFailed": "Import failed",
+      "loadError": "Failed to load templates",
       "manufacturerTemplateCount": "{count} templates",
       "badgeGlobal": "Central",
       "badgeDepartment": "Own",
@@ -2193,6 +2246,12 @@
       "tentType": {
         "gruppenzelt": "Group tent",
         "sonstiges": "Other"
+      },
+      "globalAdmin": {
+        "title": "Global material templates",
+        "subtitle": "Manage central tent and combo templates for all departments",
+        "emptyDescription": "Create the first global template or import existing ones from a JSON file.",
+        "duplicateTitle": "Create as global copy"
       }
     },
     "publicMaterialPage": {
@@ -2929,6 +2988,8 @@
       "labelInstanceLabelOptional": "Label (optional)",
       "phInstanceLabelExample": "e.g. cook box Bear",
       "serialIsContainerLong": "Container – this instance can hold stock",
+      "serialAllAsContainersTitle": "All instances are containers",
+      "serialAllAsContainersDesc": "Box/bag — appears in container pick lists. Applies to all rows and new entries.",
       "labelLocationKindShort": "Type",
       "invalidSerialLocationHint": "Choose a valid location per serial number (rack/bin or box).",
       "emptySerialsHint": "No serial numbers added yet",
@@ -4277,6 +4338,25 @@
       "stateAvailableN": "{n} buildable",
       "availableN": "{n} free",
       "loadError": "Availability could not be loaded."
+    }
+  },
+  "verwaltung": {
+    "menuTitle": "Website administration",
+    "nav": {
+      "globalAddresses": "Global addresses",
+      "systemJobs": "System jobs",
+      "supportRequests": "Support requests",
+      "organisations": "Organisations",
+      "departments": "Departments",
+      "allDepartments": "All departments",
+      "users": "Users",
+      "globalAdminRoles": "Global admin roles",
+      "userOrgOverview": "Assignment overview",
+      "integrations": "Integrations",
+      "securityMonitoring": "Security monitoring",
+      "mail": "Email",
+      "permissions": "Permissions",
+      "materialTemplates": "Material templates"
     }
   },
   "securityMonitoring": {

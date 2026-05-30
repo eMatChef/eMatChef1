@@ -208,6 +208,56 @@ import {
 
 ---
 
+### Adressen / Department (`frontend/src/components/addresses/`)
+
+
+| Baustein                           | Pfad                                                              | Verwendung                                                                 |
+| ---------------------------------- | ----------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| **DepartmentAddressAutocomplete**  | `frontend/src/components/addresses/DepartmentAddressAutocomplete.vue` | Suche in Department-Adressen mit Typ-Priorität, Trenner, Inline-Anlegen   |
+| **departmentAddressSearch** (Util) | `frontend/src/utils/departmentAddressSearch.ts`                   | `formatAddressOption`, `addressMatchesQuery`, `groupDepartmentAddressesForSearch` |
+
+
+**DepartmentAddressAutocomplete — Import & Props**
+
+```vue
+import { DepartmentAddressAutocomplete } from '@/components/addresses'
+
+<DepartmentAddressAutocomplete
+  input-id="activity-venue-address-search"
+  :addresses="rentalAddresses"
+  :selected-id="venueAddressId"
+  primary-type="event"
+  :placeholder="t('activities.wizard.form.addressSearchPlaceholder')"
+  :add-button-title="t('activities.wizard.form.addVenueAddressTitle')"
+  inline-create-label-key="addresses.search.createEventVenueInline"
+  @update:selected-id="emit('update:venueAddressId', $event)"
+  @create="openAddVenueAddressModal"
+/>
+```
+
+**Verhalten:**
+
+- Treffer mit `primary-type` (z. B. `event`) oben
+- Übrige Adresstypen darunter mit Trenner «Andere Standorte»
+- Kein Treffer: klickbarer Inline-Vorschlag «{query} als … anlegen» → Eltern öffnet `AddressModal` mit `:default-name`
+- Nach `@saved` im Modal: Eltern lädt Adressen neu und setzt `selected-id`
+
+**Styles:** Layout in `department-address-autocomplete.css`; Typ-Badges global via `address-type-badge.css` (`.address-type-badge` + `.address-type-badge--compact`)
+
+**Eingebunden in:** `ActivityCreateWizardForm.vue` (Eventstandort bei Lager/Event/Extern)
+
+**Adress-Typ-Badge (global)**
+
+```vue
+<span class="address-type-badge" :class="address.type">{{ typeLabel }}</span>
+<!-- Kompakt (Autocomplete-Dropdown): -->
+<span class="address-type-badge address-type-badge--compact" :class="address.type">{{ typeLabel }}</span>
+```
+
+Typ-Schlüssel entsprechen `ADDRESS_TYPES` in `api/addresses.ts` (`storage`, `event`, `customer`, …).
+
+---
+
 ### Common (`frontend/src/components/common/`)
 
 
@@ -266,6 +316,7 @@ Ausführlich: `[docs/Archiv/HANDOUT_CSS_ZENTRALISIERUNG.md](Archiv/HANDOUT_CSS_Z
 | Modul           | Pfad                                      | Inhalt                                      |
 | --------------- | ----------------------------------------- | ------------------------------------------- |
 | Buttons         | `styles/ui/buttons.css`                   | `.btn`, `.btn-primary`, `.btn-secondary`, … |
+| Inline «+»      | `styles/ui/inline-add-button.css`         | `.add-inline-btn` — gestrichelter Rand, grünes «+» neben Autocomplete |
 | Layout          | `styles/ui/page-layout.css`               | `.page-header`, Filter, …                   |
 | Formulare       | `styles/ui/forms.css`                     | Inputs, Labels                              |
 | Karten          | `styles/ui/cards.css`                     | Card-Patterns                               |
@@ -275,6 +326,7 @@ Ausführlich: `[docs/Archiv/HANDOUT_CSS_ZENTRALISIERUNG.md](Archiv/HANDOUT_CSS_Z
 | History         | `styles/ui/history.css`                   | Änderungs-Historie                          |
 | Storage         | `styles/ui/storage.css`                   | Lager/Regale                                |
 | **User-Avatar** | `styles/components/user-avatar-badge.css` | Avatar-Badge + Liste                        |
+| **Adress-Typ**  | `styles/components/address-type-badge.css` | `.address-type-badge.{type}` + Avatar-Farben (Kontakte, Autocomplete) |
 | **Sender (Inbox)** | `styles/components/notification-sender-block.css` | System-/Aufgaben-Icons, Actor-Overlay |
 
 

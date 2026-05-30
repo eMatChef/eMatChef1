@@ -816,28 +816,7 @@
   flex: 1;
 }
 
-.add-inline-btn {
-  width: 42px;
-  height: 42px;
-  border: 2px dashed #d1d5db;
-  border-radius: 8px;
-  background: white;
-  color: #6b7280;
-  cursor: pointer;
-  font-size: 20px;
-  font-weight: 500;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.2s;
-  flex-shrink: 0;
-}
-
-.add-inline-btn:hover {
-  border-color: #16a34a;
-  color: #16a34a;
-  background: #ecfdf5;
-}
+/* .add-inline-btn → styles/ui/inline-add-button.css (global) */
 
 .autocomplete-dropdown {
   position: absolute;
@@ -1540,6 +1519,84 @@
 
 .serial-table tr:last-child td {
   border-bottom: none;
+}
+
+.serial-table-wrap {
+  margin-top: 8px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  overflow-x: auto;
+  background: white;
+}
+
+.serial-table--wizard {
+  border: none;
+  border-radius: 0;
+}
+
+.serial-table--wizard .col-num {
+  width: 36px;
+  text-align: center;
+  color: #6b7280;
+  font-variant-numeric: tabular-nums;
+}
+
+.serial-table--wizard .col-container {
+  width: 72px;
+  text-align: center;
+}
+
+.serial-table--wizard .col-actions {
+  width: 72px;
+  white-space: nowrap;
+}
+
+.serial-table--wizard .serial-table-input {
+  width: 100%;
+  min-width: 0;
+}
+
+.serial-table--wizard .serial-table-location-cell {
+  min-width: 180px;
+}
+
+.serial-table--wizard .serial-table-location-cell .serial-table-input + .serial-table-input {
+  margin-top: 4px;
+}
+
+.serial-table--wizard .serial-table-container-cell {
+  justify-content: center;
+  margin: 0;
+}
+
+.serial-table--wizard td.col-actions {
+  vertical-align: middle;
+}
+
+.serial-table--wizard td.col-actions .remove-serial-btn + .remove-serial-btn {
+  margin-left: 4px;
+}
+
+.serial-auto-container-flag {
+  align-self: flex-end;
+  margin-bottom: 6px;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.serial-all-containers-hint {
+  margin: 0 0 4px;
+}
+
+.serial-bulk-container-row {
+  display: flex;
+  align-items: center;
+  margin: 8px 0 4px;
+  padding: 8px 10px;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  font-size: 13px;
 }
 
 /* ============================================

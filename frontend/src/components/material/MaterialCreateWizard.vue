@@ -1371,13 +1371,30 @@
                               <label>{{ t('components.materialCreateWizard.labelCountShort') }}</label>
                               <input v-model.number="autoGenCount" type="number" min="1" class="form-input form-input-sm" />
                             </div>
+                            <label
+                              v-if="serialNumbers.length === 0"
+                              class="serial-auto-container-flag checkbox-label"
+                            >
+                              <input type="checkbox" v-model="serialAllAsContainers" />
+                              <span>{{ t('components.materialCreateWizard.serialAllAsContainersTitle') }}</span>
+                            </label>
                             <button type="button" class="add-serial-btn add-serial-btn-secondary" @click="generateSerialNumbers">
                               {{ t('components.materialCreateWizard.btnGenerateSerialList') }}
                             </button>
                             <span class="serial-auto-preview">{{ autoGenPreview }}</span>
                           </div>
+                          <p
+                            v-if="serialNumbers.length === 0"
+                            class="field-hint serial-all-containers-hint"
+                          >{{ t('components.materialCreateWizard.serialAllAsContainersDesc') }}</p>
                         </div>
                       </transition>
+                    </div>
+                    <div v-if="serialNumbers.length > 0" class="serial-bulk-container-row">
+                      <label class="checkbox-label">
+                        <input type="checkbox" v-model="serialAllAsContainers" />
+                        <span>{{ t('components.materialCreateWizard.serialAllAsContainersTitle') }}</span>
+                      </label>
                     </div>
                     <BarcodeScannerPanel
                       v-if="serialScannerActive"
@@ -1388,146 +1405,163 @@
                       @error="onSerialScannerError"
                     />
                     
-                    <div class="serial-list" v-if="serialNumbers.length > 0">
-                      <div
-                        v-for="(entry, index) in serialNumbers"
-                        :key="entry.id"
-                        class="serial-row"
-                        :class="{ 'serial-row--shared-location': serialLocationSameForAll }"
-                      >
-                        <div class="serial-block serial-block--identity">
-                          <label class="form-label-sm">{{ getSerialRowTitle(entry, index) }}</label>
-                          <input
-                            v-model="entry.serial_number"
-                            type="text"
-                            class="form-input serial-input"
-                            :placeholder="t('components.materialCreateWizard.phEnterSerialNumber')"
-                            @keydown.enter.prevent="addSerialNumber"
-                          />
-                          <label class="form-label-sm">{{ t('components.materialCreateWizard.labelInstanceLabelOptional') }}</label>
-                          <input
-                            v-model="entry.label"
-                            type="text"
-                            class="form-input notes-input"
-                            :placeholder="t('components.materialCreateWizard.phInstanceLabelExample')"
-                          />
-                          <label class="checkbox-label serial-is-container-flag mt-2">
-                            <input type="checkbox" v-model="entry.is_container" />
-                            <span>{{ t('components.materialCreateWizard.serialIsContainerLong') }}</span>
-                          </label>
-                        </div>
-
-                        <div v-if="!serialLocationSameForAll" class="serial-block serial-block--art">
-                          <label class="form-label-sm">{{ t('components.materialCreateWizard.labelLocationKindShort') }}</label>
-                          <select v-model="entry.location_mode" class="form-select form-select--sm" @change="entry.rack_id=''; entry.slot_id=''; entry.container_batch_id=''">
-                            <option value="slot">{{ t('components.materialCreateWizard.tabGestellFach') }}</option>
-                            <option value="kiste">{{ t('components.materialCreateWizard.tabKisteTasche') }}</option>
-                          </select>
-                        </div>
-
-                        <div v-if="!serialLocationSameForAll" class="serial-block serial-block--location">
-                          <div class="serial-location-cell">
-                            <template v-if="entry.location_mode === 'slot'">
-                              <label class="form-label-sm">{{ t('components.materialCreateWizard.labelStorageSiteSm') }}</label>
-                              <select v-model="entry.storage_address_id" class="form-select form-select--sm" @change="onSerialEntryStorageAddressChange(entry)">
-                                <option v-for="addr in storageAddresses" :key="addr.id" :value="addr.id">{{ addr.name || addr.street_line }}</option>
-                              </select>
-                              <label class="form-label-sm">{{ t('components.materialCreateWizard.labelRackSm') }}</label>
+                    <div v-if="serialNumbers.length > 0" class="serial-table-wrap">
+                      <table class="serial-table serial-table--wizard">
+                        <thead>
+                          <tr>
+                            <th class="col-num">#</th>
+                            <th>{{ t('components.materialDetail.thSerial') }}</th>
+                            <th>{{ t('components.materialDetail.thLabel') }}</th>
+                            <th
+                              class="col-container"
+                              :title="t('components.materialCreateWizard.serialIsContainerLong')"
+                            >
+                              {{ t('components.materialDetail.thContainer') }}
+                            </th>
+                            <th v-if="!serialLocationSameForAll">{{ t('components.materialCreateWizard.labelLocationKindShort') }}</th>
+                            <th v-if="!serialLocationSameForAll">{{ t('components.materialDetail.thStorageSlot') }}</th>
+                            <th>{{ t('components.materialDetail.thNote') }}</th>
+                            <th class="col-actions"></th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <tr v-for="(entry, index) in serialNumbers" :key="entry.id">
+                            <td class="col-num">{{ index + 1 }}</td>
+                            <td>
+                              <input
+                                v-model="entry.serial_number"
+                                type="text"
+                                class="form-input form-input-sm serial-table-input"
+                                :placeholder="t('components.materialCreateWizard.phEnterSerialNumber')"
+                                @keydown.enter.prevent="addSerialNumber"
+                              />
+                            </td>
+                            <td>
+                              <input
+                                v-model="entry.label"
+                                type="text"
+                                class="form-input form-input-sm serial-table-input"
+                                :placeholder="t('components.materialCreateWizard.phInstanceLabelExample')"
+                              />
+                            </td>
+                            <td class="col-container">
+                              <label class="checkbox-label serial-table-container-cell">
+                                <input
+                                  type="checkbox"
+                                  v-model="entry.is_container"
+                                  :title="t('components.materialCreateWizard.serialIsContainerLong')"
+                                />
+                              </label>
+                            </td>
+                            <td v-if="!serialLocationSameForAll">
                               <select
-                                v-model="entry.rack_id"
-                                class="form-select form-select--sm"
-                                @change="onSerialEntryRackChange(entry)"
-                                @mouseenter="prefetchRackPreview(entry.rack_id)"
-                                :title="getRackPreviewTitle(entry.rack_id)"
+                                v-model="entry.location_mode"
+                                class="form-select form-select--sm serial-table-input"
+                                @change="entry.rack_id=''; entry.slot_id=''; entry.container_batch_id=''"
                               >
-                                <option value="" disabled>{{ t('components.materialCreateWizard.selectRackDash') }}</option>
-                                <option
-                                  v-for="rack in getRacksForSerialEntry(entry)"
-                                  :key="rack.id"
-                                  :value="String(rack.id)"
-                                  :title="getRackPreviewTitle(rack.id)"
-                                >
-                                  {{ rack.name }}
-                                </option>
+                                <option value="slot">{{ t('components.materialCreateWizard.tabGestellFach') }}</option>
+                                <option value="kiste">{{ t('components.materialCreateWizard.tabKisteTasche') }}</option>
                               </select>
-                              <label class="form-label-sm">{{ t('components.materialCreateWizard.labelSlotSm') }}</label>
-                              <select
-                                v-model="entry.slot_id"
-                                class="form-select form-select--sm"
-                                :disabled="!entry.rack_id"
-                                @mouseenter="prefetchSlotPreview(entry.rack_id, entry.slot_id)"
-                                :title="getSlotPreviewTitle(entry.rack_id, entry.slot_id)"
+                            </td>
+                            <td v-if="!serialLocationSameForAll" class="serial-table-location-cell">
+                              <template v-if="entry.location_mode === 'slot'">
+                                <select
+                                  v-model="entry.storage_address_id"
+                                  class="form-select form-select--sm serial-table-input"
+                                  @change="onSerialEntryStorageAddressChange(entry)"
+                                >
+                                  <option v-for="addr in storageAddresses" :key="addr.id" :value="addr.id">{{ addr.name || addr.street_line }}</option>
+                                </select>
+                                <select
+                                  v-model="entry.rack_id"
+                                  class="form-select form-select--sm serial-table-input"
+                                  @change="onSerialEntryRackChange(entry)"
+                                  @mouseenter="prefetchRackPreview(entry.rack_id)"
+                                  :title="getRackPreviewTitle(entry.rack_id)"
+                                >
+                                  <option value="" disabled>{{ t('components.materialCreateWizard.selectRackDash') }}</option>
+                                  <option
+                                    v-for="rack in getRacksForSerialEntry(entry)"
+                                    :key="rack.id"
+                                    :value="String(rack.id)"
+                                    :title="getRackPreviewTitle(rack.id)"
+                                  >
+                                    {{ rack.name }}
+                                  </option>
+                                </select>
+                                <select
+                                  v-model="entry.slot_id"
+                                  class="form-select form-select--sm serial-table-input"
+                                  :disabled="!entry.rack_id"
+                                  @mouseenter="prefetchSlotPreview(entry.rack_id, entry.slot_id)"
+                                  :title="getSlotPreviewTitle(entry.rack_id, entry.slot_id)"
+                                >
+                                  <option value="" disabled>{{ t('components.materialCreateWizard.selectPickSlotDash') }}</option>
+                                  <option
+                                    v-for="slot in (entry.rack_id ? (slotsByRackId[String(entry.rack_id)] || []) : [])"
+                                    :key="slot.id"
+                                    :value="String(slot.id)"
+                                    :title="getSlotPreviewTitle(entry.rack_id, slot.id)"
+                                  >
+                                    {{ formatSlotOptionLabel(entry.rack_id, slot) }}
+                                  </option>
+                                </select>
+                              </template>
+                              <template v-else>
+                                <select
+                                  v-model="entry.container_batch_id"
+                                  class="form-select form-select--sm serial-table-input"
+                                  @mouseenter="prefetchContainerPreviews()"
+                                  :title="getContainerPreviewTitle(entry.container_batch_id)"
+                                >
+                                  <option value="">{{ t('components.materialCreateWizard.selectPickBoxDash') }}</option>
+                                  <option
+                                    v-for="cb in containerBatches"
+                                    :key="cb.id"
+                                    :value="cb.id"
+                                    :title="formatContainerBatchOptionFullLabel(cb)"
+                                  >
+                                    {{ formatContainerBatchOptionFullLabel(cb) }}
+                                  </option>
+                                </select>
+                              </template>
+                            </td>
+                            <td>
+                              <input
+                                v-model="entry.notes"
+                                type="text"
+                                class="form-input form-input-sm serial-table-input"
+                                :placeholder="t('components.materialCreateWizard.optionalPlain')"
+                              />
+                            </td>
+                            <td class="col-actions">
+                              <button
+                                type="button"
+                                class="remove-serial-btn"
+                                @click="openSerialScannerFor(entry.id)"
+                                :title="t('components.materialCreateWizard.titleScanSerialRow')"
                               >
-                                <option value="" disabled>{{ t('components.materialCreateWizard.selectPickSlotDash') }}</option>
-                                <option
-                                  v-for="slot in (entry.rack_id ? (slotsByRackId[String(entry.rack_id)] || []) : [])"
-                                  :key="slot.id"
-                                  :value="String(slot.id)"
-                                  :title="getSlotPreviewTitle(entry.rack_id, slot.id)"
-                                >
-                                  {{ formatSlotOptionLabel(entry.rack_id, slot) }}
-                                </option>
-                              </select>
-                            </template>
-                            <template v-else>
-                              <label class="form-label-sm">{{ t('components.materialCreateWizard.labelBoxBagSm') }}</label>
-                              <select
-                                v-model="entry.container_batch_id"
-                                class="form-select form-select--sm"
-                                @mouseenter="prefetchContainerPreviews()"
-                                :title="getContainerPreviewTitle(entry.container_batch_id)"
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                  <rect x="3" y="5" width="18" height="14" rx="2"/>
+                                  <line x1="7" y1="9" x2="17" y2="9"/>
+                                  <line x1="7" y1="13" x2="12" y2="13"/>
+                                </svg>
+                              </button>
+                              <button
+                                type="button"
+                                class="remove-serial-btn"
+                                @click="removeSerialNumber(entry.id)"
+                                :title="t('components.materialCreateWizard.btnRemoveRowTitle')"
                               >
-                                <option value="">{{ t('components.materialCreateWizard.selectPickBoxDash') }}</option>
-                                <option
-                                  v-for="cb in containerBatches"
-                                  :key="cb.id"
-                                  :value="cb.id"
-                                  :title="formatContainerBatchOptionFullLabel(cb)"
-                                >
-                                  {{ formatContainerBatchOptionFullLabel(cb) }}
-                                </option>
-                              </select>
-                            </template>
-                          </div>
-                        </div>
-
-                        <div class="serial-block serial-block--notes">
-                          <label class="form-label-sm">{{ t('components.materialCreateWizard.serialRowNotesLabelOptional') }}</label>
-                          <input
-                            v-model="entry.notes"
-                            type="text"
-                            class="form-input notes-input"
-                            :placeholder="t('components.materialCreateWizard.optionalPlain')"
-                          />
-                        </div>
-
-                        <div class="serial-block serial-block--actions">
-                          <button
-                            type="button"
-                            class="remove-serial-btn"
-                            style="margin-right:6px;"
-                            @click="openSerialScannerFor(entry.id)"
-                            :title="t('components.materialCreateWizard.titleScanSerialRow')"
-                          >
-                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                              <rect x="3" y="5" width="18" height="14" rx="2"/>
-                              <line x1="7" y1="9" x2="17" y2="9"/>
-                              <line x1="7" y1="13" x2="12" y2="13"/>
-                            </svg>
-                          </button>
-                          <button
-                            type="button"
-                            class="remove-serial-btn"
-                            @click="removeSerialNumber(entry.id)"
-                            :title="t('components.materialCreateWizard.btnRemoveRowTitle')"
-                          >
-                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                              <line x1="18" y1="6" x2="6" y2="18"/>
-                              <line x1="6" y1="6" x2="18" y2="18"/>
-                            </svg>
-                          </button>
-                        </div>
-                      </div>
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                  <line x1="18" y1="6" x2="6" y2="18"/>
+                                  <line x1="6" y1="6" x2="18" y2="18"/>
+                                </svg>
+                              </button>
+                            </td>
+                          </tr>
+                        </tbody>
+                      </table>
                     </div>
                     
                     <div v-else class="empty-serials">
@@ -2885,6 +2919,13 @@ const autoGenPad = ref(3)
 const autoGenCount = ref(5)
 const serialAutoGenerateEnabled = ref(false)
 const serialLocationSameForAll = ref(false)
+const serialAllAsContainers = ref(false)
+
+watch(serialAllAsContainers, (value) => {
+  for (const entry of serialNumbers.value) {
+    entry.is_container = value
+  }
+})
 
 const suggestedSerialPrefix = computed(() => {
   const name = (formData.name || '').trim()
@@ -2900,6 +2941,7 @@ type WizardStockPrefs = {
   autoGenCount?: number
   serialAutoGenerateEnabled?: boolean
   serialLocationSameForAll?: boolean
+  serialAllAsContainers?: boolean
 }
 
 const wizardStockPrefsKey = computed(() => `materialWizard.stockPrefs.${props.departmentId}`)
@@ -2926,6 +2968,7 @@ function saveWizardStockPrefs() {
       autoGenCount: Math.max(1, Math.min(100, autoGenCount.value || 1)),
       serialAutoGenerateEnabled: !!serialAutoGenerateEnabled.value,
       serialLocationSameForAll: !!serialLocationSameForAll.value,
+      serialAllAsContainers: !!serialAllAsContainers.value,
     }
     localStorage.setItem(wizardStockPrefsKey.value, JSON.stringify(payload))
   } catch {
@@ -2948,6 +2991,7 @@ function applyWizardStockPrefs() {
   if (typeof prefs.autoGenCount === 'number') autoGenCount.value = Math.max(1, Math.min(100, prefs.autoGenCount))
   if (typeof prefs.serialAutoGenerateEnabled === 'boolean') serialAutoGenerateEnabled.value = prefs.serialAutoGenerateEnabled
   if (typeof prefs.serialLocationSameForAll === 'boolean') serialLocationSameForAll.value = prefs.serialLocationSameForAll
+  if (typeof prefs.serialAllAsContainers === 'boolean') serialAllAsContainers.value = prefs.serialAllAsContainers
 }
 
 const autoGenPreview = computed(() => {
@@ -2973,7 +3017,7 @@ function generateSerialNumbers() {
     serial_number: prefix + String(start + i).padStart(pad, '0'),
     label: '',
     notes: '',
-    is_container: false,
+    is_container: serialAllAsContainers.value,
     location_mode: 'slot',
     storage_address_id: getPreferredStorageAddressId(),
     rack_id: '',
@@ -2988,7 +3032,7 @@ function addSerialNumber() {
     serial_number: '',
     label: '',
     notes: '',
-    is_container: false,
+    is_container: serialAllAsContainers.value,
     location_mode: 'slot',
     storage_address_id: getPreferredStorageAddressId(),
     rack_id: '',
@@ -3780,7 +3824,15 @@ const shouldRenderCreationMode = computed(() => {
   return missingSteps.value[0]?.step === 'creation_mode'
 })
 
-function resetForm() {
+function scrollWizardFormToTop(): void {
+  if (wizardFormRef.value) {
+    wizardFormRef.value.scrollTop = 0
+  }
+}
+
+/** Formular leeren; optional gespeicherte Serien-/Lager-Präferenzen wiederherstellen. */
+function resetForm(options: { restoreStockPrefs?: boolean } = {}) {
+  const { restoreStockPrefs = true } = options
   formData.name = ''
   formData.storage_address_id = ''
   formData.location_rack = ''
@@ -3865,6 +3917,7 @@ function resetForm() {
   serialScannerActive.value = false
   serialScannerTargetId.value = null
   serialLocationSameForAll.value = false
+  serialAllAsContainers.value = false
   serialAutoGenerateEnabled.value = false
   autoGenPrefix.value = ''
   autoGenStart.value = 1
@@ -3888,13 +3941,20 @@ function resetForm() {
   accordionUserControlled.value = false
   activeStep.value = ''
 
-  // Last-used stock/serial preferences per department
-  applyWizardStockPrefs()
+  scrollWizardFormToTop()
+
+  if (restoreStockPrefs) {
+    applyWizardStockPrefs()
+  }
+}
+
+function resetFormForNewMaterial(): void {
+  resetForm({ restoreStockPrefs: false })
 }
 
 function handleClose() {
   showDialog.value = false
-  resetForm()
+  resetFormForNewMaterial()
 }
 
 function selectTrackingType(type: 'serialized' | 'bulk') {
@@ -5584,7 +5644,7 @@ async function handleSubmit() {
     }
 
     if (createAnother.value) {
-      resetForm()
+      resetFormForNewMaterial()
       nextTick(() => {
         scrollCreationModeIntoView()
       })
@@ -5624,7 +5684,7 @@ function scrollCreationModeIntoView(): void {
 
 async function initializeOnOpen(): Promise<void> {
   const runId = ++openInitRunId
-  resetForm()
+  resetFormForNewMaterial()
   await nextTick()
   if (runId !== openInitRunId) return
   scrollCreationModeIntoView()
@@ -5844,6 +5904,7 @@ watch(
     autoGenCount.value,
     serialAutoGenerateEnabled.value,
     serialLocationSameForAll.value,
+    serialAllAsContainers.value,
   ] as const,
   () => {
     saveWizardStockPrefs()

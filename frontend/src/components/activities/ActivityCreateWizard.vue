@@ -94,7 +94,9 @@
           :submit-button-label="submitButtonLabel"
           :show-draft-status="showDraftFooterStatus"
           :last-saved-at="lastDraftSavedAt"
+          :show-close-saved-button="showCloseSavedButton"
           @close="handleClose"
+          @close-saved="handleClose"
           @prev="prevStep"
           @weiter="onWeiter"
           @submit="handleSubmit"
@@ -147,6 +149,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   'update:modelValue': [value: boolean]
   created: [id: string]
+  draftSaved: [id: string]
 }>()
 
 const { t } = useI18n()
@@ -297,6 +300,15 @@ const showDraftFooterStatus = computed(
     !!selectedActivityType.value &&
     (!!draftActivityId.value || lastDraftSavedAt.value !== null),
 )
+
+const showCloseSavedButton = computed(() => {
+  const typ = selectedActivityType.value
+  return (
+    layoutMode.value === 'stepper' &&
+    !!draftActivityId.value &&
+    (typ === 'camp' || typ === 'event' || typ === 'external')
+  )
+})
 
 const submitButtonLabel = computed(() => {
   switch (selectedActivityType.value) {
@@ -469,6 +481,9 @@ async function onWeiter() {
         return
       }
       lastDraftSavedAt.value = new Date()
+      if (draftActivityId.value) {
+        emit('draftSaved', draftActivityId.value)
+      }
       if (invitedDepartments.value.length > 0) {
         headerNotificationsStore.requestRefresh()
       }

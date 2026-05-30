@@ -22,6 +22,7 @@ use App\Entity\BatchStorageAllocation;
 use App\Entity\StorageRack;
 use App\Entity\StorageSlot;
 use App\Service\Public\PublicCodeService;
+use App\Service\TemplateImportExportService;
 use App\Entity\User;
 use App\Util\IdGenerator;
 use Doctrine\ORM\EntityManagerInterface;
@@ -37,6 +38,7 @@ class TemplateController extends AbstractController
     public function __construct(
         private EntityManagerInterface $entityManager,
         private PublicCodeService $publicCodeService,
+        private TemplateImportExportService $templateImportExportService,
     ) {}
 
     /**
@@ -51,20 +53,29 @@ class TemplateController extends AbstractController
     public function list(Request $request): JsonResponse
     {
         $departmentId = $request->query->get('department_id');
+        $scope = $request->query->get('scope');
 
-        if (!$departmentId) {
-            return new JsonResponse(['error' => 'department_id ist erforderlich'], 400);
-        }
-
-        // Zentrale (global) + Department-eigene Vorlagen laden
-        $templates = $this->entityManager->getRepository(MaterialTemplate::class)
+        $qb = $this->entityManager->getRepository(MaterialTemplate::class)
             ->createQueryBuilder('t')
             ->leftJoin('t.components', 'c')
             ->addSelect('c')
             ->leftJoin('t.category', 'cat')
-            ->addSelect('cat')
-            ->where('t.departmentId IS NULL OR t.departmentId = :departmentId')
-            ->setParameter('departmentId', $departmentId)
+            ->addSelect('cat');
+
+        if ($scope === 'global') {
+            if (!$this->canEditGlobalTemplates()) {
+                return new JsonResponse(['error' => 'Keine Berechtigung für zentrale Vorlagen'], 403);
+            }
+            $qb->where('t.departmentId IS NULL');
+        } elseif (!$departmentId) {
+            return new JsonResponse(['error' => 'department_id ist erforderlich'], 400);
+        } else {
+            // Zentrale (global) + Department-eigene Vorlagen laden
+            $qb->where('t.departmentId IS NULL OR t.departmentId = :departmentId')
+                ->setParameter('departmentId', $departmentId);
+        }
+
+        $templates = $qb
             ->orderBy('t.scope', 'ASC')
             ->addOrderBy('t.manufacturer', 'ASC')
             ->addOrderBy('t.name', 'ASC')
@@ -92,9 +103,114 @@ class TemplateController extends AbstractController
     }
 
     /**
+     * JSON-Datei importieren (v4/v5-Format)
+     * Body: { department_id?, scope?, templates_json, duplicate_action?, dry_run?, force? }
+     */
+    #[Route('/import', name: 'import', methods: ['POST'])]
+    #[IsGranted('ROLE_USER')]
+    public function import(Request $request): JsonResponse
+    {
+        $data = json_decode($request->getContent(), true);
+        if (!is_array($data)) {
+            return new JsonResponse(['error' => 'Ungültiger JSON-Body'], 400);
+        }
+
+        if (!isset($data['templates_json']) || !is_array($data['templates_json'])) {
+            return new JsonResponse(['error' => 'templates_json ist erforderlich'], 400);
+        }
+
+        $scope = (string) ($data['scope'] ?? 'department');
+        $departmentId = isset($data['department_id']) ? trim((string) $data['department_id']) : null;
+
+        $user = $this->getUser();
+        if (!$user instanceof User) {
+            return new JsonResponse(['error' => 'Nicht authentifiziert'], 401);
+        }
+
+        $accessError = $this->templateImportExportService->assertCanImport($departmentId, $scope, $user);
+        if ($accessError !== null) {
+            return new JsonResponse(['error' => $accessError], 403);
+        }
+
+        $duplicateAction = (string) ($data['duplicate_action'] ?? 'skip');
+        if (!in_array($duplicateAction, ['skip', 'update', 'create'], true)) {
+            $duplicateAction = 'skip';
+        }
+
+        $dryRun = (bool) ($data['dry_run'] ?? false);
+
+        try {
+            $result = $this->templateImportExportService->importFromJson($data['templates_json'], [
+                'scope' => $scope,
+                'department_id' => $departmentId,
+                'duplicate_action' => $duplicateAction,
+                'dry_run' => $dryRun,
+                'force' => (bool) ($data['force'] ?? false),
+            ]);
+
+            if (!empty($result['error'])) {
+                return new JsonResponse(['error' => $result['error']], 400);
+            }
+
+            $status = $dryRun ? 200 : ($result['success'] ? 201 : 207);
+
+            return new JsonResponse($result, $status);
+        } catch (\Throwable $e) {
+            return new JsonResponse([
+                'error' => 'Fehler beim Import: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Vorlagen als v5-JSON exportieren
+     * Query: scope=global|department, department_id?, manufacturer?
+     */
+    #[Route('/export', name: 'export', methods: ['GET'])]
+    #[IsGranted('ROLE_USER')]
+    public function export(Request $request): JsonResponse
+    {
+        $scope = (string) ($request->query->get('scope', 'department'));
+        $departmentId = trim((string) ($request->query->get('department_id', '')));
+        $manufacturer = trim((string) ($request->query->get('manufacturer', '')));
+
+        $user = $this->getUser();
+        if (!$user instanceof User) {
+            return new JsonResponse(['error' => 'Nicht authentifiziert'], 401);
+        }
+
+        $accessError = $this->templateImportExportService->assertCanExport(
+            $departmentId !== '' ? $departmentId : null,
+            $scope,
+            $user,
+        );
+        if ($accessError !== null) {
+            return new JsonResponse(['error' => $accessError], 403);
+        }
+
+        try {
+            $result = $this->templateImportExportService->exportToJson(
+                $scope,
+                $departmentId !== '' ? $departmentId : null,
+                $manufacturer !== '' ? $manufacturer : null,
+            );
+
+            if (!empty($result['error'])) {
+                return new JsonResponse(['error' => $result['error']], 404);
+            }
+
+            return new JsonResponse($result);
+        } catch (\Throwable $e) {
+            return new JsonResponse([
+                'error' => 'Export fehlgeschlagen: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
      * Einzelne Vorlage mit Komponenten laden
      */
-    #[Route('/{id}', name: 'get', methods: ['GET'])]
+    #[Route('/{id}', name: 'get', methods: ['GET'], requirements: ['id' => '[a-zA-Z0-9]+'])]
     #[IsGranted('ROLE_USER')]
     public function get(string $id): JsonResponse
     {
@@ -805,114 +921,6 @@ class TemplateController extends AbstractController
             }
             return new JsonResponse([
                 'error' => 'Fehler beim Erstellen des Materials: ' . $e->getMessage()
-            ], 500);
-        }
-    }
-
-    /**
-     * JSON-Datei importieren (v4-Format)
-     * Erwartet: { "manufacturer": "...", "templates": [...] }
-     */
-    #[Route('/import', name: 'import', methods: ['POST'])]
-    #[IsGranted('ROLE_USER')]
-    public function import(Request $request): JsonResponse
-    {
-        $data = json_decode($request->getContent(), true);
-
-        if (!isset($data['department_id'])) {
-            return new JsonResponse(['error' => 'department_id ist erforderlich'], 400);
-        }
-        if (!isset($data['templates_json'])) {
-            return new JsonResponse(['error' => 'templates_json ist erforderlich'], 400);
-        }
-
-        $department = $this->entityManager->getRepository(Department::class)
-            ->find($data['department_id']);
-        if (!$department) {
-            return new JsonResponse(['error' => 'Department nicht gefunden'], 404);
-        }
-
-        $json = $data['templates_json'];
-        if (!isset($json['manufacturer']) || !isset($json['templates'])) {
-            return new JsonResponse(['error' => 'Ungültiges JSON-Format. Erwartet: { "manufacturer": "...", "templates": [...] }'], 400);
-        }
-
-        $manufacturer = $json['manufacturer'];
-        $created = 0;
-        $skipped = 0;
-
-        try {
-            foreach ($json['templates'] as $tplData) {
-                // Prüfe ob schon vorhanden (gleicher Name + Department)
-                $existing = $this->entityManager->getRepository(MaterialTemplate::class)
-                    ->findOneBy([
-                        'departmentId' => $department->getId(),
-                        'name' => $tplData['name'] ?? $tplData['id'] ?? 'Unbenannt'
-                    ]);
-
-                if ($existing) {
-                    $skipped++;
-                    continue;
-                }
-
-                $template = new MaterialTemplate();
-                $template->setId(IdGenerator::generate());
-                $template->setDepartment($department);
-                $template->setName($tplData['name'] ?? $tplData['id'] ?? 'Unbenannt');
-                $template->setDescription($tplData['description'] ?? null);
-                $template->setManufacturer($manufacturer);
-                $template->setModel($tplData['model'] ?? null);
-                $template->setMaterialType($tplData['materialType'] ?? 'physical_combo');
-                $template->setTentType($tplData['tentType'] ?? null);
-                $template->setCapacity(isset($tplData['capacity']) ? (int) $tplData['capacity'] : null);
-                $template->setIsActive($tplData['isActive'] ?? true);
-                $template->setSource($manufacturer);
-
-                // Komponenten
-                if (isset($tplData['components']) && is_array($tplData['components'])) {
-                    foreach ($tplData['components'] as $index => $compData) {
-                        $comp = new MaterialTemplateComponent();
-                        $comp->setId(IdGenerator::generate());
-                        $comp->setComponentType($compData['type'] ?? 'unknown');
-                        $comp->setName($compData['name'] ?? $compData['type'] ?? 'Unbenannt');
-                        $comp->setRequiredQty(isset($compData['required']) ? (int) $compData['required'] : 1);
-                        $comp->setIsOptional($compData['optional'] ?? false);
-                        $comp->setSortOrder($index);
-
-                        // Tracking: aus JSON oder Standard bulk (Stücklisten; SN nur bei explizit serialized)
-                        if (isset($compData['tracking'])) {
-                            $comp->setTracking($compData['tracking']);
-                        } else {
-                            $comp->setTracking('bulk');
-                        }
-                        $comp->setComponentSource(($compData['component_source'] ?? null) === 'self_provided' ? 'self_provided' : 'stock');
-
-                        // Repair Types
-                        if (isset($compData['repair_types']) && is_array($compData['repair_types'])) {
-                            $comp->setRepairTypes($compData['repair_types']);
-                        }
-
-                        $template->addComponent($comp);
-                    }
-                }
-
-                $this->entityManager->persist($template);
-                $created++;
-            }
-
-            $this->entityManager->flush();
-
-            return new JsonResponse([
-                'success' => true,
-                'manufacturer' => $manufacturer,
-                'created' => $created,
-                'skipped' => $skipped,
-                'total' => count($json['templates'])
-            ], 201);
-
-        } catch (\Exception $e) {
-            return new JsonResponse([
-                'error' => 'Fehler beim Import: ' . $e->getMessage()
             ], 500);
         }
     }

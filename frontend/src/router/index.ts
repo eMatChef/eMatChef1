@@ -499,6 +499,16 @@ const routes: RouteRecordRaw[] = [
               requiredRoles: ['superadmin', 'organisationschef', 'suborgchef'],
               ...routeHead('permissions'),
             }
+          },
+          {
+            path: 'templates',
+            name: 'AdminGlobalTemplates',
+            component: () => import('@/views/settings/TemplatesSettingsView.vue'),
+            props: { mode: 'global-admin' },
+            meta: {
+              requiredRoles: ['superadmin', 'organisationschef', 'suborgchef'],
+              ...routeHead('globalMaterialTemplates'),
+            }
           }
         ]
       }

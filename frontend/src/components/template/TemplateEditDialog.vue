@@ -321,11 +321,14 @@ interface AccessoryForm {
   sort_order: number
 }
 
-const props = defineProps<{
-  departmentId: string
+const props = withDefaults(defineProps<{
+  departmentId?: string
+  templateScope?: 'global' | 'department'
   template: Template | null
   readonly?: boolean
-}>()
+}>(), {
+  templateScope: 'department',
+})
 
 const emit = defineEmits<{
   close: []
@@ -504,7 +507,6 @@ async function save() {
       await updateTemplate(props.template.id, data)
     } else {
       const data: CreateTemplateRequest = {
-        department_id: props.departmentId,
         name: form.name,
         description: form.description,
         manufacturer: form.manufacturer,
@@ -518,6 +520,11 @@ async function save() {
         related_accessories,
         option_groups,
         options,
+      }
+      if (props.templateScope === 'global') {
+        data.scope = 'global'
+      } else {
+        data.department_id = props.departmentId
       }
       await createTemplate(data)
     }
