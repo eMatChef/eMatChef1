@@ -122,16 +122,10 @@
     <!-- Vorlagen-Liste -->
     <template v-else-if="!canImportExportTemplates || activeTab === 'list'">
     <div class="search-bar">
-      <div class="search-input-wrapper">
-        <svg class="search-icon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <circle cx="11" cy="11" r="8"/>
-          <path d="m21 21-4.35-4.35"/>
-        </svg>
-        <input
+      <div class="search-box">
+        <SearchFieldInput
           v-model="searchQuery"
-          type="text"
-          :placeholder="t('settings.templates.searchPlaceholder')"
-          class="search-input"
+          :label="t('settings.templates.searchPlaceholder')"
         />
       </div>
       <div class="filter-group">
@@ -346,6 +340,7 @@ import {
   type TemplateWizardResult,
 } from '@/api/templates'
 import { useDepartmentMemberRole } from '@/composables/useDepartmentMemberRole'
+import SearchFieldInput from '@/components/common/SearchFieldInput.vue'
 import TemplateEditDialog from '@/components/template/TemplateEditDialog.vue'
 import TemplateStartWizard from '@/components/template/TemplateStartWizard.vue'
 

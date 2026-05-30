@@ -63,13 +63,13 @@
         </button>
       </div>
 
-      <div class="toolbar-search">
+      <div class="search-box">
         <GlobalSearchInput
           mode="inline"
           :department-id="currentDepartmentId"
           default-type="reparatur"
           v-model="searchQuery"
-          :placeholder="t('workshop.searchPlaceholder')"
+          :placeholder="t('workshop.searchListPlaceholder')"
         />
       </div>
 
@@ -908,6 +908,7 @@ import { ref, computed, onMounted, watch, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import { useDetailTabsStore } from '@/stores/detailTabs'
 import { useToast } from '@/composables/useToast'
 import {
   getWorkshopTickets,
@@ -929,6 +930,8 @@ import {
 import { listSupplierRepairCompanies } from '@/api/supplierShop'
 import { getMaterials, getMaterial, type Material } from '@/api/materials'
 import GlobalSearchInput from '@/components/common/GlobalSearchInput.vue'
+import { useListSearchQueryRoute } from '@/composables/useListSearchQueryRoute'
+import { parseSearchQuery } from '@/composables/useSearchNavigation'
 import PublicQrTag from '@/components/common/PublicQrTag.vue'
 import PublicQrActionModal from '@/components/common/PublicQrActionModal.vue'
 import { addPrintCartItem } from '@/api/tasks'
@@ -945,6 +948,7 @@ const route = useRoute()
 const router = useRouter()
 const { t, locale } = useI18n()
 const authStore = useAuthStore()
+const detailTabsStore = useDetailTabsStore()
 const toast = useToast()
 const currentDepartmentId = computed(() => route.params.departmentId as string)
 
@@ -1008,6 +1012,14 @@ const filterType = ref<TicketType | ''>('')
 const filterOriginIssueType = ref<'repair' | 'loss' | 'damage' | 'consumption' | 'manual' | ''>('')
 const filterPriority = ref<TicketPriority | ''>('')
 const quickFilter = ref<'waiting_quote' | 'missing_estimated_cost' | ''>('')
+
+useListSearchQueryRoute({
+  searchQuery,
+  route,
+  router,
+  pathIncludes: '/workshop',
+  isListView: () => true,
+})
 
 // Create Form
 const createForm = ref({
@@ -1115,12 +1127,15 @@ const filteredTickets = computed(() => {
   let result = [...tickets.value]
 
   if (searchQuery.value) {
-    const q = searchQuery.value.toLowerCase()
-    result = result.filter(t =>
-      t.title.toLowerCase().includes(q) ||
-      t.material_item.name.toLowerCase().includes(q) ||
-      (t.description && t.description.toLowerCase().includes(q))
-    )
+    const parsed = parseSearchQuery(searchQuery.value, 'reparatur')
+    const q = (parsed?.term ?? searchQuery.value).toLowerCase()
+    if (q) {
+      result = result.filter(t =>
+        t.title.toLowerCase().includes(q) ||
+        t.material_item.name.toLowerCase().includes(q) ||
+        (t.description && t.description.toLowerCase().includes(q))
+      )
+    }
   }
 
   if (filterType.value) {
@@ -1298,7 +1313,23 @@ async function handleWorkshopQrPrint() {
   closeWorkshopQrActionModal()
 }
 
+function registerWorkshopDetailTab(ticket: WorkshopTicket) {
+  const dept = currentDepartmentId.value
+  if (!dept || !ticket.id) return
+  detailTabsStore.addOrUpdateTab({
+    id: ticket.id,
+    type: 'workshop',
+    label: ticket.title?.trim() || t('workshop.fallbackTabLabel', { id: ticket.id }),
+    departmentId: dept,
+    path: `/${dept}/workshop?ticket=${encodeURIComponent(ticket.id)}`,
+  })
+}
+
 async function openTicketDetail(ticket: WorkshopTicket) {
+  registerWorkshopDetailTab(ticket)
+  if (route.query.ticket !== ticket.id) {
+    router.replace({ path: route.path, query: { ...route.query, ticket: ticket.id } })
+  }
   try {
     // Lade Ticket-Details und History parallel
     selectedTicket.value = ticket // Sofort zeigen
@@ -1310,6 +1341,7 @@ async function openTicketDetail(ticket: WorkshopTicket) {
     ])
 
     selectedTicket.value = detailed
+    registerWorkshopDetailTab(detailed)
     ticketHistory.value = history
     assignSupplierCompanyId.value = ''
     try {
@@ -1387,6 +1419,7 @@ async function tryOpenTicketFromQuery() {
 }
 
 function closeSelectedTicketDetail() {
+  // Modal schliessen: Tab im Header bleibt (nur × im Header entfernt Chip)
   selectedTicket.value = null
   ticketHistory.value = []
   if (route.query.ticket) {
@@ -1856,8 +1889,15 @@ watch([currentDepartmentId, materialFilterId], () => {
 
 watch(
   () => route.query.ticket,
-  () => {
-    tryOpenTicketFromQuery()
+  (ticketId) => {
+    if (!ticketId || typeof ticketId !== 'string') {
+      if (selectedTicket.value) {
+        selectedTicket.value = null
+        ticketHistory.value = []
+      }
+      return
+    }
+    void tryOpenTicketFromQuery()
   }
 )
 
@@ -1866,16 +1906,6 @@ watch(
   () => {
     applyQuickFilterFromRoute()
   }
-)
-
-watch(
-  () => route.query.q,
-  (q) => {
-    if (route.path.includes('/workshop')) {
-      searchQuery.value = (q as string) ?? ''
-    }
-  },
-  { immediate: true }
 )
 
 watch(showCreateModal, async (open) => {

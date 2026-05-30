@@ -7,6 +7,15 @@
   margin-bottom: 20px;
 }
 
+.section-card > .section-title:first-child {
+  margin: 0 0 18px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #6b7280;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
 .sidebar-card {
   background: white;
   border-radius: 12px;

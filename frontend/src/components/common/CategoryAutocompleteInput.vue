@@ -115,6 +115,9 @@ const { t } = useI18n()
 const emit = defineEmits<{
   'update:modelValue': [value: string]
   'reload-categories': [saved?: Category]
+  focus: []
+  blur: []
+  change: []
 }>()
 
 const wrapperRef = ref<HTMLElement | null>(null)
@@ -224,6 +227,7 @@ function unbindPositionListeners() {
 }
 
 function onInputFocus() {
+  emit('focus')
   showDropdown.value = true
   searchCategories()
   void nextTick(() => {
@@ -242,6 +246,7 @@ function hideDropdownDelayed() {
   setTimeout(() => {
     showDropdown.value = false
     unbindPositionListeners()
+    emit('blur')
   }, 200)
 }
 
@@ -249,6 +254,7 @@ function selectCategory(cat: Category) {
   selectedCategory.value = cat
   categorySearch.value = cat.name
   emit('update:modelValue', cat.id)
+  emit('change')
   showDropdown.value = false
   unbindPositionListeners()
 }
@@ -257,6 +263,7 @@ function clearCategory() {
   selectedCategory.value = null
   categorySearch.value = ''
   emit('update:modelValue', '')
+  emit('change')
 }
 
 function openAddCategoryModal() {
@@ -268,6 +275,7 @@ function onCategoryModalSaved(cat: Category) {
   showCategoryModal.value = false
   categoryModalDefaultName.value = ''
   emit('reload-categories', cat)
+  emit('change')
 }
 
 watch(showDropdown, (open) => {

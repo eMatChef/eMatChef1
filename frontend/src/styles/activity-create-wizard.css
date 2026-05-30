@@ -347,6 +347,14 @@
   padding-inline: 6px 2px;
   box-sizing: content-box;
   max-height: var(--activity-pill-control-h);
+  color: var(--color-primary, #059669);
+}
+
+.activity-create-wizard-host .activity-pill-bar .activity-date-field .dp__input_icon svg,
+.activity-create-wizard-host .activity-pill-bar .activity-date-range-field .dp__input_icon svg,
+.activity-create-wizard-host .activity-pill-bar .activity-time-field .dp__input_icon svg {
+  fill: var(--color-primary, #059669);
+  stroke: var(--color-primary, #059669);
 }
 
 /* Library: padding: var(--dp-input-padding) — komplett überschreiben, sonst bleibt das Datum höher */
@@ -430,33 +438,11 @@
   margin-bottom: 0;
 }
 
-.activity-create-wizard-host .form-group label {
-  display: block;
-  font-size: 13px;
-  font-weight: 500;
-  color: #374151;
-  margin-bottom: 6px;
-}
-
 .activity-create-wizard-host .req {
   color: #b45309;
 }
 
-.activity-create-wizard-host .form-input {
-  width: 100%;
-  padding: 10px 12px;
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
-  font-size: 14px;
-  color: #111827;
-  background: #fff;
-}
-
-.activity-create-wizard-host .form-input:focus {
-  outline: none;
-  border-color: var(--emc-brand-accent, #059669);
-  box-shadow: 0 0 0 3px rgb(5 150 105 / 18%);
-}
+/* Form input/select: shared ui/forms.css + ui/outlined-field.css */
 
 .activity-create-wizard-host .text-muted {
   color: #6b7280;

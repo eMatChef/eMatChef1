@@ -1927,6 +1927,16 @@
                               :placeholder="t('components.materialCreateWizard.phPriceZero')"
                             />
                           </div>
+                          <p
+                            v-if="packSaleToUnitSaleChf != null && purchasePriceInputMode === 'unit'"
+                            class="field-hint"
+                          >
+                            {{
+                              t('components.materialCreateWizard.packApproxPerPiece', {
+                                price: packSaleToUnitSaleChf.toFixed(2),
+                              })
+                            }}
+                          </p>
                         </div>
                       </div>
                       <div v-else key="pp-total" class="slider-details pack-details mt-2">
@@ -2773,6 +2783,50 @@ function applyPackSaleToWizardUnitSale() {
   toast.success(t('components.materialCreateWizard.toastPackUnitPriceApplied'))
 }
 
+/** Letzter aus Verpackungspreis ÷ Stück/VE berechneter Stückpreis (für Anschaffung/Verkauf). */
+let lastPackDerivedPurchaseUnitChf: number | null = null
+
+function canOverwritePriceWithPackDerived(
+  current: number | null | undefined,
+  lastAuto: number | null,
+): boolean {
+  const n = Number(current)
+  if (!Number.isFinite(n) || n <= 0) return true
+  if (lastAuto == null) return false
+  return Math.abs(n - lastAuto) < 0.001
+}
+
+/** Anschaffung (und optional Verkauf/Referenz) aus Verpackungspreis ÷ Stück pro VE. */
+function syncPurchasePricesFromPackSale() {
+  const derived = packSaleToUnitSaleChf.value
+  if (derived == null) {
+    lastPackDerivedPurchaseUnitChf = null
+    return
+  }
+
+  if (purchasePriceInputMode.value === 'unit') {
+    if (canOverwritePriceWithPackDerived(formData.unit_price, lastPackDerivedPurchaseUnitChf)) {
+      formData.unit_price = derived
+    }
+  }
+
+  if (formData.is_consumable || formData.is_food) {
+    if (canOverwritePriceWithPackDerived(formData.sale_price, lastPackDerivedPurchaseUnitChf)) {
+      formData.sale_price = derived
+    }
+    if (
+      canOverwritePriceWithPackDerived(
+        formData.reference_purchase_unit_chf,
+        lastPackDerivedPurchaseUnitChf,
+      )
+    ) {
+      formData.reference_purchase_unit_chf = derived
+    }
+  }
+
+  lastPackDerivedPurchaseUnitChf = derived
+}
+
 const templateSearch = ref('')
 const availableTemplates = ref<Template[]>([])
 const filteredTemplateList = ref<Template[]>([])
@@ -3294,6 +3348,19 @@ watch(purchasePriceInputMode, (m, prev) => {
     purchaseShippingChf.value = ''
   }
 })
+
+watch(
+  () =>
+    [
+      packSaleToUnitSaleChf.value,
+      purchasePriceInputMode.value,
+      formData.pack_sale_price_chf,
+      formData.pack_size,
+      formData.is_consumable,
+      formData.is_food,
+    ] as const,
+  () => syncPurchasePricesFromPackSale(),
+)
 
 function onPurchasePriceModeToggle(ev: Event) {
   const el = ev.target as HTMLInputElement | null
@@ -3909,6 +3976,7 @@ function resetForm(options: { restoreStockPrefs?: boolean } = {}) {
   formData.manufacturer = ''
   formData.supplier_id = ''
   formData.unit_price = 0
+  lastPackDerivedPurchaseUnitChf = null
   purchasePriceInputMode.value = 'unit'
   purchaseTotalWaresChf.value = ''
   purchaseShippingChf.value = ''

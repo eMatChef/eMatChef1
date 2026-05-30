@@ -9,6 +9,7 @@ import {
   type StorageRack,
   type StorageSlot,
 } from '@/api/storageLocations'
+import { sortByNaturalName } from '@/utils/naturalSort'
 
 type CreateRackInput = {
   departmentId: string
@@ -139,7 +140,7 @@ export function useStorageStructure(departmentId: () => string) {
     const existing = slotsByRackId.value[input.rackId] || []
     slotsByRackId.value = {
       ...slotsByRackId.value,
-      [input.rackId]: [...existing, created],
+      [input.rackId]: sortByNaturalName([...existing, created], (slot) => slot.name),
     }
     return created
   }

@@ -1,4 +1,4 @@
-import apiClient from './apiClient'
+import apiClient, { refreshSessionCookie } from './apiClient'
 import { clearAuthStorage, purgeLegacyAuthSecrets } from '@/utils/authStorage'
 import { markCrossSubdomainLogoutSeenFromCookie } from '@/utils/authCrossOrigin'
 import type { SupplierCompanySession } from '@/api/supplier'
@@ -419,5 +419,8 @@ export async function saveLastUsedDepartment(userId: string, departmentId: strin
  * JWT-Refresh über HttpOnly refresh_token-Cookie (Gesdinet).
  */
 export async function refreshToken(): Promise<void> {
-  await apiClient.post('/api/token/refresh', {})
+  const ok = await refreshSessionCookie()
+  if (!ok) {
+    throw new Error('Token refresh failed')
+  }
 }

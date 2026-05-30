@@ -65,7 +65,7 @@
       </div>
     </div>
     <button
-      v-if="showAddButton && !searchTrimmed"
+      v-if="showAddButton"
       type="button"
       class="add-inline-btn"
       :title="addButtonTitle"

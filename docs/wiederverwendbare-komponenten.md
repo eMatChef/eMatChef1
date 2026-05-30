@@ -358,16 +358,70 @@ Typ-Schlüssel entsprechen `ADDRESS_TYPES` in `api/addresses.ts` (`storage`, `ev
 | `GlobalConfirmDialog`                | App-weiter Bestätigungsdialog (`useConfirm`)       |
 | `GlobalPromptDialog`                 | App-weiter Eingabe-Dialog (`usePrompt`)            |
 | `GlobalToastContainer`               | Toasts (`useToast`)                                |
-| `GlobalSearchInput`                  | Einheitliche Suchleiste (z. B. Material, Workshop) |
+| `GlobalSearchInput`                  | Zentrale Suche mit Prefix/Navigation (Header, Material, Workshop) |
+| `SearchFieldInput`                   | Outlined Listen-Suche: Lupe links (grün bei Hover), Label auf dem Rahmen |
 | `MaterialLookupInput`                | Material-Suche/Autocomplete                        |
 | `CategoryAutocompleteInput`          | Kategorie-Autocomplete                             |
 | `BarcodeScannerPanel`                | Barcode/QR-Scanner                                 |
 | `PublicQrTag`                        | QR-Badge für öffentliche Material-Links            |
 | `DevEnvironmentBanner`               | Hinweis Testumgebung                               |
 | `PhysicalComboContainerWarningModal` | Warnung physische Combo in Container               |
+| **AutoSaveField** / **AutoSaveFieldShell** | Auto-Save Formularfeld (ecamp3-inspiriert): Debounce, zwei indeterminate Balken unten, Diskette nach Erfolg, Retry/Abbrechen |
 
 
 Diese werden meist global in `App.vue` eingebunden oder direkt in Views importiert.
+
+**AutoSaveField — Import & Props**
+
+```vue
+import { AutoSaveField, useFormFieldBaselines } from '@/components/common/autoSave'
+
+const formData = reactive({ name: '', category_id: '' })
+const { baselines, syncBaselines, syncBaselineFor } = useFormFieldBaselines(formData)
+
+<!-- Einfaches Textfeld -->
+<AutoSaveField
+  v-model="formData.name"
+  :baseline="baselines.name"
+  label="Name"
+  :save="(v) => saveField('name', v)"
+/>
+
+<!-- Eigenes Steuerelement (Slot) -->
+<AutoSaveField
+  v-model="formData.category_id"
+  :baseline="baselines.category_id"
+  label="Kategorie"
+  :save="(v) => saveField('category_id', v)"
+>
+  <template #default="{ onFocus, onBlur, onChange }">
+    <CategoryAutocompleteInput
+      v-model="formData.category_id"
+      @focus="onFocus"
+      @blur="onBlur"
+      @change="onChange"
+    />
+  </template>
+</AutoSaveField>
+```
+
+| Prop | Typ | Beschreibung |
+| ---- | --- | ------------ |
+| `v-model` | `string \| number \| boolean \| null` | Aktueller Feldwert |
+| `baseline` | wie v-model | Letzter DB-Stand (Revert bei Blur ohne Änderung) |
+| `label` | `string` | Floating Label |
+| `save` | `(value) => Promise<void>` | PATCH/Speichern — wirft bei Fehler |
+| `type` | `'text' \| 'number' \| 'date' \| 'textarea' \| 'select' \| 'checkbox'` | Standard: `text` |
+| `autoSaveDelay` | `number` | Debounce in ms (Standard: 800) |
+| `disabled` | `boolean` | Feld deaktivieren |
+
+**Verhalten (angelehnt an ecamp3):** Debounce beim Tippen, indeterminierter Loader oben im Feld, Diskette nur kurz nach Erfolg, Blur ohne Änderung → Revert auf `baseline`, Fehler → Retry + Abbrechen, Select/Checkbox → sofort speichern.
+
+**Eingebunden in:** `MaterialDetailView.vue` (Stammdaten, Vermietung, Kisten-Editor).
+
+**Styles:** `frontend/src/styles/components/auto-save-field.css` — nutzt Marken-Tokens aus `styles/ui/brand-tokens.css` (`--color-primary`, `--color-error`, …). Global in `style.css` importiert.
+
+**Composables:** `useAutoSaveField`, `useFormFieldBaselines`, Utils `normalizeAutoSaveValue` / `parseAutoSaveInputValue` — Export über `@/components/common/autoSave`.
 
 ---
 
@@ -394,6 +448,8 @@ SVG-Icons als Vue-Komponenten (`IconDashboard`, `IconMaterials`, `IconActivities
 | `useActivityCreateWizard`            | Aktivität anlegen (Wizard-State)                                              |
 | `useStorageStructure`                | Lager-Struktur                                                                |
 | `useAutoLogout`                      | Session-Timeout                                                               |
+| `useAutoSaveField`                   | Auto-Save-Logik pro Feld (Debounce, Loader, Blur-Revert, Retry) — siehe `AutoSaveField` |
+| `useFormFieldBaselines`              | DB-Baseline pro Formularfeld für `:baseline` in `AutoSaveField`               |
 | `useNotificationSender`              | Factories für `NotificationSenderBlock` (Posteingang/Glocke, inkl. i18n)      |
 | `confirmWorkflowStatusTransition`    | Confirm vor Pack-Workflow-Status `at_event` / `returned` (siehe `usePackWorkflowConfirm.ts`) |
 | `useMediaUpload` *(geplant)*         | FormData-Foto-Upload für kontextspezifische Routes — siehe [media/plan.md](./media/plan.md) Paket 6 |
@@ -420,6 +476,7 @@ Ausführlich: `[docs/Archiv/HANDOUT_CSS_ZENTRALISIERUNG.md](Archiv/HANDOUT_CSS_Z
 | Storage         | `styles/ui/storage.css`                   | Lager/Regale                                |
 | **User-Avatar** | `styles/components/user-avatar-badge.css` | Avatar-Badge + Liste                        |
 | **Adress-Typ**  | `styles/components/address-type-badge.css` | `.address-type-badge.{type}` + Avatar-Farben (Kontakte, Autocomplete) |
+| **Auto-Save-Feld** | `styles/components/auto-save-field.css` | AutoSaveField: Loader, Diskette, Fokus/Fehler — Marken-Tokens |
 | **Sender (Inbox)** | `styles/components/notification-sender-block.css` | System-/Aufgaben-Icons, Actor-Overlay |
 
 

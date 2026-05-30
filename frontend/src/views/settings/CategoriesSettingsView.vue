@@ -16,16 +16,10 @@
 
     <!-- Suchleiste -->
     <div class="search-bar">
-      <div class="search-input-wrapper">
-        <svg class="search-icon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <circle cx="11" cy="11" r="8"/>
-          <path d="m21 21-4.35-4.35"/>
-        </svg>
-        <input 
-          v-model="searchQuery" 
-          type="text" 
-          :placeholder="t('settings.categories.searchPlaceholder')"
-          class="search-input"
+      <div class="search-box">
+        <SearchFieldInput
+          v-model="searchQuery"
+          :label="t('settings.categories.searchPlaceholder')"
         />
       </div>
       <div class="category-count">
@@ -182,6 +176,7 @@ import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useToast } from '@/composables/useToast'
 import { getCategories, deleteCategory, type Category } from '@/api/categories'
+import SearchFieldInput from '@/components/common/SearchFieldInput.vue'
 import CategoryModal from '@/components/CategoryModal.vue'
 
 const route = useRoute()
