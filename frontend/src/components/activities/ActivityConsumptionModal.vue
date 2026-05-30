@@ -135,7 +135,7 @@
             :disabled="submitting || deleting"
             @click="confirmDelete"
           >
-            {{ deleting ? t('components.activityConsumptionModal.deleting') : t('components.activityConsumptionModal.delete') }}
+            {{ deleting ? t('components.activityConsumptionModal.deleting') : t('common.delete') }}
           </button>
           <button type="button" class="btn btn-outline" :disabled="submitting || deleting" @click="onFooterOutlineClick">{{ closeFooterLabel }}</button>
           <button
@@ -241,7 +241,7 @@ const canSubmit = computed(() => {
 
 const submitButtonLabel = computed(() => {
   if (submitting.value) return t('components.activityConsumptionModal.submitting')
-  if (isEditMode.value) return t('components.activityConsumptionModal.submitEdit')
+  if (isEditMode.value) return t('common.save')
   const q = Math.floor(Number(qty.value) || 0)
   if (q === 0 && (props.preset?.returnQty ?? 0) > 0) {
     return t('components.activityConsumptionModal.submitZeroReturn', {
@@ -376,7 +376,7 @@ async function confirmDelete() {
       name: displayMaterialLine.value,
       n: Math.max(1, Math.floor(Number(props.preset?.editQuantity) || 0)),
     }),
-    confirmText: t('components.activityConsumptionModal.delete'),
+    confirmText: t('common.delete'),
     cancelText: t('common.cancel'),
     variant: 'danger',
   })

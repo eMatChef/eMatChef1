@@ -397,13 +397,13 @@
                         <span class="comp-card-name">{{ ci.name }}</span>
                         <span class="comp-card-meta">
                           <span v-if="ci.tracking === 'serialized'">{{
-                            t('components.materialCreateWizard.labelSerialShort')
+                            t('common.serialNumber')
                           }}</span>
                           <span v-else>{{
                             t('components.materialCreateWizard.compBulkMetaPcs', { n: templateBulkMetaQty(ci) })
                           }}</span>
                           <span v-if="ci.is_optional" class="comp-optional-badge">{{
-                            t('components.materialCreateWizard.optionalBadge')
+                            t('common.optional')
                           }}</span>
                         </span>
                       </div>
@@ -462,7 +462,7 @@
                       <template v-if="creationMode !== 'virtual_combo' && ci.tracking === 'serialized' && ci.mode === 'new'">
                         <div class="form-row">
                           <div class="form-group">
-                            <label>{{ t('components.materialCreateWizard.labelSerialNumber') }}</label>
+                            <label>{{ t('common.serialNumber') }}</label>
                             <input
                               v-model="ci.serial_number"
                               type="text"
@@ -871,14 +871,14 @@
                       v-model="formData.invoice_number"
                       type="text"
                       class="form-input"
-                      :placeholder="t('components.materialCreateWizard.optionalPlain')"
+                      :placeholder="t('common.optional')"
                     />
                   </div>
                 </div>
 
                 <div class="form-row">
                   <div class="form-group">
-                    <label>{{ t('components.materialCreateWizard.labelManufacturer') }}</label>
+                    <label>{{ t('common.manufacturer') }}</label>
                     <div class="autocomplete-wrapper">
                       <input
                         v-model="manufacturerSearch"
@@ -1251,7 +1251,7 @@
                                 type="button"
                                 class="remove-row-btn"
                                 @click="removeAllocationRow(row.id)"
-                                :title="t('components.materialCreateWizard.btnRemoveRowTitle')"
+                                :title="t('common.remove')"
                               >×</button>
                             </td>
                           </tr>
@@ -1654,7 +1654,7 @@
                             <div v-if="formData.is_consumable || formData.is_food" class="form-group">
                               <label>
                                 {{ t('components.materialCreateWizard.labelPackSalePriceChf') }}
-                                <span class="optional-label">({{ t('components.materialCreateWizard.optionalPlain') }})</span>
+                                <span class="optional-label">({{ t('common.optional') }})</span>
                               </label>
                               <div class="price-input">
                                 <span class="currency">{{ t('components.materialDetail.currencyFr') }}</span>
@@ -1740,7 +1740,7 @@
                             <div v-if="formData.is_consumable || formData.is_food" class="form-group">
                               <label>
                                 {{ t('components.materialCreateWizard.labelPackSalePriceChf') }}
-                                <span class="optional-label">({{ t('components.materialCreateWizard.optionalPlain') }})</span>
+                                <span class="optional-label">({{ t('common.optional') }})</span>
                               </label>
                               <div class="price-input">
                                 <span class="currency">{{ t('components.materialDetail.currencyFr') }}</span>
@@ -1803,7 +1803,7 @@
 
                   <div class="form-row">
                     <div class="form-group">
-                      <label>{{ t('components.materialCreateWizard.labelManufacturer') }}</label>
+                      <label>{{ t('common.manufacturer') }}</label>
                       <div class="autocomplete-wrapper">
                         <input 
                           v-model="manufacturerSearch" 
@@ -1977,7 +1977,7 @@
                         v-model="formData.invoice_number" 
                         type="text" 
                         class="form-input"
-                        :placeholder="t('components.materialCreateWizard.optionalPlain')"
+                        :placeholder="t('common.optional')"
                       />
                     </div>
                   </div>
@@ -1989,7 +1989,7 @@
             <div v-if="!isAddBatchMode && !isFromTemplate && creationMode && ((formData.material_type === 'physical' && formData.tracking_type) || ((formData.material_type === 'physical_combo' || formData.material_type === 'virtual_combo') && formData.name.trim() && !nameExists && formData.category_id))" class="step-section" data-step="details">
               <div class="step-header step-header--clickable" @click="toggleStep('details')">
                 <span class="step-title">{{ t('components.materialCreateWizard.stepDetailsAndRental') }}</span>
-                <span class="step-badge optional">{{ t('components.materialCreateWizard.badgeOptional') }}</span>
+                <span class="step-badge optional">{{ t('common.optional') }}</span>
                 <span class="step-chevron" :class="{ open: isStepOpen('details') }">▾</span>
               </div>
 
@@ -1998,7 +1998,7 @@
 
                 <!-- Material-Details -->
                 <div class="details-subsection">
-                  <h4 class="subsection-title">{{ t('components.materialCreateWizard.subsectionMaterialShort') }}</h4>
+                  <h4 class="subsection-title">{{ t('common.material') }}</h4>
                   <div class="form-grid-details">
                     <div class="form-group">
                       <label>
@@ -2176,7 +2176,7 @@
                     <div v-if="formData.is_consumable" class="form-group">
                       <label>
                         {{ t('components.materialCreateWizard.labelMinStockOptional') }}
-                        <span class="optional-label">({{ t('components.materialCreateWizard.optionalPlain') }})</span>
+                        <span class="optional-label">({{ t('common.optional') }})</span>
                       </label>
                       <input
                         v-model.number="formData.min_stock"
@@ -4494,7 +4494,7 @@ async function prefetchRackPreview(rackId: string) {
   if (!text) {
     const data = await getRackContents(rackId).catch(() => null)
     const items = (data?.contents || []).map((c: { material_name: string; qty: number }) => ({
-      material_name: c.material_name || t('components.materialCreateWizard.previewMaterialStub'),
+      material_name: c.material_name || t('common.material'),
       qty: Number(c.qty || 0),
     }))
     text = summarizeMaterialsForPreview(items)
@@ -4557,7 +4557,7 @@ async function prefetchContainerPreviews() {
         if (!containerId) continue
         if (!grouped[containerId]) grouped[containerId] = []
         grouped[containerId].push({
-          material_name: content.material_name || t('components.materialCreateWizard.previewMaterialStub'),
+          material_name: content.material_name || t('common.material'),
           qty: Number(content.qty || 0),
         })
       }
@@ -5355,7 +5355,7 @@ function onWizardRentalCalculatorApply(p: { day: string; week: string; month: st
 function buildWizardCostReceiptHint(): string {
   if (isAddBatchMode.value && selectedExistingMaterial.value) {
     return t('components.materialCreateWizard.receiptLot', {
-      name: selectedExistingMaterial.value.name || t('components.materialCreateWizard.previewMaterialStub'),
+      name: selectedExistingMaterial.value.name || t('common.material'),
     })
   }
   if (formData.name?.trim()) {

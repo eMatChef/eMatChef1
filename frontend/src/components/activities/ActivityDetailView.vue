@@ -189,7 +189,7 @@
                     <p class="activity-readonly-value">{{ activity.department_name ?? t('activities.wizard.form.summaryEmpty') }}</p>
                   </div>
                   <div class="form-group">
-                    <label>{{ t('activities.detail.labelGroup') }}</label>
+                    <label>{{ t('common.group') }}</label>
                     <p class="activity-readonly-value">{{ activity.group_name || t('activities.wizard.form.summaryEmpty') }}</p>
                   </div>
                   <div v-if="activity.total_price != null" class="form-group">
@@ -223,7 +223,7 @@
 
           <!-- Material -->
           <section v-else-if="activeTab === 'material'" class="tab-content">
-            <ActivityTabHeader :title="t('activities.detail.tabMaterial')" />
+            <ActivityTabHeader :title="t('common.material')" />
             <div
               v-if="showDraftMaterialAddForGroup"
               class="section-card activity-tab-panel-card activity-draft-material-add-card"
@@ -373,7 +373,7 @@
                 <table class="activity-items-table">
                   <thead>
                     <tr>
-                      <th>{{ t('activities.detail.tableMaterial') }}</th>
+                      <th>{{ t('common.material') }}</th>
                       <th>{{ t('activities.detail.tableQty') }}</th>
                       <th>{{ t('activities.detail.tableSource') }}</th>
                       <th v-if="hasLineTotals">{{ t('activities.detail.tableLine') }}</th>
@@ -826,7 +826,7 @@ function defaultTabWhenNoQuery(status: string | undefined): ActivityTabId {
 const tabs = computed(() => {
   const out: { id: ActivityTabId; label: string }[] = [
     { id: 'overview', label: t('activities.detail.tabOverview') },
-    { id: 'material', label: t('activities.detail.tabMaterial') },
+    { id: 'material', label: t('common.material') },
   ]
   if (showPacksTab.value) {
     out.push({ id: 'packs', label: t('activities.detail.tabPacks') })
@@ -1883,7 +1883,7 @@ async function onRemoveDraftItem(row: ActivityItemRow) {
     const ok = await confirmDialog({
       title: t('activities.detail.confirmRemovePackedTitle'),
       message: t('activities.detail.confirmRemovePackedMessage', { name: row.material_name }),
-      confirmText: t('activities.detail.confirmRemovePackedAction'),
+      confirmText: t('common.remove'),
       cancelText: t('common.cancel'),
       variant: 'warning',
     })

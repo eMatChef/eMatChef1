@@ -116,7 +116,7 @@
             v-model="formData.company"
             type="text"
             class="form-input"
-            :placeholder="t('settings.addressForm.optional')"
+            :placeholder="t('common.optional')"
           />
         </div>
 
@@ -189,7 +189,7 @@
               v-model="formData.contact_first_name"
               type="text"
               class="form-input"
-              :placeholder="t('settings.addressForm.optional')"
+              :placeholder="t('common.optional')"
             />
           </div>
           <div class="form-group">
@@ -198,7 +198,7 @@
               v-model="formData.contact_last_name"
               type="text"
               class="form-input"
-              :placeholder="t('settings.addressForm.optional')"
+              :placeholder="t('common.optional')"
             />
           </div>
         </div>

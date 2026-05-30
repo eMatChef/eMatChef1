@@ -136,7 +136,7 @@
         <table class="contacts-table">
           <thead>
             <tr>
-              <th class="col-name">{{ t('contacts.colName') }}</th>
+              <th class="col-name">{{ t('common.name') }}</th>
               <th class="col-contact">{{ t('contacts.colContact') }}</th>
               <th class="col-address">{{ t('contacts.colAddress') }}</th>
               <th class="col-type">{{ t('contacts.colType') }}</th>

@@ -126,7 +126,7 @@
             <tr>
               <th class="col-status"></th>
               <th class="col-name" @click="toggleSort('name')">
-                {{ t('activities.table.name') }}
+                {{ t('common.name') }}
                 <span v-if="sortField === 'name'" class="sort-icon">{{ sortDir === 'asc' ? '↑' : '↓' }}</span>
               </th>
               <th class="col-type">
@@ -143,19 +143,19 @@
                   </select>
                 </div>
               </th>
-              <th class="col-customer">{{ t('activities.table.group') }}</th>
+              <th class="col-customer">{{ t('common.group') }}</th>
               <th class="col-period" @click="toggleSort('date')">
                 {{ t('activities.table.period') }}
                 <span v-if="sortField === 'date'" class="sort-icon">{{ sortDir === 'asc' ? '↑' : '↓' }}</span>
               </th>
-              <th class="col-items">{{ t('activities.table.material') }}</th>
+              <th class="col-items">{{ t('common.material') }}</th>
               <th class="col-price" @click="toggleSort('price')">
                 {{ t('activities.table.price') }}
                 <span v-if="sortField === 'price'" class="sort-icon">{{ sortDir === 'asc' ? '↑' : '↓' }}</span>
               </th>
               <th class="col-progress">
                 <div class="th-filter-wrap">
-                  <span>{{ t('activities.table.status') }}</span>
+                  <span>{{ t('common.status') }}</span>
                   <select
                     v-if="activeTab === 'all'"
                     v-model="statusFilter"

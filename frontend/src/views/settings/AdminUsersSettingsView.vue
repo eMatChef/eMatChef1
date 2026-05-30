@@ -21,7 +21,7 @@
         />
       </div>
       <button class="btn btn-secondary" @click="loadUsers" :disabled="isLoading">
-        {{ isLoading ? t('settings.adminUsers.loadingShort') : t('settings.adminUsers.refresh') }}
+        {{ isLoading ? t('settings.adminUsers.loadingShort') : t('common.refresh') }}
       </button>
     </div>
 
@@ -37,7 +37,7 @@
         <thead>
           <tr>
             <th class="sortable" @click="toggleSort('name')">
-              {{ t('settings.adminUsers.columns.name') }} <span v-if="sortBy === 'name'">{{ sortDir === 'asc' ? '↑' : '↓' }}</span>
+              {{ t('common.name') }} <span v-if="sortBy === 'name'">{{ sortDir === 'asc' ? '↑' : '↓' }}</span>
             </th>
             <th class="sortable" @click="toggleSort('email')">
               {{ t('settings.adminUsers.columns.email') }} <span v-if="sortBy === 'email'">{{ sortDir === 'asc' ? '↑' : '↓' }}</span>
@@ -49,7 +49,7 @@
             <th class="sortable dept-col" @click="toggleSort('departments_count')">
               {{ t('settings.adminUsers.columns.departmentsCount') }} <span v-if="sortBy === 'departments_count'">{{ sortDir === 'asc' ? '↑' : '↓' }}</span>
             </th>
-            <th class="actions-col">{{ t('settings.adminUsers.columns.actions') }}</th>
+            <th class="actions-col">{{ t('common.actions') }}</th>
           </tr>
         </thead>
         <tbody>
@@ -60,7 +60,7 @@
             <td>{{ formatDate(user.created_at) }}</td>
             <td class="dept-col">{{ user.departments_count }}</td>
             <td class="actions-col">
-              <button class="icon-btn" :title="t('settings.adminUsers.edit')" @click="openEditModal(user.id)">
+              <button class="icon-btn" :title="t('common.edit')" @click="openEditModal(user.id)">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
                   <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
@@ -99,7 +99,7 @@
                 <input v-model="editForm.email" class="form-input" type="email" />
               </div>
               <div class="form-group">
-                <label>{{ t('settings.adminUsers.fields.state') }}</label>
+                <label>{{ t('common.status') }}</label>
                 <select v-model="editForm.state" class="form-select">
                   <option value="active">active</option>
                   <option value="inactive">inactive</option>

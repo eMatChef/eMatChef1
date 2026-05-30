@@ -31,7 +31,7 @@
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
               <path d="M8 4V12M4 8H12" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
             </svg>
-            {{ t('settings.myDepartment.add') }}
+            {{ t('common.add') }}
           </button>
         </div>
 
@@ -162,7 +162,7 @@
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
               <path d="M8 4V12M4 8H12" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
             </svg>
-            {{ t('settings.myDepartment.add') }}
+            {{ t('common.add') }}
           </button>
         </div>
 
@@ -173,7 +173,7 @@
               <span>{{ addr.full_address }}</span>
             </div>
             <div class="address-actions">
-              <button type="button" class="action-btn" :title="t('settings.myDepartment.titleEdit')" @click="openAddressModal(addr)">
+              <button type="button" class="action-btn" :title="t('common.edit')" @click="openAddressModal(addr)">
                 <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
                   <path
                     d="M11.3333 2C11.5084 1.82489 11.7163 1.68601 11.9444 1.59124C12.1726 1.49648 12.4163 1.44775 12.6625 1.44775C12.9087 1.44775 13.1524 1.49648 13.3806 1.59124C13.6087 1.68601 13.8166 1.82489 13.9917 2C14.1668 2.17511 14.3057 2.383 14.4005 2.61117C14.4952 2.83934 14.5439 3.08305 14.5439 3.32917C14.5439 3.57529 14.4952 3.819 14.4005 4.04717C14.3057 4.27534 14.1668 4.48323 13.9917 4.65833L5.325 13.325L2 14L2.675 10.675L11.3333 2Z"
@@ -184,7 +184,7 @@
                   />
                 </svg>
               </button>
-              <button type="button" class="action-btn delete" :title="t('settings.myDepartment.titleDelete')" @click="deleteAddressItem(addr)">
+              <button type="button" class="action-btn delete" :title="t('common.delete')" @click="deleteAddressItem(addr)">
                 <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
                   <path
                     d="M2 4H14M5 4V2H11V4M6 7V12M10 7V12M3 4L4 14H12L13 4H3Z"
@@ -311,7 +311,7 @@ async function deleteAddressItem(address: Address) {
     message: t('settings.myDepartment.deleteAddressConfirmMessage', {
       name: address.name || address.street_line,
     }),
-    confirmText: t('settings.myDepartment.deleteAction'),
+    confirmText: t('common.delete'),
     cancelText: t('common.cancel'),
     variant: 'danger',
   })

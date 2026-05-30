@@ -106,7 +106,7 @@
               <tr>
                 <th>{{ t('settings.materialImport.colName') }}</th>
                 <th>{{ t('settings.materialImport.colQty') }}</th>
-                <th>{{ t('settings.materialImport.colManufacturer') }}</th>
+                <th>{{ t('common.manufacturer') }}</th>
                 <th>{{ t('settings.materialImport.colSupplier') }}</th>
                 <th>{{ t('settings.materialImport.colStorage') }}</th>
                 <th>{{ t('settings.materialImport.colYear') }}</th>
@@ -189,13 +189,13 @@
                 <th>{{ t('settings.materialImport.colName') }}</th>
                 <th>{{ t('settings.materialImport.colQty') }}</th>
                 <th>{{ t('settings.materialImport.colLength') }}</th>
-                <th>{{ t('settings.materialImport.colManufacturer') }}</th>
+                <th>{{ t('common.manufacturer') }}</th>
                 <th>{{ t('settings.materialImport.colSupplier') }}</th>
                 <th>{{ t('settings.materialImport.colStorage') }}</th>
                 <th>{{ t('settings.materialImport.colYear') }}</th>
                 <th>{{ t('settings.materialImport.colPrice') }}</th>
                 <th>{{ t('settings.materialImport.colDuplicate') }}</th>
-                <th>{{ t('settings.materialImport.colStatus') }}</th>
+                <th>{{ t('common.status') }}</th>
               </tr>
             </thead>
             <tbody>

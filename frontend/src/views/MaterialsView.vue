@@ -187,7 +187,7 @@
           <line x1="12" y1="16" x2="12.01" y2="16"/>
         </svg>
         <p class="error-message">{{ error }}</p>
-        <button @click="loadData" class="retry-btn">{{ t('materialsView.retry') }}</button>
+        <button @click="loadData" class="retry-btn">{{ t('common.retry') }}</button>
       </div>
 
       <!-- Empty State -->
@@ -232,7 +232,7 @@
             <thead>
               <tr>
                 <th v-if="showComboExpandColumn" class="col-expand"></th>
-                <th class="col-name">{{ t('materialsView.colName') }}</th>
+                <th class="col-name">{{ t('common.name') }}</th>
                 <th v-if="showComboColumns" class="col-type">{{ t('materialsView.colType') }}</th>
                 <th class="col-category">{{ t('materialsView.colCategory') }}</th>
                 <th class="col-stock">{{ t('materialsView.colTotal') }}</th>
@@ -364,10 +364,10 @@
                         <thead>
                           <tr>
                             <th>{{ t('materialsView.subColComponent') }}</th>
-                            <th>{{ t('materialsView.subColSerial') }}</th>
+                            <th>{{ t('common.serialNumber') }}</th>
                             <th>{{ t('materialsView.subColQty') }}</th>
                             <th>{{ t('materialsView.subColAssignment') }}</th>
-                            <th>{{ t('materialsView.subColStatus') }}</th>
+                            <th>{{ t('common.status') }}</th>
                           </tr>
                         </thead>
                         <tbody>

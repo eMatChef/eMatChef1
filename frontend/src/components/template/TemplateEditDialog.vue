@@ -45,7 +45,7 @@
         <div v-show="activeTab === 'general'" class="tab-content">
           <div class="form-grid">
             <div class="form-group full">
-              <label class="form-label required">{{ t('components.templateEditDialog.nameLabel') }}</label>
+              <label class="form-label required">{{ t('common.name') }}</label>
               <input v-model="form.name" type="text" class="form-input" :placeholder="t('components.templateEditDialog.namePlaceholder')" :disabled="props.readonly" />
             </div>
 
@@ -69,7 +69,7 @@
             </div>
 
             <div class="form-group full">
-              <label class="form-label">{{ t('components.templateEditDialog.descriptionLabel') }}</label>
+              <label class="form-label">{{ t('common.description') }}</label>
               <textarea v-model="form.description" class="form-textarea" rows="2" :placeholder="t('components.templateEditDialog.descriptionPlaceholder')" :disabled="props.readonly"></textarea>
             </div>
 
@@ -92,7 +92,7 @@
             </div>
 
             <div class="form-group">
-              <label class="form-label">{{ t('components.templateEditDialog.statusLabel') }}</label>
+              <label class="form-label">{{ t('common.status') }}</label>
               <div class="toggle-group">
                 <label class="toggle">
                   <input type="checkbox" v-model="form.is_active" :disabled="props.readonly" />
@@ -224,7 +224,7 @@
                   <div v-if="isComponentExpanded(index)" class="component-body">
                     <div class="comp-form-grid">
                       <div class="form-group">
-                        <label class="form-label required">{{ t('components.templateEditDialog.nameLabel') }}</label>
+                        <label class="form-label required">{{ t('common.name') }}</label>
                         <input v-model="element.name" type="text" class="form-input" :placeholder="t('components.templateEditDialog.componentNamePlaceholder')" />
                       </div>
                       <div class="form-group">

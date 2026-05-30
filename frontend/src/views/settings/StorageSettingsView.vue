@@ -76,7 +76,7 @@
               :disabled="settingPrimaryAddressId === location.addressId"
               @click="setPrimaryStorageLocation(location.addressId)"
             >
-              {{ settingPrimaryAddressId === location.addressId ? t('settings.storage.saving') : t('settings.storage.saveAsPrimary') }}
+              {{ settingPrimaryAddressId === location.addressId ? t('common.saving') : t('settings.storage.saveAsPrimary') }}
             </button>
           </div>
         </div>
@@ -195,13 +195,13 @@
           </select>
         </div>
         <div class="form-group">
-          <label>{{ t('settings.storage.fieldName') }}</label>
+          <label>{{ t('common.name') }}</label>
           <input v-model="rackForm.name" type="text" :placeholder="rackPlaceholder" class="form-input" />
         </div>
         <div class="modal-actions">
           <button class="btn-secondary" @click="closeRackModal">{{ t('common.cancel') }}</button>
           <button class="btn-primary" @click="saveRack" :disabled="!rackForm.name.trim() || !rackForm.storage_address_id || isSaving">
-            {{ isSaving ? t('settings.storage.saving') : t('common.save') }}
+            {{ isSaving ? t('common.saving') : t('common.save') }}
           </button>
         </div>
       </div>
@@ -242,13 +242,13 @@
         <h3>{{ t('settings.storage.editSlotTitle') }}</h3>
         <p v-if="slotRack" class="modal-context">{{ t('settings.storage.rackContext', { name: slotRack.name }) }}</p>
         <div class="form-group">
-          <label>{{ t('settings.storage.fieldName') }}</label>
+          <label>{{ t('common.name') }}</label>
           <input v-model="slotForm.name" type="text" :placeholder="slotFachPlaceholder" class="form-input" />
         </div>
         <div class="modal-actions">
           <button class="btn-secondary" @click="closeSlotModal">{{ t('common.cancel') }}</button>
           <button class="btn-primary" @click="saveSlot" :disabled="!slotForm.name.trim() || isSaving">
-            {{ isSaving ? t('settings.storage.saving') : t('common.save') }}
+            {{ isSaving ? t('common.saving') : t('common.save') }}
           </button>
         </div>
       </div>

@@ -13,7 +13,7 @@
         {{ t('supportRequests.tabHistory') }}
       </button>
       <button class="btn btn-sm" :disabled="loading" @click="loadRequests">
-        {{ loading ? t('supportRequests.loading') : t('supportRequests.refresh') }}
+        {{ loading ? t('supportRequests.loading') : t('common.refresh') }}
       </button>
     </div>
     <p v-if="activeTab === 'history'" class="tab-hint">
@@ -59,7 +59,7 @@
         <div v-if="req.message" class="message">{{ req.message }}</div>
         <div class="meta">{{ t('supportRequests.requestedAt', { date: formatDate(req.created_at) }) }}</div>
         <div v-if="activeTab === 'history'" class="meta">
-          {{ t('pendingAssignment.colStatus') }}:
+          {{ t('common.status') }}:
           {{
             req.status === 'assigned'
               ? t('supportRequests.statusAssigned')
@@ -240,7 +240,7 @@
           </div>
           <div v-if="assignError" class="error-message">{{ assignError }}</div>
           <div class="modal-footer">
-            <button type="button" class="btn-secondary" @click="closeAssignModal">{{ t('supportRequests.cancel') }}</button>
+            <button type="button" class="btn-secondary" @click="closeAssignModal">{{ t('common.cancel') }}</button>
             <button
               type="button"
               class="btn-primary"
@@ -304,7 +304,7 @@
               <p class="form-hint">{{ t('supportRequests.roleHintNew') }}</p>
             </div>
             <div class="modal-footer">
-              <button type="button" class="btn-secondary" @click="closeAssignModal">{{ t('supportRequests.cancel') }}</button>
+              <button type="button" class="btn-secondary" @click="closeAssignModal">{{ t('common.cancel') }}</button>
               <button
                 type="button"
                 class="btn-primary"

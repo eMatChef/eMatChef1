@@ -78,7 +78,7 @@
           @keyup.enter="loadGlobalAddresses"
         />
         <button class="btn btn-secondary" :disabled="globalLoading" @click="loadGlobalAddresses">
-          {{ t('globalAddressesPage.refresh') }}
+          {{ t('common.refresh') }}
         </button>
       </div>
 
@@ -94,11 +94,12 @@
           <thead>
             <tr>
               <th>{{ t('globalAddressesPage.tableCompany') }}</th>
-              <th>{{ t('globalAddressesPage.tableName') }}</th>
+              <th>{{ t('common.name') }}</th>
               <th>{{ t('globalAddressesPage.tableEmail') }}</th>
               <th>{{ t('globalAddressesPage.tablePhone') }}</th>
               <th>{{ t('globalAddressesPage.tableCity') }}</th>
-              <th>{{ t('globalAddressesPage.tableActions') }}</th>
+              <th>{{ t('common.status') }}</th>
+              <th>{{ t('common.actions') }}</th>
             </tr>
           </thead>
           <tbody>
@@ -108,6 +109,7 @@
               <td>{{ address.email || '-' }}</td>
               <td>{{ address.phone || '-' }}</td>
               <td>{{ address.city_line || '-' }}</td>
+              <td>-</td>
               <td class="actions">
                 <button
                   class="btn btn-primary btn-inline"

@@ -230,10 +230,10 @@
       <table class="workshop-table">
         <thead>
           <tr>
-            <th>{{ t('workshop.tableStatus') }}</th>
+            <th>{{ t('common.status') }}</th>
             <th>{{ t('workshop.tablePriority') }}</th>
             <th>{{ t('workshop.tableTitle') }}</th>
-            <th>{{ t('workshop.tableMaterial') }}</th>
+            <th>{{ t('common.material') }}</th>
             <th>{{ t('workshop.tableType') }}</th>
             <th>{{ t('workshop.tableAssigned') }}</th>
             <th>{{ t('workshop.tableCreated') }}</th>
@@ -335,7 +335,7 @@
         <div class="modal-body">
           <!-- Material Info -->
           <div class="modal-section">
-            <div class="modal-section-title">{{ t('workshop.sectionMaterial') }}</div>
+            <div class="modal-section-title">{{ t('common.material') }}</div>
             <div class="material-info-block">
               <div class="mat-icon-box">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -355,7 +355,7 @@
 
           <!-- Beschreibung -->
           <div v-if="selectedTicket.description" class="modal-section">
-            <div class="modal-section-title">{{ t('workshop.sectionDescription') }}</div>
+            <div class="modal-section-title">{{ t('common.description') }}</div>
             <p style="font-size: 14px; color: #374151; line-height: 1.6; margin: 0; white-space: pre-wrap;">{{ selectedTicket.description }}</p>
           </div>
 
@@ -598,7 +598,7 @@
             class="btn-ghost"
             @click="closeSelectedTicketDetail"
           >
-            {{ t('workshop.btnClose') }}
+            {{ t('common.close') }}
           </button>
         </div>
         <div class="modal-footer" v-else-if="selectedTicket.status === 'cancelled'">
@@ -869,7 +869,7 @@
               </div>
             </div>
             <div class="form-group">
-              <label>{{ t('workshop.createDescription') }}</label>
+              <label>{{ t('common.description') }}</label>
               <textarea v-model="createForm.description" rows="3" :placeholder="t('workshop.createDescriptionPlaceholder')"></textarea>
             </div>
             <div class="form-group">
@@ -1819,7 +1819,7 @@ function materialTypeLabel(type: string): string {
     case 'physical': return t('workshop.materialTypePhysical')
     case 'physical_combo': return t('workshop.materialTypePhysicalCombo')
     case 'virtual_combo': return t('workshop.materialTypeVirtualCombo')
-    default: return t('workshop.materialTypeFallback')
+    default: return t('common.material')
   }
 }
 

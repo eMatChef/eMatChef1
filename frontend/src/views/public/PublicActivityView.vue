@@ -184,7 +184,7 @@ const publicAvatarStyle = computed(() => ({
   color: authStore.userColors.text,
 }))
 const publicGreetingName = computed(() =>
-  authStore.userDisplayName || t('public.lookup.materialFallback')
+  authStore.userDisplayName || t('common.material')
 )
 const publicInitials = computed(() => authStore.userInitials || '??')
 const publicHomeUrl = computed(() => {

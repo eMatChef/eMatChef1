@@ -38,7 +38,7 @@
             <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
             <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
           </svg>
-          {{ t('contacts.detail.edit') }}
+          {{ t('common.edit') }}
         </button>
         <button
           type="button"
@@ -50,7 +50,7 @@
             <polyline points="3 6 5 6 21 6"/>
             <path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/>
           </svg>
-          {{ isDeleting ? t('contacts.detail.deleting') : t('contacts.detail.delete') }}
+          {{ isDeleting ? t('contacts.detail.deleting') : t('common.delete') }}
         </button>
       </div>
     </header>
@@ -86,12 +86,12 @@
                 </svg>
                 {{ t('contacts.detail.sectionContactData') }}
               </h2>
-              <button v-if="!isReadOnly" class="section-edit-btn" @click="openEditModal" :title="t('contacts.detail.editTitle')">
+              <button v-if="!isReadOnly" class="section-edit-btn" @click="openEditModal" :title="t('common.edit')">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
                   <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
                 </svg>
-                {{ t('contacts.detail.edit') }}
+                {{ t('common.edit') }}
               </button>
             </div>
             
@@ -115,7 +115,7 @@
                 </span>
               </div>
               <div class="info-item" v-if="contact.is_primary">
-                <span class="info-label">{{ t('contacts.detail.statusLabel') }}</span>
+                <span class="info-label">{{ t('common.status') }}</span>
                 <span class="info-value">
                   <span class="primary-badge">{{ t('contacts.detail.primaryAddress') }}</span>
                 </span>
@@ -132,12 +132,12 @@
                 </svg>
                 {{ t('contacts.detail.sectionCommunication') }}
               </h2>
-              <button v-if="!isReadOnly" class="section-edit-btn" @click="openEditModal" :title="t('contacts.detail.editTitle')">
+              <button v-if="!isReadOnly" class="section-edit-btn" @click="openEditModal" :title="t('common.edit')">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
                   <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
                 </svg>
-                {{ t('contacts.detail.edit') }}
+                {{ t('common.edit') }}
               </button>
             </div>
 
@@ -202,12 +202,12 @@
                 </svg>
                 {{ t('contacts.detail.sectionAddress') }}
               </h2>
-              <button v-if="!isReadOnly" class="section-edit-btn" @click="openEditModal" :title="t('contacts.detail.editTitle')">
+              <button v-if="!isReadOnly" class="section-edit-btn" @click="openEditModal" :title="t('common.edit')">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
                   <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
                 </svg>
-                {{ t('contacts.detail.edit') }}
+                {{ t('common.edit') }}
               </button>
             </div>
 
@@ -284,12 +284,12 @@
                 </svg>
                 {{ t('contacts.detail.sectionNotes') }}
               </h2>
-              <button v-if="!isReadOnly" class="section-edit-btn" @click="openEditModal" :title="t('contacts.detail.editTitle')">
+              <button v-if="!isReadOnly" class="section-edit-btn" @click="openEditModal" :title="t('common.edit')">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
                   <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
                 </svg>
-                {{ t('contacts.detail.edit') }}
+                {{ t('common.edit') }}
               </button>
             </div>
             <p v-if="contact.additional_info" class="additional-info-text">{{ contact.additional_info }}</p>
@@ -337,7 +337,7 @@
         <div class="delete-dialog-actions">
           <button @click="showDeleteConfirm = false" class="btn-secondary">{{ t('common.cancel') }}</button>
           <button @click="handleDelete" class="btn-danger" :disabled="isDeleting">
-            {{ isDeleting ? t('contacts.detail.deleting') : t('contacts.detail.delete') }}
+            {{ isDeleting ? t('contacts.detail.deleting') : t('common.delete') }}
           </button>
         </div>
       </div>

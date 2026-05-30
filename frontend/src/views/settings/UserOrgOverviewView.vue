@@ -6,7 +6,7 @@
         <p class="settings-description">{{ t('settings.userOrgOverview.subtitle') }}</p>
       </div>
       <button class="btn btn-secondary" @click="load" :disabled="isLoading">
-        {{ isLoading ? t('settings.userOrgOverview.loadingShort') : t('settings.userOrgOverview.refresh') }}
+        {{ isLoading ? t('settings.userOrgOverview.loadingShort') : t('common.refresh') }}
       </button>
     </div>
 

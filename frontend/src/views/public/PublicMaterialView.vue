@@ -61,7 +61,7 @@
             <dd>{{ data.department.name }}</dd>
           </div>
           <div v-if="data.material.manufacturer">
-            <dt>{{ t('public.lookup.manufacturer') }}</dt>
+            <dt>{{ t('common.manufacturer') }}</dt>
             <dd>{{ data.material.manufacturer }}</dd>
           </div>
           <div v-if="data.material.model">
@@ -248,7 +248,7 @@ const publicAvatarStyle = computed(() => ({
   color: authStore.userColors.text,
 }))
 const publicGreetingName = computed(() =>
-  authStore.userDisplayName || t('public.lookup.materialFallback')
+  authStore.userDisplayName || t('common.material')
 )
 const publicInitials = computed(() => authStore.userInitials || '??')
 const publicHomeUrl = computed(() => {
@@ -267,7 +267,7 @@ const pageTitle = computed(() => {
   if (error.value) return t('router.meta.titles.publicLookup')
   if (!data.value) return t(PAGE_HEAD_KEYS.defaultTitle)
   const d = data.value
-  const name = d.material?.name?.trim() || t('public.lookup.materialFallback')
+  const name = d.material?.name?.trim() || t('common.material')
   if (d.batch) {
     const serial = String(d.batch.serial_number || d.batch.label || '').trim()
     return serial ? `${serial} · ${name} · eMatChef` : `${name} · eMatChef`
