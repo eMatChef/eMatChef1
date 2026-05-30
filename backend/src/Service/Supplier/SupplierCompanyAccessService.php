@@ -86,6 +86,26 @@ class SupplierCompanyAccessService
         return $company;
     }
 
+    public function requireDeliveryAccess(User $user, string $companyId): SupplierCompany
+    {
+        $this->assertSupplierCompanyAccess($user, $companyId);
+
+        $membership = $this->supplierMembershipRepository->findOneBy([
+            'userId' => $user->getId(),
+            'supplierCompanyId' => $companyId,
+        ]);
+        if (!$membership instanceof SupplierMembership) {
+            throw new AccessDeniedHttpException('Kein Zugriff auf diese Lieferanten-Firma');
+        }
+
+        $company = $membership->getSupplierCompany();
+        if (!$this->companyHasCapability($company, SupplierCompany::CAPABILITY_DELIVERY)) {
+            throw new AccessDeniedHttpException('Delivery-Capability ist für diese Firma nicht aktiviert');
+        }
+
+        return $company;
+    }
+
     public function getMembership(User $user, string $companyId): ?SupplierMembership
     {
         $membership = $this->supplierMembershipRepository->findOneBy([

@@ -74,7 +74,9 @@
         "globalMaterialTemplates": "Admin · Material templates · eMatChef",
         "supplierProfile": "My company · Profile · eMatChef",
         "supplierTeam": "My company · Team · eMatChef",
-        "supplierCatalog": "My company · Catalog · eMatChef"
+        "supplierCatalog": "My company · Catalog · eMatChef",
+        "supplierDeliveries": "My company · Deliveries · eMatChef",
+        "settingsSupplierDeliveries": "Settings · Supplier deliveries · eMatChef"
       },
       "descriptions": {
         "publicLookup": "Public material and serial number information in eMatChef.",
@@ -561,7 +563,8 @@
     "myCompany": "My company",
     "myCompanyProfile": "Profile & contact",
     "myCompanyTeam": "Team",
-    "myCompanyCatalog": "Catalog"
+    "myCompanyCatalog": "Catalog",
+    "myCompanyDeliveries": "Deliveries"
   },
   "supplierProfile": {
     "title": "Profile & contact",
@@ -680,6 +683,81 @@
     },
     "errors": {
       "nameRequired": "Name is required."
+    }
+  },
+  "supplierDeliveries": {
+    "title": "Deliveries",
+    "subtitle": "Delivery notes with line items and serial numbers for material managers.",
+    "newDelivery": "New delivery",
+    "refresh": "Refresh",
+    "empty": "No deliveries yet.",
+    "errorLoad": "Could not load deliveries.",
+    "createSuccess": "Delivery created.",
+    "saveSuccess": "Delivery saved.",
+    "errorSave": "Save failed.",
+    "submit": "Submit",
+    "submitTitle": "Submit delivery?",
+    "submitMessage": "The delivery will be visible to the material manager.",
+    "submitSuccess": "Delivery submitted.",
+    "errorSubmit": "Submit failed.",
+    "cancel": "Cancel delivery",
+    "cancelTitle": "Cancel delivery?",
+    "cancelMessage": "The delivery will be cancelled.",
+    "cancelSuccess": "Delivery cancelled.",
+    "errorCancel": "Cancel failed.",
+    "deleteTitle": "Delete delivery?",
+    "deleteMessage": "Delete draft permanently?",
+    "deleteSuccess": "Delivery deleted.",
+    "errorDelete": "Delete failed.",
+    "linesTitle": "Line items",
+    "addLine": "Add line",
+    "removeLine": "Remove line",
+    "selectCatalogItem": "Select item …",
+    "serialNumbersPlaceholder": "One serial number per line",
+    "columns": {
+      "ref": "Reference",
+      "department": "Department",
+      "deliveredAt": "Delivery date",
+      "lines": "Lines",
+      "status": "Status"
+    },
+    "fields": {
+      "departmentId": "Target department ID",
+      "departmentIdHint": "12-character ID from the material manager",
+      "deliveryRef": "Delivery note / order",
+      "invoiceRef": "Invoice no.",
+      "deliveredAt": "Delivery date",
+      "notes": "Notes",
+      "catalogItem": "Catalog item",
+      "qty": "Qty",
+      "unitPrice": "Price",
+      "serialNumbers": "Serial numbers"
+    },
+    "status": {
+      "draft": "Draft",
+      "submitted": "Submitted",
+      "imported": "Imported",
+      "cancelled": "Cancelled"
+    },
+    "modal": {
+      "createTitle": "New delivery",
+      "editTitle": "Edit delivery"
+    },
+    "errors": {
+      "linesRequired": "At least one line item is required."
+    }
+  },
+  "departmentSupplierDeliveries": {
+    "title": "Open supplier deliveries",
+    "subtitle": "Delivery notes submitted by suppliers with serial numbers (import in phase 2).",
+    "empty": "No open deliveries.",
+    "errorLoad": "Could not load deliveries.",
+    "noRef": "No reference",
+    "columns": {
+      "item": "Item",
+      "qty": "Qty",
+      "price": "Price",
+      "serials": "Serial numbers"
     }
   },
   "layout": {

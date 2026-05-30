@@ -53,6 +53,12 @@ function hasSupplierCatalogCapability(companyId: string): boolean {
   return company?.capabilities?.includes('catalog') ?? false
 }
 
+function hasSupplierDeliveryCapability(companyId: string): boolean {
+  const authStore = useAuthStore()
+  const company = authStore.activeSupplierCompanies.find((c) => c.id === companyId)
+  return company?.capabilities?.includes('delivery') ?? false
+}
+
 function devicesWarehouseRoleOk(departmentId: string): boolean {
   const authStore = useAuthStore()
   const userRoles = authStore.userRoles || []
@@ -574,6 +580,16 @@ const routes: RouteRecordRaw[] = [
           ...routeHead('supplierCatalog'),
         },
       },
+      {
+        path: 'deliveries',
+        name: 'SupplierDeliveries',
+        component: () => import('@/views/supplier/SupplierDeliveriesView.vue'),
+        meta: {
+          requiresSupplierAccess: true,
+          requiresSupplierDelivery: true,
+          ...routeHead('supplierDeliveries'),
+        },
+      },
     ],
   },
   {
@@ -1093,6 +1109,16 @@ const routes: RouteRecordRaw[] = [
               denyDepartmentRoles: DENY_BASIC_MEMBER_ROLES,
               denyRedirectTo: { name: 'SettingsMyDepartment' },
             }
+          },
+          {
+            path: 'supplier-deliveries',
+            name: 'SettingsSupplierDeliveries',
+            component: () => import('@/views/settings/DepartmentSupplierDeliveriesView.vue'),
+            meta: {
+              ...routeHead('settingsSupplierDeliveries'),
+              denyDepartmentRoles: DENY_BASIC_MEMBER_ROLES,
+              denyRedirectTo: { name: 'SettingsMyDepartment' },
+            }
           }
         ]
       }
@@ -1421,6 +1447,9 @@ router.beforeEach(async (to, from, next) => {
       return next({ name: 'SupplierProfile', params: { companyId } })
     }
     if (to.meta.requiresSupplierCatalog && !hasSupplierCatalogCapability(companyId)) {
+      return next({ name: 'SupplierProfile', params: { companyId } })
+    }
+    if (to.meta.requiresSupplierDelivery && !hasSupplierDeliveryCapability(companyId)) {
       return next({ name: 'SupplierProfile', params: { companyId } })
     }
   }

@@ -359,7 +359,19 @@ Struktur analog zu `MaterialTemplate` (inkl. Combo-Komponenten, Options-Gruppen,
 - Owner: `supplier_company_id` (Firma, nicht einzelner User)
 - MW sieht im Shop: Name, ca. Preis, Komponentenliste
 - Import: „Als Material anlegen“ — baut auf `TemplateController` / Vorlage→Material auf; SN pro Komponente kann aus Übergabe vorbefüllt werden
-- Optional nach Admin-Freigabe: **Kopie** nach `material_template scope=global` — nicht dieselbe DB-Zeile
+
+**Ohne registrierte Firma:** Globale Plattform-Vorlagen (`material_template` mit `scope=global`, Feld `manufacturer`) existieren **unabhängig** von `SupplierCompany`. MW nutzen sie wie heute — kein Supplier-Portal nötig (Details §8.8).
+
+**Zwei Richtungen — jeweils Kopie, nicht dieselbe DB-Zeile:**
+
+| Richtung | Wann | Aktion |
+|----------|------|--------|
+| **Global → Supplier** | Firma registriert sich später | Admin: „Globale Vorlagen übernehmen" — passende `material_template` → Kopie nach `supplier_material_template*` (Match: `manufacturer` ↔ `manufacturer_key`) |
+| **Supplier → Global** | Shop-Inhalt für alle MW | Nach Admin-Freigabe: Kopie nach `material_template scope=global` |
+
+- Globale Vorlagen können **parallel** weiter existieren (MW-Abwärtskompatibilität), bis die Firma/Plattform sie ablöst
+- Optional im Portal: Hinweis „Es gibt N globale Vorlagen für euren Hersteller — als Basis importieren"
+- **Umsetzung** Legacy-Übernahme: [plan.md Paket 11](./plan.md) — nicht Phase 1 / Paket 3 (dort nur Adress-Promote)
 
 ### C) Lieferung / Übergabe (`SupplierDelivery`)
 
@@ -683,6 +695,7 @@ Zwei Ebenen „systemweit sichtbar“ — nicht verwechseln:
 | Konzept | Wo | Bedeutung |
 |---------|-----|-----------|
 | **`address.scope = global`** | `address` | Kuratierte Lieferanten-Stammdaten (Legacy / noch nicht registriert) — Superadmin/Org |
+| **`material_template scope = global`** | `material_template` | Herstellervorlagen (z. B. Tortuga) **ohne** `SupplierCompany` — MW wie heute; Übernahme → `supplier_material_template*` (§8.8) |
 | **Katalog/Vorlage `visibility = global`** | `supplier_catalog_item` (Phase 2) | Shop-Inhalt für alle MW — mit Admin-Freigabe |
 
 Langfristig: globale Adressen schrittweise in `SupplierCompany` überführen; MW-Listen priorisieren **registrierte** Firmen (`status=active`).
@@ -767,16 +780,38 @@ M1+M2 können in Phase 1 gebündelt oder nacheinander ausgerollt werden.
 
 ### 8.8 Legacy-Daten
 
+#### Adressen (Phase 1 — Paket 3)
+
 Bestehende globale Lieferanten-Adressen (Tortuga, Hajk, …):
 
 ```text
 address (scope=global nach Migration)
   → Plattform-Admin: „Als Supplier-Firma aktivieren“
-  → SupplierCompany + scope global → supplier + supplier_company_id
+  → SupplierCompany + Adresse scope=global → scope=supplier + supplier_company_id
   → erster User admin, Login via Support
 ```
 
 Bestehende `material_batch.supplier_id` bleiben gültig (gleiche `address.id`).
+
+#### Material-Vorlagen (Phase 2 — Paket 11)
+
+Globale Herstellervorlagen existieren **ohne** registrierte Firma — MW-Workflow bleibt unverändert:
+
+```text
+material_template (scope=global, manufacturer z. B. "Tortuga")
+  → MW nutzt Vorlage → Material (heute schon so, JSON + DB)
+  → Kein SupplierCompany nötig
+
+Später registriert sich Tortuga:
+  → SupplierCompany (manufacturer_key = "tortuga")
+  → Plattform-Admin: „Globale Vorlagen übernehmen“
+  → Kopie nach supplier_material_template* (+ Komponenten/Options)
+  → Firma pflegt im Portal; globale Vorlagen optional parallel (Abwärtskompatibilität)
+```
+
+**Matching:** `material_template.manufacturer` ↔ `SupplierCompany.manufacturer_key` (normalisiert, z. B. `"Tortuga"` / `"tortuga"`).
+
+**Regel:** Übernahme = **Kopie** in `supplier_*`-Tabellen — **nicht** dieselbe DB-Zeile wie bei `material_template`. Umgekehrt (Supplier → global) ebenfalls Kopie nach Admin-Freigabe (Phase 2B).
 
 ---
 

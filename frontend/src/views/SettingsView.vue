@@ -116,6 +116,12 @@ const allMenuItems = computed(() => [
     icon: markRaw(IconMaterials),
     requiresMaterialManage: true,
   },
+  {
+    id: 'supplier-deliveries',
+    label: t('settings.nav.supplierDeliveries'),
+    icon: markRaw(IconMaterials),
+    requiresMaterialManage: true,
+  },
   { id: 'zeit', label: t('settings.nav.timeLocation'), icon: markRaw(IconSettings) },
   { id: 'addons', label: t('settings.nav.addons'), icon: markRaw(IconActivities) }
 ])

@@ -90,7 +90,9 @@
         "settingsMaterialImport": "Einstellungen · Material Import/Export · eMatChef",
         "supplierProfile": "Meine Firma · Profil · eMatChef",
         "supplierTeam": "Meine Firma · Team · eMatChef",
-        "supplierCatalog": "Meine Firma · Katalog · eMatChef"
+        "supplierCatalog": "Meine Firma · Katalog · eMatChef",
+        "supplierDeliveries": "Meine Firma · Übergaben · eMatChef",
+        "settingsSupplierDeliveries": "Einstellungen · Lieferanten-Übergaben · eMatChef"
       },
       "descriptions": {
         "publicLookup": "Öffentliche Material- und Seriennummern-Informationen in eMatChef.",
@@ -662,7 +664,8 @@
     "myCompany": "Meine Firma",
     "myCompanyProfile": "Profil & Kontakt",
     "myCompanyTeam": "Team",
-    "myCompanyCatalog": "Katalog"
+    "myCompanyCatalog": "Katalog",
+    "myCompanyDeliveries": "Übergaben"
   },
   "supplierProfile": {
     "title": "Profil & Kontakt",
@@ -781,6 +784,81 @@
     },
     "errors": {
       "nameRequired": "Bezeichnung ist erforderlich."
+    }
+  },
+  "supplierDeliveries": {
+    "title": "Übergaben",
+    "subtitle": "Lieferscheine mit Zeilen und Seriennummern an Materialwarte.",
+    "newDelivery": "Neue Übergabe",
+    "refresh": "Aktualisieren",
+    "empty": "Noch keine Übergaben.",
+    "errorLoad": "Übergaben konnten nicht geladen werden.",
+    "createSuccess": "Übergabe erstellt.",
+    "saveSuccess": "Übergabe gespeichert.",
+    "errorSave": "Speichern fehlgeschlagen.",
+    "submit": "Übermitteln",
+    "submitTitle": "Übergabe übermitteln?",
+    "submitMessage": "Die Übergabe wird für den Materialwart sichtbar.",
+    "submitSuccess": "Übergabe übermittelt.",
+    "errorSubmit": "Übermittlung fehlgeschlagen.",
+    "cancel": "Stornieren",
+    "cancelTitle": "Übergabe stornieren?",
+    "cancelMessage": "Die Übergabe wird storniert.",
+    "cancelSuccess": "Übergabe storniert.",
+    "errorCancel": "Stornierung fehlgeschlagen.",
+    "deleteTitle": "Übergabe löschen?",
+    "deleteMessage": "Entwurf wirklich löschen?",
+    "deleteSuccess": "Übergabe gelöscht.",
+    "errorDelete": "Löschen fehlgeschlagen.",
+    "linesTitle": "Positionen",
+    "addLine": "Zeile hinzufügen",
+    "removeLine": "Zeile entfernen",
+    "selectCatalogItem": "Artikel wählen …",
+    "serialNumbersPlaceholder": "Eine Seriennummer pro Zeile",
+    "columns": {
+      "ref": "Referenz",
+      "department": "Department",
+      "deliveredAt": "Lieferdatum",
+      "lines": "Zeilen",
+      "status": "Status"
+    },
+    "fields": {
+      "departmentId": "Ziel-Department-ID",
+      "departmentIdHint": "12-stellige ID vom Materialwart",
+      "deliveryRef": "Lieferschein / Auftrag",
+      "invoiceRef": "Rechnungsnr.",
+      "deliveredAt": "Lieferdatum",
+      "notes": "Bemerkungen",
+      "catalogItem": "Katalog-Artikel",
+      "qty": "Menge",
+      "unitPrice": "Preis",
+      "serialNumbers": "Seriennummern"
+    },
+    "status": {
+      "draft": "Entwurf",
+      "submitted": "Übermittelt",
+      "imported": "Importiert",
+      "cancelled": "Storniert"
+    },
+    "modal": {
+      "createTitle": "Neue Übergabe",
+      "editTitle": "Übergabe bearbeiten"
+    },
+    "errors": {
+      "linesRequired": "Mindestens eine Zeile ist erforderlich."
+    }
+  },
+  "departmentSupplierDeliveries": {
+    "title": "Offene Lieferanten-Übergaben",
+    "subtitle": "Vom Lieferanten übermittelte Lieferscheine mit Seriennummern (Import folgt in Phase 2).",
+    "empty": "Keine offenen Übergaben.",
+    "errorLoad": "Übergaben konnten nicht geladen werden.",
+    "noRef": "Ohne Referenz",
+    "columns": {
+      "item": "Artikel",
+      "qty": "Menge",
+      "price": "Preis",
+      "serials": "Seriennummern"
     }
   },
   "layout": {
@@ -2226,7 +2304,8 @@
       "activities": "Aktivitäten",
       "storage": "Regale & Fächer",
       "templates": "Vorlagen",
-      "materialImport": "Material Import/Export"
+      "materialImport": "Material Import/Export",
+      "supplierDeliveries": "Lieferanten-Übergaben"
     },
     "common": {
       "selectDepartment": "Department auswählen"

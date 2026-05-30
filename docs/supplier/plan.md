@@ -2,7 +2,7 @@
 
 Abarbeitbare Checkliste für Phase 1–3. Das **Warum/Zielmodell** steht in [supplier-portal.md](./supplier-portal.md). Dieser Plan = **Was & in welcher Reihenfolge**.
 
-**Stand:** Mai 2026 · Phase 1 (Paket 0–8) erledigt; Phase 2 gestartet. **Erledigt: Paket 0–9 (9 = Phase 2a Katalog)**
+**Stand:** Mai 2026 · Phase 1 (Paket 0–8) erledigt; Phase 2 gestartet. **Erledigt: Paket 0–10 (10 = Phase 2b Übergaben + SN)**
 
 ---
 
@@ -38,7 +38,7 @@ Abarbeitbare Checkliste für Phase 1–3. Das **Warum/Zielmodell** steht in [sup
 | 7 | Operator: Capability + `linked_department_id` | 1 | S | 1, 5 | [x] |
 | 8 | MW-Listen: Import, Global Addresses, Konstanten | 1b | M | 0, 1 | [x] |
 | 9 | Katalog `supplier_catalog_item` + Supplier-CRUD | 2a | L | 1–7 | [x] |
-| 10 | Übergaben `supplier_delivery*` + SN | 2b | XL | 9 | [ ] |
+| 10 | Übergaben `supplier_delivery*` + SN | 2b | XL | 9 | [x] |
 | 11 | Vorlagen `supplier_material_template_*` | 2c | XL | 9 | [ ] |
 | 12 | MW-Shop, Budget, Import-Pfade | 2d | XL | 9–11 | [ ] |
 | 13 | Sichtbarkeit + Global-Review | 2e | M | 9, 12 | [ ] |
@@ -303,10 +303,10 @@ Diese Stellen strahlen bei Address-/Supplier-Änderungen am stärksten aus:
 - Import-Service-Erweiterung (Vorschau SN)
 
 **Schritte:**
-- [ ] Kopf + Zeilen; Status `draft` → `submitted` → `imported`
-- [ ] SN auf `SupplierDeliveryLine`, nicht Katalog
-- [ ] Capability `delivery`; Rolle `delivery` (Feinrolle) ab Phase 2
-- [ ] Validierung: `tracking_type` serialized → SN-Liste; Duplikat-Hinweis
+- [x] Kopf + Zeilen; Status `draft` → `submitted` → `imported`
+- [x] SN auf `SupplierDeliveryLine`, nicht Katalog
+- [x] Capability `delivery`; Rolle `delivery` (Feinrolle) ab Phase 2
+- [x] Validierung: `tracking_type` serialized → SN-Liste; Duplikat-Hinweis
 
 **Definition of Done:** Lieferant übermittelt Übergabe mit SN; MW kann Liste lesen (Import in Paket 12).
 
