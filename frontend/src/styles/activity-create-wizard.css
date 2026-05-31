@@ -1,5 +1,15 @@
 /* ActivityCreateWizard – ergänzt material-wizard.css (Host: .activity-create-wizard-host) */
 
+.activity-create-wizard-host {
+  /* Typ-Chips + Footer-Buttons (EButton size="small") */
+  --activity-wizard-control-height: 28px;
+}
+
+.activity-create-wizard-host .activity-create-footer .footer-actions .v-btn--size-small {
+  height: var(--activity-wizard-control-height);
+  min-height: var(--activity-wizard-control-height);
+}
+
 .activity-create-wizard-host .activity-stepper-meta {
   margin-bottom: 16px;
 }
@@ -548,32 +558,147 @@
   flex: 1;
 }
 
-.activity-create-wizard-host .footer-actions-wrap {
+.activity-create-wizard-host .activity-create-footer-actions {
   display: flex;
-  flex-direction: column;
-  align-items: flex-end;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px 12px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.activity-create-wizard-host .activity-create-footer .footer-actions {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
   gap: 8px;
-  max-width: 100%;
+}
+
+.activity-create-wizard-host .activity-create-footer .missing-steps {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: #fef3c7;
+  border: 1px solid #fcd34d;
+  border-radius: 6px;
 }
 
 .activity-create-wizard-host .activity-create-submit-error {
   margin: 0;
+  flex: 1 1 100%;
   font-size: 12px;
   color: #b91c1c;
   text-align: right;
-  max-width: 420px;
+  max-width: 100%;
 }
 
-@media (max-width: 900px) {
-  .activity-create-wizard-host .material-wizard-body {
-    grid-template-columns: 1fr;
-    min-height: 0;
+@media (max-width: 599px) {
+  .activity-create-wizard-host {
+    --activity-wizard-control-height: 36px;
   }
 
-  .activity-create-wizard-host .material-wizard-sidebar {
-    max-height: min(40vh, 280px);
-    border-left: none;
-    border-top: 1px solid #e5e7eb;
+  .activity-create-wizard-host .material-wizard-sidebar,
+  .activity-create-wizard-host .activity-preview-sidebar {
+    display: none !important;
+  }
+
+  .activity-create-wizard-host .material-wizard-body {
+    grid-template-columns: 1fr;
+  }
+
+  .activity-create-wizard-host .activity-create-footer .footer-spacer {
+    display: none;
+  }
+
+  .activity-create-wizard-host .activity-create-footer-draft {
+    flex: 1 1 100%;
+  }
+
+  .activity-create-wizard-host .activity-create-footer-actions {
+    flex: 1 1 100%;
+    justify-content: flex-end;
+  }
+}
+
+/* Tablet + Desktop: Vorschau rechts (JS: showWizardPreview ab 600px) */
+.activity-create-wizard-host .material-wizard-body--with-preview {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(180px, 220px);
+  min-height: 0;
+}
+
+.activity-create-wizard-host .material-wizard-body--with-preview .material-wizard-content {
+  grid-column: 1;
+  min-width: 0;
+}
+
+.activity-create-wizard-host .material-wizard-body--with-preview .activity-preview-sidebar {
+  grid-column: 2;
+  min-width: 0;
+}
+
+@media (min-width: 960px) {
+  .activity-create-wizard-host .material-wizard-body--with-preview {
+    grid-template-columns: minmax(0, 1fr) 340px;
+  }
+}
+
+/* Tablet: kompaktere Vorschau-Spalte */
+@media (min-width: 600px) and (max-width: 959px) {
+  .activity-create-wizard-host .material-wizard-body--with-preview {
+    grid-template-columns: minmax(0, 1fr) minmax(180px, 220px);
+  }
+
+  .activity-create-wizard-host .material-wizard-sidebar,
+  .activity-create-wizard-host .activity-preview-sidebar {
+    max-height: none;
+    padding: 14px 12px 20px;
+    border-left: 1px solid #e5e7eb;
+    border-top: none;
+  }
+
+  .activity-create-wizard-host .material-wizard-sidebar h3,
+  .activity-create-wizard-host .activity-preview-sidebar h3 {
+    font-size: 11px;
+    margin-bottom: 10px;
+  }
+
+  .activity-create-wizard-host .material-preview {
+    flex-direction: column;
+    gap: 8px;
+    padding: 10px;
+    margin-bottom: 12px;
+  }
+
+  .activity-create-wizard-host .preview-image {
+    width: 52px;
+    height: 52px;
+  }
+
+  .activity-create-wizard-host .preview-image svg {
+    width: 26px;
+    height: 26px;
+  }
+
+  .activity-create-wizard-host .preview-info h4 {
+    font-size: 13px;
+    line-height: 1.3;
+  }
+
+  .activity-create-wizard-host .activity-preview-sidebar .preview-meta,
+  .activity-create-wizard-host .activity-preview-sidebar .preview-dates {
+    font-size: 11px;
+    margin-top: 4px;
+  }
+
+  .activity-create-wizard-host .material-wizard-form {
+    padding: 16px 16px 28px;
   }
 }
 
@@ -640,11 +765,12 @@
 
 .activity-create-wizard-host .activity-create-footer-draft {
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 4px;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
   min-width: 0;
-  max-width: min(100%, 280px);
+  max-width: min(100%, 320px);
   flex-shrink: 1;
 }
 
@@ -692,12 +818,53 @@
   font-size: 13px;
 }
 
-.activity-create-wizard-host.material-wizard-overlay {
-  padding: 12px;
+/* v-dialog-Shell (Phase 6 · 071) — ersetzt Teleport + .material-wizard-overlay */
+.activity-create-dialog .activity-create-dialog__content {
+  width: 100%;
+  max-width: 1080px;
+  margin: 12px;
 }
 
-@media (min-width: 561px) {
-  .activity-create-wizard-host.material-wizard-overlay {
-    padding: 20px;
+.activity-create-dialog .activity-create-wizard-host.material-wizard-modal {
+  width: 100%;
+  display: grid;
+  overflow: hidden;
+}
+
+.activity-create-dialog.v-dialog--fullscreen .activity-create-dialog__content {
+  margin: 0;
+  max-width: none;
+  height: 100%;
+}
+
+.activity-create-dialog.v-dialog--fullscreen .activity-create-wizard-host.material-wizard-modal {
+  height: 100%;
+  min-height: 0;
+  max-height: none;
+  border-radius: 0 !important;
+}
+
+.activity-create-wizard-host .activity-create-wizard-close {
+  flex-shrink: 0;
+  color: #9ca3af;
+}
+
+.activity-create-wizard-host .activity-create-wizard-close:hover {
+  color: #374151;
+}
+
+.activity-create-wizard-form .activity-stepper-meta {
+  margin-bottom: 12px;
+}
+
+.activity-create-wizard-form .activity-stepper-count {
+  font-size: 12px;
+  font-weight: 600;
+  height: auto;
+}
+
+@media (min-width: 600px) {
+  .activity-create-dialog .activity-create-dialog__content {
+    margin: 20px auto;
   }
 }

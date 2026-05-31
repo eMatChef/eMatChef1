@@ -1,6 +1,6 @@
 /**
  * Aktivitäten-Ansicht – Styles wie bei Material aufgeteilt:
- *   overview        → Liste, Filter, Tabelle
+ *   overview        → Liste, Filter, Stats (ohne Tabellen-Zellen)
  *   detail-panel    → Detail-Header, Tabs, Karten, Material-/Preisblöcke
  *   detail-workflow → Packliste, Meldungen, Rückgabe, Kosten
  *

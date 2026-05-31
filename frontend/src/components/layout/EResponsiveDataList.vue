@@ -1,18 +1,35 @@
 <template>
   <div class="e-responsive-data-list">
-    <div v-if="display.mdAndUp" class="e-responsive-data-list__desktop">
+    <div class="e-responsive-data-list__desktop">
       <slot name="table" />
     </div>
-    <div v-else class="e-responsive-data-list__mobile">
+    <div class="e-responsive-data-list__mobile">
       <slot name="mobile" />
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { useDisplay } from 'vuetify'
-
 defineOptions({ name: 'EResponsiveDataList' })
-
-const display = useDisplay()
 </script>
+
+<style scoped>
+/* Mobile-first: unter 960px Karten (#mobile), darüber Tabelle (#table) */
+.e-responsive-data-list__desktop {
+  display: none;
+}
+
+.e-responsive-data-list__mobile {
+  display: block;
+}
+
+@media (min-width: 960px) {
+  .e-responsive-data-list__desktop {
+    display: block;
+  }
+
+  .e-responsive-data-list__mobile {
+    display: none;
+  }
+}
+</style>

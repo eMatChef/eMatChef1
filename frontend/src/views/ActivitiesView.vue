@@ -12,23 +12,18 @@
     </div>
 
     <!-- Übersicht -->
-    <template v-else>
-      <div class="activities-header page-header header-content">
-        <div class="header-left">
-          <h1>{{ t('activities.title') }}</h1>
-          <span class="subtitle">{{ t('activities.subtitle') }}</span>
-        </div>
-        <div class="header-right">
-          <button type="button" class="btn-primary" @click="openCreateActivityWizard">
-            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
-              <path d="M10 4V16M4 10H16" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
-            </svg>
-            <span>{{ t('activities.create') }}</span>
-          </button>
-        </div>
-      </div>
+    <PageShell v-else class="activities-view activities-view--list">
+      <template #title>{{ t('activities.title') }}</template>
+      <template #subtitle>{{ t('activities.subtitle') }}</template>
+      <template #actions>
+        <EButton variant="primary" @click="openCreateActivityWizard">
+          <v-icon icon="mdi-plus" start size="20" />
+          {{ t('activities.create') }}
+        </EButton>
+      </template>
 
-      <div v-if="!isLoading" class="stats-bar">
+      <template #filters>
+      <div v-if="!isLoading && smAndUp" class="stats-bar">
         <button
           type="button"
           class="stat-item stat-item-btn"
@@ -85,171 +80,112 @@
         </button>
       </div>
 
-      <div class="filter-bar">
-        <div class="filter-tabs">
-          <button 
-            v-for="tab in tabs" 
-            :key="tab.key"
-            class="filter-tab"
-            :class="{ active: activeTab === tab.key }"
-            type="button"
-            @click="onListTabChange(tab.key)"
+      <div
+        class="activities-filter-stack"
+        :class="{
+          'activities-filter-stack--expanded': mobileFiltersExpanded,
+          'activities-filter-stack--pinned': mobileFiltersPinned,
+        }"
+        @focusin="onMobileFilterToolsFocusIn"
+        @focusout="onMobileFilterToolsFocusOut"
+      >
+        <div class="filter-bar">
+          <div class="filter-tabs">
+            <button
+              v-for="tab in tabs"
+              :key="tab.key"
+              class="filter-tab"
+              :class="{ active: activeTab === tab.key }"
+              type="button"
+              @click="onListTabChange(tab.key)"
+            >
+              {{ tab.label }}
+              <span v-if="tab.count !== undefined" class="tab-count">{{ tab.count }}</span>
+            </button>
+          </div>
+          <div
+            class="filter-actions filter-actions-all activities-filter-stack__search"
+            :class="{ 'filter-actions-all--reserved': activeTab !== 'all' }"
+            :aria-hidden="activeTab !== 'all'"
           >
-            {{ tab.label }}
-            <span v-if="tab.count !== undefined" class="tab-count">{{ tab.count }}</span>
-          </button>
-        </div>
-        <div v-if="activeTab === 'all'" class="filter-actions filter-actions-all">
-          <div class="search-box">
-            <SearchFieldInput
-              v-model="searchQuery"
-              :label="t('activities.searchListPlaceholder')"
-            />
+            <div class="search-box">
+              <ESearchField
+                v-model="searchQuery"
+                :label="t('activities.searchListPlaceholder')"
+                :disabled="activeTab !== 'all'"
+              />
+            </div>
           </div>
         </div>
-      </div>
 
-      <div v-if="isLoading" class="loading-state">
-        <div class="spinner"></div>
-        <p>{{ t('activities.loadingList') }}</p>
+        <div v-if="activeTab === 'all'" class="activities-list-filters">
+          <ESelect
+            v-model="activeTypeFilter"
+            :items="typeSelectItems"
+            :label="t('activities.table.type')"
+            hide-details
+            class="activities-list-filters__select"
+          />
+          <ESelect
+            v-model="statusFilter"
+            :items="statusSelectItems"
+            :label="t('common.status')"
+            hide-details
+            class="activities-list-filters__select"
+          />
+        </div>
       </div>
+      </template>
 
-      <div v-else class="activities-table-wrapper">
-        <table class="activities-table">
-          <thead>
-            <tr>
-              <th class="col-status"></th>
-              <th class="col-name" @click="toggleSort('name')">
-                {{ t('common.name') }}
-                <span v-if="sortField === 'name'" class="sort-icon">{{ sortDir === 'asc' ? '↑' : '↓' }}</span>
-              </th>
-              <th class="col-type">
-                <div class="th-filter-wrap">
-                  <span>{{ t('activities.table.type') }}</span>
-                  <select
-                    v-if="activeTab === 'all'"
-                    v-model="activeTypeFilter"
-                    class="col-filter-select"
-                    @click.stop
-                  >
-                    <option value="">{{ t('activities.filters.allTypes') }}</option>
-                    <option v-for="tpl in typeFilterOptions" :key="tpl.type" :value="tpl.type">{{ tpl.label }}</option>
-                  </select>
-                </div>
-              </th>
-              <th class="col-customer">{{ t('common.group') }}</th>
-              <th class="col-period" @click="toggleSort('date')">
-                {{ t('activities.table.period') }}
-                <span v-if="sortField === 'date'" class="sort-icon">{{ sortDir === 'asc' ? '↑' : '↓' }}</span>
-              </th>
-              <th class="col-items">{{ t('common.material') }}</th>
-              <th class="col-price" @click="toggleSort('price')">
-                {{ t('activities.table.price') }}
-                <span v-if="sortField === 'price'" class="sort-icon">{{ sortDir === 'asc' ? '↑' : '↓' }}</span>
-              </th>
-              <th class="col-progress">
-                <div class="th-filter-wrap">
-                  <span>{{ t('common.status') }}</span>
-                  <select
-                    v-if="activeTab === 'all'"
-                    v-model="statusFilter"
-                    class="col-filter-select"
-                    @click.stop
-                  >
-                    <option value="">{{ t('activities.filters.allStatuses') }}</option>
-                    <option v-for="opt in statusFilterOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
-                  </select>
-                </div>
-              </th>
-              <th class="col-issues">{{ t('activities.table.issues') }}</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-if="filteredActivities.length === 0">
-              <td colspan="9" class="empty-state">
-                <div class="empty-content">
-                  <svg class="empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                    <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
-                    <line x1="16" y1="2" x2="16" y2="6" />
-                    <line x1="8" y1="2" x2="8" y2="6" />
-                    <line x1="3" y1="10" x2="21" y2="10" />
-                  </svg>
-                  <p>{{ hasActiveListFilters ? t('activities.empty.noMatch') : t('activities.empty.noneYet') }}</p>
-                </div>
-              </td>
-            </tr>
-            <tr 
-              v-for="activity in filteredActivities" 
-              :key="activity.id"
-              class="activity-row"
-              :class="{
-                'row-draft': activity.status === 'draft',
-                'row-selected': selectedActivityId === activity.id,
-              }"
-              @click="selectedActivityId = activity.id"
-              @dblclick.prevent="openActivityDetail(activity)"
-            >
-              <td class="col-status">
-                <span class="status-dot" :class="activityStatusClass(activity.status)"></span>
-              </td>
-              <td class="col-name">
-                <div class="activity-name">{{ activity.name }}</div>
-                <div v-if="activity.no" class="activity-no">{{ activity.no }}</div>
-                <div v-if="getActivityShareHint(activity)" class="activity-share-hint">{{ getActivityShareHint(activity) }}</div>
-                <div v-if="getActivityShareStatus(activity)" class="activity-share-status">{{ getActivityShareStatus(activity) }}</div>
-              </td>
-              <td class="col-type">
-                <span class="type-badge" :class="activity.type">{{ getTypeLabel(activity.type) }}</span>
-              </td>
-              <td class="col-customer">
-                <span v-if="activity.type === 'external'" class="text-muted">–</span>
-                <div v-else-if="getActivityGroupPathLines(activity).length" class="activity-group-path">
-                  <span
-                    v-for="(line, lineIdx) in getActivityGroupPathLines(activity)"
-                    :key="lineIdx"
-                    class="activity-group-path-line"
-                    :style="{ paddingLeft: `${line.level * 12}px` }"
-                  >{{ line.label }}</span>
-                </div>
-                <span v-else class="text-muted">–</span>
-              </td>
-              <td class="col-period">
-                <span v-if="activity.usageStart" class="period-compact">{{
-                  formatPeriodCompact(activity.usageStart, activity.usageEnd)
-                }}</span>
-                <span v-else class="text-muted">–</span>
-              </td>
-              <td class="col-items">
-                <span v-if="activity.itemCount" class="items-badge">{{ activity.itemCount }}</span>
-                <span v-else class="text-muted">0</span>
-              </td>
-              <td class="col-price">
-                <span v-if="activity.totalPrice" class="price-display">CHF {{ activity.totalPrice.toFixed(2) }}</span>
-                <span v-else class="text-muted">–</span>
-              </td>
-              <td class="col-progress">
-                <span class="status-label" :class="activityStatusClass(activity.status)">{{ getStatusLabel(activity.status) }}</span>
-              </td>
-              <td class="col-issues" @click.stop>
-                <router-link
-                  v-if="['at_event', 'returned', 'completed'].includes(activity.status)"
-                  class="activities-list-issues-link"
-                  :to="`/${departmentId}/activities/${activity.id}?tab=issues`"
-                >
-                  {{ t('activities.table.issues') }}
-                </router-link>
-                <span v-else class="text-muted">–</span>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-        <div v-if="filteredActivities.length > 0" class="table-footer">
+      <ELoadingState
+        v-if="isLoading"
+        variant="table"
+        :rows="8"
+        :message="t('activities.loadingList')"
+      />
+
+      <EEmptyState
+        v-else-if="filteredActivities.length === 0"
+        :title="hasActiveListFilters ? t('activities.empty.noMatch') : t('activities.empty.noneYet')"
+      />
+
+      <div v-else class="activity-list-panel">
+        <EResponsiveDataList>
+          <template #table>
+            <ActivityListDataTable
+              :items="filteredActivities"
+              :department-id="departmentId"
+              :selected-id="selectedActivityId"
+              :sort-field="sortField"
+              :sort-dir="sortDir"
+              :type-label="getTypeLabel"
+              :status-label="getStatusLabel"
+              :period-label="(a) => formatPeriodCompact(a.usageStart, a.usageEnd)"
+              :group-path-lines="getActivityGroupPathLines"
+              :share-hint="getActivityShareHint"
+              :share-status="getActivityShareStatus"
+              @open="openActivityDetail"
+              @select="selectedActivityId = $event"
+              @sort="onTableSort"
+            />
+          </template>
+          <template #mobile>
+            <ActivityListMobile
+              :items="filteredActivities"
+              :type-label="getTypeLabel"
+              :status-label="getStatusLabel"
+              :period-label="(a) => formatPeriodCompact(a.usageStart, a.usageEnd)"
+              :group-path-lines="getActivityGroupPathLines"
+              @open="openActivityDetail"
+            />
+          </template>
+        </EResponsiveDataList>
+        <div class="table-footer">
           <span>{{ t('activities.table.footer', { shown: filteredActivities.length, total: activities.length }) }}</span>
         </div>
       </div>
-
-                    </template>
-                      </div>
+    </PageShell>
+  </div>
 </template>
 
 <script setup lang="ts">
@@ -257,12 +193,25 @@ defineOptions({ name: 'ActivitiesView' })
 import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
+import { useDisplay } from 'vuetify'
 import apiClient from '@/api/apiClient'
 import { getActivity } from '@/api/activities'
 import { getGroups, type Group } from '@/api/groups'
 import { buildActivityGroupPathLines, type GroupPathLine } from '@/utils/groupHierarchy'
-import SearchFieldInput from '@/components/common/SearchFieldInput.vue'
-import { ActivityCreateWizard, ActivityDetailView } from '@/components/activities'
+import PageShell from '@/components/layout/PageShell.vue'
+import EResponsiveDataList from '@/components/layout/EResponsiveDataList.vue'
+import EEmptyState from '@/components/layout/EEmptyState.vue'
+import ELoadingState from '@/components/layout/ELoadingState.vue'
+import EButton from '@/components/form/base/EButton.vue'
+import ESearchField from '@/components/form/base/ESearchField.vue'
+import ESelect from '@/components/form/base/ESelect.vue'
+import {
+  ActivityCreateWizard,
+  ActivityDetailView,
+  ActivityListDataTable,
+  ActivityListMobile,
+  type ActivityListItem,
+} from '@/components/activities'
 import { usePageHeadStore } from '@/stores/pageHead'
 import { syncDocumentHead } from '@/composables/usePageHead'
 import { useToast } from '@/composables/useToast'
@@ -274,6 +223,7 @@ import { activityStatusClass, activityStatusI18nKey } from '@/utils/activityStat
 
 const route = useRoute()
 const router = useRouter()
+const { smAndUp } = useDisplay()
 const { t, te, locale } = useI18n()
 const toast = useToast()
 const headerNotificationsStore = useHeaderNotificationsStore()
@@ -283,7 +233,7 @@ const pageHeadStore = usePageHeadStore()
 const departmentId = computed(() => route.params.departmentId as string)
 const activityRouteId = computed(() => (route.params.activityId as string | undefined) || undefined)
 
-const activities = ref<Activity[]>([])
+const activities = ref<ActivityListItem[]>([])
 const departmentGroups = ref<Group[]>([])
 const isLoading = ref(false)
 type ListTab = 'open' | 'upcoming' | 'all'
@@ -303,25 +253,6 @@ const activityJustCreated = ref(false)
 let lastDetailOpenId = ''
 let lastDetailOpenAt = 0
 
-interface Activity {
-  id: string
-  no?: string
-  name: string
-  departmentId?: string
-  departmentName?: string
-  type: 'activity' | 'camp' | 'event' | 'external'
-  status: 'draft' | 'submitted' | 'approved' | 'packing' | 'packed' | 'at_event' | 'returned' | 'completed' | 'cancelled'
-  invitedDepartments?: Array<{ id?: string; name?: string; organisation_name?: string; status?: string }>
-  groupId?: string | null
-  groupName?: string
-  usageStart?: string
-  usageEnd?: string
-  itemCount?: number
-  totalPrice?: number
-  createdAt: string
-  updatedAt: string
-}
-
 const ACTIVITY_FILTER_TYPES = ['activity', 'camp', 'event', 'external'] as const
 
 const typeFilterOptions = computed(() =>
@@ -331,13 +262,19 @@ const typeFilterOptions = computed(() =>
   })),
 )
 
-const statusFilterOptions = computed(() => [
-  { value: 'draft' as const, label: t('activities.stats.drafts') },
-  { value: 'submitted' as const, label: t('activities.stats.submitted') },
-  { value: 'in_progress' as const, label: t('activities.stats.inProgress') },
-  { value: 'at_event' as const, label: t('activities.stats.issued') },
-  { value: 'completed' as const, label: t('activities.stats.completed') },
-  { value: 'cancelled' as const, label: t('activities.tabs.cancelled') },
+const typeSelectItems = computed(() => [
+  { title: t('activities.filters.allTypes'), value: '' },
+  ...typeFilterOptions.value.map((o) => ({ title: o.label, value: o.type })),
+])
+
+const statusSelectItems = computed(() => [
+  { title: t('activities.filters.allStatuses'), value: '' },
+  { value: 'draft' as const, title: t('activities.stats.drafts') },
+  { value: 'submitted' as const, title: t('activities.stats.submitted') },
+  { value: 'in_progress' as const, title: t('activities.stats.inProgress') },
+  { value: 'at_event' as const, title: t('activities.stats.issued') },
+  { value: 'completed' as const, title: t('activities.stats.completed') },
+  { value: 'cancelled' as const, title: t('activities.tabs.cancelled') },
 ])
 
 const hasActiveListFilters = computed(
@@ -347,6 +284,32 @@ const hasActiveListFilters = computed(
     (activeTab.value === 'all' && !!statusFilter.value),
 )
 
+/** Smartphone: Filterzeile bleibt gross, solange Werte gesetzt sind */
+const mobileFiltersPinned = computed(() => hasActiveListFilters.value)
+
+const mobileFiltersExpanded = ref(false)
+
+function isMobileFilterOverlayActive(): boolean {
+  return !!document.querySelector('.v-overlay--active')
+}
+
+function onMobileFilterToolsFocusIn() {
+  if (smAndUp.value) return
+  mobileFiltersExpanded.value = true
+}
+
+function onMobileFilterToolsFocusOut(event: FocusEvent) {
+  if (smAndUp.value) return
+  const tools = event.currentTarget as HTMLElement | null
+  window.setTimeout(() => {
+    if (mobileFiltersPinned.value) return
+    const active = document.activeElement
+    if (tools?.contains(active)) return
+    if (isMobileFilterOverlayActive()) return
+    mobileFiltersExpanded.value = false
+  }, 120)
+}
+
 function nameSortLocale(): string {
   const raw = String(locale.value)
   if (raw.startsWith('de')) return 'de'
@@ -355,7 +318,7 @@ function nameSortLocale(): string {
   return 'en'
 }
 
-function mapActivityListItem(a: Record<string, unknown>): Activity {
+function mapActivityListItem(a: Record<string, unknown>): ActivityListItem {
   const no = a.no as number | string | undefined
   return {
     id: String(a.id),
@@ -363,9 +326,11 @@ function mapActivityListItem(a: Record<string, unknown>): Activity {
     name: String(a.name ?? ''),
     departmentId: a.department_id as string | undefined,
     departmentName: a.department_name as string | undefined,
-    type: a.type as Activity['type'],
-    status: a.status as Activity['status'],
-    invitedDepartments: Array.isArray(a.invited_departments) ? (a.invited_departments as Activity['invitedDepartments']) : [],
+    type: a.type as ActivityListItem['type'],
+    status: a.status as ActivityListItem['status'],
+    invitedDepartments: Array.isArray(a.invited_departments)
+      ? (a.invited_departments as ActivityListItem['invitedDepartments'])
+      : [],
     groupId: (a.group_id as string | null | undefined) ?? null,
     groupName: a.group_name as string | undefined,
     usageStart: a.usage_start as string | undefined,
@@ -433,11 +398,11 @@ useDepartmentLiveRefresh({
     showCreateActivityWizard.value || (isLoading.value && activities.value.length === 0),
 })
 
-function isOpenActivity(a: Activity): boolean {
+function isOpenActivity(a: ActivityListItem): boolean {
   return a.status !== 'completed' && a.status !== 'cancelled'
 }
 
-function isUpcomingActivity(a: Activity): boolean {
+function isUpcomingActivity(a: ActivityListItem): boolean {
   if (!isOpenActivity(a)) return false
   if (!a.usageEnd) return true
   const endDate = new Date(a.usageEnd)
@@ -446,7 +411,7 @@ function isUpcomingActivity(a: Activity): boolean {
   return endDate >= todayStart
 }
 
-function matchesStatusFilter(a: Activity, filter: StatusFilter): boolean {
+function matchesStatusFilter(a: ActivityListItem, filter: StatusFilter): boolean {
   if (!filter) return true
   if (filter === 'draft') return a.status === 'draft'
   if (filter === 'submitted') return a.status === 'submitted'
@@ -478,6 +443,7 @@ function onListTabChange(tab: ListTab) {
     statusFilter.value = ''
     activeTypeFilter.value = ''
     clearSearchFromRoute()
+    mobileFiltersExpanded.value = false
   }
 }
 
@@ -527,10 +493,14 @@ const filteredActivities = computed(() => {
     return sortDir.value === 'desc' ? -cmp : cmp
   })
 
-  return result
+  return result.map((a) => ({
+    ...a,
+    period: a.usageStart || '',
+    price: a.totalPrice ?? 0,
+  }))
 })
 
-function getActivityGroupPathLines(activity: Activity): GroupPathLine[] {
+function getActivityGroupPathLines(activity: ActivityListItem): GroupPathLine[] {
   if (activity.type === 'external') return []
   return buildActivityGroupPathLines(
     activity.groupId,
@@ -540,7 +510,7 @@ function getActivityGroupPathLines(activity: Activity): GroupPathLine[] {
   )
 }
 
-function activityMatchesSearch(activity: Activity, q: string): boolean {
+function activityMatchesSearch(activity: ActivityListItem, q: string): boolean {
   if (activity.name.toLowerCase().includes(q)) return true
   if (activity.no?.toLowerCase().includes(q)) return true
   return getActivityGroupPathLines(activity).some((line) => line.label.toLowerCase().includes(q))
@@ -556,7 +526,7 @@ function getStatusLabel(status: string): string {
   return te(key) ? t(key) : status
 }
 
-function getActivityShareHint(activity: Activity): string | null {
+function getActivityShareHint(activity: ActivityListItem): string | null {
   if (activity.departmentId && activity.departmentId !== departmentId.value) {
     return `${t('activities.share.fromPrefix')} ${activity.departmentName || t('activities.share.otherDeptFallback')}`
   }
@@ -573,7 +543,7 @@ function getActivityShareHint(activity: Activity): string | null {
   return null
 }
 
-function getActivityShareStatus(activity: Activity): string | null {
+function getActivityShareStatus(activity: ActivityListItem): string | null {
   const invited = activity.invitedDepartments || []
   if (activity.departmentId && activity.departmentId !== departmentId.value) {
     const ownInvite = invited.find((entry) => entry?.id === departmentId.value)
@@ -625,16 +595,12 @@ function formatPeriodCompact(startStr?: string, endStr?: string): string {
   return `${d1}.${m1}.${y1}–${d2}.${m2}.${y2}`
 }
 
-function toggleSort(field: string) {
-  if (sortField.value === field) {
-    sortDir.value = sortDir.value === 'asc' ? 'desc' : 'asc'
-  } else {
-    sortField.value = field
-    sortDir.value = 'asc'
-  }
+function onTableSort(payload: { field: string; order: 'asc' | 'desc' }) {
+  sortField.value = payload.field
+  sortDir.value = payload.order
 }
 
-function openActivityDetail(activity: Activity) {
+function openActivityDetail(activity: ActivityListItem) {
   const id = activity.id?.trim()
   if (!id || !departmentId.value) return
 
@@ -785,30 +751,4 @@ watch(
   padding: 0;
   max-width: none;
 }
-
-.text-muted {
-  color: #6b7280;
-}
-
-.row-selected {
-  outline: 2px solid var(--color-primary-ring);
-}
-
-.col-issues {
-  width: 100px;
-  text-align: right;
-  white-space: nowrap;
-}
-
-.activities-list-issues-link {
-  font-size: 13px;
-  font-weight: 600;
-  color: #b45309;
-  text-decoration: none;
-}
-
-.activities-list-issues-link:hover {
-  text-decoration: underline;
-}
-
 </style>

@@ -173,6 +173,13 @@ watch(
   padding-bottom: calc(24px + var(--emc-safe-bottom));
 }
 
+/* Smartphone: weniger Rand links/rechts (Vuetify sm = 600px) */
+@media (max-width: 599px) {
+  .page-content {
+    padding: 12px 12px calc(12px + var(--emc-safe-bottom));
+  }
+}
+
 .onboarding-resume-btn {
   position: fixed;
   right: calc(18px + var(--emc-safe-right));

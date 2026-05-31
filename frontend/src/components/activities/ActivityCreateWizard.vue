@@ -1,20 +1,32 @@
 <template>
-  <Teleport to="body">
-    <div v-if="showDialog" class="material-wizard-overlay activity-create-wizard-host">
-      <div class="material-wizard-modal">
-        <div class="material-wizard-header">
-          <div class="material-wizard-header-title">
-            <h2>{{ t('activities.wizard.createTitle') }}</h2>
-          </div>
-          <button type="button" class="close-btn" :title="t('common.close')" @click="handleClose">
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <line x1="18" y1="6" x2="6" y2="18" />
-              <line x1="6" y1="6" x2="18" y2="18" />
-            </svg>
-          </button>
+  <v-dialog
+    v-model="showDialog"
+    class="activity-create-dialog"
+    :fullscreen="wizardFullscreen"
+    :max-width="wizardFullscreen ? undefined : 1080"
+    persistent
+    content-class="activity-create-dialog__content"
+  >
+    <v-card class="material-wizard-modal activity-create-wizard-host" rounded="lg">
+      <div class="material-wizard-header">
+        <div class="material-wizard-header-title">
+          <h2>{{ t('activities.wizard.createTitle') }}</h2>
         </div>
+        <EButton
+          variant="text"
+          size="small"
+          class="activity-create-wizard-close"
+          :aria-label="t('common.close')"
+          @click="handleClose"
+        >
+          <v-icon icon="mdi-close" size="24" />
+        </EButton>
+      </div>
 
-        <div class="material-wizard-body">
+        <div
+          class="material-wizard-body"
+          :class="{ 'material-wizard-body--with-preview': showWizardPreview }"
+        >
           <div class="material-wizard-content">
             <div ref="wizardFormRef" class="material-wizard-form">
               <ActivityTypeChips
@@ -66,6 +78,7 @@
           </div>
 
           <ActivityPreviewSidebar
+            v-if="showWizardPreview"
             :preview-title="previewTitle"
             :preview-usage-line="previewUsageLine"
             :preview-planning-line="previewPlanningLine"
@@ -102,14 +115,15 @@
           @submit="handleSubmit"
           @jump-missing="onJumpToMissing"
         />
-      </div>
-    </div>
-  </Teleport>
+    </v-card>
+  </v-dialog>
 </template>
 
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { EButton } from '@/components/form/base'
+import { useSmAndUp } from '@/composables/useSmAndUp'
 import '@/styles/material-wizard.css'
 import '@/styles/activity-type-chips.css'
 import '@/styles/activity-create-wizard.css'
@@ -153,6 +167,10 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
+const smAndUp = useSmAndUp()
+/** Smartphone < 600px — nicht useDisplay().smAndDown (bei mobileBreakpoint md = < 960px) */
+const wizardFullscreen = computed(() => !smAndUp.value)
+const showWizardPreview = smAndUp
 const toast = useToast()
 const authStore = useAuthStore()
 const headerNotificationsStore = useHeaderNotificationsStore()

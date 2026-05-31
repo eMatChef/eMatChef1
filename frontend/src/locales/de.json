@@ -758,7 +758,8 @@
     "group": "Gruppe",
     "role": "Rolle",
     "refresh": "Aktualisieren",
-    "status": "Status"
+    "status": "Status",
+    "openDetail": "Details öffnen"
   },
   "tasksShell": {
     "title": "Aufgaben",

@@ -1,57 +1,61 @@
 <template>
   <div class="material-wizard-footer activity-create-footer">
     <div v-if="showDraftStatus" class="activity-create-footer-draft">
-      <span class="activity-draft-badge" aria-hidden="true">{{ t('activities.wizard.draftBadge') }}</span>
+      <v-chip size="small" color="primary" variant="tonal" class="activity-draft-badge">
+        {{ t('activities.wizard.draftBadge') }}
+      </v-chip>
       <span v-if="lastSavedAt" class="activity-draft-saved-at">{{ savedAtLabel }}</span>
     </div>
-    <div class="footer-spacer" />
-    <div class="footer-actions-wrap">
+    <div class="footer-spacer" aria-hidden="true" />
+    <div class="activity-create-footer-actions">
       <p v-if="submitError" class="activity-create-submit-error">{{ submitError }}</p>
       <div class="footer-actions">
         <div v-if="missingSteps.length > 0" class="missing-steps">
           <span class="missing-icon" aria-hidden="true">⚠️</span>
-          <button type="button" class="missing-link" @click="$emit('jumpMissing', missingSteps[0])">
+          <EButton variant="text" size="small" class="missing-link" @click="$emit('jumpMissing', missingSteps[0])">
             {{ t('activities.wizard.missing.' + missingSteps[0]) }}
-          </button>
+          </EButton>
         </div>
-        <button
+        <EButton
           v-if="showCloseSavedButton"
-          type="button"
-          class="btn-secondary btn-sm"
+          variant="secondary"
+          size="small"
           @click="$emit('closeSaved')"
         >
           {{ t('activities.common.close') }}
-        </button>
-        <button v-else type="button" class="btn-secondary btn-sm" @click="$emit('close')">
+        </EButton>
+        <EButton v-else variant="secondary" size="small" @click="$emit('close')">
           {{ t('activities.common.discard') }}
-        </button>
-        <button
+        </EButton>
+        <EButton
           v-if="layoutMode === 'stepper' && selectedActivityType && wizardStepIndex > 0"
-          type="button"
-          class="btn-secondary btn-sm"
+          variant="secondary"
+          size="small"
           @click="$emit('prev')"
         >
           {{ t('activities.common.backTitle') }}
-        </button>
-        <button
+        </EButton>
+        <EButton
           v-if="layoutMode === 'stepper' && selectedActivityType && !isLastStep"
-          type="button"
-          class="btn-primary btn-sm"
-          :disabled="!canAdvanceFromCurrentStep || isSavingDraft"
+          variant="primary"
+          size="small"
+          :disabled="!canAdvanceFromCurrentStep"
+          :loading="isSavingDraft"
           @click="$emit('weiter')"
         >
           {{ isSavingDraft ? t('common.saving') : t('activities.wizard.footerNext') }}
-        </button>
-        <button
+        </EButton>
+        <EButton
           v-if="showSubmitButton"
-          type="button"
-          class="btn-primary btn-sm"
-          :disabled="!canSubmit || isSubmitting"
+          variant="primary"
+          size="small"
+          :disabled="!canSubmit"
+          :loading="isSubmitting"
           :title="submitButtonTitle"
           @click="$emit('submit')"
         >
           {{ isSubmitting ? t('activities.wizard.footerSubmitting') : (submitButtonLabel || t('activities.wizard.defaultSubmit')) }}
-        </button>
+        </EButton>
       </div>
     </div>
   </div>
@@ -60,6 +64,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { EButton } from '@/components/form/base'
 import type {
   ActivityCreateLayoutMode,
   ActivityCreateType,
@@ -124,3 +129,64 @@ defineEmits<{
   jumpMissing: [key: ActivityMissingStepKey]
 }>()
 </script>
+
+<style scoped>
+.activity-create-footer {
+  flex-wrap: wrap;
+  gap: 10px 16px;
+}
+
+.activity-create-footer-draft {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.activity-create-footer-actions {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px 12px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.activity-create-submit-error {
+  margin: 0;
+  flex: 1 1 100%;
+  font-size: 12px;
+  color: #b91c1c;
+  text-align: right;
+}
+
+.footer-actions {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.missing-steps {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+}
+
+.missing-link {
+  min-width: 0;
+  height: auto !important;
+  padding: 0 4px !important;
+  text-transform: none;
+  letter-spacing: normal;
+  font-size: 13px;
+  font-weight: 600;
+  color: #b45309 !important;
+}
+</style>

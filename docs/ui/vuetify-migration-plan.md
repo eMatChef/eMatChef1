@@ -2,7 +2,7 @@
 
 Abarbeitbare Checkliste für die schrittweise Einführung von **Vuetify 3** und **`E*`-Komponenten**. Regeln: [vuetify-standards.md](./vuetify-standards.md).
 
-**Stand:** Mai 2026 · **Status:** Phase 4 abgeschlossen — **Phase 5** fast fertig (Review 068 offen). Phase 3 (AutoSave auf `E*`) **verschoben** — nach Fortschritt Phase 5.
+**Stand:** Mai 2026 · **Status:** Phase 5 abgeschlossen — **Phase 6** (Aktivitäten) als Nächstes. Phase 3 (AutoSave auf `E*`) **verschoben**.
 
 ---
 
@@ -32,8 +32,8 @@ Abarbeitbare Checkliste für die schrittweise Einführung von **Vuetify 3** und 
 | 2 | `E*`-Formular-Basis | 029–042 | nach 042 |
 | 3 | AutoSave auf `E*` | 043–050 | nach 050 — **verschoben** (siehe unten) |
 | 4 | Layout-Bausteine (Dialog, Liste, PageShell) | 051–060 | nach 060 — **abgeschlossen** |
-| 5 | Einstieg (Login, Landing, Pending) | 061–068 | nach 068 — **aktuell** |
-| 6 | Aktivitäten | 069–084 | nach 084 |
+| 5 | Einstieg (Login, Landing, Pending) | 061–068 | nach 068 — **abgeschlossen** |
+| 6 | Aktivitäten | 069–084 | nach 084 — **aktuell** |
 | 7 | Material | 085–092 | nach 092 |
 | 8 | Kontakte, Aufgaben, Inbox | 093–098 | nach 098 |
 | 9 | Department-Settings | 099–108 | nach 108 |
@@ -220,8 +220,8 @@ Die Schritte **013–017** waren ein Zwischenstand (`v-app` nur in `AppLayout`).
 | 064 | `LandingHomeView` + `PublicSiteLayout` (Marketing) | [x] 2026-05-31 |
 | 065 | Blog/FAQ/TOS/Impressum — einheitlich oder Phase 12 Rest | [x] 2026-05-31 |
 | 066 | `DisplayEntryView` / `DepartmentDisplayView` — optional, Entscheid im Review | [x] 2026-05-31 — Einstieg + PIN auf `E*`; Infoscreen-Layout unverändert |
-| 067 | Öffentliche QR-Views (`PublicMaterialView` etc.) — optional | [ ] |
-| 068 | **Review-Stopp Phase 5:** Erster Eindruck (Login/Landing) auf Mobile OK? | [ ] |
+| 067 | Öffentliche QR-Views (`PublicMaterialView` etc.) — optional | [-] Footer vereinheitlicht; Layout-Migration Phase 12 |
+| 068 | **Review-Stopp Phase 5:** Erster Eindruck (Login/Landing) auf Mobile OK? | [x] 2026-05-31 — Marketing + Copyright-Footer freigegeben |
 
 ---
 
@@ -231,9 +231,9 @@ Die Schritte **013–017** waren ein Zwischenstand (`v-app` nur in `AppLayout`).
 
 | Nr | Schritt | Status |
 | -- | ------- | ------ |
-| 069 | `ActivitiesView`: Listen-Header + `PageShell` + Filter | [ ] |
-| 070 | Aktivitäten-Liste: Mobile-Karten oder scrollbare Tabelle | [ ] |
-| 071 | `ActivityCreateWizard.vue` + `ActivityCreateWizardForm.vue` Shell | [ ] |
+| 069 | `ActivitiesView`: Listen-Header + `PageShell` + Filter | [x] 2026-05-31 |
+| 070 | Aktivitäten-Liste: Mobile-Karten oder scrollbare Tabelle | [x] 2026-05-31 |
+| 071 | `ActivityCreateWizard.vue` + `ActivityCreateWizardForm.vue` Shell | [x] 2026-05-31 |
 | 072 | Wizard Schritte: Stammdaten-Felder → `E*` / `AutoSaveField` | [ ] |
 | 073 | `ActivityZeitraumDatetimeFields` + `ActivityDateField` / `ActivityDateRangeField` | [ ] |
 | 074 | Entscheid Datepicker: `@vuepic` behalten vs. `VDatePicker` — dokumentieren | [ ] |
@@ -376,4 +376,4 @@ Für die PR-Beschreibung Screenshots / Kurztest:
 
 ## Nächster Schritt (aktuell)
 
-**Phase 5** — Schritt **068** (Review-Stopp: Login, Landing, Blog/FAQ/TOS/Impressum, Display-Einstieg @ 375px + 1280px). Optional danach **067** (öffentliche QR-Views) oder direkt **Phase 6** (Aktivitäten). Phase 3 (AutoSave) ist verschoben.
+**Phase 6** — Schritt **072** (Wizard Stammdaten-Felder → `E*` / `AutoSaveField`). Phase 3 (AutoSave) ist verschoben.

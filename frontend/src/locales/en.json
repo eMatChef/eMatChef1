@@ -664,7 +664,8 @@
     "group": "Group",
     "role": "Role",
     "refresh": "Refresh",
-    "status": "Status"
+    "status": "Status",
+    "openDetail": "Open details"
   },
   "tasksShell": {
     "title": "Tasks",

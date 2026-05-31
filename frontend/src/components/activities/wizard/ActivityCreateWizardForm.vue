@@ -1,13 +1,15 @@
 <template>
-  <div>
+  <div class="activity-create-wizard-form">
     <div v-if="layoutMode === 'stepper'" class="activity-stepper-meta">
-      <span class="activity-stepper-count">{{
-        t('activities.wizard.form.stepCounter', {
-          current: wizardStepIndex + 1,
-          total: stepKeys.length,
-          label: currentStepProgressLabel,
-        })
-      }}</span>
+      <v-chip size="small" variant="tonal" color="primary" class="activity-stepper-count">
+        {{
+          t('activities.wizard.form.stepCounter', {
+            current: wizardStepIndex + 1,
+            total: stepKeys.length,
+            label: currentStepProgressLabel,
+          })
+        }}
+      </v-chip>
     </div>
 
     <template v-if="layoutMode === 'single'">
@@ -91,14 +93,15 @@
               {{ t('activities.wizard.form.planningPresetFromUsage') }}
             </p>
             <p v-if="!planningSynced" class="material-times-microhint material-times-microhint--manual">
-              <button
-                type="button"
+              <EButton
+                variant="text"
+                size="small"
                 class="btn-material-resync"
                 :disabled="!usageStartAt || !usageEndAt"
                 @click="emit('resyncPlanning')"
               >
                 {{ t('activities.wizard.form.resyncPlanningFromUsage') }}
-              </button>
+              </EButton>
             </p>
           </template>
         </ActivityZeitraumDatetimeFields>
@@ -398,14 +401,15 @@
               {{ t('activities.wizard.form.materialTimesAutoStepper') }}
             </p>
             <p v-if="!planningSynced" class="material-times-microhint material-times-microhint--manual">
-              <button
-                type="button"
+              <EButton
+                variant="text"
+                size="small"
                 class="btn-material-resync"
                 :disabled="!usageStartAt || !usageEndAt"
                 @click="emit('resyncPlanning')"
               >
                 {{ t('activities.wizard.form.resyncPlanningFromUsage') }}
-              </button>
+              </EButton>
             </p>
           </template>
         </ActivityZeitraumDatetimeFields>
@@ -532,6 +536,7 @@ import {
   isInstantInsideClosedUsage,
   nearestAllowedQuarterOnDayOutsideUsage,
 } from '@/utils/activityPlanningUsageConstraint'
+import { EButton } from '@/components/form/base'
 import { useToast } from '@/composables/useToast'
 import { useAuthStore } from '@/stores/auth'
 import { useDepartmentMemberRole } from '@/composables/useDepartmentMemberRole'
