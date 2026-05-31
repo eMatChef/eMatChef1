@@ -5,6 +5,7 @@
     }
   },
   "supportRequests": {
+    "userLabel": "User:",
     "searchedLabel": "Gesucht:"
   },
   "pendingAssignment": {
