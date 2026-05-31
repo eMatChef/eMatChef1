@@ -54,4 +54,12 @@ watch(
   height: 100%;
   min-height: 0;
 }
+
+/* Öffentliche Marketing-Seiten: eigener Scroll in .plt-shell (nicht overflow:hidden der App) */
+.emc-app :deep(.v-application__wrap > .plt-shell) {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
 </style>

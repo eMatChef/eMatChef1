@@ -2,7 +2,7 @@
 
 Abarbeitbare Checkliste für die schrittweise Einführung von **Vuetify 3** und **`E*`-Komponenten**. Regeln: [vuetify-standards.md](./vuetify-standards.md).
 
-**Stand:** Mai 2026 · **Status:** Phase 4 abgeschlossen — **Phase 5** (Einstieg) als Nächstes. Phase 3 (AutoSave auf `E*`) **verschoben** — nach Fortschritt Phase 5.
+**Stand:** Mai 2026 · **Status:** Phase 4 abgeschlossen — **Phase 5** fast fertig (Review 068 offen). Phase 3 (AutoSave auf `E*`) **verschoben** — nach Fortschritt Phase 5.
 
 ---
 
@@ -217,9 +217,9 @@ Die Schritte **013–017** waren ein Zwischenstand (`v-app` nur in `AppLayout`).
 | 061 | `LoginView.vue` vollständig Vuetify + `E*` | [x] 2026-05-31 |
 | 062 | `VerifyEmailView.vue` | [x] 2026-05-31 |
 | 063 | `PendingAssignmentView.vue` | [x] 2026-05-31 |
-| 064 | `LandingHomeView` + `PublicSiteLayout` (Marketing) | [ ] |
-| 065 | Blog/FAQ/TOS/Impressum — einheitlich oder Phase 12 Rest | [ ] |
-| 066 | `DisplayEntryView` / `DepartmentDisplayView` — optional, Entscheid im Review | [ ] |
+| 064 | `LandingHomeView` + `PublicSiteLayout` (Marketing) | [x] 2026-05-31 |
+| 065 | Blog/FAQ/TOS/Impressum — einheitlich oder Phase 12 Rest | [x] 2026-05-31 |
+| 066 | `DisplayEntryView` / `DepartmentDisplayView` — optional, Entscheid im Review | [x] 2026-05-31 — Einstieg + PIN auf `E*`; Infoscreen-Layout unverändert |
 | 067 | Öffentliche QR-Views (`PublicMaterialView` etc.) — optional | [ ] |
 | 068 | **Review-Stopp Phase 5:** Erster Eindruck (Login/Landing) auf Mobile OK? | [ ] |
 
@@ -351,6 +351,7 @@ Die Schritte **013–017** waren ein Zwischenstand (`v-app` nur in `AppLayout`).
 | 2026-05-31 | Schritt 061 | `LoginView`: alle Formulare auf `E*` + `v-alert` + `ECard`; Reset-Code via `EOtpInput` |
 | 2026-05-31 | Schritt 062 | `VerifyEmailView`: `ECard`, `ELoadingState`, `v-alert`, `EButton`, i18n |
 | 2026-05-31 | Reihenfolge | **Phase 4 vor Phase 3** — AutoSave auf `E*` erst nach Fortschritt Phase 5 |
+| 2026-05-31 | Phase 5 | **064–066:** Marketing (Landing, Blog/FAQ/TOS/Impressum), Display-Einstieg + PIN auf `E*` |
 
 ---
 
@@ -375,4 +376,4 @@ Für die PR-Beschreibung Screenshots / Kurztest:
 
 ## Nächster Schritt (aktuell)
 
-**Phase 5** — Schritt **064** (`LandingHomeView` + `PublicSiteLayout`). Phase 3 (AutoSave) ist verschoben.
+**Phase 5** — Schritt **068** (Review-Stopp: Login, Landing, Blog/FAQ/TOS/Impressum, Display-Einstieg @ 375px + 1280px). Optional danach **067** (öffentliche QR-Views) oder direkt **Phase 6** (Aktivitäten). Phase 3 (AutoSave) ist verschoben.

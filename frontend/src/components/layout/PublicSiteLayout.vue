@@ -1,48 +1,59 @@
 <template>
-  <div class="plt-shell">
+  <div class="plt-shell" :class="{ 'plt-shell--natural-footer': isPublicMarketing }">
     <header class="plt-header" role="banner">
       <div class="plt-header-inner">
         <RouterLink to="/" class="plt-brand public-brand" :title="t('publicNav.brandTitle')">
           <EmcLogoMark size="sm" />
           <span class="plt-brand-text public-brand-text">eMatChef</span>
         </RouterLink>
+
         <nav class="plt-nav" :aria-label="t('publicNav.mainAria')">
           <RouterLink to="/blog">{{ t('publicNav.blog') }}</RouterLink>
           <RouterLink to="/faq">{{ t('publicNav.faq') }}</RouterLink>
           <RouterLink to="/tos">{{ t('publicNav.tos') }}</RouterLink>
-          <select v-model="publicLocale" class="public-locale-select" :aria-label="t('publicNav.language')">
-            <option value="de">DE</option>
-            <option value="en">EN</option>
-            <option value="fr">FR</option>
-          </select>
         </nav>
-        <a
-          v-if="isPublicLoggedIn"
-          :href="appEntryHref"
-          :target="openAppInNewTab ? '_blank' : undefined"
-          :rel="openAppInNewTab ? 'noopener noreferrer' : undefined"
-          class="public-user-link"
-          :title="t('public.lookup.toApp')"
-        >
-          <PublicUserIdentityChip
-            :display-name="publicDisplayName"
-            :initials="publicInitials"
-            :background-color="avatarStyle.backgroundColor"
-            :text-color="avatarStyle.color"
-          />
-        </a>
-        <AppLoginLink v-else class="plt-nav-cta btn btn-primary plt-btn-lg">{{ t('publicNav.login') }}</AppLoginLink>
+
+        <div class="plt-header-actions">
+          <select
+            v-model="publicLocale"
+            class="plt-locale-select"
+            :aria-label="t('publicNav.language')"
+          >
+            <option v-for="opt in localeOptions" :key="opt.value" :value="opt.value">
+              {{ opt.label }}
+            </option>
+          </select>
+          <a
+            v-if="isPublicLoggedIn"
+            :href="appEntryHref"
+            :target="openAppInNewTab ? '_blank' : undefined"
+            :rel="openAppInNewTab ? 'noopener noreferrer' : undefined"
+            class="public-user-link"
+            :title="t('public.lookup.toApp')"
+          >
+            <PublicUserIdentityChip
+              :display-name="publicDisplayName"
+              :initials="publicInitials"
+              :background-color="avatarStyle.backgroundColor"
+              :text-color="avatarStyle.color"
+            />
+          </a>
+          <AppLoginLink v-else class="plt-nav-cta" />
+        </div>
       </div>
     </header>
-    <main class="plt-main">
+
+    <main class="plt-main" :class="{ 'plt-main--natural': isPublicMarketing }">
       <RouterView />
     </main>
+
     <PublicSiteFooter />
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import EmcLogoMark from '@/components/brand/EmcLogoMark.vue'
 import AppLoginLink from '@/components/public/AppLoginLink.vue'
@@ -52,10 +63,18 @@ import { setLocale } from '@/i18n'
 import { getAppEntryTarget } from '@/utils/appLoginUrl'
 import { useAuthStore } from '@/stores/auth'
 
+const route = useRoute()
 const { t, locale } = useI18n()
 const authStore = useAuthStore()
+
+const isPublicMarketing = computed(() => Boolean(route.meta.publicMarketing))
 const PUBLIC_SESSION_POLL_MS = 10_000
 const sessionPollTimer = ref<number | null>(null)
+
+const localeOptions = [
+  { value: 'de' as const, label: 'DE' },
+  { value: 'en' as const, label: 'EN' },
+]
 
 onMounted(() => {
   void authStore.loadUserSessionFromCookie(true)
@@ -87,10 +106,9 @@ function onVisibilityChange() {
   }
 }
 
-function toPublicLocale(value: string): 'de' | 'en' | 'fr' {
+function toPublicLocale(value: string): 'de' | 'en' {
   const v = String(value || '').toLowerCase()
   if (v.startsWith('en')) return 'en'
-  if (v.startsWith('fr')) return 'fr'
   return 'de'
 }
 
@@ -127,17 +145,6 @@ const openAppInNewTab = computed(() => {
 </script>
 
 <style scoped>
-.public-locale-select {
-  min-width: 4.25rem;
-  border: 1px solid #cbd5e1;
-  border-radius: 8px;
-  background: #fff;
-  color: #0f172a;
-  font-size: 0.82rem;
-  font-weight: 600;
-  padding: 0.3rem 0.45rem;
-}
-
 .public-user-link {
   display: inline-flex;
   align-items: center;
@@ -147,6 +154,7 @@ const openAppInNewTab = computed(() => {
   padding: 0.25rem 0.4rem;
   border-radius: 999px;
   transition: background-color 0.15s ease, transform 0.15s ease;
+  flex-shrink: 0;
 }
 
 .public-user-link:hover {
@@ -156,5 +164,4 @@ const openAppInNewTab = computed(() => {
 .public-user-link:active {
   transform: translateY(1px);
 }
-
 </style>

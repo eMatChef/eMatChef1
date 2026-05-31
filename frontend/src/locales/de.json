@@ -310,13 +310,27 @@
   },
   "public": {
     "blog": {
+      "kicker": "Neuigkeiten & Einblicke",
       "titleFallback": "Blog",
       "untitledPost": "Ohne Titel",
-      "noPostsYet": "Noch keine Beiträge.",
+      "noPostsYet": "Noch keine Beiträge",
+      "noPostsHint": "Sobald Beiträge veröffentlicht sind, erscheinen sie hier als Karten zum Durchstöbern.",
       "readMore": "Weiterlesen",
       "backToList": "Zurück zum Blog",
       "notFoundTitle": "Beitrag nicht gefunden",
       "notFoundBody": "Der gewünschte Blogbeitrag ist nicht vorhanden oder wurde entfernt."
+    },
+    "faq": {
+      "kicker": "Hilfe & Antworten",
+      "lead": "Kurz und verständlich — die häufigsten Fragen zu eMatChef und dem Einstieg in deine Abteilung.",
+      "emptyTitle": "FAQ wird ergänzt",
+      "emptyBody": "Hier erscheinen bald Antworten auf häufige Fragen."
+    },
+    "tos": {
+      "kicker": "Rechtliches",
+      "lead": "Nutzungsbedingungen und Datenschutz — transparent, was bei eMatChef gilt und wie wir mit Daten umgehen.",
+      "emptyTitle": "Inhalt wird ergänzt",
+      "emptyBody": "Die Abschnitte zu Nutzung und Datenschutz werden hier veröffentlicht."
     },
     "lookup": {
       "brandTitle": "eMatChef",
@@ -394,6 +408,8 @@
       "userFallback": "Benutzer"
     },
     "impressum": {
+      "kicker": "Anbieter & Kontakt",
+      "lead": "Impressum und Anbieterkennzeichnung für eMatChef — wer hinter der Plattform steht und wie du uns erreichst.",
       "fallbackProviderHeading": "Angaben gemäß TMG / Schweiz: Anbieterkennzeichnung",
       "fallbackRepresentativeHeading": "Vertretungsberechtigt",
       "fallbackLiabilityHeading": "Haftung für Inhalte"
@@ -5712,7 +5728,7 @@
         "introParagraph2Label": "Absatz 2",
         "featuresSection": "Funktionen (Karten)",
         "featuresTitleLabel": "Überschrift über den Karten",
-        "featureIconLabel": "Symbol (ein Zeichen, z. B. ⊙)",
+        "featureIconLabel": "MDI-Icon (z. B. mdi-warehouse)",
         "featureTitleLabel": "Karten-Titel",
         "featureTextLabel": "Karten-Text",
         "addFeature": "Karte hinzufügen",

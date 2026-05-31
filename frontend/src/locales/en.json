@@ -247,12 +247,27 @@
   },
   "public": {
     "blog": {
+      "kicker": "News & insights",
+      "titleFallback": "Blog",
       "untitledPost": "Untitled",
-      "noPostsYet": "No posts yet.",
+      "noPostsYet": "No posts yet",
+      "noPostsHint": "Published posts will appear here as cards you can browse.",
       "readMore": "Read more",
       "backToList": "Back to blog",
       "notFoundTitle": "Post not found",
       "notFoundBody": "The requested blog post does not exist or was removed."
+    },
+    "faq": {
+      "kicker": "Help & answers",
+      "lead": "Clear answers to common questions about eMatChef and joining your department.",
+      "emptyTitle": "FAQ coming soon",
+      "emptyBody": "Frequently asked questions will appear here shortly."
+    },
+    "tos": {
+      "kicker": "Legal",
+      "lead": "Terms of use and privacy — what applies on eMatChef and how we handle your data.",
+      "emptyTitle": "Content coming soon",
+      "emptyBody": "Sections on terms and privacy will be published here."
     },
     "lookup": {
       "login": "Sign in",
@@ -324,6 +339,8 @@
       }
     },
     "impressum": {
+      "kicker": "Provider & contact",
+      "lead": "Legal notice for eMatChef — who operates the platform and how to reach us.",
       "fallbackProviderHeading": "Provider information",
       "fallbackRepresentativeHeading": "Authorized representative",
       "fallbackLiabilityHeading": "Liability for content"

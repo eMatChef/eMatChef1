@@ -216,7 +216,7 @@ const routes: RouteRecordRaw[] = [
       {
         path: 'blog/:slug',
         name: 'BlogPost',
-        component: () => import('@/views/public/BlogPostView.vue'),
+        component: () => import('@/views/public/BlogView.vue'),
         meta: {
           publicMarketing: true,
           requiresAuth: false,
