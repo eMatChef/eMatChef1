@@ -1,6 +1,8 @@
 import { createApp } from 'vue'
 import { watch } from 'vue'
 import './style.css'
+import 'vuetify/styles'
+import '@mdi/font/css/materialdesignicons.css'
 import './styles/views/activities/pack-workflow-modals.css'
 import App from './App.vue'
 import router from './router'
@@ -13,6 +15,7 @@ import { shouldProbeUserSession, shouldSkipLoginRedirect, loginRedirectUrl } fro
 import { applyCrossSubdomainLogoutSync } from './utils/authCrossOrigin'
 import { purgeLegacyAuthSecrets } from './utils/authStorage'
 import { i18n, setLocale } from './i18n'
+import vuetify from './plugins/vuetify'
 
 const app = createApp(App)
 const pinia = createPinia()
@@ -86,6 +89,7 @@ async function initApp() {
 
   app.use(router)
   app.use(i18n)
+  app.use(vuetify)
 
   setupCrossSubdomainLogoutListener()
 

@@ -366,7 +366,7 @@ Typ-Schlüssel entsprechen `ADDRESS_TYPES` in `api/addresses.ts` (`storage`, `ev
 | `PublicQrTag`                        | QR-Badge für öffentliche Material-Links            |
 | `DevEnvironmentBanner`               | Hinweis Testumgebung                               |
 | `PhysicalComboContainerWarningModal` | Warnung physische Combo in Container               |
-| **AutoSaveField** / **AutoSaveFieldShell** | Auto-Save Formularfeld (ecamp3-inspiriert): Debounce, zwei indeterminate Balken unten, Diskette nach Erfolg, Retry/Abbrechen |
+| **AutoSaveField** / **AutoSaveFieldShell** | Auto-Save Formularfeld: Debounce, zwei indeterminate Balken unten, Diskette nach Erfolg, Retry/Abbrechen |
 
 
 Diese werden meist global in `App.vue` eingebunden oder direkt in Views importiert.
@@ -415,7 +415,7 @@ const { baselines, syncBaselines, syncBaselineFor } = useFormFieldBaselines(form
 | `autoSaveDelay` | `number` | Debounce in ms (Standard: 800) |
 | `disabled` | `boolean` | Feld deaktivieren |
 
-**Verhalten (angelehnt an ecamp3):** Debounce beim Tippen, indeterminierter Loader oben im Feld, Diskette nur kurz nach Erfolg, Blur ohne Änderung → Revert auf `baseline`, Fehler → Retry + Abbrechen, Select/Checkbox → sofort speichern.
+**Verhalten :** Debounce beim Tippen, indeterminierter Loader oben im Feld, Diskette nur kurz nach Erfolg, Blur ohne Änderung → Revert auf `baseline`, Fehler → Retry + Abbrechen, Select/Checkbox → sofort speichern.
 
 **Eingebunden in:** `MaterialDetailView.vue` (Stammdaten, Vermietung, Kisten-Editor).
 
@@ -454,6 +454,12 @@ SVG-Icons als Vue-Komponenten (`IconDashboard`, `IconMaterials`, `IconActivities
 | `confirmWorkflowStatusTransition`    | Confirm vor Pack-Workflow-Status `at_event` / `returned` (siehe `usePackWorkflowConfirm.ts`) |
 | `useMediaUpload` *(geplant)*         | FormData-Foto-Upload für kontextspezifische Routes — siehe [media/plan.md](./media/plan.md) Paket 6 |
 
+
+---
+
+## UI-System (Vuetify, Schichten V → E → AutoSave)
+
+Verbindliche Regeln und Präfix **`E*`** (eMatChef-Design-Wrapper): [ui/vuetify-standards.md](./ui/vuetify-standards.md). Migrationsplan (gemeinsam abarbeiten): [ui/vuetify-migration-plan.md](./ui/vuetify-migration-plan.md).
 
 ---
 

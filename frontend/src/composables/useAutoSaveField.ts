@@ -15,7 +15,7 @@ export type UseAutoSaveFieldOptions = {
   baseline?: Ref<AutoSaveFieldValue | undefined>
   type?: AutoSaveFieldType
   disabled?: Ref<boolean> | boolean
-  /** Wie ecamp3: Auto-Save beim Tippen (debounced). Select/Checkbox speichern sofort. */
+  /** Auto-Save beim Tippen (debounced). Select/Checkbox speichern sofort. */
   autoSave?: boolean
   autoSaveDelay?: number
   save: (value: AutoSaveFieldValue) => Promise<void>
@@ -183,7 +183,7 @@ export function useAutoSaveField(options: UseAutoSaveFieldOptions) {
     // Select/Checkbox speichern sofort bei change — kein Blur-Revert
     if (saveImmediately) return
 
-    // ecamp3: ohne Eingabe beim Blur auf DB-Stand zurück
+    // ohne Eingabe beim Blur auf DB-Stand zurück
     if (!isSaving.value && !isPreSaving.value && autoSave) {
       revertToBaseline(emitUpdate)
     }

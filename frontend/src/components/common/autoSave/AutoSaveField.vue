@@ -116,7 +116,6 @@ const props = withDefaults(
     step?: number | string
     options?: AutoSaveSelectOption[]
     spanClass?: string
-    /** Debounce in ms (ecamp3-Standard: 800) */
     autoSaveDelay?: number
     save: AutoSaveFieldSaveFn
   }>(),

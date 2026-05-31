@@ -28,7 +28,7 @@
         </div>
       </div>
 
-      <!-- ecamp3: mdi-content-save auf der unteren Rahmenkante -->
+      <!--mdi-content-save auf der unteren Rahmenkante -->
       <div class="autosave-append">
         <span
           class="autosave-disk"

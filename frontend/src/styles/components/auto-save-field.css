@@ -1,5 +1,5 @@
 /**
- * Auto-Save-Feld (ecamp3-inspiriert) – nutzt Marken-Tokens aus brand-tokens.css
+ * Auto-Save-Feld – nutzt Marken-Tokens aus brand-tokens.css
  */
 .autosave-field {
   position: relative;
@@ -250,7 +250,7 @@
   cursor: not-allowed;
 }
 
-/* ecamp3: Diskette auf der unteren Rahmenkante (mdi-content-save) */
+/* Diskette auf der unteren Rahmenkante (mdi-content-save) */
 .autosave-append {
   position: absolute;
   right: 10px;

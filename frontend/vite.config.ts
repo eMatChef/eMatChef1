@@ -1,5 +1,6 @@
 import { defineConfig, loadEnv } from 'vite'
 import vue from '@vitejs/plugin-vue'
+import vuetify from 'vite-plugin-vuetify'
 import { resolve } from 'path'
 import { canonicalizeLocalhostMain } from './vite-plugin-canonical-localhost'
 
@@ -12,7 +13,11 @@ export default defineConfig(({ mode }) => {
     'http://127.0.0.1:8081'
 
   return {
-    plugins: [canonicalizeLocalhostMain(), vue()],
+    plugins: [
+      canonicalizeLocalhostMain(),
+      vue(),
+      vuetify({ autoImport: true }),
+    ],
     resolve: {
       alias: {
         '@': resolve(__dirname, 'src'),
