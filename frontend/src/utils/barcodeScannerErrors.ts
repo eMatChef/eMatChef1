@@ -22,9 +22,10 @@ export function localizedBarcodeScannerError(message: string, t: (key: string) =
 
   const m = trimmed.toLowerCase()
 
-  if (
-    /notallowederror|permission denied|not allowed by the user agent|notallowed|securityerror/.test(m)
-  ) {
+  if (/notallowederror|permission denied|not allowed by the user agent|notallowed|securityerror|secure context|only secure origins/.test(m)) {
+    if (typeof window !== 'undefined' && !window.isSecureContext) {
+      return t('components.barcodeScanner.errorSecureContext')
+    }
     return t('components.barcodeScanner.errorPermission')
   }
   if (

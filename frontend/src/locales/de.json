@@ -4186,7 +4186,8 @@
       "errorPermission": "Kein Zugriff auf die Kamera. Bitte Berechtigung erteilen.",
       "errorNoCamera": "Keine Kamera gefunden.",
       "errorAborted": "Kamerazugriff wurde abgebrochen.",
-      "errorInUse": "Kamera wird bereits verwendet oder ist nicht verfügbar."
+      "errorInUse": "Kamera wird bereits verwendet oder ist nicht verfügbar.",
+      "errorSecureContext": "Kamera ist nur über HTTPS verfügbar. Lokal: https://app.ematchef.test (Zertifikat mit scripts/generate-local-https-certs.sh) oder testweise http://localhost:5173."
     },
     "rentalAmortization": {
       "title": "Preis-Vorschlag (Amortisation)",

@@ -96,7 +96,8 @@ async function loadInviteCode(deptId: string) {
   isInviteLoading.value = true
   try {
     inviteData.value = await getDepartmentInvite(deptId)
-    const qrPayload = ((inviteData.value.register_qr_payload || inviteData.value.qr_payload || '').trim()) || inviteData.value.invite_url
+    const qrPayload =
+      (inviteData.value.qr_payload || inviteData.value.invite_url || inviteData.value.register_qr_payload || '').trim()
     inviteQrDataUrl.value = await QRCode.toDataURL(qrPayload, { width: 180, margin: 1 })
     pendingInvites.value = await getPendingInvites(deptId)
   } catch {
@@ -113,7 +114,8 @@ async function regenerateInviteCode() {
   isInviteLoading.value = true
   try {
     inviteData.value = await regenerateDepartmentInvite(selectedDepartmentId.value)
-    const qrPayload = ((inviteData.value.register_qr_payload || inviteData.value.qr_payload || '').trim()) || inviteData.value.invite_url
+    const qrPayload =
+      (inviteData.value.qr_payload || inviteData.value.invite_url || inviteData.value.register_qr_payload || '').trim()
     inviteQrDataUrl.value = await QRCode.toDataURL(qrPayload, { width: 180, margin: 1 })
     toast.success(t('settings.joinCode.toastRegenerated'))
   } catch {

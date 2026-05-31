@@ -710,8 +710,7 @@ async function loadInviteCode(deptId: string) {
   try {
     inviteData.value = await getDepartmentInvite(deptId)
     const qrPayload =
-      (inviteData.value.register_qr_payload || inviteData.value.qr_payload || '').trim() ||
-      inviteData.value.invite_url
+      (inviteData.value.qr_payload || inviteData.value.invite_url || inviteData.value.register_qr_payload || '').trim()
     inviteQrDataUrl.value = await QRCode.toDataURL(qrPayload, {
       width: 180,
       margin: 1,
@@ -734,8 +733,7 @@ async function regenerateInviteCode() {
   try {
     inviteData.value = await regenerateDepartmentInvite(selectedDepartmentId.value)
     const qrPayload =
-      (inviteData.value.register_qr_payload || inviteData.value.qr_payload || '').trim() ||
-      inviteData.value.invite_url
+      (inviteData.value.qr_payload || inviteData.value.invite_url || inviteData.value.register_qr_payload || '').trim()
     inviteQrDataUrl.value = await QRCode.toDataURL(qrPayload, {
       width: 180,
       margin: 1,

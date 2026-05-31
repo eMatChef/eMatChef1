@@ -29,9 +29,23 @@ function inferAppOriginFromCurrentHost(): string {
   return `${protocol}//app.${host}`
 }
 
+/** Gleicher Host wie im Browser → Protokoll der aktuellen Seite (HTTPS-Seite ≠ http:// in .env). */
+function alignOriginWithCurrentProtocol(origin: string): string {
+  if (!origin || typeof window === 'undefined') return origin
+  try {
+    const configured = new URL(origin)
+    if (configured.hostname === window.location.hostname) {
+      return `${window.location.protocol}//${configured.host}`
+    }
+  } catch {
+    /* ignore */
+  }
+  return origin
+}
+
 function resolveAppOrigin(): string {
   const appOrigin = (import.meta.env.VITE_APP_ORIGIN || '').trim().replace(/\/$/, '')
-  if (appOrigin) return appOrigin
+  if (appOrigin) return alignOriginWithCurrentProtocol(appOrigin)
   return inferAppOriginFromCurrentHost()
 }
 
@@ -60,7 +74,7 @@ function inferMainSiteOriginFromCurrentHost(): string {
 
 function resolveMainSiteOrigin(): string {
   const configured = getMainSiteOrigin()
-  if (configured) return configured
+  if (configured) return alignOriginWithCurrentProtocol(configured)
   return inferMainSiteOriginFromCurrentHost()
 }
 

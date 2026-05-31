@@ -192,18 +192,7 @@
         mode="qr"
         :hint="t('pendingAssignment.scannerHint')"
         @detected="onQrDetected"
-        @error="onScannerError"
       />
-
-      <v-alert
-        v-if="scannerError"
-        type="error"
-        variant="tonal"
-        density="compact"
-        class="pending-alert"
-      >
-        {{ scannerError }}
-      </v-alert>
 
       <v-alert
         v-if="error"
@@ -287,7 +276,7 @@ import ParentDepartmentPicker, {
   type ParentDepartmentPickerValue,
 } from '@/components/auth/ParentDepartmentPicker.vue'
 import { filterOrganisationsForUserPickers } from '@/utils/organisationUserPicker'
-import { localizedBarcodeScannerError } from '@/utils/barcodeScannerErrors'
+import { extractJoinCodeFromScan } from '@/utils/joinCodeFromScan'
 import BarcodeScannerPanel from '@/components/common/BarcodeScannerPanel.vue'
 import EEmptyState from '@/components/layout/EEmptyState.vue'
 import ELoadingState from '@/components/layout/ELoadingState.vue'
@@ -338,7 +327,6 @@ const error = ref<string | null>(null)
 const success = ref<string | null>(null)
 const requests = ref<MyJoinRequest[]>([])
 const scannerActive = ref(false)
-const scannerError = ref<string | null>(null)
 const displayedDepartmentResults = computed(() => departmentResults.value.slice(0, 4))
 const organisationsFiltered = computed(() => filterOrganisationsForUserPickers(organisations.value))
 const organisationSelectItems = computed(() =>
@@ -383,38 +371,22 @@ function clearDepartmentSearch() {
   departmentLoading.value = false
 }
 
-function extractJoinCode(scannedText: string): string {
-  const raw = scannedText.trim()
-  try {
-    const url = new URL(raw)
-    const fromQuery = url.searchParams.get('join_code')
-    if (fromQuery && fromQuery.trim()) return fromQuery.trim()
-  } catch {
-    // kein URL-Format
-  }
-  const directCode = raw.match(/[A-Za-z0-9]{8,12}/)
-  return directCode ? directCode[0] : ''
-}
 
 function stopScanner() {
   scannerActive.value = false
 }
 
 function onQrDetected(payload: { text: string }) {
-  const scanned = extractJoinCode(payload.text)
+  const scanned = extractJoinCodeFromScan(payload.text)
   if (!scanned) {
-    scannerError.value = t('pendingAssignment.qrNoJoinCode')
+    error.value = t('pendingAssignment.qrNoJoinCode')
     return
   }
-  scannerError.value = null
+  error.value = null
   joinCode.value = scanned.toUpperCase()
   selectedDepartment.value = null
   success.value = t('pendingAssignment.joinCodeFromQr')
   stopScanner()
-}
-
-function onScannerError(message: string) {
-  scannerError.value = localizedBarcodeScannerError(message, t)
 }
 
 function toggleScanner() {
@@ -422,7 +394,7 @@ function toggleScanner() {
     stopScanner()
     return
   }
-  scannerError.value = null
+  error.value = null
   scannerActive.value = true
 }
 
@@ -500,8 +472,9 @@ async function submitRequest() {
         window.location.href = joined.redirect_path
         return
       } catch (supplierErr: any) {
+        // Abteilungs-Code zuerst melden; Lieferanten-Fallback nur bei echtem Supplier-Code relevant.
         error.value =
-          supplierErr?.response?.data?.error || deptError || t('pendingAssignment.errorSendFailed')
+          deptError || supplierErr?.response?.data?.error || t('pendingAssignment.errorSendFailed')
       }
     } else {
       error.value = deptError || t('pendingAssignment.errorSendFailed')

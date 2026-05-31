@@ -37,8 +37,21 @@ Vite: `host: 0.0.0.0`, Port **5173** → vom LAN erreichbar (`frontend/vite.conf
 
    Nach dem Speichern: Browser-Tab schliessen und neu öffnen, oder `ipconfig /flushdns` in einer Admin-CMD.
 
-3. Browser: `http://app.ematchef.test:5173` → Login
+3. Browser: **`https://app.ematchef.test`** (über Nginx) oder `https://app.ematchef.test:5173` nur bei direktem Vite ohne TLS
 4. Packliste testen: Aktivität öffnen → Tab Packliste
+
+**QR-Scanner / Kamera:** Browser erlauben `getUserMedia` nur in **Secure Contexts** (HTTPS oder `localhost`). Auf `http://app.ematchef.test` erscheint **kein** Berechtigungsdialog — die Kamera ist blockiert.
+
+Lokales HTTPS (Standard für `*.ematchef.test`):
+
+1. `./scripts/generate-local-https-certs.sh` (einmalig, [mkcert](https://github.com/FiloSottile/mkcert))
+2. `cp docker-compose.override.https.example.yml docker-compose.override.yml`
+3. `docker compose up -d nginx frontend backend`
+4. **`https://app.ematchef.test`** — `http://` leitet per Nginx auf HTTPS um
+
+`VITE_APP_ORIGIN` / `APP_FRONTEND_URL` sind auf `https://` gesetzt; Login-Links von der Marketing-Seite bleiben damit auf HTTPS.
+
+Alternativ nur zum Testen: `http://localhost:5173` (Kamera ok, Cookies/Subdomains können abweichen).
 
 **PowerScan am Laptop:** Gleiche URL; Scanner tippt QR-URL + Enter (wenn Devices-Scan-Feld existiert, sonst Adresszeile vermeiden — Profil auf „kein URL-Open“).
 
@@ -65,7 +78,7 @@ Vite: `host: 0.0.0.0`, Port **5173** → vom LAN erreichbar (`frontend/vite.conf
    192.168.1.42 ematchef.test app.ematchef.test qr.ematchef.test devices.ematchef.test
    ```
 
-5. Am TC70 Browser: `http://app.ematchef.test:5173` (später `devices.ematchef.test`)
+5. Am TC70 Browser: **`https://app.ematchef.test`** (mkcert-CA auf dem Gerät ggf. nicht vertrauenswürdig — dann Tunnel oder IP-Workaround; später `devices.ematchef.test`)
 
 ### Alternative (schnell, aber hackig)
 
@@ -81,7 +94,7 @@ Cloudflare Tunnel / ngrok mit HTTPS + Subdomain — wenig DNS-Gefummel, gut für
 
 ## QR-Etiketten lokal
 
-Gedruckte/angezeigte URLs zeigen auf `http://qr.ematchef.test/...` — das Handy braucht **dieselbe DNS-Auflösung** wie für `app.`, sonst öffnet der Scanner die falsche Hostname.
+Gedruckte/angezeigte URLs zeigen auf `https://qr.ematchef.test/...` — das Handy braucht **dieselbe DNS-Auflösung** wie für `app.`, sonst öffnet der Scanner die falsche Hostname.
 
 Nach QR-Umbau: nur noch `…/i/m/{mat}/b/{batch}` und `…/i/a/{code}`.
 

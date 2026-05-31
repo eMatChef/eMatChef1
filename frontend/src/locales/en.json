@@ -2944,7 +2944,8 @@
       "errorPermission": "No access to the camera. Please grant permission.",
       "errorNoCamera": "No camera found.",
       "errorAborted": "Camera access was cancelled.",
-      "errorInUse": "The camera is already in use or unavailable."
+      "errorInUse": "The camera is already in use or unavailable.",
+      "errorSecureContext": "The camera is only available over HTTPS. Locally: use https://app.ematchef.test (certificate via scripts/generate-local-https-certs.sh) or try http://localhost:5173 for testing."
     },
     "rentalAmortization": {
       "title": "Suggested prices (amortization)",
