@@ -1,3 +1,14 @@
+/**
+ * Shared table wrappers and HTML `<table>` base styles (Legacy).
+ *
+ * Migrationshinweis (Vuetify Phase 4, Schritt 059):
+ * - Entscheid Tabellen: docs/ui/table-patterns.md (Kategorie A/B/C)
+ * - Neue/migrierte Listen: PageShell, EFilterRow, ELoadingState, EEmptyState
+ * - Mobile Karten: EResponsiveDataList (#table / #mobile) — Breakpoint via useDisplay().mdAndUp
+ * - v-data-table nur in dedizierten List-Komponenten (z. B. MaterialListDataTable), nicht in Views
+ * - Keine neuen @media-Pixel-Grenzen in View-CSS — Vuetify md (960px) nutzen
+ * - Diese Datei bleibt für nicht migrierte HTML-Tabellen (Kontakte, Aktivitäten, Aufgaben, …)
+ */
 /* Shared table wrapper and base */
 .materials-table-wrapper,
 .contacts-table-wrapper,

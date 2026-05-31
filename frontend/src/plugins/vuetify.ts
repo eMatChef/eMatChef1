@@ -7,6 +7,9 @@ import { i18n } from '@/i18n'
 const BRAND_COLORS = {
   primary: '#059669',
   error: '#dc2626',
+  success: '#166534',
+  warning: '#92400e',
+  info: '#1e40af',
 } as const
 
 export default createVuetify({
@@ -35,6 +38,9 @@ export default createVuetify({
         colors: {
           primary: BRAND_COLORS.primary,
           error: BRAND_COLORS.error,
+          success: BRAND_COLORS.success,
+          warning: BRAND_COLORS.warning,
+          info: BRAND_COLORS.info,
         },
       },
     },

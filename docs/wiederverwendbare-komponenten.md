@@ -352,6 +352,99 @@ Typ-Schlüssel entsprechen `ADDRESS_TYPES` in `api/addresses.ts` (`storage`, `ev
 
 ---
 
+### Layout (`frontend/src/components/layout/`)
+
+| Komponente | Kurzbeschreibung |
+| ---------- | ---------------- |
+| `PageShell` | Seiten-Grundgerüst: `v-container`, Slots `#title`, `#subtitle`, `#actions`, `#filters`, default |
+| `EFilterRow` | Filter-Zeile (Suche + Selects + Aktionen) — Inhalt via `v-col`-Slots |
+| `EEmptyState` | Leer-/Keine-Treffer-Zustände: Icon-Kreis, Titel, Beschreibung, `#actions` |
+| `ELoadingState` | Ladezustände: Spinner oder `v-skeleton-loader` (table/list/card/inline) |
+| `EResponsiveDataList` | Responsive Listen: Desktop `#table`, Mobile `#mobile` — Breakpoint `useDisplay().mdAndUp` |
+
+**EEmptyState — Import & Props**
+
+```vue
+import EEmptyState from '@/components/layout/EEmptyState.vue'
+
+<EEmptyState
+  variant="create"
+  :title="t('contacts.emptyTitle')"
+  :description="t('contacts.emptyText')"
+>
+  <template #actions>
+    <EButton @click="openCreateModal">{{ t('contacts.emptyCta') }}</EButton>
+  </template>
+</EEmptyState>
+```
+
+| Prop | Werte | Default |
+| ---- | ----- | ------- |
+| `variant` | `generic` \| `create` \| `search` | `generic` |
+| `icon` | MDI-Name (überschreibt variant-Icon) | — |
+| `compact` | weniger Padding (z. B. Tabellenzellen) | `false` |
+| `headingLevel` | `2` \| `3` | `2` |
+
+Slots: `#illustration` (eigenes SVG statt Icon), `#title`, `#description`, `#actions`, default.
+
+**Pilot:** `ContactsView` (leere Liste + keine Filter-Treffer). **Sandbox:** `/{departmentId}/dev/ui-playground`.
+
+**ELoadingState — Import & Props**
+
+```vue
+import ELoadingState from '@/components/layout/ELoadingState.vue'
+
+<!-- Listen/Tabellen (Initial-Load) -->
+<ELoadingState variant="table" :rows="8" :message="t('contacts.loadingList')" />
+
+<!-- Einfache Seite -->
+<ELoadingState variant="page" :message="t('common.loading')" />
+
+<!-- Inline neben Text/Button -->
+<ELoadingState variant="inline" message="Speichert…" />
+```
+
+| Prop | Werte | Default |
+| ---- | ----- | ------- |
+| `variant` | `page` \| `table` \| `list` \| `card` \| `inline` | `page` |
+| `rows` | Anzahl Skeleton-Zeilen (`table`, `list`) | `6` |
+| `message` | Optionaler Text unter/neben dem Loader | — |
+| `compact` | Weniger Padding (`page`) | `false` |
+
+**Wann welche Variante:** `table` für HTML-Tabellen-Views; `list` für Avatar-Zeilen; `page` für einfache Full-Page-Loads; `inline` für AutoSave/Buttons. Legacy `.loading-state` / `.spinner` bleiben in nicht migrierten Views.
+
+**Pilot:** `ContactsView` (table). **Sandbox:** Abschnitt Ladezustände.
+
+**EResponsiveDataList — Import & Slots**
+
+```vue
+import EResponsiveDataList from '@/components/layout/EResponsiveDataList.vue'
+import MaterialListDataTable from '@/components/material/MaterialListDataTable.vue'
+import MaterialListMobile from '@/components/material/MaterialListMobile.vue'
+
+<EResponsiveDataList>
+  <template #table>
+    <MaterialListDataTable … />
+  </template>
+  <template #mobile>
+    <MaterialListMobile … />
+  </template>
+</EResponsiveDataList>
+```
+
+| Slot | Inhalt |
+| ---- | ------ |
+| `#table` | Desktop ab `md` (960px): HTML-`<table>`, `v-data-table` in List-Komponente, … |
+| `#mobile` | Mobile `< md`: typisch `v-list` mit Karten-Zeilen |
+
+**Wann nutzen:** Views mit hohem Mobile-Anteil und unterschiedlicher Darstellung (nicht nur horizontaler Scroll). Entscheid: [table-patterns.md](ui/table-patterns.md).
+
+**Pilot:** `MaterialsView` (058). **Sandbox:** Dev UI Playground → Material Data Table.
+
+**Tabellen:** Entscheid und Kategorien A/B/C — [table-patterns.md](ui/table-patterns.md). Kurz: reiche Listen → HTML-`<table>` oder `v-data-table` in List-Komponente; Mobile-Karten über `EResponsiveDataList`.
+
+---
+
 ### Formular-Basis E* (`frontend/src/components/form/base/`)
 
 Öffentliche Mittelschicht für Inputs, Buttons und Dialoge auf Vuetify. **Views importieren nur `E*`**, nie direkt `VTextField` & Co. (Ausnahme: Dev UI Playground mit rohen `V*` zum Vergleich).
@@ -359,6 +452,7 @@ Typ-Schlüssel entsprechen `ADDRESS_TYPES` in `api/addresses.ts` (`storage`, `ev
 | Komponente | Wraps | Kurzbeschreibung |
 | ---------- | ----- | ---------------- |
 | `ETextField` | `v-text-field` | Text/Email/Password, outlined, 16px Input |
+| `ESearchField` | `SearchFieldInput` | Suche mit Lupe, Label auf Rahmen, grüner Fokus — für Filter-Zeilen |
 | `ESelect` | `v-select` | Auswahl, gleiche Defaults |
 | `ETextarea` | `v-textarea` | Mehrzeilig |
 | `ECheckbox` / `ESwitch` | `v-checkbox` / `v-switch` | Boolean |
@@ -509,7 +603,7 @@ Ausführlich: `[docs/Archiv/HANDOUT_CSS_ZENTRALISIERUNG.md](Archiv/HANDOUT_CSS_Z
 | Formulare       | `styles/ui/forms.css`                     | Inputs, Labels                              |
 | Karten          | `styles/ui/cards.css`                     | Card-Patterns                               |
 | Modals          | `styles/ui/modals.css`                    | Modal-Grundgerüst                           |
-| Tabellen        | `styles/ui/tables.css`                    | Tabellen-Basis                              |
+| Tabellen        | `styles/ui/tables.css`                    | Listen-Basis — siehe [table-patterns.md](ui/table-patterns.md) |
 | States          | `styles/ui/states.css`                    | Loading, Empty, Error                       |
 | History         | `styles/ui/history.css`                   | Änderungs-Historie                          |
 | Storage         | `styles/ui/storage.css`                   | Lager/Regale                                |

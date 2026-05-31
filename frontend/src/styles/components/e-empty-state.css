@@ -1,0 +1,67 @@
+/**
+ * EEmptyState — zentrale Leer-/Keine-Treffer-Zustände (Phase 4).
+ */
+.e-empty-state {
+  text-align: center;
+  padding: 80px 20px;
+}
+
+.e-empty-state--compact {
+  padding: 40px 16px;
+}
+
+.e-empty-state__illustration {
+  margin-bottom: 24px;
+}
+
+.e-empty-state__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 88px;
+  height: 88px;
+  margin: 0 auto 20px;
+  border-radius: 50%;
+  background: #ecfdf5;
+  color: #059669;
+}
+
+.e-empty-state--search .e-empty-state__icon {
+  background: #f3f4f6;
+  color: #6b7280;
+}
+
+.e-empty-state--generic .e-empty-state__icon {
+  background: #f3f4f6;
+  color: #6b7280;
+}
+
+.e-empty-state__title {
+  font-size: 20px;
+  font-weight: 600;
+  color: #374151;
+  margin: 0 0 8px;
+  line-height: 1.35;
+}
+
+.e-empty-state--compact .e-empty-state__title {
+  font-size: 18px;
+}
+
+.e-empty-state__description {
+  color: #6b7280;
+  margin: 0 auto 20px;
+  max-width: 36rem;
+  line-height: 1.5;
+}
+
+.e-empty-state__body {
+  margin-bottom: 20px;
+}
+
+.e-empty-state__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: center;
+}

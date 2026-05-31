@@ -2,7 +2,7 @@
   <v-card
     v-bind="attrs"
     :variant="variant"
-    :class="['e-card', { 'e-card--flat': flat }]"
+    :class="['e-card', cardClass, { 'e-card--flat': flat }]"
   >
     <slot />
   </v-card>
@@ -17,6 +17,7 @@ withDefaults(
   defineProps<{
     variant?: 'elevated' | 'flat' | 'tonal' | 'outlined' | 'text' | 'plain'
     flat?: boolean
+    cardClass?: string | string[] | Record<string, boolean>
   }>(),
   {
     variant: 'elevated',

@@ -1,6 +1,8 @@
 import { createApp } from 'vue'
 import { watch } from 'vue'
 import './style.css'
+import './styles/components/global-toast.css'
+import './styles/components/global-confirm-prompt.css'
 import 'vuetify/styles'
 import 'vuetify/lib/components/VField/VField.css'
 import 'vuetify/lib/components/VInput/VInput.css'

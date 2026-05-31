@@ -4,8 +4,8 @@
   },
   "devSandbox": {
     "title": "UI Sandbox",
-    "lead": "Test Vuetify components and layout — at `/{departmentId}/dev/ui-playground` (alias: `/sandbox`).",
-    "devOnlyHint": "Test environment only — raw V* components are allowed here (production views use E* from Phase 2).",
+    "lead": "Production E* and layout building blocks only — same as in migrated views.",
+    "devOnlyHint": "Test environment — wrappers only (E*, PageShell, EFilterRow), no raw V* defaults.",
     "backToApp": "Back to app",
     "yes": "Yes",
     "no": "No",
@@ -16,6 +16,26 @@
     "dialogBody": "EDialog + ECard — works independently of AppLayout.",
     "dialogClose": "Close",
     "eDialogNote": "EDialog + EButton (production wrappers).",
+    "dialogNote": "EDialog, useConfirm() and usePrompt() — global dialogs in App.vue.",
+    "confirmTriggers": {
+      "warning": "Confirm (warning)",
+      "danger": "Confirm (delete)"
+    },
+    "promptTrigger": "Prompt (text)",
+    "confirmSamples": {
+      "warningTitle": "Discard changes?",
+      "warningMessage": "Unsaved input will be lost.",
+      "dangerTitle": "Delete entry?",
+      "dangerMessage": "This action cannot be undone.",
+      "confirmed": "Confirmed.",
+      "cancelled": "Cancelled."
+    },
+    "promptSamples": {
+      "title": "Enter name",
+      "message": "What should the new entry be called?",
+      "placeholder": "Label",
+      "entered": "Entered: {value}"
+    },
     "eComponentsNote": "ETextField, ESelect, ETextarea, ECheckbox, ESwitch, EButton, ECard — use these in views.",
     "eButtonVariants": "EButton variants",
     "eCardSample": "ECard variant=\"outlined\" — e.g. for dialog content or card layouts.",
@@ -24,12 +44,66 @@
     "layoutMainText": "v-main content below the app bar, to the right of the rail drawer.",
     "sections": {
       "breakpoints": "Breakpoint (useDisplay)",
-      "buttons": "Buttons",
-      "fields": "Form fields",
-      "dialog": "Dialog",
-      "layout": "Layout (drawer + bar + main)",
-      "eComponents": "E* components (Phase 2)"
+      "filterRow": "Filter row (Phase 4)",
+      "eComponents": "Form fields (E*)",
+      "dialog": "Dialog (EDialog)",
+      "emptyStates": "Empty states (EEmptyState)",
+      "materialDataTable": "Material table (v-data-table experiment)",
+      "loadingStates": "Loading states (ELoadingState)",
+      "toasts": "Toasts (GlobalToastContainer)"
     },
+    "loadingStatesNote": "ELoadingState — page (spinner), table/list/card (v-skeleton-loader), inline for buttons/fields.",
+    "loadingSamples": {
+      "page": "Page (spinner)",
+      "pageMessage": "Loading data…",
+      "table": "Table (table-row-divider)",
+      "list": "Avatar list (list-item-avatar-three-line)",
+      "inline": "Inline",
+      "inlineMessage": "Saving…"
+    },
+    "emptyStatesNote": "EEmptyState — variant create/search/generic, #actions slot and optional #illustration.",
+    "materialTableNote": "Mock data — same cells as MaterialsView (All tab). Raw VDataTable for comparison, sandbox only.",
+    "materialTableSamples": {
+      "search": "Search materials…",
+      "noResultsTitle": "No results",
+      "noResultsText": "Adjust your search.",
+      "lastClick": "Row clicked: {name}",
+      "detailToast": "Open detail (demo): {name}",
+      "mainTableLead": "All tab — chevron on combo row expands components (#expanded-row, like MaterialsView).",
+      "mobileLead": "Mobile (≤ md): v-list instead of table — touch rows with stock and expandable combo.",
+      "mobileHint": "Double-click hint omitted on mobile — tap selects the row.",
+      "mobilePreviewLead": "Mobile preview (390px) — visible on desktop for comparison.",
+      "mobilePreviewLabel": "390 × auto — v-list",
+      "comboGroupLead": "Combos tab idea — group-by type + group-summary (stock totals per group).",
+      "comboGroupMobileLead": "Combos tab mobile — groups with subheader + summary row.",
+      "comboMobilePreviewLead": "Combos tab mobile preview",
+      "comboMobilePreviewLabel": "390px — grouped v-list",
+      "groupSummaryLabel": "Group total"
+    },
+    "emptySamples": {
+      "createTitle": "No contacts yet",
+      "createText": "Create the first address to get started.",
+      "createAction": "Add contact",
+      "searchTitle": "No results",
+      "searchText": "Adjust filters or reset them.",
+      "searchAction": "Reset filters"
+    },
+    "toastsNote": "GlobalToastContainer (opaque v-alert) — top-right via useToast().",
+    "toastTriggers": {
+      "success": "Success",
+      "error": "Error",
+      "warning": "Warning",
+      "info": "Info",
+      "stack": "Stack several",
+      "clear": "Clear all"
+    },
+    "toastSamples": {
+      "success": "Saved — all done.",
+      "error": "Save failed — please try again.",
+      "warning": "Session expiring soon.",
+      "info": "No changes made."
+    },
+    "filterRowNote": "Search: ESearchField (icon, outlined label). Filters: ESelect in EFilterRow — PageShell #filters.",
     "samples": {
       "primary": "Primary",
       "outlined": "Outlined",
@@ -41,6 +115,7 @@
       "checkbox": "Checkbox",
       "switch": "Switch",
       "textarea": "Multiline",
+      "searchField": "Search contacts (name, company, email, city)…",
       "optionA": "Option A",
       "optionB": "Option B"
     }
@@ -1174,6 +1249,8 @@
     "subtitleRegister": "Create your account. Assignment to a department is done later by admins.",
     "subtitleRegisterInvite": "Create your account. Organisation and department are prefilled from the invitation; after registration you continue with the join code.",
     "subtitleForgot": "Request a 6-digit HEX code by email and reset your password securely.",
+    "subtitleForgotRequest": "Enter your email address. We will send you a security code.",
+    "subtitleForgotConfirm": "Enter the code from your email and choose a new password.",
     "emailLabel": "Email *",
     "emailAddressLabel": "Email address *",
     "emailPlaceholder": "your.email [at] ematchef.ch",
@@ -1231,6 +1308,15 @@
     "inviteCodeInParens": " (Code: {code})",
     "exampleFirstName": "Alex",
     "exampleLastName": "Sample"
+  },
+  "verifyEmail": {
+    "title": "Confirm email",
+    "checking": "Checking verification link…",
+    "successFallback": "Email confirmed successfully.",
+    "failedFallback": "Verification failed.",
+    "noToken": "No verification token provided.",
+    "invalidLink": "Verification link is invalid or expired.",
+    "backToLogin": "Back to sign in"
   },
   "activities": {
     "opening": "Opening activity…",

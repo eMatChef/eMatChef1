@@ -6,7 +6,7 @@
     :scrollable="scrollable"
     @update:model-value="onUpdate"
   >
-    <ECard :variant="cardVariant">
+    <ECard :variant="cardVariant" :card-class="cardClass">
       <v-card-title v-if="title || $slots.title" class="e-dialog__title">
         <slot name="title">{{ title }}</slot>
       </v-card-title>
@@ -32,6 +32,8 @@ withDefaults(
     persistent?: boolean
     scrollable?: boolean
     cardVariant?: 'elevated' | 'flat' | 'tonal' | 'outlined' | 'text' | 'plain'
+    /** Zusätzliche Klassen auf der inneren ECard (z. B. Confirm-Rahmen) */
+    cardClass?: string | string[] | Record<string, boolean>
   }>(),
   {
     maxWidth: 560,

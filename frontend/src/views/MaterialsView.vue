@@ -231,194 +231,42 @@
         <button @click="resetFilters" class="btn-secondary">{{ t('materialsView.resetFilters') }}</button>
             </div>
 
-            <!-- Materials Table -->
+            <!-- Materials List (Desktop: v-data-table, Mobile: v-list) -->
             <div v-else class="materials-table-wrapper">
-          <table class="materials-table">
-            <thead>
-              <tr>
-                <th v-if="showComboExpandColumn" class="col-expand"></th>
-                <th class="col-name">{{ t('common.name') }}</th>
-                <th v-if="showComboColumns" class="col-type">{{ t('materialsView.colType') }}</th>
-                <th class="col-category">{{ t('materialsView.colCategory') }}</th>
-                <th class="col-stock">{{ t('materialsView.colTotal') }}</th>
-                <th v-if="showComboColumns" class="col-stock-sm">{{ t('materialsView.colCombo') }}</th>
-                <th v-if="showStockDetailColumns" class="col-stock-sm">{{ t('materialsView.colIssuedOut') }}</th>
-                <th v-if="showStockDetailColumns" class="col-stock-sm">{{ t('materialsView.colRepair') }}</th>
-                <th v-if="showStockDetailColumns" class="col-stock-sm">{{ t('materialsView.colAvailable') }}</th>
-                <th class="col-actions"></th>
-              </tr>
-            </thead>
-            <tbody>
-              <template v-for="material in filteredMaterials" :key="material.id">
-                <!-- Material Row -->
-                <tr 
-                  class="material-row"
-                  @dblclick="openMaterialDetail(material)"
-                >
-                  <!-- Aufklappen: Komponenten (nur Kombos) -->
-                  <td v-if="showComboExpandColumn" class="col-expand">
-                    <button
-                      v-if="isComboMaterial(material)"
-                      type="button"
-                      class="expand-btn"
-                      :class="{ expanded: expandedCombos.has(material.id) }"
-                      :aria-expanded="expandedCombos.has(material.id)"
-                      :title="t('materialsView.expandComboTitle')"
-                      @click.stop="toggleComboExpand(material.id)"
-                    >
-                      <svg class="table-icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <polyline points="6 9 12 15 18 9"/>
-                      </svg>
-                    </button>
-                  </td>
-                  <td class="col-name">
-                    <div class="name-cell">
-                      <div class="material-icon" :class="getMaterialIconClass(material)">
-                        <svg v-if="material.is_container" class="table-icon-md" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-                          <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
-                          <polyline points="3.27 6.96 12 12.01 20.73 6.96"/>
-                          <line x1="12" y1="22.08" x2="12" y2="12"/>
-                        </svg>
-                        <svg v-else-if="material.is_food" class="table-icon-md" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                          <path d="M18 8h1a4 4 0 0 1 0 8h-1M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8zM6 1v3M10 1v3M14 1v3"/>
-                        </svg>
-                        <svg v-else-if="material.is_consumable" class="table-icon-md" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                          <circle cx="12" cy="12" r="10"/><path d="M8 12h8"/>
-                        </svg>
-                        <svg v-else class="table-icon-md" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                          <path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
-                        </svg>
-                      </div>
-                      <div class="name-info">
-                        <span class="material-name">
-                          {{ material.name }}
-                          <span v-if="material.is_js_material" class="source-badge">J&amp;S</span>
-                          <span v-if="isComboDraft(material)" class="combo-draft-badge">{{ t('materialsView.comboDraftBadge') }}</span>
-                        </span>
-                        <span v-if="material.manufacturer" class="material-manufacturer">{{ material.manufacturer }}</span>
-                        <span v-if="material.open_loss_reports > 0" class="loss-reported-badge">
-                          {{ t('materialsView.lossReported', { qty: material.open_loss_qty }) }}
-                        </span>
-                      </div>
-                    </div>
-                  </td>
-                  <td v-if="showComboColumns" class="col-type">
-                    <span class="combo-type-badge" :class="material.material_type">
-                      <span class="combo-type-badge-emoji" aria-hidden="true">{{ comboBadgeEmoji({ materialType: material.material_type }) }}</span>
-                      {{
-                        material.material_type === 'physical_combo'
-                          ? t('components.materialDetail.typePhysicalShort')
-                          : t('components.materialDetail.typeVirtualShort')
-                      }}
-                    </span>
-                  </td>
-                  <td class="col-category">
-                    <span v-if="material.category" class="category-tag">
-                      <template v-if="material.category.parent_id && categoriesById[material.category.parent_id]">
-                        <span class="category-parent">{{ categoriesById[material.category.parent_id] }} →</span>
-                        <span class="category-child">{{ material.category.name }}</span>
-                      </template>
-                      <span v-else class="category-child">{{ material.category.name }}</span>
-                    </span>
-                    <span v-else class="no-category">-</span>
-                  </td>
-                  <td class="col-stock">
-                    <span class="stock-value" :class="getStockClass(material.total_stock)">
-                      {{ material.total_stock }}
-                    </span>
-                    <span v-if="material.pack_size && material.pack_unit" class="pack-info">
-                      {{ Math.floor(material.total_stock / material.pack_size) }} {{ material.pack_unit }}
-                    </span>
-                  </td>
-                  <td v-if="showComboColumns" class="col-stock-sm">
-                    <span v-if="material.combo_allocated > 0" class="stock-badge combo">{{ material.combo_allocated }}</span>
-                    <span v-else class="stock-zero">–</span>
-                  </td>
-                  <td v-if="showStockDetailColumns" class="col-stock-sm">
-                    <span v-if="material.issued_out > 0" class="stock-badge issued">{{ material.issued_out }}</span>
-                    <span v-else class="stock-zero">–</span>
-                  </td>
-                  <td v-if="showStockDetailColumns" class="col-stock-sm">
-                    <span v-if="material.repair_stock > 0" class="stock-badge repair">{{ material.repair_stock }}</span>
-                    <span v-else class="stock-zero">–</span>
-                  </td>
-                  <td v-if="showStockDetailColumns" class="col-stock-sm">
-                    <span class="stock-badge available" :class="{ low: material.available < 3 && material.total_stock > 0, empty: material.available <= 0 && material.total_stock > 0 }">
-                      {{ material.available }}
-                    </span>
-                  </td>
-                  <td class="col-actions">
-                    <button class="action-btn" @click.stop="openMaterialDetail(material)" :title="t('materialsView.titleOpenDetails')">
-                      <svg class="table-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-                        <circle cx="12" cy="12" r="3"/>
-                      </svg>
-                    </button>
-                  </td>
-                </tr>
+              <EResponsiveDataList>
+                <template #table>
+                  <MaterialListDataTable
+                    :items="filteredMaterials"
+                    :categories-by-id="categoriesById"
+                    :show-combo-columns="showComboColumns"
+                    :show-combo-expand-column="showComboExpandColumn"
+                    :show-stock-detail-columns="showStockDetailColumns"
+                    :expanded-ids="expandedComboIds"
+                    :combo-components-by-id="comboComponentsById"
+                    :combo-components-loading="comboComponentsLoading"
+                    :assignment-labels="assignmentLabels"
+                    @open="openMaterialDetail"
+                    @open-component="openMaterialDetailById"
+                    @update:expanded-ids="onExpandedComboIdsUpdate"
+                  />
+                </template>
+                <template #mobile>
+                  <MaterialListMobile
+                    :items="filteredMaterials"
+                    :categories-by-id="categoriesById"
+                    :show-combo-expand-column="showComboExpandColumn"
+                    :show-stock-detail-columns="showStockDetailColumns"
+                    :expanded-ids="expandedComboIds"
+                    :combo-components-by-id="comboComponentsById"
+                    :combo-components-loading="comboComponentsLoading"
+                    @open="openMaterialDetail"
+                    @open-component="openMaterialDetailById"
+                    @toggle-expand="toggleComboExpand"
+                  />
+                </template>
+              </EResponsiveDataList>
 
-                <!-- Expanded Combo Components -->
-                <tr 
-                  v-if="showComboExpandColumn && isComboMaterial(material) && expandedCombos.has(material.id)"
-                  class="combo-components-row"
-                >
-                  <td :colspan="materialTableColspan">
-                    <div class="combo-components-container">
-                      <div v-if="comboComponentsLoading.has(material.id)" class="combo-loading">
-                        <div class="spinner-sm"></div>
-                        {{ t('materialsView.comboComponentsLoading') }}
-                      </div>
-                      <div v-else-if="(comboComponentsCache.get(material.id) || []).length === 0" class="combo-empty">
-                        {{ t('materialsView.comboComponentsEmpty') }}
-                      </div>
-                      <table v-else class="combo-sub-table">
-                        <thead>
-                          <tr>
-                            <th>{{ t('materialsView.subColComponent') }}</th>
-                            <th>{{ t('common.serialNumber') }}</th>
-                            <th>{{ t('materialsView.subColQty') }}</th>
-                            <th>{{ t('materialsView.subColAssignment') }}</th>
-                            <th>{{ t('common.status') }}</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          <tr v-for="comp in comboComponentsCache.get(material.id)" :key="comp.id">
-                            <td class="comp-name">
-                              <span 
-                                class="comp-link" 
-                                @click="openMaterialDetailById(comp.component_material.id)"
-                              >
-                                {{ comp.component_material.name }}
-                              </span>
-                            </td>
-                            <td>
-                              <span v-if="comp.component_batch?.serial_number" class="serial-code">
-                                {{ comp.component_batch.serial_number }}
-                              </span>
-                              <span v-else class="no-serial">–</span>
-                            </td>
-                            <td>{{ comp.qty }}</td>
-                            <td>
-                              <span class="assignment-badge" :class="comp.assignment_mode === 'fixed' ? 'fix' : comp.assignment_mode">
-                                {{ assignmentLabels[comp.assignment_mode] || comp.assignment_mode }}
-                              </span>
-                            </td>
-                            <td>
-                              <span v-if="comp.is_awaiting" class="status-dot awaiting" :title="t('materialsView.statusAwaitingTitle')"></span>
-                              <span v-else-if="comp.is_assigned" class="status-dot assigned" :title="t('materialsView.statusAssignedTitle')"></span>
-                              <span v-else class="status-dot linked" :title="t('materialsView.statusLinkedTitle')"></span>
-                            </td>
-                          </tr>
-                        </tbody>
-                      </table>
-                    </div>
-                  </td>
-                </tr>
-              </template>
-            </tbody>
-          </table>
-          
-          <p class="table-hint">{{ t('materialsView.tableHint') }}</p>
+              <p class="table-hint">{{ t('materialsView.tableHint') }}</p>
             </div>
           </div>
         </template>
@@ -500,6 +348,9 @@ import {
 import { getCategories, type Category } from '@/api/categories'
 import MaterialCreateWizard from '@/components/material/MaterialCreateWizard.vue'
 import MaterialDetailView from '@/components/material/MaterialDetailView.vue'
+import MaterialListDataTable from '@/components/material/MaterialListDataTable.vue'
+import MaterialListMobile from '@/components/material/MaterialListMobile.vue'
+import EResponsiveDataList from '@/components/layout/EResponsiveDataList.vue'
 import StorageTreeView from '@/components/storage/StorageTreeView.vue'
 import GlobalSearchInput from '@/components/common/GlobalSearchInput.vue'
 import { useDetailTabsStore } from '@/stores/detailTabs'
@@ -508,7 +359,7 @@ import { useListSearchQueryRoute } from '@/composables/useListSearchQueryRoute'
 import { useDepartmentLiveRefresh } from '@/composables/useDepartmentLiveRefresh'
 import { useAuthStore } from '@/stores/auth'
 import { isDepartmentBasicMemberRole } from '@/composables/useDepartmentMemberRole'
-import { isComboMaterial as isComboMaterialType, comboBadgeEmoji } from '@/utils/comboDisplay'
+import { isComboMaterial as isComboMaterialType } from '@/utils/comboDisplay'
 import '@/styles/material-wizard.css'
 
 /** Überlebt Tab-Remounts (router-view :key="route.path") — gleiche Daten, kein Hard-Spinner. */
@@ -674,9 +525,13 @@ async function submitPostCreateComposition() {
 }
 
 // Combo Expand State
-const expandedCombos = ref<Set<string>>(new Set())
+const expandedComboIds = ref<string[]>([])
 const comboComponentsCache = ref<Map<string, ComboComponent[]>>(new Map())
 const comboComponentsLoading = ref<Set<string>>(new Set())
+
+const comboComponentsById = computed(() =>
+  Object.fromEntries(comboComponentsCache.value) as Record<string, ComboComponent[]>
+)
 
 // Detail View State (gesteuert über Route-Parameter)
 const selectedMaterialId = computed(() => route.params.materialId as string | undefined || null)
@@ -716,24 +571,8 @@ const showComboExpandColumn = computed(() =>
   activeTab.value === 'all' || activeTab.value === 'combos' || activeTab.value === 'virtual_combos'
 )
 
-const materialTableColspan = computed(() => {
-  if (isUserMaterialsBrowseOnly.value) {
-    let cols = 3 // name, category, total
-    if (showComboExpandColumn.value) cols += 1
-    cols += 1 // actions
-    return cols
-  }
-  if (showComboColumns.value) return 10
-  if (showComboExpandColumn.value) return 8
-  return 7
-})
-
 function isComboMaterial(material: Material): boolean {
   return isComboMaterialType(material)
-}
-
-function isComboDraft(material: Material): boolean {
-  return isComboMaterial(material) && material.combo_status === 'draft'
 }
 
 // Computed
@@ -835,50 +674,46 @@ useDepartmentLiveRefresh({
     || (isLoading.value && materials.value.length === 0),
 })
 
-function getStockClass(stock: number): string {
-  if (stock === 0) return 'empty'
-  if (stock < 5) return 'low'
-  return 'ok'
+async function ensureComboComponentsLoaded(materialId: string) {
+  if (comboComponentsCache.value.has(materialId)) return
+
+  comboComponentsLoading.value.add(materialId)
+  comboComponentsLoading.value = new Set(comboComponentsLoading.value)
+  try {
+    const components = await getComboComponents(materialId)
+    comboComponentsCache.value.set(materialId, components)
+    comboComponentsCache.value = new Map(comboComponentsCache.value)
+  } catch (err) {
+    console.error(t('materialsView.logErrorLoadComponents'), err)
+    comboComponentsCache.value.set(materialId, [])
+    comboComponentsCache.value = new Map(comboComponentsCache.value)
+  } finally {
+    comboComponentsLoading.value.delete(materialId)
+    comboComponentsLoading.value = new Set(comboComponentsLoading.value)
+  }
 }
 
-function getMaterialIconClass(material: Material): string {
-  if (material.is_container) return 'container'
-  if (material.is_food) return 'food'
-  if (material.is_consumable) return 'consumable'
-  return ''
+function onExpandedComboIdsUpdate(ids: string[]) {
+  const previouslyExpanded = new Set(expandedComboIds.value)
+  expandedComboIds.value = ids
+  for (const id of ids) {
+    if (!previouslyExpanded.has(id)) {
+      void ensureComboComponentsLoaded(id)
+    }
+  }
 }
 
 async function toggleComboExpand(materialId: string) {
   const row = materials.value.find((m) => m.id === materialId)
   if (!row || !isComboMaterial(row)) return
 
-  if (expandedCombos.value.has(materialId)) {
-    expandedCombos.value.delete(materialId)
-    // Trigger reactivity
-    expandedCombos.value = new Set(expandedCombos.value)
+  if (expandedComboIds.value.includes(materialId)) {
+    expandedComboIds.value = expandedComboIds.value.filter((id) => id !== materialId)
     return
   }
 
-  expandedCombos.value.add(materialId)
-  expandedCombos.value = new Set(expandedCombos.value)
-
-  // Lazy-load components if not cached
-  if (!comboComponentsCache.value.has(materialId)) {
-    comboComponentsLoading.value.add(materialId)
-    comboComponentsLoading.value = new Set(comboComponentsLoading.value)
-    try {
-      const components = await getComboComponents(materialId)
-      comboComponentsCache.value.set(materialId, components)
-      comboComponentsCache.value = new Map(comboComponentsCache.value)
-    } catch (err) {
-      console.error(t('materialsView.logErrorLoadComponents'), err)
-      comboComponentsCache.value.set(materialId, [])
-      comboComponentsCache.value = new Map(comboComponentsCache.value)
-    } finally {
-      comboComponentsLoading.value.delete(materialId)
-      comboComponentsLoading.value = new Set(comboComponentsLoading.value)
-    }
-  }
+  expandedComboIds.value = [...expandedComboIds.value, materialId]
+  await ensureComboComponentsLoaded(materialId)
 }
 
 const { clearSearchFromRoute, stripQueryFromDetailRoute } = useListSearchQueryRoute({

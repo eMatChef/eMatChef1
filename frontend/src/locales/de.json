@@ -5,8 +5,8 @@
   },
   "devSandbox": {
     "title": "UI Sandbox",
-    "lead": "Vuetify-Komponenten und Layout testen — unter `/{departmentId}/dev/ui-playground` (Alias: `/sandbox`).",
-    "devOnlyHint": "Nur Testumgebung — hier sind rohe V*-Komponenten erlaubt (produktive Views nutzen E* ab Phase 2).",
+    "lead": "Nur produktive E*- und Layout-Bausteine — dieselben wie in migrierten Views.",
+    "devOnlyHint": "Testumgebung — hier siehst du nur unsere Wrapper (E*, PageShell, EFilterRow), keine rohen V*-Defaults.",
     "backToApp": "Zur App",
     "yes": "Ja",
     "no": "Nein",
@@ -17,7 +17,27 @@
     "dialogBody": "EDialog + ECard — funktioniert unabhängig von AppLayout.",
     "dialogClose": "Schliessen",
     "eDialogNote": "EDialog + EButton (produktive Wrapper).",
-    "eComponentsNote": "ETextField, ESelect, ETextarea, ECheckbox, ESwitch, EButton, ECard — so in Views verwenden.",
+    "dialogNote": "EDialog, useConfirm() und usePrompt() — globale Dialoge in App.vue.",
+    "confirmTriggers": {
+      "warning": "Confirm (Warnung)",
+      "danger": "Confirm (Löschen)"
+    },
+    "promptTrigger": "Prompt (Text)",
+    "confirmSamples": {
+      "warningTitle": "Änderung verwerfen?",
+      "warningMessage": "Ungespeicherte Eingaben gehen verloren.",
+      "dangerTitle": "Eintrag löschen?",
+      "dangerMessage": "Diese Aktion kann nicht rückgängig gemacht werden.",
+      "confirmed": "Bestätigt.",
+      "cancelled": "Abgebrochen."
+    },
+    "promptSamples": {
+      "title": "Name eingeben",
+      "message": "Wie soll der neue Eintrag heissen?",
+      "placeholder": "Bezeichnung",
+      "entered": "Eingegeben: {value}"
+    },
+    "eComponentsNote": "ETextField, ESelect, ESearchField, ETextarea, ECheckbox, ESwitch, EButton, ECard — so in Views.",
     "eButtonVariants": "EButton-Varianten",
     "eCardSample": "ECard variant=\"outlined\" — z. B. für Dialog-Inhalt oder Karten-Layouts.",
     "layoutHint": "Mini-Shell in einer Box — zum Debuggen von Drawer + App-Bar + v-main.",
@@ -25,12 +45,66 @@
     "layoutMainText": "v-main-Inhalt unterhalb der App-Bar, rechts neben dem Rail-Drawer.",
     "sections": {
       "breakpoints": "Breakpoint (useDisplay)",
-      "buttons": "Buttons",
-      "fields": "Formularfelder",
-      "dialog": "Dialog",
-      "layout": "Layout (Drawer + Bar + Main)",
-      "eComponents": "E*-Komponenten (Phase 2)"
+      "filterRow": "Filter-Zeile (Phase 4)",
+      "eComponents": "Formular (E*)",
+      "dialog": "Dialog (EDialog)",
+      "emptyStates": "Leere Zustände (EEmptyState)",
+      "materialDataTable": "Material-Tabelle (v-data-table Experiment)",
+      "loadingStates": "Ladezustände (ELoadingState)",
+      "toasts": "Toasts (GlobalToastContainer)"
     },
+    "loadingStatesNote": "ELoadingState — page (Spinner), table/list/card (v-skeleton-loader), inline für Buttons/Felder.",
+    "loadingSamples": {
+      "page": "Seite (Spinner)",
+      "pageMessage": "Daten werden geladen…",
+      "table": "Tabelle (table-row-divider)",
+      "list": "Liste mit Avatar (list-item-avatar-three-line)",
+      "inline": "Inline",
+      "inlineMessage": "Speichert…"
+    },
+    "emptyStatesNote": "EEmptyState — variant create/search/generic, Slots #actions und optional #illustration.",
+    "materialTableNote": "Mock-Daten — gleiche Zellen wie MaterialsView (Tab «Alle»), rohes VDataTable nur hier zum Vergleich.",
+    "materialTableSamples": {
+      "search": "Material suchen…",
+      "noResultsTitle": "Keine Treffer",
+      "noResultsText": "Passe die Suche an.",
+      "lastClick": "Zeile angeklickt: {name}",
+      "detailToast": "Detail öffnen (Demo): {name}",
+      "mainTableLead": "Tab «Alle» — Chevron bei Combo «Kochset» öffnet Komponenten (#expanded-row, wie MaterialsView).",
+      "mobileLead": "Mobile (≤ md): v-list statt Tabelle — Touch-Zeilen mit Bestand und Combo-Aufklapp.",
+      "mobileHint": "Doppelklick-Hinweis entfällt auf Mobile — Tipp öffnet Zeile.",
+      "mobilePreviewLead": "Mobile-Vorschau (390px) — auf Desktop sichtbar zum Vergleich.",
+      "mobilePreviewLabel": "390 × Auto — v-list",
+      "comboGroupLead": "Combo-Tab-Idee — group-by Typ + group-summary (Summe Bestand/Verfügbar pro Gruppe).",
+      "comboGroupMobileLead": "Combo-Tab Mobile — Gruppen mit Subheader + Summenzeile.",
+      "comboMobilePreviewLead": "Combo-Tab Mobile-Vorschau",
+      "comboMobilePreviewLabel": "390px — gruppierte v-list",
+      "groupSummaryLabel": "Summe Gruppe"
+    },
+    "emptySamples": {
+      "createTitle": "Noch keine Kontakte",
+      "createText": "Lege die erste Adresse an, um loszulegen.",
+      "createAction": "Kontakt anlegen",
+      "searchTitle": "Keine Treffer",
+      "searchText": "Passe die Filter an oder setze sie zurück.",
+      "searchAction": "Filter zurücksetzen"
+    },
+    "toastsNote": "GlobalToastContainer (undurchsichtige v-alert) — oben rechts über useToast().",
+    "toastTriggers": {
+      "success": "Success",
+      "error": "Error",
+      "warning": "Warning",
+      "info": "Info",
+      "stack": "Mehrere stapeln",
+      "clear": "Alle schliessen"
+    },
+    "toastSamples": {
+      "success": "Gespeichert — alles erledigt.",
+      "error": "Speichern fehlgeschlagen — bitte erneut versuchen.",
+      "warning": "Session läuft bald ab.",
+      "info": "Keine Änderungen vorgenommen."
+    },
+    "filterRowNote": "Suche: ESearchField (Lupe, Label auf Rahmen). Filter: ESelect in EFilterRow — PageShell #filters.",
     "samples": {
       "primary": "Primary",
       "outlined": "Outlined",
@@ -42,6 +116,7 @@
       "checkbox": "Checkbox",
       "switch": "Switch",
       "textarea": "Mehrzeilig",
+      "searchField": "Kontakt suchen (Name, Firma, E-Mail, Ort)…",
       "optionA": "Option A",
       "optionB": "Option B"
     }
@@ -1322,6 +1397,8 @@
     "subtitleRegister": "Registrieren Sie sich und waehlen Sie Organisation sowie Abteilung.",
     "subtitleRegisterInvite": "Registrieren Sie sich. Organisation und Abteilung sind aus der Einladung vorausgefuellt; nach der Registrierung geht es mit dem Join-Code weiter.",
     "subtitleForgot": "Fordern Sie einen 6-stelligen HEX-Code per E-Mail an und setzen Sie Ihr Passwort sicher zurueck.",
+    "subtitleForgotRequest": "Geben Sie Ihre E-Mail-Adresse ein. Wir senden Ihnen einen Sicherheitscode.",
+    "subtitleForgotConfirm": "Geben Sie den Code aus der E-Mail ein und waehlen Sie ein neues Passwort.",
     "emailLabel": "E-Mail *",
     "emailAddressLabel": "E-Mail-Adresse *",
     "emailPlaceholder": "ihre.email [at] ematchef.ch",
@@ -1411,6 +1488,15 @@
     "inviteCodeInParens": "(Code: {code})",
     "exampleFirstName": "Max",
     "exampleLastName": "Muster"
+  },
+  "verifyEmail": {
+    "title": "E-Mail bestätigen",
+    "checking": "Verifikationslink wird geprüft…",
+    "successFallback": "E-Mail erfolgreich bestätigt.",
+    "failedFallback": "Verifikation fehlgeschlagen.",
+    "noToken": "Kein Verifikations-Token vorhanden.",
+    "invalidLink": "Verifikationslink ist ungültig oder abgelaufen.",
+    "backToLogin": "Zur Anmeldung"
   },
   "activities": {
     "opening": "Aktivität wird geöffnet…",

@@ -1,5 +1,5 @@
 <template>
-  <div class="login-page">
+  <div class="login-page" :class="{ 'login-page--register': mode === 'register' }">
     <div class="login-container">
       <div class="login-header">
         <div class="logo">
@@ -9,7 +9,7 @@
         <p class="brand-subtitle">{{ t('login.brandSubtitle') }}</p>
       </div>
 
-      <div class="login-card">
+      <ECard class="login-card" variant="elevated">
         <div class="card-header">
           <h2 class="card-title">{{ cardTitle }}</h2>
           <p class="card-subtitle">
@@ -17,14 +17,26 @@
           </p>
         </div>
 
-        <div v-if="inviteFlowActive" class="invite-message">
+        <v-alert
+          v-if="inviteFlowActive"
+          type="info"
+          variant="tonal"
+          density="compact"
+          class="login-alert mb-3"
+        >
           {{ t('login.inviteDetected') }}<span v-if="inviteJoinCode">{{ t('login.inviteCodeInParens', { code: inviteJoinCode }) }}</span>.
           {{ t('login.inviteHint') }}
-        </div>
+        </v-alert>
 
-        <div v-if="successMessage" class="success-message">
+        <v-alert
+          v-if="successMessage"
+          type="success"
+          variant="tonal"
+          density="compact"
+          class="login-alert mb-3"
+        >
           {{ successMessage }}
-        </div>
+        </v-alert>
 
         <form v-if="mode === 'login'" class="login-form" @submit.prevent="handleSubmit">
           <ETextField
@@ -48,12 +60,20 @@
           />
 
           <div class="link-row">
-            <button type="button" class="inline-link" :disabled="isLoading" @click="setMode('forgot')">
+            <EButton variant="text" size="small" class="link-btn" :disabled="isLoading" @click="setMode('forgot')">
               {{ t('login.forgotPassword') }}
-            </button>
+            </EButton>
           </div>
 
-          <div v-if="error" class="error-message">{{ error }}</div>
+          <v-alert
+            v-if="error"
+            type="error"
+            variant="tonal"
+            density="compact"
+            class="login-alert mb-3"
+          >
+            {{ error }}
+          </v-alert>
           <div v-if="showResendVerification" class="resend-wrap">
             <EButton variant="secondary" :disabled="isLoading" @click="handleResendVerification">
               {{ t('login.resendVerification') }}
@@ -80,167 +100,144 @@
           <div class="form-footer">
             <p class="help-text">
               {{ t('login.noAccount') }}
-              <button type="button" class="inline-link" :disabled="isLoading" @click="setMode('register')">
+              <EButton variant="text" size="small" class="link-btn" :disabled="isLoading" @click="setMode('register')">
                 {{ t('login.registerNow') }}
-              </button>
+              </EButton>
             </p>
           </div>
         </form>
 
         <form v-else-if="mode === 'forgot'" class="login-form" @submit.prevent="forgotStep === 'request' ? handleForgotRequest() : handleForgotConfirm()">
-          <div class="form-group">
-            <label for="forgotEmail" class="form-label">{{ t('login.emailAddressLabel') }}</label>
-            <input
-              id="forgotEmail"
-              v-model="forgotEmail"
-              type="email"
-              class="form-input"
-              :placeholder="t('login.emailPlaceholder')"
-              required
-              autocomplete="email"
-              :disabled="isLoading"
-            />
-          </div>
+          <ETextField
+            id="forgotEmail"
+            v-model="forgotEmail"
+            type="email"
+            :label="t('login.emailAddressLabel')"
+            :placeholder="t('login.emailPlaceholder')"
+            autocomplete="email"
+            :disabled="isLoading"
+          />
 
           <template v-if="forgotStep === 'confirm'">
-            <div class="form-group">
-              <label for="resetCode" class="form-label">{{ t('login.hexCodeLabel') }}</label>
-              <input
-                id="resetCode"
-                v-model="resetCode"
-                type="text"
-                class="form-input"
-                :placeholder="t('login.hexCodePlaceholder')"
-                maxlength="6"
-                required
-                :disabled="isLoading"
-              />
-            </div>
+            <EOtpInput
+              id="resetCode"
+              v-model="resetCode"
+              :label="t('login.hexCodeLabel')"
+              autofocus
+              :disabled="isLoading"
+            />
 
-            <div class="form-group">
-              <label for="resetPassword" class="form-label">{{ t('login.newPasswordLabel') }}</label>
-              <input
-                id="resetPassword"
-                v-model="resetPassword"
-                type="password"
-                class="form-input"
-                :placeholder="t('login.minPasswordPlaceholder')"
-                required
-                autocomplete="new-password"
-                :disabled="isLoading"
-              />
-            </div>
+            <ETextField
+              id="resetPassword"
+              v-model="resetPassword"
+              type="password"
+              :label="t('login.newPasswordLabel')"
+              :placeholder="t('login.minPasswordPlaceholder')"
+              autocomplete="new-password"
+              :disabled="isLoading"
+            />
 
-            <div class="form-group">
-              <label for="resetPasswordConfirm" class="form-label">{{ t('login.confirmNewPasswordLabel') }}</label>
-              <input
-                id="resetPasswordConfirm"
-                v-model="resetPasswordConfirm"
-                type="password"
-                class="form-input"
-                :placeholder="t('login.passwordRepeatPlaceholder')"
-                required
-                autocomplete="new-password"
-                :disabled="isLoading"
-              />
-            </div>
+            <ETextField
+              id="resetPasswordConfirm"
+              v-model="resetPasswordConfirm"
+              type="password"
+              :label="t('login.confirmNewPasswordLabel')"
+              :placeholder="t('login.passwordRepeatPlaceholder')"
+              autocomplete="new-password"
+              :disabled="isLoading"
+              :error-messages="resetPasswordConfirmError"
+              :hide-details="!resetPasswordConfirmError"
+            />
           </template>
 
-          <div v-if="error" class="error-message">{{ error }}</div>
+          <v-alert
+            v-if="error"
+            type="error"
+            variant="tonal"
+            density="compact"
+            class="login-alert mb-3"
+          >
+            {{ error }}
+          </v-alert>
 
-          <button type="submit" class="btn-primary btn-submit" :disabled="isLoading">
+          <EButton
+            type="submit"
+            variant="primary"
+            block
+            class="btn-submit"
+            :disabled="isLoading"
+            :loading="isLoading"
+          >
             {{
-              isLoading
-                ? t('common.loading')
-                : forgotStep === 'request'
-                  ? t('login.sendCode')
-                  : t('login.resetPassword')
+              forgotStep === 'request'
+                ? t('login.sendCode')
+                : t('login.resetPassword')
             }}
-          </button>
+          </EButton>
 
           <div class="form-footer">
             <p class="help-text">
-              <button
+              <EButton
                 v-if="forgotStep === 'confirm'"
-                type="button"
-                class="inline-link"
+                variant="text"
+                size="small"
+                class="link-btn"
                 :disabled="isLoading"
                 @click="forgotStep = 'request'"
               >
                 {{ t('login.requestNewCode') }}
-              </button>
+              </EButton>
             </p>
-            <p class="help-text">
+            <p v-if="!(openedForgotFromEmailLink && forgotStep === 'confirm')" class="help-text">
               {{ t('login.backToLogin') }}
-              <button type="button" class="inline-link" :disabled="isLoading" @click="setMode('login')">
+              <EButton variant="text" size="small" class="link-btn" :disabled="isLoading" @click="setMode('login')">
                 {{ t('login.loginButton') }}
-              </button>
+              </EButton>
             </p>
           </div>
         </form>
 
         <form v-else class="login-form" @submit.prevent="handleRegister">
-          <div class="form-group">
-            <label for="firstName" class="form-label">{{ t('login.firstNameLabel') }}</label>
-            <input
-              id="firstName"
-              v-model="firstName"
-              type="text"
-              class="form-input"
-              :placeholder="t('login.exampleFirstName')"
-              required
-              :disabled="isLoading"
-            />
-          </div>
+          <ETextField
+            id="firstName"
+            v-model="firstName"
+            :label="t('login.firstNameLabel')"
+            :placeholder="t('login.exampleFirstName')"
+            :disabled="isLoading"
+          />
 
-          <div class="form-group">
-            <label for="lastName" class="form-label">{{ t('login.lastNameLabel') }}</label>
-            <input
-              id="lastName"
-              v-model="lastName"
-              type="text"
-              class="form-input"
-              :placeholder="t('login.exampleLastName')"
-              required
-              :disabled="isLoading"
-            />
-          </div>
+          <ETextField
+            id="lastName"
+            v-model="lastName"
+            :label="t('login.lastNameLabel')"
+            :placeholder="t('login.exampleLastName')"
+            :disabled="isLoading"
+          />
 
-          <div class="form-group">
-            <label for="nickname" class="form-label">{{ t('login.nicknameLabel') }}</label>
-            <input
-              id="nickname"
-              v-model="nickname"
-              type="text"
-              class="form-input"
-              :placeholder="t('login.nicknamePlaceholder')"
-              :disabled="isLoading"
-            />
-          </div>
+          <ETextField
+            id="nickname"
+            v-model="nickname"
+            :label="t('login.nicknameLabel')"
+            :placeholder="t('login.nicknamePlaceholder')"
+            :disabled="isLoading"
+          />
 
-          <div v-if="!inviteOrganisationLocked" class="form-group">
-            <label for="requestedOrganisationId" class="form-label">{{ t('login.organisationLabel') }}</label>
-            <select
-              id="requestedOrganisationId"
-              v-model="requestedOrganisationId"
-              class="form-input"
-              required
-              :disabled="isLoading"
-            >
-              <option value="" disabled hidden>&nbsp;</option>
-              <option v-for="org in organisations" :key="org.id" :value="org.id">{{ org.name }}</option>
-            </select>
-          </div>
-          <div v-else class="form-group">
-            <label class="form-label">{{ t('login.organisationLabel') }}</label>
-            <input
-              type="text"
-              class="form-input"
-              :value="inviteOrganisationName || inviteOrganisationId"
-              disabled
-            />
-            <p class="required-note">{{ t('login.organisationFromInvite') }}</p>
-          </div>
+          <ESelect
+            v-if="!inviteOrganisationLocked"
+            id="requestedOrganisationId"
+            v-model="requestedOrganisationId"
+            :items="organisationSelectItems"
+            :label="t('login.organisationLabel')"
+            :disabled="isLoading"
+          />
+          <ETextField
+            v-else
+            :label="t('login.organisationLabel')"
+            :model-value="inviteOrganisationName || inviteOrganisationId"
+            readonly
+            disabled
+          />
+          <p v-if="inviteOrganisationLocked" class="required-note">{{ t('login.organisationFromInvite') }}</p>
 
           <RegisterDepartmentPicker
             :organisation-id="effectiveRequestedOrganisationId"
@@ -265,62 +262,52 @@
             />
           </div>
 
-          <div class="form-group">
-            <label for="registerEmail" class="form-label">{{ t('login.emailAddressLabel') }}</label>
-            <input
-              id="registerEmail"
-              v-model="registerEmail"
-              type="email"
-              class="form-input"
-              :placeholder="t('login.emailPlaceholder')"
-              required
-              autocomplete="email"
-              :disabled="isLoading"
-            />
-          </div>
+          <ETextField
+            id="registerEmail"
+            v-model="registerEmail"
+            type="email"
+            :label="t('login.emailAddressLabel')"
+            :placeholder="t('login.emailPlaceholder')"
+            autocomplete="email"
+            :disabled="isLoading"
+          />
 
-          <div class="form-group">
-            <label for="registerPassword" class="form-label">{{ t('login.registerPasswordLabel') }}</label>
-            <input
-              id="registerPassword"
-              v-model="registerPassword"
-              type="password"
-              class="form-input"
-              :placeholder="t('login.minPasswordPlaceholder')"
-              required
-              autocomplete="new-password"
-              :disabled="isLoading"
-            />
-          </div>
+          <ETextField
+            id="registerPassword"
+            v-model="registerPassword"
+            type="password"
+            :label="t('login.registerPasswordLabel')"
+            :placeholder="t('login.minPasswordPlaceholder')"
+            autocomplete="new-password"
+            :disabled="isLoading"
+          />
 
-          <div class="form-group">
-            <label for="registerPasswordConfirm" class="form-label">{{ t('login.registerPasswordConfirmLabel') }}</label>
-            <input
-              id="registerPasswordConfirm"
-              v-model="registerPasswordConfirm"
-              type="password"
-              class="form-input"
-              :placeholder="t('login.registerPasswordConfirmPlaceholder')"
-              required
-              autocomplete="new-password"
-              :disabled="isLoading"
-            />
-          </div>
+          <ETextField
+            id="registerPasswordConfirm"
+            v-model="registerPasswordConfirm"
+            type="password"
+            :label="t('login.registerPasswordConfirmLabel')"
+            :placeholder="t('login.registerPasswordConfirmPlaceholder')"
+            autocomplete="new-password"
+            :disabled="isLoading"
+          />
 
-          <div class="form-group">
-            <label for="language" class="form-label">{{ t('login.languageLabel') }}</label>
-            <select id="language" v-model="language" class="form-input" :disabled="isLoading">
-              <option v-for="item in registerLanguageOptions" :key="item.code" :value="item.code">{{ item.label }}</option>
-            </select>
-            <p v-if="isRegisterLanguageRestricted" class="required-note">{{ t('login.languageRestrictedHint') }}</p>
-          </div>
+          <ESelect
+            id="language"
+            v-model="language"
+            :items="languageSelectItems"
+            :label="t('login.languageLabel')"
+            :hint="isRegisterLanguageRestricted ? t('login.languageRestrictedHint') : undefined"
+            :persistent-hint="isRegisterLanguageRestricted"
+            :disabled="isLoading"
+          />
 
-          <div class="form-group terms-group">
-            <label class="checkbox-label">
-              <input v-model="acceptTerms" type="checkbox" required :disabled="isLoading" />
-              <span>{{ t('login.acceptTerms') }}</span>
-            </label>
-          </div>
+          <ECheckbox
+            v-model="acceptTerms"
+            class="terms-group"
+            :label="t('login.acceptTerms')"
+            :disabled="isLoading"
+          />
 
           <div v-if="turnstileSiteKey" class="form-group turnstile-wrap">
             <div ref="turnstileContainerRef" class="turnstile-box" />
@@ -328,22 +315,37 @@
 
           <p class="required-note">{{ t('login.requiredFields') }}</p>
 
-          <div v-if="error" class="error-message">{{ error }}</div>
+          <v-alert
+            v-if="error"
+            type="error"
+            variant="tonal"
+            density="compact"
+            class="login-alert mb-3"
+          >
+            {{ error }}
+          </v-alert>
 
-          <button type="submit" class="btn-primary btn-submit" :disabled="isLoading">
-            {{ isLoading ? t('common.loading') : t('login.registerButton') }}
-          </button>
+          <EButton
+            type="submit"
+            variant="primary"
+            block
+            class="btn-submit"
+            :disabled="isLoading"
+            :loading="isLoading"
+          >
+            {{ t('login.registerButton') }}
+          </EButton>
 
           <div class="form-footer">
             <p class="help-text">
               {{ t('login.haveAccount') }}
-              <button type="button" class="inline-link" :disabled="isLoading" @click="setMode('login')">
+              <EButton variant="text" size="small" class="link-btn" :disabled="isLoading" @click="setMode('login')">
                 {{ t('login.loginButton') }}
-              </button>
+              </EButton>
             </p>
           </div>
         </form>
-      </div>
+      </ECard>
     </div>
   </div>
 </template>
@@ -355,7 +357,7 @@ import { useI18n } from 'vue-i18n'
 import { confirmPasswordReset, register as apiRegister, requestPasswordReset, resendVerification } from '@/api/auth'
 import { useAuthStore } from '@/stores/auth'
 import EmcLogoMark from '@/components/brand/EmcLogoMark.vue'
-import { EButton, ETextField } from '@/components/form/base'
+import { EButton, ECard, ECheckbox, EOtpInput, ESelect, ETextField } from '@/components/form/base'
 import { getOrganisations, type Organisation } from '@/api/organisations'
 import RegisterDepartmentPicker, {
   type RegisterDepartmentManualRequest,
@@ -403,6 +405,7 @@ const organisations = ref<Organisation[]>([])
 const turnstileContainerRef = ref<HTMLElement | null>(null)
 const turnstileWidgetId = ref<string | null>(null)
 const forgotStep = ref<'request' | 'confirm'>('request')
+const openedForgotFromEmailLink = ref(false)
 const forgotEmail = ref('')
 const resetCode = ref('')
 const resetPassword = ref('')
@@ -451,16 +454,13 @@ const cardSubtitle = computed(() => {
     return t('login.subtitleRegister')
   }
   if (mode.value === 'forgot') {
-    return t('login.subtitleForgot')
+    return forgotStep.value === 'confirm'
+      ? t('login.subtitleForgotConfirm')
+      : t('login.subtitleForgotRequest')
   }
   return t('login.subtitleLogin')
 })
-const languageOptions = computed(() =>
-  SUPPORTED_LOCALES.map((code) => ({
-    code,
-    label: t(`languageNames.${code}`)
-  }))
-)
+
 const registerLanguageCodes = computed(() => {
   const orgId = effectiveRequestedOrganisationId.value
   if (!orgId) return [...SUPPORTED_LOCALES]
@@ -480,7 +480,26 @@ const registerLanguageOptions = computed(() =>
     label: t(`languageNames.${code}`)
   }))
 )
+const languageSelectItems = computed(() =>
+  registerLanguageOptions.value.map((item) => ({
+    title: item.label,
+    value: item.code,
+  }))
+)
+const organisationSelectItems = computed(() =>
+  organisations.value.map((org) => ({
+    title: org.name,
+    value: org.id,
+  }))
+)
 const isRegisterLanguageRestricted = computed(() => registerLanguageCodes.value.length < SUPPORTED_LOCALES.length)
+
+const resetPasswordConfirmError = computed(() => {
+  if (mode.value !== 'forgot' || forgotStep.value !== 'confirm') return undefined
+  if (!resetPasswordConfirm.value) return undefined
+  if (resetPassword.value === resetPasswordConfirm.value) return undefined
+  return t('login.validationPasswordMismatch')
+})
 
 function parseInternalRedirect(rawRedirect: unknown): string | null {
   if (typeof rawRedirect !== 'string') return null
@@ -565,8 +584,33 @@ function applyRegisterPrefillFromQuery() {
   loadOrganisationsForRegister().then(() => applyFields())
 }
 
+function stripForgotQueryFromRoute() {
+  if (!route.query.forgot && !route.query.email) return
+  const nextQuery = { ...route.query }
+  delete nextQuery.forgot
+  delete nextQuery.email
+  router.replace({ path: route.path, query: nextQuery })
+}
+
+function applyForgotPrefillFromQuery() {
+  const forgot = queryParamFirst(route.query.forgot)
+  const wantsForgot = forgot === '1' || forgot.toLowerCase() === 'true'
+  const emailParam = queryParamFirst(route.query.email).trim().toLowerCase()
+  if (!wantsForgot) return
+
+  mode.value = 'forgot'
+  forgotStep.value = 'confirm'
+  openedForgotFromEmailLink.value = true
+  if (emailParam) {
+    forgotEmail.value = emailParam
+  }
+  clearMessages()
+  stripForgotQueryFromRoute()
+}
+
 onMounted(() => {
   applyRegisterPrefillFromQuery()
+  applyForgotPrefillFromQuery()
 })
 
 watch(
@@ -577,6 +621,15 @@ watch(
     dept_name: route.query.dept_name
   }),
   () => applyRegisterPrefillFromQuery(),
+  { deep: true }
+)
+
+watch(
+  () => ({
+    forgot: route.query.forgot,
+    email: route.query.email,
+  }),
+  () => applyForgotPrefillFromQuery(),
   { deep: true }
 )
 
@@ -709,6 +762,7 @@ onUnmounted(() => {
 
 function resetForgotForm() {
   forgotStep.value = 'request'
+  openedForgotFromEmailLink.value = false
   forgotEmail.value = ''
   resetCode.value = ''
   resetPassword.value = ''
@@ -879,9 +933,11 @@ async function handleForgotRequest() {
   try {
     registerLoading.value = true
     const result = await requestPasswordReset(normalizedEmail)
+    resetForgotForm()
+    mode.value = 'login'
+    email.value = normalizedEmail
     successMessage.value = result.message
-    forgotEmail.value = normalizedEmail
-    forgotStep.value = 'confirm'
+    stripForgotQueryFromRoute()
   } catch (err: any) {
     error.value = err?.response?.data?.error || t('login.forgotRequestFailedFallback')
   } finally {
@@ -968,6 +1024,15 @@ watch(
   padding: 24px;
 }
 
+.login-page--register {
+  align-items: flex-start;
+  min-height: calc(100dvh - 36px);
+  height: auto;
+  overflow: visible;
+  padding-top: 16px;
+  padding-bottom: 24px;
+}
+
 .login-container {
   width: 100%;
   max-width: 560px;
@@ -998,9 +1063,11 @@ watch(
 }
 
 .login-card {
-  background: #fff;
   border-radius: 16px;
   padding: 32px;
+}
+
+.login-card.e-card {
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.28);
 }
 
@@ -1035,89 +1102,22 @@ watch(
   margin-top: 8px;
 }
 
-.form-group {
-  margin-bottom: 14px;
-}
-
-.form-label {
-  display: block;
+.login-alert {
   font-size: 14px;
-  font-weight: 500;
-  color: #374151;
-  margin-bottom: 6px;
 }
 
-.form-input {
-  font-size: 16px;
-}
-
-.error-message {
-  background: #fee2e2;
-  color: #b91c1c;
-  padding: 10px 12px;
-  border-radius: 8px;
-  font-size: 14px;
-  margin-bottom: 14px;
-}
-
-.success-message {
-  background: #dcfce7;
-  color: #166534;
-  padding: 10px 12px;
-  border-radius: 8px;
-  font-size: 14px;
-  margin-bottom: 14px;
-}
-
-.invite-message {
-  background: #eff6ff;
-  color: #1d4ed8;
-  padding: 10px 12px;
-  border-radius: 8px;
-  font-size: 14px;
-  margin-bottom: 14px;
-}
-
-.btn-secondary {
-  width: 100%;
-  justify-content: center;
-}
-
-.resend-wrap {
-  margin-bottom: 10px;
-}
-
-.link-row {
-  display: flex;
-  justify-content: flex-end;
-  margin-bottom: 12px;
-}
-
-.btn-submit {
-  width: 100%;
-  justify-content: center;
-  font-size: 18px;
-  padding: 13px;
-}
-
-.form-footer {
-  text-align: center;
-  margin-top: 8px;
-}
-
-.help-text {
-  color: #4b5563;
-  font-size: 17px;
-}
-
-.inline-link {
-  border: none;
-  background: transparent;
-  color: #0b7eea;
-  text-decoration: underline;
-  font-size: 17px;
-  cursor: pointer;
+.link-btn {
+  text-transform: none;
+  letter-spacing: normal;
+  font-size: inherit;
+  min-width: 0;
   padding: 0 0 0 4px;
+  height: auto;
+  vertical-align: baseline;
+}
+
+.link-btn :deep(.v-btn__content) {
+  text-decoration: underline;
 }
 
 .required-note {
@@ -1138,12 +1138,28 @@ watch(
   margin-top: 6px;
 }
 
-.checkbox-label {
+.resend-wrap {
+  margin-bottom: 10px;
+}
+
+.link-row {
   display: flex;
-  align-items: center;
-  gap: 10px;
-  color: #374151;
-  font-size: 16px;
+  justify-content: flex-end;
+  margin-bottom: 12px;
+}
+
+.btn-submit {
+  font-size: 18px;
+}
+
+.form-footer {
+  text-align: center;
+  margin-top: 8px;
+}
+
+.help-text {
+  color: #4b5563;
+  font-size: 17px;
 }
 
 @media (max-width: 640px) {

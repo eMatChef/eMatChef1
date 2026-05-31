@@ -87,71 +87,77 @@
       </div>
 
       <!-- Modal: Admin kontaktieren -->
-      <div v-if="adminContactModalOpen" class="modal-overlay">
-        <div class="modal-dialog pending-admin-modal-dialog">
-          <div class="modal-header">
-            <h2>{{ t('pendingAssignment.adminModalTitle') }}</h2>
-            <button type="button" class="modal-close" @click="adminContactModalOpen = false">
-              <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-                <path d="M15 5L5 15M5 5L15 15" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-              </svg>
-            </button>
-          </div>
-          <div class="modal-body">
-            <p class="modal-intro">{{ t('pendingAssignment.adminModalIntro') }}</p>
-            <div class="form-group">
-              <label class="form-label">{{ t('pendingAssignment.organisationRequired') }}</label>
-              <select v-model="adminModalOrganisationId" class="form-select">
-                <option value="" disabled hidden>&nbsp;</option>
-                <option v-for="org in organisationsFiltered" :key="org.id" :value="org.id">{{ org.name }}</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label class="form-label">{{ t('pendingAssignment.departmentNameRequired') }}</label>
-              <input
-                v-model="adminModalDepartmentName"
-                class="form-input"
-                :placeholder="t('pendingAssignment.departmentNameModalPlaceholder')"
-              />
-            </div>
-            <div class="form-group">
-              <label class="form-label">{{ t('pendingAssignment.affiliationModalLabel') }}</label>
-              <input
-                v-model="adminModalAffiliation"
-                class="form-input"
-                :placeholder="t('pendingAssignment.affiliationModalPlaceholder')"
-              />
-            </div>
+      <EDialog
+        v-model="adminContactModalOpen"
+        :title="t('pendingAssignment.adminModalTitle')"
+        max-width="480"
+        scrollable
+      >
+        <p class="pending-admin-intro">{{ t('pendingAssignment.adminModalIntro') }}</p>
+
+        <div class="pending-admin-form">
+          <ESelect
+            v-model="adminModalOrganisationId"
+            :items="organisationSelectItems"
+            :label="t('pendingAssignment.organisationRequired')"
+            :disabled="adminModalLoading"
+          />
+
+          <ETextField
+            v-model="adminModalDepartmentName"
+            :label="t('pendingAssignment.departmentNameRequired')"
+            :placeholder="t('pendingAssignment.departmentNameModalPlaceholder')"
+            :disabled="adminModalLoading"
+          />
+
+          <ETextField
+            v-model="adminModalAffiliation"
+            :label="t('pendingAssignment.affiliationModalLabel')"
+            :placeholder="t('pendingAssignment.affiliationModalPlaceholder')"
+            :disabled="adminModalLoading"
+          />
+
+          <div v-if="adminModalOrganisationId" class="pending-admin-form__picker">
             <ParentDepartmentPicker
-              v-if="adminModalOrganisationId"
               :organisation-id="adminModalOrganisationId"
               :disabled="adminModalLoading"
               @update:model-value="adminModalParentPick = $event"
             />
-            <div class="form-group">
-              <label class="form-label">{{ t('pendingAssignment.messageToAdmin') }}</label>
-              <textarea
-                v-model="adminModalMessage"
-                class="form-textarea"
-                rows="3"
-                :placeholder="t('pendingAssignment.messageToAdminPlaceholder')"
-              />
-            </div>
-            <div v-if="adminModalError" class="error-message">{{ adminModalError }}</div>
-            <div class="modal-footer">
-              <button type="button" class="btn-secondary" @click="adminContactModalOpen = false">{{ t('common.cancel') }}</button>
-              <button
-                type="button"
-                class="btn-primary"
-                :disabled="adminModalLoading || !adminModalOrganisationId || !adminModalDepartmentName.trim()"
-                @click="submitAdminContactModal"
-              >
-                {{ adminModalLoading ? t('pendingAssignment.sending') : t('pendingAssignment.sendTicket') }}
-              </button>
-            </div>
           </div>
+
+          <ETextarea
+            v-model="adminModalMessage"
+            :label="t('pendingAssignment.messageToAdmin')"
+            :placeholder="t('pendingAssignment.messageToAdminPlaceholder')"
+            :rows="3"
+            :disabled="adminModalLoading"
+          />
         </div>
-      </div>
+
+        <v-alert
+          v-if="adminModalError"
+          type="error"
+          variant="tonal"
+          density="compact"
+          class="pending-admin-alert"
+        >
+          {{ adminModalError }}
+        </v-alert>
+
+        <template #actions>
+          <EButton variant="secondary" :disabled="adminModalLoading" @click="adminContactModalOpen = false">
+            {{ t('common.cancel') }}
+          </EButton>
+          <EButton
+            variant="primary"
+            :disabled="adminModalLoading || !adminModalOrganisationId || !adminModalDepartmentName.trim()"
+            :loading="adminModalLoading"
+            @click="submitAdminContactModal"
+          >
+            {{ t('pendingAssignment.sendTicket') }}
+          </EButton>
+        </template>
+      </EDialog>
 
       <BarcodeScannerPanel
         v-if="scannerActive"
@@ -221,6 +227,7 @@ import { filterOrganisationsForUserPickers } from '@/utils/organisationUserPicke
 import { localizedBarcodeScannerError } from '@/utils/barcodeScannerErrors'
 import BarcodeScannerPanel from '@/components/common/BarcodeScannerPanel.vue'
 import SearchFieldInput from '@/components/common/SearchFieldInput.vue'
+import { EButton, EDialog, ESelect, ETextField, ETextarea } from '@/components/form/base'
 
 const route = useRoute()
 const { t, locale } = useI18n()
@@ -260,6 +267,12 @@ const scannerActive = ref(false)
 const scannerError = ref<string | null>(null)
 const displayedDepartmentResults = computed(() => departmentResults.value.slice(0, 4))
 const organisationsFiltered = computed(() => filterOrganisationsForUserPickers(organisations.value))
+const organisationSelectItems = computed(() =>
+  organisationsFiltered.value.map((org) => ({
+    title: org.name,
+    value: org.id,
+  }))
+)
 const showManualAdminRequest = computed(() => {
   return departmentQuery.value.trim().length >= 2 && !departmentLoading.value && departmentResults.value.length === 0
 })
@@ -641,29 +654,31 @@ onUnmounted(() => {
 .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px; }
 .error { color: #b91c1c; margin-top: 12px; }
 .success { color: #166534; margin-top: 12px; }
-/* Modal overlay/header/body/footer base uses shared ui/modals.css */
-.pending-admin-modal-dialog {
-  width: min(480px, calc(100vw - 48px));
-  max-height: calc(100vh - 48px);
-  padding: 0;
-  overflow: hidden;
+
+.pending-admin-intro {
+  margin: 0 0 20px;
+  font-size: 14px;
+  line-height: 1.5;
+  color: #6b7280;
 }
 
-.modal-header h2 {
-  margin: 0;
-  font-size: 20px;
-  font-weight: 600;
-  color: #1f2937;
+.pending-admin-form :deep(.e-form-field) {
+  margin-bottom: 20px;
 }
-.modal-intro { font-size: 14px; color: #6b7280; margin: 0 0 20px; }
-.error-message {
-  background: #fee2e2;
-  color: #dc2626;
-  padding: 12px;
-  border-radius: 6px;
+
+.pending-admin-form :deep(.e-form-field:last-child) {
+  margin-bottom: 0;
+}
+
+.pending-admin-form__picker {
+  margin-bottom: 20px;
+}
+
+.pending-admin-alert {
+  margin-top: 16px;
   font-size: 14px;
-  margin-bottom: 16px;
 }
+
 table { width: 100%; border-collapse: collapse; }
 th, td { text-align: left; border-bottom: 1px solid #e5e7eb; padding: 8px; }
 </style>

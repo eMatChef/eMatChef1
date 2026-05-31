@@ -1,0 +1,99 @@
+/**
+ * GlobalToastContainer — Teleport to body; styles must be global (not scoped).
+ */
+.global-toast-container {
+  position: fixed;
+  top: calc(var(--emc-safe-top, 0px) + 72px);
+  right: calc(var(--emc-safe-right, 0px) + 20px);
+  left: auto;
+  z-index: 10000;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+  width: min(460px, calc(100vw - 40px));
+  pointer-events: none;
+}
+
+.global-toast-alert {
+  pointer-events: auto;
+  min-width: 300px;
+  margin: 0;
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.12);
+  border: 1px solid transparent;
+  opacity: 1;
+}
+
+/* Undurchsichtig — tonal/underlay würde Header durchscheinen lassen */
+.global-toast-alert .v-alert__underlay,
+.global-toast-alert .v-alert__overlay {
+  display: none !important;
+}
+
+.global-toast-alert--success {
+  background-color: #f0fdf4 !important;
+  color: #166534 !important;
+  border-color: #86efac !important;
+}
+
+.global-toast-alert--error {
+  background-color: #fef2f2 !important;
+  color: #991b1b !important;
+  border-color: #fca5a5 !important;
+}
+
+.global-toast-alert--warning {
+  background-color: #fffbeb !important;
+  color: #92400e !important;
+  border-color: #fcd34d !important;
+}
+
+.global-toast-alert--info {
+  background-color: #eff6ff !important;
+  color: #1e40af !important;
+  border-color: #93c5fd !important;
+}
+
+.global-toast-alert--success .v-alert__close .v-icon,
+.global-toast-alert--success .v-alert__prepend .v-icon {
+  color: #166534 !important;
+}
+
+.global-toast-alert--error .v-alert__close .v-icon,
+.global-toast-alert--error .v-alert__prepend .v-icon {
+  color: #991b1b !important;
+}
+
+.global-toast-alert--warning .v-alert__close .v-icon,
+.global-toast-alert--warning .v-alert__prepend .v-icon {
+  color: #92400e !important;
+}
+
+.global-toast-alert--info .v-alert__close .v-icon,
+.global-toast-alert--info .v-alert__prepend .v-icon {
+  color: #1e40af !important;
+}
+
+.global-toast-enter-active,
+.global-toast-leave-active {
+  transition: all 0.22s ease;
+}
+
+.global-toast-enter-from,
+.global-toast-leave-to {
+  opacity: 0;
+  transform: translateY(-8px) translateX(12px);
+}
+
+@media (max-width: 640px) {
+  .global-toast-container {
+    right: calc(var(--emc-safe-right, 0px) + 10px);
+    left: calc(var(--emc-safe-left, 0px) + 10px);
+    width: auto;
+  }
+
+  .global-toast-alert {
+    min-width: 0;
+    width: 100%;
+  }
+}

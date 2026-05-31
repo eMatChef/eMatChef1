@@ -2,7 +2,7 @@
 
 Abarbeitbare Checkliste für die schrittweise Einführung von **Vuetify 3** und **`E*`-Komponenten**. Regeln: [vuetify-standards.md](./vuetify-standards.md).
 
-**Stand:** Mai 2026 · **Status:** Phase 2 abgeschlossen — **Phase 4** (Layout-Bausteine) als Nächstes. Phase 3 (AutoSave auf `E*`) **verschoben** — nach Fortschritt Phase 5.
+**Stand:** Mai 2026 · **Status:** Phase 4 abgeschlossen — **Phase 5** (Einstieg) als Nächstes. Phase 3 (AutoSave auf `E*`) **verschoben** — nach Fortschritt Phase 5.
 
 ---
 
@@ -31,8 +31,8 @@ Abarbeitbare Checkliste für die schrittweise Einführung von **Vuetify 3** und 
 | 1 | App-Shell (Layout, Nav, Mobile, **Variante B** + Dev-Banner, **UI-Playground**) | 013–028, **017b–017g**, **028a–028b** | nach 028b |
 | 2 | `E*`-Formular-Basis | 029–042 | nach 042 |
 | 3 | AutoSave auf `E*` | 043–050 | nach 050 — **verschoben** (siehe unten) |
-| 4 | Layout-Bausteine (Dialog, Liste, PageShell) | 051–060 | nach 060 — **aktuell** |
-| 5 | Einstieg (Login, Landing, Pending) | 061–068 | nach 068 |
+| 4 | Layout-Bausteine (Dialog, Liste, PageShell) | 051–060 | nach 060 — **abgeschlossen** |
+| 5 | Einstieg (Login, Landing, Pending) | 061–068 | nach 068 — **aktuell** |
 | 6 | Aktivitäten | 069–084 | nach 084 |
 | 7 | Material | 085–092 | nach 092 |
 | 8 | Kontakte, Aufgaben, Inbox | 093–098 | nach 098 |
@@ -174,15 +174,39 @@ Die Schritte **013–017** waren ein Zwischenstand (`v-app` nur in `AppLayout`).
 | Nr | Schritt | Status |
 | -- | ------- | ------ |
 | 051 | `PageShell` in 2 weiteren Views (`ContactsView`, `TasksShellView`) | [x] 2026-05-31 |
-| 052 | Filter-Zeile: Pattern mit `v-row` / `v-col` + `ETextField` / `v-select` | [ ] |
-| 053 | `GlobalToastContainer` → Vuetify-Snackbar oder bestehend + Theme | [ ] |
-| 054 | Confirm/Prompt-Dialoge auf `EDialog` prüfen (`useConfirm`, `usePrompt`) | [ ] |
-| 055 | Leere Zustände: `v-alert` / zentrale Empty-Komponente | [ ] |
-| 056 | Loading: `v-skeleton-loader` Pattern definieren | [ ] |
-| 057 | Tabellen-Entscheid dokumentieren: `v-data-table` vs. Kartenliste auf Mobile | [ ] |
-| 058 | `ResponsiveDataList` (optional): Desktop-Tabelle, Mobile-Karten — nur wenn gebraucht | [ ] |
-| 059 | `tables.css` / `modals.css`: Migrationshinweise in Dateikopf | [ ] |
-| 060 | **Review-Stopp Phase 4:** Pattern für alle Feature-Teams klar? | [ ] |
+| 052 | Filter-Zeile: `EFilterRow` + `ESearchField` (Suche) / `ESelect` (Filter), Pilot Kontakte | [x] 2026-05-31 |
+| 053 | `GlobalToastContainer` → Vuetify `v-alert` (tonal) + Theme, `Teleport` body | [x] 2026-05-31 |
+| 054 | Confirm/Prompt-Dialoge auf `EDialog` (`useConfirm`, `usePrompt`) | [x] 2026-05-31 |
+| 055 | Leere Zustände: `EEmptyState` (Pilot Kontakte) | [x] 2026-05-31 |
+| 056 | Loading: `ELoadingState` + `v-skeleton-loader` (Pilot Kontakte) | [x] 2026-05-31 |
+| 057 | Tabellen-Entscheid: [table-patterns.md](./ui/table-patterns.md) | [x] 2026-05-31 |
+| 058 | `EResponsiveDataList`: Desktop-Tabelle + Mobile-Liste — Pilot **Material** (`MaterialListDataTable`, `MaterialListMobile`) | [x] 2026-05-31 |
+| 059 | `tables.css` / `modals.css`: Migrationshinweise in Dateikopf | [x] 2026-05-31 |
+| 060 | **Review-Stopp Phase 4:** Pattern für alle Feature-Teams klar? | [x] 2026-05-31 |
+
+### Entscheide Phase 4 (festgehalten)
+
+| Thema | Entscheid |
+| ----- | --------- |
+| PageShell / Filter | `PageShell` + `EFilterRow` + `ESearchField`/`ESelect` in migrierten Views (Pilot: Kontakte, Tasks) |
+| Toasts / Dialoge | `GlobalToastContainer` → `v-alert`; Confirm/Prompt → `EDialog` |
+| Leer / Laden | `EEmptyState` + `ELoadingState` statt `.empty-state` / `.loading-state` |
+| Tabellen | Entscheid in [table-patterns.md](./table-patterns.md): HTML-`<table>` für reiche Listen; `v-data-table` in List-Komponenten; Mobile via `EResponsiveDataList` |
+| Responsive Listen | `EResponsiveDataList` mit `#table` / `#mobile`; Breakpoint `useDisplay().mdAndUp` (md = 960px) |
+| Legacy CSS | `tables.css` / `modals.css` bleiben für nicht migrierte Views; Hinweise im Dateikopf (059) |
+
+### Review-Stopp Phase 4 (Schritt 060)
+
+| Bereich | Phone (~375px) | Desktop (~1280px) |
+| ------- | -------------- | ----------------- |
+| Material-Liste: `v-list` statt Tabelle | [x] | — |
+| Material-Liste: `v-data-table` + Combo-Expand | — | [x] |
+| Kontakte: PageShell, Filter, Empty, Loading | [x] | [x] |
+| Confirm/Prompt-Dialog (`EDialog`) | [x] | [x] |
+| Toast (`v-alert` tonal) | [x] | [x] |
+| Dev UI Playground: Material-Sandbox = Produktions-Pattern | [x] | [x] |
+
+**Freigabe:** Phase 5 (Login, Landing, Pending) — Phase 3 (AutoSave) weiterhin verschoben.
 
 ---
 
@@ -190,8 +214,8 @@ Die Schritte **013–017** waren ein Zwischenstand (`v-app` nur in `AppLayout`).
 
 | Nr | Schritt | Status |
 | -- | ------- | ------ |
-| 061 | `LoginView.vue` vollständig Vuetify + `E*` | [ ] |
-| 062 | `VerifyEmailView.vue` | [ ] |
+| 061 | `LoginView.vue` vollständig Vuetify + `E*` | [x] 2026-05-31 |
+| 062 | `VerifyEmailView.vue` | [x] 2026-05-31 |
 | 063 | `PendingAssignmentView.vue` | [ ] |
 | 064 | `LandingHomeView` + `PublicSiteLayout` (Marketing) | [ ] |
 | 065 | Blog/FAQ/TOS/Impressum — einheitlich oder Phase 12 Rest | [ ] |
@@ -323,6 +347,9 @@ Die Schritte **013–017** waren ein Zwischenstand (`v-app` nur in `AppLayout`).
 | 2026-05-31 | Phase 1 Plan | **028a–028b:** Dev UI Playground (Sidebar nur `isDevToolsEnvironment()`), vor Phase 2; Löschung Schritt **127** |
 | 2026-05-31 | Phase 1 abgeschlossen | **020–028b:** Safe-Area, Sidebar-Token, Supplier=AppLayout, Scroll/Drawer-Fix, Phase-2-Freigabe |
 | 2026-05-31 | Phase 2 abgeschlossen | Review 042; 039 Vitest übersprungen |
+| 2026-05-31 | Phase 4 abgeschlossen | Review 060; 058 Pilot Material (`EResponsiveDataList` + `v-data-table`/`v-list`); 057 [table-patterns.md](./ui/table-patterns.md) |
+| 2026-05-31 | Schritt 061 | `LoginView`: alle Formulare auf `E*` + `v-alert` + `ECard`; Reset-Code via `EOtpInput` |
+| 2026-05-31 | Schritt 062 | `VerifyEmailView`: `ECard`, `ELoadingState`, `v-alert`, `EButton`, i18n |
 | 2026-05-31 | Reihenfolge | **Phase 4 vor Phase 3** — AutoSave auf `E*` erst nach Fortschritt Phase 5 |
 
 ---
@@ -348,4 +375,4 @@ Für die PR-Beschreibung Screenshots / Kurztest:
 
 ## Nächster Schritt (aktuell)
 
-**Phase 4** — Schritt **052** (Filter-Zeile: `v-row` / `v-col` + `ETextField`). Phase 3 (AutoSave) ist verschoben.
+**Phase 5** — Schritt **063** (`PendingAssignmentView.vue`). Phase 3 (AutoSave) ist verschoben.

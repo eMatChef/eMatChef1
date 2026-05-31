@@ -26,52 +26,58 @@
       </template>
 
       <template #filters>
-      <!-- Search & Filter Bar -->
-      <div class="filter-bar">
-        <div class="search-box">
-          <SearchFieldInput
-            v-model="searchQuery"
-            :label="t('contacts.searchPlaceholder')"
-          />
-        </div>
-        
-        <div class="filter-group">
-          <select v-model="selectedType" class="filter-select">
-            <option value="">{{ t('contacts.allTypes') }}</option>
-            <option v-for="key in visibleAddressTypeKeys" :key="key" :value="key">
-              {{ t('settings.addressForm.types.' + key) }}
-            </option>
-          </select>
-          
-          <select v-model="selectedCanton" class="filter-select">
-            <option value="">{{ t('contacts.allCantons') }}</option>
-            <option v-for="(name, code) in SWISS_CANTONS" :key="code" :value="code">
-              {{ code }} - {{ name }}
-            </option>
-          </select>
-          
-          <button
-            @click="resetFilters"
-            class="reset-btn"
-            :style="{ visibility: hasActiveFilters ? 'visible' : 'hidden' }"
-            :aria-hidden="!hasActiveFilters"
-          >
-            {{ t('contacts.resetFilters') }}
-          </button>
-
-          <label v-if="canManageDeletedContacts" class="show-deleted-toggle">
-            <input v-model="showDeleted" type="checkbox" />
-            {{ t('contacts.showDeleted') }}
-          </label>
-        </div>
-      </div>
+        <EFilterRow>
+          <v-col class="e-filter-row__search">
+            <ESearchField
+              v-model="searchQuery"
+              :label="t('contacts.searchPlaceholder')"
+            />
+          </v-col>
+          <v-col cols="auto" class="e-filter-row__select">
+            <ESelect
+              v-model="selectedType"
+              :items="typeSelectItems"
+              :label="t('contacts.colType')"
+              hide-details
+            />
+          </v-col>
+          <v-col cols="auto" class="e-filter-row__select">
+            <ESelect
+              v-model="selectedCanton"
+              :items="cantonSelectItems"
+              :label="t('contacts.allCantons')"
+              hide-details
+            />
+          </v-col>
+          <v-col cols="auto" class="e-filter-row__actions d-flex align-center ga-2">
+            <button
+              type="button"
+              class="reset-btn"
+              :style="{ visibility: hasActiveFilters ? 'visible' : 'hidden' }"
+              :aria-hidden="!hasActiveFilters"
+              @click="resetFilters"
+            >
+              {{ t('contacts.resetFilters') }}
+            </button>
+            <ECheckbox
+              v-if="canManageDeletedContacts"
+              v-model="showDeleted"
+              class="e-filter-row__checkbox"
+              density="compact"
+              :label="t('contacts.showDeleted')"
+              hide-details
+            />
+          </v-col>
+        </EFilterRow>
       </template>
 
       <!-- Loading State -->
-      <div v-if="isLoading" class="loading-state">
-        <div class="spinner"></div>
-        <p>{{ t('contacts.loadingList') }}</p>
-      </div>
+      <ELoadingState
+        v-if="isLoading"
+        variant="table"
+        :rows="8"
+        :message="t('contacts.loadingList')"
+      />
 
       <!-- Error State -->
       <div v-else-if="error" class="error-state">
@@ -85,38 +91,32 @@
       </div>
 
       <!-- Empty State -->
-      <div v-else-if="contacts.length === 0" class="empty-state">
-        <div class="empty-illustration">
-          <svg width="120" height="120" viewBox="0 0 120 120" fill="none">
-            <circle cx="60" cy="45" r="20" stroke="#d1d5db" stroke-width="2" stroke-dasharray="4 4"/>
-            <path d="M35 90c0-13.807 11.193-25 25-25s25 11.193 25 25" stroke="#d1d5db" stroke-width="2" stroke-dasharray="4 4"/>
-            <circle cx="90" cy="85" r="20" fill="#10b981" fill-opacity="0.15"/>
-            <path d="M90 75V95M80 85H100" stroke="#10b981" stroke-width="3" stroke-linecap="round"/>
-          </svg>
-        </div>
-        <h2>{{ t('contacts.emptyTitle') }}</h2>
-        <p>{{ t('contacts.emptyText') }}</p>
-        <button v-if="canCreateContact" @click="openCreateModal" class="btn-primary btn-large">
-          <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-            <path d="M10 4V16M4 10H16" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
-          </svg>
-          {{ t('contacts.emptyCta') }}
-        </button>
-      </div>
+      <EEmptyState
+        v-else-if="contacts.length === 0"
+        variant="create"
+        :title="t('contacts.emptyTitle')"
+        :description="t('contacts.emptyText')"
+      >
+        <template v-if="canCreateContact" #actions>
+          <EButton size="large" @click="openCreateModal">
+            {{ t('contacts.emptyCta') }}
+          </EButton>
+        </template>
+      </EEmptyState>
 
       <!-- No Results State -->
-      <div v-else-if="filteredContacts.length === 0" class="empty-state">
-        <div class="empty-illustration">
-          <svg width="100" height="100" viewBox="0 0 100 100" fill="none">
-            <circle cx="45" cy="45" r="25" stroke="#d1d5db" stroke-width="3"/>
-            <line x1="63" y1="63" x2="80" y2="80" stroke="#d1d5db" stroke-width="3" stroke-linecap="round"/>
-            <line x1="35" y1="45" x2="55" y2="45" stroke="#e5e7eb" stroke-width="3" stroke-linecap="round"/>
-          </svg>
-        </div>
-        <h2>{{ t('contacts.noResultsTitle') }}</h2>
-        <p>{{ t('contacts.noResultsText') }}</p>
-        <button @click="resetFilters" class="btn-secondary">{{ t('contacts.resetFilters') }}</button>
-      </div>
+      <EEmptyState
+        v-else-if="filteredContacts.length === 0"
+        variant="search"
+        :title="t('contacts.noResultsTitle')"
+        :description="t('contacts.noResultsText')"
+      >
+        <template #actions>
+          <EButton variant="secondary" @click="resetFilters">
+            {{ t('contacts.resetFilters') }}
+          </EButton>
+        </template>
+      </EEmptyState>
 
       <!-- Contacts Table -->
       <div v-else class="contacts-table-wrapper">
@@ -263,8 +263,11 @@ import {
   type Address,
 } from '@/api/addresses'
 import { useToast } from '@/composables/useToast'
-import SearchFieldInput from '@/components/common/SearchFieldInput.vue'
 import PageShell from '@/components/layout/PageShell.vue'
+import EFilterRow from '@/components/layout/EFilterRow.vue'
+import EEmptyState from '@/components/layout/EEmptyState.vue'
+import ELoadingState from '@/components/layout/ELoadingState.vue'
+import { ESearchField, ESelect, ECheckbox, EButton } from '@/components/form/base'
 import AddressModal from '@/components/AddressModal.vue'
 import ContactDetailView from '@/components/contacts/ContactDetailView.vue'
 import {
@@ -301,6 +304,22 @@ function addressTypeLabel(type: string): string {
   const path = `settings.addressForm.types.${type}` as const
   return te(path) ? t(path) : type
 }
+
+const typeSelectItems = computed(() => [
+  { title: t('contacts.allTypes'), value: '' },
+  ...visibleAddressTypeKeys.value.map((key) => ({
+    title: addressTypeLabel(String(key)),
+    value: key,
+  })),
+])
+
+const cantonSelectItems = computed(() => [
+  { title: t('contacts.allCantons'), value: '' },
+  ...Object.entries(SWISS_CANTONS).map(([code, name]) => ({
+    title: `${code} - ${name}`,
+    value: code,
+  })),
+])
 
 // State
 const contacts = ref<Address[]>([])

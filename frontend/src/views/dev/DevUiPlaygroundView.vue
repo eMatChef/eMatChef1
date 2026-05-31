@@ -1,179 +1,235 @@
 <template>
-  <div class="sandbox-view">
-    <v-container class="sandbox-view__container">
-      <v-alert type="warning" variant="tonal" density="comfortable" class="mb-6">
-        {{ t('devSandbox.devOnlyHint') }}
-      </v-alert>
+  <PageShell class="sandbox-view">
+    <template #title>{{ t('devSandbox.title') }}</template>
+    <template #subtitle>{{ t('devSandbox.lead') }}</template>
+    <template #actions>
+      <EButton variant="secondary" :to="dashboardLink">
+        {{ t('devSandbox.backToApp') }}
+      </EButton>
+    </template>
 
-      <header class="sandbox-view__header">
-        <div>
-          <h1 class="sandbox-view__title">{{ t('devSandbox.title') }}</h1>
-          <p class="sandbox-view__lead">{{ t('devSandbox.lead') }}</p>
+    <v-alert type="warning" variant="tonal" density="comfortable" class="mb-6">
+      {{ t('devSandbox.devOnlyHint') }}
+    </v-alert>
+
+    <!-- Breakpoints (Dev-Hilfe, kein UI-Pattern) -->
+    <v-card class="mb-6" variant="outlined">
+      <v-card-title>{{ t('devSandbox.sections.breakpoints') }}</v-card-title>
+      <v-card-text>
+        <v-table density="compact">
+          <tbody>
+            <tr v-for="row in breakpointRows" :key="row.key">
+              <td class="font-weight-medium">{{ row.key }}</td>
+              <td>
+                <v-chip size="small" :color="row.active ? 'primary' : undefined" variant="tonal">
+                  {{ row.active ? t('devSandbox.yes') : t('devSandbox.no') }}
+                </v-chip>
+              </td>
+            </tr>
+            <tr>
+              <td class="font-weight-medium">{{ t('devSandbox.windowSize') }}</td>
+              <td>{{ windowWidth }} × {{ windowHeight }} px</td>
+            </tr>
+            <tr v-for="row in safeAreaRows" :key="row.key">
+              <td class="font-weight-medium">{{ row.key }}</td>
+              <td>{{ row.value }}</td>
+            </tr>
+          </tbody>
+        </v-table>
+      </v-card-text>
+    </v-card>
+
+    <!-- Filter-Zeile (wie Kontakte) -->
+    <v-card class="mb-6" variant="outlined">
+      <v-card-title>{{ t('devSandbox.sections.filterRow') }}</v-card-title>
+      <v-card-subtitle>{{ t('devSandbox.filterRowNote') }}</v-card-subtitle>
+      <v-card-text>
+        <EFilterRow>
+          <v-col class="e-filter-row__search">
+            <ESearchField
+              v-model="filterSampleSearch"
+              :label="t('devSandbox.samples.searchField')"
+            />
+          </v-col>
+          <v-col cols="auto" class="e-filter-row__select">
+            <ESelect
+              v-model="filterSampleSelect"
+              :items="sampleSelectItems"
+              :label="t('devSandbox.samples.select')"
+              hide-details
+            />
+          </v-col>
+          <v-col cols="auto" class="e-filter-row__actions d-flex align-center">
+            <ECheckbox
+              v-model="filterSampleCheckbox"
+              class="e-filter-row__checkbox"
+              density="compact"
+              :label="t('devSandbox.samples.checkbox')"
+              hide-details
+            />
+          </v-col>
+        </EFilterRow>
+      </v-card-text>
+    </v-card>
+
+    <!-- E* Formular -->
+    <v-card class="mb-6" variant="outlined">
+      <v-card-title>{{ t('devSandbox.sections.eComponents') }}</v-card-title>
+      <v-card-subtitle>{{ t('devSandbox.eComponentsNote') }}</v-card-subtitle>
+      <v-card-text>
+        <v-row dense>
+          <v-col cols="12" md="6">
+            <ETextField
+              v-model="sampleText"
+              :label="t('devSandbox.samples.textField')"
+            />
+          </v-col>
+          <v-col cols="12" md="6">
+            <ESelect
+              v-model="sampleSelect"
+              :items="sampleSelectItems"
+              :label="t('devSandbox.samples.select')"
+            />
+          </v-col>
+          <v-col cols="12">
+            <ETextarea
+              v-model="sampleTextarea"
+              :label="t('devSandbox.samples.textarea')"
+              rows="2"
+            />
+          </v-col>
+          <v-col cols="12" md="6">
+            <ECheckbox v-model="sampleCheckbox" :label="t('devSandbox.samples.checkbox')" />
+          </v-col>
+          <v-col cols="12" md="6">
+            <ESwitch v-model="sampleSwitch" :label="t('devSandbox.samples.switch')" />
+          </v-col>
+        </v-row>
+
+        <p class="text-caption text-medium-emphasis mt-4 mb-2">{{ t('devSandbox.eButtonVariants') }}</p>
+        <div class="d-flex flex-wrap ga-3 mb-4">
+          <EButton>{{ t('devSandbox.samples.primary') }}</EButton>
+          <EButton variant="secondary">{{ t('devSandbox.samples.outlined') }}</EButton>
+          <EButton variant="text">{{ t('devSandbox.samples.text') }}</EButton>
+          <EButton variant="danger">{{ t('devSandbox.samples.error') }}</EButton>
         </div>
-        <v-btn variant="outlined" :to="dashboardLink">
-          {{ t('devSandbox.backToApp') }}
-        </v-btn>
-      </header>
 
-      <!-- Breakpoint -->
-      <v-card class="mb-6" variant="outlined">
-        <v-card-title>{{ t('devSandbox.sections.breakpoints') }}</v-card-title>
-        <v-card-text>
-          <v-table density="compact">
-            <tbody>
-              <tr v-for="row in breakpointRows" :key="row.key">
-                <td class="font-weight-medium">{{ row.key }}</td>
-                <td>
-                  <v-chip size="small" :color="row.active ? 'primary' : undefined" variant="tonal">
-                    {{ row.active ? t('devSandbox.yes') : t('devSandbox.no') }}
-                  </v-chip>
-                </td>
-              </tr>
-              <tr>
-                <td class="font-weight-medium">{{ t('devSandbox.windowSize') }}</td>
-                <td>{{ windowWidth }} × {{ windowHeight }} px</td>
-              </tr>
-              <tr v-for="row in safeAreaRows" :key="row.key">
-                <td class="font-weight-medium">{{ row.key }}</td>
-                <td>{{ row.value }}</td>
-              </tr>
-            </tbody>
-          </v-table>
-        </v-card-text>
-      </v-card>
+        <ECard variant="outlined" class="pa-4">
+          <p class="text-body-2 mb-0">{{ t('devSandbox.eCardSample') }}</p>
+        </ECard>
+      </v-card-text>
+    </v-card>
 
-      <!-- Buttons -->
-      <v-card class="mb-6" variant="outlined">
-        <v-card-title>{{ t('devSandbox.sections.buttons') }}</v-card-title>
-        <v-card-text class="d-flex flex-wrap ga-3">
-          <v-btn color="primary">{{ t('devSandbox.samples.primary') }}</v-btn>
-          <v-btn variant="outlined">{{ t('devSandbox.samples.outlined') }}</v-btn>
-          <v-btn variant="text">{{ t('devSandbox.samples.text') }}</v-btn>
-          <v-btn color="error" variant="tonal">{{ t('devSandbox.samples.error') }}</v-btn>
-          <v-btn color="primary" prepend-icon="mdi-plus">{{ t('devSandbox.samples.withIcon') }}</v-btn>
-        </v-card-text>
-      </v-card>
+    <!-- Dialog, Confirm, Prompt -->
+    <v-card class="mb-6" variant="outlined">
+      <v-card-title>{{ t('devSandbox.sections.dialog') }}</v-card-title>
+      <v-card-subtitle>{{ t('devSandbox.dialogNote') }}</v-card-subtitle>
+      <v-card-text class="d-flex flex-wrap ga-3">
+        <EButton @click="dialogOpen = true">
+          {{ t('devSandbox.openDialog') }}
+        </EButton>
+        <EButton variant="secondary" @click="demoConfirm('warning')">
+          {{ t('devSandbox.confirmTriggers.warning') }}
+        </EButton>
+        <EButton variant="danger" @click="demoConfirm('danger')">
+          {{ t('devSandbox.confirmTriggers.danger') }}
+        </EButton>
+        <EButton variant="text" @click="demoPrompt">
+          {{ t('devSandbox.promptTrigger') }}
+        </EButton>
+      </v-card-text>
+    </v-card>
 
-      <!-- Form fields (raw V*) -->
-      <v-card class="mb-6" variant="outlined">
-        <v-card-title>{{ t('devSandbox.sections.fields') }}</v-card-title>
-        <v-card-subtitle>{{ t('devSandbox.rawVuetifyNote') }}</v-card-subtitle>
-        <v-card-text>
-          <v-row dense>
-            <v-col cols="12" md="6">
-              <v-text-field
-                v-model="sampleText"
-                :label="t('devSandbox.samples.textField')"
-                variant="outlined"
-                density="comfortable"
-              />
-            </v-col>
-            <v-col cols="12" md="6">
-              <v-select
-                v-model="sampleSelect"
-                :items="sampleSelectItems"
-                :label="t('devSandbox.samples.select')"
-                variant="outlined"
-                density="comfortable"
-              />
-            </v-col>
-            <v-col cols="12" md="6">
-              <v-checkbox v-model="sampleCheckbox" :label="t('devSandbox.samples.checkbox')" />
-            </v-col>
-            <v-col cols="12" md="6">
-              <v-switch v-model="sampleSwitch" :label="t('devSandbox.samples.switch')" color="primary" />
-            </v-col>
-          </v-row>
-        </v-card-text>
-      </v-card>
+    <!-- Loading states -->
+    <v-card class="mb-6" variant="outlined">
+      <v-card-title>{{ t('devSandbox.sections.loadingStates') }}</v-card-title>
+      <v-card-subtitle>{{ t('devSandbox.loadingStatesNote') }}</v-card-subtitle>
+      <v-card-text>
+        <p class="text-caption text-medium-emphasis mb-2">{{ t('devSandbox.loadingSamples.page') }}</p>
+        <ELoadingState
+          variant="page"
+          compact
+          :message="t('devSandbox.loadingSamples.pageMessage')"
+          class="mb-6"
+        />
 
-      <!-- Dialog (E*) -->
-      <v-card class="mb-6" variant="outlined">
-        <v-card-title>{{ t('devSandbox.sections.dialog') }}</v-card-title>
-        <v-card-subtitle>{{ t('devSandbox.eDialogNote') }}</v-card-subtitle>
-        <v-card-text>
-          <EButton @click="dialogOpen = true">
-            {{ t('devSandbox.openDialog') }}
-          </EButton>
-        </v-card-text>
-      </v-card>
+        <p class="text-caption text-medium-emphasis mb-2">{{ t('devSandbox.loadingSamples.table') }}</p>
+        <ELoadingState variant="table" :rows="4" class="mb-6" />
 
-      <!-- Layout shell (minimal, ohne AppLayout) -->
-      <v-card class="mb-6" variant="outlined">
-        <v-card-title>{{ t('devSandbox.sections.layout') }}</v-card-title>
-        <v-card-subtitle>{{ t('devSandbox.layoutHint') }}</v-card-subtitle>
-        <v-card-text>
-          <div class="sandbox-layout-demo">
-            <v-navigation-drawer
-              v-model="demoDrawer"
-              class="sandbox-layout-demo__drawer"
-              color="#26353b"
-              permanent
-              rail
-              width="200"
-              rail-width="56"
+        <p class="text-caption text-medium-emphasis mb-2">{{ t('devSandbox.loadingSamples.list') }}</p>
+        <ELoadingState variant="list" :rows="3" class="mb-4" />
+
+        <p class="text-caption text-medium-emphasis mb-2">{{ t('devSandbox.loadingSamples.inline') }}</p>
+        <ELoadingState variant="inline" :message="t('devSandbox.loadingSamples.inlineMessage')" />
+      </v-card-text>
+    </v-card>
+
+    <!-- Empty states -->
+    <v-card class="mb-6" variant="outlined">
+      <v-card-title>{{ t('devSandbox.sections.emptyStates') }}</v-card-title>
+      <v-card-subtitle>{{ t('devSandbox.emptyStatesNote') }}</v-card-subtitle>
+      <v-card-text>
+        <v-row dense>
+          <v-col cols="12" md="6">
+            <EEmptyState
+              variant="create"
+              :title="t('devSandbox.emptySamples.createTitle')"
+              :description="t('devSandbox.emptySamples.createText')"
             >
-              <div class="sandbox-layout-demo__drawer-label">Nav</div>
-            </v-navigation-drawer>
-            <v-app-bar flat height="48" class="sandbox-layout-demo__bar">
-              <v-app-bar-title>{{ t('devSandbox.layoutBarTitle') }}</v-app-bar-title>
-            </v-app-bar>
-            <v-main class="sandbox-layout-demo__main">
-              <p class="text-body-2 mb-0">{{ t('devSandbox.layoutMainText') }}</p>
-            </v-main>
-          </div>
-        </v-card-text>
-      </v-card>
+              <template #actions>
+                <EButton>{{ t('devSandbox.emptySamples.createAction') }}</EButton>
+              </template>
+            </EEmptyState>
+          </v-col>
+          <v-col cols="12" md="6">
+            <EEmptyState
+              variant="search"
+              :title="t('devSandbox.emptySamples.searchTitle')"
+              :description="t('devSandbox.emptySamples.searchText')"
+            >
+              <template #actions>
+                <EButton variant="secondary">{{ t('devSandbox.emptySamples.searchAction') }}</EButton>
+              </template>
+            </EEmptyState>
+          </v-col>
+        </v-row>
+      </v-card-text>
+    </v-card>
 
-      <!-- E* (produktive Wrapper) -->
-      <v-card variant="outlined">
-        <v-card-title>{{ t('devSandbox.sections.eComponents') }}</v-card-title>
-        <v-card-subtitle>{{ t('devSandbox.eComponentsNote') }}</v-card-subtitle>
-        <v-card-text>
-          <v-row dense>
-            <v-col cols="12" md="6">
-              <ETextField
-                v-model="eSampleText"
-                :label="t('devSandbox.samples.textField')"
-                :placeholder="t('devSandbox.samples.textField')"
-              />
-            </v-col>
-            <v-col cols="12" md="6">
-              <ESelect
-                v-model="eSampleSelect"
-                :items="sampleSelectItems"
-                :label="t('devSandbox.samples.select')"
-              />
-            </v-col>
-            <v-col cols="12">
-              <ETextarea
-                v-model="eSampleTextarea"
-                :label="t('devSandbox.samples.textarea')"
-                rows="2"
-              />
-            </v-col>
-            <v-col cols="12" md="6">
-              <ECheckbox v-model="eSampleCheckbox" :label="t('devSandbox.samples.checkbox')" />
-            </v-col>
-            <v-col cols="12" md="6">
-              <ESwitch v-model="eSampleSwitch" :label="t('devSandbox.samples.switch')" />
-            </v-col>
-          </v-row>
+    <!-- Material v-data-table (Experiment) -->
+    <v-card class="mb-6" variant="outlined">
+      <v-card-title>{{ t('devSandbox.sections.materialDataTable') }}</v-card-title>
+      <v-card-subtitle>{{ t('devSandbox.materialTableNote') }}</v-card-subtitle>
+      <v-card-text>
+        <MaterialDataTableSandboxDemo />
+      </v-card-text>
+    </v-card>
 
-          <p class="text-caption text-medium-emphasis mt-4 mb-2">{{ t('devSandbox.eButtonVariants') }}</p>
-          <div class="d-flex flex-wrap ga-3 mb-4">
-            <EButton>{{ t('devSandbox.samples.primary') }}</EButton>
-            <EButton variant="secondary">{{ t('devSandbox.samples.outlined') }}</EButton>
-            <EButton variant="text">{{ t('devSandbox.samples.text') }}</EButton>
-            <EButton variant="danger">{{ t('devSandbox.samples.error') }}</EButton>
-          </div>
-
-          <ECard variant="outlined" class="pa-4">
-            <p class="text-body-2 mb-0">{{ t('devSandbox.eCardSample') }}</p>
-          </ECard>
-        </v-card-text>
-      </v-card>
-    </v-container>
+    <!-- Toasts -->
+    <v-card variant="outlined">
+      <v-card-title>{{ t('devSandbox.sections.toasts') }}</v-card-title>
+      <v-card-subtitle>{{ t('devSandbox.toastsNote') }}</v-card-subtitle>
+      <v-card-text class="d-flex flex-wrap ga-3">
+        <EButton @click="showDemoToast('success')">
+          {{ t('devSandbox.toastTriggers.success') }}
+        </EButton>
+        <EButton variant="danger" @click="showDemoToast('error')">
+          {{ t('devSandbox.toastTriggers.error') }}
+        </EButton>
+        <EButton variant="secondary" @click="showDemoToast('warning')">
+          {{ t('devSandbox.toastTriggers.warning') }}
+        </EButton>
+        <EButton variant="text" @click="showDemoToast('info')">
+          {{ t('devSandbox.toastTriggers.info') }}
+        </EButton>
+        <EButton variant="text" @click="triggerToastStack">
+          {{ t('devSandbox.toastTriggers.stack') }}
+        </EButton>
+        <EButton variant="text" @click="toast.clearAll()">
+          {{ t('devSandbox.toastTriggers.clear') }}
+        </EButton>
+      </v-card-text>
+    </v-card>
 
     <EDialog v-model="dialogOpen" :title="t('devSandbox.dialogTitle')" max-width="480">
       {{ t('devSandbox.dialogBody') }}
@@ -182,7 +238,7 @@
         <EButton variant="text" @click="dialogOpen = false">{{ t('devSandbox.dialogClose') }}</EButton>
       </template>
     </EDialog>
-  </div>
+  </PageShell>
 </template>
 
 <script setup lang="ts">
@@ -191,12 +247,21 @@ import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
 import { useDisplay } from 'vuetify'
 import { useAuthStore } from '@/stores/auth'
+import { useToast } from '@/composables/useToast'
+import { useConfirm } from '@/composables/useConfirm'
+import { usePrompt } from '@/composables/usePrompt'
+import PageShell from '@/components/layout/PageShell.vue'
+import EFilterRow from '@/components/layout/EFilterRow.vue'
+import EEmptyState from '@/components/layout/EEmptyState.vue'
+import ELoadingState from '@/components/layout/ELoadingState.vue'
+import MaterialDataTableSandboxDemo from '@/views/dev/MaterialDataTableSandboxDemo.vue'
 import {
   EButton,
   ECard,
   ECheckbox,
   EDialog,
   ESelect,
+  ESearchField,
   ESwitch,
   ETextField,
   ETextarea,
@@ -206,18 +271,19 @@ const route = useRoute()
 const { t } = useI18n()
 const authStore = useAuthStore()
 const display = useDisplay()
+const toast = useToast()
+const confirm = useConfirm()
+const prompt = usePrompt()
 
 const sampleText = ref('')
 const sampleSelect = ref<string | null>(null)
+const sampleTextarea = ref('')
 const sampleCheckbox = ref(false)
 const sampleSwitch = ref(true)
-const eSampleText = ref('')
-const eSampleSelect = ref<string | null>(null)
-const eSampleTextarea = ref('')
-const eSampleCheckbox = ref(false)
-const eSampleSwitch = ref(true)
+const filterSampleSearch = ref('')
+const filterSampleSelect = ref<string | null>(null)
+const filterSampleCheckbox = ref(false)
 const dialogOpen = ref(false)
-const demoDrawer = ref(true)
 const windowWidth = ref(typeof window !== 'undefined' ? window.innerWidth : 0)
 const windowHeight = ref(typeof window !== 'undefined' ? window.innerHeight : 0)
 
@@ -271,6 +337,63 @@ function updateWindowSize() {
   windowHeight.value = window.innerHeight
 }
 
+const demoToastDuration = 8000
+
+function showDemoToast(type: 'success' | 'error' | 'warning' | 'info') {
+  const message = t(`devSandbox.toastSamples.${type}`)
+  switch (type) {
+    case 'success':
+      toast.success(message, demoToastDuration)
+      break
+    case 'error':
+      toast.error(message, demoToastDuration)
+      break
+    case 'warning':
+      toast.warning(message, demoToastDuration)
+      break
+    default:
+      toast.info(message, demoToastDuration)
+  }
+}
+
+function triggerToastStack() {
+  toast.success(t('devSandbox.toastSamples.success'), demoToastDuration)
+  toast.info(t('devSandbox.toastSamples.info'), demoToastDuration)
+  toast.warning(t('devSandbox.toastSamples.warning'), demoToastDuration)
+}
+
+async function demoConfirm(variant: 'warning' | 'danger') {
+  const samples = variant === 'danger'
+    ? {
+        title: t('devSandbox.confirmSamples.dangerTitle'),
+        message: t('devSandbox.confirmSamples.dangerMessage'),
+      }
+    : {
+        title: t('devSandbox.confirmSamples.warningTitle'),
+        message: t('devSandbox.confirmSamples.warningMessage'),
+      }
+  const ok = await confirm.confirm({ ...samples, variant })
+  if (ok) {
+    toast.success(t('devSandbox.confirmSamples.confirmed'), demoToastDuration)
+  } else {
+    toast.info(t('devSandbox.confirmSamples.cancelled'), demoToastDuration)
+  }
+}
+
+async function demoPrompt() {
+  const value = await prompt.prompt({
+    title: t('devSandbox.promptSamples.title'),
+    message: t('devSandbox.promptSamples.message'),
+    placeholder: t('devSandbox.promptSamples.placeholder'),
+    required: true,
+  })
+  if (value) {
+    toast.success(t('devSandbox.promptSamples.entered', { value }), demoToastDuration)
+  } else {
+    toast.info(t('devSandbox.confirmSamples.cancelled'), demoToastDuration)
+  }
+}
+
 onMounted(() => {
   window.addEventListener('resize', updateWindowSize)
   updateWindowSize()
@@ -285,72 +408,5 @@ onUnmounted(() => {
 <style scoped>
 .sandbox-view {
   padding-bottom: 48px;
-}
-
-.sandbox-view__container {
-  max-width: 960px;
-}
-
-.sandbox-view__header {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 16px;
-  margin-bottom: 24px;
-}
-
-.sandbox-view__title {
-  margin: 0;
-  font-size: 1.75rem;
-  font-weight: 700;
-  color: #1a1a2e;
-}
-
-.sandbox-view__lead {
-  margin: 8px 0 0;
-  color: #6b7280;
-  max-width: 42rem;
-}
-
-.sandbox-layout-demo {
-  position: relative;
-  height: 220px;
-  border: 1px dashed #cbd5e1;
-  border-radius: 12px;
-  overflow: hidden;
-  background: #fff;
-}
-
-.sandbox-layout-demo__drawer {
-  position: absolute !important;
-  height: 100% !important;
-}
-
-.sandbox-layout-demo__drawer-label {
-  color: rgba(255, 255, 255, 0.8);
-  font-size: 0.75rem;
-  font-weight: 600;
-  text-align: center;
-  padding-top: 12px;
-}
-
-.sandbox-layout-demo__bar {
-  position: absolute !important;
-  top: 0;
-  right: 0;
-  left: 56px;
-  width: auto !important;
-}
-
-.sandbox-layout-demo__main {
-  position: absolute;
-  top: 48px;
-  right: 0;
-  bottom: 0;
-  left: 56px;
-  padding: 16px;
-  overflow: auto;
-  background: #f8fafc;
 }
 </style>

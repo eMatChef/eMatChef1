@@ -1,0 +1,67 @@
+.e-otp-field__frame {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.e-otp-input.v-otp-input {
+  justify-content: center;
+  padding: 0;
+}
+
+.e-otp-input .v-otp-input__content {
+  gap: 8px;
+  max-width: 100%;
+}
+
+/* Gleicher Rahmen wie ETextField: grau in Ruhe, grün bei Fokus */
+.e-otp-field .e-otp-input .v-field {
+  background: #fff !important;
+  border-radius: 8px;
+  min-height: 48px;
+  min-width: 44px;
+  box-shadow: inset 0 0 0 1px var(--color-border, #d1d5db) !important;
+  transition:
+    box-shadow 0.15s ease,
+    color 0.15s ease;
+}
+
+.e-otp-field .e-otp-input .v-field__outline {
+  display: none !important;
+}
+
+.e-otp-field .e-otp-input .v-field__overlay {
+  opacity: 0 !important;
+}
+
+.e-otp-field .e-otp-input .v-field.v-field--focused {
+  box-shadow:
+    inset 0 0 0 1px var(--color-primary-light, #10b981),
+    0 0 0 3px var(--color-primary-ring, rgba(16, 185, 129, 0.1)) !important;
+}
+
+.e-otp-field.is-error .e-otp-input .v-field {
+  box-shadow:
+    inset 0 0 0 1px var(--color-error, #dc2626),
+    0 0 0 1px rgba(220, 38, 38, 0.12) !important;
+}
+
+.e-otp-input .v-otp-input__field {
+  font-size: 18px;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: var(--color-text-muted, #6b7280);
+  caret-color: var(--color-primary, #059669);
+}
+
+.e-otp-field .e-otp-input .v-field.v-field--focused .v-otp-input__field {
+  color: var(--color-text, #111827);
+}
+
+.e-otp-field:focus-within > .autosave-control > .autosave-field-frame > .autosave-label {
+  color: var(--color-primary, #059669) !important;
+}
+
+.e-otp-field.is-error > .autosave-control > .autosave-field-frame > .autosave-label {
+  color: var(--color-error, #dc2626) !important;
+}

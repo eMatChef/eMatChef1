@@ -132,7 +132,7 @@ Keine Funktion nur per `:hover` — `(hover: hover) and (pointer: fine)` beibeha
 | `.filter-bar` | `v-row` mit `v-text-field` / `v-select`, `density="compact"` |
 | `.btn`, `.btn-primary` | `v-btn` mit `color="primary"` |
 | Modals (custom) | `v-dialog` + `v-card` |
-| Einfache Tabellen | `v-data-table` **oder** `v-list` + `v-card` auf Mobile |
+| Einfache Tabellen | Siehe [table-patterns.md](./table-patterns.md): HTML-`<table>` für Haupt-Listen; `v-data-table` nur für flache Admin-Listen; Mobile Karten via `EResponsiveDataList` (058) |
 | Loading / Empty | `v-skeleton-loader`, `v-alert`, `v-empty-state` (falls genutzt) |
 
 **`PageShell`:** `components/layout/PageShell.vue` — `v-container`, Slots `#title`, `#subtitle`, `#actions`, `#filters`, Default.
@@ -245,6 +245,7 @@ Solange nicht alle Views migriert sind:
 | -------- | --- |
 | Neue `E*`-Komponente | [wiederverwendbare-komponenten.md](../wiederverwendbare-komponenten.md) |
 | Regel / Breakpoint / Theme | diese Datei |
+| Tabellen (v-data-table vs. HTML vs. Mobile) | [table-patterns.md](./table-patterns.md) |
 | Fortschritt Umbau | [vuetify-migration-plan.md](./vuetify-migration-plan.md) |
 | Nur Geräte/Lager-UI | [devices/](../devices/) |
 
