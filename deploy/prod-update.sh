@@ -88,20 +88,56 @@ fix_backend_var_permissions() {
     sh -c "chown -R ${HOST_UID}:${HOST_GID} /var && chmod -R u+rwX /var"
 }
 
+# Entrypoint (docker-entrypoint.sh) führt Migrationen aus — nicht parallel per exec (Race/Container-Exit).
+wait_for_backend_ready() {
+  echo "==> Warte auf Backend (Entrypoint, Migrationen, PHP-Server) …"
+  local i code
+  for i in $(seq 1 120); do
+    if docker compose -p "$PROJECT" ps --status running backend 2>/dev/null | grep -q backend; then
+      code=$(curl -sS -o /dev/null -w '%{http_code}' "http://127.0.0.1:8081/" 2>/dev/null || echo "000")
+      if [[ "$code" != "000" ]]; then
+        echo "==> Backend antwortet (HTTP ${code})."
+        return 0
+      fi
+    fi
+    sleep 2
+  done
+  echo "Fehler: Backend antwortet nicht auf http://127.0.0.1:8081 nach 240s." >&2
+  docker compose -p "$PROJECT" logs backend --tail 40 >&2 || true
+  return 1
+}
+
+backend_exec() {
+  if docker compose -p "$PROJECT" ps --status running backend 2>/dev/null | grep -q backend; then
+    docker compose -p "$PROJECT" exec -T backend "$@"
+  else
+    docker compose -p "$PROJECT" run --rm --no-deps backend "$@"
+  fi
+}
+
 reset_symfony_prod_cache() {
   echo "==> Symfony prod cache leeren …"
-  if docker compose -p "$PROJECT" exec -T backend rm -rf var/cache/prod 2>/dev/null; then
+  if backend_exec rm -rf var/cache/prod 2>/dev/null; then
     :
   else
     echo "==> var/cache/prod: rm im Container als root …"
-    docker compose -p "$PROJECT" exec -T -u 0 backend sh -ec "
-      rm -rf var/cache/prod
-      mkdir -p var/cache var/log var/app
-      chown -R ${HOST_UID}:${HOST_GID} var
-      chmod -R u+rwX var
-    "
+    if docker compose -p "$PROJECT" ps --status running backend 2>/dev/null | grep -q backend; then
+      docker compose -p "$PROJECT" exec -T -u 0 backend sh -ec "
+        rm -rf var/cache/prod
+        mkdir -p var/cache var/log var/app
+        chown -R ${HOST_UID}:${HOST_GID} var
+        chmod -R u+rwX var
+      "
+    else
+      docker compose -p "$PROJECT" run --rm --no-deps -u 0 backend sh -ec "
+        rm -rf var/cache/prod
+        mkdir -p var/cache var/log var/app
+        chown -R ${HOST_UID}:${HOST_GID} var
+        chmod -R u+rwX var
+      "
+    fi
   fi
-  docker compose -p "$PROJECT" exec -T backend php bin/console cache:warmup --env=prod
+  backend_exec php bin/console cache:warmup --env=prod
 }
 
 fix_backend_var_permissions
@@ -117,11 +153,16 @@ fi
 
 fix_backend_var_permissions
 
-# Nach git reset: Migrationen + DI-Container neu bauen
-if docker compose -p "$PROJECT" ps --status running backend 2>/dev/null | grep -q backend; then
-  echo "==> Doctrine-Migrationen …"
-  docker compose -p "$PROJECT" exec -T backend php bin/console doctrine:migrations:migrate --no-interaction --env=prod
+# Entrypoint migriert beim Start; danach Cache warmup (nicht parallel zum Entrypoint).
+if wait_for_backend_ready; then
   reset_symfony_prod_cache
+  if ! docker compose -p "$PROJECT" ps --status running backend 2>/dev/null | grep -q backend; then
+    echo "==> Backend nach Cache-Warmup neu starten …"
+    docker compose -p "$PROJECT" up -d backend
+    wait_for_backend_ready
+  fi
+else
+  exit 1
 fi
 
 echo ""
