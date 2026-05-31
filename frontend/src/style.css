@@ -4,6 +4,7 @@
  * Reihenfolge: Marken-Tokens → UI-Module → Tailwind → globale Resets.
  */
 @import './styles/ui/brand-tokens.css';
+@import './styles/ui/safe-area.css';
 @import './styles/activity-status.css';
 @import './styles/ui/public-brand.css';
 @import './styles/ui/public-landing-theme.css';
@@ -36,13 +37,18 @@
   box-sizing: border-box;
 }
 
+html {
+  height: 100%;
+}
+
 body {
   margin: 0;
+  height: 100%;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
 #app {
-  min-height: 100vh;
+  height: 100%;
 }

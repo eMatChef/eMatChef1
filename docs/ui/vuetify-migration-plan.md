@@ -2,7 +2,7 @@
 
 Abarbeitbare Checkliste für die schrittweise Einführung von **Vuetify 3** und **`E*`-Komponenten**. Regeln: [vuetify-standards.md](./vuetify-standards.md).
 
-**Stand:** Mai 2026 · **Status:** Phase 0 umgesetzt — **Phase 1** als Nächstes (App-Shell).
+**Stand:** Mai 2026 · **Status:** Phase 2 abgeschlossen — **Phase 4** (Layout-Bausteine) als Nächstes. Phase 3 (AutoSave auf `E*`) **verschoben** — nach Fortschritt Phase 5.
 
 ---
 
@@ -28,10 +28,10 @@ Abarbeitbare Checkliste für die schrittweise Einführung von **Vuetify 3** und 
 | Phase | Thema | Schritte | Review-Stopp |
 | ----- | ----- | -------- | ------------- |
 | 0 | Fundament (Vuetify installieren, Theme) | 001–012 | nach 012 |
-| 1 | App-Shell (Layout, Nav, Mobile) | 013–028 | nach 028 |
+| 1 | App-Shell (Layout, Nav, Mobile, **Variante B** + Dev-Banner, **UI-Playground**) | 013–028, **017b–017g**, **028a–028b** | nach 028b |
 | 2 | `E*`-Formular-Basis | 029–042 | nach 042 |
-| 3 | AutoSave auf `E*` | 043–050 | nach 050 |
-| 4 | Layout-Bausteine (Dialog, Liste, PageShell) | 051–060 | nach 060 |
+| 3 | AutoSave auf `E*` | 043–050 | nach 050 — **verschoben** (siehe unten) |
+| 4 | Layout-Bausteine (Dialog, Liste, PageShell) | 051–060 | nach 060 — **aktuell** |
 | 5 | Einstieg (Login, Landing, Pending) | 061–068 | nach 068 |
 | 6 | Aktivitäten | 069–084 | nach 084 |
 | 7 | Material | 085–092 | nach 092 |
@@ -39,7 +39,7 @@ Abarbeitbare Checkliste für die schrittweise Einführung von **Vuetify 3** und 
 | 9 | Department-Settings | 099–108 | nach 108 |
 | 10 | Supplier + Buchhaltung + Werkstatt | 109–114 | nach 114 |
 | 11 | Admin / Org / Superadmin | 115–120 | nach 120 |
-| 12 | Aufräumen & Abschluss | 121–126 | nach 126 |
+| 12 | Aufräumen & Abschluss | 121–127 | nach 127 |
 
 **Ausnahme:** `devices.ematchef.ch` — nicht in diesem Plan ([devices/concept.md](../devices/concept.md)).
 
@@ -61,7 +61,7 @@ Abarbeitbare Checkliste für die schrittweise Einführung von **Vuetify 3** und 
 | 008 | Ordner `frontend/src/components/form/base/` + `index.ts`-Barrel anlegen | [x] 2026-05-31 |
 | 009 | MDI: `@mdi/font` + `icons: { defaultSet: 'mdi' }` — in Standards dokumentiert | [x] 2026-05-31 |
 | 010 | ESLint/TS: keine Warnungen durch Vuetify-Imports | [x] 2026-05-31 |
-| 011 | Kurztest 375px + 1280px auf erster Seite mit `v-app` (Phase 1 Schritt 013, nicht vorher) | [-] Phase 1 |
+| 011 | Kurztest 375px + 1280px auf erster Seite mit `v-app` (Phase 1 Schritt 013, nicht vorher) | [x] 2026-05-31 |
 | 012 | **Review-Stopp Phase 0:** Build grün, Theme light OK → Phase 1 freigeben | [x] 2026-05-31 |
 
 ### Entscheide Phase 0 (festgehalten)
@@ -79,64 +79,91 @@ Abarbeitbare Checkliste für die schrittweise Einführung von **Vuetify 3** und 
 
 **Ziel:** Eingeloggte App nutzt `v-app` / Drawer / App-Bar; Mobile-Navigation funktioniert.
 
+**Architektur-Ziel (Variante B):** genau **ein** `v-app` in `App.vue`; darunter zuerst der Dev-Banner (wenn aktiv), dann der restliche Inhalt im **verbleibenden** Viewport — kein `min-height: 100vh` zusätzlich zum Banner.
+
+```
+App.vue
+└── v-app (einzige Instanz, height: 100dvh)
+    ├── DevEnvironmentBanner     ← oben, nimmt natürliche Höhe ein
+    └── router-view              ← nutzt restliche Höhe (flex: 1; min-height: 0)
+          └── AppLayout (ohne v-app)
+                ├── v-navigation-drawer
+                ├── v-app-bar (TopHeader)
+                └── v-main
+```
+
+Die Schritte **013–017** waren ein Zwischenstand (`v-app` nur in `AppLayout`). **017b–017g** ziehen auf Variante B nach.
+
 | Nr | Schritt | Status |
 | -- | ------- | ------ |
-| 013 | `AppLayout.vue`: Root `v-app`, `v-main`, Platz für Drawer + Header | [ ] |
-| 014 | `SidebarNavigation.vue` → `v-navigation-drawer` (permanent desktop, temporary mobile) | [ ] |
-| 015 | `useDisplay()`: Hamburger in `TopHeader` / `v-app-bar` schaltet Drawer auf Mobile | [ ] |
-| 016 | `margin-left: 64px` in `.main-content` entfernen; Layout über Vuetify | [ ] |
-| 017 | `TopHeader.vue` → `v-app-bar` / `v-toolbar` (Titel, Suche, User-Menü) | [ ] |
-| 018 | `PageShell.vue` (neu): `v-container`, Slots title / actions / filters / default | [ ] |
-| 019 | Eine kleine eingeloggte View auf `PageShell` umstellen (Pilot: `NotificationsCenterView` oder Dashboard-Teil) | [ ] |
-| 020 | Safe-Area Utilities (`pb-safe`) in global oder Vuetify-Layout übernehmen | [ ] |
-| 021 | Sidebar-Farbe `#26353b` + Logo `EmcLogoMark` beibehalten (Custom am Drawer) | [ ] |
-| 022 | Supplier-Routen: gleiche Shell oder dokumentierte Abweichung | [ ] |
-| 023 | Regression: Navigation alle Hauptlinks, aktiver Zustand | [ ] |
-| 024 | Regression: Department-Wechsel im Header | [ ] |
-| 025 | Mobile: Drawer schliesst nach Navigation; kein doppeltes Scrollen | [ ] |
-| 026 | `keep-alive` in `AppLayout` weiter funktionsfähig | [ ] |
-| 027 | Screenshot/Doku: Shell vorher/nachher in PR-Beschreibung | [ ] |
-| 028 | **Review-Stopp Phase 1:** Shell auf Phone + Desktop freigegeben? | [ ] |
+| 013 | `AppLayout.vue`: Root `v-app`, `v-main`, Platz für Drawer + Header | [x] 2026-05-31 |
+| 014 | `SidebarNavigation.vue` → `v-navigation-drawer` (permanent desktop, temporary mobile) | [x] 2026-05-31 |
+| 015 | `useDisplay()`: Hamburger in `TopHeader` / `v-app-bar` schaltet Drawer auf Mobile | [x] 2026-05-31 |
+| 016 | `margin-left: 64px` in `.main-content` entfernen; Layout über Vuetify | [x] 2026-05-31 |
+| 017 | `TopHeader.vue` → `v-app-bar` / `v-toolbar` (Titel, Suche, User-Menü) | [x] 2026-05-31 |
+| 017b | **`App.vue`:** einziges `v-app` um `DevEnvironmentBanner` + `router-view` (+ globale Dialoge/Toasts innerhalb `v-app`) | [x] 2026-05-31 |
+| 017c | **`DevEnvironmentBanner`:** erstes Kind in `v-app`; `position: sticky` entfernen (Banner ist normaler Block oben) | [x] 2026-05-31 |
+| 017d | **`App.vue`:** Wrapper um `router-view` mit `flex: 1; min-height: 0; overflow: hidden` (oder äquivalent), damit der Inhalt **unter** dem Banner skaliert | [x] 2026-05-31 |
+| 017e | **`AppLayout.vue`:** inneres `v-app` entfernen; Shell nur noch Drawer + `v-app-bar` + `v-main`; `.app-layout` mit `height: 100%` statt `min-height: 100vh` | [x] 2026-05-31 |
+| 017f | **Routen ohne `AppLayout`** (Login, Landing, öffentlich): prüfen, dass sie im Root-`v-app` korrekt mit/ohne Banner laufen (kein zweites `v-app`) | [x] 2026-05-31 |
+| 017g | **Test Dev-Banner:** mit `VITE_SHOW_DEV_BANNER=1` / Test-Host — kein Doppel-Scroll; Drawer/App-Bar im sichtbaren Bereich unter dem Banner; 375px + 1280px | [x] 2026-05-31 |
+| 018 | `PageShell.vue` (neu): `v-container`, Slots title / actions / filters / default | [x] 2026-05-31 |
+| 019 | Eine kleine eingeloggte View auf `PageShell` umstellen (Pilot: `NotificationsCenterView` oder Dashboard-Teil) | [x] 2026-05-31 |
+| 020 | Safe-Area Utilities (`pb-safe`) in global oder Vuetify-Layout übernehmen | [x] 2026-05-31 |
+| 021 | Sidebar-Farbe `#26353b` + Logo `EmcLogoMark` beibehalten (Custom am Drawer) | [x] 2026-05-31 |
+| 022 | Supplier-Routen: gleiche Shell oder dokumentierte Abweichung | [x] 2026-05-31 |
+| 023 | Regression: Navigation alle Hauptlinks, aktiver Zustand | [x] 2026-05-31 |
+| 024 | Regression: Department-Wechsel im Header | [x] 2026-05-31 |
+| 025 | Mobile: Drawer schliesst nach Navigation; kein doppeltes Scrollen (inkl. mit Dev-Banner, siehe 017g) | [x] 2026-05-31 |
+| 026 | `keep-alive` in `AppLayout` weiter funktionsfähig | [x] 2026-05-31 |
+| 027 | Screenshot/Doku: Shell vorher/nachher in PR-Beschreibung | [x] 2026-05-31 |
+| 028 | **Review-Stopp Phase 1 (Shell):** Shell auf Phone + Desktop freigegeben? | [x] 2026-05-31 |
+| 028a | **Dev UI Playground** (vor Phase 2): `views/dev/DevUiPlaygroundView.vue`, Route **`/:departmentId/dev/ui-playground`** (Alias **`/:departmentId/sandbox`**) in `AppLayout`, Vuetify-Sandbox; Sidebar nur `isDevToolsEnvironment()` | [x] 2026-05-31 |
+| 028b | **Review-Stopp Phase 1 (gesamt):** Playground auf Dev-Host erreichbar; Theme/Shell sichtbar → **Phase 2 freigeben** | [x] 2026-05-31 |
+
+**Wartung Playground:** Ab Phase 2 bei jedem neuen `E*`-/Layout-Baustein einen Eintrag auf der Playground-Seite ergänzen (bis Löschung in Schritt 127).
 
 ---
 
 ## Phase 2 — `E*`-Formular-Basis
 
-**Ziel:** Standard-Inputs nur noch über `E*` in Views (Implementierung in `form/base/`).
+**Ziel:** Standard-Inputs nur noch über `E*` in Views (Implementierung in `form/base/`). Neue `E*`-Komponenten zusätzlich auf der **Dev UI Playground**-Seite (028a) zeigen.
 
 | Nr | Schritt | Status |
 | -- | ------- | ------ |
-| 029 | `ETextField.vue` (wrap `v-text-field`, outlined, density, Fehler-Slots) | [ ] |
-| 030 | `ESelect.vue` | [ ] |
-| 031 | `ECheckbox.vue` / `ESwitch.vue` | [ ] |
-| 032 | `ETextarea.vue` | [ ] |
-| 033 | `EButton.vue` (Varianten primary/secondary/text) | [ ] |
-| 034 | `EDialog.vue` + `ECard` (Modal-Grundgerüst) | [ ] |
-| 035 | Gemeinsame Props dokumentieren (label, disabled, rules) in `form/base/README.md` oder Standards | [ ] |
-| 036 | Eintrag `E*` in [wiederverwendbare-komponenten.md](../wiederverwendbare-komponenten.md) | [ ] |
-| 037 | Pilot: `LoginView` Formularfelder auf `E*` (ohne AutoSave) | [ ] |
-| 038 | Abgleich mit bestehendem `outlined-field.css` — was bleibt, was entfällt | [ ] |
-| 039 | Vitest/Snapshot optional für `ETextField` (Smoke) | [ ] |
-| 040 | Kein `v-text-field` in Views ausserhalb `form/base/` (grep-Check) | [ ] |
-| 041 | Touch: Input font-size ≥ 16px auf Mobile | [ ] |
-| 042 | **Review-Stopp Phase 2:** Look der Felder = eMatChef-Design? | [ ] |
+| 029 | `ETextField.vue` (wrap `v-text-field`, outlined, density, Fehler-Slots) + Eintrag auf Dev UI Playground | [x] 2026-05-31 |
+| 030 | `ESelect.vue` | [x] 2026-05-31 |
+| 031 | `ECheckbox.vue` / `ESwitch.vue` | [x] 2026-05-31 |
+| 032 | `ETextarea.vue` | [x] 2026-05-31 |
+| 033 | `EButton.vue` (Varianten primary/secondary/text) | [x] 2026-05-31 |
+| 034 | `EDialog.vue` + `ECard` (Modal-Grundgerüst) | [x] 2026-05-31 |
+| 035 | Gemeinsame Props dokumentieren (label, disabled, rules) in `form/base/README.md` oder Standards | [x] 2026-05-31 |
+| 036 | Eintrag `E*` in [wiederverwendbare-komponenten.md](../wiederverwendbare-komponenten.md) | [x] 2026-05-31 |
+| 037 | Pilot: `LoginView` Formularfelder auf `E*` (ohne AutoSave) | [x] 2026-05-31 |
+| 038 | Abgleich mit bestehendem `outlined-field.css` — was bleibt, was entfällt | [x] 2026-05-31 |
+| 039 | Vitest/Snapshot optional für `ETextField` (Smoke) | [-] optional, übersprungen (kein Vitest-Setup im Frontend) |
+| 040 | Kein `v-text-field` in Views ausserhalb `form/base/` (grep-Check) | [x] 2026-05-31 |
+| 041 | Touch: Input font-size ≥ 16px auf Mobile | [x] 2026-05-31 |
+| 042 | **Review-Stopp Phase 2:** Look der Felder = eMatChef-Design? | [x] 2026-05-31 |
 
 ---
 
-## Phase 3 — AutoSave auf `E*`
+## Phase 3 — AutoSave auf `E*` *(verschoben)*
 
 **Ziel:** `AutoSaveField` nutzt innen `ETextField`; Loader/Diskette bleiben.
 
+**Reihenfolge:** Phase 3 wird **nach Phase 5** (Einstieg) angegangen — wenn Login/Landing/Pending weit genug auf Vuetify/`E*` stehen. Bis dahin bleibt AutoSave auf nativen Inputs + bestehendem CSS (Material Detail unverändert).
+
 | Nr | Schritt | Status |
 | -- | ------- | ------ |
-| 043 | `AutoSaveFieldShell`: Text/Number/Date → `ETextField` | [ ] |
-| 044 | Select/Checkbox-Zweige auf `ESelect` / `ECheckbox` | [ ] |
-| 045 | `auto-save-field.css` an Vuetify-Feldanatomy anpassen (Balken unten, Diskette) | [ ] |
-| 046 | Regression: `MaterialDetailView` Stammdaten Auto-Save | [ ] |
-| 047 | Regression: Fehler + Retry + Blur-Revert | [ ] |
-| 048 | Kein direktes `VTextField` in `autoSave/*` | [ ] |
-| 049 | Doku AutoSave in wiederverwendbare-komponenten.md aktualisieren | [ ] |
-| 050 | **Review-Stopp Phase 3:** Auto-Save UX unverändert oder besser? | [ ] |
+| 043 | `AutoSaveFieldShell`: Text/Number/Date → `ETextField` | [ ] verschoben |
+| 044 | Select/Checkbox-Zweige auf `ESelect` / `ECheckbox` | [ ] verschoben |
+| 045 | `auto-save-field.css` an Vuetify-Feldanatomy anpassen (Balken unten, Diskette) | [ ] verschoben |
+| 046 | Regression: `MaterialDetailView` Stammdaten Auto-Save | [ ] verschoben |
+| 047 | Regression: Fehler + Retry + Blur-Revert | [ ] verschoben |
+| 048 | Kein direktes `VTextField` in `autoSave/*` | [ ] verschoben |
+| 049 | Doku AutoSave in wiederverwendbare-komponenten.md aktualisieren | [ ] verschoben |
+| 050 | **Review-Stopp Phase 3:** Auto-Save UX unverändert oder besser? | [ ] verschoben |
 
 ---
 
@@ -146,7 +173,7 @@ Abarbeitbare Checkliste für die schrittweise Einführung von **Vuetify 3** und 
 
 | Nr | Schritt | Status |
 | -- | ------- | ------ |
-| 051 | `PageShell` in 2 weiteren Views (z. B. `ContactsView`, `TasksGeneralView`) | [ ] |
+| 051 | `PageShell` in 2 weiteren Views (`ContactsView`, `TasksShellView`) | [x] 2026-05-31 |
 | 052 | Filter-Zeile: Pattern mit `v-row` / `v-col` + `ETextField` / `v-select` | [ ] |
 | 053 | `GlobalToastContainer` → Vuetify-Snackbar oder bestehend + Theme | [ ] |
 | 054 | Confirm/Prompt-Dialoge auf `EDialog` prüfen (`useConfirm`, `usePrompt`) | [ ] |
@@ -280,6 +307,7 @@ Abarbeitbare Checkliste für die schrittweise Einführung von **Vuetify 3** und 
 | 124 | `vue-datepicker` entfernen — nur wenn Schritt 074 auf VDatePicker umgestellt | [ ] |
 | 125 | [vuetify-standards.md](./vuetify-standards.md) Status auf „umgesetzt“ / Wartung | [ ] |
 | 126 | **Review-Stopp Phase 12:** Migration abgeschlossen oder Restliste dokumentiert | [ ] |
+| 127 | **Dev UI Playground entfernen** (temporär seit 028a): View, Route, Sidebar-Eintrag, Locale-Keys, ggf. `views/dev/` — nach vollständiger Migration nicht mehr nötig | [ ] |
 
 ---
 
@@ -289,9 +317,35 @@ Abarbeitbare Checkliste für die schrittweise Einführung von **Vuetify 3** und 
 | ----- | ------------- | --------- |
 | 2026-05-31 | Phase 0 | Dark Mode später; MDI = `@mdi/font`; Pilot 007 entfällt; Reset entschärfen; Umsetzung separater Chat |
 | 2026-05-31 | Phase 0 Umsetzung | Branch `feat/vuetify-phase-0-foundation`; Vuetify **4.0.8** (npm latest); Build grün |
+| 2026-05-31 | Schritt 011 | Kurztest Dashboard (`AppLayout`/`v-app`) @ 375×812 + 1280×800: kein horizontaler Page-Scroll; Mobile noch enge Sidebar (64px) — Drawer-Umbau folgt Phase 1 (014–016) |
+| 2026-05-31 | Schritte 014–017 | `v-navigation-drawer` (rail/hover desktop, temporary mobile), `v-app-bar` + Hamburger, Layout ohne `margin-left` |
+| 2026-05-31 | Phase 1 Plan | **Variante B:** ein `v-app` in `App.vue`, Dev-Banner zuerst, Inhalt verkleinert — Schritte **017b–017g** |
+| 2026-05-31 | Phase 1 Plan | **028a–028b:** Dev UI Playground (Sidebar nur `isDevToolsEnvironment()`), vor Phase 2; Löschung Schritt **127** |
+| 2026-05-31 | Phase 1 abgeschlossen | **020–028b:** Safe-Area, Sidebar-Token, Supplier=AppLayout, Scroll/Drawer-Fix, Phase-2-Freigabe |
+| 2026-05-31 | Phase 2 abgeschlossen | Review 042; 039 Vitest übersprungen |
+| 2026-05-31 | Reihenfolge | **Phase 4 vor Phase 3** — AutoSave auf `E*` erst nach Fortschritt Phase 5 |
+
+---
+
+## Phase 1 — PR-Checkliste (Schritt 027)
+
+Für die PR-Beschreibung Screenshots / Kurztest:
+
+| Bereich | Phone (~375px) | Desktop (~1280px) |
+| ------- | -------------- | ----------------- |
+| Dev-Banner + App-Bar + Drawer sichtbar, kein Überlap | ☐ | ☐ |
+| `v-main` scrollt, kein Doppel-Scroll (Fenster + Main) | ☐ | ☐ |
+| Sidebar: Rail + Hover-Expand, aktiver Nav-Link | — | ☐ |
+| Hamburger → Drawer → Link → Drawer zu | ☐ | — |
+| Department-Wechsel im Header, Route `/neueId/…` | ☐ | ☐ |
+| Supplier `/supplier/:id/profile` gleiche Shell | ☐ | ☐ |
+| UI Sandbox `/{id}/sandbox` erreichbar (Dev-Host) | ☐ | ☐ |
+| `MaterialsView` / `ActivitiesView` keep-alive (Tab wechseln, zurück) | ☐ | ☐ |
+
+**Vorher/Nachher:** optional 1× Dashboard-Screenshot alt (CSS-Sidebar) vs. neu (Vuetify-Drawer) beilegen.
 
 ---
 
 ## Nächster Schritt (aktuell)
 
-**Phase 1:** App-Shell (`v-app` in `AppLayout`, Drawer, App-Bar) ab Schritt 013.
+**Phase 4** — Schritt **052** (Filter-Zeile: `v-row` / `v-col` + `ETextField`). Phase 3 (AutoSave) ist verschoben.

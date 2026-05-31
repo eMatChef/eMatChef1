@@ -28,4 +28,7 @@
   --color-surface-muted: #f3f4f6;
   --color-error: #dc2626;
   --color-error-bg: #fee2e2;
+
+  /* App-Shell Sidebar (v-navigation-drawer) */
+  --emc-sidebar-bg: #26353b;
 }

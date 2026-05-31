@@ -1,12 +1,12 @@
 <template>
-  <div>
+  <v-app class="emc-app">
     <DevEnvironmentBanner />
     <router-view />
     <GlobalToastContainer />
     <GlobalConfirmDialog />
     <PhysicalComboContainerWarningModal />
     <GlobalPromptDialog />
-  </div>
+  </v-app>
 </template>
 
 <script setup lang="ts">
@@ -36,3 +36,22 @@ watch(
   { flush: 'post' }
 )
 </script>
+
+<style src="@/components/form/base/e-form-field.css"></style>
+<style src="@/components/form/base/e-button.css"></style>
+<style src="@/components/form/base/e-card.css"></style>
+
+<style scoped>
+.emc-app {
+  height: 100dvh;
+  overflow: hidden;
+  background-color: #f5f5f5;
+}
+
+.emc-app :deep(.v-application__wrap) {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+</style>

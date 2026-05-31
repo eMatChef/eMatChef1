@@ -2,6 +2,49 @@
   "app": {
     "devEnvironmentBanner": "Test environment – not production data."
   },
+  "devSandbox": {
+    "title": "UI Sandbox",
+    "lead": "Test Vuetify components and layout — at `/{departmentId}/dev/ui-playground` (alias: `/sandbox`).",
+    "devOnlyHint": "Test environment only — raw V* components are allowed here (production views use E* from Phase 2).",
+    "backToApp": "Back to app",
+    "yes": "Yes",
+    "no": "No",
+    "windowSize": "Window size",
+    "rawVuetifyNote": "Direct VTextField, VSelect, etc. — replace with E* wrappers later.",
+    "openDialog": "Open dialog",
+    "dialogTitle": "Sample dialog",
+    "dialogBody": "EDialog + ECard — works independently of AppLayout.",
+    "dialogClose": "Close",
+    "eDialogNote": "EDialog + EButton (production wrappers).",
+    "eComponentsNote": "ETextField, ESelect, ETextarea, ECheckbox, ESwitch, EButton, ECard — use these in views.",
+    "eButtonVariants": "EButton variants",
+    "eCardSample": "ECard variant=\"outlined\" — e.g. for dialog content or card layouts.",
+    "layoutHint": "Mini shell in a box — for debugging drawer + app bar + v-main.",
+    "layoutBarTitle": "v-app-bar",
+    "layoutMainText": "v-main content below the app bar, to the right of the rail drawer.",
+    "sections": {
+      "breakpoints": "Breakpoint (useDisplay)",
+      "buttons": "Buttons",
+      "fields": "Form fields",
+      "dialog": "Dialog",
+      "layout": "Layout (drawer + bar + main)",
+      "eComponents": "E* components (Phase 2)"
+    },
+    "samples": {
+      "primary": "Primary",
+      "outlined": "Outlined",
+      "text": "Text",
+      "error": "Error tonal",
+      "withIcon": "With icon",
+      "textField": "Text field",
+      "select": "Select",
+      "checkbox": "Checkbox",
+      "switch": "Switch",
+      "textarea": "Multiline",
+      "optionA": "Option A",
+      "optionB": "Option B"
+    }
+  },
   "router": {
     "meta": {
       "titles": {
@@ -10,6 +53,7 @@
         "tos": "Terms & privacy · eMatChef",
         "impressum": "Legal notice · eMatChef",
         "login": "Sign in · eMatChef",
+        "devUiSandbox": "UI Sandbox · eMatChef",
         "siteGeneralEditor": "Website · General · eMatChef",
         "sitePageEditor": "Website · Content · eMatChef",
         "verifyEmail": "Confirm email · eMatChef",
@@ -569,6 +613,7 @@
     "display": "Info display",
     "statistics": "Statistics",
     "settings": "Settings",
+    "devUiPlayground": "UI Sandbox",
     "myCompany": "My company",
     "myCompanyProfile": "Profile & contact",
     "myCompanyTeam": "Team",
@@ -1047,6 +1092,7 @@
       "showAll": "Show all"
     },
     "header": {
+      "menuAria": "Open navigation",
       "helpTitle": "Help",
       "helpAria": "Help",
       "infoTitle": "Information",

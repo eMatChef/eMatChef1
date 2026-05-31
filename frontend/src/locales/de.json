@@ -3,6 +3,49 @@
     "name": "eMatChef",
     "devEnvironmentBanner": "Testumgebung – keine Produktionsdaten."
   },
+  "devSandbox": {
+    "title": "UI Sandbox",
+    "lead": "Vuetify-Komponenten und Layout testen — unter `/{departmentId}/dev/ui-playground` (Alias: `/sandbox`).",
+    "devOnlyHint": "Nur Testumgebung — hier sind rohe V*-Komponenten erlaubt (produktive Views nutzen E* ab Phase 2).",
+    "backToApp": "Zur App",
+    "yes": "Ja",
+    "no": "Nein",
+    "windowSize": "Fenstergrösse",
+    "rawVuetifyNote": "Direkt VTextField, VSelect usw. — später durch E*-Wrapper ersetzen.",
+    "openDialog": "Dialog öffnen",
+    "dialogTitle": "Beispiel-Dialog",
+    "dialogBody": "EDialog + ECard — funktioniert unabhängig von AppLayout.",
+    "dialogClose": "Schliessen",
+    "eDialogNote": "EDialog + EButton (produktive Wrapper).",
+    "eComponentsNote": "ETextField, ESelect, ETextarea, ECheckbox, ESwitch, EButton, ECard — so in Views verwenden.",
+    "eButtonVariants": "EButton-Varianten",
+    "eCardSample": "ECard variant=\"outlined\" — z. B. für Dialog-Inhalt oder Karten-Layouts.",
+    "layoutHint": "Mini-Shell in einer Box — zum Debuggen von Drawer + App-Bar + v-main.",
+    "layoutBarTitle": "v-app-bar",
+    "layoutMainText": "v-main-Inhalt unterhalb der App-Bar, rechts neben dem Rail-Drawer.",
+    "sections": {
+      "breakpoints": "Breakpoint (useDisplay)",
+      "buttons": "Buttons",
+      "fields": "Formularfelder",
+      "dialog": "Dialog",
+      "layout": "Layout (Drawer + Bar + Main)",
+      "eComponents": "E*-Komponenten (Phase 2)"
+    },
+    "samples": {
+      "primary": "Primary",
+      "outlined": "Outlined",
+      "text": "Text",
+      "error": "Error tonal",
+      "withIcon": "Mit Icon",
+      "textField": "Textfeld",
+      "select": "Auswahl",
+      "checkbox": "Checkbox",
+      "switch": "Switch",
+      "textarea": "Mehrzeilig",
+      "optionA": "Option A",
+      "optionB": "Option B"
+    }
+  },
   "addresses": {
     "search": {
       "otherAddressesDivider": "Andere Standorte",
@@ -25,6 +68,7 @@
         "tos": "Nutzung & Datenschutz · eMatChef",
         "impressum": "Impressum · eMatChef",
         "login": "Anmelden · eMatChef",
+        "devUiSandbox": "UI Sandbox · eMatChef",
         "siteGeneralEditor": "Webseite · Allgemein · eMatChef",
         "sitePageEditor": "Webseite · Inhalt · eMatChef",
         "verifyEmail": "E-Mail bestätigen · eMatChef",
@@ -700,6 +744,7 @@
     "display": "Infoscreen",
     "statistics": "Statistik",
     "settings": "Konfiguration",
+    "devUiPlayground": "UI Sandbox",
     "myCompany": "Meine Firma",
     "myCompanyProfile": "Profil & Kontakt",
     "myCompanyTeam": "Team",
@@ -1193,6 +1238,7 @@
       "showAll": "Alle anzeigen"
     },
     "header": {
+      "menuAria": "Navigation öffnen",
       "helpTitle": "Hilfe",
       "helpAria": "Hilfe",
       "infoTitle": "Informationen",

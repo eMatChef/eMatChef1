@@ -11,25 +11,21 @@
     />
 
     <!-- Liste View -->
-    <template v-else>
-      <!-- Header -->
-      <header class="page-header">
-        <div class="header-content">
-          <div>
-            <h1>{{ t('contacts.title') }}</h1>
-            <p class="description">
-              {{ isUserRole ? t('contacts.descriptionUser') : t('contacts.description') }}
-            </p>
-          </div>
-          <button v-if="canCreateContact" @click="openCreateModal" class="btn-primary">
-            <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-              <path d="M10 4V16M4 10H16" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
-            </svg>
-            <span>{{ t('contacts.newAddress') }}</span>
-          </button>
-        </div>
-      </header>
+    <PageShell v-else class="contacts-view">
+      <template #title>{{ t('contacts.title') }}</template>
+      <template #subtitle>
+        {{ isUserRole ? t('contacts.descriptionUser') : t('contacts.description') }}
+      </template>
+      <template v-if="canCreateContact" #actions>
+        <button @click="openCreateModal" class="btn-primary">
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+            <path d="M10 4V16M4 10H16" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+          </svg>
+          <span>{{ t('contacts.newAddress') }}</span>
+        </button>
+      </template>
 
+      <template #filters>
       <!-- Search & Filter Bar -->
       <div class="filter-bar">
         <div class="search-box">
@@ -69,6 +65,7 @@
           </label>
         </div>
       </div>
+      </template>
 
       <!-- Loading State -->
       <div v-if="isLoading" class="loading-state">
@@ -238,18 +235,18 @@
         
         <p class="table-hint">{{ t('contacts.tableHint') }}</p>
       </div>
-    </template>
 
-    <!-- Address Modal (Create only) -->
-    <AddressModal
-      v-if="showModal"
-      :department-id="currentDepartmentId"
-      :address="null"
-      :default-type="createDefaultType"
-      :allowed-types="createAllowedTypes"
-      @close="closeModal"
-      @saved="handleSaved"
-    />
+      <!-- Address Modal (Create only) -->
+      <AddressModal
+        v-if="showModal"
+        :department-id="currentDepartmentId"
+        :address="null"
+        :default-type="createDefaultType"
+        :allowed-types="createAllowedTypes"
+        @close="closeModal"
+        @saved="handleSaved"
+      />
+    </PageShell>
   </div>
 </template>
 
@@ -267,6 +264,7 @@ import {
 } from '@/api/addresses'
 import { useToast } from '@/composables/useToast'
 import SearchFieldInput from '@/components/common/SearchFieldInput.vue'
+import PageShell from '@/components/layout/PageShell.vue'
 import AddressModal from '@/components/AddressModal.vue'
 import ContactDetailView from '@/components/contacts/ContactDetailView.vue'
 import {

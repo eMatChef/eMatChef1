@@ -27,33 +27,25 @@
         </div>
 
         <form v-if="mode === 'login'" class="login-form" @submit.prevent="handleSubmit">
-          <div class="form-group">
-            <label for="email" class="form-label">{{ t('login.emailLabel') }}</label>
-            <input
-              id="email"
-              v-model="email"
-              type="email"
-              class="form-input"
-              :placeholder="t('login.emailPlaceholder')"
-              required
-              autocomplete="username"
-              :disabled="isLoading"
-            />
-          </div>
+          <ETextField
+            id="email"
+            v-model="email"
+            type="email"
+            :label="t('login.emailLabel')"
+            :placeholder="t('login.emailPlaceholder')"
+            autocomplete="username"
+            :disabled="isLoading"
+          />
 
-          <div class="form-group">
-            <label for="password" class="form-label">{{ t('login.passwordLabel') }}</label>
-            <input
-              id="password"
-              v-model="password"
-              type="password"
-              class="form-input"
-              :placeholder="t('login.passwordPlaceholder')"
-              required
-              autocomplete="current-password"
-              :disabled="isLoading"
-            />
-          </div>
+          <ETextField
+            id="password"
+            v-model="password"
+            type="password"
+            :label="t('login.passwordLabel')"
+            :placeholder="t('login.passwordPlaceholder')"
+            autocomplete="current-password"
+            :disabled="isLoading"
+          />
 
           <div class="link-row">
             <button type="button" class="inline-link" :disabled="isLoading" @click="setMode('forgot')">
@@ -63,12 +55,19 @@
 
           <div v-if="error" class="error-message">{{ error }}</div>
           <div v-if="showResendVerification" class="resend-wrap">
-            <button type="button" class="btn-secondary" :disabled="isLoading" @click="handleResendVerification">
+            <EButton variant="secondary" :disabled="isLoading" @click="handleResendVerification">
               {{ t('login.resendVerification') }}
-            </button>
+            </EButton>
           </div>
 
-          <button type="submit" class="btn-primary btn-submit" :disabled="isLoading">
+          <EButton
+            type="submit"
+            variant="primary"
+            block
+            class="btn-submit"
+            :disabled="isLoading"
+            :loading="isLoading && !isRedirecting"
+          >
             {{
               isRedirecting
                 ? t('login.redirecting')
@@ -76,7 +75,7 @@
                   ? t('common.loading')
                   : t('login.loginButton')
             }}
-          </button>
+          </EButton>
 
           <div class="form-footer">
             <p class="help-text">
@@ -356,6 +355,7 @@ import { useI18n } from 'vue-i18n'
 import { confirmPasswordReset, register as apiRegister, requestPasswordReset, resendVerification } from '@/api/auth'
 import { useAuthStore } from '@/stores/auth'
 import EmcLogoMark from '@/components/brand/EmcLogoMark.vue'
+import { EButton, ETextField } from '@/components/form/base'
 import { getOrganisations, type Organisation } from '@/api/organisations'
 import RegisterDepartmentPicker, {
   type RegisterDepartmentManualRequest,
@@ -960,7 +960,7 @@ watch(
 
 <style scoped>
 .login-page {
-  min-height: 100vh;
+  min-height: calc(100dvh - 36px);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1025,6 +1025,14 @@ watch(
 
 .login-form {
   margin-bottom: 6px;
+}
+
+.login-form :deep(.e-form-field) {
+  margin-bottom: 14px;
+}
+
+.login-form :deep(.e-button.btn-submit) {
+  margin-top: 8px;
 }
 
 .form-group {

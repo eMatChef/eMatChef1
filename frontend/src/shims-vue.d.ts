@@ -19,6 +19,8 @@ declare module 'vue-router' {
     publicMarketing?: boolean
     /** Nur ROLE_SUPERADMIN / ROLE_WEBADMIN */
     requiresSiteEditor?: boolean
+    /** Nur Testumgebung; Route z. B. `/:departmentId/dev/ui-playground` */
+    devToolsOnly?: boolean
     requiredRoles?: string[]
     /** Department-Mitgliedschaftsrollen, die diese Route nicht öffnen dürfen (z. B. `u` für Werkstatt) */
     denyDepartmentRoles?: string[]

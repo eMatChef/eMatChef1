@@ -59,10 +59,12 @@ Views / Feature-Komponenten
 ### 2. eMatChef-Design (`E*`)
 
 - Pfad: `frontend/src/components/form/base/`
-- Beispiele (Zielbild): `ETextField`, `ESelect`, `ECheckbox`, `ETextarea`, `EDialog`, `EButton`
-- Enthalten: Dichte, Varianten (`outlined`), Farben aus Theme, i18n-Anbindung wo nötig — **euer einheitliches Erscheinungsbild**, nicht das Roh-Default von Vuetify.
-- **Regel:** Wenn ein Vuetify-Input in 2+ Screens vorkommt → zuerst `E*`-Wrapper, dann verwenden.
-- **Nicht umbenennen** zu `R*`/`Ui*`/`Emc*` für Formulare; `Emc*` bleibt für Branding (Logo etc.).
+- Beispiele: `ETextField`, `ESelect`, `ECheckbox`, `ETextarea`, `EDialog`, `EButton`
+- **Ein Standard, einmal definiert:** Vuetify `variant="outlined"` + globales `e-form-field.css` (in `style.css`) mappt Marken-Tokens auf `.v-field__outline` — **nicht** 100× eigenes Feld-CSS in Views.
+- Label extern (`.field-outline-label` aus `outlined-field.css`), wie AutoSave/Material-Detail.
+- **Keine** Vuetify-`defaults` für Formulare in `vuetify.ts` — Variant/Look leben in E* + CSS.
+- **Regel:** Vuetify-Input in 2+ Screens → E*-Wrapper, dann überall E* verwenden.
+- Details: [`form/base/README.md`](../../frontend/src/components/form/base/README.md)
 
 ### 3. Domäne / API / Auto-Save
 
@@ -106,7 +108,15 @@ Vuetify-Standard nutzen (`xs` … `xxl`). **Keine neuen** willkürlichen Pixel-G
 1. Basis-Layout für schmale Viewports (eine Spalte, volle Breite).
 2. Erweiterung mit `mdAndUp` / Grid-Spalten.
 3. Touch-Ziele min. ~44px; Formular-`font-size` min. 16px auf iOS (Zoom vermeiden).
-4. `env(safe-area-inset-*)` für Vollbild/Drawer wo nötig (siehe globale Utilities in Migrationsplan Phase 0).
+4. Safe-Area: globale Utilities in `styles/ui/safe-area.css` (`pb-safe`, `px-safe`, `--emc-safe-*`); `index.html` mit `viewport-fit=cover`. App-Shell: `page-content` und Sidebar berücksichtigen `env(safe-area-inset-bottom)`.
+
+### Safe-Area Utilities
+
+| Klasse / Token | Verwendung |
+| -------------- | ---------- |
+| `--emc-safe-top` … `--emc-safe-left` | CSS-Variablen aus `env(safe-area-inset-*)` |
+| `.pb-safe`, `.pt-safe`, `.px-safe`, `.py-safe` | Padding in Views / fixierte Leisten |
+| `.mb-safe`, `.bottom-safe-fab` | FABs und fixierte Buttons |
 
 ### Hover
 
@@ -125,7 +135,36 @@ Keine Funktion nur per `:hover` — `(hover: hover) and (pointer: fine)` beibeha
 | Einfache Tabellen | `v-data-table` **oder** `v-list` + `v-card` auf Mobile |
 | Loading / Empty | `v-skeleton-loader`, `v-alert`, `v-empty-state` (falls genutzt) |
 
-**`PageShell` (geplant):** `v-container` + optional `v-row` für Titel, Actions, Filter — einmal bauen, in Views einbinden.
+**`PageShell`:** `components/layout/PageShell.vue` — `v-container`, Slots `#title`, `#subtitle`, `#actions`, `#filters`, Default.
+
+---
+
+## Supplier-Portal (Phase 1)
+
+- **Gleiche Shell** wie die Department-App: Route `/supplier/:companyId/*` nutzt **`AppLayout.vue`** (Drawer, `TopHeader`, `v-main`).
+- Sidebar zeigt **„Meine Firma“**-Untermenü statt Department-Links; kein separates `v-app`.
+- Views unter `views/supplier/` behalten vorerst eigenes Page-CSS (`.supplier-page-header`); schrittweise `PageShell` in späteren Phasen.
+
+---
+
+## Root-Layout: ein `v-app` + Dev-Banner (Variante B)
+
+- **Genau eine** `v-app`-Instanz in `App.vue` (nicht pro `AppLayout` / Route).
+- **`DevEnvironmentBanner`** (`components/common/DevEnvironmentBanner.vue`) ist das **erste Kind** innerhalb `v-app`, wenn `shouldShowDevEnvironmentBanner()` true ist.
+- Der Banner ist **kein Overlay** und kein zusätzliches `100vh`: er belegt seine Zeilenhöhe oben; `router-view` füllt den **restlichen** Platz (`flex: 1`, `min-height: 0` auf dem Wrapper).
+- **`AppLayout`** enthält nur Drawer, `v-app-bar`, `v-main` — **ohne** eigenes `v-app`; Höhe `100%` des Eltern-Wrappers, nicht `min-height: 100vh`.
+- Globale Overlays (`GlobalToastContainer`, Dialoge) bleiben innerhalb derselben `v-app` (wie heute in `App.vue`).
+- Umsetzung: [vuetify-migration-plan.md](./vuetify-migration-plan.md) Schritte **017b–017g**.
+
+---
+
+## Dev UI Playground (temporär, nur Testumgebung)
+
+- **Zweck:** Vuetify-Theme, Shell und später alle **`E*`**-Bausteine an einer Stelle prüfen — **vor** und während der Migration, nicht für Endnutzer auf Produktion.
+- **Sichtbarkeit:** wie der gelbe Dev-Banner — `isDevToolsEnvironment()` aus `@/utils/devEnvironmentBanner` (nicht nur `import.meta.env.DEV`). Sidebar-Hauptmenü-Eintrag nur dann.
+- **Route:** **`/:departmentId/dev/ui-playground`** (Alias **`/:departmentId/sandbox`**) in `AppLayout`; nur wenn `isDevToolsEnvironment()`.
+- **Inhalt:** Abschnitte Formulare, Buttons, Dialoge, Breakpoint-Anzeige; ab Phase 2 je neue `E*`-Komponente ergänzen. **Roh-`V*`** nur auf dieser Seite, klar als „Sandbox“ gekennzeichnet — produktive Views nutzen `E*`.
+- **Lebensdauer:** anlegen Schritt **028a**, pflegen bis Migration fertig, entfernen Schritt **127** (Phase 12).
 
 ---
 

@@ -20,7 +20,7 @@
 }
 
 .plt-shell {
-  min-height: 100vh;
+  min-height: calc(100dvh - 36px);
   display: flex;
   flex-direction: column;
   background: var(--plt-surface);

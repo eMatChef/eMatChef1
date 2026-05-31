@@ -1,13 +1,7 @@
 <template>
-  <div class="dept-page notifications-center-view">
-    <div class="page-header header-content">
-      <div class="header-left">
-        <h1>{{ t('notificationsCenter.title') }}</h1>
-        <span class="subtitle">
-          {{ subtitleText }}
-        </span>
-      </div>
-    </div>
+  <PageShell class="notifications-center-view">
+    <template #title>{{ t('notificationsCenter.title') }}</template>
+    <template #subtitle>{{ subtitleText }}</template>
 
     <div v-if="isLoading" class="loading-state">
       <div class="spinner"></div>
@@ -319,7 +313,7 @@
       />
     </template>
 
-  </div>
+  </PageShell>
 </template>
 
 <script setup lang="ts">
@@ -372,6 +366,7 @@ import {
   InboxInviteDetailModal,
   NotificationSenderBlock,
 } from '@/components/notifications'
+import PageShell from '@/components/layout/PageShell.vue'
 import { taskOpenQuery } from '@/composables/useDepartmentTasks'
 import { useNotificationSender } from '@/composables/useNotificationSender'
 import { useDepartmentMemberRole } from '@/composables/useDepartmentMemberRole'

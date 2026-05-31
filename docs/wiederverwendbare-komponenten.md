@@ -350,6 +350,39 @@ Typ-Schlüssel entsprechen `ADDRESS_TYPES` in `api/addresses.ts` (`storage`, `ev
 
 ---
 
+---
+
+### Formular-Basis E* (`frontend/src/components/form/base/`)
+
+Öffentliche Mittelschicht für Inputs, Buttons und Dialoge auf Vuetify. **Views importieren nur `E*`**, nie direkt `VTextField` & Co. (Ausnahme: Dev UI Playground mit rohen `V*` zum Vergleich).
+
+| Komponente | Wraps | Kurzbeschreibung |
+| ---------- | ----- | ---------------- |
+| `ETextField` | `v-text-field` | Text/Email/Password, outlined, 16px Input |
+| `ESelect` | `v-select` | Auswahl, gleiche Defaults |
+| `ETextarea` | `v-textarea` | Mehrzeilig |
+| `ECheckbox` / `ESwitch` | `v-checkbox` / `v-switch` | Boolean |
+| `EButton` | `v-btn` | Varianten: primary, secondary, text, danger |
+| `ECard` | `v-card` | Karten-Grundgerüst |
+| `EDialog` | `v-dialog` + `ECard` | Modal mit Slots `title`, default, `actions` |
+
+**Import**
+
+```vue
+import { ETextField, EButton, EDialog } from '@/components/form/base'
+
+<ETextField v-model="email" :label="t('login.emailLabel')" autocomplete="username" />
+<EButton type="submit" variant="primary" block :loading="saving">Speichern</EButton>
+```
+
+Gemeinsame Props: `label`, `disabled`, `readonly`, `hint`, `rules`, `errorMessages`. Details: [`form/base/README.md`](../../frontend/src/components/form/base/README.md) und [vuetify-standards.md](ui/vuetify-standards.md).
+
+**Styles:** `e-form-field.css` (min. 16px Input für iOS). Legacy `.form-group` / `outlined-field.css` bleiben in nicht migrierten Views.
+
+**Pilot:** `LoginView` (Login-Modus). **Sandbox:** `/{departmentId}/dev/ui-playground` — Abschnitt E*-Komponenten.
+
+---
+
 ### Common (`frontend/src/components/common/`)
 
 

@@ -1,24 +1,18 @@
 <template>
-  <div class="app-layout">
-    <!-- Sidebar Navigation (links, dunkelgrau) -->
-    <SidebarNavigation />
-    
-    <!-- Main Content Area -->
-    <div class="main-content">
-      <!-- Header (oben, hellgrau) -->
-      <TopHeader />
-      
-      <!-- Page Content (keep-alive für Material/Activity-Details mit ungespeicherten Änderungen) -->
-      <main class="page-content">
-        <router-view v-slot="{ Component }">
-          <keep-alive :include="['MaterialsView', 'ActivitiesView']" :max="8">
-            <component :is="Component" :key="route.path" />
-          </keep-alive>
-        </router-view>
-      </main>
-    </div>
+  <SidebarNavigation v-model="drawerOpen" />
+  <TopHeader v-model:drawer-open="drawerOpen" />
 
-    <button
+  <v-main class="page-main">
+    <div class="page-content">
+      <router-view v-slot="{ Component }">
+        <keep-alive :include="['MaterialsView', 'ActivitiesView']" :max="8">
+          <component :is="Component" :key="route.path" />
+        </keep-alive>
+      </router-view>
+    </div>
+  </v-main>
+
+  <button
       v-if="showResumeButton"
       class="onboarding-resume-btn"
       @click="isOnboardingOpen = true"
@@ -34,7 +28,6 @@
       @close="isOnboardingOpen = false"
       @complete="handleOnboardingComplete"
     />
-  </div>
 </template>
 
 <script setup lang="ts">
@@ -54,6 +47,7 @@ const { t } = useI18n()
 const authStore = useAuthStore()
 
 useUnsavedChangesReminder()
+const drawerOpen = ref(false)
 const isOnboardingOpen = ref(false)
 const backendOnboardingDone = ref<boolean | null>(null)
 
@@ -168,33 +162,21 @@ watch(
 </script>
 
 <style scoped>
-.app-layout {
-  display: flex;
-  min-height: 100vh;
-  background-color: #f5f5f5;
-}
-
-.main-content {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  margin-left: 64px; /* Sidebar-Breite (schmal) - Sidebar überlappt beim Erweitern */
-  overflow-x: hidden;
+.page-main {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  overflow-y: auto !important;
 }
 
 .page-content {
-  flex: 1;
-  min-width: 0;
   padding: 24px;
-  overflow-x: hidden;
-  overflow-y: auto;
+  padding-bottom: calc(24px + var(--emc-safe-bottom));
 }
 
 .onboarding-resume-btn {
   position: fixed;
-  right: 18px;
-  bottom: 18px;
+  right: calc(18px + var(--emc-safe-right));
+  bottom: calc(18px + var(--emc-safe-bottom));
   z-index: 1100;
   border: none;
   border-radius: 999px;

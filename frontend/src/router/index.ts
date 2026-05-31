@@ -16,6 +16,7 @@ import {
   DEPARTMENT_BASIC_MEMBER_ROLES,
   isDepartmentBasicMemberRole,
 } from '@/composables/useDepartmentMemberRole'
+import { isDevToolsEnvironment } from '@/utils/devEnvironmentBanner'
 
 /** Routen-Sperre für Basissicht (u, l1–l3) — gleich wie früher nur «u». */
 const DENY_BASIC_MEMBER_ROLES = [...DEPARTMENT_BASIC_MEMBER_ROLES]
@@ -267,6 +268,20 @@ const routes: RouteRecordRaw[] = [
       publicMarketing: true,
       ...routeHead('login'),
     }
+  },
+  {
+    path: '/sandbox',
+    redirect: () => {
+      const authStore = useAuthStore()
+      const id =
+        authStore.activeDepartmentId ||
+        authStore.departments.find((d) => d.is_primary)?.department_id ||
+        authStore.departments[0]?.department_id
+      if (id) {
+        return { name: 'DevUiPlayground', params: { departmentId: id } }
+      }
+      return { path: '/login', query: { redirect: '/sandbox' } }
+    },
   },
   {
     path: '/site-inhalt',
@@ -983,6 +998,16 @@ const routes: RouteRecordRaw[] = [
         }
       },
       {
+        path: 'dev/ui-playground',
+        alias: 'sandbox',
+        name: 'DevUiPlayground',
+        component: () => import('@/views/dev/DevUiPlaygroundView.vue'),
+        meta: {
+          devToolsOnly: true,
+          ...routeHead('devUiSandbox'),
+        },
+      },
+      {
         path: 'workshop',
         name: 'Workshop',
         component: () => import('@/views/WorkshopView.vue'),
@@ -1324,6 +1349,17 @@ router.beforeEach(async (to, from, next) => {
     return next()
   }
 
+  if (to.meta.devToolsOnly && !isDevToolsEnvironment()) {
+    if (authStore.isLoggedIn) {
+      const id =
+        authStore.activeDepartmentId ||
+        authStore.departments.find((d) => d.is_primary)?.department_id ||
+        authStore.departments[0]?.department_id
+      return next(id ? `/${id}` : '/login')
+    }
+    return next({ path: '/login', query: { redirect: to.fullPath } })
+  }
+
   if (to.meta.requiresSiteEditor && !canEditPublicSite()) {
     const id = authStore.activeDepartmentId || authStore.departments[0]?.department_id
     return next(id ? `/${id}` : '/dashboard')
@@ -1389,7 +1425,7 @@ router.beforeEach(async (to, from, next) => {
             return next(supplierHome)
           }
         }
-      } else if (to.path !== '/pending-assignment') {
+      } else if (to.path !== '/pending-assignment' && !to.meta.devToolsOnly) {
         const siteEditorRoute = to.matched.some((r) => r.meta.requiresSiteEditor)
         if (siteEditorRoute && canEditPublicSite()) {
           /* Webseiten-Editor ohne Abteilung (z. B. Superadmin) */
@@ -1407,7 +1443,10 @@ router.beforeEach(async (to, from, next) => {
       !to.path.startsWith('/site-inhalt') &&
       !to.path.startsWith('/supplier/') &&
       (to.path.startsWith('/app/') ||
-        (to.meta.requiresAuth && !to.params.departmentId && to.path !== '/pending-assignment'))
+        (to.meta.requiresAuth &&
+        !to.params.departmentId &&
+        to.path !== '/pending-assignment' &&
+        !to.meta.devToolsOnly))
     ) {
       if (primaryDepartmentId) {
         // Route mit primärer Department-ID ersetzen

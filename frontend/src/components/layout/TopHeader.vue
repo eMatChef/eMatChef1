@@ -1,5 +1,10 @@
 <template>
-  <header class="top-header">
+  <v-app-bar flat elevation="0" height="64" class="top-header">
+    <v-app-bar-nav-icon
+      v-if="!mdAndUp"
+      :aria-label="t('layout.header.menuAria')"
+      @click="toggleDrawer"
+    />
     <!-- Hauptzeile: Tabs links, Icons rechts -->
     <div class="header-main-row">
     <!-- Left Section: Tabs (offene Detail-Ansichten) -->
@@ -327,7 +332,9 @@
       </div>
     </div>
     </div>
+  </v-app-bar>
 
+  <Teleport to="body">
     <div v-if="showEditProfileModal" class="profile-modal-overlay">
       <div class="profile-modal">
         <div class="profile-modal-header">
@@ -528,14 +535,14 @@
         </form>
       </div>
     </div>
-
-  </header>
+  </Teleport>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter, useRoute } from 'vue-router'
+import { useDisplay } from 'vuetify'
 import { useAuthStore } from '../../stores/auth'
 import { changePassword, login as apiLogin, updateProfile } from '../../api/auth'
 import { useToast } from '../../composables/useToast'
@@ -593,6 +600,8 @@ import { useUnreadDocumentTitleAlert } from '@/composables/useUnreadDocumentTitl
 import { getSenderPrimaryLine } from '@/utils/notificationSender'
 const { t } = useI18n()
 const router = useRouter()
+const { mdAndUp } = useDisplay()
+const drawerOpen = defineModel<boolean>('drawerOpen', { default: false })
 const detailTabsStore = useDetailTabsStore()
 const headerNotificationsStore = useHeaderNotificationsStore()
 const route = useRoute()
@@ -607,6 +616,10 @@ type BellActivityEntry = ActivityMwNotification & { bellScope: 'user' | 'mw' }
 const globalSearchRef = ref<InstanceType<typeof GlobalSearchInput> | null>(null)
 const toast = useToast()
 const confirm = useConfirm()
+
+function toggleDrawer() {
+  drawerOpen.value = !drawerOpen.value
+}
 
 const showUserDropdown = ref(false)
 
@@ -1538,14 +1551,26 @@ watch(
 
 <style scoped>
 .top-header {
-  background-color: var(--color-surface-muted, #f8f9fa);
+  background-color: var(--color-surface-muted, #f8f9fa) !important;
   border-bottom: 1px solid var(--color-border, #e0e0e0);
-  display: flex;
-  flex-direction: column;
-  position: sticky;
-  top: 0;
   z-index: 999;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.top-header :deep(.v-toolbar__content) {
+  padding: 0;
+  overflow: visible;
+}
+
+.header-main-row {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  flex: 1;
+  min-width: 0;
+  height: 64px;
+  max-height: 64px;
+  padding: 0 24px;
+  box-sizing: border-box;
 }
 
 .tabs-scroll {
@@ -1679,16 +1704,6 @@ watch(
 .tab-close:hover {
   color: var(--color-error);
   background: var(--color-error-bg);
-}
-
-.header-main-row {
-  display: flex;
-  align-items: center;
-  gap: 0;
-  height: 64px;
-  max-height: 64px;
-  padding: 0 24px;
-  box-sizing: border-box;
 }
 
 .header-left {

@@ -16,6 +16,18 @@ export default createVuetify({
   locale: {
     adapter: createVueI18nAdapter({ i18n: i18n as I18n, useI18n }),
   },
+  /** Standard-Breakpoints (Plan: md = 960) — Vuetify-4-Default lg=1145 würde sonst Hamburger/Drawer auseinanderlaufen. */
+  display: {
+    mobileBreakpoint: 'md',
+    thresholds: {
+      xs: 0,
+      sm: 600,
+      md: 960,
+      lg: 1280,
+      xl: 1920,
+      xxl: 2560,
+    },
+  },
   theme: {
     defaultTheme: 'light',
     themes: {
@@ -26,5 +38,10 @@ export default createVuetify({
         },
       },
     },
+  },
+  defaults: {
+    VTextField: { variant: 'outlined', density: 'comfortable' },
+    VSelect: { variant: 'outlined', density: 'comfortable' },
+    VTextarea: { variant: 'outlined', density: 'comfortable' },
   },
 })

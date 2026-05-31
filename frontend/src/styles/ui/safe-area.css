@@ -1,0 +1,44 @@
+/**
+ * Safe-Area (iOS Home-Indicator, Notch) — viewport-fit=cover in index.html.
+ * In Views/Shell: pb-safe / mb-safe für fixierte FABs; App-Shell setzt padding-bottom in page-content.
+ */
+:root {
+  --emc-safe-top: env(safe-area-inset-top, 0px);
+  --emc-safe-right: env(safe-area-inset-right, 0px);
+  --emc-safe-bottom: env(safe-area-inset-bottom, 0px);
+  --emc-safe-left: env(safe-area-inset-left, 0px);
+}
+
+.pt-safe {
+  padding-top: var(--emc-safe-top);
+}
+
+.pr-safe {
+  padding-right: var(--emc-safe-right);
+}
+
+.pb-safe {
+  padding-bottom: var(--emc-safe-bottom);
+}
+
+.pl-safe {
+  padding-left: var(--emc-safe-left);
+}
+
+.px-safe {
+  padding-left: var(--emc-safe-left);
+  padding-right: var(--emc-safe-right);
+}
+
+.py-safe {
+  padding-top: var(--emc-safe-top);
+  padding-bottom: var(--emc-safe-bottom);
+}
+
+.mb-safe {
+  margin-bottom: var(--emc-safe-bottom);
+}
+
+.bottom-safe-fab {
+  bottom: calc(18px + var(--emc-safe-bottom));
+}

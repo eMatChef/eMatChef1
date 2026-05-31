@@ -1,23 +1,17 @@
-/* Sidebar Navigation Styles */
-.sidebar {
-  position: fixed;
-  left: 0;
-  top: 0;
-  width: 64px;
-  height: 100vh;
-  background-color: #26353b; /* v4 Design: dunkles Blaugrün */
-  display: flex;
-  flex-direction: column;
-  z-index: 1000;
+/* Sidebar Navigation — Inhalt für v-navigation-drawer (Layout: Vuetify) */
+.emc-sidebar-drawer {
+  border-right: none !important;
   box-shadow: 2px 0 8px rgba(0, 0, 0, 0.1);
-  transition: width 0.3s ease;
-  overflow: hidden;
+  background-color: var(--emc-sidebar-bg, #26353b) !important;
 }
 
-.sidebar:hover {
-  width: 240px;
+.emc-sidebar-drawer.v-navigation-drawer--is-hovering {
   box-shadow: 4px 0 16px rgba(0, 0, 0, 0.2);
-  z-index: 1100;
+}
+
+.sidebar {
+  display: flex;
+  flex-direction: column;
 }
 
 .sidebar-logo {
@@ -53,6 +47,7 @@
 .sidebar-nav {
   flex: 1;
   padding: 8px 0;
+  padding-bottom: calc(8px + var(--emc-safe-bottom));
   overflow-y: auto;
   overflow-x: hidden;
 }
@@ -139,7 +134,8 @@
   transition: opacity 0.2s ease;
 }
 
-.sidebar:hover .nav-divider {
+.emc-sidebar-drawer.v-navigation-drawer--is-hovering .nav-divider,
+.emc-sidebar-drawer:not(.v-navigation-drawer--rail) .nav-divider {
   opacity: 1;
 }
 
@@ -177,4 +173,11 @@
 .sidebar-footer {
   padding: 16px;
   border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.nav-icon--mdi {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  color: rgba(255, 255, 255, 0.7);
 }

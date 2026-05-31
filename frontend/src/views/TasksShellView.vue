@@ -1,40 +1,39 @@
 <template>
-  <div class="dept-page tasks-shell">
-    <div class="page-header header-content">
-      <div class="header-left">
-        <h1>{{ t('tasksShell.title') }}</h1>
-        <span class="subtitle">{{ subtitleText }}</span>
-      </div>
-    </div>
+  <PageShell class="tasks-shell">
+    <template #title>{{ t('tasksShell.title') }}</template>
+    <template #subtitle>{{ subtitleText }}</template>
 
-    <div v-if="showTasksTabs" class="filter-bar tasks-shell-tabs">
-      <div class="filter-tabs">
-        <router-link
-          :to="{ name: 'TasksGeneral', params: { departmentId } }"
-          class="filter-tab"
-          active-class="active"
-        >
-          {{ t('tasksShell.tabGeneral') }}
-        </router-link>
-        <router-link
-          v-if="canManagePrintTasks"
-          :to="{ name: 'TasksPrint', params: { departmentId } }"
-          class="filter-tab"
-          active-class="active"
-        >
-          {{ t('common.print') }}
-        </router-link>
+    <template v-if="showTasksTabs" #filters>
+      <div class="filter-bar tasks-shell-tabs">
+        <div class="filter-tabs">
+          <router-link
+            :to="{ name: 'TasksGeneral', params: { departmentId } }"
+            class="filter-tab"
+            active-class="active"
+          >
+            {{ t('tasksShell.tabGeneral') }}
+          </router-link>
+          <router-link
+            v-if="canManagePrintTasks"
+            :to="{ name: 'TasksPrint', params: { departmentId } }"
+            class="filter-tab"
+            active-class="active"
+          >
+            {{ t('common.print') }}
+          </router-link>
+        </div>
       </div>
-    </div>
+    </template>
 
     <router-view />
-  </div>
+  </PageShell>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
+import PageShell from '@/components/layout/PageShell.vue'
 import { useDepartmentMemberRole } from '@/composables/useDepartmentMemberRole'
 
 const route = useRoute()
@@ -54,7 +53,7 @@ const subtitleText = computed(() =>
 
 <style scoped>
 .tasks-shell-tabs {
-  margin-bottom: 20px;
+  margin-bottom: 0;
   border-bottom: 1px solid #e5e7eb;
   padding-bottom: 0;
 }

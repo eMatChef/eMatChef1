@@ -41,7 +41,7 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-.verify-page { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; background: #f9fafb; }
+.verify-page { min-height: calc(100dvh - 36px); display: flex; align-items: center; justify-content: center; padding: 24px; background: #f9fafb; }
 .verify-card { max-width: 560px; width: 100%; background: white; border-radius: 12px; border: 1px solid #e5e7eb; padding: 24px; text-align: center; }
 .success { color: #166534; }
 .error { color: #b91c1c; }
