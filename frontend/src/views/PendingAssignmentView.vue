@@ -1,92 +1,119 @@
 <template>
   <div class="pending-page">
-    <div class="pending-card">
-      <h1>{{ t('pendingAssignment.title') }}</h1>
-      <p>
+    <ECard class="pending-card" variant="elevated">
+      <h1 class="pending-title">{{ t('pendingAssignment.title') }}</h1>
+      <p class="pending-intro">
         {{ t('pendingAssignment.intro') }}
       </p>
 
-      <div class="box">
-        <label class="label">{{ t('pendingAssignment.searchLabel') }}</label>
-        <SearchFieldInput
+      <div class="pending-section">
+        <ESearchField
           v-model="departmentQuery"
           :label="t('pendingAssignment.searchPlaceholder')"
-          class="search-box"
+          class="pending-search"
           @clear="clearDepartmentSearch"
         >
-          <div v-if="displayedDepartmentResults.length > 0" class="search-results search-results--above">
+          <div v-if="displayedDepartmentResults.length > 0" class="pending-search-results">
             <button
               v-for="d in displayedDepartmentResults"
               :key="d.id"
               type="button"
-              class="search-result-item"
+              class="pending-search-result"
               @click="selectDepartment(d)"
             >
-              <span class="result-name">{{ d.name }}</span>
-              <span class="result-org">{{ d.organisation_name }}</span>
+              <span class="pending-search-result__name">{{ d.name }}</span>
+              <span class="pending-search-result__org">{{ d.organisation_name }}</span>
             </button>
-            <p v-if="departmentResults.length > 4" class="search-more-hint">
+            <p v-if="departmentResults.length > 4" class="pending-search-more">
               {{ t('pendingAssignment.searchMoreHint') }}
             </p>
           </div>
-        </SearchFieldInput>
-        <div v-if="departmentLoading" class="hint">{{ t('pendingAssignment.searchLoading') }}</div>
-        <div v-if="showManualAdminRequest" class="manual-request-box">
-          <p class="hint">{{ t('pendingAssignment.manualHint') }}</p>
-          <div class="form-group">
-            <label class="form-label">{{ t('pendingAssignment.organisationRequired') }}</label>
-            <select v-model="manualOrganisationId" class="form-select">
-              <option value="" disabled hidden>&nbsp;</option>
-              <option v-for="org in organisationsFiltered" :key="org.id" :value="org.id">{{ org.name }}</option>
-            </select>
-          </div>
-          <div class="form-row">
-            <input
+        </ESearchField>
+
+        <ELoadingState
+          v-if="departmentLoading"
+          variant="inline"
+          :message="t('pendingAssignment.searchLoading')"
+        />
+
+        <div v-if="showManualAdminRequest" class="pending-manual">
+          <p class="pending-hint">{{ t('pendingAssignment.manualHint') }}</p>
+
+          <ESelect
+            v-model="manualOrganisationId"
+            :items="organisationSelectItems"
+            :label="t('pendingAssignment.organisationRequired')"
+            :disabled="loading"
+          />
+
+          <div class="pending-manual__row">
+            <ETextField
               v-model="manualDepartmentName"
-              class="form-input"
-              :placeholder="t('pendingAssignment.departmentNamePlaceholder')"
+              :label="t('pendingAssignment.departmentNamePlaceholder')"
+              :disabled="loading"
             />
-            <input
+            <ETextField
               v-model="manualAffiliation"
-              class="form-input"
-              :placeholder="t('pendingAssignment.affiliationPlaceholder')"
+              :label="t('pendingAssignment.affiliationPlaceholder')"
+              :disabled="loading"
             />
           </div>
+
           <ParentDepartmentPicker
             v-if="manualOrganisationId"
             :organisation-id="manualOrganisationId"
             :disabled="loading"
             @update:model-value="manualParentPick = $event"
           />
-          <button class="btn btn-secondary" type="button" :disabled="loading || !manualOrganisationId" @click="submitAdminRequest">
+
+          <EButton
+            variant="secondary"
+            :disabled="loading || !manualOrganisationId"
+            @click="submitAdminRequest"
+          >
             {{ t('pendingAssignment.submitAdminRequest') }}
-          </button>
+          </EButton>
         </div>
-        <p v-if="selectedDepartment" class="success">
-          {{ t('pendingAssignment.selectedDepartment', { name: selectedDepartment.name, org: selectedDepartment.organisation_name }) }}
-        </p>
+
+        <v-alert
+          v-if="selectedDepartment"
+          type="success"
+          variant="tonal"
+          density="compact"
+          class="pending-alert"
+        >
+          {{
+            t('pendingAssignment.selectedDepartment', {
+              name: selectedDepartment.name,
+              org: selectedDepartment.organisation_name,
+            })
+          }}
+        </v-alert>
       </div>
 
-      <div class="box">
-        <label class="label">{{ t('pendingAssignment.joinCodeLabel') }}</label>
-        <input v-model="joinCode" class="form-input" :placeholder="t('pendingAssignment.joinCodePlaceholder')" />
+      <div class="pending-section">
+        <ETextField
+          v-model="joinCode"
+          :label="t('pendingAssignment.joinCodeLabel')"
+          :placeholder="t('pendingAssignment.joinCodePlaceholder')"
+          :disabled="loading"
+        />
       </div>
 
-      <div v-if="turnstileRequired" ref="turnstileContainerRef" class="turnstile-box" />
+      <div v-if="turnstileRequired" ref="turnstileContainerRef" class="pending-turnstile" />
 
-      <div class="actions">
-        <button class="btn btn-primary" :disabled="loading" @click="submitRequest">
+      <div class="pending-actions">
+        <EButton variant="primary" :disabled="loading" :loading="loading" @click="submitRequest">
           {{ t('pendingAssignment.sendJoinRequest') }}
-        </button>
-        <button class="btn btn-secondary" type="button" @click="toggleScanner">
+        </EButton>
+        <EButton variant="secondary" :disabled="loading" @click="toggleScanner">
           {{ scannerActive ? t('pendingAssignment.scannerStop') : t('pendingAssignment.scannerStart') }}
-        </button>
-        <button class="btn btn-link" type="button" @click="adminContactModalOpen = true">
+        </EButton>
+        <EButton variant="text" :disabled="loading" @click="adminContactModalOpen = true">
           {{ t('pendingAssignment.contactAdmin') }}
-        </button>
+        </EButton>
       </div>
 
-      <!-- Modal: Admin kontaktieren -->
       <EDialog
         v-model="adminContactModalOpen"
         :title="t('pendingAssignment.adminModalTitle')"
@@ -167,40 +194,76 @@
         @detected="onQrDetected"
         @error="onScannerError"
       />
-      <p v-if="scannerError" class="error">{{ scannerError }}</p>
 
-      <p v-if="error" class="error">{{ error }}</p>
-      <p v-if="success" class="success">{{ success }}</p>
-    </div>
+      <v-alert
+        v-if="scannerError"
+        type="error"
+        variant="tonal"
+        density="compact"
+        class="pending-alert"
+      >
+        {{ scannerError }}
+      </v-alert>
 
-    <div class="pending-card">
-      <h2>{{ t('pendingAssignment.myOpenRequests') }}</h2>
-      <p v-if="requests.length === 0">{{ t('pendingAssignment.noRequestsYet') }}</p>
-      <table v-else>
-        <thead>
-          <tr>
-            <th>{{ t('pendingAssignment.colType') }}</th>
-            <th>{{ t('pendingAssignment.colDepartment') }}</th>
-            <th>{{ t('common.status') }}</th>
-            <th>{{ t('pendingAssignment.colCreated') }}</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="r in requests" :key="`${r.request_kind || 'join'}-${r.id}`">
-            <td>{{ requestKindLabel(r) }}</td>
-            <td>
-              <span>{{ r.department_name }}</span>
-              <span v-if="r.organisation_name" class="request-org-hint">({{ r.organisation_name }})</span>
-              <span v-if="r.requested_parent_department_name" class="request-org-hint">
-                · {{ t('pendingAssignment.parentDept', { name: r.requested_parent_department_name }) }}
-              </span>
-            </td>
-            <td>{{ statusLabel(r.status) }}</td>
-            <td>{{ formatDate(r.created_at) }}</td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
+      <v-alert
+        v-if="error"
+        type="error"
+        variant="tonal"
+        density="compact"
+        class="pending-alert"
+      >
+        {{ error }}
+      </v-alert>
+
+      <v-alert
+        v-if="success"
+        type="success"
+        variant="tonal"
+        density="compact"
+        class="pending-alert"
+      >
+        {{ success }}
+      </v-alert>
+    </ECard>
+
+    <ECard class="pending-card" variant="elevated">
+      <h2 class="pending-subtitle">{{ t('pendingAssignment.myOpenRequests') }}</h2>
+
+      <EEmptyState
+        v-if="requests.length === 0"
+        variant="generic"
+        compact
+        :heading-level="3"
+        :description="t('pendingAssignment.noRequestsYet')"
+      />
+
+      <div v-else class="pending-requests-wrap">
+        <v-table density="comfortable" class="pending-requests-table">
+          <thead>
+            <tr>
+              <th>{{ t('pendingAssignment.colType') }}</th>
+              <th>{{ t('pendingAssignment.colDepartment') }}</th>
+              <th>{{ t('common.status') }}</th>
+              <th>{{ t('pendingAssignment.colCreated') }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="r in requests" :key="`${r.request_kind || 'join'}-${r.id}`">
+              <td>{{ requestKindLabel(r) }}</td>
+              <td>
+                <span>{{ r.department_name }}</span>
+                <span v-if="r.organisation_name" class="pending-request-org">({{ r.organisation_name }})</span>
+                <span v-if="r.requested_parent_department_name" class="pending-request-org">
+                  · {{ t('pendingAssignment.parentDept', { name: r.requested_parent_department_name }) }}
+                </span>
+              </td>
+              <td>{{ statusLabel(r.status) }}</td>
+              <td>{{ formatDate(r.created_at) }}</td>
+            </tr>
+          </tbody>
+        </v-table>
+      </div>
+    </ECard>
   </div>
 </template>
 
@@ -226,8 +289,19 @@ import ParentDepartmentPicker, {
 import { filterOrganisationsForUserPickers } from '@/utils/organisationUserPicker'
 import { localizedBarcodeScannerError } from '@/utils/barcodeScannerErrors'
 import BarcodeScannerPanel from '@/components/common/BarcodeScannerPanel.vue'
-import SearchFieldInput from '@/components/common/SearchFieldInput.vue'
-import { EButton, EDialog, ESelect, ETextField, ETextarea } from '@/components/form/base'
+import EEmptyState from '@/components/layout/EEmptyState.vue'
+import ELoadingState from '@/components/layout/ELoadingState.vue'
+import {
+  EButton,
+  ECard,
+  EDialog,
+  ESearchField,
+  ESelect,
+  ETextField,
+  ETextarea,
+} from '@/components/form/base'
+
+defineOptions({ name: 'PendingAssignmentView' })
 
 const route = useRoute()
 const { t, locale } = useI18n()
@@ -589,77 +663,157 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-.pending-page { max-width: 980px; margin: 0 auto; }
-
-.request-org-hint {
-  display: block;
-  font-size: 12px;
-  color: #6b7280;
-  margin-top: 2px;
+.pending-page {
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 16px;
 }
 
-.turnstile-box {
-  min-height: 65px;
-  margin: 12px 0;
+.pending-card {
+  padding: 20px;
+  margin-bottom: 16px;
 }
-.pending-card { background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 18px; margin-bottom: 16px; }
-.box { margin: 12px 0; }
-.label { display: block; margin-bottom: 6px; font-weight: 600; color: #374151; }
-/* Form group base uses shared ui/forms.css */
-.form-label { display: block; font-size: 14px; font-weight: 500; color: #374151; margin-bottom: 6px; }
-/* Form select base uses shared ui/forms.css */
-/* Form input/textarea base uses shared ui/forms.css */
-.search-box { position: relative; }
-.search-icon { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: #9ca3af; }
-/* Search input base uses shared ui/page-layout.css */
-.clear-btn { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); background: none; border: none; color: #9ca3af; cursor: pointer; padding: 4px; border-radius: 4px; }
-.clear-btn:hover { background: #f3f4f6; color: #6b7280; }
-.actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
-/* Buttons use shared ui/buttons.css */
-.btn-link { background: transparent; border: none; color: #0b7eea; text-decoration: underline; padding-left: 0; cursor: pointer; }
-.search-input-wrap { position: relative; }
-.search-results { margin-top: 8px; border: 1px solid #e5e7eb; border-radius: 8px; max-height: 220px; overflow-y: auto; background: #fff; }
-.search-results--above { position: absolute; left: 0; right: 0; bottom: calc(100% + 8px); z-index: 20; margin-top: 0; box-shadow: 0 8px 20px rgba(0,0,0,0.08); }
-.search-result-item {
+
+.pending-title {
+  margin: 0 0 8px;
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: rgb(var(--v-theme-on-surface));
+}
+
+.pending-subtitle {
+  margin: 0 0 16px;
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: rgb(var(--v-theme-on-surface));
+}
+
+.pending-intro {
+  margin: 0 0 20px;
+  color: rgba(var(--v-theme-on-surface), 0.7);
+  line-height: 1.5;
+}
+
+.pending-section {
+  margin-bottom: 20px;
+}
+
+.pending-section :deep(.e-form-field) {
+  margin-bottom: 0;
+}
+
+.pending-search {
+  position: relative;
+}
+
+.pending-search-results {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc(100% + 8px);
+  z-index: 20;
+  border: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
+  border-radius: 8px;
+  max-height: 220px;
+  overflow-y: auto;
+  background: rgb(var(--v-theme-surface));
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.08);
+}
+
+.pending-search-result {
   display: flex;
   flex-direction: column;
   width: 100%;
   text-align: left;
   border: none;
-  background: #fff;
+  background: rgb(var(--v-theme-surface));
   padding: 12px 14px;
   cursor: pointer;
-  border-bottom: 1px solid #f3f4f6;
-  transition: all 0.15s ease;
+  border-bottom: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
+  transition: background-color 0.15s ease;
 }
-.search-result-item:last-child { border-bottom: none; }
-.search-result-item:hover {
-  background: #f9fafb;
-  box-shadow: inset 0 0 0 1px #d1d5db;
+
+.pending-search-result:last-child {
+  border-bottom: none;
 }
-.result-name {
+
+.pending-search-result:hover {
+  background: rgba(var(--v-theme-on-surface), 0.04);
+}
+
+.pending-search-result__name {
   font-weight: 700;
-  color: #111827;
-  font-size: 17px;
+  font-size: 1rem;
   line-height: 1.2;
 }
-.result-org {
+
+.pending-search-result__org {
   font-size: 12px;
-  color: #6b7280;
+  color: rgba(var(--v-theme-on-surface), 0.6);
   margin-top: 2px;
 }
-.search-more-hint { margin: 0; padding: 8px 10px; font-size: 12px; color: #6b7280; background: #f8fafc; border-top: 1px solid #eef2f7; }
-.hint { margin-top: 8px; color: #6b7280; font-size: 12px; }
-.manual-request-box { margin-top: 8px; padding: 10px; border: 1px solid #e5e7eb; border-radius: 8px; background: #f9fafb; }
-.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px; }
-.error { color: #b91c1c; margin-top: 12px; }
-.success { color: #166534; margin-top: 12px; }
+
+.pending-search-more {
+  margin: 0;
+  padding: 8px 10px;
+  font-size: 12px;
+  color: rgba(var(--v-theme-on-surface), 0.6);
+  background: rgba(var(--v-theme-on-surface), 0.03);
+  border-top: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
+}
+
+.pending-hint {
+  margin: 0 0 12px;
+  font-size: 13px;
+  color: rgba(var(--v-theme-on-surface), 0.6);
+}
+
+.pending-manual {
+  margin-top: 12px;
+  padding: 16px;
+  border: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
+  border-radius: 8px;
+  background: rgba(var(--v-theme-on-surface), 0.03);
+}
+
+.pending-manual :deep(.e-form-field) {
+  margin-bottom: 16px;
+}
+
+.pending-manual__row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+@media (max-width: 600px) {
+  .pending-manual__row {
+    grid-template-columns: 1fr;
+  }
+}
+
+.pending-turnstile {
+  min-height: 65px;
+  margin: 12px 0;
+}
+
+.pending-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+
+.pending-alert {
+  margin-top: 16px;
+}
 
 .pending-admin-intro {
   margin: 0 0 20px;
   font-size: 14px;
   line-height: 1.5;
-  color: #6b7280;
+  color: rgba(var(--v-theme-on-surface), 0.6);
 }
 
 .pending-admin-form :deep(.e-form-field) {
@@ -676,9 +830,20 @@ onUnmounted(() => {
 
 .pending-admin-alert {
   margin-top: 16px;
-  font-size: 14px;
 }
 
-table { width: 100%; border-collapse: collapse; }
-th, td { text-align: left; border-bottom: 1px solid #e5e7eb; padding: 8px; }
+.pending-requests-wrap {
+  overflow-x: auto;
+}
+
+.pending-requests-table {
+  min-width: 640px;
+}
+
+.pending-request-org {
+  display: block;
+  font-size: 12px;
+  color: rgba(var(--v-theme-on-surface), 0.6);
+  margin-top: 2px;
+}
 </style>

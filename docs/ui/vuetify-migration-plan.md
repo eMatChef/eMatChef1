@@ -216,7 +216,7 @@ Die Schritte **013–017** waren ein Zwischenstand (`v-app` nur in `AppLayout`).
 | -- | ------- | ------ |
 | 061 | `LoginView.vue` vollständig Vuetify + `E*` | [x] 2026-05-31 |
 | 062 | `VerifyEmailView.vue` | [x] 2026-05-31 |
-| 063 | `PendingAssignmentView.vue` | [ ] |
+| 063 | `PendingAssignmentView.vue` | [x] 2026-05-31 |
 | 064 | `LandingHomeView` + `PublicSiteLayout` (Marketing) | [ ] |
 | 065 | Blog/FAQ/TOS/Impressum — einheitlich oder Phase 12 Rest | [ ] |
 | 066 | `DisplayEntryView` / `DepartmentDisplayView` — optional, Entscheid im Review | [ ] |
@@ -375,4 +375,4 @@ Für die PR-Beschreibung Screenshots / Kurztest:
 
 ## Nächster Schritt (aktuell)
 
-**Phase 5** — Schritt **063** (`PendingAssignmentView.vue`). Phase 3 (AutoSave) ist verschoben.
+**Phase 5** — Schritt **064** (`LandingHomeView` + `PublicSiteLayout`). Phase 3 (AutoSave) ist verschoben.
