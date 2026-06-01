@@ -32,13 +32,15 @@ export function useActivityDatePickerPaneMonth(options: {
     },
   )
 
-  const { onWheel } = useActivityDatePickerWheelMonth({ month, year })
+  const { onWheel, onTouchStart, onTouchEnd } = useActivityDatePickerWheelMonth({ month, year })
 
   return {
     month,
     year,
     shiftMonth,
     onWheel,
+    onTouchStart,
+    onTouchEnd,
     onMonthFromPicker: (m: number) => {
       month.value = m
     },

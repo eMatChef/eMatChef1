@@ -5,4 +5,6 @@ export const activityDatePickerMenuProps = {
   attach: 'body' as const,
   contentClass: ACTIVITY_DATE_PICKER_MENU_CLASS,
   zIndex: 10100,
+  /** Kalender + Schnellauswahl auf Mobile untereinander, scrollbar */
+  maxHeight: 'min(90dvh, calc(100vh - 24px))',
 }

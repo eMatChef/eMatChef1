@@ -100,7 +100,7 @@
 
 .activity-date-picker-pane-wrap,
 .activity-date-range-dual-picker__pane-wrap {
-  touch-action: pan-y;
+  touch-action: none;
 }
 
 .activity-date-range-dual-picker__pane {
@@ -166,6 +166,46 @@
   min-height: 36px;
 }
 
+.activity-date-preset-list__item {
+  --activity-preset-accent: var(--emc-date-primary);
+}
+
+.activity-date-preset-list__dot {
+  margin-inline-end: 4px;
+}
+
+.activity-date-preset-list__item:hover,
+.activity-date-preset-list__item:focus-visible {
+  background: color-mix(in srgb, var(--activity-preset-accent) 14%, transparent) !important;
+}
+
+.activity-date-preset-list__item:active {
+  background: color-mix(in srgb, var(--activity-preset-accent) 22%, transparent) !important;
+}
+
+/* Vuetify-Theme-Farben → CSS-Akzente (wie Kalender-Marker) */
+.activity-date-picker-menu {
+  --activity-preset-accent-primary: var(--emc-date-primary);
+  --activity-preset-accent-warning: #ed6c02;
+  --activity-preset-accent-grey-darken-1: #616161;
+  --activity-preset-accent-deep-purple: #673ab7;
+  --activity-preset-accent-error: rgb(var(--v-theme-error));
+  --activity-preset-accent-success: rgb(var(--v-theme-success));
+  --activity-preset-accent-info: rgb(var(--v-theme-info));
+}
+
+.activity-date-preset-list__item--quick {
+  --activity-preset-accent: var(--activity-preset-accent-primary);
+}
+
+.activity-date-preset-list__item--camp_week {
+  --activity-preset-accent: var(--activity-preset-accent-warning);
+}
+
+.activity-date-preset-list__item--other {
+  --activity-preset-accent: var(--activity-preset-accent-grey-darken-1);
+}
+
 .activity-date-preset-list .v-list-item-title {
   font-size: 13px;
   font-weight: 500;
@@ -175,17 +215,30 @@
 
 @media (max-width: 599px) {
   .activity-date-picker-menu__shell {
-    flex-direction: column;
+    flex-direction: row;
+    align-items: stretch;
+    max-height: min(90dvh, calc(100vh - 24px));
+    overflow: hidden;
+  }
+
+  .activity-date-picker-menu__picker {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
   }
 
   .activity-date-picker-menu__divider {
-    display: none;
+    display: block;
   }
 
   .activity-date-picker-menu__presets {
-    width: 100%;
+    width: min(148px, 38vw);
     max-height: none;
-    border-top: 1px solid #e5e7eb;
+    flex-shrink: 0;
+    overflow-y: auto;
+    border-top: none;
+    border-left: 1px solid #e5e7eb;
   }
 }
 

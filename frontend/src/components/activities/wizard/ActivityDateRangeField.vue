@@ -49,6 +49,8 @@
           v-else
           class="activity-date-picker-pane-wrap"
           @wheel="onSingleWheel"
+          @touchstart.passive="onSingleTouchStart"
+          @touchend.passive="onSingleTouchEnd"
         >
           <VDatePicker
             v-bind="activityDatePickerCommonProps"
@@ -145,6 +147,8 @@ const {
   year: singlePaneYear,
   shiftMonth: shiftSingleMonth,
   onWheel: onSingleWheel,
+  onTouchStart: onSingleTouchStart,
+  onTouchEnd: onSingleTouchEnd,
   onMonthFromPicker: onSingleMonthFromPicker,
   onYearFromPicker: onSingleYearFromPicker,
 } = useActivityDatePickerPaneMonth({

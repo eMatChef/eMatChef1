@@ -47,3 +47,13 @@ export function markersForDay(
   if (!isoKey || !map) return []
   return map.get(isoKey) ?? []
 }
+
+/** Akzentfarbe für Schnellauswahl-Einträge (gleiche Zuordnung wie Kalender-Marker). */
+export function activityDatePresetAccentColor(preset: {
+  periodLabel?: CalendarPeriodLabel
+}): string {
+  if (preset.periodLabel) {
+    return ACTIVITY_DATE_PICKER_MARKER_BADGE_COLORS[preset.periodLabel] ?? 'primary'
+  }
+  return 'primary'
+}

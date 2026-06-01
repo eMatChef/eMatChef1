@@ -39,7 +39,7 @@
           <ActivityDateRangeField
             v-model="rangeModel"
             :department-id="departmentId"
-            :show-preset-sidebar="showRangePresets"
+            :show-preset-sidebar="true"
           />
         </template>
         <template #timeFrom>
@@ -57,7 +57,6 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
-import { useSmAndUp } from '@/composables/useSmAndUp'
 import ActivityDateField from '@/components/activities/wizard/ActivityDateField.vue'
 import ActivityDateRangeField from '@/components/activities/wizard/ActivityDateRangeField.vue'
 import ActivityOutlinedDatetimeSection from '@/components/activities/wizard/ActivityOutlinedDatetimeSection.vue'
@@ -87,13 +86,10 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 const route = useRoute()
-const smAndUp = useSmAndUp()
 
 const departmentId = computed(
   () => (route.params.departmentId as string | undefined) ?? null,
 )
-
-const showRangePresets = computed(() => smAndUp.value && props.layout !== 'stacked')
 
 const dayModel = computed({
   get: () => props.day,

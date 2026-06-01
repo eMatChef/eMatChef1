@@ -15,6 +15,8 @@
       <div
         class="activity-date-range-dual-picker__pane-wrap"
         @wheel="onLeftWheel"
+        @touchstart.passive="onLeftTouchStart"
+        @touchend.passive="onLeftTouchEnd"
       >
         <VDatePicker
           v-bind="activityDatePickerCommonProps"
@@ -48,6 +50,8 @@
       <div
         class="activity-date-range-dual-picker__pane-wrap"
         @wheel="onRightWheel"
+        @touchstart.passive="onRightTouchStart"
+        @touchend.passive="onRightTouchEnd"
       >
         <VDatePicker
           v-bind="activityDatePickerCommonProps"
@@ -241,13 +245,15 @@ function shiftLeft(delta: number) {
   syncRightFromLeft()
 }
 
-const { onWheel: onLeftWheel } = useActivityDatePickerWheelMonth({
+const { onWheel: onLeftWheel, onTouchStart: onLeftTouchStart, onTouchEnd: onLeftTouchEnd } =
+  useActivityDatePickerWheelMonth({
   month: leftMonth,
   year: leftYear,
   onAfterChange: syncRightFromLeft,
 })
 
-const { onWheel: onRightWheel } = useActivityDatePickerWheelMonth({
+const { onWheel: onRightWheel, onTouchStart: onRightTouchStart, onTouchEnd: onRightTouchEnd } =
+  useActivityDatePickerWheelMonth({
   month: rightMonth,
   year: rightYear,
   onAfterChange: syncLeftFromRight,

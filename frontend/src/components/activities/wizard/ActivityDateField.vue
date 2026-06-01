@@ -21,7 +21,12 @@
         :presets-aria-label="t('activities.dateRangePicker.presetsAria')"
         @select-preset="applyPreset"
       >
-        <div class="activity-date-picker-pane-wrap" @wheel="onWheel">
+        <div
+          class="activity-date-picker-pane-wrap"
+          @wheel="onWheel"
+          @touchstart.passive="onTouchStart"
+          @touchend.passive="onTouchEnd"
+        >
           <VDatePicker
             v-bind="activityDatePickerCommonProps"
             :model-value="modelValue"
@@ -93,6 +98,8 @@ const {
   year: paneYear,
   shiftMonth,
   onWheel,
+  onTouchStart,
+  onTouchEnd,
   onMonthFromPicker,
   onYearFromPicker,
 } = useActivityDatePickerPaneMonth({

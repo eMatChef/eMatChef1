@@ -10,6 +10,8 @@ export type ActivityDatePresetValue = Date | [Date, Date]
 export interface ActivityDatePresetItem {
   label: string
   value: ActivityDatePresetValue
+  /** Fixe-Daten-Art — Farbe in Schnellauswahl (nur camp_week / other) */
+  periodLabel?: CalendarPeriodLabel
 }
 
 function presetEndDate(value: ActivityDatePresetValue): Date {
@@ -32,7 +34,10 @@ function parseIsoDateLocal(iso: string): Date {
   return startOfLocalDay(new Date(y, m - 1, d))
 }
 
-/** Fixe Daten (Lagerwoche, Schulferien, Sonstiges, …) — nur wenn noch nicht vorbei; kein Mat-Büro geschlossen. */
+/** Fixe Daten in der Schnellauswahl — keine Schulferien, kein Mat-Büro geschlossen. */
+export const CALENDAR_PERIOD_LABELS_IN_QUICK_SELECT = ['camp_week', 'other'] as const
+
+/** Fixe Daten (Lagerwoche, Sonstiges) — nur wenn noch nicht vorbei. */
 export function calendarPeriodRangePresets(
   periods: readonly DepartmentCalendarPeriod[],
   labelForType: (label: CalendarPeriodLabel) => string,
@@ -41,13 +46,14 @@ export function calendarPeriodRangePresets(
   const items: ActivityDatePresetItem[] = []
 
   for (const row of periods) {
-    if (row.label === 'department_break') continue
+    if (row.label !== 'camp_week' && row.label !== 'other') continue
     const end = parseIsoDateLocal(row.end_date)
     if (end.getTime() < today.getTime()) continue
     const start = parseIsoDateLocal(row.start_date)
     items.push({
       label: `${labelForType(row.label)}: ${row.name}`,
       value: [start, end],
+      periodLabel: row.label,
     })
   }
 
