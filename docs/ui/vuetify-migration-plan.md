@@ -234,10 +234,10 @@ Die Schritte **013–017** waren ein Zwischenstand (`v-app` nur in `AppLayout`).
 | 069 | `ActivitiesView`: Listen-Header + `PageShell` + Filter | [x] 2026-05-31 |
 | 070 | Aktivitäten-Liste: Mobile-Karten oder scrollbare Tabelle | [x] 2026-05-31 |
 | 071 | `ActivityCreateWizard.vue` + `ActivityCreateWizardForm.vue` Shell | [x] 2026-05-31 |
-| 072 | Wizard Schritte: Stammdaten-Felder → `E*` / `AutoSaveField` | [ ] |
-| 073 | `ActivityZeitraumDatetimeFields` + `ActivityDateField` / `ActivityDateRangeField` | [ ] |
-| 074 | Entscheid Datepicker: `@vuepic` behalten vs. `VDatePicker` — dokumentieren | [ ] |
-| 075 | Falls VDatePicker: Feiertags-Marker portieren | [ ] |
+| 072 | Wizard Schritte: Stammdaten-Felder → `E*` / `AutoSaveField` | [x] |
+| 073 | `ActivityZeitraumDatetimeFields` + `ActivityDateField` / `ActivityDateRangeField` | [x] 2026-05-31 |
+| 074 | Entscheid Datepicker: `@vuepic` behalten vs. `VDatePicker` — **VDatePicker** (`VDateInput`), mobil-first | [x] 2026-05-31 |
+| 075 | Falls **VDatePicker** (074): Feiertags-/fcal-Marker portieren | [x] 2026-05-31 |
 | 076 | `ActivityDraftOverviewForm` Zeitraum-Auto-Save | [ ] |
 | 077 | `ActivityDetailView` Header + Tabs Shell | [ ] |
 | 078 | Tabs: Material, Kosten, Verbrauch — schrittweise | [ ] |
@@ -328,7 +328,7 @@ Die Schritte **013–017** waren ein Zwischenstand (`v-app` nur in `AppLayout`).
 | 121 | grep: keine `v-text-field` / `v-btn` in Views ausser `form/base` | [ ] |
 | 122 | Ungenutzte `styles/ui/buttons.css`, `forms.css`, … in migrierten Bereichen deprecaten | [ ] |
 | 123 | Tailwind: entfernen oder Rolle in Standards festhalten | [ ] |
-| 124 | `vue-datepicker` entfernen — nur wenn Schritt 074 auf VDatePicker umgestellt | [ ] |
+| 124 | `vue-datepicker` entfernen — nur wenn Schritt 074 auf VDatePicker umgestellt | [x] 2026-05-31 |
 | 125 | [vuetify-standards.md](./vuetify-standards.md) Status auf „umgesetzt“ / Wartung | [ ] |
 | 126 | **Review-Stopp Phase 12:** Migration abgeschlossen oder Restliste dokumentiert | [ ] |
 | 127 | **Dev UI Playground entfernen** (temporär seit 028a): View, Route, Sidebar-Eintrag, Locale-Keys, ggf. `views/dev/` — nach vollständiger Migration nicht mehr nötig | [ ] |
@@ -346,7 +346,7 @@ Die Schritte **013–017** waren ein Zwischenstand (`v-app` nur in `AppLayout`).
 | 2026-05-31 | Phase 1 Plan | **Variante B:** ein `v-app` in `App.vue`, Dev-Banner zuerst, Inhalt verkleinert — Schritte **017b–017g** |
 | 2026-05-31 | Phase 1 Plan | **028a–028b:** Dev UI Playground (Sidebar nur `isDevToolsEnvironment()`), vor Phase 2; Löschung Schritt **127** |
 | 2026-05-31 | Phase 1 abgeschlossen | **020–028b:** Safe-Area, Sidebar-Token, Supplier=AppLayout, Scroll/Drawer-Fix, Phase-2-Freigabe |
-| 2026-05-31 | Phase 2 abgeschlossen | Review 042; 039 Vitest übersprungen |
+| 2026-05-31 | Phase 6 / 074–075 | **VDatePicker** (`VDateInput` labs): `@vuepic` entfernt; Feiertage + fcal via `useActivityDatePickerEvents`; Preset-Sidebar (Feiertage/Heute) Follow-up |
 | 2026-05-31 | Phase 4 abgeschlossen | Review 060; 058 Pilot Material (`EResponsiveDataList` + `v-data-table`/`v-list`); 057 [table-patterns.md](./ui/table-patterns.md) |
 | 2026-05-31 | Schritt 061 | `LoginView`: alle Formulare auf `E*` + `v-alert` + `ECard`; Reset-Code via `EOtpInput` |
 | 2026-05-31 | Schritt 062 | `VerifyEmailView`: `ECard`, `ELoadingState`, `v-alert`, `EButton`, i18n |
@@ -376,4 +376,15 @@ Für die PR-Beschreibung Screenshots / Kurztest:
 
 ## Nächster Schritt (aktuell)
 
-**Phase 6** — Schritt **072** (Wizard Stammdaten-Felder → `E*` / `AutoSaveField`). Phase 3 (AutoSave) ist verschoben.
+**Phase 6** — **076:** `ActivityDraftOverviewForm` Zeitraum-Auto-Save (074/075 erledigt: `VDateInput` + Marker).
+
+### Erledigt: Schritt 074 — Datepicker
+
+**Entscheid:** `VDateInput` / `VDatePicker` (Vuetify labs) — mobil-first, kein `@vuepic`.
+
+| Umgesetzt | Offen (Follow-up) |
+| --------- | ----------------- |
+| Einzel- + Range-Datum in Wizard + Detail | Preset-Chips (Feiertage, Heute, …) wie frühere Sidebar |
+| Feiertags-/fcal-Marker (`events`) | — |
+| Menü attach Wizard-Modal / `body` (Detail) | — |
+| `@vuepic/vue-datepicker` entfernt (Schritt 124) | — |

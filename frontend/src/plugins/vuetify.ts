@@ -1,6 +1,7 @@
 import { createVuetify } from 'vuetify'
 import { createVueI18nAdapter } from 'vuetify/locale/adapters/vue-i18n'
 import { useI18n, type I18n } from 'vue-i18n'
+import { VDateInput } from 'vuetify/labs/VDateInput'
 import { i18n } from '@/i18n'
 
 /** Markenfarben aus brand-tokens.css — Vuetify liest keine CSS-Variablen im Theme-Objekt. */
@@ -13,6 +14,9 @@ const BRAND_COLORS = {
 } as const
 
 export default createVuetify({
+  components: {
+    VDateInput,
+  },
   icons: {
     defaultSet: 'mdi',
   },

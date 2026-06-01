@@ -10,12 +10,20 @@
     <div class="activity-create-footer-actions">
       <p v-if="submitError" class="activity-create-submit-error">{{ submitError }}</p>
       <div class="footer-actions">
-        <div v-if="missingSteps.length > 0" class="missing-steps">
-          <span class="missing-icon" aria-hidden="true">⚠️</span>
-          <EButton variant="text" size="small" class="missing-link" @click="$emit('jumpMissing', missingSteps[0])">
-            {{ t('activities.wizard.missing.' + missingSteps[0]) }}
-          </EButton>
-        </div>
+        <v-alert
+          v-if="missingSteps.length > 0"
+          variant="outlined"
+          density="compact"
+          icon="mdi-alert-circle-outline"
+          class="e-alert-warning activity-wizard-missing-alert"
+          role="button"
+          tabindex="0"
+          :aria-label="t('activities.wizard.missing.' + missingSteps[0])"
+          @click="$emit('jumpMissing', missingSteps[0])"
+          @keydown.enter.prevent="$emit('jumpMissing', missingSteps[0])"
+        >
+          {{ t('activities.wizard.missing.' + missingSteps[0]) }}
+        </v-alert>
         <EButton
           v-if="showCloseSavedButton"
           variant="secondary"
@@ -136,6 +144,22 @@ defineEmits<{
   gap: 10px 16px;
 }
 
+@media (max-width: 599px) {
+  .activity-create-footer,
+  .activity-create-footer-actions,
+  .footer-actions {
+    flex-wrap: nowrap;
+  }
+
+  .activity-create-footer-actions {
+    gap: 4px;
+  }
+
+  .footer-actions {
+    gap: 4px;
+  }
+}
+
 .activity-create-footer-draft {
   display: flex;
   flex-direction: row;
@@ -172,21 +196,4 @@ defineEmits<{
   gap: 8px;
 }
 
-.missing-steps {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 6px;
-}
-
-.missing-link {
-  min-width: 0;
-  height: auto !important;
-  padding: 0 4px !important;
-  text-transform: none;
-  letter-spacing: normal;
-  font-size: 13px;
-  font-weight: 600;
-  color: #b45309 !important;
-}
 </style>

@@ -784,9 +784,7 @@ const isSavingAny = computed(() => saving.value || zeitraumSaving.value)
 
 function isExternalDatetimePickerTarget(el: EventTarget | null): boolean {
   if (!(el instanceof HTMLElement)) return false
-  return !!el.closest(
-    '.dp__menu, .dp__overlay, .dp__calendar, .dp__outer_menu_wrap, .dp__menu_inner, .dp__sidebar_left',
-  )
+  return !!el.closest('.activity-date-picker-menu, .v-date-picker, .v-picker')
 }
 
 function onZeitraumFocusOut(event: FocusEvent) {
@@ -796,7 +794,7 @@ function onZeitraumFocusOut(event: FocusEvent) {
     zeitraumBlurTimer = null
     const active = document.activeElement
     if (active instanceof HTMLElement) {
-      if (active.closest('.activity-zeitraum-autosave-wrap, .dp__menu, .dp__overlay')) return
+      if (active.closest('.activity-zeitraum-autosave-wrap, .activity-date-picker-menu, .v-date-picker, .v-picker')) return
     }
     void saveZeitraumIfDirty()
   }, 150)
@@ -1053,12 +1051,13 @@ defineExpose({
 }
 
 /* Fokus-Hintergrund in der Pill-Leiste an Systemfarbe anbinden */
-.activity-detail-datetime-host :deep(.activity-pill-bar .activity-date-field .dp__input_wrap:focus-within),
-.activity-detail-datetime-host :deep(.activity-pill-bar .activity-date-range-field .dp__input_wrap:focus-within) {
+.activity-detail-datetime-host :deep(.activity-pill-bar .activity-v-date-input:focus-within) {
   background: color-mix(in srgb, AccentColor 14%, transparent);
+  border-radius: 8px;
 }
 
-.activity-detail-datetime-host :deep(.activity-time-part:focus) {
+.activity-detail-datetime-host :deep(.activity-time-select .v-field--focused),
+.activity-detail-datetime-host :deep(.activity-time-edit:focus) {
   border-color: AccentColor;
   box-shadow: 0 0 0 2px color-mix(in srgb, AccentColor 35%, transparent);
 }

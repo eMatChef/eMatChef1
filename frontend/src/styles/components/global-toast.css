@@ -43,9 +43,9 @@
 }
 
 .global-toast-alert--warning {
-  background-color: #fffbeb !important;
-  color: #92400e !important;
-  border-color: #fcd34d !important;
+  background-color: var(--color-warning-bg, #fef3c7) !important;
+  color: var(--color-warning-text, #92400e) !important;
+  border-color: var(--color-warning-border, #fcd34d) !important;
 }
 
 .global-toast-alert--info {
@@ -66,7 +66,7 @@
 
 .global-toast-alert--warning .v-alert__close .v-icon,
 .global-toast-alert--warning .v-alert__prepend .v-icon {
-  color: #92400e !important;
+  color: var(--color-warning-text, #92400e) !important;
 }
 
 .global-toast-alert--info .v-alert__close .v-icon,

@@ -123,6 +123,7 @@
 import { computed, nextTick, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { EButton } from '@/components/form/base'
+import { useMdAndUp } from '@/composables/useMdAndUp'
 import { useSmAndUp } from '@/composables/useSmAndUp'
 import '@/styles/material-wizard.css'
 import '@/styles/activity-type-chips.css'
@@ -167,9 +168,11 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
+const mdAndUp = useMdAndUp()
 const smAndUp = useSmAndUp()
-/** Smartphone < 600px — nicht useDisplay().smAndDown (bei mobileBreakpoint md = < 960px) */
-const wizardFullscreen = computed(() => !smAndUp.value)
+/** Fullscreen unter md (960px): Phone + Tablet — nicht useDisplay().smAndDown */
+const wizardFullscreen = computed(() => !mdAndUp.value)
+/** Vorschau-Spalte ab sm (600px), auch im Tablet-Fullscreen */
 const showWizardPreview = smAndUp
 const toast = useToast()
 const authStore = useAuthStore()
@@ -410,8 +413,8 @@ const previewGroupLine = computed(() => {
   const typ = selectedActivityType.value
   if (!typ || typ === 'external') return null
   if (typ === 'activity') {
-    if (groupsForWizard.value.length === 0 && !canSelectDepartmentGroupLevel.value) return null
-    if (!selectedGroupId.value && !canSelectDepartmentGroupLevel.value) return null
+    if (groupsForWizard.value.length === 0) return null
+    if (!selectedGroupId.value) return null
   }
   const label = resolveActivityGroupPickerLabel(
     selectedGroupId.value,

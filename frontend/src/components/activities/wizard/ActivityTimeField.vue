@@ -3,18 +3,17 @@
   <div class="activity-time-quarter-grid" :class="{ 'is-disabled': !modelValue || locked }">
     <div class="activity-time-slot" :title="t('activities.timeField.editHint')" @dblclick.prevent="openHourEdit">
       <label class="sr-only" :for="hourEditing ? hourInputId : hourId">{{ t('activities.timeField.hour') }}</label>
-      <select
+      <ESelect
         v-show="!hourEditing"
         :id="hourId"
-        ref="hourSelectRef"
-        class="form-input activity-time-part activity-time-hour"
+        :model-value="hourStr"
+        :items="hourSelectItems"
         :disabled="!modelValue || locked"
-        :value="hourStr"
+        hide-details
+        class="activity-time-select activity-time-hour"
         :aria-label="(ariaLabel ? ariaLabel + ', ' : '') + t('activities.timeField.hour')"
-        @change="onHourChange"
-      >
-        <option v-for="h in hourOptions" :key="h" :value="h" :disabled="hourOptionDisabled(h)">{{ h }}</option>
-      </select>
+        @update:model-value="onHourSelectChange"
+      />
       <input
         v-show="hourEditing"
         :id="hourInputId"
@@ -24,7 +23,7 @@
         inputmode="numeric"
         autocomplete="off"
         maxlength="2"
-        class="form-input activity-time-part activity-time-hour activity-time-edit"
+        class="activity-time-edit activity-time-hour"
         :disabled="!modelValue || locked"
         :aria-label="(ariaLabel ? ariaLabel + ', ' : '') + t('activities.timeField.hourKeyboard')"
         @blur="commitHourEdit"
@@ -34,18 +33,17 @@
     <span class="activity-time-sep" aria-hidden="true">:</span>
     <div class="activity-time-slot" :title="t('activities.timeField.editHint')" @dblclick.prevent="openMinuteEdit">
       <label class="sr-only" :for="minuteEditing ? minuteInputId : minuteId">{{ t('activities.timeField.minute') }}</label>
-      <select
+      <ESelect
         v-show="!minuteEditing"
         :id="minuteId"
-        ref="minuteSelectRef"
-        class="form-input activity-time-part activity-time-minute"
+        :model-value="minuteStr"
+        :items="minuteSelectItems"
         :disabled="!modelValue || locked"
-        :value="minuteStr"
+        hide-details
+        class="activity-time-select activity-time-minute"
         :aria-label="(ariaLabel ? ariaLabel + ', ' : '') + t('activities.timeField.minuteQuarter')"
-        @change="onMinuteChange"
-      >
-        <option v-for="m in minuteOptions" :key="m" :value="m" :disabled="minuteOptionDisabled(m)">{{ m }}</option>
-      </select>
+        @update:model-value="onMinuteSelectChange"
+      />
       <input
         v-show="minuteEditing"
         :id="minuteInputId"
@@ -55,7 +53,7 @@
         inputmode="numeric"
         autocomplete="off"
         maxlength="2"
-        class="form-input activity-time-part activity-time-minute activity-time-edit"
+        class="activity-time-edit activity-time-minute"
         :disabled="!modelValue || locked"
         :aria-label="(ariaLabel ? ariaLabel + ', ' : '') + t('activities.timeField.minuteKeyboard')"
         @blur="commitMinuteEdit"
@@ -68,6 +66,7 @@
 <script setup lang="ts">
 import { computed, nextTick, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { ESelect } from '@/components/form/base'
 import { snapDateToQuarterHour } from '@/utils/activityPlanningFromDefaults'
 import { startOfLocalDay } from '@/utils/activityDateTimeParts'
 import {
@@ -81,8 +80,6 @@ const minuteId = `activity-time-m-${idBase}`
 const hourInputId = `activity-time-hi-${idBase}`
 const minuteInputId = `activity-time-mi-${idBase}`
 
-const hourSelectRef = ref<HTMLSelectElement | null>(null)
-const minuteSelectRef = ref<HTMLSelectElement | null>(null)
 const hourInputRef = ref<HTMLInputElement | null>(null)
 const minuteInputRef = ref<HTMLInputElement | null>(null)
 
@@ -167,6 +164,22 @@ const minuteStr = computed(() => {
   return String(closest).padStart(2, '0')
 })
 
+const hourSelectItems = computed(() =>
+  hourOptions.map((h) => ({
+    title: h,
+    value: h,
+    props: { disabled: hourOptionDisabled(h) },
+  })),
+)
+
+const minuteSelectItems = computed(() =>
+  minuteOptions.map((m) => ({
+    title: m,
+    value: m,
+    props: { disabled: minuteOptionDisabled(m) },
+  })),
+)
+
 function snapMinuteToQuarter(m: number): number {
   const allowed = [0, 15, 30, 45]
   const x = Math.max(0, Math.min(59, Math.round(m)))
@@ -188,8 +201,8 @@ function applyHhMm(hh: number, mm: number) {
   emit('update:modelValue', out)
 }
 
-function onHourChange(e: Event) {
-  const v = (e.target as HTMLSelectElement).value
+function onHourSelectChange(value: unknown) {
+  const v = String(value ?? '')
   const hh = parseInt(v, 10)
   if (!Number.isFinite(hh)) return
   const d = props.modelValue ? snapDateToQuarterHour(props.modelValue) : null
@@ -197,8 +210,8 @@ function onHourChange(e: Event) {
   applyHhMm(hh, mm)
 }
 
-function onMinuteChange(e: Event) {
-  const v = (e.target as HTMLSelectElement).value
+function onMinuteSelectChange(value: unknown) {
+  const v = String(value ?? '')
   const mm = parseInt(v, 10)
   if (!Number.isFinite(mm)) return
   const d = props.modelValue ? snapDateToQuarterHour(props.modelValue) : null
@@ -211,7 +224,6 @@ function openHourEdit() {
   hourEditing.value = true
   minuteEditing.value = false
   hourDraft.value = hourStr.value
-  hourSelectRef.value?.blur()
   void nextTick(() => hourInputRef.value?.focus())
 }
 
@@ -220,7 +232,6 @@ function openMinuteEdit() {
   minuteEditing.value = true
   hourEditing.value = false
   minuteDraft.value = minuteStr.value
-  minuteSelectRef.value?.blur()
   void nextTick(() => minuteInputRef.value?.focus())
 }
 
@@ -268,62 +279,6 @@ function onMinuteEditKeydown(e: KeyboardEvent) {
 </script>
 
 <style scoped>
-.activity-time-quarter-grid {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  width: 100%;
-  min-height: var(--activity-pill-control-h, 40px);
-}
-
-.activity-time-quarter-grid.is-disabled {
-  opacity: 0.55;
-}
-
-.activity-time-slot {
-  flex: 1 1 0;
-  min-width: 3rem;
-  max-width: 3.5rem;
-}
-
-.activity-time-part {
-  min-height: var(--activity-pill-control-h, 40px);
-  height: var(--activity-pill-control-h, auto);
-  width: 100%;
-  box-sizing: border-box;
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
-  font-size: 14px;
-  color: #111827;
-  background: #fff;
-  padding: 0 6px;
-  cursor: pointer;
-  text-align: center;
-  font-variant-numeric: tabular-nums;
-  line-height: var(--activity-pill-control-h, 40px);
-}
-
-.activity-time-edit {
-  cursor: text;
-}
-
-.activity-time-sep {
-  font-weight: 600;
-  color: #6b7280;
-  user-select: none;
-  flex: 0 0 auto;
-}
-
-.activity-time-part:focus {
-  outline: none;
-  border-color: var(--emc-brand-accent, #059669);
-  box-shadow: 0 0 0 3px rgb(5 150 105 / 18%);
-}
-
-.activity-time-part:disabled {
-  cursor: not-allowed;
-}
-
 .sr-only {
   position: absolute;
   width: 1px;
