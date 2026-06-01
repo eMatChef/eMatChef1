@@ -205,6 +205,15 @@
       </v-card-text>
     </v-card>
 
+    <!-- Aktivität Zeitraum (Pill-Leiste + VDateInput) -->
+    <v-card class="mb-6" variant="outlined">
+      <v-card-title>{{ t('devSandbox.sections.activityDatetime') }}</v-card-title>
+      <v-card-subtitle>{{ t('devSandbox.activityDatetimeNote') }}</v-card-subtitle>
+      <v-card-text>
+        <ActivityDatetimeSandboxDemo />
+      </v-card-text>
+    </v-card>
+
     <!-- Toasts -->
     <v-card variant="outlined">
       <v-card-title>{{ t('devSandbox.sections.toasts') }}</v-card-title>
@@ -255,6 +264,7 @@ import EFilterRow from '@/components/layout/EFilterRow.vue'
 import EEmptyState from '@/components/layout/EEmptyState.vue'
 import ELoadingState from '@/components/layout/ELoadingState.vue'
 import MaterialDataTableSandboxDemo from '@/views/dev/MaterialDataTableSandboxDemo.vue'
+import ActivityDatetimeSandboxDemo from '@/views/dev/ActivityDatetimeSandboxDemo.vue'
 import {
   EButton,
   ECard,

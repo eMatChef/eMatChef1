@@ -14,6 +14,7 @@ import {
 } from '@/utils/devicesHost'
 import {
   DEPARTMENT_BASIC_MEMBER_ROLES,
+  DEPARTMENT_MW_DC_ROLES,
   isDepartmentBasicMemberRole,
 } from '@/composables/useDepartmentMemberRole'
 import { isDevToolsEnvironment } from '@/utils/devEnvironmentBanner'
@@ -1076,6 +1077,16 @@ const routes: RouteRecordRaw[] = [
             }
           },
           {
+            path: 'my-department/fixed-dates',
+            name: 'SettingsMyDepartmentFixedDates',
+            component: () => import('@/views/settings/MyDepartmentFixedDatesView.vue'),
+            meta: {
+              ...routeHead('settingsFixedDates'),
+              requireDepartmentRoles: [...DEPARTMENT_MW_DC_ROLES],
+              denyRedirectTo: { name: 'SettingsMyDepartment' },
+            }
+          },
+          {
             path: 'my-department/display-screens',
             name: 'SettingsMyDepartmentDisplayScreens',
             component: () => import('@/views/settings/MyDepartmentDisplayScreensView.vue'),
@@ -1572,6 +1583,22 @@ router.beforeEach(async (to, from, next) => {
   } else if (authStore.isLoggedIn && authStore.activeDepartmentId) {
     // Visibility für aktives Department laden
     permissionsStore.loadVisibility(authStore.activeDepartmentId)
+  }
+
+  if (to.meta.requireDepartmentRoles && Array.isArray(to.meta.requireDepartmentRoles)) {
+    const allowedRoles = (to.meta.requireDepartmentRoles as string[]).map((r) => r.toLowerCase())
+    const currentRole = String(authStore.currentDepartmentRole || '').toLowerCase().trim()
+    if (!allowedRoles.includes(currentRole)) {
+      const deptId = to.params.departmentId || authStore.activeDepartmentId
+      const denyRedirectTo = to.meta.denyRedirectTo as { name?: string } | undefined
+      if (denyRedirectTo?.name && deptId) {
+        return next({ name: denyRedirectTo.name, params: { departmentId: String(deptId) } })
+      }
+      if (deptId) {
+        return next(`/${deptId}`)
+      }
+      return next('/login')
+    }
   }
 
   // Department-Rollen, die diese Route nicht öffnen dürfen (z. B. Werkstatt für User)

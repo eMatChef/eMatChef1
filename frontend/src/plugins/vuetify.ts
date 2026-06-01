@@ -53,5 +53,6 @@ export default createVuetify({
     VTextField: { variant: 'outlined', density: 'comfortable' },
     VSelect: { variant: 'outlined', density: 'comfortable' },
     VTextarea: { variant: 'outlined', density: 'comfortable' },
+    VDateInput: { variant: 'outlined', density: 'compact', hideDetails: true, prependIcon: '' },
   },
 })

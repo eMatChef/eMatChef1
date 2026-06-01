@@ -49,6 +49,7 @@
       "dialog": "Dialog (EDialog)",
       "emptyStates": "Empty states (EEmptyState)",
       "materialDataTable": "Material table (v-data-table experiment)",
+      "activityDatetime": "Activity date/time (pill bar)",
       "loadingStates": "Loading states (ELoadingState)",
       "toasts": "Toasts (GlobalToastContainer)"
     },
@@ -63,6 +64,19 @@
     },
     "emptyStatesNote": "EEmptyState — variant create/search/generic, #actions slot and optional #illustration.",
     "materialTableNote": "Mock data — same cells as MaterialsView (All tab). Raw VDataTable for comparison, sandbox only.",
+    "activityDatetimeNote": "Pill bar from tablet (sm) up; mobile uses two rows. Compact range when same month (e.g. 15. – 28.06.26).",
+    "activityDatetime": {
+      "lead": "Reusable row: ActivityResponsiveDateTimeRow inside ActivityOutlinedDatetimeSection — same as the wizard.",
+      "desktopLabel": "Desktop / tablet (pill in box)",
+      "mobileLabel": "Mobile (two rows)",
+      "mobilePreviewLabel": "Mobile preview (390px)",
+      "usageSingle": "Usage — single date",
+      "usageRange": "Usage — date range",
+      "dateSingle": "Single date",
+      "dateRange": "Date range",
+      "timeFrom": "From",
+      "timeTo": "To"
+    },
     "materialTableSamples": {
       "search": "Search materials…",
       "noResultsTitle": "No results",
@@ -175,6 +189,7 @@
         "settingsCategories": "Settings · Categories · eMatChef",
         "settingsMyDepartment": "Settings · My department · eMatChef",
         "settingsJoinCode": "Settings · Join code · eMatChef",
+        "settingsFixedDates": "Settings · Fixed dates · eMatChef",
         "settingsDisplayScreens": "Settings · Info displays · eMatChef",
         "settingsStorageLocations": "Settings · Locations · eMatChef",
         "settingsBillingAddress": "Settings · Billing address · eMatChef",
@@ -1678,15 +1693,17 @@
       "return": "Return"
     },
     "datePresets": {
-      "today": "Today",
-      "nextSaturday": "Next Saturday"
+      "nextSaturday": "Next Saturday",
+      "secondSaturday": "Saturday in two weeks"
     },
     "dateRangePicker": {
+      "presetsAria": "Quick selection",
       "placeholder": "Select period…",
       "presetEaster": "Easter (Good Friday–Easter Monday)",
       "presetAscension": "Ascension (Thu–Sun)",
       "presetPentecost": "Pentecost (Sun–Mon)",
-      "schoolHolidayTooltip": "{label} (school holidays)"
+      "schoolHolidayTooltip": "{label} (school holidays)",
+      "rangeBlockedByDepartmentBreak": "The range must not include any «Material office closed» days."
     },
     "materialAvailability": {
       "tabSourceAria": "Material source",
@@ -2506,6 +2523,41 @@
     }
   },
   "settings": {
+    "nav": {
+      "fixedDates": "Fixed dates"
+    },
+    "fixedDates": {
+      "title": "Fixed dates",
+      "description": "Manually maintained date ranges (holidays, camp week, closure) for the activity calendar.",
+      "noPermission": "Only materials lead and department lead can manage fixed dates.",
+      "createTitle": "Add period",
+      "editTitle": "Edit period",
+      "startDate": "From",
+      "endDate": "To",
+      "typeLabel": "Type",
+      "name": "Name",
+      "namePlaceholder": "e.g. autumn break, summer camp",
+      "colFrom": "From",
+      "colTo": "To",
+      "colType": "Type",
+      "colName": "Name",
+      "loading": "Loading periods…",
+      "empty": "No periods yet.",
+      "confirmDeleteTitle": "Delete period?",
+      "confirmDeleteMessage": "This entry will be removed permanently.",
+      "toastLoadError": "Could not load periods.",
+      "toastCreated": "Period created.",
+      "toastUpdated": "Period saved.",
+      "toastDeleted": "Period deleted.",
+      "toastSaveError": "Could not save.",
+      "toastDeleteError": "Could not delete.",
+      "labels": {
+        "school_vacation": "School holidays",
+        "department_break": "Material office closed",
+        "camp_week": "Camp week",
+        "other": "Other"
+      }
+    },
     "adminUsers": {
       "roles": {
         "mw": "MW – materials lead",

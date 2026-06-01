@@ -77,6 +77,9 @@ function isSettingsItemActive(itemId: string): boolean {
   if (itemId === 'my-department/join-code') {
     return p === `${base}/my-department/join-code`
   }
+  if (itemId === 'my-department/fixed-dates') {
+    return p === `${base}/my-department/fixed-dates`
+  }
   if (itemId === 'my-department/display-screens') {
     return p === `${base}/my-department/display-screens`
   }
@@ -100,6 +103,12 @@ const allMenuItems = computed(() => [
   { id: 'categories', label: t('settings.nav.categories'), icon: markRaw(IconDashboard) },
   { id: 'storage', label: t('settings.nav.storage'), icon: markRaw(IconMaterials) },
   { id: 'my-department/join-code', label: t('settings.nav.joinCode'), icon: markRaw(IconEmployees) },
+  {
+    id: 'my-department/fixed-dates',
+    label: t('settings.nav.fixedDates'),
+    icon: markRaw(IconSettings),
+    requiresMaterialManage: true,
+  },
   { id: 'my-department/display-screens', label: t('settings.nav.displayScreens'), icon: markRaw(IconDisplay) },
   { id: 'activities', label: t('settings.nav.activities'), icon: markRaw(IconActivities) },
   { id: 'my-department/storage-locations', label: t('settings.nav.storageLocations'), icon: markRaw(IconMaterials) },

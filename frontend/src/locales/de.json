@@ -50,6 +50,7 @@
       "dialog": "Dialog (EDialog)",
       "emptyStates": "Leere Zustände (EEmptyState)",
       "materialDataTable": "Material-Tabelle (v-data-table Experiment)",
+      "activityDatetime": "Aktivität Zeitraum (Pill-Leiste)",
       "loadingStates": "Ladezustände (ELoadingState)",
       "toasts": "Toasts (GlobalToastContainer)"
     },
@@ -64,6 +65,19 @@
     },
     "emptyStatesNote": "EEmptyState — variant create/search/generic, Slots #actions und optional #illustration.",
     "materialTableNote": "Mock-Daten — gleiche Zellen wie MaterialsView (Tab «Alle»), rohes VDataTable nur hier zum Vergleich.",
+    "activityDatetimeNote": "Pill-Leiste ab Tablet (sm), Mobile als 2-Zeiler. Zeitraum kompakt bei gleichem Monat (z. B. 15. – 28.06.26).",
+    "activityDatetime": {
+      "lead": "Wiederverwendbare Zeile: ActivityResponsiveDateTimeRow in ActivityOutlinedDatetimeSection — wie im Wizard.",
+      "desktopLabel": "Desktop / Tablet (Pill in Box)",
+      "mobileLabel": "Mobile (2 Zeilen)",
+      "mobilePreviewLabel": "Mobile-Vorschau (390px)",
+      "usageSingle": "Nutzung — Einzeldatum",
+      "usageRange": "Nutzung — Zeitraum",
+      "dateSingle": "Einzeldatum",
+      "dateRange": "Zeitraum",
+      "timeFrom": "Von",
+      "timeTo": "Bis"
+    },
     "materialTableSamples": {
       "search": "Material suchen…",
       "noResultsTitle": "Keine Treffer",
@@ -197,6 +211,7 @@
         "settingsCategories": "Einstellungen · Kategorien · eMatChef",
         "settingsMyDepartment": "Einstellungen · Mein Department · eMatChef",
         "settingsJoinCode": "Einstellungen · Join-Code · eMatChef",
+        "settingsFixedDates": "Einstellungen · Fixe Daten · eMatChef",
         "settingsDisplayScreens": "Einstellungen · Infoscreens · eMatChef",
         "settingsStorageLocations": "Einstellungen · Standorte · eMatChef",
         "settingsBillingAddress": "Einstellungen · Rechnungsadresse · eMatChef",
@@ -1832,15 +1847,17 @@
       "return": "Rückgabe"
     },
     "datePresets": {
-      "today": "Heute",
-      "nextSaturday": "Nächster Samstag"
+      "nextSaturday": "Nächster Samstag",
+      "secondSaturday": "Übernächster Samstag"
     },
     "dateRangePicker": {
+      "presetsAria": "Schnellauswahl",
       "placeholder": "Zeitraum wählen …",
       "presetEaster": "Ostern (Karfreitag–Ostermontag)",
       "presetAscension": "Auffahrt (Do–So)",
       "presetPentecost": "Pfingsten (So–Mo)",
-      "schoolHolidayTooltip": "{label} (Schulferien)"
+      "schoolHolidayTooltip": "{label} (Schulferien)",
+      "rangeBlockedByDepartmentBreak": "Der Zeitraum darf keine Tage «Mat-Büro geschlossen» enthalten."
     },
     "materialAvailability": {
       "tabSourceAria": "Materialquelle",
@@ -2706,6 +2723,7 @@
       "myDepartment": "Mein Department",
       "timeLocation": "Zeit/Ort",
       "joinCode": "Join-Code",
+      "fixedDates": "Fixe Daten",
       "displayScreens": "Infoscreens",
       "storageLocations": "Standorte",
       "billingAddress": "Rechnungsadresse",
@@ -3092,6 +3110,38 @@
       "errorNoPanel": "Mindestens ein Bereich (Anlässe, Werkstatt oder Statistik) muss aktiv sein.",
       "toastSettingsSaved": "Anzeige-Einstellungen gespeichert.",
       "toastSettingsError": "Einstellungen konnten nicht gespeichert werden."
+    },
+    "fixedDates": {
+      "title": "Fixe Daten",
+      "description": "Manuell gepflegte Zeiträume (Ferien, Lagerwoche, Mat-Büro geschlossen) für den Aktivitäten-Kalender.",
+      "noPermission": "Nur Materialwart und Departmentchef können Fixe Daten verwalten.",
+      "createTitle": "Zeitraum anlegen",
+      "editTitle": "Zeitraum bearbeiten",
+      "startDate": "Von",
+      "endDate": "Bis",
+      "typeLabel": "Art",
+      "name": "Name",
+      "namePlaceholder": "z. B. Herbstferien, Sommerlager Matra",
+      "colFrom": "Von",
+      "colTo": "Bis",
+      "colType": "Art",
+      "colName": "Name",
+      "loading": "Lade Zeiträume…",
+      "empty": "Noch keine Zeiträume erfasst.",
+      "confirmDeleteTitle": "Zeitraum löschen?",
+      "confirmDeleteMessage": "Der Eintrag wird dauerhaft entfernt.",
+      "toastLoadError": "Zeiträume konnten nicht geladen werden.",
+      "toastCreated": "Zeitraum wurde angelegt.",
+      "toastUpdated": "Zeitraum wurde gespeichert.",
+      "toastDeleted": "Zeitraum wurde gelöscht.",
+      "toastSaveError": "Speichern fehlgeschlagen.",
+      "toastDeleteError": "Löschen fehlgeschlagen.",
+      "labels": {
+        "school_vacation": "Schulferien",
+        "department_break": "Mat-Büro geschlossen",
+        "camp_week": "Lagerwoche",
+        "other": "Sonstiges"
+      }
     },
     "joinCode": {
       "title": "Join-Code",

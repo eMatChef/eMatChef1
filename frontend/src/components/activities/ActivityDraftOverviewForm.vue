@@ -784,7 +784,9 @@ const isSavingAny = computed(() => saving.value || zeitraumSaving.value)
 
 function isExternalDatetimePickerTarget(el: EventTarget | null): boolean {
   if (!(el instanceof HTMLElement)) return false
-  return !!el.closest('.activity-date-picker-menu, .v-date-picker, .v-picker')
+  return !!el.closest(
+    '.activity-date-picker-menu, .activity-time-picker-menu, .v-date-picker, .v-time-picker, .v-picker',
+  )
 }
 
 function onZeitraumFocusOut(event: FocusEvent) {
@@ -794,7 +796,12 @@ function onZeitraumFocusOut(event: FocusEvent) {
     zeitraumBlurTimer = null
     const active = document.activeElement
     if (active instanceof HTMLElement) {
-      if (active.closest('.activity-zeitraum-autosave-wrap, .activity-date-picker-menu, .v-date-picker, .v-picker')) return
+      if (
+        active.closest(
+          '.activity-zeitraum-autosave-wrap, .activity-date-picker-menu, .activity-time-picker-menu, .v-date-picker, .v-time-picker, .v-picker',
+        )
+      )
+        return
     }
     void saveZeitraumIfDirty()
   }, 150)

@@ -2,7 +2,7 @@
   <ActivityOutlinedDatetimeSection :id="usageBlockId" :title="usageSectionTitle" icon="calendar" :required="true">
     <slot name="usage-before" />
     <template v-if="isActivityType">
-      <ActivityPillDateTimeRow
+      <ActivityResponsiveDateTimeRow
         label=""
         :label-from="usageTimeFromLabel"
         :label-to="usageTimeToLabel"
@@ -13,7 +13,6 @@
             v-model="usageDay"
             :department-id="departmentId"
             :disabled="usageDatesLocked"
-            :teleport-to="teleportTo"
           />
         </template>
         <template #timeFrom>
@@ -22,10 +21,10 @@
         <template #timeTo>
           <ActivityTimeField v-model="usageTimeTo" :locked="usageDatesLocked" />
         </template>
-      </ActivityPillDateTimeRow>
+      </ActivityResponsiveDateTimeRow>
     </template>
     <template v-else>
-      <ActivityPillDateTimeRow
+      <ActivityResponsiveDateTimeRow
         :label="usageRangeRowLabelDisplay"
         :label-from="usageTimeFromLabel"
         :label-to="usageTimeToLabel"
@@ -37,7 +36,6 @@
             :department-id="departmentId"
             :show-preset-sidebar="showDateRangePresetSidebar"
             :disabled="usageDatesLocked"
-            :teleport-to="teleportTo"
           />
         </template>
         <template #timeFrom>
@@ -46,13 +44,13 @@
         <template #timeTo>
           <ActivityTimeField v-model="usageTimeTo" :locked="usageDatesLocked" />
         </template>
-      </ActivityPillDateTimeRow>
+      </ActivityResponsiveDateTimeRow>
     </template>
   </ActivityOutlinedDatetimeSection>
 
   <ActivityOutlinedDatetimeSection :id="planningBlockId" :title="materialSectionTitle" icon="truck" :required="true">
     <slot name="planning-before" />
-    <ActivityPillDateTimeRow
+    <ActivityResponsiveDateTimeRow
       label=""
       :label-from="materialTimeFromLabel"
       :label-to="materialTimeToLabel"
@@ -64,7 +62,6 @@
           :department-id="departmentId"
           :show-preset-sidebar="showDateRangePresetSidebar"
           :disabled="planningDatesLocked"
-          :teleport-to="teleportTo"
         />
       </template>
       <template #timeFrom>
@@ -81,7 +78,7 @@
           :blocked-usage-range="materialTimesBlockedUsage"
         />
       </template>
-    </ActivityPillDateTimeRow>
+    </ActivityResponsiveDateTimeRow>
     <slot name="planning-after" />
   </ActivityOutlinedDatetimeSection>
 </template>
@@ -93,7 +90,7 @@ import type { ActivityApiType } from '@/api/activities'
 import ActivityDateField from '@/components/activities/wizard/ActivityDateField.vue'
 import ActivityDateRangeField from '@/components/activities/wizard/ActivityDateRangeField.vue'
 import ActivityOutlinedDatetimeSection from '@/components/activities/wizard/ActivityOutlinedDatetimeSection.vue'
-import ActivityPillDateTimeRow from '@/components/activities/wizard/ActivityPillDateTimeRow.vue'
+import ActivityResponsiveDateTimeRow from '@/components/activities/wizard/ActivityResponsiveDateTimeRow.vue'
 import ActivityTimeField from '@/components/activities/wizard/ActivityTimeField.vue'
 
 const props = withDefaults(
@@ -117,7 +114,8 @@ const props = withDefaults(
     materialTimesBlockedUsage?: { start: Date; end: Date } | null
   }>(),
   {
-    teleportTo: '.material-wizard-modal',
+    /** Menüs werden immer an `body` gehängt (siehe useActivityPickerMenuProps). */
+    teleportTo: 'body',
     usageDatesLocked: false,
     planningDatesLocked: false,
     materialTimesBlockedUsage: null,
