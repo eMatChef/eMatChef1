@@ -2,7 +2,7 @@
 
 Übersicht über zentrale Vue-Komponenten, Composables, Utils und CSS, die in mehreren Bereichen der App genutzt werden sollen — statt Logik oder Styles pro View neu zu schreiben.
 
-**Stand:** Mai 2026
+**Stand:** Juni 2026 (Aktivitäten Datum/Zeitraum ergänzt)
 
 ---
 
@@ -233,6 +233,89 @@ const { fromActivityMw, fromPublicFound, fromDepartmentInvite, fromActivityInvit
 2. Label in `useNotificationSender` / `de.json` ergänzen
 3. In `NotificationSenderBlock.vue`: optional eigenes Icon für die Variante
 4. Posteingangs-View: `NotificationSenderBlock` + `getSenderPrimaryLine` wie oben
+
+---
+
+---
+
+### Aktivitäten / Datum, Zeitraum & Uhrzeit
+
+Zentrale Datepicker- und Uhrzeit-Bausteine (Vuetify `VDatePicker` / `VTimePicker`). **Detail-Doku:** [ui/activity-datetime-fields.md](./ui/activity-datetime-fields.md) · Referenz-UI: Sandbox `/{departmentId}/sandbox` → «Aktivität Zeitraum» · Wizard: `ActivityZeitraumDatetimeFields`.
+
+| Baustein | Pfad | Verwendung |
+| -------- | ---- | ---------- |
+| **ActivityDateTimeFields** | `frontend/src/components/activities/wizard/ActivityDateTimeFields.vue` | **Empfohlen:** eine Zeile Datum (ein Tag **oder** Zeitraum) + optional Von/Bis-Uhr |
+| **ActivityZeitraumDatetimeFields** | `frontend/src/components/activities/shared/ActivityZeitraumDatetimeFields.vue` | Create-Wizard + Draft: Nutzung + Material-Planung inkl. Aktivitätstyp |
+| **ActivityDateField** | `…/wizard/ActivityDateField.vue` | Einzeldatum |
+| **ActivityDateRangeField** | `…/wizard/ActivityDateRangeField.vue` | Zeitraum (Doppelkalender ab `sm`) |
+| **ActivityTimeField** | `…/wizard/ActivityTimeField.vue` | Uhrzeit (15-Min-Raster, VTimePicker) |
+| **ActivityResponsiveDateTimeRow** | `…/wizard/ActivityResponsiveDateTimeRow.vue` | Nur Layout: Pill ab `sm`, Mobile 2-zeilig |
+| **useActivityDatePickerEvents** | `frontend/src/composables/useActivityDatePickerEvents.ts` | Marker (Feiertage, fcal, Fixe Daten), `allowedDates`, Mat-Büro-Sperre |
+| **useActivityDatePresets** | `frontend/src/composables/useActivityDatePresets.ts` | Schnellauswahl-Liste (Samstage + Fixe Daten) |
+
+**ActivityDateTimeFields — Import & Props**
+
+```vue
+import { ActivityDateTimeFields } from '@/components/activities/wizard'
+
+<!-- Ein Tag + Uhrzeiten, mit Kalender-Punkten -->
+<ActivityDateTimeFields
+  v-model:day="day"
+  v-model:time-from="timeFrom"
+  v-model:time-to="timeTo"
+  date-mode="single"
+  :department-id="departmentId"
+  :show-presets="false"
+  :show-markers="true"
+  label-from="Von"
+  label-to="Bis"
+/>
+
+<!-- Zeitraum + Schnellauswahl (Lager/Event) -->
+<ActivityDateTimeFields
+  v-model:range="range"
+  v-model:time-from="timeFrom"
+  v-model:time-to="timeTo"
+  date-mode="range"
+  :department-id="departmentId"
+  :show-presets="true"
+  :show-markers="true"
+  label-from="Von"
+  label-to="Bis"
+/>
+
+<!-- Nur Datum, ohne Uhr -->
+<ActivityDateTimeFields
+  v-model:day="day"
+  date-mode="single"
+  :show-time="false"
+  label-from=""
+  label-to=""
+/>
+```
+
+| Prop | Default | Bedeutung |
+| ---- | ------- | --------- |
+| `date-mode` | — | `'single'` \| `'range'` |
+| `show-presets` | `false` | Schnellauswahl (Samstage + Lagerwoche/Sonstiges) |
+| `show-markers` | `true` | Punkte/Tooltip im Kalender; `false` = keine Punkte, keine Sperre über Fixe Daten |
+| `show-time` | `true` | Von/Bis-`ActivityTimeField` |
+| `department-id` | `null` | Marker + Fixe Daten laden |
+| `disabled` / `times-locked` | `false` | Datum / Uhr sperren |
+| `blocked-usage-range` | `null` | Material-Uhr: Nutzungsintervall nicht wählbar |
+| `layout` | `'auto'` | `'auto'` \| `'pill'` \| `'stacked'` |
+
+**v-model:** `day` (single), `range` (range), `timeFrom`, `timeTo`.
+
+**Kalender-UX:** Desktop Zeitraum = Doppelkalender + Schnellauswahl rechts; Mobile = ein Kalender + Schnellauswahl unten; Navigation = Pfeile, Mausrad, Touch **links/rechts**. Schnellauswahl Zeitraum: nur **Lagerwoche** / **Sonstiges** (+ Samstage), keine Schulferien/Mat-Büro in der Liste.
+
+**Einzelbausteine** (`ActivityDateField` / `ActivityDateRangeField`): Props `show-presets`, `show-markers`, `department-id`. Zeitraum: `show-preset-sidebar` ist Alias für `show-presets` (deprecated).
+
+**Eingebunden in:** `ActivityCreateWizardForm.vue`, `ActivityDraftOverviewForm.vue`, Sandbox `ActivityDatetimeSandboxFields.vue`.
+
+**Styles:** `frontend/src/styles/components/activity-datetime-field.css`, `activity-datetime-layout.css` (global in `style.css` bzw. Wizard-CSS).
+
+**Fixe Daten / Marker:** [setting/fixe-daten.md](./setting/fixe-daten.md)
 
 ---
 
@@ -578,6 +661,9 @@ SVG-Icons als Vue-Komponenten (`IconDashboard`, `IconMaterials`, `IconActivities
 | `useAutoSaveField`                   | Auto-Save-Logik pro Feld (Debounce, Loader, Blur-Revert, Retry) — siehe `AutoSaveField` |
 | `useFormFieldBaselines`              | DB-Baseline pro Formularfeld für `:baseline` in `AutoSaveField`               |
 | `useNotificationSender`              | Factories für `NotificationSenderBlock` (Posteingang/Glocke, inkl. i18n)      |
+| `useActivityDatePickerEvents`        | Kalender-Marker + `department_break`-Sperre — siehe [activity-datetime-fields.md](./ui/activity-datetime-fields.md) |
+| `useActivityDatePresets`             | Schnellauswahl-Liste für Datepicker (single/range)                            |
+| `useActivityDateRangePicker`         | Range-Hover, Menü-Schliessen nach 2. Klick                                    |
 | `confirmWorkflowStatusTransition`    | Confirm vor Pack-Workflow-Status `at_event` / `returned` (siehe `usePackWorkflowConfirm.ts`) |
 | `useMediaUpload` *(geplant)*         | FormData-Foto-Upload für kontextspezifische Routes — siehe [media/plan.md](./media/plan.md) Paket 6 |
 
@@ -611,6 +697,7 @@ Ausführlich: `[docs/Archiv/HANDOUT_CSS_ZENTRALISIERUNG.md](Archiv/HANDOUT_CSS_Z
 | **Adress-Typ**  | `styles/components/address-type-badge.css` | `.address-type-badge.{type}` + Avatar-Farben (Kontakte, Autocomplete) |
 | **Auto-Save-Feld** | `styles/components/auto-save-field.css` | AutoSaveField: Loader, Diskette, Fokus/Fehler — Marken-Tokens |
 | **Sender (Inbox)** | `styles/components/notification-sender-block.css` | System-/Aufgaben-Icons, Actor-Overlay |
+| **Activity Datum/Zeitraum** | `styles/components/activity-datetime-field.css`, `activity-datetime-layout.css` | VDatePicker-Menü, Pill-Zeile, Range-Farben — siehe [activity-datetime-fields.md](./ui/activity-datetime-fields.md) |
 
 
 **Faustregel:** Kommt ein Style in 2+ Screens vor → zentral in `styles/ui/`* oder `styles/components/*`. Domain-spezifisch bleibt in der View (`styles/views/…`).
@@ -625,6 +712,6 @@ Wenn du eine Komponente/Util für mehrere Bereiche einführst:
 
 1. Datei unter `components/<bereich>/` oder `utils/`
 2. Optional CSS unter `styles/components/`
-3. **Eintrag in dieser Datei** (Tabelle + kurzes Code-Beispiel)
+3. **Eintrag in dieser Datei** (Tabelle + kurzes Code-Beispiel); bei größeren Themen zusätzlich Detail-Doku unter `docs/ui/` (z. B. [activity-datetime-fields.md](./ui/activity-datetime-fields.md))
 4. API-Felder dokumentieren, falls Backend-Daten nötig sind
 

@@ -14,15 +14,28 @@ import { isoDateKeysInRange } from '@/utils/calendarPeriodDays'
 import { swissHolidayCalendarDays } from '@/utils/swissMovableFeasts'
 
 /** Feiertage, fcal, Fixe Daten — nur Hinweise (Punkte/Tooltip). Nur department_break sperrt Auswahl. */
-export function useActivityDatePickerEvents(departmentId: MaybeRefOrGetter<string | null | undefined>) {
+export function useActivityDatePickerEvents(
+  departmentId: MaybeRefOrGetter<string | null | undefined>,
+  options?: { showMarkers?: MaybeRefOrGetter<boolean> },
+) {
   const { t } = useI18n()
   const adapter = useDate()
   const markersByDay = ref<Map<string, ActivityDatePickerDayMarker[]>>(new Map())
-  /** Nur label department_break — Schulferien, Lagerwoche, Feiertage blockieren nicht. */
   const departmentClosedDateKeys = ref<Set<string>>(new Set())
   const calendarPeriods = ref<DepartmentCalendarPeriod[]>([])
 
+  function markersEnabled(): boolean {
+    return toValue(options?.showMarkers) !== false
+  }
+
+  function clearMarkers(): void {
+    markersByDay.value = new Map()
+    departmentClosedDateKeys.value = new Set()
+    calendarPeriods.value = []
+  }
+
   async function refreshFixedPeriodMarkers(): Promise<void> {
+    if (!markersEnabled()) return
     const deptId = toValue(departmentId)
     if (!deptId) return
     try {
@@ -51,6 +64,7 @@ export function useActivityDatePickerEvents(departmentId: MaybeRefOrGetter<strin
   }
 
   async function refreshSchoolMarkers(): Promise<void> {
+    if (!markersEnabled()) return
     const deptId = toValue(departmentId)
     if (!deptId) return
     try {
@@ -74,6 +88,10 @@ export function useActivityDatePickerEvents(departmentId: MaybeRefOrGetter<strin
   }
 
   function applySwissHolidayMarkers(): void {
+    if (!markersEnabled()) {
+      clearMarkers()
+      return
+    }
     const y = new Date().getFullYear()
     const map = new Map<string, ActivityDatePickerDayMarker[]>()
     for (const h of swissHolidayCalendarDays(y - 1, y + 6)) {
@@ -94,9 +112,20 @@ export function useActivityDatePickerEvents(departmentId: MaybeRefOrGetter<strin
     await refreshFixedPeriodMarkers()
   }
 
-  watch(() => toValue(departmentId), () => void refreshAll(), { immediate: true })
+  watch(
+    () => [toValue(departmentId), toValue(options?.showMarkers)] as const,
+    () => {
+      if (!markersEnabled()) {
+        clearMarkers()
+        return
+      }
+      void refreshAll()
+    },
+    { immediate: true },
+  )
 
   const allowedDates = computed(() => {
+    if (!markersEnabled()) return () => true
     const closed = departmentClosedDateKeys.value
     return (date: unknown) => {
       const js = date instanceof Date ? date : adapter.toJsDate(date as never)
@@ -106,7 +135,7 @@ export function useActivityDatePickerEvents(departmentId: MaybeRefOrGetter<strin
   })
 
   function markersForIsoKey(isoKey: string | null | undefined): ActivityDatePickerDayMarker[] {
-    if (!isoKey) return []
+    if (!markersEnabled() || !isoKey) return []
     return markersByDay.value.get(isoKey) ?? []
   }
 

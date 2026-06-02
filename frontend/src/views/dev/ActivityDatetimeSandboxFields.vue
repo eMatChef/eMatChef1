@@ -1,26 +1,23 @@
 <template>
+  <!-- Produktions-API: ActivityDateTimeFields (wie Create-Wizard über ActivityZeitraumDatetimeFields). -->
   <div class="activity-datetime-host sandbox-activity-datetime-fields">
     <ActivityOutlinedDatetimeSection
       :title="t('devSandbox.activityDatetime.usageSingle')"
       icon="calendar"
     >
-      <ActivityResponsiveDateTimeRow
-        label=""
+      <ActivityDateTimeFields
+        v-model:day="dayModel"
+        v-model:time-from="timeFromModel"
+        v-model:time-to="timeToModel"
+        date-mode="single"
+        :department-id="departmentId"
         :layout="layout"
+        :show-presets="true"
+        :show-markers="true"
         :label-from="t('devSandbox.activityDatetime.timeFrom')"
         :label-to="t('devSandbox.activityDatetime.timeTo')"
         :aria-label="t('devSandbox.activityDatetime.usageSingle')"
-      >
-        <template #date>
-          <ActivityDateField v-model="dayModel" :department-id="departmentId" />
-        </template>
-        <template #timeFrom>
-          <ActivityTimeField v-model="timeFromModel" />
-        </template>
-        <template #timeTo>
-          <ActivityTimeField v-model="timeToModel" />
-        </template>
-      </ActivityResponsiveDateTimeRow>
+      />
     </ActivityOutlinedDatetimeSection>
 
     <ActivityOutlinedDatetimeSection
@@ -28,27 +25,19 @@
       icon="calendar"
       class="sandbox-activity-datetime-fields__range-block"
     >
-      <ActivityResponsiveDateTimeRow
-        label=""
+      <ActivityDateTimeFields
+        v-model:range="rangeModel"
+        v-model:time-from="timeFromModel"
+        v-model:time-to="timeToModel"
+        date-mode="range"
+        :department-id="departmentId"
         :layout="layout"
+        :show-presets="true"
+        :show-markers="true"
         :label-from="t('devSandbox.activityDatetime.timeFrom')"
         :label-to="t('devSandbox.activityDatetime.timeTo')"
         :aria-label="t('devSandbox.activityDatetime.usageRange')"
-      >
-        <template #date>
-          <ActivityDateRangeField
-            v-model="rangeModel"
-            :department-id="departmentId"
-            :show-preset-sidebar="true"
-          />
-        </template>
-        <template #timeFrom>
-          <ActivityTimeField v-model="timeFromModel" />
-        </template>
-        <template #timeTo>
-          <ActivityTimeField v-model="timeToModel" />
-        </template>
-      </ActivityResponsiveDateTimeRow>
+      />
     </ActivityOutlinedDatetimeSection>
   </div>
 </template>
@@ -57,11 +46,8 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
-import ActivityDateField from '@/components/activities/wizard/ActivityDateField.vue'
-import ActivityDateRangeField from '@/components/activities/wizard/ActivityDateRangeField.vue'
+import ActivityDateTimeFields from '@/components/activities/wizard/ActivityDateTimeFields.vue'
 import ActivityOutlinedDatetimeSection from '@/components/activities/wizard/ActivityOutlinedDatetimeSection.vue'
-import ActivityResponsiveDateTimeRow from '@/components/activities/wizard/ActivityResponsiveDateTimeRow.vue'
-import ActivityTimeField from '@/components/activities/wizard/ActivityTimeField.vue'
 import '@/styles/components/activity-datetime-field.css'
 import '@/styles/components/activity-datetime-layout.css'
 
@@ -71,7 +57,6 @@ const props = withDefaults(
     range: [Date, Date] | null
     timeFrom: Date | null
     timeTo: Date | null
-    /** auto | pill | stacked — für Mobile-Vorschau im Sandbox-Rahmen */
     layout?: 'auto' | 'pill' | 'stacked'
   }>(),
   { layout: 'auto' },

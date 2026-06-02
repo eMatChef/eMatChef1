@@ -11,12 +11,16 @@ export function shiftMonthYear(
 
 const SWIPE_THRESHOLD_PX = 48
 
-/** Mausrad und Touch-Wischen auf dem Kalender: Monat vor/zurück. */
+/**
+ * Monatsnavigation: Mausrad (vertikal) und Touch-Wischen horizontal.
+ * Links wischen → vorheriger Monat, rechts wischen → nächster Monat.
+ */
 export function useActivityDatePickerWheelMonth(options: {
   month: Ref<number>
   year: Ref<number>
   onAfterChange?: () => void
 }) {
+  const touchStartX = ref<number | null>(null)
   const touchStartY = ref<number | null>(null)
 
   function applyMonthDelta(delta: number) {
@@ -33,19 +37,25 @@ export function useActivityDatePickerWheelMonth(options: {
 
   function onTouchStart(e: TouchEvent) {
     if (e.touches.length !== 1) return
+    touchStartX.value = e.touches[0].clientX
     touchStartY.value = e.touches[0].clientY
   }
 
   function onTouchEnd(e: TouchEvent) {
+    const startX = touchStartX.value
     const startY = touchStartY.value
+    touchStartX.value = null
     touchStartY.value = null
-    if (startY == null) return
+    if (startX == null || startY == null) return
+    const endX = e.changedTouches[0]?.clientX
     const endY = e.changedTouches[0]?.clientY
-    if (endY == null) return
+    if (endX == null || endY == null) return
+    const dx = endX - startX
     const dy = endY - startY
-    if (Math.abs(dy) < SWIPE_THRESHOLD_PX) return
-    // Nach unten wischen → nächster Monat (wie Mausrad nach unten)
-    applyMonthDelta(dy > 0 ? 1 : -1)
+    if (Math.abs(dx) < SWIPE_THRESHOLD_PX) return
+    // Nur deutlich horizontale Wischgesten (vertikal = Menü-Scroll)
+    if (Math.abs(dx) <= Math.abs(dy)) return
+    applyMonthDelta(dx < 0 ? 1 : -1)
   }
 
   return { onWheel, onTouchStart, onTouchEnd }

@@ -272,6 +272,12 @@ export async function patchActivity(
   return data
 }
 
+/** DELETE /api/activities/:id — Soft-Delete (Entwurf verwerfen) */
+export async function deleteActivity(activityId: string): Promise<{ message?: string }> {
+  const { data } = await apiClient.delete<{ message?: string }>(`/api/activities/${activityId}`)
+  return data
+}
+
 export interface SyncActivityItemPayload {
   material_item_id: string
   quantity: number

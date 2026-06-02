@@ -36,6 +36,16 @@
           {{ t('activities.common.discard') }}
         </EButton>
         <EButton
+          v-if="showDiscardDraftButton"
+          variant="secondary"
+          size="small"
+          class="activity-discard-draft-btn"
+          :loading="isDiscardingDraft"
+          @click="$emit('discardDraft')"
+        >
+          {{ t('activities.wizard.discardDraft') }}
+        </EButton>
+        <EButton
           v-if="layoutMode === 'stepper' && selectedActivityType && wizardStepIndex > 0"
           variant="secondary"
           size="small"
@@ -103,6 +113,9 @@ const props = withDefaults(
     lastSavedAt?: Date | null
     /** camp/event/external: Entwurf auf Server → «Schliessen» statt «Verwerfen» */
     showCloseSavedButton?: boolean
+    /** Server-Entwurf löschen (nach Schritt 1 «Weiter») */
+    showDiscardDraftButton?: boolean
+    isDiscardingDraft?: boolean
   }>(),
   {
     isSavingDraft: false,
@@ -110,6 +123,8 @@ const props = withDefaults(
     showDraftStatus: false,
     lastSavedAt: null,
     showCloseSavedButton: false,
+    showDiscardDraftButton: false,
+    isDiscardingDraft: false,
   },
 )
 
@@ -131,6 +146,7 @@ const savedAtLabel = computed(() => {
 defineEmits<{
   close: []
   closeSaved: []
+  discardDraft: []
   prev: []
   weiter: []
   submit: []

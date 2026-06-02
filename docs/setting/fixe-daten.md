@@ -46,7 +46,7 @@ Ein Eintrag = ein Zeitraum (inklusive `start_date` … `end_date`).
 - i18n: `settings.nav.fixedDates`, `settings.fixedDates.*` (`de.json`, `en.json`)
 
 **Kalender:** Perioden in `useActivityDatePickerEvents` laden (Jahre: aktuell −1 … +2), Tage in Marker-`Set` mergen.  
-**Schnellauswahl** im Datepicker-Menü (rechts neben Kalender): «Nächster Samstag», «Übernächster Samstag» plus noch nicht abgelaufene Fixe Daten (Art + Name, z. B. «Lagerwoche: Pfingstlager»).
+**Schnellauswahl** im Datepicker-Menü (rechts Desktop / unten Mobile): «Nächster Samstag», «Übernächster Samstag» plus noch nicht abgelaufene Fixe Daten **nur Lagerwoche und Sonstiges** (Art + Name). Schulferien und Mat-Büro geschlossen erscheinen nur als Kalender-Marker, nicht in der Schnellauswahl. Im Create-Wizard nur bei Aktivitätstyp **Lager** und **Event** (`ActivityZeitraumDatetimeFields`).
 
 ---
 

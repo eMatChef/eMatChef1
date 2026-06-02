@@ -60,7 +60,6 @@
           :department-id="departmentId"
           :usage-dates-locked="datesLockedByMaterial"
           :material-times-blocked-usage="materialTimesBlockedUsage"
-          :show-date-range-preset-sidebar="showDateRangePresetSidebar"
         >
           <template #usage-before>
             <p v-if="isActivityType" class="zeitraum-hint text-muted">
@@ -357,7 +356,6 @@
           :department-id="departmentId"
           :usage-dates-locked="datesLockedByMaterial"
           :material-times-blocked-usage="materialTimesBlockedUsage"
-          :show-date-range-preset-sidebar="showDateRangePresetSidebar"
           usage-block-id="activity-usage-block-s"
           planning-block-id="activity-planning-block-s"
           usage-range-row-label=""
@@ -1042,10 +1040,7 @@ function onGroupSelectChange(value: unknown) {
   emit('update:selectedGroupId', raw || null)
 }
 
-/** Schnellauswahl (Feiertage …) nur bei Lager/Event; bei „Aktivität“ / „Extern“ ausblenden. */
-const showDateRangePresetSidebar = computed(
-  () => props.selectedActivityType !== 'activity' && props.selectedActivityType !== 'external',
-)
+/** Schnellauswahl Zeitraum: in ActivityZeitraumDatetimeFields (nur Lager/Event). */
 
 const selectedActivityTypeApi = computed(() => props.selectedActivityType as ActivityApiType)
 

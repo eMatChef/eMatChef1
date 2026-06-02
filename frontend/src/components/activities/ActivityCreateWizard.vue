@@ -108,8 +108,11 @@
           :show-draft-status="showDraftFooterStatus"
           :last-saved-at="lastDraftSavedAt"
           :show-close-saved-button="showCloseSavedButton"
+          :show-discard-draft-button="showDiscardDraftButton"
+          :is-discarding-draft="isDiscardingDraft"
           @close="handleClose"
           @close-saved="handleClose"
+          @discard-draft="handleDiscardDraft"
           @prev="prevStep"
           @weiter="onWeiter"
           @submit="handleSubmit"
@@ -130,6 +133,7 @@ import '@/styles/activity-type-chips.css'
 import '@/styles/activity-create-wizard.css'
 import {
   createActivity,
+  deleteActivity,
   patchActivity,
   patchActivityStatus,
   syncActivityItems,
@@ -139,6 +143,7 @@ import { FALLBACK_ACTIVITY_DEFAULTS, getActivityDefaults } from '@/api/departmen
 import { resolveActivityGroupPickerLabel } from '@/utils/groupHierarchy'
 import { useAuthStore } from '@/stores/auth'
 import { useToast } from '@/composables/useToast'
+import { useConfirm } from '@/composables/useConfirm'
 import {
   useActivityCreateWizard,
   type ActivityCreateType,
@@ -175,6 +180,7 @@ const wizardFullscreen = computed(() => !mdAndUp.value)
 /** Vorschau-Spalte ab sm (600px), auch im Tablet-Fullscreen */
 const showWizardPreview = smAndUp
 const toast = useToast()
+const { confirm: confirmDialog } = useConfirm()
 const authStore = useAuthStore()
 const headerNotificationsStore = useHeaderNotificationsStore()
 const { canSelectDepartmentGroupLevel } = useDepartmentMemberRole()
@@ -195,6 +201,7 @@ const showDialog = computed({
 const wizardFormRef = ref<HTMLElement | null>(null)
 const isSubmitting = ref(false)
 const isSavingDraft = ref(false)
+const isDiscardingDraft = ref(false)
 const submitError = ref('')
 /** Nach erfolgreichem „Weiter“ (Draft) oder finalem Speichern */
 const lastDraftSavedAt = ref<Date | null>(null)
@@ -315,14 +322,8 @@ const submitButtonTitle = computed(() => {
   return ''
 })
 
-const showDraftFooterStatus = computed(
-  () =>
-    layoutMode.value === 'stepper' &&
-    !!selectedActivityType.value &&
-    (!!draftActivityId.value || lastDraftSavedAt.value !== null),
-)
-
-const showCloseSavedButton = computed(() => {
+/** Nur Lager/Event/extern: nach «Weiter» auf Schritt 1 (Server-Entwurf existiert) */
+const showDraftFooterStatus = computed(() => {
   const typ = selectedActivityType.value
   return (
     layoutMode.value === 'stepper' &&
@@ -330,6 +331,10 @@ const showCloseSavedButton = computed(() => {
     (typ === 'camp' || typ === 'event' || typ === 'external')
   )
 })
+
+const showCloseSavedButton = computed(() => showDraftFooterStatus.value)
+
+const showDiscardDraftButton = computed(() => showDraftFooterStatus.value)
 
 const submitButtonLabel = computed(() => {
   switch (selectedActivityType.value) {
@@ -458,6 +463,34 @@ const previewInvitedLine = computed(() => {
 function handleClose() {
   submitError.value = ''
   showDialog.value = false
+}
+
+async function handleDiscardDraft() {
+  const id = draftActivityId.value
+  if (!id || !showDiscardDraftButton.value) return
+  const ok = await confirmDialog({
+    title: t('activities.wizard.discardDraft'),
+    message: t('activities.wizard.confirmDiscardDraft'),
+    confirmText: t('activities.wizard.discardDraft'),
+    cancelText: t('common.cancel'),
+    variant: 'danger',
+  })
+  if (!ok) return
+  isDiscardingDraft.value = true
+  submitError.value = ''
+  try {
+    await deleteActivity(id)
+    toast.success(t('activities.wizard.toastDraftDiscarded'))
+    lastDraftSavedAt.value = null
+    resetWizard()
+    headerNotificationsStore.requestRefresh()
+    showDialog.value = false
+  } catch (err: unknown) {
+    const e = err as { response?: { data?: { error?: string } }; message?: string }
+    toast.error(e?.response?.data?.error || e?.message || t('activities.wizard.toastDiscardDraftFailed'))
+  } finally {
+    isDiscardingDraft.value = false
+  }
 }
 
 function onJumpToMissing(key: ActivityMissingStepKey) {

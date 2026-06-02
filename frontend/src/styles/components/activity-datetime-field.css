@@ -100,7 +100,8 @@
 
 .activity-date-picker-pane-wrap,
 .activity-date-range-dual-picker__pane-wrap {
-  touch-action: none;
+  /* Vertikal scrollen (Mobile: Schnellauswahl), horizontal = Monatswisch */
+  touch-action: pan-y;
 }
 
 .activity-date-range-dual-picker__pane {
@@ -215,30 +216,29 @@
 
 @media (max-width: 599px) {
   .activity-date-picker-menu__shell {
-    flex-direction: row;
+    flex-direction: column;
     align-items: stretch;
     max-height: min(90dvh, calc(100vh - 24px));
-    overflow: hidden;
+    overflow-x: hidden;
+    overflow-y: auto;
   }
 
   .activity-date-picker-menu__picker {
-    flex: 1 1 auto;
+    flex: 0 0 auto;
     min-width: 0;
-    overflow-y: auto;
-    overflow-x: hidden;
   }
 
   .activity-date-picker-menu__divider {
-    display: block;
+    display: none;
   }
 
   .activity-date-picker-menu__presets {
-    width: min(148px, 38vw);
+    width: 100%;
     max-height: none;
     flex-shrink: 0;
-    overflow-y: auto;
-    border-top: none;
-    border-left: 1px solid #e5e7eb;
+    overflow-y: visible;
+    border-top: 1px solid #e5e7eb;
+    border-left: none;
   }
 }
 

@@ -80,9 +80,12 @@ const props = withDefaults(
     modelValue: Date | null
     departmentId?: string | null
     disabled?: boolean
+    /** Schnellauswahl (Samstage, …) */
     showPresets?: boolean
+    /** Kalender-Punkte (Feiertage, Fixe Daten, fcal); Mat-Büro geschlossen sperrt nur bei true */
+    showMarkers?: boolean
   }>(),
-  { departmentId: null, disabled: false, showPresets: true },
+  { departmentId: null, disabled: false, showPresets: false, showMarkers: true },
 )
 
 const emit = defineEmits<{
@@ -108,7 +111,9 @@ const {
 })
 
 const { allowedDates, departmentClosedDateKeys, calendarPeriods, markersForIsoKey } =
-  useActivityDatePickerEvents(() => props.departmentId)
+  useActivityDatePickerEvents(() => props.departmentId, {
+    showMarkers: () => props.showMarkers,
+  })
 const menuPresets = useActivityDatePresets('single', calendarPeriods)
 
 const displayText = computed(() => formatActivityDateDe(props.modelValue))

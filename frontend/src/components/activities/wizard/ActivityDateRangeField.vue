@@ -18,7 +18,7 @@
       <ActivityDatePickerMenuShell
         v-model:open="menuOpen"
         :presets="menuPresets"
-        :show-presets="showPresetSidebar"
+        :show-presets="showPresetsResolved"
         :presets-aria-label="t('activities.dateRangePicker.presetsAria')"
         @select-preset="applyPreset"
       >
@@ -112,11 +112,21 @@ import { activityDatePickerCommonProps } from '@/utils/activityDatePickerCommonP
 const props = withDefaults(
   defineProps<{
     modelValue: [Date, Date] | null
+    /** Schnellauswahl rechts/unten */
+    showPresets?: boolean
+    /** @deprecated — use showPresets */
     showPresetSidebar?: boolean
     departmentId?: string | null
     disabled?: boolean
+    showMarkers?: boolean
   }>(),
-  { showPresetSidebar: true, departmentId: null, disabled: false },
+  {
+    showPresets: false,
+    showPresetSidebar: undefined,
+    departmentId: null,
+    disabled: false,
+    showMarkers: true,
+  },
 )
 
 const emit = defineEmits<{
@@ -130,9 +140,15 @@ const dualCalendar = computed(() => smAndUp.value)
 const menuOpen = ref(false)
 const pickerRange = ref<Date[] | null>(null)
 
+const showPresetsResolved = computed(
+  () => props.showPresetSidebar ?? props.showPresets,
+)
+
 const minDate = computed(() => startOfToday())
 const { allowedDates, departmentClosedDateKeys, calendarPeriods, markersForIsoKey } =
-  useActivityDatePickerEvents(() => props.departmentId)
+  useActivityDatePickerEvents(() => props.departmentId, {
+    showMarkers: () => props.showMarkers,
+  })
 const menuPresets = useActivityDatePresets('range', calendarPeriods)
 
 const { displayRange, rangeAnchorCount, onDayHover, onRangeUpdate } = useActivityDateRangePicker({

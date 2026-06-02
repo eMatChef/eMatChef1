@@ -235,11 +235,11 @@ Die Schritte **013–017** waren ein Zwischenstand (`v-app` nur in `AppLayout`).
 | 070 | Aktivitäten-Liste: Mobile-Karten oder scrollbare Tabelle | [x] 2026-05-31 |
 | 071 | `ActivityCreateWizard.vue` + `ActivityCreateWizardForm.vue` Shell | [x] 2026-05-31 |
 | 072 | Wizard Schritte: Stammdaten-Felder → `E*` / `AutoSaveField` | [x] |
-| 073 | `ActivityZeitraumDatetimeFields` + `ActivityDateField` / `ActivityDateRangeField` | [x] 2026-05-31 |
-| 074 | Entscheid Datepicker: `@vuepic` behalten vs. `VDatePicker` — **VDatePicker** (`VDateInput`), mobil-first | [x] 2026-05-31 |
-| 075 | Falls **VDatePicker** (074): Feiertags-/fcal-Marker portieren | [x] 2026-05-31 |
-| 076 | `ActivityDraftOverviewForm` Zeitraum-Auto-Save | [ ] |
-| 077 | `ActivityDetailView` Header + Tabs Shell | [ ] |
+| 073 | `ActivityZeitraumDatetimeFields` + Datepicker-Komponenten (Sandbox = Referenz, Wizard gleicher Stack) | [x] 2026-05-31 |
+| 074 | `VDatePicker` / Menü: Doppelkalender, Presets, Touch-Wisch, Fixe Daten | [x] 2026-05-31 |
+| 075 | Kalender-Marker (Feiertage, fcal, Fixe Daten); Schnellauswahl nur Lagerwoche/Sonstiges + Samstage | [x] 2026-05-31 |
+| 076 | `ActivityDraftOverviewForm` Zeitraum-Auto-Save (Debounce + VDatePicker-Menüs) | [x] 2026-05-31 |
+| 077 | `ActivityDetailView` Header + Tabs Shell | [x] 2026-05-31 |
 | 078 | Tabs: Material, Kosten, Verbrauch — schrittweise | [ ] |
 | 079 | `ActivityPackListTab` — Unter-PRs (nur Shell, dann Zeilen, dann Modals) | [ ] |
 | 080 | Pack-Modals (`PackAddContainerModal`, …) → `EDialog` | [ ] |
@@ -346,7 +346,9 @@ Die Schritte **013–017** waren ein Zwischenstand (`v-app` nur in `AppLayout`).
 | 2026-05-31 | Phase 1 Plan | **Variante B:** ein `v-app` in `App.vue`, Dev-Banner zuerst, Inhalt verkleinert — Schritte **017b–017g** |
 | 2026-05-31 | Phase 1 Plan | **028a–028b:** Dev UI Playground (Sidebar nur `isDevToolsEnvironment()`), vor Phase 2; Löschung Schritt **127** |
 | 2026-05-31 | Phase 1 abgeschlossen | **020–028b:** Safe-Area, Sidebar-Token, Supplier=AppLayout, Scroll/Drawer-Fix, Phase-2-Freigabe |
-| 2026-05-31 | Phase 6 / 074–075 | **VDatePicker** (`VDateInput` labs): `@vuepic` entfernt; Feiertage + fcal via `useActivityDatePickerEvents`; Preset-Sidebar (Feiertage/Heute) Follow-up |
+| 2026-05-31 | Phase 6 / 076 | Draft-Overview: Zeitraum PATCH mit Debounce (800ms) nach Picker/Uhr-Änderung; Blur bleibt; Nutzung bei `usageDatesLocked` nicht im Payload |
+| 2026-05-31 | Phase 6 / 073–075 | **Zeitraum-UI freigegeben:** Sandbox = Referenz; `VDatePicker`, Doppelkalender, Presets, Touch-Wisch |
+| 2026-05-31 | Phase 6 / 074–075 | **VDatePicker** (`VDateInput` labs): `@vuepic` entfernt; Feiertage + fcal via `useActivityDatePickerEvents` |
 | 2026-05-31 | Phase 4 abgeschlossen | Review 060; 058 Pilot Material (`EResponsiveDataList` + `v-data-table`/`v-list`); 057 [table-patterns.md](./ui/table-patterns.md) |
 | 2026-05-31 | Schritt 061 | `LoginView`: alle Formulare auf `E*` + `v-alert` + `ECard`; Reset-Code via `EOtpInput` |
 | 2026-05-31 | Schritt 062 | `VerifyEmailView`: `ECard`, `ELoadingState`, `v-alert`, `EButton`, i18n |
@@ -376,15 +378,32 @@ Für die PR-Beschreibung Screenshots / Kurztest:
 
 ## Nächster Schritt (aktuell)
 
-**Phase 6** — **076:** `ActivityDraftOverviewForm` Zeitraum-Auto-Save (074/075 erledigt: `VDateInput` + Marker).
+**Phase 6** — **078:** Tabs Material, Kosten, Verbrauch — schrittweise. Schritt 077 (Detail-Header + `v-tabs`/`EButton`/`ELoadingState`) erledigt.
 
-### Erledigt: Schritt 074 — Datepicker
+### Erledigt: Schritt 073–075 — Zeitraum / Datepicker
 
-**Entscheid:** `VDateInput` / `VDatePicker` (Vuetify labs) — mobil-first, kein `@vuepic`.
+**Referenz:** `/{departmentId}/sandbox` → Aktivität Zeitraum (`ActivityDatetimeSandboxFields`).
 
-| Umgesetzt | Offen (Follow-up) |
-| --------- | ----------------- |
-| Einzel- + Range-Datum in Wizard + Detail | Preset-Chips (Feiertage, Heute, …) wie frühere Sidebar |
-| Feiertags-/fcal-Marker (`events`) | — |
-| Menü attach Wizard-Modal / `body` (Detail) | — |
-| `@vuepic/vue-datepicker` entfernt (Schritt 124) | — |
+**Produktion:** `ActivityZeitraumDatetimeFields` in `ActivityCreateWizardForm` + `ActivityDraftOverviewForm` — dieselben Bausteine (`ActivityDateField`, `ActivityDateRangeField`, `ActivityTimeField`, `ActivityResponsiveDateTimeRow`). Wiederverwendung: [activity-datetime-fields.md](./activity-datetime-fields.md).
+
+| Thema | Verhalten |
+| ----- | --------- |
+| Layout | Pill-Zeile ab `sm`, Mobile 2-zeilig |
+| Zeitraum sm+ | Doppelkalender, gemeinsame Kopfzeile «Juni 2026 Juli» |
+| Zeitraum Mobile | Ein Kalender, Schnellauswahl **unten** |
+| Schnellauswahl | Nur **Lager** / **Event**: Samstage + Fixe Daten **Lagerwoche** / **Sonstiges** (keine Schulferien, kein Mat-Büro geschlossen) |
+| Navigation | Pfeile, Mausrad (vertikal), Touch **links/rechts** |
+| Marker | Feiertage, fcal, alle Fixe Daten; nur `department_break` blockiert Auswahl |
+
+**Entscheid:** `VDatePicker` / `VDateInput` (Vuetify labs) — mobil-first, kein `@vuepic`.
+
+### Erledigt: Schritt 076 — Zeitraum-Auto-Save (Draft-Overview)
+
+- **Feldtypen:** Erstell-Wizard = normale `ETextField`/`ESelect` (kein AutoSave); Entwurfs-Detail = `AutoSaveField` (Diskette + Fortschrittsbalken bei Blur)
+- `ActivityDraftOverviewForm`: Zeitraum wie AutoSave (Blur, `AutoSaveFieldShell`), nur camp/event/external
+- **Entwurf verwerfen:** Wizard-Footer + Detail-Übersicht nach Server-Entwurf (Schritt 1 «Weiter»); `DELETE /api/activities/:id`
+- Typ **activity:** kein Entwurfmodus (Single-Step-Wizard, direktes Einreichen)
+- Menüs an `body` — Focusout ignoriert Picker-Overlays
+- Bei `usageDatesLocked`: nur Material-Zeiten/-Daten speicherbar
+
+---
