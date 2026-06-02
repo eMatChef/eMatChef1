@@ -1,5 +1,8 @@
 <template>
-  <div class="activity-draft-overview-form activity-create-wizard-host activity-detail-datetime-host">
+  <div
+    class="activity-draft-overview-form activity-create-wizard-host activity-detail-datetime-host"
+    :class="[wizardHostClasses, datetimeHostClasses]"
+  >
     <div class="section-card">
       <h2 class="section-title">{{ t('activities.draftOverview.sectionBasics') }}</h2>
       <div class="form-grid">
@@ -262,6 +265,7 @@ import { searchJoinableDepartments, type DepartmentSearchResult } from '@/api/jo
 import type { InvitedDepartmentDraft } from '@/composables/useActivityCreateWizard'
 import { getAddresses, type Address } from '@/api/addresses'
 import { getGroups, type Group } from '@/api/groups'
+import { useDisplayHostClasses } from '@/composables/useDisplayHostClasses'
 import { useToast } from '@/composables/useToast'
 import { combineDayAndTime, startOfLocalDay } from '@/utils/activityDateTimeParts'
 import { getPlanningUsageViolation } from '@/utils/activityPlanningUsageConstraint'
@@ -293,6 +297,8 @@ const emit = defineEmits<{
 
 const toast = useToast()
 const { t } = useI18n()
+const wizardHostClasses = useDisplayHostClasses('activity-create-wizard-host')
+const datetimeHostClasses = useDisplayHostClasses('activity-detail-datetime-host')
 const groups = ref<Group[]>([])
 const addresses = ref<Address[]>([])
 const saving = ref(false)

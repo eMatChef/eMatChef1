@@ -8,7 +8,7 @@
     min-width="0"
     v-bind="menuProps"
   >
-    <VCard class="activity-date-picker-menu__shell" rounded="lg" elevation="8">
+    <VCard class="activity-date-picker-menu__shell" :class="shellDisplayClasses" rounded="lg" elevation="8">
       <div class="activity-date-picker-menu__picker">
         <slot />
       </div>
@@ -27,6 +27,7 @@
 
 <script setup lang="ts">
 import { VCard, VDivider, VMenu } from 'vuetify/components'
+import { useDisplayHostClasses } from '@/composables/useDisplayHostClasses'
 import ActivityDatePresetList from './ActivityDatePresetList.vue'
 import { activityDatePickerMenuProps } from '@/utils/activityDatePickerMenuProps'
 import type { ActivityDatePresetItem } from '@/utils/activityDatePresets'
@@ -51,4 +52,5 @@ const emit = defineEmits<{
 }>()
 
 const open = defineModel<boolean>('open', { default: false })
+const shellDisplayClasses = useDisplayHostClasses('activity-date-picker-menu__shell')
 </script>

@@ -1,5 +1,12 @@
 <template>
-  <v-app-bar flat elevation="0" height="64" class="top-header">
+  <v-app-bar
+    flat
+    elevation="0"
+    height="64"
+    class="top-header"
+    :class="{ 'top-header--in-scroll': scrollWithContent }"
+    :app="!scrollWithContent"
+  >
     <v-app-bar-nav-icon
       v-if="!mdAndUp"
       :aria-label="t('layout.header.menuAria')"
@@ -601,6 +608,15 @@ import { getSenderPrimaryLine } from '@/utils/notificationSender'
 const { t } = useI18n()
 const router = useRouter()
 const { mdAndUp } = useDisplay()
+
+withDefaults(
+  defineProps<{
+    /** App-Bar im Seiten-Scroll (Aktivitäts-Detail) statt fixiert über v-main */
+    scrollWithContent?: boolean
+  }>(),
+  { scrollWithContent: false },
+)
+
 const drawerOpen = defineModel<boolean>('drawerOpen', { default: false })
 const detailTabsStore = useDetailTabsStore()
 const headerNotificationsStore = useHeaderNotificationsStore()
@@ -1554,6 +1570,13 @@ watch(
   background-color: var(--color-surface-muted, #f8f9fa) !important;
   border-bottom: 1px solid var(--color-border, #e0e0e0);
   z-index: 999;
+}
+
+.top-header--in-scroll {
+  position: relative !important;
+  inset: auto !important;
+  flex-shrink: 0;
+  z-index: 9;
 }
 
 .top-header :deep(.v-toolbar__content) {

@@ -4,6 +4,7 @@ import { computed, inject, unref, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { ActivityPackItem } from '@/api/activityPackItems'
 import PackMoveControls from '@/components/activities/PackMoveControls.vue'
+import { EButton } from '@/components/form/base'
 import PackMaterialStorageStack from '@/components/activities/PackMaterialStorageStack.vue'
 import { isPackConfirmedStage } from '@/components/activities/packStageQuantities'
 import PackCrateShellInlinePanel, {
@@ -39,11 +40,25 @@ const shellContainer = computed((): ActivityPackContainer | undefined => {
   return packShellContainerForPackItem(props.shellPackItem, Array.isArray(list) ? list : [])
 })
 
+const crateLabel = computed(() => {
+  const fromContainer = (shellContainer.value?.label ?? '').trim()
+  const fromLink = (props.shellPackItem.linkedContainerLabel ?? '').trim()
+  return fromContainer || fromLink
+})
+
 const displayName = computed(() => {
-  const label = (shellContainer.value?.label ?? '').trim()
-  const name = props.shellPackItem.materialName
-  if (label && label !== name) return `${label} – ${name}`
-  return name
+  const label = crateLabel.value
+  const name = (props.shellPackItem.materialName ?? '').trim()
+  if (label && name && label !== name) return `${label} – ${name}`
+  return label || name
+})
+
+/** Kiste: nur wenn Label nicht schon im Titel steht (kein Badge + keine Doppelzeile). */
+const showInnerKisteHint = computed(() => {
+  if (!props.showStorageLocation) return false
+  const link = (props.shellPackItem.linkedContainerLabel ?? '').trim()
+  if (!link) return false
+  return !displayName.value.includes(link)
 })
 
 const innerVisible = computed(
@@ -174,11 +189,6 @@ function moveShellCrateForward(qtyFromControl?: number) {
             class="pack-combo-badge"
             :title="t('activities.detail.comboPhysicalTitle')"
           >{{ t('activities.detail.comboPhysicalShort') }}</span>
-          <span
-            v-else-if="shellPackItem.linkedContainerLabel"
-            class="pack-combo-badge pack-combo-badge--kiste"
-            :title="t('activities.packList.kisteLabel', { label: shellPackItem.linkedContainerLabel })"
-          >{{ shellPackItem.linkedContainerLabel }}</span>
           <span v-if="shellLineCount > 0" class="pack-container-chip text-muted">{{
             t('activities.common.itemsUnit', { count: shellLineCount })
           }}</span>
@@ -189,15 +199,17 @@ function moveShellCrateForward(qtyFromControl?: number) {
         class="pack-container-header-actions"
         @click.stop
       >
-        <button
+        <EButton
           v-if="showCrateCheckBtn"
-          type="button"
-          class="btn-outline btn-sm pack-shell-crate-check-btn"
+          variant="secondary"
+          size="small"
+          class="pack-shell-crate-check-btn"
           :disabled="ctx.movingId === shellPackItem.id || crateCheckSubmitting"
+          :loading="crateCheckSubmitting"
           @click="onCrateCheckClick"
         >
           {{ crateCheckBtnLabel }}
-        </button>
+        </EButton>
         <PackMoveControls
           v-if="shellCanMoveForward && useQtyMoveControls"
           direction="forward"
@@ -229,10 +241,7 @@ function moveShellCrateForward(qtyFromControl?: number) {
       </div>
     </div>
     <div v-show="innerVisible" class="pack-container-inner pack-container-inner--shell">
-      <div
-        v-if="showStorageLocation && shellPackItem.linkedContainerLabel"
-        class="pack-card-kiste text-muted pack-shell-storage-kiste"
-      >
+      <div v-if="showInnerKisteHint" class="pack-card-kiste text-muted pack-shell-storage-kiste">
         {{ t('activities.packList.kisteLabel', { label: shellPackItem.linkedContainerLabel }) }}
       </div>
       <PackMaterialStorageStack

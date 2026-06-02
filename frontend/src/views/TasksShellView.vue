@@ -4,25 +4,15 @@
     <template #subtitle>{{ subtitleText }}</template>
 
     <template v-if="showTasksTabs" #filters>
-      <div class="filter-bar tasks-shell-tabs">
-        <div class="filter-tabs">
-          <router-link
-            :to="{ name: 'TasksGeneral', params: { departmentId } }"
-            class="filter-tab"
-            active-class="active"
-          >
-            {{ t('tasksShell.tabGeneral') }}
-          </router-link>
-          <router-link
-            v-if="canManagePrintTasks"
-            :to="{ name: 'TasksPrint', params: { departmentId } }"
-            class="filter-tab"
-            active-class="active"
-          >
-            {{ t('common.print') }}
-          </router-link>
-        </div>
-      </div>
+      <v-tabs
+        :model-value="activeShellTab"
+        class="tasks-shell-tabs"
+        color="primary"
+        @update:model-value="onShellTabChange"
+      >
+        <v-tab value="general">{{ t('tasksShell.tabGeneral') }}</v-tab>
+        <v-tab value="print">{{ t('common.print') }}</v-tab>
+      </v-tabs>
     </template>
 
     <router-view />
@@ -31,12 +21,14 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import PageShell from '@/components/layout/PageShell.vue'
 import { useDepartmentMemberRole } from '@/composables/useDepartmentMemberRole'
+import '@/styles/views/tasks-tabs.css'
 
 const route = useRoute()
+const router = useRouter()
 const { t } = useI18n()
 
 const departmentId = computed(() => String(route.params.departmentId || ''))
@@ -49,12 +41,17 @@ const showTasksTabs = computed(() => canManagePrintTasks.value)
 const subtitleText = computed(() =>
   isUserRole.value ? t('tasksShell.subtitleUser') : t('tasksShell.subtitleManager')
 )
+
+const activeShellTab = computed(() => (route.name === 'TasksPrint' ? 'print' : 'general'))
+
+function onShellTabChange(tab: unknown) {
+  const id = departmentId.value
+  if (!id) return
+  if (tab === 'print') {
+    void router.push({ name: 'TasksPrint', params: { departmentId: id } })
+  } else {
+    void router.push({ name: 'TasksGeneral', params: { departmentId: id } })
+  }
+}
 </script>
 
-<style scoped>
-.tasks-shell-tabs {
-  margin-bottom: 0;
-  border-bottom: 1px solid #e5e7eb;
-  padding-bottom: 0;
-}
-</style>

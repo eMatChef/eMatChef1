@@ -9,6 +9,7 @@ import {
 } from '@/api/activities'
 import type { ActivityApiType } from '@/api/activities'
 import ActivityTabHeader from '@/components/activities/ActivityTabHeader.vue'
+import ELoadingState from '@/components/layout/ELoadingState.vue'
 import {
   aggregateConsumableRows,
   aggregateRentalRows,
@@ -192,10 +193,12 @@ watch(
   <div class="activity-costs-tab">
     <ActivityTabHeader :title="t('activities.detail.tabCosts')" />
     <div class="section-card activity-tab-panel-card">
-      <p v-if="isLoading" class="activity-inline-loading text-muted">
-        <span class="spinner spinner-sm"></span>
-        {{ t('activities.costs.loading') }}
-      </p>
+      <ELoadingState
+        v-if="isLoading"
+        variant="inline"
+        class="activity-costs-loading"
+        :message="t('activities.costs.loading')"
+      />
       <div v-else class="costs-overview">
         <section
           v-if="showAccountingTasks && pendingAccountingSorted.length > 0"
@@ -475,6 +478,10 @@ watch(
 
 .activity-costs-tab {
   max-width: 900px;
+}
+
+.activity-costs-loading {
+  padding: 8px 0;
 }
 
 .costs-overview {

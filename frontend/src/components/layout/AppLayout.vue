@@ -1,9 +1,14 @@
 <template>
   <SidebarNavigation v-model="drawerOpen" />
-  <TopHeader v-model:drawer-open="drawerOpen" />
+  <TopHeader v-if="!isActivityDetailView" v-model:drawer-open="drawerOpen" />
 
-  <v-main class="page-main">
-    <div class="page-content">
+  <v-main class="page-main" :class="{ 'page-main--activity-detail': isActivityDetailView }">
+    <TopHeader
+      v-if="isActivityDetailView"
+      v-model:drawer-open="drawerOpen"
+      scroll-with-content
+    />
+    <div class="page-content" :class="{ 'page-content--activity-detail': isActivityDetailView }">
       <router-view v-slot="{ Component }">
         <keep-alive :include="['MaterialsView', 'ActivitiesView']" :max="8">
           <component :is="Component" :key="route.path" />
@@ -45,6 +50,12 @@ import TopHeader from './TopHeader.vue'
 const route = useRoute()
 const { t } = useI18n()
 const authStore = useAuthStore()
+
+/** Aktivitäts-Detail: App-Bar scrollt mit (mehr Platz beim Scrollen). */
+const isActivityDetailView = computed(() => {
+  const name = route.name
+  return name === 'ActivityDetail' || name === 'ActivityDetailTab'
+})
 
 useUnsavedChangesReminder()
 const drawerOpen = ref(false)
@@ -168,6 +179,15 @@ watch(
   overflow-y: auto !important;
 }
 
+.page-main--activity-detail {
+  --v-layout-top: 0px !important;
+  padding-top: 0 !important;
+}
+
+.page-main--activity-detail :deep(.top-header--in-scroll) {
+  margin-top: var(--emc-dev-system-bar-height, 0px);
+}
+
 .page-content {
   padding: 24px;
   padding-bottom: calc(24px + var(--emc-safe-bottom));
@@ -178,6 +198,11 @@ watch(
   .page-content {
     padding: 12px 12px calc(12px + var(--emc-safe-bottom));
   }
+}
+
+.page-content--activity-detail {
+  padding: 0;
+  padding-bottom: calc(12px + var(--emc-safe-bottom));
 }
 
 .onboarding-resume-btn {

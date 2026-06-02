@@ -975,8 +975,12 @@ class MaterialController extends AbstractController
 
             // Grunddaten
             if (isset($data['name'])) $material->setName($data['name']);
-            if (isset($data['description'])) $material->setDescription($data['description']);
-            if (isset($data['location'])) $material->setLocation($data['location']);
+            if (array_key_exists('description', $data)) {
+                $material->setDescription($data['description'] !== null && $data['description'] !== '' ? (string) $data['description'] : null);
+            }
+            if (array_key_exists('location', $data)) {
+                $material->setLocation($data['location'] !== null && $data['location'] !== '' ? (string) $data['location'] : null);
+            }
             if (isset($data['condition'])) $material->setCondition($data['condition']);
             
             // Kategorie
@@ -1005,18 +1009,38 @@ class MaterialController extends AbstractController
             if (array_key_exists('is_container', $data)) {
                 $material->setIsContainer((bool) $data['is_container']);
             }
-            if (isset($data['color'])) $material->setColor($data['color']);
-            if (isset($data['material'])) $material->setMaterial($data['material']);
-            if (isset($data['size_length'])) $material->setSizeLength($data['size_length']);
-            if (isset($data['size_width'])) $material->setSizeWidth($data['size_width']);
-            if (isset($data['size_height'])) $material->setSizeHeight($data['size_height']);
-            if (isset($data['weight'])) $material->setWeight($data['weight']);
+            if (array_key_exists('color', $data)) {
+                $material->setColor($data['color'] !== null && $data['color'] !== '' ? (string) $data['color'] : null);
+            }
+            if (array_key_exists('material', $data)) {
+                $material->setMaterial($data['material'] !== null && $data['material'] !== '' ? (string) $data['material'] : null);
+            }
+            if (array_key_exists('size_length', $data)) {
+                $material->setSizeLength($data['size_length'] !== null && $data['size_length'] !== '' ? (string) $data['size_length'] : null);
+            }
+            if (array_key_exists('size_width', $data)) {
+                $material->setSizeWidth($data['size_width'] !== null && $data['size_width'] !== '' ? (string) $data['size_width'] : null);
+            }
+            if (array_key_exists('size_height', $data)) {
+                $material->setSizeHeight($data['size_height'] !== null && $data['size_height'] !== '' ? (string) $data['size_height'] : null);
+            }
+            if (array_key_exists('weight', $data)) {
+                $material->setWeight($data['weight'] !== null && $data['weight'] !== '' ? (string) $data['weight'] : null);
+            }
             
             // Identifikation
-            if (isset($data['ean'])) $material->setEan($data['ean']);
-            if (isset($data['barcode_tag'])) $material->setBarcodeTag($data['barcode_tag']);
-            if (isset($data['manufacturer'])) $material->setManufacturer($data['manufacturer']);
-            if (isset($data['model'])) $material->setModel($data['model']);
+            if (array_key_exists('ean', $data)) {
+                $material->setEan($data['ean'] !== null && $data['ean'] !== '' ? (string) $data['ean'] : null);
+            }
+            if (array_key_exists('barcode_tag', $data)) {
+                $material->setBarcodeTag($data['barcode_tag'] !== null && $data['barcode_tag'] !== '' ? (string) $data['barcode_tag'] : null);
+            }
+            if (array_key_exists('manufacturer', $data)) {
+                $material->setManufacturer($data['manufacturer'] !== null && $data['manufacturer'] !== '' ? (string) $data['manufacturer'] : null);
+            }
+            if (array_key_exists('model', $data)) {
+                $material->setModel($data['model'] !== null && $data['model'] !== '' ? (string) $data['model'] : null);
+            }
             if (array_key_exists('warranty_until', $data)) {
                 $material->setWarrantyUntil($data['warranty_until'] ? new \DateTime($data['warranty_until']) : null);
             }
@@ -1028,13 +1052,27 @@ class MaterialController extends AbstractController
                 $material->setRentalScope($rs !== null && $rs !== '' ? (string) $rs : null);
             }
             if (isset($data['rental_requires_approval'])) $material->setRentalRequiresApproval((bool)$data['rental_requires_approval']);
-            if (isset($data['rental_price_day'])) $material->setRentalPriceDay($data['rental_price_day']);
-            if (isset($data['rental_price_week'])) $material->setRentalPriceWeek($data['rental_price_week']);
-            if (isset($data['rental_price_month'])) $material->setRentalPriceMonth($data['rental_price_month']);
-            if (isset($data['rental_deposit'])) $material->setRentalDeposit($data['rental_deposit']);
-            if (isset($data['rental_lead_days'])) $material->setRentalLeadDays((int)$data['rental_lead_days']);
-            if (isset($data['rental_max_days'])) $material->setRentalMaxDays((int)$data['rental_max_days']);
-            if (isset($data['rental_notes'])) $material->setRentalNotes($data['rental_notes']);
+            if (array_key_exists('rental_price_day', $data)) {
+                $material->setRentalPriceDay($data['rental_price_day'] !== null && $data['rental_price_day'] !== '' ? (string) $data['rental_price_day'] : null);
+            }
+            if (array_key_exists('rental_price_week', $data)) {
+                $material->setRentalPriceWeek($data['rental_price_week'] !== null && $data['rental_price_week'] !== '' ? (string) $data['rental_price_week'] : null);
+            }
+            if (array_key_exists('rental_price_month', $data)) {
+                $material->setRentalPriceMonth($data['rental_price_month'] !== null && $data['rental_price_month'] !== '' ? (string) $data['rental_price_month'] : null);
+            }
+            if (array_key_exists('rental_deposit', $data)) {
+                $material->setRentalDeposit($data['rental_deposit'] !== null && $data['rental_deposit'] !== '' ? (string) $data['rental_deposit'] : null);
+            }
+            if (array_key_exists('rental_lead_days', $data)) {
+                $material->setRentalLeadDays($data['rental_lead_days'] !== null && $data['rental_lead_days'] !== '' ? (int) $data['rental_lead_days'] : null);
+            }
+            if (array_key_exists('rental_max_days', $data)) {
+                $material->setRentalMaxDays($data['rental_max_days'] !== null && $data['rental_max_days'] !== '' ? (int) $data['rental_max_days'] : null);
+            }
+            if (array_key_exists('rental_notes', $data)) {
+                $material->setRentalNotes($data['rental_notes'] !== null && $data['rental_notes'] !== '' ? (string) $data['rental_notes'] : null);
+            }
             $this->applyRentalCalcParamsFromPayload($data, $material);
             if (isset($data['is_js_material'])) $material->setIsJsMaterial((bool)$data['is_js_material']);
             if (array_key_exists('external_source', $data)) $material->setExternalSource($data['external_source'] ?: null);

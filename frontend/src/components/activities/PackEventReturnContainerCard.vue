@@ -5,6 +5,7 @@ import type { ActivityPackContainer, ActivityPackContainerItem } from '@/api/act
 import PackContainerLineIssueQuick from '@/components/activities/PackContainerLineIssueQuick.vue'
 import PackContainerSubsectionsList from '@/components/activities/PackContainerSubsectionsList.vue'
 import IconArrowRight from '@/components/icons/IconArrowRight.vue'
+import { EButton } from '@/components/form/base'
 import { injectPackCtxBool, PACK_WAREHOUSE_ISSUE_INJECT_KEY } from '@/components/activities/packWarehouseIssueInjectKey'
 
 defineOptions({ name: 'PackEventReturnContainerCard' })
@@ -154,15 +155,16 @@ function showIssueQuick(ci: ActivityPackContainerItem): boolean {
         class="pack-container-header-actions"
         @click.stop
       >
-        <button
-          type="button"
-          class="btn btn-xs btn-primary"
+        <EButton
+          variant="primary"
+          size="x-small"
           :disabled="ctx.containerBulkLoadingId === container.id"
+          :loading="ctx.containerBulkLoadingId === container.id"
           :title="t('activities.packList.allToReturn')"
           @click="(ctx.returnContainerToWarehouse as (c: ActivityPackContainer) => void | Promise<void>)(container)"
         >
           {{ t('activities.packList.allToReturn') }}
-        </button>
+        </EButton>
       </div>
     </div>
     <div v-show="innerVisible" class="pack-container-inner">

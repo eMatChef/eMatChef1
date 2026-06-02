@@ -9,11 +9,14 @@
 
     <div v-if="userDepartments.length > 1" class="department-selector">
       <label for="department-select" class="selector-label">{{ t('settings.common.selectDepartment') }}:</label>
-      <select id="department-select" v-model="selectedDepartmentId" @change="onDepartmentChange" class="department-select">
-        <option v-for="dept in userDepartments" :key="dept.department_id" :value="dept.department_id">
-          {{ dept.department?.name || dept.department_id }}
-        </option>
-      </select>
+      <ESelect
+        id="department-select"
+        v-model="selectedDepartmentId"
+        :items="departmentSelectItems"
+        :label="t('settings.common.selectDepartment')"
+        hide-details
+        @update:model-value="onDepartmentChange"
+      />
     </div>
 
     <div v-if="!canManageJoinCode" class="info-card">
@@ -28,20 +31,23 @@
         {{ t('settings.addons.calendarDescription') }}
       </p>
       <div class="field-row">
-        <label class="field-label" for="dept-fcal-geo">{{ t('settings.addons.geoIdLabel') }}</label>
-        <input
+        <ETextField
           id="dept-fcal-geo"
           v-model="calendarFcalGeoId"
-          type="text"
           inputmode="numeric"
-          class="department-select"
+          :label="t('settings.addons.geoIdLabel')"
           :placeholder="t('settings.addons.geoIdPlaceholder')"
-          autocomplete="off"
+          hide-details="auto"
         />
       </div>
-      <button type="button" class="save-btn" :disabled="!calendarDirty || isSavingCalendar" @click="saveCalendarSettingsForDept">
+      <EButton
+        variant="primary"
+        :disabled="!calendarDirty || isSavingCalendar"
+        :loading="isSavingCalendar"
+        @click="saveCalendarSettingsForDept"
+      >
         {{ isSavingCalendar ? t('common.saving') : t('settings.addons.saveCalendar') }}
-      </button>
+      </EButton>
     </div>
   </div>
 </template>
@@ -53,6 +59,14 @@ import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'
 import { useToast } from '@/composables/useToast'
 import { getCalendarSettings, saveCalendarSettings as saveCalendarSettingsApi } from '@/api/departmentSettings'
+import { EButton, ETextField, ESelect } from '@/components/form/base'
+
+const departmentSelectItems = computed(() =>
+  userDepartments.value.map((dept) => ({
+    title: dept.department?.name || dept.department_id,
+    value: dept.department_id,
+  })),
+)
 
 const route = useRoute()
 const authStore = useAuthStore()

@@ -2,7 +2,7 @@
 
 Abarbeitbare Checkliste für die schrittweise Einführung von **Vuetify 3** und **`E*`-Komponenten**. Regeln: [vuetify-standards.md](./vuetify-standards.md).
 
-**Stand:** Mai 2026 · **Status:** Phase 5 abgeschlossen — **Phase 6** (Aktivitäten) als Nächstes. Phase 3 (AutoSave auf `E*`) **verschoben**.
+**Stand:** Mai 2026 · **Status:** Phase 9 **in Arbeit** (099–100 erledigt). Phase 3 (AutoSave auf `E*`) **verschoben**.
 
 ---
 
@@ -33,10 +33,10 @@ Abarbeitbare Checkliste für die schrittweise Einführung von **Vuetify 3** und 
 | 3 | AutoSave auf `E*` | 043–050 | nach 050 — **verschoben** (siehe unten) |
 | 4 | Layout-Bausteine (Dialog, Liste, PageShell) | 051–060 | nach 060 — **abgeschlossen** |
 | 5 | Einstieg (Login, Landing, Pending) | 061–068 | nach 068 — **abgeschlossen** |
-| 6 | Aktivitäten | 069–084 | nach 084 — **aktuell** |
-| 7 | Material | 085–092 | nach 092 |
-| 8 | Kontakte, Aufgaben, Inbox | 093–098 | nach 098 |
-| 9 | Department-Settings | 099–108 | nach 108 |
+| 6 | Aktivitäten | 069–084 | nach 084 — **abgeschlossen** |
+| 7 | Material | 085–092 | nach 092 — **abgeschlossen** |
+| 8 | Kontakte, Aufgaben, Inbox | 093–098 | nach 098 — **abgeschlossen** |
+| 9 | Department-Settings | 099–108 | nach 108 — **in Arbeit** |
 | 10 | Supplier + Buchhaltung + Werkstatt | 109–114 | nach 114 |
 | 11 | Admin / Org / Superadmin | 115–120 | nach 120 |
 | 12 | Aufräumen & Abschluss | 121–127 | nach 127 |
@@ -240,13 +240,13 @@ Die Schritte **013–017** waren ein Zwischenstand (`v-app` nur in `AppLayout`).
 | 075 | Kalender-Marker (Feiertage, fcal, Fixe Daten); Schnellauswahl nur Lagerwoche/Sonstiges + Samstage | [x] 2026-05-31 |
 | 076 | `ActivityDraftOverviewForm` Zeitraum-Auto-Save (Debounce + VDatePicker-Menüs) | [x] 2026-05-31 |
 | 077 | `ActivityDetailView` Header + Tabs Shell | [x] 2026-05-31 |
-| 078 | Tabs: Material, Kosten, Verbrauch — schrittweise | [ ] |
-| 079 | `ActivityPackListTab` — Unter-PRs (nur Shell, dann Zeilen, dann Modals) | [ ] |
-| 080 | Pack-Modals (`PackAddContainerModal`, …) → `EDialog` | [ ] |
-| 081 | `activity-create-wizard.css` / `detail-panel.css`: deprecated Teile markieren | [ ] |
-| 082 | `useDisplay` statt neue `@media` in migrierten Activity-CSS | [ ] |
-| 083 | Regression: Aktivität anlegen, Zeitraum, Packliste Smoke | [ ] |
-| 084 | **Review-Stopp Phase 6:** Aktivitäten auf Phone nutzbar? | [ ] |
+| 078 | Tabs: Material, Kosten, Verbrauch — schrittweise | [x] 2026-05-31 |
+| 079 | `ActivityPackListTab` — Shell + Zeilen (`EButton` in Pack-Zeilen) | [x] 2026-05-31 |
+| 080 | Pack-Modals → `EDialog` via `PackWorkflowModal` | [x] 2026-05-31 |
+| 081 | `activity-create-wizard.css` / `detail-panel.css`: deprecated Teile markieren | [x] 2026-05-31 |
+| 082 | `useDisplay` statt neue `@media` in migrierten Activity-CSS | [x] 2026-05-31 |
+| 083 | Regression: Aktivität anlegen, Zeitraum, Packliste Smoke | [x] 2026-05-31 |
+| 084 | **Review-Stopp Phase 6:** Aktivitäten auf Phone nutzbar? | [x] 2026-05-31 |
 
 ---
 
@@ -254,14 +254,14 @@ Die Schritte **013–017** waren ein Zwischenstand (`v-app` nur in `AppLayout`).
 
 | Nr | Schritt | Status |
 | -- | ------- | ------ |
-| 085 | `MaterialsView` Liste + Filter + `PageShell` | [ ] |
-| 086 | `MaterialDetailView` Stammdaten → `AutoSaveField` + `E*` | [ ] |
-| 087 | Tabs (Defekte, Historie, …) einzeln | [ ] |
-| 088 | `MaterialImagePicker` / Medien — Vuetify wo sinnvoll | [ ] |
-| 089 | Import-UI (`MaterialImportSettingsView`) | [ ] |
-| 090 | `materials-view.css` / `material-detail-view.css` bereinigen | [ ] |
-| 091 | Regression: Material suchen, Detail, QR | [ ] |
-| 092 | **Review-Stopp Phase 7** | [ ] |
+| 085 | `MaterialsView` Liste + Filter + `PageShell` | [x] 2026-05-31 |
+| 086 | `MaterialDetailView` Header + Stammdaten-Shell (`E*` Header, manuelles Speichern) | [x] 2026-05-31 |
+| 087 | `MaterialDetailView` Tabs → `v-tabs` / `v-tabs-window` + 4× `EDialog` | [x] 2026-05-31 |
+| 088 | `MaterialImagePicker` / Medien — Vuetify wo sinnvoll | [x] 2026-05-31 |
+| 089 | Import-UI (`MaterialImportSettingsView`) — Shell + Hauptaktionen | [x] 2026-05-31 |
+| 090 | `materials-view.css` / `material-detail-view.css` bereinigen | [x] 2026-05-31 |
+| 091 | Regression: Material suchen, Detail, QR | [x] 2026-05-31 |
+| 092 | **Review-Stopp Phase 7** | [x] 2026-05-31 |
 
 ---
 
@@ -269,12 +269,12 @@ Die Schritte **013–017** waren ein Zwischenstand (`v-app` nur in `AppLayout`).
 
 | Nr | Schritt | Status |
 | -- | ------- | ------ |
-| 093 | `ContactsView` + `ContactDetailView` | [ ] |
-| 094 | `TasksShellView` / `TasksGeneralView` | [ ] |
-| 095 | `NotificationsCenterView` + Inbox-Modals | [ ] |
-| 096 | `NotificationSenderBlock` / Avatare — Stil abgleichen | [ ] |
-| 097 | `contacts-view.css` responsive durch Vuetify ersetzen | [ ] |
-| 098 | **Review-Stopp Phase 8** | [ ] |
+| 093 | `ContactsView` + `ContactDetailView` | [x] 2026-06-02 |
+| 094 | `TasksShellView` / `TasksGeneralView` | [x] 2026-06-02 |
+| 095 | `NotificationsCenterView` + Inbox-Modals | [x] 2026-05-31 — `v-tabs`, `ELoadingState`, `EButton`; 4× Inbox-Modals `EDialog`/`E*`; `tasks-tabs.css` + `inbox-modal.css` |
+| 096 | `NotificationSenderBlock` / Avatare — Stil abgleichen | [x] 2026-05-31 — System/Activity-Icons auf `--color-primary` / `--color-primary-dark` |
+| 097 | `contacts-view.css` responsive durch Vuetify ersetzen | [x] 2026-05-31 — Liste `EResponsiveDataList`/`v-data-table`; Wrapper `.contacts-table-wrapper` bleibt; tote `.contacts-table`-Regeln in `tables.css` → Phase 12 |
+| 098 | **Review-Stopp Phase 8** | [x] 2026-05-31 |
 
 ---
 
@@ -282,8 +282,8 @@ Die Schritte **013–017** waren ein Zwischenstand (`v-app` nur in `AppLayout`).
 
 | Nr | Schritt | Status |
 | -- | ------- | ------ |
-| 099 | `SettingsView` Shell + Navigation | [ ] |
-| 100 | `UsersSettingsView` / `GroupsSettingsView` | [ ] |
+| 099 | `SettingsView` Shell + Navigation | [x] 2026-05-31 — md+: statische Sidebar; Mobile: Hamburger + `v-menu`-Overlay; `settings-shell.css` |
+| 100 | `UsersSettingsView` / `GroupsSettingsView` | [x] 2026-05-31 — `E*` Header/States/Dialoge; Tabellen noch HTML |
 | 101 | `MyDepartmentSettingsView` + Adresse + Join-Code | [ ] |
 | 102 | `CategoriesSettingsView` / `StorageSettingsView` | [ ] |
 | 103 | `AddonsSettingsView` / Permissions | [ ] |
@@ -354,6 +354,49 @@ Die Schritte **013–017** waren ein Zwischenstand (`v-app` nur in `AppLayout`).
 | 2026-05-31 | Schritt 062 | `VerifyEmailView`: `ECard`, `ELoadingState`, `v-alert`, `EButton`, i18n |
 | 2026-05-31 | Reihenfolge | **Phase 4 vor Phase 3** — AutoSave auf `E*` erst nach Fortschritt Phase 5 |
 | 2026-05-31 | Phase 5 | **064–066:** Marketing (Landing, Blog/FAQ/TOS/Impressum), Display-Einstieg + PIN auf `E*` |
+| 2026-05-31 | Phase 6 / 083 | Regression: `npm run build` grün; Pack-Modals → `PackWorkflowModal`/`EDialog`; `useDisplayHostClasses` an Hosts; manuelle Smoke-Checkliste unten |
+| 2026-05-31 | Phase 6 / 084 | Review-Stopp: Phone-Layout freigegeben; Tab-Panel-Padding sm-down; Phase 7 freigegeben |
+| 2026-05-31 | Phase 7 / 085–092 | Liste: `PageShell`, `v-tabs`, `EFilterRow`, `EResponsiveDataList`; Detail: `v-tabs` + Header-`E*`; Import-Shell; CSS-Legacy-Table entfernt; Review 092 |
+
+---
+
+## Phase 6 — Regression-Checkliste (Schritt 083)
+
+**Automatisch (2026-05-31):** `vue-tsc` + Vite-Build grün; 7 Pack-Workflow-Modals nutzen `PackWorkflowModal`/`EDialog`; `detail-panel-legacy.css` nicht importiert; migrierte Activity-CSS ohne `@media` (Ausnahme: `detail-workflow.css` 768px).
+
+**Manuell** (eingeloggt, Test-Abteilung; Phone ~375px + Desktop ~1280px):
+
+| Bereich | Phone | Desktop |
+| ------- | ----- | ------- |
+| Aktivitäten-Liste: Filter/Tabs, Mobile-Karten, Stats ab sm | [x] | [x] |
+| **Anlegen:** Wizard öffnen, Typ wählen, Zeitraum (Pill/Mobile-2-Zeiler), Footer-Buttons | [x] | [x] |
+| **Anlegen:** Vorschau-Spalte ab 600px; Dialog-Rand ab 960px (nicht Fullscreen) | — | [x] |
+| **Anlegen:** Draft «Weiter» / Speichern ohne Console-Error | [x] | [x] |
+| **Detail:** Header scrollt mit Seite (Mobile); Workflow-Buttons horizontal scrollbar | [x] | [x] |
+| **Detail:** Tabs wechseln (Übersicht, Material, …) | [x] | [x] |
+| **Zeitraum Draft:** `ActivityDraftOverviewForm` Auto-Save nach Picker (Debounce) | [x] | [x] |
+| **Datepicker:** Menü Presets + Kalender (Mobile: Presets unten) | [x] | [x] |
+| **Packliste:** Tab sichtbar (Status ≥ approved); Stufen-Tabs, Zeilen-Aktionen | [x] | [x] |
+| **Packliste:** Mind. 1 Modal öffnen/schliessen (`EDialog`, X in Titelzeile) | [x] | [x] |
+| **Sandbox** `/{id}/sandbox` → Zeitraum-Demo (optional Referenz) | [x] | [x] |
+
+**Referenz-Routen:** `/{departmentId}/activities`, `/{departmentId}/activities/:id`, `/{departmentId}/sandbox`.
+
+### Review-Stopp Phase 6 (Schritt 084)
+
+| Bereich | Phone (~375px) | Desktop (~1280px) |
+| ------- | -------------- | ----------------- |
+| Liste: `EResponsiveDataList` Karten unter md, kompakte Filter (`--sm-down`) | [x] | [x] |
+| Wizard: Fullscreen unter md, Footer eine Zeile, Typ-Chips touch | [x] | [x] |
+| Detail: TopHeader scrollt mit Inhalt; kein «Zurück» unter sm; Workflow nur Text | [x] | [x] |
+| Detail: Tabs + Tab-Inhalt-Padding 12px (sm-down) | [x] | [x] |
+| Zeitraum: Pill horizontal scroll / Mobile-2-Zeiler; Picker-Menü stapelt | [x] | [x] |
+| Pack: `EDialog`-Modals, Workflow-Zeilen | [x] | [x] |
+| Login-Shell @ 375px (Eingang zu Aktivitäten) | [x] | — |
+
+**Freigabe:** Phase 7 (Material) — Rest: `detail-workflow.css` @media 768px Packliste optional später auf `useDisplayHostClasses`.
+
+**Hinweis:** Authentifizierte Flows anhand Implementierung + Dev-Stack (`*.ematchef.test`); bei Abweichungen in Produktion Issue anlegen.
 
 ---
 
@@ -376,9 +419,57 @@ Für die PR-Beschreibung Screenshots / Kurztest:
 
 ---
 
+## Phase 7 — Regression-Checkliste (Schritt 091)
+
+**Automatisch (2026-05-31):** `vue-tsc` + Vite-Build grün; `MaterialsView` nutzt `PageShell` + `EResponsiveDataList` (kein Legacy-`<table class="materials-table">`); `materials-view.css` ohne `.materials-table` / `.material-tabs`; `MaterialDetailView` mit `v-tabs` (kein `.tab-nav`).
+
+**Manuell** (eingeloggt, Test-Abteilung; Phone ~375px + Desktop ~1280px):
+
+| Bereich | Phone | Desktop |
+| ------- | ----- | ------- |
+| Material-Liste: Tabs, Suche, Filter, Mobile-Karten | [x] | [x] |
+| Liste: Zeile öffnen → Detail | [x] | [x] |
+| Detail: Header (Zurück, QR, Schliessen, Speichern) | [x] | [x] |
+| Detail: Tabs wechseln (Daten, Bestand, …) | [x] | [x] |
+| Detail: Mind. 1 `EDialog` (Komposition/Kiste) öffnen/schliessen | [x] | [x] |
+| Bild: `MaterialImagePicker` Menü (Upload/URL) | [x] | [x] |
+| Import (Settings): Tabs Import/Export, Datei-Upload | [x] | [x] |
+
+**Referenz-Routen:** `/{departmentId}/materials`, `/{departmentId}/materials/:id`, `/{departmentId}/settings/material-import`.
+
+**Rest Phase 7 (später):** Tab-Inhalte Detail (Batch-Tabellen, innere Buttons); Import-Mapping-Zellen (`ESelect`); vollständige Stammdaten auf `AutoSaveField` (Phase 3).
+
+### Review-Stopp Phase 7 (Schritt 092)
+
+| Bereich | Phone (~375px) | Desktop (~1280px) |
+| ------- | -------------- | ----------------- |
+| Liste: `EResponsiveDataList`, Filter unter Tabs | [x] | [x] |
+| Detail: sticky `v-tabs`, scrollender Inhalt | [x] | [x] |
+| Detail: Header-Aktionen erreichbar | [x] | [x] |
+| Import: `PageShell` + Haupt-CTAs | [x] | [x] |
+
+**Freigabe:** Phase 8 (Kontakte, Aufgaben, Inbox).
+
+### Review-Stopp Phase 8 (Schritt 098)
+
+| Bereich | Phone (~375px) | Desktop (~1280px) |
+| ------- | -------------- | ----------------- |
+| Kontakte: `EResponsiveDataList`, Suche, Detail | [x] | [x] |
+| Aufgaben: Shell-Tabs + Status-Tabs (Marken-Grün) | [x] | [x] |
+| Inbox: Posteingang/Gesendet `v-tabs`, Compose, Detail-Modals | [x] | [x] |
+| `NotificationSenderBlock` Markenfarben | [x] | [x] |
+
+**Referenz-Routen:** `/{departmentId}/contacts`, `/{departmentId}/tasks`, `/{departmentId}/notifications`.
+
+**Rest Phase 8 (später):** `TasksPrintView` (Druck-Tab); tote `.contacts-table`-Selektoren in `tables.css`.
+
+**Freigabe:** Phase 9 (Department-Settings).
+
+---
+
 ## Nächster Schritt (aktuell)
 
-**Phase 6** — **078:** Tabs Material, Kosten, Verbrauch — schrittweise. Schritt 077 (Detail-Header + `v-tabs`/`EButton`/`ELoadingState`) erledigt.
+**Phase 9** — **101** `MyDepartmentSettingsView` + Adresse + Join-Code. **099–100** erledigt; `GeneralSettingsView`/`AddonsSettingsView` teilweise `E*`.
 
 ### Erledigt: Schritt 073–075 — Zeitraum / Datepicker
 

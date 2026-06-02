@@ -302,4 +302,3 @@ function consumableLineHint(line: ReturnCrateLineEdit): string {
   </PackWorkflowModal>
 </template>
 
-<style src="@/styles/views/activities/detail-panel.css"></style>

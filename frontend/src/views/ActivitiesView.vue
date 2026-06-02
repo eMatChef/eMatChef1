@@ -12,7 +12,7 @@
     </div>
 
     <!-- Übersicht -->
-    <PageShell v-else class="activities-view activities-view--list">
+    <PageShell v-else class="activities-view activities-view--list" :class="listViewDisplayClasses">
       <template #title>{{ t('activities.title') }}</template>
       <template #subtitle>{{ t('activities.subtitle') }}</template>
       <template #actions>
@@ -149,7 +149,7 @@
         :title="hasActiveListFilters ? t('activities.empty.noMatch') : t('activities.empty.noneYet')"
       />
 
-      <div v-else class="activity-list-panel">
+      <div v-else class="activity-list-panel" :class="listPanelDisplayClasses">
         <EResponsiveDataList>
           <template #table>
             <ActivityListDataTable
@@ -193,7 +193,8 @@ defineOptions({ name: 'ActivitiesView' })
 import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { useDisplay } from 'vuetify'
+import { useDisplayHostClasses } from '@/composables/useDisplayHostClasses'
+import { useSmAndUp } from '@/composables/useSmAndUp'
 import apiClient from '@/api/apiClient'
 import { getActivity } from '@/api/activities'
 import { getGroups, type Group } from '@/api/groups'
@@ -223,7 +224,9 @@ import { activityStatusClass, activityStatusI18nKey } from '@/utils/activityStat
 
 const route = useRoute()
 const router = useRouter()
-const { smAndUp } = useDisplay()
+const smAndUp = useSmAndUp()
+const listPanelDisplayClasses = useDisplayHostClasses('activity-list-panel')
+const listViewDisplayClasses = useDisplayHostClasses('activities-view--list')
 const { t, te, locale } = useI18n()
 const toast = useToast()
 const headerNotificationsStore = useHeaderNotificationsStore()

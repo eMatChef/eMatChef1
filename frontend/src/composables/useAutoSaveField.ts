@@ -183,8 +183,8 @@ export function useAutoSaveField(options: UseAutoSaveFieldOptions) {
     // Select/Checkbox speichern sofort bei change — kein Blur-Revert
     if (saveImmediately) return
 
-    // ohne Eingabe beim Blur auf DB-Stand zurück
-    if (!isSaving.value && !isPreSaving.value && autoSave) {
+    // Unverändert fokussiert und verlassen → DB-Stand (nicht bei bewusst geleertem Feld)
+    if (!isSaving.value && !isDirty.value && autoSave) {
       revertToBaseline(emitUpdate)
     }
   }

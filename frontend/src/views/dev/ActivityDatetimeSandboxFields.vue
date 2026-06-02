@@ -1,6 +1,6 @@
 <template>
   <!-- Produktions-API: ActivityDateTimeFields (wie Create-Wizard über ActivityZeitraumDatetimeFields). -->
-  <div class="activity-datetime-host sandbox-activity-datetime-fields">
+  <div class="activity-datetime-host sandbox-activity-datetime-fields" :class="datetimeHostClasses">
     <ActivityOutlinedDatetimeSection
       :title="t('devSandbox.activityDatetime.usageSingle')"
       icon="calendar"
@@ -48,8 +48,11 @@ import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
 import ActivityDateTimeFields from '@/components/activities/wizard/ActivityDateTimeFields.vue'
 import ActivityOutlinedDatetimeSection from '@/components/activities/wizard/ActivityOutlinedDatetimeSection.vue'
+import { useDisplayHostClasses } from '@/composables/useDisplayHostClasses'
 import '@/styles/components/activity-datetime-field.css'
 import '@/styles/components/activity-datetime-layout.css'
+
+const datetimeHostClasses = useDisplayHostClasses('activity-datetime-host')
 
 const props = withDefaults(
   defineProps<{

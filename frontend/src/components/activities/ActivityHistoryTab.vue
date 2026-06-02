@@ -102,9 +102,14 @@ function userLabel(e: ActivityHistoryEntryRow): string {
   </div>
 </template>
 
-<style src="@/styles/views/activities/detail-panel.css"></style>
 <style scoped>
 @import '@/styles/views/activities/detail-workflow.css';
+
+.activity-inline-loading .spinner-sm {
+  width: 22px;
+  height: 22px;
+  border-width: 2px;
+}
 
 .activity-history-tab {
   max-width: 720px;

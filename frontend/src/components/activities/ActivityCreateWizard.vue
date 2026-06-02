@@ -2,12 +2,13 @@
   <v-dialog
     v-model="showDialog"
     class="activity-create-dialog"
+    :class="dialogDisplayClasses"
     :fullscreen="wizardFullscreen"
     :max-width="wizardFullscreen ? undefined : 1080"
     persistent
     content-class="activity-create-dialog__content"
   >
-    <v-card class="material-wizard-modal activity-create-wizard-host" rounded="lg">
+    <v-card class="material-wizard-modal activity-create-wizard-host" :class="wizardHostClasses" rounded="lg">
       <div class="material-wizard-header">
         <div class="material-wizard-header-title">
           <h2>{{ t('activities.wizard.createTitle') }}</h2>
@@ -127,6 +128,7 @@ import { computed, nextTick, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { EButton } from '@/components/form/base'
 import { useMdAndUp } from '@/composables/useMdAndUp'
+import { useDisplayHostClasses } from '@/composables/useDisplayHostClasses'
 import { useSmAndUp } from '@/composables/useSmAndUp'
 import '@/styles/material-wizard.css'
 import '@/styles/activity-type-chips.css'
@@ -175,6 +177,8 @@ const emit = defineEmits<{
 const { t } = useI18n()
 const mdAndUp = useMdAndUp()
 const smAndUp = useSmAndUp()
+const wizardHostClasses = useDisplayHostClasses('activity-create-wizard-host')
+const dialogDisplayClasses = useDisplayHostClasses('activity-create-dialog')
 /** Fullscreen unter md (960px): Phone + Tablet — nicht useDisplay().smAndDown */
 const wizardFullscreen = computed(() => !mdAndUp.value)
 /** Vorschau-Spalte ab sm (600px), auch im Tablet-Fullscreen */

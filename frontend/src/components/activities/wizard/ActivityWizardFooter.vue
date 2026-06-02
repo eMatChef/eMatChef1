@@ -160,22 +160,6 @@ defineEmits<{
   gap: 10px 16px;
 }
 
-@media (max-width: 599px) {
-  .activity-create-footer,
-  .activity-create-footer-actions,
-  .footer-actions {
-    flex-wrap: nowrap;
-  }
-
-  .activity-create-footer-actions {
-    gap: 4px;
-  }
-
-  .footer-actions {
-    gap: 4px;
-  }
-}
-
 .activity-create-footer-draft {
   display: flex;
   flex-direction: row;

@@ -46,7 +46,18 @@ const resolvedColor = computed(() => {
 const resolvedVariant = computed(() => {
   if (props.variant === 'secondary') return 'outlined'
   if (props.variant === 'text') return 'text'
-  if (props.variant === 'danger') return 'tonal'
+  if (props.variant === 'danger') return 'outlined'
   return 'flat'
 })
 </script>
+
+<style scoped>
+.e-button.v-btn--variant-outlined.text-error {
+  color: #b91c1c;
+  border-color: #f87171;
+}
+
+.e-button.v-btn--variant-outlined.text-error:hover:not(:disabled) {
+  background: #fef2f2;
+}
+</style>

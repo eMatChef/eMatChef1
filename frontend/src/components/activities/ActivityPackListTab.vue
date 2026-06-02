@@ -1,15 +1,14 @@
 <template>
   <div class="activity-pack-list-tab">
     <div v-if="loading" class="section-card">
-      <p class="activity-inline-loading">
-        <span class="spinner spinner-sm"></span>
-        <span>{{ t('activities.packList.loading') }}</span>
-      </p>
+      <ELoadingState variant="inline" class="pack-list-loading" :message="t('activities.packList.loading')" />
     </div>
 
-    <div v-else-if="loadError" class="section-card">
-      <p class="text-muted">{{ loadError }}</p>
-      <button type="button" class="btn-outline btn-sm" @click="loadAll">{{ t('common.retry') }}</button>
+    <div v-else-if="loadError" class="section-card pack-list-error">
+      <v-alert type="error" variant="tonal" density="compact" class="pack-list-error-alert">
+        {{ loadError }}
+      </v-alert>
+      <EButton variant="secondary" size="small" @click="loadAll">{{ t('common.retry') }}</EButton>
     </div>
 
     <template v-else>
@@ -17,15 +16,16 @@
         <ActivityTabHeader :title="t('activities.packList.title')" />
         <div class="section-card activity-tab-panel-card">
           <p class="text-muted">{{ t('activities.packList.emptyPositions') }}</p>
-          <button
+          <EButton
             v-if="canInitPackList"
-            type="button"
-            class="btn-primary btn-sm"
+            variant="primary"
+            size="small"
             :disabled="initLoading"
+            :loading="initLoading"
             @click="onInitPackList"
           >
             {{ initLoading ? t('activities.packList.initCreating') : t('activities.packList.initStart') }}
-          </button>
+          </EButton>
         </div>
       </template>
 
@@ -59,18 +59,17 @@
             <p class="pack-add-material-summary text-muted">{{ t('activities.packList.addMaterialToggleSummary') }}</p>
             <p class="field-hint text-muted pack-add-material-hint">{{ t('activities.packList.addMaterialHint') }}</p>
             <div v-if="showPackMaterialAddTarget" class="pack-add-material-target">
-              <label class="pack-add-material-target-label">
-                <span>{{ t('activities.packList.addMaterialTargetLabel') }}</span>
-                <select v-model="materialAddTargetKey" class="form-select pack-add-material-target-select">
-                  <option
-                    v-for="entry in materialAddTargetEntries"
-                    :key="'add-target-' + entry.key"
-                    :value="entry.key"
-                  >
-                    {{ entry.label }}
-                  </option>
-                </select>
-              </label>
+              <v-select
+                v-model="materialAddTargetKey"
+                :items="materialAddTargetEntries"
+                item-title="label"
+                item-value="key"
+                :label="t('activities.packList.addMaterialTargetLabel')"
+                variant="outlined"
+                density="compact"
+                hide-details
+                class="pack-add-material-target-select"
+              />
               <p
                 v-if="materialAddTargetKey !== 'loose'"
                 class="field-hint text-muted pack-add-material-target-hint"
@@ -106,10 +105,12 @@
               @add-quantity="onPackTabAddMaterialQuantity"
               @scope-change="onPackTabMaterialScopeChange"
             />
-            <p v-if="addingActivityMaterial" class="activity-inline-loading activity-draft-adding">
-              <span class="spinner spinner-sm"></span>
-              <span>{{ t('activities.detail.addingMaterial') }}</span>
-            </p>
+            <ELoadingState
+              v-if="addingActivityMaterial"
+              variant="inline"
+              class="activity-draft-adding"
+              :message="t('activities.detail.addingMaterial')"
+            />
           </div>
         </div>
 
@@ -221,18 +222,19 @@
           </div>
         </div>
 
-        <div v-if="packStageKeys.length > 1" class="pack-stage-tabs">
-          <button
-            v-for="st in packStagesForUi"
-            :key="st.key"
-            type="button"
-            class="pack-stage-tab"
-            :class="{ active: activePackStage === st.key }"
-            @click="setStage(st.key)"
-          >
+        <v-tabs
+          v-if="packStageKeys.length > 1"
+          :model-value="activePackStage"
+          class="pack-stage-tabs-v"
+          align-tabs="start"
+          color="primary"
+          show-arrows
+          @update:model-value="onPackStageTabChange"
+        >
+          <v-tab v-for="st in packStagesForUi" :key="st.key" :value="st.key">
             {{ st.leftLabel }} <span class="stage-arrow">→</span> {{ st.rightLabel }}
-          </button>
-        </div>
+          </v-tab>
+        </v-tabs>
 
         <div
           v-if="showPackStageOpenIssueRemainderBanner"
@@ -306,16 +308,17 @@
         <div v-if="showPackStageProgress" class="pack-progress-bar">
           <div class="pack-progress-info">
             <div class="pack-progress-left">
-              <button
+              <EButton
                 v-if="showWorkflowRevertButton && previousWorkflowTransition"
-                type="button"
-                class="btn btn-xs btn-outline btn-workflow-revert"
+                variant="secondary"
+                size="x-small"
+                class="btn-workflow-revert"
                 :disabled="isTransitioningPackWorkflow"
                 :title="workflowRevertVisibleLabel"
                 @click="onWorkflowRevertClick"
               >
                 {{ workflowRevertVisibleLabel }}
-              </button>
+              </EButton>
               <span :title="stageProgressPendingTitle">{{
                 showMwGroupHandoffBanner
                   ? t('activities.packList.progressPercentGroup', {
@@ -329,30 +332,34 @@
               }}</span>
             </div>
             <div class="pack-progress-actions">
-              <button
+              <EButton
                 v-if="showMoveAllToEventQuickButton"
-                type="button"
-                class="btn btn-xs btn-outline btn-move-all"
+                variant="secondary"
+                size="x-small"
+                class="btn-move-all"
                 :disabled="moveAllLoading"
+                :loading="moveAllLoading"
                 :title="moveAllToEventQuickLabel"
                 @click="onMoveAllToNextStageClick"
               >
                 {{ moveAllToEventQuickLabel }}
-              </button>
-              <button
+              </EButton>
+              <EButton
                 v-if="showPartialTakenToEventUpperButton"
-                type="button"
-                class="btn btn-xs btn-outline btn-move-all"
+                variant="secondary"
+                size="x-small"
+                class="btn-move-all"
                 :disabled="!showPackOperateControls || isTransitioningPackWorkflow"
                 :title="partialTakenToEventLabel"
                 @click="onPackWorkflowStatusToEventClick"
               >
                 {{ partialTakenToEventLabel }}
-              </button>
-              <button
+              </EButton>
+              <EButton
                 v-if="showContinueAfterTransportBackButton"
-                type="button"
-                class="btn btn-sm btn-progress-action btn-outline"
+                variant="secondary"
+                size="small"
+                class="btn-progress-action"
                 :class="{ 'btn-progress-warn': stageProgress < 100 }"
                 :disabled="!showPackOperateControls"
                 :title="continueAfterTransportBackTitle"
@@ -360,13 +367,15 @@
               >
                 {{ continueAfterTransportBackLabel }}
                 <span v-if="stageProgress < 100" class="btn-progress-warn-badge">{{ stageProgress }}%</span>
-              </button>
-              <button
+              </EButton>
+              <EButton
                 v-if="showPackWorkflowToEventButton && nextWorkflowTransition"
-                type="button"
-                class="btn btn-sm btn-progress-action btn-outline"
+                variant="secondary"
+                size="small"
+                class="btn-progress-action"
                 :class="{ 'btn-progress-warn': workflowButtonStageProgress < 100 }"
                 :disabled="!showPackOperateControls || isTransitioningPackWorkflow"
+                :loading="isTransitioningPackWorkflow"
                 :title="packWorkflowToEventButtonLabel"
                 @click="onPackWorkflowStatusToEventClick"
               >
@@ -374,24 +383,28 @@
                 <span v-if="workflowButtonStageProgress < 100" class="btn-progress-warn-badge">{{
                   workflowButtonStageProgress
                 }}%</span>
-              </button>
+              </EButton>
               <template v-if="!packIssueToEventCombined">
-                <button
+                <EButton
                   v-if="showPackOperateControls && stageLeftHeaderCount > 0"
-                  type="button"
-                  class="btn btn-xs btn-outline btn-move-all"
+                  variant="secondary"
+                  size="x-small"
+                  class="btn-move-all"
                   :disabled="moveAllLoading"
+                  :loading="moveAllLoading"
                   :title="moveAllStageButtonLabel"
                   @click="onMoveAllToNextStageClick"
                 >
                   {{ moveAllStageButtonLabel }}
-                </button>
-                <button
+                </EButton>
+                <EButton
                   v-if="nextWorkflowTransition"
-                  type="button"
-                  class="btn btn-sm btn-progress-action btn-outline"
+                  variant="secondary"
+                  size="small"
+                  class="btn-progress-action"
                   :class="{ 'btn-progress-warn': workflowButtonStageProgress < 100 }"
                   :disabled="!showPackOperateControls"
+                  :loading="isTransitioningPackWorkflow"
                   :title="nextWorkflowTransitionLabel"
                   @click="handleWorkflowTransition"
                 >
@@ -399,7 +412,7 @@
                   <span v-if="workflowButtonStageProgress < 100" class="btn-progress-warn-badge">{{
                     workflowButtonStageProgress
                   }}%</span>
-                </button>
+                </EButton>
               </template>
             </div>
           </div>
@@ -720,15 +733,17 @@
                 <span class="pack-panel-count">{{ stageRightHeaderCount }}</span>
               </div>
               <div v-if="showPackContainersUi && showPackOperateControls && activePackStage === 'confirmed_packed'" class="pack-panel-header-actions">
-                <button
-                  type="button"
-                  class="btn btn-xs btn-primary pack-add-container-btn"
+                <EButton
+                  variant="primary"
+                  size="x-small"
+                  class="pack-add-container-btn"
                   :disabled="containerMutationLoading"
+                  :loading="containerMutationLoading"
                   :title="t('activities.packList.addPackCrateSingleTitle')"
                   @click="openAddContainerModal"
                 >
                   {{ t('activities.packList.addPackCrateSingleButton') }}
-                </button>
+                </EButton>
               </div>
             </div>
             <PackCrateTargetPicker v-if="showPackCrateTargetPickerTop" />
@@ -1159,15 +1174,17 @@
                                               />
                                             </template>
                                             <template #trailing>
-                                              <button
+                                              <EButton
                                                 v-if="showShellCrateCheckButton(pi)"
-                                                type="button"
-                                                class="btn-outline btn-sm pack-shell-crate-check-btn"
+                                                variant="secondary"
+                                                size="small"
+                                                class="pack-shell-crate-check-btn"
                                                 :disabled="movingId === pi.id || shellForwardSubmitting"
+                                                :loading="shellForwardSubmitting"
                                                 @click="openShellCrateCheckOnlyModal(pi)"
                                               >
                                                 {{ shellCrateCheckButtonLabel(pi) }}
-                                              </button>
+                                              </EButton>
                                             </template>
                       </PackMaterialRow>
                     </div>
@@ -1247,15 +1264,17 @@
                                           />
                                         </template>
                                         <template #trailing>
-                                          <button
+                                          <EButton
                                             v-if="showShellCrateCheckButton(pi)"
-                                            type="button"
-                                            class="btn-outline btn-sm pack-shell-crate-check-btn"
+                                            variant="secondary"
+                                            size="small"
+                                            class="pack-shell-crate-check-btn"
                                             :disabled="movingId === pi.id || shellForwardSubmitting"
+                                            :loading="shellForwardSubmitting"
                                             @click="openShellCrateCheckOnlyModal(pi)"
                                           >
                                             {{ shellCrateCheckButtonLabel(pi) }}
-                                          </button>
+                                          </EButton>
                                         </template>
                   </PackMaterialRow>
                 </div>
@@ -1270,45 +1289,17 @@
       </template>
 
       <!-- Modal: Behälter anlegen -->
-      <div
-        v-if="showAddContainerModal"
-        class="pack-modal-backdrop"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="pack-modal-add-title"
-        @click.self="showAddContainerModal = false"
-      >
-        <div class="pack-modal" @click.stop>
-          <h3 id="pack-modal-add-title" class="pack-modal-title">{{ t('activities.packList.modalAddTitle') }}</h3>
-          <p class="pack-modal-hint pack-modal-hint--sm text-muted" v-html="t('activities.packList.modalAddHint')"></p>
-          <div v-if="stockBatchesLoading" class="pack-modal-loading text-muted">{{ t('activities.packList.modalLoadingBatches') }}</div>
-          <template v-else>
-            <label v-if="availableStockBatches.length > 0" class="pack-modal-label">
-              <span>{{ t('activities.packList.modalBatchLabel') }}</span>
-              <select v-model="selectedStockBatchId" class="form-select">
-                <option value="">{{ t('activities.packList.modalSelectPlaceholder') }}</option>
-                <option v-for="b in availableStockBatches" :key="b.id" :value="b.id">
-                  {{ containerBatchOptionLabel(b) }}
-                </option>
-              </select>
-            </label>
-            <p v-else class="pack-modal-empty text-muted">
-              {{ t('activities.packList.modalNoBatch') }}
-            </p>
-          </template>
-          <div class="pack-modal-actions">
-            <button type="button" class="btn-outline btn-sm" @click="showAddContainerModal = false">{{ t('common.cancel') }}</button>
-            <button
-              type="button"
-              class="btn-primary btn-sm"
-              :disabled="containerMutationLoading || stockBatchesLoading || !canSubmitAddContainer"
-              @click="submitAddContainer"
-            >
-              {{ t('common.add') }}
-            </button>
-          </div>
-        </div>
-      </div>
+      <PackAddContainerModal
+        :open="showAddContainerModal"
+        :loading="stockBatchesLoading"
+        :batches="addContainerBatchOptions"
+        :selected-batch-id="selectedStockBatchId"
+        :can-submit="canSubmitAddContainer"
+        :submitting="containerMutationLoading"
+        @update:selected-batch-id="selectedStockBatchId = $event"
+        @cancel="showAddContainerModal = false"
+        @submit="submitAddContainer"
+      />
 
     </template>
 
@@ -1402,6 +1393,8 @@ import { useAuthStore } from '@/stores/auth'
 import type { ActivityApiType, ActivityIssueReportRow, ActivityItemRow, ActivityTransitionRow } from '@/api/activities'
 import ActivityMaterialAvailabilityLookup from '@/components/activities/ActivityMaterialAvailabilityLookup.vue'
 import ActivityTabHeader from '@/components/activities/ActivityTabHeader.vue'
+import { EButton } from '@/components/form/base'
+import ELoadingState from '@/components/layout/ELoadingState.vue'
 import type { MaterialScopeTab } from '@/components/activities/shared/activityMaterialAvailabilityScope'
 import { getActivityHistory, getActivityIssues, getActivityItems, createActivityIssue } from '@/api/activities'
 import {
@@ -1466,6 +1459,7 @@ import {
 } from '@/components/activities/packWorkflowProfile'
 import { activityTransitionActionLabel } from '@/components/activities/activityTransitionLabels'
 import PackCrateShellForwardModal from '@/components/activities/PackCrateShellForwardModal.vue'
+import PackAddContainerModal from '@/components/activities/PackAddContainerModal.vue'
 import PackCrateShellPackItemRow from '@/components/activities/PackCrateShellPackItemRow.vue'
 import PackCrateTargetPicker from '@/components/activities/PackCrateTargetPicker.vue'
 import PackStepContainerCard from '@/components/activities/PackStepContainerCard.vue'
@@ -3236,6 +3230,13 @@ const canSubmitAddContainer = computed(() => {
   if (stockBatchesLoading.value) return false
   return !!selectedStockBatchId.value
 })
+
+const addContainerBatchOptions = computed(() =>
+  availableStockBatches.value.map((b) => ({
+    id: b.id,
+    label: containerBatchOptionLabel(b),
+  })),
+)
 
 const shellForwardModalOpen = ref(false)
 const shellForwardItem = ref<ActivityPackItem | null>(null)
@@ -7975,6 +7976,10 @@ function toggleGroup(key: string) {
   collapsedGroups.value[key] = !collapsedGroups.value[key]
 }
 
+function onPackStageTabChange(key: unknown) {
+  setStage(key as PackStage)
+}
+
 function setStage(key: PackStage) {
   activePackStage.value = key
   const keys = packStageKeys.value
@@ -9172,77 +9177,6 @@ defineExpose({
   color: #991b1b;
 }
 
-.pack-modal-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 80;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 16px;
-  background: rgba(15, 23, 42, 0.45);
-}
-
-.pack-modal {
-  width: 100%;
-  max-width: 400px;
-  padding: 20px 22px;
-  border-radius: 12px;
-  background: #fff;
-  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.18);
-}
-
-.pack-modal-title {
-  margin: 0 0 12px;
-  font-size: 1.1rem;
-}
-
-.pack-modal-material {
-  margin: 0 0 8px;
-  font-weight: 600;
-}
-
-.pack-modal-hint {
-  margin: 0 0 14px;
-  font-size: 13px;
-}
-
-.pack-modal-hint--sm {
-  font-size: 11px;
-  line-height: 1.45;
-}
-
-.pack-modal-loading {
-  margin: 0 0 12px;
-  font-size: 13px;
-}
-
-.pack-modal-empty {
-  margin: 0 0 12px;
-  font-size: 13px;
-  line-height: 1.45;
-}
-
-.pack-modal-label {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  margin-bottom: 14px;
-  font-size: 13px;
-}
-
-.pack-modal-label span:first-child {
-  font-weight: 500;
-  color: #475569;
-}
-
-.pack-modal-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 10px;
-  margin-top: 8px;
-}
-
 .pack-return-stock-hint {
   margin: 0 0 14px;
   padding: 12px 14px;
@@ -9596,6 +9530,22 @@ defineExpose({
   .pack-panels {
     grid-template-columns: 1fr;
   }
+}
+
+.pack-list-loading,
+.activity-draft-adding {
+  padding: 8px 0;
+}
+
+.pack-list-error {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.pack-list-error-alert {
+  width: 100%;
 }
 </style>
 

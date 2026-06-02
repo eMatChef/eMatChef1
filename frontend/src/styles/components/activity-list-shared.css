@@ -1,7 +1,10 @@
 /**
  * Aktivitäten-Liste (v-data-table + Mobile-Karten) — gemeinsame Zell-Styles.
  * Kein Bezug zu legacy .activities-table / tables.css
+ * Responsive: activity-display-host.css + useDisplayHostClasses in ActivitiesView
  */
+
+@import './activity-display-host.css';
 
 .activity-list-panel {
   background: #fff;
@@ -16,12 +19,6 @@
   color: #6b7280;
   border-top: 1px solid #f3f4f6;
   text-align: right;
-}
-
-@media (max-width: 599px) {
-  .activity-list-panel {
-    border-radius: 10px;
-  }
 }
 
 .activity-list-shared__name {

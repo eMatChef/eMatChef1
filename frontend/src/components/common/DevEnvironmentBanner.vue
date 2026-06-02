@@ -21,6 +21,12 @@ const { t } = useI18n()
 const show = computed(() => shouldShowDevEnvironmentBanner())
 </script>
 
+<style>
+.emc-app:has(.dev-environment-banner) {
+  --emc-dev-system-bar-height: 36px;
+}
+</style>
+
 <style scoped>
 .dev-environment-banner {
   color: #422006 !important;

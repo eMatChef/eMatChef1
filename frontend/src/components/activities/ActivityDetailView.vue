@@ -1,8 +1,14 @@
 <template>
-  <div class="material-detail-view activity-detail-view">
+  <div class="material-detail-view activity-detail-view" :class="detailDisplayClasses">
     <header class="detail-header activity-detail-header">
       <div class="header-left">
-        <EButton variant="secondary" size="small" class="activity-detail-back-btn" @click="handleClose">
+        <EButton
+          v-if="smAndUp"
+          variant="secondary"
+          size="small"
+          class="activity-detail-back-btn"
+          @click="handleClose"
+        >
           <v-icon icon="mdi-arrow-left" start size="20" />
           {{ t('activities.detail.backToList') }}
         </EButton>
@@ -16,11 +22,15 @@
         </div>
       </div>
       <div v-if="activity && !loadError" class="header-actions activity-detail-workflow-actions">
-        <template v-if="canManageActivityQr">
+        <div
+          v-if="canManageActivityQr"
+          class="activity-detail-header-qr"
+        >
           <EButton
             v-if="showGenerateActivityQrButton"
             variant="secondary"
             size="small"
+            class="activity-header-action-btn"
             :disabled="isGeneratingActivityPublicCode"
             :loading="isGeneratingActivityPublicCode"
             @click="generateActivityPublicCode"
@@ -32,45 +42,70 @@
             class="header-qr-tag"
             :url="activityPublicUrl"
             :code="activity.public_code"
-            :size="64"
+            :size="headerQrSize"
             :clickable="true"
             :image-label="activity.name"
             :image-entity-id="activity.id"
             @activate="openActivityQrActionModal"
           />
-        </template>
-        <EButton
-          v-for="tr in workflowTransitions"
-          :key="tr.status"
-          variant="secondary"
-          size="small"
-          :disabled="isTransitioning || !tr.allowed"
-          :title="!tr.allowed && tr.reason ? tr.reason : undefined"
-          @click="onTransition(tr)"
-        >
-          {{ transitionActionLabel(tr) }}
-        </EButton>
-        <EButton
-          v-if="cancelTransition"
-          variant="secondary"
-          size="small"
-          class="activity-cancel-btn"
-          :disabled="isTransitioning"
-          @click="onCancelActivity"
-        >
-          {{ cancelTransition ? transitionActionLabel(cancelTransition) : '' }}
-        </EButton>
-        <EButton
-          v-if="showDamageReportEntry"
-          variant="secondary"
-          size="small"
-          @click="openDamageReport()"
-        >
-          {{ t('activities.detail.reportDamage') }}
-        </EButton>
-        <EButton variant="secondary" size="small" @click="handleClose">{{ t('activities.detail.close') }}</EButton>
+        </div>
+        <div class="activity-detail-header-buttons">
+          <EButton
+            v-for="tr in workflowTransitions"
+            :key="tr.status"
+            variant="secondary"
+            size="small"
+            class="activity-header-action-btn"
+            :disabled="isTransitioning || !tr.allowed"
+            :title="!tr.allowed && tr.reason ? tr.reason : transitionActionLabel(tr)"
+            @click="onTransition(tr)"
+          >
+            {{ transitionActionLabel(tr) }}
+          </EButton>
+          <EButton
+            v-if="cancelTransition"
+            variant="danger"
+            size="small"
+            class="activity-header-action-btn activity-header-cancel-btn"
+            :disabled="isTransitioning"
+            :title="cancelTransition ? transitionActionLabel(cancelTransition) : undefined"
+            @click="onCancelActivity"
+          >
+            {{ cancelTransition ? transitionActionLabel(cancelTransition) : '' }}
+          </EButton>
+          <EButton
+            v-if="showDamageReportEntry"
+            variant="secondary"
+            size="small"
+            class="activity-header-action-btn"
+            @click="openDamageReport()"
+          >
+            {{ t('activities.detail.reportDamage') }}
+          </EButton>
+          <EButton
+            variant="secondary"
+            size="small"
+            class="activity-header-action-btn"
+            @click="handleClose"
+          >
+            {{ t('activities.detail.close') }}
+          </EButton>
+        </div>
       </div>
     </header>
+
+    <v-tabs
+      v-if="activity && !isLoading && !loadError"
+      v-model="activeTab"
+      class="activity-detail-tabs"
+      align-tabs="start"
+      color="primary"
+      show-arrows
+    >
+      <v-tab v-for="tab in tabs" :key="tab.id" :value="tab.id">
+        {{ tab.label }}
+      </v-tab>
+    </v-tabs>
 
     <ELoadingState
       v-if="isLoading"
@@ -87,7 +122,7 @@
       </div>
     </div>
 
-    <div v-else-if="activity" class="detail-content activity-detail-content">
+    <div v-else-if="activity" class="activity-detail-scroll">
       <v-alert
         v-if="activity.status === 'draft'"
         type="warning"
@@ -139,22 +174,9 @@
         {{ t('activities.detail.memberScopeStatusHint') }}
       </v-alert>
 
-      <v-tabs
-        v-model="activeTab"
-        class="activity-detail-tabs"
-        align-tabs="start"
-        density="comfortable"
-        color="primary"
-        show-arrows
-      >
-        <v-tab v-for="tab in tabs" :key="tab.id" :value="tab.id">
-          {{ tab.label }}
-        </v-tab>
-      </v-tabs>
-
-      <v-window v-model="activeTab" class="activity-detail-window">
-        <v-window-item value="overview" class="activity-detail-window-item">
-          <div class="activity-detail-tab-panel tab-content">
+      <v-tabs-window v-model="activeTab" class="activity-detail-tabs-window">
+          <v-tabs-window-item value="overview" class="activity-detail-window-item">
+            <div class="activity-detail-tab-panel tab-content">
             <ActivityDraftOverviewForm
               v-if="showOverviewEditForm && activity"
               ref="draftOverviewFormRef"
@@ -226,11 +248,11 @@
                 <p class="activity-notes">{{ activity.notes }}</p>
               </div>
             </template>
-          </div>
-        </v-window-item>
+            </div>
+          </v-tabs-window-item>
 
-        <v-window-item value="material" class="activity-detail-window-item">
-          <div class="activity-detail-tab-panel tab-content">
+          <v-tabs-window-item value="material" class="activity-detail-window-item">
+            <div class="activity-detail-tab-panel tab-content">
             <ActivityTabHeader :title="t('common.material')" />
             <div
               v-if="showDraftMaterialAddForGroup"
@@ -255,9 +277,11 @@
                 @add-quantity="onDraftAddQuantity"
                 @scope-change="onMaterialLookupScopeChange"
               />
-              <p v-if="addingDraftMaterial" class="activity-inline-loading activity-draft-adding">
-                <span class="spinner spinner-sm"></span>
-                <span>{{ t('activities.detail.addingMaterial') }}</span>
+              <p v-if="addingDraftMaterial" class="activity-draft-adding">
+                <ELoadingState
+                  variant="inline"
+                  :message="t('activities.detail.addingMaterial')"
+                />
               </p>
             </div>
             <div
@@ -319,9 +343,11 @@
                 @add-quantity="onDraftAddQuantity"
                 @scope-change="onMaterialLookupScopeChange"
               />
-              <p v-if="addingDraftMaterial" class="activity-inline-loading activity-draft-adding">
-                <span class="spinner spinner-sm"></span>
-                <span>{{ t('activities.detail.addingMaterial') }}</span>
+              <p v-if="addingDraftMaterial" class="activity-draft-adding">
+                <ELoadingState
+                  variant="inline"
+                  :message="t('activities.detail.addingMaterial')"
+                />
               </p>
             </div>
             <div
@@ -335,9 +361,11 @@
 
             <div class="section-card activity-tab-panel-card">
               <h2 class="section-title activity-tab-subsection-title">{{ t('activities.detail.materialPositionsTitle') }}</h2>
-              <div v-if="itemsLoading" class="activity-inline-loading">
-                <div class="spinner spinner-sm"></div>
-                <span>{{ t('activities.detail.itemsLoading') }}</span>
+              <div v-if="itemsLoading" class="activity-items-loading">
+                <ELoadingState
+                  variant="inline"
+                  :message="t('activities.detail.itemsLoading')"
+                />
               </div>
               <div v-else-if="activityItems.length === 0" class="text-muted">
                 {{
@@ -367,14 +395,15 @@
                   @remove-line="onDraftTableRemoveLine"
                 />
                 <div v-if="hasDraftQtyChanges" class="activity-qty-save-row">
-                  <button
-                    type="button"
-                    class="btn-primary btn-sm"
+                  <EButton
+                    variant="primary"
+                    size="small"
                     :disabled="syncingQuantities"
+                    :loading="syncingQuantities"
                     @click="saveDraftQuantities"
                   >
                     {{ syncingQuantities ? t('activities.detail.saveQtySaving') : t('activities.detail.saveQty') }}
-                  </button>
+                  </EButton>
                 </div>
               </div>
               <div v-else class="activity-items-table-wrap">
@@ -455,10 +484,10 @@
               </div>
             </div>
           </div>
-        </v-window-item>
+          </v-tabs-window-item>
 
-        <v-window-item v-if="showPacksTab" value="packs" class="activity-detail-window-item">
-          <div class="activity-detail-tab-panel tab-content">
+          <v-tabs-window-item v-if="showPacksTab" value="packs" class="activity-detail-window-item">
+            <div class="activity-detail-tab-panel tab-content">
             <ActivityPackListTab
               ref="packListTabRef"
               v-if="activity"
@@ -493,11 +522,11 @@
               @add-activity-material="onDraftAddQuantity"
               @material-scope-change="onMaterialLookupScopeChange"
             />
-          </div>
-        </v-window-item>
+            </div>
+          </v-tabs-window-item>
 
-        <v-window-item v-if="showIssuesTab" value="issues" class="activity-detail-window-item">
-          <div class="activity-detail-tab-panel tab-content">
+          <v-tabs-window-item v-if="showIssuesTab" value="issues" class="activity-detail-window-item">
+            <div class="activity-detail-tab-panel tab-content">
             <ActivityIssuesTab
               :activity-id="activityId"
               :can-create="showDamageReportEntry"
@@ -505,11 +534,11 @@
               :reload-token="issuesReloadToken"
               @open-wizard="openDamageReport()"
             />
-          </div>
-        </v-window-item>
+            </div>
+          </v-tabs-window-item>
 
-        <v-window-item v-if="showConsumablesTab" value="consumables" class="activity-detail-window-item">
-          <div class="activity-detail-tab-panel tab-content">
+          <v-tabs-window-item v-if="showConsumablesTab" value="consumables" class="activity-detail-window-item">
+            <div class="activity-detail-tab-panel tab-content">
             <ActivityConsumablesTab
               :activity-id="activityId"
               :can-create="showConsumptionBooking"
@@ -520,11 +549,11 @@
               @consumption-booked="onConsumableBooked"
               @edit-consumption="onEditConsumption"
             />
-          </div>
-        </v-window-item>
+            </div>
+          </v-tabs-window-item>
 
-        <v-window-item v-if="showCostsTab" value="costs" class="activity-detail-window-item">
-          <div class="activity-detail-tab-panel tab-content">
+          <v-tabs-window-item v-if="showCostsTab" value="costs" class="activity-detail-window-item">
+            <div class="activity-detail-tab-panel tab-content">
             <ActivityCostsTab
               v-if="activity"
               :activity-id="activityId"
@@ -533,15 +562,15 @@
               :activity-status="activity.status"
               :reload-token="costsReloadToken"
             />
-          </div>
-        </v-window-item>
+            </div>
+          </v-tabs-window-item>
 
-        <v-window-item value="history" class="activity-detail-window-item">
-          <div class="activity-detail-tab-panel tab-content">
-            <ActivityHistoryTab :activity-id="activityId" />
-          </div>
-        </v-window-item>
-      </v-window>
+          <v-tabs-window-item value="history" class="activity-detail-window-item">
+            <div class="activity-detail-tab-panel tab-content">
+              <ActivityHistoryTab :activity-id="activityId" />
+            </div>
+          </v-tabs-window-item>
+      </v-tabs-window>
     </div>
 
     <DamageReportWizard
@@ -584,6 +613,8 @@
       :label="activity?.name"
       :code="activity?.public_code"
       :url="activityPublicUrl"
+      :image-label="activity?.name"
+      :image-entity-id="activity?.id"
       @close="closeActivityQrActionModal"
       @add-to-print-cart="handleActivityQrAddToPrintCart"
       @print="handleActivityQrPrint"
@@ -643,6 +674,8 @@ import {
 } from '@/composables/useDepartmentMemberRole'
 import { useBackgroundPoll } from '@/composables/useBackgroundPoll'
 import { useConfirm } from '@/composables/useConfirm'
+import { useDisplayHostClasses } from '@/composables/useDisplayHostClasses'
+import { useSmAndUp } from '@/composables/useSmAndUp'
 import { usePageHeadStore } from '@/stores/pageHead'
 import { useDetailTabsStore } from '@/stores/detailTabs'
 import { useHeaderNotificationsStore } from '@/stores/headerNotifications'
@@ -694,6 +727,8 @@ function mergeActivityQuery(updates: Record<string, string | undefined>) {
 }
 const toast = useToast()
 const { confirm: confirmDialog } = useConfirm()
+const smAndUp = useSmAndUp()
+const detailDisplayClasses = useDisplayHostClasses('activity-detail-view')
 const pageHeadStore = usePageHeadStore()
 const headerNotificationsStore = useHeaderNotificationsStore()
 const { t, te, locale } = useI18n()
@@ -739,6 +774,9 @@ const activityPublicUrl = computed(() =>
 const showGenerateActivityQrButton = computed(
   () => canManageActivityQr.value && !activityPublicUrl.value && !!activity.value
 )
+
+/** Mobile: QR kompakt (40px); Desktop: 64px — Tap öffnet QR-Dialog */
+const headerQrSize = computed(() => (smAndUp.value ? 64 : 40))
 
 /** Wie v4.01: Packliste erst ab «Wird gepackt», nicht schon bei «Bestätigt». */
 const STATUSES_WITH_PACKS_TAB = [
@@ -2125,3 +2163,15 @@ useBackgroundPoll({
 <style scoped src="@/styles/material-detail-view.css"></style>
 <style scoped src="@/styles/views/activities/detail-panel.css"></style>
 <style scoped src="@/styles/views/activities/detail-workflow.css"></style>
+<style scoped>
+.activity-detail-view.material-detail-view {
+  height: auto;
+  min-height: 0;
+  overflow: visible;
+}
+
+.activity-detail-view :deep(.detail-header) {
+  position: static !important;
+  top: auto !important;
+}
+</style>

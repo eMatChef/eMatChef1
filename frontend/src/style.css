@@ -23,6 +23,7 @@
 @import './styles/ui/activity-type-badges.css';
 @import './styles/components/address-type-badge.css';
 @import './styles/components/auto-save-field.css';
+@import './styles/components/activity-display-host.css';
 @import './styles/components/activity-datetime-field.css';
 @import './styles/components/search-field.css';
 @import './styles/ui/activity-combo-badges.css';

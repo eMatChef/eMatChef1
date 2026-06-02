@@ -13,158 +13,86 @@
     />
 
     <!-- Liste View -->
-    <div v-else class="list-view">
-      <!-- Header -->
-      <header class="page-header">
-        <div class="header-content">
-          <div>
-            <h1>{{ t('materialsView.title') }}</h1>
-            <p v-if="!isUserMaterialsBrowseOnly" class="description">{{ t('materialsView.description') }}</p>
-          </div>
-          <button v-if="canManageMaterials" @click="openCreateWizard" class="btn-primary">
-            <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-              <path d="M10 4V16M4 10H16" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
-            </svg>
-            <span>{{ t('materialsView.newMaterial') }}</span>
-          </button>
-        </div>
-      </header>
+    <PageShell v-else class="materials-view materials-view--list">
+      <template #title>{{ t('materialsView.title') }}</template>
+      <template v-if="!isUserMaterialsBrowseOnly" #subtitle>{{ t('materialsView.description') }}</template>
+      <template v-if="canManageMaterials" #actions>
+        <EButton variant="primary" @click="openCreateWizard">
+          <v-icon icon="mdi-plus" start size="20" />
+          {{ t('materialsView.newMaterial') }}
+        </EButton>
+      </template>
 
-      <!-- Tab Navigation (User: nur «Alle Artikel» — Tabs ausgeblendet) -->
-      <div v-if="!isUserMaterialsBrowseOnly" class="material-tabs">
-        <button 
-          class="material-tab" 
-          :class="{ active: activeTab === 'combos' }" 
-          @click="selectTab('combos')"
+      <template v-if="!isUserMaterialsBrowseOnly" #filters>
+        <v-tabs
+          :model-value="activeTab"
+          class="materials-view-tabs"
+          color="primary"
+          @update:model-value="onMaterialTabChange"
         >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M3 21L12 3l9 18H3z"/>
-          </svg>
-          {{ t('materialsView.tabCombos') }}
-          <span class="tab-count">{{ comboCount }}</span>
-        </button>
-        <button 
-          class="material-tab" 
-          :class="{ active: activeTab === 'all' }" 
-          @click="selectTab('all')"
-        >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
-          </svg>
-          {{ t('materialsView.tabAll') }}
-          <span class="tab-count">{{ allCount }}</span>
-        </button>
-        <button 
-          class="material-tab" 
-          :class="{ active: activeTab === 'virtual_combos' }" 
-          @click="selectTab('virtual_combos')"
-        >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M3 21L12 3l9 18H3z"/>
-          </svg>
-          {{ t('materialsView.tabVirtualCombos') }}
-          <span class="tab-count">{{ virtualComboCount }}</span>
-        </button>
-        <button 
-          class="material-tab" 
-          :class="{ active: activeTab === 'consumables' }" 
-          @click="selectTab('consumables')"
-        >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="12" cy="12" r="10"/><path d="M8 12h8"/>
-          </svg>
-          {{ t('materialsView.tabConsumables') }}
-          <span class="tab-count">{{ consumableCount }}</span>
-        </button>
-        <button 
-          class="material-tab" 
-          :class="{ active: activeTab === 'food' }" 
-          @click="selectTab('food')"
-        >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M18 8h1a4 4 0 0 1 0 8h-1M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8zM6 1v3M10 1v3M14 1v3"/>
-          </svg>
-          {{ t('materialsView.tabFood') }}
-          <span class="tab-count">{{ foodCount }}</span>
-        </button>
-        <button 
-          class="material-tab" 
-          :class="{ active: activeTab === 'storage' }" 
-          @click="selectTab('storage')"
-        >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
-            <polyline points="9 22 9 12 15 12 15 22"/>
-          </svg>
-          {{ t('materialsView.tabStorage') }}
-        </button>
-      </div>
+          <v-tab v-for="tab in materialListTabs" :key="tab.id" :value="tab.id">
+            <v-icon v-if="tab.icon" :icon="tab.icon" start size="18" />
+            {{ tab.label }}
+            <v-chip v-if="tab.count != null" size="x-small" variant="tonal" class="materials-view-tab-count">
+              {{ tab.count }}
+            </v-chip>
+          </v-tab>
+        </v-tabs>
 
-      <!-- Search & Filter Bar (nicht bei Regale-Tab) -->
-      <div v-if="activeTab !== 'storage'" class="filter-bar">
-        <div class="search-box">
-          <GlobalSearchInput
-            mode="inline"
-            :department-id="currentDepartmentId"
-            default-type="material"
-            v-model="searchQuery"
-            :placeholder="t('materialsView.searchListPlaceholder')"
-          />
-        </div>
-        
-        <div class="filter-group">
-          <!-- Kombos-Tab: Filter Physisch/Virtuell/Beide -->
-          <div v-if="activeTab === 'combos'" class="combo-type-filter">
-            <button 
-              class="filter-chip" 
-              :class="{ active: comboFilter === 'all' }" 
-              @click="comboFilter = 'all'"
+        <EFilterRow v-if="activeTab !== 'storage'" class="materials-view-filters">
+          <v-col class="e-filter-row__search">
+            <GlobalSearchInput
+              mode="inline"
+              :department-id="currentDepartmentId"
+              default-type="material"
+              v-model="searchQuery"
+              :placeholder="t('materialsView.searchListPlaceholder')"
+            />
+          </v-col>
+          <v-col v-if="activeTab === 'combos'" cols="auto" class="materials-view-combo-toggle">
+            <v-btn-toggle
+              v-model="comboFilter"
+              density="compact"
+              color="primary"
+              variant="outlined"
+              mandatory
             >
-              {{ t('materialsView.comboFilterBoth') }}
-            </button>
-            <button 
-              class="filter-chip" 
-              :class="{ active: comboFilter === 'physical' }" 
-              @click="comboFilter = 'physical'"
+              <v-btn value="all" size="small">{{ t('materialsView.comboFilterBoth') }}</v-btn>
+              <v-btn value="physical" size="small">{{ t('materialsView.comboFilterPhysical') }}</v-btn>
+              <v-btn value="virtual" size="small">{{ t('materialsView.comboFilterVirtual') }}</v-btn>
+            </v-btn-toggle>
+          </v-col>
+          <v-col v-if="!isUserMaterialsBrowseOnly" cols="auto" class="e-filter-row__select">
+            <ESelect
+              v-model="selectedCategory"
+              :items="categorySelectItems"
+              :label="t('materialsView.filterAllCategories')"
+              hide-details
+            />
+          </v-col>
+          <v-col v-if="!isUserMaterialsBrowseOnly" cols="auto" class="e-filter-row__select">
+            <ESelect
+              v-model="selectedCondition"
+              :items="conditionSelectItems"
+              :label="t('materialsView.filterAllConditions')"
+              hide-details
+            />
+          </v-col>
+          <v-col cols="auto" class="e-filter-row__actions">
+            <EButton
+              variant="text"
+              size="small"
+              :style="{ visibility: hasActiveFilters ? 'visible' : 'hidden' }"
+              :aria-hidden="!hasActiveFilters"
+              @click="resetFilters"
             >
-              {{ t('materialsView.comboFilterPhysical') }}
-            </button>
-            <button 
-              class="filter-chip" 
-              :class="{ active: comboFilter === 'virtual' }" 
-              @click="comboFilter = 'virtual'"
-            >
-              {{ t('materialsView.comboFilterVirtual') }}
-            </button>
-          </div>
-          <select v-if="!isUserMaterialsBrowseOnly" v-model="selectedCategory" class="filter-select">
-            <option value="">{{ t('materialsView.filterAllCategories') }}</option>
-            <option v-for="cat in categories" :key="cat.id" :value="cat.id">
-              {{ cat.parent_id ? '↳ ' : '' }}{{ cat.name }} ({{ cat.material_count }})
-            </option>
-          </select>
-          
-          <select v-if="!isUserMaterialsBrowseOnly" v-model="selectedCondition" class="filter-select">
-            <option value="">{{ t('materialsView.filterAllConditions') }}</option>
-            <option value="ok">{{ t('materialsView.conditionOk') }}</option>
-            <option value="defect">{{ t('materialsView.conditionDefect') }}</option>
-            <option value="repair">{{ t('materialsView.conditionRepair') }}</option>
-            <option value="lost">{{ t('materialsView.conditionLost') }}</option>
-          </select>
-          
-          <button
-            @click="resetFilters"
-            class="reset-btn"
-            :style="{ visibility: hasActiveFilters ? 'visible' : 'hidden' }"
-            :aria-hidden="!hasActiveFilters"
-          >
-            {{ t('materialsView.resetFilters') }}
-          </button>
-        </div>
-      </div>
+              {{ t('materialsView.resetFilters') }}
+            </EButton>
+          </v-col>
+        </EFilterRow>
+      </template>
 
-      <!-- Content Area (zentriert Empty State vertikal) -->
-      <div class="content-area">
+      <div class="materials-view-content">
         <!-- Tab: Regale (storage-centric view) -->
         <div v-if="activeTab === 'storage'" class="storage-tab-content">
           <StorageTreeView
@@ -174,62 +102,47 @@
         </div>
 
         <template v-else>
-          <!-- Hard Loading (nur beim ersten Laden ohne Cache) -->
-          <div v-if="showFullLoading" class="loading-state">
-            <div class="spinner"></div>
-            <p>{{ t('materialsView.loading') }}</p>
+          <ELoadingState
+            v-if="showFullLoading"
+            variant="table"
+            :rows="8"
+            :message="t('materialsView.loading')"
+          />
+
+          <div v-else-if="error && materials.length === 0" class="materials-view-error">
+            <v-alert type="error" variant="tonal" :text="error" />
+            <EButton variant="secondary" class="mt-3" @click="loadData()">{{ t('common.retry') }}</EButton>
           </div>
 
-          <!-- Error State (nur wenn keine Daten angezeigt werden können) -->
-          <div v-else-if="error && materials.length === 0" class="error-state">
-            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="12" cy="12" r="10"/>
-              <line x1="12" y1="8" x2="12" y2="12"/>
-              <line x1="12" y1="16" x2="12.01" y2="16"/>
-            </svg>
-            <p class="error-message">{{ error }}</p>
-            <button @click="loadData()" class="retry-btn">{{ t('common.retry') }}</button>
-          </div>
-
-          <!-- Listen-Inhalt (bleibt bei Soft-Refresh sichtbar) -->
           <div v-else class="list-content" :class="{ 'is-soft-loading': isRefreshing }">
             <div v-if="isRefreshing" class="soft-refresh-bar" aria-hidden="true"></div>
 
-            <!-- Empty State -->
-            <div v-if="materials.length === 0" class="empty-state">
-        <div class="empty-illustration">
-          <svg width="120" height="120" viewBox="0 0 120 120" fill="none">
-            <rect x="20" y="30" width="80" height="60" rx="4" stroke="#d1d5db" stroke-width="2" stroke-dasharray="4 4"/>
-            <rect x="35" y="45" width="50" height="8" rx="2" fill="#e5e7eb"/>
-            <rect x="35" y="60" width="35" height="6" rx="2" fill="#e5e7eb"/>
-            <rect x="35" y="72" width="25" height="6" rx="2" fill="#e5e7eb"/>
-            <circle cx="90" cy="85" r="20" fill="#10b981" fill-opacity="0.15"/>
-            <path d="M90 75V95M80 85H100" stroke="#10b981" stroke-width="3" stroke-linecap="round"/>
-          </svg>
-        </div>
-        <h2>{{ t('materialsView.emptyTitle') }}</h2>
-        <p>{{ t('materialsView.emptyDescription') }}</p>
-        <button v-if="canManageMaterials" @click="openCreateWizard" class="btn-primary btn-large">
-          <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-            <path d="M10 4V16M4 10H16" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
-          </svg>
-          {{ t('materialsView.emptyCta') }}
-        </button>
-            </div>
+            <EEmptyState
+              v-if="materials.length === 0"
+              variant="create"
+              :title="t('materialsView.emptyTitle')"
+              :description="t('materialsView.emptyDescription')"
+            >
+              <template v-if="canManageMaterials" #actions>
+                <EButton size="large" @click="openCreateWizard">
+                  <v-icon icon="mdi-plus" start size="20" />
+                  {{ t('materialsView.emptyCta') }}
+                </EButton>
+              </template>
+            </EEmptyState>
 
-            <!-- No Results State -->
-            <div v-else-if="filteredMaterials.length === 0" class="empty-state">
-        <div class="empty-illustration">
-          <svg width="100" height="100" viewBox="0 0 100 100" fill="none">
-            <circle cx="45" cy="45" r="25" stroke="#d1d5db" stroke-width="3"/>
-            <line x1="63" y1="63" x2="80" y2="80" stroke="#d1d5db" stroke-width="3" stroke-linecap="round"/>
-            <line x1="35" y1="45" x2="55" y2="45" stroke="#e5e7eb" stroke-width="3" stroke-linecap="round"/>
-          </svg>
-        </div>
-        <h2>{{ t('materialsView.noResultsTitle') }}</h2>
-        <p>{{ t('materialsView.noResultsDescription') }}</p>
-        <button @click="resetFilters" class="btn-secondary">{{ t('materialsView.resetFilters') }}</button>
-            </div>
+            <EEmptyState
+              v-else-if="filteredMaterials.length === 0"
+              variant="search"
+              :title="t('materialsView.noResultsTitle')"
+              :description="t('materialsView.noResultsDescription')"
+            >
+              <template #actions>
+                <EButton variant="secondary" @click="resetFilters">
+                  {{ t('materialsView.resetFilters') }}
+                </EButton>
+              </template>
+            </EEmptyState>
 
             <!-- Materials List (Desktop: v-data-table, Mobile: v-list) -->
             <div v-else class="materials-table-wrapper">
@@ -271,57 +184,55 @@
           </div>
         </template>
       </div>
-    </div>
+    </PageShell>
 
-    <div v-if="showPostCreateCompositionModal && postCreateCompositionContext" class="modal-overlay">
-      <div class="modal-dialog">
-        <h3>{{ t('materialsView.modalPostCreateCompositionTitle') }}</h3>
-        <p class="text-muted">
+    <EDialog
+      v-model="showPostCreateCompositionModal"
+      :max-width="480"
+      :title="t('materialsView.modalPostCreateCompositionTitle')"
+    >
+      <p class="text-muted materials-view-composition-intro">
+        {{
+          t('materialsView.modalPostCreateCompositionIntro', {
+            combo: postCreateCompositionComboName,
+            article: postCreateCompositionContext?.material.name ?? '',
+          })
+        }}
+      </p>
+      <ETextField
+        v-model.number="postCreateCompositionQty"
+        type="number"
+        :label="t('materialsView.labelQtyInCombo')"
+        :min="1"
+        :max="postCreateCompositionMaxQty ?? undefined"
+        hide-details="auto"
+        @update:model-value="clampPostCreateCompositionQty"
+      />
+      <p v-if="postCreateCompositionMaxQty !== null && postCreateCompositionMaxQty > 0" class="text-muted text-caption mt-1">
+        {{ t('components.materialDetail.hintMaxQty', { n: postCreateCompositionMaxQty }) }}
+      </p>
+      <p v-else-if="postCreateCompositionMaxQty === 0" class="text-error text-caption mt-1">
+        {{ t('components.materialDetail.errAddCompositionNoStock') }}
+      </p>
+      <p v-if="postCreateCompositionError" class="text-error text-caption mt-2">{{ postCreateCompositionError }}</p>
+      <template #actions>
+        <EButton variant="secondary" @click="closePostCreateCompositionModal">
+          {{ t('materialsView.btnPostCreateCompositionSkip') }}
+        </EButton>
+        <EButton
+          variant="primary"
+          :disabled="!canSubmitPostCreateComposition || postCreateCompositionSubmitting"
+          :loading="postCreateCompositionSubmitting"
+          @click="submitPostCreateComposition"
+        >
           {{
-            t('materialsView.modalPostCreateCompositionIntro', {
-              combo: postCreateCompositionComboName,
-              article: postCreateCompositionContext.material.name,
-            })
+            postCreateCompositionSubmitting
+              ? t('materialsView.postCreateCompositionSubmitting')
+              : t('materialsView.btnPostCreateCompositionAdd')
           }}
-        </p>
-        <div class="form-group">
-          <label>{{ t('materialsView.labelQtyInCombo') }}</label>
-          <input
-            v-model.number="postCreateCompositionQty"
-            type="number"
-            min="1"
-            :max="postCreateCompositionMaxQty ?? undefined"
-            class="form-input"
-            @input="clampPostCreateCompositionQty"
-            @blur="clampPostCreateCompositionQty"
-          />
-          <p v-if="postCreateCompositionMaxQty !== null && postCreateCompositionMaxQty > 0" class="batch-field-hint">
-            {{ t('components.materialDetail.hintMaxQty', { n: postCreateCompositionMaxQty }) }}
-          </p>
-          <p v-else-if="postCreateCompositionMaxQty === 0" class="error-text">
-            {{ t('components.materialDetail.errAddCompositionNoStock') }}
-          </p>
-        </div>
-        <p v-if="postCreateCompositionError" class="error-text">{{ postCreateCompositionError }}</p>
-        <div class="modal-actions">
-          <button type="button" class="btn-secondary btn-sm" @click="closePostCreateCompositionModal">
-            {{ t('materialsView.btnPostCreateCompositionSkip') }}
-          </button>
-          <button
-            type="button"
-            class="btn-primary btn-sm"
-            :disabled="!canSubmitPostCreateComposition || postCreateCompositionSubmitting"
-            @click="submitPostCreateComposition"
-          >
-            {{
-              postCreateCompositionSubmitting
-                ? t('materialsView.postCreateCompositionSubmitting')
-                : t('materialsView.btnPostCreateCompositionAdd')
-            }}
-          </button>
-        </div>
-      </div>
-    </div>
+        </EButton>
+      </template>
+    </EDialog>
 
     <!-- Material Create Wizard -->
     <MaterialCreateWizard
@@ -350,9 +261,14 @@ import MaterialCreateWizard from '@/components/material/MaterialCreateWizard.vue
 import MaterialDetailView from '@/components/material/MaterialDetailView.vue'
 import MaterialListDataTable from '@/components/material/MaterialListDataTable.vue'
 import MaterialListMobile from '@/components/material/MaterialListMobile.vue'
+import PageShell from '@/components/layout/PageShell.vue'
+import EFilterRow from '@/components/layout/EFilterRow.vue'
+import EEmptyState from '@/components/layout/EEmptyState.vue'
+import ELoadingState from '@/components/layout/ELoadingState.vue'
 import EResponsiveDataList from '@/components/layout/EResponsiveDataList.vue'
 import StorageTreeView from '@/components/storage/StorageTreeView.vue'
 import GlobalSearchInput from '@/components/common/GlobalSearchInput.vue'
+import { EButton, EDialog, ESelect, ETextField } from '@/components/form/base'
 import { useDetailTabsStore } from '@/stores/detailTabs'
 import { useToast } from '@/composables/useToast'
 import { useListSearchQueryRoute } from '@/composables/useListSearchQueryRoute'
@@ -438,6 +354,28 @@ const showFullLoading = computed(() => isLoading.value && materials.value.length
 
 // Tab State
 const activeTab = ref<MaterialTab>('all')
+
+const categorySelectItems = computed(() => [
+  { title: t('materialsView.filterAllCategories'), value: '' },
+  ...categories.value.map((cat) => ({
+    title: `${cat.parent_id ? '↳ ' : ''}${cat.name} (${cat.material_count})`,
+    value: cat.id,
+  })),
+])
+
+const conditionSelectItems = computed(() => [
+  { title: t('materialsView.filterAllConditions'), value: '' },
+  { title: t('materialsView.conditionOk'), value: 'ok' },
+  { title: t('materialsView.conditionDefect'), value: 'defect' },
+  { title: t('materialsView.conditionRepair'), value: 'repair' },
+  { title: t('materialsView.conditionLost'), value: 'lost' },
+])
+
+function onMaterialTabChange(tab: unknown) {
+  if (typeof tab === 'string' && tab in materialTabRouteNames) {
+    selectTab(tab as MaterialTab)
+  }
+}
 
 // Filter State
 const searchQuery = ref('')
@@ -560,6 +498,25 @@ const consumableCount = computed(() =>
 const foodCount = computed(() => 
   materials.value.filter(m => m.is_food).length
 )
+
+const materialListTabs = computed(() => [
+  { id: 'combos' as MaterialTab, label: t('materialsView.tabCombos'), icon: 'mdi-triangle-outline', count: comboCount.value },
+  { id: 'all' as MaterialTab, label: t('materialsView.tabAll'), icon: 'mdi-package-variant', count: allCount.value },
+  {
+    id: 'virtual_combos' as MaterialTab,
+    label: t('materialsView.tabVirtualCombos'),
+    icon: 'mdi-triangle-outline',
+    count: virtualComboCount.value,
+  },
+  {
+    id: 'consumables' as MaterialTab,
+    label: t('materialsView.tabConsumables'),
+    icon: 'mdi-minus-circle-outline',
+    count: consumableCount.value,
+  },
+  { id: 'food' as MaterialTab, label: t('materialsView.tabFood'), icon: 'mdi-coffee-outline', count: foodCount.value },
+  { id: 'storage' as MaterialTab, label: t('materialsView.tabStorage'), icon: 'mdi-warehouse' },
+])
 
 // Combo-Spalten: Typ + Kombo-Bestand (Tabs „Kombos“ / „Virtuelle Kobis“)
 const showComboColumns = computed(() =>
@@ -969,3 +926,32 @@ onMounted(() => {
 </script>
 
 <style scoped src="@/styles/materials-view.css"></style>
+<style scoped>
+.materials-view-tabs {
+  margin-bottom: 8px;
+}
+
+.materials-view-tabs :deep(.v-tab) {
+  text-transform: none;
+  font-weight: 500;
+  letter-spacing: normal;
+}
+
+.materials-view-tab-count {
+  margin-inline-start: 6px;
+}
+
+.materials-view-filters {
+  margin-top: 4px;
+}
+
+.materials-view-composition-intro {
+  margin: 0 0 12px;
+  line-height: 1.45;
+}
+
+.materials-view-error {
+  padding: 24px;
+  text-align: center;
+}
+</style>

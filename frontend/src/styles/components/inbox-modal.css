@@ -1,0 +1,35 @@
+/** Gemeinsame Inbox-Detail-Dialog-Inhalte (QR, Nachricht, Einladung) */
+.nc-message-detail__sender {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.nc-message-detail__from {
+  font-weight: 600;
+  color: #111827;
+  font-size: 0.95rem;
+}
+
+.nc-message-detail__date {
+  display: block;
+  margin-top: 2px;
+  font-size: 0.8rem;
+  color: #6b7280;
+}
+
+.nc-message-detail__subject {
+  margin: 0 0 10px;
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: #111827;
+}
+
+.nc-message-detail__body {
+  font-size: 0.95rem;
+  line-height: 1.55;
+  color: #374151;
+  white-space: pre-wrap;
+  word-break: break-word;
+}

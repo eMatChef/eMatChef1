@@ -1,7 +1,8 @@
 /**
  * Aktivitäten-Ansicht – Styles wie bei Material aufgeteilt:
  *   overview        → Liste, Filter, Stats (ohne Tabellen-Zellen)
- *   detail-panel    → Detail-Header, Tabs, Karten, Material-/Preisblöcke
+ *   detail-panel    → ActivityDetailView Shell, Tabs, Tab-Inhalte
+ *   detail-panel-legacy → nur _archive (nicht importiert)
  *   detail-workflow → Packliste, Meldungen, Rückgabe, Kosten
  *
  * Nur in ActivitiesView.vue per <style scoped> @import – nicht global in main.ts.

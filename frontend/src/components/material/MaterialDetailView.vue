@@ -3,12 +3,15 @@
     <!-- Header mit Schließen/Speichern -->
     <header class="detail-header">
       <div class="header-left">
-        <button class="back-btn" @click="handleClose">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M19 12H5M12 19l-7-7 7-7"/>
-          </svg>
+        <EButton
+          variant="secondary"
+          size="small"
+          class="material-detail-back-btn"
+          @click="handleClose"
+        >
+          <v-icon icon="mdi-arrow-left" start size="20" />
           {{ t('components.materialDetail.backToList') }}
-        </button>
+        </EButton>
         <div class="header-title">
           <span v-if="!isUserMaterialsBrowseOnly && material.barcode_tag" class="material-code">{{ material.barcode_tag }}</span>
           <h1>{{ material.name }}</h1>
@@ -22,33 +25,37 @@
       </div>
       <div class="header-actions">
         <template v-if="canManageMaterials">
-          <button
+          <EButton
             v-if="showGenerateQrButton"
-            class="btn-outline btn-sm"
+            variant="secondary"
+            size="small"
             :disabled="isGeneratingPublicCode"
             :title="qrGenerateButtonTitle"
             @click="generateMaterialPublicCode"
           >
             {{ qrGenerateButtonLabel }}
-          </button>
-          <button
+          </EButton>
+          <EButton
             v-if="showHeaderQrShortcut"
-            type="button"
-            class="btn-outline btn-sm header-qr-serial-shortcut"
+            variant="secondary"
+            size="small"
+            class="header-qr-serial-shortcut"
             :title="t('components.materialDetail.titleOpenBatchQr')"
             @click="openStockTabWithQrPanel"
           >
             {{ t('components.materialDetail.qrCodes') }}
-          </button>
-          <button class="btn-outline" @click="handleClose">{{ t('components.materialDetail.close') }}</button>
-          <button
+          </EButton>
+          <EButton variant="secondary" size="small" @click="handleClose">{{ t('components.materialDetail.close') }}</EButton>
+          <EButton
             v-if="hasManualUnsavedChanges || isSaving"
-            class="btn-primary"
+            variant="primary"
+            size="small"
             @click="save"
             :disabled="!hasManualUnsavedChanges || isSaving"
+            :loading="isSaving"
           >
             {{ isSaving ? t('common.saving') : t('common.save') }}
-          </button>
+          </EButton>
         </template>
       </div>
     </header>
@@ -62,25 +69,27 @@
     <!-- Content -->
     <div v-else class="detail-content">
       <!-- Tab Navigation (User: nur Tab «Daten», ohne Leiste) -->
-      <nav v-if="!isUserMaterialsBrowseOnly" class="tab-nav">
-        <button 
-          v-for="tab in tabs" 
-          :key="tab.id"
-          type="button"
-          class="tab-btn"
-          :class="{ active: activeTab === tab.id }"
-          @click="setActiveTab(tab.id)"
-        >
+      <v-tabs
+        v-if="!isUserMaterialsBrowseOnly"
+        v-model="activeTab"
+        class="material-detail-tabs"
+        align-tabs="start"
+        color="primary"
+        show-arrows
+      >
+        <v-tab v-for="tab in tabs" :key="tab.id" :value="tab.id">
           {{ tab.label }}
-        </button>
-      </nav>
+        </v-tab>
+      </v-tabs>
 
       <!-- Main Layout -->
       <div class="content-layout">
         <!-- Main Content (Left) -->
         <main class="content-main">
+          <v-tabs-window v-model="activeTab" class="material-detail-tabs-window">
           <!-- Tab: Daten (User: nur Anzeige, Felder mit Wert) -->
-          <section v-if="activeTab === 'data' && isUserMaterialsBrowseOnly" class="tab-content">
+          <v-tabs-window-item value="data" class="material-detail-window-item">
+          <section v-if="isUserMaterialsBrowseOnly" class="tab-content">
             <div
               v-for="section in userReadOnlySections"
               :key="section.title"
@@ -116,7 +125,7 @@
           </section>
 
           <!-- Tab: Daten (Bearbeitung) -->
-          <section v-else-if="activeTab === 'data'" class="tab-content">
+          <section v-else class="tab-content">
             <div class="section-card">
               <h2 class="section-title">{{ t('common.material') }}</h2>
               
@@ -546,9 +555,11 @@
               </div>
             </div>
           </section>
+          </v-tabs-window-item>
 
           <!-- Tab: Bestand -->
-          <section v-else-if="activeTab === 'stock'" class="tab-content">
+          <v-tabs-window-item value="stock" class="material-detail-window-item">
+          <section class="tab-content">
             <div
               v-if="canManageMaterials && hasAnyQrForPrint"
               class="stock-qr-collapsible section-card"
@@ -841,9 +852,11 @@
               </div>
             </div>
           </section>
+          </v-tabs-window-item>
 
           <!-- Tab: Gelagert in -->
-          <section v-else-if="activeTab === 'stored-in'" class="tab-content">
+          <v-tabs-window-item value="stored-in" class="material-detail-window-item">
+          <section class="tab-content">
             <div class="section-card">
               <div class="section-header-row">
                 <h2 class="section-title">{{ t('components.materialDetail.sectionStoredInTitle') }}</h2>
@@ -859,9 +872,11 @@
               />
             </div>
           </section>
+          </v-tabs-window-item>
 
           <!-- Tab: Zusammensetzung (physische / virtuelle Kombination) -->
-          <section v-else-if="activeTab === 'composition'" class="tab-content">
+          <v-tabs-window-item v-if="isComboMaterialView" value="composition" class="material-detail-window-item">
+          <section class="tab-content">
             <div class="section-card composition-tab-card">
               <div class="section-header-row composition-tab-head">
                 <div>
@@ -1112,9 +1127,11 @@
               </div>
             </div>
           </section>
+          </v-tabs-window-item>
 
           <!-- Tab: Inhalt Kiste/Tasche -->
-          <section v-else-if="activeTab === 'container-content'" class="tab-content">
+          <v-tabs-window-item v-if="showContainerContentTab" value="container-content" class="material-detail-window-item">
+          <section class="tab-content">
             <div class="container-content-layout">
               <div class="section-card container-content-main-card">
                 <div class="section-header-row container-content-header-row">
@@ -1266,9 +1283,11 @@
               </aside>
             </div>
           </section>
+          </v-tabs-window-item>
 
           <!-- Tab: Seriennummern (nur bei serialisierten Materialien) -->
-          <section v-else-if="activeTab === 'serials'" class="tab-content">
+          <v-tabs-window-item v-if="material.tracking_type === 'serialized'" value="serials" class="material-detail-window-item">
+          <section class="tab-content">
             <div class="section-card">
               <div class="section-header-row">
                 <h2 class="section-title">{{ t('components.materialDetail.sectionSerialsTitle') }}</h2>
@@ -1437,9 +1456,11 @@
               </div>
             </div>
           </section>
+          </v-tabs-window-item>
 
-          <!-- Tab: Vermietung -->
-          <section v-else-if="activeTab === 'workshop'" class="tab-content">
+          <!-- Tab: Werkstatt -->
+          <v-tabs-window-item value="workshop" class="material-detail-window-item">
+          <section class="tab-content">
             <div class="section-card">
               <h2 class="section-title">{{ t('components.materialDetail.sectionWorkshopTitle') }}</h2>
               <p class="form-hint" style="margin-top: 0">
@@ -1511,8 +1532,11 @@
               </div>
             </div>
           </section>
+          </v-tabs-window-item>
 
-          <section v-else-if="activeTab === 'rental'" class="tab-content">
+          <!-- Tab: Vermietung -->
+          <v-tabs-window-item v-if="!material.is_consumable && !material.is_food" value="rental" class="material-detail-window-item">
+          <section class="tab-content">
             <div class="section-card">
               <h2 class="section-title">{{ t('components.materialDetail.sectionRentalTitle') }}</h2>
 
@@ -1770,8 +1794,10 @@
               </div>
             </div>
           </section>
+          </v-tabs-window-item>
           <!-- Tab: Archiv -->
-          <section v-else-if="activeTab === 'archive'" class="tab-content">
+          <v-tabs-window-item value="archive" class="material-detail-window-item">
+          <section class="tab-content">
             <div class="section-card">
               <div class="section-header-row">
                 <h2 class="section-title">{{ t('components.materialDetail.sectionArchiveTitle') }}</h2>
@@ -1825,9 +1851,11 @@
               </div>
             </div>
           </section>
+          </v-tabs-window-item>
 
           <!-- Tab: Verwendet in -->
-          <section v-else-if="activeTab === 'used-in'" class="tab-content">
+          <v-tabs-window-item value="used-in" class="material-detail-window-item">
+          <section class="tab-content">
             <div class="section-card">
               <div class="section-header-row">
                 <h2 class="section-title">{{ t('components.materialDetail.sectionUsedInCombos') }}</h2>
@@ -1899,9 +1927,11 @@
               </table>
             </div>
           </section>
+          </v-tabs-window-item>
 
           <!-- Tab: History Log -->
-          <section v-else-if="activeTab === 'history'" class="tab-content">
+          <v-tabs-window-item value="history" class="material-detail-window-item">
+          <section class="tab-content">
             <div class="section-card history-card">
               <h2 class="section-title">{{ t('components.materialDetail.sectionHistoryTitle') }}</h2>
               
@@ -2034,6 +2064,8 @@
               </div>
             </div>
           </section>
+          </v-tabs-window-item>
+          </v-tabs-window>
         </main>
 
         <!-- Sidebar (Right) -->
@@ -2194,9 +2226,11 @@
       @confirm="executeRemoveCompositionWithRelease"
     />
 
-    <div v-if="showAddToContainerModal" class="modal-overlay">
-      <div class="modal-dialog">
-        <h3>{{ t('components.materialDetail.modalAddToContainerTitle') }}</h3>
+    <EDialog
+      v-model="showAddToContainerModal"
+      :title="t('components.materialDetail.modalAddToContainerTitle')"
+      :max-width="560"
+    >
         <div class="form-group">
           <label>{{ t('components.materialDetail.labelSearchArticle') }}</label>
           <MaterialLookupInput
@@ -2249,23 +2283,33 @@
         </div>
 
         <p v-if="addToContainerError" class="error-text">{{ addToContainerError }}</p>
-        <div class="modal-actions">
-          <button class="btn-secondary btn-sm" @click="closeAddToContainerModal">{{ t('common.cancel') }}</button>
-          <button class="btn-primary btn-sm" :disabled="!canSubmitAddToContainer || isAddingToContainer" @click="submitAddToContainer">
-            {{ isAddingToContainer ? t('components.materialDetail.modalAddToContainerSubmitting') : t('common.add') }}
-          </button>
-        </div>
-      </div>
-    </div>
+      <template #actions>
+        <EButton variant="secondary" size="small" @click="closeAddToContainerModal">{{ t('common.cancel') }}</EButton>
+        <EButton
+          variant="primary"
+          size="small"
+          :disabled="!canSubmitAddToContainer || isAddingToContainer"
+          :loading="isAddingToContainer"
+          @click="submitAddToContainer"
+        >
+          {{ isAddingToContainer ? t('components.materialDetail.modalAddToContainerSubmitting') : t('common.add') }}
+        </EButton>
+      </template>
+    </EDialog>
 
-    <div v-if="showAddCompositionModal" class="modal-overlay">
-      <div class="modal-dialog composition-add-modal">
+    <EDialog
+      v-model="showAddCompositionModal"
+      :max-width="720"
+      card-class="composition-add-modal"
+    >
+      <template #title>
         <div class="composition-add-modal-header">
           <h3>{{ t('components.materialDetail.modalAddCompositionTitle') }}</h3>
           <p class="text-muted composition-add-modal-intro">
             {{ t('components.materialDetail.modalAddCompositionIntro') }}
           </p>
         </div>
+      </template>
         <div class="composition-add-modal-body">
         <div class="form-group">
           <label>{{ t('components.materialDetail.labelSearchArticle') }}</label>
@@ -2374,28 +2418,35 @@
             </select>
           </div>
         </div>
-        <div class="modal-actions composition-add-modal-footer">
-          <button type="button" class="btn-secondary btn-sm" @click="closeAddCompositionModal">{{ t('common.cancel') }}</button>
-          <button
-            type="button"
-            class="btn-primary btn-sm"
+      <template #actions>
+        <div class="composition-add-modal-footer">
+          <EButton variant="secondary" size="small" @click="closeAddCompositionModal">{{ t('common.cancel') }}</EButton>
+          <EButton
+            variant="primary"
+            size="small"
             :disabled="!canSubmitAddComposition || addCompositionSubmitting"
+            :loading="addCompositionSubmitting"
             @click="submitAddComposition"
           >
             {{ addCompositionSubmitting ? t('components.materialDetail.modalAddCompositionSubmitting') : t('common.add') }}
-          </button>
+          </EButton>
         </div>
-      </div>
-    </div>
+      </template>
+    </EDialog>
 
-    <div v-if="showAddAccessoryModal" class="modal-overlay">
-      <div class="modal-dialog composition-add-modal">
+    <EDialog
+      v-model="showAddAccessoryModal"
+      :max-width="720"
+      card-class="composition-add-modal"
+    >
+      <template #title>
         <div class="composition-add-modal-header">
           <h3>{{ t('components.materialDetail.modalAddAccessoryTitle') }}</h3>
           <p class="text-muted composition-add-modal-intro">
             {{ t('components.materialDetail.modalAddAccessoryIntro') }}
           </p>
         </div>
+      </template>
         <div class="composition-add-modal-body">
           <div class="form-group">
             <label>{{ t('components.materialDetail.labelSearchArticle') }}</label>
@@ -2422,28 +2473,36 @@
           </div>
           <p v-if="addAccessoryError" class="error-text">{{ addAccessoryError }}</p>
         </div>
-        <div class="modal-actions composition-add-modal-footer">
-          <button type="button" class="btn-secondary btn-sm" @click="closeAddAccessoryModal">{{ t('common.cancel') }}</button>
-          <button
-            type="button"
-            class="btn-primary btn-sm"
+      <template #actions>
+        <div class="composition-add-modal-footer">
+          <EButton variant="secondary" size="small" @click="closeAddAccessoryModal">{{ t('common.cancel') }}</EButton>
+          <EButton
+            variant="primary"
+            size="small"
             :disabled="!addAccessorySelected || addAccessorySubmitting"
+            :loading="addAccessorySubmitting"
             @click="submitAddAccessory"
           >
             {{ addAccessorySubmitting ? t('components.materialDetail.modalAddAccessorySubmitting') : t('components.materialDetail.btnAddAccessory') }}
-          </button>
+          </EButton>
         </div>
-      </div>
-    </div>
+      </template>
+    </EDialog>
 
-    <div v-if="showEditCompositionModal && editCompositionComp" class="modal-overlay">
-      <div class="modal-dialog composition-add-modal">
+    <EDialog
+      v-if="editCompositionComp"
+      v-model="showEditCompositionModal"
+      :max-width="720"
+      card-class="composition-add-modal"
+    >
+      <template #title>
         <div class="composition-add-modal-header">
           <h3>{{ t('components.materialDetail.modalEditCompositionTitle') }}</h3>
           <p class="text-muted composition-add-modal-intro">
             <strong>{{ editCompositionComp.component_material.name }}</strong>
           </p>
         </div>
+      </template>
         <div class="composition-add-modal-body">
         <div class="form-group">
           <label>{{ t('components.materialDetail.thQty') }}</label>
@@ -2547,19 +2606,21 @@
             <p class="batch-field-hint">{{ t('components.materialDetail.hintAssignedBatchInCombo') }}</p>
           </div>
         </div>
-        <div class="modal-actions composition-add-modal-footer">
-          <button type="button" class="btn-secondary btn-sm" @click="closeEditCompositionModal">{{ t('common.cancel') }}</button>
-          <button
-            type="button"
-            class="btn-primary btn-sm"
+      <template #actions>
+        <div class="composition-add-modal-footer">
+          <EButton variant="secondary" size="small" @click="closeEditCompositionModal">{{ t('common.cancel') }}</EButton>
+          <EButton
+            variant="primary"
+            size="small"
             :disabled="editCompositionSubmitting || !canSubmitEditComposition"
+            :loading="editCompositionSubmitting"
             @click="submitEditComposition"
           >
             {{ editCompositionSubmitting ? t('components.materialDetail.modalEditCompositionSaving') : t('common.save') }}
-          </button>
+          </EButton>
         </div>
-      </div>
-    </div>
+      </template>
+    </EDialog>
 
     <PublicQrActionModal
       :open="showQrActionModal && qrActionMode === 'batch'"
@@ -2669,6 +2730,7 @@ import { unitPriceFromPackSaleChf } from '@/utils/packPricing'
 import { isPrintableBatchPublicUrl } from '@/utils/publicQrUrl'
 import { isComboMaterial as isComboMaterialType, COMBO_BADGE } from '@/utils/comboDisplay'
 import MaterialImagePicker from '@/components/media/MaterialImagePicker.vue'
+import { EButton, EDialog } from '@/components/form/base'
 
 interface Props {
   materialId: string
@@ -4267,6 +4329,10 @@ function closeEditCompositionModal() {
   editCompositionComp.value = null
 }
 
+watch(showEditCompositionModal, (open, prev) => {
+  if (prev && !open) editCompositionComp.value = null
+})
+
 function mergeComboComponentInList(updated: ComboComponent) {
   comboComponentsList.value = comboComponentsList.value.map((c) => (c.id === updated.id ? updated : c))
 }
@@ -5410,6 +5476,10 @@ function closeAddToContainerModal() {
   showAddToContainerModal.value = false
   resetAddToContainerState()
 }
+
+watch(showAddToContainerModal, (open, prev) => {
+  if (prev && !open) resetAddToContainerState()
+})
 
 function openQrActionModalForBatch(batch: any) {
   qrActionMode.value = 'batch'

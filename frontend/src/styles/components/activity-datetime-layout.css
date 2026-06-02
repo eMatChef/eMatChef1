@@ -1,7 +1,10 @@
 /**
  * Aktivitäten Datum/Zeit — Pill-Leiste (Desktop/Tablet) und 2-Zeiler (Mobile).
  * Host: .activity-datetime-host oder .activity-create-wizard-host
+ * Responsive: activity-display-host.css + useDisplayHostClasses
  */
+
+@import './activity-display-host.css';
 
 .activity-datetime-host .field-label,
 .activity-create-wizard-host .field-label {
@@ -77,16 +80,6 @@
   overflow: hidden;
   max-width: 100%;
   touch-action: manipulation;
-}
-
-@media (max-width: 520px) {
-  .activity-datetime-host .activity-pill-bar,
-  .activity-create-wizard-host .activity-pill-bar {
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-    border-radius: 22px;
-    scrollbar-width: thin;
-  }
 }
 
 .activity-datetime-host .activity-pill-cell,
