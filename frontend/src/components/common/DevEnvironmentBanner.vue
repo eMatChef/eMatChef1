@@ -1,14 +1,12 @@
 <template>
-  <v-system-bar
+  <div
     v-if="show"
     class="dev-environment-banner"
-    color="#facc15"
-    height="36"
     role="status"
     aria-live="polite"
   >
     <span class="dev-environment-banner__text">{{ t('app.devEnvironmentBanner') }}</span>
-  </v-system-bar>
+  </div>
 </template>
 
 <script setup lang="ts">
@@ -29,15 +27,23 @@ const show = computed(() => shouldShowDevEnvironmentBanner())
 
 <style scoped>
 .dev-environment-banner {
-  color: #422006 !important;
+  flex: 0 0 auto;
+  width: 100%;
+  min-height: 36px;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #facc15;
+  color: #422006;
   font-size: 0.8125rem;
   font-weight: 600;
-  justify-content: center;
   border-bottom: 1px solid #ca8a04;
 }
 
 .dev-environment-banner__text {
   line-height: 1.35;
   text-align: center;
+  padding: 0.35rem 0.75rem;
 }
 </style>
