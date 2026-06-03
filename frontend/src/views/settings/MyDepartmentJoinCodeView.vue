@@ -6,39 +6,53 @@
     </div>
 
     <div v-if="userDepartments.length > 1" class="card">
-      <label class="label" for="department-select">{{ t('settings.common.selectDepartment') }}:</label>
-      <select id="department-select" v-model="selectedDepartmentId" @change="onDepartmentChange" class="input">
-        <option v-for="dept in userDepartments" :key="dept.department_id" :value="dept.department_id">
-          {{ dept.department?.name || dept.department_id }}
-        </option>
-      </select>
+      <ESelect
+        id="department-select"
+        v-model="selectedDepartmentId"
+        :items="departmentSelectItems"
+        :label="t('settings.common.selectDepartment')"
+        hide-details
+        @update:model-value="onDepartmentChange"
+      />
     </div>
 
     <div v-if="!canManageJoinCode" class="card">
       <p class="muted">{{ t('settings.joinCode.noPermission') }}</p>
     </div>
 
+    <ELoadingState
+      v-else-if="isInviteLoading && !inviteData"
+      variant="inline"
+      :message="t('settings.joinCode.loading')"
+    />
+
     <div v-else class="card">
       <div class="join-code-row">
         <code class="join-code">{{ inviteData?.join_code || '...' }}</code>
-        <button class="btn" type="button" :disabled="!inviteData" @click="copyJoinCode">{{ t('settings.joinCode.copyCode') }}</button>
-        <button class="btn" type="button" :disabled="!inviteData" @click="copyInviteLink">{{ t('settings.joinCode.copyInviteLink') }}</button>
-        <button class="btn" type="button" :disabled="!inviteData?.register_invite_url" @click="copyRegisterInviteLink">
+        <EButton variant="secondary" size="small" :disabled="!inviteData" @click="copyJoinCode">
+          {{ t('settings.joinCode.copyCode') }}
+        </EButton>
+        <EButton variant="secondary" size="small" :disabled="!inviteData" @click="copyInviteLink">
+          {{ t('settings.joinCode.copyInviteLink') }}
+        </EButton>
+        <EButton variant="secondary" size="small" :disabled="!inviteData?.register_invite_url" @click="copyRegisterInviteLink">
           {{ t('settings.joinCode.copyRegisterLink') }}
-        </button>
-        <button class="btn" type="button" :disabled="isInviteLoading" @click="regenerateInviteCode">
+        </EButton>
+        <EButton variant="primary" size="small" :disabled="isInviteLoading" :loading="isInviteLoading" @click="regenerateInviteCode">
           {{ isInviteLoading ? t('settings.joinCode.loading') : t('settings.joinCode.regenerate') }}
-        </button>
+        </EButton>
       </div>
-      <p class="muted" v-if="inviteData?.invite_url">{{ t('settings.joinCode.withAccount') }} {{ inviteData.invite_url }}</p>
-      <p class="muted" v-if="inviteData?.register_invite_url">{{ t('settings.joinCode.withoutAccount') }} {{ inviteData.register_invite_url }}</p>
-      <div class="qr" v-if="inviteQrDataUrl"><img :src="inviteQrDataUrl" alt="Join QR Code" /></div>
+      <p v-if="inviteData?.invite_url" class="muted">{{ t('settings.joinCode.withAccount') }} {{ inviteData.invite_url }}</p>
+      <p v-if="inviteData?.register_invite_url" class="muted">{{ t('settings.joinCode.withoutAccount') }} {{ inviteData.register_invite_url }}</p>
+      <div v-if="inviteQrDataUrl" class="qr"><img :src="inviteQrDataUrl" alt="Join QR Code" /></div>
 
       <div v-if="pendingInvites.length > 0" class="pending-block">
         <h3>{{ t('settings.joinCode.pendingTitle') }}</h3>
-        <div class="pending-item" v-for="invite in pendingInvites" :key="invite.id">
+        <div v-for="invite in pendingInvites" :key="invite.id" class="pending-item">
           <span>{{ invite.email }} ({{ formatRole(invite.role) }})</span>
-          <button class="btn danger" @click="removePendingInviteItem(invite.id)">{{ t('common.delete') }}</button>
+          <EButton variant="danger" size="small" @click="removePendingInviteItem(invite.id)">
+            {{ t('common.delete') }}
+          </EButton>
         </div>
       </div>
     </div>
@@ -53,6 +67,8 @@ import { useAuthStore } from '@/stores/auth'
 import { useToast } from '@/composables/useToast'
 import { useConfirm } from '@/composables/useConfirm'
 import { deletePendingInvite, getDepartmentInvite, getPendingInvites, regenerateDepartmentInvite, type DepartmentInviteData, type PendingInvite } from '@/api/joinRequests'
+import ELoadingState from '@/components/layout/ELoadingState.vue'
+import { EButton, ESelect } from '@/components/form/base'
 import QRCode from 'qrcode'
 
 const route = useRoute()
@@ -68,6 +84,14 @@ const isInviteLoading = ref(false)
 const pendingInvites = ref<PendingInvite[]>([])
 
 const userDepartments = computed(() => authStore.departments || [])
+
+const departmentSelectItems = computed(() =>
+  userDepartments.value.map((dept) => ({
+    title: dept.department?.name || dept.department_id,
+    value: dept.department_id,
+  })),
+)
+
 const currentRole = computed(() => {
   if (!selectedDepartmentId.value) return 'user'
   const dept = userDepartments.value.find((d) => d.department_id === selectedDepartmentId.value)
@@ -185,15 +209,10 @@ onMounted(async () => {
 .header h1 { margin: 0; font-size: 24px; }
 .description, .muted { color: #6b7280; }
 .card { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 12px; padding: 16px; }
-.label { display: block; margin-bottom: 8px; font-size: 13px; color: #6b7280; }
-.input { width: 100%; border: 1px solid #cbd5e1; border-radius: 8px; padding: 10px 12px; background: #fff; }
 .join-code-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .join-code { display: inline-block; background: #111827; color: #fff; border-radius: 8px; padding: 8px 12px; font-weight: 700; letter-spacing: 1px; }
-.btn { border: none; border-radius: 8px; background: #2563eb; color: #fff; padding: 8px 12px; cursor: pointer; }
-.btn:disabled { opacity: 0.6; cursor: not-allowed; }
-.btn.danger { background: #dc2626; }
 .qr img { margin-top: 10px; width: 120px; height: 120px; border: 1px solid #e5e7eb; border-radius: 8px; padding: 4px; background: #fff; }
 .pending-block { margin-top: 12px; padding-top: 12px; border-top: 1px dashed #d1d5db; }
 .pending-block h3 { margin: 0 0 10px; font-size: 15px; }
-.pending-item { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 6px 0; }
+.pending-item { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 6px 0; flex-wrap: wrap; }
 </style>

@@ -15,22 +15,28 @@
       </p>
 
       <div class="controls">
-        <label for="days">{{ t('jobs.unassigned.daysLabel') }}</label>
-        <input id="days" v-model.number="days" type="number" min="1" max="365" />
+        <ETextField
+          id="days"
+          v-model.number="days"
+          :label="t('jobs.unassigned.daysLabel')"
+          type="number"
+          hide-details="auto"
+          class="days-field"
+        />
 
-        <button class="btn btn-secondary" :disabled="loading" @click="loadPreview">
+        <EButton variant="secondary" :loading="loading" @click="loadPreview">
           {{ t('jobs.actions.loadPreview') }}
-        </button>
-        <button class="btn btn-secondary" :disabled="loading || previewItems.length === 0" @click="downloadCsv">
+        </EButton>
+        <EButton variant="secondary" :disabled="loading || previewItems.length === 0" @click="downloadCsv">
           {{ t('jobs.actions.downloadList') }}
-        </button>
-        <button class="btn btn-danger" :disabled="loading || selectedCount === 0" @click="runCleanup">
+        </EButton>
+        <EButton variant="danger" :loading="loading" :disabled="loading || selectedCount === 0" @click="runCleanup">
           {{ t('jobs.actions.deleteData', { count: selectedCount }) }}
-        </button>
+        </EButton>
       </div>
 
-      <p v-if="error" class="error">{{ error }}</p>
-      <p v-if="success" class="success">{{ success }}</p>
+      <v-alert v-if="error" type="error" variant="tonal" class="mb-3" :text="error" />
+      <v-alert v-if="success" type="success" variant="tonal" class="mb-3" :text="success" />
 
       <div class="preview">
         <h3>{{ t('jobs.preview.title') }}</h3>
@@ -80,6 +86,7 @@ import {
   runUnassignedUsersCleanup,
   type UnassignedCleanupItem
 } from '@/api/jobs'
+import { EButton, ETextField } from '@/components/form/base'
 
 const { t } = useI18n()
 const authStore = useAuthStore()
@@ -241,30 +248,14 @@ onMounted(async () => {
 
 .controls {
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   flex-wrap: wrap;
   gap: 10px;
   margin: 14px 0;
 }
 
-.controls input {
-  width: 90px;
-  padding: 8px;
-  border: 1px solid #d1d5db;
-  border-radius: 8px;
-}
-
-.btn-inline {
-  padding: 6px 10px;
-  font-size: 12px;
-}
-
-.error {
-  color: #b91c1c;
-}
-
-.success {
-  color: #166534;
+.days-field {
+  max-width: 100px;
 }
 
 .preview h3 {

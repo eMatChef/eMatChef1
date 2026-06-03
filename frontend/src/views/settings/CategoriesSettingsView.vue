@@ -5,19 +5,16 @@
         <h1>{{ t('settings.categories.title') }}</h1>
         <p class="subtitle">{{ t('settings.categories.subtitle') }}</p>
       </div>
-      <button class="btn-primary" @click="openCreateModal">
-        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <line x1="12" y1="5" x2="12" y2="19"/>
-          <line x1="5" y1="12" x2="19" y2="12"/>
-        </svg>
+      <EButton variant="primary" @click="openCreateModal">
+        <v-icon icon="mdi-plus" start size="20" />
         {{ t('settings.categories.newCategory') }}
-      </button>
+      </EButton>
     </div>
 
     <!-- Suchleiste -->
     <div class="search-bar">
       <div class="search-box">
-        <SearchFieldInput
+        <ESearchField
           v-model="searchQuery"
           :label="t('settings.categories.searchPlaceholder')"
         />
@@ -127,17 +124,14 @@
         </div>
         <h3>{{ t('settings.categories.emptyTitle') }}</h3>
         <p>{{ t('settings.categories.emptyDescription') }}</p>
-        <button class="btn-primary" @click="openCreateModal">
+        <EButton variant="primary" @click="openCreateModal">
           {{ t('settings.categories.firstCategory') }}
-        </button>
+        </EButton>
       </div>
     </div>
 
     <!-- Ladezustand -->
-    <div v-else class="loading-state">
-      <div class="spinner"></div>
-      <p>{{ t('settings.categories.loading') }}</p>
-    </div>
+    <ELoadingState v-else variant="list" :message="t('settings.categories.loading')" />
 
     <!-- Kategorie Modal -->
     <CategoryModal
@@ -150,23 +144,22 @@
     />
 
     <!-- Lösch-Bestätigung -->
-    <div v-if="showDeleteConfirm" class="modal-overlay">
-      <div class="confirm-dialog">
-        <h3>{{ t('settings.categories.deleteConfirmTitle') }}</h3>
-        <p>
-          {{ t('settings.categories.deleteConfirmMessage', { name: deletingCategory?.name }) }}
-        </p>
-        <p v-if="deletingCategory && deletingCategory.material_count > 0" class="warning">
-          ⚠️ {{ t('settings.categories.deleteWarning', { count: deletingCategory.material_count }) }}
-        </p>
-        <div class="confirm-actions">
-          <button class="btn-secondary" @click="showDeleteConfirm = false">{{ t('common.cancel') }}</button>
-          <button class="btn-danger" @click="executeDelete" :disabled="isDeleting">
-            {{ isDeleting ? t('common.deleteInProgress') : t('common.delete') }}
-          </button>
-        </div>
-      </div>
-    </div>
+    <EDialog v-model="showDeleteConfirm" :max-width="440" :title="t('settings.categories.deleteConfirmTitle')">
+      <p>{{ t('settings.categories.deleteConfirmMessage', { name: deletingCategory?.name }) }}</p>
+      <v-alert
+        v-if="deletingCategory && deletingCategory.material_count > 0"
+        type="warning"
+        variant="tonal"
+        class="mt-3"
+        :text="t('settings.categories.deleteWarning', { count: deletingCategory.material_count })"
+      />
+      <template #actions>
+        <EButton variant="secondary" size="small" @click="showDeleteConfirm = false">{{ t('common.cancel') }}</EButton>
+        <EButton variant="danger" size="small" :disabled="isDeleting" :loading="isDeleting" @click="executeDelete">
+          {{ isDeleting ? t('common.deleteInProgress') : t('common.delete') }}
+        </EButton>
+      </template>
+    </EDialog>
   </div>
 </template>
 
@@ -176,8 +169,9 @@ import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useToast } from '@/composables/useToast'
 import { getCategories, deleteCategory, type Category } from '@/api/categories'
-import SearchFieldInput from '@/components/common/SearchFieldInput.vue'
 import CategoryModal from '@/components/CategoryModal.vue'
+import ELoadingState from '@/components/layout/ELoadingState.vue'
+import { EButton, EDialog, ESearchField } from '@/components/form/base'
 
 const route = useRoute()
 const toast = useToast()

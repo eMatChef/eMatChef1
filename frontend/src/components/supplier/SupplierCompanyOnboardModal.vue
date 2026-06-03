@@ -1,44 +1,58 @@
 <template>
-  <div class="modal-backdrop" @click.self="emit('close')">
-    <div class="modal-card">
-      <header class="modal-header">
-        <h3>{{ title }}</h3>
-        <button type="button" class="btn btn-secondary btn-inline" @click="emit('close')">
-          {{ t('common.cancel') }}
-        </button>
-      </header>
+  <EDialog
+    v-model="dialogOpen"
+    :max-width="480"
+    :title="title"
+    persistent
+  >
+    <form id="supplier-onboard-form" @submit.prevent="submit">
+      <ETextField
+        v-if="showNameField"
+        v-model="form.name"
+        :label="t('globalAddressesPage.supplierModal.name')"
+        hide-details="auto"
+        class="mb-3"
+      />
 
-      <form class="modal-body" @submit.prevent="submit">
-        <label v-if="showNameField" class="field">
-          <span>{{ t('globalAddressesPage.supplierModal.name') }}</span>
-          <input v-model.trim="form.name" type="text" required />
-        </label>
+      <ETextField
+        v-model="form.manufacturer_key"
+        :label="t('globalAddressesPage.supplierModal.manufacturerKey')"
+        :placeholder="manufacturerKeyPlaceholder"
+        hide-details="auto"
+        class="mb-3"
+      />
 
-        <label class="field">
-          <span>{{ t('globalAddressesPage.supplierModal.manufacturerKey') }}</span>
-          <input v-model.trim="form.manufacturer_key" type="text" :placeholder="manufacturerKeyPlaceholder" />
-        </label>
+      <ETextField
+        v-model="form.admin_user_email"
+        type="email"
+        :label="t('globalAddressesPage.supplierModal.adminEmail')"
+        hide-details="auto"
+        class="mb-3"
+      />
 
-        <label class="field">
-          <span>{{ t('globalAddressesPage.supplierModal.adminEmail') }}</span>
-          <input v-model.trim="form.admin_user_email" type="email" />
-        </label>
+      <v-alert v-if="error" type="error" variant="tonal" :text="error" />
+    </form>
 
-        <p v-if="error" class="error">{{ error }}</p>
-
-        <footer class="modal-footer">
-          <button type="submit" class="btn btn-primary" :disabled="saving">
-            {{ submitLabel }}
-          </button>
-        </footer>
-      </form>
-    </div>
-  </div>
+    <template #actions>
+      <EButton variant="secondary" size="small" @click="close">{{ t('common.cancel') }}</EButton>
+      <EButton
+        variant="primary"
+        size="small"
+        type="submit"
+        form="supplier-onboard-form"
+        :disabled="saving"
+        :loading="saving"
+      >
+        {{ submitLabel }}
+      </EButton>
+    </template>
+  </EDialog>
 </template>
 
 <script setup lang="ts">
-import { computed, reactive, ref } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { EButton, EDialog, ETextField } from '@/components/form/base'
 
 const props = withDefaults(
   defineProps<{
@@ -52,7 +66,7 @@ const props = withDefaults(
     initialName: '',
     showNameField: true,
     manufacturerKeyPlaceholder: '',
-  }
+  },
 )
 
 const emit = defineEmits<{
@@ -61,6 +75,7 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
+const dialogOpen = ref(true)
 const saving = ref(false)
 const error = ref<string | null>(null)
 
@@ -71,8 +86,16 @@ const form = reactive({
 })
 
 const manufacturerKeyPlaceholder = computed(
-  () => props.manufacturerKeyPlaceholder || t('globalAddressesPage.supplierModal.manufacturerKeyHint')
+  () => props.manufacturerKeyPlaceholder || t('globalAddressesPage.supplierModal.manufacturerKeyHint'),
 )
+
+watch(dialogOpen, (open) => {
+  if (!open) emit('close')
+})
+
+function close() {
+  dialogOpen.value = false
+}
 
 function submit() {
   error.value = null
@@ -89,73 +112,3 @@ function submit() {
   saving.value = false
 }
 </script>
-
-<style scoped>
-.modal-backdrop {
-  position: fixed;
-  inset: 0;
-  background: rgba(15, 23, 42, 0.45);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-  padding: 16px;
-}
-
-.modal-card {
-  background: #fff;
-  border-radius: 12px;
-  width: 100%;
-  max-width: 480px;
-  box-shadow: 0 20px 40px rgba(15, 23, 42, 0.15);
-}
-
-.modal-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 16px 20px;
-  border-bottom: 1px solid #e5e7eb;
-}
-
-.modal-header h3 {
-  margin: 0;
-  font-size: 1.1rem;
-}
-
-.modal-body {
-  padding: 20px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.field {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  font-size: 14px;
-}
-
-.field input {
-  padding: 8px 10px;
-  border: 1px solid #d1d5db;
-  border-radius: 8px;
-}
-
-.modal-footer {
-  display: flex;
-  justify-content: flex-end;
-  padding-top: 8px;
-}
-
-.error {
-  color: #b91c1c;
-  font-size: 14px;
-}
-
-.btn-inline {
-  padding: 6px 10px;
-  font-size: 12px;
-}
-</style>

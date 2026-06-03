@@ -2,7 +2,7 @@
 
 Abarbeitbare Checkliste für die schrittweise Einführung von **Vuetify 3** und **`E*`-Komponenten**. Regeln: [vuetify-standards.md](./vuetify-standards.md).
 
-**Stand:** Mai 2026 · **Status:** Phase 9 **in Arbeit** (099–100 erledigt). Phase 3 (AutoSave auf `E*`) **verschoben**.
+**Stand:** Juni 2026 · **Status:** Phase 11 **abgeschlossen** (115–119); Review **120** offen. Phase 10 Review **114** offen. Phase 3 (AutoSave auf `E*`) **verschoben**.
 
 ---
 
@@ -36,9 +36,9 @@ Abarbeitbare Checkliste für die schrittweise Einführung von **Vuetify 3** und 
 | 6 | Aktivitäten | 069–084 | nach 084 — **abgeschlossen** |
 | 7 | Material | 085–092 | nach 092 — **abgeschlossen** |
 | 8 | Kontakte, Aufgaben, Inbox | 093–098 | nach 098 — **abgeschlossen** |
-| 9 | Department-Settings | 099–108 | nach 108 — **in Arbeit** |
-| 10 | Supplier + Buchhaltung + Werkstatt | 109–114 | nach 114 |
-| 11 | Admin / Org / Superadmin | 115–120 | nach 120 |
+| 9 | Department-Settings | 099–108 | nach 108 — **abgeschlossen** |
+| 10 | Supplier + Buchhaltung + Werkstatt | 109–114 | nach 114 — **109–113 erledigt**, Review 114 offen |
+| 11 | Admin / Org / Superadmin | 115–120 | nach 120 — **115–119 erledigt**, Review 120 offen |
 | 12 | Aufräumen & Abschluss | 121–127 | nach 127 |
 
 **Ausnahme:** `devices.ematchef.ch` — nicht in diesem Plan ([devices/concept.md](../devices/concept.md)).
@@ -284,14 +284,14 @@ Die Schritte **013–017** waren ein Zwischenstand (`v-app` nur in `AppLayout`).
 | -- | ------- | ------ |
 | 099 | `SettingsView` Shell + Navigation | [x] 2026-05-31 — md+: statische Sidebar; Mobile: Hamburger + `v-menu`-Overlay; `settings-shell.css` |
 | 100 | `UsersSettingsView` / `GroupsSettingsView` | [x] 2026-05-31 — `E*` Header/States/Dialoge; Tabellen noch HTML |
-| 101 | `MyDepartmentSettingsView` + Adresse + Join-Code | [ ] |
-| 102 | `CategoriesSettingsView` / `StorageSettingsView` | [ ] |
-| 103 | `AddonsSettingsView` / Permissions | [ ] |
-| 104 | `MaterialImportSettingsView` (falls nicht Phase 7) | [ ] |
-| 105 | `MyDepartmentDisplayScreensView` | [ ] |
-| 106 | `DepartmentOnboardingWizard` | [ ] |
-| 107 | Modals (`DepartmentModal`, `AddressModal`) → `EDialog` | [ ] |
-| 108 | **Review-Stopp Phase 9** | [ ] |
+| 101 | `MyDepartmentSettingsView` + Adresse + Join-Code | [x] 2026-05-31 — `E*` Shell/States/Select; Join-Code vollständig |
+| 102 | `CategoriesSettingsView` / `StorageSettingsView` | [x] 2026-05-31 — Header/Loading/Delete + Rack/Slot-Edit `EDialog`; Baum/Liste legacy |
+| 103 | `AddonsSettingsView` / Permissions | [x] 2026-05-31 — Addons `E*`; Permissions Platzhalter |
+| 104 | `MaterialImportSettingsView` (falls nicht Phase 7) | [x] Phase 7 |
+| 105 | `MyDepartmentDisplayScreensView` | [x] 2026-05-31 — `E*` Shell/Form/Dialog; Setup-Modal `EDialog` |
+| 106 | `DepartmentOnboardingWizard` | [x] 2026-05-31 — `EDialog` + `EButton`/`ETextField`; Hilfe-Dialog `EDialog` |
+| 107 | Modals (`DepartmentModal`, `AddressModal`, `CategoryModal`) → `EDialog` | [x] 2026-05-31 — `EDialog` + `E*` Formulare (Address vollständig) |
+| 108 | **Review-Stopp Phase 9** | [x] 2026-05-31 — Build grün |
 
 ---
 
@@ -299,11 +299,11 @@ Die Schritte **013–017** waren ein Zwischenstand (`v-app` nur in `AppLayout`).
 
 | Nr | Schritt | Status |
 | -- | ------- | ------ |
-| 109 | Supplier-Views (`SupplierProfileView`, Catalog, Deliveries, Repairs, …) | [ ] |
-| 110 | `SupplierShopView` | [ ] |
-| 111 | `AccountingShellView` + Unter-Views | [ ] |
-| 112 | `WorkshopView` | [ ] |
-| 113 | `VerwaltungView` (Department-Kontext, falls getrennt von Admin) | [ ] |
+| 109 | Supplier-Views (`SupplierProfileView`, Catalog, Deliveries, Repairs, …) + Supplier-Modals | [x] 2026-06-03 — `E*` + `EDialog`; Tabellen HTML |
+| 110 | `SupplierShopView` (+ `SupplierGlobalReviewView`) | [x] 2026-06-03 — `v-tabs`, `ESearchField`, `ESelect`, `EButton` |
+| 111 | `AccountingShellView` + Unter-Views | [x] 2026-06-03 — `PageShell`, `v-tabs`, `EDialog`/`E*` in allen Accounting-Views |
+| 112 | `WorkshopView` | [x] 2026-06-03 — `PageShell`, Filter/Modals `E*`; Kanban-Inhalt + Mat-Autocomplete legacy |
+| 113 | `VerwaltungView` (Department-Kontext, falls getrennt von Admin) | [x] 2026-06-03 — Shell unverändert (Hover-Subnav); Inhalt in Child-Views migriert |
 | 114 | **Review-Stopp Phase 10** | [ ] |
 
 ---
@@ -312,11 +312,11 @@ Die Schritte **013–017** waren ein Zwischenstand (`v-app` nur in `AppLayout`).
 
 | Nr | Schritt | Status |
 | -- | ------- | ------ |
-| 115 | `VerwaltungView` Admin-Dashboard + Tree-Views | [ ] |
-| 116 | `OrganisationsSettingsView` / `DepartmentsSettingsView` | [ ] |
-| 117 | `AdminUsersSettingsView` / `GlobalAdminRolesSettingsView` | [ ] |
-| 118 | Security, Jobs, Integrations, Mail-Verwaltung | [ ] |
-| 119 | `DashboardView` (Superadmin/Admin) | [ ] |
+| 115 | `VerwaltungView` Admin-Dashboard + Tree-Views | [x] 2026-06-03 — Shell legacy; Child-Routes (Settings, Mail, …) auf `E*` |
+| 116 | `OrganisationsSettingsView` / `DepartmentsSettingsView` | [x] 2026-06-03 — `OrganisationModal` → `EDialog` |
+| 117 | `AdminUsersSettingsView` / `GlobalAdminRolesSettingsView` | [x] 2026-06-03 |
+| 118 | Security, Jobs, Integrations, Mail-Verwaltung | [x] 2026-06-03 — inkl. `MailOutboundSettingsView` |
+| 119 | `DashboardView` (Superadmin/Admin) | [x] 2026-06-03 |
 | 120 | **Review-Stopp Phase 11** | [ ] |
 
 ---
@@ -469,7 +469,59 @@ Für die PR-Beschreibung Screenshots / Kurztest:
 
 ## Nächster Schritt (aktuell)
 
-**Phase 9** — **101** `MyDepartmentSettingsView` + Adresse + Join-Code. **099–100** erledigt; `GeneralSettingsView`/`AddonsSettingsView` teilweise `E*`.
+**Phase 12** — Aufräumen (**121** als Nächstes). Vorher manuell: **Review 114** (Phase 10) und **Review 120** (Phase 11).
+
+### Review-Stopp Phase 10 (Schritt 114)
+
+**Automatisch (2026-06-03):** `vue-tsc` + Vite-Build grün.
+
+**Manuell** (Test-Abteilung + Supplier-Portal; Phone ~375px + Desktop ~1280px):
+
+| Bereich | Phone | Desktop |
+| ------- | ----- | ------- |
+| Supplier-Portal: Profil speichern, Katalog-Modal | ☐ | ☐ |
+| Supplier: Lieferungen, Reparaturen, Team, Vorlagen | ☐ | ☐ |
+| `/{id}/shop`: Tabs, Suche, Watchlist | ☐ | ☐ |
+| Buchhaltung: Tabs, Kostenstellen, Buchungen, Budget-Modal | ☐ | ☐ |
+| Werkstatt: Filter, Ticket-Detail-`EDialog`, Abschluss | ☐ | ☐ |
+
+**Referenz-Routen:** `/supplier/:companyId/profile`, `/{departmentId}/accounting`, `/{departmentId}/workshop`, `/{departmentId}/shop`.
+
+**Freigabe:** Phase 11 (bereits umgesetzt) bzw. Phase 12 nach Review 120.
+
+### Review-Stopp Phase 11 (Schritt 120)
+
+**Automatisch (2026-06-03):** `vue-tsc` + Vite-Build grün.
+
+**Manuell** (Superadmin/Org; Phone + Desktop):
+
+| Bereich | Phone | Desktop |
+| ------- | ----- | ------- |
+| Verwaltung: Subnav, Orgs/Departments/Admin-User | ☐ | ☐ |
+| Global Roles: Bearbeiten-`EDialog` | ☐ | ☐ |
+| Security / Jobs / Integrations | ☐ | ☐ |
+| Mail-Vorlagen + Outbound | ☐ | ☐ |
+| Admin-Dashboard | ☐ | ☐ |
+
+**Referenz-Routen:** `/admin-dashboard/verwaltung`, `/{departmentId}/verwaltung`.
+
+**Freigabe:** Phase 12 (Aufräumen).
+
+### Review-Stopp Phase 9 (Schritt 108)
+
+| Bereich | Phone (~375px) | Desktop (~1280px) |
+| ------- | -------------- | ----------------- |
+| Settings-Shell: Subnav-Rail + Mobile-Menü | ☐ | ☐ |
+| Benutzer/Gruppen: `E*` Header/Dialoge | ☐ | ☐ |
+| Mein Department + Adressen + Join-Code | ☐ | ☐ |
+| Kategorien/Lager: Lösch-/Edit-`EDialog` | ☐ | ☐ |
+| Display-Screens: Anlegen, Setup-`EDialog`, QR | ☐ | ☐ |
+| Onboarding-Wizard: `EDialog`, Schritte navigierbar | ☐ | ☐ |
+| `AddressModal` / `CategoryModal` öffnen & speichern | ☐ | ☐ |
+
+**Referenz-Routen:** `/{departmentId}/settings`, `/{departmentId}/settings/my-department/display-screens`.
+
+**Freigabe:** Phase 10 (Supplier).
 
 ### Erledigt: Schritt 073–075 — Zeitraum / Datepicker
 

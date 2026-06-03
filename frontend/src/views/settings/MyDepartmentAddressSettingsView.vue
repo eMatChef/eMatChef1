@@ -6,12 +6,14 @@
     </div>
 
     <div v-if="userDepartments.length > 1" class="card">
-      <label class="label" for="department-select">{{ t('settings.common.selectDepartment') }}</label>
-      <select id="department-select" v-model="selectedDepartmentId" class="input" @change="onDepartmentChange">
-        <option v-for="dept in userDepartments" :key="dept.department_id" :value="dept.department_id">
-          {{ dept.department?.name || dept.department_id }}
-        </option>
-      </select>
+      <ESelect
+        id="department-select"
+        v-model="selectedDepartmentId"
+        :items="departmentSelectItems"
+        :label="t('settings.common.selectDepartment')"
+        hide-details
+        @update:model-value="onDepartmentChange"
+      />
     </div>
 
     <div v-if="!effectiveDepartmentId" class="card">
@@ -27,18 +29,17 @@
             <path d="M12 3L2 7H22L12 3Z" fill="#60a5fa" />
           </svg>
           <h2>{{ t('settings.myDepartment.storageTitle', { n: storageAddresses.length }) }}</h2>
-          <button type="button" class="add-storage-btn" @click="openAddressModal(undefined, 'storage')">
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-              <path d="M8 4V12M4 8H12" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
-            </svg>
+          <EButton variant="primary" size="small" @click="openAddressModal(undefined, 'storage')">
+            <v-icon icon="mdi-plus" start size="18" />
             {{ t('common.add') }}
-          </button>
+          </EButton>
         </div>
 
-        <div v-if="isLoadingAddresses" class="loading-storage">
-          <div class="spinner-sm"></div>
-          <span>{{ t('settings.myDepartment.loadingAddresses') }}</span>
-        </div>
+        <ELoadingState
+          v-if="isLoadingAddresses"
+          variant="inline"
+          :message="t('settings.myDepartment.loadingAddresses')"
+        />
 
         <div v-else-if="storageAddresses.length > 0" class="storage-list">
           <div
@@ -143,9 +144,9 @@
             <path d="M12 3L2 7H22L12 3Z" fill="#e5e7eb" />
           </svg>
           <p>{{ t('settings.myDepartment.emptyStorage') }}</p>
-          <button type="button" class="add-first-btn" @click="openAddressModal(undefined, 'storage')">
+          <EButton variant="primary" @click="openAddressModal(undefined, 'storage')">
             {{ t('settings.myDepartment.addFirstStorage') }}
-          </button>
+          </EButton>
         </div>
 
       </div>
@@ -158,12 +159,10 @@
             <path d="M7 7H17V9H7V7ZM7 11H17V13H7V11ZM7 15H13V17H7V15Z" fill="white" />
           </svg>
           <h2>{{ t('settings.myDepartment.billingTitle') }}</h2>
-          <button v-if="billingAddresses.length === 0" type="button" class="add-storage-btn" @click="openAddressModal(undefined, 'billing')">
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-              <path d="M8 4V12M4 8H12" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
-            </svg>
+          <EButton v-if="billingAddresses.length === 0" variant="primary" size="small" @click="openAddressModal(undefined, 'billing')">
+            <v-icon icon="mdi-plus" start size="18" />
             {{ t('common.add') }}
-          </button>
+          </EButton>
         </div>
 
         <div v-if="billingAddresses.length > 0" class="billing-address">
@@ -224,6 +223,8 @@ import { useDepartmentSettingsManagerAccess } from '@/composables/useDepartmentS
 import { getAddresses, deleteAddress as apiDeleteAddress, setAddressPrimary, type Address } from '@/api/addresses'
 import MapView from '@/components/MapView.vue'
 import AddressModal from '@/components/AddressModal.vue'
+import ELoadingState from '@/components/layout/ELoadingState.vue'
+import { EButton, ESelect } from '@/components/form/base'
 
 const route = useRoute()
 const authStore = useAuthStore()
@@ -253,6 +254,13 @@ const pageDescription = computed(() =>
 )
 
 const userDepartments = computed(() => authStore.departments || [])
+
+const departmentSelectItems = computed(() =>
+  userDepartments.value.map((dept) => ({
+    title: dept.department?.name || dept.department_id,
+    value: dept.department_id,
+  })),
+)
 
 const addresses = ref<Address[]>([])
 const isLoadingAddresses = ref(false)

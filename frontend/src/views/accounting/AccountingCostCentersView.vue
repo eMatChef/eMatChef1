@@ -5,34 +5,33 @@
     </p>
 
     <div class="page-toolbar">
-      <button type="button" class="btn btn-primary" :disabled="isLoading" @click="openCreate">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <line x1="12" y1="5" x2="12" y2="19" />
-          <line x1="5" y1="12" x2="19" y2="12" />
-        </svg>
+      <EButton variant="primary" :disabled="isLoading" @click="openCreate">
+        <v-icon icon="mdi-plus" start size="20" />
         {{ t('accounting.costCenters.newButton') }}
-      </button>
+      </EButton>
     </div>
 
-    <div v-if="isLoading" class="loading-inline">{{ t('accounting.common.loading') }}</div>
-    <div v-else-if="loadError" class="error-inline">{{ loadError }}</div>
+    <ELoadingState v-if="isLoading" variant="inline" :message="t('accounting.common.loading')" />
+    <p v-else-if="loadError" class="error-inline">{{ loadError }}</p>
 
-    <div v-else-if="items.length === 0" class="empty-hint empty-hint--cc">
-      <p>{{ t('accounting.costCenters.emptyText') }}</p>
-      <div class="empty-hint-actions">
-        <button type="button" class="btn btn-primary" :disabled="isLoading" @click="openCreate">
+    <EEmptyState
+      v-else-if="items.length === 0"
+      :title="t('accounting.costCenters.emptyText')"
+    >
+      <template #actions>
+        <EButton variant="primary" :disabled="isLoading" @click="openCreate">
           {{ t('accounting.costCenters.createButton') }}
-        </button>
-        <button
-          type="button"
-          class="btn btn-secondary"
+        </EButton>
+        <EButton
+          variant="secondary"
           :disabled="isLoading || isApplyingStandardSeeds"
+          :loading="isApplyingStandardSeeds"
           @click="createStandardCostCenters"
         >
-          {{ isApplyingStandardSeeds ? t('accounting.common.loadingEllipsis') : t('accounting.costCenters.applySeeds') }}
-        </button>
-      </div>
-    </div>
+          {{ t('accounting.costCenters.applySeeds') }}
+        </EButton>
+      </template>
+    </EEmptyState>
 
     <div v-else class="cost-centers-table-wrap">
       <table class="cost-centers-table">
@@ -53,63 +52,60 @@
             <td>{{ row.account_code || t('accounting.common.dash') }}</td>
             <td>{{ row.sort_order }}</td>
             <td class="col-actions">
-              <button type="button" class="acc-icon-btn" :title="t('common.edit')" @click="openEdit(row)">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-                  <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-                </svg>
-              </button>
-              <button type="button" class="acc-icon-btn danger" :title="t('common.delete')" @click="onDelete(row)">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <polyline points="3 6 5 6 21 6" />
-                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                </svg>
-              </button>
+              <EButton variant="text" size="small" :title="t('common.edit')" @click="openEdit(row)">
+                <v-icon icon="mdi-pencil-outline" size="20" />
+              </EButton>
+              <EButton variant="text" size="small" color="error" :title="t('common.delete')" @click="onDelete(row)">
+                <v-icon icon="mdi-delete-outline" size="20" />
+              </EButton>
             </td>
           </tr>
         </tbody>
       </table>
     </div>
 
-    <Teleport to="body">
-      <div v-if="modalOpen" class="acc-modal-backdrop" @click.self="closeModal">
-        <div class="acc-modal" role="dialog" aria-modal="true">
-          <div class="acc-modal-header">
-            <h2>{{ editingId ? t('accounting.costCenters.modalEditTitle') : t('accounting.costCenters.modalCreateTitle') }}</h2>
-            <button type="button" class="acc-icon-btn" :aria-label="t('common.close')" @click="closeModal">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <line x1="18" y1="6" x2="6" y2="18" />
-                <line x1="6" y1="6" x2="18" y2="18" />
-              </svg>
-            </button>
-          </div>
-          <div class="acc-modal-body">
-            <div class="acc-field">
-              <label for="cc-name">{{ t('accounting.costCenters.labelNameStar') }}</label>
-              <input id="cc-name" v-model="form.name" type="text" maxlength="255" :placeholder="t('accounting.costCenters.placeholderName')" />
-            </div>
-            <div class="acc-field">
-              <label for="cc-code">{{ t('accounting.costCenters.labelAccountOptional') }}</label>
-              <input id="cc-code" v-model="form.account_code" type="text" maxlength="32" :placeholder="t('accounting.costCenters.placeholderCode')" />
-            </div>
-            <div class="acc-field">
-              <label for="cc-sort">{{ t('accounting.costCenters.labelSort') }}</label>
-              <input id="cc-sort" v-model.number="form.sort_order" type="number" />
-            </div>
-            <div class="acc-field">
-              <label for="cc-desc">{{ t('accounting.costCenters.labelDescriptionOptional') }}</label>
-              <textarea id="cc-desc" v-model="form.description" :placeholder="t('accounting.costCenters.placeholderDescription')" />
-            </div>
-            <div class="acc-modal-actions">
-              <button type="button" class="btn btn-secondary" @click="closeModal">{{ t('common.cancel') }}</button>
-              <button type="button" class="btn btn-primary" :disabled="saving" @click="save">
-                {{ saving ? t('accounting.common.saving') : t('common.save') }}
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </Teleport>
+    <EDialog
+      v-model="modalOpen"
+      :max-width="520"
+      :title="editingId ? t('accounting.costCenters.modalEditTitle') : t('accounting.costCenters.modalCreateTitle')"
+    >
+      <ETextField
+        v-model="form.name"
+        :label="t('accounting.costCenters.labelNameStar')"
+        :placeholder="t('accounting.costCenters.placeholderName')"
+        maxlength="255"
+        hide-details="auto"
+      />
+      <ETextField
+        v-model="form.account_code"
+        class="mt-3"
+        :label="t('accounting.costCenters.labelAccountOptional')"
+        :placeholder="t('accounting.costCenters.placeholderCode')"
+        maxlength="32"
+        hide-details="auto"
+      />
+      <ETextField
+        v-model.number="form.sort_order"
+        class="mt-3"
+        type="number"
+        :label="t('accounting.costCenters.labelSort')"
+        hide-details="auto"
+      />
+      <ETextarea
+        v-model="form.description"
+        class="mt-3"
+        :label="t('accounting.costCenters.labelDescriptionOptional')"
+        :placeholder="t('accounting.costCenters.placeholderDescription')"
+        rows="3"
+        hide-details="auto"
+      />
+      <template #actions>
+        <EButton variant="secondary" size="small" @click="closeModal">{{ t('common.cancel') }}</EButton>
+        <EButton variant="primary" size="small" :loading="saving" @click="save">
+          {{ saving ? t('accounting.common.saving') : t('common.save') }}
+        </EButton>
+      </template>
+    </EDialog>
   </div>
 </template>
 
@@ -126,6 +122,9 @@ import {
 } from '@/api/accountingCostCenters'
 import { useToast } from '@/composables/useToast'
 import { useConfirm } from '@/composables/useConfirm'
+import ELoadingState from '@/components/layout/ELoadingState.vue'
+import EEmptyState from '@/components/layout/EEmptyState.vue'
+import { EButton, EDialog, ETextField, ETextarea } from '@/components/form/base'
 
 const { t } = useI18n()
 const route = useRoute()
@@ -283,30 +282,10 @@ async function onDelete(row: AccountingCostCenter) {
 <style scoped>
 @import '@/styles/accounting-view.css';
 
-.loading-inline,
-.error-inline,
-.empty-hint {
+.error-inline {
   padding: 16px;
   border-radius: 8px;
-  background: #f9fafb;
-  color: #6b7280;
-}
-
-.error-inline {
   background: #fef2f2;
   color: #b91c1c;
-}
-
-.empty-hint--cc p {
-  margin: 0 0 14px;
-  max-width: 52ch;
-  line-height: 1.5;
-}
-
-.empty-hint-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  align-items: center;
 }
 </style>

@@ -3,7 +3,7 @@
     <div v-if="showTitle" class="settings-shell-drawer__title">
       {{ t('settings.menuTitle') }}
     </div>
-    <v-list nav density="compact" class="settings-shell-nav" color="primary">
+    <v-list nav :density="listDensity" class="settings-shell-nav" color="primary">
       <v-list-item
         v-for="item in items"
         :key="item.id"
@@ -38,8 +38,10 @@ withDefaults(
     isActive: (itemId: string) => boolean
     /** false im eingeklappten Rail (Titel kommt aus Vuetify-Rail-Verhalten) */
     showTitle?: boolean
+    /** Mobile: etwas höhere Zeilen für bessere Touch-Ziele */
+    listDensity?: 'default' | 'compact' | 'comfortable'
   }>(),
-  { showTitle: true },
+  { showTitle: true, listDensity: 'compact' },
 )
 
 const emit = defineEmits<{

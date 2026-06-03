@@ -9,40 +9,26 @@
 
     <!-- Department Selector (wenn User in mehreren Departments ist) -->
     <div v-if="userDepartments.length > 1" class="department-selector">
-      <label for="department-select" class="selector-label">{{ t('settings.myDepartment.selectDepartment') }}</label>
+      <ESelect
+        id="department-select"
+        v-model="selectedDepartmentId"
+        :items="departmentSelectItems"
+        :label="t('settings.myDepartment.selectDepartment')"
+        hide-details
+        @update:model-value="onDepartmentChange"
+      />
       <div class="dept-select-row">
-        <div class="select-wrapper">
-          <select 
-            id="department-select" 
-            v-model="selectedDepartmentId" 
-            @change="onDepartmentChange"
-            class="department-select"
-          >
-            <option 
-              v-for="dept in userDepartments" 
-              :key="dept.department_id" 
-              :value="dept.department_id"
-            >
-              {{ dept.department?.name || dept.department_id }} 
-              {{ dept.is_primary ? `⭐ (${t('settings.myDepartment.primary')})` : '' }}
-              - {{ formatRole(dept.role) }}
-            </option>
-          </select>
-          <svg class="select-icon" width="16" height="16" viewBox="0 0 16 16" fill="none">
-            <path d="M4 6L8 10L12 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-          </svg>
-        </div>
-        <button 
+        <EButton
           v-if="!isSelectedDeptPrimary"
-          @click="setAsPrimary"
+          variant="secondary"
+          size="small"
           :disabled="isSavingPrimary"
-          class="set-primary-btn"
+          :loading="isSavingPrimary"
+          @click="setAsPrimary"
         >
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-            <path d="M8 1L10 5.5L15 6L11.5 9.5L12.5 14.5L8 12L3.5 14.5L4.5 9.5L1 6L6 5.5L8 1Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-          </svg>
+          <v-icon icon="mdi-star-outline" start size="18" />
           {{ isSavingPrimary ? t('common.saving') : t('settings.myDepartment.setAsPrimary') }}
-        </button>
+        </EButton>
         <span v-else class="current-primary-badge">
           <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
             <path d="M8 1L10 5.5L15 6L11.5 9.5L12.5 14.5L8 12L3.5 14.5L4.5 9.5L1 6L6 5.5L8 1Z" fill="#f59e0b" stroke="#f59e0b" stroke-width="1"/>
@@ -53,16 +39,15 @@
       <p class="selector-hint">{{ t('settings.myDepartment.departmentMembershipHint', { count: userDepartments.length }) }}</p>
     </div>
 
-    <!-- Loading State -->
-    <div v-if="isLoading" class="loading-state">
-      <div class="spinner"></div>
-      <p>{{ t('settings.myDepartment.loadingDepartmentData') }}</p>
-    </div>
+    <ELoadingState
+      v-if="isLoading"
+      variant="inline"
+      :message="t('settings.myDepartment.loadingDepartmentData')"
+    />
 
-    <!-- Error State -->
-    <div v-else-if="error" class="error-state">
-      <p class="error-message">{{ error }}</p>
-      <button @click="loadDepartment" class="retry-button">{{ t('common.retry') }}</button>
+    <div v-else-if="error" class="my-dept-settings-error">
+      <v-alert type="error" variant="tonal" :text="error" />
+      <EButton variant="secondary" class="mt-3" @click="loadDepartment">{{ t('common.retry') }}</EButton>
     </div>
 
     <!-- Department Info -->
@@ -120,13 +105,15 @@
               {{ onboardingStatusLabel }}
             </strong>
           </p>
-          <button
-            class="onboarding-reset-btn"
+          <EButton
+            variant="secondary"
+            size="small"
             :disabled="isResettingOnboarding"
+            :loading="isResettingOnboarding"
             @click="resetDepartmentOnboarding"
           >
             {{ isResettingOnboarding ? t('settings.myDepartment.resetting') : t('settings.myDepartment.resetOnboarding') }}
-          </button>
+          </EButton>
         </div>
         <p v-if="isExemptFromMemberOnboardingUi" class="selector-hint">
           {{ t('settings.myDepartment.onboardingLeaderHint') }}
@@ -149,13 +136,15 @@
             {{ t('settings.myDepartment.activitiesResetDescription') }}
             <strong>{{ t('settings.myDepartment.activitiesResetDescriptionStrong') }}</strong>
           </p>
-          <button
-            class="db-reset-btn"
+          <EButton
+            variant="danger"
+            size="small"
             :disabled="isResettingActivities"
+            :loading="isResettingActivities"
             @click="resetDepartmentActivitiesAction"
           >
             {{ isResettingActivities ? t('settings.myDepartment.resetting') : t('settings.myDepartment.resetActivities') }}
-          </button>
+          </EButton>
         </div>
         <p class="selector-hint db-reset-warning">
           {{ t('settings.myDepartment.activitiesResetWarning') }}
@@ -174,13 +163,15 @@
             {{ t('settings.myDepartment.dbResetDescription') }}
             <strong>{{ t('settings.myDepartment.dbResetDescriptionStrong') }}</strong>
           </p>
-          <button
-            class="db-reset-btn"
+          <EButton
+            variant="danger"
+            size="small"
             :disabled="isResettingDb"
+            :loading="isResettingDb"
             @click="resetDepartmentDb"
           >
             {{ isResettingDb ? t('settings.myDepartment.resetting') : t('settings.myDepartment.resetDb') }}
-          </button>
+          </EButton>
         </div>
         <p class="selector-hint db-reset-warning">
           {{ t('settings.myDepartment.dbResetWarning') }}
@@ -263,9 +254,11 @@
     </div>
 
     <!-- No Department -->
-    <div v-else class="empty-state">
-      <p>{{ t('settings.myDepartment.noDepartmentSelected') }}</p>
-    </div>
+    <EEmptyState
+      v-else
+      variant="default"
+      :title="t('settings.myDepartment.noDepartmentSelected')"
+    />
 
   </div>
 </template>
@@ -308,6 +301,9 @@ import {
 import { buildOnboardingDismissedKey, buildOnboardingDoneKey, buildOnboardingStateKey } from '@/utils/departmentOnboarding'
 import { isDevToolsEnvironment } from '@/utils/devEnvironmentBanner'
 import QRCode from 'qrcode'
+import ELoadingState from '@/components/layout/ELoadingState.vue'
+import EEmptyState from '@/components/layout/EEmptyState.vue'
+import { EButton, ESelect } from '@/components/form/base'
 
 const route = useRoute()
 const authStore = useAuthStore()
@@ -377,6 +373,17 @@ const storageAddressesWithCoords = computed(() => {
 
 // Liste aller Departments des Users
 const userDepartments = computed(() => authStore.departments || [])
+
+const departmentSelectItems = computed(() =>
+  userDepartments.value.map((dept) => {
+    const name = dept.department?.name || dept.department_id
+    const primary = dept.is_primary ? ` ⭐ (${t('settings.myDepartment.primary')})` : ''
+    return {
+      title: `${name}${primary} – ${formatRole(dept.role)}`,
+      value: dept.department_id,
+    }
+  }),
+)
 
 // Aktuelle Rolle für das ausgewählte Department
 const currentRole = computed(() => {
@@ -879,6 +886,10 @@ onMounted(() => {
 </script>
 
 <style scoped>
+.my-dept-settings-error {
+  margin-top: 8px;
+}
+
 .my-department-settings {
   display: flex;
   flex-direction: column;

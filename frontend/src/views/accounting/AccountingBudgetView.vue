@@ -5,27 +5,30 @@
     </p>
 
     <div class="budget-toolbar">
-      <label class="budget-year-label">
-        {{ t('accounting.common.year') }}
-        <select v-model.number="year" class="filter-select" @change="reload">
-          <option v-for="y in yearOptions" :key="y" :value="y">{{ y }}</option>
-        </select>
-      </label>
+      <ESelect
+        v-model="year"
+        :items="yearSelectItems"
+        :label="t('accounting.common.year')"
+        hide-details="auto"
+        class="budget-year-select"
+        @update:model-value="reload"
+      />
       <div class="budget-toolbar-actions">
-        <button type="button" class="btn btn-secondary btn-sm" :disabled="loading || !comparison" @click="exportCsv">
+        <EButton variant="secondary" size="small" :disabled="loading || !comparison" @click="exportCsv">
           {{ t('accounting.budget.exportCsv') }}
-        </button>
-        <button type="button" class="btn btn-primary btn-sm" :disabled="!costCenters.length" @click="openCreateModal">
+        </EButton>
+        <EButton variant="primary" size="small" :disabled="!costCenters.length" @click="openCreateModal">
           {{ t('accounting.budget.recordTarget') }}
-        </button>
+        </EButton>
       </div>
     </div>
 
-    <div v-if="!yearOptions.length && !loading" class="empty-hint">
-      {{ t('accounting.common.noBookingYears') }}
-    </div>
-    <div v-else-if="loadError" class="budget-error">{{ loadError }}</div>
-    <div v-else-if="loading" class="loading-inline">{{ t('accounting.common.loading') }}</div>
+    <EEmptyState
+      v-if="!yearOptions.length && !loading"
+      :title="t('accounting.common.noBookingYears')"
+    />
+    <p v-else-if="loadError" class="budget-error">{{ loadError }}</p>
+    <ELoadingState v-else-if="loading" variant="inline" :message="t('accounting.common.loading')" />
     <template v-else-if="comparison">
       <div v-if="comparison.totals.budget_chf" class="acc-kpi-grid budget-kpis">
         <div class="acc-kpi-card">
@@ -69,27 +72,21 @@
               <td>{{ row.booking_count }}</td>
               <td class="col-actions">
                 <template v-if="row.budget_line_id">
-                  <button type="button" class="acc-icon-btn" :title="t('common.edit')" @click="openEditModal(row)">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-                      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-                    </svg>
-                  </button>
-                  <button type="button" class="acc-icon-btn danger" :title="t('common.delete')" @click="onDeleteLine(row)">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <polyline points="3 6 5 6 21 6" />
-                      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                    </svg>
-                  </button>
+                  <EButton variant="text" size="small" :title="t('common.edit')" @click="openEditModal(row)">
+                    <v-icon icon="mdi-pencil-outline" size="20" />
+                  </EButton>
+                  <EButton variant="text" size="small" color="error" :title="t('common.delete')" @click="onDeleteLine(row)">
+                    <v-icon icon="mdi-delete-outline" size="20" />
+                  </EButton>
                 </template>
-                <button
+                <EButton
                   v-else
-                  type="button"
-                  class="btn-outline btn-xs"
+                  variant="secondary"
+                  size="small"
                   @click="openCreateModalForRow(row)"
                 >
                   {{ t('accounting.budget.setTarget') }}
-                </button>
+                </EButton>
               </td>
             </tr>
           </tbody>
@@ -97,39 +94,51 @@
       </div>
     </template>
 
-    <div v-if="modalOpen" class="acc-modal-overlay" @click.self="modalOpen = false">
-      <div class="acc-modal budget-modal">
-        <div class="acc-modal-body">
-          <h3 class="acc-modal-title">{{ editingLineId ? t('accounting.budget.modalEditTitle') : t('accounting.budget.modalCreateTitle') }}</h3>
-          <label class="acc-field">
-            <span>{{ t('accounting.budget.fieldCostCenter') }}</span>
-            <select v-model="form.cost_center_id" class="filter-select" :disabled="!!editingLineId">
-              <option value="">{{ t('accounting.budget.choosePlaceholder') }}</option>
-              <option v-for="c in costCenters" :key="c.id" :value="c.id">{{ c.name }}</option>
-            </select>
-          </label>
-          <label class="acc-field">
-            <span>{{ t('accounting.budget.fieldYear') }}</span>
-            <input v-model.number="form.calendar_year" type="number" min="2000" max="2100" class="filter-select" :disabled="!!editingLineId" />
-          </label>
-          <label class="acc-field">
-            <span>{{ t('accounting.budget.fieldTargetChf') }}</span>
-            <input v-model="form.amount_chf" type="text" inputmode="decimal" :placeholder="t('accounting.budget.amountPlaceholder')" class="filter-select" />
-          </label>
-          <label class="acc-field">
-            <span>{{ t('accounting.budget.fieldNoteOptional') }}</span>
-            <textarea v-model="form.notes" rows="2" class="filter-select" :placeholder="t('accounting.budget.notesPlaceholder')" />
-          </label>
-          <p v-if="modalError" class="budget-error">{{ modalError }}</p>
-        </div>
-        <div class="acc-modal-footer">
-          <button type="button" class="btn btn-secondary btn-sm" @click="modalOpen = false">{{ t('common.cancel') }}</button>
-          <button type="button" class="btn btn-primary btn-sm" :disabled="saving" @click="submitModal">
-            {{ saving ? t('accounting.common.savingAlt') : t('common.save') }}
-          </button>
-        </div>
-      </div>
-    </div>
+    <EDialog
+      v-model="modalOpen"
+      :max-width="480"
+      :title="editingLineId ? t('accounting.budget.modalEditTitle') : t('accounting.budget.modalCreateTitle')"
+    >
+      <ESelect
+        v-model="form.cost_center_id"
+        :items="costCenterSelectItems"
+        :label="t('accounting.budget.fieldCostCenter')"
+        :placeholder="t('accounting.budget.choosePlaceholder')"
+        :disabled="!!editingLineId"
+        hide-details="auto"
+      />
+      <ETextField
+        v-model.number="form.calendar_year"
+        class="mt-3"
+        type="number"
+        :label="t('accounting.budget.fieldYear')"
+        :disabled="!!editingLineId"
+        hide-details="auto"
+      />
+      <ETextField
+        v-model="form.amount_chf"
+        class="mt-3"
+        :label="t('accounting.budget.fieldTargetChf')"
+        :placeholder="t('accounting.budget.amountPlaceholder')"
+        inputmode="decimal"
+        hide-details="auto"
+      />
+      <ETextarea
+        v-model="form.notes"
+        class="mt-3"
+        :label="t('accounting.budget.fieldNoteOptional')"
+        :placeholder="t('accounting.budget.notesPlaceholder')"
+        rows="2"
+        hide-details="auto"
+      />
+      <p v-if="modalError" class="budget-error mt-3">{{ modalError }}</p>
+      <template #actions>
+        <EButton variant="secondary" size="small" @click="modalOpen = false">{{ t('common.cancel') }}</EButton>
+        <EButton variant="primary" size="small" :loading="saving" @click="submitModal">
+          {{ saving ? t('accounting.common.savingAlt') : t('common.save') }}
+        </EButton>
+      </template>
+    </EDialog>
   </div>
 </template>
 
@@ -150,6 +159,9 @@ import { listCostCenters, type AccountingCostCenter } from '@/api/accountingCost
 import { useToast } from '@/composables/useToast'
 import { useConfirm } from '@/composables/useConfirm'
 import { useAccountingBookingYears } from '@/composables/useAccountingBookingYears'
+import ELoadingState from '@/components/layout/ELoadingState.vue'
+import EEmptyState from '@/components/layout/EEmptyState.vue'
+import { EButton, EDialog, ESelect, ETextField, ETextarea } from '@/components/form/base'
 
 const { t } = useI18n()
 const route = useRoute()
@@ -160,6 +172,14 @@ const departmentId = computed(() => String(route.params.departmentId || ''))
 
 const { years: yearOptions, refreshYears, defaultYear } = useAccountingBookingYears(departmentId)
 const year = ref(new Date().getFullYear())
+
+const yearSelectItems = computed(() =>
+  yearOptions.value.map((y) => ({ title: String(y), value: y }))
+)
+
+const costCenterSelectItems = computed(() =>
+  costCenters.value.map((c) => ({ title: c.name, value: c.id }))
+)
 
 const loading = ref(true)
 const loadError = ref('')

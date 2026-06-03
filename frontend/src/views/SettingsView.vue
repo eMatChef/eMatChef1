@@ -1,14 +1,13 @@
 <template>
-  <div class="settings-view" :class="{ 'settings-view--overlay-nav': mdAndUp }">
+  <div class="settings-view" :class="{ 'settings-view--desktop': mdAndUp }">
     <!-- Mobile: Hamburger + schwebendes Menü -->
     <header v-if="!mdAndUp" class="settings-view__mobile-bar">
       <v-menu
         v-model="mobileMenuOpen"
         location="bottom start"
         :close-on-content-click="true"
-        offset="6"
-        max-height="70vh"
-        scroll-strategy="close"
+        offset="8"
+        scroll-strategy="reposition"
         content-class="settings-mobile-menu-overlay"
       >
         <template #activator="{ props: menuProps }">
@@ -24,11 +23,12 @@
             <v-icon icon="mdi-menu" size="24" />
           </v-btn>
         </template>
-        <v-card class="settings-mobile-menu-card" elevation="12" rounded="lg">
+        <v-card class="settings-mobile-menu-card" elevation="12" rounded="lg" :style="mobileMenuCardStyle">
           <SettingsSubnavList
             :items="visibleMenuItems"
             :get-link="navLinkForItem"
             :is-active="isSettingsItemActive"
+            list-density="default"
             @navigate="mobileMenuOpen = false"
           />
         </v-card>
@@ -36,27 +36,24 @@
       <span class="settings-view__mobile-title">{{ t('settings.menuTitle') }}</span>
     </header>
 
-    <!-- Tablet/Desktop: schmales Rail, klappt bei Hover/Klick über den Inhalt auf -->
-    <v-navigation-drawer
+    <!-- Tablet/Desktop: 64px-Spalte im Layout; Hover/Pin → Panel klappt nach rechts auf -->
+    <aside
       v-if="mdAndUp"
-      class="settings-shell-drawer"
-      permanent
-      floating
-      :rail="!desktopNavPinned"
-      :expand-on-hover="!desktopNavPinned"
-      width="260"
-      rail-width="56"
-      elevation="3"
-      color="surface"
-      @click="onDesktopDrawerClick"
+      class="settings-subnav-rail"
+      :class="{ 'settings-subnav-rail--expanded': desktopNavExpanded }"
+      @mouseenter="desktopNavHovered = true"
+      @mouseleave="onDesktopNavLeave"
     >
-      <SettingsSubnavList
-        :items="visibleMenuItems"
-        :get-link="navLinkForItem"
-        :is-active="isSettingsItemActive"
-        @navigate="onDesktopNavClick"
-      />
-    </v-navigation-drawer>
+      <div class="settings-subnav-rail__panel" @click="onDesktopRailBackgroundClick">
+        <SettingsSubnavList
+          :items="visibleMenuItems"
+          :get-link="navLinkForItem"
+          :is-active="isSettingsItemActive"
+          :show-title="desktopNavExpanded"
+          @navigate="onDesktopNavClick"
+        />
+      </div>
+    </aside>
 
     <div class="settings-view__content">
       <router-view v-slot="{ Component }">
@@ -86,8 +83,10 @@ const { mdAndUp } = useDisplay()
 const { isUserRole, canManageMaterials } = useDepartmentMemberRole()
 
 const mobileMenuOpen = ref(false)
-/** Tablet/Desktop: Klick auf Rail pinnt Menü offen (Touch); Hover klappt sonst auf */
+const desktopNavHovered = ref(false)
 const desktopNavPinned = ref(false)
+
+const desktopNavExpanded = computed(() => desktopNavPinned.value || desktopNavHovered.value)
 
 const departmentId = computed(() => {
   return (route.params.departmentId as string) || authStore.activeDepartmentId || ''
@@ -132,14 +131,22 @@ function isSettingsItemActive(itemId: string): boolean {
   return p === `${base}/${itemId}` || p.startsWith(`${base}/${itemId}/`)
 }
 
-function onDesktopDrawerClick(event: MouseEvent) {
+function onDesktopNavLeave() {
+  if (!desktopNavPinned.value) {
+    desktopNavHovered.value = false
+  }
+}
+
+function onDesktopRailBackgroundClick(event: MouseEvent) {
   const target = event.target as HTMLElement
-  if (target.closest('.v-list-item')) return
+  if (target.closest('.v-list-item') || target.closest('a')) return
   desktopNavPinned.value = !desktopNavPinned.value
 }
 
 function onDesktopNavClick() {
-  desktopNavPinned.value = false
+  if (!desktopNavPinned.value) {
+    desktopNavHovered.value = false
+  }
 }
 
 const allMenuItems = computed(() => [
@@ -187,11 +194,29 @@ const visibleMenuItems = computed(() => {
   return items
 })
 
+const SETTINGS_NAV_ITEM_ROW_PX = 46
+const SETTINGS_NAV_TITLE_PX = 40
+const SETTINGS_NAV_PADDING_PX = 16
+
+function settingsNavContentHeight(itemCount: number): number {
+  return SETTINGS_NAV_TITLE_PX + itemCount * SETTINGS_NAV_ITEM_ROW_PX + SETTINGS_NAV_PADDING_PX
+}
+
+const mobileMenuCardStyle = computed(() => {
+  const contentH = settingsNavContentHeight(visibleMenuItems.value.length)
+  const maxH = Math.round((typeof window !== 'undefined' ? window.innerHeight : 800) * 0.75)
+  return {
+    minHeight: `${Math.min(contentH, maxH)}px`,
+    maxHeight: `${maxH}px`,
+  }
+})
+
 watch(
   () => route.path,
   () => {
     mobileMenuOpen.value = false
     desktopNavPinned.value = false
+    desktopNavHovered.value = false
   },
 )
 </script>
