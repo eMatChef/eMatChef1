@@ -86,6 +86,10 @@
   overflow-x: hidden;
 }
 
+.settings-view--desktop:has(.settings-subnav-rail--expanded) {
+  overflow-x: visible;
+}
+
 @media (min-width: 960px) {
   /* Weniger Abstand zur App-Hauptnavigation (page-content + linkes Padding) */
   .page-content:has(> .settings-view--desktop) {
@@ -109,6 +113,11 @@
   align-self: flex-start;
   z-index: 20;
   overflow-x: hidden;
+}
+
+/* Aufgeklappt: Panel 260px darf nicht vom 64px-Rail abgeschnitten werden */
+.settings-subnav-rail--expanded {
+  overflow: visible;
 }
 
 .settings-subnav-rail__panel {

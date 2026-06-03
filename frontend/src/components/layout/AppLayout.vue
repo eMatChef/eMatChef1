@@ -184,10 +184,6 @@ watch(
   padding-top: 0 !important;
 }
 
-.page-main--activity-detail :deep(.top-header--in-scroll) {
-  margin-top: var(--emc-dev-system-bar-height, 0px);
-}
-
 .page-content {
   padding: 24px;
   padding-bottom: calc(24px + var(--emc-safe-bottom));
