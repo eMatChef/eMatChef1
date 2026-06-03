@@ -22,29 +22,35 @@
       </div>
     </header>
 
-    <section v-if="needsPin" class="display-pin-panel">
+    <ECard v-if="needsPin" variant="outlined" class="display-pin-panel">
       <h2 class="display-pin-title">{{ t('display.pin.title') }}</h2>
       <p class="display-pin-hint">{{ t('display.pin.hint') }}</p>
       <form class="display-pin-form" @submit.prevent="submitPin">
-        <input
+        <ETextField
           v-model="pinInput"
-          type="text"
-          class="display-pin-input"
           :placeholder="t('display.pin.placeholder')"
+          :disabled="pinSubmitting"
+          :error-messages="pinError ? [pinError] : undefined"
           autocomplete="off"
           autocapitalize="characters"
           spellcheck="false"
           maxlength="8"
           inputmode="text"
-          :disabled="pinSubmitting"
-          @input="onPinInput"
+          hide-details="auto"
+          class="display-pin-field"
+          @update:model-value="onPinInput"
         />
-        <p v-if="pinError" class="display-pin-error">{{ pinError }}</p>
-        <button type="submit" class="display-pin-submit" :disabled="pinSubmitting || pinInput.length !== 8">
+        <EButton
+          type="submit"
+          variant="primary"
+          block
+          :disabled="pinSubmitting || pinInput.length !== 8"
+          :loading="pinSubmitting"
+        >
           {{ pinSubmitting ? t('display.pin.submitting') : t('display.pin.submit') }}
-        </button>
+        </EButton>
       </form>
-    </section>
+    </ECard>
 
     <template v-else>
       <p v-if="loading" class="display-status muted">{{ t('display.loading') }}</p>
@@ -153,6 +159,9 @@ import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import EmcLogoMark from '@/components/brand/EmcLogoMark.vue'
 import PublicQrTag from '@/components/common/PublicQrTag.vue'
+import EButton from '@/components/form/base/EButton.vue'
+import ECard from '@/components/form/base/ECard.vue'
+import ETextField from '@/components/form/base/ETextField.vue'
 import type { DisplayActivityRow, DisplayStatistics, DisplayWorkshopTicketRow } from '@/api/display'
 import {
   authenticatePublicDisplay,
@@ -355,8 +364,8 @@ async function enterFullscreen() {
   }
 }
 
-function onPinInput() {
-  pinInput.value = pinInput.value.toUpperCase().replace(PIN_CHARSET, '').slice(0, 8)
+function onPinInput(value?: string) {
+  pinInput.value = (value ?? pinInput.value).toUpperCase().replace(PIN_CHARSET, '').slice(0, 8)
   pinError.value = null
 }
 
@@ -550,11 +559,7 @@ watch(publicId, () => {
 .display-pin-panel {
   max-width: 420px;
   margin: 48px auto 0;
-  padding: 28px 32px;
-  background: #fff;
-  border-radius: 16px;
-  border: 1px solid #e2e8f0;
-  box-shadow: 0 8px 32px rgba(15, 23, 42, 0.08);
+  padding: 28px 32px !important;
 }
 
 .display-pin-title {
@@ -575,42 +580,12 @@ watch(publicId, () => {
   gap: 12px;
 }
 
-.display-pin-input {
+.display-pin-field :deep(input) {
   font-size: 1.5rem;
   letter-spacing: 0.35em;
   text-align: center;
-  padding: 14px 16px;
-  border: 2px solid #cbd5e1;
-  border-radius: 10px;
   font-weight: 700;
   text-transform: uppercase;
-}
-
-.display-pin-input:focus {
-  outline: none;
-  border-color: #3b82f6;
-}
-
-.display-pin-error {
-  margin: 0;
-  color: #b91c1c;
-  font-size: 0.9rem;
-}
-
-.display-pin-submit {
-  padding: 12px 16px;
-  border: none;
-  border-radius: 10px;
-  background: #2563eb;
-  color: #fff;
-  font: inherit;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.display-pin-submit:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
 }
 
 .display-status {

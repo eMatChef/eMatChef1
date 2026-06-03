@@ -6,60 +6,41 @@
     </header>
 
     <nav class="tabs">
-      <button
-        type="button"
-        class="tab"
-        :class="{ active: activeTab === 'catalog' }"
-        @click="activeTab = 'catalog'"
-      >
-        {{ t('supplierShop.tabs.catalog') }}
-      </button>
-      <button
-        type="button"
-        class="tab"
-        :class="{ active: activeTab === 'templates' }"
-        @click="activeTab = 'templates'"
-      >
-        {{ t('supplierShop.tabs.templates') }}
-      </button>
-      <button
-        type="button"
-        class="tab"
-        :class="{ active: activeTab === 'deliveries' }"
-        @click="activeTab = 'deliveries'"
-      >
-        {{ t('supplierShop.tabs.deliveries') }}
-        <span v-if="openDeliveryCount" class="badge-count">{{ openDeliveryCount }}</span>
-      </button>
-      <button
-        type="button"
-        class="tab"
-        :class="{ active: activeTab === 'watchlist' }"
-        @click="activeTab = 'watchlist'"
-      >
-        {{ t('supplierShop.tabs.watchlist') }}
-        <span v-if="watchlist.length" class="badge-count">{{ watchlist.length }}</span>
-      </button>
+      <v-tabs v-model="activeTab" color="primary" class="shop-tabs">
+        <v-tab value="catalog">{{ t('supplierShop.tabs.catalog') }}</v-tab>
+        <v-tab value="templates">{{ t('supplierShop.tabs.templates') }}</v-tab>
+        <v-tab value="deliveries">
+          {{ t('supplierShop.tabs.deliveries') }}
+          <span v-if="openDeliveryCount" class="badge-count">{{ openDeliveryCount }}</span>
+        </v-tab>
+        <v-tab value="watchlist">
+          {{ t('supplierShop.tabs.watchlist') }}
+          <span v-if="watchlist.length" class="badge-count">{{ watchlist.length }}</span>
+        </v-tab>
+      </v-tabs>
     </nav>
 
-    <div v-if="loadError" class="state error">{{ loadError }}</div>
-    <div v-else-if="loading" class="state">{{ t('common.loading') }}</div>
+    <v-alert v-if="loadError" type="error" variant="tonal" class="mb-3" :text="loadError" />
+    <ELoadingState v-else-if="loading" variant="page" :message="t('common.loading')" />
 
     <template v-else>
       <!-- Catalog -->
       <section v-if="activeTab === 'catalog'">
         <div class="filter-bar">
-          <label class="filter-field">
-            <span>{{ t('supplierShop.searchFilter') }}</span>
-            <input v-model="catalogSearch" type="search" :placeholder="t('supplierShop.searchPlaceholder')" />
-          </label>
-          <label class="filter-field">
-            <span>{{ t('supplierShop.supplierFilter') }}</span>
-            <select v-model="selectedCompanyId" @change="onCompanyChange">
-              <option value="">{{ t('supplierShop.filterAllSuppliers') }}</option>
-              <option v-for="c in companies" :key="c.id" :value="c.id">{{ c.name }}</option>
-            </select>
-          </label>
+          <ESearchField
+            v-model="catalogSearch"
+            :label="t('supplierShop.searchFilter')"
+            :placeholder="t('supplierShop.searchPlaceholder')"
+            class="filter-search"
+          />
+          <ESelect
+            v-model="selectedCompanyId"
+            :label="t('supplierShop.supplierFilter')"
+            :items="companySelectItems"
+            hide-details="auto"
+            class="filter-select"
+            @update:model-value="onCompanyChange"
+          />
         </div>
         <p v-if="filteredCatalogItems.length === 0" class="state">{{ catalogEmptyMessage }}</p>
         <table v-else class="data-table">
@@ -81,9 +62,9 @@
               <td>{{ trackingLabel(item.tracking_type) }}</td>
               <td>{{ formatPrice(item.unit_price, item.currency) }}</td>
               <td class="actions">
-                <button type="button" class="btn btn-secondary btn-sm" @click="addToWatchlist(item)">
+                <EButton variant="secondary" size="small" @click="addToWatchlist(item)">
                   {{ t('supplierShop.addToWatchlist') }}
-                </button>
+                </EButton>
               </td>
             </tr>
           </tbody>
@@ -93,17 +74,20 @@
       <!-- Templates -->
       <section v-else-if="activeTab === 'templates'">
         <div class="filter-bar">
-          <label class="filter-field">
-            <span>{{ t('supplierShop.searchFilter') }}</span>
-            <input v-model="templateSearch" type="search" :placeholder="t('supplierShop.searchPlaceholder')" />
-          </label>
-          <label class="filter-field">
-            <span>{{ t('supplierShop.supplierFilter') }}</span>
-            <select v-model="selectedCompanyId" @change="onCompanyChange">
-              <option value="">{{ t('supplierShop.filterAllSuppliers') }}</option>
-              <option v-for="c in companies" :key="c.id" :value="c.id">{{ c.name }}</option>
-            </select>
-          </label>
+          <ESearchField
+            v-model="templateSearch"
+            :label="t('supplierShop.searchFilter')"
+            :placeholder="t('supplierShop.searchPlaceholder')"
+            class="filter-search"
+          />
+          <ESelect
+            v-model="selectedCompanyId"
+            :label="t('supplierShop.supplierFilter')"
+            :items="companySelectItems"
+            hide-details="auto"
+            class="filter-select"
+            @update:model-value="onCompanyChange"
+          />
         </div>
         <p v-if="filteredTemplates.length === 0" class="state">{{ templateEmptyMessage }}</p>
         <table v-else class="data-table">
@@ -125,14 +109,14 @@
               <td>{{ tpl.component_count }}</td>
               <td>{{ formatPrice(tpl.unit_price, tpl.currency) }}</td>
               <td class="actions">
-                <button
-                  type="button"
-                  class="btn btn-primary btn-sm"
-                  :disabled="importingTemplateId === tpl.id"
+                <EButton
+                  variant="primary"
+                  size="small"
+                  :loading="importingTemplateId === tpl.id"
                   @click="importTemplate(tpl)"
                 >
                   {{ importingTemplateId === tpl.id ? t('supplierShop.importing') : t('supplierShop.importTemplate') }}
-                </button>
+                </EButton>
               </td>
             </tr>
           </tbody>
@@ -142,14 +126,14 @@
       <!-- Deliveries -->
       <section v-else-if="activeTab === 'deliveries'">
         <div class="filter-bar">
-          <label class="filter-field">
-            <span>{{ t('supplierShop.deliveryStatusFilter') }}</span>
-            <select v-model="deliveryStatusFilter" @change="loadDeliveries">
-              <option value="submitted">{{ t('supplierShop.deliveryStatus.open') }}</option>
-              <option value="imported">{{ t('supplierShop.deliveryStatus.imported') }}</option>
-              <option value="all">{{ t('supplierShop.deliveryStatus.all') }}</option>
-            </select>
-          </label>
+          <ESelect
+            v-model="deliveryStatusFilter"
+            :label="t('supplierShop.deliveryStatusFilter')"
+            :items="deliveryStatusItems"
+            hide-details="auto"
+            class="filter-select"
+            @update:model-value="loadDeliveries"
+          />
         </div>
         <p v-if="deliveries.length === 0" class="state">{{ deliveriesEmptyMessage }}</p>
         <article v-for="delivery in deliveries" :key="delivery.id" class="card">
@@ -159,15 +143,15 @@
               <span class="muted"> · {{ delivery.delivery_ref || t('departmentSupplierDeliveries.noRef') }}</span>
               <span class="status-badge" :class="delivery.status">{{ deliveryStatusLabel(delivery.status) }}</span>
             </div>
-            <button
+            <EButton
               v-if="delivery.status === 'submitted'"
-              type="button"
-              class="btn btn-primary btn-sm"
-              :disabled="importingId === delivery.id"
+              variant="primary"
+              size="small"
+              :loading="importingId === delivery.id"
               @click="importDelivery(delivery)"
             >
               {{ importingId === delivery.id ? t('supplierShop.importing') : t('supplierShop.importDelivery') }}
-            </button>
+            </EButton>
           </header>
           <table class="lines-table">
             <thead>
@@ -214,27 +198,28 @@
               <td>{{ item.name }}</td>
               <td>{{ item.supplier_company_name }}</td>
               <td>
-                <input
+                <ETextField
                   v-model.number="item.qty"
                   type="number"
-                  min="1"
+                  hide-details
+                  density="compact"
                   class="qty-input"
-                  @change="persistWatchlist"
+                  @update:model-value="persistWatchlist"
                 />
               </td>
               <td>{{ formatPrice((item.unit_price ?? 0) * item.qty, item.currency) }}</td>
               <td class="actions">
-                <button
-                  type="button"
-                  class="btn btn-primary btn-sm"
-                  :disabled="importingCatalogId === item.catalog_item_id"
+                <EButton
+                  variant="primary"
+                  size="small"
+                  :loading="importingCatalogId === item.catalog_item_id"
                   @click="importWatchlistItem(item)"
                 >
                   {{ t('supplierShop.importItem') }}
-                </button>
-                <button type="button" class="btn btn-danger btn-sm" @click="removeFromWatchlist(index)">
+                </EButton>
+                <EButton variant="danger" size="small" @click="removeFromWatchlist(index)">
                   {{ t('common.delete') }}
-                </button>
+                </EButton>
               </td>
             </tr>
           </tbody>
@@ -266,6 +251,8 @@ import {
   type SupplierShopTemplate,
   type WatchlistItem,
 } from '@/api/supplierShop'
+import ELoadingState from '@/components/layout/ELoadingState.vue'
+import { EButton, ESearchField, ESelect, ETextField } from '@/components/form/base'
 
 const route = useRoute()
 const { t } = useI18n()
@@ -299,6 +286,17 @@ const importingCatalogId = ref('')
 const importingTemplateId = ref('')
 
 const budgetTotal = computed(() => watchlistBudgetTotal(watchlist.value))
+
+const companySelectItems = computed(() => [
+  { title: t('supplierShop.filterAllSuppliers'), value: '' },
+  ...companies.value.map((c) => ({ title: c.name, value: c.id })),
+])
+
+const deliveryStatusItems = computed(() => [
+  { title: t('supplierShop.deliveryStatus.open'), value: 'submitted' },
+  { title: t('supplierShop.deliveryStatus.imported'), value: 'imported' },
+  { title: t('supplierShop.deliveryStatus.all'), value: 'all' },
+])
 
 function matchesSearch(query: string, ...values: Array<string | null | undefined>): boolean {
   const needle = query.trim().toLowerCase()
@@ -591,35 +589,18 @@ onMounted(() => {
   border-radius: 8px;
 }
 
-.filter-bar-summary {
-  align-items: center;
-  justify-content: flex-end;
+.filter-search {
+  flex: 1;
+  min-width: 200px;
 }
 
-.filter-field {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  min-width: 180px;
-}
-
-.filter-field span {
-  font-size: 0.8rem;
-  font-weight: 600;
-  color: #6b7280;
-  text-transform: uppercase;
-  letter-spacing: 0.02em;
-}
-
-.filter-field input,
-.filter-field select {
+.filter-select {
   min-width: 220px;
 }
 
-.field-inline {
-  display: flex;
+.filter-bar-summary {
   align-items: center;
-  gap: 8px;
+  justify-content: flex-end;
 }
 
 .budget {
@@ -627,25 +608,11 @@ onMounted(() => {
 }
 
 .tabs {
-  display: flex;
-  gap: 4px;
   margin-bottom: 16px;
-  border-bottom: 1px solid #e5e7eb;
 }
 
-.tab {
-  background: none;
-  border: none;
-  padding: 10px 16px;
-  cursor: pointer;
-  border-bottom: 2px solid transparent;
-  color: #6b7280;
-}
-
-.tab.active {
-  color: #111827;
-  border-bottom-color: #2563eb;
-  font-weight: 600;
+.shop-tabs :deep(.v-tab) {
+  text-transform: none;
 }
 
 .badge-count {
@@ -694,7 +661,7 @@ onMounted(() => {
 }
 
 .qty-input {
-  width: 72px;
+  max-width: 88px;
 }
 
 .card {

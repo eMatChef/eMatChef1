@@ -1,51 +1,28 @@
 <template>
-  <div class="dept-page notifications-center-view">
-    <div class="page-header header-content">
-      <div class="header-left">
-        <h1>{{ t('notificationsCenter.title') }}</h1>
-        <span class="subtitle">
-          {{ subtitleText }}
-        </span>
-      </div>
-    </div>
+  <PageShell class="notifications-center-view">
+    <template #title>{{ t('notificationsCenter.title') }}</template>
+    <template #subtitle>{{ subtitleText }}</template>
 
-    <div v-if="isLoading" class="loading-state">
-      <div class="spinner"></div>
-      <p>{{ t('notificationsCenter.loading') }}</p>
-    </div>
+    <ELoadingState
+      v-if="isLoading"
+      variant="list"
+      :message="t('notificationsCenter.loading')"
+    />
     <template v-else>
       <section class="nc-mail-inbox">
         <div class="nc-mail-toolbar">
           <p class="nc-mail-toolbar__hint">{{ t('notificationsCenter.inboxUnifiedHint') }}</p>
           <div class="nc-mail-toolbar__right">
-            <button type="button" class="btn-outline btn-sm" @click="showCompose = true">
+            <EButton variant="secondary" size="small" @click="showCompose = true">
               {{ t('notificationsCenter.composeButton') }}
-            </button>
+            </EButton>
           </div>
         </div>
 
-        <div class="nc-mail-tabs" role="tablist">
-          <button
-            type="button"
-            role="tab"
-            class="nc-mail-tab"
-            :class="{ 'nc-mail-tab--active': mailTab === 'inbox' }"
-            :aria-selected="mailTab === 'inbox'"
-            @click="mailTab = 'inbox'"
-          >
-            {{ t('notificationsCenter.mailTabInbox') }}
-          </button>
-          <button
-            type="button"
-            role="tab"
-            class="nc-mail-tab"
-            :class="{ 'nc-mail-tab--active': mailTab === 'sent' }"
-            :aria-selected="mailTab === 'sent'"
-            @click="mailTab = 'sent'"
-          >
-            {{ t('notificationsCenter.mailTabSent') }}
-          </button>
-        </div>
+        <v-tabs v-model="mailTab" class="nc-mail-tabs" color="primary">
+          <v-tab value="inbox">{{ t('notificationsCenter.mailTabInbox') }}</v-tab>
+          <v-tab value="sent">{{ t('notificationsCenter.mailTabSent') }}</v-tab>
+        </v-tabs>
 
         <template v-if="mailTab === 'sent'">
           <section class="nc-inbox-section">
@@ -319,7 +296,7 @@
       />
     </template>
 
-  </div>
+  </PageShell>
 </template>
 
 <script setup lang="ts">
@@ -372,6 +349,10 @@ import {
   InboxInviteDetailModal,
   NotificationSenderBlock,
 } from '@/components/notifications'
+import PageShell from '@/components/layout/PageShell.vue'
+import ELoadingState from '@/components/layout/ELoadingState.vue'
+import { EButton } from '@/components/form/base'
+import '@/styles/views/tasks-tabs.css'
 import { taskOpenQuery } from '@/composables/useDepartmentTasks'
 import { useNotificationSender } from '@/composables/useNotificationSender'
 import { useDepartmentMemberRole } from '@/composables/useDepartmentMemberRole'
@@ -1089,35 +1070,6 @@ watch(
   align-items: center;
   gap: 12px;
   flex-shrink: 0;
-}
-
-.nc-mail-tabs {
-  display: flex;
-  gap: 4px;
-  margin-bottom: 14px;
-  border-bottom: 1px solid #e5e7eb;
-}
-
-.nc-mail-tab {
-  margin: 0;
-  padding: 8px 14px;
-  border: none;
-  border-bottom: 2px solid transparent;
-  background: transparent;
-  font: inherit;
-  font-size: 0.9rem;
-  font-weight: 500;
-  color: #6b7280;
-  cursor: pointer;
-}
-
-.nc-mail-tab:hover {
-  color: #111827;
-}
-
-.nc-mail-tab--active {
-  color: #1d4ed8;
-  border-bottom-color: #3b82f6;
 }
 
 .nc-inbox-section {

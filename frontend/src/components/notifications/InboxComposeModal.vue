@@ -1,106 +1,104 @@
 <template>
-  <div v-if="modelValue" class="modal-overlay" @click.self="close">
-    <div
-      class="modal-dialog nc-compose-modal"
-      role="dialog"
-      aria-modal="true"
-      :aria-label="t('notificationsCenter.composeTitle')"
-      @click.stop
-    >
-      <header class="modal-header">
-        <h3>{{ t('notificationsCenter.composeTitle') }}</h3>
-        <button type="button" class="modal-close" :aria-label="t('common.cancel')" @click="close">
-          ×
-        </button>
-      </header>
-      <form class="modal-body nc-compose-modal__form" @submit.prevent="submit">
-        <label class="nc-compose-field">
-          <span>{{ t('notificationsCenter.composeRecipient') }}</span>
-          <div v-if="selectedRecipient" class="nc-compose-recipient-chip">
-            <UserAvatarBadge v-if="selectedRecipient.avatar" :user="selectedRecipient.avatar" size="sm" />
-            <span
-              v-else
-              class="nc-compose-recipient-chip__icon"
-              :class="{ 'nc-compose-recipient-chip__icon--external': selectedRecipient.kind === 'external' }"
-              aria-hidden="true"
+  <EDialog
+    v-model="open"
+    :max-width="520"
+    :title="t('notificationsCenter.composeTitle')"
+    card-class="nc-compose-modal-card"
+  >
+    <form class="nc-compose-modal__form" @submit.prevent="submit">
+      <label class="nc-compose-field">
+        <span>{{ t('notificationsCenter.composeRecipient') }}</span>
+        <div v-if="selectedRecipient" class="nc-compose-recipient-chip">
+          <UserAvatarBadge v-if="selectedRecipient.avatar" :user="selectedRecipient.avatar" size="sm" />
+          <span
+            v-else
+            class="nc-compose-recipient-chip__icon"
+            :class="{ 'nc-compose-recipient-chip__icon--external': selectedRecipient.kind === 'external' }"
+            aria-hidden="true"
+          >
+            {{ selectedRecipient.kind === 'external' ? '◎' : '?' }}
+          </span>
+          <span class="nc-compose-recipient-chip__text">
+            <span class="nc-compose-recipient-chip__name">{{ selectedRecipient.label }}</span>
+            <span v-if="selectedRecipient.sublabel" class="nc-compose-recipient-chip__sub">{{ selectedRecipient.sublabel }}</span>
+          </span>
+          <span v-if="selectedRecipient.kind === 'external'" class="nc-compose-recipient-badge">
+            {{ t('notificationsCenter.composeRecipientExternal') }}
+          </span>
+          <button type="button" class="nc-compose-recipient-chip__clear" @click="clearRecipient">×</button>
+        </div>
+        <div v-else class="autocomplete-wrapper">
+          <ETextField
+            v-model="recipientQuery"
+            :label="t('notificationsCenter.composeRecipient')"
+            :placeholder="t('notificationsCenter.composeRecipientSearch')"
+            hide-details
+            autocomplete="off"
+            @focus="showDropdown = true"
+            @blur="onRecipientBlur"
+          />
+          <div
+            v-if="showDropdown && recipientQueryTrimmed.length >= 1 && filteredOptions.length > 0"
+            class="autocomplete-dropdown nc-compose-autocomplete"
+          >
+            <button
+              v-for="opt in filteredOptions"
+              :key="opt.id"
+              type="button"
+              class="autocomplete-item nc-compose-ac-item"
+              @mousedown.prevent="selectRecipient(opt)"
             >
-              {{ selectedRecipient.kind === 'external' ? '◎' : '?' }}
-            </span>
-            <span class="nc-compose-recipient-chip__text">
-              <span class="nc-compose-recipient-chip__name">{{ selectedRecipient.label }}</span>
-              <span v-if="selectedRecipient.sublabel" class="nc-compose-recipient-chip__sub">{{ selectedRecipient.sublabel }}</span>
-            </span>
-            <span v-if="selectedRecipient.kind === 'external'" class="nc-compose-recipient-badge">
-              {{ t('notificationsCenter.composeRecipientExternal') }}
-            </span>
-            <button type="button" class="nc-compose-recipient-chip__clear" @click="clearRecipient">×</button>
+              <UserAvatarBadge v-if="opt.avatar" :user="opt.avatar" size="sm" />
+              <span v-else class="nc-compose-ac-item__icon nc-compose-ac-item__icon--external" aria-hidden="true">◎</span>
+              <span class="nc-compose-ac-item__text">
+                <span class="ac-name">{{ opt.label }}</span>
+                <span v-if="opt.sublabel" class="ac-email">{{ opt.sublabel }}</span>
+              </span>
+              <span v-if="opt.kind === 'external'" class="nc-compose-recipient-badge">
+                {{ t('notificationsCenter.composeRecipientExternal') }}
+              </span>
+            </button>
           </div>
-          <div v-else class="autocomplete-wrapper">
-            <input
-              v-model="recipientQuery"
-              type="text"
-              class="form-input"
-              :placeholder="t('notificationsCenter.composeRecipientSearch')"
-              autocomplete="off"
-              @focus="showDropdown = true"
-              @blur="onRecipientBlur"
-            />
-            <div
-              v-if="showDropdown && recipientQueryTrimmed.length >= 1 && filteredOptions.length > 0"
-              class="autocomplete-dropdown nc-compose-autocomplete"
-            >
-              <button
-                v-for="opt in filteredOptions"
-                :key="opt.id"
-                type="button"
-                class="autocomplete-item nc-compose-ac-item"
-                @mousedown.prevent="selectRecipient(opt)"
-              >
-                <UserAvatarBadge v-if="opt.avatar" :user="opt.avatar" size="sm" />
-                <span
-                  v-else
-                  class="nc-compose-ac-item__icon nc-compose-ac-item__icon--external"
-                  aria-hidden="true"
-                >◎</span>
-                <span class="nc-compose-ac-item__text">
-                  <span class="ac-name">{{ opt.label }}</span>
-                  <span v-if="opt.sublabel" class="ac-email">{{ opt.sublabel }}</span>
-                </span>
-                <span v-if="opt.kind === 'external'" class="nc-compose-recipient-badge">
-                  {{ t('notificationsCenter.composeRecipientExternal') }}
-                </span>
-              </button>
-            </div>
-            <div
-              v-else-if="showDropdown && recipientQueryTrimmed.length >= 1 && !isLoadingAddresses"
-              class="autocomplete-dropdown nc-compose-autocomplete"
-            >
-              <div class="autocomplete-empty">{{ t('notificationsCenter.composeNoResults') }}</div>
-            </div>
+          <div
+            v-else-if="showDropdown && recipientQueryTrimmed.length >= 1 && !isLoadingAddresses"
+            class="autocomplete-dropdown nc-compose-autocomplete"
+          >
+            <div class="autocomplete-empty">{{ t('notificationsCenter.composeNoResults') }}</div>
           </div>
-          <p v-if="selectedRecipient?.kind === 'external'" class="nc-compose-external-hint">
-            {{ t('notificationsCenter.composeExternalHint') }}
-          </p>
-        </label>
-        <label class="nc-compose-field">
-          <span>{{ t('notificationsCenter.composeSubject') }}</span>
-          <input v-model="subject" type="text" required maxlength="200" class="form-input" />
-        </label>
-        <label class="nc-compose-field">
-          <span>{{ t('notificationsCenter.composeMessage') }}</span>
-          <textarea v-model="message" rows="5" required maxlength="5000" class="form-input" />
-        </label>
-        <footer class="modal-footer nc-compose-modal__footer">
-          <button type="button" class="btn-outline btn-sm" @click="close">
-            {{ t('common.cancel') }}
-          </button>
-          <button type="submit" class="btn-primary btn-sm" :disabled="!canSubmit || isSending">
-            {{ isSending ? t('notificationsCenter.composeSending') : t('notificationsCenter.composeSend') }}
-          </button>
-        </footer>
-      </form>
-    </div>
-  </div>
+        </div>
+        <p v-if="selectedRecipient?.kind === 'external'" class="nc-compose-external-hint">
+          {{ t('notificationsCenter.composeExternalHint') }}
+        </p>
+      </label>
+      <ETextField
+        v-model="subject"
+        :label="t('notificationsCenter.composeSubject')"
+        maxlength="200"
+        hide-details="auto"
+      />
+      <ETextarea
+        v-model="message"
+        :label="t('notificationsCenter.composeMessage')"
+        :rows="5"
+        maxlength="5000"
+        hide-details="auto"
+      />
+    </form>
+    <template #actions>
+      <EButton variant="secondary" size="small" @click="close">
+        {{ t('common.cancel') }}
+      </EButton>
+      <EButton
+        variant="primary"
+        size="small"
+        :disabled="!canSubmit || isSending"
+        :loading="isSending"
+        @click="submit"
+      >
+        {{ isSending ? t('notificationsCenter.composeSending') : t('notificationsCenter.composeSend') }}
+      </EButton>
+    </template>
+  </EDialog>
 </template>
 
 <script setup lang="ts">
@@ -112,6 +110,7 @@ import type { DepartmentMember } from '@/api/departments'
 import { UserAvatarBadge } from '@/components/user'
 import { useToast } from '@/composables/useToast'
 import { buildAvatarInitials, type UserAvatarFields } from '@/utils/userAvatar'
+import { EButton, EDialog, ETextField, ETextarea } from '@/components/form/base'
 
 const props = defineProps<{
   modelValue: boolean
@@ -140,6 +139,11 @@ interface ComposeRecipientOption {
 }
 
 interface SelectedRecipient extends ComposeRecipientOption {}
+
+const open = computed({
+  get: () => props.modelValue,
+  set: (value: boolean) => emit('update:modelValue', value),
+})
 
 const recipientQuery = ref('')
 const showDropdown = ref(false)
@@ -341,8 +345,8 @@ async function submit() {
 
 watch(
   () => props.modelValue,
-  (open) => {
-    if (open) {
+  (isOpen) => {
+    if (isOpen) {
       void loadExternalAddresses()
     } else {
       resetForm()
@@ -352,9 +356,7 @@ watch(
 </script>
 
 <style scoped>
-.nc-compose-modal {
-  width: min(520px, calc(100vw - 48px));
-  padding: 0;
+:deep(.nc-compose-modal-card) {
   overflow: visible;
 }
 
@@ -363,20 +365,15 @@ watch(
   gap: 14px;
 }
 
-.nc-compose-modal__footer {
-  margin: 8px -20px -20px;
-  border-radius: 0 0 12px 12px;
-}
-
 .nc-compose-field {
   display: grid;
   gap: 6px;
-  font-size: 0.85rem;
 }
 
 .nc-compose-field > span {
   font-weight: 500;
   color: #374151;
+  font-size: 0.85rem;
 }
 
 .nc-compose-external-hint {
@@ -395,7 +392,7 @@ watch(
   left: 0;
   right: 0;
   top: 100%;
-  z-index: 10;
+  z-index: 20;
   max-height: 240px;
   overflow-y: auto;
   margin-top: 4px;
@@ -419,7 +416,7 @@ watch(
 }
 
 .nc-compose-ac-item:hover {
-  background: #f3f4f6;
+  background: var(--color-primary-muted-bg);
 }
 
 .nc-compose-ac-item__text {

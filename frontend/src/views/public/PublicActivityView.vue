@@ -144,7 +144,7 @@
       </section>
     </main>
 
-    <PublicSiteFooter :compact="true" />
+    <PublicSiteFooter />
   </div>
 </template>
 

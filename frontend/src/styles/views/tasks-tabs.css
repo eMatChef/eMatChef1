@@ -1,0 +1,69 @@
+/**
+ * Aufgaben: v-tabs mit Marken-Grün (Shell + Allgemein).
+ * Entspricht material-detail-tabs / brand-tokens.css
+ */
+
+.tasks-shell-tabs,
+.tasks-general-tabs,
+.nc-mail-tabs {
+  border-bottom: 2px solid #e5e7eb;
+}
+
+.tasks-shell-tabs {
+  margin-bottom: 0;
+}
+
+.tasks-general-tabs,
+.nc-mail-tabs {
+  margin-bottom: 14px;
+}
+
+.tasks-shell-tabs .v-slide-group__content,
+.tasks-general-tabs .v-slide-group__content,
+.nc-mail-tabs .v-slide-group__content {
+  gap: 2px;
+}
+
+.tasks-shell-tabs .v-tab,
+.tasks-general-tabs .v-tab,
+.nc-mail-tabs .v-tab {
+  text-transform: none;
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: normal;
+  min-width: auto;
+  padding-inline: 16px;
+  color: var(--color-text-muted);
+  transition: color 0.2s ease, background 0.2s ease;
+}
+
+.tasks-shell-tabs .v-tab:not(.v-tab--selected):hover,
+.tasks-general-tabs .v-tab:not(.v-tab--selected):hover,
+.nc-mail-tabs .v-tab:not(.v-tab--selected):hover {
+  color: var(--color-primary-dark);
+  background: var(--color-primary-muted-bg);
+  border-radius: 8px 8px 0 0;
+}
+
+.tasks-shell-tabs .v-tab--selected,
+.tasks-general-tabs .v-tab--selected,
+.nc-mail-tabs .v-tab--selected {
+  color: var(--color-primary);
+  font-weight: 600;
+}
+
+.tasks-shell-tabs .v-tab__slider,
+.tasks-general-tabs .v-tab__slider,
+.nc-mail-tabs .v-tab__slider {
+  height: 3px;
+  background: var(--color-primary-light);
+  border-radius: 3px 3px 0 0;
+}
+
+.tasks-general-tab-count {
+  margin-inline-start: 6px;
+}
+
+.tasks-general-tabs .v-tab--selected .v-chip {
+  color: var(--color-primary);
+}

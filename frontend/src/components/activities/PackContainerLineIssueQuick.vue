@@ -3,6 +3,7 @@ import { computed, inject } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { ActivityPackContainerItem } from '@/api/activityContainers'
 import PackConsumableQuickRow from '@/components/activities/PackConsumableQuickRow.vue'
+import { EButton } from '@/components/form/base'
 import {
   injectPackCtxBool,
   PACK_WAREHOUSE_ISSUE_INJECT_KEY,
@@ -91,9 +92,10 @@ function showConsumptionOnLine(): boolean {
   />
   <div v-else-if="showPackLineActions()" class="pack-container-line-issue-quick" @click.stop>
     <template v-if="isConsumable">
-      <button
+      <EButton
         v-if="showConsumptionOnLine()"
-        type="button"
+        variant="text"
+        size="x-small"
         class="btn-issue-quick btn-issue-consumed"
         @click="
           (ctx.emitConsumptionForMaterialId as (id: string, h?: unknown) => void)(line.material_item_id!, {
@@ -103,10 +105,11 @@ function showConsumptionOnLine(): boolean {
         "
       >
         {{ t('activities.common.issueConsumed') }}
-      </button>
-      <button
+      </EButton>
+      <EButton
         v-if="showNachbuchung"
-        type="button"
+        variant="text"
+        size="x-small"
         class="btn-issue-quick btn-issue-nachbuchung"
         @click="
           (ctx.emitConsumableNachbuchungForMaterial as ((id: string) => void) | undefined)?.(
@@ -115,23 +118,25 @@ function showConsumptionOnLine(): boolean {
         "
       >
         {{ t('activities.packList.consumableInlineNachbuchung') }}
-      </button>
+      </EButton>
     </template>
     <template v-else>
-      <button
-        type="button"
+      <EButton
+        variant="text"
+        size="x-small"
         class="btn-issue-quick btn-issue-loss"
         @click="(ctx.emitIssueWizardByMaterialId as (id: string, t: 'loss' | 'repair') => void)(line.material_item_id!, 'loss')"
       >
         {{ t('activities.common.issueLoss') }}
-      </button>
-      <button
-        type="button"
+      </EButton>
+      <EButton
+        variant="text"
+        size="x-small"
         class="btn-issue-quick btn-issue-repair"
         @click="(ctx.emitIssueWizardByMaterialId as (id: string, t: 'loss' | 'repair') => void)(line.material_item_id!, 'repair')"
       >
         {{ t('activities.common.issueRepair') }}
-      </button>
+      </EButton>
     </template>
   </div>
 </template>

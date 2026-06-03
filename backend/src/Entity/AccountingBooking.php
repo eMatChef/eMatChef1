@@ -27,6 +27,17 @@ class AccountingBooking
     public const PAYMENT_ASSOCIATION = 'association';
     public const PAYMENT_OTHER = 'other';
 
+    public const PAYMENT_STATUS_OPEN = 'open';
+    public const PAYMENT_STATUS_PAID = 'paid';
+    public const PAYMENT_STATUS_CANCELLED = 'cancelled';
+
+    /** @var list<string> */
+    public const PAYMENT_STATUSES = [
+        self::PAYMENT_STATUS_OPEN,
+        self::PAYMENT_STATUS_PAID,
+        self::PAYMENT_STATUS_CANCELLED,
+    ];
+
     /** @var list<string> */
     public const ENTRY_TYPES = [
         self::ENTRY_PURCHASE,
@@ -78,11 +89,18 @@ class AccountingBooking
     #[ORM\Column(name: 'payment_method', type: 'string', length: 32, nullable: true)]
     private ?string $paymentMethod = null;
 
+    #[ORM\Column(name: 'payment_status', type: 'string', length: 16, options: ['default' => 'paid'])]
+    private string $paymentStatus = self::PAYMENT_STATUS_PAID;
+
     #[ORM\Column(name: 'receipt_label', type: 'string', length: 255, nullable: true)]
     private ?string $receiptLabel = null;
 
     #[ORM\Column(type: 'text', nullable: true)]
     private ?string $notes = null;
+
+    /** @var list<array<string, mixed>>|null Beleg-Anhänge (Media-JSON, Bild/PDF) */
+    #[ORM\Column(type: 'json', nullable: true)]
+    private ?array $receipts = null;
 
     #[ORM\Column(name: 'created_at', type: 'datetime')]
     private \DateTime $createdAt;
@@ -197,6 +215,17 @@ class AccountingBooking
         return $this;
     }
 
+    public function getPaymentStatus(): string
+    {
+        return $this->paymentStatus;
+    }
+
+    public function setPaymentStatus(string $paymentStatus): self
+    {
+        $this->paymentStatus = $paymentStatus;
+        return $this;
+    }
+
     public function getReceiptLabel(): ?string
     {
         return $this->receiptLabel;
@@ -216,6 +245,20 @@ class AccountingBooking
     public function setNotes(?string $notes): self
     {
         $this->notes = $notes;
+        return $this;
+    }
+
+    /** @return list<array<string, mixed>>|null */
+    public function getReceipts(): ?array
+    {
+        return $this->receipts;
+    }
+
+    /** @param list<array<string, mixed>>|null $receipts */
+    public function setReceipts(?array $receipts): self
+    {
+        $this->receipts = $receipts;
+
         return $this;
     }
 

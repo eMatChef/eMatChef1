@@ -1,117 +1,144 @@
 <template>
-  <div class="modal-backdrop" @click.self="emit('close')">
-    <div class="modal-card">
-      <header class="modal-header">
-        <h3>
-          {{
-            item
-              ? t('supplierCatalog.modal.editTitle')
-              : t('supplierCatalog.modal.createTitle')
-          }}
-        </h3>
-        <button type="button" class="btn btn-secondary btn-sm" @click="emit('close')">
-          {{ t('common.cancel') }}
-        </button>
-      </header>
+  <EDialog
+    v-model="dialogOpen"
+    :max-width="640"
+    :title="item ? t('supplierCatalog.modal.editTitle') : t('supplierCatalog.modal.createTitle')"
+    scrollable
+    persistent
+  >
+    <form id="supplier-catalog-item-form" @submit.prevent="submit">
+      <ETextField
+        v-model="form.name"
+        :label="t('supplierCatalog.fields.name')"
+        maxlength="255"
+        hide-details="auto"
+        class="mb-3"
+      />
 
-      <form class="modal-body" @submit.prevent="submit">
-        <label class="field">
-          <span>{{ t('supplierCatalog.fields.name') }}</span>
-          <input v-model.trim="form.name" type="text" required maxlength="255" />
-        </label>
+      <div class="field-row">
+        <ETextField
+          v-model="form.sku"
+          :label="t('supplierCatalog.fields.sku')"
+          maxlength="120"
+          hide-details="auto"
+          class="field-grow"
+        />
+        <ETextField
+          v-model="form.manufacturer"
+          :label="t('supplierCatalog.fields.manufacturer')"
+          maxlength="120"
+          hide-details="auto"
+          class="field-grow"
+        />
+      </div>
 
-        <div class="field-row">
-          <label class="field">
-            <span>{{ t('supplierCatalog.fields.sku') }}</span>
-            <input v-model.trim="form.sku" type="text" maxlength="120" />
-          </label>
-          <label class="field">
-            <span>{{ t('supplierCatalog.fields.manufacturer') }}</span>
-            <input v-model.trim="form.manufacturer" type="text" maxlength="120" />
-          </label>
-        </div>
+      <div class="field-row">
+        <ESelect
+          v-model="form.tracking_type"
+          :items="trackingTypeItems"
+          :label="t('supplierCatalog.fields.trackingType')"
+          hide-details="auto"
+          class="field-grow"
+        />
+        <ETextField
+          v-model="form.external_ref"
+          :label="t('supplierCatalog.fields.externalRef')"
+          maxlength="120"
+          hide-details="auto"
+          class="field-grow"
+        />
+      </div>
 
-        <div class="field-row">
-          <label class="field">
-            <span>{{ t('supplierCatalog.fields.trackingType') }}</span>
-            <select v-model="form.tracking_type">
-              <option value="bulk">{{ t('supplierCatalog.tracking.bulk') }}</option>
-              <option value="serialized">{{ t('supplierCatalog.tracking.serialized') }}</option>
-            </select>
-          </label>
-          <label class="field">
-            <span>{{ t('supplierCatalog.fields.externalRef') }}</span>
-            <input v-model.trim="form.external_ref" type="text" maxlength="120" />
-          </label>
-        </div>
+      <div class="field-row">
+        <ETextField
+          v-model="form.unit_price"
+          type="number"
+          :label="t('supplierCatalog.fields.unitPrice')"
+          hide-details="auto"
+          class="field-grow"
+        />
+        <ETextField
+          v-model="form.currency"
+          :label="t('supplierCatalog.fields.currency')"
+          maxlength="3"
+          hide-details="auto"
+          class="field-narrow"
+        />
+        <ETextField
+          v-model="form.pack_size"
+          type="number"
+          :label="t('supplierCatalog.fields.packSize')"
+          hide-details="auto"
+          class="field-narrow"
+        />
+      </div>
 
-        <div class="field-row">
-          <label class="field">
-            <span>{{ t('supplierCatalog.fields.unitPrice') }}</span>
-            <input v-model.trim="form.unit_price" type="number" min="0" step="0.01" />
-          </label>
-          <label class="field field-narrow">
-            <span>{{ t('supplierCatalog.fields.currency') }}</span>
-            <input v-model.trim="form.currency" type="text" maxlength="3" />
-          </label>
-          <label class="field field-narrow">
-            <span>{{ t('supplierCatalog.fields.packSize') }}</span>
-            <input v-model.trim="form.pack_size" type="number" min="1" step="1" />
-          </label>
-        </div>
+      <ETextField
+        v-model="form.category_hint"
+        :label="t('supplierCatalog.fields.categoryHint')"
+        maxlength="255"
+        hide-details="auto"
+        class="mb-3"
+      />
 
-        <label class="field">
-          <span>{{ t('supplierCatalog.fields.categoryHint') }}</span>
-          <input v-model.trim="form.category_hint" type="text" maxlength="255" />
-        </label>
+      <ETextarea
+        v-model="form.description"
+        :label="t('supplierCatalog.fields.description')"
+        rows="3"
+        maxlength="5000"
+        hide-details="auto"
+        class="mb-3"
+      />
 
-        <label class="field">
-          <span>{{ t('supplierCatalog.fields.description') }}</span>
-          <textarea v-model.trim="form.description" rows="3" maxlength="5000" />
-        </label>
+      <div class="field-row">
+        <ESelect
+          v-model="form.visibility"
+          :items="visibilityItems"
+          :label="t('supplierCatalog.fields.visibility')"
+          hide-details="auto"
+          class="field-grow"
+        />
+        <ESelect
+          v-model="form.status"
+          :items="statusItems"
+          :label="t('supplierCatalog.fields.status')"
+          hide-details="auto"
+          class="field-grow"
+        />
+      </div>
 
-        <div class="field-row">
-          <label class="field">
-            <span>{{ t('supplierCatalog.fields.visibility') }}</span>
-            <select v-model="form.visibility">
-              <option value="private">{{ t('supplierCatalog.visibility.private') }}</option>
-              <option value="departments">{{ t('supplierCatalog.visibility.departments') }}</option>
-              <option value="global">{{ t('supplierCatalog.visibility.global') }}</option>
-            </select>
-          </label>
-          <label class="field">
-            <span>{{ t('supplierCatalog.fields.status') }}</span>
-            <select v-model="form.status">
-              <option value="draft">{{ t('supplierCatalog.status.draft') }}</option>
-              <option value="published">{{ t('supplierCatalog.status.published') }}</option>
-              <option value="pending_review">{{ t('supplierCatalog.status.pendingReview') }}</option>
-            </select>
-          </label>
-        </div>
+      <p v-if="form.visibility === 'global'" class="hint">
+        {{ t('supplierCatalog.globalReviewHint') }}
+      </p>
 
-        <p v-if="form.visibility === 'global'" class="hint">
-          {{ t('supplierCatalog.globalReviewHint') }}
-        </p>
+      <ECheckbox
+        v-model="form.is_active"
+        :label="t('supplierCatalog.fields.isActive')"
+        hide-details
+        class="mb-2"
+      />
 
-        <label class="checkbox-field">
-          <input v-model="form.is_active" type="checkbox" />
-          <span>{{ t('supplierCatalog.fields.isActive') }}</span>
-        </label>
+      <v-alert v-if="error" type="error" variant="tonal" :text="error" />
+    </form>
 
-        <p v-if="error" class="error">{{ error }}</p>
-
-        <footer class="modal-footer">
-          <button type="submit" class="btn btn-primary" :disabled="saving">
-            {{ saving ? t('common.saving') : t('common.save') }}
-          </button>
-        </footer>
-      </form>
-    </div>
-  </div>
+    <template #actions>
+      <EButton variant="secondary" size="small" @click="close">{{ t('common.cancel') }}</EButton>
+      <EButton
+        variant="primary"
+        size="small"
+        type="submit"
+        form="supplier-catalog-item-form"
+        :disabled="saving"
+        :loading="saving"
+      >
+        {{ saving ? t('common.saving') : t('common.save') }}
+      </EButton>
+    </template>
+  </EDialog>
 </template>
 
 <script setup lang="ts">
-import { reactive, ref, watch } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type {
   SupplierCatalogItem,
@@ -120,6 +147,7 @@ import type {
   SupplierCatalogTrackingType,
   SupplierCatalogVisibility,
 } from '@/api/supplierCatalog'
+import { EButton, ECheckbox, EDialog, ESelect, ETextField, ETextarea } from '@/components/form/base'
 
 const props = defineProps<{
   item: SupplierCatalogItem | null
@@ -132,8 +160,26 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
+const dialogOpen = ref(true)
 const saving = ref(false)
 const error = ref<string | null>(null)
+
+const trackingTypeItems = computed(() => [
+  { title: t('supplierCatalog.tracking.bulk'), value: 'bulk' as const },
+  { title: t('supplierCatalog.tracking.serialized'), value: 'serialized' as const },
+])
+
+const visibilityItems = computed(() => [
+  { title: t('supplierCatalog.visibility.private'), value: 'private' as const },
+  { title: t('supplierCatalog.visibility.departments'), value: 'departments' as const },
+  { title: t('supplierCatalog.visibility.global'), value: 'global' as const },
+])
+
+const statusItems = computed(() => [
+  { title: t('supplierCatalog.status.draft'), value: 'draft' as const },
+  { title: t('supplierCatalog.status.published'), value: 'published' as const },
+  { title: t('supplierCatalog.status.pendingReview'), value: 'pending_review' as const },
+])
 
 const form = reactive({
   name: '',
@@ -150,6 +196,14 @@ const form = reactive({
   status: 'draft' as SupplierCatalogStatus,
   is_active: true,
 })
+
+watch(dialogOpen, (open) => {
+  if (!open) emit('close')
+})
+
+function close() {
+  dialogOpen.value = false
+}
 
 function resetForm() {
   form.name = props.item?.name || ''
@@ -200,58 +254,14 @@ function submit() {
 </script>
 
 <style scoped>
-.modal-backdrop {
-  position: fixed;
-  inset: 0;
-  background: rgba(15, 23, 42, 0.45);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-  padding: 16px;
-}
-
-.modal-card {
-  background: #fff;
-  border-radius: 12px;
-  width: 100%;
-  max-width: 640px;
-  max-height: 90vh;
-  overflow: auto;
-  box-shadow: 0 20px 40px rgba(15, 23, 42, 0.15);
-}
-
-.modal-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 16px 20px;
-  border-bottom: 1px solid #e5e7eb;
-}
-
-.modal-header h3 {
-  margin: 0;
-  font-size: 1.1rem;
-}
-
-.modal-body {
-  padding: 20px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
 .field-row {
   display: flex;
   flex-wrap: wrap;
   gap: 12px;
+  margin-bottom: 12px;
 }
 
-.field {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  font-size: 14px;
+.field-grow {
   flex: 1 1 180px;
 }
 
@@ -259,41 +269,9 @@ function submit() {
   flex: 0 1 120px;
 }
 
-.field input,
-.field select,
-.field textarea {
-  padding: 8px 10px;
-  border: 1px solid #d1d5db;
-  border-radius: 8px;
-  font-family: inherit;
-}
-
-.checkbox-field {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 14px;
-}
-
 .hint {
-  margin: 0;
+  margin: 0 0 12px;
   color: #6b7280;
   font-size: 13px;
-}
-
-.modal-footer {
-  display: flex;
-  justify-content: flex-end;
-  padding-top: 8px;
-}
-
-.error {
-  color: #b91c1c;
-  font-size: 14px;
-}
-
-.btn-sm {
-  padding: 6px 10px;
-  font-size: 12px;
 }
 </style>

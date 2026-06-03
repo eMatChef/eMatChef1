@@ -1,35 +1,31 @@
 <template>
   <div class="tasks-general-panel">
-    <div class="filter-bar tasks-general-tabs">
-      <div class="filter-tabs">
-        <button
-          v-for="tab in statusTabs"
-          :key="tab.key"
-          type="button"
-          class="filter-tab"
-          :class="{ active: statusTab === tab.key }"
-          @click="statusTab = tab.key"
-        >
-          {{ tab.label }}
-          <span v-if="tab.count > 0" class="tab-count">{{ tab.count }}</span>
-        </button>
-      </div>
+    <v-tabs v-model="statusTab" class="tasks-general-tabs" color="primary">
+      <v-tab v-for="tab in statusTabs" :key="tab.key" :value="tab.key">
+        {{ tab.label }}
+        <v-chip v-if="tab.count > 0" size="x-small" variant="tonal" class="tasks-general-tab-count">
+          {{ tab.count }}
+        </v-chip>
+      </v-tab>
+    </v-tabs>
+
+    <ELoadingState
+      v-if="isLoading"
+      variant="list"
+      :message="t('tasksGeneral.loading')"
+    />
+
+    <div v-else-if="error" class="tasks-general-state">
+      <v-alert type="error" variant="tonal" :text="t('tasksGeneral.loadFailed')" />
+      <EButton variant="secondary" size="small" class="mt-3" @click="reload">{{ t('common.retry') }}</EButton>
     </div>
 
-    <div v-if="isLoading" class="tasks-loading">
-      <div class="spinner" />
-      <p>{{ t('tasksGeneral.loading') }}</p>
-    </div>
-
-    <div v-else-if="error" class="tasks-empty">
-      <p>{{ t('tasksGeneral.loadFailed') }}</p>
-      <button type="button" class="btn btn-secondary btn-sm" @click="reload">{{ t('common.retry') }}</button>
-    </div>
-
-    <div v-else-if="filteredTasks.length === 0" class="tasks-empty">
-      <h2 class="panel-heading">{{ emptyTitle }}</h2>
-      <p class="panel-text">{{ emptyText }}</p>
-    </div>
+    <EEmptyState
+      v-else-if="filteredTasks.length === 0"
+      variant="generic"
+      :title="emptyTitle"
+      :description="emptyText"
+    />
 
     <div v-else class="tasks-list" role="list">
       <article
@@ -47,39 +43,39 @@
         </div>
         <div class="task-row__actions">
           <template v-if="task.kind === 'qr_found' && task.qrFound">
-            <button type="button" class="btn-primary btn-sm" @click="openQrTask(task.qrFound)">
+            <EButton variant="primary" size="small" @click="openQrTask(task.qrFound)">
               {{ t('tasksGeneral.actionHandle') }}
-            </button>
-            <button type="button" class="btn-outline btn-sm" @click="goToMessageForQr(task.qrFound)">
+            </EButton>
+            <EButton variant="secondary" size="small" @click="goToMessageForQr(task.qrFound)">
               {{ t('tasksGeneral.actionReadMessage') }}
-            </button>
+            </EButton>
           </template>
           <template v-else-if="task.kind === 'department_invite' && task.departmentInvite">
-            <button type="button" class="btn-success btn-sm" @click="acceptDeptInvite(task.departmentInvite)">
+            <EButton variant="primary" size="small" @click="acceptDeptInvite(task.departmentInvite)">
               {{ t('notificationsCenter.accept') }}
-            </button>
-            <button type="button" class="btn-danger-outline btn-sm" @click="declineDeptInvite(task.departmentInvite)">
+            </EButton>
+            <EButton variant="danger" size="small" @click="declineDeptInvite(task.departmentInvite)">
               {{ t('notificationsCenter.reject') }}
-            </button>
-            <button type="button" class="btn-outline btn-sm" @click="goToMessageForDeptInvite(task.departmentInvite)">
+            </EButton>
+            <EButton variant="secondary" size="small" @click="goToMessageForDeptInvite(task.departmentInvite)">
               {{ t('tasksGeneral.actionReadMessage') }}
-            </button>
+            </EButton>
           </template>
           <template v-else-if="task.kind === 'activity_invite' && task.activityInvite">
-            <button type="button" class="btn-success btn-sm" @click="decideCamp(task.activityInvite, 'accepted')">
+            <EButton variant="primary" size="small" @click="decideCamp(task.activityInvite, 'accepted')">
               {{ t('notificationsCenter.accept') }}
-            </button>
-            <button type="button" class="btn-danger-outline btn-sm" @click="decideCamp(task.activityInvite, 'rejected')">
+            </EButton>
+            <EButton variant="danger" size="small" @click="decideCamp(task.activityInvite, 'rejected')">
               {{ t('notificationsCenter.reject') }}
-            </button>
-            <button type="button" class="btn-outline btn-sm" @click="goToMessageForCampInvite(task.activityInvite)">
+            </EButton>
+            <EButton variant="secondary" size="small" @click="goToMessageForCampInvite(task.activityInvite)">
               {{ t('tasksGeneral.actionReadMessage') }}
-            </button>
+            </EButton>
           </template>
           <template v-else-if="task.kind === 'accounting_followup'">
-            <button type="button" class="btn-primary btn-sm" @click="openAccountingTask(task)">
+            <EButton variant="primary" size="small" @click="openAccountingTask(task)">
               {{ t('tasksGeneral.actionAccounting') }}
-            </button>
+            </EButton>
           </template>
         </div>
       </article>
@@ -117,6 +113,10 @@ import {
   type PublicFoundMessageStatus,
 } from '@/api/publicFoundMessages'
 import { InboxQrDetailModal } from '@/components/notifications'
+import EEmptyState from '@/components/layout/EEmptyState.vue'
+import ELoadingState from '@/components/layout/ELoadingState.vue'
+import { EButton } from '@/components/form/base'
+import '@/styles/views/tasks-tabs.css'
 import {
   parseTaskOpenQuery,
   taskOpenQuery,
@@ -440,30 +440,9 @@ watch(departmentId, () => {
   max-width: 52rem;
 }
 
-.tasks-general-tabs {
-  margin-bottom: 16px;
-  border-bottom: 1px solid #e5e7eb;
-  padding-bottom: 0;
-}
-
-.tasks-loading,
-.tasks-empty {
+.tasks-general-state {
   padding: 24px;
   text-align: center;
-  color: #6b7280;
-}
-
-.tasks-empty .panel-heading {
-  margin: 0 0 8px;
-  font-size: 16px;
-  font-weight: 600;
-  color: #111827;
-}
-
-.tasks-empty .panel-text {
-  margin: 0 0 16px;
-  font-size: 14px;
-  color: #6b7280;
 }
 
 .tasks-list {

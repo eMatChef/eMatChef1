@@ -1,60 +1,77 @@
 <template>
   <div class="option-editor">
     <div class="field-row">
-      <label class="field">
-        <span>{{ t('supplierTemplates.fields.optionName') }}</span>
-        <input v-model.trim="option.name" type="text" required maxlength="120" />
-      </label>
-      <label v-if="!forceDisplayMode" class="field">
-        <span>{{ t('supplierTemplates.fields.displayMode') }}</span>
-        <select v-model="option.display_mode">
-          <option value="toggle">{{ t('supplierTemplates.displayMode.toggle') }}</option>
-          <option value="group">{{ t('supplierTemplates.displayMode.group') }}</option>
-        </select>
-      </label>
+      <ETextField
+        v-model="option.name"
+        :label="t('supplierTemplates.fields.optionName')"
+        maxlength="120"
+        hide-details="auto"
+        class="field-grow"
+      />
+      <ESelect
+        v-if="!forceDisplayMode"
+        v-model="option.display_mode"
+        :items="displayModeItems"
+        :label="t('supplierTemplates.fields.displayMode')"
+        hide-details="auto"
+        class="field-grow"
+      />
     </div>
-    <label class="checkbox-field">
-      <input v-model="option.default_selected" type="checkbox" />
-      <span>{{ t('supplierTemplates.fields.defaultSelected') }}</span>
-    </label>
+    <ECheckbox
+      v-model="option.default_selected"
+      :label="t('supplierTemplates.fields.defaultSelected')"
+      hide-details
+      class="mb-2"
+    />
 
     <div class="deltas-section">
       <div class="section-header">
         <strong>{{ t('supplierTemplates.deltasTitle') }}</strong>
-        <button type="button" class="btn btn-secondary btn-sm" @click="emit('add-delta')">
+        <EButton variant="secondary" size="small" @click="emit('add-delta')">
           {{ t('supplierTemplates.addDelta') }}
-        </button>
+        </EButton>
       </div>
       <div v-for="(delta, index) in option.deltas" :key="index" class="delta-row">
         <div class="field-row">
-          <label class="field">
-            <span>{{ t('supplierTemplates.fields.componentType') }}</span>
-            <input v-model.trim="delta.component_type" type="text" maxlength="60" />
-          </label>
-          <label class="field">
-            <span>{{ t('supplierTemplates.fields.componentName') }}</span>
-            <input v-model.trim="delta.name" type="text" maxlength="160" />
-          </label>
-          <label class="field field-narrow">
-            <span>{{ t('supplierTemplates.fields.qtyDelta') }}</span>
-            <input v-model.number="delta.qty_delta" type="number" step="1" />
-          </label>
+          <ETextField
+            v-model="delta.component_type"
+            :label="t('supplierTemplates.fields.componentType')"
+            maxlength="60"
+            hide-details="auto"
+            class="field-grow"
+          />
+          <ETextField
+            v-model="delta.name"
+            :label="t('supplierTemplates.fields.componentName')"
+            maxlength="160"
+            hide-details="auto"
+            class="field-grow"
+          />
+          <ETextField
+            v-model.number="delta.qty_delta"
+            type="number"
+            :label="t('supplierTemplates.fields.qtyDelta')"
+            hide-details="auto"
+            class="field-narrow"
+          />
         </div>
-        <button type="button" class="btn btn-danger btn-sm" @click="emit('remove-delta', index)">
+        <EButton variant="danger" size="small" @click="emit('remove-delta', index)">
           {{ t('supplierTemplates.removeDelta') }}
-        </button>
+        </EButton>
       </div>
     </div>
 
-    <button type="button" class="btn btn-danger btn-sm" @click="emit('remove')">
+    <EButton variant="danger" size="small" @click="emit('remove')">
       {{ t('supplierTemplates.removeOption') }}
-    </button>
+    </EButton>
   </div>
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { SupplierTemplateOption } from '@/api/supplierMaterialTemplates'
+import { EButton, ECheckbox, ESelect, ETextField } from '@/components/form/base'
 
 defineProps<{
   option: SupplierTemplateOption
@@ -68,6 +85,11 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
+
+const displayModeItems = computed(() => [
+  { title: t('supplierTemplates.displayMode.toggle'), value: 'toggle' as const },
+  { title: t('supplierTemplates.displayMode.group'), value: 'group' as const },
+])
 </script>
 
 <style scoped>
@@ -75,29 +97,19 @@ const { t } = useI18n()
   margin-bottom: 8px;
 }
 
-.field {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  margin-bottom: 8px;
-  flex: 1;
-}
-
 .field-row {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+
+.field-grow {
+  flex: 1 1 140px;
 }
 
 .field-narrow {
-  max-width: 100px;
-}
-
-.checkbox-field {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 8px;
+  flex: 0 1 100px;
 }
 
 .section-header {

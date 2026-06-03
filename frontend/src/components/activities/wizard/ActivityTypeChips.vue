@@ -3,32 +3,24 @@
     <div class="step-header">
       <span class="step-title">{{ t('activities.wizard.typeStepTitle') }}</span>
     </div>
-    <div class="type-chip-row">
-      <button
+    <div class="activity-type-chip-row" role="group" :aria-label="t('activities.wizard.typeStepTitle')">
+      <v-btn
         v-for="opt in options"
         :key="opt.type"
         type="button"
-        class="type-chip"
-        :class="{ active: selected === opt.type, [opt.type]: true }"
+        variant="outlined"
+        elevation="0"
+        class="activity-type-chip-btn"
+        :class="[
+          `activity-type-chip-btn--${opt.type}`,
+          { 'activity-type-chip-btn--selected': selected === opt.type },
+        ]"
+        :aria-pressed="selected === opt.type"
         @click="$emit('select', opt.type)"
       >
-        <span class="type-chip-icon" aria-hidden="true">
-          <svg v-if="opt.type === 'activity'" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />
-          </svg>
-          <svg v-else-if="opt.type === 'camp'" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M3 21h18M5 21V10l7-5 7 5v11M9 21v-4h6v4" />
-          </svg>
-          <svg v-else-if="opt.type === 'event'" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
-          </svg>
-          <svg v-else xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="12" cy="12" r="10" />
-            <path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
-          </svg>
-        </span>
-        <span class="type-chip-name">{{ opt.label }}</span>
-      </button>
+        <v-icon :icon="typeIcons[opt.type]" start />
+        <span class="activity-type-chip-btn__label">{{ opt.label }}</span>
+      </v-btn>
     </div>
   </div>
 </template>
@@ -50,6 +42,13 @@ defineEmits<{
 const { t } = useI18n()
 const { allowedCreateActivityTypes } = useActivityGroupMemberScope()
 
+const typeIcons: Record<ActivityCreateType, string> = {
+  activity: 'mdi-white-balance-sunny',
+  camp: 'mdi-home-variant-outline',
+  event: 'mdi-star-outline',
+  external: 'mdi-earth',
+}
+
 const typeLabels: Record<ActivityCreateType, string> = {
   activity: 'activities.types.activity',
   camp: 'activities.types.camp',
@@ -59,7 +58,7 @@ const typeLabels: Record<ActivityCreateType, string> = {
 
 /** MW/DC: alle Typen; l1–l3 oder «u» + Gruppenchef: +camp/event; «extern» nur MW/DC. */
 const options = computed(() => {
-  let allowed = [...allowedCreateActivityTypes.value]
+  const allowed = [...allowedCreateActivityTypes.value]
   return allowed.map((type) => ({
     type,
     label: t(typeLabels[type]),

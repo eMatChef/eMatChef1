@@ -1,53 +1,46 @@
 <template>
-  <div>
+  <div class="activity-create-wizard-form">
     <div v-if="layoutMode === 'stepper'" class="activity-stepper-meta">
-      <span class="activity-stepper-count">{{
-        t('activities.wizard.form.stepCounter', {
-          current: wizardStepIndex + 1,
-          total: stepKeys.length,
-          label: currentStepProgressLabel,
-        })
-      }}</span>
+      <v-chip size="small" variant="tonal" color="primary" class="activity-stepper-count">
+        {{
+          t('activities.wizard.form.stepCounter', {
+            current: wizardStepIndex + 1,
+            total: stepKeys.length,
+            label: currentStepProgressLabel,
+          })
+        }}
+      </v-chip>
     </div>
 
     <template v-if="layoutMode === 'single'">
       <section id="activity-create-grunddaten" class="activity-create-section">
         <ActivityOutlinedSection :title="stepTitles.grunddaten" :required="true">
-          <input
+          <ETextField
             id="activity-create-name"
-            :value="formName"
-            type="text"
-            class="form-input"
+            :model-value="formName"
             :placeholder="t('activities.wizard.form.namePlaceholder')"
             autocomplete="off"
+            hide-details
             :aria-label="stepTitles.grunddaten"
-            @input="emit('update:formName', ($event.target as HTMLInputElement).value)"
+            @update:model-value="emit('update:formName', String($event ?? ''))"
           />
         </ActivityOutlinedSection>
         <div
           v-if="showActivityGroupField"
           id="activity-create-group"
-          class="form-group activity-create-group-wrap"
+          class="activity-create-group-wrap"
         >
-          <label for="activity-create-group-select">
-            {{ t('common.group') }}
-            <span v-if="!canSelectDepartmentGroupLevel" class="req">*</span>
-            <span v-else class="text-muted group-optional-label">{{ t('activities.wizard.form.groupOptional') }}</span>
-          </label>
           <p v-if="showFixedGroupSelection" class="activity-readonly-value">{{ displayGroupLabel }}</p>
-          <select
+          <ESelect
             v-else
             id="activity-create-group-select"
-            class="form-input activity-group-select"
-            :value="selectedGroupId ?? ''"
-            @change="onGroupChange"
-          >
-            <option v-if="canSelectDepartmentGroupLevel" value="">{{ departmentName }}</option>
-            <option v-else-if="!selectedGroupId" value="" disabled>{{ t('activities.wizard.form.groupChoose') }}</option>
-            <option v-for="g in groupSelectOptions" :key="g.id" :value="g.id">
-              {{ '↳ '.repeat(g._level) }}{{ g.name }}
-            </option>
-          </select>
+            :model-value="selectedGroupId ?? ''"
+            :items="groupSelectItems"
+            :label="groupFieldLabel"
+            :placeholder="groupSelectPlaceholder"
+            hide-details
+            @update:model-value="onGroupSelectChange"
+          />
         </div>
       </section>
 
@@ -67,7 +60,6 @@
           :department-id="departmentId"
           :usage-dates-locked="datesLockedByMaterial"
           :material-times-blocked-usage="materialTimesBlockedUsage"
-          :show-date-range-preset-sidebar="showDateRangePresetSidebar"
         >
           <template #usage-before>
             <p v-if="isActivityType" class="zeitraum-hint text-muted">
@@ -91,14 +83,15 @@
               {{ t('activities.wizard.form.planningPresetFromUsage') }}
             </p>
             <p v-if="!planningSynced" class="material-times-microhint material-times-microhint--manual">
-              <button
-                type="button"
+              <EButton
+                variant="text"
+                size="small"
                 class="btn-material-resync"
                 :disabled="!usageStartAt || !usageEndAt"
                 @click="emit('resyncPlanning')"
               >
                 {{ t('activities.wizard.form.resyncPlanningFromUsage') }}
-              </button>
+              </EButton>
             </p>
           </template>
         </ActivityZeitraumDatetimeFields>
@@ -124,45 +117,34 @@
     <template v-else>
       <section v-show="currentStepKey === 'grunddaten'" id="activity-create-grunddaten" class="activity-create-section">
         <ActivityOutlinedSection :title="stepTitles.grunddaten" :required="true">
-          <input
+          <ETextField
             id="activity-create-name-s"
-            :value="formName"
-            type="text"
-            class="form-input"
+            :model-value="formName"
             :placeholder="t('activities.wizard.form.namePlaceholder')"
             autocomplete="off"
+            hide-details
             :aria-label="stepTitles.grunddaten"
-            @input="emit('update:formName', ($event.target as HTMLInputElement).value)"
+            @update:model-value="emit('update:formName', String($event ?? ''))"
           />
         </ActivityOutlinedSection>
         <div
           v-if="showGroupOnGrunddatenStep"
           id="activity-create-group-stepper"
-          class="form-group activity-create-group-wrap"
+          class="activity-create-group-wrap"
         >
-          <label for="activity-create-group-select-s">
-            {{ t('common.group') }}
-            <span v-if="selectedActivityType === 'camp' && !canSelectDepartmentGroupLevel" class="req">*</span>
-            <span v-else class="text-muted group-optional-label">{{ t('activities.wizard.form.groupOptional') }}</span>
-          </label>
           <p v-if="showFixedGroupSelection" class="activity-readonly-value">
             {{ displayGroupLabel }}
           </p>
-          <select
+          <ESelect
             v-else
             id="activity-create-group-select-s"
-            class="form-input activity-group-select"
-            :value="selectedGroupId ?? ''"
-            @change="onGroupChange"
-          >
-            <option v-if="canSelectDepartmentGroupLevel" value="">{{ departmentName }}</option>
-            <option v-else-if="!selectedGroupId" value="" disabled>
-              {{ t('activities.wizard.form.groupChoose') }}
-            </option>
-            <option v-for="g in groupSelectOptions" :key="g.id" :value="g.id">
-              {{ '↳ '.repeat(g._level) }}{{ g.name }}
-            </option>
-          </select>
+            :model-value="selectedGroupId ?? ''"
+            :items="groupSelectItems"
+            :label="groupFieldLabel"
+            :placeholder="groupSelectPlaceholder"
+            hide-details
+            @update:model-value="onGroupSelectChange"
+          />
         </div>
 
         <div
@@ -374,7 +356,6 @@
           :department-id="departmentId"
           :usage-dates-locked="datesLockedByMaterial"
           :material-times-blocked-usage="materialTimesBlockedUsage"
-          :show-date-range-preset-sidebar="showDateRangePresetSidebar"
           usage-block-id="activity-usage-block-s"
           planning-block-id="activity-planning-block-s"
           usage-range-row-label=""
@@ -398,14 +379,15 @@
               {{ t('activities.wizard.form.materialTimesAutoStepper') }}
             </p>
             <p v-if="!planningSynced" class="material-times-microhint material-times-microhint--manual">
-              <button
-                type="button"
+              <EButton
+                variant="text"
+                size="small"
                 class="btn-material-resync"
                 :disabled="!usageStartAt || !usageEndAt"
                 @click="emit('resyncPlanning')"
               >
                 {{ t('activities.wizard.form.resyncPlanningFromUsage') }}
-              </button>
+              </EButton>
             </p>
           </template>
         </ActivityZeitraumDatetimeFields>
@@ -478,18 +460,15 @@
         <p class="wizard-draft-hint activity-wizard-draft-hint">
           {{ t('activities.wizard.form.wizardDraftHint') }}
         </p>
-        <div class="form-group activity-wizard-notes-wrap">
-          <label for="activity-create-notes-overview">
-            {{ t('activities.wizard.form.notesLabel') }}
-            <span class="text-muted">{{ t('activities.wizard.form.notesOptional') }}</span>
-          </label>
-          <textarea
+        <div class="activity-wizard-notes-wrap">
+          <ETextarea
             id="activity-create-notes-overview"
-            class="form-input activity-wizard-notes-textarea"
-            rows="3"
+            :model-value="activityNotes"
+            :label="t('activities.wizard.form.notesLabel')"
+            :hint="t('activities.wizard.form.notesOptional')"
             :placeholder="t('activities.wizard.form.notesPlaceholder')"
-            :value="activityNotes"
-            @input="emit('update:activityNotes', ($event.target as HTMLTextAreaElement).value)"
+            :rows="3"
+            @update:model-value="emit('update:activityNotes', String($event ?? ''))"
           />
         </div>
       </section>
@@ -532,6 +511,7 @@ import {
   isInstantInsideClosedUsage,
   nearestAllowedQuarterOnDayOutsideUsage,
 } from '@/utils/activityPlanningUsageConstraint'
+import { EButton, ESelect, ETextField, ETextarea } from '@/components/form/base'
 import { useToast } from '@/composables/useToast'
 import { useAuthStore } from '@/stores/auth'
 import { useDepartmentMemberRole } from '@/composables/useDepartmentMemberRole'
@@ -638,12 +618,55 @@ const isActivityType = computed(() => props.selectedActivityType === 'activity')
 
 const flatGroups = computed(() => flattenGroupsWithLevel(props.groups))
 const groupSelectOptions = computed(() => flatGroups.value)
+
+/** Aktivität: immer konkrete Gruppe; Lager/Event: Abteilungsebene nur für Leiter/MW/DC optional. */
+const isGroupFieldRequired = computed(() => {
+  if (props.selectedActivityType === 'activity') return true
+  if (props.selectedActivityType === 'camp') return !canSelectDepartmentGroupLevel.value
+  return false
+})
+
+const groupFieldLabel = computed(() => {
+  let label = t('common.group')
+  if (isGroupFieldRequired.value) label += ' *'
+  else label += ` (${t('activities.wizard.form.groupOptional')})`
+  return label
+})
+
+const groupSelectItems = computed(() => {
+  const items: { title: string; value: string }[] = []
+  const allowDepartmentLevel =
+    canSelectDepartmentGroupLevel.value && props.selectedActivityType !== 'activity'
+  if (allowDepartmentLevel) {
+    items.push({
+      value: '',
+      title: props.departmentName.trim() || '–',
+    })
+  }
+  for (const g of groupSelectOptions.value) {
+    items.push({
+      value: g.id,
+      title: `${'↳ '.repeat(g._level)}${g.name}`,
+    })
+  }
+  return items
+})
+
+const groupSelectPlaceholder = computed(() =>
+  isGroupFieldRequired.value && !props.selectedGroupId
+    ? t('activities.wizard.form.groupChoose')
+    : undefined,
+)
 const hasMultipleGroupChoices = computed(
   () => canSelectDepartmentGroupLevel.value || groupSelectOptions.value.length > 1,
 )
 const showFixedGroupSelection = computed(() => {
+  // Aktivität: Dropdown auch bei nur einer Gruppe (vorausgefüllt, aber änderbar inkl. Untergruppen)
+  if (props.selectedActivityType === 'activity') {
+    return groupSelectOptions.value.length === 0
+  }
   if (canSelectDepartmentGroupLevel.value) return props.groups.length === 0
-  return props.groups.length > 0 && groupSelectOptions.value.length <= 1
+  return props.groups.length > 0 && !hasMultipleGroupChoices.value
 })
 const showActivityGroupField = computed(
   () => isActivityType.value && (props.groups.length > 0 || canSelectDepartmentGroupLevel.value),
@@ -1011,17 +1034,13 @@ const summaryMaterialLabel = computed(() =>
   props.selectedActivityType ? activityPreviewMaterialLabel(props.selectedActivityType, t) : '',
 )
 
-function onGroupChange(e: Event) {
-  const raw = (e.target as HTMLSelectElement).value
-  const v = raw.trim()
-  if (!v && !canSelectDepartmentGroupLevel.value) return
-  emit('update:selectedGroupId', v || null)
+function onGroupSelectChange(value: unknown) {
+  const raw = value == null ? '' : String(value).trim()
+  if (!raw && isGroupFieldRequired.value) return
+  emit('update:selectedGroupId', raw || null)
 }
 
-/** Schnellauswahl (Feiertage …) nur bei Lager/Event; bei „Aktivität“ / „Extern“ ausblenden. */
-const showDateRangePresetSidebar = computed(
-  () => props.selectedActivityType !== 'activity' && props.selectedActivityType !== 'external',
-)
+/** Schnellauswahl Zeitraum: in ActivityZeitraumDatetimeFields (nur Lager/Event). */
 
 const selectedActivityTypeApi = computed(() => props.selectedActivityType as ActivityApiType)
 

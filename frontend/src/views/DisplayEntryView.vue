@@ -8,29 +8,35 @@
       </div>
     </header>
 
-    <section class="display-entry-panel">
+    <ECard variant="outlined" class="display-entry-panel">
       <form class="display-entry-form" @submit.prevent="submitPublicId">
-        <label class="display-entry-label" for="display-public-id">{{ t('display.entry.idLabel') }}</label>
-        <input
+        <ETextField
           id="display-public-id"
           v-model="publicIdInput"
-          type="text"
-          class="display-entry-input"
+          :label="t('display.entry.idLabel')"
           :placeholder="t('display.entry.idPlaceholder')"
+          :disabled="submitting"
+          :error-messages="idError ? [idError] : undefined"
           autocomplete="off"
           autocapitalize="off"
           spellcheck="false"
           maxlength="12"
-          :disabled="submitting"
-          @input="onPublicIdInput"
+          hide-details="auto"
+          class="display-entry-field"
+          @update:model-value="onPublicIdInput"
         />
         <p class="display-entry-hint muted">{{ t('display.entry.idHint') }}</p>
-        <p v-if="idError" class="display-entry-error">{{ idError }}</p>
-        <button type="submit" class="display-entry-submit" :disabled="submitting || publicIdInput.length < 4">
+        <EButton
+          type="submit"
+          variant="primary"
+          block
+          :disabled="submitting || publicIdInput.length < 4"
+          :loading="submitting"
+        >
           {{ submitting ? t('display.entry.submitting') : t('display.entry.continue') }}
-        </button>
+        </EButton>
       </form>
-    </section>
+    </ECard>
   </div>
 </template>
 
@@ -39,6 +45,9 @@ import { onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import EmcLogoMark from '@/components/brand/EmcLogoMark.vue'
+import EButton from '@/components/form/base/EButton.vue'
+import ECard from '@/components/form/base/ECard.vue'
+import ETextField from '@/components/form/base/ETextField.vue'
 import { lookupPublicDisplay } from '@/api/displayScreens'
 
 const ID_CHARSET = /[^a-z0-9]/gi
@@ -55,8 +64,8 @@ function normalizePublicId(raw: string): string {
   return raw.trim().toLowerCase().replace(ID_CHARSET, '').slice(0, 12)
 }
 
-function onPublicIdInput() {
-  publicIdInput.value = normalizePublicId(publicIdInput.value)
+function onPublicIdInput(value?: string) {
+  publicIdInput.value = normalizePublicId(value ?? publicIdInput.value)
   idError.value = null
 }
 
@@ -122,39 +131,21 @@ onMounted(() => {
 .display-entry-panel {
   max-width: 440px;
   margin: 0 auto;
-  padding: 28px 32px;
-  background: #fff;
-  border-radius: 16px;
-  border: 1px solid #e2e8f0;
-  box-shadow: 0 8px 32px rgba(15, 23, 42, 0.08);
+  padding: 28px 32px !important;
 }
 
 .display-entry-form {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
 }
 
-.display-entry-label {
-  font-size: 0.9rem;
-  font-weight: 600;
-  color: #334155;
-}
-
-.display-entry-input {
+.display-entry-field :deep(input) {
   font-size: 1.25rem;
   letter-spacing: 0.12em;
   text-align: center;
-  padding: 14px 16px;
-  border: 2px solid #cbd5e1;
-  border-radius: 10px;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-weight: 600;
-}
-
-.display-entry-input:focus {
-  outline: none;
-  border-color: #3b82f6;
 }
 
 .display-entry-hint {
@@ -165,28 +156,5 @@ onMounted(() => {
 
 .muted {
   color: #64748b;
-}
-
-.display-entry-error {
-  margin: 0;
-  color: #b91c1c;
-  font-size: 0.9rem;
-}
-
-.display-entry-submit {
-  margin-top: 8px;
-  padding: 12px 16px;
-  border: none;
-  border-radius: 10px;
-  background: #2563eb;
-  color: #fff;
-  font: inherit;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.display-entry-submit:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
 }
 </style>

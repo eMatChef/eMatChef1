@@ -1,0 +1,55 @@
+/**
+ * Material-Liste: v-data-table (Desktop) — produktiv + Sandbox.
+ */
+.material-list-dt__table.v-table {
+  background: transparent;
+}
+
+.material-list-dt__table .v-table__wrapper {
+  overflow-x: auto;
+}
+
+.material-list-dt__table thead th {
+  background: #f9fafb !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  color: #6b7280 !important;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.material-list-dt__table tbody tr {
+  cursor: pointer;
+  background: #ffffff;
+}
+
+.material-list-dt__table tbody tr:nth-child(even) {
+  background: #f9fafb;
+}
+
+.material-list-dt__table tbody tr:hover {
+  background: #f3f4f6 !important;
+}
+
+.material-list-dt__table tbody tr:nth-child(even) td,
+.material-list-dt__table tbody tr:nth-child(odd) td {
+  background: inherit;
+}
+
+.material-list-dt__table td {
+  vertical-align: middle;
+  border-bottom: 1px solid #f3f4f6 !important;
+}
+
+.material-list-dt__table .v-data-table-rows-no-data {
+  padding: 0;
+}
+
+.material-list-dt__table .stock-zero {
+  color: #d1d5db;
+}
+
+.material-list-dt__table .combo-components-row td {
+  padding: 0 !important;
+  background: #fafafa;
+}

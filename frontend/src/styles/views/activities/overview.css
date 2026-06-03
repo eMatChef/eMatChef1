@@ -1,8 +1,12 @@
-/* Aktivitäten · Übersicht (Liste, Filter, Stats, Tabelle) */
+/* Aktivitäten · Übersicht (Layout, Filter, Stats — Liste in activity-list-*.css) */
+@import '../../components/activity-display-host.css';
+
 .activities-view {
-  padding: 24px;
   max-width: 1400px;
+  margin: 0 auto;
   position: relative;
+  /* Seitenabstand nur über .page-content (AppLayout), kein Doppel-Padding */
+  padding: 0;
 }
 
 /* Header */
@@ -29,56 +33,38 @@
 }
 
 /* Filter Bar */
-.filter-bar {
+.activities-view--list .filter-bar {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: flex-end;
   justify-content: space-between;
-  align-items: center;
+  gap: 16px;
+  min-height: 3.75rem;
+  margin-bottom: 20px;
   border-bottom: 1px solid var(--color-border, #e5e7eb);
   padding-bottom: 0;
 }
 
-/* Table */
 
-.activity-row.row-draft {
-  background: #fffbeb;
+.activities-view--list .filter-tabs {
+  flex: 0 1 auto;
+  min-width: 0;
 }
 
-.activity-row.row-draft:hover {
-  background: #fef3c7;
+.activities-list-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 16px;
+  margin-bottom: 16px;
 }
 
-.col-status {
-  width: 40px;
-  text-align: center;
+.activities-list-filters__select {
+  flex: 1 1 180px;
+  max-width: 280px;
 }
 
-.status-dot {
-  display: inline-block;
-}
-
-.activity-name {
-  font-weight: 500;
-}
-
-.activity-no {
-  font-size: 12px;
-  color: var(--color-text-muted, #6b7280);
-}
-
-.activity-share-hint {
-  margin-top: 2px;
-  font-size: 11px;
-  color: var(--color-primary);
-  font-weight: 500;
-}
-
-.activity-share-status {
-  margin-top: 1px;
-  font-size: 11px;
-  color: #6b7280;
-}
-
-/* type-badge → styles/ui/activity-type-badges.css (global) */
-/* status-dot / status-label → styles/activity-status.css (global) */
+/* Liste: Zellen/Tabelle → styles/components/activity-list-*.css (nur in List-Komponenten) */
+/* type-badge → activity-type-badges.css · status-dot/label → activity-status.css */
 
 /* Stats Bar */
 .stats-bar {
@@ -86,6 +72,30 @@
   gap: 16px;
   margin-bottom: 16px;
   flex-wrap: wrap;
+}
+
+/* Aktivitäten: 6 Kacheln gleich breit, eine Zeile (ab sm / Tablet) */
+.activities-view--list .stats-bar {
+  flex-wrap: nowrap;
+  gap: 12px;
+  width: 100%;
+}
+
+.activities-view--list .stats-bar .stat-item {
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 12px 10px;
+}
+
+.activities-view--list .stats-bar .stat-label {
+  max-width: 100%;
+  font-size: 10px;
+  line-height: 1.25;
+  letter-spacing: 0.01em;
+  text-align: center;
+  white-space: normal;
+  word-break: break-word;
+  hyphens: auto;
 }
 
 .stat-item {
@@ -175,81 +185,11 @@
   border-color: var(--color-primary);
 }
 
-/* Sort */
-.activities-table thead th[class*="col-name"],
-.activities-table thead th[class*="col-period"],
-.activities-table thead th[class*="col-price"] {
-  cursor: pointer;
-  user-select: none;
-}
-
-.activities-table thead th:hover {
-  color: var(--color-primary);
-}
-
-.sort-icon {
-  font-size: 11px;
-  margin-left: 4px;
-}
-
-/* Group column (hierarchical path) */
-.activity-group-path {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  min-width: 0;
-}
-
-.activity-group-path-line {
-  display: block;
-  font-size: 13px;
-  line-height: 1.35;
-  color: #1f2937;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.activity-group-path-line:first-child {
-  font-weight: 600;
-}
-
-/* Period Column */
-.period-compact {
-  font-size: 13px;
-  font-weight: 500;
-  white-space: nowrap;
-}
-
-/* Column header filters (tab «Alle») */
-.th-filter-wrap {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  align-items: flex-start;
-}
-
-.col-filter-select {
-  max-width: 100%;
-  font-size: 11px;
-  font-weight: 500;
-  padding: 2px 4px;
-  border: 1px solid var(--color-border, #e5e7eb);
-  border-radius: 4px;
-  background: white;
-  color: #374151;
-  cursor: pointer;
-}
-
-.col-filter-select:focus {
-  outline: none;
-  border-color: var(--color-primary);
-}
-
 .filter-actions-all {
-  flex: 1;
+  flex: 1 1 280px;
   justify-content: flex-end;
   min-width: 200px;
+  max-width: 500px;
 }
 
 .filter-actions-all .search-box {
@@ -257,51 +197,15 @@
   max-width: 500px;
 }
 
+/* Platz für Suche reservieren, damit die Tabelle beim Tab-Wechsel nicht springt */
+.filter-actions-all--reserved {
+  visibility: hidden;
+  pointer-events: none;
+}
+
 .stat-item-active {
   border-color: var(--color-primary);
   background: var(--color-primary-muted-bg);
   box-shadow: 0 0 0 1px var(--color-primary-shadow);
 }
-
-/* Items Badge */
-.items-badge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 24px;
-  height: 22px;
-  padding: 0 6px;
-  background: var(--color-primary-muted-bg);
-  color: var(--color-primary);
-  border-radius: 12px;
-  font-size: 12px;
-  font-weight: 600;
-}
-
-/* Price */
-.price-display {
-  font-weight: 500;
-  font-size: 13px;
-}
-
-/* Table Footer */
-.table-footer {
-  padding: 10px 16px;
-  font-size: 12px;
-  color: #6b7280;
-  border-top: 1px solid #f3f4f6;
-  text-align: right;
-}
-
-/* Loading */
-.loading-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 60px 24px;
-  gap: 12px;
-  color: #6b7280;
-}
-
-/* text-muted → styles/ui/text-utilities.css (global) */
 

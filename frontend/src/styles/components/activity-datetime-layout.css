@@ -1,0 +1,231 @@
+/**
+ * Aktivitäten Datum/Zeit — Pill-Leiste (Desktop/Tablet) und 2-Zeiler (Mobile).
+ * Host: .activity-datetime-host oder .activity-create-wizard-host
+ * Responsive: activity-display-host.css + useDisplayHostClasses
+ */
+
+@import './activity-display-host.css';
+
+.activity-datetime-host .field-label,
+.activity-create-wizard-host .field-label {
+  display: block;
+  font-size: 13px;
+  font-weight: 500;
+  color: #374151;
+  margin-bottom: 6px;
+}
+
+/* ── Mobile: Datum oben, Zeiten darunter ── */
+.activity-datetime-host .activity-datetime-mobile,
+.activity-create-wizard-host .activity-datetime-mobile {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.activity-datetime-host .activity-datetime-mobile__date,
+.activity-create-wizard-host .activity-datetime-mobile__date {
+  width: 100%;
+  min-width: 0;
+}
+
+.activity-datetime-host .activity-datetime-mobile__times,
+.activity-create-wizard-host .activity-datetime-mobile__times {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.activity-datetime-host .activity-datetime-mobile__time-slot,
+.activity-create-wizard-host .activity-datetime-mobile__time-slot {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.activity-datetime-host .activity-datetime-mobile__time-lbl,
+.activity-create-wizard-host .activity-datetime-mobile__time-lbl {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #9ca3af;
+  line-height: 1.2;
+}
+
+/* ── Pill-Leiste (Desktop/Tablet) ── */
+.activity-datetime-host .activity-pill-group,
+.activity-create-wizard-host .activity-pill-group {
+  margin-bottom: 12px;
+}
+
+.activity-datetime-host .activity-pill-group .field-label,
+.activity-create-wizard-host .activity-pill-group .field-label {
+  margin-bottom: 8px;
+}
+
+.activity-datetime-host .activity-pill-bar,
+.activity-create-wizard-host .activity-pill-bar {
+  --activity-pill-control-h: 34px;
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: stretch;
+  gap: 0;
+  min-height: calc(10px + 2px + var(--activity-pill-control-h) + 14px);
+  border-radius: 999px;
+  background: #fff;
+  border: 1px solid #e8eaed;
+  box-shadow: 0 4px 16px -4px rgb(15 23 42 / 10%), 0 2px 6px -2px rgb(15 23 42 / 6%);
+  overflow: hidden;
+  max-width: 100%;
+  touch-action: manipulation;
+}
+
+.activity-datetime-host .activity-pill-cell,
+.activity-create-wizard-host .activity-pill-cell {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+  min-width: 0;
+  padding: 8px 8px;
+  border-left: 1px solid #f1f5f9;
+}
+
+.activity-datetime-host .activity-pill-cell:first-child,
+.activity-create-wizard-host .activity-pill-cell:first-child {
+  border-left: none;
+  flex: 0 1 auto;
+  min-width: min(200px, 100%);
+  max-width: min(380px, 56vw);
+}
+
+.activity-datetime-host .activity-pill-cell--time,
+.activity-create-wizard-host .activity-pill-cell--time {
+  flex: 1 1 158px;
+  min-width: 158px;
+  max-width: min(220px, 34vw);
+}
+
+.activity-datetime-host .activity-pill-cell-lbl,
+.activity-create-wizard-host .activity-pill-cell-lbl {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #9ca3af;
+  line-height: 1.2;
+}
+
+.activity-datetime-host .activity-pill-bar .activity-v-date-input.e-form-field,
+.activity-create-wizard-host .activity-pill-bar .activity-v-date-input.e-form-field {
+  margin: 0;
+}
+
+.activity-datetime-host .activity-pill-bar .activity-v-date-input .v-input__control,
+.activity-create-wizard-host .activity-pill-bar .activity-v-date-input .v-input__control {
+  min-height: var(--activity-pill-control-h);
+}
+
+.activity-datetime-host .activity-pill-bar .activity-v-date-input .v-input__control > .v-field,
+.activity-create-wizard-host .activity-pill-bar .activity-v-date-input .v-input__control > .v-field {
+  min-height: var(--activity-pill-control-h) !important;
+  max-height: var(--activity-pill-control-h) !important;
+  height: var(--activity-pill-control-h) !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  background: transparent !important;
+}
+
+.activity-datetime-host .activity-pill-bar .activity-v-date-input .v-field__prepend-inner,
+.activity-create-wizard-host .activity-pill-bar .activity-v-date-input .v-field__prepend-inner {
+  padding-inline: 6px 2px;
+}
+
+.activity-datetime-host .activity-pill-bar .activity-v-date-input .v-field__prepend-inner .v-icon,
+.activity-create-wizard-host .activity-pill-bar .activity-v-date-input .v-field__prepend-inner .v-icon {
+  font-size: 18px;
+}
+
+.activity-datetime-host .activity-pill-bar .activity-v-date-input .v-field__input,
+.activity-create-wizard-host .activity-pill-bar .activity-v-date-input .v-field__input {
+  min-height: var(--activity-pill-control-h) !important;
+  padding: 0 10px 0 0 !important;
+  font-size: 13px;
+  font-weight: 600;
+  color: #111827 !important;
+  line-height: var(--activity-pill-control-h);
+}
+
+.activity-datetime-host .activity-pill-bar .activity-v-date-input .v-input__control > .v-field.v-field--focused,
+.activity-create-wizard-host
+  .activity-pill-bar
+  .activity-v-date-input
+  .v-input__control
+  > .v-field.v-field--focused {
+  box-shadow: none !important;
+}
+
+.activity-datetime-host .activity-pill-bar .activity-v-date-input:focus-within,
+.activity-create-wizard-host .activity-pill-bar .activity-v-date-input:focus-within {
+  border-radius: 8px;
+  background: rgba(16, 185, 129, 0.09);
+}
+
+.activity-datetime-host .activity-pill-bar .activity-v-time-picker-field.e-form-field,
+.activity-create-wizard-host .activity-pill-bar .activity-v-time-picker-field.e-form-field {
+  margin: 0;
+}
+
+.activity-datetime-host .activity-pill-bar .activity-v-time-picker-field .v-input__control,
+.activity-create-wizard-host .activity-pill-bar .activity-v-time-picker-field .v-input__control {
+  min-height: var(--activity-pill-control-h);
+}
+
+.activity-datetime-host .activity-pill-bar .activity-v-time-picker-field .v-input__control > .v-field,
+.activity-create-wizard-host .activity-pill-bar .activity-v-time-picker-field .v-input__control > .v-field {
+  min-height: var(--activity-pill-control-h) !important;
+  max-height: var(--activity-pill-control-h) !important;
+  height: var(--activity-pill-control-h) !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  background: transparent !important;
+}
+
+.activity-datetime-host .activity-pill-bar .activity-v-time-picker-field .v-field__prepend-inner,
+.activity-create-wizard-host .activity-pill-bar .activity-v-time-picker-field .v-field__prepend-inner {
+  padding-inline: 4px 2px;
+}
+
+.activity-datetime-host .activity-pill-bar .activity-v-time-picker-field .v-field__prepend-inner .v-icon,
+.activity-create-wizard-host .activity-pill-bar .activity-v-time-picker-field .v-field__prepend-inner .v-icon {
+  font-size: 16px;
+}
+
+.activity-datetime-host .activity-pill-bar .activity-v-time-picker-field .v-field__input,
+.activity-create-wizard-host .activity-pill-bar .activity-v-time-picker-field .v-field__input {
+  min-height: var(--activity-pill-control-h) !important;
+  padding: 0 8px 0 0 !important;
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: #111827 !important;
+  line-height: var(--activity-pill-control-h);
+  justify-content: center;
+}
+
+.activity-datetime-host .activity-pill-bar .activity-v-time-picker-field .v-input__control > .v-field.v-field--focused,
+.activity-create-wizard-host
+  .activity-pill-bar
+  .activity-v-time-picker-field
+  .v-input__control
+  > .v-field.v-field--focused {
+  box-shadow: none !important;
+}
+
+.activity-datetime-host .activity-pill-bar .activity-v-time-picker-field:focus-within,
+.activity-create-wizard-host .activity-pill-bar .activity-v-time-picker-field:focus-within {
+  border-radius: 8px;
+  background: rgba(16, 185, 129, 0.09);
+}

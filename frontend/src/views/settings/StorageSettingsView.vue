@@ -9,24 +9,21 @@
         </p>
         <div v-if="!isLoading && storageAddresses.length === 0" class="storage-location-hint">
           <p class="subtitle warning-text">{{ t('settings.storage.needStorageLocationFirst') }}</p>
-          <button type="button" class="btn btn-warning btn-sm" @click="addStorageLocation">
+          <EButton variant="secondary" size="small" @click="addStorageLocation">
             {{ t('settings.storage.addStorageLocation') }}
-          </button>
+          </EButton>
         </div>
       </div>
-      <button class="btn-primary" :disabled="storageAddresses.length === 0" @click="openRackModal()">
-        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <line x1="12" y1="5" x2="12" y2="19"/>
-          <line x1="5" y1="12" x2="19" y2="12"/>
-        </svg>
+      <EButton variant="primary" :disabled="storageAddresses.length === 0" @click="openRackModal()">
+        <v-icon icon="mdi-plus" start size="20" />
         {{ t('settings.storage.newRack') }}
-      </button>
+      </EButton>
     </div>
 
     <!-- Suchleiste -->
     <div class="search-bar">
       <div class="search-box">
-        <SearchFieldInput
+        <ESearchField
           v-model="searchQuery"
           :label="t('settings.storage.searchPlaceholder')"
         />
@@ -163,43 +160,46 @@
         </div>
         <h3>{{ t('settings.storage.noRacksTitle') }}</h3>
         <p>{{ t('settings.storage.noRacksDescription') }}</p>
-        <button class="btn-primary" :disabled="storageAddresses.length === 0" @click="openRackModal()">
+        <EButton variant="primary" :disabled="storageAddresses.length === 0" @click="openRackModal()">
           {{ t('settings.storage.createFirstRack') }}
-        </button>
+        </EButton>
       </div>
     </div>
 
     <!-- Ladezustand -->
-    <div v-else class="loading-state">
-      <div class="spinner"></div>
-      <p>{{ t('settings.storage.loadingOverview') }}</p>
-    </div>
+    <ELoadingState v-else variant="list" :message="t('settings.storage.loadingOverview')" />
 
-    <!-- Rack Edit Modal -->
-    <div v-if="showRackModal && editingRack" class="modal-overlay">
-      <div class="modal-dialog">
-        <h3>{{ t('settings.storage.editRackTitle') }}</h3>
-        <div class="form-group">
-          <label>{{ t('settings.storage.fieldStorageLocationRequired') }}</label>
-          <select v-model="rackForm.storage_address_id" class="form-input">
-            <option value="">{{ t('settings.storage.selectStorageLocation') }}</option>
-            <option v-for="addr in storageAddresses" :key="addr.id" :value="addr.id">
-              {{ addr.name || addr.street_line || addr.full_address || addr.id }}
-            </option>
-          </select>
-        </div>
-        <div class="form-group">
-          <label>{{ t('common.name') }}</label>
-          <input v-model="rackForm.name" type="text" :placeholder="rackPlaceholder" class="form-input" />
-        </div>
-        <div class="modal-actions">
-          <button class="btn-secondary" @click="closeRackModal">{{ t('common.cancel') }}</button>
-          <button class="btn-primary" @click="saveRack" :disabled="!rackForm.name.trim() || !rackForm.storage_address_id || isSaving">
-            {{ isSaving ? t('common.saving') : t('common.save') }}
-          </button>
-        </div>
-      </div>
-    </div>
+    <EDialog
+      v-model="showRackEditDialog"
+      :max-width="480"
+      :title="t('settings.storage.editRackTitle')"
+    >
+      <ESelect
+        v-model="rackForm.storage_address_id"
+        :items="storageAddressSelectItems"
+        :label="t('settings.storage.fieldStorageLocationRequired')"
+        hide-details="auto"
+      />
+      <ETextField
+        v-model="rackForm.name"
+        class="mt-3"
+        :label="t('common.name')"
+        :placeholder="rackPlaceholder"
+        hide-details="auto"
+      />
+      <template #actions>
+        <EButton variant="secondary" size="small" @click="closeRackModal">{{ t('common.cancel') }}</EButton>
+        <EButton
+          variant="primary"
+          size="small"
+          :disabled="!rackForm.name.trim() || !rackForm.storage_address_id || isSaving"
+          :loading="isSaving"
+          @click="saveRack"
+        >
+          {{ isSaving ? t('common.saving') : t('common.save') }}
+        </EButton>
+      </template>
+    </EDialog>
 
     <StorageBulkCreateModal
       :is-open="showRackModal && !editingRack"
@@ -230,23 +230,31 @@
       @update:pairItemValue="updateRackPairItemValue"
     />
 
-    <!-- Slot Edit Modal -->
-    <div v-if="showSlotModal && editingSlot" class="modal-overlay">
-      <div class="modal-dialog">
-        <h3>{{ t('settings.storage.editSlotTitle') }}</h3>
-        <p v-if="slotRack" class="modal-context">{{ t('settings.storage.rackContext', { name: slotRack.name }) }}</p>
-        <div class="form-group">
-          <label>{{ t('common.name') }}</label>
-          <input v-model="slotForm.name" type="text" :placeholder="slotFachPlaceholder" class="form-input" />
-        </div>
-        <div class="modal-actions">
-          <button class="btn-secondary" @click="closeSlotModal">{{ t('common.cancel') }}</button>
-          <button class="btn-primary" @click="saveSlot" :disabled="!slotForm.name.trim() || isSaving">
-            {{ isSaving ? t('common.saving') : t('common.save') }}
-          </button>
-        </div>
-      </div>
-    </div>
+    <EDialog
+      v-model="showSlotEditDialog"
+      :max-width="440"
+      :title="t('settings.storage.editSlotTitle')"
+    >
+      <p v-if="slotRack" class="modal-context">{{ t('settings.storage.rackContext', { name: slotRack.name }) }}</p>
+      <ETextField
+        v-model="slotForm.name"
+        :label="t('common.name')"
+        :placeholder="slotFachPlaceholder"
+        hide-details="auto"
+      />
+      <template #actions>
+        <EButton variant="secondary" size="small" @click="closeSlotModal">{{ t('common.cancel') }}</EButton>
+        <EButton
+          variant="primary"
+          size="small"
+          :disabled="!slotForm.name.trim() || isSaving"
+          :loading="isSaving"
+          @click="saveSlot"
+        >
+          {{ isSaving ? t('common.saving') : t('common.save') }}
+        </EButton>
+      </template>
+    </EDialog>
 
     <StorageBulkCreateModal
       :is-open="showSlotModal && !editingSlot"
@@ -306,8 +314,9 @@ import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useToast } from '@/composables/useToast'
 import { getAddresses, setAddressPrimary, type Address } from '@/api/addresses'
-import SearchFieldInput from '@/components/common/SearchFieldInput.vue'
 import AddressModal from '@/components/AddressModal.vue'
+import ELoadingState from '@/components/layout/ELoadingState.vue'
+import { EButton, EDialog, ESearchField, ESelect, ETextField } from '@/components/form/base'
 import StorageConfirmModal from '@/components/storage/StorageConfirmModal.vue'
 import StorageBulkCreateModal from '@/components/storage/StorageBulkCreateModal.vue'
 import StorageActionButton from '@/components/storage/StorageActionButton.vue'
@@ -469,6 +478,27 @@ const storageAddressOptions = computed(() =>
     label: addr.name || addr.street_line || addr.full_address || addr.id
   }))
 )
+
+const storageAddressSelectItems = computed(() =>
+  storageAddresses.value.map((addr) => ({
+    title: addr.name || addr.street_line || addr.full_address || addr.id,
+    value: addr.id,
+  })),
+)
+
+const showRackEditDialog = computed({
+  get: () => showRackModal.value && editingRack.value !== null,
+  set: (open: boolean) => {
+    if (!open) closeRackModal()
+  },
+})
+
+const showSlotEditDialog = computed({
+  get: () => showSlotModal.value && editingSlot.value !== null,
+  set: (open: boolean) => {
+    if (!open) closeSlotModal()
+  },
+})
 
 function getSlots(rackId: string): StorageSlot[] {
   return slotsByRack.value[rackId] ?? []

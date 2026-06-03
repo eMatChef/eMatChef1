@@ -4,80 +4,76 @@
       {{ t('accounting.bookings.intro') }}
     </p>
 
-    <div class="bookings-subtabs filter-bar accounting-inner-tabs">
-      <div class="filter-tabs">
-        <button
-          type="button"
-          class="filter-tab"
-          :class="{ active: bookingsSubTab === 'list' }"
-          @click="bookingsSubTab = 'list'"
-        >
-          {{ t('accounting.bookings.tabList') }}
-        </button>
-        <button
-          type="button"
-          class="filter-tab"
-          :class="{ active: bookingsSubTab === 'assign' }"
-          @click="openAssignTab"
-        >
-          {{ t('accounting.bookings.tabAssign') }}
-          <span
-            v-if="hasPendingBooking"
-            class="bookings-pending-badge"
-            :title="t('accounting.bookings.badgePendingTitle')"
-          >{{ pendingFollowUps.length }}</span>
-        </button>
-      </div>
-    </div>
+    <v-tabs
+      :model-value="bookingsSubTab"
+      class="accounting-inner-tabs"
+      color="primary"
+      @update:model-value="onBookingsSubTabChange"
+    >
+      <v-tab value="list">{{ t('accounting.bookings.tabList') }}</v-tab>
+      <v-tab value="assign">
+        {{ t('accounting.bookings.tabAssign') }}
+        <span
+          v-if="hasPendingBooking"
+          class="accounting-tab-badge"
+          :title="t('accounting.bookings.badgePendingTitle')"
+        >{{ pendingFollowUps.length }}</span>
+      </v-tab>
+    </v-tabs>
 
-    <div v-if="!costCenters.length && !ccLoading && !ccError" class="empty-hint empty-hint--cost-centers">
-      <p>
-        {{ t('accounting.bookings.emptyNoCcBefore') }}<strong>{{ t('accounting.bookings.tabAssign') }}</strong>{{ t('accounting.bookings.emptyNoCcAfter') }}
-      </p>
-      <div class="empty-hint-actions">
-        <router-link
-          class="btn btn-primary"
+    <EEmptyState
+      v-if="!costCenters.length && !ccLoading && !ccError"
+      :title="`${t('accounting.bookings.emptyNoCcBefore')}${t('accounting.bookings.tabAssign')}${t('accounting.bookings.emptyNoCcAfter')}`"
+    >
+      <template #actions>
+        <EButton
+          variant="primary"
           :to="{ name: 'AccountingCostCenters', params: { departmentId }, query: { openCreate: '1' } }"
         >
           {{ t('accounting.bookings.createCostCenter') }}
-        </router-link>
-        <router-link class="btn btn-secondary" :to="{ name: 'AccountingCostCenters', params: { departmentId } }">
+        </EButton>
+        <EButton
+          variant="secondary"
+          :to="{ name: 'AccountingCostCenters', params: { departmentId } }"
+        >
           {{ t('accounting.bookings.goToCostCenters') }}
-        </router-link>
-      </div>
-    </div>
+        </EButton>
+      </template>
+    </EEmptyState>
 
     <template v-else>
       <div v-show="bookingsSubTab === 'list'">
         <div class="bookings-toolbar">
           <div class="bookings-filters">
-            <label class="filter-label">
-              {{ t('accounting.bookings.filterYear') }}
-              <select v-model="filterYear" class="filter-select" @change="load">
-                <option value="">{{ t('accounting.common.allYears') }}</option>
-                <option v-for="y in bookingYears" :key="y" :value="String(y)">{{ y }}</option>
-              </select>
-            </label>
-            <label class="filter-label">
-              {{ t('accounting.bookings.filterCostCenter') }}
-              <select v-model="filterCostCenterId" class="filter-select" @change="load">
-                <option value="">{{ t('accounting.common.all') }}</option>
-                <option v-for="c in costCenters" :key="c.id" :value="c.id">{{ c.name }}</option>
-              </select>
-            </label>
+            <ESelect
+              v-model="filterYear"
+              :items="yearFilterItems"
+              :label="t('accounting.bookings.filterYear')"
+              hide-details="auto"
+              class="bookings-filter-select"
+              @update:model-value="load"
+            />
+            <ESelect
+              v-model="filterCostCenterId"
+              :items="costCenterFilterItems"
+              :label="t('accounting.bookings.filterCostCenter')"
+              hide-details="auto"
+              class="bookings-filter-select"
+              @update:model-value="load"
+            />
           </div>
-          <button type="button" class="btn btn-primary" :disabled="isLoading || !costCenters.length" @click="openCreate">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <line x1="12" y1="5" x2="12" y2="19" />
-              <line x1="5" y1="12" x2="19" y2="12" />
-            </svg>
+          <EButton variant="primary" :disabled="isLoading || !costCenters.length" @click="openCreate">
+            <v-icon icon="mdi-plus" start size="20" />
             {{ t('accounting.bookings.newBooking') }}
-          </button>
+          </EButton>
+          <EButton variant="secondary" :disabled="isLoading" @click="exportCsv">
+            {{ t('accounting.bookings.exportCsv') }}
+          </EButton>
         </div>
 
-        <div v-if="isLoading" class="loading-inline">{{ t('accounting.common.loading') }}</div>
-        <div v-else-if="loadError" class="error-inline">{{ loadError }}</div>
-        <div v-else-if="items.length === 0" class="empty-hint">{{ t('accounting.bookings.emptyFiltered') }}</div>
+        <ELoadingState v-if="isLoading" variant="inline" :message="t('accounting.common.loading')" />
+        <p v-else-if="loadError" class="error-inline">{{ loadError }}</p>
+        <EEmptyState v-else-if="items.length === 0" :title="t('accounting.bookings.emptyFiltered')" />
         <div v-else class="bookings-table-wrap">
       <table class="cost-centers-table bookings-table">
         <thead>
@@ -88,8 +84,11 @@
             <th>{{ t('accounting.common.costCenter') }}</th>
             <th>{{ t('common.material') }}</th>
             <th>{{ t('accounting.common.paymentMethod') }}</th>
+            <th>{{ t('accounting.bookings.colPaymentStatus') }}</th>
             <th>{{ t('common.group') }}</th>
+            <th>{{ t('accounting.bookings.colSource') }}</th>
             <th>{{ t('accounting.common.receipt') }}</th>
+            <th>{{ t('accounting.bookings.colAttachments') }}</th>
             <th class="col-actions">{{ t('common.actions') }}</th>
           </tr>
         </thead>
@@ -101,21 +100,42 @@
             <td>{{ row.cost_center_name }}</td>
             <td class="muted">{{ row.material_name || t('accounting.common.dash') }}</td>
             <td>{{ paymentLabel(row.payment_method) }}</td>
+            <td>{{ paymentStatusLabel(row.payment_status) }}</td>
             <td>{{ row.group_name || t('accounting.common.dash') }}</td>
+            <td class="source-cell">
+              <template v-if="row.source?.activity_id">
+                <router-link
+                  :to="{ name: 'ActivityDetail', params: { departmentId, activityId: row.source.activity_id } }"
+                >
+                  {{ t('accounting.bookings.sourceActivity') }}
+                </router-link>
+              </template>
+              <template v-else-if="row.source?.material_batch_id && row.material_item_id">
+                <router-link
+                  :to="{ name: 'MaterialDetail', params: { departmentId, materialId: row.material_item_id } }"
+                >
+                  {{ t('accounting.bookings.sourceBatch') }}
+                </router-link>
+              </template>
+              <template v-else-if="row.source?.workshop_ticket_id">
+                <router-link :to="{ name: 'Workshop', params: { departmentId } }">
+                  {{ t('accounting.bookings.sourceWorkshop') }}
+                </router-link>
+              </template>
+              <span v-else class="muted">{{ t('accounting.common.dash') }}</span>
+            </td>
             <td class="muted">{{ row.receipt_label || t('accounting.common.dash') }}</td>
+            <td>
+              <span v-if="row.receipts?.length">{{ row.receipts.length }}</span>
+              <span v-else class="muted">{{ t('accounting.common.dash') }}</span>
+            </td>
             <td class="col-actions">
-              <button type="button" class="acc-icon-btn" :title="t('common.edit')" @click="openEdit(row)">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-                  <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-                </svg>
-              </button>
-              <button type="button" class="acc-icon-btn danger" :title="t('common.delete')" @click="onDelete(row)">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <polyline points="3 6 5 6 21 6" />
-                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                </svg>
-              </button>
+              <EButton variant="text" size="small" :title="t('common.edit')" @click="openEdit(row)">
+                <v-icon icon="mdi-pencil-outline" size="20" />
+              </EButton>
+              <EButton variant="text" size="small" color="error" :title="t('common.delete')" @click="onDelete(row)">
+                <v-icon icon="mdi-delete-outline" size="20" />
+              </EButton>
             </td>
           </tr>
         </tbody>
@@ -124,9 +144,10 @@
       </div>
 
       <div v-show="bookingsSubTab === 'assign'" class="booking-assign-panel">
-        <p v-if="!hasPendingBooking" class="empty-hint booking-assign-empty">
-          {{ t('accounting.bookings.assignEmptyBefore') }}<strong>{{ t('accounting.common.costCenter') }}</strong>{{ t('accounting.bookings.assignEmptyAfter') }}
-        </p>
+        <EEmptyState
+          v-if="!hasPendingBooking"
+          :title="`${t('accounting.bookings.assignEmptyBefore')}${t('accounting.common.costCenter')}${t('accounting.bookings.assignEmptyAfter')}`"
+        />
         <template v-else>
           <p class="booking-assign-lead">
             {{ t('accounting.bookings.assignLeadBefore') }}<strong>{{ t('accounting.common.costCenter') }}</strong>{{ t('accounting.bookings.assignLeadAfter') }}
@@ -137,178 +158,248 @@
           >
             {{ t('accounting.bookings.assignFromActivity', { name: pendingFollowUps[assignTabIndex].activity_name }) }}
           </p>
-          <div
-            v-if="pendingFollowUps.length > 1"
-            class="bookings-subtabs booking-assign-followup-tabs filter-bar accounting-inner-tabs"
-          >
-            <div class="filter-tabs" role="tablist" :aria-label="t('accounting.bookings.pendingTabsAria')">
-              <button
-                v-for="(fu, idx) in pendingFollowUps"
-                :key="fu.id"
-                type="button"
-                class="filter-tab"
-                role="tab"
-                :aria-selected="assignTabIndex === idx"
-                :class="{ active: assignTabIndex === idx }"
-                @click="selectAssignTab(idx)"
-              >
-                {{ t(accountingFollowUpKindKey(fu.source_kind)) }}
-                <span class="booking-assign-tab-meta">· CHF {{ formatMoney(fu.amount) }}</span>
-              </button>
+          <div v-if="batchAssignCandidates.length > 1" class="batch-assign-panel">
+            <p class="batch-assign-hint">{{ t('accounting.bookings.batchAssignHint') }}</p>
+            <div class="batch-assign-checks">
+              <label v-for="fu in batchAssignCandidates" :key="fu.id" class="batch-assign-check">
+                <input v-model="batchSelectedIds" type="checkbox" :value="fu.id" />
+                {{ t(accountingFollowUpKindKey(fu.source_kind)) }} · CHF {{ formatMoney(fu.amount) }}
+              </label>
             </div>
+            <EButton
+              variant="secondary"
+              size="small"
+              :loading="batchSaving"
+              :disabled="batchSelectedIds.length === 0"
+              @click="runBatchAssign"
+            >
+              {{ t('accounting.bookings.batchAssignButton', { count: batchSelectedIds.length }) }}
+            </EButton>
           </div>
-          <div class="acc-modal-body booking-assign-form">
-            <div class="acc-field-row">
-              <div class="acc-field">
-                <label for="ba-amt">{{ t('accounting.bookings.labelAmountChf') }}</label>
-                <input id="ba-amt" v-model="form.amount" type="text" inputmode="decimal" :placeholder="t('accounting.bookings.placeholderAmount')" />
-              </div>
-              <div class="acc-field">
-                <label for="ba-date">{{ t('accounting.bookings.labelBookingDate') }}</label>
-                <input id="ba-date" v-model="form.booked_at" type="date" />
-              </div>
+          <v-tabs
+            v-if="pendingFollowUps.length > 1"
+            :model-value="String(assignTabIndex)"
+            class="accounting-inner-tabs booking-assign-followup-tabs"
+            color="primary"
+            :aria-label="t('accounting.bookings.pendingTabsAria')"
+            @update:model-value="onAssignTabChange"
+          >
+            <v-tab
+              v-for="(fu, idx) in pendingFollowUps"
+              :key="fu.id"
+              :value="String(idx)"
+            >
+              {{ t(accountingFollowUpKindKey(fu.source_kind)) }}
+              <span class="booking-assign-tab-meta">· CHF {{ formatMoney(fu.amount) }}</span>
+            </v-tab>
+          </v-tabs>
+          <div class="booking-assign-form">
+            <div class="booking-assign-form-row">
+              <ETextField
+                v-model="form.amount"
+                :label="t('accounting.bookings.labelAmountChf')"
+                :placeholder="t('accounting.bookings.placeholderAmount')"
+                inputmode="decimal"
+                hide-details="auto"
+              />
+              <ETextField
+                v-model="form.booked_at"
+                type="date"
+                :label="t('accounting.bookings.labelBookingDate')"
+                hide-details="auto"
+              />
             </div>
-            <div class="acc-field">
-              <label for="ba-cc">{{ t('accounting.bookings.labelCostCenterStar') }}</label>
-              <select id="ba-cc" v-model="form.cost_center_id">
-                <option disabled value="">{{ t('accounting.common.pleaseSelect') }}</option>
-                <option v-for="c in costCenters" :key="c.id" :value="c.id">{{ c.name }}</option>
-              </select>
-            </div>
-            <div class="acc-field">
-              <label for="ba-type">{{ t('accounting.bookings.labelEntryTypeStar') }}</label>
-              <select id="ba-type" v-model="form.entry_type">
-                <option v-for="opt in entryOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
-              </select>
-            </div>
-            <div class="acc-field">
-              <label for="ba-pay">{{ t('accounting.bookings.labelPaymentOptional') }}</label>
-              <select id="ba-pay" v-model="form.payment_method">
-                <option value="">{{ t('accounting.common.dash') }}</option>
-                <option v-for="opt in paymentOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
-              </select>
-            </div>
-            <div class="acc-field">
-              <label for="ba-grp">{{ t('accounting.bookings.labelGroupOptional') }}</label>
-              <select id="ba-grp" v-model="form.group_id">
-                <option value="">{{ t('accounting.common.dash') }}</option>
-                <option v-for="g in groups" :key="g.id" :value="g.id">{{ g.name }}</option>
-              </select>
-            </div>
-            <div class="acc-field">
-              <label for="ba-rec">{{ t('accounting.bookings.labelReceiptOptional') }}</label>
-              <input id="ba-rec" v-model="form.receipt_label" type="text" maxlength="255" :placeholder="t('accounting.bookings.placeholderReceipt')" />
-            </div>
-            <div class="acc-field">
-              <label for="ba-notes">{{ t('accounting.bookings.labelNotesOptional') }}</label>
-              <textarea id="ba-notes" v-model="form.notes" :placeholder="t('accounting.bookings.placeholderNotesShort')" />
-            </div>
+            <ESelect
+              v-model="form.cost_center_id"
+              :items="costCenterSelectItems"
+              :label="t('accounting.bookings.labelCostCenterStar')"
+              :placeholder="t('accounting.common.pleaseSelect')"
+              hide-details="auto"
+              class="mt-3"
+            />
+            <ESelect
+              v-model="form.entry_type"
+              :items="entryOptions"
+              item-title="label"
+              item-value="value"
+              :label="t('accounting.bookings.labelEntryTypeStar')"
+              hide-details="auto"
+              class="mt-3"
+            />
+            <ESelect
+              v-model="form.payment_method"
+              :items="paymentSelectItems"
+              item-title="label"
+              item-value="value"
+              :label="t('accounting.bookings.labelPaymentOptional')"
+              hide-details="auto"
+              class="mt-3"
+            />
+            <ESelect
+              v-model="form.payment_status"
+              :items="paymentStatusSelectItems"
+              item-title="label"
+              item-value="value"
+              :label="t('accounting.bookings.labelPaymentStatus')"
+              hide-details="auto"
+              class="mt-3"
+            />
+            <ESelect
+              v-model="form.group_id"
+              :items="groupSelectItems"
+              item-title="label"
+              item-value="value"
+              :label="t('accounting.bookings.labelGroupOptional')"
+              hide-details="auto"
+              class="mt-3"
+            />
+            <ETextField
+              v-model="form.receipt_label"
+              class="mt-3"
+              :label="t('accounting.bookings.labelReceiptOptional')"
+              :placeholder="t('accounting.bookings.placeholderReceipt')"
+              maxlength="255"
+              hide-details="auto"
+            />
+            <ETextarea
+              v-model="form.notes"
+              class="mt-3"
+              :label="t('accounting.bookings.labelNotesOptional')"
+              :placeholder="t('accounting.bookings.placeholderNotesShort')"
+              rows="3"
+              hide-details="auto"
+            />
             <div class="booking-assign-actions">
-              <button type="button" class="btn btn-primary" :disabled="saving" @click="save(true)">
+              <EButton variant="primary" :loading="saving" @click="save(true)">
                 {{ saving ? t('accounting.bookings.saveAssignSaving') : t('accounting.bookings.saveAssign') }}
-              </button>
+              </EButton>
             </div>
           </div>
         </template>
       </div>
     </template>
 
-    <Teleport to="body">
-      <div v-if="modalOpen" class="acc-modal-backdrop" @click.self="closeModal">
-        <div class="acc-modal acc-modal-wide" role="dialog" aria-modal="true">
-          <div class="acc-modal-header">
-            <h2>{{ editingId ? t('accounting.bookings.modalEditTitle') : t('accounting.bookings.modalCreateTitle') }}</h2>
-            <button type="button" class="acc-icon-btn" :aria-label="t('common.close')" @click="closeModal">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <line x1="18" y1="6" x2="6" y2="18" />
-                <line x1="6" y1="6" x2="18" y2="18" />
-              </svg>
-            </button>
-          </div>
-          <div class="acc-modal-body">
-            <div class="acc-field-row">
-              <div class="acc-field">
-                <label for="b-amt">{{ t('accounting.bookings.labelAmountChf') }}</label>
-                <input id="b-amt" v-model="form.amount" type="text" inputmode="decimal" :placeholder="t('accounting.bookings.placeholderAmount')" />
-              </div>
-              <div class="acc-field">
-                <label for="b-date">{{ t('accounting.bookings.labelBookingDate') }}</label>
-                <input
-                  id="b-date"
-                  v-model="form.booked_at"
-                  type="date"
-                  :disabled="!!editingId"
-                  :title="editingId ? t('accounting.bookings.dateDisabledHint') : ''"
-                />
-                <p v-if="editingId" class="acc-field-hint">{{ t('accounting.bookings.dateFixedHint') }}</p>
-              </div>
-            </div>
-            <div class="acc-field">
-              <label for="b-cc">{{ t('accounting.bookings.labelCostCenterStar') }}</label>
-              <select id="b-cc" v-model="form.cost_center_id">
-                <option disabled value="">{{ t('accounting.common.pleaseSelect') }}</option>
-                <option v-for="c in costCenters" :key="c.id" :value="c.id">{{ c.name }}</option>
-              </select>
-            </div>
-            <div class="acc-field">
-              <label for="b-type">{{ t('accounting.bookings.labelEntryTypeStar') }}</label>
-              <select id="b-type" v-model="form.entry_type">
-                <option v-for="opt in entryOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
-              </select>
-            </div>
-            <div class="acc-field">
-              <label for="b-pay">{{ t('accounting.bookings.labelPaymentOptional') }}</label>
-              <select id="b-pay" v-model="form.payment_method">
-                <option value="">{{ t('accounting.common.dash') }}</option>
-                <option v-for="opt in paymentOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
-              </select>
-            </div>
-            <div class="acc-field">
-              <label for="b-grp">{{ t('accounting.bookings.labelGroupOptional') }}</label>
-              <select id="b-grp" v-model="form.group_id">
-                <option value="">{{ t('accounting.common.dash') }}</option>
-                <option v-for="g in groups" :key="g.id" :value="g.id">{{ g.name }}</option>
-              </select>
-            </div>
-            <div class="acc-field">
-              <label for="b-rec">{{ t('accounting.bookings.labelReceiptOptional') }}</label>
-              <input id="b-rec" v-model="form.receipt_label" type="text" maxlength="255" :placeholder="t('accounting.bookings.placeholderReceipt')" />
-            </div>
-            <div class="acc-field">
-              <label for="b-mat">{{ t('accounting.bookings.labelMaterialOptional') }}</label>
-              <p class="acc-field-hint">{{ t('accounting.bookings.materialFieldHint') }}</p>
-              <MaterialLookupInput
-                v-model="materialLookupDisplay"
-                :fetcher="bookingMaterialLookupFetcher"
-                :min-chars="1"
-                :max-suggestions="12"
-                :placeholder="t('accounting.bookings.placeholderMaterialSearch')"
-                :get-result-key="(item) => item.id"
-                @select="onBookingMaterialSelect"
-              />
-              <button
-                v-if="form.material_item_id"
-                type="button"
-                class="booking-clear-material"
-                @click="clearBookingMaterial"
-              >
-                {{ t('accounting.bookings.clearMaterialLink') }}
-              </button>
-            </div>
-            <div class="acc-field">
-              <label for="b-notes">{{ t('accounting.bookings.labelNotesOptional') }}</label>
-              <textarea id="b-notes" v-model="form.notes" :placeholder="t('accounting.bookings.placeholderNotesShort')" />
-            </div>
-            <div class="acc-modal-actions">
-              <button type="button" class="btn btn-secondary" @click="closeModal">{{ t('common.cancel') }}</button>
-              <button type="button" class="btn btn-primary" :disabled="saving" @click="save(false)">
-                {{ saving ? t('accounting.common.saving') : t('common.save') }}
-              </button>
-            </div>
-          </div>
-        </div>
+    <EDialog
+      v-model="modalOpen"
+      :max-width="640"
+      :title="editingId ? t('accounting.bookings.modalEditTitle') : t('accounting.bookings.modalCreateTitle')"
+    >
+      <div class="booking-assign-form-row">
+        <ETextField
+          v-model="form.amount"
+          :label="t('accounting.bookings.labelAmountChf')"
+          :placeholder="t('accounting.bookings.placeholderAmount')"
+          inputmode="decimal"
+          hide-details="auto"
+        />
+        <ETextField
+          v-model="form.booked_at"
+          type="date"
+          :label="t('accounting.bookings.labelBookingDate')"
+          :disabled="!!editingId"
+          :hint="editingId ? t('accounting.bookings.dateFixedHint') : undefined"
+          hide-details="auto"
+        />
       </div>
-    </Teleport>
+      <ESelect
+        v-model="form.cost_center_id"
+        :items="costCenterSelectItems"
+        :label="t('accounting.bookings.labelCostCenterStar')"
+        :placeholder="t('accounting.common.pleaseSelect')"
+        hide-details="auto"
+        class="mt-3"
+      />
+      <ESelect
+        v-model="form.entry_type"
+        :items="entryOptions"
+        item-title="label"
+        item-value="value"
+        :label="t('accounting.bookings.labelEntryTypeStar')"
+        hide-details="auto"
+        class="mt-3"
+      />
+      <ESelect
+        v-model="form.payment_method"
+        :items="paymentSelectItems"
+        item-title="label"
+        item-value="value"
+        :label="t('accounting.bookings.labelPaymentOptional')"
+        hide-details="auto"
+        class="mt-3"
+      />
+      <ESelect
+        v-model="form.payment_status"
+        :items="paymentStatusSelectItems"
+        item-title="label"
+        item-value="value"
+        :label="t('accounting.bookings.labelPaymentStatus')"
+        hide-details="auto"
+        class="mt-3"
+      />
+      <ESelect
+        v-model="form.group_id"
+        :items="groupSelectItems"
+        item-title="label"
+        item-value="value"
+        :label="t('accounting.bookings.labelGroupOptional')"
+        hide-details="auto"
+        class="mt-3"
+      />
+      <ETextField
+        v-model="form.receipt_label"
+        class="mt-3"
+        :label="t('accounting.bookings.labelReceiptOptional')"
+        :placeholder="t('accounting.bookings.placeholderReceipt')"
+        maxlength="255"
+        hide-details="auto"
+      />
+      <div class="mt-3">
+        <label class="booking-field-label">{{ t('accounting.bookings.labelMaterialOptional') }}</label>
+        <p class="acc-field-hint">{{ t('accounting.bookings.materialFieldHint') }}</p>
+        <MaterialLookupInput
+          v-model="materialLookupDisplay"
+          :fetcher="bookingMaterialLookupFetcher"
+          :min-chars="1"
+          :max-suggestions="12"
+          :placeholder="t('accounting.bookings.placeholderMaterialSearch')"
+          :get-result-key="(item) => item.id"
+          @select="onBookingMaterialSelect"
+        />
+        <EButton
+          v-if="form.material_item_id"
+          variant="text"
+          size="small"
+          class="booking-clear-material"
+          @click="clearBookingMaterial"
+        >
+          {{ t('accounting.bookings.clearMaterialLink') }}
+        </EButton>
+      </div>
+      <ETextarea
+        v-model="form.notes"
+        class="mt-3"
+        :label="t('accounting.bookings.labelNotesOptional')"
+        :placeholder="t('accounting.bookings.placeholderNotesShort')"
+        rows="3"
+        hide-details="auto"
+      />
+      <div class="mt-4 booking-receipts-section">
+        <label class="booking-field-label">{{ t('accounting.bookings.receiptAttachmentsLabel') }}</label>
+        <BookingReceiptAttachments
+          :department-id="departmentId"
+          :booking-id="editingId"
+          :receipts="modalReceipts"
+          :show-empty="!!editingId"
+          @update:receipts="onModalReceiptsUpdate"
+        />
+      </div>
+      <template #actions>
+        <EButton variant="secondary" size="small" @click="closeModal">{{ t('common.cancel') }}</EButton>
+        <EButton variant="primary" size="small" :loading="saving" @click="save(false)">
+          {{ saving ? t('accounting.common.saving') : t('common.save') }}
+        </EButton>
+      </template>
+    </EDialog>
   </div>
 </template>
 
@@ -322,12 +413,15 @@ import {
   createBooking,
   updateBooking,
   deleteBooking,
+  exportBookingsCsv,
   type AccountingBooking
 } from '@/api/accountingBookings'
 import {
   listAcquisitionFollowups,
+  batchRecordFollowUps,
   type AccountingAcquisitionFollowUp
 } from '@/api/accountingAcquisitionFollowups'
+import { listCostCenterRules, type AccountingCostCenterRule } from '@/api/accountingCostCenterRules'
 import { getGroups, type Group } from '@/api/groups'
 import type { Material } from '@/api/materials'
 import { useToast } from '@/composables/useToast'
@@ -343,7 +437,13 @@ import {
 import {
   suggestCostCenterId,
   suggestPaymentMethodForFollowUp,
+  suggestEntryTypeForFollowUp,
 } from '@/utils/accountingCostCenterSuggest'
+import BookingReceiptAttachments from '@/components/accounting/BookingReceiptAttachments.vue'
+import type { MediaPhoto } from '@/api/media'
+import EEmptyState from '@/components/layout/EEmptyState.vue'
+import { EButton, EDialog, ESelect, ETextField, ETextarea } from '@/components/form/base'
+import '@/styles/views/accounting-tabs.css'
 
 const route = useRoute()
 const headerNotificationsStore = useHeaderNotificationsStore()
@@ -363,6 +463,7 @@ const form = reactive({
   cost_center_id: '',
   entry_type: 'purchase',
   payment_method: '' as string,
+  payment_status: 'paid' as string,
   group_id: '' as string,
   receipt_label: '',
   notes: '',
@@ -381,6 +482,11 @@ function clearBookingMaterial() {
 
 const ENTRY_KEYS = ['purchase', 'repair_external', 'repair_internal', 'amortization', 'other'] as const
 const PAYMENT_KEYS = ['advance_mw', 'cash_group', 'supplier_invoice', 'association', 'other'] as const
+const PAYMENT_STATUS_KEYS = ['open', 'paid', 'cancelled'] as const
+
+const costCenterRules = ref<AccountingCostCenterRule[]>([])
+const batchSelectedIds = ref<string[]>([])
+const batchSaving = ref(false)
 
 const entryOptions = computed(() =>
   ENTRY_KEYS.map((value) => ({
@@ -394,6 +500,43 @@ const paymentOptions = computed(() =>
     label: t(`accounting.paymentMethod.${value}`),
   }))
 )
+
+const yearFilterItems = computed(() => [
+  { title: t('accounting.common.allYears'), value: '' },
+  ...bookingYears.value.map((y) => ({ title: String(y), value: String(y) })),
+])
+
+const costCenterFilterItems = computed(() => [
+  { title: t('accounting.common.all'), value: '' },
+  ...costCenters.value.map((c) => ({ title: c.name, value: c.id })),
+])
+
+const costCenterSelectItems = computed(() =>
+  costCenters.value.map((c) => ({ title: c.name, value: c.id }))
+)
+
+const paymentSelectItems = computed(() => [
+  { label: t('accounting.common.dash'), value: '' },
+  ...paymentOptions.value,
+])
+
+const paymentStatusSelectItems = computed(() =>
+  PAYMENT_STATUS_KEYS.map((value) => ({
+    label: t(`accounting.paymentStatus.${value}`),
+    value,
+  }))
+)
+
+const batchAssignCandidates = computed(() => {
+  const current = pendingFollowUps.value[assignTabIndex.value]
+  if (!current?.activity_id) return []
+  return pendingFollowUps.value.filter((f) => f.activity_id === current.activity_id)
+})
+
+const groupSelectItems = computed(() => [
+  { label: t('accounting.common.dash'), value: '' },
+  ...groups.value.map((g) => ({ label: g.name, value: g.id })),
+])
 
 const { years: bookingYears, refreshYears: loadBookingYears } = useAccountingBookingYears(departmentId)
 
@@ -415,6 +558,7 @@ const loadError = ref('')
 
 const modalOpen = ref(false)
 const editingId = ref<string | null>(null)
+const modalReceipts = ref<MediaPhoto[]>([])
 const saving = ref(false)
 
 const bookingsSubTab = ref<'list' | 'assign'>('list')
@@ -495,15 +639,14 @@ function persistCurrentAssignDraft() {
   }
 }
 
+function paymentStatusLabel(k: string | null | undefined): string {
+  if (!k) return t('accounting.common.dash')
+  const key = `accounting.paymentStatus.${k}`
+  return te(key) ? t(key) : k
+}
+
 function defaultEntryTypeForFollowUp(p: AccountingAcquisitionFollowUp): string {
-  const sk = p.source_kind || (p.material_batch_id ? 'batch' : '')
-  if (sk === 'activity_replenishment' || sk === 'batch') return 'purchase'
-  if (sk === 'activity_consumption') return 'other'
-  if (sk === 'activity_rental') return 'other'
-  if (sk === 'activity_workshop') {
-    return p.activity_type === 'external' ? 'repair_external' : 'repair_internal'
-  }
-  return 'other'
+  return suggestEntryTypeForFollowUp(p, costCenterRules.value)
 }
 
 function loadAssignFormForFollowUp(p: AccountingAcquisitionFollowUp) {
@@ -523,10 +666,12 @@ function loadAssignFormForFollowUp(p: AccountingAcquisitionFollowUp) {
     form.booked_at = p.suggested_date
     form.receipt_label = p.receipt_label || ''
     form.entry_type = defaultEntryTypeForFollowUp(p)
-    const suggestedCc = suggestCostCenterId(p, costCenters.value)
+    const suggestedCc = suggestCostCenterId(p, costCenters.value, costCenterRules.value)
     form.cost_center_id = suggestedCc || costCenters.value[0]?.id || ''
-    const suggestedPay = suggestPaymentMethodForFollowUp(p)
+    const suggestedPay = suggestPaymentMethodForFollowUp(p, costCenterRules.value)
     form.payment_method = suggestedPay || ''
+    form.payment_status =
+      p.charge_target === 'external_customer' || p.activity_type === 'external' ? 'open' : 'paid'
     const chargeTarget = p.charge_target ?? (p.activity_type === 'external' ? 'external_customer' : 'group')
     if (chargeTarget === 'group') {
       form.group_id = p.suggested_group_id || p.activity_group_id || ''
@@ -570,9 +715,22 @@ function selectAssignTab(idx: number) {
   if (fu) loadAssignFormForFollowUp(fu)
 }
 
+async function onBookingsSubTabChange(tab: unknown) {
+  if (tab === 'assign') {
+    bookingsSubTab.value = 'assign'
+    await refreshPendingFollowUps()
+  } else {
+    bookingsSubTab.value = 'list'
+  }
+}
+
 async function openAssignTab() {
-  bookingsSubTab.value = 'assign'
-  await refreshPendingFollowUps()
+  await onBookingsSubTabChange('assign')
+}
+
+function onAssignTabChange(tab: unknown) {
+  const idx = Number.parseInt(String(tab), 10)
+  if (!Number.isNaN(idx)) selectAssignTab(idx)
 }
 
 function entryLabel(k: string): string {
@@ -611,6 +769,7 @@ async function loadCostCenters() {
   ccError.value = ''
   try {
     costCenters.value = await listCostCenters(departmentId.value)
+    costCenterRules.value = await listCostCenterRules(departmentId.value)
   } catch {
     ccError.value = t('accounting.bookings.ccLoadError')
     costCenters.value = []
@@ -737,6 +896,7 @@ function resetForm() {
   form.cost_center_id = costCenters.value[0]?.id || ''
   form.entry_type = 'purchase'
   form.payment_method = ''
+  form.payment_status = 'paid'
   form.group_id = ''
   form.receipt_label = ''
   form.notes = ''
@@ -749,18 +909,31 @@ function openCreate() {
   workingFromPending.value = false
   activeFollowUpId.value = null
   resetForm()
+  modalReceipts.value = []
   modalOpen.value = true
+}
+
+function onModalReceiptsUpdate(receipts: MediaPhoto[]) {
+  modalReceipts.value = receipts
+  if (editingId.value) {
+    const idx = items.value.findIndex((b) => b.id === editingId.value)
+    if (idx >= 0) {
+      items.value[idx] = { ...items.value[idx], receipts }
+    }
+  }
 }
 
 function openEdit(row: AccountingBooking) {
   workingFromPending.value = false
   activeFollowUpId.value = null
   editingId.value = row.id
+  modalReceipts.value = [...(row.receipts ?? [])]
   form.amount = row.amount
   form.booked_at = row.booked_at
   form.cost_center_id = row.cost_center_id
   form.entry_type = row.entry_type
   form.payment_method = row.payment_method || ''
+  form.payment_status = row.payment_status || 'paid'
   form.group_id = row.group_id || ''
   form.receipt_label = row.receipt_label || ''
   form.notes = row.notes || ''
@@ -797,6 +970,7 @@ async function save(fromAssignTab = false) {
     cost_center_id: form.cost_center_id,
     entry_type: form.entry_type,
     payment_method: form.payment_method || null,
+    payment_status: form.payment_status || 'paid',
     group_id: form.group_id || null,
     receipt_label: form.receipt_label.trim() || null,
     notes: form.notes.trim() || null,
@@ -806,22 +980,26 @@ async function save(fromAssignTab = false) {
   saving.value = true
   try {
     if (editingId.value) {
-      await updateBooking(departmentId.value, editingId.value, payloadBase)
+      const updated = await updateBooking(departmentId.value, editingId.value, payloadBase)
+      modalReceipts.value = updated.receipts ?? modalReceipts.value
       toast.success(t('accounting.bookings.toastSaved'))
     } else {
+      let created: AccountingBooking
       if (fromAssignTab && activeFollowUpId.value) {
         const { material_item_id: _omitMat, ...withoutMat } = payloadBase
-        await createBooking(departmentId.value, {
+        created = await createBooking(departmentId.value, {
           ...withoutMat,
           booked_at: form.booked_at,
           acquisition_follow_up_id: activeFollowUpId.value,
         })
       } else {
-        await createBooking(departmentId.value, {
+        created = await createBooking(departmentId.value, {
           ...payloadBase,
           booked_at: form.booked_at,
         })
       }
+      editingId.value = created.id
+      modalReceipts.value = created.receipts ?? []
       toast.success(t('accounting.bookings.toastCreated'))
       if (workingFromPending.value) {
         const savedFuId = activeFollowUpId.value
@@ -834,7 +1012,11 @@ async function save(fromAssignTab = false) {
         }
       }
     }
-    closeModal()
+    if (!fromAssignTab && editingId.value) {
+      // Modal offen lassen für Beleg-Upload nach dem ersten Speichern
+    } else {
+      closeModal()
+    }
     await loadBookingYears()
     await load()
     headerNotificationsStore.requestRefresh()
@@ -849,6 +1031,60 @@ async function save(fromAssignTab = false) {
     toast.error(msg || t('accounting.common.saveFailed'))
   } finally {
     saving.value = false
+  }
+}
+
+async function exportCsv() {
+  if (!filterYear.value) {
+    toast.error(t('accounting.bookings.exportCsvYearRequired'))
+    return
+  }
+  try {
+    const blob = await exportBookingsCsv(departmentId.value, Number(filterYear.value))
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `buchungen-${departmentId.value}-${filterYear.value}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+    toast.success(t('accounting.bookings.csvDownloaded'))
+  } catch {
+    toast.error(t('accounting.bookings.exportFailed'))
+  }
+}
+
+async function runBatchAssign() {
+  if (batchSelectedIds.value.length === 0) {
+    toast.error(t('accounting.bookings.batchAssignNone'))
+    return
+  }
+  if (!form.cost_center_id || !form.entry_type) {
+    toast.error(t('accounting.bookings.toastCostCenterRequired'))
+    return
+  }
+  batchSaving.value = true
+  try {
+    const result = await batchRecordFollowUps(departmentId.value, {
+      follow_up_ids: batchSelectedIds.value,
+      cost_center_id: form.cost_center_id,
+      entry_type: form.entry_type,
+      payment_method: form.payment_method || null,
+      payment_status: form.payment_status || null,
+    })
+    toast.success(t('accounting.bookings.batchAssignSuccess', { count: result.count }))
+    batchSelectedIds.value = []
+    await refreshPendingFollowUps()
+    await loadBookingYears()
+    await load()
+    headerNotificationsStore.requestRefresh()
+  } catch (e: unknown) {
+    const msg =
+      e && typeof e === 'object' && 'response' in e
+        ? (e as { response?: { data?: { error?: string } } }).response?.data?.error
+        : null
+    toast.error(msg || t('accounting.common.saveFailed'))
+  } finally {
+    batchSaving.value = false
   }
 }
 
@@ -894,22 +1130,22 @@ async function onDelete(row: AccountingBooking) {
   align-items: flex-end;
 }
 
-.filter-label {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  font-size: 13px;
-  font-weight: 500;
-  color: #374151;
+.bookings-filter-select {
+  min-width: 180px;
 }
 
-.filter-select {
-  min-width: 160px;
-  padding: 8px 12px;
-  border: 1px solid #d1d5db;
-  border-radius: 6px;
-  font-size: 14px;
-  background: #fff;
+.booking-assign-form-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+}
+
+.booking-field-label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 6px;
 }
 
 .bookings-table-wrap {
@@ -917,7 +1153,39 @@ async function onDelete(row: AccountingBooking) {
 }
 
 .bookings-table {
-  min-width: 720px;
+  min-width: 960px;
+}
+
+.batch-assign-panel {
+  margin: 12px 0 16px;
+  padding: 12px 14px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #f9fafb;
+}
+
+.batch-assign-hint {
+  font-size: 13px;
+  color: #6b7280;
+  margin-bottom: 10px;
+}
+
+.batch-assign-checks {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.batch-assign-check {
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.source-cell a {
+  font-size: 13px;
 }
 
 .acc-field select {
@@ -936,16 +1204,9 @@ async function onDelete(row: AccountingBooking) {
   color: #6b7280;
 }
 
-.loading-inline,
-.error-inline,
-.empty-hint {
+.error-inline {
   padding: 16px;
   border-radius: 8px;
-  background: #f9fafb;
-  color: #6b7280;
-}
-
-.error-inline {
   background: #fef2f2;
   color: #b91c1c;
 }

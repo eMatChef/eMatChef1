@@ -1,3 +1,12 @@
+/**
+ * Shared modal overlay/dialog base (Legacy).
+ *
+ * Migrationshinweis (Vuetify Phase 4, Schritt 059):
+ * - Globale Bestätigung/Eingabe: EDialog via useConfirm / usePrompt (GlobalConfirmDialog, GlobalPromptDialog)
+ * - Neue Feature-Dialoge: EDialog + EButton (+ E*-Felder), nicht .modal-overlay duplizieren
+ * - Bestehende .modal-overlay in Views schrittweise ersetzen (ab Phase 5)
+ * - Wizard-/Feature-spezifische Modals (material-wizard.css etc.) bleiben bis jeweilige View-Migration
+ */
 /* Shared modal base */
 .modal-overlay {
   position: fixed;

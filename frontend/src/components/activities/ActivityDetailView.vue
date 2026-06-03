@@ -1,118 +1,159 @@
 <template>
-  <div class="material-detail-view activity-detail-view">
-    <header class="detail-header">
+  <div class="material-detail-view activity-detail-view" :class="detailDisplayClasses">
+    <header class="detail-header activity-detail-header">
       <div class="header-left">
-        <button type="button" class="back-btn" @click="handleClose">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M19 12H5M12 19l-7-7 7-7" />
-          </svg>
+        <EButton
+          v-if="smAndUp"
+          variant="secondary"
+          size="small"
+          class="activity-detail-back-btn"
+          @click="handleClose"
+        >
+          <v-icon icon="mdi-arrow-left" start size="20" />
           {{ t('activities.detail.backToList') }}
-        </button>
+        </EButton>
         <div class="header-title activity-detail-header-title">
-          <span v-if="noLabel" class="material-code">{{ noLabel }}</span>
+          <v-chip v-if="noLabel" size="small" variant="tonal" color="primary" class="activity-detail-no-chip">
+            {{ noLabel }}
+          </v-chip>
           <span v-if="activity" class="type-badge" :class="activity.type">{{ activityTypeLabelDetail(activity.type) }}</span>
           <h1>{{ activity?.name ?? t('activities.detail.fallbackTitle') }}</h1>
           <span v-if="activity" class="status-label" :class="activityStatusClass(activity.status)">{{ activityStatusLabelDetail(activity.status) }}</span>
         </div>
       </div>
       <div v-if="activity && !loadError" class="header-actions activity-detail-workflow-actions">
-        <template v-if="canManageActivityQr">
-          <button
+        <div
+          v-if="canManageActivityQr"
+          class="activity-detail-header-qr"
+        >
+          <EButton
             v-if="showGenerateActivityQrButton"
-            type="button"
-            class="btn-outline btn-sm"
+            variant="secondary"
+            size="small"
+            class="activity-header-action-btn"
             :disabled="isGeneratingActivityPublicCode"
+            :loading="isGeneratingActivityPublicCode"
             @click="generateActivityPublicCode"
           >
             {{ isGeneratingActivityPublicCode ? t('activities.detail.qrGenLoading') : t('activities.detail.qrGenCreate') }}
-          </button>
+          </EButton>
           <PublicQrTag
             v-if="activityPublicUrl"
             class="header-qr-tag"
             :url="activityPublicUrl"
             :code="activity.public_code"
-            :size="64"
+            :size="headerQrSize"
             :clickable="true"
             :image-label="activity.name"
             :image-entity-id="activity.id"
             @activate="openActivityQrActionModal"
           />
-        </template>
-        <button
-          v-for="tr in workflowTransitions"
-          :key="tr.status"
-          type="button"
-          class="btn-outline btn-sm"
-          :disabled="isTransitioning || !tr.allowed"
-          :title="!tr.allowed && tr.reason ? tr.reason : undefined"
-          @click="onTransition(tr)"
-        >
-          {{ transitionActionLabel(tr) }}
-        </button>
-        <button
-          v-if="cancelTransition"
-          type="button"
-          class="btn-outline btn-sm activity-danger-outline"
-          :disabled="isTransitioning"
-          @click="onCancelActivity"
-        >
-          {{ cancelTransition ? transitionActionLabel(cancelTransition) : '' }}
-        </button>
-        <button
-          v-if="showDamageReportEntry"
-          type="button"
-          class="btn-outline btn-sm"
-          @click="openDamageReport()"
-        >
-          {{ t('activities.detail.reportDamage') }}
-        </button>
-        <button type="button" class="btn-outline" @click="handleClose">{{ t('activities.detail.close') }}</button>
+        </div>
+        <div class="activity-detail-header-buttons">
+          <EButton
+            v-for="tr in workflowTransitions"
+            :key="tr.status"
+            variant="secondary"
+            size="small"
+            class="activity-header-action-btn"
+            :disabled="isTransitioning || !tr.allowed"
+            :title="!tr.allowed && tr.reason ? tr.reason : transitionActionLabel(tr)"
+            @click="onTransition(tr)"
+          >
+            {{ transitionActionLabel(tr) }}
+          </EButton>
+          <EButton
+            v-if="cancelTransition"
+            variant="danger"
+            size="small"
+            class="activity-header-action-btn activity-header-cancel-btn"
+            :disabled="isTransitioning"
+            :title="cancelTransition ? transitionActionLabel(cancelTransition) : undefined"
+            @click="onCancelActivity"
+          >
+            {{ cancelTransition ? transitionActionLabel(cancelTransition) : '' }}
+          </EButton>
+          <EButton
+            v-if="showDamageReportEntry"
+            variant="secondary"
+            size="small"
+            class="activity-header-action-btn"
+            @click="openDamageReport()"
+          >
+            {{ t('activities.detail.reportDamage') }}
+          </EButton>
+          <EButton
+            variant="secondary"
+            size="small"
+            class="activity-header-action-btn"
+            @click="handleClose"
+          >
+            {{ t('activities.detail.close') }}
+          </EButton>
+        </div>
       </div>
     </header>
 
-    <div v-if="isLoading" class="loading-container">
-      <div class="spinner"></div>
-      <p>{{ t('activities.detail.loading') }}</p>
-    </div>
+    <v-tabs
+      v-if="activity && !isLoading && !loadError"
+      v-model="activeTab"
+      class="activity-detail-tabs"
+      align-tabs="start"
+      color="primary"
+      show-arrows
+    >
+      <v-tab v-for="tab in tabs" :key="tab.id" :value="tab.id">
+        {{ tab.label }}
+      </v-tab>
+    </v-tabs>
 
-    <div v-else-if="loadError" class="loading-container activity-detail-error">
+    <ELoadingState
+      v-if="isLoading"
+      variant="page"
+      class="activity-detail-loading"
+      :message="t('activities.detail.loading')"
+    />
+
+    <div v-else-if="loadError" class="activity-detail-error-state">
       <p>{{ loadError }}</p>
-      <button type="button" class="btn-primary" @click="reload">{{ t('common.retry') }}</button>
-      <button type="button" class="btn-outline" @click="handleClose">{{ t('activities.detail.loadErrorBack') }}</button>
+      <div class="activity-detail-error-actions">
+        <EButton variant="primary" size="small" @click="reload">{{ t('common.retry') }}</EButton>
+        <EButton variant="secondary" size="small" @click="handleClose">{{ t('activities.detail.loadErrorBack') }}</EButton>
+      </div>
     </div>
 
-    <div v-else-if="activity" class="detail-content">
-      <div v-if="activity.status === 'draft'" class="draft-hint-banner">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
-          <circle cx="12" cy="12" r="10" />
-          <line x1="12" y1="8" x2="12" y2="12" />
-          <line x1="12" y1="16" x2="12.01" y2="16" />
-        </svg>
-        <span>
-          <strong>{{ t('activities.detail.draftLabel') }}</strong>
-          <template v-if="activity.type === 'event' && !activity.group_id">
-            {{ t('activities.detail.draftBannerEventNoGroup') }}
-          </template>
-          <template v-else>
-            {{ t('activities.detail.draftBannerWithGroup') }}
-          </template>
-          <template
-            v-if="
-              isRestrictedGroupMember &&
-              !canCreateCampAndEvent &&
-              (activity.type === 'camp' || activity.type === 'event' || activity.type === 'external')
-            "
-          >
-            {{ t('activities.detail.draftBannerSubmitMemberCamp') }}
-          </template>
-          <template v-else-if="activity.type === 'camp' || activity.type === 'event'">
-            {{ t('activities.detail.draftBannerSubmitCampEvent') }}
-          </template>
-          <template v-else>
-            {{ t('activities.detail.draftBannerSubmit') }}
-          </template>
-        </span>
-      </div>
+    <div v-else-if="activity" class="activity-detail-scroll">
+      <v-alert
+        v-if="activity.status === 'draft'"
+        type="warning"
+        variant="tonal"
+        density="compact"
+        class="activity-draft-alert"
+        icon="mdi-information-outline"
+      >
+        <strong>{{ t('activities.detail.draftLabel') }}</strong>
+        <template v-if="activity.type === 'event' && !activity.group_id">
+          {{ t('activities.detail.draftBannerEventNoGroup') }}
+        </template>
+        <template v-else>
+          {{ t('activities.detail.draftBannerWithGroup') }}
+        </template>
+        <template
+          v-if="
+            isRestrictedGroupMember &&
+            !canCreateCampAndEvent &&
+            (activity.type === 'camp' || activity.type === 'event' || activity.type === 'external')
+          "
+        >
+          {{ t('activities.detail.draftBannerSubmitMemberCamp') }}
+        </template>
+        <template v-else-if="activity.type === 'camp' || activity.type === 'event'">
+          {{ t('activities.detail.draftBannerSubmitCampEvent') }}
+        </template>
+        <template v-else>
+          {{ t('activities.detail.draftBannerSubmit') }}
+        </template>
+      </v-alert>
 
       <ActivityCompletionChecklist
         v-if="canManageMaterials && activity.status === 'returned' && completionBlockers"
@@ -122,32 +163,20 @@
         @go-tab="onCompletionGoTab"
       />
 
-      <div v-if="showMemberScopeStatusHint" class="draft-hint-banner member-scope-hint-banner">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
-          <circle cx="12" cy="12" r="10" />
-          <line x1="12" y1="8" x2="12" y2="12" />
-          <line x1="12" y1="16" x2="12.01" y2="16" />
-        </svg>
-        <span>{{ t('activities.detail.memberScopeStatusHint') }}</span>
-      </div>
+      <v-alert
+        v-if="showMemberScopeStatusHint"
+        type="info"
+        variant="tonal"
+        density="compact"
+        class="activity-member-scope-alert"
+        icon="mdi-information-outline"
+      >
+        {{ t('activities.detail.memberScopeStatusHint') }}
+      </v-alert>
 
-      <nav class="tab-nav">
-        <button
-          v-for="tab in tabs"
-          :key="tab.id"
-          type="button"
-          class="tab-btn"
-          :class="{ active: activeTab === tab.id }"
-          @click="activeTab = tab.id"
-        >
-          {{ tab.label }}
-        </button>
-      </nav>
-
-      <div class="content-layout activity-detail-content-layout">
-        <main class="content-main">
-          <!-- Übersicht -->
-          <section v-if="activeTab === 'overview'" class="tab-content">
+      <v-tabs-window v-model="activeTab" class="activity-detail-tabs-window">
+          <v-tabs-window-item value="overview" class="activity-detail-window-item">
+            <div class="activity-detail-tab-panel tab-content">
             <ActivityDraftOverviewForm
               v-if="showOverviewEditForm && activity"
               ref="draftOverviewFormRef"
@@ -219,10 +248,11 @@
                 <p class="activity-notes">{{ activity.notes }}</p>
               </div>
             </template>
-          </section>
+            </div>
+          </v-tabs-window-item>
 
-          <!-- Material -->
-          <section v-else-if="activeTab === 'material'" class="tab-content">
+          <v-tabs-window-item value="material" class="activity-detail-window-item">
+            <div class="activity-detail-tab-panel tab-content">
             <ActivityTabHeader :title="t('common.material')" />
             <div
               v-if="showDraftMaterialAddForGroup"
@@ -247,9 +277,11 @@
                 @add-quantity="onDraftAddQuantity"
                 @scope-change="onMaterialLookupScopeChange"
               />
-              <p v-if="addingDraftMaterial" class="activity-inline-loading activity-draft-adding">
-                <span class="spinner spinner-sm"></span>
-                <span>{{ t('activities.detail.addingMaterial') }}</span>
+              <p v-if="addingDraftMaterial" class="activity-draft-adding">
+                <ELoadingState
+                  variant="inline"
+                  :message="t('activities.detail.addingMaterial')"
+                />
               </p>
             </div>
             <div
@@ -311,9 +343,11 @@
                 @add-quantity="onDraftAddQuantity"
                 @scope-change="onMaterialLookupScopeChange"
               />
-              <p v-if="addingDraftMaterial" class="activity-inline-loading activity-draft-adding">
-                <span class="spinner spinner-sm"></span>
-                <span>{{ t('activities.detail.addingMaterial') }}</span>
+              <p v-if="addingDraftMaterial" class="activity-draft-adding">
+                <ELoadingState
+                  variant="inline"
+                  :message="t('activities.detail.addingMaterial')"
+                />
               </p>
             </div>
             <div
@@ -327,9 +361,11 @@
 
             <div class="section-card activity-tab-panel-card">
               <h2 class="section-title activity-tab-subsection-title">{{ t('activities.detail.materialPositionsTitle') }}</h2>
-              <div v-if="itemsLoading" class="activity-inline-loading">
-                <div class="spinner spinner-sm"></div>
-                <span>{{ t('activities.detail.itemsLoading') }}</span>
+              <div v-if="itemsLoading" class="activity-items-loading">
+                <ELoadingState
+                  variant="inline"
+                  :message="t('activities.detail.itemsLoading')"
+                />
               </div>
               <div v-else-if="activityItems.length === 0" class="text-muted">
                 {{
@@ -359,14 +395,15 @@
                   @remove-line="onDraftTableRemoveLine"
                 />
                 <div v-if="hasDraftQtyChanges" class="activity-qty-save-row">
-                  <button
-                    type="button"
-                    class="btn-primary btn-sm"
+                  <EButton
+                    variant="primary"
+                    size="small"
                     :disabled="syncingQuantities"
+                    :loading="syncingQuantities"
                     @click="saveDraftQuantities"
                   >
                     {{ syncingQuantities ? t('activities.detail.saveQtySaving') : t('activities.detail.saveQty') }}
-                  </button>
+                  </EButton>
                 </div>
               </div>
               <div v-else class="activity-items-table-wrap">
@@ -446,10 +483,11 @@
                 </table>
               </div>
             </div>
-          </section>
+          </div>
+          </v-tabs-window-item>
 
-          <!-- Packliste -->
-          <section v-else-if="activeTab === 'packs'" class="tab-content">
+          <v-tabs-window-item v-if="showPacksTab" value="packs" class="activity-detail-window-item">
+            <div class="activity-detail-tab-panel tab-content">
             <ActivityPackListTab
               ref="packListTabRef"
               v-if="activity"
@@ -484,10 +522,11 @@
               @add-activity-material="onDraftAddQuantity"
               @material-scope-change="onMaterialLookupScopeChange"
             />
-          </section>
+            </div>
+          </v-tabs-window-item>
 
-          <!-- Reparaturen / Verluste (wie v4.01) -->
-          <section v-else-if="activeTab === 'issues'" class="tab-content">
+          <v-tabs-window-item v-if="showIssuesTab" value="issues" class="activity-detail-window-item">
+            <div class="activity-detail-tab-panel tab-content">
             <ActivityIssuesTab
               :activity-id="activityId"
               :can-create="showDamageReportEntry"
@@ -495,9 +534,11 @@
               :reload-token="issuesReloadToken"
               @open-wizard="openDamageReport()"
             />
-          </section>
+            </div>
+          </v-tabs-window-item>
 
-          <section v-else-if="activeTab === 'consumables'" class="tab-content">
+          <v-tabs-window-item v-if="showConsumablesTab" value="consumables" class="activity-detail-window-item">
+            <div class="activity-detail-tab-panel tab-content">
             <ActivityConsumablesTab
               :activity-id="activityId"
               :can-create="showConsumptionBooking"
@@ -508,9 +549,11 @@
               @consumption-booked="onConsumableBooked"
               @edit-consumption="onEditConsumption"
             />
-          </section>
+            </div>
+          </v-tabs-window-item>
 
-          <section v-else-if="activeTab === 'costs'" class="tab-content">
+          <v-tabs-window-item v-if="showCostsTab" value="costs" class="activity-detail-window-item">
+            <div class="activity-detail-tab-panel tab-content">
             <ActivityCostsTab
               v-if="activity"
               :activity-id="activityId"
@@ -519,14 +562,15 @@
               :activity-status="activity.status"
               :reload-token="costsReloadToken"
             />
-          </section>
+            </div>
+          </v-tabs-window-item>
 
-          <!-- Verlauf -->
-          <section v-else-if="activeTab === 'history'" class="tab-content">
-            <ActivityHistoryTab :activity-id="activityId" />
-          </section>
-        </main>
-      </div>
+          <v-tabs-window-item value="history" class="activity-detail-window-item">
+            <div class="activity-detail-tab-panel tab-content">
+              <ActivityHistoryTab :activity-id="activityId" />
+            </div>
+          </v-tabs-window-item>
+      </v-tabs-window>
     </div>
 
     <DamageReportWizard
@@ -569,6 +613,8 @@
       :label="activity?.name"
       :code="activity?.public_code"
       :url="activityPublicUrl"
+      :image-label="activity?.name"
+      :image-entity-id="activity?.id"
       @close="closeActivityQrActionModal"
       @add-to-print-cart="handleActivityQrAddToPrintCart"
       @print="handleActivityQrPrint"
@@ -628,12 +674,16 @@ import {
 } from '@/composables/useDepartmentMemberRole'
 import { useBackgroundPoll } from '@/composables/useBackgroundPoll'
 import { useConfirm } from '@/composables/useConfirm'
+import { useDisplayHostClasses } from '@/composables/useDisplayHostClasses'
+import { useSmAndUp } from '@/composables/useSmAndUp'
 import { usePageHeadStore } from '@/stores/pageHead'
 import { useDetailTabsStore } from '@/stores/detailTabs'
 import { useHeaderNotificationsStore } from '@/stores/headerNotifications'
 import { useToast } from '@/composables/useToast'
 import { resolveActivityPublicUrl } from '@/utils/publicQrUrl'
 import { activityStatusClass, activityStatusI18nKey } from '@/utils/activityStatus'
+import { EButton } from '@/components/form/base'
+import ELoadingState from '@/components/layout/ELoadingState.vue'
 import QRCode from 'qrcode'
 
 defineOptions({ name: 'ActivityDetailView' })
@@ -677,6 +727,8 @@ function mergeActivityQuery(updates: Record<string, string | undefined>) {
 }
 const toast = useToast()
 const { confirm: confirmDialog } = useConfirm()
+const smAndUp = useSmAndUp()
+const detailDisplayClasses = useDisplayHostClasses('activity-detail-view')
 const pageHeadStore = usePageHeadStore()
 const headerNotificationsStore = useHeaderNotificationsStore()
 const { t, te, locale } = useI18n()
@@ -722,6 +774,9 @@ const activityPublicUrl = computed(() =>
 const showGenerateActivityQrButton = computed(
   () => canManageActivityQr.value && !activityPublicUrl.value && !!activity.value
 )
+
+/** Mobile: QR kompakt (40px); Desktop: 64px — Tap öffnet QR-Dialog */
+const headerQrSize = computed(() => (smAndUp.value ? 64 : 40))
 
 /** Wie v4.01: Packliste erst ab «Wird gepackt», nicht schon bei «Bestätigt». */
 const STATUSES_WITH_PACKS_TAB = [
@@ -1044,10 +1099,16 @@ const hasAcceptedPartnerDepts = computed(() =>
   (activity.value?.invited_departments ?? []).some((i) => (i.status ?? 'pending') === 'accepted'),
 )
 
-/** Wie v4.01: Übersicht nur im Entwurf bearbeitbar (kein PATCH-Formular nach Einreichung). */
-const showOverviewEditForm = computed(
-  () => !!activity.value && activity.value.status === 'draft',
-)
+/**
+ * Entwurfs-Detail mit AutoSave: nur Lager / Event / extern (Typ «activity» ohne Entwurfmodus).
+ * Erstell-Wizard nutzt normale E*-Felder ohne AutoSave.
+ */
+const showOverviewEditForm = computed(() => {
+  const a = activity.value
+  if (!a || a.status !== 'draft') return false
+  const typ = (a.type || 'activity') as ActivityApiType
+  return typ === 'camp' || typ === 'event' || typ === 'external'
+})
 
 /** Entwurf (bestehende Regeln) oder nach Einreichung: Host-MW/DC bis einschliesslich «gepackt». */
 const showMaterialLookup = computed(() => {
@@ -2102,3 +2163,15 @@ useBackgroundPoll({
 <style scoped src="@/styles/material-detail-view.css"></style>
 <style scoped src="@/styles/views/activities/detail-panel.css"></style>
 <style scoped src="@/styles/views/activities/detail-workflow.css"></style>
+<style scoped>
+.activity-detail-view.material-detail-view {
+  height: auto;
+  min-height: 0;
+  overflow: visible;
+}
+
+.activity-detail-view :deep(.detail-header) {
+  position: static !important;
+  top: auto !important;
+}
+</style>

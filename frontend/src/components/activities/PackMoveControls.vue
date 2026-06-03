@@ -1,6 +1,4 @@
 <script setup lang="ts">
-import { IconArrowLeft, IconArrowRight, IconArrowUp } from '@/components/icons'
-
 defineOptions({ name: 'PackMoveControls' })
 
 const props = withDefaults(
@@ -89,8 +87,7 @@ function onMoveClick(event: MouseEvent | KeyboardEvent) {
           :title="intoCrate ? forwardTitle : backTitle"
           @click="onMoveClick"
         >
-          <IconArrowUp v-if="intoCrate" />
-          <IconArrowLeft v-else />
+          <v-icon :icon="intoCrate ? 'mdi-arrow-up' : 'mdi-arrow-left'" size="12" />
         </button>
         <input
           :value="qty"
@@ -120,7 +117,7 @@ function onMoveClick(event: MouseEvent | KeyboardEvent) {
           :title="forwardTitle"
           @click="onMoveClick"
         >
-          <IconArrowUp />
+          <v-icon icon="mdi-arrow-up" size="12" />
         </button>
       </template>
       <template v-else>
@@ -141,8 +138,7 @@ function onMoveClick(event: MouseEvent | KeyboardEvent) {
           :title="forwardTitle"
           @click="onMoveClick"
         >
-          <IconArrowUp v-if="intoCrate" />
-          <IconArrowRight v-else />
+          <v-icon :icon="intoCrate ? 'mdi-arrow-up' : 'mdi-arrow-right'" size="12" />
         </button>
       </template>
     </div>
@@ -150,7 +146,7 @@ function onMoveClick(event: MouseEvent | KeyboardEvent) {
 </template>
 
 <style scoped>
-.btn-move-arrow--into-crate :deep(svg) {
+.btn-move-arrow--into-crate :deep(.v-icon) {
   transform: rotate(-90deg);
   transform-origin: center center;
   transition: transform 0.15s ease;

@@ -61,6 +61,10 @@ var/uploads/
     {departmentId}/
       {materialItemId}/
         …
+  accounting/
+    {departmentId}/
+      {bookingId}/
+        …
 ```
 
 **Dateiname (überall gleich):** `{YmdHis}_{userId}_{random8}.{ext}`

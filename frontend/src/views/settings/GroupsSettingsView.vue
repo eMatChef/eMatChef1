@@ -8,12 +8,10 @@
           {{ groupsSubtitle }}
         </p>
       </div>
-      <button v-if="canFullyManageGroups" class="btn btn-primary" @click="openCreateModal()">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-        </svg>
+      <EButton v-if="canFullyManageGroups" variant="primary" @click="openCreateModal()">
+        <v-icon icon="mdi-plus" start size="20" />
         {{ t('settings.groups.newGroup') }}
-      </button>
+      </EButton>
     </div>
 
     <!-- Stats Bar -->
@@ -32,35 +30,27 @@
       </div>
     </div>
 
-    <!-- Loading -->
-    <div v-if="isLoading" class="loading-state">
-      <div class="spinner"></div>
-      <p>{{ t('settings.groups.loading') }}</p>
+    <ELoadingState
+      v-if="isLoading"
+      variant="list"
+      :message="t('settings.groups.loading')"
+    />
+
+    <div v-else-if="error" class="groups-settings-error">
+      <v-alert type="error" variant="tonal" :text="error" />
+      <EButton variant="secondary" class="mt-3" @click="loadGroups">{{ t('common.retry') }}</EButton>
     </div>
 
-    <!-- Error -->
-    <div v-else-if="error" class="error-state">
-      <p class="error-message">{{ error }}</p>
-      <button @click="loadGroups" class="btn btn-secondary">{{ t('common.retry') }}</button>
-    </div>
-
-    <!-- Empty State -->
-    <div v-else-if="groups.length === 0" class="empty-state">
-      <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="#d1d5db" stroke-width="1.5">
-        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
-        <circle cx="9" cy="7" r="4"/>
-        <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
-        <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
-      </svg>
-      <h3>{{ t('settings.groups.emptyTitle') }}</h3>
-      <p>{{ t('settings.groups.emptyDescription') }}</p>
-      <button v-if="canFullyManageGroups" class="btn btn-primary" @click="openCreateModal()">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-        </svg>
-        {{ t('settings.groups.firstGroup') }}
-      </button>
-    </div>
+    <EEmptyState
+      v-else-if="groups.length === 0"
+      variant="create"
+      :title="t('settings.groups.emptyTitle')"
+      :description="t('settings.groups.emptyDescription')"
+    >
+      <template v-if="canFullyManageGroups" #actions>
+        <EButton @click="openCreateModal()">{{ t('settings.groups.firstGroup') }}</EButton>
+      </template>
+    </EEmptyState>
 
     <!-- Groups Table -->
     <div v-else class="table-wrapper">
@@ -154,80 +144,49 @@
       </table>
     </div>
 
-    <!-- ======================================== -->
-    <!-- MODAL: Gruppe erstellen / bearbeiten     -->
-    <!-- ======================================== -->
-    <Teleport to="body">
-      <div v-if="showGroupModal" class="modal-overlay">
-        <div class="modal-container modal-sm">
-          <div class="modal-header">
-            <h3>{{ editingGroup ? t('settings.groups.modalEditGroup') : t('settings.groups.modalNewGroup') }}</h3>
-            <button class="close-btn" @click="closeGroupModal">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-              </svg>
-            </button>
-          </div>
+    <EDialog
+      v-model="showGroupModal"
+      :max-width="480"
+      :title="editingGroup ? t('settings.groups.modalEditGroup') : t('settings.groups.modalNewGroup')"
+    >
+      <ETextField
+        ref="groupNameInput"
+        v-model="groupForm.name"
+        :label="t('settings.groups.groupNameLabel')"
+        :placeholder="t('settings.groups.groupNamePlaceholder')"
+        hide-details="auto"
+      />
+      <ESelect
+        v-model="groupForm.parent_id"
+        class="mt-3"
+        :items="parentGroupSelectItems"
+        :label="t('settings.groups.parentGroupLabel')"
+        hide-details
+      />
+      <template #actions>
+        <EButton variant="secondary" size="small" @click="closeGroupModal">{{ t('common.cancel') }}</EButton>
+        <EButton
+          variant="primary"
+          size="small"
+          :disabled="!groupForm.name.trim() || isSaving"
+          :loading="isSaving"
+          @click="saveGroup"
+        >
+          {{ isSaving ? t('settings.groups.saving') : (editingGroup ? t('common.save') : t('common.create')) }}
+        </EButton>
+      </template>
+    </EDialog>
 
-          <div class="modal-body">
-            <div class="form-group">
-              <label>{{ t('settings.groups.groupNameLabel') }}</label>
-              <input 
-                v-model="groupForm.name" 
-                type="text" 
-                class="form-input"
-                :placeholder="t('settings.groups.groupNamePlaceholder')"
-                ref="groupNameInput"
-              />
-            </div>
-
-            <div class="form-group">
-              <label>{{ t('settings.groups.parentGroupLabel') }}</label>
-              <select v-model="groupForm.parent_id" class="form-select">
-                <option :value="null">{{ t('settings.groups.parentNone') }}</option>
-                <option 
-                  v-for="g in availableParents" 
-                  :key="g.id" 
-                  :value="g.id"
-                >
-                  {{ '↳ '.repeat(g._level) }}{{ g.name }}
-                </option>
-              </select>
-            </div>
-          </div>
-
-          <div class="modal-footer">
-            <button class="btn btn-secondary" @click="closeGroupModal">{{ t('common.cancel') }}</button>
-            <button 
-              class="btn btn-primary" 
-              :disabled="!groupForm.name.trim() || isSaving"
-              @click="saveGroup"
-            >
-              {{ isSaving ? t('settings.groups.saving') : (editingGroup ? t('common.save') : t('common.create')) }}
-            </button>
-          </div>
-        </div>
-      </div>
-    </Teleport>
-
-    <!-- ======================================== -->
-    <!-- MODAL: Mitglieder verwalten              -->
-    <!-- ======================================== -->
-    <Teleport to="body">
-      <div v-if="showMembersModal && selectedGroup" class="modal-overlay">
-        <div class="modal-container modal-lg">
-          <div class="modal-header">
-            <h3>
-              {{ t('settings.groups.membersHeading') }} <strong>{{ selectedGroup.name }}</strong>
-            </h3>
-            <button class="close-btn" @click="closeMembersModal">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-              </svg>
-            </button>
-          </div>
-
-          <div class="modal-body">
+    <EDialog
+      v-model="showMembersModal"
+      :max-width="720"
+    >
+      <template #title>
+        <template v-if="selectedGroup">
+          {{ t('settings.groups.membersHeading') }} <strong>{{ selectedGroup.name }}</strong>
+        </template>
+      </template>
+      <template v-if="selectedGroup">
             <!-- Bestehendes Mitglieder-Tabelle -->
             <div v-if="selectedGroup.members.length > 0" class="members-section">
               <h4 class="section-title">{{ t('settings.groups.sectionCurrentMembers', { count: selectedGroup.members.length }) }}</h4>
@@ -318,23 +277,21 @@
                   <option value="member">{{ t('settings.groups.roleMember') }}</option>
                   <option value="leader">{{ t('settings.groups.roleLeader') }}</option>
                 </select>
-                <button 
-                  class="btn btn-primary btn-sm"
+                <EButton
+                  variant="primary"
+                  size="small"
                   :disabled="!addMemberForm.user_id"
                   @click="handleAddMember"
                 >
                   {{ t('common.add') }}
-                </button>
+                </EButton>
               </div>
             </div>
-          </div>
-
-          <div class="modal-footer">
-            <button class="btn btn-secondary" @click="closeMembersModal">{{ t('settings.groups.close') }}</button>
-          </div>
-        </div>
-      </div>
-    </Teleport>
+      </template>
+      <template #actions>
+        <EButton variant="secondary" size="small" @click="closeMembersModal">{{ t('settings.groups.close') }}</EButton>
+      </template>
+    </EDialog>
   </div>
 </template>
 
@@ -347,6 +304,9 @@ import { useToast } from '@/composables/useToast'
 import { useConfirm } from '@/composables/useConfirm'
 import { useGroupManagementScope } from '@/composables/useGroupManagementScope'
 import UserAvatarBadge from '@/components/user/UserAvatarBadge.vue'
+import ELoadingState from '@/components/layout/ELoadingState.vue'
+import EEmptyState from '@/components/layout/EEmptyState.vue'
+import { EButton, EDialog, ETextField, ESelect } from '@/components/form/base'
 import {
   getGroups,
   createGroup,
@@ -468,6 +428,14 @@ const availableParents = computed(() => {
   
   return hierarchicalGroups.value.filter(g => !excludeIds.has(g.id))
 })
+
+const parentGroupSelectItems = computed(() => [
+  { title: t('settings.groups.parentNone'), value: null },
+  ...availableParents.value.map((g) => ({
+    title: `${'↳ '.repeat(g._level)}${g.name}`,
+    value: g.id,
+  })),
+])
 
 // === Helpers ===
 
@@ -651,6 +619,10 @@ onMounted(() => {
 /* ========================================
    Layout & Header
    ======================================== */
+.groups-settings-error {
+  margin-top: 8px;
+}
+
 .groups-settings {
   padding: 0;
 }

@@ -2,7 +2,6 @@
 import { computed, inject, unref, type MaybeRef } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { ActivityPackContainer, ActivityPackContainerItem } from '@/api/activityContainers'
-import { IconArrowLeft } from '@/components/icons'
 import PackContainerSubsectionsList from '@/components/activities/PackContainerSubsectionsList.vue'
 import {
   injectPackCtxBool,
@@ -125,7 +124,7 @@ function onCardClick(event: MouseEvent) {
                 :title="t('activities.packList.pullFromContainerTitle')"
                 @click="(ctx.pullFromContainer as (cid: string, row: ActivityPackContainerItem) => void)(container.id, ci)"
               >
-                <IconArrowLeft />
+                <v-icon icon="mdi-arrow-left" size="12" />
               </button>
               <input
                 :value="containerPullInputValueForLine(ci)"

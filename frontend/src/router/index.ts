@@ -14,8 +14,10 @@ import {
 } from '@/utils/devicesHost'
 import {
   DEPARTMENT_BASIC_MEMBER_ROLES,
+  DEPARTMENT_MW_DC_ROLES,
   isDepartmentBasicMemberRole,
 } from '@/composables/useDepartmentMemberRole'
+import { isDevToolsEnvironment } from '@/utils/devEnvironmentBanner'
 
 /** Routen-Sperre für Basissicht (u, l1–l3) — gleich wie früher nur «u». */
 const DENY_BASIC_MEMBER_ROLES = [...DEPARTMENT_BASIC_MEMBER_ROLES]
@@ -215,7 +217,7 @@ const routes: RouteRecordRaw[] = [
       {
         path: 'blog/:slug',
         name: 'BlogPost',
-        component: () => import('@/views/public/BlogPostView.vue'),
+        component: () => import('@/views/public/BlogView.vue'),
         meta: {
           publicMarketing: true,
           requiresAuth: false,
@@ -267,6 +269,20 @@ const routes: RouteRecordRaw[] = [
       publicMarketing: true,
       ...routeHead('login'),
     }
+  },
+  {
+    path: '/sandbox',
+    redirect: () => {
+      const authStore = useAuthStore()
+      const id =
+        authStore.activeDepartmentId ||
+        authStore.departments.find((d) => d.is_primary)?.department_id ||
+        authStore.departments[0]?.department_id
+      if (id) {
+        return { name: 'DevUiPlayground', params: { departmentId: id } }
+      }
+      return { path: '/login', query: { redirect: '/sandbox' } }
+    },
   },
   {
     path: '/site-inhalt',
@@ -876,7 +892,6 @@ const routes: RouteRecordRaw[] = [
         path: 'accounting',
         component: () => import('@/views/accounting/AccountingShellView.vue'),
         meta: {
-          requiredRoles: ['matwart', 'depchef'],
           ...routeHead('accounting'),
         },
         children: [
@@ -908,12 +923,30 @@ const routes: RouteRecordRaw[] = [
             },
           },
           {
+            path: 'gruppen',
+            name: 'AccountingGroupCosts',
+            component: () => import('@/views/accounting/AccountingGroupCostsView.vue'),
+            meta: {
+              requiredRoles: ['matwart', 'depchef', 'leader1', 'leader2', 'leader3', 'user'],
+              ...routeHead('accountingGroupCosts'),
+            },
+          },
+          {
             path: 'materialkosten',
             name: 'AccountingMaterialCosts',
             component: () => import('@/views/accounting/AccountingMaterialCostsView.vue'),
             meta: {
               requiredRoles: ['matwart', 'depchef'],
               ...routeHead('accountingMaterialCosts'),
+            },
+          },
+          {
+            path: 'abschreibung',
+            name: 'AccountingAmortization',
+            component: () => import('@/views/accounting/AccountingAmortizationView.vue'),
+            meta: {
+              requiredRoles: ['matwart', 'depchef'],
+              ...routeHead('accountingAmortization'),
             },
           },
           {
@@ -983,6 +1016,24 @@ const routes: RouteRecordRaw[] = [
         }
       },
       {
+        path: 'search',
+        name: 'GlobalSearch',
+        component: () => import('@/views/GlobalSearchView.vue'),
+        meta: {
+          ...routeHead('globalSearch'),
+        }
+      },
+      {
+        path: 'dev/ui-playground',
+        alias: 'sandbox',
+        name: 'DevUiPlayground',
+        component: () => import('@/views/dev/DevUiPlaygroundView.vue'),
+        meta: {
+          devToolsOnly: true,
+          ...routeHead('devUiSandbox'),
+        },
+      },
+      {
         path: 'workshop',
         name: 'Workshop',
         component: () => import('@/views/WorkshopView.vue'),
@@ -1047,6 +1098,16 @@ const routes: RouteRecordRaw[] = [
             meta: {
               ...routeHead('settingsJoinCode'),
               denyDepartmentRoles: DENY_BASIC_MEMBER_ROLES,
+              denyRedirectTo: { name: 'SettingsMyDepartment' },
+            }
+          },
+          {
+            path: 'my-department/fixed-dates',
+            name: 'SettingsMyDepartmentFixedDates',
+            component: () => import('@/views/settings/MyDepartmentFixedDatesView.vue'),
+            meta: {
+              ...routeHead('settingsFixedDates'),
+              requireDepartmentRoles: [...DEPARTMENT_MW_DC_ROLES],
               denyRedirectTo: { name: 'SettingsMyDepartment' },
             }
           },
@@ -1169,7 +1230,23 @@ const routes: RouteRecordRaw[] = [
             }),
           },
         ]
-      }
+      },
+      {
+        path: 'help',
+        component: () => import('@/views/HelpView.vue'),
+        children: [
+          {
+            path: '',
+            redirect: { name: 'HelpOverview' },
+          },
+          {
+            path: 'overview',
+            name: 'HelpOverview',
+            component: () => import('@/views/help/HelpComingSoonView.vue'),
+            meta: routeHead('helpOverview'),
+          },
+        ],
+      },
     ]
   },
   /** Nach AppLayout: sonst fängt DevicesHome jedes /:departmentId auf der App-Domain ab (Redirect-Schleife). */
@@ -1324,6 +1401,17 @@ router.beforeEach(async (to, from, next) => {
     return next()
   }
 
+  if (to.meta.devToolsOnly && !isDevToolsEnvironment()) {
+    if (authStore.isLoggedIn) {
+      const id =
+        authStore.activeDepartmentId ||
+        authStore.departments.find((d) => d.is_primary)?.department_id ||
+        authStore.departments[0]?.department_id
+      return next(id ? `/${id}` : '/login')
+    }
+    return next({ path: '/login', query: { redirect: to.fullPath } })
+  }
+
   if (to.meta.requiresSiteEditor && !canEditPublicSite()) {
     const id = authStore.activeDepartmentId || authStore.departments[0]?.department_id
     return next(id ? `/${id}` : '/dashboard')
@@ -1389,7 +1477,7 @@ router.beforeEach(async (to, from, next) => {
             return next(supplierHome)
           }
         }
-      } else if (to.path !== '/pending-assignment') {
+      } else if (to.path !== '/pending-assignment' && !to.meta.devToolsOnly) {
         const siteEditorRoute = to.matched.some((r) => r.meta.requiresSiteEditor)
         if (siteEditorRoute && canEditPublicSite()) {
           /* Webseiten-Editor ohne Abteilung (z. B. Superadmin) */
@@ -1407,7 +1495,10 @@ router.beforeEach(async (to, from, next) => {
       !to.path.startsWith('/site-inhalt') &&
       !to.path.startsWith('/supplier/') &&
       (to.path.startsWith('/app/') ||
-        (to.meta.requiresAuth && !to.params.departmentId && to.path !== '/pending-assignment'))
+        (to.meta.requiresAuth &&
+        !to.params.departmentId &&
+        to.path !== '/pending-assignment' &&
+        !to.meta.devToolsOnly))
     ) {
       if (primaryDepartmentId) {
         // Route mit primärer Department-ID ersetzen
@@ -1533,6 +1624,22 @@ router.beforeEach(async (to, from, next) => {
   } else if (authStore.isLoggedIn && authStore.activeDepartmentId) {
     // Visibility für aktives Department laden
     permissionsStore.loadVisibility(authStore.activeDepartmentId)
+  }
+
+  if (to.meta.requireDepartmentRoles && Array.isArray(to.meta.requireDepartmentRoles)) {
+    const allowedRoles = (to.meta.requireDepartmentRoles as string[]).map((r) => r.toLowerCase())
+    const currentRole = String(authStore.currentDepartmentRole || '').toLowerCase().trim()
+    if (!allowedRoles.includes(currentRole)) {
+      const deptId = to.params.departmentId || authStore.activeDepartmentId
+      const denyRedirectTo = to.meta.denyRedirectTo as { name?: string } | undefined
+      if (denyRedirectTo?.name && deptId) {
+        return next({ name: denyRedirectTo.name, params: { departmentId: String(deptId) } })
+      }
+      if (deptId) {
+        return next(`/${deptId}`)
+      }
+      return next('/login')
+    }
   }
 
   // Department-Rollen, die diese Route nicht öffnen dürfen (z. B. Werkstatt für User)

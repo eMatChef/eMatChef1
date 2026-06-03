@@ -1,5 +1,5 @@
 /**
- * Auto-Save Formularfelder (ecamp3-inspiriert: debounced save, Loader oben, Diskette nur nach Erfolg).
+ * Auto-Save Formularfelder (debounced save, Loader oben, Diskette nur nach Erfolg).
  *
  * @example Einfaches Textfeld
  * ```vue

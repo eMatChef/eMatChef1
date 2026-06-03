@@ -1,7 +1,18 @@
+/**
+ * Shared table wrappers and HTML `<table>` base styles (Legacy).
+ *
+ * Migrationshinweis (Vuetify Phase 4, Schritt 059):
+ * - Entscheid Tabellen: docs/ui/table-patterns.md (Kategorie A/B/C)
+ * - Neue/migrierte Listen: PageShell, EFilterRow, ELoadingState, EEmptyState
+ * - Mobile Karten: EResponsiveDataList (#table / #mobile) — Breakpoint via useDisplay().mdAndUp
+ * - v-data-table nur in dedizierten List-Komponenten (z. B. MaterialListDataTable), nicht in Views
+ * - Keine neuen @media-Pixel-Grenzen in View-CSS — Vuetify md (960px) nutzen
+ * - Diese Datei bleibt für nicht migrierte HTML-Tabellen (Kontakte, Aufgaben, …)
+ * - Aktivitäten-Liste: activity-list-*.css (v-data-table / Mobile)
+ */
 /* Shared table wrapper and base */
 .materials-table-wrapper,
 .contacts-table-wrapper,
-.activities-table-wrapper,
 .tasks-table-wrapper,
 .notifications-table-wrapper {
   background: white;
@@ -12,7 +23,6 @@
 
 .materials-table,
 .contacts-table,
-.activities-table,
 .tasks-table,
 .notifications-table {
   width: 100%;
@@ -21,7 +31,6 @@
 
 .materials-table thead,
 .contacts-table thead,
-.activities-table thead,
 .tasks-table thead,
 .notifications-table thead {
   background: #f9fafb;
@@ -30,7 +39,6 @@
 
 .materials-table th,
 .contacts-table th,
-.activities-table th,
 .tasks-table th,
 .notifications-table th {
   padding: 14px 16px;
@@ -44,7 +52,6 @@
 
 .materials-table td,
 .contacts-table td,
-.activities-table td,
 .tasks-table td,
 .notifications-table td {
   padding: 14px 16px;
@@ -55,21 +62,18 @@
 
 /* Shared interactive table rows */
 .material-row,
-.contact-row,
-.activity-row {
+.contact-row {
   cursor: pointer;
   transition: background 0.15s;
 }
 
 .material-row:hover,
-.contact-row:hover,
-.activity-row:hover {
+.contact-row:hover {
   background: #f9fafb;
 }
 
 .material-row:last-child td,
-.contact-row:last-child td,
-.activity-row:last-child td {
+.contact-row:last-child td {
   border-bottom: none;
 }
 
@@ -111,6 +115,15 @@
   color: #6b7280;
   cursor: pointer;
   transition: all 0.2s;
+}
+
+.icon-btn .mdi-spin {
+  animation: mdi-spin 1s linear infinite;
+}
+
+@keyframes mdi-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 
 .icon-btn:hover {

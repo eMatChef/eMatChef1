@@ -73,3 +73,24 @@ export async function createAcquisitionFollowup(
   )
   return data
 }
+
+export type BatchRecordFollowUpsBody = {
+  follow_up_ids: string[]
+  cost_center_id: string
+  entry_type: string
+  payment_method?: string | null
+  payment_status?: string | null
+  group_id?: string | null
+  notes?: string | null
+}
+
+export async function batchRecordFollowUps(
+  departmentId: string,
+  body: BatchRecordFollowUpsBody,
+): Promise<{ recorded: Array<{ booking_id: string; follow_up_id: string }>; count: number }> {
+  const { data } = await apiClient.post<{ recorded: Array<{ booking_id: string; follow_up_id: string }>; count: number }>(
+    `/api/departments/${departmentId}/accounting/acquisition-followups/batch-record`,
+    body,
+  )
+  return data
+}

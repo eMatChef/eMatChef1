@@ -5,17 +5,26 @@
         <h2 class="settings-title">{{ t('settings.globalAdminRoles.title') }}</h2>
         <p class="settings-description">{{ t('settings.globalAdminRoles.subtitle') }}</p>
       </div>
-      <button class="btn btn-secondary" @click="loadUsers" :disabled="isLoading">
+      <EButton variant="secondary" :loading="isLoading" @click="loadUsers">
         {{ isLoading ? t('settings.globalAdminRoles.loadingShort') : t('common.refresh') }}
-      </button>
+      </EButton>
     </div>
 
-    <div v-if="isLoading" class="state-card">{{ t('settings.globalAdminRoles.loading') }}</div>
-    <div v-else-if="error" class="state-card state-error">
-      <p>{{ error }}</p>
-      <button class="btn btn-secondary" @click="loadUsers">{{ t('common.retry') }}</button>
+    <ELoadingState
+      v-if="isLoading"
+      variant="table"
+      :rows="5"
+      :message="t('settings.globalAdminRoles.loading')"
+    />
+    <div v-else-if="error" class="error-block">
+      <v-alert type="error" variant="tonal" :text="error" />
+      <EButton variant="secondary" class="mt-3" @click="loadUsers">{{ t('common.retry') }}</EButton>
     </div>
-    <div v-else-if="adminUsers.length === 0" class="state-card">{{ t('settings.globalAdminRoles.empty') }}</div>
+    <EEmptyState
+      v-else-if="adminUsers.length === 0"
+      variant="generic"
+      :title="t('settings.globalAdminRoles.empty')"
+    />
 
     <div v-else class="table-wrapper">
       <table class="users-table">
@@ -35,12 +44,14 @@
             <td>{{ formatGlobalRole(user.global_admin_role) }}</td>
             <td>{{ formatScopeSummary(user.id) }}</td>
             <td class="actions-col">
-              <button class="icon-btn" :title="t('common.edit')" @click="openEditModal(user.id)">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-                  <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
-                </svg>
-              </button>
+              <EButton
+                variant="text"
+                size="small"
+                :title="t('common.edit')"
+                @click="openEditModal(user.id)"
+              >
+                <v-icon icon="mdi-pencil-outline" size="18" />
+              </EButton>
             </td>
           </tr>
         </tbody>
@@ -54,89 +65,81 @@
       <router-link to="/admin-dashboard/verwaltung/user-org-overview">{{ t('settings.globalAdminRoles.overviewLink') }}</router-link>
     </p>
 
-    <Teleport to="body">
-      <div v-if="showEditModal && editForm" class="modal-overlay">
-        <div class="modal-container">
-          <div class="modal-header">
-            <h3>{{ t('settings.globalAdminRoles.editTitle', { name: editForm.display_name }) }}</h3>
-            <button class="close-btn" @click="closeEditModal">×</button>
+    <EDialog
+      v-model="showEditModal"
+      :max-width="720"
+      :title="editForm ? t('settings.globalAdminRoles.editTitle', { name: editForm.display_name }) : ''"
+      scrollable
+      persistent
+    >
+      <template v-if="editForm">
+        <ESelect
+          v-model="editForm.global_admin_role"
+          :label="t('settings.globalAdminRoles.fields.globalRole')"
+          :items="globalRoleSelectItems"
+          hide-details="auto"
+          class="mb-3"
+          @update:model-value="onGlobalRoleChange"
+        />
+
+        <div v-if="editForm.global_admin_role !== 'none'" class="capabilities-block">
+          <h4>{{ t('settings.adminUsers.capabilitiesTitle') }}</h4>
+          <div v-for="group in capabilityGroups" :key="group.id" class="capability-group">
+            <div class="capability-group-title">{{ t(group.labelKey) }}</div>
+            <ECheckbox
+              v-for="item in group.items"
+              :key="item.key"
+              :model-value="getCapability(item.key)"
+              :label="t(item.labelKey)"
+              hide-details
+              @update:model-value="setCapability(item.key, $event)"
+            />
           </div>
 
-          <div class="modal-body">
-            <div class="form-group">
-              <label>{{ t('settings.globalAdminRoles.fields.globalRole') }}</label>
-              <select v-model="editForm.global_admin_role" class="form-select" @change="onGlobalRoleChange">
-                <option value="none">{{ t('settings.adminUsers.globalRoles.none') }}</option>
-                <option value="org">{{ t('settings.adminUsers.globalRoles.org') }}</option>
-                <option value="sub">{{ t('settings.adminUsers.globalRoles.sub') }}</option>
-              </select>
+          <div class="scope-block">
+            <h4>{{ t('settings.globalAdminRoles.scopeTitle') }}</h4>
+            <p class="inline-hint">{{ t('settings.globalAdminRoles.scopeHint') }}</p>
+            <div v-if="scopeTree.length === 0" class="inline-hint">
+              {{ t('settings.globalAdminRoles.organisationScopeEmpty') }}
             </div>
-
-            <div v-if="editForm.global_admin_role !== 'none'" class="capabilities-block">
-              <h4>{{ t('settings.adminUsers.capabilitiesTitle') }}</h4>
-              <div v-for="group in capabilityGroups" :key="group.id" class="capability-group">
-                <div class="capability-group-title">{{ t(group.labelKey) }}</div>
-                <label v-for="item in group.items" :key="item.key" class="capability-checkbox">
-                  <input
-                    type="checkbox"
-                    :checked="getCapability(item.key)"
-                    @change="setCapability(item.key, ($event.target as HTMLInputElement).checked)"
-                  />
-                  {{ t(item.labelKey) }}
-                </label>
-              </div>
-
-              <div class="scope-block">
-                <h4>{{ t('settings.globalAdminRoles.scopeTitle') }}</h4>
-                <p class="inline-hint">{{ t('settings.globalAdminRoles.scopeHint') }}</p>
-                <div v-if="scopeTree.length === 0" class="inline-hint">
-                  {{ t('settings.globalAdminRoles.organisationScopeEmpty') }}
-                </div>
-                <div v-else class="scope-tree">
-                  <div v-for="org in scopeTree" :key="org.id" class="scope-org">
-                    <label class="capability-checkbox scope-org-header">
-                      <input
-                        type="checkbox"
-                        :checked="editForm.admin_capabilities.scope.organisation_ids.includes(org.id)"
-                        @click.stop
-                        @change="toggleOrganisationScope(org.id, ($event.target as HTMLInputElement).checked)"
-                      />
-                      <span class="scope-org-name">{{ org.name }}</span>
-                    </label>
-                    <p v-if="org.flatNodes.length === 0" class="inline-hint scope-org-no-depts">
-                      {{ t('settings.globalAdminRoles.orgNoDepartmentsYet') }}
-                    </p>
-                    <label
-                      v-for="node in org.flatNodes"
-                      :key="node.id"
-                      class="capability-checkbox scope-dept-node"
-                      :class="{ 'scope-dept-node--org-selected': isOrgFullyScoped(org.id) }"
-                      :style="{ marginLeft: `${28 + node.level * 16}px` }"
-                      :title="isOrgFullyScoped(org.id) ? t('settings.globalAdminRoles.deptUnderOrgHint') : undefined"
-                    >
-                      <input
-                        type="checkbox"
-                        :checked="editForm.admin_capabilities.scope.department_root_ids.includes(node.id)"
-                        @click.stop
-                        @change="toggleDepartmentRoot(node.id, ($event.target as HTMLInputElement).checked)"
-                      />
-                      {{ node.name }}
-                    </label>
-                  </div>
-                </div>
+            <div v-else class="scope-tree">
+              <div v-for="org in scopeTree" :key="org.id" class="scope-org">
+                <ECheckbox
+                  :model-value="editForm.admin_capabilities.scope.organisation_ids.includes(org.id)"
+                  :label="org.name"
+                  hide-details
+                  class="scope-org-header"
+                  @update:model-value="toggleOrganisationScope(org.id, $event)"
+                />
+                <p v-if="org.flatNodes.length === 0" class="inline-hint scope-org-no-depts">
+                  {{ t('settings.globalAdminRoles.orgNoDepartmentsYet') }}
+                </p>
+                <ECheckbox
+                  v-for="node in org.flatNodes"
+                  :key="node.id"
+                  :model-value="editForm.admin_capabilities.scope.department_root_ids.includes(node.id)"
+                  :label="node.name"
+                  :disabled="isOrgFullyScoped(org.id)"
+                  hide-details
+                  class="scope-dept-node"
+                  :class="{ 'scope-dept-node--org-selected': isOrgFullyScoped(org.id) }"
+                  :style="{ marginLeft: `${28 + node.level * 16}px` }"
+                  :title="isOrgFullyScoped(org.id) ? t('settings.globalAdminRoles.deptUnderOrgHint') : undefined"
+                  @update:model-value="toggleDepartmentRoot(node.id, $event)"
+                />
               </div>
             </div>
-          </div>
-
-          <div class="modal-footer">
-            <button class="btn btn-secondary" @click="closeEditModal">{{ t('common.cancel') }}</button>
-            <button class="btn btn-primary" @click="save" :disabled="isSaving">
-              {{ isSaving ? t('settings.adminUsers.saving') : t('common.save') }}
-            </button>
           </div>
         </div>
-      </div>
-    </Teleport>
+      </template>
+
+      <template #actions>
+        <EButton variant="secondary" @click="closeEditModal">{{ t('common.cancel') }}</EButton>
+        <EButton variant="primary" :loading="isSaving" :disabled="isSaving" @click="save">
+          {{ isSaving ? t('settings.adminUsers.saving') : t('common.save') }}
+        </EButton>
+      </template>
+    </EDialog>
   </div>
 </template>
 
@@ -156,6 +159,9 @@ import {
   filterOrganisationsForAdminScope,
 } from '@/utils/organisationUserPicker'
 import { useToast } from '@/composables/useToast'
+import ELoadingState from '@/components/layout/ELoadingState.vue'
+import EEmptyState from '@/components/layout/EEmptyState.vue'
+import { EButton, ECheckbox, EDialog, ESelect } from '@/components/form/base'
 import {
   ADMIN_CAPABILITY_GROUPS,
   cloneAdminCapabilities,
@@ -207,6 +213,12 @@ const route = useRoute()
 const router = useRouter()
 const toast = useToast()
 const capabilityGroups = ADMIN_CAPABILITY_GROUPS
+
+const globalRoleSelectItems = computed(() => [
+  { title: t('settings.adminUsers.globalRoles.none'), value: 'none' },
+  { title: t('settings.adminUsers.globalRoles.org'), value: 'org' },
+  { title: t('settings.adminUsers.globalRoles.sub'), value: 'sub' },
+])
 
 const users = ref<Awaited<ReturnType<typeof getAdminUsers>>>([])
 const departments = ref<Department[]>([])
@@ -318,9 +330,9 @@ function getCapability(dotKey: string): boolean {
   return getCapabilityValue(editForm.value.admin_capabilities, dotKey)
 }
 
-function setCapability(dotKey: string, value: boolean) {
+function setCapability(dotKey: string, value: boolean | null) {
   if (!editForm.value) return
-  editForm.value.admin_capabilities = setCapabilityValue(editForm.value.admin_capabilities, dotKey, value)
+  editForm.value.admin_capabilities = setCapabilityValue(editForm.value.admin_capabilities, dotKey, !!value)
 }
 
 function deptIdsInOrganisation(orgId: string): Set<string> {
@@ -354,7 +366,7 @@ function isOrgFullyScoped(orgId: string): boolean {
   return editForm.value?.admin_capabilities.scope.organisation_ids.includes(orgId) ?? false
 }
 
-function toggleOrganisationScope(orgId: string, checked: boolean) {
+function toggleOrganisationScope(orgId: string, checked: boolean | null) {
   if (!editForm.value) return
   const caps = cloneAdminCapabilities(editForm.value.admin_capabilities)
   const orgIds = new Set(caps.scope.organisation_ids)
@@ -371,7 +383,7 @@ function toggleOrganisationScope(orgId: string, checked: boolean) {
   editForm.value.admin_capabilities = caps
 }
 
-function toggleDepartmentRoot(deptId: string, checked: boolean) {
+function toggleDepartmentRoot(deptId: string, checked: boolean | null) {
   if (!editForm.value) return
   const caps = cloneAdminCapabilities(editForm.value.admin_capabilities)
   const ids = new Set(caps.scope.department_root_ids)
@@ -505,16 +517,8 @@ watch(
   font-size: 14px;
 }
 
-.state-card {
-  border: 1px solid #e5e7eb;
-  border-radius: 10px;
-  padding: 24px;
-  text-align: center;
-  color: #6b7280;
-}
-
-.state-error {
-  color: #b91c1c;
+.error-block {
+  padding: 8px 0;
 }
 
 .table-wrapper {
@@ -547,56 +551,10 @@ watch(
   width: 90px;
 }
 
-.icon-btn {
-  width: 30px;
-  height: 30px;
-  border-radius: 6px;
-  border: none;
-  background: #f1f5f9;
-  cursor: pointer;
-}
-
 .hint-all-users {
   margin-top: 14px;
   font-size: 13px;
   color: #64748b;
-}
-
-.modal-container {
-  width: 100%;
-  max-width: 720px;
-  max-height: 90vh;
-  overflow: hidden;
-  background: white;
-  border-radius: 12px;
-  display: flex;
-  flex-direction: column;
-}
-
-.modal-header,
-.modal-footer {
-  padding: 16px 20px;
-  border-bottom: 1px solid #e5e7eb;
-}
-
-.modal-footer {
-  border-bottom: none;
-  border-top: 1px solid #e5e7eb;
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-}
-
-.modal-body {
-  padding: 20px;
-  overflow-y: auto;
-}
-
-.close-btn {
-  border: none;
-  background: transparent;
-  font-size: 20px;
-  cursor: pointer;
 }
 
 .capabilities-block {
@@ -611,14 +569,6 @@ watch(
   font-weight: 600;
   font-size: 13px;
   margin-bottom: 6px;
-}
-
-.capability-checkbox {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  margin-bottom: 4px;
-  font-size: 14px;
 }
 
 .scope-block {

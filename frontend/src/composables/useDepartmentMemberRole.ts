@@ -7,6 +7,17 @@ import { useAuthStore } from '@/stores/auth'
  */
 export const DEPARTMENT_BASIC_MEMBER_ROLES = ['u', 'user', 'l1', 'l2', 'l3'] as const
 
+/** MW/DC — u. a. Fixe Daten verwalten und sehen. */
+export const DEPARTMENT_MW_DC_ROLES = ['mw', 'matwart', 'dc', 'depchef'] as const
+
+export function isDepartmentMwOrDcRole(role: string | null | undefined): boolean {
+  return DEPARTMENT_MW_DC_ROLES.includes(
+    String(role || '')
+      .toLowerCase()
+      .trim() as (typeof DEPARTMENT_MW_DC_ROLES)[number],
+  )
+}
+
 export function isDepartmentBasicMemberRole(role: string | null | undefined): boolean {
   return DEPARTMENT_BASIC_MEMBER_ROLES.includes(
     String(role || '')
@@ -40,10 +51,8 @@ export function useDepartmentMemberRole() {
     ['mw', 'matwart'].includes(departmentRole.value),
   )
 
-  /** MW/DC: Material anlegen, Druckkorb, QR-Kontakt-Verwaltung, … */
-  const canManageMaterials = computed(() =>
-    ['mw', 'dc', 'matwart', 'depchef'].includes(departmentRole.value)
-  )
+  /** MW/DC: Material anlegen, Druckkorb, QR-Kontakt-Verwaltung, Fixe Daten, … */
+  const canManageMaterials = computed(() => isDepartmentMwOrDcRole(departmentRole.value))
 
   /** QR-Kontakt / Abteilungs-Druckkorb: nicht für reine User-Rolle */
   const canManageQrContact = computed(() => !isUserRole.value)

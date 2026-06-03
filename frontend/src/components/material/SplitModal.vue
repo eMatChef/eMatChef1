@@ -1,17 +1,14 @@
 <template>
-  <Teleport to="body">
-    <div v-if="modelValue" class="split-modal-overlay">
-      <div class="split-modal">
-        <div class="split-modal-header">
-          <h2>{{ t('components.splitModal.title') }}</h2>
-          <button class="split-modal-close" @click="$emit('update:modelValue', false)">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <line x1="18" y1="6" x2="6" y2="18"/>
-              <line x1="6" y1="6" x2="18" y2="18"/>
-            </svg>
-          </button>
-        </div>
-        <div class="split-modal-body">
+  <EDialog
+    :model-value="modelValue"
+    :max-width="720"
+    :title="t('components.splitModal.title')"
+    scrollable
+    persistent
+    card-class="split-modal-card"
+    @update:model-value="$emit('update:modelValue', $event)"
+  >
+    <div class="split-modal-body split-modal-body--dialog">
           <div class="form-grid">
             <div class="form-group">
               <label>{{ t('components.splitModal.labelSourceBatch') }}</label>
@@ -197,23 +194,23 @@
           </div>
           <p class="split-hint">{{ t('components.splitModal.hintPerRowLocation') }}</p>
         </div>
-        <div class="split-modal-actions">
-          <div v-if="submitted && missingFields.length > 0" class="split-missing">
-            <span class="split-missing-icon">⚠️</span>
-            <span>{{ missingFields[0] }}</span>
-          </div>
-          <div class="split-footer-actions">
-            <button class="btn-outline btn-sm" @click="$emit('update:modelValue', false)">{{
-              t('common.cancel')
-            }}</button>
-            <button class="btn-primary btn-sm" @click="submit" :disabled="isSplitting">
-              {{ isSplitting ? t('components.splitModal.splitting') : t('components.splitModal.splitSubmit') }}
-            </button>
-          </div>
+    <template #actions>
+      <div class="split-footer-actions-wrap">
+        <div v-if="submitted && missingFields.length > 0" class="split-missing">
+          <span class="split-missing-icon">⚠️</span>
+          <span>{{ missingFields[0] }}</span>
+        </div>
+        <div class="split-footer-actions">
+          <EButton variant="secondary" size="small" @click="$emit('update:modelValue', false)">
+            {{ t('common.cancel') }}
+          </EButton>
+          <EButton variant="primary" size="small" :disabled="isSplitting" :loading="isSplitting" @click="submit">
+            {{ isSplitting ? t('components.splitModal.splitting') : t('components.splitModal.splitSubmit') }}
+          </EButton>
         </div>
       </div>
-    </div>
-  </Teleport>
+    </template>
+  </EDialog>
 </template>
 
 <script setup lang="ts">
@@ -226,6 +223,7 @@ import { useToast } from '@/composables/useToast'
 import { useI18n } from 'vue-i18n'
 import StorageLocationPicker from '@/components/storage/StorageLocationPicker.vue'
 import { useStorageStructure } from '@/composables/useStorageStructure'
+import { EButton, EDialog } from '@/components/form/base'
 
 interface SerialEntry {
   serial_number: string
@@ -654,73 +652,17 @@ async function submit() {
 </script>
 
 <style scoped>
-.split-modal-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.5);
+.split-modal-body--dialog {
+  padding: 0;
+}
+
+.split-footer-actions-wrap {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  justify-content: center;
-  z-index: 1000;
-  animation: fadeIn 0.15s ease;
-}
-
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-.split-modal {
-  background: white;
-  border-radius: 12px;
-  width: min(96vw, 980px);
-  max-width: 980px;
-  max-height: 90vh;
-  display: flex;
-  flex-direction: column;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
-  animation: slideUp 0.2s ease;
-}
-
-@keyframes slideUp {
-  from { transform: translateY(20px); opacity: 0; }
-  to { transform: translateY(0); opacity: 1; }
-}
-
-.split-modal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 20px 24px;
-  border-bottom: 1px solid #e5e7eb;
-}
-
-.split-modal-header h2 {
-  font-size: 18px;
-  font-weight: 600;
-  color: #111827;
-  margin: 0;
-}
-
-.split-modal-close {
-  background: none;
-  border: none;
-  color: #9ca3af;
-  cursor: pointer;
-  padding: 4px;
-  border-radius: 6px;
-  transition: all 0.15s;
-}
-
-.split-modal-close:hover {
-  background: #f3f4f6;
-  color: #374151;
-}
-
-.split-modal-body {
-  padding: 24px;
-  overflow-y: auto;
-  flex: 1;
+  justify-content: flex-end;
+  gap: 12px;
+  width: 100%;
 }
 
 .form-grid {
@@ -757,17 +699,6 @@ async function submit() {
   color: #dc2626;
   font-size: 14px;
   margin: 0 0 16px;
-}
-
-.split-modal-actions {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
-  padding: 16px 24px;
-  border-top: 1px solid #e5e7eb;
-  background: #f9fafb;
-  border-radius: 0 0 12px 12px;
 }
 
 .split-missing {

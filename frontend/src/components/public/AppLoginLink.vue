@@ -1,17 +1,23 @@
 <template>
-  <a
+  <EButton
     :href="href"
-    class="btn btn-primary"
+    variant="primary"
+    size="large"
+    class="plt-btn-lg plt-nav-cta"
     :target="useNewTab ? '_blank' : undefined"
     :rel="useNewTab ? 'noopener noreferrer' : undefined"
   >
-    <slot>Login</slot>
-  </a>
+    <slot>{{ t('publicNav.login') }}</slot>
+  </EButton>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
+import EButton from '@/components/form/base/EButton.vue'
 import { getAppLoginTarget } from '@/utils/appLoginUrl'
+
+const { t } = useI18n()
 
 const props = withDefaults(
   defineProps<{

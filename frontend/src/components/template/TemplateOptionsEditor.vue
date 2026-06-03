@@ -49,15 +49,15 @@
         <button v-if="!readonly" type="button" class="btn-outline-small" @click="openOptionEditor(null, group.__key)">
           {{ t('components.comboOptions.btnAddOptionToGroup') }}
         </button>
-        <button v-if="!readonly" type="button" class="icon-btn icon-btn-danger" :title="t('components.comboOptions.btnDeleteGroup')" @click="removeGroup(group)">✕</button>
+        <TableIconButton v-if="!readonly" icon="mdi-delete-outline" danger :title="t('components.comboOptions.btnDeleteGroup')" @click="removeGroup(group)" />
       </div>
       <ul class="coe-option-list">
         <li v-for="opt in optionsForGroup(group.__key)" :key="opt.__key" class="coe-option-row">
           <span class="coe-option-name">{{ opt.name }}</span>
           <span class="coe-deltas">{{ formatDeltas(opt) }}</span>
           <span v-if="opt.default_selected" class="coe-badge">{{ t('components.comboOptions.badgeDefault') }}</span>
-          <button v-if="!readonly" type="button" class="icon-btn" :title="t('common.edit')" @click="openOptionEditor(opt, group.__key)">✎</button>
-          <button v-if="!readonly" type="button" class="icon-btn icon-btn-danger" :title="t('common.delete')" @click="removeOption(opt)">✕</button>
+          <TableIconButton v-if="!readonly" icon="mdi-pencil" :title="t('common.edit')" @click="openOptionEditor(opt, group.__key)" />
+          <TableIconButton v-if="!readonly" icon="mdi-delete-outline" danger :title="t('common.delete')" @click="removeOption(opt)" />
         </li>
         <li v-if="optionsForGroup(group.__key).length === 0" class="coe-empty-row">{{ t('components.comboOptions.groupEmpty') }}</li>
       </ul>
@@ -71,17 +71,22 @@
           <span class="coe-option-name">{{ opt.name }}</span>
           <span class="coe-deltas">{{ formatDeltas(opt) }}</span>
           <span v-if="opt.default_selected" class="coe-badge">{{ t('components.comboOptions.badgeDefaultOn') }}</span>
-          <button v-if="!readonly" type="button" class="icon-btn" :title="t('common.edit')" @click="openOptionEditor(opt, null)">✎</button>
-          <button v-if="!readonly" type="button" class="icon-btn icon-btn-danger" :title="t('common.delete')" @click="removeOption(opt)">✕</button>
+          <TableIconButton v-if="!readonly" icon="mdi-pencil" :title="t('common.edit')" @click="openOptionEditor(opt, null)" />
+          <TableIconButton v-if="!readonly" icon="mdi-delete-outline" danger :title="t('common.delete')" @click="removeOption(opt)" />
         </li>
         <li v-if="standaloneToggles.length === 0" class="coe-empty-row">{{ t('components.comboOptions.toggleEmpty') }}</li>
       </ul>
     </div>
 
     <!-- Options-Editor-Modal -->
-    <div v-if="showOptionModal" class="modal-overlay" @click.self="closeOptionModal">
-      <div class="modal-dialog coe-modal">
-        <h3>{{ editingOption ? t('components.comboOptions.modalEditTitle') : t('components.comboOptions.modalNewTitle') }}</h3>
+    <EDialog
+      v-model="showOptionModal"
+      :max-width="720"
+      :title="editingOption ? t('components.comboOptions.modalEditTitle') : t('components.comboOptions.modalNewTitle')"
+      scrollable
+      persistent
+      card-class="coe-modal"
+    >
         <div class="form-group">
           <label>{{ t('components.comboOptions.labelOptionName') }}</label>
           <input v-model="form.name" type="text" class="form-input" :placeholder="t('components.comboOptions.phOptionName')" />
@@ -107,20 +112,19 @@
               <option value="stock">{{ t('components.materialDetail.componentSourceStock') }}</option>
               <option value="self_provided">{{ t('components.materialDetail.componentSourceSelfProvided') }}</option>
             </select>
-            <button type="button" class="icon-btn icon-btn-danger" :title="t('common.delete')" @click="form.deltas.splice(idx, 1)">✕</button>
+            <TableIconButton icon="mdi-delete-outline" danger :title="t('common.delete')" @click="form.deltas.splice(idx, 1)" />
           </div>
           <p v-if="form.deltas.length === 0" class="batch-field-hint">{{ t('components.comboOptions.deltaEmpty') }}</p>
         </div>
 
         <p v-if="modalError" class="error-text">{{ modalError }}</p>
-        <div class="modal-actions">
-          <button type="button" class="btn-secondary btn-sm" @click="closeOptionModal">{{ t('common.cancel') }}</button>
-          <button type="button" class="btn-primary btn-sm" :disabled="!canSubmit" @click="submitOption">
-            {{ t('common.save') }}
-          </button>
-        </div>
-      </div>
-    </div>
+      <template #actions>
+        <EButton variant="secondary" size="small" @click="closeOptionModal">{{ t('common.cancel') }}</EButton>
+        <EButton variant="primary" size="small" :disabled="!canSubmit" @click="submitOption">
+          {{ t('common.save') }}
+        </EButton>
+      </template>
+    </EDialog>
   </div>
 </template>
 
@@ -128,6 +132,8 @@
 import { computed, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { ComponentSource, OptionSelectionType } from '@/api/templates'
+import TableIconButton from '@/components/common/TableIconButton.vue'
+import { EButton, EDialog } from '@/components/form/base'
 
 export interface TemplateOptionGroupForm {
   __key: number

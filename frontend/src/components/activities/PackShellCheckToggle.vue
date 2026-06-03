@@ -1,6 +1,4 @@
 <script setup lang="ts">
-import { IconCross } from '@/components/icons'
-
 withDefaults(
   defineProps<{
     okActive?: boolean
@@ -54,7 +52,7 @@ defineEmits<{
       :disabled="disabled"
       @click="$emit('problem')"
     >
-      <IconCross class="pack-shell-check-btn__icon" />
+      <v-icon icon="mdi-close" class="pack-shell-check-btn__icon" size="14" />
     </button>
   </div>
 </template>

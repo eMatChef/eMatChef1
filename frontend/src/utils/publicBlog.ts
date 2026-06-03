@@ -52,6 +52,20 @@ function makeExcerpt(bodyHtml: string, max = 170): string {
   return `${plain.slice(0, max).trimEnd()}…`
 }
 
+/** Anzeige Monat + Jahr, z. B. „Mai 2026“. */
+export function formatPublicBlogDate(iso: string, localeValue: string): string {
+  if (!iso) return ''
+  try {
+    const dateLocale = localeValue ? localeValue.replace('_', '-') : 'de-CH'
+    return new Intl.DateTimeFormat(dateLocale, {
+      month: 'long',
+      year: 'numeric',
+    }).format(new Date(iso))
+  } catch {
+    return iso
+  }
+}
+
 export function preferredBlogLocale(localeValue: string): BlogLocale {
   const lc = String(localeValue || 'de').toLowerCase()
   if (lc.startsWith('en')) return 'en'

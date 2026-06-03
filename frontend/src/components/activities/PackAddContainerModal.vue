@@ -2,6 +2,8 @@
 import { useI18n } from 'vue-i18n'
 import PackWorkflowModal from '@/components/activities/PackWorkflowModal.vue'
 import PackModalFooter from '@/components/activities/PackModalFooter.vue'
+import { ESelect } from '@/components/form/base'
+import ELoadingState from '@/components/layout/ELoadingState.vue'
 
 export type StockBatchOption = {
   id: string
@@ -33,21 +35,26 @@ const { t } = useI18n()
       <p class="pack-modal-hint pack-modal-hint--sm text-muted" v-html="t('activities.packList.modalAddHint')"></p>
     </template>
 
-    <div v-if="loading" class="pack-modal-loading text-muted">
-      {{ t('activities.packList.modalLoadingBatches') }}
-    </div>
+    <ELoadingState
+      v-if="loading"
+      variant="inline"
+      class="pack-modal-loading"
+      :message="t('activities.packList.modalLoadingBatches')"
+    />
     <template v-else>
-      <label v-if="batches.length > 0" class="pack-modal-label">
-        <span>{{ t('activities.packList.modalBatchLabel') }}</span>
-        <select
-          :value="selectedBatchId"
-          class="form-select"
-          @change="emit('update:selectedBatchId', ($event.target as HTMLSelectElement).value)"
-        >
-          <option value="">{{ t('activities.packList.modalSelectPlaceholder') }}</option>
-          <option v-for="b in batches" :key="b.id" :value="b.id">{{ b.label }}</option>
-        </select>
-      </label>
+      <ESelect
+        v-if="batches.length > 0"
+        :model-value="selectedBatchId"
+        :items="batches"
+        item-title="label"
+        item-value="id"
+        :label="t('activities.packList.modalBatchLabel')"
+        :placeholder="t('activities.packList.modalSelectPlaceholder')"
+        clearable
+        hide-details
+        class="pack-add-container-select"
+        @update:model-value="emit('update:selectedBatchId', $event ?? '')"
+      />
       <p v-else class="pack-modal-empty text-muted">{{ t('activities.packList.modalNoBatch') }}</p>
     </template>
 
@@ -62,3 +69,9 @@ const { t } = useI18n()
     </template>
   </PackWorkflowModal>
 </template>
+
+<style scoped>
+.pack-add-container-select {
+  margin-bottom: 8px;
+}
+</style>

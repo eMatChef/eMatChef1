@@ -1,0 +1,173 @@
+/**
+ * E*-Standard — 1:1 wie .autosave-control .autosave-input (auto-save-field.css)
+ * Label/Wrapper wie AutoSaveFieldShell (.autosave-label, .autosave-field-frame).
+ */
+
+.e-form-field.autosave-field {
+  margin-bottom: 6px;
+}
+
+/* Ruhe: Label grau (grün nur bei Fokus — wie gewünscht, nicht Vuetify-primary) */
+.e-form-field.autosave-field .autosave-label {
+  color: var(--color-text-muted, #6b7280) !important;
+}
+
+.e-form-field.autosave-field.is-error .autosave-label {
+  color: var(--color-error, #dc2626) !important;
+}
+
+.e-form-field.autosave-field:focus-within > .autosave-control > .autosave-field-frame > .autosave-label {
+  color: var(--color-primary, #059669) !important;
+}
+
+.e-form-field .v-input {
+  margin: 0;
+  padding: 0;
+}
+
+.e-form-field .e-text-field,
+.e-form-field .e-select,
+.e-form-field .e-textarea {
+  margin-top: 0;
+}
+
+.e-form-field .v-input__control {
+  min-height: 48px;
+}
+
+/* Rahmen + Fläche — entspricht .autosave-control .autosave-input */
+.e-form-field .v-input__control > .v-field {
+  border-radius: 8px;
+  min-height: 48px;
+  background: #fff !important;
+  font-size: 14px;
+  line-height: 1.4;
+  box-sizing: border-box;
+  --v-field-padding-start: 0;
+  --v-field-padding-end: 0;
+  --v-field-input-padding-top: 0;
+  --v-field-input-padding-bottom: 0;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+  box-shadow: inset 0 0 0 1px var(--color-border, #d1d5db) !important;
+}
+
+.e-form-field .v-field__overlay {
+  opacity: 0 !important;
+}
+
+.e-form-field .v-field .v-field__outline {
+  display: none !important;
+}
+
+/* Fokus — entspricht .autosave-control .autosave-input:focus */
+.e-form-field .v-input__control > .v-field.v-field--focused {
+  box-shadow:
+    inset 0 0 0 1px var(--color-primary-light, #10b981),
+    0 0 0 3px var(--color-primary-ring, rgba(16, 185, 129, 0.1)) !important;
+}
+
+/* Fehler — entspricht .autosave-field.is-error */
+.e-form-field.is-error .v-input__control > .v-field {
+  box-shadow:
+    inset 0 0 0 1px var(--color-error, #dc2626),
+    0 0 0 1px rgba(220, 38, 38, 0.12) !important;
+}
+
+/* Eingabetext — Ruhe: grau; Fokus: dunkel (nie Vuetify-primary-Grün) */
+.e-form-field .v-field {
+  color: var(--color-text-muted, #6b7280) !important;
+}
+
+.e-form-field .v-field.v-field--focused {
+  color: var(--color-text, #111827) !important;
+}
+
+.e-form-field .v-field__input {
+  min-height: 48px;
+  padding: 16px 12px 10px;
+  font-size: 14px;
+  line-height: 1.4;
+  color: inherit;
+  opacity: 1 !important;
+}
+
+.e-form-field .v-field:not(.v-field--focused) .v-field__input input,
+.e-form-field .v-field:not(.v-field--focused) .v-field__input textarea,
+.e-form-field .v-field:not(.v-field--focused) .v-select__selection-text {
+  color: var(--color-text-muted, #6b7280) !important;
+  -webkit-text-fill-color: var(--color-text-muted, #6b7280) !important;
+}
+
+.e-form-field .v-field.v-field--focused .v-field__input input,
+.e-form-field .v-field.v-field--focused .v-field__input textarea,
+.e-form-field .v-field.v-field--focused .v-select__selection-text {
+  color: var(--color-text, #111827) !important;
+  -webkit-text-fill-color: var(--color-text, #111827) !important;
+}
+
+.e-form-field .v-field__input input,
+.e-form-field .v-field__input textarea {
+  font-size: inherit;
+  line-height: inherit;
+  caret-color: var(--color-primary, #059669);
+}
+
+.e-form-field .v-field__input input::placeholder,
+.e-form-field .v-field__input textarea::placeholder {
+  color: #9ca3af !important;
+  -webkit-text-fill-color: #9ca3af !important;
+  opacity: 1;
+}
+
+.e-form-field .v-select .v-field__input {
+  padding-right: 28px;
+}
+
+.e-form-field .v-select .v-select__selection-text {
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.e-form-field .v-field.text-primary,
+.e-form-field .v-field .text-primary {
+  color: inherit !important;
+}
+
+/* Disabled — entspricht .autosave-field.is-disabled */
+.e-form-field .v-field--disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.e-form-field .v-input__details {
+  padding-top: 6px;
+  padding-inline: 0;
+  font-size: 12px;
+}
+
+.e-form-field .v-messages__message {
+  color: var(--color-text-muted, #6b7280);
+}
+
+.e-form-field .v-input--error .v-messages__message {
+  color: var(--color-error, #dc2626);
+}
+
+.e-form-field--textarea .v-field__input {
+  min-height: 96px;
+  resize: vertical;
+}
+
+.e-checkbox .v-selection-control__input > .v-icon,
+.e-switch .v-switch__track {
+  opacity: 1;
+}
+
+.e-checkbox .v-label,
+.e-switch .v-label {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-text, #111827);
+}

@@ -2,6 +2,7 @@
 import { computed, inject } from 'vue'
 import { useI18n } from 'vue-i18n'
 import PackShellCheckToggle from '@/components/activities/PackShellCheckToggle.vue'
+import { EButton } from '@/components/form/base'
 import {
   injectPackCtxBool,
   PACK_WAREHOUSE_ISSUE_INJECT_KEY,
@@ -111,19 +112,19 @@ function onNachbuchung() {
         @ok="onConfirm"
       />
     </div>
-    <button
+    <EButton
       v-if="showNachbuchung"
-      type="button"
-      class="btn btn-xs btn-outline pack-consumable-quick-row__nachbuchung"
+      variant="secondary"
+      size="x-small"
+      class="pack-consumable-quick-row__nachbuchung"
       :disabled="posting"
       @click="onNachbuchung"
     >
       {{ t('activities.packList.consumableInlineNachbuchung') }}
-    </button>
+    </EButton>
   </div>
 </template>
 
-<style src="@/styles/views/activities/detail-panel.css"></style>
 <style src="@/styles/views/activities/detail-workflow.css"></style>
 <style scoped>
 .pack-consumable-quick-row {

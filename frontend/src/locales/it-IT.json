@@ -914,8 +914,8 @@
       "return": "Rückgabe"
     },
     "datePresets": {
-      "today": "Heute",
-      "nextSaturday": "Nächster Samstag"
+      "nextSaturday": "Nächster Samstag",
+      "secondSaturday": "Übernächster Samstag"
     },
     "dateRangePicker": {
       "placeholder": "Zeitraum wählen …",

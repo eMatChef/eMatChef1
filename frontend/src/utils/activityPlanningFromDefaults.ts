@@ -57,6 +57,13 @@ export function nextSaturdayFromToday(): Date {
   return d
 }
 
+/** Übernächster Samstag (nächster Samstag + 7 Tage). */
+export function secondSaturdayFromToday(): Date {
+  const d = new Date(nextSaturdayFromToday().getTime())
+  d.setDate(d.getDate() + 7)
+  return d
+}
+
 /**
  * Standard-Nutzungsfenster aus Abteilung auf dem nächsten Samstag: defaultTimeStart / defaultTimeEnd.
  * Liegt das Ende vor dem Start am selben Kalendertag, wird der Endtag +1 genommen.

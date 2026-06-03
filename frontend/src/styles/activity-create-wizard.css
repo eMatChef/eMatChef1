@@ -1,4 +1,29 @@
-/* ActivityCreateWizard – ergänzt material-wizard.css (Host: .activity-create-wizard-host) */
+/**
+ * ActivityCreateWizard + ActivityDraftOverviewForm
+ * Host: .activity-create-wizard-host (ergänzt material-wizard.css)
+ *
+ * Aktiv (Phase 6): Vuetify-Footer, v-alert, E*-Felder, activity-datetime-layout
+ * @deprecated (Entfernung geplant):
+ *   - .btn-material-resync → EButton variant="text" size="x-small"
+ *   - .activity-address-select-row .form-input → ETextField (Wizard + Draft-Overview)
+ */
+
+@import './components/activity-display-host.css';
+@import './components/activity-datetime-layout.css';
+
+.activity-create-wizard-host {
+  /* Footer-Buttons (EButton size="small") */
+  --activity-wizard-control-height: 28px;
+}
+
+.activity-create-wizard-host .activity-create-footer .footer-actions .v-btn--size-small {
+  height: var(--activity-wizard-control-height);
+  min-height: var(--activity-wizard-control-height);
+  padding-inline: 14px;
+  font-size: 13px;
+  letter-spacing: normal;
+  text-transform: none;
+}
 
 .activity-create-wizard-host .activity-stepper-meta {
   margin-bottom: 16px;
@@ -39,13 +64,6 @@
   font-size: 12px;
 }
 
-.activity-create-wizard-host .activity-group-select {
-  cursor: pointer;
-  appearance: auto;
-  padding: 10px 12px;
-  line-height: 1.4;
-}
-
 .activity-create-wizard-host .activity-create-group-wrap {
   margin-top: 4px;
 }
@@ -76,6 +94,7 @@
   gap: 8px;
 }
 
+/* @deprecated — native .form-input; Ziel: ETextField in Adresszeile */
 .activity-create-wizard-host .activity-address-select-row .form-input {
   flex: 1;
   min-width: 0;
@@ -146,13 +165,6 @@
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 16px;
-}
-
-@media (max-width: 560px) {
-  .activity-create-wizard-host .form-row-dates,
-  .activity-create-wizard-host .form-row-datetime {
-    grid-template-columns: 1fr;
-  }
 }
 
 .activity-create-wizard-host .zeitraum-intro {
@@ -236,6 +248,7 @@
   margin-top: 4px;
 }
 
+/* @deprecated — Link-Button; Ziel: EButton variant="text" */
 .activity-create-wizard-host .btn-material-resync {
   border: none;
   background: none;
@@ -256,168 +269,6 @@
   color: #9ca3af;
   cursor: not-allowed;
   text-decoration: none;
-}
-
-/* Pill-Leiste: Datum (+ ggf. Bereich) und zwei Zeiten in einer Zeile (mobil horizontal scrollbar) */
-.activity-create-wizard-host .activity-pill-group {
-  margin-bottom: 12px;
-}
-
-.activity-create-wizard-host .activity-pill-group .field-label {
-  margin-bottom: 8px;
-}
-
-.activity-create-wizard-host .activity-pill-bar {
-  /* Einheitliche Höhe Datum ↔ Stunde/Minute (nichts ragt aus der Pille) */
-  --activity-pill-control-h: 34px;
-  display: flex;
-  flex-wrap: nowrap;
-  align-items: stretch;
-  gap: 0;
-  min-height: calc(10px + 2px + var(--activity-pill-control-h) + 14px);
-  border-radius: 999px;
-  background: #fff;
-  border: 1px solid #e8eaed;
-  box-shadow: 0 4px 16px -4px rgb(15 23 42 / 10%), 0 2px 6px -2px rgb(15 23 42 / 6%);
-  overflow: hidden;
-  max-width: 100%;
-  touch-action: manipulation;
-}
-
-@media (max-width: 520px) {
-  .activity-create-wizard-host .activity-pill-bar {
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-    border-radius: 22px;
-    scrollbar-width: thin;
-  }
-}
-
-.activity-create-wizard-host .activity-pill-cell {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: 2px;
-  min-width: 0;
-  padding: 8px 8px;
-  border-left: 1px solid #f1f5f9;
-}
-
-/* Datum nicht über die ganze Zeile strecken — weniger Leerraum bis zu den Zeiten */
-.activity-create-wizard-host .activity-pill-cell:first-child {
-  border-left: none;
-  flex: 0 1 auto;
-  min-width: min(200px, 100%);
-  max-width: min(380px, 56vw);
-}
-
-/* Genug Platz für Stunden- + Minuten-Dropdown (sonst Stunden-Select auf ~0px, nur Chevron sichtbar) */
-.activity-create-wizard-host .activity-pill-cell--time {
-  flex: 1 1 158px;
-  min-width: 158px;
-  max-width: min(220px, 34vw);
-}
-
-.activity-create-wizard-host .activity-pill-cell-lbl {
-  font-size: 10px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: #9ca3af;
-  line-height: 1.2;
-}
-
-/* :deep() wirkt nur in Vue-SFCs — hier echte Nachfahren, sonst greifen diese Regeln nicht. */
-.activity-create-wizard-host .activity-pill-bar .activity-date-field .dp__input_wrap,
-.activity-create-wizard-host .activity-pill-bar .activity-date-range-field .dp__input_wrap,
-.activity-create-wizard-host .activity-pill-bar .activity-time-field .dp__input_wrap {
-  position: relative;
-  --dp-input-icon-padding: 44px;
-  display: flex;
-  align-items: center;
-  box-sizing: border-box;
-  min-height: var(--activity-pill-control-h);
-  max-height: var(--activity-pill-control-h);
-  height: var(--activity-pill-control-h);
-}
-
-.activity-create-wizard-host .activity-pill-bar .activity-date-field .dp__input_icon,
-.activity-create-wizard-host .activity-pill-bar .activity-date-range-field .dp__input_icon,
-.activity-create-wizard-host .activity-pill-bar .activity-time-field .dp__input_icon {
-  padding-inline: 6px 2px;
-  box-sizing: content-box;
-  max-height: var(--activity-pill-control-h);
-  color: var(--color-primary, #059669);
-}
-
-.activity-create-wizard-host .activity-pill-bar .activity-date-field .dp__input_icon svg,
-.activity-create-wizard-host .activity-pill-bar .activity-date-range-field .dp__input_icon svg,
-.activity-create-wizard-host .activity-pill-bar .activity-time-field .dp__input_icon svg {
-  fill: var(--color-primary, #059669);
-  stroke: var(--color-primary, #059669);
-}
-
-/* Library: padding: var(--dp-input-padding) — komplett überschreiben, sonst bleibt das Datum höher */
-.activity-create-wizard-host .activity-pill-bar .activity-date-field .dp__input,
-.activity-create-wizard-host .activity-pill-bar .activity-date-range-field .dp__input,
-.activity-create-wizard-host .activity-pill-bar .activity-time-field .dp__input {
-  border: none !important;
-  background: transparent !important;
-  box-shadow: none !important;
-  border-radius: 0 !important;
-  padding: 0 10px 0 0 !important;
-  min-height: var(--activity-pill-control-h) !important;
-  max-height: var(--activity-pill-control-h) !important;
-  height: var(--activity-pill-control-h) !important;
-  line-height: var(--activity-pill-control-h) !important;
-  font-size: 14px;
-  font-weight: 600;
-  color: #111827;
-  box-sizing: border-box !important;
-}
-
-.activity-create-wizard-host .activity-pill-bar .activity-date-field .dp__input,
-.activity-create-wizard-host .activity-pill-bar .activity-date-range-field .dp__input {
-  font-size: 13px;
-}
-
-.activity-create-wizard-host .activity-pill-bar .activity-time-field .dp__input {
-  text-align: start;
-  font-variant-numeric: tabular-nums;
-}
-
-.activity-create-wizard-host .activity-pill-bar .activity-date-field .dp__input.dp__input_icon_pad,
-.activity-create-wizard-host .activity-pill-bar .activity-date-range-field .dp__input.dp__input_icon_pad,
-.activity-create-wizard-host .activity-pill-bar .activity-time-field .dp__input.dp__input_icon_pad {
-  padding: 0 10px 0 44px !important;
-}
-
-.activity-create-wizard-host .activity-pill-bar .activity-date-field .dp__input:focus,
-.activity-create-wizard-host .activity-pill-bar .activity-date-range-field .dp__input:focus,
-.activity-create-wizard-host .activity-pill-bar .activity-time-field .dp__input:focus {
-  outline: none;
-  box-shadow: none !important;
-}
-
-.activity-create-wizard-host .activity-pill-bar .activity-date-field .dp__input_wrap:focus-within,
-.activity-create-wizard-host .activity-pill-bar .activity-date-range-field .dp__input_wrap:focus-within,
-.activity-create-wizard-host .activity-pill-bar .activity-time-field .dp__input_wrap:focus-within {
-  border-radius: 8px;
-  background: rgba(16, 185, 129, 0.09);
-}
-
-/* Native Stunden/Minuten (ActivityTimeField) — gleiche Höhe wie Datumsfeld in der Pille */
-.activity-create-wizard-host .activity-pill-bar .activity-time-quarter-grid {
-  min-height: var(--activity-pill-control-h);
-  align-items: center;
-}
-
-.activity-create-wizard-host .activity-pill-bar .activity-time-quarter-grid .activity-time-part {
-  min-height: var(--activity-pill-control-h);
-  height: var(--activity-pill-control-h);
-  padding-top: 0;
-  padding-bottom: 0;
-  line-height: var(--activity-pill-control-h);
 }
 
 .activity-create-wizard-host .preview-dates-label {
@@ -548,33 +399,90 @@
   flex: 1;
 }
 
-.activity-create-wizard-host .footer-actions-wrap {
+.activity-create-wizard-host .activity-create-footer-actions {
   display: flex;
-  flex-direction: column;
-  align-items: flex-end;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px 12px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.activity-create-wizard-host .activity-create-footer .footer-actions {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
   gap: 8px;
-  max-width: 100%;
+}
+
+/* Footer: fehlende Schritte — kompakt wie EButton size="small" (28px / 36px mobil) */
+.activity-create-wizard-host .activity-wizard-missing-alert.v-alert {
+  display: inline-flex !important;
+  flex: 0 1 auto;
+  align-items: center;
+  grid-template-areas: none !important;
+  grid-template-columns: none !important;
+  margin: 0;
+  min-width: 0;
+  max-width: min(100%, 320px);
+  height: var(--activity-wizard-control-height, 28px);
+  min-height: var(--activity-wizard-control-height, 28px);
+  padding: 0 10px !important;
+  border-radius: 6px !important;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: normal;
+  text-transform: none;
+  overflow: hidden;
+}
+
+.activity-create-wizard-host .activity-wizard-missing-alert .v-alert__content {
+  padding: 0 !important;
+  line-height: 1.2;
+  white-space: nowrap;
+  align-self: center;
+}
+
+.activity-create-wizard-host .activity-wizard-missing-alert .v-alert__prepend {
+  margin-inline-end: 6px !important;
+  margin-inline-start: 0 !important;
+  padding: 0 !important;
+  align-self: center;
+}
+
+.activity-create-wizard-host .activity-wizard-missing-alert .v-alert__prepend .v-icon {
+  font-size: 16px !important;
 }
 
 .activity-create-wizard-host .activity-create-submit-error {
   margin: 0;
+  flex: 1 1 100%;
   font-size: 12px;
   color: #b91c1c;
   text-align: right;
-  max-width: 420px;
+  max-width: 100%;
 }
 
-@media (max-width: 900px) {
-  .activity-create-wizard-host .material-wizard-body {
-    grid-template-columns: 1fr;
-    min-height: 0;
-  }
+/* Tablet + Desktop: Vorschau rechts (JS: showWizardPreview ab 600px) */
+.activity-create-wizard-host .material-wizard-body--with-preview {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(180px, 220px);
+  min-height: 0;
+}
 
-  .activity-create-wizard-host .material-wizard-sidebar {
-    max-height: min(40vh, 280px);
-    border-left: none;
-    border-top: 1px solid #e5e7eb;
-  }
+.activity-create-wizard-host .material-wizard-body--with-preview .material-wizard-content {
+  grid-column: 1;
+  min-width: 0;
+}
+
+.activity-create-wizard-host .material-wizard-body--with-preview .activity-preview-sidebar {
+  grid-column: 2;
+  min-width: 0;
 }
 
 .activity-create-wizard-host .activity-invite-departments-wrap {
@@ -640,11 +548,12 @@
 
 .activity-create-wizard-host .activity-create-footer-draft {
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 4px;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
   min-width: 0;
-  max-width: min(100%, 280px);
+  max-width: min(100%, 320px);
   flex-shrink: 1;
 }
 
@@ -682,22 +591,48 @@
   margin-top: 4px;
 }
 
-.activity-create-wizard-host .activity-wizard-notes-textarea {
-  min-height: 72px;
-  resize: vertical;
+/* v-dialog-Shell (Phase 6 · 071) — ersetzt Teleport + .material-wizard-overlay */
+.activity-create-dialog .activity-create-dialog__content {
+  width: 100%;
+  max-width: 1080px;
+  margin: 12px;
 }
 
-.activity-create-wizard-host .group-optional-label {
-  font-weight: 500;
-  font-size: 13px;
+.activity-create-dialog .activity-create-wizard-host.material-wizard-modal {
+  width: 100%;
+  display: grid;
+  overflow: hidden;
 }
 
-.activity-create-wizard-host.material-wizard-overlay {
-  padding: 12px;
+.activity-create-dialog.v-dialog--fullscreen .activity-create-dialog__content {
+  margin: 0;
+  max-width: none;
+  height: 100%;
 }
 
-@media (min-width: 561px) {
-  .activity-create-wizard-host.material-wizard-overlay {
-    padding: 20px;
-  }
+.activity-create-dialog.v-dialog--fullscreen .activity-create-wizard-host.material-wizard-modal {
+  height: 100%;
+  min-height: 0;
+  max-height: none;
+  border-radius: 0 !important;
 }
+
+.activity-create-wizard-host .activity-create-wizard-close {
+  flex-shrink: 0;
+  color: #9ca3af;
+}
+
+.activity-create-wizard-host .activity-create-wizard-close:hover {
+  color: #374151;
+}
+
+.activity-create-wizard-form .activity-stepper-meta {
+  margin-bottom: 12px;
+}
+
+.activity-create-wizard-form .activity-stepper-count {
+  font-size: 12px;
+  font-weight: 600;
+  height: auto;
+}
+

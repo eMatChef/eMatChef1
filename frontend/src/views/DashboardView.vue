@@ -58,22 +58,24 @@
         </svg>
         <span>{{ t('dashboard.createActivity') }}</span>
       </router-link>
-      <button
+      <EButton
+        variant="secondary"
         class="quick-action-btn"
         @click="showDamageWizard = true"
       >
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="24" height="24">
           <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
         </svg>
-        <span>{{ t('dashboard.reportDamage') }}</span>
-      </button>
+        {{ t('dashboard.reportDamage') }}
+      </EButton>
     </div>
 
     <!-- Loading -->
-    <div v-if="isLoading" class="dashboard-loading">
-      <div class="spinner"></div>
-      <p>{{ t('dashboard.loading') }}</p>
-    </div>
+    <ELoadingState
+      v-if="isLoading"
+      variant="page"
+      :message="t('dashboard.loading')"
+    />
 
     <!-- Content -->
     <div v-else class="dashboard-content">
@@ -301,6 +303,8 @@ import DamageReportWizard from '@/components/DamageReportWizard.vue'
 import { activityStatusClass, activityStatusI18nKey } from '@/utils/activityStatus'
 import { useDepartmentLiveRefresh } from '@/composables/useDepartmentLiveRefresh'
 import { useDepartmentMemberRole } from '@/composables/useDepartmentMemberRole'
+import ELoadingState from '@/components/layout/ELoadingState.vue'
+import { EButton } from '@/components/form/base'
 
 const route = useRoute()
 const { t, locale } = useI18n()
@@ -626,15 +630,6 @@ button.quick-action-btn {
 .quick-action-btn.primary:hover {
   background: linear-gradient(135deg, #059669 0%, #047857 100%);
   color: white;
-}
-
-.dashboard-loading {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 48px;
-  color: #6b7280;
 }
 
 .dashboard-content {

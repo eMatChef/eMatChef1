@@ -1,0 +1,33 @@
+.contact-list-dt__table.v-table {
+  background: transparent;
+}
+
+.contact-list-dt__table .v-table__wrapper {
+  overflow-x: auto;
+}
+
+.contact-list-dt__table thead th {
+  background: #f9fafb !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  color: #6b7280 !important;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.contact-list-dt__table tbody tr {
+  cursor: pointer;
+}
+
+.contact-list-dt__table tbody tr:hover {
+  background: #f3f4f6 !important;
+}
+
+.contact-list-dt__table tbody tr.contact-row--deleted {
+  opacity: 0.72;
+}
+
+.contact-list-dt__table td {
+  vertical-align: middle;
+  border-bottom: 1px solid #f3f4f6 !important;
+}

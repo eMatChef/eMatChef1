@@ -1,122 +1,151 @@
 <template>
-  <VueDatePicker
-    :model-value="modelValue"
-    :disabled="disabled"
-    class="activity-date-field"
-    :locale="datepickerLocale"
-    format="dd.MM.yyyy"
-    :enable-time-picker="false"
-    :preset-dates="presetDates"
-    :min-date="minDate"
-    :markers="holidayMarkers"
-    position="left"
-    auto-apply
-    :clearable="false"
-    :teleport="teleportTo"
-    :time-config="{ enableTimePicker: false }"
-    @update:model-value="$emit('update:modelValue', $event)"
-  />
+  <div class="activity-date-field-wrap">
+    <VTextField
+      :model-value="displayText"
+      class="activity-date-field activity-v-date-input e-form-field"
+      variant="outlined"
+      density="compact"
+      hide-details
+      readonly
+      prepend-icon=""
+      prepend-inner-icon="mdi-calendar"
+      :disabled="disabled"
+      :focused="menuOpen"
+      @click:control="openMenu"
+      @click:prepend-inner="openMenu"
+    >
+      <ActivityDatePickerMenuShell
+        v-model:open="menuOpen"
+        :presets="menuPresets"
+        :show-presets="showPresets"
+        :presets-aria-label="t('activities.dateRangePicker.presetsAria')"
+        @select-preset="applyPreset"
+      >
+        <div
+          class="activity-date-picker-pane-wrap"
+          @wheel="onWheel"
+          @touchstart.passive="onTouchStart"
+          @touchend.passive="onTouchEnd"
+        >
+          <VDatePicker
+            v-bind="activityDatePickerCommonProps"
+            :model-value="modelValue"
+            :month="paneMonth"
+            :year="paneYear"
+            :min="minDate"
+            :allowed-dates="allowedDates"
+            @update:model-value="onPickerUpdate"
+            @update:month="onMonthFromPicker"
+            @update:year="onYearFromPicker"
+          >
+            <template #controls="controls">
+              <ActivityDatePickerControlsBar
+                v-bind="controls"
+                :prev-month="() => shiftMonth(-1)"
+                :next-month="() => shiftMonth(1)"
+              />
+            </template>
+            <template #day="{ item, props: dayBtnProps }">
+              <ActivityDatePickerDay
+                :item="item"
+                :btn-props="dayBtnProps"
+                :markers="markersForIsoKey(item.isoDate)"
+                :department-closed-date-keys="departmentClosedDateKeys"
+              />
+            </template>
+          </VDatePicker>
+        </div>
+      </ActivityDatePickerMenuShell>
+    </VTextField>
+  </div>
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import VueDatePicker from '@vuepic/vue-datepicker'
-import type { DatePickerMarker } from '@vuepic/vue-datepicker'
-import '@vuepic/vue-datepicker/dist/main.css'
-import '@/styles/ui/vue-datepicker-emc.css'
-import { getDepartmentCalendarMarkers, type CalendarMarkerDto } from '@/api/calendarMarkers'
-import { nextSaturdayFromToday } from '@/utils/activityPlanningFromDefaults'
-import { startOfLocalDay, startOfToday, swissHolidayDatePickerMarkers } from '@/utils/swissMovableFeasts'
+import { VDatePicker, VTextField } from 'vuetify/components'
+import { useActivityDatePickerEvents } from '@/composables/useActivityDatePickerEvents'
+import { useActivityDatePickerPaneMonth } from '@/composables/useActivityDatePickerPaneMonth'
+import { useActivityDatePresets } from '@/composables/useActivityDatePresets'
+import { formatActivityDateDe } from '@/utils/activityDateIso'
+import type { ActivityDatePresetItem } from '@/utils/activityDatePresets'
+import { startOfToday } from '@/utils/swissMovableFeasts'
+import ActivityDatePickerControlsBar from './ActivityDatePickerControlsBar.vue'
+import ActivityDatePickerDay from './ActivityDatePickerDay.vue'
+import ActivityDatePickerMenuShell from './ActivityDatePickerMenuShell.vue'
+import { activityDatePickerCommonProps } from '@/utils/activityDatePickerCommonProps'
 
 const props = withDefaults(
   defineProps<{
     modelValue: Date | null
     departmentId?: string | null
-    /** z. B. gesperrt, solange Materialpositionen im Wizard (vgl. v4.01) */
     disabled?: boolean
-    /** z. B. `body` in der Aktivitäts-Detailansicht (kein Wizard-Modal) */
-    teleportTo?: string
+    /** Schnellauswahl (Samstage, …) */
+    showPresets?: boolean
+    /** Kalender-Punkte (Feiertage, Fixe Daten, fcal); Mat-Büro geschlossen sperrt nur bei true */
+    showMarkers?: boolean
   }>(),
-  { departmentId: null, disabled: false, teleportTo: '.material-wizard-modal' },
+  { departmentId: null, disabled: false, showPresets: false, showMarkers: true },
 )
 
-const { t, locale } = useI18n()
+const emit = defineEmits<{
+  'update:modelValue': [value: Date | null]
+}>()
 
-const datepickerLocale = computed(() => (String(locale.value ?? '').startsWith('de') ? 'de' : 'en'))
-
+const { t } = useI18n()
+const menuOpen = ref(false)
 const minDate = computed(() => startOfToday())
 
-/** Wie bei Datumsbereich: Schnellauswahl links im Kalender (Typ „Aktivität“ = ein Tag) */
-const presetDates = computed(() => {
-  const today = startOfToday()
-  const sat = startOfLocalDay(nextSaturdayFromToday())
-  return [
-    { label: t('activities.datePresets.today'), value: today },
-    { label: t('activities.datePresets.nextSaturday'), value: sat },
-  ]
+const {
+  month: paneMonth,
+  year: paneYear,
+  shiftMonth,
+  onWheel,
+  onTouchStart,
+  onTouchEnd,
+  onMonthFromPicker,
+  onYearFromPicker,
+} = useActivityDatePickerPaneMonth({
+  menuOpen,
+  anchorDate: () => props.modelValue ?? minDate.value,
 })
 
-const fcalSchoolMarkers = ref<CalendarMarkerDto[]>([])
+const { allowedDates, departmentClosedDateKeys, calendarPeriods, markersForIsoKey } =
+  useActivityDatePickerEvents(() => props.departmentId, {
+    showMarkers: () => props.showMarkers,
+  })
+const menuPresets = useActivityDatePresets('single', calendarPeriods)
 
-async function refreshFcalSchoolMarkers(): Promise<void> {
-  if (!props.departmentId) {
-    fcalSchoolMarkers.value = []
-    return
-  }
-  try {
-    const y = new Date().getFullYear()
-    const res = await getDepartmentCalendarMarkers(props.departmentId, [y - 1, y, y + 1, y + 2])
-    fcalSchoolMarkers.value = res.source === 'fcal' ? res.markers : []
-  } catch {
-    fcalSchoolMarkers.value = []
+const displayText = computed(() => formatActivityDateDe(props.modelValue))
+
+function openMenu() {
+  if (props.disabled) return
+  menuOpen.value = true
+}
+
+function onPickerUpdate(value: Date | Date[] | null) {
+  if (value instanceof Date) {
+    emit('update:modelValue', value)
+    menuOpen.value = false
+  } else if (Array.isArray(value) && value[0]) {
+    emit('update:modelValue', value[0])
+    menuOpen.value = false
   }
 }
 
-watch(() => props.departmentId, refreshFcalSchoolMarkers, { immediate: true })
-
-const holidayMarkers = computed<DatePickerMarker[]>(() => {
-  const y = new Date().getFullYear()
-  const base = swissHolidayDatePickerMarkers(y - 1, y + 6)
-  const school: DatePickerMarker[] = fcalSchoolMarkers.value.map((m) => ({
-    date: m.date,
-    type: 'dot',
-    color: '#059669',
-    tooltip: [{ text: t('activities.dateRangePicker.schoolHolidayTooltip', { label: m.label }) }],
-  }))
-  return [...base, ...school]
-})
-
-defineEmits<{
-  'update:modelValue': [value: Date | null]
-}>()
+function applyPreset(preset: ActivityDatePresetItem) {
+  const d = preset.value instanceof Date ? preset.value : preset.value[0]
+  emit('update:modelValue', d)
+  menuOpen.value = false
+}
 </script>
 
 <style scoped>
+.activity-date-field-wrap {
+  width: 100%;
+}
+
 .activity-date-field {
   width: 100%;
-}
-
-.activity-date-field :deep(.dp__input) {
-  width: 100%;
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
-  font-size: 14px;
-  color: #111827;
-  background: #fff;
-}
-
-.activity-date-field :deep(.dp__input:focus) {
-  outline: none;
-  border-color: var(--emc-brand-accent, #059669);
-  box-shadow: 0 0 0 3px rgb(5 150 105 / 18%);
-}
-
-.activity-date-field :deep(.dp--preset-range) {
-  max-width: 160px;
-  font-size: 12px;
-  font-weight: 500;
-  white-space: normal;
-  line-height: 1.25;
 }
 </style>

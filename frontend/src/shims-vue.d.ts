@@ -19,6 +19,8 @@ declare module 'vue-router' {
     publicMarketing?: boolean
     /** Nur ROLE_SUPERADMIN / ROLE_WEBADMIN */
     requiresSiteEditor?: boolean
+    /** @deprecated Nur für entfernte Dev-Routen; Meta kann in alten Branches noch vorkommen */
+    devToolsOnly?: boolean
     requiredRoles?: string[]
     /** Department-Mitgliedschaftsrollen, die diese Route nicht öffnen dürfen (z. B. `u` für Werkstatt) */
     denyDepartmentRoles?: string[]

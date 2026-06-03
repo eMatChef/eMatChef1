@@ -1,16 +1,13 @@
 <template>
-  <div class="modal-overlay">
-    <div class="modal-dialog address-modal-dialog">
-      <div class="modal-header">
-        <h2>{{ modalTitle }}</h2>
-        <button @click="confirmClose" class="modal-close">
-          <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-            <path d="M15 5L5 15M5 5L15 15" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-          </svg>
-        </button>
-      </div>
-
-      <form @submit.prevent="handleSubmit" class="modal-body">
+  <EDialog
+    v-model="dialogOpen"
+    :max-width="750"
+    :title="modalTitle"
+    scrollable
+    persistent
+    card-class="address-modal-card"
+  >
+    <form id="address-modal-form" class="address-modal-body" @submit.prevent="handleSubmit">
         <!-- Adress-Suche -->
         <div class="address-search-section">
           <div class="address-search-group">
@@ -83,155 +80,128 @@
 
         <!-- Name & Typ -->
         <div class="form-row two-cols">
-          <div class="form-group">
-            <label class="form-label">{{ t('settings.addressForm.designation') }}</label>
-            <input
-              v-model="formData.name"
-              type="text"
-              class="form-input"
-              :placeholder="t('settings.addressForm.designationPlaceholder')"
-            />
-          </div>
-          <div class="form-group">
-            <label class="form-label">{{ t('settings.addressModal.typeField') }}</label>
-            <select v-model="formData.type" class="form-select" :disabled="isGlobalMode">
-              <option v-for="key in visibleAddressTypeKeys" :key="key" :value="key">
-                {{ t(`settings.addressForm.types.${key}`) }}
-              </option>
-            </select>
-          </div>
-        </div>
-
-        <div v-if="!isGlobalMode && formData.type === 'storage'" class="form-group primary-toggle-group">
-          <label class="primary-toggle-label">
-            <input v-model="formData.is_primary" type="checkbox" />
-            {{ t('settings.addressModal.primaryStorageHint') }}
-          </label>
-        </div>
-
-        <!-- Firma -->
-        <div class="form-group">
-          <label class="form-label">{{ t('settings.addressForm.company') }}</label>
-          <input
-            v-model="formData.company"
-            type="text"
-            class="form-input"
-            :placeholder="t('common.optional')"
+          <ETextField
+            v-model="formData.name"
+            :label="t('settings.addressForm.designation')"
+            :placeholder="t('settings.addressForm.designationPlaceholder')"
+            hide-details="auto"
+          />
+          <ESelect
+            v-model="formData.type"
+            :items="addressTypeItems"
+            :label="t('settings.addressModal.typeField')"
+            :disabled="isGlobalMode"
+            hide-details="auto"
           />
         </div>
 
+        <ECheckbox
+          v-if="!isGlobalMode && formData.type === 'storage'"
+          v-model="formData.is_primary"
+          :label="t('settings.addressModal.primaryStorageHint')"
+          class="primary-toggle-group"
+          hide-details
+        />
+
+        <!-- Firma -->
+        <ETextField
+          v-model="formData.company"
+          :label="t('settings.addressForm.company')"
+          :placeholder="t('common.optional')"
+          hide-details="auto"
+        />
+
         <!-- Strasse + Nr -->
         <div class="form-row two-cols-unequal">
-          <div class="form-group flex-grow">
-            <label class="form-label">{{ t('settings.addressForm.street') }}</label>
-            <input
-              v-model="formData.street"
-              type="text"
-              class="form-input"
-              :placeholder="t('settings.addressForm.streetPlaceholder')"
-            />
-          </div>
-          <div class="form-group" style="width: 100px">
-            <label class="form-label">{{ t('settings.addressForm.streetNumber') }}</label>
-            <input
-              v-model="formData.street_number"
-              type="text"
-              class="form-input"
-              :placeholder="t('settings.addressForm.streetNumberPlaceholder')"
-            />
-          </div>
+          <ETextField
+            v-model="formData.street"
+            class="flex-grow"
+            :label="t('settings.addressForm.street')"
+            :placeholder="t('settings.addressForm.streetPlaceholder')"
+            hide-details="auto"
+          />
+          <ETextField
+            v-model="formData.street_number"
+            class="street-number-field"
+            :label="t('settings.addressForm.streetNumber')"
+            :placeholder="t('settings.addressForm.streetNumberPlaceholder')"
+            hide-details="auto"
+          />
         </div>
 
         <!-- PLZ + Ort -->
         <div class="form-row two-cols-unequal">
-          <div class="form-group" style="width: 120px">
-            <label class="form-label">{{ t('settings.addressForm.postalCode') }}</label>
-            <input
-              v-model="formData.postal_code"
-              type="text"
-              class="form-input"
-              :placeholder="t('settings.addressForm.postalPlaceholder')"
-            />
-          </div>
-          <div class="form-group flex-grow">
-            <label class="form-label">{{ t('settings.addressForm.city') }}</label>
-            <input
-              v-model="formData.city"
-              type="text"
-              class="form-input"
-              :placeholder="t('settings.addressForm.cityPlaceholder')"
-            />
-          </div>
+          <ETextField
+            v-model="formData.postal_code"
+            class="postal-field"
+            :label="t('settings.addressForm.postalCode')"
+            :placeholder="t('settings.addressForm.postalPlaceholder')"
+            hide-details="auto"
+          />
+          <ETextField
+            v-model="formData.city"
+            class="flex-grow"
+            :label="t('settings.addressForm.city')"
+            :placeholder="t('settings.addressForm.cityPlaceholder')"
+            hide-details="auto"
+          />
         </div>
 
         <!-- Kanton + Land -->
         <div class="form-row two-cols">
-          <div class="form-group">
-            <label class="form-label">{{ t('settings.addressForm.canton') }}</label>
-            <select v-model="formData.canton" class="form-select">
-              <option value="">{{ t('settings.addressForm.selectPlaceholder') }}</option>
-              <option v-for="(name, code) in SWISS_CANTONS" :key="code" :value="code">
-                {{ code }} - {{ name }}
-              </option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label class="form-label">{{ t('settings.addressForm.country') }}</label>
-            <input v-model="formData.country" type="text" class="form-input" />
-          </div>
+          <ESelect
+            v-model="formData.canton"
+            :items="cantonItems"
+            :label="t('settings.addressForm.canton')"
+            clearable
+            hide-details="auto"
+          />
+          <ETextField
+            v-model="formData.country"
+            :label="t('settings.addressForm.country')"
+            hide-details="auto"
+          />
         </div>
 
         <!-- Kontakt: Vorname, Nachname -->
         <div class="form-row two-cols">
-          <div class="form-group">
-            <label class="form-label">{{ t('settings.addressForm.contactFirstName') }}</label>
-            <input
-              v-model="formData.contact_first_name"
-              type="text"
-              class="form-input"
-              :placeholder="t('common.optional')"
-            />
-          </div>
-          <div class="form-group">
-            <label class="form-label">{{ t('settings.addressForm.contactLastName') }}</label>
-            <input
-              v-model="formData.contact_last_name"
-              type="text"
-              class="form-input"
-              :placeholder="t('common.optional')"
-            />
-          </div>
+          <ETextField
+            v-model="formData.contact_first_name"
+            :label="t('settings.addressForm.contactFirstName')"
+            :placeholder="t('common.optional')"
+            hide-details="auto"
+          />
+          <ETextField
+            v-model="formData.contact_last_name"
+            :label="t('settings.addressForm.contactLastName')"
+            :placeholder="t('common.optional')"
+            hide-details="auto"
+          />
         </div>
 
         <!-- Kontakt: E-Mail, Telefon, Mobil -->
         <div class="form-row three-cols">
-          <div class="form-group">
-            <label class="form-label">{{ t('settings.addressForm.email') }}</label>
-            <input
-              v-model="formData.email"
-              type="email"
-              class="form-input"
-              :placeholder="t('settings.addressForm.emailPlaceholder')"
-            />
-          </div>
-          <div class="form-group">
-            <label class="form-label">{{ t('settings.addressForm.phone') }}</label>
-            <input
-              v-model="formData.phone"
-              type="tel"
-              class="form-input"
-              :placeholder="t('settings.addressForm.phonePlaceholder')"
-            />
-          </div>
-          <div class="form-group">
-            <label class="form-label">{{ t('settings.addressForm.mobile') }}</label>
-            <input
-              v-model="formData.mobile"
-              type="tel"
-              class="form-input"
-              :placeholder="t('settings.addressForm.mobilePlaceholder')"
-            />
-          </div>
+          <ETextField
+            v-model="formData.email"
+            type="email"
+            :label="t('settings.addressForm.email')"
+            :placeholder="t('settings.addressForm.emailPlaceholder')"
+            hide-details="auto"
+          />
+          <ETextField
+            v-model="formData.phone"
+            type="tel"
+            :label="t('settings.addressForm.phone')"
+            :placeholder="t('settings.addressForm.phonePlaceholder')"
+            hide-details="auto"
+          />
+          <ETextField
+            v-model="formData.mobile"
+            type="tel"
+            :label="t('settings.addressForm.mobile')"
+            :placeholder="t('settings.addressForm.mobilePlaceholder')"
+            hide-details="auto"
+          />
         </div>
 
         <!-- Karte -->
@@ -283,55 +253,48 @@
         </div>
 
         <!-- Zusätzliche Infos -->
-        <div class="form-group">
-          <label class="form-label">{{ t('settings.addressForm.additionalInfo') }}</label>
-          <textarea
-            v-model="formData.additional_info"
-            class="form-textarea"
-            rows="2"
-            :placeholder="t('settings.addressForm.additionalInfoPlaceholder')"
-          />
-        </div>
+        <ETextarea
+          v-model="formData.additional_info"
+          :label="t('settings.addressForm.additionalInfo')"
+          :placeholder="t('settings.addressForm.additionalInfoPlaceholder')"
+          rows="2"
+          hide-details="auto"
+        />
 
-        <!-- Error -->
-        <div v-if="error" class="error-message">{{ error }}</div>
+        <v-alert v-if="error" type="error" variant="tonal" class="mt-2" :text="error" />
+    </form>
 
-        <!-- Actions -->
-        <div class="modal-footer">
-          <button type="button" @click="confirmClose" class="btn-secondary">{{ t('common.cancel') }}</button>
-          <button type="submit" class="btn-primary" :disabled="isSaving">
-            <span v-if="isSaving">{{ t('common.saving') }}</span>
-            <span v-else>{{ isEditing ? t('common.save') : t('common.create') }}</span>
-          </button>
-        </div>
-      </form>
-    </div>
+    <template #actions>
+      <EButton variant="secondary" size="small" @click="confirmClose">{{ t('common.cancel') }}</EButton>
+      <EButton
+        variant="primary"
+        size="small"
+        type="submit"
+        form="address-modal-form"
+        :loading="isSaving"
+        :disabled="isSaving"
+      >
+        {{ isEditing ? t('common.save') : t('common.create') }}
+      </EButton>
+    </template>
+  </EDialog>
 
-    <!-- Bestätigungsdialog beim Schliessen -->
-    <Teleport to="body">
-      <div v-if="showCloseConfirm" class="confirm-overlay">
-        <div class="confirm-dialog">
-          <div class="confirm-icon">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
-              <line x1="12" y1="9" x2="12" y2="13"/>
-              <line x1="12" y1="17" x2="12.01" y2="17"/>
-            </svg>
-          </div>
-          <h3 class="confirm-title">{{ t('settings.addressModal.closeConfirmTitle') }}</h3>
-          <p class="confirm-text">
-            {{ t('settings.addressModal.closeConfirmText') }}
-          </p>
-          <div class="confirm-actions">
-            <button class="btn-confirm-cancel" @click="showCloseConfirm = false">
-              {{ t('settings.addressModal.backToForm') }}
-            </button>
-            <button class="btn-confirm-discard" @click="close">{{ t('settings.addressModal.discard') }}</button>
-          </div>
-        </div>
-      </div>
-    </Teleport>
-  </div>
+  <EDialog
+    v-model="showCloseConfirm"
+    :max-width="400"
+    :title="t('settings.addressModal.closeConfirmTitle')"
+    persistent
+  >
+    <p>{{ t('settings.addressModal.closeConfirmText') }}</p>
+    <template #actions>
+      <EButton variant="secondary" size="small" @click="showCloseConfirm = false">
+        {{ t('settings.addressModal.backToForm') }}
+      </EButton>
+      <EButton variant="danger" size="small" @click="close">
+        {{ t('settings.addressModal.discard') }}
+      </EButton>
+    </template>
+  </EDialog>
 </template>
 
 <script setup lang="ts">
@@ -339,6 +302,7 @@ import { ref, watch, computed, onMounted, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useToast } from '@/composables/useToast'
 import MapView from './MapView.vue'
+import { EButton, ECheckbox, EDialog, ESelect, ETextField, ETextarea } from '@/components/form/base'
 import { 
   createAddress, 
   updateAddress, 
@@ -381,7 +345,27 @@ const emit = defineEmits<{
 
 const toast = useToast()
 const { t } = useI18n()
+const dialogOpen = ref(true)
 const mapRef = ref<InstanceType<typeof MapView>>()
+
+watch(dialogOpen, (open) => {
+  if (!open) close()
+})
+
+const addressTypeItems = computed(() =>
+  visibleAddressTypeKeys.value.map((key) => ({
+    title: t(`settings.addressForm.types.${key}`),
+    value: key,
+  })),
+)
+
+const cantonItems = computed(() => [
+  { title: t('settings.addressForm.selectPlaceholder'), value: '' },
+  ...Object.entries(SWISS_CANTONS).map(([code, name]) => ({
+    title: `${code} - ${name}`,
+    value: code,
+  })),
+])
 const isEditing = computed(() => !!(props.editAddressId || props.address?.id))
 const isGlobalMode = computed(() => props.apiMode === 'global')
 const isSaving = ref(false)
@@ -992,38 +976,17 @@ function confirmClose() {
 
 function close() {
   showCloseConfirm.value = false
+  dialogOpen.value = false
   emit('close')
 }
 </script>
 
 <style scoped>
-/* Modal overlay/dialog/header/body/footer base uses shared ui/modals.css */
-.address-modal-dialog {
-  width: min(750px, calc(100vw - 48px));
+:deep(.address-modal-card) {
   max-height: calc(100vh - 48px);
-  padding: 0;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
 }
 
-.address-modal-dialog .modal-header {
-  flex-shrink: 0;
-}
-
-.modal-header h2 {
-  margin: 0;
-  font-size: 20px;
-  font-weight: 600;
-  color: #1f2937;
-}
-
-.modal-body {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
+.address-modal-body {
   display: flex;
   flex-direction: column;
   gap: 16px;
@@ -1050,8 +1013,19 @@ function close() {
 
 /* Form group/input/select/textarea base uses shared ui/forms.css */
 
-.form-group.flex-grow {
+.flex-grow {
   flex: 1;
+  min-width: 0;
+}
+
+.street-number-field {
+  flex: 0 0 100px;
+  max-width: 120px;
+}
+
+.postal-field {
+  flex: 0 0 120px;
+  max-width: 140px;
 }
 
 .form-label {
@@ -1360,16 +1334,6 @@ function close() {
   color: #166534;
 }
 
-.error-message {
-  padding: 12px;
-  background: #fef2f2;
-  border: 1px solid #fecaca;
-  border-radius: 6px;
-  color: #dc2626;
-  font-size: 14px;
-}
-
-
 @media (max-width: 640px) {
   .form-row.two-cols,
   .form-row.three-cols {
@@ -1378,106 +1342,10 @@ function close() {
   .form-row.two-cols-unequal {
     flex-direction: column;
   }
-  .form-group[style*="width"] {
-    width: 100% !important;
+  .street-number-field,
+  .postal-field {
+    flex: 1 1 100%;
+    max-width: none;
   }
-}
-
-/* Bestätigungsdialog */
-.confirm-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.6);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1100;
-  animation: fadeIn 0.15s ease-out;
-}
-
-.confirm-dialog {
-  background: white;
-  border-radius: 12px;
-  padding: 24px;
-  max-width: 400px;
-  width: 90%;
-  text-align: center;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-  animation: scaleIn 0.15s ease-out;
-}
-
-@keyframes scaleIn {
-  from { transform: scale(0.95); opacity: 0; }
-  to { transform: scale(1); opacity: 1; }
-}
-
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-.confirm-icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 48px;
-  height: 48px;
-  border-radius: 50%;
-  background: #fef3c7;
-  color: #f59e0b;
-  margin-bottom: 12px;
-}
-
-.confirm-title {
-  font-size: 1.1rem;
-  font-weight: 600;
-  color: #1e293b;
-  margin: 0 0 8px 0;
-}
-
-.confirm-text {
-  font-size: 0.9rem;
-  color: #64748b;
-  margin: 0 0 20px 0;
-  line-height: 1.5;
-}
-
-.confirm-actions {
-  display: flex;
-  gap: 10px;
-  justify-content: center;
-}
-
-.btn-confirm-cancel {
-  padding: 8px 16px;
-  border-radius: 8px;
-  font-size: 0.85rem;
-  font-weight: 500;
-  cursor: pointer;
-  background: #f1f5f9;
-  border: 1px solid #e2e8f0;
-  color: #475569;
-  transition: all 0.15s ease;
-}
-
-.btn-confirm-cancel:hover {
-  background: #e2e8f0;
-  color: #1e293b;
-}
-
-.btn-confirm-discard {
-  padding: 8px 16px;
-  border-radius: 8px;
-  font-size: 0.85rem;
-  font-weight: 500;
-  cursor: pointer;
-  background: #ef4444;
-  border: none;
-  color: white;
-  transition: all 0.15s ease;
-}
-
-.btn-confirm-discard:hover {
-  background: #dc2626;
 }
 </style>

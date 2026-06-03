@@ -1,0 +1,26 @@
+/**
+ * v-alert — eMatChef-Gelb (#fef3c7 / #fcd34d), nicht Vuetify-tonal (braun/beige).
+ * Klasse .e-alert-warning oder type="warning" variant="tonal" (text-warning).
+ */
+
+.v-alert.e-alert-warning,
+.v-alert.text-warning.v-alert--variant-tonal {
+  background-color: var(--color-warning-bg, #fef3c7) !important;
+  color: var(--color-warning-text, #92400e) !important;
+  border: 1px solid var(--color-warning-border, #fcd34d) !important;
+  box-shadow: none !important;
+}
+
+.v-alert.e-alert-warning .v-alert__underlay,
+.v-alert.e-alert-warning .v-alert__overlay,
+.v-alert.text-warning.v-alert--variant-tonal .v-alert__underlay,
+.v-alert.text-warning.v-alert--variant-tonal .v-alert__overlay {
+  display: none !important;
+}
+
+.v-alert.e-alert-warning .v-alert__prepend .v-icon,
+.v-alert.e-alert-warning .v-alert__close .v-icon,
+.v-alert.text-warning .v-alert__prepend .v-icon,
+.v-alert.text-warning .v-alert__close .v-icon {
+  color: var(--color-warning-text, #92400e) !important;
+}

@@ -5,33 +5,27 @@
         <h1>{{ t('settings.departments.title') }}</h1>
         <p class="description">{{ t('settings.departments.description') }}</p>
       </div>
-      <button 
+      <EButton
         v-if="canManageDepartments"
-        @click="openAddModal" 
-        class="add-button" 
+        variant="primary"
         :title="t('settings.departments.addTitle')"
+        @click="openAddModal"
       >
-        <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-          <path
-            d="M10 4V16M4 10H16"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-          />
-        </svg>
-        <span>{{ t('common.add') }}</span>
-      </button>
+        <v-icon icon="mdi-plus" start size="20" />
+        {{ t('common.add') }}
+      </EButton>
     </div>
 
-    <!-- Loading State -->
-    <div v-if="isLoading" class="loading-state">
-      <p>{{ t('settings.departments.loading') }}</p>
-    </div>
+    <ELoadingState
+      v-if="isLoading"
+      variant="list"
+      :rows="5"
+      :message="t('settings.departments.loading')"
+    />
 
-    <!-- Error State -->
-    <div v-else-if="error" class="error-state">
-      <p class="error-message">{{ error }}</p>
-      <button @click="loadDepartments" class="retry-button">{{ t('common.retry') }}</button>
+    <div v-else-if="error" class="error-block">
+      <v-alert type="error" variant="tonal" :text="error" />
+      <EButton variant="secondary" class="mt-3" @click="loadDepartments">{{ t('common.retry') }}</EButton>
     </div>
 
     <!-- Tree List für Departments -->
@@ -52,10 +46,11 @@
       />
     </div>
 
-    <!-- Empty State -->
-    <div v-else class="empty-state">
-      <p>{{ t('settings.departments.empty') }}</p>
-    </div>
+    <EEmptyState
+      v-else
+      variant="create"
+      :title="t('settings.departments.empty')"
+    />
 
     <!-- Debug Info (temporär) -->
     <div v-if="isDev" class="debug-info">
@@ -114,6 +109,9 @@ import {
   prepareOrganisationsForOrgSubAdminList
 } from '@/utils/organisationUserPicker'
 import { filterDepartmentsByAccessibleIds } from '@/utils/adminCapabilities'
+import ELoadingState from '@/components/layout/ELoadingState.vue'
+import EEmptyState from '@/components/layout/EEmptyState.vue'
+import { EButton } from '@/components/form/base'
 
 const authStore = useAuthStore()
 const { t } = useI18n()
@@ -523,25 +521,6 @@ h1 {
   margin-bottom: 8px;
 }
 
-.add-button {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 16px;
-  background: #10b981;
-  color: white;
-  border: none;
-  border-radius: 8px;
-  font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: background 0.2s;
-}
-
-.add-button:hover {
-  background: #059669;
-}
-
 .description {
   color: #6b7280;
   font-size: 14px;
@@ -552,14 +531,9 @@ h1 {
   margin-bottom: 24px;
 }
 
-/* Loading/error/empty base uses shared ui/states.css */
-
-.error-message {
-  margin-bottom: 16px;
-  font-weight: 500;
+.error-block {
+  padding: 8px 0;
 }
-
-/* Retry button uses shared ui/states.css (.retry-button) */
 
 .debug-info {
   margin-top: 32px;
