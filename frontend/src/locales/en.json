@@ -56,7 +56,6 @@
         "settingsCategories": "Settings · Categories · eMatChef",
         "settingsMyDepartment": "Settings · My department · eMatChef",
         "settingsJoinCode": "Settings · Join code · eMatChef",
-        "settingsFixedDates": "Settings · Fixed dates · eMatChef",
         "settingsDisplayScreens": "Settings · Info displays · eMatChef",
         "settingsStorageLocations": "Settings · Locations · eMatChef",
         "settingsBillingAddress": "Settings · Billing address · eMatChef",
@@ -75,6 +74,7 @@
         "supplierTemplates": "My company · Templates · eMatChef",
         "supplierRepairs": "My company · Repairs · eMatChef",
         "settingsSupplierDeliveries": "Settings · Supplier deliveries · eMatChef",
+        "settingsFixedDates": "Settings · Fixed dates · eMatChef",
         "globalSearch": "Search · eMatChef",
         "helpOverview": "Help · Documentation · eMatChef"
       },
@@ -131,27 +131,15 @@
   },
   "public": {
     "blog": {
-      "kicker": "News & insights",
-      "titleFallback": "Blog",
       "untitledPost": "Untitled",
       "noPostsYet": "No posts yet",
-      "noPostsHint": "Published posts will appear here as cards you can browse.",
       "readMore": "Read more",
       "backToList": "Back to blog",
       "notFoundTitle": "Post not found",
-      "notFoundBody": "The requested blog post does not exist or was removed."
-    },
-    "faq": {
-      "kicker": "Help & answers",
-      "lead": "Clear answers to common questions about eMatChef and joining your department.",
-      "emptyTitle": "FAQ coming soon",
-      "emptyBody": "Frequently asked questions will appear here shortly."
-    },
-    "tos": {
-      "kicker": "Legal",
-      "lead": "Terms of use and privacy — what applies on eMatChef and how we handle your data.",
-      "emptyTitle": "Content coming soon",
-      "emptyBody": "Sections on terms and privacy will be published here."
+      "notFoundBody": "The requested blog post does not exist or was removed.",
+      "kicker": "News & insights",
+      "titleFallback": "Blog",
+      "noPostsHint": "Published posts will appear here as cards you can browse."
     },
     "lookup": {
       "login": "Sign in",
@@ -223,11 +211,11 @@
       }
     },
     "impressum": {
-      "kicker": "Provider & contact",
-      "lead": "Legal notice for eMatChef — who operates the platform and how to reach us.",
       "fallbackProviderHeading": "Provider information",
       "fallbackRepresentativeHeading": "Authorized representative",
-      "fallbackLiabilityHeading": "Liability for content"
+      "fallbackLiabilityHeading": "Liability for content",
+      "kicker": "Provider & contact",
+      "lead": "Legal notice for eMatChef — who operates the platform and how to reach us."
     },
     "landing": {
       "kicker": "Inventory management",
@@ -273,6 +261,18 @@
         "titleSrOnly": "Get started",
         "text": "Ready? Sign in and work with your department in one shared interface."
       }
+    },
+    "faq": {
+      "kicker": "Help & answers",
+      "lead": "Clear answers to common questions about eMatChef and joining your department.",
+      "emptyTitle": "FAQ coming soon",
+      "emptyBody": "Frequently asked questions will appear here shortly."
+    },
+    "tos": {
+      "kicker": "Legal",
+      "lead": "Terms of use and privacy — what applies on eMatChef and how we handle your data.",
+      "emptyTitle": "Content coming soon",
+      "emptyBody": "Sections on terms and privacy will be published here."
     }
   },
   "dashboard": {
@@ -590,14 +590,14 @@
     "display": "Info display",
     "statistics": "Statistics",
     "settings": "Settings",
-    "help": "Help",
     "myCompany": "My company",
     "myCompanyProfile": "Profile & contact",
     "myCompanyTeam": "Team",
     "myCompanyCatalog": "Catalog",
     "myCompanyDeliveries": "Deliveries",
     "myCompanyTemplates": "Templates",
-    "myCompanyRepairs": "Repairs"
+    "myCompanyRepairs": "Repairs",
+    "help": "Help"
   },
   "supplierProfile": {
     "title": "Profile & contact",
@@ -1069,11 +1069,11 @@
       "showAll": "Show all"
     },
     "header": {
-      "menuAria": "Open navigation",
       "helpTitle": "Help",
       "helpAria": "Help",
       "infoTitle": "Information",
-      "infoAria": "Information"
+      "infoAria": "Information",
+      "menuAria": "Open navigation"
     },
     "userMenu": {
       "editProfile": "Edit profile",
@@ -1151,8 +1151,6 @@
     "subtitleRegister": "Create your account. Assignment to a department is done later by admins.",
     "subtitleRegisterInvite": "Create your account. Organisation and department are prefilled from the invitation; after registration you continue with the join code.",
     "subtitleForgot": "Request a 6-digit HEX code by email and reset your password securely.",
-    "subtitleForgotRequest": "Enter your email address. We will send you a security code.",
-    "subtitleForgotConfirm": "Enter the code from your email and choose a new password.",
     "emailLabel": "Email *",
     "emailAddressLabel": "Email address *",
     "emailPlaceholder": "your.email [at] ematchef.ch",
@@ -1209,16 +1207,9 @@
     "languageRestrictedHint": "Language selection is limited to this organisation.",
     "inviteCodeInParens": " (Code: {code})",
     "exampleFirstName": "Alex",
-    "exampleLastName": "Sample"
-  },
-  "verifyEmail": {
-    "title": "Confirm email",
-    "checking": "Checking verification link…",
-    "successFallback": "Email confirmed successfully.",
-    "failedFallback": "Verification failed.",
-    "noToken": "No verification token provided.",
-    "invalidLink": "Verification link is invalid or expired.",
-    "backToLogin": "Back to sign in"
+    "exampleLastName": "Sample",
+    "subtitleForgotRequest": "Enter your email address. We will send you a security code.",
+    "subtitleForgotConfirm": "Enter the code from your email and choose a new password."
   },
   "activities": {
     "opening": "Opening activity…",
@@ -1387,10 +1378,6 @@
       },
       "draftBadge": "Draft",
       "lastSaved": "Last saved: {datetime}",
-      "discardDraft": "Discard draft",
-      "confirmDiscardDraft": "Discard this draft? All saved data will be lost.",
-      "toastDraftDiscarded": "Draft discarded",
-      "toastDiscardDraftFailed": "Could not delete draft",
       "footerNext": "Next",
       "footerSubmitting": "Saving…",
       "defaultSubmit": "Create activity",
@@ -1420,7 +1407,11 @@
         "check_date_range": "Check date range",
         "pickup_outside_usage": "Pick-up/return outside usage period",
         "choose_material": "Choose material"
-      }
+      },
+      "discardDraft": "Discard draft",
+      "confirmDiscardDraft": "Discard this draft? All saved data will be lost.",
+      "toastDraftDiscarded": "Draft discarded",
+      "toastDiscardDraftFailed": "Could not delete draft"
     },
     "detail": {
       "backToList": "Back to list",
@@ -1566,16 +1557,17 @@
       "return": "Return"
     },
     "datePresets": {
+      "today": "Today",
       "nextSaturday": "Next Saturday",
       "secondSaturday": "Saturday in two weeks"
     },
     "dateRangePicker": {
-      "presetsAria": "Quick selection",
       "placeholder": "Select period…",
       "presetEaster": "Easter (Good Friday–Easter Monday)",
       "presetAscension": "Ascension (Thu–Sun)",
       "presetPentecost": "Pentecost (Sun–Mon)",
       "schoolHolidayTooltip": "{label} (school holidays)",
+      "presetsAria": "Quick selection",
       "rangeBlockedByDepartmentBreak": "The range must not include any «Material office closed» days."
     },
     "materialAvailability": {
@@ -2395,54 +2387,7 @@
       "unknown": "Unknown error"
     }
   },
-  "help": {
-    "menuTitle": "Help",
-    "nav": {
-      "overview": "Documentation"
-    },
-    "overview": {
-      "title": "Help & documentation"
-    },
-    "comingSoon": {
-      "description": "This section will be available soon."
-    }
-  },
   "settings": {
-    "nav": {
-      "fixedDates": "Fixed dates"
-    },
-    "fixedDates": {
-      "title": "Fixed dates",
-      "description": "Manually maintained date ranges (holidays, camp week, closure) for the activity calendar.",
-      "noPermission": "Only materials lead and department lead can manage fixed dates.",
-      "createTitle": "Add period",
-      "editTitle": "Edit period",
-      "startDate": "From",
-      "endDate": "To",
-      "typeLabel": "Type",
-      "name": "Name",
-      "namePlaceholder": "e.g. autumn break, summer camp",
-      "colFrom": "From",
-      "colTo": "To",
-      "colType": "Type",
-      "colName": "Name",
-      "loading": "Loading periods…",
-      "empty": "No periods yet.",
-      "confirmDeleteTitle": "Delete period?",
-      "confirmDeleteMessage": "This entry will be removed permanently.",
-      "toastLoadError": "Could not load periods.",
-      "toastCreated": "Period created.",
-      "toastUpdated": "Period saved.",
-      "toastDeleted": "Period deleted.",
-      "toastSaveError": "Could not save.",
-      "toastDeleteError": "Could not delete.",
-      "labels": {
-        "school_vacation": "School holidays",
-        "department_break": "Material office closed",
-        "camp_week": "Camp week",
-        "other": "Other"
-      }
-    },
     "adminUsers": {
       "roles": {
         "mw": "MW – materials lead",
@@ -2725,6 +2670,41 @@
       "previewSubmitToKeeper": "Send to materials keeper",
       "previewNoMessageDelivery": "No messaging option is currently active for this department.",
       "previewContactSectionOff": "Contact section is disabled."
+    },
+    "nav": {
+      "fixedDates": "Fixed dates"
+    },
+    "fixedDates": {
+      "title": "Fixed dates",
+      "description": "Manually maintained date ranges (holidays, camp week, closure) for the activity calendar.",
+      "noPermission": "Only materials lead and department lead can manage fixed dates.",
+      "createTitle": "Add period",
+      "editTitle": "Edit period",
+      "startDate": "From",
+      "endDate": "To",
+      "typeLabel": "Type",
+      "name": "Name",
+      "namePlaceholder": "e.g. autumn break, summer camp",
+      "colFrom": "From",
+      "colTo": "To",
+      "colType": "Type",
+      "colName": "Name",
+      "loading": "Loading periods…",
+      "empty": "No periods yet.",
+      "confirmDeleteTitle": "Delete period?",
+      "confirmDeleteMessage": "This entry will be removed permanently.",
+      "toastLoadError": "Could not load periods.",
+      "toastCreated": "Period created.",
+      "toastUpdated": "Period saved.",
+      "toastDeleted": "Period deleted.",
+      "toastSaveError": "Could not save.",
+      "toastDeleteError": "Could not delete.",
+      "labels": {
+        "school_vacation": "School holidays",
+        "department_break": "Material office closed",
+        "camp_week": "Camp week",
+        "other": "Other"
+      }
     }
   },
   "components": {
@@ -2814,6 +2794,8 @@
     "globalSearch": {
       "placeholderDefault": "Search materials, activities, repairs (optional material:, aktivität:, reparatur:)",
       "loadingSuggestions": "Searching…",
+      "typeActivity": "Activity",
+      "typeRepair": "Repair",
       "loadingResults": "Loading search results…",
       "showAllResults": "Show all results",
       "pageTitle": "Search",
@@ -2822,9 +2804,7 @@
       "hintTitle": "Global search",
       "hintDescription": "Search materials, activities, or repairs from the header or here. Press Enter or “Show all results” for this overview.",
       "noResultsTitle": "No results",
-      "noResultsDescription": "No matches found for “{q}”.",
-      "typeActivity": "Activity",
-      "typeRepair": "Repair"
+      "noResultsDescription": "No matches found for “{q}”."
     },
     "mapView": {
       "hintSetLocation": "Click the map to set a location",
@@ -4874,6 +4854,27 @@
       "legacyTemplatesImporting": "Importing …",
       "legacyTemplatesSuccess": "Global templates imported.",
       "legacyTemplatesError": "Import failed."
+    }
+  },
+  "verifyEmail": {
+    "title": "Confirm email",
+    "checking": "Checking verification link…",
+    "successFallback": "Email confirmed successfully.",
+    "failedFallback": "Verification failed.",
+    "noToken": "No verification token provided.",
+    "invalidLink": "Verification link is invalid or expired.",
+    "backToLogin": "Back to sign in"
+  },
+  "help": {
+    "menuTitle": "Help",
+    "nav": {
+      "overview": "Documentation"
+    },
+    "overview": {
+      "title": "Help & documentation"
+    },
+    "comingSoon": {
+      "description": "This section will be available soon."
     }
   }
 }

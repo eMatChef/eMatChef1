@@ -1,5 +1,3 @@
-import { DEFAULT_LANDING_FEATURE_ICONS, resolveLandingFeatureIcon } from '@/utils/landingFeatureIcons'
-
 export type LandingLocale = 'de' | 'en' | 'fr'
 
 export interface LandingFeatureItem {
@@ -26,8 +24,7 @@ export interface LandingLocaleContent {
 
 export const LANDING_LOCALES: LandingLocale[] = ['de', 'en', 'fr']
 
-/** @deprecated Nutze DEFAULT_LANDING_FEATURE_ICONS — bleibt für Editor-Kompatibilität. */
-export const DEFAULT_FEATURE_ICONS = [...DEFAULT_LANDING_FEATURE_ICONS] as const
+export const DEFAULT_FEATURE_ICONS = ['⊙', '⌗', '◎', '⇄', '◇', '○'] as const
 
 /** Leerer Inhalt — öffentliche Seite zeigt nur DB-Werte (keine i18n-Fallbacks). */
 export function emptyLandingLocale(): LandingLocaleContent {
@@ -66,32 +63,32 @@ export function defaultLandingDe(): LandingLocaleContent {
     featuresTitle: 'So arbeitet ihr mit eMatChef',
     features: [
       {
-        icon: 'mdi-clipboard-check-outline',
+        icon: '⊙',
         title: 'Materialwart im Überblick',
         text: 'Alle Aktivitäten und Buchungen der Abteilung auf einen Blick — packen, ausgeben, Retour: du weisst, was gerade wo ist.',
       },
       {
-        icon: 'mdi-account-group-outline',
+        icon: '◎',
         title: 'Mitleiter planen selbst',
         text: 'Lager, Samstage und Events anlegen, Material buchen und einreichen — ohne Listen-Chaos per Chat oder Zettel.',
       },
       {
-        icon: 'mdi-book-sync-outline',
+        icon: '⇄',
         title: 'Aktivitäten & Buchungen',
         text: 'Vom Entwurf über Einreichen und Packen bis zur Retour: der Bestand bleibt mit dem echten Einsatz verbunden.',
       },
       {
-        icon: 'mdi-warehouse',
+        icon: '⌗',
         title: 'Alles an einem Ort',
         text: 'Material, Mengen, Lagerorte und Bewegungen — strukturiert statt in verstreuten Tabellen.',
       },
       {
-        icon: 'mdi-qrcode-scan',
+        icon: '◇',
         title: 'QR am Material',
         text: 'Scan am Regal oder unterwegs: Infos, Seriennummer — und optional Kontakt zum Materialwart.',
       },
       {
-        icon: 'mdi-laptop',
+        icon: '○',
         title: 'Im Browser',
         text: 'Keine App installieren: anmelden und mit deiner Abteilung in einer gemeinsamen Oberfläche arbeiten.',
       },
@@ -103,14 +100,13 @@ export function defaultLandingDe(): LandingLocaleContent {
 }
 
 function normalizeFeatureRow(row: unknown, index: number): LandingFeatureItem {
-  const fallbackIcon = DEFAULT_LANDING_FEATURE_ICONS[index % DEFAULT_LANDING_FEATURE_ICONS.length]
+  const fallbackIcon = DEFAULT_FEATURE_ICONS[index % DEFAULT_FEATURE_ICONS.length]
   if (typeof row !== 'object' || !row) {
     return { icon: fallbackIcon, title: '', text: '' }
   }
   const o = row as Record<string, unknown>
-  const rawIcon = String(o.icon ?? '').trim()
   return {
-    icon: resolveLandingFeatureIcon(rawIcon || fallbackIcon, index),
+    icon: String(o.icon ?? fallbackIcon).slice(0, 8) || fallbackIcon,
     title: String(o.title ?? ''),
     text: String(o.text ?? ''),
   }

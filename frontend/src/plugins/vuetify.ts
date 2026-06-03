@@ -1,7 +1,7 @@
 import { createVuetify } from 'vuetify'
 import { createVueI18nAdapter } from 'vuetify/locale/adapters/vue-i18n'
 import { useI18n, type I18n } from 'vue-i18n'
-import { VDateInput } from 'vuetify/labs/VDateInput'
+import { VDateInput } from 'vuetify/components/VDateInput'
 import { i18n } from '@/i18n'
 
 /** Markenfarben aus brand-tokens.css — Vuetify liest keine CSS-Variablen im Theme-Objekt. */
