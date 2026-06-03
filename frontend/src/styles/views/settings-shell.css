@@ -157,23 +157,42 @@
   text-overflow: clip;
 }
 
-/* Eingeklappt: Icon in fester Spalte zentriert, Label unsichtbar aber Zeilenhöhe gleich */
+/* Eingeklappt: Vuetify-Grid auf eine Spalte — Icon mittig (content-Spalte sonst links) */
 .settings-subnav-rail:not(.settings-subnav-rail--expanded) .settings-shell-nav .v-list-item {
   min-height: 40px;
   max-width: 100%;
-  padding-inline: 0 !important;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  padding-inline: 4px !important;
+  display: grid !important;
+  grid-template-columns: 1fr !important;
+  grid-template-areas: "prepend" !important;
+  justify-items: center !important;
+  align-items: center !important;
 }
 
 .settings-subnav-rail:not(.settings-subnav-rail--expanded) .settings-shell-nav .v-list-item__prepend {
-  margin-inline-end: 0 !important;
-  justify-content: center;
+  grid-area: prepend !important;
+  justify-self: center !important;
+  align-self: center !important;
+  margin-inline: 0 !important;
+  width: auto !important;
+  display: flex !important;
+  justify-content: center !important;
 }
 
-.settings-subnav-rail:not(.settings-subnav-rail--expanded) .settings-shell-nav .v-list-item__content {
+.settings-subnav-rail:not(.settings-subnav-rail--expanded) .settings-shell-nav .v-list-item__prepend .v-list-item__spacer {
   display: none !important;
+  width: 0 !important;
+  min-width: 0 !important;
+}
+
+.settings-subnav-rail:not(.settings-subnav-rail--expanded) .settings-shell-nav .v-list-item__content,
+.settings-subnav-rail:not(.settings-subnav-rail--expanded) .settings-shell-nav .v-list-item__append {
+  display: none !important;
+  width: 0 !important;
+  min-width: 0 !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  overflow: hidden !important;
 }
 
 /* Aufgeklappt: Icon-Spalte links, Text daneben */
