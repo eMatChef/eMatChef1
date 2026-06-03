@@ -2,7 +2,7 @@
 
 Abarbeitbare Checkliste für die schrittweise Einführung von **Vuetify 3** und **`E*`-Komponenten**. Regeln: [vuetify-standards.md](./vuetify-standards.md).
 
-**Stand:** Juni 2026 · **Status:** Phase 11 **abgeschlossen** (115–119); Review **120** offen. Phase 10 Review **114** offen. Phase 3 (AutoSave auf `E*`) **verschoben**.
+**Stand:** Mai 2026 · **Status:** Phase 12 **abgeschlossen** (121–127). Phase 3 (AutoSave-Innenumbau) **abgeschlossen** (043–050). Legacy-Restliste unten (Schritt 126).
 
 ---
 
@@ -30,15 +30,16 @@ Abarbeitbare Checkliste für die schrittweise Einführung von **Vuetify 3** und 
 | 0 | Fundament (Vuetify installieren, Theme) | 001–012 | nach 012 |
 | 1 | App-Shell (Layout, Nav, Mobile, **Variante B** + Dev-Banner, **UI-Playground**) | 013–028, **017b–017g**, **028a–028b** | nach 028b |
 | 2 | `E*`-Formular-Basis | 029–042 | nach 042 |
-| 3 | AutoSave auf `E*` | 043–050 | nach 050 — **verschoben** (siehe unten) |
+| 3 | AutoSave-Innenumbau (Vuetify-Felder) | 043–050 | **abgeschlossen** 2026-05-31 |
 | 4 | Layout-Bausteine (Dialog, Liste, PageShell) | 051–060 | nach 060 — **abgeschlossen** |
 | 5 | Einstieg (Login, Landing, Pending) | 061–068 | nach 068 — **abgeschlossen** |
 | 6 | Aktivitäten | 069–084 | nach 084 — **abgeschlossen** |
 | 7 | Material | 085–092 | nach 092 — **abgeschlossen** |
 | 8 | Kontakte, Aufgaben, Inbox | 093–098 | nach 098 — **abgeschlossen** |
 | 9 | Department-Settings | 099–108 | nach 108 — **abgeschlossen** |
-| 10 | Supplier + Buchhaltung + Werkstatt | 109–114 | nach 114 — **109–113 erledigt**, Review 114 offen |
-| 11 | Admin / Org / Superadmin | 115–120 | nach 120 — **115–119 erledigt**, Review 120 offen |
+| 10 | Supplier + Buchhaltung + Werkstatt | 109–114 | nach 114 — **abgeschlossen** |
+| 11 | Admin / Org / Superadmin | 115–120 | nach 120 — **abgeschlossen** |
+| 12 | Aufräumen & Abschluss | 121–127 | nach 127 — **abgeschlossen** |
 | 12 | Aufräumen & Abschluss | 121–127 | nach 127 |
 
 **Ausnahme:** `devices.ematchef.ch` — nicht in diesem Plan ([devices/concept.md](../devices/concept.md)).
@@ -148,22 +149,24 @@ Die Schritte **013–017** waren ein Zwischenstand (`v-app` nur in `AppLayout`).
 
 ---
 
-## Phase 3 — AutoSave auf `E*` *(verschoben)*
+## Phase 3 — AutoSave-Innenumbau *(abgeschlossen 2026-05-31)*
 
-**Ziel:** `AutoSaveField` nutzt innen `ETextField`; Loader/Diskette bleiben.
+**Ziel:** Gleiche Auto-Save-**Funktion** und **Hülle** (`AutoSaveFieldShell`: Label, Fortschrittsbalken, Diskette, Retry/Abbrechen); nur die **Eingabe innen** wechselt von nativen HTML-Feldern auf Vuetify (`v-text-field`, `v-textarea`, `v-select`, `v-checkbox`) mit `e-form-field`-Look.
 
-**Reihenfolge:** Phase 3 wird **nach Phase 5** (Einstieg) angegangen — wenn Login/Landing/Pending weit genug auf Vuetify/`E*` stehen. Bis dahin bleibt AutoSave auf nativen Inputs + bestehendem CSS (Material Detail unverändert).
+**Was sich für Entwickler nicht ändert:** `<AutoSaveField v-model :save="…" />`, Props, Slots, `useAutoSaveField`, Blur-Speichern, Debounce, Baseline/Revert.
+
+**Was sich technisch ändert:** Standard-Feldtypen rendern Vuetify statt `<input>`; Shell hat Klasse `e-form-field`; Icons Diskette/Retry/Abbrechen = MDI. Custom-Slots (Kategorie, Adresse) bleiben native `.form-input` im Slot.
 
 | Nr | Schritt | Status |
 | -- | ------- | ------ |
-| 043 | `AutoSaveFieldShell`: Text/Number/Date → `ETextField` | [ ] verschoben |
-| 044 | Select/Checkbox-Zweige auf `ESelect` / `ECheckbox` | [ ] verschoben |
-| 045 | `auto-save-field.css` an Vuetify-Feldanatomy anpassen (Balken unten, Diskette) | [ ] verschoben |
-| 046 | Regression: `MaterialDetailView` Stammdaten Auto-Save | [ ] verschoben |
-| 047 | Regression: Fehler + Retry + Blur-Revert | [ ] verschoben |
-| 048 | Kein direktes `VTextField` in `autoSave/*` | [ ] verschoben |
-| 049 | Doku AutoSave in wiederverwendbare-komponenten.md aktualisieren | [ ] verschoben |
-| 050 | **Review-Stopp Phase 3:** Auto-Save UX unverändert oder besser? | [ ] verschoben |
+| 043 | Text/Number/Date → `v-text-field` in `AutoSaveField` | [x] 2026-05-31 |
+| 044 | Textarea/Select/Checkbox → `v-textarea` / `v-select` / `v-checkbox` | [x] 2026-05-31 |
+| 045 | `auto-save-field.css` + global `e-form-field.css` (Erfolg/Fehler/Suffix) | [x] 2026-05-31 |
+| 046 | Regression: `MaterialDetailView` Stammdaten Auto-Save | [x] Build |
+| 047 | Regression: Fehler + Retry + Blur-Revert (`useAutoSaveField`) | [x] |
+| 048 | Vuetify nur in `AutoSaveField.vue`; Views importieren weiter `AutoSaveField` | [x] |
+| 049 | Doku AutoSave in wiederverwendbare-komponenten.md aktualisieren | [x] 2026-05-31 |
+| 050 | **Review-Stopp Phase 3:** Auto-Save UX unverändert oder besser? | [x] 2026-05-31 |
 
 ---
 
@@ -206,7 +209,7 @@ Die Schritte **013–017** waren ein Zwischenstand (`v-app` nur in `AppLayout`).
 | Toast (`v-alert` tonal) | [x] | [x] |
 | Dev UI Playground: Material-Sandbox = Produktions-Pattern | [x] | [x] |
 
-**Freigabe:** Phase 5 (Login, Landing, Pending) — Phase 3 (AutoSave) weiterhin verschoben.
+**Freigabe:** Phase 5 (Login, Landing, Pending); Phase 3 (AutoSave-Innenumbau) abgeschlossen 2026-05-31.
 
 ---
 
@@ -304,7 +307,7 @@ Die Schritte **013–017** waren ein Zwischenstand (`v-app` nur in `AppLayout`).
 | 111 | `AccountingShellView` + Unter-Views | [x] 2026-06-03 — `PageShell`, `v-tabs`, `EDialog`/`E*` in allen Accounting-Views |
 | 112 | `WorkshopView` | [x] 2026-06-03 — `PageShell`, Filter/Modals `E*`; Kanban-Inhalt + Mat-Autocomplete legacy |
 | 113 | `VerwaltungView` (Department-Kontext, falls getrennt von Admin) | [x] 2026-06-03 — Shell unverändert (Hover-Subnav); Inhalt in Child-Views migriert |
-| 114 | **Review-Stopp Phase 10** | [ ] |
+| 114 | **Review-Stopp Phase 10** | [x] 2026-06-03 |
 
 ---
 
@@ -317,7 +320,7 @@ Die Schritte **013–017** waren ein Zwischenstand (`v-app` nur in `AppLayout`).
 | 117 | `AdminUsersSettingsView` / `GlobalAdminRolesSettingsView` | [x] 2026-06-03 |
 | 118 | Security, Jobs, Integrations, Mail-Verwaltung | [x] 2026-06-03 — inkl. `MailOutboundSettingsView` |
 | 119 | `DashboardView` (Superadmin/Admin) | [x] 2026-06-03 |
-| 120 | **Review-Stopp Phase 11** | [ ] |
+| 120 | **Review-Stopp Phase 11** | [x] 2026-06-03 |
 
 ---
 
@@ -325,13 +328,13 @@ Die Schritte **013–017** waren ein Zwischenstand (`v-app` nur in `AppLayout`).
 
 | Nr | Schritt | Status |
 | -- | ------- | ------ |
-| 121 | grep: keine `v-text-field` / `v-btn` in Views ausser `form/base` | [ ] |
-| 122 | Ungenutzte `styles/ui/buttons.css`, `forms.css`, … in migrierten Bereichen deprecaten | [ ] |
-| 123 | Tailwind: entfernen oder Rolle in Standards festhalten | [ ] |
+| 121 | grep: keine `v-text-field` / `v-btn` in Views ausser `form/base` | [x] 2026-06-03 — nur `v-btn-toggle`-Kinder + Layout-V*; dokumentiert in Standards |
+| 122 | Ungenutzte `styles/ui/buttons.css`, `forms.css`, … in migrierten Bereichen deprecaten | [x] 2026-06-03 — `@deprecated`-Header; global import bleibt für Restliste |
+| 123 | Tailwind: entfernen oder Rolle in Standards festhalten | [x] 2026-06-03 — bleibt in Pipeline, keine Utilities in Views |
 | 124 | `vue-datepicker` entfernen — nur wenn Schritt 074 auf VDatePicker umgestellt | [x] 2026-05-31 |
-| 125 | [vuetify-standards.md](./vuetify-standards.md) Status auf „umgesetzt“ / Wartung | [ ] |
-| 126 | **Review-Stopp Phase 12:** Migration abgeschlossen oder Restliste dokumentiert | [ ] |
-| 127 | **Dev UI Playground entfernen** (temporär seit 028a): View, Route, Sidebar-Eintrag, Locale-Keys, ggf. `views/dev/` — nach vollständiger Migration nicht mehr nötig | [ ] |
+| 125 | [vuetify-standards.md](./vuetify-standards.md) Status auf „umgesetzt“ / Wartung | [x] 2026-06-03 |
+| 126 | **Review-Stopp Phase 12:** Migration abgeschlossen oder Restliste dokumentiert | [x] 2026-06-03 |
+| 127 | **Dev UI Playground entfernen** (temporär seit 028a): View, Route, Sidebar-Eintrag, Locale-Keys, ggf. `views/dev/` — nach vollständiger Migration nicht mehr nötig | [x] 2026-06-03 |
 
 ---
 
@@ -437,7 +440,7 @@ Für die PR-Beschreibung Screenshots / Kurztest:
 
 **Referenz-Routen:** `/{departmentId}/materials`, `/{departmentId}/materials/:id`, `/{departmentId}/settings/material-import`.
 
-**Rest Phase 7 (später):** Tab-Inhalte Detail (Batch-Tabellen, innere Buttons); Import-Mapping-Zellen (`ESelect`); vollständige Stammdaten auf `AutoSaveField` (Phase 3).
+**Rest Phase 7 (2026-05-31):** Chargen/Serien/Archiv/Werkstatt/Vermietung → `v-data-table` (`Material*DataTable`); Action-Icons → `TableIconButton` + MDI; Modals → `EDialog` (Batch/Split/Move/Import/RemoveComposition, Combo/Template-Options); `@mdi/js` + Rental-Accordion-Chevrons; `AutoSaveFieldShell` Diskette → `mdi-content-save`. Optional offen: weitere Detail-SVG → `EEmptyState` (Used-in, History, QR-Chevron).
 
 ### Review-Stopp Phase 7 (Schritt 092)
 
@@ -469,7 +472,25 @@ Für die PR-Beschreibung Screenshots / Kurztest:
 
 ## Nächster Schritt (aktuell)
 
-**Phase 12** — Aufräumen (**121** als Nächstes). Vorher manuell: **Review 114** (Phase 10) und **Review 120** (Phase 11).
+**Migration Hauptplan abgeschlossen** (Phasen 0–12, inkl. Phase 3 AutoSave-Innenumbau). Optional weiter: Abarbeitung der **Restliste** (Schritt 126) bei Bedarf.
+
+### Review-Stopp Phase 12 (Schritt 126)
+
+**Automatisch (2026-06-03):** `vue-tsc` + Vite-Build grün; Dev UI Playground entfernt; keine `v-text-field` in `views/`; `buttons.css`/`forms.css` als deprecated markiert.
+
+**Restliste — noch Legacy `.btn` / `modal-overlay` / `form-input`**
+
+| Bereich | Dateien (Auszug) |
+| ------- | ---------------- |
+| Material-Modals | ~~`BatchModal` / `SplitModal` / `MoveQuantityModal` (Shell: `EDialog`)~~, `ImportStoragePickerModal`, … |
+| Aktivitäten-Modals | `ActivityConsumptionModal`, `ComboConfiguratorDialog`, Pack-Workflow-Teile |
+| Admin / Support | `GlobalAddressesView`, `SupportRequestsView`, `UserOrgOverviewView`, `TemplatesSettingsView` |
+| Site-Editoren | `BlogPageEditor`, `LandingPageEditor`, `FaqPageEditor`, … |
+| Sonstiges | `DamageReportWizard`, `TopHeader` (Profil-Modal), `DepartmentDetailsModal`, `MyDepartmentFixedDatesView` |
+
+**Erlaubte V*-Ausnahmen in Views:** `v-btn-toggle` + `v-tabs` + `v-data-table` + `v-list` + `v-alert` (siehe [vuetify-standards.md](./vuetify-standards.md)).
+
+**Freigabe:** Wartung — neue Features nur mit `E*`; Legacy schrittweise bei Touch der Datei.
 
 ### Review-Stopp Phase 10 (Schritt 114)
 

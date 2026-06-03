@@ -49,7 +49,7 @@
           :items="visibleMenuItems"
           :get-link="navLinkForItem"
           :is-active="isSettingsItemActive"
-          :show-title="desktopNavExpanded"
+          show-title
           @navigate="onDesktopNavClick"
         />
       </div>
@@ -66,14 +66,13 @@
 </template>
 
 <script setup lang="ts">
-import { computed, markRaw, ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useDisplay } from 'vuetify'
 import { useAuthStore } from '@/stores/auth'
 import { useDepartmentMemberRole } from '@/composables/useDepartmentMemberRole'
 import SettingsSubnavList from '@/components/settings/SettingsSubnavList.vue'
-import { IconSettings, IconContacts, IconEmployees, IconDashboard, IconActivities, IconMaterials, IconDisplay } from '@/components/icons'
 import '@/styles/views/settings-shell.css'
 
 const route = useRoute()
@@ -150,36 +149,36 @@ function onDesktopNavClick() {
 }
 
 const allMenuItems = computed(() => [
-  { id: 'my-department', label: t('settings.nav.myDepartment'), icon: markRaw(IconDashboard) },
-  { id: 'users', label: t('settings.nav.users'), icon: markRaw(IconEmployees) },
-  { id: 'groups', label: t('settings.nav.groups'), icon: markRaw(IconContacts) },
-  { id: 'categories', label: t('settings.nav.categories'), icon: markRaw(IconDashboard) },
-  { id: 'storage', label: t('settings.nav.storage'), icon: markRaw(IconMaterials) },
-  { id: 'my-department/join-code', label: t('settings.nav.joinCode'), icon: markRaw(IconEmployees) },
+  { id: 'my-department', label: t('settings.nav.myDepartment'), mdiIcon: 'mdi-view-grid' },
+  { id: 'users', label: t('settings.nav.users'), mdiIcon: 'mdi-account-group' },
+  { id: 'groups', label: t('settings.nav.groups'), mdiIcon: 'mdi-account-multiple' },
+  { id: 'categories', label: t('settings.nav.categories'), mdiIcon: 'mdi-shape-outline' },
+  { id: 'storage', label: t('settings.nav.storage'), mdiIcon: 'mdi-package-variant' },
+  { id: 'my-department/join-code', label: t('settings.nav.joinCode'), mdiIcon: 'mdi-qrcode' },
   {
     id: 'my-department/fixed-dates',
     label: t('settings.nav.fixedDates'),
-    icon: markRaw(IconSettings),
+    mdiIcon: 'mdi-calendar-range',
     requiresMaterialManage: true,
   },
-  { id: 'my-department/display-screens', label: t('settings.nav.displayScreens'), icon: markRaw(IconDisplay) },
-  { id: 'activities', label: t('settings.nav.activities'), icon: markRaw(IconActivities) },
-  { id: 'my-department/storage-locations', label: t('settings.nav.storageLocations'), icon: markRaw(IconMaterials) },
-  { id: 'my-department/billing-address', label: t('settings.nav.billingAddress'), icon: markRaw(IconContacts) },
+  { id: 'my-department/display-screens', label: t('settings.nav.displayScreens'), mdiIcon: 'mdi-monitor' },
+  { id: 'activities', label: t('settings.nav.activities'), mdiIcon: 'mdi-calendar' },
+  { id: 'my-department/storage-locations', label: t('settings.nav.storageLocations'), mdiIcon: 'mdi-map-marker' },
+  { id: 'my-department/billing-address', label: t('settings.nav.billingAddress'), mdiIcon: 'mdi-receipt' },
   {
     id: 'my-department/public-material-page',
     label: t('settings.nav.publicMaterialPage'),
-    icon: markRaw(IconMaterials),
+    mdiIcon: 'mdi-web',
   },
-  { id: 'templates', label: t('settings.nav.templates'), icon: markRaw(IconSettings) },
+  { id: 'templates', label: t('settings.nav.templates'), mdiIcon: 'mdi-file-document-multiple-outline' },
   {
     id: 'material-import',
     label: t('settings.nav.materialImport'),
-    icon: markRaw(IconMaterials),
+    mdiIcon: 'mdi-database-import',
     requiresMaterialManage: true,
   },
-  { id: 'zeit', label: t('settings.nav.timeLocation'), icon: markRaw(IconSettings) },
-  { id: 'addons', label: t('settings.nav.addons'), icon: markRaw(IconActivities) },
+  { id: 'zeit', label: t('settings.nav.timeLocation'), mdiIcon: 'mdi-clock-outline' },
+  { id: 'addons', label: t('settings.nav.addons'), mdiIcon: 'mdi-puzzle-outline' },
 ])
 
 const USER_ALLOWED_MENU_IDS = new Set(['my-department', 'groups'])

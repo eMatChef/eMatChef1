@@ -576,7 +576,7 @@ Gemeinsame Props: `label`, `disabled`, `readonly`, `hint`, `rules`, `errorMessag
 | `PublicQrTag`                        | QR-Badge für öffentliche Material-Links            |
 | `DevEnvironmentBanner`               | Hinweis Testumgebung                               |
 | `PhysicalComboContainerWarningModal` | Warnung physische Combo in Container               |
-| **AutoSaveField** / **AutoSaveFieldShell** | Auto-Save Formularfeld: Debounce, zwei indeterminate Balken unten, Diskette nach Erfolg, Retry/Abbrechen |
+| **AutoSaveField** / **AutoSaveFieldShell** | Auto-Save: Hülle unverändert (Label, Balken, Diskette, Retry); Standardtypen innen **Vuetify** (`v-text-field` usw., Look wie `ETextField` via `e-form-field.css`) |
 
 
 Diese werden meist global in `App.vue` eingebunden oder direkt in Views importiert.
@@ -625,11 +625,13 @@ const { baselines, syncBaselines, syncBaselineFor } = useFormFieldBaselines(form
 | `autoSaveDelay` | `number` | Debounce in ms (Standard: 800) |
 | `disabled` | `boolean` | Feld deaktivieren |
 
-**Verhalten :** Debounce beim Tippen, indeterminierter Loader oben im Feld, Diskette nur kurz nach Erfolg, Blur ohne Änderung → Revert auf `baseline`, Fehler → Retry + Abbrechen, Select/Checkbox → sofort speichern.
+**Verhalten:** Debounce beim Tippen, zwei indeterminate Balken **unten** am Rahmen, Diskette nur kurz nach Erfolg, Blur ohne Änderung → Revert auf `baseline`, Fehler → Retry + Abbrechen, Select/Checkbox → sofort speichern.
+
+**Innenumbau (Phase 3):** Views und Props bleiben gleich. Nur `AutoSaveField.vue` rendert für `text`/`number`/`date`/`textarea`/`select`/`checkbox` Vuetify-Felder; **Custom-Slots** (z. B. Kategorie-Autocomplete) bleiben native Inputs mit Klasse `autosave-input` / `form-input`. Shell: `e-form-field` + MDI (`mdi-content-save`, `mdi-refresh`, `mdi-close`).
 
 **Eingebunden in:** `MaterialDetailView.vue` (Stammdaten, Vermietung, Kisten-Editor).
 
-**Styles:** `frontend/src/styles/components/auto-save-field.css` — nutzt Marken-Tokens aus `styles/ui/brand-tokens.css` (`--color-primary`, `--color-error`, …). Global in `style.css` importiert.
+**Styles:** `auto-save-field.css` (Rahmen, Loader, Diskette) + global `e-form-field.css` (Vuetify-Feldlook). Marken-Tokens: `styles/ui/brand-tokens.css`.
 
 **Composables:** `useAutoSaveField`, `useFormFieldBaselines`, Utils `normalizeAutoSaveValue` / `parseAutoSaveInputValue` — Export über `@/components/common/autoSave`.
 

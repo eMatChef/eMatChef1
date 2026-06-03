@@ -28,61 +28,72 @@
       :on-input="onSlotInput"
       :on-change="onCustomChange"
     >
-      <textarea
+      <v-textarea
         v-if="type === 'textarea'"
         :id="inputId"
-        :value="stringValue"
+        :model-value="stringValue"
         :disabled="disabled"
         :rows="rows"
         :placeholder="placeholder"
-        class="autosave-input autosave-textarea"
+        variant="outlined"
+        density="comfortable"
+        hide-details
+        class="e-textarea"
+        @update:model-value="onVuetifyUpdate"
         @focus="handleFocus"
         @blur="onBlur"
-        @input="onNativeInput"
       />
-      <select
+      <v-select
         v-else-if="type === 'select'"
         :id="inputId"
-        :value="stringValue"
+        :model-value="modelValue"
+        :items="selectItems"
         :disabled="disabled"
-        class="autosave-input autosave-select"
+        variant="outlined"
+        density="comfortable"
+        hide-details
+        class="e-select"
+        @update:model-value="onVuetifyUpdate"
         @focus="handleFocus"
         @blur="onBlur"
-        @change="onSelectChange"
-      >
-        <option v-for="opt in options" :key="String(opt.value)" :value="opt.value">
-          {{ opt.label }}
-        </option>
-      </select>
-      <label v-else-if="type === 'checkbox'" class="autosave-checkbox-wrap">
-        <input
+      />
+      <div v-else-if="type === 'checkbox'" class="autosave-checkbox-wrap">
+        <v-checkbox
           :id="inputId"
-          type="checkbox"
-          :checked="!!modelValue"
+          :model-value="!!modelValue"
+          :label="checkboxLabel"
           :disabled="disabled"
+          hide-details
+          color="primary"
+          density="comfortable"
+          class="e-checkbox autosave-v-checkbox"
+          @update:model-value="onVuetifyUpdate"
           @focus="handleFocus"
           @blur="onBlur"
-          @change="onCheckboxChange"
         />
-        <span v-if="checkboxLabel" class="autosave-checkbox-text">{{ checkboxLabel }}</span>
-      </label>
-      <div v-else class="autosave-input-wrap">
-        <input
-          :id="inputId"
-          :type="type === 'number' ? 'number' : type === 'date' ? 'date' : 'text'"
-          :value="stringValue"
-          :disabled="disabled"
-          :placeholder="placeholder"
-          :min="min"
-          :max="max"
-          :step="step"
-          class="autosave-input"
-          @focus="handleFocus"
-          @blur="onBlur"
-          @input="onNativeInput"
-        />
-        <span v-if="suffix" class="autosave-suffix">{{ suffix }}</span>
       </div>
+      <v-text-field
+        v-else
+        :id="inputId"
+        :model-value="textFieldModel"
+        :type="nativeInputType"
+        :disabled="disabled"
+        :placeholder="placeholder"
+        :min="min"
+        :max="max"
+        :step="step"
+        variant="outlined"
+        density="comfortable"
+        hide-details
+        class="e-text-field"
+        @update:model-value="onVuetifyUpdate"
+        @focus="handleFocus"
+        @blur="onBlur"
+      >
+        <template v-if="suffix" #append-inner>
+          <span class="autosave-suffix-inner">{{ suffix }}</span>
+        </template>
+      </v-text-field>
     </slot>
   </AutoSaveFieldShell>
 </template>
@@ -155,8 +166,7 @@ const {
   showSuccessIcon,
   handleFocus,
   handleInput,
-  handleSelectChange,
-  handleCheckboxChange,
+  handleVuetifyUpdate,
   handleBlur,
   notifyValueChange,
   revertToBaseline,
@@ -178,24 +188,37 @@ const stringValue = computed(() => {
   return String(props.modelValue)
 })
 
+const textFieldModel = computed(() => {
+  if (props.type === 'number') {
+    if (props.modelValue == null || props.modelValue === '') return null
+    return props.modelValue
+  }
+  return stringValue.value
+})
+
+const nativeInputType = computed(() => {
+  if (props.type === 'number') return 'number'
+  if (props.type === 'date') return 'date'
+  return 'text'
+})
+
+const selectItems = computed(() =>
+  props.options.map((opt) => ({
+    title: opt.label,
+    value: opt.value,
+  })),
+)
+
 function emitUpdate(value: AutoSaveFieldValue) {
   emit('update:modelValue', value)
 }
 
-function onNativeInput(event: Event) {
-  handleInput(event, emitUpdate)
+function onVuetifyUpdate(value: AutoSaveFieldValue) {
+  handleVuetifyUpdate(value, emitUpdate)
 }
 
 function onSlotInput(event: Event) {
   handleInput(event, emitUpdate)
-}
-
-function onSelectChange(event: Event) {
-  handleSelectChange(event, emitUpdate)
-}
-
-function onCheckboxChange(event: Event) {
-  handleCheckboxChange(event, emitUpdate)
 }
 
 function onBlur() {

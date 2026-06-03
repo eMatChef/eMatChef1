@@ -30,7 +30,7 @@
         class="nav-item"
         :class="{ active: $route.path === '/pending-assignment' }"
       >
-        <IconTasks class="nav-icon" />
+        <v-icon icon="mdi-clipboard-list" class="nav-icon nav-icon--mdi" size="20" />
         <span class="nav-label" :class="{ visible: showNavLabels }">{{ t('sidebar.pendingNew') }}</span>
       </router-link>
 
@@ -41,7 +41,7 @@
         class="nav-item"
         :class="{ active: isMainDashboardNavActive }"
       >
-        <IconDashboard class="nav-icon" />
+        <v-icon icon="mdi-view-grid" class="nav-icon nav-icon--mdi" size="20" />
         <span class="nav-label" :class="{ visible: showNavLabels }">{{ t('sidebar.dashboard') }}</span>
       </router-link>
 
@@ -54,12 +54,16 @@
           :title="!showNavLabels ? t('sidebar.myCompany') : undefined"
           @click="toggleMyCompany"
         >
-          <IconPackage class="nav-icon" />
+          <v-icon icon="mdi-package-variant" class="nav-icon nav-icon--mdi" size="20" />
           <span class="nav-label" :class="{ visible: showNavLabels }">{{ t('sidebar.myCompany') }}</span>
-          <IconChevronDown
-            v-if="showNavLabels"
-            class="nav-chevron"
-            :class="{ 'nav-chevron--collapsed': !myCompanyExpanded }"
+          <v-icon
+            icon="mdi-chevron-down"
+            class="nav-chevron nav-chevron--mdi"
+            :class="{
+              'nav-chevron--collapsed': !myCompanyExpanded,
+              'nav-chevron--rail-hidden': !showNavLabels,
+            }"
+            size="14"
           />
         </button>
         <template v-if="myCompanyExpanded">
@@ -132,7 +136,7 @@
         class="nav-item"
         :class="{ active: isVerwaltungNavActive }"
       >
-        <IconSettings class="nav-icon" />
+        <v-icon icon="mdi-shield-account" class="nav-icon nav-icon--mdi" size="20" />
         <span class="nav-label" :class="{ visible: showNavLabels }">{{ t('sidebar.siteAdmin') }}</span>
       </router-link>
 
@@ -142,7 +146,7 @@
         class="nav-item"
         :class="{ active: $route.path.startsWith('/site-inhalt') }"
       >
-        <IconSettings class="nav-icon" />
+        <v-icon icon="mdi-web" class="nav-icon nav-icon--mdi" size="20" />
         <span class="nav-label" :class="{ visible: showNavLabels }">{{ t('sidebar.website') }}</span>
       </router-link>
 
@@ -158,7 +162,7 @@
         class="nav-item"
         :class="{ active: $route.path.includes('/activities') }"
       >
-        <IconActivities class="nav-icon" />
+        <v-icon icon="mdi-calendar" class="nav-icon nav-icon--mdi" size="20" />
         <span class="nav-label" :class="{ visible: showNavLabels }">{{ t('sidebar.activities') }}</span>
       </router-link>
 
@@ -169,7 +173,7 @@
         class="nav-item"
         :class="{ active: $route.path.includes('/materials') }"
       >
-        <IconMaterials class="nav-icon" />
+        <v-icon icon="mdi-package-variant" class="nav-icon nav-icon--mdi" size="20" />
         <span class="nav-label" :class="{ visible: showNavLabels }">{{ t('sidebar.materials') }}</span>
       </router-link>
 
@@ -180,7 +184,7 @@
         class="nav-item"
         :class="{ active: isAccountingNavActive }"
       >
-        <IconAccounting class="nav-icon" />
+        <v-icon icon="mdi-cash" class="nav-icon nav-icon--mdi" size="20" />
         <span class="nav-label" :class="{ visible: showNavLabels }">{{ t('sidebar.accounting') }}</span>
       </router-link>
 
@@ -191,7 +195,7 @@
         class="nav-item"
         :class="{ active: $route.path.includes('/contacts') }"
       >
-        <IconContacts class="nav-icon" />
+        <v-icon icon="mdi-account-group" class="nav-icon nav-icon--mdi" size="20" />
         <span class="nav-label" :class="{ visible: showNavLabels }">{{ t('sidebar.contacts') }}</span>
       </router-link>
 
@@ -202,7 +206,7 @@
         class="nav-item"
         :class="{ active: $route.path.includes('/tasks') }"
       >
-        <IconTasks class="nav-icon" />
+        <v-icon icon="mdi-clipboard-list" class="nav-icon nav-icon--mdi" size="20" />
         <span class="nav-label" :class="{ visible: showNavLabels }">{{ t('sidebar.tasks') }}</span>
       </router-link>
 
@@ -213,7 +217,7 @@
         class="nav-item"
         :class="{ active: $route.path.includes('/notifications') }"
       >
-        <IconBell class="nav-icon" />
+        <v-icon icon="mdi-bell-outline" class="nav-icon nav-icon--mdi" size="20" />
         <span class="nav-label" :class="{ visible: showNavLabels }">{{ t('sidebar.notifications') }}</span>
       </router-link>
 
@@ -230,7 +234,7 @@
         class="nav-item"
         :class="{ active: $route.path.includes('/workshop') }"
       >
-        <IconWorkshop class="nav-icon" />
+        <v-icon icon="mdi-wrench" class="nav-icon nav-icon--mdi" size="20" />
         <span class="nav-label" :class="{ visible: showNavLabels }">{{ t('sidebar.workshop') }}</span>
       </router-link>
 
@@ -241,7 +245,7 @@
         class="nav-item"
         :class="{ active: $route.path.includes('/statistics') }"
       >
-        <IconStatistics class="nav-icon" />
+        <v-icon icon="mdi-chart-bar" class="nav-icon nav-icon--mdi" size="20" />
         <span class="nav-label" :class="{ visible: showNavLabels }">{{ t('sidebar.statistics') }}</span>
       </router-link>
 
@@ -252,18 +256,17 @@
         class="nav-item"
         :class="{ active: $route.path.includes('/supplier-shop') }"
       >
-        <IconPackage class="nav-icon" />
+        <v-icon icon="mdi-store" class="nav-icon nav-icon--mdi" size="20" />
         <span class="nav-label" :class="{ visible: showNavLabels }">{{ t('sidebar.supplierShop') }}</span>
       </router-link>
 
-      <!-- Konfiguration -->
       <router-link
         v-if="!isPendingAssignmentRoute && showDevSandboxLink"
         :to="getLink('/dev/ui-playground')"
         class="nav-item"
         :class="{ active: isDevPlaygroundNavActive }"
       >
-        <v-icon class="nav-icon nav-icon--mdi" size="20">mdi-flask-outline</v-icon>
+        <v-icon icon="mdi-flask-outline" class="nav-icon nav-icon--mdi" size="20" />
         <span class="nav-label" :class="{ visible: showNavLabels }">{{ t('sidebar.devUiPlayground') }}</span>
       </router-link>
 
@@ -273,9 +276,20 @@
         class="nav-item"
         :class="{ active: $route.path.includes('/settings') }"
       >
-        <IconSettings class="nav-icon" />
+        <v-icon icon="mdi-cog-outline" class="nav-icon nav-icon--mdi" size="20" />
         <span class="nav-label" :class="{ visible: showNavLabels }">{{ t('sidebar.settings') }}</span>
       </router-link>
+
+      <router-link
+        v-if="!isPendingAssignmentRoute && showDeptContextSidebarLinks"
+        :to="getLink('/help/overview')"
+        class="nav-item"
+        :class="{ active: isHelpOverviewNavActive }"
+      >
+        <v-icon icon="mdi-help-circle-outline" class="nav-icon nav-icon--mdi" size="20" />
+        <span class="nav-label" :class="{ visible: showNavLabels }">{{ t('sidebar.help') }}</span>
+      </router-link>
+
     </nav>
     
     <!-- Bottom Actions -->
@@ -292,23 +306,8 @@ import { useI18n } from 'vue-i18n'
 import { useDisplay } from 'vuetify'
 import { useAuthStore } from '@/stores/auth'
 import { isDepartmentBasicMemberRole } from '@/composables/useDepartmentMemberRole'
-import { isDevToolsEnvironment } from '@/utils/devEnvironmentBanner'
 import EmcLogoMark from '@/components/brand/EmcLogoMark.vue'
-import {
-  IconDashboard,
-  IconActivities,
-  IconMaterials,
-  IconAccounting,
-  IconContacts,
-  IconTasks,
-  IconBell,
-  IconWorkshop,
-  IconStatistics,
-  IconSettings,
-  IconPackage,
-  IconChevronDown,
-} from '@/components/icons'
-
+import { isDevToolsEnvironment } from '@/utils/devEnvironmentBanner'
 const route = useRoute()
 const { t } = useI18n()
 const authStore = useAuthStore()
@@ -499,11 +498,13 @@ const showWorkshopMenu = computed(() => {
 /** Statistik: wie Werkstatt — nicht für Basissicht */
 const showStatisticsMenu = computed(() => !isDepartmentBasicMemberRole(authStore.currentDepartmentRole))
 
-/** Buchhaltung: nur Materialchef (mw) oder Departmentchef (dc) im aktuellen Department */
+/** Buchhaltung: MW/DC voller Zugriff; L1–L3 und Gruppenchefs nur Gruppenkosten */
 const showAccountingMenu = computed(() => {
   if (isSuperAdmin.value) return false
   const r = String(authStore.currentDepartmentRole || '').toLowerCase().trim()
-  return r === 'mw' || r === 'dc'
+  if (r === 'mw' || r === 'dc') return true
+  if (['l1', 'l2', 'l3'].includes(r)) return true
+  return false
 })
 
 /** Lieferanten-Shop: Materialwart / Departmentchef */
@@ -517,6 +518,8 @@ const showSupplierShopLink = computed(() => {
 const isAccountingNavActive = computed(() => route.path.includes('/accounting'))
 
 // Mit Department-Kontext immer /{id}/… — auch wenn die Route gerade /admin-dashboard ist (Store/Primär-Dept)
+const isHelpOverviewNavActive = computed(() => route.path.includes('/help'))
+
 function getLink(path: string): string {
   let id = (route.params.departmentId as string) || authStore.activeDepartmentId || ''
   if (!id && authStore.departments?.length) {

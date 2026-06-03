@@ -892,7 +892,6 @@ const routes: RouteRecordRaw[] = [
         path: 'accounting',
         component: () => import('@/views/accounting/AccountingShellView.vue'),
         meta: {
-          requiredRoles: ['matwart', 'depchef'],
           ...routeHead('accounting'),
         },
         children: [
@@ -924,12 +923,30 @@ const routes: RouteRecordRaw[] = [
             },
           },
           {
+            path: 'gruppen',
+            name: 'AccountingGroupCosts',
+            component: () => import('@/views/accounting/AccountingGroupCostsView.vue'),
+            meta: {
+              requiredRoles: ['matwart', 'depchef', 'leader1', 'leader2', 'leader3', 'user'],
+              ...routeHead('accountingGroupCosts'),
+            },
+          },
+          {
             path: 'materialkosten',
             name: 'AccountingMaterialCosts',
             component: () => import('@/views/accounting/AccountingMaterialCostsView.vue'),
             meta: {
               requiredRoles: ['matwart', 'depchef'],
               ...routeHead('accountingMaterialCosts'),
+            },
+          },
+          {
+            path: 'abschreibung',
+            name: 'AccountingAmortization',
+            component: () => import('@/views/accounting/AccountingAmortizationView.vue'),
+            meta: {
+              requiredRoles: ['matwart', 'depchef'],
+              ...routeHead('accountingAmortization'),
             },
           },
           {
@@ -996,6 +1013,14 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/views/NotificationsCenterView.vue'),
         meta: {
           ...routeHead('notificationsCenter'),
+        }
+      },
+      {
+        path: 'search',
+        name: 'GlobalSearch',
+        component: () => import('@/views/GlobalSearchView.vue'),
+        meta: {
+          ...routeHead('globalSearch'),
         }
       },
       {
@@ -1205,7 +1230,23 @@ const routes: RouteRecordRaw[] = [
             }),
           },
         ]
-      }
+      },
+      {
+        path: 'help',
+        component: () => import('@/views/HelpView.vue'),
+        children: [
+          {
+            path: '',
+            redirect: { name: 'HelpOverview' },
+          },
+          {
+            path: 'overview',
+            name: 'HelpOverview',
+            component: () => import('@/views/help/HelpComingSoonView.vue'),
+            meta: routeHead('helpOverview'),
+          },
+        ],
+      },
     ]
   },
   /** Nach AppLayout: sonst fängt DevicesHome jedes /:departmentId auf der App-Domain ab (Redirect-Schleife). */

@@ -92,12 +92,27 @@ class MaterialController extends AbstractController
             }
         }
 
-        // Suchfilter (Name, Beschreibung, Seriennummer, Barcode, EAN) – gross/klein egal
+        // Suchfilter (Name, Beschreibung, Barcode, EAN, Chargen-Seriennummer/Label) – gross/klein egal
         $search = $request->query->get('search');
         if ($search !== null && $search !== '') {
             $searchLike = '%' . mb_strtolower((string) $search) . '%';
+            $batchMaterialIdsDql = $this->entityManager->createQueryBuilder()
+                ->select('IDENTITY(bSearch.materialItem)')
+                ->from(MaterialBatch::class, 'bSearch')
+                ->where('bSearch.deletedAt IS NULL')
+                ->andWhere(
+                    'LOWER(COALESCE(bSearch.serialNumber, \'\')) LIKE :search
+                    OR LOWER(COALESCE(bSearch.label, \'\')) LIKE :search'
+                )
+                ->getDQL();
             $qb->andWhere(
-                'LOWER(m.name) LIKE :search OR LOWER(COALESCE(m.description, \'\')) LIKE :search OR LOWER(COALESCE(m.barcodeTag, \'\')) LIKE :search OR LOWER(COALESCE(m.ean, \'\')) LIKE :search'
+                $qb->expr()->orX(
+                    'LOWER(m.name) LIKE :search',
+                    'LOWER(COALESCE(m.description, \'\')) LIKE :search',
+                    'LOWER(COALESCE(m.barcodeTag, \'\')) LIKE :search',
+                    'LOWER(COALESCE(m.ean, \'\')) LIKE :search',
+                    $qb->expr()->in('m.id', $batchMaterialIdsDql)
+                )
             )->setParameter('search', $searchLike);
         }
 

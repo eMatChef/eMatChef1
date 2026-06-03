@@ -626,10 +626,7 @@
                     {{ t('components.materialDetail.btnMoveQuantity') }}
                   </button>
                   <button class="btn-stock-action btn-stock-action-add" @click="openAddBatchModal">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <line x1="12" y1="5" x2="12" y2="19"/>
-                      <line x1="5" y1="12" x2="19" y2="12"/>
-                    </svg>
+                    <v-icon icon="mdi-plus" size="16" />
                     {{ t('components.materialDetail.btnAddBatch') }}
                   </button>
                   <button v-if="splitSourceBatches.length > 0" class="btn-outline-small" @click="openSplitModal">
@@ -711,138 +708,25 @@
                 }}
               </p>
 
-              <table class="batch-table" v-if="activeBatches.length > 0">
-                <thead>
-                  <tr>
-                    <th class="th-sort-cell">
-                      <button type="button" class="detail-th-sort" :title="t('components.materialDetail.sortByAcquired')" @click="toggleStockSort('acquired_on')">
-                        <span>{{ t('components.materialDetail.thAcquiredOn') }}</span>
-                        <span class="detail-th-sort-arrows" aria-hidden="true">
-                          <span class="detail-sort-chev" :class="{ active: stockSortKey === 'acquired_on' && stockSortDir === 'asc' }">▲</span>
-                          <span class="detail-sort-chev" :class="{ active: stockSortKey === 'acquired_on' && stockSortDir === 'desc' }">▼</span>
-                        </span>
-                      </button>
-                    </th>
-                    <th class="th-sort-cell">
-                      <button type="button" class="detail-th-sort" :title="t('components.materialDetail.sortByQty')" @click="toggleStockSort('qty')">
-                        <span>{{ t('components.materialDetail.thQty') }}</span>
-                        <span class="detail-th-sort-arrows" aria-hidden="true">
-                          <span class="detail-sort-chev" :class="{ active: stockSortKey === 'qty' && stockSortDir === 'asc' }">▲</span>
-                          <span class="detail-sort-chev" :class="{ active: stockSortKey === 'qty' && stockSortDir === 'desc' }">▼</span>
-                        </span>
-                      </button>
-                    </th>
-                    <th v-if="canManageMaterials">{{ t('components.materialDetail.thQr') }}</th>
-                    <th class="th-sort-cell">
-                      <button type="button" class="detail-th-sort" :title="t('components.materialDetail.sortByLabel')" @click="toggleStockSort('label')">
-                        <span>{{ t('components.materialDetail.thLabel') }}</span>
-                        <span class="detail-th-sort-arrows" aria-hidden="true">
-                          <span class="detail-sort-chev" :class="{ active: stockSortKey === 'label' && stockSortDir === 'asc' }">▲</span>
-                          <span class="detail-sort-chev" :class="{ active: stockSortKey === 'label' && stockSortDir === 'desc' }">▼</span>
-                        </span>
-                      </button>
-                    </th>
-                    <th class="th-sort-cell">
-                      <button type="button" class="detail-th-sort" :title="t('components.materialDetail.sortByUnitPrice')" @click="toggleStockSort('unit_price')">
-                        <span>{{ t('components.materialDetail.thPricePerPc') }}</span>
-                        <span class="detail-th-sort-arrows" aria-hidden="true">
-                          <span class="detail-sort-chev" :class="{ active: stockSortKey === 'unit_price' && stockSortDir === 'asc' }">▲</span>
-                          <span class="detail-sort-chev" :class="{ active: stockSortKey === 'unit_price' && stockSortDir === 'desc' }">▼</span>
-                        </span>
-                      </button>
-                    </th>
-                    <th class="th-sort-cell">
-                      <button type="button" class="detail-th-sort" :title="t('components.materialDetail.sortByLocation')" @click="toggleStockSort('location')">
-                        <span>{{ t('components.materialDetail.thStorageSlot') }}</span>
-                        <span class="detail-th-sort-arrows" aria-hidden="true">
-                          <span class="detail-sort-chev" :class="{ active: stockSortKey === 'location' && stockSortDir === 'asc' }">▲</span>
-                          <span class="detail-sort-chev" :class="{ active: stockSortKey === 'location' && stockSortDir === 'desc' }">▼</span>
-                        </span>
-                      </button>
-                    </th>
-                    <th class="th-sort-cell">
-                      <button type="button" class="detail-th-sort" :title="t('components.materialDetail.sortByStatus')" @click="toggleStockSort('status')">
-                        <span>{{ t('common.status') }}</span>
-                        <span class="detail-th-sort-arrows" aria-hidden="true">
-                          <span class="detail-sort-chev" :class="{ active: stockSortKey === 'status' && stockSortDir === 'asc' }">▲</span>
-                          <span class="detail-sort-chev" :class="{ active: stockSortKey === 'status' && stockSortDir === 'desc' }">▼</span>
-                        </span>
-                      </button>
-                    </th>
-                    <th class="th-sort-cell">
-                      <button type="button" class="detail-th-sort" :title="t('components.materialDetail.sortByNotes')" @click="toggleStockSort('notes')">
-                        <span>{{ t('components.materialDetail.thNote') }}</span>
-                        <span class="detail-th-sort-arrows" aria-hidden="true">
-                          <span class="detail-sort-chev" :class="{ active: stockSortKey === 'notes' && stockSortDir === 'asc' }">▲</span>
-                          <span class="detail-sort-chev" :class="{ active: stockSortKey === 'notes' && stockSortDir === 'desc' }">▼</span>
-                        </span>
-                      </button>
-                    </th>
-                    <th></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr v-for="batch in sortedActiveBatches" :key="batch.id">
-                    <td>{{ formatDate(batch.acquired_on) }}</td>
-                    <td class="qty-cell">{{ batch.qty }}</td>
-                    <td v-if="canManageMaterials" class="col-qr">
-                      <PublicQrTag
-                        :url="batch.public_url"
-                        :code="batch.public_code"
-                        :size="48"
-                        :clickable="!!batch.public_url"
-                        :image-label="material.name"
-                        :image-entity-id="batch.id"
-                        @activate="openQrActionModalForBatch(batch)"
-                      />
-                    </td>
-                    <td>{{ batch.label || t('components.materialDetail.emDash') }}</td>
-                    <td>{{ batch.unit_price ? `${t('components.materialDetail.currencyFr')} ${batch.unit_price}` : t('components.materialDetail.emDash') }}</td>
-                    <td class="location-cell">
-                      <div class="location-lines">
-                        <div
-                          v-for="(entry, locationIndex) in buildBatchLocationEntries(batch)"
-                          :key="`${batch.id}-loc-${locationIndex}`"
-                          class="location-line"
-                        >
-                          <button
-                            v-if="entry.containerMaterialId"
-                            class="location-link-text"
-                            @click="openContainerMaterial(entry.containerMaterialId, entry.containerBatchId, entry.containerSearchSeed)"
-                          >
-                            {{ entry.text }}
-                          </button>
-                          <span v-else>{{ entry.text }}</span>
-                        </div>
-                      </div>
-                    </td>
-                    <td>
-                      <span class="status-badge" :class="batch.status">
-                        {{ statusLabels[batch.status] }}
-                      </span>
-                    </td>
-                    <td class="notes-cell">{{ batch.notes || t('components.materialDetail.emDash') }}</td>
-                    <td class="actions-cell">
-                      <button
-                        v-if="material.tracking_type !== 'serialized'"
-                        class="icon-btn"
-                        :title="t('components.materialDetail.titleMoveQtyBatch')"
-                        @click="openMoveQuantityModal(batch)"
-                      >
-                        <svg class="table-icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                          <path d="M5 9l-3 3 3 3M9 5l3-3 3 3M15 19l-3 3-3-3M19 9l3 3-3 3M2 12h20M12 2v20"/>
-                        </svg>
-                      </button>
-                      <button class="icon-btn" :title="t('components.materialDetail.titleEditBatch')" @click.stop="openEditBatchModal(batch)">
-                        <svg class="table-icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                          <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-                          <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
-                        </svg>
-                      </button>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
+              <MaterialStockBatchesDataTable
+                v-if="activeBatches.length > 0"
+                :items="sortedActiveBatches"
+                :can-manage-materials="canManageMaterials"
+                :show-move-qty="material.tracking_type !== 'serialized'"
+                :material-name="material.name"
+                :status-labels="statusLabels"
+                :sort-key="stockSortKey"
+                :sort-dir="stockSortDir"
+                :em-dash="t('components.materialDetail.emDash')"
+                :currency-fr="t('components.materialDetail.currencyFr')"
+                :format-date="formatDate"
+                :location-entries="buildBatchLocationEntries"
+                @toggle-sort="toggleStockSort"
+                @edit="openEditBatchModal"
+                @move="openMoveQuantityModal"
+                @qr-activate="openQrActionModalForBatch"
+                @open-container="(e) => openContainerMaterial(e.containerMaterialId!, e.containerBatchId, e.containerSearchSeed)"
+              />
               
               <div v-else class="empty-batches">
                 <p>{{ t('components.materialDetail.emptyNoBatches') }}</p>
@@ -999,50 +883,21 @@
                     </td>
                     <td class="composition-actions-cell">
                       <div class="composition-row-actions">
-                        <button
-                          type="button"
-                          class="icon-btn"
+                        <TableIconButton
+                          icon="mdi-pencil"
                           :title="t('common.edit')"
                           :aria-label="t('components.materialDetail.ariaEditComposition')"
                           @click="openEditCompositionModal(comp)"
-                        >
-                          <svg class="table-icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-                            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-                          </svg>
-                        </button>
-                        <button
-                          type="button"
-                          class="icon-btn icon-btn-danger"
+                        />
+                        <TableIconButton
+                          icon="mdi-delete-outline"
+                          danger
                           :title="t('components.materialDetail.titleRemoveFromCombo')"
                           :aria-label="t('components.materialDetail.ariaDeleteComposition')"
                           :disabled="deletingCompositionId === comp.id"
+                          :loading="deletingCompositionId === comp.id"
                           @click="confirmDeleteComposition(comp)"
-                        >
-                          <svg
-                            v-if="deletingCompositionId === comp.id"
-                            class="table-icon-sm composition-icon-spin"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            stroke-width="2"
-                          >
-                            <path d="M23 4v6h-6M1 20v-6h6" />
-                            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
-                          </svg>
-                          <svg
-                            v-else
-                            class="table-icon-sm"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            stroke-width="2"
-                            stroke-linecap="round"
-                            stroke-linejoin="round"
-                          >
-                            <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6M10 11v6M14 11v6" />
-                          </svg>
-                        </button>
+                        />
                       </div>
                     </td>
                   </tr>
@@ -1101,25 +956,14 @@
                       </td>
                       <td>{{ acc.accessory_material.total_stock }}</td>
                       <td class="composition-actions-cell">
-                        <button
-                          type="button"
-                          class="icon-btn icon-btn-danger"
+                        <TableIconButton
+                          icon="mdi-delete-outline"
+                          danger
                           :title="t('components.materialDetail.accessoryRemoveTitle')"
                           :disabled="deletingAccessoryId === acc.id"
+                          :loading="deletingAccessoryId === acc.id"
                           @click="confirmDeleteAccessory(acc)"
-                        >
-                          <svg
-                            class="table-icon-sm"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            stroke-width="2"
-                            stroke-linecap="round"
-                            stroke-linejoin="round"
-                          >
-                            <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6M10 11v6M14 11v6" />
-                          </svg>
-                        </button>
+                        />
                       </td>
                     </tr>
                   </tbody>
@@ -1292,10 +1136,7 @@
               <div class="section-header-row">
                 <h2 class="section-title">{{ t('components.materialDetail.sectionSerialsTitle') }}</h2>
                 <button class="btn-outline-small" @click="openAddBatchModal">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <line x1="12" y1="5" x2="12" y2="19"/>
-                    <line x1="5" y1="12" x2="19" y2="12"/>
-                  </svg>
+                  <v-icon icon="mdi-plus" size="16" />
                   {{ t('components.materialDetail.btnAddBatch') }}
                 </button>
               </div>
@@ -1304,150 +1145,24 @@
                 <span class="serial-count">{{ t('components.materialDetail.serialCountLine', { count: serialBatches.length }) }}</span>
               </div>
 
-              <table class="serials-table" v-if="serialBatches.length > 0">
-                <thead>
-                  <tr>
-                    <th>{{ t('components.materialDetail.thIndex') }}</th>
-                    <th class="th-sort-cell">
-                      <button type="button" class="detail-th-sort" :title="t('components.materialDetail.sortBySerial')" @click="toggleSerialSort('serial_number')">
-                        <span>{{ t('common.serialNumber') }}</span>
-                        <span class="detail-th-sort-arrows" aria-hidden="true">
-                          <span class="detail-sort-chev" :class="{ active: serialSortKey === 'serial_number' && serialSortDir === 'asc' }">▲</span>
-                          <span class="detail-sort-chev" :class="{ active: serialSortKey === 'serial_number' && serialSortDir === 'desc' }">▼</span>
-                        </span>
-                      </button>
-                    </th>
-                    <th class="th-sort-cell">
-                      <button type="button" class="detail-th-sort" :title="t('components.materialDetail.sortByPublicCode')" @click="toggleSerialSort('public_code')">
-                        <span>{{ t('components.materialDetail.labelCode') }}</span>
-                        <span class="detail-th-sort-arrows" aria-hidden="true">
-                          <span class="detail-sort-chev" :class="{ active: serialSortKey === 'public_code' && serialSortDir === 'asc' }">▲</span>
-                          <span class="detail-sort-chev" :class="{ active: serialSortKey === 'public_code' && serialSortDir === 'desc' }">▼</span>
-                        </span>
-                      </button>
-                    </th>
-                    <th class="th-sort-cell">
-                      <button type="button" class="detail-th-sort" :title="t('components.materialDetail.sortByLabel')" @click="toggleSerialSort('label')">
-                        <span>{{ t('components.materialDetail.thLabel') }}</span>
-                        <span class="detail-th-sort-arrows" aria-hidden="true">
-                          <span class="detail-sort-chev" :class="{ active: serialSortKey === 'label' && serialSortDir === 'asc' }">▲</span>
-                          <span class="detail-sort-chev" :class="{ active: serialSortKey === 'label' && serialSortDir === 'desc' }">▼</span>
-                        </span>
-                      </button>
-                    </th>
-                    <th class="th-sort-cell th-serial-behälter">
-                      <button type="button" class="detail-th-sort" :title="t('components.materialDetail.sortByContainerFlag')" @click="toggleSerialSort('is_container')">
-                        <span>{{ t('components.materialDetail.thContainer') }}</span>
-                        <span class="detail-th-sort-arrows" aria-hidden="true">
-                          <span class="detail-sort-chev" :class="{ active: serialSortKey === 'is_container' && serialSortDir === 'asc' }">▲</span>
-                          <span class="detail-sort-chev" :class="{ active: serialSortKey === 'is_container' && serialSortDir === 'desc' }">▼</span>
-                        </span>
-                      </button>
-                    </th>
-                    <th class="th-sort-cell">
-                      <button type="button" class="detail-th-sort" :title="t('components.materialDetail.sortByRecordedDate')" @click="toggleSerialSort('acquired_on')">
-                        <span>{{ t('components.materialDetail.thRecordedOn') }}</span>
-                        <span class="detail-th-sort-arrows" aria-hidden="true">
-                          <span class="detail-sort-chev" :class="{ active: serialSortKey === 'acquired_on' && serialSortDir === 'asc' }">▲</span>
-                          <span class="detail-sort-chev" :class="{ active: serialSortKey === 'acquired_on' && serialSortDir === 'desc' }">▼</span>
-                        </span>
-                      </button>
-                    </th>
-                    <th class="th-sort-cell">
-                      <button type="button" class="detail-th-sort" :title="t('components.materialDetail.sortByLocation')" @click="toggleSerialSort('location')">
-                        <span>{{ t('components.materialDetail.thStorageSlot') }}</span>
-                        <span class="detail-th-sort-arrows" aria-hidden="true">
-                          <span class="detail-sort-chev" :class="{ active: serialSortKey === 'location' && serialSortDir === 'asc' }">▲</span>
-                          <span class="detail-sort-chev" :class="{ active: serialSortKey === 'location' && serialSortDir === 'desc' }">▼</span>
-                        </span>
-                      </button>
-                    </th>
-                    <th class="th-sort-cell">
-                      <button type="button" class="detail-th-sort" :title="t('components.materialDetail.sortByStatus')" @click="toggleSerialSort('status')">
-                        <span>{{ t('common.status') }}</span>
-                        <span class="detail-th-sort-arrows" aria-hidden="true">
-                          <span class="detail-sort-chev" :class="{ active: serialSortKey === 'status' && serialSortDir === 'asc' }">▲</span>
-                          <span class="detail-sort-chev" :class="{ active: serialSortKey === 'status' && serialSortDir === 'desc' }">▼</span>
-                        </span>
-                      </button>
-                    </th>
-                    <th class="th-sort-cell">
-                      <button type="button" class="detail-th-sort" :title="t('components.materialDetail.sortByNotes')" @click="toggleSerialSort('notes')">
-                        <span>{{ t('components.materialDetail.thNote') }}</span>
-                        <span class="detail-th-sort-arrows" aria-hidden="true">
-                          <span class="detail-sort-chev" :class="{ active: serialSortKey === 'notes' && serialSortDir === 'asc' }">▲</span>
-                          <span class="detail-sort-chev" :class="{ active: serialSortKey === 'notes' && serialSortDir === 'desc' }">▼</span>
-                        </span>
-                      </button>
-                    </th>
-                    <th></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr v-for="(batch, index) in sortedSerialBatches" :key="batch.id">
-                    <td class="col-num">{{ index + 1 }}</td>
-                    <td class="col-serial">
-                      <span class="serial-code">{{ batch.serial_number }}</span>
-                    </td>
-                    <td class="col-qr">
-                      <PublicQrTag
-                        :url="batch.public_url"
-                        :code="batch.public_code"
-                        :size="56"
-                        :clickable="true"
-                        :image-label="material.name"
-                        :image-entity-id="batch.id"
-                        @activate="openQrActionModalForBatch(batch)"
-                      />
-                    </td>
-                    <td>{{ batch.label || t('components.materialDetail.emDash') }}</td>
-                    <td class="col-serial-container">
-                      <label class="checkbox-label serial-behälter-cell">
-                        <input
-                          type="checkbox"
-                          :checked="!!batch.is_container"
-                          :disabled="!!serialIsContainerSaving[batch.id]"
-                          @change="onSerialBatchIsContainerChange(batch, ($event.target as HTMLInputElement).checked)"
-                        />
-                      </label>
-                    </td>
-                    <td>{{ formatDate(batch.acquired_on) }}</td>
-                    <td class="location-cell">
-                      <div class="location-lines">
-                        <div
-                          v-for="(entry, locationIndex) in buildBatchLocationEntries(batch)"
-                          :key="`${batch.id}-loc-${locationIndex}`"
-                          class="location-line"
-                        >
-                          <button
-                            v-if="entry.containerMaterialId"
-                            class="location-link-text"
-                            @click="openContainerMaterial(entry.containerMaterialId, entry.containerBatchId, entry.containerSearchSeed)"
-                          >
-                            {{ entry.text }}
-                          </button>
-                          <span v-else>{{ entry.text }}</span>
-                        </div>
-                      </div>
-                    </td>
-                    <td>
-                      <span class="status-badge" :class="batch.status">
-                        {{ statusLabels[batch.status] }}
-                      </span>
-                    </td>
-                    <td class="notes-cell">{{ batch.notes || t('components.materialDetail.emDash') }}</td>
-                    <td class="actions-cell">
-                      <button class="icon-btn" :title="t('components.materialDetail.titleEditBatch')" @click.stop="openEditBatchModal(batch)">
-                        <svg class="table-icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                          <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-                          <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
-                        </svg>
-                      </button>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-              
+              <MaterialSerialBatchesDataTable
+                v-if="serialBatches.length > 0"
+                :items="sortedSerialBatches"
+                :material-name="material.name"
+                :status-labels="statusLabels"
+                :sort-key="serialSortKey"
+                :sort-dir="serialSortDir"
+                :em-dash="t('components.materialDetail.emDash')"
+                :container-saving="serialIsContainerSaving"
+                :format-date="formatDate"
+                :location-entries="buildBatchLocationEntries"
+                @toggle-sort="toggleSerialSort"
+                @edit="openEditBatchModal"
+                @qr-activate="openQrActionModalForBatch"
+                @container-change="onSerialBatchIsContainerChange"
+                @open-container="(e) => openContainerMaterial(e.containerMaterialId!, e.containerBatchId, e.containerSearchSeed)"
+              />
+
               <div v-else class="empty-serials">
                 <p>{{ t('components.materialDetail.emptyNoSerials') }}</p>
                 <button class="btn-outline" @click="openAddBatchModal">
@@ -1483,44 +1198,12 @@
                 <p class="form-hint">{{ t('components.materialDetail.workshopHintCreateTicket') }}</p>
               </div>
               <div v-else>
-                <table class="batch-table workshop-tickets-mini">
-                  <thead>
-                    <tr>
-                      <th>{{ t('components.materialDetail.thTicket') }}</th>
-                      <th>{{ t('components.materialDetail.thType') }}</th>
-                      <th>{{ t('common.status') }}</th>
-                      <th>{{ t('components.materialDetail.thActivity') }}</th>
-                      <th></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr v-for="wt in workshopTickets" :key="wt.id">
-                      <td>{{ wt.title }}</td>
-                      <td>{{ wt.type_label }}</td>
-                      <td>
-                        <span class="status-badge">{{ wt.status_label }}</span>
-                      </td>
-                      <td>
-                        <router-link
-                          v-if="wt.activity_id"
-                          :to="`/${departmentId}/activities/${wt.activity_id}`"
-                          class="link-btn"
-                        >
-                          {{ t('components.materialDetail.btnOpen') }}
-                        </router-link>
-                        <span v-else class="muted">{{ t('components.materialDetail.emDash') }}</span>
-                      </td>
-                      <td class="actions-cell">
-                        <router-link
-                          class="btn-outline btn-sm"
-                          :to="{ path: `/${departmentId}/workshop`, query: { material_id: materialId, ticket: wt.id } }"
-                        >
-                          {{ t('components.materialDetail.btnInWorkshop') }}
-                        </router-link>
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
+                <MaterialWorkshopTicketsDataTable
+                  :items="workshopTickets"
+                  :department-id="departmentId"
+                  :material-id="materialId"
+                  :em-dash="t('components.materialDetail.emDash')"
+                />
                 <div class="workshop-tab-actions mt-3">
                   <router-link
                     class="btn-outline btn-sm"
@@ -1547,7 +1230,12 @@
                   :aria-expanded="rentalActivitiesOpen"
                   @click="rentalActivitiesOpen = !rentalActivitiesOpen"
                 >
-                  <span class="rental-accordion-chevron" aria-hidden="true">{{ rentalActivitiesOpen ? '▼' : '▶' }}</span>
+                  <v-icon
+                    class="rental-accordion-chevron"
+                    :icon="rentalActivitiesOpen ? 'mdi-chevron-down' : 'mdi-chevron-right'"
+                    size="small"
+                    aria-hidden="true"
+                  />
                   <span class="rental-accordion-title">{{ t('components.materialDetail.rentalAccordionActivitiesTitle') }}</span>
                   <span v-if="rentalActivityBookingsTotalQty > 0" class="rental-accordion-badge">
                     {{ t('settings.storage.overviewLineQty', { qty: rentalActivityBookingsTotalQty }) }}
@@ -1563,60 +1251,16 @@
                   <p v-else-if="rentalActivityBookings.length === 0" class="empty-serials combo-rental-empty">
                     {{ t('components.materialDetail.rentalActivityBookingsEmpty') }}
                   </p>
-                  <div v-else class="combo-rental-basis-table-wrap">
-                    <table class="batch-table combo-rental-basis-table rental-activity-bookings-table">
-                      <thead>
-                        <tr>
-                          <th>{{ t('components.materialDetail.rentalActivityBookingsThNo') }}</th>
-                          <th>{{ t('components.materialDetail.rentalActivityBookingsThActivity') }}</th>
-                          <th>{{ t('components.materialDetail.rentalActivityBookingsThPeriod') }}</th>
-                          <th>{{ t('components.materialDetail.rentalActivityBookingsThStatus') }}</th>
-                          <th class="combo-rental-col-num">{{ t('components.materialDetail.rentalActivityBookingsThQty') }}</th>
-                          <th>{{ t('components.materialDetail.rentalActivityBookingsThKind') }}</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        <tr v-for="row in rentalActivityBookings" :key="row.activity_id">
-                          <td>{{ row.activity_no != null ? `#${row.activity_no}` : t('components.materialDetail.emDash') }}</td>
-                          <td>
-                            <div class="rental-activity-cell">
-                              <router-link
-                                class="combo-allocation-link"
-                                :to="`/${departmentId}/activities/${row.activity_id}`"
-                              >
-                                {{ row.activity_name }}
-                              </router-link>
-                              <div
-                                v-if="row.via_combo_material_names"
-                                class="rental-booking-via-combo"
-                              >
-                                {{
-                                  t('components.materialDetail.rentalActivityBookingsViaCombo', {
-                                    names: row.via_combo_material_names,
-                                  })
-                                }}
-                              </div>
-                            </div>
-                          </td>
-                          <td class="rental-activity-period">{{ formatRentalActivityPeriod(row) }}</td>
-                          <td>
-                            <span class="status-badge rental-activity-status" :class="row.activity_status">
-                              {{ rentalActivityStatusLabel(row.activity_status) }}
-                            </span>
-                          </td>
-                          <td class="combo-rental-col-num">{{ row.qty }}</td>
-                          <td>
-                            <span
-                              class="rental-booking-kind"
-                              :class="rentalBookingKindClass(row.booking_kind)"
-                            >
-                              {{ rentalBookingKindLabel(row.booking_kind) }}
-                            </span>
-                          </td>
-                        </tr>
-                      </tbody>
-                    </table>
-                  </div>
+                  <MaterialRentalActivityBookingsDataTable
+                    v-else
+                    :items="rentalActivityBookings"
+                    :department-id="departmentId"
+                    :em-dash="t('components.materialDetail.emDash')"
+                    :format-period="formatRentalActivityPeriod"
+                    :status-label="rentalActivityStatusLabel"
+                    :kind-label="rentalBookingKindLabel"
+                    :kind-class="rentalBookingKindClass"
+                  />
                 </div>
               </div>
 
@@ -1627,7 +1271,12 @@
                   :aria-expanded="rentalPricingOpen"
                   @click="rentalPricingOpen = !rentalPricingOpen"
                 >
-                  <span class="rental-accordion-chevron" aria-hidden="true">{{ rentalPricingOpen ? '▼' : '▶' }}</span>
+                  <v-icon
+                    class="rental-accordion-chevron"
+                    :icon="rentalPricingOpen ? 'mdi-chevron-down' : 'mdi-chevron-right'"
+                    size="small"
+                    aria-hidden="true"
+                  />
                   <span class="rental-accordion-title">{{ t('components.materialDetail.rentalAccordionPricingTitle') }}</span>
                 </button>
                 <div v-show="rentalPricingOpen" class="rental-accordion-body">
@@ -1649,46 +1298,14 @@
                   {{ t('components.materialDetail.rentalEmptyBom') }}
                 </p>
                 <template v-else>
-                  <div class="combo-rental-basis-table-wrap">
-                    <table class="batch-table combo-rental-basis-table">
-                      <thead>
-                        <tr>
-                          <th>{{ t('components.materialDetail.thComponent') }}</th>
-                          <th class="combo-rental-col-num">{{ t('components.materialDetail.thQtyInSet') }}</th>
-                          <th class="combo-rental-col-num">{{ t('components.materialDetail.thAvgPurchasePerPc') }}</th>
-                          <th class="combo-rental-col-num">{{ t('components.materialDetail.thLine') }}</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        <tr v-for="(row, idx) in comboRentalRows" :key="`${row.componentId}-${idx}`">
-                          <td>
-                            <span>{{ row.name }}</span>
-                            <span v-if="isVirtualComboView && row.optional" class="composition-optional-badge">{{ t('components.materialDetail.optionalShortBadge') }}</span>
-                          </td>
-                          <td class="combo-rental-col-num">{{ row.qty }}</td>
-                          <td class="combo-rental-col-num">
-                            <template v-if="row.perPieceChf != null">{{ t('components.materialDetail.currencyFr') }} {{ formatChfFiveRappenString(row.perPieceChf) }}</template>
-                            <span v-else class="muted">{{ t('components.materialDetail.emDash') }}</span>
-                          </td>
-                          <td class="combo-rental-col-num">
-                            <template v-if="row.lineChf != null">{{ t('components.materialDetail.currencyFr') }} {{ formatChfFiveRappenString(row.lineChf) }}</template>
-                            <span v-else class="muted">{{ t('components.materialDetail.emDash') }}</span>
-                          </td>
-                        </tr>
-                      </tbody>
-                      <tfoot>
-                        <tr class="combo-rental-total-row">
-                          <th colspan="3">{{ t('components.materialDetail.rentalFooterSumOneSet') }}</th>
-                          <th class="combo-rental-col-num">
-                            <template v-if="rentalAcquisitionBasisChf != null">
-                              {{ t('components.materialDetail.currencyFr') }} {{ formatChfFiveRappenString(rentalAcquisitionBasisChf) }}
-                            </template>
-                            <span v-else class="muted">{{ t('components.materialDetail.emDash') }}</span>
-                          </th>
-                        </tr>
-                      </tfoot>
-                    </table>
-                  </div>
+                  <MaterialComboRentalBasisDataTable
+                    :items="comboRentalRows"
+                    :show-optional-badge="isVirtualComboView"
+                    :total-basis-chf="rentalAcquisitionBasisChf"
+                    :currency-fr="t('components.materialDetail.currencyFr')"
+                    :em-dash="t('components.materialDetail.emDash')"
+                    :format-chf="formatChfFiveRappenString"
+                  />
                   <p v-if="comboRentalHasGap" class="form-hint combo-rental-gap-hint">
                     {{ t('components.materialDetail.rentalGapHint') }}
                   </p>
@@ -1811,33 +1428,16 @@
                 </span>
               </div>
 
-              <table class="batch-table archive-table" v-if="archivedBatches.length > 0">
-                <thead>
-                  <tr>
-                    <th>{{ t('components.materialDetail.thAcquiredOn') }}</th>
-                    <th>{{ t('components.materialDetail.thQty') }}</th>
-                    <th>{{ t('components.materialDetail.thPricePerPc') }}</th>
-                    <th>{{ t('components.materialDetail.thReason') }}</th>
-                    <th>{{ t('components.materialDetail.thNote') }}</th>
-                    <th></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr v-for="batch in archivedBatches" :key="batch.id" class="archived-row">
-                    <td>{{ formatDate(batch.acquired_on) }}</td>
-                    <td class="qty-cell">{{ getArchivedBatchDisplayQty(batch) }}</td>
-                    <td>{{ batch.unit_price ? `${t('components.materialDetail.currencyFr')} ${batch.unit_price}` : t('components.materialDetail.emDash') }}</td>
-                    <td>
-                      <span class="status-badge" :class="batch.status">
-                        {{ statusLabels[batch.status] }}
-                      </span>
-                    </td>
-                    <td class="notes-cell">{{ batch.notes || t('components.materialDetail.emDash') }}</td>
-                    <td class="actions-cell"></td>
-                  </tr>
-                </tbody>
-              </table>
-              
+              <MaterialArchiveBatchesDataTable
+                v-if="archivedBatches.length > 0"
+                :items="archivedBatches"
+                :status-labels="statusLabels"
+                :em-dash="t('components.materialDetail.emDash')"
+                :currency-fr="t('components.materialDetail.currencyFr')"
+                :format-date="formatDate"
+                :display-qty="getArchivedBatchDisplayQty"
+              />
+
               <div v-else class="empty-archive">
                 <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#d1d5db" stroke-width="1.5">
                   <polyline points="20 12 20 22 4 22 4 12"/>
@@ -2713,6 +2313,13 @@ import { useConfirm } from '@/composables/useConfirm'
 import { useI18n } from 'vue-i18n'
 import { printHtmlDocument } from '@/utils/printHtml'
 import BatchModal from '@/components/material/BatchModal.vue'
+import MaterialStockBatchesDataTable from '@/components/material/MaterialStockBatchesDataTable.vue'
+import MaterialSerialBatchesDataTable from '@/components/material/MaterialSerialBatchesDataTable.vue'
+import MaterialArchiveBatchesDataTable from '@/components/material/MaterialArchiveBatchesDataTable.vue'
+import MaterialWorkshopTicketsDataTable from '@/components/material/MaterialWorkshopTicketsDataTable.vue'
+import MaterialRentalActivityBookingsDataTable from '@/components/material/MaterialRentalActivityBookingsDataTable.vue'
+import MaterialComboRentalBasisDataTable from '@/components/material/MaterialComboRentalBasisDataTable.vue'
+import TableIconButton from '@/components/common/TableIconButton.vue'
 import MoveQuantityModal from '@/components/material/MoveQuantityModal.vue'
 import RemoveCompositionReleaseModal from '@/components/material/RemoveCompositionReleaseModal.vue'
 import {

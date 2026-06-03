@@ -157,7 +157,6 @@
         "tos": "Nutzung & Datenschutz · eMatChef",
         "impressum": "Impressum · eMatChef",
         "login": "Anmelden · eMatChef",
-        "devUiSandbox": "UI Sandbox · eMatChef",
         "siteGeneralEditor": "Webseite · Allgemein · eMatChef",
         "sitePageEditor": "Webseite · Inhalt · eMatChef",
         "verifyEmail": "E-Mail bestätigen · eMatChef",
@@ -194,6 +193,8 @@
         "accountingCostCenters": "Kostenstellen · eMatChef",
         "accountingBookings": "Buchungen · eMatChef",
         "accountingMaterialCosts": "Materialkosten · eMatChef",
+        "accountingGroupCosts": "Gruppenkosten · eMatChef",
+        "accountingAmortization": "Abschreibung · eMatChef",
         "accountingBudget": "Budget · eMatChef",
         "contacts": "Ansprechpartner · eMatChef",
         "contactDetail": "Kontakt · eMatChef",
@@ -224,6 +225,9 @@
         "settingsTemplates": "Einstellungen · Vorlagen · eMatChef",
         "globalMaterialTemplates": "Verwaltung · Material-Vorlagen · eMatChef",
         "settingsMaterialImport": "Einstellungen · Material Import/Export · eMatChef",
+        "globalSearch": "Suche · eMatChef",
+        "devUiSandbox": "UI Sandbox · eMatChef",
+        "helpOverview": "Hilfe · Dokumentation · eMatChef",
         "supplierProfile": "Meine Firma · Profil · eMatChef",
         "supplierTeam": "Meine Firma · Team · eMatChef",
         "supplierCatalog": "Meine Firma · Katalog · eMatChef",
@@ -852,6 +856,7 @@
     "statistics": "Statistik",
     "settings": "Konfiguration",
     "devUiPlayground": "UI Sandbox",
+    "help": "Hilfe",
     "myCompany": "Meine Firma",
     "myCompanyProfile": "Profil & Kontakt",
     "myCompanyTeam": "Team",
@@ -2721,6 +2726,18 @@
       "untitled": "Anlass"
     }
   },
+  "help": {
+    "menuTitle": "Hilfe",
+    "nav": {
+      "overview": "Dokumentation"
+    },
+    "overview": {
+      "title": "Hilfe & Dokumentation"
+    },
+    "comingSoon": {
+      "description": "Dieser Bereich wird in Kürze verfügbar sein."
+    }
+  },
   "settings": {
     "menuTitle": "Einstellungen",
     "nav": {
@@ -4161,8 +4178,17 @@
       "saveErrorFallback": "Fehler beim Speichern des Departments"
     },
     "globalSearch": {
-      "placeholderDefault": "Suchen… (material:, aktivität:, reparatur:)",
+      "placeholderDefault": "Suchen… Material, Aktivität, Reparatur (optional material:, aktivität:, reparatur:)",
       "loadingSuggestions": "Suche…",
+      "loadingResults": "Suchergebnisse werden geladen…",
+      "showAllResults": "Alle Ergebnisse anzeigen",
+      "pageTitle": "Suche",
+      "subtitleWithQuery": "Treffer für «{q}»",
+      "subtitleEmpty": "Gib einen Suchbegriff ein (mindestens 2 Zeichen).",
+      "hintTitle": "Zentrale Suche",
+      "hintDescription": "Suche nach Material, Aktivität oder Reparatur — im Header oder hier. Mit Enter oder «Alle Ergebnisse» öffnest du diese Übersicht.",
+      "noResultsTitle": "Keine Treffer",
+      "noResultsDescription": "Für «{q}» wurden keine passenden Einträge gefunden.",
       "typeActivity": "Aktivität",
       "typeRepair": "Reparatur"
     },
@@ -6220,7 +6246,7 @@
     "createTitleLabel": "Titel *",
     "createTitlePlaceholder": "z.B. Zeltstange gebrochen",
     "createMaterialLabel": "Material *",
-    "createSearchPlaceholder": "Material suchen (mind. 2 Zeichen)…",
+    "createSearchPlaceholder": "Material suchen (Name, Barcode, Seriennummer)…",
     "createSearching": "Suche…",
     "createNoMatches": "Keine Treffer für «{query}»",
     "createChangeMaterialTitle": "Material ändern",
@@ -6505,6 +6531,11 @@
       "association": "Verein / Zentral",
       "other": "Sonstiges"
     },
+    "paymentStatus": {
+      "open": "Offen",
+      "paid": "Bezahlt",
+      "cancelled": "Storniert"
+    },
     "followUpKind": {
       "batch": "Anschaffung Material",
       "consumption": "Verbrauchsmaterial",
@@ -6521,7 +6552,9 @@
       "tabOverview": "Übersicht",
       "tabCostCenters": "Kostenstellen",
       "tabBookings": "Buchungen",
+      "tabGroups": "Gruppenkosten",
       "tabMaterialCosts": "Materialkosten",
+      "tabAmortization": "Abschreibung",
       "tabBudget": "Budget"
     },
     "bookings": {
@@ -6573,7 +6606,34 @@
       "deleteConfirmTitle": "Buchung löschen?",
       "deleteConfirmMessage": "Eintrag vom {date} über CHF {amount} wirklich löschen?",
       "ccLoadError": "Kostenstellen konnten nicht geladen werden.",
-      "listLoadError": "Buchungen konnten nicht geladen werden."
+      "listLoadError": "Buchungen konnten nicht geladen werden.",
+      "exportCsv": "CSV exportieren",
+      "exportCsvYearRequired": "Bitte ein Jahr wählen (Filter Jahr).",
+      "csvDownloaded": "Buchungs-CSV heruntergeladen",
+      "exportFailed": "Export fehlgeschlagen",
+      "labelPaymentStatus": "Zahlungsstatus",
+      "colPaymentStatus": "Status",
+      "colSource": "Quelle",
+      "sourceActivity": "Aktivität",
+      "sourceBatch": "Anschaffung",
+      "sourceWorkshop": "Werkstatt",
+      "batchAssignTitle": "Mehrere Aufträge auf einmal",
+      "batchAssignHint": "Alle ausgewählten offenen Aufträge derselben Aktivität mit gleicher Kostenstelle erfassen.",
+      "batchAssignSelectAll": "Alle dieser Aktivität",
+      "batchAssignButton": "Ausgewählte erfassen ({count})",
+      "batchAssignSuccess": "{count} Buchungen erfasst",
+      "batchAssignNone": "Keine Aufträge ausgewählt",
+      "colAttachments": "Belege",
+      "receiptAttachmentsLabel": "Beleg-Dateien",
+      "receiptUpload": "Beleg hochladen",
+      "receiptRemove": "Beleg entfernen",
+      "receiptEmpty": "Noch keine Beleg-Datei.",
+      "receiptSaveFirst": "Buchung zuerst speichern, danach Belege hochladen.",
+      "receiptMax": "Maximal {max} Belege pro Buchung.",
+      "receiptAcceptHint": "JPEG, PNG, WebP, GIF oder PDF — max. 10 MB.",
+      "receiptInvalidType": "Nur Bilder oder PDF erlaubt.",
+      "receiptUploaded": "Beleg hochgeladen.",
+      "receiptRemoved": "Beleg entfernt."
     },
     "budget": {
       "intro": "Geplantes Budget (Soll) in CHF pro Kostenstelle und Kalenderjahr, Vergleich mit erfassten Buchungen (Ist). Export als CSV für Abgleich mit dem Vereins-Finanztool.",
@@ -6633,6 +6693,16 @@
       "toastCreated": "Kostenstelle angelegt.",
       "deleteTitle": "Kostenstelle löschen?",
       "deleteMessage": "«{name}» wirklich löschen?",
+      "rulesTitle": "Zuordnungsregeln",
+      "rulesIntro": "Standard-Kostenstelle pro Follow-up-Typ (Material, Verbrauch, Werkstatt …). Überschreibt die Keyword-Vorschläge beim Zuordnen.",
+      "rulesColSource": "Quelle",
+      "rulesColCostCenter": "Kostenstelle",
+      "rulesColEntryType": "Standard-Typ",
+      "rulesColPayment": "Standard-Zahlungsart",
+      "rulesSave": "Regel speichern",
+      "rulesDelete": "Regel entfernen",
+      "rulesSaved": "Regel gespeichert",
+      "rulesDeleted": "Regel entfernt",
       "seeds": {
         "material": {
           "name": "Material & Ausstattung",
@@ -6658,8 +6728,35 @@
       "openMaterial": "Material öffnen",
       "loadError": "Auswertung konnte nicht geladen werden."
     },
+    "groupCosts": {
+      "intro": "Ist-Kosten (CHF) pro Gruppe aus erfassten Buchungen mit Gruppenzuordnung. Offene Posten = Zahlungsstatus «Offen» (z. B. externe Vermietung).",
+      "leaderScopeHint": "Du siehst nur Gruppen, in denen du Gruppenchef bist.",
+      "empty": "Keine Gruppen-Buchungen für {year}.",
+      "kpiSumLabel": "Summe Ist ({year})",
+      "kpiMeta": "{count} Buchungen",
+      "kpiOpen": "Offene Posten",
+      "colBookings": "Buchungen",
+      "colSumChf": "Summe CHF",
+      "colOpenChf": "Offen CHF",
+      "loadError": "Gruppen-Auswertung konnte nicht geladen werden."
+    },
+    "amortization": {
+      "intro": "Jährliche Abschreibungs-Vorschläge aus Anschaffungswerten (Material-Batches). Nutzungsdauer anpassbar; Buchung als Typ «Abschreibung».",
+      "usefulLifeYears": "Nutzungsdauer (Jahre)",
+      "empty": "Keine Materialien mit Anschaffungspreis gefunden.",
+      "colAcquisition": "Anschaffung CHF",
+      "colSuggested": "Vorschlag/Jahr",
+      "colBooked": "Erfasst {year}",
+      "colRemaining": "Rest",
+      "createBooking": "Buchung erfassen",
+      "modalTitle": "Abschreibung erfassen",
+      "saveBooking": "Speichern",
+      "receiptLabel": "Abschreibung {name} {year}",
+      "toastCreated": "Abschreibungs-Buchung erfasst",
+      "loadError": "Vorschläge konnten nicht geladen werden."
+    },
     "overview": {
-      "intro": "Ist-Kosten aus erfassten Buchungen (CHF). Budget-Soll und Exporte folgen später.",
+      "intro": "Ist-Kosten aus erfassten Buchungen (CHF). Budget Soll/Ist-Vergleich und CSV-Exporte unter «Budget» bzw. «Buchungen».",
       "yearDetailLabel": "Jahr für Detailauswertung",
       "kpiCostsActual": "Kosten (Ist) {year}",
       "kpiBookingsMeta": "{count} Buchungen",

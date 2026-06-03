@@ -24,7 +24,12 @@ export const MAX_ISSUE_PHOTOS = 3
 
 export const IMAGE_UPLOAD_ACCEPT = 'image/jpeg,image/png,image/webp,image/gif'
 
+/** Belege: Bilder + PDF (Buchhaltung) */
+export const RECEIPT_UPLOAD_ACCEPT = `${IMAGE_UPLOAD_ACCEPT},application/pdf`
+
 export const MAX_IMAGE_BYTES = 10 * 1024 * 1024
+export const MAX_RECEIPT_BYTES = MAX_IMAGE_BYTES
+export const MAX_RECEIPTS_PER_BOOKING = 5
 
 export function mediaPhotoKey(photo: MediaPhoto, index: number): string {
   return photo.id || photo.filename || photo.url || String(index)
@@ -58,6 +63,21 @@ export function extractMediaUploadError(err: unknown): string {
 export function validateImageFile(file: File, maxBytes = MAX_IMAGE_BYTES): 'tooLarge' | null {
   if (file.size > maxBytes) {
     return 'tooLarge'
+  }
+  return null
+}
+
+export function isPdfMedia(photo: MediaPhoto): boolean {
+  return photo.mime === 'application/pdf' || (photo.filename?.toLowerCase().endsWith('.pdf') ?? false)
+}
+
+export function validateReceiptFile(file: File, maxBytes = MAX_RECEIPT_BYTES): 'tooLarge' | 'invalidType' | null {
+  if (file.size > maxBytes) {
+    return 'tooLarge'
+  }
+  const allowed = RECEIPT_UPLOAD_ACCEPT.split(',')
+  if (!allowed.includes(file.type)) {
+    return 'invalidType'
   }
   return null
 }

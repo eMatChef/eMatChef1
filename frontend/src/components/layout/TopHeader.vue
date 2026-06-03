@@ -13,7 +13,7 @@
       @click="toggleDrawer"
     />
     <!-- Hauptzeile: Tabs links, Icons rechts -->
-    <div class="header-main-row">
+    <div class="header-main-row" :class="{ 'header-main-row--compact': !smAndUp }">
     <!-- Left Section: Tabs (offene Detail-Ansichten) -->
     <div class="header-left">
       <div v-if="detailTabsStore.hasTabs" class="tabs-scroll">
@@ -82,15 +82,17 @@
     </div>
     
     <!-- Right Section: Actions & User -->
-    <div class="header-right">
+    <div class="header-right" :class="{ 'header-right--compact': !smAndUp }">
       <div class="search-wrapper" v-if="searchDepartmentId">
         <GlobalSearchInput
           ref="globalSearchRef"
           mode="icon"
+          search-all-types
           :department-id="searchDepartmentId"
         />
       </div>
       <button
+        v-if="smAndUp"
         type="button"
         class="header-icon-btn"
         :title="t('layout.notifications.title')"
@@ -105,7 +107,7 @@
         </svg>
         <span v-if="unreadCount > 0" class="notification-badge">{{ unreadCount > 99 ? '99+' : unreadCount }}</span>
       </button>
-      <div v-if="showNotifications" class="notifications-dropdown" role="dialog" :aria-label="t('layout.notifications.title')">
+      <div v-if="smAndUp && showNotifications" class="notifications-dropdown" role="dialog" :aria-label="t('layout.notifications.title')">
         <div class="notifications-header">{{ t('layout.notifications.title') }}</div>
         <div class="notifications-dropdown-body">
           <div v-if="isLoadingNotifications" class="notifications-empty">{{ t('layout.notifications.loading') }}</div>
@@ -256,31 +258,15 @@
           </button>
         </div>
       </div>
-      
-      <button type="button" class="header-icon-btn" :title="t('layout.header.helpTitle')" :aria-label="t('layout.header.helpAria')" @click="showHelp">
-        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
-          <circle cx="12" cy="12" r="10" stroke-width="2"/>
-          <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-          <path d="M12 17h.01" stroke-width="2" stroke-linecap="round"/>
-        </svg>
-      </button>
-      
-      <button type="button" class="header-icon-btn" :title="t('layout.header.infoTitle')" :aria-label="t('layout.header.infoAria')" @click="showInfo">
-        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
-          <circle cx="12" cy="12" r="10" stroke-width="2"/>
-          <path d="M12 16v-4" stroke-width="2" stroke-linecap="round"/>
-          <path d="M12 8h.01" stroke-width="2" stroke-linecap="round"/>
-        </svg>
-      </button>
-      
+
       <!-- User Menu -->
       <div class="user-menu-wrapper">
-        <div class="user-menu" @click.stop="toggleUserMenu">
+        <div class="user-menu" :class="{ 'user-menu--compact': !smAndUp }" @click.stop="toggleUserMenu">
           <div class="user-avatar" :style="avatarStyle">
             {{ userInitials }}
           </div>
-          <span class="user-name">{{ userName }}</span>
-          <svg class="chevron-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+          <span v-if="smAndUp" class="user-name">{{ userName }}</span>
+          <svg v-if="smAndUp" class="chevron-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
             <path d="M19 9l-7 7-7-7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
           </svg>
         </div>
@@ -607,7 +593,7 @@ import { useUnreadDocumentTitleAlert } from '@/composables/useUnreadDocumentTitl
 import { getSenderPrimaryLine } from '@/utils/notificationSender'
 const { t } = useI18n()
 const router = useRouter()
-const { mdAndUp } = useDisplay()
+const { mdAndUp, smAndUp } = useDisplay()
 
 withDefaults(
   defineProps<{
@@ -1266,14 +1252,6 @@ async function decideInvite(invite: PendingDepartmentActivityInvite, decision: '
   }
 }
 
-function showHelp() {
-  window.open('https://www.ematchef.ch/help', '_blank')
-}
-
-function showInfo() {
-  // Info dialog
-}
-
 function editProfile() {
   const profile = authStore.profile
   profileForm.value = {
@@ -1596,6 +1574,10 @@ watch(
   box-sizing: border-box;
 }
 
+.header-main-row--compact {
+  padding: 0 8px 0 4px;
+}
+
 .tabs-scroll {
   display: flex;
   align-items: center;
@@ -1782,6 +1764,10 @@ watch(
   position: relative;
 }
 
+.header-right--compact {
+  gap: 4px;
+}
+
 .header-icon-btn {
   position: relative;
   background: none;
@@ -1835,6 +1821,11 @@ watch(
 
 .user-menu:hover {
   background-color: rgba(0, 0, 0, 0.05);
+}
+
+.user-menu--compact {
+  padding: 4px;
+  gap: 0;
 }
 
 .user-avatar {

@@ -9393,8 +9393,8 @@ defineExpose({
   height: 22px;
 }
 
-.pack-workflow .btn-move-arrow svg,
-.pack-workflow .btn-moveback-arrow svg {
+.pack-workflow .btn-move-arrow .v-icon,
+.pack-workflow .btn-moveback-arrow .v-icon {
   width: 12px;
   height: 12px;
 }

@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { computed, inject, reactive, watch, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { IconArrowLeft } from '@/components/icons'
 import type { ActivityPackContainer, ActivityPackContainerItem } from '@/api/activityContainers'
 import type { PackContainerItemSection } from '@/components/activities/packShellCrateHelpers'
 import {
@@ -172,7 +171,7 @@ function setPullQty(ci: ActivityPackContainerItem, raw: string | number): void {
               :title="t('activities.packList.pullFromContainerTitle')"
               @click="pullFromContainer(ci)"
             >
-              <IconArrowLeft />
+              <v-icon icon="mdi-arrow-left" size="12" />
             </button>
             <input
               :value="pullQtyFor(ci)"
@@ -272,7 +271,7 @@ function setPullQty(ci: ActivityPackContainerItem, raw: string | number): void {
                 :title="t('activities.packList.pullFromContainerTitle')"
                 @click="pullFromContainer(ci)"
               >
-                <IconArrowLeft />
+                <v-icon icon="mdi-arrow-left" size="12" />
               </button>
               <input
                 :value="pullQtyFor(ci)"

@@ -63,21 +63,18 @@
             <thead>
               <tr class="mapping-dropdown-row">
                 <th v-for="col in tableColumnIndices" :key="`map-${col}`" class="mapping-th">
-                  <select
+                  <v-select
+                    :model-value="assignmentAt(col) || ''"
+                    :items="columnFieldSelectItems"
+                    item-title="title"
+                    item-value="value"
+                    density="compact"
+                    hide-details
+                    variant="outlined"
                     class="column-field-select"
-                    :class="{ 'column-field-select--mapped': assignmentAt(col) }"
-                    :value="assignmentAt(col)"
-                    @change="onColumnFieldSelect(col, ($event.target as HTMLSelectElement).value)"
-                  >
-                    <option value="">{{ t('settings.materialImport.mappingColumnSkip') }}</option>
-                    <option
-                      v-for="field in importUiFields"
-                      :key="field"
-                      :value="field"
-                    >
-                      {{ mappingFieldShort(field) }}
-                    </option>
-                  </select>
+                    :class="{ 'column-field-select--mapped': !!assignmentAt(col) }"
+                    @update:model-value="onColumnFieldSelect(col, String($event ?? ''))"
+                  />
                 </th>
               </tr>
               <tr class="source-file-header-row">
@@ -424,6 +421,14 @@ const headerRowIndex = ref(0)
 const columnMapping = ref<ColumnMapping>({})
 const columnAssignments = ref<ColumnAssignment[]>([])
 const importUiFields = IMPORT_UI_FIELDS
+
+const columnFieldSelectItems = computed(() => [
+  { title: t('settings.materialImport.mappingColumnSkip'), value: '' },
+  ...importUiFields.map((field) => ({
+    title: mappingFieldShort(field),
+    value: field,
+  })),
+])
 const fileName = ref('')
 const importFileInputRef = ref<HTMLInputElement | null>(null)
 const materials = ref<Material[]>([])
@@ -1444,16 +1449,23 @@ onMounted(async () => {
   width: 100%;
   min-width: 88px;
   max-width: 130px;
-  padding: 0.2rem 0.25rem;
-  border: 1px solid #93c5fd;
-  border-radius: 4px;
-  font-size: 0.7rem;
-  background: #fff;
+  font-size: 12px;
 }
 
-.column-field-select--mapped {
-  border-color: #2563eb;
-  background: #f0f9ff;
+.column-field-select :deep(.v-field) {
+  font-size: 12px;
+  min-height: 32px;
+}
+
+.column-field-select :deep(.v-field__input) {
+  min-height: 32px;
+  padding-top: 4px;
+  padding-bottom: 4px;
+}
+
+.column-field-select--mapped :deep(.v-field) {
+  background: #f0f9ff !important;
+  box-shadow: inset 0 0 0 1px #2563eb !important;
 }
 
 .source-mapping-table td.cell-mapped {

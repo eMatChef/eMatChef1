@@ -66,6 +66,9 @@
             <v-icon icon="mdi-plus" start size="20" />
             {{ t('accounting.bookings.newBooking') }}
           </EButton>
+          <EButton variant="secondary" :disabled="isLoading" @click="exportCsv">
+            {{ t('accounting.bookings.exportCsv') }}
+          </EButton>
         </div>
 
         <ELoadingState v-if="isLoading" variant="inline" :message="t('accounting.common.loading')" />
@@ -81,8 +84,11 @@
             <th>{{ t('accounting.common.costCenter') }}</th>
             <th>{{ t('common.material') }}</th>
             <th>{{ t('accounting.common.paymentMethod') }}</th>
+            <th>{{ t('accounting.bookings.colPaymentStatus') }}</th>
             <th>{{ t('common.group') }}</th>
+            <th>{{ t('accounting.bookings.colSource') }}</th>
             <th>{{ t('accounting.common.receipt') }}</th>
+            <th>{{ t('accounting.bookings.colAttachments') }}</th>
             <th class="col-actions">{{ t('common.actions') }}</th>
           </tr>
         </thead>
@@ -94,8 +100,35 @@
             <td>{{ row.cost_center_name }}</td>
             <td class="muted">{{ row.material_name || t('accounting.common.dash') }}</td>
             <td>{{ paymentLabel(row.payment_method) }}</td>
+            <td>{{ paymentStatusLabel(row.payment_status) }}</td>
             <td>{{ row.group_name || t('accounting.common.dash') }}</td>
+            <td class="source-cell">
+              <template v-if="row.source?.activity_id">
+                <router-link
+                  :to="{ name: 'ActivityDetail', params: { departmentId, activityId: row.source.activity_id } }"
+                >
+                  {{ t('accounting.bookings.sourceActivity') }}
+                </router-link>
+              </template>
+              <template v-else-if="row.source?.material_batch_id && row.material_item_id">
+                <router-link
+                  :to="{ name: 'MaterialDetail', params: { departmentId, materialId: row.material_item_id } }"
+                >
+                  {{ t('accounting.bookings.sourceBatch') }}
+                </router-link>
+              </template>
+              <template v-else-if="row.source?.workshop_ticket_id">
+                <router-link :to="{ name: 'Workshop', params: { departmentId } }">
+                  {{ t('accounting.bookings.sourceWorkshop') }}
+                </router-link>
+              </template>
+              <span v-else class="muted">{{ t('accounting.common.dash') }}</span>
+            </td>
             <td class="muted">{{ row.receipt_label || t('accounting.common.dash') }}</td>
+            <td>
+              <span v-if="row.receipts?.length">{{ row.receipts.length }}</span>
+              <span v-else class="muted">{{ t('accounting.common.dash') }}</span>
+            </td>
             <td class="col-actions">
               <EButton variant="text" size="small" :title="t('common.edit')" @click="openEdit(row)">
                 <v-icon icon="mdi-pencil-outline" size="20" />
@@ -125,6 +158,24 @@
           >
             {{ t('accounting.bookings.assignFromActivity', { name: pendingFollowUps[assignTabIndex].activity_name }) }}
           </p>
+          <div v-if="batchAssignCandidates.length > 1" class="batch-assign-panel">
+            <p class="batch-assign-hint">{{ t('accounting.bookings.batchAssignHint') }}</p>
+            <div class="batch-assign-checks">
+              <label v-for="fu in batchAssignCandidates" :key="fu.id" class="batch-assign-check">
+                <input v-model="batchSelectedIds" type="checkbox" :value="fu.id" />
+                {{ t(accountingFollowUpKindKey(fu.source_kind)) }} · CHF {{ formatMoney(fu.amount) }}
+              </label>
+            </div>
+            <EButton
+              variant="secondary"
+              size="small"
+              :loading="batchSaving"
+              :disabled="batchSelectedIds.length === 0"
+              @click="runBatchAssign"
+            >
+              {{ t('accounting.bookings.batchAssignButton', { count: batchSelectedIds.length }) }}
+            </EButton>
+          </div>
           <v-tabs
             v-if="pendingFollowUps.length > 1"
             :model-value="String(assignTabIndex)"
@@ -181,6 +232,15 @@
               item-title="label"
               item-value="value"
               :label="t('accounting.bookings.labelPaymentOptional')"
+              hide-details="auto"
+              class="mt-3"
+            />
+            <ESelect
+              v-model="form.payment_status"
+              :items="paymentStatusSelectItems"
+              item-title="label"
+              item-value="value"
+              :label="t('accounting.bookings.labelPaymentStatus')"
               hide-details="auto"
               class="mt-3"
             />
@@ -268,6 +328,15 @@
         class="mt-3"
       />
       <ESelect
+        v-model="form.payment_status"
+        :items="paymentStatusSelectItems"
+        item-title="label"
+        item-value="value"
+        :label="t('accounting.bookings.labelPaymentStatus')"
+        hide-details="auto"
+        class="mt-3"
+      />
+      <ESelect
         v-model="form.group_id"
         :items="groupSelectItems"
         item-title="label"
@@ -314,6 +383,16 @@
         rows="3"
         hide-details="auto"
       />
+      <div class="mt-4 booking-receipts-section">
+        <label class="booking-field-label">{{ t('accounting.bookings.receiptAttachmentsLabel') }}</label>
+        <BookingReceiptAttachments
+          :department-id="departmentId"
+          :booking-id="editingId"
+          :receipts="modalReceipts"
+          :show-empty="!!editingId"
+          @update:receipts="onModalReceiptsUpdate"
+        />
+      </div>
       <template #actions>
         <EButton variant="secondary" size="small" @click="closeModal">{{ t('common.cancel') }}</EButton>
         <EButton variant="primary" size="small" :loading="saving" @click="save(false)">
@@ -334,12 +413,15 @@ import {
   createBooking,
   updateBooking,
   deleteBooking,
+  exportBookingsCsv,
   type AccountingBooking
 } from '@/api/accountingBookings'
 import {
   listAcquisitionFollowups,
+  batchRecordFollowUps,
   type AccountingAcquisitionFollowUp
 } from '@/api/accountingAcquisitionFollowups'
+import { listCostCenterRules, type AccountingCostCenterRule } from '@/api/accountingCostCenterRules'
 import { getGroups, type Group } from '@/api/groups'
 import type { Material } from '@/api/materials'
 import { useToast } from '@/composables/useToast'
@@ -355,8 +437,10 @@ import {
 import {
   suggestCostCenterId,
   suggestPaymentMethodForFollowUp,
+  suggestEntryTypeForFollowUp,
 } from '@/utils/accountingCostCenterSuggest'
-import ELoadingState from '@/components/layout/ELoadingState.vue'
+import BookingReceiptAttachments from '@/components/accounting/BookingReceiptAttachments.vue'
+import type { MediaPhoto } from '@/api/media'
 import EEmptyState from '@/components/layout/EEmptyState.vue'
 import { EButton, EDialog, ESelect, ETextField, ETextarea } from '@/components/form/base'
 import '@/styles/views/accounting-tabs.css'
@@ -379,6 +463,7 @@ const form = reactive({
   cost_center_id: '',
   entry_type: 'purchase',
   payment_method: '' as string,
+  payment_status: 'paid' as string,
   group_id: '' as string,
   receipt_label: '',
   notes: '',
@@ -397,6 +482,11 @@ function clearBookingMaterial() {
 
 const ENTRY_KEYS = ['purchase', 'repair_external', 'repair_internal', 'amortization', 'other'] as const
 const PAYMENT_KEYS = ['advance_mw', 'cash_group', 'supplier_invoice', 'association', 'other'] as const
+const PAYMENT_STATUS_KEYS = ['open', 'paid', 'cancelled'] as const
+
+const costCenterRules = ref<AccountingCostCenterRule[]>([])
+const batchSelectedIds = ref<string[]>([])
+const batchSaving = ref(false)
 
 const entryOptions = computed(() =>
   ENTRY_KEYS.map((value) => ({
@@ -430,6 +520,19 @@ const paymentSelectItems = computed(() => [
   ...paymentOptions.value,
 ])
 
+const paymentStatusSelectItems = computed(() =>
+  PAYMENT_STATUS_KEYS.map((value) => ({
+    label: t(`accounting.paymentStatus.${value}`),
+    value,
+  }))
+)
+
+const batchAssignCandidates = computed(() => {
+  const current = pendingFollowUps.value[assignTabIndex.value]
+  if (!current?.activity_id) return []
+  return pendingFollowUps.value.filter((f) => f.activity_id === current.activity_id)
+})
+
 const groupSelectItems = computed(() => [
   { label: t('accounting.common.dash'), value: '' },
   ...groups.value.map((g) => ({ label: g.name, value: g.id })),
@@ -455,6 +558,7 @@ const loadError = ref('')
 
 const modalOpen = ref(false)
 const editingId = ref<string | null>(null)
+const modalReceipts = ref<MediaPhoto[]>([])
 const saving = ref(false)
 
 const bookingsSubTab = ref<'list' | 'assign'>('list')
@@ -535,15 +639,14 @@ function persistCurrentAssignDraft() {
   }
 }
 
+function paymentStatusLabel(k: string | null | undefined): string {
+  if (!k) return t('accounting.common.dash')
+  const key = `accounting.paymentStatus.${k}`
+  return te(key) ? t(key) : k
+}
+
 function defaultEntryTypeForFollowUp(p: AccountingAcquisitionFollowUp): string {
-  const sk = p.source_kind || (p.material_batch_id ? 'batch' : '')
-  if (sk === 'activity_replenishment' || sk === 'batch') return 'purchase'
-  if (sk === 'activity_consumption') return 'other'
-  if (sk === 'activity_rental') return 'other'
-  if (sk === 'activity_workshop') {
-    return p.activity_type === 'external' ? 'repair_external' : 'repair_internal'
-  }
-  return 'other'
+  return suggestEntryTypeForFollowUp(p, costCenterRules.value)
 }
 
 function loadAssignFormForFollowUp(p: AccountingAcquisitionFollowUp) {
@@ -563,10 +666,12 @@ function loadAssignFormForFollowUp(p: AccountingAcquisitionFollowUp) {
     form.booked_at = p.suggested_date
     form.receipt_label = p.receipt_label || ''
     form.entry_type = defaultEntryTypeForFollowUp(p)
-    const suggestedCc = suggestCostCenterId(p, costCenters.value)
+    const suggestedCc = suggestCostCenterId(p, costCenters.value, costCenterRules.value)
     form.cost_center_id = suggestedCc || costCenters.value[0]?.id || ''
-    const suggestedPay = suggestPaymentMethodForFollowUp(p)
+    const suggestedPay = suggestPaymentMethodForFollowUp(p, costCenterRules.value)
     form.payment_method = suggestedPay || ''
+    form.payment_status =
+      p.charge_target === 'external_customer' || p.activity_type === 'external' ? 'open' : 'paid'
     const chargeTarget = p.charge_target ?? (p.activity_type === 'external' ? 'external_customer' : 'group')
     if (chargeTarget === 'group') {
       form.group_id = p.suggested_group_id || p.activity_group_id || ''
@@ -664,6 +769,7 @@ async function loadCostCenters() {
   ccError.value = ''
   try {
     costCenters.value = await listCostCenters(departmentId.value)
+    costCenterRules.value = await listCostCenterRules(departmentId.value)
   } catch {
     ccError.value = t('accounting.bookings.ccLoadError')
     costCenters.value = []
@@ -790,6 +896,7 @@ function resetForm() {
   form.cost_center_id = costCenters.value[0]?.id || ''
   form.entry_type = 'purchase'
   form.payment_method = ''
+  form.payment_status = 'paid'
   form.group_id = ''
   form.receipt_label = ''
   form.notes = ''
@@ -802,18 +909,31 @@ function openCreate() {
   workingFromPending.value = false
   activeFollowUpId.value = null
   resetForm()
+  modalReceipts.value = []
   modalOpen.value = true
+}
+
+function onModalReceiptsUpdate(receipts: MediaPhoto[]) {
+  modalReceipts.value = receipts
+  if (editingId.value) {
+    const idx = items.value.findIndex((b) => b.id === editingId.value)
+    if (idx >= 0) {
+      items.value[idx] = { ...items.value[idx], receipts }
+    }
+  }
 }
 
 function openEdit(row: AccountingBooking) {
   workingFromPending.value = false
   activeFollowUpId.value = null
   editingId.value = row.id
+  modalReceipts.value = [...(row.receipts ?? [])]
   form.amount = row.amount
   form.booked_at = row.booked_at
   form.cost_center_id = row.cost_center_id
   form.entry_type = row.entry_type
   form.payment_method = row.payment_method || ''
+  form.payment_status = row.payment_status || 'paid'
   form.group_id = row.group_id || ''
   form.receipt_label = row.receipt_label || ''
   form.notes = row.notes || ''
@@ -850,6 +970,7 @@ async function save(fromAssignTab = false) {
     cost_center_id: form.cost_center_id,
     entry_type: form.entry_type,
     payment_method: form.payment_method || null,
+    payment_status: form.payment_status || 'paid',
     group_id: form.group_id || null,
     receipt_label: form.receipt_label.trim() || null,
     notes: form.notes.trim() || null,
@@ -859,22 +980,26 @@ async function save(fromAssignTab = false) {
   saving.value = true
   try {
     if (editingId.value) {
-      await updateBooking(departmentId.value, editingId.value, payloadBase)
+      const updated = await updateBooking(departmentId.value, editingId.value, payloadBase)
+      modalReceipts.value = updated.receipts ?? modalReceipts.value
       toast.success(t('accounting.bookings.toastSaved'))
     } else {
+      let created: AccountingBooking
       if (fromAssignTab && activeFollowUpId.value) {
         const { material_item_id: _omitMat, ...withoutMat } = payloadBase
-        await createBooking(departmentId.value, {
+        created = await createBooking(departmentId.value, {
           ...withoutMat,
           booked_at: form.booked_at,
           acquisition_follow_up_id: activeFollowUpId.value,
         })
       } else {
-        await createBooking(departmentId.value, {
+        created = await createBooking(departmentId.value, {
           ...payloadBase,
           booked_at: form.booked_at,
         })
       }
+      editingId.value = created.id
+      modalReceipts.value = created.receipts ?? []
       toast.success(t('accounting.bookings.toastCreated'))
       if (workingFromPending.value) {
         const savedFuId = activeFollowUpId.value
@@ -887,7 +1012,11 @@ async function save(fromAssignTab = false) {
         }
       }
     }
-    closeModal()
+    if (!fromAssignTab && editingId.value) {
+      // Modal offen lassen für Beleg-Upload nach dem ersten Speichern
+    } else {
+      closeModal()
+    }
     await loadBookingYears()
     await load()
     headerNotificationsStore.requestRefresh()
@@ -902,6 +1031,60 @@ async function save(fromAssignTab = false) {
     toast.error(msg || t('accounting.common.saveFailed'))
   } finally {
     saving.value = false
+  }
+}
+
+async function exportCsv() {
+  if (!filterYear.value) {
+    toast.error(t('accounting.bookings.exportCsvYearRequired'))
+    return
+  }
+  try {
+    const blob = await exportBookingsCsv(departmentId.value, Number(filterYear.value))
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `buchungen-${departmentId.value}-${filterYear.value}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+    toast.success(t('accounting.bookings.csvDownloaded'))
+  } catch {
+    toast.error(t('accounting.bookings.exportFailed'))
+  }
+}
+
+async function runBatchAssign() {
+  if (batchSelectedIds.value.length === 0) {
+    toast.error(t('accounting.bookings.batchAssignNone'))
+    return
+  }
+  if (!form.cost_center_id || !form.entry_type) {
+    toast.error(t('accounting.bookings.toastCostCenterRequired'))
+    return
+  }
+  batchSaving.value = true
+  try {
+    const result = await batchRecordFollowUps(departmentId.value, {
+      follow_up_ids: batchSelectedIds.value,
+      cost_center_id: form.cost_center_id,
+      entry_type: form.entry_type,
+      payment_method: form.payment_method || null,
+      payment_status: form.payment_status || null,
+    })
+    toast.success(t('accounting.bookings.batchAssignSuccess', { count: result.count }))
+    batchSelectedIds.value = []
+    await refreshPendingFollowUps()
+    await loadBookingYears()
+    await load()
+    headerNotificationsStore.requestRefresh()
+  } catch (e: unknown) {
+    const msg =
+      e && typeof e === 'object' && 'response' in e
+        ? (e as { response?: { data?: { error?: string } } }).response?.data?.error
+        : null
+    toast.error(msg || t('accounting.common.saveFailed'))
+  } finally {
+    batchSaving.value = false
   }
 }
 
@@ -970,7 +1153,39 @@ async function onDelete(row: AccountingBooking) {
 }
 
 .bookings-table {
-  min-width: 720px;
+  min-width: 960px;
+}
+
+.batch-assign-panel {
+  margin: 12px 0 16px;
+  padding: 12px 14px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #f9fafb;
+}
+
+.batch-assign-hint {
+  font-size: 13px;
+  color: #6b7280;
+  margin-bottom: 10px;
+}
+
+.batch-assign-checks {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.batch-assign-check {
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.source-cell a {
+  font-size: 13px;
 }
 
 .acc-field select {

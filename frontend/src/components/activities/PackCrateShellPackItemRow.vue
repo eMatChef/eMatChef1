@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { IconArrowRight } from '@/components/icons'
 import { computed, inject, unref, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { ActivityPackItem } from '@/api/activityPackItems'
@@ -236,7 +235,7 @@ function moveShellCrateForward(qtyFromControl?: number) {
           "
           @click="moveShellCrateForward"
         >
-          <IconArrowRight />
+          <v-icon icon="mdi-arrow-right" size="12" />
         </button>
       </div>
     </div>

@@ -633,7 +633,7 @@
   border-color: var(--color-primary-dark);
 }
 
-.btn-move-arrow--into-crate svg {
+.btn-move-arrow--into-crate .v-icon {
   transform: rotate(-90deg);
   transform-origin: center center;
   transition: transform 0.15s ease;

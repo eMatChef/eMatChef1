@@ -1,18 +1,13 @@
 <template>
-  <Teleport to="body">
-    <div class="batch-modal-overlay" @click.self="$emit('cancel')">
-      <div class="batch-modal move-modal" @click.stop>
-        <div class="batch-modal-header">
-          <h2>{{ t('components.removeCompositionRelease.title') }}</h2>
-          <button type="button" class="batch-modal-close" @click="$emit('cancel')">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <line x1="18" y1="6" x2="6" y2="18" />
-              <line x1="6" y1="6" x2="18" y2="18" />
-            </svg>
-          </button>
-        </div>
-
-        <div class="batch-modal-body">
+  <EDialog
+    v-model="dialogOpen"
+    :max-width="520"
+    :title="t('components.removeCompositionRelease.title')"
+    scrollable
+    persistent
+    card-class="move-quantity-modal-card"
+  >
+    <div class="batch-modal-body batch-modal-body--dialog">
           <p class="move-intro">
             {{
               t('components.removeCompositionRelease.intro', {
@@ -115,26 +110,21 @@
           </div>
 
           <div v-if="errorMsg" class="batch-error">{{ errorMsg }}</div>
-        </div>
-
-        <div class="batch-modal-footer">
-          <div class="batch-footer-actions">
-            <button type="button" class="btn-secondary btn-sm" @click="$emit('cancel')">
-              {{ t('common.cancel') }}
-            </button>
-            <button
-              type="button"
-              class="btn-danger btn-sm"
-              :disabled="!canSubmit || submitting"
-              @click="handleSubmit"
-            >
-              {{ submitting ? t('components.removeCompositionRelease.removing') : t('components.removeCompositionRelease.submit') }}
-            </button>
-          </div>
-        </div>
-      </div>
     </div>
-  </Teleport>
+
+    <template #actions>
+      <EButton variant="secondary" size="small" @click="closeDialog">{{ t('common.cancel') }}</EButton>
+      <EButton
+        variant="danger"
+        size="small"
+        :disabled="!canSubmit || submitting"
+        :loading="submitting"
+        @click="handleSubmit"
+      >
+        {{ submitting ? t('components.removeCompositionRelease.removing') : t('components.removeCompositionRelease.submit') }}
+      </EButton>
+    </template>
+  </EDialog>
 </template>
 
 <script setup lang="ts">
@@ -147,6 +137,7 @@ import { useStorageStructure } from '@/composables/useStorageStructure'
 import StorageLocationPicker from '@/components/storage/StorageLocationPicker.vue'
 import type { DeleteComboComponentRequest } from '@/api/materials'
 import { loadStorageTargetSuggestions, type StorageTargetSuggestion } from '@/utils/compositionStockLocations'
+import { EButton, EDialog } from '@/components/form/base'
 
 interface Props {
   departmentId: string
@@ -163,6 +154,16 @@ const emit = defineEmits<{
   cancel: []
   confirm: [payload: DeleteComboComponentRequest]
 }>()
+
+const dialogOpen = ref(true)
+
+watch(dialogOpen, (open) => {
+  if (!open) emit('cancel')
+})
+
+function closeDialog() {
+  dialogOpen.value = false
+}
 
 const { t } = useI18n()
 const physicalComboWarningStore = usePhysicalComboWarningStore()

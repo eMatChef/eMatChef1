@@ -83,6 +83,7 @@
   max-width: 1400px;
   margin: 0 auto;
   padding: 16px 16px 16px 8px;
+  overflow-x: hidden;
 }
 
 @media (min-width: 960px) {
@@ -103,26 +104,39 @@
 .settings-subnav-rail {
   flex: 0 0 64px;
   width: 64px;
+  max-width: 64px;
   position: relative;
   align-self: flex-start;
   z-index: 20;
+  overflow-x: hidden;
 }
 
 .settings-subnav-rail__panel {
+  box-sizing: border-box;
   width: 64px;
+  max-width: 100%;
   background: #fff;
   border: 1px solid #e5e7eb;
   border-radius: 8px;
   box-shadow: 0 1px 3px rgba(15, 23, 42, 0.1);
   height: fit-content;
   max-height: none;
-  overflow: visible;
+  overflow-x: hidden;
+  overflow-y: visible;
   cursor: default;
+}
+
+.settings-subnav-list {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: hidden;
 }
 
 /* Aufgeklappt: Panel wächst nach rechts, schwebt über Content */
 .settings-subnav-rail--expanded .settings-subnav-rail__panel {
   width: 260px;
+  max-width: 260px;
   position: absolute;
   left: 0;
   top: 0;
@@ -130,31 +144,60 @@
   box-shadow:
     0 4px 6px rgba(15, 23, 42, 0.06),
     0 16px 40px rgba(15, 23, 42, 0.14);
-  max-height: min(85vh, fit-content);
-  overflow-y: auto;
+  max-height: none;
   overflow-x: hidden;
+  overflow-y: visible;
 }
 
-/* Eingeklappt: nur Icons, zentriert */
 .settings-subnav-rail:not(.settings-subnav-rail--expanded) .settings-shell-drawer__title {
-  display: none;
+  visibility: hidden;
+  overflow: hidden;
+  max-width: 100%;
+  padding-inline: 8px;
+  text-overflow: clip;
 }
 
-.settings-subnav-rail:not(.settings-subnav-rail--expanded) .settings-shell-nav .v-list-item-title {
-  display: none !important;
-}
-
+/* Eingeklappt: Icon in fester Spalte zentriert, Label unsichtbar aber Zeilenhöhe gleich */
 .settings-subnav-rail:not(.settings-subnav-rail--expanded) .settings-shell-nav .v-list-item {
+  min-height: 40px;
+  max-width: 100%;
+  padding-inline: 0 !important;
+  display: flex;
+  align-items: center;
   justify-content: center;
-  padding-inline: 6px !important;
 }
 
 .settings-subnav-rail:not(.settings-subnav-rail--expanded) .settings-shell-nav .v-list-item__prepend {
   margin-inline-end: 0 !important;
+  justify-content: center;
 }
 
 .settings-subnav-rail:not(.settings-subnav-rail--expanded) .settings-shell-nav .v-list-item__content {
-  display: none;
+  display: none !important;
+}
+
+/* Aufgeklappt: Icon-Spalte links, Text daneben */
+.settings-subnav-rail--expanded .settings-shell-nav .v-list-item {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr);
+  align-items: center;
+  column-gap: 8px;
+  padding-inline: 8px 12px !important;
+  min-height: 40px;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.settings-subnav-rail--expanded .settings-shell-nav .v-list-item__prepend {
+  grid-column: 1;
+  margin-inline-end: 0 !important;
+  justify-self: center;
+}
+
+.settings-subnav-rail--expanded .settings-shell-nav .v-list-item__content {
+  grid-column: 2;
+  display: block !important;
+  min-width: 0;
 }
 
 .settings-view__content {
@@ -176,6 +219,7 @@
 
 /* Nav-Liste (gemeinsam Mobile + Desktop) */
 .settings-shell-drawer__title {
+  min-height: 36px;
   padding: 12px 12px 8px;
   font-size: 0.75rem;
   font-weight: 600;
@@ -183,10 +227,28 @@
   letter-spacing: 0.04em;
   color: var(--color-text-muted);
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .settings-shell-nav {
-  padding: 4px 6px 10px;
+  padding: 4px 4px 10px;
+  overflow-x: hidden !important;
+  overflow-y: visible !important;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.settings-shell-nav .v-list-item {
+  max-width: 100%;
+  overflow: hidden;
+}
+
+/* Vuetify setzt auf v-list oft overflow-x: auto */
+.settings-subnav-rail .settings-shell-nav.v-list {
+  overflow-x: hidden !important;
 }
 
 .settings-shell-nav__icon {
@@ -196,14 +258,22 @@
   color: inherit;
 }
 
-.settings-shell-nav .v-list-item {
-  min-height: 44px;
-  margin-bottom: 2px;
+.settings-shell-nav__icon--mdi {
+  opacity: 0.85;
 }
 
-/* Icon–Text etwas weiter auseinander (eingeklappt: Rail setzt margin auf 0) */
+.settings-shell-nav .v-list-item--active .settings-shell-nav__icon--mdi {
+  opacity: 1;
+  color: var(--color-primary);
+}
+
+.settings-shell-nav .v-list-item {
+  min-height: 40px;
+  margin-bottom: 1px;
+}
+
 .settings-shell-nav .v-list-item__prepend {
-  margin-inline-end: 20px !important;
+  margin-inline-end: 0 !important;
 }
 
 .settings-shell-nav .v-list-item-title {
@@ -211,6 +281,8 @@
   font-weight: 500;
   letter-spacing: normal;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .settings-shell-nav .v-list-item:not(.v-list-item--active):hover {

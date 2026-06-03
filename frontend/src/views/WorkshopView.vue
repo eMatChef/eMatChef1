@@ -769,7 +769,7 @@
                   <span v-if="isMatSearching" class="ws-mat-spinner">⟳</span>
                 </div>
                 <!-- Dropdown-Vorschlagsliste -->
-                <div v-if="showMatDropdown && matSearchQuery.length >= 2" class="ws-mat-dropdown">
+                <div v-if="showMatDropdown && matSearchQuery.trim().length >= 1" class="ws-mat-dropdown">
                   <div v-if="isMatSearching" class="ws-mat-dropdown-msg">
                     {{ t('workshop.createSearching') }}
                   </div>
@@ -881,7 +881,8 @@ import {
   type TicketPriority,
 } from '@/api/workshop'
 import { listSupplierRepairCompanies } from '@/api/supplierShop'
-import { getMaterials, getMaterial, type Material } from '@/api/materials'
+import { getMaterial, type Material } from '@/api/materials'
+import { createBasicMaterialLookupFetcher } from '@/composables/useMaterialLookup'
 import GlobalSearchInput from '@/components/common/GlobalSearchInput.vue'
 import { useListSearchQueryRoute } from '@/composables/useListSearchQueryRoute'
 import { parseSearchQuery } from '@/composables/useSearchNavigation'
@@ -907,7 +908,11 @@ const { t, locale } = useI18n()
 const authStore = useAuthStore()
 const detailTabsStore = useDetailTabsStore()
 const toast = useToast()
-const currentDepartmentId = computed(() => route.params.departmentId as string)
+const currentDepartmentId = computed(
+  () => (route.params.departmentId as string) || authStore.activeDepartmentId || '',
+)
+
+const workshopMaterialLookup = createBasicMaterialLookupFetcher(() => currentDepartmentId.value)
 
 /** Query ?material_id= — aus Material-Detail (Werkstatt nur für dieses Material) */
 const materialFilterId = computed(() => {
@@ -1679,27 +1684,31 @@ async function acceptLossTicket() {
 function onMatSearchInput() {
   if (matSearchTimer) clearTimeout(matSearchTimer)
 
-  if (matSearchQuery.value.length < 2) {
+  const q = matSearchQuery.value.trim()
+  if (q.length < 1) {
     matSearchResults.value = []
     showMatDropdown.value = false
+    isMatSearching.value = false
     return
   }
 
   showMatDropdown.value = true
   isMatSearching.value = true
   matSearchTimer = setTimeout(() => {
-    searchMaterialsForTicket()
+    void searchMaterialsForTicket()
   }, 300)
 }
 
 async function searchMaterialsForTicket() {
   const query = matSearchQuery.value.trim()
-  if (query.length < 2 || !currentDepartmentId.value) return
+  if (query.length < 1 || !currentDepartmentId.value) {
+    isMatSearching.value = false
+    return
+  }
 
   isMatSearching.value = true
   try {
-    const results = await getMaterials(currentDepartmentId.value, { search: query })
-    matSearchResults.value = results
+    matSearchResults.value = await workshopMaterialLookup(query)
     showMatDropdown.value = true
   } catch (err) {
     console.error('Material-Suche fehlgeschlagen:', err)

@@ -2,7 +2,7 @@
 
 Verbindliche Regeln für die schrittweise Einführung von **Vuetify 3** in der Vue-SPA. Der konkrete Ablauf steht in [vuetify-migration-plan.md](./vuetify-migration-plan.md).
 
-**Stand:** Mai 2026 · **Status:** Spezifikation — Umsetzung beginnt mit Phase 0 des Migrationsplans.
+**Stand:** Juni 2026 · **Status:** **Umgesetzt** (Phasen 0–11) — Wartungsmodus; Restliste Phase 12 in [vuetify-migration-plan.md](./vuetify-migration-plan.md).
 
 ---
 
@@ -65,6 +65,7 @@ Views / Feature-Komponenten
 - **Keine** Vuetify-`defaults` für Formulare in `vuetify.ts` — Variant/Look leben in E* + CSS.
 - **Regel:** Vuetify-Input in 2+ Screens → E*-Wrapper, dann überall E* verwenden.
 - Details: [`form/base/README.md`](../../frontend/src/components/form/base/README.md)
+- **Icon-Welt:** `Icon*`-SVG parallel zu MDI — Inventar und MDI-Zuordnung: [icon-inventory.md](./icon-inventory.md)
 
 ### 3. Domäne / API / Auto-Save
 
@@ -223,8 +224,19 @@ Solange nicht alle Views migriert sind:
 
 ## Tailwind
 
-- **Entscheidung:** Während Vuetify-Migration **kein** neues Layout mit Tailwind-Klassen.
-- Nach Abschluss Phase 11: Tailwind entfernen **oder** dokumentiert nur für Utilities (eine Linie, nicht beides für Spacing in derselben View).
+- **Entscheidung (Phase 12):** `@tailwind` in `style.css` bleibt vorerst (PostCSS-Pipeline unverändert).
+- **Produktive Views:** keine Tailwind-Utility-Klassen für Layout/Spacing — nur Vuetify + `E*` + Domain-CSS.
+- **Entfernung:** optional später, wenn Build-Pipeline ohne Tailwind getestet ist; kein Blocker für Migration.
+
+## Direkte Vuetify-Nutzung in Views (Ausnahmen)
+
+| Erlaubt in Views | Grund |
+| ---------------- | ----- |
+| `v-btn` **innerhalb** `v-btn-toggle` | Toggle-Gruppen (z. B. Material-Liste, Werkstatt-Ansicht) |
+| `v-tabs`, `v-data-table`, `v-list`, `v-alert`, `v-chip` | Layout-Bausteine Phase 4/7, noch kein E*-Wrapper |
+| `v-card` in Marketing/Landing | Ausnahme dokumentiert |
+
+**Verboten:** `v-text-field`, `v-select`, `v-dialog`, freistehendes `v-btn` in Feature-Views → nur `E*`.
 
 ---
 

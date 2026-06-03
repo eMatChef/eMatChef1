@@ -2,138 +2,6 @@
   "app": {
     "devEnvironmentBanner": "Test environment – not production data."
   },
-  "devSandbox": {
-    "title": "UI Sandbox",
-    "lead": "Production E* and layout building blocks only — same as in migrated views.",
-    "devOnlyHint": "Test environment — wrappers only (E*, PageShell, EFilterRow), no raw V* defaults.",
-    "backToApp": "Back to app",
-    "yes": "Yes",
-    "no": "No",
-    "windowSize": "Window size",
-    "rawVuetifyNote": "Direct VTextField, VSelect, etc. — replace with E* wrappers later.",
-    "openDialog": "Open dialog",
-    "dialogTitle": "Sample dialog",
-    "dialogBody": "EDialog + ECard — works independently of AppLayout.",
-    "dialogClose": "Close",
-    "eDialogNote": "EDialog + EButton (production wrappers).",
-    "dialogNote": "EDialog, useConfirm() and usePrompt() — global dialogs in App.vue.",
-    "confirmTriggers": {
-      "warning": "Confirm (warning)",
-      "danger": "Confirm (delete)"
-    },
-    "promptTrigger": "Prompt (text)",
-    "confirmSamples": {
-      "warningTitle": "Discard changes?",
-      "warningMessage": "Unsaved input will be lost.",
-      "dangerTitle": "Delete entry?",
-      "dangerMessage": "This action cannot be undone.",
-      "confirmed": "Confirmed.",
-      "cancelled": "Cancelled."
-    },
-    "promptSamples": {
-      "title": "Enter name",
-      "message": "What should the new entry be called?",
-      "placeholder": "Label",
-      "entered": "Entered: {value}"
-    },
-    "eComponentsNote": "ETextField, ESelect, ETextarea, ECheckbox, ESwitch, EButton, ECard — use these in views.",
-    "eButtonVariants": "EButton variants",
-    "eCardSample": "ECard variant=\"outlined\" — e.g. for dialog content or card layouts.",
-    "layoutHint": "Mini shell in a box — for debugging drawer + app bar + v-main.",
-    "layoutBarTitle": "v-app-bar",
-    "layoutMainText": "v-main content below the app bar, to the right of the rail drawer.",
-    "sections": {
-      "breakpoints": "Breakpoint (useDisplay)",
-      "filterRow": "Filter row (Phase 4)",
-      "eComponents": "Form fields (E*)",
-      "dialog": "Dialog (EDialog)",
-      "emptyStates": "Empty states (EEmptyState)",
-      "materialDataTable": "Material table (v-data-table experiment)",
-      "activityDatetime": "Activity date/time (pill bar)",
-      "loadingStates": "Loading states (ELoadingState)",
-      "toasts": "Toasts (GlobalToastContainer)"
-    },
-    "loadingStatesNote": "ELoadingState — page (spinner), table/list/card (v-skeleton-loader), inline for buttons/fields.",
-    "loadingSamples": {
-      "page": "Page (spinner)",
-      "pageMessage": "Loading data…",
-      "table": "Table (table-row-divider)",
-      "list": "Avatar list (list-item-avatar-three-line)",
-      "inline": "Inline",
-      "inlineMessage": "Saving…"
-    },
-    "emptyStatesNote": "EEmptyState — variant create/search/generic, #actions slot and optional #illustration.",
-    "materialTableNote": "Mock data — same cells as MaterialsView (All tab). Raw VDataTable for comparison, sandbox only.",
-    "activityDatetimeNote": "Pill bar from tablet (sm) up; mobile uses two rows. Compact range when same month (e.g. 15. – 28.06.26).",
-    "activityDatetime": {
-      "lead": "Reusable row: ActivityResponsiveDateTimeRow inside ActivityOutlinedDatetimeSection — same as the wizard.",
-      "desktopLabel": "Desktop / tablet (pill in box)",
-      "mobileLabel": "Mobile (two rows)",
-      "mobilePreviewLabel": "Mobile preview (390px)",
-      "usageSingle": "Usage — single date",
-      "usageRange": "Usage — date range",
-      "dateSingle": "Single date",
-      "dateRange": "Date range",
-      "timeFrom": "From",
-      "timeTo": "To"
-    },
-    "materialTableSamples": {
-      "search": "Search materials…",
-      "noResultsTitle": "No results",
-      "noResultsText": "Adjust your search.",
-      "lastClick": "Row clicked: {name}",
-      "detailToast": "Open detail (demo): {name}",
-      "mainTableLead": "All tab — chevron on combo row expands components (#expanded-row, like MaterialsView).",
-      "mobileLead": "Mobile (≤ md): v-list instead of table — touch rows with stock and expandable combo.",
-      "mobileHint": "Double-click hint omitted on mobile — tap selects the row.",
-      "mobilePreviewLead": "Mobile preview (390px) — visible on desktop for comparison.",
-      "mobilePreviewLabel": "390 × auto — v-list",
-      "comboGroupLead": "Combos tab idea — group-by type + group-summary (stock totals per group).",
-      "comboGroupMobileLead": "Combos tab mobile — groups with subheader + summary row.",
-      "comboMobilePreviewLead": "Combos tab mobile preview",
-      "comboMobilePreviewLabel": "390px — grouped v-list",
-      "groupSummaryLabel": "Group total"
-    },
-    "emptySamples": {
-      "createTitle": "No contacts yet",
-      "createText": "Create the first address to get started.",
-      "createAction": "Add contact",
-      "searchTitle": "No results",
-      "searchText": "Adjust filters or reset them.",
-      "searchAction": "Reset filters"
-    },
-    "toastsNote": "GlobalToastContainer (opaque v-alert) — top-right via useToast().",
-    "toastTriggers": {
-      "success": "Success",
-      "error": "Error",
-      "warning": "Warning",
-      "info": "Info",
-      "stack": "Stack several",
-      "clear": "Clear all"
-    },
-    "toastSamples": {
-      "success": "Saved — all done.",
-      "error": "Save failed — please try again.",
-      "warning": "Session expiring soon.",
-      "info": "No changes made."
-    },
-    "filterRowNote": "Search: ESearchField (icon, outlined label). Filters: ESelect in EFilterRow — PageShell #filters.",
-    "samples": {
-      "primary": "Primary",
-      "outlined": "Outlined",
-      "text": "Text",
-      "error": "Error tonal",
-      "withIcon": "With icon",
-      "textField": "Text field",
-      "select": "Select",
-      "checkbox": "Checkbox",
-      "switch": "Switch",
-      "textarea": "Multiline",
-      "searchField": "Search contacts (name, company, email, city)…",
-      "optionA": "Option A",
-      "optionB": "Option B"
-    }
-  },
   "router": {
     "meta": {
       "titles": {
@@ -142,7 +10,6 @@
         "tos": "Terms & privacy · eMatChef",
         "impressum": "Legal notice · eMatChef",
         "login": "Sign in · eMatChef",
-        "devUiSandbox": "UI Sandbox · eMatChef",
         "siteGeneralEditor": "Website · General · eMatChef",
         "sitePageEditor": "Website · Content · eMatChef",
         "verifyEmail": "Confirm email · eMatChef",
@@ -207,7 +74,9 @@
         "supplierDeliveries": "My company · Deliveries · eMatChef",
         "supplierTemplates": "My company · Templates · eMatChef",
         "supplierRepairs": "My company · Repairs · eMatChef",
-        "settingsSupplierDeliveries": "Settings · Supplier deliveries · eMatChef"
+        "settingsSupplierDeliveries": "Settings · Supplier deliveries · eMatChef",
+        "globalSearch": "Search · eMatChef",
+        "helpOverview": "Help · Documentation · eMatChef"
       },
       "descriptions": {
         "publicLookup": "Public material and serial number information in eMatChef.",
@@ -721,7 +590,7 @@
     "display": "Info display",
     "statistics": "Statistics",
     "settings": "Settings",
-    "devUiPlayground": "UI Sandbox",
+    "help": "Help",
     "myCompany": "My company",
     "myCompanyProfile": "Profile & contact",
     "myCompanyTeam": "Team",
@@ -2526,6 +2395,18 @@
       "unknown": "Unknown error"
     }
   },
+  "help": {
+    "menuTitle": "Help",
+    "nav": {
+      "overview": "Documentation"
+    },
+    "overview": {
+      "title": "Help & documentation"
+    },
+    "comingSoon": {
+      "description": "This section will be available soon."
+    }
+  },
   "settings": {
     "nav": {
       "fixedDates": "Fixed dates"
@@ -2931,8 +2812,17 @@
       "saveErrorFallback": "Could not save department"
     },
     "globalSearch": {
-      "placeholderDefault": "Search… (material:, activity:, reparatur:)",
+      "placeholderDefault": "Search materials, activities, repairs (optional material:, aktivität:, reparatur:)",
       "loadingSuggestions": "Searching…",
+      "loadingResults": "Loading search results…",
+      "showAllResults": "Show all results",
+      "pageTitle": "Search",
+      "subtitleWithQuery": "Results for “{q}”",
+      "subtitleEmpty": "Enter a search term (at least 2 characters).",
+      "hintTitle": "Global search",
+      "hintDescription": "Search materials, activities, or repairs from the header or here. Press Enter or “Show all results” for this overview.",
+      "noResultsTitle": "No results",
+      "noResultsDescription": "No matches found for “{q}”.",
       "typeActivity": "Activity",
       "typeRepair": "Repair"
     },
@@ -4490,7 +4380,7 @@
     "createTitle": "New workshop ticket",
     "createTitleLabel": "Title *",
     "createTitlePlaceholder": "e.g. tent pole broken",
-    "createSearchPlaceholder": "Search material (min. 2 characters)…",
+    "createSearchPlaceholder": "Search material (name, barcode, serial no.)…",
     "createSearching": "Searching…",
     "createNoMatches": "No matches for “{query}”",
     "createChangeMaterialTitle": "Change material",

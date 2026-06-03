@@ -9,12 +9,17 @@ use App\Entity\AccountingCostCenter;
 use App\Entity\Department;
 use App\Entity\Group;
 use App\Entity\MaterialItem;
+use App\Service\Accounting\AccountingBookingReceiptStorageService;
+use App\Service\Accounting\AccountingBookingSourceService;
 use App\Service\InboxMessageService;
+use App\Service\Media\MediaPhotoNormalizer;
 use App\Util\IdGenerator;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 use Symfony\Component\Routing\Annotation\Route;
 use Symfony\Component\Security\Http\Attribute\IsGranted;
 use Doctrine\DBAL\ParameterType;
@@ -27,6 +32,9 @@ class AccountingBookingController extends AbstractController
     public function __construct(
         private EntityManagerInterface $entityManager,
         private InboxMessageService $inboxMessages,
+        private AccountingBookingSourceService $bookingSource,
+        private AccountingBookingReceiptStorageService $receiptStorage,
+        private MediaPhotoNormalizer $photoNormalizer,
     ) {
     }
 
@@ -66,12 +74,92 @@ class AccountingBookingController extends AbstractController
 
         $rows = $qb->getQuery()->getResult();
 
+        $sourceMap = $this->bookingSource->sourceMapForBookings($rows);
+
         $out = [];
         foreach ($rows as $b) {
-            $out[] = $this->serialize($b);
+            $out[] = $this->serialize($b, $sourceMap[$b->getId() ?? ''] ?? null);
         }
 
         return new JsonResponse($out);
+    }
+
+    #[Route('/export', name: 'export', methods: ['GET'])]
+    #[IsGranted('ROLE_USER')]
+    public function export(string $departmentId, Request $request): Response
+    {
+        $deny = $this->assertAccountingMwOrDc($this->entityManager, $departmentId);
+        if ($deny instanceof JsonResponse) {
+            return $deny;
+        }
+
+        $yearParam = trim((string) $request->query->get('year', ''));
+        if ($yearParam === '' || !preg_match('/^\d{4}$/', $yearParam)) {
+            return new JsonResponse(['error' => 'Query year (YYYY) erforderlich'], 400);
+        }
+        $year = (int) $yearParam;
+
+        $deptRef = $this->entityManager->getReference(Department::class, $departmentId);
+        $qb = $this->entityManager->createQueryBuilder()
+            ->select('b')
+            ->from(AccountingBooking::class, 'b')
+            ->innerJoin('b.costCenter', 'cc')
+            ->leftJoin('b.group', 'g')
+            ->where('b.department = :d')
+            ->andWhere('b.bookedAt >= :yStart AND b.bookedAt <= :yEnd')
+            ->setParameter('d', $deptRef)
+            ->setParameter('yStart', new \DateTimeImmutable($year.'-01-01'))
+            ->setParameter('yEnd', new \DateTimeImmutable($year.'-12-31'))
+            ->orderBy('b.bookedAt', 'ASC')
+            ->addOrderBy('b.id', 'ASC');
+
+        $rows = $qb->getQuery()->getResult();
+        $sourceMap = $this->bookingSource->sourceMapForBookings($rows);
+
+        $filename = sprintf('buchungen-%s-%d.csv', $departmentId, $year);
+
+        return new StreamedResponse(function () use ($rows, $sourceMap, $year): void {
+            $out = fopen('php://output', 'w');
+            if ($out === false) {
+                return;
+            }
+            fwrite($out, "\xEF\xBB\xBF");
+            fputcsv($out, [
+                'ID', 'Datum', 'Betrag CHF', 'Typ', 'Zahlungsart', 'Zahlungsstatus',
+                'Kostenstelle', 'Kontocode', 'Gruppe', 'Material', 'Beleg', 'Notizen',
+                'Quelle', 'Aktivität-ID', 'Batch-ID',
+            ], ';');
+            foreach ($rows as $b) {
+                if (!$b instanceof AccountingBooking) {
+                    continue;
+                }
+                $src = $sourceMap[$b->getId() ?? ''] ?? null;
+                $cc = $b->getCostCenter();
+                $g = $b->getGroup();
+                $mi = $b->getMaterialItem();
+                fputcsv($out, [
+                    $b->getId(),
+                    $b->getBookedAt()->format('Y-m-d'),
+                    $b->getAmount(),
+                    $b->getEntryType(),
+                    $b->getPaymentMethod() ?? '',
+                    $b->getPaymentStatus(),
+                    $cc->getName(),
+                    $cc->getAccountCode() ?? '',
+                    $g?->getName() ?? '',
+                    $mi?->getName() ?? '',
+                    $b->getReceiptLabel() ?? '',
+                    $b->getNotes() ?? '',
+                    is_array($src) ? ($src['source_kind'] ?? '') : '',
+                    is_array($src) ? ($src['activity_id'] ?? '') : '',
+                    is_array($src) ? ($src['material_batch_id'] ?? '') : '',
+                ], ';');
+            }
+            fclose($out);
+        }, 200, [
+            'Content-Type' => 'text/csv; charset=UTF-8',
+            'Content-Disposition' => 'attachment; filename="'.$filename.'"',
+        ]);
     }
 
     /**
@@ -154,6 +242,11 @@ class AccountingBookingController extends AbstractController
         $booking->setBookedAt($bookedAt);
         $booking->setEntryType($parse['entryType']);
         $booking->setPaymentMethod($parse['paymentMethod']);
+        $paymentStatus = $parse['paymentStatus'];
+        if (($data['payment_status'] ?? '') === '' && $followUp !== null) {
+            $paymentStatus = $this->defaultPaymentStatusForFollowUp($followUp);
+        }
+        $booking->setPaymentStatus($paymentStatus);
         $booking->setGroup($parse['group']);
         $booking->setReceiptLabel($parse['receiptLabel']);
         $booking->setNotes($parse['notes']);
@@ -185,7 +278,23 @@ class AccountingBookingController extends AbstractController
             }
         }
 
-        return new JsonResponse($this->serialize($booking), 201);
+        return new JsonResponse($this->serialize($booking, $this->sourceForBooking($booking)), 201);
+    }
+
+    private function defaultPaymentStatusForFollowUp(?AccountingAcquisitionFollowUp $followUp): string
+    {
+        if ($followUp === null) {
+            return AccountingBooking::PAYMENT_STATUS_PAID;
+        }
+        $activity = $followUp->getActivity();
+        if ($activity !== null && $activity->getType() === 'external') {
+            return AccountingBooking::PAYMENT_STATUS_OPEN;
+        }
+        if ($followUp->getSourceKind() === AccountingAcquisitionFollowUp::SOURCE_ACTIVITY_RENTAL) {
+            return AccountingBooking::PAYMENT_STATUS_OPEN;
+        }
+
+        return AccountingBooking::PAYMENT_STATUS_PAID;
     }
 
     /**
@@ -242,6 +351,13 @@ class AccountingBookingController extends AbstractController
             }
             $booking->setPaymentMethod($pm);
         }
+        if (array_key_exists('payment_status', $data)) {
+            $ps = $this->normalizePaymentStatus($data['payment_status']);
+            if ($ps === null) {
+                return new JsonResponse(['error' => 'Ungültiger Zahlungsstatus'], 400);
+            }
+            $booking->setPaymentStatus($ps);
+        }
         if (array_key_exists('group_id', $data)) {
             $g = $this->resolveGroup($data['group_id'], $departmentId);
             if ($g instanceof JsonResponse) {
@@ -273,7 +389,15 @@ class AccountingBookingController extends AbstractController
         $booking->touchUpdatedAt();
         $this->entityManager->flush();
 
-        return new JsonResponse($this->serialize($booking));
+        return new JsonResponse($this->serialize($booking, $this->sourceForBooking($booking)));
+    }
+
+    private function sourceForBooking(AccountingBooking $booking): ?array
+    {
+        $map = $this->bookingSource->sourceMapForBookings([$booking]);
+        $id = $booking->getId();
+
+        return ($id !== null && isset($map[$id])) ? $map[$id] : null;
     }
 
     #[Route('/{id}', name: 'delete', methods: ['DELETE'])]
@@ -290,6 +414,7 @@ class AccountingBookingController extends AbstractController
             return new JsonResponse(['error' => 'Buchung nicht gefunden'], 404);
         }
 
+        $this->receiptStorage->deleteAllForBooking($booking);
         $this->entityManager->remove($booking);
         $this->entityManager->flush();
 
@@ -335,12 +460,22 @@ class AccountingBookingController extends AbstractController
         $receipt = isset($data['receipt_label']) ? trim((string) $data['receipt_label']) : '';
         $notes = isset($data['notes']) ? trim((string) $data['notes']) : '';
 
+        $paymentStatusRaw = $data['payment_status'] ?? null;
+        $paymentStatus = $this->normalizePaymentStatus($paymentStatusRaw);
+        if ($paymentStatusRaw !== null && $paymentStatusRaw !== '' && $paymentStatus === null) {
+            return new JsonResponse(['error' => 'Ungültiger Zahlungsstatus'], 400);
+        }
+        if ($paymentStatus === null) {
+            $paymentStatus = AccountingBooking::PAYMENT_STATUS_PAID;
+        }
+
         return [
             'costCenter' => $cc,
             'bookedAt' => $bookedAt,
             'amount' => $amount,
             'entryType' => $entryType,
             'paymentMethod' => $paymentMethod,
+            'paymentStatus' => $paymentStatus,
             'group' => $group,
             'receiptLabel' => $receipt === '' ? null : mb_substr($receipt, 0, 255),
             'notes' => $notes === '' ? null : $notes,
@@ -398,6 +533,19 @@ class AccountingBookingController extends AbstractController
         return $v;
     }
 
+    private function normalizePaymentStatus(mixed $value): ?string
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+        $v = (string) $value;
+        if (!in_array($v, AccountingBooking::PAYMENT_STATUSES, true)) {
+            return null;
+        }
+
+        return $v;
+    }
+
     private function resolveCostCenter(string $id, string $departmentId): AccountingCostCenter|JsonResponse
     {
         if ($id === '') {
@@ -443,18 +591,22 @@ class AccountingBookingController extends AbstractController
     }
 
     /**
+     * @param array<string, mixed>|null $source
+     *
      * @return array<string, mixed>
      */
-    private function serialize(AccountingBooking $b): array
+    private function serialize(AccountingBooking $b, ?array $source = null): array
     {
         $g = $b->getGroup();
         $mi = $b->getMaterialItem();
+        $cc = $b->getCostCenter();
 
-        return [
+        $payload = [
             'id' => $b->getId(),
             'department_id' => $b->getDepartment()->getId(),
-            'cost_center_id' => $b->getCostCenter()->getId(),
-            'cost_center_name' => $b->getCostCenter()->getName(),
+            'cost_center_id' => $cc->getId(),
+            'cost_center_name' => $cc->getName(),
+            'cost_center_account_code' => $cc->getAccountCode(),
             'material_item_id' => $mi?->getId(),
             'material_name' => $mi?->getName(),
             'group_id' => $g?->getId(),
@@ -463,10 +615,19 @@ class AccountingBookingController extends AbstractController
             'booked_at' => $b->getBookedAt()->format('Y-m-d'),
             'entry_type' => $b->getEntryType(),
             'payment_method' => $b->getPaymentMethod(),
+            'payment_status' => $b->getPaymentStatus(),
             'receipt_label' => $b->getReceiptLabel(),
             'notes' => $b->getNotes(),
             'created_at' => $b->getCreatedAt()->format('c'),
             'updated_at' => $b->getUpdatedAt()->format('c'),
         ];
+
+        if ($source !== null) {
+            $payload['source'] = $source;
+        }
+
+        $payload['receipts'] = $this->photoNormalizer->normalizeOutgoing($b->getReceipts());
+
+        return $payload;
     }
 }

@@ -9,7 +9,6 @@ import PackRetourAccountingStack from '@/components/activities/PackRetourAccount
 import PackContainerLineIssueQuick from '@/components/activities/PackContainerLineIssueQuick.vue'
 import PackUnpackStoreControls from '@/components/activities/PackUnpackStoreControls.vue'
 import PackUnpackUnstoreControls from '@/components/activities/PackUnpackUnstoreControls.vue'
-import IconArrowRight from '@/components/icons/IconArrowRight.vue'
 import { EButton } from '@/components/form/base'
 import { injectPackCtxBool, PACK_WAREHOUSE_ISSUE_INJECT_KEY } from '@/components/activities/packWarehouseIssueInjectKey'
 import type { PackRetourAccounting } from '@/components/activities/packNotTakenHelpers'
@@ -331,7 +330,7 @@ function commitPhysicalComboWhole(): void {
           :title="t('activities.packList.storeWholeCrateTitle')"
           @click="commitPhysicalComboWhole"
         >
-          <IconArrowRight />
+          <v-icon icon="mdi-arrow-right" size="12" />
         </button>
       </div>
     </div>

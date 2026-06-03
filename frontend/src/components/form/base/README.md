@@ -53,6 +53,6 @@ Aus `brand-tokens.css` / `auto-save-field.css`:
 3. AutoSave (Phase 3): Shell behält Label, innen `ETextField`
 4. Alte `.form-input` / `outlined-field.css` bleiben in **nicht migrierten** Views bis Umstellung
 
-## Sandbox
+## Referenz
 
-Dev-Host: `/{departmentId}/dev/ui-playground` — Abschnitt **E*-Komponenten**
+Produktive Beispiele: migrierte Views (z. B. Kontakte, Material-Liste, Settings) und [vuetify-standards.md](../../../../docs/ui/vuetify-standards.md).

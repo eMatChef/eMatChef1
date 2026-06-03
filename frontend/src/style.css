@@ -30,6 +30,7 @@
 @import './styles/ui/material-source-badges.css';
 @import './styles/ui/activity-inline-loading.css';
 @import './styles/ui/tables.css';
+@import './styles/components/material-batch-data-table.css';
 
 @tailwind base;
 @tailwind components;

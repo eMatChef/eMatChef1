@@ -24,6 +24,7 @@
       </template>
 
       <template v-if="!isUserMaterialsBrowseOnly" #filters>
+        <div class="materials-view-filters-stack">
         <v-tabs
           :model-value="activeTab"
           class="materials-view-tabs"
@@ -33,7 +34,7 @@
           <v-tab v-for="tab in materialListTabs" :key="tab.id" :value="tab.id">
             <v-icon v-if="tab.icon" :icon="tab.icon" start size="18" />
             {{ tab.label }}
-            <v-chip v-if="tab.count != null" size="x-small" variant="tonal" class="materials-view-tab-count">
+            <v-chip v-if="tab.count != null" size="x-small" variant="tonal" color="primary" class="materials-view-tab-count">
               {{ tab.count }}
             </v-chip>
           </v-tab>
@@ -90,6 +91,7 @@
             </EButton>
           </v-col>
         </EFilterRow>
+        </div>
       </template>
 
       <div class="materials-view-content">
@@ -277,6 +279,7 @@ import { useAuthStore } from '@/stores/auth'
 import { isDepartmentBasicMemberRole } from '@/composables/useDepartmentMemberRole'
 import { isComboMaterial as isComboMaterialType } from '@/utils/comboDisplay'
 import '@/styles/material-wizard.css'
+import '@/styles/views/materials-view-tabs.css'
 
 /** Überlebt Tab-Remounts (router-view :key="route.path") — gleiche Daten, kein Hard-Spinner. */
 const materialsListCache = new Map<string, { materials: Material[]; categories: Category[] }>()
@@ -927,24 +930,6 @@ onMounted(() => {
 
 <style scoped src="@/styles/materials-view.css"></style>
 <style scoped>
-.materials-view-tabs {
-  margin-bottom: 8px;
-}
-
-.materials-view-tabs :deep(.v-tab) {
-  text-transform: none;
-  font-weight: 500;
-  letter-spacing: normal;
-}
-
-.materials-view-tab-count {
-  margin-inline-start: 6px;
-}
-
-.materials-view-filters {
-  margin-top: 4px;
-}
-
 .materials-view-composition-intro {
   margin: 0 0 12px;
   line-height: 1.45;

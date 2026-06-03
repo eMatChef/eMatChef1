@@ -117,6 +117,15 @@
   transition: all 0.2s;
 }
 
+.icon-btn .mdi-spin {
+  animation: mdi-spin 1s linear infinite;
+}
+
+@keyframes mdi-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
 .icon-btn:hover {
   background: #f3f4f6;
   color: #374151;
