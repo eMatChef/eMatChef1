@@ -88,19 +88,46 @@ fix_backend_var_permissions() {
     sh -c "chown -R ${HOST_UID}:${HOST_GID} /var && chmod -R u+rwX /var"
 }
 
-reset_symfony_prod_cache() {
+# Develop/Prod-Override setzen oft security_opt: no-new-privileges — exec -u 0 scheitert dann.
+# Cache daher bevorzugt auf dem Host (bind mount), nicht per root im laufenden Container.
+clear_symfony_prod_cache_dir() {
+  local cache_dir="${ROOT}/backend/var/cache/prod"
   echo "==> Symfony prod cache leeren …"
-  if docker compose -p "$PROJECT" exec -T backend rm -rf var/cache/prod 2>/dev/null; then
-    :
-  else
-    echo "==> var/cache/prod: rm im Container als root …"
-    docker compose -p "$PROJECT" exec -T -u 0 backend sh -ec "
-      rm -rf var/cache/prod
-      mkdir -p var/cache var/log var/app
-      chown -R ${HOST_UID}:${HOST_GID} var
-      chmod -R u+rwX var
-    "
+  fix_backend_var_permissions
+  if [[ -e "$cache_dir" ]]; then
+    if ! rm -rf "$cache_dir" 2>/dev/null; then
+      echo "==> var/cache/prod: rm per Docker (root) auf dem Host-Volume …"
+      docker run --rm -u 0 \
+        -v "${ROOT}/backend/var:/var" \
+        alpine:3.20 \
+        sh -c "rm -rf /var/cache/prod"
+      fix_backend_var_permissions
+    fi
   fi
+}
+
+wait_for_backend_ready() {
+  local waited=0
+  local max_wait="${EMATCHEF_BACKEND_READY_TIMEOUT:-300}"
+  echo "==> Warten auf Backend (Composer/Migrationen im Entrypoint) …"
+  while (( waited < max_wait )); do
+    if docker compose -p "$PROJECT" ps --status running --services backend 2>/dev/null | grep -qx backend; then
+      if docker compose -p "$PROJECT" exec -T backend php bin/console about --env=prod >/dev/null 2>&1; then
+        echo "==> Backend bereit (${waited}s)."
+        return 0
+      fi
+    fi
+    sleep 2
+    waited=$((waited + 2))
+  done
+  echo "Fehler: Backend nach ${max_wait}s nicht bereit (Entrypoint/Composer?)." >&2
+  docker compose -p "$PROJECT" logs backend --tail 80 >&2 || true
+  return 1
+}
+
+reset_symfony_prod_cache() {
+  clear_symfony_prod_cache_dir
+  wait_for_backend_ready
   docker compose -p "$PROJECT" exec -T backend php bin/console cache:warmup --env=prod
 }
 
@@ -117,11 +144,13 @@ fi
 
 fix_backend_var_permissions
 
-# Nach git reset: Migrationen + DI-Container neu bauen
-if docker compose -p "$PROJECT" ps --status running backend 2>/dev/null | grep -q backend; then
+# Nach git reset: auf Entrypoint warten, dann Migrationen + Prod-Cache
+if wait_for_backend_ready; then
   echo "==> Doctrine-Migrationen …"
   docker compose -p "$PROJECT" exec -T backend php bin/console doctrine:migrations:migrate --no-interaction --env=prod
   reset_symfony_prod_cache
+else
+  exit 1
 fi
 
 echo ""
