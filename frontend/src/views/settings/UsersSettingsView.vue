@@ -6,14 +6,10 @@
         <h2 class="settings-title">{{ t('settings.departmentUsers.title') }}</h2>
         <p class="settings-description">{{ t('settings.departmentUsers.subtitle') }}</p>
       </div>
-      <button class="btn btn-primary" @click="openAddModal()">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
-          <circle cx="8.5" cy="7" r="4"/>
-          <line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/>
-        </svg>
+      <EButton variant="primary" @click="openAddModal()">
+        <v-icon icon="mdi-account-plus" start size="20" />
         {{ t('settings.departmentUsers.addUser') }}
-      </button>
+      </EButton>
     </div>
 
     <!-- Stats Bar -->
@@ -35,7 +31,7 @@
     <!-- Search -->
     <div v-if="!isLoading && members.length > 3" class="search-bar">
       <div class="search-box">
-        <SearchFieldInput
+        <ESearchField
           v-model="searchQuery"
           :label="t('settings.departmentUsers.searchPlaceholder')"
         />
@@ -78,20 +74,13 @@
               {{ t('settings.departmentUsers.inviteAcceptedAt', { date: formatInviteDate(invite.accepted_at) }) }}
             </span>
           </div>
-          <button
-            v-if="isInviteOpen(invite)"
-            class="btn btn-secondary btn-sm"
+          <EButton
+            variant="secondary"
+            size="small"
             @click.stop="removePendingInviteItem(invite.id)"
           >
-            {{ t('common.delete') }}
-          </button>
-          <button
-            v-else
-            class="btn btn-secondary btn-sm"
-            @click.stop="removePendingInviteItem(invite.id)"
-          >
-            {{ t('settings.departmentUsers.inviteDismiss') }}
-          </button>
+            {{ isInviteOpen(invite) ? t('common.delete') : t('settings.departmentUsers.inviteDismiss') }}
+          </EButton>
         </li>
       </ul>
       <p v-else class="pending-muted">{{ t('settings.departmentUsers.pendingNone') }}</p>
@@ -112,43 +101,40 @@
             <p v-if="jr.message" class="pending-join-message">{{ t('settings.departmentUsers.pendingJoinMessage', { text: jr.message }) }}</p>
           </div>
           <div class="pending-join-actions">
-            <button class="btn btn-primary btn-sm" type="button" @click="decidePendingJoin(jr.id, 'approved')">
+            <EButton variant="primary" size="small" type="button" @click="decidePendingJoin(jr.id, 'approved')">
               {{ t('settings.departmentUsers.pendingJoinApprove') }}
-            </button>
-            <button class="btn btn-secondary btn-sm" type="button" @click="decidePendingJoin(jr.id, 'rejected')">
+            </EButton>
+            <EButton variant="secondary" size="small" type="button" @click="decidePendingJoin(jr.id, 'rejected')">
               {{ t('settings.departmentUsers.pendingJoinReject') }}
-            </button>
+            </EButton>
           </div>
         </li>
       </ul>
       <p v-else class="pending-muted">{{ t('settings.departmentUsers.pendingJoinRequestsNone') }}</p>
     </div>
 
-    <!-- Loading -->
-    <div v-if="isLoading" class="loading-state">
-      <div class="spinner"></div>
-      <p>{{ t('settings.departmentUsers.loading') }}</p>
+    <ELoadingState
+      v-if="isLoading"
+      variant="table"
+      :rows="6"
+      :message="t('settings.departmentUsers.loading')"
+    />
+
+    <div v-else-if="error" class="users-settings-error">
+      <v-alert type="error" variant="tonal" :text="error" />
+      <EButton variant="secondary" class="mt-3" @click="loadMembers">{{ t('common.retry') }}</EButton>
     </div>
 
-    <!-- Error -->
-    <div v-else-if="error" class="error-state">
-      <p class="error-message">{{ error }}</p>
-      <button @click="loadMembers" class="btn btn-secondary">{{ t('common.retry') }}</button>
-    </div>
-
-    <!-- Empty State -->
-    <div v-else-if="members.length === 0" class="empty-state">
-      <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="#d1d5db" stroke-width="1.5">
-        <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
-        <circle cx="8.5" cy="7" r="4"/>
-        <line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/>
-      </svg>
-      <h3>{{ t('settings.departmentUsers.emptyTitle') }}</h3>
-      <p>{{ t('settings.departmentUsers.emptyText') }}</p>
-      <button class="btn btn-primary" @click="openAddModal()">
-        {{ t('settings.departmentUsers.emptyCta') }}
-      </button>
-    </div>
+    <EEmptyState
+      v-else-if="members.length === 0"
+      variant="create"
+      :title="t('settings.departmentUsers.emptyTitle')"
+      :description="t('settings.departmentUsers.emptyText')"
+    >
+      <template #actions>
+        <EButton @click="openAddModal()">{{ t('settings.departmentUsers.emptyCta') }}</EButton>
+      </template>
+    </EEmptyState>
 
     <!-- Users Table -->
     <div v-else class="table-wrapper">
@@ -239,22 +225,13 @@
       </table>
     </div>
 
-    <!-- ======================================== -->
-    <!-- MODAL: Benutzer hinzufügen               -->
-    <!-- ======================================== -->
-    <Teleport to="body">
-      <div v-if="showAddModal" class="modal-overlay">
-        <div class="modal-container modal-sm modal-add-user modal-add-user-wide">
-          <div class="modal-header">
-            <h3>{{ t('settings.departmentUsers.modalAddTitle') }}</h3>
-            <button class="close-btn" @click="closeAddModal">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-              </svg>
-            </button>
-          </div>
-
-          <div class="modal-body add-user-modal-body">
+    <EDialog
+      v-model="showAddModal"
+      :max-width="640"
+      :title="t('settings.departmentUsers.modalAddTitle')"
+      card-class="modal-add-user modal-add-user-wide"
+    >
+      <div class="add-user-modal-body">
             <p
               v-if="!isLoadingAvailable && availableUsers.length === 0 && userSearchQuery.trim().length < 3"
               class="no-users-hint"
@@ -378,77 +355,66 @@
                 </div>
               </div>
             </template>
-          </div>
-
-          <div class="modal-footer">
-            <button class="btn btn-secondary" @click="closeAddModal">{{ t('common.cancel') }}</button>
-            <button
-              v-if="showInviteByEmail"
-              class="btn btn-primary"
-              :disabled="!isInviteEmailValid || isSendingInvite"
-              @click="sendEmailInvite"
-            >
-              {{ isSendingInvite ? t('settings.departmentUsers.sendingInvite') : t('settings.departmentUsers.sendInvite') }}
-            </button>
-            <button
-              v-else
-              class="btn btn-primary"
-              :disabled="!addForm.user_id || isSaving"
-              @click="handleAdd"
-            >
-              {{ isSaving ? t('settings.departmentUsers.sendingInvite') : t('settings.departmentUsers.sendInvite') }}
-            </button>
-          </div>
-        </div>
       </div>
-    </Teleport>
+      <template #actions>
+        <EButton variant="secondary" size="small" @click="closeAddModal">{{ t('common.cancel') }}</EButton>
+        <EButton
+          v-if="showInviteByEmail"
+          variant="primary"
+          size="small"
+          :disabled="!isInviteEmailValid || isSendingInvite"
+          :loading="isSendingInvite"
+          @click="sendEmailInvite"
+        >
+          {{ isSendingInvite ? t('settings.departmentUsers.sendingInvite') : t('settings.departmentUsers.sendInvite') }}
+        </EButton>
+        <EButton
+          v-else
+          variant="primary"
+          size="small"
+          :disabled="!addForm.user_id || isSaving"
+          :loading="isSaving"
+          @click="handleAdd"
+        >
+          {{ isSaving ? t('settings.departmentUsers.sendingInvite') : t('settings.departmentUsers.sendInvite') }}
+        </EButton>
+      </template>
+    </EDialog>
 
-    <!-- ======================================== -->
-    <!-- MODAL: Rolle bearbeiten                  -->
-    <!-- ======================================== -->
-    <Teleport to="body">
-      <div v-if="showEditModal && editingMember" class="modal-overlay">
-        <div class="modal-container modal-sm">
-          <div class="modal-header">
-            <h3>{{ t('settings.departmentUsers.modalEditTitle', { name: editingMember.name }) }}</h3>
-            <button class="close-btn" @click="closeEditModal">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-              </svg>
-            </button>
-          </div>
-
-          <div class="modal-body">
-            <div class="form-group">
-              <label>{{ t('common.role') }}</label>
-              <select v-model="editForm.role" class="form-select">
-                <option v-for="(cfg, key) in assignableRoles" :key="key" :value="key">
-                  {{ cfg.short }} – {{ getRoleLabel(String(key)) }}
-                </option>
-              </select>
-            </div>
-
-            <div class="form-group">
-              <label class="checkbox-label">
-                <input type="checkbox" v-model="editForm.is_primary" />
-                {{ t('settings.departmentUsers.primaryDepartment') }}
-              </label>
-            </div>
-          </div>
-
-          <div class="modal-footer">
-            <button class="btn btn-secondary" @click="closeEditModal">{{ t('common.cancel') }}</button>
-            <button 
-              class="btn btn-primary" 
-              :disabled="isSaving"
-              @click="handleUpdate"
-            >
-              {{ isSaving ? t('settings.departmentUsers.saving') : t('common.save') }}
-            </button>
-          </div>
+    <EDialog
+      v-model="showEditModal"
+      :max-width="480"
+      :title="editingMember ? t('settings.departmentUsers.modalEditTitle', { name: editingMember.name }) : ''"
+    >
+      <template v-if="editingMember">
+        <div class="form-group">
+          <label>{{ t('common.role') }}</label>
+          <ESelect
+            v-model="editForm.role"
+            :items="editRoleSelectItems"
+            hide-details
+          />
         </div>
-      </div>
-    </Teleport>
+        <ECheckbox
+          v-model="editForm.is_primary"
+          class="mt-3"
+          :label="t('settings.departmentUsers.primaryDepartment')"
+          hide-details
+        />
+      </template>
+      <template #actions>
+        <EButton variant="secondary" size="small" @click="closeEditModal">{{ t('common.cancel') }}</EButton>
+        <EButton
+          variant="primary"
+          size="small"
+          :disabled="isSaving"
+          :loading="isSaving"
+          @click="handleUpdate"
+        >
+          {{ isSaving ? t('settings.departmentUsers.saving') : t('common.save') }}
+        </EButton>
+      </template>
+    </EDialog>
   </div>
 </template>
 
@@ -458,7 +424,9 @@ import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useToast } from '@/composables/useToast'
-import SearchFieldInput from '@/components/common/SearchFieldInput.vue'
+import ELoadingState from '@/components/layout/ELoadingState.vue'
+import EEmptyState from '@/components/layout/EEmptyState.vue'
+import { EButton, EDialog, ESearchField, ESelect, ECheckbox } from '@/components/form/base'
 import { useConfirm } from '@/composables/useConfirm'
 import {
   createPendingInvite,
@@ -539,6 +507,13 @@ const assignableRoles = computed(() => {
 
   return result
 })
+
+const editRoleSelectItems = computed(() =>
+  Object.entries(assignableRoles.value).map(([key, cfg]) => ({
+    title: `${cfg?.short ?? key} – ${getRoleLabel(key)}`,
+    value: key,
+  })),
+)
 
 function getRoleColor(role: string): string {
   return DEPT_ROLES[role as DeptRoleKey]?.color || '#6b7280'
@@ -1022,6 +997,10 @@ onUnmounted(() => {
 /* ========================================
    Layout & Header
    ======================================== */
+.users-settings-error {
+  margin-top: 8px;
+}
+
 .users-settings {
   padding: 0;
 }

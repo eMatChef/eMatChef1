@@ -9,22 +9,31 @@
 
     <div class="toolbar">
       <div class="search-box">
-        <SearchFieldInput
+        <ESearchField
           v-model="searchQuery"
           :label="t('settings.adminUsers.searchPlaceholder')"
         />
       </div>
-      <button class="btn btn-secondary" @click="loadUsers" :disabled="isLoading">
+      <EButton variant="secondary" :loading="isLoading" @click="loadUsers">
         {{ isLoading ? t('settings.adminUsers.loadingShort') : t('common.refresh') }}
-      </button>
+      </EButton>
     </div>
 
-    <div v-if="isLoading" class="state-card">{{ t('settings.adminUsers.loading') }}</div>
-    <div v-else-if="error" class="state-card state-error">
-      <p>{{ error }}</p>
-      <button class="btn btn-secondary" @click="loadUsers">{{ t('common.retry') }}</button>
+    <ELoadingState
+      v-if="isLoading"
+      variant="table"
+      :rows="6"
+      :message="t('settings.adminUsers.loading')"
+    />
+    <div v-else-if="error" class="error-block">
+      <v-alert type="error" variant="tonal" :text="error" />
+      <EButton variant="secondary" class="mt-3" @click="loadUsers">{{ t('common.retry') }}</EButton>
     </div>
-    <div v-else-if="filteredUsers.length === 0" class="state-card">{{ t('settings.adminUsers.empty') }}</div>
+    <EEmptyState
+      v-else-if="filteredUsers.length === 0"
+      variant="search"
+      :title="t('settings.adminUsers.empty')"
+    />
 
     <div v-else class="table-wrapper">
       <table class="users-table">
@@ -54,109 +63,122 @@
             <td>{{ formatDate(user.created_at) }}</td>
             <td class="dept-col">{{ user.departments_count }}</td>
             <td class="actions-col">
-              <button class="icon-btn" :title="t('common.edit')" @click="openEditModal(user.id)">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-                  <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
-                </svg>
-              </button>
+              <EButton
+                variant="text"
+                size="small"
+                :title="t('common.edit')"
+                @click="openEditModal(user.id)"
+              >
+                <v-icon icon="mdi-pencil-outline" size="18" />
+              </EButton>
             </td>
           </tr>
         </tbody>
       </table>
     </div>
 
-    <Teleport to="body">
-      <div v-if="showEditModal && editForm" class="modal-overlay">
-        <div class="modal-container">
-          <div class="modal-header">
-            <h3>{{ t('settings.adminUsers.editUserTitle', { name: editForm.display_name }) }}</h3>
-            <button class="close-btn" @click="closeEditModal">×</button>
-          </div>
-
-          <div class="modal-body">
-            <div class="form-grid">
-              <div class="form-group">
-                <label>{{ t('settings.adminUsers.fields.firstName') }}</label>
-                <input v-model="editForm.first_name" class="form-input" type="text" />
-              </div>
-              <div class="form-group">
-                <label>{{ t('settings.adminUsers.fields.lastName') }}</label>
-                <input v-model="editForm.last_name" class="form-input" type="text" />
-              </div>
-              <div class="form-group">
-                <label>{{ t('settings.adminUsers.fields.nickname') }}</label>
-                <input v-model="editForm.nickname" class="form-input" type="text" />
-              </div>
-              <div class="form-group">
-                <label>{{ t('settings.adminUsers.fields.email') }}</label>
-                <input v-model="editForm.email" class="form-input" type="email" />
-              </div>
-              <div class="form-group">
-                <label>{{ t('common.status') }}</label>
-                <select v-model="editForm.state" class="form-select">
-                  <option value="active">active</option>
-                  <option value="inactive">inactive</option>
-                  <option value="disabled">disabled</option>
-                </select>
-              </div>
-            </div>
-
-            <p v-if="isSuperAdminEditor" class="inline-hint admin-users-hint">
-              {{ t('settings.adminUsers.globalRolesMovedHint') }}
-              <router-link to="/admin-dashboard/verwaltung/global-admin-roles">
-                {{ t('settings.adminUsers.globalRolesMovedLink') }}
-              </router-link>
-            </p>
-
-            <div class="membership-headline">
-              <h4>{{ t('settings.adminUsers.membershipsTitle') }}</h4>
-              <button class="btn btn-secondary btn-sm" @click="addMembershipRow">{{ t('settings.adminUsers.addDepartment') }}</button>
-            </div>
-
-            <div v-if="editForm.memberships.length === 0" class="inline-hint">
-              {{ t('settings.adminUsers.noDepartment') }}
-            </div>
-
-            <div v-for="(membership, index) in editForm.memberships" :key="membership.local_id" class="membership-row">
-              <DepartmentMembershipPicker
-                v-model="membership.department_id"
-                :departments="manageableDepartments"
-                :organisation-name-by-id="organisationNameById"
-                :excluded-department-ids="excludedDepartmentIdsFor(index)"
-                :auto-focus="membershipFocusId === membership.local_id"
-              />
-
-              <select v-model="membership.role" class="form-select role-select">
-                <option v-for="role in roleOptions" :key="role.value" :value="role.value">
-                  {{ role.label }}
-                </option>
-              </select>
-
-              <label class="primary-checkbox">
-                <input
-                  type="checkbox"
-                  :checked="membership.is_primary"
-                  @change="setPrimaryMembership(index)"
-                />
-                {{ t('settings.adminUsers.primary') }}
-              </label>
-
-              <button class="icon-btn icon-btn-danger" :title="t('settings.adminUsers.removeDepartment')" @click="removeMembershipRow(index)">
-                ×
-              </button>
-            </div>
-          </div>
-
-          <div class="modal-footer">
-            <button class="btn btn-secondary" @click="closeEditModal">{{ t('common.cancel') }}</button>
-            <button class="btn btn-primary" @click="saveUser" :disabled="isSaving || !canSave">
-              {{ isSaving ? t('settings.adminUsers.saving') : t('common.save') }}
-            </button>
-          </div>
+    <EDialog
+      v-model="showEditModal"
+      :max-width="920"
+      :title="editForm ? t('settings.adminUsers.editUserTitle', { name: editForm.display_name }) : ''"
+      scrollable
+      persistent
+    >
+      <template v-if="editForm">
+        <div class="form-grid">
+          <ETextField
+            v-model="editForm.first_name"
+            :label="t('settings.adminUsers.fields.firstName')"
+            hide-details="auto"
+          />
+          <ETextField
+            v-model="editForm.last_name"
+            :label="t('settings.adminUsers.fields.lastName')"
+            hide-details="auto"
+          />
+          <ETextField
+            v-model="editForm.nickname"
+            :label="t('settings.adminUsers.fields.nickname')"
+            hide-details="auto"
+          />
+          <ETextField
+            v-model="editForm.email"
+            :label="t('settings.adminUsers.fields.email')"
+            type="email"
+            hide-details="auto"
+          />
+          <ESelect
+            v-model="editForm.state"
+            :label="t('common.status')"
+            :items="stateSelectItems"
+            hide-details="auto"
+          />
         </div>
-      </div>
-    </Teleport>
+
+        <p v-if="isSuperAdminEditor" class="inline-hint admin-users-hint">
+          {{ t('settings.adminUsers.globalRolesMovedHint') }}
+          <router-link to="/admin-dashboard/verwaltung/global-admin-roles">
+            {{ t('settings.adminUsers.globalRolesMovedLink') }}
+          </router-link>
+        </p>
+
+        <div class="membership-headline">
+          <h4>{{ t('settings.adminUsers.membershipsTitle') }}</h4>
+          <EButton variant="secondary" size="small" @click="addMembershipRow">
+            {{ t('settings.adminUsers.addDepartment') }}
+          </EButton>
+        </div>
+
+        <div v-if="editForm.memberships.length === 0" class="inline-hint">
+          {{ t('settings.adminUsers.noDepartment') }}
+        </div>
+
+        <div v-for="(membership, index) in editForm.memberships" :key="membership.local_id" class="membership-row">
+          <DepartmentMembershipPicker
+            v-model="membership.department_id"
+            :departments="manageableDepartments"
+            :organisation-name-by-id="organisationNameById"
+            :excluded-department-ids="excludedDepartmentIdsFor(index)"
+            :auto-focus="membershipFocusId === membership.local_id"
+          />
+
+          <ESelect
+            v-model="membership.role"
+            :items="roleSelectItems"
+            hide-details="auto"
+            class="role-select"
+          />
+
+          <ECheckbox
+            :model-value="membership.is_primary"
+            :label="t('settings.adminUsers.primary')"
+            hide-details
+            @update:model-value="(v) => v && setPrimaryMembership(index)"
+          />
+
+          <EButton
+            variant="text"
+            size="small"
+            :title="t('settings.adminUsers.removeDepartment')"
+            @click="removeMembershipRow(index)"
+          >
+            <v-icon icon="mdi-close" size="18" color="error" />
+          </EButton>
+        </div>
+      </template>
+
+      <template #actions>
+        <EButton variant="secondary" @click="closeEditModal">{{ t('common.cancel') }}</EButton>
+        <EButton
+          variant="primary"
+          :loading="isSaving"
+          :disabled="isSaving || !canSave"
+          @click="saveUser"
+        >
+          {{ isSaving ? t('settings.adminUsers.saving') : t('common.save') }}
+        </EButton>
+      </template>
+    </EDialog>
   </div>
 </template>
 
@@ -177,8 +199,10 @@ import {
   type AdminUserListItem,
   type DepartmentRole,
 } from '@/api/adminUsers'
-import SearchFieldInput from '@/components/common/SearchFieldInput.vue'
 import DepartmentMembershipPicker from '@/components/admin/DepartmentMembershipPicker.vue'
+import ELoadingState from '@/components/layout/ELoadingState.vue'
+import EEmptyState from '@/components/layout/EEmptyState.vue'
+import { EButton, ECheckbox, EDialog, ESearchField, ESelect, ETextField } from '@/components/form/base'
 import { useToast } from '@/composables/useToast'
 import { useAuthStore } from '@/stores/auth'
 import { filterDepartmentsByAccessibleIds } from '@/utils/adminCapabilities'
@@ -242,6 +266,16 @@ const roleOptions: Array<{ value: DepartmentRole; label: string }> = [
   { value: 'l2', label: t('settings.adminUsers.roles.l2') },
   { value: 'l3', label: t('settings.adminUsers.roles.l3') },
   { value: 'u', label: t('settings.adminUsers.roles.u') },
+]
+
+const roleSelectItems = computed(() =>
+  roleOptions.map((role) => ({ title: role.label, value: role.value }))
+)
+
+const stateSelectItems = [
+  { title: 'active', value: 'active' },
+  { title: 'inactive', value: 'inactive' },
+  { title: 'disabled', value: 'disabled' },
 ]
 
 const filteredUsers = computed(() => {
@@ -476,16 +510,8 @@ watch(
 
 /* Search input base uses shared ui/page-layout.css */
 
-.state-card {
-  border: 1px solid #e5e7eb;
-  border-radius: 10px;
-  padding: 24px;
-  text-align: center;
-  color: #6b7280;
-}
-
-.state-error {
-  color: #b91c1c;
+.error-block {
+  padding: 8px 0;
 }
 
 .table-wrapper {
@@ -532,62 +558,6 @@ watch(
   width: 90px;
 }
 
-.icon-btn {
-  width: 30px;
-  height: 30px;
-  border-radius: 6px;
-  border: none;
-  background: #f1f5f9;
-  color: #475569;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.icon-btn:hover {
-  background: #e2e8f0;
-}
-
-.icon-btn-danger {
-  color: #b91c1c;
-}
-
-/* Buttons use shared ui/buttons.css */
-
-/* Modal overlay base uses shared ui/modals.css */
-
-.modal-container {
-  width: 100%;
-  max-width: 920px;
-  max-height: 90vh;
-  overflow: hidden;
-  background: white;
-  border-radius: 12px;
-  display: flex;
-  flex-direction: column;
-}
-
-.modal-header {
-  padding: 16px 20px;
-  border-bottom: 1px solid #e5e7eb;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.close-btn {
-  border: none;
-  background: transparent;
-  font-size: 20px;
-  cursor: pointer;
-}
-
-.modal-body {
-  padding: 20px;
-  overflow-y: auto;
-}
-
 .form-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -623,26 +593,11 @@ watch(
   min-width: 160px;
 }
 
-.primary-checkbox {
-  display: inline-flex;
-  gap: 6px;
-  align-items: center;
-  white-space: nowrap;
-}
-
 .admin-users-hint {
   margin-bottom: 16px;
   padding: 10px 12px;
   background: #f0f9ff;
   border-radius: 8px;
   border: 1px solid #bae6fd;
-}
-
-.modal-footer {
-  padding: 14px 20px;
-  border-top: 1px solid #e5e7eb;
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
 }
 </style>

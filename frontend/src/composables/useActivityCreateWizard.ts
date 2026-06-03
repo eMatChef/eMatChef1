@@ -97,6 +97,8 @@ function pickDefaultGroup(
   groups: Group[],
   userId: string | null,
   canSelectDepartment: boolean,
+  /** Typ «Aktivität»: keine Abteilungsebene (group_id leer), immer Heimat-/Mitgliedergruppe. */
+  requireConcreteGroup = false,
 ): string | null {
   if (groups.length === 0) return null
   const home = pickUserHomeGroupId(groups, userId)
@@ -109,12 +111,12 @@ function pickDefaultGroup(
     if (memberGroups.length > 0) return pickFirstRootGroup(memberGroups)
   }
   const role = String(useAuthStore().currentDepartmentRole || '').toLowerCase()
-  if (canSelectDepartment && ['l1', 'l2', 'l3'].includes(role)) return null
+  if (canSelectDepartment && ['l1', 'l2', 'l3'].includes(role) && !requireConcreteGroup) return null
   if (['mw', 'dc', 'matwart', 'depchef'].includes(role)) {
     return pickFirstRootGroup(groups)
   }
   if (groups.length === 1) return groups[0].id
-  return null
+  return requireConcreteGroup ? pickFirstRootGroup(groups) : null
 }
 
 const STATIC_STEP_TITLES: Record<'zeitraum' | 'material' | 'uebersicht', string> = {
@@ -255,9 +257,11 @@ export function useActivityCreateWizard() {
    */
   const needsExplicitGroupId = computed(() => {
     const typ = selectedActivityType.value
-    if (!typ || typ === 'external' || canSelectDepartmentGroupLevel.value) return false
+    if (!typ || typ === 'external') return false
     if (groupsForWizard.value.length === 0) return false
-    return typ === 'activity' || typ === 'camp'
+    if (typ === 'activity') return true
+    if (canSelectDepartmentGroupLevel.value) return false
+    return typ === 'camp'
   })
 
   const hasValidGroupChoice = computed(() => {
@@ -371,14 +375,18 @@ export function useActivityCreateWizard() {
     if (current !== selectedGroupId.value) {
       selectedGroupId.value = current
     }
+    const requireConcreteGroup = t === 'activity'
     const valid =
       (current != null && groups.some((g) => g.id === current)) ||
-      (current === null && canSelectDepartmentGroupLevel.value)
+      (current === null &&
+        canSelectDepartmentGroupLevel.value &&
+        !requireConcreteGroup)
     if (!valid) {
       selectedGroupId.value = pickDefaultGroup(
         groups,
         uid,
         canSelectDepartmentGroupLevel.value,
+        requireConcreteGroup,
       )
     }
   }
@@ -458,6 +466,7 @@ export function useActivityCreateWizard() {
         groupsForWizard.value,
         useAuthStore().userId ?? null,
         canSelectDepartmentGroupLevel.value,
+        t === 'activity',
       )
     } else {
       selectedGroupId.value = null

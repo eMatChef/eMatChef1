@@ -6,11 +6,14 @@
         <p>{{ t('securityMonitoring.subtitle') }}</p>
       </div>
       <div class="controls">
-        <label>
-          {{ t('securityMonitoring.windowMinutesLabel') }}
-          <input v-model.number="minutes" type="number" min="1" max="1440" />
-        </label>
-        <button class="btn-secondary" :disabled="loading" @click="load">{{ t('common.refresh') }}</button>
+        <ETextField
+          v-model.number="minutes"
+          :label="t('securityMonitoring.windowMinutesLabel')"
+          type="number"
+          hide-details="auto"
+          class="minutes-field"
+        />
+        <EButton variant="secondary" :loading="loading" @click="load">{{ t('common.refresh') }}</EButton>
       </div>
     </div>
 
@@ -56,7 +59,7 @@
         <p>{{ t('securityMonitoring.loginAlertHistoryHits') }} <strong>{{ snapshot.alerts.length }}</strong></p>
       </div>
 
-      <p v-if="error" class="error">{{ error }}</p>
+      <v-alert v-if="error" type="error" variant="tonal" class="mb-3" :text="error" />
 
       <table v-if="snapshot" class="table">
         <thead>
@@ -114,45 +117,70 @@
       <h2>{{ t('securityMonitoring.settings.title') }}</h2>
       <p class="hint">{{ t('securityMonitoring.settings.subtitle') }}</p>
       <div class="settings-grid">
-        <div class="field-group">
-          <label for="auth-session-limit">{{ t('securityMonitoring.settings.authSessionLimitLabel') }}</label>
-          <input id="auth-session-limit" v-model.number="authSessionLimitInput" type="number" min="10" max="1200" step="1" />
-          <span class="field-hint">{{ t('securityMonitoring.settings.authSessionLimitHint') }}</span>
-        </div>
-        <div class="field-group">
-          <label for="auth-refresh-limit">{{ t('securityMonitoring.settings.authRefreshLimitLabel') }}</label>
-          <input id="auth-refresh-limit" v-model.number="authRefreshLimitInput" type="number" min="5" max="600" step="1" />
-          <span class="field-hint">{{ t('securityMonitoring.settings.authRefreshLimitHint') }}</span>
-        </div>
-        <div class="field-group">
-          <label for="autologout-timeout-ms">{{ t('securityMonitoring.settings.autologoutTimeoutLabel') }}</label>
-          <input id="autologout-timeout-ms" v-model.number="autologoutTimeoutMsInput" type="number" min="60000" max="86400000" />
-        </div>
-        <div class="field-group">
-          <label for="autologout-warning-ms">{{ t('securityMonitoring.settings.autologoutWarningLabel') }}</label>
-          <input id="autologout-warning-ms" v-model.number="autologoutWarningMsInput" type="number" min="15000" max="3600000" />
-        </div>
-        <div class="field-group">
-          <label for="autologout-throttle-ms">{{ t('securityMonitoring.settings.autologoutThrottleLabel') }}</label>
-          <input id="autologout-throttle-ms" v-model.number="autologoutThrottleMsInput" type="number" min="500" max="60000" />
-        </div>
-        <div class="field-group">
-          <label for="autologout-refresh-ms">{{ t('securityMonitoring.settings.autologoutRefreshLabel') }}</label>
-          <input id="autologout-refresh-ms" v-model.number="autologoutRefreshIntervalMsInput" type="number" min="60000" max="3600000" />
-        </div>
-        <div class="field-group field-group-full">
-          <label for="autologout-events">{{ t('securityMonitoring.settings.autologoutEventsLabel') }}</label>
-          <input id="autologout-events" v-model="autologoutEventsInput" type="text" placeholder="click,keydown,scroll" />
-          <span class="field-hint">{{ t('securityMonitoring.settings.autologoutEventsHint') }}</span>
-        </div>
+        <ETextField
+          id="auth-session-limit"
+          v-model.number="authSessionLimitInput"
+          :label="t('securityMonitoring.settings.authSessionLimitLabel')"
+          type="number"
+          :hint="t('securityMonitoring.settings.authSessionLimitHint')"
+          persistent-hint
+          hide-details="auto"
+        />
+        <ETextField
+          id="auth-refresh-limit"
+          v-model.number="authRefreshLimitInput"
+          :label="t('securityMonitoring.settings.authRefreshLimitLabel')"
+          type="number"
+          :hint="t('securityMonitoring.settings.authRefreshLimitHint')"
+          persistent-hint
+          hide-details="auto"
+        />
+        <ETextField
+          id="autologout-timeout-ms"
+          v-model.number="autologoutTimeoutMsInput"
+          :label="t('securityMonitoring.settings.autologoutTimeoutLabel')"
+          type="number"
+          hide-details="auto"
+        />
+        <ETextField
+          id="autologout-warning-ms"
+          v-model.number="autologoutWarningMsInput"
+          :label="t('securityMonitoring.settings.autologoutWarningLabel')"
+          type="number"
+          hide-details="auto"
+        />
+        <ETextField
+          id="autologout-throttle-ms"
+          v-model.number="autologoutThrottleMsInput"
+          :label="t('securityMonitoring.settings.autologoutThrottleLabel')"
+          type="number"
+          hide-details="auto"
+        />
+        <ETextField
+          id="autologout-refresh-ms"
+          v-model.number="autologoutRefreshIntervalMsInput"
+          :label="t('securityMonitoring.settings.autologoutRefreshLabel')"
+          type="number"
+          hide-details="auto"
+        />
+        <ETextField
+          id="autologout-events"
+          v-model="autologoutEventsInput"
+          :label="t('securityMonitoring.settings.autologoutEventsLabel')"
+          :placeholder="'click,keydown,scroll'"
+          :hint="t('securityMonitoring.settings.autologoutEventsHint')"
+          persistent-hint
+          hide-details="auto"
+          class="field-group-full"
+        />
       </div>
       <div class="save-actions">
-        <button type="button" class="btn-secondary" :disabled="!dirtySettings || savingSettings" @click="resetSettings">
+        <EButton variant="secondary" :disabled="!dirtySettings || savingSettings" @click="resetSettings">
           {{ t('securityMonitoring.settings.reset') }}
-        </button>
-        <button type="button" class="btn-primary" :disabled="!dirtySettings || savingSettings" @click="saveSettings">
+        </EButton>
+        <EButton variant="primary" :loading="savingSettings" :disabled="!dirtySettings || savingSettings" @click="saveSettings">
           {{ savingSettings ? t('securityMonitoring.settings.saving') : t('common.save') }}
-        </button>
+        </EButton>
       </div>
     </section>
   </div>
@@ -165,6 +193,7 @@ import { useRoute } from 'vue-router'
 import { getFcalIntegration, saveFcalIntegration, type FcalIntegrationStatus } from '@/api/adminIntegrations'
 import { getSecurityMonitoring, type SecurityMonitoringSnapshot } from '@/api/securityMonitoring'
 import { useToast } from '@/composables/useToast'
+import { EButton, ETextField } from '@/components/form/base'
 
 const { t } = useI18n()
 const toast = useToast()
@@ -287,13 +316,11 @@ async function saveSettings() {
 .security-monitoring { display: grid; gap: 16px; }
 .header { display: flex; justify-content: space-between; gap: 16px; align-items: end; }
 .controls { display: flex; gap: 10px; align-items: end; }
+.minutes-field { max-width: 120px; }
 .subnav { display: flex; gap: 8px; border-bottom: 1px solid #e2e8f0; padding-bottom: 8px; }
 .subnav-item { border: 1px solid #cbd5e1; background: #fff; color: #334155; border-radius: 8px; padding: 8px 12px; cursor: pointer; text-decoration: none; }
 .subnav-item.active { border-color: #2563eb; color: #1d4ed8; background: #eff6ff; }
 .hint { margin: 0; font-size: 13px; color: #475569; }
-.controls label { display: grid; gap: 4px; font-size: 13px; color: #475569; }
-.controls input { padding: 6px 8px; border: 1px solid #cbd5e1; border-radius: 6px; width: 100px; }
-.btn-secondary { padding: 8px 12px; border-radius: 8px; border: 1px solid #cbd5e1; background: #fff; cursor: pointer; }
 .cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
 .card { border: 1px solid #e2e8f0; border-radius: 10px; padding: 12px; background: #fff; }
 .card h3 { margin: 0 0 6px; font-size: 14px; color: #334155; }
@@ -303,16 +330,9 @@ async function saveSettings() {
 .alert-box p { margin: 0; color: #78350f; }
 .table { width: 100%; border-collapse: collapse; }
 .table th, .table td { text-align: left; padding: 10px 8px; border-bottom: 1px solid #e2e8f0; }
-.error { color: #b91c1c; }
 .history h2, .settings h2 { margin: 4px 0 8px; font-size: 18px; color: #0f172a; }
 .settings-grid { margin-top: 12px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
-.field-group { display: grid; gap: 6px; }
 .field-group-full { grid-column: 1 / -1; }
-.field-group label { font-size: 13px; color: #334155; }
-.field-group input { width: 100%; padding: 9px 10px; border: 1px solid #cbd5e1; border-radius: 8px; }
-.field-hint { margin: 0; font-size: 12px; color: #64748b; }
 .save-actions { display: flex; gap: 10px; margin-top: 14px; }
-.btn-primary { padding: 8px 12px; border-radius: 8px; border: 1px solid #2563eb; background: #2563eb; color: #fff; cursor: pointer; }
-.btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
 </style>
 

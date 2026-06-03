@@ -4,19 +4,22 @@
       {{ t('accounting.overview.intro') }}
     </p>
 
-    <div v-if="!yearOptions.length && !loading" class="empty-hint">
-      {{ t('accounting.common.noBookingYears') }}
-    </div>
-    <div v-else-if="loadError" class="overview-error">{{ loadError }}</div>
-    <div v-else-if="loading" class="loading-inline">{{ t('accounting.common.loading') }}</div>
+    <EEmptyState
+      v-if="!yearOptions.length && !loading"
+      :title="t('accounting.common.noBookingYears')"
+    />
+    <p v-else-if="loadError" class="overview-error">{{ loadError }}</p>
+    <ELoadingState v-else-if="loading" variant="inline" :message="t('accounting.common.loading')" />
     <template v-else-if="overview">
       <div class="overview-toolbar">
-        <label class="overview-year-label">
-          {{ t('accounting.overview.yearDetailLabel') }}
-          <select v-model.number="selectedYear" class="filter-select" @change="reload">
-            <option v-for="y in yearOptions" :key="y" :value="y">{{ y }}</option>
-          </select>
-        </label>
+        <ESelect
+          v-model="selectedYear"
+          :items="yearSelectItems"
+          :label="t('accounting.overview.yearDetailLabel')"
+          hide-details="auto"
+          class="overview-year-select"
+          @update:model-value="reload"
+        />
       </div>
 
       <div class="acc-kpi-grid">
@@ -61,9 +64,9 @@
             <tbody>
               <tr v-for="row in overview.years" :key="row.year">
                 <td>
-                  <button type="button" class="linklike" @click="selectedYear = row.year; reload()">
+                  <EButton variant="text" size="small" class="linklike" @click="selectedYear = row.year; reload()">
                     {{ row.year }}
-                  </button>
+                  </EButton>
                 </td>
                 <td>{{ row.booking_count }}</td>
                 <td class="col-num"><strong>CHF {{ formatMoney(row.total_chf) }}</strong></td>
@@ -131,6 +134,9 @@ import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { getAccountingOverview, type AccountingOverview } from '@/api/accountingOverview'
 import { useAccountingBookingYears } from '@/composables/useAccountingBookingYears'
+import ELoadingState from '@/components/layout/ELoadingState.vue'
+import EEmptyState from '@/components/layout/EEmptyState.vue'
+import { EButton, ESelect } from '@/components/form/base'
 
 const route = useRoute()
 const { t, te } = useI18n()
@@ -146,6 +152,10 @@ const loadError = ref('')
 const overview = ref<AccountingOverview | null>(null)
 const { years: yearOptions, refreshYears, defaultYear } = useAccountingBookingYears(departmentId)
 const selectedYear = ref(new Date().getFullYear())
+
+const yearSelectItems = computed(() =>
+  yearOptions.value.map((y) => ({ title: String(y), value: y }))
+)
 
 function formatMoney(s: string): string {
   const n = parseFloat(s)
@@ -207,21 +217,8 @@ watch(
   margin-bottom: 20px;
 }
 
-.overview-year-label {
-  display: inline-flex;
-  flex-direction: column;
-  gap: 6px;
-  font-size: 13px;
-  font-weight: 600;
-  color: #374151;
-}
-
-.filter-select {
-  padding: 8px 12px;
-  border: 1px solid #d1d5db;
-  border-radius: 6px;
-  font-size: 14px;
-  min-width: 120px;
+.overview-year-select {
+  max-width: 160px;
 }
 
 .acc-kpi-grid {
@@ -288,18 +285,10 @@ watch(
   text-align: right;
 }
 
-.linklike {
-  background: none;
-  border: none;
+:deep(.linklike) {
+  min-width: auto;
   padding: 0;
-  color: #2563eb;
-  cursor: pointer;
-  font: inherit;
   text-decoration: underline;
-}
-
-.linklike:hover {
-  color: #1d4ed8;
 }
 
 .overview-error {
@@ -310,17 +299,6 @@ watch(
 .overview-footnote {
   margin-top: 8px;
   font-size: 14px;
-}
-
-.loading-inline {
-  padding: 24px;
-  color: #6b7280;
-}
-
-.empty-hint {
-  color: #6b7280;
-  font-size: 14px;
-  padding: 8px 0 16px;
 }
 
 .accounting-overview {

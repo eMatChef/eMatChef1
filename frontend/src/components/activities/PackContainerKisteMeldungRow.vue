@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { inject } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { EButton } from '@/components/form/base'
 import { PACK_WAREHOUSE_ISSUE_INJECT_KEY } from '@/components/activities/packWarehouseIssueInjectKey'
 
 defineOptions({ name: 'PackContainerKisteMeldungRow' })
@@ -26,8 +27,9 @@ const ctx = inject(PACK_WAREHOUSE_ISSUE_INJECT_KEY) as Record<string, (...args: 
   >
     <span class="pack-container-kiste-meldung-label">{{ t('activities.common.crate') }}</span>
     <template v-if="(ctx.isPackMaterialConsumable as (id: string) => boolean)(materialItemId)">
-      <button
-        type="button"
+      <EButton
+        variant="text"
+        size="x-small"
         class="btn-issue-quick btn-issue-consumed"
         @click="
           (ctx.emitConsumptionForMaterialId as (id: string, h?: unknown) => void)(materialItemId, {
@@ -36,23 +38,25 @@ const ctx = inject(PACK_WAREHOUSE_ISSUE_INJECT_KEY) as Record<string, (...args: 
         "
       >
         {{ t('activities.common.issueConsumed') }}
-      </button>
+      </EButton>
     </template>
     <template v-else>
-      <button
-        type="button"
+      <EButton
+        variant="text"
+        size="x-small"
         class="btn-issue-quick btn-issue-loss"
         @click="(ctx.emitIssueWizardByMaterialId as (id: string, t: 'loss' | 'repair') => void)(materialItemId, 'loss')"
       >
         {{ t('activities.common.issueLoss') }}
-      </button>
-      <button
-        type="button"
+      </EButton>
+      <EButton
+        variant="text"
+        size="x-small"
         class="btn-issue-quick btn-issue-repair"
         @click="(ctx.emitIssueWizardByMaterialId as (id: string, t: 'loss' | 'repair') => void)(materialItemId, 'repair')"
       >
         {{ t('activities.common.issueRepair') }}
-      </button>
+      </EButton>
     </template>
   </div>
 </template>

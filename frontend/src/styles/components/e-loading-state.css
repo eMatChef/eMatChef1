@@ -1,0 +1,61 @@
+/**
+ * ELoadingState — zentrale Ladezustände (Phase 4).
+ */
+.e-loading-state {
+  text-align: center;
+  padding: 80px 20px;
+}
+
+.e-loading-state--compact {
+  padding: 40px 16px;
+}
+
+.e-loading-state--table,
+.e-loading-state--list,
+.e-loading-state--card {
+  text-align: left;
+  padding: 16px 0;
+}
+
+.e-loading-state--inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0;
+  text-align: left;
+}
+
+.e-loading-state__spinner {
+  margin: 0 auto 16px;
+}
+
+.e-loading-state__message {
+  color: #6b7280;
+  font-size: 15px;
+  margin: 0;
+  line-height: 1.5;
+}
+
+.e-loading-state__message--below {
+  margin-top: 12px;
+  text-align: center;
+}
+
+.e-loading-state__message--inline {
+  font-size: 14px;
+}
+
+.e-loading-state__skeleton--table,
+.e-loading-state__skeleton--card {
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.e-loading-state__skeleton--list + .e-loading-state__skeleton--list {
+  margin-top: 4px;
+}
+
+.e-loading-state--table .e-loading-state__message--below,
+.e-loading-state--list .e-loading-state__message--below {
+  padding-top: 4px;
+}

@@ -1,6 +1,6 @@
 <template>
   <div
-    class="autosave-field"
+    class="autosave-field e-form-field"
     :class="[
       spanClass,
       {
@@ -28,7 +28,7 @@
         </div>
       </div>
 
-      <!-- ecamp3: mdi-content-save auf der unteren Rahmenkante -->
+      <!--mdi-content-save auf der unteren Rahmenkante -->
       <div class="autosave-append">
         <span
           class="autosave-disk"
@@ -36,11 +36,7 @@
           aria-hidden="true"
           :title="savedLabel"
         >
-          <svg class="autosave-disk-icon" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-            <path
-              d="M17 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V7l-4-4zm-5 14a3 3 0 1 1 0-6 3 3 0 0 1 0 6zm3-10H5V5h10v2z"
-            />
-          </svg>
+          <v-icon class="autosave-disk-icon" icon="mdi-content-save" size="14" />
         </span>
 
         <template v-if="status === 'error'">
@@ -51,10 +47,7 @@
             :aria-label="retryLabel"
             @click="$emit('retry')"
           >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M23 4v6h-6M1 20v-6h6" />
-              <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
-            </svg>
+            <v-icon icon="mdi-refresh" size="14" />
           </button>
           <button
             type="button"
@@ -63,10 +56,7 @@
             :aria-label="cancelLabel"
             @click="$emit('cancel')"
           >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <line x1="18" y1="6" x2="6" y2="18" />
-              <line x1="6" y1="6" x2="18" y2="18" />
-            </svg>
+            <v-icon icon="mdi-close" size="14" />
           </button>
         </template>
       </div>

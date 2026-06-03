@@ -1,0 +1,13 @@
+/**
+ * ECard — wie .section-card in cards.css
+ */
+.e-card.v-card--variant-outlined,
+.e-card.v-card--variant-elevated {
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  background: #fff;
+}
+
+.e-card--flat {
+  box-shadow: none !important;
+}

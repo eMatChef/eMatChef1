@@ -1,10 +1,24 @@
 <template>
-  <aside class="sidebar" @mouseenter="isHovered = true" @mouseleave="isHovered = false">
+  <v-navigation-drawer
+    :key="mdAndUp ? 'nav-desktop' : 'nav-mobile'"
+    v-model="drawerOpen"
+    class="emc-sidebar-drawer sidebar"
+    color="#26353b"
+    disable-resize-watcher
+    :permanent="mdAndUp"
+    :temporary="!mdAndUp"
+    :rail="mdAndUp"
+    expand-on-hover
+    width="240"
+    rail-width="64"
+    @mouseenter="isHovered = true"
+    @mouseleave="isHovered = false"
+  >
     <!-- Logo -->
     <div class="sidebar-logo">
       <router-link :to="homeLink" class="logo-link">
         <EmcLogoMark size="sm" />
-        <span class="logo-text" :class="{ visible: isHovered }">eMatChef</span>
+        <span class="logo-text" :class="{ visible: showNavLabels }">eMatChef</span>
       </router-link>
     </div>
     
@@ -16,8 +30,8 @@
         class="nav-item"
         :class="{ active: $route.path === '/pending-assignment' }"
       >
-        <IconTasks class="nav-icon" />
-        <span class="nav-label" :class="{ visible: isHovered }">{{ t('sidebar.pendingNew') }}</span>
+        <v-icon icon="mdi-clipboard-list" class="nav-icon nav-icon--mdi" size="20" />
+        <span class="nav-label" :class="{ visible: showNavLabels }">{{ t('sidebar.pendingNew') }}</span>
       </router-link>
 
       <!-- Home: Übersicht für alle (Department-Dashboard bzw. Admin-Übersicht) -->
@@ -27,8 +41,8 @@
         class="nav-item"
         :class="{ active: isMainDashboardNavActive }"
       >
-        <IconDashboard class="nav-icon" />
-        <span class="nav-label" :class="{ visible: isHovered }">{{ t('sidebar.dashboard') }}</span>
+        <v-icon icon="mdi-view-grid" class="nav-icon nav-icon--mdi" size="20" />
+        <span class="nav-label" :class="{ visible: showNavLabels }">{{ t('sidebar.dashboard') }}</span>
       </router-link>
 
       <!-- Meine Firma (Supplier-Portal) -->
@@ -37,15 +51,19 @@
           type="button"
           class="nav-item nav-item--toggle"
           :class="{ active: isSupplierRoute }"
-          :title="!isHovered ? t('sidebar.myCompany') : undefined"
+          :title="!showNavLabels ? t('sidebar.myCompany') : undefined"
           @click="toggleMyCompany"
         >
-          <IconPackage class="nav-icon" />
-          <span class="nav-label" :class="{ visible: isHovered }">{{ t('sidebar.myCompany') }}</span>
-          <IconChevronDown
-            v-if="isHovered"
-            class="nav-chevron"
-            :class="{ 'nav-chevron--collapsed': !myCompanyExpanded }"
+          <v-icon icon="mdi-package-variant" class="nav-icon nav-icon--mdi" size="20" />
+          <span class="nav-label" :class="{ visible: showNavLabels }">{{ t('sidebar.myCompany') }}</span>
+          <v-icon
+            icon="mdi-chevron-down"
+            class="nav-chevron nav-chevron--mdi"
+            :class="{
+              'nav-chevron--collapsed': !myCompanyExpanded,
+              'nav-chevron--rail-hidden': !showNavLabels,
+            }"
+            size="14"
           />
         </button>
         <template v-if="myCompanyExpanded">
@@ -54,7 +72,7 @@
             class="nav-item nav-item--sub"
             :class="{ active: isSupplierProfileActive }"
           >
-            <span class="nav-label nav-label--sub" :class="{ visible: isHovered }">
+            <span class="nav-label nav-label--sub" :class="{ visible: showNavLabels }">
               {{ t('sidebar.myCompanyProfile') }}
             </span>
           </router-link>
@@ -64,7 +82,7 @@
             class="nav-item nav-item--sub"
             :class="{ active: isSupplierCatalogActive }"
           >
-            <span class="nav-label nav-label--sub" :class="{ visible: isHovered }">
+            <span class="nav-label nav-label--sub" :class="{ visible: showNavLabels }">
               {{ t('sidebar.myCompanyCatalog') }}
             </span>
           </router-link>
@@ -74,7 +92,7 @@
             class="nav-item nav-item--sub"
             :class="{ active: isSupplierDeliveriesActive }"
           >
-            <span class="nav-label nav-label--sub" :class="{ visible: isHovered }">
+            <span class="nav-label nav-label--sub" :class="{ visible: showNavLabels }">
               {{ t('sidebar.myCompanyDeliveries') }}
             </span>
           </router-link>
@@ -84,7 +102,7 @@
             class="nav-item nav-item--sub"
             :class="{ active: isSupplierTemplatesActive }"
           >
-            <span class="nav-label nav-label--sub" :class="{ visible: isHovered }">
+            <span class="nav-label nav-label--sub" :class="{ visible: showNavLabels }">
               {{ t('sidebar.myCompanyTemplates') }}
             </span>
           </router-link>
@@ -94,7 +112,7 @@
             class="nav-item nav-item--sub"
             :class="{ active: isSupplierRepairsActive }"
           >
-            <span class="nav-label nav-label--sub" :class="{ visible: isHovered }">
+            <span class="nav-label nav-label--sub" :class="{ visible: showNavLabels }">
               {{ t('sidebar.myCompanyRepairs') }}
             </span>
           </router-link>
@@ -104,7 +122,7 @@
             class="nav-item nav-item--sub"
             :class="{ active: isSupplierTeamActive }"
           >
-            <span class="nav-label nav-label--sub" :class="{ visible: isHovered }">
+            <span class="nav-label nav-label--sub" :class="{ visible: showNavLabels }">
               {{ t('sidebar.myCompanyTeam') }}
             </span>
           </router-link>
@@ -118,8 +136,8 @@
         class="nav-item"
         :class="{ active: isVerwaltungNavActive }"
       >
-        <IconSettings class="nav-icon" />
-        <span class="nav-label" :class="{ visible: isHovered }">{{ t('sidebar.siteAdmin') }}</span>
+        <v-icon icon="mdi-shield-account" class="nav-icon nav-icon--mdi" size="20" />
+        <span class="nav-label" :class="{ visible: showNavLabels }">{{ t('sidebar.siteAdmin') }}</span>
       </router-link>
 
       <router-link
@@ -128,8 +146,8 @@
         class="nav-item"
         :class="{ active: $route.path.startsWith('/site-inhalt') }"
       >
-        <IconSettings class="nav-icon" />
-        <span class="nav-label" :class="{ visible: isHovered }">{{ t('sidebar.website') }}</span>
+        <v-icon icon="mdi-web" class="nav-icon nav-icon--mdi" size="20" />
+        <span class="nav-label" :class="{ visible: showNavLabels }">{{ t('sidebar.website') }}</span>
       </router-link>
 
       <div
@@ -144,8 +162,8 @@
         class="nav-item"
         :class="{ active: $route.path.includes('/activities') }"
       >
-        <IconActivities class="nav-icon" />
-        <span class="nav-label" :class="{ visible: isHovered }">{{ t('sidebar.activities') }}</span>
+        <v-icon icon="mdi-calendar" class="nav-icon nav-icon--mdi" size="20" />
+        <span class="nav-label" :class="{ visible: showNavLabels }">{{ t('sidebar.activities') }}</span>
       </router-link>
 
       <!-- Materialien -->
@@ -155,8 +173,8 @@
         class="nav-item"
         :class="{ active: $route.path.includes('/materials') }"
       >
-        <IconMaterials class="nav-icon" />
-        <span class="nav-label" :class="{ visible: isHovered }">{{ t('sidebar.materials') }}</span>
+        <v-icon icon="mdi-package-variant" class="nav-icon nav-icon--mdi" size="20" />
+        <span class="nav-label" :class="{ visible: showNavLabels }">{{ t('sidebar.materials') }}</span>
       </router-link>
 
       <!-- Buchhaltung (nur Materialchef / Departmentchef) -->
@@ -166,8 +184,8 @@
         class="nav-item"
         :class="{ active: isAccountingNavActive }"
       >
-        <IconAccounting class="nav-icon" />
-        <span class="nav-label" :class="{ visible: isHovered }">{{ t('sidebar.accounting') }}</span>
+        <v-icon icon="mdi-cash" class="nav-icon nav-icon--mdi" size="20" />
+        <span class="nav-label" :class="{ visible: showNavLabels }">{{ t('sidebar.accounting') }}</span>
       </router-link>
 
       <!-- Kontakte -->
@@ -177,8 +195,8 @@
         class="nav-item"
         :class="{ active: $route.path.includes('/contacts') }"
       >
-        <IconContacts class="nav-icon" />
-        <span class="nav-label" :class="{ visible: isHovered }">{{ t('sidebar.contacts') }}</span>
+        <v-icon icon="mdi-account-group" class="nav-icon nav-icon--mdi" size="20" />
+        <span class="nav-label" :class="{ visible: showNavLabels }">{{ t('sidebar.contacts') }}</span>
       </router-link>
 
       <!-- Aufgaben -->
@@ -188,8 +206,8 @@
         class="nav-item"
         :class="{ active: $route.path.includes('/tasks') }"
       >
-        <IconTasks class="nav-icon" />
-        <span class="nav-label" :class="{ visible: isHovered }">{{ t('sidebar.tasks') }}</span>
+        <v-icon icon="mdi-clipboard-list" class="nav-icon nav-icon--mdi" size="20" />
+        <span class="nav-label" :class="{ visible: showNavLabels }">{{ t('sidebar.tasks') }}</span>
       </router-link>
 
       <!-- Nachrichtenzentrale (unter Aufgaben) -->
@@ -199,8 +217,8 @@
         class="nav-item"
         :class="{ active: $route.path.includes('/notifications') }"
       >
-        <IconBell class="nav-icon" />
-        <span class="nav-label" :class="{ visible: isHovered }">{{ t('sidebar.notifications') }}</span>
+        <v-icon icon="mdi-bell-outline" class="nav-icon nav-icon--mdi" size="20" />
+        <span class="nav-label" :class="{ visible: showNavLabels }">{{ t('sidebar.notifications') }}</span>
       </router-link>
 
       <!-- Horizontaler Balken (Divider) -->
@@ -216,8 +234,8 @@
         class="nav-item"
         :class="{ active: $route.path.includes('/workshop') }"
       >
-        <IconWorkshop class="nav-icon" />
-        <span class="nav-label" :class="{ visible: isHovered }">{{ t('sidebar.workshop') }}</span>
+        <v-icon icon="mdi-wrench" class="nav-icon nav-icon--mdi" size="20" />
+        <span class="nav-label" :class="{ visible: showNavLabels }">{{ t('sidebar.workshop') }}</span>
       </router-link>
 
       <!-- Statistik -->
@@ -227,8 +245,8 @@
         class="nav-item"
         :class="{ active: $route.path.includes('/statistics') }"
       >
-        <IconStatistics class="nav-icon" />
-        <span class="nav-label" :class="{ visible: isHovered }">{{ t('sidebar.statistics') }}</span>
+        <v-icon icon="mdi-chart-bar" class="nav-icon nav-icon--mdi" size="20" />
+        <span class="nav-label" :class="{ visible: showNavLabels }">{{ t('sidebar.statistics') }}</span>
       </router-link>
 
       <!-- Lieferanten-Shop (MW/DC, vor Konfiguration) -->
@@ -238,55 +256,84 @@
         class="nav-item"
         :class="{ active: $route.path.includes('/supplier-shop') }"
       >
-        <IconPackage class="nav-icon" />
-        <span class="nav-label" :class="{ visible: isHovered }">{{ t('sidebar.supplierShop') }}</span>
+        <v-icon icon="mdi-store" class="nav-icon nav-icon--mdi" size="20" />
+        <span class="nav-label" :class="{ visible: showNavLabels }">{{ t('sidebar.supplierShop') }}</span>
       </router-link>
 
-      <!-- Konfiguration -->
+      <router-link
+        v-if="!isPendingAssignmentRoute && showDevSandboxLink"
+        :to="getLink('/dev/ui-playground')"
+        class="nav-item"
+        :class="{ active: isDevPlaygroundNavActive }"
+      >
+        <v-icon icon="mdi-flask-outline" class="nav-icon nav-icon--mdi" size="20" />
+        <span class="nav-label" :class="{ visible: showNavLabels }">{{ t('sidebar.devUiPlayground') }}</span>
+      </router-link>
+
       <router-link
         v-if="!isPendingAssignmentRoute && showDeptContextSidebarLinks"
         :to="getLink('/settings')"
         class="nav-item"
         :class="{ active: $route.path.includes('/settings') }"
       >
-        <IconSettings class="nav-icon" />
-        <span class="nav-label" :class="{ visible: isHovered }">{{ t('sidebar.settings') }}</span>
+        <v-icon icon="mdi-cog-outline" class="nav-icon nav-icon--mdi" size="20" />
+        <span class="nav-label" :class="{ visible: showNavLabels }">{{ t('sidebar.settings') }}</span>
       </router-link>
+
+      <router-link
+        v-if="!isPendingAssignmentRoute && showDeptContextSidebarLinks"
+        :to="getLink('/help/overview')"
+        class="nav-item"
+        :class="{ active: isHelpOverviewNavActive }"
+      >
+        <v-icon icon="mdi-help-circle-outline" class="nav-icon nav-icon--mdi" size="20" />
+        <span class="nav-label" :class="{ visible: showNavLabels }">{{ t('sidebar.help') }}</span>
+      </router-link>
+
     </nav>
     
     <!-- Bottom Actions -->
     <div class="sidebar-footer">
       
     </div>
-  </aside>
+  </v-navigation-drawer>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
+import { useDisplay } from 'vuetify'
 import { useAuthStore } from '@/stores/auth'
 import { isDepartmentBasicMemberRole } from '@/composables/useDepartmentMemberRole'
 import EmcLogoMark from '@/components/brand/EmcLogoMark.vue'
-import {
-  IconDashboard,
-  IconActivities,
-  IconMaterials,
-  IconAccounting,
-  IconContacts,
-  IconTasks,
-  IconBell,
-  IconWorkshop,
-  IconStatistics,
-  IconSettings,
-  IconPackage,
-  IconChevronDown,
-} from '@/components/icons'
-
+import { isDevToolsEnvironment } from '@/utils/devEnvironmentBanner'
 const route = useRoute()
 const { t } = useI18n()
 const authStore = useAuthStore()
+const { mdAndUp } = useDisplay()
+const drawerOpen = defineModel<boolean>({ default: false })
 const isHovered = ref(false)
+
+const showNavLabels = computed(() => !mdAndUp.value || isHovered.value)
+
+/** Desktop: Rail immer sichtbar (drawerOpen=true). Mobile: zu bei Resize, sonst bleibt translateX(-width) hängen. */
+watch(
+  mdAndUp,
+  (desktop) => {
+    drawerOpen.value = desktop
+  },
+  { immediate: true },
+)
+
+watch(
+  () => route.fullPath,
+  () => {
+    if (!mdAndUp.value) {
+      drawerOpen.value = false
+    }
+  },
+)
 const myCompanyExpanded = ref(false)
 
 // Department-ID aus Route oder Store
@@ -371,6 +418,17 @@ const showAppNavInAdminShell = computed(() => !isAdminDashboardRoute.value || is
 const showDeptContextSidebarLinks = computed(
   () => showAppNavInAdminShell.value && !isSuperAdmin.value && hasDepartmentContext.value
 )
+const showDevSandboxLink = computed(
+  () =>
+    isDevToolsEnvironment() &&
+    showAppNavInAdminShell.value &&
+    !isPendingAssignmentRoute.value &&
+    !isSupplierRoute.value
+)
+const isDevPlaygroundNavActive = computed(() => {
+  const p = route.path
+  return p.includes('/dev/ui-playground') || /\/[^/]+\/sandbox\/?$/.test(p)
+})
 /** Einstieg Verwaltung: Unterbereich (nicht die Übersicht — die ist unter „Dashboard“) */
 const verwaltungEntryLink = computed(() => {
   if (isAdminDashboardRoute.value) return '/admin-dashboard/verwaltung'
@@ -440,11 +498,13 @@ const showWorkshopMenu = computed(() => {
 /** Statistik: wie Werkstatt — nicht für Basissicht */
 const showStatisticsMenu = computed(() => !isDepartmentBasicMemberRole(authStore.currentDepartmentRole))
 
-/** Buchhaltung: nur Materialchef (mw) oder Departmentchef (dc) im aktuellen Department */
+/** Buchhaltung: MW/DC voller Zugriff; L1–L3 und Gruppenchefs nur Gruppenkosten */
 const showAccountingMenu = computed(() => {
   if (isSuperAdmin.value) return false
   const r = String(authStore.currentDepartmentRole || '').toLowerCase().trim()
-  return r === 'mw' || r === 'dc'
+  if (r === 'mw' || r === 'dc') return true
+  if (['l1', 'l2', 'l3'].includes(r)) return true
+  return false
 })
 
 /** Lieferanten-Shop: Materialwart / Departmentchef */
@@ -458,6 +518,8 @@ const showSupplierShopLink = computed(() => {
 const isAccountingNavActive = computed(() => route.path.includes('/accounting'))
 
 // Mit Department-Kontext immer /{id}/… — auch wenn die Route gerade /admin-dashboard ist (Store/Primär-Dept)
+const isHelpOverviewNavActive = computed(() => route.path.includes('/help'))
+
 function getLink(path: string): string {
   let id = (route.params.departmentId as string) || authStore.activeDepartmentId || ''
   if (!id && authStore.departments?.length) {

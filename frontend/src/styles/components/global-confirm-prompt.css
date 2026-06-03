@@ -1,0 +1,86 @@
+/**
+ * GlobalConfirmDialog / GlobalPromptDialog — zentriertes Layout in EDialog.
+ */
+.global-confirm-dialog-card--danger.e-card {
+  border: 2px solid #ef4444 !important;
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.12), 0 0 0 1px #ef4444 !important;
+}
+
+.global-confirm-dialog-card--warning.e-card {
+  border: 2px solid #f59e0b !important;
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.12), 0 0 0 1px #f59e0b !important;
+}
+
+.global-confirm-dialog-card--info.e-card {
+  border: 2px solid #3b82f6 !important;
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.12), 0 0 0 1px #3b82f6 !important;
+}
+
+.global-prompt-dialog-card.e-card {
+  border: 2px solid #f59e0b !important;
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.12), 0 0 0 1px #f59e0b !important;
+}
+
+.global-confirm-dialog,
+.global-prompt-dialog {
+  text-align: center;
+  padding-top: 4px;
+}
+
+.global-confirm-dialog__icon,
+.global-prompt-dialog__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  margin: 0 auto 16px;
+}
+
+.global-confirm-dialog--info .global-confirm-dialog__icon {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.global-confirm-dialog--warning .global-confirm-dialog__icon {
+  background: #fef3c7;
+  color: #d97706;
+}
+
+.global-confirm-dialog--danger .global-confirm-dialog__icon {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+.global-prompt-dialog__icon {
+  background: #fef3c7;
+  color: #d97706;
+}
+
+.global-confirm-dialog__title,
+.global-prompt-dialog__title {
+  font-size: 1.15rem;
+  font-weight: 600;
+  color: #1e293b;
+  margin: 0 0 8px;
+  line-height: 1.35;
+}
+
+.global-confirm-dialog__message,
+.global-prompt-dialog__message {
+  font-size: 0.95rem;
+  color: #64748b;
+  margin: 0 0 16px;
+  line-height: 1.5;
+  white-space: pre-line;
+}
+
+.global-prompt-dialog__input {
+  text-align: left;
+  margin-top: 4px;
+}
+
+.global-prompt-dialog__input .e-form-field {
+  margin-bottom: 0;
+}

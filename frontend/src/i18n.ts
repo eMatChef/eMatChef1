@@ -1,4 +1,5 @@
 import { createI18n } from 'vue-i18n'
+import { de as vuetifyDe, en as vuetifyEn, fr as vuetifyFr, it as vuetifyIt } from 'vuetify/locale'
 import de from '@/locales/de.json'
 import deCevi from '@/locales/de-cevi.json'
 import dePfadi from '@/locales/de-pfadi.json'
@@ -35,19 +36,27 @@ function detectInitialLocale(): SupportedLanguageCode {
   return normalizeLanguageCode(navigator.language)
 }
 
+/** Vuetify (v-skeleton-loader, v-data-table, …) via vue-i18n-Adapter → $vuetify.* */
+function withVuetifyLocale<T extends Record<string, unknown>>(
+  messages: T,
+  vuetifyLocale: typeof vuetifyDe,
+): T & { $vuetify: typeof vuetifyDe } {
+  return { ...messages, $vuetify: vuetifyLocale }
+}
+
 export const i18n = createI18n({
   legacy: false,
   locale: detectInitialLocale(),
   fallbackLocale: I18N_FALLBACK_LOCALE,
   messages: {
-    de,
-    'de-pfadi': dePfadi,
-    'de-cevi': deCevi,
-    en,
-    fr,
-    it,
-    'ch-rm': chRm
-  }
+    de: withVuetifyLocale(de, vuetifyDe),
+    'de-pfadi': withVuetifyLocale(dePfadi, vuetifyDe),
+    'de-cevi': withVuetifyLocale(deCevi, vuetifyDe),
+    en: withVuetifyLocale(en, vuetifyEn),
+    fr: withVuetifyLocale(fr, vuetifyFr),
+    it: withVuetifyLocale(it, vuetifyIt),
+    'ch-rm': withVuetifyLocale(chRm, vuetifyDe),
+  },
 })
 
 export function setLocale(locale: string | null | undefined): SupportedLanguageCode {

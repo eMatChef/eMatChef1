@@ -1,0 +1,70 @@
+/**
+ * Sandbox: v-data-table im Look der Material-Liste (Dev UI Playground).
+ */
+.sandbox-material-dt__table.v-table {
+  background: transparent;
+}
+
+.sandbox-material-dt__table .v-table__wrapper {
+  overflow-x: auto;
+}
+
+.sandbox-material-dt__table thead th {
+  background: #f9fafb !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  color: #6b7280 !important;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.sandbox-material-dt__table tbody tr {
+  cursor: pointer;
+  background: #ffffff;
+}
+
+.sandbox-material-dt__table tbody tr:nth-child(even) {
+  background: #f9fafb;
+}
+
+.sandbox-material-dt__table tbody tr:hover {
+  background: #f3f4f6 !important;
+}
+
+.sandbox-material-dt__table tbody tr:nth-child(even) td,
+.sandbox-material-dt__table tbody tr:nth-child(odd) td {
+  background: inherit;
+}
+
+.sandbox-material-dt__table td {
+  vertical-align: middle;
+  border-bottom: 1px solid #f3f4f6 !important;
+}
+
+.sandbox-material-dt__table .v-data-table-rows-no-data {
+  padding: 0;
+}
+
+.sandbox-material-dt .stock-zero {
+  color: #d1d5db;
+}
+
+.sandbox-material-dt__table .combo-components-row td {
+  padding: 0 !important;
+  background: #fafafa;
+}
+
+.sandbox-material-dt__group-summary td {
+  background: #f3f4f6 !important;
+  border-top: 1px solid #e5e7eb;
+  font-size: 13px;
+  color: #374151;
+}
+
+.sandbox-material-dt__table--grouped :deep(.v-data-table-group-header-row) {
+  background: #f9fafb;
+}
+
+.sandbox-material-dt .mt-1 {
+  margin-top: 4px;
+}

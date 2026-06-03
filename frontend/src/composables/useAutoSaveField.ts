@@ -15,7 +15,7 @@ export type UseAutoSaveFieldOptions = {
   baseline?: Ref<AutoSaveFieldValue | undefined>
   type?: AutoSaveFieldType
   disabled?: Ref<boolean> | boolean
-  /** Wie ecamp3: Auto-Save beim Tippen (debounced). Select/Checkbox speichern sofort. */
+  /** Auto-Save beim Tippen (debounced). Select/Checkbox speichern sofort. */
   autoSave?: boolean
   autoSaveDelay?: number
   save: (value: AutoSaveFieldValue) => Promise<void>
@@ -117,17 +117,45 @@ export function useAutoSaveField(options: UseAutoSaveFieldOptions) {
     if (status.value === 'saved') status.value = 'idle'
   }
 
-  function handleInput(event: Event, emitUpdate: (value: AutoSaveFieldValue) => void) {
-    const el = event.target as HTMLInputElement | HTMLTextAreaElement
-    const next = parseAutoSaveInputValue(el.value, type, options.modelValue.value)
+  function applyValueChange(next: AutoSaveFieldValue, emitUpdate: (value: AutoSaveFieldValue) => void) {
     emitUpdate(next)
     isPreSaving.value = true
     errorMessage.value = ''
     if (status.value === 'error') status.value = 'idle'
     showSuccessIcon.value = false
-    if (autoSave && !saveImmediately) {
+    if (autoSave && saveImmediately) {
+      void trySave(next)
+    } else if (autoSave && !saveImmediately) {
       scheduleDebouncedSave()
     }
+  }
+
+  function parseVuetifyValue(raw: AutoSaveFieldValue): AutoSaveFieldValue {
+    if (type === 'checkbox') return !!raw
+    if (type === 'number') {
+      if (raw == null || raw === '') return null
+      if (typeof raw === 'number') return Number.isFinite(raw) ? raw : null
+      const trimmed = String(raw).trim()
+      if (trimmed === '') return null
+      const num = Number(trimmed)
+      return Number.isFinite(num) ? num : trimmed
+    }
+    if (raw == null) return null
+    if (typeof raw === 'string') {
+      const trimmed = raw.trim()
+      return trimmed === '' ? null : raw
+    }
+    return raw
+  }
+
+  function handleVuetifyUpdate(raw: AutoSaveFieldValue, emitUpdate: (value: AutoSaveFieldValue) => void) {
+    applyValueChange(parseVuetifyValue(raw), emitUpdate)
+  }
+
+  function handleInput(event: Event, emitUpdate: (value: AutoSaveFieldValue) => void) {
+    const el = event.target as HTMLInputElement | HTMLTextAreaElement
+    const next = parseAutoSaveInputValue(el.value, type, options.modelValue.value)
+    applyValueChange(next, emitUpdate)
   }
 
   function notifyValueChange() {
@@ -143,23 +171,12 @@ export function useAutoSaveField(options: UseAutoSaveFieldOptions) {
   function handleSelectChange(event: Event, emitUpdate: (value: AutoSaveFieldValue) => void) {
     const el = event.target as HTMLSelectElement
     const next: AutoSaveFieldValue = el.value === '' ? null : el.value
-    emitUpdate(next)
-    isPreSaving.value = true
-    errorMessage.value = ''
-    if (status.value === 'error') status.value = 'idle'
-    showSuccessIcon.value = false
-    void trySave(next)
+    applyValueChange(next, emitUpdate)
   }
 
   function handleCheckboxChange(event: Event, emitUpdate: (value: AutoSaveFieldValue) => void) {
     const el = event.target as HTMLInputElement
-    const next = el.checked
-    emitUpdate(next)
-    isPreSaving.value = true
-    errorMessage.value = ''
-    if (status.value === 'error') status.value = 'idle'
-    showSuccessIcon.value = false
-    void trySave(next)
+    applyValueChange(el.checked, emitUpdate)
   }
 
   function revertToBaseline(emitUpdate: (value: AutoSaveFieldValue) => void) {
@@ -183,8 +200,8 @@ export function useAutoSaveField(options: UseAutoSaveFieldOptions) {
     // Select/Checkbox speichern sofort bei change — kein Blur-Revert
     if (saveImmediately) return
 
-    // ecamp3: ohne Eingabe beim Blur auf DB-Stand zurück
-    if (!isSaving.value && !isPreSaving.value && autoSave) {
+    // Unverändert fokussiert und verlassen → DB-Stand (nicht bei bewusst geleertem Feld)
+    if (!isSaving.value && !isDirty.value && autoSave) {
       revertToBaseline(emitUpdate)
     }
   }
@@ -248,6 +265,7 @@ export function useAutoSaveField(options: UseAutoSaveFieldOptions) {
     resetBaselineFromModel,
     handleFocus,
     handleInput,
+    handleVuetifyUpdate,
     handleSelectChange,
     handleCheckboxChange,
     handleBlur,

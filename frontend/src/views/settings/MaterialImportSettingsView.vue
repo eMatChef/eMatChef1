@@ -1,35 +1,37 @@
 <template>
   <div class="material-import-settings">
-    <div class="settings-header">
-      <div>
-        <h1>{{ t('settings.materialImport.title') }}</h1>
-        <p class="subtitle">{{ t('settings.materialImport.subtitle') }}</p>
-      </div>
-    </div>
+    <PageShell>
+      <template #title>{{ t('settings.materialImport.title') }}</template>
+      <template #subtitle>{{ t('settings.materialImport.subtitle') }}</template>
 
-    <div class="tab-bar">
-      <button type="button" class="tab-btn" :class="{ active: activeTab === 'import' }" @click="activeTab = 'import'">
-        {{ t('settings.materialImport.tabImport') }}
-      </button>
-      <button type="button" class="tab-btn" :class="{ active: activeTab === 'export' }" @click="activeTab = 'export'">
-        {{ t('settings.materialImport.tabExport') }}
-      </button>
-    </div>
+      <template #filters>
+        <v-tabs v-model="activeTab" color="primary" class="material-import-settings-tabs">
+          <v-tab value="import">{{ t('settings.materialImport.tabImport') }}</v-tab>
+          <v-tab value="export">{{ t('settings.materialImport.tabExport') }}</v-tab>
+        </v-tabs>
+      </template>
 
-    <div v-if="activeTab === 'export'" class="card export-placeholder">
+      <div v-if="activeTab === 'export'" class="card export-placeholder">
       <h2>{{ t('settings.materialImport.exportTitle') }}</h2>
       <p>{{ t('settings.materialImport.exportComingSoon') }}</p>
     </div>
 
     <template v-else>
       <div class="card actions-card">
-        <button type="button" class="btn-secondary" @click="onDownloadTemplate">
+        <EButton variant="secondary" @click="onDownloadTemplate">
           {{ t('settings.materialImport.downloadTemplate') }}
-        </button>
-        <label class="btn-primary file-label">
-          <input type="file" accept=".csv,.xlsx,.xls,text/csv" class="file-input" @change="onFileSelected" />
+        </EButton>
+        <EButton variant="primary" @click="importFileInputRef?.click()">
           {{ t('settings.materialImport.uploadFile') }}
-        </label>
+        </EButton>
+        <input
+          ref="importFileInputRef"
+          type="file"
+          accept=".csv,.xlsx,.xls,text/csv"
+          class="file-input"
+          tabindex="-1"
+          @change="onFileSelected"
+        />
         <span v-if="fileName" class="file-name">{{ fileName }}</span>
       </div>
 
@@ -49,9 +51,9 @@
               </option>
             </select>
           </label>
-          <button type="button" class="btn-secondary btn-sm" @click="resetSuggestedMapping">
+          <EButton variant="secondary" size="small" @click="resetSuggestedMapping">
             {{ t('settings.materialImport.mappingAutoDetect') }}
-          </button>
+          </EButton>
         </div>
 
         <p class="mapping-table-hint">{{ t('settings.materialImport.mappingTableHint') }}</p>
@@ -61,21 +63,18 @@
             <thead>
               <tr class="mapping-dropdown-row">
                 <th v-for="col in tableColumnIndices" :key="`map-${col}`" class="mapping-th">
-                  <select
+                  <v-select
+                    :model-value="assignmentAt(col) || ''"
+                    :items="columnFieldSelectItems"
+                    item-title="title"
+                    item-value="value"
+                    density="compact"
+                    hide-details
+                    variant="outlined"
                     class="column-field-select"
-                    :class="{ 'column-field-select--mapped': assignmentAt(col) }"
-                    :value="assignmentAt(col)"
-                    @change="onColumnFieldSelect(col, ($event.target as HTMLSelectElement).value)"
-                  >
-                    <option value="">{{ t('settings.materialImport.mappingColumnSkip') }}</option>
-                    <option
-                      v-for="field in importUiFields"
-                      :key="field"
-                      :value="field"
-                    >
-                      {{ mappingFieldShort(field) }}
-                    </option>
-                  </select>
+                    :class="{ 'column-field-select--mapped': !!assignmentAt(col) }"
+                    @update:model-value="onColumnFieldSelect(col, String($event ?? ''))"
+                  />
                 </th>
               </tr>
               <tr class="source-file-header-row">
@@ -128,9 +127,9 @@
         </div>
 
         <div class="mapping-actions">
-          <button type="button" class="btn-primary btn-sm" @click="applyColumnMapping">
+          <EButton variant="primary" size="small" @click="applyColumnMapping">
             {{ t('settings.materialImport.mappingApply') }}
-          </button>
+          </EButton>
           <span v-if="previewLoaded" class="mapping-auto-hint">{{ t('settings.materialImport.mappingAutoRefresh') }}</span>
         </div>
       </div>
@@ -150,14 +149,14 @@
             }}
           </h2>
           <div class="toolbar-actions">
-            <button
+            <EButton
               v-if="rawImport"
-              type="button"
-              class="btn-secondary btn-sm"
+              variant="secondary"
+              size="small"
               @click="showMappingPanel = true"
             >
               {{ t('settings.materialImport.mappingEdit') }}
-            </button>
+            </EButton>
             <label class="duplicate-default">
               {{ t('settings.materialImport.duplicateDefault') }}
               <select v-model="defaultDuplicateAction" class="form-select-sm">
@@ -166,12 +165,18 @@
                 <option value="create">{{ t('settings.materialImport.duplicateCreate') }}</option>
               </select>
             </label>
-            <button type="button" class="btn-secondary btn-sm" :disabled="isBusy" @click="runDryRun">
+            <EButton variant="secondary" size="small" :disabled="isBusy" @click="runDryRun">
               {{ t('settings.materialImport.validate') }}
-            </button>
-            <button type="button" class="btn-primary btn-sm" :disabled="isBusy || hasBlockingErrors" @click="onImportClick">
+            </EButton>
+            <EButton
+              variant="primary"
+              size="small"
+              :disabled="isBusy || hasBlockingErrors"
+              :loading="isImporting"
+              @click="onImportClick"
+            >
               {{ isImporting ? t('settings.materialImport.importing') : t('settings.materialImport.importSubmit') }}
-            </button>
+            </EButton>
           </div>
         </div>
 
@@ -296,6 +301,7 @@
         <p>{{ t('settings.materialImport.emptyHint') }}</p>
       </div>
     </template>
+    </PageShell>
 
     <ImportStoragePickerModal
       :open="storageModalOpen"
@@ -306,53 +312,55 @@
       @apply="applyStorageModal"
     />
 
-    <div v-if="showSpecWarningDialog" class="modal-overlay" @click.self="showSpecWarningDialog = false">
-      <div class="modal-dialog modal-dialog-wide">
-        <h3>{{ t('settings.materialImport.specWarningDialogTitle') }}</h3>
-        <p>{{ t('settings.materialImport.specWarningDialogBody', { count: specWarningCount }) }}</p>
-        <ul v-if="specWarningPreviewLines.length" class="spec-warning-list">
-          <li v-for="(line, i) in specWarningPreviewLines" :key="i">{{ line }}</li>
-        </ul>
-        <p class="spec-warning-hint">{{ t('settings.materialImport.specWarningDialogHint') }}</p>
-        <button
-          v-if="rowsEligibleForLengthAppend.length > 0"
-          type="button"
-          class="btn-secondary btn-sm spec-warning-append-all"
-          @click="appendLengthToAllWarnedRows"
-        >
-          {{ t('settings.materialImport.appendLengthToAll', { count: rowsEligibleForLengthAppend.length }) }}
-        </button>
-        <div class="modal-actions">
-          <button type="button" class="btn-secondary" @click="showSpecWarningDialog = false">
-            {{ t('settings.materialImport.specWarningDialogBack') }}
-          </button>
-          <button type="button" class="btn-primary" :disabled="isImporting" @click="confirmImportAfterSpecWarning">
-            {{ t('settings.materialImport.specWarningDialogContinue') }}
-          </button>
-        </div>
-      </div>
-    </div>
+    <EDialog
+      v-model="showSpecWarningDialog"
+      :max-width="560"
+      :title="t('settings.materialImport.specWarningDialogTitle')"
+    >
+      <p>{{ t('settings.materialImport.specWarningDialogBody', { count: specWarningCount }) }}</p>
+      <ul v-if="specWarningPreviewLines.length" class="spec-warning-list">
+        <li v-for="(line, i) in specWarningPreviewLines" :key="i">{{ line }}</li>
+      </ul>
+      <p class="spec-warning-hint">{{ t('settings.materialImport.specWarningDialogHint') }}</p>
+      <EButton
+        v-if="rowsEligibleForLengthAppend.length > 0"
+        variant="secondary"
+        size="small"
+        class="spec-warning-append-all"
+        @click="appendLengthToAllWarnedRows"
+      >
+        {{ t('settings.materialImport.appendLengthToAll', { count: rowsEligibleForLengthAppend.length }) }}
+      </EButton>
+      <template #actions>
+        <EButton variant="secondary" @click="showSpecWarningDialog = false">
+          {{ t('settings.materialImport.specWarningDialogBack') }}
+        </EButton>
+        <EButton variant="primary" :disabled="isImporting" :loading="isImporting" @click="confirmImportAfterSpecWarning">
+          {{ t('settings.materialImport.specWarningDialogContinue') }}
+        </EButton>
+      </template>
+    </EDialog>
 
-    <div v-if="showDuplicateDialog" class="modal-overlay" @click.self="showDuplicateDialog = false">
-      <div class="modal-dialog">
-        <h3>{{ t('settings.materialImport.duplicateDialogTitle') }}</h3>
-        <p>{{ t('settings.materialImport.duplicateDialogBody', { count: duplicateCount }) }}</p>
-        <label class="duplicate-default">
-          {{ t('settings.materialImport.duplicateDefault') }}
-          <select v-model="defaultDuplicateAction" class="form-select-sm">
-            <option value="add_batch">{{ t('settings.materialImport.duplicateAddBatch') }}</option>
-            <option value="skip">{{ t('settings.materialImport.duplicateSkip') }}</option>
-            <option value="create">{{ t('settings.materialImport.duplicateCreate') }}</option>
-          </select>
-        </label>
-        <div class="modal-actions">
-          <button type="button" class="btn-secondary" @click="showDuplicateDialog = false">{{ t('common.cancel') }}</button>
-          <button type="button" class="btn-primary" :disabled="isImporting" @click="confirmImport">
-            {{ t('settings.materialImport.importSubmit') }}
-          </button>
-        </div>
-      </div>
-    </div>
+    <EDialog
+      v-model="showDuplicateDialog"
+      :title="t('settings.materialImport.duplicateDialogTitle')"
+    >
+      <p>{{ t('settings.materialImport.duplicateDialogBody', { count: duplicateCount }) }}</p>
+      <label class="duplicate-default">
+        {{ t('settings.materialImport.duplicateDefault') }}
+        <select v-model="defaultDuplicateAction" class="form-select-sm">
+          <option value="add_batch">{{ t('settings.materialImport.duplicateAddBatch') }}</option>
+          <option value="skip">{{ t('settings.materialImport.duplicateSkip') }}</option>
+          <option value="create">{{ t('settings.materialImport.duplicateCreate') }}</option>
+        </select>
+      </label>
+      <template #actions>
+        <EButton variant="secondary" @click="showDuplicateDialog = false">{{ t('common.cancel') }}</EButton>
+        <EButton variant="primary" :disabled="isImporting" :loading="isImporting" @click="confirmImport">
+          {{ t('settings.materialImport.importSubmit') }}
+        </EButton>
+      </template>
+    </EDialog>
   </div>
 </template>
 
@@ -363,7 +371,9 @@ import { useI18n } from 'vue-i18n'
 import { useToast } from '@/composables/useToast'
 import { getMaterials, type Material } from '@/api/materials'
 import { getAddresses, getMaterialWizardSuppliers, type Address } from '@/api/addresses'
+import PageShell from '@/components/layout/PageShell.vue'
 import ImportStoragePickerModal from '@/components/material/ImportStoragePickerModal.vue'
+import { EButton, EDialog } from '@/components/form/base'
 import { importMaterials, type MaterialImportResultRow, type MaterialImportDuplicateAction } from '@/api/materialImport'
 import {
   rowsToApiPayload,
@@ -411,7 +421,16 @@ const headerRowIndex = ref(0)
 const columnMapping = ref<ColumnMapping>({})
 const columnAssignments = ref<ColumnAssignment[]>([])
 const importUiFields = IMPORT_UI_FIELDS
+
+const columnFieldSelectItems = computed(() => [
+  { title: t('settings.materialImport.mappingColumnSkip'), value: '' },
+  ...importUiFields.map((field) => ({
+    title: mappingFieldShort(field),
+    value: field,
+  })),
+])
 const fileName = ref('')
+const importFileInputRef = ref<HTMLInputElement | null>(null)
 const materials = ref<Material[]>([])
 const supplierOptions = ref<Address[]>([])
 const storageAddresses = ref<Address[]>([])
@@ -980,38 +999,14 @@ onMounted(async () => {
   font-size: 0.8125rem;
 }
 
-.settings-header {
-  margin-bottom: 0.75rem;
+.material-import-settings-tabs {
+  margin-bottom: 8px;
 }
 
-.settings-header h1 {
-  margin: 0 0 0.15rem;
-  font-size: 1.2rem;
-}
-
-.subtitle {
-  margin: 0;
-  color: var(--text-muted, #6b7280);
-}
-
-.tab-bar {
-  display: flex;
-  gap: 0.5rem;
-  margin-bottom: 1rem;
-}
-
-.tab-btn {
-  padding: 0.5rem 1rem;
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
-  background: #fff;
-  cursor: pointer;
-}
-
-.tab-btn.active {
-  background: #2563eb;
-  color: #fff;
-  border-color: #2563eb;
+.material-import-settings-tabs :deep(.v-tab) {
+  text-transform: none;
+  font-weight: 500;
+  letter-spacing: normal;
 }
 
 .card {
@@ -1031,11 +1026,6 @@ onMounted(async () => {
 
 .file-input {
   display: none;
-}
-
-.file-label {
-  cursor: pointer;
-  margin: 0;
 }
 
 .file-name {
@@ -1285,10 +1275,6 @@ onMounted(async () => {
   box-shadow: inset 3px 0 0 #f97316;
 }
 
-.modal-dialog-wide {
-  max-width: 560px;
-}
-
 .spec-warning-list {
   margin: 12px 0;
   padding-left: 1.25rem;
@@ -1356,35 +1342,6 @@ onMounted(async () => {
   color: #9ca3af;
 }
 
-.modal-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.4);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-}
-
-.modal-dialog {
-  background: #fff;
-  border-radius: 12px;
-  padding: 1.5rem;
-  max-width: 420px;
-  width: 90%;
-}
-
-.modal-dialog h3 {
-  margin: 0 0 0.5rem;
-}
-
-.modal-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 0.5rem;
-  margin-top: 1rem;
-}
-
 .export-placeholder h2 {
   margin: 0 0 0.5rem;
   font-size: 1.125rem;
@@ -1393,11 +1350,6 @@ onMounted(async () => {
 .empty-card p {
   margin: 0;
   color: #6b7280;
-}
-
-.btn-sm {
-  padding: 0.35rem 0.75rem;
-  font-size: 0.875rem;
 }
 
 .mapping-card {
@@ -1497,16 +1449,23 @@ onMounted(async () => {
   width: 100%;
   min-width: 88px;
   max-width: 130px;
-  padding: 0.2rem 0.25rem;
-  border: 1px solid #93c5fd;
-  border-radius: 4px;
-  font-size: 0.7rem;
-  background: #fff;
+  font-size: 12px;
 }
 
-.column-field-select--mapped {
-  border-color: #2563eb;
-  background: #f0f9ff;
+.column-field-select :deep(.v-field) {
+  font-size: 12px;
+  min-height: 32px;
+}
+
+.column-field-select :deep(.v-field__input) {
+  min-height: 32px;
+  padding-top: 4px;
+  padding-bottom: 4px;
+}
+
+.column-field-select--mapped :deep(.v-field) {
+  background: #f0f9ff !important;
+  box-shadow: inset 0 0 0 1px #2563eb !important;
 }
 
 .source-mapping-table td.cell-mapped {

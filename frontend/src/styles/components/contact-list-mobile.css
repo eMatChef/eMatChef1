@@ -1,0 +1,57 @@
+.contact-list-mobile {
+  padding: 0;
+  background: #fff;
+}
+
+.contact-list-mobile__item {
+  border-bottom: 1px solid #f3f4f6;
+  padding-inline: 12px 14px;
+}
+
+.contact-list-mobile :deep(.v-list-item__prepend) {
+  align-self: flex-start;
+  margin-inline-end: 20px;
+}
+
+.contact-list-mobile :deep(.v-list-item__prepend .contact-avatar) {
+  margin: 0;
+}
+
+.contact-list-mobile :deep(.v-list-item__append) {
+  align-self: flex-start;
+  padding-inline-start: 10px;
+  margin-inline-start: 6px;
+}
+
+.contact-list-mobile__title {
+  font-weight: 600;
+  font-size: 14px;
+  line-height: 1.35;
+  white-space: normal;
+}
+
+.contact-list-mobile__title .primary-badge,
+.contact-list-mobile__title .deleted-badge {
+  font-size: 10px;
+  padding: 1px 6px;
+  margin-left: 4px;
+  vertical-align: middle;
+}
+
+.contact-list-mobile__meta {
+  opacity: 1 !important;
+  color: #6b7280 !important;
+  font-size: 12px !important;
+  line-height: 1.35;
+  padding-top: 2px;
+}
+
+.contact-list-mobile__address {
+  font-size: 11px;
+  color: #9ca3af;
+  line-height: 1.35;
+}
+
+.contact-list-mobile__item--deleted {
+  opacity: 0.72;
+}

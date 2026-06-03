@@ -1,5 +1,6 @@
 import type { AccountingAcquisitionFollowUp } from '@/api/accountingAcquisitionFollowups'
 import type { AccountingCostCenter } from '@/api/accountingCostCenters'
+import type { AccountingCostCenterRule } from '@/api/accountingCostCenterRules'
 
 const KEYWORD_GROUPS: Record<string, string[]> = {
   consumption: ['verbrauch', 'consumption', 'verkauf'],
@@ -53,13 +54,21 @@ function keywordsForFollowUp(p: AccountingAcquisitionFollowUp): string[] {
 }
 
 /**
- * Schlägt eine Kostenstelle anhand des Namens vor (kein harter Code — passt zu dep.-spezifischen Stammdaten).
+ * Schlägt eine Kostenstelle vor: zuerst konfigurierte Regeln, sonst Keyword-Heuristik.
  */
 export function suggestCostCenterId(
   followUp: AccountingAcquisitionFollowUp,
   centers: AccountingCostCenter[],
+  rules: AccountingCostCenterRule[] = [],
 ): string {
   if (centers.length === 0) return ''
+
+  const sk = followUp.source_kind || (followUp.material_batch_id ? 'batch' : '')
+  const rule = rules.find((r) => r.source_kind === sk)
+  if (rule?.cost_center_id) {
+    return rule.cost_center_id
+  }
+
   const keywords = keywordsForFollowUp(followUp)
 
   let bestId = ''
@@ -75,7 +84,31 @@ export function suggestCostCenterId(
   return bestScore > 0 ? bestId : centers[0]?.id || ''
 }
 
-export function suggestPaymentMethodForFollowUp(p: AccountingAcquisitionFollowUp): string {
+export function suggestEntryTypeForFollowUp(
+  followUp: AccountingAcquisitionFollowUp,
+  rules: AccountingCostCenterRule[] = [],
+): string {
+  const sk = followUp.source_kind || (followUp.material_batch_id ? 'batch' : '')
+  const rule = rules.find((r) => r.source_kind === sk)
+  if (rule?.default_entry_type) {
+    return rule.default_entry_type
+  }
+  if (sk === 'activity_replenishment' || sk === 'batch') return 'purchase'
+  if (sk === 'activity_workshop') {
+    return followUp.activity_type === 'external' ? 'repair_external' : 'repair_internal'
+  }
+  return 'other'
+}
+
+export function suggestPaymentMethodForFollowUp(
+  p: AccountingAcquisitionFollowUp,
+  rules: AccountingCostCenterRule[] = [],
+): string {
+  const sk = p.source_kind || (p.material_batch_id ? 'batch' : '')
+  const rule = rules.find((r) => r.source_kind === sk)
+  if (rule?.default_payment_method) {
+    return rule.default_payment_method
+  }
   if (p.charge_target === 'external_customer' || p.activity_type === 'external') {
     return 'supplier_invoice'
   }

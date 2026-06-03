@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { IconArrowRight } from '@/components/icons'
 import { computed, inject, unref, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { ActivityPackContainerItem } from '@/api/activityContainers'
@@ -255,7 +254,7 @@ const lineIssuedDisplayPacked = computed(() => {
           :title="issueTitle"
           @click="onIssueClick"
         >
-          <IconArrowRight />
+          <v-icon icon="mdi-arrow-right" size="12" />
         </button>
       </div>
     </div>

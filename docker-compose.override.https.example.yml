@@ -1,0 +1,30 @@
+# Lokales HTTPS für Kamera/Scanner (getUserMedia braucht Secure Context).
+#
+# 1. ./scripts/generate-local-https-certs.sh
+# 2. cp docker-compose.override.https.example.yml docker-compose.override.yml
+# 3. docker compose up -d nginx frontend backend
+# 4. Browser: https://app.ematchef.test (mkcert-CA einmalig vertrauen)
+#
+# Optional in Repo-Root-.env:
+#   AUTH_COOKIE_SECURE=1
+
+services:
+  nginx:
+    ports:
+      - "443:443"
+    volumes:
+      - ./docker/certs:/etc/nginx/certs:ro
+      - ./docker/nginx/default-https-mode.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./docker/nginx/https.conf:/etc/nginx/conf.d/https.conf:ro
+
+  frontend:
+    environment:
+      VITE_APP_ORIGIN: https://app.ematchef.test
+      VITE_MAIN_SITE_ORIGIN: https://ematchef.test
+      HMR_CLIENT_PORT: "443"
+
+  backend:
+    environment:
+      APP_FRONTEND_URL: https://app.ematchef.test
+      APP_PUBLIC_QR_URL: https://qr.ematchef.test
+      AUTH_COOKIE_SECURE: "1"

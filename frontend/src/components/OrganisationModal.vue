@@ -1,70 +1,67 @@
 <template>
-  <div v-if="isOpen" class="modal-overlay">
-    <div class="modal-dialog organisation-modal-dialog">
-      <div class="modal-header">
-        <h2>{{ isEdit ? t('components.organisationModal.editTitle') : t('components.organisationModal.addTitle') }}</h2>
-        <button @click="close" class="modal-close">
-          <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-            <path
-              d="M15 5L5 15M5 5L15 15"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-            />
-          </svg>
-        </button>
+  <EDialog
+    v-model="dialogOpen"
+    :max-width="500"
+    :title="isEdit ? t('components.organisationModal.editTitle') : t('components.organisationModal.addTitle')"
+    scrollable
+    persistent
+  >
+    <form id="organisation-modal-form" @submit.prevent="handleSubmit">
+      <ETextField
+        id="organisation-name"
+        ref="nameInput"
+        v-model="formData.name"
+        :label="t('components.organisationModal.nameLabel')"
+        :placeholder="t('components.organisationModal.namePlaceholder')"
+        :disabled="isSubmitting"
+        hide-details="auto"
+        class="mb-3"
+      />
+
+      <div class="language-section">
+        <p class="language-label">{{ t('components.organisationModal.allowedLanguagesLabel') }}</p>
+        <p class="helper-text">{{ t('components.organisationModal.allowedLanguagesHint') }}</p>
+        <div class="language-grid">
+          <ECheckbox
+            v-for="item in supportedLanguages"
+            :key="item.code"
+            :model-value="formData.allowedLanguages.includes(item.code)"
+            :label="item.label"
+            :disabled="isSubmitting"
+            hide-details
+            @update:model-value="toggleLanguage(item.code, $event)"
+          />
+        </div>
       </div>
 
-      <div class="modal-body">
-        <form @submit.prevent="handleSubmit">
-          <!-- Organisation Name -->
-          <div class="form-group">
-            <label for="organisation-name" class="form-label">{{ t('components.organisationModal.nameLabel') }}</label>
-            <input
-              id="organisation-name"
-              ref="nameInput"
-              v-model="formData.name"
-              type="text"
-              class="form-input"
-              :placeholder="t('components.organisationModal.namePlaceholder')"
-              required
-              :disabled="isSubmitting"
-            />
-          </div>
+      <v-alert
+        v-if="error"
+        type="error"
+        variant="tonal"
+        class="mt-3"
+        :text="error"
+      />
+    </form>
 
-          <div class="form-group">
-            <label class="form-label">{{ t('components.organisationModal.allowedLanguagesLabel') }}</label>
-            <p class="helper-text">{{ t('components.organisationModal.allowedLanguagesHint') }}</p>
-            <div class="language-grid">
-              <label v-for="item in supportedLanguages" :key="item.code" class="checkbox-row">
-                <input v-model="formData.allowedLanguages" type="checkbox" :value="item.code" :disabled="isSubmitting" />
-                <span>{{ item.label }}</span>
-              </label>
-            </div>
-          </div>
-
-          <!-- Error Message -->
-          <div v-if="error" class="error-message">
-            {{ error }}
-          </div>
-
-          <!-- Buttons -->
-          <div class="modal-footer">
-            <button type="button" @click="close" class="btn-secondary">
-              {{ t('common.cancel') }}
-            </button>
-            <button type="submit" class="btn-primary" :disabled="isSubmitting">
-              {{
-                isSubmitting
-                  ? t('components.organisationModal.saving')
-                  : (isEdit ? t('common.save') : t('common.add'))
-              }}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  </div>
+    <template #actions>
+      <EButton variant="secondary" :disabled="isSubmitting" @click="close">
+        {{ t('common.cancel') }}
+      </EButton>
+      <EButton
+        variant="primary"
+        type="submit"
+        form="organisation-modal-form"
+        :loading="isSubmitting"
+        :disabled="isSubmitting"
+      >
+        {{
+          isSubmitting
+            ? t('components.organisationModal.saving')
+            : (isEdit ? t('common.save') : t('common.add'))
+        }}
+      </EButton>
+    </template>
+  </EDialog>
 </template>
 
 <script setup lang="ts">
@@ -73,6 +70,7 @@ import { useI18n } from 'vue-i18n'
 import { useToast } from '@/composables/useToast'
 import { createOrganisation, updateOrganisation, type Organisation } from '@/api/organisations'
 import { SUPPORTED_LANGUAGE_CODES } from '@/config/languages'
+import { EButton, ECheckbox, EDialog, ETextField } from '@/components/form/base'
 
 interface Props {
   isOpen: boolean
@@ -93,7 +91,14 @@ const toast = useToast()
 const isEdit = computed(() => !!props.organisation)
 const isSubmitting = ref(false)
 const error = ref<string | null>(null)
-const nameInput = ref<HTMLInputElement | null>(null)
+const nameInput = ref<{ focus?: () => void; select?: () => void } | null>(null)
+
+const dialogOpen = computed({
+  get: () => props.isOpen,
+  set: (value: boolean) => {
+    if (!value) close()
+  },
+})
 
 const formData = ref({
   name: '',
@@ -107,7 +112,16 @@ const supportedLanguages = computed(() =>
   }))
 )
 
-// Watch für Modal-Öffnung und Organisation-Änderungen
+function toggleLanguage(code: string, checked: boolean | null) {
+  if (checked) {
+    if (!formData.value.allowedLanguages.includes(code)) {
+      formData.value.allowedLanguages.push(code)
+    }
+  } else {
+    formData.value.allowedLanguages = formData.value.allowedLanguages.filter((c) => c !== code)
+  }
+}
+
 watch(
   () => [props.isOpen, props.organisation],
   async (tuple) => {
@@ -115,27 +129,21 @@ watch(
     const org = tuple[1] as Organisation | null | undefined
     if (open) {
       error.value = null
-      // Stelle sicher, dass formData korrekt gesetzt ist
       if (org && org.id) {
-        // Bearbeiten: Setze den Namen der Organisation
         formData.value = {
           name: org.name || '',
           allowedLanguages: Array.isArray(org.allowed_languages) ? [...org.allowed_languages] : []
         }
       } else {
-        // Neu erstellen: Leeres Formular
         formData.value = {
           name: '',
           allowedLanguages: []
         }
       }
-      // Fokussiere das Input-Feld nach dem Rendern
       await nextTick()
-      await nextTick() // Doppeltes nextTick für sicherere DOM-Updates
-      if (nameInput.value) {
-        nameInput.value.focus()
-        nameInput.value.select()
-      }
+      await nextTick()
+      nameInput.value?.focus?.()
+      nameInput.value?.select?.()
     }
   },
   { immediate: true }
@@ -182,39 +190,19 @@ function close() {
 </script>
 
 <style scoped>
-/* Modal overlay/dialog/header/body/footer base uses shared ui/modals.css */
-.organisation-modal-dialog {
-  width: min(500px, calc(100vw - 48px));
-  max-height: calc(100vh - 48px);
-  padding: 0;
-  overflow: hidden;
+.language-section {
+  margin-top: 8px;
 }
 
-.modal-header h2 {
-  font-size: 20px;
-  font-weight: 600;
-  color: #1f2937;
-  margin: 0;
-}
-
-/* Form group/input base uses shared ui/forms.css */
-
-.form-label {
-  display: block;
+.language-label {
+  margin: 0 0 4px;
   font-size: 14px;
   font-weight: 500;
   color: #374151;
-  margin-bottom: 8px;
-}
-
-.form-input:disabled {
-  background-color: #f3f4f6;
-  cursor: not-allowed;
-  opacity: 0.6;
 }
 
 .helper-text {
-  margin: -4px 0 10px;
+  margin: 0 0 10px;
   color: #6b7280;
   font-size: 12px;
 }
@@ -222,24 +210,6 @@ function close() {
 .language-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px 12px;
+  gap: 4px 12px;
 }
-
-.checkbox-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 14px;
-  color: #374151;
-}
-
-.error-message {
-  background: #fee2e2;
-  color: #dc2626;
-  padding: 12px;
-  border-radius: 6px;
-  font-size: 14px;
-  margin-bottom: 20px;
-}
-
 </style>

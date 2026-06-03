@@ -1,6 +1,31 @@
 import { createApp } from 'vue'
 import { watch } from 'vue'
 import './style.css'
+import './styles/components/global-toast.css'
+import './styles/components/global-confirm-prompt.css'
+import 'vuetify/styles'
+import 'vuetify/lib/components/VDatePicker/VDatePicker.css'
+import 'vuetify/lib/components/VDatePicker/VDatePickerControls.css'
+import 'vuetify/lib/components/VDatePicker/VDatePickerHeader.css'
+import 'vuetify/lib/components/VDatePicker/VDatePickerMonth.css'
+import 'vuetify/lib/components/VBadge/VBadge.css'
+import 'vuetify/lib/components/VTooltip/VTooltip.css'
+import 'vuetify/lib/components/VMenu/VMenu.css'
+import 'vuetify/lib/components/VOverlay/VOverlay.css'
+import 'vuetify/lib/components/VTimePicker/VTimePicker.css'
+import 'vuetify/lib/components/VTimePicker/VTimePickerClock.css'
+import 'vuetify/lib/components/VTimePicker/VTimePickerControls.css'
+import 'vuetify/lib/components/VPicker/VPicker.css'
+import './styles/ui/e-alert.css'
+import 'vuetify/lib/components/VField/VField.css'
+import 'vuetify/lib/components/VInput/VInput.css'
+import 'vuetify/lib/components/VSlideGroup/VSlideGroup.css'
+import 'vuetify/lib/components/VTabs/VTab.css'
+import 'vuetify/lib/components/VTabs/VTabs.css'
+import 'vuetify/lib/components/VWindow/VWindow.css'
+import 'vuetify/lib/components/VDialog/VDialog.css'
+import 'vuetify/lib/components/VCard/VCard.css'
+import '@mdi/font/css/materialdesignicons.css'
 import './styles/views/activities/pack-workflow-modals.css'
 import App from './App.vue'
 import router from './router'
@@ -13,6 +38,7 @@ import { shouldProbeUserSession, shouldSkipLoginRedirect, loginRedirectUrl } fro
 import { applyCrossSubdomainLogoutSync } from './utils/authCrossOrigin'
 import { purgeLegacyAuthSecrets } from './utils/authStorage'
 import { i18n, setLocale } from './i18n'
+import vuetify from './plugins/vuetify'
 
 const app = createApp(App)
 const pinia = createPinia()
@@ -86,6 +112,7 @@ async function initApp() {
 
   app.use(router)
   app.use(i18n)
+  app.use(vuetify)
 
   setupCrossSubdomainLogoutListener()
 

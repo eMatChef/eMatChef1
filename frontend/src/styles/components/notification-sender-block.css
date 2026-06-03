@@ -35,12 +35,12 @@
 }
 
 .notification-sender-block__icon--system {
-  background: #2563eb;
+  background: var(--color-primary);
   color: #fff;
 }
 
 .notification-sender-block__icon--system.notification-sender-block__icon--activity {
-  background: #4f46e5;
+  background: var(--color-primary-dark);
   color: #fff;
 }
 

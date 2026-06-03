@@ -6,8 +6,14 @@
       <p class="supplier-page-hint">{{ t('supplierTemplates.subtitle') }}</p>
     </header>
 
-    <div v-if="loading" class="supplier-page-state">{{ t('common.loading') }}</div>
-    <div v-else-if="loadError" class="supplier-page-state supplier-page-state--error">{{ loadError }}</div>
+    <ELoadingState
+      v-if="loading"
+      variant="inline"
+      :message="t('common.loading')"
+    />
+    <div v-else-if="loadError" class="supplier-page-error">
+      <v-alert type="error" variant="tonal" :text="loadError" />
+    </div>
 
     <template v-else>
       <div v-if="legacyHint?.has_global_templates" class="legacy-hint-banner">
@@ -15,15 +21,19 @@
       </div>
 
       <div class="toolbar">
-        <button type="button" class="btn btn-primary" @click="openCreate">
+        <EButton variant="primary" @click="openCreate">
           {{ t('supplierTemplates.newTemplate') }}
-        </button>
-        <button type="button" class="btn btn-secondary" :disabled="loading" @click="loadTemplates">
+        </EButton>
+        <EButton variant="secondary" :disabled="loading" @click="loadTemplates">
           {{ t('supplierTemplates.refresh') }}
-        </button>
+        </EButton>
       </div>
 
-      <p v-if="templates.length === 0" class="supplier-page-state">{{ t('supplierTemplates.empty') }}</p>
+      <EEmptyState
+        v-if="templates.length === 0"
+        variant="create"
+        :title="t('supplierTemplates.empty')"
+      />
 
       <table v-else class="catalog-table">
         <thead>
@@ -46,12 +56,12 @@
             <td>{{ statusLabel(item) }}</td>
             <td>{{ item.is_active ? t('supplierTemplates.activeYes') : t('supplierTemplates.activeNo') }}</td>
             <td class="actions-cell">
-              <button type="button" class="btn btn-secondary btn-sm" @click="openEdit(item)">
+              <EButton variant="secondary" size="small" @click="openEdit(item)">
                 {{ t('common.edit') }}
-              </button>
-              <button type="button" class="btn btn-danger btn-sm" @click="removeTemplate(item)">
+              </EButton>
+              <EButton variant="danger" size="small" @click="removeTemplate(item)">
                 {{ t('common.delete') }}
-              </button>
+              </EButton>
             </td>
           </tr>
         </tbody>
@@ -89,6 +99,9 @@ import {
   type SupplierMaterialTemplatePayload,
   type SupplierMaterialType,
 } from '@/api/supplierMaterialTemplates'
+import { EButton } from '@/components/form/base'
+import EEmptyState from '@/components/layout/EEmptyState.vue'
+import ELoadingState from '@/components/layout/ELoadingState.vue'
 
 const route = useRoute()
 const { t } = useI18n()
@@ -220,6 +233,7 @@ onMounted(() => {
 <style scoped>
 .supplier-page {
   max-width: 1100px;
+  padding: 24px;
 }
 
 .supplier-page-header h1 {
@@ -248,13 +262,8 @@ onMounted(() => {
   font-size: 0.95rem;
 }
 
-.supplier-page-state {
-  margin-top: 24px;
-  color: #6b7280;
-}
-
-.supplier-page-state--error {
-  color: #b91c1c;
+.supplier-page-error {
+  margin-top: 16px;
 }
 
 .toolbar {

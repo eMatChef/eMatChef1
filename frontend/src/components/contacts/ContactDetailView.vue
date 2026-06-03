@@ -3,12 +3,10 @@
     <!-- Header -->
     <header class="detail-header">
       <div class="header-left">
-        <button class="back-btn" @click="$emit('close')">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M19 12H5M12 19l-7-7 7-7"/>
-          </svg>
+        <EButton variant="secondary" size="small" class="contact-detail-back-btn" @click="$emit('close')">
+          <v-icon icon="mdi-arrow-left" start size="20" />
           {{ t('contacts.detail.backToList') }}
-        </button>
+        </EButton>
         <div class="header-title" v-if="contact">
           <div class="contact-avatar-lg" :class="contact.type">
             {{ getInitials(contact) }}
@@ -20,38 +18,35 @@
         </div>
       </div>
       <div v-if="contact?.is_deleted && canManageDeletedContacts" class="header-actions contact-detail-header-actions">
-        <button type="button" class="btn-primary btn-sm" @click="handleRestore" :disabled="isRestoring">
+        <EButton variant="primary" size="small" :disabled="isRestoring" :loading="isRestoring" @click="handleRestore">
           {{ isRestoring ? t('contacts.detail.loading') : t('contacts.restore') }}
-        </button>
-        <button
-          type="button"
-          class="btn-ghost btn-sm contact-detail-delete-btn"
-          @click="confirmPermanentDelete"
+        </EButton>
+        <EButton
+          variant="secondary"
+          size="small"
+          class="contact-detail-delete-btn"
           :disabled="isPermanentDeleting"
+          :loading="isPermanentDeleting"
+          @click="confirmPermanentDelete"
         >
           {{ isPermanentDeleting ? t('contacts.permanentDeleting') : t('contacts.permanentDelete') }}
-        </button>
+        </EButton>
       </div>
       <div v-else-if="contact && !isReadOnly" class="header-actions contact-detail-header-actions">
-        <button type="button" class="btn-primary btn-sm" @click="openEditModal">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-            <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
-            <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
-          </svg>
+        <EButton variant="primary" size="small" @click="openEditModal">
+          <v-icon icon="mdi-pencil-outline" start size="18" />
           {{ t('common.edit') }}
-        </button>
-        <button
-          type="button"
-          class="btn-ghost btn-sm contact-detail-delete-btn"
-          @click="confirmDelete"
+        </EButton>
+        <EButton
+          variant="secondary"
+          size="small"
+          class="contact-detail-delete-btn"
           :disabled="isDeleting"
+          @click="confirmDelete"
         >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-            <polyline points="3 6 5 6 21 6"/>
-            <path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/>
-          </svg>
+          <v-icon icon="mdi-delete-outline" start size="18" />
           {{ isDeleting ? t('contacts.detail.deleting') : t('common.delete') }}
-        </button>
+        </EButton>
       </div>
     </header>
 
@@ -59,16 +54,15 @@
       {{ t('contacts.detail.deletedBanner') }}
     </div>
 
-    <!-- Loading -->
-    <div v-if="isLoading" class="loading-container">
-      <div class="spinner"></div>
-      <p>{{ t('contacts.detail.loading') }}</p>
-    </div>
+    <ELoadingState
+      v-if="isLoading"
+      variant="card"
+      :message="t('contacts.detail.loading')"
+    />
 
-    <!-- Error -->
-    <div v-else-if="error" class="error-container">
-      <p>{{ error }}</p>
-      <button @click="loadContact" class="btn-outline">{{ t('common.retry') }}</button>
+    <div v-else-if="error" class="contact-detail-error">
+      <v-alert type="error" variant="tonal" :text="error" />
+      <EButton variant="secondary" class="mt-3" @click="loadContact">{{ t('common.retry') }}</EButton>
     </div>
 
     <!-- Content -->
@@ -86,13 +80,16 @@
                 </svg>
                 {{ t('contacts.detail.sectionContactData') }}
               </h2>
-              <button v-if="!isReadOnly" class="section-edit-btn" @click="openEditModal" :title="t('common.edit')">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
-                  <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
-                </svg>
+              <EButton
+                v-if="!isReadOnly"
+                variant="text"
+                size="small"
+                class="section-edit-btn"
+                @click="openEditModal"
+              >
+                <v-icon icon="mdi-pencil-outline" start size="16" />
                 {{ t('common.edit') }}
-              </button>
+              </EButton>
             </div>
             
             <div class="info-grid">
@@ -132,13 +129,16 @@
                 </svg>
                 {{ t('contacts.detail.sectionCommunication') }}
               </h2>
-              <button v-if="!isReadOnly" class="section-edit-btn" @click="openEditModal" :title="t('common.edit')">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
-                  <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
-                </svg>
+              <EButton
+                v-if="!isReadOnly"
+                variant="text"
+                size="small"
+                class="section-edit-btn"
+                @click="openEditModal"
+              >
+                <v-icon icon="mdi-pencil-outline" start size="16" />
                 {{ t('common.edit') }}
-              </button>
+              </EButton>
             </div>
 
             <div v-if="contact.email || contact.phone || contact.mobile" class="contact-actions-grid">
@@ -202,13 +202,16 @@
                 </svg>
                 {{ t('contacts.detail.sectionAddress') }}
               </h2>
-              <button v-if="!isReadOnly" class="section-edit-btn" @click="openEditModal" :title="t('common.edit')">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
-                  <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
-                </svg>
+              <EButton
+                v-if="!isReadOnly"
+                variant="text"
+                size="small"
+                class="section-edit-btn"
+                @click="openEditModal"
+              >
+                <v-icon icon="mdi-pencil-outline" start size="16" />
                 {{ t('common.edit') }}
-              </button>
+              </EButton>
             </div>
 
             <div class="address-display">
@@ -221,10 +224,11 @@
                 <span v-if="contact.country !== 'Schweiz'" class="address-line">{{ contact.country }}</span>
               </div>
 
-              <div class="address-actions">
+              <div v-if="showAddressMapActions" class="address-actions">
                 <a 
                   :href="'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(contact.full_address)" 
                   target="_blank" 
+                  rel="noopener noreferrer"
                   class="map-link"
                 >
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -284,13 +288,16 @@
                 </svg>
                 {{ t('contacts.detail.sectionNotes') }}
               </h2>
-              <button v-if="!isReadOnly" class="section-edit-btn" @click="openEditModal" :title="t('common.edit')">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
-                  <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
-                </svg>
+              <EButton
+                v-if="!isReadOnly"
+                variant="text"
+                size="small"
+                class="section-edit-btn"
+                @click="openEditModal"
+              >
+                <v-icon icon="mdi-pencil-outline" start size="16" />
                 {{ t('common.edit') }}
-              </button>
+              </EButton>
             </div>
             <p v-if="contact.additional_info" class="additional-info-text">{{ contact.additional_info }}</p>
             <div v-else class="empty-section">
@@ -311,37 +318,37 @@
       @saved="handleEdited"
     />
 
-    <!-- Permanent delete confirmation -->
-    <div v-if="showPermanentDeleteConfirm" class="delete-overlay">
-      <div class="delete-dialog">
-        <h3>{{ t('contacts.permanentDeleteTitle') }}</h3>
-        <p>
-          {{ t('contacts.permanentDeleteMessage', { name: contact?.name || contact?.company || t('contacts.detail.deleteNameFallback') }) }}
-        </p>
-        <div class="delete-dialog-actions">
-          <button @click="showPermanentDeleteConfirm = false" class="btn-secondary">{{ t('common.cancel') }}</button>
-          <button @click="handlePermanentDelete" class="btn-danger" :disabled="isPermanentDeleting">
-            {{ isPermanentDeleting ? t('contacts.permanentDeleting') : t('contacts.permanentDelete') }}
-          </button>
-        </div>
-      </div>
-    </div>
+    <EDialog
+      v-model="showPermanentDeleteConfirm"
+      :max-width="440"
+      :title="t('contacts.permanentDeleteTitle')"
+    >
+      <p class="text-muted">
+        {{ t('contacts.permanentDeleteMessage', { name: contact?.name || contact?.company || t('contacts.detail.deleteNameFallback') }) }}
+      </p>
+      <template #actions>
+        <EButton variant="secondary" @click="showPermanentDeleteConfirm = false">{{ t('common.cancel') }}</EButton>
+        <EButton variant="danger" :disabled="isPermanentDeleting" :loading="isPermanentDeleting" @click="handlePermanentDelete">
+          {{ isPermanentDeleting ? t('contacts.permanentDeleting') : t('contacts.permanentDelete') }}
+        </EButton>
+      </template>
+    </EDialog>
 
-    <!-- Delete Confirmation -->
-    <div v-if="showDeleteConfirm" class="delete-overlay">
-      <div class="delete-dialog">
-        <h3>{{ t('contacts.detail.deleteTitle') }}</h3>
-        <p>
-          {{ t('contacts.detail.deleteMessage', { name: contact?.name || contact?.company || t('contacts.detail.deleteNameFallback') }) }}
-        </p>
-        <div class="delete-dialog-actions">
-          <button @click="showDeleteConfirm = false" class="btn-secondary">{{ t('common.cancel') }}</button>
-          <button @click="handleDelete" class="btn-danger" :disabled="isDeleting">
-            {{ isDeleting ? t('contacts.detail.deleting') : t('common.delete') }}
-          </button>
-        </div>
-      </div>
-    </div>
+    <EDialog
+      v-model="showDeleteConfirm"
+      :max-width="440"
+      :title="t('contacts.detail.deleteTitle')"
+    >
+      <p class="text-muted">
+        {{ t('contacts.detail.deleteMessage', { name: contact?.name || contact?.company || t('contacts.detail.deleteNameFallback') }) }}
+      </p>
+      <template #actions>
+        <EButton variant="secondary" @click="showDeleteConfirm = false">{{ t('common.cancel') }}</EButton>
+        <EButton variant="danger" :disabled="isDeleting" :loading="isDeleting" @click="handleDelete">
+          {{ isDeleting ? t('contacts.detail.deleting') : t('common.delete') }}
+        </EButton>
+      </template>
+    </EDialog>
   </div>
 </template>
 
@@ -359,6 +366,8 @@ import {
 } from '@/api/addresses'
 import MapView from '@/components/MapView.vue'
 import AddressModal from '@/components/AddressModal.vue'
+import ELoadingState from '@/components/layout/ELoadingState.vue'
+import { EButton, EDialog } from '@/components/form/base'
 import {
   useDepartmentMemberRole,
   canUserManageContactType,
@@ -412,6 +421,13 @@ const isSwiss = computed(() => {
   if (!contact.value) return true
   const country = contact.value.country?.toLowerCase() || ''
   return country === 'schweiz' || country === 'switzerland' || country === 'suisse' || country === 'ch' || country === ''
+})
+
+/** Google Maps / Kopieren nur, wenn Strasse oder PLZ gesetzt sind */
+const showAddressMapActions = computed(() => {
+  const c = contact.value
+  if (!c) return false
+  return Boolean(c.street?.trim() || c.postal_code?.trim())
 })
 
 const isReadOnly = computed(() => {
@@ -590,22 +606,13 @@ onMounted(() => {
   min-width: 0;
 }
 
-.back-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 0;
-  background: none;
-  border: none;
-  color: #6b7280;
-  cursor: pointer;
-  font-size: 14px;
-  font-weight: 500;
-  transition: color 0.2s;
+.contact-detail-back-btn {
+  align-self: flex-start;
 }
 
-.back-btn:hover {
-  color: #111827;
+.contact-detail-error {
+  padding: 24px;
+  text-align: center;
 }
 
 .header-title {

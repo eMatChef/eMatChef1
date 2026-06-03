@@ -1,0 +1,55 @@
+@import './activity-list-shared.css';
+
+.activity-list-mobile {
+  padding: 0;
+  background: #fff;
+}
+
+.activity-list-mobile__item {
+  border-bottom: 1px solid #f3f4f6;
+  cursor: pointer;
+}
+
+.activity-list-mobile__item--draft {
+  background: #fffbeb;
+}
+
+.activity-list-mobile__status-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  margin-right: 4px;
+}
+
+.activity-list-mobile__title {
+  font-weight: 600;
+  font-size: 15px;
+  line-height: 1.35;
+  white-space: normal;
+}
+
+.activity-list-mobile__meta {
+  opacity: 1 !important;
+  color: #6b7280 !important;
+  font-size: 13px !important;
+  padding-top: 2px;
+}
+
+.activity-list-mobile__line {
+  opacity: 1 !important;
+  color: #374151 !important;
+  font-size: 13px !important;
+  padding-top: 4px;
+}
+
+.activity-list-mobile__group-line {
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.activity-list-mobile__actions {
+  display: flex;
+  align-items: center;
+}

@@ -1,102 +1,128 @@
 <template>
-  <div class="modal-backdrop" @click.self="emit('close')">
-    <div class="modal-card">
-      <header class="modal-header">
-        <h3>
-          {{ delivery ? t('supplierDeliveries.modal.editTitle') : t('supplierDeliveries.modal.createTitle') }}
-        </h3>
-        <button type="button" class="btn btn-secondary btn-sm" @click="emit('close')">
-          {{ t('common.cancel') }}
-        </button>
-      </header>
+  <EDialog
+    v-model="dialogOpen"
+    :max-width="720"
+    :title="delivery ? t('supplierDeliveries.modal.editTitle') : t('supplierDeliveries.modal.createTitle')"
+    scrollable
+    persistent
+  >
+    <form id="supplier-delivery-form" @submit.prevent="submit">
+      <ETextField
+        v-model="form.department_id"
+        :label="t('supplierDeliveries.fields.departmentId')"
+        :hint="t('supplierDeliveries.fields.departmentIdHint')"
+        maxlength="12"
+        hide-details="auto"
+        class="mb-3"
+      />
 
-      <form class="modal-body" @submit.prevent="submit">
-        <label class="field">
-          <span>{{ t('supplierDeliveries.fields.departmentId') }}</span>
-          <input v-model.trim="form.department_id" type="text" required maxlength="12" />
-          <span class="hint">{{ t('supplierDeliveries.fields.departmentIdHint') }}</span>
-        </label>
+      <div class="field-row">
+        <ETextField
+          v-model="form.delivery_ref"
+          :label="t('supplierDeliveries.fields.deliveryRef')"
+          maxlength="120"
+          hide-details="auto"
+          class="field-grow"
+        />
+        <ETextField
+          v-model="form.invoice_ref"
+          :label="t('supplierDeliveries.fields.invoiceRef')"
+          maxlength="120"
+          hide-details="auto"
+          class="field-grow"
+        />
+      </div>
 
-        <div class="field-row">
-          <label class="field">
-            <span>{{ t('supplierDeliveries.fields.deliveryRef') }}</span>
-            <input v-model.trim="form.delivery_ref" type="text" maxlength="120" />
-          </label>
-          <label class="field">
-            <span>{{ t('supplierDeliveries.fields.invoiceRef') }}</span>
-            <input v-model.trim="form.invoice_ref" type="text" maxlength="120" />
-          </label>
+      <ETextField
+        v-model="form.delivered_at"
+        type="date"
+        :label="t('supplierDeliveries.fields.deliveredAt')"
+        hide-details="auto"
+        class="mb-3"
+      />
+
+      <ETextarea
+        v-model="form.notes"
+        :label="t('supplierDeliveries.fields.notes')"
+        rows="2"
+        hide-details="auto"
+        class="mb-3"
+      />
+
+      <section class="lines-section">
+        <div class="lines-header">
+          <h4>{{ t('supplierDeliveries.linesTitle') }}</h4>
+          <EButton variant="secondary" size="small" @click="addLine">
+            {{ t('supplierDeliveries.addLine') }}
+          </EButton>
         </div>
 
-        <label class="field">
-          <span>{{ t('supplierDeliveries.fields.deliveredAt') }}</span>
-          <input v-model="form.delivered_at" type="date" />
-        </label>
-
-        <label class="field">
-          <span>{{ t('supplierDeliveries.fields.notes') }}</span>
-          <textarea v-model.trim="form.notes" rows="2" />
-        </label>
-
-        <section class="lines-section">
-          <div class="lines-header">
-            <h4>{{ t('supplierDeliveries.linesTitle') }}</h4>
-            <button type="button" class="btn btn-secondary btn-sm" @click="addLine">
-              {{ t('supplierDeliveries.addLine') }}
-            </button>
+        <div v-for="(line, index) in form.lines" :key="index" class="line-card">
+          <ESelect
+            v-model="line.catalog_item_id"
+            :items="catalogSelectItems"
+            :label="t('supplierDeliveries.fields.catalogItem')"
+            :placeholder="t('supplierDeliveries.selectCatalogItem')"
+            hide-details="auto"
+            class="mb-2"
+            @update:model-value="onCatalogChange(line)"
+          />
+          <div class="field-row">
+            <ETextField
+              v-model.number="line.qty"
+              type="number"
+              :label="t('supplierDeliveries.fields.qty')"
+              hide-details="auto"
+              class="field-narrow"
+            />
+            <ETextField
+              v-model="line.unit_price"
+              type="number"
+              :label="t('supplierDeliveries.fields.unitPrice')"
+              hide-details="auto"
+              class="field-narrow"
+            />
           </div>
+          <ETextarea
+            v-if="lineTracking(line) === 'serialized'"
+            v-model="line.serial_numbers_text"
+            :label="t('supplierDeliveries.fields.serialNumbers')"
+            :placeholder="t('supplierDeliveries.serialNumbersPlaceholder')"
+            rows="3"
+            hide-details="auto"
+            class="mb-2"
+          />
+          <EButton variant="danger" size="small" class="line-remove" @click="removeLine(index)">
+            {{ t('supplierDeliveries.removeLine') }}
+          </EButton>
+        </div>
+      </section>
 
-          <div v-for="(line, index) in form.lines" :key="index" class="line-card">
-            <label class="field">
-              <span>{{ t('supplierDeliveries.fields.catalogItem') }}</span>
-              <select v-model="line.catalog_item_id" required @change="onCatalogChange(line)">
-                <option value="" disabled>{{ t('supplierDeliveries.selectCatalogItem') }}</option>
-                <option v-for="item in catalogItems" :key="item.id" :value="item.id">
-                  {{ item.name }}{{ item.sku ? ` (${item.sku})` : '' }}
-                </option>
-              </select>
-            </label>
-            <div class="field-row">
-              <label class="field field-narrow">
-                <span>{{ t('supplierDeliveries.fields.qty') }}</span>
-                <input v-model.number="line.qty" type="number" min="1" step="1" required />
-              </label>
-              <label class="field field-narrow">
-                <span>{{ t('supplierDeliveries.fields.unitPrice') }}</span>
-                <input v-model.trim="line.unit_price" type="number" min="0" step="0.01" />
-              </label>
-            </div>
-            <label v-if="lineTracking(line) === 'serialized'" class="field">
-              <span>{{ t('supplierDeliveries.fields.serialNumbers') }}</span>
-              <textarea
-                v-model="line.serial_numbers_text"
-                rows="3"
-                :placeholder="t('supplierDeliveries.serialNumbersPlaceholder')"
-              />
-            </label>
-            <button type="button" class="btn btn-danger btn-sm line-remove" @click="removeLine(index)">
-              {{ t('supplierDeliveries.removeLine') }}
-            </button>
-          </div>
-        </section>
+      <v-alert v-if="error" type="error" variant="tonal" :text="error" />
+    </form>
 
-        <p v-if="error" class="error">{{ error }}</p>
-
-        <footer class="modal-footer">
-          <button type="submit" class="btn btn-primary" :disabled="saving">
-            {{ saving ? t('common.saving') : t('common.save') }}
-          </button>
-        </footer>
-      </form>
-    </div>
-  </div>
+    <template #actions>
+      <EButton variant="secondary" size="small" @click="close">{{ t('common.cancel') }}</EButton>
+      <EButton
+        variant="primary"
+        size="small"
+        type="submit"
+        form="supplier-delivery-form"
+        :disabled="saving"
+        :loading="saving"
+      >
+        {{ saving ? t('common.saving') : t('common.save') }}
+      </EButton>
+    </template>
+  </EDialog>
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { listSupplierCatalogItems, type SupplierCatalogItem } from '@/api/supplierCatalog'
 import type { SupplierDelivery, SupplierDeliveryPayload } from '@/api/supplierDeliveries'
+import { EButton, EDialog, ESelect, ETextField, ETextarea } from '@/components/form/base'
 
 const props = defineProps<{
   companyId: string
@@ -109,9 +135,17 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
+const dialogOpen = ref(true)
 const saving = ref(false)
 const error = ref<string | null>(null)
 const catalogItems = ref<SupplierCatalogItem[]>([])
+
+const catalogSelectItems = computed(() =>
+  catalogItems.value.map((item) => ({
+    title: `${item.name}${item.sku ? ` (${item.sku})` : ''}`,
+    value: item.id,
+  })),
+)
 
 interface LineForm {
   catalog_item_id: string
@@ -128,6 +162,14 @@ const form = reactive({
   notes: props.delivery?.notes || '',
   lines: [] as LineForm[],
 })
+
+watch(dialogOpen, (open) => {
+  if (!open) emit('close')
+})
+
+function close() {
+  dialogOpen.value = false
+}
 
 function lineTracking(line: LineForm): string {
   const item = catalogItems.value.find((i) => i.id === line.catalog_item_id)
@@ -210,76 +252,19 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-.modal-backdrop {
-  position: fixed;
-  inset: 0;
-  background: rgba(15, 23, 42, 0.45);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-  padding: 16px;
-}
-
-.modal-card {
-  background: #fff;
-  border-radius: 12px;
-  width: 100%;
-  max-width: 720px;
-  max-height: 90vh;
-  overflow: auto;
-}
-
-.modal-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 16px 20px;
-  border-bottom: 1px solid #e5e7eb;
-}
-
-.modal-header h3 {
-  margin: 0;
-  font-size: 1.1rem;
-}
-
-.modal-body {
-  padding: 20px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
 .field-row {
   display: flex;
   flex-wrap: wrap;
   gap: 12px;
+  margin-bottom: 12px;
 }
 
-.field {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  font-size: 14px;
+.field-grow {
   flex: 1 1 180px;
 }
 
 .field-narrow {
   flex: 0 1 140px;
-}
-
-.field input,
-.field select,
-.field textarea {
-  padding: 8px 10px;
-  border: 1px solid #d1d5db;
-  border-radius: 8px;
-  font-family: inherit;
-}
-
-.hint {
-  color: #6b7280;
-  font-size: 12px;
 }
 
 .lines-section h4 {
@@ -299,27 +284,9 @@ onMounted(async () => {
   border-radius: 8px;
   padding: 12px;
   margin-bottom: 10px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
 }
 
 .line-remove {
-  align-self: flex-end;
-}
-
-.modal-footer {
-  display: flex;
-  justify-content: flex-end;
-}
-
-.error {
-  color: #b91c1c;
-  font-size: 14px;
-}
-
-.btn-sm {
-  padding: 6px 10px;
-  font-size: 12px;
+  margin-top: 4px;
 }
 </style>

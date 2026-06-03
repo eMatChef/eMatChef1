@@ -6,20 +6,30 @@
       <p class="supplier-page-hint">{{ t('supplierDeliveries.subtitle') }}</p>
     </header>
 
-    <div v-if="loading" class="supplier-page-state">{{ t('common.loading') }}</div>
-    <div v-else-if="loadError" class="supplier-page-state supplier-page-state--error">{{ loadError }}</div>
+    <ELoadingState
+      v-if="loading"
+      variant="inline"
+      :message="t('common.loading')"
+    />
+    <div v-else-if="loadError" class="supplier-page-error">
+      <v-alert type="error" variant="tonal" :text="loadError" />
+    </div>
 
     <template v-else>
       <div class="toolbar">
-        <button type="button" class="btn btn-primary" @click="openCreate">
+        <EButton variant="primary" @click="openCreate">
           {{ t('supplierDeliveries.newDelivery') }}
-        </button>
-        <button type="button" class="btn btn-secondary" @click="loadDeliveries">
+        </EButton>
+        <EButton variant="secondary" @click="loadDeliveries">
           {{ t('supplierDeliveries.refresh') }}
-        </button>
+        </EButton>
       </div>
 
-      <p v-if="deliveries.length === 0" class="supplier-page-state">{{ t('supplierDeliveries.empty') }}</p>
+      <EEmptyState
+        v-if="deliveries.length === 0"
+        variant="create"
+        :title="t('supplierDeliveries.empty')"
+      />
 
       <table v-else class="data-table">
         <thead>
@@ -40,38 +50,38 @@
             <td>{{ delivery.lines.length }}</td>
             <td><span class="status-badge" :class="`status-${delivery.status}`">{{ statusLabel(delivery.status) }}</span></td>
             <td class="actions-cell">
-              <button
+              <EButton
                 v-if="delivery.status === 'draft'"
-                type="button"
-                class="btn btn-secondary btn-sm"
+                variant="secondary"
+                size="small"
                 @click="openEdit(delivery)"
               >
                 {{ t('common.edit') }}
-              </button>
-              <button
+              </EButton>
+              <EButton
                 v-if="delivery.status === 'draft'"
-                type="button"
-                class="btn btn-primary btn-sm"
+                variant="primary"
+                size="small"
                 @click="submitDelivery(delivery)"
               >
                 {{ t('supplierDeliveries.submit') }}
-              </button>
-              <button
+              </EButton>
+              <EButton
                 v-if="delivery.status === 'draft'"
-                type="button"
-                class="btn btn-danger btn-sm"
+                variant="danger"
+                size="small"
                 @click="removeDelivery(delivery)"
               >
                 {{ t('common.delete') }}
-              </button>
-              <button
+              </EButton>
+              <EButton
                 v-if="delivery.status === 'submitted'"
-                type="button"
-                class="btn btn-secondary btn-sm"
+                variant="secondary"
+                size="small"
                 @click="cancelDelivery(delivery)"
               >
                 {{ t('supplierDeliveries.cancel') }}
-              </button>
+              </EButton>
             </td>
           </tr>
         </tbody>
@@ -107,6 +117,9 @@ import {
   type SupplierDeliveryPayload,
   type SupplierDeliveryStatus,
 } from '@/api/supplierDeliveries'
+import { EButton } from '@/components/form/base'
+import EEmptyState from '@/components/layout/EEmptyState.vue'
+import ELoadingState from '@/components/layout/ELoadingState.vue'
 
 const route = useRoute()
 const { t } = useI18n()
@@ -203,7 +216,7 @@ async function submitDelivery(delivery: SupplierDelivery) {
     toast.error(
       Array.isArray(details)
         ? details.join('; ')
-        : err?.response?.data?.error || t('supplierDeliveries.errorSubmit')
+        : err?.response?.data?.error || t('supplierDeliveries.errorSubmit'),
     )
   }
 }
@@ -249,24 +262,82 @@ onMounted(() => loadDeliveries())
 </script>
 
 <style scoped>
-.supplier-page { max-width: 1100px; }
-.supplier-page-header h1 { margin: 0; font-size: 1.75rem; }
-.supplier-page-subtitle { margin: 6px 0 0; color: #374151; font-weight: 600; }
-.supplier-page-hint { margin: 8px 0 0; color: #6b7280; }
-.supplier-page-state { margin-top: 16px; color: #6b7280; }
-.supplier-page-state--error { color: #b91c1c; }
-.toolbar { display: flex; gap: 8px; margin: 20px 0 12px; }
-.data-table { width: 100%; border-collapse: collapse; font-size: 14px; }
-.data-table th, .data-table td { padding: 10px 12px; border-bottom: 1px solid #e5e7eb; text-align: left; }
-.data-table th { font-size: 12px; text-transform: uppercase; color: #6b7280; }
-.actions-cell { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
-.btn { border: none; border-radius: 8px; padding: 8px 12px; cursor: pointer; font-size: 0.875rem; }
-.btn-sm { padding: 6px 10px; font-size: 12px; }
-.btn-primary { background: #2563eb; color: #fff; }
-.btn-secondary { background: #e5e7eb; color: #111827; }
-.btn-danger { background: #dc2626; color: #fff; }
-.status-badge { padding: 2px 8px; border-radius: 999px; font-size: 12px; background: #e5e7eb; }
-.status-submitted { background: #dbeafe; color: #1d4ed8; }
-.status-imported { background: #d1fae5; color: #065f46; }
-.status-cancelled { background: #fee2e2; color: #b91c1c; }
+.supplier-page {
+  max-width: 1100px;
+  padding: 24px;
+}
+
+.supplier-page-header h1 {
+  margin: 0;
+  font-size: 1.75rem;
+}
+
+.supplier-page-subtitle {
+  margin: 6px 0 0;
+  color: #374151;
+  font-weight: 600;
+}
+
+.supplier-page-hint {
+  margin: 8px 0 0;
+  color: #6b7280;
+}
+
+.supplier-page-error {
+  margin-top: 16px;
+}
+
+.toolbar {
+  display: flex;
+  gap: 8px;
+  margin: 20px 0 12px;
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.data-table th,
+.data-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid #e5e7eb;
+  text-align: left;
+}
+
+.data-table th {
+  font-size: 12px;
+  text-transform: uppercase;
+  color: #6b7280;
+}
+
+.actions-cell {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+.status-badge {
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  background: #e5e7eb;
+}
+
+.status-submitted {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.status-imported {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.status-cancelled {
+  background: #fee2e2;
+  color: #b91c1c;
+}
 </style>

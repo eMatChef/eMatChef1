@@ -129,14 +129,16 @@
   },
   "auth.password_reset_code": {
     "subject": "Passwort zuruecksetzen - eMatChef",
-    "text_body": "Hallo {{display_name}},\n\ndu hast ein neues Passwort fuer eMatChef angefordert.\n\nDein Sicherheitscode lautet: {{reset_code}}\n\nDer Code ist gueltig bis: {{expires_at}}\nBitte gib den Code zusammen mit deinem neuen Passwort im Login-Bereich ein.\n\nFalls du diese Anfrage nicht gestellt hast, ignoriere diese E-Mail.",
+    "text_body": "Hallo {{display_name}},\n\ndu hast ein neues Passwort fuer eMatChef angefordert.\n\nDein Sicherheitscode lautet: {{reset_code}}\n\nPasswort zuruecksetzen:\n{{reset_url}}\n\nDer Code ist gueltig bis: {{expires_at}}\nOeffne den Link und gib den Sicherheitscode aus dieser E-Mail zusammen mit deinem neuen Passwort ein.\n\nFalls du diese Anfrage nicht gestellt hast, ignoriere diese E-Mail.",
     "html": {
       "greeting_word": "Hallo",
       "headline": "Passwort zuruecksetzen",
       "intro": "du hast ein neues Passwort fuer eMatChef angefordert.",
       "code_label": "Dein Sicherheitscode:",
+      "cta_label": "Passwort zuruecksetzen",
+      "link_hint": "Falls der Button nicht funktioniert, nutze diesen Link:",
       "expires_intro": "Gueltig bis:",
-      "instruction": "Bitte gib den Code zusammen mit deinem neuen Passwort im Login-Bereich ein.",
+      "instruction": "Oeffne den Link und gib den Sicherheitscode aus dieser E-Mail zusammen mit deinem neuen Passwort ein.",
       "footer_note": "Falls du diese Anfrage nicht gestellt hast, ignoriere diese E-Mail."
     }
   },

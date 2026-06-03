@@ -5,36 +5,37 @@
       <p v-if="!canEdit" class="supplier-page-readonly-hint">{{ t('supplierProfile.readOnlyHint') }}</p>
     </header>
 
-    <div v-if="loading" class="supplier-page-state">{{ t('common.loading') }}</div>
-    <div v-else-if="loadError" class="supplier-page-state supplier-page-state--error">{{ loadError }}</div>
+    <ELoadingState
+      v-if="loading"
+      variant="inline"
+      :message="t('common.loading')"
+    />
+    <div v-else-if="loadError" class="supplier-page-error">
+      <v-alert type="error" variant="tonal" :text="loadError" />
+    </div>
 
     <form v-else class="supplier-profile-form" @submit.prevent="save">
       <section class="form-section">
         <h2 class="form-section-title">{{ t('supplierProfile.sectionCompany') }}</h2>
         <div class="form-row two-cols">
-          <label class="form-field">
-            <span>{{ t('supplierProfile.fields.name') }}</span>
-            <input
-              v-model="form.name"
-              type="text"
-              class="form-input"
-              required
-              maxlength="255"
-              :disabled="!canEdit"
-            />
-          </label>
-          <label class="form-field">
-            <span>{{ t('supplierProfile.fields.manufacturerKey') }}</span>
-            <input
-              v-model="form.manufacturer_key"
-              type="text"
-              class="form-input"
-              maxlength="120"
-              :disabled="!canEdit"
-              :placeholder="t('supplierProfile.fields.manufacturerKeyPlaceholder')"
-            />
-            <span class="form-hint">{{ t('supplierProfile.fields.manufacturerKeyHint') }}</span>
-          </label>
+          <ETextField
+            v-model="form.name"
+            :label="t('supplierProfile.fields.name')"
+            :disabled="!canEdit"
+            maxlength="255"
+            hide-details="auto"
+            class="form-field-grow"
+          />
+          <ETextField
+            v-model="form.manufacturer_key"
+            :label="t('supplierProfile.fields.manufacturerKey')"
+            :placeholder="t('supplierProfile.fields.manufacturerKeyPlaceholder')"
+            :hint="t('supplierProfile.fields.manufacturerKeyHint')"
+            :disabled="!canEdit"
+            maxlength="120"
+            hide-details="auto"
+            class="form-field-grow"
+          />
         </div>
       </section>
 
@@ -42,10 +43,14 @@
         <h2 class="form-section-title">{{ t('supplierProfile.sectionOperator') }}</h2>
         <p class="form-hint section-intro">{{ t('supplierProfile.operatorIntro') }}</p>
 
-        <label v-if="canEdit" class="operator-toggle">
-          <input v-model="operatorForm.operator_enabled" type="checkbox" :disabled="!canEdit" />
-          <span>{{ t('supplierProfile.operatorToggle') }}</span>
-        </label>
+        <ECheckbox
+          v-if="canEdit"
+          v-model="operatorForm.operator_enabled"
+          :label="t('supplierProfile.operatorToggle')"
+          :disabled="!canEdit"
+          hide-details
+          class="operator-toggle"
+        />
         <p v-else class="operator-readonly">
           {{
             profile?.operator_enabled
@@ -55,24 +60,14 @@
         </p>
 
         <div v-if="operatorForm.operator_enabled" class="operator-details">
-          <label class="form-field">
-            <span>{{ t('supplierProfile.operatorDepartment') }}</span>
-            <select
-              v-model="operatorForm.linked_department_id"
-              class="form-input"
-              :disabled="!canEdit"
-              required
-            >
-              <option value="" disabled>{{ t('supplierProfile.operatorDepartmentPlaceholder') }}</option>
-              <option
-                v-for="dept in eligibleDepartments"
-                :key="dept.department_id"
-                :value="dept.department_id"
-              >
-                {{ dept.name }} ({{ dept.organisation_name }})
-              </option>
-            </select>
-          </label>
+          <ESelect
+            v-model="operatorForm.linked_department_id"
+            :items="departmentSelectItems"
+            :label="t('supplierProfile.operatorDepartment')"
+            :placeholder="t('supplierProfile.operatorDepartmentPlaceholder')"
+            :disabled="!canEdit"
+            hide-details="auto"
+          />
 
           <p v-if="linkedDepartmentLabel && !canEdit" class="form-hint">{{ linkedDepartmentLabel }}</p>
 
@@ -102,12 +97,12 @@
       </section>
 
       <div v-if="canEdit" class="form-actions">
-        <button type="submit" class="btn btn-primary" :disabled="saving || !hasChanges">
+        <EButton variant="primary" type="submit" :disabled="saving || !hasChanges" :loading="saving">
           {{ saving ? t('common.saving') : t('common.save') }}
-        </button>
-        <button type="button" class="btn btn-secondary" :disabled="saving || !hasChanges" @click="resetForm">
+        </EButton>
+        <EButton variant="secondary" :disabled="saving || !hasChanges" @click="resetForm">
           {{ t('common.cancel') }}
-        </button>
+        </EButton>
         <p v-if="saveError" class="form-error">{{ saveError }}</p>
         <p v-if="saveSuccess" class="form-success">{{ saveSuccess }}</p>
       </div>
@@ -127,6 +122,8 @@ import {
   type SupplierCompanyProfile,
 } from '@/api/supplierCompanies'
 import { useAuthStore } from '@/stores/auth'
+import { EButton, ECheckbox, ESelect, ETextField } from '@/components/form/base'
+import ELoadingState from '@/components/layout/ELoadingState.vue'
 
 const route = useRoute()
 const { t } = useI18n()
@@ -154,12 +151,20 @@ const addressForm = ref<AddressFormData>(emptyAddressForm())
 
 const canEdit = computed(() => profile.value?.can_edit === true)
 const eligibleDepartments = computed(() => profile.value?.eligible_operator_departments ?? [])
+
+const departmentSelectItems = computed(() =>
+  eligibleDepartments.value.map((dept) => ({
+    title: `${dept.name} (${dept.organisation_name})`,
+    value: dept.department_id,
+  })),
+)
+
 const hasLinkedDepartmentMembership = computed(() => {
   if (!operatorForm.value.operator_enabled || !operatorForm.value.linked_department_id) {
     return true
   }
   return authStore.departments.some(
-    (dept) => dept.department_id === operatorForm.value.linked_department_id
+    (dept) => dept.department_id === operatorForm.value.linked_department_id,
   )
 })
 
@@ -237,7 +242,7 @@ function buildPayloadFromProfile(data: SupplierCompanyProfile) {
       operator_enabled: data.operator_enabled,
       linked_department_id: data.linked_department_id || '',
     },
-    addressFromProfile(data)
+    addressFromProfile(data),
   )
 }
 
@@ -272,7 +277,7 @@ function nullableField(value: string | null | undefined): string | null {
 function buildPatchPayloadFromState(
   companyForm: { name: string; manufacturer_key: string },
   operator: { operator_enabled: boolean; linked_department_id: string },
-  address: AddressFormData
+  address: AddressFormData,
 ) {
   return {
     name: companyForm.name.trim(),
@@ -385,13 +390,8 @@ onMounted(() => {
   font-size: 0.95rem;
 }
 
-.supplier-page-state {
+.supplier-page-error {
   margin-top: 24px;
-  color: #4b5563;
-}
-
-.supplier-page-state--error {
-  color: #b91c1c;
 }
 
 .supplier-profile-form {
@@ -415,32 +415,8 @@ onMounted(() => {
   gap: 16px;
 }
 
-.form-row.two-cols .form-field {
+.form-field-grow {
   flex: 1 1 240px;
-}
-
-.form-field {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.form-field span {
-  font-size: 0.875rem;
-  font-weight: 500;
-  color: #374151;
-}
-
-.form-input {
-  padding: 8px 12px;
-  border: 1px solid #d1d5db;
-  border-radius: 6px;
-  font-size: 0.95rem;
-}
-
-.form-input:disabled {
-  background: #f3f4f6;
-  color: #6b7280;
 }
 
 .form-hint {
@@ -453,12 +429,7 @@ onMounted(() => {
 }
 
 .operator-toggle {
-  display: flex;
-  align-items: center;
-  gap: 10px;
   margin-bottom: 16px;
-  font-size: 0.95rem;
-  color: #374151;
 }
 
 .operator-readonly {

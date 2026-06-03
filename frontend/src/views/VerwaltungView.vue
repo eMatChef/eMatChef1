@@ -8,7 +8,9 @@
         @mouseleave="closeMenu"
       >
         <div class="verwaltung-menu-header">
-          <h2 v-show="menuExpanded" class="verwaltung-menu-title">{{ t('verwaltung.menuTitle') }}</h2>
+          <h2 class="verwaltung-menu-title" :class="{ 'verwaltung-menu-title--collapsed': !menuExpanded }">
+            {{ t('verwaltung.menuTitle') }}
+          </h2>
         </div>
         <nav class="verwaltung-nav">
           <router-link
@@ -20,8 +22,10 @@
             :title="!menuExpanded ? item.label : undefined"
             @click="onMenuNavClick"
           >
-            <component :is="item.icon" class="nav-icon" />
-            <span v-show="menuExpanded" class="nav-label">{{ item.label }}</span>
+            <span class="verwaltung-nav-item__icon-wrap" aria-hidden="true">
+              <v-icon :icon="item.mdiIcon" class="nav-icon nav-icon--mdi" size="20" />
+            </span>
+            <span class="nav-label" :class="{ 'nav-label--collapsed': !menuExpanded }">{{ item.label }}</span>
           </router-link>
         </nav>
       </aside>
@@ -38,13 +42,11 @@
 </template>
 
 <script setup lang="ts">
-import { computed, markRaw } from 'vue'
+import { computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useHoverSubnav } from '@/composables/useHoverSubnav'
 import { useAuthStore } from '@/stores/auth'
-import { IconSettings, IconDashboard, IconJobs, IconTasks, IconEmployees, IconContacts, IconMaterials } from '@/components/icons'
-
 const route = useRoute()
 const authStore = useAuthStore()
 const { t } = useI18n()
@@ -107,7 +109,7 @@ function isActiveItem(item: MenuItem): boolean {
 type MenuItem = {
   id: string
   label: string
-  icon: typeof IconDashboard
+  mdiIcon: string
   /** z. B. Superadmin im Department: globaler Benutzer-Bereich unter /admin-dashboard/… */
   to?: string
 }
@@ -115,18 +117,18 @@ type MenuItem = {
 const visibleMenuItems = computed((): MenuItem[] => {
   const start: MenuItem[] = []
   if (canManageGlobalAddresses.value) {
-    start.push({ id: 'global-addresses', label: t('verwaltung.nav.globalAddresses'), icon: markRaw(IconContacts) })
+    start.push({ id: 'global-addresses', label: t('verwaltung.nav.globalAddresses'), mdiIcon: 'mdi-earth' })
   }
   if (isSuperAdminUser.value) {
     start.push({
       id: 'supplier-global-review',
       label: t('verwaltung.nav.supplierGlobalReview'),
-      icon: markRaw(IconTasks),
+      mdiIcon: 'mdi-clipboard-check-outline',
     })
   }
-  const jobsItem: MenuItem = { id: 'jobs', label: t('verwaltung.nav.systemJobs'), icon: markRaw(IconJobs) }
+  const jobsItem: MenuItem = { id: 'jobs', label: t('verwaltung.nav.systemJobs'), mdiIcon: 'mdi-briefcase-outline' }
   const mid: MenuItem[] = canAssignSupport.value
-    ? [{ id: 'support-requests', label: t('verwaltung.nav.supportRequests'), icon: markRaw(IconTasks) }]
+    ? [{ id: 'support-requests', label: t('verwaltung.nav.supportRequests'), mdiIcon: 'mdi-lifebuoy' }]
     : []
   const core: MenuItem[] = [
     ...start,
@@ -137,35 +139,35 @@ const visibleMenuItems = computed((): MenuItem[] => {
   if (isAdminDashboardRoute.value) {
     const sa: MenuItem[] = []
     if (canViewOrganisations.value) {
-      sa.push({ id: 'organisations', label: t('verwaltung.nav.organisations'), icon: markRaw(IconDashboard) })
+      sa.push({ id: 'organisations', label: t('verwaltung.nav.organisations'), mdiIcon: 'mdi-domain' })
     }
     if (canViewDepartments.value) {
-      sa.push({ id: 'departments', label: t('verwaltung.nav.departments'), icon: markRaw(IconDashboard) })
+      sa.push({ id: 'departments', label: t('verwaltung.nav.departments'), mdiIcon: 'mdi-office-building-outline' })
     }
     if (canManageGlobalUsers.value) {
-      sa.push({ id: 'users', label: t('verwaltung.nav.users'), icon: markRaw(IconEmployees) })
+      sa.push({ id: 'users', label: t('verwaltung.nav.users'), mdiIcon: 'mdi-account-group' })
     }
     if (isSuperAdminUser.value) {
       sa.push({
         id: 'global-admin-roles',
         label: t('verwaltung.nav.globalAdminRoles'),
-        icon: markRaw(IconEmployees),
+        mdiIcon: 'mdi-shield-account',
       })
       sa.push({
         id: 'user-org-overview',
         label: t('verwaltung.nav.userOrgOverview'),
-        icon: markRaw(IconEmployees),
+        mdiIcon: 'mdi-account-search',
         to: '/admin-dashboard/verwaltung/user-org-overview',
       })
     }
-    const integrations: MenuItem = { id: 'integrations', label: t('verwaltung.nav.integrations'), icon: markRaw(IconSettings) }
-    const securityMonitoring: MenuItem = { id: 'security-monitoring', label: t('verwaltung.nav.securityMonitoring'), icon: markRaw(IconSettings) }
-    const mail: MenuItem = { id: 'mail', label: t('verwaltung.nav.mail'), icon: markRaw(IconSettings) }
-    const perm: MenuItem = { id: 'permissions', label: t('verwaltung.nav.permissions'), icon: markRaw(IconSettings) }
+    const integrations: MenuItem = { id: 'integrations', label: t('verwaltung.nav.integrations'), mdiIcon: 'mdi-api' }
+    const securityMonitoring: MenuItem = { id: 'security-monitoring', label: t('verwaltung.nav.securityMonitoring'), mdiIcon: 'mdi-shield-alert-outline' }
+    const mail: MenuItem = { id: 'mail', label: t('verwaltung.nav.mail'), mdiIcon: 'mdi-email-outline' }
+    const perm: MenuItem = { id: 'permissions', label: t('verwaltung.nav.permissions'), mdiIcon: 'mdi-lock-outline' }
     const materialTemplates: MenuItem = {
       id: 'templates',
       label: t('verwaltung.nav.materialTemplates'),
-      icon: markRaw(IconMaterials),
+      mdiIcon: 'mdi-file-document-multiple-outline',
     }
     return [
       ...core,
@@ -181,7 +183,7 @@ const visibleMenuItems = computed((): MenuItem[] => {
   const saUsersGlobal: MenuItem = {
     id: 'users-global',
     label: t('verwaltung.nav.users'),
-    icon: markRaw(IconEmployees),
+    mdiIcon: 'mdi-account-group',
     to: '/admin-dashboard/verwaltung/users'
   }
 
@@ -191,19 +193,19 @@ const visibleMenuItems = computed((): MenuItem[] => {
 
   const orgItems: MenuItem[] = []
   if (canViewOrganisations.value) {
-    orgItems.push({ id: 'organisations', label: t('verwaltung.nav.organisations'), icon: markRaw(IconDashboard) })
+    orgItems.push({ id: 'organisations', label: t('verwaltung.nav.organisations'), mdiIcon: 'mdi-domain' })
   }
   if (canViewDepartments.value) {
-    orgItems.push({ id: 'departments', label: t('verwaltung.nav.allDepartments'), icon: markRaw(IconDashboard) })
+    orgItems.push({ id: 'departments', label: t('verwaltung.nav.allDepartments'), mdiIcon: 'mdi-office-building-outline' })
   }
   if (canViewSecurityMonitoring.value) {
-    orgItems.push({ id: 'security-monitoring', label: t('verwaltung.nav.securityMonitoring'), icon: markRaw(IconSettings) })
+    orgItems.push({ id: 'security-monitoring', label: t('verwaltung.nav.securityMonitoring'), mdiIcon: 'mdi-shield-alert-outline' })
   }
-  orgItems.push({ id: 'permissions', label: t('verwaltung.nav.permissions'), icon: markRaw(IconSettings) })
+  orgItems.push({ id: 'permissions', label: t('verwaltung.nav.permissions'), mdiIcon: 'mdi-lock-outline' })
 
   const items = [...core, ...orgItems]
   if (canManageMail.value) {
-    items.push({ id: 'mail', label: t('verwaltung.nav.mail'), icon: markRaw(IconSettings) })
+    items.push({ id: 'mail', label: t('verwaltung.nav.mail'), mdiIcon: 'mdi-email-outline' })
   }
   if (canManageGlobalUsers.value) {
     items.push(saUsersGlobal)
@@ -245,7 +247,9 @@ const visibleMenuItems = computed((): MenuItem[] => {
 .verwaltung-menu-header {
   margin-bottom: 8px;
   padding: 0 12px;
-  min-height: 1.5rem;
+  min-height: 36px;
+  display: flex;
+  align-items: flex-end;
 }
 
 .verwaltung-menu--collapsed .verwaltung-menu-header {
@@ -261,18 +265,26 @@ const visibleMenuItems = computed((): MenuItem[] => {
   color: #64748b;
   flex: 1;
   min-width: 0;
+  line-height: 1.3;
+}
+
+.verwaltung-menu-title--collapsed {
+  visibility: hidden;
 }
 
 .verwaltung-nav {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
 }
 
 .verwaltung-nav-item {
-  display: flex;
+  display: grid;
+  grid-template-columns: 40px 1fr;
   align-items: center;
-  padding: 12px 20px;
+  column-gap: 8px;
+  min-height: 40px;
+  padding: 6px 12px 6px 8px;
   color: #64748b;
   text-decoration: none;
   transition: all 0.2s;
@@ -292,24 +304,45 @@ const visibleMenuItems = computed((): MenuItem[] => {
 }
 
 .verwaltung-menu--collapsed .verwaltung-nav-item {
-  justify-content: center;
-  padding: 12px 8px;
+  grid-template-columns: 56px;
+  justify-items: center;
+  padding: 6px 0;
   border-left-width: 3px;
 }
 
-.verwaltung-menu--collapsed .verwaltung-nav-item .nav-icon {
-  margin-right: 0;
+.verwaltung-nav-item__icon-wrap {
+  grid-column: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .verwaltung-nav-item .nav-icon {
   width: 20px;
   height: 20px;
-  margin-right: 12px;
+  margin-right: 0;
   flex-shrink: 0;
 }
 
+.verwaltung-nav-item .nav-icon--mdi {
+  color: currentColor;
+}
+
 .verwaltung-nav-item .nav-label {
+  grid-column: 2;
   font-size: 14px;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.verwaltung-menu--collapsed .verwaltung-nav-item .nav-label {
+  grid-column: 1;
+  width: 0;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
 }
 
 .verwaltung-content {

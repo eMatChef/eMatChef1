@@ -1,27 +1,22 @@
 <template>
   <div class="material-image-picker">
-    <div ref="menuRoot" class="material-image-picker-actions">
-      <button
-        type="button"
-        class="material-image-picker-trigger"
-        :disabled="disabled || uploading"
-        @click="toggleMenu"
-      >
-        {{ hasImage ? t('media.material.replaceImage') : t('media.material.addImage') }}
-      </button>
-
-      <div v-if="menuOpen" class="material-image-picker-menu" role="menu">
-        <button type="button" role="menuitem" @click="openFilePicker(false)">
-          {{ t('media.material.optionUpload') }}
-        </button>
-        <button type="button" role="menuitem" @click="openFilePicker(true)">
-          {{ t('media.material.optionCamera') }}
-        </button>
-        <button type="button" role="menuitem" @click="openUrlPanel">
-          {{ t('media.material.optionUrl') }}
-        </button>
-      </div>
-    </div>
+    <v-menu v-model="menuOpen" location="bottom" :close-on-content-click="true">
+      <template #activator="{ props: activatorProps }">
+        <EButton
+          v-bind="activatorProps"
+          variant="secondary"
+          block
+          :disabled="disabled || uploading"
+        >
+          {{ hasImage ? t('media.material.replaceImage') : t('media.material.addImage') }}
+        </EButton>
+      </template>
+      <v-list density="compact" class="material-image-picker-menu">
+        <v-list-item :title="t('media.material.optionUpload')" @click="openFilePicker(false)" />
+        <v-list-item :title="t('media.material.optionCamera')" @click="openFilePicker(true)" />
+        <v-list-item :title="t('media.material.optionUrl')" @click="openUrlPanel" />
+      </v-list>
+    </v-menu>
 
     <div v-if="urlPanelOpen" class="material-image-picker-url">
       <p class="material-image-picker-url-hint">{{ t('media.material.urlHint') }}</p>
@@ -33,29 +28,28 @@
       >
         {{ t('media.material.googleSearch', { name: searchQuery }) }}
       </a>
-      <label class="material-image-picker-url-field">
-        <span>{{ t('media.material.urlLabel') }}</span>
-        <input
-          v-model="imageUrl"
-          type="url"
-          inputmode="url"
-          :placeholder="t('media.material.urlPlaceholder')"
-          :disabled="disabled || uploading"
-          @keydown.enter.prevent="submitUrl"
-        />
-      </label>
+      <ETextField
+        v-model="imageUrl"
+        type="url"
+        :label="t('media.material.urlLabel')"
+        :placeholder="t('media.material.urlPlaceholder')"
+        :disabled="disabled || uploading"
+        hide-details
+        @keydown.enter.prevent="submitUrl"
+      />
       <div class="material-image-picker-url-actions">
-        <button type="button" class="btn btn-secondary btn-sm" @click="closeUrlPanel">
+        <EButton variant="secondary" size="small" @click="closeUrlPanel">
           {{ t('common.cancel') }}
-        </button>
-        <button
-          type="button"
-          class="btn btn-primary btn-sm"
+        </EButton>
+        <EButton
+          variant="primary"
+          size="small"
           :disabled="disabled || uploading || !imageUrl.trim()"
+          :loading="uploading"
           @click="submitUrl"
         >
           {{ uploading ? t('media.uploading') : t('media.material.applyUrl') }}
-        </button>
+        </EButton>
       </div>
     </div>
 
@@ -82,8 +76,9 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { EButton, ETextField } from '@/components/form/base'
 import { extractMediaUploadError, validateImageFile } from '@/api/media'
 import { IMAGE_UPLOAD_ACCEPT } from '@/api/media'
 
@@ -113,7 +108,6 @@ const menuOpen = ref(false)
 const urlPanelOpen = ref(false)
 const uploading = ref(false)
 const imageUrl = ref('')
-const menuRoot = ref<HTMLElement | null>(null)
 const fileInputRef = ref<HTMLInputElement | null>(null)
 const cameraInputRef = ref<HTMLInputElement | null>(null)
 
@@ -121,13 +115,6 @@ const googleImageSearchUrl = computed(() => {
   const q = props.searchQuery.trim() || 'material'
   return `https://www.google.com/search?tbm=isch&q=${encodeURIComponent(q)}`
 })
-
-function toggleMenu() {
-  menuOpen.value = !menuOpen.value
-  if (!menuOpen.value) {
-    urlPanelOpen.value = false
-  }
-}
 
 function closeMenu() {
   menuOpen.value = false
@@ -190,17 +177,6 @@ async function submitUrl() {
     uploading.value = false
   }
 }
-
-function onDocumentClick(event: MouseEvent) {
-  if (!menuOpen.value) return
-  const root = menuRoot.value
-  if (root && !root.contains(event.target as Node)) {
-    closeMenu()
-  }
-}
-
-onMounted(() => document.addEventListener('click', onDocumentClick))
-onBeforeUnmount(() => document.removeEventListener('click', onDocumentClick))
 </script>
 
 <style scoped>
@@ -211,61 +187,8 @@ onBeforeUnmount(() => document.removeEventListener('click', onDocumentClick))
   margin-top: 10px;
 }
 
-.material-image-picker-actions {
-  position: relative;
-}
-
-.material-image-picker-trigger {
-  width: 100%;
-  padding: 8px 12px;
-  border: 1px solid #d1d5db;
-  border-radius: 8px;
-  background: #fff;
-  font-size: 13px;
-  font-weight: 500;
-  color: #374151;
-  cursor: pointer;
-}
-
-.material-image-picker-trigger:hover:not(:disabled) {
-  border-color: #9ca3af;
-  background: #f9fafb;
-}
-
-.material-image-picker-trigger:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
 .material-image-picker-menu {
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: calc(100% + 4px);
-  z-index: 20;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 4px;
-  background: #fff;
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
-  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
-}
-
-.material-image-picker-menu button {
-  border: none;
-  background: transparent;
-  text-align: left;
-  padding: 8px 10px;
-  border-radius: 6px;
-  font-size: 13px;
-  color: #374151;
-  cursor: pointer;
-}
-
-.material-image-picker-menu button:hover {
-  background: #f3f4f6;
+  min-width: 200px;
 }
 
 .material-image-picker-url {
@@ -292,21 +215,6 @@ onBeforeUnmount(() => document.removeEventListener('click', onDocumentClick))
 
 .material-image-picker-google:hover {
   text-decoration: underline;
-}
-
-.material-image-picker-url-field {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  font-size: 12px;
-  color: #374151;
-}
-
-.material-image-picker-url-field input {
-  padding: 8px 10px;
-  border: 1px solid #d1d5db;
-  border-radius: 6px;
-  font-size: 13px;
 }
 
 .material-image-picker-url-actions {

@@ -96,7 +96,13 @@
         "supplierDeliveries": "Meine Firma · Übergaben · eMatChef",
         "supplierTemplates": "Meine Firma · Vorlagen · eMatChef",
         "supplierRepairs": "Meine Firma · Reparaturen · eMatChef",
-        "settingsSupplierDeliveries": "Einstellungen · Lieferanten-Übergaben · eMatChef"
+        "settingsSupplierDeliveries": "Einstellungen · Lieferanten-Übergaben · eMatChef",
+        "accountingGroupCosts": "Gruppenkosten · eMatChef",
+        "accountingAmortization": "Abschreibung · eMatChef",
+        "settingsFixedDates": "Einstellungen · Fixe Daten · eMatChef",
+        "globalSearch": "Suche · eMatChef",
+        "devUiSandbox": "UI Sandbox · eMatChef",
+        "helpOverview": "Hilfe · Dokumentation · eMatChef"
       },
       "descriptions": {
         "publicLookup": "Öffentliche Material- und Seriennummern-Informationen in eMatChef.",
@@ -193,11 +199,13 @@
     "blog": {
       "titleFallback": "Blog",
       "untitledPost": "Ohne Titel",
-      "noPostsYet": "Noch keine Beiträge.",
+      "noPostsYet": "Noch keine Beiträge",
       "readMore": "Weiterlesen",
       "backToList": "Zurück zum Blog",
       "notFoundTitle": "Beitrag nicht gefunden",
-      "notFoundBody": "Der gewünschte Blogbeitrag ist nicht vorhanden oder wurde entfernt."
+      "notFoundBody": "Der gewünschte Blogbeitrag ist nicht vorhanden oder wurde entfernt.",
+      "kicker": "Neuigkeiten & Einblicke",
+      "noPostsHint": "Sobald Beiträge veröffentlicht sind, erscheinen sie hier als Karten zum Durchstöbern."
     },
     "lookup": {
       "brandTitle": "eMatChef",
@@ -277,7 +285,21 @@
     "impressum": {
       "fallbackProviderHeading": "Angaben gemäß TMG / Schweiz: Anbieterkennzeichnung",
       "fallbackRepresentativeHeading": "Vertretungsberechtigt",
-      "fallbackLiabilityHeading": "Haftung für Inhalte"
+      "fallbackLiabilityHeading": "Haftung für Inhalte",
+      "kicker": "Anbieter & Kontakt",
+      "lead": "Impressum und Anbieterkennzeichnung für eMatChef — wer hinter der Plattform steht und wie du uns erreichst."
+    },
+    "faq": {
+      "kicker": "Hilfe & Antworten",
+      "lead": "Kurz und verständlich — die häufigsten Fragen zu eMatChef und dem Einstieg in deine Abteilung.",
+      "emptyTitle": "FAQ wird ergänzt",
+      "emptyBody": "Hier erscheinen bald Antworten auf häufige Fragen."
+    },
+    "tos": {
+      "kicker": "Rechtliches",
+      "lead": "Nutzungsbedingungen und Datenschutz — transparent, was bei eMatChef gilt und wie wir mit Daten umgehen.",
+      "emptyTitle": "Inhalt wird ergänzt",
+      "emptyBody": "Die Abschnitte zu Nutzung und Datenschutz werden hier veröffentlicht."
     }
   },
   "publicNav": {
@@ -623,7 +645,8 @@
     "group": "Gruppe",
     "role": "Rolle",
     "refresh": "Aktualisieren",
-    "status": "Status"
+    "status": "Status",
+    "openDetail": "Details öffnen"
   },
   "tasksShell": {
     "title": "Aufgaben",
@@ -706,7 +729,9 @@
     "myCompanyCatalog": "Katalog",
     "myCompanyDeliveries": "Übergaben",
     "myCompanyTemplates": "Vorlagen",
-    "myCompanyRepairs": "Reparaturen"
+    "myCompanyRepairs": "Reparaturen",
+    "devUiPlayground": "UI Sandbox",
+    "help": "Hilfe"
   },
   "supplierProfile": {
     "title": "Profil & Kontakt",
@@ -1196,7 +1221,8 @@
       "helpTitle": "Hilfe",
       "helpAria": "Hilfe",
       "infoTitle": "Informationen",
-      "infoAria": "Informationen"
+      "infoAria": "Informationen",
+      "menuAria": "Navigation öffnen"
     },
     "userMenu": {
       "editProfile": "Profil bearbeiten",
@@ -1364,7 +1390,9 @@
     "forgotConfirmFailedFallback": "Passwort konnte nicht zurueckgesetzt werden",
     "inviteCodeInParens": "(Code: {code})",
     "exampleFirstName": "Max",
-    "exampleLastName": "Muster"
+    "exampleLastName": "Muster",
+    "subtitleForgotRequest": "Geben Sie Ihre E-Mail-Adresse ein. Wir senden Ihnen einen Sicherheitscode.",
+    "subtitleForgotConfirm": "Geben Sie den Code aus der E-Mail ein und waehlen Sie ein neues Passwort."
   },
   "activities": {
     "opening": "Aktivität wird geöffnet…",
@@ -1561,7 +1589,11 @@
         "check_date_range": "Zeitraum prüfen",
         "pickup_outside_usage": "Abhol/Rückgabe außerhalb der Nutzung",
         "choose_material": "Material wählen"
-      }
+      },
+      "discardDraft": "Entwurf verwerfen",
+      "confirmDiscardDraft": "Entwurf wirklich verwerfen? Alle gespeicherten Daten gehen verloren.",
+      "toastDraftDiscarded": "Entwurf verworfen",
+      "toastDiscardDraftFailed": "Entwurf konnte nicht gelöscht werden"
     },
     "detail": {
       "backToList": "Zurück zur Liste",
@@ -1684,14 +1716,17 @@
     },
     "datePresets": {
       "today": "Heute",
-      "nextSaturday": "Nächster Samstag"
+      "nextSaturday": "Nächster Samstag",
+      "secondSaturday": "Übernächster Samstag"
     },
     "dateRangePicker": {
       "placeholder": "Zeitraum wählen …",
       "presetEaster": "Ostern (Karfreitag–Ostermontag)",
       "presetAscension": "Auffahrt (Do–So)",
       "presetPentecost": "Pfingsten (So–Mo)",
-      "schoolHolidayTooltip": "{label} (Schulferien)"
+      "schoolHolidayTooltip": "{label} (Schulferien)",
+      "presetsAria": "Schnellauswahl",
+      "rangeBlockedByDepartmentBreak": "Der Zeitraum darf keine Tage «Mat-Büro geschlossen» enthalten."
     },
     "materialAvailability": {
       "tabSourceAria": "Materialquelle",
@@ -2569,7 +2604,8 @@
       "storage": "Regale & Fächer",
       "templates": "Vorlagen",
       "materialImport": "Material Import/Export",
-      "supplierDeliveries": "Lieferanten-Übergaben"
+      "supplierDeliveries": "Lieferanten-Übergaben",
+      "fixedDates": "Fixe Daten"
     },
     "common": {
       "selectDepartment": "Department auswählen"
@@ -3693,6 +3729,38 @@
       "deleteRackMessage": "Regal «{name}» mit {count} Fächern wirklich löschen?",
       "overviewComboStoredInCrate": "{qty} Stk. in Kiste",
       "overviewComboNotInCrate": "Nicht in Kiste"
+    },
+    "fixedDates": {
+      "title": "Fixe Daten",
+      "description": "Manuell gepflegte Zeiträume (Ferien, Lagerwoche, Mat-Büro geschlossen) für den Aktivitäten-Kalender.",
+      "noPermission": "Nur Materialwart und Departmentchef können Fixe Daten verwalten.",
+      "createTitle": "Zeitraum anlegen",
+      "editTitle": "Zeitraum bearbeiten",
+      "startDate": "Von",
+      "endDate": "Bis",
+      "typeLabel": "Art",
+      "name": "Name",
+      "namePlaceholder": "z. B. Herbstferien, Sommerlager Matra",
+      "colFrom": "Von",
+      "colTo": "Bis",
+      "colType": "Art",
+      "colName": "Name",
+      "loading": "Lade Zeiträume…",
+      "empty": "Noch keine Zeiträume erfasst.",
+      "confirmDeleteTitle": "Zeitraum löschen?",
+      "confirmDeleteMessage": "Der Eintrag wird dauerhaft entfernt.",
+      "toastLoadError": "Zeiträume konnten nicht geladen werden.",
+      "toastCreated": "Zeitraum wurde angelegt.",
+      "toastUpdated": "Zeitraum wurde gespeichert.",
+      "toastDeleted": "Zeitraum wurde gelöscht.",
+      "toastSaveError": "Speichern fehlgeschlagen.",
+      "toastDeleteError": "Löschen fehlgeschlagen.",
+      "labels": {
+        "school_vacation": "Schulferien",
+        "department_break": "Mat-Büro geschlossen",
+        "camp_week": "Lagerwoche",
+        "other": "Sonstiges"
+      }
     }
   },
   "siteEditor": {
@@ -3958,10 +4026,19 @@
       "saveErrorFallback": "Fehler beim Speichern des Departments"
     },
     "globalSearch": {
-      "placeholderDefault": "Suchen… (material:, aktivität:, reparatur:)",
+      "placeholderDefault": "Suchen… Material, Aktivität, Reparatur (optional material:, aktivität:, reparatur:)",
       "loadingSuggestions": "Suche…",
       "typeActivity": "Aktivität",
-      "typeRepair": "Reparatur"
+      "typeRepair": "Reparatur",
+      "loadingResults": "Suchergebnisse werden geladen…",
+      "showAllResults": "Alle Ergebnisse anzeigen",
+      "pageTitle": "Suche",
+      "subtitleWithQuery": "Treffer für «{q}»",
+      "subtitleEmpty": "Gib einen Suchbegriff ein (mindestens 2 Zeichen).",
+      "hintTitle": "Zentrale Suche",
+      "hintDescription": "Suche nach Material, Aktivität oder Reparatur — im Header oder hier. Mit Enter oder «Alle Ergebnisse» öffnest du diese Übersicht.",
+      "noResultsTitle": "Keine Treffer",
+      "noResultsDescription": "Für «{q}» wurden keine passenden Einträge gefunden."
     },
     "mapView": {
       "hintSetLocation": "Klicken Sie auf die Karte, um einen Standort zu setzen",
@@ -4054,7 +4131,8 @@
       "errorPermission": "Kein Zugriff auf die Kamera. Bitte Berechtigung erteilen.",
       "errorNoCamera": "Keine Kamera gefunden.",
       "errorAborted": "Kamerazugriff wurde abgebrochen.",
-      "errorInUse": "Kamera wird bereits verwendet oder ist nicht verfügbar."
+      "errorInUse": "Kamera wird bereits verwendet oder ist nicht verfügbar.",
+      "errorSecureContext": "Kamera ist nur über HTTPS verfügbar. Lokal: https://app.ematchef.test (Zertifikat mit scripts/generate-local-https-certs.sh) oder testweise http://localhost:5173."
     },
     "rentalAmortization": {
       "title": "Preis-Vorschlag (Amortisation)",
@@ -5579,7 +5657,7 @@
         "introParagraph2Label": "Absatz 2",
         "featuresSection": "Funktionen (Karten)",
         "featuresTitleLabel": "Überschrift über den Karten",
-        "featureIconLabel": "Symbol (ein Zeichen, z. B. ⊙)",
+        "featureIconLabel": "MDI-Icon (z. B. mdi-warehouse)",
         "featureTitleLabel": "Karten-Titel",
         "featureTextLabel": "Karten-Text",
         "addFeature": "Karte hinzufügen",
@@ -6016,7 +6094,7 @@
     "createTitleLabel": "Titel *",
     "createTitlePlaceholder": "z.B. Zeltstange gebrochen",
     "createMaterialLabel": "Material *",
-    "createSearchPlaceholder": "Material suchen (mind. 2 Zeichen)…",
+    "createSearchPlaceholder": "Material suchen (Name, Barcode, Seriennummer)…",
     "createSearching": "Suche…",
     "createNoMatches": "Keine Treffer für «{query}»",
     "createChangeMaterialTitle": "Material ändern",
@@ -6318,7 +6396,9 @@
       "tabCostCenters": "Kostenstellen",
       "tabBookings": "Buchungen",
       "tabMaterialCosts": "Materialkosten",
-      "tabBudget": "Budget"
+      "tabBudget": "Budget",
+      "tabGroups": "Gruppenkosten",
+      "tabAmortization": "Abschreibung"
     },
     "bookings": {
       "intro": "Ausgaben und Kostenfälle in CHF, Zuordnung zu Kostenstellen und optional zu Gruppen. Keine MwSt.-Ausweisung. Die Buchungs-ID (Präfix kb) enthält das Jahr des Buchungsdatums – wie bei Material-Batches; das Datum ist nach dem Erfassen nicht mehr änderbar.",
@@ -6369,7 +6449,34 @@
       "deleteConfirmTitle": "Buchung löschen?",
       "deleteConfirmMessage": "Eintrag vom {date} über CHF {amount} wirklich löschen?",
       "ccLoadError": "Kostenstellen konnten nicht geladen werden.",
-      "listLoadError": "Buchungen konnten nicht geladen werden."
+      "listLoadError": "Buchungen konnten nicht geladen werden.",
+      "exportCsv": "CSV exportieren",
+      "exportCsvYearRequired": "Bitte ein Jahr wählen (Filter Jahr).",
+      "csvDownloaded": "Buchungs-CSV heruntergeladen",
+      "exportFailed": "Export fehlgeschlagen",
+      "labelPaymentStatus": "Zahlungsstatus",
+      "colPaymentStatus": "Status",
+      "colSource": "Quelle",
+      "sourceActivity": "Aktivität",
+      "sourceBatch": "Anschaffung",
+      "sourceWorkshop": "Werkstatt",
+      "batchAssignTitle": "Mehrere Aufträge auf einmal",
+      "batchAssignHint": "Alle ausgewählten offenen Aufträge derselben Aktivität mit gleicher Kostenstelle erfassen.",
+      "batchAssignSelectAll": "Alle dieser Aktivität",
+      "batchAssignButton": "Ausgewählte erfassen ({count})",
+      "batchAssignSuccess": "{count} Buchungen erfasst",
+      "batchAssignNone": "Keine Aufträge ausgewählt",
+      "colAttachments": "Belege",
+      "receiptAttachmentsLabel": "Beleg-Dateien",
+      "receiptUpload": "Beleg hochladen",
+      "receiptRemove": "Beleg entfernen",
+      "receiptEmpty": "Noch keine Beleg-Datei.",
+      "receiptSaveFirst": "Buchung zuerst speichern, danach Belege hochladen.",
+      "receiptMax": "Maximal {max} Belege pro Buchung.",
+      "receiptAcceptHint": "JPEG, PNG, WebP, GIF oder PDF — max. 10 MB.",
+      "receiptInvalidType": "Nur Bilder oder PDF erlaubt.",
+      "receiptUploaded": "Beleg hochgeladen.",
+      "receiptRemoved": "Beleg entfernt."
     },
     "budget": {
       "intro": "Geplantes Budget (Soll) in CHF pro Kostenstelle und Kalenderjahr, Vergleich mit erfassten Buchungen (Ist). Export als CSV für Abgleich mit dem Vereins-Finanztool.",
@@ -6442,7 +6549,17 @@
           "name": "Events / Verpflegung",
           "description": "Anlässe, Bewirtung"
         }
-      }
+      },
+      "rulesTitle": "Zuordnungsregeln",
+      "rulesIntro": "Standard-Kostenstelle pro Follow-up-Typ (Material, Verbrauch, Werkstatt …). Überschreibt die Keyword-Vorschläge beim Zuordnen.",
+      "rulesColSource": "Quelle",
+      "rulesColCostCenter": "Kostenstelle",
+      "rulesColEntryType": "Standard-Typ",
+      "rulesColPayment": "Standard-Zahlungsart",
+      "rulesSave": "Regel speichern",
+      "rulesDelete": "Regel entfernen",
+      "rulesSaved": "Regel gespeichert",
+      "rulesDeleted": "Regel entfernt"
     },
     "materialCosts": {
       "intro": "Summierte Ist-Kosten (CHF) pro Material aus Buchungen: mit direkt zugeordnetem Material oder über erfasste Anschaffungen (Charge → Material). Jahr = Kalenderjahr des Buchungsdatums.",
@@ -6455,7 +6572,7 @@
       "loadError": "Auswertung konnte nicht geladen werden."
     },
     "overview": {
-      "intro": "Ist-Kosten aus erfassten Buchungen (CHF). Budget-Soll und Exporte folgen später.",
+      "intro": "Ist-Kosten aus erfassten Buchungen (CHF). Budget Soll/Ist-Vergleich und CSV-Exporte unter «Budget» bzw. «Buchungen».",
       "yearDetailLabel": "Jahr für Detailauswertung",
       "kpiCostsActual": "Kosten (Ist) {year}",
       "kpiBookingsMeta": "{count} Buchungen",
@@ -6470,6 +6587,38 @@
       "colCostCenter": "Kostenstelle",
       "sectionByEntryType": "Summen nach Buchungstyp ({year})",
       "loadError": "Übersicht konnte nicht geladen werden."
+    },
+    "paymentStatus": {
+      "open": "Offen",
+      "paid": "Bezahlt",
+      "cancelled": "Storniert"
+    },
+    "groupCosts": {
+      "intro": "Ist-Kosten (CHF) pro Gruppe aus erfassten Buchungen mit Gruppenzuordnung. Offene Posten = Zahlungsstatus «Offen» (z. B. externe Vermietung).",
+      "leaderScopeHint": "Du siehst nur Gruppen, in denen du Gruppenchef bist.",
+      "empty": "Keine Gruppen-Buchungen für {year}.",
+      "kpiSumLabel": "Summe Ist ({year})",
+      "kpiMeta": "{count} Buchungen",
+      "kpiOpen": "Offene Posten",
+      "colBookings": "Buchungen",
+      "colSumChf": "Summe CHF",
+      "colOpenChf": "Offen CHF",
+      "loadError": "Gruppen-Auswertung konnte nicht geladen werden."
+    },
+    "amortization": {
+      "intro": "Jährliche Abschreibungs-Vorschläge aus Anschaffungswerten (Material-Batches). Nutzungsdauer anpassbar; Buchung als Typ «Abschreibung».",
+      "usefulLifeYears": "Nutzungsdauer (Jahre)",
+      "empty": "Keine Materialien mit Anschaffungspreis gefunden.",
+      "colAcquisition": "Anschaffung CHF",
+      "colSuggested": "Vorschlag/Jahr",
+      "colBooked": "Erfasst {year}",
+      "colRemaining": "Rest",
+      "createBooking": "Buchung erfassen",
+      "modalTitle": "Abschreibung erfassen",
+      "saveBooking": "Speichern",
+      "receiptLabel": "Abschreibung {name} {year}",
+      "toastCreated": "Abschreibungs-Buchung erfasst",
+      "loadError": "Vorschläge konnten nicht geladen werden."
     }
   },
   "jobs": {
@@ -6753,5 +6902,158 @@
     "footerHelp": "Hilfe",
     "footerDocs": "Dokumentation",
     "footerCopyright": "© 2025 eMatChef. Alle Rechte vorbehalten."
+  },
+  "devSandbox": {
+    "title": "UI Sandbox",
+    "lead": "Nur produktive E*- und Layout-Bausteine — dieselben wie in migrierten Views.",
+    "devOnlyHint": "Testumgebung — hier siehst du nur unsere Wrapper (E*, PageShell, EFilterRow), keine rohen V*-Defaults.",
+    "backToApp": "Zur App",
+    "yes": "Ja",
+    "no": "Nein",
+    "windowSize": "Fenstergrösse",
+    "rawVuetifyNote": "Direkt VTextField, VSelect usw. — später durch E*-Wrapper ersetzen.",
+    "openDialog": "Dialog öffnen",
+    "dialogTitle": "Beispiel-Dialog",
+    "dialogBody": "EDialog + ECard — funktioniert unabhängig von AppLayout.",
+    "dialogClose": "Schliessen",
+    "eDialogNote": "EDialog + EButton (produktive Wrapper).",
+    "dialogNote": "EDialog, useConfirm() und usePrompt() — globale Dialoge in App.vue.",
+    "confirmTriggers": {
+      "warning": "Confirm (Warnung)",
+      "danger": "Confirm (Löschen)"
+    },
+    "promptTrigger": "Prompt (Text)",
+    "confirmSamples": {
+      "warningTitle": "Änderung verwerfen?",
+      "warningMessage": "Ungespeicherte Eingaben gehen verloren.",
+      "dangerTitle": "Eintrag löschen?",
+      "dangerMessage": "Diese Aktion kann nicht rückgängig gemacht werden.",
+      "confirmed": "Bestätigt.",
+      "cancelled": "Abgebrochen."
+    },
+    "promptSamples": {
+      "title": "Name eingeben",
+      "message": "Wie soll der neue Eintrag heissen?",
+      "placeholder": "Bezeichnung",
+      "entered": "Eingegeben: {value}"
+    },
+    "eComponentsNote": "ETextField, ESelect, ESearchField, ETextarea, ECheckbox, ESwitch, EButton, ECard — so in Views.",
+    "eButtonVariants": "EButton-Varianten",
+    "eCardSample": "ECard variant=\"outlined\" — z. B. für Dialog-Inhalt oder Karten-Layouts.",
+    "layoutHint": "Mini-Shell in einer Box — zum Debuggen von Drawer + App-Bar + v-main.",
+    "layoutBarTitle": "v-app-bar",
+    "layoutMainText": "v-main-Inhalt unterhalb der App-Bar, rechts neben dem Rail-Drawer.",
+    "sections": {
+      "breakpoints": "Breakpoint (useDisplay)",
+      "filterRow": "Filter-Zeile (Phase 4)",
+      "eComponents": "Formular (E*)",
+      "dialog": "Dialog (EDialog)",
+      "emptyStates": "Leere Zustände (EEmptyState)",
+      "materialDataTable": "Material-Tabelle (v-data-table Experiment)",
+      "activityDatetime": "Aktivität Zeitraum (Pill-Leiste)",
+      "loadingStates": "Ladezustände (ELoadingState)",
+      "toasts": "Toasts (GlobalToastContainer)"
+    },
+    "loadingStatesNote": "ELoadingState — page (Spinner), table/list/card (v-skeleton-loader), inline für Buttons/Felder.",
+    "loadingSamples": {
+      "page": "Seite (Spinner)",
+      "pageMessage": "Daten werden geladen…",
+      "table": "Tabelle (table-row-divider)",
+      "list": "Liste mit Avatar (list-item-avatar-three-line)",
+      "inline": "Inline",
+      "inlineMessage": "Speichert…"
+    },
+    "emptyStatesNote": "EEmptyState — variant create/search/generic, Slots #actions und optional #illustration.",
+    "materialTableNote": "Mock-Daten — gleiche Zellen wie MaterialsView (Tab «Alle»), rohes VDataTable nur hier zum Vergleich.",
+    "activityDatetimeNote": "Pill-Leiste ab Tablet (sm), Mobile als 2-Zeiler. Zeitraum kompakt bei gleichem Monat (z. B. 15. – 28.06.26).",
+    "activityDatetime": {
+      "lead": "Wiederverwendbare Zeile: ActivityResponsiveDateTimeRow in ActivityOutlinedDatetimeSection — wie im Wizard.",
+      "desktopLabel": "Desktop / Tablet (Pill in Box)",
+      "mobileLabel": "Mobile (2 Zeilen)",
+      "mobilePreviewLabel": "Mobile-Vorschau (390px)",
+      "usageSingle": "Nutzung — Einzeldatum",
+      "usageRange": "Nutzung — Zeitraum",
+      "dateSingle": "Einzeldatum",
+      "dateRange": "Zeitraum",
+      "timeFrom": "Von",
+      "timeTo": "Bis"
+    },
+    "materialTableSamples": {
+      "search": "Material suchen…",
+      "noResultsTitle": "Keine Treffer",
+      "noResultsText": "Passe die Suche an.",
+      "lastClick": "Zeile angeklickt: {name}",
+      "detailToast": "Detail öffnen (Demo): {name}",
+      "mainTableLead": "Tab «Alle» — Chevron bei Combo «Kochset» öffnet Komponenten (#expanded-row, wie MaterialsView).",
+      "mobileLead": "Mobile (≤ md): v-list statt Tabelle — Touch-Zeilen mit Bestand und Combo-Aufklapp.",
+      "mobileHint": "Doppelklick-Hinweis entfällt auf Mobile — Tipp öffnet Zeile.",
+      "mobilePreviewLead": "Mobile-Vorschau (390px) — auf Desktop sichtbar zum Vergleich.",
+      "mobilePreviewLabel": "390 × Auto — v-list",
+      "comboGroupLead": "Combo-Tab-Idee — group-by Typ + group-summary (Summe Bestand/Verfügbar pro Gruppe).",
+      "comboGroupMobileLead": "Combo-Tab Mobile — Gruppen mit Subheader + Summenzeile.",
+      "comboMobilePreviewLead": "Combo-Tab Mobile-Vorschau",
+      "comboMobilePreviewLabel": "390px — gruppierte v-list",
+      "groupSummaryLabel": "Summe Gruppe"
+    },
+    "emptySamples": {
+      "createTitle": "Noch keine Kontakte",
+      "createText": "Lege die erste Adresse an, um loszulegen.",
+      "createAction": "Kontakt anlegen",
+      "searchTitle": "Keine Treffer",
+      "searchText": "Passe die Filter an oder setze sie zurück.",
+      "searchAction": "Filter zurücksetzen"
+    },
+    "toastsNote": "GlobalToastContainer (undurchsichtige v-alert) — oben rechts über useToast().",
+    "toastTriggers": {
+      "success": "Success",
+      "error": "Error",
+      "warning": "Warning",
+      "info": "Info",
+      "stack": "Mehrere stapeln",
+      "clear": "Alle schliessen"
+    },
+    "toastSamples": {
+      "success": "Gespeichert — alles erledigt.",
+      "error": "Speichern fehlgeschlagen — bitte erneut versuchen.",
+      "warning": "Session läuft bald ab.",
+      "info": "Keine Änderungen vorgenommen."
+    },
+    "filterRowNote": "Suche: ESearchField (Lupe, Label auf Rahmen). Filter: ESelect in EFilterRow — PageShell #filters.",
+    "samples": {
+      "primary": "Primary",
+      "outlined": "Outlined",
+      "text": "Text",
+      "error": "Error tonal",
+      "withIcon": "Mit Icon",
+      "textField": "Textfeld",
+      "select": "Auswahl",
+      "checkbox": "Checkbox",
+      "switch": "Switch",
+      "textarea": "Mehrzeilig",
+      "searchField": "Kontakt suchen (Name, Firma, E-Mail, Ort)…",
+      "optionA": "Option A",
+      "optionB": "Option B"
+    }
+  },
+  "verifyEmail": {
+    "title": "E-Mail bestätigen",
+    "checking": "Verifikationslink wird geprüft…",
+    "successFallback": "E-Mail erfolgreich bestätigt.",
+    "failedFallback": "Verifikation fehlgeschlagen.",
+    "noToken": "Kein Verifikations-Token vorhanden.",
+    "invalidLink": "Verifikationslink ist ungültig oder abgelaufen.",
+    "backToLogin": "Zur Anmeldung"
+  },
+  "help": {
+    "menuTitle": "Hilfe",
+    "nav": {
+      "overview": "Dokumentation"
+    },
+    "overview": {
+      "title": "Hilfe & Dokumentation"
+    },
+    "comingSoon": {
+      "description": "Dieser Bereich wird in Kürze verfügbar sein."
+    }
   }
 }

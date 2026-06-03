@@ -30,7 +30,7 @@
 
 /* Shell: öffentliche Seiten (Material-Info, Impressum, …) */
 .public-layout {
-  min-height: 100vh;
+  min-height: calc(100dvh - 36px);
   display: flex;
   flex-direction: column;
   background: var(--public-page-bg);

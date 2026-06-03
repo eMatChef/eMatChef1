@@ -1,3 +1,7 @@
+/**
+ * @deprecated Legacy — nur noch in nicht migrierten Views/Modals.
+ * Neue UI: `EButton` aus `@/components/form/base`. Entfernung wenn Restliste Phase 12 leer.
+ */
 /* Central button system (Dashboard look as default) */
 .btn,
 .btn-primary,

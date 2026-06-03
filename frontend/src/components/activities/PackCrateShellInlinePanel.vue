@@ -5,6 +5,7 @@ import PackCrateShellCheckLineActions from '@/components/activities/PackCrateShe
 import PackShellInlineLooseIssueRow from '@/components/activities/PackShellInlineLooseIssueRow.vue'
 import { shellForwardExpectedQty, shellForwardLineKey } from '@/components/activities/packCrateForwardCheck'
 import { PACK_WAREHOUSE_ISSUE_INJECT_KEY } from '@/components/activities/packWarehouseIssueInjectKey'
+import { EButton } from '@/components/form/base'
 import type { ActivityPackItem } from '@/api/activityPackItems'
 
 defineOptions({ name: 'PackCrateShellInlinePanel' })
@@ -249,10 +250,11 @@ watch(
   >
     <div v-if="realityBanner" class="pack-crate-reality-banner" role="status">
       <p class="pack-crate-reality-banner__text">{{ realityBanner }}</p>
-      <button
+      <EButton
         v-if="showTemplateToggle"
-        type="button"
-        class="btn-outline btn-xs pack-crate-reality-banner__toggle"
+        variant="secondary"
+        size="x-small"
+        class="pack-crate-reality-banner__toggle"
         @click="emit('toggle-reality-view')"
       >
         {{
@@ -260,7 +262,7 @@ watch(
             ? t('activities.packList.crateCheckShowTemplate')
             : t('activities.packList.crateCheckShowReality')
         }}
-      </button>
+      </EButton>
     </div>
     <template v-if="sections.length === 0">
       <p class="pack-combo-crate-inline__empty text-muted">{{ emptyHint }}</p>

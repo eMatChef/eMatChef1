@@ -2,6 +2,7 @@
 import { computed, inject } from 'vue'
 import { useI18n } from 'vue-i18n'
 import PackConsumableQuickRow from '@/components/activities/PackConsumableQuickRow.vue'
+import { EButton } from '@/components/form/base'
 import { PACK_WAREHOUSE_ISSUE_INJECT_KEY } from '@/components/activities/packWarehouseIssueInjectKey'
 
 defineOptions({ name: 'PackIssueQuickActions' })
@@ -45,17 +46,19 @@ const showConsumptionButton = computed(() => props.showConsumption !== false)
       :show-consumption="showConsumptionButton"
     />
     <template v-else-if="isConsumable && materialItemId">
-      <button
+      <EButton
         v-if="showConsumptionButton"
-        type="button"
+        variant="text"
+        size="x-small"
         class="btn-issue-quick btn-issue-consumed"
         @click.stop="emit('consumed')"
       >
         {{ t('activities.common.issueConsumed') }}
-      </button>
-      <button
+      </EButton>
+      <EButton
         v-if="showNachbuchung"
-        type="button"
+        variant="text"
+        size="x-small"
         class="btn-issue-quick btn-issue-nachbuchung"
         @click.stop="
           (ctx?.emitConsumableNachbuchungForMaterial as ((id: string) => void) | undefined)?.(
@@ -64,15 +67,25 @@ const showConsumptionButton = computed(() => props.showConsumption !== false)
         "
       >
         {{ t('activities.packList.consumableInlineNachbuchung') }}
-      </button>
+      </EButton>
     </template>
     <template v-else-if="!isConsumable">
-      <button type="button" class="btn-issue-quick btn-issue-loss" @click.stop="emit('loss')">
+      <EButton
+        variant="text"
+        size="x-small"
+        class="btn-issue-quick btn-issue-loss"
+        @click.stop="emit('loss')"
+      >
         {{ t('activities.common.issueLoss') }}
-      </button>
-      <button type="button" class="btn-issue-quick btn-issue-repair" @click.stop="emit('repair')">
+      </EButton>
+      <EButton
+        variant="text"
+        size="x-small"
+        class="btn-issue-quick btn-issue-repair"
+        @click.stop="emit('repair')"
+      >
         {{ t('activities.common.issueRepair') }}
-      </button>
+      </EButton>
     </template>
   </div>
 </template>

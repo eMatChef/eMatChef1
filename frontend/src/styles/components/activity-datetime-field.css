@@ -1,0 +1,540 @@
+/**
+ * ActivityDateField / ActivityDateRangeField — labs/VDateInput (Vuetify-Standard)
+ * ActivityTimeField — VTimePicker (Vuetify-Uhr, 15-Min-Raster)
+ */
+
+.activity-v-date-input.e-form-field,
+.activity-date-field-wrap,
+.activity-date-range-field-wrap {
+  width: 100%;
+}
+
+.activity-v-date-input.e-form-field .v-field__prepend-inner .v-icon {
+  color: var(--color-primary, #059669);
+  opacity: 1;
+}
+
+.activity-date-range-field.activity-v-date-input .v-field__input {
+  font-size: 13px;
+}
+
+/* VDatePicker-Menü — Kalender + Schnellauswahl rechts (VList) */
+.activity-date-picker-menu {
+  z-index: 10100;
+  padding: 0 !important;
+  overflow: visible;
+  --emc-date-primary: #059669;
+  --emc-date-primary-dark: #047857;
+  --emc-date-range-light: rgba(16, 185, 129, 0.2);
+  --emc-date-muted: #9ca3af;
+  --emc-date-adjacent: #b8bcc4;
+}
+
+.activity-date-picker-menu__shell {
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  overflow: hidden;
+}
+
+.activity-date-picker-menu__picker {
+  flex: 0 0 auto;
+}
+
+.activity-date-picker-menu__picker .v-date-picker {
+  box-shadow: none;
+  border-radius: 0;
+}
+
+/* Zeitraum: zwei Monate nebeneinander (Desktop/Tablet) */
+.activity-date-range-dual-picker {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.activity-date-range-dual-picker__panes {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+}
+
+.activity-date-picker-menu .activity-date-range-dual-picker-header {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding-inline: 4px;
+  justify-content: space-between;
+}
+
+.activity-date-picker-menu .activity-date-range-dual-picker-header__center {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  gap: 1.25rem;
+  min-width: 0;
+}
+
+.activity-date-picker-menu .activity-date-range-dual-picker-header__month,
+.activity-date-picker-menu .activity-date-range-dual-picker-header__year {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  text-transform: none;
+  min-width: 0;
+  padding-inline: 8px;
+}
+
+.activity-date-picker-menu .activity-date-range-dual-picker-header__year {
+  font-variant-numeric: tabular-nums;
+}
+
+.activity-date-picker-menu .activity-date-range-dual-picker__pane .v-date-picker-controls {
+  display: none;
+}
+
+.activity-date-range-dual-picker__pane-wrap {
+  flex: 0 0 auto;
+}
+
+.activity-date-picker-pane-wrap,
+.activity-date-range-dual-picker__pane-wrap {
+  /* Vertikal scrollen (Mobile: Schnellauswahl), horizontal = Monatswisch */
+  touch-action: pan-y;
+}
+
+.activity-date-range-dual-picker__pane {
+  flex: 0 0 auto;
+  box-shadow: none !important;
+}
+
+.activity-date-range-dual-picker__pane-wrap + .activity-date-range-dual-picker__pane-wrap {
+  border-left: 1px solid #e5e7eb;
+}
+
+/* Custom header: Pfeile volle Breite, Jahr ohne Pfeile (nur Klick) */
+.activity-date-picker-menu .activity-date-picker-controls-bar {
+  width: 100%;
+  padding-inline: 4px;
+  justify-content: space-between;
+}
+
+.activity-date-picker-menu .activity-date-picker-controls-bar__center {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  gap: 1.25rem;
+  min-width: 0;
+}
+
+.activity-date-picker-menu .activity-date-picker-controls-bar__month,
+.activity-date-picker-menu .activity-date-picker-controls-bar__year {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  text-transform: none;
+  min-width: 0;
+  padding-inline: 8px;
+}
+
+.activity-date-picker-menu .activity-date-picker-controls-bar__year {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Monat/Jahr oben klickbar (docked controls) — legacy */
+.activity-date-picker-menu .v-date-picker-controls__only-month-btn,
+.activity-date-picker-menu .v-date-picker-controls__only-year-btn {
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+.activity-date-picker-menu__divider {
+  align-self: stretch;
+  height: auto;
+}
+
+.activity-date-picker-menu__presets {
+  flex: 0 0 auto;
+  width: min(220px, 42vw);
+  max-height: 360px;
+  overflow-y: auto;
+  padding-block: 4px;
+}
+
+.activity-date-preset-list .v-list-item {
+  min-height: 36px;
+}
+
+.activity-date-preset-list__item {
+  --activity-preset-accent: var(--emc-date-primary);
+}
+
+.activity-date-preset-list__dot {
+  margin-inline-end: 4px;
+}
+
+.activity-date-preset-list__item:hover,
+.activity-date-preset-list__item:focus-visible {
+  background: color-mix(in srgb, var(--activity-preset-accent) 14%, transparent) !important;
+}
+
+.activity-date-preset-list__item:active {
+  background: color-mix(in srgb, var(--activity-preset-accent) 22%, transparent) !important;
+}
+
+/* Vuetify-Theme-Farben → CSS-Akzente (wie Kalender-Marker) */
+.activity-date-picker-menu {
+  --activity-preset-accent-primary: var(--emc-date-primary);
+  --activity-preset-accent-warning: #ed6c02;
+  --activity-preset-accent-grey-darken-1: #616161;
+  --activity-preset-accent-deep-purple: #673ab7;
+  --activity-preset-accent-error: rgb(var(--v-theme-error));
+  --activity-preset-accent-success: rgb(var(--v-theme-success));
+  --activity-preset-accent-info: rgb(var(--v-theme-info));
+}
+
+.activity-date-preset-list__item--quick {
+  --activity-preset-accent: var(--activity-preset-accent-primary);
+}
+
+.activity-date-preset-list__item--camp_week {
+  --activity-preset-accent: var(--activity-preset-accent-warning);
+}
+
+.activity-date-preset-list__item--other {
+  --activity-preset-accent: var(--activity-preset-accent-grey-darken-1);
+}
+
+.activity-date-preset-list .v-list-item-title {
+  font-size: 13px;
+  font-weight: 500;
+  white-space: normal;
+  line-height: 1.35;
+}
+
+/* Vuetify dimmt Nachbar-Monatstage — wir steuern das selbst */
+.activity-date-picker-menu .v-date-picker-month__day--adjacent {
+  opacity: 1;
+}
+
+/* Folgemonat: leichtes Grau als Monats-Umbruch, weiter wählbar */
+.activity-date-picker-menu .activity-date-picker-day-btn--adjacent-future {
+  color: var(--emc-date-adjacent) !important;
+  opacity: 1;
+}
+
+/* Vergangene / gesperrte Tage (ohne Mat-Büro-Sperre) */
+.activity-date-picker-menu .activity-date-picker-day-btn--disabled,
+.activity-date-picker-menu .activity-date-picker-day-btn.v-btn--disabled:not(.activity-date-picker-day-btn--blocked) {
+  color: var(--emc-date-muted) !important;
+  background: transparent !important;
+  cursor: default;
+  pointer-events: none;
+  opacity: 1;
+}
+
+.activity-date-picker-menu .activity-date-picker-day-btn--disabled .v-btn__content,
+.activity-date-picker-menu
+  .activity-date-picker-day-btn.v-btn--disabled:not(.activity-date-picker-day-btn--blocked)
+  .v-btn__content {
+  text-decoration: none !important;
+  font-weight: 400;
+}
+
+/* Mat-Büro geschlossen: durchgestrichen, nicht klickbar */
+.activity-date-picker-menu .activity-date-picker-day-btn--blocked {
+  color: var(--emc-date-muted) !important;
+  background: transparent !important;
+  opacity: 1;
+}
+
+.activity-date-picker-menu .activity-date-picker-day-btn--blocked .activity-date-picker-day-btn--blocked-num {
+  text-decoration: line-through;
+  text-decoration-color: rgb(var(--v-theme-error));
+}
+
+.activity-date-picker-menu .activity-date-picker-day-btn--blocked {
+  cursor: not-allowed;
+}
+
+.activity-date-picker-menu .v-date-picker {
+  --v-theme-primary: var(--emc-date-primary);
+}
+
+/* Kalender-Grid: keine Lücken zwischen Tagen (durchgehender Zeitraum-Balken) */
+.activity-date-picker-menu .v-date-picker-month__days {
+  column-gap: 0 !important;
+  grid-template-columns: repeat(var(--v-date-picker-days-in-week), 1fr) !important;
+}
+
+.activity-date-picker-menu .v-date-picker-month__day {
+  width: 100%;
+  min-width: 0;
+}
+
+/* Heute: Zahl unterstrichen */
+.activity-date-picker-menu .activity-date-picker-day-btn--today .v-btn__content {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  font-weight: 600;
+  color: var(--emc-date-primary);
+}
+
+.activity-date-picker-menu .activity-date-picker-day-btn--today {
+  background: transparent !important;
+}
+
+/* Einzelnes gewähltes Datum: grün, rund */
+.activity-date-picker-menu .activity-date-picker-day-btn--selected {
+  background: var(--emc-date-primary) !important;
+  color: #fff !important;
+  border-radius: 50% !important;
+  min-width: 36px;
+  width: 36px;
+  height: 36px;
+}
+
+/* Zeitraum-Balken: ::before von Zellenmitte bis Rand (keine Lücken) */
+.activity-date-picker-menu .v-date-picker-month__day--selected:has(
+    .activity-date-picker-day-btn--range-middle,
+    .activity-date-picker-day-btn--range-start,
+    .activity-date-picker-day-btn--range-end
+  ) {
+  position: relative;
+  background: transparent !important;
+  border-radius: 0 !important;
+}
+
+.activity-date-picker-menu .v-date-picker-month__day--selected:has(.activity-date-picker-day-btn--range-middle)::before,
+.activity-date-picker-menu
+  .v-date-picker-month__day--selected:has(.activity-date-picker-day-btn--range-start):not(
+    :has(.activity-date-picker-day-btn--range-end)
+  )::before,
+.activity-date-picker-menu
+  .v-date-picker-month__day--selected:has(.activity-date-picker-day-btn--range-end):not(
+    :has(.activity-date-picker-day-btn--range-start)
+  )::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  z-index: 0;
+  height: 36px;
+  transform: translateY(-50%);
+  background: var(--emc-date-range-light);
+  pointer-events: none;
+}
+
+/* Mitte: volle Zellenbreite */
+.activity-date-picker-menu .v-date-picker-month__day--selected:has(.activity-date-picker-day-btn--range-middle)::before {
+  left: 0;
+  right: 0;
+}
+
+/* Start: ab Zellenmitte nach rechts — flacher Anschluss (kein Halbrund) */
+.activity-date-picker-menu
+  .v-date-picker-month__day--selected:has(.activity-date-picker-day-btn--range-start):not(
+    :has(.activity-date-picker-day-btn--range-end)
+  )::before {
+  left: 50%;
+  right: 0;
+  border-radius: 0;
+}
+
+/* Ende: von links bis Zellenmitte — flacher Anschluss */
+.activity-date-picker-menu
+  .v-date-picker-month__day--selected:has(.activity-date-picker-day-btn--range-end):not(
+    :has(.activity-date-picker-day-btn--range-start)
+  )::before {
+  left: 0;
+  right: 50%;
+  border-radius: 0;
+}
+
+.activity-date-picker-menu .activity-date-picker-day-btn {
+  position: relative;
+  z-index: 1;
+}
+
+/* Zeitraum Mitte: Zahl auf dem Balken */
+.activity-date-picker-menu .activity-date-picker-day-btn--range-middle {
+  background: transparent !important;
+  color: var(--emc-date-primary-dark) !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  width: 100%;
+  min-width: 0;
+}
+
+/* Zeitraum Start/Ende: dunkleres Grün, rund — über dem Balken */
+.activity-date-picker-menu .activity-date-picker-day-btn--range-start,
+.activity-date-picker-menu .activity-date-picker-day-btn--range-end {
+  background: var(--emc-date-primary) !important;
+  color: #fff !important;
+  border-radius: 50% !important;
+  min-width: 36px;
+  width: 36px;
+  height: 36px;
+}
+
+/* Ein Tag als Zeitraum (Start = Ende): nur Kreis, kein Balken */
+.activity-date-picker-menu
+  .v-date-picker-month__day--selected:has(.activity-date-picker-day-btn--range-start.activity-date-picker-day-btn--range-end)::before {
+  display: none;
+}
+
+/* Nur Start gewählt (kein Hover): kein Balken */
+.activity-date-picker-menu
+  .v-date-picker-month__day--selected:has(.activity-date-picker-day-btn--range-start-only)::before {
+  display: none;
+}
+
+/* Hover-Vorschau: Tage zwischen Start und Maus (noch nicht geklickt) */
+.activity-date-picker-menu .v-date-picker-month__day:has(.activity-date-picker-day-btn--range-preview) {
+  position: relative;
+}
+
+.activity-date-picker-menu
+  .v-date-picker-month__day:has(.activity-date-picker-day-btn--range-preview.activity-date-picker-day-btn--range-middle)::before,
+.activity-date-picker-menu
+  .v-date-picker-month__day:has(.activity-date-picker-day-btn--range-preview.activity-date-picker-day-btn--range-end)::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  z-index: 0;
+  height: 36px;
+  transform: translateY(-50%);
+  background: var(--emc-date-range-light);
+  pointer-events: none;
+}
+
+.activity-date-picker-menu
+  .v-date-picker-month__day:has(.activity-date-picker-day-btn--range-preview.activity-date-picker-day-btn--range-middle)::before {
+  left: 0;
+  right: 0;
+}
+
+.activity-date-picker-menu
+  .v-date-picker-month__day:has(.activity-date-picker-day-btn--range-preview.activity-date-picker-day-btn--range-end)::before {
+  left: 0;
+  right: 50%;
+  border-radius: 0;
+}
+
+.activity-date-picker-menu .activity-date-picker-day-btn--range-preview.activity-date-picker-day-btn--range-end {
+  opacity: 0.9;
+}
+
+.activity-v-date-input .v-field__prepend-inner .v-icon {
+  color: var(--color-primary, #059669);
+  opacity: 1;
+}
+
+/* VTimePicker-Menü (Sandbox + später Wizard) */
+.activity-time-picker-menu {
+  z-index: 10100;
+}
+
+/* ActivityTimeField — VTimePicker-Feld (auch ausserhalb Pill) */
+.activity-v-time-picker-field .v-field__input {
+  font-variant-numeric: tabular-nums;
+  justify-content: center;
+}
+
+.activity-v-time-picker-field .v-field__prepend-inner .v-icon {
+  color: var(--color-primary, #059669);
+  opacity: 1;
+}
+
+/* Legacy: ESelect-Raster (nicht mehr in ActivityTimeField) */
+.activity-time-quarter-grid {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  min-height: var(--activity-pill-control-h, 40px);
+}
+
+.activity-time-quarter-grid.is-disabled {
+  opacity: 0.55;
+}
+
+.activity-time-quarter-grid .activity-time-slot {
+  flex: 1 1 0;
+  min-width: 3rem;
+  max-width: 3.5rem;
+}
+
+.activity-time-quarter-grid .activity-time-select.e-form-field {
+  margin: 0;
+  width: 100%;
+}
+
+.activity-time-quarter-grid .activity-time-select .v-input__control > .v-field {
+  min-height: var(--activity-pill-control-h, 40px);
+  border-radius: 8px;
+  font-size: 14px;
+  box-shadow: inset 0 0 0 1px var(--color-border, #d1d5db) !important;
+}
+
+.activity-time-quarter-grid .activity-time-select .v-field__input {
+  min-height: var(--activity-pill-control-h, 40px);
+  padding: 0 4px !important;
+  justify-content: center;
+}
+
+.activity-time-quarter-grid .activity-time-select .v-select__selection-text {
+  font-variant-numeric: tabular-nums;
+  font-size: 14px;
+  text-align: center;
+  width: 100%;
+}
+
+.activity-time-quarter-grid .activity-time-select .v-field__append-inner {
+  padding-inline-start: 0 !important;
+}
+
+.activity-time-quarter-grid .activity-time-select .v-field__append-inner .v-icon {
+  font-size: 16px;
+  opacity: 0.55;
+}
+
+.activity-time-quarter-grid .activity-time-select .v-input__control > .v-field.v-field--focused {
+  box-shadow:
+    inset 0 0 0 1px var(--color-primary-light, #10b981),
+    0 0 0 3px var(--color-primary-ring, rgba(16, 185, 129, 0.1)) !important;
+}
+
+.activity-time-quarter-grid .activity-time-edit {
+  min-height: var(--activity-pill-control-h, 40px);
+  height: var(--activity-pill-control-h, 40px);
+  width: 100%;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  color: var(--color-text, #111827);
+  background: #fff;
+  padding: 0 6px;
+  cursor: text;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  line-height: var(--activity-pill-control-h, 40px);
+  box-shadow: inset 0 0 0 1px var(--color-border, #d1d5db);
+  transition: box-shadow 0.15s ease;
+}
+
+.activity-time-quarter-grid .activity-time-edit:focus {
+  outline: none;
+  box-shadow:
+    inset 0 0 0 1px var(--color-primary-light, #10b981),
+    0 0 0 3px var(--color-primary-ring, rgba(16, 185, 129, 0.1));
+}
+
+.activity-time-quarter-grid .activity-time-sep {
+  font-weight: 600;
+  color: var(--color-text-muted, #6b7280);
+  user-select: none;
+  flex: 0 0 auto;
+}

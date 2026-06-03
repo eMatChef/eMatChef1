@@ -1,14 +1,13 @@
 <template>
-  <Teleport to="body">
-    <div v-if="isOpen" class="onboarding-overlay">
-      <div class="onboarding-modal">
-        <header class="wizard-header">
-          <div>
-            <h2>{{ t('components.departmentOnboarding.title') }}</h2>
-          </div>
-          <button class="close-btn" @click="handleLater" :title="t('components.departmentOnboarding.laterTitle')">x</button>
-        </header>
-
+  <EDialog
+    :model-value="isOpen"
+    :max-width="760"
+    :title="t('components.departmentOnboarding.title')"
+    scrollable
+    persistent
+    card-class="onboarding-wizard-card"
+    @update:model-value="onWizardDialogUpdate"
+  >
         <section class="wizard-progress">
           <div class="progress-track">
             <div class="progress-fill" :style="{ width: `${(currentStep / ONBOARDING_TOTAL_STEPS) * 100}%` }"></div>
@@ -37,32 +36,32 @@
               {{ t('components.departmentOnboarding.step1StatusHint') }}
             </p>
             <div class="step-actions">
-              <button class="btn btn-primary" @click="openAddressModal('general')">
+              <EButton variant="primary" @click="openAddressModal('general')">
                 {{ t('components.departmentOnboarding.btnDoNow') }}
-              </button>
-              <button class="btn btn-light" @click="skipStep">{{ t('components.departmentOnboarding.btnSkip') }}</button>
-              <button class="btn btn-ghost" @click="handleLater">{{ t('components.departmentOnboarding.btnLater') }}</button>
+              </EButton>
+              <EButton variant="secondary" @click="skipStep">{{ t('components.departmentOnboarding.btnSkip') }}</EButton>
+              <EButton variant="text" @click="handleLater">{{ t('components.departmentOnboarding.btnLater') }}</EButton>
             </div>
           </div>
 
           <div v-else-if="currentStep === 2" class="step-content">
             <div class="step-title-row">
               <h3>{{ t('components.departmentOnboarding.step2Title') }}</h3>
-              <button class="info-btn" type="button" @click="showSettingsHelp = true">
+              <EButton variant="text" size="small" @click="showSettingsHelp = true">
                 {{ t('components.departmentOnboarding.step2Info') }}
-              </button>
+              </EButton>
             </div>
             <p>{{ t('components.departmentOnboarding.step2Intro') }}</p>
             <div class="settings-grid" @focusin="showSettingsHelp = false">
-              <label>{{ t('components.departmentOnboarding.labelTimezone') }} <input v-model="settingsForm.timezone" type="text" /></label>
-              <label>{{ t('components.departmentOnboarding.labelDateFormat') }} <input v-model="settingsForm.dateFormat" type="text" /></label>
-              <label>{{ t('components.departmentOnboarding.labelTimeFormat') }} <input v-model="settingsForm.timeFormat" type="text" /></label>
-              <label>{{ t('components.departmentOnboarding.labelDefaultStart') }} <input v-model="settingsForm.defaultTimeStart" type="time" /></label>
-              <label>{{ t('components.departmentOnboarding.labelDefaultEnd') }} <input v-model="settingsForm.defaultTimeEnd" type="time" /></label>
-              <label>{{ t('components.departmentOnboarding.labelMaterialLead') }} <input v-model.number="settingsForm.materialLeadMinutes" type="number" min="0" /></label>
-              <label>{{ t('components.departmentOnboarding.labelMaterialLag') }} <input v-model.number="settingsForm.materialLagMinutes" type="number" min="0" /></label>
-              <label>{{ t('components.departmentOnboarding.labelCampLead') }} <input v-model.number="settingsForm.campMaterialLeadDays" type="number" min="0" /></label>
-              <label>{{ t('components.departmentOnboarding.labelCampLag') }} <input v-model.number="settingsForm.campMaterialLagDays" type="number" min="0" /></label>
+              <ETextField v-model="settingsForm.timezone" :label="t('components.departmentOnboarding.labelTimezone')" hide-details="auto" />
+              <ETextField v-model="settingsForm.dateFormat" :label="t('components.departmentOnboarding.labelDateFormat')" hide-details="auto" />
+              <ETextField v-model="settingsForm.timeFormat" :label="t('components.departmentOnboarding.labelTimeFormat')" hide-details="auto" />
+              <ETextField v-model="settingsForm.defaultTimeStart" type="time" :label="t('components.departmentOnboarding.labelDefaultStart')" hide-details="auto" />
+              <ETextField v-model="settingsForm.defaultTimeEnd" type="time" :label="t('components.departmentOnboarding.labelDefaultEnd')" hide-details="auto" />
+              <ETextField v-model.number="settingsForm.materialLeadMinutes" type="number" :label="t('components.departmentOnboarding.labelMaterialLead')" hide-details="auto" />
+              <ETextField v-model.number="settingsForm.materialLagMinutes" type="number" :label="t('components.departmentOnboarding.labelMaterialLag')" hide-details="auto" />
+              <ETextField v-model.number="settingsForm.campMaterialLeadDays" type="number" :label="t('components.departmentOnboarding.labelCampLead')" hide-details="auto" />
+              <ETextField v-model.number="settingsForm.campMaterialLagDays" type="number" :label="t('components.departmentOnboarding.labelCampLag')" hide-details="auto" />
             </div>
             <p class="status" :class="{ done: onboardingState.completed.settingsInitialized }">
               {{
@@ -72,35 +71,11 @@
               }}
             </p>
             <div class="step-actions">
-              <button class="btn btn-primary" :disabled="isSavingSettings" @click="saveSettings">
-                {{
-                  isSavingSettings
-                    ? t('common.saving')
-                    : t('components.departmentOnboarding.saveSettings')
-                }}
-              </button>
-              <button class="btn btn-light" @click="skipStep">{{ t('components.departmentOnboarding.btnSkip') }}</button>
-              <button class="btn btn-ghost" @click="handleLater">{{ t('components.departmentOnboarding.btnLater') }}</button>
-            </div>
-
-            <div v-if="showSettingsHelp" class="info-modal-overlay">
-              <div class="info-modal">
-                <div class="info-modal-header">
-                  <h4>{{ t('components.departmentOnboarding.helpTitle') }}</h4>
-                  <button class="info-close" type="button" @click="showSettingsHelp = false">x</button>
-                </div>
-                <div class="info-modal-body">
-                  <p>{{ t('components.departmentOnboarding.helpLine1') }}</p>
-                  <p>{{ t('components.departmentOnboarding.helpLine2') }}</p>
-                  <p>{{ t('components.departmentOnboarding.helpLine3') }}</p>
-                  <p>{{ t('components.departmentOnboarding.helpLine4') }}</p>
-                  <p>{{ t('components.departmentOnboarding.helpLine5') }}</p>
-                  <p>{{ t('components.departmentOnboarding.helpLine6') }}</p>
-                  <p class="info-note">
-                    {{ t('components.departmentOnboarding.helpNote') }}
-                  </p>
-                </div>
-              </div>
+              <EButton variant="primary" :loading="isSavingSettings" :disabled="isSavingSettings" @click="saveSettings">
+                {{ t('components.departmentOnboarding.saveSettings') }}
+              </EButton>
+              <EButton variant="secondary" @click="skipStep">{{ t('components.departmentOnboarding.btnSkip') }}</EButton>
+              <EButton variant="text" @click="handleLater">{{ t('components.departmentOnboarding.btnLater') }}</EButton>
             </div>
           </div>
 
@@ -125,9 +100,9 @@
                   <ul v-if="pendingInvites.length > 0" class="simple-list">
                     <li v-for="invite in pendingInvites" :key="invite.id" class="pending-item">
                       <span>{{ invite.email }} ({{ invite.role }})</span>
-                      <button class="btn btn-light" @click="removePendingInvite(invite.id)">
+                      <EButton variant="secondary" @click="removePendingInvite(invite.id)">
                         {{ t('common.delete') }}
-                      </button>
+                      </EButton>
                     </li>
                   </ul>
                   <p v-else class="muted">{{ t('components.departmentOnboarding.noOpenInvites') }}</p>
@@ -171,12 +146,12 @@
                     <option value="mw">{{ t('settings.adminUsers.roles.mw') }}</option>
                   </select>
                   <div class="step-actions">
-                    <button class="btn btn-light" @click="copyPersonalInviteLink">
+                    <EButton variant="secondary" @click="copyPersonalInviteLink">
                       {{ t('components.departmentOnboarding.copyPersonalLink') }}
-                    </button>
-                    <button class="btn btn-primary" @click="sendPersonalInvite">
+                    </EButton>
+                    <EButton variant="primary" @click="sendPersonalInvite">
                       {{ t('components.departmentOnboarding.sendInvite') }}
-                    </button>
+                    </EButton>
                   </div>
                 </div>
               </div>
@@ -186,12 +161,12 @@
               <div class="invite-code-main">
                 <span>{{ t('components.departmentOnboarding.joinCode', { code: inviteData.join_code }) }}</span>
                 <div class="step-actions">
-                  <button class="btn btn-light" @click="copyInviteCode">
+                  <EButton variant="secondary" @click="copyInviteCode">
                     {{ t('components.departmentOnboarding.copyCode') }}
-                  </button>
-                  <button class="btn btn-light" @click="copyInviteLink">
+                  </EButton>
+                  <EButton variant="secondary" @click="copyInviteLink">
                     {{ t('components.departmentOnboarding.copyLink') }}
-                  </button>
+                  </EButton>
                 </div>
               </div>
               <div class="invite-code-qr" v-if="inviteQrDataUrl">
@@ -201,11 +176,11 @@
             </div>
 
             <div class="step-actions">
-              <button class="btn btn-primary" @click="goToAndComplete(`/${departmentId}/settings/users`, 'inviteUsers')">
+              <EButton variant="primary" @click="goToAndComplete(`/${departmentId}/settings/users`, 'inviteUsers')">
                 {{ t('components.departmentOnboarding.btnDoNow') }}
-              </button>
-              <button class="btn btn-light" @click="skipStep">{{ t('components.departmentOnboarding.btnSkip') }}</button>
-              <button class="btn btn-ghost" @click="handleLater">{{ t('components.departmentOnboarding.btnLater') }}</button>
+              </EButton>
+              <EButton variant="secondary" @click="skipStep">{{ t('components.departmentOnboarding.btnSkip') }}</EButton>
+              <EButton variant="text" @click="handleLater">{{ t('components.departmentOnboarding.btnLater') }}</EButton>
             </div>
           </div>
 
@@ -218,11 +193,11 @@
               {{ t('components.departmentOnboarding.groupCount', { count: groupCount }) }}
             </p>
             <div class="step-actions">
-              <button class="btn btn-primary" @click="goToAndComplete(`/${departmentId}/settings/groups`, 'createGroup')">
+              <EButton variant="primary" @click="goToAndComplete(`/${departmentId}/settings/groups`, 'createGroup')">
                 {{ t('components.departmentOnboarding.btnDoNow') }}
-              </button>
-              <button class="btn btn-light" @click="skipStep">{{ t('components.departmentOnboarding.btnSkip') }}</button>
-              <button class="btn btn-ghost" @click="handleLater">{{ t('components.departmentOnboarding.btnLater') }}</button>
+              </EButton>
+              <EButton variant="secondary" @click="skipStep">{{ t('components.departmentOnboarding.btnSkip') }}</EButton>
+              <EButton variant="text" @click="handleLater">{{ t('components.departmentOnboarding.btnLater') }}</EButton>
             </div>
           </div>
 
@@ -230,11 +205,11 @@
             <h3>{{ t('components.departmentOnboarding.step5Title') }}</h3>
             <p>{{ t('components.departmentOnboarding.step5Intro') }}</p>
             <div class="step-actions">
-              <button class="btn btn-primary" @click="goToAndComplete(`/${departmentId}/settings/groups`, 'assignRoles')">
+              <EButton variant="primary" @click="goToAndComplete(`/${departmentId}/settings/groups`, 'assignRoles')">
                 {{ t('components.departmentOnboarding.btnDoNow') }}
-              </button>
-              <button class="btn btn-light" @click="skipStep">{{ t('components.departmentOnboarding.btnSkip') }}</button>
-              <button class="btn btn-ghost" @click="handleLater">{{ t('components.departmentOnboarding.btnLater') }}</button>
+              </EButton>
+              <EButton variant="secondary" @click="skipStep">{{ t('components.departmentOnboarding.btnSkip') }}</EButton>
+              <EButton variant="text" @click="handleLater">{{ t('components.departmentOnboarding.btnLater') }}</EButton>
             </div>
           </div>
 
@@ -272,18 +247,18 @@
               </table>
             </div>
             <div class="step-actions">
-              <button class="btn btn-primary" :disabled="!hasSelectedCategories || isApplyingCategoryTemplates" @click="applyCategoryTemplates">
+              <EButton variant="primary" :disabled="!hasSelectedCategories || isApplyingCategoryTemplates" @click="applyCategoryTemplates">
                 {{
                   isApplyingCategoryTemplates
                     ? t('components.departmentOnboarding.applyingTemplates')
                     : t('components.departmentOnboarding.applyTemplates')
                 }}
-              </button>
-              <button class="btn btn-light" @click="goToAndComplete(`/${departmentId}/settings/categories`, 'categoriesConfigured')">
+              </EButton>
+              <EButton variant="secondary" @click="goToAndComplete(`/${departmentId}/settings/categories`, 'categoriesConfigured')">
                 {{ t('components.departmentOnboarding.openCategories') }}
-              </button>
-              <button class="btn btn-light" @click="skipStep">{{ t('components.departmentOnboarding.btnSkip') }}</button>
-              <button class="btn btn-ghost" @click="handleLater">{{ t('components.departmentOnboarding.btnLater') }}</button>
+              </EButton>
+              <EButton variant="secondary" @click="skipStep">{{ t('components.departmentOnboarding.btnSkip') }}</EButton>
+              <EButton variant="text" @click="handleLater">{{ t('components.departmentOnboarding.btnLater') }}</EButton>
             </div>
           </div>
 
@@ -309,14 +284,14 @@
               {{ t('components.departmentOnboarding.step7StatusHint') }}
             </p>
             <div class="step-actions">
-              <button type="button" class="btn btn-primary" @click="openAddressModal('storage')">
+              <EButton variant="primary" @click="openAddressModal('storage')">
                 {{ t('components.departmentOnboarding.addStorageAddress') }}
-              </button>
-              <button type="button" class="btn btn-light" @click="goToSettings(`/${departmentId}/settings/my-department`)">
+              </EButton>
+              <EButton variant="secondary" @click="goToSettings(`/${departmentId}/settings/my-department`)">
                 {{ t('components.departmentOnboarding.openSettings') }}
-              </button>
-              <button class="btn btn-light" @click="skipStep">{{ t('components.departmentOnboarding.btnSkip') }}</button>
-              <button class="btn btn-ghost" @click="handleLater">{{ t('components.departmentOnboarding.btnLater') }}</button>
+              </EButton>
+              <EButton variant="secondary" @click="skipStep">{{ t('components.departmentOnboarding.btnSkip') }}</EButton>
+              <EButton variant="text" @click="handleLater">{{ t('components.departmentOnboarding.btnLater') }}</EButton>
             </div>
           </div>
 
@@ -328,11 +303,11 @@
               {{ t('components.departmentOnboarding.rackSlotCount', { racks: storageRackCount, slots: storageSlotCount }) }}
             </p>
             <div class="step-actions">
-              <button class="btn btn-primary" @click="goToAndComplete(`/${departmentId}/settings/storage`, 'storageConfigured')">
+              <EButton variant="primary" @click="goToAndComplete(`/${departmentId}/settings/storage`, 'storageConfigured')">
                 {{ t('components.departmentOnboarding.manageRacks') }}
-              </button>
-              <button class="btn btn-light" @click="skipStep">{{ t('components.departmentOnboarding.btnSkip') }}</button>
-              <button class="btn btn-ghost" @click="handleLater">{{ t('components.departmentOnboarding.btnLater') }}</button>
+              </EButton>
+              <EButton variant="secondary" @click="skipStep">{{ t('components.departmentOnboarding.btnSkip') }}</EButton>
+              <EButton variant="text" @click="handleLater">{{ t('components.departmentOnboarding.btnLater') }}</EButton>
             </div>
           </div>
 
@@ -349,11 +324,11 @@
               {{ t('components.departmentOnboarding.step9Note2', { example: t('components.departmentOnboarding.exampleRack') }) }}
             </p>
             <div class="step-actions">
-              <button class="btn btn-primary" @click="goToAndComplete(`/${departmentId}/materials`, 'materialCaptured')">
+              <EButton variant="primary" @click="goToAndComplete(`/${departmentId}/materials`, 'materialCaptured')">
                 {{ t('components.departmentOnboarding.btnDoNow') }}
-              </button>
-              <button class="btn btn-light" @click="skipStep">{{ t('components.departmentOnboarding.btnSkip') }}</button>
-              <button class="btn btn-ghost" @click="handleLater">{{ t('components.departmentOnboarding.btnLater') }}</button>
+              </EButton>
+              <EButton variant="secondary" @click="skipStep">{{ t('components.departmentOnboarding.btnSkip') }}</EButton>
+              <EButton variant="text" @click="handleLater">{{ t('components.departmentOnboarding.btnLater') }}</EButton>
             </div>
           </div>
 
@@ -361,40 +336,49 @@
             <h3>{{ t('components.departmentOnboarding.step10Title') }}</h3>
             <p>{{ t('components.departmentOnboarding.step10Intro') }}</p>
             <div class="step-actions">
-              <button class="btn btn-primary" @click="goToAndComplete(`/${departmentId}/activities`, 'miniIssueReturn')">
+              <EButton variant="primary" @click="goToAndComplete(`/${departmentId}/activities`, 'miniIssueReturn')">
                 {{ t('components.departmentOnboarding.btnDoNow') }}
-              </button>
-              <button class="btn btn-light" @click="skipStep">{{ t('components.departmentOnboarding.btnSkip') }}</button>
-              <button class="btn btn-ghost" @click="finishWizard">{{ t('components.departmentOnboarding.btnLater') }}</button>
+              </EButton>
+              <EButton variant="secondary" @click="skipStep">{{ t('components.departmentOnboarding.btnSkip') }}</EButton>
+              <EButton variant="text" @click="finishWizard">{{ t('components.departmentOnboarding.btnLater') }}</EButton>
             </div>
           </div>
         </section>
 
         <footer class="wizard-footer">
-          <button class="btn btn-light" :disabled="currentStep <= 1" @click="goBack">
+          <EButton variant="secondary" :disabled="currentStep <= 1" @click="goBack">
             {{ t('components.departmentOnboarding.back') }}
-          </button>
-          <button class="btn btn-primary" :disabled="currentStep >= ONBOARDING_TOTAL_STEPS" @click="goNext">
+          </EButton>
+          <EButton variant="primary" :disabled="currentStep >= ONBOARDING_TOTAL_STEPS" @click="goNext">
             {{ t('components.departmentOnboarding.next') }}
-          </button>
-          <button class="btn btn-success" @click="currentStep >= ONBOARDING_TOTAL_STEPS ? completeWizard() : finishWizard()">
+          </EButton>
+          <EButton variant="primary" @click="currentStep >= ONBOARDING_TOTAL_STEPS ? completeWizard() : finishWizard()">
             {{ currentStep >= ONBOARDING_TOTAL_STEPS ? t('components.departmentOnboarding.finish') : t('common.close') }}
-          </button>
+          </EButton>
         </footer>
-      </div>
+  </EDialog>
 
-      <Teleport to="body">
-        <AddressModal
-          v-if="isAddressModalOpen"
-          :department-id="departmentId"
-          :default-type="addressModalType"
-          :default-name="addressModalDepartmentPrefill"
-          @saved="handleAddressSaved"
-          @close="isAddressModalOpen = false"
-        />
-      </Teleport>
-    </div>
-  </Teleport>
+  <EDialog v-model="showSettingsHelp" :max-width="480" :title="t('components.departmentOnboarding.helpTitle')">
+    <p>{{ t('components.departmentOnboarding.helpLine1') }}</p>
+    <p>{{ t('components.departmentOnboarding.helpLine2') }}</p>
+    <p>{{ t('components.departmentOnboarding.helpLine3') }}</p>
+    <p>{{ t('components.departmentOnboarding.helpLine4') }}</p>
+    <p>{{ t('components.departmentOnboarding.helpLine5') }}</p>
+    <p>{{ t('components.departmentOnboarding.helpLine6') }}</p>
+    <p class="info-note">{{ t('components.departmentOnboarding.helpNote') }}</p>
+    <template #actions>
+      <EButton variant="secondary" size="small" @click="showSettingsHelp = false">{{ t('common.close') }}</EButton>
+    </template>
+  </EDialog>
+
+  <AddressModal
+    v-if="isAddressModalOpen"
+    :department-id="departmentId"
+    :default-type="addressModalType"
+    :default-name="addressModalDepartmentPrefill"
+    @saved="handleAddressSaved"
+    @close="isAddressModalOpen = false"
+  />
 </template>
 
 <script setup lang="ts">
@@ -403,6 +387,7 @@ import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import AddressModal from '@/components/AddressModal.vue'
+import { EButton, EDialog, ETextField } from '@/components/form/base'
 import { getAddresses } from '@/api/addresses'
 import { createCategory, getCategories, type Category } from '@/api/categories'
 import { getMaterials } from '@/api/materials'
@@ -578,6 +563,10 @@ function goBack() {
 
 function skipStep() {
   goNext()
+}
+
+function onWizardDialogUpdate(open: boolean) {
+  if (!open) handleLater()
 }
 
 function handleLater() {
@@ -1020,26 +1009,8 @@ watch(
 </script>
 
 <style scoped>
-.onboarding-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.45);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 2200;
-  padding: 20px;
-}
-
-.onboarding-modal {
-  width: min(760px, 96vw);
+:deep(.onboarding-wizard-card) {
   max-height: 92vh;
-  background: #fff;
-  border-radius: 12px;
-  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.2);
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
 }
 
 .wizard-header,

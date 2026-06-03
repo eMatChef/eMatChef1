@@ -1,5 +1,3 @@
-import type { DatePickerMarker } from '@vuepic/vue-datepicker'
-
 /** Lokaler Tagesbeginn */
 export function startOfLocalDay(d: Date): Date {
   const x = new Date(d.getTime())
@@ -135,12 +133,3 @@ export function swissHolidayCalendarDays(minYear: number, maxYear: number): Swis
   return out
 }
 
-/** Marker für @vuepic/vue-datepicker (Feiertagspunkte unter dem Tag) */
-export function swissHolidayDatePickerMarkers(minYear: number, maxYear: number): DatePickerMarker[] {
-  return swissHolidayCalendarDays(minYear, maxYear).map((h) => ({
-    date: h.date,
-    type: 'dot',
-    color: 'var(--emc-brand-accent, #059669)',
-    tooltip: [{ text: h.label }],
-  }))
-}
