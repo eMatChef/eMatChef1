@@ -37,14 +37,14 @@ if [[ -n "${EMATCHEF_GIT_SSH_IDENTITY:-}" ]]; then
 fi
 
 git_fetch_deploy_branch() {
-  # Nur den Deploy-Branch holen — kein vollständiges `git fetch origin`.
-  # Nach History-Rewrites mit Force-Push auf viele Feature-Branches scheitert ein
-  # Full-Fetch sonst oft an kaputten Rechten auf einzelnen refs/remotes (z. B.
-  # `.git/logs/refs/remotes/origin/fix/…`: Permission denied).
-  if git fetch origin "${BRANCH}"; then
+  # Expliziter Refspec — aktualisiert nur origin/<branch>, nie andere Remote-Refs.
+  # `git fetch origin` oder Default-Remote-Refspec (+refs/heads/*:…) scheitert auf
+  # dem Droplet oft an Permission denied auf einzelnen refs/remotes (History-Rewrite).
+  local refspec="+refs/heads/${BRANCH}:refs/remotes/origin/${BRANCH}"
+  if git fetch --no-tags origin "${refspec}"; then
     return 0
   fi
-  echo "git fetch origin ${BRANCH} fehlgeschlagen." >&2
+  echo "git fetch --no-tags origin ${refspec} fehlgeschlagen." >&2
   echo "Häufig: .git/logs oder .git/refs gehören root (sudo git / Docker)." >&2
   echo "Fix auf dem Server: sudo chown -R $(whoami):$(whoami) \"${ROOT}/.git\"" >&2
   return 1
