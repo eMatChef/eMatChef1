@@ -36,9 +36,23 @@ if [[ -n "${EMATCHEF_GIT_SSH_IDENTITY:-}" ]]; then
   export GIT_SSH_COMMAND="ssh -i ${_git_ssh_id} -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new"
 fi
 
+git_fetch_deploy_branch() {
+  # Nur den Deploy-Branch holen — kein vollständiges `git fetch origin`.
+  # Nach History-Rewrites mit Force-Push auf viele Feature-Branches scheitert ein
+  # Full-Fetch sonst oft an kaputten Rechten auf einzelnen refs/remotes (z. B.
+  # `.git/logs/refs/remotes/origin/fix/…`: Permission denied).
+  if git fetch origin "${BRANCH}"; then
+    return 0
+  fi
+  echo "git fetch origin ${BRANCH} fehlgeschlagen." >&2
+  echo "Häufig: .git/logs oder .git/refs gehören root (sudo git / Docker)." >&2
+  echo "Fix auf dem Server: sudo chown -R $(whoami):$(whoami) \"${ROOT}/.git\"" >&2
+  return 1
+}
+
 case "$MODE" in
   reset)
-    git fetch origin
+    git_fetch_deploy_branch
     git reset --hard "origin/${BRANCH}"
     # Skript neu starten: git reset überschreibt diese Datei, laufendes Bash behält sonst alte Version (offene Inode).
     if [[ -z "${EMATCHEF_DEPLOY_REEXEC:-}" ]]; then
