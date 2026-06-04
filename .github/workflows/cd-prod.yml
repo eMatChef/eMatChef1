@@ -32,6 +32,12 @@ jobs:
             export EMATCHEF_GIT_SSH_IDENTITY="$GIT_DEPLOY_KEY"
             export GIT_SSH_COMMAND="ssh -i ${GIT_DEPLOY_KEY} -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new"
             cd "${{ secrets.PROD_DEPLOY_PATH }}"
+            DEPLOY_ROOT="${{ secrets.PROD_DEPLOY_PATH }}"
+            if [[ ! -w "${DEPLOY_ROOT}/.git/objects" ]]; then
+              chown -R "$(id -u):$(id -g)" "${DEPLOY_ROOT}/.git" 2>/dev/null || \
+              docker run --rm -u 0 -v "${DEPLOY_ROOT}/.git:/git" alpine:3.20 \
+                sh -c "chown -R $(id -u):$(id -g) /git && chmod -R u+rwX /git"
+            fi
             git fetch --no-tags origin "+refs/heads/prod:refs/remotes/origin/prod"
             git reset --hard origin/prod
             EMATCHEF_PROD_ROOT="${{ secrets.PROD_DEPLOY_PATH }}" \

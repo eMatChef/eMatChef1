@@ -36,17 +36,37 @@ if [[ -n "${EMATCHEF_GIT_SSH_IDENTITY:-}" ]]; then
   export GIT_SSH_COMMAND="ssh -i ${_git_ssh_id} -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new"
 fi
 
+fix_git_dir_permissions() {
+  if [[ -x "${ROOT}/deploy/fix-git-permissions.sh" ]]; then
+    EMATCHEF_PROD_ROOT="$ROOT" "${ROOT}/deploy/fix-git-permissions.sh"
+    return
+  fi
+  local git_dir="${ROOT}/.git"
+  [[ -d "${git_dir}/objects" ]] || return 0
+  [[ -w "${git_dir}/objects" && -w "${git_dir}/logs" ]] && return 0
+  local uid gid
+  uid="$(id -u)"
+  gid="$(id -g)"
+  echo "==> .git Rechte reparieren (${uid}:${gid}) …"
+  chown -R "${uid}:${gid}" "${git_dir}" 2>/dev/null && chmod -R u+rwX "${git_dir}" 2>/dev/null && return 0
+  docker run --rm -u 0 -v "${git_dir}:/git" alpine:3.20 \
+    sh -c "chown -R ${uid}:${gid} /git && chmod -R u+rwX /git"
+}
+
 git_fetch_deploy_branch() {
   # Expliziter Refspec — aktualisiert nur origin/<branch>, nie andere Remote-Refs.
-  # `git fetch origin` oder Default-Remote-Refspec (+refs/heads/*:…) scheitert auf
-  # dem Droplet oft an Permission denied auf einzelnen refs/remotes (History-Rewrite).
   local refspec="+refs/heads/${BRANCH}:refs/remotes/origin/${BRANCH}"
+  fix_git_dir_permissions
+  if git fetch --no-tags origin "${refspec}"; then
+    return 0
+  fi
+  echo "git fetch erneut nach Rechte-Fix …"
+  fix_git_dir_permissions
   if git fetch --no-tags origin "${refspec}"; then
     return 0
   fi
   echo "git fetch --no-tags origin ${refspec} fehlgeschlagen." >&2
-  echo "Häufig: .git/logs oder .git/refs gehören root (sudo git / Docker)." >&2
-  echo "Fix auf dem Server: sudo chown -R $(whoami):$(whoami) \"${ROOT}/.git\"" >&2
+  echo "Manuell: sudo chown -R $(whoami):$(whoami) \"${ROOT}/.git\"" >&2
   return 1
 }
 
