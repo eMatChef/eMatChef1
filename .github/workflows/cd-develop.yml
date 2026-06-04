@@ -30,10 +30,13 @@ jobs:
             export GIT_SSH_COMMAND="ssh -i ${_git_ssh_id} -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new"
             cd "${{ secrets.DEVELOP_DEPLOY_PATH }}"
             DEPLOY_ROOT="${{ secrets.DEVELOP_DEPLOY_PATH }}"
-            if [[ ! -w "${DEPLOY_ROOT}/.git/objects" ]]; then
-              chown -R "$(id -u):$(id -g)" "${DEPLOY_ROOT}/.git" 2>/dev/null || \
+            if [[ -x "${DEPLOY_ROOT}/deploy/fix-git-permissions.sh" ]]; then
+              EMATCHEF_PROD_ROOT="${DEPLOY_ROOT}" "${DEPLOY_ROOT}/deploy/fix-git-permissions.sh"
+            else
+              uid="$(id -u)" gid="$(id -g)"
+              chown -R "${uid}:${gid}" "${DEPLOY_ROOT}/.git" 2>/dev/null || \
               docker run --rm -u 0 -v "${DEPLOY_ROOT}/.git:/git" alpine:3.20 \
-                sh -c "chown -R $(id -u):$(id -g) /git && chmod -R u+rwX /git"
+                sh -c "chown -R ${uid}:${gid} /git && chmod -R u+rwX /git"
             fi
             # Bootstrap: altes prod-update.sh auf dem Server macht ggf. noch `git fetch origin`
             # und scheitert, bevor reset das neue Skript holen kann.
