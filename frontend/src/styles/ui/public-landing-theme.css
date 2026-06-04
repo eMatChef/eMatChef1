@@ -124,18 +124,10 @@
   flex-shrink: 0;
 }
 
+/* Wächst mit kurzem Inhalt, damit .plt-footer (margin-top: auto) unten andockt */
 .plt-main {
   flex: 1 1 auto;
   min-height: 0;
-}
-
-/* Marketing-Seiten: Copyright folgt dem Inhalt (erst nach Scrollen sichtbar) */
-.plt-shell--natural-footer {
-  min-height: 0;
-}
-
-.plt-main--natural {
-  flex: 0 1 auto;
 }
 
 /* Blog, FAQ, TOS, Impressum (Phase 5) */
