@@ -3544,7 +3544,7 @@
       "inviteByEmailHint": "Sende eine Einladung per E-Mail mit Join-Link. Die Person muss die Einladung in der App bestätigen, bevor sie Mitglied wird.",
       "inviteExistingUserHint": "Die Person erhält eine Benachrichtigung in eMatChef und muss die Einladung bestätigen.",
       "inviteEmailLabel": "E-Mail für Einladung",
-      "inviteEmailPlaceholder": "name@beispiel.ch",
+      "inviteEmailPlaceholder": "name{'@'}beispiel.ch",
       "sendInvite": "Einladung senden",
       "sendingInvite": "Einladung wird gesendet…",
       "toastInviteSent": "Einladung an {name} wurde gesendet. Die Person muss sie in der App bestätigen.",

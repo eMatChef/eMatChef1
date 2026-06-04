@@ -15,6 +15,7 @@ import {
   buildVariantFallbackLocaleMap
 } from '@/config/languages'
 import type { FallbackLocale } from 'vue-i18n'
+import { escapeLiteralAtSignInMessages } from '@/utils/i18nEscapeAtSign'
 
 const LOCALE_STORAGE_KEY = 'app_locale'
 
@@ -41,7 +42,10 @@ function withVuetifyLocale<T extends Record<string, unknown>>(
   messages: T,
   vuetifyLocale: typeof vuetifyDe,
 ): T & { $vuetify: typeof vuetifyDe } {
-  return { ...messages, $vuetify: vuetifyLocale }
+  return {
+    ...escapeLiteralAtSignInMessages(messages),
+    $vuetify: escapeLiteralAtSignInMessages(vuetifyLocale),
+  }
 }
 
 export const i18n = createI18n({

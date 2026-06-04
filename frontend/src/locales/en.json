@@ -2441,7 +2441,7 @@
       "inviteNoUserFound": "No existing user found.",
       "inviteByEmailHint": "Send an email invitation with a join link. After they join, they will be added to the department with the selected role and listed under «Invited members» until they accept.",
       "inviteEmailLabel": "Email for invitation",
-      "inviteEmailPlaceholder": "name@example.com",
+      "inviteEmailPlaceholder": "name{'@'}example.com",
       "sendInvite": "Send invitation",
       "sendingInvite": "Sending invitation…",
       "toastInviteSent": "Invitation email has been sent.",

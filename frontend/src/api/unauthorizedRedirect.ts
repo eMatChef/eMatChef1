@@ -23,7 +23,12 @@ export function shouldProbeUserSession(pathname?: string): boolean {
   const path =
     pathname ??
     (typeof window !== 'undefined' ? window.location.pathname : '')
-  return !isDisplayKioskPath(path)
+  if (isDisplayKioskPath(path)) return false
+  // Marketing auf Hauptdomain: kein globaler Session-Probe in main.ts (optional Chip in PublicSiteLayout)
+  if (!isAppOrigin() && !isDevicesHost() && isPublicMarketingPath(path)) {
+    return false
+  }
+  return true
 }
 
 /** Öffentliche QR-Infos ohne Login (z. B. /i/m/…/b/…, /i/a/…, /i/w/…, /display/…). */
