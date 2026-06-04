@@ -678,13 +678,27 @@
   border-top: 1px solid var(--plt-border);
 }
 
-.plt-cta p {
+.plt-cta p,
+.plt-cta-text {
   font-size: 1.05rem;
   color: var(--plt-text-muted);
   margin: 0 0 1.25rem;
   max-width: 36rem;
   margin-left: auto;
   margin-right: auto;
+}
+
+.plt-cta-faq-link {
+  color: var(--plt-accent);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-color: var(--plt-accent-soft);
+}
+
+.plt-cta-faq-link:hover {
+  color: #047857;
+  text-decoration-color: var(--plt-accent);
 }
 
 .plt-footer {

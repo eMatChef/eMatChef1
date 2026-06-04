@@ -82,7 +82,14 @@
     <section v-if="showCta" class="plt-cta" aria-labelledby="section-cta">
       <div class="plt-container">
         <h2 v-if="landing.ctaTitleSrOnly" id="section-cta" class="sr-only">{{ landing.ctaTitleSrOnly }}</h2>
-        <p v-if="landing.ctaText">{{ landing.ctaText }}</p>
+        <p v-if="landing.ctaText" class="plt-cta-text">
+          <template v-if="ctaTextWithFaqLink">
+            {{ ctaTextWithFaqLink.before }}<RouterLink class="plt-cta-faq-link" :to="faqLinkPath">{{
+              ctaTextWithFaqLink.link
+            }}</RouterLink>{{ ctaTextWithFaqLink.after }}
+          </template>
+          <template v-else>{{ landing.ctaText }}</template>
+        </p>
         <EButton
           v-if="showPrimaryCta"
           variant="primary"
@@ -108,7 +115,7 @@ import { useSiteContentStore } from '@/stores/siteContent'
 import { getAppEntryTarget, getAppLoginTarget } from '@/utils/appLoginUrl'
 import { useAuthStore } from '@/stores/auth'
 import { resolveLandingFeatureIcon } from '@/utils/landingFeatureIcons'
-import { resolveLandingDisplay } from '@/utils/publicLanding'
+import { parseLandingCtaFaqLink, resolveLandingDisplay } from '@/utils/publicLanding'
 
 function featureIcon(icon: string, index: number): string {
   return resolveLandingFeatureIcon(icon, index)
@@ -146,6 +153,11 @@ const showIntro = computed(
     ),
 )
 const showCta = computed(() => Boolean(landing.value.ctaText || showPrimaryCta.value))
+const faqLinkPath = computed(() => {
+  const path = landing.value.secondaryCtaPath.trim()
+  return path.startsWith('/') ? path : '/faq'
+})
+const ctaTextWithFaqLink = computed(() => parseLandingCtaFaqLink(landing.value.ctaText))
 const primaryHref = computed(() =>
   isPublicLoggedIn.value ? getAppEntryTarget() : getAppLoginTarget(),
 )
