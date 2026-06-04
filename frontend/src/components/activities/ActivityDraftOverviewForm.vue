@@ -1,5 +1,8 @@
 <template>
-  <div class="activity-draft-overview-form activity-create-wizard-host activity-detail-datetime-host">
+  <div
+    class="activity-draft-overview-form activity-create-wizard-host activity-detail-datetime-host"
+    :class="[wizardHostClasses, datetimeHostClasses]"
+  >
     <div class="section-card">
       <h2 class="section-title">{{ t('activities.draftOverview.sectionBasics') }}</h2>
       <div class="form-grid">
@@ -88,32 +91,44 @@
 
       <div
         class="activity-zeitraum-autosave-wrap"
-        :class="{ 'is-zeitraum-saving': zeitraumSaving, 'is-zeitraum-saved': zeitraumShowSaved }"
+        :class="{ 'is-zeitraum-saving': zeitraumSaving }"
+        @focusin="zeitraumFocused = true"
         @focusout="onZeitraumFocusOut"
       >
-        <ActivityZeitraumDatetimeFields
-          v-model:usage-day="usageDay"
-          v-model:usage-range="usageRange"
-          v-model:usage-time-from="usageTimeFrom"
-          v-model:usage-time-to="usageTimeTo"
-          v-model:mat-range="matRange"
-          v-model:mat-start-time="matStartTime"
-          v-model:mat-end-time="matEndTime"
-          :activity-type="activityTypeForZeitraum"
-          :department-id="departmentId"
-          teleport-to="body"
-          :show-date-range-preset-sidebar="showDateRangePresetSidebar"
-          :usage-dates-locked="usageDatesLocked"
-          :material-times-blocked-usage="materialTimesBlockedUsage"
-          usage-block-id="draft-usage-block"
-          planning-block-id="draft-planning-block"
-        />
-        <p v-if="zeitraumSaving" class="activity-zeitraum-autosave-status" role="status">
-          {{ t('common.autoSaveField.saving') }}
-        </p>
-        <p v-else-if="zeitraumShowSaved" class="activity-zeitraum-autosave-status is-saved" role="status">
-          {{ t('common.autoSaveField.saved') }}
-        </p>
+        <AutoSaveFieldShell
+          class="activity-zeitraum-autosave-field"
+          input-id="draft-activity-zeitraum"
+          :label="t('activities.detail.sectionPeriod')"
+          :show-label="false"
+          span-class="form-group span-2"
+          status="idle"
+          :is-saving="zeitraumSaving"
+          :is-pending="false"
+          :show-success-icon="zeitraumShowSaved"
+          :is-focused="zeitraumFocused"
+          :is-dirty="zeitraumIsDirty"
+          :has-display-value="true"
+          :saved-label="t('common.autoSaveField.saved')"
+          :retry-label="t('common.autoSaveField.retry')"
+          :cancel-label="t('common.autoSaveField.cancel')"
+        >
+          <ActivityZeitraumDatetimeFields
+            v-model:usage-day="usageDay"
+            v-model:usage-range="usageRange"
+            v-model:usage-time-from="usageTimeFrom"
+            v-model:usage-time-to="usageTimeTo"
+            v-model:mat-range="matRange"
+            v-model:mat-start-time="matStartTime"
+            v-model:mat-end-time="matEndTime"
+            :activity-type="activityTypeForZeitraum"
+            :department-id="departmentId"
+            teleport-to="body"
+            :usage-dates-locked="usageDatesLocked"
+            :material-times-blocked-usage="materialTimesBlockedUsage"
+            usage-block-id="draft-usage-block"
+            planning-block-id="draft-planning-block"
+          />
+        </AutoSaveFieldShell>
       </div>
     </div>
 
@@ -250,12 +265,15 @@ import { searchJoinableDepartments, type DepartmentSearchResult } from '@/api/jo
 import type { InvitedDepartmentDraft } from '@/composables/useActivityCreateWizard'
 import { getAddresses, type Address } from '@/api/addresses'
 import { getGroups, type Group } from '@/api/groups'
+import { useDisplayHostClasses } from '@/composables/useDisplayHostClasses'
 import { useToast } from '@/composables/useToast'
 import { combineDayAndTime, startOfLocalDay } from '@/utils/activityDateTimeParts'
 import { getPlanningUsageViolation } from '@/utils/activityPlanningUsageConstraint'
 import { flattenGroupsWithLevel } from '@/utils/groupHierarchy'
 import ActivityZeitraumDatetimeFields from '@/components/activities/shared/ActivityZeitraumDatetimeFields.vue'
 import AutoSaveField from '@/components/common/autoSave/AutoSaveField.vue'
+import AutoSaveFieldShell from '@/components/common/autoSave/AutoSaveFieldShell.vue'
+import { AUTO_SAVE_SUCCESS_ICON_MS } from '@/composables/useAutoSaveField'
 import type { AutoSaveFieldValue, AutoSaveSelectOption } from '@/components/common/autoSave/types'
 import { DepartmentAddressAutocomplete } from '@/components/addresses'
 import AddressModal from '@/components/AddressModal.vue'
@@ -279,6 +297,8 @@ const emit = defineEmits<{
 
 const toast = useToast()
 const { t } = useI18n()
+const wizardHostClasses = useDisplayHostClasses('activity-create-wizard-host')
+const datetimeHostClasses = useDisplayHostClasses('activity-detail-datetime-host')
 const groups = ref<Group[]>([])
 const addresses = ref<Address[]>([])
 const saving = ref(false)
@@ -287,8 +307,11 @@ const venueAddressModalDefaultName = ref('')
 const venueAddressAutocompleteRef = ref<InstanceType<typeof DepartmentAddressAutocomplete> | null>(null)
 const zeitraumSaving = ref(false)
 const zeitraumShowSaved = ref(false)
+const zeitraumFocused = ref(false)
 let zeitraumBlurTimer: ReturnType<typeof setTimeout> | null = null
 let zeitraumSavedTimer: ReturnType<typeof setTimeout> | null = null
+
+const zeitraumAutosaveReady = ref(false)
 
 const savedBaselines = reactive({
   name: '',
@@ -472,10 +495,6 @@ const groupRequired = computed(() => activityType.value === 'activity' && groups
 const showVenue = computed(() => ['camp', 'event', 'external'].includes(activityType.value))
 
 const showCustomerAddress = computed(() => activityType.value === 'external')
-
-const showDateRangePresetSidebar = computed(
-  () => activityType.value !== 'activity' && activityType.value !== 'external',
-)
 
 function addressShort(a: Address): string {
   const line = a.full_address || a.street_line || a.name || a.id
@@ -726,6 +745,7 @@ function resetFromActivity() {
 
   syncZeitraumBaselineFromActivity()
   invitedDraft.value = mapApiInvitesToDraft(a.invited_departments)
+  zeitraumAutosaveReady.value = true
 }
 
 function resetInvites() {
@@ -764,12 +784,13 @@ const zeitraumIsDirty = computed(() => {
   const usage = buildUsageIsos()
   const planning = buildPlanningIsos()
   const b = zeitraumBaseline.value
-  return (
-    normIso(usage.usage_start) !== b.usage_start ||
-    normIso(usage.usage_end) !== b.usage_end ||
+  const usageDirty =
+    !props.usageDatesLocked &&
+    (normIso(usage.usage_start) !== b.usage_start || normIso(usage.usage_end) !== b.usage_end)
+  const planningDirty =
     normIso(planning.planning_start) !== b.planning_start ||
     normIso(planning.planning_end) !== b.planning_end
-  )
+  return usageDirty || planningDirty
 })
 
 const hasUnsavedChanges = computed(
@@ -785,7 +806,7 @@ const isSavingAny = computed(() => saving.value || zeitraumSaving.value)
 function isExternalDatetimePickerTarget(el: EventTarget | null): boolean {
   if (!(el instanceof HTMLElement)) return false
   return !!el.closest(
-    '.dp__menu, .dp__overlay, .dp__calendar, .dp__outer_menu_wrap, .dp__menu_inner, .dp__sidebar_left',
+    '.activity-date-picker-menu, .activity-time-picker-menu, .v-date-picker, .v-time-picker, .v-picker',
   )
 }
 
@@ -796,8 +817,15 @@ function onZeitraumFocusOut(event: FocusEvent) {
     zeitraumBlurTimer = null
     const active = document.activeElement
     if (active instanceof HTMLElement) {
-      if (active.closest('.activity-zeitraum-autosave-wrap, .dp__menu, .dp__overlay')) return
+      if (
+        active.closest(
+          '.activity-zeitraum-autosave-wrap, .activity-date-picker-menu, .activity-time-picker-menu, .v-date-picker, .v-time-picker, .v-picker',
+        )
+      )
+        return
     }
+    zeitraumFocused.value = false
+    if (!zeitraumAutosaveReady.value) return
     void saveZeitraumIfDirty()
   }, 150)
 }
@@ -859,11 +887,13 @@ async function saveZeitraumIfDirty() {
   const usage = buildUsageIsos()
   const planning = buildPlanningIsos()
   const payload: PatchActivityPayload = {}
-  if (normIso(usage.usage_start) !== normIso(a.usage_start ?? undefined)) {
-    payload.usage_start = usage.usage_start ?? undefined
-  }
-  if (normIso(usage.usage_end) !== normIso(a.usage_end ?? undefined)) {
-    payload.usage_end = usage.usage_end ?? undefined
+  if (!props.usageDatesLocked) {
+    if (normIso(usage.usage_start) !== normIso(a.usage_start ?? undefined)) {
+      payload.usage_start = usage.usage_start ?? undefined
+    }
+    if (normIso(usage.usage_end) !== normIso(a.usage_end ?? undefined)) {
+      payload.usage_end = usage.usage_end ?? undefined
+    }
   }
   if (normIso(planning.planning_start) !== normIso(a.planning_start ?? undefined)) {
     payload.planning_start = planning.planning_start ?? undefined
@@ -882,7 +912,7 @@ async function saveZeitraumIfDirty() {
     if (zeitraumSavedTimer) clearTimeout(zeitraumSavedTimer)
     zeitraumSavedTimer = setTimeout(() => {
       zeitraumShowSaved.value = false
-    }, 2000)
+    }, AUTO_SAVE_SUCCESS_ICON_MS)
     emit('saved')
   } catch (err: unknown) {
     const e = err as { response?: { data?: { error?: string } }; message?: string }
@@ -954,6 +984,16 @@ defineExpose({
 .activity-zeitraum-autosave-wrap :deep(.activity-outlined-fieldset) {
   width: 100%;
   max-width: 100%;
+}
+
+.activity-zeitraum-autosave-wrap.is-zeitraum-saving {
+  opacity: 0.88;
+  pointer-events: none;
+}
+
+.activity-zeitraum-autosave-field.autosave-field {
+  width: 100%;
+  max-width: none;
 }
 
 .activity-detail-datetime-host {
@@ -1053,12 +1093,13 @@ defineExpose({
 }
 
 /* Fokus-Hintergrund in der Pill-Leiste an Systemfarbe anbinden */
-.activity-detail-datetime-host :deep(.activity-pill-bar .activity-date-field .dp__input_wrap:focus-within),
-.activity-detail-datetime-host :deep(.activity-pill-bar .activity-date-range-field .dp__input_wrap:focus-within) {
+.activity-detail-datetime-host :deep(.activity-pill-bar .activity-v-date-input:focus-within) {
   background: color-mix(in srgb, AccentColor 14%, transparent);
+  border-radius: 8px;
 }
 
-.activity-detail-datetime-host :deep(.activity-time-part:focus) {
+.activity-detail-datetime-host :deep(.activity-time-select .v-field--focused),
+.activity-detail-datetime-host :deep(.activity-time-edit:focus) {
   border-color: AccentColor;
   box-shadow: 0 0 0 2px color-mix(in srgb, AccentColor 35%, transparent);
 }

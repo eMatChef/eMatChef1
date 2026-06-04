@@ -1,157 +1,191 @@
 <template>
-  <div class="modal-backdrop" @click.self="emit('close')">
-    <div class="modal-card">
-      <header class="modal-header">
-        <div>
-          <h3>{{ t('globalAddressesPage.supplierAdminModal.title', { name: company.name }) }}</h3>
-          <p class="modal-subtitle">{{ t('globalAddressesPage.supplierAdminModal.subtitle') }}</p>
-        </div>
-        <button type="button" class="btn btn-secondary btn-inline" @click="emit('close')">
-          {{ t('common.cancel') }}
-        </button>
-      </header>
-
-      <div class="modal-body">
-        <section class="section">
-          <h4>{{ t('globalAddressesPage.supplierAdminModal.companySection') }}</h4>
-          <form class="company-form" @submit.prevent="saveCompany">
-            <label class="field">
-              <span>{{ t('globalAddressesPage.supplierModal.name') }}</span>
-              <input v-model.trim="form.name" type="text" required />
-            </label>
-            <label class="field">
-              <span>{{ t('globalAddressesPage.supplierModal.manufacturerKey') }}</span>
-              <input v-model.trim="form.manufacturer_key" type="text" />
-            </label>
-            <label class="field">
-              <span>{{ t('globalAddressesPage.tableStatus') }}</span>
-              <select v-model="form.status">
-                <option value="pending">{{ t('globalAddressesPage.supplierAdminModal.statusPending') }}</option>
-                <option value="active">{{ t('globalAddressesPage.supplierAdminModal.statusActive') }}</option>
-                <option value="suspended">{{ t('globalAddressesPage.supplierAdminModal.statusSuspended') }}</option>
-              </select>
-            </label>
-            <fieldset class="capabilities-fieldset">
-              <legend>{{ t('globalAddressesPage.supplierAdminModal.capabilities') }}</legend>
-              <label v-for="option in capabilityOptions" :key="option.value" class="capability-option">
-                <input v-model="form.capabilities" type="checkbox" :value="option.value" />
-                <span>{{ option.label }}</span>
-              </label>
-            </fieldset>
-            <div class="company-actions">
-              <button type="submit" class="btn btn-primary btn-sm" :disabled="savingCompany">
-                {{ savingCompany ? t('common.saving') : t('common.save') }}
-              </button>
-              <button type="button" class="btn btn-danger btn-sm" :disabled="deleting" @click="deleteCompany">
-                {{ t('common.delete') }}
-              </button>
-            </div>
-          </form>
-        </section>
-
-        <section v-if="form.manufacturer_key" class="section">
-          <h4>{{ t('globalAddressesPage.supplierAdminModal.legacyTemplatesSection') }}</h4>
-          <p v-if="loadingLegacyPreview" class="hint">{{ t('globalAddressesPage.loading') }}</p>
-          <p v-else-if="legacyPreview && legacyPreview.available_count === 0" class="hint">
-            {{ t('globalAddressesPage.supplierAdminModal.legacyTemplatesNone', {
-              imported: legacyPreview.already_imported_count,
-            }) }}
-          </p>
-          <template v-else-if="legacyPreview">
-            <p class="hint">
-              {{ t('globalAddressesPage.supplierAdminModal.legacyTemplatesAvailable', {
-                count: legacyPreview.available_count,
-              }) }}
-            </p>
-            <ul v-if="legacyPreview.templates.length" class="legacy-list">
-              <li v-for="item in legacyPreview.templates.filter((t) => !t.already_imported)" :key="item.legacy_material_template_id">
-                {{ item.name }}
-                <span class="muted">({{ item.component_count }} {{ t('supplierTemplates.columns.components') }})</span>
-              </li>
-            </ul>
-            <button
-              type="button"
-              class="btn btn-secondary btn-sm"
-              :disabled="importingLegacy || legacyPreview.available_count === 0"
-              @click="importLegacyTemplates"
-            >
-              {{ importingLegacy
-                ? t('globalAddressesPage.supplierAdminModal.legacyTemplatesImporting')
-                : t('globalAddressesPage.supplierAdminModal.legacyTemplatesImport') }}
-            </button>
-          </template>
-        </section>
-
-        <section class="section">
-          <h4>{{ t('globalAddressesPage.supplierAdminModal.membersSection') }}</h4>
-          <p v-if="loadingMembers" class="hint">{{ t('globalAddressesPage.loading') }}</p>
-          <p v-else-if="memberships.length === 0" class="hint">
-            {{ t('globalAddressesPage.supplierAdminModal.noMembers') }}
-          </p>
-          <table v-else class="members-table">
-            <thead>
-              <tr>
-                <th>{{ t('supplierTeam.columns.name') }}</th>
-                <th>{{ t('supplierTeam.columns.email') }}</th>
-                <th>{{ t('supplierTeam.columns.role') }}</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="member in memberships" :key="member.user_id">
-                <td>{{ member.name }}</td>
-                <td>{{ member.email || '—' }}</td>
-                <td>
-                  <select
-                    class="role-select"
-                    :value="member.role"
-                    :disabled="savingUserId === member.user_id"
-                    @change="onRoleChange(member, ($event.target as HTMLSelectElement).value as SupplierMembershipRole)"
-                  >
-                    <option value="admin">{{ t('supplierTeam.roles.admin') }}</option>
-                    <option value="member">{{ t('supplierTeam.roles.member') }}</option>
-                  </select>
-                </td>
-                <td class="actions-cell">
-                  <button
-                    type="button"
-                    class="btn btn-danger btn-sm"
-                    :disabled="savingUserId === member.user_id"
-                    @click="removeMember(member)"
-                  >
-                    {{ t('common.remove') }}
-                  </button>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-
-          <form class="add-member-form" @submit.prevent="addMember">
-            <label class="field">
-              <span>{{ t('globalAddressesPage.supplierAdminModal.addMemberEmail') }}</span>
-              <input v-model.trim="addForm.user_email" type="email" required />
-            </label>
-            <label class="field field-narrow">
-              <span>{{ t('supplierTeam.columns.role') }}</span>
-              <select v-model="addForm.role">
-                <option value="admin">{{ t('supplierTeam.roles.admin') }}</option>
-                <option value="member">{{ t('supplierTeam.roles.member') }}</option>
-              </select>
-            </label>
-            <button type="submit" class="btn btn-secondary btn-sm" :disabled="addingMember">
-              {{ addingMember ? t('common.saving') : t('globalAddressesPage.supplierAdminModal.addMember') }}
-            </button>
-          </form>
-        </section>
-
-        <p v-if="error" class="error">{{ error }}</p>
+  <EDialog
+    v-model="dialogOpen"
+    :max-width="720"
+    scrollable
+    persistent
+  >
+    <template #title>
+      <div>
+        <div>{{ t('globalAddressesPage.supplierAdminModal.title', { name: company.name }) }}</div>
+        <p class="modal-subtitle">{{ t('globalAddressesPage.supplierAdminModal.subtitle') }}</p>
       </div>
-    </div>
-  </div>
+    </template>
+
+    <section class="section">
+      <h4>{{ t('globalAddressesPage.supplierAdminModal.companySection') }}</h4>
+      <form id="supplier-admin-company-form" class="company-form" @submit.prevent="saveCompany">
+        <ETextField
+          v-model="form.name"
+          :label="t('globalAddressesPage.supplierModal.name')"
+          hide-details="auto"
+          class="field-grow"
+        />
+        <ETextField
+          v-model="form.manufacturer_key"
+          :label="t('globalAddressesPage.supplierModal.manufacturerKey')"
+          hide-details="auto"
+          class="field-grow"
+        />
+        <ESelect
+          v-model="form.status"
+          :items="statusItems"
+          :label="t('globalAddressesPage.tableStatus')"
+          hide-details="auto"
+          class="field-grow"
+        />
+        <fieldset class="capabilities-fieldset">
+          <legend>{{ t('globalAddressesPage.supplierAdminModal.capabilities') }}</legend>
+          <ECheckbox
+            v-for="option in capabilityOptions"
+            :key="option.value"
+            :model-value="form.capabilities.includes(option.value)"
+            :label="option.label"
+            hide-details
+            class="capability-option"
+            @update:model-value="toggleCapability(option.value, $event)"
+          />
+        </fieldset>
+        <div class="company-actions">
+          <EButton
+            variant="primary"
+            size="small"
+            type="submit"
+            form="supplier-admin-company-form"
+            :disabled="savingCompany"
+            :loading="savingCompany"
+          >
+            {{ savingCompany ? t('common.saving') : t('common.save') }}
+          </EButton>
+          <EButton variant="danger" size="small" :disabled="deleting" :loading="deleting" @click="deleteCompany">
+            {{ t('common.delete') }}
+          </EButton>
+        </div>
+      </form>
+    </section>
+
+    <section v-if="form.manufacturer_key" class="section">
+      <h4>{{ t('globalAddressesPage.supplierAdminModal.legacyTemplatesSection') }}</h4>
+      <ELoadingState
+        v-if="loadingLegacyPreview"
+        variant="inline"
+        :message="t('globalAddressesPage.loading')"
+      />
+      <p v-else-if="legacyPreview && legacyPreview.available_count === 0" class="hint">
+        {{ t('globalAddressesPage.supplierAdminModal.legacyTemplatesNone', {
+          imported: legacyPreview.already_imported_count,
+        }) }}
+      </p>
+      <template v-else-if="legacyPreview">
+        <p class="hint">
+          {{ t('globalAddressesPage.supplierAdminModal.legacyTemplatesAvailable', {
+            count: legacyPreview.available_count,
+          }) }}
+        </p>
+        <ul v-if="legacyPreview.templates.length" class="legacy-list">
+          <li v-for="item in legacyPreview.templates.filter((t) => !t.already_imported)" :key="item.legacy_material_template_id">
+            {{ item.name }}
+            <span class="muted">({{ item.component_count }} {{ t('supplierTemplates.columns.components') }})</span>
+          </li>
+        </ul>
+        <EButton
+          variant="secondary"
+          size="small"
+          :disabled="importingLegacy || legacyPreview.available_count === 0"
+          :loading="importingLegacy"
+          @click="importLegacyTemplates"
+        >
+          {{ importingLegacy
+            ? t('globalAddressesPage.supplierAdminModal.legacyTemplatesImporting')
+            : t('globalAddressesPage.supplierAdminModal.legacyTemplatesImport') }}
+        </EButton>
+      </template>
+    </section>
+
+    <section class="section">
+      <h4>{{ t('globalAddressesPage.supplierAdminModal.membersSection') }}</h4>
+      <ELoadingState
+        v-if="loadingMembers"
+        variant="inline"
+        :message="t('globalAddressesPage.loading')"
+      />
+      <p v-else-if="memberships.length === 0" class="hint">
+        {{ t('globalAddressesPage.supplierAdminModal.noMembers') }}
+      </p>
+      <table v-else class="members-table">
+        <thead>
+          <tr>
+            <th>{{ t('supplierTeam.columns.name') }}</th>
+            <th>{{ t('supplierTeam.columns.email') }}</th>
+            <th>{{ t('supplierTeam.columns.role') }}</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="member in memberships" :key="member.user_id">
+            <td>{{ member.name }}</td>
+            <td>{{ member.email || '—' }}</td>
+            <td>
+              <ESelect
+                :model-value="member.role"
+                :items="roleSelectItems"
+                hide-details
+                :disabled="savingUserId === member.user_id"
+                @update:model-value="onRoleChange(member, $event as SupplierMembershipRole)"
+              />
+            </td>
+            <td class="actions-cell">
+              <EButton
+                variant="danger"
+                size="small"
+                :disabled="savingUserId === member.user_id"
+                @click="removeMember(member)"
+              >
+                {{ t('common.remove') }}
+              </EButton>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+
+      <form id="supplier-admin-add-member-form" class="add-member-form" @submit.prevent="addMember">
+        <ETextField
+          v-model="addForm.user_email"
+          type="email"
+          :label="t('globalAddressesPage.supplierAdminModal.addMemberEmail')"
+          hide-details="auto"
+          class="field-grow"
+        />
+        <ESelect
+          v-model="addForm.role"
+          :items="roleSelectItems"
+          :label="t('supplierTeam.columns.role')"
+          hide-details="auto"
+          class="field-narrow"
+        />
+        <EButton
+          variant="secondary"
+          size="small"
+          type="submit"
+          form="supplier-admin-add-member-form"
+          :disabled="addingMember"
+          :loading="addingMember"
+        >
+          {{ addingMember ? t('common.saving') : t('globalAddressesPage.supplierAdminModal.addMember') }}
+        </EButton>
+      </form>
+    </section>
+
+    <v-alert v-if="error" type="error" variant="tonal" :text="error" />
+
+    <template #actions>
+      <EButton variant="secondary" size="small" @click="close">{{ t('common.cancel') }}</EButton>
+    </template>
+  </EDialog>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
   addAdminSupplierMembership,
@@ -169,6 +203,8 @@ import {
 import type { SupplierCompanyStatus, SupplierMembershipRole } from '@/api/supplier'
 import { useConfirm } from '@/composables/useConfirm'
 import { useToast } from '@/composables/useToast'
+import { EButton, ECheckbox, EDialog, ESelect, ETextField } from '@/components/form/base'
+import ELoadingState from '@/components/layout/ELoadingState.vue'
 
 const props = defineProps<{
   company: AdminSupplierCompany
@@ -184,6 +220,8 @@ const { t } = useI18n()
 const toast = useToast()
 const confirm = useConfirm()
 
+const dialogOpen = ref(true)
+
 const form = reactive({
   name: props.company.name,
   manufacturer_key: props.company.manufacturer_key || '',
@@ -197,6 +235,17 @@ const capabilityOptions = computed(() => [
   { value: 'templates', label: t('globalAddressesPage.supplierAdminModal.capabilityTemplates') },
   { value: 'repairs', label: t('globalAddressesPage.supplierAdminModal.capabilityRepairs') },
   { value: 'operator', label: t('globalAddressesPage.supplierAdminModal.capabilityOperator') },
+])
+
+const statusItems = computed(() => [
+  { title: t('globalAddressesPage.supplierAdminModal.statusPending'), value: 'pending' as const },
+  { title: t('globalAddressesPage.supplierAdminModal.statusActive'), value: 'active' as const },
+  { title: t('globalAddressesPage.supplierAdminModal.statusSuspended'), value: 'suspended' as const },
+])
+
+const roleSelectItems = computed(() => [
+  { title: t('supplierTeam.roles.admin'), value: 'admin' as const },
+  { title: t('supplierTeam.roles.member'), value: 'member' as const },
 ])
 
 const addForm = reactive({
@@ -214,6 +263,24 @@ const memberships = ref<AdminSupplierMembership[]>([])
 const loadingLegacyPreview = ref(false)
 const importingLegacy = ref(false)
 const legacyPreview = ref<LegacyTemplatePreview | null>(null)
+
+watch(dialogOpen, (open) => {
+  if (!open) emit('close')
+})
+
+function close() {
+  dialogOpen.value = false
+}
+
+function toggleCapability(value: string, checked: boolean | null) {
+  if (checked) {
+    if (!form.capabilities.includes(value)) {
+      form.capabilities.push(value)
+    }
+  } else {
+    form.capabilities = form.capabilities.filter((c) => c !== value)
+  }
+}
 
 async function loadLegacyPreview() {
   if (!form.manufacturer_key.trim()) {
@@ -295,7 +362,7 @@ async function deleteCompany() {
     await deleteAdminSupplierCompany(props.company.id)
     toast.success(t('globalAddressesPage.supplierAdminModal.deleteSuccess'))
     emit('deleted')
-    emit('close')
+    close()
   } catch (err: any) {
     error.value = err?.response?.data?.error || t('globalAddressesPage.supplierAdminModal.errorDelete')
   } finally {
@@ -369,52 +436,15 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.modal-backdrop {
-  position: fixed;
-  inset: 0;
-  background: rgba(15, 23, 42, 0.45);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-  padding: 16px;
-}
-
-.modal-card {
-  background: #fff;
-  border-radius: 12px;
-  width: 100%;
-  max-width: 720px;
-  max-height: 90vh;
-  overflow: auto;
-  box-shadow: 0 20px 40px rgba(15, 23, 42, 0.15);
-}
-
-.modal-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 16px 20px;
-  border-bottom: 1px solid #e5e7eb;
-}
-
-.modal-header h3 {
-  margin: 0;
-  font-size: 1.1rem;
-}
-
 .modal-subtitle {
   margin: 4px 0 0;
   color: #6b7280;
   font-size: 13px;
+  font-weight: 400;
 }
 
-.modal-body {
-  padding: 20px;
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
+.section {
+  margin-bottom: 20px;
 }
 
 .section h4 {
@@ -430,25 +460,12 @@ onMounted(() => {
   align-items: flex-end;
 }
 
-.field {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  font-size: 14px;
+.field-grow {
   flex: 1 1 180px;
 }
 
 .field-narrow {
   flex: 0 1 140px;
-}
-
-.field input,
-.field select,
-.role-select {
-  padding: 8px 10px;
-  border: 1px solid #d1d5db;
-  border-radius: 8px;
-  font-size: 14px;
 }
 
 .company-actions {
@@ -481,10 +498,7 @@ onMounted(() => {
 }
 
 .capability-option {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 14px;
+  margin-bottom: 4px;
 }
 
 .capabilities-fieldset {
@@ -493,7 +507,7 @@ onMounted(() => {
   padding: 12px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 4px;
   flex: 1 1 100%;
 }
 
@@ -501,11 +515,6 @@ onMounted(() => {
   padding: 0 4px;
   font-size: 14px;
   color: #374151;
-}
-
-.error {
-  color: #b91c1c;
-  font-size: 14px;
 }
 
 .legacy-list {
@@ -516,11 +525,5 @@ onMounted(() => {
 
 .muted {
   color: #6b7280;
-}
-
-.btn-inline,
-.btn-sm {
-  padding: 6px 10px;
-  font-size: 12px;
 }
 </style>

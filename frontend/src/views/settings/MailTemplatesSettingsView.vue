@@ -5,33 +5,30 @@
       <p class="subtitle">{{ t('mail.templates.subtitle') }}</p>
     </div>
 
-    <div v-if="isLoading" class="state-box">{{ t('mail.templates.loading') }}</div>
-    <div v-else-if="error" class="state-box error">{{ error }}</div>
+    <ELoadingState
+      v-if="isLoading"
+      variant="card"
+      :message="t('mail.templates.loading')"
+    />
+    <div v-else-if="error" class="error-block">
+      <v-alert type="error" variant="tonal" :text="error" />
+    </div>
 
     <template v-else>
-      <div v-if="inlineSaveError" class="state-box error inline-alert">{{ inlineSaveError }}</div>
-      <div class="locale-tabs" role="tablist" :aria-label="t('mail.templates.title')">
-        <button
-          v-for="loc in MAIL_TEMPLATE_LOCALES"
-          :key="loc"
-          type="button"
-          role="tab"
-          class="locale-tab"
-          :class="{ 'is-active': locale === loc }"
-          :aria-selected="locale === loc"
-          @click="setLocale(loc)"
-        >
+      <v-alert v-if="inlineSaveError" type="error" variant="tonal" class="mb-3" :text="inlineSaveError" />
+      <v-tabs v-model="locale" class="locale-tabs" color="primary">
+        <v-tab v-for="loc in MAIL_TEMPLATE_LOCALES" :key="loc" :value="loc">
           {{ localeTabLabel(loc) }}
-        </button>
-      </div>
+        </v-tab>
+      </v-tabs>
 
       <div class="editor-toolbar">
-        <button type="button" class="btn primary" :disabled="saving" @click="saveMessages">
+        <EButton variant="primary" :loading="saving" @click="saveMessages">
           {{ saving ? t('mail.templates.editor.saving') : t('common.save') }}
-        </button>
-        <button type="button" class="btn ghost" :disabled="saving" @click="loadAll">
+        </EButton>
+        <EButton variant="secondary" :disabled="saving" @click="loadAll">
           {{ t('mail.templates.editor.reload') }}
-        </button>
+        </EButton>
         <span v-if="saveNotice" class="save-notice">{{ saveNotice }}</span>
       </div>
 
@@ -47,12 +44,12 @@
 
           <div class="template-block">
             <p class="block-label">{{ t('mail.templates.subject') }}</p>
-            <input v-model="messages[tpl.key].subject" type="text" class="input-text" spellcheck="false" />
+            <ETextField v-model="messages[tpl.key].subject" hide-details="auto" spellcheck="false" />
           </div>
 
           <div class="template-block">
             <p class="block-label">{{ t('mail.templates.editor.textBody') }}</p>
-            <textarea v-model="messages[tpl.key].text_body" class="input-area" rows="10" spellcheck="false" />
+            <ETextarea v-model="messages[tpl.key].text_body" rows="10" hide-details="auto" spellcheck="false" />
           </div>
 
           <div v-if="htmlKeys(tpl.key).length" class="template-block html-block">
@@ -69,7 +66,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref, computed } from 'vue'
+import { onMounted, ref, computed, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import {
@@ -82,6 +79,8 @@ import {
   type MailTemplateMessages,
 } from '@/api/mailTemplates'
 import TiptapEditor from '@/components/site/TiptapEditor.vue'
+import ELoadingState from '@/components/layout/ELoadingState.vue'
+import { EButton, ETextField, ETextarea } from '@/components/form/base'
 
 const route = useRoute()
 const { t } = useI18n()
@@ -164,6 +163,12 @@ async function setLocale(loc: MailTemplateLocale) {
   await loadAll()
 }
 
+watch(locale, async (loc, prev) => {
+  if (prev !== undefined && loc !== prev) {
+    await loadAll()
+  }
+})
+
 async function saveMessages() {
   saving.value = true
   saveNotice.value = ''
@@ -205,49 +210,12 @@ onMounted(() => {
   font-size: 14px;
 }
 
-.state-box {
-  border: 1px solid #e5e7eb;
-  border-radius: 10px;
-  padding: 12px;
-  background: #f9fafb;
-}
-
-.state-box.error {
-  border-color: #fecaca;
-  background: #fef2f2;
-  color: #991b1b;
-}
-
-.inline-alert {
-  margin-bottom: 0;
+.error-block {
+  margin-bottom: 8px;
 }
 
 .locale-tabs {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.locale-tab {
-  border: 1px solid #e2e8f0;
-  background: #fff;
-  border-radius: 8px;
-  padding: 8px 14px;
-  font-size: 14px;
-  font-weight: 500;
-  color: #475569;
-  cursor: pointer;
-}
-
-.locale-tab:hover {
-  border-color: #cbd5e1;
-  color: #0f172a;
-}
-
-.locale-tab.is-active {
-  border-color: #16a34a;
-  background: #ecfdf5;
-  color: #166534;
+  margin-bottom: 12px;
 }
 
 .editor-toolbar {
@@ -255,40 +223,6 @@ onMounted(() => {
   flex-wrap: wrap;
   align-items: center;
   gap: 10px;
-}
-
-.btn {
-  border-radius: 8px;
-  padding: 8px 14px;
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  border: 1px solid transparent;
-}
-
-.btn:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
-}
-
-.btn.primary {
-  background: #16a34a;
-  color: #fff;
-  border-color: #15803d;
-}
-
-.btn.primary:hover:not(:disabled) {
-  background: #15803d;
-}
-
-.btn.ghost {
-  background: #fff;
-  border-color: #e2e8f0;
-  color: #334155;
-}
-
-.btn.ghost:hover:not(:disabled) {
-  background: #f8fafc;
 }
 
 .save-notice {
@@ -360,27 +294,5 @@ onMounted(() => {
   font-size: 12px;
   color: #6b7280;
   text-transform: uppercase;
-}
-
-.input-text {
-  width: 100%;
-  box-sizing: border-box;
-  padding: 8px 10px;
-  border-radius: 8px;
-  border: 1px solid #e5e7eb;
-  font-size: 14px;
-  font-family: inherit;
-}
-
-.input-area {
-  width: 100%;
-  box-sizing: border-box;
-  padding: 10px;
-  border-radius: 8px;
-  border: 1px solid #e2e8f0;
-  font-size: 13px;
-  font-family: ui-monospace, monospace;
-  line-height: 1.45;
-  resize: vertical;
 }
 </style>

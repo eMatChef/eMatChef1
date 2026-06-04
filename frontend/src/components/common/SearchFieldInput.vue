@@ -10,7 +10,7 @@
     <div class="search-field__frame">
       <label v-if="label" class="search-field__label" :for="inputId">{{ label }}</label>
       <span class="search-field__icon" aria-hidden="true">
-        <IconSearch :size="18" />
+        <v-icon icon="mdi-magnify" size="18" />
       </span>
       <input
         :id="inputId"
@@ -33,7 +33,7 @@
         @mousedown.prevent
         @click="clear"
       >
-        <IconClose />
+        <v-icon icon="mdi-close" size="18" />
       </button>
     </div>
     <slot />
@@ -43,8 +43,6 @@
 <script setup lang="ts">
 import { computed, ref, useId } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { IconSearch, IconClose } from '@/components/icons'
-
 const props = withDefaults(
   defineProps<{
     modelValue?: string

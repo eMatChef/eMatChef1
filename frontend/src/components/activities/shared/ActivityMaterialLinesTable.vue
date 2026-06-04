@@ -22,9 +22,9 @@
       "
       class="activity-mat-reconcile-bulk"
     >
-      <button type="button" class="btn-outline btn-sm" @click="applyAllSuggestedQuantities">
+      <EButton variant="secondary" size="small" @click="applyAllSuggestedQuantities">
         {{ t('activities.materialLinesTable.applyAllBulk') }}
-      </button>
+      </EButton>
     </div>
 
     <div v-if="modelValue.length > 0" class="activity-material-table-wrap">
@@ -137,13 +137,14 @@
                 <template v-else>
                   <span class="activity-mat-rest-value">{{ formatRestCell(row) }}</span>
                   <template v-if="!disabled && !qtyRowLocked(row) && shortageForRow(row) > 0">
-                    <button
-                      type="button"
-                      class="btn-outline btn-sm activity-mat-rest-adjust"
+                    <EButton
+                      variant="secondary"
+                      size="x-small"
+                      class="activity-mat-rest-adjust"
                       @click="applySuggestedForLine(originalIndex)"
                     >
                       {{ t('activities.materialLinesTable.adjust') }}
-                    </button>
+                    </EButton>
                   </template>
                 </template>
               </div>
@@ -336,15 +337,16 @@
                 >
                   ×
                 </button>
-                <button
+                <EButton
                   v-else
-                  type="button"
-                  class="btn-outline btn-sm activity-mat-remove-text"
+                  variant="secondary"
+                  size="x-small"
+                  class="activity-mat-remove-text"
                   :disabled="disabled || removeBusyFor(row)"
                   @click="emitRemove(originalIndex)"
                 >
                   {{ t('common.remove') }}
-                </button>
+                </EButton>
               </template>
             </td>
           </tr>
@@ -363,6 +365,7 @@ import type { ActivityMaterialLine } from '@/composables/useActivityCreateWizard
 import { materialLookupContextForScopeTab, type MaterialScopeTab } from './activityMaterialAvailabilityScope'
 import type { MaterialLookupAvailabilityContext } from '@/composables/useMaterialLookup'
 import { COMBO_BADGE } from '@/utils/comboDisplay'
+import { EButton } from '@/components/form/base'
 
 const props = withDefaults(
   defineProps<{

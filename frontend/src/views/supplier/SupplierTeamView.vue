@@ -5,8 +5,14 @@
       <p class="supplier-page-subtitle">{{ companyName }}</p>
     </header>
 
-    <div v-if="loading" class="supplier-page-state">{{ t('common.loading') }}</div>
-    <div v-else-if="loadError" class="supplier-page-state supplier-page-state--error">{{ loadError }}</div>
+    <ELoadingState
+      v-if="loading"
+      variant="inline"
+      :message="t('common.loading')"
+    />
+    <div v-else-if="loadError" class="supplier-page-error">
+      <v-alert type="error" variant="tonal" :text="loadError" />
+    </div>
 
     <template v-else>
       <section class="team-section">
@@ -14,22 +20,31 @@
         <p class="section-hint">{{ t('supplierTeam.joinCodeHint') }}</p>
         <div class="join-code-row">
           <code class="join-code">{{ joinCodeData?.join_code || '…' }}</code>
-          <button type="button" class="btn btn-secondary btn-sm" :disabled="!joinCodeData" @click="copyJoinCode">
+          <EButton variant="secondary" size="small" :disabled="!joinCodeData" @click="copyJoinCode">
             {{ t('supplierTeam.copyCode') }}
-          </button>
-          <button type="button" class="btn btn-secondary btn-sm" :disabled="!joinCodeData" @click="copyInviteLink">
+          </EButton>
+          <EButton variant="secondary" size="small" :disabled="!joinCodeData" @click="copyInviteLink">
             {{ t('supplierTeam.copyLink') }}
-          </button>
-          <button type="button" class="btn btn-secondary btn-sm" :disabled="joinCodeLoading" @click="regenerateJoinCode">
+          </EButton>
+          <EButton
+            variant="secondary"
+            size="small"
+            :disabled="joinCodeLoading"
+            :loading="joinCodeLoading"
+            @click="regenerateJoinCode"
+          >
             {{ joinCodeLoading ? t('common.saving') : t('supplierTeam.regenerate') }}
-          </button>
+          </EButton>
         </div>
         <p v-if="joinCodeData?.invite_url" class="invite-url-hint">{{ joinCodeData.invite_url }}</p>
       </section>
 
       <section class="team-section">
         <h2 class="section-title">{{ t('supplierTeam.membersTitle') }}</h2>
-        <div v-if="memberships.length === 0" class="supplier-page-state">{{ t('supplierTeam.emptyMembers') }}</div>
+        <EEmptyState
+          v-if="memberships.length === 0"
+          :title="t('supplierTeam.emptyMembers')"
+        />
         <table v-else class="team-table">
           <thead>
             <tr>
@@ -44,25 +59,23 @@
               <td>{{ member.name }}</td>
               <td>{{ member.email || '—' }}</td>
               <td>
-                <select
-                  class="role-select"
-                  :value="member.role"
+                <ESelect
+                  :model-value="member.role"
+                  :items="roleSelectItems"
+                  hide-details
                   :disabled="savingUserId === member.user_id"
-                  @change="onRoleChange(member, ($event.target as HTMLSelectElement).value as SupplierMembershipRole)"
-                >
-                  <option value="admin">{{ t('supplierTeam.roles.admin') }}</option>
-                  <option value="member">{{ t('supplierTeam.roles.member') }}</option>
-                </select>
+                  @update:model-value="onRoleChange(member, $event as SupplierMembershipRole)"
+                />
               </td>
               <td class="actions-cell">
-                <button
-                  type="button"
-                  class="btn btn-danger btn-sm"
+                <EButton
+                  variant="danger"
+                  size="small"
                   :disabled="savingUserId === member.user_id || member.user_id === authStore.userId"
                   @click="removeMember(member)"
                 >
                   {{ t('common.remove') }}
-                </button>
+                </EButton>
               </td>
             </tr>
           </tbody>
@@ -90,6 +103,9 @@ import {
   type SupplierJoinCodeData,
   type SupplierMembershipRow,
 } from '@/api/supplierMemberships'
+import { EButton, ESelect } from '@/components/form/base'
+import EEmptyState from '@/components/layout/EEmptyState.vue'
+import ELoadingState from '@/components/layout/ELoadingState.vue'
 
 const route = useRoute()
 const { t } = useI18n()
@@ -102,6 +118,11 @@ const companyName = computed(() => {
   const company = authStore.activeSupplierCompanies.find((c) => c.id === companyId.value)
   return company?.name || authStore.activeSupplierCompanyName
 })
+
+const roleSelectItems = computed(() => [
+  { title: t('supplierTeam.roles.admin'), value: 'admin' as const },
+  { title: t('supplierTeam.roles.member'), value: 'member' as const },
+])
 
 const loading = ref(true)
 const loadError = ref('')
@@ -231,13 +252,8 @@ onMounted(() => {
   color: #6b7280;
 }
 
-.supplier-page-state {
+.supplier-page-error {
   margin-top: 24px;
-  color: #4b5563;
-}
-
-.supplier-page-state--error {
-  color: #b91c1c;
 }
 
 .team-section {
@@ -301,42 +317,8 @@ onMounted(() => {
   color: #6b7280;
 }
 
-.role-select {
-  border: 1px solid #d1d5db;
-  border-radius: 6px;
-  padding: 6px 8px;
-  background: #fff;
-}
-
 .actions-cell {
   text-align: right;
-}
-
-.btn {
-  border: none;
-  border-radius: 8px;
-  padding: 8px 12px;
-  cursor: pointer;
-  font-size: 0.875rem;
-}
-
-.btn-sm {
-  padding: 6px 10px;
-}
-
-.btn-secondary {
-  background: #e5e7eb;
-  color: #111827;
-}
-
-.btn-danger {
-  background: #dc2626;
-  color: #fff;
-}
-
-.btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
 }
 
 .form-error {

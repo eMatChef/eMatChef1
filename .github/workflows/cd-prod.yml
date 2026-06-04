@@ -30,7 +30,10 @@ jobs:
             GIT_DEPLOY_KEY="/home/deploy-prod/.ssh/ematchef_deploy_ed25519"
             test -f "$GIT_DEPLOY_KEY" || { echo "::error::Datei fehlt (git fetch): $GIT_DEPLOY_KEY — auf dem Droplet anlegen (siehe deploy/SERVER-UPDATE.md 6b)"; exit 1; }
             export EMATCHEF_GIT_SSH_IDENTITY="$GIT_DEPLOY_KEY"
+            export GIT_SSH_COMMAND="ssh -i ${GIT_DEPLOY_KEY} -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new"
             cd "${{ secrets.PROD_DEPLOY_PATH }}"
+            git fetch --no-tags origin "+refs/heads/prod:refs/remotes/origin/prod"
+            git reset --hard origin/prod
             EMATCHEF_PROD_ROOT="${{ secrets.PROD_DEPLOY_PATH }}" \
             EMATCHEF_GIT_BRANCH=prod \
             COMPOSE_PROJECT_NAME=ematchef-prod \

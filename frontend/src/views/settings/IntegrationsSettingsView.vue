@@ -7,10 +7,11 @@
       </div>
     </div>
 
-    <div v-if="isLoading" class="loading-state">
-      <div class="spinner"></div>
-      <p>{{ t('settings.integrations.loading') }}</p>
-    </div>
+    <ELoadingState
+      v-if="isLoading"
+      variant="page"
+      :message="t('settings.integrations.loading')"
+    />
 
     <div v-else class="settings-form">
       <section class="settings-section">
@@ -34,29 +35,30 @@
         </div>
         <div class="setting-fields">
           <div class="field-group field-group--wide">
-            <label for="fcal-api-key">{{ t('settings.integrations.apiKeyLabel') }}</label>
-            <input
+            <ETextField
               id="fcal-api-key"
               v-model="fcalApiKeyInput"
+              :label="t('settings.integrations.apiKeyLabel')"
               type="password"
               autocomplete="off"
-              class="form-input"
               :placeholder="t('settings.integrations.apiKeyPlaceholder')"
+              hide-details="auto"
             />
             <span class="field-hint">
               <template v-if="status?.fcalApiKeyConfigured">{{ t('settings.integrations.keyStored') }}</template>
               <template v-else>{{ t('settings.integrations.keyMissing') }}</template>
               {{ t('settings.integrations.keyHint') }}
             </span>
-            <button
+            <EButton
               v-if="status?.fcalApiKeyConfigured"
-              type="button"
+              variant="text"
+              size="small"
               class="btn-remove-key"
               :disabled="isSaving"
               @click="removeKey"
             >
               {{ t('settings.integrations.removeStoredKey') }}
-            </button>
+            </EButton>
           </div>
         </div>
       </section>
@@ -64,10 +66,10 @@
       <div class="save-bar">
         <div v-if="dirty" class="unsaved-hint">{{ t('settings.integrations.unsavedChanges') }}</div>
         <div class="save-actions">
-          <button type="button" class="btn-secondary" :disabled="!dirty || isSaving" @click="resetInput">{{ t('settings.integrations.reset') }}</button>
-          <button type="button" class="btn-primary" :disabled="!dirty || isSaving" @click="save">
+          <EButton variant="secondary" :disabled="!dirty || isSaving" @click="resetInput">{{ t('settings.integrations.reset') }}</EButton>
+          <EButton variant="primary" :loading="isSaving" :disabled="!dirty || isSaving" @click="save">
             {{ isSaving ? t('settings.integrations.saving') : t('common.save') }}
-          </button>
+          </EButton>
         </div>
       </div>
     </div>
@@ -79,6 +81,8 @@ import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { getFcalIntegration, saveFcalIntegration, type FcalIntegrationStatus } from '@/api/adminIntegrations'
 import { useToast } from '@/composables/useToast'
+import ELoadingState from '@/components/layout/ELoadingState.vue'
+import { EButton, ETextField } from '@/components/form/base'
 
 const toast = useToast()
 const { t } = useI18n()
@@ -189,27 +193,7 @@ onMounted(() => {
 }
 
 .loading-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 48px;
-  color: #6b7280;
-}
-
-.spinner {
-  width: 32px;
-  height: 32px;
-  border: 3px solid #e5e7eb;
-  border-top-color: var(--emc-brand-accent, #059669);
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
-  margin-bottom: 12px;
-}
-
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
+  display: none;
 }
 
 .settings-section {
@@ -260,22 +244,6 @@ onMounted(() => {
   max-width: 480px;
 }
 
-.field-group label {
-  display: block;
-  font-size: 13px;
-  font-weight: 500;
-  margin-bottom: 6px;
-  color: #374151;
-}
-
-.form-input {
-  width: 100%;
-  padding: 10px 12px;
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
-  font-size: 14px;
-}
-
 .field-hint {
   display: block;
   margin-top: 6px;
@@ -286,18 +254,7 @@ onMounted(() => {
 .btn-remove-key {
   display: block;
   margin-top: 12px;
-  padding: 0;
-  border: none;
-  background: none;
-  font-size: 13px;
   color: #b91c1c;
-  cursor: pointer;
-  text-decoration: underline;
-}
-
-.btn-remove-key:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
 }
 
 .save-bar {
@@ -317,34 +274,5 @@ onMounted(() => {
 .save-actions {
   display: flex;
   gap: 10px;
-}
-
-.btn-primary,
-.btn-secondary {
-  padding: 10px 18px;
-  border-radius: 8px;
-  font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
-  border: none;
-}
-
-.btn-primary {
-  background: var(--emc-brand-accent, #059669);
-  color: #fff;
-}
-
-.btn-primary:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.btn-secondary {
-  background: #f3f4f6;
-  color: #374151;
-}
-
-.btn-secondary:disabled {
-  opacity: 0.5;
 }
 </style>

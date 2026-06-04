@@ -9,7 +9,7 @@ import PackRetourAccountingStack from '@/components/activities/PackRetourAccount
 import PackContainerLineIssueQuick from '@/components/activities/PackContainerLineIssueQuick.vue'
 import PackUnpackStoreControls from '@/components/activities/PackUnpackStoreControls.vue'
 import PackUnpackUnstoreControls from '@/components/activities/PackUnpackUnstoreControls.vue'
-import IconArrowRight from '@/components/icons/IconArrowRight.vue'
+import { EButton } from '@/components/form/base'
 import { injectPackCtxBool, PACK_WAREHOUSE_ISSUE_INJECT_KEY } from '@/components/activities/packWarehouseIssueInjectKey'
 import type { PackRetourAccounting } from '@/components/activities/packNotTakenHelpers'
 
@@ -330,7 +330,7 @@ function commitPhysicalComboWhole(): void {
           :title="t('activities.packList.storeWholeCrateTitle')"
           @click="commitPhysicalComboWhole"
         >
-          <IconArrowRight />
+          <v-icon icon="mdi-arrow-right" size="12" />
         </button>
       </div>
     </div>
@@ -470,20 +470,22 @@ function commitPhysicalComboWhole(): void {
           class="pack-container-line-issue-quick"
           @click.stop
         >
-          <button
-            type="button"
+          <EButton
+            variant="text"
+            size="x-small"
             class="btn-issue-quick btn-issue-loss"
             @click="emitShellIssue('loss')"
           >
             {{ t('activities.common.issueLoss') }}
-          </button>
-          <button
-            type="button"
+          </EButton>
+          <EButton
+            variant="text"
+            size="x-small"
             class="btn-issue-quick btn-issue-repair"
             @click="emitShellIssue('repair')"
           >
             {{ t('activities.common.issueRepair') }}
-          </button>
+          </EButton>
         </div>
       </div>
       <p v-if="!hasVisibleUnpackLines" class="pack-container-empty text-muted">

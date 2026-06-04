@@ -1,5 +1,7 @@
 <script setup lang="ts">
-import { computed, useId } from 'vue'
+import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
+import { EDialog } from '@/components/form/base'
 
 const props = withDefaults(
   defineProps<{
@@ -16,102 +18,83 @@ const props = withDefaults(
   },
 )
 
-defineEmits<{
-  cancel: []
-}>()
+const emit = defineEmits<{ cancel: [] }>()
 
-const titleId = useId()
-const sizeClass = computed(() =>
-  props.size === 'md' ? 'pack-workflow-modal--md' : 'pack-workflow-modal--lg',
-)
+const { t } = useI18n()
+
+const maxWidth = computed(() => (props.size === 'md' ? 512 : 672))
+
+function onOpenChange(value: boolean) {
+  if (!value) emit('cancel')
+}
 </script>
 
 <template>
-  <div
-    v-if="open"
-    class="pack-workflow-modal-backdrop"
-    role="dialog"
-    aria-modal="true"
-    :aria-labelledby="title ? titleId : undefined"
+  <EDialog
+    :model-value="open"
+    :max-width="maxWidth"
+    :persistent="lockBackdrop"
+    scrollable
+    card-class="pack-workflow-dialog-card"
+    @update:model-value="onOpenChange"
   >
-    <div class="pack-workflow-modal" :class="sizeClass" @click.stop>
-      <button
-        type="button"
-        class="pack-modal-dismiss-x"
-        :aria-label="$t('activities.common.close')"
-        @click="$emit('cancel')"
-      >
-        ×
-      </button>
-
-      <header v-if="$slots.title || title || $slots.intro" class="pack-workflow-modal__header">
-        <h3 v-if="$slots.title || title" :id="titleId" class="pack-modal-title">
+    <template v-if="$slots.title || title" #title>
+      <div class="pack-workflow-dialog__title-row">
+        <span class="pack-workflow-dialog__title-text">
           <slot name="title">{{ title }}</slot>
-        </h3>
-        <slot name="intro" />
-      </header>
-
-      <div class="pack-workflow-modal__body">
-        <slot />
+        </span>
+        <v-btn
+          icon
+          variant="text"
+          size="small"
+          :aria-label="t('activities.common.close')"
+          @click="emit('cancel')"
+        >
+          <v-icon icon="mdi-close" size="22" />
+        </v-btn>
       </div>
+    </template>
 
-      <footer v-if="$slots.footer" class="pack-workflow-modal__footer">
-        <slot name="footer" />
-      </footer>
+    <div v-if="$slots.intro" class="pack-workflow-dialog__intro">
+      <slot name="intro" />
     </div>
-  </div>
+    <slot />
+
+    <template v-if="$slots.footer" #actions>
+      <div class="pack-workflow-dialog__footer">
+        <slot name="footer" />
+      </div>
+    </template>
+  </EDialog>
 </template>
 
-<style src="@/styles/views/activities/detail-workflow.css"></style>
+<style src="@/styles/views/activities/pack-workflow-modals.css"></style>
 <style scoped>
-.pack-workflow-modal-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 1200;
+.pack-workflow-dialog__title-row {
   display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 16px;
-  background: rgba(15, 23, 42, 0.45);
-}
-
-.pack-workflow-modal {
-  position: relative;
-  display: flex;
-  flex-direction: column;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
   width: 100%;
-  max-height: min(92vh, 56rem);
-  background: #fff;
-  border-radius: 12px;
-  box-shadow: 0 20px 48px rgba(15, 23, 42, 0.18);
-  overflow: hidden;
 }
 
-.pack-workflow-modal--md {
-  max-width: 32rem;
-}
-
-.pack-workflow-modal--lg {
-  max-width: 42rem;
-}
-
-.pack-workflow-modal__header {
-  flex-shrink: 0;
-  padding: 20px 20px 0;
-}
-
-.pack-workflow-modal__body {
+.pack-workflow-dialog__title-text {
   flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  padding: 12px 20px;
-  -webkit-overflow-scrolling: touch;
+  min-width: 0;
 }
 
-.pack-workflow-modal__footer {
-  flex-shrink: 0;
-  padding: 12px 20px 20px;
-  border-top: 1px solid #e5e7eb;
-  background: #fafafa;
+.pack-workflow-dialog__intro {
+  margin-bottom: 4px;
+}
+
+.pack-workflow-dialog__footer {
+  display: flex;
+  width: 100%;
+  justify-content: flex-end;
+}
+
+.pack-workflow-dialog__footer :deep(.pack-modal-actions) {
+  width: 100%;
+  margin-top: 0;
 }
 </style>

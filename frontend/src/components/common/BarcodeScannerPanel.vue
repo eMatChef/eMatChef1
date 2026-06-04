@@ -7,9 +7,10 @@
 </template>
 
 <script setup lang="ts">
-import { nextTick, onUnmounted, ref, watch, computed } from 'vue'
+import { nextTick, onMounted, onUnmounted, ref, watch, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { BrowserMultiFormatReader } from '@zxing/browser'
+import { canRequestCamera } from '@/utils/cameraAccess'
 import { localizedBarcodeScannerError } from '@/utils/barcodeScannerErrors'
 import { BarcodeFormat, DecodeHintType } from '@zxing/library'
 
@@ -69,28 +70,73 @@ function getFormats(mode: 'qr' | 'all' | '1d'): BarcodeFormat[] {
   ]
 }
 
+function onScanResult(result: { getText(): string; getBarcodeFormat(): unknown } | undefined) {
+  if (!result) return
+  emit('detected', {
+    text: result.getText(),
+    format: String(result.getBarcodeFormat()),
+  })
+}
+
 async function startScanner() {
+  stopScanner()
   errorMessage.value = null
   await nextTick()
-  if (!scannerVideo.value) return
-
-  try {
-    const hints = new Map()
-    hints.set(DecodeHintType.POSSIBLE_FORMATS, getFormats(props.mode))
-    reader = new BrowserMultiFormatReader(hints)
-    controls = await reader.decodeFromVideoDevice(undefined, scannerVideo.value, (result) => {
-      if (!result) return
-      emit('detected', {
-        text: result.getText(),
-        format: String(result.getBarcodeFormat())
-      })
-    })
-  } catch (err: any) {
-    const raw = typeof err?.message === 'string' ? err.message.trim() : ''
-    const message = localizedBarcodeScannerError(raw, t)
+  const videoEl = scannerVideo.value
+  if (!videoEl) {
+    const message = t('components.barcodeScanner.cameraStartError')
     errorMessage.value = message
     emit('error', message)
+    return
   }
+
+  if (!canRequestCamera()) {
+    const message = t('components.barcodeScanner.errorSecureContext')
+    errorMessage.value = message
+    emit('error', message)
+    return
+  }
+
+  const hints = new Map()
+  hints.set(DecodeHintType.POSSIBLE_FORMATS, getFormats(props.mode))
+  reader = new BrowserMultiFormatReader(hints)
+
+  const constraintAttempts: MediaStreamConstraints[] = [
+    { video: { facingMode: { ideal: 'environment' } } },
+    { video: { facingMode: { ideal: 'user' } } },
+    { video: true },
+  ]
+
+  let lastError: unknown = null
+  for (const constraints of constraintAttempts) {
+    try {
+      controls = await reader.decodeFromConstraints(constraints, videoEl, onScanResult)
+      return
+    } catch (err) {
+      lastError = err
+    }
+  }
+
+  try {
+    const devices = await BrowserMultiFormatReader.listVideoInputDevices()
+    for (const device of devices) {
+      try {
+        controls = await reader.decodeFromVideoDevice(device.deviceId, videoEl, onScanResult)
+        return
+      } catch (err) {
+        lastError = err
+      }
+    }
+  } catch (err) {
+    lastError = err
+  }
+
+  const raw = typeof (lastError as { message?: string })?.message === 'string'
+    ? (lastError as { message: string }).message.trim()
+    : ''
+  const message = localizedBarcodeScannerError(raw, t)
+  errorMessage.value = message
+  emit('error', message)
 }
 
 function stopScanner() {
@@ -107,8 +153,13 @@ watch(
     }
     stopScanner()
   },
-  { immediate: true }
 )
+
+onMounted(async () => {
+  if (props.active) {
+    await startScanner()
+  }
+})
 
 onUnmounted(() => {
   stopScanner()
@@ -117,7 +168,14 @@ onUnmounted(() => {
 
 <style scoped>
 .scanner-panel { margin-top: 14px; padding: 12px; border: 1px solid #e5e7eb; border-radius: 10px; background: #f9fafb; }
-.scanner-video { width: 100%; max-width: 420px; border-radius: 8px; background: #111827; }
+.scanner-video {
+  width: 100%;
+  max-width: 420px;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  border-radius: 8px;
+  background: #111827;
+}
 .hint { margin-top: 8px; color: #6b7280; font-size: 12px; }
 .error { color: #b91c1c; margin-top: 12px; }
 </style>

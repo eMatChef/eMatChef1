@@ -6,29 +6,35 @@
         <h1 v-if="landing.heroTitle" id="landing-title">{{ landing.heroTitle }}</h1>
         <p v-if="landing.heroSubtitle" class="plt-lead">{{ landing.heroSubtitle }}</p>
         <div v-if="showPrimaryCta || showSecondaryCta" class="plt-hero__actions">
-          <a
+          <EButton
             v-if="showPrimaryCta"
+            variant="primary"
+            size="large"
+            class="plt-btn-lg"
             :href="primaryHref"
             :target="openPrimaryInNewTab ? '_blank' : undefined"
             :rel="openPrimaryInNewTab ? 'noopener noreferrer' : undefined"
-            class="btn btn-primary plt-btn-lg"
           >
             {{ primaryCtaLabel }}
-          </a>
-          <RouterLink
+          </EButton>
+          <EButton
             v-if="showSecondaryCta && secondaryIsInternal"
+            variant="secondary"
+            size="large"
+            class="plt-btn-lg"
             :to="landing.secondaryCtaPath"
-            class="btn btn-outline plt-btn-lg"
           >
             {{ landing.secondaryCta }}
-          </RouterLink>
-          <a
+          </EButton>
+          <EButton
             v-else-if="showSecondaryCta"
+            variant="secondary"
+            size="large"
+            class="plt-btn-lg"
             :href="landing.secondaryCtaPath"
-            class="btn btn-outline plt-btn-lg"
           >
             {{ landing.secondaryCta }}
-          </a>
+          </EButton>
         </div>
       </div>
     </section>
@@ -55,11 +61,20 @@
       <div class="plt-container">
         <h2 v-if="landing.featuresTitle" id="section-features">{{ landing.featuresTitle }}</h2>
         <div class="plt-features">
-          <article v-for="(f, i) in landing.features" :key="i" class="plt-feature-card">
-            <div class="plt-feature-card__icon" aria-hidden="true">{{ f.icon }}</div>
-            <h3>{{ f.title }}</h3>
-            <p>{{ f.text }}</p>
-          </article>
+          <ECard
+            v-for="(f, i) in landing.features"
+            :key="i"
+            variant="outlined"
+            class="plt-feature-card"
+          >
+            <div class="plt-feature-card__body">
+              <div class="plt-feature-card__icon" aria-hidden="true">
+                <v-icon :icon="featureIcon(f.icon, i)" size="26" />
+              </div>
+              <h3>{{ f.title }}</h3>
+              <p>{{ f.text }}</p>
+            </div>
+          </ECard>
         </div>
       </div>
     </section>
@@ -68,15 +83,17 @@
       <div class="plt-container">
         <h2 v-if="landing.ctaTitleSrOnly" id="section-cta" class="sr-only">{{ landing.ctaTitleSrOnly }}</h2>
         <p v-if="landing.ctaText">{{ landing.ctaText }}</p>
-        <a
+        <EButton
           v-if="showPrimaryCta"
+          variant="primary"
+          size="large"
+          class="plt-btn-lg"
           :href="primaryHref"
           :target="openPrimaryInNewTab ? '_blank' : undefined"
           :rel="openPrimaryInNewTab ? 'noopener noreferrer' : undefined"
-          class="btn btn-primary plt-btn-lg"
         >
           {{ primaryCtaLabel }}
-        </a>
+        </EButton>
       </div>
     </section>
   </div>
@@ -85,10 +102,17 @@
 <script setup lang="ts">
 import { computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
+import EButton from '@/components/form/base/EButton.vue'
+import ECard from '@/components/form/base/ECard.vue'
 import { useSiteContentStore } from '@/stores/siteContent'
 import { getAppEntryTarget, getAppLoginTarget } from '@/utils/appLoginUrl'
 import { useAuthStore } from '@/stores/auth'
+import { resolveLandingFeatureIcon } from '@/utils/landingFeatureIcons'
 import { resolveLandingDisplay } from '@/utils/publicLanding'
+
+function featureIcon(icon: string, index: number): string {
+  return resolveLandingFeatureIcon(icon, index)
+}
 
 const site = useSiteContentStore()
 const { t, locale } = useI18n()
@@ -148,5 +172,36 @@ const secondaryIsInternal = computed(() => landing.value.secondaryCtaPath.starts
   clip: rect(0, 0, 0, 0);
   white-space: nowrap;
   border: 0;
+}
+
+.plt-feature-card {
+  height: 100%;
+  border-radius: var(--plt-radius) !important;
+  box-shadow: var(--plt-shadow);
+  transition: box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.plt-feature-card:hover {
+  box-shadow: var(--plt-shadow-lg);
+  border-color: var(--plt-accent-soft) !important;
+}
+
+.plt-feature-card__body {
+  padding: 1.35rem 1.25rem 1.5rem;
+}
+
+.plt-feature-card__body h3 {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--plt-text);
+  margin: 0 0 0.4rem;
+  line-height: 1.3;
+}
+
+.plt-feature-card__body p {
+  font-size: 0.92rem;
+  line-height: 1.55;
+  color: var(--plt-text-soft);
+  margin: 0;
 }
 </style>

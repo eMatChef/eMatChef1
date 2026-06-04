@@ -65,12 +65,12 @@ class SitePageContentDefaults
             'features' => [
                 'title' => 'So arbeitet ihr mit eMatChef',
                 'items' => [
-                    ['icon' => '⊙', 'title' => 'Materialwart im Überblick', 'text' => 'Alle Aktivitäten und Buchungen der Abteilung auf einen Blick — packen, ausgeben, Retour: du weisst, was gerade wo ist.'],
-                    ['icon' => '◎', 'title' => 'Mitleiter planen selbst', 'text' => 'Lager, Samstage und Events anlegen, Material buchen und einreichen — ohne Listen-Chaos per Chat oder Zettel.'],
-                    ['icon' => '⇄', 'title' => 'Aktivitäten & Buchungen', 'text' => 'Vom Entwurf über Einreichen und Packen bis zur Retour: der Bestand bleibt mit dem echten Einsatz verbunden.'],
-                    ['icon' => '⌗', 'title' => 'Alles an einem Ort', 'text' => 'Material, Mengen, Lagerorte und Bewegungen — strukturiert statt in verstreuten Tabellen.'],
-                    ['icon' => '◇', 'title' => 'QR am Material', 'text' => 'Scan am Regal oder unterwegs: Infos, Seriennummer — und optional Kontakt zum Materialwart.'],
-                    ['icon' => '○', 'title' => 'Im Browser', 'text' => 'Keine App installieren: anmelden und mit deiner Abteilung in einer gemeinsamen Oberfläche arbeiten.'],
+                    ['icon' => 'mdi-clipboard-check-outline', 'title' => 'Materialwart im Überblick', 'text' => 'Alle Aktivitäten und Buchungen der Abteilung auf einen Blick — packen, ausgeben, Retour: du weisst, was gerade wo ist.'],
+                    ['icon' => 'mdi-account-group-outline', 'title' => 'Mitleiter planen selbst', 'text' => 'Lager, Samstage und Events anlegen, Material buchen und einreichen — ohne Listen-Chaos per Chat oder Zettel.'],
+                    ['icon' => 'mdi-book-sync-outline', 'title' => 'Aktivitäten & Buchungen', 'text' => 'Vom Entwurf über Einreichen und Packen bis zur Retour: der Bestand bleibt mit dem echten Einsatz verbunden.'],
+                    ['icon' => 'mdi-warehouse', 'title' => 'Alles an einem Ort', 'text' => 'Material, Mengen, Lagerorte und Bewegungen — strukturiert statt in verstreuten Tabellen.'],
+                    ['icon' => 'mdi-qrcode-scan', 'title' => 'QR am Material', 'text' => 'Scan am Regal oder unterwegs: Infos, Seriennummer — und optional Kontakt zum Materialwart.'],
+                    ['icon' => 'mdi-laptop', 'title' => 'Im Browser', 'text' => 'Keine App installieren: anmelden und mit deiner Abteilung in einer gemeinsamen Oberfläche arbeiten.'],
                 ],
             ],
             'intro' => [
@@ -104,7 +104,7 @@ class SitePageContentDefaults
             'features' => [
                 'title' => 'What eMatChef offers',
                 'items' => [
-                    ['icon' => '⊙', 'title' => 'All in one place', 'text' => 'Materials, locations, quantities and movements.'],
+                    ['icon' => 'mdi-warehouse', 'title' => 'All in one place', 'text' => 'Materials, locations, quantities and movements.'],
                 ],
             ],
             'intro' => [
@@ -138,7 +138,7 @@ class SitePageContentDefaults
             'features' => [
                 'title' => 'Ce que eMatChef propose',
                 'items' => [
-                    ['icon' => '⊙', 'title' => 'Tout au même endroit', 'text' => 'Matériel, emplacements et mouvements.'],
+                    ['icon' => 'mdi-warehouse', 'title' => 'Tout au même endroit', 'text' => 'Matériel, emplacements et mouvements.'],
                 ],
             ],
             'intro' => [

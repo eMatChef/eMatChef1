@@ -5,29 +5,34 @@
     </p>
 
     <div class="mc-toolbar">
-      <label class="mc-year-label">
-        {{ t('accounting.common.year') }}
-        <select v-model.number="year" class="filter-select" @change="reload">
-          <option v-for="y in yearOptions" :key="y" :value="y">{{ y }}</option>
-        </select>
-      </label>
-      <router-link
-        class="btn btn-secondary btn-sm"
+      <ESelect
+        v-model="year"
+        :items="yearSelectItems"
+        :label="t('accounting.common.year')"
+        hide-details="auto"
+        class="mc-year-select"
+        @update:model-value="reload"
+      />
+      <EButton
+        variant="secondary"
+        size="small"
         :to="{ name: 'AccountingBookings', params: { departmentId } }"
       >
         {{ t('accounting.common.linkToBookings') }}
-      </router-link>
+      </EButton>
     </div>
 
-    <div v-if="!yearOptions.length && !loading" class="empty-hint">
-      {{ t('accounting.common.noBookingYears') }}
-    </div>
-    <div v-else-if="loadError" class="mc-error">{{ loadError }}</div>
-    <div v-else-if="loading" class="loading-inline">{{ t('accounting.common.loading') }}</div>
+    <EEmptyState
+      v-if="!yearOptions.length && !loading"
+      :title="t('accounting.common.noBookingYears')"
+    />
+    <p v-else-if="loadError" class="mc-error">{{ loadError }}</p>
+    <ELoadingState v-else-if="loading" variant="inline" :message="t('accounting.common.loading')" />
     <template v-else-if="data">
-      <div v-if="data.rows.length === 0" class="empty-hint">
-        {{ t('accounting.materialCosts.empty', { year }) }}
-      </div>
+      <EEmptyState
+        v-if="data.rows.length === 0"
+        :title="t('accounting.materialCosts.empty', { year })"
+      />
       <template v-else>
         <div class="acc-kpi-grid mc-kpis">
           <div class="acc-kpi-card">
@@ -52,12 +57,13 @@
                 <td class="col-num">{{ row.booking_count }}</td>
                 <td class="col-num"><strong>CHF {{ formatMoney(row.total_chf) }}</strong></td>
                 <td class="col-actions">
-                  <router-link
-                    class="btn-outline btn-xs"
+                  <EButton
+                    variant="secondary"
+                    size="small"
                     :to="materialLink(row.material_id)"
                   >
                     {{ t('accounting.materialCosts.openMaterial') }}
-                  </router-link>
+                  </EButton>
                 </td>
               </tr>
             </tbody>
@@ -74,6 +80,9 @@ import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { getMaterialCosts, type MaterialCostsResponse } from '@/api/accountingMaterialCosts'
 import { useAccountingBookingYears } from '@/composables/useAccountingBookingYears'
+import ELoadingState from '@/components/layout/ELoadingState.vue'
+import EEmptyState from '@/components/layout/EEmptyState.vue'
+import { EButton, ESelect } from '@/components/form/base'
 
 const route = useRoute()
 const { t } = useI18n()
@@ -81,6 +90,10 @@ const departmentId = computed(() => String(route.params.departmentId || ''))
 
 const { years: yearOptions, refreshYears, defaultYear } = useAccountingBookingYears(departmentId)
 const year = ref(new Date().getFullYear())
+
+const yearSelectItems = computed(() =>
+  yearOptions.value.map((y) => ({ title: String(y), value: y }))
+)
 
 const loading = ref(true)
 const loadError = ref('')
@@ -159,21 +172,8 @@ watch(
   margin-bottom: 20px;
 }
 
-.mc-year-label {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  font-size: 13px;
-  font-weight: 600;
-  color: #374151;
-}
-
-.filter-select {
-  padding: 8px 12px;
-  border: 1px solid #d1d5db;
-  border-radius: 6px;
-  font-size: 14px;
-  min-width: 120px;
+.mc-year-select {
+  max-width: 160px;
 }
 
 .acc-kpi-grid {

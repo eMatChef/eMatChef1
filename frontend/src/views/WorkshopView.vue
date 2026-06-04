@@ -1,22 +1,13 @@
 <template>
-  <div class="workshop-view">
-    <!-- Header -->
-    <header class="workshop-header">
-      <div class="header-content">
-        <div>
-    <h1>{{ t('workshop.title') }}</h1>
-          <p class="description">{{ t('workshop.description') }}</p>
-        </div>
-        <div class="header-actions">
-          <button @click="showCreateModal = true" class="btn-primary">
-            <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
-              <path d="M10 4V16M4 10H16" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
-            </svg>
-            <span>{{ t('workshop.newTicket') }}</span>
-          </button>
-        </div>
-      </div>
-    </header>
+  <PageShell class="workshop-view">
+    <template #title>{{ t('workshop.title') }}</template>
+    <template #subtitle>{{ t('workshop.description') }}</template>
+    <template #actions>
+      <EButton variant="primary" @click="showCreateModal = true">
+        <v-icon icon="mdi-plus" start size="20" />
+        {{ t('workshop.newTicket') }}
+      </EButton>
+    </template>
 
     <!-- Stats -->
     <div class="workshop-stats" v-if="stats">
@@ -42,26 +33,24 @@
       </div>
     </div>
 
-    <!-- Toolbar -->
+    <template #filters>
     <div class="workshop-toolbar">
-      <div class="view-toggle">
-        <button :class="{ active: viewMode === 'kanban' }" @click="viewMode = 'kanban'">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <rect x="3" y="3" width="5" height="18" rx="1"/>
-            <rect x="10" y="3" width="5" height="12" rx="1"/>
-            <rect x="17" y="3" width="5" height="15" rx="1"/>
-          </svg>
+      <v-btn-toggle
+        v-model="viewMode"
+        mandatory
+        density="comfortable"
+        color="primary"
+        class="workshop-view-toggle"
+      >
+        <v-btn value="kanban" size="small">
+          <v-icon icon="mdi-view-column" start size="18" />
           {{ t('workshop.viewKanban') }}
-        </button>
-        <button :class="{ active: viewMode === 'table' }" @click="viewMode = 'table'">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <line x1="3" y1="6" x2="21" y2="6"/>
-            <line x1="3" y1="12" x2="21" y2="12"/>
-            <line x1="3" y1="18" x2="21" y2="18"/>
-          </svg>
+        </v-btn>
+        <v-btn value="table" size="small">
+          <v-icon icon="mdi-format-list-bulleted" start size="18" />
           {{ t('workshop.viewTable') }}
-        </button>
-      </div>
+        </v-btn>
+      </v-btn-toggle>
 
       <div class="search-box">
         <GlobalSearchInput
@@ -74,28 +63,27 @@
       </div>
 
       <div class="toolbar-filters">
-        <select v-model="filterType">
-          <option value="">{{ t('workshop.filterAllTypes') }}</option>
-          <option value="repair">{{ t('workshop.typeRepair') }}</option>
-          <option value="inspection">{{ t('workshop.typeInspection') }}</option>
-          <option value="writeoff">{{ t('workshop.typeWriteoff') }}</option>
-          <option value="cleaning">{{ t('workshop.typeCleaning') }}</option>
-        </select>
-        <select v-model="filterOriginIssueType">
-          <option value="">{{ t('workshop.filterAllSources') }}</option>
-          <option value="loss">{{ t('workshop.originLossOnly') }}</option>
-          <option value="repair">{{ t('workshop.originRepairOnly') }}</option>
-          <option value="damage">{{ t('workshop.originDamageOnly') }}</option>
-          <option value="consumption">{{ t('workshop.originConsumptionOnly') }}</option>
-          <option value="manual">{{ t('workshop.originManualOnly') }}</option>
-        </select>
-        <select v-model="filterPriority">
-          <option value="">{{ t('workshop.filterAllPriorities') }}</option>
-          <option value="urgent">{{ t('workshop.priorityUrgent') }}</option>
-          <option value="high">{{ t('workshop.priorityHigh') }}</option>
-          <option value="normal">{{ t('workshop.priorityNormal') }}</option>
-          <option value="low">{{ t('workshop.priorityLow') }}</option>
-        </select>
+        <ESelect
+          v-model="filterType"
+          :items="typeFilterItems"
+          :label="t('workshop.filterAllTypes')"
+          hide-details="auto"
+          class="workshop-filter-select"
+        />
+        <ESelect
+          v-model="filterOriginIssueType"
+          :items="originFilterItems"
+          :label="t('workshop.filterAllSources')"
+          hide-details="auto"
+          class="workshop-filter-select"
+        />
+        <ESelect
+          v-model="filterPriority"
+          :items="priorityFilterItems"
+          :label="t('workshop.filterAllPriorities')"
+          hide-details="auto"
+          class="workshop-filter-select"
+        />
       </div>
       <div
         v-if="quickFilter"
@@ -125,28 +113,23 @@
         </button>
       </div>
     </div>
+    </template>
 
-    <!-- Loading -->
-    <div v-if="isLoading" class="workshop-loading">
-      <div class="spinner"></div>
-      <p style="margin-top: 12px; color: #6b7280; font-size: 14px;">{{ t('workshop.loadingTickets') }}</p>
-    </div>
+    <ELoadingState v-if="isLoading" variant="page" :message="t('workshop.loadingTickets')" />
 
-    <!-- Empty State -->
-    <div v-else-if="tickets.length === 0 && !isLoading" class="workshop-empty">
-      <svg width="100" height="100" viewBox="0 0 100 100" fill="none">
-        <rect x="20" y="25" width="60" height="50" rx="6" stroke="currentColor" stroke-width="2" stroke-dasharray="4 4"/>
-        <path d="M40 50L47 57L62 42" stroke="#10b981" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
-      </svg>
-      <h2>{{ t('workshop.emptyTitle') }}</h2>
-      <p>{{ t('workshop.emptyText') }}</p>
-      <button @click="showCreateModal = true" class="btn-primary">
-        <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
-          <path d="M10 4V16M4 10H16" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
-        </svg>
-        {{ t('workshop.createFirstTicket') }}
-      </button>
-    </div>
+    <EEmptyState
+      v-else-if="tickets.length === 0 && !isLoading"
+      variant="create"
+      :title="t('workshop.emptyTitle')"
+      :description="t('workshop.emptyText')"
+    >
+      <template #actions>
+        <EButton variant="primary" @click="showCreateModal = true">
+          <v-icon icon="mdi-plus" start size="20" />
+          {{ t('workshop.createFirstTicket') }}
+        </EButton>
+      </template>
+    </EEmptyState>
 
     <!-- Kanban Board -->
     <div v-else-if="viewMode === 'kanban'" class="kanban-board">
@@ -285,54 +268,52 @@
       </table>
     </div>
 
-    <!-- === Ticket Detail Modal === -->
-    <div v-if="selectedTicket" class="workshop-modal-overlay">
-      <div class="workshop-modal">
-        <div class="modal-header">
-          <div class="modal-title-group">
-            <h2 class="modal-title">{{ selectedTicket.title }}</h2>
-            <div class="modal-subtitle">
-              <span class="status-badge" :class="selectedTicket.status">
-                <span class="status-dot" :class="selectedTicket.status"></span>
-                {{ statusLabels[selectedTicket.status] }}
-              </span>
-              <span class="priority-badge" :class="selectedTicket.priority">
-                {{ priorityLabels[selectedTicket.priority] }}
-              </span>
-              <span class="type-badge" :class="selectedTicket.type">
-                {{ typeLabels[selectedTicket.type] }}
-              </span>
-            </div>
+    <EDialog
+      v-model="detailDialogOpen"
+      :max-width="920"
+      scrollable
+      card-class="workshop-detail-dialog"
+    >
+      <template v-if="selectedTicket" #title>
+        <div class="workshop-detail-dialog-title">
+          <span>{{ selectedTicket.title }}</span>
+          <div class="modal-subtitle">
+            <span class="status-badge" :class="selectedTicket.status">
+              <span class="status-dot" :class="selectedTicket.status"></span>
+              {{ statusLabels[selectedTicket.status] }}
+            </span>
+            <span class="priority-badge" :class="selectedTicket.priority">
+              {{ priorityLabels[selectedTicket.priority] }}
+            </span>
+            <span class="type-badge" :class="selectedTicket.type">
+              {{ typeLabels[selectedTicket.type] }}
+            </span>
           </div>
-          <div v-if="canManageWorkshopQr" class="workshop-qr-header-actions">
-            <button
-              v-if="showGenerateWorkshopQrButton"
-              type="button"
-              class="btn-outline btn-sm"
-              :disabled="isGeneratingWorkshopPublicCode"
-              @click="generateWorkshopPublicCode"
-            >
-              {{ isGeneratingWorkshopPublicCode ? t('workshop.qrGenLoading') : t('workshop.qrGenCreate') }}
-            </button>
-            <PublicQrTag
-              v-if="workshopPublicUrl"
-              :url="workshopPublicUrl"
-              :code="selectedTicket.public_code"
-              :size="56"
-              :clickable="true"
-              :image-label="selectedTicket.title"
-              :image-entity-id="selectedTicket.id"
-              @activate="openWorkshopQrActionModal"
-            />
-          </div>
-          <button class="modal-close" @click="closeSelectedTicketDetail">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M18 6L6 18M6 6l12 12"/>
-            </svg>
-          </button>
         </div>
+      </template>
 
-        <div class="modal-body">
+      <div v-if="selectedTicket" class="workshop-detail-dialog-body">
+        <div v-if="canManageWorkshopQr" class="workshop-qr-header-actions">
+          <EButton
+            v-if="showGenerateWorkshopQrButton"
+            variant="secondary"
+            size="small"
+            :loading="isGeneratingWorkshopPublicCode"
+            @click="generateWorkshopPublicCode"
+          >
+            {{ isGeneratingWorkshopPublicCode ? t('workshop.qrGenLoading') : t('workshop.qrGenCreate') }}
+          </EButton>
+          <PublicQrTag
+            v-if="workshopPublicUrl"
+            :url="workshopPublicUrl"
+            :code="selectedTicket.public_code"
+            :size="56"
+            :clickable="true"
+            :image-label="selectedTicket.title"
+            :image-entity-id="selectedTicket.id"
+            @activate="openWorkshopQrActionModal"
+          />
+        </div>
           <!-- Material Info -->
           <div class="modal-section">
             <div class="modal-section-title">{{ t('common.material') }}</div>
@@ -448,18 +429,22 @@
               <div v-else class="detail-item detail-item--full">
                 <span class="detail-label">{{ t('workshop.assignSupplier') }}</span>
                 <div class="supplier-assign-row">
-                  <select v-model="assignSupplierCompanyId" class="supplier-select">
-                    <option value="">{{ t('workshop.selectSupplierCompany') }}</option>
-                    <option v-for="c in repairCompanies" :key="c.id" :value="c.id">{{ c.name }}</option>
-                  </select>
-                  <button
-                    type="button"
-                    class="btn btn-secondary btn-sm"
+                  <ESelect
+                    v-model="assignSupplierCompanyId"
+                    :items="repairCompanySelectItems"
+                    :placeholder="t('workshop.selectSupplierCompany')"
+                    hide-details="auto"
+                    class="supplier-select"
+                  />
+                  <EButton
+                    variant="secondary"
+                    size="small"
                     :disabled="!assignSupplierCompanyId || isAssigningSupplier"
+                    :loading="isAssigningSupplier"
                     @click="assignTicketToSupplier"
                   >
                     {{ t('workshop.assignSupplierAction') }}
-                  </button>
+                  </EButton>
                 </div>
               </div>
               <div class="detail-item">
@@ -548,237 +533,204 @@
             <div class="modal-section-title">{{ t('workshop.sectionResolutionNotes') }}</div>
             <p style="font-size: 14px; color: #374151; line-height: 1.6; margin: 0; background: #f0fdf4; padding: 10px 14px; border-radius: 8px; white-space: pre-wrap;">{{ selectedTicket.resolution_notes }}</p>
           </div>
-        </div>
+      </div>
 
-        <!-- Modal Footer: Aktionen -->
-        <div class="modal-footer" v-if="selectedTicket.status !== 'completed' && selectedTicket.status !== 'cancelled'">
-          <!-- Status-Übergänge -->
-          <button
-            v-if="selectedTicket.status === 'open' && !isLossOriginTicket(selectedTicket)"
-            class="btn-primary"
-            @click="transitionTicket(selectedTicket.id, 'in_progress')"
-          >
-            {{ t('workshop.btnStartWork') }}
-          </button>
-          <button
-            v-if="selectedTicket.status === 'open' && isLossOriginTicket(selectedTicket)"
-            class="btn-danger"
-            @click="openLossAcceptModal()"
-          >
-            {{ t('workshop.btnAcceptLoss') }}
-          </button>
-          <button
-            v-if="selectedTicket.status === 'in_progress'"
-            class="btn-warning"
-            @click="openQuoteModal()"
-          >
-            {{ t('workshop.btnWaitingParts') }}
-          </button>
-          <button
-            v-if="selectedTicket.status === 'waiting_parts'"
-            class="btn-primary"
-            @click="transitionTicket(selectedTicket.id, 'in_progress')"
-          >
-            {{ t('workshop.btnResumeWork') }}
-          </button>
-          <button
-            v-if="selectedTicket.status === 'in_progress'"
-            class="btn-success"
-            @click="showCompleteModal = true"
-          >
-            {{ t('workshop.btnComplete') }}
-          </button>
-          <button
-            class="btn-danger"
-            @click="cancelSelectedTicket()"
-          >
-            {{ t('workshop.btnCancelTicket') }}
-          </button>
-          <button
-            class="btn-ghost"
-            @click="closeSelectedTicketDetail"
-          >
-            {{ t('common.close') }}
-          </button>
+      <template v-if="selectedTicket && selectedTicket.status !== 'completed' && selectedTicket.status !== 'cancelled'" #actions>
+        <EButton
+          v-if="selectedTicket.status === 'open' && !isLossOriginTicket(selectedTicket)"
+          variant="primary"
+          size="small"
+          @click="transitionTicket(selectedTicket.id, 'in_progress')"
+        >
+          {{ t('workshop.btnStartWork') }}
+        </EButton>
+        <EButton
+          v-if="selectedTicket.status === 'open' && isLossOriginTicket(selectedTicket)"
+          variant="danger"
+          size="small"
+          @click="openLossAcceptModal()"
+        >
+          {{ t('workshop.btnAcceptLoss') }}
+        </EButton>
+        <EButton
+          v-if="selectedTicket.status === 'in_progress'"
+          variant="secondary"
+          size="small"
+          @click="openQuoteModal()"
+        >
+          {{ t('workshop.btnWaitingParts') }}
+        </EButton>
+        <EButton
+          v-if="selectedTicket.status === 'waiting_parts'"
+          variant="primary"
+          size="small"
+          @click="transitionTicket(selectedTicket.id, 'in_progress')"
+        >
+          {{ t('workshop.btnResumeWork') }}
+        </EButton>
+        <EButton
+          v-if="selectedTicket.status === 'in_progress'"
+          variant="primary"
+          size="small"
+          @click="showCompleteModal = true"
+        >
+          {{ t('workshop.btnComplete') }}
+        </EButton>
+        <EButton variant="danger" size="small" @click="cancelSelectedTicket()">
+          {{ t('workshop.btnCancelTicket') }}
+        </EButton>
+        <EButton variant="text" size="small" @click="closeSelectedTicketDetail">
+          {{ t('common.close') }}
+        </EButton>
+      </template>
+      <template v-else-if="selectedTicket && selectedTicket.status === 'cancelled'" #actions>
+        <EButton variant="secondary" size="small" @click="transitionTicket(selectedTicket.id, 'open')">
+          {{ t('workshop.btnReopen') }}
+        </EButton>
+      </template>
+    </EDialog>
+
+    <EDialog
+      v-model="showCompleteModal"
+      :max-width="520"
+      :title="t('workshop.completeTitle')"
+    >
+      <p v-if="selectedTicket" class="workshop-dialog-subtitle">{{ selectedTicket.title }}</p>
+      <div class="resolution-options">
+        <div
+          class="resolution-option"
+          :class="{ selected: completeForm.resolution_action === 'repaired' }"
+          @click="completeForm.resolution_action = 'repaired'"
+        >
+          <div class="option-icon">🔧</div>
+          <div class="option-label">{{ t('workshop.resolutionRepaired') }}</div>
+          <div class="option-desc">{{ t('workshop.resolutionRepairedDesc') }}</div>
         </div>
-        <div class="modal-footer" v-else-if="selectedTicket.status === 'cancelled'">
-          <button class="btn-secondary" @click="transitionTicket(selectedTicket.id, 'open')">
-            {{ t('workshop.btnReopen') }}
-          </button>
+        <div
+          class="resolution-option"
+          :class="{ selected: completeForm.resolution_action === 'ok' }"
+          @click="completeForm.resolution_action = 'ok'"
+        >
+          <div class="option-icon">✅</div>
+          <div class="option-label">{{ t('workshop.resolutionOk') }}</div>
+          <div class="option-desc">{{ t('workshop.resolutionOkDesc') }}</div>
+        </div>
+        <div
+          class="resolution-option"
+          :class="{ selected: completeForm.resolution_action === 'writeoff' }"
+          @click="completeForm.resolution_action = 'writeoff'"
+        >
+          <div class="option-icon">🗑️</div>
+          <div class="option-label">{{ t('workshop.resolutionWriteoff') }}</div>
+          <div class="option-desc">{{ t('workshop.resolutionWriteoffDesc') }}</div>
         </div>
       </div>
-    </div>
+      <ETextField
+        v-model="completeForm.actual_cost"
+        class="mt-3"
+        type="number"
+        :label="t('workshop.labelActualCostChf')"
+        placeholder="0.00"
+        hide-details="auto"
+      />
+      <ETextarea
+        v-model="completeForm.resolution_notes"
+        class="mt-3"
+        :label="t('workshop.completeNotesLabel')"
+        :placeholder="t('workshop.completeNotesPlaceholder')"
+        rows="3"
+        hide-details="auto"
+      />
+      <template #actions>
+        <EButton variant="secondary" size="small" @click="showCompleteModal = false">{{ t('common.cancel') }}</EButton>
+        <EButton
+          variant="primary"
+          size="small"
+          :disabled="!completeForm.resolution_action || completionCostMissing"
+          @click="completeTicket"
+        >
+          {{ t('workshop.btnFinishComplete') }}
+        </EButton>
+      </template>
+    </EDialog>
 
-    <!-- === Complete Modal (Abschluss) === -->
-    <div v-if="showCompleteModal && selectedTicket" class="workshop-modal-overlay">
-      <div class="workshop-modal" style="max-width: 520px;">
-        <div class="modal-header">
-          <div class="modal-title-group">
-            <h2 class="modal-title">{{ t('workshop.completeTitle') }}</h2>
-            <div class="modal-subtitle">{{ selectedTicket.title }}</div>
-          </div>
-          <button class="modal-close" @click="showCompleteModal = false">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M18 6L6 18M6 6l12 12"/>
-            </svg>
-          </button>
-        </div>
-        <div class="modal-body">
-          <div class="complete-form">
-            <div class="form-group">
-              <label>{{ t('workshop.completeOutcome') }}</label>
-              <div class="resolution-options">
-                <div
-                  class="resolution-option"
-                  :class="{ selected: completeForm.resolution_action === 'repaired' }"
-                  @click="completeForm.resolution_action = 'repaired'"
-                >
-                  <div class="option-icon">🔧</div>
-                  <div class="option-label">{{ t('workshop.resolutionRepaired') }}</div>
-                  <div class="option-desc">{{ t('workshop.resolutionRepairedDesc') }}</div>
-                </div>
-                <div
-                  class="resolution-option"
-                  :class="{ selected: completeForm.resolution_action === 'ok' }"
-                  @click="completeForm.resolution_action = 'ok'"
-                >
-                  <div class="option-icon">✅</div>
-                  <div class="option-label">{{ t('workshop.resolutionOk') }}</div>
-                  <div class="option-desc">{{ t('workshop.resolutionOkDesc') }}</div>
-                </div>
-                <div
-                  class="resolution-option"
-                  :class="{ selected: completeForm.resolution_action === 'writeoff' }"
-                  @click="completeForm.resolution_action = 'writeoff'"
-                >
-                  <div class="option-icon">🗑️</div>
-                  <div class="option-label">{{ t('workshop.resolutionWriteoff') }}</div>
-                  <div class="option-desc">{{ t('workshop.resolutionWriteoffDesc') }}</div>
-                </div>
-              </div>
-            </div>
-            <div class="form-group">
-              <label>{{ t('workshop.labelActualCostChf') }}</label>
-              <input v-model="completeForm.actual_cost" type="number" step="0.01" min="0" placeholder="0.00" />
-            </div>
-            <div class="form-group">
-              <label>{{ t('workshop.completeNotesLabel') }}</label>
-              <textarea v-model="completeForm.resolution_notes" rows="3" :placeholder="t('workshop.completeNotesPlaceholder')"></textarea>
-            </div>
-          </div>
-        </div>
-        <div class="modal-footer">
-          <button class="btn-secondary" @click="showCompleteModal = false">{{ t('common.cancel') }}</button>
-          <button class="btn-success" @click="completeTicket" :disabled="!completeForm.resolution_action || completionCostMissing">
-            {{ t('workshop.btnFinishComplete') }}
-          </button>
-        </div>
-      </div>
-    </div>
+    <EDialog v-model="showLossAcceptModal" :max-width="520" :title="t('workshop.lossTitle')">
+      <p v-if="selectedTicket" class="workshop-dialog-subtitle">{{ selectedTicket.title }}</p>
+      <ETextField
+        v-model.number="lossAcceptQty"
+        type="number"
+        :label="t('workshop.lossQtyLabel')"
+        hide-details="auto"
+      />
+      <ETextField
+        v-model="lossAcceptActualCost"
+        class="mt-3"
+        type="number"
+        :label="t('workshop.labelActualCostChf')"
+        :hint="lossCostSuggestionLabel"
+        placeholder="0.00"
+        hide-details="auto"
+      />
+      <p class="workshop-dialog-hint">{{ t('workshop.lossExplanation') }}</p>
+      <p v-if="lossAcceptError" class="workshop-dialog-error">{{ lossAcceptError }}</p>
+      <template #actions>
+        <EButton variant="secondary" size="small" :disabled="isAcceptingLoss" @click="closeLossAcceptModal">
+          {{ t('common.cancel') }}
+        </EButton>
+        <EButton
+          variant="danger"
+          size="small"
+          :loading="isAcceptingLoss"
+          :disabled="lossAcceptQty < 1 || (isExternalSelectedTicket && !lossAcceptActualCost)"
+          @click="acceptLossTicket"
+        >
+          {{ isAcceptingLoss ? t('workshop.lossAccepting') : t('workshop.lossBtnAccept') }}
+        </EButton>
+      </template>
+    </EDialog>
 
-    <!-- === Loss Accept Modal === -->
-    <div v-if="showLossAcceptModal && selectedTicket" class="workshop-modal-overlay">
-      <div class="workshop-modal" style="max-width: 520px;">
-        <div class="modal-header">
-          <div class="modal-title-group">
-            <h2 class="modal-title">{{ t('workshop.lossTitle') }}</h2>
-            <div class="modal-subtitle">{{ selectedTicket.title }}</div>
-          </div>
-          <button class="modal-close" @click="closeLossAcceptModal">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M18 6L6 18M6 6l12 12"/>
-            </svg>
-          </button>
-        </div>
-        <div class="modal-body">
-          <div class="form-group">
-            <label>{{ t('workshop.lossQtyLabel') }}</label>
-            <input v-model.number="lossAcceptQty" type="number" min="1" step="1" />
-          </div>
-          <div class="form-group">
-            <label>
-              {{ t('workshop.labelActualCostChf') }}
-              <span v-if="isExternalSelectedTicket" style="color: #b91c1c;">*</span>
-            </label>
-            <input v-model="lossAcceptActualCost" type="number" min="0" step="0.01" placeholder="0.00" />
-            <p style="margin-top: 6px; color: #6b7280; font-size: 12px;">
-              {{ lossCostSuggestionLabel }}
-            </p>
-          </div>
-          <p style="margin-top: 8px; color: #6b7280; font-size: 13px;">
-            {{ t('workshop.lossExplanation') }}
-          </p>
-          <p v-if="lossAcceptError" style="margin-top: 10px; color: #b91c1c; font-size: 13px;">
-            {{ lossAcceptError }}
-          </p>
-        </div>
-        <div class="modal-footer">
-          <button class="btn-secondary" @click="closeLossAcceptModal" :disabled="isAcceptingLoss">{{ t('common.cancel') }}</button>
-          <button class="btn-danger" @click="acceptLossTicket" :disabled="isAcceptingLoss || lossAcceptQty < 1 || (isExternalSelectedTicket && !lossAcceptActualCost)">
-            {{ isAcceptingLoss ? t('workshop.lossAccepting') : t('workshop.lossBtnAccept') }}
-          </button>
-        </div>
-      </div>
-    </div>
+    <EDialog v-model="showQuoteModal" :max-width="520" :title="t('workshop.quoteTitle')">
+      <p v-if="selectedTicket" class="workshop-dialog-subtitle">{{ selectedTicket.title }}</p>
+      <ETextField
+        v-model="quoteEstimatedCost"
+        type="number"
+        :label="t('workshop.quoteEstimatedLabel')"
+        placeholder="0.00"
+        hide-details="auto"
+      />
+      <ETextarea
+        v-model="quoteNotes"
+        class="mt-3"
+        :label="t('workshop.quoteNoteLabel')"
+        :placeholder="t('workshop.quoteNotePlaceholder')"
+        rows="3"
+        hide-details="auto"
+      />
+      <p v-if="quoteError" class="workshop-dialog-error">{{ quoteError }}</p>
+      <template #actions>
+        <EButton variant="secondary" size="small" :disabled="isSubmittingQuote" @click="closeQuoteModal">
+          {{ t('common.cancel') }}
+        </EButton>
+        <EButton
+          variant="primary"
+          size="small"
+          :loading="isSubmittingQuote"
+          :disabled="isExternalSelectedTicket && !quoteEstimatedCost"
+          @click="submitQuoteTransition"
+        >
+          {{ isSubmittingQuote ? t('workshop.quoteSaving') : t('workshop.quoteSetWaiting') }}
+        </EButton>
+      </template>
+    </EDialog>
 
-    <!-- === Quote / Waiting Parts Modal === -->
-    <div v-if="showQuoteModal && selectedTicket" class="workshop-modal-overlay">
-      <div class="workshop-modal" style="max-width: 520px;">
-        <div class="modal-header">
-          <div class="modal-title-group">
-            <h2 class="modal-title">{{ t('workshop.quoteTitle') }}</h2>
-            <div class="modal-subtitle">{{ selectedTicket.title }}</div>
-          </div>
-          <button class="modal-close" @click="closeQuoteModal">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M18 6L6 18M6 6l12 12"/>
-            </svg>
-          </button>
-        </div>
-        <div class="modal-body">
-          <div class="form-group">
-            <label>
-              {{ t('workshop.quoteEstimatedLabel') }}
-              <span v-if="isExternalSelectedTicket" style="color: #b91c1c;">*</span>
-            </label>
-            <input v-model="quoteEstimatedCost" type="number" min="0" step="0.01" placeholder="0.00" />
-          </div>
-          <div class="form-group">
-            <label>{{ t('workshop.quoteNoteLabel') }}</label>
-            <textarea v-model="quoteNotes" rows="3" :placeholder="t('workshop.quoteNotePlaceholder')"></textarea>
-          </div>
-          <p v-if="quoteError" style="margin-top: 10px; color: #b91c1c; font-size: 13px;">
-            {{ quoteError }}
-          </p>
-        </div>
-        <div class="modal-footer">
-          <button class="btn-secondary" @click="closeQuoteModal" :disabled="isSubmittingQuote">{{ t('common.cancel') }}</button>
-          <button class="btn-warning" @click="submitQuoteTransition" :disabled="isSubmittingQuote || (isExternalSelectedTicket && !quoteEstimatedCost)">
-            {{ isSubmittingQuote ? t('workshop.quoteSaving') : t('workshop.quoteSetWaiting') }}
-          </button>
-        </div>
-      </div>
-    </div>
-
-    <!-- === Create Ticket Modal === -->
-    <div v-if="showCreateModal" class="workshop-modal-overlay">
-      <div class="workshop-modal" style="max-width: 580px;">
-        <div class="modal-header">
-          <div class="modal-title-group">
-            <h2 class="modal-title">{{ t('workshop.createTitle') }}</h2>
-          </div>
-          <button class="modal-close" @click="showCreateModal = false">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M18 6L6 18M6 6l12 12"/>
-            </svg>
-          </button>
-        </div>
-        <div class="modal-body">
+    <EDialog v-model="showCreateModal" :max-width="580" :title="t('workshop.createTitle')">
           <div class="create-form">
-            <div class="form-group">
-              <label>{{ t('workshop.createTitleLabel') }}</label>
-              <input v-model="createForm.title" type="text" :placeholder="t('workshop.createTitlePlaceholder')" />
-            </div>
+            <ETextField
+              v-model="createForm.title"
+              :label="t('workshop.createTitleLabel')"
+              :placeholder="t('workshop.createTitlePlaceholder')"
+              hide-details="auto"
+            />
             <div class="form-group">
               <label>{{ t('workshop.createMaterialLabel') }}</label>
               <!-- Ausgewähltes Material anzeigen -->
@@ -817,7 +769,7 @@
                   <span v-if="isMatSearching" class="ws-mat-spinner">⟳</span>
                 </div>
                 <!-- Dropdown-Vorschlagsliste -->
-                <div v-if="showMatDropdown && matSearchQuery.length >= 2" class="ws-mat-dropdown">
+                <div v-if="showMatDropdown && matSearchQuery.trim().length >= 1" class="ws-mat-dropdown">
                   <div v-if="isMatSearching" class="ws-mat-dropdown-msg">
                     {{ t('workshop.createSearching') }}
                   </div>
@@ -848,48 +800,49 @@
                 </div>
               </div>
             </div>
-            <div class="form-row">
-              <div class="form-group">
-                <label>{{ t('workshop.createType') }}</label>
-                <select v-model="createForm.type">
-                  <option value="repair">{{ t('workshop.typeRepair') }}</option>
-                  <option value="inspection">{{ t('workshop.typeInspection') }}</option>
-                  <option value="writeoff">{{ t('workshop.typeWriteoff') }}</option>
-                  <option value="cleaning">{{ t('workshop.typeCleaning') }}</option>
-                </select>
-              </div>
-              <div class="form-group">
-                <label>{{ t('workshop.createPriority') }}</label>
-                <select v-model="createForm.priority">
-                  <option value="low">{{ t('workshop.priorityLow') }}</option>
-                  <option value="normal">{{ t('workshop.priorityNormal') }}</option>
-                  <option value="high">{{ t('workshop.priorityHigh') }}</option>
-                  <option value="urgent">{{ t('workshop.priorityUrgent') }}</option>
-                </select>
-              </div>
+            <div class="form-row mt-3">
+              <ESelect
+                v-model="createForm.type"
+                :items="createTypeItems"
+                :label="t('workshop.createType')"
+                hide-details="auto"
+              />
+              <ESelect
+                v-model="createForm.priority"
+                :items="createPriorityItems"
+                :label="t('workshop.createPriority')"
+                hide-details="auto"
+              />
             </div>
-            <div class="form-group">
-              <label>{{ t('common.description') }}</label>
-              <textarea v-model="createForm.description" rows="3" :placeholder="t('workshop.createDescriptionPlaceholder')"></textarea>
-            </div>
-            <div class="form-group">
-              <label>{{ t('workshop.createEstimatedCost') }}</label>
-              <input v-model="createForm.estimated_cost" type="number" step="0.01" min="0" placeholder="0.00" />
-            </div>
+            <ETextarea
+              v-model="createForm.description"
+              class="mt-3"
+              :label="t('common.description')"
+              :placeholder="t('workshop.createDescriptionPlaceholder')"
+              rows="3"
+              hide-details="auto"
+            />
+            <ETextField
+              v-model="createForm.estimated_cost"
+              class="mt-3"
+              type="number"
+              :label="t('workshop.createEstimatedCost')"
+              placeholder="0.00"
+              hide-details="auto"
+            />
           </div>
-        </div>
-        <div class="modal-footer">
-          <button class="btn-secondary" @click="showCreateModal = false">{{ t('common.cancel') }}</button>
-          <button
-            class="btn-primary"
-            @click="handleCreateTicket"
-            :disabled="!createForm.title || !createForm.material_item_id"
-          >
-            {{ t('workshop.createSubmit') }}
-          </button>
-        </div>
-      </div>
-    </div>
+      <template #actions>
+        <EButton variant="secondary" size="small" @click="showCreateModal = false">{{ t('common.cancel') }}</EButton>
+        <EButton
+          variant="primary"
+          size="small"
+          :disabled="!createForm.title || !createForm.material_item_id"
+          @click="handleCreateTicket"
+        >
+          {{ t('workshop.createSubmit') }}
+        </EButton>
+      </template>
+    </EDialog>
 
     <PublicQrActionModal
       :open="showWorkshopQrActionModal"
@@ -900,7 +853,7 @@
       @add-to-print-cart="handleWorkshopQrAddToPrintCart"
       @print="handleWorkshopQrPrint"
     />
-  </div>
+  </PageShell>
 </template>
 
 <script setup lang="ts">
@@ -928,7 +881,8 @@ import {
   type TicketPriority,
 } from '@/api/workshop'
 import { listSupplierRepairCompanies } from '@/api/supplierShop'
-import { getMaterials, getMaterial, type Material } from '@/api/materials'
+import { getMaterial, type Material } from '@/api/materials'
+import { createBasicMaterialLookupFetcher } from '@/composables/useMaterialLookup'
 import GlobalSearchInput from '@/components/common/GlobalSearchInput.vue'
 import { useListSearchQueryRoute } from '@/composables/useListSearchQueryRoute'
 import { parseSearchQuery } from '@/composables/useSearchNavigation'
@@ -942,6 +896,10 @@ import type { MediaPhoto } from '@/api/media'
 import PhotoGallery from '@/components/media/PhotoGallery.vue'
 import PhotoUpload from '@/components/media/PhotoUpload.vue'
 import QRCode from 'qrcode'
+import PageShell from '@/components/layout/PageShell.vue'
+import ELoadingState from '@/components/layout/ELoadingState.vue'
+import EEmptyState from '@/components/layout/EEmptyState.vue'
+import { EButton, EDialog, ESelect, ETextField, ETextarea } from '@/components/form/base'
 import '@/styles/workshop-view.css'
 
 const route = useRoute()
@@ -950,7 +908,11 @@ const { t, locale } = useI18n()
 const authStore = useAuthStore()
 const detailTabsStore = useDetailTabsStore()
 const toast = useToast()
-const currentDepartmentId = computed(() => route.params.departmentId as string)
+const currentDepartmentId = computed(
+  () => (route.params.departmentId as string) || authStore.activeDepartmentId || '',
+)
+
+const workshopMaterialLookup = createBasicMaterialLookupFetcher(() => currentDepartmentId.value)
 
 /** Query ?material_id= — aus Material-Detail (Werkstatt nur für dieses Material) */
 const materialFilterId = computed(() => {
@@ -984,6 +946,57 @@ const showWorkshopQrActionModal = ref(false)
 const repairCompanies = ref<Array<{ id: string; name: string }>>([])
 const assignSupplierCompanyId = ref('')
 const isAssigningSupplier = ref(false)
+
+const detailDialogOpen = computed({
+  get: () => selectedTicket.value !== null,
+  set: (open: boolean) => {
+    if (!open) closeSelectedTicketDetail()
+  },
+})
+
+const typeFilterItems = computed(() => [
+  { title: t('workshop.filterAllTypes'), value: '' },
+  { title: t('workshop.typeRepair'), value: 'repair' },
+  { title: t('workshop.typeInspection'), value: 'inspection' },
+  { title: t('workshop.typeWriteoff'), value: 'writeoff' },
+  { title: t('workshop.typeCleaning'), value: 'cleaning' },
+])
+
+const originFilterItems = computed(() => [
+  { title: t('workshop.filterAllSources'), value: '' },
+  { title: t('workshop.originLossOnly'), value: 'loss' },
+  { title: t('workshop.originRepairOnly'), value: 'repair' },
+  { title: t('workshop.originDamageOnly'), value: 'damage' },
+  { title: t('workshop.originConsumptionOnly'), value: 'consumption' },
+  { title: t('workshop.originManualOnly'), value: 'manual' },
+])
+
+const priorityFilterItems = computed(() => [
+  { title: t('workshop.filterAllPriorities'), value: '' },
+  { title: t('workshop.priorityUrgent'), value: 'urgent' },
+  { title: t('workshop.priorityHigh'), value: 'high' },
+  { title: t('workshop.priorityNormal'), value: 'normal' },
+  { title: t('workshop.priorityLow'), value: 'low' },
+])
+
+const createTypeItems = computed(() => [
+  { title: t('workshop.typeRepair'), value: 'repair' },
+  { title: t('workshop.typeInspection'), value: 'inspection' },
+  { title: t('workshop.typeWriteoff'), value: 'writeoff' },
+  { title: t('workshop.typeCleaning'), value: 'cleaning' },
+])
+
+const createPriorityItems = computed(() => [
+  { title: t('workshop.priorityLow'), value: 'low' },
+  { title: t('workshop.priorityNormal'), value: 'normal' },
+  { title: t('workshop.priorityHigh'), value: 'high' },
+  { title: t('workshop.priorityUrgent'), value: 'urgent' },
+])
+
+const repairCompanySelectItems = computed(() =>
+  repairCompanies.value.map((c) => ({ title: c.name, value: c.id }))
+)
+
 const departmentRole = computed(() => String(authStore.currentDepartmentRole || 'u').toLowerCase())
 const canManageWorkshopQr = computed(() =>
   ['mw', 'dc', 'matwart', 'depchef'].includes(departmentRole.value)
@@ -1671,27 +1684,31 @@ async function acceptLossTicket() {
 function onMatSearchInput() {
   if (matSearchTimer) clearTimeout(matSearchTimer)
 
-  if (matSearchQuery.value.length < 2) {
+  const q = matSearchQuery.value.trim()
+  if (q.length < 1) {
     matSearchResults.value = []
     showMatDropdown.value = false
+    isMatSearching.value = false
     return
   }
 
   showMatDropdown.value = true
   isMatSearching.value = true
   matSearchTimer = setTimeout(() => {
-    searchMaterialsForTicket()
+    void searchMaterialsForTicket()
   }, 300)
 }
 
 async function searchMaterialsForTicket() {
   const query = matSearchQuery.value.trim()
-  if (query.length < 2 || !currentDepartmentId.value) return
+  if (query.length < 1 || !currentDepartmentId.value) {
+    isMatSearching.value = false
+    return
+  }
 
   isMatSearching.value = true
   try {
-    const results = await getMaterials(currentDepartmentId.value, { search: query })
-    matSearchResults.value = results
+    matSearchResults.value = await workshopMaterialLookup(query)
     showMatDropdown.value = true
   } catch (err) {
     console.error('Material-Suche fehlgeschlagen:', err)

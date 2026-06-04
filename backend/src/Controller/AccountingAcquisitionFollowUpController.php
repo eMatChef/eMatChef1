@@ -5,6 +5,7 @@ namespace App\Controller;
 use App\Controller\Trait\AccountingMwOrDcTrait;
 use App\Entity\AccountingAcquisitionFollowUp;
 use App\Service\AccountingAcquisitionFollowUpSerializer;
+use App\Service\Accounting\AccountingFollowUpRecordingService;
 use App\Service\InboxMessageService;
 use App\Entity\Department;
 use App\Entity\MaterialBatch;
@@ -25,6 +26,7 @@ class AccountingAcquisitionFollowUpController extends AbstractController
         private EntityManagerInterface $entityManager,
         private InboxMessageService $inboxMessages,
         private AccountingAcquisitionFollowUpSerializer $followUpSerializer,
+        private AccountingFollowUpRecordingService $followUpRecording,
     ) {
     }
 
@@ -146,6 +148,48 @@ class AccountingAcquisitionFollowUpController extends AbstractController
             }
             throw $e;
         }
+    }
+
+    #[Route('/batch-record', name: 'batch_record', methods: ['POST'])]
+    #[IsGranted('ROLE_USER')]
+    public function batchRecord(string $departmentId, Request $request): JsonResponse
+    {
+        $deny = $this->assertAccountingMwOrDc($this->entityManager, $departmentId);
+        if ($deny instanceof JsonResponse) {
+            return $deny;
+        }
+
+        $data = json_decode($request->getContent(), true) ?? [];
+        $ids = $data['follow_up_ids'] ?? [];
+        if (!is_array($ids) || $ids === []) {
+            return new JsonResponse(['error' => 'follow_up_ids erforderlich'], 400);
+        }
+
+        $costCenterId = trim((string) ($data['cost_center_id'] ?? ''));
+        $entryType = trim((string) ($data['entry_type'] ?? ''));
+        if ($costCenterId === '' || $entryType === '') {
+            return new JsonResponse(['error' => 'cost_center_id und entry_type erforderlich'], 400);
+        }
+
+        $options = [
+            'cost_center_id' => $costCenterId,
+            'entry_type' => $entryType,
+            'payment_method' => $data['payment_method'] ?? null,
+            'payment_status' => $data['payment_status'] ?? null,
+            'group_id' => $data['group_id'] ?? null,
+            'notes' => $data['notes'] ?? null,
+        ];
+
+        $recorded = $this->followUpRecording->recordBatch(
+            array_map(static fn ($id) => (string) $id, $ids),
+            $departmentId,
+            $options,
+        );
+
+        return new JsonResponse([
+            'recorded' => $recorded,
+            'count' => count($recorded),
+        ]);
     }
 
     private function isMissingFollowUpTable(\Throwable $e): bool

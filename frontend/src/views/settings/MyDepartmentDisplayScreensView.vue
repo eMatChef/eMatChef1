@@ -11,12 +11,14 @@
     </div>
 
     <div v-if="userDepartments.length > 1" class="card">
-      <label class="label" for="department-select">{{ t('settings.common.selectDepartment') }}:</label>
-      <select id="department-select" v-model="selectedDepartmentId" class="input" @change="onDepartmentChange">
-        <option v-for="dept in userDepartments" :key="dept.department_id" :value="dept.department_id">
-          {{ dept.department?.name || dept.department_id }}
-        </option>
-      </select>
+      <ESelect
+        id="department-select"
+        v-model="selectedDepartmentId"
+        :items="departmentSelectItems"
+        :label="t('settings.common.selectDepartment')"
+        hide-details
+        @update:model-value="onDepartmentChange"
+      />
     </div>
 
     <div v-if="!canManage" class="card">
@@ -27,21 +29,26 @@
       <div class="card create-card">
         <h3 class="section-heading">{{ t('settings.displayScreens.createTitle') }}</h3>
         <div class="create-row">
-          <input
+          <ETextField
             v-model="newScreenName"
-            type="text"
-            class="input"
+            class="create-row__name"
             :placeholder="t('settings.displayScreens.namePlaceholder')"
-            maxlength="120"
             :disabled="creating"
+            maxlength="120"
+            hide-details
           />
-          <button type="button" class="btn" :disabled="creating || !newScreenName.trim()" @click="createScreen">
-            {{ creating ? t('settings.displayScreens.loading') : t('common.create') }}
-          </button>
+          <EButton
+            variant="primary"
+            :disabled="creating || !newScreenName.trim()"
+            :loading="creating"
+            @click="createScreen"
+          >
+            {{ t('common.create') }}
+          </EButton>
         </div>
       </div>
 
-      <p v-if="loading" class="muted">{{ t('settings.displayScreens.loading') }}</p>
+      <ELoadingState v-if="loading" variant="inline" :message="t('settings.displayScreens.loading')" />
 
       <div
         v-for="screen in activeScreens"
@@ -67,14 +74,15 @@
             <div class="screen-columns">
               <section class="settings-block settings-block--content">
                 <h4 class="block-title">{{ t('settings.displayScreens.contentSectionTitle') }}</h4>
-                <label class="label label--tight" :for="`subtitle-${screen.id}`">{{ t('settings.displayScreens.subtitleLabel') }}</label>
-                <textarea
+                <ETextarea
                   :id="`subtitle-${screen.id}`"
                   v-model="drafts[screen.id].subtitle_text"
-                  class="input textarea"
+                  :label="t('settings.displayScreens.subtitleLabel')"
                   rows="1"
                   maxlength="500"
                   :placeholder="t('settings.displayScreens.subtitlePlaceholder')"
+                  hide-details="auto"
+                  class="subtitle-field"
                 />
                 <p class="muted field-hint">{{ t('settings.displayScreens.subtitleHint') }}</p>
 
@@ -83,32 +91,31 @@
                 <details class="settings-accordion" open>
                   <summary>{{ t('settings.displayScreens.accordionActivities') }}</summary>
                   <div class="accordion-body">
-                    <label class="checkbox-row">
-                      <input v-model="drafts[screen.id].show_activities" type="checkbox" />
-                      <span>{{ t('settings.displayScreens.showActivities') }}</span>
-                    </label>
+                    <ECheckbox
+                      v-model="drafts[screen.id].show_activities"
+                      :label="t('settings.displayScreens.showActivities')"
+                      hide-details
+                    />
                     <template v-if="drafts[screen.id].show_activities">
                       <p class="label label--tight">{{ t('settings.displayScreens.activityTypesLabel') }}</p>
                       <div class="checkbox-group checkbox-group--nested">
-                        <label
+                        <ECheckbox
                           v-for="activityType in displayActivityTypes"
                           :key="activityType"
-                          class="checkbox-row"
-                        >
-                          <input v-model="drafts[screen.id].activity_types[activityType]" type="checkbox" />
-                          <span>{{ t(`activities.types.${activityType}`) }}</span>
-                        </label>
+                          v-model="drafts[screen.id].activity_types[activityType]"
+                          :label="t(`activities.types.${activityType}`)"
+                          hide-details
+                        />
                       </div>
                       <p class="label label--tight">{{ t('settings.displayScreens.activityStatusesLabel') }}</p>
                       <div class="checkbox-group checkbox-group--nested">
-                        <label
+                        <ECheckbox
                           v-for="status in displayActivityStatuses"
                           :key="status"
-                          class="checkbox-row"
-                        >
-                          <input v-model="drafts[screen.id].activity_statuses[status]" type="checkbox" />
-                          <span>{{ t(`activities.status.${status}`) }}</span>
-                        </label>
+                          v-model="drafts[screen.id].activity_statuses[status]"
+                          :label="t(`activities.status.${status}`)"
+                          hide-details
+                        />
                       </div>
                       <p class="muted field-hint">{{ t('settings.displayScreens.activityFiltersHint') }}</p>
                     </template>
@@ -118,21 +125,21 @@
                 <details class="settings-accordion">
                   <summary>{{ t('settings.displayScreens.accordionWorkshop') }}</summary>
                   <div class="accordion-body">
-                    <label class="checkbox-row">
-                      <input v-model="drafts[screen.id].show_workshop" type="checkbox" />
-                      <span>{{ t('settings.displayScreens.showWorkshop') }}</span>
-                    </label>
+                    <ECheckbox
+                      v-model="drafts[screen.id].show_workshop"
+                      :label="t('settings.displayScreens.showWorkshop')"
+                      hide-details
+                    />
                     <template v-if="drafts[screen.id].show_workshop">
                       <p class="label label--tight">{{ t('settings.displayScreens.workshopStatusesLabel') }}</p>
                       <div class="checkbox-group checkbox-group--nested">
-                        <label
+                        <ECheckbox
                           v-for="status in displayWorkshopStatuses"
                           :key="status"
-                          class="checkbox-row"
-                        >
-                          <input v-model="drafts[screen.id].workshop_statuses[status]" type="checkbox" />
-                          <span>{{ t(`workshop.status.${status}`) }}</span>
-                        </label>
+                          v-model="drafts[screen.id].workshop_statuses[status]"
+                          :label="t(`workshop.status.${status}`)"
+                          hide-details
+                        />
                       </div>
                     </template>
                   </div>
@@ -141,22 +148,24 @@
                 <details class="settings-accordion">
                   <summary>{{ t('settings.displayScreens.accordionStatistics') }}</summary>
                   <div class="accordion-body">
-                    <label class="checkbox-row">
-                      <input v-model="drafts[screen.id].show_statistics" type="checkbox" />
-                      <span>{{ t('settings.displayScreens.showStatistics') }}</span>
-                    </label>
+                    <ECheckbox
+                      v-model="drafts[screen.id].show_statistics"
+                      :label="t('settings.displayScreens.showStatistics')"
+                      hide-details
+                    />
                     <p class="muted field-hint">{{ t('settings.displayScreens.statisticsHint') }}</p>
                   </div>
                 </details>
 
-                <button
-                  type="button"
-                  class="btn btn-sm"
+                <EButton
+                  variant="primary"
+                  size="small"
                   :disabled="savingSettingsId === screen.id"
+                  :loading="savingSettingsId === screen.id"
                   @click="saveSettings(screen)"
                 >
-                  {{ savingSettingsId === screen.id ? t('settings.displayScreens.loading') : t('settings.displayScreens.saveSettings') }}
-                </button>
+                  {{ t('settings.displayScreens.saveSettings') }}
+                </EButton>
               </section>
 
               <section class="settings-block settings-block--access">
@@ -165,25 +174,20 @@
                   <div class="access-main">
                     <label class="label label--tight">{{ t('settings.displayScreens.urlLabel') }}</label>
                     <div class="url-row url-row--compact">
-                      <input
-                        type="text"
-                        class="input url-input input--sm"
-                        :value="screen.display_url"
+                      <ETextField
+                        class="url-input-field"
+                        :model-value="screen.display_url"
                         readonly
-                        @focus="($event.target as HTMLInputElement).select()"
+                        hide-details
+                        @focus="selectInputText"
                       />
                       <div class="url-actions">
-                        <button type="button" class="btn btn-sm" @click="copyUrl(screen.display_url)">
+                        <EButton variant="secondary" size="small" @click="copyUrl(screen.display_url)">
                           {{ t('settings.displayScreens.copyUrl') }}
-                        </button>
-                        <a
-                          :href="screen.display_url"
-                          class="btn btn-outline btn-sm"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                        >
+                        </EButton>
+                        <EButton variant="secondary" size="small" @click="openDisplayUrl(screen.display_url)">
                           {{ t('settings.displayScreens.openDisplay') }}
-                        </a>
+                        </EButton>
                       </div>
                     </div>
                     <p class="muted setup-hint">{{ t('settings.displayScreens.setupHint') }}</p>
@@ -205,22 +209,24 @@
             </div>
 
             <div class="screen-footer">
-              <button
-                type="button"
-                class="btn btn-outline btn-sm"
+              <EButton
+                variant="secondary"
+                size="small"
                 :disabled="rotatingId === screen.id"
+                :loading="rotatingId === screen.id"
                 @click="rotateCode(screen)"
               >
-                {{ rotatingId === screen.id ? t('settings.displayScreens.loading') : t('settings.displayScreens.rotateCode') }}
-              </button>
-              <button
-                type="button"
-                class="btn danger btn-sm"
+                {{ t('settings.displayScreens.rotateCode') }}
+              </EButton>
+              <EButton
+                variant="danger"
+                size="small"
                 :disabled="revokingId === screen.id"
+                :loading="revokingId === screen.id"
                 @click="revokeScreen(screen)"
               >
-                {{ revokingId === screen.id ? t('settings.displayScreens.loading') : t('settings.displayScreens.revoke') }}
-              </button>
+                {{ t('settings.displayScreens.revoke') }}
+              </EButton>
             </div>
           </template>
 
@@ -229,64 +235,63 @@
               <span class="badge revoked">{{ t('settings.displayScreens.revoked') }}</span>
               <span class="revoked-url">{{ screen.display_url }}</span>
             </p>
-            <button
-              type="button"
-              class="btn btn-sm"
+            <EButton
+              variant="primary"
+              size="small"
               :disabled="reactivatingId === screen.id"
+              :loading="reactivatingId === screen.id"
               @click="reactivateScreen(screen)"
             >
-              {{ reactivatingId === screen.id ? t('settings.displayScreens.loading') : t('settings.displayScreens.reactivate') }}
-            </button>
+              {{ t('settings.displayScreens.reactivate') }}
+            </EButton>
           </div>
         </div>
       </div>
 
-      <p v-if="!loading && activeScreens.length === 0" class="muted empty">{{ t('settings.displayScreens.empty') }}</p>
+      <EEmptyState
+        v-if="!loading && activeScreens.length === 0"
+        :title="t('settings.displayScreens.empty')"
+        compact
+      />
     </template>
 
-    <div v-if="revealedSetup" class="code-modal-backdrop" @click.self="dismissRevealedSetup">
-      <div class="code-modal setup-modal" role="dialog" aria-modal="true">
-        <h3>{{ t('settings.displayScreens.setupModalTitle') }}</h3>
-        <p class="muted">{{ t('settings.displayScreens.setupModalHint') }}</p>
+    <EDialog
+      v-model="setupDialogOpen"
+      :max-width="520"
+      :title="t('settings.displayScreens.setupModalTitle')"
+    >
+      <p class="muted">{{ t('settings.displayScreens.setupModalHint') }}</p>
 
-        <label class="label">{{ t('settings.displayScreens.urlLabel') }}</label>
-        <div class="url-row">
-          <input
-            type="text"
-            class="input url-input"
-            :value="revealedSetup.url"
-            readonly
-            @focus="($event.target as HTMLInputElement).select()"
-          />
-          <button type="button" class="btn" @click="copyUrl(revealedSetup.url)">
-            {{ t('settings.displayScreens.copyUrl') }}
-          </button>
-          <a
-            :href="revealedSetup.url"
-            class="btn btn-outline"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            {{ t('settings.displayScreens.openDisplay') }}
-          </a>
-        </div>
-
-        <label class="label code-label">{{ t('settings.displayScreens.accessCodeLabel') }}</label>
-        <code class="access-code">{{ revealedSetup.code }}</code>
-
-        <div v-if="setupQrDataUrl" class="qr-block modal-qr">
-          <img :src="setupQrDataUrl" :alt="t('settings.displayScreens.qrAlt')" />
-        </div>
-
-        <div class="actions modal-actions">
-          <button type="button" class="btn" @click="copySetupBundle">
-            {{ t('settings.displayScreens.copyAll') }}
-          </button>
-          <button type="button" class="btn" @click="copyCode">{{ t('settings.displayScreens.copyCode') }}</button>
-          <button type="button" class="btn secondary" @click="dismissRevealedSetup">{{ t('common.close') }}</button>
-        </div>
+      <ETextField
+        class="mt-3 url-input-field"
+        :model-value="revealedSetup?.url ?? ''"
+        :label="t('settings.displayScreens.urlLabel')"
+        readonly
+        hide-details
+        @focus="selectInputText"
+      />
+      <div class="url-actions mt-2">
+        <EButton variant="primary" size="small" :disabled="!revealedSetup" @click="copyUrl(revealedSetup!.url)">
+          {{ t('settings.displayScreens.copyUrl') }}
+        </EButton>
+        <EButton variant="secondary" size="small" :disabled="!revealedSetup" @click="openDisplayUrl(revealedSetup!.url)">
+          {{ t('settings.displayScreens.openDisplay') }}
+        </EButton>
       </div>
-    </div>
+
+      <p class="label code-label">{{ t('settings.displayScreens.accessCodeLabel') }}</p>
+      <code class="access-code">{{ revealedSetup?.code }}</code>
+
+      <div v-if="setupQrDataUrl" class="qr-block modal-qr">
+        <img :src="setupQrDataUrl" :alt="t('settings.displayScreens.qrAlt')" />
+      </div>
+
+      <template #actions>
+        <EButton variant="primary" size="small" @click="copySetupBundle">{{ t('settings.displayScreens.copyAll') }}</EButton>
+        <EButton variant="secondary" size="small" @click="copyCode">{{ t('settings.displayScreens.copyCode') }}</EButton>
+        <EButton variant="secondary" size="small" @click="dismissRevealedSetup">{{ t('common.close') }}</EButton>
+      </template>
+    </EDialog>
   </div>
 </template>
 
@@ -299,6 +304,9 @@ import { useAuthStore } from '@/stores/auth'
 import { useToast } from '@/composables/useToast'
 import { useConfirm } from '@/composables/useConfirm'
 import { copyTextToClipboard } from '@/utils/clipboard'
+import ELoadingState from '@/components/layout/ELoadingState.vue'
+import EEmptyState from '@/components/layout/EEmptyState.vue'
+import { EButton, ECheckbox, EDialog, ESelect, ETextField, ETextarea } from '@/components/form/base'
 import {
   createDisplayScreen,
   listDisplayScreens,
@@ -383,6 +391,30 @@ const kioskEntryUrl = computed(() => {
 })
 
 const userDepartments = computed(() => authStore.departments || [])
+
+const departmentSelectItems = computed(() =>
+  userDepartments.value.map((dept) => ({
+    title: dept.department?.name || dept.department_id,
+    value: dept.department_id,
+  })),
+)
+
+const setupDialogOpen = computed({
+  get: () => revealedSetup.value !== null,
+  set: (open: boolean) => {
+    if (!open) dismissRevealedSetup()
+  },
+})
+
+function selectInputText(event: FocusEvent) {
+  const el = event.target as HTMLInputElement | null
+  el?.select?.()
+}
+
+function openDisplayUrl(url: string) {
+  if (!url) return
+  window.open(url, '_blank', 'noopener,noreferrer')
+}
 const currentRole = computed(() => {
   if (!selectedDepartmentId.value) return 'user'
   const dept = userDepartments.value.find((d) => d.department_id === selectedDepartmentId.value)
@@ -738,9 +770,14 @@ onMounted(async () => {
   gap: 8px;
   align-items: center;
 }
-.create-row .input {
+.create-row__name {
   flex: 1;
   min-width: 200px;
+}
+
+.url-input-field :deep(input) {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 12px;
 }
 .create-card .section-heading,
 .section-heading {
@@ -765,39 +802,6 @@ onMounted(async () => {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
-}
-.btn {
-  border: none;
-  border-radius: 8px;
-  background: #2563eb;
-  color: #fff;
-  padding: 8px 12px;
-  cursor: pointer;
-  white-space: nowrap;
-  font: inherit;
-  text-decoration: none;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-.btn-sm {
-  padding: 6px 10px;
-  font-size: 13px;
-}
-.btn-outline {
-  background: #fff;
-  color: #2563eb;
-  border: 1px solid #93c5fd;
-}
-.btn.secondary {
-  background: #64748b;
-}
-.btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-.btn.danger {
-  background: #dc2626;
 }
 .screen-head {
   display: flex;
@@ -1056,29 +1060,6 @@ onMounted(async () => {
     margin: 0;
   }
 }
-.code-modal-backdrop {
-  position: fixed;
-  inset: 0;
-  background: rgba(15, 23, 42, 0.45);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 2000;
-  padding: 16px;
-}
-.code-modal {
-  background: #fff;
-  border-radius: 14px;
-  padding: 24px;
-  max-width: 520px;
-  width: 100%;
-  max-height: 90vh;
-  overflow-y: auto;
-  box-shadow: 0 16px 48px rgba(15, 23, 42, 0.2);
-}
-.code-modal h3 {
-  margin: 0 0 8px;
-}
 .access-code {
   display: block;
   margin: 8px 0 0;
@@ -1094,7 +1075,7 @@ onMounted(async () => {
 .modal-qr {
   text-align: center;
 }
-.modal-actions {
-  margin-top: 16px;
+.code-label {
+  margin-top: 12px;
 }
 </style>

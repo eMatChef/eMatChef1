@@ -1,3 +1,6 @@
 export { default as ActivityCreateWizard } from './ActivityCreateWizard.vue'
 export { default as ActivityDetailView } from './ActivityDetailView.vue'
+export { default as ActivityListDataTable } from './ActivityListDataTable.vue'
+export { default as ActivityListMobile } from './ActivityListMobile.vue'
+export type { ActivityListItem } from './activityListItem'
 export * from './wizard'

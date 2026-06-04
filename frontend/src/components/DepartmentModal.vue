@@ -1,55 +1,33 @@
 <template>
-  <div v-if="isOpen" class="modal-overlay">
-    <div class="modal-dialog department-modal-dialog">
-      <div class="modal-header">
-        <h2>{{ isEdit ? t('components.departmentModal.editTitle') : t('components.departmentModal.addTitle') }}</h2>
-        <button @click="close" class="modal-close">
-          <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-            <path
-              d="M15 5L5 15M5 5L15 15"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-            />
-          </svg>
-        </button>
-      </div>
-
-      <div class="modal-body">
-        <form @submit.prevent="handleSubmit">
+  <EDialog
+    v-model="dialogOpen"
+    :max-width="1180"
+    :title="isEdit ? t('components.departmentModal.editTitle') : t('components.departmentModal.addTitle')"
+    scrollable
+    persistent
+    card-class="department-modal-card"
+  >
+    <form id="department-modal-form" class="department-modal-body" @submit.prevent="handleSubmit">
           <!-- Department Name -->
-          <div class="form-group">
-            <label for="department-name" class="form-label">{{ t('components.departmentModal.nameLabel') }}</label>
-            <input
-              id="department-name"
-              v-model="formData.name"
-              type="text"
-              class="form-input"
-              :placeholder="t('components.departmentModal.namePlaceholder')"
-              required
-            />
-          </div>
+          <ETextField
+            id="department-name"
+            v-model="formData.name"
+            :label="t('components.departmentModal.nameLabel')"
+            :placeholder="t('components.departmentModal.namePlaceholder')"
+            hide-details="auto"
+            class="mb-3"
+          />
 
           <!-- Organisation Auswahl -->
-          <div class="form-group">
-            <label for="organisation" class="form-label">{{ t('components.departmentModal.organisationLabel') }}</label>
-            <select
-              id="organisation"
-              v-model="formData.organisationId"
-              class="form-select"
-              required
-              @change="onOrganisationChange"
-            >
-              <option value="" disabled hidden>&nbsp;</option>
-              <option
-                v-for="org in organisations"
-                :key="org.id"
-                :value="org.id"
-              >
-                {{ org.name }}
-              </option>
-            </select>
-          </div>
+          <ESelect
+            id="organisation"
+            v-model="formData.organisationId"
+            :items="organisationItems"
+            :label="t('components.departmentModal.organisationLabel')"
+            hide-details="auto"
+            class="mb-3"
+            @update:model-value="onOrganisationChange"
+          />
 
           <!-- Parent Department Auswahl (optional, nur wenn Organisation gewählt) -->
           <div v-if="formData.organisationId" class="form-group">
@@ -215,28 +193,23 @@
             </template>
           </div>
 
-          <!-- Error Message -->
-          <div v-if="error" class="error-message">
-            {{ error }}
-          </div>
+          <v-alert v-if="error" type="error" variant="tonal" class="mt-2" :text="error" />
+    </form>
 
-          <!-- Buttons -->
-          <div class="modal-footer">
-            <button type="button" @click="close" class="btn-secondary">
-              {{ t('common.cancel') }}
-            </button>
-            <button type="submit" class="btn-primary" :disabled="isSubmitting">
-              {{
-                isSubmitting
-                  ? t('components.departmentModal.saving')
-                  : (isEdit ? t('common.save') : t('common.add'))
-              }}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  </div>
+    <template #actions>
+      <EButton variant="secondary" size="small" @click="close">{{ t('common.cancel') }}</EButton>
+      <EButton
+        variant="primary"
+        size="small"
+        type="submit"
+        form="department-modal-form"
+        :loading="isSubmitting"
+        :disabled="isSubmitting"
+      >
+        {{ isEdit ? t('common.save') : t('common.add') }}
+      </EButton>
+    </template>
+  </EDialog>
 </template>
 
 <script setup lang="ts">
@@ -244,6 +217,7 @@ import { ref, watch, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useToast } from '@/composables/useToast'
 import { useAuthStore } from '@/stores/auth'
+import { EButton, EDialog, ESelect, ETextField } from '@/components/form/base'
 import {
   createDepartment,
   updateDepartment,
@@ -293,6 +267,15 @@ const memberOrganisationIds = computed(() =>
   memberOrganisationIdsFromUserDepartments(authStore.departments)
 )
 const isEdit = computed(() => !!props.department)
+const dialogOpen = computed({
+  get: () => props.isOpen,
+  set: (value: boolean) => {
+    if (!value) close()
+  },
+})
+const organisationItems = computed(() =>
+  organisations.value.map((org) => ({ title: org.name, value: org.id })),
+)
 const isSubmitting = ref(false)
 const error = ref<string | null>(null)
 const organisations = ref<Organisation[]>([])
@@ -673,35 +656,15 @@ function close() {
 </script>
 
 <style scoped>
-/* Modal overlay/dialog/header/body/footer base uses shared ui/modals.css */
-.department-modal-dialog {
-  width: min(1180px, calc(100vw - 48px));
+:deep(.department-modal-card) {
   max-height: calc(100vh - 48px);
-  padding: 0;
-  overflow: hidden;
+}
+
+.department-modal-body {
   display: flex;
   flex-direction: column;
+  gap: 4px;
 }
-
-.department-modal-dialog .modal-body {
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
-}
-
-.department-modal-dialog .modal-header {
-  flex-shrink: 0;
-}
-
-.modal-header h2 {
-  font-size: 20px;
-  font-weight: 600;
-  color: #1f2937;
-  margin: 0;
-}
-
-/* Form group/input/select base uses shared ui/forms.css */
 
 .form-label {
   display: block;
@@ -717,16 +680,6 @@ function close() {
   margin-top: 4px;
   margin-bottom: 0;
 }
-
-.error-message {
-  background: #fee2e2;
-  color: #dc2626;
-  padding: 12px;
-  border-radius: 6px;
-  font-size: 14px;
-  margin-bottom: 20px;
-}
-
 
 .tree-select-container {
   border: 1px solid #e5e7eb;

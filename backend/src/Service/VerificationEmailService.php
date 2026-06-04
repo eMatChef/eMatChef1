@@ -38,8 +38,8 @@ class VerificationEmailService
         }
 
         $verifyUrl = rtrim($this->frontendBaseUrl, '/') . '/verify?token=' . urlencode($token);
-        $expiresText = $expiresAt->format('d.m.Y H:i');
         $locale = $this->mailTemplateContent->resolveMailLocale($profile->getLanguage());
+        $expiresText = $this->formatMailExpiresAt($expiresAt, $locale);
 
         $tpl = $this->mailTemplateContent->getTemplate('auth.verify_email', $locale);
         if ($tpl === null) {
@@ -93,8 +93,8 @@ class VerificationEmailService
         }
 
         $verifyUrl = rtrim($this->frontendBaseUrl, '/') . '/verify?token=' . urlencode($token);
-        $expiresText = $expiresAt->format('d.m.Y H:i');
         $locale = $this->mailTemplateContent->resolveMailLocale($profile->getLanguage());
+        $expiresText = $this->formatMailExpiresAt($expiresAt, $locale);
 
         $tpl = $this->mailTemplateContent->getTemplate('auth.pending_email_change', $locale);
         if ($tpl === null) {
@@ -430,8 +430,12 @@ class VerificationEmailService
             throw $this->vex('no_profile_pwd', 'de');
         }
 
-        $expiresText = $expiresAt->format('d.m.Y H:i:s');
         $locale = $this->mailTemplateContent->resolveMailLocale($profile->getLanguage());
+        $expiresText = $this->formatMailExpiresAt($expiresAt, $locale);
+        $resetUrl = rtrim($this->frontendBaseUrl, '/') . '/login?' . http_build_query([
+            'forgot' => '1',
+            'email' => $profile->getEmail(),
+        ]);
 
         $tpl = $this->mailTemplateContent->getTemplate('auth.password_reset_code', $locale);
         if ($tpl === null) {
@@ -442,6 +446,7 @@ class VerificationEmailService
             'display_name' => $profile->getDisplayName(),
             'reset_code' => strtoupper($code),
             'expires_at' => $expiresText,
+            'reset_url' => $resetUrl,
         ];
         $subject = $this->mailTemplateContent->interpolate((string) ($tpl['subject'] ?? ''), $vars);
         $textBody = $this->mailTemplateContent->interpolate((string) ($tpl['text_body'] ?? ''), $vars);
@@ -462,6 +467,9 @@ class VerificationEmailService
                 'reset_code' => strtoupper($code),
                 'expires_intro' => (string) ($htmlCfg['expires_intro'] ?? ''),
                 'expires_at' => $expiresText,
+                'cta_label' => (string) ($htmlCfg['cta_label'] ?? ''),
+                'link_hint' => (string) ($htmlCfg['link_hint'] ?? ''),
+                'reset_url' => $resetUrl,
                 'instruction' => (string) ($htmlCfg['instruction'] ?? ''),
                 'footer_note' => (string) ($htmlCfg['footer_note'] ?? ''),
             ], ['brand_header_html'], $locale));
@@ -478,6 +486,24 @@ class VerificationEmailService
     private function vex(string $key, string $locale): \RuntimeException
     {
         return new \RuntimeException($this->mailTemplateContent->getApiString('vex.' . $key, $locale));
+    }
+
+    private function resolveMailTimezone(string $locale): string
+    {
+        $raw = getenv('APP_MAIL_TIMEZONE');
+        if (is_string($raw) && trim($raw) !== '') {
+            return trim($raw);
+        }
+
+        return 'Europe/Zurich';
+    }
+
+    private function formatMailExpiresAt(\DateTime $expiresAt, string $locale): string
+    {
+        $timezone = new \DateTimeZone($this->resolveMailTimezone($locale));
+        $localized = (clone $expiresAt)->setTimezone($timezone);
+
+        return $localized->format('d.m.Y, H:i') . ' Uhr (' . $timezone->getName() . ')';
     }
 
     /**

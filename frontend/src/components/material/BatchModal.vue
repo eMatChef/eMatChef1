@@ -1,20 +1,13 @@
 <template>
-  <Teleport to="body">
-    <div class="batch-modal-overlay">
-      <div class="batch-modal" :class="{ 'batch-modal--wide': !isEditMode }">
-        <!-- Header -->
-        <div class="batch-modal-header">
-          <h2>{{ isEditMode ? t('components.batchModal.editTitle') : t('components.batchModal.addTitle') }}</h2>
-          <button class="batch-modal-close" @click="$emit('close')">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <line x1="18" y1="6" x2="6" y2="18"/>
-              <line x1="6" y1="6" x2="18" y2="18"/>
-            </svg>
-          </button>
-        </div>
-
-        <!-- Content -->
-        <div class="batch-modal-body">
+  <EDialog
+    v-model="dialogOpen"
+    :max-width="dialogMaxWidth"
+    :title="isEditMode ? t('components.batchModal.editTitle') : t('components.batchModal.addTitle')"
+    scrollable
+    persistent
+    card-class="batch-modal-card"
+  >
+    <div class="batch-modal-body batch-modal-body--dialog">
           <!-- Charge hinzufügen serialisiert: gleiches UI wie Material-Erstellwizard -->
           <div v-if="isSerializedAddMode" class="batch-serial-wizard">
               <div class="form-row mb-2">
@@ -614,42 +607,43 @@
           <div v-if="errorMsg" class="batch-error">
             {{ errorMsg }}
           </div>
-        </div>
-
-        <!-- Footer -->
-        <div class="batch-modal-footer">
-          <div v-if="missingFields.length > 0" class="batch-missing">
-            <span class="batch-missing-icon">⚠️</span>
-            <span>{{ missingFields[0] }}</span>
-          </div>
-          <div class="batch-footer-actions">
-            <button class="btn-secondary btn-sm" @click="$emit('close')">{{ t('common.cancel') }}</button>
-            <button 
-              class="btn-primary btn-sm" 
-              @click="handleSubmit"
-              :disabled="!canSubmit || isSaving"
-            >
-              {{
-                isSaving
-                  ? t('common.saving')
-                  : (isEditMode ? t('common.save') : t('common.add'))
-              }}
-            </button>
-          </div>
-        </div>
-      </div>
     </div>
 
-    <!-- Adress-Modal für neuen Lieferanten -->
-    <AddressModal
-      v-if="showAddressModal"
-      :department-id="departmentId"
-      default-type="supplier"
-      :default-name="supplierSearch"
-      @close="showAddressModal = false"
-      @saved="handleAddressSaved"
-    />
-  </Teleport>
+    <template #actions>
+      <div class="batch-footer-actions-wrap">
+        <div v-if="missingFields.length > 0" class="batch-missing">
+          <span class="batch-missing-icon">⚠️</span>
+          <span>{{ missingFields[0] }}</span>
+        </div>
+        <div class="batch-footer-actions">
+          <EButton variant="secondary" size="small" @click="closeDialog">{{ t('common.cancel') }}</EButton>
+          <EButton
+            variant="primary"
+            size="small"
+            :disabled="!canSubmit || isSaving"
+            :loading="isSaving"
+            @click="handleSubmit"
+          >
+            {{
+              isSaving
+                ? t('common.saving')
+                : (isEditMode ? t('common.save') : t('common.add'))
+            }}
+          </EButton>
+        </div>
+      </div>
+    </template>
+  </EDialog>
+
+  <!-- Adress-Modal für neuen Lieferanten -->
+  <AddressModal
+    v-if="showAddressModal"
+    :department-id="departmentId"
+    default-type="supplier"
+    :default-name="supplierSearch"
+    @close="showAddressModal = false"
+    @saved="handleAddressSaved"
+  />
 </template>
 
 <script setup lang="ts">
@@ -677,6 +671,7 @@ import {
 import { localizedBarcodeScannerError } from '@/utils/barcodeScannerErrors'
 import AddressModal from '@/components/AddressModal.vue'
 import StorageLocationPicker from '@/components/storage/StorageLocationPicker.vue'
+import { EButton, EDialog } from '@/components/form/base'
 import BarcodeScannerPanel from '@/components/common/BarcodeScannerPanel.vue'
 import { useStorageStructure } from '@/composables/useStorageStructure'
 import { useHeaderNotificationsStore } from '@/stores/headerNotifications'
@@ -714,6 +709,17 @@ const toast = useToast()
 const headerNotificationsStore = useHeaderNotificationsStore()
 const physicalComboWarningStore = usePhysicalComboWarningStore()
 const isEditMode = computed(() => !!props.batch)
+
+const dialogOpen = ref(true)
+const dialogMaxWidth = computed(() => (isEditMode.value ? 520 : 920))
+
+watch(dialogOpen, (open) => {
+  if (!open) emit('close')
+})
+
+function closeDialog() {
+  dialogOpen.value = false
+}
 
 /** Material ist serialisiert (tracking_type oder Fallback über Chargen mit Seriennummer) */
 const isSerializedMaterial = computed(() => {
@@ -1727,37 +1733,17 @@ async function handleSubmit() {
 </script>
 
 <style scoped>
-.batch-modal-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.5);
+.batch-modal-body--dialog {
+  padding: 0;
+}
+
+.batch-footer-actions-wrap {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  justify-content: center;
-  z-index: 1000;
-  animation: fadeIn 0.15s ease;
-}
-
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-.batch-modal {
-  background: white;
-  border-radius: 12px;
-  width: 520px;
-  max-width: 95vw;
-  max-height: 90vh;
-  display: flex;
-  flex-direction: column;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
-  animation: slideUp 0.2s ease;
-}
-
-.batch-modal--wide {
-  width: min(920px, 96vw);
-  max-width: 96vw;
+  justify-content: flex-end;
+  gap: 12px;
+  width: 100%;
 }
 
 .batch-serial-wizard .serial-header {
@@ -1772,47 +1758,6 @@ async function handleSubmit() {
   display: flex;
   gap: 8px;
   align-items: center;
-}
-
-@keyframes slideUp {
-  from { transform: translateY(20px); opacity: 0; }
-  to { transform: translateY(0); opacity: 1; }
-}
-
-.batch-modal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 20px 24px;
-  border-bottom: 1px solid #e5e7eb;
-}
-
-.batch-modal-header h2 {
-  font-size: 18px;
-  font-weight: 600;
-  color: #111827;
-  margin: 0;
-}
-
-.batch-modal-close {
-  background: none;
-  border: none;
-  color: #9ca3af;
-  cursor: pointer;
-  padding: 4px;
-  border-radius: 6px;
-  transition: all 0.15s;
-}
-
-.batch-modal-close:hover {
-  background: #f3f4f6;
-  color: #374151;
-}
-
-.batch-modal-body {
-  padding: 24px;
-  overflow-y: auto;
-  flex: 1;
 }
 
 .batch-form-row {
@@ -2089,16 +2034,6 @@ async function handleSubmit() {
   font-size: 13px;
   border: 1px solid #fecaca;
   margin-top: 4px;
-}
-
-.batch-modal-footer {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 16px 24px;
-  border-top: 1px solid #e5e7eb;
-  background: #f9fafb;
-  border-radius: 0 0 12px 12px;
 }
 
 .batch-missing {

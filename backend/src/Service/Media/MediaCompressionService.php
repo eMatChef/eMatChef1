@@ -22,6 +22,7 @@ class MediaCompressionService
         'image/png' => 'png',
         'image/webp' => 'webp',
         'image/gif' => 'gif',
+        'application/pdf' => 'pdf',
     ];
 
     public function __construct(
@@ -46,6 +47,62 @@ class MediaCompressionService
         }
 
         return $mime;
+    }
+
+    /**
+     * Bild oder PDF (Belege) — PDF ohne Kompression.
+     */
+    public function assertValidReceiptUpload(UploadedFile $file): string
+    {
+        if (!$file->isValid()) {
+            throw new \InvalidArgumentException('Ungültige Upload-Datei');
+        }
+
+        $size = (int) $file->getSize();
+        if ($size <= 0 || $size > self::MAX_BYTES) {
+            throw new \InvalidArgumentException('Datei zu gross (max. 10 MB)');
+        }
+
+        $mime = (string) $file->getMimeType();
+        if (!isset(self::MIME_TO_EXT[$mime])) {
+            throw new \InvalidArgumentException('Nur JPEG, PNG, WebP, GIF oder PDF erlaubt');
+        }
+
+        return $mime;
+    }
+
+    /**
+     * @return array{path: string, filename_ext: string, mime: string, bytes: int, width: int, height: int}
+     */
+    public function storeReceiptOrImage(UploadedFile $file, string $targetPathWithoutExt): array
+    {
+        $mime = $this->assertValidReceiptUpload($file);
+        if ($mime === 'application/pdf') {
+            return $this->storeBinaryCopy($file->getPathname(), $targetPathWithoutExt, $mime);
+        }
+
+        return $this->compressAndSave($file, $targetPathWithoutExt);
+    }
+
+    /**
+     * @return array{path: string, filename_ext: string, mime: string, bytes: int, width: int, height: int}
+     */
+    private function storeBinaryCopy(string $sourcePath, string $targetPathWithoutExt, string $mime): array
+    {
+        $ext = self::MIME_TO_EXT[$mime] ?? 'bin';
+        $targetPath = $targetPathWithoutExt . '.' . $ext;
+        if (!copy($sourcePath, $targetPath)) {
+            throw new \RuntimeException('Datei konnte nicht gespeichert werden');
+        }
+
+        return [
+            'path' => $targetPath,
+            'filename_ext' => $ext,
+            'mime' => $mime,
+            'bytes' => (int) filesize($targetPath),
+            'width' => 0,
+            'height' => 0,
+        ];
     }
 
     /**

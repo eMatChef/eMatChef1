@@ -1,18 +1,13 @@
 <template>
-  <Teleport to="body">
-    <div class="batch-modal-overlay">
-      <div class="batch-modal move-modal">
-        <div class="batch-modal-header">
-          <h2>{{ t('settings.storage.moveQuantity') }}</h2>
-          <button class="batch-modal-close" @click="$emit('close')">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <line x1="18" y1="6" x2="6" y2="18"/>
-              <line x1="6" y1="6" x2="18" y2="18"/>
-            </svg>
-          </button>
-        </div>
-
-        <div class="batch-modal-body">
+  <EDialog
+    v-model="dialogOpen"
+    :max-width="520"
+    :title="t('settings.storage.moveQuantity')"
+    scrollable
+    persistent
+    card-class="move-quantity-modal-card"
+  >
+    <div class="batch-modal-body batch-modal-body--dialog">
           <p class="move-intro">{{ t('components.moveQuantityModal.intro') }}</p>
 
           <!-- Quelle (bei Allokationen: Auswahl) -->
@@ -128,21 +123,21 @@
           <div v-if="errorMsg" class="batch-error">{{ errorMsg }}</div>
         </div>
 
-        <div class="batch-modal-footer">
-          <div class="batch-footer-actions">
-            <button class="btn-secondary btn-sm" @click="$emit('close')">{{ t('common.cancel') }}</button>
-            <button
-              class="btn-primary btn-sm"
-              :disabled="!canSubmit || isSaving"
-              @click="handleSubmit"
-            >
-              {{ isSaving ? t('components.moveQuantityModal.moving') : t('components.moveQuantityModal.submit') }}
-            </button>
-          </div>
-        </div>
+    <template #actions>
+      <div class="batch-footer-actions">
+        <EButton variant="secondary" size="small" @click="closeDialog">{{ t('common.cancel') }}</EButton>
+        <EButton
+          variant="primary"
+          size="small"
+          :disabled="!canSubmit || isSaving"
+          :loading="isSaving"
+          @click="handleSubmit"
+        >
+          {{ isSaving ? t('components.moveQuantityModal.moving') : t('components.moveQuantityModal.submit') }}
+        </EButton>
       </div>
-    </div>
-  </Teleport>
+    </template>
+  </EDialog>
 </template>
 
 <script setup lang="ts">
@@ -155,6 +150,7 @@ import { usePhysicalComboWarningStore } from '@/stores/physicalComboWarning'
 import { useToast } from '@/composables/useToast'
 import { useStorageStructure } from '@/composables/useStorageStructure'
 import StorageLocationPicker from '@/components/storage/StorageLocationPicker.vue'
+import { EButton, EDialog } from '@/components/form/base'
 
 interface Props {
   materialId: string
@@ -171,6 +167,16 @@ const emit = defineEmits<{
   close: []
   saved: [result: { id: string; qty: number; rack_id: string | null; slot_id: string | null; allocations?: any[] }]
 }>()
+
+const dialogOpen = ref(true)
+
+watch(dialogOpen, (open) => {
+  if (!open) emit('close')
+})
+
+function closeDialog() {
+  dialogOpen.value = false
+}
 
 const toast = useToast()
 const physicalComboWarningStore = usePhysicalComboWarningStore()
@@ -453,66 +459,10 @@ async function handleSubmit() {
 </script>
 
 <style scoped>
-.batch-modal-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-  animation: fadeIn 0.15s ease;
+.batch-modal-body--dialog {
+  padding: 0;
 }
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-.batch-modal {
-  background: white;
-  border-radius: 12px;
-  width: 520px;
-  max-width: 95vw;
-  max-height: 90vh;
-  display: flex;
-  flex-direction: column;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
-  animation: slideUp 0.2s ease;
-}
-@keyframes slideUp {
-  from { transform: translateY(20px); opacity: 0; }
-  to { transform: translateY(0); opacity: 1; }
-}
-.batch-modal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 20px 24px;
-  border-bottom: 1px solid #e5e7eb;
-}
-.batch-modal-header h2 {
-  font-size: 18px;
-  font-weight: 600;
-  color: #111827;
-  margin: 0;
-}
-.batch-modal-close {
-  background: none;
-  border: none;
-  color: #9ca3af;
-  cursor: pointer;
-  padding: 4px;
-  border-radius: 6px;
-  transition: all 0.15s;
-}
-.batch-modal-close:hover {
-  background: #f3f4f6;
-  color: #374151;
-}
-.batch-modal-body {
-  padding: 24px;
-  overflow-y: auto;
-  flex: 1;
-}
+
 .batch-form-row {
   display: flex;
   gap: 16px;
@@ -559,12 +509,6 @@ async function handleSubmit() {
   color: #dc2626;
   border-radius: 8px;
   font-size: 14px;
-}
-.batch-modal-footer {
-  display: flex;
-  justify-content: flex-end;
-  padding: 20px 24px;
-  border-top: 1px solid #e5e7eb;
 }
 .batch-footer-actions {
   display: flex;

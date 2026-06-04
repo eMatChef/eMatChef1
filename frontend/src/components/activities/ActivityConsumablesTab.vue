@@ -2,10 +2,12 @@
   <div class="activity-consumables-tab">
     <ActivityTabHeader :title="t('activities.consumables.title')" />
     <div class="section-card activity-tab-panel-card">
-      <p v-if="isLoading" class="activity-inline-loading">
-        <span class="spinner spinner-sm"></span>
-        <span>{{ t('activities.consumables.loading') }}</span>
-      </p>
+      <ELoadingState
+        v-if="isLoading"
+        variant="inline"
+        class="activity-consumables-loading"
+        :message="t('activities.consumables.loading')"
+      />
       <template v-else>
         <p class="consumable-hint text-muted">
           {{ t('activities.consumables.intro') }}
@@ -19,27 +21,33 @@
           >
             <header class="consumable-card__head">
               <h4 class="consumable-card__title">{{ displayNameAgg(row) }}</h4>
-              <span class="consumable-card__booked">
+              <v-chip size="small" variant="tonal" class="consumable-card__booked">
                 {{ t('activities.consumables.booked', { n: row.quantity_booked }) }}
-              </span>
+              </v-chip>
             </header>
 
             <div
               v-if="row.quantity_warehouse > 0 || row.quantity_replenishment > 0"
               class="consumable-card__sources"
             >
-              <span
+              <v-chip
                 v-if="row.quantity_warehouse > 0"
+                size="x-small"
+                variant="tonal"
+                color="info"
                 class="consumable-chip consumable-chip--warehouse"
               >
                 {{ t('activities.consumables.chipWarehouse', { n: row.quantity_warehouse }) }}
-              </span>
-              <span
+              </v-chip>
+              <v-chip
                 v-if="row.quantity_replenishment > 0"
+                size="x-small"
+                variant="tonal"
+                color="orange"
                 class="consumable-chip consumable-chip--replenishment"
               >
                 {{ t('activities.consumables.chipReplenishment', { n: row.quantity_replenishment }) }}
-              </span>
+              </v-chip>
             </div>
 
             <div class="consumable-card__stats">
@@ -69,38 +77,45 @@
               </label>
               <div class="consumable-book__controls">
                 <div class="consumable-qty-row">
-                  <button
-                    type="button"
-                    class="btn-qty"
+                  <EButton
+                    variant="secondary"
+                    size="x-small"
+                    class="consumable-qty-btn"
                     :disabled="(qtyInputs[row.material_item_id] ?? 1) <= 1"
                     @click="bumpQty(row.material_item_id, -1)"
                   >
                     −
-                  </button>
-                  <input
+                  </EButton>
+                  <v-text-field
                     :id="'consumable-qty-' + row.material_item_id"
                     v-model.number="qtyInputs[row.material_item_id]"
                     type="number"
                     min="1"
                     :max="Math.max(1, remainingQty(row.material_item_id))"
+                    density="compact"
+                    variant="outlined"
+                    hide-details
                     class="consumable-qty-input"
                     @change="clampQtyFor(row.material_item_id)"
                   />
-                  <button
-                    type="button"
-                    class="btn-qty"
+                  <EButton
+                    variant="secondary"
+                    size="x-small"
+                    class="consumable-qty-btn"
                     :disabled="
                       (qtyInputs[row.material_item_id] ?? 1) >= remainingQty(row.material_item_id)
                     "
                     @click="bumpQty(row.material_item_id, 1)"
                   >
                     +
-                  </button>
+                  </EButton>
                 </div>
-                <button
-                  type="button"
-                  class="btn btn-sm btn-success consumable-book__submit"
+                <EButton
+                  variant="primary"
+                  size="small"
+                  class="consumable-book__submit"
                   :disabled="!canCreate || postingId === row.material_item_id"
+                  :loading="postingId === row.material_item_id"
                   @click="reportConsumption(row)"
                 >
                   {{
@@ -108,7 +123,7 @@
                       ? t('activities.consumables.postingEllipsis')
                       : t('activities.consumables.posting')
                   }}
-                </button>
+                </EButton>
               </div>
             </div>
 
@@ -117,9 +132,9 @@
                 <p class="consumable-blocked-hint text-muted">
                   {{ t('activities.consumables.blockedHintWithNachbuchung') }}
                 </p>
-                <button type="button" class="btn btn-sm btn-primary" @click="emitNachbuchung(row)">
+                <EButton variant="primary" size="small" @click="emitNachbuchung(row)">
                   {{ t('activities.consumables.addNachlieferung') }}
-                </button>
+                </EButton>
               </template>
               <p v-else class="consumable-blocked-hint text-muted">
                 {{ t('activities.consumables.blockedHintNoRights') }}
@@ -140,10 +155,11 @@
                 <p class="consumable-footer__hint text-muted">
                   {{ t('activities.consumables.surplusHint', { n: remainingQty(row.material_item_id) }) }}
                 </p>
-                <button
-                  type="button"
-                  class="btn btn-sm btn-outline"
+                <EButton
+                  variant="secondary"
+                  size="small"
                   :disabled="releasingId === row.material_item_id"
+                  :loading="releasingId === row.material_item_id"
                   @click="releaseSurplus(row)"
                 >
                   {{
@@ -151,16 +167,17 @@
                       ? t('activities.consumables.surplusReleasing')
                       : t('activities.consumables.surplusRelease', { n: remainingQty(row.material_item_id) })
                   }}
-                </button>
+                </EButton>
               </div>
-              <button
+              <EButton
                 v-if="canRequestNachbuchung && remainingQty(row.material_item_id) > 0"
-                type="button"
-                class="link-btn consumable-footer__nachbuchung"
+                variant="text"
+                size="small"
+                class="consumable-footer__nachbuchung"
                 @click="emitNachbuchung(row)"
               >
                 {{ t('activities.consumables.increaseBooked') }}
-              </button>
+              </EButton>
             </footer>
           </article>
         </div>
@@ -229,9 +246,9 @@
             <span class="consumable-history-time">{{ formatDateTime(cr.reported_at) }}</span>
             <span v-if="cr.description" class="consumable-history-desc">{{ cr.description }}</span>
             <div v-if="canManageConsumptionEntries" class="consumable-history-actions">
-              <button type="button" class="btn-outline btn-xs" @click="emitEditConsumption(cr)">
+              <EButton variant="secondary" size="x-small" @click="emitEditConsumption(cr)">
                 {{ t('activities.consumables.historyEdit') }}
-              </button>
+              </EButton>
             </div>
           </div>
         </div>
@@ -263,6 +280,8 @@ import {
 } from '@/components/activities/activityCosts'
 import { useToast } from '@/composables/useToast'
 import ActivityTabHeader from '@/components/activities/ActivityTabHeader.vue'
+import { EButton } from '@/components/form/base'
+import ELoadingState from '@/components/layout/ELoadingState.vue'
 import type { ConsumptionModalPreset } from '@/components/activities/ActivityConsumptionModal.vue'
 
 defineOptions({ name: 'ActivityConsumablesTab' })
@@ -565,6 +584,10 @@ watch(
 <style scoped>
 @import '@/styles/views/activities/detail-workflow.css';
 
+.activity-consumables-loading {
+  padding: 8px 0;
+}
+
 .consumable-hint {
   margin: 0 0 14px;
   font-size: 13px;
@@ -609,13 +632,7 @@ watch(
 }
 
 .consumable-card__booked {
-  font-size: 13px;
-  font-weight: 600;
-  color: #334155;
-  background: #e2e8f0;
-  padding: 4px 10px;
-  border-radius: 999px;
-  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .consumable-card__sources {
@@ -626,23 +643,7 @@ watch(
 }
 
 .consumable-chip {
-  font-size: 12px;
   font-weight: 500;
-  padding: 4px 10px;
-  border-radius: 6px;
-  line-height: 1.35;
-}
-
-.consumable-chip--warehouse {
-  color: #1e40af;
-  background: #eff6ff;
-  border: 1px solid #bfdbfe;
-}
-
-.consumable-chip--replenishment {
-  color: #9a3412;
-  background: #fff7ed;
-  border: 1px solid #fed7aa;
 }
 
 .consumable-card__stats {
@@ -724,35 +725,23 @@ watch(
   border-radius: 8px;
 }
 
-.btn-qty {
-  width: 36px;
-  height: 36px;
-  border: 1px solid #cbd5e1;
-  border-radius: 6px;
-  background: #fff;
-  cursor: pointer;
-  font-size: 1.1rem;
-  line-height: 1;
-  color: #334155;
-}
-
-.btn-qty:hover:not(:disabled) {
-  background: #f1f5f9;
-}
-
-.btn-qty:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
+.consumable-qty-btn {
+  min-width: 2rem !important;
+  padding-inline: 0 !important;
 }
 
 .consumable-qty-input {
-  width: 3.25rem;
-  text-align: center;
-  padding: 8px 6px;
-  border: 1px solid #cbd5e1;
-  border-radius: 6px;
+  flex: 0 0 3.5rem;
+  max-width: 3.5rem;
+}
+
+.consumable-qty-input :deep(.v-field) {
   font-size: 15px;
   font-weight: 600;
+}
+
+.consumable-qty-input :deep(input) {
+  text-align: center;
   font-variant-numeric: tabular-nums;
 }
 
@@ -803,22 +792,6 @@ watch(
 .consumable-footer__nachbuchung {
   flex-shrink: 0;
   align-self: center;
-  text-align: left;
-}
-
-.link-btn {
-  background: none;
-  border: none;
-  padding: 0;
-  color: #2563eb;
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-  text-decoration: underline;
-}
-
-.link-btn:hover {
-  color: #1d4ed8;
 }
 
 @media (max-width: 520px) {

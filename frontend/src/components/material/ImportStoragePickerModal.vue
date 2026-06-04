@@ -1,90 +1,96 @@
 <template>
-  <div v-if="open" class="import-storage-modal-overlay" @click.self="emit('close')">
-    <div class="import-storage-modal" role="dialog" aria-modal="true">
-      <h3 class="import-storage-modal__title">{{ t('settings.materialImport.storageModalTitle') }}</h3>
-      <p v-if="materialName" class="import-storage-modal__subtitle">{{ materialName }}</p>
+  <EDialog
+    :model-value="open"
+    :max-width="420"
+    :title="t('settings.materialImport.storageModalTitle')"
+    scrollable
+    persistent
+    card-class="import-storage-modal-card"
+    @update:model-value="onDialogUpdate"
+  >
+    <p v-if="materialName" class="import-storage-modal__subtitle">{{ materialName }}</p>
 
-      <div class="import-storage-modal__mode">
-        <button
-          type="button"
-          class="mode-btn"
-          :class="{ active: draft.stock_location_mode === 'slot' }"
-          @click="setMode('slot')"
-        >
-          {{ t('settings.materialImport.stockModeSlot') }}
-        </button>
-        <button
-          type="button"
-          class="mode-btn"
-          :class="{ active: draft.stock_location_mode === 'kiste' }"
-          @click="setMode('kiste')"
-        >
-          {{ t('settings.materialImport.stockModeKiste') }}
-        </button>
-      </div>
+    <div class="import-storage-modal__mode">
+      <button
+        type="button"
+        class="mode-btn"
+        :class="{ active: draft.stock_location_mode === 'slot' }"
+        @click="setMode('slot')"
+      >
+        {{ t('settings.materialImport.stockModeSlot') }}
+      </button>
+      <button
+        type="button"
+        class="mode-btn"
+        :class="{ active: draft.stock_location_mode === 'kiste' }"
+        @click="setMode('kiste')"
+      >
+        {{ t('settings.materialImport.stockModeKiste') }}
+      </button>
+    </div>
 
-      <label class="import-storage-modal__label">{{ t('settings.materialImport.mappingField.storage') }}</label>
-      <select v-model="draft.storage_address_id" class="form-select-sm" @change="onStorageAddressChange">
-        <option value="">{{ t('settings.materialImport.storageModalSelectStorage') }}</option>
-        <option v-for="addr in storageAddresses" :key="addr.id" :value="addr.id">
-          {{ addr.name || addr.company || addr.id }}
+    <label class="import-storage-modal__label">{{ t('settings.materialImport.mappingField.storage') }}</label>
+    <select v-model="draft.storage_address_id" class="form-select-sm" @change="onStorageAddressChange">
+      <option value="">{{ t('settings.materialImport.storageModalSelectStorage') }}</option>
+      <option v-for="addr in storageAddresses" :key="addr.id" :value="addr.id">
+        {{ addr.name || addr.company || addr.id }}
+      </option>
+    </select>
+    <p v-if="storageAddresses.length === 0" class="import-storage-modal__hint">
+      {{ t('settings.materialImport.storageModalNoStorage') }}
+    </p>
+
+    <template v-if="draft.stock_location_mode === 'slot'">
+      <StorageLocationPicker
+        class="import-storage-modal__picker"
+        variant="compact"
+        :storage-address-id="draft.storage_address_id"
+        :storage-address-options="storageAddressOptions"
+        :show-storage-address="false"
+        :rack-id="draft.rack_id"
+        :slot-id="draft.slot_id"
+        :racks="filteredRacks"
+        :slot-list="slotsForRack"
+        :rack-label="t('settings.materialImport.mappingField.rack')"
+        :slot-label="t('settings.materialImport.mappingField.slot')"
+        :rack-placeholder="t('settings.materialImport.storageModalSelectRack')"
+        :slot-placeholder="t('settings.materialImport.storageModalSelectSlot')"
+        :show-empty-slot-hint="true"
+        :empty-slot-hint="t('settings.materialImport.storageModalNoSlots')"
+        @update:rackId="onRackIdUpdate"
+        @update:slotId="onSlotIdUpdate"
+      />
+    </template>
+
+    <template v-else-if="draft.stock_location_mode === 'kiste'">
+      <label class="import-storage-modal__label">{{ t('settings.materialImport.mappingField.container') }}</label>
+      <select v-model="draft.container_batch_id" class="form-select-sm">
+        <option value="">{{ t('settings.materialImport.storageModalSelectContainer') }}</option>
+        <option v-for="cb in containerBatches" :key="cb.id" :value="cb.id">
+          {{ containerOptionLabel(cb) }}
         </option>
       </select>
-      <p v-if="storageAddresses.length === 0" class="import-storage-modal__hint">
-        {{ t('settings.materialImport.storageModalNoStorage') }}
+      <p v-if="containerBatches.length === 0" class="import-storage-modal__hint">
+        {{ t('settings.materialImport.storageModalNoContainers') }}
       </p>
+    </template>
 
-      <template v-if="draft.stock_location_mode === 'slot'">
-        <StorageLocationPicker
-          class="import-storage-modal__picker"
-          variant="compact"
-          :storage-address-id="draft.storage_address_id"
-          :storage-address-options="storageAddressOptions"
-          :show-storage-address="false"
-          :rack-id="draft.rack_id"
-          :slot-id="draft.slot_id"
-          :racks="filteredRacks"
-          :slot-list="slotsForRack"
-          :rack-label="t('settings.materialImport.mappingField.rack')"
-          :slot-label="t('settings.materialImport.mappingField.slot')"
-          :rack-placeholder="t('settings.materialImport.storageModalSelectRack')"
-          :slot-placeholder="t('settings.materialImport.storageModalSelectSlot')"
-          :show-empty-slot-hint="true"
-          :empty-slot-hint="t('settings.materialImport.storageModalNoSlots')"
-          @update:rackId="onRackIdUpdate"
-          @update:slotId="onSlotIdUpdate"
-        />
-      </template>
-
-      <template v-else-if="draft.stock_location_mode === 'kiste'">
-        <label class="import-storage-modal__label">{{ t('settings.materialImport.mappingField.container') }}</label>
-        <select v-model="draft.container_batch_id" class="form-select-sm">
-          <option value="">{{ t('settings.materialImport.storageModalSelectContainer') }}</option>
-          <option v-for="cb in containerBatches" :key="cb.id" :value="cb.id">
-            {{ containerOptionLabel(cb) }}
-          </option>
-        </select>
-        <p v-if="containerBatches.length === 0" class="import-storage-modal__hint">
-          {{ t('settings.materialImport.storageModalNoContainers') }}
-        </p>
-      </template>
-
-      <div class="import-storage-modal__actions">
-        <button type="button" class="btn-secondary btn-sm" @click="emit('close')">
-          {{ t('common.cancel') }}
-        </button>
-        <button type="button" class="btn-primary btn-sm" :disabled="!canApply" @click="apply">
-          {{ t('settings.materialImport.storageModalApply') }}
-        </button>
-      </div>
-    </div>
-  </div>
+    <template #actions>
+      <EButton variant="secondary" size="small" @click="emit('close')">
+        {{ t('common.cancel') }}
+      </EButton>
+      <EButton variant="primary" size="small" :disabled="!canApply" @click="apply">
+        {{ t('settings.materialImport.storageModalApply') }}
+      </EButton>
+    </template>
+  </EDialog>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import StorageLocationPicker from '@/components/storage/StorageLocationPicker.vue'
+import { EButton, EDialog } from '@/components/form/base'
 import type { Address } from '@/api/addresses'
 import {
   getStorageRacks,
@@ -109,6 +115,10 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
+
+function onDialogUpdate(value: boolean) {
+  if (!value) emit('close')
+}
 
 const draft = ref<Partial<MaterialImportRow>>({})
 const allRacks = ref<StorageRack[]>([])
@@ -265,33 +275,6 @@ watch(
 </script>
 
 <style scoped>
-.import-storage-modal-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 1200;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(15, 23, 42, 0.45);
-  padding: 1rem;
-}
-
-.import-storage-modal {
-  background: #fff;
-  border-radius: 10px;
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.18);
-  padding: 1rem 1.1rem;
-  width: 100%;
-  max-width: 420px;
-  max-height: 90vh;
-  overflow-y: auto;
-}
-
-.import-storage-modal__title {
-  margin: 0 0 0.25rem;
-  font-size: 1rem;
-}
-
 .import-storage-modal__subtitle {
   margin: 0 0 0.75rem;
   font-size: 0.8rem;
@@ -336,12 +319,5 @@ watch(
   margin: 0.35rem 0 0;
   font-size: 0.7rem;
   color: #b45309;
-}
-
-.import-storage-modal__actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 0.5rem;
-  margin-top: 1rem;
 }
 </style>

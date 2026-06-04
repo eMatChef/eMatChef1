@@ -1,6 +1,9 @@
 /**
  * Outlined Formularfelder (Material Design): Label sitzt auf dem oberen Rahmen.
  * Global für .form-group / AutoSaveField – Activity, Wizard, Material-Detail, Modals.
+ *
+ * Migrierte Views und neue Formulare nutzen E* (form/base/) statt .form-input/.form-group.
+ * Dieses Stylesheet bleibt für AutoSaveField und noch nicht migrierte Screens bis Phase 3+.
  */
 
 .field-outline-label,

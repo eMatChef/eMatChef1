@@ -6,33 +6,27 @@
       <p class="scope-note">{{ t('supplierGlobalReview.scopeNote') }}</p>
     </header>
 
-    <div v-if="loadError" class="state error">{{ loadError }}</div>
-    <div v-else-if="loading" class="state">{{ t('common.loading') }}</div>
+    <v-alert v-if="loadError" type="error" variant="tonal" class="mb-3" :text="loadError" />
+    <ELoadingState v-else-if="loading" variant="page" :message="t('common.loading')" />
 
     <template v-else>
-      <nav class="tabs">
-        <button
-          type="button"
-          class="tab"
-          :class="{ active: activeTab === 'catalog' }"
-          @click="activeTab = 'catalog'"
-        >
+      <v-tabs v-model="activeTab" color="primary" class="review-tabs">
+        <v-tab value="catalog">
           {{ t('supplierGlobalReview.tabs.catalog') }}
           <span v-if="catalogItems.length" class="badge-count">{{ catalogItems.length }}</span>
-        </button>
-        <button
-          type="button"
-          class="tab"
-          :class="{ active: activeTab === 'templates' }"
-          @click="activeTab = 'templates'"
-        >
+        </v-tab>
+        <v-tab value="templates">
           {{ t('supplierGlobalReview.tabs.templates') }}
           <span v-if="templates.length" class="badge-count">{{ templates.length }}</span>
-        </button>
-      </nav>
+        </v-tab>
+      </v-tabs>
 
       <section v-if="activeTab === 'catalog'">
-        <p v-if="catalogItems.length === 0" class="state">{{ t('supplierGlobalReview.catalogEmpty') }}</p>
+        <EEmptyState
+          v-if="catalogItems.length === 0"
+          variant="generic"
+          :title="t('supplierGlobalReview.catalogEmpty')"
+        />
         <table v-else class="data-table">
           <thead>
             <tr>
@@ -54,22 +48,22 @@
               <td>{{ formatPrice(item.unit_price, item.currency) }}</td>
               <td>{{ formatDate(item.updated_at) }}</td>
               <td class="actions">
-                <button
-                  type="button"
-                  class="btn btn-primary btn-sm"
-                  :disabled="actingId === item.id"
+                <EButton
+                  variant="primary"
+                  size="small"
+                  :loading="actingId === item.id"
                   @click="approveCatalog(item.id)"
                 >
                   {{ t('supplierGlobalReview.approve') }}
-                </button>
-                <button
-                  type="button"
-                  class="btn btn-danger btn-sm"
-                  :disabled="actingId === item.id"
+                </EButton>
+                <EButton
+                  variant="danger"
+                  size="small"
+                  :loading="actingId === item.id"
                   @click="rejectCatalog(item.id)"
                 >
                   {{ t('supplierGlobalReview.reject') }}
-                </button>
+                </EButton>
               </td>
             </tr>
           </tbody>
@@ -77,7 +71,11 @@
       </section>
 
       <section v-else>
-        <p v-if="templates.length === 0" class="state">{{ t('supplierGlobalReview.templatesEmpty') }}</p>
+        <EEmptyState
+          v-if="templates.length === 0"
+          variant="generic"
+          :title="t('supplierGlobalReview.templatesEmpty')"
+        />
         <table v-else class="data-table">
           <thead>
             <tr>
@@ -99,22 +97,22 @@
               <td>{{ formatPrice(item.unit_price, item.currency) }}</td>
               <td>{{ formatDate(item.updated_at) }}</td>
               <td class="actions">
-                <button
-                  type="button"
-                  class="btn btn-primary btn-sm"
-                  :disabled="actingId === item.id"
+                <EButton
+                  variant="primary"
+                  size="small"
+                  :loading="actingId === item.id"
                   @click="approveTemplate(item.id)"
                 >
                   {{ t('supplierGlobalReview.approve') }}
-                </button>
-                <button
-                  type="button"
-                  class="btn btn-danger btn-sm"
-                  :disabled="actingId === item.id"
+                </EButton>
+                <EButton
+                  variant="danger"
+                  size="small"
+                  :loading="actingId === item.id"
                   @click="rejectTemplate(item.id)"
                 >
                   {{ t('supplierGlobalReview.reject') }}
-                </button>
+                </EButton>
               </td>
             </tr>
           </tbody>
@@ -138,6 +136,9 @@ import {
   type SupplierGlobalReviewCatalogItem,
   type SupplierGlobalReviewTemplate,
 } from '@/api/supplierGlobalReview'
+import ELoadingState from '@/components/layout/ELoadingState.vue'
+import EEmptyState from '@/components/layout/EEmptyState.vue'
+import { EButton } from '@/components/form/base'
 
 const { t } = useI18n()
 const toast = useToast()
@@ -284,26 +285,12 @@ onMounted(() => loadReviewQueue())
   max-width: 720px;
 }
 
-.tabs {
-  display: flex;
-  gap: 4px;
+.review-tabs {
   margin: 20px 0 16px;
-  border-bottom: 1px solid #e5e7eb;
 }
 
-.tab {
-  background: none;
-  border: none;
-  padding: 10px 16px;
-  cursor: pointer;
-  border-bottom: 2px solid transparent;
-  color: #6b7280;
-}
-
-.tab.active {
-  color: #111827;
-  border-bottom-color: #2563eb;
-  font-weight: 600;
+.review-tabs :deep(.v-tab) {
+  text-transform: none;
 }
 
 .badge-count {
@@ -313,15 +300,6 @@ onMounted(() => loadReviewQueue())
   border-radius: 999px;
   padding: 1px 7px;
   font-size: 0.75rem;
-}
-
-.state {
-  color: #6b7280;
-  margin: 24px 0;
-}
-
-.state.error {
-  color: #b91c1c;
 }
 
 .data-table {

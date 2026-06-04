@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { IconArrowRight, IconArrowLeft } from '@/components/icons'
 import { computed, inject, unref, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { ActivityPackContainer } from '@/api/activityContainers'
@@ -341,7 +340,7 @@ function crateShellTakeTitle(): string {
             "
             @click="moveShellCrateForward"
           >
-            <IconArrowRight />
+            <v-icon icon="mdi-arrow-right" size="12" />
           </button>
         </div>
       </div>
@@ -426,7 +425,7 @@ function crateShellTakeTitle(): string {
                     :disabled="containerMutationLoading"
                     @click="(ctx.unissueContainerLineToPacked as (cid: string, ci: ActivityPackContainerItem) => void)(container.id, ci)"
                   >
-                    <IconArrowLeft />
+                    <v-icon icon="mdi-arrow-left" size="12" />
                   </button>
                   <input
                     :value="unissueLineInputValue(ci)"
@@ -451,7 +450,7 @@ function crateShellTakeTitle(): string {
                     :disabled="containerMutationLoading"
                     @click="(ctx.pullFromContainer as (cid: string, ci: ActivityPackContainerItem) => void)(container.id, ci)"
                   >
-                    <IconArrowLeft />
+                    <v-icon icon="mdi-arrow-left" size="12" />
                   </button>
                   <input
                     :value="pullLineInputValue(ci)"
@@ -503,7 +502,7 @@ function crateShellTakeTitle(): string {
                       :title="issueLineLooseTitle(ci)"
                       @click="commitIssueLineToEvent(ci, $event)"
                     >
-                      <IconArrowRight />
+                      <v-icon icon="mdi-arrow-right" size="12" />
                     </button>
                   </div>
                 </div>
@@ -608,7 +607,7 @@ function crateShellTakeTitle(): string {
             "
             @click="(ctx.unissueContainerToPacked as (c: ActivityPackContainer) => void | Promise<void>)(container)"
           >
-            <IconArrowLeft />
+            <v-icon icon="mdi-arrow-left" size="12" />
           </button>
           <button
             v-if="
@@ -621,7 +620,7 @@ function crateShellTakeTitle(): string {
             :title="crateAllIssueTitle()"
             @click="(ctx.issueContainerToEvent as (c: ActivityPackContainer) => void | Promise<void>)(container)"
           >
-            <IconArrowRight />
+            <v-icon icon="mdi-arrow-right" size="12" />
           </button>
           <button
             v-else-if="packForwardEditable && containerShellTakeMax() > 0"
@@ -633,7 +632,7 @@ function crateShellTakeTitle(): string {
               (ctx.issueContainerShellOnlyToEvent as (c: ActivityPackContainer) => void | Promise<void>)(container)
             "
           >
-            <IconArrowRight />
+            <v-icon icon="mdi-arrow-right" size="12" />
           </button>
         </div>
       </div>
@@ -747,7 +746,7 @@ function crateShellTakeTitle(): string {
                 :disabled="containerMutationLoading"
                 @click="(ctx.pullFromContainer as (cid: string, ci: ActivityPackContainerItem) => void)(container.id, ci)"
               >
-                <IconArrowLeft />
+                <v-icon icon="mdi-arrow-left" size="12" />
               </button>
               <input
                 :value="pullLineInputValue(ci)"
@@ -799,7 +798,7 @@ function crateShellTakeTitle(): string {
                   :title="issueLineLooseTitle(ci)"
                   @click="commitIssueLineToEvent(ci, $event)"
                 >
-                  <IconArrowRight />
+                  <v-icon icon="mdi-arrow-right" size="12" />
                 </button>
               </div>
             </div>
@@ -828,7 +827,7 @@ function crateShellTakeTitle(): string {
                 :disabled="containerMutationLoading"
                 @click="(ctx.unissueContainerLineToPacked as (cid: string, ci: ActivityPackContainerItem) => void)(container.id, ci)"
               >
-                <IconArrowLeft />
+                <v-icon icon="mdi-arrow-left" size="12" />
               </button>
               <input
                 :value="unissueLineInputValue(ci)"
@@ -854,7 +853,7 @@ function crateShellTakeTitle(): string {
                 :disabled="containerMutationLoading"
                 @click="(ctx.pullFromContainer as (cid: string, ci: ActivityPackContainerItem) => void)(container.id, ci)"
               >
-                <IconArrowLeft />
+                <v-icon icon="mdi-arrow-left" size="12" />
               </button>
               <input
                 :value="pullLineInputValue(ci)"
@@ -907,7 +906,7 @@ function crateShellTakeTitle(): string {
                   :title="issueLineLooseTitle(ci)"
                   @click="commitIssueLineToEvent(ci, $event)"
                 >
-                  <IconArrowRight />
+                  <v-icon icon="mdi-arrow-right" size="12" />
                 </button>
               </div>
             </div>

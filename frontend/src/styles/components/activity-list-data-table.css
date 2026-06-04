@@ -1,0 +1,41 @@
+@import './activity-list-shared.css';
+
+.activity-list-dt__table {
+  background: transparent;
+}
+
+.activity-list-dt__table .v-table {
+  background: transparent;
+}
+
+.activity-list-dt__table .v-data-table-header__content {
+  font-size: 11px;
+  font-weight: 600;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.activity-list-dt__table .v-data-table__tr--clickable:hover {
+  background: #f9fafb;
+}
+
+.activity-list-dt__table .activity-list-dt__row {
+  cursor: pointer;
+}
+
+.activity-list-dt__table .activity-list-dt__row--draft {
+  background: #fffbeb;
+}
+
+.activity-list-dt__table .activity-list-dt__row--draft:hover {
+  background: #fef3c7;
+}
+
+.activity-list-dt__table .activity-list-dt__row--selected {
+  background: #ecfdf5;
+}
+
+.activity-list-dt__name-cell {
+  min-width: 0;
+}

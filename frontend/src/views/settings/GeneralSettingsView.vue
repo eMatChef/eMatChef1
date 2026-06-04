@@ -7,11 +7,11 @@
       </div>
     </div>
 
-    <!-- Loading -->
-    <div v-if="isLoading" class="loading-state">
-      <div class="spinner"></div>
-      <p>{{ t('settings.generalSettings.loading') }}</p>
-    </div>
+    <ELoadingState
+      v-if="isLoading"
+      variant="inline"
+      :message="t('settings.generalSettings.loading')"
+    />
 
     <!-- Settings Form -->
     <div v-else class="settings-form">
@@ -33,35 +33,12 @@
           <div class="field-row">
             <div class="field-group field-wide">
               <label>{{ t('settings.generalSettings.fields.timezone') }}</label>
-              <select v-model="form.timezone" class="form-input">
-                <optgroup :label="t('settings.generalSettings.groups.europe')">
-                  <option value="Europe/Zurich">Europe/Zurich (CET/CEST)</option>
-                  <option value="Europe/Berlin">Europe/Berlin (CET/CEST)</option>
-                  <option value="Europe/Vienna">Europe/Vienna (CET/CEST)</option>
-                  <option value="Europe/Paris">Europe/Paris (CET/CEST)</option>
-                  <option value="Europe/Rome">Europe/Rome (CET/CEST)</option>
-                  <option value="Europe/London">Europe/London (GMT/BST)</option>
-                  <option value="Europe/Amsterdam">Europe/Amsterdam (CET/CEST)</option>
-                  <option value="Europe/Brussels">Europe/Brussels (CET/CEST)</option>
-                  <option value="Europe/Madrid">Europe/Madrid (CET/CEST)</option>
-                  <option value="Europe/Stockholm">Europe/Stockholm (CET/CEST)</option>
-                  <option value="Europe/Warsaw">Europe/Warsaw (CET/CEST)</option>
-                  <option value="Europe/Prague">Europe/Prague (CET/CEST)</option>
-                  <option value="Europe/Budapest">Europe/Budapest (CET/CEST)</option>
-                  <option value="Europe/Athens">Europe/Athens (EET/EEST)</option>
-                  <option value="Europe/Helsinki">Europe/Helsinki (EET/EEST)</option>
-                  <option value="Europe/Moscow">Europe/Moscow (MSK)</option>
-                </optgroup>
-                <optgroup :label="t('settings.generalSettings.groups.other')">
-                  <option value="UTC">UTC</option>
-                  <option value="US/Eastern">US/Eastern (EST/EDT)</option>
-                  <option value="US/Central">US/Central (CST/CDT)</option>
-                  <option value="US/Pacific">US/Pacific (PST/PDT)</option>
-                  <option value="Asia/Tokyo">Asia/Tokyo (JST)</option>
-                  <option value="Asia/Shanghai">Asia/Shanghai (CST)</option>
-                  <option value="Australia/Sydney">Australia/Sydney (AEST/AEDT)</option>
-                </optgroup>
-              </select>
+              <ESelect
+                v-model="form.timezone"
+                :items="timezoneSelectItems"
+                :label="t('settings.generalSettings.fields.timezone')"
+                hide-details="auto"
+              />
               <span class="field-hint">{{ t('settings.generalSettings.hints.timezone') }}</span>
             </div>
           </div>
@@ -91,20 +68,22 @@
           <div class="field-row">
             <div class="field-group">
               <label>{{ t('settings.generalSettings.fields.dateFormat') }}</label>
-              <select v-model="form.dateFormat" class="form-input">
-                <option value="dd.MM.yyyy">10.02.2026 (dd.MM.yyyy)</option>
-                <option value="dd/MM/yyyy">10/02/2026 (dd/MM/yyyy)</option>
-                <option value="yyyy-MM-dd">2026-02-10 (yyyy-MM-dd)</option>
-                <option value="MM/dd/yyyy">02/10/2026 (MM/dd/yyyy)</option>
-              </select>
+              <ESelect
+                v-model="form.dateFormat"
+                :items="dateFormatSelectItems"
+                :label="t('settings.generalSettings.fields.dateFormat')"
+                hide-details="auto"
+              />
               <span class="field-hint">{{ t('settings.generalSettings.hints.dateFormat') }}</span>
             </div>
             <div class="field-group">
               <label>{{ t('settings.generalSettings.fields.timeFormat') }}</label>
-              <select v-model="form.timeFormat" class="form-input">
-                <option value="HH:mm">14:30 (24-Stunden)</option>
-                <option value="hh:mm a">02:30 PM (12-Stunden)</option>
-              </select>
+              <ESelect
+                v-model="form.timeFormat"
+                :items="timeFormatSelectItems"
+                :label="t('settings.generalSettings.fields.timeFormat')"
+                hide-details="auto"
+              />
               <span class="field-hint">{{ t('settings.generalSettings.hints.timeFormat') }}</span>
             </div>
           </div>
@@ -124,12 +103,12 @@
           {{ t('settings.generalSettings.unsavedChanges') }}
         </div>
         <div class="save-actions">
-          <button class="btn-secondary" @click="resetForm" :disabled="!hasChanges">
+          <EButton variant="secondary" :disabled="!hasChanges" @click="resetForm">
             {{ t('settings.generalSettings.reset') }}
-          </button>
-          <button class="btn-primary" @click="saveSettings" :disabled="!hasChanges || isSaving">
+          </EButton>
+          <EButton variant="primary" :disabled="!hasChanges || isSaving" :loading="isSaving" @click="saveSettings">
             {{ isSaving ? t('settings.generalSettings.saving') : t('common.save') }}
-          </button>
+          </EButton>
         </div>
       </div>
 
@@ -143,6 +122,46 @@ import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useToast } from '@/composables/useToast'
 import { getGeneralSettings, saveGeneralSettings, type GeneralSettings } from '@/api/departmentSettings'
+import ELoadingState from '@/components/layout/ELoadingState.vue'
+import { EButton, ESelect } from '@/components/form/base'
+
+const timezoneSelectItems = [
+  { title: 'Europe/Zurich (CET/CEST)', value: 'Europe/Zurich' },
+  { title: 'Europe/Berlin (CET/CEST)', value: 'Europe/Berlin' },
+  { title: 'Europe/Vienna (CET/CEST)', value: 'Europe/Vienna' },
+  { title: 'Europe/Paris (CET/CEST)', value: 'Europe/Paris' },
+  { title: 'Europe/Rome (CET/CEST)', value: 'Europe/Rome' },
+  { title: 'Europe/London (GMT/BST)', value: 'Europe/London' },
+  { title: 'Europe/Amsterdam (CET/CEST)', value: 'Europe/Amsterdam' },
+  { title: 'Europe/Brussels (CET/CEST)', value: 'Europe/Brussels' },
+  { title: 'Europe/Madrid (CET/CEST)', value: 'Europe/Madrid' },
+  { title: 'Europe/Stockholm (CET/CEST)', value: 'Europe/Stockholm' },
+  { title: 'Europe/Warsaw (CET/CEST)', value: 'Europe/Warsaw' },
+  { title: 'Europe/Prague (CET/CEST)', value: 'Europe/Prague' },
+  { title: 'Europe/Budapest (CET/CEST)', value: 'Europe/Budapest' },
+  { title: 'Europe/Athens (EET/EEST)', value: 'Europe/Athens' },
+  { title: 'Europe/Helsinki (EET/EEST)', value: 'Europe/Helsinki' },
+  { title: 'Europe/Moscow (MSK)', value: 'Europe/Moscow' },
+  { title: 'UTC', value: 'UTC' },
+  { title: 'US/Eastern (EST/EDT)', value: 'US/Eastern' },
+  { title: 'US/Central (CST/CDT)', value: 'US/Central' },
+  { title: 'US/Pacific (PST/PDT)', value: 'US/Pacific' },
+  { title: 'Asia/Tokyo (JST)', value: 'Asia/Tokyo' },
+  { title: 'Asia/Shanghai (CST)', value: 'Asia/Shanghai' },
+  { title: 'Australia/Sydney (AEST/AEDT)', value: 'Australia/Sydney' },
+]
+
+const dateFormatSelectItems = [
+  { title: '10.02.2026 (dd.MM.yyyy)', value: 'dd.MM.yyyy' },
+  { title: '10/02/2026 (dd/MM/yyyy)', value: 'dd/MM/yyyy' },
+  { title: '2026-02-10 (yyyy-MM-dd)', value: 'yyyy-MM-dd' },
+  { title: '02/10/2026 (MM/dd/yyyy)', value: 'MM/dd/yyyy' },
+]
+
+const timeFormatSelectItems = [
+  { title: '14:30 (24-Stunden)', value: 'HH:mm' },
+  { title: '02:30 PM (12-Stunden)', value: 'hh:mm a' },
+]
 
 const route = useRoute()
 const toast = useToast()

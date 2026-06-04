@@ -1,20 +1,33 @@
 <template>
-  <Teleport to="body">
-    <div v-if="showDialog" class="material-wizard-overlay activity-create-wizard-host">
-      <div class="material-wizard-modal">
-        <div class="material-wizard-header">
-          <div class="material-wizard-header-title">
-            <h2>{{ t('activities.wizard.createTitle') }}</h2>
-          </div>
-          <button type="button" class="close-btn" :title="t('common.close')" @click="handleClose">
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <line x1="18" y1="6" x2="6" y2="18" />
-              <line x1="6" y1="6" x2="18" y2="18" />
-            </svg>
-          </button>
+  <v-dialog
+    v-model="showDialog"
+    class="activity-create-dialog"
+    :class="dialogDisplayClasses"
+    :fullscreen="wizardFullscreen"
+    :max-width="wizardFullscreen ? undefined : 1080"
+    persistent
+    content-class="activity-create-dialog__content"
+  >
+    <v-card class="material-wizard-modal activity-create-wizard-host" :class="wizardHostClasses" rounded="lg">
+      <div class="material-wizard-header">
+        <div class="material-wizard-header-title">
+          <h2>{{ t('activities.wizard.createTitle') }}</h2>
         </div>
+        <EButton
+          variant="text"
+          size="small"
+          class="activity-create-wizard-close"
+          :aria-label="t('common.close')"
+          @click="handleClose"
+        >
+          <v-icon icon="mdi-close" size="24" />
+        </EButton>
+      </div>
 
-        <div class="material-wizard-body">
+        <div
+          class="material-wizard-body"
+          :class="{ 'material-wizard-body--with-preview': showWizardPreview }"
+        >
           <div class="material-wizard-content">
             <div ref="wizardFormRef" class="material-wizard-form">
               <ActivityTypeChips
@@ -66,6 +79,7 @@
           </div>
 
           <ActivityPreviewSidebar
+            v-if="showWizardPreview"
             :preview-title="previewTitle"
             :preview-usage-line="previewUsageLine"
             :preview-planning-line="previewPlanningLine"
@@ -95,26 +109,33 @@
           :show-draft-status="showDraftFooterStatus"
           :last-saved-at="lastDraftSavedAt"
           :show-close-saved-button="showCloseSavedButton"
+          :show-discard-draft-button="showDiscardDraftButton"
+          :is-discarding-draft="isDiscardingDraft"
           @close="handleClose"
           @close-saved="handleClose"
+          @discard-draft="handleDiscardDraft"
           @prev="prevStep"
           @weiter="onWeiter"
           @submit="handleSubmit"
           @jump-missing="onJumpToMissing"
         />
-      </div>
-    </div>
-  </Teleport>
+    </v-card>
+  </v-dialog>
 </template>
 
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { EButton } from '@/components/form/base'
+import { useMdAndUp } from '@/composables/useMdAndUp'
+import { useDisplayHostClasses } from '@/composables/useDisplayHostClasses'
+import { useSmAndUp } from '@/composables/useSmAndUp'
 import '@/styles/material-wizard.css'
 import '@/styles/activity-type-chips.css'
 import '@/styles/activity-create-wizard.css'
 import {
   createActivity,
+  deleteActivity,
   patchActivity,
   patchActivityStatus,
   syncActivityItems,
@@ -124,6 +145,7 @@ import { FALLBACK_ACTIVITY_DEFAULTS, getActivityDefaults } from '@/api/departmen
 import { resolveActivityGroupPickerLabel } from '@/utils/groupHierarchy'
 import { useAuthStore } from '@/stores/auth'
 import { useToast } from '@/composables/useToast'
+import { useConfirm } from '@/composables/useConfirm'
 import {
   useActivityCreateWizard,
   type ActivityCreateType,
@@ -153,7 +175,16 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
+const mdAndUp = useMdAndUp()
+const smAndUp = useSmAndUp()
+const wizardHostClasses = useDisplayHostClasses('activity-create-wizard-host')
+const dialogDisplayClasses = useDisplayHostClasses('activity-create-dialog')
+/** Fullscreen unter md (960px): Phone + Tablet — nicht useDisplay().smAndDown */
+const wizardFullscreen = computed(() => !mdAndUp.value)
+/** Vorschau-Spalte ab sm (600px), auch im Tablet-Fullscreen */
+const showWizardPreview = smAndUp
 const toast = useToast()
+const { confirm: confirmDialog } = useConfirm()
 const authStore = useAuthStore()
 const headerNotificationsStore = useHeaderNotificationsStore()
 const { canSelectDepartmentGroupLevel } = useDepartmentMemberRole()
@@ -174,6 +205,7 @@ const showDialog = computed({
 const wizardFormRef = ref<HTMLElement | null>(null)
 const isSubmitting = ref(false)
 const isSavingDraft = ref(false)
+const isDiscardingDraft = ref(false)
 const submitError = ref('')
 /** Nach erfolgreichem „Weiter“ (Draft) oder finalem Speichern */
 const lastDraftSavedAt = ref<Date | null>(null)
@@ -294,14 +326,8 @@ const submitButtonTitle = computed(() => {
   return ''
 })
 
-const showDraftFooterStatus = computed(
-  () =>
-    layoutMode.value === 'stepper' &&
-    !!selectedActivityType.value &&
-    (!!draftActivityId.value || lastDraftSavedAt.value !== null),
-)
-
-const showCloseSavedButton = computed(() => {
+/** Nur Lager/Event/extern: nach «Weiter» auf Schritt 1 (Server-Entwurf existiert) */
+const showDraftFooterStatus = computed(() => {
   const typ = selectedActivityType.value
   return (
     layoutMode.value === 'stepper' &&
@@ -309,6 +335,10 @@ const showCloseSavedButton = computed(() => {
     (typ === 'camp' || typ === 'event' || typ === 'external')
   )
 })
+
+const showCloseSavedButton = computed(() => showDraftFooterStatus.value)
+
+const showDiscardDraftButton = computed(() => showDraftFooterStatus.value)
 
 const submitButtonLabel = computed(() => {
   switch (selectedActivityType.value) {
@@ -392,8 +422,8 @@ const previewGroupLine = computed(() => {
   const typ = selectedActivityType.value
   if (!typ || typ === 'external') return null
   if (typ === 'activity') {
-    if (groupsForWizard.value.length === 0 && !canSelectDepartmentGroupLevel.value) return null
-    if (!selectedGroupId.value && !canSelectDepartmentGroupLevel.value) return null
+    if (groupsForWizard.value.length === 0) return null
+    if (!selectedGroupId.value) return null
   }
   const label = resolveActivityGroupPickerLabel(
     selectedGroupId.value,
@@ -437,6 +467,34 @@ const previewInvitedLine = computed(() => {
 function handleClose() {
   submitError.value = ''
   showDialog.value = false
+}
+
+async function handleDiscardDraft() {
+  const id = draftActivityId.value
+  if (!id || !showDiscardDraftButton.value) return
+  const ok = await confirmDialog({
+    title: t('activities.wizard.discardDraft'),
+    message: t('activities.wizard.confirmDiscardDraft'),
+    confirmText: t('activities.wizard.discardDraft'),
+    cancelText: t('common.cancel'),
+    variant: 'danger',
+  })
+  if (!ok) return
+  isDiscardingDraft.value = true
+  submitError.value = ''
+  try {
+    await deleteActivity(id)
+    toast.success(t('activities.wizard.toastDraftDiscarded'))
+    lastDraftSavedAt.value = null
+    resetWizard()
+    headerNotificationsStore.requestRefresh()
+    showDialog.value = false
+  } catch (err: unknown) {
+    const e = err as { response?: { data?: { error?: string } }; message?: string }
+    toast.error(e?.response?.data?.error || e?.message || t('activities.wizard.toastDiscardDraftFailed'))
+  } finally {
+    isDiscardingDraft.value = false
+  }
 }
 
 function onJumpToMissing(key: ActivityMissingStepKey) {

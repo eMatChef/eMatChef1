@@ -105,7 +105,7 @@ const { t } = useI18n()
 
 <style scoped>
 .landing-page {
-  min-height: 100vh;
+  min-height: calc(100dvh - 36px);
   display: flex;
   flex-direction: column;
 }

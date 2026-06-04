@@ -6,27 +6,34 @@
       <p class="supplier-page-hint">{{ t('supplierRepairs.subtitle') }}</p>
     </header>
 
-    <div v-if="loading" class="supplier-page-state">{{ t('common.loading') }}</div>
-    <div v-else-if="loadError" class="supplier-page-state supplier-page-state--error">{{ loadError }}</div>
+    <ELoadingState
+      v-if="loading"
+      variant="inline"
+      :message="t('common.loading')"
+    />
+    <div v-else-if="loadError" class="supplier-page-error">
+      <v-alert type="error" variant="tonal" :text="loadError" />
+    </div>
 
     <template v-else>
       <div class="toolbar">
-        <label class="filter">
-          <span>{{ t('supplierRepairs.filterStatus') }}</span>
-          <select v-model="statusFilter" @change="loadTickets">
-            <option value="">{{ t('supplierRepairs.allStatuses') }}</option>
-            <option value="open">{{ t('supplierRepairs.status.open') }}</option>
-            <option value="in_progress">{{ t('supplierRepairs.status.inProgress') }}</option>
-            <option value="waiting_parts">{{ t('supplierRepairs.status.waitingParts') }}</option>
-            <option value="completed">{{ t('supplierRepairs.status.completed') }}</option>
-          </select>
-        </label>
-        <button type="button" class="btn btn-secondary" @click="loadTickets">
+        <ESelect
+          v-model="statusFilter"
+          :items="statusFilterItems"
+          :label="t('supplierRepairs.filterStatus')"
+          hide-details
+          class="status-filter"
+          @update:model-value="loadTickets"
+        />
+        <EButton variant="secondary" @click="loadTickets">
           {{ t('supplierRepairs.refresh') }}
-        </button>
+        </EButton>
       </div>
 
-      <p v-if="tickets.length === 0" class="supplier-page-state">{{ t('supplierRepairs.empty') }}</p>
+      <EEmptyState
+        v-if="tickets.length === 0"
+        :title="t('supplierRepairs.empty')"
+      />
 
       <table v-else class="data-table">
         <thead>
@@ -47,72 +54,79 @@
             <td>{{ ticket.status_label }}</td>
             <td>{{ formatDate(ticket.updated_at) }}</td>
             <td>
-              <button type="button" class="btn btn-secondary btn-sm" @click="openTicket(ticket.id)">
+              <EButton variant="secondary" size="small" @click="openTicket(ticket.id)">
                 {{ t('supplierRepairs.openDetail') }}
-              </button>
+              </EButton>
             </td>
           </tr>
         </tbody>
       </table>
     </template>
 
-    <div v-if="detailOpen && selectedTicket" class="modal-backdrop" @click.self="closeDetail">
-      <div class="modal-card">
-        <header class="modal-header">
-          <h3>{{ selectedTicket.title }}</h3>
-          <button type="button" class="btn btn-secondary btn-sm" @click="closeDetail">{{ t('common.close') }}</button>
-        </header>
-        <div class="modal-body">
-          <p><strong>{{ t('supplierRepairs.columns.department') }}:</strong> {{ selectedTicket.department.name }}</p>
-          <p><strong>{{ t('supplierRepairs.columns.material') }}:</strong> {{ selectedTicket.material_item.name }}</p>
-          <p v-if="selectedTicket.material_item.serial_number">
-            <strong>{{ t('supplierRepairs.serial') }}:</strong> {{ selectedTicket.material_item.serial_number }}
-          </p>
-          <p v-if="selectedTicket.description">{{ selectedTicket.description }}</p>
-          <p v-if="selectedTicket.issue_report?.description" class="issue-desc">
-            {{ selectedTicket.issue_report.description }}
-          </p>
-          <section v-if="issueReportPhotos.length" class="photos-section">
-            <h4>{{ t('supplierRepairs.issuePhotosTitle') }}</h4>
-            <PhotoGallery :photos="issueReportPhotos" :show-meta="false" />
-          </section>
+    <EDialog
+      v-model="detailOpen"
+      :max-width="560"
+      :title="selectedTicket?.title || ''"
+      scrollable
+    >
+      <template v-if="selectedTicket">
+        <p><strong>{{ t('supplierRepairs.columns.department') }}:</strong> {{ selectedTicket.department.name }}</p>
+        <p><strong>{{ t('supplierRepairs.columns.material') }}:</strong> {{ selectedTicket.material_item.name }}</p>
+        <p v-if="selectedTicket.material_item.serial_number">
+          <strong>{{ t('supplierRepairs.serial') }}:</strong> {{ selectedTicket.material_item.serial_number }}
+        </p>
+        <p v-if="selectedTicket.description">{{ selectedTicket.description }}</p>
+        <p v-if="selectedTicket.issue_report?.description" class="issue-desc">
+          {{ selectedTicket.issue_report.description }}
+        </p>
+        <section v-if="issueReportPhotos.length" class="photos-section">
+          <h4>{{ t('supplierRepairs.issuePhotosTitle') }}</h4>
+          <PhotoGallery :photos="issueReportPhotos" :show-meta="false" />
+        </section>
 
-          <section v-if="selectedTicket.photos?.length" class="photos-section">
-            <h4>{{ t('supplierRepairs.photosTitle') }}</h4>
-            <PhotoGallery
-              :photos="selectedTicket.photos"
-              :format-date="formatDate"
-            />
-          </section>
-
-          <PhotoUpload
-            :upload-fn="uploadRepairPhoto"
-            :disabled="acting"
-            :label="t('supplierRepairs.uploadPhoto')"
-            @uploaded="onPhotoUploaded"
-            @error="onUploadError"
+        <section v-if="selectedTicket.photos?.length" class="photos-section">
+          <h4>{{ t('supplierRepairs.photosTitle') }}</h4>
+          <PhotoGallery
+            :photos="selectedTicket.photos"
+            :format-date="formatDate"
           />
+        </section>
 
-          <label class="field">
-            <span>{{ t('supplierRepairs.estimatedCost') }}</span>
-            <input v-model="formEstimatedCost" type="text" />
-          </label>
+        <PhotoUpload
+          :upload-fn="uploadRepairPhoto"
+          :disabled="acting"
+          :label="t('supplierRepairs.uploadPhoto')"
+          @uploaded="onPhotoUploaded"
+          @error="onUploadError"
+        />
 
-          <div v-if="selectedTicket.allowed_transitions.length" class="actions">
-            <button
-              v-for="nextStatus in selectedTicket.allowed_transitions"
-              :key="nextStatus"
-              type="button"
-              class="btn btn-primary btn-sm"
-              :disabled="acting"
-              @click="transitionTo(nextStatus)"
-            >
-              → {{ statusLabel(nextStatus) }}
-            </button>
-          </div>
+        <ETextField
+          v-model="formEstimatedCost"
+          :label="t('supplierRepairs.estimatedCost')"
+          hide-details="auto"
+        />
+
+        <div v-if="selectedTicket.allowed_transitions.length" class="actions">
+          <EButton
+            v-for="nextStatus in selectedTicket.allowed_transitions"
+            :key="nextStatus"
+            variant="primary"
+            size="small"
+            :disabled="acting"
+            :loading="acting"
+            @click="transitionTo(nextStatus)"
+          >
+            → {{ statusLabel(nextStatus) }}
+          </EButton>
         </div>
-      </div>
-    </div>
+      </template>
+
+      <template #actions>
+        <EButton variant="secondary" size="small" @click="closeDetail">
+          {{ t('common.close') }}
+        </EButton>
+      </template>
+    </EDialog>
   </div>
 </template>
 
@@ -134,6 +148,9 @@ import {
 import { normalizeMediaPhotos } from '@/api/media'
 import PhotoGallery from '@/components/media/PhotoGallery.vue'
 import PhotoUpload from '@/components/media/PhotoUpload.vue'
+import { EButton, EDialog, ESelect, ETextField } from '@/components/form/base'
+import EEmptyState from '@/components/layout/EEmptyState.vue'
+import ELoadingState from '@/components/layout/ELoadingState.vue'
 
 const route = useRoute()
 const { t } = useI18n()
@@ -145,6 +162,14 @@ const companyName = computed(() => {
   const company = authStore.activeSupplierCompanies.find((c) => c.id === companyId.value)
   return company?.name || authStore.activeSupplierCompanyName
 })
+
+const statusFilterItems = computed(() => [
+  { title: t('supplierRepairs.allStatuses'), value: '' },
+  { title: t('supplierRepairs.status.open'), value: 'open' },
+  { title: t('supplierRepairs.status.inProgress'), value: 'in_progress' },
+  { title: t('supplierRepairs.status.waitingParts'), value: 'waiting_parts' },
+  { title: t('supplierRepairs.status.completed'), value: 'completed' },
+])
 
 const issueReportPhotos = computed(() => {
   const report = selectedTicket.value?.issue_report
@@ -204,6 +229,10 @@ function closeDetail() {
   selectedTicket.value = null
 }
 
+watch(detailOpen, (open) => {
+  if (!open) selectedTicket.value = null
+})
+
 async function uploadRepairPhoto(file: File) {
   if (!selectedTicket.value) {
     throw new Error(t('supplierRepairs.errorLoad'))
@@ -254,6 +283,16 @@ onMounted(() => loadTickets())
 </script>
 
 <style scoped>
+.supplier-page {
+  max-width: 1100px;
+  padding: 24px;
+}
+
+.supplier-page-header h1 {
+  margin: 0;
+  font-size: 1.75rem;
+}
+
 .supplier-page-subtitle {
   margin: 6px 0 0;
   color: #374151;
@@ -265,13 +304,8 @@ onMounted(() => loadTickets())
   color: #6b7280;
 }
 
-.supplier-page-state {
-  margin-top: 24px;
-  color: #6b7280;
-}
-
-.supplier-page-state--error {
-  color: #b91c1c;
+.supplier-page-error {
+  margin-top: 16px;
 }
 
 .toolbar {
@@ -281,11 +315,9 @@ onMounted(() => loadTickets())
   margin: 20px 0 16px;
 }
 
-.filter {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  font-size: 14px;
+.status-filter {
+  flex: 1 1 220px;
+  max-width: 280px;
 }
 
 .data-table {
@@ -300,47 +332,6 @@ onMounted(() => loadTickets())
   text-align: left;
 }
 
-.modal-backdrop {
-  position: fixed;
-  inset: 0;
-  background: rgba(15, 23, 42, 0.45);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-  padding: 16px;
-}
-
-.modal-card {
-  background: #fff;
-  border-radius: 12px;
-  width: 100%;
-  max-width: 560px;
-  max-height: 90vh;
-  overflow: auto;
-}
-
-.modal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 16px 20px;
-  border-bottom: 1px solid #e5e7eb;
-}
-
-.modal-body {
-  padding: 20px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.field {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
 .photos-section h4 {
   margin: 0;
   font-size: 14px;
@@ -350,5 +341,6 @@ onMounted(() => loadTickets())
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+  margin-top: 8px;
 }
 </style>

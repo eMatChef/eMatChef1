@@ -1,0 +1,450 @@
+/**
+ * Activity responsive styles — Host-Modifier aus useDisplayHostClasses() (useSmAndUp / useMdAndUp).
+ * Keine @media-Queries; Breakpoints: sm = 600px, md = 960px (vuetify.ts).
+ */
+
+/* ── ActivityDetailView ── */
+
+.activity-detail-view.activity-detail-view--sm-and-up .activity-draft-alert,
+.activity-detail-view.activity-detail-view--sm-and-up .activity-member-scope-alert {
+  margin-inline: 24px;
+}
+
+.activity-detail-view.activity-detail-view--sm-down .detail-header {
+  padding: 12px 16px 8px;
+}
+
+.activity-detail-view.activity-detail-view--sm-down .activity-detail-tab-panel {
+  padding: 16px 12px 24px;
+}
+
+.activity-detail-view.activity-detail-view--sm-down :deep(.activity-detail-tabs.v-tabs) {
+  padding-inline: 4px;
+}
+
+.activity-detail-view.activity-detail-view--sm-down :deep(.activity-detail-tabs .v-tab) {
+  font-size: 13px;
+  min-width: auto;
+  padding-inline: 10px;
+}
+
+.activity-detail-view.activity-detail-view--sm-down .activity-detail-workflow-actions {
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  padding-bottom: 2px;
+}
+
+.activity-detail-view.activity-detail-view--sm-down .activity-detail-workflow-actions::-webkit-scrollbar {
+  display: none;
+}
+
+.activity-detail-view.activity-detail-view--sm-down .activity-detail-header-qr,
+.activity-detail-view.activity-detail-view--sm-down .activity-detail-header-buttons {
+  flex-wrap: nowrap;
+  flex-shrink: 0;
+}
+
+.activity-detail-view.activity-detail-view--sm-down .activity-detail-header-qr .header-qr-tag {
+  flex-shrink: 0;
+}
+
+.activity-detail-view.activity-detail-view--sm-down .activity-header-action-btn.e-button {
+  flex-shrink: 0;
+  min-width: auto !important;
+  height: auto !important;
+  min-height: 2rem;
+  padding: 4px 8px !important;
+  font-size: 11px;
+}
+
+.activity-detail-view.activity-detail-view--sm-down .activity-header-action-btn.e-button .v-btn__content {
+  white-space: nowrap;
+  font-size: 11px;
+  line-height: 1.2;
+}
+
+/* ── ActivityCreateWizard / DraftOverview ── */
+
+.activity-create-wizard-host.activity-create-wizard-host--sm-down .form-row-dates,
+.activity-create-wizard-host.activity-create-wizard-host--sm-down .form-row-datetime {
+  grid-template-columns: 1fr;
+}
+
+.activity-create-wizard-host.activity-create-wizard-host--sm-down {
+  --activity-wizard-control-height: 30px;
+}
+
+.activity-create-wizard-host.activity-create-wizard-host--sm-down .material-wizard-modal > .material-wizard-footer.activity-create-footer {
+  padding: 8px 10px;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.activity-create-wizard-host.activity-create-wizard-host--sm-down .activity-create-footer {
+  flex-wrap: nowrap;
+  gap: 6px;
+}
+
+.activity-create-wizard-host.activity-create-wizard-host--sm-down .material-wizard-sidebar,
+.activity-create-wizard-host.activity-create-wizard-host--sm-down .activity-preview-sidebar {
+  display: none !important;
+}
+
+.activity-create-wizard-host.activity-create-wizard-host--sm-down .material-wizard-body {
+  grid-template-columns: 1fr;
+}
+
+.activity-create-wizard-host.activity-create-wizard-host--sm-down .activity-create-footer .footer-spacer {
+  display: none;
+}
+
+.activity-create-wizard-host.activity-create-wizard-host--sm-down .activity-create-footer-draft {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 42%;
+}
+
+.activity-create-wizard-host.activity-create-wizard-host--sm-down .activity-create-footer-draft .activity-draft-saved-at {
+  display: none;
+}
+
+.activity-create-wizard-host.activity-create-wizard-host--sm-down .activity-create-footer-actions {
+  flex: 1 1 auto;
+  min-width: 0;
+  flex-wrap: nowrap !important;
+  justify-content: flex-end;
+  gap: 4px;
+}
+
+.activity-create-wizard-host.activity-create-wizard-host--sm-down .activity-create-footer .footer-actions {
+  flex: 1 1 auto;
+  min-width: 0;
+  flex-wrap: nowrap !important;
+  justify-content: flex-end;
+  gap: 4px;
+}
+
+.activity-create-wizard-host.activity-create-wizard-host--sm-down .activity-create-footer .footer-actions .v-btn--size-small {
+  flex: 0 0 auto;
+  min-width: 0 !important;
+  padding-inline: 8px !important;
+  font-size: 11px !important;
+}
+
+.activity-create-wizard-host.activity-create-wizard-host--sm-down .activity-wizard-missing-alert.v-alert {
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: none;
+  height: var(--activity-wizard-control-height);
+  min-height: var(--activity-wizard-control-height);
+  padding: 0 6px !important;
+  font-size: 11px;
+}
+
+.activity-create-wizard-host.activity-create-wizard-host--sm-down .activity-wizard-missing-alert .v-alert__content {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.activity-create-wizard-host.activity-create-wizard-host--sm-down .activity-wizard-missing-alert .v-alert__prepend {
+  margin-inline-end: 4px !important;
+}
+
+.activity-create-wizard-host.activity-create-wizard-host--sm-down .activity-wizard-missing-alert .v-alert__prepend .v-icon {
+  font-size: 14px !important;
+}
+
+.activity-create-wizard-host.activity-create-wizard-host--md-and-up .material-wizard-body--with-preview {
+  grid-template-columns: minmax(0, 1fr) 340px;
+}
+
+.activity-create-wizard-host.activity-create-wizard-host--sm-only .material-wizard-body--with-preview {
+  grid-template-columns: minmax(0, 1fr) minmax(180px, 220px);
+}
+
+.activity-create-wizard-host.activity-create-wizard-host--sm-only .material-wizard-sidebar,
+.activity-create-wizard-host.activity-create-wizard-host--sm-only .activity-preview-sidebar {
+  max-height: none;
+  padding: 14px 12px 20px;
+  border-left: 1px solid #e5e7eb;
+  border-top: none;
+}
+
+.activity-create-wizard-host.activity-create-wizard-host--sm-only .material-wizard-sidebar h3,
+.activity-create-wizard-host.activity-create-wizard-host--sm-only .activity-preview-sidebar h3 {
+  font-size: 11px;
+  margin-bottom: 10px;
+}
+
+.activity-create-wizard-host.activity-create-wizard-host--sm-only .material-preview {
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  margin-bottom: 12px;
+}
+
+.activity-create-wizard-host.activity-create-wizard-host--sm-only .preview-image {
+  width: 52px;
+  height: 52px;
+}
+
+.activity-create-wizard-host.activity-create-wizard-host--sm-only .preview-image svg {
+  width: 26px;
+  height: 26px;
+}
+
+.activity-create-wizard-host.activity-create-wizard-host--sm-only .preview-info h4 {
+  font-size: 13px;
+  line-height: 1.3;
+}
+
+.activity-create-wizard-host.activity-create-wizard-host--sm-only .activity-preview-sidebar .preview-meta,
+.activity-create-wizard-host.activity-create-wizard-host--sm-only .activity-preview-sidebar .preview-dates {
+  font-size: 11px;
+  margin-top: 4px;
+}
+
+.activity-create-wizard-host.activity-create-wizard-host--sm-only .material-wizard-form {
+  padding: 16px 16px 28px;
+}
+
+.activity-create-dialog.activity-create-dialog--md-and-up:not(.v-dialog--fullscreen) .activity-create-dialog__content {
+  margin: 20px auto;
+}
+
+/* ── Activity type chips ── */
+
+.activity-create-wizard-host.activity-create-wizard-host--sm-down .activity-type-chip-row {
+  gap: 8px;
+}
+
+.activity-create-wizard-host.activity-create-wizard-host--sm-down .activity-type-chip-btn.v-btn {
+  min-height: 56px;
+  padding: 12px 10px !important;
+  font-size: 13px;
+}
+
+.activity-create-wizard-host.activity-create-wizard-host--sm-down .activity-type-chip-btn .v-icon {
+  font-size: 24px;
+}
+
+/* ── Datetime pill bar ── */
+
+.activity-datetime-host.activity-datetime-host--sm-down .activity-pill-bar,
+.activity-create-wizard-host.activity-create-wizard-host--sm-down .activity-pill-bar,
+.activity-detail-datetime-host.activity-detail-datetime-host--sm-down .activity-pill-bar {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border-radius: 22px;
+  scrollbar-width: thin;
+}
+
+/* ── Activities list (ActivitiesView / overview.css) ── */
+  .activities-view--list.activities-view--list--sm-down .page-shell__header {
+    margin-bottom: 16px;
+    gap: 12px;
+  }
+
+  .activities-view--list.activities-view--list--sm-down .page-shell__title {
+    font-size: 1.25rem;
+  }
+
+  /* Zeile 1: Tabs · Zeile 2–3: Suche + Typ/Status (mini, bei Tipp/Fokus oder Filterwert gross) */
+  .activities-view--list.activities-view--list--sm-down .activities-filter-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-bottom: 10px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--color-border, #e5e7eb);
+  }
+
+  .activities-view--list.activities-view--list--sm-down .activities-filter-stack:has(.activities-list-filters) {
+    gap: 12px;
+  }
+
+  .activities-view--list.activities-view--list--sm-down .filter-bar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0;
+    min-height: 0;
+    margin-bottom: 0;
+    border-bottom: none;
+    padding-bottom: 0;
+  }
+
+  .activities-view--list.activities-view--list--sm-down .filter-tabs {
+    width: 100%;
+  }
+
+  .activities-view--list.activities-view--list--sm-down .filter-tabs .filter-tab {
+    padding: 8px 10px;
+    font-size: 13px;
+  }
+
+  /* Offen/Anstehend: kein Platzhalter für ausgeblendete Suche */
+  .activities-view--list.activities-view--list--sm-down .activities-filter-stack__search.filter-actions-all--reserved {
+    display: none;
+    margin: 0;
+    padding: 0;
+    min-height: 0;
+  }
+
+  .activities-view--list.activities-view--list--sm-down .activities-filter-stack__search:not(.filter-actions-all--reserved) {
+    width: 100%;
+    min-width: 0;
+    max-width: none;
+    flex: 1 1 100%;
+    order: 2;
+    margin-top: 14px;
+    margin-bottom: 4px;
+  }
+
+  .activities-view--list.activities-view--list--sm-down .activities-filter-stack__search .search-box {
+    width: 100%;
+    min-width: 0;
+    max-width: none;
+  }
+
+  .activities-view--list.activities-view--list--sm-down .filter-tabs {
+    order: 1;
+  }
+
+  .activities-view--list.activities-view--list--sm-down .activities-list-filters {
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 10px;
+    margin-top: 0;
+    margin-bottom: 0;
+    padding-top: 2px;
+    width: 100%;
+  }
+
+  .activities-view--list.activities-view--list--sm-down .activities-list-filters .e-form-field,
+  .activities-view--list.activities-view--list--sm-down .activities-list-filters .autosave-field {
+    margin-top: 0;
+    margin-bottom: 0;
+  }
+
+  .activities-view--list.activities-view--list--sm-down .activities-list-filters__select {
+    flex: 1 1 0;
+    min-width: 0;
+    max-width: none;
+  }
+
+  /* Kompakt aber sichtbar; gross bei Tipp/Fokus oder gesetzten Filtern */
+  .activities-view--list.activities-view--list--sm-down
+    .activities-filter-stack:not(:focus-within):not(.activities-filter-stack--pinned):not(.activities-filter-stack--expanded)
+    .search-field {
+    padding-top: 2px;
+  }
+
+  .activities-view--list.activities-view--list--sm-down
+    .activities-filter-stack:not(:focus-within):not(.activities-filter-stack--pinned):not(.activities-filter-stack--expanded)
+    .search-field__frame {
+    min-height: 28px;
+    border-radius: 8px;
+  }
+
+  .activities-view--list.activities-view--list--sm-down
+    .activities-filter-stack:not(:focus-within):not(.activities-filter-stack--pinned):not(.activities-filter-stack--expanded)
+    .search-field__icon svg {
+    width: 14px;
+    height: 14px;
+  }
+
+  .activities-view--list.activities-view--list--sm-down
+    .activities-filter-stack:not(:focus-within):not(.activities-filter-stack--pinned):not(.activities-filter-stack--expanded)
+    .search-field__label {
+    font-size: 10px;
+  }
+
+  .activities-view--list.activities-view--list--sm-down
+    .activities-filter-stack:not(:focus-within):not(.activities-filter-stack--pinned):not(.activities-filter-stack--expanded)
+    .search-field__input {
+    min-height: 28px;
+    padding: 6px 28px 4px 32px;
+    font-size: 11px;
+  }
+
+  .activities-view--list.activities-view--list--sm-down
+    .activities-filter-stack:not(:focus-within):not(.activities-filter-stack--pinned):not(.activities-filter-stack--expanded)
+    .activities-list-filters__select .field-outline-label {
+    font-size: 9px;
+  }
+
+  .activities-view--list.activities-view--list--sm-down
+    .activities-filter-stack:not(:focus-within):not(.activities-filter-stack--pinned):not(.activities-filter-stack--expanded)
+    .activities-list-filters__select .v-field {
+    font-size: 10px;
+  }
+
+  .activities-view--list.activities-view--list--sm-down
+    .activities-filter-stack:not(:focus-within):not(.activities-filter-stack--pinned):not(.activities-filter-stack--expanded)
+    .activities-list-filters__select .v-field__input {
+    min-height: 28px;
+  }
+
+  .activities-view--list.activities-view--list--sm-down
+    .activities-filter-stack:not(:focus-within):not(.activities-filter-stack--pinned):not(.activities-filter-stack--expanded)
+    .activities-list-filters__select .v-select__selection-text {
+    font-size: 10px;
+  }
+
+  .activities-view--list.activities-view--list--sm-down .activities-filter-stack:focus-within .search-field,
+  .activities-view--list.activities-view--list--sm-down .activities-filter-stack--pinned .search-field,
+  .activities-view--list.activities-view--list--sm-down .activities-filter-stack--expanded .search-field {
+    padding-top: 10px;
+  }
+
+  .activities-view--list.activities-view--list--sm-down .activities-filter-stack:focus-within .search-field__frame,
+  .activities-view--list.activities-view--list--sm-down .activities-filter-stack--pinned .search-field__frame,
+  .activities-view--list.activities-view--list--sm-down .activities-filter-stack--expanded .search-field__frame {
+    min-height: 48px;
+    border-radius: 10px;
+  }
+
+  .activities-view--list.activities-view--list--sm-down .activities-filter-stack:focus-within .search-field__input,
+  .activities-view--list.activities-view--list--sm-down .activities-filter-stack--pinned .search-field__input,
+  .activities-view--list.activities-view--list--sm-down .activities-filter-stack--expanded .search-field__input {
+    min-height: 48px;
+    padding: 16px 36px 10px 40px;
+    font-size: 14px;
+  }
+
+  .activities-view--list.activities-view--list--sm-down .activities-filter-stack:focus-within .activities-list-filters__select .field-outline-label,
+  .activities-view--list.activities-view--list--sm-down .activities-filter-stack--pinned .activities-list-filters__select .field-outline-label,
+  .activities-view--list.activities-view--list--sm-down .activities-filter-stack--expanded .activities-list-filters__select .field-outline-label {
+    font-size: 12px;
+  }
+
+  .activities-view--list.activities-view--list--sm-down .activities-filter-stack:focus-within .activities-list-filters__select .v-field,
+  .activities-view--list.activities-view--list--sm-down .activities-filter-stack--pinned .activities-list-filters__select .v-field,
+  .activities-view--list.activities-view--list--sm-down .activities-filter-stack--expanded .activities-list-filters__select .v-field {
+    font-size: 14px;
+  }
+
+  .activities-view--list.activities-view--list--sm-down .activities-filter-stack:focus-within .activities-list-filters__select .v-field__input,
+  .activities-view--list.activities-view--list--sm-down .activities-filter-stack--pinned .activities-list-filters__select .v-field__input,
+  .activities-view--list.activities-view--list--sm-down .activities-filter-stack--expanded .activities-list-filters__select .v-field__input {
+    min-height: 40px;
+  }
+
+  .activities-view--list.activities-view--list--sm-down .activities-filter-stack:focus-within .activities-list-filters__select .v-select__selection-text,
+  .activities-view--list.activities-view--list--sm-down .activities-filter-stack--pinned .activities-list-filters__select .v-select__selection-text,
+  .activities-view--list.activities-view--list--sm-down .activities-filter-stack--expanded .activities-list-filters__select .v-select__selection-text {
+    font-size: 14px;
+  }
+
+  .activities-view--list.activities-view--list--sm-and-up .activities-filter-stack {
+    margin-bottom: 0;
+  }

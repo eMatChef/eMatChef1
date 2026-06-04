@@ -88,7 +88,8 @@
           v-model="feat.icon"
           type="text"
           class="inp inp-icon"
-          maxlength="8"
+          maxlength="48"
+          placeholder="mdi-clipboard-check-outline"
           :disabled="saving"
         />
         <label class="lbl" :for="'landing-feat-title-' + idx">{{ t('components.siteEditors.landing.featureTitleLabel') }}</label>

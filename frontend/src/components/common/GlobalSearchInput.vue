@@ -8,7 +8,7 @@
       @click="expand"
       :aria-label="t('common.search')"
     >
-      <IconSearch />
+      <v-icon icon="mdi-magnify" size="20" />
     </button>
 
     <div v-else class="global-search__field">
@@ -42,6 +42,11 @@
                 <span class="suggestion-type">{{ typeLabel(s.type) }}</span>
               </button>
             </div>
+            <div v-if="showAllResultsLink" class="suggestions-footer">
+              <button type="button" class="suggestion-show-all" @click="goToFullSearchPage">
+                {{ t('components.globalSearch.showAllResults') }}
+              </button>
+            </div>
           </div>
         </Transition>
       </SearchFieldInput>
@@ -52,22 +57,25 @@
         :aria-label="t('common.searchClose')"
         @click="collapse"
       >
-        <IconClose />
+        <v-icon icon="mdi-close" size="20" />
       </button>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { IconSearch, IconClose } from '@/components/icons'
 import SearchFieldInput from '@/components/common/SearchFieldInput.vue'
 import { ref, watch, nextTick, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
+import { useAuthStore } from '@/stores/auth'
 import {
   useSearchNavigation,
   parseSearchQuery,
   fetchSearchSuggestions,
+  getSearchEnabledTypes,
+  getGlobalSearchPageTarget,
+  hasExplicitSearchPrefix,
   type SearchTargetType,
   type SearchSuggestion,
 } from '@/composables/useSearchNavigation'
@@ -77,12 +85,15 @@ const props = withDefaults(
     mode?: 'icon' | 'inline'
     departmentId?: string
     defaultType?: SearchTargetType
+    /** Header: ohne Prefix Material, Aktivität und Reparatur (je nach Rolle) */
+    searchAllTypes?: boolean
     placeholder?: string
     modelValue?: string
   }>(),
   {
     mode: 'icon',
     placeholder: undefined,
+    searchAllTypes: false,
   }
 )
 
@@ -94,7 +105,10 @@ const emit = defineEmits<{
 }>()
 
 const router = useRouter()
+const authStore = useAuthStore()
 const { executeSearch } = useSearchNavigation()
+
+const headerEnabledTypes = computed(() => getSearchEnabledTypes(authStore))
 
 const query = ref(props.modelValue ?? '')
 const isExpanded = ref(props.mode === 'inline')
@@ -107,6 +121,14 @@ const showSuggestionsDropdown = ref(false)
 const effectiveDepartmentId = computed(() => props.departmentId ?? '')
 const effectiveLabel = computed(
   () => props.placeholder || t('components.globalSearch.placeholderDefault'),
+)
+
+const showAllResultsLink = computed(
+  () =>
+    props.searchAllTypes &&
+    !!effectiveDepartmentId.value &&
+    query.value.trim().length >= 2 &&
+    (suggestions.value.length > 0 || !isSuggestionsLoading.value)
 )
 
 let debounceTimer: ReturnType<typeof setTimeout> | null = null
@@ -155,7 +177,11 @@ async function loadSuggestions() {
     const results = await fetchSearchSuggestions(
       query.value,
       effectiveDepartmentId.value,
-      props.defaultType
+      props.defaultType ?? 'material',
+      {
+        searchAllTypes: props.searchAllTypes,
+        enabledTypes: props.searchAllTypes ? headerEnabledTypes.value : undefined,
+      }
     )
     suggestions.value = results
   } catch {
@@ -167,6 +193,22 @@ async function loadSuggestions() {
 
 function selectSuggestion(s: SearchSuggestion) {
   router.push(s.path)
+  showSuggestionsDropdown.value = false
+  suggestions.value = []
+  if (props.mode === 'icon') collapse()
+}
+
+function goToFullSearchPage() {
+  const raw = query.value.trim()
+  if (!raw || !effectiveDepartmentId.value) return
+  const parsed = parseSearchQuery(raw, props.defaultType ?? 'material')
+  const term = parsed?.term ?? raw
+  const target = getGlobalSearchPageTarget(
+    effectiveDepartmentId.value,
+    term,
+    props.searchAllTypes && parsed && hasExplicitSearchPrefix(raw) ? parsed.type : undefined
+  )
+  router.push({ path: target.path, query: target.query })
   showSuggestionsDropdown.value = false
   suggestions.value = []
   if (props.mode === 'icon') collapse()
@@ -211,7 +253,9 @@ function submitSearch() {
   if (!raw) return
 
   if (effectiveDepartmentId.value) {
-    const ok = executeSearch(raw, effectiveDepartmentId.value, props.defaultType)
+    const ok = executeSearch(raw, effectiveDepartmentId.value, props.defaultType ?? 'material', {
+      searchAllTypes: props.searchAllTypes,
+    })
     if (ok && props.mode === 'icon') {
       collapse()
     }
@@ -365,6 +409,28 @@ defineExpose({
   font-size: 11px;
   color: #6b7280;
   text-transform: uppercase;
+}
+
+.suggestions-footer {
+  border-top: 1px solid #e5e7eb;
+  padding: 6px 8px;
+}
+
+.suggestion-show-all {
+  width: 100%;
+  padding: 8px 10px;
+  border: none;
+  border-radius: 6px;
+  background: var(--color-primary-muted-bg, #f0fdf4);
+  color: var(--color-primary-dark, #047857);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: center;
+}
+
+.suggestion-show-all:hover {
+  background: #dcfce7;
 }
 
 .dropdown-fade-enter-active,

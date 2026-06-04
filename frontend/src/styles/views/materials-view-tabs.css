@@ -1,0 +1,62 @@
+/**
+ * Material-Liste: v-tabs (Marken-Grün, Abstände wie Buchhaltung/Aufgaben).
+ */
+
+.materials-view-filters-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.materials-view-tabs {
+  border-bottom: 2px solid var(--color-border, #e5e7eb);
+  margin-bottom: 0;
+}
+
+.materials-view-tabs .v-slide-group__content {
+  gap: 2px;
+}
+
+.materials-view-tabs .v-tab {
+  text-transform: none;
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: normal;
+  min-width: auto;
+  padding-inline: 16px;
+  color: var(--color-text-muted);
+  transition: color 0.2s ease, background 0.2s ease;
+}
+
+.materials-view-tabs .v-tab:not(.v-tab--selected):hover {
+  color: var(--color-primary-dark);
+  background: var(--color-primary-muted-bg);
+  border-radius: 8px 8px 0 0;
+}
+
+.materials-view-tabs .v-tab--selected {
+  color: var(--color-primary);
+  font-weight: 600;
+}
+
+.materials-view-tabs .v-tab__slider {
+  height: 3px;
+  background: var(--color-primary-light);
+  border-radius: 3px 3px 0 0;
+}
+
+.materials-view-tab-count {
+  margin-inline-start: 6px;
+}
+
+.materials-view-tabs .v-tab--selected .materials-view-tab-count {
+  color: var(--color-primary);
+}
+
+.materials-view-filters {
+  margin-top: 0;
+}
+
+.materials-view-content {
+  margin-top: 0;
+}

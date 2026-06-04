@@ -1,87 +1,56 @@
 <template>
   <ActivityOutlinedDatetimeSection :id="usageBlockId" :title="usageSectionTitle" icon="calendar" :required="true">
     <slot name="usage-before" />
-    <template v-if="isActivityType">
-      <ActivityPillDateTimeRow
-        label=""
-        :label-from="usageTimeFromLabel"
-        :label-to="usageTimeToLabel"
-        :aria-label="t('activities.zeitraum.ariaUsageActivityDay')"
-      >
-        <template #date>
-          <ActivityDateField
-            v-model="usageDay"
-            :department-id="departmentId"
-            :disabled="usageDatesLocked"
-            :teleport-to="teleportTo"
-          />
-        </template>
-        <template #timeFrom>
-          <ActivityTimeField v-model="usageTimeFrom" :locked="usageDatesLocked" />
-        </template>
-        <template #timeTo>
-          <ActivityTimeField v-model="usageTimeTo" :locked="usageDatesLocked" />
-        </template>
-      </ActivityPillDateTimeRow>
-    </template>
-    <template v-else>
-      <ActivityPillDateTimeRow
-        :label="usageRangeRowLabelDisplay"
-        :label-from="usageTimeFromLabel"
-        :label-to="usageTimeToLabel"
-        :aria-label="t('activities.zeitraum.ariaUsageRange')"
-      >
-        <template #date>
-          <ActivityDateRangeField
-            v-model="usageRange"
-            :department-id="departmentId"
-            :show-preset-sidebar="showDateRangePresetSidebar"
-            :disabled="usageDatesLocked"
-            :teleport-to="teleportTo"
-          />
-        </template>
-        <template #timeFrom>
-          <ActivityTimeField v-model="usageTimeFrom" :locked="usageDatesLocked" />
-        </template>
-        <template #timeTo>
-          <ActivityTimeField v-model="usageTimeTo" :locked="usageDatesLocked" />
-        </template>
-      </ActivityPillDateTimeRow>
-    </template>
+    <ActivityDateTimeFields
+      v-if="isActivityType"
+      v-model:day="usageDay"
+      v-model:time-from="usageTimeFrom"
+      v-model:time-to="usageTimeTo"
+      date-mode="single"
+      :department-id="departmentId"
+      :disabled="usageDatesLocked"
+      :times-locked="usageDatesLocked"
+      :show-presets="true"
+      :show-markers="true"
+      :label-from="usageTimeFromLabel"
+      :label-to="usageTimeToLabel"
+      :aria-label="t('activities.zeitraum.ariaUsageActivityDay')"
+    />
+    <ActivityDateTimeFields
+      v-else
+      v-model:range="usageRange"
+      v-model:time-from="usageTimeFrom"
+      v-model:time-to="usageTimeTo"
+      date-mode="range"
+      :department-id="departmentId"
+      :disabled="usageDatesLocked"
+      :times-locked="usageDatesLocked"
+      :show-presets="showDateRangePresetSidebar"
+      :show-markers="true"
+      :label="usageRangeRowLabelDisplay"
+      :label-from="usageTimeFromLabel"
+      :label-to="usageTimeToLabel"
+      :aria-label="t('activities.zeitraum.ariaUsageRange')"
+    />
   </ActivityOutlinedDatetimeSection>
 
   <ActivityOutlinedDatetimeSection :id="planningBlockId" :title="materialSectionTitle" icon="truck" :required="true">
     <slot name="planning-before" />
-    <ActivityPillDateTimeRow
-      label=""
+    <ActivityDateTimeFields
+      v-model:range="matRange"
+      v-model:time-from="matStartTime"
+      v-model:time-to="matEndTime"
+      date-mode="range"
+      :department-id="departmentId"
+      :disabled="planningDatesLocked"
+      :times-locked="planningDatesLocked"
+      :show-presets="showDateRangePresetSidebar"
+      :show-markers="true"
+      :blocked-usage-range="materialTimesBlockedUsage"
       :label-from="materialTimeFromLabel"
       :label-to="materialTimeToLabel"
       :aria-label="t('activities.zeitraum.ariaMaterialRange')"
-    >
-      <template #date>
-        <ActivityDateRangeField
-          v-model="matRange"
-          :department-id="departmentId"
-          :show-preset-sidebar="showDateRangePresetSidebar"
-          :disabled="planningDatesLocked"
-          :teleport-to="teleportTo"
-        />
-      </template>
-      <template #timeFrom>
-        <ActivityTimeField
-          v-model="matStartTime"
-          :locked="planningDatesLocked"
-          :blocked-usage-range="materialTimesBlockedUsage"
-        />
-      </template>
-      <template #timeTo>
-        <ActivityTimeField
-          v-model="matEndTime"
-          :locked="planningDatesLocked"
-          :blocked-usage-range="materialTimesBlockedUsage"
-        />
-      </template>
-    </ActivityPillDateTimeRow>
+    />
     <slot name="planning-after" />
   </ActivityOutlinedDatetimeSection>
 </template>
@@ -90,34 +59,23 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { ActivityApiType } from '@/api/activities'
-import ActivityDateField from '@/components/activities/wizard/ActivityDateField.vue'
-import ActivityDateRangeField from '@/components/activities/wizard/ActivityDateRangeField.vue'
+import ActivityDateTimeFields from '@/components/activities/wizard/ActivityDateTimeFields.vue'
 import ActivityOutlinedDatetimeSection from '@/components/activities/wizard/ActivityOutlinedDatetimeSection.vue'
-import ActivityPillDateTimeRow from '@/components/activities/wizard/ActivityPillDateTimeRow.vue'
-import ActivityTimeField from '@/components/activities/wizard/ActivityTimeField.vue'
 
 const props = withDefaults(
   defineProps<{
     activityType: ActivityApiType
     departmentId: string
-    /** Datepicker-Overlay: Wizard-Modal oder `body` in der Detailansicht */
     teleportTo?: string
-    /** Sperrt Nutzungsdatum und -zeiten (z. B. sobald Materialpositionen existieren). */
     usageDatesLocked?: boolean
-    /** Sperrt Abhol-/Rückgabe (Material-Planung); getrennt von Nutzung. */
     planningDatesLocked?: boolean
-    showDateRangePresetSidebar: boolean
     usageBlockId?: string
     planningBlockId?: string
-    /** Sichtbares Label bei Nutzung als Datumsbereich (nicht Typ „Aktivität“) */
     usageRangeRowLabel?: string
-    /**
-     * Nutzungsintervall: Abhol-/Rückgabe-Uhrzeiten in diesen Zeiten sind in den Dropdowns nicht wählbar.
-     */
     materialTimesBlockedUsage?: { start: Date; end: Date } | null
   }>(),
   {
-    teleportTo: '.material-wizard-modal',
+    teleportTo: 'body',
     usageDatesLocked: false,
     planningDatesLocked: false,
     materialTimesBlockedUsage: null,
@@ -137,6 +95,10 @@ const matStartTime = defineModel<Date | null>('matStartTime', { required: true }
 const matEndTime = defineModel<Date | null>('matEndTime', { required: true })
 
 const isActivityType = computed(() => props.activityType === 'activity')
+
+const showDateRangePresetSidebar = computed(
+  () => props.activityType === 'camp' || props.activityType === 'event',
+)
 
 const usageRangeRowLabelDisplay = computed(() => {
   const v = props.usageRangeRowLabel

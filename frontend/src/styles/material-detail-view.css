@@ -24,23 +24,8 @@
   gap: 20px;
 }
 
-.back-btn {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 16px;
-  background: #f3f4f6;
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
-  font-size: 14px;
-  font-weight: 500;
-  color: #374151;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.back-btn:hover {
-  background: #e5e7eb;
+.material-detail-view .material-detail-back-btn {
+  flex-shrink: 0;
 }
 
 .header-title {
@@ -110,47 +95,63 @@
   overflow-y: auto;
 }
 
-/* Tab Navigation */
-.tab-nav {
-  display: flex;
-  gap: 0;
-  background: white;
-  border-bottom: 3px solid #e5e7eb;
-  padding: 0 24px;
+/* Tab Navigation (Vuetify v-tabs) — Marken-Grün wie frühere .material-tab-Leiste */
+.material-detail-tabs {
+  flex-shrink: 0;
   position: sticky;
   top: 0;
   z-index: 5;
+  background: white;
+  border-bottom: 2px solid #e5e7eb;
+  margin-bottom: 16px;
 }
 
-.tab-btn {
-  padding: 9px 15px;
-  background: none;
-  border: none;
-  font-size: 15px;
+.material-detail-view :deep(.material-detail-tabs.v-tabs) {
+  padding-inline: 16px;
+}
+
+.material-detail-view :deep(.material-detail-tabs .v-slide-group__content) {
+  gap: 2px;
+}
+
+.material-detail-view :deep(.material-detail-tabs .v-tab) {
+  text-transform: none;
+  font-size: 14px;
   font-weight: 500;
-  color: #6b7280;
-  cursor: pointer;
-  position: relative;
-  white-space: nowrap;
-  transition: color 0.2s;
+  letter-spacing: normal;
+  min-width: auto;
+  padding-inline: 16px;
+  color: var(--color-text-muted);
+  transition: color 0.2s ease, background 0.2s ease;
 }
 
-.tab-btn:hover {
-  color: #374151;
+.material-detail-view :deep(.material-detail-tabs .v-tab:not(.v-tab--selected):hover) {
+  color: var(--color-primary-dark);
+  background: var(--color-primary-muted-bg);
+  border-radius: 8px 8px 0 0;
 }
 
-.tab-btn.active {
-  color: #10b981;
+.material-detail-view :deep(.material-detail-tabs .v-tab--selected) {
+  color: var(--color-primary);
+  font-weight: 600;
 }
 
-.tab-btn.active::after {
-  content: '';
-  position: absolute;
-  bottom: -3px;
-  left: 0;
-  right: 0;
+.material-detail-view :deep(.material-detail-tabs .v-tab__slider) {
   height: 3px;
-  background: #10b981;
+  background: var(--color-primary-light);
+  border-radius: 3px 3px 0 0;
+}
+
+.material-detail-tabs-window {
+  overflow: visible;
+}
+
+.material-detail-view :deep(.material-detail-tabs-window .v-window__container) {
+  overflow: visible;
+}
+
+.material-detail-window-item {
+  overflow: visible;
 }
 
 /* Content Layout */
@@ -702,10 +703,6 @@
     grid-template-columns: 1fr;
   }
   
-  .tab-nav {
-    overflow-x: auto;
-  }
-  
   .history-layout {
     flex-direction: column;
   }
@@ -999,7 +996,8 @@
 }
 
 /* Komponente hinzufügen / bearbeiten: fester Kopf, scrollbarer Inhalt, kleinere Hinweise */
-.modal-dialog.composition-add-modal {
+.modal-dialog.composition-add-modal,
+.material-detail-view .composition-add-modal {
   display: flex;
   flex-direction: column;
   max-height: min(90vh, 640px);

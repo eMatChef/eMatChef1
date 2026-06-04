@@ -1,78 +1,59 @@
 <template>
-  <div v-if="message" class="modal-overlay" @click.self="emit('close')">
-    <div
-      class="modal-dialog nc-message-detail-modal"
-      role="dialog"
-      aria-modal="true"
-      :aria-label="t('notificationsCenter.qrDetailTitle')"
-      @click.stop
-    >
-      <header class="modal-header">
-        <h3>{{ t('notificationsCenter.qrDetailTitle') }}</h3>
-        <button type="button" class="modal-close" :aria-label="t('common.cancel')" @click="emit('close')">
-          ×
-        </button>
-      </header>
-      <div class="modal-body nc-message-detail">
-        <div class="nc-message-detail__sender">
-          <NotificationSenderBlock v-if="sender" :sender="sender" size="md" />
-          <div>
-            <div class="nc-message-detail__from">{{ senderLine }}</div>
-            <time class="nc-message-detail__date">{{ formattedDate }}</time>
-          </div>
-        </div>
-        <p class="nc-qr-detail__material">
-          <strong>{{ t('common.material') }}:</strong> {{ message.material_name }}
-        </p>
-        <div class="nc-message-detail__body">{{ message.message }}</div>
-        <p v-if="message.sender_email" class="nc-qr-detail__email">
-          <strong>{{ t('notificationsCenter.tableSender') }}:</strong> {{ message.sender_email }}
-        </p>
-        <p v-if="!showTask" class="nc-qr-detail__hint">{{ t('notificationsCenter.messageWithTaskHint') }}</p>
-        <div v-else class="nc-qr-detail__task-panel">
-          <p class="nc-qr-detail__task-label">{{ t('notificationsCenter.taskPanelLabel') }}</p>
-          <select
-            class="nc-status-select"
-            :value="message.status"
-            :title="t('common.status')"
-            @change="onStatusChange"
-          >
-            <option value="open">{{ t('notificationsCenter.statusOpen') }}</option>
-            <option value="in_progress">{{ t('notificationsCenter.statusInProgress') }}</option>
-            <option value="done">{{ t('notificationsCenter.statusDone') }}</option>
-          </select>
-          <p v-if="canReply" class="nc-qr-detail__reply-hint">{{ t('notificationsCenter.replyHint') }}</p>
+  <EDialog
+    v-model="open"
+    :max-width="560"
+    :title="t('notificationsCenter.qrDetailTitle')"
+  >
+    <div v-if="message" class="nc-message-detail">
+      <div class="nc-message-detail__sender">
+        <NotificationSenderBlock v-if="sender" :sender="sender" size="md" />
+        <div>
+          <div class="nc-message-detail__from">{{ senderLine }}</div>
+          <time class="nc-message-detail__date">{{ formattedDate }}</time>
         </div>
       </div>
-      <footer class="modal-footer nc-qr-detail__footer">
-        <template v-if="!showTask">
-          <button type="button" class="btn-primary btn-sm" @click="onProceedToTask">
-            {{ t('notificationsCenter.proceedToTask') }}
-          </button>
-          <button type="button" class="btn-outline btn-sm" @click="emit('close')">
-            {{ t('notificationsCenter.messageDetailClose') }}
-          </button>
-        </template>
-        <template v-else>
-          <button
-            v-if="canReply"
-            type="button"
-            class="btn-primary btn-sm"
-            :title="t('notificationsCenter.replyTitle')"
-            @click="onReply"
-          >
-            {{ t('notificationsCenter.reply') }}
-          </button>
-          <button type="button" class="btn-outline btn-sm" @click="emit('open-material', message)">
-            {{ t('notificationsCenter.openMaterial') }}
-          </button>
-          <button type="button" class="btn-outline btn-sm" @click="emit('close')">
-            {{ t('notificationsCenter.messageDetailClose') }}
-          </button>
-        </template>
-      </footer>
+      <p class="nc-qr-detail__material">
+        <strong>{{ t('common.material') }}:</strong> {{ message.material_name }}
+      </p>
+      <div class="nc-message-detail__body">{{ message.message }}</div>
+      <p v-if="message.sender_email" class="nc-qr-detail__email">
+        <strong>{{ t('notificationsCenter.tableSender') }}:</strong> {{ message.sender_email }}
+      </p>
+      <p v-if="!showTask" class="nc-qr-detail__hint">{{ t('notificationsCenter.messageWithTaskHint') }}</p>
+      <div v-else class="nc-qr-detail__task-panel">
+        <p class="nc-qr-detail__task-label">{{ t('notificationsCenter.taskPanelLabel') }}</p>
+        <ESelect
+          :model-value="message.status"
+          :items="statusItems"
+          :label="t('common.status')"
+          hide-details
+          @update:model-value="onStatusSelect"
+        />
+        <p v-if="canReply" class="nc-qr-detail__reply-hint">{{ t('notificationsCenter.replyHint') }}</p>
+      </div>
     </div>
-  </div>
+    <template #actions>
+      <template v-if="message && !showTask">
+        <EButton variant="primary" size="small" @click="onProceedToTask">
+          {{ t('notificationsCenter.proceedToTask') }}
+        </EButton>
+        <EButton variant="secondary" size="small" @click="close">
+          {{ t('notificationsCenter.messageDetailClose') }}
+        </EButton>
+      </template>
+      <template v-else-if="message">
+        <EButton v-if="canReply" variant="primary" size="small" :title="t('notificationsCenter.replyTitle')" @click="onReply">
+          {{ t('notificationsCenter.reply') }}
+        </EButton>
+        <EButton variant="secondary" size="small" @click="emit('open-material', message)">
+          {{ t('notificationsCenter.openMaterial') }}
+        </EButton>
+        <EButton variant="secondary" size="small" @click="close">
+          {{ t('notificationsCenter.messageDetailClose') }}
+        </EButton>
+      </template>
+    </template>
+  </EDialog>
 </template>
 
 <script setup lang="ts">
@@ -83,6 +64,8 @@ import { openPublicFoundReplyMailto } from '@/api/publicFoundMessages'
 import NotificationSenderBlock from './NotificationSenderBlock.vue'
 import { useNotificationSender } from '@/composables/useNotificationSender'
 import { getSenderPrimaryLine } from '@/utils/notificationSender'
+import { EButton, EDialog, ESelect } from '@/components/form/base'
+import '@/styles/components/inbox-modal.css'
 
 const props = withDefaults(
   defineProps<{
@@ -105,9 +88,22 @@ const { t } = useI18n()
 const { fromPublicFound } = useNotificationSender()
 const showTask = ref(false)
 
+const open = computed({
+  get: () => props.message != null,
+  set: (value: boolean) => {
+    if (!value) emit('close')
+  },
+})
+
 const sender = computed(() => (props.message ? fromPublicFound(props.message) : null))
 const senderLine = computed(() => (sender.value ? getSenderPrimaryLine(sender.value) : ''))
 const canReply = computed(() => Boolean(props.message?.sender_email?.trim()))
+
+const statusItems = computed(() => [
+  { title: t('notificationsCenter.statusOpen'), value: 'open' },
+  { title: t('notificationsCenter.statusInProgress'), value: 'in_progress' },
+  { title: t('notificationsCenter.statusDone'), value: 'done' },
+])
 
 const formattedDate = computed(() => {
   if (!props.message?.created_at) return ''
@@ -129,6 +125,10 @@ watch(
   { immediate: true },
 )
 
+function close() {
+  emit('close')
+}
+
 function onProceedToTask() {
   if (!props.message) return
   if (props.navigateOnProceed) {
@@ -139,10 +139,9 @@ function onProceedToTask() {
   emit('proceed-to-task', props.message)
 }
 
-function onStatusChange(ev: Event) {
+function onStatusSelect(value: unknown) {
   if (!props.message) return
-  const el = ev.target as HTMLSelectElement
-  emit('status-change', props.message, el.value as PublicFoundMessageStatus)
+  emit('status-change', props.message, value as PublicFoundMessageStatus)
 }
 
 function onReply() {
@@ -152,50 +151,10 @@ function onReply() {
 </script>
 
 <style scoped>
-.nc-message-detail-modal {
-  width: min(560px, calc(100vw - 48px));
-  padding: 0;
-  overflow: hidden;
-}
-
-.nc-message-detail-modal .modal-header,
-.nc-message-detail-modal .modal-body,
-.nc-message-detail-modal .modal-footer {
-  margin: 0;
-}
-
-.nc-message-detail__sender {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  margin-bottom: 12px;
-}
-
-.nc-message-detail__from {
-  font-weight: 600;
-  color: #111827;
-  font-size: 0.95rem;
-}
-
-.nc-message-detail__date {
-  display: block;
-  margin-top: 2px;
-  font-size: 0.8rem;
-  color: #6b7280;
-}
-
 .nc-qr-detail__material {
   margin: 0 0 12px;
   font-size: 0.9rem;
   color: #374151;
-}
-
-.nc-message-detail__body {
-  font-size: 0.95rem;
-  line-height: 1.55;
-  color: #374151;
-  white-space: pre-wrap;
-  word-break: break-word;
 }
 
 .nc-qr-detail__email {
@@ -233,16 +192,5 @@ function onReply() {
   font-size: 0.8rem;
   color: #6b7280;
   line-height: 1.45;
-}
-
-.nc-qr-detail__footer {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  align-items: center;
-}
-
-.nc-status-select {
-  max-width: 100%;
 }
 </style>

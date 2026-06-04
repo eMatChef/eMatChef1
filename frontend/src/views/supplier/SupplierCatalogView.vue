@@ -6,20 +6,30 @@
       <p class="supplier-page-hint">{{ t('supplierCatalog.subtitle') }}</p>
     </header>
 
-    <div v-if="loading" class="supplier-page-state">{{ t('common.loading') }}</div>
-    <div v-else-if="loadError" class="supplier-page-state supplier-page-state--error">{{ loadError }}</div>
+    <ELoadingState
+      v-if="loading"
+      variant="inline"
+      :message="t('common.loading')"
+    />
+    <div v-else-if="loadError" class="supplier-page-error">
+      <v-alert type="error" variant="tonal" :text="loadError" />
+    </div>
 
     <template v-else>
       <div class="toolbar">
-        <button type="button" class="btn btn-primary" @click="openCreate">
+        <EButton variant="primary" @click="openCreate">
           {{ t('supplierCatalog.newItem') }}
-        </button>
-        <button type="button" class="btn btn-secondary" :disabled="loading" @click="loadItems">
+        </EButton>
+        <EButton variant="secondary" :disabled="loading" @click="loadItems">
           {{ t('supplierCatalog.refresh') }}
-        </button>
+        </EButton>
       </div>
 
-      <p v-if="items.length === 0" class="supplier-page-state">{{ t('supplierCatalog.empty') }}</p>
+      <EEmptyState
+        v-if="items.length === 0"
+        variant="create"
+        :title="t('supplierCatalog.empty')"
+      />
 
       <table v-else class="catalog-table">
         <thead>
@@ -42,12 +52,12 @@
             <td>{{ statusLabel(item) }}</td>
             <td>{{ item.is_active ? t('supplierCatalog.activeYes') : t('supplierCatalog.activeNo') }}</td>
             <td class="actions-cell">
-              <button type="button" class="btn btn-secondary btn-sm" @click="openEdit(item)">
+              <EButton variant="secondary" size="small" @click="openEdit(item)">
                 {{ t('common.edit') }}
-              </button>
-              <button type="button" class="btn btn-danger btn-sm" @click="removeItem(item)">
+              </EButton>
+              <EButton variant="danger" size="small" @click="removeItem(item)">
                 {{ t('common.delete') }}
-              </button>
+              </EButton>
             </td>
           </tr>
         </tbody>
@@ -81,6 +91,9 @@ import {
   type SupplierCatalogItemPayload,
   type SupplierCatalogTrackingType,
 } from '@/api/supplierCatalog'
+import { EButton } from '@/components/form/base'
+import EEmptyState from '@/components/layout/EEmptyState.vue'
+import ELoadingState from '@/components/layout/ELoadingState.vue'
 
 const route = useRoute()
 const { t } = useI18n()
@@ -197,6 +210,7 @@ onMounted(() => {
 <style scoped>
 .supplier-page {
   max-width: 1100px;
+  padding: 24px;
 }
 
 .supplier-page-header h1 {
@@ -215,13 +229,8 @@ onMounted(() => {
   color: #6b7280;
 }
 
-.supplier-page-state {
+.supplier-page-error {
   margin-top: 16px;
-  color: #6b7280;
-}
-
-.supplier-page-state--error {
-  color: #b91c1c;
 }
 
 .toolbar {
@@ -254,33 +263,5 @@ onMounted(() => {
   display: flex;
   gap: 8px;
   justify-content: flex-end;
-}
-
-.btn {
-  border: none;
-  border-radius: 8px;
-  padding: 8px 12px;
-  cursor: pointer;
-  font-size: 0.875rem;
-}
-
-.btn-sm {
-  padding: 6px 10px;
-  font-size: 12px;
-}
-
-.btn-primary {
-  background: #2563eb;
-  color: #fff;
-}
-
-.btn-secondary {
-  background: #e5e7eb;
-  color: #111827;
-}
-
-.btn-danger {
-  background: #dc2626;
-  color: #fff;
 }
 </style>

@@ -5,7 +5,7 @@
     role="status"
     aria-live="polite"
   >
-    {{ t('app.devEnvironmentBanner') }}
+    <span class="dev-environment-banner__text">{{ t('app.devEnvironmentBanner') }}</span>
   </div>
 </template>
 
@@ -19,20 +19,31 @@ const { t } = useI18n()
 const show = computed(() => shouldShowDevEnvironmentBanner())
 </script>
 
+<style>
+.emc-app:has(.dev-environment-banner) {
+  --emc-dev-system-bar-height: 36px;
+}
+</style>
+
 <style scoped>
 .dev-environment-banner {
-  position: sticky;
-  top: 0;
-  z-index: 10050;
+  flex: 0 0 auto;
   width: 100%;
+  min-height: 36px;
   box-sizing: border-box;
-  padding: 0.4rem 0.75rem;
-  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #facc15;
+  color: #422006;
   font-size: 0.8125rem;
   font-weight: 600;
-  line-height: 1.35;
-  color: #422006;
-  background: #facc15;
   border-bottom: 1px solid #ca8a04;
+}
+
+.dev-environment-banner__text {
+  line-height: 1.35;
+  text-align: center;
+  padding: 0.35rem 0.75rem;
 }
 </style>

@@ -14,34 +14,31 @@
       <strong>{{ t('mail.outbound.mailerMissingTitle') }}</strong> {{ t('mail.outbound.mailerMissingBody') }}
     </div>
 
-    <div v-if="isLoading" class="state">{{ t('mail.outbound.loading') }}</div>
-    <div v-else-if="error" class="state error">{{ error }}</div>
+    <ELoadingState v-if="isLoading" variant="page" :message="t('mail.outbound.loading')" />
+    <div v-else-if="error" class="error-block">
+      <v-alert type="error" variant="tonal" :text="error" />
+    </div>
 
     <form v-else class="form" @submit.prevent="save">
-      <div class="form-row">
-        <label for="from-address">{{ t('mail.outbound.fromAddress') }}</label>
-        <input
-          id="from-address"
-          v-model="form.from_address"
-          type="email"
-          class="input"
-          required
-          autocomplete="off"
-          :disabled="!canEdit"
-        />
-      </div>
-      <div class="form-row">
-        <label for="from-name">{{ t('mail.outbound.fromName') }}</label>
-        <input
-          id="from-name"
-          v-model="form.from_name"
-          type="text"
-          class="input"
-          maxlength="120"
-          :placeholder="t('mail.outbound.fromNamePlaceholder')"
-          :disabled="!canEdit"
-        />
-      </div>
+      <ETextField
+        id="from-address"
+        v-model="form.from_address"
+        :label="t('mail.outbound.fromAddress')"
+        type="email"
+        required
+        autocomplete="off"
+        :disabled="!canEdit"
+        hide-details="auto"
+      />
+      <ETextField
+        id="from-name"
+        v-model="form.from_name"
+        :label="t('mail.outbound.fromName')"
+        maxlength="120"
+        :placeholder="t('mail.outbound.fromNamePlaceholder')"
+        :disabled="!canEdit"
+        hide-details="auto"
+      />
       <p v-if="settings" class="meta">
         {{ t('mail.outbound.envFallback') }} <code>{{ settings.env_fallback_address }}</code>
         <span v-if="settings.uses_file" class="badge">{{ t('mail.outbound.jsonActive') }}</span>
@@ -64,46 +61,47 @@
         <span class="env-readonly-empty">{{ t('mail.outbound.replyToEnvNotSet') }}</span>
       </div>
 
-      <div class="form-row">
-        <label for="reply-to">{{ t('mail.outbound.replyToJson') }}</label>
-        <input
-          id="reply-to"
-          v-model="form.reply_to_address"
-          type="email"
-          class="input"
-          autocomplete="off"
-          :placeholder="t('mail.outbound.replyToPlaceholder')"
-          :disabled="!canEdit || !!settings?.mailer_reply_to_env"
-        />
-      </div>
+      <ETextField
+        id="reply-to"
+        v-model="form.reply_to_address"
+        :label="t('mail.outbound.replyToJson')"
+        type="email"
+        autocomplete="off"
+        :placeholder="t('mail.outbound.replyToPlaceholder')"
+        :disabled="!canEdit || !!settings?.mailer_reply_to_env"
+        hide-details="auto"
+      />
       <p v-if="settings?.reply_to_effective" class="meta">
         <strong>{{ t('mail.outbound.replyToEffective') }}</strong> <code>{{ settings.reply_to_effective }}</code>
       </p>
 
-      <div v-if="!canEdit" class="notice">
-        {{ t('mail.outbound.superadminOnly') }}
-      </div>
+      <v-alert v-if="!canEdit" type="warning" variant="tonal" class="mb-3" :text="t('mail.outbound.superadminOnly')" />
 
       <template v-if="canEdit">
         <h3 class="sub-title">{{ t('mail.outbound.testTitle') }}</h3>
         <p class="hint testmail-hint">
           {{ t('mail.outbound.testHintIntro') }} <strong>MAILER_DSN</strong> {{ t('mail.outbound.testHintOutro') }}
         </p>
-        <div class="form-row">
-          <label for="test-to">{{ t('mail.outbound.testTarget') }}</label>
-          <input id="test-to" v-model="testTo" type="email" class="input" autocomplete="off" :placeholder="t('mail.outbound.testPlaceholder')" />
-        </div>
+        <ETextField
+          id="test-to"
+          v-model="testTo"
+          :label="t('mail.outbound.testTarget')"
+          type="email"
+          autocomplete="off"
+          :placeholder="t('mail.outbound.testPlaceholder')"
+          hide-details="auto"
+        />
         <div class="actions test-actions">
-          <button type="button" class="btn btn-secondary" :disabled="isTesting" @click="sendTest">
+          <EButton variant="secondary" :loading="isTesting" @click="sendTest">
             {{ isTesting ? t('mail.outbound.sending') : t('mail.outbound.sendTest') }}
-          </button>
+          </EButton>
         </div>
       </template>
 
       <div class="actions">
-        <button v-if="canEdit" type="submit" class="btn btn-primary" :disabled="isSaving">
+        <EButton v-if="canEdit" variant="primary" type="submit" :loading="isSaving">
           {{ isSaving ? t('common.saving') : t('common.save') }}
-        </button>
+        </EButton>
       </div>
     </form>
   </div>
@@ -124,6 +122,8 @@ import {
 } from '@/api/mailAdmin'
 import { useToast } from '@/composables/useToast'
 import { apiErrorMessage } from '@/utils/apiErrorMessage'
+import ELoadingState from '@/components/layout/ELoadingState.vue'
+import { EButton, ETextField } from '@/components/form/base'
 
 const route = useRoute()
 const authStore = useAuthStore()
