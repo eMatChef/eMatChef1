@@ -7,11 +7,7 @@
       </div>
     </div>
 
-    <!-- Loading -->
-    <div v-if="isLoading" class="loading-state">
-      <div class="spinner"></div>
-      <p>{{ t('settings.activitySettings.loading') }}</p>
-    </div>
+    <ELoadingState v-if="isLoading" variant="page" :message="t('settings.activitySettings.loading')" />
 
     <!-- Settings Form -->
     <div v-else class="settings-form">
@@ -30,17 +26,19 @@
           </div>
         </div>
         <div class="setting-fields">
-          <div class="field-row">
-            <div class="field-group">
-              <label>{{ t('settings.activitySettings.fields.defaultStart') }}</label>
-              <input v-model="form.defaultTimeStart" type="time" step="900" class="form-input" />
-              <span class="field-hint">{{ t('settings.activitySettings.hints.defaultStart') }}</span>
-            </div>
-            <div class="field-group">
-              <label>{{ t('settings.activitySettings.fields.defaultEnd') }}</label>
-              <input v-model="form.defaultTimeEnd" type="time" step="900" class="form-input" />
-              <span class="field-hint">{{ t('settings.activitySettings.hints.defaultEnd') }}</span>
-            </div>
+          <div class="field-row field-row--time">
+            <ETimeField
+              id="activity-default-time-start"
+              v-model="form.defaultTimeStart"
+              :label="t('settings.activitySettings.fields.defaultStart')"
+              :hint="t('settings.activitySettings.hints.defaultStart')"
+            />
+            <ETimeField
+              id="activity-default-time-end"
+              v-model="form.defaultTimeEnd"
+              :label="t('settings.activitySettings.fields.defaultEnd')"
+              :hint="t('settings.activitySettings.hints.defaultEnd')"
+            />
           </div>
           <div class="time-preview">
             <span class="preview-label">{{ t('settings.activitySettings.preview.label') }}</span>
@@ -140,12 +138,12 @@
           {{ t('settings.activitySettings.unsavedChanges') }}
         </div>
         <div class="save-actions">
-          <button class="btn-secondary" @click="resetForm" :disabled="!hasChanges">
+          <EButton variant="secondary" :disabled="!hasChanges" @click="resetForm">
             {{ t('settings.activitySettings.reset') }}
-          </button>
-          <button class="btn-primary" @click="saveSettings" :disabled="!hasChanges || isSaving">
+          </EButton>
+          <EButton variant="primary" :disabled="!hasChanges || isSaving" :loading="isSaving" @click="saveSettings">
             {{ isSaving ? t('settings.activitySettings.saving') : t('common.save') }}
-          </button>
+          </EButton>
         </div>
       </div>
 
@@ -159,6 +157,9 @@ import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useToast } from '@/composables/useToast'
 import { getActivityDefaults, saveActivityDefaults, type ActivityDefaults } from '@/api/departmentSettings'
+import { normalizeDepartmentTimeHHMM } from '@/utils/activityPlanningFromDefaults'
+import ELoadingState from '@/components/layout/ELoadingState.vue'
+import { EButton, ETimeField } from '@/components/form/base'
 
 const route = useRoute()
 const toast = useToast()
@@ -231,8 +232,13 @@ async function loadSettings() {
   isLoading.value = true
   try {
     const defaults = await getActivityDefaults(departmentId.value)
-    Object.assign(form, defaults)
-    savedForm.value = { ...defaults }
+    const normalized: ActivityDefaults = {
+      ...defaults,
+      defaultTimeStart: normalizeDepartmentTimeHHMM(defaults.defaultTimeStart),
+      defaultTimeEnd: normalizeDepartmentTimeHHMM(defaults.defaultTimeEnd),
+    }
+    Object.assign(form, normalized)
+    savedForm.value = { ...normalized }
   } catch (err) {
     console.error('Fehler beim Laden der Settings:', err)
   } finally {
@@ -244,8 +250,14 @@ async function loadSettings() {
 async function saveSettings() {
   isSaving.value = true
   try {
-    await saveActivityDefaults(departmentId.value, { ...form })
-    savedForm.value = { ...form }
+    const payload: ActivityDefaults = {
+      ...form,
+      defaultTimeStart: normalizeDepartmentTimeHHMM(form.defaultTimeStart),
+      defaultTimeEnd: normalizeDepartmentTimeHHMM(form.defaultTimeEnd),
+    }
+    Object.assign(form, payload)
+    await saveActivityDefaults(departmentId.value, payload)
+    savedForm.value = { ...payload }
     toast.success(t('settings.activitySettings.toastSaved'))
   } catch (err) {
     console.error('Fehler beim Speichern:', err)
@@ -341,6 +353,14 @@ onMounted(() => {
   grid-template-columns: 1fr 1fr;
   gap: 20px;
   margin-bottom: 12px;
+}
+
+.field-row--time {
+  align-items: start;
+}
+
+.field-row--time :deep(.e-time-field) {
+  margin-bottom: 0;
 }
 
 .field-group {

@@ -2601,6 +2601,28 @@
   font-style: italic;
 }
 
+.material-wizard-comp-search {
+  width: 100%;
+}
+
+.material-wizard-comp-search.global-search.inline {
+  width: 100%;
+}
+
+.material-wizard-comp-search .global-search__field {
+  width: 100%;
+}
+
+.comp-selfprovided-badge {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.comp-selfprovided-info {
+  border-color: #fde68a;
+  background: #fffbeb;
+}
+
 .comp-bulk-existing {
   display: flex;
   flex-direction: column;

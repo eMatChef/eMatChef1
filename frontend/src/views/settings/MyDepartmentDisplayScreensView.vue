@@ -10,7 +10,7 @@
       </p>
     </div>
 
-    <div v-if="userDepartments.length > 1" class="card">
+    <div v-if="userDepartments.length > 1" class="card card--narrow-select">
       <ESelect
         id="department-select"
         v-model="selectedDepartmentId"
@@ -32,6 +32,7 @@
           <ETextField
             v-model="newScreenName"
             class="create-row__name"
+            :label="t('settings.displayScreens.nameLabel')"
             :placeholder="t('settings.displayScreens.namePlaceholder')"
             :disabled="creating"
             maxlength="120"
@@ -257,7 +258,7 @@
 
     <EDialog
       v-model="setupDialogOpen"
-      :max-width="520"
+      :max-width="640"
       :title="t('settings.displayScreens.setupModalTitle')"
     >
       <p class="muted">{{ t('settings.displayScreens.setupModalHint') }}</p>
@@ -765,14 +766,61 @@ onMounted(async () => {
   font-size: 12px;
 }
 .create-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  align-items: center;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: end;
+  width: 100%;
+  max-width: 720px;
 }
+
+@media (min-width: 960px) {
+  .create-row {
+    max-width: none;
+  }
+}
+
+@media (max-width: 520px) {
+  .create-row {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+}
+
 .create-row__name {
-  flex: 1;
-  min-width: 200px;
+  width: 100%;
+  min-width: 0;
+  margin-bottom: 0;
+}
+
+.create-row__name :deep(.e-form-field),
+.create-row__name :deep(.autosave-control),
+.create-row__name :deep(.autosave-field-frame),
+.create-row__name :deep(.v-input) {
+  width: 100%;
+}
+
+.card--narrow-select {
+  max-width: 480px;
+}
+
+.subtitle-field {
+  width: 100%;
+  max-width: 100%;
+}
+
+.subtitle-field :deep(.e-form-field),
+.subtitle-field :deep(.v-input) {
+  width: 100%;
+}
+
+.url-input-field {
+  width: 100%;
+}
+
+.url-input-field :deep(.e-form-field),
+.url-input-field :deep(.v-input) {
+  width: 100%;
 }
 
 .url-input-field :deep(input) {

@@ -328,6 +328,9 @@
                 <div class="mat-meta">
                   <span v-if="selectedTicket.material_item.barcode_tag">{{ t('workshop.tagPrefix') }} {{ selectedTicket.material_item.barcode_tag }}</span>
                   <span v-if="selectedTicket.material_item.category">{{ selectedTicket.material_item.category.name }}</span>
+                  <span v-if="selectedTicket.affected_quantity && !selectedTicket.material_batch">
+                    {{ t('workshop.createAffectedQtyOfStock', { qty: selectedTicket.affected_quantity, stock: selectedTicket.material_item.total_stock ?? '—' }) }}
+                  </span>
                   <span>{{ t('workshop.conditionPrefix') }} {{ conditionLabels[selectedTicket.material_item.condition] || selectedTicket.material_item.condition }}</span>
                 </div>
               </div>
@@ -723,7 +726,7 @@
       </template>
     </EDialog>
 
-    <EDialog v-model="showCreateModal" :max-width="580" :title="t('workshop.createTitle')">
+    <EDialog v-model="showCreateModal" :max-width="580" :retain-focus="false" :title="t('workshop.createTitle')">
           <div class="create-form">
             <ETextField
               v-model="createForm.title"
@@ -741,64 +744,56 @@
                 <div class="ws-selected-info">
                   <span class="ws-selected-name">{{ selectedMaterial.name }}</span>
                   <span class="ws-selected-meta">
+                    <span v-if="selectedSerialLabel">🔢 {{ selectedSerialLabel }}</span>
                     <span v-if="selectedMaterial.barcode_tag">🏷️ {{ selectedMaterial.barcode_tag }}</span>
                     <span v-if="selectedMaterial.category">{{ selectedMaterial.category.name }}</span>
-                    <span :class="'condition-' + selectedMaterial.condition">{{ conditionLabels[selectedMaterial.condition] || selectedMaterial.condition }}</span>
+                    <span v-if="!isSelectedMaterialSerialized && createForm.affected_quantity">
+                      {{ t('workshop.createAffectedQtyOfStock', { qty: createForm.affected_quantity, stock: selectedMaterial.total_stock }) }}
+                    </span>
+                    <span v-if="!isSelectedMaterialSerialized" :class="'condition-' + selectedMaterial.condition">{{ conditionLabels[selectedMaterial.condition] || selectedMaterial.condition }}</span>
                   </span>
                 </div>
                 <button type="button" class="ws-selected-clear" @click="clearSelectedMaterial" :title="t('workshop.createChangeMaterialTitle')">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
                 </button>
               </div>
-              <!-- Suchfeld mit Autocomplete -->
-              <div v-else class="ws-mat-autocomplete">
-                <div class="ws-mat-search-wrap">
-                  <svg class="ws-mat-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
-                    <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
-                  </svg>
-                  <input
-                    ref="matSearchInputRef"
-                    v-model="matSearchQuery"
-                    type="text"
-                    :placeholder="t('workshop.createSearchPlaceholder')"
-                    @input="onMatSearchInput"
-                    @focus="showMatDropdown = true"
-                    @blur="hideMatDropdownDelayed"
-                    @keydown.escape="showMatDropdown = false"
-                  />
-                  <span v-if="isMatSearching" class="ws-mat-spinner">⟳</span>
-                </div>
-                <!-- Dropdown-Vorschlagsliste -->
-                <div v-if="showMatDropdown && matSearchQuery.trim().length >= 1" class="ws-mat-dropdown">
-                  <div v-if="isMatSearching" class="ws-mat-dropdown-msg">
-                    {{ t('workshop.createSearching') }}
-                  </div>
-                  <div v-else-if="matSearchResults.length === 0" class="ws-mat-dropdown-msg">
-                    {{ t('workshop.createNoMatches', { query: matSearchQuery }) }}
-                  </div>
-                  <div v-else class="ws-mat-dropdown-list">
-                    <div
-                      v-for="mat in matSearchResults"
-                      :key="mat.id"
-                      class="ws-mat-dropdown-item"
-                      @mousedown.prevent="selectMaterial(mat)"
-                    >
-                      <span class="ws-mat-type-icon" :title="materialTypeLabel(mat.material_type)">
-                        {{ materialTypeIcon(mat.material_type) }}
-                      </span>
-                      <div class="ws-mat-item-info">
-                        <span class="ws-mat-item-name">{{ mat.name }}</span>
-                        <span class="ws-mat-item-meta">
-                          <span v-if="mat.category" class="ws-mat-item-cat">{{ mat.category.name }}</span>
-                          <span v-if="mat.barcode_tag" class="ws-mat-item-sn">🏷️ {{ mat.barcode_tag }}</span>
-                          <span class="ws-mat-item-stock">{{ mat.total_stock }} {{ t('workshop.stockUnit') }}</span>
-                          <span :class="'condition-dot ' + mat.condition">{{ conditionLabels[mat.condition] || mat.condition }}</span>
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
+              <template v-if="isSelectedMaterialSerialized">
+                <p class="ws-serial-hint">{{ t('workshop.createSerialHint') }}</p>
+                <ESelect
+                  v-model="createForm.material_batch_id"
+                  :items="serialBatchSelectItems"
+                  :label="t('workshop.createSerialLabel')"
+                  :placeholder="t('workshop.createSerialPlaceholder')"
+                  hide-details="auto"
+                  class="mt-2"
+                />
+              </template>
+              <template v-else-if="selectedMaterial">
+                <p class="ws-serial-hint">{{ t('workshop.createAffectedQtyHint') }}</p>
+                <ETextField
+                  v-model.number="createForm.affected_quantity"
+                  type="number"
+                  min="1"
+                  :max="selectedMaterialTotalStock || undefined"
+                  :label="t('workshop.createAffectedQtyLabel')"
+                  hide-details="auto"
+                  class="mt-2"
+                />
+              </template>
+              <GlobalSearchInput
+                v-else
+                ref="matSearchFieldRef"
+                mode="inline"
+                pick-on-select
+                teleport-dropdown
+                :department-id="currentDepartmentId"
+                default-type="material"
+                v-model="matSearchQuery"
+                :placeholder="t('workshop.createSearchPlaceholder')"
+                :pick-empty-text="t('workshop.createNoMatches', { query: matSearchQuery })"
+                class="ws-create-material-search"
+                @select="onMatSearchSuggestionSelect"
+              />
             </div>
             <div class="form-row mt-3">
               <ESelect
@@ -836,7 +831,7 @@
         <EButton
           variant="primary"
           size="small"
-          :disabled="!createForm.title || !createForm.material_item_id"
+          :disabled="!canSubmitCreateTicket"
           @click="handleCreateTicket"
         >
           {{ t('workshop.createSubmit') }}
@@ -881,11 +876,10 @@ import {
   type TicketPriority,
 } from '@/api/workshop'
 import { listSupplierRepairCompanies } from '@/api/supplierShop'
-import { getMaterial, type Material } from '@/api/materials'
-import { createBasicMaterialLookupFetcher } from '@/composables/useMaterialLookup'
+import { getMaterial, type Material, type MaterialBatch } from '@/api/materials'
 import GlobalSearchInput from '@/components/common/GlobalSearchInput.vue'
 import { useListSearchQueryRoute } from '@/composables/useListSearchQueryRoute'
-import { parseSearchQuery } from '@/composables/useSearchNavigation'
+import { parseSearchQuery, type SearchSuggestion } from '@/composables/useSearchNavigation'
 import PublicQrTag from '@/components/common/PublicQrTag.vue'
 import PublicQrActionModal from '@/components/common/PublicQrActionModal.vue'
 import { addPrintCartItem } from '@/api/tasks'
@@ -911,8 +905,6 @@ const toast = useToast()
 const currentDepartmentId = computed(
   () => (route.params.departmentId as string) || authStore.activeDepartmentId || '',
 )
-
-const workshopMaterialLookup = createBasicMaterialLookupFetcher(() => currentDepartmentId.value)
 
 /** Query ?material_id= — aus Material-Detail (Werkstatt nur für dieses Material) */
 const materialFilterId = computed(() => {
@@ -1038,10 +1030,53 @@ useListSearchQueryRoute({
 const createForm = ref({
   title: '',
   material_item_id: '',
+  material_batch_id: '' as string,
+  affected_quantity: 1,
   type: 'repair' as TicketType,
   priority: 'normal' as TicketPriority,
   description: '',
   estimated_cost: '',
+})
+
+const isSelectedMaterialSerialized = computed(
+  () => selectedMaterial.value?.tracking_type === 'serialized'
+)
+
+const serialBatchSelectItems = computed(() => {
+  const batches = selectedMaterial.value?.batches ?? []
+  return batches
+    .filter((batch) => batch.status === 'active' && (batch.qty ?? 0) > 0)
+    .map((batch) => {
+      const serial = batch.serial_number?.trim()
+      const label = batch.label?.trim()
+      const title = serial || label || batch.id
+      const subtitle = serial && label ? label : undefined
+      return {
+        title: subtitle ? `${title} · ${subtitle}` : title,
+        value: batch.id,
+      }
+    })
+})
+
+const selectedMaterialTotalStock = computed(() => selectedMaterial.value?.total_stock ?? 0)
+
+const canSubmitCreateTicket = computed(() => {
+  if (!createForm.value.title || !createForm.value.material_item_id) return false
+  if (isSelectedMaterialSerialized.value && !createForm.value.material_batch_id) return false
+  if (!isSelectedMaterialSerialized.value) {
+    const qty = Number(createForm.value.affected_quantity)
+    if (!Number.isFinite(qty) || qty < 1) return false
+    const stock = selectedMaterialTotalStock.value
+    if (stock > 0 && qty > stock) return false
+  }
+  return true
+})
+
+const selectedSerialLabel = computed(() => {
+  const batchId = createForm.value.material_batch_id
+  if (!batchId || !selectedMaterial.value?.batches) return ''
+  const batch = selectedMaterial.value.batches.find((item) => item.id === batchId)
+  return batch ? formatBatchLabel(batch) : ''
 })
 
 // Complete Form
@@ -1051,14 +1086,10 @@ const completeForm = ref({
   resolution_notes: '',
 })
 
-// Material-Autocomplete
+// Material-Auswahl (globale Suche)
 const matSearchQuery = ref('')
-const matSearchResults = ref<Material[]>([])
-const isMatSearching = ref(false)
-const showMatDropdown = ref(false)
 const selectedMaterial = ref<Material | null>(null)
-const matSearchInputRef = ref<HTMLInputElement | null>(null)
-let matSearchTimer: ReturnType<typeof setTimeout> | null = null
+const matSearchFieldRef = ref<InstanceType<typeof GlobalSearchInput> | null>(null)
 
 // === Labels (vue-i18n) ===
 const statusLabels = computed(() => ({
@@ -1452,12 +1483,16 @@ function applyQuickFilterFromRoute() {
 }
 
 async function handleCreateTicket() {
-  if (!createForm.value.title || !createForm.value.material_item_id) return
+  if (!canSubmitCreateTicket.value) return
 
   try {
     await createWorkshopTicket({
       department_id: currentDepartmentId.value,
       material_item_id: createForm.value.material_item_id,
+      material_batch_id: createForm.value.material_batch_id || undefined,
+      affected_quantity: isSelectedMaterialSerialized.value
+        ? undefined
+        : createForm.value.affected_quantity,
       title: createForm.value.title,
       type: createForm.value.type,
       priority: createForm.value.priority,
@@ -1469,6 +1504,8 @@ async function handleCreateTicket() {
     createForm.value = {
       title: '',
       material_item_id: '',
+      material_batch_id: '',
+      affected_quantity: 1,
       type: 'repair',
       priority: 'normal',
       description: '',
@@ -1679,63 +1716,61 @@ async function acceptLossTicket() {
   }
 }
 
-// === Material Autocomplete ===
+// === Material-Auswahl (globale Suche) ===
 
-function onMatSearchInput() {
-  if (matSearchTimer) clearTimeout(matSearchTimer)
-
-  const q = matSearchQuery.value.trim()
-  if (q.length < 1) {
-    matSearchResults.value = []
-    showMatDropdown.value = false
-    isMatSearching.value = false
-    return
-  }
-
-  showMatDropdown.value = true
-  isMatSearching.value = true
-  matSearchTimer = setTimeout(() => {
-    void searchMaterialsForTicket()
-  }, 300)
+function formatBatchLabel(batch: MaterialBatch) {
+  const serial = batch.serial_number?.trim()
+  const label = batch.label?.trim()
+  if (serial && label) return `${serial} · ${label}`
+  return serial || label || batch.id
 }
 
-async function searchMaterialsForTicket() {
-  const query = matSearchQuery.value.trim()
-  if (query.length < 1 || !currentDepartmentId.value) {
-    isMatSearching.value = false
-    return
-  }
-
-  isMatSearching.value = true
-  try {
-    matSearchResults.value = await workshopMaterialLookup(query)
-    showMatDropdown.value = true
-  } catch (err) {
-    console.error('Material-Suche fehlgeschlagen:', err)
-    matSearchResults.value = []
-  } finally {
-    isMatSearching.value = false
-  }
+function resolveBatchIdFromSearch(mat: Material, searchTerm: string): string {
+  const q = searchTerm.trim().toLowerCase()
+  if (!q) return ''
+  const match = (mat.batches ?? []).find((batch) => {
+    if (batch.status !== 'active' || (batch.qty ?? 0) <= 0) return false
+    const serial = batch.serial_number?.toLowerCase() ?? ''
+    const label = batch.label?.toLowerCase() ?? ''
+    return serial.includes(q) || label.includes(q)
+  })
+  return match?.id ?? ''
 }
 
-function selectMaterial(mat: Material) {
+function selectMaterial(mat: Material, options?: { searchTerm?: string }) {
   selectedMaterial.value = mat
   createForm.value.material_item_id = mat.id
+  createForm.value.material_batch_id = ''
+  createForm.value.affected_quantity = 1
+  if (mat.tracking_type === 'serialized') {
+    const fromSearch = resolveBatchIdFromSearch(mat, options?.searchTerm ?? matSearchQuery.value)
+    if (fromSearch) {
+      createForm.value.material_batch_id = fromSearch
+    } else if (serialBatchSelectItems.value.length === 1) {
+      createForm.value.material_batch_id = String(serialBatchSelectItems.value[0].value)
+    }
+  }
   matSearchQuery.value = ''
-  matSearchResults.value = []
-  showMatDropdown.value = false
+}
+
+async function onMatSearchSuggestionSelect(suggestion: SearchSuggestion) {
+  if (suggestion.type !== 'material') return
+  try {
+    const mat = await getMaterial(suggestion.id)
+    selectMaterial(mat, { searchTerm: matSearchQuery.value })
+  } catch (err) {
+    console.error('Material laden fehlgeschlagen:', err)
+    toast.error(t('workshop.toast.createError'))
+  }
 }
 
 function clearSelectedMaterial() {
   selectedMaterial.value = null
   createForm.value.material_item_id = ''
+  createForm.value.material_batch_id = ''
+  createForm.value.affected_quantity = 1
   matSearchQuery.value = ''
-  matSearchResults.value = []
-  nextTick(() => matSearchInputRef.value?.focus())
-}
-
-function hideMatDropdownDelayed() {
-  setTimeout(() => { showMatDropdown.value = false }, 200)
+  nextTick(() => matSearchFieldRef.value?.focus())
 }
 
 // === Helpers ===

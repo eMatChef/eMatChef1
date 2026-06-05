@@ -405,11 +405,18 @@
                           <span v-if="ci.is_optional" class="comp-optional-badge">{{
                             t('common.optional')
                           }}</span>
+                          <span v-if="ci.component_source === 'self_provided'" class="comp-optional-badge comp-selfprovided-badge">{{
+                            t('components.materialDetail.selfProvidedShortBadge')
+                          }}</span>
                         </span>
                       </div>
                       <!-- Virtuelle Kombo: Keine Auswahl nötig, wird bei Ausgabe zugewiesen -->
                       <div v-if="creationMode === 'virtual_combo'" class="comp-card-mode">
                         <span class="comp-mode-info">{{ t('components.materialCreateWizard.compAssignAtIssue') }}</span>
+                      </div>
+                      <!-- Selbst mitbringen: kein Lager, Hinweis für Aktivitäts-Besteller -->
+                      <div v-else-if="ci.component_source === 'self_provided'" class="comp-card-mode">
+                        <span class="comp-mode-info">{{ t('components.materialCreateWizard.compSelfProvidedMode') }}</span>
                       </div>
                       <!-- Andere Modi: Neu/Bestand Toggle -->
                       <div v-else class="comp-card-mode">
@@ -426,7 +433,7 @@
                       </div>
                     </div>
 
-                    <div v-if="ci._match_state && creationMode !== 'virtual_combo'" class="comp-resolve-status">
+                    <div v-if="ci._match_state && creationMode !== 'virtual_combo' && ci.component_source !== 'self_provided'" class="comp-resolve-status">
                       <p v-if="ci._match_state === 'found' && ci._selectedMaterial" class="comp-resolve comp-resolve--found">
                         {{ t('components.materialCreateWizard.compResolveFound', { name: ci._selectedMaterial.name }) }}
                       </p>
@@ -456,10 +463,15 @@
                         <span class="comp-virtual-text">{{ t('components.materialCreateWizard.compVirtualAssignDesc') }}</span>
                       </div>
 
+                      <!-- Selbst mitbringen: Hinweis, keine Lagerzuweisung -->
+                      <div v-else-if="ci.component_source === 'self_provided'" class="comp-virtual-info comp-selfprovided-info">
+                        <span class="comp-virtual-text">{{ t('components.materialCreateWizard.compSelfProvidedDesc', { n: ci.qty || ci.required_qty }) }}</span>
+                      </div>
+
                       <!-- ══════ SERIALISIERT ══════ -->
 
                       <!-- Serialisiert: Neu kaufen → SN + Preis eingeben -->
-                      <template v-if="creationMode !== 'virtual_combo' && ci.tracking === 'serialized' && ci.mode === 'new'">
+                      <template v-else-if="creationMode !== 'virtual_combo' && ci.tracking === 'serialized' && ci.mode === 'new'">
                         <div class="form-row">
                           <div class="form-group">
                             <label>{{ t('common.serialNumber') }}</label>
@@ -494,32 +506,19 @@
                       <!-- Serialisiert: Aus Lager → Material suchen + SN wählen -->
                       <template v-else-if="creationMode !== 'virtual_combo' && ci.tracking === 'serialized' && ci.mode === 'existing'">
                         <div class="comp-existing-search">
-                          <div class="form-group">
-                            <label>{{ t('components.materialCreateWizard.searchArticle') }}</label>
-                            <div class="autocomplete-wrapper">
-                              <input
-                                v-model="ci._materialSearch"
-                                type="text"
-                                class="form-input"
-                                :placeholder="t('components.materialCreateWizard.phSearchNamedArticle', { name: ci._expected_name || ci.name })"
-                                @input="searchExistingMaterial(ci)"
-                                @focus="ci._showDropdown = true"
-                                @blur="hideCompDropdownDelayed(ci)"
-                              />
-                              <div v-if="ci._showDropdown && ci._filteredMaterials?.length > 0" class="autocomplete-dropdown">
-                                <div
-                                  v-for="mat in ci._filteredMaterials"
-                                  :key="mat.id"
-                                  class="autocomplete-item"
-                                  @mousedown="selectExistingMaterial(ci, mat)"
-                                >
-                                  <span class="item-name">{{ mat.name }}</span>
-                                  <span class="item-count">{{
-                                    t('components.materialCreateWizard.stockFree', { n: mat.free_stock ?? mat.total_stock })
-                                  }}</span>
-                                </div>
-                              </div>
-                            </div>
+                          <div v-if="!ci._selectedMaterial" class="form-group">
+                            <GlobalSearchInput
+                              v-model="ci._materialSearch"
+                              mode="inline"
+                              pick-on-select
+                              teleport-dropdown
+                              :department-id="departmentId"
+                              default-type="material"
+                              :placeholder="t('components.materialCreateWizard.searchArticle')"
+                              :pick-empty-text="t('components.materialCreateWizard.compSearchNoMatches', { query: ci._materialSearch || '' })"
+                              class="material-wizard-comp-search"
+                              @select="onCompMaterialSearchSelect(ci, $event)"
+                            />
                           </div>
 
                           <!-- Gewähltes Material + SN-Auswahl -->
@@ -592,33 +591,19 @@
                       <!-- Bulk: Aus Lager → Material wählen + Menge, kein Batch nötig -->
                       <template v-else-if="creationMode !== 'virtual_combo' && ci.tracking === 'bulk' && ci.mode === 'existing'">
                         <div class="comp-bulk-existing">
-                          <!-- Material auto-gefunden oder manuell suchen -->
                           <div v-if="!ci._selectedMaterial" class="form-group">
-                            <label>{{ t('components.materialCreateWizard.labelWhichStockArticle') }}</label>
-                            <div class="autocomplete-wrapper">
-                              <input
-                                v-model="ci._materialSearch"
-                                type="text"
-                                class="form-input"
-                                :placeholder="t('components.materialCreateWizard.phSearchNamed', { name: ci.name })"
-                                @input="searchExistingMaterial(ci)"
-                                @focus="ci._showDropdown = true; autoSearchBulk(ci)"
-                                @blur="hideCompDropdownDelayed(ci)"
-                              />
-                              <div v-if="ci._showDropdown && ci._filteredMaterials?.length > 0" class="autocomplete-dropdown">
-                                <div
-                                  v-for="mat in ci._filteredMaterials"
-                                  :key="mat.id"
-                                  class="autocomplete-item"
-                                  @mousedown="selectBulkMaterial(ci, mat)"
-                                >
-                                  <span class="item-name">{{ mat.name }}</span>
-                                  <span class="item-count">{{
-                                    t('components.materialCreateWizard.stockFree', { n: mat.free_stock ?? mat.total_stock })
-                                  }}</span>
-                                </div>
-                              </div>
-                            </div>
+                            <GlobalSearchInput
+                              v-model="ci._materialSearch"
+                              mode="inline"
+                              pick-on-select
+                              teleport-dropdown
+                              :department-id="departmentId"
+                              default-type="material"
+                              :placeholder="t('components.materialCreateWizard.labelWhichStockArticle')"
+                              :pick-empty-text="t('components.materialCreateWizard.compSearchNoMatches', { query: ci._materialSearch || '' })"
+                              class="material-wizard-comp-search"
+                              @select="onCompMaterialSearchSelect(ci, $event)"
+                            />
                           </div>
 
                           <!-- Material gewählt → Menge + Bestand anzeigen -->
@@ -2449,6 +2434,7 @@ import {
   type CreateComboFromContainerBatchRequest,
   type MaterialBatch,
   type AddBatchMultiResponse,
+  type ComponentSource,
 } from '@/api/materials'
 import { getAddresses, getMaterialWizardSuppliers, type Address } from '@/api/addresses'
 import { createCategory, getCategories, type Category } from '@/api/categories'
@@ -2498,6 +2484,8 @@ import type { RentalCalcParams } from '@/utils/rentalPriceAmortization'
 import MaterialTypeToggles from '@/components/material/wizard/MaterialTypeToggles.vue'
 import StorageLocationPicker from '@/components/storage/StorageLocationPicker.vue'
 import { createBasicMaterialLookupFetcher } from '@/composables/useMaterialLookup'
+import GlobalSearchInput from '@/components/common/GlobalSearchInput.vue'
+import type { SearchSuggestion } from '@/composables/useSearchNavigation'
 import { useStorageStructure } from '@/composables/useStorageStructure'
 import { unitPriceFromPackSaleChf } from '@/utils/packPricing'
 import { localizedBarcodeScannerError } from '@/utils/barcodeScannerErrors'
@@ -2840,6 +2828,7 @@ interface ComponentInput {
   tracking: 'serialized' | 'bulk'
   required_qty: number
   is_optional: boolean
+  component_source: ComponentSource
   mode: 'new' | 'existing'
   serial_number: string
   qty: number
@@ -3663,7 +3652,7 @@ const canSubmit = computed(() => {
 
     // Pflichtkomponenten müssen ausgefüllt sein
     for (const ci of componentInputs.value) {
-      if (ci.is_optional) continue
+      if (ci.is_optional || ci.component_source === 'self_provided') continue
       if (ci.mode === 'new') {
         if (ci.tracking === 'serialized' && !ci.serial_number.trim()) return false
         if (ci.tracking === 'bulk' && ci.qty < 1) return false
@@ -3800,7 +3789,7 @@ const missingSteps = computed((): Array<{ step: StepId; label: string }> => {
       push('general', `${m}.missingEnterComboName`)
     }
     for (const ci of componentInputs.value) {
-      if (ci.is_optional) continue
+      if (ci.is_optional || ci.component_source === 'self_provided') continue
       if (ci.mode === 'new') {
         if (ci.tracking === 'serialized' && !ci.serial_number.trim()) {
           push('template_components', `${m}.missingEnterSnForComp`, { name: ci.name })
@@ -4939,6 +4928,7 @@ function normalizeBulkQty(ci: ComponentInput) {
 
 /** Optionale Komponente weglassen (kein API-Eintrag), wenn Menge 0 bzw. bei serialisiert ohne SN. */
 function includeTemplateComponentInPayload(ci: ComponentInput): boolean {
+  if (ci.component_source === 'self_provided') return true
   if (!ci.is_optional) return true
   if (ci.mode === 'new') {
     if (ci.tracking === 'serialized') return !!(ci.serial_number || '').trim()
@@ -5082,6 +5072,7 @@ async function loadContainerBatchContents() {
         tracking: (c.tracking_type || 'bulk') as 'serialized' | 'bulk',
         required_qty: c.qty,
         is_optional: false,
+        component_source: 'stock' as ComponentSource,
         mode: 'existing' as const,
         serial_number: '',
         qty: c.qty,
@@ -5195,23 +5186,23 @@ function hideTemplateDropdownDelayed() {
   setTimeout(() => { showTemplateDropdown.value = false }, 200)
 }
 
-// ============ "Aus Bestand" Funktionen pro Komponente (zentrale API-Suche) ============
-async function searchExistingMaterial(ci: ComponentInput) {
-  const query = (ci._materialSearch || '').trim()
-  if (query.length < 1) {
-    ci._filteredMaterials = []
-    return
-  }
-  const token = Symbol()
-  ;(ci as any)._materialSearchToken = token
+// ============ "Aus Bestand" Funktionen pro Komponente (zentrale Suche) ============
+async function onCompMaterialSearchSelect(ci: ComponentInput, suggestion: SearchSuggestion) {
+  if (suggestion.type !== 'material') return
   try {
-    const materials = await materialNameLookupFetcher(query)
-    if ((ci as any)._materialSearchToken !== token) return
-    ci._filteredMaterials = materials
-      .filter((m: any) => m.material_type === 'physical')
-      .slice(0, 15)
-  } catch {
-    if ((ci as any)._materialSearchToken === token) ci._filteredMaterials = []
+    const mat = await getMaterial(suggestion.id)
+    if (mat.material_type !== 'physical') {
+      toast.error(t('components.materialCreateWizard.compSearchOnlyPhysical'))
+      return
+    }
+    if (ci.tracking === 'serialized') {
+      await selectExistingMaterial(ci, mat)
+    } else {
+      selectBulkMaterial(ci, mat)
+    }
+  } catch (err) {
+    console.error(t('components.materialCreateWizard.logErrorLoadMaterial'), err)
+    toast.error(t('components.materialCreateWizard.compSearchLoadFailed'))
   }
 }
 
@@ -5219,8 +5210,6 @@ async function selectExistingMaterial(ci: ComponentInput, mat: any) {
   ci.material_id = mat.id
   ci._selectedMaterial = mat
   ci._materialSearch = mat.name
-  ci._showDropdown = false
-  ci._filteredMaterials = []
 
   // Für serialisierte Teile: Batches laden
   if (ci.tracking === 'serialized') {
@@ -5243,18 +5232,6 @@ function clearExistingMaterial(ci: ComponentInput) {
   ci._selectedMaterial = null
   ci._materialSearch = ''
   ci._availableBatches = []
-}
-
-function hideCompDropdownDelayed(ci: ComponentInput) {
-  setTimeout(() => { ci._showDropdown = false }, 200)
-}
-
-// Automatische Suche beim Fokussieren des Bulk-Suchfelds
-function autoSearchBulk(ci: ComponentInput) {
-  if (!ci._materialSearch) {
-    ci._materialSearch = ci._expected_name || ci.name
-  }
-  searchExistingMaterial(ci)
 }
 
 function buildComponentInputFromTemplate(comp: TemplateComponent, materialType: string): ComponentInput {
@@ -5287,13 +5264,16 @@ function buildComponentInputFromTemplate(comp: TemplateComponent, materialType: 
     }
   }
 
+  const isSelfProvided = comp.component_source === 'self_provided'
+
   return {
     component_type: comp.component_type,
     name: comp.name,
     tracking: comp.tracking,
     required_qty: comp.required_qty,
     is_optional: compOptional,
-    mode,
+    component_source: comp.component_source ?? 'stock',
+    mode: isSelfProvided ? 'new' : mode,
     serial_number: '',
     qty: initialQty,
     unit_price: '',
@@ -5321,11 +5301,10 @@ function selectBulkMaterial(ci: ComponentInput, mat: any) {
   ci.material_id = mat.id
   ci._selectedMaterial = mat
   ci._materialSearch = mat.name
-  ci._showDropdown = false
-  ci._filteredMaterials = []
 }
 
 function isComponentDone(ci: ComponentInput): boolean {
+  if (ci.component_source === 'self_provided') return true
   if (ci.is_optional) {
     if (ci.mode === 'new' && ci.tracking === 'bulk' && !(ci.qty && ci.qty > 0)) return true
     if (ci.mode === 'new' && ci.tracking === 'serialized' && !(ci.serial_number || '').trim()) return true
@@ -5579,10 +5558,12 @@ async function handleSubmit() {
             .map((ci) => {
             const comp: CreateMaterialComponentInput = {
               component_type: ci.component_type,
-              mode: ci.mode,
+              mode: ci.component_source === 'self_provided' ? 'new' : ci.mode,
               assignment_mode: ci.assignment_mode,
             }
-            if (ci.mode === 'new') {
+            if (ci.component_source === 'self_provided') {
+              comp.qty = Math.max(1, ci.qty || ci.required_qty || 1)
+            } else if (ci.mode === 'new') {
               if (ci.tracking === 'serialized') {
                 comp.serial_number = ci.serial_number
               } else {

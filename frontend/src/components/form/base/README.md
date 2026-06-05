@@ -24,6 +24,7 @@ Keine Vuetify-`defaults` in `vuetify.ts` für Formulare — der Standard lebt in
 | `ETextField` | `v-text-field` | `outlined` |
 | `ESearchField` | `SearchFieldInput` | Lupe, Label auf Rahmen — `search-field.css` |
 | `ESelect` | `v-select` | `outlined` |
+| `EAutocomplete` | `v-autocomplete` | `outlined`, async-Suche, Chips |
 | `ETextarea` | `v-textarea` | `outlined` |
 | `ECheckbox` / `ESwitch` | `v-checkbox` / `v-switch` | `color=primary` |
 | `EButton` | `v-btn` | primary / secondary / text / danger → `e-button.css` |

@@ -99,7 +99,7 @@ class MaterialController extends AbstractController
             $batchMaterialIdsDql = $this->entityManager->createQueryBuilder()
                 ->select('IDENTITY(bSearch.materialItem)')
                 ->from(MaterialBatch::class, 'bSearch')
-                ->where('bSearch.deletedAt IS NULL')
+                ->where('bSearch.status = :batchStatusActive')
                 ->andWhere(
                     'LOWER(COALESCE(bSearch.serialNumber, \'\')) LIKE :search
                     OR LOWER(COALESCE(bSearch.label, \'\')) LIKE :search'
@@ -109,11 +109,15 @@ class MaterialController extends AbstractController
                 $qb->expr()->orX(
                     'LOWER(m.name) LIKE :search',
                     'LOWER(COALESCE(m.description, \'\')) LIKE :search',
+                    'LOWER(COALESCE(m.manufacturer, \'\')) LIKE :search',
+                    'LOWER(COALESCE(m.model, \'\')) LIKE :search',
                     'LOWER(COALESCE(m.barcodeTag, \'\')) LIKE :search',
                     'LOWER(COALESCE(m.ean, \'\')) LIKE :search',
                     $qb->expr()->in('m.id', $batchMaterialIdsDql)
                 )
-            )->setParameter('search', $searchLike);
+            )
+                ->setParameter('search', $searchLike)
+                ->setParameter('batchStatusActive', 'active');
         }
 
         // Kategoriefilter

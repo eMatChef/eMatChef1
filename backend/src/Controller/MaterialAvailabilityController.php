@@ -284,7 +284,8 @@ class MaterialAvailabilityController extends AbstractController
                         " . MaterialAvailabilityReservationQuery::lateralReservedQtySql(true, $reservedExcludeSql) . "
                         WHERE mi.deleted_at IS NULL
                           AND mi.combo_status <> 'draft'
-                          AND $scopeWhere $materialIdFilterSql";
+                          AND $scopeWhere $materialIdFilterSql
+                          " . $this->excludeSelfProvidedOnlyComponentsSql();
 
                 $params = array_merge([
                     'start_date' => $startDate->format('Y-m-d H:i:s'),
@@ -336,6 +337,7 @@ class MaterialAvailabilityController extends AbstractController
                         WHERE mi.deleted_at IS NULL
                           AND mi.combo_status <> 'draft'
                           AND $scopeWhere $materialIdFilterSql
+                          " . $this->excludeSelfProvidedOnlyComponentsSql() . "
                         GROUP BY mi.id, mi.name, mi.category_id, mi.material_type, mi.department_id, d.name, reserved.reserved_qty";
 
                 $params = array_merge($deptParams, $materialIdFilterParams);
@@ -741,6 +743,26 @@ class MaterialAvailabilityController extends AbstractController
             $map[(string) $r['mid']] = (int) $r['total_qty'];
         }
         return $map;
+    }
+
+    /**
+     * «Selbst mitbringen»-Stubs: nur Stücklisten-Hinweis, nicht buchbar/suchbar.
+     */
+    private function excludeSelfProvidedOnlyComponentsSql(): string
+    {
+        return <<<'SQL'
+
+                          AND NOT EXISTS (
+                              SELECT 1 FROM material_combo_component cc_sp
+                              WHERE cc_sp.component_material_id = mi.id
+                                AND cc_sp.component_source = 'self_provided'
+                                AND NOT EXISTS (
+                                    SELECT 1 FROM material_combo_component cc_st
+                                    WHERE cc_st.component_material_id = mi.id
+                                      AND cc_st.component_source = 'stock'
+                                )
+                          )
+        SQL;
     }
 
     /**

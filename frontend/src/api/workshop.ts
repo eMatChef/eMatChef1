@@ -8,12 +8,21 @@ export interface WorkshopMaterialInfo {
   id: string
   name: string
   condition: string
+  tracking_type?: string | null
+  total_stock?: number | null
   barcode_tag: string | null
   sale_price?: string | null
   category: {
     id: string
     name: string
   } | null
+}
+
+export interface WorkshopMaterialBatchInfo {
+  id: string
+  serial_number: string | null
+  label: string | null
+  status: string
 }
 
 export interface WorkshopUserInfo {
@@ -66,6 +75,8 @@ export interface WorkshopTicket {
   created_at: string
   updated_at: string
   material_item: WorkshopMaterialInfo
+  material_batch?: WorkshopMaterialBatchInfo | null
+  affected_quantity?: number | null
   assigned_to: WorkshopUserInfo | null
   assigned_to_supplier_company?: { id: string; name: string } | null
   created_by: WorkshopUserInfo | null
@@ -102,6 +113,8 @@ export interface WorkshopStats {
 export interface CreateTicketRequest {
   department_id: string
   material_item_id: string
+  material_batch_id?: string | null
+  affected_quantity?: number | null
   title: string
   type?: TicketType
   priority?: TicketPriority

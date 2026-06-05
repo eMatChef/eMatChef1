@@ -99,14 +99,6 @@
               </li>
             </ul>
           </div>
-          <div v-if="availability.selected.selfProvided.length > 0" class="ccd-selfprovided">
-            <span class="ccd-resolved-title">{{ t('components.comboConfigurator.selfProvidedTitle') }}</span>
-            <ul>
-              <li v-for="c in availability.selected.selfProvided" :key="c.materialItemId">
-                {{ c.qtyPerCombo }}× {{ c.name }}
-              </li>
-            </ul>
-          </div>
         </div>
       </template>
 

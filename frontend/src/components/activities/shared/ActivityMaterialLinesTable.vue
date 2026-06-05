@@ -486,7 +486,7 @@ function comboSetContent(row: ActivityMaterialLine): {
   resolved: NonNullable<NonNullable<ActivityMaterialLine['config_snapshot']>['resolved_components']>
   selfProvided: NonNullable<NonNullable<ActivityMaterialLine['config_snapshot']>['self_provided']>
 } | null {
-  if (row.material_type !== 'virtual_combo') return null
+  if (row.material_type !== 'virtual_combo' && row.material_type !== 'physical_combo') return null
   const snap = row.config_snapshot
   const resolved = snap?.resolved_components ?? []
   const selfProvided = snap?.self_provided ?? []

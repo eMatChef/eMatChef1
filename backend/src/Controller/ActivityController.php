@@ -2075,6 +2075,8 @@ class ActivityController extends AbstractController
                 // Zeilenmodell B: virtuelle Kombo -> Eltern-Zeile (oben) + Kind-Zeilen je stock-Teil.
                 if ($materialItem->isVirtualCombo()) {
                     $this->expandVirtualComboLine($activity, $activityItem, $materialItem, $itemData);
+                } elseif ($materialItem->getMaterialType() === 'physical_combo') {
+                    $this->attachPhysicalComboConfigSnapshot($activityItem, $materialItem, $itemData);
                 }
             }
 
@@ -2199,6 +2201,9 @@ class ActivityController extends AbstractController
             } elseif ($existing) {
                 // Menge erhöhen
                 $existing->setQuantity($existing->getQuantity() + max(1, (int)($data['quantity'] ?? 1)));
+                if ($materialItem->getMaterialType() === 'physical_combo') {
+                    $this->attachPhysicalComboConfigSnapshot($existing, $materialItem, $data);
+                }
                 $existing->setUpdatedAt(new \DateTime());
                 // Preis-Felder aktualisieren
                 if (isset($data['unit_price'])) {
@@ -2233,6 +2238,9 @@ class ActivityController extends AbstractController
                 }
                 $this->applyItemProvenance($activityItem, $currentUser, $activity, $data);
                 $this->entityManager->persist($activityItem);
+                if ($materialItem->getMaterialType() === 'physical_combo') {
+                    $this->attachPhysicalComboConfigSnapshot($activityItem, $materialItem, $data);
+                }
             }
 
             // ActivityItem zuerst schreiben: COUNT/SUM/recalculate lesen aus der DB —
@@ -3397,6 +3405,58 @@ class ActivityController extends AbstractController
             'combo_qty' => $comboQty,
             'selected_option_ids' => $selectedOptionIds,
             'resolved_components' => $resolvedComponents,
+            'self_provided' => $selfProvided,
+        ]);
+    }
+
+    /**
+     * Physische Kombo: self_provided-Teile als Hinweis für Besteller/Packliste (keine Kind-Zeilen).
+     *
+     * @param array<string, mixed> $itemData
+     */
+    private function attachPhysicalComboConfigSnapshot(
+        ActivityItem $parent,
+        MaterialItem $combo,
+        array $itemData,
+    ): void {
+        if ($combo->getMaterialType() !== 'physical_combo') {
+            return;
+        }
+
+        $comboQty = max(1, $parent->getQuantity());
+
+        $selectedOptionIds = [];
+        if (isset($itemData['selected_option_ids']) && \is_array($itemData['selected_option_ids'])) {
+            foreach ($itemData['selected_option_ids'] as $oid) {
+                $oid = trim((string) $oid);
+                if ($oid !== '') {
+                    $selectedOptionIds[] = $oid;
+                }
+            }
+        } else {
+            $selectedOptionIds = $this->comboResolution->defaultSelectedOptionIds((string) $combo->getId());
+        }
+        $selectedOptionIds = array_values(array_unique($selectedOptionIds));
+
+        $resolved = $this->comboResolution->resolve((string) $combo->getId(), $selectedOptionIds);
+
+        $selfProvided = [];
+        foreach ($resolved['self_provided'] as $mid => $part) {
+            $selfProvided[] = [
+                'component_material_id' => (string) $mid,
+                'name' => $part['name'],
+                'total_qty' => $comboQty * (int) $part['qty_per_combo'],
+            ];
+        }
+
+        if ($selfProvided === []) {
+            return;
+        }
+
+        $parent->setConfigSnapshot([
+            'combo_qty' => $comboQty,
+            'selected_option_ids' => $selectedOptionIds,
+            'resolved_components' => [],
             'self_provided' => $selfProvided,
         ]);
     }

@@ -232,129 +232,114 @@
       card-class="modal-add-user modal-add-user-wide"
     >
       <div class="add-user-modal-body">
-            <p
-              v-if="!isLoadingAvailable && availableUsers.length === 0 && userSearchQuery.trim().length < 3"
-              class="no-users-hint"
-            >
-              {{ t('settings.departmentUsers.modalNoAvailableUsers') }}
+        <p
+              v-if="!isLoadingAvailable && availableUsers.length === 0 && userSearchTrimmed.length < 3"
+          class="no-users-hint"
+        >
+          {{ t('settings.departmentUsers.modalNoAvailableUsers') }}
+        </p>
+
+        <EAutocomplete
+          v-model="selectedAvailableUser"
+          v-model:search="userSearchQuery"
+          :label="t('settings.departmentUsers.labelUserRequired')"
+          :placeholder="t('settings.departmentUsers.userSearchPlaceholder')"
+          :items="autocompleteUsers"
+          item-title="name"
+          item-value="id"
+          return-object
+          chips
+          closable-chips
+          :menu="userSearchMenuOpen"
+          :loading="isLoadingAvailable"
+          hide-details
+        >
+          <template #item="{ item: user, props: itemProps }">
+            <AvailableUserAutocompleteItem
+              :user="user"
+              :item-props="itemProps"
+              :search-query="userSearchTrimmed"
+              :first-name-label="t('settings.departmentUsers.autocompleteFieldFirstName')"
+              :email-label="t('settings.departmentUsers.autocompleteFieldEmail')"
+              :department-label="t('settings.departmentUsers.autocompleteFieldDepartment')"
+              :no-department-text="t('settings.departmentUsers.autocompleteNoDepartment')"
+            />
+          </template>
+          <template #no-data>
+            <div class="add-user-autocomplete-no-data">
+              <template v-if="userSearchTrimmed.length < 3">
+                {{ t('settings.departmentUsers.autocompleteCharsHint', { n: Math.max(0, 3 - userSearchTrimmed.length) }) }}
+              </template>
+              <template v-else-if="isLoadingAvailable">
+                {{ t('settings.departmentUsers.modalLoadingAvailable') }}
+              </template>
+            </div>
+          </template>
+        </EAutocomplete>
+
+        <div v-if="showInviteByEmail" class="invite-by-email-box">
+          <div class="invite-by-email-box__hero">
+            <v-icon icon="mdi-account-search-outline" class="invite-by-email-box__icon" aria-hidden="true" />
+            <div class="invite-by-email-box__hero-text">
+              <p class="invite-by-email-lead">
+                {{ t('settings.departmentUsers.inviteNoUserFoundForQuery', { query: userSearchTrimmed }) }}
+              </p>
+              <p class="invite-by-email-box__hint">{{ t('settings.departmentUsers.inviteByEmailHint') }}</p>
+            </div>
+          </div>
+          <p class="invite-by-email-box__divider-label">{{ t('settings.departmentUsers.inviteByEmailDivider') }}</p>
+          <ETextField
+            v-model="inviteEmail"
+            type="email"
+            :label="t('settings.departmentUsers.inviteEmailLabel')"
+            :placeholder="t('settings.departmentUsers.inviteEmailPlaceholder')"
+            hide-details
+          />
+          <ESelect
+            v-model="addForm.role"
+            :label="t('common.role')"
+            :items="editRoleSelectItems"
+            hide-details
+          />
+        </div>
+
+        <template v-if="selectedAvailableUser">
+          <p class="groups-hint">{{ t('settings.departmentUsers.inviteExistingUserHint') }}</p>
+          <ESelect
+            v-model="addForm.role"
+            :label="t('common.role')"
+            :items="editRoleSelectItems"
+            hide-details
+          />
+          <ECheckbox
+            v-model="addForm.is_primary"
+            :label="t('settings.departmentUsers.primaryDepartment')"
+            hide-details
+          />
+          <div class="add-user-groups-block">
+            <p class="add-user-groups-block__label">{{ t('settings.departmentUsers.labelGroups') }}</p>
+            <p class="groups-hint">{{ t('settings.departmentUsers.groupsHint') }}</p>
+            <div v-if="isLoadingGroups" class="loading-inline">
+              <div class="spinner-sm"></div>
+              <span>{{ t('settings.departmentUsers.loadingGroups') }}</span>
+            </div>
+            <p v-else-if="hierarchicalGroupsForAdd.length === 0" class="groups-empty">
+              {{ t('settings.departmentUsers.noGroups') }}
             </p>
-
-            <div class="form-group form-group-user-search">
-              <label>{{ t('settings.departmentUsers.labelUserRequired') }}</label>
-              <div
-                class="autocomplete-wrapper"
-                :class="{ 'is-dropdown-open': showUserDropdown && !selectedAvailableUser }"
-              >
-                  <div v-if="selectedAvailableUser" class="selected-user-chip">
-                    <span>{{ selectedAvailableUser.name }} ({{ selectedAvailableUser.email }})</span>
-                    <button class="chip-remove" @click="clearAvailableUser">
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-                      </svg>
-                    </button>
-                  </div>
-                  <input
-                    v-else
-                    v-model="userSearchQuery"
-                    type="text"
-                    class="form-input"
-                    :placeholder="t('settings.departmentUsers.userSearchPlaceholder')"
-                    @focus="showUserDropdown = true"
-                    @blur="handleUserSearchBlur"
-                    ref="userSearchInput"
-                  />
-                  <div v-if="isLoadingAvailable && userSearchQuery.trim().length >= 3" class="autocomplete-hint loading-hint">
-                    <div class="spinner-sm"></div>
-                    <span>{{ t('settings.departmentUsers.modalLoadingAvailable') }}</span>
-                  </div>
-                  <div v-if="showUserDropdown && userSearchQuery.length >= 3 && !isLoadingAvailable && filteredAvailableUsers.length > 0" class="autocomplete-dropdown">
-                    <div 
-                      v-for="user in filteredAvailableUsers" 
-                      :key="user.id"
-                      class="autocomplete-item"
-                      @mousedown.prevent="selectAvailableUser(user)"
-                    >
-                      <span class="ac-name">{{ user.name }}</span>
-                      <span class="ac-email">{{ user.email }}</span>
-                    </div>
-                  </div>
-                  <div v-if="showUserDropdown && userSearchQuery.length >= 3 && !isLoadingAvailable && filteredAvailableUsers.length === 0" class="autocomplete-dropdown">
-                    <div class="autocomplete-empty">{{ t('settings.departmentUsers.autocompleteEmpty') }}</div>
-                  </div>
-                  <div v-if="showUserDropdown && userSearchQuery.length > 0 && userSearchQuery.length < 3" class="autocomplete-hint">
-                    {{ t('settings.departmentUsers.autocompleteCharsHint', { n: Math.max(0, 3 - userSearchQuery.length) }) }}
-                  </div>
-              </div>
+            <div v-else class="group-picker">
+              <ECheckbox
+                v-for="group in hierarchicalGroupsForAdd"
+                :key="group.id"
+                class="group-picker-item"
+                :class="`group-picker-item--level-${group._level}`"
+                :model-value="selectedGroupIds.includes(group.id)"
+                :label="group.name"
+                hide-details
+                @update:model-value="(checked: boolean | null) => setGroupSelected(group.id, !!checked)"
+              />
             </div>
-
-            <div v-if="showInviteByEmail" class="invite-by-email-box">
-              <p class="invite-by-email-lead">{{ t('settings.departmentUsers.inviteNoUserFound') }}</p>
-              <p class="groups-hint">{{ t('settings.departmentUsers.inviteByEmailHint') }}</p>
-              <div class="form-group">
-                <label>{{ t('settings.departmentUsers.inviteEmailLabel') }}</label>
-                <input
-                  v-model="inviteEmail"
-                  type="email"
-                  class="form-input"
-                  :placeholder="t('settings.departmentUsers.inviteEmailPlaceholder')"
-                />
-              </div>
-              <div class="form-group form-group-role">
-                <label>{{ t('common.role') }}</label>
-                <select v-model="addForm.role" class="form-select">
-                  <option v-for="(cfg, key) in assignableRoles" :key="key" :value="key">
-                    {{ cfg.short }} – {{ getRoleLabel(String(key)) }}
-                  </option>
-                </select>
-              </div>
-            </div>
-
-            <template v-if="selectedAvailableUser">
-              <p class="groups-hint">{{ t('settings.departmentUsers.inviteExistingUserHint') }}</p>
-              <div class="form-group form-group-role">
-                <label>{{ t('common.role') }}</label>
-                <select v-model="addForm.role" class="form-select">
-                  <option v-for="(cfg, key) in assignableRoles" :key="key" :value="key">
-                    {{ cfg.short }} – {{ getRoleLabel(String(key)) }}
-                  </option>
-                </select>
-              </div>
-
-              <div class="form-group">
-                <label class="checkbox-label">
-                  <input type="checkbox" v-model="addForm.is_primary" />
-                  {{ t('settings.departmentUsers.primaryDepartment') }}
-                </label>
-              </div>
-
-              <div class="form-group form-group-groups">
-                <label>{{ t('settings.departmentUsers.labelGroups') }}</label>
-                <p class="groups-hint">{{ t('settings.departmentUsers.groupsHint') }}</p>
-                <div v-if="isLoadingGroups" class="loading-inline">
-                  <div class="spinner-sm"></div>
-                  <span>{{ t('settings.departmentUsers.loadingGroups') }}</span>
-                </div>
-                <p v-else-if="hierarchicalGroupsForAdd.length === 0" class="groups-empty">
-                  {{ t('settings.departmentUsers.noGroups') }}
-                </p>
-                <div v-else class="group-picker">
-                  <label
-                    v-for="group in hierarchicalGroupsForAdd"
-                    :key="group.id"
-                    class="group-picker-item"
-                    :style="{ paddingLeft: (12 + group._level * 20) + 'px' }"
-                  >
-                    <input
-                      type="checkbox"
-                      :value="group.id"
-                      :checked="selectedGroupIds.includes(group.id)"
-                      @change="toggleGroupSelection(group.id)"
-                    />
-                    <span>{{ group.name }}</span>
-                  </label>
-                </div>
-              </div>
-            </template>
+          </div>
+        </template>
       </div>
       <template #actions>
         <EButton variant="secondary" size="small" @click="closeAddModal">{{ t('common.cancel') }}</EButton>
@@ -387,17 +372,14 @@
       :title="editingMember ? t('settings.departmentUsers.modalEditTitle', { name: editingMember.name }) : ''"
     >
       <template v-if="editingMember">
-        <div class="form-group">
-          <label>{{ t('common.role') }}</label>
-          <ESelect
-            v-model="editForm.role"
-            :items="editRoleSelectItems"
-            hide-details
-          />
-        </div>
+        <ESelect
+          v-model="editForm.role"
+          :label="t('common.role')"
+          :items="editRoleSelectItems"
+          hide-details
+        />
         <ECheckbox
           v-model="editForm.is_primary"
-          class="mt-3"
           :label="t('settings.departmentUsers.primaryDepartment')"
           hide-details
         />
@@ -419,13 +401,17 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useToast } from '@/composables/useToast'
 import ELoadingState from '@/components/layout/ELoadingState.vue'
 import EEmptyState from '@/components/layout/EEmptyState.vue'
+import EAutocomplete from '@/components/form/base/EAutocomplete.vue'
+import ETextField from '@/components/form/base/ETextField.vue'
+import AvailableUserAutocompleteItem from '@/components/settings/AvailableUserAutocompleteItem.vue'
+import { filterAvailableUsersByQuery } from '@/utils/availableUserSearch'
 import { EButton, EDialog, ESearchField, ESelect, ECheckbox } from '@/components/form/base'
 import { useConfirm } from '@/composables/useConfirm'
 import {
@@ -559,11 +545,8 @@ const addForm = ref({
   is_primary: false,
 })
 
-// Autocomplete
 const userSearchQuery = ref('')
-const showUserDropdown = ref(false)
 const selectedAvailableUser = ref<AvailableUser | null>(null)
-const userSearchInput = ref<HTMLInputElement | null>(null)
 let availableSearchTimer: ReturnType<typeof setTimeout> | null = null
 
 const departmentGroups = ref<Group[]>([])
@@ -759,24 +742,30 @@ async function loadAvailableUsers(query?: string) {
   }
 }
 
-// Autocomplete computed
-const filteredAvailableUsers = computed(() => {
-  if (userSearchQuery.value.length < 3) return []
-  const q = userSearchQuery.value.toLowerCase()
-  return excludeExistingDepartmentMembers(availableUsers.value).filter(u =>
-    u.name.toLowerCase().includes(q) ||
-    (u.nickname || '').toLowerCase().includes(q) ||
-    (u.first_name || '').toLowerCase().includes(q) ||
-    (u.last_name || '').toLowerCase().includes(q) ||
-    u.email.toLowerCase().includes(q)
-  ).slice(0, 8)
+const userSearchTrimmed = computed(() => (userSearchQuery.value ?? '').trim())
+
+/** Trefferliste — API + UND über alle Suchwörter (Name, E-Mail, Abteilung, …) */
+const autocompleteUsers = computed(() => {
+  if (userSearchTrimmed.value.length < 3) return []
+  return filterAvailableUsersByQuery(
+    excludeExistingDepartmentMembers(availableUsers.value),
+    userSearchTrimmed.value,
+  ).slice(0, 12)
+})
+
+/** Dropdown nur bei Treffern oder Ladezustand — kein «Kein Treffer» über dem Formular */
+const userSearchMenuOpen = computed(() => {
+  if (selectedAvailableUser.value) return false
+  if (userSearchTrimmed.value.length < 3) return false
+  if (showInviteByEmail.value) return false
+  return isLoadingAvailable.value || autocompleteUsers.value.length > 0
 })
 
 const showInviteByEmail = computed(() => {
   if (selectedAvailableUser.value) return false
-  if (userSearchQuery.value.trim().length < 3) return false
+  if (userSearchTrimmed.value.length < 3) return false
   if (isLoadingAvailable.value) return false
-  return filteredAvailableUsers.value.length === 0
+  return autocompleteUsers.value.length === 0
 })
 
 const isInviteEmailValid = computed(() => isValidEmail(inviteEmail.value))
@@ -785,27 +774,13 @@ function isValidEmail(value: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim())
 }
 
-function selectAvailableUser(user: AvailableUser) {
-  selectedAvailableUser.value = user
-  addForm.value.user_id = user.id
-  userSearchQuery.value = ''
-  showUserDropdown.value = false
-}
-
-function clearAvailableUser() {
-  selectedAvailableUser.value = null
-  addForm.value.user_id = ''
-  userSearchQuery.value = ''
-  selectedGroupIds.value = []
-  nextTick(() => userSearchInput.value?.focus())
-}
-
-function toggleGroupSelection(groupId: string) {
-  const idx = selectedGroupIds.value.indexOf(groupId)
-  if (idx >= 0) {
-    selectedGroupIds.value = selectedGroupIds.value.filter((id) => id !== groupId)
+function setGroupSelected(groupId: string, checked: boolean) {
+  if (checked) {
+    if (!selectedGroupIds.value.includes(groupId)) {
+      selectedGroupIds.value = [...selectedGroupIds.value, groupId]
+    }
   } else {
-    selectedGroupIds.value = [...selectedGroupIds.value, groupId]
+    selectedGroupIds.value = selectedGroupIds.value.filter((id) => id !== groupId)
   }
 }
 
@@ -819,12 +794,6 @@ async function loadDepartmentGroups() {
   } finally {
     isLoadingGroups.value = false
   }
-}
-
-function handleUserSearchBlur() {
-  setTimeout(() => {
-    showUserDropdown.value = false
-  }, 200)
 }
 
 // === Add Member ===
@@ -969,9 +938,16 @@ watch(departmentId, () => {
   loadPendingInvites()
   loadPendingJoinRequests()
 })
+watch(selectedAvailableUser, (user) => {
+  addForm.value.user_id = user?.id ?? ''
+  if (!user) {
+    selectedGroupIds.value = []
+  }
+})
+
 watch(userSearchQuery, (value) => {
   if (!showAddModal.value || selectedAvailableUser.value) return
-  const trimmed = value.trim()
+  const trimmed = (value ?? '').trim()
   if (isValidEmail(trimmed)) {
     inviteEmail.value = trimmed.toLowerCase()
   }
@@ -1529,62 +1505,91 @@ onUnmounted(() => {
 }
 
 .group-picker-item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
+  margin: 0;
   padding: 8px 12px;
-  cursor: pointer;
-  font-size: 14px;
-  color: #1e293b;
   border-bottom: 1px solid #f1f5f9;
 }
+
+.group-picker-item--level-0 { padding-left: 12px; }
+.group-picker-item--level-1 { padding-left: 32px; }
+.group-picker-item--level-2 { padding-left: 52px; }
+.group-picker-item--level-3 { padding-left: 72px; }
+.group-picker-item--level-4 { padding-left: 92px; }
 
 .group-picker-item:last-child {
   border-bottom: none;
 }
 
-.group-picker-item:hover {
-  background: #f0f4ff;
-}
-
-.group-picker-item input[type="checkbox"] {
-  width: 16px;
-  height: 16px;
-  accent-color: var(--color-primary, #4f46e5);
-  flex-shrink: 0;
-}
-
 .invite-by-email-box {
-  margin-top: 4px;
-  padding: 14px;
-  background: #f8fafc;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 8px;
+  padding: 16px;
+  background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
   border: 1px solid #e2e8f0;
-  border-radius: 10px;
+  border-radius: 12px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+.invite-by-email-box__hero {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.invite-by-email-box__icon {
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: #94a3b8;
+  opacity: 0.9;
+}
+
+.invite-by-email-box__hero-text {
+  min-width: 0;
+  flex: 1;
 }
 
 .invite-by-email-lead {
   margin: 0 0 6px;
   font-size: 14px;
-  font-weight: 500;
+  font-weight: 600;
+  line-height: 1.4;
   color: #1e293b;
+}
+
+.invite-by-email-box__hint {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: #64748b;
+}
+
+.invite-by-email-box__divider-label {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #94a3b8;
 }
 
 .add-user-modal-body {
   overflow: visible;
 }
 
-.form-group-user-search {
-  position: relative;
-  z-index: 20;
+.add-user-autocomplete-no-data {
+  padding: 10px 14px;
+  font-size: 13px;
+  color: #64748b;
+  line-height: 1.4;
 }
 
-.form-group-user-search .autocomplete-wrapper.is-dropdown-open {
-  z-index: 30;
-}
-
-.form-group-role {
-  position: relative;
-  z-index: 1;
+.add-user-groups-block__label {
+  margin: 0 0 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #374151;
 }
 
 .modal-footer {
@@ -1630,117 +1635,6 @@ onUnmounted(() => {
   padding: 12px;
   background: #f9fafb;
   border-radius: 8px;
-}
-
-/* ========================================
-   Autocomplete
-   ======================================== */
-.autocomplete-wrapper {
-  position: relative;
-}
-
-.autocomplete-dropdown {
-  position: absolute;
-  top: calc(100% + 2px);
-  left: 0;
-  right: 0;
-  background: white;
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
-  box-shadow: 0 12px 28px -6px rgba(0, 0, 0, 0.18);
-  z-index: 200;
-  max-height: 240px;
-  overflow-y: auto;
-}
-
-.autocomplete-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 10px 14px;
-  cursor: pointer;
-  transition: background 0.1s;
-  gap: 12px;
-}
-
-.autocomplete-item:hover {
-  background: #f0f4ff;
-}
-
-.ac-name {
-  font-weight: 500;
-  color: #1e293b;
-  font-size: 14px;
-}
-
-.ac-email {
-  color: #94a3b8;
-  font-size: 12px;
-  white-space: nowrap;
-}
-
-.autocomplete-empty {
-  padding: 12px 14px;
-  color: #94a3b8;
-  font-size: 13px;
-  text-align: center;
-}
-
-.loading-hint {
-  display: flex;
-  position: absolute;
-  top: calc(100% + 2px);
-  left: 0;
-  right: 0;
-  z-index: 200;
-  align-items: center;
-  gap: 8px;
-}
-
-.autocomplete-hint {
-  position: absolute;
-  top: calc(100% + 2px);
-  z-index: 200;
-  left: 0;
-  right: 0;
-  padding: 6px 14px;
-  color: #94a3b8;
-  font-size: 12px;
-  background: white;
-  border: 1px solid #e5e7eb;
-  border-top: none;
-  border-radius: 0 0 8px 8px;
-}
-
-.selected-user-chip {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 7px 12px;
-  background: #eef2ff;
-  border: 1px solid #c7d2fe;
-  border-radius: 8px;
-  font-size: 14px;
-  font-weight: 500;
-  color: #4338ca;
-}
-
-.chip-remove {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: none;
-  border: none;
-  color: #6366f1;
-  cursor: pointer;
-  padding: 2px;
-  border-radius: 4px;
-  transition: all 0.15s;
-}
-
-.chip-remove:hover {
-  background: #c7d2fe;
-  color: #4338ca;
 }
 
 /* Form input base uses shared ui/forms.css */

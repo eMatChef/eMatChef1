@@ -4,6 +4,7 @@
     :max-width="maxWidth"
     :persistent="persistent"
     :scrollable="scrollable"
+    :retain-focus="retainFocus"
     @update:model-value="onUpdate"
   >
     <ECard :variant="cardVariant" :card-class="cardClass">
@@ -31,6 +32,8 @@ withDefaults(
     maxWidth?: number | string
     persistent?: boolean
     scrollable?: boolean
+    /** false bei Autocomplete/Teleport-Dropdowns im Dialog */
+    retainFocus?: boolean
     cardVariant?: 'elevated' | 'flat' | 'tonal' | 'outlined' | 'text' | 'plain'
     /** Zusätzliche Klassen auf der inneren ECard (z. B. Confirm-Rahmen) */
     cardClass?: string | string[] | Record<string, boolean>
@@ -39,6 +42,7 @@ withDefaults(
     maxWidth: 560,
     persistent: false,
     scrollable: true,
+    retainFocus: true,
     cardVariant: 'elevated',
   }
 )
@@ -58,7 +62,18 @@ function onUpdate(value: boolean) {
 }
 
 .e-dialog__body {
-  padding-top: 8px;
+  padding-top: 12px;
+}
+
+/* Direkt gestapelte E*-Felder (z. B. Gruppen-Modal) */
+.e-dialog__body:has(> .e-form-field) {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.e-dialog__body:has(> .e-form-field) > .e-form-field {
+  margin-bottom: 0;
 }
 
 .e-dialog__actions {

@@ -1,59 +1,79 @@
 <template>
-  <div class="settings-page">
-    <div class="header">
-      <h1>{{ t('settings.fixedDates.title') }}</h1>
-      <p class="description">{{ t('settings.fixedDates.description') }}</p>
+  <div class="fixed-dates-settings">
+    <div class="page-header">
+      <div>
+        <h2 class="settings-title">{{ t('settings.fixedDates.title') }}</h2>
+        <p class="settings-description">{{ t('settings.fixedDates.description') }}</p>
+      </div>
     </div>
 
-    <div v-if="userDepartments.length > 1" class="card">
-      <label class="field-label" for="department-select">{{ t('settings.common.selectDepartment') }}:</label>
-      <select id="department-select" v-model="selectedDepartmentId" class="input" @change="onDepartmentChange">
-        <option v-for="dept in userDepartments" :key="dept.department_id" :value="dept.department_id">
-          {{ dept.department?.name || dept.department_id }}
-        </option>
-      </select>
-    </div>
+    <ECard v-if="userDepartments.length > 1" class="department-card">
+      <ESelect
+        id="department-select"
+        v-model="selectedDepartmentId"
+        :label="t('settings.common.selectDepartment')"
+        :items="departmentSelectItems"
+        item-title="text"
+        item-value="value"
+        hide-details
+        @update:model-value="onDepartmentChange"
+      />
+    </ECard>
 
     <template v-if="canManage">
-      <div class="card create-card">
-        <h3 class="section-heading">{{ editingId ? t('settings.fixedDates.editTitle') : t('settings.fixedDates.createTitle') }}</h3>
+      <ECard class="create-card">
+        <h3 class="section-heading">
+          {{ editingId ? t('settings.fixedDates.editTitle') : t('settings.fixedDates.createTitle') }}
+        </h3>
         <div class="form-grid">
-          <div class="field">
-            <label class="field-label" for="fd-start">{{ t('settings.fixedDates.startDate') }}</label>
-            <input id="fd-start" v-model="form.start_date" type="date" class="input" />
-          </div>
-          <div class="field">
-            <label class="field-label" for="fd-end">{{ t('settings.fixedDates.endDate') }}</label>
-            <input id="fd-end" v-model="form.end_date" type="date" class="input" />
-          </div>
-          <div class="field">
-            <label class="field-label" for="fd-label">{{ t('settings.fixedDates.typeLabel') }}</label>
-            <select id="fd-label" v-model="form.label" class="input">
-              <option v-for="opt in labelOptions" :key="opt.value" :value="opt.value">{{ opt.text }}</option>
-            </select>
-          </div>
-          <div class="field field-wide">
-            <label class="field-label" for="fd-name">{{ t('settings.fixedDates.name') }}</label>
-            <input id="fd-name" v-model="form.name" type="text" class="input" maxlength="120" :placeholder="t('settings.fixedDates.namePlaceholder')" />
-          </div>
+          <EDateRangeField
+            id="fd-period"
+            v-model:start="form.start_date"
+            v-model:end="form.end_date"
+            class="field-period"
+            :label="t('settings.fixedDates.period')"
+            :department-id="selectedDepartmentId"
+            :allow-past="true"
+            :block-closed-dates="false"
+            :show-presets="false"
+            :show-markers="true"
+          />
+          <ESelect
+            id="fd-label"
+            v-model="form.label"
+            :label="t('settings.fixedDates.typeLabel')"
+            :items="labelOptions"
+            item-title="text"
+            item-value="value"
+            hide-details
+          />
+          <ETextField
+            id="fd-name"
+            v-model="form.name"
+            class="field-wide"
+            :label="t('settings.fixedDates.name')"
+            :placeholder="t('settings.fixedDates.namePlaceholder')"
+            maxlength="120"
+            hide-details
+          />
         </div>
         <div class="form-actions">
-          <button v-if="editingId" type="button" class="btn btn-secondary" :disabled="saving" @click="cancelEdit">
+          <EButton v-if="editingId" variant="secondary" :disabled="saving" @click="cancelEdit">
             {{ t('common.cancel') }}
-          </button>
-          <button type="button" class="btn" :disabled="saving || !canSubmit" @click="submitForm">
+          </EButton>
+          <EButton variant="primary" :disabled="saving || !canSubmit" @click="submitForm">
             {{ saving ? t('common.saving') : (editingId ? t('common.save') : t('common.create')) }}
-          </button>
+          </EButton>
         </div>
-      </div>
+      </ECard>
 
-      <p v-if="loading" class="muted">{{ t('settings.fixedDates.loading') }}</p>
+      <ELoadingState v-if="loading" variant="inline" :message="t('settings.fixedDates.loading')" />
 
-      <div v-else-if="periods.length === 0" class="card">
+      <ECard v-else-if="periods.length === 0">
         <p class="muted">{{ t('settings.fixedDates.empty') }}</p>
-      </div>
+      </ECard>
 
-      <div v-else class="card table-card">
+      <ECard v-else class="table-card">
         <table class="period-table">
           <thead>
             <tr>
@@ -72,12 +92,14 @@
               <td>{{ row.name }}</td>
               <td class="actions">
                 <button type="button" class="btn-link" @click="startEdit(row)">{{ t('common.edit') }}</button>
-                <button type="button" class="btn-link danger" @click="removePeriod(row.id)">{{ t('common.delete') }}</button>
+                <button type="button" class="btn-link danger" @click="removePeriod(row.id)">
+                  {{ t('common.delete') }}
+                </button>
               </td>
             </tr>
           </tbody>
         </table>
-      </div>
+      </ECard>
     </template>
   </div>
 </template>
@@ -90,6 +112,14 @@ import { useAuthStore } from '@/stores/auth'
 import { useDepartmentMemberRole } from '@/composables/useDepartmentMemberRole'
 import { useToast } from '@/composables/useToast'
 import { useConfirm } from '@/composables/useConfirm'
+import {
+  EButton,
+  ECard,
+  EDateRangeField,
+  ESelect,
+  ETextField,
+} from '@/components/form/base'
+import ELoadingState from '@/components/layout/ELoadingState.vue'
 import {
   createDepartmentCalendarPeriod,
   deleteDepartmentCalendarPeriod,
@@ -114,6 +144,13 @@ const periods = ref<DepartmentCalendarPeriod[]>([])
 const loading = ref(false)
 const saving = ref(false)
 const editingId = ref<string | null>(null)
+
+const departmentSelectItems = computed(() =>
+  userDepartments.value.map((dept) => ({
+    text: dept.department?.name || dept.department_id,
+    value: dept.department_id,
+  })),
+)
 
 const emptyForm = (): {
   label: CalendarPeriodLabel
@@ -265,23 +302,89 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-.settings-page { display: flex; flex-direction: column; gap: 16px; }
-.header h1 { margin: 0; font-size: 24px; }
-.description, .muted { color: #6b7280; margin: 0; }
-.card { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 12px; padding: 16px; }
-.section-heading { margin: 0 0 12px; font-size: 16px; }
-.field-label { display: block; margin-bottom: 6px; font-size: 13px; color: #6b7280; }
-.input { width: 100%; border: 1px solid #cbd5e1; border-radius: 8px; padding: 10px 12px; background: #fff; box-sizing: border-box; }
-.form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; }
-.field-wide { grid-column: 1 / -1; }
-.form-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 12px; }
-.btn { border: none; border-radius: 8px; background: #2563eb; color: #fff; padding: 8px 14px; cursor: pointer; }
-.btn:disabled { opacity: 0.6; cursor: not-allowed; }
-.btn-secondary { background: #e5e7eb; color: #374151; }
-.period-table { width: 100%; border-collapse: collapse; font-size: 14px; }
-.period-table th { text-align: left; padding: 8px; border-bottom: 1px solid #e5e7eb; color: #6b7280; font-weight: 500; }
-.period-table td { padding: 10px 8px; border-bottom: 1px solid #f3f4f6; vertical-align: middle; }
-.actions { white-space: nowrap; text-align: right; }
-.btn-link { border: none; background: none; color: #2563eb; cursor: pointer; padding: 0 6px; font-size: 14px; }
-.btn-link.danger { color: #dc2626; }
+.fixed-dates-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.settings-title {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 600;
+  color: var(--color-text, #111827);
+}
+
+.settings-description,
+.muted {
+  color: var(--color-text-muted, #6b7280);
+  margin: 0;
+}
+
+.section-heading {
+  margin: 0 0 12px;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--color-text, #111827);
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 4px 12px;
+}
+
+.field-period,
+.field-wide {
+  grid-column: 1 / -1;
+}
+
+.form-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-top: 16px;
+}
+
+.period-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.period-table th {
+  text-align: left;
+  padding: 8px;
+  border-bottom: 1px solid var(--color-border, #e5e7eb);
+  color: var(--color-text-muted, #6b7280);
+  font-weight: 500;
+}
+
+.period-table td {
+  padding: 10px 8px;
+  border-bottom: 1px solid var(--color-border, #f3f4f6);
+  vertical-align: middle;
+}
+
+.actions {
+  white-space: nowrap;
+  text-align: right;
+}
+
+.btn-link {
+  border: none;
+  background: none;
+  color: var(--color-primary, #059669);
+  cursor: pointer;
+  padding: 0 6px;
+  font-size: 14px;
+}
+
+.btn-link.danger {
+  color: var(--color-error, #dc2626);
+}
+
+.department-card {
+  max-width: 400px;
+}
 </style>

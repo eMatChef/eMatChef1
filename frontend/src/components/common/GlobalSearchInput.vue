@@ -20,33 +20,25 @@
         class="global-search__input"
         @input="onInput"
         @focus="onFieldFocus"
+        @blur="onFieldBlur"
         @keydown="onKeydown"
       >
-        <Transition name="dropdown-fade">
+        <Transition v-if="!teleportDropdown" name="dropdown-fade">
           <div
-            v-if="showSuggestionsDropdown && (suggestions.length > 0 || isSuggestionsLoading)"
+            v-if="dropdownVisible"
             class="suggestions-dropdown"
+            @mousedown="clearCloseTimer"
           >
-            <div v-if="isSuggestionsLoading" class="suggestions-loading">
-              {{ t('components.globalSearch.loadingSuggestions') }}
-            </div>
-            <div v-else class="suggestions-list">
-              <button
-                v-for="s in suggestions"
-                :key="`${s.type}-${s.id}`"
-                type="button"
-                class="suggestion-item"
-                @click="selectSuggestion(s)"
-              >
-                <span class="suggestion-label">{{ s.label }}</span>
-                <span class="suggestion-type">{{ typeLabel(s.type) }}</span>
-              </button>
-            </div>
-            <div v-if="showAllResultsLink" class="suggestions-footer">
-              <button type="button" class="suggestion-show-all" @click="goToFullSearchPage">
-                {{ t('components.globalSearch.showAllResults') }}
-              </button>
-            </div>
+            <SuggestionsPanel
+              :suggestions="suggestions"
+              :is-loading="isSuggestionsLoading"
+              :show-empty="pickOnSelect && query.trim().length >= minSearchChars && !isSuggestionsLoading && suggestions.length === 0"
+              :empty-text="pickEmptyText"
+              :show-all-results-link="showAllResultsLink && !pickOnSelect"
+              :show-type-label="!pickOnSelect || searchAllTypes"
+              @select="selectSuggestion"
+              @show-all="goToFullSearchPage"
+            />
           </div>
         </Transition>
       </SearchFieldInput>
@@ -60,11 +52,35 @@
         <v-icon icon="mdi-close" size="20" />
       </button>
     </div>
+
+    <Teleport v-if="teleportDropdown" to="body">
+      <Transition name="dropdown-fade">
+        <div
+          v-if="dropdownVisible"
+          ref="dropdownRef"
+          class="suggestions-dropdown suggestions-dropdown--teleported"
+          :style="dropdownStyle"
+          @mousedown="clearCloseTimer"
+        >
+          <SuggestionsPanel
+            :suggestions="suggestions"
+            :is-loading="isSuggestionsLoading"
+            :show-empty="pickOnSelect && query.trim().length >= minSearchChars && !isSuggestionsLoading && suggestions.length === 0"
+            :empty-text="pickEmptyText"
+            :show-all-results-link="showAllResultsLink && !pickOnSelect"
+            :show-type-label="!pickOnSelect || searchAllTypes"
+            @select="selectSuggestion"
+            @show-all="goToFullSearchPage"
+          />
+        </div>
+      </Transition>
+    </Teleport>
   </div>
 </template>
 
 <script setup lang="ts">
 import SearchFieldInput from '@/components/common/SearchFieldInput.vue'
+import SuggestionsPanel from '@/components/common/GlobalSearchSuggestionsPanel.vue'
 import { ref, watch, nextTick, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
@@ -89,19 +105,33 @@ const props = withDefaults(
     searchAllTypes?: boolean
     placeholder?: string
     modelValue?: string
+    /** Auswahl-Modus: Vorschlag wählen statt navigieren (z. B. Material im Ticket-Dialog) */
+    pickOnSelect?: boolean
+    /** Dropdown per Teleport (z. B. in scrollbaren Dialogen) */
+    teleportDropdown?: boolean
+    /** Leertext im Pick-Modus (z. B. «Keine Treffer») */
+    pickEmptyText?: string
   }>(),
   {
     mode: 'icon',
     placeholder: undefined,
     searchAllTypes: false,
+    pickOnSelect: false,
+    teleportDropdown: false,
+    pickEmptyText: undefined,
   }
 )
+
+const DROPDOWN_MAX_HEIGHT = 260
+const DROPDOWN_Z_INDEX = 10100
+const PICK_CLOSE_DELAY_MS = 180
 
 const { t } = useI18n()
 
 const emit = defineEmits<{
   (e: 'update:modelValue', value: string): void
   (e: 'search', parsed: { type: SearchTargetType; term: string }): void
+  (e: 'select', suggestion: SearchSuggestion): void
 }>()
 
 const router = useRouter()
@@ -114,9 +144,14 @@ const query = ref(props.modelValue ?? '')
 const isExpanded = ref(props.mode === 'inline')
 const searchFieldRef = ref<InstanceType<typeof SearchFieldInput> | null>(null)
 const rootRef = ref<HTMLElement | null>(null)
+const dropdownRef = ref<HTMLElement | null>(null)
 const suggestions = ref<SearchSuggestion[]>([])
 const isSuggestionsLoading = ref(false)
 const showSuggestionsDropdown = ref(false)
+const dropdownStyle = ref<Record<string, string>>({})
+
+let positionListenersBound = false
+let closeTimer: ReturnType<typeof setTimeout> | null = null
 
 const effectiveDepartmentId = computed(() => props.departmentId ?? '')
 const effectiveLabel = computed(
@@ -131,7 +166,21 @@ const showAllResultsLink = computed(
     (suggestions.value.length > 0 || !isSuggestionsLoading.value)
 )
 
+/** Zentrale Suche: mind. 2 Zeichen (fetchSearchSuggestions) */
+const minSearchChars = 2
+
+const pickEmptyText = computed(
+  () => props.pickEmptyText ?? t('components.materialLookup.empty')
+)
+
+const dropdownVisible = computed(() => {
+  if (!showSuggestionsDropdown.value) return false
+  if (isSuggestionsLoading.value || suggestions.value.length > 0) return true
+  return props.pickOnSelect && query.value.trim().length >= minSearchChars
+})
+
 let debounceTimer: ReturnType<typeof setTimeout> | null = null
+let suggestionRequestToken = 0
 
 watch(
   () => props.modelValue,
@@ -145,32 +194,52 @@ watch(
 
 watch(query, (val) => emit('update:modelValue', val))
 
-function typeLabel(type: SearchTargetType): string {
-  const keys: Record<SearchTargetType, string> = {
-    material: 'common.material',
-    activity: 'components.globalSearch.typeActivity',
-    reparatur: 'components.globalSearch.typeRepair',
-  }
-  const key = keys[type]
-  return key ? t(key) : type
+function clearCloseTimer() {
+  if (!closeTimer) return
+  clearTimeout(closeTimer)
+  closeTimer = null
 }
 
 function onInput() {
   if (debounceTimer) clearTimeout(debounceTimer)
   const raw = query.value.trim()
-  if (raw.length < 2) {
+  if (raw.length < minSearchChars) {
     suggestions.value = []
     return
+  }
+  showSuggestionsDropdown.value = true
+  if (props.teleportDropdown) {
+    nextTick(() => syncDropdownPosition())
   }
   debounceTimer = setTimeout(() => loadSuggestions(), 250)
 }
 
 function onFieldFocus() {
+  clearCloseTimer()
   showSuggestionsDropdown.value = true
+  if (props.teleportDropdown) {
+    nextTick(() => syncDropdownPosition())
+  }
+  if (query.value.trim().length >= minSearchChars) {
+    if (debounceTimer) clearTimeout(debounceTimer)
+    debounceTimer = setTimeout(() => loadSuggestions(), 0)
+  }
+}
+
+function onFieldBlur() {
+  if (!props.pickOnSelect && !props.teleportDropdown) return
+  clearCloseTimer()
+  closeTimer = setTimeout(() => {
+    showSuggestionsDropdown.value = false
+  }, PICK_CLOSE_DELAY_MS)
 }
 
 async function loadSuggestions() {
   if (!effectiveDepartmentId.value) return
+  const raw = query.value.trim()
+  if (raw.length < minSearchChars) return
+
+  const requestToken = ++suggestionRequestToken
   isSuggestionsLoading.value = true
   suggestions.value = []
   try {
@@ -183,15 +252,32 @@ async function loadSuggestions() {
         enabledTypes: props.searchAllTypes ? headerEnabledTypes.value : undefined,
       }
     )
+    if (requestToken !== suggestionRequestToken) return
     suggestions.value = results
   } catch {
-    suggestions.value = []
+    if (requestToken === suggestionRequestToken) {
+      suggestions.value = []
+    }
   } finally {
-    isSuggestionsLoading.value = false
+    if (requestToken === suggestionRequestToken) {
+      isSuggestionsLoading.value = false
+      if (props.teleportDropdown) {
+        await nextTick()
+        syncDropdownPosition()
+      }
+    }
   }
 }
 
 function selectSuggestion(s: SearchSuggestion) {
+  clearCloseTimer()
+  if (props.pickOnSelect) {
+    emit('select', s)
+    query.value = ''
+    suggestions.value = []
+    showSuggestionsDropdown.value = false
+    return
+  }
   router.push(s.path)
   showSuggestionsDropdown.value = false
   suggestions.value = []
@@ -214,11 +300,82 @@ function goToFullSearchPage() {
   if (props.mode === 'icon') collapse()
 }
 
-function handleClickOutside(e: MouseEvent) {
-  const target = e.target as HTMLElement
-  if (rootRef.value && !rootRef.value.contains(target)) {
-    showSuggestionsDropdown.value = false
+function getAnchorElement(): HTMLElement | null {
+  const field = rootRef.value?.querySelector('.search-field')
+  if (field instanceof HTMLElement) return field
+  const input = searchFieldRef.value?.inputRef
+  return input instanceof HTMLElement ? input : null
+}
+
+function syncDropdownPosition() {
+  const el = getAnchorElement()
+  if (!el) return
+
+  const rect = el.getBoundingClientRect()
+  const vw = window.innerWidth
+  const vh = window.innerHeight
+  const width = Math.min(rect.width, vw - 16)
+  const left = Math.max(8, Math.min(rect.left, vw - width - 8))
+  const spaceBelow = vh - rect.bottom - 8
+  const spaceAbove = rect.top - 8
+  const openBelow = spaceBelow >= 120 || spaceBelow >= spaceAbove
+  const maxHeightPx = DROPDOWN_MAX_HEIGHT
+
+  if (openBelow) {
+    dropdownStyle.value = {
+      position: 'fixed',
+      top: `${rect.bottom + 4}px`,
+      left: `${left}px`,
+      width: `${width}px`,
+      maxHeight: `${Math.min(maxHeightPx, Math.max(spaceBelow - 4, 80))}px`,
+      zIndex: String(DROPDOWN_Z_INDEX),
+    }
+    return
   }
+
+  dropdownStyle.value = {
+    position: 'fixed',
+    left: `${left}px`,
+    width: `${width}px`,
+    bottom: `${vh - rect.top + 4}px`,
+    maxHeight: `${Math.min(maxHeightPx, Math.max(spaceAbove - 4, 80))}px`,
+    zIndex: String(DROPDOWN_Z_INDEX),
+  }
+}
+
+function bindPositionListeners() {
+  if (positionListenersBound) return
+  positionListenersBound = true
+  window.addEventListener('resize', syncDropdownPosition, { passive: true })
+  window.addEventListener('scroll', syncDropdownPosition, { passive: true, capture: true })
+}
+
+function unbindPositionListeners() {
+  if (!positionListenersBound) return
+  positionListenersBound = false
+  window.removeEventListener('resize', syncDropdownPosition)
+  window.removeEventListener('scroll', syncDropdownPosition, true)
+}
+
+watch(
+  () => [dropdownVisible.value, props.teleportDropdown] as const,
+  async ([visible, teleported]) => {
+    if (!teleported || !visible) {
+      unbindPositionListeners()
+      return
+    }
+    await nextTick()
+    syncDropdownPosition()
+    bindPositionListeners()
+  }
+)
+
+function handleClickOutside(e: MouseEvent) {
+  if (props.pickOnSelect && props.teleportDropdown) return
+  const target = e.target as HTMLElement
+  if (rootRef.value?.contains(target)) return
+  if (dropdownRef.value?.contains(target)) return
+  showSuggestionsDropdown.value = false
 }
 
 function expand() {
@@ -252,6 +409,13 @@ function submitSearch() {
   const raw = query.value.trim()
   if (!raw) return
 
+  if (props.pickOnSelect) {
+    if (suggestions.value.length > 0) {
+      selectSuggestion(suggestions.value[0])
+    }
+    return
+  }
+
   if (effectiveDepartmentId.value) {
     const ok = executeSearch(raw, effectiveDepartmentId.value, props.defaultType ?? 'material', {
       searchAllTypes: props.searchAllTypes,
@@ -273,6 +437,8 @@ onMounted(() => {
 
 onUnmounted(() => {
   document.removeEventListener('click', handleClickOutside)
+  unbindPositionListeners()
+  clearCloseTimer()
   if (debounceTimer) clearTimeout(debounceTimer)
 })
 
@@ -368,69 +534,12 @@ defineExpose({
   z-index: 1000;
 }
 
-.suggestions-loading {
-  padding: 12px 14px;
-  color: #6b7280;
-  font-size: 13px;
-}
-
-.suggestions-list {
-  padding: 4px 0;
-}
-
-.suggestion-item {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 10px 14px;
-  border: none;
-  background: none;
-  text-align: left;
-  font-size: 14px;
-  cursor: pointer;
-  color: #111827;
-}
-
-.suggestion-item:hover {
-  background: #f3f4f6;
-}
-
-.suggestion-label {
-  flex: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.suggestion-type {
-  flex-shrink: 0;
-  font-size: 11px;
-  color: #6b7280;
-  text-transform: uppercase;
-}
-
-.suggestions-footer {
-  border-top: 1px solid #e5e7eb;
-  padding: 6px 8px;
-}
-
-.suggestion-show-all {
-  width: 100%;
-  padding: 8px 10px;
-  border: none;
-  border-radius: 6px;
-  background: var(--color-primary-muted-bg, #f0fdf4);
-  color: var(--color-primary-dark, #047857);
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  text-align: center;
-}
-
-.suggestion-show-all:hover {
-  background: #dcfce7;
+.suggestions-dropdown--teleported {
+  position: fixed;
+  right: auto;
+  margin-top: 0;
+  overflow-y: auto;
+  pointer-events: auto;
 }
 
 .dropdown-fade-enter-active,

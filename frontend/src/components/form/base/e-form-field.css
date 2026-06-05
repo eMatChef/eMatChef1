@@ -4,7 +4,19 @@
  */
 
 .e-form-field.autosave-field {
-  margin-bottom: 6px;
+  margin-bottom: 12px;
+}
+
+/* Vuetify comfortable/default fügt --v-input-padding-top ein → Rahmen rutscht unter externes Label */
+.e-form-field .v-input--density-comfortable,
+.e-form-field .v-input--density-default,
+.e-form-field .v-input--density-compact {
+  --v-input-padding-top: 0px;
+}
+
+.e-form-field .v-input__control > .v-field {
+  --v-input-padding-top: 0px;
+  --v-field-input-padding-top: 0px;
 }
 
 /* Ruhe: Label grau (grün nur bei Fokus — wie gewünscht, nicht Vuetify-primary) */
@@ -20,6 +32,21 @@
   color: var(--color-primary, #059669) !important;
 }
 
+.e-form-field .autosave-field-frame {
+  isolation: auto;
+}
+
+.e-form-field .autosave-label {
+  z-index: 10;
+  padding: 2px 6px;
+  line-height: 1.2;
+  background-color: var(--outlined-label-bg, #fff);
+}
+
+.e-form-field .v-field-label {
+  display: none !important;
+}
+
 .e-form-field .v-input {
   margin: 0;
   padding: 0;
@@ -27,6 +54,7 @@
 
 .e-form-field .e-text-field,
 .e-form-field .e-select,
+.e-form-field .e-autocomplete,
 .e-form-field .e-textarea {
   margin-top: 0;
 }
@@ -121,13 +149,29 @@
   opacity: 1;
 }
 
-.e-form-field .v-select .v-field__input {
+.e-form-field .v-select .v-field__input,
+.e-form-field .v-autocomplete .v-field__input {
   padding-right: 28px;
 }
 
-.e-form-field .v-select .v-select__selection-text {
+.e-form-field .v-select .v-select__selection-text,
+.e-form-field .v-autocomplete .v-autocomplete__selection-text {
   font-size: 14px;
   line-height: 1.4;
+}
+
+.e-form-field .v-autocomplete .v-chip {
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.e-form-field .v-autocomplete .v-list-item-subtitle {
+  font-size: 12px;
+  opacity: 0.85;
+}
+
+.e-form-field .v-autocomplete .v-overlay__content .v-list {
+  padding: 4px 0;
 }
 
 .e-form-field .v-field.text-primary,

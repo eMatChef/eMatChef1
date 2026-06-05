@@ -206,6 +206,13 @@ class WorkshopController extends AbstractController
             return new JsonResponse(['error' => 'Material nicht gefunden'], 404);
         }
 
+        $materialBatch = null;
+        $batchValidation = $this->resolveTicketMaterialBatch($material, $data['material_batch_id'] ?? null);
+        if ($batchValidation instanceof JsonResponse) {
+            return $batchValidation;
+        }
+        $materialBatch = $batchValidation;
+
         // Typ validieren
         $type = $data['type'] ?? 'repair';
         if (!in_array($type, WorkshopTicket::ALL_TYPES)) {
@@ -223,6 +230,9 @@ class WorkshopController extends AbstractController
             $ticket->setId(IdGenerator::generate13('wt'));
             $ticket->setDepartment($department);
             $ticket->setMaterialItem($material);
+            if ($materialBatch instanceof MaterialBatch) {
+                $ticket->setMaterialBatch($materialBatch);
+            }
             $ticket->setTitle($data['title']);
             $ticket->setType($type);
             $ticket->setPriority($priority);
@@ -264,34 +274,44 @@ class WorkshopController extends AbstractController
                 $ticket->setEstimatedCost($data['estimated_cost']);
             }
 
+            $affectedQuantity = $this->resolveTicketAffectedQuantity($material, $materialBatch, $data['affected_quantity'] ?? null);
+            if ($affectedQuantity instanceof JsonResponse) {
+                return $affectedQuantity;
+            }
+            $ticket->setAffectedQuantity($affectedQuantity);
+
             // Ersteller
             $currentUser = $this->getUser();
             if ($currentUser instanceof User) {
                 $ticket->setCreatedByUser($currentUser);
             }
 
-            // Material-Zustand auf 'repair' setzen wenn type=repair und condition noch 'ok'
-            if ($type === 'repair' && $material->getCondition() === 'ok') {
-                $material->setCondition('repair');
-                $material->updateTimestamps();
-            }
+            $this->applyRepairStateOnTicketCreate($ticket, $material, $materialBatch, $type);
 
             $this->entityManager->persist($ticket);
 
             // ── History-Eintrag: created ──
+            $historyPayload = [
+                'title' => $ticket->getTitle(),
+                'type' => $ticket->getType(),
+                'priority' => $ticket->getPriority(),
+                'material_item_id' => $material->getId(),
+                'material_name' => $material->getName(),
+                'activity_id' => $ticket->getActivityId(),
+                'issue_report_id' => $ticket->getIssueReportId(),
+            ];
+            if ($materialBatch instanceof MaterialBatch) {
+                $historyPayload['material_batch_id'] = $materialBatch->getId();
+                $historyPayload['material_batch_serial'] = $materialBatch->getSerialNumber();
+            }
+            if ($ticket->getAffectedQuantity() !== null) {
+                $historyPayload['affected_quantity'] = $ticket->getAffectedQuantity();
+            }
             $this->createHistoryEntry(
                 $ticket,
                 WorkshopTicketHistory::ACTION_CREATED,
                 [],
-                [
-                    'title' => $ticket->getTitle(),
-                    'type' => $ticket->getType(),
-                    'priority' => $ticket->getPriority(),
-                    'material_item_id' => $material->getId(),
-                    'material_name' => $material->getName(),
-                    'activity_id' => $ticket->getActivityId(),
-                    'issue_report_id' => $ticket->getIssueReportId(),
-                ]
+                $historyPayload
             );
 
             $this->entityManager->flush();
@@ -566,17 +586,21 @@ class WorkshopController extends AbstractController
                 $material = $ticket->getMaterialItem();
 
                 if ($resolutionAction === 'repaired' || $resolutionAction === 'ok') {
-                    // Repariert → Material wieder OK
-                    $oldCondition = $material->getCondition();
-                    $material->setCondition('ok');
-                    $material->updateTimestamps();
-                    $historyChanges['material_condition'] = ['old' => $oldCondition, 'new' => 'ok'];
+                    $batchRepairHistory = $this->applyRepairedResolution($ticket, $material);
+                    if ($batchRepairHistory !== null) {
+                        $historyChanges = array_merge($historyChanges, $batchRepairHistory);
+                    } else {
+                        // Bulk: Material-Stamm wieder OK
+                        $oldCondition = $material->getCondition();
+                        $material->setCondition('ok');
+                        $material->updateTimestamps();
+                        $historyChanges['material_condition'] = ['old' => $oldCondition, 'new' => 'ok'];
 
-                    // MaterialHistory-Eintrag
-                    $this->createMaterialHistoryEntry($material, 'condition_changed', [
-                        'condition' => ['old' => $oldCondition, 'new' => 'ok'],
-                        'reason' => 'Workshop-Ticket #' . $ticket->getId() . ' abgeschlossen (repariert)',
-                    ]);
+                        $this->createMaterialHistoryEntry($material, 'condition_changed', [
+                            'condition' => ['old' => $oldCondition, 'new' => 'ok'],
+                            'reason' => 'Workshop-Ticket #' . $ticket->getId() . ' abgeschlossen (repariert)',
+                        ]);
+                    }
 
                 } elseif ($resolutionAction === 'writeoff') {
                     // Abschreibung → Writeoff-Batch erstellen (Bestand -1)
@@ -882,6 +906,117 @@ class WorkshopController extends AbstractController
     }
 
     /**
+     * @return MaterialBatch|null|JsonResponse null = kein Batch nötig; JsonResponse = Validierungsfehler
+     */
+    private function resolveTicketMaterialBatch(MaterialItem $material, mixed $batchId): MaterialBatch|null|JsonResponse
+    {
+        $isSerialized = $material->getTrackingType() === 'serialized';
+        $batchId = is_string($batchId) ? trim($batchId) : '';
+
+        if ($isSerialized && $batchId === '') {
+            return new JsonResponse(['error' => 'material_batch_id ist für serialisierte Artikel erforderlich'], 400);
+        }
+        if (!$isSerialized) {
+            if ($batchId !== '') {
+                return new JsonResponse(['error' => 'material_batch_id ist nur für serialisierte Artikel erlaubt'], 400);
+            }
+            return null;
+        }
+
+        $batch = $this->entityManager->getRepository(MaterialBatch::class)->find($batchId);
+        if (!$batch || $batch->getMaterialItemId() !== $material->getId()) {
+            return new JsonResponse(['error' => 'Seriennummer/Charge gehört nicht zum gewählten Material'], 400);
+        }
+        if ($batch->getStatus() !== 'active') {
+            return new JsonResponse(['error' => 'Die gewählte Seriennummer ist nicht aktiv'], 400);
+        }
+
+        return $batch;
+    }
+
+    private function applyRepairStateOnTicketCreate(
+        WorkshopTicket $ticket,
+        MaterialItem $material,
+        ?MaterialBatch $materialBatch,
+        string $type
+    ): void {
+        if ($type !== WorkshopTicket::TYPE_REPAIR) {
+            return;
+        }
+
+        if ($materialBatch instanceof MaterialBatch) {
+            $materialBatch->setStatus('defect');
+            return;
+        }
+
+        $affectedQty = max(1, $ticket->getAffectedQuantity() ?? 1);
+        $totalStock = $material->getTotalStock();
+        // Stamm nur markieren, wenn der gesamte Bestand betroffen ist
+        if ($totalStock > 0 && $affectedQty >= $totalStock && $material->getCondition() === 'ok') {
+            $material->setCondition('repair');
+            $material->updateTimestamps();
+        }
+    }
+
+    /** @return int|JsonResponse */
+    private function resolveTicketAffectedQuantity(
+        MaterialItem $material,
+        ?MaterialBatch $materialBatch,
+        mixed $rawQuantity
+    ): int|JsonResponse {
+        if ($materialBatch instanceof MaterialBatch) {
+            return 1;
+        }
+
+        $qty = $rawQuantity !== null && $rawQuantity !== '' ? (int) $rawQuantity : 1;
+        if ($qty < 1) {
+            return new JsonResponse(['error' => 'affected_quantity muss mindestens 1 sein'], 400);
+        }
+
+        $totalStock = $material->getTotalStock();
+        if ($totalStock > 0 && $qty > $totalStock) {
+            return new JsonResponse([
+                'error' => sprintf('affected_quantity darf den Bestand (%d) nicht überschreiten', $totalStock),
+            ], 400);
+        }
+
+        return $qty;
+    }
+
+    /** @return array<string, mixed>|null */
+    private function applyRepairedResolution(WorkshopTicket $ticket, MaterialItem $material): ?array
+    {
+        $batch = $ticket->getMaterialBatch();
+        if (!$batch instanceof MaterialBatch) {
+            return null;
+        }
+
+        $oldStatus = $batch->getStatus();
+        $batch->setStatus('active');
+
+        return [
+            'material_batch_id' => $batch->getId(),
+            'material_batch_status' => ['old' => $oldStatus, 'new' => 'active'],
+        ];
+    }
+
+    /** @return array<string, mixed>|null */
+    private function serializeTicketMaterialBatch(WorkshopTicket $ticket): ?array
+    {
+        $batch = $ticket->getMaterialBatch();
+        if (!$batch instanceof MaterialBatch) {
+            return null;
+        }
+
+        return [
+            'id' => $batch->getId(),
+            'serial_number' => $batch->getSerialNumber(),
+            'label' => $batch->getLabel(),
+            'status' => $batch->getStatus(),
+        ];
+    }
+
+    /**
      * Action-Label für die History-Anzeige
      */
     private function getActionLabel(string $action): string
@@ -937,6 +1072,8 @@ class WorkshopController extends AbstractController
                 'id' => $material->getId(),
                 'name' => $material->getName(),
                 'condition' => $material->getCondition(),
+                'tracking_type' => $material->getTrackingType(),
+                'total_stock' => $material->getTotalStock(),
                 'barcode_tag' => $material->getBarcodeTag(),
                 'sale_price' => $material->getSalePrice(),
                 'category' => $material->getCategory() ? [
@@ -944,6 +1081,9 @@ class WorkshopController extends AbstractController
                     'name' => $material->getCategory()->getName(),
                 ] : null,
             ],
+
+            'material_batch' => $this->serializeTicketMaterialBatch($ticket),
+            'affected_quantity' => $ticket->getAffectedQuantity(),
 
             // Zuweisung
             'assigned_to' => $assignedUser ? [
@@ -1123,8 +1263,12 @@ class WorkshopController extends AbstractController
             $ticket->setCreatedByUser($currentUser);
         }
 
-        // Material-Zustand: nur bei Verlust / Reparatur-Pfaden; not_taken & Verbrauch unverändert lassen
-        if ($materialItem->getCondition() === 'ok') {
+        $affectedQty = max(1, $issueReport->getQuantity());
+        $ticket->setAffectedQuantity($affectedQty);
+
+        // Material-Stamm nur bei voller Betroffenheit anpassen
+        $totalStock = $materialItem->getTotalStock();
+        if ($materialItem->getCondition() === 'ok' && $totalStock > 0 && $affectedQty >= $totalStock) {
             if ($issueReport->getType() === ActivityIssueReport::TYPE_LOSS) {
                 $materialItem->setCondition('lost');
                 $materialItem->updateTimestamps();
@@ -1155,6 +1299,7 @@ class WorkshopController extends AbstractController
             'material_id' => $materialItem->getId(),
             'material_name' => $materialItem->getName(),
             'reported_by_user_id' => $issueReport->getReportedByUserId(),
+            'affected_quantity' => $affectedQty,
         ]);
         if ($currentUser instanceof User) {
             $history->setUser($currentUser);

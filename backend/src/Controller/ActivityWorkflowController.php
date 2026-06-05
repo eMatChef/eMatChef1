@@ -662,6 +662,24 @@ class ActivityWorkflowController extends AbstractController
 
         $quantityRequested = max(1, (int) ($data['quantity'] ?? 1));
 
+        if (!empty($data['material_item_id'])
+            && in_array($type, [
+                ActivityIssueReport::TYPE_REPAIR,
+                ActivityIssueReport::TYPE_DAMAGE,
+                ActivityIssueReport::TYPE_LOSS,
+            ], true)
+        ) {
+            $issueQtyErr = $this->validateIssueQuantityWithinIssued(
+                $activityId,
+                (string) $data['material_item_id'],
+                $quantityRequested,
+                $type
+            );
+            if ($issueQtyErr !== null) {
+                return new JsonResponse(['error' => $issueQtyErr], 422);
+            }
+        }
+
         if ($type === ActivityIssueReport::TYPE_CONSUMPTION && !empty($data['material_item_id'])) {
             $consumptionErr = $this->validateConsumptionWithinBooked(
                 $activityId,
@@ -1235,6 +1253,55 @@ class ActivityWorkflowController extends AbstractController
      *
      * @return null|string Fehlertext oder null wenn ok
      */
+    /**
+     * Reparatur/Schaden/Verlust: Menge darf ausgegebene (bzw. verbleibende) Menge nicht überschreiten.
+     *
+     * @return null|string Fehlertext oder null wenn ok
+     */
+    private function validateIssueQuantityWithinIssued(
+        string $activityId,
+        string $materialItemId,
+        int $requestedQty,
+        string $type,
+    ): ?string {
+        $packItems = $this->entityManager->getRepository(ActivityPackItem::class)->findBy([
+            'activityId' => $activityId,
+            'materialItemId' => $materialItemId,
+        ]);
+        $issued = 0;
+        foreach ($packItems as $packItem) {
+            $issued += $packItem->getQuantityIssued();
+        }
+        if ($issued < 1) {
+            return 'Für dieses Material ist keine Menge ausgegeben.';
+        }
+
+        if (in_array($type, [ActivityIssueReport::TYPE_REPAIR, ActivityIssueReport::TYPE_DAMAGE], true)) {
+            $alreadyReported = (int) $this->entityManager->createQueryBuilder()
+                ->select('COALESCE(SUM(r.quantity), 0)')
+                ->from(ActivityIssueReport::class, 'r')
+                ->where('r.activityId = :aid')
+                ->andWhere('r.materialItemId = :mid')
+                ->andWhere('r.type IN (:types)')
+                ->setParameter('aid', $activityId)
+                ->setParameter('mid', $materialItemId)
+                ->setParameter('types', [ActivityIssueReport::TYPE_REPAIR, ActivityIssueReport::TYPE_DAMAGE])
+                ->getQuery()
+                ->getSingleScalarResult();
+            $remaining = max(0, $issued - $alreadyReported);
+            if ($requestedQty > $remaining) {
+                return sprintf(
+                    'Menge darf die noch meldbare Ausgabemenge (%d) nicht überschreiten',
+                    $remaining
+                );
+            }
+        } elseif ($requestedQty > $issued) {
+            return sprintf('Menge darf die ausgegebene Menge (%d) nicht überschreiten', $issued);
+        }
+
+        return null;
+    }
+
     private function validateConsumptionWithinBooked(
         string $activityId,
         string $materialItemId,
@@ -1403,6 +1470,7 @@ class ActivityWorkflowController extends AbstractController
             'material_item_id' => $item->getMaterialItemId(),
             'material_name' => $mi->getName(),
             'material_type' => $mi->getMaterialType(),
+            'tracking_type' => $mi->getTrackingType(),
             'linked_container_label' => $linkedContainerLabel,
             'linked_container_batch_id' => $linkCb?->getId(),
             'category_name' => $cat ? $cat->getName() : null,

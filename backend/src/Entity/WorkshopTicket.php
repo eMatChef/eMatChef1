@@ -96,6 +96,14 @@ class WorkshopTicket
     #[ORM\JoinColumn(name: 'material_item_id', referencedColumnName: 'id', nullable: false, onDelete: 'CASCADE')]
     private MaterialItem $materialItem;
 
+    /** Bei serialisierten Artikeln: konkrete Instanz (Charge/Seriennummer) */
+    #[ORM\Column(name: 'material_batch_id', type: 'string', length: 13, nullable: true, columnDefinition: 'CHARACTER(13) NULL')]
+    private ?string $materialBatchId = null;
+
+    #[ORM\ManyToOne(targetEntity: MaterialBatch::class)]
+    #[ORM\JoinColumn(name: 'material_batch_id', referencedColumnName: 'id', nullable: true, onDelete: 'SET NULL')]
+    private ?MaterialBatch $materialBatch = null;
+
     #[ORM\Column(name: 'activity_id', type: 'string', length: 12, nullable: true, columnDefinition: 'CHARACTER(12) NULL')]
     private ?string $activityId = null;
 
@@ -121,6 +129,10 @@ class WorkshopTicket
     /** Status: open, in_progress, waiting_parts, completed, cancelled */
     #[ORM\Column(type: 'string', length: 20, options: ['default' => 'open'])]
     private string $status = 'open';
+
+    /** Betroffene Menge (Bulk); bei Serialisiertem implizit 1 */
+    #[ORM\Column(name: 'affected_quantity', type: 'integer', nullable: true)]
+    private ?int $affectedQuantity = null;
 
     /** Titel */
     #[ORM\Column(type: 'string', length: 200)]
@@ -224,6 +236,17 @@ class WorkshopTicket
         return $this;
     }
 
+    public function getMaterialBatchId(): ?string { return $this->materialBatchId; }
+    public function setMaterialBatchId(?string $materialBatchId): self { $this->materialBatchId = $materialBatchId; return $this; }
+
+    public function getMaterialBatch(): ?MaterialBatch { return $this->materialBatch; }
+    public function setMaterialBatch(?MaterialBatch $materialBatch): self
+    {
+        $this->materialBatch = $materialBatch;
+        $this->materialBatchId = $materialBatch?->getId();
+        return $this;
+    }
+
     public function getActivityId(): ?string { return $this->activityId; }
     public function setActivityId(?string $activityId): self { $this->activityId = $activityId; return $this; }
 
@@ -245,6 +268,9 @@ class WorkshopTicket
         $this->issueReportId = $issueReport?->getId();
         return $this;
     }
+
+    public function getAffectedQuantity(): ?int { return $this->affectedQuantity; }
+    public function setAffectedQuantity(?int $affectedQuantity): self { $this->affectedQuantity = $affectedQuantity; return $this; }
 
     public function getType(): string { return $this->type; }
     public function setType(string $type): self { $this->type = $type; return $this; }

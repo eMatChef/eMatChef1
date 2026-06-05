@@ -96,6 +96,8 @@ export interface AvailableUser {
   first_name: string | null
   last_name: string | null
   nickname: string | null
+  primary_department_name?: string | null
+  departments_label?: string | null
 }
 
 /**

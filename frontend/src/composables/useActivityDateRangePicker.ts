@@ -15,6 +15,7 @@ export function useActivityDateRangePicker(options: {
   menuOpen: Ref<boolean>
   onCommit: (range: [Date, Date]) => void
   departmentClosedDateKeys?: MaybeRefOrGetter<ReadonlySet<string>>
+  blockClosedDates?: MaybeRefOrGetter<boolean>
 }) {
   const { t } = useI18n()
   const toast = useToast()
@@ -22,6 +23,7 @@ export function useActivityDateRangePicker(options: {
   let closeTimer: ReturnType<typeof setTimeout> | null = null
 
   function isRangeBlockedByDepartmentClosed(start: Date, end: Date): boolean {
+    if (toValue(options.blockClosedDates) === false) return false
     return rangeContainsDepartmentClosedDate(
       start,
       end,
@@ -50,11 +52,53 @@ export function useActivityDateRangePicker(options: {
 
   const rangeAnchorCount = computed(() => options.pickerRange.value?.length ?? 0)
 
+  const rangeAnchorDate = computed((): Date | null => {
+    const picked = options.pickerRange.value
+    return picked?.length === 1 ? startOfLocalDay(picked[0]) : null
+  })
+
   function clearCloseTimer() {
     if (closeTimer) {
       clearTimeout(closeTimer)
       closeTimer = null
     }
+  }
+
+  function sameCalendarDay(a: Date, b: Date): boolean {
+    return startOfLocalDay(a).getTime() === startOfLocalDay(b).getTime()
+  }
+
+  function scheduleCommit(committed: [Date, Date], immediate = false) {
+    options.pickerRange.value = [committed[0], committed[1]]
+    hoverDate.value = null
+    clearCloseTimer()
+    const delay = immediate ? 0 : ACTIVITY_RANGE_CLOSE_DELAY_MS
+    closeTimer = setTimeout(() => {
+      options.onCommit(committed)
+      options.menuOpen.value = false
+      closeTimer = null
+    }, delay)
+  }
+
+  /** Zweiter Klick auf denselben Tag → Eintags-Zeitraum (Von = Bis). */
+  function tryCommitSingleDayAnchor(anchor: Date): boolean {
+    const day = startOfLocalDay(anchor)
+    if (isRangeBlockedByDepartmentClosed(day, day)) {
+      options.pickerRange.value = [day]
+      hoverDate.value = null
+      toast.warning(t('activities.dateRangePicker.rangeBlockedByDepartmentBreak'))
+      return true
+    }
+    scheduleCommit([day, day], true)
+    return true
+  }
+
+  function onDayConfirmSameDay(date: Date) {
+    const picked = options.pickerRange.value
+    if (picked?.length !== 1) return
+    const anchor = startOfLocalDay(picked[0])
+    if (!sameCalendarDay(startOfLocalDay(date), anchor)) return
+    tryCommitSingleDayAnchor(anchor)
   }
 
   function onDayHover(date: Date) {
@@ -65,33 +109,39 @@ export function useActivityDateRangePicker(options: {
   }
 
   function onRangeUpdate(value: Date | Date[] | null) {
-    const prevLen = options.pickerRange.value?.length ?? 0
+    const prev = options.pickerRange.value
+    const prevLen = prev?.length ?? 0
+    const prevAnchor = prevLen >= 1 ? startOfLocalDay(prev![0]) : null
 
     if (!value || !Array.isArray(value)) {
+      if (prevAnchor && prevLen === 1 && tryCommitSingleDayAnchor(prevAnchor)) return
       options.pickerRange.value = null
       hoverDate.value = null
       return
     }
 
-    if (value.length >= 2) {
+    const days = value.map(startOfLocalDay)
+
+    if (days.length === 1 && prevAnchor && prevLen === 1 && sameCalendarDay(days[0], prevAnchor)) {
+      tryCommitSingleDayAnchor(prevAnchor)
+      return
+    }
+
+    if (days.length >= 2) {
       const committed = commitActivityDateRange(value)
       if (isRangeBlockedByDepartmentClosed(committed[0], committed[1])) {
-        options.pickerRange.value = [startOfLocalDay(value[0])]
+        options.pickerRange.value = [committed[0]]
         hoverDate.value = null
         toast.warning(t('activities.dateRangePicker.rangeBlockedByDepartmentBreak'))
         return
       }
+      const singleDay = sameCalendarDay(committed[0], committed[1])
+      if (prevLen === 1 || singleDay) {
+        scheduleCommit(committed)
+        return
+      }
       options.pickerRange.value = value
       hoverDate.value = null
-      // Menü erst schliessen, wenn der Zeitraum im laufenden Pick abgeschlossen wird (1 → 2).
-      if (prevLen === 1) {
-        clearCloseTimer()
-        closeTimer = setTimeout(() => {
-          options.onCommit(committed)
-          options.menuOpen.value = false
-          closeTimer = null
-        }, ACTIVITY_RANGE_CLOSE_DELAY_MS)
-      }
       return
     }
 
@@ -114,7 +164,9 @@ export function useActivityDateRangePicker(options: {
   return {
     displayRange,
     rangeAnchorCount,
+    rangeAnchorDate,
     onDayHover,
+    onDayConfirmSameDay,
     onRangeUpdate,
   }
 }

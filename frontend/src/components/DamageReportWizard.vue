@@ -71,9 +71,19 @@
                   <option value="loss">{{ t('components.damageReportWizard.issueTypeLoss') }}</option>
                 </select>
               </div>
-              <div class="form-group">
-                <label>{{ t('components.damageReportWizard.quantityLabel') }}</label>
-                <input v-model.number="form.quantity" type="number" min="1" class="form-input" />
+              <div v-if="!isSelectedPackItemSerialized" class="form-group">
+                <label>{{ t('components.damageReportWizard.quantityLabel') }} <span class="required">*</span></label>
+                <p class="field-hint">{{ t('components.damageReportWizard.quantityHint') }}</p>
+                <input
+                  v-model.number="form.quantity"
+                  type="number"
+                  min="1"
+                  :max="maxReportableQuantity || undefined"
+                  class="form-input"
+                />
+                <p v-if="maxReportableQuantity > 0" class="field-hint">
+                  {{ t('components.damageReportWizard.quantityOfIssued', { qty: form.quantity, max: maxReportableQuantity }) }}
+                </p>
               </div>
               <div class="form-group">
                 <label>{{ t('common.description') }}</label>
@@ -142,6 +152,17 @@
                   <option value="cleaning">{{ t('components.damageReportWizard.workshopTypeCleaning') }}</option>
                 </select>
               </div>
+              <div v-if="selectedMaterial && selectedMaterial.tracking_type !== 'serialized'" class="form-group">
+                <label>{{ t('components.damageReportWizard.quantityLabel') }} <span class="required">*</span></label>
+                <p class="field-hint">{{ t('components.damageReportWizard.quantityHintNoActivity') }}</p>
+                <input
+                  v-model.number="formNoActivity.affected_quantity"
+                  type="number"
+                  min="1"
+                  :max="selectedMaterial.total_stock || undefined"
+                  class="form-input"
+                />
+              </div>
               <div class="form-group">
                 <label>{{ t('common.description') }}</label>
                 <textarea v-model="formNoActivity.description" rows="3" class="form-input" :placeholder="t('components.damageReportWizard.descriptionNoActivityPlaceholder')"></textarea>
@@ -198,6 +219,7 @@ interface PackItem {
   material_name: string
   quantity_packed: number
   quantity_issued?: number
+  tracking_type?: string | null
   /** Aus API: Serien-/Kisten-Label am MaterialItem (linked batch) */
   linked_container_label?: string | null
 }
@@ -252,6 +274,7 @@ const formNoActivity = ref({
   matSearch: '',
   title: '',
   type: 'repair' as 'repair' | 'inspection' | 'writeoff' | 'cleaning',
+  affected_quantity: 1,
   description: ''
 })
 
@@ -276,12 +299,36 @@ const selectableActivities = computed(() => {
   })
 })
 
+const selectedPackItem = computed(() =>
+  packItems.value.find((pi) => pi.material_item_id === form.value.materialItemId) ?? null,
+)
+
+const isSelectedPackItemSerialized = computed(
+  () => selectedPackItem.value?.tracking_type === 'serialized',
+)
+
+const maxReportableQuantity = computed(() => {
+  const issued = selectedPackItem.value?.quantity_issued ?? 0
+  return issued > 0 ? issued : 0
+})
+
 const canSubmit = computed(() => {
-  return !!form.value.materialItemId && form.value.quantity >= 1
+  if (!form.value.materialItemId) return false
+  if (isSelectedPackItemSerialized.value) return true
+  const qty = Number(form.value.quantity)
+  if (!Number.isFinite(qty) || qty < 1) return false
+  if (maxReportableQuantity.value > 0 && qty > maxReportableQuantity.value) return false
+  return true
 })
 
 const canSubmitNoActivity = computed(() => {
-  return !!selectedMaterial.value && !!formNoActivity.value.title.trim()
+  if (!selectedMaterial.value || !formNoActivity.value.title.trim()) return false
+  if (selectedMaterial.value.tracking_type === 'serialized') return true
+  const qty = Number(formNoActivity.value.affected_quantity)
+  if (!Number.isFinite(qty) || qty < 1) return false
+  const stock = selectedMaterial.value.total_stock ?? 0
+  if (stock > 0 && qty > stock) return false
+  return true
 })
 
 function formatDateShort(iso?: string | null): string {
@@ -345,6 +392,7 @@ async function loadPackItems() {
       material_name: pi.material_name,
       quantity_packed: pi.quantity_packed,
       quantity_issued: pi.quantity_issued,
+      tracking_type: pi.tracking_type ?? null,
       linked_container_label:
         pi.linked_container_label != null && String(pi.linked_container_label).trim() !== ''
           ? String(pi.linked_container_label).trim()
@@ -372,7 +420,7 @@ function goBack() {
   if (mode.value === 'no_activity') {
     mode.value = 'with_activity'
     selectedMaterial.value = null
-    formNoActivity.value = { matSearch: '', title: '', type: 'repair', description: '' }
+    formNoActivity.value = { matSearch: '', title: '', type: 'repair', affected_quantity: 1, description: '' }
   }
   step.value = 1
 }
@@ -397,6 +445,7 @@ function onMatSearchInput() {
 function selectMaterial(m: Material) {
   selectedMaterial.value = m
   formNoActivity.value.matSearch = ''
+  formNoActivity.value.affected_quantity = 1
   matSearchResults.value = []
 }
 
@@ -421,6 +470,10 @@ async function submitNoActivity() {
       material_item_id: selectedMaterial.value.id,
       title: formNoActivity.value.title.trim(),
       type: formNoActivity.value.type,
+      affected_quantity:
+        selectedMaterial.value.tracking_type === 'serialized'
+          ? undefined
+          : formNoActivity.value.affected_quantity,
       description: formNoActivity.value.description || undefined
     })
     emit('success')
@@ -439,7 +492,7 @@ async function submit() {
     const issue = await createActivityIssue(selectedActivity.value.id, {
       material_item_id: form.value.materialItemId,
       type: form.value.type,
-      quantity: form.value.quantity,
+      quantity: isSelectedPackItemSerialized.value ? 1 : form.value.quantity,
       description: form.value.description || null,
     })
     for (const file of selectedPhotos.value) {
@@ -471,7 +524,7 @@ function reset() {
   containerLabelByMaterialItemId.value = {}
   matSearchResults.value = []
   form.value = { materialItemId: '', type: 'damage' as const, quantity: 1, description: '' }
-  formNoActivity.value = { matSearch: '', title: '', type: 'repair', description: '' }
+  formNoActivity.value = { matSearch: '', title: '', type: 'repair', affected_quantity: 1, description: '' }
   selectedPhotos.value = []
 }
 
@@ -515,9 +568,28 @@ function applyMaterialAndTypePresets() {
     form.value.type = presetType
   }
   if (Number.isFinite(presetQty) && (presetQty ?? 0) > 0) {
-    form.value.quantity = Math.floor(presetQty!)
+    const qty = Math.floor(presetQty!)
+    form.value.quantity = maxReportableQuantity.value > 0
+      ? Math.min(qty, maxReportableQuantity.value)
+      : qty
   }
 }
+
+watch(
+  () => form.value.materialItemId,
+  () => {
+    if (isSelectedPackItemSerialized.value) {
+      form.value.quantity = 1
+      return
+    }
+    const max = maxReportableQuantity.value
+    if (max > 0 && form.value.quantity > max) {
+      form.value.quantity = max
+    } else if (form.value.quantity < 1) {
+      form.value.quantity = 1
+    }
+  },
+)
 
 watch(
   () => props.isOpen,

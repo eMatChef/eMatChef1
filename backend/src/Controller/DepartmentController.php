@@ -824,8 +824,25 @@ class DepartmentController extends AbstractController
 
         $search = trim((string) $request->query->get('q', ''));
         if ($search !== '') {
-            $qb->andWhere('LOWER(p.email) LIKE :q OR LOWER(p.firstName) LIKE :q OR LOWER(p.lastName) LIKE :q OR LOWER(p.nickname) LIKE :q')
-                ->setParameter('q', '%' . mb_strtolower($search) . '%');
+            $tokens = preg_split('/\s+/u', mb_strtolower($search), -1, PREG_SPLIT_NO_EMPTY) ?: [];
+            foreach ($tokens as $index => $token) {
+                $param = 'searchToken' . $index;
+                $qb->andWhere(
+                    $qb->expr()->orX(
+                        "LOWER(p.email) LIKE :{$param}",
+                        "LOWER(p.firstName) LIKE :{$param}",
+                        "LOWER(p.lastName) LIKE :{$param}",
+                        "LOWER(p.nickname) LIKE :{$param}",
+                        "LOWER(CONCAT(COALESCE(p.firstName, ''), ' ', COALESCE(p.lastName, ''))) LIKE :{$param}",
+                        "LOWER(CONCAT(COALESCE(p.lastName, ''), ' ', COALESCE(p.firstName, ''))) LIKE :{$param}",
+                        "EXISTS (
+                            SELECT 1 FROM App\Entity\Membership ms
+                            INNER JOIN ms.department ds
+                            WHERE ms.userId = u.id AND LOWER(ds.name) LIKE :{$param}
+                        )"
+                    )
+                )->setParameter($param, '%' . $token . '%');
+            }
         }
 
         $users = $qb->orderBy('p.lastName', 'ASC')
@@ -834,22 +851,67 @@ class DepartmentController extends AbstractController
             ->getQuery()
             ->getResult();
 
+        $userIds = [];
+        foreach ($users as $user) {
+            if (!$user->hasSuperAdminProfile()) {
+                $userIds[] = $user->getId();
+            }
+        }
+
+        $membershipsByUser = [];
+        if ($userIds !== []) {
+            $memberships = $this->entityManager->getRepository(Membership::class)
+                ->createQueryBuilder('m')
+                ->innerJoin('m.department', 'd')
+                ->addSelect('d')
+                ->where('m.userId IN (:userIds)')
+                ->setParameter('userIds', $userIds)
+                ->orderBy('d.name', 'ASC')
+                ->getQuery()
+                ->getResult();
+
+            foreach ($memberships as $membership) {
+                if (!$membership instanceof Membership) {
+                    continue;
+                }
+                $uid = $membership->getUserId();
+                $membershipsByUser[$uid][] = $membership;
+            }
+        }
+
         $result = [];
         foreach ($users as $user) {
             if ($user->hasSuperAdminProfile()) {
                 continue;
             }
             $profile = $user->getProfile();
-            if ($profile) {
-                $result[] = [
-                    'id' => $user->getId(),
-                    'name' => $profile->getDisplayName(),
-                    'email' => $profile->getEmail(),
-                    'first_name' => $profile->getFirstName(),
-                    'last_name' => $profile->getLastName(),
-                    'nickname' => $profile->getNickname(),
-                ];
+            if (!$profile) {
+                continue;
             }
+
+            $deptNames = [];
+            $primaryDepartmentName = null;
+            foreach ($membershipsByUser[$user->getId()] ?? [] as $membership) {
+                $deptName = $membership->getDepartment()->getName();
+                $deptNames[] = $deptName;
+                if ($membership->getIsPrimary()) {
+                    $primaryDepartmentName = $deptName;
+                }
+            }
+            if ($primaryDepartmentName === null && $deptNames !== []) {
+                $primaryDepartmentName = $deptNames[0];
+            }
+
+            $result[] = [
+                'id' => $user->getId(),
+                'name' => $profile->getDisplayName(),
+                'email' => $profile->getEmail(),
+                'first_name' => $profile->getFirstName(),
+                'last_name' => $profile->getLastName(),
+                'nickname' => $profile->getNickname(),
+                'primary_department_name' => $primaryDepartmentName,
+                'departments_label' => $deptNames !== [] ? implode(', ', $deptNames) : null,
+            ];
         }
 
         return new JsonResponse($result);
